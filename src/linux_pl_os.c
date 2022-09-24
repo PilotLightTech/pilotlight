@@ -1,5 +1,5 @@
 /*
-   pl_os_win32.c
+   linux_pl_os.c
 */
 
 /*
@@ -64,6 +64,5 @@ pl_read_file(const char* file, unsigned* sizeIn, char* buffer, const char* mode)
 int
 pl_sleep(uint32_t millisec)
 {
-    Sleep((long)millisec);
     return 0;
 }

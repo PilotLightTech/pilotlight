@@ -2,16 +2,17 @@
 @rem |                            Setup                                       |
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@setlocal rem without this, PATH will not reset when called within same session
+@rem without this, PATH will not reset when called within same session
+@setlocal 
 
-rem make current directory the same as batch file
+@rem make current directory the same as batch file
 @pushd %~dp0 
 @set dir=%~dp0
 
-rem create output directory
+@rem create output directory
 @if not exist ..\out @mkdir ..\out
 
-rem cleanup temp files
+@rem cleanup temp files
 @del ..\out\*.pdb > NUL 2> NUL
 @del ..\out\*.log > NUL 2> NUL
 
@@ -22,57 +23,57 @@ rem cleanup temp files
 @set PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build;%PATH%
 @set PATH=%dir%..\out;%PATH%
 
-rem setup environment for msvc
+@rem setup environment for msvc
 @call vcvarsall.bat amd64
 
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @rem |                          Common Settings                               |
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-rem build config: Debug or Release
+@rem build config: Debug or Release
 @set PL_CONFIG=Debug
 
-rem include directories
+@rem include directories
 @set PL_INCLUDE_DIRECTORIES=-I"%WindowsSdkDir%Include\um" 
 @set PL_INCLUDE_DIRECTORIES=-I"%WindowsSdkDir%Include\shared" %PL_INCLUDE_DIRECTORIES%
 @set PL_INCLUDE_DIRECTORIES=-I%VULKAN_SDK%/Include            %PL_INCLUDE_DIRECTORIES%
 @set PL_INCLUDE_DIRECTORIES=-I..\dependencies\stb             %PL_INCLUDE_DIRECTORIES%
 
-rem link directories
+@rem link directories
 @set PL_LINK_DIRECTORIES=-LIBPATH:"%VULKAN_SDK%\Lib" -LIBPATH:"..\out"
 
-rem common defines
+@rem common defines
 @set PL_DEFINES=-D_USE_MATH_DEFINES
 
-rem common compiler flags
+@rem common compiler flags
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -EHsc -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105
 
-rem common libraries
+@rem common libraries
 @set PL_LINK_LIBRARIES=user32.lib ws2_32.lib shlwapi.lib propsys.lib comctl32.lib Shell32.lib Ole32.lib vulkan-1.lib pl.lib
 
-rem release specific
+@rem release specific
 @if "%PL_CONFIG%" EQU "Release" (
 
-    rem release specific defines
+    @rem release specific defines
     @set PL_DEFINES=%PL_DEFINES%
 
-    rem release specific compiler flags
+    @rem release specific compiler flags
     @set PL_COMPILER_FLAGS=-O2 -MD %PL_COMPILER_FLAGS%
 
-    rem release specific libs
+    @rem release specific libs
     @set PL_LINK_LIBRARIES=ucrt.lib %PL_LINK_LIBRARIES%
 )
 
-rem debug specific
+@rem debug specific
 @if "%PL_CONFIG%" EQU "Debug" (
 
-    rem debug specific defines
+    @rem debug specific defines
     @set PL_DEFINES=-DPL_PROFILING_ON -D_DEBUG -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS %PL_DEFINES%
    
-    rem debug specific compiler flags
+    @rem debug specific compiler flags
     @set PL_COMPILER_FLAGS=-Od -MDd -Zi %PL_COMPILER_FLAGS%
     
-    rem debug specific libs
+    @rem debug specific libs
     @set PL_LINK_LIBRARIES=ucrtd.lib %PL_LINK_LIBRARIES%
 )
 
@@ -84,10 +85,10 @@ rem debug specific
 
 @set PL_SOURCES=pl.c
 
-rem run compiler
+@rem run compiler
 cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% -c -permissive- %PL_SOURCES% -Fe..\out\pl.lib -Fo..\out\
 
-rem check build status
+@rem check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
 @if %PL_BUILD_STATUS% NEQ 0 (
     echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
@@ -96,24 +97,24 @@ rem check build status
 )
 @echo [1m[36mCompiled successfully. Now linking...[0m
 
-rem link object files into a shared lib
+@rem link object files into a shared lib
 lib -nologo -OUT:..\out\pl.lib ..\out\*.obj
 
 :Cleanup2
     @echo [1m[36mCleaning up intermediate files...[0m
-    del ..\out\*.obj
+    @del ..\out\*.obj
 
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @rem |                          Executable                                    |
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 :MainBuild
 
-@set PL_SOURCES=main.c
+@set PL_SOURCES=win32_pl.c
 
-rem run compiler
+@rem run compiler
 @cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% -permissive- %PL_SOURCES% -Fe..\out\pilot_light.exe -Fo..\out\ -link -incremental:no %PL_LINKER_FLAGS% %PL_LINK_DIRECTORIES% %PL_LINK_LIBRARIES%
 
-rem check build status
+@rem check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
 @if %PL_BUILD_STATUS% NEQ 0 (
     echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
@@ -123,7 +124,7 @@ rem check build status
 
 :Cleanup1
     @echo [1m[36mCleaning up intermediate files...[0m
-    del ..\out\*.obj
+    @del ..\out\*.obj
 
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @rem |                          Shaders                                       |
@@ -146,7 +147,7 @@ rem check build status
 
 @popd
 
-rem keep terminal open if clicked from explorer
+@rem keep terminal open if clicked from explorer
 @echo off
 for %%x in (%cmdcmdline%) do if /i "%%~x"=="/c" set DOUBLECLICKED=1
 if defined DOUBLECLICKED pause

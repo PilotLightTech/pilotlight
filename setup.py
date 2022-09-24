@@ -55,3 +55,97 @@ if(platform.system() == "Windows"):
     "version": 4
 }
 """)
+
+elif(platform.system() == "Darwin"):
+
+    with open('.vscode/launch.json', 'w') as file:
+        file.write(
+"""{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(lldb) Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/out/pilot_light",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/out/",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        }
+    ]
+}
+""")
+
+    with open('.vscode/c_cpp_properties.json', 'w') as file:
+        file.write(
+"""{
+    "configurations": [
+        {
+            "name": "Apple",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/dependencies/stb",
+            ],
+            "defines": [
+                "_DEBUG"
+            ],
+            "cStandard": "c99",
+            "intelliSenseMode": "macos-clang-arm64"
+        }
+    ],
+    "version": 4
+}
+""")
+
+elif(platform.system() == "Linux"):
+
+    with open('.vscode/launch.json', 'w') as file:
+        file.write(
+"""{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(lldb) Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/out/pilot_light",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/out/",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        }
+    ]
+}
+""")
+
+    with open('.vscode/c_cpp_properties.json', 'w') as file:
+        file.write(
+"""{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/dependencies/stb",
+            ],
+            "defines": [
+                "_DEBUG"
+            ],
+            "cStandard": "c99",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}
+""")

@@ -1,10 +1,11 @@
 
 #ifdef _WIN32
-    #include "pl_io_win32.c"
-    #include "pl_os_win32.c"
-#elif // linux
-    #include "pl_io_linux.c"
-    #include "pl_os_linux.c"
+    #include "win32_pl_os.c"
+    #include "vulkan_pl_graphics.c"
+#elif defined(__APPLE__)
+    #include "apple_pl_os.m"
+#else // linux
+    #include "linux_pl_os.c"
+    #include "vulkan_pl_graphics.c"
 #endif
 
-#include "pl_graphics_vulkan.c"
