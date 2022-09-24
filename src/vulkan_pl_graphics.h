@@ -1,5 +1,5 @@
 /*
-   pl_graphics_vulkan.h
+   vulkan_pl_graphics.h
 */
 
 /*
@@ -40,9 +40,6 @@ PL_DECLARE_STRUCT(plVulkanDevice);       // device resources & info
 PL_DECLARE_STRUCT(plVulkanGraphics);     // graphics context
 PL_DECLARE_STRUCT(plVulkanFrameContext); // per frame resource
 
-// external
-PL_DECLARE_STRUCT(plWindow);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
@@ -50,7 +47,6 @@ PL_DECLARE_STRUCT(plWindow);
 // setup
 void                  pl_create_instance       (plVulkanGraphics* graphics, uint32_t version, bool enableValidation);
 void                  pl_create_instance_ex    (plVulkanGraphics* graphics, uint32_t version, uint32_t layerCount, const char** enabledLayers, uint32_t extensioncount, const char** enabledExtensions);
-void                  pl_create_surface        (VkInstance instance, plWindow* window, VkSurfaceKHR* surface);
 void                  pl_create_frame_resources(plVulkanGraphics* graphics, plVulkanDevice* device);
 void                  pl_create_device         (VkInstance instance, VkSurfaceKHR surface, plVulkanDevice* deviceOut, bool enableValidation);
 

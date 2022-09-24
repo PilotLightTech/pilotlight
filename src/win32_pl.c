@@ -1,65 +1,49 @@
 /*
-   pl_io_win32.c
-     * platform windowing & mouse/keyboard input
+   win32_pl.c
 */
 
 /*
 Index of this file:
 // [SECTION] includes
 // [SECTION] forward declarations
-// [SECTION] internal functions
-// [SECTION] implementations
+// [SECTION] globals
+// [SECTION] entry point
+// [SECTION] windows procedure
+// [SECTION] misc
 */
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_io.h"
-#include "pl_app.h"
-#include <string.h>
+#include "pl_os.h"
+#include "pl_ds.h"
+#include "vulkan_pl_graphics.h"
+#include "vulkan_app.c"
 #include <wchar.h> // mbsrtowcs, wcsrtombs
-
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#include <windowsx.h> // GET_X_LPARAM(), GET_Y_LPARAM()
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
+struct HWND__; 
+typedef struct HWND__ *HWND;
+
 static LRESULT CALLBACK pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
+static void             pl__convert_to_wide_string(const char* narrowValue, wchar_t* wideValue);
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal functions
+// [SECTION] globals
 //-----------------------------------------------------------------------------
 
-static void
-pl__convert_to_wide_string(const char* narrowValue, wchar_t* wideValue)
+HWND gHandle = NULL;
+
+//-----------------------------------------------------------------------------
+// [SECTION] entry point
+//-----------------------------------------------------------------------------
+
+int main()
 {
-    mbstate_t state;
-    memset(&state, 0, sizeof(state));
-    size_t len = 1 + mbsrtowcs(NULL, &narrowValue, 0, &state);
-    mbsrtowcs(wideValue, &narrowValue, len, &state);
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] implementations
-//-----------------------------------------------------------------------------
-
-void
-pl_create_window(const char* title, int clientWidth, int clientHeight, plWindow* windowOut, void* userData)
-{
-    windowOut->width = clientWidth;
-    windowOut->height = clientHeight;
-    windowOut->clientWidth = clientWidth;
-    windowOut->clientHeight = clientHeight;
-    windowOut->needsResize = false;
-    windowOut->running = true;
-    windowOut->userData = userData;
-    strncpy(windowOut->title, title, PL_MAX_NAME_LENGTH);
 
     // register window class
     WNDCLASSEXW wc = {
@@ -73,7 +57,7 @@ pl_create_window(const char* title, int clientWidth, int clientHeight, plWindow*
         .hCursor = LoadCursor(NULL, IDC_ARROW),
         .hbrBackground = NULL,
         .lpszMenuName = NULL,
-        .lpszClassName = L"Pilot Light Window",
+        .lpszClassName = L"Pilot Light (win32)",
         .hIconSm = NULL
     };
     RegisterClassExW(&wc);
@@ -82,19 +66,19 @@ pl_create_window(const char* title, int clientWidth, int clientHeight, plWindow*
     RECT wr = 
     {
         .left = 0,
-        .right = clientWidth + wr.left,
+        .right = gClientWidth + wr.left,
         .top = 0,
-        .bottom = clientHeight + wr.top
+        .bottom = gClientHeight + wr.top
     };
     AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
-    windowOut->width = wr.right - wr.left;
-    windowOut->height = wr.bottom - wr.top;
+    gActualWidth = wr.right - wr.left;
+    gActualHeight = wr.bottom - wr.top;
 
     wchar_t wideTitle[PL_MAX_NAME_LENGTH];
-    pl__convert_to_wide_string(title, wideTitle);
+    pl__convert_to_wide_string("Pilot Light (win32)", wideTitle);
 
     // create window & get handle
-    windowOut->handle = CreateWindowExW(
+    gHandle = CreateWindowExW(
         0,
         wc.lpszClassName,
         wideTitle,
@@ -103,57 +87,76 @@ pl_create_window(const char* title, int clientWidth, int clientHeight, plWindow*
         NULL,
         NULL,
         GetModuleHandle(NULL),
-        windowOut // user data
+        NULL // user data
     );
-}
 
-void
-pl_cleanup_window(plWindow* window)
-{
-    WNDCLASSA wc = {0};
-    GetClassInfoA(GetModuleHandle(NULL), "Pilot Light Window", &wc);
-    UnregisterClassA(wc.lpszClassName, GetModuleHandle(NULL));
-    DestroyWindow(window->handle);
-    window->handle = NULL;
-    window->userData = NULL;
-}
+    // create vulkan instance
+    pl_create_instance(&gGraphics, VK_API_VERSION_1_1, true);
+    
+    // create surface
+    VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+        .pNext = NULL,
+        .flags = 0,
+        .hinstance = GetModuleHandle(NULL),
+        .hwnd = gHandle
+    };
+    PL_VULKAN(vkCreateWin32SurfaceKHR(gGraphics.instance, &surfaceCreateInfo, NULL, &gGraphics.surface));
 
-void
-pl_process_window_events(plWindow* window)
-{
-    // while queue has messages, remove and dispatch them (but do not block on empty queue)
-    MSG msg = {0};
-    while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+    // create devices
+    pl_create_device(gGraphics.instance, gGraphics.surface, &gDevice, true);
+    
+    // create swapchain
+    pl_create_swapchain(&gDevice, gGraphics.surface, gClientWidth, gClientHeight, &gSwapchain);
+
+    // app specific setup
+    pl_app_setup();
+
+    // show window
+    ShowWindow(gHandle, SW_SHOWDEFAULT);
+
+    // main loop
+    while (gRunning)
     {
-        // check for quit because peekmessage does not signal this via return val
-        if (msg.message == WM_QUIT)
+
+        // while queue has messages, remove and dispatch them (but do not block on empty queue)
+        MSG msg = {0};
+        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
         {
-            window->running = false;
-            return;
+            // check for quit because peekmessage does not signal this via return val
+            if (msg.message == WM_QUIT)
+            {
+                gRunning = false;
+                break;
+            }
+            // TranslateMessage will post auxilliary WM_CHAR messages from key msgs
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
         }
-        // TranslateMessage will post auxilliary WM_CHAR messages from key msgs
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+
+        // render a frame
+        pl_app_render();
     }
+
+    // app cleanup
+    pl_app_shutdown();
+
+    // cleanup graphics context
+    pl_cleanup_graphics(&gGraphics, &gDevice);
+
+    // cleanup win32 stuff
+    UnregisterClassW(wc.lpszClassName, GetModuleHandle(NULL));
+    DestroyWindow(gHandle);
+    gHandle = NULL;
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] windows procedure
+//-----------------------------------------------------------------------------
 
 static LRESULT CALLBACK 
 pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-    // retrieve window back from win32 system
-    plWindow* window = NULL;
-    if (msg == WM_CREATE)
-    {
-        CREATESTRUCT* pCreate = (CREATESTRUCT*)(lparam);
-        window = (plWindow*)(pCreate->lpCreateParams);
-        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)window);
-    }
-    else
-    {
-        LONG_PTR ptr = GetWindowLongPtr(hwnd, GWLP_USERDATA);
-        window = (plWindow*)(ptr);
-    }
-
     LRESULT result = 0;
     switch (msg)
     {
@@ -171,8 +174,8 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
                     awidth = rect.right - rect.left;
                     aheight = rect.bottom - rect.top;
                 }
-                window->width = awidth;
-                window->height = aheight;
+                gActualWidth = awidth;
+                gActualHeight = aheight;
 
                 // client window size
                 RECT crect;
@@ -183,11 +186,11 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
                     cwidth = crect.right - crect.left;
                     cheight = crect.bottom - crect.top;
                 }
-                window->clientWidth = cwidth;
-                window->clientHeight = cheight;
+                gClientWidth = cwidth;
+                gClientHeight = cheight;
 
                 // give app change to handle resize
-                pl_app_resize((plApp*)window->userData);
+                pl_app_resize();
 
                 // send paint message
                 InvalidateRect(hwnd, NULL, TRUE);
@@ -196,12 +199,12 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         }
         case WM_MOVE:
         {
-            pl_app_render((plApp*)window->userData);
+            pl_app_render();
             break;
         }
         case WM_PAINT:
         {
-            pl_app_render((plApp*)window->userData);
+            pl_app_render();
 
             // must be called for the OS to do its thing
             PAINTSTRUCT Paint;
@@ -218,4 +221,17 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
             result = DefWindowProcW(hwnd, msg, wparam, lparam);
     }
     return result;
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] misc
+//-----------------------------------------------------------------------------
+
+static void
+pl__convert_to_wide_string(const char* narrowValue, wchar_t* wideValue)
+{
+    mbstate_t state;
+    memset(&state, 0, sizeof(state));
+    size_t len = 1 + mbsrtowcs(NULL, &narrowValue, 0, &state);
+    mbsrtowcs(wideValue, &narrowValue, len, &state);
 }

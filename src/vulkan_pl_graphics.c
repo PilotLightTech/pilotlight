@@ -1,5 +1,5 @@
 /*
-   pl_graphics_vulkan.c
+   vulkan_pl_graphics.c
 */
 
 /*
@@ -15,9 +15,8 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_graphics_vulkan.h"
+#include "vulkan_pl_graphics.h"
 #include "pl_ds.h"
-#include "pl_io.h"
 #include <stdio.h>
 
 //-----------------------------------------------------------------------------
@@ -300,9 +299,7 @@ pl_create_device(VkInstance instance, VkSurfaceKHR surface, plVulkanDevice* devi
     //-----------------------------------------------------------------------------
 
     VkPhysicalDeviceFeatures deviceFeatures = {0};
-    deviceFeatures.samplerAnisotropy = VK_TRUE;
     VkDeviceQueueCreateInfo ptrQueueCreateInfos[2] = {0};
-
     float fQueuePriority = 1.0f;
     for(int i = 0; i < 2; i++)
     {
