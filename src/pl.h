@@ -8,6 +8,7 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] settings
 // [SECTION] helper macros
+// [SECTION] misc
 */
 
 #ifndef PL_H
@@ -36,6 +37,18 @@ Index of this file:
 #ifndef PL_ASSERT
 #include <assert.h>
 #define PL_ASSERT(x) assert(x)
+#endif
+
+//-----------------------------------------------------------------------------
+// [SECTION] misc
+//-----------------------------------------------------------------------------
+
+#ifdef _WIN32
+#define PL_VULKAN_BACKEND
+#elif defined(__APPLE__)
+#define PL_METAL_BACKEND
+#else // linux
+#define PL_VULKAN_BACKEND
 #endif
 
 #endif // PL_H

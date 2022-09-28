@@ -8,8 +8,8 @@ Index of this file:
 // [SECTION] globals
 */
 
-#ifndef WIN32_PL_H
-#define WIN32_PL_H
+#ifndef VULKAN_PL_H
+#define VULKAN_PL_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -30,4 +30,4 @@ int               gActualHeight = 0;
 int               gClientWidth  = 500;
 int               gClientHeight = 500;
 
-#endif // WIN32_PL_H
+#endif // VULKAN_PL_H
