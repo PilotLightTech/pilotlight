@@ -37,7 +37,7 @@ Index of this file:
 #define pl__sb_may_grow(buf, s, n, m) pl__sb_may_grow_((void**)&(buf), s, n, m)
 #define pl_sb_push(buf, v) (pl__sb_may_grow((buf), sizeof(*(buf)), 1, 8), (buf)[pl__sb_header((buf))->uSize++] = (v))
 #define pl_sb_reserve(buf, n) (pl__sb_may_grow((buf), sizeof(*(buf)), n, n))
-#define pl_sb_resize(buf, n) (pl__sb_may_grow((buf), sizeof(*(buf)), n, n), memset((buf), 0, sizeof(*(buf)) * n))
+#define pl_sb_resize(buf, n) (pl__sb_may_grow((buf), sizeof(*(buf)), n, n), memset((buf), 0, sizeof(*(buf)) * n), pl__sb_header((buf))->uSize = (n))
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal

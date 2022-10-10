@@ -19,7 +19,7 @@ Index of this file:
 
 #include "metal_pl.h"
 #include "metal_pl_graphics.h"
-#include <simd/simd.h>
+#include "metal_pl_drawing.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -27,24 +27,13 @@ Index of this file:
 
 typedef struct
 {
-    vector_float2 position; // Positions in pixel space (i.e. a value of 100 indicates 100 pixels from the origin/center) 
-    vector_float3 color; // 2D texture coordinate
-} plVertex;
-
-typedef struct
-{
-    float scale;
-    vector_uint2 viewportSize;
-} AAPLUniforms;
-
-typedef struct
-{
-    id<MTLRenderPipelineState>  pipelineState;
-    id<MTLBuffer>               vertices;
+    uint32_t                    viewportSize[2]; // required by apple_pl.m
     id<MTLTexture>              depthTarget;
     MTLRenderPassDescriptor*    drawableRenderDescriptor;
-    vector_uint2                viewportSize;
-
+    plDrawContext               ctx;
+    plDrawList*                 drawlist;
+    plDrawLayer*                fgDrawLayer;
+    plDrawLayer*                bgDrawLayer;
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -52,18 +41,6 @@ typedef struct
 //-----------------------------------------------------------------------------
 
 static plAppData gAppData = {0};
-
-static const plVertex quadVertices[] =
-{
-    // Pixel positions, Color coordinates
-    { {  250,  -250 },  { 1.f, 0.f, 0.f } },
-    { { -250,  -250 },  { 0.f, 1.f, 0.f } },
-    { { -250,   250 },  { 0.f, 0.f, 1.f } },
-
-    { {  250,  -250 },  { 1.f, 0.f, 0.f } },
-    { { -250,   250 },  { 0.f, 0.f, 1.f } },
-    { {  250,   250 },  { 1.f, 0.f, 1.f } },
-};
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_setup
@@ -88,51 +65,14 @@ pl_app_setup()
     gAppData.drawableRenderDescriptor.depthAttachment.storeAction = MTLStoreActionDontCare;
     gAppData.drawableRenderDescriptor.depthAttachment.clearDepth = 1.0;
 
-    // shaders
-    NSURL *URL = [NSURL URLWithString:@"pl.metallib"];
-    NSError* error0 = nil;
-    id<MTLLibrary> shaderLib = [gDevice.device newLibraryWithURL:URL error:&error0];
-    if(!shaderLib)
-    {
-        NSLog(@" ERROR: Couldnt create a default shader library");
-        // assert here because if the shader libary isn't loading, nothing good will happen
-        return;
-    }
+    // create draw context
+    pl_setup_draw_context_metal(&gAppData.ctx, gDevice.device);
 
-    id <MTLFunction> vertexProgram = [shaderLib newFunctionWithName:@"vertexShader"];
-    if(!vertexProgram)
-    {
-        NSLog(@">> ERROR: Couldn't load vertex function from default library");
-        return;
-    }
-
-    id <MTLFunction> fragmentProgram = [shaderLib newFunctionWithName:@"fragmentShader"];
-    if(!fragmentProgram)
-    {
-        NSLog(@" ERROR: Couldn't load fragment function from default library");
-        return;
-    }
-
-    // Create a vertex buffer, and initialize it with the vertex data.
-    gAppData.vertices = [gDevice.device newBufferWithBytes:quadVertices length:sizeof(quadVertices) options:MTLResourceStorageModeShared];
-    gAppData.vertices.label = @"Quad";
-
-    // Create a pipeline state descriptor to create a compiled pipeline state object
-    MTLRenderPipelineDescriptor *pipelineDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
-    pipelineDescriptor.label                           = @"pl pipeline";
-    pipelineDescriptor.vertexFunction                  = vertexProgram;
-    pipelineDescriptor.fragmentFunction                = fragmentProgram;
-    pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
-    pipelineDescriptor.depthAttachmentPixelFormat      = MTLPixelFormatDepth32Float;
-
-    // create pipeline
-    NSError *error;
-    gAppData.pipelineState = [gDevice.device newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
-    if(!gAppData.pipelineState)
-    {
-        NSLog(@"ERROR: Failed aquiring pipeline state: %@", error);
-        return;
-    }
+    // create draw list & layers
+    gAppData.drawlist = malloc(sizeof(plDrawList));
+    pl_create_drawlist(&gAppData.ctx, gAppData.drawlist);
+    gAppData.bgDrawLayer = pl_request_draw_layer(gAppData.drawlist, "Background Layer");
+    gAppData.fgDrawLayer = pl_request_draw_layer(gAppData.drawlist, "Foreground Layer");
 }
 
 //-----------------------------------------------------------------------------
@@ -154,8 +94,8 @@ pl_app_resize()
 {    
     // recreate depth texture
     MTLTextureDescriptor *depthTargetDescriptor = [MTLTextureDescriptor new];
-    depthTargetDescriptor.width       = gAppData.viewportSize.x;
-    depthTargetDescriptor.height      = gAppData.viewportSize.y;
+    depthTargetDescriptor.width       = gAppData.viewportSize[0];
+    depthTargetDescriptor.height      = gAppData.viewportSize[1];
     depthTargetDescriptor.pixelFormat = MTLPixelFormatDepth32Float;
     depthTargetDescriptor.storageMode = MTLStorageModePrivate;
     depthTargetDescriptor.usage       = MTLTextureUsageRenderTarget;
@@ -172,12 +112,6 @@ pl_app_render()
 {
     gGraphics.currentFrame++;
 
-    // update uniform data
-    AAPLUniforms uniforms = {
-        .scale = 0.5 + (1.0 + 0.5 * sin(gGraphics.currentFrame * 0.1)),
-        .viewportSize = gAppData.viewportSize
-    };
-
     // request command buffer
     id<MTLCommandBuffer> commandBuffer = [gGraphics.cmdQueue commandBuffer];
 
@@ -190,20 +124,21 @@ pl_app_render()
     // set colorattachment to next drawable
     gAppData.drawableRenderDescriptor.colorAttachments[0].texture = currentDrawable.texture;
 
+    pl_new_draw_frame_metal(&gAppData.ctx, gAppData.drawableRenderDescriptor);
+
     // create render command encoder
     id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:gAppData.drawableRenderDescriptor];
 
-    // bind pipeline
-    [renderEncoder setRenderPipelineState:gAppData.pipelineState];
+    // draw commands
+    pl_add_triangle_filled(gAppData.bgDrawLayer, (plVec2){10.0f, 10.0f}, (plVec2){10.0f, 200.0f}, (plVec2){200.0f, 200.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f});
+    pl_add_triangle_filled(gAppData.bgDrawLayer, (plVec2){10.0f, 10.0f}, (plVec2){200.0f, 200.0f}, (plVec2){200.0f, 10.0f}, (plVec4){0.0f, 1.0f, 0.0f, 1.0f});
 
-    // bind vertex buffer
-    [renderEncoder setVertexBuffer:gAppData.vertices offset:0 atIndex:0];
+    // submit draw layers
+    pl_submit_draw_layer(gAppData.bgDrawLayer);
+    pl_submit_draw_layer(gAppData.fgDrawLayer);
 
-    // update uniform buffer
-    [renderEncoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1 ];
-
-    // draw
-    [renderEncoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+    // submit draw lists
+    pl_submit_drawlist_metal(gAppData.drawlist, gAppData.viewportSize[0], gAppData.viewportSize[1], renderEncoder);
 
     // finish recording
     [renderEncoder endEncoding];

@@ -130,11 +130,11 @@ fi
 #                            metal shaders                                    #
 ###############################################################################
 
-# complile
-xcrun -sdk macosx metal -c ./shaders/simple.metal -o ../out/simple.air
+# compile
+# xcrun -sdk macosx metal -c ./shaders/simple.metal -o ../out/simple.air
 
 # link
-xcrun -sdk macosx metallib ../out/*.air -o ../out/pl.metallib
+# xcrun -sdk macosx metallib ../out/*.air -o ../out/pl.metallib
 
 ###############################################################################
 ###############################################################################

@@ -234,7 +234,8 @@ int main()
 }
 
 // This is the renderer output callback function
-static CVReturn DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const CVTimeStamp* outputTime, CVOptionFlags flagsIn, CVOptionFlags* flagsOut, void* displayLinkContext)
+static CVReturn
+DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const CVTimeStamp* outputTime, CVOptionFlags flagsIn, CVOptionFlags* flagsOut, void* displayLinkContext)
 {
 
     // 'DispatchRenderLoop' is always called on a secondary thread.  Merge the dispatch source
@@ -299,8 +300,8 @@ static CVReturn DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeSta
 
 - (void)drawableResize:(CGSize)size
 {
-    gAppData.viewportSize.x = size.width;
-    gAppData.viewportSize.y = size.height;
+    gAppData.viewportSize[0] = size.width;
+    gAppData.viewportSize[1] = size.height;
     pl_app_resize();
 }
 

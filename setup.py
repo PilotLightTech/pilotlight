@@ -45,7 +45,8 @@ if(platform.system() == "Windows"):
                 "${env:VK_SDK_PATH}/Include"
             ],
             "defines": [
-                "_DEBUG"
+                "_DEBUG",
+                "VULKAN_PL_DRAWING_IMPLEMENTATION"
             ],
             "windowsSdkVersion": "10.0.19041.0",
             "cStandard": "c99",
@@ -93,7 +94,9 @@ elif(platform.system() == "Darwin"):
                 "${workspaceFolder}/dependencies/stb",
             ],
             "defines": [
-                "_DEBUG"
+                "_DEBUG",
+                "METAL_PL_DRAWING_IMPLEMENTATION",
+                "VULKAN_PL_DRAWING_IMPLEMENTATION"
             ],
             "cStandard": "c99",
             "intelliSenseMode": "macos-clang-arm64"
@@ -140,7 +143,8 @@ elif(platform.system() == "Linux"):
                 "${workspaceFolder}/dependencies/stb",
             ],
             "defines": [
-                "_DEBUG"
+                "_DEBUG",
+                "VULKAN_PL_DRAWING_IMPLEMENTATION"
             ],
             "cStandard": "c99",
             "intelliSenseMode": "linux-gcc-x64"

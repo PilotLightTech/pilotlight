@@ -20,6 +20,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "vulkan_pl.h"
+#include "vulkan_pl_drawing.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -41,6 +42,10 @@ typedef struct
     VkBuffer              stagingBuffer;
     VkDeviceMemory        stagingBufferDeviceMemory;
     void*                 stageMapping;
+    plDrawContext         ctx;
+    plDrawList*           drawlist;
+    plDrawLayer*          fgDrawLayer;
+    plDrawLayer*          bgDrawLayer;
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -402,6 +407,13 @@ pl_app_setup()
     create_vertex_buffer();
     create_index_buffer();
     create_texture();
+
+    pl_setup_draw_context_vulkan(&gAppData.ctx, gDevice.physicalDevice, 3, gDevice.logicalDevice);
+    gAppData.drawlist = malloc(sizeof(plDrawList));
+    pl_create_drawlist(&gAppData.ctx, gAppData.drawlist);
+    pl_setup_drawlist_vulkan(gAppData.drawlist, gGraphics.renderPass);
+    gAppData.bgDrawLayer = pl_request_draw_layer(gAppData.drawlist, "Background Layer");
+    gAppData.fgDrawLayer = pl_request_draw_layer(gAppData.drawlist, "Foreground Layer");
 }
 
 //-----------------------------------------------------------------------------
@@ -442,6 +454,9 @@ pl_app_shutdown()
     // destroy descriptor set layouts
     vkDestroyDescriptorSetLayout(gDevice.logicalDevice, gAppData.descriptorSetLayout, NULL);
 
+    // cleanup drawing api
+    pl_cleanup_draw_context(&gAppData.ctx);
+
     // destroy swapchain
     for (uint32_t i = 0u; i < gSwapchain.imageCount; i++)
     {
@@ -472,6 +487,9 @@ pl_app_resize()
 void
 pl_app_render()
 {
+
+    pl_new_draw_frame(&gAppData.ctx);
+
     VkClearValue clearValues[2] = 
     {
         {
@@ -565,6 +583,17 @@ pl_app_render()
     
     // draw
     vkCmdDrawIndexed(currentFrame->cmdBuf, 6, 1, 0, 0, 0);
+
+    // draw commands
+    pl_add_triangle_filled(gAppData.bgDrawLayer, (plVec2){10.0f, 10.0f}, (plVec2){10.0f, 200.0f}, (plVec2){200.0f, 200.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f});
+    pl_add_triangle_filled(gAppData.bgDrawLayer, (plVec2){10.0f, 10.0f}, (plVec2){200.0f, 200.0f}, (plVec2){200.0f, 10.0f}, (plVec4){0.0f, 1.0f, 0.0f, 1.0f});
+
+    // submit draw layers
+    pl_submit_draw_layer(gAppData.bgDrawLayer);
+    pl_submit_draw_layer(gAppData.fgDrawLayer);
+
+    // submit draw lists
+    pl_submit_drawlist_vulkan(gAppData.drawlist, (float)gClientWidth, (float)gClientHeight, currentFrame->cmdBuf, (uint32_t)gGraphics.currentFrameIndex);
 
     // end render pass
     vkCmdEndRenderPass(currentFrame->cmdBuf);
