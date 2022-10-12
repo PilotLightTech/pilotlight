@@ -129,8 +129,8 @@ lib -nologo -OUT:..\out\pl.lib ..\out\*.obj
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @rem |                          Shaders                                       |
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-%VULKAN_SDK%/bin/glslc -o ../out/simple.frag.spv ./shaders/simple.frag
-%VULKAN_SDK%/bin/glslc -o ../out/simple.vert.spv ./shaders/simple.vert
+@REM %VULKAN_SDK%/bin/glslc -o ../out/simple.frag.spv ./shaders/simple.frag
+@REM %VULKAN_SDK%/bin/glslc -o ../out/simple.vert.spv ./shaders/simple.vert
 
 @rem --------------------------------------------------------------------------
 @rem Information Output

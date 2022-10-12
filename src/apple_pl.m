@@ -231,6 +231,8 @@ int main()
         CVDisplayLinkStop(_displayLink);
         dispatch_source_cancel(_displaySource);
     }
+
+    pl_app_shutdown();
 }
 
 // This is the renderer output callback function

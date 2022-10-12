@@ -52,7 +52,7 @@ fi
 PL_CONFIG=Debug
 
 # common include directories
-PL_INCLUDE_DIRECTORIES="-Idependencies/stb"
+PL_INCLUDE_DIRECTORIES="-I../dependencies/stb"
 
 # common link directories
 PL_LINK_DIRECTORIES="-L../out"
@@ -209,8 +209,8 @@ fi
 ###############################################################################
 #                                vulkan shaders                               #
 ###############################################################################
-glslc -o ../out/simple.frag.spv ./shaders/simple.frag
-glslc -o ../out/simple.vert.spv ./shaders/simple.vert
+# glslc -o ../out/simple.frag.spv ./shaders/simple.frag
+# glslc -o ../out/simple.vert.spv ./shaders/simple.vert
 
 fi
 

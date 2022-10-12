@@ -20,6 +20,7 @@ Index of this file:
 #include "metal_pl.h"
 #include "metal_pl_graphics.h"
 #include "metal_pl_drawing.h"
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -30,10 +31,11 @@ typedef struct
     uint32_t                    viewportSize[2]; // required by apple_pl.m
     id<MTLTexture>              depthTarget;
     MTLRenderPassDescriptor*    drawableRenderDescriptor;
-    plDrawContext               ctx;
+    plDrawContext*              ctx;
     plDrawList*                 drawlist;
     plDrawLayer*                fgDrawLayer;
     plDrawLayer*                bgDrawLayer;
+    plFontAtlas                 fontAtlas;
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -58,7 +60,7 @@ pl_app_setup()
     // color attachment
     gAppData.drawableRenderDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
     gAppData.drawableRenderDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
-    gAppData.drawableRenderDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 1, 1, 1);
+    gAppData.drawableRenderDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.01, 0, 0, 1);
 
     // depth attachment
     gAppData.drawableRenderDescriptor.depthAttachment.loadAction = MTLLoadActionClear;
@@ -66,13 +68,16 @@ pl_app_setup()
     gAppData.drawableRenderDescriptor.depthAttachment.clearDepth = 1.0;
 
     // create draw context
-    pl_setup_draw_context_metal(&gAppData.ctx, gDevice.device);
+    gAppData.ctx = pl_create_draw_context_metal(gDevice.device);
 
     // create draw list & layers
-    gAppData.drawlist = malloc(sizeof(plDrawList));
-    pl_create_drawlist(&gAppData.ctx, gAppData.drawlist);
+    gAppData.drawlist = pl_create_drawlist(gAppData.ctx);
     gAppData.bgDrawLayer = pl_request_draw_layer(gAppData.drawlist, "Background Layer");
     gAppData.fgDrawLayer = pl_request_draw_layer(gAppData.drawlist, "Foreground Layer");
+
+    // create font atlas
+    pl_add_default_font(&gAppData.fontAtlas);
+    pl_build_font_atlas(gAppData.ctx, &gAppData.fontAtlas);
 }
 
 //-----------------------------------------------------------------------------
@@ -82,7 +87,8 @@ pl_app_setup()
 void
 pl_app_shutdown()
 {
-    // not actually called yet
+    pl_cleanup_font_atlas(&gAppData.fontAtlas);
+    pl_cleanup_draw_context(gAppData.ctx);   
 }
 
 //-----------------------------------------------------------------------------
@@ -124,15 +130,18 @@ pl_app_render()
     // set colorattachment to next drawable
     gAppData.drawableRenderDescriptor.colorAttachments[0].texture = currentDrawable.texture;
 
-    pl_new_draw_frame_metal(&gAppData.ctx, gAppData.drawableRenderDescriptor);
+    pl_new_draw_frame_metal(gAppData.ctx, gAppData.drawableRenderDescriptor);
 
     // create render command encoder
     id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:gAppData.drawableRenderDescriptor];
 
     // draw commands
-    pl_add_triangle_filled(gAppData.bgDrawLayer, (plVec2){10.0f, 10.0f}, (plVec2){10.0f, 200.0f}, (plVec2){200.0f, 200.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f});
-    pl_add_triangle_filled(gAppData.bgDrawLayer, (plVec2){10.0f, 10.0f}, (plVec2){200.0f, 200.0f}, (plVec2){200.0f, 10.0f}, (plVec4){0.0f, 1.0f, 0.0f, 1.0f});
-
+    pl_add_text(gAppData.fgDrawLayer, &gAppData.fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f, 10.0f}, (plVec4){0.1f, 0.5f, 0.0f, 1.0f}, "Pilot Light\nGraphics", 0.0f);
+    pl_add_triangle_filled(gAppData.bgDrawLayer, (plVec2){10.0f, 50.0f}, (plVec2){10.0f, 150.0f}, (plVec2){150.0f, 50.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f});
+    plVec2 textSize = pl_calculate_text_size(&gAppData.fontAtlas.sbFonts[0], 13.0f, "Pilot Light\nGraphics", 0.0f);
+    pl_add_rect_filled(gAppData.bgDrawLayer, (plVec2){10.0f, 10.0f}, (plVec2){10.0f + textSize.x, 10.0f + textSize.y}, (plVec4){0.0f, 0.0f, 0.8f, 0.5f});
+    pl_add_line(gAppData.bgDrawLayer, (plVec2){500.0f, 10.0f}, (plVec2){10.0f, 500.0f}, (plVec4){1.0f, 1.0f, 1.0f, 0.5f}, 2.0f);
+    
     // submit draw layers
     pl_submit_draw_layer(gAppData.bgDrawLayer);
     pl_submit_draw_layer(gAppData.fgDrawLayer);
