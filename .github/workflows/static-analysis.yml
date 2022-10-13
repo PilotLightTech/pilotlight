@@ -1,0 +1,63 @@
+name: Static Analysis
+
+on:
+  push:
+
+    branches:
+      - master
+      - feature/*
+
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  PVS-Studio:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        env:
+          # The Secret variable setup in GitHub must be in format: "name_or_email key", on a single line
+          PVS_STUDIO_LICENSE: ${{ secrets.PVS_STUDIO_LICENSE }}
+        run: |
+          cd $GITHUB_WORKSPACE
+          sudo apt install libx11-dev
+          sudo apt install libxkbcommon-x11-dev
+          sudo apt install libx11-xcb-dev
+          wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.3.224-focal.list https://packages.lunarg.com/vulkan/1.3.224/lunarg-vulkan-1.3.224-focal.list
+          sudo apt update
+          sudo apt install vulkan-sdk
+          if [[ "$PVS_STUDIO_LICENSE" != "" ]];
+          then
+            wget -q https://files.viva64.com/etc/pubkey.txt
+            sudo apt-key add pubkey.txt
+            sudo wget -O /etc/apt/sources.list.d/viva64.list https://files.viva64.com/etc/viva64.list
+            sudo apt-get update
+            sudo apt-get install -y pvs-studio
+            pvs-studio-analyzer credentials -o pvs-studio.lic $PVS_STUDIO_LICENSE
+          fi
+      - name: Static Analysis
+        run: |
+          cd $GITHUB_WORKSPACE
+          if [[ ! -f pvs-studio.lic ]];
+          then
+            echo "PVS Studio license is missing. No analysis will be performed."
+            echo "If you have a PVS Studio license please create a project secret named PVS_STUDIO_LICENSE with your license."
+            echo "You may use a free license. More information at https://www.viva64.com/en/b/0457/"
+            exit 0
+          fi
+          cd src
+          chmod +x build.sh
+          pvs-studio-analyzer trace -- ./build.sh
+          pvs-studio-analyzer analyze -e ../dependencies -l ../pvs-studio.lic -o ../pvs-studio.log
+          plog-converter -a 'GA:1,2;OP:1' -t fullhtml -o ../pvs-studio.html -w ../pvs-studio.log
+          cd ..
+          test -f ./out/pilot_light || exit 1
+      - name: Archive Results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: pvs-results
+          path: /home/runner/work/pilotlight/pilotlight/pvs-studio.html

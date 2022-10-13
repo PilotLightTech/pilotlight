@@ -1,0 +1,88 @@
+name: Build
+
+on:
+
+  schedule:
+    - cron: '0 1 * * 1'
+
+  push:
+
+    branches:
+      - master
+      - feature/*
+
+  pull_request:
+
+  workflow_dispatch:
+    
+jobs:
+
+  Windows:
+    
+    runs-on: windows-2019
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Install Dependencies
+      run: |
+        Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/1.3.224.1/windows/VulkanSDK-1.3.224.1-Installer.exe" -OutFile VulkanSDK.exe
+        ./VulkanSDK.exe --accept-licenses --default-answer --confirm-command install
+        
+    - name: Build Pilot Light
+      shell: cmd
+      run: |
+        set VULKAN_SDK=C:\VulkanSDK\1.3.224.1
+        cd $GITHUB_WORKSPACE
+        cd src
+        call build.bat
+        cd ..
+        if not exist ./out/pilot_light.exe exit 1
+
+  MacOS:
+    
+    runs-on: MacOS-latest
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v3
+    
+    - name: Build Pilot Light
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd src
+        chmod +x build.sh
+        ./build.sh
+        cd ..
+        test -f ./out/pilot_light || exit 1
+
+  Ubuntu:
+    
+    runs-on: ubuntu-20.04
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Install Dependencies
+      run: |
+        sudo apt install libx11-dev
+        sudo apt install libxkbcommon-x11-dev
+        sudo apt install libx11-xcb-dev
+        wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
+        sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.3.224-focal.list https://packages.lunarg.com/vulkan/1.3.224/lunarg-vulkan-1.3.224-focal.list
+        sudo apt update
+        sudo apt install vulkan-sdk
+
+    - name: Build Pilot Light
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd src
+        chmod +x build.sh
+        ./build.sh
+        cd ..
+        test -f ./out/pilot_light || exit 1
