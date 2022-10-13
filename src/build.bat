@@ -16,6 +16,8 @@
 @del ..\out\*.pdb > NUL 2> NUL
 @del ..\out\*.log > NUL 2> NUL
 
+echo LOCKING > ..\out\lock.tmp
+
 @rem -------------------Setup development environment--------------------------
 @set PATH=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build;%PATH%
 @set PATH=C:\Program Files\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build;%PATH%
@@ -105,17 +107,42 @@ lib -nologo -OUT:..\out\pl.lib ..\out\*.obj
     @del ..\out\*.obj
 
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@rem |                         app lib                                        |
+@rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+@set PL_SOURCES="vulkan_app.c"
+
+@rem run compiler
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% -permissive- %PL_SOURCES% -Fe..\out\app.dll -Fo..\out\ -LD -link -incremental:no -PDB:..\out\app_%random%.pdb %PL_LINKER_FLAGS% %PL_LINK_DIRECTORIES% %PL_LINK_LIBRARIES%
+
+@rem check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+@if %PL_BUILD_STATUS% NEQ 0 (
+    echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanup3
+)
+
+:Cleanup3
+    @echo [1m[36mCleaning up intermediate files...[0m
+    @del ..\out\*.obj
+
+@rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @rem |                          Executable                                    |
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 :MainBuild
 
-@set PL_SOURCES=win32_pl.c
+@set PL_SOURCES="win32_pl.c"
 
 @rem run compiler
 @cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% -permissive- %PL_SOURCES% -Fe..\out\pilot_light.exe -Fo..\out\ -link -incremental:no %PL_LINKER_FLAGS% %PL_LINK_DIRECTORIES% %PL_LINK_LIBRARIES%
 
 @rem check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
+
+@if %PL_BUILD_STATUS% EQU 0 (
+    @if exist ..\out\app_*.dll del ..\out\app_*.dll
+)
 @if %PL_BUILD_STATUS% NEQ 0 (
     echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
     @set PL_RESULT=[1m[91mFailed.[0m
@@ -144,6 +171,8 @@ lib -nologo -OUT:..\out\pl.lib ..\out\*.obj
 @echo [36mOutput directory:    [0m [35m../out[0m
 @echo [36mOutput binary:       [0m [33mpilot_light.exe[0m
 @echo [36m--------------------------------------------------------------------------[0m
+
+del ..\out\lock.tmp
 
 @popd
 

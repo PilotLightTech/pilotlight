@@ -19,7 +19,7 @@ Index of this file:
 #include "pl_os.h"
 #include "pl_ds.h"
 #include "vulkan_pl_graphics.h"
-#include "vulkan_app.c"
+#include "vulkan_pl.h"
 #include <xcb/xcb.h>
 #include <X11/Xlib.h>
 
@@ -27,12 +27,23 @@ Index of this file:
 // [SECTION] globals
 //-----------------------------------------------------------------------------
 
-Display*          gDisplay;
-xcb_connection_t* gConnection;
-xcb_window_t      gWindow;
-xcb_screen_t*     gScreen;
-xcb_atom_t        gWmProtocols;
-xcb_atom_t        gWmDeleteWin;
+static Display*          gDisplay;
+static xcb_connection_t* gConnection;
+static xcb_window_t      gWindow;
+static xcb_screen_t*     gScreen;
+static xcb_atom_t        gWmProtocols;
+static xcb_atom_t        gWmDeleteWin;
+
+static plSharedLibrary   gSharedLibrary = {0};
+static void*             gUserData = NULL;
+static plAppData         gAppData = { .running = true, .clientWidth = 500, .clientHeight = 500};
+
+typedef struct plUserData_t plUserData;
+static void* (*pl_app_load)(plAppData* appData, plUserData* userData);
+static void  (*pl_app_setup)(plAppData* appData, plUserData* userData);
+static void  (*pl_app_shutdown)(plAppData* appData, plUserData* userData);
+static void  (*pl_app_resize)(plAppData* appData, plUserData* userData);
+static void  (*pl_app_render)(plAppData* appData, plUserData* userData);
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -40,6 +51,18 @@ xcb_atom_t        gWmDeleteWin;
 
 int main()
 {
+
+    // load library
+    if(pl_load_library(&gSharedLibrary, "./app.so", "./app_", "./lock.tmp"))
+    {
+        pl_app_load = (void* (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_load");
+        pl_app_setup = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_setup");
+        pl_app_shutdown = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_shutdown");
+        pl_app_resize = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_resize");
+        pl_app_render = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_render");
+        gUserData = pl_app_load(&gAppData, NULL);
+    }
+
     // connect to x
     gDisplay = XOpenDisplay(NULL);
 
@@ -89,13 +112,13 @@ int main()
     xcb_create_window(
         gConnection,
         XCB_COPY_FROM_PARENT,  // depth
-        gWindow,
-        gScreen->root, // parent
-        200,                              //x
-        200,                              //y
-        gClientWidth,                          //width
-        gClientHeight,                         //height
-        0,                              // No border
+        gWindow,               // window
+        gScreen->root,         // parent
+        200,                   // x
+        200,                   // y
+        gAppData.clientWidth,  // width
+        gAppData.clientHeight, // height
+        0,                     // No border
         XCB_WINDOW_CLASS_INPUT_OUTPUT,  //class
         gScreen->root_visual,
         event_mask,
@@ -152,7 +175,7 @@ int main()
     int stream_result = xcb_flush(gConnection);
 
     // create vulkan instance
-    pl_create_instance(&gGraphics, VK_API_VERSION_1_1, true);
+    pl_create_instance(&gAppData.graphics, VK_API_VERSION_1_1, true);
 
     // create surface
     VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {
@@ -162,19 +185,19 @@ int main()
         .window = gWindow,
         .connection = gConnection
     };
-    PL_VULKAN(vkCreateXcbSurfaceKHR(gGraphics.instance, &surfaceCreateInfo, NULL, &gGraphics.surface));
+    PL_VULKAN(vkCreateXcbSurfaceKHR(gAppData.graphics.instance, &surfaceCreateInfo, NULL, &gAppData.graphics.surface));
 
     // create devices
-    pl_create_device(gGraphics.instance, gGraphics.surface, &gDevice, true);
+    pl_create_device(gAppData.graphics.instance, gAppData.graphics.surface, &gAppData.device, true);
     
     // create swapchain
-    pl_create_swapchain(&gDevice, gGraphics.surface, gClientWidth, gClientHeight, &gSwapchain);
+    pl_create_swapchain(&gAppData.device, gAppData.graphics.surface, gAppData.clientWidth, gAppData.clientHeight, &gAppData.swapchain);
 
     // app specific setup
-    pl_app_setup();
+    pl_app_setup(&gAppData, gUserData);
 
     // main loop
-    while (gRunning)
+    while (gAppData.running)
     {
         xcb_generic_event_t* event;
         xcb_client_message_event_t* cm;
@@ -192,7 +215,7 @@ int main()
                     // Window close
                     if (cm->data.data32[0] == gWmDeleteWin) 
                     {
-                        gRunning  = false;
+                        gAppData.running  = false;
                     }
                     break;
                 }
@@ -206,12 +229,11 @@ int main()
 
                     // Fire the event. The application layer should pick this up, but not handle it
                     // as it shouldn be visible to other parts of the application.
-                    if(configure_event->width != gClientWidth || configure_event->height != gClientHeight)
+                    if(configure_event->width != gAppData.clientWidth || configure_event->height != gAppData.clientHeight)
                     {
-                        gClientWidth = configure_event->width;
-                        gClientHeight = configure_event->height;
-                        // window->bSizeDirty = true;
-                        pl_app_resize();
+                        gAppData.clientWidth = configure_event->width;
+                        gAppData.clientHeight = configure_event->height;
+                        pl_app_resize(&gAppData, gUserData);
                     }
 
                 } break;
@@ -220,15 +242,27 @@ int main()
             free(event);
         }
 
+        // reload library
+        if(pl_has_library_changed(&gSharedLibrary))
+        {
+            pl_reload_library(&gSharedLibrary);
+            pl_app_load = (void* (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_load");
+            pl_app_setup = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_setup");
+            pl_app_shutdown = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_shutdown");
+            pl_app_resize = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_resize");
+            pl_app_render = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_render");
+            gUserData = pl_app_load(&gAppData, gUserData);
+        }
+
         // render a frame
-        pl_app_render();
+        pl_app_render(&gAppData, gUserData);
     }
 
     // app cleanup
-    pl_app_shutdown();
+    pl_app_shutdown(&gAppData, gUserData);
 
     // cleanup graphics context
-    pl_cleanup_graphics(&gGraphics, &gDevice);
+    pl_cleanup_graphics(&gAppData.graphics, &gAppData.device);
 
     // platform cleanup
     XAutoRepeatOn(gDisplay);

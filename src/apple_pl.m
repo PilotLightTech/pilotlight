@@ -18,7 +18,8 @@ Index of this file:
 
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/CAMetalLayer.h>
-#include "metal_app.m"
+#include "metal_pl.h"
+#include "pl_os.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -55,6 +56,16 @@ Index of this file:
 
 static NSWindow*         gWindow = NULL;
 static NSViewController* gViewController = NULL;
+static plSharedLibrary   gSharedLibrary = {0};
+static void*             gUserData = NULL;
+static plAppData         gAppData = { .running = true, .clientWidth = 500, .clientHeight = 500};
+
+typedef struct plUserData_t plUserData;
+static void* (*pl_app_load)(plAppData* appData, plUserData* userData);
+static void  (*pl_app_setup)(plAppData* appData, plUserData* userData);
+static void  (*pl_app_shutdown)(plAppData* appData, plUserData* userData);
+static void  (*pl_app_resize)(plAppData* appData, plUserData* userData);
+static void  (*pl_app_render)(plAppData* appData, plUserData* userData);
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -62,6 +73,16 @@ static NSViewController* gViewController = NULL;
 
 int main()
 {
+    // load library
+    if(pl_load_library(&gSharedLibrary, "app.so", "app_", "lock.tmp"))
+    {
+        pl_app_load = (void* (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_load");
+        pl_app_setup = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_setup");
+        pl_app_shutdown = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_shutdown");
+        pl_app_resize = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_resize");
+        pl_app_render = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_render");
+        gUserData = pl_app_load(&gAppData, NULL);
+    }
 
     // create view controller
     gViewController = [[plNSViewController alloc] init];
@@ -232,7 +253,7 @@ int main()
         dispatch_source_cancel(_displaySource);
     }
 
-    pl_app_shutdown();
+    pl_app_shutdown(&gAppData, gUserData);
 }
 
 // This is the renderer output callback function
@@ -288,34 +309,48 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 
 - (void)loadView
 {
-    gDevice.device = MTLCreateSystemDefaultDevice();
+    gAppData.device.device = MTLCreateSystemDefaultDevice();
 
     NSRect frame = NSMakeRect(0, 0, 500, 500);
     self.view = [[plNSView alloc] initWithFrame:frame];
 
     plNSView *view = (plNSView *)self.view;
-    view.metalLayer.device = gDevice.device;    
+    view.metalLayer.device = gAppData.device.device;    
     view.delegate = self;
     view.metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
-    pl_app_setup();
+    pl_app_setup(&gAppData, gUserData);
 }
 
 - (void)drawableResize:(CGSize)size
 {
-    gAppData.viewportSize[0] = size.width;
-    gAppData.viewportSize[1] = size.height;
-    pl_app_resize();
+    gAppData.clientWidth = size.width;
+    gAppData.clientHeight = size.height;
+    pl_app_resize(&gAppData, gUserData);
 }
 
 - (void)renderToMetalLayer:(nonnull CAMetalLayer *)layer
 {
-    gGraphics.metalLayer = layer;
-    pl_app_render();
+    gAppData.graphics.metalLayer = layer;
+
+    // reload library
+    if(pl_has_library_changed(&gSharedLibrary))
+    {
+        pl_reload_library(&gSharedLibrary);
+        pl_app_load = (void* (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_load");
+        pl_app_setup = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_setup");
+        pl_app_shutdown = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_shutdown");
+        pl_app_resize = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_resize");
+        pl_app_render = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_render");
+        gUserData = pl_app_load(&gAppData, gUserData);
+    }
+    pl_app_render(&gAppData, gUserData);
 }
 
 - (void)shutdown
 {
-    pl_app_shutdown();
+    pl_app_shutdown(&gAppData, gUserData);
 }
 
 @end
+
+// #include "apple_pl_os.m"

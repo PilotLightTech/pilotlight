@@ -27,75 +27,6 @@ Index of this file:
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
-typedef struct plDrawList_t
-{
-    plDrawContext* ctx;
-    plDrawLayer**  sbSubmittedLayers;
-    plDrawLayer**  sbLayerCache;
-    plDrawLayer**  sbLayersCreated;
-    plDrawCommand* sbDrawCommands;
-    plDrawVertex*  sbVertexBuffer;
-    uint32_t       indexBufferByteSize;
-    uint32_t       layersCreated;
-    void*          _platformData;
-} plDrawList;
-
-typedef struct plFontCustomRect_t
-{
-    uint32_t       width;
-    uint32_t       height;
-    uint32_t       x;
-    uint32_t       y;
-    unsigned char* bytes;
-} plFontCustomRect;
-
-typedef struct plDrawCommand_t
-{
-    uint32_t    vertexOffset;
-    uint32_t    indexOffset;
-    uint32_t    elementCount;
-    uint32_t    layer;
-    plTextureId textureId;
-    bool        sdf;
-} plDrawCommand;
-
-typedef struct plDrawLayer_t
-{
-    char            name[PL_MAX_NAME_LENGTH];
-    plDrawList*     drawlist;
-    plDrawCommand*  sbCommandBuffer;
-    uint32_t*       sbIndexBuffer;
-    plVec2*         sbPath;
-    uint32_t        vertexCount;
-    plDrawCommand*  _lastCommand;
-} plDrawLayer;
-
-typedef struct plFontChar_t
-{
-    uint16_t x0;
-    uint16_t y0;
-    uint16_t x1;
-    uint16_t y1;
-    float    xOff;
-    float    yOff;
-    float    xAdv;
-    float    xOff2;
-    float    yOff2;
-} plFontChar;
-
-typedef struct plFontGlyph_t
-{
-    float x0;
-    float y0;
-    float u0;
-    float v0;
-    float x1;
-    float y1;
-    float u1;
-    float v1;
-    float xAdvance;
-    float leftBearing;  
-} plFontGlyph;
 
 typedef struct plFontPrepData_t
 {
@@ -107,14 +38,6 @@ typedef struct plFontPrepData_t
     float             scale;
     uint32_t          area;
 } plFontPrepData;
-
-typedef struct plDrawContext_t
-{
-    plDrawList** sbDrawlists;
-    uint64_t     frameCount;
-    plFontAtlas* fontAtlas;
-    void*        _platformData;
-} plDrawContext;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api

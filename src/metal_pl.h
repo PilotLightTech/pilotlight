@@ -8,8 +8,8 @@ Index of this file:
 // [SECTION] globals
 */
 
-#ifndef APPLE_PL_H
-#define APPLE_PL_H
+#ifndef METAL_PL_H
+#define METAL_PL_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -21,12 +21,15 @@ Index of this file:
 // [SECTION] globals
 //-----------------------------------------------------------------------------
 
-plMetalDevice   gDevice       = {0};
-plMetalGraphics gGraphics     = {0};
-bool            gRunning      = true;
-int             gActualWidth  = 0;
-int             gActualHeight = 0;
-int             gClientWidth  = 500;
-int             gClientHeight = 500;
+typedef struct plAppData_t
+{
+    plMetalDevice   device;
+    plMetalGraphics graphics;
+    bool            running;
+    int             actualWidth;
+    int             actualHeight;
+    int             clientWidth;
+    int             clientHeight;
+} plAppData;
 
-#endif // APPLE_PL_H
+#endif // METAL_PL_H

@@ -27,6 +27,7 @@ Index of this file:
 
 #define PL_MAX_FRAMES_IN_FLIGHT 2
 #define PL_MAX_NAME_LENGTH 1024
+#define PL_USE_STB_SPRINTF
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper macros
@@ -39,6 +40,15 @@ Index of this file:
 #define PL_ASSERT(x) assert(x)
 #endif
 
+#if defined(_MSC_VER) //  Microsoft 
+    #define PL_EXPORT __declspec(dllexport)
+#elif defined(__GNUC__) //  GCC
+    #define PL_EXPORT __attribute__((visibility("default")))
+#else //  do nothing and hope for the best?
+    #define PL_EXPORT
+    #pragma warning Unknown dynamic link import/export semantics.
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] misc
 //-----------------------------------------------------------------------------
@@ -49,6 +59,20 @@ Index of this file:
 #define PL_METAL_BACKEND
 #else // linux
 #define PL_VULKAN_BACKEND
+#endif
+
+#ifdef PL_USE_STB_SPRINTF
+#include "stb_sprintf.h"
+#endif
+
+#ifndef pl_sprintf
+#ifdef PL_USE_STB_SPRINTF
+    #define pl_sprintf stbsp_sprintf
+    #define pl_vsprintf stbsp_vsprintf
+#else
+    #define pl_sprintf sprintf
+    #define pl_vsprintf vsprintf
+#endif
 #endif
 
 #endif // PL_H

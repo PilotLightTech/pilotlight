@@ -18,8 +18,8 @@ Index of this file:
 
 #include "pl_os.h"
 #include "pl_ds.h"
+#include "vulkan_pl.h"
 #include "vulkan_pl_graphics.h"
-#include "vulkan_app.c"
 #include <wchar.h> // mbsrtowcs, wcsrtombs
 
 //-----------------------------------------------------------------------------
@@ -36,7 +36,17 @@ static void             pl__convert_to_wide_string(const char* narrowValue, wcha
 // [SECTION] globals
 //-----------------------------------------------------------------------------
 
-HWND gHandle = NULL;
+static HWND              gHandle = NULL;
+static plSharedLibrary   gSharedLibrary = {0};
+static void*             gUserData = NULL;
+static plAppData         gAppData = { .running = true, .clientWidth = 500, .clientHeight = 500};
+
+typedef struct plUserData_t plUserData;
+static void* (*pl_app_load)(plAppData* appData, plUserData* userData);
+static void  (*pl_app_setup)(plAppData* appData, plUserData* userData);
+static void  (*pl_app_shutdown)(plAppData* appData, plUserData* userData);
+static void  (*pl_app_resize)(plAppData* appData, plUserData* userData);
+static void  (*pl_app_render)(plAppData* appData, plUserData* userData);
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -44,6 +54,17 @@ HWND gHandle = NULL;
 
 int main()
 {
+
+    // load library
+    if(pl_load_library(&gSharedLibrary, "app.dll", "app_", "lock.tmp"))
+    {
+        pl_app_load = (void* (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_load");
+        pl_app_setup = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_setup");
+        pl_app_shutdown = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_shutdown");
+        pl_app_resize = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_resize");
+        pl_app_render = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_render");
+        gUserData = pl_app_load(&gAppData, NULL);
+    }
 
     // register window class
     WNDCLASSEXW wc = {
@@ -66,13 +87,13 @@ int main()
     RECT wr = 
     {
         .left = 0,
-        .right = gClientWidth + wr.left,
+        .right = gAppData.clientWidth + wr.left,
         .top = 0,
-        .bottom = gClientHeight + wr.top
+        .bottom = gAppData.clientHeight + wr.top
     };
     AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
-    gActualWidth = wr.right - wr.left;
-    gActualHeight = wr.bottom - wr.top;
+    gAppData.actualWidth = wr.right - wr.left;
+    gAppData.actualHeight = wr.bottom - wr.top;
 
     wchar_t wideTitle[PL_MAX_NAME_LENGTH];
     pl__convert_to_wide_string("Pilot Light (win32)", wideTitle);
@@ -91,7 +112,7 @@ int main()
     );
 
     // create vulkan instance
-    pl_create_instance(&gGraphics, VK_API_VERSION_1_1, true);
+    pl_create_instance(&gAppData.graphics, VK_API_VERSION_1_1, true);
     
     // create surface
     VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {
@@ -101,22 +122,22 @@ int main()
         .hinstance = GetModuleHandle(NULL),
         .hwnd = gHandle
     };
-    PL_VULKAN(vkCreateWin32SurfaceKHR(gGraphics.instance, &surfaceCreateInfo, NULL, &gGraphics.surface));
+    PL_VULKAN(vkCreateWin32SurfaceKHR(gAppData.graphics.instance, &surfaceCreateInfo, NULL, &gAppData.graphics.surface));
 
     // create devices
-    pl_create_device(gGraphics.instance, gGraphics.surface, &gDevice, true);
+    pl_create_device(gAppData.graphics.instance, gAppData.graphics.surface, &gAppData.device, true);
     
     // create swapchain
-    pl_create_swapchain(&gDevice, gGraphics.surface, gClientWidth, gClientHeight, &gSwapchain);
+    pl_create_swapchain(&gAppData.device, gAppData.graphics.surface, gAppData.clientWidth, gAppData.clientHeight, &gAppData.swapchain);
 
     // app specific setup
-    pl_app_setup();
+    pl_app_setup(&gAppData, gUserData);
 
     // show window
     ShowWindow(gHandle, SW_SHOWDEFAULT);
 
     // main loop
-    while (gRunning)
+    while (gAppData.running)
     {
 
         // while queue has messages, remove and dispatch them (but do not block on empty queue)
@@ -126,7 +147,7 @@ int main()
             // check for quit because peekmessage does not signal this via return val
             if (msg.message == WM_QUIT)
             {
-                gRunning = false;
+                gAppData.running = false;
                 break;
             }
             // TranslateMessage will post auxilliary WM_CHAR messages from key msgs
@@ -134,15 +155,27 @@ int main()
             DispatchMessage(&msg);
         }
 
+        // reload library
+        if(pl_has_library_changed(&gSharedLibrary))
+        {
+            pl_reload_library(&gSharedLibrary);
+            pl_app_load = (void* (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_load");
+            pl_app_setup = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_setup");
+            pl_app_shutdown = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_shutdown");
+            pl_app_resize = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_resize");
+            pl_app_render = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_render");
+            gUserData = pl_app_load(&gAppData, gUserData);
+        }
+
         // render a frame
-        pl_app_render();
+        pl_app_render(&gAppData, gUserData);
     }
 
     // app cleanup
-    pl_app_shutdown();
+    pl_app_shutdown(&gAppData, gUserData);
 
     // cleanup graphics context
-    pl_cleanup_graphics(&gGraphics, &gDevice);
+    pl_cleanup_graphics(&gAppData.graphics, &gAppData.device);
 
     // cleanup win32 stuff
     UnregisterClassW(wc.lpszClassName, GetModuleHandle(NULL));
@@ -174,8 +207,8 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
                     awidth = rect.right - rect.left;
                     aheight = rect.bottom - rect.top;
                 }
-                gActualWidth = awidth;
-                gActualHeight = aheight;
+                gAppData.actualWidth = awidth;
+                gAppData.actualHeight = aheight;
 
                 // client window size
                 RECT crect;
@@ -186,11 +219,11 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
                     cwidth = crect.right - crect.left;
                     cheight = crect.bottom - crect.top;
                 }
-                gClientWidth = cwidth;
-                gClientHeight = cheight;
+                gAppData.clientWidth = cwidth;
+                gAppData.clientHeight = cheight;
 
                 // give app change to handle resize
-                pl_app_resize();
+                pl_app_resize(&gAppData, gUserData);
 
                 // send paint message
                 InvalidateRect(hwnd, NULL, TRUE);
@@ -199,12 +232,12 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         }
         case WM_MOVE:
         {
-            pl_app_render();
+            pl_app_render(&gAppData, gUserData);
             break;
         }
         case WM_PAINT:
         {
-            pl_app_render();
+            pl_app_render(&gAppData, gUserData);
 
             // must be called for the OS to do its thing
             PAINTSTRUCT Paint;

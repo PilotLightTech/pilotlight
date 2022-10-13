@@ -21,13 +21,16 @@ Index of this file:
 // [SECTION] globals
 //-----------------------------------------------------------------------------
 
-plVulkanDevice    gDevice       = {0};
-plVulkanGraphics  gGraphics     = {0};
-plVulkanSwapchain gSwapchain    = { .vsync = true };
-bool              gRunning      = true;
-int               gActualWidth  = 0;
-int               gActualHeight = 0;
-int               gClientWidth  = 500;
-int               gClientHeight = 500;
+typedef struct plAppData_t
+{
+   plVulkanDevice    device;
+   plVulkanGraphics  graphics;
+   plVulkanSwapchain swapchain;
+   bool              running;
+   int               actualWidth;
+   int               actualHeight;
+   int               clientWidth;
+   int               clientHeight;
+} plAppData;
 
 #endif // VULKAN_PL_H

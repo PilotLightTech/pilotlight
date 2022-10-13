@@ -9,18 +9,24 @@
 #include "linux_pl_os.c"
 #endif
 
-// graphics backend specifics
-#ifdef PL_VULKAN_BACKEND
-#include "vulkan_pl_graphics.c"
-#define VULKAN_PL_DRAWING_IMPLEMENTATION
-#include "vulkan_pl_drawing.h"
-#undef VULKAN_PL_DRAWING_IMPLEMENTATION
+#ifdef PL_USE_STB_SPRINTF
+#define STB_SPRINTF_IMPLEMENTATION
+#include "stb_sprintf.h"
+#undef STB_SPRINTF_IMPLEMENTATION
 #endif
 
 #ifdef PL_METAL_BACKEND
 #define METAL_PL_DRAWING_IMPLEMENTATION
 #include "metal_pl_drawing.h"
 #undef METAL_PL_DRAWING_IMPLEMENTATION
+#endif
+
+// graphics backend specifics
+#ifdef PL_VULKAN_BACKEND
+#include "vulkan_pl_graphics.c"
+#define VULKAN_PL_DRAWING_IMPLEMENTATION
+#include "vulkan_pl_drawing.h"
+#undef VULKAN_PL_DRAWING_IMPLEMENTATION
 #endif
 
 #define STB_RECT_PACK_IMPLEMENTATION
