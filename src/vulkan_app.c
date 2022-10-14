@@ -274,14 +274,14 @@ pl_app_render(plAppData* appData, plUserData* userData)
         .pImageIndices = &appData->swapchain.currentImageIndex,
     };
     VkResult result = vkQueuePresentKHR(appData->device.presentQueue, &presentInfo);
-    if(result == VK_SUBOPTIMAL_KHR || err == VK_ERROR_OUT_OF_DATE_KHR)
+    if(result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
     {
         pl_create_swapchain(&appData->device, appData->graphics.surface, appData->clientWidth, appData->clientHeight, &appData->swapchain);
         pl_create_framebuffers(&appData->device, appData->graphics.renderPass, &appData->swapchain);
     }
     else
     {
-        PL_VULKAN(err);
+        PL_VULKAN(result);
     }
 
     appData->graphics.currentFrameIndex = (appData->graphics.currentFrameIndex + 1) % appData->graphics.framesInFlight;

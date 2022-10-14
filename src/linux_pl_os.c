@@ -126,25 +126,27 @@ pl_load_library(plSharedLibrary* library, const char* name, const char* transiti
     library->_platformData = malloc(sizeof(plLinuxSharedLibrary));
     plLinuxSharedLibrary* linuxLibrary = library->_platformData;
 
-    struct stat attr2;
-    if(stat(library->lockFile, &attr2) == -1)  // lock file gone
+    if(linuxLibrary)
     {
-        char temporaryName[2024] = {0};
-        linuxLibrary->lastWriteTime = pl__get_last_write_time(library->path);
-        
-        pl_sprintf(temporaryName, "%s%u%s", library->transitionalName, library->tempIndex, ".so");
-        if(++library->tempIndex >= 1024)
+        struct stat attr2;
+        if(stat(library->lockFile, &attr2) == -1)  // lock file gone
         {
-            library->tempIndex = 0;
+            char temporaryName[2024] = {0};
+            linuxLibrary->lastWriteTime = pl__get_last_write_time(library->path);
+            
+            pl_sprintf(temporaryName, "%s%u%s", library->transitionalName, library->tempIndex, ".so");
+            if(++library->tempIndex >= 1024)
+            {
+                library->tempIndex = 0;
+            }
+            pl_copy_file(library->path, temporaryName, NULL, NULL);
+
+            linuxLibrary->handle = NULL;
+            linuxLibrary->handle = dlopen(temporaryName, RTLD_NOW);
+            if(linuxLibrary->handle)
+                library->valid = true;
         }
-        pl_copy_file(library->path, temporaryName, NULL, NULL);
-
-        linuxLibrary->handle = NULL;
-        linuxLibrary->handle = dlopen(temporaryName, RTLD_NOW);
-        if(linuxLibrary->handle)
-            library->valid = true;
     }
-
     return library->valid;
 }
 

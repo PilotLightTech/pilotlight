@@ -97,11 +97,11 @@ pl_request_draw_layer(plDrawList* drawlist, const char* name)
 
    else // create new layer
    {
-      drawlist->layersCreated++;
-      layer = PL_ALLOC(sizeof(plDrawLayer));
-      memset(layer, 0, sizeof(plDrawLayer));
-      layer->drawlist = drawlist;
-      pl_sb_push(drawlist->sbLayersCreated, layer);
+        drawlist->layersCreated++;
+        layer = PL_ALLOC(sizeof(plDrawLayer));
+        memset(layer, 0, sizeof(plDrawLayer));
+        layer->drawlist = drawlist;
+        pl_sb_push(drawlist->sbLayersCreated, layer);
    }
 
    if(name)
@@ -1011,7 +1011,9 @@ pl__read_file(const char* file)
 static uint32_t
 pl__decompress_length(const unsigned char* ptrInput)
 {
-    return (ptrInput[8] << 24) + (ptrInput[9] << 16) + (ptrInput[10] << 8) + ptrInput[11];
+    if(ptrInput)
+        return (ptrInput[8] << 24) + (ptrInput[9] << 16) + (ptrInput[10] << 8) + ptrInput[11];
+    return 0u;
 }
 
 static uint32_t
@@ -1118,6 +1120,8 @@ pl__adler32(uint32_t uAdler32, unsigned char* ptrBuf, uint32_t uBufLen)
 static uint32_t 
 pl__decompress(unsigned char* ptrOut, const unsigned char* ptrI, uint32_t length)
 {
+    if(ptrI == NULL)
+        return 0u;
     if (MV_IN4_(0) != 0x57bC0000) 
         return 0u;
     if (MV_IN4_(4) != 0)

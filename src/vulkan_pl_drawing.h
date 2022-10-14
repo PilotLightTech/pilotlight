@@ -56,6 +56,7 @@ VkDescriptorSet pl_add_texture(plDrawContext* drawContext, VkImageView imageView
 //-----------------------------------------------------------------------------
 
 #include <string.h> // memset
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] shaders
@@ -742,7 +743,7 @@ pl_submit_drawlist_vulkan(plDrawList* drawlist, float width, float height, VkCom
         pl__grow_vulkan_index_buffer(drawlist, uIdxBufSzNeeded * 2, currentFrameIndex);
 
     // vertex GPU data transfer
-    memcpy(drawlistVulkanData->sbVertexBufferMap[currentFrameIndex], drawlist->sbVertexBuffer, sizeof(plDrawVertex) * pl_sb_size(drawlist->sbVertexBuffer));
+    memcpy(drawlistVulkanData->sbVertexBufferMap[currentFrameIndex], drawlist->sbVertexBuffer, sizeof(plDrawVertex) * pl_sb_size(drawlist->sbVertexBuffer)); //-V1004
     
     // index GPU data transfer
     uint32_t uTempIndexBufferOffset = 0u;
@@ -754,7 +755,7 @@ pl_submit_drawlist_vulkan(plDrawList* drawlist, float width, float height, VkCom
         plDrawLayer* layer = drawlist->sbSubmittedLayers[i];
 
         unsigned char* destination = drawlistVulkanData->sbIndexBufferMap[currentFrameIndex];
-        memcpy(&destination[uTempIndexBufferOffset], layer->sbIndexBuffer, sizeof(uint32_t) * pl_sb_size(layer->sbIndexBuffer));
+        memcpy(&destination[uTempIndexBufferOffset], layer->sbIndexBuffer, sizeof(uint32_t) * pl_sb_size(layer->sbIndexBuffer)); //-V1004
 
         uTempIndexBufferOffset += pl_sb_size(layer->sbIndexBuffer)*sizeof(uint32_t);
 

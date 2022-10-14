@@ -10,6 +10,7 @@ on:
     branches:
       - master
       - feature/*
+      - dev/*
 
   pull_request:
 
