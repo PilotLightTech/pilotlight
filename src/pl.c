@@ -1,5 +1,9 @@
 #include "pl_drawing.c"
 
+#define PL_MEMORY_IMPLEMENTATION
+#include "pl_memory.h"
+#undef PL_MEMORY_IMPLEMENTATION
+
 // platform specifics
 #ifdef _WIN32
 #include "win32_pl_os.c"
