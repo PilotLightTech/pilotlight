@@ -47,13 +47,21 @@ typedef struct plUserData_t
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void*
-pl_app_load(plAppData* appData, plUserData* userData)
+pl_app_load(plAppData* tPAppData, plUserData* tPUserData)
 {
-    if(userData)
-        return userData;
-    plUserData* newUserData = malloc(sizeof(plUserData));
-    memset(newUserData, 0, sizeof(plUserData));
-    return newUserData;
+    plUserData* tPNewData = NULL;
+    if(tPUserData)
+    {
+        pl_set_log_context(&tPUserData->tLogCtx);
+        pl_set_profile_context(&tPUserData->tProfileCtx);
+        tPNewData = tPUserData;
+    }
+    else
+    {
+        tPNewData = malloc(sizeof(plUserData));
+        memset(tPNewData, 0, sizeof(plUserData));
+    }
+    return tPNewData;
 }
 
 //-----------------------------------------------------------------------------
@@ -64,12 +72,12 @@ PL_EXPORT void
 pl_app_setup(plAppData* appData, plUserData* userData)
 {
     // setup profiling
-    pl_create_profile_context(&userData->tProfileCtx);
+    pl_initialize_profile_context(&userData->tProfileCtx);
 
     // setup logging
-    pl_create_log_context(&userData->tLogCtx);
-    pl_add_log_channel(&userData->tLogCtx, "Default", PL_CHANNEL_TYPE_CONSOLE);
-    pl_log_info(&userData->tLogCtx, 0, "Setup logging");
+    pl_initialize_log_context(&userData->tLogCtx);
+    pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
+    pl_log_info(0, "Setup logging");
 
     // create command queue
     appData->graphics.cmdQueue = [appData->device.device newCommandQueue];
@@ -109,8 +117,8 @@ pl_app_shutdown(plAppData* appData, plUserData* userData)
 {
     pl_cleanup_font_atlas(&userData->fontAtlas);
     pl_cleanup_draw_context(userData->ctx);
-    pl_cleanup_profile_context(&userData->tProfileCtx);
-    pl_cleanup_log_context(&userData->tLogCtx);
+    pl_cleanup_profile_context();
+    pl_cleanup_log_context();
 }
 
 //-----------------------------------------------------------------------------
@@ -141,7 +149,7 @@ pl_app_render(plAppData* appData, plUserData* userData)
     appData->graphics.currentFrame++;
 
     // begin profiling frame
-    pl_begin_profile_frame(&userData->tProfileCtx, appData->graphics.currentFrame);
+    pl_begin_profile_frame(appData->graphics.currentFrame);
 
     // request command buffer
     id<MTLCommandBuffer> commandBuffer = [appData->graphics.cmdQueue commandBuffer];
@@ -161,7 +169,7 @@ pl_app_render(plAppData* appData, plUserData* userData)
     id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:userData->drawableRenderDescriptor];
 
     // draw profiling info
-    pl_begin_profile_sample(&userData->tProfileCtx, "Draw Profiling Info");
+    pl_begin_profile_sample("Draw Profiling Info");
     char cPProfileValue[64] = {0};
     for(uint32_t i = 0u; i < pl_sb_size(userData->tProfileCtx.tPLastFrame->sbSamples); i++)
     {
@@ -171,29 +179,29 @@ pl_app_render(plAppData* appData, plUserData* userData)
         pl_sprintf(cPProfileValue, ": %0.5f", tPSample->dDuration);
         pl_add_text(userData->fgDrawLayer, &userData->fontAtlas.sbFonts[0], 13.0f, (plVec2){sampleTextSize.x + 15.0f + (float)tPSample->uDepth * 15.0f, 10.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, cPProfileValue, 0.0f);
     }
-    pl_end_profile_sample(&userData->tProfileCtx);
+    pl_end_profile_sample();
 
     // draw commands
-    pl_begin_profile_sample(&userData->tProfileCtx, "Add draw commands");
+    pl_begin_profile_sample("Add draw commands");
     pl_add_text(userData->fgDrawLayer, &userData->fontAtlas.sbFonts[0], 13.0f, (plVec2){300.0f, 10.0f}, (plVec4){0.1f, 0.5f, 0.0f, 1.0f}, "Pilot Light\nGraphics", 0.0f);
     pl_add_triangle_filled(userData->bgDrawLayer, (plVec2){300.0f, 50.0f}, (plVec2){300.0f, 150.0f}, (plVec2){350.0f, 50.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f});
-    pl__begin_profile_sample(&userData->tProfileCtx, "Calculate text size");
+    pl__begin_profile_sample("Calculate text size");
     plVec2 textSize = pl_calculate_text_size(&userData->fontAtlas.sbFonts[0], 13.0f, "Pilot Light\nGraphics", 0.0f);
-    pl__end_profile_sample(&userData->tProfileCtx);
+    pl__end_profile_sample();
     pl_add_rect_filled(userData->bgDrawLayer, (plVec2){300.0f, 10.0f}, (plVec2){300.0f + textSize.x, 10.0f + textSize.y}, (plVec4){0.0f, 0.0f, 0.8f, 0.5f});
     pl_add_line(userData->bgDrawLayer, (plVec2){500.0f, 10.0f}, (plVec2){10.0f, 500.0f}, (plVec4){1.0f, 1.0f, 1.0f, 0.5f}, 2.0f);
-    pl_end_profile_sample(&userData->tProfileCtx);
+    pl_end_profile_sample();
 
     // submit draw layers
-    pl_begin_profile_sample(&userData->tProfileCtx, "Submit draw layers");
+    pl_begin_profile_sample("Submit draw layers");
     pl_submit_draw_layer(userData->bgDrawLayer);
     pl_submit_draw_layer(userData->fgDrawLayer);
-    pl_end_profile_sample(&userData->tProfileCtx);
+    pl_end_profile_sample();
 
     // submit draw lists
-    pl_begin_profile_sample(&userData->tProfileCtx, "Submit draw lists");
+    pl_begin_profile_sample("Submit draw lists");
     pl_submit_drawlist_metal(userData->drawlist, appData->clientWidth, appData->clientHeight, renderEncoder);
-    pl_end_profile_sample(&userData->tProfileCtx);
+    pl_end_profile_sample();
 
     // finish recording
     [renderEncoder endEncoding];
@@ -205,5 +213,5 @@ pl_app_render(plAppData* appData, plUserData* userData)
     [commandBuffer commit];
 
     // end profiling frame
-    pl_end_profile_frame(&userData->tProfileCtx);
+    pl_end_profile_frame();
 }

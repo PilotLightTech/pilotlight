@@ -46,6 +46,7 @@ if(platform.system() == "Windows"):
             ],
             "defines": [
                 "_DEBUG",
+                "PL_PROFILE_ON",
                 "PL_LOG_IMPLEMENTATION",
                 "PL_PROFILE_IMPLEMENTATION",
                 "PL_LOG_ON",
@@ -101,6 +102,7 @@ elif(platform.system() == "Darwin"):
                 "PL_LOG_IMPLEMENTATION",
                 "PL_PROFILE_IMPLEMENTATION",
                 "PL_LOG_ON",
+                "PL_PROFILE_ON",
                 "METAL_PL_DRAWING_IMPLEMENTATION",
                 "VULKAN_PL_DRAWING_IMPLEMENTATION"
             ],
@@ -151,6 +153,7 @@ elif(platform.system() == "Linux"):
                 "PL_LOG_IMPLEMENTATION",
                 "PL_PROFILE_IMPLEMENTATION",
                 "PL_LOG_ON",
+                "PL_PROFILE_ON",
                 "VULKAN_PL_DRAWING_IMPLEMENTATION"
             ],
             "cStandard": "c99",
