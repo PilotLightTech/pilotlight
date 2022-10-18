@@ -4,6 +4,14 @@
 #include "pl_memory.h"
 #undef PL_MEMORY_IMPLEMENTATION
 
+#define PL_LOG_IMPLEMENTATION
+#include "pl_log.h"
+#undef PL_LOG_IMPLEMENTATION
+
+#define PL_PROFILE_IMPLEMENTATION
+#include "pl_profile.h"
+#undef PL_PROFILE_IMPLEMENTATION
+
 // platform specifics
 #ifdef _WIN32
 #include "win32_pl_os.c"

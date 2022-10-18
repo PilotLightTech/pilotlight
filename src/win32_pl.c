@@ -168,7 +168,8 @@ int main()
         }
 
         // render a frame
-        pl_app_render(&gAppData, gUserData);
+        if(gAppData.running)
+            pl_app_render(&gAppData, gUserData);
     }
 
     // app cleanup

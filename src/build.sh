@@ -144,9 +144,9 @@ clang $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LIN
 if [ $? -ne 0 ]
 then
     PL_RESULT=${BOLD}${RED}Failed.${NC}
-elif [ -f "../out/app_0.so" ]
+elif [ -f "../out/app.so" ]
 then
-    rm ../out/app_*.so
+    rm ../out/app_*.so >/dev/null 2>&1
 fi
 
 ###############################################################################

@@ -13,7 +13,7 @@
 
 /*
 Index of this file:
-// [SECTION] include
+// [SECTION] includes
 // [SECTION] defines
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
@@ -86,7 +86,7 @@ typedef int plChannelType;
     #define pl_cleanup_log_context(tPContext) pl__cleanup_log_context((tPContext))
 
     // channels
-    #define pl_add_log_channel(tPContext, cPName, uMaxEntries, tType) pl__add_log_channel((tPContext), (cPName), (uMaxEntries), (tType))
+    #define pl_add_log_channel(tPContext, cPName, tType) pl__add_log_channel((tPContext), (cPName), (tType))
     #define pl_set_log_level(tPContext, uID, uLevel) pl__set_log_level((tPContext), (uID), (uLevel))
     #define pl_clear_log_channel(tPContext, uID) pl__clear_log_channel((tPContext), (uID))
 
@@ -94,7 +94,7 @@ typedef int plChannelType;
 
     #define pl_create_log_context(tPContext) //
     #define pl_cleanup_log_context(tPContext) //
-    #define pl_add_log_channel(tPContext, cPName, uMaxEntries, tType) 0u
+    #define pl_add_log_channel(tPContext, cPName, tType) 0u
     #define pl_set_log_level(tPContext, uID, uLevel) //
     #define pl_clear_log_channel(tPContext, uID) //
 
@@ -197,31 +197,31 @@ void pl__create_log_context(plLogContext* tPContext);
 void pl__cleanup_log_context(plLogContext* tPContext);
 
 // channels
-uint32_t pl__add_log_channel  (plLogContext* tPContext, const char* cPName, uint32_t uMaxEntries, plChannelType tType);
+uint32_t pl__add_log_channel  (plLogContext* tPContext, const char* cPName, plChannelType tType);
 void     pl__set_log_level    (plLogContext* tPContext, uint32_t uID, uint32_t uLevel);
 void     pl__clear_log_channel(plLogContext* tPContext, uint32_t uID);
 
 // logging
-void    pl__log_trace(plLogContext* tPContext, uint32_t uID, const char* cPMessage);
-void    pl__log_debug(plLogContext* tPContext, uint32_t uID, const char* cPMessage);
-void    pl__log_info (plLogContext* tPContext, uint32_t uID, const char* cPMessage);
-void    pl__log_warn (plLogContext* tPContext, uint32_t uID, const char* cPMessage);
-void    pl__log_error(plLogContext* tPContext, uint32_t uID, const char* cPMessage);
-void    pl__log_fatal(plLogContext* tPContext, uint32_t uID, const char* cPMessage);
+void pl__log_trace(plLogContext* tPContext, uint32_t uID, const char* cPMessage);
+void pl__log_debug(plLogContext* tPContext, uint32_t uID, const char* cPMessage);
+void pl__log_info (plLogContext* tPContext, uint32_t uID, const char* cPMessage);
+void pl__log_warn (plLogContext* tPContext, uint32_t uID, const char* cPMessage);
+void pl__log_error(plLogContext* tPContext, uint32_t uID, const char* cPMessage);
+void pl__log_fatal(plLogContext* tPContext, uint32_t uID, const char* cPMessage);
 
-void    pl__log_trace_p(plLogContext* tPContext, uint32_t uID, const char* cPFormat, ...);
-void    pl__log_debug_p(plLogContext* tPContext, uint32_t uID, const char* cPFormat, ...);
-void    pl__log_info_p (plLogContext* tPContext, uint32_t uID, const char* cPFormat, ...);
-void    pl__log_warn_p (plLogContext* tPContext, uint32_t uID, const char* cPFormat, ...);
-void    pl__log_error_p(plLogContext* tPContext, uint32_t uID, const char* cPFormat, ...);
-void    pl__log_fatal_p(plLogContext* tPContext, uint32_t uID, const char* cPFormat, ...);
+void pl__log_trace_p(plLogContext* tPContext, uint32_t uID, const char* cPFormat, ...);
+void pl__log_debug_p(plLogContext* tPContext, uint32_t uID, const char* cPFormat, ...);
+void pl__log_info_p (plLogContext* tPContext, uint32_t uID, const char* cPFormat, ...);
+void pl__log_warn_p (plLogContext* tPContext, uint32_t uID, const char* cPFormat, ...);
+void pl__log_error_p(plLogContext* tPContext, uint32_t uID, const char* cPFormat, ...);
+void pl__log_fatal_p(plLogContext* tPContext, uint32_t uID, const char* cPFormat, ...);
 
-void    pl__log_trace_va(plLogContext* tPContext, uint32_t uID, const char* cPFormat, va_list args);
-void    pl__log_debug_va(plLogContext* tPContext, uint32_t uID, const char* cPFormat, va_list args);
-void    pl__log_info_va (plLogContext* tPContext, uint32_t uID, const char* cPFormat, va_list args);
-void    pl__log_warn_va (plLogContext* tPContext, uint32_t uID, const char* cPFormat, va_list args);
-void    pl__log_error_va(plLogContext* tPContext, uint32_t uID, const char* cPFormat, va_list args);
-void    pl__log_fatal_va(plLogContext* tPContext, uint32_t uID, const char* cPFormat, va_list args);
+void pl__log_trace_va(plLogContext* tPContext, uint32_t uID, const char* cPFormat, va_list args);
+void pl__log_debug_va(plLogContext* tPContext, uint32_t uID, const char* cPFormat, va_list args);
+void pl__log_info_va (plLogContext* tPContext, uint32_t uID, const char* cPFormat, va_list args);
+void pl__log_warn_va (plLogContext* tPContext, uint32_t uID, const char* cPFormat, va_list args);
+void pl__log_error_va(plLogContext* tPContext, uint32_t uID, const char* cPFormat, va_list args);
+void pl__log_fatal_va(plLogContext* tPContext, uint32_t uID, const char* cPFormat, va_list args);
 
 #endif // PL_LOG_H
 
@@ -338,7 +338,7 @@ pl__cleanup_log_context(plLogContext* tPContext)
 }
 
 uint32_t
-pl__add_log_channel(plLogContext* tPContext, const char* cPName, uint32_t uMaxEntries, plChannelType tType)
+pl__add_log_channel(plLogContext* tPContext, const char* cPName, plChannelType tType)
 {
     uint32_t uID = pl_sb_size(tPContext->sbChannels);
     

@@ -39,8 +39,8 @@ Index of this file:
 #define pl__sb_header(buf) ((plSbHeader_*)(((char*)(buf)) - sizeof(plSbHeader_)))
 #define pl_sb_capacity(buf) ((buf) ? pl__sb_header((buf))->uCapacity : 0u)
 #define pl_sb_size(buf) ((buf) ? pl__sb_header((buf))->uSize : 0u)
-#define pl_sb_pop(buf) (pl__sb_header(buf)->uSize--, (buf)[pl__sb_header(buf)->uSize])
-#define pl_sb_top(buf) ((buf)[pl__sb_header(buf)->uSize-1])
+#define pl_sb_pop(buf) (buf)[--pl__sb_header((buf))->uSize]
+#define pl_sb_top(buf) ((buf)[pl__sb_header((buf))->uSize-1])
 #define pl_sb_free(buf) if((buf)){ free(pl__sb_header(buf));} (buf) = NULL;
 #define pl_sb_reset(buf) if((buf)){ pl__sb_header((buf))->uSize = 0u;}
 #define pl_sb_back(buf)  pl_sb_top((buf))

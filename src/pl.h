@@ -1,6 +1,5 @@
 /*
    pl.h
-     * settings & common functions
 */
 
 /*
@@ -18,16 +17,9 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl_config.h"
 #include <stdint.h>  // uint32_t
 #include <stdbool.h> // bool
-
-//-----------------------------------------------------------------------------
-// [SECTION] settings
-//-----------------------------------------------------------------------------
-
-#define PL_MAX_FRAMES_IN_FLIGHT 2
-#define PL_MAX_NAME_LENGTH 1024
-#define PL_USE_STB_SPRINTF
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper macros
