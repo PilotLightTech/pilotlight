@@ -12,6 +12,10 @@
 #include "pl_profile.h"
 #undef PL_PROFILE_IMPLEMENTATION
 
+#define PL_IO_IMPLEMENTATION
+#include "pl_io.h"
+#undef PL_IO_IMPLEMENTATION
+
 // platform specifics
 #ifdef _WIN32
 #include "win32_pl_os.c"

@@ -61,6 +61,7 @@ pl_app_load(plAppData* appData, plUserData* userData)
     pl_set_log_context(&tPNewData->tLogCtx);
     pl_set_profile_context(&tPNewData->tProfileCtx);
     pl_set_memory_context(&tPNewData->tMemoryCtx);
+    pl_set_io_context(&appData->tIOContext);
     return tPNewData;
 }
 
@@ -269,14 +270,17 @@ pl_app_render(plAppData* appData, plUserData* userData)
 
     // draw profiling info
     pl_begin_profile_sample("Draw Profiling Info");
+    static char pcDeltaTime[64] = {0};
+    pl_sprintf(pcDeltaTime, "%.6f ms", pl_get_io_context()->fDeltaTime);
+    pl_add_text(userData->fgDrawLayer, &userData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f, 10.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, pcDeltaTime, 0.0f);
     char cPProfileValue[64] = {0};
     for(uint32_t i = 0u; i < pl_sb_size(userData->tProfileCtx.tPLastFrame->sbSamples); i++)
     {
         plProfileSample* tPSample = &userData->tProfileCtx.tPLastFrame->sbSamples[i];
-        pl_add_text(userData->fgDrawLayer, &userData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f + (float)tPSample->uDepth * 15.0f, 10.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, tPSample->cPName, 0.0f);
+        pl_add_text(userData->fgDrawLayer, &userData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, tPSample->cPName, 0.0f);
         plVec2 sampleTextSize = pl_calculate_text_size(&userData->fontAtlas.sbFonts[0], 13.0f, tPSample->cPName, 0.0f);
         pl_sprintf(cPProfileValue, ": %0.5f", tPSample->dDuration);
-        pl_add_text(userData->fgDrawLayer, &userData->fontAtlas.sbFonts[0], 13.0f, (plVec2){sampleTextSize.x + 15.0f + (float)tPSample->uDepth * 15.0f, 10.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, cPProfileValue, 0.0f);
+        pl_add_text(userData->fgDrawLayer, &userData->fontAtlas.sbFonts[0], 13.0f, (plVec2){sampleTextSize.x + 15.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, cPProfileValue, 0.0f);
     }
     pl_end_profile_sample();
 

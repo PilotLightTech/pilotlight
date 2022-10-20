@@ -196,7 +196,7 @@ PL_LINK_DIRECTORIES+=" -L$VULKAN_SDK/lib"
 PL_LINK_DIRECTORIES+=" -L/usr/lib/x86_64-linux-gnu"
 
 # common compiler flags
-PL_COMPILER_FLAGS="-std=c99"
+PL_COMPILER_FLAGS="-std=gnu99"
 
 # common linker flags
 PL_LINK_FLAGS="-ldl -lm"

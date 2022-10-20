@@ -14,9 +14,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#define __USE_POSIX199309
 #include <time.h>         // nanosleep
-#undef __USE_POSIX199309
 #include "pl_os.h"
 #include <stdio.h>        // file api
 #include <dlfcn.h>        // dlopen, dlsym, dlclose

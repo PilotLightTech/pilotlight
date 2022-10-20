@@ -15,6 +15,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl_io.h"
 #include "vulkan_pl_graphics.h"
 
 //-----------------------------------------------------------------------------
@@ -31,6 +32,7 @@ typedef struct plAppData_t
    int               actualHeight;
    int               clientWidth;
    int               clientHeight;
+   plIOContext       tIOContext;
 } plAppData;
 
 #endif // VULKAN_PL_H

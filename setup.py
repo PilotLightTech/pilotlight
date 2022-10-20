@@ -50,6 +50,7 @@ if(platform.system() == "Windows"):
                 "PL_LOG_IMPLEMENTATION",
                 "PL_PROFILE_IMPLEMENTATION",
                 "PL_LOG_ON",
+                "PL_IO_IMPLEMENTATION",
                 "VULKAN_PL_DRAWING_IMPLEMENTATION"
             ],
             "windowsSdkVersion": "10.0.19041.0",
@@ -103,6 +104,7 @@ elif(platform.system() == "Darwin"):
                 "PL_PROFILE_IMPLEMENTATION",
                 "PL_LOG_ON",
                 "PL_PROFILE_ON",
+                "PL_IO_IMPLEMENTATION",
                 "METAL_PL_DRAWING_IMPLEMENTATION",
                 "VULKAN_PL_DRAWING_IMPLEMENTATION"
             ],
@@ -154,6 +156,7 @@ elif(platform.system() == "Linux"):
                 "PL_PROFILE_IMPLEMENTATION",
                 "PL_LOG_ON",
                 "PL_PROFILE_ON",
+                "PL_IO_IMPLEMENTATION",
                 "VULKAN_PL_DRAWING_IMPLEMENTATION"
             ],
             "cStandard": "c99",

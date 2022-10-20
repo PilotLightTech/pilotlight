@@ -181,9 +181,7 @@ void pl__end_profile_sample  (void);
 #elif defined(__APPLE__)
 #include <time.h> // clock_gettime_nsec_np
 #else // linux
-#define __USE_POSIX199309
 #include <time.h> // clock_gettime, clock_getres
-#undef __USE_POSIX199309
 #endif
 #include "pl_ds.h"
 
@@ -198,20 +196,20 @@ static inline double
 pl__get_wall_clock()
 {
     #ifdef _WIN32
-    INT64 slPerfFrequency = *(INT64*)gTPProfileContext->pInternal;
-    INT64 slPerfCounter;
-    QueryPerformanceCounter((LARGE_INTEGER*)&slPerfCounter);
-    return(double)slPerfCounter / (double)slPerfFrequency;
+        INT64 slPerfFrequency = *(INT64*)gTPProfileContext->pInternal;
+        INT64 slPerfCounter;
+        QueryPerformanceCounter((LARGE_INTEGER*)&slPerfCounter);
+        return(double)slPerfCounter / (double)slPerfFrequency;
     #elif defined(__APPLE__)
-    return ((double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9);
+        return ((double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9);
     #else // linux
-    struct timespec ts;
-    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) 
-    {
-        PL_ASSERT(false && "clock_gettime() failed");
-    }
-    uint64_t nsec_count = ts.tv_nsec + ts.tv_sec * 1e9;
-    return (double)nsec_count / *(double*)gTPProfileContext->pInternal;
+        struct timespec ts;
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) 
+        {
+            PL_ASSERT(false && "clock_gettime() failed");
+        }
+        uint64_t nsec_count = ts.tv_nsec + ts.tv_sec * 1e9;
+        return (double)nsec_count / *(double*)gTPProfileContext->pInternal;
     #endif
 }
 
@@ -220,20 +218,20 @@ pl__initialize_profile_context(plProfileContext* tPContext)
 {
 
     #ifdef _WIN32
-    static INT64 slPerfFrequency = 0;
-    PL_ASSERT(QueryPerformanceFrequency((LARGE_INTEGER*)&slPerfFrequency));
-    tPContext->pInternal = &slPerfFrequency;
+        static INT64 slPerfFrequency = 0;
+        PL_ASSERT(QueryPerformanceFrequency((LARGE_INTEGER*)&slPerfFrequency));
+        tPContext->pInternal = &slPerfFrequency;
     #elif defined(__APPLE__)
     #else // linux
-    static struct timespec ts;
-    if (clock_getres(CLOCK_MONOTONIC, &ts) != 0) 
-    {
-        PL_ASSERT(false && "clock_getres() failed");
-    }
+        static struct timespec ts;
+        if (clock_getres(CLOCK_MONOTONIC, &ts) != 0) 
+        {
+            PL_ASSERT(false && "clock_getres() failed");
+        }
 
-    static double dPerFrequency = 0.0;
-    dPerFrequency = 1e9/((double)ts.tv_nsec + (double)ts.tv_sec * (double)1e9);
-    tPContext->pInternal = &dPerFrequency;
+        static double dPerFrequency = 0.0;
+        dPerFrequency = 1e9/((double)ts.tv_nsec + (double)ts.tv_sec * (double)1e9);
+        tPContext->pInternal = &dPerFrequency;
     #endif
 
     gTPProfileContext = tPContext;
