@@ -11,6 +11,7 @@ on:
       - master
       - feature/*
       - dev/*
+      - fix/*
 
   pull_request:
 
@@ -41,6 +42,8 @@ jobs:
         call build.bat
         cd ..
         if not exist ./out/pilot_light.exe exit 1
+        if not exist ./out/app.dll exit 1
+        if not exist ./out/pl.lib exit 1
 
   MacOS:
     
@@ -59,6 +62,8 @@ jobs:
         ./build.sh
         cd ..
         test -f ./out/pilot_light || exit 1
+        test -f ./out/app.so || exit 1
+        test -f ./out/pl.o || exit 1
 
   Ubuntu:
     
@@ -87,3 +92,5 @@ jobs:
         ./build.sh
         cd ..
         test -f ./out/pilot_light || exit 1
+        test -f ./out/app.so || exit 1
+        test -f ./out/pl.o || exit 1

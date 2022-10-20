@@ -58,11 +58,11 @@ int main()
     // load library
     if(pl_load_library(&gSharedLibrary, "app.dll", "app_", "lock.tmp"))
     {
-        pl_app_load = (void* (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_load");
-        pl_app_setup = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_setup");
-        pl_app_shutdown = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_shutdown");
-        pl_app_resize = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_resize");
-        pl_app_render = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_render");
+        pl_app_load     = (void* (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_load");
+        pl_app_setup    = (void  (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_setup");
+        pl_app_shutdown = (void  (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_resize");
+        pl_app_render   = (void  (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_render");
         gUserData = pl_app_load(&gAppData, NULL);
     }
 
@@ -159,11 +159,11 @@ int main()
         if(pl_has_library_changed(&gSharedLibrary))
         {
             pl_reload_library(&gSharedLibrary);
-            pl_app_load = (void* (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_load");
-            pl_app_setup = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_setup");
-            pl_app_shutdown = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_shutdown");
-            pl_app_resize = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_resize");
-            pl_app_render = (void (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_render");
+            pl_app_load     = (void* (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_load");
+            pl_app_setup    = (void  (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_setup");
+            pl_app_shutdown = (void  (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_shutdown");
+            pl_app_resize   = (void  (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_resize");
+            pl_app_render   = (void  (__cdecl  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_render");
             gUserData = pl_app_load(&gAppData, gUserData);
         }
 
@@ -192,6 +192,7 @@ static LRESULT CALLBACK
 pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
     LRESULT result = 0;
+    static UINT_PTR puIDEvent = 0;
     switch (msg)
     {
         case WM_SIZE:
@@ -232,6 +233,7 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
             break;
         }
         case WM_MOVE:
+        case WM_MOVING:
         {
             pl_app_render(&gAppData, gUserData);
             break;
@@ -249,6 +251,27 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         case WM_DESTROY:
         {
             PostQuitMessage(0);
+            break;
+        }
+        case WM_ENTERSIZEMOVE:
+        {
+            // DefWindowProc below will block until mouse is released or moved.
+            // Timer events can still be caught so here we add a timer so we
+            // can continue rendering when catching the WM_TIMER event.
+            // Timer is killed in the WM_EXITSIZEMOVE case below.
+            puIDEvent = SetTimer(NULL, puIDEvent, USER_TIMER_MINIMUM , NULL);
+            SetTimer(hwnd, puIDEvent, USER_TIMER_MINIMUM , NULL);
+            break;
+        }
+        case WM_EXITSIZEMOVE:
+        {
+            KillTimer(hwnd, puIDEvent);
+            break;
+        }
+        case WM_TIMER:
+        {
+            if(wparam == puIDEvent)
+                pl_app_render(&gAppData, gUserData);
             break;
         }
         default:

@@ -236,11 +236,10 @@ pl__initialize_profile_context(plProfileContext* tPContext)
     tPContext->pInternal = &dPerFrequency;
     #endif
 
+    gTPProfileContext = tPContext;
     tPContext->dStartTime = pl__get_wall_clock();
     tPContext->sbFrames = NULL;
     tPContext->tPCurrentFrame = &tPContext->tPFrames[0];
-
-    gTPProfileContext = tPContext;
 }
 
 void

@@ -48,11 +48,11 @@ PL_EXPORT void*
 pl_app_load(plAppData* appData, plUserData* userData)
 {
     plUserData* tPNewData = NULL;
-    if(tPUserData)
+    if(userData)
     {
-        pl_set_log_context(&tPUserData->tLogCtx);
-        pl_set_profile_context(&tPUserData->tProfileCtx);
-        tPNewData = tPUserData;
+        pl_set_log_context(&userData->tLogCtx);
+        pl_set_profile_context(&userData->tProfileCtx);
+        tPNewData = userData;
     }
     else
     {
@@ -260,7 +260,7 @@ pl_app_render(plAppData* appData, plUserData* userData)
     vkCmdSetScissor(currentFrame->cmdBuf, 0, 1, &dynamicScissor);
 
     // draw profiling info
-    pl__begin_profile_sample(&userData->tProfileCtx, "Draw Profiling Info");
+    pl_begin_profile_sample("Draw Profiling Info");
     char cPProfileValue[64] = {0};
     for(uint32_t i = 0u; i < pl_sb_size(userData->tProfileCtx.tPLastFrame->sbSamples); i++)
     {
@@ -270,7 +270,7 @@ pl_app_render(plAppData* appData, plUserData* userData)
         pl_sprintf(cPProfileValue, ": %0.5f", tPSample->dDuration);
         pl_add_text(userData->fgDrawLayer, &userData->fontAtlas.sbFonts[0], 13.0f, (plVec2){sampleTextSize.x + 15.0f + (float)tPSample->uDepth * 15.0f, 10.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, cPProfileValue, 0.0f);
     }
-    pl__end_profile_sample(&userData->tProfileCtx);
+    pl_end_profile_sample();
 
     // draw commands
     pl_begin_profile_sample("Add draw commands");
@@ -336,5 +336,5 @@ pl_app_render(plAppData* appData, plUserData* userData)
     appData->graphics.currentFrameIndex = (appData->graphics.currentFrameIndex + 1) % appData->graphics.framesInFlight;
 
     // end profiling frame
-    pl__end_profile_frame();
+    pl_end_profile_frame();
 }
