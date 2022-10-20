@@ -20,8 +20,9 @@ Index of this file:
 // [SECTION] defines
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
+// [SECTION] global context
 // [SECTION] public api
-// [SECTION] internal structs
+// [SECTION] structs
 // [SECTION] implementation
 */
 
@@ -55,15 +56,27 @@ PL_DECLARE_STRUCT(plPoolAllocator);
 PL_DECLARE_STRUCT(plPoolAllocatorNode);
 
 //-----------------------------------------------------------------------------
+// [SECTION] global context
+//-----------------------------------------------------------------------------
+
+extern plMemoryContext* gTPMemoryContext;
+
+//-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
+// context
+void                   pl_initialize_memory_context(plMemoryContext* pCtx);
+void                   pl_cleanup_memory_context   (void);
+void                   pl_set_memory_context       (plMemoryContext* pCtx);
+plMemoryContext*       pl_get_memory_context       (void);
+
 // general purpose allocation
-void*                  pl_alloc        (plMemoryContext* pCtx, size_t szSize);
-void                   pl_free         (plMemoryContext* pCtx, void* pBuffer);
-void*                  pl_aligned_alloc(plMemoryContext* pCtx, size_t szAlignment, size_t szSize);
-void                   pl_aligned_free (plMemoryContext* pCtx, void* pBuffer);
-void*                  pl_realloc      (plMemoryContext* pCtx, void* pBuffer, size_t szSize);
+void*                  pl_alloc        (size_t szSize);
+void                   pl_free         (void* pBuffer);
+void*                  pl_aligned_alloc(size_t szAlignment, size_t szSize);
+void                   pl_aligned_free (void* pBuffer);
+void*                  pl_realloc      (void* pBuffer, size_t szSize);
 
 // stack allocator
 void                   pl_stack_allocator_init          (plStackAllocator* pAllocator, size_t szSize, void* pBuffer);
@@ -85,13 +98,9 @@ void                   pl_pool_allocator_init (plPoolAllocator* pAllocator, size
 void*                  pl_pool_allocator_alloc(plPoolAllocator* pAllocator);
 void                   pl_pool_allocator_free (plPoolAllocator* pAllocator, void* pItem);
 
-#endif // PL_MEMORY_H
-
 //-----------------------------------------------------------------------------
-// [SECTION] internal struts
+// [SECTION] structs
 //-----------------------------------------------------------------------------
-
-#if defined(PL_MEMORY_INTERNAL) || defined(PL_MEMORY_IMPLEMENTATION)
 
 typedef struct plMemoryContext_t
 {
@@ -128,7 +137,7 @@ typedef struct plPoolAllocator_t
     plPoolAllocatorNode* pFreeList;
 } plPoolAllocator;
 
-#endif
+#endif // PL_MEMORY_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] implementation
@@ -155,6 +164,8 @@ typedef struct plPoolAllocator_t
 #endif
 
 #define PL__ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
+
+plMemoryContext* gTPMemoryContext = NULL;
 
 static inline size_t
 pl__get_next_power_of_2(size_t n)
@@ -189,22 +200,48 @@ pl__align_forward_size(size_t ptr, size_t ulAlign)
 	return p;
 }
 
-void*
-pl_alloc(plMemoryContext* pCtx, size_t szSize)
+void
+pl_initialize_memory_context(plMemoryContext* pCtx)
 {
-    pCtx->uActiveAllocations++;
+    memset(pCtx, 0, sizeof(plMemoryContext));
+    gTPMemoryContext = pCtx;
+}
+
+void
+pl_cleanup_memory_context(void)
+{
+    PL_ASSERT(gTPMemoryContext->uActiveAllocations == 0 && "memory leak");
+    gTPMemoryContext->uActiveAllocations = 0u;
+}
+
+void
+pl_set_memory_context(plMemoryContext* pCtx)
+{
+    gTPMemoryContext = pCtx;
+}
+
+plMemoryContext*
+pl_get_memory_context(void)
+{
+    return gTPMemoryContext;
+}
+
+void*
+pl_alloc(size_t szSize)
+{
+    gTPMemoryContext->uActiveAllocations++;
     return PL_ALLOC(szSize);
 }
 
 void
-pl_free(plMemoryContext* pCtx, void* pBuffer)
+pl_free(void* pBuffer)
 {
-    pCtx->uActiveAllocations--;
+    gTPMemoryContext->uActiveAllocations--;
     PL_FREE(pBuffer);
 }
 
 void*
-pl_aligned_alloc(plMemoryContext* pCtx, size_t szAlignment, size_t szSize)
+pl_aligned_alloc(size_t szAlignment, size_t szSize)
 {
     void* pBuffer = NULL;
 
@@ -215,7 +252,7 @@ pl_aligned_alloc(plMemoryContext* pCtx, size_t szAlignment, size_t szSize)
     {
         // allocate extra bytes for alignment
         uint64_t ulHeaderSize = sizeof(uint64_t) + (szAlignment - 1);
-        void* pActualBuffer = pl_alloc(pCtx, szSize + ulHeaderSize);
+        void* pActualBuffer = pl_alloc(szSize + ulHeaderSize);
 
         if(pActualBuffer)
         {
@@ -230,7 +267,7 @@ pl_aligned_alloc(plMemoryContext* pCtx, size_t szAlignment, size_t szSize)
 }
 
 void
-pl_aligned_free(plMemoryContext* pCtx, void* pBuffer)
+pl_aligned_free(void* pBuffer)
 {
     PL_ASSERT(pBuffer);
 
@@ -239,17 +276,17 @@ pl_aligned_free(plMemoryContext* pCtx, void* pBuffer)
 
     // get original buffer to free
     void* pActualBuffer = ((uint8_t*)pBuffer - ulOffset);
-    pl_free(pCtx, pActualBuffer);
+    pl_free(pActualBuffer);
 }
 
 void*
-pl_realloc(plMemoryContext* pCtx, void* pBuffer, size_t szSize)
+pl_realloc(void* pBuffer, size_t szSize)
 {
     void* pNewBuffer = NULL;
 
     if(szSize == 0 && pBuffer)  // free
     { 
-        pCtx->uActiveAllocations--;
+        gTPMemoryContext->uActiveAllocations--;
         PL_FREE(pBuffer);
         pNewBuffer = NULL;
     }
@@ -263,7 +300,7 @@ pl_realloc(plMemoryContext* pCtx, void* pBuffer, size_t szSize)
     }
     else
     {
-        pCtx->uActiveAllocations++;
+        gTPMemoryContext->uActiveAllocations++;
         pNewBuffer = PL_ALLOC(szSize);
     }
     return pNewBuffer;

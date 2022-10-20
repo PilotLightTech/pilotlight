@@ -21,6 +21,7 @@ Index of this file:
 #include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_ds.h"
+#include "pl_memory.h"
 #include "vulkan_pl.h"
 #include "vulkan_pl_drawing.h"
 #include <string.h> // memset
@@ -38,6 +39,7 @@ typedef struct plUserData_t
     plFontAtlas      fontAtlas;
     plProfileContext tProfileCtx;
     plLogContext     tLogCtx;
+    plMemoryContext  tMemoryCtx;
 } plUserData;
 
 //-----------------------------------------------------------------------------
@@ -49,16 +51,16 @@ pl_app_load(plAppData* appData, plUserData* userData)
 {
     plUserData* tPNewData = NULL;
     if(userData)
-    {
-        pl_set_log_context(&userData->tLogCtx);
-        pl_set_profile_context(&userData->tProfileCtx);
         tPNewData = userData;
-    }
     else
     {
         tPNewData = malloc(sizeof(plUserData));
         memset(tPNewData, 0, sizeof(plUserData));
     }
+
+    pl_set_log_context(&tPNewData->tLogCtx);
+    pl_set_profile_context(&tPNewData->tProfileCtx);
+    pl_set_memory_context(&tPNewData->tMemoryCtx);
     return tPNewData;
 }
 
@@ -69,6 +71,9 @@ pl_app_load(plAppData* appData, plUserData* userData)
 PL_EXPORT void
 pl_app_setup(plAppData* appData, plUserData* userData)
 {
+
+    // setup memory context
+    pl_initialize_memory_context(&userData->tMemoryCtx);
 
     // setup profiling context
     pl_initialize_profile_context(&userData->tProfileCtx);
@@ -164,6 +169,9 @@ pl_app_shutdown(plAppData* appData, plUserData* userData)
 
     // cleanup logging context
     pl_cleanup_log_context();
+
+    // cleanup memory context
+    pl_cleanup_memory_context();
 }
 
 //-----------------------------------------------------------------------------
