@@ -1,5 +1,5 @@
 /*
-   pl_drawing.h
+   pl_draw.h
 */
 
 /*
@@ -11,8 +11,8 @@ Index of this file:
 // [SECTION] structs
 */
 
-#ifndef PL_DRAWING_H
-#define PL_DRAWING_H
+#ifndef PL_DRAW_H
+#define PL_DRAW_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] header mess
@@ -70,7 +70,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // drawing
-PL_DECLARE_STRUCT(plDrawContext);    // pl_drawing context (opaque structure)
+PL_DECLARE_STRUCT(plDrawContext);    // pl_draw context (opaque structure)
 PL_DECLARE_STRUCT(plDrawList);       // collection of draw layers for a specific target (opaque structure)
 PL_DECLARE_STRUCT(plDrawLayer);      // layer for out of order drawing(opaque structure)
 PL_DECLARE_STRUCT(plDrawCommand);    // single draw call (opaque structure)
@@ -285,4 +285,4 @@ typedef struct plDrawContext_t
     void*        _platformData;
 } plDrawContext;
 
-#endif // PL_DRAWING_H
+#endif // PL_DRAW_H

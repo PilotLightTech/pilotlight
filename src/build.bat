@@ -16,7 +16,22 @@
 @del ..\out\*.pdb > NUL 2> NUL
 @del ..\out\*.log > NUL 2> NUL
 
-echo LOCKING > ..\out\lock.tmp
+@echo LOCKING > ..\out\lock.tmp
+
+@rem check if hot reloading
+@set PL_HOT_RELOADING_STATUS=0
+@echo off
+2>nul (>>..\out\pilot_light.exe echo off) && (@set PL_HOT_RELOADING_STATUS=0) || (@set PL_HOT_RELOADING_STATUS=1)
+
+@if %PL_HOT_RELOADING_STATUS% equ 1 (
+    @echo. 
+    @echo [1m[97m[41m--------[42m HOT RELOADING [41m--------[0m
+)
+
+@if %PL_HOT_RELOADING_STATUS% equ 0 (
+    @if exist ..\out\app_*.dll del ..\out\app_*.dll
+    @if exist ..\out\app_*.pdb del ..\out\app_*.pdb
+)
 
 @rem -------------------Setup development environment--------------------------
 @set PATH=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build;%PATH%
@@ -27,7 +42,7 @@ echo LOCKING > ..\out\lock.tmp
 @set PATH=%dir%..\out;%PATH%
 
 @rem setup environment for msvc
-@call vcvarsall.bat amd64
+@call vcvarsall.bat amd64 > nul
 
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @rem |                          Common Settings                               |
@@ -52,10 +67,10 @@ echo LOCKING > ..\out\lock.tmp
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -EHsc -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105
 
 @rem common libraries
-@set PL_LINK_LIBRARIES=user32.lib ws2_32.lib shlwapi.lib propsys.lib comctl32.lib Shell32.lib Ole32.lib vulkan-1.lib pl.lib
+@set PL_LINK_LIBRARIES=user32.lib ws2_32.lib shlwapi.lib propsys.lib comctl32.lib Shell32.lib Ole32.lib vulkan-1.lib pilotlight.lib
 
 @rem release specific
-@if "%PL_CONFIG%" EQU "Release" (
+@if "%PL_CONFIG%" equ "Release" (
 
     @rem release specific defines
     @set PL_DEFINES=%PL_DEFINES%
@@ -68,7 +83,7 @@ echo LOCKING > ..\out\lock.tmp
 )
 
 @rem debug specific
-@if "%PL_CONFIG%" EQU "Debug" (
+@if "%PL_CONFIG%" equ "Debug" (
 
     @rem debug specific defines
     @set PL_DEFINES=-DPL_PROFILING_ON -D_DEBUG -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS %PL_DEFINES%
@@ -83,93 +98,111 @@ echo LOCKING > ..\out\lock.tmp
 @set PL_RESULT=[1m[92mSuccessful.[0m
 
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@rem |                          Shaders                                       |
+@rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+@rem compile shaders
+@echo.
+@echo [1m[93mStep 0: shaders[0m
+@echo [1m[93m~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling...[0m
+@REM %VULKAN_SDK%/bin/glslc -o ../out/simple.frag.spv ./shaders/simple.frag
+@REM %VULKAN_SDK%/bin/glslc -o ../out/simple.vert.spv ./shaders/simple.vert
+
+@rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @rem |                          pl lib                                       |
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_SOURCES=pl.c
+@set PL_SOURCES=pilotlight.c
 
 @rem run compiler
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% -c -permissive- %PL_SOURCES% -Fe..\out\pl.lib -Fo..\out\
+@echo.
+@echo [1m[93mStep 1: pilotlight.lib[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% -c -permissive- %PL_SOURCES% -Fe..\out\pilotlight.lib -Fo..\out\
 
 @rem check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
 @if %PL_BUILD_STATUS% NEQ 0 (
-    echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
     @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanup2
+    goto CleanupPlLib
 )
-@echo [1m[36mCompiled successfully. Now linking...[0m
+@echo [1m[36mLinking...[0m
 
 @rem link object files into a shared lib
-lib -nologo -OUT:..\out\pl.lib ..\out\*.obj
+lib -nologo -OUT:..\out\pilotlight.lib ..\out\*.obj
 
-:Cleanup2
-    @echo [1m[36mCleaning up intermediate files...[0m
+:CleanupPlLib
+    @echo [1m[36mCleaning...[0m
     @del ..\out\*.obj
 
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @rem |                         app lib                                        |
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_SOURCES="vulkan_app.c"
+@set PL_SOURCES="app_vulkan.c"
 
 @rem run compiler
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% -permissive- %PL_SOURCES% -Fe..\out\app.dll -Fo..\out\ -LD -link -incremental:no -PDB:..\out\app_%random%.pdb %PL_LINKER_FLAGS% %PL_LINK_DIRECTORIES% %PL_LINK_LIBRARIES%
+@echo.
+@echo [1m[93mStep 2: app.dll[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% -permissive- %PL_SOURCES% -Fe..\out\app.dll -Fo..\out\ -LD -link -noimplib -noexp -incremental:no -PDB:..\out\app_%random%.pdb %PL_LINKER_FLAGS% %PL_LINK_DIRECTORIES% %PL_LINK_LIBRARIES%
 
 @rem check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
 @if %PL_BUILD_STATUS% NEQ 0 (
     echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
     @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanup3
+    goto CleanupApp
 )
 
-:Cleanup3
-    @echo [1m[36mCleaning up intermediate files...[0m
+:CleanupApp
+    @echo [1m[36mCleaning...[0m
     @del ..\out\*.obj
+
+@if %PL_HOT_RELOADING_STATUS% equ 1 ( goto PrintInfo )
 
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @rem |                          Executable                                    |
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 :MainBuild
 
-@set PL_SOURCES="win32_pl.c"
+@set PL_SOURCES="pl_main_win32.c"
 
 @rem run compiler
+@echo.
+@echo [1m[93mStep 3: pilot_light.exe[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
 @cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% -permissive- %PL_SOURCES% -Fe..\out\pilot_light.exe -Fo..\out\ -link -incremental:no %PL_LINKER_FLAGS% %PL_LINK_DIRECTORIES% %PL_LINK_LIBRARIES%
 
 @rem check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
 
-@if %PL_BUILD_STATUS% EQU 0 (
-    @if exist ..\out\app_*.dll del ..\out\app_*.dll
-)
-@if %PL_BUILD_STATUS% NEQ 0 (
+@if %PL_BUILD_STATUS% neq 0 (
     echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
     @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanup1
+    goto CleanupExe
 )
 
-:Cleanup1
-    @echo [1m[36mCleaning up intermediate files...[0m
+:CleanupExe
+    @echo [1m[36mCleaning...[0m
     @del ..\out\*.obj
-
-@rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-@rem |                          Shaders                                       |
-@rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-@REM %VULKAN_SDK%/bin/glslc -o ../out/simple.frag.spv ./shaders/simple.frag
-@REM %VULKAN_SDK%/bin/glslc -o ../out/simple.vert.spv ./shaders/simple.vert
 
 @rem --------------------------------------------------------------------------
 @rem Information Output
 @rem --------------------------------------------------------------------------
 :PrintInfo
+@echo.
 @echo [36m--------------------------------------------------------------------------[0m
 @echo [1m[93m                        Build Information [0m
 @echo [36mResults:             [0m %PL_RESULT%
 @echo [36mConfiguration:       [0m [35m%PL_CONFIG%[0m
 @echo [36mWorking directory:   [0m [35m%dir%[0m
-@echo [36mOutput directory:    [0m [35m../out[0m
+@echo [36mOutput directory:    [0m [35m..\out[0m
 @echo [36mOutput binary:       [0m [33mpilot_light.exe[0m
 @echo [36m--------------------------------------------------------------------------[0m
 

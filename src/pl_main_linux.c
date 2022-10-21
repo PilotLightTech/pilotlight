@@ -16,18 +16,15 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_os.h"
-#include "pl_ds.h"
-#include "pl_io.h"
-#include "vulkan_pl_graphics.h"
-#include "vulkan_pl.h"
+#include <time.h>     // clock_gettime, clock_getres
+#include <string.h>   // strlen
+#include <stdlib.h>   // free
+#include <assert.h>
+#include "pl_io.h"    // io context
+#include "pl_os.h"    // shared library api
 #include <xcb/xcb.h>
-#include <X11/Xlib.h>
 #include <X11/XKBlib.h> // XkbKeycodeToKeysym
-#include <xkbcommon/xkbcommon-names.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
-#include <xkbcommon/xkbcommon-compat.h>
-#include <time.h> // clock_gettime, clock_getres
 
 //-----------------------------------------------------------------------------
 // [SECTION] globals
@@ -37,21 +34,21 @@ static Display*          gDisplay;
 static xcb_connection_t* gConnection;
 static xcb_window_t      gWindow;
 static xcb_screen_t*     gScreen;
+static bool              gRunning = true;
 static xcb_atom_t        gWmProtocols;
 static xcb_atom_t        gWmDeleteWin;
-
-static plSharedLibrary   gSharedLibrary = {0};
+plIOContext              gtIOContext = {0};
+static plSharedLibrary   gAppLibrary = {0};
 static void*             gUserData = NULL;
-static plAppData         gAppData = { .running = true, .clientWidth = 500, .clientHeight = 500};
 static double            gdTime = 0.0;
 static double            gdFrequency = 0.0;
 
-typedef struct plUserData_t plUserData;
-static void* (*pl_app_load)(plAppData* appData, plUserData* userData);
-static void  (*pl_app_setup)(plAppData* appData, plUserData* userData);
-static void  (*pl_app_shutdown)(plAppData* appData, plUserData* userData);
-static void  (*pl_app_resize)(plAppData* appData, plUserData* userData);
-static void  (*pl_app_render)(plAppData* appData, plUserData* userData);
+typedef struct plAppData_t plAppData;
+static void* (*pl_app_load)    (plIOContext* ptIOCtx, plAppData* ptAppData);
+static void  (*pl_app_setup)   (plAppData* ptAppData);
+static void  (*pl_app_shutdown)(plAppData* ptAppData);
+static void  (*pl_app_resize)  (plAppData* ptAppData);
+static void  (*pl_app_render)  (plAppData* ptAppData);
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -63,7 +60,7 @@ static inline double pl__get_linux_absolute_time(void)
     struct timespec ts;
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) 
     {
-        PL_ASSERT(false && "clock_gettime() failed");
+        assert(false && "clock_gettime() failed");
     }
     uint64_t nsec_count = ts.tv_nsec + ts.tv_sec * 1e9;
     return (double)nsec_count / gdFrequency;    
@@ -76,26 +73,28 @@ static inline double pl__get_linux_absolute_time(void)
 int main()
 {
 
-    // setup io context
-    pl_initialize_io_context(&gAppData.tIOContext);
+    // setup & retrieve io context
+    pl_initialize_io_context(&gtIOContext);
+    plIOContext* ptIOCtx = pl_get_io_context();
 
+    // setup timers
     static struct timespec ts;
     if (clock_getres(CLOCK_MONOTONIC, &ts) != 0) 
     {
-        PL_ASSERT(false && "clock_getres() failed");
+        assert(false && "clock_getres() failed");
     }
     gdFrequency = 1e9/((double)ts.tv_nsec + (double)ts.tv_sec * (double)1e9);
     gdTime = pl__get_linux_absolute_time();
 
     // load library
-    if(pl_load_library(&gSharedLibrary, "./app.so", "./app_", "./lock.tmp"))
+    if(pl_load_library(&gAppLibrary, "./app.so", "./app_", "./lock.tmp"))
     {
-        pl_app_load = (void* (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_load");
-        pl_app_setup = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_setup");
-        pl_app_shutdown = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_shutdown");
-        pl_app_resize = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_resize");
-        pl_app_render = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_render");
-        gUserData = pl_app_load(&gAppData, NULL);
+        pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
+        pl_app_setup    = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_setup");
+        pl_app_shutdown = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
+        pl_app_render   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_render");
+        gUserData = pl_app_load(ptIOCtx, NULL);
     }
 
     // connect to x
@@ -105,7 +104,7 @@ int main()
     gConnection = xcb_connect(NULL, &screen_p);
     if(xcb_connection_has_error(gConnection))
     {
-        PL_ASSERT(false && "Failed to connect to X server via XCB.");
+        assert(false && "Failed to connect to X server via XCB.");
     }
 
     // get data from x server
@@ -151,8 +150,8 @@ int main()
         gScreen->root,         // parent
         200,                   // x
         200,                   // y
-        gAppData.clientWidth,  // width
-        gAppData.clientHeight, // height
+        500,                   // width
+        500,                   // height
         0,                     // No border
         XCB_WINDOW_CLASS_INPUT_OUTPUT,  //class
         gScreen->root_visual,
@@ -209,30 +208,19 @@ int main()
     // Flush the stream
     int stream_result = xcb_flush(gConnection);
 
-    // create vulkan instance
-    pl_create_instance(&gAppData.graphics, VK_API_VERSION_1_1, true);
-
-    // create surface
-    VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
-        .pNext = NULL,
-        .flags = 0,
-        .window = gWindow,
-        .connection = gConnection
-    };
-    PL_VULKAN(vkCreateXcbSurfaceKHR(gAppData.graphics.instance, &surfaceCreateInfo, NULL, &gAppData.graphics.surface));
-
-    // create devices
-    pl_create_device(gAppData.graphics.instance, gAppData.graphics.surface, &gAppData.device, true);
-    
-    // create swapchain
-    pl_create_swapchain(&gAppData.device, gAppData.graphics.surface, gAppData.clientWidth, gAppData.clientHeight, &gAppData.swapchain);
+    static struct {
+        xcb_connection_t* ptConnection;
+        xcb_window_t      tWindow;
+    } platformData;
+    platformData.ptConnection = gConnection;
+    platformData.tWindow = gWindow;
+    ptIOCtx->pBackendPlatformData = &platformData;
 
     // app specific setup
-    pl_app_setup(&gAppData, gUserData);
+    pl_app_setup(gUserData);
 
     // main loop
-    while (gAppData.running)
+    while (gRunning)
     {
         xcb_generic_event_t* event;
         xcb_client_message_event_t* cm;
@@ -250,7 +238,7 @@ int main()
                     // Window close
                     if (cm->data.data32[0] == gWmDeleteWin) 
                     {
-                        gAppData.running  = false;
+                        gRunning  = false;
                     }
                     break;
                 }
@@ -324,11 +312,11 @@ int main()
 
                     // Fire the event. The application layer should pick this up, but not handle it
                     // as it shouldn be visible to other parts of the application.
-                    if(configure_event->width != gAppData.clientWidth || configure_event->height != gAppData.clientHeight)
+                    if(configure_event->width != gtIOContext.afMainViewportSize[0] || configure_event->height != gtIOContext.afMainViewportSize[1])
                     {
-                        gAppData.clientWidth = configure_event->width;
-                        gAppData.clientHeight = configure_event->height;
-                        pl_app_resize(&gAppData, gUserData);
+                        gtIOContext.afMainViewportSize[0] = configure_event->width;
+                        gtIOContext.afMainViewportSize[1] = configure_event->height;
+                        pl_app_resize(gUserData);
                     }
                     break;
                 } 
@@ -338,15 +326,15 @@ int main()
         }
 
         // reload library
-        if(pl_has_library_changed(&gSharedLibrary))
+        if(pl_has_library_changed(&gAppLibrary))
         {
-            pl_reload_library(&gSharedLibrary);
-            pl_app_load = (void* (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_load");
-            pl_app_setup = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_setup");
-            pl_app_shutdown = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_shutdown");
-            pl_app_resize = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_resize");
-            pl_app_render = (void (__attribute__(())  *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_render");
-            gUserData = pl_app_load(&gAppData, gUserData);
+            pl_reload_library(&gAppLibrary);
+            pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
+            pl_app_setup    = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_setup");
+            pl_app_shutdown = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
+            pl_app_resize   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
+            pl_app_render   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_render");
+            gUserData = pl_app_load(ptIOCtx, gUserData);
         }
 
         // render a frame
@@ -355,14 +343,11 @@ int main()
         pl_get_io_context()->fDeltaTime = (float)(dCurrentTime - gdTime);
         gdTime = dCurrentTime;
 
-        pl_app_render(&gAppData, gUserData);
+        pl_app_render(gUserData);
     }
 
     // app cleanup
-    pl_app_shutdown(&gAppData, gUserData);
-
-    // cleanup graphics context
-    pl_cleanup_graphics(&gAppData.graphics, &gAppData.device);
+    pl_app_shutdown(gUserData);
 
     // platform cleanup
     XAutoRepeatOn(gDisplay);

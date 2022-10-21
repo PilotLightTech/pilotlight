@@ -7,7 +7,8 @@
 
 /*
 Index of this file:
-// [SECTION] header mess
+// [SECTION] includes
+// [SECTION] defines
 // [SECTION] forward declarations
 // [SECTION] public api
 // [SECTION] structs
@@ -17,10 +18,22 @@ Index of this file:
 #define PL_OS_H
 
 //-----------------------------------------------------------------------------
-// [SECTION] header mess
+// [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl.h"
+#include <stdint.h> // uint32_t
+
+//-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
+
+#ifndef PL_MAX_NAME_LENGTH
+#define PL_MAX_NAME_LENGTH 1024
+#endif
+
+#ifndef PL_DECLARE_STRUCT
+#define PL_DECLARE_STRUCT(name) typedef struct name ##_t name
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

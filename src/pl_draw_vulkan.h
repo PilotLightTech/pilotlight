@@ -15,14 +15,14 @@ Index of this file:
 // [SECTION] internal helpers implementation
 */
 
-#ifndef VULKAN_PL_DRAWING_H
-#define VULKAN_PL_DRAWING_H
+#ifndef PL_DRAW_VULKAN_H
+#define PL_DRAW_VULKAN_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_drawing.h"
+#include "pl_draw.h"
 #include "vulkan/vulkan.h"
 
 #ifndef PL_VULKAN
@@ -43,13 +43,13 @@ void           pl_new_draw_frame            (plDrawContext* ctx);
 // misc
 VkDescriptorSet pl_add_texture(plDrawContext* drawContext, VkImageView imageView, VkImageLayout imageLayout);
 
-#endif // VULKAN_PL_DRAWING_H
+#endif // PL_DRAWING_VULKAN_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] c file
 //-----------------------------------------------------------------------------
 
-#ifdef VULKAN_PL_DRAWING_IMPLEMENTATION
+#ifdef PL_DRAW_VULKAN_IMPLEMENTATION
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -314,8 +314,8 @@ typedef struct plVulkanDrawList_t
 // [SECTION] internal helper forward declarations
 //-----------------------------------------------------------------------------
 
-extern void     pl__cleanup_font_atlas   (plFontAtlas* atlas); // in pl_drawing.c
-extern void     pl__new_draw_frame   (plDrawContext* ctx); // in pl_drawing.c
+extern void     pl__cleanup_font_atlas   (plFontAtlas* atlas); // in pl_draw.c
+extern void     pl__new_draw_frame   (plDrawContext* ctx); // in pl_draw.c
 static uint32_t pl__find_memory_type(VkPhysicalDeviceMemoryProperties memProps, uint32_t typeFilter, VkMemoryPropertyFlags properties);
 static void     pl__grow_vulkan_vertex_buffer(plDrawList* ptrDrawlist, uint32_t uVtxBufSzNeeded, uint32_t currentFrameIndex);
 static void     pl__grow_vulkan_index_buffer(plDrawList* ptrDrawlist, uint32_t uIdxBufSzNeeded, uint32_t currentFrameIndex);
@@ -1207,4 +1207,4 @@ pl__grow_vulkan_index_buffer(plDrawList* drawlist, uint32_t indexBufferSize, uin
     PL_VULKAN(vkMapMemory(vulkanDrawCtx->device, vulkanDrawlist->sbIndexMemory[currentFrameIndex], 0, memReqs.size, 0, (void**)&vulkanDrawlist->sbIndexBufferMap[currentFrameIndex]));
 }
 
-#endif // VULKAN_PL_DRAWING_IMPLEMENTATION
+#endif // PL_DRAW_VULKAN_IMPLEMENTATION

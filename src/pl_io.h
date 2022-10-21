@@ -82,6 +82,10 @@ void         pl_add_mouse_wheel_event (float fX, float fY);
 typedef struct plIOContext_t
 {
     float fDeltaTime;
+    float afMainViewportSize[2];
+    void* pUserData;
+    void* pBackendPlatformData;
+    void* pBackendRendererData;
 } plIOContext;
 
 //-----------------------------------------------------------------------------

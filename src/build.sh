@@ -7,10 +7,13 @@
 # colors
 BOLD=$'\e[0;1m'
 RED=$'\e[0;31m'
+RED_BG=$'\e[0;41m'
 GREEN=$'\e[0;32m'
+GREEN_BG=$'\e[0;42m'
 CYAN=$'\e[0;36m'
 MAGENTA=$'\e[0;35m'
 YELLOW=$'\e[0;33m'
+WHITE=$'\e[0;97m'
 NC=$'\e[0m'
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
@@ -36,15 +39,23 @@ fi
 PLAT="$(uname)"
 ARCH="$(uname -m)"
 
-# cleanup
+echo LOCKING > ../out/lock.tmp
+
+# check if hot reloading
+PL_HOT_RELOADING_STATUS=0
+if lsof | grep -i -q pilot_light
+then
+PL_HOT_RELOADING_STATUS=1
+echo
+echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
+echo
+else
+PL_HOT_RELOADING_STATUS=0
 if [ -f ../out/pilot_light ]; then
     rm -f ../out/pilot_light
-    rm -f ../out/*.air
-    rm -f ../out/*.metallib
     rm -f ../out/*.spv
 fi
-
-echo LOCKING > ../out/lock.tmp
+fi
 
 ###############################################################################
 #                           Common Settings                                   #
@@ -68,6 +79,13 @@ PL_LINK_DIRECTORIES="-L../out"
 ###############################################################################
 
 if [[ "$PLAT" == "Darwin" ]]; then
+
+# cleanup
+if [ -f ../out/pilot_light ]; then
+    rm -f ../out/pilot_light
+    rm -f ../out/*.air
+    rm -f ../out/*.metallib
+fi
 
 ###############################################################################
 #                         Apple Common Settings                               #
@@ -108,24 +126,47 @@ elif [[ "$PL_CONFIG" == "Release" ]]; then
 fi
 
 ###############################################################################
+#                            metal shaders                                    #
+###############################################################################
+
+echo
+echo ${YELLOW}Step 0: shaders${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling...${NC}
+
+# compile
+# xcrun -sdk macosx metal -c ./shaders/simple.metal -o ../out/simple.air
+
+# link
+# xcrun -sdk macosx metallib ../out/*.air -o ../out/pl.metallib
+
+###############################################################################
 #                             apple pl lib                                    #
 ###############################################################################
 
-PL_SOURCES="pl.c"
+PL_SOURCES="pilotlight.c"
 
-clang -c $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES -o ../out/pl.o
+echo
+echo ${YELLOW}Step 1: pilotlight.o${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling...${NC}
+clang -c $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES -o ../out/pilotlight.o
 
 ###############################################################################
 #                             apple app lib                                   #
 ###############################################################################
 
-PL_SOURCES="metal_app.m ../out/pl.o"
+PL_SOURCES="app_metal.m ../out/pilotlight.o"
 
 if [ -f "../out/app.so" ]
 then
     rm ../out/app.so
 fi
 
+echo
+echo ${YELLOW}Step 2: app.so${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling...${NC}
 clang -shared -fPIC $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_LIBRARIES -o ../out/app.so
 
 if [ $? -ne 0 ]
@@ -137,9 +178,16 @@ fi
 #                              apple executable                               #
 ###############################################################################
 
-PL_SOURCES="apple_pl.m ../out/pl.o"
+PL_SOURCES="pl_main_macos.m ../out/pilotlight.o"
 
+if [ ${PL_HOT_RELOADING_STATUS} -ne 1 ]
+then
+echo
+echo ${YELLOW}Step 3: pilot_light${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
 clang $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_LIBRARIES -o ../out/pilot_light
+fi
 
 if [ $? -ne 0 ]
 then
@@ -149,15 +197,7 @@ then
     rm ../out/app_*.so >/dev/null 2>&1
 fi
 
-###############################################################################
-#                            metal shaders                                    #
-###############################################################################
 
-# compile
-# xcrun -sdk macosx metal -c ./shaders/simple.metal -o ../out/simple.air
-
-# link
-# xcrun -sdk macosx metallib ../out/*.air -o ../out/pl.metallib
 
 ###############################################################################
 ###############################################################################
@@ -213,24 +253,42 @@ elif [[ "$PL_CONFIG" == "Release" ]]; then
 fi
 
 ###############################################################################
-#                              linux pl lib                                   #
+#                                vulkan shaders                               #
+###############################################################################
+echo
+echo ${YELLOW}Step 0: shaders${NC}
+echo ${YELLOW}~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling...${NC}
+# glslc -o ../out/simple.frag.spv ./shaders/simple.frag
+# glslc -o ../out/simple.vert.spv ./shaders/simple.vert
+
+###############################################################################
+#                       linux pilotlight lib                                  #
 ###############################################################################
 
-PL_SOURCES="pl.c"
+PL_SOURCES="pilotlight.c"
 
-gcc -c -fPIC $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES -o ../out/pl.o
+echo
+echo ${YELLOW}Step 1: pilotlight.o${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling...${NC}
+gcc -c -fPIC $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES -o ../out/pilotlight.o
 
 ###############################################################################
 #                             linux app lib                                   #
 ###############################################################################
 
-PL_SOURCES="vulkan_app.c ../out/pl.o"
+PL_SOURCES="app_vulkan.c ../out/pilotlight.o"
 
 if [ -f "../out/app.so" ]
 then
     rm ../out/app.so
 fi
 
+echo
+echo ${YELLOW}Step 2: app.so${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling...${NC}
 gcc -shared -fPIC $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_LIBRARIES -o ../out/app.so
 
 if [ $? -ne 0 ]
@@ -242,9 +300,16 @@ fi
 #                              linux executable                               #
 ###############################################################################
 
-PL_SOURCES="linux_pl.c ../out/pl.o"
+PL_SOURCES="pl_main_linux.c ../out/pilotlight.o"
 
+if [ ${PL_HOT_RELOADING_STATUS} -ne 1 ]
+then
+echo
+echo ${YELLOW}Step 3: pilot_light${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
 gcc $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINK_FLAGS $PL_LINK_LIBRARIES -o ../out/pilot_light
+fi
 
 if [ $? -ne 0 ]
 then
@@ -254,17 +319,12 @@ then
     rm ../out/app_*.so
 fi
 
-###############################################################################
-#                                vulkan shaders                               #
-###############################################################################
-# glslc -o ../out/simple.frag.spv ./shaders/simple.frag
-# glslc -o ../out/simple.vert.spv ./shaders/simple.vert
-
 fi
 
 ###############################################################################
 #                          Information Output                                 #
 ###############################################################################
+echo
 echo ${CYAN}-------------------------------------------------------------------------${NC}
 echo ${YELLOW}                      Build Information ${NC}
 echo ${CYAN}Results:             ${NC} ${PL_RESULT}

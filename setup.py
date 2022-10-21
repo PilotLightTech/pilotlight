@@ -27,7 +27,7 @@ if(platform.system() == "Windows"):
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/out/",
             "environment": [],
-            "console": "internalConsole"
+            "console": "integratedTerminal"
         }
     ]
 }
@@ -51,7 +51,7 @@ if(platform.system() == "Windows"):
                 "PL_PROFILE_IMPLEMENTATION",
                 "PL_LOG_ON",
                 "PL_IO_IMPLEMENTATION",
-                "VULKAN_PL_DRAWING_IMPLEMENTATION"
+                "PL_DRAWING_VULKAN_IMPLEMENTATION"
             ],
             "windowsSdkVersion": "10.0.19041.0",
             "cStandard": "c99",
@@ -105,8 +105,8 @@ elif(platform.system() == "Darwin"):
                 "PL_LOG_ON",
                 "PL_PROFILE_ON",
                 "PL_IO_IMPLEMENTATION",
-                "METAL_PL_DRAWING_IMPLEMENTATION",
-                "VULKAN_PL_DRAWING_IMPLEMENTATION"
+                "PL_DRAW_METAL_IMPLEMENTATION",
+                "PL_DRAW_VULKAN_IMPLEMENTATION"
             ],
             "cStandard": "c99",
             "intelliSenseMode": "macos-clang-arm64"
@@ -157,7 +157,7 @@ elif(platform.system() == "Linux"):
                 "PL_LOG_ON",
                 "PL_PROFILE_ON",
                 "PL_IO_IMPLEMENTATION",
-                "VULKAN_PL_DRAWING_IMPLEMENTATION"
+                "PL_DRAW_VULKAN_IMPLEMENTATION"
             ],
             "cStandard": "c99",
             "intelliSenseMode": "linux-gcc-x64"

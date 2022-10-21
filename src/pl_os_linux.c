@@ -121,7 +121,8 @@ pl_load_library(plSharedLibrary* library, const char* name, const char* transiti
     if(library->lockFile[0] == 0)         strncpy(library->lockFile, lockFile, PL_MAX_NAME_LENGTH);
     library->valid = false;
 
-    library->_platformData = malloc(sizeof(plLinuxSharedLibrary));
+    if(library->_platformData == NULL)
+        library->_platformData = malloc(sizeof(plLinuxSharedLibrary));
     plLinuxSharedLibrary* linuxLibrary = library->_platformData;
 
     if(linuxLibrary)
@@ -143,6 +144,10 @@ pl_load_library(plSharedLibrary* library, const char* name, const char* transiti
             linuxLibrary->handle = dlopen(temporaryName, RTLD_NOW);
             if(linuxLibrary->handle)
                 library->valid = true;
+            else
+            {
+                printf("\n\n%s\n\n", dlerror());
+            }
         }
     }
     return library->valid;

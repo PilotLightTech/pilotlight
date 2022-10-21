@@ -22,8 +22,9 @@ Index of this file:
 #import <Carbon/Carbon.h>
 #import <QuartzCore/CAMetalLayer.h>
 #import <time.h>
-#include "metal_pl.h"
+#include "pl_graphics_metal.h"
 #include "pl_os.h"
+#include "pl_io.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -73,20 +74,21 @@ static inline CFTimeInterval pl__get_absolute_time(void) { return (CFTimeInterva
 
 static NSWindow*            gWindow = NULL;
 static NSViewController*    gViewController = NULL;
-static plSharedLibrary      gSharedLibrary = {0};
+static plSharedLibrary      gAppLibrary = {0};
 static void*                gUserData = NULL;
-static plAppData            gAppData = { .running = true, .clientWidth = 500, .clientHeight = 500};
+static bool                 gRunning = true;
+plIOContext                 gtIOContext = {0};
 static plKeyEventResponder* gKeyEventResponder = NULL;
 static NSTextInputContext*  gInputContext = NULL;
 static id                   gMonitor;
 CFTimeInterval              gTime;
 
-typedef struct plUserData_t plUserData;
-static void* (*pl_app_load)(plAppData* appData, plUserData* userData);
-static void  (*pl_app_setup)(plAppData* appData, plUserData* userData);
-static void  (*pl_app_shutdown)(plAppData* appData, plUserData* userData);
-static void  (*pl_app_resize)(plAppData* appData, plUserData* userData);
-static void  (*pl_app_render)(plAppData* appData, plUserData* userData);
+typedef struct plAppData_t plAppData;
+static void* (*pl_app_load)    (plIOContext* ptIOCtx, plAppData* ptAppData);
+static void  (*pl_app_setup)   (plAppData* ptAppData);
+static void  (*pl_app_shutdown)(plAppData* ptAppData);
+static void  (*pl_app_resize)  (plAppData* ptAppData);
+static void  (*pl_app_render)  (plAppData* ptAppData);
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -95,17 +97,18 @@ static void  (*pl_app_render)(plAppData* appData, plUserData* userData);
 int main()
 {
     // setup io context
-    pl_initialize_io_context(&gAppData.tIOContext);
+    pl_initialize_io_context(&gtIOContext);
+    plIOContext* ptIOCtx = pl_get_io_context();
 
     // load library
-    if(pl_load_library(&gSharedLibrary, "app.so", "app_", "lock.tmp"))
+    if(pl_load_library(&gAppLibrary, "app.so", "app_", "lock.tmp"))
     {
-        pl_app_load = (void* (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_load");
-        pl_app_setup = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_setup");
-        pl_app_shutdown = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_shutdown");
-        pl_app_resize = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_resize");
-        pl_app_render = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_render");
-        gUserData = pl_app_load(&gAppData, NULL);
+        pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
+        pl_app_setup    = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_setup");
+        pl_app_shutdown = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
+        pl_app_render   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_render");
+        gUserData = pl_app_load(ptIOCtx, NULL);
     }
 
     // create view controller
@@ -282,7 +285,7 @@ int main()
         dispatch_source_cancel(_displaySource);
     }
 
-    pl_app_shutdown(&gAppData, gUserData);
+    pl_app_shutdown(gUserData);
 }
 
 // This is the renderer output callback function
@@ -338,53 +341,55 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 
 - (void)loadView
 {
-    gAppData.device.device = MTLCreateSystemDefaultDevice();
+    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
 
     NSRect frame = NSMakeRect(0, 0, 500, 500);
     self.view = [[plNSView alloc] initWithFrame:frame];
 
     plNSView *view = (plNSView *)self.view;
-    view.metalLayer.device = gAppData.device.device;    
+    view.metalLayer.device = device;    
     view.delegate = self;
     view.metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
-    pl_app_setup(&gAppData, gUserData);
+    gtIOContext.pBackendPlatformData = device;
+    pl_app_setup(gUserData);
 }
 
 - (void)drawableResize:(CGSize)size
 {
-    gAppData.clientWidth = size.width;
-    gAppData.clientHeight = size.height;
-    pl_app_resize(&gAppData, gUserData);
+    gtIOContext.afMainViewportSize[0] = size.width;
+    gtIOContext.afMainViewportSize[1] = size.height;
+    pl_app_resize(gUserData);
 }
 
 - (void)renderToMetalLayer:(nonnull CAMetalLayer *)layer
 {
-    gAppData.graphics.metalLayer = layer;
+    // gAppData.graphics.metalLayer = layer;
+    gtIOContext.pBackendRendererData = layer;
 
     // reload library
-    if(pl_has_library_changed(&gSharedLibrary))
+    if(pl_has_library_changed(&gAppLibrary))
     {
-        pl_reload_library(&gSharedLibrary);
-        pl_app_load = (void* (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_load");
-        pl_app_setup = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_setup");
-        pl_app_shutdown = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_shutdown");
-        pl_app_resize = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_resize");
-        pl_app_render = (void (__attribute__(()) *)(plAppData*, plUserData*)) pl_load_library_function(&gSharedLibrary, "pl_app_render");
-        gUserData = pl_app_load(&gAppData, gUserData);
+        pl_reload_library(&gAppLibrary);
+        pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
+        pl_app_setup    = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_setup");
+        pl_app_shutdown = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
+        pl_app_render   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_render");
+        gUserData = pl_app_load(&gtIOContext, gUserData);
     }
 
     if(gTime == 0.0)
         gTime = pl__get_absolute_time();
 
     double dCurrentTime = pl__get_absolute_time();
-    pl_get_io_context()->fDeltaTime = (float)(dCurrentTime - gTime);
+    gtIOContext.fDeltaTime = (float)(dCurrentTime - gTime);
     gTime = dCurrentTime;
-    pl_app_render(&gAppData, gUserData);
+    pl_app_render(gUserData);
 }
 
 - (void)shutdown
 {
-    pl_app_shutdown(&gAppData, gUserData);
+    pl_app_shutdown(gUserData);
     if(gMonitor != NULL)
     {
         [NSEvent removeMonitor:gMonitor];

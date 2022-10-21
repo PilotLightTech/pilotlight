@@ -1,4 +1,6 @@
-#include "pl_drawing.c"
+#include "pilotlight.h"
+
+#include "pl_draw.c"
 
 #define PL_MEMORY_IMPLEMENTATION
 #include "pl_memory.h"
@@ -18,11 +20,11 @@
 
 // platform specifics
 #ifdef _WIN32
-#include "win32_pl_os.c"
+#include "pl_os_win32.c"
 #elif defined(__APPLE__)
-#include "apple_pl_os.m"
+#include "pl_os_macos.m"
 #else // linux
-#include "linux_pl_os.c"
+#include "pl_os_linux.c"
 #endif
 
 #ifdef PL_USE_STB_SPRINTF
@@ -32,17 +34,17 @@
 #endif
 
 #ifdef PL_METAL_BACKEND
-#define METAL_PL_DRAWING_IMPLEMENTATION
-#include "metal_pl_drawing.h"
-#undef METAL_PL_DRAWING_IMPLEMENTATION
+#define PL_DRAW_METAL_IMPLEMENTATION
+#include "pl_draw_metal.h"
+#undef PL_DRAW_METAL_IMPLEMENTATION
 #endif
 
 // graphics backend specifics
 #ifdef PL_VULKAN_BACKEND
-#include "vulkan_pl_graphics.c"
-#define VULKAN_PL_DRAWING_IMPLEMENTATION
-#include "vulkan_pl_drawing.h"
-#undef VULKAN_PL_DRAWING_IMPLEMENTATION
+#include "pl_graphics_vulkan.c"
+#define PL_DRAW_VULKAN_IMPLEMENTATION
+#include "pl_draw_vulkan.h"
+#undef PL_DRAW_VULKAN_IMPLEMENTATION
 #endif
 
 #define STB_RECT_PACK_IMPLEMENTATION
