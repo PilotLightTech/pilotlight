@@ -39,11 +39,14 @@ jobs:
         set VULKAN_SDK=C:\VulkanSDK\1.3.224.1
         cd $GITHUB_WORKSPACE
         cd src
-        call build.bat
-        cd ..
-        if not exist ./out/pilot_light.exe exit 1
-        if not exist ./out/app.dll exit 1
-        if not exist ./out/pilotlight.lib exit 1
+        call build.bat -g vulkan
+        if not exist ../out/pilot_light.exe exit 1
+        if not exist ../out/app.dll exit 1
+        if not exist ../out/pilotlight.lib exit 1
+        call build.bat -g dx11
+        if not exist ../out/pilot_light.exe exit 1
+        if not exist ../out/app.dll exit 1
+        if not exist ../out/pilotlight.lib exit 1
 
   MacOS:
     
