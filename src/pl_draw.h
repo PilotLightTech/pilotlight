@@ -99,7 +99,7 @@ typedef void* plTextureId;
 //-----------------------------------------------------------------------------
 
 // setup/shutdown
-plDrawList*     pl_create_drawlist     (plDrawContext* ctx);
+void            pl_register_drawlist   (plDrawContext* ctx, plDrawList* drawlist);
 plDrawLayer*    pl_request_draw_layer  (plDrawList* drawlist, const char* name);
 void            pl_return_draw_layer   (plDrawLayer* layer);
 void            pl_cleanup_draw_context(plDrawContext* ctx);  // implemented by backend

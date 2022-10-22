@@ -26,6 +26,20 @@ Index of this file:
 #include <windows.h>
 #include <windowsx.h> // GET_X_LPARAM(), GET_Y_LPARAM()
 
+#pragma comment(lib, "user32.lib")
+#pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "propsys.lib")
+#pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "Shell32.lib")
+#pragma comment(lib, "Ole32.lib")
+
+#ifdef _DEBUG
+#pragma comment(lib, "ucrtd.lib")
+#else
+#pragma comment(lib, "ucrt.lib")
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
@@ -110,7 +124,11 @@ int main()
     AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
 
     wchar_t wideTitle[PL_MAX_NAME_LENGTH];
-    pl__convert_to_wide_string("Pilot Light (win32)", wideTitle);
+    #ifdef PL_VULKAN_BACKEND
+    pl__convert_to_wide_string("Pilot Light (win32/vulkan)", wideTitle);
+    #elif PL_DX11_BACKEND
+    pl__convert_to_wide_string("Pilot Light (win32/dx11)", wideTitle);
+    #endif
 
     // create window & get handle
     gHandle = CreateWindowExW(

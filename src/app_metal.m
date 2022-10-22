@@ -32,18 +32,18 @@ Index of this file:
 
 typedef struct plAppData_t
 {
-    plMetalDevice               device;
-    plMetalGraphics             graphics;
-    id<MTLTexture>              depthTarget;
-    MTLRenderPassDescriptor*    drawableRenderDescriptor;
-    plDrawContext*              ctx;
-    plDrawList*                 drawlist;
-    plDrawLayer*                fgDrawLayer;
-    plDrawLayer*                bgDrawLayer;
-    plFontAtlas                 fontAtlas;
-    plProfileContext            tProfileCtx;
-    plLogContext                tLogCtx;
-    plMemoryContext             tMemoryCtx;
+    plMetalDevice            device;
+    plMetalGraphics          graphics;
+    id<MTLTexture>           depthTarget;
+    MTLRenderPassDescriptor* drawableRenderDescriptor;
+    plDrawContext            ctx;
+    plDrawList               drawlist;
+    plDrawLayer*             fgDrawLayer;
+    plDrawLayer*             bgDrawLayer;
+    plFontAtlas              fontAtlas;
+    plProfileContext         tProfileCtx;
+    plLogContext             tLogCtx;
+    plMemoryContext          tMemoryCtx;
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -112,16 +112,16 @@ pl_app_setup(plAppData* appData)
     appData->drawableRenderDescriptor.depthAttachment.clearDepth = 1.0;
 
     // create draw context
-    appData->ctx = pl_create_draw_context_metal(appData->device.device);
+    pl_initialize_draw_context_metal(&appData->ctx, appData->device.device);
 
     // create draw list & layers
-    appData->drawlist = pl_create_drawlist(appData->ctx);
-    appData->bgDrawLayer = pl_request_draw_layer(appData->drawlist, "Background Layer");
-    appData->fgDrawLayer = pl_request_draw_layer(appData->drawlist, "Foreground Layer");
+    pl_register_drawlist(&appData->ctx, &appData->drawlist);
+    appData->bgDrawLayer = pl_request_draw_layer(&appData->drawlist, "Background Layer");
+    appData->fgDrawLayer = pl_request_draw_layer(&appData->drawlist, "Foreground Layer");
 
     // create font atlas
     pl_add_default_font(&appData->fontAtlas);
-    pl_build_font_atlas(appData->ctx, &appData->fontAtlas);
+    pl_build_font_atlas(&appData->ctx, &appData->fontAtlas);
 }
 
 //-----------------------------------------------------------------------------
@@ -132,7 +132,7 @@ PL_EXPORT void
 pl_app_shutdown(plAppData* appData)
 {
     pl_cleanup_font_atlas(&appData->fontAtlas);
-    pl_cleanup_draw_context(appData->ctx);
+    pl_cleanup_draw_context(&appData->ctx);
     pl_cleanup_profile_context();
     pl_cleanup_log_context();
     pl_cleanup_memory_context();
@@ -186,7 +186,7 @@ pl_app_render(plAppData* appData)
     // set colorattachment to next drawable
     appData->drawableRenderDescriptor.colorAttachments[0].texture = currentDrawable.texture;
 
-    pl_new_draw_frame_metal(appData->ctx, appData->drawableRenderDescriptor);
+    pl_new_draw_frame_metal(&appData->ctx, appData->drawableRenderDescriptor);
 
     // create render command encoder
     id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:appData->drawableRenderDescriptor];
@@ -228,7 +228,7 @@ pl_app_render(plAppData* appData)
 
     // submit draw lists
     pl_begin_profile_sample("Submit draw lists");
-    pl_submit_drawlist_metal(appData->drawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
+    pl_submit_drawlist_metal(&appData->drawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
     pl_end_profile_sample();
 
     // finish recording

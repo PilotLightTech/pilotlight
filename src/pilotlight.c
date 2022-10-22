@@ -33,18 +33,24 @@
 #undef STB_SPRINTF_IMPLEMENTATION
 #endif
 
+// graphics backend specifics
 #ifdef PL_METAL_BACKEND
 #define PL_DRAW_METAL_IMPLEMENTATION
 #include "pl_draw_metal.h"
 #undef PL_DRAW_METAL_IMPLEMENTATION
 #endif
 
-// graphics backend specifics
 #ifdef PL_VULKAN_BACKEND
 #include "pl_graphics_vulkan.c"
 #define PL_DRAW_VULKAN_IMPLEMENTATION
 #include "pl_draw_vulkan.h"
 #undef PL_DRAW_VULKAN_IMPLEMENTATION
+#endif
+
+#ifdef PL_DX11_BACKEND
+#define PL_DRAW_DX11_IMPLEMENTATION
+#include "pl_draw_dx11.h"
+#undef PL_DRAW_DX11_IMPLEMENTATION
 #endif
 
 #define STB_RECT_PACK_IMPLEMENTATION

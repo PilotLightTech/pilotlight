@@ -92,7 +92,7 @@ fi
 ###############################################################################
 
 # common defines
-PL_DEFINES="-D_DEBUG"
+PL_DEFINES="-D_DEBUG -DPL_METAL_BACKEND"
 
 # common libraries & frameworks
 PL_LINK_LIBRARIES="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore"

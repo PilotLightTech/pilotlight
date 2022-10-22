@@ -1,5 +1,5 @@
 /*
-   metal_pl_drawing.h
+   pl_draw_metal.h
 */
 
 /*
@@ -30,9 +30,9 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 NS_ASSUME_NONNULL_BEGIN
-plDrawContext* pl_create_draw_context_metal(id<MTLDevice> device);
-void           pl_new_draw_frame_metal     (plDrawContext* ctx, MTLRenderPassDescriptor* renderPassDescriptor);
-void           pl_submit_drawlist_metal    (plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder);
+void pl_initialize_draw_context_metal(plDrawContext* ctx, id<MTLDevice> device);
+void pl_new_draw_frame_metal     (plDrawContext* ctx, MTLRenderPassDescriptor* renderPassDescriptor);
+void pl_submit_drawlist_metal    (plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder);
 NS_ASSUME_NONNULL_END
 
 #endif // PL_DRAW_METAL_H
@@ -101,14 +101,12 @@ extern void                  pl__new_draw_frame(plDrawContext* ctx); // in pl_dr
 extern void                  pl__build_font_atlas(plFontAtlas* ctx); // in pl_draw.c
 static inline CFTimeInterval GetMachAbsoluteTimeInSeconds() { return (CFTimeInterval)(double)clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1e9; }
 
-plDrawContext*
-pl_create_draw_context_metal(id<MTLDevice> device)
+void
+pl_initialize_draw_context_metal(plDrawContext* ctx, id<MTLDevice> device)
 {
-    plDrawContext* ctx = PL_ALLOC(sizeof(plDrawContext));
     ctx->_platformData = [[MetalContext alloc] init];
     MetalContext* metalCtx = ctx->_platformData;
     metalCtx.device = device;
-    return ctx;
 }
 
 void
@@ -117,7 +115,6 @@ pl_cleanup_draw_context(plDrawContext* ctx)
     MetalContext* metalCtx = ctx->_platformData;
     [metalCtx dealloc];
     pl__cleanup_draw_context(ctx);
-    PL_FREE(ctx);
 }
 
 void

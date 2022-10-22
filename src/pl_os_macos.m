@@ -116,7 +116,8 @@ pl_load_library(plSharedLibrary* library, const char* name, const char* transiti
     if(library->lockFile[0] == 0)         strncpy(library->lockFile, lockFile, PL_MAX_NAME_LENGTH);
     library->valid = false;
 
-    library->_platformData = malloc(sizeof(plAppleSharedLibrary));
+    if(library->_platformData == NULL)
+        library->_platformData = malloc(sizeof(plAppleSharedLibrary));
     plAppleSharedLibrary* appleLibrary = library->_platformData;
 
     struct stat attr2;

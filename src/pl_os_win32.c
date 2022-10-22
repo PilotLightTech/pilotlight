@@ -14,9 +14,13 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pilotlight.h"
 #include "pl_os.h"
 #include <stdio.h> // file api
+
+#ifndef PL_ASSERT
+#include <assert.h>
+#define PL_ASSERT(x) assert(x)
+#endif
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN

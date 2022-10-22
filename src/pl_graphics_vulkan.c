@@ -19,6 +19,10 @@ Index of this file:
 #include "pl_ds.h"
 #include <stdio.h>
 
+#ifdef _WIN32
+#pragma comment(lib, "vulkan-1.lib")
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------

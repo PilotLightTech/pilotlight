@@ -1,5 +1,5 @@
 /*
-   vulkan_pl_drawing.h
+   pl_draw_vulkan.h
 */
 
 /*
@@ -35,10 +35,10 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // backend implementation
-plDrawContext* pl_create_draw_context_vulkan(VkPhysicalDevice physicalDevice, uint32_t imageCount, VkDevice logicalDevice);
-void           pl_setup_drawlist_vulkan     (plDrawList* drawlist, VkRenderPass renderPass);
-void           pl_submit_drawlist_vulkan    (plDrawList* drawlist, float width, float height, VkCommandBuffer cmdBuf, uint32_t currentFrameIndex);
-void           pl_new_draw_frame            (plDrawContext* ctx);
+void pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice physicalDevice, uint32_t imageCount, VkDevice logicalDevice);
+void pl_setup_drawlist_vulkan     (plDrawList* drawlist, VkRenderPass renderPass);
+void pl_submit_drawlist_vulkan    (plDrawList* drawlist, float width, float height, VkCommandBuffer cmdBuf, uint32_t currentFrameIndex);
+void pl_new_draw_frame            (plDrawContext* ctx);
 
 // misc
 VkDescriptorSet pl_add_texture(plDrawContext* drawContext, VkImageView imageView, VkImageLayout imageLayout);
@@ -324,11 +324,9 @@ static void     pl__grow_vulkan_index_buffer(plDrawList* ptrDrawlist, uint32_t u
 // [SECTION] implementation
 //-----------------------------------------------------------------------------
 
-plDrawContext*
-pl_create_draw_context_vulkan(VkPhysicalDevice physicalDevice, uint32_t imageCount, VkDevice logicalDevice)
+void
+pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice physicalDevice, uint32_t imageCount, VkDevice logicalDevice)
 {
-    plDrawContext* ctx = PL_ALLOC(sizeof(plDrawContext));
-    memset(ctx, 0, sizeof(plDrawContext));
     plVulkanDrawContext* vulkanDrawContext = (plVulkanDrawContext*)PL_ALLOC(sizeof(plVulkanDrawContext));
     memset(vulkanDrawContext, 0, sizeof(plVulkanDrawContext));
     vulkanDrawContext->device = logicalDevice;
@@ -481,8 +479,6 @@ pl_create_draw_context_vulkan(VkPhysicalDevice physicalDevice, uint32_t imageCou
         .pCode = __glsl_shader_fragsdf_spv
     };
     PL_ASSERT(vkCreateShaderModule(vulkanDrawContext->device, &sdfShdrInfo, NULL, &vulkanDrawContext->sdfShdrStgInfo.module) == VK_SUCCESS);
-
-    return ctx;
 }
 
 void
@@ -729,8 +725,8 @@ pl_submit_drawlist_vulkan(plDrawList* drawlist, float width, float height, VkCom
         return;
 
     plDrawContext* drawContext = drawlist->ctx;
-    plVulkanDrawContext* vulkanData = (plVulkanDrawContext*)drawContext->_platformData;
-    plVulkanDrawList* drawlistVulkanData = (plVulkanDrawList*)drawlist->_platformData;
+    plVulkanDrawContext* vulkanData = drawContext->_platformData;
+    plVulkanDrawList* drawlistVulkanData = drawlist->_platformData;
 
     // ensure gpu vertex buffer size is adequate
     uint32_t uVtxBufSzNeeded = sizeof(plDrawVertex) * pl_sb_size(drawlist->sbVertexBuffer) * PL_MAX_FRAMES_IN_FLIGHT;

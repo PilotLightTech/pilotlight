@@ -1,6 +1,23 @@
+@if [%1]==[] @goto Run
+@goto Run
+
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-@rem |                            Setup                                       |
+@rem |                            Help Message                                |
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Usage
+@echo.
+@echo.[flags and arguments]
+@echo.
+@echo.Available flags:
+@echo.  -h  Display this help message
+@echo.
+@echo.Available arguments:
+@echo.  -g dx11 ^| vulkan ^|
+@echo.     Set graphics backend (default: vulkan)
+@exit /b 127
+
+:Run
 
 @rem without this, PATH will not reset when called within same session
 @setlocal 
@@ -8,6 +25,22 @@
 @rem make current directory the same as batch file
 @pushd %~dp0 
 @set dir=%~dp0
+
+@rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@rem |                            Command Line                                |
+@rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+@rem default backend to vulkan
+@set PL_BACKEND=vulkan
+
+:CheckOpts
+@if "%~1"=="-h" @goto Usage
+@if "%~1"=="-i" @goto PrintInfo
+@if "%~1"=="-g" (@set PL_BACKEND=%2) & @shift & @shift & @goto CheckOpts
+
+@rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@rem |                            Setup                                       |
+@rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @rem create output directory
 @if not exist ..\out @mkdir ..\out
@@ -54,6 +87,7 @@
 @rem include directories
 @set PL_INCLUDE_DIRECTORIES=-I"%WindowsSdkDir%Include\um" 
 @set PL_INCLUDE_DIRECTORIES=-I"%WindowsSdkDir%Include\shared" %PL_INCLUDE_DIRECTORIES%
+@set PL_INCLUDE_DIRECTORIES=-I"%DXSDK_DIR%Include"            %PL_INCLUDE_DIRECTORIES%
 @set PL_INCLUDE_DIRECTORIES=-I%VULKAN_SDK%/Include            %PL_INCLUDE_DIRECTORIES%
 @set PL_INCLUDE_DIRECTORIES=-I..\dependencies\stb             %PL_INCLUDE_DIRECTORIES%
 
@@ -64,10 +98,10 @@
 @set PL_DEFINES=-D_USE_MATH_DEFINES
 
 @rem common compiler flags
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -EHsc -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105
+@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -EHsc -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115
 
 @rem common libraries
-@set PL_LINK_LIBRARIES=user32.lib ws2_32.lib shlwapi.lib propsys.lib comctl32.lib Shell32.lib Ole32.lib vulkan-1.lib pilotlight.lib
+@set PL_LINK_LIBRARIES=pilotlight.lib
 
 @rem release specific
 @if "%PL_CONFIG%" equ "Release" (
@@ -77,9 +111,6 @@
 
     @rem release specific compiler flags
     @set PL_COMPILER_FLAGS=-O2 -MD %PL_COMPILER_FLAGS%
-
-    @rem release specific libs
-    @set PL_LINK_LIBRARIES=ucrt.lib %PL_LINK_LIBRARIES%
 )
 
 @rem debug specific
@@ -90,9 +121,14 @@
    
     @rem debug specific compiler flags
     @set PL_COMPILER_FLAGS=-Od -MDd -Zi %PL_COMPILER_FLAGS%
-    
-    @rem debug specific libs
-    @set PL_LINK_LIBRARIES=ucrtd.lib %PL_LINK_LIBRARIES%
+)
+
+@if "%PL_BACKEND%" equ "dx11" (
+    @set PL_DEFINES=-DPL_DX11_BACKEND %PL_DEFINES%
+)
+
+@if "%PL_BACKEND%" equ "vulkan" (
+    @set PL_DEFINES=-DPL_VULKAN_BACKEND %PL_DEFINES%
 )
 
 @set PL_RESULT=[1m[92mSuccessful.[0m
@@ -142,7 +178,8 @@ lib -nologo -OUT:..\out\pilotlight.lib ..\out\*.obj
 @rem |                         app lib                                        |
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_SOURCES="app_vulkan.c"
+@if "%PL_BACKEND%" equ "dx11"   ( @set PL_SOURCES="app_dx11.c" )
+@if "%PL_BACKEND%" equ "vulkan" ( @set PL_SOURCES="app_vulkan.c" )
 
 @rem run compiler
 @echo.

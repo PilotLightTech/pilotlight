@@ -71,15 +71,12 @@ static char* pl__read_file(const char* file);
 // [SECTION] implementation
 //-----------------------------------------------------------------------------
 
-plDrawList*
-pl_create_drawlist(plDrawContext* ctx)
+void
+pl_register_drawlist(plDrawContext* ctx, plDrawList* drawlist)
 {
-
-    plDrawList* drawlist = PL_ALLOC(sizeof(plDrawList));
     memset(drawlist, 0, sizeof(plDrawList));
     drawlist->ctx = ctx;
     pl_sb_push(ctx->sbDrawlists, drawlist);
-    return drawlist;
 }
 
 plDrawLayer*
@@ -621,7 +618,6 @@ pl__cleanup_draw_context(plDrawContext* ctx)
         pl_sb_free(drawlist->sbLayerCache);
         pl_sb_free(drawlist->sbLayersCreated);
         pl_sb_free(drawlist->sbSubmittedLayers);
-        PL_FREE(drawlist);
     }
     pl_sb_free(ctx->sbDrawlists);
 }

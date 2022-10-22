@@ -45,14 +45,6 @@ Index of this file:
 // [SECTION] misc
 //-----------------------------------------------------------------------------
 
-#ifdef _WIN32
-#define PL_VULKAN_BACKEND
-#elif defined(__APPLE__)
-#define PL_METAL_BACKEND
-#else // linux
-#define PL_VULKAN_BACKEND
-#endif
-
 #ifdef PL_USE_STB_SPRINTF
 #include "stb_sprintf.h"
 #endif

@@ -51,7 +51,8 @@ if(platform.system() == "Windows"):
                 "PL_PROFILE_IMPLEMENTATION",
                 "PL_LOG_ON",
                 "PL_IO_IMPLEMENTATION",
-                "PL_DRAWING_VULKAN_IMPLEMENTATION"
+                "PL_DRAW_DX11_IMPLEMENTATION",
+                "PL_DRAW_VULKAN_IMPLEMENTATION"
             ],
             "windowsSdkVersion": "10.0.19041.0",
             "cStandard": "c99",

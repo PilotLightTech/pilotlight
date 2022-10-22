@@ -36,8 +36,8 @@ typedef struct plAppData_t
     plVulkanDevice    device;
     plVulkanGraphics  graphics;
     plVulkanSwapchain swapchain;
-    plDrawContext*    ctx;
-    plDrawList*       drawlist;
+    plDrawContext     ctx;
+    plDrawList        drawlist;
     plDrawLayer*      fgDrawLayer;
     plDrawLayer*      bgDrawLayer;
     plFontAtlas       fontAtlas;
@@ -168,15 +168,15 @@ pl_app_setup(plAppData* ptAppData)
     pl_create_frame_resources(&ptAppData->graphics, &ptAppData->device);
     
     // setup drawing api
-    ptAppData->ctx = pl_create_draw_context_vulkan(ptAppData->device.physicalDevice, 3, ptAppData->device.logicalDevice);
-    ptAppData->drawlist = pl_create_drawlist(ptAppData->ctx);
-    pl_setup_drawlist_vulkan(ptAppData->drawlist, ptAppData->graphics.renderPass);
-    ptAppData->bgDrawLayer = pl_request_draw_layer(ptAppData->drawlist, "Background Layer");
-    ptAppData->fgDrawLayer = pl_request_draw_layer(ptAppData->drawlist, "Foreground Layer");
+    pl_initialize_draw_context_vulkan(&ptAppData->ctx, ptAppData->device.physicalDevice, 3, ptAppData->device.logicalDevice);
+    pl_register_drawlist(&ptAppData->ctx, &ptAppData->drawlist);
+    pl_setup_drawlist_vulkan(&ptAppData->drawlist, ptAppData->graphics.renderPass);
+    ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
+    ptAppData->fgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Foreground Layer");
 
     // create font atlas
     pl_add_default_font(&ptAppData->fontAtlas);
-    pl_build_font_atlas(ptAppData->ctx, &ptAppData->fontAtlas);
+    pl_build_font_atlas(&ptAppData->ctx, &ptAppData->fontAtlas);
 }
 
 //-----------------------------------------------------------------------------
@@ -193,7 +193,7 @@ pl_app_shutdown(plAppData* ptAppData)
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
 
     // cleanup drawing api
-    pl_cleanup_draw_context(ptAppData->ctx);
+    pl_cleanup_draw_context(&ptAppData->ctx);
 
     // destroy swapchain
     for (uint32_t i = 0u; i < ptAppData->swapchain.imageCount; i++)
@@ -243,24 +243,10 @@ pl_app_render(plAppData* ptAppData)
     // get io context
     plIOContext* ptIOCtx = pl_get_io_context();
 
-    pl_new_draw_frame(ptAppData->ctx);
+    pl_new_draw_frame(&ptAppData->ctx);
 
     // begin profiling frame (temporarily using drawing context frame count)
-    pl__begin_profile_frame(ptAppData->ctx->frameCount);
-
-    VkClearValue clearValues[2] = 
-    {
-        {
-            .color.float32[0] = 0.1f,
-            .color.float32[1] = 0.0f,
-            .color.float32[2] = 0.0f,
-            .color.float32[3] = 1.0f
-        },
-        {
-            .depthStencil.depth = 1.0f,
-            .depthStencil.stencil = 0
-        }    
-    };
+    pl__begin_profile_frame(ptAppData->ctx.frameCount);
 
     plVulkanFrameContext* currentFrame = pl_get_frame_resources(&ptAppData->graphics);
 
@@ -291,6 +277,21 @@ pl_app_render(plAppData* ptAppData)
     PL_VULKAN(vkBeginCommandBuffer(currentFrame->cmdBuf, &beginInfo));
 
     // begin render pass
+
+    static const VkClearValue clearValues[2] = 
+    {
+        {
+            .color.float32[0] = 0.1f,
+            .color.float32[1] = 0.0f,
+            .color.float32[2] = 0.0f,
+            .color.float32[3] = 1.0f
+        },
+        {
+            .depthStencil.depth = 1.0f,
+            .depthStencil.stencil = 0
+        }    
+    };
+
     VkRenderPassBeginInfo renderPassBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         .renderPass = ptAppData->graphics.renderPass,
@@ -352,7 +353,7 @@ pl_app_render(plAppData* ptAppData)
     pl_end_profile_sample();
 
     // submit draw lists
-    pl_submit_drawlist_vulkan(ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], currentFrame->cmdBuf, (uint32_t)ptAppData->graphics.currentFrameIndex);
+    pl_submit_drawlist_vulkan(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], currentFrame->cmdBuf, (uint32_t)ptAppData->graphics.currentFrameIndex);
 
     // end render pass
     vkCmdEndRenderPass(currentFrame->cmdBuf);
