@@ -4,7 +4,9 @@
 
 /*
 Index of this file:
+// [SECTION] header mess
 // [SECTION] includes
+// [SECTION] defines
 // [SECTION] forward declarations
 // [SECTION] globals
 // [SECTION] entry point
@@ -14,17 +16,8 @@ Index of this file:
 */
 
 //-----------------------------------------------------------------------------
-// [SECTION] includes
+// [SECTION] header mess
 //-----------------------------------------------------------------------------
-
-#include "pl_io.h"    // io context
-#include "pl_os.h"    // shared library api
-#include <stdlib.h>   // exit
-#include <wchar.h>    // mbsrtowcs, wcsrtombs
-#include <float.h>    // FLT_MAX, FLT_MIN
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <windowsx.h> // GET_X_LPARAM(), GET_Y_LPARAM()
 
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "ws2_32.lib")
@@ -39,6 +32,22 @@ Index of this file:
 #else
 #pragma comment(lib, "ucrt.lib")
 #endif
+
+// #define SC_MINIMIZE 0xF020
+// #define SC_RESTORE 0xF120
+
+//-----------------------------------------------------------------------------
+// [SECTION] includes
+//-----------------------------------------------------------------------------
+
+#include "pl_io.h"    // io context
+#include "pl_os.h"    // shared library api
+#include <stdlib.h>   // exit
+#include <wchar.h>    // mbsrtowcs, wcsrtombs
+#include <float.h>    // FLT_MAX, FLT_MIN
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <windowsx.h> // GET_X_LPARAM(), GET_Y_LPARAM()
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -55,6 +64,7 @@ static void             pl__render_frame(void);
 static HWND            gHandle = NULL;
 static HWND            gMouseHandle = NULL;
 static bool            gMouseTracked = false;
+static bool            gMinimized = false;
 static plSharedLibrary gAppLibrary = {0};
 static void*           gUserData = NULL;
 static bool            gRunning = true;
@@ -537,8 +547,18 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
             }
         }
 
-        default:
+        case WM_SYSCOMMAND:
+        {
+            if(wparam == SC_MINIMIZE)     gMinimized = true;
+            else if(wparam == SC_RESTORE) gMinimized = false;
             result = DefWindowProcW(hwnd, msg, wparam, lparam);
+            break;
+        }
+
+        default:
+        {
+            result = DefWindowProcW(hwnd, msg, wparam, lparam);
+        }
     }
     return result;
 }
@@ -565,5 +585,6 @@ pl__render_frame(void)
     pl_get_io_context()->fDeltaTime = (float)(currentTime - gTime) / gTicksPerSecond;
     gTime = currentTime;
     
-    pl_app_render(gUserData);   
+    if(!gMinimized)
+        pl_app_render(gUserData);   
 }

@@ -54,6 +54,7 @@ PL_HOT_RELOADING_STATUS=0
 if [ -f ../out/pilot_light ]; then
     rm -f ../out/pilot_light
     rm -f ../out/*.spv
+    rm ../out/app_*.so
 fi
 fi
 
@@ -197,8 +198,6 @@ then
     rm ../out/app_*.so >/dev/null 2>&1
 fi
 
-
-
 ###############################################################################
 ###############################################################################
 ###############################################################################
@@ -213,7 +212,7 @@ else
 ###############################################################################
 
 # common defines
-PL_DEFINES="-D_DEBUG"
+PL_DEFINES="-D_DEBUG -DPL_VULKAN_BACKEND"
 
 # additional include directories
 if [ -z "$VULKAN_SDK" ]
@@ -314,9 +313,6 @@ fi
 if [ $? -ne 0 ]
 then
     PL_RESULT=${BOLD}${RED}Failed.${NC}
-elif [ -f "../out/app_0.so" ]
-then
-    rm ../out/app_*.so
 fi
 
 fi
