@@ -1,0 +1,49 @@
+name: Feature Request
+description: File a feature request
+title: "[FEATURE]: "
+labels: ["type: feature", "state: pending"]
+assignees:
+  - hoffstadt
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Any images or screenshots can be added in the comments.
+  - type: input
+    id: contact
+    attributes:
+      label: Contact Details
+      description: How can we get in touch with you if we need more info?
+      placeholder: ex. email@example.com
+    validations:
+      required: false
+  - type: textarea
+    id: alleged-feature
+    attributes:
+      label: What is the feature?
+      description: Describe the feature
+      value: "I would like x"
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Desribe alternatives you have considered?
+      description: A clear and concise description of any alternative solutions or features you have considered.
+      value: "Other potential solutions"
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options:
+        - New 
+        - Drawing
+        - Logging
+        - Profiling
+        - Data structures
+        - Memory
+        - Testing
+        - Operating system servies
+        - Input & Output
