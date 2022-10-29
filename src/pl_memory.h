@@ -401,7 +401,7 @@ pl_stack_allocator_alloc_top(plStackAllocator* pAllocator, size_t szSize)
     PL_ASSERT(szOffset > pAllocator->szBottomOffset && szOffset < pAllocator->szTopOffset && "stack allocator full");
 
     // update offset
-    void* pBuffer = (unsigned char*)pAllocator->pBuffer + pAllocator->szTopOffset;
+    void* pBuffer = (unsigned char*)pAllocator->pBuffer + szOffset;
     pAllocator->szTopOffset = szOffset;
 
     return pBuffer;
