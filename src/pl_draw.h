@@ -28,7 +28,7 @@ Index of this file:
 
 #ifndef PL_ASSERT
 #include <assert.h>
-#define PL_ASSERT(x) assert(x)
+#define PL_ASSERT(x) assert((x))
 #endif
 
 #ifndef PL_ALLOC
@@ -55,7 +55,7 @@ Index of this file:
 #endif
 
 #ifndef PL_DECLARE_STRUCT
-#define PL_DECLARE_STRUCT(name) typedef struct name ##_t name
+#define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
 #endif
 
 //-----------------------------------------------------------------------------
@@ -87,9 +87,9 @@ PL_DECLARE_STRUCT(plFontConfig);     // configuration for loading a single font
 PL_DECLARE_STRUCT(plFontAtlas);      // atlas for multiple fonts
 
 // math
-typedef union plVec2_t plVec2;
-typedef union plVec3_t plVec3;
-typedef union plVec4_t plVec4;
+typedef union _plVec2 plVec2;
+typedef union _plVec3 plVec3;
+typedef union _plVec4 plVec4;
 
 // plTextureID: used to represent texture for renderer backend
 typedef void* plTextureId;
@@ -127,39 +127,21 @@ plVec2 pl_calculate_text_size     (plFont* font, float size, const char* text, f
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef union plVec2_t
-{
-    struct { float x, y; };
-    struct { float u, v; };
-} plVec2;
-
-typedef union plVec3_t
-{
-    struct { float x, y, z; };
-    struct { float r, g, b; };
-} plVec3;
-
-typedef union plVec4_t
-{
-    struct{ float x, y, z, w;};
-    struct{ float r, g, b, a;};
-} plVec4;
-
-typedef struct plDrawVertex_t
+typedef struct _plDrawVertex
 {
     float pos[2];
     float uv[2];
     float color[4];
 } plDrawVertex;
 
-typedef struct plFontRange_t
+typedef struct _plFontRange
 {
     int         firstCodePoint;
     uint32_t    charCount;
     plFontChar* ptrFontChar; // offset into parent font's char data
 } plFontRange;
 
-typedef struct plFontConfig_t
+typedef struct _plFontConfig
 {
     float        fontSize;
     plFontRange* sbRanges;
@@ -176,7 +158,7 @@ typedef struct plFontConfig_t
     float         sdfPixelDistScale;
 } plFontConfig;
 
-typedef struct plFont_t
+typedef struct _plFont
 {
     plFontConfig config;
     plFontAtlas* parentAtlas;
@@ -189,7 +171,7 @@ typedef struct plFont_t
     plFontChar*  sbCharData;
 } plFont;
 
-typedef struct plFontAtlas_t
+typedef struct _plFontAtlas
 {
     plDrawContext*    ctx;
     plFont*           sbFonts;
@@ -207,7 +189,7 @@ typedef struct plFontAtlas_t
     void*             _platformData;
 } plFontAtlas;
 
-typedef struct plDrawList_t
+typedef struct _plDrawList
 {
     plDrawContext* ctx;
     plDrawLayer**  sbSubmittedLayers;
@@ -220,7 +202,7 @@ typedef struct plDrawList_t
     void*          _platformData;
 } plDrawList;
 
-typedef struct plFontCustomRect_t
+typedef struct _plFontCustomRect
 {
     uint32_t       width;
     uint32_t       height;
@@ -229,7 +211,7 @@ typedef struct plFontCustomRect_t
     unsigned char* bytes;
 } plFontCustomRect;
 
-typedef struct plDrawCommand_t
+typedef struct _plDrawCommand
 {
     uint32_t    vertexOffset;
     uint32_t    indexOffset;
@@ -239,7 +221,7 @@ typedef struct plDrawCommand_t
     bool        sdf;
 } plDrawCommand;
 
-typedef struct plDrawLayer_t
+typedef struct _plDrawLayer
 {
     char            name[PL_MAX_NAME_LENGTH];
     plDrawList*     drawlist;
@@ -250,7 +232,7 @@ typedef struct plDrawLayer_t
     plDrawCommand*  _lastCommand;
 } plDrawLayer;
 
-typedef struct plFontChar_t
+typedef struct _plFontChar
 {
     uint16_t x0;
     uint16_t y0;
@@ -263,7 +245,7 @@ typedef struct plFontChar_t
     float    yOff2;
 } plFontChar;
 
-typedef struct plFontGlyph_t
+typedef struct _plFontGlyph
 {
     float x0;
     float y0;
@@ -277,7 +259,7 @@ typedef struct plFontGlyph_t
     float leftBearing;  
 } plFontGlyph;
 
-typedef struct plDrawContext_t
+typedef struct _plDrawContext
 {
     plDrawList** sbDrawlists;
     uint64_t     frameCount;

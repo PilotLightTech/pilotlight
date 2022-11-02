@@ -31,12 +31,12 @@ PL_DECLARE_STRUCT(plMetalGraphics); // graphics context
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct plMetalDevice_t
+typedef struct _plMetalDevice
 {
     id<MTLDevice> device;
 } plMetalDevice;
 
-typedef struct plMetalGraphics_t
+typedef struct _plMetalGraphics
 {
     id<MTLCommandQueue> cmdQueue;
     uint32_t            currentFrame;

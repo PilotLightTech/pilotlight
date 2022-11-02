@@ -37,7 +37,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #ifndef PL_DECLARE_STRUCT
-#define PL_DECLARE_STRUCT(name) typedef struct name ##_t name
+#define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
 #endif
 
 //-----------------------------------------------------------------------------
@@ -62,17 +62,17 @@ extern plProfileContext* gTPProfileContext;
 #ifdef PL_PROFILE_ON
 
 // setup/shutdown
-#define pl_initialize_profile_context(tPContext) pl__initialize_profile_context((tPContext))
+#define pl_initialize_profile_context(ptContext) pl__initialize_profile_context((ptContext))
 #define pl_cleanup_profile_context() pl__cleanup_profile_context()
-#define pl_set_profile_context(tPContext) pl__set_profile_context((tPContext))
+#define pl_set_profile_context(ptContext) pl__set_profile_context((ptContext))
 #define pl_get_profile_context() pl__get_profile_context()
 
 // frames
-#define pl_begin_profile_frame(ulFrame) pl__begin_profile_frame(ulFrame)
+#define pl_begin_profile_frame(ulFrame) pl__begin_profile_frame((ulFrame))
 #define pl_end_profile_frame() pl__end_profile_frame()
 
 // samples
-#define pl_begin_profile_sample(cPName) pl__begin_profile_sample(cPName)
+#define pl_begin_profile_sample(pcName) pl__begin_profile_sample((pcName))
 #define pl_end_profile_sample() pl__end_profile_sample()
 
 #endif // PL_PROFILE_ON
@@ -81,31 +81,31 @@ extern plProfileContext* gTPProfileContext;
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct plProfileSample_t
+typedef struct _plProfileSample
 {
     double      dStartTime;
     double      dDuration;
-    const char* cPName;
+    const char* pcName;
     uint32_t    uDepth;
 } plProfileSample;
 
-typedef struct plProfileFrame_t
+typedef struct _plProfileFrame
 {
-    uint32_t*        sbSampleStack;
-    plProfileSample* sbSamples;
+    uint32_t*        sbuSampleStack;
+    plProfileSample* sbtSamples;
     uint64_t         ulFrame;
     double           dStartTime;
     double           dDuration;
     double           dInternalDuration;
 } plProfileFrame;
 
-typedef struct plProfileContext_t
+typedef struct _plProfileContext
 {
     double          dStartTime;
-    plProfileFrame* sbFrames;
-    plProfileFrame  tPFrames[2];
-    plProfileFrame* tPCurrentFrame;
-    plProfileFrame* tPLastFrame;
+    plProfileFrame* sbtFrames;
+    plProfileFrame  atFrames[2];
+    plProfileFrame* ptCurrentFrame;
+    plProfileFrame* ptLastFrame;
     void*           pInternal;
 } plProfileContext;
 
@@ -114,9 +114,9 @@ typedef struct plProfileContext_t
 //-----------------------------------------------------------------------------
 
 // setup/shutdown
-void              pl__initialize_profile_context(plProfileContext* tPContext);
+void              pl__initialize_profile_context(plProfileContext* ptContext);
 void              pl__cleanup_profile_context   (void);
-void              pl__set_profile_context       (plProfileContext* tPContext);
+void              pl__set_profile_context       (plProfileContext* ptContext);
 plProfileContext* pl__get_profile_context       (void);
 
 // frames
@@ -124,17 +124,17 @@ void pl__begin_profile_frame(uint64_t ulFrame);
 void pl__end_profile_frame  (void);
 
 // samples
-void pl__begin_profile_sample(const char* cPName);
+void pl__begin_profile_sample(const char* pcName);
 void pl__end_profile_sample  (void);
 
 #ifndef PL_PROFILE_ON
-#define pl_initialize_profile_context(tPContext) //
+#define pl_initialize_profile_context(ptContext) //
 #define pl_cleanup_profile_context() //
-#define pl_set_profile_context(tPContext) //
+#define pl_set_profile_context(ptContext) //
 #define pl_get_profile_context() NULL
 #define pl_begin_profile_frame(ulFrame) //
 #define pl_end_profile_frame() //
-#define pl_begin_profile_sample(cPName) //
+#define pl_begin_profile_sample(pcName) //
 #define pl_end_profile_sample() //
 #endif
 
@@ -187,13 +187,13 @@ void pl__end_profile_sample  (void);
 
 #ifndef PL_ASSERT
 #include <assert.h>
-#define PL_ASSERT(x) assert(x)
+#define PL_ASSERT(x) assert((x))
 #endif
 
 plProfileContext* gTPProfileContext = NULL;
 
 static inline double
-pl__get_wall_clock()
+pl__get_wall_clock(void)
 {
     #ifdef _WIN32
         INT64 slPerfFrequency = *(INT64*)gTPProfileContext->pInternal;
@@ -214,13 +214,13 @@ pl__get_wall_clock()
 }
 
 void
-pl__initialize_profile_context(plProfileContext* tPContext)
+pl__initialize_profile_context(plProfileContext* ptContext)
 {
 
     #ifdef _WIN32
         static INT64 slPerfFrequency = 0;
         PL_ASSERT(QueryPerformanceFrequency((LARGE_INTEGER*)&slPerfFrequency));
-        tPContext->pInternal = &slPerfFrequency;
+        ptContext->pInternal = &slPerfFrequency;
     #elif defined(__APPLE__)
     #else // linux
         static struct timespec ts;
@@ -231,26 +231,26 @@ pl__initialize_profile_context(plProfileContext* tPContext)
 
         static double dPerFrequency = 0.0;
         dPerFrequency = 1e9/((double)ts.tv_nsec + (double)ts.tv_sec * (double)1e9);
-        tPContext->pInternal = &dPerFrequency;
+        ptContext->pInternal = &dPerFrequency;
     #endif
 
-    gTPProfileContext = tPContext;
-    tPContext->dStartTime = pl__get_wall_clock();
-    tPContext->sbFrames = NULL;
-    tPContext->tPCurrentFrame = &tPContext->tPFrames[0];
+    gTPProfileContext = ptContext;
+    ptContext->dStartTime = pl__get_wall_clock();
+    ptContext->sbtFrames = NULL;
+    ptContext->ptCurrentFrame = &ptContext->atFrames[0];
 }
 
 void
 pl__cleanup_profile_context(void)
 {
-    pl_sb_free(gTPProfileContext->sbFrames);
+    pl_sb_free(gTPProfileContext->sbtFrames);
 }
 
 void
-pl__set_profile_context(plProfileContext* tPContext)
+pl__set_profile_context(plProfileContext* ptContext)
 {
-    PL_ASSERT(tPContext && "log context is NULL");
-    gTPProfileContext = tPContext;
+    PL_ASSERT(ptContext && "log context is NULL");
+    gTPProfileContext = ptContext;
 }
 
 plProfileContext*
@@ -263,51 +263,51 @@ pl__get_profile_context(void)
 void
 pl__begin_profile_frame(uint64_t ulFrame)
 {
-    gTPProfileContext->tPCurrentFrame = &gTPProfileContext->tPFrames[ulFrame % 2];
-    gTPProfileContext->tPLastFrame = &gTPProfileContext->tPFrames[(ulFrame + 1) % 2];
+    gTPProfileContext->ptCurrentFrame = &gTPProfileContext->atFrames[ulFrame % 2];
+    gTPProfileContext->ptLastFrame = &gTPProfileContext->atFrames[(ulFrame + 1) % 2];
     
-    gTPProfileContext->tPCurrentFrame->ulFrame = ulFrame;
-    gTPProfileContext->tPCurrentFrame->dDuration = 0.0;
-    gTPProfileContext->tPCurrentFrame->dInternalDuration = 0.0;
-    gTPProfileContext->tPCurrentFrame->dStartTime = pl__get_wall_clock();
-    pl_sb_reset(gTPProfileContext->tPCurrentFrame->sbSamples);
+    gTPProfileContext->ptCurrentFrame->ulFrame = ulFrame;
+    gTPProfileContext->ptCurrentFrame->dDuration = 0.0;
+    gTPProfileContext->ptCurrentFrame->dInternalDuration = 0.0;
+    gTPProfileContext->ptCurrentFrame->dStartTime = pl__get_wall_clock();
+    pl_sb_reset(gTPProfileContext->ptCurrentFrame->sbtSamples);
 }
 
 void
 pl__end_profile_frame(void)
 {
-    gTPProfileContext->tPCurrentFrame->dDuration = pl__get_wall_clock() - gTPProfileContext->tPCurrentFrame->dStartTime;
+    gTPProfileContext->ptCurrentFrame->dDuration = pl__get_wall_clock() - gTPProfileContext->ptCurrentFrame->dStartTime;
 }
 
 void
-pl__begin_profile_sample(const char* cPName)
+pl__begin_profile_sample(const char* pcName)
 {
     const double dCurrentInternalTime = pl__get_wall_clock();
-    plProfileFrame* tPCurrentFrame = gTPProfileContext->tPCurrentFrame;
+    plProfileFrame* ptCurrentFrame = gTPProfileContext->ptCurrentFrame;
 
     plProfileSample tSample = {
-        .cPName = cPName,
+        .pcName = pcName,
         .dDuration = 0.0,
         .dStartTime = pl__get_wall_clock(),
-        .uDepth = pl_sb_size(tPCurrentFrame->sbSampleStack),
+        .uDepth = pl_sb_size(ptCurrentFrame->sbuSampleStack),
     };
 
-    uint32_t uSampleIndex = pl_sb_size(tPCurrentFrame->sbSamples);
-    pl_sb_push(tPCurrentFrame->sbSampleStack, uSampleIndex);
-    pl_sb_push(tPCurrentFrame->sbSamples, tSample);
-    tPCurrentFrame->dInternalDuration += pl__get_wall_clock() - dCurrentInternalTime;
+    uint32_t uSampleIndex = pl_sb_size(ptCurrentFrame->sbtSamples);
+    pl_sb_push(ptCurrentFrame->sbuSampleStack, uSampleIndex);
+    pl_sb_push(ptCurrentFrame->sbtSamples, tSample);
+    ptCurrentFrame->dInternalDuration += pl__get_wall_clock() - dCurrentInternalTime;
 }
 
 void
 pl__end_profile_sample(void)
 {
     const double dCurrentInternalTime = pl__get_wall_clock();
-    plProfileFrame* tPCurrentFrame = gTPProfileContext->tPCurrentFrame;
-    plProfileSample* tPLastSample = &tPCurrentFrame->sbSamples[pl_sb_pop(tPCurrentFrame->sbSampleStack)];
-    PL_ASSERT(tPLastSample && "Begin/end profile sampel mismatch");
-    tPLastSample->dDuration = pl__get_wall_clock() - tPLastSample->dStartTime;
-    tPLastSample->dStartTime -= tPCurrentFrame->dStartTime;
-    tPCurrentFrame->dInternalDuration += pl__get_wall_clock() - dCurrentInternalTime;
+    plProfileFrame* ptCurrentFrame = gTPProfileContext->ptCurrentFrame;
+    plProfileSample* ptLastSample = &ptCurrentFrame->sbtSamples[pl_sb_pop(ptCurrentFrame->sbuSampleStack)];
+    PL_ASSERT(ptLastSample && "Begin/end profile sampel mismatch");
+    ptLastSample->dDuration = pl__get_wall_clock() - ptLastSample->dStartTime;
+    ptLastSample->dStartTime -= ptCurrentFrame->dStartTime;
+    ptCurrentFrame->dInternalDuration += pl__get_wall_clock() - dCurrentInternalTime;
 }
 
 #endif // PL_PROFILE_IMPLEMENTATION

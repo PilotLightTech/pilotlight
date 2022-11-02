@@ -26,7 +26,7 @@ Index of this file:
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
-typedef struct plLinuxSharedLibrary_t
+typedef struct _plLinuxSharedLibrary
 {
     void*  handle;
     time_t lastWriteTime;
@@ -108,58 +108,58 @@ pl_copy_file(const char* source, const char* destination, unsigned* size, char* 
 bool
 pl_has_library_changed(plSharedLibrary* library)
 {
-    time_t newWriteTime = pl__get_last_write_time(library->path);
-    plLinuxSharedLibrary* linuxLibrary = library->_platformData;
+    time_t newWriteTime = pl__get_last_write_time(library->acPath);
+    plLinuxSharedLibrary* linuxLibrary = library->_pPlatformData;
     return newWriteTime != linuxLibrary->lastWriteTime;
 }
 
 bool
 pl_load_library(plSharedLibrary* library, const char* name, const char* transitionalName, const char* lockFile)
 {
-    if(library->path[0] == 0)             strncpy(library->path, name, PL_MAX_NAME_LENGTH);
-    if(library->transitionalName[0] == 0) strncpy(library->transitionalName, transitionalName, PL_MAX_NAME_LENGTH);
-    if(library->lockFile[0] == 0)         strncpy(library->lockFile, lockFile, PL_MAX_NAME_LENGTH);
-    library->valid = false;
+    if(library->acPath[0] == 0)             strncpy(library->acPath, name, PL_MAX_NAME_LENGTH);
+    if(library->acTransitionalName[0] == 0) strncpy(library->acTransitionalName, transitionalName, PL_MAX_NAME_LENGTH);
+    if(library->acLockFile[0] == 0)         strncpy(library->acLockFile, lockFile, PL_MAX_NAME_LENGTH);
+    library->bValid = false;
 
-    if(library->_platformData == NULL)
-        library->_platformData = malloc(sizeof(plLinuxSharedLibrary));
-    plLinuxSharedLibrary* linuxLibrary = library->_platformData;
+    if(library->_pPlatformData == NULL)
+        library->_pPlatformData = malloc(sizeof(plLinuxSharedLibrary));
+    plLinuxSharedLibrary* linuxLibrary = library->_pPlatformData;
 
     if(linuxLibrary)
     {
         struct stat attr2;
-        if(stat(library->lockFile, &attr2) == -1)  // lock file gone
+        if(stat(library->acLockFile, &attr2) == -1)  // lock file gone
         {
             char temporaryName[2024] = {0};
-            linuxLibrary->lastWriteTime = pl__get_last_write_time(library->path);
+            linuxLibrary->lastWriteTime = pl__get_last_write_time(library->acPath);
             
-            pl_sprintf(temporaryName, "%s%u%s", library->transitionalName, library->tempIndex, ".so");
-            if(++library->tempIndex >= 1024)
+            pl_sprintf(temporaryName, "%s%u%s", library->acTransitionalName, library->uTempIndex, ".so");
+            if(++library->uTempIndex >= 1024)
             {
-                library->tempIndex = 0;
+                library->uTempIndex = 0;
             }
-            pl_copy_file(library->path, temporaryName, NULL, NULL);
+            pl_copy_file(library->acPath, temporaryName, NULL, NULL);
 
             linuxLibrary->handle = NULL;
             linuxLibrary->handle = dlopen(temporaryName, RTLD_NOW);
             if(linuxLibrary->handle)
-                library->valid = true;
+                library->bValid = true;
             else
             {
                 printf("\n\n%s\n\n", dlerror());
             }
         }
     }
-    return library->valid;
+    return library->bValid;
 }
 
 void
 pl_reload_library(plSharedLibrary* library)
 {
-    library->valid = false;
-    for(uint32_t i = 0; !library->valid && (i < 100); i++)
+    library->bValid = false;
+    for(uint32_t i = 0; i < 100; i++)
     {
-        if(pl_load_library(library, library->path, library->transitionalName, library->lockFile))
+        if(pl_load_library(library, library->acPath, library->acTransitionalName, library->acLockFile))
             break;
         pl_sleep(100);
     }
@@ -168,11 +168,11 @@ pl_reload_library(plSharedLibrary* library)
 void*
 pl_load_library_function(plSharedLibrary* library, const char* name)
 {
-    PL_ASSERT(library->valid && "Library not valid");
+    PL_ASSERT(library->bValid && "Library not valid");
     void* loadedFunction = NULL;
-    if(library->valid)
+    if(library->bValid)
     {
-        plLinuxSharedLibrary* linuxLibrary = library->_platformData;
+        plLinuxSharedLibrary* linuxLibrary = library->_pPlatformData;
         loadedFunction = dlsym(linuxLibrary->handle, name);
     }
     return loadedFunction;

@@ -39,7 +39,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #ifndef PL_DECLARE_STRUCT
-#define PL_DECLARE_STRUCT(name) typedef struct name ##_t name
+#define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
 #endif
 
 #ifndef PL_LOG_MAX_LINE_SIZE
@@ -80,7 +80,7 @@ typedef int plChannelType;
 // [SECTION] global context
 //-----------------------------------------------------------------------------
 
-extern plLogContext* gTPLogContext;
+extern plLogContext* gptLogContext;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -95,57 +95,57 @@ extern plLogContext* gTPLogContext;
     #define pl_get_log_context() pl__get_log_context()
 
     // channels
-    #define pl_add_log_channel(cPName, tType) pl__add_log_channel((cPName), (tType))
+    #define pl_add_log_channel(pcName, tType) pl__add_log_channel((pcName), (tType))
     #define pl_set_log_level(uID, uLevel) pl__set_log_level((uID), (uLevel))
     #define pl_clear_log_channel(uID) pl__clear_log_channel((uID))
 
 #endif // PL_LOG_ON
 
 #if PL_GLOBAL_LOG_LEVEL < PL_LOG_LEVEL_TRACE+1 && defined(PL_LOG_ON)
-    #define pl_log_trace(uID, cPMessage) pl__log_trace((uID), (cPMessage))
+    #define pl_log_trace(uID, pcMessage) pl__log_trace((uID), (pcMessage))
     #define pl_log_trace_f(...) pl__log_trace_p(__VA_ARGS__)
 #else
-    #define pl_log_trace(tPContext, uID, cPMessage) //
+    #define pl_log_trace(tPContext, uID, pcMessage) //
     #define pl_log_trace_f(...) //
 #endif
 
 #if PL_GLOBAL_LOG_LEVEL < PL_LOG_LEVEL_DEBUG+1 && defined(PL_LOG_ON)
-    #define pl_log_debug(uID, cPMessage) pl__log_debug((uID), (cPMessage))
+    #define pl_log_debug(uID, pcMessage) pl__log_debug((uID), (pcMessage))
     #define pl_log_debug_f(...) pl__log_debug_p(__VA_ARGS__)
 #else
-    #define pl_log_debug(tPContext, uID, cPMessage) //
+    #define pl_log_debug(tPContext, uID, pcMessage) //
     #define pl_log_debug_f(...) //
 #endif
 
 #if PL_GLOBAL_LOG_LEVEL < PL_LOG_LEVEL_INFO+1 && defined(PL_LOG_ON)
-    #define pl_log_info(uID, cPMessage) pl__log_info((uID), (cPMessage))
+    #define pl_log_info(uID, pcMessage) pl__log_info((uID), (pcMessage))
     #define pl_log_info_f(...) pl__log_info_p(__VA_ARGS__)
 #else
-    #define pl_log_info(tPContext, uID, cPMessage) //
+    #define pl_log_info(tPContext, uID, pcMessage) //
     #define pl_log_info_f(...) //
 #endif
 
 #if PL_GLOBAL_LOG_LEVEL < PL_LOG_LEVEL_WARN+1 && defined(PL_LOG_ON)
-    #define pl_log_warn(uID, cPMessage) pl__log_warn((uID), (cPMessage))
+    #define pl_log_warn(uID, pcMessage) pl__log_warn((uID), (pcMessage))
     #define pl_log_warn_f(...) pl__log_warn_p(__VA_ARGS__)
 #else
-    #define pl_log_warn(tPContext, uID, cPMessage) //
+    #define pl_log_warn(tPContext, uID, pcMessage) //
     #define pl_log_warn_f(...) //
 #endif
 
 #if PL_GLOBAL_LOG_LEVEL < PL_LOG_LEVEL_ERROR+1 && defined(PL_LOG_ON)
-    #define pl_log_error(uID, cPMessage) pl__log_error((uID), (cPMessage))
+    #define pl_log_error(uID, pcMessage) pl__log_error((uID), (pcMessage))
     #define pl_log_error_f(...) pl__log_error_p(__VA_ARGS__)
 #else
-    #define pl_log_error(tPContext, uID, cPMessage) //
+    #define pl_log_error(tPContext, uID, pcMessage) //
     #define pl_log_error_f(...) //
 #endif
 
 #if PL_GLOBAL_LOG_LEVEL < PL_LOG_LEVEL_FATAL+1 && defined(PL_LOG_ON)
-    #define pl_log_fatal(uID, cPMessage) pl__log_fatal((uID), (cPMessage))
+    #define pl_log_fatal(uID, pcMessage) pl__log_fatal((uID), (pcMessage))
     #define pl_log_fatal_f(...) pl__log_fatal_p(__VA_ARGS__)
 #else
-    #define pl_log_fatal(uID, cPMessage) //
+    #define pl_log_fatal(uID, pcMessage) //
     #define pl_log_fatal_f(...) //
 #endif
 
@@ -164,14 +164,14 @@ enum plChannelType_
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct plLogEntry_t
+typedef struct _plLogEntry
 {
     uint32_t uLevel;
     char     cPBuffer[PL_LOG_MAX_LINE_SIZE];
 } plLogEntry;
 
 
-typedef struct plLogChannel_t
+typedef struct _plLogChannel
 {
     char          cName[PL_LOG_MAX_LINE_SIZE];
     plLogEntry*   pEntries;
@@ -183,7 +183,7 @@ typedef struct plLogChannel_t
     uint32_t      uID;
 } plLogChannel;
 
-typedef struct plLogContext_t
+typedef struct _plLogContext
 {
     plLogChannel* sbChannels;
 } plLogContext;
@@ -199,17 +199,17 @@ void          pl__set_log_context       (plLogContext* tPContext);
 plLogContext* pl__get_log_context       (plLogContext* tPContext);
 
 // channels
-uint32_t pl__add_log_channel  (const char* cPName, plChannelType tType);
+uint32_t pl__add_log_channel  (const char* pcName, plChannelType tType);
 void     pl__set_log_level    (uint32_t uID, uint32_t uLevel);
 void     pl__clear_log_channel(uint32_t uID);
 
 // logging
-void pl__log_trace(uint32_t uID, const char* cPMessage);
-void pl__log_debug(uint32_t uID, const char* cPMessage);
-void pl__log_info (uint32_t uID, const char* cPMessage);
-void pl__log_warn (uint32_t uID, const char* cPMessage);
-void pl__log_error(uint32_t uID, const char* cPMessage);
-void pl__log_fatal(uint32_t uID, const char* cPMessage);
+void pl__log_trace(uint32_t uID, const char* pcMessage);
+void pl__log_debug(uint32_t uID, const char* pcMessage);
+void pl__log_info (uint32_t uID, const char* pcMessage);
+void pl__log_warn (uint32_t uID, const char* pcMessage);
+void pl__log_error(uint32_t uID, const char* pcMessage);
+void pl__log_fatal(uint32_t uID, const char* pcMessage);
 
 void pl__log_trace_p(uint32_t uID, const char* cPFormat, ...);
 void pl__log_debug_p(uint32_t uID, const char* cPFormat, ...);
@@ -230,7 +230,7 @@ void pl__log_fatal_va(uint32_t uID, const char* cPFormat, va_list args);
     #define pl_cleanup_log_context() //
     #define pl_set_log_context() //
     #define pl_get_log_context() NULL
-    #define pl_add_log_channel(cPName, tType) 0u
+    #define pl_add_log_channel(pcName, tType) 0u
     #define pl_set_log_level(uID, uLevel) //
     #define pl_clear_log_channel(uID) //
 #endif
@@ -338,44 +338,44 @@ void pl__log_fatal_va(uint32_t uID, const char* cPFormat, va_list args);
 #endif
 
 // global context
-plLogContext* gTPLogContext = NULL;
+plLogContext* gptLogContext = NULL;
 
 void
 pl__initialize_log_context(plLogContext* tPContext)
 {
     tPContext->sbChannels = NULL;
-    gTPLogContext = tPContext;
+    gptLogContext = tPContext;
 }
 
 void
 pl__cleanup_log_context(void)
 {
-    PL_ASSERT(gTPLogContext && "no global log context set");
-    if(gTPLogContext)
+    PL_ASSERT(gptLogContext && "no global log context set");
+    if(gptLogContext)
     {
-        pl_sb_free(gTPLogContext->sbChannels); 
+        pl_sb_free(gptLogContext->sbChannels); 
     }
-    gTPLogContext = NULL;
+    gptLogContext = NULL;
 }
 
 void
 pl__set_log_context(plLogContext* tPContext)
 {
     PL_ASSERT(tPContext && "log context is NULL");
-    gTPLogContext = tPContext;
+    gptLogContext = tPContext;
 }
 
 plLogContext*
 pl__get_log_context(plLogContext* tPContext)
 {
-    PL_ASSERT(gTPLogContext && "no global log context set");
-    return gTPLogContext;
+    PL_ASSERT(gptLogContext && "no global log context set");
+    return gptLogContext;
 }
 
 uint32_t
-pl__add_log_channel(const char* cPName, plChannelType tType)
+pl__add_log_channel(const char* pcName, plChannelType tType)
 {
-    uint32_t uID = pl_sb_size(gTPLogContext->sbChannels);
+    uint32_t uID = pl_sb_size(gptLogContext->sbChannels);
     
     plLogChannel tChannel = 
     {
@@ -383,39 +383,39 @@ pl__add_log_channel(const char* cPName, plChannelType tType)
         .uID = uID
     };
 
-    pl_sb_push(gTPLogContext->sbChannels, tChannel);
+    pl_sb_push(gptLogContext->sbChannels, tChannel);
     return uID;
 }
 
 void
 pl__set_log_level(uint32_t uID, uint32_t uLevel)
 {
-    PL_ASSERT(uID < pl_sb_size(gTPLogContext->sbChannels) && "channel ID is not valid");
-    gTPLogContext->sbChannels[uID].uLevel = uLevel;
+    PL_ASSERT(uID < pl_sb_size(gptLogContext->sbChannels) && "channel ID is not valid");
+    gptLogContext->sbChannels[uID].uLevel = uLevel;
 }
 
 void
 pl__clear_log_channel(uint32_t uID)
 {
-    PL_ASSERT(uID < pl_sb_size(gTPLogContext->sbChannels) && "channel ID is not valid");
-    gTPLogContext->sbChannels[uID].uLineCount = 0u;
-    gTPLogContext->sbChannels[uID].uLineIndex = 0u;
-    gTPLogContext->sbChannels[uID].uLinesActive = 0u;
-    pl_sb_reset(gTPLogContext->sbChannels[uID].pEntries);
+    PL_ASSERT(uID < pl_sb_size(gptLogContext->sbChannels) && "channel ID is not valid");
+    gptLogContext->sbChannels[uID].uLineCount = 0u;
+    gptLogContext->sbChannels[uID].uLineIndex = 0u;
+    gptLogContext->sbChannels[uID].uLinesActive = 0u;
+    pl_sb_reset(gptLogContext->sbChannels[uID].pEntries);
 }
 
 #define PL__LOG_LEVEL_MACRO(level, prefix, prefixSize) \
-    plLogChannel* tPChannel = &gTPLogContext->sbChannels[uID]; \
+    plLogChannel* tPChannel = &gptLogContext->sbChannels[uID]; \
     if(tPChannel->uLevel < level + 1) \
     { \
-        if(tPChannel->tType & PL_CHANNEL_TYPE_CONSOLE) printf(prefix "%s\n", cPMessage); \
+        if(tPChannel->tType & PL_CHANNEL_TYPE_CONSOLE) printf(prefix "%s\n", pcMessage); \
         if(tPChannel->tType & PL_CHANNEL_TYPE_BUFFER) \
         { \
             char* cPDest = tPChannel->pEntries[tPChannel->uLineIndex].cPBuffer; \
             tPChannel->pEntries[tPChannel->uLineIndex].uLevel = level; \
             strcpy(cPDest, prefix); \
             cPDest += prefixSize; \
-            strcpy(cPDest, cPMessage); \
+            strcpy(cPDest, pcMessage); \
             tPChannel->uLineIndex++; \
             if(tPChannel->uLinesActive < tPChannel->uLineCount) tPChannel->uLinesActive++; \
             if(tPChannel->uLineIndex == tPChannel->uLineCount)  tPChannel->uLineIndex = 0u; \
@@ -423,37 +423,37 @@ pl__clear_log_channel(uint32_t uID)
     }
 
 void
-pl__log_trace(uint32_t uID, const char* cPMessage)
+pl__log_trace(uint32_t uID, const char* pcMessage)
 {
     PL__LOG_LEVEL_MACRO(PL_LOG_LEVEL_TRACE, "[TRACE] ", 8)
 }
 
 void
-pl__log_debug(uint32_t uID, const char* cPMessage)
+pl__log_debug(uint32_t uID, const char* pcMessage)
 {
     PL__LOG_LEVEL_MACRO(PL_LOG_LEVEL_DEBUG, "[DEBUG] ", 8)
 }
 
 void
-pl__log_info(uint32_t uID, const char* cPMessage)
+pl__log_info(uint32_t uID, const char* pcMessage)
 {
     PL__LOG_LEVEL_MACRO(PL_LOG_LEVEL_INFO, "[INFO ] ", 8)
 }
 
 void
-pl__log_warn(uint32_t uID, const char* cPMessage)
+pl__log_warn(uint32_t uID, const char* pcMessage)
 {
     PL__LOG_LEVEL_MACRO(PL_LOG_LEVEL_WARN, "[WARN ] ", 8)
 }
 
 void
-pl__log_error(uint32_t uID, const char* cPMessage)
+pl__log_error(uint32_t uID, const char* pcMessage)
 {
     PL__LOG_LEVEL_MACRO(PL_LOG_LEVEL_ERROR, "[ERROR] ", 8)
 }
 
 void
-pl__log_fatal(uint32_t uID, const char* cPMessage)
+pl__log_fatal(uint32_t uID, const char* pcMessage)
 {
     PL__LOG_LEVEL_MACRO(PL_LOG_LEVEL_FATAL, "[FATAL] ", 8)
 }
@@ -528,7 +528,7 @@ void
 pl__log_trace_va(uint32_t uID, const char* cPFormat, va_list args)
 {
    
-    plLogChannel* tPChannel = &gTPLogContext->sbChannels[uID];
+    plLogChannel* tPChannel = &gptLogContext->sbChannels[uID];
 
     if(tPChannel->uLevel < PL_LOG_LEVEL_TRACE + 1)
     {
@@ -564,7 +564,7 @@ void
 pl__log_debug_va(uint32_t uID, const char* cPFormat, va_list args)
 {
    
-    plLogChannel* tPChannel = &gTPLogContext->sbChannels[uID];
+    plLogChannel* tPChannel = &gptLogContext->sbChannels[uID];
 
     if(tPChannel->uLevel < PL_LOG_LEVEL_DEBUG + 1)
     {
@@ -600,7 +600,7 @@ void
 pl__log_info_va(uint32_t uID, const char* cPFormat, va_list args)
 {
    
-    plLogChannel* tPChannel = &gTPLogContext->sbChannels[uID];
+    plLogChannel* tPChannel = &gptLogContext->sbChannels[uID];
 
     if(tPChannel->uLevel < PL_LOG_LEVEL_INFO + 1)
     {
@@ -636,7 +636,7 @@ void
 pl__log_warn_va(uint32_t uID, const char* cPFormat, va_list args)
 {
    
-    plLogChannel* tPChannel = &gTPLogContext->sbChannels[uID];
+    plLogChannel* tPChannel = &gptLogContext->sbChannels[uID];
 
     if(tPChannel->uLevel < PL_LOG_LEVEL_WARN + 1)
     {
@@ -672,7 +672,7 @@ void
 pl__log_error_va(uint32_t uID, const char* cPFormat, va_list args)
 {
    
-    plLogChannel* tPChannel = &gTPLogContext->sbChannels[uID];
+    plLogChannel* tPChannel = &gptLogContext->sbChannels[uID];
 
     if(tPChannel->uLevel < PL_LOG_LEVEL_ERROR + 1)
     {
@@ -708,7 +708,7 @@ void
 pl__log_fatal_va(uint32_t uID, const char* cPFormat, va_list args)
 {
    
-    plLogChannel* tPChannel = &gTPLogContext->sbChannels[uID];
+    plLogChannel* tPChannel = &gptLogContext->sbChannels[uID];
 
     if(tPChannel->uLevel < PL_LOG_LEVEL_FATAL + 1)
     {

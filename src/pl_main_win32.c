@@ -33,9 +33,6 @@ Index of this file:
 #pragma comment(lib, "ucrt.lib")
 #endif
 
-// #define SC_MINIMIZE 0xF020
-// #define SC_RESTORE 0xF120
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -72,7 +69,7 @@ static INT64           gTime;
 static INT64           gTicksPerSecond;
 plIOContext            gtIOContext = {0};
 
-typedef struct plAppData_t plAppData;
+typedef struct _plAppData plAppData;
 static void* (*pl_app_load)    (plIOContext* ptIOCtx, plAppData* userData);
 static void  (*pl_app_setup)   (plAppData* userData);
 static void  (*pl_app_shutdown)(plAppData* userData);

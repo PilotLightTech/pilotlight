@@ -34,7 +34,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #ifndef PL_DECLARE_STRUCT
-#define PL_DECLARE_STRUCT(name) typedef struct name ##_t name
+#define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
 #endif
 
 //-----------------------------------------------------------------------------
@@ -59,16 +59,16 @@ PL_DECLARE_STRUCT(plPoolAllocatorNode);
 // [SECTION] global context
 //-----------------------------------------------------------------------------
 
-extern plMemoryContext* gTPMemoryContext;
+extern plMemoryContext* gptMemoryContext;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
 // context
-void                   pl_initialize_memory_context(plMemoryContext* pCtx);
+void                   pl_initialize_memory_context(plMemoryContext* ptCtx);
 void                   pl_cleanup_memory_context   (void);
-void                   pl_set_memory_context       (plMemoryContext* pCtx);
+void                   pl_set_memory_context       (plMemoryContext* ptCtx);
 plMemoryContext*       pl_get_memory_context       (void);
 
 // general purpose allocation
@@ -79,56 +79,56 @@ void                   pl_aligned_free (void* pBuffer);
 void*                  pl_realloc      (void* pBuffer, size_t szSize);
 
 // stack allocator
-void                   pl_stack_allocator_init          (plStackAllocator* pAllocator, size_t szSize, void* pBuffer);
-void*                  pl_stack_allocator_alloc         (plStackAllocator* pAllocator, size_t szSize);
-void*                  pl_stack_allocator_aligned_alloc (plStackAllocator* pAllocator, size_t szSize, size_t szAlignment);
-plStackAllocatorMarker pl_stack_allocator_marker        (plStackAllocator* pAllocator);
-void                   pl_stack_allocator_free_to_marker(plStackAllocator* pAllocator, plStackAllocatorMarker tMarker);
-void                   pl_stack_allocator_reset         (plStackAllocator* pAllocator);
+void                   pl_stack_allocator_init          (plStackAllocator* ptAllocator, size_t szSize, void* pBuffer);
+void*                  pl_stack_allocator_alloc         (plStackAllocator* ptAllocator, size_t szSize);
+void*                  pl_stack_allocator_aligned_alloc (plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment);
+plStackAllocatorMarker pl_stack_allocator_marker        (plStackAllocator* ptAllocator);
+void                   pl_stack_allocator_free_to_marker(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker);
+void                   pl_stack_allocator_reset         (plStackAllocator* ptAllocator);
 
 // double stack allocator (using regular stack allocator)
-void*                  pl_stack_allocator_aligned_alloc_bottom(plStackAllocator* pAllocator, size_t szSize, size_t szAlignment);
-plStackAllocatorMarker pl_stack_allocator_bottom_marker       (plStackAllocator* pAllocator);
-plStackAllocatorMarker pl_stack_allocator_top_marker          (plStackAllocator* pAllocator);
-void*                  pl_stack_allocator_alloc_bottom        (plStackAllocator* pAllocator, size_t szSize);
-void*                  pl_stack_allocator_alloc_top           (plStackAllocator* pAllocator, size_t szSize);
+void*                  pl_stack_allocator_aligned_alloc_bottom(plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment);
+plStackAllocatorMarker pl_stack_allocator_bottom_marker       (plStackAllocator* ptAllocator);
+plStackAllocatorMarker pl_stack_allocator_top_marker          (plStackAllocator* ptAllocator);
+void*                  pl_stack_allocator_alloc_bottom        (plStackAllocator* ptAllocator, size_t szSize);
+void*                  pl_stack_allocator_alloc_top           (plStackAllocator* ptAllocator, size_t szSize);
 
 // pool allocator
-void                   pl_pool_allocator_init (plPoolAllocator* pAllocator, size_t szItemCount, size_t szItemSize, size_t szItemAlignment, size_t szBufferSize, void* pBuffer);
-void*                  pl_pool_allocator_alloc(plPoolAllocator* pAllocator);
-void                   pl_pool_allocator_free (plPoolAllocator* pAllocator, void* pItem);
+void                   pl_pool_allocator_init (plPoolAllocator* ptAllocator, size_t szItemCount, size_t szItemSize, size_t szItemAlignment, size_t szBufferSize, void* pBuffer);
+void*                  pl_pool_allocator_alloc(plPoolAllocator* ptAllocator);
+void                   pl_pool_allocator_free (plPoolAllocator* ptAllocator, void* pItem);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct plMemoryContext_t
+typedef struct _plMemoryContext
 {
     uint32_t uActiveAllocations;
 } plMemoryContext;
 
-typedef struct plStackAllocatorMarker_t
+typedef struct _plStackAllocatorMarker
 {
     bool   bTop;
     size_t szOffset;
 } plStackAllocatorMarker;
 
-typedef struct plStackAllocator_t
+typedef struct _plStackAllocator
 {
-    unsigned char* pBuffer;
+    unsigned char* pucBuffer;
     size_t         szSize;
     size_t         szBottomOffset;
     size_t         szTopOffset;
 } plStackAllocator;
 
-typedef struct plPoolAllocatorNode_t
+typedef struct _plPoolAllocatorNode
 {
-    plPoolAllocatorNode* pNextNode;
+    plPoolAllocatorNode* ptNextNode;
 } plPoolAllocatorNode;
 
-typedef struct plPoolAllocator_t
+typedef struct _plPoolAllocator
 {
-    unsigned char*       pBuffer;
+    unsigned char*       pucBuffer;
     size_t               szGivenSize;
     size_t               szUsableSize;
     size_t               szRequestedItemSize;
@@ -160,12 +160,12 @@ typedef struct plPoolAllocator_t
 
 #ifndef PL_ASSERT
 #include <assert.h>
-#define PL_ASSERT(x) assert(x)
+#define PL_ASSERT(x) assert((x))
 #endif
 
 #define PL__ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
 
-plMemoryContext* gTPMemoryContext = NULL;
+plMemoryContext* gptMemoryContext = NULL;
 
 static inline size_t
 pl__get_next_power_of_2(size_t n)
@@ -179,64 +179,64 @@ pl__get_next_power_of_2(size_t n)
 }
 
 static inline uintptr_t
-pl__align_forward_uintptr(uintptr_t ptr, size_t ulAlign) 
+pl__align_forward_uintptr(uintptr_t ptr, size_t szAlign) 
 {
-	PL_ASSERT((ulAlign & (ulAlign-1)) == 0 && "alignment must be power of 2");
-	uintptr_t a = (uintptr_t)ulAlign;
+	PL_ASSERT((szAlign & (szAlign-1)) == 0 && "alignment must be power of 2");
+	uintptr_t a = (uintptr_t)szAlign;
 	uintptr_t p = ptr;
-	uintptr_t modulo = p & (a - 1);
-	if (modulo != 0){ p += a - modulo;}
+	uintptr_t pModulo = p & (a - 1);
+	if (pModulo != 0){ p += a - pModulo;}
 	return p;
 }
 
 static inline size_t 
-pl__align_forward_size(size_t ptr, size_t ulAlign) 
+pl__align_forward_size(size_t szPtr, size_t szAlign) 
 {
-	PL_ASSERT((ulAlign & (ulAlign-1)) == 0 && "alignment must be power of 2");
-	size_t a = ulAlign;
-	size_t p = ptr;
-	size_t modulo = p & (a - 1);
-	if (modulo != 0){ p += a - modulo;}
+	PL_ASSERT((szAlign & (szAlign-1)) == 0 && "alignment must be power of 2");
+	size_t a = szAlign;
+	size_t p = szPtr;
+	size_t szModulo = p & (a - 1);
+	if (szModulo != 0){ p += a - szModulo;}
 	return p;
 }
 
 void
-pl_initialize_memory_context(plMemoryContext* pCtx)
+pl_initialize_memory_context(plMemoryContext* ptCtx)
 {
-    memset(pCtx, 0, sizeof(plMemoryContext));
-    gTPMemoryContext = pCtx;
+    memset(ptCtx, 0, sizeof(plMemoryContext));
+    gptMemoryContext = ptCtx;
 }
 
 void
 pl_cleanup_memory_context(void)
 {
-    PL_ASSERT(gTPMemoryContext->uActiveAllocations == 0 && "memory leak");
-    gTPMemoryContext->uActiveAllocations = 0u;
+    PL_ASSERT(gptMemoryContext->uActiveAllocations == 0 && "memory leak");
+    gptMemoryContext->uActiveAllocations = 0u;
 }
 
 void
-pl_set_memory_context(plMemoryContext* pCtx)
+pl_set_memory_context(plMemoryContext* ptCtx)
 {
-    gTPMemoryContext = pCtx;
+    gptMemoryContext = ptCtx;
 }
 
 plMemoryContext*
 pl_get_memory_context(void)
 {
-    return gTPMemoryContext;
+    return gptMemoryContext;
 }
 
 void*
 pl_alloc(size_t szSize)
 {
-    gTPMemoryContext->uActiveAllocations++;
+    gptMemoryContext->uActiveAllocations++;
     return PL_ALLOC(szSize);
 }
 
 void
 pl_free(void* pBuffer)
 {
-    gTPMemoryContext->uActiveAllocations--;
+    gptMemoryContext->uActiveAllocations--;
     PL_FREE(pBuffer);
 }
 
@@ -286,7 +286,7 @@ pl_realloc(void* pBuffer, size_t szSize)
 
     if(szSize == 0 && pBuffer)  // free
     { 
-        gTPMemoryContext->uActiveAllocations--;
+        gptMemoryContext->uActiveAllocations--;
         PL_FREE(pBuffer);
         pNewBuffer = NULL;
     }
@@ -300,56 +300,56 @@ pl_realloc(void* pBuffer, size_t szSize)
     }
     else
     {
-        gTPMemoryContext->uActiveAllocations++;
+        gptMemoryContext->uActiveAllocations++;
         pNewBuffer = PL_ALLOC(szSize);
     }
     return pNewBuffer;
 }
 
 void
-pl_stack_allocator_init(plStackAllocator* pAllocator, size_t szSize, void* pBuffer)
+pl_stack_allocator_init(plStackAllocator* ptAllocator, size_t szSize, void* pBuffer)
 {
-    PL_ASSERT(pAllocator);
+    PL_ASSERT(ptAllocator);
     PL_ASSERT(szSize > 0);
     PL_ASSERT(pBuffer);
 
-    pAllocator->pBuffer = pBuffer;
-    pAllocator->szSize = szSize;
-    pAllocator->szBottomOffset = 0;
-    pAllocator->szTopOffset = szSize;
+    ptAllocator->pucBuffer = pBuffer;
+    ptAllocator->szSize = szSize;
+    ptAllocator->szBottomOffset = 0;
+    ptAllocator->szTopOffset = szSize;
 }
 
 void*
-pl_stack_allocator_alloc(plStackAllocator* pAllocator, size_t szSize)
+pl_stack_allocator_alloc(plStackAllocator* ptAllocator, size_t szSize)
 {
-    size_t szOffset = pAllocator->szBottomOffset + szSize;
+    size_t szOffset = ptAllocator->szBottomOffset + szSize;
 
-    PL_ASSERT(szOffset < pAllocator->szTopOffset && "stack allocator full");
+    PL_ASSERT(szOffset < ptAllocator->szTopOffset && "stack allocator full");
 
     // update offset
-    void* pBuffer = (unsigned char*)pAllocator->pBuffer + pAllocator->szBottomOffset;
-    pAllocator->szBottomOffset = szOffset;
+    void* pBuffer = ptAllocator->pucBuffer + ptAllocator->szBottomOffset;
+    ptAllocator->szBottomOffset = szOffset;
 
     return pBuffer;
 }
 
 void*
-pl_stack_allocator_aligned_alloc(plStackAllocator* pAllocator, size_t szSize, size_t szAlignment)
+pl_stack_allocator_aligned_alloc(plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment)
 {
     void* pBuffer = NULL;
 
     szAlignment = pl__get_next_power_of_2(szAlignment);
-    uintptr_t pCurrentPointer = (uintptr_t)pAllocator->pBuffer + (uintptr_t)pAllocator->szBottomOffset;
+    uintptr_t pCurrentPointer = (uintptr_t)ptAllocator->pucBuffer + (uintptr_t)ptAllocator->szBottomOffset;
     uintptr_t pOffset = pl__align_forward_uintptr(pCurrentPointer, szAlignment);
-    pOffset -= (uintptr_t)pAllocator->pBuffer;
+    pOffset -= (uintptr_t)ptAllocator->pucBuffer;
 
-    PL_ASSERT(pOffset + szSize <= pAllocator->szTopOffset && "linear allocator full");
+    PL_ASSERT(pOffset + szSize <= ptAllocator->szTopOffset && "linear allocator full");
 
     // check if allocator has enough space left
-    if(pOffset + szSize <= pAllocator->szSize)
+    if(pOffset + szSize <= ptAllocator->szSize)
     {
-        pBuffer = &pAllocator->pBuffer[pOffset];
-        pAllocator->szBottomOffset = pOffset + szSize;
+        pBuffer = &ptAllocator->pucBuffer[pOffset];
+        ptAllocator->szBottomOffset = pOffset + szSize;
 
         // zero new memory
         memset(pBuffer, 0, szSize);
@@ -358,28 +358,28 @@ pl_stack_allocator_aligned_alloc(plStackAllocator* pAllocator, size_t szSize, si
 }
 
 void*
-pl_stack_allocator_aligned_alloc_bottom(plStackAllocator* pAllocator, size_t szSize, size_t szAlignment)
+pl_stack_allocator_aligned_alloc_bottom(plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment)
 {
-    return pl_stack_allocator_aligned_alloc(pAllocator, szSize, szAlignment);
+    return pl_stack_allocator_aligned_alloc(ptAllocator, szSize, szAlignment);
 }
 
 void*
-pl_stack_allocator_aligned_alloc_top(plStackAllocator* pAllocator, size_t szSize, size_t szAlignment)
+pl_stack_allocator_aligned_alloc_top(plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment)
 {
     void* pBuffer = NULL;
 
     szAlignment = pl__get_next_power_of_2(szAlignment);
-    uintptr_t pCurrentPointer = (uintptr_t)pAllocator->pBuffer + (uintptr_t)pAllocator->szBottomOffset;
+    uintptr_t pCurrentPointer = (uintptr_t)ptAllocator->pucBuffer + (uintptr_t)ptAllocator->szBottomOffset;
     uintptr_t pOffset = pl__align_forward_uintptr(pCurrentPointer, szAlignment);
-    pOffset -= (uintptr_t)pAllocator->pBuffer;
+    pOffset -= (uintptr_t)ptAllocator->pucBuffer;
 
-    PL_ASSERT(pOffset + szSize <= pAllocator->szTopOffset && "linear allocator full");
+    PL_ASSERT(pOffset + szSize <= ptAllocator->szTopOffset && "linear allocator full");
 
     // check if allocator has enough space left
-    if(pOffset + szSize <= pAllocator->szSize)
+    if(pOffset + szSize <= ptAllocator->szSize)
     {
-        pBuffer = &pAllocator->pBuffer[pOffset];
-        pAllocator->szBottomOffset = pOffset + szSize;
+        pBuffer = &ptAllocator->pucBuffer[pOffset];
+        ptAllocator->szBottomOffset = pOffset + szSize;
 
         // zero new memory
         memset(pBuffer, 0, szSize);
@@ -388,125 +388,125 @@ pl_stack_allocator_aligned_alloc_top(plStackAllocator* pAllocator, size_t szSize
 }
 
 void*
-pl_stack_allocator_alloc_bottom(plStackAllocator* pAllocator, size_t szSize)
+pl_stack_allocator_alloc_bottom(plStackAllocator* ptAllocator, size_t szSize)
 {
-    return pl_stack_allocator_alloc(pAllocator, szSize);
+    return pl_stack_allocator_alloc(ptAllocator, szSize);
 }
 
 void*
-pl_stack_allocator_alloc_top(plStackAllocator* pAllocator, size_t szSize)
+pl_stack_allocator_alloc_top(plStackAllocator* ptAllocator, size_t szSize)
 {
-    size_t szOffset = pAllocator->szTopOffset - szSize;
+    size_t szOffset = ptAllocator->szTopOffset - szSize;
 
-    PL_ASSERT(szOffset > pAllocator->szBottomOffset && szOffset < pAllocator->szTopOffset && "stack allocator full");
+    PL_ASSERT(szOffset > ptAllocator->szBottomOffset && szOffset < ptAllocator->szTopOffset && "stack allocator full");
 
     // update offset
-    void* pBuffer = (unsigned char*)pAllocator->pBuffer + szOffset;
-    pAllocator->szTopOffset = szOffset;
+    void* pBuffer = ptAllocator->pucBuffer + szOffset;
+    ptAllocator->szTopOffset = szOffset;
 
     return pBuffer;
 }
 
 plStackAllocatorMarker
-pl_stack_allocator_marker(plStackAllocator* pAllocator)
+pl_stack_allocator_marker(plStackAllocator* ptAllocator)
 {
     plStackAllocatorMarker tMarker;
-    tMarker.szOffset = pAllocator->szBottomOffset;
+    tMarker.szOffset = ptAllocator->szBottomOffset;
     tMarker.bTop = false;
     return tMarker;
 }
 
 plStackAllocatorMarker
-pl_stack_allocator_bottom_marker(plStackAllocator* pAllocator)
+pl_stack_allocator_bottom_marker(plStackAllocator* ptAllocator)
 {
-    return pl_stack_allocator_marker(pAllocator);
+    return pl_stack_allocator_marker(ptAllocator);
 }
 
 plStackAllocatorMarker
-pl_stack_allocator_top_marker(plStackAllocator* pAllocator)
+pl_stack_allocator_top_marker(plStackAllocator* ptAllocator)
 {
     plStackAllocatorMarker tMarker;
-    tMarker.szOffset = pAllocator->szTopOffset;
+    tMarker.szOffset = ptAllocator->szTopOffset;
     tMarker.bTop = true;
     return tMarker;
 }
 
 void
-pl_stack_allocator_free_to_marker(plStackAllocator* pAllocator, plStackAllocatorMarker tMarker)
+pl_stack_allocator_free_to_marker(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker)
 {
     if(tMarker.bTop)
-        pAllocator->szTopOffset = tMarker.szOffset;
+        ptAllocator->szTopOffset = tMarker.szOffset;
     else
-        pAllocator->szBottomOffset = tMarker.szOffset;
+        ptAllocator->szBottomOffset = tMarker.szOffset;
 
     #ifdef _DEBUG
-    memset(&pAllocator->pBuffer[pAllocator->szBottomOffset], 0, pAllocator->szTopOffset - pAllocator->szBottomOffset);
+    memset(&ptAllocator->pucBuffer[ptAllocator->szBottomOffset], 0, ptAllocator->szTopOffset - ptAllocator->szBottomOffset);
     #endif
 }
 
 void
-pl_stack_allocator_reset(plStackAllocator* pAllocator)
+pl_stack_allocator_reset(plStackAllocator* ptAllocator)
 {
-    pAllocator->szBottomOffset = 0;
-    pAllocator->szTopOffset = pAllocator->szSize;
+    ptAllocator->szBottomOffset = 0;
+    ptAllocator->szTopOffset = ptAllocator->szSize;
 
     #ifdef _DEBUG
-    memset(pAllocator->pBuffer, 0, pAllocator->szSize);
+    memset(ptAllocator->pucBuffer, 0, ptAllocator->szSize);
     #endif
 }
 
 void
-pl_pool_allocator_init(plPoolAllocator* pAllocator, size_t szItemCount, size_t szItemSize, size_t szItemAlignment, size_t szBufferSize, void* pBuffer)
+pl_pool_allocator_init(plPoolAllocator* ptAllocator, size_t szItemCount, size_t szItemSize, size_t szItemAlignment, size_t szBufferSize, void* pBuffer)
 {
-    PL_ASSERT(pAllocator);
+    PL_ASSERT(ptAllocator);
     PL_ASSERT(szItemCount > 0);
     PL_ASSERT(szItemSize > 0);
     PL_ASSERT(szBufferSize > 0);
     PL_ASSERT(pBuffer);
 
-    pAllocator->szFreeItems = szItemCount;
-    pAllocator->szRequestedItemSize = szItemSize;
-    pAllocator->szGivenSize = szBufferSize;
-    pAllocator->szUsableSize = szBufferSize;
-    pAllocator->pBuffer = pBuffer;
-    pAllocator->szItemSize = pl__align_forward_size(szItemSize, szItemAlignment);
+    ptAllocator->szFreeItems = szItemCount;
+    ptAllocator->szRequestedItemSize = szItemSize;
+    ptAllocator->szGivenSize = szBufferSize;
+    ptAllocator->szUsableSize = szBufferSize;
+    ptAllocator->pucBuffer = pBuffer;
+    ptAllocator->szItemSize = pl__align_forward_size(szItemSize, szItemAlignment);
 
     uintptr_t pInitialStart = (uintptr_t)pBuffer;
     uintptr_t pStart = pl__align_forward_uintptr(pInitialStart, (uintptr_t)szItemAlignment);
-    pAllocator->szUsableSize -= (size_t)(pStart - pInitialStart);
+    ptAllocator->szUsableSize -= (size_t)(pStart - pInitialStart);
 
-    PL_ASSERT(pAllocator->szItemSize >= sizeof(plPoolAllocatorNode) && "pool allocator item size too small");
-    PL_ASSERT(pAllocator->szUsableSize >= pAllocator->szItemSize * szItemCount && "pool allocator buffer size too small");
+    PL_ASSERT(ptAllocator->szItemSize >= sizeof(plPoolAllocatorNode) && "pool allocator item size too small");
+    PL_ASSERT(ptAllocator->szUsableSize >= ptAllocator->szItemSize * szItemCount && "pool allocator buffer size too small");
 
     unsigned char* pUsableBuffer = (unsigned char*)pStart;
     for(size_t i = 0; i < szItemCount - 1; i++)
     {
-        plPoolAllocatorNode* pNode0 = (plPoolAllocatorNode*)&pUsableBuffer[i * pAllocator->szItemSize];
-        plPoolAllocatorNode* pNode1 = (plPoolAllocatorNode*)&pUsableBuffer[(i + 1) * pAllocator->szItemSize];
-        pNode0->pNextNode = pNode1;
+        plPoolAllocatorNode* pNode0 = (plPoolAllocatorNode*)&pUsableBuffer[i * ptAllocator->szItemSize];
+        plPoolAllocatorNode* pNode1 = (plPoolAllocatorNode*)&pUsableBuffer[(i + 1) * ptAllocator->szItemSize];
+        pNode0->ptNextNode = pNode1;
     }
-    pAllocator->pFreeList = (plPoolAllocatorNode*)pUsableBuffer;
+    ptAllocator->pFreeList = (plPoolAllocatorNode*)pUsableBuffer;
 }
 
 void*
-pl_pool_allocator_alloc(plPoolAllocator* pAllocator)
+pl_pool_allocator_alloc(plPoolAllocator* ptAllocator)
 {
-    PL_ASSERT(pAllocator->szFreeItems > 0 && "pool allocator is full");
-    pAllocator->szFreeItems--;
-    plPoolAllocatorNode* pFirstNode = pAllocator->pFreeList;
-    plPoolAllocatorNode* pNextNode = pFirstNode->pNextNode;
-    pAllocator->pFreeList = pNextNode;
-    memset(pFirstNode, 0, pAllocator->szItemSize);
+    PL_ASSERT(ptAllocator->szFreeItems > 0 && "pool allocator is full");
+    ptAllocator->szFreeItems--;
+    plPoolAllocatorNode* pFirstNode = ptAllocator->pFreeList;
+    plPoolAllocatorNode* ptNextNode = pFirstNode->ptNextNode;
+    ptAllocator->pFreeList = ptNextNode;
+    memset(pFirstNode, 0, ptAllocator->szItemSize);
     return pFirstNode;
 }
 
 void
-pl_pool_allocator_free(plPoolAllocator* pAllocator, void* pItem)
+pl_pool_allocator_free(plPoolAllocator* ptAllocator, void* pItem)
 {
-    pAllocator->szFreeItems++;
-    plPoolAllocatorNode* pOldFreeNode = pAllocator->pFreeList;
-    pAllocator->pFreeList = pItem;
-    pAllocator->pFreeList->pNextNode = pOldFreeNode;
+    ptAllocator->szFreeItems++;
+    plPoolAllocatorNode* pOldFreeNode = ptAllocator->pFreeList;
+    ptAllocator->pFreeList = pItem;
+    ptAllocator->pFreeList->ptNextNode = pOldFreeNode;
 }
 
 #endif

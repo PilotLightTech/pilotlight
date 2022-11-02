@@ -25,11 +25,11 @@ Index of this file:
 // [SECTION] helper macros
 //-----------------------------------------------------------------------------
 
-#define PL_DECLARE_STRUCT(name) typedef struct name ##_t name
+#define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
 
 #ifndef PL_ASSERT
 #include <assert.h>
-#define PL_ASSERT(x) assert(x)
+#define PL_ASSERT(x) assert((x))
 #endif
 
 #if defined(_MSC_VER) //  Microsoft 

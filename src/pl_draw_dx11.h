@@ -141,7 +141,7 @@ static const char* pcSDFPixelShader =
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
-typedef struct plDx11DrawContext_t
+typedef struct _plDx11DrawContext
 {
     ID3D11Device*             ptDevice;
     ID3D11DeviceContext*      ptContext;
@@ -157,7 +157,7 @@ typedef struct plDx11DrawContext_t
     ID3D11ShaderResourceView* ptAtlasTexture; 
 } plDx11DrawContext;
 
-typedef struct plDx11DrawList_t
+typedef struct _plDx11DrawList
 {
     // vertex buffer
     ID3D11Buffer*  ptVertexBuffer;

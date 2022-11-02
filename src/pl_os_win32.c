@@ -19,7 +19,7 @@ Index of this file:
 
 #ifndef PL_ASSERT
 #include <assert.h>
-#define PL_ASSERT(x) assert(x)
+#define PL_ASSERT(x) assert((x))
 #endif
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -31,10 +31,10 @@ Index of this file:
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
-typedef struct plWin32SharedLibrary_t
+typedef struct
 {
-    HMODULE   handle;
-    FILETIME  lastWriteTime;
+    HMODULE   tHandle;
+    FILETIME  tLastWriteTime;
 } plWin32SharedLibrary;
 
 //-----------------------------------------------------------------------------
@@ -42,15 +42,15 @@ typedef struct plWin32SharedLibrary_t
 //-----------------------------------------------------------------------------
 
 static FILETIME
-pl__get_last_write_time(const char* filename)
+pl__get_last_write_time(const char* pcFilename)
 {
-    FILETIME LastWriteTime = {0};
+    FILETIME tLastWriteTime = {0};
     
-    WIN32_FILE_ATTRIBUTE_DATA data = {0};
-    if(GetFileAttributesExA(filename, GetFileExInfoStandard, &data))
-        LastWriteTime = data.ftLastWriteTime;
+    WIN32_FILE_ATTRIBUTE_DATA tData = {0};
+    if(GetFileAttributesExA(pcFilename, GetFileExInfoStandard, &tData))
+        tLastWriteTime = tData.ftLastWriteTime;
     
-    return LastWriteTime;
+    return tLastWriteTime;
 }
 
 //-----------------------------------------------------------------------------
@@ -58,123 +58,123 @@ pl__get_last_write_time(const char* filename)
 //-----------------------------------------------------------------------------
 
 void
-pl_read_file(const char* file, unsigned* sizeIn, char* buffer, const char* mode)
+pl_read_file(const char* pcFile, unsigned* puSizeIn, char* pcBuffer, const char* pcMode)
 {
-    PL_ASSERT(sizeIn);
+    PL_ASSERT(puSizeIn);
 
-    FILE* dataFile = fopen(file, mode);
-    unsigned size = 0u;
+    FILE* ptDataFile = fopen(pcFile, pcMode);
+    unsigned uSize = 0u;
 
-    if (dataFile == NULL)
+    if (ptDataFile == NULL)
     {
         PL_ASSERT(false && "File not found.");
-        *sizeIn = 0u;
+        *puSizeIn = 0u;
         return;
     }
 
     // obtain file size
-    fseek(dataFile, 0, SEEK_END);
-    size = ftell(dataFile);
-    fseek(dataFile, 0, SEEK_SET);
+    fseek(ptDataFile, 0, SEEK_END);
+    uSize = ftell(ptDataFile);
+    fseek(ptDataFile, 0, SEEK_SET);
 
-    if(buffer == NULL)
+    if(pcBuffer == NULL)
     {
-        *sizeIn = size;
-        fclose(dataFile);
+        *puSizeIn = uSize;
+        fclose(ptDataFile);
         return;
     }
 
     // copy the file into the buffer:
-    size_t result = fread(buffer, sizeof(char), size, dataFile);
-    if (result != size)
+    size_t szResult = fread(pcBuffer, sizeof(char), uSize, ptDataFile);
+    if (szResult != uSize)
     {
-        if (feof(dataFile))
+        if (feof(ptDataFile))
             printf("Error reading test.bin: unexpected end of file\n");
-        else if (ferror(dataFile)) {
+        else if (ferror(ptDataFile)) {
             perror("Error reading test.bin");
         }
         PL_ASSERT(false && "File not read.");
     }
 
-    fclose(dataFile);
+    fclose(ptDataFile);
 }
 
 void
-pl_copy_file(const char* source, const char* destination, unsigned* size, char* buffer)
+pl_copy_file(const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer)
 {
-    CopyFile(source, destination, FALSE);
+    CopyFile(pcSource, pcDestination, FALSE);
 }
 
 bool
-pl_has_library_changed(plSharedLibrary* library)
+pl_has_library_changed(plSharedLibrary* ptLibrary)
 {
-    FILETIME newWriteTime = pl__get_last_write_time(library->path);
-    plWin32SharedLibrary* win32Library = library->_platformData;
-    return CompareFileTime(&newWriteTime, &win32Library->lastWriteTime) != 0;
+    FILETIME newWriteTime = pl__get_last_write_time(ptLibrary->acPath);
+    plWin32SharedLibrary* win32Library = ptLibrary->_pPlatformData;
+    return CompareFileTime(&newWriteTime, &win32Library->tLastWriteTime) != 0;
 }
 
 bool
-pl_load_library(plSharedLibrary* library, const char* name, const char* transitionalName, const char* lockFile)
+pl_load_library(plSharedLibrary* ptLibrary, const char* pcName, const char* pcTransitionalName, const char* pcLockFile)
 {
-    if(library->path[0] == 0)             strncpy(library->path, name, PL_MAX_NAME_LENGTH);
-    if(library->transitionalName[0] == 0) strncpy(library->transitionalName, transitionalName, PL_MAX_NAME_LENGTH);
-    if(library->lockFile[0] == 0)         strncpy(library->lockFile, lockFile, PL_MAX_NAME_LENGTH);
-    library->valid = false;
+    if(ptLibrary->acPath[0] == 0)             strncpy(ptLibrary->acPath, pcName, PL_MAX_NAME_LENGTH);
+    if(ptLibrary->acTransitionalName[0] == 0) strncpy(ptLibrary->acTransitionalName, pcTransitionalName, PL_MAX_NAME_LENGTH);
+    if(ptLibrary->acLockFile[0] == 0)         strncpy(ptLibrary->acLockFile, pcLockFile, PL_MAX_NAME_LENGTH);
+    ptLibrary->bValid = false;
 
-    if(library->_platformData == NULL)
-        library->_platformData = malloc(sizeof(plWin32SharedLibrary));
-    plWin32SharedLibrary* win32Library = library->_platformData;
+    if(ptLibrary->_pPlatformData == NULL)
+        ptLibrary->_pPlatformData = malloc(sizeof(plWin32SharedLibrary));
+    plWin32SharedLibrary* ptWin32Library = ptLibrary->_pPlatformData;
 
-    WIN32_FILE_ATTRIBUTE_DATA Ignored;
-    if(!GetFileAttributesExA(library->lockFile, GetFileExInfoStandard, &Ignored))  // lock file gone
+    WIN32_FILE_ATTRIBUTE_DATA tIgnored;
+    if(!GetFileAttributesExA(ptLibrary->acLockFile, GetFileExInfoStandard, &tIgnored))  // lock file gone
     {
-        char temporaryName[2024] = {0};
-        win32Library->lastWriteTime = pl__get_last_write_time(library->path);
+        char acTemporaryName[2024] = {0};
+        ptWin32Library->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
         
-        pl_sprintf(temporaryName, "%s%u%s", library->transitionalName, library->tempIndex, ".dll");
-        if(++library->tempIndex >= 1024)
+        pl_sprintf(acTemporaryName, "%s%u%s", ptLibrary->acTransitionalName, ptLibrary->uTempIndex, ".dll");
+        if(++ptLibrary->uTempIndex >= 1024)
         {
-            library->tempIndex = 0;
+            ptLibrary->uTempIndex = 0;
         }
-        pl_copy_file(library->path, temporaryName, NULL, NULL);
+        pl_copy_file(ptLibrary->acPath, acTemporaryName, NULL, NULL);
 
-        win32Library->handle = NULL;
-        win32Library->handle = LoadLibraryA(temporaryName);
-        if(win32Library->handle)
-            library->valid = true;
+        ptWin32Library->tHandle = NULL;
+        ptWin32Library->tHandle = LoadLibraryA(acTemporaryName);
+        if(ptWin32Library->tHandle)
+            ptLibrary->bValid = true;
     }
 
-    return library->valid;
+    return ptLibrary->bValid;
 }
 
 void
-pl_reload_library(plSharedLibrary* library)
+pl_reload_library(plSharedLibrary* ptLibrary)
 {
-    library->valid = false;
-    for(uint32_t i = 0; !library->valid && (i < 100); i++)
+    ptLibrary->bValid = false;
+    for(uint32_t i = 0; i < 100; i++)
     {
-        if(pl_load_library(library, library->path, library->transitionalName, library->lockFile))
+        if(pl_load_library(ptLibrary, ptLibrary->acPath, ptLibrary->acTransitionalName, ptLibrary->acLockFile))
             break;
         pl_sleep(100);
     }
 }
 
 void*
-pl_load_library_function(plSharedLibrary* library, const char* name)
+pl_load_library_function(plSharedLibrary* ptLibrary, const char* name)
 {
-    PL_ASSERT(library->valid && "Library not valid");
-    void* loadedFunction = NULL;
-    if(library->valid)
+    PL_ASSERT(ptLibrary->bValid && "Library not valid");
+    void* pLoadedFunction = NULL;
+    if(ptLibrary->bValid)
     {
-        plWin32SharedLibrary* win32Library = library->_platformData;
-        loadedFunction = (void*)GetProcAddress(win32Library->handle, name);
+        plWin32SharedLibrary* ptWin32Library = ptLibrary->_pPlatformData;
+        pLoadedFunction = (void*)GetProcAddress(ptWin32Library->tHandle, name);
     }
-    return loadedFunction;
+    return pLoadedFunction;
 }
 
 int
-pl_sleep(uint32_t millisec)
+pl_sleep(uint32_t uMillisec)
 {
-    Sleep((long)millisec);
+    Sleep((long)uMillisec);
     return 0;
 }

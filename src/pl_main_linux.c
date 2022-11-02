@@ -43,7 +43,7 @@ static void*             gUserData = NULL;
 static double            gdTime = 0.0;
 static double            gdFrequency = 0.0;
 
-typedef struct plAppData_t plAppData;
+typedef struct _plAppData plAppData;
 static void* (*pl_app_load)    (plIOContext* ptIOCtx, plAppData* ptAppData);
 static void  (*pl_app_setup)   (plAppData* ptAppData);
 static void  (*pl_app_shutdown)(plAppData* ptAppData);

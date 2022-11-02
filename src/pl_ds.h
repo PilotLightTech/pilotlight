@@ -21,7 +21,7 @@ Index of this file:
 
 #ifndef PL_ASSERT
 #include <assert.h>
-#define PL_ASSERT(x) assert(x)
+#define PL_ASSERT(x) assert((x))
 #endif
 
 //-----------------------------------------------------------------------------
@@ -44,10 +44,10 @@ Index of this file:
 #define pl_sb_free(buf) if((buf)){ free(pl__sb_header(buf));} (buf) = NULL;
 #define pl_sb_reset(buf) if((buf)){ pl__sb_header((buf))->uSize = 0u;}
 #define pl_sb_back(buf)  pl_sb_top((buf))
-#define pl__sb_may_grow(buf, s, n, m) pl__sb_may_grow_((void**)&(buf), s, n, m)
+#define pl__sb_may_grow(buf, s, n, m) pl__sb_may_grow_((void**)&(buf), (s), (n), (m))
 #define pl_sb_push(buf, v) (pl__sb_may_grow((buf), sizeof(*(buf)), 1, 8), (buf)[pl__sb_header((buf))->uSize++] = (v))
-#define pl_sb_reserve(buf, n) (pl__sb_may_grow((buf), sizeof(*(buf)), n, n))
-#define pl_sb_resize(buf, n) (pl__sb_may_grow((buf), sizeof(*(buf)), n, n), memset((buf), 0, sizeof(*(buf)) * n), pl__sb_header((buf))->uSize = (n))
+#define pl_sb_reserve(buf, n) (pl__sb_may_grow((buf), sizeof(*(buf)), (n), (n)))
+#define pl_sb_resize(buf, n) (pl__sb_may_grow((buf), sizeof(*(buf)), (n), (n)), memset((buf), 0, sizeof(*(buf)) * (n)), pl__sb_header((buf))->uSize = (n))
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal
@@ -60,41 +60,41 @@ typedef struct
 } plSbHeader_;
 
 static void
-pl__sb_grow(void** ptrBuffer, size_t elementSize, size_t newItems)
+pl__sb_grow(void** ptrBuffer, size_t szElementSize, size_t szNewItems)
 {
 
-    plSbHeader_* ptrOldHeader = pl__sb_header(*ptrBuffer);
+    plSbHeader_* ptOldHeader = pl__sb_header(*ptrBuffer);
 
-    plSbHeader_* ptrNewHeader = (plSbHeader_*)malloc((ptrOldHeader->uCapacity + newItems) * elementSize + sizeof(plSbHeader_));
-    if(ptrNewHeader)
+    plSbHeader_* ptNewHeader = malloc((ptOldHeader->uCapacity + szNewItems) * szElementSize + sizeof(plSbHeader_));
+    if(ptNewHeader)
     {
-        ptrNewHeader->uSize = ptrOldHeader->uSize;
-        ptrNewHeader->uCapacity = ptrOldHeader->uCapacity + (uint32_t)newItems;
-        memcpy(&ptrNewHeader[1], *ptrBuffer, ptrOldHeader->uSize * elementSize);
-        free(ptrOldHeader);
-        *ptrBuffer = &ptrNewHeader[1];
+        ptNewHeader->uSize = ptOldHeader->uSize;
+        ptNewHeader->uCapacity = ptOldHeader->uCapacity + (uint32_t)szNewItems;
+        memcpy(&ptNewHeader[1], *ptrBuffer, ptOldHeader->uSize * szElementSize);
+        free(ptOldHeader);
+        *ptrBuffer = &ptNewHeader[1];
     }
 }
 
 static void
-pl__sb_may_grow_(void** ptrBuffer, size_t elementSize, size_t newItems, size_t minCapacity)
+pl__sb_may_grow_(void** ptrBuffer, size_t szElementSize, size_t szNewItems, size_t szMinCapacity)
 {
     if(*ptrBuffer)
     {   
-        plSbHeader_* ptrOriginalHeader = pl__sb_header(*ptrBuffer);
-        if(ptrOriginalHeader->uSize + elementSize > ptrOriginalHeader->uCapacity)
+        plSbHeader_* ptOriginalHeader = pl__sb_header(*ptrBuffer);
+        if(ptOriginalHeader->uSize + szElementSize > ptOriginalHeader->uCapacity)
         {
-            pl__sb_grow(ptrBuffer, elementSize, newItems);
+            pl__sb_grow(ptrBuffer, szElementSize, szNewItems);
         }
     }
     else // first run
     {
-        plSbHeader_* ptrHeader = (plSbHeader_*)malloc(minCapacity * elementSize + sizeof(plSbHeader_));
-        if(ptrHeader)
+        plSbHeader_* ptHeader = malloc(szMinCapacity * szElementSize + sizeof(plSbHeader_));
+        if(ptHeader)
         {
-            *ptrBuffer = &ptrHeader[1]; 
-            ptrHeader->uSize = 0u;
-            ptrHeader->uCapacity = (uint32_t)minCapacity;
+            *ptrBuffer = &ptHeader[1]; 
+            ptHeader->uSize = 0u;
+            ptHeader->uCapacity = (uint32_t)szMinCapacity;
         }
     }     
 }

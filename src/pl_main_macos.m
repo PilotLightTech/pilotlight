@@ -83,7 +83,7 @@ static NSTextInputContext*  gInputContext = NULL;
 static id                   gMonitor;
 CFTimeInterval              gTime;
 
-typedef struct plAppData_t plAppData;
+typedef struct _plAppData plAppData;
 static void* (*pl_app_load)    (plIOContext* ptIOCtx, plAppData* ptAppData);
 static void  (*pl_app_setup)   (plAppData* ptAppData);
 static void  (*pl_app_shutdown)(plAppData* ptAppData);
@@ -444,15 +444,11 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 
 - (void)insertText:(id)aString replacementRange:(NSRange)replacementRange
 {
-    // ImGuiIO& io = ImGui::GetIO();
-
     NSString* characters;
     if ([aString isKindOfClass:[NSAttributedString class]])
         characters = [aString string];
     else
         characters = (NSString*)aString;
-
-    // io.AddInputCharactersUTF8(characters.UTF8String);
 }
 
 - (BOOL)acceptsFirstResponder

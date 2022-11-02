@@ -25,13 +25,14 @@ Index of this file:
 #include "pl_io.h"
 #include "pl_memory.h"
 #include "pl_draw_vulkan.h"
+#include "pl_math.h"
 #include <string.h> // memset
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct plAppData_t
+typedef struct _plAppData
 {
     plVulkanDevice    device;
     plVulkanGraphics  graphics;
@@ -82,10 +83,10 @@ pl_app_setup(plAppData* ptAppData)
     // get io context
     plIOContext* ptIOCtx = pl_get_io_context();
 
-    // create vulkan instance
+    // create vulkan tInstance
     pl_create_instance(&ptAppData->graphics, VK_API_VERSION_1_1, true);
 
-    // create surface
+    // create tSurface
     #ifdef _WIN32
         VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
@@ -94,7 +95,7 @@ pl_app_setup(plAppData* ptAppData)
             .hinstance = GetModuleHandle(NULL),
             .hwnd = *(HWND*)ptIOCtx->pBackendPlatformData
         };
-        PL_VULKAN(vkCreateWin32SurfaceKHR(ptAppData->graphics.instance, &surfaceCreateInfo, NULL, &ptAppData->graphics.surface));
+        PL_VULKAN(vkCreateWin32SurfaceKHR(ptAppData->graphics.tInstance, &surfaceCreateInfo, NULL, &ptAppData->graphics.tSurface));
     #else // linux
         struct tPlatformData { xcb_connection_t* ptConnection; xcb_window_t tWindow;};
         struct tPlatformData* ptPlatformData = (struct tPlatformData*)ptIOCtx->pBackendPlatformData;
@@ -105,14 +106,15 @@ pl_app_setup(plAppData* ptAppData)
             .window = ptPlatformData->tWindow,
             .connection = ptPlatformData->ptConnection
         };
-        PL_VULKAN(vkCreateXcbSurfaceKHR(ptAppData->graphics.instance, &surfaceCreateInfo, NULL, &ptAppData->graphics.surface));
+        PL_VULKAN(vkCreateXcbSurfaceKHR(ptAppData->graphics.tInstance, &surfaceCreateInfo, NULL, &ptAppData->graphics.tSurface));
     #endif
 
     // create devices
-    pl_create_device(ptAppData->graphics.instance, ptAppData->graphics.surface, &ptAppData->device, true);
+    pl_create_device(ptAppData->graphics.tInstance, ptAppData->graphics.tSurface, &ptAppData->device, true);
     
     // create swapchain
-    pl_create_swapchain(&ptAppData->device, ptAppData->graphics.surface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptAppData->swapchain);
+    ptAppData->swapchain.bVSync = true;
+    pl_create_swapchain(&ptAppData->device, ptAppData->graphics.tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptAppData->swapchain);
 
     // setup memory context
     pl_initialize_memory_context(&ptAppData->tMemoryCtx);
@@ -127,50 +129,50 @@ pl_app_setup(plAppData* ptAppData)
 
     // create render pass
     VkAttachmentDescription colorAttachment = {
-        .flags = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT,
-        .format = ptAppData->swapchain.format,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .flags          = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT,
+        .format         = ptAppData->swapchain.tFormat,
+        .samples        = VK_SAMPLE_COUNT_1_BIT,
+        .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+        .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
     };
 
     VkAttachmentReference attachmentReference = {
         .attachment = 0,
-        .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
     };
 
     VkSubpassDescription subpass = {
-        .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-        .colorAttachmentCount = 1,
-        .pColorAttachments = &attachmentReference,
+        .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .colorAttachmentCount    = 1,
+        .pColorAttachments       = &attachmentReference,
         .pDepthStencilAttachment = VK_NULL_HANDLE
     };
 
     VkRenderPassCreateInfo renderPassInfo = {
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+        .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
         .attachmentCount = 1u,
-        .pAttachments = &colorAttachment,
-        .subpassCount = 1,
-        .pSubpasses = &subpass,
+        .pAttachments    = &colorAttachment,
+        .subpassCount    = 1,
+        .pSubpasses      = &subpass,
         .dependencyCount = 0,
-        .pDependencies = VK_NULL_HANDLE
+        .pDependencies   = VK_NULL_HANDLE
     };
-    PL_VULKAN(vkCreateRenderPass(ptAppData->device.logicalDevice, &renderPassInfo, NULL, &ptAppData->graphics.renderPass));
+    PL_VULKAN(vkCreateRenderPass(ptAppData->device.tLogicalDevice, &renderPassInfo, NULL, &ptAppData->graphics.tRenderPass));
 
     // create frame buffers
-    pl_create_framebuffers(&ptAppData->device, ptAppData->graphics.renderPass, &ptAppData->swapchain);
+    pl_create_framebuffers(&ptAppData->device, ptAppData->graphics.tRenderPass, &ptAppData->swapchain);
     
     // create per frame resources
     pl_create_frame_resources(&ptAppData->graphics, &ptAppData->device);
     
     // setup drawing api
-    pl_initialize_draw_context_vulkan(&ptAppData->ctx, ptAppData->device.physicalDevice, 3, ptAppData->device.logicalDevice);
+    pl_initialize_draw_context_vulkan(&ptAppData->ctx, ptAppData->device.tPhysicalDevice, 3, ptAppData->device.tLogicalDevice);
     pl_register_drawlist(&ptAppData->ctx, &ptAppData->drawlist);
-    pl_setup_drawlist_vulkan(&ptAppData->drawlist, ptAppData->graphics.renderPass);
+    pl_setup_drawlist_vulkan(&ptAppData->drawlist, ptAppData->graphics.tRenderPass);
     ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
     ptAppData->fgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Foreground Layer");
 
@@ -187,7 +189,7 @@ PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
     // ensure device is finished
-    vkDeviceWaitIdle(ptAppData->device.logicalDevice);
+    vkDeviceWaitIdle(ptAppData->device.tLogicalDevice);
 
     // cleanup font atlas
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
@@ -196,15 +198,15 @@ pl_app_shutdown(plAppData* ptAppData)
     pl_cleanup_draw_context(&ptAppData->ctx);
 
     // destroy swapchain
-    for (uint32_t i = 0u; i < ptAppData->swapchain.imageCount; i++)
+    for (uint32_t i = 0u; i < ptAppData->swapchain.uImageCount; i++)
     {
-        vkDestroyImageView(ptAppData->device.logicalDevice, ptAppData->swapchain.imageViews[i], NULL);
-        vkDestroyFramebuffer(ptAppData->device.logicalDevice, ptAppData->swapchain.frameBuffers[i], NULL);
+        vkDestroyImageView(ptAppData->device.tLogicalDevice, ptAppData->swapchain.ptImageViews[i], NULL);
+        vkDestroyFramebuffer(ptAppData->device.tLogicalDevice, ptAppData->swapchain.ptFrameBuffers[i], NULL);
     }
 
     // destroy default render pass
-    vkDestroyRenderPass(ptAppData->device.logicalDevice, ptAppData->graphics.renderPass, NULL);
-    vkDestroySwapchainKHR(ptAppData->device.logicalDevice, ptAppData->swapchain.swapChain, NULL);
+    vkDestroyRenderPass(ptAppData->device.tLogicalDevice, ptAppData->graphics.tRenderPass, NULL);
+    vkDestroySwapchainKHR(ptAppData->device.tLogicalDevice, ptAppData->swapchain.tSwapChain, NULL);
 
     // cleanup graphics context
     pl_cleanup_graphics(&ptAppData->graphics, &ptAppData->device);
@@ -229,8 +231,8 @@ pl_app_resize(plAppData* ptAppData)
     // get io context
     plIOContext* ptIOCtx = pl_get_io_context();
 
-    pl_create_swapchain(&ptAppData->device, ptAppData->graphics.surface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptAppData->swapchain);
-    pl_create_framebuffers(&ptAppData->device, ptAppData->graphics.renderPass, &ptAppData->swapchain);
+    pl_create_swapchain(&ptAppData->device, ptAppData->graphics.tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptAppData->swapchain);
+    pl_create_framebuffers(&ptAppData->device, ptAppData->graphics.tRenderPass, &ptAppData->swapchain);
 }
 
 //-----------------------------------------------------------------------------
@@ -240,6 +242,8 @@ pl_app_resize(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_render(plAppData* ptAppData)
 {
+    pl_new_io_frame();
+    
     // get io context
     plIOContext* ptIOCtx = pl_get_io_context();
 
@@ -251,14 +255,14 @@ pl_app_render(plAppData* ptAppData)
     plVulkanFrameContext* currentFrame = pl_get_frame_resources(&ptAppData->graphics);
 
     // begin frame
-    PL_VULKAN(vkWaitForFences(ptAppData->device.logicalDevice, 1, &currentFrame->inFlight, VK_TRUE, UINT64_MAX));
-    VkResult err = vkAcquireNextImageKHR(ptAppData->device.logicalDevice, ptAppData->swapchain.swapChain, UINT64_MAX, currentFrame->imageAvailable,VK_NULL_HANDLE, &ptAppData->swapchain.currentImageIndex);
+    PL_VULKAN(vkWaitForFences(ptAppData->device.tLogicalDevice, 1, &currentFrame->tInFlight, VK_TRUE, UINT64_MAX));
+    VkResult err = vkAcquireNextImageKHR(ptAppData->device.tLogicalDevice, ptAppData->swapchain.tSwapChain, UINT64_MAX, currentFrame->tImageAvailable, VK_NULL_HANDLE, &ptAppData->swapchain.uCurrentImageIndex);
     if(err == VK_SUBOPTIMAL_KHR || err == VK_ERROR_OUT_OF_DATE_KHR)
     {
         if(err == VK_ERROR_OUT_OF_DATE_KHR)
         {
-            pl_create_swapchain(&ptAppData->device, ptAppData->graphics.surface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptAppData->swapchain);
-            pl_create_framebuffers(&ptAppData->device, ptAppData->graphics.renderPass, &ptAppData->swapchain);
+            pl_create_swapchain(&ptAppData->device, ptAppData->graphics.tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptAppData->swapchain);
+            pl_create_framebuffers(&ptAppData->device, ptAppData->graphics.tRenderPass, &ptAppData->swapchain);
             return;
         }
     }
@@ -267,14 +271,14 @@ pl_app_render(plAppData* ptAppData)
         PL_VULKAN(err);
     }
 
-    if (currentFrame->inFlight != VK_NULL_HANDLE)
-        PL_VULKAN(vkWaitForFences(ptAppData->device.logicalDevice, 1, &currentFrame->inFlight, VK_TRUE, UINT64_MAX));
+    if (currentFrame->tInFlight != VK_NULL_HANDLE)
+        PL_VULKAN(vkWaitForFences(ptAppData->device.tLogicalDevice, 1, &currentFrame->tInFlight, VK_TRUE, UINT64_MAX));
 
     // begin recording
     VkCommandBufferBeginInfo beginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
     };
-    PL_VULKAN(vkBeginCommandBuffer(currentFrame->cmdBuf, &beginInfo));
+    PL_VULKAN(vkBeginCommandBuffer(currentFrame->tCmdBuf, &beginInfo));
 
     // begin render pass
 
@@ -293,31 +297,31 @@ pl_app_render(plAppData* ptAppData)
     };
 
     VkRenderPassBeginInfo renderPassBeginInfo = {
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass = ptAppData->graphics.renderPass,
-        .framebuffer = ptAppData->swapchain.frameBuffers[ptAppData->swapchain.currentImageIndex],
+        .sType               = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass          = ptAppData->graphics.tRenderPass,
+        .framebuffer         = ptAppData->swapchain.ptFrameBuffers[ptAppData->swapchain.uCurrentImageIndex],
         .renderArea.offset.x = 0,
         .renderArea.offset.y = 0,
-        .renderArea.extent = ptAppData->swapchain.extent,
-        .clearValueCount = 2,
-        .pClearValues = clearValues
+        .renderArea.extent   = ptAppData->swapchain.tExtent,
+        .clearValueCount     = 2,
+        .pClearValues        = clearValues
     };
-    vkCmdBeginRenderPass(currentFrame->cmdBuf, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(currentFrame->tCmdBuf, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
     // set viewport
     VkViewport viewport = {
         .x = 0.0f,
         .y = 0.0f,
-        .width = (float)ptAppData->swapchain.extent.width,
-        .height = (float)ptAppData->swapchain.extent.height,
+        .width = (float)ptAppData->swapchain.tExtent.width,
+        .height = (float)ptAppData->swapchain.tExtent.height,
         .minDepth = 0.0f,
         .maxDepth = 1.0f
     };
-    vkCmdSetViewport(currentFrame->cmdBuf, 0, 1, &viewport);
+    vkCmdSetViewport(currentFrame->tCmdBuf, 0, 1, &viewport);
 
     // set scissor
-    VkRect2D dynamicScissor = {.extent = ptAppData->swapchain.extent};
-    vkCmdSetScissor(currentFrame->cmdBuf, 0, 1, &dynamicScissor);
+    VkRect2D dynamicScissor = {.extent = ptAppData->swapchain.tExtent};
+    vkCmdSetScissor(currentFrame->tCmdBuf, 0, 1, &dynamicScissor);
 
     // draw profiling info
     pl_begin_profile_sample("Draw Profiling Info");
@@ -325,11 +329,11 @@ pl_app_render(plAppData* ptAppData)
     pl_sprintf(pcDeltaTime, "%.6f ms", ptIOCtx->fDeltaTime);
     pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f, 10.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, pcDeltaTime, 0.0f);
     char cPProfileValue[64] = {0};
-    for(uint32_t i = 0u; i < pl_sb_size(ptAppData->tProfileCtx.tPLastFrame->sbSamples); i++)
+    for(uint32_t i = 0u; i < pl_sb_size(ptAppData->tProfileCtx.ptLastFrame->sbtSamples); i++)
     {
-        plProfileSample* tPSample = &ptAppData->tProfileCtx.tPLastFrame->sbSamples[i];
-        pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, tPSample->cPName, 0.0f);
-        plVec2 sampleTextSize = pl_calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, tPSample->cPName, 0.0f);
+        plProfileSample* tPSample = &ptAppData->tProfileCtx.ptLastFrame->sbtSamples[i];
+        pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, tPSample->pcName, 0.0f);
+        plVec2 sampleTextSize = pl_calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, tPSample->pcName, 0.0f);
         pl_sprintf(cPProfileValue, ": %0.5f", tPSample->dDuration);
         pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){sampleTextSize.x + 15.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, cPProfileValue, 0.0f);
     }
@@ -353,50 +357,52 @@ pl_app_render(plAppData* ptAppData)
     pl_end_profile_sample();
 
     // submit draw lists
-    pl_submit_drawlist_vulkan(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], currentFrame->cmdBuf, (uint32_t)ptAppData->graphics.currentFrameIndex);
+    pl_submit_drawlist_vulkan(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], currentFrame->tCmdBuf, (uint32_t)ptAppData->graphics.szCurrentFrameIndex);
 
     // end render pass
-    vkCmdEndRenderPass(currentFrame->cmdBuf);
+    vkCmdEndRenderPass(currentFrame->tCmdBuf);
 
     // end recording
-    PL_VULKAN(vkEndCommandBuffer(currentFrame->cmdBuf));
+    PL_VULKAN(vkEndCommandBuffer(currentFrame->tCmdBuf));
 
     // submit
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     VkSubmitInfo submitInfo = {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &currentFrame->imageAvailable,
+        .pWaitSemaphores = &currentFrame->tImageAvailable,
         .pWaitDstStageMask = waitStages,
         .commandBufferCount = 1,
-        .pCommandBuffers = &currentFrame->cmdBuf,
+        .pCommandBuffers = &currentFrame->tCmdBuf,
         .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &currentFrame->renderFinish
+        .pSignalSemaphores = &currentFrame->tRenderFinish
     };
-    PL_VULKAN(vkResetFences(ptAppData->device.logicalDevice, 1, &currentFrame->inFlight));
-    PL_VULKAN(vkQueueSubmit(ptAppData->device.graphicsQueue, 1, &submitInfo, currentFrame->inFlight));          
+    PL_VULKAN(vkResetFences(ptAppData->device.tLogicalDevice, 1, &currentFrame->tInFlight));
+    PL_VULKAN(vkQueueSubmit(ptAppData->device.tGraphicsQueue, 1, &submitInfo, currentFrame->tInFlight));          
     
     // present                        
     VkPresentInfoKHR presentInfo = {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &currentFrame->renderFinish,
+        .pWaitSemaphores = &currentFrame->tRenderFinish,
         .swapchainCount = 1,
-        .pSwapchains = &ptAppData->swapchain.swapChain,
-        .pImageIndices = &ptAppData->swapchain.currentImageIndex,
+        .pSwapchains = &ptAppData->swapchain.tSwapChain,
+        .pImageIndices = &ptAppData->swapchain.uCurrentImageIndex,
     };
-    VkResult result = vkQueuePresentKHR(ptAppData->device.presentQueue, &presentInfo);
+    VkResult result = vkQueuePresentKHR(ptAppData->device.tPresentQueue, &presentInfo);
     if(result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        pl_create_swapchain(&ptAppData->device, ptAppData->graphics.surface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptAppData->swapchain);
-        pl_create_framebuffers(&ptAppData->device, ptAppData->graphics.renderPass, &ptAppData->swapchain);
+        pl_create_swapchain(&ptAppData->device, ptAppData->graphics.tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptAppData->swapchain);
+        pl_create_framebuffers(&ptAppData->device, ptAppData->graphics.tRenderPass, &ptAppData->swapchain);
     }
     else
     {
         PL_VULKAN(result);
     }
 
-    ptAppData->graphics.currentFrameIndex = (ptAppData->graphics.currentFrameIndex + 1) % ptAppData->graphics.framesInFlight;
+    ptAppData->graphics.szCurrentFrameIndex = (ptAppData->graphics.szCurrentFrameIndex + 1) % ptAppData->graphics.uFramesInFlight;
+
+    pl_end_io_frame();
 
     // end profiling frame
     pl_end_profile_frame();

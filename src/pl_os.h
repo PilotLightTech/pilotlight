@@ -21,7 +21,8 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdint.h> // uint32_t
+#include <stdint.h>  // uint32_t
+#include <stdbool.h> // bool
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -32,7 +33,7 @@ Index of this file:
 #endif
 
 #ifndef PL_DECLARE_STRUCT
-#define PL_DECLARE_STRUCT(name) typedef struct name ##_t name
+#define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
 #endif
 
 //-----------------------------------------------------------------------------
@@ -46,14 +47,14 @@ PL_DECLARE_STRUCT(plSharedLibrary);
 //-----------------------------------------------------------------------------
 
 // files
-void pl_read_file(const char* file, unsigned* size, char* buffer, const char* mode);
-void pl_copy_file(const char* source, const char* destination, unsigned* size, char* buffer);
+void pl_read_file(const char* pcFile, unsigned* puSize, char* pcBuffer, const char* pcMode);
+void pl_copy_file(const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer);
 
 // shared libraries
-bool  pl_has_library_changed  (plSharedLibrary* library);
-bool  pl_load_library         (plSharedLibrary* library, const char* name, const char* transitionalName, const char* lockFile);
-void  pl_reload_library       (plSharedLibrary* library);
-void* pl_load_library_function(plSharedLibrary* library, const char* name);
+bool  pl_has_library_changed  (plSharedLibrary* ptLibrary);
+bool  pl_load_library         (plSharedLibrary* ptLibrary, const char* pcName, const char* pcTransitionalName, const char* pcLockFile);
+void  pl_reload_library       (plSharedLibrary* ptLibrary);
+void* pl_load_library_function(plSharedLibrary* ptLibrary, const char* pcName);
 
 // misc
 int pl_sleep(uint32_t millisec);
@@ -62,14 +63,14 @@ int pl_sleep(uint32_t millisec);
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct plSharedLibrary_t
+typedef struct _plSharedLibrary
 {
-    bool     valid;
-    uint32_t tempIndex;
-    char     path[PL_MAX_NAME_LENGTH];
-    char     transitionalName[PL_MAX_NAME_LENGTH];
-    char     lockFile[PL_MAX_NAME_LENGTH];
-    void*    _platformData;
+    bool     bValid;
+    uint32_t uTempIndex;
+    char     acPath[PL_MAX_NAME_LENGTH];
+    char     acTransitionalName[PL_MAX_NAME_LENGTH];
+    char     acLockFile[PL_MAX_NAME_LENGTH];
+    void*    _pPlatformData;
 } plSharedLibrary;
 
 #endif // PL_OS_H

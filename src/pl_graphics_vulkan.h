@@ -45,81 +45,80 @@ PL_DECLARE_STRUCT(plVulkanFrameContext); // per frame resource
 //-----------------------------------------------------------------------------
 
 // setup
-void                  pl_create_instance       (plVulkanGraphics* graphics, uint32_t version, bool enableValidation);
-void                  pl_create_instance_ex    (plVulkanGraphics* graphics, uint32_t version, uint32_t layerCount, const char** enabledLayers, uint32_t extensioncount, const char** enabledExtensions);
-void                  pl_create_frame_resources(plVulkanGraphics* graphics, plVulkanDevice* device);
-void                  pl_create_device         (VkInstance instance, VkSurfaceKHR surface, plVulkanDevice* deviceOut, bool enableValidation);
+void                  pl_create_instance       (plVulkanGraphics* ptGraphics, uint32_t uVersion, bool bEnableValidation);
+void                  pl_create_instance_ex    (plVulkanGraphics* ptGraphics, uint32_t uVersion, uint32_t uLayerCount, const char** ppcEnabledLayers, uint32_t uExtensioncount, const char** ppcEnabledExtensions);
+void                  pl_create_frame_resources(plVulkanGraphics* ptGraphics, plVulkanDevice* ptDevice);
+void                  pl_create_device         (VkInstance tInstance, VkSurfaceKHR tSurface, plVulkanDevice* ptDeviceOut, bool bEnableValidation);
 
 // swapchain ops
-void                  pl_create_swapchain      (plVulkanDevice* device, VkSurfaceKHR surface, uint32_t width, uint32_t height, plVulkanSwapchain* swapchainOut);
-void                  pl_create_framebuffers   (plVulkanDevice* device, VkRenderPass renderPass, plVulkanSwapchain* swapchain);
+void                  pl_create_swapchain      (plVulkanDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uWidth, uint32_t uHeight, plVulkanSwapchain* ptSwapchainOut);
+void                  pl_create_framebuffers   (plVulkanDevice* ptDevice, VkRenderPass tRenderPass, plVulkanSwapchain* ptSwapchain);
 
 // cleanup
-void                  pl_cleanup_graphics      (plVulkanGraphics* graphics, plVulkanDevice* device);
+void                  pl_cleanup_graphics      (plVulkanGraphics* ptGraphics, plVulkanDevice* ptDevice);
 
 // misc
-plVulkanFrameContext* pl_get_frame_resources    (plVulkanGraphics* graphics);
-uint32_t              pl_find_memory_type       (VkPhysicalDeviceMemoryProperties memProps, uint32_t typeFilter, VkMemoryPropertyFlags properties);
-void                  pl_transition_image_layout(VkCommandBuffer commandBuffer, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageSubresourceRange subresourceRange, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask);
+plVulkanFrameContext* pl_get_frame_resources    (plVulkanGraphics* ptGraphics);
+uint32_t              pl_find_memory_type       (VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties);
+void                  pl_transition_image_layout(VkCommandBuffer tCommandBuffer, VkImage tImage, VkImageLayout tOldLayout, VkImageLayout tNewLayout, VkImageSubresourceRange tSubresourceRange, VkPipelineStageFlags tSrcStageMask, VkPipelineStageFlags tDstStageMask);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct plVulkanFrameContext_t
+typedef struct _plVulkanFrameContext
 {
-    VkSemaphore     imageAvailable;
-    VkSemaphore     renderFinish;
-    VkFence         inFlight;
-    VkCommandBuffer cmdBuf;
+    VkSemaphore     tImageAvailable;
+    VkSemaphore     tRenderFinish;
+    VkFence         tInFlight;
+    VkCommandBuffer tCmdBuf;
 
 } plVulkanFrameContext;
 
-typedef struct plVulkanSwapchain_t
+typedef struct _plVulkanSwapchain
 {
-    VkSwapchainKHR swapChain;
-    VkExtent2D     extent;
-    VkFramebuffer* frameBuffers;
-    VkFormat       format;
-    VkImage*       images;
-    VkImageView*   imageViews;
-    uint32_t       imageCount;
-    uint32_t       imageCapacity;
-    uint32_t       currentImageIndex; // current image to use within the swap chain
-    bool           vsync;
+    VkSwapchainKHR tSwapChain;
+    VkExtent2D     tExtent;
+    VkFramebuffer* ptFrameBuffers;
+    VkFormat       tFormat;
+    VkImage*       ptImages;
+    VkImageView*   ptImageViews;
+    uint32_t       uImageCount;
+    uint32_t       uImageCapacity;
+    uint32_t       uCurrentImageIndex; // current image to use within the swap chain
+    bool           bVSync;
 
-    VkSurfaceFormatKHR* surfaceFormats_;
-    uint32_t            surfaceFormatCapacity_;
+    VkSurfaceFormatKHR* ptSurfaceFormats_;
+    uint32_t            uSurfaceFormatCapacity_;
 
 } plVulkanSwapchain;
 
-typedef struct plVulkanDevice_t
+typedef struct _plVulkanDevice
 {
-    VkDevice                                  logicalDevice;
-    VkPhysicalDevice                          physicalDevice;
-    int                                       graphicsQueueFamily;
-    int                                       presentQueueFamily;
-    VkQueue                                   graphicsQueue;
-    VkQueue                                   presentQueue;
-    VkPhysicalDeviceProperties                deviceProps;
-    VkPhysicalDeviceMemoryProperties          memProps;
-    VkPhysicalDeviceMemoryProperties2         memProps2;
-    VkPhysicalDeviceMemoryBudgetPropertiesEXT memBudgetInfo;
-    VkDeviceSize                              maxLocalMemSize;
+    VkDevice                                  tLogicalDevice;
+    VkPhysicalDevice                          tPhysicalDevice;
+    int                                       iGraphicsQueueFamily;
+    int                                       iPresentQueueFamily;
+    VkQueue                                   tGraphicsQueue;
+    VkQueue                                   tPresentQueue;
+    VkPhysicalDeviceProperties                tDeviceProps;
+    VkPhysicalDeviceMemoryProperties          tMemProps;
+    VkPhysicalDeviceMemoryProperties2         tMemProps2;
+    VkPhysicalDeviceMemoryBudgetPropertiesEXT tMemBudgetInfo;
+    VkDeviceSize                              tMaxLocalMemSize;
 
 } plVulkanDevice;
 
-typedef struct plVulkanGraphics_t
+typedef struct _plVulkanGraphics
 {
-    VkInstance               instance;
-    VkSurfaceKHR             surface;
-    VkDebugUtilsMessengerEXT dbgMessenger;
-    VkDescriptorPool         descPool;
-    VkCommandPool            cmdPool;
-    VkRenderPass             renderPass;
+    VkInstance               tInstance;
+    VkSurfaceKHR             tSurface;
+    VkDebugUtilsMessengerEXT tDbgMessenger;
+    VkCommandPool            tCmdPool;
+    VkRenderPass             tRenderPass;
     plVulkanFrameContext*    sbFrames;
-    uint32_t                 framesInFlight;  // number of frames in flight (should be less then PL_MAX_FRAMES_IN_FLIGHT)
-    size_t                   currentFrameIndex; // current frame being used
+    uint32_t                 uFramesInFlight;  // number of frames in flight (should be less then PL_MAX_FRAMES_IN_FLIGHT)
+    size_t                   szCurrentFrameIndex; // current frame being used
 } plVulkanGraphics;
 
 #endif //PL_GRAPHICS_VULKAN_H

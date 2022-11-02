@@ -35,8 +35,8 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // backend implementation
-void pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice physicalDevice, uint32_t imageCount, VkDevice logicalDevice);
-void pl_setup_drawlist_vulkan     (plDrawList* drawlist, VkRenderPass renderPass);
+void pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice tPhysicalDevice, uint32_t imageCount, VkDevice tLogicalDevice);
+void pl_setup_drawlist_vulkan     (plDrawList* drawlist, VkRenderPass tRenderPass);
 void pl_submit_drawlist_vulkan    (plDrawList* drawlist, float width, float height, VkCommandBuffer cmdBuf, uint32_t currentFrameIndex);
 void pl_new_draw_frame            (plDrawContext* ctx);
 
@@ -233,7 +233,7 @@ static uint32_t __glsl_shader_fragsdf_spv[] =
 //-----------------------------------------------------------------------------
 
 // wraps a buffer to be freed
-typedef struct plBufferReturn_t
+typedef struct
 {
     VkBuffer       buffer;
     VkDeviceMemory deviceMemory;
@@ -241,7 +241,7 @@ typedef struct plBufferReturn_t
 } plBufferReturn;
 
 // wraps a texture to be freed
-typedef struct plTextureReturn_t
+typedef struct
 {
     VkImage        image;
     VkImageView    view;
@@ -249,11 +249,11 @@ typedef struct plTextureReturn_t
     int64_t        slFreedFrame;
 } plTextureReturn;
 
-typedef struct plVulkanDrawContext_t
+typedef struct
 {
     VkDevice                         device;
-    VkCommandPool                    cmdPool;
-    VkQueue                          graphicsQueue;
+    VkCommandPool                    tCmdPool;
+    VkQueue                          tGraphicsQueue;
     uint32_t                         imageCount;
     VkPhysicalDeviceMemoryProperties memProps;
     VkDescriptorSetLayout            descriptorSetLayout;
@@ -290,7 +290,7 @@ typedef struct plVulkanDrawContext_t
 
 } plVulkanDrawContext;
 
-typedef struct plVulkanDrawList_t
+typedef struct
 {
     // vertex buffer
     VkBuffer*       sbVertexBuffer;
@@ -325,16 +325,16 @@ static void     pl__grow_vulkan_index_buffer(plDrawList* ptrDrawlist, uint32_t u
 //-----------------------------------------------------------------------------
 
 void
-pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice physicalDevice, uint32_t imageCount, VkDevice logicalDevice)
+pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice tPhysicalDevice, uint32_t imageCount, VkDevice tLogicalDevice)
 {
     plVulkanDrawContext* vulkanDrawContext = (plVulkanDrawContext*)PL_ALLOC(sizeof(plVulkanDrawContext));
     memset(vulkanDrawContext, 0, sizeof(plVulkanDrawContext));
-    vulkanDrawContext->device = logicalDevice;
+    vulkanDrawContext->device = tLogicalDevice;
     vulkanDrawContext->imageCount = imageCount;
     ctx->_platformData = vulkanDrawContext;
 
     // get physical device properties
-    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &vulkanDrawContext->memProps);
+    vkGetPhysicalDeviceMemoryProperties(tPhysicalDevice, &vulkanDrawContext->memProps);
 
     // create descriptor pool
     // TODO: add a system to allow this to grow as needed
@@ -346,26 +346,26 @@ pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice physicalD
         .poolSizeCount = 1u,
         .pPoolSizes = &poolSizes
     };
-    PL_VULKAN(vkCreateDescriptorPool(logicalDevice, &poolInfo, NULL, &vulkanDrawContext->descriptorPool));
+    PL_VULKAN(vkCreateDescriptorPool(tLogicalDevice, &poolInfo, NULL, &vulkanDrawContext->descriptorPool));
 
     // find queue that supports the graphics bit
     uint32_t uQueueFamCnt = 0u;
-    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &uQueueFamCnt, NULL);
+    vkGetPhysicalDeviceQueueFamilyProperties(tPhysicalDevice, &uQueueFamCnt, NULL);
 
     VkQueueFamilyProperties queueFamilies[64] = {0};
-    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &uQueueFamCnt, queueFamilies);
+    vkGetPhysicalDeviceQueueFamilyProperties(tPhysicalDevice, &uQueueFamCnt, queueFamilies);
 
     for(uint32_t i = 0; i < uQueueFamCnt; i++)
     {
         if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
         {
-            vkGetDeviceQueue(logicalDevice, i, 0, &vulkanDrawContext->graphicsQueue);
+            vkGetDeviceQueue(tLogicalDevice, i, 0, &vulkanDrawContext->tGraphicsQueue);
             VkCommandPoolCreateInfo commandPoolInfo = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
                 .queueFamilyIndex = i,
                 .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
             };
-            PL_VULKAN(vkCreateCommandPool(logicalDevice, &commandPoolInfo, NULL, &vulkanDrawContext->cmdPool));
+            PL_VULKAN(vkCreateCommandPool(tLogicalDevice, &commandPoolInfo, NULL, &vulkanDrawContext->tCmdPool));
             break;
         }
     }
@@ -482,7 +482,7 @@ pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice physicalD
 }
 
 void
-pl_setup_drawlist_vulkan(plDrawList* drawlist, VkRenderPass renderPass)
+pl_setup_drawlist_vulkan(plDrawList* drawlist, VkRenderPass tRenderPass)
 {
     if(drawlist->_platformData == NULL)
     {
@@ -615,21 +615,21 @@ pl_setup_drawlist_vulkan(plDrawList* drawlist, VkRenderPass renderPass)
     VkPipelineShaderStageCreateInfo ptrShaderStages[] = { vulkanDrawCtx->vtxShdrStgInfo, vulkanDrawCtx->pxlShdrStgInfo };
 
     VkGraphicsPipelineCreateInfo pipeInfo = {
-        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .stageCount = 2u,
-        .pStages = ptrShaderStages,
-        .pVertexInputState = &vertexInputInfo,
+        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .stageCount          = 2u,
+        .pStages             = ptrShaderStages,
+        .pVertexInputState   = &vertexInputInfo,
         .pInputAssemblyState = &inputAssembly,
-        .pViewportState = &viewportState,
+        .pViewportState      = &viewportState,
         .pRasterizationState = &rasterizer,
-        .pMultisampleState = &multisampling,
-        .pColorBlendState = &colorBlending,
-        .pDynamicState = &dynamicState,
-        .layout = vulkanDrawCtx->drawlistPipelineLayout,
-        .renderPass = renderPass,
-        .subpass = 0u,
-        .basePipelineHandle = VK_NULL_HANDLE,
-        .pDepthStencilState = &depthStencil
+        .pMultisampleState   = &multisampling,
+        .pColorBlendState    = &colorBlending,
+        .pDynamicState       = &dynamicState,
+        .layout              = vulkanDrawCtx->drawlistPipelineLayout,
+        .renderPass          = tRenderPass,
+        .subpass             = 0u,
+        .basePipelineHandle  = VK_NULL_HANDLE,
+        .pDepthStencilState  = &depthStencil
     };
     PL_VULKAN(vkCreateGraphicsPipelines(vulkanDrawCtx->device, VK_NULL_HANDLE, 1, &pipeInfo, NULL, &vulkanDrawlist->regularPipeline));
 
@@ -881,7 +881,7 @@ pl_cleanup_draw_context(plDrawContext* ctx)
         }     
     }
 
-    vkDestroyCommandPool(vulkanDrawCtx->device, vulkanDrawCtx->cmdPool, NULL);
+    vkDestroyCommandPool(vulkanDrawCtx->device, vulkanDrawCtx->tCmdPool, NULL);
     vkDestroyDescriptorPool(vulkanDrawCtx->device, vulkanDrawCtx->descriptorPool, NULL);
 }
 
@@ -1015,7 +1015,7 @@ pl_build_font_atlas(plDrawContext* ctx, plFontAtlas* atlas)
     {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandPool = vulkanDrawCtx->cmdPool,
+        .commandPool = vulkanDrawCtx->tCmdPool,
         .commandBufferCount = 1u
     };
     VkCommandBuffer commandBuffer = {0};
@@ -1078,9 +1078,9 @@ pl_build_font_atlas(plDrawContext* ctx, plFontAtlas* atlas)
         .pCommandBuffers = &commandBuffer
     };
     PL_VULKAN(vkEndCommandBuffer(commandBuffer));
-    vkQueueSubmit(vulkanDrawCtx->graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueSubmit(vulkanDrawCtx->tGraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
     PL_VULKAN(vkDeviceWaitIdle(vulkanDrawCtx->device));
-    vkFreeCommandBuffers(vulkanDrawCtx->device, vulkanDrawCtx->cmdPool, 1, &commandBuffer);
+    vkFreeCommandBuffers(vulkanDrawCtx->device, vulkanDrawCtx->tCmdPool, 1, &commandBuffer);
 
     VkImageViewCreateInfo viewInfo = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,

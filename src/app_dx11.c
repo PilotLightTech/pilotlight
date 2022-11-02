@@ -24,6 +24,7 @@ Index of this file:
 #include "pl_ds.h"
 #include "pl_io.h"
 #include "pl_memory.h"
+#include "pl_math.h"
 #include <string.h> // memset
 #include <d3d11_1.h>
 #include <d3dcompiler.h>
@@ -232,6 +233,8 @@ pl_app_resize(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_render(plAppData* ptAppData)
 {
+    pl_new_io_frame();
+
     // get io context
     plIOContext* ptIOCtx = pl_get_io_context();
 
@@ -261,11 +264,11 @@ pl_app_render(plAppData* ptAppData)
     pl_sprintf(pcDeltaTime, "%.6f ms", ptIOCtx->fDeltaTime);
     pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f, 10.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, pcDeltaTime, 0.0f);
     char cPProfileValue[64] = {0};
-    for(uint32_t i = 0u; i < pl_sb_size(ptAppData->tProfileCtx.tPLastFrame->sbSamples); i++)
+    for(uint32_t i = 0u; i < pl_sb_size(ptAppData->tProfileCtx.ptLastFrame->sbtSamples); i++)
     {
-        plProfileSample* tPSample = &ptAppData->tProfileCtx.tPLastFrame->sbSamples[i];
-        pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, tPSample->cPName, 0.0f);
-        plVec2 sampleTextSize = pl_calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, tPSample->cPName, 0.0f);
+        plProfileSample* tPSample = &ptAppData->tProfileCtx.ptLastFrame->sbtSamples[i];
+        pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, tPSample->pcName, 0.0f);
+        plVec2 sampleTextSize = pl_calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, tPSample->pcName, 0.0f);
         pl_sprintf(cPProfileValue, ": %0.5f", tPSample->dDuration);
         pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){sampleTextSize.x + 15.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, cPProfileValue, 0.0f);
     }
@@ -293,6 +296,8 @@ pl_app_render(plAppData* ptAppData)
 
     // present
     PL_COM(ptAppData->ptSwapChain)->Present(ptAppData->ptSwapChain, 1, 0);
+
+    pl_end_io_frame();
 
     // end profiling frame
     pl_end_profile_frame();
