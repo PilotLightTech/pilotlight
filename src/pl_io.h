@@ -79,7 +79,7 @@ void         pl_end_io_frame         (void);
 bool         pl_is_key_down           (plKey tKey);
 bool         pl_is_key_pressed        (plKey tKey, bool bRepeat);
 bool         pl_is_key_released       (plKey tKey);
-bool         pl_get_key_pressed_amount(plKey tKey, float fRepeatDelay, float fRate);
+int          pl_get_key_pressed_amount(plKey tKey, float fRepeatDelay, float fRate);
 
 // mouse
 bool         pl_is_mouse_down          (plMouseButton tButton);
@@ -408,10 +408,11 @@ plIOContext* gptIOContext = NULL;
 #define PL_IO_VEC2_SUBTRACT(v1, v2) (plVec2){ (v1).x - (v2).x, (v1).y - (v2).y}
 #define PL_IO_MAX(x, y) (x) > (y) ? (x) : (y)
 
-static void pl__update_events(void);
-static void pl__update_mouse_inputs(void);
-static void pl__update_keyboard_inputs(void);
-static int  pl__calc_typematic_repeat_amount(float fT0, float fT1, float fRepeatDelay, float fRepeatRate);
+static void          pl__update_events(void);
+static void          pl__update_mouse_inputs(void);
+static void          pl__update_keyboard_inputs(void);
+static int           pl__calc_typematic_repeat_amount(float fT0, float fT1, float fRepeatDelay, float fRepeatRate);
+static plInputEvent* pl__get_last_event(plInputEventType tType, int iButtonOrKey);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -479,6 +480,11 @@ pl_get_key_data(plKey tKey)
 void
 pl_add_key_event(plKey tKey, bool bDown)
 {
+    // check for duplicate
+    const plInputEvent* ptEvent = pl__get_last_event(PL_INPUT_EVENT_TYPE_KEY, (int)tKey);
+    if(ptEvent && ptEvent->bKeyDown == bDown)
+        return;
+
     plInputEvent tEvent = {
         .tType    = PL_INPUT_EVENT_TYPE_KEY,
         .tSource  = PL_INPUT_EVENT_SOURCE_KEYBOARD,
@@ -491,6 +497,12 @@ pl_add_key_event(plKey tKey, bool bDown)
 void
 pl_add_mouse_pos_event(float fX, float fY)
 {
+
+    // check for duplicate
+    const plInputEvent* ptEvent = pl__get_last_event(PL_INPUT_EVENT_TYPE_MOUSE_POS, -1);
+    if(ptEvent && ptEvent->fPosX == fX && ptEvent->fPosY == fY)
+        return;
+
     plInputEvent tEvent = {
         .tType    = PL_INPUT_EVENT_TYPE_MOUSE_POS,
         .tSource  = PL_INPUT_EVENT_SOURCE_MOUSE,
@@ -503,6 +515,12 @@ pl_add_mouse_pos_event(float fX, float fY)
 void
 pl_add_mouse_button_event(int iButton, bool bDown)
 {
+
+    // check for duplicate
+    const plInputEvent* ptEvent = pl__get_last_event(PL_INPUT_EVENT_TYPE_MOUSE_BUTTON, iButton);
+    if(ptEvent && ptEvent->bMouseDown == bDown)
+        return;
+
     plInputEvent tEvent = {
         .tType      = PL_INPUT_EVENT_TYPE_MOUSE_BUTTON,
         .tSource    = PL_INPUT_EVENT_SOURCE_MOUSE,
@@ -563,7 +581,7 @@ pl_is_key_released(plKey tKey)
     return true;
 }
 
-bool
+int
 pl_get_key_pressed_amount(plKey tKey, float fRepeatDelay, float fRate)
 {
     plIOContext* ptIO = gptIOContext;
@@ -798,6 +816,24 @@ pl__calc_typematic_repeat_amount(float fT0, float fT1, float fRepeatDelay, float
     const int iCountT1 = (fT1 < fRepeatDelay) ? -1 : (int)((fT1 - fRepeatDelay) / fRepeatRate);
     const int iCount = iCountT1 - iCountT0;
     return iCount;
+}
+
+static plInputEvent*
+pl__get_last_event(plInputEventType tType, int iButtonOrKey)
+{
+    plIOContext* ptIO = gptIOContext;
+    for(uint32_t i = 0; i < pl_sb_size(ptIO->_sbtInputEvents); i++)
+    {
+        plInputEvent* ptEvent = &ptIO->_sbtInputEvents[pl_sb_size(ptIO->_sbtInputEvents) - i - 1];
+        if(ptEvent->tType != tType)
+            continue;
+        if(tType == PL_INPUT_EVENT_TYPE_KEY && (int)ptEvent->tKey != iButtonOrKey)
+            continue;
+        if(tType == PL_INPUT_EVENT_TYPE_MOUSE_BUTTON && ptEvent->iButton != iButtonOrKey)
+            continue;
+        return ptEvent;
+    }
+    return NULL;
 }
 
 #endif // PL_IO_IMPLEMENTATION

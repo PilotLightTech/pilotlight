@@ -100,6 +100,9 @@ int main()
     // connect to x
     gDisplay = XOpenDisplay(NULL);
 
+    // turn off auto repeat (we handle this internally)
+    XAutoRepeatOff(gDisplay);
+
     int screen_p = 0;
     gConnection = xcb_connect(NULL, &screen_p);
     if(xcb_connection_has_error(gConnection))
@@ -258,8 +261,8 @@ int main()
                         case XCB_BUTTON_INDEX_1: pl_add_mouse_button_event(PL_MOUSE_BUTTON_LEFT, true);   break;
                         case XCB_BUTTON_INDEX_2: pl_add_mouse_button_event(PL_MOUSE_BUTTON_MIDDLE, true); break;
                         case XCB_BUTTON_INDEX_3: pl_add_mouse_button_event(PL_MOUSE_BUTTON_RIGHT, true);  break;
-                        case XCB_BUTTON_INDEX_4: pl_add_mouse_wheel_event (1.0f, 0.0f);                   break;
-                        case XCB_BUTTON_INDEX_5: pl_add_mouse_wheel_event (-1.0f, 0.0f);                  break;
+                        case XCB_BUTTON_INDEX_4: pl_add_mouse_wheel_event (0.0f, 1.0f);                   break;
+                        case XCB_BUTTON_INDEX_5: pl_add_mouse_wheel_event (0.0f, -1.0f);                  break;
                         default:                 pl_add_mouse_button_event(press->detail, true);          break;
                     }
                     break;
@@ -273,6 +276,8 @@ int main()
                         case XCB_BUTTON_INDEX_1: pl_add_mouse_button_event(PL_MOUSE_BUTTON_LEFT, false);   break;
                         case XCB_BUTTON_INDEX_2: pl_add_mouse_button_event(PL_MOUSE_BUTTON_MIDDLE, false); break;
                         case XCB_BUTTON_INDEX_3: pl_add_mouse_button_event(PL_MOUSE_BUTTON_RIGHT, false);  break;
+                        case XCB_BUTTON_INDEX_4: pl_add_mouse_wheel_event (0.0f, 1.0f);                   break;
+                        case XCB_BUTTON_INDEX_5: pl_add_mouse_wheel_event (0.0f, -1.0f);                  break;
                         default:                 pl_add_mouse_button_event(press->detail, false);          break;
                     }
                     break;
