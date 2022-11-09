@@ -37,11 +37,12 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_io.h"    // io context
-#include "pl_os.h"    // shared library api
-#include <stdlib.h>   // exit
-#include <wchar.h>    // mbsrtowcs, wcsrtombs
-#include <float.h>    // FLT_MAX, FLT_MIN
+#include "pl_io.h"       // io context
+#include "pl_os.h"       // shared library api
+#include "pl_registry.h" // data registry
+#include <stdlib.h>      // exit
+#include <wchar.h>       // mbsrtowcs, wcsrtombs
+#include <float.h>       // FLT_MAX, FLT_MIN
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <windowsx.h> // GET_X_LPARAM(), GET_Y_LPARAM()
@@ -74,7 +75,7 @@ static void* (*pl_app_load)    (plIOContext* ptIOCtx, plAppData* userData);
 static void  (*pl_app_setup)   (plAppData* userData);
 static void  (*pl_app_shutdown)(plAppData* userData);
 static void  (*pl_app_resize)  (plAppData* userData);
-static void  (*pl_app_render)  (plAppData* userData);
+static void  (*pl_app_update)  (plAppData* userData);
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -87,19 +88,21 @@ int main()
     pl_initialize_io_context(&gtIOContext);
     plIOContext* ptIOCtx = pl_get_io_context();
 
+    // setup
+
     if (!QueryPerformanceFrequency((LARGE_INTEGER*)&gTicksPerSecond))
         return -1;
     if (!QueryPerformanceCounter((LARGE_INTEGER*)&gTime))
         return -1;
 
     // load library
-    if(pl_load_library(&gAppLibrary, "app.dll", "app_", "lock.tmp"))
+    if(pl_load_library(&gAppLibrary, "./app.dll", "./app_", "./lock.tmp"))
     {
         pl_app_load     = (void* (__cdecl  *)(plIOContext*, plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
         pl_app_setup    = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_setup");
         pl_app_shutdown = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
         pl_app_resize   = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_resize");
-        pl_app_render   = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_render");
+        pl_app_update   = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_update");
         gUserData = pl_app_load(ptIOCtx, NULL);
     }
 
@@ -193,7 +196,7 @@ int main()
             pl_app_setup    = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_setup");
             pl_app_shutdown = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
             pl_app_resize   = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_resize");
-            pl_app_render   = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_render");
+            pl_app_update   = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_update");
             gUserData = pl_app_load(ptIOCtx, gUserData);
         }
 
@@ -583,5 +586,5 @@ pl__render_frame(void)
     gTime = currentTime;
     
     if(!gMinimized)
-        pl_app_render(gUserData);   
+        pl_app_update(gUserData);   
 }

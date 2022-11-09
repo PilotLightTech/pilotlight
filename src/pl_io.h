@@ -18,7 +18,6 @@ Index of this file:
 // [SECTION] defines
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
-// [SECTION] global context
 // [SECTION] public api
 // [SECTION] enums
 // [SECTION] structs
@@ -56,12 +55,6 @@ PL_DECLARE_STRUCT(plKeyData);
 // enums
 typedef int plKey;
 typedef int plMouseButton;
-
-//-----------------------------------------------------------------------------
-// [SECTION] global context
-//-----------------------------------------------------------------------------
-
-extern plIOContext* gptIOContext;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api

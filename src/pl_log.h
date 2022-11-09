@@ -16,12 +16,11 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] defines
 // [SECTION] forward declarations & basic types
-// [SECTION] global context
 // [SECTION] public api
 // [SECTION] enums
 // [SECTION] structs
 // [SECTION] internal api
-// [SECTION] implementation
+// [SECTION] c file start
 */
 
 #ifndef PL_LOG_H
@@ -75,12 +74,6 @@ PL_DECLARE_STRUCT(plLogEntry);
 
 // enums
 typedef int plChannelType;
-
-//-----------------------------------------------------------------------------
-// [SECTION] global context
-//-----------------------------------------------------------------------------
-
-extern plLogContext* gptLogContext;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -238,7 +231,19 @@ void pl__log_fatal_va(uint32_t uID, const char* cPFormat, va_list args);
 #endif // PL_LOG_H
 
 //-----------------------------------------------------------------------------
-// [SECTION] implementation
+// [SECTION] c file start
+//-----------------------------------------------------------------------------
+
+/*
+Index of this file:
+// [SECTION] defines
+// [SECTION] includes
+// [SECTION] global context
+// [SECTION] public api implementation
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] defines
 //-----------------------------------------------------------------------------
 
 #ifdef PL_LOG_IMPLEMENTATION
@@ -324,6 +329,10 @@ void pl__log_fatal_va(uint32_t uID, const char* cPFormat, va_list args);
 
 #endif
 
+//-----------------------------------------------------------------------------
+// [SECTION] includes
+//-----------------------------------------------------------------------------
+
 #include "pl_ds.h"
 
 #ifndef PL_ALLOC
@@ -337,8 +346,15 @@ void pl__log_fatal_va(uint32_t uID, const char* cPFormat, va_list args);
 #define pl_vsprintf vsprintf
 #endif
 
-// global context
+//-----------------------------------------------------------------------------
+// [SECTION] global context
+//-----------------------------------------------------------------------------
+
 plLogContext* gptLogContext = NULL;
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api implementation
+//-----------------------------------------------------------------------------
 
 void
 pl__initialize_log_context(plLogContext* tPContext)

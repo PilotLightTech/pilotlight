@@ -10,13 +10,14 @@ Index of this file:
 // [SECTION] pl_app_setup
 // [SECTION] pl_app_shutdown
 // [SECTION] pl_app_resize
-// [SECTION] pl_app_render
+// [SECTION] pl_app_update
 */
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include <string.h> // memset
 #include "pilotlight.h"
 #include "pl_graphics_vulkan.h"
 #include "pl_profile.h"
@@ -26,7 +27,11 @@ Index of this file:
 #include "pl_memory.h"
 #include "pl_draw_vulkan.h"
 #include "pl_math.h"
-#include <string.h> // memset
+#include "pl_registry.h" // data registry
+#include "pl_ext.h"      // extension registry
+
+// extensions
+#include "pl_draw_extension.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -34,17 +39,22 @@ Index of this file:
 
 typedef struct _plAppData
 {
-    plVulkanDevice    device;
-    plVulkanGraphics  graphics;
-    plVulkanSwapchain swapchain;
-    plDrawContext     ctx;
-    plDrawList        drawlist;
-    plDrawLayer*      fgDrawLayer;
-    plDrawLayer*      bgDrawLayer;
-    plFontAtlas       fontAtlas;
-    plProfileContext  tProfileCtx;
-    plLogContext      tLogCtx;
-    plMemoryContext   tMemoryCtx;
+    plVulkanDevice      device;
+    plVulkanGraphics    graphics;
+    plVulkanSwapchain   swapchain;
+    plDrawContext       ctx;
+    plDrawList          drawlist;
+    plDrawLayer*        fgDrawLayer;
+    plDrawLayer*        bgDrawLayer;
+    plFontAtlas         fontAtlas;
+    plProfileContext    tProfileCtx;
+    plLogContext        tLogCtx;
+    plMemoryContext     tMemoryCtx;
+    plDataRegistry      tDataRegistryCtx;
+    plExtensionRegistry tExtensionRegistryCtx;
+
+    // extension apis
+    plDrawExtension*    ptDrawExtApi;
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -54,22 +64,54 @@ typedef struct _plAppData
 PL_EXPORT void*
 pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
 {
-    plAppData* tPNewData = NULL;
-
     if(ptAppData) // reload
     {
-        tPNewData = ptAppData;
-    }
-    else // first run
-    {
-        tPNewData = malloc(sizeof(plAppData));
-        memset(tPNewData, 0, sizeof(plAppData));
+        pl_set_log_context(&ptAppData->tLogCtx);
+        pl_set_profile_context(&ptAppData->tProfileCtx);
+        pl_set_memory_context(&ptAppData->tMemoryCtx);
+        pl_set_data_registry(&ptAppData->tDataRegistryCtx);
+        pl_set_extension_registry(&ptAppData->tExtensionRegistryCtx);
+        pl_set_io_context(ptIOCtx);
+
+        plExtension* ptExtension = pl_get_extension(PL_EXT_DRAW);
+        ptAppData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
+
+        return ptAppData;
     }
 
-    pl_set_log_context(&tPNewData->tLogCtx);
-    pl_set_profile_context(&tPNewData->tProfileCtx);
-    pl_set_memory_context(&tPNewData->tMemoryCtx);
+    plAppData* tPNewData = malloc(sizeof(plAppData));
+    memset(tPNewData, 0, sizeof(plAppData));
+
     pl_set_io_context(ptIOCtx);
+
+    // setup memory context
+    pl_initialize_memory_context(&tPNewData->tMemoryCtx);
+
+    // setup profiling context
+    pl_initialize_profile_context(&tPNewData->tProfileCtx);
+
+    // setup data registry
+    pl_initialize_data_registry(&tPNewData->tDataRegistryCtx);
+
+    // setup logging
+    pl_initialize_log_context(&tPNewData->tLogCtx);
+    pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
+    pl_log_info(0, "Setup logging");
+
+    // setup extension registry
+    pl_initialize_extension_registry(&tPNewData->tExtensionRegistryCtx);
+    pl_register_data("memory", &tPNewData->tMemoryCtx);
+    pl_register_data("profile", &tPNewData->tProfileCtx);
+    pl_register_data("log", &tPNewData->tLogCtx);
+    pl_register_data("io", ptIOCtx);
+
+    plExtension tExtension = {0};
+    pl_get_draw_extension_info(&tExtension);
+    pl_load_extension(&tExtension);
+
+    plExtension* ptExtension = pl_get_extension(PL_EXT_DRAW);
+    tPNewData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
+
     return tPNewData;
 }
 
@@ -115,17 +157,6 @@ pl_app_setup(plAppData* ptAppData)
     // create swapchain
     ptAppData->swapchain.bVSync = true;
     pl_create_swapchain(&ptAppData->device, ptAppData->graphics.tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptAppData->swapchain);
-
-    // setup memory context
-    pl_initialize_memory_context(&ptAppData->tMemoryCtx);
-
-    // setup profiling context
-    pl_initialize_profile_context(&ptAppData->tProfileCtx);
-
-    // setup logging
-    pl_initialize_log_context(&ptAppData->tLogCtx);
-    pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
-    pl_log_info(0, "Setup logging");
 
     // create render pass
     VkAttachmentDescription colorAttachment = {
@@ -191,12 +222,6 @@ pl_app_shutdown(plAppData* ptAppData)
     // ensure device is finished
     vkDeviceWaitIdle(ptAppData->device.tLogicalDevice);
 
-    // cleanup font atlas
-    pl_cleanup_font_atlas(&ptAppData->fontAtlas);
-
-    // cleanup drawing api
-    pl_cleanup_draw_context(&ptAppData->ctx);
-
     // destroy swapchain
     for (uint32_t i = 0u; i < ptAppData->swapchain.uImageCount; i++)
     {
@@ -208,16 +233,14 @@ pl_app_shutdown(plAppData* ptAppData)
     vkDestroyRenderPass(ptAppData->device.tLogicalDevice, ptAppData->graphics.tRenderPass, NULL);
     vkDestroySwapchainKHR(ptAppData->device.tLogicalDevice, ptAppData->swapchain.tSwapChain, NULL);
 
-    // cleanup graphics context
+    // clean up contexts
+    pl_cleanup_font_atlas(&ptAppData->fontAtlas);
+    pl_cleanup_draw_context(&ptAppData->ctx);
     pl_cleanup_graphics(&ptAppData->graphics, &ptAppData->device);
-
-    // cleanup profiling context
-    pl__cleanup_profile_context();
-
-    // cleanup logging context
+    pl_cleanup_profile_context();
+    pl_cleanup_extension_registry();
     pl_cleanup_log_context();
-
-    // cleanup memory context
+    pl_cleanup_data_registry();
     pl_cleanup_memory_context();
 }
 
@@ -236,12 +259,14 @@ pl_app_resize(plAppData* ptAppData)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] pl_app_render
+// [SECTION] pl_app_update
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_render(plAppData* ptAppData)
+pl_app_update(plAppData* ptAppData)
 {
+    pl_handle_extension_reloads();
+
     pl_new_io_frame();
     
     // get io context
@@ -322,6 +347,8 @@ pl_app_render(plAppData* ptAppData)
     // set scissor
     VkRect2D dynamicScissor = {.extent = ptAppData->swapchain.tExtent};
     vkCmdSetScissor(currentFrame->tCmdBuf, 0, 1, &dynamicScissor);
+
+    ptAppData->ptDrawExtApi->pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, "extension baby");
 
     // draw profiling info
     pl_begin_profile_sample("Draw Profiling Info");

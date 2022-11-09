@@ -50,6 +50,7 @@
 @del ..\out\*.log > NUL 2> NUL
 
 @echo LOCKING > ..\out\lock.tmp
+@echo LOCKING > ..\out\pl_draw_extension_lock.tmp
 
 @rem check if hot reloading
 @set PL_HOT_RELOADING_STATUS=0
@@ -62,6 +63,10 @@
 )
 
 @if %PL_HOT_RELOADING_STATUS% equ 0 (
+    @if exist ..\out\pl_draw_extension_*.dll del ..\out\pl_draw_extension_*.dll
+    @if exist ..\out\pl_draw_extension_*.pdb del ..\out\pl_draw_extension_*.pdb
+    @if exist ..\out\pl_draw_extension.dll del ..\out\pl_draw_extension.dll
+    @if exist ..\out\app.dll del ..\out\app.dll
     @if exist ..\out\app_*.dll del ..\out\app_*.dll
     @if exist ..\out\app_*.pdb del ..\out\app_*.pdb
 )
@@ -90,6 +95,8 @@
 @set PL_INCLUDE_DIRECTORIES=-I"%DXSDK_DIR%Include"            %PL_INCLUDE_DIRECTORIES%
 @set PL_INCLUDE_DIRECTORIES=-I%VULKAN_SDK%/Include            %PL_INCLUDE_DIRECTORIES%
 @set PL_INCLUDE_DIRECTORIES=-I..\dependencies\stb             %PL_INCLUDE_DIRECTORIES%
+@set PL_INCLUDE_DIRECTORIES=-I..\src                          %PL_INCLUDE_DIRECTORIES%
+@set PL_INCLUDE_DIRECTORIES=-I..\extensions                   %PL_INCLUDE_DIRECTORIES%
 
 @rem link directories
 @set PL_LINK_DIRECTORIES=-LIBPATH:"%VULKAN_SDK%\Lib" -LIBPATH:"..\out"
@@ -139,7 +146,7 @@
 
 @rem compile shaders
 @echo.
-@echo [1m[93mStep 0: shaders[0m
+@echo [1m[93mStep: shaders[0m
 @echo [1m[93m~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling...[0m
 @REM %VULKAN_SDK%/bin/glslc -o ../out/simple.frag.spv ./shaders/simple.frag
@@ -153,7 +160,7 @@
 
 @rem run compiler
 @echo.
-@echo [1m[93mStep 1: pilotlight.lib[0m
+@echo [1m[93mStep: pilotlight.lib[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling...[0m
 cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% -c -permissive- %PL_SOURCES% -Fe..\out\pilotlight.lib -Fo..\out\
@@ -175,6 +182,31 @@ lib -nologo -OUT:..\out\pilotlight.lib ..\out\*.obj
     @del ..\out\*.obj
 
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@rem |                         extensions                                     |
+@rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+@set PL_SOURCES="../extensions/pl_draw_extension.c"
+
+@rem run compiler
+@echo.
+@echo [1m[93mStep: plugins[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% -permissive- %PL_SOURCES% -Fe..\out\pl_draw_extension.dll -Fo..\out\ -LD -link -noimplib -noexp -incremental:no -PDB:..\out\pl_draw_extension_%random%.pdb %PL_LINKER_FLAGS% %PL_LINK_DIRECTORIES% %PL_LINK_LIBRARIES%
+
+@rem check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+@if %PL_BUILD_STATUS% NEQ 0 (
+    echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto CleanupPlugins
+)
+
+:CleanupPlugins
+    @echo [1m[36mCleaning...[0m
+    @del ..\out\*.obj
+
+@rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @rem |                         app lib                                        |
 @rem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -183,7 +215,7 @@ lib -nologo -OUT:..\out\pilotlight.lib ..\out\*.obj
 
 @rem run compiler
 @echo.
-@echo [1m[93mStep 2: app.dll[0m
+@echo [1m[93mStep: app.dll[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling...[0m
 cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% -permissive- %PL_SOURCES% -Fe..\out\app.dll -Fo..\out\ -LD -link -noimplib -noexp -incremental:no -PDB:..\out\app_%random%.pdb %PL_LINKER_FLAGS% %PL_LINK_DIRECTORIES% %PL_LINK_LIBRARIES%
@@ -211,7 +243,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% -permissive- %PL_SO
 
 @rem run compiler
 @echo.
-@echo [1m[93mStep 3: pilot_light.exe[0m
+@echo [1m[93mStep: pilot_light.exe[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
 @cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% -permissive- %PL_SOURCES% -Fe..\out\pilot_light.exe -Fo..\out\ -link -incremental:no %PL_LINKER_FLAGS% %PL_LINK_DIRECTORIES% %PL_LINK_LIBRARIES%
@@ -244,6 +276,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% -permissive- %PL_SO
 @echo [36m--------------------------------------------------------------------------[0m
 
 del ..\out\lock.tmp
+del ..\out\pl_draw_extension_lock.tmp
 
 @popd
 

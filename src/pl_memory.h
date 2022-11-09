@@ -20,10 +20,9 @@ Index of this file:
 // [SECTION] defines
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
-// [SECTION] global context
 // [SECTION] public api
 // [SECTION] structs
-// [SECTION] implementation
+// [SECTION] c file start
 */
 
 #ifndef PL_MEMORY_H
@@ -54,12 +53,6 @@ PL_DECLARE_STRUCT(plStackAllocator);
 PL_DECLARE_STRUCT(plStackAllocatorMarker);
 PL_DECLARE_STRUCT(plPoolAllocator);
 PL_DECLARE_STRUCT(plPoolAllocatorNode);
-
-//-----------------------------------------------------------------------------
-// [SECTION] global context
-//-----------------------------------------------------------------------------
-
-extern plMemoryContext* gptMemoryContext;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -140,7 +133,19 @@ typedef struct _plPoolAllocator
 #endif // PL_MEMORY_H
 
 //-----------------------------------------------------------------------------
-// [SECTION] implementation
+// [SECTION] c file start
+//-----------------------------------------------------------------------------
+
+/*
+Index of this file:
+// [SECTION] defines
+// [SECTION] global context
+// [SECTION] internal api
+// [SECTION] public api implementation
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] defines
 //-----------------------------------------------------------------------------
 
 #ifdef PL_MEMORY_IMPLEMENTATION
@@ -165,7 +170,15 @@ typedef struct _plPoolAllocator
 
 #define PL__ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
 
+//-----------------------------------------------------------------------------
+// [SECTION] global context
+//-----------------------------------------------------------------------------
+
 plMemoryContext* gptMemoryContext = NULL;
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api
+//-----------------------------------------------------------------------------
 
 static inline size_t
 pl__get_next_power_of_2(size_t n)
@@ -199,6 +212,10 @@ pl__align_forward_size(size_t szPtr, size_t szAlign)
 	if (szModulo != 0){ p += a - szModulo;}
 	return p;
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api implementation
+//-----------------------------------------------------------------------------
 
 void
 pl_initialize_memory_context(plMemoryContext* ptCtx)

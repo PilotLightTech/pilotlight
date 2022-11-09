@@ -48,7 +48,7 @@ static void* (*pl_app_load)    (plIOContext* ptIOCtx, plAppData* ptAppData);
 static void  (*pl_app_setup)   (plAppData* ptAppData);
 static void  (*pl_app_shutdown)(plAppData* ptAppData);
 static void  (*pl_app_resize)  (plAppData* ptAppData);
-static void  (*pl_app_render)  (plAppData* ptAppData);
+static void  (*pl_app_update)  (plAppData* ptAppData);
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -93,7 +93,7 @@ int main()
         pl_app_setup    = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_setup");
         pl_app_shutdown = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
         pl_app_resize   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
-        pl_app_render   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_render");
+        pl_app_update   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_update");
         gUserData = pl_app_load(ptIOCtx, NULL);
     }
 
@@ -338,7 +338,7 @@ int main()
             pl_app_setup    = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_setup");
             pl_app_shutdown = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
             pl_app_resize   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
-            pl_app_render   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_render");
+            pl_app_update   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_update");
             gUserData = pl_app_load(ptIOCtx, gUserData);
         }
 
@@ -348,7 +348,7 @@ int main()
         pl_get_io_context()->fDeltaTime = (float)(dCurrentTime - gdTime);
         gdTime = dCurrentTime;
 
-        pl_app_render(gUserData);
+        pl_app_update(gUserData);
     }
 
     // app cleanup

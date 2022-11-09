@@ -105,23 +105,23 @@ void            pl_return_draw_layer   (plDrawLayer* layer);
 void            pl_cleanup_draw_context(plDrawContext* ctx);  // implemented by backend
 
 // per frame
-void pl_new_draw_frame   (plDrawContext* ctx); // implemented by backend
-void pl_submit_draw_layer(plDrawLayer* layer);
+void            pl_new_draw_frame   (plDrawContext* ctx); // implemented by backend
+void            pl_submit_draw_layer(plDrawLayer* layer);
 
 // drawing
-void pl_add_line           (plDrawLayer* layer, plVec2 p0, plVec2 p1, plVec4 color, float thickness);
-void pl_add_lines          (plDrawLayer* layer, plVec2* points, uint32_t count, plVec4 color, float thickness);
-void pl_add_text           (plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec4 color, const char* text, float wrap);
-void pl_add_triangle_filled(plDrawLayer* layer, plVec2 p0, plVec2 p1, plVec2 p2, plVec4 color);
-void pl_add_rect_filled    (plDrawLayer* layer, plVec2 minP, plVec2 maxP, plVec4 color);
+void            pl_add_line           (plDrawLayer* layer, plVec2 p0, plVec2 p1, plVec4 color, float thickness);
+void            pl_add_lines          (plDrawLayer* layer, plVec2* points, uint32_t count, plVec4 color, float thickness);
+void            pl_add_text           (plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec4 color, const char* text, float wrap);
+void            pl_add_triangle_filled(plDrawLayer* layer, plVec2 p0, plVec2 p1, plVec2 p2, plVec4 color);
+void            pl_add_rect_filled    (plDrawLayer* layer, plVec2 minP, plVec2 maxP, plVec4 color);
 
 // fonts
-void   pl_build_font_atlas        (plDrawContext* ctx, plFontAtlas* atlas); // implemented by backend
-void   pl_cleanup_font_atlas      (plFontAtlas* atlas);                     // implemented by backend
-void   pl_add_default_font        (plFontAtlas* atlas);
-void   pl_add_font_from_file_ttf  (plFontAtlas* atlas, plFontConfig config, const char* file);
-void   pl_add_font_from_memory_ttf(plFontAtlas* atlas, plFontConfig config, void* data);
-plVec2 pl_calculate_text_size     (plFont* font, float size, const char* text, float wrap);
+void            pl_build_font_atlas        (plDrawContext* ctx, plFontAtlas* atlas); // implemented by backend
+void            pl_cleanup_font_atlas      (plFontAtlas* atlas);                     // implemented by backend
+void            pl_add_default_font        (plFontAtlas* atlas);
+void            pl_add_font_from_file_ttf  (plFontAtlas* atlas, plFontConfig config, const char* file);
+void            pl_add_font_from_memory_ttf(plFontAtlas* atlas, plFontConfig config, void* data);
+plVec2          pl_calculate_text_size     (plFont* font, float size, const char* text, float wrap);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs

@@ -40,6 +40,7 @@ PLAT="$(uname)"
 ARCH="$(uname -m)"
 
 echo LOCKING > ../out/lock.tmp
+echo LOCKING > ../out/pl_draw_extension_lock.tmp
 
 # check if hot reloading
 PL_HOT_RELOADING_STATUS=0
@@ -52,6 +53,7 @@ echo
 else
 PL_HOT_RELOADING_STATUS=0
 if [ -f ../out/pilot_light ]; then
+    rm -f ../out/pl_draw_extension_*.so
     rm -f ../out/pilot_light
     rm -f ../out/*.spv
     rm ../out/app_*.so
@@ -66,7 +68,7 @@ fi
 PL_CONFIG=Debug
 
 # common include directories
-PL_INCLUDE_DIRECTORIES="-I../dependencies/stb"
+PL_INCLUDE_DIRECTORIES="-I../dependencies/stb -I../src -I../extensions"
 
 # common link directories
 PL_LINK_DIRECTORIES="-L../out"
@@ -131,7 +133,7 @@ fi
 ###############################################################################
 
 echo
-echo ${YELLOW}Step 0: shaders${NC}
+echo ${YELLOW}Step: shaders${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling...${NC}
 
@@ -148,10 +150,32 @@ echo ${CYAN}Compiling...${NC}
 PL_SOURCES="pilotlight.c"
 
 echo
-echo ${YELLOW}Step 1: pilotlight.o${NC}
+echo ${YELLOW}Step: pilotlight.o${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling...${NC}
 clang -c $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES -o ../out/pilotlight.o
+
+###############################################################################
+#                             apple extensions                                #
+###############################################################################
+
+PL_SOURCES="../extensions/pl_draw_extension.c ../out/pilotlight.o"
+
+if [ -f "../out/pl_draw_extension.so" ]
+then
+    rm ../out/pl_draw_extension.so
+fi
+
+echo
+echo ${YELLOW}Step: app.so${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling...${NC}
+clang -shared -fPIC $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_LIBRARIES -o ../out/pl_draw_extension.so
+
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
 
 ###############################################################################
 #                             apple app lib                                   #
@@ -165,7 +189,7 @@ then
 fi
 
 echo
-echo ${YELLOW}Step 2: app.so${NC}
+echo ${YELLOW}Step: app.so${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling...${NC}
 clang -shared -fPIC $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_LIBRARIES -o ../out/app.so
@@ -184,7 +208,7 @@ PL_SOURCES="pl_main_macos.m ../out/pilotlight.o"
 if [ ${PL_HOT_RELOADING_STATUS} -ne 1 ]
 then
 echo
-echo ${YELLOW}Step 3: pilot_light${NC}
+echo ${YELLOW}Step: pilot_light${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
 clang $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_LIBRARIES -o ../out/pilot_light
@@ -268,10 +292,32 @@ echo ${CYAN}Compiling...${NC}
 PL_SOURCES="pilotlight.c"
 
 echo
-echo ${YELLOW}Step 1: pilotlight.o${NC}
+echo ${YELLOW}Step: pilotlight.o${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling...${NC}
 gcc -c -fPIC $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES -o ../out/pilotlight.o
+
+###############################################################################
+#                             linux extensions                                #
+###############################################################################
+
+PL_SOURCES="../extensions/pl_draw_extension.c ../out/pilotlight.o"
+
+if [ -f "../out/pl_draw_extension.so" ]
+then
+    rm ../out/pl_draw_extension.so
+fi
+
+echo
+echo ${YELLOW}Step: app.so${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling...${NC}
+gcc -shared -fPIC $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_LIBRARIES -o ../out/pl_draw_extension.so
+
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
 
 ###############################################################################
 #                             linux app lib                                   #
@@ -285,7 +331,7 @@ then
 fi
 
 echo
-echo ${YELLOW}Step 2: app.so${NC}
+echo ${YELLOW}Step: app.so${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling...${NC}
 gcc -shared -fPIC $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_LIBRARIES -o ../out/app.so
@@ -304,7 +350,7 @@ PL_SOURCES="pl_main_linux.c ../out/pilotlight.o"
 if [ ${PL_HOT_RELOADING_STATUS} -ne 1 ]
 then
 echo
-echo ${YELLOW}Step 3: pilot_light${NC}
+echo ${YELLOW}Step: pilot_light${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
 gcc $PL_SOURCES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINK_FLAGS $PL_LINK_LIBRARIES -o ../out/pilot_light
@@ -332,3 +378,4 @@ echo ${CYAN}--------------------------------------------------------------------
 
 popd >/dev/null
 rm ../out/lock.tmp
+rm ../out/pl_draw_extension_lock.tmp
