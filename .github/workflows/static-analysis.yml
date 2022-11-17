@@ -51,16 +51,17 @@ jobs:
             exit 0
           fi
           cd src
-          chmod +x build.sh
-          pvs-studio-analyzer trace -- ./build.sh
-          pvs-studio-analyzer analyze -e ../dependencies -l ../pvs-studio.lic -o ../pvs-studio.log --disableLicenseExpirationCheck
+          python3 build.py
+          chmod +x build_linux.sh
+          pvs-studio-analyzer trace -- ./build_linux.sh
+          pvs-studio-analyzer analyze -e ../dependencies -l ../pvs-studio.lic -o ../pvs-studio.log
           pvs-studio-analyzer suppress -v572 -v575 -v595 ../pvs-studio.log
           pvs-studio-analyzer filter-suppressed ../pvs-studio.log
           plog-converter -a 'GA:1,2;OP:1' -t fullhtml -o ../pvs-studio.html -w ../pvs-studio.log
           cd ..
           test -f ./out/pilot_light || exit 1
           test -f ./out/app.so || exit 1
-          test -f ./out/pilotlight.o || exit 1
+          test -f ./out/pilotlight.c.o || exit 1
       - name: Archive Results
         if: ${{ always() }}
         uses: actions/upload-artifact@v3

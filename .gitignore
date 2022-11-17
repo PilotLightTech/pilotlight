@@ -4,9 +4,14 @@
 .vscode/
 .idea/
 out/
+tools/__pycache__
 
 # debug files
 src/*.pdb
+
+# build scripts
+src/*.bat
+src/*.sh
 
 # misc
 .DS_Store
