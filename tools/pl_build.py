@@ -1,4 +1,4 @@
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 ###############################################################################
 #                                  Info                                       #
@@ -392,7 +392,7 @@ def generate_macos_build():
                 # find main target
                 target_found = False
                 for target in project._targets:
-                    if target._target_type == TargetType.EXECUTABLE and target._name == project._main_target_name:
+                    if target._name == project._main_target_name:
                         for config in target._configurations:
                             if config._name == register_config:
                                 for plat in config._platforms:
@@ -407,17 +407,18 @@ def generate_macos_build():
                                                 buffer += '# check if this is a reload\n'
                                                 buffer += 'PL_HOT_RELOAD_STATUS=0\n\n'
 
-                                                buffer += "# let user know if hot reloading\n"
-                                                buffer += 'if lsof | grep -i -q ' + settings._output_binary + '\n'
-                                                buffer += 'then\n'
-                                                buffer += 'PL_HOT_RELOAD_STATUS=1\n'
-                                                buffer += 'echo\n'
-                                                buffer += 'echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}\n'
-                                                buffer += 'echo\n'
-                                                buffer += 'else\n'
-                                                buffer += '# cleanup binaries if not hot reloading\n'
-                                                buffer += '    PL_HOT_RELOAD_STATUS=0\n'
-                                                target_found = True
+                                                if target._target_type == TargetType.EXECUTABLE:
+                                                    buffer += "# let user know if hot reloading\n"
+                                                    buffer += 'if lsof | grep -i -q ' + settings._output_binary + '\n'
+                                                    buffer += 'then\n'
+                                                    buffer += 'PL_HOT_RELOAD_STATUS=1\n'
+                                                    buffer += 'echo\n'
+                                                    buffer += 'echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}\n'
+                                                    buffer += 'echo\n'
+                                                    buffer += 'else\n'
+                                                    buffer += '# cleanup binaries if not hot reloading\n'
+                                                    buffer += '    PL_HOT_RELOAD_STATUS=0\n'
+                                                    target_found = True
                 for target in project._targets:
                     for config in target._configurations:
                         if config._name == register_config:
@@ -679,7 +680,7 @@ def generate_linux_build():
                 # find main target
                 target_found = False        
                 for target in project._targets:
-                    if target._target_type == TargetType.EXECUTABLE and target._name == project._main_target_name:
+                    if target._name == project._main_target_name:
                         for config in target._configurations:
                             if config._name == register_config:
                                 for plat in config._platforms:
@@ -694,17 +695,18 @@ def generate_linux_build():
                                                 buffer += '# check if this is a reload\n'
                                                 buffer += 'PL_HOT_RELOAD_STATUS=0\n\n'
 
-                                                buffer += "# let user know if hot reloading\n"
-                                                buffer += 'if lsof | grep -i -q ' + settings._output_binary + '\n'
-                                                buffer += 'then\n'
-                                                buffer += 'PL_HOT_RELOAD_STATUS=1\n'
-                                                buffer += 'echo\n'
-                                                buffer += 'echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}\n'
-                                                buffer += 'echo\n'
-                                                buffer += 'else\n'
-                                                buffer += '# cleanup binaries if not hot reloading\n'
-                                                buffer += '    PL_HOT_RELOAD_STATUS=0\n'
-                                                target_found = True
+                                                if target._target_type == TargetType.EXECUTABLE:
+                                                    buffer += "# let user know if hot reloading\n"
+                                                    buffer += 'if lsof | grep -i -q ' + settings._output_binary + '\n'
+                                                    buffer += 'then\n'
+                                                    buffer += 'PL_HOT_RELOAD_STATUS=1\n'
+                                                    buffer += 'echo\n'
+                                                    buffer += 'echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}\n'
+                                                    buffer += 'echo\n'
+                                                    buffer += 'else\n'
+                                                    buffer += '# cleanup binaries if not hot reloading\n'
+                                                    buffer += '    PL_HOT_RELOAD_STATUS=0\n'
+                                                    target_found = True
                 for target in project._targets:
                     for config in target._configurations:
                         if config._name == register_config:
@@ -933,7 +935,7 @@ def generate_win32_build():
                 # find main target
                 target_found = False
                 for target in project._targets:
-                    if target._target_type == TargetType.EXECUTABLE and target._name == project._main_target_name:
+                    if target._name == project._main_target_name:
                         for config in target._configurations:
                             if config._name == register_config:
                                 for plat in config._platforms:
@@ -950,15 +952,16 @@ def generate_win32_build():
                                                 buffer += "@rem check if this is a reload\n"
                                                 buffer += "@set PL_HOT_RELOAD_STATUS=0\n"
                                                 
-                                                buffer += "\n@rem hack to see if main exe is running\n"
-                                                buffer += "@echo off\n"
-                                                buffer += '2>nul (>>"' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '" echo off) && (@set PL_HOT_RELOAD_STATUS=0) || (@set PL_HOT_RELOAD_STATUS=1)\n'
-                                                
-                                                buffer += "\n@rem let user know if hot reloading\n"
-                                                buffer += "@if %PL_HOT_RELOAD_STATUS% equ 1 (\n"
-                                                buffer += "    @echo.\n"
-                                                buffer += "    @echo [1m[97m[41m--------[42m HOT RELOADING [41m--------[0m\n"
-                                                buffer += ")\n\n"
+                                                if target._target_type == TargetType.EXECUTABLE:
+                                                    buffer += "\n@rem hack to see if main exe is running\n"
+                                                    buffer += "@echo off\n"
+                                                    buffer += '2>nul (>>"' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '" echo off) && (@set PL_HOT_RELOAD_STATUS=0) || (@set PL_HOT_RELOAD_STATUS=1)\n'
+                                                    
+                                                    buffer += "\n@rem let user know if hot reloading\n"
+                                                    buffer += "@if %PL_HOT_RELOAD_STATUS% equ 1 (\n"
+                                                    buffer += "    @echo.\n"
+                                                    buffer += "    @echo [1m[97m[41m--------[42m HOT RELOADING [41m--------[0m\n"
+                                                    buffer += ")\n\n"
                                                 buffer += "@rem cleanup binaries if not hot reloading\n"
                                                 buffer += "@if %PL_HOT_RELOAD_STATUS% equ 0 (\n    @echo.\n"
                                                 target_found = True
