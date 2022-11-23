@@ -41,7 +41,7 @@ Index of this file:
 
 #include <stdbool.h> // bool
 #include <stdint.h>  // uint*_t
-#include "pl_math.h"
+#include "pl_math.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
