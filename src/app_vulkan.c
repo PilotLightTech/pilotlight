@@ -159,46 +159,101 @@ pl_app_setup(plAppData* ptAppData)
     pl_create_swapchain(&ptAppData->device, ptAppData->graphics.tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptAppData->swapchain);
 
     // create render pass
-    VkAttachmentDescription colorAttachment = {
-        .flags          = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT,
-        .format         = ptAppData->swapchain.tFormat,
-        .samples        = VK_SAMPLE_COUNT_1_BIT,
-        .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
-        .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
-        .finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+    VkAttachmentDescription atAttachments[] = {
+
+        // color attachment
+        {
+            .flags          = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT,
+            .format         = ptAppData->swapchain.tFormat,
+            .samples        = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+        },
+
+        // depth attachment
+        {
+            .format         = pl_find_depth_format(&ptAppData->device),
+            .samples        = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            .finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        }
     };
 
-    VkAttachmentReference attachmentReference = {
-        .attachment = 0,
-        .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+    VkSubpassDependency tSubpassDependencies[] = {
+
+        {
+            .srcSubpass      = VK_SUBPASS_EXTERNAL,
+            .dstSubpass      = 0,
+            .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcAccessMask   = 0,
+            .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
+        },
+        {
+            .srcSubpass      = VK_SUBPASS_EXTERNAL,
+            .dstSubpass      = 0,
+            .srcStageMask    = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+            .srcAccessMask   = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .dstStageMask    = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+            .dstAccessMask   = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
+        }
     };
 
-    VkSubpassDescription subpass = {
+    VkAttachmentReference atAttachmentReferences[] = {
+        {
+            .attachment = 0,
+            .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        },
+        {
+            .attachment = 1,
+            .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL     
+        }
+    };
+
+    VkSubpassDescription tSubpass = {
         .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
         .colorAttachmentCount    = 1,
-        .pColorAttachments       = &attachmentReference,
-        .pDepthStencilAttachment = VK_NULL_HANDLE
+        .pColorAttachments       = &atAttachmentReferences[0],
+        .pDepthStencilAttachment = &atAttachmentReferences[1]
     };
 
-    VkRenderPassCreateInfo renderPassInfo = {
+    VkRenderPassCreateInfo tRenderPassInfo = {
         .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .attachmentCount = 1u,
-        .pAttachments    = &colorAttachment,
+        .attachmentCount = 2,
+        .pAttachments    = atAttachments,
         .subpassCount    = 1,
-        .pSubpasses      = &subpass,
-        .dependencyCount = 0,
-        .pDependencies   = VK_NULL_HANDLE
+        .pSubpasses      = &tSubpass,
+        .dependencyCount = 2,
+        .pDependencies   = tSubpassDependencies
     };
-    PL_VULKAN(vkCreateRenderPass(ptAppData->device.tLogicalDevice, &renderPassInfo, NULL, &ptAppData->graphics.tRenderPass));
+    PL_VULKAN(vkCreateRenderPass(ptAppData->device.tLogicalDevice, &tRenderPassInfo, NULL, &ptAppData->graphics.tRenderPass));
 
     // create frame buffers
     pl_create_framebuffers(&ptAppData->device, ptAppData->graphics.tRenderPass, &ptAppData->swapchain);
     
     // create per frame resources
     pl_create_frame_resources(&ptAppData->graphics, &ptAppData->device);
+
+    VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(&ptAppData->graphics, &ptAppData->device);
+    const VkImageSubresourceRange tRange = {
+        .baseMipLevel   = 0,
+        .levelCount     = 1,
+        .baseArrayLayer = 0,
+        .layerCount     = 1,
+        .aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT
+    };
+    pl_transition_image_layout(tCommandBuffer, ptAppData->swapchain.tDepthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT , VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);
+    pl_submit_command_buffer(&ptAppData->graphics, &ptAppData->device, tCommandBuffer);
     
     // setup drawing api
     pl_initialize_draw_context_vulkan(&ptAppData->ctx, ptAppData->device.tPhysicalDevice, 3, ptAppData->device.tLogicalDevice);
@@ -221,6 +276,11 @@ pl_app_shutdown(plAppData* ptAppData)
 {
     // ensure device is finished
     vkDeviceWaitIdle(ptAppData->device.tLogicalDevice);
+
+    if(ptAppData->swapchain.tDepthImageView) vkDestroyImageView(ptAppData->device.tLogicalDevice, ptAppData->swapchain.tDepthImageView, NULL);
+    if(ptAppData->swapchain.tDepthImage)     vkDestroyImage(ptAppData->device.tLogicalDevice, ptAppData->swapchain.tDepthImage, NULL);
+    if(ptAppData->swapchain.tDepthMemory)    vkFreeMemory(ptAppData->device.tLogicalDevice, ptAppData->swapchain.tDepthMemory, NULL);
+
 
     // destroy swapchain
     for (uint32_t i = 0u; i < ptAppData->swapchain.uImageCount; i++)
@@ -256,6 +316,17 @@ pl_app_resize(plAppData* ptAppData)
 
     pl_create_swapchain(&ptAppData->device, ptAppData->graphics.tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptAppData->swapchain);
     pl_create_framebuffers(&ptAppData->device, ptAppData->graphics.tRenderPass, &ptAppData->swapchain);
+
+    VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(&ptAppData->graphics, &ptAppData->device);
+    const VkImageSubresourceRange tRange = {
+        .baseMipLevel   = 0,
+        .levelCount     = 1,
+        .baseArrayLayer = 0,
+        .layerCount     = 1,
+        .aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT
+    };
+    pl_transition_image_layout(tCommandBuffer, ptAppData->swapchain.tDepthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT , VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);
+    pl_submit_command_buffer(&ptAppData->graphics, &ptAppData->device, tCommandBuffer);
 }
 
 //-----------------------------------------------------------------------------

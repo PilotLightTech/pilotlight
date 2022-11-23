@@ -304,13 +304,13 @@ pl_create_device(VkInstance tInstance, VkSurfaceKHR tSurface, plVulkanDevice* pt
     VkDeviceQueueCreateInfo atQueueCreateInfos[] = {
         {
             .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-            .queueFamilyIndex = 0,
+            .queueFamilyIndex = ptDeviceOut->iGraphicsQueueFamily,
             .queueCount = 1,
             .pQueuePriorities = &fQueuePriority
         },
         {
             .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-            .queueFamilyIndex = 1,
+            .queueFamilyIndex = ptDeviceOut->iPresentQueueFamily,
             .queueCount = 1,
             .pQueuePriorities = &fQueuePriority   
         }
@@ -320,7 +320,7 @@ pl_create_device(VkInstance tInstance, VkSurfaceKHR tSurface, plVulkanDevice* pt
     static const char* apcExtensions[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, "VK_KHR_portability_subset"};
     VkDeviceCreateInfo tCreateDeviceInfo = {
         .sType                    = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .queueCreateInfoCount     = 1u,
+        .queueCreateInfoCount     = atQueueCreateInfos[0].queueFamilyIndex == atQueueCreateInfos[1].queueFamilyIndex ? 1 : 2,
         .pQueueCreateInfos        = atQueueCreateInfos,
         .pEnabledFeatures         = &atDeviceFeatures,
         .ppEnabledExtensionNames  = apcExtensions,
@@ -387,11 +387,15 @@ pl_create_framebuffers(plVulkanDevice* ptDevice, VkRenderPass tRenderPass, plVul
 {
     for(uint32_t i = 0; i < ptSwapchain->uImageCount; i++)
     {
+        VkImageView atAttachments[] = {
+            ptSwapchain->ptImageViews[i],
+            ptSwapchain->tDepthImageView
+        };
         VkFramebufferCreateInfo tFrameBufferInfo = {
             .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
             .renderPass      = tRenderPass,
-            .attachmentCount = 1u,
-            .pAttachments    = &ptSwapchain->ptImageViews[i],
+            .attachmentCount = 2u,
+            .pAttachments    = atAttachments,
             .width           = ptSwapchain->tExtent.width,
             .height          = ptSwapchain->tExtent.height,
             .layers          = 1u,
@@ -566,6 +570,100 @@ pl_create_swapchain(plVulkanDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uW
 
         PL_VULKAN(vkCreateImageView(ptDevice->tLogicalDevice, &tViewInfo, NULL, &ptSwapchainOut->ptImageViews[i]));   
     }  //-V1020
+
+    // depth
+
+    if(ptSwapchainOut->tDepthImageView) vkDestroyImageView(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthImageView, NULL);
+    if(ptSwapchainOut->tDepthImage)     vkDestroyImage(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthImage, NULL);
+    if(ptSwapchainOut->tDepthMemory)    vkFreeMemory(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthMemory, NULL);
+    ptSwapchainOut->tDepthImageView = VK_NULL_HANDLE;
+    ptSwapchainOut->tDepthImage = VK_NULL_HANDLE;
+    ptSwapchainOut->tDepthMemory = VK_NULL_HANDLE;
+
+    VkImageCreateInfo tDepthImageInfo = {
+        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType     = VK_IMAGE_TYPE_2D,
+        .extent.width  = ptSwapchainOut->tExtent.width,
+        .extent.height = ptSwapchainOut->tExtent.height,
+        .extent.depth  = 1,
+        .mipLevels     = 1,
+        .arrayLayers   = 1,
+        .format        = pl_find_depth_format(ptDevice),
+        .tiling        = VK_IMAGE_TILING_OPTIMAL,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
+        .samples       = VK_SAMPLE_COUNT_1_BIT,
+        .flags         = 0
+    };
+    PL_VULKAN(vkCreateImage(ptDevice->tLogicalDevice, &tDepthImageInfo, NULL, &ptSwapchainOut->tDepthImage));
+
+    VkMemoryRequirements tMemReqs = {0};
+    vkGetImageMemoryRequirements(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthImage, &tMemReqs);
+
+    VkMemoryAllocateInfo tDepthAllocInfo = {
+        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize  = tMemReqs.size,
+        .memoryTypeIndex = pl_find_memory_type(ptDevice->tMemProps, tMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+    };
+
+    PL_VULKAN(vkAllocateMemory(ptDevice->tLogicalDevice, &tDepthAllocInfo, NULL, &ptSwapchainOut->tDepthMemory));
+    PL_VULKAN(vkBindImageMemory(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthImage, ptSwapchainOut->tDepthMemory, 0));
+
+    VkImageViewCreateInfo tDepthViewInfo = {
+        .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image                           = ptSwapchainOut->tDepthImage,
+        .viewType                        = VK_IMAGE_VIEW_TYPE_2D,
+        .format                          = tDepthImageInfo.format,
+        .subresourceRange.baseMipLevel   = 0,
+        .subresourceRange.levelCount     = 1,
+        .subresourceRange.baseArrayLayer = 0,
+        .subresourceRange.layerCount     = 1,
+        .subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT,
+    };
+
+    if(pl_format_has_stencil(tDepthViewInfo.format))
+        tDepthViewInfo.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+
+    PL_VULKAN(vkCreateImageView(ptDevice->tLogicalDevice, &tDepthViewInfo, NULL, &ptSwapchainOut->tDepthImageView));
+}
+
+VkCommandBuffer
+pl_begin_command_buffer(plVulkanGraphics* ptGraphics, plVulkanDevice* ptDevice)
+{
+    VkCommandBuffer tCommandBuffer = {0};
+    
+    VkCommandBufferAllocateInfo tAllocInfo = {
+        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandPool        = ptGraphics->tCmdPool,
+        .commandBufferCount = 1u,
+    };
+    vkAllocateCommandBuffers(ptDevice->tLogicalDevice, &tAllocInfo, &tCommandBuffer);
+
+    VkCommandBufferBeginInfo tBeginInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+    };
+
+    vkBeginCommandBuffer(tCommandBuffer, &tBeginInfo);
+
+    return tCommandBuffer;  
+}
+
+void
+pl_submit_command_buffer(plVulkanGraphics* ptGraphics, plVulkanDevice* ptDevice, VkCommandBuffer tCmdBuffer)
+{
+    vkEndCommandBuffer(tCmdBuffer);
+    VkSubmitInfo tSubmitInfo = {
+        .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1u,
+        .pCommandBuffers    = &tCmdBuffer,
+    };
+
+    vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE);
+    vkDeviceWaitIdle(ptDevice->tLogicalDevice);
+    vkFreeCommandBuffers(ptDevice->tLogicalDevice, ptGraphics->tCmdPool, 1, &tCmdBuffer);
 }
 
 void
@@ -732,6 +830,46 @@ pl_transition_image_layout(VkCommandBuffer tCommandBuffer, VkImage tImage, VkIma
             break;
     }
     vkCmdPipelineBarrier(tCommandBuffer, tSrcStageMask, tDstStageMask, 0, 0, NULL, 0, NULL, 1, &tBarrier);
+}
+
+VkFormat
+pl_find_supported_format(plVulkanDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount)
+{
+    for(uint32_t i = 0u; i < uFormatCount; i++)
+    {
+        VkFormatProperties tProps = {0};
+        vkGetPhysicalDeviceFormatProperties(ptDevice->tPhysicalDevice, ptFormats[i], &tProps);
+        if(tProps.optimalTilingFeatures & tFlags)
+            return ptFormats[i];
+    }
+
+    PL_ASSERT(false && "no supported format found");
+    return VK_FORMAT_UNDEFINED;   
+}
+
+VkFormat
+pl_find_depth_format(plVulkanDevice* ptDevice)
+{
+    const VkFormat atFormats[] = {
+        VK_FORMAT_D32_SFLOAT,
+        VK_FORMAT_D32_SFLOAT_S8_UINT,
+        VK_FORMAT_D24_UNORM_S8_UINT
+    };
+    return pl_find_supported_format(ptDevice, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT, atFormats, 3);
+}
+
+bool
+pl_format_has_stencil(VkFormat tFormat)
+{
+    switch(tFormat)
+    {
+        case VK_FORMAT_D16_UNORM_S8_UINT:
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+        case VK_FORMAT_D32_SFLOAT_S8_UINT: return true;
+
+        case VK_FORMAT_D32_SFLOAT:
+        default: return false;
+    }
 }
 
 //-----------------------------------------------------------------------------

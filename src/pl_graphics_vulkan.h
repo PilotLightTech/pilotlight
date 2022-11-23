@@ -54,6 +54,10 @@ void                  pl_create_device         (VkInstance tInstance, VkSurfaceK
 void                  pl_create_swapchain      (plVulkanDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uWidth, uint32_t uHeight, plVulkanSwapchain* ptSwapchainOut);
 void                  pl_create_framebuffers   (plVulkanDevice* ptDevice, VkRenderPass tRenderPass, plVulkanSwapchain* ptSwapchain);
 
+// command buffers
+VkCommandBuffer       pl_begin_command_buffer (plVulkanGraphics* ptGraphics, plVulkanDevice* ptDevice);
+void                  pl_submit_command_buffer(plVulkanGraphics* ptGraphics, plVulkanDevice* ptDevice, VkCommandBuffer tCmdBuffer);
+
 // cleanup
 void                  pl_cleanup_graphics      (plVulkanGraphics* ptGraphics, plVulkanDevice* ptDevice);
 
@@ -61,6 +65,9 @@ void                  pl_cleanup_graphics      (plVulkanGraphics* ptGraphics, pl
 plVulkanFrameContext* pl_get_frame_resources    (plVulkanGraphics* ptGraphics);
 uint32_t              pl_find_memory_type       (VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties);
 void                  pl_transition_image_layout(VkCommandBuffer tCommandBuffer, VkImage tImage, VkImageLayout tOldLayout, VkImageLayout tNewLayout, VkImageSubresourceRange tSubresourceRange, VkPipelineStageFlags tSrcStageMask, VkPipelineStageFlags tDstStageMask);
+VkFormat              pl_find_supported_format  (plVulkanDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount);
+VkFormat              pl_find_depth_format      (plVulkanDevice* ptDevice);
+bool                  pl_format_has_stencil     (VkFormat tFormat);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -77,16 +84,20 @@ typedef struct _plVulkanFrameContext
 
 typedef struct _plVulkanSwapchain
 {
-    VkSwapchainKHR tSwapChain;
-    VkExtent2D     tExtent;
-    VkFramebuffer* ptFrameBuffers;
-    VkFormat       tFormat;
-    VkImage*       ptImages;
-    VkImageView*   ptImageViews;
-    uint32_t       uImageCount;
-    uint32_t       uImageCapacity;
-    uint32_t       uCurrentImageIndex; // current image to use within the swap chain
-    bool           bVSync;
+    VkSwapchainKHR  tSwapChain;
+    VkExtent2D      tExtent;
+    VkFramebuffer*  ptFrameBuffers;
+    VkFormat        tFormat;
+    VkFormat        tDepthFormat;
+    VkImage*        ptImages;
+    VkImageView*    ptImageViews;
+    VkImage         tDepthImage;
+    VkImageView     tDepthImageView;
+    VkDeviceMemory  tDepthMemory;
+    uint32_t        uImageCount;
+    uint32_t        uImageCapacity;
+    uint32_t        uCurrentImageIndex; // current image to use within the swap chain
+    bool            bVSync;
 
     VkSurfaceFormatKHR* ptSurfaceFormats_;
     uint32_t            uSurfaceFormatCapacity_;

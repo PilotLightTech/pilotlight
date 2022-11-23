@@ -133,6 +133,9 @@ int main()
     };
     AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
 
+    ptIOCtx->afMainViewportSize[0] = 500.0f;
+    ptIOCtx->afMainViewportSize[1] = 500.0f;
+
     wchar_t wideTitle[PL_MAX_NAME_LENGTH];
     #ifdef PL_VULKAN_BACKEND
     pl__convert_to_wide_string("Pilot Light (win32/vulkan)", wideTitle);
