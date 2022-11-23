@@ -980,6 +980,9 @@ def generate_win32_build():
                                             buffer += ' del "' + settings._output_directory + '/' + settings._output_binary + '_*' + settings._output_binary_extension + '"\n'
                                             buffer += '    @if exist "' + settings._output_directory + '/' + settings._output_binary + '_*.pdb"'
                                             buffer += ' del "' + settings._output_directory + '/' + settings._output_binary + '_*.pdb"\n'
+                                        elif target._target_type == TargetType.EXECUTABLE:
+                                            buffer += '    @if exist "' + settings._output_directory + '/' + settings._output_binary + '_*.pdb"'
+                                            buffer += ' del "' + settings._output_directory + '/' + settings._output_binary + '_*.pdb"\n'
                 if target_found:
                     buffer += ")"
                 buffer += "\n\n"
