@@ -26,6 +26,10 @@
 #include "pl_ext.h"
 #undef PL_EXT_IMPLEMENTATION
 
+#define PL_CAMERA_IMPLEMENTATION
+#include "pl_camera.h"
+#undef PL_CAMERA_IMPLEMENTATION
+
 // platform specifics
 #ifdef _WIN32
 #include "pl_os_win32.c"

@@ -13,6 +13,7 @@ defines = [
     "PL_MEMORY_IMPLEMENTATION",
     "PL_DRAW_DX11_IMPLEMENTATION",
     "PL_EXT_IMPLEMENTATION",
+    "PL_CAMERA_IMPLEMENTATION",
     "PL_DRAW_VULKAN_IMPLEMENTATION"
 ]
 
@@ -116,7 +117,8 @@ with open('.vscode/settings.json', 'w') as file:
     lines = []
     lines.append('{')
     lines.append('  "files.associations": {')
-    lines.append('    "pl_*.h": "c"')
+    lines.append('    "pl_*.h": "c"',)
+    lines.append('    "pl_*.inc": "c"')
     lines.append('   }')
     lines.append('}')
     
