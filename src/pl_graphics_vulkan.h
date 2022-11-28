@@ -21,6 +21,8 @@ Index of this file:
 
 #if defined(_WIN32)
 #define VK_USE_PLATFORM_WIN32_KHR
+#elif defined(__APPLE__)
+#define VK_USE_PLATFORM_METAL_EXT
 #else // linux
 #define VK_USE_PLATFORM_XCB_KHR
 #endif

@@ -9,7 +9,8 @@ with pl.project("pilotlight"):
     
     # configurations
     pl.add_configuration("debug")
-    pl.add_configuration("debugdx11") # only used on win32 for direct x11
+    pl.add_configuration("debugdx11")   # only used on win32 for direct x11
+    pl.add_configuration("debugvulkan") # only used on macos for vulkan
 
     # where to output build scripts
     pl.set_working_directory(".")
@@ -38,7 +39,6 @@ with pl.project("pilotlight"):
         pl.add_definition("PL_VULKAN_BACKEND")
 
     def clang_project_commons():
-        pl.add_definition("PL_METAL_BACKEND")
         pl.add_compiler_flags("-std=c99", "-fmodules", "-ObjC", "--debug", "-g")
         pl.add_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
 
@@ -76,6 +76,7 @@ with pl.project("pilotlight"):
                     project_commons()
                     config_commons()
                     clang_project_commons()
+                    pl.add_definition("PL_METAL_BACKEND")
 
         with pl.configuration("debugdx11"):
             with pl.platform(pl.PlatformType.WIN32):
@@ -85,6 +86,15 @@ with pl.project("pilotlight"):
                     config_commons()
                     pl.add_compiler_flags("-Od", "-MDd", "-Zi")
                     pl.add_definition("PL_DX11_BACKEND")
+
+        with pl.configuration("debugvulkan"):
+            with pl.platform(pl.PlatformType.MACOS):
+                with pl.compiler("clang", pl.CompilerType.CLANG):
+                    project_commons()
+                    config_commons()
+                    clang_project_commons()
+                    pl.add_definition("PL_VULKAN_BACKEND")
+                    pl.add_link_library("vulkan")
 
     ###############################################################################
     #                                 pl_draw_extension                           #
@@ -120,6 +130,7 @@ with pl.project("pilotlight"):
                     project_commons()
                     config_commons()
                     clang_project_commons()
+                    pl.add_definition("PL_METAL_BACKEND")
                     pl.add_source_file("../out/pilotlight.c.o")
 
         with pl.configuration("debugdx11"):
@@ -130,6 +141,16 @@ with pl.project("pilotlight"):
                     project_commons()
                     config_commons()
                     pl.add_definition("PL_DX11_BACKEND")
+
+        with pl.configuration("debugvulkan"):
+            with pl.platform(pl.PlatformType.MACOS):
+                with pl.compiler("clang", pl.CompilerType.CLANG):
+                    project_commons()
+                    config_commons()
+                    clang_project_commons()
+                    pl.add_definition("PL_VULKAN_BACKEND")
+                    pl.add_source_file("../out/pilotlight.c.o")
+                    pl.add_link_library("vulkan")
 
     ###############################################################################
     #                                    app                                      #
@@ -165,6 +186,7 @@ with pl.project("pilotlight"):
                     project_commons()
                     config_commons()
                     clang_project_commons()
+                    pl.add_definition("PL_METAL_BACKEND")
                     pl.add_source_file("app_metal.m")
                     pl.add_source_file("../out/pilotlight.c.o")
 
@@ -177,6 +199,17 @@ with pl.project("pilotlight"):
                     config_commons()
                     pl.add_source_file("app_dx11.c")
                     pl.add_definition("PL_DX11_BACKEND")
+
+        with pl.configuration("debugvulkan"):
+            with pl.platform(pl.PlatformType.MACOS):
+                with pl.compiler("clang", pl.CompilerType.CLANG):
+                    project_commons()
+                    config_commons()
+                    clang_project_commons()
+                    pl.add_definition("PL_VULKAN_BACKEND")
+                    pl.add_source_file("app_vulkan.c")
+                    pl.add_source_file("../out/pilotlight.c.o")
+                    pl.add_link_library("vulkan")
 
     ###############################################################################
     #                                 pilot_light                                 #
@@ -213,6 +246,7 @@ with pl.project("pilotlight"):
                     project_commons()
                     config_commons()
                     clang_project_commons()
+                    pl.add_definition("PL_METAL_BACKEND")
                     pl.add_source_file("../out/pilotlight.c.o")
                     pl.add_source_file("pl_main_macos.m")
 
@@ -224,6 +258,17 @@ with pl.project("pilotlight"):
                     project_commons()
                     config_commons()
                     pl.add_definition("PL_DX11_BACKEND")
+
+        with pl.configuration("debugvulkan"):
+            with pl.platform(pl.PlatformType.MACOS):
+                with pl.compiler("clang", pl.CompilerType.CLANG):
+                    project_commons()
+                    config_commons()
+                    clang_project_commons()
+                    pl.add_definition("PL_VULKAN_BACKEND")
+                    pl.add_source_file("../out/pilotlight.c.o")
+                    pl.add_source_file("pl_main_macos.m")
+                    pl.add_link_library("vulkan")
            
 pl.generate_win32_build()
 pl.generate_linux_build()

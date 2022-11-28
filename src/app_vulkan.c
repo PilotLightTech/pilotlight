@@ -138,6 +138,12 @@ pl_app_setup(plAppData* ptAppData)
             .hwnd = *(HWND*)ptIOCtx->pBackendPlatformData
         };
         PL_VULKAN(vkCreateWin32SurfaceKHR(ptAppData->graphics.tInstance, &surfaceCreateInfo, NULL, &ptAppData->graphics.tSurface));
+    #elif defined(__APPLE__)
+        VkMetalSurfaceCreateInfoEXT tSurfaceCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT,
+            .pLayer = (CAMetalLayer*)ptIOCtx->pBackendPlatformData
+        };
+        PL_VULKAN(vkCreateMetalSurfaceEXT(ptAppData->graphics.tInstance, &tSurfaceCreateInfo, NULL, &ptAppData->graphics.tSurface));
     #else // linux
         struct tPlatformData { xcb_connection_t* ptConnection; xcb_window_t tWindow;};
         struct tPlatformData* ptPlatformData = (struct tPlatformData*)ptIOCtx->pBackendPlatformData;

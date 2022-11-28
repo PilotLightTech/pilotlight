@@ -351,6 +351,13 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     view.delegate = self;
     view.metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
     gtIOContext.pBackendPlatformData = device;
+
+    #ifdef PL_VULKAN_BACKEND
+        plIOContext* ptIOCtx = pl_get_io_context();
+        ptIOCtx->pBackendPlatformData = view.metalLayer;
+    #endif
+    gtIOContext.afMainViewportSize[0] = 500;
+    gtIOContext.afMainViewportSize[1] = 500;
     pl_app_setup(gUserData);
 }
 
