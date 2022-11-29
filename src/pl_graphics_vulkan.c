@@ -334,10 +334,7 @@ pl_create_device(VkInstance tInstance, VkSurfaceKHR tSurface, plVulkanDevice* pt
     };
     PL_VULKAN(vkCreateDevice(ptDeviceOut->tPhysicalDevice, &tCreateDeviceInfo, NULL, &ptDeviceOut->tLogicalDevice));
 
-    //-----------------------------------------------------------------------------
     // get device queues
-    //-----------------------------------------------------------------------------
-
     vkGetDeviceQueue(ptDeviceOut->tLogicalDevice, ptDeviceOut->iGraphicsQueueFamily, 0, &ptDeviceOut->tGraphicsQueue);
     vkGetDeviceQueue(ptDeviceOut->tLogicalDevice, ptDeviceOut->iPresentQueueFamily, 0, &ptDeviceOut->tPresentQueue);
 }
@@ -388,13 +385,14 @@ pl_create_framebuffers(plVulkanDevice* ptDevice, VkRenderPass tRenderPass, plVul
     for(uint32_t i = 0; i < ptSwapchain->uImageCount; i++)
     {
         VkImageView atAttachments[] = {
-            ptSwapchain->ptImageViews[i],
-            ptSwapchain->tDepthImageView
+            ptSwapchain->tColorImageView,
+            ptSwapchain->tDepthImageView,
+            ptSwapchain->ptImageViews[i]
         };
         VkFramebufferCreateInfo tFrameBufferInfo = {
             .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
             .renderPass      = tRenderPass,
-            .attachmentCount = 2u,
+            .attachmentCount = 3u,
             .pAttachments    = atAttachments,
             .width           = ptSwapchain->tExtent.width,
             .height          = ptSwapchain->tExtent.height,
@@ -408,6 +406,8 @@ void
 pl_create_swapchain(plVulkanDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uWidth, uint32_t uHeight, plVulkanSwapchain* ptSwapchainOut)
 {
     vkDeviceWaitIdle(ptDevice->tLogicalDevice);
+
+    ptSwapchainOut->tMsaaSamples = pl_get_max_sample_count(ptDevice);
 
     //-----------------------------------------------------------------------------
     // query swapchain support
@@ -571,14 +571,19 @@ pl_create_swapchain(plVulkanDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uW
         PL_VULKAN(vkCreateImageView(ptDevice->tLogicalDevice, &tViewInfo, NULL, &ptSwapchainOut->ptImageViews[i]));   
     }  //-V1020
 
-    // depth
-
+    // color & depth
+    if(ptSwapchainOut->tColorImageView) vkDestroyImageView(ptDevice->tLogicalDevice, ptSwapchainOut->tColorImageView, NULL);
+    if(ptSwapchainOut->tColorImage)     vkDestroyImage(ptDevice->tLogicalDevice, ptSwapchainOut->tColorImage, NULL);
+    if(ptSwapchainOut->tColorMemory)    vkFreeMemory(ptDevice->tLogicalDevice, ptSwapchainOut->tColorMemory, NULL);
+    ptSwapchainOut->tColorImageView = VK_NULL_HANDLE;
+    ptSwapchainOut->tColorImage     = VK_NULL_HANDLE;
+    ptSwapchainOut->tColorMemory    = VK_NULL_HANDLE;
     if(ptSwapchainOut->tDepthImageView) vkDestroyImageView(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthImageView, NULL);
     if(ptSwapchainOut->tDepthImage)     vkDestroyImage(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthImage, NULL);
     if(ptSwapchainOut->tDepthMemory)    vkFreeMemory(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthMemory, NULL);
     ptSwapchainOut->tDepthImageView = VK_NULL_HANDLE;
-    ptSwapchainOut->tDepthImage = VK_NULL_HANDLE;
-    ptSwapchainOut->tDepthMemory = VK_NULL_HANDLE;
+    ptSwapchainOut->tDepthImage     = VK_NULL_HANDLE;
+    ptSwapchainOut->tDepthMemory    = VK_NULL_HANDLE;
 
     VkImageCreateInfo tDepthImageInfo = {
         .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -593,22 +598,51 @@ pl_create_swapchain(plVulkanDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uW
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
         .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
-        .samples       = VK_SAMPLE_COUNT_1_BIT,
+        .samples       = ptSwapchainOut->tMsaaSamples,
         .flags         = 0
     };
-    PL_VULKAN(vkCreateImage(ptDevice->tLogicalDevice, &tDepthImageInfo, NULL, &ptSwapchainOut->tDepthImage));
 
-    VkMemoryRequirements tMemReqs = {0};
-    vkGetImageMemoryRequirements(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthImage, &tMemReqs);
+    VkImageCreateInfo tColorImageInfo = {
+        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType     = VK_IMAGE_TYPE_2D,
+        .extent.width  = ptSwapchainOut->tExtent.width,
+        .extent.height = ptSwapchainOut->tExtent.height,
+        .extent.depth  = 1,
+        .mipLevels     = 1,
+        .arrayLayers   = 1,
+        .format        = ptSwapchainOut->tFormat,
+        .tiling        = VK_IMAGE_TILING_OPTIMAL,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .usage         = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
+        .samples       = ptSwapchainOut->tMsaaSamples,
+        .flags         = 0
+    };
+
+    PL_VULKAN(vkCreateImage(ptDevice->tLogicalDevice, &tDepthImageInfo, NULL, &ptSwapchainOut->tDepthImage));
+    PL_VULKAN(vkCreateImage(ptDevice->tLogicalDevice, &tColorImageInfo, NULL, &ptSwapchainOut->tColorImage));
+
+    VkMemoryRequirements tDepthMemReqs = {0};
+    VkMemoryRequirements tColorMemReqs = {0};
+    vkGetImageMemoryRequirements(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthImage, &tDepthMemReqs);
+    vkGetImageMemoryRequirements(ptDevice->tLogicalDevice, ptSwapchainOut->tColorImage, &tColorMemReqs);
 
     VkMemoryAllocateInfo tDepthAllocInfo = {
         .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize  = tMemReqs.size,
-        .memoryTypeIndex = pl_find_memory_type(ptDevice->tMemProps, tMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+        .allocationSize  = tDepthMemReqs.size,
+        .memoryTypeIndex = pl_find_memory_type(ptDevice->tMemProps, tDepthMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+    };
+
+    VkMemoryAllocateInfo tColorAllocInfo = {
+        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize  = tColorMemReqs.size,
+        .memoryTypeIndex = pl_find_memory_type(ptDevice->tMemProps, tColorMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
     };
 
     PL_VULKAN(vkAllocateMemory(ptDevice->tLogicalDevice, &tDepthAllocInfo, NULL, &ptSwapchainOut->tDepthMemory));
+    PL_VULKAN(vkAllocateMemory(ptDevice->tLogicalDevice, &tColorAllocInfo, NULL, &ptSwapchainOut->tColorMemory));
     PL_VULKAN(vkBindImageMemory(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthImage, ptSwapchainOut->tDepthMemory, 0));
+    PL_VULKAN(vkBindImageMemory(ptDevice->tLogicalDevice, ptSwapchainOut->tColorImage, ptSwapchainOut->tColorMemory, 0));
 
     VkImageViewCreateInfo tDepthViewInfo = {
         .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -625,7 +659,20 @@ pl_create_swapchain(plVulkanDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uW
     if(pl_format_has_stencil(tDepthViewInfo.format))
         tDepthViewInfo.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
 
+    VkImageViewCreateInfo tColorViewInfo = {
+        .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image                           = ptSwapchainOut->tColorImage,
+        .viewType                        = VK_IMAGE_VIEW_TYPE_2D,
+        .format                          = tColorImageInfo.format,
+        .subresourceRange.baseMipLevel   = 0,
+        .subresourceRange.levelCount     = 1,
+        .subresourceRange.baseArrayLayer = 0,
+        .subresourceRange.layerCount     = 1,
+        .subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+    };
+
     PL_VULKAN(vkCreateImageView(ptDevice->tLogicalDevice, &tDepthViewInfo, NULL, &ptSwapchainOut->tDepthImageView));
+    PL_VULKAN(vkCreateImageView(ptDevice->tLogicalDevice, &tColorViewInfo, NULL, &ptSwapchainOut->tColorImageView));
 }
 
 VkCommandBuffer
@@ -870,6 +917,22 @@ pl_format_has_stencil(VkFormat tFormat)
         case VK_FORMAT_D32_SFLOAT:
         default: return false;
     }
+}
+
+VkSampleCountFlagBits
+pl_get_max_sample_count(plVulkanDevice* ptDevice)
+{
+    VkPhysicalDeviceProperties tPhysicalDeviceProperties = {0};
+    vkGetPhysicalDeviceProperties(ptDevice->tPhysicalDevice, &tPhysicalDeviceProperties);
+
+    VkSampleCountFlags tCounts = tPhysicalDeviceProperties.limits.framebufferColorSampleCounts & tPhysicalDeviceProperties.limits.framebufferDepthSampleCounts;
+    if (tCounts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT; }
+    if (tCounts & VK_SAMPLE_COUNT_32_BIT) { return VK_SAMPLE_COUNT_32_BIT; }
+    if (tCounts & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT; }
+    if (tCounts & VK_SAMPLE_COUNT_8_BIT)  { return VK_SAMPLE_COUNT_8_BIT; }
+    if (tCounts & VK_SAMPLE_COUNT_4_BIT)  { return VK_SAMPLE_COUNT_4_BIT; }
+    if (tCounts & VK_SAMPLE_COUNT_2_BIT)  { return VK_SAMPLE_COUNT_2_BIT; }
+    return VK_SAMPLE_COUNT_1_BIT;    
 }
 
 //-----------------------------------------------------------------------------

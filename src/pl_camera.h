@@ -241,7 +241,7 @@ pl__update_camera_view(plCamera* ptCamera)
     ptCamera->_tUpVec      = pl_norm_vec4(pl_mul_mat4_vec4(&tOp0, tOriginalUpVec)).xyz;
     ptCamera->_tForwardVec = pl_norm_vec4(pl_mul_mat4_vec4(&tOp0, tOriginalForwardVec)).xyz;
 
-    const plMat4 tFlipY = pl_mat4_scale_xyz(1.0f, -1.0f, 1.0f);
+    const plMat4 tFlipY = pl_mat4_scale_xyz(1.0f, -1.0f, -1.0f);
     ptCamera->tViewMat  = pl_mat4t_invert(&ptCamera->tTransformMat);
     ptCamera->tViewMat  = pl_mul_mat4t(&ptCamera->tViewMat, &tFlipY);
 }

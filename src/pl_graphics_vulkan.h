@@ -70,6 +70,7 @@ void                  pl_transition_image_layout(VkCommandBuffer tCommandBuffer,
 VkFormat              pl_find_supported_format  (plVulkanDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount);
 VkFormat              pl_find_depth_format      (plVulkanDevice* ptDevice);
 bool                  pl_format_has_stencil     (VkFormat tFormat);
+VkSampleCountFlagBits pl_get_max_sample_count   (plVulkanDevice* ptDevice);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -86,23 +87,26 @@ typedef struct _plVulkanFrameContext
 
 typedef struct _plVulkanSwapchain
 {
-    VkSwapchainKHR  tSwapChain;
-    VkExtent2D      tExtent;
-    VkFramebuffer*  ptFrameBuffers;
-    VkFormat        tFormat;
-    VkFormat        tDepthFormat;
-    VkImage*        ptImages;
-    VkImageView*    ptImageViews;
-    VkImage         tDepthImage;
-    VkImageView     tDepthImageView;
-    VkDeviceMemory  tDepthMemory;
-    uint32_t        uImageCount;
-    uint32_t        uImageCapacity;
-    uint32_t        uCurrentImageIndex; // current image to use within the swap chain
-    bool            bVSync;
-
-    VkSurfaceFormatKHR* ptSurfaceFormats_;
-    uint32_t            uSurfaceFormatCapacity_;
+    VkSwapchainKHR        tSwapChain;
+    VkExtent2D            tExtent;
+    VkFramebuffer*        ptFrameBuffers;
+    VkFormat              tFormat;
+    VkFormat              tDepthFormat;
+    VkImage*              ptImages;
+    VkImageView*          ptImageViews;
+    VkImage               tColorImage;
+    VkImageView           tColorImageView;
+    VkDeviceMemory        tColorMemory;
+    VkImage               tDepthImage;
+    VkImageView           tDepthImageView;
+    VkDeviceMemory        tDepthMemory;
+    uint32_t              uImageCount;
+    uint32_t              uImageCapacity;
+    uint32_t              uCurrentImageIndex; // current image to use within the swap chain
+    bool                  bVSync;
+    VkSampleCountFlagBits tMsaaSamples;
+    VkSurfaceFormatKHR*   ptSurfaceFormats_;
+    uint32_t              uSurfaceFormatCapacity_;
 
 } plVulkanSwapchain;
 

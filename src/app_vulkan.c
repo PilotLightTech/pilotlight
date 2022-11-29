@@ -126,7 +126,7 @@ pl_app_setup(plAppData* ptAppData)
     plIOContext* ptIOCtx = pl_get_io_context();
 
     // create vulkan tInstance
-    pl_create_instance(&ptAppData->graphics, VK_API_VERSION_1_1, true);
+    pl_create_instance(&ptAppData->graphics, VK_API_VERSION_1_2, true);
 
     // create tSurface
     #ifdef _WIN32
@@ -171,26 +171,39 @@ pl_app_setup(plAppData* ptAppData)
         {
             .flags          = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT,
             .format         = ptAppData->swapchain.tFormat,
-            .samples        = VK_SAMPLE_COUNT_1_BIT,
+            .samples        = ptAppData->swapchain.tMsaaSamples,
             .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
             .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
-            .finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+            .finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         },
 
         // depth attachment
         {
             .format         = pl_find_depth_format(&ptAppData->device),
-            .samples        = VK_SAMPLE_COUNT_1_BIT,
+            .samples        = ptAppData->swapchain.tMsaaSamples,
             .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             .finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-        }
+        },
+
+        // color resolve attachment
+        {
+            .flags          = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT,
+            .format         = ptAppData->swapchain.tFormat,
+            .samples        = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+        },
     };
 
     VkSubpassDependency tSubpassDependencies[] = {
@@ -223,6 +236,10 @@ pl_app_setup(plAppData* ptAppData)
         {
             .attachment = 1,
             .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL     
+        },
+        {
+            .attachment = 2,
+            .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL     
         }
     };
 
@@ -230,12 +247,13 @@ pl_app_setup(plAppData* ptAppData)
         .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
         .colorAttachmentCount    = 1,
         .pColorAttachments       = &atAttachmentReferences[0],
-        .pDepthStencilAttachment = &atAttachmentReferences[1]
+        .pDepthStencilAttachment = &atAttachmentReferences[1],
+        .pResolveAttachments     = &atAttachmentReferences[2]
     };
 
     VkRenderPassCreateInfo tRenderPassInfo = {
         .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .attachmentCount = 2,
+        .attachmentCount = 3,
         .pAttachments    = atAttachments,
         .subpassCount    = 1,
         .pSubpasses      = &tSubpass,
@@ -264,7 +282,7 @@ pl_app_setup(plAppData* ptAppData)
     // setup drawing api
     pl_initialize_draw_context_vulkan(&ptAppData->ctx, ptAppData->device.tPhysicalDevice, 3, ptAppData->device.tLogicalDevice);
     pl_register_drawlist(&ptAppData->ctx, &ptAppData->drawlist);
-    pl_setup_drawlist_vulkan(&ptAppData->drawlist, ptAppData->graphics.tRenderPass);
+    pl_setup_drawlist_vulkan(&ptAppData->drawlist, ptAppData->graphics.tRenderPass, ptAppData->swapchain.tMsaaSamples);
     ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
     ptAppData->fgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Foreground Layer");
 
@@ -287,6 +305,9 @@ pl_app_shutdown(plAppData* ptAppData)
     if(ptAppData->swapchain.tDepthImage)     vkDestroyImage(ptAppData->device.tLogicalDevice, ptAppData->swapchain.tDepthImage, NULL);
     if(ptAppData->swapchain.tDepthMemory)    vkFreeMemory(ptAppData->device.tLogicalDevice, ptAppData->swapchain.tDepthMemory, NULL);
 
+    if(ptAppData->swapchain.tColorImageView) vkDestroyImageView(ptAppData->device.tLogicalDevice, ptAppData->swapchain.tColorImageView, NULL);
+    if(ptAppData->swapchain.tColorImage)     vkDestroyImage(ptAppData->device.tLogicalDevice, ptAppData->swapchain.tColorImage, NULL);
+    if(ptAppData->swapchain.tColorMemory)    vkFreeMemory(ptAppData->device.tLogicalDevice, ptAppData->swapchain.tColorMemory, NULL);
 
     // destroy swapchain
     for (uint32_t i = 0u; i < ptAppData->swapchain.uImageCount; i++)

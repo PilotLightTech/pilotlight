@@ -36,7 +36,7 @@ Index of this file:
 
 // backend implementation
 void pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice tPhysicalDevice, uint32_t imageCount, VkDevice tLogicalDevice);
-void pl_setup_drawlist_vulkan     (plDrawList* drawlist, VkRenderPass tRenderPass);
+void pl_setup_drawlist_vulkan     (plDrawList* drawlist, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount);
 void pl_submit_drawlist_vulkan    (plDrawList* drawlist, float width, float height, VkCommandBuffer cmdBuf, uint32_t currentFrameIndex);
 void pl_new_draw_frame            (plDrawContext* ctx);
 
@@ -340,11 +340,11 @@ pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice tPhysical
     // TODO: add a system to allow this to grow as needed
     VkDescriptorPoolSize poolSizes = { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 };
     VkDescriptorPoolCreateInfo poolInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-        .maxSets = 1000u,
+        .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+        .maxSets       = 1000u,
         .poolSizeCount = 1u,
-        .pPoolSizes = &poolSizes
+        .pPoolSizes    = &poolSizes
     };
     PL_VULKAN(vkCreateDescriptorPool(tLogicalDevice, &poolInfo, NULL, &vulkanDrawContext->descriptorPool));
 
@@ -372,31 +372,31 @@ pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice tPhysical
 
     // create font sampler
     VkSamplerCreateInfo samplerInfo = {
-        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .magFilter = VK_FILTER_LINEAR,
-        .minFilter = VK_FILTER_LINEAR,
-        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-        .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .minLod = -1000,
-        .maxLod = 1000,
+        .sType         = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter     = VK_FILTER_LINEAR,
+        .minFilter     = VK_FILTER_LINEAR,
+        .mipmapMode    = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .addressModeU  = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeV  = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeW  = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .minLod        = -1000,
+        .maxLod        = 1000,
         .maxAnisotropy = 1.0f
     };
     PL_VULKAN(vkCreateSampler(vulkanDrawContext->device, &samplerInfo, NULL, &vulkanDrawContext->fontSampler));
 
     // create descriptor set layout
     VkDescriptorSetLayoutBinding binding = {
-        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .descriptorCount = 1,
-        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount    = 1,
+        .stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT,
         .pImmutableSamplers = &vulkanDrawContext->fontSampler,
     };
 
     VkDescriptorSetLayoutCreateInfo info = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = 1,
-        .pBindings = &binding,
+        .pBindings    = &binding,
     };
 
     PL_VULKAN(vkCreateDescriptorSetLayout(vulkanDrawContext->device, &info, NULL, &vulkanDrawContext->descriptorSetLayout));
@@ -482,7 +482,7 @@ pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice tPhysical
 }
 
 void
-pl_setup_drawlist_vulkan(plDrawList* drawlist, VkRenderPass tRenderPass)
+pl_setup_drawlist_vulkan(plDrawList* drawlist, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount)
 {
     if(drawlist->_platformData == NULL)
     {
@@ -597,7 +597,7 @@ pl_setup_drawlist_vulkan(plDrawList* drawlist, VkRenderPass tRenderPass)
     VkPipelineMultisampleStateCreateInfo multisampling = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .sampleShadingEnable = VK_FALSE,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT
+        .rasterizationSamples = tMSAASampleCount
     };
 
     VkDynamicState ptrDynamicStateEnables[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
