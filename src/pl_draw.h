@@ -129,9 +129,9 @@ plVec2          pl_calculate_text_size     (plFont* font, float size, const char
 
 typedef struct _plDrawVertex
 {
-    float pos[2];
-    float uv[2];
-    float color[4];
+    float    pos[2];
+    float    uv[2];
+    uint32_t uColor;
 } plDrawVertex;
 
 typedef struct _plFontRange

@@ -506,20 +506,20 @@ pl_setup_drawlist_vulkan(plDrawList* drawlist, VkRenderPass tRenderPass, VkSampl
     //---------------------------------------------------------------------
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
         .primitiveRestartEnable = VK_FALSE
     };
 
     VkVertexInputAttributeDescription attributeDescriptions[] = {
-        {0u, 0u, VK_FORMAT_R32G32_SFLOAT, 0u},
-        {1u, 0u, VK_FORMAT_R32G32_SFLOAT, 8u},
-        {2u, 0u, VK_FORMAT_R32G32B32A32_SFLOAT, 16u}
+        {0u, 0u, VK_FORMAT_R32G32_SFLOAT,   0u},
+        {1u, 0u, VK_FORMAT_R32G32_SFLOAT,   8u},
+        {2u, 0u, VK_FORMAT_R8G8B8A8_UNORM, 16u}
     };
     
     VkVertexInputBindingDescription bindingDescription = {
-        .binding = 0u,
-        .stride = sizeof(float)*8u,
+        .binding   = 0u,
+        .stride    = sizeof(plDrawVertex),
         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
     };
 

@@ -478,7 +478,7 @@ pl_cleanup_font_atlas(plFontAtlas* atlas)
     vertexDescriptor.attributes[1].format = MTLVertexFormatFloat2; // texCoords
     vertexDescriptor.attributes[1].bufferIndex = 0;
     vertexDescriptor.attributes[2].offset = sizeof(float) * 4;
-    vertexDescriptor.attributes[2].format = MTLVertexFormatFloat4; // color
+    vertexDescriptor.attributes[2].format = MTLVertexFormatUChar4Normalized; // color
     vertexDescriptor.attributes[2].bufferIndex = 0;
     vertexDescriptor.layouts[0].stepRate = 1;
     vertexDescriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;

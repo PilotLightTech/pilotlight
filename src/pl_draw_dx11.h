@@ -211,9 +211,9 @@ pl_initialize_draw_context_dx11(plDrawContext* ptCtx, ID3D11Device* ptDevice, ID
 
     D3D11_INPUT_ELEMENT_DESC inputElementDesc[] =
     {
-        { "Position", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "TexCoord", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "Color", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+        { "Position", 0, DXGI_FORMAT_R32G32_FLOAT,   0,                            0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TexCoord", 0, DXGI_FORMAT_R32G32_FLOAT,   0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "Color",    0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
     };   
 
     PL_COM(ptDx11Context->ptDevice)->CreateInputLayout(ptDx11Context->ptDevice, inputElementDesc, 3, PL_COM(vsBlob)->GetBufferPointer(vsBlob), PL_COM(vsBlob)->GetBufferSize(vsBlob), &ptDx11Context->ptInputLayout);
