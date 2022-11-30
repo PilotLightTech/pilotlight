@@ -17,8 +17,9 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#import <Metal/Metal.h>
+#import <QuartzCore/CAMetalLayer.h>
 #include "pilotlight.h"
-#include "pl_graphics_metal.h"
 #include "pl_ds.h"
 #include "pl_io.h"
 #include "pl_profile.h"
@@ -35,6 +36,18 @@ Index of this file:
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plMetalDevice
+{
+    id<MTLDevice> device;
+} plMetalDevice;
+
+typedef struct _plMetalGraphics
+{
+    id<MTLCommandQueue> cmdQueue;
+    uint32_t currentFrame;
+    CAMetalLayer *metalLayer;
+} plMetalGraphics;
 
 typedef struct plAppData_t
 {

@@ -21,8 +21,8 @@ Index of this file:
 #import <Cocoa/Cocoa.h>
 #import <Carbon/Carbon.h>
 #import <QuartzCore/CAMetalLayer.h>
+#import <Metal/Metal.h>
 #import <time.h>
-#include "pl_graphics_metal.h"
 #include "pl_os.h"
 #include "pl_io.h"
 
@@ -372,6 +372,12 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 {
     // gAppData.graphics.metalLayer = layer;
     gtIOContext.pBackendRendererData = layer;
+
+    gtIOContext.afMainFramebufferScale[0] = self.view.window.screen.backingScaleFactor ?: NSScreen.mainScreen.backingScaleFactor;
+    gtIOContext.afMainFramebufferScale[1] = gtIOContext.afMainFramebufferScale[0];
+
+    // not osx
+    // CGFloat framebufferScale = view.window.screen.scale ?: UIScreen.mainScreen.scale;
 
     // reload library
     if(pl_has_library_changed(&gAppLibrary))

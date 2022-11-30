@@ -249,6 +249,7 @@ typedef struct _plIOContext
     double   dTime;
     float    fDeltaTime;
     float    afMainViewportSize[2];
+    float    afMainFramebufferScale[2];
     uint64_t ulFrameCount;
 
     // settings
