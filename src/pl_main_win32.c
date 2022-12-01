@@ -406,7 +406,7 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
             break;
         }
 
-        case WM_DESTROY:
+        case WM_CLOSE:
         {
             PostQuitMessage(0);
             break;
