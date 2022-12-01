@@ -252,10 +252,10 @@ pl__update_camera_proj(plCamera* ptCamera)
     const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);
     ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
     ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
-    ptCamera->tProjMat.col[2].z = ptCamera->fNearZ / (ptCamera->fNearZ - ptCamera->fFarZ);
+    ptCamera->tProjMat.col[2].z = ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
     ptCamera->tProjMat.col[2].w = 1.0f;
-    ptCamera->tProjMat.col[3].z = -(ptCamera->fNearZ * ptCamera->fFarZ) / (ptCamera->fNearZ - ptCamera->fFarZ);
-    ptCamera->tProjMat.col[3].w = 0.0f;    
+    ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * (ptCamera->fFarZ - ptCamera->fNearZ);
+    ptCamera->tProjMat.col[3].w = 0.0f;     
 }
 
 static float
