@@ -1,4 +1,4 @@
-__version__ = "0.1.1"
+__version__ = "0.2.1"
 
 ###############################################################################
 #                                  Info                                       #
@@ -28,7 +28,8 @@ __version__ = "0.1.1"
 
 from enum import Enum
 from contextlib import contextmanager
- 
+import platform as plat
+
 ###############################################################################
 #                                  Enums                                      #
 ###############################################################################
@@ -79,6 +80,7 @@ class CompilerSettings:
         self._include_directories = []
         self._link_directories = []
         self._source_files = []
+        self._vulkan_glsl_shader_files = []
         self._link_libraries = []
         self._link_frameworks = []
         self._target_type = TargetType.NONE
@@ -117,8 +119,7 @@ class Project:
         self._registered_options = []
         self._registered_flags = []
         self._registered_configurations = []
-
-
+        
 class BuildContext:
     def __init__(self):
         self._current_project = None
@@ -219,6 +220,9 @@ def compiler(name: str, compiler_type: CompilerType):
     finally:
         _context._current_platform._compiler_settings.append(_context._current_compiler_settings)
         _context._current_compiler_settings = None
+
+def add_vulkan_glsl_file(file: str):
+    _context._current_compiler_settings._vulkan_glsl_shader_files.append(file)
 
 def add_source_file(file: str):
     _context._current_compiler_settings._source_files.append(file)
@@ -327,13 +331,16 @@ def _setup_defaults():
                                 else :
                                     settings._output_binary_extension = ""
 
-def generate_macos_build():
+def generate_macos_build(name_override=None):
 
     _setup_defaults()
 
     for project in _context._projects:
 
-        filepath = project._working_directory + "//" + project._macos_script_name + ".sh"
+        if name_override is None:
+            filepath = project._working_directory + "//" + project._macos_script_name + ".sh"
+        else:
+            filepath = project._working_directory + "//" + project.name_override + ".sh"
         file_type = FileType.BASH
 
         with open(filepath, "w") as file:
@@ -609,6 +616,15 @@ def generate_macos_build():
                                             buffer += "echo ${CYAN}Results: ${NC} ${PL_RESULT}\n"
                                             buffer += "echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}\n"
 
+                                            if settings._vulkan_glsl_shader_files:
+                                                buffer += '\n\n# cleanup old glsl vulkan shaders\n'
+                                                for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
+                                                    buffer += 'rm -f ./' + settings._output_directory + '/' + vulkan_glsl_shader + '.spv\n'
+
+                                                buffer += '\n# compile glsl vulkan shaders\n'
+                                                for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
+                                                    buffer += 'glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader + '.spv ' + vulkan_glsl_shader + '\n'
+
                                             buffer += '\n# remove lock file\n'
                                             buffer += 'rm "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
 
@@ -620,13 +636,16 @@ def generate_macos_build():
             buffer += 'popd >/dev/null'
             file.write(buffer)
 
-def generate_linux_build():
+def generate_linux_build(name_override=None):
 
     _setup_defaults()
 
     for project in _context._projects:
 
-        filepath = project._working_directory + "//" + project._linux_script_name + ".sh"
+        if name_override is None:
+            filepath = project._working_directory + "//" + project._linux_script_name + ".sh"
+        else:
+            filepath = project._working_directory + "//" + project.name_override + ".sh"
         file_type = FileType.BASH
 
         with open(filepath, "w") as file:
@@ -872,6 +891,15 @@ def generate_linux_build():
                                             buffer += "echo ${CYAN}Results: ${NC} ${PL_RESULT}\n"
                                             buffer += "echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}\n"
 
+                                            if settings._vulkan_glsl_shader_files:
+                                                buffer += '\n\n# cleanup old glsl vulkan shaders\n'
+                                                for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
+                                                    buffer += 'rm -f ./' + settings._output_directory + '/' + vulkan_glsl_shader + '.spv\n'
+
+                                                buffer += '\n# compile glsl vulkan shaders\n'
+                                                for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
+                                                    buffer += 'glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader + '.spv ' + vulkan_glsl_shader + '\n'
+
                                             buffer += '\n# remove lock file\n'
                                             buffer += 'rm "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
                 if target_found:
@@ -882,13 +910,16 @@ def generate_linux_build():
             buffer += 'popd >/dev/null'
             file.write(buffer)
 
-def generate_win32_build():
+def generate_win32_build(name_override=None):
 
     _setup_defaults()
 
     for project in _context._projects:
 
-        filepath = project._working_directory + "/" + project._win32_script_name + ".bat"
+        if name_override is None:
+            filepath = project._working_directory + "/" + project._win32_script_name + ".bat"
+        else:
+            filepath = project._working_directory + "/" + name_override + ".bat"
         file_type = FileType.BATCH
 
         with open(filepath, "w") as file:
@@ -1216,7 +1247,17 @@ def generate_win32_build():
                                             buffer += '\n    @echo [1m[36mCleaning...[0m\n'
                                             buffer += '    @del "' + settings._output_directory + '/*.obj"  > nul 2> nul'
 
-                                            buffer += "\n\n"
+                                            if settings._vulkan_glsl_shader_files:
+                                                buffer += '\n\n@rem cleanup old glsl vulkan shaders\n'
+                                                for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
+                                                    buffer += '@if exist "' + settings._output_directory + '/' + vulkan_glsl_shader + '.spv"'
+                                                    buffer += ' del "' + settings._output_directory + '/' + vulkan_glsl_shader + '.spv"\n'
+
+                                                buffer += '\n@rem compile glsl vulkan shaders\n'
+                                                for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
+                                                    buffer += '%VULKAN_SDK%/bin/glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader + '.spv ' + vulkan_glsl_shader + '\n'
+        
+                                            buffer += "\n"
                                             buffer += '@rem delete lock file\n'
                                             buffer += '@del "' + settings._output_directory + '/' + target._lock_file + '"'
                                             buffer += "\n\n"
@@ -1236,3 +1277,11 @@ def generate_win32_build():
             buffer += '@popd'
             file.write(buffer)
 
+def generate_build_script(name_override=None):
+
+    if plat.system() == "Windows":
+        generate_win32_build(name_override)
+    elif plat.system() == "Darwin":
+        generate_macos_build(name_override)
+    elif plat.system() == "Linux":
+        generate_linux_build(name_override)

@@ -234,6 +234,7 @@ with pl.project("pilotlight"):
                     config_commons()
                     pl.add_definition("_DEBUG")
                     pl.add_definition("PL_VULKAN_BACKEND")
+                    
             with pl.platform(pl.PlatformType.LINUX):
                 with pl.compiler("gcc", pl.CompilerType.GCC):
                     project_commons()
@@ -269,8 +270,5 @@ with pl.project("pilotlight"):
                     pl.add_definition("PL_METAL_BACKEND")
                     pl.add_source_file("../out/pilotlight.c.o")
                     pl.add_source_file("pl_main_macos.m")
-                    
-           
-pl.generate_win32_build()
-pl.generate_linux_build()
-pl.generate_macos_build()
+                          
+pl.generate_build_script("build")

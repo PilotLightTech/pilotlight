@@ -40,11 +40,11 @@ jobs:
         cd $GITHUB_WORKSPACE
         cd src
         python build.py
-        call build_win32.bat -c debug
+        call build.bat -c debug
         if not exist ../out/pilot_light.exe exit 1
         if not exist ../out/app.dll exit 1
         if not exist ../out/pilotlight.lib exit 1
-        call build_win32.bat -c debugdx11
+        call build.bat -c debugdx11
         if not exist ../out/pilot_light.exe exit 1
         if not exist ../out/app.dll exit 1
         if not exist ../out/pilotlight.lib exit 1
@@ -63,8 +63,8 @@ jobs:
         cd $GITHUB_WORKSPACE
         cd src
         python3 build.py
-        chmod +x build_macos.sh
-        ./build_macos.sh  -c debugmetal
+        chmod +x build.sh
+        ./build.sh  -c debugmetal
         cd ..
         test -f ./out/pilot_light || exit 1
         test -f ./out/app.so || exit 1
@@ -94,8 +94,8 @@ jobs:
         cd $GITHUB_WORKSPACE
         cd src
         python3 build.py
-        chmod +x build_linux.sh
-        ./build_linux.sh
+        chmod +x build.sh
+        ./build.sh
         cd ..
         test -f ./out/pilot_light || exit 1
         test -f ./out/app.so || exit 1
