@@ -254,7 +254,7 @@ pl__update_camera_proj(plCamera* ptCamera)
     ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
     ptCamera->tProjMat.col[2].z = ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
     ptCamera->tProjMat.col[2].w = 1.0f;
-    ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * (ptCamera->fFarZ - ptCamera->fNearZ);
+    ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
     ptCamera->tProjMat.col[3].w = 0.0f;     
 }
 
