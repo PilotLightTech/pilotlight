@@ -491,7 +491,7 @@ pl_setup_drawlist_vulkan(plDrawList* drawlist, VkRenderPass tRenderPass, VkSampl
     }
 
     plVulkanDrawList* vulkanDrawlist = (plVulkanDrawList*)drawlist->_platformData;
-    plVulkanDrawContext* vulkanDrawCtx = (plVulkanDrawContext*)drawlist->ctx->_platformData;
+    plVulkanDrawContext* vulkanDrawCtx = drawlist->ctx->_platformData;
     pl_sb_resize(vulkanDrawlist->sbVertexBuffer, PL_MAX_FRAMES_IN_FLIGHT);
     pl_sb_resize(vulkanDrawlist->sbVertexMemory, PL_MAX_FRAMES_IN_FLIGHT);
     pl_sb_resize(vulkanDrawlist->sbVertexBufferMap, PL_MAX_FRAMES_IN_FLIGHT);
@@ -646,7 +646,7 @@ pl_setup_drawlist_vulkan(plDrawList* drawlist, VkRenderPass tRenderPass, VkSampl
 void
 pl_new_draw_frame(plDrawContext* ctx)
 {
-    plVulkanDrawContext* vulkanCtx = (plVulkanDrawContext*)ctx->_platformData;
+    plVulkanDrawContext* vulkanCtx = ctx->_platformData;
 
     //-----------------------------------------------------------------------------
     // buffer deletion queue
@@ -705,7 +705,7 @@ pl_new_draw_frame(plDrawContext* ctx)
 void
 pl_cleanup_font_atlas(plFontAtlas* atlas)
 {
-    plVulkanDrawContext* vulkanDrawCtx = (plVulkanDrawContext*)atlas->ctx->_platformData;
+    plVulkanDrawContext* vulkanDrawCtx = atlas->ctx->_platformData;
     plTextureReturn returnTexture = 
     {
         .image = vulkanDrawCtx->fontTextureImage,
@@ -829,7 +829,7 @@ pl_submit_drawlist_vulkan(plDrawList* drawlist, float width, float height, VkCom
 void
 pl_cleanup_draw_context(plDrawContext* ctx)
 {
-    plVulkanDrawContext* vulkanDrawCtx = (plVulkanDrawContext*)ctx->_platformData;
+    plVulkanDrawContext* vulkanDrawCtx = ctx->_platformData;
 
     vkDestroyShaderModule(vulkanDrawCtx->device, vulkanDrawCtx->vtxShdrStgInfo.module, NULL);
     vkDestroyShaderModule(vulkanDrawCtx->device, vulkanDrawCtx->pxlShdrStgInfo.module, NULL);
@@ -888,7 +888,7 @@ pl_cleanup_draw_context(plDrawContext* ctx)
 VkDescriptorSet
 pl_add_texture(plDrawContext* drawContext, VkImageView imageView, VkImageLayout imageLayout)
 {
-    plVulkanDrawContext* vulkanData = (plVulkanDrawContext*)drawContext->_platformData;
+    plVulkanDrawContext* vulkanData = drawContext->_platformData;
 
     // Create Descriptor Set:
     VkDescriptorSet descriptor_set = {0};
@@ -924,7 +924,7 @@ pl_add_texture(plDrawContext* drawContext, VkImageView imageView, VkImageLayout 
 void
 pl_build_font_atlas(plDrawContext* ctx, plFontAtlas* atlas)
 {
-    plVulkanDrawContext* vulkanDrawCtx = (plVulkanDrawContext*)ctx->_platformData;
+    plVulkanDrawContext* vulkanDrawCtx = ctx->_platformData;
 
     pl__build_font_atlas(atlas);
     atlas->ctx = ctx;
@@ -1121,8 +1121,8 @@ static void
 pl__grow_vulkan_vertex_buffer(plDrawList* drawlist, uint32_t vertexBufferSize, uint32_t currentFrameIndex)
 {
     plDrawContext* drawCtx = drawlist->ctx;
-    plVulkanDrawContext* vulkanDrawCtx = (plVulkanDrawContext*)drawCtx->_platformData;
-    plVulkanDrawList* vulkanDrawlist = (plVulkanDrawList*)drawlist->_platformData;
+    plVulkanDrawContext* vulkanDrawCtx = drawCtx->_platformData;
+    plVulkanDrawList* vulkanDrawlist = drawlist->_platformData;
 
     if(vulkanDrawlist->sbVertexBufferMap[currentFrameIndex])
     {
@@ -1164,8 +1164,8 @@ static void
 pl__grow_vulkan_index_buffer(plDrawList* drawlist, uint32_t indexBufferSize, uint32_t currentFrameIndex)
 {
     plDrawContext* drawCtx = drawlist->ctx;
-    plVulkanDrawContext* vulkanDrawCtx = (plVulkanDrawContext*)drawCtx->_platformData;
-    plVulkanDrawList* vulkanDrawlist = (plVulkanDrawList*)drawlist->_platformData;
+    plVulkanDrawContext* vulkanDrawCtx = drawCtx->_platformData;
+    plVulkanDrawList* vulkanDrawlist = drawlist->_platformData;
 
     if(vulkanDrawlist->sbIndexBufferMap[currentFrameIndex])
     {

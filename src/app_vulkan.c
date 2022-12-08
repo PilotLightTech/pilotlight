@@ -40,8 +40,8 @@ Index of this file:
 
 typedef struct _plAppData
 {
-    plVulkanGraphics    tGraphics;
-    plDrawContext       ctx;
+    plGraphics          tGraphics;
+    plDrawContext       tCtx;
     plDrawList          drawlist;
     plDrawLayer*        fgDrawLayer;
     plDrawLayer*        bgDrawLayer;
@@ -124,15 +124,15 @@ pl_app_setup(plAppData* ptAppData)
     pl_setup_graphics(&ptAppData->tGraphics);
     
     // setup drawing api
-    pl_initialize_draw_context_vulkan(&ptAppData->ctx, ptAppData->tGraphics.tDevice.tPhysicalDevice, 3, ptAppData->tGraphics.tDevice.tLogicalDevice);
-    pl_register_drawlist(&ptAppData->ctx, &ptAppData->drawlist);
+    pl_initialize_draw_context_vulkan(&ptAppData->tCtx, ptAppData->tGraphics.tDevice.tPhysicalDevice, 3, ptAppData->tGraphics.tDevice.tLogicalDevice);
+    pl_register_drawlist(&ptAppData->tCtx, &ptAppData->drawlist);
     pl_setup_drawlist_vulkan(&ptAppData->drawlist, ptAppData->tGraphics.tRenderPass, ptAppData->tGraphics.tSwapchain.tMsaaSamples);
     ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
     ptAppData->fgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Foreground Layer");
 
     // create font atlas
     pl_add_default_font(&ptAppData->fontAtlas);
-    pl_build_font_atlas(&ptAppData->ctx, &ptAppData->fontAtlas);
+    pl_build_font_atlas(&ptAppData->tCtx, &ptAppData->fontAtlas);
 
     // camera
     ptAppData->tCamera = pl_create_perspective_camera((plVec3){0.0f, 0.0f, 8.5f}, PL_PI_3, ptIOCtx->afMainViewportSize[0] / ptIOCtx->afMainViewportSize[1], 0.01f, 400.0f);
@@ -148,7 +148,7 @@ pl_app_shutdown(plAppData* ptAppData)
 {
     vkDeviceWaitIdle(ptAppData->tGraphics.tDevice.tLogicalDevice);
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
-    pl_cleanup_draw_context(&ptAppData->ctx);
+    pl_cleanup_draw_context(&ptAppData->tCtx);
     pl_cleanup_graphics(&ptAppData->tGraphics);
     pl_cleanup_profile_context();
     pl_cleanup_extension_registry();
@@ -176,14 +176,14 @@ pl_app_resize(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
-    pl_begin_profile_frame(ptAppData->ctx.frameCount);
+    pl_begin_profile_frame(ptAppData->tCtx.frameCount);
     plIOContext* ptIOCtx = pl_get_io_context();
     pl_handle_extension_reloads();
     pl_new_io_frame();
-    pl_new_draw_frame(&ptAppData->ctx);
+    pl_new_draw_frame(&ptAppData->tCtx);
     pl_process_cleanup_queue(&ptAppData->tGraphics.tResourceManager, 1);
 
-    plVulkanFrameContext* ptCurrentFrame = pl_get_frame_resources(&ptAppData->tGraphics);
+    plFrameContext* ptCurrentFrame = pl_get_frame_resources(&ptAppData->tGraphics);
 
     if(pl_begin_frame(&ptAppData->tGraphics))
     {

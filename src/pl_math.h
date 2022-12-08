@@ -56,6 +56,8 @@ static inline float pl_radiansf(float fDegrees)                       { return f
 static inline float pl_degreesf(float fRadians)                       { return fRadians * 57.29577951f; }
 static inline float pl_maxf    (float fValue1, float fValue2)         { return fValue1 > fValue2 ? fValue1 : fValue2; }
 static inline float pl_minf    (float fValue1, float fValue2)         { return fValue1 > fValue2 ? fValue2 : fValue1; }
+static inline int   pl_maxi    (int iValue1, int iValue2)             { return iValue1 > iValue2 ? iValue1 : iValue2; }
+static inline int   pl_mini    (int iValue1, int iValue2)             { return iValue1 > iValue2 ? iValue2 : iValue1; }
 static inline float pl_squaref (float fValue)                         { return fValue * fValue;}
 static inline float pl_cubef   (float fValue)                         { return fValue * fValue * fValue;}
 static inline float pl_clampf  (float fMin, float fValue, float fMax) { if (fValue < fMin) return fMin; else if (fValue > fMax) return fMax; return fValue; }

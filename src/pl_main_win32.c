@@ -51,7 +51,7 @@ Index of this file:
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
-static LRESULT CALLBACK pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
+static LRESULT CALLBACK pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam);
 static void             pl__convert_to_wide_string(const char* narrowValue, wchar_t* wideValue);
 static void             pl__render_frame(void);
 
@@ -59,15 +59,15 @@ static void             pl__render_frame(void);
 // [SECTION] globals
 //-----------------------------------------------------------------------------
 
-static HWND            gHandle = NULL;
-static HWND            gMouseHandle = NULL;
-static bool            gMouseTracked = false;
-static bool            gMinimized = false;
-static plSharedLibrary gAppLibrary = {0};
-static void*           gUserData = NULL;
-static bool            gRunning = true;
-static INT64           gTime;
-static INT64           gTicksPerSecond;
+static HWND            gtHandle = NULL;
+static HWND            gtMouseHandle = NULL;
+static bool            gbMouseTracked = false;
+static bool            gbMinimized = false;
+static plSharedLibrary gtAppLibrary = {0};
+static void*           gpUserData = NULL;
+static bool            gbRunning = true;
+static INT64           gilTime;
+static INT64           gilTicksPerSecond;
 plIOContext            gtIOContext = {0};
 
 typedef struct _plAppData plAppData;
@@ -90,24 +90,24 @@ int main()
 
     // setup
 
-    if (!QueryPerformanceFrequency((LARGE_INTEGER*)&gTicksPerSecond))
+    if (!QueryPerformanceFrequency((LARGE_INTEGER*)&gilTicksPerSecond))
         return -1;
-    if (!QueryPerformanceCounter((LARGE_INTEGER*)&gTime))
+    if (!QueryPerformanceCounter((LARGE_INTEGER*)&gilTime))
         return -1;
 
     // load library
-    if(pl_load_library(&gAppLibrary, "./app.dll", "./app_", "./lock.tmp"))
+    if(pl_load_library(&gtAppLibrary, "./app.dll", "./app_", "./lock.tmp"))
     {
-        pl_app_load     = (void* (__cdecl  *)(plIOContext*, plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
-        pl_app_setup    = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_setup");
-        pl_app_shutdown = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_update");
-        gUserData = pl_app_load(ptIOCtx, NULL);
+        pl_app_load     = (void* (__cdecl  *)(plIOContext*, plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_load");
+        pl_app_setup    = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_setup");
+        pl_app_shutdown = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_update");
+        gpUserData = pl_app_load(ptIOCtx, NULL);
     }
 
     // register window class
-    WNDCLASSEXW wc = {
+    const WNDCLASSEXW tWc = {
         .cbSize = sizeof(WNDCLASSEX),
         .style = CS_HREDRAW | CS_VREDRAW,
         .lpfnWndProc = pl__windows_procedure,
@@ -121,41 +121,41 @@ int main()
         .lpszClassName = L"Pilot Light (win32)",
         .hIconSm = NULL
     };
-    RegisterClassExW(&wc);
+    RegisterClassExW(&tWc);
 
     // calculate window size based on desired client region size
-    RECT wr = 
+    RECT tWr = 
     {
         .left = 0,
-        .right = 500 + wr.left,
+        .right = 500 + tWr.left,
         .top = 0,
-        .bottom = 500 + wr.top
+        .bottom = 500 + tWr.top
     };
-    AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
+    AdjustWindowRect(&tWr, WS_OVERLAPPEDWINDOW, FALSE);
 
     ptIOCtx->afMainViewportSize[0] = 500.0f;
     ptIOCtx->afMainViewportSize[1] = 500.0f;
 
-    wchar_t wideTitle[PL_MAX_NAME_LENGTH];
+    wchar_t awWideTitle[PL_MAX_NAME_LENGTH];
     #ifdef PL_VULKAN_BACKEND
-    pl__convert_to_wide_string("Pilot Light (win32/vulkan)", wideTitle);
+    pl__convert_to_wide_string("Pilot Light (win32/vulkan)", awWideTitle);
     #elif PL_DX11_BACKEND
-    pl__convert_to_wide_string("Pilot Light (win32/dx11)", wideTitle);
+    pl__convert_to_wide_string("Pilot Light (win32/dx11)", awWideTitle);
     #endif
 
     // create window & get handle
-    gHandle = CreateWindowExW(
+    gtHandle = CreateWindowExW(
         0,
-        wc.lpszClassName,
-        wideTitle,
+        tWc.lpszClassName,
+        awWideTitle,
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_THICKFRAME,
-        0, 0, wr.right - wr.left, wr.bottom - wr.top,
+        0, 0, tWr.right - tWr.left, tWr.bottom - tWr.top,
         NULL,
         NULL,
         GetModuleHandle(NULL),
         NULL // user data
     );
-    ptIOCtx->pBackendPlatformData = &gHandle;
+    ptIOCtx->pBackendPlatformData = &gtHandle;
 
     // setup console
     DWORD tCurrentMode = 0;
@@ -167,54 +167,54 @@ int main()
     if(!SetConsoleMode(tStdOutHandle, tCurrentMode)) exit(GetLastError());
 
     // app specific setup
-    pl_app_setup(gUserData);
+    pl_app_setup(gpUserData);
 
     // show window
-    ShowWindow(gHandle, SW_SHOWDEFAULT);
+    ShowWindow(gtHandle, SW_SHOWDEFAULT);
 
     // main loop
-    while (gRunning)
+    while (gbRunning)
     {
 
         // while queue has messages, remove and dispatch them (but do not block on empty queue)
-        MSG msg = {0};
-        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+        MSG tMsg = {0};
+        while (PeekMessage(&tMsg, NULL, 0, 0, PM_REMOVE))
         {
             // check for quit because peekmessage does not signal this via return val
-            if (msg.message == WM_QUIT)
+            if (tMsg.message == WM_QUIT)
             {
-                gRunning = false;
+                gbRunning = false;
                 break;
             }
             // TranslateMessage will post auxilliary WM_CHAR messages from key msgs
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+            TranslateMessage(&tMsg);
+            DispatchMessage(&tMsg);
         }
 
         // reload library
-        if(pl_has_library_changed(&gAppLibrary))
+        if(pl_has_library_changed(&gtAppLibrary))
         {
-            pl_reload_library(&gAppLibrary);
-            pl_app_load     = (void* (__cdecl *)(plIOContext*, plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
-            pl_app_setup    = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_setup");
-            pl_app_shutdown = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_resize");
-            pl_app_update   = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_update");
-            gUserData = pl_app_load(ptIOCtx, gUserData);
+            pl_reload_library(&gtAppLibrary);
+            pl_app_load     = (void* (__cdecl *)(plIOContext*, plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_load");
+            pl_app_setup    = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_setup");
+            pl_app_shutdown = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_shutdown");
+            pl_app_resize   = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_resize");
+            pl_app_update   = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_update");
+            gpUserData = pl_app_load(ptIOCtx, gpUserData);
         }
 
         // render a frame
-        if(gRunning)
+        if(gbRunning)
             pl__render_frame();
     }
 
     // app cleanup
-    pl_app_shutdown(gUserData);
+    pl_app_shutdown(gpUserData);
 
     // cleanup win32 stuff
-    UnregisterClassW(wc.lpszClassName, GetModuleHandle(NULL));
-    DestroyWindow(gHandle);
-    gHandle = NULL;
+    UnregisterClassW(tWc.lpszClassName, GetModuleHandle(NULL));
+    DestroyWindow(gtHandle);
+    gtHandle = NULL;
     ptIOCtx->pBackendPlatformData = NULL;
 
     // cleanup io context
@@ -231,15 +231,15 @@ int main()
 #define PL_VK_KEYPAD_ENTER (VK_RETURN + 256)
 
 static bool
-pl__is_vk_down(int vk)
+pl__is_vk_down(int iVk)
 {
-    return (GetKeyState(vk) & 0x8000) != 0;
+    return (GetKeyState(iVk) & 0x8000) != 0;
 }
 
 static plKey
-pl__virtual_key_to_pl_key(WPARAM wParam)
+pl__virtual_key_to_pl_key(WPARAM tWParam)
 {
-    switch (wParam)
+    switch (tWParam)
     {
         case VK_TAB:             return PL_KEY_TAB;
         case VK_LEFT:            return PL_KEY_LEFT_ARROW;
@@ -354,36 +354,36 @@ pl__virtual_key_to_pl_key(WPARAM wParam)
 //-----------------------------------------------------------------------------
 
 static LRESULT CALLBACK 
-pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 {
     plIOContext* ptIOCtx = pl_get_io_context();
-    LRESULT result = 0;
+    LRESULT tResult = 0;
     static UINT_PTR puIDEvent = 0;
-    switch (msg)
+    switch (tMsg)
     {
 
         case WM_SIZE:
         case WM_SIZING:
         {
-            if (wparam != SIZE_MINIMIZED)
+            if (tWParam != SIZE_MINIMIZED)
             {
                 // client window size
-                RECT crect;
-                int cwidth = 0;
-                int cheight = 0;
-                if (GetClientRect(hwnd, &crect))
+                RECT tCRect;
+                int iCWidth = 0;
+                int iCHeight = 0;
+                if (GetClientRect(tHwnd, &tCRect))
                 {
-                    cwidth = crect.right - crect.left;
-                    cheight = crect.bottom - crect.top;
+                    iCWidth = tCRect.right - tCRect.left;
+                    iCHeight = tCRect.bottom - tCRect.top;
                 }
-                ptIOCtx->afMainViewportSize[0] = (float)cwidth;
-                ptIOCtx->afMainViewportSize[1] = (float)cheight;
+                ptIOCtx->afMainViewportSize[0] = (float)iCWidth;
+                ptIOCtx->afMainViewportSize[1] = (float)iCHeight;
 
                 // give app change to handle resize
-                pl_app_resize(gUserData);
+                pl_app_resize(gpUserData);
 
                 // send paint message
-                InvalidateRect(hwnd, NULL, TRUE);
+                InvalidateRect(tHwnd, NULL, TRUE);
             }
             break;
         }
@@ -400,9 +400,9 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
             pl__render_frame();
 
             // must be called for the OS to do its thing
-            PAINTSTRUCT Paint;
-            HDC DeviceContext = BeginPaint(hwnd, &Paint);  
-            EndPaint(hwnd, &Paint); 
+            PAINTSTRUCT tPaint;
+            HDC tDeviceContext = BeginPaint(tHwnd, &tPaint);  
+            EndPaint(tHwnd, &tPaint); 
             break;
         }
 
@@ -419,44 +419,44 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
             // can continue rendering when catching the WM_TIMER event.
             // Timer is killed in the WM_EXITSIZEMOVE case below.
             puIDEvent = SetTimer(NULL, puIDEvent, USER_TIMER_MINIMUM , NULL);
-            SetTimer(hwnd, puIDEvent, USER_TIMER_MINIMUM , NULL);
+            SetTimer(tHwnd, puIDEvent, USER_TIMER_MINIMUM , NULL);
             break;
         }
 
         case WM_EXITSIZEMOVE:
         {
-            KillTimer(hwnd, puIDEvent);
+            KillTimer(tHwnd, puIDEvent);
             break;
         }
 
         case WM_TIMER:
         {
-            if(wparam == puIDEvent)
+            if(tWParam == puIDEvent)
                 pl__render_frame();
             break;
         }
 
         case WM_MOUSEMOVE:
         {
-            gMouseHandle = hwnd;
-            if(!gMouseTracked)
+            gtMouseHandle = tHwnd;
+            if(!gbMouseTracked)
             {
-                TRACKMOUSEEVENT tme = { sizeof(tme), TME_LEAVE, hwnd, 0 };
-                TrackMouseEvent(&tme);
-                gMouseTracked = true;        
+                TRACKMOUSEEVENT tTme = { sizeof(tTme), TME_LEAVE, tHwnd, 0 };
+                TrackMouseEvent(&tTme);
+                gbMouseTracked = true;        
             }
-            POINT mouse_pos = { (LONG)GET_X_LPARAM(lparam), (LONG)GET_Y_LPARAM(lparam) };
-            pl_add_mouse_pos_event((float)mouse_pos.x, (float)mouse_pos.y);
+            POINT tMousePos = { (LONG)GET_X_LPARAM(tLParam), (LONG)GET_Y_LPARAM(tLParam) };
+            pl_add_mouse_pos_event((float)tMousePos.x, (float)tMousePos.y);
             break;
         }
         case WM_MOUSELEAVE:
         {
-            if(hwnd == gMouseHandle)
+            if(tHwnd == gtMouseHandle)
             {
-                gMouseHandle = NULL;
+                gtMouseHandle = NULL;
                 pl_add_mouse_pos_event(-FLT_MAX, -FLT_MAX);
             }
-            gMouseTracked = false;
+            gbMouseTracked = false;
             break;
         }
 
@@ -465,12 +465,12 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         case WM_MBUTTONDOWN: case WM_MBUTTONDBLCLK:
         case WM_XBUTTONDOWN: case WM_XBUTTONDBLCLK:
         {
-            int button = 0;
-            if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONDBLCLK) { button = 0; }
-            if (msg == WM_RBUTTONDOWN || msg == WM_RBUTTONDBLCLK) { button = 1; }
-            if (msg == WM_MBUTTONDOWN || msg == WM_MBUTTONDBLCLK) { button = 2; }
-            if (msg == WM_XBUTTONDOWN || msg == WM_XBUTTONDBLCLK) { button = (GET_XBUTTON_WPARAM(wparam) == XBUTTON1) ? 3 : 4; }
-            pl_add_mouse_button_event(button, true);
+            int iButton = 0;
+            if (tMsg == WM_LBUTTONDOWN || tMsg == WM_LBUTTONDBLCLK) { iButton = 0; }
+            if (tMsg == WM_RBUTTONDOWN || tMsg == WM_RBUTTONDBLCLK) { iButton = 1; }
+            if (tMsg == WM_MBUTTONDOWN || tMsg == WM_MBUTTONDBLCLK) { iButton = 2; }
+            if (tMsg == WM_XBUTTONDOWN || tMsg == WM_XBUTTONDBLCLK) { iButton = (GET_XBUTTON_WPARAM(tWParam) == XBUTTON1) ? 3 : 4; }
+            pl_add_mouse_button_event(iButton, true);
             break;
         }
         case WM_LBUTTONUP:
@@ -478,24 +478,24 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         case WM_MBUTTONUP:
         case WM_XBUTTONUP:
         {
-            int button = 0;
-            if (msg == WM_LBUTTONUP) { button = 0; }
-            if (msg == WM_RBUTTONUP) { button = 1; }
-            if (msg == WM_MBUTTONUP) { button = 2; }
-            if (msg == WM_XBUTTONUP) { button = (GET_XBUTTON_WPARAM(wparam) == XBUTTON1) ? 3 : 4; }
-            pl_add_mouse_button_event(button, false);
+            int iButton = 0;
+            if (tMsg == WM_LBUTTONUP) { iButton = 0; }
+            if (tMsg == WM_RBUTTONUP) { iButton = 1; }
+            if (tMsg == WM_MBUTTONUP) { iButton = 2; }
+            if (tMsg == WM_XBUTTONUP) { iButton = (GET_XBUTTON_WPARAM(tWParam) == XBUTTON1) ? 3 : 4; }
+            pl_add_mouse_button_event(iButton, false);
             break;
         }
 
         case WM_MOUSEWHEEL:
         {
-            pl_add_mouse_wheel_event(0.0f, (float)GET_WHEEL_DELTA_WPARAM(wparam) / (float)WHEEL_DELTA);
+            pl_add_mouse_wheel_event(0.0f, (float)GET_WHEEL_DELTA_WPARAM(tWParam) / (float)WHEEL_DELTA);
             return 0;
         }
 
         case WM_MOUSEHWHEEL:
         {
-            pl_add_mouse_wheel_event((float)GET_WHEEL_DELTA_WPARAM(wparam) / (float)WHEEL_DELTA, 0.0f);
+            pl_add_mouse_wheel_event((float)GET_WHEEL_DELTA_WPARAM(tWParam) / (float)WHEEL_DELTA, 0.0f);
             return 0;
         }
 
@@ -504,8 +504,8 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         case WM_SYSKEYDOWN:
         case WM_SYSKEYUP:
         {
-            const bool bKeyDown = (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN);
-            if (wparam < 256)
+            const bool bKeyDown = (tMsg == WM_KEYDOWN || tMsg == WM_SYSKEYDOWN);
+            if (tWParam < 256)
             {
 
                 // Submit modifiers
@@ -515,18 +515,18 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
                 pl_add_key_event(PL_KEY_MOD_SUPER, pl__is_vk_down(VK_APPS));
 
                 // obtain virtual key code
-                int iVk = (int)wparam;
-                if ((wparam == VK_RETURN) && (HIWORD(lparam) & KF_EXTENDED))
+                int iVk = (int)tWParam;
+                if ((tWParam == VK_RETURN) && (HIWORD(tLParam) & KF_EXTENDED))
                 {
                     iVk = PL_VK_KEYPAD_ENTER;
                 }
 
                 // submit key event
-                const plKey key = pl__virtual_key_to_pl_key(iVk);
+                const plKey tKey = pl__virtual_key_to_pl_key(iVk);
 
-                if (key != PL_KEY_NONE)
+                if (tKey != PL_KEY_NONE)
                 {
-                    pl_add_key_event(key, bKeyDown);
+                    pl_add_key_event(tKey, bKeyDown);
                 }
 
                 // Submit individual left/right modifier events
@@ -545,25 +545,25 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
                     if (pl__is_vk_down(VK_LMENU) == bKeyDown) pl_add_key_event(PL_KEY_LEFT_ALT, bKeyDown);
                     if (pl__is_vk_down(VK_RMENU) == bKeyDown) pl_add_key_event(PL_KEY_RIGHT_ALT, bKeyDown);
                 }
-                result = 0;
+                tResult = 0;
                 break;
             }
         }
 
         case WM_SYSCOMMAND:
         {
-            if(wparam == SC_MINIMIZE)     gMinimized = true;
-            else if(wparam == SC_RESTORE) gMinimized = false;
-            result = DefWindowProcW(hwnd, msg, wparam, lparam);
+            if(tWParam == SC_MINIMIZE)     gbMinimized = true;
+            else if(tWParam == SC_RESTORE) gbMinimized = false;
+            tResult = DefWindowProcW(tHwnd, tMsg, tWParam, tLParam);
             break;
         }
 
         default:
         {
-            result = DefWindowProcW(hwnd, msg, wparam, lparam);
+            tResult = DefWindowProcW(tHwnd, tMsg, tWParam, tLParam);
         }
     }
-    return result;
+    return tResult;
 }
 
 //-----------------------------------------------------------------------------
@@ -571,23 +571,23 @@ pl__windows_procedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 //-----------------------------------------------------------------------------
 
 static void
-pl__convert_to_wide_string(const char* narrowValue, wchar_t* wideValue)
+pl__convert_to_wide_string(const char* pcNarrowValue, wchar_t* pwWideValue)
 {
-    mbstate_t state;
-    memset(&state, 0, sizeof(state));
-    size_t len = 1 + mbsrtowcs(NULL, &narrowValue, 0, &state);
-    mbsrtowcs(wideValue, &narrowValue, len, &state);
+    mbstate_t tState;
+    memset(&tState, 0, sizeof(tState));
+    size_t szLen = 1 + mbsrtowcs(NULL, &pcNarrowValue, 0, &tState);
+    mbsrtowcs(pwWideValue, &pcNarrowValue, szLen, &tState);
 }
 
 static void
 pl__render_frame(void)
 {
     // setup time step
-    INT64 currentTime = 0;
-    QueryPerformanceCounter((LARGE_INTEGER*)&currentTime);
-    pl_get_io_context()->fDeltaTime = (float)(currentTime - gTime) / gTicksPerSecond;
-    gTime = currentTime;
+    INT64 ilCurrentTime = 0;
+    QueryPerformanceCounter((LARGE_INTEGER*)&ilCurrentTime);
+    pl_get_io_context()->fDeltaTime = (float)(ilCurrentTime - gilTime) / gilTicksPerSecond;
+    gilTime = ilCurrentTime;
     
-    if(!gMinimized)
-        pl_app_update(gUserData);   
+    if(!gbMinimized)
+        pl_app_update(gpUserData);   
 }

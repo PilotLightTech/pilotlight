@@ -99,29 +99,29 @@ typedef void* plTextureId;
 //-----------------------------------------------------------------------------
 
 // setup/shutdown
-void            pl_register_drawlist   (plDrawContext* ctx, plDrawList* drawlist);
-plDrawLayer*    pl_request_draw_layer  (plDrawList* drawlist, const char* name);
-void            pl_return_draw_layer   (plDrawLayer* layer);
-void            pl_cleanup_draw_context(plDrawContext* ctx);  // implemented by backend
+void            pl_register_drawlist   (plDrawContext* ptCtx, plDrawList* ptDrawlist);
+plDrawLayer*    pl_request_draw_layer  (plDrawList* ptDrawlist, const char* pcName);
+void            pl_return_draw_layer   (plDrawLayer* ptLayer);
+void            pl_cleanup_draw_context(plDrawContext* ptCtx);  // implemented by backend
 
 // per frame
-void            pl_new_draw_frame   (plDrawContext* ctx); // implemented by backend
-void            pl_submit_draw_layer(plDrawLayer* layer);
+void            pl_new_draw_frame   (plDrawContext* ptCtx); // implemented by backend
+void            pl_submit_draw_layer(plDrawLayer* ptLayer);
 
 // drawing
-void            pl_add_line           (plDrawLayer* layer, plVec2 p0, plVec2 p1, plVec4 color, float thickness);
-void            pl_add_lines          (plDrawLayer* layer, plVec2* points, uint32_t count, plVec4 color, float thickness);
-void            pl_add_text           (plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec4 color, const char* text, float wrap);
-void            pl_add_triangle_filled(plDrawLayer* layer, plVec2 p0, plVec2 p1, plVec2 p2, plVec4 color);
-void            pl_add_rect_filled    (plDrawLayer* layer, plVec2 minP, plVec2 maxP, plVec4 color);
+void            pl_add_line           (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec4 tColor, float fThickness);
+void            pl_add_lines          (plDrawLayer* ptLayer, plVec2* atPoints, uint32_t uCount, plVec4 tColor, float fThickness);
+void            pl_add_text           (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
+void            pl_add_triangle_filled(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor);
+void            pl_add_rect_filled    (plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor);
 
 // fonts
-void            pl_build_font_atlas        (plDrawContext* ctx, plFontAtlas* atlas); // implemented by backend
-void            pl_cleanup_font_atlas      (plFontAtlas* atlas);                     // implemented by backend
-void            pl_add_default_font        (plFontAtlas* atlas);
-void            pl_add_font_from_file_ttf  (plFontAtlas* atlas, plFontConfig config, const char* file);
-void            pl_add_font_from_memory_ttf(plFontAtlas* atlas, plFontConfig config, void* data);
-plVec2          pl_calculate_text_size     (plFont* font, float size, const char* text, float wrap);
+void            pl_build_font_atlas        (plDrawContext* ptCtx, plFontAtlas* ptAtlas); // implemented by backend
+void            pl_cleanup_font_atlas      (plFontAtlas* ptAtlas);                     // implemented by backend
+void            pl_add_default_font        (plFontAtlas* ptAtlas);
+void            pl_add_font_from_file_ttf  (plFontAtlas* ptAtlas, plFontConfig tConfig, const char* pcFile);
+void            pl_add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, void* pData);
+plVec2          pl_calculate_text_size     (plFont* ptFont, float fSize, const char* pcText, float fWrap);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -173,7 +173,7 @@ typedef struct _plFont
 
 typedef struct _plFontAtlas
 {
-    plDrawContext*    ctx;
+    plDrawContext*    ptCtx;
     plFont*           sbFonts;
     plFontCustomRect* sbCustomRects;
     unsigned char*    pixelsAsAlpha8;
@@ -191,7 +191,7 @@ typedef struct _plFontAtlas
 
 typedef struct _plDrawList
 {
-    plDrawContext* ctx;
+    plDrawContext* ptCtx;
     plDrawLayer**  sbSubmittedLayers;
     plDrawLayer**  sbLayerCache;
     plDrawLayer**  sbLayersCreated;
