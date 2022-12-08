@@ -19,14 +19,16 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pilotlight.h"
+#include "pl_math.inc"
 
 #if defined(_WIN32)
-#define VK_USE_PLATFORM_WIN32_KHR
+    #define VK_USE_PLATFORM_WIN32_KHR
 #elif defined(__APPLE__)
-#define VK_USE_PLATFORM_METAL_EXT
+    #define VK_USE_PLATFORM_METAL_EXT
 #else // linux
-#define VK_USE_PLATFORM_XCB_KHR
+    #define VK_USE_PLATFORM_XCB_KHR
 #endif
+
 #include "vulkan/vulkan.h"
 
 #ifndef PL_VULKAN
@@ -39,57 +41,64 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-PL_DECLARE_STRUCT(plVulkanSwapchain);       // swapchain resources & info
-PL_DECLARE_STRUCT(plVulkanDevice);          // device resources & info
-PL_DECLARE_STRUCT(plVulkanGraphics);        // graphics context
-PL_DECLARE_STRUCT(plVulkanFrameContext);    // per frame resource
-PL_DECLARE_STRUCT(plVulkanResourceManager); // buffer/texture resource manager
-PL_DECLARE_STRUCT(plVulkanBuffer);          // vulkan buffer
+PL_DECLARE_STRUCT(plSwapchain);       // swapchain resources & info
+PL_DECLARE_STRUCT(plDevice);          // device resources & info
+PL_DECLARE_STRUCT(plGraphics);        // graphics context
+PL_DECLARE_STRUCT(plFrameContext);    // per frame resource
+PL_DECLARE_STRUCT(plResourceManager); // buffer/texture resource manager
+PL_DECLARE_STRUCT(plBuffer);          // vulkan buffer
+PL_DECLARE_STRUCT(plTexture);         // vulkan texture
+PL_DECLARE_STRUCT(plTextureDesc);     // texture descriptor
 
 // enums
 typedef int plBufferUsage;
+typedef int plBlendMode;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
 // setup
-void                  pl_setup_graphics            (plVulkanGraphics* ptGraphics);
-void                  pl_cleanup_graphics          (plVulkanGraphics* ptGraphics);
-void                  pl_resize_graphics           (plVulkanGraphics* ptGraphics);
+void                  pl_setup_graphics            (plGraphics* ptGraphics);
+void                  pl_cleanup_graphics          (plGraphics* ptGraphics);
+void                  pl_resize_graphics           (plGraphics* ptGraphics);
 
 // per frame
-bool                  pl_begin_frame               (plVulkanGraphics* ptGraphics);
-void                  pl_end_frame                 (plVulkanGraphics* ptGraphics);
-void                  pl_begin_recording           (plVulkanGraphics* ptGraphics);
-void                  pl_end_recording             (plVulkanGraphics* ptGraphics);
-void                  pl_begin_main_pass           (plVulkanGraphics* ptGraphics);
-void                  pl_end_main_pass             (plVulkanGraphics* ptGraphics);
+bool                  pl_begin_frame               (plGraphics* ptGraphics);
+void                  pl_end_frame                 (plGraphics* ptGraphics);
+void                  pl_begin_recording           (plGraphics* ptGraphics);
+void                  pl_end_recording             (plGraphics* ptGraphics);
+void                  pl_begin_main_pass           (plGraphics* ptGraphics);
+void                  pl_end_main_pass             (plGraphics* ptGraphics);
 
 // resource manager per frame
-void                  pl_process_cleanup_queue     (plVulkanResourceManager* ptResourceManager, uint32_t uFramesToProcess);
+void                  pl_process_cleanup_queue     (plResourceManager* ptResourceManager, uint32_t uFramesToProcess);
 
 // resource manager commited resources
-uint64_t              pl_create_index_buffer       (plVulkanResourceManager* ptResourceManager, size_t szSize, const void* pData);
-uint64_t              pl_create_vertex_buffer      (plVulkanResourceManager* ptResourceManager, size_t szSize, size_t szStride, const void* pData);
-uint64_t              pl_create_constant_buffer    (plVulkanResourceManager* ptResourceManager, size_t szItemSize, size_t szItemCount);
+uint32_t              pl_create_index_buffer       (plResourceManager* ptResourceManager, size_t szSize, const void* pData);
+uint32_t              pl_create_vertex_buffer      (plResourceManager* ptResourceManager, size_t szSize, size_t szStride, const void* pData);
+uint32_t              pl_create_constant_buffer    (plResourceManager* ptResourceManager, size_t szItemSize, size_t szItemCount);
+uint32_t              pl_create_texture            (plResourceManager* ptResourceManager, plTextureDesc tDesc, size_t szSize, const void* pData);
+uint32_t              pl_create_storage_buffer     (plResourceManager* ptResourceManager, size_t szSize, const void* pData);
 
 // resource manager misc.
-void                  pl_transfer_data_to_buffer   (plVulkanResourceManager* ptResourceManager, VkBuffer tDest, size_t szSize, const void* pData);
-void                  pl_submit_buffer_for_deletion(plVulkanResourceManager* ptResourceManager, uint64_t ulBufferIndex);
+void                  pl_transfer_data_to_image     (plResourceManager* ptResourceManager, plTexture* ptDest, size_t szDataSize, const void* pData);
+void                  pl_transfer_data_to_buffer    (plResourceManager* ptResourceManager, VkBuffer tDest, size_t szSize, const void* pData);
+void                  pl_submit_buffer_for_deletion (plResourceManager* ptResourceManager, uint32_t ulBufferIndex);
+void                  pl_submit_texture_for_deletion(plResourceManager* ptResourceManager, uint32_t ulTextureIndex);
 
 // command buffers
-VkCommandBuffer       pl_begin_command_buffer      (plVulkanGraphics* ptGraphics, plVulkanDevice* ptDevice);
-void                  pl_submit_command_buffer     (plVulkanGraphics* ptGraphics, plVulkanDevice* ptDevice, VkCommandBuffer tCmdBuffer);
+VkCommandBuffer       pl_begin_command_buffer      (plGraphics* ptGraphics, plDevice* ptDevice);
+void                  pl_submit_command_buffer     (plGraphics* ptGraphics, plDevice* ptDevice, VkCommandBuffer tCmdBuffer);
 
 // misc
-plVulkanFrameContext* pl_get_frame_resources       (plVulkanGraphics* ptGraphics);
+plFrameContext*       pl_get_frame_resources       (plGraphics* ptGraphics);
 uint32_t              pl_find_memory_type          (VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties);
 void                  pl_transition_image_layout   (VkCommandBuffer tCommandBuffer, VkImage tImage, VkImageLayout tOldLayout, VkImageLayout tNewLayout, VkImageSubresourceRange tSubresourceRange, VkPipelineStageFlags tSrcStageMask, VkPipelineStageFlags tDstStageMask);
-VkFormat              pl_find_supported_format     (plVulkanDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount);
-VkFormat              pl_find_depth_format         (plVulkanDevice* ptDevice);
+VkFormat              pl_find_supported_format     (plDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount);
+VkFormat              pl_find_depth_format         (plDevice* ptDevice);
 bool                  pl_format_has_stencil        (VkFormat tFormat);
-VkSampleCountFlagBits pl_get_max_sample_count      (plVulkanDevice* ptDevice);
+VkSampleCountFlagBits pl_get_max_sample_count      (plDevice* ptDevice);
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -100,14 +109,46 @@ enum plBufferUsage_
     PL_BUFFER_USAGE_UNSPECIFIED,
     PL_BUFFER_USAGE_INDEX,
     PL_BUFFER_USAGE_VERTEX,
-    PL_BUFFER_USAGE_CONSTANT
+    PL_BUFFER_USAGE_CONSTANT,
+    PL_BUFFER_USAGE_STORAGE
+};
+
+enum plBlendMode_
+{
+    PL_BLEND_MODE_NONE,
+    PL_BLEND_MODE_ALPHA,
+    PL_BLEND_MODE_ADDITIVE,
+    PL_BLEND_MODE_PREMULTIPLY,
+    PL_BLEND_MODE_MULTIPLY,
+    PL_BLEND_MODE_CLIP_MASK,
+    
+    PL_BLEND_MODE_COUNT
 };
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plVulkanBuffer
+typedef struct _plTextureDesc
+{
+    VkImageViewType      tType;
+    plVec3               tDimensions;
+    uint32_t             uLayers;
+    uint32_t             uMips;
+    VkFormat             tFormat;
+    VkImageUsageFlagBits tUsage;
+} plTextureDesc;
+
+typedef struct _plTexture
+{
+    plTextureDesc        tDesc;
+    VkSampler            tSampler;
+    VkImage              tImage;
+    VkImageView          tImageView;
+    VkDeviceMemory       tMemory;
+} plTexture;
+
+typedef struct _plBuffer
 {
     plBufferUsage  tUsage;
     size_t         szRequestedSize;
@@ -116,21 +157,24 @@ typedef struct _plVulkanBuffer
     VkBuffer       tBuffer;
     VkDeviceMemory tBufferMemory;
     unsigned char* pucMapping;
-} plVulkanBuffer;
+} plBuffer;
 
-typedef struct _plVulkanResourceManager
+typedef struct _plResourceManager
 {
 
-    plVulkanBuffer*   sbtBuffers;
+    plBuffer*  sbtBuffers;
+    plTexture* sbtTextures;
 
     // [INTERNAL]
-    uint64_t*         _sbulFreeIndices;
-    uint64_t*         _sbulDeletionQueue;
-    uint64_t*         _sbulTempQueue;
+    uint32_t* _sbulBufferFreeIndices;
+    uint32_t* _sbulBufferDeletionQueue;
+    uint32_t* _sbulTextureFreeIndices;
+    uint32_t* _sbulTextureDeletionQueue;
+    uint32_t* _sbulTempQueue;
 
     // cached
-    plVulkanGraphics* _ptGraphics;
-    plVulkanDevice*   _ptDevice;
+    plGraphics* _ptGraphics;
+    plDevice*   _ptDevice;
     
     // staging buffer
     size_t            _szStagingBufferSize;
@@ -138,18 +182,18 @@ typedef struct _plVulkanResourceManager
     VkDeviceMemory    _tStagingBufferMemory;
     unsigned char*    _pucMapping;
 
-} plVulkanResourceManager;
+} plResourceManager;
 
-typedef struct _plVulkanFrameContext
+typedef struct _plFrameContext
 {
     VkSemaphore     tImageAvailable;
     VkSemaphore     tRenderFinish;
     VkFence         tInFlight;
     VkCommandBuffer tCmdBuf;
 
-} plVulkanFrameContext;
+} plFrameContext;
 
-typedef struct _plVulkanSwapchain
+typedef struct _plSwapchain
 {
     VkSwapchainKHR        tSwapChain;
     VkExtent2D            tExtent;
@@ -172,9 +216,9 @@ typedef struct _plVulkanSwapchain
     VkSurfaceFormatKHR*   ptSurfaceFormats_;
     uint32_t              uSurfaceFormatCapacity_;
 
-} plVulkanSwapchain;
+} plSwapchain;
 
-typedef struct _plVulkanDevice
+typedef struct _plDevice
 {
     VkDevice                                  tLogicalDevice;
     VkPhysicalDevice                          tPhysicalDevice;
@@ -188,22 +232,22 @@ typedef struct _plVulkanDevice
     VkPhysicalDeviceMemoryBudgetPropertiesEXT tMemBudgetInfo;
     VkDeviceSize                              tMaxLocalMemSize;
 
-} plVulkanDevice;
+} plDevice;
 
-typedef struct _plVulkanGraphics
+typedef struct _plGraphics
 {
     VkInstance               tInstance;
     VkSurfaceKHR             tSurface;
     VkDebugUtilsMessengerEXT tDbgMessenger;
-    plVulkanDevice           tDevice;
-    plVulkanSwapchain        tSwapchain;
+    plDevice                 tDevice;
+    plSwapchain              tSwapchain;
     VkDescriptorPool         tDescriptorPool;
-    plVulkanResourceManager  tResourceManager;
+    plResourceManager        tResourceManager;
     VkCommandPool            tCmdPool;
     VkRenderPass             tRenderPass;
-    plVulkanFrameContext*    sbFrames;
+    plFrameContext*          sbFrames;
     uint32_t                 uFramesInFlight;  // number of frames in flight (should be less then PL_MAX_FRAMES_IN_FLIGHT)
     size_t                   szCurrentFrameIndex; // current frame being used
-} plVulkanGraphics;
+} plGraphics;
 
 #endif //PL_GRAPHICS_VULKAN_H
