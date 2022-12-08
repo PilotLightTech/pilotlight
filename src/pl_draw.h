@@ -173,7 +173,7 @@ typedef struct _plFont
 
 typedef struct _plFontAtlas
 {
-    plDrawContext*    ptCtx;
+    plDrawContext*    ctx;
     plFont*           sbFonts;
     plFontCustomRect* sbCustomRects;
     unsigned char*    pixelsAsAlpha8;
@@ -191,7 +191,7 @@ typedef struct _plFontAtlas
 
 typedef struct _plDrawList
 {
-    plDrawContext* ptCtx;
+    plDrawContext* ctx;
     plDrawLayer**  sbSubmittedLayers;
     plDrawLayer**  sbLayerCache;
     plDrawLayer**  sbLayersCreated;
