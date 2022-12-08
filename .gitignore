@@ -3,6 +3,7 @@
 .vs/
 .vscode/
 .idea/
+data/
 out/
 tools/__pycache__
 
