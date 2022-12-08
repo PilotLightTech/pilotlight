@@ -340,7 +340,7 @@ def generate_macos_build(name_override=None):
         if name_override is None:
             filepath = project._working_directory + "//" + project._macos_script_name + ".sh"
         else:
-            filepath = project._working_directory + "//" + project.name_override + ".sh"
+            filepath = project._working_directory + "//" + name_override + ".sh"
         file_type = FileType.BASH
 
         with open(filepath, "w") as file:
@@ -645,7 +645,7 @@ def generate_linux_build(name_override=None):
         if name_override is None:
             filepath = project._working_directory + "//" + project._linux_script_name + ".sh"
         else:
-            filepath = project._working_directory + "//" + project.name_override + ".sh"
+            filepath = project._working_directory + "//" + name_override + ".sh"
         file_type = FileType.BASH
 
         with open(filepath, "w") as file:
