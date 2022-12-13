@@ -367,7 +367,7 @@ pl_begin_main_pass(plGraphics* ptGraphics)
     static const VkClearValue atClearValues[2] = 
     {
         {
-            .color.float32[0] = 0.1f,
+            .color.float32[0] = 0.0f,
             .color.float32[1] = 0.0f,
             .color.float32[2] = 0.0f,
             .color.float32[3] = 1.0f
@@ -801,12 +801,12 @@ pl_create_constant_buffer(plResourceManager* ptResourceManager, size_t szItemSiz
         .szRequestedSize = szItemSize * szItemCount
     };
 
-    const size_t szRequiredSize = pl__get_const_buffer_req_size(ptResourceManager->_ptDevice, szItemSize * szItemCount);
+    const size_t szRequiredSize = pl__get_const_buffer_req_size(ptResourceManager->_ptDevice, szItemSize);
 
     // create vulkan buffer
     const VkBufferCreateInfo tBufferCreateInfo = {
         .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size        = szRequiredSize,
+        .size        = szRequiredSize * szItemCount,
         .usage       = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
@@ -816,7 +816,7 @@ pl_create_constant_buffer(plResourceManager* ptResourceManager, size_t szItemSiz
     VkMemoryRequirements tMemoryRequirements = {0};
     vkGetBufferMemoryRequirements(tDevice, tBuffer.tBuffer, &tMemoryRequirements);
     tBuffer.szSize = tMemoryRequirements.size;
-    tBuffer.szStride = szItemSize;
+    tBuffer.szStride = szRequiredSize;
 
     // allocate buffer
     const VkMemoryAllocateInfo tAllocInfo = {

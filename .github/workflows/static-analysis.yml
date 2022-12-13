@@ -50,8 +50,9 @@ jobs:
             echo "You may use a free license. More information at https://www.viva64.com/en/b/0457/"
             exit 0
           fi
-          cd src
-          python3 build.py
+          cd scripts
+          python3 gen_build.py
+          cd ../src
           chmod +x build.sh
           pvs-studio-analyzer trace -- ./build.sh
           pvs-studio-analyzer analyze -e ../dependencies -l ../pvs-studio.lic -o ../pvs-studio.log

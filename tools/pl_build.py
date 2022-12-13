@@ -221,8 +221,12 @@ def compiler(name: str, compiler_type: CompilerType):
         _context._current_platform._compiler_settings.append(_context._current_compiler_settings)
         _context._current_compiler_settings = None
 
-def add_vulkan_glsl_file(file: str):
-    _context._current_compiler_settings._vulkan_glsl_shader_files.append(file)
+def add_vulkan_glsl_file(directory: str, file: str):
+    _context._current_compiler_settings._vulkan_glsl_shader_files.append([directory, file])
+
+def add_vulkan_glsl_files(directory: str, *args):
+    for arg in args:
+        add_vulkan_glsl_file(directory, arg)
 
 def add_source_file(file: str):
     _context._current_compiler_settings._source_files.append(file)
@@ -619,11 +623,11 @@ def generate_macos_build(name_override=None):
                                             if settings._vulkan_glsl_shader_files:
                                                 buffer += '\n\n# cleanup old glsl vulkan shaders\n'
                                                 for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                    buffer += 'rm -f ./' + settings._output_directory + '/' + vulkan_glsl_shader + '.spv\n'
+                                                    buffer += 'rm -f ./' + settings._output_directory + '/' + vulkan_glsl_shader[1] + '.spv\n'
 
                                                 buffer += '\n# compile glsl vulkan shaders\n'
                                                 for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                    buffer += 'glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader + '.spv ' + vulkan_glsl_shader + '\n'
+                                                    buffer += 'glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader[1] + '.spv ' + vulkan_glsl_shader[0] + vulkan_glsl_shader[1] + '\n'
 
                                             buffer += '\n# remove lock file\n'
                                             buffer += 'rm "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
@@ -898,7 +902,7 @@ def generate_linux_build(name_override=None):
 
                                                 buffer += '\n# compile glsl vulkan shaders\n'
                                                 for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                    buffer += 'glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader + '.spv ' + vulkan_glsl_shader + '\n'
+                                                    buffer += 'glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader[1] + '.spv ' + vulkan_glsl_shader[0] + vulkan_glsl_shader[1] + '\n'
 
                                             buffer += '\n# remove lock file\n'
                                             buffer += 'rm "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
@@ -1250,13 +1254,13 @@ def generate_win32_build(name_override=None):
                                             if settings._vulkan_glsl_shader_files:
                                                 buffer += '\n\n@rem cleanup old glsl vulkan shaders\n'
                                                 for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                    buffer += '@if exist "' + settings._output_directory + '/' + vulkan_glsl_shader + '.spv"'
-                                                    buffer += ' del "' + settings._output_directory + '/' + vulkan_glsl_shader + '.spv"\n'
+                                                    buffer += '@if exist "' + settings._output_directory + '/' + vulkan_glsl_shader[1] + '.spv"'
+                                                    buffer += ' del "' + settings._output_directory + '/' + vulkan_glsl_shader[1] + '.spv"\n'
 
                                                 buffer += '\n@rem compile glsl vulkan shaders\n'
                                                 for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                    buffer += '%VULKAN_SDK%/bin/glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader + '.spv ' + vulkan_glsl_shader + '\n'
-        
+                                                    buffer += '%VULKAN_SDK%/bin/glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader[1] + '.spv ' + vulkan_glsl_shader[0] + vulkan_glsl_shader[1] + '\n'
+
                                             buffer += "\n"
                                             buffer += '@rem delete lock file\n'
                                             buffer += '@del "' + settings._output_directory + '/' + target._lock_file + '"'

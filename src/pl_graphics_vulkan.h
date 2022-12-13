@@ -51,7 +51,10 @@ PL_DECLARE_STRUCT(plTexture);         // vulkan texture
 PL_DECLARE_STRUCT(plTextureDesc);     // texture descriptor
 
 // enums
+typedef int plBufferBindingType;
+typedef int plTextureBindingType;
 typedef int plBufferUsage;
+typedef int plMeshFormatFlags;
 typedef int plBlendMode;
 
 //-----------------------------------------------------------------------------
@@ -104,6 +107,18 @@ VkSampleCountFlagBits pl_get_max_sample_count      (plDevice* ptDevice);
 // [SECTION] enums
 //-----------------------------------------------------------------------------
 
+enum plBufferBindingType_
+{
+    PL_BUFFER_BINDING_TYPE_UNIFORM,
+    PL_BUFFER_BINDING_TYPE_STORAGE
+};
+
+enum plTextureBindingType_
+{
+    PL_TEXTURE_BINDING_TYPE_SAMPLED,
+    PL_TEXTURE_BINDING_TYPE_STORAGE
+};
+
 enum plBufferUsage_
 {
     PL_BUFFER_USAGE_UNSPECIFIED,
@@ -123,6 +138,22 @@ enum plBlendMode_
     PL_BLEND_MODE_CLIP_MASK,
     
     PL_BLEND_MODE_COUNT
+};
+
+enum plMeshFormatFlags_
+{
+    PL_MESH_FORMAT_FLAG_NONE           = 0,
+    PL_MESH_FORMAT_FLAG_HAS_POSITION   = 1 << 0,
+    PL_MESH_FORMAT_FLAG_HAS_NORMAL     = 1 << 1,
+    PL_MESH_FORMAT_FLAG_HAS_TANGENT    = 1 << 2,
+    PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 = 1 << 3,
+    PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1 = 1 << 4,
+    PL_MESH_FORMAT_FLAG_HAS_COLOR_0    = 1 << 5,
+    PL_MESH_FORMAT_FLAG_HAS_COLOR_1    = 1 << 6,
+    PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   = 1 << 7,
+    PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   = 1 << 8,
+    PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  = 1 << 9,
+    PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 10
 };
 
 //-----------------------------------------------------------------------------

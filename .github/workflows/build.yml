@@ -38,8 +38,9 @@ jobs:
       run: |
         set VULKAN_SDK=C:\VulkanSDK\1.3.224.1
         cd $GITHUB_WORKSPACE
-        cd src
-        python build.py
+        cd scripts
+        python gen_build.py
+        cd ../src
         call build.bat -c debug
         if not exist ../out/pilot_light.exe exit 1
         if not exist ../out/app.dll exit 1
@@ -61,8 +62,9 @@ jobs:
     - name: Build Pilot Light
       run: |
         cd $GITHUB_WORKSPACE
-        cd src
-        python3 build.py
+        cd scripts
+        python3 gen_build.py
+        cd ../src
         chmod +x build.sh
         ./build.sh  -c debugmetal
         cd ..
@@ -92,8 +94,9 @@ jobs:
     - name: Build Pilot Light
       run: |
         cd $GITHUB_WORKSPACE
-        cd src
-        python3 build.py
+        cd scripts
+        python3 gen_build.py
+        cd ../src
         chmod +x build.sh
         ./build.sh
         cd ..

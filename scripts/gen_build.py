@@ -13,7 +13,7 @@ with pl.project("pilotlight"):
     pl.add_configuration("debugmetal") # only used on macos for vulkan
 
     # where to output build scripts
-    pl.set_working_directory(".")
+    pl.set_working_directory("../src")
 
     # used to decide hot reloading
     pl.set_main_target("pilot_light")

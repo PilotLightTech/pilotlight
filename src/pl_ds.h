@@ -61,10 +61,10 @@ Index of this file:
     pl_sb_top((buf))
 
 #define pl_sb_add_n(buf, n) \
-    (pl__sb_may_grow((buf), sizeof(*(buf)), (n), 8), (n) ? (pl__sb_header(buf)->uSize += (n), pl__sb_header(buf)->uSize - (n)) : pl_sb_size(buf))
+    (pl__sb_may_grow((buf), sizeof(*(buf)), (n), (n)), (n) ? (pl__sb_header(buf)->uSize += (n), pl__sb_header(buf)->uSize - (n)) : pl_sb_size(buf))
 
 #define pl_sb_add_ptr(buf, n) \
-    (pl__sb_may_grow((buf), sizeof(*(buf)), (n), 8), (n) ? (pl__sb_header(buf)->uSize += (n), &(buf)[pl__sb_header(buf)->uSize - (n)]) : (buf))
+    (pl__sb_may_grow((buf), sizeof(*(buf)), (n), (n)), (n) ? (pl__sb_header(buf)->uSize += (n), &(buf)[pl__sb_header(buf)->uSize - (n)]) : (buf))
 
 #define pl_sb_push(buf, v) \
     (pl__sb_may_grow((buf), sizeof(*(buf)), 1, 8), (buf)[pl__sb_header((buf))->uSize++] = (v))
