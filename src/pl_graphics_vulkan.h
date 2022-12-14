@@ -50,12 +50,25 @@ PL_DECLARE_STRUCT(plBuffer);          // vulkan buffer
 PL_DECLARE_STRUCT(plTexture);         // vulkan texture
 PL_DECLARE_STRUCT(plTextureDesc);     // texture descriptor
 
+// new
+PL_DECLARE_STRUCT(plBufferBinding);
+PL_DECLARE_STRUCT(plTextureBinding);
+PL_DECLARE_STRUCT(plShaderDesc);
+PL_DECLARE_STRUCT(plShader);
+PL_DECLARE_STRUCT(plGraphicsState);
+PL_DECLARE_STRUCT(plBindGroupLayout);
+PL_DECLARE_STRUCT(plBindGroup);
+PL_DECLARE_STRUCT(plMesh);
+PL_DECLARE_STRUCT(plDraw);
+PL_DECLARE_STRUCT(plDrawArea);
+
 // enums
-typedef int plBufferBindingType;
-typedef int plTextureBindingType;
-typedef int plBufferUsage;
-typedef int plMeshFormatFlags;
-typedef int plBlendMode;
+typedef int plBufferBindingType;  // -> enum _plBufferBindingType   // Enum:
+typedef int plTextureBindingType; // -> enum _plTextureBindingType  // Enum:
+typedef int plBufferUsage;        // -> enum _plBufferUsage         // Enum:
+typedef int plMeshFormatFlags;    // -> enum _plMeshFormatFlags     // Flags:
+typedef int plBlendMode;          // -> enum _plBlendMode           // Enum:
+typedef int plDepthMode;          // -> enum _plDepthMode           // Enum:
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -94,6 +107,17 @@ void                  pl_submit_texture_for_deletion(plResourceManager* ptResour
 VkCommandBuffer       pl_begin_command_buffer      (plGraphics* ptGraphics, plDevice* ptDevice);
 void                  pl_submit_command_buffer     (plGraphics* ptGraphics, plDevice* ptDevice, VkCommandBuffer tCmdBuffer);
 
+// shaders
+void                  pl_create_shader             (plGraphics* ptGraphics, const plShaderDesc* ptDesc, plShader* ptShaderOut);
+void                  pl_cleanup_shader            (plGraphics* ptGraphics, plShader* ptShader);
+
+// descriptors
+void                  pl_create_bind_group         (plGraphics* ptGraphics, plBindGroupLayout* ptLayout, plBindGroup* ptGroupOut);
+void                  pl_update_bind_group         (plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBufferCount, uint32_t* auBuffers, uint32_t uTextureCount, uint32_t* auTextures);
+
+// drawing
+void                  pl_draw_areas                (plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, plDraw* atDraws);
+
 // misc
 plFrameContext*       pl_get_frame_resources       (plGraphics* ptGraphics);
 uint32_t              pl_find_memory_type          (VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties);
@@ -107,19 +131,21 @@ VkSampleCountFlagBits pl_get_max_sample_count      (plDevice* ptDevice);
 // [SECTION] enums
 //-----------------------------------------------------------------------------
 
-enum plBufferBindingType_
+enum _plBufferBindingType
 {
+    PL_BUFFER_BINDING_TYPE_UNSPECIFIED,
     PL_BUFFER_BINDING_TYPE_UNIFORM,
     PL_BUFFER_BINDING_TYPE_STORAGE
 };
 
-enum plTextureBindingType_
+enum _plTextureBindingType
 {
+    PL_TEXTURE_BINDING_TYPE_UNSPECIFIED,
     PL_TEXTURE_BINDING_TYPE_SAMPLED,
     PL_TEXTURE_BINDING_TYPE_STORAGE
 };
 
-enum plBufferUsage_
+enum _plBufferUsage
 {
     PL_BUFFER_USAGE_UNSPECIFIED,
     PL_BUFFER_USAGE_INDEX,
@@ -128,7 +154,7 @@ enum plBufferUsage_
     PL_BUFFER_USAGE_STORAGE
 };
 
-enum plBlendMode_
+enum _plBlendMode
 {
     PL_BLEND_MODE_NONE,
     PL_BLEND_MODE_ALPHA,
@@ -140,7 +166,19 @@ enum plBlendMode_
     PL_BLEND_MODE_COUNT
 };
 
-enum plMeshFormatFlags_
+enum _plDepthMode
+{
+    PL_DEPTH_MODE_NEVER,
+    PL_DEPTH_MODE_LESS,
+    PL_DEPTH_MODE_EQUAL,
+    PL_DEPTH_MODE_LESS_OR_EQUAL,
+    PL_DEPTH_MODE_GREATER,
+    PL_DEPTH_MODE_NOT_EQUAL,
+    PL_DEPTH_MODE_GREATER_OR_EQUAL,
+    PL_DEPTH_MODE_ALWAYS,
+};
+
+enum _plMeshFormatFlags
 {
     PL_MESH_FORMAT_FLAG_NONE           = 0,
     PL_MESH_FORMAT_FLAG_HAS_POSITION   = 1 << 0,
@@ -159,6 +197,36 @@ enum plMeshFormatFlags_
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plMesh
+{
+    uint32_t uVertexBuffer;
+    uint32_t uIndexBuffer;
+    uint32_t uVertexOffset;
+    uint32_t uVertexCount;
+    uint32_t uIndexOffset;
+    uint32_t uIndexCount;
+} plMesh;
+
+typedef struct _plDrawArea
+{
+    VkViewport   tViewport;
+    VkRect2D     tScissor;
+    plBindGroup* ptBindGroup0;
+    uint32_t     uDynamicBufferOffset0;
+    uint32_t     uDrawOffset;
+    uint32_t     uDrawCount;
+} plDrawArea;
+
+typedef struct _plDraw
+{
+    plMesh*      ptMesh;
+    plBindGroup* ptBindGroup1;
+    plBindGroup* ptBindGroup2;
+    plShader*    ptShader;
+    uint32_t     uDynamicBufferOffset1;
+    uint32_t     uDynamicBufferOffset2;
+} plDraw;
 
 typedef struct _plTextureDesc
 {
@@ -190,6 +258,76 @@ typedef struct _plBuffer
     unsigned char* pucMapping;
 } plBuffer;
 
+typedef struct _plBufferBinding
+{
+    plBufferBindingType tType;
+    uint32_t            uSlot;
+    VkShaderStageFlags  tStageFlags;
+    size_t              szSize;
+    size_t              szOffset;
+    plBuffer            tBuffer;
+} plBufferBinding;
+
+typedef struct _plTextureBinding
+{
+    plTextureBindingType tType;
+    uint32_t             uSlot;
+    VkShaderStageFlags   tStageFlags;
+    plTexture            tTexture;
+    VkSampler            tSampler;
+} plTextureBinding;
+
+typedef struct _plBindGroupLayout
+{
+    uint32_t              uTextureCount;
+    uint32_t              uBufferCount;
+    plTextureBinding      aTextures[64];
+    plBufferBinding       aBuffers[64];
+    VkDescriptorSetLayout _tDescriptorSetLayout;
+} plBindGroupLayout;
+
+typedef struct _plBindGroup
+{
+    plBindGroupLayout tLayout;
+    VkDescriptorSet   _tDescriptorSet;
+} plBindGroup;
+
+typedef struct _plGraphicsState
+{
+    union 
+    {
+        struct
+        {
+            uint64_t ulVertexStreamMask0 : 11; // PL_MESH_FORMAT_FLAG_*
+            uint64_t ulVertexStreamMask1 : 11; // PL_MESH_FORMAT_FLAG_*
+            uint64_t ulDepthMode         : 3;  // PL_DEPTH_MODE_
+            uint64_t ulDepthWriteEnabled : 1;  // bool
+            uint64_t ulCullMode          : 2;  // VK_CULL_MODE_*
+            uint64_t ulBlendMode         : 3;  // PL_BLEND_MODE_*
+            uint64_t _ulUnused           : 33;
+        };
+        uint64_t ulValue;
+    };
+    
+} plGraphicsState;
+
+typedef struct _plShaderDesc
+{
+    plGraphicsState    tGraphicsState;
+    const char*        pcVertexShader;
+    const char*        pcPixelShader;
+    plBindGroupLayout* atBindGroupLayouts;
+    uint32_t           uBindGroupLayoutCount;
+    VkRenderPass       _tRenderPass;
+} plShaderDesc;
+
+typedef struct _plShader
+{
+    plShaderDesc     tDesc;
+    VkPipelineLayout _tPipelineLayout;
+    VkPipeline       _tPipeline;
+} plShader;
+
 typedef struct _plResourceManager
 {
 
@@ -197,11 +335,16 @@ typedef struct _plResourceManager
     plTexture* sbtTextures;
 
     // [INTERNAL]
+    
+    uint32_t* _sbulTempQueue;
+
+    // buffers
     uint32_t* _sbulBufferFreeIndices;
     uint32_t* _sbulBufferDeletionQueue;
+
+    // textures
     uint32_t* _sbulTextureFreeIndices;
     uint32_t* _sbulTextureDeletionQueue;
-    uint32_t* _sbulTempQueue;
 
     // cached
     plGraphics* _ptGraphics;

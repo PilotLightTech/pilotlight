@@ -76,3 +76,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #undef STB_IMAGE_IMPLEMENTATION
+
+#define PL_STL_EXT_IMPLEMENTATION
+#include "../extensions/pl_stl_ext.h"
+#undef PL_STL_EXT_IMPLEMENTATION
