@@ -14,6 +14,7 @@ defines = [
     "PL_DRAW_DX11_IMPLEMENTATION",
     "PL_EXT_IMPLEMENTATION",
     "PL_CAMERA_IMPLEMENTATION",
+    "PL_STL_EXT_IMPLEMENTATION",
     "PL_DRAW_VULKAN_IMPLEMENTATION"
 ]
 
@@ -22,6 +23,7 @@ includes = [
     "${workspaceFolder}/src",
     "${workspaceFolder}/extensions",
     "${workspaceFolder}/dependencies/stb",
+    "${workspaceFolder}/dependencies/cgltf",
     "${env:VK_SDK_PATH}/Include"
 ]
 
