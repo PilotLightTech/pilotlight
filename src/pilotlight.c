@@ -26,6 +26,10 @@
 #include "pl_ext.h"
 #undef PL_EXT_IMPLEMENTATION
 
+#define PL_STRING_IMPLEMENTATION
+#include "pl_string.h"
+#undef PL_STRING_IMPLEMENTATION
+
 #define PL_CAMERA_IMPLEMENTATION
 #include "pl_camera.h"
 #undef PL_CAMERA_IMPLEMENTATION
