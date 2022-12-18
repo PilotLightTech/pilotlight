@@ -20,11 +20,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #pragma comment(lib, "user32.lib")
-#pragma comment(lib, "ws2_32.lib")
-#pragma comment(lib, "shlwapi.lib")
-#pragma comment(lib, "propsys.lib")
-#pragma comment(lib, "comctl32.lib")
-#pragma comment(lib, "Shell32.lib")
 #pragma comment(lib, "Ole32.lib")
 
 #ifdef _DEBUG
@@ -41,8 +36,10 @@ Index of this file:
 #include "pl_os.h"       // shared library api
 #include "pl_registry.h" // data registry
 #include <stdlib.h>      // exit
+#include <stdio.h>       // printf
 #include <wchar.h>       // mbsrtowcs, wcsrtombs
 #include <float.h>       // FLT_MAX, FLT_MIN
+#include <winsock2.h>    // sockets
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <windowsx.h> // GET_X_LPARAM(), GET_Y_LPARAM()
@@ -83,6 +80,14 @@ static void  (*pl_app_update)  (plAppData* userData);
 
 int main()
 {
+
+    // initialize winsock
+    WSADATA tWsaData = {0};
+    if(WSAStartup(MAKEWORD(2, 2), &tWsaData) != 0)
+    {
+        printf("Failed to start winsock with error code: %d\n", WSAGetLastError());
+        return -1;
+    }
 
     // setup & retrieve io context
     pl_initialize_io_context(&gtIOContext);
@@ -222,6 +227,9 @@ int main()
 
     // return console to original mode
     if(!SetConsoleMode(tStdOutHandle, tOriginalMode)) exit(GetLastError());
+
+    // cleanup winsock
+    WSACleanup();
 }
 
 //-----------------------------------------------------------------------------

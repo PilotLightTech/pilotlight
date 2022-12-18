@@ -14,18 +14,23 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_os.h"
 #include <stdio.h> // file api
+#include "pl_os.h"
+#include "pl_memory.h"
 
 #ifndef PL_ASSERT
 #include <assert.h>
 #define PL_ASSERT(x) assert((x))
 #endif
 
+
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#include <winsock2.h>
 #include <windows.h>
+
+#pragma comment(lib, "ws2_32.lib") // winsock2 library
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -103,6 +108,100 @@ void
 pl_copy_file(const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer)
 {
     CopyFile(pcSource, pcDestination, FALSE);
+}
+
+void
+pl_create_udp_socket(plSocket* ptSocketOut, bool bNonBlocking)
+{
+
+    UINT_PTR tWin32Socket = 0;
+
+    // create socket
+    if((tWin32Socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
+    {
+        printf("Could not create socket : %d\n", WSAGetLastError());
+        PL_ASSERT(false && "Could not create socket");
+    }
+
+    // enable non-blocking
+    if(bNonBlocking)
+    {
+        u_long uMode = 1;
+        ioctlsocket(tWin32Socket, FIONBIO, &uMode);
+    }
+
+    ptSocketOut->_pPlatformData = (void*)tWin32Socket;
+}
+
+void
+pl_bind_udp_socket(plSocket* ptSocket, int iPort)
+{
+    ptSocket->iPort = iPort;
+    PL_ASSERT(ptSocket->_pPlatformData && "Socket not created yet");
+    UINT_PTR tWin32Socket = (UINT_PTR)ptSocket->_pPlatformData;
+    
+    // prepare sockaddr_in struct
+    struct sockaddr_in tServer = {
+        .sin_family      = AF_INET,
+        .sin_port        = htons((u_short)iPort),
+        .sin_addr.s_addr = INADDR_ANY
+    };
+
+    // bind socket
+    if(bind(tWin32Socket, (struct sockaddr* )&tServer, sizeof(tServer)) == SOCKET_ERROR)
+    {
+        printf("Bind socket failed with error code : %d\n", WSAGetLastError());
+        PL_ASSERT(false && "Socket error");
+    }
+}
+
+bool
+pl_send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize)
+{
+    PL_ASSERT(ptFromSocket->_pPlatformData && "Socket not created yet");
+    UINT_PTR tWin32Socket = (UINT_PTR)ptFromSocket->_pPlatformData;
+
+    struct sockaddr_in tDestSocket = {
+        .sin_family           = AF_INET,
+        .sin_port             = htons((u_short)iDestPort),
+        .sin_addr.S_un.S_addr = inet_addr(pcDestIP)
+    };
+    static const size_t szLen = sizeof(tDestSocket);
+
+    // send
+    if(sendto(tWin32Socket, (const char*)pData, (int)szSize, 0, (struct sockaddr*)&tDestSocket, (int)szLen) == SOCKET_ERROR)
+    {
+        printf("sendto() failed with error code : %d\n", WSAGetLastError());
+        PL_ASSERT(false && "Socket error");
+        return false;
+    }
+
+    return true;
+}
+
+bool
+pl_get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
+{
+    PL_ASSERT(ptSocket->_pPlatformData && "Socket not created yet");
+    UINT_PTR tWin32Socket = (UINT_PTR)ptSocket->_pPlatformData;
+
+    struct sockaddr_in tSiOther = {0};
+    static int iSLen = (int)sizeof(tSiOther);
+    memset(pData, 0, szSize);
+    int iRecvLen = recvfrom(tWin32Socket, (char*)pData, (int)szSize, 0, (struct sockaddr*)&tSiOther, &iSLen);
+
+    if(iRecvLen == SOCKET_ERROR)
+    {
+        const int iLastError = WSAGetLastError();
+        if(iLastError != WSAEWOULDBLOCK)
+        {
+            printf("recvfrom() failed with error code : %d\n", WSAGetLastError());
+            PL_ASSERT(false && "Socket error");
+            return false;
+        }
+    }
+
+    return iRecvLen > 0;
 }
 
 bool

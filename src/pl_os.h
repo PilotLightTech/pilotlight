@@ -41,6 +41,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 PL_DECLARE_STRUCT(plSharedLibrary);
+PL_DECLARE_STRUCT(plSocket);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -49,6 +50,12 @@ PL_DECLARE_STRUCT(plSharedLibrary);
 // files
 void pl_read_file(const char* pcFile, unsigned* puSize, char* pcBuffer, const char* pcMode);
 void pl_copy_file(const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer);
+
+// UDP sockets
+void  pl_create_udp_socket(plSocket* ptSocketOut, bool bNonBlocking);
+void  pl_bind_udp_socket  (plSocket* ptSocket, int iPort);
+bool  pl_send_udp_data    (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
+bool  pl_get_udp_data     (plSocket* ptSocket, void* pData, size_t szSize);
 
 // shared libraries
 bool  pl_has_library_changed  (plSharedLibrary* ptLibrary);
@@ -72,5 +79,11 @@ typedef struct _plSharedLibrary
     char     acLockFile[PL_MAX_NAME_LENGTH];
     void*    _pPlatformData;
 } plSharedLibrary;
+
+typedef struct _plSocket
+{
+  int   iPort;
+  void* _pPlatformData;
+} plSocket;
 
 #endif // PL_OS_H

@@ -22,6 +22,11 @@ Index of this file:
 #include <copyfile.h> // copyfile
 #include <dlfcn.h>    // dlopen, dlsym, dlclose
 #include <time.h>     // nanosleep
+#include <sys/socket.h>   // sockets
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <errno.h>
+#include <fcntl.h>
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -98,6 +103,96 @@ pl_copy_file(const char* source, const char* destination, unsigned* size, char* 
     s = copyfile_state_alloc();
     copyfile(source, destination, s, COPYFILE_XATTR | COPYFILE_DATA);
     copyfile_state_free(s);
+}
+
+void
+pl_create_udp_socket(plSocket* ptSocketOut, bool bNonBlocking)
+{
+
+    int iLinuxSocket = 0;
+
+    // create socket
+    if((iLinuxSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+    {
+        printf("Could not create socket\n");
+        PL_ASSERT(false && "Could not create socket");
+    }
+
+    // enable non-blocking
+    if(bNonBlocking)
+    {
+        int iFlags = fcntl(iLinuxSocket, F_GETFL);
+        fcntl(iLinuxSocket, F_SETFL, iFlags | O_NONBLOCK);
+    }
+}
+
+void
+pl_bind_udp_socket(plSocket* ptSocket, int iPort)
+{
+    ptSocket->iPort = iPort;
+    PL_ASSERT(ptSocket->_pPlatformData && "Socket not created yet");
+    int iLinuxSocket = (int)((intptr_t )ptSocket->_pPlatformData);
+    
+    // prepare sockaddr_in struct
+    struct sockaddr_in tServer = {
+        .sin_family      = AF_INET,
+        .sin_port        = htons((uint16_t)iPort),
+        .sin_addr.s_addr = INADDR_ANY
+    };
+
+    // bind socket
+    if(bind(iLinuxSocket, (struct sockaddr* )&tServer, sizeof(tServer)) < 0)
+    {
+        printf("Bind socket failed with error code : %d\n", errno);
+        PL_ASSERT(false && "Socket error");
+    }
+}
+
+bool
+pl_send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize)
+{
+    PL_ASSERT(ptFromSocket->_pPlatformData && "Socket not created yet");
+    int iLinuxSocket = (int)((intptr_t )ptFromSocket->_pPlatformData);
+
+    struct sockaddr_in tDestSocket = {
+        .sin_family      = AF_INET,
+        .sin_port        = htons((uint16_t)iDestPort),
+        .sin_addr.s_addr = inet_addr(pcDestIP)
+    };
+    static const size_t szLen = sizeof(tDestSocket);
+
+    // send
+    if(sendto(iLinuxSocket, (const char*)pData, (int)szSize, 0, (struct sockaddr*)&tDestSocket, (int)szLen) < 0)
+    {
+        printf("sendto() failed with error code : %d\n", errno);
+        PL_ASSERT(false && "Socket error");
+        return false;
+    }
+
+    return true;
+}
+
+bool
+pl_get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
+{
+    PL_ASSERT(ptSocket->_pPlatformData && "Socket not created yet");
+    int iLinuxSocket = (int)((intptr_t )ptSocket->_pPlatformData);
+
+    struct sockaddr_in tSiOther = {0};
+    static socklen_t iSLen = (int)sizeof(tSiOther);
+    memset(pData, 0, szSize);
+    int iRecvLen = recvfrom(iLinuxSocket, (char*)pData, (int)szSize, 0, (struct sockaddr*)&tSiOther, &iSLen);
+
+    if(iRecvLen < 0)
+    {
+        if(errno != EWOULDBLOCK)
+        {
+            printf("recvfrom() failed with error code : %d\n", errno);
+            PL_ASSERT(false && "Socket error");
+            return false;
+        }
+    }
+    return iRecvLen > 0;
 }
 
 bool
