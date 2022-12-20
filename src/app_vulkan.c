@@ -124,7 +124,7 @@ pl_app_setup(plAppData* ptAppData)
     pl_setup_graphics(&ptAppData->tGraphics);
     
     // setup drawing api
-    pl_initialize_draw_context_vulkan(&ptAppData->tCtx, ptAppData->tGraphics.tDevice.tPhysicalDevice, 3, ptAppData->tGraphics.tDevice.tLogicalDevice);
+    pl_initialize_draw_context_vulkan(&ptAppData->tCtx, ptAppData->tGraphics.tDevice.tPhysicalDevice, ptAppData->tGraphics.tSwapchain.uImageCount, ptAppData->tGraphics.tDevice.tLogicalDevice);
     pl_register_drawlist(&ptAppData->tCtx, &ptAppData->drawlist);
     pl_setup_drawlist_vulkan(&ptAppData->drawlist, ptAppData->tGraphics.tRenderPass, ptAppData->tGraphics.tSwapchain.tMsaaSamples);
     ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
@@ -176,6 +176,7 @@ pl_app_resize(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~frame setup~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     pl_begin_profile_frame(ptAppData->tCtx.frameCount);
     plIOContext* ptIOCtx = pl_get_io_context();
     pl_handle_extension_reloads();
@@ -185,12 +186,14 @@ pl_app_update(plAppData* ptAppData)
 
     plFrameContext* ptCurrentFrame = pl_get_frame_resources(&ptAppData->tGraphics);
 
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~begin frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     if(pl_begin_frame(&ptAppData->tGraphics))
     {
         pl_begin_recording(&ptAppData->tGraphics);
 
         pl_begin_main_pass(&ptAppData->tGraphics);
 
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~input handling~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         static const float fCameraTravelSpeed = 8.0f;
         if(pl_is_key_pressed(PL_KEY_W, true)) pl_camera_translate(&ptAppData->tCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIOCtx->fDeltaTime);
         if(pl_is_key_pressed(PL_KEY_S, true)) pl_camera_translate(&ptAppData->tCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIOCtx->fDeltaTime);
@@ -205,6 +208,8 @@ pl_app_update(plAppData* ptAppData)
             pl_camera_rotate(&ptAppData->tCamera,  -tMouseDelta.y * 0.1f * ptIOCtx->fDeltaTime,  -tMouseDelta.x * 0.1f * ptIOCtx->fDeltaTime);
             pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
         }
+
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~drawing api~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         static char pcCameraPos[256] = {0};
         pl_sprintf(pcCameraPos, "Pos: %.3f, %.3f, %.3f", ptAppData->tCamera.tPos.x, ptAppData->tCamera.tPos.y, ptAppData->tCamera.tPos.z);
@@ -251,6 +256,8 @@ pl_app_update(plAppData* ptAppData)
         pl_add_line(ptAppData->bgDrawLayer, (plVec2){500.0f, 10.0f}, (plVec2){10.0f, 500.0f}, (plVec4){1.0f, 1.0f, 1.0f, 0.5f}, 2.0f);
         pl_end_profile_sample();
 
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submit draws~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
         // submit draw layers
         pl_begin_profile_sample("Submit draw layers");
         pl_submit_draw_layer(ptAppData->bgDrawLayer);
@@ -260,6 +267,7 @@ pl_app_update(plAppData* ptAppData)
         // submit draw lists
         pl_submit_drawlist_vulkan(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
 
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~end frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         pl_end_main_pass(&ptAppData->tGraphics);
         pl_end_recording(&ptAppData->tGraphics);
         pl_end_frame(&ptAppData->tGraphics);

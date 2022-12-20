@@ -75,57 +75,63 @@ typedef int plDepthMode;          // -> enum _plDepthMode           // Enum:
 //-----------------------------------------------------------------------------
 
 // setup
-void                  pl_setup_graphics            (plGraphics* ptGraphics);
-void                  pl_cleanup_graphics          (plGraphics* ptGraphics);
-void                  pl_resize_graphics           (plGraphics* ptGraphics);
+void                  pl_setup_graphics               (plGraphics* ptGraphics);
+void                  pl_cleanup_graphics             (plGraphics* ptGraphics);
+void                  pl_resize_graphics              (plGraphics* ptGraphics);
 
 // per frame
-bool                  pl_begin_frame               (plGraphics* ptGraphics);
-void                  pl_end_frame                 (plGraphics* ptGraphics);
-void                  pl_begin_recording           (plGraphics* ptGraphics);
-void                  pl_end_recording             (plGraphics* ptGraphics);
-void                  pl_begin_main_pass           (plGraphics* ptGraphics);
-void                  pl_end_main_pass             (plGraphics* ptGraphics);
+bool                  pl_begin_frame                  (plGraphics* ptGraphics);
+void                  pl_end_frame                    (plGraphics* ptGraphics);
+void                  pl_begin_recording              (plGraphics* ptGraphics);
+void                  pl_end_recording                (plGraphics* ptGraphics);
+void                  pl_begin_main_pass              (plGraphics* ptGraphics);
+void                  pl_end_main_pass                (plGraphics* ptGraphics);
 
 // resource manager per frame
-void                  pl_process_cleanup_queue     (plResourceManager* ptResourceManager, uint32_t uFramesToProcess);
+void                  pl_process_cleanup_queue        (plResourceManager* ptResourceManager, uint32_t uFramesToProcess);
 
 // resource manager commited resources
-uint32_t              pl_create_index_buffer       (plResourceManager* ptResourceManager, size_t szSize, const void* pData);
-uint32_t              pl_create_vertex_buffer      (plResourceManager* ptResourceManager, size_t szSize, size_t szStride, const void* pData);
-uint32_t              pl_create_constant_buffer    (plResourceManager* ptResourceManager, size_t szItemSize, size_t szItemCount);
-uint32_t              pl_create_texture            (plResourceManager* ptResourceManager, plTextureDesc tDesc, size_t szSize, const void* pData);
-uint32_t              pl_create_storage_buffer     (plResourceManager* ptResourceManager, size_t szSize, const void* pData);
+uint32_t              pl_create_index_buffer          (plResourceManager* ptResourceManager, size_t szSize, const void* pData);
+uint32_t              pl_create_vertex_buffer         (plResourceManager* ptResourceManager, size_t szSize, size_t szStride, const void* pData);
+uint32_t              pl_create_constant_buffer       (plResourceManager* ptResourceManager, size_t szItemSize, size_t szItemCount);
+uint32_t              pl_create_texture               (plResourceManager* ptResourceManager, plTextureDesc tDesc, size_t szSize, const void* pData);
+uint32_t              pl_create_storage_buffer        (plResourceManager* ptResourceManager, size_t szSize, const void* pData);
+
+// constant buffer helpers
+void*                 pl_get_constant_buffer_data     (plResourceManager* ptResourceManager, uint32_t uBuffer, uint32_t uInstance);
+void*                 pl_get_constant_buffer_data_ex  (plResourceManager* ptResourceManager, uint32_t uBuffer, size_t szFrame, uint32_t uInstance);
+uint32_t              pl_get_constant_buffer_offset   (plResourceManager* ptResourceManager, uint32_t uBuffer, uint32_t uInstance);
+uint32_t              pl_get_constant_buffer_offset_ex(plResourceManager* ptResourceManager, uint32_t uBuffer, size_t szFrame, uint32_t uInstance);
 
 // resource manager misc.
-void                  pl_transfer_data_to_image     (plResourceManager* ptResourceManager, plTexture* ptDest, size_t szDataSize, const void* pData);
-void                  pl_transfer_data_to_buffer    (plResourceManager* ptResourceManager, VkBuffer tDest, size_t szSize, const void* pData);
-void                  pl_submit_buffer_for_deletion (plResourceManager* ptResourceManager, uint32_t ulBufferIndex);
-void                  pl_submit_texture_for_deletion(plResourceManager* ptResourceManager, uint32_t ulTextureIndex);
+void                  pl_transfer_data_to_image       (plResourceManager* ptResourceManager, plTexture* ptDest, size_t szDataSize, const void* pData);
+void                  pl_transfer_data_to_buffer      (plResourceManager* ptResourceManager, VkBuffer tDest, size_t szSize, const void* pData);
+void                  pl_submit_buffer_for_deletion   (plResourceManager* ptResourceManager, uint32_t uBufferIndex);
+void                  pl_submit_texture_for_deletion  (plResourceManager* ptResourceManager, uint32_t uTextureIndex);
 
 // command buffers
-VkCommandBuffer       pl_begin_command_buffer      (plGraphics* ptGraphics, plDevice* ptDevice);
-void                  pl_submit_command_buffer     (plGraphics* ptGraphics, plDevice* ptDevice, VkCommandBuffer tCmdBuffer);
+VkCommandBuffer       pl_begin_command_buffer         (plGraphics* ptGraphics, plDevice* ptDevice);
+void                  pl_submit_command_buffer        (plGraphics* ptGraphics, plDevice* ptDevice, VkCommandBuffer tCmdBuffer);
 
 // shaders
-void                  pl_create_shader             (plGraphics* ptGraphics, const plShaderDesc* ptDesc, plShader* ptShaderOut);
-void                  pl_cleanup_shader            (plGraphics* ptGraphics, plShader* ptShader);
+uint32_t              pl_create_shader             (plResourceManager* ptResourceManager, const plShaderDesc* ptDesc);
+void                  pl_submit_shader_for_deletion(plResourceManager* ptResourceManager, uint32_t uShaderIndex);
 
 // descriptors
-void                  pl_create_bind_group         (plGraphics* ptGraphics, plBindGroupLayout* ptLayout, plBindGroup* ptGroupOut);
-void                  pl_update_bind_group         (plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBufferCount, uint32_t* auBuffers, uint32_t uTextureCount, uint32_t* auTextures);
+void                  pl_create_bind_group            (plGraphics* ptGraphics, plBindGroupLayout* ptLayout, plBindGroup* ptGroupOut);
+void                  pl_update_bind_group            (plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBufferCount, uint32_t* auBuffers, uint32_t uTextureCount, uint32_t* auTextures);
 
 // drawing
-void                  pl_draw_areas                (plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, plDraw* atDraws);
+void                  pl_draw_areas                   (plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, plDraw* atDraws);
 
 // misc
-plFrameContext*       pl_get_frame_resources       (plGraphics* ptGraphics);
-uint32_t              pl_find_memory_type          (VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties);
-void                  pl_transition_image_layout   (VkCommandBuffer tCommandBuffer, VkImage tImage, VkImageLayout tOldLayout, VkImageLayout tNewLayout, VkImageSubresourceRange tSubresourceRange, VkPipelineStageFlags tSrcStageMask, VkPipelineStageFlags tDstStageMask);
-VkFormat              pl_find_supported_format     (plDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount);
-VkFormat              pl_find_depth_format         (plDevice* ptDevice);
-bool                  pl_format_has_stencil        (VkFormat tFormat);
-VkSampleCountFlagBits pl_get_max_sample_count      (plDevice* ptDevice);
+plFrameContext*       pl_get_frame_resources          (plGraphics* ptGraphics);
+uint32_t              pl_find_memory_type             (VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties);
+void                  pl_transition_image_layout      (VkCommandBuffer tCommandBuffer, VkImage tImage, VkImageLayout tOldLayout, VkImageLayout tNewLayout, VkImageSubresourceRange tSubresourceRange, VkPipelineStageFlags tSrcStageMask, VkPipelineStageFlags tDstStageMask);
+VkFormat              pl_find_supported_format        (plDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount);
+VkFormat              pl_find_depth_format            (plDevice* ptDevice);
+bool                  pl_format_has_stencil           (VkFormat tFormat);
+VkSampleCountFlagBits pl_get_max_sample_count         (plDevice* ptDevice);
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -223,14 +229,15 @@ typedef struct _plDraw
     plMesh*      ptMesh;
     plBindGroup* ptBindGroup1;
     plBindGroup* ptBindGroup2;
-    plShader*    ptShader;
+    uint32_t     uShader;
     uint32_t     uDynamicBufferOffset1;
     uint32_t     uDynamicBufferOffset2;
 } plDraw;
 
 typedef struct _plTextureDesc
 {
-    VkImageViewType      tType;
+    VkImageType          tType;
+    VkImageViewType      tViewType;
     plVec3               tDimensions;
     uint32_t             uLayers;
     uint32_t             uMips;
@@ -253,6 +260,7 @@ typedef struct _plBuffer
     size_t         szRequestedSize;
     size_t         szSize;
     size_t         szStride;
+    size_t         szItemCount;
     VkBuffer       tBuffer;
     VkDeviceMemory tBufferMemory;
     unsigned char* pucMapping;
@@ -333,11 +341,17 @@ typedef struct _plResourceManager
 
     plBuffer*  sbtBuffers;
     plTexture* sbtTextures;
+    plShader*  sbtShaders;
 
     // [INTERNAL]
     
     uint32_t* _sbulTempQueue;
 
+    // shaders
+    uint32_t* _sbulShaderHashes;
+    uint32_t* _sbulShaderFreeIndices;
+    uint32_t* _sbulShaderDeletionQueue; 
+    
     // buffers
     uint32_t* _sbulBufferFreeIndices;
     uint32_t* _sbulBufferDeletionQueue;

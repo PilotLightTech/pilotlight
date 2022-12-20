@@ -49,8 +49,7 @@ static uint32_t                            pl__get_u32_min              (uint32_
 static int                                 pl__select_physical_device   (VkInstance tInstance, plDevice* ptDeviceOut);
 static void                                pl__staging_buffer_realloc   (plResourceManager* ptResourceManager, size_t szNewSize);
 static inline void                         pl__staging_buffer_may_grow  (plResourceManager* ptResourceManager, size_t szSize);
-static uint32_t                            pl__get_free_buffer_index    (plResourceManager* ptResourceManager);
-static uint32_t                            pl__get_free_texture_index   (plResourceManager* ptResourceManager);
+static bool                                pl__get_free_resource_index  (uint32_t* sbuFreeIndices, uint32_t* puIndexOut);
 static size_t                              pl__get_const_buffer_req_size(plDevice* ptDevice, size_t szSize);
 static VkPipelineColorBlendAttachmentState pl__get_blend_state(plBlendMode tBlendMode);
 
@@ -455,23 +454,43 @@ pl_submit_command_buffer(plGraphics* ptGraphics, plDevice* ptDevice, VkCommandBu
     vkFreeCommandBuffers(ptDevice->tLogicalDevice, ptGraphics->tCmdPool, 1, &tCmdBuffer);
 }
 
-void
-pl_create_shader(plGraphics* ptGraphics, const plShaderDesc* ptDesc, plShader* ptShaderOut)
+uint32_t
+pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDesc)
 {
     PL_ASSERT(ptDesc->uBindGroupLayoutCount < 5 && "only 4 descriptor sets allowed per pipeline.");
-    ptShaderOut->tDesc = *ptDesc;
+
+    // hash shader
+    uint32_t uHash = pl_str_hash_data(&ptDesc->tGraphicsState.ulValue, sizeof(uint64_t), 0);
+    for(uint32_t i = 0; i < ptDesc->uBindGroupLayoutCount; i++)
+    {
+        uHash += ptDesc->atBindGroupLayouts[i].uTextureCount;
+        uHash += ptDesc->atBindGroupLayouts[i].uBufferCount;
+    }
+    uHash = pl_str_hash(ptDesc->pcPixelShader, 0, uHash);
+    uHash = pl_str_hash(ptDesc->pcVertexShader, 0, uHash);
+
+    // TODO: set a max shader count & use a lookup table
+    for(uint32_t i = 0; i < pl_sb_size(ptResourceManager->_sbulShaderHashes); i++)
+    {
+        if(ptResourceManager->_sbulShaderHashes[i] == uHash)
+            return i;
+    }
+    
+    plShader tShader = {
+        .tDesc = *ptDesc
+    };
 
     VkDescriptorSetLayout atDescriptorSetLayouts[4] = {0};
     for(uint32_t i = 0; i < ptDesc->uBindGroupLayoutCount; i++)
     {
-        atDescriptorSetLayouts[i] = ptShaderOut->tDesc.atBindGroupLayouts[i]._tDescriptorSetLayout;
+        atDescriptorSetLayouts[i] = tShader.tDesc.atBindGroupLayouts[i]._tDescriptorSetLayout;
     }
     const VkPipelineLayoutCreateInfo tPipelineLayoutInfo = {
         .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = ptDesc->uBindGroupLayoutCount,
         .pSetLayouts    = atDescriptorSetLayouts
     };
-    PL_VULKAN(vkCreatePipelineLayout(ptGraphics->tDevice.tLogicalDevice, &tPipelineLayoutInfo, NULL, &ptShaderOut->_tPipelineLayout));
+    PL_VULKAN(vkCreatePipelineLayout(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, &tPipelineLayoutInfo, NULL, &tShader._tPipelineLayout));
 
     //---------------------------------------------------------------------
     // input assembler stage
@@ -631,7 +650,7 @@ pl_create_shader(plGraphics* ptGraphics, const plShaderDesc* ptDesc, plShader* p
         .codeSize = uByteCodeSize,
         .pCode    = (const uint32_t*)(pcByteCode)
     };
-    PL_VULKAN(vkCreateShaderModule(ptGraphics->tDevice.tLogicalDevice, &tVertexShaderInfo, NULL, &tVertexShaderStageInfo.module));
+    PL_VULKAN(vkCreateShaderModule(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, &tVertexShaderInfo, NULL, &tVertexShaderStageInfo.module));
 
     //---------------------------------------------------------------------
     // pixel shader stage
@@ -654,7 +673,7 @@ pl_create_shader(plGraphics* ptGraphics, const plShaderDesc* ptDesc, plShader* p
         .codeSize = uByteCodeSize,
         .pCode    = (const uint32_t*)(pcByteCode)
     };
-    PL_VULKAN(vkCreateShaderModule(ptGraphics->tDevice.tLogicalDevice, &tPixelShaderInfo, NULL, &tPixelShaderStageInfo.module));
+    PL_VULKAN(vkCreateShaderModule(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, &tPixelShaderInfo, NULL, &tPixelShaderStageInfo.module));
     pl_free(pcByteCode);
 
     //---------------------------------------------------------------------
@@ -675,7 +694,7 @@ pl_create_shader(plGraphics* ptGraphics, const plShaderDesc* ptDesc, plShader* p
     const VkPipelineMultisampleStateCreateInfo tMultisampling = {
         .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .sampleShadingEnable  = VK_FALSE,
-        .rasterizationSamples = ptGraphics->tSwapchain.tMsaaSamples
+        .rasterizationSamples = ptResourceManager->_ptGraphics->tSwapchain.tMsaaSamples
     };
 
     //---------------------------------------------------------------------
@@ -749,34 +768,43 @@ pl_create_shader(plGraphics* ptGraphics, const plShaderDesc* ptDesc, plShader* p
         .pMultisampleState   = &tMultisampling,
         .pColorBlendState    = &tColorBlending,
         .pDynamicState       = &tDynamicState,
-        .layout              = ptShaderOut->_tPipelineLayout,
+        .layout              = tShader._tPipelineLayout,
         .renderPass          = ptDesc->_tRenderPass,
         .subpass             = 0u,
         .basePipelineHandle  = VK_NULL_HANDLE,
         .pDepthStencilState  = &tDepthStencil,
     };
-    PL_VULKAN(vkCreateGraphicsPipelines(ptGraphics->tDevice.tLogicalDevice, VK_NULL_HANDLE, 1, &tPipelineInfo, NULL, &ptShaderOut->_tPipeline));
+    PL_VULKAN(vkCreateGraphicsPipelines(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, VK_NULL_HANDLE, 1, &tPipelineInfo, NULL, &tShader._tPipeline));
 
     // no longer need these
-    vkDestroyShaderModule(ptGraphics->tDevice.tLogicalDevice, tVertexShaderStageInfo.module, NULL);
-    vkDestroyShaderModule(ptGraphics->tDevice.tLogicalDevice, tPixelShaderStageInfo.module, NULL);
+    vkDestroyShaderModule(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, tVertexShaderStageInfo.module, NULL);
+    vkDestroyShaderModule(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, tPixelShaderStageInfo.module, NULL);
 
-    pl_sb_free(sbtAttributeDescriptions)
+    // find free index
+    uint32_t uShaderIndex = 0u;
+    if(!pl__get_free_resource_index(ptResourceManager->_sbulShaderFreeIndices, &uShaderIndex))
+    {
+        uShaderIndex = pl_sb_add_n(ptResourceManager->sbtShaders, 1);
+        pl_sb_add_n(ptResourceManager->_sbulShaderHashes, 1);
+    }
+    ptResourceManager->sbtShaders[uShaderIndex] = tShader;
+    ptResourceManager->_sbulShaderHashes[uShaderIndex] = uHash;
+
+    PL_ASSERT(pl_sb_size(ptResourceManager->sbtShaders) == pl_sb_size(ptResourceManager->_sbulShaderHashes));
+    pl_sb_free(sbtAttributeDescriptions);
+
+    return uShaderIndex;
 }
 
 void
-pl_cleanup_shader(plGraphics* ptGraphics, plShader* ptShader)
+pl_submit_shader_for_deletion(plResourceManager* ptResourceManager, uint32_t uShaderIndex)
 {
-    vkDestroyPipelineLayout(ptGraphics->tDevice.tLogicalDevice, ptShader->_tPipelineLayout, NULL);
-    vkDestroyPipeline(ptGraphics->tDevice.tLogicalDevice, ptShader->_tPipeline, NULL);
-    for(uint32_t i = 0; i < ptShader->tDesc.uBindGroupLayoutCount; i++)
-    {
-        if(ptShader->tDesc.atBindGroupLayouts[i]._tDescriptorSetLayout)
-        {
-            vkDestroyDescriptorSetLayout(ptGraphics->tDevice.tLogicalDevice, ptShader->tDesc.atBindGroupLayouts[i]._tDescriptorSetLayout, NULL);
-            ptShader->tDesc.atBindGroupLayouts[i]._tDescriptorSetLayout = VK_NULL_HANDLE;
-        }
-    }
+
+    PL_ASSERT(uShaderIndex < pl_sb_size(ptResourceManager->sbtShaders)); 
+    pl_sb_push(ptResourceManager->_sbulShaderDeletionQueue, uShaderIndex);
+
+    // using shader hash to store frame this buffer is ok to free
+    ptResourceManager->_sbulShaderHashes[uShaderIndex] = ptResourceManager->_ptGraphics->uFramesInFlight;   
 }
 
 void
@@ -900,36 +928,37 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
     static VkDeviceSize tOffsets = { 0 };
     vkCmdSetDepthBias(ptCurrentFrame->tCmdBuf, 0.0f, 0.0f, 0.0f);
 
-    VkPipeline tLastPipeline = VK_NULL_HANDLE;
     VkDescriptorSet tLastGlobalDescriptorSet = VK_NULL_HANDLE;
     VkDescriptorSet tLastMaterialDescriptorSet = VK_NULL_HANDLE;
+    uint32_t uLastShader = UINT32_MAX;
 
     for(uint32_t i = 0; i < uAreaCount; i++)
     {
         const plDrawArea* ptArea = &atAreas[i];
-
-        
+    
         for(uint32_t j = 0; j < ptArea->uDrawCount; j++)
         {
             const plDraw* ptDraw = &atDraws[ptArea->uDrawOffset + j];
 
+            plShader* ptShader = &ptGraphics->tResourceManager.sbtShaders[ptDraw->uShader];
+
             if(tLastGlobalDescriptorSet != ptArea->ptBindGroup0->_tDescriptorSet)
             {
-                vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptDraw->ptShader->_tPipelineLayout, 0, 1, &ptArea->ptBindGroup0->_tDescriptorSet, 1, &ptArea->uDynamicBufferOffset0);
+                vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptShader->_tPipelineLayout, 0, 1, &ptArea->ptBindGroup0->_tDescriptorSet, 1, &ptArea->uDynamicBufferOffset0);
                 tLastGlobalDescriptorSet = ptArea->ptBindGroup0->_tDescriptorSet;
             }
             if(tLastMaterialDescriptorSet != ptDraw->ptBindGroup1->_tDescriptorSet)
             {
-                vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptDraw->ptShader->_tPipelineLayout, 1, 1, &ptDraw->ptBindGroup1->_tDescriptorSet, 1, &ptDraw->uDynamicBufferOffset1);
+                vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptShader->_tPipelineLayout, 1, 1, &ptDraw->ptBindGroup1->_tDescriptorSet, 1, &ptDraw->uDynamicBufferOffset1);
                 tLastMaterialDescriptorSet = ptDraw->ptBindGroup1->_tDescriptorSet;
             }
             
-            vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptDraw->ptShader->_tPipelineLayout, 2, 1, &ptDraw->ptBindGroup2->_tDescriptorSet, 1, &ptDraw->uDynamicBufferOffset2);
+            vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptShader->_tPipelineLayout, 2, 1, &ptDraw->ptBindGroup2->_tDescriptorSet, 1, &ptDraw->uDynamicBufferOffset2);
         
-            if(ptDraw->ptShader->_tPipeline != tLastPipeline)
+            if(ptDraw->uShader != uLastShader)
             {
-                vkCmdBindPipeline(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptDraw->ptShader->_tPipeline);
-                tLastPipeline = ptDraw->ptShader->_tPipeline;
+                vkCmdBindPipeline(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptShader->_tPipeline);
+                uLastShader = ptDraw->uShader;
             }
             
             vkCmdBindIndexBuffer(ptCurrentFrame->tCmdBuf, ptGraphics->tResourceManager.sbtBuffers[ptDraw->ptMesh->uIndexBuffer].tBuffer, 0, VK_INDEX_TYPE_UINT32);
@@ -947,7 +976,6 @@ pl_process_cleanup_queue(plResourceManager* ptResourceManager, uint32_t uFramesT
     const VkDevice tDevice = ptResourceManager->_ptDevice->tLogicalDevice;
 
     // buffer cleanup
-
     pl_sb_reset(ptResourceManager->_sbulTempQueue);
 
     bool bNeedUpdate = false;
@@ -1045,6 +1073,56 @@ pl_process_cleanup_queue(plResourceManager* ptResourceManager, uint32_t uFramesT
         pl_sb_resize(ptResourceManager->_sbulTextureDeletionQueue, pl_sb_size(ptResourceManager->_sbulTempQueue));
         if(ptResourceManager->_sbulTempQueue)
             memcpy(ptResourceManager->_sbulTextureDeletionQueue, ptResourceManager->_sbulTempQueue, pl_sb_size(ptResourceManager->_sbulTempQueue) * sizeof(uint32_t));
+    }
+
+    // shader cleanup
+    pl_sb_reset(ptResourceManager->_sbulTempQueue);
+
+    bNeedUpdate = false;
+
+    for(uint32_t i = 0; i < pl_sb_size(ptResourceManager->_sbulShaderDeletionQueue); i++)
+    {
+        const uint32_t uShaderIndex = ptResourceManager->_sbulShaderDeletionQueue[i];
+
+        plShader* ptShader = &ptResourceManager->sbtShaders[uShaderIndex];
+
+        // we are hiding the frame
+        if(ptResourceManager->_sbulShaderHashes[uShaderIndex] < uFramesToProcess)
+            ptResourceManager->_sbulShaderHashes[uShaderIndex] = 0;
+        else
+            ptResourceManager->_sbulShaderHashes[uShaderIndex] -= uFramesToProcess;
+
+        if(ptResourceManager->_sbulShaderHashes[uShaderIndex] == 0)
+        {
+
+            vkDestroyPipelineLayout(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, ptShader->_tPipelineLayout, NULL);
+            vkDestroyPipeline(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, ptShader->_tPipeline, NULL);
+            for(uint32_t j = 0; j < ptShader->tDesc.uBindGroupLayoutCount; j++)
+            {
+                if(ptShader->tDesc.atBindGroupLayouts[j]._tDescriptorSetLayout)
+                {
+                    vkDestroyDescriptorSetLayout(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, ptShader->tDesc.atBindGroupLayouts[j]._tDescriptorSetLayout, NULL);
+                    ptShader->tDesc.atBindGroupLayouts[j]._tDescriptorSetLayout = VK_NULL_HANDLE;
+                }
+            }
+
+            // add to free indices
+            pl_sb_push(ptResourceManager->_sbulShaderFreeIndices, uShaderIndex);
+            bNeedUpdate = true;
+        }
+        else
+        {
+            pl_sb_push(ptResourceManager->_sbulTempQueue, uShaderIndex);
+        }
+    }
+
+    if(bNeedUpdate)
+    {
+        // copy temporary queue data over
+        pl_sb_reset(ptResourceManager->_sbulShaderDeletionQueue);
+        pl_sb_resize(ptResourceManager->_sbulShaderDeletionQueue, pl_sb_size(ptResourceManager->_sbulTempQueue));
+        if(ptResourceManager->_sbulTempQueue)
+            memcpy(ptResourceManager->_sbulShaderDeletionQueue, ptResourceManager->_sbulTempQueue, pl_sb_size(ptResourceManager->_sbulTempQueue) * sizeof(uint32_t));
     }
 }
 
@@ -1229,7 +1307,9 @@ pl_create_index_buffer(plResourceManager* ptResourceManager, size_t szSize, cons
         pl_transfer_data_to_buffer(ptResourceManager, tBuffer.tBuffer, szSize, pData);
 
     // find free index
-    const uint32_t ulBufferIndex = pl__get_free_buffer_index(ptResourceManager);
+    uint32_t ulBufferIndex = 0u;
+    if(!pl__get_free_resource_index(ptResourceManager->_sbulBufferFreeIndices, &ulBufferIndex))
+        ulBufferIndex = pl_sb_add_n(ptResourceManager->sbtBuffers, 1);
     ptResourceManager->sbtBuffers[ulBufferIndex] = tBuffer;
     return ulBufferIndex;
 }
@@ -1273,7 +1353,9 @@ pl_create_vertex_buffer(plResourceManager* ptResourceManager, size_t szSize, siz
         pl_transfer_data_to_buffer(ptResourceManager, tBuffer.tBuffer, szSize, pData);
 
     // find free index
-    const uint32_t ulBufferIndex = pl__get_free_buffer_index(ptResourceManager);
+    uint32_t ulBufferIndex = 0u;
+    if(!pl__get_free_resource_index(ptResourceManager->_sbulBufferFreeIndices, &ulBufferIndex))
+        ulBufferIndex = pl_sb_add_n(ptResourceManager->sbtBuffers, 1);
     ptResourceManager->sbtBuffers[ulBufferIndex] = tBuffer;
     return ulBufferIndex;  
 }
@@ -1285,7 +1367,8 @@ pl_create_constant_buffer(plResourceManager* ptResourceManager, size_t szItemSiz
 
     plBuffer tBuffer = {
         .tUsage          = PL_BUFFER_USAGE_CONSTANT,
-        .szRequestedSize = szItemSize
+        .szRequestedSize = szItemSize,
+        .szItemCount     = szItemCount
     };
 
     const size_t szRequiredSize = pl__get_const_buffer_req_size(ptResourceManager->_ptDevice, szItemSize);
@@ -1316,7 +1399,9 @@ pl_create_constant_buffer(plResourceManager* ptResourceManager, size_t szItemSiz
     PL_VULKAN(vkMapMemory(tDevice, tBuffer.tBufferMemory, 0, tMemoryRequirements.size, 0, (void**)&tBuffer.pucMapping));
 
     // find free index
-    const uint32_t ulBufferIndex = pl__get_free_buffer_index(ptResourceManager);
+    uint32_t ulBufferIndex = 0u;
+    if(!pl__get_free_resource_index(ptResourceManager->_sbulBufferFreeIndices, &ulBufferIndex))
+        ulBufferIndex = pl_sb_add_n(ptResourceManager->sbtBuffers, 1);
     ptResourceManager->sbtBuffers[ulBufferIndex] = tBuffer;
     return ulBufferIndex;  
 }
@@ -1377,7 +1462,7 @@ pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, siz
     VkImageViewCreateInfo tViewInfo = {
         .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image                           = tTexture.tImage,
-        .viewType                        = tDesc.tType,
+        .viewType                        = tDesc.tViewType,
         .format                          = tDesc.tFormat,
         .subresourceRange.baseMipLevel   = 0u,
         .subresourceRange.levelCount     = tDesc.uMips,
@@ -1425,7 +1510,9 @@ pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, siz
     pl_submit_command_buffer(ptResourceManager->_ptGraphics, ptResourceManager->_ptDevice, tCommandBuffer);
 
     // find free index
-    const uint32_t ulTextureIndex = pl__get_free_texture_index(ptResourceManager);
+    uint32_t ulTextureIndex = 0u;
+    if(!pl__get_free_resource_index(ptResourceManager->_sbulTextureFreeIndices, &ulTextureIndex))
+        ulTextureIndex = pl_sb_add_n(ptResourceManager->sbtTextures, 1);
     ptResourceManager->sbtTextures[ulTextureIndex] = tTexture;
     return ulTextureIndex;      
 }
@@ -1468,9 +1555,41 @@ pl_create_storage_buffer(plResourceManager* ptResourceManager, size_t szSize, co
         pl_transfer_data_to_buffer(ptResourceManager, tBuffer.tBuffer, szSize, pData);
 
     // find free index
-    const uint32_t ulBufferIndex = pl__get_free_buffer_index(ptResourceManager);
+    uint32_t ulBufferIndex = 0u;
+    if(!pl__get_free_resource_index(ptResourceManager->_sbulBufferFreeIndices, &ulBufferIndex))
+        ulBufferIndex = pl_sb_add_n(ptResourceManager->sbtBuffers, 1);
     ptResourceManager->sbtBuffers[ulBufferIndex] = tBuffer;
     return ulBufferIndex;
+}
+
+void*
+pl_get_constant_buffer_data(plResourceManager* ptResourceManager, uint32_t uBuffer, uint32_t uInstance)
+{
+    return pl_get_constant_buffer_data_ex(ptResourceManager, uBuffer, ptResourceManager->_ptGraphics->szCurrentFrameIndex, uInstance);
+}
+
+void*
+pl_get_constant_buffer_data_ex(plResourceManager* ptResourceManager, uint32_t uBuffer, size_t szFrame, uint32_t uInstance)
+{
+    const plBuffer* ptBuffer = &ptResourceManager->sbtBuffers[uBuffer];
+    const uint32_t uBufferFrameOffset = ((uint32_t)ptBuffer->szItemCount/ptResourceManager->_ptGraphics->uFramesInFlight) * (uint32_t)ptBuffer->szStride * (uint32_t)szFrame;
+    const uint32_t uBufferOffset = uBufferFrameOffset + uInstance * (uint32_t)ptBuffer->szStride;
+    return &ptBuffer->pucMapping[uBufferOffset];
+}
+
+uint32_t
+pl_get_constant_buffer_offset(plResourceManager* ptResourceManager, uint32_t uBuffer, uint32_t uInstance)
+{
+    return pl_get_constant_buffer_offset_ex(ptResourceManager, uBuffer, ptResourceManager->_ptGraphics->szCurrentFrameIndex, uInstance);
+}
+
+uint32_t
+pl_get_constant_buffer_offset_ex(plResourceManager* ptResourceManager, uint32_t uBuffer, size_t szFrame, uint32_t uInstance)
+{
+    const plBuffer* ptBuffer = &ptResourceManager->sbtBuffers[uBuffer];
+    const uint32_t uBufferFrameOffset = ((uint32_t)ptBuffer->szItemCount/ptResourceManager->_ptGraphics->uFramesInFlight) * (uint32_t)ptBuffer->szStride * (uint32_t)szFrame;
+    const uint32_t uBufferOffset = uBufferFrameOffset + uInstance * (uint32_t)ptBuffer->szStride;
+    return uBufferOffset;
 }
 
 void
@@ -2351,14 +2470,23 @@ pl__cleanup_resource_manager(plResourceManager* ptResourceManager)
             pl_submit_texture_for_deletion(ptResourceManager, i);
     }
 
+    for(uint32_t i = 0; i < pl_sb_size(ptResourceManager->sbtShaders); i++)
+    {
+        if(ptResourceManager->_sbulShaderHashes[i] > 0)
+            pl_submit_shader_for_deletion(ptResourceManager, i);
+    }
+
     pl_process_cleanup_queue(ptResourceManager, 100); // free deletion queued resources
 
     pl_sb_free(ptResourceManager->sbtBuffers);
     pl_sb_free(ptResourceManager->sbtTextures);
+    pl_sb_free(ptResourceManager->sbtShaders);
     pl_sb_free(ptResourceManager->_sbulTextureFreeIndices);
     pl_sb_free(ptResourceManager->_sbulBufferFreeIndices);
+    pl_sb_free(ptResourceManager->_sbulShaderFreeIndices);
     pl_sb_free(ptResourceManager->_sbulBufferDeletionQueue);
     pl_sb_free(ptResourceManager->_sbulTextureDeletionQueue);
+    pl_sb_free(ptResourceManager->_sbulShaderDeletionQueue);
     pl_sb_free(ptResourceManager->_sbulTempQueue);
 
     ptResourceManager->_ptDevice = NULL;
@@ -2510,34 +2638,17 @@ pl__staging_buffer_realloc(plResourceManager* ptResourceManager, size_t szNewSiz
     }   
 }
 
-static uint32_t
-pl__get_free_buffer_index(plResourceManager* ptResourceManager)
+static bool
+pl__get_free_resource_index(uint32_t* sbuFreeIndices, uint32_t* puIndexOut)
 {
     // check if previous index is availble
-    if(pl_sb_size(ptResourceManager->_sbulBufferFreeIndices) > 0)
+    if(pl_sb_size(sbuFreeIndices) > 0)
     {
-        const uint32_t ulFreeIndex = pl_sb_pop(ptResourceManager->_sbulBufferFreeIndices);
-        return ulFreeIndex;
+        const uint32_t uFreeIndex = pl_sb_pop(sbuFreeIndices);
+        *puIndexOut = uFreeIndex;
+        return true;
     }
-
-    // no free buffer index available, create one
-    const uint32_t ulFreeIndex = pl_sb_add_n(ptResourceManager->sbtBuffers, 1);
-    return ulFreeIndex;
-}
-
-static uint32_t
-pl__get_free_texture_index(plResourceManager* ptResourceManager)
-{
-    // check if previous index is availble
-    if(pl_sb_size(ptResourceManager->_sbulTextureFreeIndices) > 0)
-    {
-        const uint32_t ulFreeIndex = pl_sb_pop(ptResourceManager->_sbulTextureFreeIndices);
-        return ulFreeIndex;
-    }
-
-    // no free buffer index available, create one
-    const uint32_t ulFreeIndex = pl_sb_add_n(ptResourceManager->sbtTextures, 1);
-    return ulFreeIndex;
+    return false;    
 }
 
 static size_t
