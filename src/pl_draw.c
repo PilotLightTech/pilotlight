@@ -295,6 +295,16 @@ pl_add_text(plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec4 color
 }
 
 void
+pl_add_triangle(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness)
+{
+    pl_sb_push(ptLayer->sbPath, tP0);
+    pl_sb_push(ptLayer->sbPath, tP1);
+    pl_sb_push(ptLayer->sbPath, tP2);
+    pl_sb_push(ptLayer->sbPath, tP0);
+    pl__submit_path(ptLayer, tColor, fThickness);    
+}
+
+void
 pl_add_triangle_filled(plDrawLayer* layer, plVec2 p0, plVec2 p1, plVec2 p2, plVec4 color)
 {
     pl__prepare_draw_command(layer, layer->drawlist->ctx->fontAtlas->texture, false);
@@ -309,6 +319,20 @@ pl_add_triangle_filled(plDrawLayer* layer, plVec2 p0, plVec2 p1, plVec2 p2, plVe
 }
 
 void
+pl_add_rect(plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness)
+{
+    const plVec2 fBotLeftVec  = {tMinP.x, tMaxP.y};
+    const plVec2 fTopRightVec = {tMaxP.x, tMinP.y};
+
+    pl_sb_push(ptLayer->sbPath, tMinP);
+    pl_sb_push(ptLayer->sbPath, fBotLeftVec);
+    pl_sb_push(ptLayer->sbPath, tMaxP);
+    pl_sb_push(ptLayer->sbPath, fTopRightVec);
+    pl_sb_push(ptLayer->sbPath, tMinP);
+    pl__submit_path(ptLayer, tColor, fThickness);   
+}
+
+void
 pl_add_rect_filled(plDrawLayer* layer, plVec2 minP, plVec2 maxP, plVec4 color)
 {
     pl__prepare_draw_command(layer, layer->drawlist->ctx->fontAtlas->texture, false);
@@ -317,7 +341,7 @@ pl_add_rect_filled(plDrawLayer* layer, plVec2 minP, plVec2 maxP, plVec4 color)
     const plVec2 bottomLeft = { minP.x, maxP.y };
     const plVec2 topRight =   { maxP.x, minP.y };
 
-    uint32_t vertexStart = pl_sb_size(layer->drawlist->sbVertexBuffer);
+    const uint32_t vertexStart = pl_sb_size(layer->drawlist->sbVertexBuffer);
     pl__add_vertex(layer, minP,       color, (plVec2){layer->drawlist->ctx->fontAtlas->whiteUv[0], layer->drawlist->ctx->fontAtlas->whiteUv[1]});
     pl__add_vertex(layer, bottomLeft, color, (plVec2){layer->drawlist->ctx->fontAtlas->whiteUv[0], layer->drawlist->ctx->fontAtlas->whiteUv[1]});
     pl__add_vertex(layer, maxP,       color, (plVec2){layer->drawlist->ctx->fontAtlas->whiteUv[0], layer->drawlist->ctx->fontAtlas->whiteUv[1]});
@@ -325,6 +349,71 @@ pl_add_rect_filled(plDrawLayer* layer, plVec2 minP, plVec2 maxP, plVec4 color)
 
     pl__add_index(layer, vertexStart, 0, 1, 2);
     pl__add_index(layer, vertexStart, 0, 2, 3);
+}
+
+void
+pl_add_quad(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness)
+{
+    pl_sb_push(ptLayer->sbPath, tP0);
+    pl_sb_push(ptLayer->sbPath, tP1);
+    pl_sb_push(ptLayer->sbPath, tP2);
+    pl_sb_push(ptLayer->sbPath, tP3);
+    pl_sb_push(ptLayer->sbPath, tP0);
+    pl__submit_path(ptLayer, tColor, fThickness);
+}
+
+void
+pl_add_quad_filled(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor)
+{
+    pl__prepare_draw_command(ptLayer, ptLayer->drawlist->ctx->fontAtlas->texture, false);
+    pl__reserve_triangles(ptLayer, 6, 4);
+
+    const uint32_t uVtxStart = pl_sb_size(ptLayer->drawlist->sbVertexBuffer);
+    pl__add_vertex(ptLayer, tP0, tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]}); // top left
+    pl__add_vertex(ptLayer, tP1, tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]}); // bot left
+    pl__add_vertex(ptLayer, tP2, tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]}); // bot right
+    pl__add_vertex(ptLayer, tP3, tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]}); // top right
+
+    pl__add_index(ptLayer, uVtxStart, 0, 1, 2);
+    pl__add_index(ptLayer, uVtxStart, 0, 2, 3);
+}
+
+void
+pl_add_circle(plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments, float fThickness)
+{
+    if(uSegments == 0){ uSegments = 12; }
+    const float fIncrement = PL_2PI / uSegments;
+    float fTheta = 0.0f;
+    for(uint32_t i = 0; i < uSegments; i++)
+    {
+        pl_sb_push(ptLayer->sbPath, ((plVec2){tP.x + fRadius * sinf(fTheta + PL_PI_2), tP.y + fRadius * sinf(fTheta)}));
+        fTheta += fIncrement;
+    }
+    pl_sb_push(ptLayer->sbPath, ((plVec2){tP.x + fRadius, tP.y}));
+    pl__submit_path(ptLayer, tColor, fThickness);   
+}
+
+void
+pl_add_circle_filled(plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments)
+{
+    if(uSegments == 0){ uSegments = 12; }
+    pl__prepare_draw_command(ptLayer, ptLayer->drawlist->ctx->fontAtlas->texture, false);
+    pl__reserve_triangles(ptLayer, 3 * uSegments, uSegments + 1);
+
+    const uint32_t uVertexStart = pl_sb_size(ptLayer->drawlist->sbVertexBuffer);
+    pl__add_vertex(ptLayer, tP, tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]});
+
+    const float fIncrement = PL_2PI / uSegments;
+    float fTheta = 0.0f;
+    for(uint32_t i = 0; i < uSegments; i++)
+    {
+        pl__add_vertex(ptLayer, ((plVec2){tP.x + (fRadius * sinf(fTheta + PL_PI_2)), tP.y + (fRadius * sinf(fTheta))}), tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]});
+        fTheta += fIncrement;
+    }
+
+    for(uint32_t i = 0; i < uSegments - 1; i++)
+        pl__add_index(ptLayer, uVertexStart, i + 1, 0, i + 2);
+    pl__add_index(ptLayer, uVertexStart, uSegments, 0, 1);
 }
 
 void
