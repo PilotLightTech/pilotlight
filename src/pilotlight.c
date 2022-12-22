@@ -1,6 +1,7 @@
 #include "pilotlight.h"
 
 #include "pl_draw.c"
+#include "pl_ui.c"
 
 #define PL_MEMORY_IMPLEMENTATION
 #include "pl_memory.h"

@@ -21,10 +21,11 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // forward declarations
-typedef union _plVec2 plVec2;
-typedef union _plVec3 plVec3;
-typedef union _plVec4 plVec4;
-typedef union _plMat4 plMat4;
+typedef union  _plVec2 plVec2;
+typedef union  _plVec3 plVec3;
+typedef union  _plVec4 plVec4;
+typedef union  _plMat4 plMat4;
+typedef struct _plRect plRect;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -115,5 +116,11 @@ typedef union _plMat4
     };
     float d[16];
 } plMat4;
+
+typedef struct _plRect
+{
+    plVec2 tMin;
+    plVec2 tMax;
+} plRect;
 
 #endif // PL_MATH_INC

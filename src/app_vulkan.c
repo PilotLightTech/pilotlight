@@ -30,6 +30,7 @@ Index of this file:
 #include "pl_camera.h"
 #include "pl_registry.h" // data registry
 #include "pl_ext.h"      // extension registry
+#include "pl_ui.h"
 
 // extensions
 #include "pl_draw_extension.h"
@@ -52,6 +53,7 @@ typedef struct _plAppData
     plDataRegistry      tDataRegistryCtx;
     plExtensionRegistry tExtensionRegistryCtx;
     plCamera            tCamera;
+    plUiContext         tUiContext;
 
     // extension apis
     plDrawExtension* ptDrawExtApi;
@@ -134,6 +136,11 @@ pl_app_setup(plAppData* ptAppData)
     pl_add_default_font(&ptAppData->fontAtlas);
     pl_build_font_atlas(&ptAppData->tCtx, &ptAppData->fontAtlas);
 
+    // ui
+    pl_ui_setup_context(&ptAppData->tCtx, &ptAppData->tUiContext);
+    pl_setup_drawlist_vulkan(ptAppData->tUiContext.ptDrawlist, ptAppData->tGraphics.tRenderPass, ptAppData->tGraphics.tSwapchain.tMsaaSamples);
+    ptAppData->tUiContext.ptFont = &ptAppData->fontAtlas.sbFonts[0];
+
     // camera
     ptAppData->tCamera = pl_create_perspective_camera((plVec3){0.0f, 0.0f, 8.5f}, PL_PI_3, ptIOCtx->afMainViewportSize[0] / ptIOCtx->afMainViewportSize[1], 0.01f, 400.0f);
 
@@ -149,6 +156,7 @@ pl_app_shutdown(plAppData* ptAppData)
     vkDeviceWaitIdle(ptAppData->tGraphics.tDevice.tLogicalDevice);
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
     pl_cleanup_draw_context(&ptAppData->tCtx);
+    pl_ui_cleanup_context(&ptAppData->tUiContext);
     pl_cleanup_graphics(&ptAppData->tGraphics);
     pl_cleanup_profile_context();
     pl_cleanup_extension_registry();
@@ -182,6 +190,7 @@ pl_app_update(plAppData* ptAppData)
     pl_handle_extension_reloads();
     pl_new_io_frame();
     pl_new_draw_frame(&ptAppData->tCtx);
+    pl_ui_new_frame(&ptAppData->tUiContext);
     pl_process_cleanup_queue(&ptAppData->tGraphics.tResourceManager, 1);
 
     plFrameContext* ptCurrentFrame = pl_get_frame_resources(&ptAppData->tGraphics);
@@ -211,29 +220,10 @@ pl_app_update(plAppData* ptAppData)
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~drawing api~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        static char pcCameraPos[256] = {0};
-        pl_sprintf(pcCameraPos, "Pos: %.3f, %.3f, %.3f", ptAppData->tCamera.tPos.x, ptAppData->tCamera.tPos.y, ptAppData->tCamera.tPos.z);
-        pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){400.0f, 10.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, pcCameraPos, 0.0f);
-
-        pl_sprintf(pcCameraPos, "Pitch: %.3f, Yaw: %.3f, Roll:%.3f", ptAppData->tCamera.fPitch, ptAppData->tCamera.fYaw, ptAppData->tCamera.fRoll);
-        pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){400.0f, 25.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, pcCameraPos, 0.0f);
-
-        pl_sprintf(pcCameraPos, "Up: %.3f, %.3f, %.3f", ptAppData->tCamera._tUpVec.x, ptAppData->tCamera._tUpVec.y, ptAppData->tCamera._tUpVec.z);
-        pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){400.0f, 40.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, pcCameraPos, 0.0f);
-
-        pl_sprintf(pcCameraPos, "Forward: %.3f, %.3f, %.3f", ptAppData->tCamera._tForwardVec.x, ptAppData->tCamera._tForwardVec.y, ptAppData->tCamera._tForwardVec.z);
-        pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){400.0f, 55.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, pcCameraPos, 0.0f);
-
-        pl_sprintf(pcCameraPos, "Right: %.3f, %.3f, %.3f", ptAppData->tCamera._tRightVec.x, ptAppData->tCamera._tRightVec.y, ptAppData->tCamera._tRightVec.z);
-        pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){400.0f, 70.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, pcCameraPos, 0.0f);
-
-        ptAppData->ptDrawExtApi->pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, "extension baby");
+        ptAppData->ptDrawExtApi->pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, "Drawn from extension!");
 
         // draw profiling info
         pl_begin_profile_sample("Draw Profiling Info");
-        static char pcDeltaTime[64] = {0};
-        pl_sprintf(pcDeltaTime, "%.6f ms", ptIOCtx->fDeltaTime);
-        pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f, 10.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, pcDeltaTime, 0.0f);
         char cPProfileValue[64] = {0};
         for(uint32_t i = 0u; i < pl_sb_size(ptAppData->tProfileCtx.ptLastFrame->sbtSamples); i++)
         {
@@ -245,16 +235,63 @@ pl_app_update(plAppData* ptAppData)
         }
         pl_end_profile_sample();
 
-        // draw commands
-        pl_begin_profile_sample("Add draw commands");
-        pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){300.0f, 10.0f}, (plVec4){0.1f, 0.5f, 0.0f, 1.0f}, "Pilot Light\nGraphics", 0.0f);
-        pl_add_triangle_filled(ptAppData->bgDrawLayer, (plVec2){300.0f, 50.0f}, (plVec2){300.0f, 150.0f}, (plVec2){350.0f, 50.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f});
-        pl__begin_profile_sample("Calculate text size");
-        plVec2 textSize = pl_calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, "Pilot Light\nGraphics", 0.0f);
-        pl__end_profile_sample();
-        pl_add_rect_filled(ptAppData->bgDrawLayer, (plVec2){300.0f, 10.0f}, (plVec2){300.0f + textSize.x, 10.0f + textSize.y}, (plVec4){0.0f, 0.0f, 0.8f, 0.5f});
-        pl_add_line(ptAppData->bgDrawLayer, (plVec2){500.0f, 10.0f}, (plVec2){10.0f, 500.0f}, (plVec4){1.0f, 1.0f, 1.0f, 0.5f}, 2.0f);
-        pl_end_profile_sample();
+        // ui
+
+        static bool bOpen = true;
+
+        if(pl_ui_begin_window("Pilot Light", NULL, false))
+        {
+            pl_ui_text("%.6f ms", ptIOCtx->fDeltaTime);
+
+            pl_ui_checkbox("Camera Info", &bOpen);
+            
+
+            pl_ui_end_window();
+        }
+
+        if(bOpen)
+        {
+            if(pl_ui_begin_window("Camera Info", &bOpen, true))
+            {
+                pl_ui_text("Pos: %.3f, %.3f, %.3f", ptAppData->tCamera.tPos.x, ptAppData->tCamera.tPos.y, ptAppData->tCamera.tPos.z);
+                pl_ui_text("Pitch: %.3f, Yaw: %.3f, Roll:%.3f", ptAppData->tCamera.fPitch, ptAppData->tCamera.fYaw, ptAppData->tCamera.fRoll);
+                pl_ui_text("Up: %.3f, %.3f, %.3f", ptAppData->tCamera._tUpVec.x, ptAppData->tCamera._tUpVec.y, ptAppData->tCamera._tUpVec.z);
+                pl_ui_text("Forward: %.3f, %.3f, %.3f", ptAppData->tCamera._tForwardVec.x, ptAppData->tCamera._tForwardVec.y, ptAppData->tCamera._tForwardVec.z);
+                pl_ui_text("Right: %.3f, %.3f, %.3f", ptAppData->tCamera._tRightVec.x, ptAppData->tCamera._tRightVec.y, ptAppData->tCamera._tRightVec.z);  
+            }
+            pl_ui_end_window();
+        }
+
+        if(pl_ui_begin_window("UI Demo", NULL, false))
+        {
+            pl_ui_progress_bar(0.75f, (plVec2){-1.0f, 0.0f}, NULL);
+            if(pl_ui_button("Press me"))
+                bOpen = true;
+            static bool bOpen0 = false;
+            if(pl_ui_tree_node("Root Node", &bOpen0))
+            {
+                static bool bOpen1 = false;
+                if(pl_ui_tree_node("Child 1", &bOpen1))
+                {
+                    if(pl_ui_button("Press me"))
+                        bOpen = true;
+                    pl_ui_tree_pop();
+                }
+                static bool bOpen2 = false;
+                if(pl_ui_tree_node("Child 2", &bOpen2))
+                {
+                    pl_ui_button("Press me");
+                    pl_ui_tree_pop();
+                }
+                pl_ui_tree_pop();
+            }
+            static bool bOpen3 = false;
+            if(pl_ui_collapsing_header("Collapsing Header", &bOpen3))
+            {
+                pl_ui_checkbox("Camera window2", &bOpen);
+            }
+        }
+        pl_ui_end_window();
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submit draws~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -264,8 +301,11 @@ pl_app_update(plAppData* ptAppData)
         pl_submit_draw_layer(ptAppData->fgDrawLayer);
         pl_end_profile_sample();
 
+        pl_ui_render();
+
         // submit draw lists
         pl_submit_drawlist_vulkan(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
+        pl_submit_drawlist_vulkan(ptAppData->tUiContext.ptDrawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~end frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         pl_end_main_pass(&ptAppData->tGraphics);
@@ -273,5 +313,6 @@ pl_app_update(plAppData* ptAppData)
         pl_end_frame(&ptAppData->tGraphics);
     }
     pl_end_io_frame();
+    pl_ui_end_frame();
     pl_end_profile_frame();
 }
