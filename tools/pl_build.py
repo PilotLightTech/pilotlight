@@ -1,4 +1,4 @@
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 ###############################################################################
 #                                  Info                                       #
@@ -53,6 +53,7 @@ class CompilerType(Enum):
     MSVC = 1
     CLANG = 2
     GCC = 3
+    COUNT = 4
 
 
 class PlatformType(Enum):
@@ -60,6 +61,12 @@ class PlatformType(Enum):
     WIN32 = 1
     MACOS = 2
     LINUX = 3
+    COUNT = 4
+
+
+class Profile(Enum):
+    PILOT_LIGHT_DEBUG = "pilot_light_debug"
+    VULKAN = "vulkan"
 
 
 ###############################################################################
@@ -71,8 +78,8 @@ class CompilerSettings:
     def __init__(self, name: str, compiler_type: CompilerType):
         self._name = name
         self._compiler_type = compiler_type
-        self._output_directory = "./"
-        self._output_binary = ""
+        self._output_directory = None
+        self._output_binary = None
         self._output_binary_extension = None
         self._definitions = []
         self._compiler_flags = []
@@ -83,6 +90,7 @@ class CompilerSettings:
         self._vulkan_glsl_shader_files = []
         self._link_libraries = []
         self._link_frameworks = []
+        self._target_links = []
         self._target_type = TargetType.NONE
 
 
@@ -96,6 +104,15 @@ class CompilerConfiguration:
     def __init__(self, name: str):
         self._name = name
         self._platforms = []
+
+        # used by profiles
+        self._last_source_push_count = []
+        self._last_definition_push_count = []
+        self._last_includes_push_count = []
+        self._last_link_dir_push_count = []
+        self._last_libraries_push_count = []
+        self._last_frameworks_push_count = []
+        self._last_target_links_push_count = []
 
 
 class Target:
@@ -125,9 +142,23 @@ class BuildContext:
         self._current_project = None
         self._current_target = None
         self._current_platform = None
+        self._profile_stack = [CompilerConfiguration("_root")]
+        self._profile_stack[0]._output_directory = None
+        self._profile_stack[0]._output_binary = None
         self._current_configuration = None
         self._current_compiler_settings = None
         self._projects = []
+        self._profiles = []
+
+        self._profile_stack[0]._platforms.append(Platform(PlatformType.WIN32))
+        self._profile_stack[0]._platforms.append(Platform(PlatformType.LINUX))
+        self._profile_stack[0]._platforms.append(Platform(PlatformType.MACOS))
+
+        for _platform in self._profile_stack[0]._platforms:
+            _platform._compiler_settings.append(CompilerSettings("root", CompilerType.MSVC))
+            _platform._compiler_settings.append(CompilerSettings("root", CompilerType.CLANG))
+            _platform._compiler_settings.append(CompilerSettings("root", CompilerType.GCC))
+
 
 ###############################################################################
 #                             Global Context                                  #
@@ -180,6 +211,145 @@ def target(name: str, target_type: TargetType):
         _context._current_target = None
 
 ###############################################################################
+#                                Profile                                      #
+###############################################################################
+
+@contextmanager
+def profile(name: str):
+    try:
+        config = CompilerConfiguration(name)
+        _context._current_configuration = config
+        yield _context._current_configuration
+    finally:
+        _context._profiles.append(_context._current_configuration)
+        _context._current_configuration = None
+
+def push_profile(name):
+    if isinstance(name, Profile):
+        value = name.value
+    else:
+        value = name
+    if value is not None:
+        for _profile in _context._profiles:
+            if _profile._name == value:
+                _context._profile_stack.append(_profile)
+                break
+
+def pop_profile():
+    _context._profile_stack.pop()
+
+def push_output_binary(name: str):
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            _compiler._output_binary = name
+
+def pop_output_binary():
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            _compiler._output_binary = None
+
+def push_output_directory(name: str):
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            _compiler._output_directory = name
+
+def pop_output_directory():
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            _compiler._output_directory = None
+
+def push_source_files(*args):
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            _compiler._source_files.extend(args)
+    _context._profile_stack[0]._last_source_push_count.append(len(args))
+
+def pop_source_files():
+    remove_count = _context._profile_stack[0]._last_source_push_count.pop()
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            for i in range(remove_count):
+                _compiler._source_files.pop()
+
+def push_definitions(*args):
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            _compiler._definitions.extend(args)
+    _context._profile_stack[0]._last_definition_push_count.append(len(args))
+
+def pop_definitions():
+    remove_count = _context._profile_stack[0]._last_definition_push_count.pop()
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            for i in range(remove_count):
+                _compiler._definitions.pop()
+
+def push_include_directories(*args):
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            _compiler._include_directories.extend(args)
+    _context._profile_stack[0]._last_includes_push_count.append(len(args))
+
+def pop_include_directories():
+    remove_count = _context._profile_stack[0]._last_includes_push_count.pop()
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            for i in range(remove_count):
+                _compiler._include_directories.pop()
+
+def push_link_directories(*args):
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            _compiler._link_directories.extend(args)
+    _context._profile_stack[0]._last_link_dir_push_count.append(len(args))
+
+def pop_link_directories():
+    remove_count = _context._profile_stack[0]._last_link_dir_push_count.pop()
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            for i in range(remove_count):
+                _compiler._link_directories.pop()
+
+def push_target_links(*args):
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            _compiler._target_links.extend(args)
+    _context._profile_stack[0]._last_target_links_push_count.append(len(args))
+
+def pop_target_links():
+    remove_count = _context._profile_stack[0]._last_target_links_push_count.pop()
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            for i in range(remove_count):
+                _compiler._target_links.pop()
+
+def push_link_libraries(*args):
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            _compiler._link_libraries.extend(args)
+    _context._profile_stack[0]._last_libraries_push_count.append(len(args))
+
+def pop_link_libraries():
+    remove_count = _context._profile_stack[0]._last_libraries_push_count.pop()
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            for i in range(remove_count):
+                _compiler._link_libraries.pop()
+
+def push_link_frameworks(*args):
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            _compiler._link_frameworks.extend(args)
+    _context._profile_stack[0]._last_frameworks_push_count.append(len(args))
+
+def pop_link_frameworks():
+    remove_count = _context._profile_stack[0]._last_frameworks_push_count.pop()
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            for i in range(remove_count):
+                _compiler._link_frameworks.pop()
+
+###############################################################################
 #                             Configuration                                   #
 ###############################################################################
 
@@ -218,6 +388,28 @@ def compiler(name: str, compiler_type: CompilerType):
         _context._current_compiler_settings = compiler
         yield _context._current_compiler_settings
     finally:
+
+        for _profile in _context._profile_stack:
+            for _platform in _profile._platforms:
+                if _platform._platform_type == _context._current_platform._platform_type:
+                    for _compiler in _platform._compiler_settings:
+                        if _compiler._compiler_type == _context._current_compiler_settings._compiler_type:
+                            _context._current_compiler_settings._definitions.extend(_compiler._definitions)
+                            _context._current_compiler_settings._compiler_flags.extend(_compiler._compiler_flags)
+                            _context._current_compiler_settings._linker_flags.extend(_compiler._linker_flags)
+                            _context._current_compiler_settings._include_directories.extend(_compiler._include_directories)
+                            _context._current_compiler_settings._link_directories.extend(_compiler._link_directories)
+                            _context._current_compiler_settings._link_libraries.extend(_compiler._link_libraries)
+                            _context._current_compiler_settings._link_frameworks.extend(_compiler._link_frameworks)
+                            _context._current_compiler_settings._source_files.extend(_compiler._source_files)
+                            _context._current_compiler_settings._target_links.extend(_compiler._target_links)
+                            _context._current_compiler_settings._vulkan_glsl_shader_files.extend(_compiler._vulkan_glsl_shader_files)
+                            if _compiler._output_binary_extension is not None:
+                                _context._current_compiler_settings._output_binary_extension = _compiler._output_binary_extension
+                            if _compiler._output_directory is not None:
+                                _context._current_compiler_settings._output_directory = _compiler._output_directory
+                            if _compiler._output_binary is not None:
+                                _context._current_compiler_settings._output_binary = _compiler._output_binary
         _context._current_platform._compiler_settings.append(_context._current_compiler_settings)
         _context._current_compiler_settings = None
 
@@ -235,7 +427,14 @@ def add_source_files(*args):
     for arg in args:
         add_source_file(arg)
 
-def add_link_library(library: str):
+def add_target_link(name):
+    _context._current_compiler_settings._target_links.append(name)
+
+def add_target_links(*args):
+    for arg in args:
+        add_target_link(arg)
+
+def add_link_library(library):
     _context._current_compiler_settings._link_libraries.append(library)
 
 def add_link_libraries(*args):
@@ -292,6 +491,63 @@ def set_output_binary_extension(extension: str):
 
 def set_output_directory(directory: str):
     _context._current_compiler_settings._output_directory = directory
+
+###############################################################################
+#                            Included Profiles                                #
+###############################################################################
+
+def register_standard_profiles():
+
+    with profile(Profile.VULKAN.value):
+        with platform(PlatformType.WIN32):
+            with compiler("msvc", CompilerType.MSVC):
+                add_include_directories("%VULKAN_SDK%\\Include")
+                add_link_directory('%VULKAN_SDK%\\Lib')
+                add_link_libraries("vulkan-1.lib")
+                set_output_directory(None)
+                set_output_binary(None)
+
+        with platform(PlatformType.LINUX):
+            with compiler("gcc", CompilerType.GCC):
+                add_include_directory('$VULKAN_SDK/include')
+                add_include_directory('/usr/include/vulkan')
+                add_link_directories('$VULKAN_SDK/lib')
+                add_link_libraries("vulkan")
+                set_output_directory(None)
+                set_output_binary(None)
+
+        with platform(PlatformType.MACOS):
+            with compiler("clang", CompilerType.CLANG):
+                add_link_library("vulkan")
+                set_output_directory(None)
+                set_output_binary(None)
+
+    with profile(Profile.PILOT_LIGHT_DEBUG.value):
+        with platform(PlatformType.WIN32):
+            with compiler("msvc", CompilerType.MSVC):
+                add_include_directories('%WindowsSdkDir%Include\\um', '%WindowsSdkDir%Include\\shared')
+                add_compiler_flags("-Zc:preprocessor", "-nologo", "-std:c11", "-W4", "-WX", "-wd4201", "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115", "-permissive-")
+                add_definition("_DEBUG")
+                add_compiler_flags("-Od", "-MDd", "-Zi")
+                set_output_directory(None)
+                set_output_binary(None)
+
+        with platform(PlatformType.LINUX):
+            with compiler("gcc", CompilerType.GCC):
+                add_link_directories("/usr/lib/x86_64-linux-gnu")
+                add_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon")
+                add_compiler_flag("-std=gnu99")
+                add_compiler_flags("--debug", "-g")
+                add_linker_flags("dl", "m")
+                set_output_directory(None)
+                set_output_binary(None)
+
+        with platform(PlatformType.MACOS):
+            with compiler("clang", CompilerType.CLANG):
+                add_compiler_flags("-std=c99", "--debug", "-g", "-fmodules", "-ObjC")
+                add_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
+                set_output_directory(None)
+                set_output_binary(None)
 
 ###############################################################################
 #                               Generation                                    #
@@ -557,6 +813,17 @@ def generate_macos_build(name_override=None):
 
                                             buffer += "# default compilation result\n"
                                             buffer += "PL_RESULT=${BOLD}${GREEN}Successful.${NC}\n\n"
+
+                                            if settings._target_links:
+                                                for _target_link in settings._target_links:
+                                                    for target2 in project._targets:
+                                                        if target2._name == _target_link:
+                                                            for config2 in target2._configurations:
+                                                                if config2._name == config._name:
+                                                                    for platform2 in config2._platforms:
+                                                                        if platform2._platform_type == PlatformType.MACOS:
+                                                                            for settings2 in platform2._compiler_settings:
+                                                                                settings._source_files.append(settings2._output_directory + "/" + settings2._output_binary + ".c.o")
 
                                             if target._target_type == TargetType.STATIC_LIBRARY:
                 
@@ -839,6 +1106,17 @@ def generate_linux_build(name_override=None):
 
                                             buffer += "# default compilation result\n"
                                             buffer += "PL_RESULT=${BOLD}${GREEN}Successful.${NC}\n\n"
+
+                                            if settings._target_links:
+                                                for _target_link in settings._target_links:
+                                                    for target2 in project._targets:
+                                                        if target2._name == _target_link:
+                                                            for config2 in target2._configurations:
+                                                                if config2._name == config._name:
+                                                                    for platform2 in config2._platforms:
+                                                                        if platform2._platform_type == PlatformType.LINUX:
+                                                                            for settings2 in platform2._compiler_settings:
+                                                                                settings._source_files.append(settings2._output_directory + "/" + settings2._output_binary + ".c.o")
                                             
                                             if target._target_type == TargetType.STATIC_LIBRARY:
                 
@@ -1090,6 +1368,10 @@ def generate_win32_build(name_override=None):
                                                         buffer += '@set PL_COMPILER_FLAGS=' + flag + " %PL_COMPILER_FLAGS%\n"
                                                 buffer += "\n\n"
 
+                                            settings._linker_flags.extend(["-incremental:no"])
+                                            if target._target_type == TargetType.DYNAMIC_LIBRARY:
+                                                settings._linker_flags.extend(["-noimplib", "-noexp"])
+
                                             if settings._linker_flags:
                                                 buffer += '@rem linker flags\n'
                                                 if project._collapse:
@@ -1102,6 +1384,16 @@ def generate_win32_build(name_override=None):
                                                         buffer += '@set PL_LINKER_FLAGS=' + flag + " %PL_LINKER_FLAGS%\n"
                                                 buffer += "\n\n"
 
+                                            if settings._target_links:
+                                                for _target_link in settings._target_links:
+                                                    for target2 in project._targets:
+                                                        if target2._name == _target_link:
+                                                            for config2 in target2._configurations:
+                                                                if config2._name == config._name:
+                                                                    for platform2 in config2._platforms:
+                                                                        if platform2._platform_type == PlatformType.WIN32:
+                                                                            for settings2 in platform2._compiler_settings:
+                                                                                settings._link_libraries.append(settings2._output_binary + ".lib")
                                             if settings._link_libraries:
                                                 buffer += '@rem libraries to link to\n'
                                                 if project._collapse:
