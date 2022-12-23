@@ -34,7 +34,7 @@ setuptools.setup(
     long_description=readme(),
     long_description_content_type="text/markdown",
     url='https://github.com/pilot-light/pilotlight', # Optional
-    packages=['pltools'],
+    packages=['pilotlight_tools'],
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Education',
