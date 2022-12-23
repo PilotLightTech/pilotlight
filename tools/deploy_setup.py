@@ -24,7 +24,7 @@ def readme():
         return 'Not Found'
 
 setuptools.setup(
-    name="pltools",
+    name="pilotlight_tools",
     version=version_number(),
     license='MIT',
     python_requires='>=3.6',
@@ -51,6 +51,6 @@ setuptools.setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
     package_data={  # Optional
-        'pltools': ['README.md']
+        'pilotlight_tools': ['README.md']
     }
 )

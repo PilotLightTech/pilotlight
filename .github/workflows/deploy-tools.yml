@@ -7,7 +7,7 @@ on:
       inputs:
 
         version:
-          description: 'plTools Version'
+          description: 'pilotlight_tools version'
           required: true
           default: '0.3.0'
 
@@ -48,11 +48,11 @@ jobs:
       run: |
         cd %GITHUB_WORKSPACE%
         echo ${{ github.event.inputs.version }} > version_number.txt
-        ren tools pltools
-        cd pltools
+        ren tools pilotlight_tools
+        cd pilotlight_tools
         echo pass >> __init__.py
         cd ..
-        move pltools\deploy_setup.py deploy_setup.py
+        move pilotlight_tools\deploy_setup.py deploy_setup.py
         del setup.py
         move deploy_setup.py setup.py
         echo [build-system] >> pyproject.toml
