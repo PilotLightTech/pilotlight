@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] context
 // [SECTION] internal structs
 // [SECTION] internal api
 // [SECTION] implementation
@@ -23,6 +24,12 @@ Index of this file:
 #include "pl_draw.h"
 #include "pl_ds.h"
 #include "pl_math.h"
+
+//-----------------------------------------------------------------------------
+// [SECTION] context
+//-----------------------------------------------------------------------------
+
+static plDrawContext* gptDrawCtx = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -70,6 +77,18 @@ static char* pl__read_file(const char* file);
 //-----------------------------------------------------------------------------
 // [SECTION] implementation
 //-----------------------------------------------------------------------------
+
+void
+pl_set_draw_context(plDrawContext* ptCtx)
+{
+    gptDrawCtx = ptCtx;
+}
+
+plDrawContext*
+pl_get_draw_context(void)
+{
+    return gptDrawCtx;
+}
 
 void
 pl_register_drawlist(plDrawContext* ctx, plDrawList* drawlist)
@@ -122,6 +141,8 @@ pl_return_draw_layer(plDrawLayer* layer)
 void
 pl__new_draw_frame(plDrawContext* ctx)
 {
+    gptDrawCtx = ctx;
+
     // reset drawlists
     for(uint32_t i = 0u; i < pl_sb_size(ctx->sbDrawlists); i++)
     {
@@ -686,6 +707,24 @@ pl_calculate_text_size(plFont* font, float size, const char* text, float wrap)
 }
 
 void
+pl_push_clip_rect_pt(const plRect* ptRect)
+{
+    pl_sb_push(gptDrawCtx->sbClipStack, *ptRect);
+}
+
+void
+pl_push_clip_rect(plRect tRect)
+{
+    pl_sb_push(gptDrawCtx->sbClipStack, tRect);
+}
+
+void
+pl_pop_clip_rect(void)
+{
+    pl_sb_pop(gptDrawCtx->sbClipStack);
+}
+
+void
 pl__cleanup_draw_context(plDrawContext* ctx)
 {
     for(uint32_t i = 0u; i < pl_sb_size(ctx->sbDrawlists); i++)
@@ -933,6 +972,9 @@ static void
 pl__prepare_draw_command(plDrawLayer* layer, plTextureId textureID, bool sdf)
 {
     bool createNewCommand = true;
+
+    const plRect tCurrentClip = pl_sb_size(gptDrawCtx->sbClipStack) > 0 ? pl_sb_top(gptDrawCtx->sbClipStack) : (plRect){0}; //-V1004
+
     
     if(layer->_lastCommand)
     {
@@ -940,6 +982,13 @@ pl__prepare_draw_command(plDrawLayer* layer, plTextureId textureID, bool sdf)
         if(layer->_lastCommand->textureId == textureID && layer->_lastCommand->sdf == sdf)
         {
             createNewCommand = false;
+        }
+
+        // check if last command has same clipping
+        if(layer->_lastCommand->tClip.tMax.x != tCurrentClip.tMax.x || layer->_lastCommand->tClip.tMax.y != tCurrentClip.tMax.y ||
+            layer->_lastCommand->tClip.tMin.x != tCurrentClip.tMin.x || layer->_lastCommand->tClip.tMin.y != tCurrentClip.tMin.y)
+        {
+            createNewCommand = true;
         }
     }
 
@@ -949,10 +998,11 @@ pl__prepare_draw_command(plDrawLayer* layer, plTextureId textureID, bool sdf)
         plDrawCommand newdrawCommand = 
         {
             .vertexOffset = pl_sb_size(layer->drawlist->sbVertexBuffer),
-            .indexOffset = pl_sb_size(layer->sbIndexBuffer),
+            .indexOffset  = pl_sb_size(layer->sbIndexBuffer),
             .elementCount = 0u,
-            .textureId = textureID,
-            .sdf = sdf
+            .textureId    = textureID,
+            .sdf          = sdf,
+            .tClip        = tCurrentClip
         };
         pl_sb_push(layer->sbCommandBuffer, newdrawCommand);
         
@@ -975,10 +1025,10 @@ pl__add_vertex(plDrawLayer* layer, plVec2 pos, plVec4 color, plVec2 uv)
 {
 
     uint32_t tcolor = 0;
-    tcolor = (uint32_t)  (255.0f * color.r);
-    tcolor |= (uint32_t) (255.0f * color.g) << 8;
-    tcolor |= (uint32_t) (255.0f * color.b) << 16;
-    tcolor |= (uint32_t) (255.0f * color.a) << 24;
+    tcolor = (uint32_t)  (255.0f * color.r + 0.5f);
+    tcolor |= (uint32_t) (255.0f * color.g + 0.5f) << 8;
+    tcolor |= (uint32_t) (255.0f * color.b + 0.5f) << 16;
+    tcolor |= (uint32_t) (255.0f * color.a + 0.5f) << 24;
 
     pl_sb_push(layer->drawlist->sbVertexBuffer,
         ((plDrawVertex){

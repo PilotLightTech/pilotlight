@@ -29,6 +29,7 @@ Index of this file:
 #include "pl_math.h"
 #include "pl_registry.h" // data registry
 #include "pl_ext.h"      // extension registry
+#include "pl_ui.h"
 
 // extensions
 #include "pl_draw_extension.h"
@@ -65,6 +66,7 @@ typedef struct plAppData_t
     plMemoryContext          tMemoryCtx;
     plDataRegistry           tDataRegistryCtx;
     plExtensionRegistry      tExtensionRegistryCtx;
+    plUiContext              tUiContext;
 
     // extension apis
     plDrawExtension*         ptDrawExtApi;
@@ -119,6 +121,7 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     pl_register_data("profile", &tPNewData->tProfileCtx);
     pl_register_data("log", &tPNewData->tLogCtx);
     pl_register_data("io", ptIOCtx);
+    pl_register_data("draw", &tPNewData->ctx);
 
     plExtension tExtension = {0};
     pl_get_draw_extension_info(&tExtension);
@@ -150,7 +153,7 @@ pl_app_setup(plAppData* appData)
     // color attachment
     appData->drawableRenderDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
     appData->drawableRenderDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
-    appData->drawableRenderDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.01, 0, 0, 1);
+    appData->drawableRenderDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
 
     // depth attachment
     appData->drawableRenderDescriptor.depthAttachment.loadAction = MTLLoadActionClear;
@@ -168,6 +171,10 @@ pl_app_setup(plAppData* appData)
     // create font atlas
     pl_add_default_font(&appData->fontAtlas);
     pl_build_font_atlas(&appData->ctx, &appData->fontAtlas);
+
+    // ui
+    pl_ui_setup_context(&appData->ctx, &appData->tUiContext);
+    appData->tUiContext.ptFont = &appData->fontAtlas.sbFonts[0];
 }
 
 //-----------------------------------------------------------------------------
@@ -181,6 +188,7 @@ pl_app_shutdown(plAppData* appData)
     // clean up contexts
     pl_cleanup_font_atlas(&appData->fontAtlas);
     pl_cleanup_draw_context(&appData->ctx);
+    pl_ui_cleanup_context(&appData->tUiContext);
     pl_cleanup_profile_context();
     pl_cleanup_extension_registry();
     pl_cleanup_log_context();
@@ -240,6 +248,7 @@ pl_app_update(plAppData* appData)
     appData->drawableRenderDescriptor.colorAttachments[0].texture = currentDrawable.texture;
 
     pl_new_draw_frame_metal(&appData->ctx, appData->drawableRenderDescriptor);
+    pl_ui_new_frame(&appData->tUiContext);
 
     // create render command encoder
     id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:appData->drawableRenderDescriptor];
@@ -271,15 +280,73 @@ pl_app_update(plAppData* appData)
     pl_add_line(appData->bgDrawLayer, (plVec2){500.0f, 10.0f}, (plVec2){10.0f, 500.0f}, (plVec4){1.0f, 1.0f, 1.0f, 0.5f}, 2.0f);
     pl_end_profile_sample();
 
+    static bool bOpen = true;
+
+
+    if(pl_ui_begin_window("Pilot Light", NULL, false))
+    {
+        pl_ui_text("%.6f ms", ptIOCtx->fDeltaTime);
+
+        pl_ui_checkbox("Camera Info", &bOpen);
+        
+
+        pl_ui_end_window();
+    }
+
+    if(bOpen)
+    {
+        if(pl_ui_begin_window("Camera Info", &bOpen, true))
+        {
+            pl_ui_text("Pos: %.3f, %.3f, %.3f", 0.0f, 0.0f, 0.0f); 
+        }
+        pl_ui_end_window();
+    }
+
+    if(pl_ui_begin_window("UI Demo", NULL, false))
+    {
+        pl_ui_progress_bar(0.75f, (plVec2){-1.0f, 0.0f}, NULL);
+        if(pl_ui_button("Press me"))
+            bOpen = true;
+        static bool bOpen0 = false;
+        if(pl_ui_tree_node("Root Node", &bOpen0))
+        {
+            static bool bOpen1 = false;
+            if(pl_ui_tree_node("Child 1", &bOpen1))
+            {
+                if(pl_ui_button("Press me"))
+                    bOpen = true;
+                pl_ui_tree_pop();
+            }
+            static bool bOpen2 = false;
+            if(pl_ui_tree_node("Child 2", &bOpen2))
+            {
+                pl_ui_button("Press me");
+                pl_ui_tree_pop();
+            }
+            pl_ui_tree_pop();
+        }
+        static bool bOpen3 = false;
+        if(pl_ui_collapsing_header("Collapsing Header", &bOpen3))
+        {
+            pl_ui_checkbox("Camera window2", &bOpen);
+        }
+    }
+    pl_ui_end_window();
+
     // submit draw layers
     pl_begin_profile_sample("Submit draw layers");
     pl_submit_draw_layer(appData->bgDrawLayer);
     pl_submit_draw_layer(appData->fgDrawLayer);
     pl_end_profile_sample();
 
+    pl_ui_render();
+
     // submit draw lists
     pl_begin_profile_sample("Submit draw lists");
+    appData->ctx.tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
+    appData->ctx.tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
     pl_submit_drawlist_metal(&appData->drawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
+    pl_submit_drawlist_metal(appData->tUiContext.ptDrawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
     pl_end_profile_sample();
 
     // finish recording
@@ -292,6 +359,7 @@ pl_app_update(plAppData* appData)
     [commandBuffer commit];
 
     pl_end_io_frame();
+    pl_ui_end_frame();
 
     // end profiling frame
     pl_end_profile_frame();

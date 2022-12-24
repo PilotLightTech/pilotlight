@@ -349,7 +349,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     plNSView *view = (plNSView *)self.view;
     view.metalLayer.device = device;    
     view.delegate = self;
-    view.metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
+    view.metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
     gtIOContext.pBackendPlatformData = device;
 
     #ifdef PL_VULKAN_BACKEND

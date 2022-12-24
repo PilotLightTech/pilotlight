@@ -101,6 +101,7 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     pl_register_data("profile", &tPNewData->tProfileCtx);
     pl_register_data("log", &tPNewData->tLogCtx);
     pl_register_data("io", ptIOCtx);
+    pl_register_data("draw", &tPNewData->tCtx);
 
     plExtension tExtension = {0};
     pl_get_draw_extension_info(&tExtension);
@@ -223,6 +224,7 @@ pl_app_update(plAppData* ptAppData)
         ptAppData->ptDrawExtApi->pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, "Drawn from extension!");
 
         // draw profiling info
+
         pl_begin_profile_sample("Draw Profiling Info");
         char cPProfileValue[64] = {0};
         for(uint32_t i = 0u; i < pl_sb_size(ptAppData->tProfileCtx.ptLastFrame->sbtSamples); i++)

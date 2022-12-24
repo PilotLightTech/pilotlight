@@ -252,9 +252,9 @@ pl_initialize_draw_context_dx11(plDrawContext* ptCtx, ID3D11Device* ptDevice, ID
     PL_COM(ptDx11Context->ptDevice)->CreateBlendState(ptDx11Context->ptDevice, &tBlendingDescription, &ptDx11Context->ptBlendState);
 
     D3D11_RASTERIZER_DESC tRasterizerState = {
-            .FillMode = D3D11_FILL_SOLID,
-            .CullMode = D3D11_CULL_NONE,
-            .ScissorEnable = false,
+            .FillMode        = D3D11_FILL_SOLID,
+            .CullMode        = D3D11_CULL_NONE,
+            .ScissorEnable   = true,
             .DepthClipEnable = true
     };
     PL_COM(ptDx11Context->ptDevice)->CreateRasterizerState(ptDx11Context->ptDevice, &tRasterizerState, &ptDx11Context->ptRasterizerState);
@@ -350,6 +350,13 @@ pl_submit_drawlist_dx11(plDrawList* ptDrawlist, float fWidth, float fHeight)
                     ptLastCommand->elementCount += layerCommand->elementCount;
                     bCreateNewCommand = false;
                 }
+
+                // check for same clipping (allows merging draw calls)
+                if(layerCommand->tClip.tMax.x != ptLastCommand->tClip.tMax.x || layerCommand->tClip.tMax.y != ptLastCommand->tClip.tMax.y ||
+                    layerCommand->tClip.tMin.x != ptLastCommand->tClip.tMin.x || layerCommand->tClip.tMin.y != ptLastCommand->tClip.tMin.y)
+                {
+                    bCreateNewCommand = true;
+                }
             }
 
             if(bCreateNewCommand)
@@ -428,6 +435,26 @@ pl_submit_drawlist_dx11(plDrawList* ptDrawlist, float fWidth, float fHeight)
             PL_COM(ptDx11DrawCtx->ptContext)->PSSetShader(ptDx11DrawCtx->ptContext, ptDx11DrawCtx->ptPixelShader, NULL, 0);
             sdf = false;
         }
+
+        if(pl_rect_width(&cmd.tClip) == 0)
+        {
+            const D3D11_RECT tRect = {
+                .right  = (LONG) fWidth,
+                .bottom = (LONG) fHeight
+            };
+            PL_COM(ptDx11DrawCtx->ptContext)->RSSetScissorRects(ptDx11DrawCtx->ptContext, 1, &tRect);
+        }
+        else
+        {
+            const D3D11_RECT tRect = {
+                .left   = (LONG) cmd.tClip.tMin.x,
+                .top    = (LONG) cmd.tClip.tMin.y,
+                .right  = (LONG) cmd.tClip.tMax.x,
+                .bottom = (LONG) cmd.tClip.tMax.y
+            };
+            PL_COM(ptDx11DrawCtx->ptContext)->RSSetScissorRects(ptDx11DrawCtx->ptContext, 1, &tRect);
+        }
+
         PL_COM(ptDx11DrawCtx->ptContext)->PSSetShaderResources(ptDx11DrawCtx->ptContext, 0u, 1, &(ID3D11ShaderResourceView*)cmd.textureId);
         PL_COM(ptDx11DrawCtx->ptContext)->DrawIndexed(ptDx11DrawCtx->ptContext, cmd.elementCount, cmd.indexOffset, 0);
     }

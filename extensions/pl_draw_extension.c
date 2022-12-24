@@ -26,6 +26,8 @@ pl_load_draw_extension(plDataRegistry* ptDataRegistry, plExtensionRegistry* ptEx
     ptExtension->atApis = gatApis;
 
     pl_load_extension(ptExtension);
+
+    pl_set_draw_context(pl_get_data("draw"));
 }
 
 PL_EXPORT void

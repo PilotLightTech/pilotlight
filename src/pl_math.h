@@ -147,17 +147,17 @@ static inline plMat4 pl_mul_mat4t                 (const plMat4* ptLeft, const p
 // [SECTION] rect ops
 //-----------------------------------------------------------------------------
 
-static inline plRect pl_create_rect        (float fX1, float fY1, float fX2, float fY2) { return (plRect){.tMin.x = fX1, .tMin.y = fY1, .tMax.x = fX2, .tMax.y = fY2};}
-static inline plRect pl_calculate_rect     (plVec2 tStart, plVec2 tSize)                { return (plRect){.tMin = tStart, .tMax = pl_add_vec2(tStart, tSize)};}
-static inline float  pl_rect_width         (plRect* ptRect)                             { return ptRect->tMax.x - ptRect->tMin.x;}
-static inline float  pl_rect_height        (plRect* ptRect)                             { return ptRect->tMax.y - ptRect->tMin.y;}
-static inline plVec2 pl_rect_size          (plRect* ptRect)                             { return pl_sub_vec2(ptRect->tMax, ptRect->tMin);}
-static inline plVec2 pl_rect_center        (plRect* ptRect)                             { return (plVec2){(ptRect->tMax.x + ptRect->tMin.x) * 0.5f, (ptRect->tMax.y + ptRect->tMin.y) * 0.5f};}
-static inline plVec2 pl_rect_top_left      (plRect* ptRect)                             { return ptRect->tMin;}
-static inline plVec2 pl_rect_top_right     (plRect* ptRect)                             { return (plVec2){ptRect->tMax.x, ptRect->tMin.y};}
-static inline plVec2 pl_rect_bottom_left   (plRect* ptRect)                             { return (plVec2){ptRect->tMin.x, ptRect->tMax.y};}
-static inline plVec2 pl_rect_bottom_right  (plRect* ptRect)                             { return ptRect->tMax;}
-static inline bool   pl_rect_contains_point(plRect* ptRect, plVec2 tP)                  { return tP.x >= ptRect->tMin.x && tP.y >= ptRect->tMin.y && tP.x <  ptRect->tMax.x && tP.y <  ptRect->tMax.y; }
+static inline plRect pl_create_rect        (float fX1, float fY1, float fX2, float fY2)       { return (plRect){.tMin.x = fX1, .tMin.y = fY1, .tMax.x = fX2, .tMax.y = fY2};}
+static inline plRect pl_calculate_rect     (plVec2 tStart, plVec2 tSize)                      { return (plRect){.tMin = tStart, .tMax = pl_add_vec2(tStart, tSize)};}
+static inline float  pl_rect_width         (const plRect* ptRect)                             { return ptRect->tMax.x - ptRect->tMin.x;}
+static inline float  pl_rect_height        (const plRect* ptRect)                             { return ptRect->tMax.y - ptRect->tMin.y;}
+static inline plVec2 pl_rect_size          (const plRect* ptRect)                             { return pl_sub_vec2(ptRect->tMax, ptRect->tMin);}
+static inline plVec2 pl_rect_center        (const plRect* ptRect)                             { return (plVec2){(ptRect->tMax.x + ptRect->tMin.x) * 0.5f, (ptRect->tMax.y + ptRect->tMin.y) * 0.5f};}
+static inline plVec2 pl_rect_top_left      (const plRect* ptRect)                             { return ptRect->tMin;}
+static inline plVec2 pl_rect_top_right     (const plRect* ptRect)                             { return (plVec2){ptRect->tMax.x, ptRect->tMin.y};}
+static inline plVec2 pl_rect_bottom_left   (const plRect* ptRect)                             { return (plVec2){ptRect->tMin.x, ptRect->tMax.y};}
+static inline plVec2 pl_rect_bottom_right  (const plRect* ptRect)                             { return ptRect->tMax;}
+static inline bool   pl_rect_contains_point(const plRect* ptRect, plVec2 tP)                  { return tP.x >= ptRect->tMin.x && tP.y >= ptRect->tMin.y && tP.x <  ptRect->tMax.x && tP.y <  ptRect->tMax.y; }
 
 //-----------------------------------------------------------------------------
 // [SECTION] implementations

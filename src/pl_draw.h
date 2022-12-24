@@ -64,6 +64,7 @@ Index of this file:
 
 #include <stdint.h>  // uint*_t
 #include <stdbool.h> // bool
+#include "pl_math.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -86,11 +87,6 @@ PL_DECLARE_STRUCT(plFont);           // a single font with a specific size and c
 PL_DECLARE_STRUCT(plFontConfig);     // configuration for loading a single font
 PL_DECLARE_STRUCT(plFontAtlas);      // atlas for multiple fonts
 
-// math
-typedef union _plVec2 plVec2;
-typedef union _plVec3 plVec3;
-typedef union _plVec4 plVec4;
-
 // plTextureID: used to represent texture for renderer backend
 typedef void* plTextureId;
 
@@ -98,11 +94,15 @@ typedef void* plTextureId;
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-// setup/shutdown
+// context
+void            pl_set_draw_context(plDrawContext* ptCtx);
+plDrawContext*  pl_get_draw_context(void);
+void            pl_cleanup_draw_context(plDrawContext* ptCtx);  // implemented by backend
+
+// setup
 void            pl_register_drawlist   (plDrawContext* ptCtx, plDrawList* ptDrawlist);
 plDrawLayer*    pl_request_draw_layer  (plDrawList* ptDrawlist, const char* pcName);
 void            pl_return_draw_layer   (plDrawLayer* ptLayer);
-void            pl_cleanup_draw_context(plDrawContext* ptCtx);  // implemented by backend
 
 // per frame
 void            pl_new_draw_frame   (plDrawContext* ptCtx); // implemented by backend
@@ -128,6 +128,11 @@ void            pl_add_default_font        (plFontAtlas* ptAtlas);
 void            pl_add_font_from_file_ttf  (plFontAtlas* ptAtlas, plFontConfig tConfig, const char* pcFile);
 void            pl_add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, void* pData);
 plVec2          pl_calculate_text_size     (plFont* ptFont, float fSize, const char* pcText, float fWrap);
+
+// clipping
+void            pl_push_clip_rect_pt       (const plRect* ptRect);
+void            pl_push_clip_rect          (plRect tRect);
+void            pl_pop_clip_rect           (void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -224,6 +229,7 @@ typedef struct _plDrawCommand
     uint32_t    elementCount;
     uint32_t    layer;
     plTextureId textureId;
+    plRect      tClip;
     bool        sdf;
 } plDrawCommand;
 
@@ -268,8 +274,10 @@ typedef struct _plFontGlyph
 typedef struct _plDrawContext
 {
     plDrawList** sbDrawlists;
+    plRect*      sbClipStack;
     uint64_t     frameCount;
     plFontAtlas* fontAtlas;
+    plVec2       tFrameBufferScale;
     void*        _platformData;
 } plDrawContext;
 

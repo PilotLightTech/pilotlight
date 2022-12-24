@@ -769,6 +769,14 @@ pl_submit_drawlist_vulkan(plDrawList* drawlist, float width, float height, VkCom
                     lastCommand->elementCount += layerCommand->elementCount;
                     bCreateNewCommand = false;
                 }
+
+                // check for same clipping (allows merging draw calls)
+                if(layerCommand->tClip.tMax.x != lastCommand->tClip.tMax.x || layerCommand->tClip.tMax.y != lastCommand->tClip.tMax.y ||
+                    layerCommand->tClip.tMin.x != lastCommand->tClip.tMin.x || layerCommand->tClip.tMin.y != lastCommand->tClip.tMin.y)
+                {
+                    bCreateNewCommand = true;
+                }
+                
             }
 
             if(bCreateNewCommand)
@@ -800,8 +808,8 @@ pl_submit_drawlist_vulkan(plDrawList* drawlist, float width, float height, VkCom
     vkCmdBindIndexBuffer(cmdBuf, drawlistVulkanData->sbIndexBuffer[currentFrameIndex], 0u, VK_INDEX_TYPE_UINT32);
     vkCmdBindVertexBuffers(cmdBuf, 0, 1, &drawlistVulkanData->sbVertexBuffer[currentFrameIndex], &offsets);
 
-    float fScale[] = { 2.0f / width, 2.0f / height};
-    float fTranslate[] = {-1.0f, -1.0f};
+    const float fScale[] = { 2.0f / width, 2.0f / height};
+    const float fTranslate[] = {-1.0f, -1.0f};
     bool sdf = false;
     vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, drawlistVulkanData->regularPipeline); 
     for(uint32_t i = 0u; i < pl_sb_size(drawlist->sbDrawCommands); i++)
@@ -817,6 +825,27 @@ pl_submit_drawlist_vulkan(plDrawList* drawlist, float width, float height, VkCom
         {
             vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, drawlistVulkanData->regularPipeline); 
             sdf = false;
+        }
+
+        if(pl_rect_width(&cmd.tClip) == 0)
+        {
+            const VkRect2D tScissor = {
+                .extent.width = (int32_t) width,
+                .extent.height = (int32_t) height
+            };
+            vkCmdSetScissor(cmdBuf, 0, 1, &tScissor);
+        }
+        else
+        {
+            const float fOrigWidth = pl_rect_width(&cmd.tClip);
+            const float fOrigHeight = pl_rect_height(&cmd.tClip);
+            const VkRect2D tScissor = {
+                .offset.x      = (int32_t) (cmd.tClip.tMin.x < 0 ? 0 : cmd.tClip.tMin.x),
+                .offset.y      = (int32_t) (cmd.tClip.tMin.y < 0 ? 0 : cmd.tClip.tMin.y),
+                .extent.width  = (cmd.tClip.tMin.x + fOrigWidth  > width ? (int32_t)fOrigWidth - (int32_t)width : (int32_t)fOrigWidth),
+                .extent.height = (cmd.tClip.tMin.y + fOrigHeight  > height ? (int32_t)fOrigHeight - (int32_t)height : (int32_t)fOrigHeight)
+            };
+            vkCmdSetScissor(cmdBuf, 0, 1, &tScissor);
         }
 
         vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanData->drawlistPipelineLayout, 0, 1, (const VkDescriptorSet*)&cmd.textureId, 0u, NULL);

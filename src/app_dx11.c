@@ -30,6 +30,7 @@ Index of this file:
 #include "pl_math.h"
 #include "pl_registry.h" // data registry
 #include "pl_ext.h"      // extension registry
+#include "pl_ui.h"
 
 // extensions
 #include "pl_draw_extension.h"
@@ -73,6 +74,7 @@ typedef struct plAppData_t
     plMemoryContext         tMemoryCtx;
     plDataRegistry          tDataRegistryCtx;
     plExtensionRegistry     tExtensionRegistryCtx;
+    plUiContext             tUiContext;
 
     // extension apis
     plDrawExtension*        ptDrawExtApi;
@@ -125,6 +127,7 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     pl_register_data("profile", &tPNewData->tProfileCtx);
     pl_register_data("log", &tPNewData->tLogCtx);
     pl_register_data("io", ptIOCtx);
+    pl_register_data("draw", &tPNewData->ctx);
 
     plExtension tExtension = {0};
     pl_get_draw_extension_info(&tExtension);
@@ -202,6 +205,12 @@ pl_app_setup(plAppData* ptAppData)
     // create font atlas
     pl_add_default_font(&ptAppData->fontAtlas);
     pl_build_font_atlas(&ptAppData->ctx, &ptAppData->fontAtlas);
+
+    // ui
+    pl_ui_setup_context(&ptAppData->ctx, &ptAppData->tUiContext);
+    pl_setup_drawlist_dx11(ptAppData->tUiContext.ptDrawlist);
+    ptAppData->tUiContext.ptFont = &ptAppData->fontAtlas.sbFonts[0];
+
 }
 
 //-----------------------------------------------------------------------------
@@ -221,6 +230,7 @@ pl_app_shutdown(plAppData* ptAppData)
     // clean up contexts
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
     pl_cleanup_draw_context(&ptAppData->ctx);
+    pl_ui_cleanup_context(&ptAppData->tUiContext);
     pl_cleanup_profile_context();
     pl_cleanup_extension_registry();
     pl_cleanup_log_context();
@@ -274,9 +284,10 @@ pl_app_update(plAppData* ptAppData)
     plIOContext* ptIOCtx = pl_get_io_context();
 
     pl_new_draw_frame(&ptAppData->ctx);
+    pl_ui_new_frame(&ptAppData->tUiContext);
 
     // begin profiling frame (temporarily using drawing context frame count)
-    pl__begin_profile_frame(ptAppData->ctx.frameCount);
+    pl_begin_profile_frame(ptAppData->ctx.frameCount);
 
     // set viewport
     D3D11_VIEWPORT tViewport = {
@@ -315,12 +326,23 @@ pl_app_update(plAppData* ptAppData)
     pl_begin_profile_sample("Add draw commands");
     pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){300.0f, 10.0f}, (plVec4){0.1f, 0.5f, 0.0f, 1.0f}, "Pilot Light\nGraphics", 0.0f);
     pl_add_triangle_filled(ptAppData->bgDrawLayer, (plVec2){300.0f, 50.0f}, (plVec2){300.0f, 150.0f}, (plVec2){350.0f, 50.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f});
-    pl__begin_profile_sample("Calculate text size");
+    pl_begin_profile_sample("Calculate text size");
     plVec2 textSize = pl_calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, "Pilot Light\nGraphics", 0.0f);
-    pl__end_profile_sample();
+    pl_end_profile_sample();
     pl_add_rect_filled(ptAppData->bgDrawLayer, (plVec2){300.0f, 10.0f}, (plVec2){300.0f + textSize.x, 10.0f + textSize.y}, (plVec4){0.0f, 0.0f, 0.8f, 0.5f});
     pl_add_line(ptAppData->bgDrawLayer, (plVec2){500.0f, 10.0f}, (plVec2){10.0f, 500.0f}, (plVec4){1.0f, 1.0f, 1.0f, 0.5f}, 2.0f);
     pl_end_profile_sample();
+
+    static bool bOpen = true;
+
+    if(pl_ui_begin_window("Pilot Light", NULL, false))
+    {
+        pl_ui_text("%.6f ms", ptIOCtx->fDeltaTime);
+
+        pl_ui_checkbox("Camera Info", &bOpen);
+        
+        pl_ui_end_window();
+    }
 
     // submit draw layers
     pl_begin_profile_sample("Submit draw layers");
@@ -328,13 +350,17 @@ pl_app_update(plAppData* ptAppData)
     pl_submit_draw_layer(ptAppData->fgDrawLayer);
     pl_end_profile_sample();
 
+    pl_ui_render();
+
     // submit draw lists
     pl_submit_drawlist_dx11(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1]);
+    pl_submit_drawlist_dx11(ptAppData->tUiContext.ptDrawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1]);
 
     // present
     PL_COM(ptAppData->ptSwapChain)->Present(ptAppData->ptSwapChain, 1, 0);
 
     pl_end_io_frame();
+    pl_ui_end_frame();
 
     // end profiling frame
     pl_end_profile_frame();

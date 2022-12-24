@@ -172,6 +172,13 @@ pl_submit_drawlist_metal(plDrawList* drawlist, float width, float height, id<MTL
                     lastCommand->elementCount += layerCommand->elementCount;
                     bCreateNewCommand = false;
                 }
+
+                // check for same clipping (allows merging draw calls)
+                if(layerCommand->tClip.tMax.x != lastCommand->tClip.tMax.x || layerCommand->tClip.tMax.y != lastCommand->tClip.tMax.y ||
+                    layerCommand->tClip.tMin.x != lastCommand->tClip.tMin.x || layerCommand->tClip.tMin.y != lastCommand->tClip.tMin.y)
+                {
+                    bCreateNewCommand = true;
+                }
             }
 
             if(bCreateNewCommand)
@@ -227,6 +234,7 @@ pl_submit_drawlist_metal(plDrawList* drawlist, float width, float height, id<MTL
     [renderEncoder setVertexBuffer:vertexBuffer.buffer offset:0 atIndex:0];
 
     bool sdf = false;
+    const plVec2 tClipScale = drawlist->ctx->tFrameBufferScale;
     [renderEncoder setRenderPipelineState:renderPipelineState];
     for(uint32_t i = 0u; i < pl_sb_size(drawlist->sbDrawCommands); i++)
     {
@@ -241,6 +249,30 @@ pl_submit_drawlist_metal(plDrawList* drawlist, float width, float height, id<MTL
         {
             [renderEncoder setRenderPipelineState:renderPipelineState];
             sdf = false;
+        }
+
+        if(pl_rect_width(&cmd.tClip) == 0)
+        {
+            MTLScissorRect tScissorRect = {
+                .x      = (NSUInteger)(0),
+                .y      = (NSUInteger)(0),
+                .width  = (NSUInteger)(width * tClipScale.x),
+                .height = (NSUInteger)(height * tClipScale.y)
+            };
+            [renderEncoder setScissorRect:tScissorRect];
+        }
+        else
+        {
+            const float fOrigWidth = pl_rect_width(&cmd.tClip);
+            const float fOrigHeight = pl_rect_height(&cmd.tClip);
+
+            MTLScissorRect tScissorRect = {
+                .x      = (NSUInteger)(cmd.tClip.tMin.x < 0 ? 0 : cmd.tClip.tMin.x),
+                .y      = (NSUInteger)(cmd.tClip.tMin.y < 0 ? 0 : cmd.tClip.tMin.y),
+                .width  = (NSUInteger)(cmd.tClip.tMin.x + fOrigWidth  > width ? (fOrigWidth - width) * tClipScale.x : fOrigWidth * tClipScale.x),
+                .height = (NSUInteger)(cmd.tClip.tMin.y + fOrigHeight  > height ? (fOrigHeight - height) * tClipScale.y : fOrigHeight * tClipScale.y)
+            };
+            [renderEncoder setScissorRect:tScissorRect];
         }
 
         [renderEncoder setFragmentTexture:cmd.textureId atIndex:2];
@@ -429,7 +461,7 @@ pl_cleanup_font_atlas(plFontAtlas* atlas)
     "struct VertexIn {\n"
     "    float2 position  [[attribute(0)]];\n"
     "    float2 texCoords [[attribute(1)]];\n"
-    "    float4 color     [[attribute(2)]];\n"
+    "    uchar4 color     [[attribute(2)]];\n"
     "};\n"
     "\n"
     "struct VertexOut {\n"
@@ -443,7 +475,7 @@ pl_cleanup_font_atlas(plFontAtlas* atlas)
     "    VertexOut out;\n"
     "    out.position = uniforms.projectionMatrix * float4(in.position, 0, 1);\n"
     "    out.texCoords = in.texCoords;\n"
-    "    out.color = in.color;\n"
+    "    out.color = float4(in.color) / float4(255.0);\n"
     "    return out;\n"
     "}\n"
     "\n"
@@ -478,7 +510,7 @@ pl_cleanup_font_atlas(plFontAtlas* atlas)
     vertexDescriptor.attributes[1].format = MTLVertexFormatFloat2; // texCoords
     vertexDescriptor.attributes[1].bufferIndex = 0;
     vertexDescriptor.attributes[2].offset = sizeof(float) * 4;
-    vertexDescriptor.attributes[2].format = MTLVertexFormatUChar4Normalized; // color
+    vertexDescriptor.attributes[2].format = MTLVertexFormatUChar4; // color
     vertexDescriptor.attributes[2].bufferIndex = 0;
     vertexDescriptor.layouts[0].stepRate = 1;
     vertexDescriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
@@ -527,7 +559,7 @@ pl_cleanup_font_atlas(plFontAtlas* atlas)
     "struct VertexIn {\n"
     "    float2 position  [[attribute(0)]];\n"
     "    float2 texCoords [[attribute(1)]];\n"
-    "    float4 color     [[attribute(2)]];\n"
+    "    uchar4 color     [[attribute(2)]];\n"
     "};\n"
     "\n"
     "struct VertexOut {\n"
@@ -541,7 +573,7 @@ pl_cleanup_font_atlas(plFontAtlas* atlas)
     "    VertexOut out;\n"
     "    out.position = uniforms.projectionMatrix * float4(in.position, 0, 1);\n"
     "    out.texCoords = in.texCoords;\n"
-    "    out.color = in.color;\n"
+    "    out.color = float4(in.color) / float4(255.0);\n"
     "    return out;\n"
     "}\n"
     "\n"
@@ -579,7 +611,7 @@ pl_cleanup_font_atlas(plFontAtlas* atlas)
     vertexDescriptor.attributes[1].format = MTLVertexFormatFloat2; // texCoords
     vertexDescriptor.attributes[1].bufferIndex = 0;
     vertexDescriptor.attributes[2].offset = sizeof(float) * 4;
-    vertexDescriptor.attributes[2].format = MTLVertexFormatFloat4; // color
+    vertexDescriptor.attributes[2].format = MTLVertexFormatUChar4; // color
     vertexDescriptor.attributes[2].bufferIndex = 0;
     vertexDescriptor.layouts[0].stepRate = 1;
     vertexDescriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
