@@ -446,6 +446,46 @@ pl_ui_button(const char* pcText)
 }
 
 bool
+pl_ui_selectable(const char* pcText, bool* bpValue)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
+    pl_sb_push(gptCtx->sbuIdStack, uHash);
+    const float fFrameHeight = pl__ui_get_frame_height();
+
+    const plVec2 tSize = {pl__ui_get_window_content_width_available(), fFrameHeight};
+    const plVec2 tTextSize = pl_calculate_text_size(gptCtx->ptFont, gptCtx->tStyle.fFontSize, pcText, -1.0f);
+
+    const plVec2 tStartPos = ptWindow->tCursorPos;
+    const plVec2 tEndPos = pl_add_vec2(tStartPos, tSize);
+
+    const plVec2 tTextStartPos = {
+        .x = roundf(tStartPos.x + 8.0f * 3.0f),
+        .y = roundf(tStartPos.y + fFrameHeight / 2.0f - tTextSize.y / 2.0f)
+    };
+
+    const plRect tBoundingBox = pl_calculate_rect(tStartPos, tSize);
+    bool bHovered = false;
+    bool bHeld = false;
+    const bool bPressed = pl__ui_button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
+
+    if(bPressed)
+        *bpValue = !*bpValue;
+
+    if(bHeld)         pl_add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tStyle.tHeaderActiveCol);
+    else if(bHovered) pl_add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tStyle.tHeaderHoveredCol);
+
+    if(*bpValue)
+        pl_add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tStyle.tHeaderCol);
+
+    pl_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tStyle.tTextCol, pcText, -1.0f);
+    pl__ui_item_add_size(tTextSize.x + gptCtx->tStyle.tInnerSpacing.x + gptCtx->tStyle.tFramePadding.x + fFrameHeight, fFrameHeight);
+    gptCtx->ptCurrentWindow->tCursorPos.x = gptCtx->ptCurrentWindow->tContentPos.x + (float)gptCtx->ptCurrentWindow->uTreeDepth * gptCtx->tStyle.fIndentSize;
+    gptCtx->ptCurrentWindow->tCursorPos.y += pl__ui_get_frame_height();
+    return *bpValue; 
+}
+
+bool
 pl_ui_checkbox(const char* pcText, bool* bValue)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
@@ -477,6 +517,44 @@ pl_ui_checkbox(const char* pcText, bool* bValue)
 
     if(*bValue)
         pl_add_line(ptWindow->ptFgLayer, tStartPos, tEndBoxPos, gptCtx->tStyle.tCheckmarkCol, 2.0f);
+
+    pl_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tStyle.tTextCol, pcText, -1.0f);
+    pl__ui_item_add_size(tTextSize.x + gptCtx->tStyle.tInnerSpacing.x + gptCtx->tStyle.tFramePadding.x + fFrameHeight, fFrameHeight);
+    pl__ui_next_line();
+    return bPressed;
+}
+
+bool
+pl_ui_radio_button(const char* pcText, int* piValue, int iButtonValue)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const int iOriginalValue = *piValue;
+    const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
+    const plVec2 tTextSize = pl_calculate_text_size(gptCtx->ptFont, gptCtx->tStyle.fFontSize, pcText, -1.0f);
+
+    const float fFrameHeight = pl__ui_get_frame_height();
+    const plVec2 tStartPos = ptWindow->tCursorPos;
+    const plVec2 tSize = {floorf(tTextSize.x + 2.0f * gptCtx->tStyle.tFramePadding.x + gptCtx->tStyle.tInnerSpacing.x + fFrameHeight), floorf(fFrameHeight)};
+
+    const plVec2 tTextStartPos = {
+        .x = roundf(tStartPos.x + fFrameHeight + gptCtx->tStyle.tInnerSpacing.x + gptCtx->tStyle.tFramePadding.x),
+        .y = roundf(tStartPos.y + fFrameHeight / 2.0f - tTextSize.y / 2.0f)
+    };
+
+    const plRect tBoundingBox = pl_calculate_rect(tStartPos, tSize);
+    bool bHovered = false;
+    bool bHeld = false;
+    const bool bPressed = pl__ui_button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
+
+    if(bPressed)
+        *piValue = iButtonValue;
+
+    if(bHeld)         pl_add_circle_filled(ptWindow->ptFgLayer, (plVec2){tStartPos.x + fFrameHeight / 2.0f, tStartPos.y + fFrameHeight / 2.0f}, gptCtx->tStyle.fFontSize / 1.5f, gptCtx->tStyle.tFrameBgActiveCol, 12);
+    else if(bHovered) pl_add_circle_filled(ptWindow->ptFgLayer, (plVec2){tStartPos.x + fFrameHeight / 2.0f, tStartPos.y + fFrameHeight / 2.0f}, gptCtx->tStyle.fFontSize / 1.5f, gptCtx->tStyle.tFrameBgHoveredCol, 12);
+    else              pl_add_circle_filled(ptWindow->ptFgLayer, (plVec2){tStartPos.x + fFrameHeight / 2.0f, tStartPos.y + fFrameHeight / 2.0f}, gptCtx->tStyle.fFontSize / 1.5f, gptCtx->tStyle.tFrameBgCol, 12);
+
+    if(*piValue == iButtonValue)
+        pl_add_circle_filled(ptWindow->ptFgLayer, (plVec2){tStartPos.x + fFrameHeight / 2.0f, tStartPos.y + fFrameHeight / 2.0f}, gptCtx->tStyle.fFontSize / 2.5f, gptCtx->tStyle.tCheckmarkCol, 12);
 
     pl_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tStyle.tTextCol, pcText, -1.0f);
     pl__ui_item_add_size(tTextSize.x + gptCtx->tStyle.tInnerSpacing.x + gptCtx->tStyle.tFramePadding.x + fFrameHeight, fFrameHeight);

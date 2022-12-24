@@ -269,6 +269,20 @@ pl_app_update(plAppData* ptAppData)
             pl_ui_progress_bar(0.75f, (plVec2){-1.0f, 0.0f}, NULL);
             if(pl_ui_button("Press me"))
                 bOpen = true;
+            static int iValue = 0;
+            pl_ui_text("Radio Buttons");
+            pl_ui_radio_button("Option 1", &iValue, 0);
+            pl_ui_same_line(0.0f, -1.0f);
+            pl_ui_radio_button("Option 2", &iValue, 1);
+            pl_ui_same_line(0.0f, -1.0f);
+            pl_ui_radio_button("Option 3", &iValue, 2);
+            pl_ui_text("Selectables");
+            static bool bSelectable0 = false;
+            static bool bSelectable1 = false;
+            static bool bSelectable2 = false;
+            pl_ui_selectable("Selectable 1", &bSelectable0);
+            pl_ui_selectable("Selectable 2", &bSelectable1);
+            pl_ui_selectable("Selectable 3", &bSelectable2);
             static bool bOpen0 = false;
             if(pl_ui_tree_node("Root Node", &bOpen0))
             {

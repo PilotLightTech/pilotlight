@@ -78,7 +78,9 @@ void pl_ui_set_next_window_size(plVec2 tSize);
 
 // widgets
 bool pl_ui_button      (const char* pcText);
+bool pl_ui_selectable  (const char* pcText, bool* bpValue);
 bool pl_ui_checkbox    (const char* pcText, bool* pbValue);
+bool pl_ui_radio_button(const char* pcText, int* piValue, int iButtonValue);
 void pl_ui_text        (const char* pcFmt, ...);
 void pl_ui_text_v      (const char* pcFmt, va_list args);
 void pl_ui_progress_bar(float fFraction, plVec2 tSize, const char* pcOverlay);
