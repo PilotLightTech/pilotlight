@@ -69,6 +69,10 @@ pl_ui_setup_context(plDrawContext* ptDrawCtx, plUiContext* ptCtx)
     ptCtx->ptDrawlist = pl_alloc(sizeof(plDrawList));
     memset(ptCtx->ptDrawlist, 0, sizeof(plDrawList));
     pl_register_drawlist(ptDrawCtx, ptCtx->ptDrawlist);
+    ptCtx->ptBgLayer = pl_request_draw_layer(ptCtx->ptDrawlist, "plui Background");
+    ptCtx->ptFgLayer = pl_request_draw_layer(ptCtx->ptDrawlist, "plui Foreground");
+    ptCtx->tTooltipWindow.ptBgLayer = pl_request_draw_layer(ptCtx->ptDrawlist, "plui Tooltip Background");
+    ptCtx->tTooltipWindow.ptFgLayer = pl_request_draw_layer(ptCtx->ptDrawlist, "plui Tooltip Foreground");
     pl_ui_set_dark_theme(ptCtx);
 }
 
@@ -212,11 +216,15 @@ pl_ui_end_frame(void)
 void
 pl_ui_render(void)
 {
+    pl_submit_draw_layer(gptCtx->ptBgLayer);
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtFocusedWindows); i++)
     {
         pl_submit_draw_layer(gptCtx->sbtFocusedWindows[i]->ptBgLayer);
         pl_submit_draw_layer(gptCtx->sbtFocusedWindows[i]->ptFgLayer);
     }
+    pl_submit_draw_layer(gptCtx->tTooltipWindow.ptBgLayer);
+    pl_submit_draw_layer(gptCtx->tTooltipWindow.ptFgLayer);
+    pl_submit_draw_layer(gptCtx->ptFgLayer);
 }
 
 bool
@@ -244,6 +252,7 @@ pl_ui_begin_window(const char* pcName, bool* pbOpen, bool bAutoSize)
             .uId       = uWindowID,
             .pcName    = pcName,
             .tPos      = {.x = 200.0f, .y = 200.0f},
+            .tMinSize  = {.x = 200.0f, .y = 200.0f},
             .tSize     = {.x = 500.0f, .y = 700.0f},
             .tFullSize = {.x = 500.0f, .y = 700.0f},
             .ptBgLayer = pl_request_draw_layer(gptCtx->ptDrawlist, pcName),
@@ -258,6 +267,11 @@ pl_ui_begin_window(const char* pcName, bool* pbOpen, bool bAutoSize)
     gptCtx->ptCurrentWindow->bAutoSize = bAutoSize;
     gptCtx->ptCurrentWindow->tContentMaxSize.x = 0.0f;
     gptCtx->ptCurrentWindow->tContentMaxSize.y = 0.0f;
+    if(gptCtx->ptCurrentWindow->tSize.x < gptCtx->ptCurrentWindow->tMinSize.x) gptCtx->ptCurrentWindow->tSize.x = gptCtx->ptCurrentWindow->tMinSize.x;
+    if(gptCtx->ptCurrentWindow->tSize.y < gptCtx->ptCurrentWindow->tMinSize.y) gptCtx->ptCurrentWindow->tSize.y = gptCtx->ptCurrentWindow->tMinSize.y;
+    if(gptCtx->ptCurrentWindow->tFullSize.x < gptCtx->ptCurrentWindow->tMinSize.x) gptCtx->ptCurrentWindow->tFullSize.x = gptCtx->ptCurrentWindow->tMinSize.x;
+    if(gptCtx->ptCurrentWindow->tFullSize.y < gptCtx->ptCurrentWindow->tMinSize.y) gptCtx->ptCurrentWindow->tFullSize.y = gptCtx->ptCurrentWindow->tMinSize.y;
+
 
     if(gptCtx->uHoveredWindowId == uWindowID)
     {
@@ -337,6 +351,10 @@ pl_ui_begin_window(const char* pcName, bool* pbOpen, bool bAutoSize)
     else
         pl_add_circle_filled(gptCtx->ptCurrentWindow->ptFgLayer, tCollapsingCenterPos, fTitleBarButtonRadius, (plVec4){0.5f, 0.5f, 0.0f, 1.0f}, 12);
 
+
+    if(!gptCtx->ptCurrentWindow->bAutoSize && !gptCtx->ptCurrentWindow->bCollapsed)
+        pl_push_clip_rect(pl_calculate_rect(gptCtx->ptCurrentWindow->tPos, gptCtx->ptCurrentWindow->tFullSize));
+
     // resizing grip
     const plVec2 tCornerPos = pl_add_vec2(tStartPos, tSize);
     const plVec2 tCornerTopPos = pl_add_vec2(tCornerPos, (plVec2){0.0f, -15.0f});
@@ -345,7 +363,6 @@ pl_ui_begin_window(const char* pcName, bool* pbOpen, bool bAutoSize)
     // window background
     if(!gptCtx->ptCurrentWindow->bCollapsed && !bAutoSize)
     {
-        pl_add_rect_filled(gptCtx->ptCurrentWindow->ptBgLayer, pl_add_vec2(tStartPos, (plVec2){0.0f, fTitleBarHeight}), pl_add_vec2(tStartPos, tSize), gptCtx->tStyle.tWindowBgColor);
         if(pl__ui_is_mouse_hovering_rect(tStartPos, pl_add_vec2(tStartPos, tSize)))
             gptCtx->ptCurrentWindow->ulFrameHovered = pl_get_io_context()->ulFrameCount;
     }
@@ -378,9 +395,13 @@ pl_ui_begin_window(const char* pcName, bool* pbOpen, bool bAutoSize)
 void
 pl_ui_end_window(void)
 {
+    const float fTitleBarHeight = gptCtx->tStyle.fFontSize + 2.0f * gptCtx->tStyle.fTitlePadding;
+
+    if(gptCtx->ptCurrentWindow->tSize.x < gptCtx->ptCurrentWindow->tMinSize.x) gptCtx->ptCurrentWindow->tSize.x = gptCtx->ptCurrentWindow->tMinSize.x;
+    if(gptCtx->ptCurrentWindow->tSize.y < gptCtx->ptCurrentWindow->tMinSize.y) gptCtx->ptCurrentWindow->tSize.y = gptCtx->ptCurrentWindow->tMinSize.y;
+
     if(gptCtx->ptCurrentWindow->bAutoSize && !gptCtx->ptCurrentWindow->bCollapsed)
     {
-        const float fTitleBarHeight = gptCtx->tStyle.fFontSize + 2.0f * gptCtx->tStyle.fTitlePadding;
         gptCtx->ptCurrentWindow->tContentMaxSize.x = gptCtx->ptCurrentWindow->tContentMaxSize.x < 300.0f ? 300.0f : gptCtx->ptCurrentWindow->tContentMaxSize.x;
         gptCtx->ptCurrentWindow->tContentMaxSize.y = gptCtx->ptCurrentWindow->tContentMaxSize.y < 300.0f ? 300.0f : gptCtx->ptCurrentWindow->tContentMaxSize.y;
         pl_add_rect_filled(gptCtx->ptCurrentWindow->ptBgLayer, 
@@ -394,8 +415,50 @@ pl_ui_end_window(void)
             gptCtx->uNextHoveredWindowId = gptCtx->ptCurrentWindow->uId;
         }
     }
+    else if(!gptCtx->ptCurrentWindow->bCollapsed)
+    { 
+        pl_add_rect_filled(gptCtx->ptCurrentWindow->ptBgLayer, pl_add_vec2(gptCtx->ptCurrentWindow->tPos, (plVec2){0.0f, fTitleBarHeight}), pl_add_vec2(gptCtx->ptCurrentWindow->tPos, gptCtx->ptCurrentWindow->tSize), gptCtx->tStyle.tWindowBgColor);
+        pl_pop_clip_rect();
+    }
     gptCtx->ptCurrentWindow = NULL;
     pl_sb_pop(gptCtx->sbuIdStack);
+}
+
+void
+pl_ui_begin_tooltip(void)
+{
+    const plVec2 tMousePos = pl_get_mouse_pos();
+    plUiWindow* ptCurrentParentWindow = gptCtx->ptCurrentWindow;
+
+    gptCtx->tTooltipWindow.ptParentWindow = gptCtx->ptCurrentWindow;
+    gptCtx->tTooltipWindow.bAutoSize = true;
+    gptCtx->tTooltipWindow.tContentPos = pl_add_vec2(tMousePos, (plVec2){gptCtx->tStyle.fWindowHorizontalPadding, 0.0f});
+    gptCtx->tTooltipWindow.tPos = tMousePos;
+
+    gptCtx->tTooltipWindow.tCursorPos.x = gptCtx->tStyle.fWindowHorizontalPadding + tMousePos.x;
+    gptCtx->tTooltipWindow.tCursorPos.y = gptCtx->tStyle.fWindowVerticalPadding + tMousePos.y;
+    gptCtx->tTooltipWindow.fTextVerticalOffset = 0.0f;
+    gptCtx->tTooltipWindow.tCursorPos.x = floorf(gptCtx->tTooltipWindow.tCursorPos.x);
+    gptCtx->tTooltipWindow.tCursorPos.y = floorf(gptCtx->tTooltipWindow.tCursorPos.y);
+
+    gptCtx->tTooltipWindow.tContentMaxSize.x = 0.0f;
+    gptCtx->tTooltipWindow.tContentMaxSize.y = 0.0f;
+
+    gptCtx->ptCurrentWindow = &gptCtx->tTooltipWindow;
+}
+
+void
+pl_ui_end_tooltip(void)
+{
+    const float fTitleBarHeight = gptCtx->tStyle.fFontSize + 2.0f * gptCtx->tStyle.fTitlePadding;
+    gptCtx->tTooltipWindow.tContentMaxSize.x = gptCtx->tTooltipWindow.tContentMaxSize.x < 150.0f ? 150.0f : gptCtx->tTooltipWindow.tContentMaxSize.x + gptCtx->tStyle.fWindowHorizontalPadding;
+    gptCtx->tTooltipWindow.tContentMaxSize.y = gptCtx->tTooltipWindow.tContentMaxSize.y < 50.0f ? 50.0f : gptCtx->tTooltipWindow.tContentMaxSize.y + gptCtx->tStyle.fWindowVerticalPadding;
+    pl_add_rect_filled(gptCtx->tTooltipWindow.ptBgLayer, 
+        gptCtx->tTooltipWindow.tPos, 
+        pl_add_vec2(gptCtx->tTooltipWindow.tPos, gptCtx->tTooltipWindow.tContentMaxSize), gptCtx->tStyle.tWindowBgColor);
+    gptCtx->tTooltipWindow.tSize = gptCtx->tTooltipWindow.tContentMaxSize;
+
+    gptCtx->ptCurrentWindow = gptCtx->tTooltipWindow.ptParentWindow;
 }
 
 void
@@ -450,7 +513,6 @@ pl_ui_selectable(const char* pcText, bool* bpValue)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
-    pl_sb_push(gptCtx->sbuIdStack, uHash);
     const float fFrameHeight = pl__ui_get_frame_height();
 
     const plVec2 tSize = {pl__ui_get_window_content_width_available(), fFrameHeight};
@@ -567,7 +629,6 @@ pl_ui_collapsing_header(const char* pcText, bool* pbOpenState)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
-    pl_sb_push(gptCtx->sbuIdStack, uHash);
     const float fFrameHeight = pl__ui_get_frame_height();
 
     const plVec2 tSize = {pl__ui_get_window_content_width_available(), fFrameHeight};
@@ -621,7 +682,6 @@ pl_ui_tree_node(const char* pcText, bool* pbOpenState)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
-    pl_sb_push(gptCtx->sbuIdStack, uHash);
     const float fFrameHeight = pl__ui_get_frame_height();
 
     const plVec2 tSize = {pl__ui_get_window_content_width_available(), fFrameHeight};
@@ -676,6 +736,110 @@ pl_ui_tree_pop(void)
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     ptWindow->uTreeDepth--;
     ptWindow->tCursorPos.x -= gptCtx->tStyle.fIndentSize;
+}
+
+bool
+pl_ui_begin_tab_bar(const char* pcText)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
+    pl_sb_push(gptCtx->sbuIdStack, uHash);
+
+    // check if tab bar existed
+    gptCtx->ptCurrentTabBar = NULL;
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtTabBars); i++)
+    {
+        if(gptCtx->sbtTabBars[i].uId == uHash)
+        {
+            gptCtx->ptCurrentTabBar = &gptCtx->sbtTabBars[i];
+            break;
+        }
+    }
+
+    // new tab bar needs to be created
+    if(gptCtx->ptCurrentTabBar == NULL)
+    {
+        plUiTabBar tTabBar = {
+            .uId       = uHash
+        };;
+
+        pl_sb_push(gptCtx->sbtTabBars, tTabBar);
+        gptCtx->ptCurrentTabBar = &pl_sb_top(gptCtx->sbtTabBars);
+    }
+
+    gptCtx->ptCurrentTabBar->tStartPos = ptWindow->tCursorPos;
+    gptCtx->ptCurrentTabBar->tStartPos.x -= gptCtx->tStyle.tInnerSpacing.x;
+    gptCtx->ptCurrentTabBar->tCursorPos = ptWindow->tCursorPos;
+    gptCtx->ptCurrentTabBar->uCurrentIndex = 0u;
+    return true;
+}
+
+void
+pl_ui_end_tab_bar(void)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const float fFrameHeight = pl__ui_get_frame_height();
+    pl_add_line(ptWindow->ptFgLayer, 
+        (plVec2){gptCtx->ptCurrentTabBar->tStartPos.x, gptCtx->ptCurrentTabBar->tStartPos.y + fFrameHeight},
+        (plVec2){gptCtx->ptCurrentTabBar->tStartPos.x + pl__ui_get_window_content_width_available(), gptCtx->ptCurrentTabBar->tStartPos.y + fFrameHeight},
+        gptCtx->tStyle.tButtonActiveCol, 1.0f);
+
+    gptCtx->ptCurrentTabBar->uValue = gptCtx->ptCurrentTabBar->uNextValue;
+    pl_sb_pop(gptCtx->sbuIdStack);
+}
+
+bool
+pl_ui_begin_tab(const char* pcText)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    plUiTabBar* ptTabBar = gptCtx->ptCurrentTabBar;
+    const float fFrameHeight = pl__ui_get_frame_height();
+    const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
+    pl_sb_push(gptCtx->sbuIdStack, uHash);
+
+    if(ptTabBar->uValue == 0u) ptTabBar->uValue = uHash;
+
+    const plVec2 tTextSize = pl_calculate_text_size(gptCtx->ptFont, gptCtx->tStyle.fFontSize, pcText, -1.0f);
+    const plVec2 tStartPos = ptTabBar->tCursorPos;
+    const plVec2 tFinalSize = {floorf(tTextSize.x + 2.0f * gptCtx->tStyle.tFramePadding.x), floorf(fFrameHeight)};
+
+    const plVec2 tTextStartPos = {
+        .x = roundf(tStartPos.x + gptCtx->tStyle.tFramePadding.x),
+        .y = roundf(tStartPos.y + fFrameHeight / 2.0f - tTextSize.y / 2.0f)
+    };
+
+    const plRect tBoundingBox = pl_calculate_rect(tStartPos, tFinalSize);
+    bool bHovered = false;
+    bool bHeld = false;
+    const bool bPressed = pl__ui_button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
+
+    if(bPressed)
+    {
+        gptCtx->uNextToggleId = uHash;
+        ptTabBar->uNextValue = uHash;
+    }
+
+    if(bHeld)                  pl_add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tStyle.tButtonActiveCol);
+    else if(bHovered)          pl_add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tStyle.tButtonHoveredCol);
+    else if(ptTabBar->uValue == uHash) pl_add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tStyle.tButtonActiveCol);
+    else                       pl_add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tStyle.tButtonCol);
+    
+    pl_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tStyle.tTextCol, pcText, -1.0f);
+
+    if(ptTabBar->uCurrentIndex == 0)
+    {
+        pl__ui_item_add_size(tFinalSize.x, fFrameHeight);
+        pl__ui_next_line();
+    }
+    ptTabBar->tCursorPos.x += gptCtx->tStyle.tInnerSpacing.x + tFinalSize.x;
+    ptTabBar->uCurrentIndex++;
+
+    return ptTabBar->uValue == uHash;
+}
+
+void
+pl_ui_end_tab(void)
+{
     pl_sb_pop(gptCtx->sbuIdStack);
 }
 

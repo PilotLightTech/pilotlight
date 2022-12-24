@@ -43,6 +43,7 @@ Index of this file:
 PL_DECLARE_STRUCT(plUiContext);
 PL_DECLARE_STRUCT(plUiStyle);
 PL_DECLARE_STRUCT(plUiWindow);
+PL_DECLARE_STRUCT(plUiTabBar);
 PL_DECLARE_STRUCT(plUiPrevItemData);
 PL_DECLARE_STRUCT(plUiNextWindowData);
 
@@ -72,6 +73,10 @@ void pl_ui_render(void);
 bool pl_ui_begin_window(const char* pcName, bool* pbOpen, bool bAutoSize);
 void pl_ui_end_window(void);
 
+// tooltips
+void pl_ui_begin_tooltip(void);
+void pl_ui_end_tooltip  (void);
+
 // window utils
 void pl_ui_set_next_window_pos (plVec2 tPos);
 void pl_ui_set_next_window_size(plVec2 tSize);
@@ -89,6 +94,12 @@ void pl_ui_progress_bar(float fFraction, plVec2 tSize, const char* pcOverlay);
 bool pl_ui_collapsing_header(const char* pcText, bool* pbOpenState);
 bool pl_ui_tree_node        (const char* pcText, bool* pbOpenState);
 void pl_ui_tree_pop         (void);
+
+// tabs
+bool pl_ui_begin_tab_bar(const char* pcText);
+void pl_ui_end_tab_bar  (void);
+bool pl_ui_begin_tab    (const char* pcText);
+void pl_ui_end_tab      (void);
 
 // layout
 void pl_ui_same_line(float fOffsetFromStart, float fSpacing);
@@ -150,19 +161,32 @@ typedef struct _plUiPrevItemData
     bool bActive;
 } plUiPrevItemData;
 
+typedef struct _plUiTabBar
+{
+    uint32_t    uId;
+    plVec2      tStartPos;
+    plVec2      tCursorPos;
+    uint32_t    uCurrentIndex;
+    uint32_t    uValue;
+    uint32_t    uNextValue;
+} plUiTabBar;
+
 typedef struct _plUiWindow
 {
+
     uint32_t     uId;
     const char*  pcName;
     plVec2       tPos;
     plVec2       tContentPos;
     plVec2       tContentMaxSize;
+    plVec2       tMinSize;
     plVec2       tSize;
     plVec2       tFullSize;
     plVec2       tCursorPos;
     plVec2       tCursorPrevLine;
     float        fTextVerticalOffset;
     uint32_t     uTreeDepth;
+    plUiWindow*  ptParentWindow;
 
     // state
     bool         bHovered;
@@ -202,6 +226,7 @@ typedef struct _plUiContext
     uint32_t uNextHoveredWindowId;
 
     // windows
+    plUiWindow   tTooltipWindow;
     plUiWindow*  sbtWindows;
     plUiWindow** sbtFocusedWindows;
     plUiWindow** sbtSortingWindows;
@@ -211,8 +236,15 @@ typedef struct _plUiContext
     plUiWindow*  ptActiveWindow;
     plUiWindow*  ptFocusedWindow;
 
-    plDrawList* ptDrawlist;
-    plFont*     ptFont;
+    // tabs
+    plUiTabBar* sbtTabBars;
+    plUiTabBar* ptCurrentTabBar;
+
+    // drawing
+    plDrawList*  ptDrawlist;
+    plFont*      ptFont;
+    plDrawLayer* ptBgLayer;
+    plDrawLayer* ptFgLayer;
 } plUiContext;
 
 #endif // PL_UI_H

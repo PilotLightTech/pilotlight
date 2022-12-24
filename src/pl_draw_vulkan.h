@@ -842,8 +842,8 @@ pl_submit_drawlist_vulkan(plDrawList* drawlist, float width, float height, VkCom
             const VkRect2D tScissor = {
                 .offset.x      = (int32_t) (cmd.tClip.tMin.x < 0 ? 0 : cmd.tClip.tMin.x),
                 .offset.y      = (int32_t) (cmd.tClip.tMin.y < 0 ? 0 : cmd.tClip.tMin.y),
-                .extent.width  = (cmd.tClip.tMin.x + fOrigWidth  > width ? (int32_t)fOrigWidth - (int32_t)width : (int32_t)fOrigWidth),
-                .extent.height = (cmd.tClip.tMin.y + fOrigHeight  > height ? (int32_t)fOrigHeight - (int32_t)height : (int32_t)fOrigHeight)
+                .extent.width  = (cmd.tClip.tMin.x + fOrigWidth  > width ? (int32_t)width - (int32_t)cmd.tClip.tMin.x : (int32_t)fOrigWidth),
+                .extent.height = (cmd.tClip.tMin.y + fOrigHeight  > height ? (int32_t)height - (int32_t)cmd.tClip.tMin.y: (int32_t)fOrigHeight)
             };
             vkCmdSetScissor(cmdBuf, 0, 1, &tScissor);
         }

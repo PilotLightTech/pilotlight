@@ -241,15 +241,13 @@ pl_app_update(plAppData* ptAppData)
 
         static bool bOpen = true;
 
+
         if(pl_ui_begin_window("Pilot Light", NULL, false))
         {
             pl_ui_text("%.6f ms", ptIOCtx->fDeltaTime);
-
-            pl_ui_checkbox("Camera Info", &bOpen);
-            
-
-            pl_ui_end_window();
+            pl_ui_checkbox("Camera Info", &bOpen);  
         }
+        pl_ui_end_window();
 
         if(bOpen)
         {
@@ -267,8 +265,15 @@ pl_app_update(plAppData* ptAppData)
         if(pl_ui_begin_window("UI Demo", NULL, false))
         {
             pl_ui_progress_bar(0.75f, (plVec2){-1.0f, 0.0f}, NULL);
-            if(pl_ui_button("Press me"))
+            if(pl_ui_button("Hover me!"))
                 bOpen = true;
+
+            if(pl_ui_was_last_item_hovered())
+            {
+                pl_ui_begin_tooltip();
+                pl_ui_text("Clicking this button will reshow the camera window!", ptIOCtx->fDeltaTime);
+                pl_ui_end_tooltip();
+            }
             static int iValue = 0;
             pl_ui_text("Radio Buttons");
             pl_ui_radio_button("Option 1", &iValue, 0);
@@ -306,6 +311,33 @@ pl_app_update(plAppData* ptAppData)
             {
                 pl_ui_checkbox("Camera window2", &bOpen);
             }
+
+            if(pl_ui_begin_tab_bar("Tabs1"))
+            {
+                if(pl_ui_begin_tab("Tab 0"))
+                {
+                    pl_ui_selectable("Selectable 1", &bSelectable0);
+                    pl_ui_selectable("Selectable 2", &bSelectable1);
+                    pl_ui_selectable("Selectable 3", &bSelectable2);   
+                }
+                pl_ui_end_tab();
+
+                if(pl_ui_begin_tab("Tab 1"))
+                {
+                    pl_ui_radio_button("Option 1", &iValue, 0);
+                    pl_ui_radio_button("Option 2", &iValue, 1);
+                    pl_ui_radio_button("Option 3", &iValue, 2);
+                }
+                pl_ui_end_tab();
+
+                if(pl_ui_begin_tab("Tab 2"))
+                {
+                    pl_ui_radio_button("Option 1", &iValue, 0);
+                    pl_ui_selectable("Selectable 2", &bSelectable1);
+                }
+                pl_ui_end_tab();
+            }
+            pl_ui_end_tab_bar();
         }
         pl_ui_end_window();
 
