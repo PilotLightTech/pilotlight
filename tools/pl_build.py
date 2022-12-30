@@ -1,4 +1,4 @@
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 ###############################################################################
 #                                  Info                                       #
@@ -92,6 +92,8 @@ class CompilerSettings:
         self._link_frameworks = []
         self._target_links = []
         self._target_type = TargetType.NONE
+        self._pre_build_step = None
+        self._post_build_step = None
 
 
 class Platform:
@@ -107,6 +109,7 @@ class CompilerConfiguration:
 
         # used by profiles
         self._last_source_push_count = []
+        self._last_vulkan_glsl_push_count = []
         self._last_definition_push_count = []
         self._last_includes_push_count = []
         self._last_link_dir_push_count = []
@@ -270,6 +273,20 @@ def pop_source_files():
         for _compiler in _platform._compiler_settings:
             for i in range(remove_count):
                 _compiler._source_files.pop()
+
+def push_vulkan_glsl_files(directory: str, *args):
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            for arg in args:
+                _compiler._vulkan_glsl_shader_files.append([directory, arg])
+    _context._profile_stack[0]._last_vulkan_glsl_push_count.append(len(args))
+
+def pop_vulkan_glsl_files():
+    remove_count = _context._profile_stack[0]._last_vulkan_glsl_push_count.pop()
+    for _platform in _context._profile_stack[0]._platforms:
+        for _compiler in _platform._compiler_settings:
+            for i in range(remove_count):
+                _compiler._vulkan_glsl_shader_files.pop()
 
 def push_definitions(*args):
     for _platform in _context._profile_stack[0]._platforms:
@@ -492,6 +509,12 @@ def set_output_binary_extension(extension: str):
 def set_output_directory(directory: str):
     _context._current_compiler_settings._output_directory = directory
 
+def set_pre_build_step(code: str):
+    _context._current_compiler_settings._pre_build_step = code
+
+def set_post_build_step(code: str):
+    _context._current_compiler_settings._post_build_step = code
+
 ###############################################################################
 #                            Included Profiles                                #
 ###############################################################################
@@ -712,6 +735,11 @@ def generate_macos_build(name_override=None):
                                         if settings._compiler_type == CompilerType.CLANG:
 
                                             buffer += _title(config._name + " | " + target._name, file_type)
+
+                                            if settings._pre_build_step is not None:
+                                                buffer += settings._pre_build_step
+                                                buffer += "\n\n"
+
                                             buffer += '\n# create output directory\n'
                                             buffer += 'if ! [[ -d "' + settings._output_directory + '" ]]; then\n'
                                             buffer += '    mkdir "' + settings._output_directory + '"\n'
@@ -899,6 +927,10 @@ def generate_macos_build(name_override=None):
                                             buffer += '\n# remove lock file\n'
                                             buffer += 'rm "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
 
+                                            if settings._post_build_step is not None:
+                                                buffer += settings._post_build_step
+                                                buffer += "\n\n"
+
                 if target_found:
                     buffer += '#' + '~' * 40 + '\n'
                     buffer += '# end of ' + register_config + ' \n'
@@ -1023,6 +1055,11 @@ def generate_linux_build(name_override=None):
                                         if settings._compiler_type == CompilerType.GCC:
 
                                             buffer += _title(config._name + " | " + target._name, file_type)
+
+                                            if settings._pre_build_step is not None:
+                                                buffer += settings._pre_build_step
+                                                buffer += "\n\n"
+
                                             buffer += '\n# create output directory\n'
                                             buffer += 'if ! [[ -d "' + settings._output_directory + '" ]]; then\n'
                                             buffer += '    mkdir "' + settings._output_directory + '"\n'
@@ -1184,6 +1221,10 @@ def generate_linux_build(name_override=None):
 
                                             buffer += '\n# remove lock file\n'
                                             buffer += 'rm "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
+
+                                            if settings._post_build_step is not None:
+                                                buffer += settings._post_build_step
+                                                buffer += "\n\n"
                 if target_found:
                     buffer += '#' + '~' * 40 + '\n'
                     buffer += '# end of ' + register_config + ' \n'
@@ -1311,6 +1352,10 @@ def generate_win32_build(name_override=None):
                                     for settings in plat._compiler_settings:
 
                                         if settings._compiler_type == CompilerType.MSVC:
+
+                                            if settings._pre_build_step is not None:
+                                                buffer += settings._pre_build_step
+                                                buffer += "\n\n"
 
                                             buffer += '@rem create output directory\n'
                                             buffer += '@if not exist "' + settings._output_directory + '" @mkdir "' + settings._output_directory + '"'
@@ -1563,6 +1608,10 @@ def generate_win32_build(name_override=None):
                                             buffer += "@echo [36mResult: [0m %PL_RESULT%\n"
                                             buffer += "@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m\n"
                                             buffer += "\n"
+
+                                            if settings._post_build_step is not None:
+                                                buffer += settings._post_build_step
+                                                buffer += "\n\n"
                 if target_found:
                     buffer += '@rem ' + '~' * 40
                     buffer += '\n@rem end of ' + register_config + ' configuration\n'
