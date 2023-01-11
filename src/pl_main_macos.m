@@ -85,7 +85,6 @@ CFTimeInterval              gTime;
 
 typedef struct _plAppData plAppData;
 static void* (*pl_app_load)    (plIOContext* ptIOCtx, plAppData* ptAppData);
-static void  (*pl_app_setup)   (plAppData* ptAppData);
 static void  (*pl_app_shutdown)(plAppData* ptAppData);
 static void  (*pl_app_resize)  (plAppData* ptAppData);
 static void  (*pl_app_update)  (plAppData* ptAppData);
@@ -99,17 +98,6 @@ int main()
     // setup io context
     pl_initialize_io_context(&gtIOContext);
     plIOContext* ptIOCtx = pl_get_io_context();
-
-    // load library
-    if(pl_load_library(&gAppLibrary, "app.so", "app_", "lock.tmp"))
-    {
-        pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
-        pl_app_setup    = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_setup");
-        pl_app_shutdown = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_update");
-        gUserData = pl_app_load(ptIOCtx, NULL);
-    }
 
     // create view controller
     gViewController = [[plNSViewController alloc] init];
@@ -358,7 +346,16 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     #endif
     gtIOContext.afMainViewportSize[0] = 500;
     gtIOContext.afMainViewportSize[1] = 500;
-    pl_app_setup(gUserData);
+
+    // load library
+    if(pl_load_library(&gAppLibrary, "app.so", "app_", "lock.tmp"))
+    {
+        pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
+        pl_app_shutdown = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_update");
+        gUserData = pl_app_load(&gtIOContext, NULL);
+    }
 }
 
 - (void)drawableResize:(CGSize)size
@@ -384,7 +381,6 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     {
         pl_reload_library(&gAppLibrary);
         pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
-        pl_app_setup    = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_setup");
         pl_app_shutdown = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
         pl_app_resize   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
         pl_app_update   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_update");

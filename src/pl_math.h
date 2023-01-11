@@ -70,9 +70,9 @@ static inline float pl_clamp01f(float fValue)                         { return p
 //-----------------------------------------------------------------------------
 
 // unary ops
-static inline float pl_length_sqr_vec2  (plVec2 tVec)                { return sqrtf(pl_squaref(tVec.x) + pl_squaref(tVec.y)); }
-static inline float pl_length_sqr_vec3  (plVec3 tVec)                { return sqrtf(pl_squaref(tVec.x) + pl_squaref(tVec.y) + pl_squaref(tVec.z)); }
-static inline float pl_length_sqr_vec4  (plVec4 tVec)                { return sqrtf(pl_squaref(tVec.x) + pl_squaref(tVec.y) + pl_squaref(tVec.z) + pl_squaref(tVec.w)); }
+static inline float pl_length_sqr_vec2  (plVec2 tVec)                { return pl_squaref(tVec.x) + pl_squaref(tVec.y); }
+static inline float pl_length_sqr_vec3  (plVec3 tVec)                { return pl_squaref(tVec.x) + pl_squaref(tVec.y) + pl_squaref(tVec.z); }
+static inline float pl_length_sqr_vec4  (plVec4 tVec)                { return pl_squaref(tVec.x) + pl_squaref(tVec.y) + pl_squaref(tVec.z) + pl_squaref(tVec.w); }
 static inline float pl_length_vec2      (plVec2 tVec)                { return sqrtf(pl_length_sqr_vec2(tVec)); }
 static inline float pl_length_vec3      (plVec3 tVec)                { return sqrtf(pl_length_sqr_vec3(tVec)); }
 static inline float pl_length_vec4      (plVec4 tVec)                { return sqrtf(pl_length_sqr_vec4(tVec)); }

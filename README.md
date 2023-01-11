@@ -14,7 +14,6 @@
 
 <p align="center">
   <a href="#information">Information</a> •
-  <a href="#reusable-components">Reusable Components</a> •
   <a href="#developer-notes">Developer Notes</a> • 
   <a href="#license">License</a> •
   <a href="#gallery">Gallery</a> •
@@ -23,22 +22,6 @@
 
 ## Information
 The plan for _Pilot Light_ is to be collection of "[stb](https://github.com/nothings/stb) style" libraries that culminate into a lightweight game engine. Ideally all of the libraries would be completely standalone but this isn't practical for the larger systems so some will rely on others. Beware, this project is still in the early stages.
-
-## Reusable Components
-library | latest version | description | required files
---------|----------------|-------------|-----------------
-pl_ds | v0.1 WIP       | data structures | pl_ds.h
-pl_log | v0.1 WIP      | simple logger | pl_log.h
-pl_profile | v0.1 WIP  | simple profiler | pl_profile.h
-pl_math | v0.1 WIP | math | pl_math.h, pl_math.inc
-pl_memory | v0.1 WIP | memory allocators | pl_memory.h
-pl_string | v0.1 WIP | string operations | pl_string.h
-pl_io | v0.1 WIP | keyboard/mouse input/output system | pl_io.h, pl_ds.h, pl_math.inc
-pl_camera | v0.1 WIP | camera operations | pl_camera.h, pl_math.h, pl_math.inc
-pl_os | v0.1 WIP | operating system services | pl_os.h, pl_memory.h, pl_os_*.c
-pl_draw | v0.1 WIP | 2D drawing API | pl_draw.h pl_draw.c, pl_ds.h, pl_math.h, pl_math.inc, stb_truetype.h, stb_rect_pack.h, pl_draw_*.c
-pl_ui | v0.1 WIP | immediate mode UI | pl_ui.h, pl_ui.c, pl_io.h, pl_string.h, pl_memory.h, pl_draw files above
-
 
 ## Developer Notes
 Information for developers can be found in the [wiki](https://github.com/pilot-light/pilotlight/wiki). This includes:
@@ -51,10 +34,13 @@ Pilot Light is licensed under the [MIT License](https://github.com/pilot-light/p
 
 ## Gallery
 
-<h1 align="center">
-  <br>
-  <a href="https://github.com/hoffstadt/DearPyGui"><img src="https://github.com/pilot-light/pilotlight-assets/blob/master/images/firstimage.PNG" alt="First Image"></a>
-</h1>
+<p align="center">
+  <a href="https://github.com/pilot-light/pilotlight-assets"><img src="https://github.com/pilot-light/pilotlight-assets/blob/master/images/firstimage.PNG" alt="First Image"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/pilot-light/pilotlight-assets"><img src="https://github.com/pilot-light/pilotlight-assets/blob/master/images/sponza.PNG" alt="First Image"></a>
+</p>
 
 ## Inspiration
 This project is inspired by:

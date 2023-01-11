@@ -7,7 +7,6 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] structs
 // [SECTION] pl_app_load
-// [SECTION] pl_app_setup
 // [SECTION] pl_app_shutdown
 // [SECTION] pl_app_resize
 // [SECTION] pl_app_update
@@ -102,52 +101,39 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
         return ptAppData;
     }
 
-    plAppData* tPNewData = malloc(sizeof(plAppData));
-    memset(tPNewData, 0, sizeof(plAppData));
+    ptAppData = malloc(sizeof(plAppData));
+    memset(ptAppData, 0, sizeof(plAppData));
 
     pl_set_io_context(ptIOCtx);
 
     // setup memory context
-    pl_initialize_memory_context(&tPNewData->tMemoryCtx);
+    pl_initialize_memory_context(&ptAppData->tMemoryCtx);
 
     // setup profiling context
-    pl_initialize_profile_context(&tPNewData->tProfileCtx);
+    pl_initialize_profile_context(&ptAppData->tProfileCtx);
 
     // setup data registry
-    pl_initialize_data_registry(&tPNewData->tDataRegistryCtx);
+    pl_initialize_data_registry(&ptAppData->tDataRegistryCtx);
 
     // setup logging
-    pl_initialize_log_context(&tPNewData->tLogCtx);
+    pl_initialize_log_context(&ptAppData->tLogCtx);
     pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
     pl_log_info(0, "Setup logging");
 
     // setup extension registry
-    pl_initialize_extension_registry(&tPNewData->tExtensionRegistryCtx);
-    pl_register_data("memory", &tPNewData->tMemoryCtx);
-    pl_register_data("profile", &tPNewData->tProfileCtx);
-    pl_register_data("log", &tPNewData->tLogCtx);
+    pl_initialize_extension_registry(&ptAppData->tExtensionRegistryCtx);
+    pl_register_data("memory", &ptAppData->tMemoryCtx);
+    pl_register_data("profile", &ptAppData->tProfileCtx);
+    pl_register_data("log", &ptAppData->tLogCtx);
     pl_register_data("io", ptIOCtx);
-    pl_register_data("draw", &tPNewData->ctx);
+    pl_register_data("draw", &ptAppData->ctx);
 
     plExtension tExtension = {0};
     pl_get_draw_extension_info(&tExtension);
     pl_load_extension(&tExtension);
 
     plExtension* ptExtension = pl_get_extension(PL_EXT_DRAW);
-    tPNewData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
-
-    return tPNewData;
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] pl_app_setup
-//-----------------------------------------------------------------------------
-
-PL_EXPORT void
-pl_app_setup(plAppData* ptAppData)
-{
-    // get io context
-    plIOContext* ptIOCtx = pl_get_io_context();
+    ptAppData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
 
     // create swapchain & device
     DXGI_SWAP_CHAIN_DESC tSwapChainDescription = 
@@ -211,6 +197,7 @@ pl_app_setup(plAppData* ptAppData)
     pl_setup_drawlist_dx11(ptAppData->tUiContext.ptDrawlist);
     ptAppData->tUiContext.ptFont = &ptAppData->fontAtlas.sbFonts[0];
 
+    return ptAppData;
 }
 
 //-----------------------------------------------------------------------------

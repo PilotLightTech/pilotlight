@@ -69,7 +69,6 @@ plIOContext            gtIOContext = {0};
 
 typedef struct _plAppData plAppData;
 static void* (*pl_app_load)    (plIOContext* ptIOCtx, plAppData* userData);
-static void  (*pl_app_setup)   (plAppData* userData);
 static void  (*pl_app_shutdown)(plAppData* userData);
 static void  (*pl_app_resize)  (plAppData* userData);
 static void  (*pl_app_update)  (plAppData* userData);
@@ -99,17 +98,6 @@ int main()
         return -1;
     if (!QueryPerformanceCounter((LARGE_INTEGER*)&gilTime))
         return -1;
-
-    // load library
-    if(pl_load_library(&gtAppLibrary, "./app.dll", "./app_", "./lock.tmp"))
-    {
-        pl_app_load     = (void* (__cdecl  *)(plIOContext*, plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_load");
-        pl_app_setup    = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_setup");
-        pl_app_shutdown = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_update");
-        gpUserData = pl_app_load(ptIOCtx, NULL);
-    }
 
     // register window class
     const WNDCLASSEXW tWc = {
@@ -171,8 +159,15 @@ int main()
     tCurrentMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING; // enable ANSI escape codes
     if(!SetConsoleMode(tStdOutHandle, tCurrentMode)) exit(GetLastError());
 
-    // app specific setup
-    pl_app_setup(gpUserData);
+    // load library
+    if(pl_load_library(&gtAppLibrary, "./app.dll", "./app_", "./lock.tmp"))
+    {
+        pl_app_load     = (void* (__cdecl  *)(plIOContext*, plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_load");
+        pl_app_shutdown = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__cdecl  *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_update");
+        gpUserData = pl_app_load(ptIOCtx, NULL);
+    }
 
     // show window
     ShowWindow(gtHandle, SW_SHOWDEFAULT);
@@ -201,7 +196,6 @@ int main()
         {
             pl_reload_library(&gtAppLibrary);
             pl_app_load     = (void* (__cdecl *)(plIOContext*, plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_load");
-            pl_app_setup    = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_setup");
             pl_app_shutdown = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_shutdown");
             pl_app_resize   = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_resize");
             pl_app_update   = (void  (__cdecl *)(plAppData*)) pl_load_library_function(&gtAppLibrary, "pl_app_update");

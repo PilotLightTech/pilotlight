@@ -29,3 +29,4 @@ def download_zip(url, filename, description):
 
 download_zip('https://github.com/KhronosGroup/glTF-Sample-Models/archive/refs/heads/master.zip', '../data/gltf-sample-models.zip', "sample gltf models")
 download_zip('https://github.com/KhronosGroup/glTF-Sample-Environments/archive/refs/heads/master.zip', '../data/gltf-sample-environments.zip', "sample environments")
+download_zip('https://github.com/pilot-light/pilotlight-assets/archive/refs/heads/master.zip', '../data/pilotlight-assets.zip', "test assets")

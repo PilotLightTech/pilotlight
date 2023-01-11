@@ -45,7 +45,6 @@ static double            gdFrequency = 0.0;
 
 typedef struct _plAppData plAppData;
 static void* (*pl_app_load)    (plIOContext* ptIOCtx, plAppData* ptAppData);
-static void  (*pl_app_setup)   (plAppData* ptAppData);
 static void  (*pl_app_shutdown)(plAppData* ptAppData);
 static void  (*pl_app_resize)  (plAppData* ptAppData);
 static void  (*pl_app_update)  (plAppData* ptAppData);
@@ -85,17 +84,6 @@ int main()
     }
     gdFrequency = 1e9/((double)ts.tv_nsec + (double)ts.tv_sec * (double)1e9);
     gdTime = pl__get_linux_absolute_time();
-
-    // load library
-    if(pl_load_library(&gAppLibrary, "./app.so", "./app_", "./lock.tmp"))
-    {
-        pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
-        pl_app_setup    = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_setup");
-        pl_app_shutdown = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_update");
-        gUserData = pl_app_load(ptIOCtx, NULL);
-    }
 
     // connect to x
     gDisplay = XOpenDisplay(NULL);
@@ -219,8 +207,15 @@ int main()
     platformData.tWindow = gWindow;
     ptIOCtx->pBackendPlatformData = &platformData;
 
-    // app specific setup
-    pl_app_setup(gUserData);
+    // load library
+    if(pl_load_library(&gAppLibrary, "./app.so", "./app_", "./lock.tmp"))
+    {
+        pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
+        pl_app_shutdown = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_update");
+        gUserData = pl_app_load(ptIOCtx, NULL);
+    }
 
     // main loop
     while (gRunning)
@@ -335,7 +330,6 @@ int main()
         {
             pl_reload_library(&gAppLibrary);
             pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
-            pl_app_setup    = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_setup");
             pl_app_shutdown = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
             pl_app_resize   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
             pl_app_update   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_update");

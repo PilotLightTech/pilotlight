@@ -1,4 +1,4 @@
-__version__ = "0.4.0"
+__version__ = "0.4.2"
 
 ###############################################################################
 #                                  Info                                       #
@@ -699,7 +699,7 @@ def generate_macos_build(name_override=None):
 
                                                 if target._target_type == TargetType.EXECUTABLE:
                                                     buffer += "# let user know if hot reloading\n"
-                                                    buffer += 'if lsof | grep -i -q ' + settings._output_binary + '\n'
+                                                    buffer += 'if lsof | grep -i -q "' + settings._output_binary + ' "\n'
                                                     buffer += 'then\n'
                                                     buffer += 'PL_HOT_RELOAD_STATUS=1\n'
                                                     buffer += 'echo\n'
@@ -716,13 +716,14 @@ def generate_macos_build(name_override=None):
                                 if plat._platform_type == PlatformType.MACOS:
                                     for settings in plat._compiler_settings:
                                         if settings._compiler_type == CompilerType.CLANG:
-                                            if target._target_type == TargetType.EXECUTABLE:
-                                                buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '\n'
-                                            elif target._target_type == TargetType.DYNAMIC_LIBRARY:
-                                                buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '\n'
-                                                buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + '_*' + settings._output_binary_extension + '\n'
-                                            elif target._target_type == TargetType.STATIC_LIBRARY:
-                                                buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '\n'
+                                            if settings._source_files:
+                                                if target._target_type == TargetType.EXECUTABLE:
+                                                    buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '\n'
+                                                elif target._target_type == TargetType.DYNAMIC_LIBRARY:
+                                                    buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '\n'
+                                                    buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + '_*' + settings._output_binary_extension + '\n'
+                                                elif target._target_type == TargetType.STATIC_LIBRARY:
+                                                    buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '\n'
                 if target_found:
                     buffer += "fi\n"
                 buffer += "\n"
@@ -740,196 +741,197 @@ def generate_macos_build(name_override=None):
                                                 buffer += settings._pre_build_step
                                                 buffer += "\n\n"
 
-                                            buffer += '\n# create output directory\n'
-                                            buffer += 'if ! [[ -d "' + settings._output_directory + '" ]]; then\n'
-                                            buffer += '    mkdir "' + settings._output_directory + '"\n'
-                                            buffer += 'fi\n\n'
+                                            if settings._source_files:
+                                                buffer += '\n# create output directory\n'
+                                                buffer += 'if ! [[ -d "' + settings._output_directory + '" ]]; then\n'
+                                                buffer += '    mkdir "' + settings._output_directory + '"\n'
+                                                buffer += 'fi\n\n'
 
-                                            buffer += '# create lock file\n'
-                                            buffer += 'echo LOCKING > "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
+                                                buffer += '# create lock file\n'
+                                                buffer += 'echo LOCKING > "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
 
-                                            buffer += '# preprocessor defines\n'
-                                            if project._collapse:
-                                                buffer += 'PL_DEFINES="'    
-                                                for define in settings._definitions:
-                                                    buffer += '-D' + define + " "
-                                                buffer += '"\n'
-                                            else:
-                                                buffer += 'PL_DEFINES=\n'    
-                                                for define in settings._definitions:
-                                                    buffer += 'PL_DEFINES+=" -D' + define + '"\n'
-                                            buffer += '\n'
-
-                                            buffer += '# includes directories\n'
-                                            if project._collapse:
-                                                buffer += 'PL_INCLUDE_DIRECTORIES="'    
-                                                for include in settings._include_directories:
-                                                    buffer += '-I' + include + ' '
-                                                buffer += '"\n'
-                                            else:
-                                                buffer += 'PL_INCLUDE_DIRECTORIES=\n'    
-                                                for include in settings._include_directories:
-                                                    buffer += 'PL_INCLUDE_DIRECTORIES+=" -I' + include + '"\n'
-                                            buffer += '\n'
-
-                                            buffer += '# link directories\n'
-                                            if project._collapse:
-                                                buffer += 'PL_LINK_DIRECTORIES="'    
-                                                for link in settings._link_directories:
-                                                    buffer += '-L' + link + ' '
-                                                buffer += '"\n'
-                                            else:
-                                                buffer += 'PL_LINK_DIRECTORIES=\n'    
-                                                for link in settings._link_directories:
-                                                    buffer += 'PL_LINK_DIRECTORIES+=" -L' + link + '"\n'
-                                            buffer += '\n'
-
-                                            buffer += '# compiler flags\n'
-                                            if project._collapse:
-                                                buffer += 'PL_COMPILER_FLAGS="'    
-                                                for flag in settings._compiler_flags:
-                                                    buffer += flag + ' '
-                                                buffer += '"\n'
-                                            else:
-                                                buffer += 'PL_COMPILER_FLAGS=\n'    
-                                                for flag in settings._compiler_flags:
-                                                    buffer += 'PL_COMPILER_FLAGS+=" ' + flag + '"\n'
-
-                                            buffer += '\n# add flags for specific hardware\n'
-                                            buffer += 'if [[ "$ARCH" == "arm64" ]]; then\n'
-                                            buffer += '    PL_COMPILER_FLAGS+="-arch arm64 "\n'
-                                            buffer += 'else\n'
-                                            buffer += '    PL_COMPILER_FLAGS+="-arch x86_64 "\n'
-                                            buffer += 'fi\n'
-                                            buffer += "\n"
-
-                                            buffer += '# linker flags\n'
-                                            if project._collapse:
-                                                buffer += 'PL_LINKER_FLAGS="'    
-                                                for flag in settings._linker_flags:
-                                                    buffer += '-l' + flag + ' '
-                                                buffer += '"\n'
-                                            else:
-                                                buffer += 'PL_LINKER_FLAGS=\n'    
-                                                for flag in settings._linker_flags:
-                                                    buffer += 'PL_LINKER_FLAGS+=" -l' + flag + '"\n'
-                                            buffer += '\n'
-
-                                            buffer += '# libraries\n'
-                                            if project._collapse:
-                                                buffer += 'PL_LINK_LIBRARIES="'    
-                                                for link in settings._link_libraries:
-                                                    buffer += '-l ' + link + ' '
-                                                buffer += '"\n'
-                                            else:
-                                                buffer += 'PL_LINK_LIBRARIES=\n'    
-                                                for link in settings._link_libraries:
-                                                    buffer += 'PL_LINK_LIBRARIES+=" -l ' + link + '"\n'
-                                            buffer += '\n'
-
-                                            buffer += '# frameworks\n'
-                                            if project._collapse:
-                                                buffer += 'PL_LINK_FRAMEWORKS="'    
-                                                for link in settings._link_frameworks:
-                                                    buffer += '-framework ' + link + ' '
-                                                buffer += '"\n'
-                                            else:
-                                                buffer += 'PL_LINK_FRAMEWORKS=\n'    
-                                                for link in settings._link_frameworks:
-                                                    buffer += 'PL_LINK_FRAMEWORKS+=" -framework ' + link + '"\n'
-                                            buffer += '\n'
-
-                                            buffer += "# default compilation result\n"
-                                            buffer += "PL_RESULT=${BOLD}${GREEN}Successful.${NC}\n\n"
-
-                                            if settings._target_links:
-                                                for _target_link in settings._target_links:
-                                                    for target2 in project._targets:
-                                                        if target2._name == _target_link:
-                                                            for config2 in target2._configurations:
-                                                                if config2._name == config._name:
-                                                                    for platform2 in config2._platforms:
-                                                                        if platform2._platform_type == PlatformType.MACOS:
-                                                                            for settings2 in platform2._compiler_settings:
-                                                                                settings._source_files.append(settings2._output_directory + "/" + settings2._output_binary + ".c.o")
-
-                                            if target._target_type == TargetType.STATIC_LIBRARY:
-                
-                                                buffer += '# run compiler only\n'
-                                                buffer += "echo\n"
-                                                buffer += 'echo ${YELLOW}Step: ' + target._name +'${NC}\n'
-                                                buffer += 'echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}\n'
-                                                buffer += 'echo ${CYAN}Compiling...${NC}\n'
-                                            
-                                                buffer += '\n# each file must be compiled separately\n'
-                                                for source in settings._source_files:
-                                                    buffer += 'clang -c -fPIC $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ' + source + ' -o "./' + settings._output_directory + '/' + source + '.o"\n'
-
-                                            elif target._target_type == TargetType.DYNAMIC_LIBRARY:
-
-                                                buffer += '# source files\n'
+                                                buffer += '# preprocessor defines\n'
                                                 if project._collapse:
-                                                    buffer += 'PL_SOURCES="'    
-                                                    for source in settings._source_files:
-                                                        buffer += source + ' '
+                                                    buffer += 'PL_DEFINES="'    
+                                                    for define in settings._definitions:
+                                                        buffer += '-D' + define + " "
                                                     buffer += '"\n'
                                                 else:
-                                                    buffer += 'PL_SOURCES=\n'    
-                                                    for source in settings._source_files:
-                                                        buffer += 'PL_SOURCES+=" ' + source + '"\n'
+                                                    buffer += 'PL_DEFINES=\n'    
+                                                    for define in settings._definitions:
+                                                        buffer += 'PL_DEFINES+=" -D' + define + '"\n'
+                                                buffer += '\n'
 
-                                                buffer += '\n# run compiler (and linker)\n'
-                                                buffer += "echo\n"
-                                                buffer += 'echo ${YELLOW}Step: ' + target._name +'${NC}\n'
-                                                buffer += 'echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}\n'
-                                                buffer += 'echo ${CYAN}Compiling and Linking...${NC}\n'
-                                                buffer += 'clang -shared -fPIC $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension +'"\n'
-
-                                            elif target._target_type == TargetType.EXECUTABLE:
-
-                                                buffer += '# source files\n'
+                                                buffer += '# includes directories\n'
                                                 if project._collapse:
-                                                    buffer += 'PL_SOURCES="'    
-                                                    for source in settings._source_files:
-                                                        buffer += source + ' '
+                                                    buffer += 'PL_INCLUDE_DIRECTORIES="'    
+                                                    for include in settings._include_directories:
+                                                        buffer += '-I' + include + ' '
                                                     buffer += '"\n'
                                                 else:
-                                                    buffer += 'PL_SOURCES=\n'    
+                                                    buffer += 'PL_INCLUDE_DIRECTORIES=\n'    
+                                                    for include in settings._include_directories:
+                                                        buffer += 'PL_INCLUDE_DIRECTORIES+=" -I' + include + '"\n'
+                                                buffer += '\n'
+
+                                                buffer += '# link directories\n'
+                                                if project._collapse:
+                                                    buffer += 'PL_LINK_DIRECTORIES="'    
+                                                    for link in settings._link_directories:
+                                                        buffer += '-L' + link + ' '
+                                                    buffer += '"\n'
+                                                else:
+                                                    buffer += 'PL_LINK_DIRECTORIES=\n'    
+                                                    for link in settings._link_directories:
+                                                        buffer += 'PL_LINK_DIRECTORIES+=" -L' + link + '"\n'
+                                                buffer += '\n'
+
+                                                buffer += '# compiler flags\n'
+                                                if project._collapse:
+                                                    buffer += 'PL_COMPILER_FLAGS="'    
+                                                    for flag in settings._compiler_flags:
+                                                        buffer += flag + ' '
+                                                    buffer += '"\n'
+                                                else:
+                                                    buffer += 'PL_COMPILER_FLAGS=\n'    
+                                                    for flag in settings._compiler_flags:
+                                                        buffer += 'PL_COMPILER_FLAGS+=" ' + flag + '"\n'
+
+                                                buffer += '\n# add flags for specific hardware\n'
+                                                buffer += 'if [[ "$ARCH" == "arm64" ]]; then\n'
+                                                buffer += '    PL_COMPILER_FLAGS+="-arch arm64 "\n'
+                                                buffer += 'else\n'
+                                                buffer += '    PL_COMPILER_FLAGS+="-arch x86_64 "\n'
+                                                buffer += 'fi\n'
+                                                buffer += "\n"
+
+                                                buffer += '# linker flags\n'
+                                                if project._collapse:
+                                                    buffer += 'PL_LINKER_FLAGS="'    
+                                                    for flag in settings._linker_flags:
+                                                        buffer += '-l' + flag + ' '
+                                                    buffer += '"\n'
+                                                else:
+                                                    buffer += 'PL_LINKER_FLAGS=\n'    
+                                                    for flag in settings._linker_flags:
+                                                        buffer += 'PL_LINKER_FLAGS+=" -l' + flag + '"\n'
+                                                buffer += '\n'
+
+                                                buffer += '# libraries\n'
+                                                if project._collapse:
+                                                    buffer += 'PL_LINK_LIBRARIES="'    
+                                                    for link in settings._link_libraries:
+                                                        buffer += '-l ' + link + ' '
+                                                    buffer += '"\n'
+                                                else:
+                                                    buffer += 'PL_LINK_LIBRARIES=\n'    
+                                                    for link in settings._link_libraries:
+                                                        buffer += 'PL_LINK_LIBRARIES+=" -l ' + link + '"\n'
+                                                buffer += '\n'
+
+                                                buffer += '# frameworks\n'
+                                                if project._collapse:
+                                                    buffer += 'PL_LINK_FRAMEWORKS="'    
+                                                    for link in settings._link_frameworks:
+                                                        buffer += '-framework ' + link + ' '
+                                                    buffer += '"\n'
+                                                else:
+                                                    buffer += 'PL_LINK_FRAMEWORKS=\n'    
+                                                    for link in settings._link_frameworks:
+                                                        buffer += 'PL_LINK_FRAMEWORKS+=" -framework ' + link + '"\n'
+                                                buffer += '\n'
+
+                                                buffer += "# default compilation result\n"
+                                                buffer += "PL_RESULT=${BOLD}${GREEN}Successful.${NC}\n\n"
+
+                                                if settings._target_links:
+                                                    for _target_link in settings._target_links:
+                                                        for target2 in project._targets:
+                                                            if target2._name == _target_link:
+                                                                for config2 in target2._configurations:
+                                                                    if config2._name == config._name:
+                                                                        for platform2 in config2._platforms:
+                                                                            if platform2._platform_type == PlatformType.MACOS:
+                                                                                for settings2 in platform2._compiler_settings:
+                                                                                    settings._source_files.append(settings2._output_directory + "/" + settings2._output_binary + ".c.o")
+
+                                                if target._target_type == TargetType.STATIC_LIBRARY:
+                    
+                                                    buffer += '# run compiler only\n'
+                                                    buffer += "echo\n"
+                                                    buffer += 'echo ${YELLOW}Step: ' + target._name +'${NC}\n'
+                                                    buffer += 'echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}\n'
+                                                    buffer += 'echo ${CYAN}Compiling...${NC}\n'
+                                                
+                                                    buffer += '\n# each file must be compiled separately\n'
                                                     for source in settings._source_files:
-                                                        buffer += 'PL_SOURCES+=" ' + source + '"\n'
+                                                        buffer += 'clang -c -fPIC $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ' + source + ' -o "./' + settings._output_directory + '/' + source + '.o"\n'
 
-                                                buffer += '\n# run compiler (and linker)\n'
-                                                buffer += "echo\n"
-                                                buffer += 'echo ${YELLOW}Step: ' + target._name +'${NC}\n'
-                                                buffer += 'echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}\n'
-                                                buffer += 'echo ${CYAN}Compiling and Linking...${NC}\n'
-                                                buffer += 'clang -fPIC $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_LINK_LIBRARIES -o "./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension +'"\n'
-                
-                                            buffer += "\n# check build status\n"
-                                            buffer += "if [ $? -ne 0 ]\n"
-                                            buffer += "then\n"
-                                            buffer += "    PL_RESULT=${BOLD}${RED}Failed.${NC}\n"
-                                            buffer += "fi\n"
+                                                elif target._target_type == TargetType.DYNAMIC_LIBRARY:
 
-                                            buffer += "\n# print results\n"
-                                            buffer += "echo ${CYAN}Results: ${NC} ${PL_RESULT}\n"
-                                            buffer += "echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}\n"
+                                                    buffer += '# source files\n'
+                                                    if project._collapse:
+                                                        buffer += 'PL_SOURCES="'    
+                                                        for source in settings._source_files:
+                                                            buffer += source + ' '
+                                                        buffer += '"\n'
+                                                    else:
+                                                        buffer += 'PL_SOURCES=\n'    
+                                                        for source in settings._source_files:
+                                                            buffer += 'PL_SOURCES+=" ' + source + '"\n'
 
-                                            if settings._vulkan_glsl_shader_files:
-                                                buffer += '\n\n# cleanup old glsl vulkan shaders\n'
-                                                for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                    buffer += 'rm -f ./' + settings._output_directory + '/' + vulkan_glsl_shader[1] + '.spv\n'
+                                                    buffer += '\n# run compiler (and linker)\n'
+                                                    buffer += "echo\n"
+                                                    buffer += 'echo ${YELLOW}Step: ' + target._name +'${NC}\n'
+                                                    buffer += 'echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}\n'
+                                                    buffer += 'echo ${CYAN}Compiling and Linking...${NC}\n'
+                                                    buffer += 'clang -shared -fPIC $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension +'"\n'
 
-                                                buffer += '\n# compile glsl vulkan shaders\n'
-                                                for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                    buffer += 'glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader[1] + '.spv ' + vulkan_glsl_shader[0] + vulkan_glsl_shader[1] + '\n'
+                                                elif target._target_type == TargetType.EXECUTABLE:
 
-                                            buffer += '\n# remove lock file\n'
-                                            buffer += 'rm "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
+                                                    buffer += '# source files\n'
+                                                    if project._collapse:
+                                                        buffer += 'PL_SOURCES="'    
+                                                        for source in settings._source_files:
+                                                            buffer += source + ' '
+                                                        buffer += '"\n'
+                                                    else:
+                                                        buffer += 'PL_SOURCES=\n'    
+                                                        for source in settings._source_files:
+                                                            buffer += 'PL_SOURCES+=" ' + source + '"\n'
 
-                                            if settings._post_build_step is not None:
-                                                buffer += settings._post_build_step
-                                                buffer += "\n\n"
+                                                    buffer += '\n# run compiler (and linker)\n'
+                                                    buffer += "echo\n"
+                                                    buffer += 'echo ${YELLOW}Step: ' + target._name +'${NC}\n'
+                                                    buffer += 'echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}\n'
+                                                    buffer += 'echo ${CYAN}Compiling and Linking...${NC}\n'
+                                                    buffer += 'clang -fPIC $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_LINK_LIBRARIES -o "./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension +'"\n'
+                    
+                                                buffer += "\n# check build status\n"
+                                                buffer += "if [ $? -ne 0 ]\n"
+                                                buffer += "then\n"
+                                                buffer += "    PL_RESULT=${BOLD}${RED}Failed.${NC}\n"
+                                                buffer += "fi\n"
+
+                                                buffer += "\n# print results\n"
+                                                buffer += "echo ${CYAN}Results: ${NC} ${PL_RESULT}\n"
+                                                buffer += "echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}\n"
+
+                                                if settings._vulkan_glsl_shader_files:
+                                                    buffer += '\n\n# cleanup old glsl vulkan shaders\n'
+                                                    for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
+                                                        buffer += 'rm -f ./' + settings._output_directory + '/' + vulkan_glsl_shader[1] + '.spv\n'
+
+                                                    buffer += '\n# compile glsl vulkan shaders\n'
+                                                    for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
+                                                        buffer += 'glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader[1] + '.spv ' + vulkan_glsl_shader[0] + vulkan_glsl_shader[1] + '\n'
+
+                                                buffer += '\n# remove lock file\n'
+                                                buffer += 'rm "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
+
+                                                if settings._post_build_step is not None:
+                                                    buffer += settings._post_build_step
+                                                    buffer += "\n\n"
 
                 if target_found:
                     buffer += '#' + '~' * 40 + '\n'
@@ -1019,7 +1021,7 @@ def generate_linux_build(name_override=None):
 
                                                 if target._target_type == TargetType.EXECUTABLE:
                                                     buffer += "# let user know if hot reloading\n"
-                                                    buffer += 'if lsof | grep -i -q ' + settings._output_binary + '\n'
+                                                    buffer += 'if lsof | grep -i -q "' + settings._output_binary + ' "\n'
                                                     buffer += 'then\n'
                                                     buffer += 'PL_HOT_RELOAD_STATUS=1\n'
                                                     buffer += 'echo\n'
@@ -1036,13 +1038,14 @@ def generate_linux_build(name_override=None):
                                 if plat._platform_type == PlatformType.LINUX:
                                     for settings in plat._compiler_settings:
                                         if settings._compiler_type == CompilerType.GCC:
-                                            if target._target_type == TargetType.EXECUTABLE:
-                                                buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '\n'
-                                            elif target._target_type == TargetType.DYNAMIC_LIBRARY:
-                                                buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '\n'
-                                                buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + '_*' + settings._output_binary_extension + '\n'
-                                            elif target._target_type == TargetType.STATIC_LIBRARY:
-                                                buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '\n'
+                                            if settings._source_files:
+                                                if target._target_type == TargetType.EXECUTABLE:
+                                                    buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '\n'
+                                                elif target._target_type == TargetType.DYNAMIC_LIBRARY:
+                                                    buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '\n'
+                                                    buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + '_*' + settings._output_binary_extension + '\n'
+                                                elif target._target_type == TargetType.STATIC_LIBRARY:
+                                                    buffer += '    rm -f ./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '\n'
                 if target_found:
                     buffer += "fi\n"
                 buffer += "\n"
@@ -1060,171 +1063,172 @@ def generate_linux_build(name_override=None):
                                                 buffer += settings._pre_build_step
                                                 buffer += "\n\n"
 
-                                            buffer += '\n# create output directory\n'
-                                            buffer += 'if ! [[ -d "' + settings._output_directory + '" ]]; then\n'
-                                            buffer += '    mkdir "' + settings._output_directory + '"\n'
-                                            buffer += 'fi\n\n'
+                                            if settings._source_files:
+                                                buffer += '\n# create output directory\n'
+                                                buffer += 'if ! [[ -d "' + settings._output_directory + '" ]]; then\n'
+                                                buffer += '    mkdir "' + settings._output_directory + '"\n'
+                                                buffer += 'fi\n\n'
 
-                                            buffer += '# create lock file\n'
-                                            buffer += 'echo LOCKING > "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
+                                                buffer += '# create lock file\n'
+                                                buffer += 'echo LOCKING > "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
 
-                                            buffer += '# preprocessor defines\n'
-                                            if project._collapse:
-                                                buffer += 'PL_DEFINES="'    
-                                                for define in settings._definitions:
-                                                    buffer += '-D' + define + " "
-                                                buffer += '"\n'
-                                            else:
-                                                buffer += 'PL_DEFINES=\n'    
-                                                for define in settings._definitions:
-                                                    buffer += 'PL_DEFINES+=" -D' + define + '"\n'
-                                            buffer += '\n'
-
-                                            buffer += '# includes directories\n'
-                                            if project._collapse:
-                                                buffer += 'PL_INCLUDE_DIRECTORIES="'    
-                                                for include in settings._include_directories:
-                                                    buffer += '-I' + include + ' '
-                                                buffer += '"\n'
-                                            else:
-                                                buffer += 'PL_INCLUDE_DIRECTORIES=\n'    
-                                                for include in settings._include_directories:
-                                                    buffer += 'PL_INCLUDE_DIRECTORIES+=" -I' + include + '"\n'
-                                            buffer += '\n'
-
-                                            buffer += '# link directories\n'
-                                            if project._collapse:
-                                                buffer += 'PL_LINK_DIRECTORIES="'    
-                                                for link in settings._link_directories:
-                                                    buffer += '-L' + link + ' '
-                                                buffer += '"\n'
-                                            else:
-                                                buffer += 'PL_LINK_DIRECTORIES=\n'    
-                                                for link in settings._link_directories:
-                                                    buffer += 'PL_LINK_DIRECTORIES+=" -L' + link + '"\n'
-                                            buffer += '\n'
-
-                                            buffer += '# compiler flags\n'
-                                            if project._collapse:
-                                                buffer += 'PL_COMPILER_FLAGS="'    
-                                                for flag in settings._compiler_flags:
-                                                    buffer += flag + ' '
-                                                buffer += '"\n'
-                                            else:
-                                                buffer += 'PL_COMPILER_FLAGS=\n'    
-                                                for flag in settings._compiler_flags:
-                                                    buffer += 'PL_COMPILER_FLAGS+=" ' + flag + '"\n'
-                                            buffer += '\n'
-
-                                            buffer += '# linker flags\n'
-                                            if project._collapse:
-                                                buffer += 'PL_LINKER_FLAGS="'    
-                                                for flag in settings._linker_flags:
-                                                    buffer += '-l' + flag + ' '
-                                                buffer += '"\n'
-                                            else:
-                                                buffer += 'PL_LINKER_FLAGS=\n'    
-                                                for flag in settings._linker_flags:
-                                                    buffer += 'PL_LINKER_FLAGS+=" -l' + flag + '"\n'
-                                            buffer += '\n'
-
-                                            buffer += '# libraries\n'
-                                            if project._collapse:
-                                                buffer += 'PL_LINK_LIBRARIES="'    
-                                                for link in settings._link_libraries:
-                                                    buffer += '-l' + link + ' '
-                                                buffer += '"\n'
-                                            else:
-                                                buffer += 'PL_LINK_LIBRARIES=\n'    
-                                                for link in settings._link_libraries:
-                                                    buffer += 'PL_LINK_LIBRARIES+=" -l' + link + '"\n'
-                                            buffer += '\n'
-
-
-                                            buffer += "# default compilation result\n"
-                                            buffer += "PL_RESULT=${BOLD}${GREEN}Successful.${NC}\n\n"
-
-                                            if settings._target_links:
-                                                for _target_link in settings._target_links:
-                                                    for target2 in project._targets:
-                                                        if target2._name == _target_link:
-                                                            for config2 in target2._configurations:
-                                                                if config2._name == config._name:
-                                                                    for platform2 in config2._platforms:
-                                                                        if platform2._platform_type == PlatformType.LINUX:
-                                                                            for settings2 in platform2._compiler_settings:
-                                                                                settings._source_files.append(settings2._output_directory + "/" + settings2._output_binary + ".c.o")
-                                            
-                                            if target._target_type == TargetType.STATIC_LIBRARY:
-                
-                                                buffer += '# run compiler only\n'
-                                                buffer += "echo\n"
-                                                buffer += 'echo ${YELLOW}Step: ' + target._name +'${NC}\n'
-                                                buffer += 'echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}\n'
-                                                buffer += 'echo ${CYAN}Compiling...${NC}\n'
-                                            
-                                                buffer += '\n# each file must be compiled separately\n'
-                                                for source in settings._source_files:
-                                                    buffer += 'gcc -c -fPIC $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ' + source + ' -o "./' + settings._output_directory + '/' + source + '.o"\n'
-                                                
-                                            elif target._target_type == TargetType.DYNAMIC_LIBRARY:
-
-                                                buffer += '# source files\n'
+                                                buffer += '# preprocessor defines\n'
                                                 if project._collapse:
-                                                    buffer += 'PL_SOURCES="'    
-                                                    for source in settings._source_files:
-                                                        buffer += source + ' '
+                                                    buffer += 'PL_DEFINES="'    
+                                                    for define in settings._definitions:
+                                                        buffer += '-D' + define + " "
                                                     buffer += '"\n'
                                                 else:
+                                                    buffer += 'PL_DEFINES=\n'    
+                                                    for define in settings._definitions:
+                                                        buffer += 'PL_DEFINES+=" -D' + define + '"\n'
+                                                buffer += '\n'
+
+                                                buffer += '# includes directories\n'
+                                                if project._collapse:
+                                                    buffer += 'PL_INCLUDE_DIRECTORIES="'    
+                                                    for include in settings._include_directories:
+                                                        buffer += '-I' + include + ' '
+                                                    buffer += '"\n'
+                                                else:
+                                                    buffer += 'PL_INCLUDE_DIRECTORIES=\n'    
+                                                    for include in settings._include_directories:
+                                                        buffer += 'PL_INCLUDE_DIRECTORIES+=" -I' + include + '"\n'
+                                                buffer += '\n'
+
+                                                buffer += '# link directories\n'
+                                                if project._collapse:
+                                                    buffer += 'PL_LINK_DIRECTORIES="'    
+                                                    for link in settings._link_directories:
+                                                        buffer += '-L' + link + ' '
+                                                    buffer += '"\n'
+                                                else:
+                                                    buffer += 'PL_LINK_DIRECTORIES=\n'    
+                                                    for link in settings._link_directories:
+                                                        buffer += 'PL_LINK_DIRECTORIES+=" -L' + link + '"\n'
+                                                buffer += '\n'
+
+                                                buffer += '# compiler flags\n'
+                                                if project._collapse:
+                                                    buffer += 'PL_COMPILER_FLAGS="'    
+                                                    for flag in settings._compiler_flags:
+                                                        buffer += flag + ' '
+                                                    buffer += '"\n'
+                                                else:
+                                                    buffer += 'PL_COMPILER_FLAGS=\n'    
+                                                    for flag in settings._compiler_flags:
+                                                        buffer += 'PL_COMPILER_FLAGS+=" ' + flag + '"\n'
+                                                buffer += '\n'
+
+                                                buffer += '# linker flags\n'
+                                                if project._collapse:
+                                                    buffer += 'PL_LINKER_FLAGS="'    
+                                                    for flag in settings._linker_flags:
+                                                        buffer += '-l' + flag + ' '
+                                                    buffer += '"\n'
+                                                else:
+                                                    buffer += 'PL_LINKER_FLAGS=\n'    
+                                                    for flag in settings._linker_flags:
+                                                        buffer += 'PL_LINKER_FLAGS+=" -l' + flag + '"\n'
+                                                buffer += '\n'
+
+                                                buffer += '# libraries\n'
+                                                if project._collapse:
+                                                    buffer += 'PL_LINK_LIBRARIES="'    
+                                                    for link in settings._link_libraries:
+                                                        buffer += '-l' + link + ' '
+                                                    buffer += '"\n'
+                                                else:
+                                                    buffer += 'PL_LINK_LIBRARIES=\n'    
+                                                    for link in settings._link_libraries:
+                                                        buffer += 'PL_LINK_LIBRARIES+=" -l' + link + '"\n'
+                                                buffer += '\n'
+
+
+                                                buffer += "# default compilation result\n"
+                                                buffer += "PL_RESULT=${BOLD}${GREEN}Successful.${NC}\n\n"
+
+                                                if settings._target_links:
+                                                    for _target_link in settings._target_links:
+                                                        for target2 in project._targets:
+                                                            if target2._name == _target_link:
+                                                                for config2 in target2._configurations:
+                                                                    if config2._name == config._name:
+                                                                        for platform2 in config2._platforms:
+                                                                            if platform2._platform_type == PlatformType.LINUX:
+                                                                                for settings2 in platform2._compiler_settings:
+                                                                                    settings._source_files.append(settings2._output_directory + "/" + settings2._output_binary + ".c.o")
+                                                
+                                                if target._target_type == TargetType.STATIC_LIBRARY:
+                    
+                                                    buffer += '# run compiler only\n'
+                                                    buffer += "echo\n"
+                                                    buffer += 'echo ${YELLOW}Step: ' + target._name +'${NC}\n'
+                                                    buffer += 'echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}\n'
+                                                    buffer += 'echo ${CYAN}Compiling...${NC}\n'
+                                                
+                                                    buffer += '\n# each file must be compiled separately\n'
+                                                    for source in settings._source_files:
+                                                        buffer += 'gcc -c -fPIC $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ' + source + ' -o "./' + settings._output_directory + '/' + source + '.o"\n'
+                                                    
+                                                elif target._target_type == TargetType.DYNAMIC_LIBRARY:
+
+                                                    buffer += '# source files\n'
+                                                    if project._collapse:
+                                                        buffer += 'PL_SOURCES="'    
+                                                        for source in settings._source_files:
+                                                            buffer += source + ' '
+                                                        buffer += '"\n'
+                                                    else:
+                                                        buffer += 'PL_SOURCES=\n'    
+                                                        for source in settings._source_files:
+                                                            buffer += 'PL_SOURCES+=" ' + source + '"\n'
+
+                                                    buffer += '\n# run compiler (and linker)\n'
+                                                    buffer += "echo\n"
+                                                    buffer += 'echo ${YELLOW}Step: ' + target._name +'${NC}\n'
+                                                    buffer += 'echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}\n'
+                                                    buffer += 'echo ${CYAN}Compiling and Linking...${NC}\n'
+                                                    buffer += 'gcc -shared -fPIC $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_LINK_LIBRARIES -o "./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension +'"\n'
+
+                                                elif target._target_type == TargetType.EXECUTABLE:
+
                                                     buffer += 'PL_SOURCES=\n'    
                                                     for source in settings._source_files:
                                                         buffer += 'PL_SOURCES+=" ' + source + '"\n'
 
-                                                buffer += '\n# run compiler (and linker)\n'
-                                                buffer += "echo\n"
-                                                buffer += 'echo ${YELLOW}Step: ' + target._name +'${NC}\n'
-                                                buffer += 'echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}\n'
-                                                buffer += 'echo ${CYAN}Compiling and Linking...${NC}\n'
-                                                buffer += 'gcc -shared -fPIC $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_LINK_LIBRARIES -o "./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension +'"\n'
+                                                    buffer += '\n# run compiler (and linker)\n'
+                                                    buffer += "echo\n"
+                                                    buffer += 'echo ${YELLOW}Step: ' + target._name +'${NC}\n'
+                                                    buffer += 'echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}\n'
+                                                    buffer += 'echo ${CYAN}Compiling and Linking...${NC}\n'
+                                                    buffer += 'gcc -fPIC $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_LINK_LIBRARIES -o "./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension +'"\n'
 
-                                            elif target._target_type == TargetType.EXECUTABLE:
+                                                buffer += "\n# check build status\n"
+                                                buffer += "if [ $? -ne 0 ]\n"
+                                                buffer += "then\n"
+                                                buffer += "    PL_RESULT=${BOLD}${RED}Failed.${NC}\n"
+                                                buffer += "fi\n"
 
-                                                buffer += 'PL_SOURCES=\n'    
-                                                for source in settings._source_files:
-                                                    buffer += 'PL_SOURCES+=" ' + source + '"\n'
+                                                buffer += "\n# print results\n"
+                                                buffer += "echo ${CYAN}Results: ${NC} ${PL_RESULT}\n"
+                                                buffer += "echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}\n"
 
-                                                buffer += '\n# run compiler (and linker)\n'
-                                                buffer += "echo\n"
-                                                buffer += 'echo ${YELLOW}Step: ' + target._name +'${NC}\n'
-                                                buffer += 'echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}\n'
-                                                buffer += 'echo ${CYAN}Compiling and Linking...${NC}\n'
-                                                buffer += 'gcc -fPIC $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_LINK_LIBRARIES -o "./' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension +'"\n'
+                                                if settings._vulkan_glsl_shader_files:
+                                                    buffer += '\n\n# cleanup old glsl vulkan shaders\n'
+                                                    for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
+                                                        buffer += 'rm -f ./' + settings._output_directory + '/' + vulkan_glsl_shader[1] + '.spv\n'
 
-                                            buffer += "\n# check build status\n"
-                                            buffer += "if [ $? -ne 0 ]\n"
-                                            buffer += "then\n"
-                                            buffer += "    PL_RESULT=${BOLD}${RED}Failed.${NC}\n"
-                                            buffer += "fi\n"
+                                                    buffer += '\n# compile glsl vulkan shaders\n'
+                                                    for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
+                                                        buffer += 'glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader[1] + '.spv ' + vulkan_glsl_shader[0] + vulkan_glsl_shader[1] + '\n'
 
-                                            buffer += "\n# print results\n"
-                                            buffer += "echo ${CYAN}Results: ${NC} ${PL_RESULT}\n"
-                                            buffer += "echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}\n"
+                                                buffer += '\n# remove lock file\n'
+                                                buffer += 'rm "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
 
-                                            if settings._vulkan_glsl_shader_files:
-                                                buffer += '\n\n# cleanup old glsl vulkan shaders\n'
-                                                for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                    buffer += 'rm -f ./' + settings._output_directory + '/' + vulkan_glsl_shader + '.spv\n'
-
-                                                buffer += '\n# compile glsl vulkan shaders\n'
-                                                for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                    buffer += 'glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader[1] + '.spv ' + vulkan_glsl_shader[0] + vulkan_glsl_shader[1] + '\n'
-
-                                            buffer += '\n# remove lock file\n'
-                                            buffer += 'rm "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
-
-                                            if settings._post_build_step is not None:
-                                                buffer += settings._post_build_step
-                                                buffer += "\n\n"
+                                                if settings._post_build_step is not None:
+                                                    buffer += settings._post_build_step
+                                                    buffer += "\n\n"
                 if target_found:
                     buffer += '#' + '~' * 40 + '\n'
                     buffer += '# end of ' + register_config + ' \n'
@@ -1326,17 +1330,18 @@ def generate_win32_build(name_override=None):
                             for plat in config._platforms:
                                 if plat._platform_type == PlatformType.WIN32:
                                     for settings in plat._compiler_settings:
-                                        if settings._compiler_type == CompilerType.MSVC:
-                                            buffer += '    @if exist "' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '"'
-                                            buffer += ' del "' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '"\n'
-                                        if target._target_type == TargetType.DYNAMIC_LIBRARY:
-                                            buffer += '    @if exist "' + settings._output_directory + '/' + settings._output_binary + '_*' + settings._output_binary_extension + '"'
-                                            buffer += ' del "' + settings._output_directory + '/' + settings._output_binary + '_*' + settings._output_binary_extension + '"\n'
-                                            buffer += '    @if exist "' + settings._output_directory + '/' + settings._output_binary + '_*.pdb"'
-                                            buffer += ' del "' + settings._output_directory + '/' + settings._output_binary + '_*.pdb"\n'
-                                        elif target._target_type == TargetType.EXECUTABLE:
-                                            buffer += '    @if exist "' + settings._output_directory + '/' + settings._output_binary + '_*.pdb"'
-                                            buffer += ' del "' + settings._output_directory + '/' + settings._output_binary + '_*.pdb"\n'
+                                        if settings._source_files:
+                                            if settings._compiler_type == CompilerType.MSVC:
+                                                buffer += '    @if exist "' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '"'
+                                                buffer += ' del "' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '"\n'
+                                            if target._target_type == TargetType.DYNAMIC_LIBRARY:
+                                                buffer += '    @if exist "' + settings._output_directory + '/' + settings._output_binary + '_*' + settings._output_binary_extension + '"'
+                                                buffer += ' del "' + settings._output_directory + '/' + settings._output_binary + '_*' + settings._output_binary_extension + '"\n'
+                                                buffer += '    @if exist "' + settings._output_directory + '/' + settings._output_binary + '_*.pdb"'
+                                                buffer += ' del "' + settings._output_directory + '/' + settings._output_binary + '_*.pdb"\n'
+                                            elif target._target_type == TargetType.EXECUTABLE:
+                                                buffer += '    @if exist "' + settings._output_directory + '/' + settings._output_binary + '_*.pdb"'
+                                                buffer += ' del "' + settings._output_directory + '/' + settings._output_binary + '_*.pdb"\n'
                 if target_found:
                     buffer += ")"
                 buffer += "\n\n"
@@ -1357,261 +1362,263 @@ def generate_win32_build(name_override=None):
                                                 buffer += settings._pre_build_step
                                                 buffer += "\n\n"
 
-                                            buffer += '@rem create output directory\n'
-                                            buffer += '@if not exist "' + settings._output_directory + '" @mkdir "' + settings._output_directory + '"'
-                                            buffer += "\n\n"
+                                            if settings._source_files:
 
-                                            buffer += '@rem create lock file\n'
-                                            buffer += '@echo LOCKING > "' + settings._output_directory + '/' + target._lock_file + '"'
-                                            buffer += "\n\n"
-                                            
-                                            if settings._definitions:
-                                                buffer += '@rem preprocessor defines\n'
-                                                if project._collapse:
-                                                    buffer += '@set PL_DEFINES='
-                                                    for define in settings._definitions:
-                                                        buffer += "-D" + define + " "
-                                                else:
-                                                    buffer += '@set PL_DEFINES=\n'
-                                                    for define in settings._definitions:
-                                                        buffer += '@set PL_DEFINES=-D' + define + " %PL_DEFINES%\n"               
+                                                buffer += '@rem create output directory\n'
+                                                buffer += '@if not exist "' + settings._output_directory + '" @mkdir "' + settings._output_directory + '"'
                                                 buffer += "\n\n"
 
-                                            if settings._include_directories:
-                                                buffer += '@rem include directories\n'
-                                                if project._collapse:
-                                                    buffer += '@set PL_INCLUDE_DIRECTORIES='    
-                                                    for include in settings._include_directories:
-                                                        buffer += '-I"' + include + '" '
-                                                else:
-                                                    buffer += '@set PL_INCLUDE_DIRECTORIES=\n'    
-                                                    for include in settings._include_directories:
-                                                        buffer += '@set PL_INCLUDE_DIRECTORIES=-I"' + include + '" %PL_INCLUDE_DIRECTORIES%\n'
+                                                buffer += '@rem create lock file\n'
+                                                buffer += '@echo LOCKING > "' + settings._output_directory + '/' + target._lock_file + '"'
                                                 buffer += "\n\n"
+                                                
+                                                if settings._definitions:
+                                                    buffer += '@rem preprocessor defines\n'
+                                                    if project._collapse:
+                                                        buffer += '@set PL_DEFINES='
+                                                        for define in settings._definitions:
+                                                            buffer += "-D" + define + " "
+                                                    else:
+                                                        buffer += '@set PL_DEFINES=\n'
+                                                        for define in settings._definitions:
+                                                            buffer += '@set PL_DEFINES=-D' + define + " %PL_DEFINES%\n"               
+                                                    buffer += "\n\n"
 
-                                            if settings._link_directories:
-                                                buffer += '@rem link directories\n'
-                                                if project._collapse:
-                                                    buffer += '@set PL_LINK_DIRECTORIES='    
-                                                    for link in settings._link_directories:
-                                                        buffer += '-LIBPATH:"' + link + '" '
-                                                else:
-                                                    buffer += '@set PL_LINK_DIRECTORIES=\n'    
-                                                    for link in settings._link_directories:
-                                                        buffer += '@set PL_LINK_DIRECTORIES=-LIBPATH:"' + link + '" %PL_LINK_DIRECTORIES%\n'
-                                                buffer += "\n\n"
+                                                if settings._include_directories:
+                                                    buffer += '@rem include directories\n'
+                                                    if project._collapse:
+                                                        buffer += '@set PL_INCLUDE_DIRECTORIES='    
+                                                        for include in settings._include_directories:
+                                                            buffer += '-I"' + include + '" '
+                                                    else:
+                                                        buffer += '@set PL_INCLUDE_DIRECTORIES=\n'    
+                                                        for include in settings._include_directories:
+                                                            buffer += '@set PL_INCLUDE_DIRECTORIES=-I"' + include + '" %PL_INCLUDE_DIRECTORIES%\n'
+                                                    buffer += "\n\n"
 
-                                            if settings._compiler_flags:
-                                                buffer += '@rem compiler flags\n'
-                                                if project._collapse:
-                                                    buffer += '@set PL_COMPILER_FLAGS='    
-                                                    for flag in settings._compiler_flags:
-                                                        buffer += flag + " "
-                                                else:
-                                                    buffer += '@set PL_COMPILER_FLAGS=\n'    
-                                                    for flag in settings._compiler_flags:
-                                                        buffer += '@set PL_COMPILER_FLAGS=' + flag + " %PL_COMPILER_FLAGS%\n"
-                                                buffer += "\n\n"
+                                                if settings._link_directories:
+                                                    buffer += '@rem link directories\n'
+                                                    if project._collapse:
+                                                        buffer += '@set PL_LINK_DIRECTORIES='    
+                                                        for link in settings._link_directories:
+                                                            buffer += '-LIBPATH:"' + link + '" '
+                                                    else:
+                                                        buffer += '@set PL_LINK_DIRECTORIES=\n'    
+                                                        for link in settings._link_directories:
+                                                            buffer += '@set PL_LINK_DIRECTORIES=-LIBPATH:"' + link + '" %PL_LINK_DIRECTORIES%\n'
+                                                    buffer += "\n\n"
 
-                                            settings._linker_flags.extend(["-incremental:no"])
-                                            if target._target_type == TargetType.DYNAMIC_LIBRARY:
-                                                settings._linker_flags.extend(["-noimplib", "-noexp"])
+                                                if settings._compiler_flags:
+                                                    buffer += '@rem compiler flags\n'
+                                                    if project._collapse:
+                                                        buffer += '@set PL_COMPILER_FLAGS='    
+                                                        for flag in settings._compiler_flags:
+                                                            buffer += flag + " "
+                                                    else:
+                                                        buffer += '@set PL_COMPILER_FLAGS=\n'    
+                                                        for flag in settings._compiler_flags:
+                                                            buffer += '@set PL_COMPILER_FLAGS=' + flag + " %PL_COMPILER_FLAGS%\n"
+                                                    buffer += "\n\n"
 
-                                            if settings._linker_flags:
-                                                buffer += '@rem linker flags\n'
-                                                if project._collapse:
-                                                    buffer += '@set PL_LINKER_FLAGS='    
-                                                    for flag in settings._linker_flags:
-                                                        buffer += flag + " "
-                                                else:
-                                                    buffer += '@set PL_LINKER_FLAGS=\n'    
-                                                    for flag in settings._linker_flags:
-                                                        buffer += '@set PL_LINKER_FLAGS=' + flag + " %PL_LINKER_FLAGS%\n"
-                                                buffer += "\n\n"
+                                                settings._linker_flags.extend(["-incremental:no"])
+                                                if target._target_type == TargetType.DYNAMIC_LIBRARY:
+                                                    settings._linker_flags.extend(["-noimplib", "-noexp"])
 
-                                            if settings._target_links:
-                                                for _target_link in settings._target_links:
-                                                    for target2 in project._targets:
-                                                        if target2._name == _target_link:
-                                                            for config2 in target2._configurations:
-                                                                if config2._name == config._name:
-                                                                    for platform2 in config2._platforms:
-                                                                        if platform2._platform_type == PlatformType.WIN32:
-                                                                            for settings2 in platform2._compiler_settings:
-                                                                                settings._link_libraries.append(settings2._output_binary + ".lib")
-                                            if settings._link_libraries:
-                                                buffer += '@rem libraries to link to\n'
-                                                if project._collapse:
-                                                    buffer += '@set PL_LINK_LIBRARIES='    
-                                                    for link in settings._link_libraries:
-                                                        buffer += link + " "
-                                                else:
-                                                    buffer += '@set PL_LINK_LIBRARIES=\n'    
-                                                    for link in settings._link_libraries:
-                                                        buffer += '@set PL_LINK_LIBRARIES=' + link + " %PL_LINK_LIBRARIES%\n"
-                                                buffer += "\n"
+                                                if settings._linker_flags:
+                                                    buffer += '@rem linker flags\n'
+                                                    if project._collapse:
+                                                        buffer += '@set PL_LINKER_FLAGS='    
+                                                        for flag in settings._linker_flags:
+                                                            buffer += flag + " "
+                                                    else:
+                                                        buffer += '@set PL_LINKER_FLAGS=\n'    
+                                                        for flag in settings._linker_flags:
+                                                            buffer += '@set PL_LINKER_FLAGS=' + flag + " %PL_LINKER_FLAGS%\n"
+                                                    buffer += "\n\n"
 
-                                            if target._target_type == TargetType.STATIC_LIBRARY:
-                
-                                                buffer += '@rem run compiler only\n'
-                                                buffer += "@echo.\n"
-                                                buffer += '@echo [1m[93mStep: ' + target._name +'[0m\n'
-                                                buffer += '@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m\n'
-                                                buffer += '@echo [1m[36mCompiling...[0m\n'
-                                            
-                                                buffer += '\n@rem each file must be compiled separately\n'
-                                                for source in settings._source_files:
-                                                    sub_buffer = ""
-                                                    if settings._include_directories:
-                                                        sub_buffer += " %PL_INCLUDE_DIRECTORIES%"
-                                                    if settings._definitions:
-                                                        sub_buffer += " %PL_DEFINES%"
-                                                    if settings._compiler_flags:
-                                                        sub_buffer += " %PL_COMPILER_FLAGS%"
-                                                    buffer += 'cl -c' + sub_buffer + " " + source + ' -Fe"' + settings._output_directory + '/' + source + '.obj" -Fo"' + settings._output_directory + '/"'
+                                                if settings._target_links:
+                                                    for _target_link in settings._target_links:
+                                                        for target2 in project._targets:
+                                                            if target2._name == _target_link:
+                                                                for config2 in target2._configurations:
+                                                                    if config2._name == config._name:
+                                                                        for platform2 in config2._platforms:
+                                                                            if platform2._platform_type == PlatformType.WIN32:
+                                                                                for settings2 in platform2._compiler_settings:
+                                                                                    settings._link_libraries.append(settings2._output_binary + ".lib")
+                                                if settings._link_libraries:
+                                                    buffer += '@rem libraries to link to\n'
+                                                    if project._collapse:
+                                                        buffer += '@set PL_LINK_LIBRARIES='    
+                                                        for link in settings._link_libraries:
+                                                            buffer += link + " "
+                                                    else:
+                                                        buffer += '@set PL_LINK_LIBRARIES=\n'    
+                                                        for link in settings._link_libraries:
+                                                            buffer += '@set PL_LINK_LIBRARIES=' + link + " %PL_LINK_LIBRARIES%\n"
                                                     buffer += "\n"
 
+                                                if target._target_type == TargetType.STATIC_LIBRARY:
+                    
+                                                    buffer += '@rem run compiler only\n'
+                                                    buffer += "@echo.\n"
+                                                    buffer += '@echo [1m[93mStep: ' + target._name +'[0m\n'
+                                                    buffer += '@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m\n'
+                                                    buffer += '@echo [1m[36mCompiling...[0m\n'
+                                                
+                                                    buffer += '\n@rem each file must be compiled separately\n'
+                                                    for source in settings._source_files:
+                                                        sub_buffer = ""
+                                                        if settings._include_directories:
+                                                            sub_buffer += " %PL_INCLUDE_DIRECTORIES%"
+                                                        if settings._definitions:
+                                                            sub_buffer += " %PL_DEFINES%"
+                                                        if settings._compiler_flags:
+                                                            sub_buffer += " %PL_COMPILER_FLAGS%"
+                                                        buffer += 'cl -c' + sub_buffer + " " + source + ' -Fe"' + settings._output_directory + '/' + source + '.obj" -Fo"' + settings._output_directory + '/"'
+                                                        buffer += "\n"
+
+                                                    buffer += "\n"
+                                                    buffer += "@rem check build status\n"
+                                                    buffer += "@set PL_BUILD_STATUS=%ERRORLEVEL%\n"
+
+                                                    buffer += "\n@rem if failed, skip linking\n"
+                                                    buffer += "@if %PL_BUILD_STATUS% NEQ 0 (\n"
+                                                    buffer += "    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%\n"
+                                                    buffer += "    @set PL_RESULT=[1m[91mFailed.[0m\n"
+                                                    buffer += "    goto " + 'Cleanup' + target._name
+                                                    buffer += "\n)\n"
+
+                                                    buffer += '\n@rem link object files into a shared lib\n'
+                                                    buffer += "@echo [1m[36mLinking...[0m\n"
+                                                    buffer += 'lib -nologo -OUT:"' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '" "' + settings._output_directory + '/*.obj"\n'
+
+                                                elif target._target_type == TargetType.DYNAMIC_LIBRARY:
+
+                                                    buffer += "\n@rem source files\n"
+                                                    if project._collapse:
+                                                        buffer += '@set PL_SOURCES='    
+                                                        for source in settings._source_files:
+                                                            buffer += '"' + source + '" '
+                                                    else:
+                                                        buffer += '@set PL_SOURCES=\n'    
+                                                        for source in settings._source_files:
+                                                            buffer += '@set PL_SOURCES="' + source + '" %PL_SOURCES%\n'
+                                                    buffer += "\n\n"
+
+                                                    sub_buffer0 = ""
+                                                    sub_buffer1 = ""
+                                                    sub_buffer2 = ""
+                                                    if settings._include_directories:
+                                                        sub_buffer0 += " %PL_INCLUDE_DIRECTORIES%"
+                                                    if settings._definitions:
+                                                        sub_buffer0 += " %PL_DEFINES%"
+                                                    if settings._compiler_flags:
+                                                        sub_buffer0 += " %PL_COMPILER_FLAGS%"
+                                                    if settings._linker_flags:
+                                                        sub_buffer1 = " %PL_LINKER_FLAGS%"
+                                                    if settings._link_directories:
+                                                        sub_buffer2 += " %PL_LINK_DIRECTORIES%"
+                                                    if settings._link_libraries:
+                                                        sub_buffer2 += " %PL_LINK_LIBRARIES%"
+
+                                                    buffer += '@rem run compiler (and linker)\n'
+                                                    buffer += "@echo.\n"
+                                                    buffer += '@echo [1m[93mStep: ' + target._name +'[0m\n'
+                                                    buffer += '@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m\n'
+                                                    buffer += '@echo [1m[36mCompiling and Linking...[0m\n'
+                                                    buffer += 'cl' + sub_buffer0 + ' %PL_SOURCES% -Fe"' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '" -Fo"' + settings._output_directory + '/" -LD -link' + sub_buffer1 + ' -PDB:"' + settings._output_directory + '/' + settings._output_binary + '_%random%.pdb"' + sub_buffer2 + "\n\n"
+
+                                                    buffer += "@rem check build status\n"
+                                                    buffer += "@set PL_BUILD_STATUS=%ERRORLEVEL%\n"
+
+                                                    buffer += "\n@rem failed\n"
+                                                    buffer += "@if %PL_BUILD_STATUS% NEQ 0 (\n"
+                                                    buffer += "    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%\n"
+                                                    buffer += "    @set PL_RESULT=[1m[91mFailed.[0m\n"
+                                                    buffer += "    goto " + 'Cleanup' + target._name
+                                                    buffer += "\n)\n"
+
+                                                elif target._target_type == TargetType.EXECUTABLE:
+
+                                                    
+                                                    buffer += "\n@rem source files\n"
+                                                    if project._collapse:
+                                                        buffer += '@set PL_SOURCES='    
+                                                        for source in settings._source_files:
+                                                            buffer += '"' + source + '" '
+                                                    else:
+                                                        buffer += '@set PL_SOURCES=\n'    
+                                                        for source in settings._source_files:
+                                                            buffer += '@set PL_SOURCES="' + source + '" %PL_SOURCES%\n'
+                                                    buffer += "\n\n"
+
+                                                    sub_buffer0 = ""
+                                                    sub_buffer1 = ""
+                                                    sub_buffer2 = ""
+                                                    if settings._include_directories:
+                                                        sub_buffer0 += " %PL_INCLUDE_DIRECTORIES%"
+                                                    if settings._definitions:
+                                                        sub_buffer0 += " %PL_DEFINES%"
+                                                    if settings._compiler_flags:
+                                                        sub_buffer0 += " %PL_COMPILER_FLAGS%"
+                                                    if settings._linker_flags:
+                                                        sub_buffer1 = " %PL_LINKER_FLAGS%"
+                                                    if settings._link_directories:
+                                                        sub_buffer2 += " %PL_LINK_DIRECTORIES%"
+                                                    if settings._link_libraries:
+                                                        sub_buffer2 += " %PL_LINK_LIBRARIES%"
+
+                                                    buffer += '@rem run compiler (and linker)\n'
+                                                    buffer += "@echo.\n"
+                                                    buffer += '@echo [1m[93mStep: ' + target._name +'[0m\n'
+                                                    buffer += '@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m\n'
+                                                    buffer += '@echo [1m[36mCompiling and Linking...[0m\n'
+
+                                                    buffer += '\n@rem skip actual compilation if hot reloading\n'
+                                                    buffer += '@if %PL_HOT_RELOAD_STATUS% equ 1 ( goto ' + 'Cleanup' + target._name + ' )\n'   
+                                                    
+                                                    buffer += '\n@rem call compiler\n'
+                                                    buffer += 'cl' + sub_buffer0 + ' %PL_SOURCES% -Fe"' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '" -Fo"' + settings._output_directory + '/" -link' + sub_buffer1 + ' -PDB:"' + settings._output_directory + '/' + settings._output_binary + '_%random%.pdb"' + sub_buffer2 + "\n\n"
+            
+                                                    buffer += "@rem check build status\n"
+                                                    buffer += "@set PL_BUILD_STATUS=%ERRORLEVEL%\n"
+                                                    buffer += "\n@rem failed\n"
+                                                    buffer += "@if %PL_BUILD_STATUS% NEQ 0 (\n"
+                                                    buffer += "    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%\n"
+                                                    buffer += "    @set PL_RESULT=[1m[91mFailed.[0m\n"
+                                                    buffer += "    goto " + 'Cleanup' + target._name
+                                                    buffer += "\n)\n"
+
+                                                buffer += '\n@rem cleanup obj files\n'
+                                                buffer += ':Cleanup' + target._name
+                                                buffer += '\n    @echo [1m[36mCleaning...[0m\n'
+                                                buffer += '    @del "' + settings._output_directory + '/*.obj"  > nul 2> nul'
+
+                                                if settings._vulkan_glsl_shader_files:
+                                                    buffer += '\n\n@rem cleanup old glsl vulkan shaders\n'
+                                                    for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
+                                                        buffer += '@if exist "' + settings._output_directory + '/' + vulkan_glsl_shader[1] + '.spv"'
+                                                        buffer += ' del "' + settings._output_directory + '/' + vulkan_glsl_shader[1] + '.spv"\n'
+
+                                                    buffer += '\n@rem compile glsl vulkan shaders\n'
+                                                    for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
+                                                        buffer += '%VULKAN_SDK%/bin/glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader[1] + '.spv ' + vulkan_glsl_shader[0] + vulkan_glsl_shader[1] + '\n'
+
                                                 buffer += "\n"
-                                                buffer += "@rem check build status\n"
-                                                buffer += "@set PL_BUILD_STATUS=%ERRORLEVEL%\n"
-
-                                                buffer += "\n@rem if failed, skip linking\n"
-                                                buffer += "@if %PL_BUILD_STATUS% NEQ 0 (\n"
-                                                buffer += "    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%\n"
-                                                buffer += "    @set PL_RESULT=[1m[91mFailed.[0m\n"
-                                                buffer += "    goto " + 'Cleanup' + target._name
-                                                buffer += "\n)\n"
-
-                                                buffer += '\n@rem link object files into a shared lib\n'
-                                                buffer += "@echo [1m[36mLinking...[0m\n"
-                                                buffer += 'lib -nologo -OUT:"' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '" "' + settings._output_directory + '/*.obj"\n'
-
-                                            elif target._target_type == TargetType.DYNAMIC_LIBRARY:
-
-                                                buffer += "\n@rem source files\n"
-                                                if project._collapse:
-                                                    buffer += '@set PL_SOURCES='    
-                                                    for source in settings._source_files:
-                                                        buffer += '"' + source + '" '
-                                                else:
-                                                    buffer += '@set PL_SOURCES=\n'    
-                                                    for source in settings._source_files:
-                                                        buffer += '@set PL_SOURCES="' + source + '" %PL_SOURCES%\n'
+                                                buffer += '@rem delete lock file\n'
+                                                buffer += '@del "' + settings._output_directory + '/' + target._lock_file + '"'
                                                 buffer += "\n\n"
 
-                                                sub_buffer0 = ""
-                                                sub_buffer1 = ""
-                                                sub_buffer2 = ""
-                                                if settings._include_directories:
-                                                    sub_buffer0 += " %PL_INCLUDE_DIRECTORIES%"
-                                                if settings._definitions:
-                                                    sub_buffer0 += " %PL_DEFINES%"
-                                                if settings._compiler_flags:
-                                                    sub_buffer0 += " %PL_COMPILER_FLAGS%"
-                                                if settings._linker_flags:
-                                                    sub_buffer1 = " %PL_LINKER_FLAGS%"
-                                                if settings._link_directories:
-                                                    sub_buffer2 += " %PL_LINK_DIRECTORIES%"
-                                                if settings._link_libraries:
-                                                    sub_buffer2 += " %PL_LINK_LIBRARIES%"
-
-                                                buffer += '@rem run compiler (and linker)\n'
+                                                buffer += '@rem print results\n'
                                                 buffer += "@echo.\n"
-                                                buffer += '@echo [1m[93mStep: ' + target._name +'[0m\n'
-                                                buffer += '@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m\n'
-                                                buffer += '@echo [1m[36mCompiling and Linking...[0m\n'
-                                                buffer += 'cl' + sub_buffer0 + ' %PL_SOURCES% -Fe"' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '" -Fo"' + settings._output_directory + '/" -LD -link' + sub_buffer1 + ' -PDB:"' + settings._output_directory + '/' + settings._output_binary + '_%random%.pdb"' + sub_buffer2 + "\n\n"
+                                                buffer += "@echo [36mResult: [0m %PL_RESULT%\n"
+                                                buffer += "@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m\n"
+                                                buffer += "\n"
 
-                                                buffer += "@rem check build status\n"
-                                                buffer += "@set PL_BUILD_STATUS=%ERRORLEVEL%\n"
-
-                                                buffer += "\n@rem failed\n"
-                                                buffer += "@if %PL_BUILD_STATUS% NEQ 0 (\n"
-                                                buffer += "    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%\n"
-                                                buffer += "    @set PL_RESULT=[1m[91mFailed.[0m\n"
-                                                buffer += "    goto " + 'Cleanup' + target._name
-                                                buffer += "\n)\n"
-
-                                            elif target._target_type == TargetType.EXECUTABLE:
-
-                                                
-                                                buffer += "\n@rem source files\n"
-                                                if project._collapse:
-                                                    buffer += '@set PL_SOURCES='    
-                                                    for source in settings._source_files:
-                                                        buffer += '"' + source + '" '
-                                                else:
-                                                    buffer += '@set PL_SOURCES=\n'    
-                                                    for source in settings._source_files:
-                                                        buffer += '@set PL_SOURCES="' + source + '" %PL_SOURCES%\n'
-                                                buffer += "\n\n"
-
-                                                sub_buffer0 = ""
-                                                sub_buffer1 = ""
-                                                sub_buffer2 = ""
-                                                if settings._include_directories:
-                                                    sub_buffer0 += " %PL_INCLUDE_DIRECTORIES%"
-                                                if settings._definitions:
-                                                    sub_buffer0 += " %PL_DEFINES%"
-                                                if settings._compiler_flags:
-                                                    sub_buffer0 += " %PL_COMPILER_FLAGS%"
-                                                if settings._linker_flags:
-                                                    sub_buffer1 = " %PL_LINKER_FLAGS%"
-                                                if settings._link_directories:
-                                                    sub_buffer2 += " %PL_LINK_DIRECTORIES%"
-                                                if settings._link_libraries:
-                                                    sub_buffer2 += " %PL_LINK_LIBRARIES%"
-
-                                                buffer += '@rem run compiler (and linker)\n'
-                                                buffer += "@echo.\n"
-                                                buffer += '@echo [1m[93mStep: ' + target._name +'[0m\n'
-                                                buffer += '@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m\n'
-                                                buffer += '@echo [1m[36mCompiling and Linking...[0m\n'
-
-                                                buffer += '\n@rem skip actual compilation if hot reloading\n'
-                                                buffer += '@if %PL_HOT_RELOAD_STATUS% equ 1 ( goto ' + 'Cleanup' + target._name + ' )\n'   
-                                                
-                                                buffer += '\n@rem call compiler\n'
-                                                buffer += 'cl' + sub_buffer0 + ' %PL_SOURCES% -Fe"' + settings._output_directory + '/' + settings._output_binary + settings._output_binary_extension + '" -Fo"' + settings._output_directory + '/" -link' + sub_buffer1 + ' -PDB:"' + settings._output_directory + '/' + settings._output_binary + '_%random%.pdb"' + sub_buffer2 + "\n\n"
-        
-                                                buffer += "@rem check build status\n"
-                                                buffer += "@set PL_BUILD_STATUS=%ERRORLEVEL%\n"
-                                                buffer += "\n@rem failed\n"
-                                                buffer += "@if %PL_BUILD_STATUS% NEQ 0 (\n"
-                                                buffer += "    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%\n"
-                                                buffer += "    @set PL_RESULT=[1m[91mFailed.[0m\n"
-                                                buffer += "    goto " + 'Cleanup' + target._name
-                                                buffer += "\n)\n"
-
-                                            buffer += '\n@rem cleanup obj files\n'
-                                            buffer += ':Cleanup' + target._name
-                                            buffer += '\n    @echo [1m[36mCleaning...[0m\n'
-                                            buffer += '    @del "' + settings._output_directory + '/*.obj"  > nul 2> nul'
-
-                                            if settings._vulkan_glsl_shader_files:
-                                                buffer += '\n\n@rem cleanup old glsl vulkan shaders\n'
-                                                for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                    buffer += '@if exist "' + settings._output_directory + '/' + vulkan_glsl_shader[1] + '.spv"'
-                                                    buffer += ' del "' + settings._output_directory + '/' + vulkan_glsl_shader[1] + '.spv"\n'
-
-                                                buffer += '\n@rem compile glsl vulkan shaders\n'
-                                                for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                    buffer += '%VULKAN_SDK%/bin/glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader[1] + '.spv ' + vulkan_glsl_shader[0] + vulkan_glsl_shader[1] + '\n'
-
-                                            buffer += "\n"
-                                            buffer += '@rem delete lock file\n'
-                                            buffer += '@del "' + settings._output_directory + '/' + target._lock_file + '"'
-                                            buffer += "\n\n"
-
-                                            buffer += '@rem print results\n'
-                                            buffer += "@echo.\n"
-                                            buffer += "@echo [36mResult: [0m %PL_RESULT%\n"
-                                            buffer += "@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m\n"
-                                            buffer += "\n"
-
-                                            if settings._post_build_step is not None:
-                                                buffer += settings._post_build_step
-                                                buffer += "\n\n"
+                                                if settings._post_build_step is not None:
+                                                    buffer += settings._post_build_step
+                                                    buffer += "\n\n"
                 if target_found:
                     buffer += '@rem ' + '~' * 40
                     buffer += '\n@rem end of ' + register_config + ' configuration\n'

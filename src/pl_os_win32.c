@@ -14,7 +14,8 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdio.h> // file api
+#include <stdio.h>  // file api
+#include <stdlib.h> // malloc
 #include "pl_os.h"
 #include "pl_memory.h"
 

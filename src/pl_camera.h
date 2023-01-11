@@ -55,6 +55,7 @@ void     pl_camera_set_pos        (plCamera* ptCamera, float fX, float fY, float
 void     pl_camera_set_pitch_yaw  (plCamera* ptCamera, float fPitch, float fYaw);
 void     pl_camera_translate      (plCamera* ptCamera, float fDx, float fDy, float fDz);
 void     pl_camera_rotate         (plCamera* ptCamera, float fDPitch, float fDYaw);
+void     pl_camera_update         (plCamera* ptCamera);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -124,8 +125,6 @@ Index of this file:
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static void  pl__update_camera_view(plCamera* ptCamera);
-static void  pl__update_camera_proj(plCamera* ptCamera);
 static float pl__wrap_angle        (float tTheta);
 
 //-----------------------------------------------------------------------------
@@ -143,8 +142,7 @@ pl_create_perspective_camera(plVec3 tPos, float fYFov, float fAspect, float fNea
         .fFieldOfView = fYFov,
         .fAspectRatio = fAspect
     };
-    pl__update_camera_view(&tCamera);
-    pl__update_camera_proj(&tCamera);
+    pl_camera_update(&tCamera);
     return tCamera;
 }
 
@@ -152,7 +150,6 @@ void
 pl_camera_set_fov(plCamera* ptCamera, float fYFov)
 {
     ptCamera->fFieldOfView = fYFov;
-    pl__update_camera_proj(ptCamera);
 }
 
 void
@@ -160,14 +157,12 @@ pl_camera_set_clip_planes(plCamera* ptCamera, float fNearZ, float fFarZ)
 {
     ptCamera->fNearZ = fNearZ;
     ptCamera->fFarZ = fFarZ;
-    pl__update_camera_proj(ptCamera);
 }
 
 void
 pl_camera_set_aspect(plCamera* ptCamera, float fAspect)
 {
     ptCamera->fAspectRatio = fAspect;
-    pl__update_camera_proj(ptCamera);
 }
 
 void
@@ -176,7 +171,6 @@ pl_camera_set_pos(plCamera* ptCamera, float fX, float fY, float fZ)
     ptCamera->tPos.x = fX;
     ptCamera->tPos.y = fY;
     ptCamera->tPos.z = fZ;
-    pl__update_camera_view(ptCamera);
 }
 
 void
@@ -184,8 +178,6 @@ pl_camera_set_pitch_yaw(plCamera* ptCamera, float fPitch, float fYaw)
 {
     ptCamera->fPitch = fPitch;
     ptCamera->fYaw = fYaw;
-    pl__update_camera_view(ptCamera);
-    pl__update_camera_proj(ptCamera);
 }
 
 void
@@ -194,7 +186,6 @@ pl_camera_translate(plCamera* ptCamera, float fDx, float fDy, float fDz)
     ptCamera->tPos = pl_add_vec3(ptCamera->tPos, pl_mul_vec3_scalarf(ptCamera->_tRightVec, fDx));
     ptCamera->tPos = pl_add_vec3(ptCamera->tPos, pl_mul_vec3_scalarf(ptCamera->_tForwardVec, fDz));
     ptCamera->tPos.y += fDy;
-    pl__update_camera_view(ptCamera);
 }
 
 void
@@ -205,18 +196,12 @@ pl_camera_rotate(plCamera* ptCamera, float fDPitch, float fDYaw)
 
     ptCamera->fYaw = pl__wrap_angle(ptCamera->fYaw);
     ptCamera->fPitch = pl_clampf(0.995f * -PL_PI_2, ptCamera->fPitch, 0.995f * PL_PI_2);
-
-    pl__update_camera_view(ptCamera);
-    pl__update_camera_proj(ptCamera);
 }
 
-//-----------------------------------------------------------------------------
-// [SECTION] internal implementation
-//-----------------------------------------------------------------------------
-
-static void
-pl__update_camera_view(plCamera* ptCamera)
+void
+pl_camera_update(plCamera* ptCamera)
 {
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     static const plVec4 tOriginalUpVec      = {0.0f, -1.0f, 0.0f, 0.0f};
     static const plVec4 tOriginalForwardVec = {0.0f, 0.0f, -1.0f, 0.0f};
     static const plVec4 tOriginalRightVec   = {1.0f, 0.0f, 0.0f, 0.0f};
@@ -244,11 +229,8 @@ pl__update_camera_view(plCamera* ptCamera)
     const plMat4 tFlipY = pl_mat4_scale_xyz(1.0f, -1.0f, -1.0f);
     ptCamera->tViewMat  = pl_mat4t_invert(&ptCamera->tTransformMat);
     ptCamera->tViewMat  = pl_mul_mat4t(&ptCamera->tViewMat, &tFlipY);
-}
 
-static void
-pl__update_camera_proj(plCamera* ptCamera)
-{
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~update projection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);
     ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
     ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
@@ -257,6 +239,10 @@ pl__update_camera_proj(plCamera* ptCamera)
     ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
     ptCamera->tProjMat.col[3].w = 0.0f;     
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal implementation
+//-----------------------------------------------------------------------------
 
 static float
 pl__wrap_angle(float tTheta)

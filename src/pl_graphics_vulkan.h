@@ -67,8 +67,10 @@ typedef int plBufferBindingType;  // -> enum _plBufferBindingType   // Enum:
 typedef int plTextureBindingType; // -> enum _plTextureBindingType  // Enum:
 typedef int plBufferUsage;        // -> enum _plBufferUsage         // Enum:
 typedef int plMeshFormatFlags;    // -> enum _plMeshFormatFlags     // Flags:
+typedef int plShaderTextureFlags; // -> enum _plShaderTextureFlags  // Flags:
 typedef int plBlendMode;          // -> enum _plBlendMode           // Enum:
 typedef int plDepthMode;          // -> enum _plDepthMode           // Enum:
+
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -96,6 +98,7 @@ uint32_t              pl_create_vertex_buffer         (plResourceManager* ptReso
 uint32_t              pl_create_constant_buffer       (plResourceManager* ptResourceManager, size_t szItemSize, size_t szItemCount);
 uint32_t              pl_create_texture               (plResourceManager* ptResourceManager, plTextureDesc tDesc, size_t szSize, const void* pData);
 uint32_t              pl_create_storage_buffer        (plResourceManager* ptResourceManager, size_t szSize, const void* pData);
+VkDescriptorSetLayout pl_request_descriptor_set_layout(plResourceManager* ptResourceManager, plBindGroupLayout* ptLayout);
 
 // constant buffer helpers
 void*                 pl_get_constant_buffer_data     (plResourceManager* ptResourceManager, uint32_t uBuffer, uint32_t uInstance);
@@ -115,10 +118,12 @@ void                  pl_submit_command_buffer        (plGraphics* ptGraphics, p
 
 // shaders
 uint32_t              pl_create_shader             (plResourceManager* ptResourceManager, const plShaderDesc* ptDesc);
+void                  pl_add_shader_variant        (plResourceManager* ptResourceManager, uint32_t uShader, plGraphicsState tVariant);
 void                  pl_submit_shader_for_deletion(plResourceManager* ptResourceManager, uint32_t uShaderIndex);
+plBindGroupLayout*    pl_get_bind_group_layout     (plResourceManager* ptResourceManager, uint32_t uShaderIndex, uint32_t uBindGroupIndex);
 
 // descriptors
-void                  pl_create_bind_group            (plGraphics* ptGraphics, plBindGroupLayout* ptLayout, plBindGroup* ptGroupOut);
+void                  pl_create_bind_group            (plGraphics* ptGraphics, plBindGroupLayout* ptLayout, plBindGroup* ptGroupOut, const char* pcName);
 void                  pl_update_bind_group            (plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBufferCount, uint32_t* auBuffers, uint32_t uTextureCount, uint32_t* auTextures);
 
 // drawing
@@ -200,6 +205,26 @@ enum _plMeshFormatFlags
     PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 10
 };
 
+enum _plShaderTextureFlags
+{
+    PL_SHADER_TEXTURE_FLAG_BINDING_NONE       = 0,
+    PL_SHADER_TEXTURE_FLAG_BINDING_0          = 1 << 0,
+    PL_SHADER_TEXTURE_FLAG_BINDING_1          = 1 << 1,
+    PL_SHADER_TEXTURE_FLAG_BINDING_2          = 1 << 2,
+    PL_SHADER_TEXTURE_FLAG_BINDING_3          = 1 << 3,
+    PL_SHADER_TEXTURE_FLAG_BINDING_4          = 1 << 4,
+    PL_SHADER_TEXTURE_FLAG_BINDING_5          = 1 << 5,
+    PL_SHADER_TEXTURE_FLAG_BINDING_6          = 1 << 6,
+    PL_SHADER_TEXTURE_FLAG_BINDING_7          = 1 << 7,
+    PL_SHADER_TEXTURE_FLAG_BINDING_8          = 1 << 8,
+    PL_SHADER_TEXTURE_FLAG_BINDING_9          = 1 << 9,
+    PL_SHADER_TEXTURE_FLAG_BINDING_10         = 1 << 10,
+    PL_SHADER_TEXTURE_FLAG_BINDING_11         = 1 << 11,
+    PL_SHADER_TEXTURE_FLAG_BINDING_12         = 1 << 12,
+    PL_SHADER_TEXTURE_FLAG_BINDING_13         = 1 << 13,
+    PL_SHADER_TEXTURE_FLAG_BINDING_14         = 1 << 14
+};
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -212,6 +237,8 @@ typedef struct _plMesh
     uint32_t uVertexCount;
     uint32_t uIndexOffset;
     uint32_t uIndexCount;
+    uint64_t ulVertexStreamMask0; // PL_MESH_FORMAT_FLAG_*
+    uint64_t ulVertexStreamMask1; // PL_MESH_FORMAT_FLAG_*
 } plMesh;
 
 typedef struct _plDrawArea
@@ -230,6 +257,7 @@ typedef struct _plDraw
     plBindGroup* ptBindGroup1;
     plBindGroup* ptBindGroup2;
     uint32_t     uShader;
+    uint32_t     uShaderVariant;
     uint32_t     uDynamicBufferOffset1;
     uint32_t     uDynamicBufferOffset2;
 } plDraw;
@@ -312,7 +340,8 @@ typedef struct _plGraphicsState
             uint64_t ulDepthWriteEnabled : 1;  // bool
             uint64_t ulCullMode          : 2;  // VK_CULL_MODE_*
             uint64_t ulBlendMode         : 3;  // PL_BLEND_MODE_*
-            uint64_t _ulUnused           : 33;
+            uint64_t ulShaderTextureFlags: 15; // PL_SHADER_TEXTURE_FLAG_*
+            uint64_t _ulUnused           : 18;
         };
         uint64_t ulValue;
     };
@@ -324,16 +353,19 @@ typedef struct _plShaderDesc
     plGraphicsState    tGraphicsState;
     const char*        pcVertexShader;
     const char*        pcPixelShader;
-    plBindGroupLayout* atBindGroupLayouts;
+    plBindGroupLayout  atBindGroupLayouts[4];
     uint32_t           uBindGroupLayoutCount;
     VkRenderPass       _tRenderPass;
+    plGraphicsState*   sbtVariants;
 } plShaderDesc;
 
 typedef struct _plShader
 {
-    plShaderDesc     tDesc;
-    VkPipelineLayout _tPipelineLayout;
-    VkPipeline       _tPipeline;
+    plShaderDesc             tDesc;
+    VkPipelineLayout         _tPipelineLayout;
+    VkPipeline*              _sbtVariantPipelines;
+    VkShaderModuleCreateInfo tVertexShaderInfo;
+    VkShaderModuleCreateInfo tPixelShaderInfo;
 } plShader;
 
 typedef struct _plResourceManager
@@ -369,6 +401,10 @@ typedef struct _plResourceManager
     VkBuffer          _tStagingBuffer;
     VkDeviceMemory    _tStagingBufferMemory;
     unsigned char*    _pucMapping;
+
+    // descriptor set layouts
+    VkDescriptorSetLayout* _sbtDescriptorSetLayouts;
+    uint32_t*              _sbuDescriptorSetLayoutHashes;
 
 } plResourceManager;
 
@@ -419,6 +455,7 @@ typedef struct _plDevice
     VkPhysicalDeviceMemoryProperties2         tMemProps2;
     VkPhysicalDeviceMemoryBudgetPropertiesEXT tMemBudgetInfo;
     VkDeviceSize                              tMaxLocalMemSize;
+    bool                                      bSwapchainExtPresent;
 
 } plDevice;
 
@@ -436,6 +473,12 @@ typedef struct _plGraphics
     plFrameContext*          sbFrames;
     uint32_t                 uFramesInFlight;  // number of frames in flight (should be less then PL_MAX_FRAMES_IN_FLIGHT)
     size_t                   szCurrentFrameIndex; // current frame being used
+
+	PFN_vkDebugMarkerSetObjectTagEXT  vkDebugMarkerSetObjectTag;
+	PFN_vkDebugMarkerSetObjectNameEXT vkDebugMarkerSetObjectName;
+	PFN_vkCmdDebugMarkerBeginEXT      vkCmdDebugMarkerBegin;
+	PFN_vkCmdDebugMarkerEndEXT        vkCmdDebugMarkerEnd;
+	PFN_vkCmdDebugMarkerInsertEXT     vkCmdDebugMarkerInsert;
 } plGraphics;
 
 #endif //PL_GRAPHICS_VULKAN_H

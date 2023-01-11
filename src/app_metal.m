@@ -7,7 +7,6 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] structs
 // [SECTION] pl_app_load
-// [SECTION] pl_app_setup
 // [SECTION] pl_app_shutdown
 // [SECTION] pl_app_resize
 // [SECTION] pl_app_update
@@ -95,86 +94,75 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
         return ptAppData;
     }
     
-    plAppData* tPNewData = malloc(sizeof(plAppData));
-    memset(tPNewData, 0, sizeof(plAppData));
-    tPNewData->device.device = ptIOCtx->pBackendPlatformData;
+    ptAppData = malloc(sizeof(plAppData));
+    memset(ptAppData, 0, sizeof(plAppData));
+    ptAppData->device.device = ptIOCtx->pBackendPlatformData;
 
     pl_set_io_context(ptIOCtx);
 
     // setup memory context
-    pl_initialize_memory_context(&tPNewData->tMemoryCtx);
+    pl_initialize_memory_context(&ptAppData->tMemoryCtx);
 
     // setup profiling context
-    pl_initialize_profile_context(&tPNewData->tProfileCtx);
+    pl_initialize_profile_context(&ptAppData->tProfileCtx);
 
     // setup data registry
-    pl_initialize_data_registry(&tPNewData->tDataRegistryCtx);
+    pl_initialize_data_registry(&ptAppData->tDataRegistryCtx);
 
     // setup logging
-    pl_initialize_log_context(&tPNewData->tLogCtx);
+    pl_initialize_log_context(&ptAppData->tLogCtx);
     pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
     pl_log_info(0, "Setup logging");
 
     // setup extension registry
-    pl_initialize_extension_registry(&tPNewData->tExtensionRegistryCtx);
-    pl_register_data("memory", &tPNewData->tMemoryCtx);
-    pl_register_data("profile", &tPNewData->tProfileCtx);
-    pl_register_data("log", &tPNewData->tLogCtx);
+    pl_initialize_extension_registry(&ptAppData->tExtensionRegistryCtx);
+    pl_register_data("memory", &ptAppData->tMemoryCtx);
+    pl_register_data("profile", &ptAppData->tProfileCtx);
+    pl_register_data("log", &ptAppData->tLogCtx);
     pl_register_data("io", ptIOCtx);
-    pl_register_data("draw", &tPNewData->ctx);
+    pl_register_data("draw", &ptAppData->ctx);
 
     plExtension tExtension = {0};
     pl_get_draw_extension_info(&tExtension);
     pl_load_extension(&tExtension);
 
     plExtension* ptExtension = pl_get_extension(PL_EXT_DRAW);
-    tPNewData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
-
-    return tPNewData;
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] pl_app_setup
-//-----------------------------------------------------------------------------
-
-PL_EXPORT void
-pl_app_setup(plAppData* appData)
-{
-
-    plIOContext* ptIOCtx = pl_get_io_context();
+    ptAppData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
 
     // create command queue
-    appData->device.device = ptIOCtx->pBackendPlatformData;
-    appData->graphics.cmdQueue = [appData->device.device newCommandQueue];
+    ptAppData->device.device = ptIOCtx->pBackendPlatformData;
+    ptAppData->graphics.cmdQueue = [ptAppData->device.device newCommandQueue];
 
     // render pass descriptor
-    appData->drawableRenderDescriptor = [MTLRenderPassDescriptor new];
+    ptAppData->drawableRenderDescriptor = [MTLRenderPassDescriptor new];
 
     // color attachment
-    appData->drawableRenderDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-    appData->drawableRenderDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
-    appData->drawableRenderDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+    ptAppData->drawableRenderDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
+    ptAppData->drawableRenderDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
+    ptAppData->drawableRenderDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
 
     // depth attachment
-    appData->drawableRenderDescriptor.depthAttachment.loadAction = MTLLoadActionClear;
-    appData->drawableRenderDescriptor.depthAttachment.storeAction = MTLStoreActionDontCare;
-    appData->drawableRenderDescriptor.depthAttachment.clearDepth = 1.0;
+    ptAppData->drawableRenderDescriptor.depthAttachment.loadAction = MTLLoadActionClear;
+    ptAppData->drawableRenderDescriptor.depthAttachment.storeAction = MTLStoreActionDontCare;
+    ptAppData->drawableRenderDescriptor.depthAttachment.clearDepth = 1.0;
 
     // create draw context
-    pl_initialize_draw_context_metal(&appData->ctx, appData->device.device);
+    pl_initialize_draw_context_metal(&ptAppData->ctx, ptAppData->device.device);
 
     // create draw list & layers
-    pl_register_drawlist(&appData->ctx, &appData->drawlist);
-    appData->bgDrawLayer = pl_request_draw_layer(&appData->drawlist, "Background Layer");
-    appData->fgDrawLayer = pl_request_draw_layer(&appData->drawlist, "Foreground Layer");
+    pl_register_drawlist(&ptAppData->ctx, &ptAppData->drawlist);
+    ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
+    ptAppData->fgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Foreground Layer");
 
     // create font atlas
-    pl_add_default_font(&appData->fontAtlas);
-    pl_build_font_atlas(&appData->ctx, &appData->fontAtlas);
+    pl_add_default_font(&ptAppData->fontAtlas);
+    pl_build_font_atlas(&ptAppData->ctx, &ptAppData->fontAtlas);
 
     // ui
-    pl_ui_setup_context(&appData->ctx, &appData->tUiContext);
-    appData->tUiContext.ptFont = &appData->fontAtlas.sbFonts[0];
+    pl_ui_setup_context(&ptAppData->ctx, &ptAppData->tUiContext);
+    ptAppData->tUiContext.ptFont = &ptAppData->fontAtlas.sbFonts[0];
+
+    return ptAppData;
 }
 
 //-----------------------------------------------------------------------------
@@ -182,13 +170,13 @@ pl_app_setup(plAppData* appData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_shutdown(plAppData* appData)
+pl_app_shutdown(plAppData* ptAppData)
 {
 
     // clean up contexts
-    pl_cleanup_font_atlas(&appData->fontAtlas);
-    pl_cleanup_draw_context(&appData->ctx);
-    pl_ui_cleanup_context(&appData->tUiContext);
+    pl_cleanup_font_atlas(&ptAppData->fontAtlas);
+    pl_cleanup_draw_context(&ptAppData->ctx);
+    pl_ui_cleanup_context(&ptAppData->tUiContext);
     pl_cleanup_profile_context();
     pl_cleanup_extension_registry();
     pl_cleanup_log_context();
@@ -201,7 +189,7 @@ pl_app_shutdown(plAppData* appData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_resize(plAppData* appData)
+pl_app_resize(plAppData* ptAppData)
 {    
     plIOContext* ptIOCtx = pl_get_io_context();
 
@@ -212,8 +200,8 @@ pl_app_resize(plAppData* appData)
     depthTargetDescriptor.pixelFormat = MTLPixelFormatDepth32Float;
     depthTargetDescriptor.storageMode = MTLStorageModePrivate;
     depthTargetDescriptor.usage       = MTLTextureUsageRenderTarget;
-    appData->depthTarget = [appData->device.device newTextureWithDescriptor:depthTargetDescriptor];
-    appData->drawableRenderDescriptor.depthAttachment.texture = appData->depthTarget;
+    ptAppData->depthTarget = [ptAppData->device.device newTextureWithDescriptor:depthTargetDescriptor];
+    ptAppData->drawableRenderDescriptor.depthAttachment.texture = ptAppData->depthTarget;
 }
 
 //-----------------------------------------------------------------------------
@@ -221,63 +209,63 @@ pl_app_resize(plAppData* appData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_update(plAppData* appData)
+pl_app_update(plAppData* ptAppData)
 {
     pl_handle_extension_reloads();
 
     pl_new_io_frame();
 
     plIOContext* ptIOCtx = pl_get_io_context();
-    appData->graphics.metalLayer = ptIOCtx->pBackendRendererData;
+    ptAppData->graphics.metalLayer = ptIOCtx->pBackendRendererData;
 
-    appData->graphics.currentFrame++;
+    ptAppData->graphics.currentFrame++;
 
     // begin profiling frame
-    pl_begin_profile_frame(appData->graphics.currentFrame);
+    pl_begin_profile_frame(ptAppData->graphics.currentFrame);
 
     // request command buffer
-    id<MTLCommandBuffer> commandBuffer = [appData->graphics.cmdQueue commandBuffer];
+    id<MTLCommandBuffer> commandBuffer = [ptAppData->graphics.cmdQueue commandBuffer];
 
     // get next drawable
-    id<CAMetalDrawable> currentDrawable = [appData->graphics.metalLayer nextDrawable];
+    id<CAMetalDrawable> currentDrawable = [ptAppData->graphics.metalLayer nextDrawable];
 
     if(!currentDrawable)
         return;
 
     // set colorattachment to next drawable
-    appData->drawableRenderDescriptor.colorAttachments[0].texture = currentDrawable.texture;
+    ptAppData->drawableRenderDescriptor.colorAttachments[0].texture = currentDrawable.texture;
 
-    pl_new_draw_frame_metal(&appData->ctx, appData->drawableRenderDescriptor);
-    pl_ui_new_frame(&appData->tUiContext);
+    pl_new_draw_frame_metal(&ptAppData->ctx, ptAppData->drawableRenderDescriptor);
+    pl_ui_new_frame(&ptAppData->tUiContext);
 
     // create render command encoder
-    id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:appData->drawableRenderDescriptor];
+    id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:ptAppData->drawableRenderDescriptor];
 
-    appData->ptDrawExtApi->pl_add_text(appData->fgDrawLayer, &appData->fontAtlas.sbFonts[0], 13.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, "extension baby");
+    ptAppData->ptDrawExtApi->pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, "extension baby");
 
     // draw profiling info
     pl_begin_profile_sample("Draw Profiling Info");
 
     char cPProfileValue[64] = {0};
-    for(uint32_t i = 0u; i < pl_sb_size(appData->tProfileCtx.ptLastFrame->sbtSamples); i++)
+    for(uint32_t i = 0u; i < pl_sb_size(ptAppData->tProfileCtx.ptLastFrame->sbtSamples); i++)
     {
-        plProfileSample* tPSample = &appData->tProfileCtx.ptLastFrame->sbtSamples[i];
-        pl_add_text(appData->fgDrawLayer, &appData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, tPSample->pcName, 0.0f);
-        plVec2 sampleTextSize = pl_calculate_text_size(&appData->fontAtlas.sbFonts[0], 13.0f, tPSample->pcName, 0.0f);
+        plProfileSample* tPSample = &ptAppData->tProfileCtx.ptLastFrame->sbtSamples[i];
+        pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, tPSample->pcName, 0.0f);
+        plVec2 sampleTextSize = pl_calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, tPSample->pcName, 0.0f);
         pl_sprintf(cPProfileValue, ": %0.5f", tPSample->dDuration);
-        pl_add_text(appData->fgDrawLayer, &appData->fontAtlas.sbFonts[0], 13.0f, (plVec2){sampleTextSize.x + 15.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, cPProfileValue, 0.0f);
+        pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){sampleTextSize.x + 15.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, cPProfileValue, 0.0f);
     }
     pl_end_profile_sample();
 
     // draw commands
     pl_begin_profile_sample("Add draw commands");
-    pl_add_text(appData->fgDrawLayer, &appData->fontAtlas.sbFonts[0], 13.0f, (plVec2){300.0f, 10.0f}, (plVec4){0.1f, 0.5f, 0.0f, 1.0f}, "Pilot Light\nGraphics", 0.0f);
-    pl_add_triangle_filled(appData->bgDrawLayer, (plVec2){300.0f, 50.0f}, (plVec2){300.0f, 150.0f}, (plVec2){350.0f, 50.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f});
+    pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){300.0f, 10.0f}, (plVec4){0.1f, 0.5f, 0.0f, 1.0f}, "Pilot Light\nGraphics", 0.0f);
+    pl_add_triangle_filled(ptAppData->bgDrawLayer, (plVec2){300.0f, 50.0f}, (plVec2){300.0f, 150.0f}, (plVec2){350.0f, 50.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f});
     pl__begin_profile_sample("Calculate text size");
-    plVec2 textSize = pl_calculate_text_size(&appData->fontAtlas.sbFonts[0], 13.0f, "Pilot Light\nGraphics", 0.0f);
+    plVec2 textSize = pl_calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, "Pilot Light\nGraphics", 0.0f);
     pl__end_profile_sample();
-    pl_add_rect_filled(appData->bgDrawLayer, (plVec2){300.0f, 10.0f}, (plVec2){300.0f + textSize.x, 10.0f + textSize.y}, (plVec4){0.0f, 0.0f, 0.8f, 0.5f});
-    pl_add_line(appData->bgDrawLayer, (plVec2){500.0f, 10.0f}, (plVec2){10.0f, 500.0f}, (plVec4){1.0f, 1.0f, 1.0f, 0.5f}, 2.0f);
+    pl_add_rect_filled(ptAppData->bgDrawLayer, (plVec2){300.0f, 10.0f}, (plVec2){300.0f + textSize.x, 10.0f + textSize.y}, (plVec4){0.0f, 0.0f, 0.8f, 0.5f});
+    pl_add_line(ptAppData->bgDrawLayer, (plVec2){500.0f, 10.0f}, (plVec2){10.0f, 500.0f}, (plVec4){1.0f, 1.0f, 1.0f, 0.5f}, 2.0f);
     pl_end_profile_sample();
 
     static bool bOpen = true;
@@ -335,18 +323,18 @@ pl_app_update(plAppData* appData)
 
     // submit draw layers
     pl_begin_profile_sample("Submit draw layers");
-    pl_submit_draw_layer(appData->bgDrawLayer);
-    pl_submit_draw_layer(appData->fgDrawLayer);
+    pl_submit_draw_layer(ptAppData->bgDrawLayer);
+    pl_submit_draw_layer(ptAppData->fgDrawLayer);
     pl_end_profile_sample();
 
     pl_ui_render();
 
     // submit draw lists
     pl_begin_profile_sample("Submit draw lists");
-    appData->ctx.tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
-    appData->ctx.tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
-    pl_submit_drawlist_metal(&appData->drawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
-    pl_submit_drawlist_metal(appData->tUiContext.ptDrawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
+    ptAppData->ctx.tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
+    ptAppData->ctx.tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
+    pl_submit_drawlist_metal(&ptAppData->drawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
+    pl_submit_drawlist_metal(ptAppData->tUiContext.ptDrawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
     pl_end_profile_sample();
 
     // finish recording

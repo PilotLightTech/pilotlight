@@ -1,6 +1,28 @@
 #include "pilotlight.h"
 
+// platform specifics
+#ifdef _WIN32
+#include "pl_os_win32.c"
+#elif defined(__APPLE__)
+#include "pl_os_macos.m"
+#else // linux
+#include "pl_os_linux.c"
+#endif
+
 #include "pl_draw.c"
+
+// extensions
+#ifdef PL_VULKAN_BACKEND
+#include "../extensions/pl_gltf_extension.c"
+#endif
+
+#define PL_STL_EXT_IMPLEMENTATION
+#include "../extensions/pl_stl_extension.h"
+#undef PL_STL_EXT_IMPLEMENTATION
+
+#ifdef PL_VULKAN_BACKEND
+#include "pl_renderer.c"
+#endif
 #include "pl_ui.c"
 
 #define PL_MEMORY_IMPLEMENTATION
@@ -34,15 +56,6 @@
 #define PL_CAMERA_IMPLEMENTATION
 #include "pl_camera.h"
 #undef PL_CAMERA_IMPLEMENTATION
-
-// platform specifics
-#ifdef _WIN32
-#include "pl_os_win32.c"
-#elif defined(__APPLE__)
-#include "pl_os_macos.m"
-#else // linux
-#include "pl_os_linux.c"
-#endif
 
 #ifdef PL_USE_STB_SPRINTF
 #define STB_SPRINTF_IMPLEMENTATION
@@ -82,6 +95,3 @@
 #include "stb_image.h"
 #undef STB_IMAGE_IMPLEMENTATION
 
-#define PL_STL_EXT_IMPLEMENTATION
-#include "../extensions/pl_stl_ext.h"
-#undef PL_STL_EXT_IMPLEMENTATION

@@ -45,6 +45,7 @@ uint32_t    pl_str_hash     (const char* pcData, size_t szDataSize, uint32_t uSe
 // file/path string ops
 const char* pl_str_get_file_extension(const char* pcFilePath, char* pcExtensionOut);
 const char* pl_str_get_file_name     (const char* pcFilePath, char* pcFileOut);
+const char* pl_str_get_file_name_only(const char* pcFilePath, char* pcFileOut);
 void        pl_str_get_directory     (const char* pcFilePath, char* pcDirectoryOut);
 
 // misc. opts
@@ -231,6 +232,62 @@ pl_str_get_file_name(const char* pcFilePath, char* pcFileOut)
     else
     {
         if(pcFileOut) memcpy(pcFileOut, pcFilePath, szLen + 1);
+    }
+
+    return pcResult;
+}
+
+const char*
+pl_str_get_file_name_only(const char* pcFilePath, char* pcFileOut)
+{
+    const char* pcResult = pcFilePath;
+    const size_t szLen = strlen(pcFilePath);
+
+    // check if string includes directory
+    uint32_t uSlashCount = 0;
+    for(size_t i = 0; i < szLen; i++)
+    {
+        char c = pcFilePath[szLen - i - 1];
+        if(c == '/' || c == '\\')
+            uSlashCount++;
+    }
+
+    if(uSlashCount > 0)
+    {
+        for(size_t i = 0; i < szLen; i++)
+        {
+            char c = pcFilePath[i];
+            if(c == '/' || c == '\\')
+                uSlashCount--;
+
+            if(uSlashCount == 0)
+            {
+                if(pcFileOut) strcpy(pcFileOut, &pcFilePath[i + 1]);
+                pcResult = &pcFilePath[i + 1];
+                break;
+            }
+        }
+    }
+    else
+    {
+        if(pcFileOut) memcpy(pcFileOut, pcFilePath, szLen + 1);
+    }
+
+    const size_t szOutLen = strlen(pcFileOut);
+
+    bool bPeriodReached = false;
+    for(size_t i = 0; i < szLen; i++)
+    {
+        char c = pcFileOut[i];
+        if(c == '.')
+        {
+            bPeriodReached = true;
+        }
+
+        if(bPeriodReached)
+        {
+            pcFileOut[i] = 0;
+        }
     }
 
     return pcResult;
