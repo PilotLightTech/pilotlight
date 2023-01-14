@@ -472,6 +472,9 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             if (tMsg == WM_RBUTTONDOWN || tMsg == WM_RBUTTONDBLCLK) { iButton = 1; }
             if (tMsg == WM_MBUTTONDOWN || tMsg == WM_MBUTTONDBLCLK) { iButton = 2; }
             if (tMsg == WM_XBUTTONDOWN || tMsg == WM_XBUTTONDBLCLK) { iButton = (GET_XBUTTON_WPARAM(tWParam) == XBUTTON1) ? 3 : 4; }
+            if(ptIOCtx->_iMouseButtonsDown == 0 && GetCapture() == NULL)
+                SetCapture(tHwnd);
+            ptIOCtx->_iMouseButtonsDown |= 1 << iButton;
             pl_add_mouse_button_event(iButton, true);
             break;
         }
@@ -485,6 +488,9 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             if (tMsg == WM_RBUTTONUP) { iButton = 1; }
             if (tMsg == WM_MBUTTONUP) { iButton = 2; }
             if (tMsg == WM_XBUTTONUP) { iButton = (GET_XBUTTON_WPARAM(tWParam) == XBUTTON1) ? 3 : 4; }
+            ptIOCtx->_iMouseButtonsDown &= ~(1 << iButton);
+            if(ptIOCtx->_iMouseButtonsDown == 0 && GetCapture() == tHwnd)
+                ReleaseCapture();
             pl_add_mouse_button_event(iButton, false);
             break;
         }

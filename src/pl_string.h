@@ -138,6 +138,8 @@ pl_str_hash(const char* pcData, size_t szDataSize, uint32_t uSeed)
         while (szDataSize-- != 0)
         {
             unsigned char c = *pucData++;
+            if (c == '#' && szDataSize >= 2 && pucData[0] == '#' && pucData[1] == '#')
+                uCrc = uSeed;
             uCrc = (uCrc >> 8) ^ puCrc32Lut[(uCrc & 0xFF) ^ c];
         }
     }
@@ -146,6 +148,8 @@ pl_str_hash(const char* pcData, size_t szDataSize, uint32_t uSeed)
         unsigned char c = *pucData;
         while (c)
         {
+            if (c == '#' && pucData[0] == '#' && pucData[1] == '#')
+                uCrc = uSeed;
             uCrc = (uCrc >> 8) ^ puCrc32Lut[(uCrc & 0xFF) ^ c];
             pucData++;
             c = *pucData;

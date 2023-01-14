@@ -1,5 +1,5 @@
 /*
-   pl_ui.h, v0.1
+   pl_ui.h, v0.2
 */
 
 /*
@@ -9,6 +9,7 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] forward declarations
 // [SECTION] public api
+// [SECTION] enums
 // [SECTION] structs
 */
 
@@ -46,8 +47,10 @@ PL_DECLARE_STRUCT(plUiWindow);
 PL_DECLARE_STRUCT(plUiTabBar);
 PL_DECLARE_STRUCT(plUiPrevItemData);
 PL_DECLARE_STRUCT(plUiNextWindowData);
+PL_DECLARE_STRUCT(plUiTempWindowData);
 
 // enums
+typedef int plUiConditionFlags;
 typedef int plUiNextWindowFlags;
 
 // external (from pl_draw.h)
@@ -67,19 +70,20 @@ void pl_ui_cleanup_context(plUiContext* ptCtx);
 // main
 void pl_ui_new_frame(plUiContext* ptCtx);
 void pl_ui_end_frame(void);
-void pl_ui_render(void);
+void pl_ui_render   (void);
 
 // windows
 bool pl_ui_begin_window(const char* pcName, bool* pbOpen, bool bAutoSize);
-void pl_ui_end_window(void);
+void pl_ui_end_window  (void);
 
 // tooltips
 void pl_ui_begin_tooltip(void);
 void pl_ui_end_tooltip  (void);
 
 // window utils
-void pl_ui_set_next_window_pos (plVec2 tPos);
-void pl_ui_set_next_window_size(plVec2 tSize);
+void pl_ui_set_next_window_pos     (plVec2 tPos, plUiConditionFlags tCondition);
+void pl_ui_set_next_window_size    (plVec2 tSize, plUiConditionFlags tCondition);
+void pl_ui_set_next_window_collapse(bool bCollapsed, plUiConditionFlags tCondition);
 
 // widgets
 bool pl_ui_button      (const char* pcText);
@@ -111,6 +115,17 @@ bool pl_ui_was_last_item_active (void);
 
 // styling
 void pl_ui_set_dark_theme(plUiContext* ptCtx);
+
+//-----------------------------------------------------------------------------
+// [SECTION] enums
+//-----------------------------------------------------------------------------
+
+enum plUiConditionFlags_
+{
+    PL_UI_COND_NONE   = 0,
+    PL_UI_COND_ALWAYS = 1 << 0,
+    PL_UI_COND_ONCE   = 1 << 1
+};
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -145,11 +160,17 @@ typedef struct _plUiStyle
     plVec4 tHeaderCol;
     plVec4 tHeaderHoveredCol;
     plVec4 tHeaderActiveCol;
+    plVec4 tScrollbarBgCol;
+    plVec4 tScrollbarHandleCol;
+    plVec4 tScrollbarFrameCol;
 } plUiStyle;
 
 typedef struct _plUiNextWindowData
 {
     plUiNextWindowFlags tFlags;
+    plUiConditionFlags  tPosCondition;
+    plUiConditionFlags  tSizeCondition;
+    plUiConditionFlags  tCollapseCondition;
     plVec2              tPos;
     plVec2              tSize;
     bool                bCollapsed;
@@ -171,41 +192,47 @@ typedef struct _plUiTabBar
     uint32_t    uNextValue;
 } plUiTabBar;
 
+typedef struct _plUiTempWindowData
+{
+    plVec2       tCursorPos;
+    plVec2       tCursorPrevLine; // cursor before current widget (used for pl_ui_same_line(...))
+    plVec2       tCursorStartPos;
+    plVec2       tCursorMaxPos;
+    uint32_t     uTreeDepth;
+
+} plUiTempWindowData;
+
 typedef struct _plUiWindow
 {
-
-    uint32_t     uId;
-    const char*  pcName;
-    plVec2       tPos;
-    plVec2       tContentPos;
-    plVec2       tContentMaxSize;
-    plVec2       tMinSize;
-    plVec2       tSize;
-    plVec2       tFullSize;
-    plVec2       tCursorPos;
-    plVec2       tCursorPrevLine;
-    float        fTextVerticalOffset;
-    uint32_t     uTreeDepth;
-    plUiWindow*  ptParentWindow;
-
-    // state
-    bool         bHovered;
-    bool         bActive;
-    bool         bDragging;
-    bool         bResizing;
-    bool         bAutoSize;
-    bool         bCollapsed;
-
-    uint64_t     ulFrameActivated;
-    uint64_t     ulFrameHovered;
-    
-    plDrawLayer* ptBgLayer;
-    plDrawLayer* ptFgLayer;
+    uint32_t           uId;
+    const char*        pcName;
+    plVec2             tPos;
+    plVec2             tContentSize; // size of contents/scrollable client area
+    plVec2             tMinSize;
+    plVec2             tSize;        // full size or title bar size if collapsed
+    plVec2             tFullSize;
+    plVec2             tScroll;
+    plVec2             tScrollMax;
+    float              fTextVerticalOffset;
+    plUiWindow*        ptParentWindow;
+    bool               bHovered;
+    bool               bActive;
+    bool               bDragging;
+    bool               bResizing;
+    bool               bAutoSize;
+    bool               bCollapsed;
+    uint64_t           ulFrameActivated;
+    uint64_t           ulFrameHovered;
+    plUiTempWindowData tTempData;
+    plDrawLayer*       ptBgLayer;
+    plDrawLayer*       ptFgLayer;
+    plUiConditionFlags tPosAllowableFlags;
+    plUiConditionFlags tSizeAllowableFlags;
+    plUiConditionFlags tCollapseAllowableFlags;
 } plUiWindow;
 
 typedef struct _plUiContext
 {
-
     plUiStyle tStyle;
 
     // prev/next state
@@ -224,6 +251,9 @@ typedef struct _plUiContext
     uint32_t uNextActiveWindowId;
     uint32_t uHoveredWindowId;
     uint32_t uNextHoveredWindowId;
+    bool     bMouseOwned;
+    bool     bWantMouse;
+    bool     bWantMouseNextFrame;
 
     // windows
     plUiWindow   tTooltipWindow;

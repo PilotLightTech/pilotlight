@@ -79,11 +79,12 @@ bool         pl_is_mouse_down          (plMouseButton tButton);
 bool         pl_is_mouse_clicked       (plMouseButton tButton, bool bRepeat);
 bool         pl_is_mouse_released      (plMouseButton tButton);
 bool         pl_is_mouse_double_clicked(plMouseButton tButton);
-bool         pl_is_mouse_hovering_rect (plVec2 tMin, plVec2 tMax);
 bool         pl_is_mouse_dragging      (plMouseButton tButton, float fThreshold);
+bool         pl_is_mouse_hovering_rect (plVec2 minVec, plVec2 maxVec);
 void         pl_reset_mouse_drag_delta (plMouseButton tButton);
 plVec2       pl_get_mouse_drag_delta   (plMouseButton tButton, float fThreshold);
 plVec2       pl_get_mouse_pos          (void);
+float        pl_get_mouse_wheel        (void);
 bool         pl_is_mouse_pos_valid     (plVec2 tPos);
 
 // input functions
@@ -268,6 +269,7 @@ typedef struct _plIOContext
     // main input state
     plVec2 _tMousePos;
     bool   _abMouseDown[5];
+    int    _iMouseButtonsDown;
     float  _fMouseWheel;
     float  _fMouseWheelH;
 
@@ -467,7 +469,7 @@ pl_end_io_frame(void)
 plKeyData*
 pl_get_key_data(plKey tKey)
 {
-    PL_ASSERT(tKey > PL_KEY_NONE && tKey < PL_KEY_COUNT && "Key not valide");
+    PL_ASSERT(tKey > PL_KEY_NONE && tKey < PL_KEY_COUNT && "Key not valid");
     return &gptIOContext->_tKeyData[tKey];
 }
 
@@ -629,6 +631,13 @@ pl_is_mouse_dragging(plMouseButton tButton, float fThreshold)
     return ptIO->_afMouseDragMaxDistSqr[tButton] >= fThreshold * fThreshold;
 }
 
+bool
+pl_is_mouse_hovering_rect(plVec2 minVec, plVec2 maxVec)
+{
+    const plVec2 tMousePos = gptIOContext->_tMousePos;
+    return ( tMousePos.x >= minVec.x && tMousePos.y >= minVec.y && tMousePos.x <= maxVec.x && tMousePos.y <= maxVec.y);
+}
+
 void
 pl_reset_mouse_drag_delta(plMouseButton tButton)
 {
@@ -646,7 +655,7 @@ pl_get_mouse_drag_delta(plMouseButton tButton, float fThreshold)
         if(ptIO->_afMouseDragMaxDistSqr[tButton] >= fThreshold * fThreshold)
         {
             if(pl_is_mouse_pos_valid(ptIO->_tMousePos) && pl_is_mouse_pos_valid(ptIO->_atMouseClickedPos[tButton]))
-                return PL_IO_VEC2_SUBTRACT(ptIO->_tMousePos, ptIO->_atMouseClickedPos[tButton]);
+                return PL_IO_VEC2_SUBTRACT(ptIO->_tLastValidMousePos, ptIO->_atMouseClickedPos[tButton]);
         }
     }
     return (plVec2){0};
@@ -656,6 +665,12 @@ plVec2
 pl_get_mouse_pos(void)
 {
     return gptIOContext->_tMousePos;
+}
+
+float
+pl_get_mouse_wheel(void)
+{
+    return gptIOContext->_fMouseWheel;
 }
 
 bool
@@ -681,8 +696,12 @@ pl__update_events(void)
         {
             case PL_INPUT_EVENT_TYPE_MOUSE_POS:
             {
-                ptIO->_tMousePos.x = ptEvent->fPosX;
-                ptIO->_tMousePos.y = ptEvent->fPosY;
+
+                if(ptEvent->fPosX != -FLT_MAX && ptEvent->fPosY != -FLT_MAX)
+                {
+                    ptIO->_tMousePos.x = ptEvent->fPosX;
+                    ptIO->_tMousePos.y = ptEvent->fPosY;
+                }
                 break;
             }
 
@@ -788,7 +807,7 @@ pl__update_mouse_inputs(void)
         }
         else if(ptIO->_abMouseDown[i])
         {
-            float fDeltaSqrClickPos = pl_is_mouse_pos_valid(ptIO->_tMousePos) ? PL_IO_VEC2_LENGTH_SQR(PL_IO_VEC2_SUBTRACT(ptIO->_tMousePos, ptIO->_atMouseClickedPos[i])) : 0.0f;
+            float fDeltaSqrClickPos = PL_IO_VEC2_LENGTH_SQR(PL_IO_VEC2_SUBTRACT(ptIO->_tLastValidMousePos, ptIO->_atMouseClickedPos[i]));
             ptIO->_afMouseDragMaxDistSqr[i] = PL_IO_MAX(fDeltaSqrClickPos, ptIO->_afMouseDragMaxDistSqr[i]);
         }
 

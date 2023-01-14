@@ -273,8 +273,8 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     }
 
     // load grass
-    const uint32_t uGrassRows = 50;
-    const uint32_t uGrassColumns = 50;
+    const uint32_t uGrassRows = 10;
+    const uint32_t uGrassColumns = 10;
     const float fGrassSpacing = 0.25f;
     pl_setup_grass(ptAppData, uGrassRows * uGrassColumns);
     const plVec3 tGrassCenterPoint = {(float)uGrassColumns * fGrassSpacing / 2.0f};
@@ -528,11 +528,20 @@ pl_app_update(plAppData* ptAppData)
         // ui
 
         static bool bOpen = true;
+        static bool bDemoOpen = false;
+
+        pl_ui_set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
 
         if(pl_ui_begin_window("Pilot Light", NULL, false))
         {
             pl_ui_text("%.6f ms", ptIOCtx->fDeltaTime);
             pl_ui_checkbox("Camera Info", &bOpen);
+            pl_ui_checkbox("UI Demo", &bDemoOpen);
+
+            if(pl_ui_button("Move"))
+            {
+                pl_ui_set_next_window_collapse(true, PL_UI_COND_ONCE);
+            }
 
             static bool bMaterialsOpen = false;
             static bool bOpenValues[512] = {0};
@@ -567,6 +576,92 @@ pl_app_update(plAppData* ptAppData)
                 pl_ui_text("Up: %.3f, %.3f, %.3f", ptAppData->tCamera._tUpVec.x, ptAppData->tCamera._tUpVec.y, ptAppData->tCamera._tUpVec.z);
                 pl_ui_text("Forward: %.3f, %.3f, %.3f", ptAppData->tCamera._tForwardVec.x, ptAppData->tCamera._tForwardVec.y, ptAppData->tCamera._tForwardVec.z);
                 pl_ui_text("Right: %.3f, %.3f, %.3f", ptAppData->tCamera._tRightVec.x, ptAppData->tCamera._tRightVec.y, ptAppData->tCamera._tRightVec.z);  
+            }
+            pl_ui_end_window();
+        }
+
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~UI DEMO~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        if(bDemoOpen)
+        {
+            if(pl_ui_begin_window("UI Demo", &bDemoOpen, false))
+            {
+                pl_ui_progress_bar(0.75f, (plVec2){-1.0f, 0.0f}, NULL);
+                if(pl_ui_button("Hover me!"))
+                    bOpen = true;
+
+                if(pl_ui_was_last_item_hovered())
+                {
+                    pl_ui_begin_tooltip();
+                    pl_ui_text("Clicking this button will reshow the camera window!", ptIOCtx->fDeltaTime);
+                    pl_ui_end_tooltip();
+                }
+                static int iValue = 0;
+                pl_ui_text("Radio Buttons");
+                pl_ui_radio_button("Option 1", &iValue, 0);
+                pl_ui_same_line(0.0f, -1.0f);
+                pl_ui_radio_button("Option 2", &iValue, 1);
+                pl_ui_same_line(0.0f, -1.0f);
+                pl_ui_radio_button("Option 3", &iValue, 2);
+                pl_ui_text("Selectables");
+                static bool bSelectable0 = false;
+                static bool bSelectable1 = false;
+                static bool bSelectable2 = false;
+                pl_ui_selectable("Selectable 1", &bSelectable0);
+                pl_ui_selectable("Selectable 2", &bSelectable1);
+                pl_ui_selectable("Selectable 3", &bSelectable2);
+                static bool bOpen0 = false;
+                if(pl_ui_tree_node("Root Node", &bOpen0))
+                {
+                    static bool bOpen1 = false;
+                    if(pl_ui_tree_node("Child 1", &bOpen1))
+                    {
+                        if(pl_ui_button("Press me"))
+                            bOpen = true;
+                        pl_ui_same_line(-1.0f, -1.0f);
+                        pl_ui_button("Press me#2");
+                        pl_ui_tree_pop();
+                    }
+                    static bool bOpen2 = false;
+                    if(pl_ui_tree_node("Child 2", &bOpen2))
+                    {
+                        pl_ui_button("Press me");
+                        pl_ui_tree_pop();
+                    }
+                    pl_ui_tree_pop();
+                }
+                static bool bOpen3 = false;
+                if(pl_ui_collapsing_header("Collapsing Header", &bOpen3))
+                {
+                    pl_ui_checkbox("Camera window2", &bOpen);
+                }
+
+                if(pl_ui_begin_tab_bar("Tabs1"))
+                {
+                    if(pl_ui_begin_tab("Tab 0"))
+                    {
+                        pl_ui_selectable("Selectable 1", &bSelectable0);
+                        pl_ui_selectable("Selectable 2##2", &bSelectable1);
+                        pl_ui_selectable("Selectable 3", &bSelectable2);   
+                    }
+                    pl_ui_end_tab();
+
+                    if(pl_ui_begin_tab("Tab 1"))
+                    {
+                        pl_ui_radio_button("Option 1", &iValue, 0);
+                        pl_ui_radio_button("Option 2", &iValue, 1);
+                        pl_ui_radio_button("Option 3", &iValue, 2);
+                    }
+                    pl_ui_end_tab();
+
+                    if(pl_ui_begin_tab("Tab 2"))
+                    {
+                        pl_ui_radio_button("Option 1", &iValue, 0);
+                        pl_ui_selectable("Selectable 2", &bSelectable1);
+                    }
+                    pl_ui_end_tab();
+                }
+                pl_ui_end_tab_bar();
             }
             pl_ui_end_window();
         }

@@ -221,13 +221,20 @@ pl_add_lines(plDrawLayer* layer, plVec2* points, uint32_t count, plVec4 color, f
 void
 pl_add_text(plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec4 color, const char* text, float wrap)
 {
+    const char* pcTextEnd = text + strlen(text);
+    pl_add_text_ex(layer, font, size, p, color, text, pcTextEnd, wrap);
+}
+
+void
+pl_add_text_ex(plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec4 color, const char* text, const char* pcTextEnd, float wrap)
+{
     float scale = size > 0.0f ? size / font->config.fontSize : 1.0f;
 
     float lineSpacing = scale * font->lineSpacing;
     const plVec2 originalPosition = p;
     bool firstCharacter = true;
 
-    while(*text)
+    while(text < pcTextEnd)
     {
         uint32_t c = (uint32_t)*text;
         if(c < 0x80)
@@ -618,6 +625,13 @@ pl_add_font_from_memory_ttf(plFontAtlas* atlas, plFontConfig config, void* data)
 plVec2
 pl_calculate_text_size(plFont* font, float size, const char* text, float wrap)
 {
+    const char* pcTextEnd = text + strlen(text);
+    return pl_calculate_text_size_ex(font, size, text, pcTextEnd, wrap);
+}
+
+plVec2
+pl_calculate_text_size_ex(plFont* font, float size, const char* text, const char* pcTextEnd, float wrap)
+{
     plVec2 result = {0};
     plVec2 cursor = {0};
 
@@ -627,7 +641,7 @@ pl_calculate_text_size(plFont* font, float size, const char* text, float wrap)
     const plVec2 originalPosition = {0};
     bool firstCharacter = true;
 
-    while(*text)
+    while(text < pcTextEnd)
     {
         uint32_t c = (uint32_t)*text;
         if(c < 0x80)

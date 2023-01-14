@@ -112,6 +112,7 @@ void            pl_submit_draw_layer(plDrawLayer* ptLayer);
 void            pl_add_line           (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec4 tColor, float fThickness);
 void            pl_add_lines          (plDrawLayer* ptLayer, plVec2* atPoints, uint32_t uCount, plVec4 tColor, float fThickness);
 void            pl_add_text           (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
+void            pl_add_text_ex        (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
 void            pl_add_triangle       (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness);
 void            pl_add_triangle_filled(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor);
 void            pl_add_rect           (plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness);
@@ -128,6 +129,7 @@ void            pl_add_default_font        (plFontAtlas* ptAtlas);
 void            pl_add_font_from_file_ttf  (plFontAtlas* ptAtlas, plFontConfig tConfig, const char* pcFile);
 void            pl_add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, void* pData);
 plVec2          pl_calculate_text_size     (plFont* ptFont, float fSize, const char* pcText, float fWrap);
+plVec2          pl_calculate_text_size_ex  (plFont* ptFont, float fSize, const char* pcText, const char* pcTextEnd, float fWrap);
 
 // clipping
 void            pl_push_clip_rect_pt       (const plRect* ptRect);
