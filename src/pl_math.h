@@ -313,27 +313,36 @@ pl_rotation_translation_scale(plVec4 tQ, plVec3 tV, plVec3 tS)
     const float wy = tQ.w * y2;
     const float wz = tQ.w * z2;
 
-    return (plMat4){
-        .col[0].x = (1.0f - (yy + zz)) * tS.x,
-        .col[0].y = (xy - wz) * tS.y,
-        .col[0].z = (xz + wy) * tS.z,
-        .col[0].w = tV.x,
-
-        .col[1].x = (xy + wz) * tS.x,
-        .col[1].y = (1 - (xx + zz)) * tS.y,
-        .col[1].z = (yz - wx) * tS.z,
-        .col[1].w = tV.y,
-
-        .col[2].x = (xz - wy) * tS.x,
-        .col[2].y = (yz + wx) * tS.y,
-        .col[2].z = (1.0f - (xx + yy)) * tS.z,
-        .col[2].w = tV.z,
-
-        .col[3].x = 0.0f,
-        .col[3].y = 0.0f,
-        .col[3].z = 0.0f,
-        .col[3].w = 1.0f
+    const plMat4 tResult = {
+        .col = {
+            {
+                .x = (1.0f - (yy + zz)) * tS.x,
+                .y = (xy + wz) * tS.x,
+                .z = (xz - wy) * tS.x,
+                .w = 0.0f
+            },
+            {
+                .x = (xy - wz) * tS.y,
+                .y = (1 - (xx + zz)) * tS.y,
+                .z = (yz + wx) * tS.y,
+                .w = 0.0f
+            },
+            {
+                .x = (xz + wy) * tS.z,
+                .y = (yz - wx) * tS.z,
+                .z = (1.0f - (xx + yy)) * tS.z,
+                .w = 0.0f,
+            },
+            {
+                .x = tV.x,
+                .y = tV.y,
+                .z = tV.z,
+                .w = 1.0f
+            }
+        }
     };
+
+    return tResult;
 }
 
 static inline plMat4
