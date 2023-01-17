@@ -445,6 +445,31 @@ pl_add_circle_filled(plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tCol
 }
 
 void
+pl_add_image(plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax)
+{
+    pl_add_image_ex(ptLayer, tTexture, tPMin, tPMax, (plVec2){0}, (plVec2){1.0f, 1.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f});
+}
+
+void
+pl_add_image_ex(plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, plVec4 tColor)
+{
+    pl__prepare_draw_command(ptLayer, tTexture, false);
+    pl__reserve_triangles(ptLayer, 6, 4);
+
+    const plVec2 bottomLeft = { tPMin.x, tPMax.y };
+    const plVec2 topRight =   { tPMax.x, tPMin.y };
+
+    const uint32_t vertexStart = pl_sb_size(ptLayer->drawlist->sbVertexBuffer);
+    pl__add_vertex(ptLayer, tPMin,       tColor, tUvMin);
+    pl__add_vertex(ptLayer, bottomLeft, tColor, (plVec2){tUvMin.x, tUvMax.y});
+    pl__add_vertex(ptLayer, tPMax,       tColor, tUvMax);
+    pl__add_vertex(ptLayer, topRight,   tColor, (plVec2){tUvMax.x, tUvMin.y});
+
+    pl__add_index(ptLayer, vertexStart, 0, 1, 2);
+    pl__add_index(ptLayer, vertexStart, 0, 2, 3);
+}
+
+void
 pl_add_font_from_file_ttf(plFontAtlas* atlas, plFontConfig config, const char* file)
 {
     void* data = pl__read_file(file); // freed after atlas is created

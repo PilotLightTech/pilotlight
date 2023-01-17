@@ -121,6 +121,8 @@ void            pl_add_quad           (plDrawLayer* ptLayer, plVec2 tP0, plVec2 
 void            pl_add_quad_filled    (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor);
 void            pl_add_circle         (plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments, float fThickness);
 void            pl_add_circle_filled  (plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments);
+void            pl_add_image          (plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax);
+void            pl_add_image_ex       (plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, plVec4 tColor);
 
 // fonts
 void            pl_build_font_atlas        (plDrawContext* ptCtx, plFontAtlas* ptAtlas); // implemented by backend

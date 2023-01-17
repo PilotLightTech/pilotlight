@@ -1,5 +1,5 @@
 /*
-   pl_ui.h, v0.2
+   pl_ui.h, v0.3
 */
 
 /*
@@ -58,6 +58,7 @@ PL_DECLARE_STRUCT(plFont);
 PL_DECLARE_STRUCT(plDrawList);
 PL_DECLARE_STRUCT(plDrawLayer);
 PL_DECLARE_STRUCT(plDrawContext);
+typedef void* plTextureId;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -93,6 +94,8 @@ bool pl_ui_radio_button(const char* pcText, int* piValue, int iButtonValue);
 void pl_ui_text        (const char* pcFmt, ...);
 void pl_ui_text_v      (const char* pcFmt, va_list args);
 void pl_ui_progress_bar(float fFraction, plVec2 tSize, const char* pcOverlay);
+void pl_ui_image       (plTextureId tTexture, plVec2 tSize);
+void pl_ui_image_ex    (plTextureId tTexture, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor);
 
 // trees
 bool pl_ui_collapsing_header(const char* pcText, bool* pbOpenState);
@@ -108,6 +111,7 @@ void pl_ui_end_tab      (void);
 // layout
 void pl_ui_same_line(float fOffsetFromStart, float fSpacing);
 void pl_ui_align_text(void);
+void pl_ui_vertical_spacing(void);
 
 // state query
 bool pl_ui_was_last_item_hovered(void);
@@ -195,10 +199,11 @@ typedef struct _plUiTabBar
 typedef struct _plUiTempWindowData
 {
     plVec2       tCursorPos;
-    plVec2       tCursorPrevLine; // cursor before current widget (used for pl_ui_same_line(...))
     plVec2       tCursorStartPos;
     plVec2       tCursorMaxPos;
     uint32_t     uTreeDepth;
+    plVec2       tLastLineSize;
+    plVec2       tCurrentLineSize;
 
 } plUiTempWindowData;
 
