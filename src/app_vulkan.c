@@ -92,6 +92,7 @@ typedef struct _plAppData
     uint32_t        uGrassConstantBuffer;
     plBindGroup*    sbtGrassBindGroup2;
     plMesh*         sbtGrassMeshes;
+    plTextureId     tGrassTextureId;
 
     // skybox
     uint32_t        uSkyboxTexture;
@@ -240,6 +241,7 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     pl_update_bind_group(&ptAppData->tGraphics, &ptAppData->tSkyboxBindGroup2, 1, &ptAppData->uSkyboxConstantBuffer, 1, &ptAppData->uSkyboxTexture);
 
     // load gltf meshes
+    // pl_ext_load_gltf(&ptAppData->tRenderer, "../data/glTF-Sample-Models-master/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf", &ptAppData->tGltf);
     pl_ext_load_gltf(&ptAppData->tRenderer, "../data/glTF-Sample-Models-master/2.0/Sponza/glTF/Sponza.gltf", &ptAppData->tGltf);
     pl_sb_reserve(ptAppData->sbtBindGroups, pl_sb_size(ptAppData->tGltf.sbtMeshes));
     pl_sb_reserve(ptAppData->sbuMaterialIndices, pl_sb_size(ptAppData->tGltf.sbtMeshes));
@@ -258,19 +260,26 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
         pl_update_bind_group(&ptAppData->tGraphics, &pl_sb_last(ptAppData->sbtBindGroups), 1, &ptAppData->uConstantBuffer, 0, NULL);
     }
 
-    const plMat4 tGltfRotation = pl_mat4_scale_xyz(0.008f, 0.008f, 0.008f);
-    const plMat4 tGltfTranslation = pl_mat4_translate_xyz(0.0f, 0.0f, 2.0f);
-    for(uint32_t j = 0; j < ptAppData->tGraphics.uFramesInFlight; j++)
+    // const plMat4 tGltfRotation = pl_mat4_scale_xyz(0.008f, 0.008f, 0.008f);
+    plMat4 tGltfRotation = pl_identity_mat4();
+    // const plMat4 tGltfTranslation = pl_mat4_translate_xyz(0.0f, 0.0f, 0.0f);
+    for(uint32_t i = 0; i < pl_sb_size(ptAppData->tGltf.sbtScenes[ptAppData->tGltf.uScene].sbuRootNodes); i++)
     {
-
-        for(uint32_t i = 0; i < pl_sb_size(ptAppData->tGltf.sbtMeshes); i++)
-        {
-
-            plObjectInfo* ptObjectInfo = pl_get_constant_buffer_data_ex(&ptAppData->tGraphics.tResourceManager, ptAppData->uConstantBuffer, (size_t)j, i);
-            ptObjectInfo->tModel = pl_mul_mat4(&tGltfTranslation, &tGltfRotation);
-            ptObjectInfo->uVertexOffset = ptAppData->tGltf.sbuVertexOffsets[i];
-      }
+        const uint32_t uRootNode = ptAppData->tGltf.sbtScenes[ptAppData->tGltf.uScene].sbuRootNodes[i];
+        pl_update_nodes(&ptAppData->tGraphics, ptAppData->tGltf.sbuVertexOffsets, ptAppData->tGltf.sbtNodes, uRootNode, ptAppData->uConstantBuffer, &tGltfRotation);
     }
+    
+    // for(uint32_t j = 0; j < ptAppData->tGraphics.uFramesInFlight; j++)
+    // {
+
+    //     for(uint32_t i = 0; i < pl_sb_size(ptAppData->tGltf.sbtNodes); i++)
+    //     {
+
+    //         plObjectInfo* ptObjectInfo = pl_get_constant_buffer_data_ex(&ptAppData->tGraphics.tResourceManager, ptAppData->uConstantBuffer, (size_t)j, i);
+    //         // ptObjectInfo->tModel = pl_mul_mat4(&tGltfTranslation, &tGltfRotation);
+    //         ptObjectInfo->uVertexOffset = ptAppData->tGltf.sbuVertexOffsets[i];
+    //   }
+    // }
 
     // load grass
     const uint32_t uGrassRows = 10;
@@ -470,11 +479,18 @@ pl_app_update(plAppData* ptAppData)
         ptSkyboxInfo->tCameraViewProj = pl_mul_mat4(&ptAppData->tCamera.tViewMat, &tReverseTransform);
         ptSkyboxInfo->tCameraViewProj = pl_mul_mat4(&ptAppData->tCamera.tProjMat, &ptSkyboxInfo->tCameraViewProj);
 
+        plMat4 tGltfRotation = pl_identity_mat4();
+        for(uint32_t i = 0; i < pl_sb_size(ptAppData->tGltf.sbtScenes[ptAppData->tGltf.uScene].sbuRootNodes); i++)
+        {
+            const uint32_t uRootNode = ptAppData->tGltf.sbtScenes[ptAppData->tGltf.uScene].sbuRootNodes[i];
+            pl_update_nodes(&ptAppData->tGraphics, ptAppData->tGltf.sbuVertexOffsets, ptAppData->tGltf.sbtNodes, uRootNode, ptAppData->uConstantBuffer, &tGltfRotation);
+        }
+
         pl_renderer_begin_frame(&ptAppData->tRenderer);
 
         pl_begin_profile_sample("Submit Meshes");
-        pl_renderer_submit_meshes(&ptAppData->tRenderer, ptAppData->sbtGrassMeshes, ptAppData->sbuGrassMaterialIndices, ptAppData->sbtGrassBindGroup2, ptAppData->uGrassConstantBuffer, ptAppData->uGrassMeshCount);
-        pl_renderer_submit_meshes(&ptAppData->tRenderer, &ptAppData->tStlMesh, &ptAppData->uSolidMaterial, &ptAppData->tStlBindGroup2, ptAppData->uStlConstantBuffer, 1);
+        // pl_renderer_submit_meshes(&ptAppData->tRenderer, ptAppData->sbtGrassMeshes, ptAppData->sbuGrassMaterialIndices, ptAppData->sbtGrassBindGroup2, ptAppData->uGrassConstantBuffer, ptAppData->uGrassMeshCount);
+        // pl_renderer_submit_meshes(&ptAppData->tRenderer, &ptAppData->tStlMesh, &ptAppData->uSolidMaterial, &ptAppData->tStlBindGroup2, ptAppData->uStlConstantBuffer, 1);
         pl_renderer_submit_meshes(&ptAppData->tRenderer, ptAppData->tGltf.sbtMeshes, ptAppData->tGltf.sbuMaterialIndices, ptAppData->sbtBindGroups, ptAppData->uConstantBuffer, pl_sb_size(ptAppData->tGltf.sbtMeshes));
 
         pl_sb_push(ptAppData->tRenderer.sbtDrawAreas, ((plDrawArea){
@@ -510,6 +526,8 @@ pl_app_update(plAppData* ptAppData)
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~drawing api~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         ptAppData->ptDrawExtApi->pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, "Drawn from extension!");
+
+        // pl_add_image(ptAppData->fgDrawLayer, ptAppData->tGrassTextureId, (plVec2){0.0f, 0.0f}, (plVec2){600.0f, 600.0f});
 
         // draw profiling info
 
@@ -642,7 +660,9 @@ pl_app_update(plAppData* ptAppData)
                     {
                         pl_ui_selectable("Selectable 1", &bSelectable0);
                         pl_ui_selectable("Selectable 2##2", &bSelectable1);
-                        pl_ui_selectable("Selectable 3", &bSelectable2);   
+                        pl_ui_selectable("Selectable 3", &bSelectable2);
+                        pl_ui_vertical_spacing();
+                        pl_ui_image_ex(ptAppData->tGrassTextureId, (plVec2){200.0f, 200.0f}, (plVec2){0}, (plVec2){1.0f, 1.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f});
                     }
                     pl_ui_end_tab();
 
@@ -896,6 +916,7 @@ pl_setup_grass(plAppData* ptAppData, uint32_t uMaxGrassMeshes)
         .tViewType   = VK_IMAGE_VIEW_TYPE_2D
     };
     ptAppData->uGrassTexture  = pl_create_texture(&ptAppData->tGraphics.tResourceManager, tTextureDesc, sizeof(unsigned char) * texHeight * texHeight * 4, rawBytes);
+    ptAppData->tGrassTextureId = pl_add_texture(&ptAppData->tCtx, ptAppData->tGraphics.tResourceManager.sbtTextures[ptAppData->uGrassTexture].tImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     pl_sb_resize(ptAppData->sbtGrassBindGroup2, uMaxGrassMeshes);
 
     // create material for grass

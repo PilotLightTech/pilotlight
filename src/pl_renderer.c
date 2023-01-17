@@ -1,6 +1,7 @@
 #include "pl_renderer.h"
 #include "pl_graphics_vulkan.h"
 #include "pl_ds.h"
+#include "pl_math.h"
 
 void
 pl_setup_asset_registry(plGraphics* ptGraphics, plAssetRegistry* ptRegistryOut)
@@ -132,6 +133,22 @@ pl_renderer_begin_frame(plRenderer* ptRenderer)
         pl_update_bind_group(ptRenderer->ptGraphics, &ptRenderer->tGlobalBindGroup, 2, atBuffers0, 0, NULL);
     }
 }
+
+void
+pl_update_nodes(plGraphics* ptGraphics, uint32_t* auVertexOffsets, plNode* acNodes, uint32_t uCurrentNode, uint32_t uConstantBuffer, plMat4* ptMatrix)
+{
+    plMat4 tTransform = pl_mul_mat4(ptMatrix, &acNodes[uCurrentNode].tMatrix);
+    for(uint32_t i = 0; i < pl_sb_size(acNodes[uCurrentNode].sbuMeshes); i++)
+    {
+        uint32_t uMesh = acNodes[uCurrentNode].sbuMeshes[i];
+        plObjectInfo* ptObjectInfo = pl_get_constant_buffer_data(&ptGraphics->tResourceManager, uConstantBuffer, uMesh);
+        ptObjectInfo->tModel = tTransform;
+        ptObjectInfo->uVertexOffset = auVertexOffsets[uMesh];
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(acNodes[uCurrentNode].sbuChildren); i++)
+        pl_update_nodes(ptGraphics, auVertexOffsets, acNodes, acNodes[uCurrentNode].sbuChildren[i], uConstantBuffer, &tTransform);
+};
 
 void
 pl_renderer_submit_meshes(plRenderer* ptRenderer, plMesh* ptMeshes, uint32_t* puMaterials, plBindGroup* ptBindGroup, uint32_t uConstantBuffer, uint32_t uMeshCount)

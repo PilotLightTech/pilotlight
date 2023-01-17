@@ -50,6 +50,8 @@ PL_DECLARE_STRUCT(plGlobalInfo);
 PL_DECLARE_STRUCT(plMaterial);
 PL_DECLARE_STRUCT(plAssetRegistry);
 PL_DECLARE_STRUCT(plRenderer);
+PL_DECLARE_STRUCT(plScene);
+PL_DECLARE_STRUCT(plNode);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -67,6 +69,7 @@ uint32_t pl_create_material       (plAssetRegistry* ptRegistry, plMaterial* ptMa
 void     pl_setup_renderer        (plGraphics* ptGraphics, plAssetRegistry* ptRegistry, plRenderer* ptRendererOut);
 void     pl_cleanup_renderer      (plRenderer* ptRenderer);
 void     pl_renderer_begin_frame  (plRenderer* ptRenderer);
+void     pl_update_nodes          (plGraphics* ptGraphics, uint32_t* auVertexOffsets, plNode* acNodes, uint32_t uCurrentNode, uint32_t uConstantBuffer, plMat4* ptMatrix);
 void     pl_renderer_submit_meshes(plRenderer* ptRenderer, plMesh* ptMeshes, uint32_t* puMaterials, plBindGroup* ptBindGroup, uint32_t uConstantBuffer, uint32_t uMeshCount);
 
 //-----------------------------------------------------------------------------
@@ -116,6 +119,24 @@ typedef struct _plMaterial
     uint64_t    ulShaderTextureFlags;
 
 } plMaterial;
+
+typedef struct _plNode
+{
+    char      acName[PL_MATERIAL_MAX_NAME_LENGTH];
+    uint32_t  uMesh;
+    uint32_t* sbuMeshes;
+    plMat4    tMatrix;
+    plVec3    tTranslation;
+    plVec3    tScale;
+    plVec4    tRotation;
+    uint32_t* sbuChildren;
+} plNode;
+
+typedef struct _plScene
+{
+    char      acName[PL_MATERIAL_MAX_NAME_LENGTH];
+    uint32_t* sbuRootNodes;
+} plScene;
 
 typedef struct _plAssetRegistry
 {

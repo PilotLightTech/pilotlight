@@ -32,7 +32,8 @@ typedef struct _plMaterial plMaterial;
 typedef struct _plMesh plMesh;
 typedef struct _plRenderer plRenderer;
 typedef struct _plGltf plGltf;
-typedef struct _plBindGroup plBindGroup;
+typedef struct _plNode plNode;
+typedef struct _plScene plScene;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -51,6 +52,9 @@ typedef struct _plGltf
    plMesh*      sbtMeshes;
    uint32_t*    sbuVertexOffsets;
    uint32_t*    sbuMaterialIndices;
+   plNode*      sbtNodes;
+   plScene*     sbtScenes;
+   uint32_t     uScene;
 } plGltf;
 
 #endif // PL_GLTF_EXTENSION_H

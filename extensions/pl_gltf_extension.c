@@ -54,20 +54,64 @@ pl_ext_load_gltf(plRenderer* ptRenderer, const char* pcPath, plGltf* ptGltfOut)
 
     ptGltfOut->pcPath = pcPath;
 
+    // load nodes & scenes
+    pl_sb_resize(ptGltfOut->sbtNodes, (uint32_t)ptGltfData->nodes_count);
+    pl_sb_resize(ptGltfOut->sbtScenes, (uint32_t)ptGltfData->scenes_count);
+    for(size_t i = 0; i < ptGltfData->nodes_count; i++)
+    {
+        const cgltf_node* ptNode = &ptGltfData->nodes[i];
+
+        plNode tNewNode = {
+            .tMatrix      = pl_identity_mat4(),
+            .tRotation    = {.w = 1.0f},
+            .tScale       = {1.0f, 1.0f, 1.0f},
+            .tTranslation = {0},
+            .uMesh        = UINT32_MAX
+        };
+
+        if(ptNode->children_count > 0)
+        {
+            pl_sb_resize(tNewNode.sbuChildren, (uint32_t)ptNode->children_count);
+            for(size_t j = 0; j < ptNode->children_count; j++)
+                tNewNode.sbuChildren[j] = (uint32_t)(ptNode->children[j] - ptGltfData->nodes);
+        }
+
+        if(ptNode->has_rotation)    memcpy(tNewNode.tRotation.d, ptNode->rotation, sizeof(float) * 4);
+        if(ptNode->has_scale)       memcpy(tNewNode.tScale.d, ptNode->scale, sizeof(float) * 3);
+        if(ptNode->has_translation) memcpy(tNewNode.tTranslation.d, ptNode->translation, sizeof(float) * 3);
+        if(ptNode->has_matrix)      memcpy(tNewNode.tMatrix.d, ptNode->matrix, sizeof(float) * 16);
+        else                        tNewNode.tMatrix = pl_rotation_translation_scale(tNewNode.tRotation, tNewNode.tTranslation, tNewNode.tScale);
+        if(ptNode->mesh)            tNewNode.uMesh = (uint32_t)(ptNode->mesh - ptGltfData->meshes);
+        if(ptNode->name)            strncpy(tNewNode.acName, ptNode->name, PL_MATERIAL_MAX_NAME_LENGTH);
+        ptGltfOut->sbtNodes[i] = tNewNode;
+    }
+
+    for(size_t i = 0; i < ptGltfData->scenes_count; i++)
+    {
+        const cgltf_scene* ptScene = &ptGltfData->scenes[i];
+
+        if(ptScene->nodes_count > 0)
+        {
+            pl_sb_resize(ptGltfOut->sbtScenes[i].sbuRootNodes, (uint32_t)ptScene->nodes_count);
+            for(size_t j = 0; j < ptScene->nodes_count; j++)
+                ptGltfOut->sbtScenes[i].sbuRootNodes[j] = (uint32_t)(ptScene->nodes[j] - ptGltfData->nodes);
+        }
+        if(ptScene->name) strncpy(ptGltfOut->sbtScenes[i].acName, ptScene->name, PL_MATERIAL_MAX_NAME_LENGTH);
+    }
+
+    if(ptGltfData->scene) ptGltfOut->uScene = (uint32_t)(ptGltfData->scene - ptGltfData->scenes);
+
     // reserve enough space for all meshes
     uint32_t uMeshCount = 0;
     for(size_t i = 0; i < ptGltfData->meshes_count; i++)
         uMeshCount += (uint32_t)ptGltfData->meshes[i].primitives_count;
     pl_sb_resize(ptGltfOut->sbtMeshes, uMeshCount);
     pl_sb_resize(ptGltfOut->sbuVertexOffsets, uMeshCount);
-    
 
-    cgltf_material** sbtMaterialBuffer = NULL;
+    // load materials
     pl_sb_resize(ptGltfOut->sbtMaterials, (uint32_t)ptGltfData->materials_count);
     for(size_t i = 0; i < ptGltfData->materials_count; i++)
     {
-        pl_sb_push(sbtMaterialBuffer, &ptGltfData->materials[i]);
-
         char acMaterialName[PL_MATERIAL_MAX_NAME_LENGTH] = {0};
         char acMaterialIndex[64] = {0};
         pl_sprintf(acMaterialIndex, "_mesh_%zu", i);
@@ -98,12 +142,16 @@ pl_ext_load_gltf(plRenderer* ptRenderer, const char* pcPath, plGltf* ptGltfOut)
         return false;
     }
 
+    // load meshes
     uint32_t uCurrentMesh = 0;
+    uint32_t* sbuNodeIndices = NULL;
     for(size_t szMeshIndex = 0; szMeshIndex < ptGltfData->meshes_count; szMeshIndex++)
     {
         const cgltf_mesh* ptMesh = &ptGltfData->meshes[szMeshIndex];
         for(size_t szPrimitiveIndex = 0; szPrimitiveIndex < ptMesh->primitives_count; szPrimitiveIndex++)
         {
+            pl_sb_push(sbuNodeIndices, (uint32_t)szMeshIndex);
+
             const cgltf_primitive* ptPrimitive = &ptMesh->primitives[szPrimitiveIndex];
             const size_t szVertexCount = ptPrimitive->attributes[0].data->count;
             uint32_t uAttributeComponents = 0u;
@@ -490,27 +538,29 @@ pl_ext_load_gltf(plRenderer* ptRenderer, const char* pcPath, plGltf* ptGltfOut)
                 .ulVertexStreamMask1 = tVertexBufferFlags
             };
 
-            bool bMaterialFound = false;
-            for(uint32_t i = 0; i < pl_sb_size(sbtMaterialBuffer); i++)
-            {
-                if(sbtMaterialBuffer[i] == ptPrimitive->material)
-                {
-                    ptGltfOut->sbuMaterialIndices[uCurrentMesh] = i;
-                    bMaterialFound = true;
-                    break;
-                }
-            }
-            PL_ASSERT(bMaterialFound);
-
+            ptGltfOut->sbuMaterialIndices[uCurrentMesh] = (uint32_t)(ptPrimitive->material - ptGltfData->materials);
             pl_sb_reset(sbuIndexBuffer);
             pl_sb_reset(sbfVertexBuffer);
             ptGltfOut->sbtMeshes[uCurrentMesh] = tMesh;
             uCurrentMesh++;
         }
     } 
+
+    // add meshes to nodes
+    for(uint32_t i = 0; i < pl_sb_size(ptGltfOut->sbtNodes); i++)
+    {
+        plNode* ptNode = &ptGltfOut->sbtNodes[i];
+
+        for(uint32_t j = 0; j < pl_sb_size(sbuNodeIndices); j++)
+        {
+            if(sbuNodeIndices[j] == ptNode->uMesh)
+                pl_sb_push(ptNode->sbuMeshes, j);
+        }
+    }
+
     pl_sb_free(sbuIndexBuffer);
     pl_sb_free(sbfVertexBuffer);
-    pl_sb_free(sbtMaterialBuffer);
+    pl_sb_free(sbuNodeIndices);
     return true;    
 }
 
