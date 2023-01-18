@@ -59,13 +59,13 @@ static bool         pl__ui_is_item_hoverable                 (const plRect* ptBo
 
 // content size
 static inline void  pl__ui_register_size                     (float fWidth, float fHeight) { gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(gptCtx->ptCurrentWindow->tTempData.tCursorPos.x + fWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x); gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(gptCtx->ptCurrentWindow->tTempData.tCursorPos.y + fHeight, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y); gptCtx->ptCurrentWindow->tTempData.tCurrentLineSize.x += fWidth;gptCtx->ptCurrentWindow->tTempData.tCurrentLineSize.y = pl_maxf(fHeight, gptCtx->ptCurrentWindow->tTempData.tCurrentLineSize.y);}
-static inline void  pl__ui_register_size_vec2                (plVec2 tSize)                           { gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(gptCtx->ptCurrentWindow->tTempData.tCursorPos.x + tSize.x, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x); gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(gptCtx->ptCurrentWindow->tTempData.tCursorPos.y + tSize.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);}
-static inline float pl__ui_get_window_content_width          (void)                                   { if(gptCtx->ptCurrentWindow->tScrollMax.y > 0.0f) return -10.0f + gptCtx->ptCurrentWindow->tSize.x - gptCtx->tStyle.fWindowHorizontalPadding * 2.0f; return gptCtx->ptCurrentWindow->tSize.x - gptCtx->tStyle.fWindowHorizontalPadding * 2.0f;}
-static inline float pl__ui_get_window_content_width_available(void)                                   { return pl__ui_get_window_content_width() - (gptCtx->ptCurrentWindow->tTempData.tCursorPos.x - gptCtx->ptCurrentWindow->tTempData.tCursorStartPos.x);}
+static inline void  pl__ui_register_size_vec2                (plVec2 tSize)                { gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(gptCtx->ptCurrentWindow->tTempData.tCursorPos.x + tSize.x, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x); gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(gptCtx->ptCurrentWindow->tTempData.tCursorPos.y + tSize.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);}
+static inline float pl__ui_get_window_content_width          (void)                        { if(gptCtx->ptCurrentWindow->tScrollMax.y > 0.0f) return -10.0f + gptCtx->ptCurrentWindow->tSize.x - gptCtx->tStyle.fWindowHorizontalPadding * 2.0f; return gptCtx->ptCurrentWindow->tSize.x - gptCtx->tStyle.fWindowHorizontalPadding * 2.0f;}
+static inline float pl__ui_get_window_content_width_available(void)                        { return pl__ui_get_window_content_width() - (gptCtx->ptCurrentWindow->tTempData.tCursorPos.x - gptCtx->ptCurrentWindow->tTempData.tCursorStartPos.x);}
 
 // current cursor
-static inline void  pl__ui_advance_cursor                    (float fX, float fY)                     { gptCtx->ptCurrentWindow->tTempData.tCursorPos.x += fX; gptCtx->ptCurrentWindow->tTempData.tCursorPos.y += fY; }
-static inline void  pl__ui_next_line                         (void)                                   {gptCtx->ptCurrentWindow->tTempData.tCursorPos.x = gptCtx->ptCurrentWindow->tTempData.tCursorStartPos.x + (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize; pl__ui_advance_cursor(0.0f, gptCtx->ptCurrentWindow->tTempData.tCurrentLineSize.y + gptCtx->tStyle.tItemSpacing.y * 2.0f);gptCtx->ptCurrentWindow->tTempData.tLastLineSize = gptCtx->ptCurrentWindow->tTempData.tCurrentLineSize;gptCtx->ptCurrentWindow->tTempData.tCurrentLineSize.x = 0.0f;gptCtx->ptCurrentWindow->tTempData.tCurrentLineSize.y = 0.0f;}
+static inline void  pl__ui_advance_cursor                    (float fX, float fY)          { gptCtx->ptCurrentWindow->tTempData.tCursorPos.x += fX; gptCtx->ptCurrentWindow->tTempData.tCursorPos.y += fY; }
+static inline void  pl__ui_next_line                         (void)                        { gptCtx->ptCurrentWindow->tTempData.tCursorPos.x = gptCtx->ptCurrentWindow->tTempData.tCursorStartPos.x + (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize; pl__ui_advance_cursor(0.0f, gptCtx->ptCurrentWindow->tTempData.tCurrentLineSize.y + gptCtx->tStyle.tItemSpacing.y * 2.0f);gptCtx->ptCurrentWindow->tTempData.tLastLineSize = gptCtx->ptCurrentWindow->tTempData.tCurrentLineSize;gptCtx->ptCurrentWindow->tTempData.tCurrentLineSize.x = 0.0f;gptCtx->ptCurrentWindow->tTempData.tCurrentLineSize.y = 0.0f;}
 
 //-----------------------------------------------------------------------------
 // [SECTION] implementations
@@ -282,8 +282,15 @@ pl_ui_render(void)
     pl_submit_draw_layer(gptCtx->ptBgLayer);
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtFocusedWindows); i++)
     {
-        pl_submit_draw_layer(gptCtx->sbtFocusedWindows[i]->ptBgLayer);
-        pl_submit_draw_layer(gptCtx->sbtFocusedWindows[i]->ptFgLayer);
+        if(gptCtx->sbtFocusedWindows[i]->uHideFrames == 0)
+        {
+            pl_submit_draw_layer(gptCtx->sbtFocusedWindows[i]->ptBgLayer);
+            pl_submit_draw_layer(gptCtx->sbtFocusedWindows[i]->ptFgLayer);
+        }
+        else
+        {
+            gptCtx->sbtFocusedWindows[i]->uHideFrames--;
+        }
     }
     pl_submit_draw_layer(gptCtx->tTooltipWindow.ptBgLayer);
     pl_submit_draw_layer(gptCtx->tTooltipWindow.ptFgLayer);
@@ -394,11 +401,8 @@ pl_ui_begin_window(const char* pcName, bool* pbOpen, bool bAutoSize)
 
     if(gptCtx->ptCurrentWindow->bCollapsed)
         gptCtx->ptCurrentWindow->tSize = (plVec2){gptCtx->ptCurrentWindow->tSize.x, fTitleBarHeight};
-    
-    // update frame this window was hovered
-    if(pl_is_mouse_hovering_rect(gptCtx->ptCurrentWindow->tPos, pl_add_vec2(tStartPos, gptCtx->ptCurrentWindow->tSize)))
-        gptCtx->ptCurrentWindow->ulFrameHovered = pl_get_io_context()->ulFrameCount;
 
+    
     // draw title bar
     const plVec4 tTitleColor = gptCtx->ptCurrentWindow->bActive ? gptCtx->tStyle.tTitleActiveCol: gptCtx->tStyle.tTitleBgCol;
     pl_add_rect_filled(gptCtx->ptCurrentWindow->ptFgLayer, tStartPos, pl_add_vec2(tStartPos, (plVec2){gptCtx->ptCurrentWindow->tSize.x, fTitleBarHeight}), tTitleColor);
@@ -438,8 +442,20 @@ pl_ui_begin_window(const char* pcName, bool* pbOpen, bool bAutoSize)
     {
         pl_add_circle_filled(gptCtx->ptCurrentWindow->ptFgLayer, tCollapsingCenterPos, fTitleBarButtonRadius, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 12);
 
-        if(pl_is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false)) gptCtx->uActiveId = 2;
-        else if(pl_is_mouse_released(PL_MOUSE_BUTTON_LEFT)) gptCtx->ptCurrentWindow->bCollapsed = !gptCtx->ptCurrentWindow->bCollapsed;
+        if(pl_is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+        {
+            gptCtx->uActiveId = 2;
+        }
+        else if(pl_is_mouse_released(PL_MOUSE_BUTTON_LEFT))
+        {
+            gptCtx->ptCurrentWindow->bCollapsed = !gptCtx->ptCurrentWindow->bCollapsed;
+            if(!gptCtx->ptCurrentWindow->bCollapsed)
+            {
+                gptCtx->ptCurrentWindow->tSize = gptCtx->ptCurrentWindow->tFullSize;
+                if(bAutoSize)
+                    gptCtx->ptCurrentWindow->uHideFrames = 2;
+            }
+        }
     }
     else
         pl_add_circle_filled(gptCtx->ptCurrentWindow->ptFgLayer, tCollapsingCenterPos, fTitleBarButtonRadius, (plVec4){0.5f, 0.5f, 0.0f, 1.0f}, 12);
@@ -451,27 +467,6 @@ pl_ui_begin_window(const char* pcName, bool* pbOpen, bool bAutoSize)
         const plVec2 tEndClip = { gptCtx->ptCurrentWindow->tSize.x, gptCtx->ptCurrentWindow->tSize.y - fTitleBarHeight };
         pl_push_clip_rect(pl_calculate_rect(tStartClip, tEndClip));
     }
-
-    // resizing grip
-    const plVec2 tCornerPos = pl_add_vec2(tStartPos, gptCtx->ptCurrentWindow->tSize);
-    const plVec2 tCornerTopPos = pl_add_vec2(tCornerPos, (plVec2){0.0f, -15.0f});
-    const plVec2 tCornerLeftPos = pl_add_vec2(tCornerPos, (plVec2){-15.0f, 0.0f});
-
-    // window background
-    if(!gptCtx->ptCurrentWindow->bCollapsed && !bAutoSize)
-    {
-        if(pl_is_mouse_hovering_rect(tStartPos, pl_add_vec2(tStartPos, gptCtx->ptCurrentWindow->tSize)))
-            gptCtx->ptCurrentWindow->ulFrameHovered = pl_get_io_context()->ulFrameCount;
-    }
-    else if(gptCtx->ptCurrentWindow->bCollapsed)
-    {
-        if(pl_is_mouse_hovering_rect(tStartPos, pl_add_vec2(tStartPos, (plVec2){gptCtx->ptCurrentWindow->tSize.x, fTitleBarHeight})))
-            gptCtx->ptCurrentWindow->ulFrameHovered = pl_get_io_context()->ulFrameCount;
-    }
-
-    // resizing grip
-    if(gptCtx->ptCurrentWindow->bActive && !gptCtx->ptCurrentWindow->bCollapsed && !bAutoSize)
-        pl_add_triangle_filled(gptCtx->ptCurrentWindow->ptFgLayer, tCornerPos, tCornerTopPos, tCornerLeftPos, (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
 
     // update cursors
     gptCtx->ptCurrentWindow->tTempData.tCursorPos.x = floorf(gptCtx->tStyle.fWindowHorizontalPadding + tStartPos.x - gptCtx->ptCurrentWindow->tScroll.x);
@@ -506,6 +501,10 @@ pl_ui_end_window(void)
         // ensure window doesn't get too small
         gptCtx->ptCurrentWindow->tSize.x = gptCtx->ptCurrentWindow->tContentSize.x + gptCtx->tStyle.fWindowHorizontalPadding;
         gptCtx->ptCurrentWindow->tSize.y = fTitleBarHeight + gptCtx->ptCurrentWindow->tContentSize.y + gptCtx->tStyle.fWindowVerticalPadding;
+
+        if(gptCtx->ptCurrentWindow->tSize.x < gptCtx->ptCurrentWindow->tMinSize.x) gptCtx->ptCurrentWindow->tSize.x = gptCtx->ptCurrentWindow->tMinSize.x;
+        if(gptCtx->ptCurrentWindow->tSize.y < gptCtx->ptCurrentWindow->tMinSize.y) gptCtx->ptCurrentWindow->tSize.y = gptCtx->ptCurrentWindow->tMinSize.y;
+
         pl_add_rect_filled(gptCtx->ptCurrentWindow->ptBgLayer, 
             pl_add_vec2(gptCtx->ptCurrentWindow->tPos, (plVec2){0.0f, fTitleBarHeight}), 
             pl_add_vec2(gptCtx->ptCurrentWindow->tPos, gptCtx->ptCurrentWindow->tSize), gptCtx->tStyle.tWindowBgColor);
@@ -516,6 +515,7 @@ pl_ui_end_window(void)
             gptCtx->uNextHoveredWindowId = gptCtx->ptCurrentWindow->uId;
         }
         pl_pop_clip_rect();
+        gptCtx->ptCurrentWindow->tFullSize = gptCtx->ptCurrentWindow->tSize;
     }
 
     // regular window non collapsed
@@ -530,14 +530,34 @@ pl_ui_end_window(void)
             const float fScrollbarHandleSize  = floorf((gptCtx->ptCurrentWindow->tSize.y - fTitleBarHeight) * ((gptCtx->ptCurrentWindow->tSize.y - fTitleBarHeight) / (gptCtx->ptCurrentWindow->tContentSize.y)));
             const float fScrollbarHandleStart = floorf((gptCtx->ptCurrentWindow->tSize.y - fTitleBarHeight - fScrollbarHandleSize) * (gptCtx->ptCurrentWindow->tScroll.y/(gptCtx->ptCurrentWindow->tScrollMax.y)));
             
-            pl_add_rect_filled(gptCtx->ptCurrentWindow->ptBgLayer, pl_add_vec2(gptCtx->ptCurrentWindow->tPos, (plVec2){gptCtx->ptCurrentWindow->tSize.x - 12.0f, fTitleBarHeight}),                         pl_add_vec2(gptCtx->ptCurrentWindow->tPos, (plVec2){gptCtx->ptCurrentWindow->tSize.x - 2.0f, gptCtx->ptCurrentWindow->tSize.y}), gptCtx->tStyle.tScrollbarBgCol);
-            pl_add_rect       (gptCtx->ptCurrentWindow->ptBgLayer, pl_add_vec2(gptCtx->ptCurrentWindow->tPos, (plVec2){gptCtx->ptCurrentWindow->tSize.x - 12.0f, fTitleBarHeight}),                         pl_add_vec2(gptCtx->ptCurrentWindow->tPos, (plVec2){gptCtx->ptCurrentWindow->tSize.x - 2.0f, gptCtx->ptCurrentWindow->tSize.y}), gptCtx->tStyle.tScrollbarFrameCol, 1.0f);
-            pl_add_rect_filled(gptCtx->ptCurrentWindow->ptBgLayer, pl_add_vec2(gptCtx->ptCurrentWindow->tPos, (plVec2){gptCtx->ptCurrentWindow->tSize.x - 12.0f, fTitleBarHeight + fScrollbarHandleStart}), pl_add_vec2(gptCtx->ptCurrentWindow->tPos, (plVec2){gptCtx->ptCurrentWindow->tSize.x - 2.0f, fTitleBarHeight + fScrollbarHandleStart + fScrollbarHandleSize}), gptCtx->tStyle.tScrollbarHandleCol);
+            pl_add_rect_filled(gptCtx->ptCurrentWindow->ptFgLayer, pl_add_vec2(gptCtx->ptCurrentWindow->tPos, (plVec2){gptCtx->ptCurrentWindow->tSize.x - 12.0f, fTitleBarHeight}),                         pl_add_vec2(gptCtx->ptCurrentWindow->tPos, (plVec2){gptCtx->ptCurrentWindow->tSize.x - 2.0f, gptCtx->ptCurrentWindow->tSize.y}), gptCtx->tStyle.tScrollbarBgCol);
+            pl_add_rect       (gptCtx->ptCurrentWindow->ptFgLayer, pl_add_vec2(gptCtx->ptCurrentWindow->tPos, (plVec2){gptCtx->ptCurrentWindow->tSize.x - 12.0f, fTitleBarHeight}),                         pl_add_vec2(gptCtx->ptCurrentWindow->tPos, (plVec2){gptCtx->ptCurrentWindow->tSize.x - 2.0f, gptCtx->ptCurrentWindow->tSize.y}), gptCtx->tStyle.tScrollbarFrameCol, 1.0f);
+            pl_add_rect_filled(gptCtx->ptCurrentWindow->ptFgLayer, pl_add_vec2(gptCtx->ptCurrentWindow->tPos, (plVec2){gptCtx->ptCurrentWindow->tSize.x - 12.0f, fTitleBarHeight + fScrollbarHandleStart}), pl_add_vec2(gptCtx->ptCurrentWindow->tPos, (plVec2){gptCtx->ptCurrentWindow->tSize.x - 2.0f, fTitleBarHeight + fScrollbarHandleStart + fScrollbarHandleSize}), gptCtx->tStyle.tScrollbarHandleCol);
+        }
+
+        // resizing grip
+        if(gptCtx->ptCurrentWindow->bActive)
+        {
+            const plVec2 tCornerPos = pl_add_vec2(gptCtx->ptCurrentWindow->tPos, gptCtx->ptCurrentWindow->tSize);
+            const plVec2 tCornerTopPos = pl_add_vec2(tCornerPos, (plVec2){0.0f, -15.0f});
+            const plVec2 tCornerLeftPos = pl_add_vec2(tCornerPos, (plVec2){-15.0f, 0.0f});
+            pl_add_triangle_filled(gptCtx->ptCurrentWindow->ptFgLayer, tCornerPos, tCornerTopPos, tCornerLeftPos, (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
+        }
+
+        if(pl_is_mouse_hovering_rect(gptCtx->ptCurrentWindow->tPos, pl_add_vec2(gptCtx->ptCurrentWindow->tPos, gptCtx->ptCurrentWindow->tSize)))
+        {
+            gptCtx->ptCurrentWindow->ulFrameHovered = pl_get_io_context()->ulFrameCount; 
+            gptCtx->uNextHoveredWindowId = gptCtx->ptCurrentWindow->uId;
         }
 
         pl_pop_clip_rect();
 
         gptCtx->ptCurrentWindow->tFullSize = gptCtx->ptCurrentWindow->tSize;
+    }
+    else // collapsed
+    {
+        if(pl_is_mouse_hovering_rect(gptCtx->ptCurrentWindow->tPos, pl_add_vec2(gptCtx->ptCurrentWindow->tPos, (plVec2){gptCtx->ptCurrentWindow->tSize.x, fTitleBarHeight})))
+            gptCtx->ptCurrentWindow->ulFrameHovered = pl_get_io_context()->ulFrameCount;
     }
     
     gptCtx->ptCurrentWindow = NULL;

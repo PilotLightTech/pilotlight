@@ -147,7 +147,6 @@ typedef struct _plUiStyle
     plVec2 tInnerSpacing;
     plVec2 tFramePadding;
 
-
     // colors
     plVec4 tTitleActiveCol;
     plVec4 tTitleBgCol;
@@ -234,6 +233,7 @@ typedef struct _plUiWindow
     plUiConditionFlags tPosAllowableFlags;
     plUiConditionFlags tSizeAllowableFlags;
     plUiConditionFlags tCollapseAllowableFlags;
+    uint8_t            uHideFrames;
 } plUiWindow;
 
 typedef struct _plUiContext
