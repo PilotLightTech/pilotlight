@@ -204,10 +204,7 @@ pl__get_wall_clock(void)
         return ((double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9);
     #else // linux
         struct timespec ts;
-        if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) 
-        {
-            PL_ASSERT(false && "clock_gettime() failed");
-        }
+        clock_gettime(CLOCK_MONOTONIC, &ts);
         uint64_t nsec_count = ts.tv_nsec + ts.tv_sec * 1e9;
         return (double)nsec_count / *(double*)gTPProfileContext->pInternal;
     #endif
