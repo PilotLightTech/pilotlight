@@ -75,6 +75,7 @@
 #define PL_DRAW_VULKAN_IMPLEMENTATION
 #include "pl_draw_vulkan.h"
 #undef PL_DRAW_VULKAN_IMPLEMENTATION
+#include "pl_prototype.c"
 #endif
 
 #ifdef PL_DX11_BACKEND
