@@ -64,7 +64,7 @@ Index of this file:
 
 #include <stdint.h>  // uint*_t
 #include <stdbool.h> // bool
-#include "pl_math.inc"
+#include "pl_math.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

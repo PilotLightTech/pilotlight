@@ -2,6 +2,7 @@
 #include "pl_registry.h"
 #include "pl_draw_extension.h"
 #include "pl_draw.h"
+#define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
 plDrawExtension gtDrawExtension = {0};

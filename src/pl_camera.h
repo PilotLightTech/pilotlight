@@ -28,7 +28,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_math.inc"
+#include "pl_math.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -119,6 +119,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
 //-----------------------------------------------------------------------------

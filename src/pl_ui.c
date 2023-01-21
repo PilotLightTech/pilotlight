@@ -20,6 +20,7 @@ Index of this file:
 #include "pl_ui.h"
 #include "pl_ds.h"
 #include "pl_io.h"
+#define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 #include "pl_string.h"
 #include "pl_memory.h"
@@ -661,6 +662,10 @@ pl_ui_button(const char* pcText)
 bool
 pl_ui_selectable(const char* pcText, bool* bpValue)
 {
+    // temporary hack
+    static bool bDummyState = true;
+    if(bpValue == NULL) bpValue = &bDummyState;
+
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
     const float fFrameHeight = pl__ui_get_frame_height();
@@ -700,10 +705,14 @@ pl_ui_selectable(const char* pcText, bool* bpValue)
 }
 
 bool
-pl_ui_checkbox(const char* pcText, bool* bValue)
+pl_ui_checkbox(const char* pcText, bool* bpValue)
 {
+    // temporary hack
+    static bool bDummyState = true;
+    if(bpValue == NULL) bpValue = &bDummyState;
+
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    const bool bOriginalValue = *bValue;
+    const bool bOriginalValue = *bpValue;
     const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
     const plVec2 tTextSize = pl_calculate_text_size(gptCtx->ptFont, gptCtx->tStyle.fFontSize, pcText, -1.0f);
  
@@ -723,13 +732,13 @@ pl_ui_checkbox(const char* pcText, bool* bValue)
     const bool bPressed = pl__ui_button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
 
     if(bPressed)
-        *bValue = !bOriginalValue;
+        *bpValue = !bOriginalValue;
 
     if(bHeld)         pl_add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndBoxPos, gptCtx->tStyle.tFrameBgActiveCol);
     else if(bHovered) pl_add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndBoxPos, gptCtx->tStyle.tFrameBgHoveredCol);
     else              pl_add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndBoxPos, gptCtx->tStyle.tFrameBgCol);
 
-    if(*bValue)
+    if(*bpValue)
         pl_add_line(ptWindow->ptFgLayer, tStartPos, tEndBoxPos, gptCtx->tStyle.tCheckmarkCol, 2.0f);
 
     pl__add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tStyle.tTextCol, pcText, -1.0f);
@@ -780,6 +789,10 @@ pl_ui_radio_button(const char* pcText, int* piValue, int iButtonValue)
 bool
 pl_ui_collapsing_header(const char* pcText, bool* pbOpenState)
 {
+    // temporary hack
+    static bool bDummyState = true;
+    if(pbOpenState == NULL) pbOpenState = &bDummyState;
+
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
     const float fFrameHeight = pl__ui_get_frame_height();
@@ -833,6 +846,10 @@ pl_ui_collapsing_header(const char* pcText, bool* pbOpenState)
 bool
 pl_ui_tree_node(const char* pcText, bool* pbOpenState)
 {
+    // temporary hack
+    static bool bDummyState = true;
+    if(pbOpenState == NULL) pbOpenState = &bDummyState;
+
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
     const float fFrameHeight = pl__ui_get_frame_height();
@@ -858,8 +875,6 @@ pl_ui_tree_node(const char* pcText, bool* pbOpenState)
 
     if(bHeld)         pl_add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tStyle.tHeaderActiveCol);
     else if(bHovered) pl_add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tStyle.tHeaderHoveredCol);
-
-
 
     if(*pbOpenState)
     {

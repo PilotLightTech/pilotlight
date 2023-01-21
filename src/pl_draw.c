@@ -23,6 +23,8 @@ Index of this file:
 #include "stb_truetype.h"
 #include "pl_draw.h"
 #include "pl_ds.h"
+
+#define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
 //-----------------------------------------------------------------------------
