@@ -1,5 +1,5 @@
 /*
-   pl_stl_ext.h, v0.1 (WIP)
+   pl_stl.h, v0.1
 */
 
 /*
@@ -16,15 +16,14 @@ Index of this file:
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_STL_EXT_H
-#define PL_STL_EXT_H
+#ifndef PL_STL_H
+#define PL_STL_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
 #include <stdbool.h>
-#include "pl_math.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -47,7 +46,7 @@ typedef struct _plStlOptions
 {
     bool   bIncludeNormals;
     bool   bIncludeColor;
-    plVec4 tColor;
+    float  afColor[4];
 } plStlOptions;
 
 typedef struct _plStlInfo
@@ -58,7 +57,7 @@ typedef struct _plStlInfo
     bool   bPreloaded;
 } plStlInfo;
 
-#endif // PL_STL_EXT_H
+#endif // PL_STL_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] c file
@@ -77,7 +76,7 @@ Index of this file:
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifdef PL_STL_EXT_IMPLEMENTATION
+#ifdef PL_STL_IMPLEMENTATION
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -85,6 +84,7 @@ Index of this file:
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <float.h>
 
@@ -221,7 +221,7 @@ pl_load_stl(const char* pcData, size_t szDataSize, plStlOptions tOptions, float*
 
         for(size_t i = 0; i < szVertexCount; i++)
         {
-            memcpy(&afVertexStream1[szVertexStream1Pos], tOptions.tColor.d, sizeof(float) * 4);
+            memcpy(&afVertexStream1[szVertexStream1Pos], tOptions.afColor, sizeof(float) * 4);
             szVertexStream1Pos += szStride;
         }
     }
@@ -359,4 +359,4 @@ pl__move_to_first_char(const char* pcData, size_t szDataSize, size_t* pszCurrent
     return 0;   
 }
 
-#endif // PL_STL_EXT_IMPLEMENTATION
+#endif // PL_STL_IMPLEMENTATION

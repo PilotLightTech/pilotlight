@@ -16,9 +16,9 @@
 #include "../extensions/pl_gltf_extension.c"
 #endif
 
-#define PL_STL_EXT_IMPLEMENTATION
-#include "../extensions/pl_stl_extension.h"
-#undef PL_STL_EXT_IMPLEMENTATION
+#define PL_STL_IMPLEMENTATION
+#include "pl_stl.h"
+#undef PL_STL_IMPLEMENTATION
 
 #ifdef PL_VULKAN_BACKEND
 #include "pl_renderer.c"
