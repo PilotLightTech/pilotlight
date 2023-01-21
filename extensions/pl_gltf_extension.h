@@ -1,5 +1,6 @@
 /*
    pl_gltf_extension.h
+   * not actually an extension yet, still a prototype
 */
 
 /*
@@ -50,6 +51,7 @@ typedef struct _plGltf
    const char*  pcPath;
    plMaterial*  sbtMaterials;
    plMesh*      sbtMeshes;
+   uint32_t*    sbuMeshNodeMap;
    uint32_t*    sbuVertexOffsets;
    uint32_t*    sbuMaterialIndices;
    plNode*      sbtNodes;

@@ -16,12 +16,14 @@ Index of this file:
 
 #include "pl_gltf_extension.h"
 #include "pl_ds.h"
+#define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 #include "stb_image.h"
 #include "pl_memory.h"
 #include "pl_graphics_vulkan.h"
 #include "pl_renderer.h"
 #include "pl_string.h"
+#include "pl_prototype.h"
 #include "pilotlight.h"
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
@@ -53,6 +55,14 @@ pl_ext_load_gltf(plRenderer* ptRenderer, const char* pcPath, plGltf* ptGltfOut)
         return false;
 
     ptGltfOut->pcPath = pcPath;
+
+    // reserve enough space for all meshes
+    uint32_t uMeshCount = 0;
+    for(size_t i = 0; i < ptGltfData->meshes_count; i++)
+        uMeshCount += (uint32_t)ptGltfData->meshes[i].primitives_count;
+    pl_sb_resize(ptGltfOut->sbtMeshes, uMeshCount);
+    pl_sb_resize(ptGltfOut->sbuMeshNodeMap, uMeshCount);
+    pl_sb_resize(ptGltfOut->sbuVertexOffsets, uMeshCount);
 
     // load nodes & scenes
     pl_sb_resize(ptGltfOut->sbtNodes, (uint32_t)ptGltfData->nodes_count);
@@ -100,13 +110,6 @@ pl_ext_load_gltf(plRenderer* ptRenderer, const char* pcPath, plGltf* ptGltfOut)
     }
 
     if(ptGltfData->scene) ptGltfOut->uScene = (uint32_t)(ptGltfData->scene - ptGltfData->scenes);
-
-    // reserve enough space for all meshes
-    uint32_t uMeshCount = 0;
-    for(size_t i = 0; i < ptGltfData->meshes_count; i++)
-        uMeshCount += (uint32_t)ptGltfData->meshes[i].primitives_count;
-    pl_sb_resize(ptGltfOut->sbtMeshes, uMeshCount);
-    pl_sb_resize(ptGltfOut->sbuVertexOffsets, uMeshCount);
 
     // load materials
     pl_sb_resize(ptGltfOut->sbtMaterials, (uint32_t)ptGltfData->materials_count);
@@ -534,8 +537,7 @@ pl_ext_load_gltf(plRenderer* ptRenderer, const char* pcPath, plGltf* ptGltfOut)
                 .uVertexCount        = (uint32_t)szVertexCount,
                 .uIndexBuffer        = pl_create_index_buffer(&ptGraphics->tResourceManager, sizeof(uint32_t) * (uint32_t)ptPrimitive->indices->count, sbuIndexBuffer),
                 .uVertexBuffer       = pl_create_vertex_buffer(&ptGraphics->tResourceManager, sizeof(float) * szVertexCount * uAttributeComponents, sizeof(float) * uAttributeComponents, sbfVertexBuffer),
-                .ulVertexStreamMask0 = PL_MESH_FORMAT_FLAG_HAS_POSITION,
-                .ulVertexStreamMask1 = tVertexBufferFlags
+                .ulVertexStreamMask  = tVertexBufferFlags
             };
 
             ptGltfOut->sbuMaterialIndices[uCurrentMesh] = (uint32_t)(ptPrimitive->material - ptGltfData->materials);
@@ -554,7 +556,10 @@ pl_ext_load_gltf(plRenderer* ptRenderer, const char* pcPath, plGltf* ptGltfOut)
         for(uint32_t j = 0; j < pl_sb_size(sbuNodeIndices); j++)
         {
             if(sbuNodeIndices[j] == ptNode->uMesh)
+            {
                 pl_sb_push(ptNode->sbuMeshes, j);
+                ptGltfOut->sbuMeshNodeMap[ptNode->uMesh] = j;
+            }
         }
     }
 
@@ -627,7 +632,7 @@ pl__load_gltf_material(plResourceManager* ptResourceManager, const char* pcPath,
                 .tFormat     = VK_FORMAT_R8G8B8A8_UNORM,
                 .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                 .uLayers     = 1,
-                .uMips       = 1,
+                .uMips       = 0,
                 .tType       = VK_IMAGE_TYPE_2D,
                 .tViewType   = VK_IMAGE_VIEW_TYPE_2D,
             };
