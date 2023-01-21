@@ -1,5 +1,5 @@
 /*
-   vulkan_app.c
+   metal_app.m
 */
 
 /*
@@ -16,16 +16,16 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <string.h> // memset
-#include <d3d11_1.h>
-#include <d3dcompiler.h>
+#import <Metal/Metal.h>
+#import <QuartzCore/CAMetalLayer.h>
 #include "pilotlight.h"
-#include "pl_profile.h"
-#include "pl_draw_dx11.h"
-#include "pl_log.h"
 #include "pl_ds.h"
 #include "pl_io.h"
+#include "pl_profile.h"
+#include "pl_log.h"
 #include "pl_memory.h"
+#include "pl_draw_metal.h"
+#define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 #include "pl_registry.h" // data registry
 #include "pl_ext.h"      // extension registry
@@ -34,49 +34,42 @@ Index of this file:
 // extensions
 #include "pl_draw_extension.h"
 
-#ifndef PL_DX11
-#include <assert.h>
-#define PL_DX11(x) assert(SUCCEEDED((x)))
-#endif
-
-#ifndef PL_COM
-#define PL_COM(x) (x)->lpVtbl
-#endif
-
-#ifndef PL_COM_RELEASE
-#define PL_COM_RELEASE(x) (x)->lpVtbl->Release((x))
-#endif
-
-#pragma comment(lib, "gdi32.lib")
-#pragma comment(lib, "d3d11.lib")
-#pragma comment(lib, "d3dcompiler.lib")
-#pragma comment(lib, "dxguid.lib")
-
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+typedef struct _plMetalDevice
+{
+    id<MTLDevice> device;
+} plMetalDevice;
+
+typedef struct _plMetalGraphics
+{
+    id<MTLCommandQueue> cmdQueue;
+    uint32_t currentFrame;
+    CAMetalLayer *metalLayer;
+} plMetalGraphics;
+
 typedef struct plAppData_t
 {
-    ID3D11Device*           ptDevice;
-    ID3D11DeviceContext*    ptContext;
-    IDXGISwapChain*         ptSwapChain;
-    ID3D11Texture2D*        ptFrameBuffer;
-    ID3D11RenderTargetView* ptFrameBufferView;
-    plDrawContext           ctx;
-    plDrawList              drawlist;
-    plDrawLayer*            fgDrawLayer;
-    plDrawLayer*            bgDrawLayer;
-    plFontAtlas             fontAtlas;
-    plProfileContext        tProfileCtx;
-    plLogContext            tLogCtx;
-    plMemoryContext         tMemoryCtx;
-    plDataRegistry          tDataRegistryCtx;
-    plExtensionRegistry     tExtensionRegistryCtx;
-    plUiContext             tUiContext;
+    plMetalDevice            device;
+    plMetalGraphics          graphics;
+    id<MTLTexture>           depthTarget;
+    MTLRenderPassDescriptor* drawableRenderDescriptor;
+    plDrawContext            ctx;
+    plDrawList               drawlist;
+    plDrawLayer*             fgDrawLayer;
+    plDrawLayer*             bgDrawLayer;
+    plFontAtlas              fontAtlas;
+    plProfileContext         tProfileCtx;
+    plLogContext             tLogCtx;
+    plMemoryContext          tMemoryCtx;
+    plDataRegistry           tDataRegistryCtx;
+    plExtensionRegistry      tExtensionRegistryCtx;
+    plUiContext              tUiContext;
 
     // extension apis
-    plDrawExtension*        ptDrawExtApi;
+    plDrawExtension*         ptDrawExtApi;
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -86,6 +79,7 @@ typedef struct plAppData_t
 PL_EXPORT void*
 pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
 {
+
     if(ptAppData) // reload
     {
         pl_set_log_context(&ptAppData->tLogCtx);
@@ -100,9 +94,10 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
 
         return ptAppData;
     }
-
+    
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
+    ptAppData->device.device = ptIOCtx->pBackendPlatformData;
 
     pl_set_io_context(ptIOCtx);
 
@@ -135,56 +130,28 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     plExtension* ptExtension = pl_get_extension(PL_EXT_DRAW);
     ptAppData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
 
-    // create swapchain & device
-    DXGI_SWAP_CHAIN_DESC tSwapChainDescription = 
-    {
-        .BufferDesc.Width  = (UINT)ptIOCtx->afMainViewportSize[0],
-        .BufferDesc.Height = (UINT)ptIOCtx->afMainViewportSize[1],
-        .BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM,
-        .SampleDesc.Count  = 1,
-        .BufferUsage       = DXGI_USAGE_RENDER_TARGET_OUTPUT,
-        .BufferCount       = 2,
-        .Windowed          = true,
-        .SwapEffect        = DXGI_SWAP_EFFECT_SEQUENTIAL,
-        .OutputWindow    = *(HWND*)ptIOCtx->pBackendPlatformData
-    };
+    // create command queue
+    ptAppData->device.device = ptIOCtx->pBackendPlatformData;
+    ptAppData->graphics.cmdQueue = [ptAppData->device.device newCommandQueue];
 
-    PL_DX11(D3D11CreateDeviceAndSwapChain(
-        NULL,
-        D3D_DRIVER_TYPE_HARDWARE,
-        NULL,
-        D3D11_CREATE_DEVICE_DEBUG | D3D11_CREATE_DEVICE_DISABLE_GPU_TIMEOUT,
-        NULL,
-        0,
-        D3D11_SDK_VERSION,
-        &tSwapChainDescription,
-        &ptAppData->ptSwapChain,
-        &ptAppData->ptDevice,
-        NULL,
-        &ptAppData->ptContext
-    ));
+    // render pass descriptor
+    ptAppData->drawableRenderDescriptor = [MTLRenderPassDescriptor new];
 
-    // create render targets
-    PL_DX11(PL_COM(ptAppData->ptSwapChain)->GetBuffer(ptAppData->ptSwapChain, 0, &IID_ID3D11Texture2D, (void**)&ptAppData->ptFrameBuffer));
+    // color attachment
+    ptAppData->drawableRenderDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
+    ptAppData->drawableRenderDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
+    ptAppData->drawableRenderDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
 
-    // create render target views
-    PL_DX11(PL_COM(ptAppData->ptDevice)->CreateRenderTargetView(ptAppData->ptDevice, (ID3D11Resource*)ptAppData->ptFrameBuffer, 0, &ptAppData->ptFrameBufferView));
+    // depth attachment
+    ptAppData->drawableRenderDescriptor.depthAttachment.loadAction = MTLLoadActionClear;
+    ptAppData->drawableRenderDescriptor.depthAttachment.storeAction = MTLStoreActionDontCare;
+    ptAppData->drawableRenderDescriptor.depthAttachment.clearDepth = 1.0;
 
-    // setup memory context
-    pl_initialize_memory_context(&ptAppData->tMemoryCtx);
+    // create draw context
+    pl_initialize_draw_context_metal(&ptAppData->ctx, ptAppData->device.device);
 
-    // setup profiling context
-    pl_initialize_profile_context(&ptAppData->tProfileCtx);
-
-    // setup logging
-    pl_initialize_log_context(&ptAppData->tLogCtx);
-    pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
-    pl_log_info(0, "Setup logging");
-
-    // setup drawing api
-    pl_initialize_draw_context_dx11(&ptAppData->ctx, ptAppData->ptDevice, ptAppData->ptContext);
+    // create draw list & layers
     pl_register_drawlist(&ptAppData->ctx, &ptAppData->drawlist);
-    pl_setup_drawlist_dx11(&ptAppData->drawlist);
     ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
     ptAppData->fgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Foreground Layer");
 
@@ -194,7 +161,6 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
 
     // ui
     pl_ui_setup_context(&ptAppData->ctx, &ptAppData->tUiContext);
-    pl_setup_drawlist_dx11(ptAppData->tUiContext.ptDrawlist);
     ptAppData->tUiContext.ptFont = &ptAppData->fontAtlas.sbFonts[0];
 
     return ptAppData;
@@ -207,12 +173,6 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
-
-    PL_COM_RELEASE(ptAppData->ptFrameBufferView);
-    PL_COM_RELEASE(ptAppData->ptFrameBuffer);
-    PL_COM_RELEASE(ptAppData->ptSwapChain);
-    PL_COM_RELEASE(ptAppData->ptContext);
-    PL_COM_RELEASE(ptAppData->ptDevice);
 
     // clean up contexts
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
@@ -231,29 +191,18 @@ pl_app_shutdown(plAppData* ptAppData)
 
 PL_EXPORT void
 pl_app_resize(plAppData* ptAppData)
-{
-    // get io context
+{    
     plIOContext* ptIOCtx = pl_get_io_context();
 
-    if(ptAppData->ptDevice)
-    {
-        PL_COM_RELEASE(ptAppData->ptFrameBufferView);
-        PL_COM(ptAppData->ptContext)->OMSetRenderTargets(ptAppData->ptContext, 0, 0, 0);
-        PL_COM_RELEASE(ptAppData->ptFrameBuffer);
-        PL_COM(ptAppData->ptSwapChain)->ResizeBuffers(ptAppData->ptSwapChain, 0, (UINT)ptIOCtx->afMainViewportSize[0], (UINT)ptIOCtx->afMainViewportSize[1], DXGI_FORMAT_UNKNOWN, 0);
-        PL_COM(ptAppData->ptSwapChain)->GetBuffer(ptAppData->ptSwapChain, 0, &IID_ID3D11Texture2D, (void**)&ptAppData->ptFrameBuffer);
-
-        // create render target
-        D3D11_TEXTURE2D_DESC tTextureDescription;
-        PL_COM(ptAppData->ptFrameBuffer)->GetDesc(ptAppData->ptFrameBuffer, &tTextureDescription);
-
-        // create the target view on the texture
-        D3D11_RENDER_TARGET_VIEW_DESC rtvDesc = {
-            .Format = tTextureDescription.Format,
-            .ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D
-        };
-        PL_DX11(PL_COM(ptAppData->ptDevice)->CreateRenderTargetView(ptAppData->ptDevice, (ID3D11Resource*)ptAppData->ptFrameBuffer, &rtvDesc, &ptAppData->ptFrameBufferView));
-    }  
+    // recreate depth texture
+    MTLTextureDescriptor *depthTargetDescriptor = [MTLTextureDescriptor new];
+    depthTargetDescriptor.width       = (uint32_t)ptIOCtx->afMainViewportSize[0];
+    depthTargetDescriptor.height      = (uint32_t)ptIOCtx->afMainViewportSize[1];
+    depthTargetDescriptor.pixelFormat = MTLPixelFormatDepth32Float;
+    depthTargetDescriptor.storageMode = MTLStorageModePrivate;
+    depthTargetDescriptor.usage       = MTLTextureUsageRenderTarget;
+    ptAppData->depthTarget = [ptAppData->device.device newTextureWithDescriptor:depthTargetDescriptor];
+    ptAppData->drawableRenderDescriptor.depthAttachment.texture = ptAppData->depthTarget;
 }
 
 //-----------------------------------------------------------------------------
@@ -267,37 +216,37 @@ pl_app_update(plAppData* ptAppData)
 
     pl_new_io_frame();
 
-    // get io context
     plIOContext* ptIOCtx = pl_get_io_context();
+    ptAppData->graphics.metalLayer = ptIOCtx->pBackendRendererData;
 
-    pl_new_draw_frame(&ptAppData->ctx);
+    ptAppData->graphics.currentFrame++;
+
+    // begin profiling frame
+    pl_begin_profile_frame(ptAppData->graphics.currentFrame);
+
+    // request command buffer
+    id<MTLCommandBuffer> commandBuffer = [ptAppData->graphics.cmdQueue commandBuffer];
+
+    // get next drawable
+    id<CAMetalDrawable> currentDrawable = [ptAppData->graphics.metalLayer nextDrawable];
+
+    if(!currentDrawable)
+        return;
+
+    // set colorattachment to next drawable
+    ptAppData->drawableRenderDescriptor.colorAttachments[0].texture = currentDrawable.texture;
+
+    pl_new_draw_frame_metal(&ptAppData->ctx, ptAppData->drawableRenderDescriptor);
     pl_ui_new_frame(&ptAppData->tUiContext);
 
-    // begin profiling frame (temporarily using drawing context frame count)
-    pl_begin_profile_frame(ptAppData->ctx.frameCount);
-
-    // set viewport
-    D3D11_VIEWPORT tViewport = {
-        .TopLeftX = 0.0f,
-        .TopLeftY = 0.0f,
-        .Width = ptIOCtx->afMainViewportSize[0],
-        .Height = ptIOCtx->afMainViewportSize[1],
-        .MaxDepth = 1.0f
-    };
-    PL_COM(ptAppData->ptContext)->RSSetViewports(ptAppData->ptContext, 1, &tViewport);
-
-    // clear & set render targets
-    static float afClearColor[4] = { 0.1f, 0.0f, 0.0f, 1.0f };
-    PL_COM(ptAppData->ptContext)->ClearRenderTargetView(ptAppData->ptContext, ptAppData->ptFrameBufferView, afClearColor);
-    PL_COM(ptAppData->ptContext)->OMSetRenderTargets(ptAppData->ptContext, 1, &ptAppData->ptFrameBufferView, NULL);
+    // create render command encoder
+    id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:ptAppData->drawableRenderDescriptor];
 
     ptAppData->ptDrawExtApi->pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, "extension baby");
 
     // draw profiling info
     pl_begin_profile_sample("Draw Profiling Info");
-    static char pcDeltaTime[64] = {0};
-    pl_sprintf(pcDeltaTime, "%.6f ms", ptIOCtx->fDeltaTime);
-    pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f, 10.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, pcDeltaTime, 0.0f);
+
     char cPProfileValue[64] = {0};
     for(uint32_t i = 0u; i < pl_sb_size(ptAppData->tProfileCtx.ptLastFrame->sbtSamples); i++)
     {
@@ -313,14 +262,15 @@ pl_app_update(plAppData* ptAppData)
     pl_begin_profile_sample("Add draw commands");
     pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){300.0f, 10.0f}, (plVec4){0.1f, 0.5f, 0.0f, 1.0f}, "Pilot Light\nGraphics", 0.0f);
     pl_add_triangle_filled(ptAppData->bgDrawLayer, (plVec2){300.0f, 50.0f}, (plVec2){300.0f, 150.0f}, (plVec2){350.0f, 50.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f});
-    pl_begin_profile_sample("Calculate text size");
+    pl__begin_profile_sample("Calculate text size");
     plVec2 textSize = pl_calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, "Pilot Light\nGraphics", 0.0f);
-    pl_end_profile_sample();
+    pl__end_profile_sample();
     pl_add_rect_filled(ptAppData->bgDrawLayer, (plVec2){300.0f, 10.0f}, (plVec2){300.0f + textSize.x, 10.0f + textSize.y}, (plVec4){0.0f, 0.0f, 0.8f, 0.5f});
     pl_add_line(ptAppData->bgDrawLayer, (plVec2){500.0f, 10.0f}, (plVec2){10.0f, 500.0f}, (plVec4){1.0f, 1.0f, 1.0f, 0.5f}, 2.0f);
     pl_end_profile_sample();
 
     static bool bOpen = true;
+
 
     if(pl_ui_begin_window("Pilot Light", NULL, false))
     {
@@ -328,8 +278,49 @@ pl_app_update(plAppData* ptAppData)
 
         pl_ui_checkbox("Camera Info", &bOpen);
         
+
         pl_ui_end_window();
     }
+
+    if(bOpen)
+    {
+        if(pl_ui_begin_window("Camera Info", &bOpen, true))
+        {
+            pl_ui_text("Pos: %.3f, %.3f, %.3f", 0.0f, 0.0f, 0.0f); 
+        }
+        pl_ui_end_window();
+    }
+
+    if(pl_ui_begin_window("UI Demo", NULL, false))
+    {
+        pl_ui_progress_bar(0.75f, (plVec2){-1.0f, 0.0f}, NULL);
+        if(pl_ui_button("Press me"))
+            bOpen = true;
+        static bool bOpen0 = false;
+        if(pl_ui_tree_node("Root Node", &bOpen0))
+        {
+            static bool bOpen1 = false;
+            if(pl_ui_tree_node("Child 1", &bOpen1))
+            {
+                if(pl_ui_button("Press me"))
+                    bOpen = true;
+                pl_ui_tree_pop();
+            }
+            static bool bOpen2 = false;
+            if(pl_ui_tree_node("Child 2", &bOpen2))
+            {
+                pl_ui_button("Press me");
+                pl_ui_tree_pop();
+            }
+            pl_ui_tree_pop();
+        }
+        static bool bOpen3 = false;
+        if(pl_ui_collapsing_header("Collapsing Header", &bOpen3))
+        {
+            pl_ui_checkbox("Camera window2", &bOpen);
+        }
+    }
+    pl_ui_end_window();
 
     // submit draw layers
     pl_begin_profile_sample("Submit draw layers");
@@ -340,11 +331,21 @@ pl_app_update(plAppData* ptAppData)
     pl_ui_render();
 
     // submit draw lists
-    pl_submit_drawlist_dx11(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1]);
-    pl_submit_drawlist_dx11(ptAppData->tUiContext.ptDrawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1]);
+    pl_begin_profile_sample("Submit draw lists");
+    ptAppData->ctx.tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
+    ptAppData->ctx.tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
+    pl_submit_drawlist_metal(&ptAppData->drawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
+    pl_submit_drawlist_metal(ptAppData->tUiContext.ptDrawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
+    pl_end_profile_sample();
+
+    // finish recording
+    [renderEncoder endEncoding];
 
     // present
-    PL_COM(ptAppData->ptSwapChain)->Present(ptAppData->ptSwapChain, 1, 0);
+    [commandBuffer presentDrawable:currentDrawable];
+
+    // submit command buffer
+    [commandBuffer commit];
 
     pl_end_io_frame();
     pl_ui_end_frame();
