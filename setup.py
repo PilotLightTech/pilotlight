@@ -14,14 +14,17 @@ defines = [
     "PL_DRAW_DX11_IMPLEMENTATION",
     "PL_EXT_IMPLEMENTATION",
     "PL_CAMERA_IMPLEMENTATION",
-    "PL_STL_EXT_IMPLEMENTATION",
+    "PL_STL_IMPLEMENTATION",
     "PL_STRING_IMPLEMENTATION",
+    "PL_MATH_INCLUDE_FUNCTIONS",
     "PL_DRAW_VULKAN_IMPLEMENTATION"
 ]
 
 includes = [
     "${workspaceFolder}/**",
+    "${workspaceFolder}/apps",
     "${workspaceFolder}/src",
+    "${workspaceFolder}/libs",
     "${workspaceFolder}/extensions",
     "${workspaceFolder}/dependencies/stb",
     "${workspaceFolder}/dependencies/cgltf",

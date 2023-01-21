@@ -21,7 +21,7 @@
 </p>
 
 ## Information
-The plan for _Pilot Light_ is to be collection of "[stb](https://github.com/nothings/stb) style" libraries that culminate into a lightweight game engine. Ideally all of the libraries would be completely standalone but this isn't practical for the larger systems so some will rely on others. Beware, this project is still in the early stages.
+The plan for _Pilot Light_ is to be collection of "[stb](https://github.com/nothings/stb) style" libraries that culminate into a lightweight game engine. Ideally all of the libraries would be completely standalone but this isn't practical for the larger systems so some will rely on others. Once a library is completely standalone, it is moved in the _libs_ directory. Beware, this project is still in the early stages.
 
 ## Developer Notes
 Information for developers can be found in the [wiki](https://github.com/pilot-light/pilotlight/wiki). This includes:
@@ -39,7 +39,7 @@ Pilot Light is licensed under the [MIT License](https://github.com/pilot-light/p
 </p>
 
 <p align="center">
-  <a href="https://github.com/pilot-light/pilotlight-assets"><img src="https://github.com/pilot-light/pilotlight-assets/blob/master/images/sponza.PNG" alt="First Image"></a>
+  <a href="https://github.com/pilot-light/pilotlight"><img src="https://github.com/pilot-light/pilotlight-assets/blob/master/gifs/sponza0.gif" alt="Sponza 0" width="2553"></a>
 </p>
 
 ## Inspiration

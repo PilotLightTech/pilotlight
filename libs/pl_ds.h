@@ -1,7 +1,6 @@
 /*
-   pl_ds.h
+   pl_ds.h, v0.1
      * data structures
-     * stand-alone
 */
 
 /*
@@ -89,8 +88,6 @@ Index of this file:
 
 #define pl_sb_insert(buf, i, v) \
     (pl_sb_insert_n((buf), (i), 1), (buf)[i] = (v))
-
-
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal
