@@ -27,6 +27,9 @@ layout(set = 0, binding = 0) uniform _plGlobalInfo
     mat4 tCameraView;
     mat4 tCameraViewProj;
 
+    // misc
+    float fTime;
+
 } tGlobalInfo;
 
 //-------------------d----------------------------------------------------------
