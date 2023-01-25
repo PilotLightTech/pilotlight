@@ -48,6 +48,8 @@ PL_DECLARE_STRUCT(plUiTabBar);
 PL_DECLARE_STRUCT(plUiPrevItemData);
 PL_DECLARE_STRUCT(plUiNextWindowData);
 PL_DECLARE_STRUCT(plUiTempWindowData);
+PL_DECLARE_STRUCT(plUiStorage);
+PL_DECLARE_STRUCT(plUiStorageEntry);
 
 // enums
 typedef int plUiConditionFlags;
@@ -93,13 +95,17 @@ bool pl_ui_checkbox    (const char* pcText, bool* pbValue);
 bool pl_ui_radio_button(const char* pcText, int* piValue, int iButtonValue);
 void pl_ui_text        (const char* pcFmt, ...);
 void pl_ui_text_v      (const char* pcFmt, va_list args);
+void pl_ui_color_text  (plVec4 tColor, const char* pcFmt, ...);
+void pl_ui_color_text_v(plVec4 tColor, const char* pcFmt, va_list args);
 void pl_ui_progress_bar(float fFraction, plVec2 tSize, const char* pcOverlay);
 void pl_ui_image       (plTextureId tTexture, plVec2 tSize);
 void pl_ui_image_ex    (plTextureId tTexture, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor);
 
 // trees
-bool pl_ui_collapsing_header(const char* pcText, bool* pbOpenState);
-bool pl_ui_tree_node        (const char* pcText, bool* pbOpenState);
+bool pl_ui_collapsing_header(const char* pcText);
+bool pl_ui_tree_node        (const char* pcText);
+bool pl_ui_tree_node_f      (const char* pcFmt, ...);
+bool pl_ui_tree_node_v      (const char* pcFmt, va_list args);
 void pl_ui_tree_pop         (void);
 
 // tabs
@@ -109,9 +115,13 @@ bool pl_ui_begin_tab    (const char* pcText);
 void pl_ui_end_tab      (void);
 
 // layout
-void pl_ui_same_line(float fOffsetFromStart, float fSpacing);
-void pl_ui_align_text(void);
+void pl_ui_separator       (void);
+void pl_ui_same_line       (float fOffsetFromStart, float fSpacing);
+void pl_ui_next_line       (void);
+void pl_ui_align_text      (void);
 void pl_ui_vertical_spacing(void);
+void pl_ui_indent          (float fIndent);
+void pl_ui_unindent        (float fIndent);
 
 // state query
 bool pl_ui_was_last_item_hovered(void);
@@ -119,6 +129,22 @@ bool pl_ui_was_last_item_active (void);
 
 // styling
 void pl_ui_set_dark_theme(plUiContext* ptCtx);
+
+// storage
+int    pl_ui_get_int      (plUiStorage* ptStorage, uint32_t uKey, int iDefaultValue);
+float  pl_ui_get_float    (plUiStorage* ptStorage, uint32_t uKey, float fDefaultValue);
+bool   pl_ui_get_bool     (plUiStorage* ptStorage, uint32_t uKey, bool bDefaultValue);
+
+int*   pl_ui_get_int_ptr  (plUiStorage* ptStorage, uint32_t uKey, int iDefaultValue);
+float* pl_ui_get_float_ptr(plUiStorage* ptStorage, uint32_t uKey, float fDefaultValue);
+bool*  pl_ui_get_bool_ptr (plUiStorage* ptStorage, uint32_t uKey, bool bDefaultValue);
+
+void   pl_ui_set_int      (plUiStorage* ptStorage, uint32_t uKey, int iValue);
+void   pl_ui_set_float    (plUiStorage* ptStorage, uint32_t uKey, float fValue);
+void   pl_ui_set_bool     (plUiStorage* ptStorage, uint32_t uKey, bool bValue);
+
+// tools
+void pl_ui_debug          (bool* pbOpen);
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -134,6 +160,21 @@ enum plUiConditionFlags_
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plUiStorageEntry
+{
+    uint32_t uKey;
+    union
+    {
+        int   iValue;
+        float fValue;
+    };
+} plUiStorageEntry;
+
+typedef struct _plUiStorage
+{
+    plUiStorageEntry* sbtData;
+} plUiStorage;
 
 typedef struct _plUiStyle
 {
@@ -166,6 +207,8 @@ typedef struct _plUiStyle
     plVec4 tScrollbarBgCol;
     plVec4 tScrollbarHandleCol;
     plVec4 tScrollbarFrameCol;
+    plVec4 tScrollbarActiveCol;
+    plVec4 tScrollbarHoveredCol;
 } plUiStyle;
 
 typedef struct _plUiNextWindowData
@@ -203,7 +246,7 @@ typedef struct _plUiTempWindowData
     uint32_t     uTreeDepth;
     plVec2       tLastLineSize;
     plVec2       tCurrentLineSize;
-
+    float        fExtraIndent;
 } plUiTempWindowData;
 
 typedef struct _plUiWindow
@@ -222,6 +265,7 @@ typedef struct _plUiWindow
     bool               bHovered;
     bool               bActive;
     bool               bDragging;
+    bool               bScrolling;
     bool               bResizing;
     bool               bAutoSize;
     bool               bCollapsed;
@@ -234,6 +278,7 @@ typedef struct _plUiWindow
     plUiConditionFlags tSizeAllowableFlags;
     plUiConditionFlags tCollapseAllowableFlags;
     uint8_t            uHideFrames;
+    plUiStorage        tStorage;
 } plUiWindow;
 
 typedef struct _plUiContext

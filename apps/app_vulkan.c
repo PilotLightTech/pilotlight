@@ -88,6 +88,7 @@ typedef struct _plAppData
     plCamera            tCamera;
     plUiContext         tUiContext;
     bool                bShowUiDemo;
+    bool                bShowUiDebug;
 
     // extension apis
     plDrawExtension* ptDrawExtApi;
@@ -947,25 +948,25 @@ pl_app_update(plAppData* ptAppData)
 
         if(pl_ui_begin_window("Pilot Light", NULL, false))
         {
-            pl_ui_text("%.6f ms", ptIOCtx->fDeltaTime);
+            pl_ui_checkbox("UI Debug", &ptAppData->bShowUiDebug);
             pl_ui_checkbox("Camera Info", &bOpen);
             pl_ui_checkbox("UI Demo", &ptAppData->bShowUiDemo);
+            
 
             if(pl_ui_button("Move"))
             {
                 pl_ui_set_next_window_collapse(true, PL_UI_COND_ONCE);
             }
 
-            static bool bMaterialsOpen = false;
             static bool bOpenValues[512] = {0};
-            if(pl_ui_collapsing_header("Materials", &bMaterialsOpen))
+            if(pl_ui_collapsing_header("Materials"))
             {
                 for(uint32_t i = 0; i < pl_sb_size(ptAppData->tAssetRegistry.sbtMaterials); i++)
                 {
                     plMaterial* ptMaterial = &ptAppData->tAssetRegistry.sbtMaterials[i];
 
                     static bool bOpen0 = false;
-                    if(pl_ui_tree_node(ptMaterial->acName, &bOpenValues[i]))
+                    if(pl_ui_tree_node(ptMaterial->acName))
                     {
                         pl_ui_text("Double Sided: %s", ptMaterial->bDoubleSided ? "true" : "false");
                         pl_ui_text("Alpha cutoff: %0.1f", ptMaterial->fAlphaCutoff);
@@ -995,6 +996,9 @@ pl_app_update(plAppData* ptAppData)
 
         if(ptAppData->bShowUiDemo)
             pl_ui_demo(&ptAppData->bShowUiDemo);
+
+        if(ptAppData->bShowUiDebug)
+            pl_ui_debug(&ptAppData->bShowUiDebug);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submit draws~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

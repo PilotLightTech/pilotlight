@@ -296,26 +296,22 @@ pl_app_update(plAppData* ptAppData)
         pl_ui_progress_bar(0.75f, (plVec2){-1.0f, 0.0f}, NULL);
         if(pl_ui_button("Press me"))
             bOpen = true;
-        static bool bOpen0 = false;
-        if(pl_ui_tree_node("Root Node", &bOpen0))
+        if(pl_ui_tree_node("Root Node"))
         {
-            static bool bOpen1 = false;
-            if(pl_ui_tree_node("Child 1", &bOpen1))
+            if(pl_ui_tree_node("Child 1"))
             {
                 if(pl_ui_button("Press me"))
                     bOpen = true;
                 pl_ui_tree_pop();
             }
-            static bool bOpen2 = false;
-            if(pl_ui_tree_node("Child 2", &bOpen2))
+            if(pl_ui_tree_node("Child 2"))
             {
                 pl_ui_button("Press me");
                 pl_ui_tree_pop();
             }
             pl_ui_tree_pop();
         }
-        static bool bOpen3 = false;
-        if(pl_ui_collapsing_header("Collapsing Header", &bOpen3))
+        if(pl_ui_collapsing_header("Collapsing Header"))
         {
             pl_ui_checkbox("Camera window2", &bOpen);
         }

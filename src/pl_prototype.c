@@ -101,25 +101,21 @@ pl_ui_demo(bool* pbOpen)
         pl_ui_selectable("Selectable 1", &bSelectable0);
         pl_ui_selectable("Selectable 2", &bSelectable1);
         pl_ui_selectable("Selectable 3", &bSelectable2);
-        static bool bOpen0 = false;
-        if(pl_ui_tree_node("Root Node", &bOpen0))
+        if(pl_ui_tree_node("Root Node"))
         {
-            static bool bOpen1 = false;
-            if(pl_ui_tree_node("Child 1", &bOpen1))
+            if(pl_ui_tree_node("Child 1"))
             {
                 pl_ui_button("Press me");
                 pl_ui_tree_pop();
             }
-            static bool bOpen2 = false;
-            if(pl_ui_tree_node("Child 2", NULL))
+            if(pl_ui_tree_node("Child 2"))
             {
                 pl_ui_button("Press me");
                 pl_ui_tree_pop();
             }
             pl_ui_tree_pop();
         }
-        static bool bOpen3 = false;
-        if(pl_ui_collapsing_header("Collapsing Header", &bOpen3))
+        if(pl_ui_collapsing_header("Collapsing Header"))
         {
             pl_ui_checkbox("Camera window2", NULL);
         }
