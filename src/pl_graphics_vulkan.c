@@ -561,7 +561,6 @@ pl__create_shader_pipeline(plResourceManager* ptResourceManager, plGraphicsState
     VkPipelineDepthStencilStateCreateInfo tDepthStencil = {
         .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
         .depthTestEnable       = tVariant.ulDepthMode == PL_DEPTH_MODE_ALWAYS ? VK_FALSE : VK_TRUE,
-        .depthTestEnable       = VK_TRUE,
         .depthWriteEnable      = tVariant.ulDepthWriteEnabled ? VK_TRUE : VK_FALSE,
         .depthCompareOp        = tVariant.ulDepthMode,
         .depthBoundsTestEnable = VK_FALSE,

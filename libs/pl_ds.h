@@ -59,6 +59,9 @@ Index of this file:
 #define pl_sb_back(buf) \
     pl_sb_top((buf))
 
+#define pl_sb_end(buf) \
+    ((buf) ? (buf) + pl__sb_header((buf))->uSize : (buf))
+
 #define pl_sb_add_n(buf, n) \
     (pl__sb_may_grow((buf), sizeof(*(buf)), (n), (n)), (n) ? (pl__sb_header(buf)->uSize += (n), pl__sb_header(buf)->uSize - (n)) : pl_sb_size(buf))
 

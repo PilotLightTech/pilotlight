@@ -223,9 +223,9 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     pl_load_skybox_mesh(ptAppData);
 
     // buffers
-    ptAppData->uDynamicBuffer0 = pl_create_constant_buffer_ex(&ptAppData->tGraphics.tResourceManager, ptAppData->tGraphics.tDevice.tDeviceProps.limits.maxUniformBufferRange);
-    ptAppData->uDynamicBuffer1 = pl_create_constant_buffer_ex(&ptAppData->tGraphics.tResourceManager, ptAppData->tGraphics.tDevice.tDeviceProps.limits.maxUniformBufferRange);
-    ptAppData->uDynamicBuffer2 = pl_create_constant_buffer_ex(&ptAppData->tGraphics.tResourceManager, ptAppData->tGraphics.tDevice.tDeviceProps.limits.maxUniformBufferRange);
+    ptAppData->uDynamicBuffer0 = pl_create_constant_buffer_ex(&ptAppData->tGraphics.tResourceManager, pl_minu(ptAppData->tGraphics.tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536));
+    ptAppData->uDynamicBuffer1 = pl_create_constant_buffer_ex(&ptAppData->tGraphics.tResourceManager, pl_minu(ptAppData->tGraphics.tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536));
+    ptAppData->uDynamicBuffer2 = pl_create_constant_buffer_ex(&ptAppData->tGraphics.tResourceManager, pl_minu(ptAppData->tGraphics.tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536));
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~gltf~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     pl_ext_load_gltf(&ptAppData->tRenderer, "../data/glTF-Sample-Models-master/2.0/Sponza/glTF/Sponza.gltf", &ptAppData->tGltf);
@@ -560,7 +560,7 @@ pl_app_update(plAppData* ptAppData)
 
         pl_begin_main_pass(&ptAppData->tGraphics);
 
-        if(pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, -0.0f))
+        if(!ptAppData->tUiContext.bMouseOwned && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, -0.0f))
         {
             const plVec2 tMouseDelta = pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, -0.0f);
             pl_camera_rotate(&ptAppData->tCamera,  -tMouseDelta.y * 0.1f * ptIOCtx->fDeltaTime,  -tMouseDelta.x * 0.1f * ptIOCtx->fDeltaTime);
