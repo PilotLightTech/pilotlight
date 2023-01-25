@@ -1,4 +1,4 @@
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 ###############################################################################
 #                                  Info                                       #
@@ -699,7 +699,8 @@ def generate_macos_build(name_override=None):
 
                                                 if target._target_type == TargetType.EXECUTABLE:
                                                     buffer += "# let user know if hot reloading\n"
-                                                    buffer += 'if lsof | grep -i -q "' + settings._output_binary + ' "\n'
+                                                    buffer += 'running_count=$(ps aux | grep -v grep | grep -ci "' + settings._output_binary + '")\n'
+                                                    buffer += 'if [ $running_count -gt 0 ]\n'
                                                     buffer += 'then\n'
                                                     buffer += 'PL_HOT_RELOAD_STATUS=1\n'
                                                     buffer += 'echo\n'
