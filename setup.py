@@ -17,6 +17,7 @@ defines = [
     "PL_STL_IMPLEMENTATION",
     "PL_STRING_IMPLEMENTATION",
     "PL_MATH_INCLUDE_FUNCTIONS",
+    "PL_JSON_IMPLEMENTATION",
     "PL_DRAW_VULKAN_IMPLEMENTATION"
 ]
 
@@ -27,7 +28,6 @@ includes = [
     "${workspaceFolder}/libs",
     "${workspaceFolder}/extensions",
     "${workspaceFolder}/dependencies/stb",
-    "${workspaceFolder}/dependencies/cgltf",
     "${env:VK_SDK_PATH}/Include"
 ]
 

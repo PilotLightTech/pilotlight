@@ -57,6 +57,10 @@
 #include "pl_camera.h"
 #undef PL_CAMERA_IMPLEMENTATION
 
+#define PL_JSON_IMPLEMENTATION
+#include "pl_json.h"
+#undef PL_JSON_IMPLEMENTATION
+
 #ifdef PL_USE_STB_SPRINTF
 #define STB_SPRINTF_IMPLEMENTATION
 #include "stb_sprintf.h"
