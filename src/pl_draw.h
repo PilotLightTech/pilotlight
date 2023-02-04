@@ -136,9 +136,10 @@ plVec2          pl_calculate_text_size     (plFont* ptFont, float fSize, const c
 plVec2          pl_calculate_text_size_ex  (plFont* ptFont, float fSize, const char* pcText, const char* pcTextEnd, float fWrap);
 
 // clipping
-void            pl_push_clip_rect_pt       (plDrawLayer* ptLayer, const plRect* ptRect);
-void            pl_push_clip_rect          (plDrawLayer* ptLayer, plRect tRect);
-void            pl_pop_clip_rect           (plDrawLayer* ptLayer);
+void            pl_push_clip_rect_pt       (plDrawList* ptDrawlist, const plRect* ptRect);
+void            pl_push_clip_rect          (plDrawList* ptDrawlist, plRect tRect, bool bAccumulate);
+void            pl_pop_clip_rect           (plDrawList* ptDrawlist);
+const plRect*   pl_get_clip_rect           (plDrawList* ptDrawlist);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -216,6 +217,7 @@ typedef struct _plDrawList
     plDrawVertex*  sbVertexBuffer;
     uint32_t       indexBufferByteSize;
     uint32_t       layersCreated;
+    plRect*        sbClipStack;
     void*          _platformData;
 } plDrawList;
 
@@ -246,7 +248,6 @@ typedef struct _plDrawLayer
     plDrawCommand*  sbCommandBuffer;
     uint32_t*       sbIndexBuffer;
     plVec2*         sbPath;
-    plRect*         sbClipStack;
     uint32_t        vertexCount;
     plDrawCommand*  _lastCommand;
 } plDrawLayer;

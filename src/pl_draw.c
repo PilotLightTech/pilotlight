@@ -855,21 +855,31 @@ pl_calculate_text_size_ex(plFont* font, float size, const char* text, const char
 }
 
 void
-pl_push_clip_rect_pt(plDrawLayer* ptLayer, const plRect* ptRect)
+pl_push_clip_rect_pt(plDrawList* ptDrawlist, const plRect* ptRect)
 {
-    pl_sb_push(ptLayer->sbClipStack, *ptRect);
+    pl_sb_push(ptDrawlist->sbClipStack, *ptRect);
 }
 
 void
-pl_push_clip_rect(plDrawLayer* ptLayer, plRect tRect)
+pl_push_clip_rect(plDrawList* ptDrawlist, plRect tRect, bool bAccumulate)
 {
-    pl_sb_push(ptLayer->sbClipStack, tRect);
+    if(bAccumulate && pl_sb_size(ptDrawlist->sbClipStack) > 0)
+        tRect = pl_rect_clip_full(&tRect, &pl_sb_back(ptDrawlist->sbClipStack));
+    pl_sb_push(ptDrawlist->sbClipStack, tRect);
 }
 
 void
-pl_pop_clip_rect(plDrawLayer* ptLayer)
+pl_pop_clip_rect(plDrawList* ptDrawlist)
 {
-    pl_sb_pop(ptLayer->sbClipStack);
+    pl_sb_pop(ptDrawlist->sbClipStack);
+}
+
+const plRect*
+pl_get_clip_rect(plDrawList* ptDrawlist)
+{
+     if(pl_sb_size(ptDrawlist->sbClipStack) > 0)
+        return &pl_sb_back(ptDrawlist->sbClipStack);
+    return NULL;
 }
 
 void
@@ -888,13 +898,13 @@ pl__cleanup_draw_context(plDrawContext* ctx)
         for(uint32_t j = 0; j < pl_sb_size(drawlist->sbLayersCreated); j++)
         {
             PL_FREE(drawlist->sbLayersCreated[j]);
-            pl_sb_free(drawlist->sbLayersCreated[j]->sbClipStack);
         }
         pl_sb_free(drawlist->sbDrawCommands);
         pl_sb_free(drawlist->sbVertexBuffer);
         pl_sb_free(drawlist->sbLayerCache);
         pl_sb_free(drawlist->sbLayersCreated);
         pl_sb_free(drawlist->sbSubmittedLayers);   
+        pl_sb_free(drawlist->sbClipStack);   
     }
     pl_sb_free(ctx->sbDrawlists);
 }
@@ -1122,7 +1132,7 @@ pl__prepare_draw_command(plDrawLayer* layer, plTextureId textureID, bool sdf)
 {
     bool createNewCommand = true;
 
-    const plRect tCurrentClip = pl_sb_size(layer->sbClipStack) > 0 ? pl_sb_top(layer->sbClipStack) : (plRect){0}; //-V1004
+    const plRect tCurrentClip = pl_sb_size(layer->drawlist->sbClipStack) > 0 ? pl_sb_top(layer->drawlist->sbClipStack) : (plRect){0}; //-V1004
 
     
     if(layer->_lastCommand)
