@@ -91,6 +91,8 @@ int main()
     // setup & retrieve io context
     pl_initialize_io_context(&gtIOContext);
     plIOContext* ptIOCtx = pl_get_io_context();
+    ptIOCtx->tCurrentCursor = PL_MOUSE_CURSOR_ARROW;
+    ptIOCtx->tNextCursor = ptIOCtx->tCurrentCursor;
 
     // setup
 
@@ -108,7 +110,7 @@ int main()
         .cbWndExtra = 0,
         .hInstance = GetModuleHandle(NULL),
         .hIcon = NULL,
-        .hCursor = LoadCursor(NULL, IDC_ARROW),
+        .hCursor = NULL,
         .hbrBackground = NULL,
         .lpszMenuName = NULL,
         .lpszClassName = L"Pilot Light (win32)",
@@ -190,6 +192,31 @@ int main()
             TranslateMessage(&tMsg);
             DispatchMessage(&tMsg);
         }
+
+        // updating mouse cursor
+        if(gtIOContext.tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gtIOContext.tNextCursor == PL_MOUSE_CURSOR_ARROW)
+            gtIOContext.bCursorChanged = true;
+
+        if(gtIOContext.bCursorChanged && gtIOContext.tNextCursor != gtIOContext.tCurrentCursor)
+        {
+            gtIOContext.tCurrentCursor = gtIOContext.tNextCursor;
+            LPTSTR tWin32Cursor = IDC_ARROW;
+            switch (gtIOContext.tNextCursor)
+            {
+                case PL_MOUSE_CURSOR_ARROW:       tWin32Cursor = IDC_ARROW; break;
+                case PL_MOUSE_CURSOR_TEXT_INPUT:  tWin32Cursor = IDC_IBEAM; break;
+                case PL_MOUSE_CURSOR_RESIZE_ALL:  tWin32Cursor = IDC_SIZEALL; break;
+                case PL_MOUSE_CURSOR_RESIZE_EW:   tWin32Cursor = IDC_SIZEWE; break;
+                case PL_MOUSE_CURSOR_RESIZE_NS:   tWin32Cursor = IDC_SIZENS; break;
+                case PL_MOUSE_CURSOR_RESIZE_NESW: tWin32Cursor = IDC_SIZENESW; break;
+                case PL_MOUSE_CURSOR_RESIZE_NWSE: tWin32Cursor = IDC_SIZENWSE; break;
+                case PL_MOUSE_CURSOR_HAND:        tWin32Cursor = IDC_HAND; break;
+                case PL_MOUSE_CURSOR_NOT_ALLOWED: tWin32Cursor = IDC_NO; break;
+            }
+            SetCursor(LoadCursor(NULL, tWin32Cursor));    
+        }
+        gtIOContext.tNextCursor = PL_MOUSE_CURSOR_ARROW;
+        gtIOContext.bCursorChanged = false;
 
         // reload library
         if(pl_has_library_changed(&gtAppLibrary))
@@ -382,7 +409,15 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
                 ptIOCtx->afMainViewportSize[1] = (float)iCHeight;
 
                 // give app change to handle resize
-                pl_app_resize(gpUserData);
+                if(iCWidth > 0 && iCHeight > 0)
+                {
+                    gbMinimized = false;
+                    pl_app_resize(gpUserData);
+                }
+                else
+                {
+                    gbMinimized = true;
+                }
 
                 // send paint message
                 InvalidateRect(tHwnd, NULL, TRUE);

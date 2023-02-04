@@ -55,6 +55,7 @@ PL_DECLARE_STRUCT(plKeyData);
 // enums
 typedef int plKey;
 typedef int plMouseButton;
+typedef int plCursor;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -86,6 +87,7 @@ plVec2       pl_get_mouse_drag_delta   (plMouseButton tButton, float fThreshold)
 plVec2       pl_get_mouse_pos          (void);
 float        pl_get_mouse_wheel        (void);
 bool         pl_is_mouse_pos_valid     (plVec2 tPos);
+void         pl_set_mouse_cursor       (plCursor tCursor);
 
 // input functions
 plKeyData*   pl_get_key_data          (plKey tKey);
@@ -234,6 +236,21 @@ enum plKey_
     PL_KEY_COUNT // no valid plKey_ is ever greater than this value
 };
 
+enum plCursor_
+{
+    PL_MOUSE_CURSOR_NONE  = -1,
+    PL_MOUSE_CURSOR_ARROW =  0,
+    PL_MOUSE_CURSOR_TEXT_INPUT,
+    PL_MOUSE_CURSOR_RESIZE_ALL,
+    PL_MOUSE_CURSOR_RESIZE_NS,
+    PL_MOUSE_CURSOR_RESIZE_EW,
+    PL_MOUSE_CURSOR_RESIZE_NESW,
+    PL_MOUSE_CURSOR_RESIZE_NWSE,
+    PL_MOUSE_CURSOR_HAND,
+    PL_MOUSE_CURSOR_NOT_ALLOWED,
+    PL_MOUSE_CURSOR_COUNT
+};
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -272,6 +289,11 @@ typedef struct _plIOContext
     int    _iMouseButtonsDown;
     float  _fMouseWheel;
     float  _fMouseWheelH;
+
+    // mouse cursor
+    plCursor tCurrentCursor;
+    plCursor tNextCursor;
+    bool     bCursorChanged;
 
     // other state
     plKeyData _tKeyData[PL_KEY_COUNT];
@@ -677,6 +699,13 @@ bool
 pl_is_mouse_pos_valid(plVec2 tPos)
 {
     return tPos.x >= -FLT_MAX && tPos.y >= -FLT_MAX;
+}
+
+void
+pl_set_mouse_cursor(plCursor tCursor)
+{
+    gptIOContext->tNextCursor = tCursor;
+    gptIOContext->bCursorChanged = true;
 }
 
 //-----------------------------------------------------------------------------

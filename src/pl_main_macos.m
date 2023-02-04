@@ -58,6 +58,14 @@ Index of this file:
 @interface plKeyEventResponder: NSView<NSTextInputClient>
 @end
 
+// Undocumented methods for creating cursors. (from Dear ImGui)
+@interface NSCursor()
++ (id)_windowResizeNorthWestSouthEastCursor;
++ (id)_windowResizeNorthEastSouthWestCursor;
++ (id)_windowResizeNorthSouthCursor;
++ (id)_windowResizeEastWestCursor;
+@end
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
@@ -66,7 +74,6 @@ static plKey                 pl__osx_key_to_pl_key(int iKey);
 static void                  pl__add_osx_tracking_area(NSView* _Nonnull view);
 static bool                  pl__handle_osx_event(NSEvent* event, NSView* view);
 static inline CFTimeInterval pl__get_absolute_time(void) { return (CFTimeInterval)((double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9); }
-
 
 //-----------------------------------------------------------------------------
 // [SECTION] globals
@@ -82,6 +89,7 @@ static plKeyEventResponder* gKeyEventResponder = NULL;
 static NSTextInputContext*  gInputContext = NULL;
 static id                   gMonitor;
 CFTimeInterval              gTime;
+NSCursor*                   gaptMouseCursors[PL_MOUSE_CURSOR_COUNT];
 
 typedef struct _plAppData plAppData;
 static void* (*pl_app_load)    (plIOContext* ptIOCtx, plAppData* ptAppData);
@@ -115,6 +123,17 @@ int main()
     id appDelegate = [[plNSAppDelegate alloc] init];
     gWindow.delegate = appDelegate;
     NSApplication.sharedApplication.delegate = appDelegate;
+
+    // Load cursors. Some of them are undocumented.
+    gaptMouseCursors[PL_MOUSE_CURSOR_ARROW] = [NSCursor arrowCursor];
+    gaptMouseCursors[PL_MOUSE_CURSOR_TEXT_INPUT] = [NSCursor IBeamCursor];
+    gaptMouseCursors[PL_MOUSE_CURSOR_RESIZE_ALL] = [NSCursor closedHandCursor];
+    gaptMouseCursors[PL_MOUSE_CURSOR_HAND] = [NSCursor pointingHandCursor];
+    gaptMouseCursors[PL_MOUSE_CURSOR_NOT_ALLOWED] = [NSCursor operationNotAllowedCursor];
+    gaptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NS] = [NSCursor respondsToSelector:@selector(_windowResizeNorthSouthCursor)] ? [NSCursor _windowResizeNorthSouthCursor] : [NSCursor resizeUpDownCursor];
+    gaptMouseCursors[PL_MOUSE_CURSOR_RESIZE_EW] = [NSCursor respondsToSelector:@selector(_windowResizeEastWestCursor)] ? [NSCursor _windowResizeEastWestCursor] : [NSCursor resizeLeftRightCursor];
+    gaptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NESW] = [NSCursor respondsToSelector:@selector(_windowResizeNorthEastSouthWestCursor)] ? [NSCursor _windowResizeNorthEastSouthWestCursor] : [NSCursor closedHandCursor];
+    gaptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NWSE] = [NSCursor respondsToSelector:@selector(_windowResizeNorthWestSouthEastCursor)] ? [NSCursor _windowResizeNorthWestSouthEastCursor] : [NSCursor closedHandCursor];
 
     // run app
     [NSApplication sharedApplication];
@@ -375,6 +394,19 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 
     // not osx
     // CGFloat framebufferScale = view.window.screen.scale ?: UIScreen.mainScreen.scale;
+
+    // updating mouse cursor
+    if(gtIOContext.tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gtIOContext.tNextCursor == PL_MOUSE_CURSOR_ARROW)
+        gtIOContext.bCursorChanged = true;
+
+    if(gtIOContext.bCursorChanged && gtIOContext.tNextCursor != gtIOContext.tCurrentCursor)
+    {
+        gtIOContext.tCurrentCursor = gtIOContext.tNextCursor;
+        NSCursor* ptMacCursor = gaptMouseCursors[gtIOContext.tCurrentCursor] ?: gaptMouseCursors[PL_MOUSE_CURSOR_ARROW];
+        [ptMacCursor set];
+    }
+    gtIOContext.tNextCursor = PL_MOUSE_CURSOR_ARROW;
+    gtIOContext.bCursorChanged = false;
 
     // reload library
     if(pl_has_library_changed(&gAppLibrary))

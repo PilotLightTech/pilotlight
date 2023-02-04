@@ -23,8 +23,10 @@ Index of this file:
 #include "pl_io.h"    // io context
 #include "pl_os.h"    // shared library api
 #include <xcb/xcb.h>
+#include <xcb/xfixes.h> //xcb_xfixes_query_version, apt install libxcb-xfixes0-dev
 #include <X11/XKBlib.h> // XkbKeycodeToKeysym
 #include <xkbcommon/xkbcommon-keysyms.h>
+#include <xcb/xcb_cursor.h> // apt install libxcb-cursor-dev, libxcb-cursor0
 
 //-----------------------------------------------------------------------------
 // [SECTION] globals
@@ -42,6 +44,7 @@ static plSharedLibrary   gAppLibrary = {0};
 static void*             gUserData = NULL;
 static double            gdTime = 0.0;
 static double            gdFrequency = 0.0;
+static xcb_cursor_context_t*  gCursorContext;
 
 typedef struct _plAppData plAppData;
 static void* (*pl_app_load)    (plIOContext* ptIOCtx, plAppData* ptAppData);
@@ -132,6 +135,13 @@ int main()
 
     // values to be sent over XCB (bg colour, events)
     unsigned int  value_list[] = {gScreen->black_pixel, event_values};
+
+    // Notify X for mouse cursor handling
+    // xcb_discard_reply(gConnection, xcb_xfixes_query_version(gConnection, 4, 0).sequence);
+    xcb_discard_reply(gConnection, xcb_xfixes_query_version(gConnection, 4, 0).sequence);
+
+    // Cursor context for looking up cursors for the current X cursor theme
+    xcb_cursor_context_new(gConnection, gScreen, &gCursorContext);
 
     // Create the window
     xcb_create_window(
@@ -325,6 +335,41 @@ int main()
             free(event);
         }
 
+        // updating mouse cursor
+        if(gtIOContext.tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gtIOContext.tNextCursor == PL_MOUSE_CURSOR_ARROW)
+            gtIOContext.bCursorChanged = true;
+
+        if(gtIOContext.bCursorChanged && gtIOContext.tNextCursor != gtIOContext.tCurrentCursor)
+        {
+            gtIOContext.tCurrentCursor = gtIOContext.tNextCursor;
+            const char* tX11Cursor = NULL;
+            switch (gtIOContext.tNextCursor)
+            {
+                case PL_MOUSE_CURSOR_ARROW:       tX11Cursor = "left_ptr"; break;
+                case PL_MOUSE_CURSOR_TEXT_INPUT:  tX11Cursor = "xterm"; break;
+                case PL_MOUSE_CURSOR_RESIZE_ALL:  tX11Cursor = "fleur"; break;
+                case PL_MOUSE_CURSOR_RESIZE_EW:   tX11Cursor = "sb_h_double_arrow"; break;
+                case PL_MOUSE_CURSOR_RESIZE_NS:   tX11Cursor = "sb_v_double_arrow"; break;
+                case PL_MOUSE_CURSOR_RESIZE_NESW: tX11Cursor = "bottom_left_corner"; break;
+                case PL_MOUSE_CURSOR_RESIZE_NWSE: tX11Cursor = "bottom_right_corner"; break;
+                case PL_MOUSE_CURSOR_HAND:        tX11Cursor = "hand1"; break;
+                case PL_MOUSE_CURSOR_NOT_ALLOWED: tX11Cursor = "circle"; break;
+            }  
+
+            xcb_font_t font = xcb_generate_id(gConnection);
+            // There is xcb_xfixes_cursor_change_cursor_by_name. However xcb_cursor_load_cursor guarantees
+            // finding the cursor for the current X theme.
+            xcb_cursor_t cursor = xcb_cursor_load_cursor(gCursorContext, tX11Cursor);
+            // IM_ASSERT(cursor && "X cursor not found!");
+
+            uint32_t value_list = cursor;
+            xcb_change_window_attributes(gConnection, gWindow, XCB_CW_CURSOR, &value_list);
+            xcb_free_cursor(gConnection, cursor);
+            xcb_close_font_checked(gConnection, font);
+        }
+        gtIOContext.tNextCursor = PL_MOUSE_CURSOR_ARROW;
+        gtIOContext.bCursorChanged = false;
+
         // reload library
         if(pl_has_library_changed(&gAppLibrary))
         {
@@ -351,6 +396,7 @@ int main()
     // platform cleanup
     XAutoRepeatOn(gDisplay);
     xcb_destroy_window(gConnection, gWindow);
+    xcb_cursor_context_free(gCursorContext);
 
     // cleanup io context
     pl_cleanup_io_context();
