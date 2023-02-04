@@ -1,5 +1,5 @@
 /*
-   pl_math.h, v0.3 (WIP)
+   pl_math.h, v0.4 (WIP)
 
    Do this:
         #define PL_MATH_INCLUDE_FUNCTIONS
@@ -190,6 +190,7 @@ static inline uint32_t pl_maxu    (uint32_t uValue1, uint32_t uValue2)   { retur
 static inline uint32_t pl_minu    (uint32_t uValue1, uint32_t uValue2)   { return uValue1 > uValue2 ? uValue2 : uValue1; }
 static inline float    pl_squaref (float fValue)                         { return fValue * fValue;}
 static inline float    pl_cubef   (float fValue)                         { return fValue * fValue * fValue;}
+static inline int      pl_clampi  (int iMin, int iValue, int iMax)       { if (iValue < iMin) return iMin; else if (iValue > iMax) return iMax; return iValue; }
 static inline float    pl_clampf  (float fMin, float fValue, float fMax) { if (fValue < fMin) return fMin; else if (fValue > fMax) return fMax; return fValue; }
 static inline float    pl_clamp01f(float fValue)                         { return pl_clampf(0.0f, fValue, 1.0f); }
 static inline size_t   pl_align_up(size_t szValue, size_t szAlign)       { return ((szValue + (szAlign - 1)) & ~(szAlign - 1)); }
@@ -201,12 +202,24 @@ static inline size_t   pl_align_up(size_t szValue, size_t szAlign)       { retur
 //-----------------------------------------------------------------------------
 
 // unary ops
-static inline float pl_length_sqr_vec2  (plVec2 tVec)                { return pl_squaref(tVec.x) + pl_squaref(tVec.y); }
-static inline float pl_length_sqr_vec3  (plVec3 tVec)                { return pl_squaref(tVec.x) + pl_squaref(tVec.y) + pl_squaref(tVec.z); }
-static inline float pl_length_sqr_vec4  (plVec4 tVec)                { return pl_squaref(tVec.x) + pl_squaref(tVec.y) + pl_squaref(tVec.z) + pl_squaref(tVec.w); }
-static inline float pl_length_vec2      (plVec2 tVec)                { return sqrtf(pl_length_sqr_vec2(tVec)); }
-static inline float pl_length_vec3      (plVec3 tVec)                { return sqrtf(pl_length_sqr_vec3(tVec)); }
-static inline float pl_length_vec4      (plVec4 tVec)                { return sqrtf(pl_length_sqr_vec4(tVec)); }
+static inline float  pl_length_sqr_vec2  (plVec2 tVec)                             { return pl_squaref(tVec.x) + pl_squaref(tVec.y); }
+static inline float  pl_length_sqr_vec3  (plVec3 tVec)                             { return pl_squaref(tVec.x) + pl_squaref(tVec.y) + pl_squaref(tVec.z); }
+static inline float  pl_length_sqr_vec4  (plVec4 tVec)                             { return pl_squaref(tVec.x) + pl_squaref(tVec.y) + pl_squaref(tVec.z) + pl_squaref(tVec.w); }
+static inline float  pl_length_vec2      (plVec2 tVec)                             { return sqrtf(pl_length_sqr_vec2(tVec)); }
+static inline float  pl_length_vec3      (plVec3 tVec)                             { return sqrtf(pl_length_sqr_vec3(tVec)); }
+static inline float  pl_length_vec4      (plVec4 tVec)                             { return sqrtf(pl_length_sqr_vec4(tVec)); }
+static inline plVec2 pl_floor_vec2       (plVec2 tVec)                             { return (plVec2){floorf(tVec.x), floorf(tVec.y)};}
+static inline plVec3 pl_floor_vec3       (plVec3 tVec)                             { return (plVec3){floorf(tVec.x), floorf(tVec.y), floorf(tVec.z)};}
+static inline plVec4 pl_floor_vec4       (plVec4 tVec)                             { return (plVec4){floorf(tVec.x), floorf(tVec.y), floorf(tVec.z), floorf(tVec.w)};}
+static inline plVec2 pl_clamp_vec2       (plVec2 tMin, plVec2 tValue, plVec2 tMax) { return (plVec2){pl_clampf(tMin.x, tValue.x, tMax.x), pl_clampf(tMin.y, tValue.y, tMax.y)};}
+static inline plVec3 pl_clamp_vec3       (plVec3 tMin, plVec3 tValue, plVec3 tMax) { return (plVec3){pl_clampf(tMin.x, tValue.x, tMax.x), pl_clampf(tMin.y, tValue.y, tMax.y), pl_clampf(tMax.z, tValue.z, tMax.z)};}
+static inline plVec4 pl_clamp_vec4       (plVec4 tMin, plVec4 tValue, plVec4 tMax) { return (plVec4){pl_clampf(tMin.x, tValue.x, tMax.x), pl_clampf(tMin.y, tValue.y, tMax.y), pl_clampf(tMax.z, tValue.z, tMax.z), pl_clampf(tMax.w, tValue.w, tMax.w)};}
+static inline plVec2 pl_min_vec2        (plVec2 tValue0, plVec2 tValue1)           { return (plVec2){pl_minf(tValue0.x, tValue1.x), pl_minf(tValue0.y, tValue1.y)};}
+static inline plVec3 pl_min_vec3        (plVec3 tValue0, plVec3 tValue1)           { return (plVec3){pl_minf(tValue0.x, tValue1.x), pl_minf(tValue0.y, tValue1.y), pl_minf(tValue0.z, tValue1.z)};}
+static inline plVec4 pl_min_vec4        (plVec4 tValue0, plVec4 tValue1)           { return (plVec4){pl_minf(tValue0.x, tValue1.x), pl_minf(tValue0.y, tValue1.y), pl_minf(tValue0.z, tValue1.z), pl_minf(tValue0.w, tValue1.w)};}
+static inline plVec2 pl_max_vec2        (plVec2 tValue0, plVec2 tValue1)           { return (plVec2){pl_maxf(tValue0.x, tValue1.x), pl_maxf(tValue0.y, tValue1.y)};}
+static inline plVec3 pl_max_vec3        (plVec3 tValue0, plVec3 tValue1)           { return (plVec3){pl_maxf(tValue0.x, tValue1.x), pl_maxf(tValue0.y, tValue1.y), pl_maxf(tValue0.z, tValue1.z)};}
+static inline plVec4 pl_max_vec4        (plVec4 tValue0, plVec4 tValue1)           { return (plVec4){pl_maxf(tValue0.x, tValue1.x), pl_maxf(tValue0.y, tValue1.y), pl_maxf(tValue0.z, tValue1.z), pl_maxf(tValue0.w, tValue1.w)};}
 
 // binary ops
 static inline float  pl_dot_vec2        (plVec2 tVec1, plVec2 tVec2) { return tVec1.x * tVec2.x + tVec1.y * tVec2.y; }
@@ -288,7 +301,20 @@ static inline plVec2 pl_rect_top_left      (const plRect* ptRect)               
 static inline plVec2 pl_rect_top_right     (const plRect* ptRect)                             { return (plVec2){ptRect->tMax.x, ptRect->tMin.y};}
 static inline plVec2 pl_rect_bottom_left   (const plRect* ptRect)                             { return (plVec2){ptRect->tMin.x, ptRect->tMax.y};}
 static inline plVec2 pl_rect_bottom_right  (const plRect* ptRect)                             { return ptRect->tMax;}
-static inline bool   pl_rect_contains_point(const plRect* ptRect, plVec2 tP)                  { return tP.x >= ptRect->tMin.x && tP.y >= ptRect->tMin.y && tP.x <  ptRect->tMax.x && tP.y <  ptRect->tMax.y; }
+static inline bool   pl_rect_contains_point(const plRect* ptRect, plVec2 tP)                  { return tP.x >= ptRect->tMin.x && tP.y >= ptRect->tMin.y && tP.x < ptRect->tMax.x && tP.y < ptRect->tMax.y; }
+static inline bool   pl_rect_contains_rect (const plRect* ptRect0, const plRect* ptRect1)     { return ptRect1->tMin.x >= ptRect0->tMin.x && ptRect1->tMin.y >= ptRect0->tMin.y && ptRect1->tMax.x <= ptRect0->tMax.x && ptRect1->tMax.y <= ptRect0->tMax.y; }
+static inline bool   pl_rect_overlaps_rect (const plRect* ptRect0, const plRect* ptRect1)     { return ptRect1->tMin.y <  ptRect0->tMax.y && ptRect1->tMax.y >  ptRect0->tMin.y && ptRect1->tMin.x <  ptRect0->tMax.x && ptRect1->tMax.x > ptRect0->tMin.x; }
+static inline bool   pl_rect_is_inverted   (const plRect* ptRect)                             { return ptRect->tMin.x > ptRect->tMax.x || ptRect->tMin.y > ptRect->tMax.y; }
+static inline plRect pl_rect_expand        (const plRect* ptRect, float fPadding)             { return (plRect){.tMin = {ptRect->tMin.x - fPadding, ptRect->tMin.y - fPadding}, .tMax = {ptRect->tMax.x + fPadding, ptRect->tMax.y + fPadding}};}
+static inline plRect pl_rect_expand_vec2   (const plRect* ptRect, plVec2 tPadding)            { return (plRect){.tMin = {ptRect->tMin.x - tPadding.x, ptRect->tMin.y - tPadding.y}, .tMax = {ptRect->tMax.x + tPadding.x, ptRect->tMax.y + tPadding.y}};}
+static inline plRect pl_rect_clip          (const plRect* ptRect0, const plRect* ptRect1)     { return (plRect){.tMin = { pl_maxf(ptRect0->tMin.x, ptRect1->tMin.x), pl_maxf(ptRect0->tMin.y, ptRect1->tMin.y) }, .tMax = {pl_minf(ptRect0->tMax.x, ptRect1->tMax.x), pl_minf(ptRect0->tMax.y, ptRect1->tMax.y)} };}
+static inline plRect pl_rect_clip_full     (const plRect* ptRect0, const plRect* ptRect1)     { return (plRect){.tMin = pl_clamp_vec2(ptRect1->tMin, ptRect0->tMin, ptRect1->tMax), .tMax = pl_clamp_vec2(ptRect1->tMin, ptRect0->tMax, ptRect1->tMax)}; }
+static inline plRect pl_rect_floor         (const plRect* ptRect)                             { return (plRect){.tMin = { floorf(ptRect->tMin.x), floorf(ptRect->tMin.y)}, .tMax = {floorf(ptRect->tMax.x), floorf(ptRect->tMax.y)}};}
+static inline plRect pl_rect_translate_vec2(const plRect* ptRect, plVec2 tDelta)              { return (plRect){.tMin = { ptRect->tMin.x + tDelta.x, ptRect->tMin.y + tDelta.y}, .tMax = {ptRect->tMax.x + tDelta.x, ptRect->tMax.y + tDelta.y}};}
+static inline plRect pl_rect_translate_x   (const plRect* ptRect, float fDx)                  { return (plRect){.tMin = { ptRect->tMin.x + fDx, ptRect->tMin.y}, .tMax = {ptRect->tMax.x + fDx, ptRect->tMax.y}};}
+static inline plRect pl_rect_translate_y   (const plRect* ptRect, float fDy)                  { return (plRect){.tMin = { ptRect->tMin.x, ptRect->tMin.y + fDy}, .tMax = {ptRect->tMax.x, ptRect->tMax.y + fDy}};}
+static inline plRect pl_rect_add_point     (const plRect* ptRect, plVec2 tP)                  { return (plRect){.tMin = { ptRect->tMin.x > tP.x ? tP.x : ptRect->tMin.x, ptRect->tMin.y > tP.y ? tP.y : ptRect->tMin.y}, .tMax = {ptRect->tMax.x < tP.x ? tP.x : ptRect->tMax.x, ptRect->tMax.y < tP.y ? tP.y : ptRect->tMax.y}};}
+static inline plRect pl_rect_add_rect      (const plRect* ptRect0, const plRect* ptRect1)     { return (plRect){.tMin = { ptRect0->tMin.x > ptRect1->tMin.x ? ptRect1->tMin.x : ptRect0->tMin.x, ptRect0->tMin.y > ptRect1->tMin.y ? ptRect1->tMin.y : ptRect0->tMin.y}, .tMax = {ptRect0->tMax.x < ptRect1->tMax.x ? ptRect1->tMax.x : ptRect0->tMax.x, ptRect0->tMax.y < ptRect1->tMax.y ? ptRect1->tMax.y : ptRect0->tMax.y}};}
 
 //-----------------------------------------------------------------------------
 // [SECTION] implementations
