@@ -95,6 +95,7 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
         pl_set_data_registry(&ptAppData->tDataRegistryCtx);
         pl_set_extension_registry(&ptAppData->tExtensionRegistryCtx);
         pl_set_io_context(ptIOCtx);
+        pl_ui_set_context(&ptAppData->tUiContext);
 
         plExtension* ptExtension = pl_get_extension(PL_EXT_DRAW);
         ptAppData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
@@ -196,6 +197,7 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     // ui
     pl_ui_setup_context(&ptAppData->ctx, &ptAppData->tUiContext);
     pl_setup_drawlist_dx11(ptAppData->tUiContext.ptDrawlist);
+    pl_setup_drawlist_dx11(ptAppData->tUiContext.ptDebugDrawlist);
     ptAppData->tUiContext.ptFont = &ptAppData->fontAtlas.sbFonts[0];
 
     return ptAppData;
@@ -218,7 +220,7 @@ pl_app_shutdown(plAppData* ptAppData)
     // clean up contexts
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
     pl_cleanup_draw_context(&ptAppData->ctx);
-    pl_ui_cleanup_context(&ptAppData->tUiContext);
+    pl_ui_cleanup_context();
     pl_cleanup_profile_context();
     pl_cleanup_extension_registry();
     pl_cleanup_log_context();
@@ -272,7 +274,7 @@ pl_app_update(plAppData* ptAppData)
     plIOContext* ptIOCtx = pl_get_io_context();
 
     pl_new_draw_frame(&ptAppData->ctx);
-    pl_ui_new_frame(&ptAppData->tUiContext);
+    pl_ui_new_frame();
 
     // begin profiling frame (temporarily using drawing context frame count)
     pl_begin_profile_frame(ptAppData->ctx.frameCount);
@@ -328,9 +330,9 @@ pl_app_update(plAppData* ptAppData)
         pl_ui_text("%.6f ms", ptIOCtx->fDeltaTime);
 
         pl_ui_checkbox("Camera Info", &bOpen);
-        
-        pl_ui_end_window();
+       
     }
+    pl_ui_end_window();
 
     // submit draw layers
     pl_begin_profile_sample("Submit draw layers");
@@ -343,13 +345,14 @@ pl_app_update(plAppData* ptAppData)
     // submit draw lists
     pl_submit_drawlist_dx11(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1]);
     pl_submit_drawlist_dx11(ptAppData->tUiContext.ptDrawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1]);
+    pl_submit_drawlist_dx11(ptAppData->tUiContext.ptDebugDrawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1]);
 
     // present
     PL_COM(ptAppData->ptSwapChain)->Present(ptAppData->ptSwapChain, 1, 0);
 
-    pl_end_io_frame();
     pl_ui_end_frame();
-
+    pl_end_io_frame();
+    
     // end profiling frame
     pl_end_profile_frame();
 }

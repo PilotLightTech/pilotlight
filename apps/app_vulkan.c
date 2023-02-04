@@ -89,6 +89,7 @@ typedef struct _plAppData
     plUiContext         tUiContext;
     bool                bShowUiDemo;
     bool                bShowUiDebug;
+    bool                bShowUiStyle;
 
     // extension apis
     plDrawExtension* ptDrawExtApi;
@@ -154,6 +155,7 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
         pl_set_data_registry(&ptAppData->tDataRegistryCtx);
         pl_set_extension_registry(&ptAppData->tExtensionRegistryCtx);
         pl_set_io_context(ptIOCtx);
+        pl_ui_set_context(&ptAppData->tUiContext);
 
         plExtension* ptExtension = pl_get_extension(PL_EXT_DRAW);
         ptAppData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
@@ -209,6 +211,7 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     // ui
     pl_ui_setup_context(&ptAppData->tCtx, &ptAppData->tUiContext);
     pl_setup_drawlist_vulkan(ptAppData->tUiContext.ptDrawlist, ptAppData->tGraphics.tRenderPass, ptAppData->tGraphics.tSwapchain.tMsaaSamples);
+    pl_setup_drawlist_vulkan(ptAppData->tUiContext.ptDebugDrawlist, ptAppData->tGraphics.tRenderPass, ptAppData->tGraphics.tSwapchain.tMsaaSamples);
     ptAppData->tUiContext.ptFont = &ptAppData->fontAtlas.sbFonts[0];
 
     // renderer
@@ -216,7 +219,8 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     pl_setup_renderer(&ptAppData->tGraphics, &ptAppData->tAssetRegistry, &ptAppData->tRenderer);
 
     // camera
-    ptAppData->tCamera = pl_create_perspective_camera((plVec3){0.0f, 2.0f, 8.5f}, PL_PI_3, ptIOCtx->afMainViewportSize[0] / ptIOCtx->afMainViewportSize[1], 0.01f, 400.0f);
+    ptAppData->tCamera = pl_create_perspective_camera((plVec3){-6.211f, 3.647f, 0.827f}, PL_PI_3, ptIOCtx->afMainViewportSize[0] / ptIOCtx->afMainViewportSize[1], 0.01f, 400.0f);
+    pl_camera_set_pitch_yaw(&ptAppData->tCamera, -0.244f, -1.488f);
 
     // create shaders
     pl_load_shaders(ptAppData);
@@ -504,7 +508,7 @@ pl_app_shutdown(plAppData* ptAppData)
     vkDeviceWaitIdle(ptAppData->tGraphics.tDevice.tLogicalDevice);
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
     pl_cleanup_draw_context(&ptAppData->tCtx);
-    pl_ui_cleanup_context(&ptAppData->tUiContext);
+    pl_ui_cleanup_context();
     pl_cleanup_renderer(&ptAppData->tRenderer);
     pl_cleanup_asset_registry(&ptAppData->tAssetRegistry);
     pl_cleanup_graphics(&ptAppData->tGraphics);
@@ -540,7 +544,7 @@ pl_app_update(plAppData* ptAppData)
     pl_handle_extension_reloads();
     pl_new_io_frame();
     pl_new_draw_frame(&ptAppData->tCtx);
-    pl_ui_new_frame(&ptAppData->tUiContext);
+    pl_ui_new_frame();
     pl_process_cleanup_queue(&ptAppData->tGraphics.tResourceManager, 1);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~input handling~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -561,9 +565,9 @@ pl_app_update(plAppData* ptAppData)
 
         pl_begin_main_pass(&ptAppData->tGraphics);
 
-        if(!ptAppData->tUiContext.bMouseOwned && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, -0.0f))
+        if(!ptAppData->tUiContext.bMouseOwned && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
         {
-            const plVec2 tMouseDelta = pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, -0.0f);
+            const plVec2 tMouseDelta = pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
             pl_camera_rotate(&ptAppData->tCamera,  -tMouseDelta.y * 0.1f * ptIOCtx->fDeltaTime,  -tMouseDelta.x * 0.1f * ptIOCtx->fDeltaTime);
             pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
         }
@@ -942,7 +946,7 @@ pl_app_update(plAppData* ptAppData)
 
         // ui
 
-        static bool bOpen = true;
+        static bool bOpen = false;
 
         pl_ui_set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
 
@@ -951,6 +955,7 @@ pl_app_update(plAppData* ptAppData)
             pl_ui_checkbox("UI Debug", &ptAppData->bShowUiDebug);
             pl_ui_checkbox("Camera Info", &bOpen);
             pl_ui_checkbox("UI Demo", &ptAppData->bShowUiDemo);
+            pl_ui_checkbox("UI Style", &ptAppData->bShowUiStyle);
             
 
             if(pl_ui_button("Move"))
@@ -1000,6 +1005,9 @@ pl_app_update(plAppData* ptAppData)
         if(ptAppData->bShowUiDebug)
             pl_ui_debug(&ptAppData->bShowUiDebug);
 
+        if(ptAppData->bShowUiStyle)
+            pl_ui_style(&ptAppData->bShowUiStyle);
+
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submit draws~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         // submit draw layers
@@ -1013,14 +1021,15 @@ pl_app_update(plAppData* ptAppData)
         // submit draw lists
         pl_submit_drawlist_vulkan(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
         pl_submit_drawlist_vulkan(ptAppData->tUiContext.ptDrawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
+        pl_submit_drawlist_vulkan(ptAppData->tUiContext.ptDebugDrawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~end frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         pl_end_main_pass(&ptAppData->tGraphics);
         pl_end_recording(&ptAppData->tGraphics);
         pl_end_frame(&ptAppData->tGraphics);
     }
-    pl_end_io_frame();
     pl_ui_end_frame();
+    pl_end_io_frame(); 
     pl_end_profile_frame();
 }
 

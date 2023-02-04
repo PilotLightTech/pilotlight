@@ -88,6 +88,7 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
         pl_set_data_registry(&ptAppData->tDataRegistryCtx);
         pl_set_extension_registry(&ptAppData->tExtensionRegistryCtx);
         pl_set_io_context(ptIOCtx);
+        pl_ui_set_context(&ptAppData->tUiContext);
 
         plExtension* ptExtension = pl_get_extension(PL_EXT_DRAW);
         ptAppData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
@@ -177,7 +178,7 @@ pl_app_shutdown(plAppData* ptAppData)
     // clean up contexts
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
     pl_cleanup_draw_context(&ptAppData->ctx);
-    pl_ui_cleanup_context(&ptAppData->tUiContext);
+    pl_ui_cleanup_context();
     pl_cleanup_profile_context();
     pl_cleanup_extension_registry();
     pl_cleanup_log_context();
@@ -237,7 +238,7 @@ pl_app_update(plAppData* ptAppData)
     ptAppData->drawableRenderDescriptor.colorAttachments[0].texture = currentDrawable.texture;
 
     pl_new_draw_frame_metal(&ptAppData->ctx, ptAppData->drawableRenderDescriptor);
-    pl_ui_new_frame(&ptAppData->tUiContext);
+    pl_ui_new_frame();
 
     // create render command encoder
     id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:ptAppData->drawableRenderDescriptor];
@@ -276,11 +277,9 @@ pl_app_update(plAppData* ptAppData)
     {
         pl_ui_text("%.6f ms", ptIOCtx->fDeltaTime);
 
-        pl_ui_checkbox("Camera Info", &bOpen);
-        
-
-        pl_ui_end_window();
+        pl_ui_checkbox("Camera Info", &bOpen);    
     }
+    pl_ui_end_window();
 
     if(bOpen)
     {
@@ -332,6 +331,7 @@ pl_app_update(plAppData* ptAppData)
     ptAppData->ctx.tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
     pl_submit_drawlist_metal(&ptAppData->drawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
     pl_submit_drawlist_metal(ptAppData->tUiContext.ptDrawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
+    pl_submit_drawlist_metal(ptAppData->tUiContext.ptDebugDrawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
     pl_end_profile_sample();
 
     // finish recording
@@ -343,9 +343,9 @@ pl_app_update(plAppData* ptAppData)
     // submit command buffer
     [commandBuffer commit];
 
-    pl_end_io_frame();
     pl_ui_end_frame();
-
+    pl_end_io_frame();
+    
     // end profiling frame
     pl_end_profile_frame();
 }

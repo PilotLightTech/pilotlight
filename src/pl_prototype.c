@@ -79,7 +79,13 @@ pl_ui_demo(bool* pbOpen)
     if(pl_ui_begin_window("UI Demo", pbOpen, false))
     {
         pl_ui_progress_bar(0.75f, (plVec2){-1.0f, 0.0f}, NULL);
+        pl_ui_labeled_text("Label 1", "Cool beans");
+        pl_ui_labeled_text("Long label", "Cool beans plus other stuff");
+        pl_ui_labeled_text("Long label", "Cool beans plus other stuff");
+        pl_ui_labeled_text("Long label", "Cool beans plus other stuff");
+        pl_ui_labeled_text("Long label", "Cool beans plus other stuff");
         pl_ui_button("Hover me!");
+        pl_ui_button_ex("Hover me111!", (plVec2){30.0f, 0.0f});
 
         if(pl_ui_was_last_item_hovered())
         {
@@ -87,7 +93,25 @@ pl_ui_demo(bool* pbOpen)
             pl_ui_text("I'm a tooltip!");
             pl_ui_end_tooltip();
         }
+
+        if(pl_ui_begin_child("CHILD", (plVec2){500.0f, 200.0f}))
+        {
+            for(uint32_t i = 0; i < 25; i++)
+                pl_ui_text("Long text is happening11111111111111111111111111111111111111111111111111111111123456789");
+        }
+        pl_ui_end_child();
+
+
         static int iValue = 0;
+        static float fValue1 = 23.0f;
+        static float fValue2 = 100.0f;
+        static int iValue1 = 0;
+        static int iValue2 = 3;
+        pl_ui_slider_float("slider1", &fValue1, 0.0f, 100.0f);
+        pl_ui_slider_float("slider2", &fValue2, -50.0f, 100.0f);
+        pl_ui_slider_int("slider3", &iValue1, 0, 10);
+        pl_ui_slider_int("slider4", &iValue2, -5, 10);
+        pl_ui_drag_float("drag", &fValue2, 1.0f, -100.0f, 100.0f);
         pl_ui_text("Radio Buttons");
         pl_ui_radio_button("Option 1", &iValue, 0);
         pl_ui_same_line(0.0f, -1.0f);
@@ -105,7 +129,7 @@ pl_ui_demo(bool* pbOpen)
         {
             if(pl_ui_tree_node("Child 1"))
             {
-                pl_ui_button("Press me");
+                pl_ui_button_ex("Press me", (plVec2){-1.0f, 30.0f});
                 pl_ui_tree_pop();
             }
             if(pl_ui_tree_node("Child 2"))
@@ -126,7 +150,9 @@ pl_ui_demo(bool* pbOpen)
             {
                 pl_ui_selectable("Selectable 1", &bSelectable0);
                 pl_ui_selectable("Selectable 2", &bSelectable1);
-                pl_ui_selectable("Selectable 3", &bSelectable2);   
+                pl_ui_selectable("Selectable 3", &bSelectable2);
+                pl_ui_ex_slider_float("slider1", &fValue1, 0.0f, 100.0f);
+                pl_ui_ex_slider_float("slider2", &fValue2, -50.0f, 100.0f);
             }
             pl_ui_end_tab();
 
@@ -140,8 +166,12 @@ pl_ui_demo(bool* pbOpen)
 
             if(pl_ui_begin_tab("Tab 2"))
             {
-                pl_ui_radio_button("Option 1", &iValue, 0);
-                pl_ui_selectable("Selectable 2", &bSelectable1);
+                if(pl_ui_begin_child("CHILD2", (plVec2){-1.0f, -1.0f}))
+                {
+                    for(uint32_t i = 0; i < 25; i++)
+                        pl_ui_text("Long text is happening11111111111111111111111111111111111111111111111111111111123456789");
+                }
+                pl_ui_end_child();
             }
             pl_ui_end_tab();
         }
