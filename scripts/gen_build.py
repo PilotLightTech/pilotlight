@@ -20,7 +20,7 @@ with pl.project("pilotlight"):
     # used to decide hot reloading
     pl.set_main_target("pilot_light")
 
-    pl.push_profile(pl.Profile.PILOT_LIGHT_DEBUG)
+    pl.push_profile(pl.Profile.PILOT_LIGHT_DEBUG_C)
 
     pl.push_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS")
     pl.push_include_directories("../apps", "../src", "../libs", "../extensions", "../out", "../dependencies/stb")
@@ -127,6 +127,7 @@ with pl.project("pilotlight"):
         pl.pop_definitions()
         pl.pop_source_files()
         pl.pop_profile() 
+        pl.pop_vulkan_glsl_files() 
         pl.pop_vulkan_glsl_files() 
 
         with pl.configuration("debugdx11"):
