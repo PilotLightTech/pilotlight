@@ -325,6 +325,113 @@ pl_add_text_ex(plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec4 co
 }
 
 void
+pl_add_text_clipped(plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap)
+{
+    const char* pcTextEnd = pcText + strlen(pcText);
+    pl_add_text_clipped_ex(ptLayer, ptFont, fSize, tP, tMin, tMax, tColor, pcText, pcTextEnd, fWrap);
+}
+
+void
+pl_add_text_clipped_ex(plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec2 tMin, plVec2 tMax, plVec4 color, const char* text, const char* pcTextEnd, float wrap)
+{
+    // const plVec2 tTextSize = pl_calculate_text_size_ex(font, size, text, pcTextEnd, wrap);
+    const plRect tClipRect = {tMin, tMax};
+
+    float scale = size > 0.0f ? size / font->config.fontSize : 1.0f;
+
+    float lineSpacing = scale * font->lineSpacing;
+    const plVec2 originalPosition = p;
+    bool firstCharacter = true;
+
+    while(text < pcTextEnd)
+    {
+        uint32_t c = (uint32_t)*text;
+        if(c < 0x80)
+            text += 1;
+        else
+        {
+            text += pl__text_char_from_utf8(&c, text);
+            if(c == 0) // malformed UTF-8?
+                break;
+        }
+
+        if(c == '\n')
+        {
+            p.x = originalPosition.x;
+            p.y += lineSpacing;
+        }
+        else if(c == '\r')
+        {
+            // do nothing
+        }
+        else
+        {
+
+            bool glyphFound = false;
+            for(uint32_t i = 0u; i < pl_sb_size(font->config.sbRanges); i++)
+            {
+                if (c >= (uint32_t)font->config.sbRanges[i].firstCodePoint && c < (uint32_t)font->config.sbRanges[i].firstCodePoint + (uint32_t)font->config.sbRanges[i].charCount) 
+                {
+
+                    
+                    float x0,y0,s0,t0; // top-left
+                    float x1,y1,s1,t1; // bottom-right
+
+                    const plFontGlyph* glyph = &font->sbGlyphs[font->sbCodePoints[c]];
+
+                    // adjust for left side bearing if first char
+                    if(firstCharacter)
+                    {
+                        if(glyph->leftBearing > 0.0f) p.x += glyph->leftBearing * scale;
+                        firstCharacter = false;
+                    }
+
+                    x0 = p.x + glyph->x0 * scale;
+                    x1 = p.x + glyph->x1 * scale;
+                    y0 = p.y + glyph->y0 * scale;
+                    y1 = p.y + glyph->y1 * scale;
+
+                    if(wrap > 0.0f && x1 > originalPosition.x + wrap)
+                    {
+                        x0 = originalPosition.x + glyph->x0 * scale;
+                        y0 = y0 + lineSpacing;
+                        x1 = originalPosition.x + glyph->x1 * scale;
+                        y1 = y1 + lineSpacing;
+
+                        p.x = originalPosition.x;
+                        p.y += lineSpacing;
+                    }
+                    s0 = glyph->u0;
+                    t0 = glyph->v0;
+                    s1 = glyph->u1;
+                    t1 = glyph->v1;
+
+                    p.x += glyph->xAdvance * scale;
+                    if(c != ' ' && pl_rect_contains_point(&tClipRect, p))
+                    {
+                        pl__prepare_draw_command(layer, font->parentAtlas->texture, font->config.sdf);
+                        pl__reserve_triangles(layer, 6, 4);
+                        uint32_t uVtxStart = pl_sb_size(layer->drawlist->sbVertexBuffer);
+                        pl__add_vertex(layer, (plVec2){x0, y0}, color, (plVec2){s0, t0});
+                        pl__add_vertex(layer, (plVec2){x1, y0}, color, (plVec2){s1, t0});
+                        pl__add_vertex(layer, (plVec2){x1, y1}, color, (plVec2){s1, t1});
+                        pl__add_vertex(layer, (plVec2){x0, y1}, color, (plVec2){s0, t1});
+
+                        pl__add_index(layer, uVtxStart, 1, 0, 2);
+                        pl__add_index(layer, uVtxStart, 2, 0, 3);
+                    }
+
+                    glyphFound = true;
+                    break;
+                }
+            }
+
+            PL_ASSERT(glyphFound && "Glyph not found");
+        }   
+    }   
+}
+
+void
 pl_add_triangle(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness)
 {
     pl_sb_push(ptLayer->sbPath, tP0);
