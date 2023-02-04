@@ -301,7 +301,7 @@ pl_cleanup_font_atlas(plFontAtlas* ptAtlas)
 void
 pl_submit_drawlist_dx11(plDrawList* ptDrawlist, float fWidth, float fHeight)
 {
-    if(pl_sb_size(ptDrawlist->sbVertexBuffer) == 0u)
+    if(pl_sb_size(ptDrawlist->sbVertexBuffer) == 0u || ptDrawlist->indexBufferByteSize == 0)
         return;
 
     plDrawContext* drawContext = ptDrawlist->ctx;
@@ -480,8 +480,10 @@ pl_cleanup_draw_context(plDrawContext* ctx)
         plDrawList* drawlist = ctx->sbDrawlists[i];
         plDx11DrawList* ptDx11Drawlist = drawlist->_platformData;
 
-        PL_COM_RELEASE(ptDx11Drawlist->ptVertexBuffer);
-        PL_COM_RELEASE(ptDx11Drawlist->ptIndexBuffer);
+        if(ptDx11Drawlist->ptVertexBuffer)
+            PL_COM_RELEASE(ptDx11Drawlist->ptVertexBuffer);
+        if(ptDx11Drawlist->ptIndexBuffer)
+            PL_COM_RELEASE(ptDx11Drawlist->ptIndexBuffer);
     }
 }
 

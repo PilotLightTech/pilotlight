@@ -730,11 +730,15 @@ pl_submit_drawlist_vulkan(plDrawList* drawlist, float width, float height, VkCom
 
     // ensure gpu vertex buffer size is adequate
     uint32_t uVtxBufSzNeeded = sizeof(plDrawVertex) * pl_sb_size(drawlist->sbVertexBuffer) * PL_MAX_FRAMES_IN_FLIGHT;
+    if(uVtxBufSzNeeded == 0)
+        return;
     if(uVtxBufSzNeeded >= drawlistVulkanData->sbVertexByteSize[currentFrameIndex])
         pl__grow_vulkan_vertex_buffer(drawlist, uVtxBufSzNeeded * 2, currentFrameIndex);
 
     // ensure gpu index buffer size is adequate
     uint32_t uIdxBufSzNeeded = drawlist->indexBufferByteSize * PL_MAX_FRAMES_IN_FLIGHT;
+    if(uIdxBufSzNeeded == 0)
+        return;
     if(uIdxBufSzNeeded >= drawlistVulkanData->sbIndexByteSize[currentFrameIndex])
         pl__grow_vulkan_index_buffer(drawlist, uIdxBufSzNeeded * 2, currentFrameIndex);
 
@@ -837,14 +841,22 @@ pl_submit_drawlist_vulkan(plDrawList* drawlist, float width, float height, VkCom
         }
         else
         {
-            const float fOrigWidth = pl_rect_width(&cmd.tClip);
-            const float fOrigHeight = pl_rect_height(&cmd.tClip);
+
+            // clamp to viewport
+            if (cmd.tClip.tMin.x < 0.0f)   { cmd.tClip.tMin.x = 0.0f; }
+            if (cmd.tClip.tMin.y < 0.0f)   { cmd.tClip.tMin.y = 0.0f; }
+            if (cmd.tClip.tMax.x > width)  { cmd.tClip.tMax.x = (float)width; }
+            if (cmd.tClip.tMax.y > height) { cmd.tClip.tMax.y = (float)height; }
+            if (cmd.tClip.tMax.x <= cmd.tClip.tMin.x || cmd.tClip.tMax.y <= cmd.tClip.tMin.y)
+                continue;
+
             const VkRect2D tScissor = {
                 .offset.x      = (int32_t) (cmd.tClip.tMin.x < 0 ? 0 : cmd.tClip.tMin.x),
                 .offset.y      = (int32_t) (cmd.tClip.tMin.y < 0 ? 0 : cmd.tClip.tMin.y),
-                .extent.width  = (cmd.tClip.tMin.x + fOrigWidth  > width ? (int32_t)width - (int32_t)cmd.tClip.tMin.x : (int32_t)fOrigWidth),
-                .extent.height = (cmd.tClip.tMin.y + fOrigHeight  > height ? (int32_t)height - (int32_t)cmd.tClip.tMin.y: (int32_t)fOrigHeight)
+                .extent.width  = (int32_t)pl_rect_width(&cmd.tClip),
+                .extent.height = (int32_t)pl_rect_height(&cmd.tClip)
             };
+
             vkCmdSetScissor(cmdBuf, 0, 1, &tScissor);
         }
 
