@@ -138,6 +138,8 @@ void            pl_add_font_from_file_ttf  (plFontAtlas* ptAtlas, plFontConfig t
 void            pl_add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, void* pData);
 plVec2          pl_calculate_text_size     (plFont* ptFont, float fSize, const char* pcText, float fWrap);
 plVec2          pl_calculate_text_size_ex  (plFont* ptFont, float fSize, const char* pcText, const char* pcTextEnd, float fWrap);
+plRect          pl_calculate_text_bb       (plFont* ptFont, float fSize, plVec2 tP, const char* pcText, float fWrap);
+plRect          pl_calculate_text_bb_ex    (plFont* ptFont, float fSize, plVec2 tP, const char* pcText, const char* pcTextEnd, float fWrap);
 
 // clipping
 void            pl_push_clip_rect_pt       (plDrawList* ptDrawlist, const plRect* ptRect);

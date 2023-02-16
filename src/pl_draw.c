@@ -19,6 +19,7 @@ Index of this file:
 
 #include <math.h>
 #include <stdio.h>
+#include <float.h> // FLT_MAX
 #include "stb_rect_pack.h"
 #include "stb_truetype.h"
 #include "pl_draw.h"
@@ -772,7 +773,7 @@ pl_calculate_text_size_ex(plFont* font, float size, const char* text, const char
     float scale = size > 0.0f ? size / font->config.fontSize : 1.0f;
 
     float lineSpacing = scale * font->lineSpacing;
-    const plVec2 originalPosition = {0};
+    plVec2 originalPosition = {FLT_MAX, FLT_MAX};
     bool firstCharacter = true;
 
     while(text < pcTextEnd)
@@ -816,6 +817,8 @@ pl_calculate_text_size_ex(plFont* font, float size, const char* text, const char
                     {
                         if(glyph->leftBearing > 0.0f) cursor.x += glyph->leftBearing * scale;
                         firstCharacter = false;
+                        originalPosition.x = cursor.x + glyph->x0 * scale;
+                        originalPosition.y = cursor.y + glyph->y0 * scale;
                     }
 
                     x0 = cursor.x + glyph->x0 * scale;
@@ -833,6 +836,10 @@ pl_calculate_text_size_ex(plFont* font, float size, const char* text, const char
                         cursor.x = originalPosition.x;
                         cursor.y += lineSpacing;
                     }
+
+                    if(x0 < originalPosition.x) originalPosition.x = x0;
+                    if(y0 < originalPosition.y) originalPosition.y = y0;
+
                     s0 = glyph->u0;
                     t0 = glyph->v0;
                     s1 = glyph->u1;
@@ -851,7 +858,118 @@ pl_calculate_text_size_ex(plFont* font, float size, const char* text, const char
         }   
     }
 
-    return result;
+    return pl_sub_vec2(result, originalPosition);
+}
+
+plRect
+pl_calculate_text_bb(plFont* ptFont, float fSize, plVec2 tP, const char* pcText, float fWrap)
+{
+    const char* pcTextEnd = pcText + strlen(pcText);
+    return pl_calculate_text_bb_ex(ptFont, fSize, tP, pcText, pcTextEnd, fWrap);
+}
+
+plRect
+pl_calculate_text_bb_ex(plFont* font, float size, plVec2 tP, const char* text, const char* pcTextEnd, float wrap)
+{
+    plVec2 tTextSize = {0};
+    plVec2 cursor = {0};
+
+    float scale = size > 0.0f ? size / font->config.fontSize : 1.0f;
+
+    float lineSpacing = scale * font->lineSpacing;
+    plVec2 originalPosition = {FLT_MAX, FLT_MAX};
+    bool firstCharacter = true;
+
+    while(text < pcTextEnd)
+    {
+        uint32_t c = (uint32_t)*text;
+        if(c < 0x80)
+            text += 1;
+        else
+        {
+            text += pl__text_char_from_utf8(&c, text);
+            if(c == 0) // malformed UTF-8?
+                break;
+        }
+
+        if(c == '\n')
+        {
+            cursor.x = originalPosition.x;
+            cursor.y += lineSpacing;
+        }
+        else if(c == '\r')
+        {
+            // do nothing
+        }
+        else
+        {
+
+            bool glyphFound = false;
+            for(uint32_t i = 0u; i < pl_sb_size(font->config.sbRanges); i++)
+            {
+                if (c >= (uint32_t)font->config.sbRanges[i].firstCodePoint && c < (uint32_t)font->config.sbRanges[i].firstCodePoint + (uint32_t)font->config.sbRanges[i].charCount) 
+                {
+
+                    float x0,y0,s0,t0; // top-left
+                    float x1,y1,s1,t1; // bottom-right
+
+                    const plFontGlyph* glyph = &font->sbGlyphs[font->sbCodePoints[c]];
+
+                    // adjust for left side bearing if first char
+                    if(firstCharacter)
+                    {
+                        if(glyph->leftBearing > 0.0f) cursor.x += glyph->leftBearing * scale;
+                        firstCharacter = false;
+                        originalPosition.x = cursor.x + glyph->x0 * scale;
+                        originalPosition.y = cursor.y + glyph->y0 * scale;
+                    }
+
+                    x0 = cursor.x + glyph->x0 * scale;
+                    x1 = cursor.x + glyph->x1 * scale;
+                    y0 = cursor.y + glyph->y0 * scale;
+                    y1 = cursor.y + glyph->y1 * scale;
+
+                    if(wrap > 0.0f && x1 > originalPosition.x + wrap)
+                    {
+                        x0 = originalPosition.x + glyph->x0 * scale;
+                        y0 = y0 + lineSpacing;
+                        x1 = originalPosition.x + glyph->x1 * scale;
+                        y1 = y1 + lineSpacing;
+
+                        cursor.x = originalPosition.x;
+                        cursor.y += lineSpacing;
+                    }
+
+                    if(x0 < originalPosition.x) originalPosition.x = x0;
+                    if(y0 < originalPosition.y) originalPosition.y = y0;
+
+                    s0 = glyph->u0;
+                    t0 = glyph->v0;
+                    s1 = glyph->u1;
+                    t1 = glyph->v1;
+
+                    if(x1 > tTextSize.x)
+                        tTextSize.x = x1;
+                    if(y1 > tTextSize.y)
+                        tTextSize.y = y1;
+
+                    cursor.x += glyph->xAdvance * scale;
+                    glyphFound = true;
+                    break;
+                }
+            }
+
+            PL_ASSERT(glyphFound && "Glyph not found");
+        }   
+    }
+
+    tTextSize = pl_sub_vec2(tTextSize, originalPosition);
+
+    const plVec2 tStartOffset = pl_add_vec2(tP, originalPosition);
+
+    const plRect tResult = pl_calculate_rect(tStartOffset, tTextSize);
+
+    return tResult;
 }
 
 void
