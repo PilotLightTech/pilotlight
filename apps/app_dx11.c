@@ -21,7 +21,7 @@ Index of this file:
 #include <d3dcompiler.h>
 #include "pilotlight.h"
 #include "pl_profile.h"
-#include "pl_draw_dx11.h"
+#include "pl_dx11.h"
 #include "pl_log.h"
 #include "pl_ds.h"
 #include "pl_io.h"
@@ -64,7 +64,6 @@ typedef struct plAppData_t
     IDXGISwapChain*         ptSwapChain;
     ID3D11Texture2D*        ptFrameBuffer;
     ID3D11RenderTargetView* ptFrameBufferView;
-    plDrawContext           ctx;
     plDrawList              drawlist;
     plDrawLayer*            fgDrawLayer;
     plDrawLayer*            bgDrawLayer;
@@ -128,7 +127,6 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     pl_register_data("profile", &ptAppData->tProfileCtx);
     pl_register_data("log", &ptAppData->tLogCtx);
     pl_register_data("io", ptIOCtx);
-    pl_register_data("draw", &ptAppData->ctx);
 
     plExtension tExtension = {0};
     pl_get_draw_extension_info(&tExtension);
@@ -183,22 +181,25 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
     pl_log_info(0, "Setup logging");
 
+    // ui
+    pl_ui_setup_context(&ptAppData->tUiContext);
+
     // setup drawing api
-    pl_initialize_draw_context_dx11(&ptAppData->ctx, ptAppData->ptDevice, ptAppData->ptContext);
-    pl_register_drawlist(&ptAppData->ctx, &ptAppData->drawlist);
+    pl_initialize_draw_context_dx11(ptAppData->tUiContext.ptDrawCtx, ptAppData->ptDevice, ptAppData->ptContext);
+    pl_register_drawlist(ptAppData->tUiContext.ptDrawCtx, &ptAppData->drawlist);
     pl_setup_drawlist_dx11(&ptAppData->drawlist);
     ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
     ptAppData->fgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Foreground Layer");
 
     // create font atlas
     pl_add_default_font(&ptAppData->fontAtlas);
-    pl_build_font_atlas(&ptAppData->ctx, &ptAppData->fontAtlas);
+    pl_build_font_atlas(ptAppData->tUiContext.ptDrawCtx, &ptAppData->fontAtlas);
 
-    // ui
-    pl_ui_setup_context(&ptAppData->ctx, &ptAppData->tUiContext);
     pl_setup_drawlist_dx11(ptAppData->tUiContext.ptDrawlist);
     pl_setup_drawlist_dx11(ptAppData->tUiContext.ptDebugDrawlist);
+
     ptAppData->tUiContext.ptFont = &ptAppData->fontAtlas.sbFonts[0];
+    pl_register_data("draw", ptAppData->tUiContext.ptDrawCtx);
 
     return ptAppData;
 }
@@ -219,7 +220,6 @@ pl_app_shutdown(plAppData* ptAppData)
 
     // clean up contexts
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
-    pl_cleanup_draw_context(&ptAppData->ctx);
     pl_ui_cleanup_context();
     pl_cleanup_profile_context();
     pl_cleanup_extension_registry();
@@ -266,18 +266,13 @@ pl_app_resize(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
-    pl_handle_extension_reloads();
-
-    pl_new_io_frame();
-
+    
     // get io context
     plIOContext* ptIOCtx = pl_get_io_context();
+    pl_begin_profile_frame(ptIOCtx->ulFrameCount);
 
-    pl_new_draw_frame(&ptAppData->ctx);
+    pl_handle_extension_reloads();
     pl_ui_new_frame();
-
-    // begin profiling frame (temporarily using drawing context frame count)
-    pl_begin_profile_frame(ptAppData->ctx.frameCount);
 
     // set viewport
     D3D11_VIEWPORT tViewport = {
@@ -330,9 +325,9 @@ pl_app_update(plAppData* ptAppData)
         pl_ui_text("%.6f ms", ptIOCtx->fDeltaTime);
 
         pl_ui_checkbox("Camera Info", &bOpen);
-       
+        pl_ui_end_window();
     }
-    pl_ui_end_window();
+    
 
     // submit draw layers
     pl_begin_profile_sample("Submit draw layers");
@@ -350,9 +345,5 @@ pl_app_update(plAppData* ptAppData)
     // present
     PL_COM(ptAppData->ptSwapChain)->Present(ptAppData->ptSwapChain, 1, 0);
 
-    pl_ui_end_frame();
-    pl_end_io_frame();
-    
-    // end profiling frame
     pl_end_profile_frame();
 }

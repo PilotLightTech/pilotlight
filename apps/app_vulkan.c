@@ -26,7 +26,7 @@ Index of this file:
 #include "pl_ds.h"
 #include "pl_io.h"
 #include "pl_memory.h"
-#include "pl_draw_vulkan.h"
+#include "pl_vulkan.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 #include "pl_camera.h"
@@ -75,7 +75,6 @@ typedef struct
 typedef struct _plAppData
 {
     plGraphics          tGraphics;
-    plDrawContext       tCtx;
     plDrawList          drawlist;
     plDrawLayer*        fgDrawLayer;
     plDrawLayer*        bgDrawLayer;
@@ -135,8 +134,6 @@ void pl_load_shaders(plAppData* ptAppData);
 void pl_load_textures(plAppData* ptAppData);
 void pl_load_skybox_mesh(plAppData* ptAppData);
 void pl_load_stl_mesh(plAppData* ptAppData);
-
-
 void pl_load_single_grass(plAppData* ptAppData, float fX, float fY, float fZ, float fHeight);
 
 //-----------------------------------------------------------------------------
@@ -183,8 +180,7 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     pl_register_data("profile", &ptAppData->tProfileCtx);
     pl_register_data("log", &ptAppData->tLogCtx);
     pl_register_data("io", ptIOCtx);
-    pl_register_data("draw", &ptAppData->tCtx);
-
+    
     // load extensions
     plExtension tExtension = {0};
     pl_get_draw_extension_info(&tExtension);
@@ -196,23 +192,26 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
 
     // setup renderer
     pl_setup_graphics(&ptAppData->tGraphics);
-    
+
+    // ui
+    pl_ui_setup_context(&ptAppData->tUiContext);
+
     // setup drawing api
-    pl_initialize_draw_context_vulkan(&ptAppData->tCtx, ptAppData->tGraphics.tDevice.tPhysicalDevice, ptAppData->tGraphics.tSwapchain.uImageCount, ptAppData->tGraphics.tDevice.tLogicalDevice);
-    pl_register_drawlist(&ptAppData->tCtx, &ptAppData->drawlist);
+    pl_initialize_draw_context_vulkan(ptAppData->tUiContext.ptDrawCtx, ptAppData->tGraphics.tDevice.tPhysicalDevice, ptAppData->tGraphics.tSwapchain.uImageCount, ptAppData->tGraphics.tDevice.tLogicalDevice);
+    pl_register_drawlist(ptAppData->tUiContext.ptDrawCtx, &ptAppData->drawlist);
     pl_setup_drawlist_vulkan(&ptAppData->drawlist, ptAppData->tGraphics.tRenderPass, ptAppData->tGraphics.tSwapchain.tMsaaSamples);
     ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
     ptAppData->fgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Foreground Layer");
 
     // create font atlas
     pl_add_default_font(&ptAppData->fontAtlas);
-    pl_build_font_atlas(&ptAppData->tCtx, &ptAppData->fontAtlas);
+    pl_build_font_atlas(ptAppData->tUiContext.ptDrawCtx, &ptAppData->fontAtlas);
 
-    // ui
-    pl_ui_setup_context(&ptAppData->tCtx, &ptAppData->tUiContext);
     pl_setup_drawlist_vulkan(ptAppData->tUiContext.ptDrawlist, ptAppData->tGraphics.tRenderPass, ptAppData->tGraphics.tSwapchain.tMsaaSamples);
     pl_setup_drawlist_vulkan(ptAppData->tUiContext.ptDebugDrawlist, ptAppData->tGraphics.tRenderPass, ptAppData->tGraphics.tSwapchain.tMsaaSamples);
     ptAppData->tUiContext.ptFont = &ptAppData->fontAtlas.sbFonts[0];
+
+    pl_register_data("draw", ptAppData->tUiContext.ptDrawCtx);
 
     // renderer
     pl_setup_asset_registry(&ptAppData->tGraphics, &ptAppData->tAssetRegistry);
@@ -295,8 +294,6 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     };
 
     ptAppData->tGrass.uIndexBuffer = pl_create_index_buffer(&ptAppData->tGraphics.tResourceManager, sizeof(uint32_t) * 18, auGrassIndexBuffer);
-
-
 
     const uint32_t uGrassRows = 10;
     const uint32_t uGrassColumns = 10;
@@ -507,7 +504,7 @@ pl_app_shutdown(plAppData* ptAppData)
 {
     vkDeviceWaitIdle(ptAppData->tGraphics.tDevice.tLogicalDevice);
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
-    pl_cleanup_draw_context(&ptAppData->tCtx);
+    
     pl_ui_cleanup_context();
     pl_cleanup_renderer(&ptAppData->tRenderer);
     pl_cleanup_asset_registry(&ptAppData->tAssetRegistry);
@@ -539,12 +536,10 @@ PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~frame setup~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    pl_begin_profile_frame(ptAppData->tCtx.frameCount);
+    
     plIOContext* ptIOCtx = pl_get_io_context();
+    pl_begin_profile_frame(ptIOCtx->ulFrameCount);
     pl_handle_extension_reloads();
-    pl_new_io_frame();
-    pl_new_draw_frame(&ptAppData->tCtx);
-    pl_ui_new_frame();
     pl_process_cleanup_queue(&ptAppData->tGraphics.tResourceManager, 1);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~input handling~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -561,6 +556,8 @@ pl_app_update(plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~begin frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     if(pl_begin_frame(&ptAppData->tGraphics))
     {
+        pl_ui_new_frame();
+
         pl_begin_recording(&ptAppData->tGraphics);
 
         pl_begin_main_pass(&ptAppData->tGraphics);
@@ -952,17 +949,24 @@ pl_app_update(plAppData* ptAppData)
 
         if(pl_ui_begin_window("Pilot Light", NULL, false))
         {
+    
+            const float pfRatios[] = {1.0f};
+            pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+            
             pl_ui_checkbox("UI Debug", &ptAppData->bShowUiDebug);
             pl_ui_checkbox("Camera Info", &bOpen);
             pl_ui_checkbox("UI Demo", &ptAppData->bShowUiDemo);
             pl_ui_checkbox("UI Style", &ptAppData->bShowUiStyle);
             
 
+            const float pfRatios2[] = {100.0f};
+            pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios2);
             if(pl_ui_button("Move"))
             {
                 pl_ui_set_next_window_collapse(true, PL_UI_COND_ONCE);
             }
 
+            pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
             static bool bOpenValues[512] = {0};
             if(pl_ui_collapsing_header("Materials"))
             {
@@ -981,11 +985,11 @@ pl_app_update(plAppData* ptAppData)
                         pl_ui_tree_pop();
                     }
                 }
+                pl_ui_end_collapsing_header();
             }
-
+            pl_ui_end_window();
         }
-        pl_ui_end_window();
-
+        
         if(bOpen)
         {
             if(pl_ui_begin_window("Camera Info", &bOpen, true))
@@ -995,18 +999,19 @@ pl_app_update(plAppData* ptAppData)
                 pl_ui_text("Up: %.3f, %.3f, %.3f", ptAppData->tCamera._tUpVec.x, ptAppData->tCamera._tUpVec.y, ptAppData->tCamera._tUpVec.z);
                 pl_ui_text("Forward: %.3f, %.3f, %.3f", ptAppData->tCamera._tForwardVec.x, ptAppData->tCamera._tForwardVec.y, ptAppData->tCamera._tForwardVec.z);
                 pl_ui_text("Right: %.3f, %.3f, %.3f", ptAppData->tCamera._tRightVec.x, ptAppData->tCamera._tRightVec.y, ptAppData->tCamera._tRightVec.z);  
+                pl_ui_end_window();
             }
-            pl_ui_end_window();
+            
         }
 
         if(ptAppData->bShowUiDemo)
             pl_ui_demo(&ptAppData->bShowUiDemo);
+            
+        if(ptAppData->bShowUiStyle)
+            pl_ui_style(&ptAppData->bShowUiStyle);
 
         if(ptAppData->bShowUiDebug)
             pl_ui_debug(&ptAppData->bShowUiDebug);
-
-        if(ptAppData->bShowUiStyle)
-            pl_ui_style(&ptAppData->bShowUiStyle);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submit draws~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1020,6 +1025,8 @@ pl_app_update(plAppData* ptAppData)
 
         // submit draw lists
         pl_submit_drawlist_vulkan(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
+
+        // submit ui drawlist
         pl_submit_drawlist_vulkan(ptAppData->tUiContext.ptDrawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
         pl_submit_drawlist_vulkan(ptAppData->tUiContext.ptDebugDrawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
 
@@ -1027,9 +1034,7 @@ pl_app_update(plAppData* ptAppData)
         pl_end_main_pass(&ptAppData->tGraphics);
         pl_end_recording(&ptAppData->tGraphics);
         pl_end_frame(&ptAppData->tGraphics);
-    }
-    pl_ui_end_frame();
-    pl_end_io_frame(); 
+    } 
     pl_end_profile_frame();
 }
 

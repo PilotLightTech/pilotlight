@@ -270,6 +270,7 @@ typedef struct _plIOContext
 {
     double   dTime;
     float    fDeltaTime;
+    bool     bViewportSizeChanged;
     float    afMainViewportSize[2];
     float    afMainFramebufferScale[2];
     uint64_t ulFrameCount;
@@ -283,6 +284,7 @@ typedef struct _plIOContext
     void*  pUserData;
     void*  pBackendPlatformData;
     void*  pBackendRendererData;
+    void*  pBackendData;
 
     // [INTERNAL]
     plInputEvent* _sbtInputEvents;
@@ -478,6 +480,7 @@ pl_new_io_frame(void)
 
     ptIO->dTime += (double)ptIO->fDeltaTime;
     ptIO->ulFrameCount++;
+    ptIO->bViewportSizeChanged = false;
 
     pl__update_events();
     pl__update_keyboard_inputs();

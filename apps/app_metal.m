@@ -24,7 +24,7 @@ Index of this file:
 #include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_memory.h"
-#include "pl_draw_metal.h"
+#include "pl_metal.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 #include "pl_registry.h" // data registry
@@ -56,7 +56,6 @@ typedef struct plAppData_t
     plMetalGraphics          graphics;
     id<MTLTexture>           depthTarget;
     MTLRenderPassDescriptor* drawableRenderDescriptor;
-    plDrawContext            ctx;
     plDrawList               drawlist;
     plDrawLayer*             fgDrawLayer;
     plDrawLayer*             bgDrawLayer;
@@ -122,7 +121,6 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     pl_register_data("profile", &ptAppData->tProfileCtx);
     pl_register_data("log", &ptAppData->tLogCtx);
     pl_register_data("io", ptIOCtx);
-    pl_register_data("draw", &ptAppData->ctx);
 
     plExtension tExtension = {0};
     pl_get_draw_extension_info(&tExtension);
@@ -148,20 +146,21 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     ptAppData->drawableRenderDescriptor.depthAttachment.storeAction = MTLStoreActionDontCare;
     ptAppData->drawableRenderDescriptor.depthAttachment.clearDepth = 1.0;
 
-    // create draw context
-    pl_initialize_draw_context_metal(&ptAppData->ctx, ptAppData->device.device);
+    // ui
+    pl_ui_setup_context(&ptAppData->tUiContext);
+
+    // initialize backend specifics for draw context
+    pl_initialize_draw_context_metal(ptAppData->tUiContext.ptDrawCtx, ptAppData->device.device);
 
     // create draw list & layers
-    pl_register_drawlist(&ptAppData->ctx, &ptAppData->drawlist);
+    pl_register_drawlist(ptAppData->tUiContext.ptDrawCtx, &ptAppData->drawlist);
     ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
     ptAppData->fgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Foreground Layer");
-
+    
     // create font atlas
     pl_add_default_font(&ptAppData->fontAtlas);
-    pl_build_font_atlas(&ptAppData->ctx, &ptAppData->fontAtlas);
+    pl_build_font_atlas(ptAppData->tUiContext.ptDrawCtx, &ptAppData->fontAtlas);
 
-    // ui
-    pl_ui_setup_context(&ptAppData->ctx, &ptAppData->tUiContext);
     ptAppData->tUiContext.ptFont = &ptAppData->fontAtlas.sbFonts[0];
 
     return ptAppData;
@@ -177,7 +176,6 @@ pl_app_shutdown(plAppData* ptAppData)
 
     // clean up contexts
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
-    pl_cleanup_draw_context(&ptAppData->ctx);
     pl_ui_cleanup_context();
     pl_cleanup_profile_context();
     pl_cleanup_extension_registry();
@@ -214,8 +212,8 @@ PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
     pl_handle_extension_reloads();
-
-    pl_new_io_frame();
+    pl_new_draw_frame_metal(ptAppData->tUiContext.ptDrawCtx, ptAppData->drawableRenderDescriptor);
+    pl_ui_new_frame();
 
     plIOContext* ptIOCtx = pl_get_io_context();
     ptAppData->graphics.metalLayer = ptIOCtx->pBackendRendererData;
@@ -236,9 +234,6 @@ pl_app_update(plAppData* ptAppData)
 
     // set colorattachment to next drawable
     ptAppData->drawableRenderDescriptor.colorAttachments[0].texture = currentDrawable.texture;
-
-    pl_new_draw_frame_metal(&ptAppData->ctx, ptAppData->drawableRenderDescriptor);
-    pl_ui_new_frame();
 
     // create render command encoder
     id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:ptAppData->drawableRenderDescriptor];
@@ -277,45 +272,9 @@ pl_app_update(plAppData* ptAppData)
     {
         pl_ui_text("%.6f ms", ptIOCtx->fDeltaTime);
 
-        pl_ui_checkbox("Camera Info", &bOpen);    
-    }
-    pl_ui_end_window();
-
-    if(bOpen)
-    {
-        if(pl_ui_begin_window("Camera Info", &bOpen, true))
-        {
-            pl_ui_text("Pos: %.3f, %.3f, %.3f", 0.0f, 0.0f, 0.0f); 
-        }
+        pl_ui_checkbox("Camera Info", &bOpen);
         pl_ui_end_window();
     }
-
-    if(pl_ui_begin_window("UI Demo", NULL, false))
-    {
-        pl_ui_progress_bar(0.75f, (plVec2){-1.0f, 0.0f}, NULL);
-        if(pl_ui_button("Press me"))
-            bOpen = true;
-        if(pl_ui_tree_node("Root Node"))
-        {
-            if(pl_ui_tree_node("Child 1"))
-            {
-                if(pl_ui_button("Press me"))
-                    bOpen = true;
-                pl_ui_tree_pop();
-            }
-            if(pl_ui_tree_node("Child 2"))
-            {
-                pl_ui_button("Press me");
-                pl_ui_tree_pop();
-            }
-            pl_ui_tree_pop();
-        }
-        if(pl_ui_collapsing_header("Collapsing Header"))
-        {
-            pl_ui_checkbox("Camera window2", &bOpen);
-        }
-    }
-    pl_ui_end_window();
 
     // submit draw layers
     pl_begin_profile_sample("Submit draw layers");
@@ -327,8 +286,8 @@ pl_app_update(plAppData* ptAppData)
 
     // submit draw lists
     pl_begin_profile_sample("Submit draw lists");
-    ptAppData->ctx.tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
-    ptAppData->ctx.tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
+    ptAppData->tUiContext.ptDrawCtx->tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
+    ptAppData->tUiContext.ptDrawCtx->tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
     pl_submit_drawlist_metal(&ptAppData->drawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
     pl_submit_drawlist_metal(ptAppData->tUiContext.ptDrawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
     pl_submit_drawlist_metal(ptAppData->tUiContext.ptDebugDrawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
@@ -342,9 +301,6 @@ pl_app_update(plAppData* ptAppData)
 
     // submit command buffer
     [commandBuffer commit];
-
-    pl_ui_end_frame();
-    pl_end_io_frame();
     
     // end profiling frame
     pl_end_profile_frame();
