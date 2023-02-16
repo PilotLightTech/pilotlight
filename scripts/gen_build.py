@@ -23,7 +23,7 @@ with pl.project("pilotlight"):
     pl.push_profile(pl.Profile.PILOT_LIGHT_DEBUG_C)
 
     pl.push_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS")
-    pl.push_include_directories("../apps", "../src", "../libs", "../extensions", "../out", "../dependencies/stb")
+    pl.push_include_directories("../apps", "../src", "../libs", "../extensions", "../backends", "../out", "../dependencies/stb")
     pl.push_link_directories("../out")
     pl.push_output_directory("../out")
         

@@ -11,20 +11,20 @@ defines = [
     "PL_LOG_ON",
     "PL_IO_IMPLEMENTATION",
     "PL_MEMORY_IMPLEMENTATION",
-    "PL_DRAW_DX11_IMPLEMENTATION",
     "PL_EXT_IMPLEMENTATION",
     "PL_CAMERA_IMPLEMENTATION",
     "PL_STL_IMPLEMENTATION",
     "PL_STRING_IMPLEMENTATION",
     "PL_MATH_INCLUDE_FUNCTIONS",
     "PL_JSON_IMPLEMENTATION",
-    "PL_DRAW_VULKAN_IMPLEMENTATION"
+    "PL_INCLUDE_OS_H"
 ]
 
 includes = [
     "${workspaceFolder}/**",
     "${workspaceFolder}/apps",
     "${workspaceFolder}/src",
+    "${workspaceFolder}/backends",
     "${workspaceFolder}/libs",
     "${workspaceFolder}/extensions",
     "${workspaceFolder}/dependencies/stb",

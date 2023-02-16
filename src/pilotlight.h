@@ -1,5 +1,5 @@
 /*
-   pl.h
+   pilotlight.h
 */
 
 /*
@@ -10,8 +10,8 @@ Index of this file:
 // [SECTION] misc
 */
 
-#ifndef PL_H
-#define PL_H
+#ifndef PILOTLIGHT_H
+#define PILOTLIGHT_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -59,4 +59,4 @@ Index of this file:
 #endif
 #endif
 
-#endif // PL_H
+#endif // PILOTLIGHT_H
