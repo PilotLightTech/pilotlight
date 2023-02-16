@@ -71,9 +71,6 @@ void pl_initialize_material   (plMaterial* ptMaterial, const char* pcName);
 // transform nodes
 void pl_update_nodes          (plGraphics* ptGraphics, plNode* acNodes, uint32_t uCurrentNode, plMat4* ptMatrix);
 
-// ui
-void pl_ui_demo               (bool* pbOpen);
-
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
