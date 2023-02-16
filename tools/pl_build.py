@@ -1,4 +1,4 @@
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 
 ###############################################################################
 #                                  Info                                       #
@@ -29,6 +29,7 @@ __version__ = "0.6.0"
 from enum import Enum
 from contextlib import contextmanager
 import platform as plat
+from pathlib import PurePath
 
 ###############################################################################
 #                                  Enums                                      #
@@ -65,7 +66,9 @@ class PlatformType(Enum):
 
 
 class Profile(Enum):
+    PILOT_LIGHT_DEBUG = "pilot_light_debug_c"
     PILOT_LIGHT_DEBUG_C = "pilot_light_debug_c"
+    PILOT_LIGHT_DEBUG_CPP = "pilot_light_debug_cpp"
     VULKAN = "vulkan"
 
 
@@ -572,6 +575,33 @@ def register_standard_profiles():
                 set_output_directory(None)
                 set_output_binary(None)
 
+    with profile(Profile.PILOT_LIGHT_DEBUG_CPP.value):
+        with platform(PlatformType.WIN32):
+            with compiler("msvc", CompilerType.MSVC):
+                add_include_directories('%WindowsSdkDir%Include\\um', '%WindowsSdkDir%Include\\shared')
+                add_compiler_flags("-Zc:preprocessor", "-nologo", "-std:c++17", "-W4", "-WX", "-wd4201", "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115", "-permissive-")
+                add_definition("_DEBUG")
+                add_compiler_flags("-Od", "-MDd", "-Zi")
+                set_output_directory(None)
+                set_output_binary(None)
+
+        with platform(PlatformType.LINUX):
+            with compiler("gcc", CompilerType.GCC):
+                add_link_directories("/usr/lib/x86_64-linux-gnu")
+                add_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes")
+                add_compiler_flag("-std=c++17")
+                add_compiler_flags("--debug", "-g")
+                add_linker_flags("dl", "m")
+                set_output_directory(None)
+                set_output_binary(None)
+
+        with platform(PlatformType.MACOS):
+            with compiler("clang", CompilerType.CLANG):
+                add_compiler_flags("-std=c++17", "--debug", "-g", "-fmodules", "-ObjC")
+                add_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
+                set_output_directory(None)
+                set_output_binary(None)
+
 ###############################################################################
 #                               Generation                                    #
 ###############################################################################
@@ -854,7 +884,7 @@ def generate_macos_build(name_override=None):
                                                                         for platform2 in config2._platforms:
                                                                             if platform2._platform_type == PlatformType.MACOS:
                                                                                 for settings2 in platform2._compiler_settings:
-                                                                                    settings._source_files.append(settings2._output_directory + "/" + settings2._output_binary + ".c.o")
+                                                                                    settings._source_files.append(settings2._output_directory + "/" + settings2._output_binary + ".o")
 
                                                 if target._target_type == TargetType.STATIC_LIBRARY:
                     
@@ -866,7 +896,8 @@ def generate_macos_build(name_override=None):
                                                 
                                                     buffer += '\n# each file must be compiled separately\n'
                                                     for source in settings._source_files:
-                                                        buffer += 'clang -c -fPIC $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ' + source + ' -o "./' + settings._output_directory + '/' + source + '.o"\n'
+                                                        source_as_path = PurePath(source)
+                                                        buffer += 'clang -c -fPIC $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ' + source + ' -o "./' + settings._output_directory + '/' + source_as_path.stem + '.o"\n'
 
                                                 elif target._target_type == TargetType.DYNAMIC_LIBRARY:
 
@@ -1158,7 +1189,7 @@ def generate_linux_build(name_override=None):
                                                                         for platform2 in config2._platforms:
                                                                             if platform2._platform_type == PlatformType.LINUX:
                                                                                 for settings2 in platform2._compiler_settings:
-                                                                                    settings._source_files.append(settings2._output_directory + "/" + settings2._output_binary + ".c.o")
+                                                                                    settings._source_files.append(settings2._output_directory + "/" + settings2._output_binary + ".o")
                                                 
                                                 if target._target_type == TargetType.STATIC_LIBRARY:
                     
@@ -1170,7 +1201,8 @@ def generate_linux_build(name_override=None):
                                                 
                                                     buffer += '\n# each file must be compiled separately\n'
                                                     for source in settings._source_files:
-                                                        buffer += 'gcc -c -fPIC $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ' + source + ' -o "./' + settings._output_directory + '/' + source + '.o"\n'
+                                                        source_as_path = PurePath(source)
+                                                        buffer += 'gcc -c -fPIC $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ' + source + ' -o "./' + settings._output_directory + '/' + source_as_path.stem + '.o"\n'
                                                     
                                                 elif target._target_type == TargetType.DYNAMIC_LIBRARY:
 
@@ -1476,7 +1508,7 @@ def generate_win32_build(name_override=None):
                                                             sub_buffer += " %PL_DEFINES%"
                                                         if settings._compiler_flags:
                                                             sub_buffer += " %PL_COMPILER_FLAGS%"
-                                                        buffer += 'cl -c' + sub_buffer + " " + source + ' -Fe"' + settings._output_directory + '/' + source + '.obj" -Fo"' + settings._output_directory + '/"'
+                                                        buffer += 'cl -c' + sub_buffer + " " + source + ' -Fo"' + settings._output_directory + '/"'
                                                         buffer += "\n"
 
                                                     buffer += "\n"
