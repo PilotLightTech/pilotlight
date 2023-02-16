@@ -1,5 +1,5 @@
 /*
-   pl_profile, v0.1 (WIP)
+   pl_profile
    Do this:
         #define PL_PROFILE_IMPLEMENTATION
    before you include this file in *one* C or C++ file to create the implementation.
@@ -10,6 +10,10 @@
    #define PL_PROFILE_IMPLEMENTATION
    #include "pl_profile.h"
 */
+
+// library version
+#define PL_PROFILE_VERSION    "0.1.0"
+#define PL_PROFILE_VERSION_NUM 00100
 
 /*
 Index of this file:

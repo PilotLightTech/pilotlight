@@ -1,6 +1,10 @@
 /*
-   pl_stl.h, v0.1
+   pl_stl.h
 */
+
+// library version
+#define PL_STL_VERSION    "0.1.0"
+#define PL_STL_VERSION_NUM 00100
 
 /*
 Index of this file:

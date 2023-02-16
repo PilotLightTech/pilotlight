@@ -1,5 +1,5 @@
 /*
-   pl_log, v0.1 (WIP)
+   pl_log
    Do this:
         #define PL_LOG_IMPLEMENTATION
    before you include this file in *one* C or C++ file to create the implementation.
@@ -10,6 +10,10 @@
    #define PL_LOG_IMPLEMENTATION
    #include "pl_log.h"
 */
+
+// library version
+#define PL_LOG_VERSION    "0.1.0"
+#define PL_LOG_VERSION_NUM 00100
 
 /*
 Index of this file:

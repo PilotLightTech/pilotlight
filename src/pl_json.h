@@ -1,5 +1,5 @@
 /*
-   pl_json.h, v0.1 (WIP)
+   pl_json.h
 
    Do this:
         #define PL_JSON_IMPLEMENTATION
@@ -11,6 +11,10 @@
    #define PL_JSON_IMPLEMENTATION
    #include "pl_json.h"
 */
+
+// library version
+#define PL_JSON_VERSION    "0.1.0"
+#define PL_JSON_VERSION_NUM 00100
 
 /*
 Index of this file:

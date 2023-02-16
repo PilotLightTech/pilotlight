@@ -1,6 +1,10 @@
 /*
-   pl_camera.h, v0.1 (WIP)
+   pl_camera.h
 */
+
+// library version
+#define PL_CAMERA_VERSION    "0.1.0"
+#define PL_CAMERA_VERSION_NUM 00100
 
 /*
 Index of this file:

@@ -12,6 +12,10 @@
    #include "pl_math.h"
 */
 
+// library version
+#define PL_MATH_VERSION    "0.4.0"
+#define PL_MATH_VERSION_NUM 00400
+
 /*
 Index of this file:
 // [SECTION] include section

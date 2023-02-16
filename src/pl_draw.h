@@ -2,6 +2,10 @@
    pl_draw.h
 */
 
+// library version
+#define PL_DRAW_VERSION    "0.1.0"
+#define PL_DRAW_VERSION_NUM 00100
+
 /*
 Index of this file:
 // [SECTION] header mess

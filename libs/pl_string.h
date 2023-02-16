@@ -1,5 +1,5 @@
 /*
-   pl_string, v0.1 (WIP)
+   pl_string
    Do this:
         #define PL_STRING_IMPLEMENTATION
    before you include this file in *one* C or C++ file to create the implementation.
@@ -10,6 +10,10 @@
    #define PL_STRING_IMPLEMENTATION
    #include "pl_string.h"
 */
+
+// library version
+#define PL_STRING_VERSION    "0.1.0"
+#define PL_STRING_VERSION_NUM 00100
 
 /*
 Index of this file:

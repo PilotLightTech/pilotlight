@@ -1,5 +1,5 @@
 /*
-   pl_memory, v0.1 (WIP)
+   pl_memory
    * no dependencies
    * simple
    Do this:
@@ -14,6 +14,10 @@
    Notes:
    * allocations return NULL on failure
 */
+
+// library version
+#define PL_MEMORY_VERSION    "0.1.0"
+#define PL_MEMORY_VERSION_NUM 00100
 
 /*
 Index of this file:

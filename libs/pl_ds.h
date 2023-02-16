@@ -1,7 +1,11 @@
 /*
-   pl_ds.h, v0.1
+   pl_ds.h
      * data structures
 */
+
+// library version
+#define PL_DS_VERSION    "0.1.0"
+#define PL_DS_VERSION_NUM 00100
 
 /*
 Index of this file:

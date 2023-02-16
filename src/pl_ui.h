@@ -1,6 +1,10 @@
 /*
-   pl_ui.h, v0.4
+   pl_ui.h
 */
+
+// library version
+#define PL_UI_VERSION    "0.5.0"
+#define PL_UI_VERSION_NUM 00500
 
 /*
 Index of this file:
@@ -9,7 +13,6 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] forward declarations
 // [SECTION] public api
-// [SECTION] experimental api
 // [SECTION] enums
 // [SECTION] structs
 */

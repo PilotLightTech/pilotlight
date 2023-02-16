@@ -5,6 +5,10 @@
      * simple
 */
 
+// library version
+#define PL_OS_VERSION    "0.1.0"
+#define PL_OS_VERSION_NUM 00100
+
 /*
 Index of this file:
 // [SECTION] includes

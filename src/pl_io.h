@@ -1,5 +1,5 @@
 /*
-   pl_io.h, v0.1 (WIP)
+   pl_io.h
    * no dependencies
    * simple
    Do this:
@@ -12,6 +12,10 @@
    #define PL_IO_IMPLEMENTATION
    #include "pl_io.h"
 */
+
+// library version
+#define PL_IO_VERSION    "0.1.0"
+#define PL_IO_VERSION_NUM 00100
 
 /*
 Index of this file:
