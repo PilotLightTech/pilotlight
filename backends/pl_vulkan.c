@@ -1,62 +1,29 @@
 /*
-   pl_draw_vulkan.h
+   pl_vulkan.c
 */
 
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] public api
-// [SECTION] c file
-// [SECTION] includes
 // [SECTION] shaders
 // [SECTION] internal structs
-// [SECTION] internal helper forward declarations
-// [SECTION] implementation
-// [SECTION] internal helpers implementation
+// [SECTION] internal api
+// [SECTION] public api implementation
+// [SECTION] internal api implementation
 */
-
-#ifndef PL_DRAW_VULKAN_H
-#define PL_DRAW_VULKAN_H
-
-//-----------------------------------------------------------------------------
-// [SECTION] includes
-//-----------------------------------------------------------------------------
-
-#include "pl_draw.h"
-#include "vulkan/vulkan.h"
-
-#ifndef PL_VULKAN
-#include <assert.h>
-#define PL_VULKAN(x) PL_ASSERT(x == VK_SUCCESS)
-#endif
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api
-//-----------------------------------------------------------------------------
-
-// backend implementation
-void pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice tPhysicalDevice, uint32_t imageCount, VkDevice tLogicalDevice);
-void pl_setup_drawlist_vulkan     (plDrawList* drawlist, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount);
-void pl_submit_drawlist_vulkan    (plDrawList* drawlist, float width, float height, VkCommandBuffer cmdBuf, uint32_t currentFrameIndex);
-void pl_new_draw_frame            (plDrawContext* ctx);
-
-// misc
-VkDescriptorSet pl_add_texture(plDrawContext* drawContext, VkImageView imageView, VkImageLayout imageLayout);
-
-#endif // PL_DRAWING_VULKAN_H
-
-//-----------------------------------------------------------------------------
-// [SECTION] c file
-//-----------------------------------------------------------------------------
-
-#ifdef PL_DRAW_VULKAN_IMPLEMENTATION
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
 #include <string.h> // memset
+#include "pl_vulkan.h"
 #include "pl_ds.h"
+
+#ifndef PL_VULKAN
+#include <assert.h>
+#define PL_VULKAN(x) PL_ASSERT(x == VK_SUCCESS)
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] shaders
@@ -229,7 +196,7 @@ static uint32_t __glsl_shader_fragsdf_spv[] =
 };
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal structs
+// [SECTION] structs
 //-----------------------------------------------------------------------------
 
 // wraps a buffer to be freed
@@ -311,7 +278,7 @@ typedef struct
 } plVulkanDrawList;
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal helper forward declarations
+// [SECTION] internal api
 //-----------------------------------------------------------------------------
 
 extern void     pl__cleanup_font_atlas   (plFontAtlas* atlas); // in pl_draw.c
@@ -320,8 +287,9 @@ static uint32_t pl__find_memory_type(VkPhysicalDeviceMemoryProperties memProps, 
 static void     pl__grow_vulkan_vertex_buffer(plDrawList* ptrDrawlist, uint32_t uVtxBufSzNeeded, uint32_t currentFrameIndex);
 static void     pl__grow_vulkan_index_buffer(plDrawList* ptrDrawlist, uint32_t uIdxBufSzNeeded, uint32_t currentFrameIndex);
 
+
 //-----------------------------------------------------------------------------
-// [SECTION] implementation
+// [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
 void
@@ -1140,7 +1108,7 @@ pl_build_font_atlas(plDrawContext* ctx, plFontAtlas* atlas)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal helpers implementation
+// [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
 
 static uint32_t
@@ -1243,5 +1211,3 @@ pl__grow_vulkan_index_buffer(plDrawList* drawlist, uint32_t indexBufferSize, uin
     PL_VULKAN(vkBindBufferMemory(vulkanDrawCtx->device, vulkanDrawlist->sbIndexBuffer[currentFrameIndex], vulkanDrawlist->sbIndexMemory[currentFrameIndex], 0));
     PL_VULKAN(vkMapMemory(vulkanDrawCtx->device, vulkanDrawlist->sbIndexMemory[currentFrameIndex], 0, memReqs.size, 0, (void**)&vulkanDrawlist->sbIndexBufferMap[currentFrameIndex]));
 }
-
-#endif // PL_DRAW_VULKAN_IMPLEMENTATION

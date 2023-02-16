@@ -1,57 +1,28 @@
 /*
-   pl_draw_metal.h
+   pl_metal.c
 */
 
 /*
 Index of this file:
-// [SECTION] includes
-// [SECTION] public api
-// [SECTION] m file
 // [SECTION] includes/imports
-// [SECTION] internal structs
-// [SECTION] implementation
+// [SECTION] structs
+// [SECTION] internal api
+// [SECTION] public api implementation
 // [SECTION] MetalBuffer
 // [SECTION] FrameBufferDescriptor
 // [SECTION] MetalContext
 */
 
-#ifndef PL_DRAW_METAL_H
-#define PL_DRAW_METAL_H
-
-//-----------------------------------------------------------------------------
-// [SECTION] include
-//-----------------------------------------------------------------------------
-
-#include "pl_draw.h"
-#import <Metal/Metal.h>
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api
-//-----------------------------------------------------------------------------
-
-NS_ASSUME_NONNULL_BEGIN
-void pl_initialize_draw_context_metal(plDrawContext* ctx, id<MTLDevice> device);
-void pl_new_draw_frame_metal     (plDrawContext* ctx, MTLRenderPassDescriptor* renderPassDescriptor);
-void pl_submit_drawlist_metal    (plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder);
-NS_ASSUME_NONNULL_END
-
-#endif // PL_DRAW_METAL_H
-
-//-----------------------------------------------------------------------------
-// [SECTION] m file
-//-----------------------------------------------------------------------------
-
-#ifdef PL_DRAW_METAL_IMPLEMENTATION
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes/imports
 //-----------------------------------------------------------------------------
 
+#include "pl_metal.h"
 #include "pl_ds.h"
 #import <time.h>
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal structs
+// [SECTION] structs
 //-----------------------------------------------------------------------------
 
 NS_ASSUME_NONNULL_BEGIN
@@ -92,7 +63,7 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 //-----------------------------------------------------------------------------
-// [SECTION] implementation
+// [SECTION] internal api
 //-----------------------------------------------------------------------------
 
 extern void                  pl__cleanup_font_atlas(plFontAtlas* atlas); // in pl_draw.c
@@ -100,6 +71,10 @@ extern void                  pl__cleanup_draw_context(plDrawContext* ctx); // in
 extern void                  pl__new_draw_frame(plDrawContext* ctx); // in pl_draw.c
 extern void                  pl__build_font_atlas(plFontAtlas* ctx); // in pl_draw.c
 static inline CFTimeInterval GetMachAbsoluteTimeInSeconds() { return (CFTimeInterval)(double)clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1e9; }
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api implementation
+//-----------------------------------------------------------------------------
 
 void
 pl_initialize_draw_context_metal(plDrawContext* ctx, id<MTLDevice> device)
@@ -115,6 +90,12 @@ pl_cleanup_draw_context(plDrawContext* ctx)
     MetalContext* metalCtx = ctx->_platformData;
     [metalCtx dealloc];
     pl__cleanup_draw_context(ctx);
+}
+
+void
+pl_new_draw_frame(plDrawContext* ptCtx)
+{
+    
 }
 
 void
@@ -263,14 +244,19 @@ pl_submit_drawlist_metal(plDrawList* drawlist, float width, float height, id<MTL
         }
         else
         {
-            const float fOrigWidth = pl_rect_width(&cmd.tClip);
-            const float fOrigHeight = pl_rect_height(&cmd.tClip);
+            // clamp to viewport
+            if (cmd.tClip.tMin.x < 0.0f)   { cmd.tClip.tMin.x = 0.0f; }
+            if (cmd.tClip.tMin.y < 0.0f)   { cmd.tClip.tMin.y = 0.0f; }
+            if (cmd.tClip.tMax.x > width)  { cmd.tClip.tMax.x = (float)width; }
+            if (cmd.tClip.tMax.y > height) { cmd.tClip.tMax.y = (float)height; }
+            if (cmd.tClip.tMax.x <= cmd.tClip.tMin.x || cmd.tClip.tMax.y <= cmd.tClip.tMin.y)
+                continue;
 
             MTLScissorRect tScissorRect = {
                 .x      = (NSUInteger)(cmd.tClip.tMin.x < 0 ? 0 : cmd.tClip.tMin.x),
                 .y      = (NSUInteger)(cmd.tClip.tMin.y < 0 ? 0 : cmd.tClip.tMin.y),
-                .width  = (NSUInteger)(cmd.tClip.tMin.x + fOrigWidth  > width ? (fOrigWidth - width) * tClipScale.x : fOrigWidth * tClipScale.x),
-                .height = (NSUInteger)(cmd.tClip.tMin.y + fOrigHeight  > height ? (fOrigHeight - height) * tClipScale.y : fOrigHeight * tClipScale.y)
+                .width  = (NSUInteger)pl_rect_width(&cmd.tClip),
+                .height = (NSUInteger)pl_rect_height(&cmd.tClip)
             };
             [renderEncoder setScissorRect:tScissorRect];
         }
@@ -525,7 +511,8 @@ pl_cleanup_font_atlas(plFontAtlas* atlas)
     pipelineDescriptor.vertexFunction = vertexFunction;
     pipelineDescriptor.fragmentFunction = fragmentFunction;
     pipelineDescriptor.vertexDescriptor = vertexDescriptor;
-    pipelineDescriptor.rasterSampleCount = self.framebufferDescriptor.sampleCount;
+    pipelineDescriptor.rasterSampleCount = 1;
+    // pipelineDescriptor.rasterSampleCount = self.framebufferDescriptor.sampleCount;
     pipelineDescriptor.colorAttachments[0].pixelFormat = self.framebufferDescriptor.colorPixelFormat;
     pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
     pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
@@ -621,7 +608,8 @@ pl_cleanup_font_atlas(plFontAtlas* atlas)
     pipelineDescriptor.vertexFunction = vertexFunction;
     pipelineDescriptor.fragmentFunction = fragmentFunction;
     pipelineDescriptor.vertexDescriptor = vertexDescriptor;
-    pipelineDescriptor.rasterSampleCount = self.framebufferDescriptor.sampleCount;
+    pipelineDescriptor.rasterSampleCount = 1;
+    // pipelineDescriptor.rasterSampleCount = self.framebufferDescriptor.sampleCount;
     pipelineDescriptor.colorAttachments[0].pixelFormat = self.framebufferDescriptor.colorPixelFormat;
     pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
     pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
@@ -642,5 +630,3 @@ pl_cleanup_font_atlas(plFontAtlas* atlas)
 @end
 
 NS_ASSUME_NONNULL_END
-
-#endif // PL_DRAW_METAL_IMPLEMENTATION

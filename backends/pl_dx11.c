@@ -1,29 +1,31 @@
 /*
-   pl_draw_dx11.h
+   pl_dx11.c
 */
 
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] public api
-// [SECTION] c file
-// [SECTION] includes
 // [SECTION] shaders
 // [SECTION] internal structs
-// [SECTION] internal helper forward declarations
-// [SECTION] implementation
-// [SECTION] internal helpers implementation
+// [SECTION] internal api
+// [SECTION] public api implementation
+// [SECTION] internal api implementation
 */
-
-#ifndef PL_DRAW_DX11_H
-#define PL_DRAW_DX11_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_draw.h"
+#include <string.h> // memset
+#include "pl_dx11.h"
+#include "pl_ds.h"
 #include <d3d11_1.h>
+#include <d3dcompiler.h>
+
+#pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "d3dcompiler.lib")
+#pragma comment(lib, "dxguid.lib")
 
 #ifndef PL_DX11
 #include <assert.h>
@@ -34,40 +36,9 @@ Index of this file:
 #define PL_COM(x) (x)->lpVtbl
 #endif
 
-#pragma comment(lib, "gdi32.lib")
-#pragma comment(lib, "d3d11.lib")
-#pragma comment(lib, "d3dcompiler.lib")
-#pragma comment(lib, "dxguid.lib")
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api
-//-----------------------------------------------------------------------------
-
-// backend implementation
-void pl_initialize_draw_context_dx11(plDrawContext* ptCtx, ID3D11Device* ptDevice, ID3D11DeviceContext* ptDeviceCtx);
-void pl_setup_drawlist_dx11         (plDrawList* ptDrawlist);
-void pl_submit_drawlist_dx11        (plDrawList* ptDrawlist, float fWidth, float fHeight);
-void pl_new_draw_frame              (plDrawContext* ptCtx);
-
-#endif // PL_DRAW_DX11_H
-
-//-----------------------------------------------------------------------------
-// [SECTION] c file
-//-----------------------------------------------------------------------------
-
-#ifdef PL_DRAW_DX11_IMPLEMENTATION
-
 #ifndef PL_COM_RELEASE
 #define PL_COM_RELEASE(x) (x)->lpVtbl->Release((x))
 #endif
-
-//-----------------------------------------------------------------------------
-// [SECTION] includes
-//-----------------------------------------------------------------------------
-
-#include <string.h> // memset
-#include <d3dcompiler.h>
-#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] shaders
@@ -138,7 +109,7 @@ static const char* pcSDFPixelShader =
     }";
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal structs
+// [SECTION] structs
 //-----------------------------------------------------------------------------
 
 typedef struct _plDx11DrawContext
@@ -169,7 +140,7 @@ typedef struct _plDx11DrawList
 } plDx11DrawList;
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal helper forward declarations
+// [SECTION] internal api
 //-----------------------------------------------------------------------------
 
 extern void pl__cleanup_font_atlas     (plFontAtlas* atlas); // in pl_draw.c
@@ -178,13 +149,12 @@ static void pl__grow_dx11_vertex_buffer(plDrawList* ptDrawlist, uint32_t uVtxBuf
 static void pl__grow_dx11_index_buffer (plDrawList* ptDrawlist, uint32_t uIdxBufSzNeeded);
 
 //-----------------------------------------------------------------------------
-// [SECTION] implementation
+// [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
 void
 pl_initialize_draw_context_dx11(plDrawContext* ptCtx, ID3D11Device* ptDevice, ID3D11DeviceContext* ptDeviceCtx)
 {
-    memset(ptCtx, 0, sizeof(plDrawContext));
 
     plDx11DrawContext* ptDx11Context = PL_ALLOC(sizeof(plDx11DrawContext));
     memset(ptDx11Context, 0, sizeof(plDx11DrawContext));
@@ -301,7 +271,7 @@ pl_cleanup_font_atlas(plFontAtlas* ptAtlas)
 void
 pl_submit_drawlist_dx11(plDrawList* ptDrawlist, float fWidth, float fHeight)
 {
-    if(pl_sb_size(ptDrawlist->sbVertexBuffer) == 0u || ptDrawlist->indexBufferByteSize == 0)
+    if(pl_sb_size(ptDrawlist->sbVertexBuffer) == 0u)
         return;
 
     plDrawContext* drawContext = ptDrawlist->ctx;
@@ -310,12 +280,16 @@ pl_submit_drawlist_dx11(plDrawList* ptDrawlist, float fWidth, float fHeight)
 
     // ensure gpu vertex buffer size is adequate
     uint32_t uVtxBufSzNeeded = sizeof(plDrawVertex) * pl_sb_size(ptDrawlist->sbVertexBuffer);
+    if(uVtxBufSzNeeded == 0)
+        return;
     if(uVtxBufSzNeeded >= ptDx11Drawlist->uVertexByteSize)
         pl__grow_dx11_vertex_buffer(ptDrawlist, uVtxBufSzNeeded * 2);
 
     // ensure gpu index buffer size is adequate
     uint32_t uIdxBufSzNeeded = ptDrawlist->indexBufferByteSize;
-    if(uIdxBufSzNeeded >= ptDrawlist->indexBufferByteSize)
+    if(uIdxBufSzNeeded == 0)
+        return;
+    if(uIdxBufSzNeeded >= ptDx11Drawlist->uIndexByteSize)
         pl__grow_dx11_index_buffer(ptDrawlist, uIdxBufSzNeeded * 2);
 
     // vertex GPU data transfer
@@ -532,7 +506,7 @@ pl_build_font_atlas(plDrawContext* ctx, plFontAtlas* atlas)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal helpers implementation
+// [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
 
 static void
@@ -572,5 +546,3 @@ pl__grow_dx11_index_buffer(plDrawList* ptDrawlist, uint32_t uIdxBufSzNeeded)
     PL_DX11(PL_COM(ptDx11DrawCtx->ptDevice)->CreateBuffer(ptDx11DrawCtx->ptDevice, &tBufferDescription, NULL, &ptDx11Drawlist->ptIndexBuffer));
     ptDx11Drawlist->uIndexByteSize = uIdxBufSzNeeded;
 }
-
-#endif // PL_DRAW_DX11_IMPLEMENTATION

@@ -1,12 +1,13 @@
 #include "pilotlight.h"
 
 // platform specifics
+#define PL_INCLUDE_OS_H
 #ifdef _WIN32
-#include "pl_os_win32.c"
+#include "../backends/pl_win32.c"
 #elif defined(__APPLE__)
-#include "pl_os_macos.m"
+#include "../backends/pl_macos.m"
 #else // linux
-#include "pl_os_linux.c"
+#include "../backends/pl_linux.c"
 #endif
 
 #include "pl_draw.c"
@@ -69,23 +70,17 @@
 
 // graphics backend specifics
 #ifdef PL_METAL_BACKEND
-#define PL_DRAW_METAL_IMPLEMENTATION
-#include "pl_draw_metal.h"
-#undef PL_DRAW_METAL_IMPLEMENTATION
+#include "../backends/pl_metal.m"
 #endif
 
 #ifdef PL_VULKAN_BACKEND
 #include "pl_graphics_vulkan.c"
-#define PL_DRAW_VULKAN_IMPLEMENTATION
-#include "pl_draw_vulkan.h"
-#undef PL_DRAW_VULKAN_IMPLEMENTATION
+#include "../backends/pl_vulkan.c"
 #include "pl_prototype.c"
 #endif
 
 #ifdef PL_DX11_BACKEND
-#define PL_DRAW_DX11_IMPLEMENTATION
-#include "pl_draw_dx11.h"
-#undef PL_DRAW_DX11_IMPLEMENTATION
+#include "../backends/pl_dx11.c"
 #endif
 
 #define STB_RECT_PACK_IMPLEMENTATION
