@@ -70,7 +70,7 @@ jobs:
         cd ..
         test -f ./out/pilot_light || exit 1
         test -f ./out/app.so || exit 1
-        test -f ./out/pilotlight.c.o || exit 1
+        test -f ./out/pilotlight.o || exit 1
 
   Ubuntu:
     
@@ -105,4 +105,4 @@ jobs:
         cd ..
         test -f ./out/pilot_light || exit 1
         test -f ./out/app.so || exit 1
-        test -f ./out/pilotlight.c.o || exit 1
+        test -f ./out/pilotlight.o || exit 1
