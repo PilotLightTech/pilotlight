@@ -73,7 +73,10 @@ typedef struct plAppData_t
     plMemoryContext         tMemoryCtx;
     plDataRegistry          tDataRegistryCtx;
     plExtensionRegistry     tExtensionRegistryCtx;
-    plUiContext             tUiContext;
+    plUiContext*            ptUiContext;
+    bool                    bShowUiDemo;
+    bool                    bShowUiDebug;
+    bool                    bShowUiStyle;
 
     // extension apis
     plDrawExtension*        ptDrawExtApi;
@@ -94,7 +97,7 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
         pl_set_data_registry(&ptAppData->tDataRegistryCtx);
         pl_set_extension_registry(&ptAppData->tExtensionRegistryCtx);
         pl_set_io_context(ptIOCtx);
-        pl_ui_set_context(&ptAppData->tUiContext);
+        pl_ui_set_context(ptAppData->ptUiContext);
 
         plExtension* ptExtension = pl_get_extension(PL_EXT_DRAW);
         ptAppData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
@@ -182,24 +185,20 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     pl_log_info(0, "Setup logging");
 
     // ui
-    pl_ui_setup_context(&ptAppData->tUiContext);
+    ptAppData->ptUiContext = pl_ui_create_context();
 
     // setup drawing api
-    pl_initialize_draw_context_dx11(ptAppData->tUiContext.ptDrawCtx, ptAppData->ptDevice, ptAppData->ptContext);
-    pl_register_drawlist(ptAppData->tUiContext.ptDrawCtx, &ptAppData->drawlist);
-    pl_setup_drawlist_dx11(&ptAppData->drawlist);
+    pl_initialize_draw_context_dx11(pl_ui_get_draw_context(NULL), ptAppData->ptDevice, ptAppData->ptContext);
+    pl_register_drawlist(pl_ui_get_draw_context(NULL), &ptAppData->drawlist);
     ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
     ptAppData->fgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Foreground Layer");
 
     // create font atlas
     pl_add_default_font(&ptAppData->fontAtlas);
-    pl_build_font_atlas(ptAppData->tUiContext.ptDrawCtx, &ptAppData->fontAtlas);
+    pl_build_font_atlas(pl_ui_get_draw_context(NULL), &ptAppData->fontAtlas);
 
-    pl_setup_drawlist_dx11(ptAppData->tUiContext.ptDrawlist);
-    pl_setup_drawlist_dx11(ptAppData->tUiContext.ptDebugDrawlist);
-
-    ptAppData->tUiContext.ptFont = &ptAppData->fontAtlas.sbFonts[0];
-    pl_register_data("draw", ptAppData->tUiContext.ptDrawCtx);
+    pl_ui_set_default_font(&ptAppData->fontAtlas.sbFonts[0]);
+    pl_register_data("draw", pl_ui_get_draw_context(NULL));
 
     return ptAppData;
 }
@@ -220,7 +219,7 @@ pl_app_shutdown(plAppData* ptAppData)
 
     // clean up contexts
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
-    pl_ui_cleanup_context();
+    pl_ui_destroy_context(NULL);
     pl_cleanup_profile_context();
     pl_cleanup_extension_registry();
     pl_cleanup_log_context();
@@ -318,15 +317,27 @@ pl_app_update(plAppData* ptAppData)
     pl_add_line(ptAppData->bgDrawLayer, (plVec2){500.0f, 10.0f}, (plVec2){10.0f, 500.0f}, (plVec4){1.0f, 1.0f, 1.0f, 0.5f}, 2.0f);
     pl_end_profile_sample();
 
-    static bool bOpen = true;
-
     if(pl_ui_begin_window("Pilot Light", NULL, false))
     {
-        pl_ui_text("%.6f ms", ptIOCtx->fDeltaTime);
 
-        pl_ui_checkbox("Camera Info", &bOpen);
+        const float pfRatios[] = {1.0f};
+        pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+        
+        pl_ui_checkbox("UI Debug", &ptAppData->bShowUiDebug);
+        pl_ui_checkbox("UI Demo", &ptAppData->bShowUiDemo);
+        pl_ui_checkbox("UI Style", &ptAppData->bShowUiStyle);
+        
         pl_ui_end_window();
     }
+
+    if(ptAppData->bShowUiDemo)
+        pl_ui_demo(&ptAppData->bShowUiDemo);
+        
+    if(ptAppData->bShowUiStyle)
+        pl_ui_style(&ptAppData->bShowUiStyle);
+
+    if(ptAppData->bShowUiDebug)
+        pl_ui_debug(&ptAppData->bShowUiDebug);
     
 
     // submit draw layers
@@ -339,8 +350,8 @@ pl_app_update(plAppData* ptAppData)
 
     // submit draw lists
     pl_submit_drawlist_dx11(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1]);
-    pl_submit_drawlist_dx11(ptAppData->tUiContext.ptDrawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1]);
-    pl_submit_drawlist_dx11(ptAppData->tUiContext.ptDebugDrawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1]);
+    pl_submit_drawlist_dx11(pl_ui_get_draw_list(NULL), (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1]);
+    pl_submit_drawlist_dx11(pl_ui_get_debug_draw_list(NULL), (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1]);
 
     // present
     PL_COM(ptAppData->ptSwapChain)->Present(ptAppData->ptSwapChain, 1, 0);

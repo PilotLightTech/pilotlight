@@ -3125,6 +3125,7 @@ pl_ui_submit_window(plUiWindow* ptWindow)
         // check if window is activated
         if(pl_is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
         {
+            gptCtx->ptMovingWindow = NULL;
             gptCtx->uActiveWindowId = ptWindow->ptParentWindow->uId;
             gptCtx->bActiveIdJustActivated = true;
             gptCtx->ptActiveWindow = ptWindow->ptParentWindow;

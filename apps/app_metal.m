@@ -65,7 +65,7 @@ typedef struct plAppData_t
     plMemoryContext          tMemoryCtx;
     plDataRegistry           tDataRegistryCtx;
     plExtensionRegistry      tExtensionRegistryCtx;
-    plUiContext              tUiContext;
+    plUiContext*             ptUiContext;
 
     // extension apis
     plDrawExtension*         ptDrawExtApi;
@@ -87,7 +87,7 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
         pl_set_data_registry(&ptAppData->tDataRegistryCtx);
         pl_set_extension_registry(&ptAppData->tExtensionRegistryCtx);
         pl_set_io_context(ptIOCtx);
-        pl_ui_set_context(&ptAppData->tUiContext);
+        pl_ui_set_context(ptAppData->ptUiContext);
 
         plExtension* ptExtension = pl_get_extension(PL_EXT_DRAW);
         ptAppData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
@@ -147,21 +147,20 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     ptAppData->drawableRenderDescriptor.depthAttachment.clearDepth = 1.0;
 
     // ui
-    pl_ui_setup_context(&ptAppData->tUiContext);
+    ptAppData->ptUiContext = pl_ui_create_context();
 
     // initialize backend specifics for draw context
-    pl_initialize_draw_context_metal(ptAppData->tUiContext.ptDrawCtx, ptAppData->device.device);
+    pl_initialize_draw_context_metal(pl_ui_get_draw_context(NULL), ptAppData->device.device);
 
     // create draw list & layers
-    pl_register_drawlist(ptAppData->tUiContext.ptDrawCtx, &ptAppData->drawlist);
+    pl_register_drawlist(pl_ui_get_draw_context(NULL), &ptAppData->drawlist);
     ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
     ptAppData->fgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Foreground Layer");
     
     // create font atlas
     pl_add_default_font(&ptAppData->fontAtlas);
-    pl_build_font_atlas(ptAppData->tUiContext.ptDrawCtx, &ptAppData->fontAtlas);
-
-    ptAppData->tUiContext.ptFont = &ptAppData->fontAtlas.sbFonts[0];
+    pl_build_font_atlas(pl_ui_get_draw_context(NULL), &ptAppData->fontAtlas);
+    pl_ui_set_default_font(&ptAppData->fontAtlas.sbFonts[0]);
 
     return ptAppData;
 }
@@ -176,7 +175,7 @@ pl_app_shutdown(plAppData* ptAppData)
 
     // clean up contexts
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
-    pl_ui_cleanup_context();
+    pl_ui_destroy_context(NULL);
     pl_cleanup_profile_context();
     pl_cleanup_extension_registry();
     pl_cleanup_log_context();
@@ -212,7 +211,7 @@ PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
     pl_handle_extension_reloads();
-    pl_new_draw_frame_metal(ptAppData->tUiContext.ptDrawCtx, ptAppData->drawableRenderDescriptor);
+    pl_new_draw_frame_metal(pl_ui_get_draw_context(NULL), ptAppData->drawableRenderDescriptor);
     pl_ui_new_frame();
 
     plIOContext* ptIOCtx = pl_get_io_context();
@@ -286,11 +285,11 @@ pl_app_update(plAppData* ptAppData)
 
     // submit draw lists
     pl_begin_profile_sample("Submit draw lists");
-    ptAppData->tUiContext.ptDrawCtx->tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
-    ptAppData->tUiContext.ptDrawCtx->tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
+    pl_ui_get_draw_context(NULL)->tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
+    pl_ui_get_draw_context(NULL)->tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
     pl_submit_drawlist_metal(&ptAppData->drawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
-    pl_submit_drawlist_metal(ptAppData->tUiContext.ptDrawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
-    pl_submit_drawlist_metal(ptAppData->tUiContext.ptDebugDrawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
+    pl_submit_drawlist_metal(pl_ui_get_draw_list(NULL), ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
+    pl_submit_drawlist_metal(pl_ui_get_debug_draw_list(NULL), ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
     pl_end_profile_sample();
 
     // finish recording

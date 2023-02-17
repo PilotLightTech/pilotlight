@@ -30,7 +30,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 void pl_initialize_draw_context_dx11(plDrawContext* ptCtx, ID3D11Device* ptDevice, ID3D11DeviceContext* ptDeviceCtx);
-void pl_setup_drawlist_dx11         (plDrawList* ptDrawlist);
 void pl_submit_drawlist_dx11        (plDrawList* ptDrawlist, float fWidth, float fHeight);
 void pl_new_draw_frame              (plDrawContext* ptCtx);
 

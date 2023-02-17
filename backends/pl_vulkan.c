@@ -200,92 +200,104 @@ static uint32_t __glsl_shader_fragsdf_spv[] =
 //-----------------------------------------------------------------------------
 
 // wraps a buffer to be freed
-typedef struct
+typedef struct _plBufferReturn
 {
-    VkBuffer       buffer;
-    VkDeviceMemory deviceMemory;
+    VkBuffer       tBuffer;
+    VkDeviceMemory tDeviceMemory;
     int64_t        slFreedFrame;
 } plBufferReturn;
 
 // wraps a texture to be freed
-typedef struct
+typedef struct _plTextureReturn
 {
-    VkImage        image;
-    VkImageView    view;
-    VkDeviceMemory deviceMemory;
+    VkImage        tImage;
+    VkImageView    tView;
+    VkDeviceMemory tDeviceMemory;
     int64_t        slFreedFrame;
 } plTextureReturn;
 
-typedef struct
-{
-    VkDevice                         device;
-    VkCommandPool                    tCmdPool;
-    VkQueue                          tGraphicsQueue;
-    uint32_t                         imageCount;
-    VkPhysicalDeviceMemoryProperties memProps;
-    VkDescriptorSetLayout            descriptorSetLayout;
-    VkDescriptorPool                 descriptorPool;
+typedef struct _plVulkanPipelineEntry
+{    
+    VkRenderPass tRenderPass;
+    VkPipeline   tRegularPipeline;
+    VkPipeline   tSDFPipeline;
+} plVulkanPipelineEntry;
 
-    // fonts (temp until we have a proper atlas)
-    VkSampler                        fontSampler;
-    VkImage                          fontTextureImage;
-    VkImageView                      fontTextureImageView;
-    VkDeviceMemory                   fontTextureMemory;
-
-    // committed buffers
-    plBufferReturn* sbReturnedBuffers;
-    plBufferReturn* sbReturnedBuffersTemp;
-    uint32_t        bufferDeletionQueueSize;
-
-    // committed textures
-    plTextureReturn* sbReturnedTextures;
-    plTextureReturn* sbReturnedTexturesTemp;
-    uint32_t         textureDeletionQueueSize;
-
-    // staging buffer
-    size_t         stageByteSize;
-    VkBuffer       stagingBuffer;
-    VkDeviceMemory stagingMemory;
-    void*          mapping; // persistent mapping for staging buffer
-
-    // drawlist pipeline caching
-    VkPipelineLayout                drawlistPipelineLayout;
-    VkDescriptorSetLayout           drawlistDescriptorSetLayout;
-    VkPipelineShaderStageCreateInfo pxlShdrStgInfo;
-    VkPipelineShaderStageCreateInfo sdfShdrStgInfo;
-    VkPipelineShaderStageCreateInfo vtxShdrStgInfo;
-
-} plVulkanDrawContext;
-
-typedef struct
+typedef struct _plVulkanBufferInfo
 {
     // vertex buffer
-    VkBuffer*       sbVertexBuffer;
-    VkDeviceMemory* sbVertexMemory;
-    unsigned char** sbVertexBufferMap;
-    unsigned int*   sbVertexByteSize;
-    
+    VkBuffer        tVertexBuffer;
+    VkDeviceMemory  tVertexMemory;
+    unsigned char*  ucVertexBufferMap;
+    uint32_t        uVertexByteSize;
+    uint32_t        uVertexBufferOffset;
+
     // index buffer
-    VkBuffer*       sbIndexBuffer;
-    VkDeviceMemory* sbIndexMemory;
-    unsigned char** sbIndexBufferMap;
-    unsigned int*   sbIndexByteSize;
+    VkBuffer       tIndexBuffer;
+    VkDeviceMemory tIndexMemory;
+    unsigned char* ucIndexBufferMap;
+    uint32_t       uIndexByteSize;
+    uint32_t       uIndexBufferOffset;
+} plVulkanBufferInfo;
 
-    // pipelines (these are per drawlist since it depends on the renderpass)
-    VkPipeline       regularPipeline;
-    VkPipeline       sdfPipeline;
+typedef struct _plVulkanDrawContext
+{
+    VkDevice                         tDevice;
+    VkCommandPool                    tCmdPool;
+    VkQueue                          tGraphicsQueue;
+    uint32_t                         uImageCount;
+    VkPhysicalDeviceMemoryProperties tMemProps;
+    VkDescriptorSetLayout            tDescriptorSetLayout;
+    VkDescriptorPool                 tDescriptorPool;
 
-} plVulkanDrawList;
+    // fonts (temp until we have a proper atlas)
+    VkSampler                        tFontSampler;
+    VkImage                          tFontTextureImage;
+    VkImageView                      tFontTextureImageView;
+    VkDeviceMemory                   tFontTextureMemory;
+
+    // committed buffers
+    plBufferReturn*                  sbReturnedBuffers;
+    plBufferReturn*                  sbReturnedBuffersTemp;
+    uint32_t                         uBufferDeletionQueueSize;
+
+    // committed textures
+    plTextureReturn*                 sbReturnedTextures;
+    plTextureReturn*                 sbReturnedTexturesTemp;
+    uint32_t                         uTextureDeletionQueueSize;
+
+    // vertex & index buffer
+    plVulkanBufferInfo*              sbtBufferInfo;
+
+    // staging buffer
+    size_t                            szStageByteSize;
+    VkBuffer                          tStagingBuffer;
+    VkDeviceMemory                    tStagingMemory;
+    void*                             pStageMapping; // persistent mapping for staging buffer
+
+    // drawlist pipeline caching
+    VkPipelineLayout                  tPipelineLayout;
+    VkPipelineShaderStageCreateInfo   tPxlShdrStgInfo;
+    VkPipelineShaderStageCreateInfo   tSdfShdrStgInfo;
+    VkPipelineShaderStageCreateInfo   tVtxShdrStgInfo;
+
+    // pipelines
+    plVulkanPipelineEntry*            sbtPipelines;
+    VkRenderPass                      tRenderPass; // default render pass
+    VkSampleCountFlagBits             tMSAASampleCount;
+
+} plVulkanDrawContext;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-extern void     pl__cleanup_font_atlas   (plFontAtlas* atlas); // in pl_draw.c
-extern void     pl__new_draw_frame   (plDrawContext* ctx); // in pl_draw.c
-static uint32_t pl__find_memory_type(VkPhysicalDeviceMemoryProperties memProps, uint32_t typeFilter, VkMemoryPropertyFlags properties);
-static void     pl__grow_vulkan_vertex_buffer(plDrawList* ptrDrawlist, uint32_t uVtxBufSzNeeded, uint32_t currentFrameIndex);
-static void     pl__grow_vulkan_index_buffer(plDrawList* ptrDrawlist, uint32_t uIdxBufSzNeeded, uint32_t currentFrameIndex);
+extern void                   pl__cleanup_font_atlas       (plFontAtlas* ptAtlas); // in pl_draw.c
+extern void                   pl__new_draw_frame           (plDrawContext* ptCtx); // in pl_draw.c
+static uint32_t               pl__find_memory_type         (VkPhysicalDeviceMemoryProperties tMemProps, uint32_t typeFilter, VkMemoryPropertyFlags properties);
+static void                   pl__grow_vulkan_vertex_buffer(plDrawContext* ptCtx, uint32_t uVtxBufSzNeeded, uint32_t uFrameIndex);
+static void                   pl__grow_vulkan_index_buffer (plDrawContext* ptCtx, uint32_t uIdxBufSzNeeded, uint32_t uFrameIndex);
+static plVulkanPipelineEntry* pl__get_pipelines            (plVulkanDrawContext* ptCtx, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount);
 
 
 //-----------------------------------------------------------------------------
@@ -293,53 +305,55 @@ static void     pl__grow_vulkan_index_buffer(plDrawList* ptrDrawlist, uint32_t u
 //-----------------------------------------------------------------------------
 
 void
-pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice tPhysicalDevice, uint32_t imageCount, VkDevice tLogicalDevice)
+pl_initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptInit)
 {
-    plVulkanDrawContext* vulkanDrawContext = (plVulkanDrawContext*)PL_ALLOC(sizeof(plVulkanDrawContext));
-    memset(vulkanDrawContext, 0, sizeof(plVulkanDrawContext));
-    vulkanDrawContext->device = tLogicalDevice;
-    vulkanDrawContext->imageCount = imageCount;
-    ctx->_platformData = vulkanDrawContext;
+    plVulkanDrawContext* ptVulkanDrawContext = PL_ALLOC(sizeof(plVulkanDrawContext));
+    memset(ptVulkanDrawContext, 0, sizeof(plVulkanDrawContext));
+    ptVulkanDrawContext->tDevice = ptInit->tLogicalDevice;
+    ptVulkanDrawContext->uImageCount = ptInit->uImageCount;
+    ptVulkanDrawContext->tRenderPass = ptInit->tRenderPass;
+    ptVulkanDrawContext->tMSAASampleCount = ptInit->tMSAASampleCount;
+    ptCtx->_platformData = ptVulkanDrawContext;
 
-    // get physical device properties
-    vkGetPhysicalDeviceMemoryProperties(tPhysicalDevice, &vulkanDrawContext->memProps);
+    // get physical tDevice properties
+    vkGetPhysicalDeviceMemoryProperties(ptInit->tPhysicalDevice, &ptVulkanDrawContext->tMemProps);
 
     // create descriptor pool
     // TODO: add a system to allow this to grow as needed
-    VkDescriptorPoolSize poolSizes = { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 };
-    VkDescriptorPoolCreateInfo poolInfo = {
+    const VkDescriptorPoolSize atPoolSizes = { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 };
+    const VkDescriptorPoolCreateInfo tPoolInfo = {
         .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
         .maxSets       = 1000u,
         .poolSizeCount = 1u,
-        .pPoolSizes    = &poolSizes
+        .pPoolSizes    = &atPoolSizes
     };
-    PL_VULKAN(vkCreateDescriptorPool(tLogicalDevice, &poolInfo, NULL, &vulkanDrawContext->descriptorPool));
+    PL_VULKAN(vkCreateDescriptorPool(ptInit->tLogicalDevice, &tPoolInfo, NULL, &ptVulkanDrawContext->tDescriptorPool));
 
     // find queue that supports the graphics bit
     uint32_t uQueueFamCnt = 0u;
-    vkGetPhysicalDeviceQueueFamilyProperties(tPhysicalDevice, &uQueueFamCnt, NULL);
+    vkGetPhysicalDeviceQueueFamilyProperties(ptInit->tPhysicalDevice, &uQueueFamCnt, NULL);
 
-    VkQueueFamilyProperties queueFamilies[64] = {0};
-    vkGetPhysicalDeviceQueueFamilyProperties(tPhysicalDevice, &uQueueFamCnt, queueFamilies);
+    VkQueueFamilyProperties aQueueFamilies[64] = {0};
+    vkGetPhysicalDeviceQueueFamilyProperties(ptInit->tPhysicalDevice, &uQueueFamCnt, aQueueFamilies);
 
     for(uint32_t i = 0; i < uQueueFamCnt; i++)
     {
-        if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+        if (aQueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
         {
-            vkGetDeviceQueue(tLogicalDevice, i, 0, &vulkanDrawContext->tGraphicsQueue);
-            VkCommandPoolCreateInfo commandPoolInfo = {
-                .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            vkGetDeviceQueue(ptInit->tLogicalDevice, i, 0, &ptVulkanDrawContext->tGraphicsQueue);
+            const VkCommandPoolCreateInfo tCommandPoolInfo = {
+                .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
                 .queueFamilyIndex = i,
-                .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+                .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
             };
-            PL_VULKAN(vkCreateCommandPool(tLogicalDevice, &commandPoolInfo, NULL, &vulkanDrawContext->tCmdPool));
+            PL_VULKAN(vkCreateCommandPool(ptInit->tLogicalDevice, &tCommandPoolInfo, NULL, &ptVulkanDrawContext->tCmdPool));
             break;
         }
     }
 
     // create font sampler
-    VkSamplerCreateInfo samplerInfo = {
+    const VkSamplerCreateInfo tSamplerInfo = {
         .sType         = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
         .magFilter     = VK_FILTER_LINEAR,
         .minFilter     = VK_FILTER_LINEAR,
@@ -351,400 +365,253 @@ pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice tPhysical
         .maxLod        = 1000,
         .maxAnisotropy = 1.0f
     };
-    PL_VULKAN(vkCreateSampler(vulkanDrawContext->device, &samplerInfo, NULL, &vulkanDrawContext->fontSampler));
+    PL_VULKAN(vkCreateSampler(ptVulkanDrawContext->tDevice, &tSamplerInfo, NULL, &ptVulkanDrawContext->tFontSampler));
 
     // create descriptor set layout
-    VkDescriptorSetLayoutBinding binding = {
+    const VkDescriptorSetLayoutBinding tDescriptorSetLayoutBinding = {
         .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .descriptorCount    = 1,
         .stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .pImmutableSamplers = &vulkanDrawContext->fontSampler,
+        .pImmutableSamplers = &ptVulkanDrawContext->tFontSampler,
     };
 
-    VkDescriptorSetLayoutCreateInfo info = {
+    const VkDescriptorSetLayoutCreateInfo tDescriptorSetLayoutInfo = {
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = 1,
-        .pBindings    = &binding,
+        .pBindings    = &tDescriptorSetLayoutBinding,
     };
 
-    PL_VULKAN(vkCreateDescriptorSetLayout(vulkanDrawContext->device, &info, NULL, &vulkanDrawContext->descriptorSetLayout));
+    PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDrawContext->tDevice, &tDescriptorSetLayoutInfo, NULL, &ptVulkanDrawContext->tDescriptorSetLayout));
 
-    //-----------------------------------------------------------------------------
-    // pipeline commons
-    //-----------------------------------------------------------------------------
-
-    VkDescriptorSetLayoutBinding bindings = {
-        .binding = 0u,
-        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .descriptorCount = 1,
-        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .pImmutableSamplers = &vulkanDrawContext->fontSampler
-    };
-
-    VkDescriptorSetLayoutCreateInfo layoutInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = 1,
-        .pBindings = &bindings
-    };
-
-    PL_VULKAN(vkCreateDescriptorSetLayout(vulkanDrawContext->device, &layoutInfo, NULL, &vulkanDrawContext->drawlistDescriptorSetLayout));
-
-    VkPushConstantRange pushConstant = {
+    // create pipeline layout
+    const VkPushConstantRange tPushConstant = {
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-        .offset = 0,
-        .size = sizeof(float) * 4
+        .offset    = 0,
+        .size      = sizeof(float) * 4
     };
 
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = 1u,
-        .pSetLayouts = &vulkanDrawContext->drawlistDescriptorSetLayout,
+    const VkPipelineLayoutCreateInfo tPipelineLayoutInfo = {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount         = 1u,
+        .pSetLayouts            = &ptVulkanDrawContext->tDescriptorSetLayout,
         .pushConstantRangeCount = 1,
-        .pPushConstantRanges = &pushConstant,
+        .pPushConstantRanges    = &tPushConstant,
     };
 
-    PL_VULKAN(vkCreatePipelineLayout(vulkanDrawContext->device, &pipelineLayoutInfo, NULL, &vulkanDrawContext->drawlistPipelineLayout));
+    PL_VULKAN(vkCreatePipelineLayout(ptVulkanDrawContext->tDevice, &tPipelineLayoutInfo, NULL, &ptVulkanDrawContext->tPipelineLayout));
 
     //---------------------------------------------------------------------
     // vertex shader stage
     //---------------------------------------------------------------------
 
-    vulkanDrawContext->vtxShdrStgInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    vulkanDrawContext->vtxShdrStgInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vulkanDrawContext->vtxShdrStgInfo.pName = "main";
+    ptVulkanDrawContext->tVtxShdrStgInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    ptVulkanDrawContext->tVtxShdrStgInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    ptVulkanDrawContext->tVtxShdrStgInfo.pName = "main";
 
-    VkShaderModuleCreateInfo vtxShdrInfo = {
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+    const VkShaderModuleCreateInfo tVtxShdrInfo = {
+        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
         .codeSize = sizeof(__glsl_shader_vert_spv),
-        .pCode = __glsl_shader_vert_spv
+        .pCode    = __glsl_shader_vert_spv
     };
-    PL_ASSERT(vkCreateShaderModule(vulkanDrawContext->device, &vtxShdrInfo, NULL, &vulkanDrawContext->vtxShdrStgInfo.module) == VK_SUCCESS);
+    PL_ASSERT(vkCreateShaderModule(ptVulkanDrawContext->tDevice, &tVtxShdrInfo, NULL, &ptVulkanDrawContext->tVtxShdrStgInfo.module) == VK_SUCCESS);
 
     //---------------------------------------------------------------------
     // fragment shader stage
     //---------------------------------------------------------------------
-    vulkanDrawContext->pxlShdrStgInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    vulkanDrawContext->pxlShdrStgInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    vulkanDrawContext->pxlShdrStgInfo.pName = "main";
+    ptVulkanDrawContext->tPxlShdrStgInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    ptVulkanDrawContext->tPxlShdrStgInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    ptVulkanDrawContext->tPxlShdrStgInfo.pName = "main";
 
-    VkShaderModuleCreateInfo pxlShdrInfo = {
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+    const VkShaderModuleCreateInfo tPxlShdrInfo = {
+        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
         .codeSize = sizeof(__glsl_shader_frag_spv),
-        .pCode = __glsl_shader_frag_spv
+        .pCode    = __glsl_shader_frag_spv
     };
-    PL_ASSERT(vkCreateShaderModule(vulkanDrawContext->device, &pxlShdrInfo, NULL, &vulkanDrawContext->pxlShdrStgInfo.module) == VK_SUCCESS);
+    PL_ASSERT(vkCreateShaderModule(ptVulkanDrawContext->tDevice, &tPxlShdrInfo, NULL, &ptVulkanDrawContext->tPxlShdrStgInfo.module) == VK_SUCCESS);
 
     //---------------------------------------------------------------------
     // sdf fragment shader stage
     //---------------------------------------------------------------------
-    vulkanDrawContext->sdfShdrStgInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    vulkanDrawContext->sdfShdrStgInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    vulkanDrawContext->sdfShdrStgInfo.pName = "main";
+    ptVulkanDrawContext->tSdfShdrStgInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    ptVulkanDrawContext->tSdfShdrStgInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    ptVulkanDrawContext->tSdfShdrStgInfo.pName = "main";
 
-    VkShaderModuleCreateInfo sdfShdrInfo  = {
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+    const VkShaderModuleCreateInfo tSdfShdrInfo  = {
+        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
         .codeSize = sizeof(__glsl_shader_fragsdf_spv),
-        .pCode = __glsl_shader_fragsdf_spv
+        .pCode    = __glsl_shader_fragsdf_spv
     };
-    PL_ASSERT(vkCreateShaderModule(vulkanDrawContext->device, &sdfShdrInfo, NULL, &vulkanDrawContext->sdfShdrStgInfo.module) == VK_SUCCESS);
+    PL_ASSERT(vkCreateShaderModule(ptVulkanDrawContext->tDevice, &tSdfShdrInfo, NULL, &ptVulkanDrawContext->tSdfShdrStgInfo.module) == VK_SUCCESS);
+
+    pl_sb_resize(ptVulkanDrawContext->sbtBufferInfo, PL_MAX_FRAMES_IN_FLIGHT);
 }
 
 void
-pl_setup_drawlist_vulkan(plDrawList* drawlist, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount)
+pl_new_draw_frame(plDrawContext* ptCtx)
 {
-    if(drawlist->_platformData == NULL)
-    {
-        drawlist->_platformData = PL_ALLOC(sizeof(plVulkanDrawList));
-        memset(drawlist->_platformData, 0, sizeof(plVulkanDrawList));
-    }
-
-    plVulkanDrawList* vulkanDrawlist = (plVulkanDrawList*)drawlist->_platformData;
-    plVulkanDrawContext* vulkanDrawCtx = drawlist->ctx->_platformData;
-    pl_sb_resize(vulkanDrawlist->sbVertexBuffer, PL_MAX_FRAMES_IN_FLIGHT);
-    pl_sb_resize(vulkanDrawlist->sbVertexMemory, PL_MAX_FRAMES_IN_FLIGHT);
-    pl_sb_resize(vulkanDrawlist->sbVertexBufferMap, PL_MAX_FRAMES_IN_FLIGHT);
-    pl_sb_resize(vulkanDrawlist->sbVertexByteSize, PL_MAX_FRAMES_IN_FLIGHT);
-    pl_sb_resize(vulkanDrawlist->sbIndexBuffer, PL_MAX_FRAMES_IN_FLIGHT);
-    pl_sb_resize(vulkanDrawlist->sbIndexMemory, PL_MAX_FRAMES_IN_FLIGHT);
-    pl_sb_resize(vulkanDrawlist->sbIndexBufferMap, PL_MAX_FRAMES_IN_FLIGHT);
-    pl_sb_resize(vulkanDrawlist->sbIndexByteSize, PL_MAX_FRAMES_IN_FLIGHT);
-
-    //---------------------------------------------------------------------
-    // input assembler stage
-    //---------------------------------------------------------------------
-
-    VkPipelineInputAssemblyStateCreateInfo inputAssembly = {
-        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        .primitiveRestartEnable = VK_FALSE
-    };
-
-    VkVertexInputAttributeDescription attributeDescriptions[] = {
-        {0u, 0u, VK_FORMAT_R32G32_SFLOAT,   0u},
-        {1u, 0u, VK_FORMAT_R32G32_SFLOAT,   8u},
-        {2u, 0u, VK_FORMAT_R8G8B8A8_UNORM, 16u}
-    };
-    
-    VkVertexInputBindingDescription bindingDescription = {
-        .binding   = 0u,
-        .stride    = sizeof(plDrawVertex),
-        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-    };
-
-    VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = 1u,
-        .vertexAttributeDescriptionCount = 3u,
-        .pVertexBindingDescriptions = &bindingDescription,
-        .pVertexAttributeDescriptions = attributeDescriptions
-    };
-
-    // dynamic, set per frame
-    VkViewport viewport = {0};
-    VkRect2D scissor = {0};
-
-    VkPipelineViewportStateCreateInfo viewportState = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewportCount = 1,
-        .pViewports = &viewport,
-        .scissorCount = 1,
-        .pScissors = &scissor
-    };
-
-    VkPipelineRasterizationStateCreateInfo rasterizer = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .depthClampEnable = VK_FALSE,
-        .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .lineWidth = 1.0f,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-        .depthBiasEnable = VK_FALSE
-    };
-
-    VkPipelineDepthStencilStateCreateInfo depthStencil = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthTestEnable = VK_FALSE,
-        .depthWriteEnable = VK_FALSE,
-        .depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL,
-        .depthBoundsTestEnable = VK_FALSE,
-        .minDepthBounds = 0.0f,
-        .maxDepthBounds = 1.0f,
-        .stencilTestEnable = VK_FALSE,
-        .front = {0},
-        .back = {0}
-    };
-
-    //---------------------------------------------------------------------
-    // color blending stage
-    //---------------------------------------------------------------------
-
-    VkPipelineColorBlendAttachmentState colorBlendAttachment = {
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-        .blendEnable = VK_TRUE,
-        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-        .colorBlendOp = VK_BLEND_OP_ADD,
-        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-        .alphaBlendOp = VK_BLEND_OP_ADD
-    };
-
-    VkPipelineColorBlendStateCreateInfo colorBlending = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .logicOpEnable = VK_FALSE,
-        .logicOp = VK_LOGIC_OP_COPY,
-        .attachmentCount = 1,
-        .pAttachments = &colorBlendAttachment,
-        .blendConstants[0] = 0.0f,
-        .blendConstants[1] = 0.0f,
-        .blendConstants[2] = 0.0f,
-        .blendConstants[3] = 0.0f
-    };
-
-    VkPipelineMultisampleStateCreateInfo multisampling = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .sampleShadingEnable = VK_FALSE,
-        .rasterizationSamples = tMSAASampleCount
-    };
-
-    VkDynamicState ptrDynamicStateEnables[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-
-    VkPipelineDynamicStateCreateInfo dynamicState = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .dynamicStateCount = 2u,
-        .pDynamicStates = ptrDynamicStateEnables
-    };
-
-    //---------------------------------------------------------------------
-    // Create Regular Pipeline
-    //---------------------------------------------------------------------
-
-    VkPipelineShaderStageCreateInfo ptrShaderStages[] = { vulkanDrawCtx->vtxShdrStgInfo, vulkanDrawCtx->pxlShdrStgInfo };
-
-    VkGraphicsPipelineCreateInfo pipeInfo = {
-        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .stageCount          = 2u,
-        .pStages             = ptrShaderStages,
-        .pVertexInputState   = &vertexInputInfo,
-        .pInputAssemblyState = &inputAssembly,
-        .pViewportState      = &viewportState,
-        .pRasterizationState = &rasterizer,
-        .pMultisampleState   = &multisampling,
-        .pColorBlendState    = &colorBlending,
-        .pDynamicState       = &dynamicState,
-        .layout              = vulkanDrawCtx->drawlistPipelineLayout,
-        .renderPass          = tRenderPass,
-        .subpass             = 0u,
-        .basePipelineHandle  = VK_NULL_HANDLE,
-        .pDepthStencilState  = &depthStencil
-    };
-    PL_VULKAN(vkCreateGraphicsPipelines(vulkanDrawCtx->device, VK_NULL_HANDLE, 1, &pipeInfo, NULL, &vulkanDrawlist->regularPipeline));
-
-    //---------------------------------------------------------------------
-    // Create SDF Pipeline
-    //---------------------------------------------------------------------
-
-    ptrShaderStages[1] = vulkanDrawCtx->sdfShdrStgInfo;
-    pipeInfo.pStages = ptrShaderStages;
-
-    PL_VULKAN(vkCreateGraphicsPipelines(vulkanDrawCtx->device, VK_NULL_HANDLE, 1, &pipeInfo, NULL, &vulkanDrawlist->sdfPipeline));
-}
-
-void
-pl_new_draw_frame(plDrawContext* ctx)
-{
-    plVulkanDrawContext* vulkanCtx = ctx->_platformData;
+    plVulkanDrawContext* ptVulkanDrawContext = ptCtx->_platformData;
 
     //-----------------------------------------------------------------------------
     // buffer deletion queue
     //-----------------------------------------------------------------------------
-    pl_sb_reset(vulkanCtx->sbReturnedBuffersTemp);
-    if(vulkanCtx->bufferDeletionQueueSize > 0u)
+    pl_sb_reset(ptVulkanDrawContext->sbReturnedBuffersTemp);
+    if(ptVulkanDrawContext->uBufferDeletionQueueSize > 0u)
     {
-        for(uint32_t i = 0; i < pl_sb_size(vulkanCtx->sbReturnedBuffers); i++)
+        for(uint32_t i = 0; i < pl_sb_size(ptVulkanDrawContext->sbReturnedBuffers); i++)
         {
-            if(vulkanCtx->sbReturnedBuffers[i].slFreedFrame < (int64_t)ctx->frameCount)
+            if(ptVulkanDrawContext->sbReturnedBuffers[i].slFreedFrame < (int64_t)ptCtx->frameCount)
             {
-                vulkanCtx->bufferDeletionQueueSize--;
-                vkDestroyBuffer(vulkanCtx->device, vulkanCtx->sbReturnedBuffers[i].buffer, NULL);
-                vkFreeMemory(vulkanCtx->device, vulkanCtx->sbReturnedBuffers[i].deviceMemory, NULL);
+                ptVulkanDrawContext->uBufferDeletionQueueSize--;
+                vkDestroyBuffer(ptVulkanDrawContext->tDevice, ptVulkanDrawContext->sbReturnedBuffers[i].tBuffer, NULL);
+                vkFreeMemory(ptVulkanDrawContext->tDevice, ptVulkanDrawContext->sbReturnedBuffers[i].tDeviceMemory, NULL);
             }
             else
             {
-                pl_sb_push(vulkanCtx->sbReturnedBuffersTemp, vulkanCtx->sbReturnedBuffers[i]);
+                pl_sb_push(ptVulkanDrawContext->sbReturnedBuffersTemp, ptVulkanDrawContext->sbReturnedBuffers[i]);
             }
         }     
     }
 
-    pl_sb_reset(vulkanCtx->sbReturnedBuffers);
-    for(uint32_t i = 0; i < pl_sb_size(vulkanCtx->sbReturnedBuffersTemp); i++)
-        pl_sb_push(vulkanCtx->sbReturnedBuffers, vulkanCtx->sbReturnedBuffersTemp[i]);
+    pl_sb_reset(ptVulkanDrawContext->sbReturnedBuffers);
+    for(uint32_t i = 0; i < pl_sb_size(ptVulkanDrawContext->sbReturnedBuffersTemp); i++)
+        pl_sb_push(ptVulkanDrawContext->sbReturnedBuffers, ptVulkanDrawContext->sbReturnedBuffersTemp[i]);
 
     //-----------------------------------------------------------------------------
     // texture deletion queue
     //-----------------------------------------------------------------------------
-    pl_sb_reset(vulkanCtx->sbReturnedTexturesTemp);
-    if(vulkanCtx->textureDeletionQueueSize > 0u)
+    pl_sb_reset(ptVulkanDrawContext->sbReturnedTexturesTemp);
+    if(ptVulkanDrawContext->uTextureDeletionQueueSize > 0u)
     {
-        for(uint32_t i = 0; i < pl_sb_size(vulkanCtx->sbReturnedTextures); i++)
+        for(uint32_t i = 0; i < pl_sb_size(ptVulkanDrawContext->sbReturnedTextures); i++)
         {
-            if(vulkanCtx->sbReturnedTextures[i].slFreedFrame < (int64_t)ctx->frameCount)
+            if(ptVulkanDrawContext->sbReturnedTextures[i].slFreedFrame < (int64_t)ptCtx->frameCount)
             {
-                vulkanCtx->textureDeletionQueueSize--;
-                vkDestroyImage(vulkanCtx->device, vulkanCtx->sbReturnedTextures[i].image, NULL);
-                vkDestroyImageView(vulkanCtx->device, vulkanCtx->sbReturnedTextures[i].view, NULL);
-                vkFreeMemory(vulkanCtx->device, vulkanCtx->sbReturnedTextures[i].deviceMemory, NULL);
+                ptVulkanDrawContext->uTextureDeletionQueueSize--;
+                vkDestroyImage(ptVulkanDrawContext->tDevice, ptVulkanDrawContext->sbReturnedTextures[i].tImage, NULL);
+                vkDestroyImageView(ptVulkanDrawContext->tDevice, ptVulkanDrawContext->sbReturnedTextures[i].tView, NULL);
+                vkFreeMemory(ptVulkanDrawContext->tDevice, ptVulkanDrawContext->sbReturnedTextures[i].tDeviceMemory, NULL);
             }
             else
             {
-                pl_sb_push(vulkanCtx->sbReturnedTexturesTemp, vulkanCtx->sbReturnedTextures[i]);
+                pl_sb_push(ptVulkanDrawContext->sbReturnedTexturesTemp, ptVulkanDrawContext->sbReturnedTextures[i]);
             }
         }     
     }
 
-    pl_sb_reset(vulkanCtx->sbReturnedTextures);
-    for(uint32_t i = 0; i < pl_sb_size(vulkanCtx->sbReturnedTexturesTemp); i++)
-        pl_sb_push(vulkanCtx->sbReturnedTextures, vulkanCtx->sbReturnedTexturesTemp[i]);
+    pl_sb_reset(ptVulkanDrawContext->sbReturnedTextures);
+    for(uint32_t i = 0; i < pl_sb_size(ptVulkanDrawContext->sbReturnedTexturesTemp); i++)
+        pl_sb_push(ptVulkanDrawContext->sbReturnedTextures, ptVulkanDrawContext->sbReturnedTexturesTemp[i]);
 
-    pl__new_draw_frame(ctx);
-}
-
-void
-pl_cleanup_font_atlas(plFontAtlas* atlas)
-{
-    plVulkanDrawContext* vulkanDrawCtx = atlas->ctx->_platformData;
-    plTextureReturn returnTexture = 
+    // reset buffer offsets
+    for(uint32_t i = 0; i < pl_sb_size(ptVulkanDrawContext->sbtBufferInfo); i++)
     {
-        .image = vulkanDrawCtx->fontTextureImage,
-        .view = vulkanDrawCtx->fontTextureImageView,
-        .deviceMemory = vulkanDrawCtx->fontTextureMemory,
-        .slFreedFrame = (int64_t)(atlas->ctx->frameCount + vulkanDrawCtx->imageCount*2)
-    };
-    pl_sb_push(vulkanDrawCtx->sbReturnedTextures, returnTexture);
-    vulkanDrawCtx->textureDeletionQueueSize++;
-    pl__cleanup_font_atlas(atlas);
+        ptVulkanDrawContext->sbtBufferInfo[i].uVertexBufferOffset = 0;
+        ptVulkanDrawContext->sbtBufferInfo[i].uIndexBufferOffset = 0;
+    }
+
+    pl__new_draw_frame(ptCtx);
 }
 
 void
-pl_submit_drawlist_vulkan(plDrawList* drawlist, float width, float height, VkCommandBuffer cmdBuf, uint32_t currentFrameIndex)
+pl_cleanup_font_atlas(plFontAtlas* ptAtlas)
 {
-    if(pl_sb_size(drawlist->sbVertexBuffer) == 0u)
+    plVulkanDrawContext* ptVulkanDrawContext = ptAtlas->ctx->_platformData;
+    const plTextureReturn tReturnTexture = {
+        .tImage        = ptVulkanDrawContext->tFontTextureImage,
+        .tView         = ptVulkanDrawContext->tFontTextureImageView,
+        .tDeviceMemory = ptVulkanDrawContext->tFontTextureMemory,
+        .slFreedFrame = (int64_t)(ptAtlas->ctx->frameCount + ptVulkanDrawContext->uImageCount * 2)
+    };
+    pl_sb_push(ptVulkanDrawContext->sbReturnedTextures, tReturnTexture);
+    ptVulkanDrawContext->uTextureDeletionQueueSize++;
+    pl__cleanup_font_atlas(ptAtlas);
+}
+
+void
+pl_submit_drawlist_vulkan(plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex)
+{
+    plDrawContext* ptDrawContext = ptDrawlist->ctx;
+    plVulkanDrawContext* ptVulkanDrawCtx = ptDrawContext->_platformData;
+    pl_submit_drawlist_vulkan_ex(ptDrawlist, fWidth, fHeight, tCmdBuf, uFrameIndex, ptVulkanDrawCtx->tRenderPass, ptVulkanDrawCtx->tMSAASampleCount);
+}
+
+void
+pl_submit_drawlist_vulkan_ex(plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount)
+{
+    
+    if(pl_sb_size(ptDrawlist->sbVertexBuffer) == 0u)
         return;
 
-    plDrawContext* drawContext = drawlist->ctx;
-    plVulkanDrawContext* vulkanData = drawContext->_platformData;
-    plVulkanDrawList* drawlistVulkanData = drawlist->_platformData;
+    plDrawContext* ptCtx = ptDrawlist->ctx;
+    plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // ensure gpu vertex buffer size is adequate
-    uint32_t uVtxBufSzNeeded = sizeof(plDrawVertex) * pl_sb_size(drawlist->sbVertexBuffer) * PL_MAX_FRAMES_IN_FLIGHT;
+    const uint32_t uVtxBufSzNeeded = sizeof(plDrawVertex) * pl_sb_size(ptDrawlist->sbVertexBuffer);
     if(uVtxBufSzNeeded == 0)
         return;
-    if(uVtxBufSzNeeded >= drawlistVulkanData->sbVertexByteSize[currentFrameIndex])
-        pl__grow_vulkan_vertex_buffer(drawlist, uVtxBufSzNeeded * 2, currentFrameIndex);
 
-    // ensure gpu index buffer size is adequate
-    uint32_t uIdxBufSzNeeded = drawlist->indexBufferByteSize * PL_MAX_FRAMES_IN_FLIGHT;
-    if(uIdxBufSzNeeded == 0)
-        return;
-    if(uIdxBufSzNeeded >= drawlistVulkanData->sbIndexByteSize[currentFrameIndex])
-        pl__grow_vulkan_index_buffer(drawlist, uIdxBufSzNeeded * 2, currentFrameIndex);
+    plVulkanBufferInfo* tBufferInfo = &ptVulkanDrawCtx->sbtBufferInfo[uFrameIndex];
+
+    // space left in vertex buffer
+    const uint32_t uAvailableVertexBufferSpace = tBufferInfo->uVertexByteSize - tBufferInfo->uVertexBufferOffset;
+
+    // grow buffer if not enough room
+    if(uVtxBufSzNeeded >= uAvailableVertexBufferSpace)
+        pl__grow_vulkan_vertex_buffer(ptCtx, uVtxBufSzNeeded * 2, uFrameIndex);
 
     // vertex GPU data transfer
-    memcpy(drawlistVulkanData->sbVertexBufferMap[currentFrameIndex], drawlist->sbVertexBuffer, sizeof(plDrawVertex) * pl_sb_size(drawlist->sbVertexBuffer)); //-V1004
+    unsigned char* pucMappedVertexBufferLocation = tBufferInfo->ucVertexBufferMap;
+    memcpy(&pucMappedVertexBufferLocation[tBufferInfo->uVertexBufferOffset], ptDrawlist->sbVertexBuffer, sizeof(plDrawVertex) * pl_sb_size(ptDrawlist->sbVertexBuffer)); //-V1004
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // ensure gpu index buffer size is adequate
+    const uint32_t uIdxBufSzNeeded = ptDrawlist->indexBufferByteSize;
+    if(uIdxBufSzNeeded == 0)
+        return;
+
+    // space left in index buffer
+    const uint32_t uAvailableIndexBufferSpace = tBufferInfo->uIndexByteSize - tBufferInfo->uIndexBufferOffset;
+
+    if(uIdxBufSzNeeded >= uAvailableIndexBufferSpace)
+        pl__grow_vulkan_index_buffer(ptCtx, uIdxBufSzNeeded * 2, uFrameIndex);
+
+    unsigned char* pucMappedIndexBufferLocation = tBufferInfo->ucIndexBufferMap;
+    unsigned char* pucDestination = &pucMappedIndexBufferLocation[tBufferInfo->uIndexBufferOffset];
     
     // index GPU data transfer
     uint32_t uTempIndexBufferOffset = 0u;
     uint32_t globalIdxBufferIndexOffset = 0u;
 
-    for(uint32_t i = 0u; i < pl_sb_size(drawlist->sbSubmittedLayers); i++)
+    for(uint32_t i = 0u; i < pl_sb_size(ptDrawlist->sbSubmittedLayers); i++)
     {
-        plDrawCommand* lastCommand = NULL;
-        plDrawLayer* layer = drawlist->sbSubmittedLayers[i];
+        plDrawCommand* ptLastCommand = NULL;
+        plDrawLayer* ptLayer = ptDrawlist->sbSubmittedLayers[i];
 
-        unsigned char* destination = drawlistVulkanData->sbIndexBufferMap[currentFrameIndex];
-        memcpy(&destination[uTempIndexBufferOffset], layer->sbIndexBuffer, sizeof(uint32_t) * pl_sb_size(layer->sbIndexBuffer)); //-V1004
+        memcpy(&pucDestination[uTempIndexBufferOffset], ptLayer->sbIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptLayer->sbIndexBuffer)); //-V1004
 
-        uTempIndexBufferOffset += pl_sb_size(layer->sbIndexBuffer)*sizeof(uint32_t);
+        uTempIndexBufferOffset += pl_sb_size(ptLayer->sbIndexBuffer)*sizeof(uint32_t);
 
         // attempt to merge commands
-        for(uint32_t j = 0u; j < pl_sb_size(layer->sbCommandBuffer); j++)
+        for(uint32_t j = 0u; j < pl_sb_size(ptLayer->sbCommandBuffer); j++)
         {
-            plDrawCommand *layerCommand = &layer->sbCommandBuffer[j];
+            plDrawCommand* ptLayerCommand = &ptLayer->sbCommandBuffer[j];
             bool bCreateNewCommand = true;
 
-            if(lastCommand)
+            if(ptLastCommand)
             {
                 // check for same texture (allows merging draw calls)
-                if(lastCommand->textureId == layerCommand->textureId && lastCommand->sdf == layerCommand->sdf)
+                if(ptLastCommand->textureId == ptLayerCommand->textureId && ptLastCommand->sdf == ptLayerCommand->sdf)
                 {
-                    lastCommand->elementCount += layerCommand->elementCount;
+                    ptLastCommand->elementCount += ptLayerCommand->elementCount;
                     bCreateNewCommand = false;
                 }
 
                 // check for same clipping (allows merging draw calls)
-                if(layerCommand->tClip.tMax.x != lastCommand->tClip.tMax.x || layerCommand->tClip.tMax.y != lastCommand->tClip.tMax.y ||
-                    layerCommand->tClip.tMin.x != lastCommand->tClip.tMin.x || layerCommand->tClip.tMin.y != lastCommand->tClip.tMin.y)
+                if(ptLayerCommand->tClip.tMax.x != ptLastCommand->tClip.tMax.x || ptLayerCommand->tClip.tMax.y != ptLastCommand->tClip.tMax.y ||
+                    ptLayerCommand->tClip.tMin.x != ptLastCommand->tClip.tMin.x || ptLayerCommand->tClip.tMin.y != ptLastCommand->tClip.tMin.y)
                 {
                     bCreateNewCommand = true;
                 }
@@ -753,59 +620,64 @@ pl_submit_drawlist_vulkan(plDrawList* drawlist, float width, float height, VkCom
 
             if(bCreateNewCommand)
             {
-                layerCommand->indexOffset = globalIdxBufferIndexOffset + layerCommand->indexOffset;
-                pl_sb_push(drawlist->sbDrawCommands, *layerCommand);       
-                lastCommand = layerCommand;
+                ptLayerCommand->indexOffset = globalIdxBufferIndexOffset + ptLayerCommand->indexOffset;
+                pl_sb_push(ptDrawlist->sbDrawCommands, *ptLayerCommand);       
+                ptLastCommand = ptLayerCommand;
             }
             
         }    
-        globalIdxBufferIndexOffset += pl_sb_size(layer->sbIndexBuffer);    
+        globalIdxBufferIndexOffset += pl_sb_size(ptLayer->sbIndexBuffer);    
     }
 
-    VkMappedMemoryRange range[2] = {
+    const VkMappedMemoryRange aRange[2] = {
         {
             .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-            .memory = drawlistVulkanData->sbVertexMemory[currentFrameIndex],
+            .memory = tBufferInfo->tVertexMemory,
             .size = VK_WHOLE_SIZE
         },
         {
             .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-            .memory = drawlistVulkanData->sbIndexMemory[currentFrameIndex],
+            .memory = tBufferInfo->tIndexMemory,
             .size = VK_WHOLE_SIZE
         }
     };
-    PL_VULKAN(vkFlushMappedMemoryRanges(vulkanData->device, 2, range));
+    PL_VULKAN(vkFlushMappedMemoryRanges(ptVulkanDrawCtx->tDevice, 2, aRange));
 
-    VkDeviceSize offsets = { 0u };
-    vkCmdBindIndexBuffer(cmdBuf, drawlistVulkanData->sbIndexBuffer[currentFrameIndex], 0u, VK_INDEX_TYPE_UINT32);
-    vkCmdBindVertexBuffers(cmdBuf, 0, 1, &drawlistVulkanData->sbVertexBuffer[currentFrameIndex], &offsets);
+    static const VkDeviceSize tOffsets = { 0u };
+    vkCmdBindIndexBuffer(tCmdBuf, tBufferInfo->tIndexBuffer, 0u, VK_INDEX_TYPE_UINT32);
+    vkCmdBindVertexBuffers(tCmdBuf, 0, 1, &tBufferInfo->tVertexBuffer, &tOffsets);
 
-    const float fScale[] = { 2.0f / width, 2.0f / height};
+    const int32_t iVertexOffset = tBufferInfo->uVertexBufferOffset / sizeof(plDrawVertex);
+    const int32_t iIndexOffset = tBufferInfo->uIndexBufferOffset / sizeof(uint32_t);
+
+    plVulkanPipelineEntry* tPipelineEntry = pl__get_pipelines(ptVulkanDrawCtx, tRenderPass, tMSAASampleCount);
+
+    const float fScale[] = { 2.0f / fWidth, 2.0f / fHeight};
     const float fTranslate[] = {-1.0f, -1.0f};
-    bool sdf = false;
-    vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, drawlistVulkanData->regularPipeline); 
-    for(uint32_t i = 0u; i < pl_sb_size(drawlist->sbDrawCommands); i++)
+    bool bSdf = false;
+    vkCmdBindPipeline(tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, tPipelineEntry->tRegularPipeline); 
+    for(uint32_t i = 0u; i < pl_sb_size(ptDrawlist->sbDrawCommands); i++)
     {
-        plDrawCommand cmd = drawlist->sbDrawCommands[i];
+        plDrawCommand cmd = ptDrawlist->sbDrawCommands[i];
 
-        if(cmd.sdf && !sdf) // delay
+        if(cmd.sdf && !bSdf)
         {
-            vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, drawlistVulkanData->sdfPipeline); 
-            sdf = true;
+            vkCmdBindPipeline(tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, tPipelineEntry->tSDFPipeline); 
+            bSdf = true;
         }
-        else if(!cmd.sdf && sdf)
+        else if(!cmd.sdf && bSdf)
         {
-            vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, drawlistVulkanData->regularPipeline); 
-            sdf = false;
+            vkCmdBindPipeline(tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, tPipelineEntry->tRegularPipeline); 
+            bSdf = false;
         }
 
         if(pl_rect_width(&cmd.tClip) == 0)
         {
             const VkRect2D tScissor = {
-                .extent.width = (int32_t) width,
-                .extent.height = (int32_t) height
+                .extent.width = (int32_t) fWidth,
+                .extent.height = (int32_t) fHeight
             };
-            vkCmdSetScissor(cmdBuf, 0, 1, &tScissor);
+            vkCmdSetScissor(tCmdBuf, 0, 1, &tScissor);
         }
         else
         {
@@ -813,8 +685,8 @@ pl_submit_drawlist_vulkan(plDrawList* drawlist, float width, float height, VkCom
             // clamp to viewport
             if (cmd.tClip.tMin.x < 0.0f)   { cmd.tClip.tMin.x = 0.0f; }
             if (cmd.tClip.tMin.y < 0.0f)   { cmd.tClip.tMin.y = 0.0f; }
-            if (cmd.tClip.tMax.x > width)  { cmd.tClip.tMax.x = (float)width; }
-            if (cmd.tClip.tMax.y > height) { cmd.tClip.tMax.y = (float)height; }
+            if (cmd.tClip.tMax.x > fWidth)  { cmd.tClip.tMax.x = (float)fWidth; }
+            if (cmd.tClip.tMax.y > fHeight) { cmd.tClip.tMax.y = (float)fHeight; }
             if (cmd.tClip.tMax.x <= cmd.tClip.tMin.x || cmd.tClip.tMax.y <= cmd.tClip.tMin.y)
                 continue;
 
@@ -825,286 +697,285 @@ pl_submit_drawlist_vulkan(plDrawList* drawlist, float width, float height, VkCom
                 .extent.height = (int32_t)pl_rect_height(&cmd.tClip)
             };
 
-            vkCmdSetScissor(cmdBuf, 0, 1, &tScissor);
+            vkCmdSetScissor(tCmdBuf, 0, 1, &tScissor);
         }
 
-        vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanData->drawlistPipelineLayout, 0, 1, (const VkDescriptorSet*)&cmd.textureId, 0u, NULL);
-        vkCmdPushConstants(cmdBuf, vulkanData->drawlistPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 0, sizeof(float) * 2, fScale);
-        vkCmdPushConstants(cmdBuf, vulkanData->drawlistPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 2, sizeof(float) * 2, fTranslate);
-        vkCmdDrawIndexed(cmdBuf, cmd.elementCount, 1, cmd.indexOffset, 0, 0);
+        vkCmdBindDescriptorSets(tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanDrawCtx->tPipelineLayout, 0, 1, (const VkDescriptorSet*)&cmd.textureId, 0u, NULL);
+        vkCmdPushConstants(tCmdBuf, ptVulkanDrawCtx->tPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 0, sizeof(float) * 2, fScale);
+        vkCmdPushConstants(tCmdBuf, ptVulkanDrawCtx->tPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 2, sizeof(float) * 2, fTranslate);
+        vkCmdDrawIndexed(tCmdBuf, cmd.elementCount, 1, cmd.indexOffset + iIndexOffset, iVertexOffset, 0);
     }
+
+    // bump vertex & index buffer offset
+    tBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
+    tBufferInfo->uIndexBufferOffset += uIdxBufSzNeeded;
 }
 
 void
-pl_cleanup_draw_context(plDrawContext* ctx)
+pl_cleanup_draw_context(plDrawContext* ptCtx)
 {
-    plVulkanDrawContext* vulkanDrawCtx = ctx->_platformData;
+    plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
 
-    vkDestroyShaderModule(vulkanDrawCtx->device, vulkanDrawCtx->vtxShdrStgInfo.module, NULL);
-    vkDestroyShaderModule(vulkanDrawCtx->device, vulkanDrawCtx->pxlShdrStgInfo.module, NULL);
-    vkDestroyShaderModule(vulkanDrawCtx->device, vulkanDrawCtx->sdfShdrStgInfo.module, NULL);
-    vkDestroyBuffer(vulkanDrawCtx->device, vulkanDrawCtx->stagingBuffer, NULL);
-    vkFreeMemory(vulkanDrawCtx->device, vulkanDrawCtx->stagingMemory, NULL);
-    vkDestroyDescriptorSetLayout(vulkanDrawCtx->device, vulkanDrawCtx->descriptorSetLayout, NULL);
-    vkDestroyDescriptorSetLayout(vulkanDrawCtx->device, vulkanDrawCtx->drawlistDescriptorSetLayout, NULL);
-    vkDestroySampler(vulkanDrawCtx->device, vulkanDrawCtx->fontSampler, NULL);
-    vkDestroyPipelineLayout(vulkanDrawCtx->device, vulkanDrawCtx->drawlistPipelineLayout, NULL);
+    vkDestroyShaderModule(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tVtxShdrStgInfo.module, NULL);
+    vkDestroyShaderModule(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tPxlShdrStgInfo.module, NULL);
+    vkDestroyShaderModule(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tSdfShdrStgInfo.module, NULL);
+    vkDestroyBuffer(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tStagingBuffer, NULL);
+    vkFreeMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tStagingMemory, NULL);
+    vkDestroyDescriptorSetLayout(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tDescriptorSetLayout, NULL);
+    vkDestroySampler(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tFontSampler, NULL);
+    vkDestroyPipelineLayout(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tPipelineLayout, NULL);
 
-    for(uint32_t i = 0u; i < pl_sb_size(ctx->sbDrawlists); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptVulkanDrawCtx->sbtBufferInfo); i++)
     {
-        plDrawList* drawlist = ctx->sbDrawlists[i];
-        plVulkanDrawList* vulkanDrawlist = (plVulkanDrawList*)drawlist->_platformData;
-        
-        for(uint32_t j = 0u; j < pl_sb_size(vulkanDrawlist->sbIndexBuffer); j++)
-            vkDestroyBuffer(vulkanDrawCtx->device, vulkanDrawlist->sbIndexBuffer[j], NULL);
-
-        for(uint32_t j = 0u; j < pl_sb_size(vulkanDrawlist->sbIndexMemory); j++)
-            vkFreeMemory(vulkanDrawCtx->device, vulkanDrawlist->sbIndexMemory[j], NULL);
-
-        for(uint32_t j = 0u; j < pl_sb_size(vulkanDrawlist->sbVertexBuffer); j++)
-            vkDestroyBuffer(vulkanDrawCtx->device, vulkanDrawlist->sbVertexBuffer[j], NULL);
-
-        for(uint32_t j = 0u; j < pl_sb_size(vulkanDrawlist->sbVertexMemory); j++)
-            vkFreeMemory(vulkanDrawCtx->device, vulkanDrawlist->sbVertexMemory[j], NULL);
-        
-        vkDestroyPipeline(vulkanDrawCtx->device, vulkanDrawlist->regularPipeline, NULL);
-        vkDestroyPipeline(vulkanDrawCtx->device, vulkanDrawlist->sdfPipeline, NULL);
+        vkDestroyBuffer(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbtBufferInfo[i].tVertexBuffer, NULL);
+        vkFreeMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbtBufferInfo[i].tVertexMemory, NULL);
+        vkDestroyBuffer(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbtBufferInfo[i].tIndexBuffer, NULL);
+        vkFreeMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbtBufferInfo[i].tIndexMemory, NULL);
     }
 
-    if(vulkanDrawCtx->bufferDeletionQueueSize > 0u)
+    for(uint32_t i = 0u; i < pl_sb_size(ptVulkanDrawCtx->sbtPipelines); i++)
     {
-        for(uint32_t i = 0; i < pl_sb_size(vulkanDrawCtx->sbReturnedBuffers); i++)
+        vkDestroyPipeline(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbtPipelines[i].tRegularPipeline, NULL);
+        vkDestroyPipeline(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbtPipelines[i].tSDFPipeline, NULL);
+    }
+
+    if(ptVulkanDrawCtx->uBufferDeletionQueueSize > 0u)
+    {
+        for(uint32_t i = 0; i < pl_sb_size(ptVulkanDrawCtx->sbReturnedBuffers); i++)
         {
-            vkDestroyBuffer(vulkanDrawCtx->device, vulkanDrawCtx->sbReturnedBuffers[i].buffer, NULL);
-            vkFreeMemory(vulkanDrawCtx->device, vulkanDrawCtx->sbReturnedBuffers[i].deviceMemory, NULL);
+            vkDestroyBuffer(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbReturnedBuffers[i].tBuffer, NULL);
+            vkFreeMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbReturnedBuffers[i].tDeviceMemory, NULL);
         }     
     }
 
-    if(vulkanDrawCtx->textureDeletionQueueSize > 0u)
+    if(ptVulkanDrawCtx->uTextureDeletionQueueSize > 0u)
     {
-        for(uint32_t i = 0; i < pl_sb_size(vulkanDrawCtx->sbReturnedTextures); i++)
+        for(uint32_t i = 0; i < pl_sb_size(ptVulkanDrawCtx->sbReturnedTextures); i++)
         {
-            vkDestroyImage(vulkanDrawCtx->device, vulkanDrawCtx->sbReturnedTextures[i].image, NULL);
-            vkDestroyImageView(vulkanDrawCtx->device, vulkanDrawCtx->sbReturnedTextures[i].view, NULL);
-            vkFreeMemory(vulkanDrawCtx->device, vulkanDrawCtx->sbReturnedTextures[i].deviceMemory, NULL);
+            vkDestroyImage(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbReturnedTextures[i].tImage, NULL);
+            vkDestroyImageView(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbReturnedTextures[i].tView, NULL);
+            vkFreeMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbReturnedTextures[i].tDeviceMemory, NULL);
         }     
     }
 
-    vkDestroyCommandPool(vulkanDrawCtx->device, vulkanDrawCtx->tCmdPool, NULL);
-    vkDestroyDescriptorPool(vulkanDrawCtx->device, vulkanDrawCtx->descriptorPool, NULL);
+    vkDestroyCommandPool(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tCmdPool, NULL);
+    vkDestroyDescriptorPool(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tDescriptorPool, NULL);
+
+    PL_FREE(ptCtx->_platformData);
+    ptCtx->_platformData = NULL;
 }
 
 VkDescriptorSet
-pl_add_texture(plDrawContext* drawContext, VkImageView imageView, VkImageLayout imageLayout)
+pl_add_texture(plDrawContext* ptCtx, VkImageView tImageView, VkImageLayout tImageLayout)
 {
-    plVulkanDrawContext* vulkanData = drawContext->_platformData;
+    plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
 
-    // Create Descriptor Set:
-    VkDescriptorSet descriptor_set = {0};
+    VkDescriptorSet tDescriptorSet = {0};
 
-    VkDescriptorSetAllocateInfo alloc_info = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = vulkanData->descriptorPool,
+    const VkDescriptorSetAllocateInfo tAllocInfo = {
+        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool     = ptVulkanDrawCtx->tDescriptorPool,
         .descriptorSetCount = 1,
-        .pSetLayouts = &vulkanData->descriptorSetLayout
+        .pSetLayouts        = &ptVulkanDrawCtx->tDescriptorSetLayout
     };
 
-    VkResult err = vkAllocateDescriptorSets(vulkanData->device, &alloc_info, &descriptor_set);
+    VkResult tErr = vkAllocateDescriptorSets(ptVulkanDrawCtx->tDevice, &tAllocInfo, &tDescriptorSet);
 
-    // Update the Descriptor Set:
-    VkDescriptorImageInfo desc_image = {
-        .sampler = vulkanData->fontSampler,
-        .imageView = imageView,
-        .imageLayout = imageLayout
+    const VkDescriptorImageInfo tDescImage = {
+        .sampler     = ptVulkanDrawCtx->tFontSampler,
+        .imageView   = tImageView,
+        .imageLayout = tImageLayout
     };
 
-    VkWriteDescriptorSet write_desc = {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = descriptor_set,
+    const VkWriteDescriptorSet tWrite = {
+        .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet          = tDescriptorSet,
         .descriptorCount = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .pImageInfo = &desc_image
+        .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .pImageInfo      = &tDescImage
     };
 
-    vkUpdateDescriptorSets(vulkanData->device, 1, &write_desc, 0, NULL);
-    return descriptor_set;
+    vkUpdateDescriptorSets(ptVulkanDrawCtx->tDevice, 1, &tWrite, 0, NULL);
+    return tDescriptorSet;
 }
 
 void
-pl_build_font_atlas(plDrawContext* ctx, plFontAtlas* atlas)
+pl_build_font_atlas(plDrawContext* ptCtx, plFontAtlas* ptAtlas)
 {
-    plVulkanDrawContext* vulkanDrawCtx = ctx->_platformData;
+    plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
 
-    pl__build_font_atlas(atlas);
-    atlas->ctx = ctx;
-    ctx->fontAtlas = atlas;
+    pl__build_font_atlas(ptAtlas);
+    ptAtlas->ctx = ptCtx;
+    ptCtx->fontAtlas = ptAtlas;
 
-    VkImageCreateInfo imageInfo = 
-    {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType = VK_IMAGE_TYPE_2D,
-        .extent.width = atlas->atlasSize[0],
-        .extent.height = atlas->atlasSize[1],
-        .extent.depth = 1u,
-        .mipLevels = 1u,
-        .arrayLayers = 1u,
-        .format = VK_FORMAT_R8G8B8A8_UNORM,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
+    const VkImageCreateInfo tImageInfo = {
+        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType     = VK_IMAGE_TYPE_2D,
+        .extent.width  = ptAtlas->atlasSize[0],
+        .extent.height = ptAtlas->atlasSize[1],
+        .extent.depth  = 1u,
+        .mipLevels     = 1u,
+        .arrayLayers   = 1u,
+        .format        = VK_FORMAT_R8G8B8A8_UNORM,
+        .tiling        = VK_IMAGE_TILING_OPTIMAL,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .flags = 0
+        .usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
+        .samples       = VK_SAMPLE_COUNT_1_BIT,
+        .flags         = 0
     };
-    PL_VULKAN(vkCreateImage(vulkanDrawCtx->device, &imageInfo, NULL, &vulkanDrawCtx->fontTextureImage));
+    PL_VULKAN(vkCreateImage(ptVulkanDrawCtx->tDevice, &tImageInfo, NULL, &ptVulkanDrawCtx->tFontTextureImage));
 
-    VkMemoryRequirements memoryRequirements = {0};
-    vkGetImageMemoryRequirements(vulkanDrawCtx->device, vulkanDrawCtx->fontTextureImage, &memoryRequirements);
+    VkMemoryRequirements tMemoryRequirements = {0};
+    vkGetImageMemoryRequirements(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tFontTextureImage, &tMemoryRequirements);
 
-    VkMemoryAllocateInfo finalAllocInfo = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize = memoryRequirements.size,
-        .memoryTypeIndex = pl__find_memory_type(vulkanDrawCtx->memProps, memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+    const VkMemoryAllocateInfo tFinalAllocInfo = {
+        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize  = tMemoryRequirements.size,
+        .memoryTypeIndex = pl__find_memory_type(ptVulkanDrawCtx->tMemProps, tMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
     };
-    PL_VULKAN(vkAllocateMemory(vulkanDrawCtx->device, &finalAllocInfo, NULL, &vulkanDrawCtx->fontTextureMemory));
-    PL_VULKAN(vkBindImageMemory(vulkanDrawCtx->device, vulkanDrawCtx->fontTextureImage, vulkanDrawCtx->fontTextureMemory, 0));
+    PL_VULKAN(vkAllocateMemory(ptVulkanDrawCtx->tDevice, &tFinalAllocInfo, NULL, &ptVulkanDrawCtx->tFontTextureMemory));
+    PL_VULKAN(vkBindImageMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tFontTextureImage, ptVulkanDrawCtx->tFontTextureMemory, 0));
 
     // upload data
-    uint32_t dataSize = atlas->atlasSize[0] * atlas->atlasSize[1] * 4u;
-    if(dataSize > vulkanDrawCtx->stageByteSize)
+    uint32_t uDataSize = ptAtlas->atlasSize[0] * ptAtlas->atlasSize[1] * 4u;
+    if(uDataSize > ptVulkanDrawCtx->szStageByteSize)
     {
-        if(vulkanDrawCtx->stagingMemory)
+        if(ptVulkanDrawCtx->tStagingMemory)
         {
-            vkUnmapMemory(vulkanDrawCtx->device, vulkanDrawCtx->stagingMemory);
-            vkDestroyBuffer(vulkanDrawCtx->device, vulkanDrawCtx->stagingBuffer, NULL);
-            vkFreeMemory(vulkanDrawCtx->device, vulkanDrawCtx->stagingMemory, NULL);
+            vkUnmapMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tStagingMemory);
+            vkDestroyBuffer(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tStagingBuffer, NULL);
+            vkFreeMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tStagingMemory, NULL);
         }
 
         // double staging buffer size
-        VkBufferCreateInfo stagingBufferInfo = {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size = dataSize * 2,
-            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        const VkBufferCreateInfo tStagingBufferInfo = {
+            .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .size        = uDataSize * 2,
+            .usage       = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             .sharingMode = VK_SHARING_MODE_EXCLUSIVE
         };
-        PL_VULKAN(vkCreateBuffer(vulkanDrawCtx->device, &stagingBufferInfo, NULL, &vulkanDrawCtx->stagingBuffer));
+        PL_VULKAN(vkCreateBuffer(ptVulkanDrawCtx->tDevice, &tStagingBufferInfo, NULL, &ptVulkanDrawCtx->tStagingBuffer));
 
-        VkMemoryRequirements stagingMemoryRequirements = {0};
-        vkGetBufferMemoryRequirements(vulkanDrawCtx->device, vulkanDrawCtx->stagingBuffer, &stagingMemoryRequirements);
-        vulkanDrawCtx->stageByteSize = stagingMemoryRequirements.size;
+        VkMemoryRequirements tStagingMemoryRequirements = {0};
+        vkGetBufferMemoryRequirements(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tStagingBuffer, &tStagingMemoryRequirements);
+        ptVulkanDrawCtx->szStageByteSize = tStagingMemoryRequirements.size;
 
-        VkMemoryAllocateInfo stagingAllocInfo = {
-            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-            .allocationSize = stagingMemoryRequirements.size,
-            .memoryTypeIndex = pl__find_memory_type(vulkanDrawCtx->memProps, stagingMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+        const VkMemoryAllocateInfo tStagingAllocInfo = {
+            .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .allocationSize  = tStagingMemoryRequirements.size,
+            .memoryTypeIndex = pl__find_memory_type(ptVulkanDrawCtx->tMemProps, tStagingMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
         };
 
-        PL_VULKAN(vkAllocateMemory(vulkanDrawCtx->device, &stagingAllocInfo, NULL, &vulkanDrawCtx->stagingMemory));
-        PL_VULKAN(vkBindBufferMemory(vulkanDrawCtx->device, vulkanDrawCtx->stagingBuffer, vulkanDrawCtx->stagingMemory, 0));   
-        PL_VULKAN(vkMapMemory(vulkanDrawCtx->device, vulkanDrawCtx->stagingMemory, 0, VK_WHOLE_SIZE, 0, &vulkanDrawCtx->mapping));
+        PL_VULKAN(vkAllocateMemory(ptVulkanDrawCtx->tDevice, &tStagingAllocInfo, NULL, &ptVulkanDrawCtx->tStagingMemory));
+        PL_VULKAN(vkBindBufferMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tStagingBuffer, ptVulkanDrawCtx->tStagingMemory, 0));   
+        PL_VULKAN(vkMapMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tStagingMemory, 0, VK_WHOLE_SIZE, 0, &ptVulkanDrawCtx->pStageMapping));
     }
-    memcpy(vulkanDrawCtx->mapping, atlas->pixelsAsRGBA32, dataSize);
+    memcpy(ptVulkanDrawCtx->pStageMapping, ptAtlas->pixelsAsRGBA32, uDataSize);
 
-    VkMappedMemoryRange range = {
-        .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-        .memory = vulkanDrawCtx->stagingMemory,
-        .size = VK_WHOLE_SIZE
+    const VkMappedMemoryRange tRange = {
+        .sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+        .memory = ptVulkanDrawCtx->tStagingMemory,
+        .size   = VK_WHOLE_SIZE
     };
-    PL_VULKAN(vkFlushMappedMemoryRanges(vulkanDrawCtx->device, 1, &range));
+    PL_VULKAN(vkFlushMappedMemoryRanges(ptVulkanDrawCtx->tDevice, 1, &tRange));
 
-    VkImageSubresourceRange subresourceRange = {
-        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .baseMipLevel = 0u,
-        .levelCount = 1u,
+    const VkImageSubresourceRange tSubresourceRange = {
+        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel   = 0u,
+        .levelCount     = 1u,
         .baseArrayLayer = 0u,
-        .layerCount = 1u
+        .layerCount     = 1u
     };
 
-    VkCommandBufferAllocateInfo allocInfo = 
-    {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandPool = vulkanDrawCtx->tCmdPool,
+    const VkCommandBufferAllocateInfo tAllocInfo = {
+        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandPool        = ptVulkanDrawCtx->tCmdPool,
         .commandBufferCount = 1u
     };
-    VkCommandBuffer commandBuffer = {0};
-    PL_VULKAN(vkAllocateCommandBuffers(vulkanDrawCtx->device, &allocInfo, &commandBuffer));
+    VkCommandBuffer tCommandBuffer = {0};
+    PL_VULKAN(vkAllocateCommandBuffers(ptVulkanDrawCtx->tDevice, &tAllocInfo, &tCommandBuffer));
 
-    VkCommandBufferBeginInfo beginInfo = {
+    const VkCommandBufferBeginInfo tBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
     };
-    PL_VULKAN(vkBeginCommandBuffer(commandBuffer, &beginInfo));
+    PL_VULKAN(vkBeginCommandBuffer(tCommandBuffer, &tBeginInfo));
 
-    VkImageMemoryBarrier barrier1 = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    VkImageMemoryBarrier tBarrier1 = {
+        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+        .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = vulkanDrawCtx->fontTextureImage,
-        .subresourceRange = subresourceRange,
-        .srcAccessMask = 0,
-        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT
+        .image               = ptVulkanDrawCtx->tFontTextureImage,
+        .subresourceRange    = tSubresourceRange,
+        .srcAccessMask       = 0,
+        .dstAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT
     };
-    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &barrier1);
+    vkCmdPipelineBarrier(tCommandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier1);
 
     // copy buffer to image
-    VkBufferImageCopy region = {
-        .bufferOffset = 0u,
-        .bufferRowLength = 0u,
+    const VkBufferImageCopy tRegion = {
+        .bufferOffset      = 0u,
+        .bufferRowLength   = 0u,
         .bufferImageHeight = 0u,
-        .imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .imageSubresource.mipLevel = 0u,
-        .imageSubresource.baseArrayLayer = 0u,
-        .imageSubresource.layerCount = 1u,
+        .imageSubresource  = {
+            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+            .mipLevel       = 0u,
+            .baseArrayLayer = 0u,
+            .layerCount     = 1u
+        },
         .imageOffset = {0},
         .imageExtent = {
-            .width = atlas->atlasSize[0], 
-            .height = atlas->atlasSize[1],
-            .depth = 1
+            .width  = ptAtlas->atlasSize[0], 
+            .height = ptAtlas->atlasSize[1],
+            .depth  = 1
         }
     };
-    vkCmdCopyBufferToImage(commandBuffer, vulkanDrawCtx->stagingBuffer, vulkanDrawCtx->fontTextureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);     
+    vkCmdCopyBufferToImage(tCommandBuffer, ptVulkanDrawCtx->tStagingBuffer, ptVulkanDrawCtx->tFontTextureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &tRegion);     
 
     // transition image layout for shader usage
-    VkImageMemoryBarrier barrier2 = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    VkImageMemoryBarrier tBarrier2 = {
+        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = vulkanDrawCtx->fontTextureImage,
-        .subresourceRange = subresourceRange,
-        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT
+        .image               = ptVulkanDrawCtx->tFontTextureImage,
+        .subresourceRange    = tSubresourceRange,
+        .srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT
     };
-    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &barrier2);
+    vkCmdPipelineBarrier(tCommandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier2);
 
-    VkSubmitInfo submitInfo = {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+    const VkSubmitInfo tSubmitInfo = {
+        .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .commandBufferCount = 1u,
-        .pCommandBuffers = &commandBuffer
+        .pCommandBuffers    = &tCommandBuffer
     };
-    PL_VULKAN(vkEndCommandBuffer(commandBuffer));
-    vkQueueSubmit(vulkanDrawCtx->tGraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    PL_VULKAN(vkDeviceWaitIdle(vulkanDrawCtx->device));
-    vkFreeCommandBuffers(vulkanDrawCtx->device, vulkanDrawCtx->tCmdPool, 1, &commandBuffer);
+    PL_VULKAN(vkEndCommandBuffer(tCommandBuffer));
+    vkQueueSubmit(ptVulkanDrawCtx->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE);
+    PL_VULKAN(vkDeviceWaitIdle(ptVulkanDrawCtx->tDevice));
+    vkFreeCommandBuffers(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tCmdPool, 1, &tCommandBuffer);
 
-    VkImageViewCreateInfo viewInfo = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = vulkanDrawCtx->fontTextureImage,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = VK_FORMAT_R8G8B8A8_UNORM,
-        .subresourceRange.baseMipLevel = 0u,
-        .subresourceRange.levelCount = imageInfo.mipLevels,
-        .subresourceRange.baseArrayLayer = 0u,
-        .subresourceRange.layerCount = 1u,
-        .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT
+    const VkImageViewCreateInfo tViewInfo = {
+        .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image            = ptVulkanDrawCtx->tFontTextureImage,
+        .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+        .format           = VK_FORMAT_R8G8B8A8_UNORM,
+        .subresourceRange = {
+            .baseMipLevel   = 0u,
+            .levelCount     = tImageInfo.mipLevels,
+            .baseArrayLayer = 0u,
+            .layerCount     = 1u,
+            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT
+        }
     };
-    PL_VULKAN(vkCreateImageView(vulkanDrawCtx->device, &viewInfo, NULL, &vulkanDrawCtx->fontTextureImageView));
+    PL_VULKAN(vkCreateImageView(ptVulkanDrawCtx->tDevice, &tViewInfo, NULL, &ptVulkanDrawCtx->tFontTextureImageView));
 
-    ctx->fontAtlas->texture = pl_add_texture(ctx, vulkanDrawCtx->fontTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    ptCtx->fontAtlas->texture = pl_add_texture(ptCtx, ptVulkanDrawCtx->tFontTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 //-----------------------------------------------------------------------------
@@ -1112,102 +983,263 @@ pl_build_font_atlas(plDrawContext* ctx, plFontAtlas* atlas)
 //-----------------------------------------------------------------------------
 
 static uint32_t
-pl__find_memory_type(VkPhysicalDeviceMemoryProperties memProps, uint32_t typeFilter, VkMemoryPropertyFlags properties)
+pl__find_memory_type(VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties)
 {
-    uint32_t memoryType = 0u;
-    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) 
+    for (uint32_t i = 0; i < tMemProps.memoryTypeCount; i++) 
     {
-        if ((typeFilter & (1 << i)) && (memProps.memoryTypes[i].propertyFlags & properties) == properties) 
-        {
-            memoryType = i;
-            break;
-        }
+        if ((uTypeFilter & (1 << i)) && (tMemProps.memoryTypes[i].propertyFlags & tProperties) == tProperties) 
+            return i;
     }
-    return memoryType;
+    return 0;
 }
 
 static void
-pl__grow_vulkan_vertex_buffer(plDrawList* drawlist, uint32_t vertexBufferSize, uint32_t currentFrameIndex)
+pl__grow_vulkan_vertex_buffer(plDrawContext* ptCtx, uint32_t uVtxBufSzNeeded, uint32_t uFrameIndex)
 {
-    plDrawContext* drawCtx = drawlist->ctx;
-    plVulkanDrawContext* vulkanDrawCtx = drawCtx->_platformData;
-    plVulkanDrawList* vulkanDrawlist = drawlist->_platformData;
+    plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
+    plVulkanBufferInfo* tBufferInfo = &ptVulkanDrawCtx->sbtBufferInfo[uFrameIndex];
 
-    if(vulkanDrawlist->sbVertexBufferMap[currentFrameIndex])
+    // buffer currently exists & mapped, submit for cleanup
+    if(tBufferInfo->ucVertexBufferMap)
     {
-        plBufferReturn returnBuffer = {
-            .buffer = vulkanDrawlist->sbVertexBuffer[currentFrameIndex],
-            .deviceMemory = vulkanDrawlist->sbVertexMemory[currentFrameIndex],
-            .slFreedFrame = (int64_t)(drawCtx->frameCount + PL_MAX_FRAMES_IN_FLIGHT * 2)
+        const plBufferReturn tReturnBuffer = {
+            .tBuffer       = tBufferInfo->tVertexBuffer,
+            .tDeviceMemory = tBufferInfo->tVertexMemory,
+            .slFreedFrame  = (int64_t)(ptCtx->frameCount + PL_MAX_FRAMES_IN_FLIGHT * 2)
         };
-        pl_sb_push(vulkanDrawCtx->sbReturnedBuffers, returnBuffer);
-        vulkanDrawCtx->bufferDeletionQueueSize++;
-        vkUnmapMemory(vulkanDrawCtx->device, vulkanDrawlist->sbVertexMemory[currentFrameIndex]);
+        pl_sb_push(ptVulkanDrawCtx->sbReturnedBuffers, tReturnBuffer);
+        ptVulkanDrawCtx->uBufferDeletionQueueSize++;
+        vkUnmapMemory(ptVulkanDrawCtx->tDevice, tBufferInfo->tVertexMemory);
     }
 
-    VkBufferCreateInfo bufferInfo = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = vertexBufferSize,
-        .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+    // create new buffer
+    const VkBufferCreateInfo tBufferCreateInfo = {
+        .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size        = uVtxBufSzNeeded,
+        .usage       = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
+    PL_VULKAN(vkCreateBuffer(ptVulkanDrawCtx->tDevice, &tBufferCreateInfo, NULL, &tBufferInfo->tVertexBuffer));
 
-    PL_VULKAN(vkCreateBuffer(vulkanDrawCtx->device, &bufferInfo, NULL, &vulkanDrawlist->sbVertexBuffer[currentFrameIndex]));
+    // check memory requirements
+    VkMemoryRequirements tMemReqs = {0};
+    vkGetBufferMemoryRequirements(ptVulkanDrawCtx->tDevice, tBufferInfo->tVertexBuffer, &tMemReqs);
 
-    VkMemoryRequirements memReqs = {0};
-    vkGetBufferMemoryRequirements(vulkanDrawCtx->device, vulkanDrawlist->sbVertexBuffer[currentFrameIndex], &memReqs);
-
-    VkMemoryAllocateInfo allocInfo = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize = memReqs.size,
-        .memoryTypeIndex = pl__find_memory_type(vulkanDrawCtx->memProps, memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+    // allocate memory & bind buffer
+    const VkMemoryAllocateInfo tAllocInfo = {
+        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize  = tMemReqs.size,
+        .memoryTypeIndex = pl__find_memory_type(ptVulkanDrawCtx->tMemProps, tMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
     };
-    vulkanDrawlist->sbVertexByteSize[currentFrameIndex] = (uint32_t)memReqs.size;
+    tBufferInfo->uVertexByteSize = (uint32_t)tMemReqs.size;
+    PL_VULKAN(vkAllocateMemory(ptVulkanDrawCtx->tDevice, &tAllocInfo, NULL, &tBufferInfo->tVertexMemory));
+    PL_VULKAN(vkBindBufferMemory(ptVulkanDrawCtx->tDevice, tBufferInfo->tVertexBuffer, tBufferInfo->tVertexMemory, 0));
 
-    PL_VULKAN(vkAllocateMemory(vulkanDrawCtx->device, &allocInfo, NULL, &vulkanDrawlist->sbVertexMemory[currentFrameIndex]));
-    PL_VULKAN(vkBindBufferMemory(vulkanDrawCtx->device, vulkanDrawlist->sbVertexBuffer[currentFrameIndex], vulkanDrawlist->sbVertexMemory[currentFrameIndex], 0));
-    PL_VULKAN(vkMapMemory(vulkanDrawCtx->device, vulkanDrawlist->sbVertexMemory[currentFrameIndex], 0, memReqs.size, 0, (void**)&vulkanDrawlist->sbVertexBufferMap[currentFrameIndex]));
+    // map memory persistently
+    PL_VULKAN(vkMapMemory(ptVulkanDrawCtx->tDevice, tBufferInfo->tVertexMemory, 0, tMemReqs.size, 0, (void**)&tBufferInfo->ucVertexBufferMap));
+
+    tBufferInfo->uVertexBufferOffset = 0;
 }
 
 static void
-pl__grow_vulkan_index_buffer(plDrawList* drawlist, uint32_t indexBufferSize, uint32_t currentFrameIndex)
+pl__grow_vulkan_index_buffer(plDrawContext* ptCtx, uint32_t uIdxBufSzNeeded, uint32_t uFrameIndex)
 {
-    plDrawContext* drawCtx = drawlist->ctx;
-    plVulkanDrawContext* vulkanDrawCtx = drawCtx->_platformData;
-    plVulkanDrawList* vulkanDrawlist = drawlist->_platformData;
+    plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
+    plVulkanBufferInfo* tBufferInfo = &ptVulkanDrawCtx->sbtBufferInfo[uFrameIndex];
 
-    if(vulkanDrawlist->sbIndexBufferMap[currentFrameIndex])
+    // buffer currently exists & mapped, submit for cleanup
+    if(tBufferInfo->ucIndexBufferMap)
     {
-        plBufferReturn returnBuffer = {
-            .buffer = vulkanDrawlist->sbIndexBuffer[currentFrameIndex],
-            .deviceMemory = vulkanDrawlist->sbIndexMemory[currentFrameIndex],
-            .slFreedFrame = (int64_t)(drawCtx->frameCount + PL_MAX_FRAMES_IN_FLIGHT * 2)
+        const plBufferReturn tReturnBuffer = {
+            .tBuffer       = tBufferInfo->tIndexBuffer,
+            .tDeviceMemory = tBufferInfo->tIndexMemory,
+            .slFreedFrame  = (int64_t)(ptCtx->frameCount + PL_MAX_FRAMES_IN_FLIGHT * 2)
         };
-        pl_sb_push(vulkanDrawCtx->sbReturnedBuffers, returnBuffer);
-        vulkanDrawCtx->bufferDeletionQueueSize++;
-        vkUnmapMemory(vulkanDrawCtx->device, vulkanDrawlist->sbIndexMemory[currentFrameIndex]);
+        pl_sb_push(ptVulkanDrawCtx->sbReturnedBuffers, tReturnBuffer);
+        ptVulkanDrawCtx->uBufferDeletionQueueSize++;
+        vkUnmapMemory(ptVulkanDrawCtx->tDevice, tBufferInfo->tIndexMemory);
     }
 
-    VkBufferCreateInfo bufferInfo = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = indexBufferSize,
-        .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+    // create new buffer
+    const VkBufferCreateInfo tBufferCreateInfo = {
+        .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size        = uIdxBufSzNeeded,
+        .usage       = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
+    PL_VULKAN(vkCreateBuffer(ptVulkanDrawCtx->tDevice, &tBufferCreateInfo, NULL, &tBufferInfo->tIndexBuffer));
 
-    PL_VULKAN(vkCreateBuffer(vulkanDrawCtx->device, &bufferInfo, NULL, &vulkanDrawlist->sbIndexBuffer[currentFrameIndex]));
+    // check memory requirements
+    VkMemoryRequirements tMemReqs = {0};
+    vkGetBufferMemoryRequirements(ptVulkanDrawCtx->tDevice, tBufferInfo->tIndexBuffer, &tMemReqs);
 
-    VkMemoryRequirements memReqs = {0};
-    vkGetBufferMemoryRequirements(vulkanDrawCtx->device, vulkanDrawlist->sbIndexBuffer[currentFrameIndex], &memReqs);
-
-    VkMemoryAllocateInfo allocInfo = {
+    // alllocate memory & bind buffer
+    const VkMemoryAllocateInfo tAllocInfo = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize = memReqs.size,
-        .memoryTypeIndex = pl__find_memory_type(vulkanDrawCtx->memProps, memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+        .allocationSize = tMemReqs.size,
+        .memoryTypeIndex = pl__find_memory_type(ptVulkanDrawCtx->tMemProps, tMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
     };
-    vulkanDrawlist->sbIndexByteSize[currentFrameIndex] = (uint32_t)memReqs.size;
+    tBufferInfo->uIndexByteSize = (uint32_t)tMemReqs.size;
+    PL_VULKAN(vkAllocateMemory(ptVulkanDrawCtx->tDevice, &tAllocInfo, NULL, &tBufferInfo->tIndexMemory));
+    PL_VULKAN(vkBindBufferMemory(ptVulkanDrawCtx->tDevice, tBufferInfo->tIndexBuffer, tBufferInfo->tIndexMemory, 0));
 
-    PL_VULKAN(vkAllocateMemory(vulkanDrawCtx->device, &allocInfo, NULL, &vulkanDrawlist->sbIndexMemory[currentFrameIndex]));
-    PL_VULKAN(vkBindBufferMemory(vulkanDrawCtx->device, vulkanDrawlist->sbIndexBuffer[currentFrameIndex], vulkanDrawlist->sbIndexMemory[currentFrameIndex], 0));
-    PL_VULKAN(vkMapMemory(vulkanDrawCtx->device, vulkanDrawlist->sbIndexMemory[currentFrameIndex], 0, memReqs.size, 0, (void**)&vulkanDrawlist->sbIndexBufferMap[currentFrameIndex]));
+    // map memory persistently
+    PL_VULKAN(vkMapMemory(ptVulkanDrawCtx->tDevice, tBufferInfo->tIndexMemory, 0, tMemReqs.size, 0, (void**)&tBufferInfo->ucIndexBufferMap));
+
+    tBufferInfo->uIndexBufferOffset = 0;
+}
+
+static plVulkanPipelineEntry*
+pl__get_pipelines(plVulkanDrawContext* ptCtx, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount)
+{
+    // return pipeline entry if it exists
+    for(uint32_t i = 0; i < pl_sb_size(ptCtx->sbtPipelines); i++)
+    {
+        if(ptCtx->sbtPipelines[i].tRenderPass == tRenderPass)
+            return &ptCtx->sbtPipelines[i];
+    }
+
+    // create new pipeline entry
+    plVulkanPipelineEntry tEntry = {
+        .tRenderPass = tRenderPass
+    };
+
+    const VkPipelineInputAssemblyStateCreateInfo tInputAssembly = {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .primitiveRestartEnable = VK_FALSE
+    };
+
+    const VkVertexInputAttributeDescription aAttributeDescriptions[] = {
+        {0u, 0u, VK_FORMAT_R32G32_SFLOAT,   0u},
+        {1u, 0u, VK_FORMAT_R32G32_SFLOAT,   8u},
+        {2u, 0u, VK_FORMAT_R8G8B8A8_UNORM, 16u}
+    };
+    
+    const VkVertexInputBindingDescription tBindingDescription = {
+        .binding   = 0u,
+        .stride    = sizeof(plDrawVertex),
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+    };
+
+    const VkPipelineVertexInputStateCreateInfo tVertexInputInfo = {
+        .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount   = 1u,
+        .vertexAttributeDescriptionCount = 3u,
+        .pVertexBindingDescriptions      = &tBindingDescription,
+        .pVertexAttributeDescriptions    = aAttributeDescriptions
+    };
+
+    // dynamic, set per frame
+    VkViewport tViewport = {0};
+    VkRect2D tScissor = {0};
+
+    const VkPipelineViewportStateCreateInfo tViewportState = {
+        .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .pViewports    = &tViewport,
+        .scissorCount  = 1,
+        .pScissors     = &tScissor
+    };
+
+    const VkPipelineRasterizationStateCreateInfo tRasterizer = {
+        .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .depthClampEnable        = VK_FALSE,
+        .rasterizerDiscardEnable = VK_FALSE,
+        .polygonMode             = VK_POLYGON_MODE_FILL,
+        .lineWidth               = 1.0f,
+        .cullMode                = VK_CULL_MODE_BACK_BIT,
+        .frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .depthBiasEnable         = VK_FALSE
+    };
+
+    const VkPipelineDepthStencilStateCreateInfo tDepthStencil = {
+        .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable       = VK_FALSE,
+        .depthWriteEnable      = VK_FALSE,
+        .depthCompareOp        = VK_COMPARE_OP_GREATER_OR_EQUAL,
+        .depthBoundsTestEnable = VK_FALSE,
+        .minDepthBounds        = 0.0f,
+        .maxDepthBounds        = 1.0f,
+        .stencilTestEnable     = VK_FALSE,
+        .front                 = {0},
+        .back                  = {0}
+    };
+
+    //---------------------------------------------------------------------
+    // color blending stage
+    //---------------------------------------------------------------------
+
+    const VkPipelineColorBlendAttachmentState tColorBlendAttachment = {
+        .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+        .blendEnable         = VK_TRUE,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .colorBlendOp        = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .alphaBlendOp        = VK_BLEND_OP_ADD
+    };
+
+    const VkPipelineColorBlendStateCreateInfo tColorBlending = {
+        .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .logicOpEnable   = VK_FALSE,
+        .logicOp         = VK_LOGIC_OP_COPY,
+        .attachmentCount = 1,
+        .pAttachments    = &tColorBlendAttachment,
+        .blendConstants  = {0}
+    };
+
+    const VkPipelineMultisampleStateCreateInfo tMultisampling = {
+        .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .sampleShadingEnable  = VK_FALSE,
+        .rasterizationSamples = tMSAASampleCount
+    };
+
+    VkDynamicState atDynamicStateEnables[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+
+    const VkPipelineDynamicStateCreateInfo tDynamicState = {
+        .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = 2u,
+        .pDynamicStates    = atDynamicStateEnables
+    };
+
+    //---------------------------------------------------------------------
+    // Create Regular Pipeline
+    //---------------------------------------------------------------------
+
+    VkPipelineShaderStageCreateInfo atShaderStages[] = { ptCtx->tVtxShdrStgInfo, ptCtx->tPxlShdrStgInfo };
+
+    VkGraphicsPipelineCreateInfo pipeInfo = {
+        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .stageCount          = 2u,
+        .pStages             = atShaderStages,
+        .pVertexInputState   = &tVertexInputInfo,
+        .pInputAssemblyState = &tInputAssembly,
+        .pViewportState      = &tViewportState,
+        .pRasterizationState = &tRasterizer,
+        .pMultisampleState   = &tMultisampling,
+        .pColorBlendState    = &tColorBlending,
+        .pDynamicState       = &tDynamicState,
+        .layout              = ptCtx->tPipelineLayout,
+        .renderPass          = tRenderPass,
+        .subpass             = 0u,
+        .basePipelineHandle  = VK_NULL_HANDLE,
+        .pDepthStencilState  = &tDepthStencil
+    };
+    PL_VULKAN(vkCreateGraphicsPipelines(ptCtx->tDevice, VK_NULL_HANDLE, 1, &pipeInfo, NULL, &tEntry.tRegularPipeline));
+
+    //---------------------------------------------------------------------
+    // Create SDF Pipeline
+    //---------------------------------------------------------------------
+
+    atShaderStages[1] = ptCtx->tSdfShdrStgInfo;
+    pipeInfo.pStages = atShaderStages;
+
+    PL_VULKAN(vkCreateGraphicsPipelines(ptCtx->tDevice, VK_NULL_HANDLE, 1, &pipeInfo, NULL, &tEntry.tSDFPipeline));
+
+    // add to entries
+    pl_sb_push(ptCtx->sbtPipelines, tEntry);
+
+    return &pl_sb_back(ptCtx->sbtPipelines);
 }

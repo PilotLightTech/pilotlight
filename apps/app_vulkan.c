@@ -85,7 +85,7 @@ typedef struct _plAppData
     plDataRegistry      tDataRegistryCtx;
     plExtensionRegistry tExtensionRegistryCtx;
     plCamera            tCamera;
-    plUiContext         tUiContext;
+    plUiContext*        ptUiContext;
     bool                bShowUiDemo;
     bool                bShowUiDebug;
     bool                bShowUiStyle;
@@ -152,7 +152,7 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
         pl_set_data_registry(&ptAppData->tDataRegistryCtx);
         pl_set_extension_registry(&ptAppData->tExtensionRegistryCtx);
         pl_set_io_context(ptIOCtx);
-        pl_ui_set_context(&ptAppData->tUiContext);
+        pl_ui_set_context(ptAppData->ptUiContext);
 
         plExtension* ptExtension = pl_get_extension(PL_EXT_DRAW);
         ptAppData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
@@ -194,24 +194,28 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     pl_setup_graphics(&ptAppData->tGraphics);
 
     // ui
-    pl_ui_setup_context(&ptAppData->tUiContext);
+    ptAppData->ptUiContext = pl_ui_create_context();
 
     // setup drawing api
-    pl_initialize_draw_context_vulkan(ptAppData->tUiContext.ptDrawCtx, ptAppData->tGraphics.tDevice.tPhysicalDevice, ptAppData->tGraphics.tSwapchain.uImageCount, ptAppData->tGraphics.tDevice.tLogicalDevice);
-    pl_register_drawlist(ptAppData->tUiContext.ptDrawCtx, &ptAppData->drawlist);
-    pl_setup_drawlist_vulkan(&ptAppData->drawlist, ptAppData->tGraphics.tRenderPass, ptAppData->tGraphics.tSwapchain.tMsaaSamples);
+    const plVulkanInit tVulkanInit = {
+        .tPhysicalDevice  = ptAppData->tGraphics.tDevice.tPhysicalDevice,
+        .tLogicalDevice   = ptAppData->tGraphics.tDevice.tLogicalDevice,
+        .uImageCount      = ptAppData->tGraphics.tSwapchain.uImageCount,
+        .tRenderPass      = ptAppData->tGraphics.tRenderPass,
+        .tMSAASampleCount = ptAppData->tGraphics.tSwapchain.tMsaaSamples
+    };
+    pl_initialize_draw_context_vulkan(pl_ui_get_draw_context(NULL), &tVulkanInit);
+    pl_register_drawlist(pl_ui_get_draw_context(NULL), &ptAppData->drawlist);
     ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
     ptAppData->fgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Foreground Layer");
 
     // create font atlas
     pl_add_default_font(&ptAppData->fontAtlas);
-    pl_build_font_atlas(ptAppData->tUiContext.ptDrawCtx, &ptAppData->fontAtlas);
+    pl_build_font_atlas(pl_ui_get_draw_context(NULL), &ptAppData->fontAtlas);
 
-    pl_setup_drawlist_vulkan(ptAppData->tUiContext.ptDrawlist, ptAppData->tGraphics.tRenderPass, ptAppData->tGraphics.tSwapchain.tMsaaSamples);
-    pl_setup_drawlist_vulkan(ptAppData->tUiContext.ptDebugDrawlist, ptAppData->tGraphics.tRenderPass, ptAppData->tGraphics.tSwapchain.tMsaaSamples);
-    ptAppData->tUiContext.ptFont = &ptAppData->fontAtlas.sbFonts[0];
+    pl_ui_set_default_font(&ptAppData->fontAtlas.sbFonts[0]);
 
-    pl_register_data("draw", ptAppData->tUiContext.ptDrawCtx);
+    pl_register_data("draw", pl_ui_get_draw_context(NULL));
 
     // renderer
     pl_setup_asset_registry(&ptAppData->tGraphics, &ptAppData->tAssetRegistry);
@@ -504,8 +508,7 @@ pl_app_shutdown(plAppData* ptAppData)
 {
     vkDeviceWaitIdle(ptAppData->tGraphics.tDevice.tLogicalDevice);
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
-    
-    pl_ui_cleanup_context();
+    pl_ui_destroy_context(NULL);
     pl_cleanup_renderer(&ptAppData->tRenderer);
     pl_cleanup_asset_registry(&ptAppData->tAssetRegistry);
     pl_cleanup_graphics(&ptAppData->tGraphics);
@@ -562,7 +565,7 @@ pl_app_update(plAppData* ptAppData)
 
         pl_begin_main_pass(&ptAppData->tGraphics);
 
-        if(!ptAppData->tUiContext.bMouseOwned && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+        if(!pl_ui_is_mouse_owned() && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
         {
             const plVec2 tMouseDelta = pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
             pl_camera_rotate(&ptAppData->tCamera,  -tMouseDelta.y * 0.1f * ptIOCtx->fDeltaTime,  -tMouseDelta.x * 0.1f * ptIOCtx->fDeltaTime);
@@ -1027,8 +1030,8 @@ pl_app_update(plAppData* ptAppData)
         pl_submit_drawlist_vulkan(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
 
         // submit ui drawlist
-        pl_submit_drawlist_vulkan(ptAppData->tUiContext.ptDrawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
-        pl_submit_drawlist_vulkan(ptAppData->tUiContext.ptDebugDrawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
+        pl_submit_drawlist_vulkan(pl_ui_get_draw_list(NULL), (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
+        pl_submit_drawlist_vulkan(pl_ui_get_debug_draw_list(NULL), (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~end frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         pl_end_main_pass(&ptAppData->tGraphics);

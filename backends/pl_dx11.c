@@ -125,19 +125,18 @@ typedef struct _plDx11DrawContext
     ID3D11PixelShader*        ptPixelShader;
     ID3D11PixelShader*        ptSdfShader;
     ID3D11InputLayout*        ptInputLayout;  
-    ID3D11ShaderResourceView* ptAtlasTexture; 
-} plDx11DrawContext;
+    ID3D11ShaderResourceView* ptAtlasTexture;
 
-typedef struct _plDx11DrawList
-{
     // vertex buffer
     ID3D11Buffer*  ptVertexBuffer;
     unsigned int   uVertexByteSize;
+    uint32_t       uVertexBufferOffset;
     
     // index buffer
     ID3D11Buffer*  ptIndexBuffer;
     unsigned int   uIndexByteSize;
-} plDx11DrawList;
+    uint32_t       uIndexBufferOffset;
+} plDx11DrawContext;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -145,8 +144,8 @@ typedef struct _plDx11DrawList
 
 extern void pl__cleanup_font_atlas     (plFontAtlas* atlas); // in pl_draw.c
 extern void pl__new_draw_frame         (plDrawContext* ctx); // in pl_draw.c
-static void pl__grow_dx11_vertex_buffer(plDrawList* ptDrawlist, uint32_t uVtxBufSzNeeded);
-static void pl__grow_dx11_index_buffer (plDrawList* ptDrawlist, uint32_t uIdxBufSzNeeded);
+static void pl__grow_dx11_vertex_buffer(plDrawContext* ctx, uint32_t uVtxBufSzNeeded);
+static void pl__grow_dx11_index_buffer (plDrawContext* ctx, uint32_t uIdxBufSzNeeded);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -245,16 +244,6 @@ pl_initialize_draw_context_dx11(plDrawContext* ptCtx, ID3D11Device* ptDevice, ID
 }
 
 void
-pl_setup_drawlist_dx11(plDrawList* ptDrawlist)
-{
-     if(ptDrawlist->_platformData == NULL)
-    {
-        ptDrawlist->_platformData = PL_ALLOC(sizeof(plDx11DrawList));
-        memset(ptDrawlist->_platformData, 0, sizeof(plDx11DrawList));
-    }
-}
-
-void
 pl_new_draw_frame(plDrawContext* ptCtx)
 {
     pl__new_draw_frame(ptCtx);
@@ -275,40 +264,56 @@ pl_submit_drawlist_dx11(plDrawList* ptDrawlist, float fWidth, float fHeight)
         return;
 
     plDrawContext* drawContext = ptDrawlist->ctx;
-    plDx11DrawList* ptDx11Drawlist = ptDrawlist->_platformData;
     plDx11DrawContext* ptDx11DrawCtx = ptDrawlist->ctx->_platformData;
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // ensure gpu vertex buffer size is adequate
     uint32_t uVtxBufSzNeeded = sizeof(plDrawVertex) * pl_sb_size(ptDrawlist->sbVertexBuffer);
     if(uVtxBufSzNeeded == 0)
         return;
-    if(uVtxBufSzNeeded >= ptDx11Drawlist->uVertexByteSize)
-        pl__grow_dx11_vertex_buffer(ptDrawlist, uVtxBufSzNeeded * 2);
+
+    // space left in vertex buffer
+    const uint32_t uAvailableVertexBufferSpace = ptDx11DrawCtx->uVertexByteSize - ptDx11DrawCtx->uVertexBufferOffset;
+
+    if(uVtxBufSzNeeded >= uAvailableVertexBufferSpace)
+        pl__grow_dx11_vertex_buffer(drawContext, uVtxBufSzNeeded * 2);
+
+    // vertex GPU data transfer
+    D3D11_MAPPED_SUBRESOURCE vtxMapping;
+    PL_DX11(PL_COM(ptDx11DrawCtx->ptContext)->Map(ptDx11DrawCtx->ptContext, (ID3D11Resource*)ptDx11DrawCtx->ptVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &vtxMapping));
+    unsigned char* pucVertexDestination = vtxMapping.pData;
+    memcpy(&pucVertexDestination[ptDx11DrawCtx->uVertexBufferOffset], ptDrawlist->sbVertexBuffer, sizeof(plDrawVertex) * pl_sb_size(ptDrawlist->sbVertexBuffer));
+    PL_COM(ptDx11DrawCtx->ptContext)->Unmap(ptDx11DrawCtx->ptContext, (ID3D11Resource*)ptDx11DrawCtx->ptVertexBuffer, 0);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // ensure gpu index buffer size is adequate
     uint32_t uIdxBufSzNeeded = ptDrawlist->indexBufferByteSize;
     if(uIdxBufSzNeeded == 0)
         return;
-    if(uIdxBufSzNeeded >= ptDx11Drawlist->uIndexByteSize)
-        pl__grow_dx11_index_buffer(ptDrawlist, uIdxBufSzNeeded * 2);
 
-    // vertex GPU data transfer
-    D3D11_MAPPED_SUBRESOURCE vtxMapping;
-    PL_DX11(PL_COM(ptDx11DrawCtx->ptContext)->Map(ptDx11DrawCtx->ptContext, (ID3D11Resource*)ptDx11Drawlist->ptVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &vtxMapping));
-    memcpy(vtxMapping.pData, ptDrawlist->sbVertexBuffer, sizeof(plDrawVertex) * pl_sb_size(ptDrawlist->sbVertexBuffer));
-    PL_COM(ptDx11DrawCtx->ptContext)->Unmap(ptDx11DrawCtx->ptContext, (ID3D11Resource*)ptDx11Drawlist->ptVertexBuffer, 0);
-    
+    // space left in index buffer
+    const uint32_t uAvailableIndexBufferSpace = ptDx11DrawCtx->uIndexByteSize - ptDx11DrawCtx->uIndexBufferOffset;
+
+    if(uIdxBufSzNeeded >= uAvailableIndexBufferSpace)
+        pl__grow_dx11_index_buffer(drawContext, uIdxBufSzNeeded * 2);
+
     // index GPU data transfer
-    uint32_t uTempIndexBufferOffset = 0;
+    uint32_t uTempIndexBufferOffset = 0u;
     uint32_t globalIdxBufferIndexOffset = 0u;
     D3D11_MAPPED_SUBRESOURCE idxMapping;
-    PL_DX11(PL_COM(ptDx11DrawCtx->ptContext)->Map(ptDx11DrawCtx->ptContext, (ID3D11Resource*)ptDx11Drawlist->ptIndexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &idxMapping));
+    PL_DX11(PL_COM(ptDx11DrawCtx->ptContext)->Map(ptDx11DrawCtx->ptContext, (ID3D11Resource*)ptDx11DrawCtx->ptIndexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &idxMapping));
+    
+    unsigned char* pucIndexDestination = idxMapping.pData;
+    unsigned char* pucFinalIndexDestination = &pucIndexDestination[ptDx11DrawCtx->uIndexBufferOffset];
     for(uint32_t i = 0u; i < pl_sb_size(ptDrawlist->sbSubmittedLayers); i++)
     {
         plDrawCommand* ptLastCommand = NULL;
         plDrawLayer* layer = ptDrawlist->sbSubmittedLayers[i];
-        memcpy(&((uint32_t*)idxMapping.pData)[globalIdxBufferIndexOffset], layer->sbIndexBuffer, sizeof(uint32_t) * pl_sb_size(layer->sbIndexBuffer));
-        uTempIndexBufferOffset += pl_sb_size(layer->sbIndexBuffer)*sizeof(uint32_t);
+        memcpy(&pucFinalIndexDestination[uTempIndexBufferOffset], layer->sbIndexBuffer, sizeof(uint32_t) * pl_sb_size(layer->sbIndexBuffer));
+
+        uTempIndexBufferOffset += pl_sb_size(layer->sbIndexBuffer) * sizeof(uint32_t);
 
         // attempt to merge commands
         for(uint32_t j = 0u; j < pl_sb_size(layer->sbCommandBuffer); j++)
@@ -343,7 +348,7 @@ pl_submit_drawlist_dx11(plDrawList* ptDrawlist, float fWidth, float fHeight)
         }    
         globalIdxBufferIndexOffset += pl_sb_size(layer->sbIndexBuffer);    
     }
-    PL_COM(ptDx11DrawCtx->ptContext)->Unmap(ptDx11DrawCtx->ptContext, (ID3D11Resource*)ptDx11Drawlist->ptIndexBuffer, 0);
+    PL_COM(ptDx11DrawCtx->ptContext)->Unmap(ptDx11DrawCtx->ptContext, (ID3D11Resource*)ptDx11DrawCtx->ptIndexBuffer, 0);
 
     // setup regular pipeline
 
@@ -361,11 +366,11 @@ pl_submit_drawlist_dx11(plDrawList* ptDrawlist, float fWidth, float fHeight)
     PL_COM(ptDx11DrawCtx->ptContext)->PSSetShader(ptDx11DrawCtx->ptContext, ptDx11DrawCtx->ptPixelShader, NULL, 0);
 
     // bind index and vertex buffers
-    PL_COM(ptDx11DrawCtx->ptContext)->IASetIndexBuffer(ptDx11DrawCtx->ptContext, ptDx11Drawlist->ptIndexBuffer, DXGI_FORMAT_R32_UINT, 0u);
+    PL_COM(ptDx11DrawCtx->ptContext)->IASetIndexBuffer(ptDx11DrawCtx->ptContext, ptDx11DrawCtx->ptIndexBuffer, DXGI_FORMAT_R32_UINT, 0u);
 
     static UINT offset = 0;
     static UINT stride = sizeof(plDrawVertex);
-    PL_COM(ptDx11DrawCtx->ptContext)->IASetVertexBuffers(ptDx11DrawCtx->ptContext, 0, 1, &ptDx11Drawlist->ptVertexBuffer, &stride, &offset);
+    PL_COM(ptDx11DrawCtx->ptContext)->IASetVertexBuffers(ptDx11DrawCtx->ptContext, 0, 1, &ptDx11DrawCtx->ptVertexBuffer, &stride, &offset);
 
     // bind sampler and texture
     PL_COM(ptDx11DrawCtx->ptContext)->PSSetSamplers(ptDx11DrawCtx->ptContext, 0u, 1, &ptDx11DrawCtx->ptSampler);
@@ -392,6 +397,9 @@ pl_submit_drawlist_dx11(plDrawList* ptDrawlist, float fWidth, float fHeight)
     PL_COM(ptDx11DrawCtx->ptContext)->Map(ptDx11DrawCtx->ptContext, (ID3D11Resource*)ptDx11DrawCtx->ptConstantBuffer, 0u, D3D11_MAP_WRITE_DISCARD, 0u, &mappedSubresource);
     memcpy(mappedSubresource.pData, mvp, sizeof(float)*16);
     PL_COM(ptDx11DrawCtx->ptContext)->Unmap(ptDx11DrawCtx->ptContext, (ID3D11Resource*)ptDx11DrawCtx->ptConstantBuffer, 0u);
+
+    const int32_t iVertexOffset = ptDx11DrawCtx->uVertexBufferOffset / sizeof(plDrawVertex);
+    const int32_t iIndexOffset = ptDx11DrawCtx->uIndexBufferOffset / sizeof(uint32_t);
 
     uint32_t uCurrentDelayIndex = 0u;
     bool sdf = false;
@@ -430,8 +438,12 @@ pl_submit_drawlist_dx11(plDrawList* ptDrawlist, float fWidth, float fHeight)
         }
 
         PL_COM(ptDx11DrawCtx->ptContext)->PSSetShaderResources(ptDx11DrawCtx->ptContext, 0u, 1, &(ID3D11ShaderResourceView*)cmd.textureId);
-        PL_COM(ptDx11DrawCtx->ptContext)->DrawIndexed(ptDx11DrawCtx->ptContext, cmd.elementCount, cmd.indexOffset, 0);
+        PL_COM(ptDx11DrawCtx->ptContext)->DrawIndexed(ptDx11DrawCtx->ptContext, cmd.elementCount, cmd.indexOffset + iIndexOffset, iVertexOffset);
     }
+
+    // bump vertex & index buffer offset
+    ptDx11DrawCtx->uVertexBufferOffset += uVtxBufSzNeeded;
+    ptDx11DrawCtx->uIndexBufferOffset += uIdxBufSzNeeded;
 }
 
 void
@@ -448,17 +460,8 @@ pl_cleanup_draw_context(plDrawContext* ctx)
     PL_COM_RELEASE(ptDx11DrawCtx->ptSdfShader);
     PL_COM_RELEASE(ptDx11DrawCtx->ptPixelShader);
     PL_COM_RELEASE(ptDx11DrawCtx->ptVertexShader);
-
-    for(uint32_t i = 0u; i < pl_sb_size(ctx->sbDrawlists); i++)
-    {
-        plDrawList* drawlist = ctx->sbDrawlists[i];
-        plDx11DrawList* ptDx11Drawlist = drawlist->_platformData;
-
-        if(ptDx11Drawlist->ptVertexBuffer)
-            PL_COM_RELEASE(ptDx11Drawlist->ptVertexBuffer);
-        if(ptDx11Drawlist->ptIndexBuffer)
-            PL_COM_RELEASE(ptDx11Drawlist->ptIndexBuffer);
-    }
+    PL_COM_RELEASE(ptDx11DrawCtx->ptVertexBuffer);
+    PL_COM_RELEASE(ptDx11DrawCtx->ptIndexBuffer);
 }
 
 void
@@ -510,39 +513,39 @@ pl_build_font_atlas(plDrawContext* ctx, plFontAtlas* atlas)
 //-----------------------------------------------------------------------------
 
 static void
-pl__grow_dx11_vertex_buffer(plDrawList* ptDrawlist, uint32_t uVtxBufSzNeeded)
+pl__grow_dx11_vertex_buffer(plDrawContext* ctx, uint32_t uVtxBufSzNeeded)
 {
-    plDx11DrawList* ptDx11Drawlist = ptDrawlist->_platformData;
-    plDx11DrawContext* ptDx11DrawCtx = ptDrawlist->ctx->_platformData;
+    plDx11DrawContext* ptDx11DrawCtx = ctx->_platformData;
 
-    if(ptDx11Drawlist->ptVertexBuffer)
-        PL_COM_RELEASE(ptDx11Drawlist->ptVertexBuffer);
+    if(ptDx11DrawCtx->ptVertexBuffer)
+        PL_COM_RELEASE(ptDx11DrawCtx->ptVertexBuffer);
 
-    D3D11_BUFFER_DESC tBufferDescription = {
-        .ByteWidth = uVtxBufSzNeeded,
-        .Usage = D3D11_USAGE_DYNAMIC,
-        .BindFlags = D3D11_BIND_VERTEX_BUFFER,
+    const D3D11_BUFFER_DESC tBufferDescription = {
+        .ByteWidth      = uVtxBufSzNeeded,
+        .Usage          = D3D11_USAGE_DYNAMIC,
+        .BindFlags      = D3D11_BIND_VERTEX_BUFFER,
         .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE
     };
-    PL_DX11(PL_COM(ptDx11DrawCtx->ptDevice)->CreateBuffer(ptDx11DrawCtx->ptDevice, &tBufferDescription, NULL, &ptDx11Drawlist->ptVertexBuffer));
-    ptDx11Drawlist->uVertexByteSize = uVtxBufSzNeeded;
+    PL_DX11(PL_COM(ptDx11DrawCtx->ptDevice)->CreateBuffer(ptDx11DrawCtx->ptDevice, &tBufferDescription, NULL, &ptDx11DrawCtx->ptVertexBuffer));
+    ptDx11DrawCtx->uVertexByteSize = uVtxBufSzNeeded;
+    ptDx11DrawCtx->uVertexBufferOffset = 0;
 }
 
 static void
-pl__grow_dx11_index_buffer(plDrawList* ptDrawlist, uint32_t uIdxBufSzNeeded)
+pl__grow_dx11_index_buffer(plDrawContext* ctx, uint32_t uIdxBufSzNeeded)
 {
-    plDx11DrawList* ptDx11Drawlist = ptDrawlist->_platformData;
-    plDx11DrawContext* ptDx11DrawCtx = ptDrawlist->ctx->_platformData;
+    plDx11DrawContext* ptDx11DrawCtx = ctx->_platformData;
 
-    if(ptDx11Drawlist->ptIndexBuffer)
-        PL_COM_RELEASE(ptDx11Drawlist->ptIndexBuffer);
+    if(ptDx11DrawCtx->ptIndexBuffer)
+        PL_COM_RELEASE(ptDx11DrawCtx->ptIndexBuffer);
 
-    D3D11_BUFFER_DESC tBufferDescription = {
-        .ByteWidth = uIdxBufSzNeeded,
-        .Usage = D3D11_USAGE_DYNAMIC,
-        .BindFlags = D3D11_BIND_INDEX_BUFFER,
+    const D3D11_BUFFER_DESC tBufferDescription = {
+        .ByteWidth      = uIdxBufSzNeeded,
+        .Usage          = D3D11_USAGE_DYNAMIC,
+        .BindFlags      = D3D11_BIND_INDEX_BUFFER,
         .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE
     };
-    PL_DX11(PL_COM(ptDx11DrawCtx->ptDevice)->CreateBuffer(ptDx11DrawCtx->ptDevice, &tBufferDescription, NULL, &ptDx11Drawlist->ptIndexBuffer));
-    ptDx11Drawlist->uIndexByteSize = uIdxBufSzNeeded;
+    PL_DX11(PL_COM(ptDx11DrawCtx->ptDevice)->CreateBuffer(ptDx11DrawCtx->ptDevice, &tBufferDescription, NULL, &ptDx11DrawCtx->ptIndexBuffer));
+    ptDx11DrawCtx->uIndexByteSize = uIdxBufSzNeeded;
+    ptDx11DrawCtx->uIndexBufferOffset = 0;
 }

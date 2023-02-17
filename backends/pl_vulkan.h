@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] structs
 // [SECTION] public api
 // [SECTION] c file
 // [SECTION] includes
@@ -26,15 +27,28 @@ Index of this file:
 #include "vulkan/vulkan.h"
 
 //-----------------------------------------------------------------------------
+// [SECTION] structs
+//-----------------------------------------------------------------------------
+
+typedef struct _plVulkanInit
+{
+   VkPhysicalDevice      tPhysicalDevice;
+   VkDevice              tLogicalDevice;
+   uint32_t              uImageCount;
+   VkRenderPass          tRenderPass; // default render pass
+   VkSampleCountFlagBits tMSAASampleCount;
+} plVulkanInit;
+
+//-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-void pl_initialize_draw_context_vulkan(plDrawContext* ctx, VkPhysicalDevice tPhysicalDevice, uint32_t imageCount, VkDevice tLogicalDevice);
-void pl_setup_drawlist_vulkan         (plDrawList* drawlist, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount);
-void pl_submit_drawlist_vulkan        (plDrawList* drawlist, float width, float height, VkCommandBuffer cmdBuf, uint32_t currentFrameIndex);
-void pl_new_draw_frame                (plDrawContext* ctx);
+void pl_initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptInit);
+void pl_submit_drawlist_vulkan        (plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex);
+void pl_submit_drawlist_vulkan_ex     (plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount);
+void pl_new_draw_frame                (plDrawContext* ptCtx);
 
 // misc
-VkDescriptorSet pl_add_texture(plDrawContext* drawContext, VkImageView imageView, VkImageLayout imageLayout);
+VkDescriptorSet pl_add_texture(plDrawContext* ptCtx, VkImageView tImageView, VkImageLayout tImageLayout);
 
 #endif // PL_VULKAN_H

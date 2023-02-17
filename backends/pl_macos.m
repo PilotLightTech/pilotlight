@@ -20,16 +20,15 @@ Index of this file:
 #import <QuartzCore/CAMetalLayer.h>
 #import <Metal/Metal.h>
 #import <time.h>
+#include <stdlib.h>   // malloc
+#include <string.h>   // strncpy
+#include <sys/stat.h> // timespec
 
 #ifdef PL_INCLUDE_OS_H
 #include "pl_os.h"
-#include <stdlib.h>   // malloc
 #include <stdio.h>    // file api
-#include <string.h>   // strncpy
-#include <sys/stat.h> // timespec
 #include <copyfile.h> // copyfile
 #include <dlfcn.h>    // dlopen, dlsym, dlclose
-#include <time.h>     // nanosleep
 #include <sys/socket.h>   // sockets
 #include <arpa/inet.h>
 #include <netinet/in.h>
