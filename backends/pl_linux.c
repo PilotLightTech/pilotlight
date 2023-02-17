@@ -23,21 +23,21 @@ Index of this file:
 #include <X11/XKBlib.h> // XkbKeycodeToKeysym
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <xcb/xcb_cursor.h> // apt install libxcb-cursor-dev, libxcb-cursor0
+#include <stdlib.h>       // malloc
+#include <string.h>       // memset, strncpy
+#include <sys/stat.h>     // stat, timespec
 
 #ifdef PL_INCLUDE_OS_H
 #include "pl_os.h"
 #include <stdio.h>        // file api
 #include <dlfcn.h>        // dlopen, dlsym, dlclose
 #include <sys/types.h>
-#include <sys/stat.h>     // stat, timespec
 #include <fcntl.h>        // O_RDONLY, O_WRONLY ,O_CREAT
 #include <sys/sendfile.h> // sendfile
 #include <sys/socket.h>   // sockets
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <errno.h>
-#include <stdlib.h>       // malloc
-#include <string.h>       // memset, strncpy
 #endif
 
 //-----------------------------------------------------------------------------
