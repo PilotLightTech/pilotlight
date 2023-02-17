@@ -48,6 +48,9 @@ Index of this file:
 #define pl_sb_pop(buf) \
     (buf)[--pl__sb_header((buf))->uSize]
 
+#define pl_sb_pop_n(buf, n) \
+    pl__sb_header((buf))->uSize-=(n)
+
 #define pl_sb_top(buf) \
     ((buf)[pl__sb_header((buf))->uSize-1])
 
@@ -68,6 +71,9 @@ Index of this file:
 
 #define pl_sb_add_n(buf, n) \
     (pl__sb_may_grow((buf), sizeof(*(buf)), (n), (n)), (n) ? (pl__sb_header(buf)->uSize += (n), pl__sb_header(buf)->uSize - (n)) : pl_sb_size(buf))
+
+#define pl_sb_add(buf) \
+    pl_sb_add_n((buf), 1)
 
 #define pl_sb_add_ptr(buf, n) \
     (pl__sb_may_grow((buf), sizeof(*(buf)), (n), (n)), (n) ? (pl__sb_header(buf)->uSize += (n), &(buf)[pl__sb_header(buf)->uSize - (n)]) : (buf))
