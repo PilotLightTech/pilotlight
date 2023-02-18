@@ -26,14 +26,9 @@ Index of this file:
 // [SECTION] defines
 //-----------------------------------------------------------------------------
 
-#ifndef PL_DECLARE_STRUCT
-    #define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
-#endif
-
 #ifndef PL_MATERIAL_MAX_NAME_LENGTH
     #define PL_MATERIAL_MAX_NAME_LENGTH 1024
 #endif
-
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -49,13 +44,13 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // forward declarations
-PL_DECLARE_STRUCT(plObjectInfo);
-PL_DECLARE_STRUCT(plMaterialInfo);
-PL_DECLARE_STRUCT(plGlobalInfo);
-PL_DECLARE_STRUCT(plMaterial);
-PL_DECLARE_STRUCT(plScene);
-PL_DECLARE_STRUCT(plNode);
-PL_DECLARE_STRUCT(plAssetRegistry);
+typedef struct _plObjectInfo    plObjectInfo;
+typedef struct _plMaterialInfo  plMaterialInfo;
+typedef struct _plGlobalInfo    plGlobalInfo;
+typedef struct _plMaterial      plMaterial;
+typedef struct _plScene         plScene;
+typedef struct _plNode          plNode;
+typedef struct _plAssetRegistry plAssetRegistry;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api

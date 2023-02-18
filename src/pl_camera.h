@@ -24,10 +24,6 @@ Index of this file:
 #ifndef PL_CAMERA_H
 #define PL_CAMERA_H
 
-#ifndef PL_DECLARE_STRUCT
-    #define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
-#endif
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -39,7 +35,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-PL_DECLARE_STRUCT(plCamera);
+typedef struct _plCamera plCamera;
 
 // enums
 typedef int plCameraType;
@@ -130,7 +126,7 @@ Index of this file:
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static float pl__wrap_angle        (float tTheta);
+static float pl__wrap_angle(float tTheta);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public implementation

@@ -18,7 +18,7 @@
 
 /*
 Index of this file:
-// [SECTION] include section
+// [SECTION] header mess
 // [SECTION] forward declarations & basic types
 // [SECTION] defines
 // [SECTION] structs
@@ -32,7 +32,7 @@ Index of this file:
 */
 
 //-----------------------------------------------------------------------------
-// [SECTION] include section
+// [SECTION] header mess
 //-----------------------------------------------------------------------------
 
 #ifndef PL_MATH_INC
@@ -48,7 +48,6 @@ typedef union  _plVec3 plVec3;
 typedef union  _plVec4 plVec4;
 typedef union  _plMat4 plMat4;
 typedef struct _plRect plRect;
-
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines

@@ -637,10 +637,8 @@ pl_virtual_free(void* pAddress, size_t szSize)
         PL_ASSERT(VirtualFree(pAddress, szSize, MEM_RELEASE));
     #elif defined(__APPLE__)
         PL_ASSERT(munmap(pAddress, szSize) == 0);
-        return;
     #else // linux
-        PL_ASSERT(munmap(pAddress, szSize) == 0);
-        return;
+        PL_ASSERT(munmap(pAddress, szSize) == 0); //-V586
     #endif
 }
 

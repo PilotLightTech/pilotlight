@@ -41,27 +41,27 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-PL_DECLARE_STRUCT(plSwapchain);       // swapchain resources & info
-PL_DECLARE_STRUCT(plDevice);          // device resources & info
-PL_DECLARE_STRUCT(plGraphics);        // graphics context
-PL_DECLARE_STRUCT(plFrameContext);    // per frame resource
-PL_DECLARE_STRUCT(plResourceManager); // buffer/texture resource manager
-PL_DECLARE_STRUCT(plBuffer);          // vulkan buffer
-PL_DECLARE_STRUCT(plTexture);         // vulkan texture
-PL_DECLARE_STRUCT(plTextureDesc);     // texture descriptor
+typedef struct _plSwapchain       plSwapchain;       // swapchain resources & info
+typedef struct _plDevice          plDevice;          // device resources & info
+typedef struct _plGraphics        plGraphics;        // graphics context
+typedef struct _plFrameContext    plFrameContext;    // per frame resource
+typedef struct _plResourceManager plResourceManager; // buffer/texture resource manager
+typedef struct _plBuffer          plBuffer;          // vulkan buffer
+typedef struct _plTexture         plTexture;         // vulkan texture
+typedef struct _plTextureDesc     plTextureDesc;     // texture descriptor
 
 // new
-PL_DECLARE_STRUCT(plBufferBinding);
-PL_DECLARE_STRUCT(plTextureBinding);
-PL_DECLARE_STRUCT(plShaderDesc);
-PL_DECLARE_STRUCT(plShader);
-PL_DECLARE_STRUCT(plGraphicsState);
-PL_DECLARE_STRUCT(plBindGroupLayout);
-PL_DECLARE_STRUCT(plBindGroup);
-PL_DECLARE_STRUCT(plMesh);
-PL_DECLARE_STRUCT(plDraw);
-PL_DECLARE_STRUCT(plDrawArea);
-PL_DECLARE_STRUCT(plShaderVariant);
+typedef struct _plBufferBinding   plBufferBinding;
+typedef struct _plTextureBinding  plTextureBinding;
+typedef struct _plShaderDesc      plShaderDesc;
+typedef struct _plShader          plShader;
+typedef struct _plGraphicsState   plGraphicsState;
+typedef struct _plBindGroupLayout plBindGroupLayout;
+typedef struct _plBindGroup       plBindGroup;
+typedef struct _plMesh            plMesh;
+typedef struct _plDraw            plDraw;
+typedef struct _plDrawArea        plDrawArea;
+typedef struct _plShaderVariant   plShaderVariant;
 
 // enums
 typedef int plBufferBindingType;  // -> enum _plBufferBindingType   // Enum:

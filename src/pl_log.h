@@ -41,12 +41,8 @@ Index of this file:
 // [SECTION] defines
 //-----------------------------------------------------------------------------
 
-#ifndef PL_DECLARE_STRUCT
-#define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
-#endif
-
 #ifndef PL_LOG_MAX_LINE_SIZE
-#define PL_LOG_MAX_LINE_SIZE 1024
+    #define PL_LOG_MAX_LINE_SIZE 1024
 #endif
 
 #define PL_LOG_LEVEL_ALL       0
@@ -72,9 +68,9 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // forward declarations
-PL_DECLARE_STRUCT(plLogContext);
-PL_DECLARE_STRUCT(plLogChannel);
-PL_DECLARE_STRUCT(plLogEntry);
+typedef struct _plLogContext plLogContext;
+typedef struct _plLogChannel plLogChannel;
+typedef struct _plLogEntry   plLogEntry;
 
 // enums
 typedef int plChannelType;

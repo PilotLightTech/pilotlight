@@ -25,11 +25,9 @@ Index of this file:
 // [SECTION] helper macros
 //-----------------------------------------------------------------------------
 
-#define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
-
 #ifndef PL_ASSERT
-#include <assert.h>
-#define PL_ASSERT(x) assert((x))
+    #include <assert.h>
+    #define PL_ASSERT(x) assert((x))
 #endif
 
 #if defined(_MSC_VER) //  Microsoft 
@@ -46,7 +44,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #ifdef PL_USE_STB_SPRINTF
-#include "stb_sprintf.h"
+    #include "stb_sprintf.h"
 #endif
 
 #ifndef pl_sprintf

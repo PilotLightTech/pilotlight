@@ -19,7 +19,7 @@
 
 /*
 Index of this file:
-// [SECTION] defines
+// [SECTION] header mess
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
@@ -28,16 +28,13 @@ Index of this file:
 // [SECTION] c file
 */
 
+
+//-----------------------------------------------------------------------------
+// [SECTION] header mess
+//-----------------------------------------------------------------------------
+
 #ifndef PL_IO_H
 #define PL_IO_H
-
-//-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
-
-#ifndef PL_DECLARE_STRUCT
-#define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
-#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -52,9 +49,9 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // forward declarations
-PL_DECLARE_STRUCT(plIOContext);
-PL_DECLARE_STRUCT(plInputEvent);
-PL_DECLARE_STRUCT(plKeyData);
+typedef struct _plIOContext  plIOContext;
+typedef struct _plInputEvent plInputEvent;
+typedef struct _plKeyData    plKeyData;
 
 // enums
 typedef int plKey;

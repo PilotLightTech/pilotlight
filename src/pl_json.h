@@ -34,10 +34,6 @@ Index of this file:
 #ifndef PL_JSON_H
 #define PL_JSON_H
 
-#ifndef PL_DECLARE_STRUCT
-    #define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
-#endif
-
 #ifndef PL_JSON_MAX_NAME_LENGTH
     #define PL_JSON_MAX_NAME_LENGTH 256
 #endif
@@ -54,7 +50,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-PL_DECLARE_STRUCT(plJsonObject); // opaque pointer
+typedef struct _plJsonObject plJsonObject; // opaque pointer
 
 // enums
 typedef int plJsonType; // internal

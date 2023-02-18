@@ -40,14 +40,14 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-PL_DECLARE_STRUCT(plUiStyle);
-PL_DECLARE_STRUCT(plUiWindow);
-PL_DECLARE_STRUCT(plUiTabBar);
-PL_DECLARE_STRUCT(plUiPrevItemData);
-PL_DECLARE_STRUCT(plUiNextWindowData);
-PL_DECLARE_STRUCT(plUiTempWindowData);
-PL_DECLARE_STRUCT(plUiStorage);
-PL_DECLARE_STRUCT(plUiStorageEntry);
+typedef struct _plUiStyle          plUiStyle;
+typedef struct _plUiWindow         plUiWindow;
+typedef struct _plUiTabBar         plUiTabBar;
+typedef struct _plUiPrevItemData   plUiPrevItemData;
+typedef struct _plUiNextWindowData plUiNextWindowData;
+typedef struct _plUiTempWindowData plUiTempWindowData;
+typedef struct _plUiStorage        plUiStorage;
+typedef struct _plUiStorageEntry   plUiStorageEntry;
 
 // enums
 typedef int plUiNextWindowFlags;

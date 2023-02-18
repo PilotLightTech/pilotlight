@@ -15,7 +15,7 @@
 
 /*
 Index of this file:
-// [SECTION] defines
+// [SECTION] header mess
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
 // [SECTION] structs
@@ -23,23 +23,19 @@ Index of this file:
 */
 
 //-----------------------------------------------------------------------------
-// [SECTION] defines
+// [SECTION] header mess
 //-----------------------------------------------------------------------------
 
 #ifndef PL_REGISTRY_H
 #define PL_REGISTRY_H
-
-#ifndef PL_DECLARE_STRUCT
-    #define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
-#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
 // forward declarations
-PL_DECLARE_STRUCT(plDataRegistry);
-PL_DECLARE_STRUCT(plDataEntry);
+typedef struct _plDataRegistry plDataRegistry;
+typedef struct _plDataEntry    plDataEntry;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api

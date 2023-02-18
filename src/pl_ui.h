@@ -9,7 +9,6 @@
 /*
 Index of this file:
 // [SECTION] header mess
-// [SECTION] defines
 // [SECTION] includes
 // [SECTION] forward declarations
 // [SECTION] public api
@@ -25,14 +24,6 @@ Index of this file:
 #define PL_UI_H
 
 //-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
-
-#ifndef PL_DECLARE_STRUCT
-    #define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
-#endif
-
-//-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
@@ -44,10 +35,10 @@ Index of this file:
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
-// // basic types
-PL_DECLARE_STRUCT(plUiContext); // internal
+// basic types
+typedef struct _plUiContext plUiContext; // internal
 
-// // enums
+// enums
 typedef int plUiConditionFlags;
 typedef int plUiLayoutRowType;
 

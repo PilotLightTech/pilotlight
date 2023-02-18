@@ -5,7 +5,6 @@
 /*
 Index of this file:
 // [SECTION] header mess
-// [SECTION] defines
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
@@ -20,14 +19,6 @@ Index of this file:
 #define PL_RENDERER_H
 
 //-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
-
-#ifndef PL_DECLARE_STRUCT
-    #define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
-#endif
-
-//-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
@@ -40,8 +31,8 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // forward declarations
-PL_DECLARE_STRUCT(plRenderer);
-PL_DECLARE_STRUCT(plAssetRegistry);
+typedef struct _plRenderer      plRenderer;
+typedef struct _plAssetRegistry plAssetRegistry;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api

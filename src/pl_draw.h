@@ -23,15 +23,11 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #ifndef PL_MAX_NAME_LENGTH
-#define PL_MAX_NAME_LENGTH 1024
+    #define PL_MAX_NAME_LENGTH 1024
 #endif
 
 #ifndef PL_MAX_FRAMES_IN_FLIGHT
-#define PL_MAX_FRAMES_IN_FLIGHT 2
-#endif
-
-#ifndef PL_DECLARE_STRUCT
-#define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
+    #define PL_MAX_FRAMES_IN_FLIGHT 2
 #endif
 
 //-----------------------------------------------------------------------------
@@ -47,21 +43,21 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // drawing
-PL_DECLARE_STRUCT(plDrawContext);    // pl_draw context (opaque structure)
-PL_DECLARE_STRUCT(plDrawList);       // collection of draw layers for a specific target (opaque structure)
-PL_DECLARE_STRUCT(plDrawLayer);      // layer for out of order drawing(opaque structure)
-PL_DECLARE_STRUCT(plDrawCommand);    // single draw call (opaque structure)
-PL_DECLARE_STRUCT(plDrawVertex);     // single vertex (pos + uv + color)
+typedef struct _plDrawContext plDrawContext;    // pl_draw context (opaque structure)
+typedef struct _plDrawList    plDrawList;       // collection of draw layers for a specific target (opaque structure)
+typedef struct _plDrawLayer   plDrawLayer;      // layer for out of order drawing(opaque structure)
+typedef struct _plDrawCommand plDrawCommand;    // single draw call (opaque structure)
+typedef struct _plDrawVertex  plDrawVertex;     // single vertex (pos + uv + color)
 
 // fonts
-PL_DECLARE_STRUCT(plFontChar);       // internal for now (opaque structure)
-PL_DECLARE_STRUCT(plFontGlyph);      // internal for now (opaque structure)
-PL_DECLARE_STRUCT(plFontCustomRect); // internal for now (opaque structure)
-PL_DECLARE_STRUCT(plFontPrepData);   // internal for now (opaque structure)
-PL_DECLARE_STRUCT(plFontRange);      // a range of characters
-PL_DECLARE_STRUCT(plFont);           // a single font with a specific size and config
-PL_DECLARE_STRUCT(plFontConfig);     // configuration for loading a single font
-PL_DECLARE_STRUCT(plFontAtlas);      // atlas for multiple fonts
+typedef struct _plFontChar       plFontChar;       // internal for now (opaque structure)
+typedef struct _plFontGlyph      plFontGlyph;      // internal for now (opaque structure)
+typedef struct _plFontCustomRect plFontCustomRect; // internal for now (opaque structure)
+typedef struct _plFontPrepData   plFontPrepData;   // internal for now (opaque structure)
+typedef struct _plFontRange      plFontRange;      // a range of characters
+typedef struct _plFont           plFont;           // a single font with a specific size and config
+typedef struct _plFontConfig     plFontConfig;     // configuration for loading a single font
+typedef struct _plFontAtlas      plFontAtlas;      // atlas for multiple fonts
 
 // plTextureID: used to represent texture for renderer backend
 typedef void* plTextureId;

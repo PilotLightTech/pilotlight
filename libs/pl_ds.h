@@ -15,17 +15,12 @@ Index of this file:
 // [SECTION] internal
 */
 
-#ifndef PL_DS_H
-#define PL_DS_H
-
 //-----------------------------------------------------------------------------
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_ASSERT
-#include <assert.h>
-#define PL_ASSERT(x) assert((x))
-#endif
+#ifndef PL_DS_H
+#define PL_DS_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

@@ -30,10 +30,6 @@ Index of this file:
 #ifndef PL_EXT_H
 #define PL_EXT_H
 
-#ifndef PL_DECLARE_STRUCT
-#define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
-#endif
-
 #ifndef PL_EXTENSION_PATH_MAX_LENGTH
     #define PL_EXTENSION_PATH_MAX_LENGTH 1024
 #endif
@@ -50,13 +46,11 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // forward declarations
-PL_DECLARE_STRUCT(plExtension);
-PL_DECLARE_STRUCT(plApi);
-PL_DECLARE_STRUCT(plExtensionRegistry);
-
-
-PL_DECLARE_STRUCT(plSharedLibrary);
-PL_DECLARE_STRUCT(plDataRegistry);
+typedef struct _plExtension         plExtension;
+typedef struct _plApi               plApi;
+typedef struct _plExtensionRegistry plExtensionRegistry;
+typedef struct _plSharedLibrary     plSharedLibrary;
+typedef struct _plDataRegistry      plDataRegistry;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api

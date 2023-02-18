@@ -17,8 +17,8 @@
 
 /*
 Index of this file:
+// [SECTION] header mess
 // [SECTION] includes
-// [SECTION] defines
 // [SECTION] forward declarations & basic types
 // [SECTION] global context
 // [SECTION] public api
@@ -26,6 +26,10 @@ Index of this file:
 // [SECTION] internal api
 // [SECTION] implementation
 */
+
+//-----------------------------------------------------------------------------
+// [SECTION] header mess
+//-----------------------------------------------------------------------------
 
 #ifndef PL_PROFILE_H
 #define PL_PROFILE_H
@@ -37,21 +41,13 @@ Index of this file:
 #include <stdint.h>
 
 //-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
-
-#ifndef PL_DECLARE_STRUCT
-#define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
-#endif
-
-//-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
 // forward declarations
-PL_DECLARE_STRUCT(plProfileSample);
-PL_DECLARE_STRUCT(plProfileFrame);
-PL_DECLARE_STRUCT(plProfileContext);
+typedef struct _plProfileSample  plProfileSample;
+typedef struct _plProfileFrame   plProfileFrame;
+typedef struct _plProfileContext plProfileContext;
 
 //-----------------------------------------------------------------------------
 // [SECTION] global context
