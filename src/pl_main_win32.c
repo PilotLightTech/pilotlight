@@ -119,7 +119,7 @@ int main()
     };
     AdjustWindowRect(&tWr, WS_OVERLAPPEDWINDOW, FALSE);
 
-    wchar_t awWideTitle[PL_MAX_NAME_LENGTH];
+    wchar_t awWideTitle[1024];
     #ifdef PL_VULKAN_BACKEND
     pl__convert_to_wide_string("Pilot Light (win32/vulkan)", awWideTitle);
     #elif PL_DX11_BACKEND

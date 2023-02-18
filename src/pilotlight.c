@@ -1,7 +1,6 @@
 #include "pilotlight.h"
 
 // platform specifics
-#define PL_INCLUDE_OS_H
 #ifdef _WIN32
 #include "../backends/pl_win32.c"
 #elif defined(__APPLE__)

@@ -30,34 +30,6 @@ Index of this file:
 #define PL_MAX_FRAMES_IN_FLIGHT 2
 #endif
 
-#ifndef PL_ASSERT
-#include <assert.h>
-#define PL_ASSERT(x) assert((x))
-#endif
-
-#ifndef PL_ALLOC
-#include <stdlib.h>
-#define PL_ALLOC(x) malloc(x)
-#endif
-
-#ifndef PL_FREE
-#define PL_FREE(x) free(x)
-#endif
-
-#ifdef PL_USE_STB_SPRINTF
-#include "stb_sprintf.h"
-#endif
-
-#ifndef pl_sprintf
-#ifdef PL_USE_STB_SPRINTF
-    #define pl_sprintf stbsp_sprintf
-    #define pl_vsprintf stbsp_vsprintf
-#else
-    #define pl_sprintf sprintf
-    #define pl_vsprintf vsprintf
-#endif
-#endif
-
 #ifndef PL_DECLARE_STRUCT
 #define PL_DECLARE_STRUCT(name) typedef struct _ ## name  name
 #endif

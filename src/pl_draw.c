@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] defines
 // [SECTION] context
 // [SECTION] internal structs
 // [SECTION] internal api
@@ -27,6 +28,44 @@ Index of this file:
 
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
+
+//-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
+
+#ifndef PL_ASSERT
+#include <assert.h>
+#define PL_ASSERT(x) assert((x))
+#endif
+
+#if defined(PL_ALLOC) && defined(PL_FREE) && (defined(PL_REALLOC) || defined(PL_REALLOC_SIZED))
+// ok
+#elif !defined(PL_ALLOC) && !defined(PL_FREE) && !defined(PL_REALLOC) && !defined(PL_REALLOC_SIZED)
+// ok
+#else
+#error "Must define all or none of PL_ALLOC, PL_FREE, and PL_REALLOC (or PL_REALLOC_SIZED)."
+#endif
+
+#ifndef PL_ALLOC
+    #include <stdlib.h>
+    #define PL_ALLOC(x)      malloc(x)
+    #define PL_REALLOC(x, y) realloc(x, y)
+    #define PL_FREE(x)       free(x)
+#endif
+
+#ifdef PL_USE_STB_SPRINTF
+#include "stb_sprintf.h"
+#endif
+
+#ifndef pl_sprintf
+#ifdef PL_USE_STB_SPRINTF
+    #define pl_sprintf stbsp_sprintf
+    #define pl_vsprintf stbsp_vsprintf
+#else
+    #define pl_sprintf sprintf
+    #define pl_vsprintf vsprintf
+#endif
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] context

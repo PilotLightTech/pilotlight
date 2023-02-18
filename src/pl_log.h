@@ -339,11 +339,6 @@ Index of this file:
 
 #include "pl_ds.h"
 
-#ifndef PL_ALLOC
-#include <stdlib.h>
-#define PL_ALLOC(x) malloc(x)
-#endif
-
 #ifndef pl_sprintf
 #include <stdio.h>
 #define pl_sprintf sprintf
