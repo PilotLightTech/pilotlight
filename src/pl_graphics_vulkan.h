@@ -102,12 +102,6 @@ uint32_t              pl_create_texture               (plResourceManager* ptReso
 uint32_t              pl_create_storage_buffer        (plResourceManager* ptResourceManager, size_t szSize, const void* pData);
 VkDescriptorSetLayout pl_request_descriptor_set_layout(plResourceManager* ptResourceManager, plBindGroupLayout* ptLayout);
 
-// constant buffer helpers
-void*                 pl_get_constant_buffer_data     (plResourceManager* ptResourceManager, uint32_t uBuffer, uint32_t uInstance);
-void*                 pl_get_constant_buffer_data_ex  (plResourceManager* ptResourceManager, uint32_t uBuffer, size_t szFrame, uint32_t uInstance);
-uint32_t              pl_get_constant_buffer_offset   (plResourceManager* ptResourceManager, uint32_t uBuffer, uint32_t uInstance);
-uint32_t              pl_get_constant_buffer_offset_ex(plResourceManager* ptResourceManager, uint32_t uBuffer, size_t szFrame, uint32_t uInstance);
-
 // resource manager misc.
 void                  pl_transfer_data_to_image       (plResourceManager* ptResourceManager, plTexture* ptDest, size_t szDataSize, const void* pData);
 void                  pl_transfer_data_to_buffer      (plResourceManager* ptResourceManager, VkBuffer tDest, size_t szSize, const void* pData);
@@ -121,12 +115,12 @@ void                  pl_submit_command_buffer        (plGraphics* ptGraphics, p
 // shaders
 uint32_t              pl_create_shader             (plResourceManager* ptResourceManager, const plShaderDesc* ptDesc);
 uint32_t              pl_add_shader_variant        (plResourceManager* ptResourceManager, uint32_t uShader, plGraphicsState tVariant);
+bool                  pl_shader_variant_exist      (plResourceManager* ptResourceManager, uint32_t uShader, plGraphicsState tVariant);
 void                  pl_submit_shader_for_deletion(plResourceManager* ptResourceManager, uint32_t uShaderIndex);
 plBindGroupLayout*    pl_get_bind_group_layout     (plResourceManager* ptResourceManager, uint32_t uShaderIndex, uint32_t uBindGroupIndex);
 plShaderVariant*      pl_get_shader                (plResourceManager* ptResourceManager, uint32_t uVariantIndex);
 
 // descriptors
-void                  pl_create_bind_group            (plGraphics* ptGraphics, plBindGroupLayout* ptLayout, plBindGroup* ptGroupOut, const char* pcName);
 void                  pl_update_bind_group            (plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBufferCount, uint32_t* auBuffers, size_t* aszBufferRanges, uint32_t uTextureCount, uint32_t* auTextures);
 
 // drawing

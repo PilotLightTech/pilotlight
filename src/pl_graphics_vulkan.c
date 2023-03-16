@@ -647,30 +647,38 @@ pl__create_shader_pipeline(plResourceManager* ptResourceManager, plGraphicsState
 }
 
 uint32_t
-pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDesc)
+pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDescIn)
 {
-    PL_ASSERT(ptDesc->uBindGroupLayoutCount < 5 && "only 4 descriptor sets allowed per pipeline.");
-    if(pl_sb_size(ptDesc->sbtVariants) > 0)
+    PL_ASSERT(ptDescIn->uBindGroupLayoutCount < 5 && "only 4 descriptor sets allowed per pipeline.");
+
+    plShader tShader = {
+        .tDesc = *ptDescIn
+    };
+
+    for(uint32_t i = 0; i < tShader.tDesc.uBindGroupLayoutCount; i++)
+        tShader.tDesc.atBindGroupLayouts[i]._tDescriptorSetLayout = pl_request_descriptor_set_layout(ptResourceManager, &tShader.tDesc.atBindGroupLayouts[i]);
+
+    if(pl_sb_size(tShader.tDesc.sbtVariants) > 0)
     {
-        if(ptDesc->sbtVariants[0].ulValue != ptDesc->tGraphicsState.ulValue)
-            pl_sb_insert(ptDesc->sbtVariants, 0, ptDesc->tGraphicsState);
+        if(tShader.tDesc.sbtVariants[0].ulValue != tShader.tDesc.tGraphicsState.ulValue)
+            pl_sb_insert(tShader.tDesc.sbtVariants, 0,tShader.tDesc.tGraphicsState);
     }
     else
     {
-        pl_sb_push(ptDesc->sbtVariants, ptDesc->tGraphicsState);
+        pl_sb_push(tShader.tDesc.sbtVariants, tShader.tDesc.tGraphicsState);
     }
 
     // hash shader
-    uint32_t uHash = pl_str_hash_data(&ptDesc->tGraphicsState.ulValue, sizeof(uint64_t), 0);
-    const uint32_t uVariantCount = pl_sb_size(ptDesc->sbtVariants);
+    uint32_t uHash = pl_str_hash_data(&tShader.tDesc.tGraphicsState.ulValue, sizeof(uint64_t), 0);
+    const uint32_t uVariantCount = pl_sb_size(tShader.tDesc.sbtVariants);
     uHash = pl_str_hash_data(&uVariantCount, sizeof(uint32_t), uHash);
-    for(uint32_t i = 0; i < ptDesc->uBindGroupLayoutCount; i++)
+    for(uint32_t i = 0; i < tShader.tDesc.uBindGroupLayoutCount; i++)
     {
-        uHash += ptDesc->atBindGroupLayouts[i].uTextureCount;
-        uHash += ptDesc->atBindGroupLayouts[i].uBufferCount;
+        uHash += tShader.tDesc.atBindGroupLayouts[i].uTextureCount;
+        uHash += tShader.tDesc.atBindGroupLayouts[i].uBufferCount;
     }
-    uHash = pl_str_hash(ptDesc->pcPixelShader, 0, uHash);
-    uHash = pl_str_hash(ptDesc->pcVertexShader, 0, uHash);
+    uHash = pl_str_hash(tShader.tDesc.pcPixelShader, 0, uHash);
+    uHash = pl_str_hash(tShader.tDesc.pcVertexShader, 0, uHash);
 
     // TODO: set a max shader count & use a lookup table
     for(uint32_t i = 0; i < pl_sb_size(ptResourceManager->_sbulShaderHashes); i++)
@@ -679,17 +687,13 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
             return i;
     }
     
-    plShader tShader = {
-        .tDesc = *ptDesc
-    };
-
     VkDescriptorSetLayout atDescriptorSetLayouts[4] = {0};
-    for(uint32_t i = 0; i < ptDesc->uBindGroupLayoutCount; i++)
+    for(uint32_t i = 0; i < tShader.tDesc.uBindGroupLayoutCount; i++)
         atDescriptorSetLayouts[i] = tShader.tDesc.atBindGroupLayouts[i]._tDescriptorSetLayout;
 
     const VkPipelineLayoutCreateInfo tPipelineLayoutInfo = {
         .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = ptDesc->uBindGroupLayoutCount,
+        .setLayoutCount = tShader.tDesc.uBindGroupLayoutCount,
         .pSetLayouts    = atDescriptorSetLayouts
     };
     VkPipelineLayout tPipelineLayout = VK_NULL_HANDLE;
@@ -701,9 +705,9 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
     //---------------------------------------------------------------------
 
     uint32_t uVertexByteCodeSize = 0;
-    pl_read_file(ptDesc->pcVertexShader, &uVertexByteCodeSize, NULL, "rb");
+    pl_read_file(tShader.tDesc.pcVertexShader, &uVertexByteCodeSize, NULL, "rb");
     char* pcVertexByteCode = pl_alloc(uVertexByteCodeSize);
-    pl_read_file(ptDesc->pcVertexShader, &uVertexByteCodeSize, pcVertexByteCode, "rb");
+    pl_read_file(tShader.tDesc.pcVertexShader, &uVertexByteCodeSize, pcVertexByteCode, "rb");
 
     tShader.tVertexShaderInfo = (VkShaderModuleCreateInfo){
         .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -716,9 +720,9 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
     //---------------------------------------------------------------------
 
     uint32_t uByteCodeSize = 0;
-    pl_read_file(ptDesc->pcPixelShader, &uByteCodeSize, NULL, "rb");
+    pl_read_file(tShader.tDesc.pcPixelShader, &uByteCodeSize, NULL, "rb");
     char* pcByteCode = pl_alloc(uByteCodeSize);
-    pl_read_file(ptDesc->pcPixelShader, &uByteCodeSize, pcByteCode, "rb");
+    pl_read_file(tShader.tDesc.pcPixelShader, &uByteCodeSize, pcByteCode, "rb");
 
     tShader.tPixelShaderInfo = (VkShaderModuleCreateInfo){
         .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -871,6 +875,21 @@ pl_add_shader_variant(plResourceManager* ptResourceManager, uint32_t uShader, pl
     return pl_sb_size(ptResourceManager->sbtShaderVariants) - 1;
 }
 
+bool
+pl_shader_variant_exist(plResourceManager* ptResourceManager, uint32_t uShader, plGraphicsState tVariant)
+{
+    plShader* ptShader = &ptResourceManager->sbtShaders[uShader];
+
+    // check if variant exist already
+    for(uint32_t i = 0; i < pl_sb_size(ptShader->tDesc.sbtVariants); i++)
+    {
+        if(ptShader->tDesc.sbtVariants[i].ulValue == tVariant.ulValue)
+            return true;
+    }
+
+    return false;
+}
+
 void
 pl_submit_shader_for_deletion(plResourceManager* ptResourceManager, uint32_t uShaderIndex)
 {
@@ -897,38 +916,25 @@ pl_get_shader(plResourceManager* ptResourceManager, uint32_t uVariantIndex)
 }
 
 void
-pl_create_bind_group(plGraphics* ptGraphics, plBindGroupLayout* ptLayout, plBindGroup* ptGroupOut, const char* pcName)
+pl_update_bind_group(plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBufferCount, uint32_t* auBuffers, size_t* aszBufferRanges, uint32_t uTextureCount, uint32_t* auTextures)
 {
-    ptLayout->_tDescriptorSetLayout = pl_request_descriptor_set_layout(&ptGraphics->tResourceManager, ptLayout);
+    PL_ASSERT(uBufferCount == ptGroup->tLayout.uBufferCount && "bind group buffer count & update buffer count must match.");
+    PL_ASSERT(uTextureCount == ptGroup->tLayout.uTextureCount && "bind group texture count & update texture count must match.");
 
-        //     VkDebugMarkerObjectNameInfoEXT tNameInfo = {
-        //     .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
-        //     .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT,
-        //     .object      = (uint64_t)ptLayout->_tDescriptorSetLayout,
-        //     .pObjectName = pcName
-        // };
-        // ptGraphics->vkDebugMarkerSetObjectName(ptGraphics->tDevice.tLogicalDevice, &tNameInfo);  
-
-    if(ptGroupOut)
+    // allocate descriptors if not done already
+    if(ptGroup->_tDescriptorSet == VK_NULL_HANDLE)
     {
+        ptGroup->tLayout._tDescriptorSetLayout = pl_request_descriptor_set_layout(&ptGraphics->tResourceManager, &ptGroup->tLayout);
+
         // allocate descriptor sets
         const VkDescriptorSetAllocateInfo tDescriptorSetAllocInfo = {
             .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .descriptorPool     = ptGraphics->tDescriptorPool,
             .descriptorSetCount = 1,
-            .pSetLayouts        = &ptLayout->_tDescriptorSetLayout
+            .pSetLayouts        = &ptGroup->tLayout._tDescriptorSetLayout
         };
-        PL_VULKAN(vkAllocateDescriptorSets(ptGraphics->tDevice.tLogicalDevice, &tDescriptorSetAllocInfo, &ptGroupOut->_tDescriptorSet));
-
-        ptGroupOut->tLayout = *ptLayout;
+        PL_VULKAN(vkAllocateDescriptorSets(ptGraphics->tDevice.tLogicalDevice, &tDescriptorSetAllocInfo, &ptGroup->_tDescriptorSet));
     }
-}
-
-void
-pl_update_bind_group(plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBufferCount, uint32_t* auBuffers, size_t* aszBufferRanges, uint32_t uTextureCount, uint32_t* auTextures)
-{
-    PL_ASSERT(uBufferCount == ptGroup->tLayout.uBufferCount && "bind group buffer count & update buffer count must match.");
-    PL_ASSERT(uTextureCount == ptGroup->tLayout.uTextureCount && "bind group texture count & update texture count must match.");
 
     VkWriteDescriptorSet* sbtWrites = NULL;
     VkDescriptorBufferInfo* sbtBufferDescInfos = NULL;
@@ -1767,36 +1773,6 @@ pl_request_descriptor_set_layout(plResourceManager* ptResourceManager, plBindGro
     pl_sb_push(ptResourceManager->_sbtDescriptorSetLayouts, tDescriptorSetLayout);
     pl_sb_free(sbtDescriptorSetLayoutBindings);
     return tDescriptorSetLayout;
-}
-
-void*
-pl_get_constant_buffer_data(plResourceManager* ptResourceManager, uint32_t uBuffer, uint32_t uInstance)
-{
-    return pl_get_constant_buffer_data_ex(ptResourceManager, uBuffer, ptResourceManager->_ptGraphics->szCurrentFrameIndex, uInstance);
-}
-
-void*
-pl_get_constant_buffer_data_ex(plResourceManager* ptResourceManager, uint32_t uBuffer, size_t szFrame, uint32_t uInstance)
-{
-    const plBuffer* ptBuffer = &ptResourceManager->sbtBuffers[uBuffer];
-    const uint32_t uBufferFrameOffset = ((uint32_t)ptBuffer->szItemCount/ptResourceManager->_ptGraphics->uFramesInFlight) * (uint32_t)ptBuffer->szStride * (uint32_t)szFrame;
-    const uint32_t uBufferOffset = uBufferFrameOffset + uInstance * (uint32_t)ptBuffer->szStride;
-    return &ptBuffer->pucMapping[uBufferOffset];
-}
-
-uint32_t
-pl_get_constant_buffer_offset(plResourceManager* ptResourceManager, uint32_t uBuffer, uint32_t uInstance)
-{
-    return pl_get_constant_buffer_offset_ex(ptResourceManager, uBuffer, ptResourceManager->_ptGraphics->szCurrentFrameIndex, uInstance);
-}
-
-uint32_t
-pl_get_constant_buffer_offset_ex(plResourceManager* ptResourceManager, uint32_t uBuffer, size_t szFrame, uint32_t uInstance)
-{
-    const plBuffer* ptBuffer = &ptResourceManager->sbtBuffers[uBuffer];
-    const uint32_t uBufferFrameOffset = ((uint32_t)ptBuffer->szItemCount/ptResourceManager->_ptGraphics->uFramesInFlight) * (uint32_t)ptBuffer->szStride * (uint32_t)szFrame;
-    const uint32_t uBufferOffset = uBufferFrameOffset + uInstance * (uint32_t)ptBuffer->szStride;
-    return uBufferOffset;
 }
 
 void
