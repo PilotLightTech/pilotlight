@@ -13,16 +13,13 @@
 
 // extensions
 #ifdef PL_VULKAN_BACKEND
-#include "../extensions/pl_gltf_extension.c"
+#include "pl_gltf.c"
 #endif
 
 #define PL_STL_IMPLEMENTATION
 #include "pl_stl.h"
 #undef PL_STL_IMPLEMENTATION
 
-#ifdef PL_VULKAN_BACKEND
-#include "pl_renderer.c"
-#endif
 #include "pl_ui.c"
 
 #define PL_MEMORY_IMPLEMENTATION
@@ -52,10 +49,6 @@
 #define PL_STRING_IMPLEMENTATION
 #include "pl_string.h"
 #undef PL_STRING_IMPLEMENTATION
-
-#define PL_CAMERA_IMPLEMENTATION
-#include "pl_camera.h"
-#undef PL_CAMERA_IMPLEMENTATION
 
 #define PL_JSON_IMPLEMENTATION
 #include "pl_json.h"

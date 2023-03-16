@@ -29,34 +29,13 @@ Index of this file:
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
-typedef struct _plMaterial plMaterial;
-typedef struct _plMesh plMesh;
-typedef struct _plRenderer plRenderer;
-typedef struct _plGltf plGltf;
-typedef struct _plNode plNode;
 typedef struct _plScene plScene;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-bool pl_ext_load_gltf(plRenderer* ptRenderer, const char* pcPath, plGltf* ptGltfOut);
+bool pl_ext_load_gltf(plScene* ptScene, const char* pcPath);
 
-//-----------------------------------------------------------------------------
-// [SECTION] structs
-//-----------------------------------------------------------------------------
-
-typedef struct _plGltf
-{
-   const char*  pcPath;
-   plMaterial*  sbtMaterials;
-   plMesh*      sbtMeshes;
-   uint32_t*    sbuMeshNodeMap;
-   uint32_t*    sbuVertexOffsets;
-   uint32_t*    sbuMaterialIndices;
-   plNode*      sbtNodes;
-   plScene*     sbtScenes;
-   uint32_t     uScene;
-} plGltf;
 
 #endif // PL_GLTF_EXTENSION_H

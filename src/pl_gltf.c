@@ -15,16 +15,15 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_gltf_extension.h"
+#include "pl_gltf.h"
 #include "pl_ds.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 #include "stb_image.h"
 #include "pl_memory.h"
 #include "pl_graphics_vulkan.h"
-#include "pl_renderer.h"
-#include "pl_string.h"
 #include "pl_prototype.h"
+#include "pl_string.h"
 #include "pilotlight.h"
 
 //-----------------------------------------------------------------------------
@@ -6780,15 +6779,477 @@ static void jsmn_init(jsmn_parser *parser) {
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static void pl__load_gltf_material(plResourceManager* ptResourceManager, const char* pcPath, const cgltf_material* ptMaterial, plMaterial* ptMaterialOut);
+static void pl__load_gltf_material(plResourceManager* ptResourceManager, const char* pcPath, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut);
+
+static void pl__load_gltf_object(plScene* ptScene, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode, float** psbfVertexBuffer, uint32_t** psbuIndexBuffer, size_t* pszTotalOffset)
+{
+	plRenderer* ptRenderer = ptScene->ptRenderer;
+	plGraphics* ptGraphics = ptRenderer->ptGraphics;
+    float* sbfVertexBuffer = *psbfVertexBuffer;
+    uint32_t* sbuIndexBuffer = *psbuIndexBuffer;
+
+	if(ptNode->mesh)
+	{
+		
+		const cgltf_mesh* ptMesh = ptNode->mesh;
+		for(size_t szPrimitiveIndex = 0; szPrimitiveIndex < ptMesh->primitives_count; szPrimitiveIndex++)
+		{
+
+			plEntity tObject = pl_ecs_create_object(ptScene, ptNode->name);
+			plObjectComponent* ptObjectComponent = pl_ecs_get_component(ptScene->ptObjectComponentManager, tObject);
+			plTransformComponent* ptTransformComponent = pl_ecs_get_component(ptScene->ptTransformComponentManager, tObject);
+			pl_sb_push(ptRenderer->sbtObjectEntities, tObject);
+
+			if(tParentEntity != PL_INVALID_ENTITY_HANDLE)
+				pl_ecs_attach_component(ptScene, tObject, tParentEntity);
+
+			if(szPrimitiveIndex == ptMesh->primitives_count - 1)
+			{
+				for(size_t szChildIndex = 0; szChildIndex < ptNode->children_count; szChildIndex++)
+				{
+					const cgltf_node* ptChild = ptNode->children[szChildIndex];
+					pl__load_gltf_object(ptScene, tObject, pcPath, ptChild, psbfVertexBuffer, psbuIndexBuffer, pszTotalOffset);
+				}
+			}
+
+			ptTransformComponent->tWorld       = pl_identity_mat4();
+			ptTransformComponent->tRotation    = (plVec4){.w = 1.0f};
+			ptTransformComponent->tScale       = (plVec3){1.0f, 1.0f, 1.0f};
+			ptTransformComponent->tTranslation = (plVec3){0};
+
+
+			if(ptNode->has_rotation)    memcpy(ptTransformComponent->tRotation.d, ptNode->rotation, sizeof(float) * 4);
+			if(ptNode->has_scale)       memcpy(ptTransformComponent->tScale.d, ptNode->scale, sizeof(float) * 3);
+			if(ptNode->has_translation) memcpy(ptTransformComponent->tTranslation.d, ptNode->translation, sizeof(float) * 3);
+			if(ptNode->has_matrix)
+				memcpy(ptTransformComponent->tWorld.d, ptNode->matrix, sizeof(float) * 16);
+			else
+				ptTransformComponent->tWorld = pl_rotation_translation_scale(ptTransformComponent->tRotation, ptTransformComponent->tTranslation, ptTransformComponent->tScale);
+
+			ptTransformComponent->tFinalTransform = ptTransformComponent->tWorld;
+
+			plMeshComponent* ptMeshComponent = pl_ecs_get_component(ptScene->ptMeshComponentManager, tObject);
+
+			const cgltf_primitive* ptPrimitive = &ptMesh->primitives[szPrimitiveIndex];
+			const size_t szVertexCount = ptPrimitive->attributes[0].data->count;
+			uint32_t uAttributeComponents = 0u;
+			uint32_t uExtraAttributeComponents = 0u;
+			plMeshFormatFlags tVertexBufferFlags = 0;
+
+			unsigned char* pucPosBufferStart     = NULL;
+			unsigned char* pucNormalBufferStart  = NULL;
+			unsigned char* pucTextBufferStart    = NULL;
+			unsigned char* pucTangentBufferStart = NULL;
+			unsigned char* pucColorBufferStart   = NULL;
+			unsigned char* pucJointsBufferStart  = NULL;
+			unsigned char* pucWeightsBufferStart = NULL;
+
+			size_t szPosBufferStride     = 0;
+			size_t szNormalBufferStride  = 0;
+			size_t szTextBufferStride    = 0;
+			size_t szTangentBufferStride = 0;
+			size_t szColorBufferStride   = 0;
+			size_t szJointsBufferStride  = 0;
+			size_t szWeightsBufferStride = 0;
+
+			for(size_t szAttributeIndex = 0; szAttributeIndex < ptPrimitive->attributes_count; szAttributeIndex++)
+			{
+				const cgltf_attribute* ptAttribute = &ptPrimitive->attributes[szAttributeIndex];
+				const cgltf_buffer* ptBuffer = ptAttribute->data->buffer_view->buffer;
+				const size_t szStride = ptAttribute->data->buffer_view->stride;
+
+				unsigned char* pucBufferStart = &((unsigned char*)ptBuffer->data)[ptAttribute->data->buffer_view->offset + ptAttribute->data->offset];
+				switch(ptAttribute->type)
+				{
+					case cgltf_attribute_type_position: pucPosBufferStart     = pucBufferStart; uAttributeComponents      += 3; szPosBufferStride     = szStride == 0 ? sizeof(float) * 3 : szStride; break;
+					case cgltf_attribute_type_normal:   pucNormalBufferStart  = pucBufferStart; uExtraAttributeComponents += 4; szNormalBufferStride  = szStride == 0 ? sizeof(float) * 3 : szStride; break;
+					case cgltf_attribute_type_tangent:  pucTangentBufferStart = pucBufferStart; uExtraAttributeComponents += 4; szTangentBufferStride = szStride == 0 ? sizeof(float) * 4 : szStride; break;
+					case cgltf_attribute_type_texcoord: pucTextBufferStart    = pucBufferStart; uExtraAttributeComponents += 4; szTextBufferStride    = szStride == 0 ? sizeof(float) * 2 : szStride; break;
+					case cgltf_attribute_type_color:    pucColorBufferStart   = pucBufferStart; uExtraAttributeComponents += 4; szColorBufferStride   = szStride == 0 ? sizeof(float) * 4 : szStride; break;
+					case cgltf_attribute_type_joints:   pucJointsBufferStart  = pucBufferStart; uExtraAttributeComponents += 4; szJointsBufferStride  = szStride == 0 ? sizeof(float) * 4 : szStride; break;
+					case cgltf_attribute_type_weights:  pucWeightsBufferStart = pucBufferStart; uExtraAttributeComponents += 4; szWeightsBufferStride = szStride == 0 ? sizeof(float) * 4 : szStride; break;
+					default:
+						PL_ASSERT(false && "unknown gltf attribute type");
+						break;
+				}
+			}
+
+			if(pucTangentBufferStart == NULL)
+			{
+				uExtraAttributeComponents += 4;
+				szTangentBufferStride += sizeof(float) * 4;
+			}
+
+			if(pucNormalBufferStart == NULL)
+			{
+				uExtraAttributeComponents += 4;
+				szNormalBufferStride += sizeof(float) * 3;
+			}
+
+			// allocate CPU buffers
+			pl_sb_resize(sbfVertexBuffer, uAttributeComponents * (uint32_t)szVertexCount);
+			pl_sb_resize(sbuIndexBuffer, (uint32_t)ptPrimitive->indices->count);
+
+			*psbuIndexBuffer = sbuIndexBuffer;
+			*psbfVertexBuffer = sbfVertexBuffer;
+
+			const uint32_t uStartPoint = pl_sb_size(ptRenderer->sbfStorageBuffer);
+			pl_sb_add_n(ptRenderer->sbfStorageBuffer, uExtraAttributeComponents * (uint32_t)szVertexCount);
+			uint32_t uCurrentAttributeOffset = 0;
+
+			// index buffer
+			unsigned char* pucIdexBufferStart = &((unsigned char*)ptPrimitive->indices->buffer_view->buffer->data)[ptPrimitive->indices->buffer_view->offset + ptPrimitive->indices->offset];
+			if(ptPrimitive->indices->component_type == cgltf_component_type_r_32u)
+			{
+				if(ptPrimitive->indices->buffer_view->stride == 0)
+				{
+					for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
+						sbuIndexBuffer[i] = *(uint32_t*)&pucIdexBufferStart[i * sizeof(uint32_t)];
+				}
+				else
+				{
+					for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
+						sbuIndexBuffer[i] = *(uint32_t*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
+				}
+			}
+			else if(ptPrimitive->indices->component_type == cgltf_component_type_r_16u)
+			{
+				if(ptPrimitive->indices->buffer_view->stride == 0)
+				{
+					for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
+						sbuIndexBuffer[i] = (uint32_t)*(unsigned short*)&pucIdexBufferStart[i * sizeof(unsigned short)];
+				}
+				else
+				{
+					for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
+						sbuIndexBuffer[i] = (uint32_t)*(unsigned short*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
+				}
+			}
+			else if(ptPrimitive->indices->component_type == cgltf_component_type_r_8u)
+			{
+				if(ptPrimitive->indices->buffer_view->stride == 0)
+				{
+					for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
+						sbuIndexBuffer[i] = (uint32_t)*(uint8_t*)&pucIdexBufferStart[i * sizeof(uint8_t)];
+				}
+				else
+				{
+					for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
+						sbuIndexBuffer[i] = (uint32_t)*(uint8_t*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
+				}
+			}
+			else
+			{
+				PL_ASSERT(false);
+			}
+
+			if(szPosBufferStride)
+			{
+				for(size_t i = 0; i < szVertexCount; i++)
+				{
+					const float x = *(float*)&pucPosBufferStart[i * szPosBufferStride];
+					const float y = ((float*)&pucPosBufferStart[i * szPosBufferStride])[1];
+					const float z = ((float*)&pucPosBufferStart[i * szPosBufferStride])[2];
+
+					sbfVertexBuffer[i * 3]   = x;
+					sbfVertexBuffer[i * 3 + 1] = y;
+					sbfVertexBuffer[i * 3 + 2] = z;
+				}
+			}
+
+			// normals
+			tVertexBufferFlags |= PL_MESH_FORMAT_FLAG_HAS_NORMAL;
+			if(pucNormalBufferStart)
+			{  
+				for(size_t i = 0; i < szVertexCount; i++)
+				{
+
+					const float nx = *(float*)&pucNormalBufferStart[i * szNormalBufferStride];
+					const float ny = ((float*)&pucNormalBufferStart[i * szNormalBufferStride])[1];
+					const float nz = ((float*)&pucNormalBufferStart[i * szNormalBufferStride])[2];
+
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset]     = nx;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = ny;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = nz;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = 0.0f;
+				}
+				uCurrentAttributeOffset += 4;
+			}
+			else // calculate normals
+			{
+				for(size_t i = 0; i < ptPrimitive->indices->count - 2; i+= 3)
+				{
+					const uint32_t uIndex0 = sbuIndexBuffer[i + 0];
+					const uint32_t uIndex1 = sbuIndexBuffer[i + 1];
+					const uint32_t uIndex2 = sbuIndexBuffer[i + 2];
+
+					const plVec3 tP0 = {
+						sbfVertexBuffer[uIndex0 * 3],
+						sbfVertexBuffer[uIndex0 * 3 + 1],
+						sbfVertexBuffer[uIndex0 * 3 + 2],
+					};
+
+					const plVec3 tP1 = {
+						sbfVertexBuffer[uIndex1 * 3],
+						sbfVertexBuffer[uIndex1 * 3 + 1],
+						sbfVertexBuffer[uIndex1 * 3 + 2],
+					};
+
+					const plVec3 tP2 = {
+						sbfVertexBuffer[uIndex2 * 3],
+						sbfVertexBuffer[uIndex2 * 3 + 1],
+						sbfVertexBuffer[uIndex2 * 3 + 2],
+					};
+
+					const plVec3 tEdge1 = pl_sub_vec3(tP1, tP0);
+					const plVec3 tEdge2 = pl_sub_vec3(tP2, tP0);
+
+					const plVec3 tNorm = pl_norm_vec3(pl_cross_vec3(tEdge1, tEdge2));
+
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset + 0] = tNorm.x;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = tNorm.y;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = tNorm.z;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = 0.0f;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset + 0] = tNorm.x;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = tNorm.y;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = tNorm.z;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = 0.0f;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset + 0] = tNorm.x;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = tNorm.y;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = tNorm.z;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = 0.0f;      
+				} 
+				uCurrentAttributeOffset += 4;
+			}
+
+			// tangents
+			if(pucTangentBufferStart)
+			{
+				tVertexBufferFlags |= PL_MESH_FORMAT_FLAG_HAS_TANGENT;
+				for(size_t i = 0; i < szVertexCount; i++)
+				{
+
+					const float tx = *(float*)&pucTangentBufferStart[i * szTangentBufferStride];
+					const float ty = ((float*)&pucTangentBufferStart[i * szTangentBufferStride])[1];
+					const float tz = ((float*)&pucTangentBufferStart[i * szTangentBufferStride])[2]; 
+					const float tw = ((float*)&pucTangentBufferStart[i * szTangentBufferStride])[3]; 
+
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset]     = tx;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = ty;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = tz;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = tw;
+				}
+				uCurrentAttributeOffset += 4;
+			}
+			else if(pucTextBufferStart) // calculate tangents
+			{
+				tVertexBufferFlags |= PL_MESH_FORMAT_FLAG_HAS_TANGENT;
+				for(size_t i = 0; i < ptPrimitive->indices->count - 2; i+= 3)
+				{
+					const uint32_t uIndex0 = sbuIndexBuffer[i + 0];
+					const uint32_t uIndex1 = sbuIndexBuffer[i + 1];
+					const uint32_t uIndex2 = sbuIndexBuffer[i + 2];
+
+					const plVec3 tP0 = { sbfVertexBuffer[uIndex0 * 3], sbfVertexBuffer[uIndex0 * 3 + 1], sbfVertexBuffer[uIndex0 * 3 + 2]};
+					const plVec3 tP1 = { sbfVertexBuffer[uIndex1 * 3], sbfVertexBuffer[uIndex1 * 3 + 1], sbfVertexBuffer[uIndex1 * 3 + 2]};
+					const plVec3 tP2 = { sbfVertexBuffer[uIndex2 * 3], sbfVertexBuffer[uIndex2 * 3 + 1], sbfVertexBuffer[uIndex2 * 3 + 2]};
+
+					const plVec3 tN0 = { 
+						ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 0],
+						ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 1],
+						ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 2]
+					};
+
+					const plVec3 tN1 = { 
+						ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 0],
+						ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 1],
+						ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 2]
+					};
+
+					const plVec3 tN2 = { 
+						ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 0],
+						ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 1],
+						ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 2]
+					};
+
+					const plVec3 tEdge1 = pl_sub_vec3(tP1, tP0);
+					const plVec3 tEdge2 = pl_sub_vec3(tP2, tP0);
+
+					const plVec2 tTex0 = {
+						((float*)&pucTextBufferStart[uIndex0 * szTextBufferStride])[0],
+						((float*)&pucTextBufferStart[uIndex0 * szTextBufferStride])[1]
+					};
+
+					const plVec2 tTex1 = {
+						((float*)&pucTextBufferStart[uIndex1 * szTextBufferStride])[0],
+						((float*)&pucTextBufferStart[uIndex1 * szTextBufferStride])[1]
+					};
+
+					const plVec2 tTex2 = {
+						((float*)&pucTextBufferStart[uIndex2 * szTextBufferStride])[0],
+						((float*)&pucTextBufferStart[uIndex2 * szTextBufferStride])[1]
+					};
+					
+					const float fDeltaU1 = tTex1.x - tTex0.x;
+					const float fDeltaV1 = tTex1.y - tTex0.y;
+					const float fDeltaU2 = tTex2.x - tTex0.x;
+					const float fDeltaV2 = tTex2.y - tTex0.y;
+
+					const float fDividend = (fDeltaU1 * fDeltaV2 - fDeltaU2 * fDeltaV1);
+					const float fC = 1.0f / fDividend;
+
+					const float fSx = fDeltaU1;
+					const float fSy = fDeltaU2;
+					const float fTx = fDeltaV1;
+					const float fTy = fDeltaV2;
+					const float fHandedness = ((fTx * fSy - fTy * fSx) < 0.0f) ? -1.0f : 1.0f;
+
+					const plVec3 tTangent = 
+						pl_norm_vec3((plVec3){
+							fC * (fDeltaV2 * tEdge1.x - fDeltaV1 * tEdge2.x),
+							fC * (fDeltaV2 * tEdge1.y - fDeltaV1 * tEdge2.y),
+							fC * (fDeltaV2 * tEdge1.z - fDeltaV1 * tEdge2.z)
+					});
+
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset]     = tTangent.x;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = tTangent.y;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = tTangent.z;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = fHandedness;
+
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset]     = tTangent.x;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = tTangent.y;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = tTangent.z;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = fHandedness;
+
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset]     = tTangent.x;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = tTangent.y;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = tTangent.z;
+					ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = fHandedness;
+				}
+				uCurrentAttributeOffset += 4;
+			}
+
+			// texture coordinates
+			if(pucTextBufferStart)
+			{
+				tVertexBufferFlags |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0;
+				for(size_t i = 0; i < szVertexCount; i++)
+				{
+
+					const float u = *(float*)&pucTextBufferStart[i * szTextBufferStride];
+					const float v = ((float*)&pucTextBufferStart[i * szTextBufferStride])[1];
+
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset]     = u;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = v;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = 0.0f;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = 0.0f;
+				}
+				uCurrentAttributeOffset += 4;
+			}
+
+			// colors
+			if(pucColorBufferStart)
+			{
+				tVertexBufferFlags |= PL_MESH_FORMAT_FLAG_HAS_COLOR_0;
+				for(size_t i = 0; i < szVertexCount; i++)
+				{
+
+					const float r = *(float*)&pucColorBufferStart[i * szColorBufferStride];
+					const float g = ((float*)&pucColorBufferStart[i * szColorBufferStride])[1];
+					const float b = ((float*)&pucColorBufferStart[i * szColorBufferStride])[2]; 
+					const float a = ((float*)&pucColorBufferStart[i * szColorBufferStride])[3]; 
+
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset]     = r;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = g;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = b;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = a;
+				}
+				uCurrentAttributeOffset += 4;
+			}
+
+			// joints
+			if(pucJointsBufferStart)
+			{
+				tVertexBufferFlags |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_0;
+				for(size_t i = 0; i < szVertexCount; i++)
+				{
+
+					const float x = *(float*)&pucJointsBufferStart[i * szJointsBufferStride];
+					const float y = ((float*)&pucJointsBufferStart[i * szJointsBufferStride])[1];
+					const float z = ((float*)&pucJointsBufferStart[i * szJointsBufferStride])[2]; 
+					const float w = ((float*)&pucJointsBufferStart[i * szJointsBufferStride])[3]; 
+
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset]     = x;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = y;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = z;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = w;
+				}
+				uCurrentAttributeOffset += 4;
+			}
+
+			// weights
+			if(pucWeightsBufferStart)
+			{
+				tVertexBufferFlags |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0;
+				for(size_t i = 0; i < szVertexCount; i++)
+				{
+
+					const float x = *(float*)&pucWeightsBufferStart[i * szJointsBufferStride];
+					const float y = ((float*)&pucWeightsBufferStart[i * szJointsBufferStride])[1];
+					const float z = ((float*)&pucWeightsBufferStart[i * szJointsBufferStride])[2]; 
+					const float w = ((float*)&pucWeightsBufferStart[i * szJointsBufferStride])[3]; 
+
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset]     = x;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = y;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = z;
+					ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = w;
+				}
+				uCurrentAttributeOffset += 4;
+			}
+
+			plEntity tMaterialEntity = pl_ecs_create_material(ptScene, ptPrimitive->material->name);
+			plMaterialComponent* ptMaterialComponent = pl_ecs_get_component(ptScene->ptMaterialComponentManager, tMaterialEntity);
+			ptMaterialComponent->tGraphicsState.ulVertexStreamMask = tVertexBufferFlags;
+			pl__load_gltf_material(&ptGraphics->tResourceManager, pcPath, ptPrimitive->material, ptMaterialComponent);
+
+			plSubMesh tSubMesh = 
+			{
+				.tMesh = {
+					.uIndexCount         = (uint32_t)ptPrimitive->indices->count,
+					.uVertexCount        = (uint32_t)szVertexCount,
+					.uIndexBuffer        = pl_create_index_buffer(&ptGraphics->tResourceManager, sizeof(uint32_t) * (uint32_t)ptPrimitive->indices->count, sbuIndexBuffer),
+					.uVertexBuffer       = pl_create_vertex_buffer(&ptGraphics->tResourceManager, sizeof(float) * szVertexCount * uAttributeComponents, sizeof(float) * uAttributeComponents, sbfVertexBuffer),
+					.ulVertexStreamMask  = tVertexBufferFlags
+				},
+				.uStorageOffset = (uint32_t)*pszTotalOffset,
+				.tMaterial = tMaterialEntity
+			};
+			pl_sb_push(ptMeshComponent->sbtSubmeshes, tSubMesh);
+
+			*pszTotalOffset += (size_t)uExtraAttributeComponents / 4 * szVertexCount;
+			pl_sb_reset(sbuIndexBuffer);
+			pl_sb_reset(sbfVertexBuffer);
+		}
+	}
+	else
+	{
+		for(size_t szChildIndex = 0; szChildIndex < ptNode->children_count; szChildIndex++)
+		{
+			const cgltf_node* ptChild = ptNode->children[szChildIndex];
+			pl__load_gltf_object(ptScene, tParentEntity, pcPath, ptChild, psbfVertexBuffer, psbuIndexBuffer, pszTotalOffset);
+		}
+	}
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
 bool
-pl_ext_load_gltf(plRenderer* ptRenderer, const char* pcPath, plGltf* ptGltfOut)
+pl_ext_load_gltf(plScene* ptScene, const char* pcPath)
 {
+	plRenderer* ptRenderer = ptScene->ptRenderer;
+
     size_t szTotalOffset = pl_sb_size(ptRenderer->sbfStorageBuffer) / 4;
     plGraphics* ptGraphics = ptRenderer->ptGraphics;
     char acFileName[1024] = {0};
@@ -6802,81 +7263,7 @@ pl_ext_load_gltf(plRenderer* ptRenderer, const char* pcPath, plGltf* ptGltfOut)
     if(tGltfResult != cgltf_result_success)
         return false;
 
-    ptGltfOut->pcPath = pcPath;
-
-    // reserve enough space for all meshes
-    uint32_t uMeshCount = 0;
-    for(size_t i = 0; i < ptGltfData->meshes_count; i++)
-        uMeshCount += (uint32_t)ptGltfData->meshes[i].primitives_count;
-    pl_sb_resize(ptGltfOut->sbtMeshes, uMeshCount);
-    pl_sb_resize(ptGltfOut->sbuMeshNodeMap, uMeshCount);
-    pl_sb_resize(ptGltfOut->sbuVertexOffsets, uMeshCount);
-
     // load nodes & scenes
-    pl_sb_resize(ptGltfOut->sbtNodes, (uint32_t)ptGltfData->nodes_count);
-    pl_sb_resize(ptGltfOut->sbtScenes, (uint32_t)ptGltfData->scenes_count);
-    for(size_t i = 0; i < ptGltfData->nodes_count; i++)
-    {
-        const cgltf_node* ptNode = &ptGltfData->nodes[i];
-
-        plNode tNewNode = {
-            .tMatrix      = pl_identity_mat4(),
-            .tRotation    = {.w = 1.0f},
-            .tScale       = {1.0f, 1.0f, 1.0f},
-            .tTranslation = {0},
-            .uMesh        = UINT32_MAX
-        };
-
-        if(ptNode->children_count > 0)
-        {
-            pl_sb_resize(tNewNode.sbuChildren, (uint32_t)ptNode->children_count);
-            for(size_t j = 0; j < ptNode->children_count; j++)
-                tNewNode.sbuChildren[j] = (uint32_t)(ptNode->children[j] - ptGltfData->nodes);
-        }
-
-        if(ptNode->has_rotation)    memcpy(tNewNode.tRotation.d, ptNode->rotation, sizeof(float) * 4);
-        if(ptNode->has_scale)       memcpy(tNewNode.tScale.d, ptNode->scale, sizeof(float) * 3);
-        if(ptNode->has_translation) memcpy(tNewNode.tTranslation.d, ptNode->translation, sizeof(float) * 3);
-        if(ptNode->has_matrix)      memcpy(tNewNode.tMatrix.d, ptNode->matrix, sizeof(float) * 16);
-        else                        tNewNode.tMatrix = pl_rotation_translation_scale(tNewNode.tRotation, tNewNode.tTranslation, tNewNode.tScale);
-        if(ptNode->mesh)            tNewNode.uMesh = (uint32_t)(ptNode->mesh - ptGltfData->meshes);
-        if(ptNode->name)            strncpy(tNewNode.acName, ptNode->name, PL_MATERIAL_MAX_NAME_LENGTH);
-        ptGltfOut->sbtNodes[i] = tNewNode;
-    }
-
-    for(size_t i = 0; i < ptGltfData->scenes_count; i++)
-    {
-        const cgltf_scene* ptScene = &ptGltfData->scenes[i];
-
-        if(ptScene->nodes_count > 0)
-        {
-            pl_sb_resize(ptGltfOut->sbtScenes[i].sbuRootNodes, (uint32_t)ptScene->nodes_count);
-            for(size_t j = 0; j < ptScene->nodes_count; j++)
-                ptGltfOut->sbtScenes[i].sbuRootNodes[j] = (uint32_t)(ptScene->nodes[j] - ptGltfData->nodes);
-        }
-        if(ptScene->name) strncpy(ptGltfOut->sbtScenes[i].acName, ptScene->name, PL_MATERIAL_MAX_NAME_LENGTH);
-    }
-
-    if(ptGltfData->scene) ptGltfOut->uScene = (uint32_t)(ptGltfData->scene - ptGltfData->scenes);
-
-    // load materials
-    pl_sb_resize(ptGltfOut->sbtMaterials, (uint32_t)ptGltfData->materials_count);
-    for(size_t i = 0; i < ptGltfData->materials_count; i++)
-    {
-        char acMaterialName[PL_MATERIAL_MAX_NAME_LENGTH] = {0};
-        char acMaterialIndex[64] = {0};
-        pl_sprintf(acMaterialIndex, "_mesh_%zu", i);
-        if(ptGltfData->materials[i].name == NULL)
-            pl_str_concatenate(acFileName, acMaterialIndex, acMaterialName, PL_MATERIAL_MAX_NAME_LENGTH);
-        else
-            strncpy(acMaterialName, ptGltfData->materials[i].name, PL_MATERIAL_MAX_NAME_LENGTH);
-        pl_initialize_material(&ptGltfOut->sbtMaterials[i], acMaterialName);
-        pl__load_gltf_material(&ptGraphics->tResourceManager, pcPath, &ptGltfData->materials[i], &ptGltfOut->sbtMaterials[i]);
-    }
-
-    // reserve enough space for all materials
-    pl_sb_resize(ptGltfOut->sbuMaterialIndices, uMeshCount);
-
     float* sbfVertexBuffer = NULL;
     uint32_t* sbuIndexBuffer = NULL;
     pl_sb_reserve(sbfVertexBuffer, 1000);
@@ -6888,432 +7275,23 @@ pl_ext_load_gltf(plRenderer* ptRenderer, const char* pcPath, plGltf* ptGltfOut)
     {
         pl_sb_free(sbfVertexBuffer);
         pl_sb_free(sbuIndexBuffer);
-        pl_sb_free(ptGltfOut->sbtMaterials);
-        pl_sb_free(ptGltfOut->sbtMeshes);
         return false;
     }
 
+	// ptGltfData->scenes[0].nodes
+
     // load meshes
-    uint32_t uCurrentMesh = 0;
-    uint32_t* sbuNodeIndices = NULL;
-    for(size_t szMeshIndex = 0; szMeshIndex < ptGltfData->meshes_count; szMeshIndex++)
+    for(size_t szNodeIndex = 0; szNodeIndex < ptGltfData->scenes[0].nodes_count; szNodeIndex++)
     {
-        const cgltf_mesh* ptMesh = &ptGltfData->meshes[szMeshIndex];
-        for(size_t szPrimitiveIndex = 0; szPrimitiveIndex < ptMesh->primitives_count; szPrimitiveIndex++)
-        {
-            pl_sb_push(sbuNodeIndices, (uint32_t)szMeshIndex);
 
-            const cgltf_primitive* ptPrimitive = &ptMesh->primitives[szPrimitiveIndex];
-            const size_t szVertexCount = ptPrimitive->attributes[0].data->count;
-            uint32_t uAttributeComponents = 0u;
-            uint32_t uExtraAttributeComponents = 0u;
-            plMeshFormatFlags tVertexBufferFlags = 0;
+        const cgltf_node* ptNode = ptGltfData->scenes[0].nodes[szNodeIndex];
+		pl__load_gltf_object(ptScene, 0, pcPath, ptNode, &sbfVertexBuffer, &sbuIndexBuffer, &szTotalOffset);
 
-            unsigned char* pucPosBufferStart     = NULL;
-            unsigned char* pucNormalBufferStart  = NULL;
-            unsigned char* pucTextBufferStart    = NULL;
-            unsigned char* pucTangentBufferStart = NULL;
-            unsigned char* pucColorBufferStart   = NULL;
-            unsigned char* pucJointsBufferStart  = NULL;
-            unsigned char* pucWeightsBufferStart = NULL;
-
-            size_t szPosBufferStride     = 0;
-            size_t szNormalBufferStride  = 0;
-            size_t szTextBufferStride    = 0;
-            size_t szTangentBufferStride = 0;
-            size_t szColorBufferStride   = 0;
-            size_t szJointsBufferStride  = 0;
-            size_t szWeightsBufferStride = 0;
-
-            for(size_t szAttributeIndex = 0; szAttributeIndex < ptPrimitive->attributes_count; szAttributeIndex++)
-            {
-                const cgltf_attribute* ptAttribute = &ptPrimitive->attributes[szAttributeIndex];
-                const cgltf_buffer* ptBuffer = ptAttribute->data->buffer_view->buffer;
-                const size_t szStride = ptAttribute->data->buffer_view->stride;
-
-                unsigned char* pucBufferStart = &((unsigned char*)ptBuffer->data)[ptAttribute->data->buffer_view->offset + ptAttribute->data->offset];
-                switch(ptAttribute->type)
-                {
-                    case cgltf_attribute_type_position: pucPosBufferStart     = pucBufferStart; uAttributeComponents      += 3; szPosBufferStride     = szStride == 0 ? sizeof(float) * 3 : szStride; break;
-                    case cgltf_attribute_type_normal:   pucNormalBufferStart  = pucBufferStart; uExtraAttributeComponents += 4; szNormalBufferStride  = szStride == 0 ? sizeof(float) * 3 : szStride; break;
-                    case cgltf_attribute_type_tangent:  pucTangentBufferStart = pucBufferStart; uExtraAttributeComponents += 4; szTangentBufferStride = szStride == 0 ? sizeof(float) * 4 : szStride; break;
-                    case cgltf_attribute_type_texcoord: pucTextBufferStart    = pucBufferStart; uExtraAttributeComponents += 4; szTextBufferStride    = szStride == 0 ? sizeof(float) * 2 : szStride; break;
-                    case cgltf_attribute_type_color:    pucColorBufferStart   = pucBufferStart; uExtraAttributeComponents += 4; szColorBufferStride   = szStride == 0 ? sizeof(float) * 4 : szStride; break;
-                    case cgltf_attribute_type_joints:   pucJointsBufferStart  = pucBufferStart; uExtraAttributeComponents += 4; szJointsBufferStride  = szStride == 0 ? sizeof(float) * 4 : szStride; break;
-                    case cgltf_attribute_type_weights:  pucWeightsBufferStart = pucBufferStart; uExtraAttributeComponents += 4; szWeightsBufferStride = szStride == 0 ? sizeof(float) * 4 : szStride; break;
-                    default:
-                        PL_ASSERT(false && "unknown gltf attribute type");
-                        break;
-                }
-            }
-
-            if(pucTangentBufferStart == NULL)
-            {
-                uExtraAttributeComponents += 4;
-                szTangentBufferStride += sizeof(float) * 4;
-            }
-
-            if(pucNormalBufferStart == NULL)
-            {
-                uExtraAttributeComponents += 4;
-                szNormalBufferStride += sizeof(float) * 3;
-            }
-
-            // allocate CPU buffers
-            pl_sb_resize(sbfVertexBuffer, uAttributeComponents * (uint32_t)szVertexCount);
-            pl_sb_resize(sbuIndexBuffer, (uint32_t)ptPrimitive->indices->count);
-
-            const uint32_t uStartPoint = pl_sb_size(ptRenderer->sbfStorageBuffer);
-            pl_sb_add_n(ptRenderer->sbfStorageBuffer, uExtraAttributeComponents * (uint32_t)szVertexCount);
-            uint32_t uCurrentAttributeOffset = 0;
-
-            // index buffer
-            unsigned char* pucIdexBufferStart = &((unsigned char*)ptPrimitive->indices->buffer_view->buffer->data)[ptPrimitive->indices->buffer_view->offset + ptPrimitive->indices->offset];
-            if(ptPrimitive->indices->component_type == cgltf_component_type_r_32u)
-            {
-                if(ptPrimitive->indices->buffer_view->stride == 0)
-                {
-                    for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        sbuIndexBuffer[i] = *(uint32_t*)&pucIdexBufferStart[i * sizeof(uint32_t)];
-                }
-                else
-                {
-                    for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        sbuIndexBuffer[i] = *(uint32_t*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
-                }
-            }
-            else if(ptPrimitive->indices->component_type == cgltf_component_type_r_16u)
-            {
-                if(ptPrimitive->indices->buffer_view->stride == 0)
-                {
-                    for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        sbuIndexBuffer[i] = (uint32_t)*(unsigned short*)&pucIdexBufferStart[i * sizeof(unsigned short)];
-                }
-                else
-                {
-                    for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        sbuIndexBuffer[i] = (uint32_t)*(unsigned short*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
-                }
-            }
-            else if(ptPrimitive->indices->component_type == cgltf_component_type_r_8u)
-            {
-                if(ptPrimitive->indices->buffer_view->stride == 0)
-                {
-                    for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        sbuIndexBuffer[i] = (uint32_t)*(uint8_t*)&pucIdexBufferStart[i * sizeof(uint8_t)];
-                }
-                else
-                {
-                    for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        sbuIndexBuffer[i] = (uint32_t)*(uint8_t*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
-                }
-            }
-            else
-            {
-                PL_ASSERT(false);
-            }
-
-            if(szPosBufferStride)
-            {
-                for(size_t i = 0; i < szVertexCount; i++)
-                {
-                    const float x = *(float*)&pucPosBufferStart[i * szPosBufferStride];
-                    const float y = ((float*)&pucPosBufferStart[i * szPosBufferStride])[1];
-                    const float z = ((float*)&pucPosBufferStart[i * szPosBufferStride])[2];
-
-                    sbfVertexBuffer[i * 3]   = x;
-                    sbfVertexBuffer[i * 3 + 1] = y;
-                    sbfVertexBuffer[i * 3 + 2] = z;
-                }
-            }
-
-            // normals
-            tVertexBufferFlags |= PL_MESH_FORMAT_FLAG_HAS_NORMAL;
-            if(pucNormalBufferStart)
-            {  
-                for(size_t i = 0; i < szVertexCount; i++)
-                {
-
-                    const float nx = *(float*)&pucNormalBufferStart[i * szNormalBufferStride];
-                    const float ny = ((float*)&pucNormalBufferStart[i * szNormalBufferStride])[1];
-                    const float nz = ((float*)&pucNormalBufferStart[i * szNormalBufferStride])[2];
-
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset]     = nx;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = ny;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = nz;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = 0.0f;
-                }
-                uCurrentAttributeOffset += 4;
-            }
-            else // calculate normals
-            {
-                for(size_t i = 0; i < ptPrimitive->indices->count - 2; i+= 3)
-                {
-                    const uint32_t uIndex0 = sbuIndexBuffer[i + 0];
-                    const uint32_t uIndex1 = sbuIndexBuffer[i + 1];
-                    const uint32_t uIndex2 = sbuIndexBuffer[i + 2];
-
-                    const plVec3 tP0 = {
-                        sbfVertexBuffer[uIndex0 * 3],
-                        sbfVertexBuffer[uIndex0 * 3 + 1],
-                        sbfVertexBuffer[uIndex0 * 3 + 2],
-                    };
-
-                    const plVec3 tP1 = {
-                        sbfVertexBuffer[uIndex1 * 3],
-                        sbfVertexBuffer[uIndex1 * 3 + 1],
-                        sbfVertexBuffer[uIndex1 * 3 + 2],
-                    };
-
-                    const plVec3 tP2 = {
-                        sbfVertexBuffer[uIndex2 * 3],
-                        sbfVertexBuffer[uIndex2 * 3 + 1],
-                        sbfVertexBuffer[uIndex2 * 3 + 2],
-                    };
-
-                    const plVec3 tEdge1 = pl_sub_vec3(tP1, tP0);
-                    const plVec3 tEdge2 = pl_sub_vec3(tP2, tP0);
-
-                    const plVec3 tNorm = pl_norm_vec3(pl_cross_vec3(tEdge1, tEdge2));
-
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset + 0] = tNorm.x;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = tNorm.y;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = tNorm.z;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = 0.0f;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset + 0] = tNorm.x;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = tNorm.y;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = tNorm.z;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = 0.0f;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset + 0] = tNorm.x;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = tNorm.y;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = tNorm.z;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = 0.0f;      
-                } 
-                uCurrentAttributeOffset += 4;
-            }
-
-            // tangents
-            if(pucTangentBufferStart)
-            {
-                tVertexBufferFlags |= PL_MESH_FORMAT_FLAG_HAS_TANGENT;
-                for(size_t i = 0; i < szVertexCount; i++)
-                {
-
-                    const float tx = *(float*)&pucTangentBufferStart[i * szTangentBufferStride];
-                    const float ty = ((float*)&pucTangentBufferStart[i * szTangentBufferStride])[1];
-                    const float tz = ((float*)&pucTangentBufferStart[i * szTangentBufferStride])[2]; 
-                    const float tw = ((float*)&pucTangentBufferStart[i * szTangentBufferStride])[3]; 
-
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset]     = tx;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = ty;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = tz;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = tw;
-                }
-                uCurrentAttributeOffset += 4;
-            }
-            else if(pucTextBufferStart) // calculate tangents
-            {
-                tVertexBufferFlags |= PL_MESH_FORMAT_FLAG_HAS_TANGENT;
-                for(size_t i = 0; i < ptPrimitive->indices->count - 2; i+= 3)
-                {
-                    const uint32_t uIndex0 = sbuIndexBuffer[i + 0];
-                    const uint32_t uIndex1 = sbuIndexBuffer[i + 1];
-                    const uint32_t uIndex2 = sbuIndexBuffer[i + 2];
-
-                    const plVec3 tP0 = { sbfVertexBuffer[uIndex0 * 3], sbfVertexBuffer[uIndex0 * 3 + 1], sbfVertexBuffer[uIndex0 * 3 + 2]};
-                    const plVec3 tP1 = { sbfVertexBuffer[uIndex1 * 3], sbfVertexBuffer[uIndex1 * 3 + 1], sbfVertexBuffer[uIndex1 * 3 + 2]};
-                    const plVec3 tP2 = { sbfVertexBuffer[uIndex2 * 3], sbfVertexBuffer[uIndex2 * 3 + 1], sbfVertexBuffer[uIndex2 * 3 + 2]};
-
-                    const plVec3 tN0 = { 
-                        ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 0],
-                        ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 1],
-                        ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 2]
-                    };
-
-                    const plVec3 tN1 = { 
-                        ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 0],
-                        ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 1],
-                        ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 2]
-                    };
-
-                    const plVec3 tN2 = { 
-                        ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 0],
-                        ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 1],
-                        ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset - 4 + 2]
-                    };
-
-                    const plVec3 tEdge1 = pl_sub_vec3(tP1, tP0);
-                    const plVec3 tEdge2 = pl_sub_vec3(tP2, tP0);
-
-                    const plVec2 tTex0 = {
-                        ((float*)&pucTextBufferStart[uIndex0 * szTextBufferStride])[0],
-                        ((float*)&pucTextBufferStart[uIndex0 * szTextBufferStride])[1]
-                    };
-
-                    const plVec2 tTex1 = {
-                        ((float*)&pucTextBufferStart[uIndex1 * szTextBufferStride])[0],
-                        ((float*)&pucTextBufferStart[uIndex1 * szTextBufferStride])[1]
-                    };
-
-                    const plVec2 tTex2 = {
-                        ((float*)&pucTextBufferStart[uIndex2 * szTextBufferStride])[0],
-                        ((float*)&pucTextBufferStart[uIndex2 * szTextBufferStride])[1]
-                    };
-                    
-                    const float fDeltaU1 = tTex1.x - tTex0.x;
-                    const float fDeltaV1 = tTex1.y - tTex0.y;
-                    const float fDeltaU2 = tTex2.x - tTex0.x;
-                    const float fDeltaV2 = tTex2.y - tTex0.y;
-
-                    const float fDividend = (fDeltaU1 * fDeltaV2 - fDeltaU2 * fDeltaV1);
-                    const float fC = 1.0f / fDividend;
-
-                    const float fSx = fDeltaU1;
-                    const float fSy = fDeltaU2;
-                    const float fTx = fDeltaV1;
-                    const float fTy = fDeltaV2;
-                    const float fHandedness = ((fTx * fSy - fTy * fSx) < 0.0f) ? -1.0f : 1.0f;
-
-                    const plVec3 tTangent = 
-                        pl_norm_vec3((plVec3){
-                            fC * (fDeltaV2 * tEdge1.x - fDeltaV1 * tEdge2.x),
-                            fC * (fDeltaV2 * tEdge1.y - fDeltaV1 * tEdge2.y),
-                            fC * (fDeltaV2 * tEdge1.z - fDeltaV1 * tEdge2.z)
-                    });
-
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset]     = tTangent.x;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = tTangent.y;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = tTangent.z;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex0 * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = fHandedness;
-
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset]     = tTangent.x;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = tTangent.y;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = tTangent.z;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex1 * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = fHandedness;
-
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset]     = tTangent.x;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = tTangent.y;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = tTangent.z;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + uIndex2 * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = fHandedness;
-                }
-                uCurrentAttributeOffset += 4;
-            }
-
-            // texture coordinates
-            if(pucTextBufferStart)
-            {
-                tVertexBufferFlags |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0;
-                for(size_t i = 0; i < szVertexCount; i++)
-                {
-
-                    const float u = *(float*)&pucTextBufferStart[i * szTextBufferStride];
-                    const float v = ((float*)&pucTextBufferStart[i * szTextBufferStride])[1];
-
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset]     = u;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = v;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = 0.0f;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = 0.0f;
-                }
-                uCurrentAttributeOffset += 4;
-            }
-
-            // colors
-            if(pucColorBufferStart)
-            {
-                tVertexBufferFlags |= PL_MESH_FORMAT_FLAG_HAS_COLOR_0;
-                for(size_t i = 0; i < szVertexCount; i++)
-                {
-
-                    const float r = *(float*)&pucColorBufferStart[i * szColorBufferStride];
-                    const float g = ((float*)&pucColorBufferStart[i * szColorBufferStride])[1];
-                    const float b = ((float*)&pucColorBufferStart[i * szColorBufferStride])[2]; 
-                    const float a = ((float*)&pucColorBufferStart[i * szColorBufferStride])[3]; 
-
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset]     = r;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = g;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = b;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = a;
-                }
-                uCurrentAttributeOffset += 4;
-            }
-
-            // joints
-            if(pucJointsBufferStart)
-            {
-                tVertexBufferFlags |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_0;
-                for(size_t i = 0; i < szVertexCount; i++)
-                {
-
-                    const float x = *(float*)&pucJointsBufferStart[i * szJointsBufferStride];
-                    const float y = ((float*)&pucJointsBufferStart[i * szJointsBufferStride])[1];
-                    const float z = ((float*)&pucJointsBufferStart[i * szJointsBufferStride])[2]; 
-                    const float w = ((float*)&pucJointsBufferStart[i * szJointsBufferStride])[3]; 
-
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset]     = x;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = y;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = z;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = w;
-                }
-                uCurrentAttributeOffset += 4;
-            }
-
-            // weights
-            if(pucWeightsBufferStart)
-            {
-                tVertexBufferFlags |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0;
-                for(size_t i = 0; i < szVertexCount; i++)
-                {
-
-                    const float x = *(float*)&pucWeightsBufferStart[i * szJointsBufferStride];
-                    const float y = ((float*)&pucWeightsBufferStart[i * szJointsBufferStride])[1];
-                    const float z = ((float*)&pucWeightsBufferStart[i * szJointsBufferStride])[2]; 
-                    const float w = ((float*)&pucWeightsBufferStart[i * szJointsBufferStride])[3]; 
-
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset]     = x;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 1] = y;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 2] = z;
-                    ptRenderer->sbfStorageBuffer[uStartPoint + i * uExtraAttributeComponents + uCurrentAttributeOffset + 3] = w;
-                }
-                uCurrentAttributeOffset += 4;
-            }
-
-            ptGltfOut->sbuVertexOffsets[uCurrentMesh] = (uint32_t)szTotalOffset;
-            szTotalOffset += (size_t)uExtraAttributeComponents / 4 * szVertexCount;
-
-            const plMesh tMesh = {
-                .uIndexCount         = (uint32_t)ptPrimitive->indices->count,
-                .uVertexCount        = (uint32_t)szVertexCount,
-                .uIndexBuffer        = pl_create_index_buffer(&ptGraphics->tResourceManager, sizeof(uint32_t) * (uint32_t)ptPrimitive->indices->count, sbuIndexBuffer),
-                .uVertexBuffer       = pl_create_vertex_buffer(&ptGraphics->tResourceManager, sizeof(float) * szVertexCount * uAttributeComponents, sizeof(float) * uAttributeComponents, sbfVertexBuffer),
-                .ulVertexStreamMask  = tVertexBufferFlags
-            };
-
-            ptGltfOut->sbuMaterialIndices[uCurrentMesh] = (uint32_t)(ptPrimitive->material - ptGltfData->materials);
-            pl_sb_reset(sbuIndexBuffer);
-            pl_sb_reset(sbfVertexBuffer);
-            ptGltfOut->sbtMeshes[uCurrentMesh] = tMesh;
-            uCurrentMesh++;
-        }
-    } 
-
-    // add meshes to nodes
-    for(uint32_t i = 0; i < pl_sb_size(ptGltfOut->sbtNodes); i++)
-    {
-        plNode* ptNode = &ptGltfOut->sbtNodes[i];
-
-        for(uint32_t j = 0; j < pl_sb_size(sbuNodeIndices); j++)
-        {
-            if(sbuNodeIndices[j] == ptNode->uMesh)
-            {
-                pl_sb_push(ptNode->sbuMeshes, j);
-                ptGltfOut->sbuMeshNodeMap[ptNode->uMesh] = j;
-            }
-        }
     }
+
 
     pl_sb_free(sbuIndexBuffer);
     pl_sb_free(sbfVertexBuffer);
-    pl_sb_free(sbuNodeIndices);
     return true;    
 }
 
@@ -7322,7 +7300,7 @@ pl_ext_load_gltf(plRenderer* ptRenderer, const char* pcPath, plGltf* ptGltfOut)
 //-----------------------------------------------------------------------------
 
 static void
-pl__load_gltf_material(plResourceManager* ptResourceManager, const char* pcPath, const cgltf_material* ptMaterial, plMaterial* ptMaterialOut)
+pl__load_gltf_material(plResourceManager* ptResourceManager, const char* pcPath, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut)
 {
     ptMaterialOut->bDoubleSided = ptMaterial->double_sided;
     ptMaterialOut->fAlphaCutoff = ptMaterial->alpha_cutoff;
