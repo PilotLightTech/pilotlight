@@ -46,8 +46,10 @@ typedef struct _plAppData
 {
     plGraphics          tGraphics;
     plDrawList          drawlist;
+    plDrawList          drawlist2;
     plDrawLayer*        fgDrawLayer;
     plDrawLayer*        bgDrawLayer;
+    plDrawLayer*        offscreenDrawLayer;
     plFontAtlas         fontAtlas;
     plProfileContext    tProfileCtx;
     plLogContext        tLogCtx;
@@ -65,14 +67,15 @@ typedef struct _plAppData
     // renderer
     plRenderer      tRenderer;
     plAssetRegistry tAssetRegistry;
-    uint32_t        uDynamicBuffer0;
     plScene         tScene;
+    VkDescriptorSet tGrassTexture;
 
     // shaders
     uint32_t uGrassShader;
 
     // cameras
     plEntity tCameraEntity;
+    plEntity tOffscreenCameraEntity;
 
     // objects
     plEntity tGrassEntity;
@@ -83,6 +86,12 @@ typedef struct _plAppData
     plEntity tGrassMaterial;
     plEntity tSolidMaterial;
     plEntity tSolid2Material;
+
+    // new stuff
+    plRenderPass   tOffscreenPass;
+    plRenderTarget tMainTarget;
+    plRenderTarget tOffscreenTarget;
+    VkDescriptorSet* sbtTextures;
 
 } plAppData;
 
@@ -155,8 +164,10 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     };
     pl_initialize_draw_context_vulkan(pl_ui_get_draw_context(NULL), &tVulkanInit);
     pl_register_drawlist(pl_ui_get_draw_context(NULL), &ptAppData->drawlist);
+    pl_register_drawlist(pl_ui_get_draw_context(NULL), &ptAppData->drawlist2);
     ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
     ptAppData->fgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Foreground Layer");
+    ptAppData->offscreenDrawLayer = pl_request_draw_layer(&ptAppData->drawlist2, "Foreground Layer");
 
     // create font atlas
     pl_add_default_font(&ptAppData->fontAtlas);
@@ -167,13 +178,11 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     // renderer
     pl_setup_renderer(&ptAppData->tGraphics, &ptAppData->tRenderer);
     pl_create_scene(&ptAppData->tRenderer, &ptAppData->tScene);
-    
-    // buffers
-    ptAppData->uDynamicBuffer0 = pl_create_constant_buffer_ex(&ptAppData->tGraphics.tResourceManager, pl_minu(ptAppData->tGraphics.tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536));
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~entity IDs~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
     // cameras
+    ptAppData->tOffscreenCameraEntity = pl_ecs_create_camera(&ptAppData->tScene, "offscreen camera", (plVec3){0.0f, 0.35f, 0.8f}, PL_PI_3, 1280.0f / 720.0f, 0.01f, 400.0f);
     ptAppData->tCameraEntity = pl_ecs_create_camera(&ptAppData->tScene, "main camera", (plVec3){-6.211f, 3.647f, 0.827f}, PL_PI_3, ptIOCtx->afMainViewportSize[0] / ptIOCtx->afMainViewportSize[1], 0.01f, 400.0f);
     plCameraComponent* ptCamera = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tCameraEntity);
     pl_camera_set_pitch_yaw(ptCamera, -0.244f, -1.488f);
@@ -193,11 +202,11 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     ptAppData->tSolidMaterial   = pl_ecs_create_material(&ptAppData->tScene, "solid material");
     ptAppData->tSolid2Material  = pl_ecs_create_material(&ptAppData->tScene, "solid material");
 
+
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~materials~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // grass
     plShaderDesc tGrassShaderDesc = {
-        ._tRenderPass                        = ptAppData->tGraphics.tRenderPass,
         .pcPixelShader                       = "grass.frag.spv",
         .pcVertexShader                      = "grass.vert.spv",
         .tGraphicsState.ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0,
@@ -264,6 +273,9 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     ptGrassMaterial->tGraphicsState.ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0;
     ptGrassMaterial->tGraphicsState.ulCullMode           = VK_CULL_MODE_NONE;
     ptGrassMaterial->tGraphicsState.ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_0;
+
+    plTexture* ptGrassTexture = &ptAppData->tGraphics.tResourceManager.sbtTextures[ptGrassMaterial->uAlbedoMap];
+    ptAppData->tGrassTexture = pl_add_texture(pl_ui_get_draw_context(NULL), ptGrassTexture->tImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     // solid materials
     plMaterialComponent* ptSolidMaterial = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tMaterialComponentManager, ptAppData->tSolidMaterial);
@@ -401,6 +413,27 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
         ptTransformComponent->tWorld = tStlTranslation;
     }
 
+    // offscreen
+    plRenderPassDesc tRenderPassDesc = {
+        .tColorFormat = VK_FORMAT_R8G8B8A8_UNORM,
+        .tDepthFormat = pl_find_depth_stencil_format(&ptAppData->tGraphics.tDevice)
+    };
+    pl_create_render_pass(&ptAppData->tGraphics, &tRenderPassDesc, &ptAppData->tOffscreenPass);
+
+    plRenderTargetDesc tRenderTargetDesc = {
+        .tRenderPass = ptAppData->tOffscreenPass,
+        .tSize = {1280.0f, 720.0f},
+    };
+    pl_create_render_target(&ptAppData->tGraphics, &tRenderTargetDesc, &ptAppData->tOffscreenTarget);
+
+    for(uint32_t i = 0; i < ptAppData->tGraphics.tSwapchain.uImageCount; i++)
+    {
+        plTexture* ptColorTexture = &ptAppData->tGraphics.tResourceManager.sbtTextures[ptAppData->tOffscreenTarget.sbuColorTextures[i]];
+        pl_sb_push(ptAppData->sbtTextures, pl_add_texture(pl_ui_get_draw_context(NULL), ptColorTexture->tImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+    }
+
+    pl_create_main_render_target(&ptAppData->tGraphics, &ptAppData->tMainTarget);
+
     return ptAppData;
 }
 
@@ -414,6 +447,8 @@ pl_app_shutdown(plAppData* ptAppData)
     vkDeviceWaitIdle(ptAppData->tGraphics.tDevice.tLogicalDevice);
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
     pl_ui_destroy_context(NULL);
+    pl_cleanup_render_pass(&ptAppData->tGraphics, &ptAppData->tOffscreenPass);
+    pl_cleanup_render_target(&ptAppData->tGraphics, &ptAppData->tOffscreenTarget);
     pl_cleanup_renderer(&ptAppData->tRenderer);
     pl_cleanup_graphics(&ptAppData->tGraphics);
     pl_cleanup_profile_context();
@@ -434,6 +469,7 @@ pl_app_resize(plAppData* ptAppData)
     pl_resize_graphics(&ptAppData->tGraphics);
     plCameraComponent* ptCamera = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tCameraEntity);
     pl_camera_set_aspect(ptCamera, ptIOCtx->afMainViewportSize[0] / ptIOCtx->afMainViewportSize[1]);
+    pl_create_main_render_target(&ptAppData->tGraphics, &ptAppData->tMainTarget);
 }
 
 //-----------------------------------------------------------------------------
@@ -453,6 +489,7 @@ pl_app_update(plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~input handling~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     static const float fCameraTravelSpeed = 8.0f;
     plCameraComponent* ptCamera = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tCameraEntity);
+    plCameraComponent* ptOffscreenCamera = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tOffscreenCameraEntity);
     if(pl_is_key_pressed(PL_KEY_W, true)) pl_camera_translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIOCtx->fDeltaTime);
     if(pl_is_key_pressed(PL_KEY_S, true)) pl_camera_translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIOCtx->fDeltaTime);
     if(pl_is_key_pressed(PL_KEY_A, true)) pl_camera_translate(ptCamera, -fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f,  0.0f);
@@ -467,70 +504,28 @@ pl_app_update(plAppData* ptAppData)
     {
         pl_ui_new_frame();
 
-        pl_begin_recording(&ptAppData->tGraphics);
-
         if(!pl_ui_is_mouse_owned() && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
         {
             const plVec2 tMouseDelta = pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
             pl_camera_rotate(ptCamera,  -tMouseDelta.y * 0.1f * ptIOCtx->fDeltaTime,  -tMouseDelta.x * 0.1f * ptIOCtx->fDeltaTime);
             pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
         }
-
         pl_camera_update(ptCamera);
-
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~renderer begin frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        pl_scene_update_ecs(&ptAppData->tScene);
-        pl_bind_camera(&ptAppData->tRenderer, ptCamera);
-
-        // storage buffer has items
-        if(pl_sb_size(ptAppData->tRenderer.sbfStorageBuffer) > 0)
-        {
-            if(ptAppData->tRenderer.uGlobalStorageBuffer != UINT32_MAX)
-            {
-                pl_submit_buffer_for_deletion(&ptAppData->tGraphics.tResourceManager, ptAppData->tRenderer.uGlobalStorageBuffer);
-            }
-            ptAppData->tRenderer.uGlobalStorageBuffer = pl_create_storage_buffer(&ptAppData->tGraphics.tResourceManager, pl_sb_size(ptAppData->tRenderer.sbfStorageBuffer) * sizeof(float), ptAppData->tRenderer.sbfStorageBuffer);
-            pl_sb_reset(ptAppData->tRenderer.sbfStorageBuffer);
-
-            uint32_t atBuffers0[] = {ptAppData->uDynamicBuffer0, ptAppData->tRenderer.uGlobalStorageBuffer};
-            size_t aszRangeSizes[] = {sizeof(plGlobalInfo), VK_WHOLE_SIZE};
-            pl_update_bind_group(&ptAppData->tGraphics, &ptAppData->tRenderer.tGlobalBindGroup, 2, atBuffers0, aszRangeSizes, 0, NULL);
-        }
-
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submit meshes~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        // rotate stl model
-        {
-            plObjectComponent* ptObjectComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tObjectComponentManager, ptAppData->tStlEntity);
-            plTransformComponent* ptTransformComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tTransformComponentManager, ptObjectComponent->tTransform);
-            const plMat4 tStlRotation = pl_mat4_rotate_xyz(PL_PI * (float)pl_get_io_context()->dTime, 0.0f, 1.0f, 0.0f);
-            const plMat4 tStlTranslation = pl_mat4_translate_xyz(0.0f, 2.0f, 0.0f);
-            const plMat4 tStlTransform = pl_mul_mat4(&tStlTranslation, &tStlRotation);
-            ptTransformComponent->tFinalTransform = tStlTransform;
-        }
-
-        pl_bind_common_buffer(&ptAppData->tRenderer, ptAppData->uDynamicBuffer0);
-        
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submit draws~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        const plBuffer* ptBuffer0 = &ptAppData->tGraphics.tResourceManager.sbtBuffers[ptAppData->uDynamicBuffer0];
-        const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->szSize / ptAppData->tGraphics.uFramesInFlight) * (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex;
-
-        plGlobalInfo* ptGlobalInfo    = (plGlobalInfo*)&ptBuffer0->pucMapping[uBufferFrameOffset0];
-        ptGlobalInfo->tAmbientColor   = (plVec4){0.0f, 0.0f, 0.0f, 1.0f};
-        ptGlobalInfo->tCameraPos      = (plVec4){.xyz = ptCamera->tPos, .w = 0.0f};
-        ptGlobalInfo->tCameraView     = ptCamera->tViewMat;
-        ptGlobalInfo->tCameraViewProj = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-        ptGlobalInfo->fTime           = (float)ptIOCtx->dTime;
-
-        pl_draw_scene(&ptAppData->tScene);
-        pl_draw_sky(&ptAppData->tScene);
+        pl_camera_update(ptOffscreenCamera);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~drawing api~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         ptAppData->ptDrawExtApi->pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, "Drawn from extension!");
+        ptAppData->ptDrawExtApi->pl_add_text(ptAppData->offscreenDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 42.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, "Drawn from extension offscreen!");
 
         // ui
+
+        if(pl_ui_begin_window("Offscreen", NULL, false))
+        {
+            pl_ui_layout_static(1280.0f, 720.0f, 1);
+            pl_ui_image(ptAppData->sbtTextures[ptAppData->tGraphics.szCurrentFrameIndex], (plVec2){1280.0f, 720.0f});
+            pl_ui_end_window();
+        }
 
         static bool bOpen = false;
 
@@ -556,25 +551,7 @@ pl_app_update(plAppData* ptAppData)
             }
 
             pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-            // if(pl_ui_collapsing_header("Materials"))
-            // {
-            //     for(uint32_t i = 0; i < pl_sb_size(ptAppData->tAssetRegistry.sbtMaterials); i++)
-            //     {
-            //         plMaterialComponent* ptMaterial = &ptAppData->tAssetRegistry.sbtMaterials[i];
-
-            //         static bool bOpen0 = false;
-            //         if(pl_ui_tree_node(ptMaterial->acName))
-            //         {
-            //             pl_ui_text("Double Sided: %s", ptMaterial->bDoubleSided ? "true" : "false");
-            //             pl_ui_text("Alpha cutoff: %0.1f", ptMaterial->fAlphaCutoff);
-            //             ptMaterial->uShader      == 0 ? pl_ui_text("Shader: None")       : pl_ui_text("Shader: %u", ptMaterial->uShader);
-            //             ptMaterial->uAlbedoMap   == 0 ? pl_ui_text("Albedo Map: None")   : pl_ui_text("Albedo Map: %u", ptMaterial->uAlbedoMap);
-            //             ptMaterial->uNormalMap   == 0 ? pl_ui_text("Normal Map: None")   : pl_ui_text("Normal Map: %u", ptMaterial->uNormalMap);
-            //             pl_ui_tree_pop();
-            //         }
-            //     }
-            //     pl_ui_end_collapsing_header();
-            // }
+            pl_ui_image(ptAppData->tGrassTexture, (plVec2){512.0f, 512.0f});
             pl_ui_end_window();
         }
         
@@ -601,6 +578,35 @@ pl_app_update(plAppData* ptAppData)
         if(ptAppData->bShowUiDebug)
             pl_ui_debug(&ptAppData->bShowUiDebug);
 
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~renderer begin frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // storage buffer has items
+        if(pl_sb_size(ptAppData->tRenderer.sbfStorageBuffer) > 0)
+        {
+            if(ptAppData->tRenderer.uGlobalStorageBuffer != UINT32_MAX)
+            {
+                pl_submit_buffer_for_deletion(&ptAppData->tGraphics.tResourceManager, ptAppData->tRenderer.uGlobalStorageBuffer);
+            }
+            ptAppData->tRenderer.uGlobalStorageBuffer = pl_create_storage_buffer(&ptAppData->tGraphics.tResourceManager, pl_sb_size(ptAppData->tRenderer.sbfStorageBuffer) * sizeof(float), ptAppData->tRenderer.sbfStorageBuffer);
+            pl_sb_reset(ptAppData->tRenderer.sbfStorageBuffer);
+
+            uint32_t atBuffers0[] = {ptAppData->tScene.uDynamicBuffer0, ptAppData->tRenderer.uGlobalStorageBuffer};
+            size_t aszRangeSizes[] = {sizeof(plGlobalInfo), VK_WHOLE_SIZE};
+            pl_update_bind_group(&ptAppData->tGraphics, &ptAppData->tRenderer.tGlobalBindGroup, 2, atBuffers0, aszRangeSizes, 0, NULL);
+        }
+
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submit meshes~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // rotate stl model
+        {
+            plObjectComponent* ptObjectComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tObjectComponentManager, ptAppData->tStlEntity);
+            plTransformComponent* ptTransformComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tTransformComponentManager, ptObjectComponent->tTransform);
+            const plMat4 tStlRotation = pl_mat4_rotate_xyz(PL_PI * (float)pl_get_io_context()->dTime, 0.0f, 1.0f, 0.0f);
+            const plMat4 tStlTranslation = pl_mat4_translate_xyz(0.0f, 2.0f, 0.0f);
+            const plMat4 tStlTransform = pl_mul_mat4(&tStlTranslation, &tStlRotation);
+            ptTransformComponent->tFinalTransform = tStlTransform;
+        }
+
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submit draws~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         // submit draw layers
@@ -609,18 +615,38 @@ pl_app_update(plAppData* ptAppData)
         pl_submit_draw_layer(ptAppData->fgDrawLayer);
         pl_end_profile_sample();
 
-        pl_ui_render();
+        pl_begin_recording(&ptAppData->tGraphics);
+
+        pl_begin_render_target(&ptAppData->tGraphics, &ptAppData->tOffscreenTarget);
+        pl_reset_scene(&ptAppData->tScene);
+        pl_scene_bind_target(&ptAppData->tScene, &ptAppData->tOffscreenTarget);
+        pl_scene_update_ecs(&ptAppData->tScene);
+        pl_scene_bind_camera(&ptAppData->tScene, ptOffscreenCamera);
+        pl_draw_scene(&ptAppData->tScene);
+        pl_draw_sky(&ptAppData->tScene);
+
+        pl_submit_draw_layer(ptAppData->offscreenDrawLayer);
+        pl_submit_drawlist_vulkan_ex(&ptAppData->drawlist2, 1280.0f, 720.0f, ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex, ptAppData->tOffscreenPass._tRenderPass, VK_SAMPLE_COUNT_1_BIT);
+        pl_end_render_target(&ptAppData->tGraphics);
+
+        pl_begin_main_pass(&ptAppData->tGraphics);
+        pl_scene_bind_target(&ptAppData->tScene, &ptAppData->tMainTarget);
+        pl_scene_update_ecs(&ptAppData->tScene);
+        pl_scene_bind_camera(&ptAppData->tScene, ptCamera);
+        pl_draw_scene(&ptAppData->tScene);
+        pl_draw_sky(&ptAppData->tScene);
 
         // submit draw lists
         pl_submit_drawlist_vulkan(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
 
         // submit ui drawlist
+        pl_ui_render();
         pl_submit_drawlist_vulkan(pl_ui_get_draw_list(NULL), (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
         pl_submit_drawlist_vulkan(pl_ui_get_debug_draw_list(NULL), (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
-
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~end frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         pl_end_main_pass(&ptAppData->tGraphics);
         pl_end_recording(&ptAppData->tGraphics);
+
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~end frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         pl_end_frame(&ptAppData->tGraphics);
     } 
     pl_end_profile_frame();

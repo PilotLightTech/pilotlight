@@ -219,6 +219,7 @@ typedef struct _plTextureReturn
 typedef struct _plVulkanPipelineEntry
 {    
     VkRenderPass tRenderPass;
+    VkSampleCountFlagBits tMSAASampleCount;
     VkPipeline   tRegularPipeline;
     VkPipeline   tSDFPipeline;
 } plVulkanPipelineEntry;
@@ -1095,13 +1096,14 @@ pl__get_pipelines(plVulkanDrawContext* ptCtx, VkRenderPass tRenderPass, VkSample
     // return pipeline entry if it exists
     for(uint32_t i = 0; i < pl_sb_size(ptCtx->sbtPipelines); i++)
     {
-        if(ptCtx->sbtPipelines[i].tRenderPass == tRenderPass)
+        if(ptCtx->sbtPipelines[i].tRenderPass == tRenderPass && tMSAASampleCount == ptCtx->sbtPipelines[i].tMSAASampleCount)
             return &ptCtx->sbtPipelines[i];
     }
 
     // create new pipeline entry
     plVulkanPipelineEntry tEntry = {
-        .tRenderPass = tRenderPass
+        .tRenderPass = tRenderPass,
+        .tMSAASampleCount = tMSAASampleCount
     };
 
     const VkPipelineInputAssemblyStateCreateInfo tInputAssembly = {
@@ -1171,7 +1173,7 @@ pl__get_pipelines(plVulkanDrawContext* ptCtx, VkRenderPass tRenderPass, VkSample
     //---------------------------------------------------------------------
 
     const VkPipelineColorBlendAttachmentState tColorBlendAttachment = {
-        .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+        .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT,
         .blendEnable         = VK_TRUE,
         .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
         .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,

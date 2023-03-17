@@ -470,6 +470,7 @@ typedef struct _plVariantInfo
     VkShaderModuleCreateInfo tPixelShaderInfo;
     VkPipelineLayout         tPipelineLayout;
     VkRenderPass             tRenderPass;
+    VkSampleCountFlagBits    tMSAASampleCount;
     VkSpecializationInfo     tSpecializationInfo;
 } plVariantInfo;
 
@@ -551,7 +552,7 @@ pl__create_shader_pipeline(plResourceManager* ptResourceManager, plGraphicsState
     const VkPipelineMultisampleStateCreateInfo tMultisampling = {
         .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .sampleShadingEnable  = VK_FALSE,
-        .rasterizationSamples = ptResourceManager->_ptGraphics->tSwapchain.tMsaaSamples
+        .rasterizationSamples = ptInfo->tMSAASampleCount
     };
 
     //---------------------------------------------------------------------
@@ -660,12 +661,24 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
 
     if(pl_sb_size(tShader.tDesc.sbtVariants) > 0)
     {
-        if(tShader.tDesc.sbtVariants[0].ulValue != tShader.tDesc.tGraphicsState.ulValue)
-            pl_sb_insert(tShader.tDesc.sbtVariants, 0,tShader.tDesc.tGraphicsState);
+        if(tShader.tDesc.sbtVariants[0].tGraphicsState.ulValue != tShader.tDesc.tGraphicsState.ulValue)
+        {
+            plShaderVariant tNewVariant = {
+                .tGraphicsState = tShader.tDesc.tGraphicsState,
+                .tRenderPass = ptResourceManager->_ptGraphics->tRenderPass,
+                .tMSAASampleCount = ptResourceManager->_ptGraphics->tSwapchain.tMsaaSamples
+            };
+            pl_sb_insert(tShader.tDesc.sbtVariants, 0,tNewVariant);
+        }
     }
     else
     {
-        pl_sb_push(tShader.tDesc.sbtVariants, tShader.tDesc.tGraphicsState);
+        plShaderVariant tNewVariant = {
+            .tGraphicsState = tShader.tDesc.tGraphicsState,
+            .tRenderPass = ptResourceManager->_ptGraphics->tRenderPass,
+            .tMSAASampleCount = ptResourceManager->_ptGraphics->tSwapchain.tMsaaSamples
+        };
+        pl_sb_push(tShader.tDesc.sbtVariants, tNewVariant);
     }
 
     // hash shader
@@ -755,12 +768,12 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
     {
 
         int aiData[3] = {
-            (int)tShader.tDesc.sbtVariants[i].ulVertexStreamMask,
+            (int)tShader.tDesc.sbtVariants[i].tGraphicsState.ulVertexStreamMask,
             0,
-            (int)tShader.tDesc.sbtVariants[i].ulShaderTextureFlags
+            (int)tShader.tDesc.sbtVariants[i].tGraphicsState.ulShaderTextureFlags
         };
 
-        int iFlagCopy = (int)tShader.tDesc.sbtVariants[i].ulVertexStreamMask;
+        int iFlagCopy = (int)tShader.tDesc.sbtVariants[i].tGraphicsState.ulVertexStreamMask;
         while(iFlagCopy)
         {
             aiData[1] += iFlagCopy & 1;
@@ -768,10 +781,11 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
         }
 
         plVariantInfo tVariantInfo = {
-            .tRenderPass         = tShader.tDesc._tRenderPass,
+            .tRenderPass         = tShader.tDesc.sbtVariants[i].tRenderPass,
             .tPipelineLayout     = tPipelineLayout,
             .tPixelShaderInfo    = tShader.tPixelShaderInfo,
             .tVertexShaderInfo   = tShader.tVertexShaderInfo,
+            .tMSAASampleCount    = tShader.tDesc.sbtVariants[i].tMSAASampleCount,
             .tSpecializationInfo = {
                 .mapEntryCount = 3,
                 .pMapEntries   = tSpecializationEntries,
@@ -782,8 +796,10 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
         // pl_sb_push(tShader._sbtVariantPipelines, pl__create_shader_pipeline(ptResourceManager, tShader.tDesc.sbtVariants[i], &tVariantInfo));
         plShaderVariant tShaderVariant = {
             .tPipelineLayout = tPipelineLayout,
-            .tPipeline       = pl__create_shader_pipeline(ptResourceManager, tShader.tDesc.sbtVariants[i], &tVariantInfo),
-            .tGraphicsState  = tShader.tDesc.sbtVariants[i]
+            .tPipeline       = pl__create_shader_pipeline(ptResourceManager, tShader.tDesc.sbtVariants[i].tGraphicsState, &tVariantInfo),
+            .tGraphicsState  = tShader.tDesc.sbtVariants[i].tGraphicsState,
+            .tRenderPass     = tShader.tDesc.sbtVariants[i].tRenderPass,
+            .tMSAASampleCount= tShader.tDesc.sbtVariants[i].tMSAASampleCount
         };
         pl_sb_push(ptResourceManager->sbtShaderVariants, tShaderVariant);
         pl_sb_push(tShader._sbuVariantPipelines, pl_sb_size(ptResourceManager->sbtShaderVariants) - 1);
@@ -805,18 +821,19 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
 }
 
 uint32_t
-pl_add_shader_variant(plResourceManager* ptResourceManager, uint32_t uShader, plGraphicsState tVariant)
+pl_add_shader_variant(plResourceManager* ptResourceManager, uint32_t uShader, plGraphicsState tVariant, VkRenderPass ptRenderPass, VkSampleCountFlagBits tMSAASampleCount)
 {
     plShader* ptShader = &ptResourceManager->sbtShaders[uShader];
 
     // check if variant exist already
     for(uint32_t i = 0; i < pl_sb_size(ptShader->tDesc.sbtVariants); i++)
     {
-        if(ptShader->tDesc.sbtVariants[i].ulValue == tVariant.ulValue)
+        if(ptShader->tDesc.sbtVariants[i].tGraphicsState.ulValue == tVariant.ulValue 
+            && ptRenderPass == ptShader->tDesc.sbtVariants[i].tRenderPass 
+            && tMSAASampleCount == ptShader->tDesc.sbtVariants[i].tMSAASampleCount)
             return ptShader->_sbuVariantPipelines[i];
     }
-
-    pl_sb_push(ptShader->tDesc.sbtVariants, tVariant);
+    
 
     const VkSpecializationMapEntry tSpecializationEntries[] = 
     {
@@ -853,10 +870,11 @@ pl_add_shader_variant(plResourceManager* ptResourceManager, uint32_t uShader, pl
     }
 
     plVariantInfo tVariantInfo = {
-        .tRenderPass         = ptShader->tDesc._tRenderPass,
+        .tRenderPass         = ptRenderPass,
         .tPipelineLayout     = ptShader->tPipelineLayout,
         .tPixelShaderInfo    = ptShader->tPixelShaderInfo,
         .tVertexShaderInfo   = ptShader->tVertexShaderInfo,
+        .tMSAASampleCount    = tMSAASampleCount,
         .tSpecializationInfo = {
             .mapEntryCount = 3,
             .pMapEntries   = tSpecializationEntries,
@@ -868,22 +886,27 @@ pl_add_shader_variant(plResourceManager* ptResourceManager, uint32_t uShader, pl
     plShaderVariant tShaderVariant = {
         .tPipelineLayout = ptShader->tPipelineLayout,
         .tPipeline       = pl__create_shader_pipeline(ptResourceManager, tVariant, &tVariantInfo),
-        .tGraphicsState  = tVariant
+        .tGraphicsState  = tVariant,
+        .tRenderPass = ptRenderPass,
+        .tMSAASampleCount = tMSAASampleCount
     };
+    pl_sb_push(ptShader->tDesc.sbtVariants, tShaderVariant);
     pl_sb_push(ptResourceManager->sbtShaderVariants, tShaderVariant);
     pl_sb_push(ptShader->_sbuVariantPipelines, pl_sb_size(ptResourceManager->sbtShaderVariants) - 1);
     return pl_sb_size(ptResourceManager->sbtShaderVariants) - 1;
 }
 
 bool
-pl_shader_variant_exist(plResourceManager* ptResourceManager, uint32_t uShader, plGraphicsState tVariant)
+pl_shader_variant_exist(plResourceManager* ptResourceManager, uint32_t uShader, plGraphicsState tVariant, VkRenderPass ptRenderPass, VkSampleCountFlagBits tMSAASampleCount)
 {
     plShader* ptShader = &ptResourceManager->sbtShaders[uShader];
 
     // check if variant exist already
     for(uint32_t i = 0; i < pl_sb_size(ptShader->tDesc.sbtVariants); i++)
     {
-        if(ptShader->tDesc.sbtVariants[i].ulValue == tVariant.ulValue)
+        if(ptShader->tDesc.sbtVariants[i].tGraphicsState.ulValue == tVariant.ulValue 
+            && ptRenderPass == ptShader->tDesc.sbtVariants[i].tRenderPass
+            && tMSAASampleCount == ptShader->tDesc.sbtVariants[i].tMSAASampleCount)
             return true;
     }
 
@@ -1620,6 +1643,8 @@ pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, siz
         .subresourceRange.layerCount     = tDesc.uLayers,
         .subresourceRange.aspectMask     = tDesc.tUsage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT,
     };
+    if(pl_format_has_stencil(tViewInfo.format))
+        tViewInfo.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
     PL_VULKAN(vkCreateImageView(tDevice, &tViewInfo, NULL, &tTexture.tImageView));
 
     // create sampler
@@ -1656,7 +1681,12 @@ pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, siz
         .layerCount     = tDesc.uLayers,
         .aspectMask     = tViewInfo.subresourceRange.aspectMask
     };
-    pl_transition_image_layout(tCommandBuffer, tTexture.tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    if(pData)
+        pl_transition_image_layout(tCommandBuffer, tTexture.tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    else if(tDesc.tUsage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+        pl_transition_image_layout(tCommandBuffer, tTexture.tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    else if(tDesc.tUsage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+        pl_transition_image_layout(tCommandBuffer, tTexture.tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
     pl_submit_command_buffer(ptResourceManager->_ptGraphics, ptResourceManager->_ptDevice, tCommandBuffer);
 
     // find free index

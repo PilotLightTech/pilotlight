@@ -54,6 +54,12 @@ typedef struct _plObjectInfo    plObjectInfo;
 typedef struct _plMaterialInfo  plMaterialInfo;
 typedef struct _plGlobalInfo    plGlobalInfo;
 
+// graphics
+typedef struct _plRenderPass       plRenderPass;
+typedef struct _plRenderPassDesc   plRenderPassDesc;
+typedef struct _plRenderTarget     plRenderTarget;
+typedef struct _plRenderTargetDesc plRenderTargetDesc;
+
 // renderer
 typedef struct _plRenderer plRenderer;
 typedef struct _plScene       plScene;
@@ -84,17 +90,28 @@ typedef uint64_t plEntity;
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
+// graphics
+void pl_create_main_render_target(plGraphics* ptGraphics, plRenderTarget* ptTargetOut);
+void pl_create_render_pass  (plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, plRenderPass* ptPassOut);
+void pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut);
+void pl_begin_render_target (plGraphics* ptGraphics, plRenderTarget* ptTarget);
+void pl_end_render_target   (plGraphics* ptGraphics);
+void pl_cleanup_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget);
+void pl_cleanup_render_pass(plGraphics* ptGraphics, plRenderPass* ptPass);
+
 // new renderer
 void pl_setup_renderer  (plGraphics* ptGraphics, plRenderer* ptRenderer);
 void pl_cleanup_renderer(plRenderer* ptRenderer);
-void pl_bind_camera     (plRenderer* ptRenderer, const plCameraComponent* ptCamera);
+
 void pl_draw_sky        (plScene* ptScene);
 
 // scene
 void pl_create_scene      (plRenderer* ptRenderer, plScene* ptSceneOut);
+void pl_reset_scene       (plScene* ptScene);
 void pl_draw_scene        (plScene* ptScene);
+void pl_scene_bind_camera (plScene* ptScene, const plCameraComponent* ptCamera);
 void pl_scene_update_ecs  (plScene* ptScene);
-void pl_bind_common_buffer(plRenderer* ptRenderer, uint32_t uBufferHandle);
+void pl_scene_bind_target (plScene* ptScene, plRenderTarget* ptTarget);
 
 // entity component system
 plEntity pl_ecs_create_entity   (plRenderer* ptRenderer);
@@ -131,6 +148,33 @@ void     pl_camera_update         (plCameraComponent* ptCamera);
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plRenderPassDesc
+{
+    VkFormat tColorFormat;
+    VkFormat tDepthFormat;
+} plRenderPassDesc;
+
+typedef struct _plRenderPass
+{
+    plRenderPassDesc tDesc;
+    VkRenderPass     _tRenderPass;
+} plRenderPass;
+
+typedef struct _plRenderTargetDesc
+{
+    plRenderPass tRenderPass;
+    plVec2       tSize;
+} plRenderTargetDesc;
+
+typedef struct _plRenderTarget
+{
+    plRenderTargetDesc tDesc;
+    uint32_t*          sbuColorTextures;
+    uint32_t           uDepthTexture;
+    VkFramebuffer*     sbtFrameBuffers;
+    bool               bMSAA;
+} plRenderTarget;
 
 typedef struct _plGlobalInfo
 {
@@ -284,8 +328,18 @@ typedef struct _plComponentLibrary
 
 typedef struct _plScene
 {
-    plRenderer*      ptRenderer;
+    plRenderer*              ptRenderer;
+    plRenderTarget*          ptRenderTarget;
+    const plCameraComponent* ptCamera;
+
+    // skybox
+    plBindGroup     tSkyboxBindGroup0;
+    uint32_t        uSkyboxTexture;
     
+    plMeshComponent tSkyboxMesh;
+    
+    uint32_t            uDynamicBuffer0_Offset;
+    uint32_t            uDynamicBuffer0;
     uint32_t            uDynamicBuffer1;
     uint32_t            uDynamicBuffer2;
     plComponentLibrary  tComponentLibrary;
@@ -302,14 +356,11 @@ typedef struct _plScene
 typedef struct _plRenderer
 {
     plGraphics*              ptGraphics;
-    uint32_t                 uDynamicBuffer0;
-    uint32_t                 uBoundDynamicBuffer0;
     plEntity*                sbtObjectEntities;
     float*                   sbfStorageBuffer;
     plBindGroup              tGlobalBindGroup;
     uint32_t                 uGlobalStorageBuffer;
     size_t                   tNextEntity;
-    const plCameraComponent* ptCamera;
 
     // draw stream
     plDraw*     sbtDraws;
@@ -319,12 +370,7 @@ typedef struct _plRenderer
     // shaders
     uint32_t uMainShader;
     uint32_t uOutlineShader;
-
-    // skybox
-    plBindGroup     tSkyboxBindGroup0;
-    uint32_t        uSkyboxTexture;
-    uint32_t        uSkyboxShader;
-    plMeshComponent tSkyboxMesh;
+    uint32_t uSkyboxShader;
 
 } plRenderer;
 

@@ -51,17 +51,17 @@ typedef struct _plTexture         plTexture;         // vulkan texture
 typedef struct _plTextureDesc     plTextureDesc;     // texture descriptor
 
 // new
-typedef struct _plBufferBinding   plBufferBinding;
-typedef struct _plTextureBinding  plTextureBinding;
-typedef struct _plShaderDesc      plShaderDesc;
-typedef struct _plShader          plShader;
-typedef struct _plGraphicsState   plGraphicsState;
-typedef struct _plBindGroupLayout plBindGroupLayout;
-typedef struct _plBindGroup       plBindGroup;
-typedef struct _plMesh            plMesh;
-typedef struct _plDraw            plDraw;
-typedef struct _plDrawArea        plDrawArea;
-typedef struct _plShaderVariant   plShaderVariant;
+typedef struct _plBufferBinding    plBufferBinding;
+typedef struct _plTextureBinding   plTextureBinding;
+typedef struct _plShaderDesc       plShaderDesc;
+typedef struct _plShader           plShader;
+typedef struct _plGraphicsState    plGraphicsState;
+typedef struct _plBindGroupLayout  plBindGroupLayout;
+typedef struct _plBindGroup        plBindGroup;
+typedef struct _plMesh             plMesh;
+typedef struct _plDraw             plDraw;
+typedef struct _plDrawArea         plDrawArea;
+typedef struct _plShaderVariant    plShaderVariant;
 
 // enums
 typedef int plBufferBindingType;  // -> enum _plBufferBindingType   // Enum:
@@ -114,8 +114,8 @@ void                  pl_submit_command_buffer        (plGraphics* ptGraphics, p
 
 // shaders
 uint32_t              pl_create_shader             (plResourceManager* ptResourceManager, const plShaderDesc* ptDesc);
-uint32_t              pl_add_shader_variant        (plResourceManager* ptResourceManager, uint32_t uShader, plGraphicsState tVariant);
-bool                  pl_shader_variant_exist      (plResourceManager* ptResourceManager, uint32_t uShader, plGraphicsState tVariant);
+uint32_t              pl_add_shader_variant        (plResourceManager* ptResourceManager, uint32_t uShader, plGraphicsState tVariant, VkRenderPass ptRenderPass, VkSampleCountFlagBits tMSAASampleCount);
+bool                  pl_shader_variant_exist      (plResourceManager* ptResourceManager, uint32_t uShader, plGraphicsState tVariant, VkRenderPass ptRenderPass, VkSampleCountFlagBits tMSAASampleCount);
 void                  pl_submit_shader_for_deletion(plResourceManager* ptResourceManager, uint32_t uShaderIndex);
 plBindGroupLayout*    pl_get_bind_group_layout     (plResourceManager* ptResourceManager, uint32_t uShaderIndex, uint32_t uBindGroupIndex);
 plShaderVariant*      pl_get_shader                (plResourceManager* ptResourceManager, uint32_t uVariantIndex);
@@ -361,6 +361,15 @@ typedef struct _plGraphicsState
     
 } plGraphicsState;
 
+typedef struct _plShaderVariant
+{
+    VkPipelineLayout      tPipelineLayout;
+    VkRenderPass          tRenderPass;
+    plGraphicsState       tGraphicsState;
+    VkSampleCountFlagBits tMSAASampleCount;
+    VkPipeline            tPipeline;
+} plShaderVariant;
+
 typedef struct _plShaderDesc
 {
     plGraphicsState    tGraphicsState;
@@ -368,16 +377,8 @@ typedef struct _plShaderDesc
     const char*        pcPixelShader;
     plBindGroupLayout  atBindGroupLayouts[4];
     uint32_t           uBindGroupLayoutCount;
-    VkRenderPass       _tRenderPass;
-    plGraphicsState*   sbtVariants;
+    plShaderVariant*   sbtVariants;
 } plShaderDesc;
-
-typedef struct _plShaderVariant
-{
-    VkPipelineLayout tPipelineLayout;
-    plGraphicsState  tGraphicsState;
-    VkPipeline       tPipeline;
-} plShaderVariant;
 
 typedef struct _plShader
 {
@@ -394,7 +395,7 @@ typedef struct _plResourceManager
     plBuffer*        sbtBuffers;
     plTexture*       sbtTextures;
     plShader*        sbtShaders;
-    plShaderVariant* sbtShaderVariants;
+    plShaderVariant* sbtShaderVariants; // from all different shaders
 
     // [INTERNAL]
     

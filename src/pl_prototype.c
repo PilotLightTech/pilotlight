@@ -20,6 +20,7 @@ Index of this file:
 #include "pl_ui.h"
 #include "pl_draw.h"
 #include "pl_ds.h"
+#include "pl_io.h"
 #include "pl_memory.h"
 
 
@@ -35,6 +36,234 @@ pl__wrap_angle(float tTheta)
     if (fMod > PL_PI)       return fMod - f2Pi;
     else if (fMod < -PL_PI) return fMod + f2Pi;
     return fMod;
+}
+
+void
+pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut)
+{
+    ptTargetOut->tDesc = *ptDesc;
+
+    const plTextureDesc tColorTextureDesc = {
+        .tDimensions = {.x = ptDesc->tSize.x, .y = ptDesc->tSize.y, .z = 1.0f},
+        .tFormat     = ptDesc->tRenderPass.tDesc.tColorFormat,
+        .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .uLayers     = 1,
+        .uMips       = 1,
+        .tType       = VK_IMAGE_TYPE_2D,
+        .tViewType   = VK_IMAGE_VIEW_TYPE_2D
+    };
+
+    const plTextureDesc tDepthTextureDesc = {
+        .tDimensions = {.x = ptDesc->tSize.x, .y = ptDesc->tSize.y, .z = 1.0f},
+        .tFormat     = ptDesc->tRenderPass.tDesc.tDepthFormat,
+        .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        .uLayers     = 1,
+        .uMips       = 1,
+        .tType       = VK_IMAGE_TYPE_2D,
+        .tViewType   = VK_IMAGE_VIEW_TYPE_2D
+    };
+
+    for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
+    {
+        pl_sb_push(ptTargetOut->sbuColorTextures, pl_create_texture(&ptGraphics->tResourceManager, tColorTextureDesc, 0, NULL));
+    }
+    ptTargetOut->uDepthTexture = pl_create_texture(&ptGraphics->tResourceManager, tDepthTextureDesc, 0, NULL);
+
+    plTexture* ptDepthTexture = &ptGraphics->tResourceManager.sbtTextures[ptTargetOut->uDepthTexture];
+
+    for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
+    {
+        plTexture* ptColorTexture = &ptGraphics->tResourceManager.sbtTextures[ptTargetOut->sbuColorTextures[i]];
+        VkImageView atAttachments[] = {
+            ptColorTexture->tImageView,
+            ptDepthTexture->tImageView
+        };
+        VkFramebufferCreateInfo tFrameBufferInfo = {
+            .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+            .renderPass      = ptDesc->tRenderPass._tRenderPass,
+            .attachmentCount = 2u,
+            .pAttachments    = atAttachments,
+            .width           = (uint32_t)ptDesc->tSize.x,
+            .height          = (uint32_t)ptDesc->tSize.y,
+            .layers          = 1u,
+        };
+        VkFramebuffer tFrameBuffer = {0};
+        PL_VULKAN(vkCreateFramebuffer(ptGraphics->tDevice.tLogicalDevice, &tFrameBufferInfo, NULL, &tFrameBuffer));
+        pl_sb_push(ptTargetOut->sbtFrameBuffers, tFrameBuffer);
+    }
+}
+
+void
+pl_create_main_render_target(plGraphics* ptGraphics, plRenderTarget* ptTargetOut)
+{
+    ptTargetOut->bMSAA = true;
+    ptTargetOut->sbtFrameBuffers = ptGraphics->tSwapchain.ptFrameBuffers;
+    ptTargetOut->tDesc.tRenderPass._tRenderPass = ptGraphics->tRenderPass;
+    ptTargetOut->tDesc.tRenderPass.tDesc.tColorFormat = ptGraphics->tSwapchain.tFormat;
+    ptTargetOut->tDesc.tRenderPass.tDesc.tDepthFormat = ptGraphics->tSwapchain.tDepthFormat;
+}
+
+void
+pl_create_render_pass(plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, plRenderPass* ptPassOut)
+{
+    ptPassOut->tDesc = *ptDesc;
+
+    // create render pass
+    VkAttachmentDescription atAttachments[] = {
+
+        // color attachment
+        {
+            .flags          = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT,
+            .format         = ptDesc->tColorFormat,
+            .samples        = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        },
+
+        // depth attachment
+        {
+            .format         = ptDesc->tDepthFormat,
+            .samples        = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            .finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        }
+    };
+
+    VkSubpassDependency tSubpassDependencies[] = {
+
+        {
+            .srcSubpass      = VK_SUBPASS_EXTERNAL,
+            .dstSubpass      = 0,
+            .srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT,
+            .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
+        },
+        {
+            .srcSubpass      = 0,
+            .dstSubpass      = VK_SUBPASS_EXTERNAL,
+            .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT,
+            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
+        },
+    };
+
+    VkAttachmentReference atAttachmentReferences[] = {
+        {
+            .attachment = 0,
+            .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        },
+        {
+            .attachment = 1,
+            .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL     
+        }
+    };
+
+    VkSubpassDescription tSubpass = {
+        .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .colorAttachmentCount    = 1,
+        .pColorAttachments       = &atAttachmentReferences[0],
+        .pDepthStencilAttachment = &atAttachmentReferences[1]
+    };
+
+    VkRenderPassCreateInfo tRenderPassInfo = {
+        .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+        .attachmentCount = 2,
+        .pAttachments    = atAttachments,
+        .subpassCount    = 1,
+        .pSubpasses      = &tSubpass,
+        .dependencyCount = 2,
+        .pDependencies   = tSubpassDependencies
+    };
+    PL_VULKAN(vkCreateRenderPass(ptGraphics->tDevice.tLogicalDevice, &tRenderPassInfo, NULL, &ptPassOut->_tRenderPass));
+}
+
+void
+pl_begin_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget)
+{
+    const plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
+
+    static const VkClearValue atClearValues[2] = 
+    {
+        {
+            .color.float32[0] = 0.0f,
+            .color.float32[1] = 0.0f,
+            .color.float32[2] = 0.0f,
+            .color.float32[3] = 1.0f
+        },
+        {
+            .depthStencil.depth = 1.0f,
+            .depthStencil.stencil = 0
+        }    
+    };
+
+    // set viewport
+    const VkViewport tViewport = {
+        .x        = 0.0f,
+        .y        = 0.0f,
+        .width    = ptTarget->tDesc.tSize.x,
+        .height   = ptTarget->tDesc.tSize.y,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f
+    };
+    vkCmdSetViewport(ptCurrentFrame->tCmdBuf, 0, 1, &tViewport);
+
+    // set scissor
+    const VkRect2D tDynamicScissor = {
+        .extent = {
+            .width    = (uint32_t)ptTarget->tDesc.tSize.x,
+            .height   = (uint32_t)ptTarget->tDesc.tSize.y,
+        }
+    };
+    vkCmdSetScissor(ptCurrentFrame->tCmdBuf, 0, 1, &tDynamicScissor);
+
+    const VkRenderPassBeginInfo tRenderPassBeginInfo = {
+        .sType               = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass          = ptTarget->tDesc.tRenderPass._tRenderPass,
+        .framebuffer         = ptTarget->sbtFrameBuffers[ptGraphics->tSwapchain.uCurrentImageIndex],
+        .renderArea          = {
+                                    .extent = {
+                                        .width  = (uint32_t)ptTarget->tDesc.tSize.x,
+                                        .height = (uint32_t)ptTarget->tDesc.tSize.y,
+                                    }
+                                },
+        .clearValueCount     = 2,
+        .pClearValues        = atClearValues
+    };
+    vkCmdBeginRenderPass(ptCurrentFrame->tCmdBuf, &tRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+void
+pl_end_render_target(plGraphics* ptGraphics)
+{
+    const plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
+    vkCmdEndRenderPass(ptCurrentFrame->tCmdBuf);
+}
+
+void
+pl_cleanup_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget)
+{
+    for (uint32_t i = 0u; i < pl_sb_size(ptTarget->sbtFrameBuffers); i++)
+    {
+        vkDestroyFramebuffer(ptGraphics->tDevice.tLogicalDevice, ptTarget->sbtFrameBuffers[i], NULL);
+    }
+}
+
+void
+pl_cleanup_render_pass(plGraphics* ptGraphics, plRenderPass* ptPass)
+{
+    vkDestroyRenderPass(ptGraphics->tDevice.tLogicalDevice, ptPass->_tRenderPass, NULL);
 }
 
 void
@@ -58,7 +287,7 @@ pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
 
     ptRenderer->ptGraphics = ptGraphics;
 
-    ptRenderer->uDynamicBuffer0 = pl_create_constant_buffer_ex(&ptGraphics->tResourceManager, pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536));
+    // ptRenderer->uDynamicBuffer0 = pl_create_constant_buffer_ex(&ptGraphics->tResourceManager, pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536));
 
     ptRenderer->uGlobalStorageBuffer = UINT32_MAX;
 
@@ -87,7 +316,6 @@ pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
 
     // main
     plShaderDesc tMainShaderDesc = {
-        ._tRenderPass                        = ptGraphics->tRenderPass,
         .pcPixelShader                       = "phong.frag.spv",
         .pcVertexShader                      = "primitive.vert.spv",
         .tGraphicsState.ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_COLOR_0,
@@ -129,7 +357,6 @@ pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
 
     // skybox
     plShaderDesc tSkyboxShaderDesc = {
-        ._tRenderPass                        = ptGraphics->tRenderPass,
         .pcPixelShader                       = "skybox.frag.spv",
         .pcVertexShader                      = "skybox.vert.spv",
         .tGraphicsState.ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_NONE,
@@ -156,7 +383,6 @@ pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
 
     // outline
     plShaderDesc tOutlineShaderDesc = {
-        ._tRenderPass                        = ptGraphics->tRenderPass,
         .pcPixelShader                       = "outline.frag.spv",
         .pcVertexShader                      = "outline.vert.spv",
         .tGraphicsState.ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_NORMAL,
@@ -200,98 +426,7 @@ pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
 
     ptRenderer->uMainShader    = pl_create_shader(&ptGraphics->tResourceManager, &tMainShaderDesc);
     ptRenderer->uOutlineShader = pl_create_shader(&ptGraphics->tResourceManager, &tOutlineShaderDesc);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~skybox~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     ptRenderer->uSkyboxShader = pl_create_shader(&ptGraphics->tResourceManager, &tSkyboxShaderDesc);
-
-    int texWidth, texHeight, texNumChannels;
-    int texForceNumChannels = 4;
-    unsigned char* rawBytes0 = stbi_load("../data/pilotlight-assets-master/SkyBox/right.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-    unsigned char* rawBytes1 = stbi_load("../data/pilotlight-assets-master/SkyBox/left.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-    unsigned char* rawBytes2 = stbi_load("../data/pilotlight-assets-master/SkyBox/top.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-    unsigned char* rawBytes3 = stbi_load("../data/pilotlight-assets-master/SkyBox/bottom.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-    unsigned char* rawBytes4 = stbi_load("../data/pilotlight-assets-master/SkyBox/front.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-    unsigned char* rawBytes5 = stbi_load("../data/pilotlight-assets-master/SkyBox/back.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-    PL_ASSERT(rawBytes0);
-    PL_ASSERT(rawBytes1);
-    PL_ASSERT(rawBytes2);
-    PL_ASSERT(rawBytes3);
-    PL_ASSERT(rawBytes4);
-    PL_ASSERT(rawBytes5);
-
-    unsigned char* rawBytes = pl_alloc(texWidth * texHeight * texNumChannels * 6);
-    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 0], rawBytes0, texWidth * texHeight * texNumChannels); //-V522 
-    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 1], rawBytes1, texWidth * texHeight * texNumChannels); //-V522
-    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 2], rawBytes2, texWidth * texHeight * texNumChannels); //-V522
-    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 3], rawBytes3, texWidth * texHeight * texNumChannels); //-V522
-    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 4], rawBytes4, texWidth * texHeight * texNumChannels); //-V522
-    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 5], rawBytes5, texWidth * texHeight * texNumChannels); //-V522
-
-    stbi_image_free(rawBytes0);
-    stbi_image_free(rawBytes1);
-    stbi_image_free(rawBytes2);
-    stbi_image_free(rawBytes3);
-    stbi_image_free(rawBytes4);
-    stbi_image_free(rawBytes5);
-
-    const plTextureDesc tTextureDesc = {
-        .tDimensions = {.x = (float)texWidth, .y = (float)texHeight, .z = 1.0f},
-        .tFormat     = VK_FORMAT_R8G8B8A8_UNORM,
-        .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        .uLayers     = 6,
-        .uMips       = 1,
-        .tType       = VK_IMAGE_TYPE_2D,
-        .tViewType   = VK_IMAGE_VIEW_TYPE_CUBE
-    };
-    ptRenderer->uSkyboxTexture  = pl_create_texture(&ptGraphics->tResourceManager, tTextureDesc, sizeof(unsigned char) * texHeight * texHeight * texNumChannels * 6, rawBytes);
-    pl_free(rawBytes);
-
-    const float fCubeSide = 0.5f;
-    float acSkyBoxVertices[] = {
-        -fCubeSide, -fCubeSide, -fCubeSide,
-         fCubeSide, -fCubeSide, -fCubeSide,
-        -fCubeSide,  fCubeSide, -fCubeSide,
-         fCubeSide,  fCubeSide, -fCubeSide,
-        -fCubeSide, -fCubeSide,  fCubeSide,
-         fCubeSide, -fCubeSide,  fCubeSide,
-        -fCubeSide,  fCubeSide,  fCubeSide,
-         fCubeSide,  fCubeSide,  fCubeSide 
-    };
-
-    uint32_t acSkyboxIndices[] =
-    {
-        0, 2, 1, 2, 3, 1,
-        1, 3, 5, 3, 7, 5,
-        2, 6, 3, 3, 6, 7,
-        4, 5, 7, 4, 7, 6,
-        0, 4, 2, 2, 4, 6,
-        0, 1, 4, 1, 5, 4
-    };
-
-    const plSubMesh tSubMesh = {
-        .tMesh = {
-            .uIndexCount   = 36,
-            .uVertexCount  = 24,
-            .uIndexBuffer  = pl_create_index_buffer(&ptGraphics->tResourceManager, sizeof(uint32_t) * 36, acSkyboxIndices),
-            .uVertexBuffer = pl_create_vertex_buffer(&ptGraphics->tResourceManager, sizeof(float) * 24, sizeof(float), acSkyBoxVertices),
-            .ulVertexStreamMask = PL_MESH_FORMAT_FLAG_NONE
-        }
-    };
-    pl_sb_push(ptRenderer->tSkyboxMesh.sbtSubmeshes, tSubMesh);
-
-    plBindGroupLayout tSkyboxGroupLayout0 = {
-        .uBufferCount = 1,
-        .aBuffers      = {
-            { .tType       = PL_BUFFER_BINDING_TYPE_UNIFORM, .uSlot = 0, .tStageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT}
-        },
-        .uTextureCount = 1,
-        .aTextures     = {
-            { .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uSlot = 1, .tStageFlags = VK_SHADER_STAGE_FRAGMENT_BIT }
-        }
-    };
-    size_t szSkyboxRangeSize = sizeof(plGlobalInfo);
-    ptRenderer->tSkyboxBindGroup0.tLayout = tSkyboxGroupLayout0;
-    pl_update_bind_group(ptGraphics, &ptRenderer->tSkyboxBindGroup0, 1, &ptRenderer->uDynamicBuffer0, &szSkyboxRangeSize, 1, &ptRenderer->uSkyboxTexture);
 }
 
 void
@@ -336,6 +471,7 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
     ptSceneOut->tComponentLibrary.tHierarchyComponentManager.tComponentType = PL_COMPONENT_TYPE_HIERARCHY;
     ptSceneOut->tComponentLibrary.tHierarchyComponentManager.szStride = sizeof(plHierarchyComponent);
 
+    ptSceneOut->uDynamicBuffer0 = pl_create_constant_buffer_ex(ptResourceManager, pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536));
     ptSceneOut->uDynamicBuffer1 = pl_create_constant_buffer_ex(ptResourceManager, pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536));
     ptSceneOut->uDynamicBuffer2 = pl_create_constant_buffer_ex(ptResourceManager, pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536));
 
@@ -347,12 +483,104 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
     ptSceneOut->ptObjectComponentManager = &ptSceneOut->tComponentLibrary.tObjectComponentManager;
     ptSceneOut->ptCameraComponentManager = &ptSceneOut->tComponentLibrary.tCameraComponentManager;
     ptSceneOut->ptHierarchyComponentManager = &ptSceneOut->tComponentLibrary.tHierarchyComponentManager;
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~skybox~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+    int texWidth, texHeight, texNumChannels;
+    int texForceNumChannels = 4;
+    unsigned char* rawBytes0 = stbi_load("../data/pilotlight-assets-master/SkyBox/right.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+    unsigned char* rawBytes1 = stbi_load("../data/pilotlight-assets-master/SkyBox/left.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+    unsigned char* rawBytes2 = stbi_load("../data/pilotlight-assets-master/SkyBox/top.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+    unsigned char* rawBytes3 = stbi_load("../data/pilotlight-assets-master/SkyBox/bottom.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+    unsigned char* rawBytes4 = stbi_load("../data/pilotlight-assets-master/SkyBox/front.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+    unsigned char* rawBytes5 = stbi_load("../data/pilotlight-assets-master/SkyBox/back.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+    PL_ASSERT(rawBytes0);
+    PL_ASSERT(rawBytes1);
+    PL_ASSERT(rawBytes2);
+    PL_ASSERT(rawBytes3);
+    PL_ASSERT(rawBytes4);
+    PL_ASSERT(rawBytes5);
+
+    unsigned char* rawBytes = pl_alloc(texWidth * texHeight * texNumChannels * 6);
+    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 0], rawBytes0, texWidth * texHeight * texNumChannels); //-V522 
+    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 1], rawBytes1, texWidth * texHeight * texNumChannels); //-V522
+    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 2], rawBytes2, texWidth * texHeight * texNumChannels); //-V522
+    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 3], rawBytes3, texWidth * texHeight * texNumChannels); //-V522
+    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 4], rawBytes4, texWidth * texHeight * texNumChannels); //-V522
+    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 5], rawBytes5, texWidth * texHeight * texNumChannels); //-V522
+
+    stbi_image_free(rawBytes0);
+    stbi_image_free(rawBytes1);
+    stbi_image_free(rawBytes2);
+    stbi_image_free(rawBytes3);
+    stbi_image_free(rawBytes4);
+    stbi_image_free(rawBytes5);
+
+    const plTextureDesc tTextureDesc = {
+        .tDimensions = {.x = (float)texWidth, .y = (float)texHeight, .z = 1.0f},
+        .tFormat     = VK_FORMAT_R8G8B8A8_UNORM,
+        .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .uLayers     = 6,
+        .uMips       = 1,
+        .tType       = VK_IMAGE_TYPE_2D,
+        .tViewType   = VK_IMAGE_VIEW_TYPE_CUBE
+    };
+    ptSceneOut->uSkyboxTexture  = pl_create_texture(&ptGraphics->tResourceManager, tTextureDesc, sizeof(unsigned char) * texHeight * texHeight * texNumChannels * 6, rawBytes);
+    pl_free(rawBytes);
+
+    const float fCubeSide = 0.5f;
+    float acSkyBoxVertices[] = {
+        -fCubeSide, -fCubeSide, -fCubeSide,
+         fCubeSide, -fCubeSide, -fCubeSide,
+        -fCubeSide,  fCubeSide, -fCubeSide,
+         fCubeSide,  fCubeSide, -fCubeSide,
+        -fCubeSide, -fCubeSide,  fCubeSide,
+         fCubeSide, -fCubeSide,  fCubeSide,
+        -fCubeSide,  fCubeSide,  fCubeSide,
+         fCubeSide,  fCubeSide,  fCubeSide 
+    };
+
+    uint32_t acSkyboxIndices[] =
+    {
+        0, 2, 1, 2, 3, 1,
+        1, 3, 5, 3, 7, 5,
+        2, 6, 3, 3, 6, 7,
+        4, 5, 7, 4, 7, 6,
+        0, 4, 2, 2, 4, 6,
+        0, 1, 4, 1, 5, 4
+    };
+
+    const plSubMesh tSubMesh = {
+        .tMesh = {
+            .uIndexCount   = 36,
+            .uVertexCount  = 24,
+            .uIndexBuffer  = pl_create_index_buffer(&ptGraphics->tResourceManager, sizeof(uint32_t) * 36, acSkyboxIndices),
+            .uVertexBuffer = pl_create_vertex_buffer(&ptGraphics->tResourceManager, sizeof(float) * 24, sizeof(float), acSkyBoxVertices),
+            .ulVertexStreamMask = PL_MESH_FORMAT_FLAG_NONE
+        }
+    };
+    pl_sb_push(ptSceneOut->tSkyboxMesh.sbtSubmeshes, tSubMesh);
+
+    plBindGroupLayout tSkyboxGroupLayout0 = {
+        .uBufferCount = 1,
+        .aBuffers      = {
+            { .tType       = PL_BUFFER_BINDING_TYPE_UNIFORM, .uSlot = 0, .tStageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT}
+        },
+        .uTextureCount = 1,
+        .aTextures     = {
+            { .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uSlot = 1, .tStageFlags = VK_SHADER_STAGE_FRAGMENT_BIT }
+        }
+    };
+    size_t szSkyboxRangeSize = sizeof(plGlobalInfo);
+    ptSceneOut->tSkyboxBindGroup0.tLayout = tSkyboxGroupLayout0;
+    pl_update_bind_group(ptGraphics, &ptSceneOut->tSkyboxBindGroup0, 1, &ptSceneOut->uDynamicBuffer0, &szSkyboxRangeSize, 1, &ptSceneOut->uSkyboxTexture);
 }
 
 void
-pl_bind_common_buffer(plRenderer* ptRenderer, uint32_t uBufferHandle)
+pl_reset_scene(plScene* ptScene)
 {
-    ptRenderer->uBoundDynamicBuffer0 = uBufferHandle;
+    ptScene->uDynamicBuffer0_Offset = 0;
 }
 
 void
@@ -362,8 +590,8 @@ pl_draw_scene(plScene* ptScene)
     plRenderer* ptRenderer = ptScene->ptRenderer;
     plResourceManager* ptResourceManager = &ptGraphics->tResourceManager;
 
-    const plBuffer* ptBuffer0 = &ptResourceManager->sbtBuffers[ptRenderer->uBoundDynamicBuffer0];
-    const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex;
+    const plBuffer* ptBuffer0 = &ptResourceManager->sbtBuffers[ptScene->uDynamicBuffer0];
+    const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer0_Offset;
 
     const uint32_t uDrawOffset = pl_sb_size(ptRenderer->sbtDraws);
     const uint32_t uOutlineDrawOffset = pl_sb_size(ptRenderer->sbtOutlineDraws);
@@ -413,8 +641,6 @@ pl_draw_scene(plScene* ptScene)
         .uDynamicBufferOffset0 = uBufferFrameOffset0
     }));
 
-    pl_begin_main_pass(ptGraphics);
-
     pl_draw_areas(ptRenderer->ptGraphics, pl_sb_size(ptRenderer->sbtDrawAreas), ptRenderer->sbtDrawAreas, ptRenderer->sbtDraws);
 
     pl_sb_reset(ptRenderer->sbtDrawAreas);
@@ -432,6 +658,8 @@ pl_draw_scene(plScene* ptScene)
     pl_sb_reset(ptRenderer->sbtDraws);
     pl_sb_reset(ptRenderer->sbtOutlineDraws);
     pl_sb_reset(ptRenderer->sbtDrawAreas);
+
+    ptScene->uDynamicBuffer0_Offset = (uint32_t)pl_align_up((size_t)ptScene->uDynamicBuffer0_Offset + sizeof(plGlobalInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);
 }
 
 void
@@ -445,9 +673,30 @@ pl_scene_update_ecs(plScene* ptScene)
 }
 
 void
-pl_bind_camera(plRenderer* ptRenderer, const plCameraComponent* ptCamera)
+pl_scene_bind_target(plScene* ptScene, plRenderTarget* ptTarget)
 {
-    ptRenderer->ptCamera = ptCamera;
+    ptScene->ptRenderTarget = ptTarget;
+}
+
+void
+pl_scene_bind_camera(plScene* ptScene, const plCameraComponent* ptCamera)
+{
+    ptScene->ptCamera = ptCamera;
+
+    plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
+    plRenderer* ptRenderer = ptScene->ptRenderer;
+
+    const plBuffer* ptBuffer0 = &ptGraphics->tResourceManager.sbtBuffers[ptScene->uDynamicBuffer0];
+    const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer0_Offset;
+
+    plGlobalInfo* ptGlobalInfo    = (plGlobalInfo*)&ptBuffer0->pucMapping[uBufferFrameOffset0];
+    ptGlobalInfo->tAmbientColor   = (plVec4){0.0f, 0.0f, 0.0f, 1.0f};
+    ptGlobalInfo->tCameraPos      = (plVec4){.xyz = ptCamera->tPos, .w = 0.0f};
+    ptGlobalInfo->tCameraView     = ptCamera->tViewMat;
+    ptGlobalInfo->tCameraViewProj = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
+
+    plIOContext* ptIOCtx = pl_get_io_context();
+    ptGlobalInfo->fTime  = (float)ptIOCtx->dTime;
 }
 
 void
@@ -457,16 +706,17 @@ pl_draw_sky(plScene* ptScene)
     plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
     plRenderer* ptRenderer = ptScene->ptRenderer;
     plResourceManager* ptResourceManager = &ptGraphics->tResourceManager;
+    VkSampleCountFlagBits tMSAASampleCount = ptScene->ptRenderTarget->bMSAA ? ptGraphics->tSwapchain.tMsaaSamples : VK_SAMPLE_COUNT_1_BIT;
 
-    const plBuffer* ptBuffer0 = &ptResourceManager->sbtBuffers[ptRenderer->uDynamicBuffer0];
-    const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex;
+    const plBuffer* ptBuffer0 = &ptResourceManager->sbtBuffers[ptScene->uDynamicBuffer0];
+    const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer0_Offset;
 
     plGlobalInfo* ptGlobalInfo    = (plGlobalInfo*)&ptBuffer0->pucMapping[uBufferFrameOffset0];
-    ptGlobalInfo->tCameraPos      = (plVec4){.xyz = ptRenderer->ptCamera->tPos, .w = 0.0f};
-    ptGlobalInfo->tCameraView     = ptRenderer->ptCamera->tViewMat;
-    plMat4 tReverseTransform      = pl_mat4_translate_xyz(ptRenderer->ptCamera->tPos.x, ptRenderer->ptCamera->tPos.y, ptRenderer->ptCamera->tPos.z);
-    ptGlobalInfo->tCameraViewProj = pl_mul_mat4(&ptRenderer->ptCamera->tViewMat, &tReverseTransform);
-    ptGlobalInfo->tCameraViewProj = pl_mul_mat4(&ptRenderer->ptCamera->tProjMat, &ptGlobalInfo->tCameraViewProj);
+    ptGlobalInfo->tCameraPos      = (plVec4){.xyz = ptScene->ptCamera->tPos, .w = 0.0f};
+    ptGlobalInfo->tCameraView     = ptScene->ptCamera->tViewMat;
+    plMat4 tReverseTransform      = pl_mat4_translate_xyz(ptScene->ptCamera->tPos.x, ptScene->ptCamera->tPos.y, ptScene->ptCamera->tPos.z);
+    ptGlobalInfo->tCameraViewProj = pl_mul_mat4(&ptScene->ptCamera->tViewMat, &tReverseTransform);
+    ptGlobalInfo->tCameraViewProj = pl_mul_mat4(&ptScene->ptCamera->tProjMat, &ptGlobalInfo->tCameraViewProj);
 
     uint32_t uSkyboxShaderVariant = UINT32_MAX;
 
@@ -491,8 +741,8 @@ pl_draw_sky(plScene* ptScene)
 
         for(uint32_t j = 0; j < uFillVariantCount; j++)
         {
-            plGraphicsState ptVariant = ptShader->tDesc.sbtVariants[j];
-            if(ptVariant.ulValue == tFillStateTemplate.ulValue)
+            if(ptShader->tDesc.sbtVariants[j].tGraphicsState.ulValue == tFillStateTemplate.ulValue 
+                && ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass == ptShader->tDesc.sbtVariants[j].tRenderPass)
             {
                     uSkyboxShaderVariant = ptShader->_sbuVariantPipelines[j];
                     break;
@@ -502,12 +752,12 @@ pl_draw_sky(plScene* ptScene)
         // create variant that matches texture count, vertex stream, and culling
         if(uSkyboxShaderVariant == UINT32_MAX)
         {
-            uSkyboxShaderVariant = pl_add_shader_variant(ptResourceManager, ptRenderer->uSkyboxShader, tFillStateTemplate);
+            uSkyboxShaderVariant = pl_add_shader_variant(ptResourceManager, ptRenderer->uSkyboxShader, tFillStateTemplate, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
         }
     }
 
     pl_sb_push(ptRenderer->sbtDrawAreas, ((plDrawArea){
-        .ptBindGroup0          = &ptRenderer->tSkyboxBindGroup0,
+        .ptBindGroup0          = &ptScene->tSkyboxBindGroup0,
         .uDrawOffset           = pl_sb_size(ptRenderer->sbtDraws),
         .uDrawCount            = 1,
         .uDynamicBufferOffset0 = uBufferFrameOffset0
@@ -515,7 +765,7 @@ pl_draw_sky(plScene* ptScene)
 
     pl_sb_push(ptRenderer->sbtDraws, ((plDraw){
         .uShaderVariant        = uSkyboxShaderVariant,
-        .ptMesh                = &ptRenderer->tSkyboxMesh.sbtSubmeshes[0].tMesh,
+        .ptMesh                = &ptScene->tSkyboxMesh.sbtSubmeshes[0].tMesh,
         .ptBindGroup1          = NULL,
         .ptBindGroup2          = NULL,
         .uDynamicBufferOffset1 = 0,
@@ -527,6 +777,8 @@ pl_draw_sky(plScene* ptScene)
 
     pl_sb_reset(ptRenderer->sbtDraws);
     pl_sb_reset(ptRenderer->sbtDrawAreas);
+
+    ptScene->uDynamicBuffer0_Offset = (uint32_t)pl_align_up((size_t)ptScene->uDynamicBuffer0_Offset + sizeof(plGlobalInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);
 }
 
 plEntity
@@ -663,6 +915,7 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
     case PL_COMPONENT_TYPE_MATERIAL:
     {
 
+        VkSampleCountFlagBits tMSAASampleCount = ptScene->ptRenderTarget->bMSAA ? ptGraphics->tSwapchain.tMsaaSamples : VK_SAMPLE_COUNT_1_BIT;
         uint32_t* sbuTextures = NULL;
         uint32_t uDataOffset = 0;
         size_t szRangeSize = sizeof(plMaterialInfo);
@@ -691,36 +944,38 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
                 pl_sb_push(sbuTextures, ptMaterial->uEmissiveMap);
                 ptMaterial->tMaterialBindGroup.tLayout = *pl_get_bind_group_layout(ptResourceManager, ptMaterial->uShader, 1);
                 pl_update_bind_group(ptGraphics, &ptMaterial->tMaterialBindGroup, 1, &ptScene->uDynamicBuffer1, &szRangeSize, pl_sb_size(sbuTextures), sbuTextures);
-                
-                // find variants
-                ptMaterial->uShaderVariant = UINT32_MAX;
-
-                if(ptMaterial->uAlbedoMap > 0)   ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_0;
-                if(ptMaterial->uNormalMap > 0)   ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_1;
-                if(ptMaterial->uEmissiveMap > 0) ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_2;
-
-                const plShader* ptShader = &ptResourceManager->sbtShaders[ptMaterial->uShader];   
-                const uint32_t uVariantCount = pl_sb_size(ptShader->tDesc.sbtVariants);
-
-                for(uint32_t j = 0; j < uVariantCount; j++)
-                {
-                    plGraphicsState ptVariant = ptShader->tDesc.sbtVariants[j];
-                    if(ptVariant.ulValue == ptMaterial->tGraphicsState.ulValue)
-                    {
-                            ptMaterial->uShaderVariant = ptShader->_sbuVariantPipelines[j];
-                            break;
-                    }
-                }
-
-                // create variant that matches texture count, vertex stream, and culling
-                if(ptMaterial->uShaderVariant == UINT32_MAX)
-                {
-                    ptMaterial->uShaderVariant = pl_add_shader_variant(ptResourceManager, ptMaterial->uShader, ptMaterial->tGraphicsState);
-                }
-                
-                ptMaterial->bDirty = false;
-                pl_sb_reset(sbuTextures);
             }
+                
+            // find variants
+            ptMaterial->uShaderVariant = UINT32_MAX;
+
+            if(ptMaterial->uAlbedoMap > 0)   ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_0;
+            if(ptMaterial->uNormalMap > 0)   ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_1;
+            if(ptMaterial->uEmissiveMap > 0) ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_2;
+
+            const plShader* ptShader = &ptResourceManager->sbtShaders[ptMaterial->uShader];   
+            const uint32_t uVariantCount = pl_sb_size(ptShader->tDesc.sbtVariants);
+
+            for(uint32_t j = 0; j < uVariantCount; j++)
+            {
+                plGraphicsState ptVariant = ptShader->tDesc.sbtVariants[j].tGraphicsState;
+                if(ptVariant.ulValue == ptMaterial->tGraphicsState.ulValue 
+                    && ptShader->tDesc.sbtVariants[j].tRenderPass == ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass
+                    && tMSAASampleCount == ptShader->tDesc.sbtVariants[j].tMSAASampleCount)
+                {
+                        ptMaterial->uShaderVariant = ptShader->_sbuVariantPipelines[j];
+                        break;
+                }
+            }
+
+            // create variant that matches texture count, vertex stream, and culling
+            if(ptMaterial->uShaderVariant == UINT32_MAX)
+            {
+                ptMaterial->uShaderVariant = pl_add_shader_variant(ptResourceManager, ptMaterial->uShader, ptMaterial->tGraphicsState, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
+            }
+            
+            ptMaterial->bDirty = false;
+            pl_sb_reset(sbuTextures);
 
             const uint32_t uBufferFrameOffset = ((uint32_t)ptBuffer->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex;
 
@@ -733,29 +988,6 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
         }
         break;
     }
-
-    // case PL_COMPONENT_TYPE_OBJECT:
-    // {
-    //     uint32_t uDataOffset = 0;
-    //     size_t szRangeSize = sizeof(plTransformComponent);
-
-    //     plObjectComponent* sbtComponents = ptManager->pData;
-
-    //     const plBuffer* ptBuffer = &ptResourceManager->sbtBuffers[ptScene->uDynamicBuffer2];
-
-    //     for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
-    //     {
-    //         plObjectComponent* ptObject = &sbtComponents[i];
-    //         plMeshComponent* ptMesh = pl_ecs_get_component(ptScene->ptMeshComponentManager, ptObject->tMesh);
-
-    //         const uint32_t uBufferFrameOffset = ((uint32_t)ptBuffer->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex;
-
-    //         plObjectInfo* ptObjectInfo = (plObjectInfo*)(ptBuffer->pucMapping + uDataOffset + uBufferFrameOffset);
-    //         ptObjectInfo->uVertexOffset = ptMesh->sbtSubmeshes[]
-    //         uDataOffset = (uint32_t)pl_align_up((size_t)uDataOffset + sizeof(plObjectInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);   
-    //     }
-    //     break;
-    // }
 
     case PL_COMPONENT_TYPE_TRANSFORM:
     {
