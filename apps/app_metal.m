@@ -61,7 +61,7 @@ typedef struct plAppData_t
     plDrawLayer*             bgDrawLayer;
     plFontAtlas              fontAtlas;
     plProfileContext         tProfileCtx;
-    plLogContext             tLogCtx;
+    plLogContext*            ptLogCtx;
     plMemoryContext          tMemoryCtx;
     plDataRegistry           tDataRegistryCtx;
     plExtensionRegistry      tExtensionRegistryCtx;
@@ -81,7 +81,7 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
 
     if(ptAppData) // reload
     {
-        pl_set_log_context(&ptAppData->tLogCtx);
+        pl_set_log_context(ptAppData->ptLogCtx);
         pl_set_profile_context(&ptAppData->tProfileCtx);
         pl_set_memory_context(&ptAppData->tMemoryCtx);
         pl_set_data_registry(&ptAppData->tDataRegistryCtx);
@@ -111,15 +111,15 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     pl_initialize_data_registry(&ptAppData->tDataRegistryCtx);
 
     // setup logging
-    pl_initialize_log_context(&ptAppData->tLogCtx);
+    ptAppData->ptLogCtx = pl_create_log_context();
     pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
-    pl_log_info(0, "Setup logging");
+    pl_log_info("Setup logging");
 
     // setup extension registry
     pl_initialize_extension_registry(&ptAppData->tExtensionRegistryCtx);
     pl_register_data("memory", &ptAppData->tMemoryCtx);
     pl_register_data("profile", &ptAppData->tProfileCtx);
-    pl_register_data("log", &ptAppData->tLogCtx);
+    pl_register_data("log", ptAppData->ptLogCtx);
     pl_register_data("io", ptIOCtx);
 
     plExtension tExtension = {0};

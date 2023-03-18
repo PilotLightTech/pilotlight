@@ -132,7 +132,7 @@ COMPILE TIME OPTIONS
 
 #ifndef PL_DS_ALLOC
     #include <stdlib.h>
-    #define PL_DS_ALLOC(x) malloc((x))
+    #define PL_DS_ALLOC(x) malloc(x)
     #define PL_DS_FREE(x)  free((x))
 #endif
 
