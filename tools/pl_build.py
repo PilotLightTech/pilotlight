@@ -1,4 +1,4 @@
-__version__ = "0.6.1"
+__version__ = "0.6.2"
 
 ###############################################################################
 #                                  Info                                       #
@@ -597,7 +597,7 @@ def register_standard_profiles():
 
         with platform(PlatformType.MACOS):
             with compiler("clang", CompilerType.CLANG):
-                add_compiler_flags("-std=c++17", "--debug", "-g", "-fmodules", "-ObjC")
+                add_compiler_flags("-std=c++17", "--debug", "-g", "-fmodules")
                 add_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
                 set_output_directory(None)
                 set_output_binary(None)
