@@ -219,9 +219,9 @@ pl__get_new_entry(void)
     // check if new overflow
     if(!gptDataRegistry->bOverflowInUse && gptDataRegistry->uEntryCount == gptDataRegistry->uEntryCapacity)
     {
-        gptDataRegistry->ptDataItems = (plDataEntry*)PL_REG_ALLOC(sizeof(plDataEntry) * 256);
-        memset(gptDataRegistry->ptDataItems, 0, sizeof(plDataEntry) * 256);
-        gptDataRegistry->uOverflowEntryCapacity = 256;
+        gptDataRegistry->ptDataItems = (plDataEntry*)PL_REG_ALLOC(sizeof(plDataEntry) * gptDataRegistry->uEntryCapacity * 2);
+        memset(gptDataRegistry->ptDataItems, 0, sizeof(plDataEntry) * gptDataRegistry->uEntryCapacity * 2);
+        gptDataRegistry->uOverflowEntryCapacity = gptDataRegistry->uEntryCapacity * 2;
 
         // copy stack samples
         memcpy(gptDataRegistry->ptDataItems, gptDataRegistry->atDataItems, sizeof(plDataEntry) * gptDataRegistry->uEntryCapacity);

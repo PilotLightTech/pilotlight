@@ -1092,9 +1092,9 @@ pl__get_new_log_entry(uint32_t uID)
     // check if new overflow
     if(!tPChannel->bOverflowInUse && tPChannel->uEntryCount == tPChannel->uEntryCapacity)
     {
-        tPChannel->pEntries = (plLogEntry*)PL_LOG_ALLOC(sizeof(plLogEntry) * 256);
-        memset(tPChannel->pEntries, 0, sizeof(plLogEntry) * 256);
-        tPChannel->uOverflowEntryCapacity = 256;
+        tPChannel->pEntries = (plLogEntry*)PL_LOG_ALLOC(sizeof(plLogEntry) * tPChannel->uEntryCapacity * 2);
+        memset(tPChannel->pEntries, 0, sizeof(plLogEntry) * tPChannel->uEntryCapacity * 2);
+        tPChannel->uOverflowEntryCapacity = tPChannel->uEntryCapacity * 2;
 
         // copy stack samples
         memcpy(tPChannel->pEntries, tPChannel->atEntries, sizeof(plLogEntry) * tPChannel->uEntryCapacity);

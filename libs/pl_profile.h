@@ -444,9 +444,9 @@ pl__push_sample_stack(plProfileFrame* ptFrame, uint32_t uSample)
     // check if new overflow
     if(!ptFrame->bSampleStackOverflowInUse && ptFrame->uTotalSampleStackSize == ptFrame->uSampleStackCapacity)
     {
-        ptFrame->puOverflowSampleStack = (uint32_t*)PL_PROFILE_ALLOC(sizeof(uint32_t) * 1024);
-        memset(ptFrame->puOverflowSampleStack, 0, sizeof(uint32_t) * 1024);
-        ptFrame->uOverflowSampleStackCapacity = 1024;
+        ptFrame->puOverflowSampleStack = (uint32_t*)PL_PROFILE_ALLOC(sizeof(uint32_t) * ptFrame->uSampleStackCapacity * 2);
+        memset(ptFrame->puOverflowSampleStack, 0, sizeof(uint32_t) * ptFrame->uSampleStackCapacity * 2);
+        ptFrame->uOverflowSampleStackCapacity = ptFrame->uSampleStackCapacity * 2;
 
         // copy stack samples
         memcpy(ptFrame->puOverflowSampleStack, ptFrame->auSampleStack, sizeof(uint32_t) * ptFrame->uSampleStackCapacity);
@@ -480,9 +480,9 @@ pl__get_sample(plProfileFrame* ptFrame)
     // check if new overflow
     if(!ptFrame->bOverflowInUse && ptFrame->uTotalSampleSize == ptFrame->uSampleCapacity)
     {
-        ptFrame->ptSamples = (plProfileSample*)PL_PROFILE_ALLOC(sizeof(plProfileSample) * 1024);
-        memset(ptFrame->ptSamples, 0, sizeof(plProfileSample) * 1024);
-        ptFrame->uOverflowSampleCapacity = 1024;
+        ptFrame->ptSamples = (plProfileSample*)PL_PROFILE_ALLOC(sizeof(plProfileSample) * ptFrame->uSampleCapacity * 2);
+        memset(ptFrame->ptSamples, 0, sizeof(plProfileSample) * ptFrame->uSampleCapacity * 2);
+        ptFrame->uOverflowSampleCapacity = ptFrame->uSampleCapacity * 2;
 
         // copy stack samples
         memcpy(ptFrame->ptSamples, ptFrame->atSamples, sizeof(plProfileSample) * ptFrame->uSampleCapacity);
