@@ -361,6 +361,7 @@ typedef struct _plRenderer
     plBindGroup              tGlobalBindGroup;
     uint32_t                 uGlobalStorageBuffer;
     size_t                   tNextEntity;
+    uint32_t                 uLogChannel;
 
     // draw stream
     plDraw*     sbtDraws;

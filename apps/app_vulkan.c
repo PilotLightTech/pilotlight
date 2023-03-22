@@ -633,7 +633,7 @@ pl_app_update(plAppData* ptAppData)
         pl_submit_drawlist_vulkan_ex(&ptAppData->drawlist2, 1280.0f, 720.0f, ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex, ptAppData->tOffscreenPass._tRenderPass, VK_SAMPLE_COUNT_1_BIT);
         pl_end_render_target(&ptAppData->tGraphics);
 
-        pl_begin_main_pass(&ptAppData->tGraphics);
+        pl_begin_render_target(&ptAppData->tGraphics, &ptAppData->tMainTarget);
         pl_scene_bind_target(&ptAppData->tScene, &ptAppData->tMainTarget);
         pl_scene_update_ecs(&ptAppData->tScene);
         pl_scene_bind_camera(&ptAppData->tScene, ptCamera);
@@ -647,7 +647,7 @@ pl_app_update(plAppData* ptAppData)
         pl_ui_render();
         pl_submit_drawlist_vulkan(pl_ui_get_draw_list(NULL), (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
         pl_submit_drawlist_vulkan(pl_ui_get_debug_draw_list(NULL), (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
-        pl_end_main_pass(&ptAppData->tGraphics);
+        pl_end_render_target(&ptAppData->tGraphics);
         pl_end_recording(&ptAppData->tGraphics);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~end frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

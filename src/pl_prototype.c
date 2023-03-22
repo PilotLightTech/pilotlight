@@ -22,7 +22,7 @@ Index of this file:
 #include "pl_ds.h"
 #include "pl_io.h"
 #include "pl_memory.h"
-
+#include "pl_log.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] implementations
@@ -96,11 +96,14 @@ pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc
 void
 pl_create_main_render_target(plGraphics* ptGraphics, plRenderTarget* ptTargetOut)
 {
+    plIOContext* ptIOCtx = pl_get_io_context();
     ptTargetOut->bMSAA = true;
     ptTargetOut->sbtFrameBuffers = ptGraphics->tSwapchain.ptFrameBuffers;
     ptTargetOut->tDesc.tRenderPass._tRenderPass = ptGraphics->tRenderPass;
     ptTargetOut->tDesc.tRenderPass.tDesc.tColorFormat = ptGraphics->tSwapchain.tFormat;
     ptTargetOut->tDesc.tRenderPass.tDesc.tDepthFormat = ptGraphics->tSwapchain.tDepthFormat;
+    ptTargetOut->tDesc.tSize.x = ptIOCtx->afMainViewportSize[0];
+    ptTargetOut->tDesc.tSize.y = ptIOCtx->afMainViewportSize[1];
 }
 
 void
@@ -271,6 +274,7 @@ pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
 {
     memset(ptRenderer, 0, sizeof(plRenderer));
     ptRenderer->tNextEntity = 1;
+    ptRenderer->uLogChannel = pl_add_log_channel("renderer", PL_CHANNEL_TYPE_CONSOLE | PL_CHANNEL_TYPE_BUFFER);
 
     // create dummy texture (texture slot 0 when not used)
     const plTextureDesc tTextureDesc2 = {
@@ -426,7 +430,7 @@ pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
 
     ptRenderer->uMainShader    = pl_create_shader(&ptGraphics->tResourceManager, &tMainShaderDesc);
     ptRenderer->uOutlineShader = pl_create_shader(&ptGraphics->tResourceManager, &tOutlineShaderDesc);
-    ptRenderer->uSkyboxShader = pl_create_shader(&ptGraphics->tResourceManager, &tSkyboxShaderDesc);
+    ptRenderer->uSkyboxShader  = pl_create_shader(&ptGraphics->tResourceManager, &tSkyboxShaderDesc);
 }
 
 void
@@ -720,40 +724,39 @@ pl_draw_sky(plScene* ptScene)
 
     uint32_t uSkyboxShaderVariant = UINT32_MAX;
 
+    const plShader* ptShader = &ptResourceManager->sbtShaders[ptRenderer->uSkyboxShader];   
+    const uint32_t uFillVariantCount = pl_sb_size(ptShader->tDesc.sbtVariants);
+
+    plGraphicsState tFillStateTemplate = {
+        .ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_NONE,
+        .ulDepthMode          = PL_DEPTH_MODE_LESS_OR_EQUAL,
+        .ulDepthWriteEnabled  = false,
+        .ulCullMode           = VK_CULL_MODE_NONE,
+        .ulBlendMode          = PL_BLEND_MODE_ALPHA,
+        .ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_0,
+        .ulStencilMode        = PL_STENCIL_MODE_NOT_EQUAL,
+        .ulStencilRef         = 0xff,
+        .ulStencilMask        = 0xff,
+        .ulStencilOpFail      = VK_STENCIL_OP_KEEP,
+        .ulStencilOpDepthFail = VK_STENCIL_OP_KEEP,
+        .ulStencilOpPass      = VK_STENCIL_OP_KEEP
+    };
+
+    for(uint32_t j = 0; j < uFillVariantCount; j++)
     {
-        const plShader* ptShader = &ptResourceManager->sbtShaders[ptRenderer->uSkyboxShader];   
-        const uint32_t uFillVariantCount = pl_sb_size(ptShader->tDesc.sbtVariants);
-
-        plGraphicsState tFillStateTemplate = {
-            .ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_NONE,
-            .ulDepthMode          = PL_DEPTH_MODE_LESS_OR_EQUAL,
-            .ulDepthWriteEnabled  = false,
-            .ulCullMode           = VK_CULL_MODE_NONE,
-            .ulBlendMode          = PL_BLEND_MODE_ALPHA,
-            .ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_0,
-            .ulStencilMode        = PL_STENCIL_MODE_NOT_EQUAL,
-            .ulStencilRef         = 0xff,
-            .ulStencilMask        = 0xff,
-            .ulStencilOpFail      = VK_STENCIL_OP_KEEP,
-            .ulStencilOpDepthFail = VK_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = VK_STENCIL_OP_KEEP
-        };
-
-        for(uint32_t j = 0; j < uFillVariantCount; j++)
+        if(ptShader->tDesc.sbtVariants[j].tGraphicsState.ulValue == tFillStateTemplate.ulValue 
+            && ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass == ptShader->tDesc.sbtVariants[j].tRenderPass)
         {
-            if(ptShader->tDesc.sbtVariants[j].tGraphicsState.ulValue == tFillStateTemplate.ulValue 
-                && ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass == ptShader->tDesc.sbtVariants[j].tRenderPass)
-            {
-                    uSkyboxShaderVariant = ptShader->_sbuVariantPipelines[j];
-                    break;
-            }
+                uSkyboxShaderVariant = ptShader->_sbuVariantPipelines[j];
+                break;
         }
+    }
 
-        // create variant that matches texture count, vertex stream, and culling
-        if(uSkyboxShaderVariant == UINT32_MAX)
-        {
-            uSkyboxShaderVariant = pl_add_shader_variant(ptResourceManager, ptRenderer->uSkyboxShader, tFillStateTemplate, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
-        }
+    // create variant that matches texture count, vertex stream, and culling
+    if(uSkyboxShaderVariant == UINT32_MAX)
+    {
+        pl_log_debug_to_f(ptRenderer->uLogChannel, "adding skybox shader variant");
+        uSkyboxShaderVariant = pl_add_shader_variant(ptResourceManager, ptRenderer->uSkyboxShader, tFillStateTemplate, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
     }
 
     pl_sb_push(ptRenderer->sbtDrawAreas, ((plDrawArea){
@@ -1056,9 +1059,15 @@ pl_ecs_create_mesh(plScene* ptScene, const char* pcName)
 
     plTagComponent* ptTag = pl_ecs_create_component(&ptScene->tComponentLibrary.tTagComponentManager, tNewEntity);
     if(pcName)
+    {
+        pl_log_debug_to_f(ptRenderer->uLogChannel, "created mesh: %s", pcName);
         strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
+    }
     else
+    {
+        pl_log_debug_to_f(ptRenderer->uLogChannel, "created unnamed mesh");
         strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
+    }
 
     plMeshComponent* ptMesh = pl_ecs_create_component(&ptScene->tComponentLibrary.tMeshComponentManager, tNewEntity);
     return tNewEntity;
@@ -1101,9 +1110,15 @@ pl_ecs_create_material(plScene* ptScene, const char* pcName)
 
     plTagComponent* ptTag = pl_ecs_create_component(&ptScene->tComponentLibrary.tTagComponentManager, tNewEntity);
     if(pcName)
+    {
+        pl_log_debug_to_f(ptRenderer->uLogChannel, "created material: %s", pcName);
         strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
+    }
     else
+    {
+        pl_log_debug_to_f(ptRenderer->uLogChannel, "created unnamed material");
         strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
+    }
 
     plMaterialComponent* ptMaterial = pl_ecs_create_component(&ptScene->tComponentLibrary.tMaterialComponentManager, tNewEntity);
     memset(ptMaterial, 0, sizeof(plMaterialComponent));
@@ -1137,9 +1152,15 @@ pl_ecs_create_object(plScene* ptScene, const char* pcName)
 
     plTagComponent* ptTag = pl_ecs_create_component(&ptScene->tComponentLibrary.tTagComponentManager, tNewEntity);
     if(pcName)
+    {
+        pl_log_debug_to_f(ptRenderer->uLogChannel, "created object: %s", pcName);
         strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
+    }
     else
+    {
+        pl_log_debug_to_f(ptRenderer->uLogChannel, "created unnamed object");
         strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
+    }
 
     plObjectComponent* ptObject = pl_ecs_create_component(&ptScene->tComponentLibrary.tObjectComponentManager, tNewEntity);
     memset(ptObject, 0, sizeof(plObjectComponent));
@@ -1166,9 +1187,15 @@ pl_ecs_create_transform(plScene* ptScene, const char* pcName)
 
     plTagComponent* ptTag = pl_ecs_create_component(&ptScene->tComponentLibrary.tTagComponentManager, tNewEntity);
     if(pcName)
+    {
+        pl_log_debug_to_f(ptRenderer->uLogChannel, "created transform: %s", pcName);
         strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
+    }
     else
+    {
+        pl_log_debug_to_f(ptRenderer->uLogChannel, "created unnamed transform");
         strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
+    }
 
     plTransformComponent* ptTransform = pl_ecs_create_component(&ptScene->tComponentLibrary.tTransformComponentManager, tNewEntity);
     memset(ptTransform, 0, sizeof(plTransformComponent));
@@ -1187,9 +1214,15 @@ pl_ecs_create_camera(plScene* ptScene, const char* pcName, plVec3 tPos, float fY
 
     plTagComponent* ptTag = pl_ecs_create_component(&ptScene->tComponentLibrary.tTagComponentManager, tNewEntity);
     if(pcName)
+    {
+        pl_log_debug_to_f(ptRenderer->uLogChannel, "created camera: %s", pcName);
         strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
+    }
     else
+    {
+        pl_log_debug_to_f(ptRenderer->uLogChannel, "created unnamed camera");
         strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
+    }
 
     const plCameraComponent tCamera = {
         .tPos         = tPos,

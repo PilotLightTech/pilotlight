@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] internal structs
 // [SECTION] internal functions
 // [SECTION] implementations
 // [SECTION] internal implementations
@@ -28,6 +29,21 @@ Index of this file:
 #endif
 
 //-----------------------------------------------------------------------------
+// [SECTION] internal structs
+//-----------------------------------------------------------------------------
+
+typedef struct _plVariantInfo
+{
+    VkShaderModuleCreateInfo tVertexShaderInfo;
+    VkShaderModuleCreateInfo tPixelShaderInfo;
+    VkPipelineLayout         tPipelineLayout;
+    VkRenderPass             tRenderPass;
+    VkSampleCountFlagBits    tMSAASampleCount;
+    VkSpecializationInfo     tSpecializationInfo;
+} plVariantInfo;
+
+
+//-----------------------------------------------------------------------------
 // [SECTION] internal functions
 //-----------------------------------------------------------------------------
 
@@ -46,6 +62,9 @@ static void pl__create_framebuffers(plDevice* ptDevice, VkRenderPass tRenderPass
 // resource manager setup
 static void pl__create_resource_manager  (plGraphics* ptGraphics, plDevice* ptDevice, plResourceManager* ptResourceManagerOut);
 static void pl__cleanup_resource_manager (plResourceManager* ptResourceManager);
+
+// shaders
+static VkPipeline pl__create_shader_pipeline(plResourceManager* ptResourceManager, plGraphicsState tVariant, plVariantInfo* ptInfo);
 
 // misc
 static uint32_t                            pl__get_u32_max              (uint32_t a, uint32_t b) { return a > b ? a : b;}
@@ -67,16 +86,15 @@ pl_setup_graphics(plGraphics* ptGraphics)
 
     ptGraphics->uLogChannel = pl_add_log_channel("graphics", PL_CHANNEL_TYPE_CONSOLE | PL_CHANNEL_TYPE_BUFFER);
 
-    // get io context
-    plIOContext* ptIOCtx = pl_get_io_context();
-
-    // create vulkan tInstance
+    // create vulkan instance
     pl__create_instance(ptGraphics, VK_API_VERSION_1_2, true);
     
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create surface~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    // create tSurface
+    plIOContext* ptIOCtx = pl_get_io_context();
+
     #ifdef _WIN32
-        VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {
+        const VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
             .pNext = NULL,
             .flags = 0,
@@ -85,7 +103,7 @@ pl_setup_graphics(plGraphics* ptGraphics)
         };
         PL_VULKAN(vkCreateWin32SurfaceKHR(ptGraphics->tInstance, &surfaceCreateInfo, NULL, &ptGraphics->tSurface));
     #elif defined(__APPLE__)
-        VkMetalSurfaceCreateInfoEXT tSurfaceCreateInfo = {
+        const VkMetalSurfaceCreateInfoEXT tSurfaceCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT,
             .pLayer = (CAMetalLayer*)ptIOCtx->pBackendPlatformData
         };
@@ -93,7 +111,7 @@ pl_setup_graphics(plGraphics* ptGraphics)
     #else // linux
         struct tPlatformData { xcb_connection_t* ptConnection; xcb_window_t tWindow;};
         struct tPlatformData* ptPlatformData = (struct tPlatformData*)ptIOCtx->pBackendPlatformData;
-        VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {
+        const VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
             .pNext = NULL,
             .flags = 0,
@@ -105,29 +123,61 @@ pl_setup_graphics(plGraphics* ptGraphics)
 
     pl_log_trace_to_f(ptGraphics->uLogChannel, "created vulkan surface");
 
-    // create devices
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~devices~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // select physical device & create logical device
     pl_set_current_log_channel(ptGraphics->uLogChannel);
     pl__create_device(ptGraphics->tInstance, ptGraphics->tSurface, &ptGraphics->tDevice, true);
+    plDevice* ptDevice = &ptGraphics->tDevice;
+    VkDevice tLogicalDevice = ptDevice->tLogicalDevice;
     pl_set_current_log_channel(0);
 
-	ptGraphics->vkDebugMarkerSetObjectTag = (PFN_vkDebugMarkerSetObjectTagEXT)vkGetDeviceProcAddr(ptGraphics->tDevice.tLogicalDevice, "vkDebugMarkerSetObjectTagEXT");
-	ptGraphics->vkDebugMarkerSetObjectName = (PFN_vkDebugMarkerSetObjectNameEXT)vkGetDeviceProcAddr(ptGraphics->tDevice.tLogicalDevice, "vkDebugMarkerSetObjectNameEXT");
-	ptGraphics->vkCmdDebugMarkerBegin = (PFN_vkCmdDebugMarkerBeginEXT)vkGetDeviceProcAddr(ptGraphics->tDevice.tLogicalDevice, "vkCmdDebugMarkerBeginEXT");
-	ptGraphics->vkCmdDebugMarkerEnd = (PFN_vkCmdDebugMarkerEndEXT)vkGetDeviceProcAddr(ptGraphics->tDevice.tLogicalDevice, "vkCmdDebugMarkerEndEXT");
-	ptGraphics->vkCmdDebugMarkerInsert = (PFN_vkCmdDebugMarkerInsertEXT)vkGetDeviceProcAddr(ptGraphics->tDevice.tLogicalDevice, "vkCmdDebugMarkerInsertEXT");
-    
-    // create swapchain
-    ptGraphics->tSwapchain.bVSync = true;
-    pl__create_swapchain(&ptGraphics->tDevice, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~debug markers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    // create render pass
-    VkAttachmentDescription atAttachments[] = {
+	ptGraphics->vkDebugMarkerSetObjectTag  = (PFN_vkDebugMarkerSetObjectTagEXT)vkGetDeviceProcAddr(tLogicalDevice, "vkDebugMarkerSetObjectTagEXT");
+	ptGraphics->vkDebugMarkerSetObjectName = (PFN_vkDebugMarkerSetObjectNameEXT)vkGetDeviceProcAddr(tLogicalDevice, "vkDebugMarkerSetObjectNameEXT");
+	ptGraphics->vkCmdDebugMarkerBegin      = (PFN_vkCmdDebugMarkerBeginEXT)vkGetDeviceProcAddr(tLogicalDevice, "vkCmdDebugMarkerBeginEXT");
+	ptGraphics->vkCmdDebugMarkerEnd        = (PFN_vkCmdDebugMarkerEndEXT)vkGetDeviceProcAddr(tLogicalDevice, "vkCmdDebugMarkerEndEXT");
+	ptGraphics->vkCmdDebugMarkerInsert     = (PFN_vkCmdDebugMarkerInsertEXT)vkGetDeviceProcAddr(tLogicalDevice, "vkCmdDebugMarkerInsertEXT");
+    
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~command pool~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    const VkCommandPoolCreateInfo tCommandPoolInfo = {
+        .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .queueFamilyIndex = ptGraphics->tDevice.iGraphicsQueueFamily,
+        .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+    };
+    PL_VULKAN(vkCreateCommandPool(tLogicalDevice, &tCommandPoolInfo, NULL, &ptGraphics->tCmdPool));
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~swapchain~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    ptGraphics->tSwapchain.bVSync = true;
+    pl__create_swapchain(ptDevice, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
+    plSwapchain* ptSwapchain = &ptGraphics->tSwapchain;
+
+    // transition image layouts
+    VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(ptGraphics);
+    VkImageSubresourceRange tRange = {
+        .baseMipLevel   = 0,
+        .levelCount     = 1,
+        .baseArrayLayer = 0,
+        .layerCount     = 1,
+        .aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT
+    };
+    pl_transition_image_layout(tCommandBuffer, ptSwapchain->tDepthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);
+    tRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    pl_transition_image_layout(tCommandBuffer, ptSwapchain->tColorImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    pl_submit_command_buffer(ptGraphics, tCommandBuffer);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~main renderpass~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    const VkAttachmentDescription atAttachments[] = {
 
         // color attachment
         {
             .flags          = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT,
-            .format         = ptGraphics->tSwapchain.tFormat,
-            .samples        = ptGraphics->tSwapchain.tMsaaSamples,
+            .format         = ptSwapchain->tFormat,
+            .samples        = ptSwapchain->tMsaaSamples,
             .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
             .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
@@ -138,8 +188,8 @@ pl_setup_graphics(plGraphics* ptGraphics)
 
         // depth attachment
         {
-            .format         = pl_find_depth_stencil_format(&ptGraphics->tDevice),
-            .samples        = ptGraphics->tSwapchain.tMsaaSamples,
+            .format         = pl_find_depth_stencil_format(ptDevice),
+            .samples        = ptSwapchain->tMsaaSamples,
             .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -151,7 +201,7 @@ pl_setup_graphics(plGraphics* ptGraphics)
         // color resolve attachment
         {
             .flags          = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT,
-            .format         = ptGraphics->tSwapchain.tFormat,
+            .format         = ptSwapchain->tFormat,
             .samples        = VK_SAMPLE_COUNT_1_BIT,
             .loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
@@ -162,7 +212,7 @@ pl_setup_graphics(plGraphics* ptGraphics)
         },
     };
 
-    VkSubpassDependency tSubpassDependencies[] = {
+    const VkSubpassDependency tSubpassDependencies[] = {
 
         {
             .srcSubpass      = VK_SUBPASS_EXTERNAL,
@@ -184,7 +234,7 @@ pl_setup_graphics(plGraphics* ptGraphics)
         }
     };
 
-    VkAttachmentReference atAttachmentReferences[] = {
+    const VkAttachmentReference atAttachmentReferences[] = {
         {
             .attachment = 0,
             .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
@@ -199,7 +249,7 @@ pl_setup_graphics(plGraphics* ptGraphics)
         }
     };
 
-    VkSubpassDescription tSubpass = {
+    const VkSubpassDescription tSubpass = {
         .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
         .colorAttachmentCount    = 1,
         .pColorAttachments       = &atAttachmentReferences[0],
@@ -207,7 +257,7 @@ pl_setup_graphics(plGraphics* ptGraphics)
         .pResolveAttachments     = &atAttachmentReferences[2]
     };
 
-    VkRenderPassCreateInfo tRenderPassInfo = {
+    const VkRenderPassCreateInfo tRenderPassInfo = {
         .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
         .attachmentCount = 3,
         .pAttachments    = atAttachments,
@@ -216,26 +266,17 @@ pl_setup_graphics(plGraphics* ptGraphics)
         .dependencyCount = 2,
         .pDependencies   = tSubpassDependencies
     };
-    PL_VULKAN(vkCreateRenderPass(ptGraphics->tDevice.tLogicalDevice, &tRenderPassInfo, NULL, &ptGraphics->tRenderPass));
+    PL_VULKAN(vkCreateRenderPass(tLogicalDevice, &tRenderPassInfo, NULL, &ptGraphics->tRenderPass));
 
-    // create frame buffers
-    pl__create_framebuffers(&ptGraphics->tDevice, ptGraphics->tRenderPass, &ptGraphics->tSwapchain);
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~frame buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    pl__create_framebuffers(ptDevice, ptGraphics->tRenderPass, ptSwapchain);
     
-    // create per frame resources
-    pl__create_frame_resources(ptGraphics, &ptGraphics->tDevice);
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~per-frame resources~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(ptGraphics, &ptGraphics->tDevice);
-    VkImageSubresourceRange tRange = {
-        .baseMipLevel   = 0,
-        .levelCount     = 1,
-        .baseArrayLayer = 0,
-        .layerCount     = 1,
-        .aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT
-    };
-    pl_transition_image_layout(tCommandBuffer, ptGraphics->tSwapchain.tDepthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);
-    tRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    pl_transition_image_layout(tCommandBuffer, ptGraphics->tSwapchain.tColorImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-    pl_submit_command_buffer(ptGraphics, &ptGraphics->tDevice, tCommandBuffer);
+    pl__create_frame_resources(ptGraphics, ptDevice);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~main descriptor pool~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     VkDescriptorPoolSize atPoolSizes[] =
     {
@@ -258,27 +299,30 @@ pl_setup_graphics(plGraphics* ptGraphics)
         .poolSizeCount = 11u,
         .pPoolSizes    = atPoolSizes,
     };
-    PL_VULKAN(vkCreateDescriptorPool(ptGraphics->tDevice.tLogicalDevice, &tDescriptorPoolInfo, NULL, &ptGraphics->tDescriptorPool));
+    PL_VULKAN(vkCreateDescriptorPool(tLogicalDevice, &tDescriptorPoolInfo, NULL, &ptGraphics->tDescriptorPool));
 
-    // setup resource manager
-    pl__create_resource_manager(ptGraphics, &ptGraphics->tDevice, &ptGraphics->tResourceManager);
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~resource manager~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    pl__create_resource_manager(ptGraphics, ptDevice, &ptGraphics->tResourceManager);
 }
 
 bool
 pl_begin_frame(plGraphics* ptGraphics)
 {
     plIOContext* ptIOCtx = pl_get_io_context();
+    plDevice* ptDevice = &ptGraphics->tDevice;
+    VkDevice tLogicalDevice = ptGraphics->tDevice.tLogicalDevice;
 
     plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
 
-    PL_VULKAN(vkWaitForFences(ptGraphics->tDevice.tLogicalDevice, 1, &ptCurrentFrame->tInFlight, VK_TRUE, UINT64_MAX));
-    VkResult err = vkAcquireNextImageKHR(ptGraphics->tDevice.tLogicalDevice, ptGraphics->tSwapchain.tSwapChain, UINT64_MAX, ptCurrentFrame->tImageAvailable, VK_NULL_HANDLE, &ptGraphics->tSwapchain.uCurrentImageIndex);
+    PL_VULKAN(vkWaitForFences(tLogicalDevice, 1, &ptCurrentFrame->tInFlight, VK_TRUE, UINT64_MAX));
+    VkResult err = vkAcquireNextImageKHR(tLogicalDevice, ptGraphics->tSwapchain.tSwapChain, UINT64_MAX, ptCurrentFrame->tImageAvailable, VK_NULL_HANDLE, &ptGraphics->tSwapchain.uCurrentImageIndex);
     if(err == VK_SUBOPTIMAL_KHR || err == VK_ERROR_OUT_OF_DATE_KHR)
     {
         if(err == VK_ERROR_OUT_OF_DATE_KHR)
         {
-            pl__create_swapchain(&ptGraphics->tDevice, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
-            pl__create_framebuffers(&ptGraphics->tDevice, ptGraphics->tRenderPass, &ptGraphics->tSwapchain);
+            pl__create_swapchain(ptDevice, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
+            pl__create_framebuffers(ptDevice, ptGraphics->tRenderPass, &ptGraphics->tSwapchain);
             return false;
         }
     }
@@ -288,7 +332,7 @@ pl_begin_frame(plGraphics* ptGraphics)
     }
 
     if (ptCurrentFrame->tInFlight != VK_NULL_HANDLE)
-        PL_VULKAN(vkWaitForFences(ptGraphics->tDevice.tLogicalDevice, 1, &ptCurrentFrame->tInFlight, VK_TRUE, UINT64_MAX));
+        PL_VULKAN(vkWaitForFences(tLogicalDevice, 1, &ptCurrentFrame->tInFlight, VK_TRUE, UINT64_MAX));
 
     return true; 
 }
@@ -297,8 +341,9 @@ void
 pl_end_frame(plGraphics* ptGraphics)
 {
     plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
-    plIOContext* ptIOCtx = pl_get_io_context();
-
+    plDevice* ptDevice = &ptGraphics->tDevice;
+    VkDevice tLogicalDevice = ptGraphics->tDevice.tLogicalDevice;
+    
     // submit
     const VkPipelineStageFlags atWaitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     const VkSubmitInfo tSubmitInfo = {
@@ -311,8 +356,8 @@ pl_end_frame(plGraphics* ptGraphics)
         .signalSemaphoreCount = 1,
         .pSignalSemaphores    = &ptCurrentFrame->tRenderFinish
     };
-    PL_VULKAN(vkResetFences(ptGraphics->tDevice.tLogicalDevice, 1, &ptCurrentFrame->tInFlight));
-    PL_VULKAN(vkQueueSubmit(ptGraphics->tDevice.tGraphicsQueue, 1, &tSubmitInfo, ptCurrentFrame->tInFlight));          
+    PL_VULKAN(vkResetFences(tLogicalDevice, 1, &ptCurrentFrame->tInFlight));
+    PL_VULKAN(vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, ptCurrentFrame->tInFlight));          
     
     // present                        
     const VkPresentInfoKHR tPresentInfo = {
@@ -323,11 +368,12 @@ pl_end_frame(plGraphics* ptGraphics)
         .pSwapchains        = &ptGraphics->tSwapchain.tSwapChain,
         .pImageIndices      = &ptGraphics->tSwapchain.uCurrentImageIndex,
     };
-    const VkResult tResult = vkQueuePresentKHR(ptGraphics->tDevice.tPresentQueue, &tPresentInfo);
+    const VkResult tResult = vkQueuePresentKHR(ptDevice->tPresentQueue, &tPresentInfo);
     if(tResult == VK_SUBOPTIMAL_KHR || tResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        pl__create_swapchain(&ptGraphics->tDevice, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
-        pl__create_framebuffers(&ptGraphics->tDevice, ptGraphics->tRenderPass, &ptGraphics->tSwapchain);
+        plIOContext* ptIOCtx = pl_get_io_context();
+        pl__create_swapchain(ptDevice, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
+        pl__create_framebuffers(ptDevice, ptGraphics->tRenderPass, &ptGraphics->tSwapchain);
     }
     else
     {
@@ -340,12 +386,15 @@ pl_end_frame(plGraphics* ptGraphics)
 void
 pl_resize_graphics(plGraphics* ptGraphics)
 {
+    pl_log_trace_to_f(ptGraphics->uLogChannel, "resizing swapchain");
+    
     plIOContext* ptIOCtx = pl_get_io_context();
+    plDevice* ptDevice = &ptGraphics->tDevice;
 
-    pl__create_swapchain(&ptGraphics->tDevice, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
-    pl__create_framebuffers(&ptGraphics->tDevice, ptGraphics->tRenderPass, &ptGraphics->tSwapchain);  
+    pl__create_swapchain(ptDevice, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
+    pl__create_framebuffers(ptDevice, ptGraphics->tRenderPass, &ptGraphics->tSwapchain);  
 
-    VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(ptGraphics, &ptGraphics->tDevice);
+    VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(ptGraphics);
     VkImageSubresourceRange tRange = {
         .baseMipLevel   = 0,
         .levelCount     = 1,
@@ -357,7 +406,7 @@ pl_resize_graphics(plGraphics* ptGraphics)
     pl_transition_image_layout(tCommandBuffer, ptGraphics->tSwapchain.tDepthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT ,VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);
     tRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     pl_transition_image_layout(tCommandBuffer, ptGraphics->tSwapchain.tColorImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-    pl_submit_command_buffer(ptGraphics, &ptGraphics->tDevice, tCommandBuffer);    
+    pl_submit_command_buffer(ptGraphics, tCommandBuffer);    
 }
 
 void
@@ -379,76 +428,22 @@ pl_end_recording(plGraphics* ptGraphics)
     PL_VULKAN(vkEndCommandBuffer(ptCurrentFrame->tCmdBuf));
 }
 
-void
-pl_begin_main_pass(plGraphics* ptGraphics)
-{
-    static const VkClearValue atClearValues[2] = 
-    {
-        {
-            .color.float32[0] = 0.0f,
-            .color.float32[1] = 0.0f,
-            .color.float32[2] = 0.0f,
-            .color.float32[3] = 1.0f
-        },
-        {
-            .depthStencil.depth = 1.0f,
-            .depthStencil.stencil = 0
-        }    
-    };
-
-    const plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
-
-    const VkRenderPassBeginInfo tRenderPassBeginInfo = {
-        .sType               = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass          = ptGraphics->tRenderPass,
-        .framebuffer         = ptGraphics->tSwapchain.ptFrameBuffers[ptGraphics->tSwapchain.uCurrentImageIndex],
-        .renderArea.offset.x = 0,
-        .renderArea.offset.y = 0,
-        .renderArea.extent   = ptGraphics->tSwapchain.tExtent,
-        .clearValueCount     = 2,
-        .pClearValues        = atClearValues
-    };
-    vkCmdBeginRenderPass(ptCurrentFrame->tCmdBuf, &tRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-    // set viewport
-    const VkViewport tViewport = {
-        .x        = 0.0f,
-        .y        = 0.0f,
-        .width    = (float)ptGraphics->tSwapchain.tExtent.width,
-        .height   = (float)ptGraphics->tSwapchain.tExtent.height,
-        .minDepth = 0.0f,
-        .maxDepth = 1.0f
-    };
-    vkCmdSetViewport(ptCurrentFrame->tCmdBuf, 0, 1, &tViewport);
-
-    // set scissor
-    const VkRect2D tDynamicScissor = {
-        .extent = ptGraphics->tSwapchain.tExtent
-    };
-    vkCmdSetScissor(ptCurrentFrame->tCmdBuf, 0, 1, &tDynamicScissor);
-}
-
-void
-pl_end_main_pass(plGraphics* ptGraphics)
-{
-    const plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
-    vkCmdEndRenderPass(ptCurrentFrame->tCmdBuf);
-}
-
 VkCommandBuffer
-pl_begin_command_buffer(plGraphics* ptGraphics, plDevice* ptDevice)
+pl_begin_command_buffer(plGraphics* ptGraphics)
 {
+    plDevice* ptDevice = &ptGraphics->tDevice;
+    VkDevice tLogicalDevice = ptGraphics->tDevice.tLogicalDevice;
     VkCommandBuffer tCommandBuffer = {0};
     
-    VkCommandBufferAllocateInfo tAllocInfo = {
+    const VkCommandBufferAllocateInfo tAllocInfo = {
         .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandPool        = ptGraphics->tCmdPool,
         .commandBufferCount = 1u,
     };
-    vkAllocateCommandBuffers(ptDevice->tLogicalDevice, &tAllocInfo, &tCommandBuffer);
+    vkAllocateCommandBuffers(tLogicalDevice, &tAllocInfo, &tCommandBuffer);
 
-    VkCommandBufferBeginInfo tBeginInfo = {
+    const VkCommandBufferBeginInfo tBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
     };
@@ -459,10 +454,13 @@ pl_begin_command_buffer(plGraphics* ptGraphics, plDevice* ptDevice)
 }
 
 void
-pl_submit_command_buffer(plGraphics* ptGraphics, plDevice* ptDevice, VkCommandBuffer tCmdBuffer)
+pl_submit_command_buffer(plGraphics* ptGraphics, VkCommandBuffer tCmdBuffer)
 {
+    plDevice* ptDevice = &ptGraphics->tDevice;
+    VkDevice tLogicalDevice = ptGraphics->tDevice.tLogicalDevice;
+
     vkEndCommandBuffer(tCmdBuffer);
-    VkSubmitInfo tSubmitInfo = {
+    const VkSubmitInfo tSubmitInfo = {
         .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .commandBufferCount = 1u,
         .pCommandBuffers    = &tCmdBuffer,
@@ -471,189 +469,6 @@ pl_submit_command_buffer(plGraphics* ptGraphics, plDevice* ptDevice, VkCommandBu
     vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE);
     vkDeviceWaitIdle(ptDevice->tLogicalDevice);
     vkFreeCommandBuffers(ptDevice->tLogicalDevice, ptGraphics->tCmdPool, 1, &tCmdBuffer);
-}
-
-typedef struct _plVariantInfo
-{
-    VkShaderModuleCreateInfo tVertexShaderInfo;
-    VkShaderModuleCreateInfo tPixelShaderInfo;
-    VkPipelineLayout         tPipelineLayout;
-    VkRenderPass             tRenderPass;
-    VkSampleCountFlagBits    tMSAASampleCount;
-    VkSpecializationInfo     tSpecializationInfo;
-} plVariantInfo;
-
-VkPipeline
-pl__create_shader_pipeline(plResourceManager* ptResourceManager, plGraphicsState tVariant, plVariantInfo* ptInfo)
-{
-    VkPipeline tPipeline = VK_NULL_HANDLE;
-
-    //---------------------------------------------------------------------
-    // input assembler stage
-    //---------------------------------------------------------------------
-    VkPipelineInputAssemblyStateCreateInfo tInputAssembly = {
-        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        .primitiveRestartEnable = VK_FALSE
-    };
-
-    const VkVertexInputAttributeDescription tAttributeDescription =
-    {
-        .binding  = 0,
-        .format   = VK_FORMAT_R32G32B32_SFLOAT,
-        .location = 0,
-        .offset   = 0
-    };
-
-    const VkVertexInputBindingDescription tBindingDescription =
-    {
-        .binding   = 0,
-        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-        .stride    = sizeof(float) * 3
-    };
-
-    const VkPipelineVertexInputStateCreateInfo tVertexInputInfo = {
-        .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount   = 1,
-        .vertexAttributeDescriptionCount = 1,
-        .pVertexBindingDescriptions      = &tBindingDescription,
-        .pVertexAttributeDescriptions    = &tAttributeDescription
-    };
-
-    //---------------------------------------------------------------------
-    // vertex shader stage
-    //---------------------------------------------------------------------
-    VkPipelineShaderStageCreateInfo tVertexShaderStageInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_VERTEX_BIT,
-        .pName = "main",
-        .pSpecializationInfo = &ptInfo->tSpecializationInfo
-    };
-    PL_VULKAN(vkCreateShaderModule(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, &ptInfo->tVertexShaderInfo, NULL, &tVertexShaderStageInfo.module));
-
-    //---------------------------------------------------------------------
-    // pixel shader stage
-    //---------------------------------------------------------------------
-
-    VkPipelineShaderStageCreateInfo tPixelShaderStageInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .pName = "main",
-        .pSpecializationInfo = &ptInfo->tSpecializationInfo
-    };
-    PL_VULKAN(vkCreateShaderModule(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, &ptInfo->tPixelShaderInfo, NULL, &tPixelShaderStageInfo.module));
-
-    //---------------------------------------------------------------------
-    // color blending stage
-    //---------------------------------------------------------------------
-
-    const VkPipelineColorBlendAttachmentState tColorBlendAttachment = pl__get_blend_state((plBlendMode)tVariant.ulBlendMode);
-
-    const VkPipelineColorBlendStateCreateInfo tColorBlending = {
-        .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .logicOpEnable   = VK_FALSE,
-        .logicOp         = VK_LOGIC_OP_COPY,
-        .attachmentCount = 1,
-        .pAttachments    = &tColorBlendAttachment
-    };
-
-
-    const VkPipelineMultisampleStateCreateInfo tMultisampling = {
-        .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .sampleShadingEnable  = VK_FALSE,
-        .rasterizationSamples = ptInfo->tMSAASampleCount
-    };
-
-    //---------------------------------------------------------------------
-    // depth stencil
-    //---------------------------------------------------------------------
-
-    VkPipelineDepthStencilStateCreateInfo tDepthStencil = {
-        .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthTestEnable       = tVariant.ulDepthMode == PL_DEPTH_MODE_ALWAYS ? VK_FALSE : VK_TRUE,
-        .depthWriteEnable      = tVariant.ulDepthWriteEnabled ? VK_TRUE : VK_FALSE,
-        .depthCompareOp        = tVariant.ulDepthMode,
-        .depthBoundsTestEnable = VK_FALSE,
-        .maxDepthBounds        = 1.0f,
-        .stencilTestEnable     = VK_TRUE,
-        .back.compareOp        = (uint32_t)tVariant.ulStencilMode,
-        .back.failOp           = (uint32_t)tVariant.ulStencilOpFail,
-        .back.depthFailOp      = (uint32_t)tVariant.ulStencilOpDepthFail,
-        .back.passOp           = (uint32_t)tVariant.ulStencilOpPass,
-        .back.compareMask      = (uint32_t)tVariant.ulStencilRef,
-        .back.writeMask        = (uint32_t)tVariant.ulStencilMask,
-        .back.reference        = 1
-    };
-    tDepthStencil.front = tDepthStencil.back;
-
-    //---------------------------------------------------------------------
-    // other
-    //---------------------------------------------------------------------
-
-    // dynamic (set later)
-    const VkViewport tViewport = {0};
-    const VkRect2D tScissor    = {0};
-
-    const VkPipelineViewportStateCreateInfo tViewportState = {
-        .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewportCount = 1,
-        .pViewports    = &tViewport,
-        .scissorCount  = 1,
-        .pScissors     = &tScissor,
-    };
-
-    const VkPipelineRasterizationStateCreateInfo tRasterizer = {
-        .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .depthClampEnable        = VK_FALSE,
-        .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode             = VK_POLYGON_MODE_FILL,
-        .lineWidth               = 1.0f,
-        .cullMode                = (int)tVariant.ulCullMode,
-        .frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE, // VK_FRONT_FACE_CLOCKWISE
-        .depthBiasEnable         = VK_FALSE
-    };
-
-    //---------------------------------------------------------------------
-    // Create Pipeline
-    //---------------------------------------------------------------------
-    const VkPipelineShaderStageCreateInfo atShaderStages[] = { 
-        tVertexShaderStageInfo, 
-        tPixelShaderStageInfo
-    };
-
-    VkDynamicState atDynamicStateEnables[] = { 
-        VK_DYNAMIC_STATE_VIEWPORT, 
-        VK_DYNAMIC_STATE_SCISSOR
-    };
-
-    VkPipelineDynamicStateCreateInfo tDynamicState = {
-        .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .dynamicStateCount = 2u,
-        .pDynamicStates    = atDynamicStateEnables
-    };
-
-    VkGraphicsPipelineCreateInfo tPipelineInfo = {
-        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .stageCount          = 2u,
-        .pStages             = atShaderStages,
-        .pVertexInputState   = &tVertexInputInfo,
-        .pInputAssemblyState = &tInputAssembly,
-        .pViewportState      = &tViewportState,
-        .pRasterizationState = &tRasterizer,
-        .pMultisampleState   = &tMultisampling,
-        .pColorBlendState    = &tColorBlending,
-        .pDynamicState       = &tDynamicState,
-        .layout              = ptInfo->tPipelineLayout,
-        .renderPass          = ptInfo->tRenderPass,
-        .subpass             = 0u,
-        .basePipelineHandle  = VK_NULL_HANDLE,
-        .pDepthStencilState  = &tDepthStencil,
-    };
-    PL_VULKAN(vkCreateGraphicsPipelines(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, VK_NULL_HANDLE, 1, &tPipelineInfo, NULL, &tPipeline));
-
-    vkDestroyShaderModule(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, tVertexShaderStageInfo.module, NULL);
-    vkDestroyShaderModule(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, tPixelShaderStageInfo.module, NULL);
-    return tPipeline;
 }
 
 uint32_t
@@ -802,7 +617,6 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
                 .pData         = aiData
             }
         };
-        // pl_sb_push(tShader._sbtVariantPipelines, pl__create_shader_pipeline(ptResourceManager, tShader.tDesc.sbtVariants[i], &tVariantInfo));
         plShaderVariant tShaderVariant = {
             .tPipelineLayout = tPipelineLayout,
             .tPipeline       = pl__create_shader_pipeline(ptResourceManager, tShader.tDesc.sbtVariants[i].tGraphicsState, &tVariantInfo),
@@ -891,7 +705,6 @@ pl_add_shader_variant(plResourceManager* ptResourceManager, uint32_t uShader, pl
             .pData         = aiData
         }
     };
-    //pl_sb_push(ptShader->_sbtVariantPipelines, pl__create_shader_pipeline(ptResourceManager, tVariant, &tVariantInfo));
     plShaderVariant tShaderVariant = {
         .tPipelineLayout = ptShader->tPipelineLayout,
         .tPipeline       = pl__create_shader_pipeline(ptResourceManager, tVariant, &tVariantInfo),
@@ -953,6 +766,9 @@ pl_update_bind_group(plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBuf
     PL_ASSERT(uBufferCount == ptGroup->tLayout.uBufferCount && "bind group buffer count & update buffer count must match.");
     PL_ASSERT(uTextureCount == ptGroup->tLayout.uTextureCount && "bind group texture count & update texture count must match.");
 
+    plDevice* ptDevice = &ptGraphics->tDevice;
+    VkDevice tLogicalDevice = ptGraphics->tDevice.tLogicalDevice;
+
     // allocate descriptors if not done already
     if(ptGroup->_tDescriptorSet == VK_NULL_HANDLE)
     {
@@ -965,7 +781,9 @@ pl_update_bind_group(plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBuf
             .descriptorSetCount = 1,
             .pSetLayouts        = &ptGroup->tLayout._tDescriptorSetLayout
         };
-        PL_VULKAN(vkAllocateDescriptorSets(ptGraphics->tDevice.tLogicalDevice, &tDescriptorSetAllocInfo, &ptGroup->_tDescriptorSet));
+        PL_VULKAN(vkAllocateDescriptorSets(tLogicalDevice, &tDescriptorSetAllocInfo, &ptGroup->_tDescriptorSet));
+
+        pl_log_debug_to_f(ptGraphics->uLogChannel, "allocating new descriptor sets");
     }
 
     VkWriteDescriptorSet* sbtWrites = NULL;
@@ -1015,10 +833,12 @@ pl_update_bind_group(plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBuf
         sbtWrites[uCurrentWrite].pNext           = NULL;
         uCurrentWrite++;
     }
-    vkUpdateDescriptorSets(ptGraphics->tDevice.tLogicalDevice, uCurrentWrite, sbtWrites, 0, NULL);
+    vkUpdateDescriptorSets(tLogicalDevice, uCurrentWrite, sbtWrites, 0, NULL);
     pl_sb_free(sbtWrites);
     pl_sb_free(sbtBufferDescInfos);
-    pl_sb_free(sbtImageDescInfos);   
+    pl_sb_free(sbtImageDescInfos);
+
+    pl_log_debug_to_f(ptGraphics->uLogChannel, "updating descriptor sets");
 }
 
 void
@@ -1054,7 +874,6 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
             }
 
             plShaderVariant* ptVariant = pl_get_shader(&ptGraphics->tResourceManager, uCurrentVariant);
-
 
             // mesh
             if(ptDraw->ptMesh->uIndexBuffer != uCurrentIndexBuffer)
@@ -1114,6 +933,7 @@ pl_process_cleanup_queue(plResourceManager* ptResourceManager, uint32_t uFramesT
 {
 
     const VkDevice tDevice = ptResourceManager->_ptDevice->tLogicalDevice;
+    plGraphics* ptGraphics = ptResourceManager->_ptGraphics;
 
     // buffer cleanup
     pl_sb_reset(ptResourceManager->_sbulTempQueue);
@@ -1139,6 +959,8 @@ pl_process_cleanup_queue(plResourceManager* ptResourceManager, uint32_t uFramesT
 
             vkDestroyBuffer(tDevice, ptBuffer->tBuffer, NULL);
             vkFreeMemory(tDevice, ptBuffer->tBufferMemory, NULL);
+
+            pl_log_debug_to_f(ptGraphics->uLogChannel, "destroying buffer %u", ulBufferIndex);
 
             ptBuffer->pucMapping = NULL;
             ptBuffer->tBuffer = VK_NULL_HANDLE;
@@ -1190,6 +1012,8 @@ pl_process_cleanup_queue(plResourceManager* ptResourceManager, uint32_t uFramesT
             vkDestroyImageView(tDevice, ptTexture->tImageView, NULL);
             vkDestroySampler(tDevice, ptTexture->tSampler, NULL);
             vkFreeMemory(tDevice, ptTexture->tMemory, NULL);
+
+            pl_log_debug_to_f(ptGraphics->uLogChannel, "destroying texture %u", ulTextureIndex);
 
             ptTexture->tImage = VK_NULL_HANDLE;
             ptTexture->tMemory = VK_NULL_HANDLE;
@@ -1247,6 +1071,8 @@ pl_process_cleanup_queue(plResourceManager* ptResourceManager, uint32_t uFramesT
             // add to free indices
             pl_sb_push(ptResourceManager->_sbulShaderFreeIndices, uShaderIndex);
             bNeedUpdate = true;
+
+            pl_log_debug_to_f(ptGraphics->uLogChannel, "destroying shader %u", uShaderIndex);
         }
         else
         {
@@ -1281,13 +1107,13 @@ pl_transfer_data_to_buffer(plResourceManager* ptResourceManager, VkBuffer tDest,
     PL_VULKAN(vkFlushMappedMemoryRanges(ptResourceManager->_ptDevice->tLogicalDevice, 1, &tMemoryRange));
 
     // perform copy from staging buffer to destination buffer
-    VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(ptResourceManager->_ptGraphics, ptResourceManager->_ptDevice);
+    VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(ptResourceManager->_ptGraphics);
 
     const VkBufferCopy tCopyRegion = {
         .size = szSize
     };
     vkCmdCopyBuffer(tCommandBuffer, ptResourceManager->_tStagingBuffer, tDest, 1, &tCopyRegion);
-    pl_submit_command_buffer(ptResourceManager->_ptGraphics, ptResourceManager->_ptDevice, tCommandBuffer);
+    pl_submit_command_buffer(ptResourceManager->_ptGraphics, tCommandBuffer);
 
 }
 
@@ -1316,7 +1142,7 @@ pl_transfer_data_to_image(plResourceManager* ptResourceManager, plTexture* ptDes
         .layerCount     = ptDest->tDesc.uLayers
     };
 
-    VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(ptResourceManager->_ptGraphics, ptResourceManager->_ptDevice);
+    VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(ptResourceManager->_ptGraphics);
 
     // transition destination image layout to transfer destination
     pl_transition_image_layout(tCommandBuffer, ptDest->tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
@@ -1404,7 +1230,7 @@ pl_transfer_data_to_image(plResourceManager* ptResourceManager, plTexture* ptDes
         pl_transition_image_layout(tCommandBuffer, ptDest->tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
     }
 
-    pl_submit_command_buffer(ptResourceManager->_ptGraphics, ptResourceManager->_ptDevice, tCommandBuffer);
+    pl_submit_command_buffer(ptResourceManager->_ptGraphics, tCommandBuffer);
 }
 
 uint32_t
@@ -1682,7 +1508,7 @@ pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, siz
         PL_VULKAN(vkCreateSampler(tDevice, &tSamplerInfo, NULL, &tTexture.tSampler));    
     }
 
-    VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(ptResourceManager->_ptGraphics, ptResourceManager->_ptDevice);
+    VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(ptResourceManager->_ptGraphics);
     VkImageSubresourceRange tRange = {
         .baseMipLevel   = 0,
         .levelCount     = 1,
@@ -1696,7 +1522,7 @@ pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, siz
         pl_transition_image_layout(tCommandBuffer, tTexture.tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
     else if(tDesc.tUsage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
         pl_transition_image_layout(tCommandBuffer, tTexture.tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-    pl_submit_command_buffer(ptResourceManager->_ptGraphics, ptResourceManager->_ptDevice, tCommandBuffer);
+    pl_submit_command_buffer(ptResourceManager->_ptGraphics, tCommandBuffer);
 
     // find free index
     uint32_t ulTextureIndex = 0u;
@@ -1811,6 +1637,9 @@ pl_request_descriptor_set_layout(plResourceManager* ptResourceManager, plBindGro
     pl_sb_push(ptResourceManager->_sbuDescriptorSetLayoutHashes, uHash);
     pl_sb_push(ptResourceManager->_sbtDescriptorSetLayouts, tDescriptorSetLayout);
     pl_sb_free(sbtDescriptorSetLayoutBindings);
+
+    pl_log_debug_to_f(ptResourceManager->_ptGraphics->uLogChannel, "created new descriptor set layout %u", uHash);
+
     return tDescriptorSetLayout;
 }
 
@@ -2362,24 +2191,16 @@ pl__create_device(VkInstance tInstance, VkSurfaceKHR tSurface, plDevice* ptDevic
 static void
 pl__create_frame_resources(plGraphics* ptGraphics, plDevice* ptDevice)
 {
-    // create command pool
-    VkCommandPoolCreateInfo tCommandPoolInfo = {
-        .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .queueFamilyIndex = ptDevice->iGraphicsQueueFamily,
-        .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
-    };
-    PL_VULKAN(vkCreateCommandPool(ptDevice->tLogicalDevice, &tCommandPoolInfo, NULL, &ptGraphics->tCmdPool));
-
-    VkSemaphoreCreateInfo tSemaphoreInfo = {
+    const VkSemaphoreCreateInfo tSemaphoreInfo = {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
     };
 
-    VkFenceCreateInfo tFenceInfo = {
+    const VkFenceCreateInfo tFenceInfo = {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT
     };
 
-    VkCommandBufferAllocateInfo tAllocInfo = {
+    const VkCommandBufferAllocateInfo tAllocInfo = {
         .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .commandPool        = ptGraphics->tCmdPool,
         .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
@@ -2486,7 +2307,7 @@ pl__create_swapchain(plDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uWidth,
             }
         }
     }
-    PL_ASSERT(bPreferenceFound && "no preferred tSurface format found");
+    PL_ASSERT(bPreferenceFound && "no preferred surface format found");
 
     // chose swap present mode
     VkPresentModeKHR tPresentMode = VK_PRESENT_MODE_FIFO_KHR;
@@ -3005,4 +2826,184 @@ pl__get_blend_state(plBlendMode tBlendMode)
 
     PL_ASSERT(tBlendMode < PL_BLEND_MODE_COUNT && "blend mode out of range");
     return atStateMap[tBlendMode];
+}
+
+static VkPipeline
+pl__create_shader_pipeline(plResourceManager* ptResourceManager, plGraphicsState tVariant, plVariantInfo* ptInfo)
+{
+    plGraphics* ptGraphics = ptResourceManager->_ptGraphics;
+    plDevice* ptDevice = &ptGraphics->tDevice;
+    VkDevice tLogicalDevice = ptGraphics->tDevice.tLogicalDevice;
+
+    VkPipeline tPipeline = VK_NULL_HANDLE;
+
+    //---------------------------------------------------------------------
+    // input assembler stage
+    //---------------------------------------------------------------------
+    VkPipelineInputAssemblyStateCreateInfo tInputAssembly = {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .primitiveRestartEnable = VK_FALSE
+    };
+
+    const VkVertexInputAttributeDescription tAttributeDescription =
+    {
+        .binding  = 0,
+        .format   = VK_FORMAT_R32G32B32_SFLOAT,
+        .location = 0,
+        .offset   = 0
+    };
+
+    const VkVertexInputBindingDescription tBindingDescription =
+    {
+        .binding   = 0,
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+        .stride    = sizeof(float) * 3
+    };
+
+    const VkPipelineVertexInputStateCreateInfo tVertexInputInfo = {
+        .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount   = 1,
+        .vertexAttributeDescriptionCount = 1,
+        .pVertexBindingDescriptions      = &tBindingDescription,
+        .pVertexAttributeDescriptions    = &tAttributeDescription
+    };
+
+    //---------------------------------------------------------------------
+    // vertex shader stage
+    //---------------------------------------------------------------------
+    VkPipelineShaderStageCreateInfo tVertexShaderStageInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+        .pName = "main",
+        .pSpecializationInfo = &ptInfo->tSpecializationInfo
+    };
+    PL_VULKAN(vkCreateShaderModule(tLogicalDevice, &ptInfo->tVertexShaderInfo, NULL, &tVertexShaderStageInfo.module));
+
+    //---------------------------------------------------------------------
+    // pixel shader stage
+    //---------------------------------------------------------------------
+
+    VkPipelineShaderStageCreateInfo tPixelShaderStageInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .pName = "main",
+        .pSpecializationInfo = &ptInfo->tSpecializationInfo
+    };
+    PL_VULKAN(vkCreateShaderModule(tLogicalDevice, &ptInfo->tPixelShaderInfo, NULL, &tPixelShaderStageInfo.module));
+
+    //---------------------------------------------------------------------
+    // color blending stage
+    //---------------------------------------------------------------------
+
+    const VkPipelineColorBlendAttachmentState tColorBlendAttachment = pl__get_blend_state((plBlendMode)tVariant.ulBlendMode);
+
+    const VkPipelineColorBlendStateCreateInfo tColorBlending = {
+        .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .logicOpEnable   = VK_FALSE,
+        .logicOp         = VK_LOGIC_OP_COPY,
+        .attachmentCount = 1,
+        .pAttachments    = &tColorBlendAttachment
+    };
+
+
+    const VkPipelineMultisampleStateCreateInfo tMultisampling = {
+        .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .sampleShadingEnable  = VK_FALSE,
+        .rasterizationSamples = ptInfo->tMSAASampleCount
+    };
+
+    //---------------------------------------------------------------------
+    // depth stencil
+    //---------------------------------------------------------------------
+
+    VkPipelineDepthStencilStateCreateInfo tDepthStencil = {
+        .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable       = tVariant.ulDepthMode == PL_DEPTH_MODE_ALWAYS ? VK_FALSE : VK_TRUE,
+        .depthWriteEnable      = tVariant.ulDepthWriteEnabled ? VK_TRUE : VK_FALSE,
+        .depthCompareOp        = tVariant.ulDepthMode,
+        .depthBoundsTestEnable = VK_FALSE,
+        .maxDepthBounds        = 1.0f,
+        .stencilTestEnable     = VK_TRUE,
+        .back.compareOp        = (uint32_t)tVariant.ulStencilMode,
+        .back.failOp           = (uint32_t)tVariant.ulStencilOpFail,
+        .back.depthFailOp      = (uint32_t)tVariant.ulStencilOpDepthFail,
+        .back.passOp           = (uint32_t)tVariant.ulStencilOpPass,
+        .back.compareMask      = (uint32_t)tVariant.ulStencilRef,
+        .back.writeMask        = (uint32_t)tVariant.ulStencilMask,
+        .back.reference        = 1
+    };
+    tDepthStencil.front = tDepthStencil.back;
+
+    //---------------------------------------------------------------------
+    // other
+    //---------------------------------------------------------------------
+
+    // dynamic (set later)
+    const VkViewport tViewport = {0};
+    const VkRect2D tScissor    = {0};
+
+    const VkPipelineViewportStateCreateInfo tViewportState = {
+        .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .pViewports    = &tViewport,
+        .scissorCount  = 1,
+        .pScissors     = &tScissor,
+    };
+
+    const VkPipelineRasterizationStateCreateInfo tRasterizer = {
+        .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .depthClampEnable        = VK_FALSE,
+        .rasterizerDiscardEnable = VK_FALSE,
+        .polygonMode             = VK_POLYGON_MODE_FILL,
+        .lineWidth               = 1.0f,
+        .cullMode                = (int)tVariant.ulCullMode,
+        .frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE, // VK_FRONT_FACE_CLOCKWISE
+        .depthBiasEnable         = VK_FALSE
+    };
+
+    //---------------------------------------------------------------------
+    // Create Pipeline
+    //---------------------------------------------------------------------
+    const VkPipelineShaderStageCreateInfo atShaderStages[] = { 
+        tVertexShaderStageInfo, 
+        tPixelShaderStageInfo
+    };
+
+    VkDynamicState atDynamicStateEnables[] = { 
+        VK_DYNAMIC_STATE_VIEWPORT, 
+        VK_DYNAMIC_STATE_SCISSOR
+    };
+
+    VkPipelineDynamicStateCreateInfo tDynamicState = {
+        .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = 2u,
+        .pDynamicStates    = atDynamicStateEnables
+    };
+
+    VkGraphicsPipelineCreateInfo tPipelineInfo = {
+        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .stageCount          = 2u,
+        .pStages             = atShaderStages,
+        .pVertexInputState   = &tVertexInputInfo,
+        .pInputAssemblyState = &tInputAssembly,
+        .pViewportState      = &tViewportState,
+        .pRasterizationState = &tRasterizer,
+        .pMultisampleState   = &tMultisampling,
+        .pColorBlendState    = &tColorBlending,
+        .pDynamicState       = &tDynamicState,
+        .layout              = ptInfo->tPipelineLayout,
+        .renderPass          = ptInfo->tRenderPass,
+        .subpass             = 0u,
+        .basePipelineHandle  = VK_NULL_HANDLE,
+        .pDepthStencilState  = &tDepthStencil,
+    };
+    PL_VULKAN(vkCreateGraphicsPipelines(tLogicalDevice, VK_NULL_HANDLE, 1, &tPipelineInfo, NULL, &tPipeline));
+
+    vkDestroyShaderModule(tLogicalDevice, tVertexShaderStageInfo.module, NULL);
+    vkDestroyShaderModule(tLogicalDevice, tPixelShaderStageInfo.module, NULL);
+
+    pl_log_debug_to_f(ptGraphics->uLogChannel, "created new shader pipeline");
+
+    return tPipeline;
 }

@@ -1,5 +1,5 @@
 /*
-   vulkan_pl_graphics.h
+   pl_graphics_vulkan.h
 */
 
 /*
@@ -32,8 +32,8 @@ Index of this file:
 #include "vulkan/vulkan.h"
 
 #ifndef PL_VULKAN
-#include <assert.h>
-#define PL_VULKAN(x) assert(x == VK_SUCCESS)
+    #include <assert.h>
+    #define PL_VULKAN(x) assert(x == VK_SUCCESS)
 #endif
 
 //-----------------------------------------------------------------------------
@@ -49,19 +49,17 @@ typedef struct _plResourceManager plResourceManager; // buffer/texture resource 
 typedef struct _plBuffer          plBuffer;          // vulkan buffer
 typedef struct _plTexture         plTexture;         // vulkan texture
 typedef struct _plTextureDesc     plTextureDesc;     // texture descriptor
-
-// new
-typedef struct _plBufferBinding    plBufferBinding;
-typedef struct _plTextureBinding   plTextureBinding;
-typedef struct _plShaderDesc       plShaderDesc;
-typedef struct _plShader           plShader;
-typedef struct _plGraphicsState    plGraphicsState;
-typedef struct _plBindGroupLayout  plBindGroupLayout;
-typedef struct _plBindGroup        plBindGroup;
-typedef struct _plMesh             plMesh;
-typedef struct _plDraw             plDraw;
-typedef struct _plDrawArea         plDrawArea;
-typedef struct _plShaderVariant    plShaderVariant;
+typedef struct _plBufferBinding   plBufferBinding;
+typedef struct _plTextureBinding  plTextureBinding;
+typedef struct _plShaderDesc      plShaderDesc;
+typedef struct _plShader          plShader;
+typedef struct _plGraphicsState   plGraphicsState;
+typedef struct _plBindGroupLayout plBindGroupLayout;
+typedef struct _plBindGroup       plBindGroup;
+typedef struct _plMesh            plMesh;
+typedef struct _plDraw            plDraw;
+typedef struct _plDrawArea        plDrawArea;
+typedef struct _plShaderVariant   plShaderVariant;
 
 // enums
 typedef int plBufferBindingType;  // -> enum _plBufferBindingType   // Enum:
@@ -87,8 +85,6 @@ bool                  pl_begin_frame                  (plGraphics* ptGraphics);
 void                  pl_end_frame                    (plGraphics* ptGraphics);
 void                  pl_begin_recording              (plGraphics* ptGraphics);
 void                  pl_end_recording                (plGraphics* ptGraphics);
-void                  pl_begin_main_pass              (plGraphics* ptGraphics);
-void                  pl_end_main_pass                (plGraphics* ptGraphics);
 
 // resource manager per frame
 void                  pl_process_cleanup_queue        (plResourceManager* ptResourceManager, uint32_t uFramesToProcess);
@@ -109,8 +105,8 @@ void                  pl_submit_buffer_for_deletion   (plResourceManager* ptReso
 void                  pl_submit_texture_for_deletion  (plResourceManager* ptResourceManager, uint32_t uTextureIndex);
 
 // command buffers
-VkCommandBuffer       pl_begin_command_buffer         (plGraphics* ptGraphics, plDevice* ptDevice);
-void                  pl_submit_command_buffer        (plGraphics* ptGraphics, plDevice* ptDevice, VkCommandBuffer tCmdBuffer);
+VkCommandBuffer       pl_begin_command_buffer         (plGraphics* ptGraphics);
+void                  pl_submit_command_buffer        (plGraphics* ptGraphics, VkCommandBuffer tCmdBuffer);
 
 // shaders
 uint32_t              pl_create_shader             (plResourceManager* ptResourceManager, const plShaderDesc* ptDesc);
