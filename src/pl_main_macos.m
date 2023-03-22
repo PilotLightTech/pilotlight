@@ -82,11 +82,10 @@ static plKeyEventResponder* gKeyEventResponder = NULL;
 static NSTextInputContext*  gInputContext = NULL;
 static id                   gMonitor;
 
-typedef struct _plAppData plAppData;
-static void* (*pl_app_load)    (plIOContext* ptIOCtx, plAppData* ptAppData);
-static void  (*pl_app_shutdown)(plAppData* ptAppData);
-static void  (*pl_app_resize)  (plAppData* ptAppData);
-static void  (*pl_app_update)  (plAppData* ptAppData);
+static void* (*pl_app_load)    (plIOContext* ptIOCtx, void* ptAppData);
+static void  (*pl_app_shutdown)(void* ptAppData);
+static void  (*pl_app_resize)  (void* ptAppData);
+static void  (*pl_app_update)  (void* ptAppData);
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -351,10 +350,10 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     // load library
     if(pl_load_library(&gAppLibrary, "app.so", "app_", "lock.tmp"))
     {
-        pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
-        pl_app_shutdown = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_update");
+        pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, void*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
+        pl_app_shutdown = (void  (__attribute__(())  *)(void*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(())  *)(void*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__attribute__(())  *)(void*))               pl_load_library_function(&gAppLibrary, "pl_app_update");
         gUserData = pl_app_load(&gtIOContext, NULL);
     }
 }
@@ -383,10 +382,10 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     if(pl_has_library_changed(&gAppLibrary))
     {
         pl_reload_library(&gAppLibrary);
-        pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, plAppData*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
-        pl_app_shutdown = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__attribute__(())  *)(plAppData*))               pl_load_library_function(&gAppLibrary, "pl_app_update");
+        pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, void*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
+        pl_app_shutdown = (void  (__attribute__(())  *)(void*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(())  *)(void*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__attribute__(())  *)(void*))               pl_load_library_function(&gAppLibrary, "pl_app_update");
         gUserData = pl_app_load(&gtIOContext, gUserData);
     }
 

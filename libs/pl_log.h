@@ -757,7 +757,7 @@ pl__get_log_entries(uint32_t uID, uint32_t* puEntryCount)
     if(tPChannel->uLevel < level + 1) \
     { \
         if(tPChannel->tType & PL_CHANNEL_TYPE_CONSOLE) \
-            printf(prefix "%s\n", pcMessage); \
+            printf(prefix " (%s) %s\n", tPChannel->cName, pcMessage); \
         if(tPChannel->tType & PL_CHANNEL_TYPE_BUFFER) \
         { \
             char* cPDest = ptEntry->cPBuffer; \
@@ -894,7 +894,7 @@ pl__log_trace_va(uint32_t uID, const char* cPFormat, va_list args)
             printf(PL_LOG_TRACE_BG_COLOR);
             #endif
 
-            printf("[TRACE] ");
+            printf("[TRACE] (%s) ", tPChannel->cName);
             char dest[PL_LOG_MAX_LINE_SIZE];
             pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, args); 
             printf("%s%s\n", dest, PL_LOG_POP_CODE); 
@@ -929,7 +929,7 @@ pl__log_debug_va(uint32_t uID, const char* cPFormat, va_list args)
             printf(PL_LOG_DEBUG_BG_COLOR);
             #endif
 
-            printf("[DEBUG] ");
+            printf("[DEBUG] (%s) ", tPChannel->cName);
             char dest[PL_LOG_MAX_LINE_SIZE];
             pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, args);
             printf("%s%s\n", dest, PL_LOG_POP_CODE); 
@@ -964,7 +964,7 @@ pl__log_info_va(uint32_t uID, const char* cPFormat, va_list args)
             printf(PL_LOG_INFO_BG_COLOR);
             #endif
 
-            printf("[INFO ] ");
+            printf("[INFO ] (%s) ", tPChannel->cName);
             char dest[PL_LOG_MAX_LINE_SIZE];
             pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, args);
             printf("%s%s\n", dest, PL_LOG_POP_CODE); 
@@ -999,7 +999,7 @@ pl__log_warn_va(uint32_t uID, const char* cPFormat, va_list args)
             printf(PL_LOG_WARN_BG_COLOR);
             #endif
 
-            printf("[WARN ] ");
+            printf("[WARN ] (%s) ", tPChannel->cName);
             char dest[PL_LOG_MAX_LINE_SIZE];
             pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, args);
             printf("%s%s\n", dest, PL_LOG_POP_CODE); 
@@ -1034,7 +1034,7 @@ pl__log_error_va(uint32_t uID, const char* cPFormat, va_list args)
             printf(PL_LOG_ERROR_BG_COLOR);
             #endif
 
-            printf("[ERROR] ");
+            printf("[ERROR] (%s) ", tPChannel->cName);
             char dest[PL_LOG_MAX_LINE_SIZE];
             pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, args);
             printf("%s%s\n", dest, PL_LOG_POP_CODE); 
@@ -1069,7 +1069,7 @@ pl__log_fatal_va(uint32_t uID, const char* cPFormat, va_list args)
             printf(PL_LOG_FATAL_BG_COLOR);
             #endif
 
-            printf("[FATAL] ");
+            printf("[FATAL] (%s) ", tPChannel->cName);
             char dest[PL_LOG_MAX_LINE_SIZE];
             pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, args);
             printf("%s%s\n", dest, PL_LOG_POP_CODE); 

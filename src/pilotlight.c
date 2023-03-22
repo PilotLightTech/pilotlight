@@ -23,6 +23,7 @@
 #include "pl_ui.c"
 
 #define PL_MEMORY_IMPLEMENTATION
+#define PL_MEMORY_USE_CONTEXT
 #include "pl_memory.h"
 #undef PL_MEMORY_IMPLEMENTATION
 

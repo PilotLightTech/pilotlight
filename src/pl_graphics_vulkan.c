@@ -19,6 +19,7 @@ Index of this file:
 #include "pl_io.h"
 #include "pl_memory.h"
 #include "pl_profile.h"
+#include "pl_log.h"
 #include "pl_string.h"
 #include <stdio.h>
 
@@ -63,11 +64,15 @@ static VkPipelineColorBlendAttachmentState pl__get_blend_state(plBlendMode tBlen
 void
 pl_setup_graphics(plGraphics* ptGraphics)
 {
+
+    ptGraphics->uLogChannel = pl_add_log_channel("graphics", PL_CHANNEL_TYPE_CONSOLE | PL_CHANNEL_TYPE_BUFFER);
+
     // get io context
     plIOContext* ptIOCtx = pl_get_io_context();
 
     // create vulkan tInstance
     pl__create_instance(ptGraphics, VK_API_VERSION_1_2, true);
+    
 
     // create tSurface
     #ifdef _WIN32
@@ -98,8 +103,12 @@ pl_setup_graphics(plGraphics* ptGraphics)
         PL_VULKAN(vkCreateXcbSurfaceKHR(ptGraphics->tInstance, &surfaceCreateInfo, NULL, &ptGraphics->tSurface));
     #endif
 
+    pl_log_trace_to_f(ptGraphics->uLogChannel, "created vulkan surface");
+
     // create devices
+    pl_set_current_log_channel(ptGraphics->uLogChannel);
     pl__create_device(ptGraphics->tInstance, ptGraphics->tSurface, &ptGraphics->tDevice, true);
+    pl_set_current_log_channel(0);
 
 	ptGraphics->vkDebugMarkerSetObjectTag = (PFN_vkDebugMarkerSetObjectTagEXT)vkGetDeviceProcAddr(ptGraphics->tDevice.tLogicalDevice, "vkDebugMarkerSetObjectTagEXT");
 	ptGraphics->vkDebugMarkerSetObjectName = (PFN_vkDebugMarkerSetObjectNameEXT)vkGetDeviceProcAddr(ptGraphics->tDevice.tLogicalDevice, "vkDebugMarkerSetObjectNameEXT");
@@ -1884,6 +1893,11 @@ pl_cleanup_graphics(plGraphics* ptGraphics)
 
     // destroy tInstance
     vkDestroyInstance(ptGraphics->tInstance, NULL);
+
+    pl_free(ptGraphics->tSwapchain.ptSurfaceFormats_);
+    pl_free(ptGraphics->tSwapchain.ptImages);
+    pl_free(ptGraphics->tSwapchain.ptImageViews);
+    pl_free(ptGraphics->tSwapchain.ptFrameBuffers);
 }
 
 
@@ -2124,6 +2138,7 @@ pl__create_instance_ex(plGraphics* ptGraphics, uint32_t uVersion, uint32_t uLaye
     {
         if(strcmp("VK_LAYER_KHRONOS_validation", ppcEnabledLayers[i]) == 0)
         {
+            pl_log_trace_to_f(ptGraphics->uLogChannel, "vulkan validation enabled");
             bValidationEnabled = true;
             break;
         }
@@ -2135,7 +2150,7 @@ pl__create_instance_ex(plGraphics* ptGraphics, uint32_t uVersion, uint32_t uLaye
     PL_VULKAN(vkEnumerateInstanceLayerProperties(&uInstanceLayersFound, NULL));
     if(uInstanceLayersFound > 0)
     {
-        ptAvailableLayers = (VkLayerProperties*)malloc(sizeof(VkLayerProperties) * uInstanceLayersFound);
+        ptAvailableLayers = (VkLayerProperties*)pl_alloc(sizeof(VkLayerProperties) * uInstanceLayersFound);
         PL_VULKAN(vkEnumerateInstanceLayerProperties(&uInstanceLayersFound, ptAvailableLayers));
     }
 
@@ -2145,7 +2160,7 @@ pl__create_instance_ex(plGraphics* ptGraphics, uint32_t uVersion, uint32_t uLaye
     PL_VULKAN(vkEnumerateInstanceExtensionProperties(NULL, &uInstanceExtensionsFound, NULL));
     if(uInstanceExtensionsFound > 0)
     {
-        ptAvailableExtensions = (VkExtensionProperties*)malloc(sizeof(VkExtensionProperties) * uInstanceExtensionsFound);
+        ptAvailableExtensions = (VkExtensionProperties*)pl_alloc(sizeof(VkExtensionProperties) * uInstanceExtensionsFound);
         PL_VULKAN(vkEnumerateInstanceExtensionProperties(NULL, &uInstanceExtensionsFound, ptAvailableExtensions));
     }
 
@@ -2159,6 +2174,7 @@ pl__create_instance_ex(plGraphics* ptGraphics, uint32_t uVersion, uint32_t uLaye
         {
             if(strcmp(requestedExtension, ptAvailableExtensions[j].extensionName) == 0)
             {
+                pl_log_trace_to_f(ptGraphics->uLogChannel, "extension %s found", ptAvailableExtensions[j].extensionName);
                 extensionFound = true;
                 break;
             }
@@ -2173,11 +2189,12 @@ pl__create_instance_ex(plGraphics* ptGraphics, uint32_t uVersion, uint32_t uLaye
     // report if all requested extensions aren't found
     if(pl_sb_size(sbpcMissingExtensions) > 0)
     {
-        printf("%d %s\n", pl_sb_size(sbpcMissingExtensions), "Missing Extensions:");
+        pl_log_error_to_f(ptGraphics->uLogChannel, "%d %s", pl_sb_size(sbpcMissingExtensions), "Missing Extensions:");
         for(uint32_t i = 0; i < pl_sb_size(sbpcMissingExtensions); i++)
         {
-            printf("  * %s\n", sbpcMissingExtensions[i]);
+            pl_log_error_to_f(ptGraphics->uLogChannel, "  * %s", sbpcMissingExtensions[i]);
         }
+
         PL_ASSERT(false && "Can't find all requested extensions");
     }
 
@@ -2191,6 +2208,7 @@ pl__create_instance_ex(plGraphics* ptGraphics, uint32_t uVersion, uint32_t uLaye
         {
             if(strcmp(pcRequestedLayer, ptAvailableLayers[j].layerName) == 0)
             {
+                pl_log_trace_to_f(ptGraphics->uLogChannel, "layer %s found", ptAvailableLayers[j].layerName);
                 bLayerFound = true;
                 break;
             }
@@ -2205,10 +2223,10 @@ pl__create_instance_ex(plGraphics* ptGraphics, uint32_t uVersion, uint32_t uLaye
     // report if all requested layers aren't found
     if(pl_sb_size(sbpcMissingLayers) > 0)
     {
-        printf("%d %s\n", pl_sb_size(sbpcMissingLayers), "Missing Layers:");
+        pl_log_error_to_f(ptGraphics->uLogChannel, "%d %s", pl_sb_size(sbpcMissingLayers), "Missing Layers:");
         for(uint32_t i = 0; i < pl_sb_size(sbpcMissingLayers); i++)
         {
-            printf("  * %s\n", sbpcMissingLayers[i]);
+            pl_log_error_to_f(ptGraphics->uLogChannel, "  * %s", sbpcMissingLayers[i]);
         }
         PL_ASSERT(false && "Can't find all requested layers");
     }
@@ -2243,11 +2261,11 @@ pl__create_instance_ex(plGraphics* ptGraphics, uint32_t uVersion, uint32_t uLaye
     };
 
     PL_VULKAN(vkCreateInstance(&tCreateInfo, NULL, &ptGraphics->tInstance));
-    printf("%s\n", "created Vulkan tInstance.");
+    pl_log_trace_to_f(ptGraphics->uLogChannel, "created vulkan instance");
 
     // cleanup
-    if(ptAvailableLayers)     free(ptAvailableLayers);
-    if(ptAvailableExtensions) free(ptAvailableExtensions);
+    if(ptAvailableLayers)     pl_free(ptAvailableLayers);
+    if(ptAvailableExtensions) pl_free(ptAvailableExtensions);
     pl_sb_free(sbpcMissingLayers);
     pl_sb_free(sbpcMissingExtensions);
 
@@ -2255,8 +2273,8 @@ pl__create_instance_ex(plGraphics* ptGraphics, uint32_t uVersion, uint32_t uLaye
     {
         PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(ptGraphics->tInstance, "vkCreateDebugUtilsMessengerEXT");
         PL_ASSERT(func != NULL && "failed to set up debug messenger!");
-        PL_VULKAN(func(ptGraphics->tInstance, &tDebugCreateInfo, NULL, &ptGraphics->tDbgMessenger));
-        printf("%s\n", "enabled Vulkan validation layers.");       
+        PL_VULKAN(func(ptGraphics->tInstance, &tDebugCreateInfo, NULL, &ptGraphics->tDbgMessenger));     
+        pl_log_trace_to_f(ptGraphics->uLogChannel, "enabled Vulkan validation layers");
     }
 }
 
@@ -2423,9 +2441,9 @@ pl__create_swapchain(plDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uWidth,
     
     if(uFormatCount >ptSwapchainOut->uSurfaceFormatCapacity_)
     {
-        if(ptSwapchainOut->ptSurfaceFormats_) free(ptSwapchainOut->ptSurfaceFormats_);
+        if(ptSwapchainOut->ptSurfaceFormats_) pl_free(ptSwapchainOut->ptSurfaceFormats_);
 
-        ptSwapchainOut->ptSurfaceFormats_ = malloc(sizeof(VkSurfaceFormatKHR) * uFormatCount);
+        ptSwapchainOut->ptSurfaceFormats_ = pl_alloc(sizeof(VkSurfaceFormatKHR) * uFormatCount);
         ptSwapchainOut->uSurfaceFormatCapacity_ = uFormatCount;
     }
 
@@ -2546,12 +2564,12 @@ pl__create_swapchain(plDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uWidth,
     if(ptSwapchainOut->uImageCount > ptSwapchainOut->uImageCapacity)
     {
         ptSwapchainOut->uImageCapacity = ptSwapchainOut->uImageCount;
-        if(ptSwapchainOut->ptImages)       free(ptSwapchainOut->ptImages);
-        if(ptSwapchainOut->ptImageViews)   free(ptSwapchainOut->ptImageViews);
-        if(ptSwapchainOut->ptFrameBuffers) free(ptSwapchainOut->ptFrameBuffers);
-        ptSwapchainOut->ptImages         = malloc(sizeof(VkImage)*ptSwapchainOut->uImageCapacity);
-        ptSwapchainOut->ptImageViews     = malloc(sizeof(VkImageView)*ptSwapchainOut->uImageCapacity);
-        ptSwapchainOut->ptFrameBuffers   = malloc(sizeof(VkFramebuffer)*ptSwapchainOut->uImageCapacity);
+        if(ptSwapchainOut->ptImages)       pl_free(ptSwapchainOut->ptImages);
+        if(ptSwapchainOut->ptImageViews)   pl_free(ptSwapchainOut->ptImageViews);
+        if(ptSwapchainOut->ptFrameBuffers) pl_free(ptSwapchainOut->ptFrameBuffers);
+        ptSwapchainOut->ptImages         = pl_alloc(sizeof(VkImage)*ptSwapchainOut->uImageCapacity);
+        ptSwapchainOut->ptImageViews     = pl_alloc(sizeof(VkImageView)*ptSwapchainOut->uImageCapacity);
+        ptSwapchainOut->ptFrameBuffers   = pl_alloc(sizeof(VkFramebuffer)*ptSwapchainOut->uImageCapacity);
     }
     vkGetSwapchainImagesKHR(ptDevice->tLogicalDevice, ptSwapchainOut->tSwapChain, &ptSwapchainOut->uImageCount, ptSwapchainOut->ptImages);
 
@@ -2764,7 +2782,6 @@ pl__select_physical_device(VkInstance tInstance, plDevice* ptDeviceOut)
     int iBestDvcIdx = 0;
     bool bDiscreteGPUFound = false;
     VkDeviceSize tMaxLocalMemorySize = 0u;
-    // bDebugMarkerExtensionPresent
 
     PL_VULKAN(vkEnumeratePhysicalDevices(tInstance, &uDeviceCount, NULL));
     PL_ASSERT(uDeviceCount > 0 && "failed to find GPUs with Vulkan support!");
@@ -2802,12 +2819,12 @@ pl__select_physical_device(VkInstance tInstance, plDevice* ptDeviceOut)
     static const char* pacDeviceTypeName[] = {"Other", "Integrated", "Discrete", "Virtual", "CPU"};
 
     // print info on chosen device
-    printf("Device ID: %u\n", ptDeviceOut->tDeviceProps.deviceID);
-    printf("Vendor ID: %u\n", ptDeviceOut->tDeviceProps.vendorID);
-    printf("API Version: %u\n", ptDeviceOut->tDeviceProps.apiVersion);
-    printf("Driver Version: %u\n", ptDeviceOut->tDeviceProps.driverVersion);
-    printf("Device Type: %s\n", pacDeviceTypeName[ptDeviceOut->tDeviceProps.deviceType]);
-    printf("Device Name: %s\n", ptDeviceOut->tDeviceProps.deviceName);
+    pl_log_debug_f("Device ID: %u", ptDeviceOut->tDeviceProps.deviceID);
+    pl_log_debug_f("Vendor ID: %u", ptDeviceOut->tDeviceProps.vendorID);
+    pl_log_debug_f("API Version: %u", ptDeviceOut->tDeviceProps.apiVersion);
+    pl_log_debug_f("Driver Version: %u", ptDeviceOut->tDeviceProps.driverVersion);
+    pl_log_debug_f("Device Type: %s", pacDeviceTypeName[ptDeviceOut->tDeviceProps.deviceType]);
+    pl_log_debug_f("Device Name: %s", ptDeviceOut->tDeviceProps.deviceName);
 
     uint32_t uExtensionCount = 0;
     vkEnumerateDeviceExtensionProperties(ptDeviceOut->tPhysicalDevice, NULL, &uExtensionCount, NULL);
@@ -2818,7 +2835,6 @@ pl__select_physical_device(VkInstance tInstance, plDevice* ptDeviceOut)
     {
         if(pl_str_equal(ptExtensions[i].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME)) ptDeviceOut->bSwapchainExtPresent = true; //-V522
     }
-
 
     pl_free(ptExtensions);
     return iBestDvcIdx;

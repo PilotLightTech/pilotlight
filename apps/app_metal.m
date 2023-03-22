@@ -60,10 +60,10 @@ typedef struct plAppData_t
     plDrawLayer*             fgDrawLayer;
     plDrawLayer*             bgDrawLayer;
     plFontAtlas              fontAtlas;
-    plProfileContext         tProfileCtx;
+    plProfileContext*        ptProfileCtx;
     plLogContext*            ptLogCtx;
-    plMemoryContext          tMemoryCtx;
-    plDataRegistry           tDataRegistryCtx;
+    plMemoryContext*         ptMemoryCtx;
+    plDataRegistry*          ptDataRegistryCtx;
     plExtensionRegistry      tExtensionRegistryCtx;
     plUiContext*             ptUiContext;
 
@@ -76,15 +76,16 @@ typedef struct plAppData_t
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void*
-pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
+pl_app_load(plIOContext* ptIOCtx, void* pAppData)
 {
+    plAppData* ptAppData = pAppData;
 
     if(ptAppData) // reload
     {
         pl_set_log_context(ptAppData->ptLogCtx);
-        pl_set_profile_context(&ptAppData->tProfileCtx);
-        pl_set_memory_context(&ptAppData->tMemoryCtx);
-        pl_set_data_registry(&ptAppData->tDataRegistryCtx);
+        pl_set_profile_context(ptAppData->ptProfileCtx);
+        pl_set_memory_context(ptAppData->ptMemoryCtx);
+        pl_set_data_registry(ptAppData->ptDataRegistryCtx);
         pl_set_extension_registry(&ptAppData->tExtensionRegistryCtx);
         pl_set_io_context(ptIOCtx);
         pl_ui_set_context(ptAppData->ptUiContext);
@@ -102,13 +103,13 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
     pl_set_io_context(ptIOCtx);
 
     // setup memory context
-    pl_initialize_memory_context(&ptAppData->tMemoryCtx);
+    ptAppData->ptMemoryCtx = pl_create_memory_context();
 
     // setup profiling context
-    pl_initialize_profile_context(&ptAppData->tProfileCtx);
+    ptAppData->ptProfileCtx = pl_create_profile_context();
 
     // setup data registry
-    pl_initialize_data_registry(&ptAppData->tDataRegistryCtx);
+    ptAppData->ptDataRegistryCtx = pl_create_data_registry();
 
     // setup logging
     ptAppData->ptLogCtx = pl_create_log_context();
@@ -117,8 +118,8 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
 
     // setup extension registry
     pl_initialize_extension_registry(&ptAppData->tExtensionRegistryCtx);
-    pl_register_data("memory", &ptAppData->tMemoryCtx);
-    pl_register_data("profile", &ptAppData->tProfileCtx);
+    pl_register_data("memory", ptAppData->ptMemoryCtx);
+    pl_register_data("profile", ptAppData->ptProfileCtx);
     pl_register_data("log", ptAppData->ptLogCtx);
     pl_register_data("io", ptIOCtx);
 
@@ -170,8 +171,9 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_shutdown(plAppData* ptAppData)
+pl_app_shutdown(void* pAppData)
 {
+    plAppData* ptAppData = pAppData;
 
     // clean up contexts
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
@@ -188,8 +190,10 @@ pl_app_shutdown(plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_resize(plAppData* ptAppData)
-{    
+pl_app_resize(void* pAppData)
+{
+    plAppData* ptAppData = pAppData;
+
     plIOContext* ptIOCtx = pl_get_io_context();
 
     // recreate depth texture
@@ -208,8 +212,10 @@ pl_app_resize(plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_update(plAppData* ptAppData)
+pl_app_update(void* pAppData)
 {
+    plAppData* ptAppData = pAppData;
+
     pl_handle_extension_reloads();
     pl_new_draw_frame_metal(pl_ui_get_draw_context(NULL), ptAppData->drawableRenderDescriptor);
     pl_ui_new_frame();
@@ -220,7 +226,7 @@ pl_app_update(plAppData* ptAppData)
     ptAppData->graphics.currentFrame++;
 
     // begin profiling frame
-    pl_begin_profile_frame(ptAppData->graphics.currentFrame);
+    pl_begin_profile_frame();
 
     // request command buffer
     id<MTLCommandBuffer> commandBuffer = [ptAppData->graphics.cmdQueue commandBuffer];
@@ -243,9 +249,11 @@ pl_app_update(plAppData* ptAppData)
     pl_begin_profile_sample("Draw Profiling Info");
 
     char cPProfileValue[64] = {0};
-    for(uint32_t i = 0u; i < pl_sb_size(ptAppData->tProfileCtx.ptLastFrame->sbtSamples); i++)
+    uint32_t uSampleCount = 0;
+    plProfileSample* ptSamples = pl_get_last_frame_samples(&uSampleCount);
+    for(uint32_t i = 0u; i < uSampleCount; i++)
     {
-        plProfileSample* tPSample = &ptAppData->tProfileCtx.ptLastFrame->sbtSamples[i];
+        plProfileSample* tPSample = &ptSamples[i];
         pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, tPSample->pcName, 0.0f);
         plVec2 sampleTextSize = pl_calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, tPSample->pcName, 0.0f);
         pl_sprintf(cPProfileValue, ": %0.5f", tPSample->dDuration);

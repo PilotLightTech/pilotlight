@@ -495,6 +495,7 @@ typedef struct _plGraphics
     plFrameContext*          sbFrames;
     uint32_t                 uFramesInFlight;  // number of frames in flight (should be less then PL_MAX_FRAMES_IN_FLIGHT)
     size_t                   szCurrentFrameIndex; // current frame being used
+    uint32_t                 uLogChannel;
 
 	PFN_vkDebugMarkerSetObjectTagEXT  vkDebugMarkerSetObjectTag;
 	PFN_vkDebugMarkerSetObjectNameEXT vkDebugMarkerSetObjectName;

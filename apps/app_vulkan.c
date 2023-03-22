@@ -51,10 +51,10 @@ typedef struct _plAppData
     plDrawLayer*        bgDrawLayer;
     plDrawLayer*        offscreenDrawLayer;
     plFontAtlas         fontAtlas;
-    plProfileContext    tProfileCtx;
+    plProfileContext*   ptProfileCtx;
     plLogContext*       ptLogCtx;
-    plMemoryContext     tMemoryCtx;
-    plDataRegistry      tDataRegistryCtx;
+    plMemoryContext*    ptMemoryCtx;
+    plDataRegistry*     ptDataRegistryCtx;
     plExtensionRegistry tExtensionRegistryCtx;
     plUiContext*        ptUiContext;
     bool                bShowUiDemo;
@@ -100,15 +100,17 @@ typedef struct _plAppData
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void*
-pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
+pl_app_load(plIOContext* ptIOCtx, void* pAppData)
 {
+
+    plAppData* ptAppData = pAppData;
 
     if(ptAppData) // reload
     {
         pl_set_log_context(ptAppData->ptLogCtx);
-        pl_set_profile_context(&ptAppData->tProfileCtx);
-        pl_set_memory_context(&ptAppData->tMemoryCtx);
-        pl_set_data_registry(&ptAppData->tDataRegistryCtx);
+        pl_set_profile_context(ptAppData->ptProfileCtx);
+        pl_set_memory_context(ptAppData->ptMemoryCtx);
+        pl_set_data_registry(ptAppData->ptDataRegistryCtx);
         pl_set_extension_registry(&ptAppData->tExtensionRegistryCtx);
         pl_set_io_context(ptIOCtx);
         pl_ui_set_context(ptAppData->ptUiContext);
@@ -124,9 +126,9 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
 
     // set contexts
     pl_set_io_context(ptIOCtx);
-    pl_initialize_memory_context(&ptAppData->tMemoryCtx);
-    pl_initialize_profile_context(&ptAppData->tProfileCtx);
-    pl_initialize_data_registry(&ptAppData->tDataRegistryCtx);
+    ptAppData->ptMemoryCtx = pl_create_memory_context();
+    ptAppData->ptProfileCtx = pl_create_profile_context();
+    ptAppData->ptDataRegistryCtx = pl_create_data_registry();
 
     // setup logging
     ptAppData->ptLogCtx = pl_create_log_context();
@@ -135,8 +137,8 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
 
     // setup extension registry
     pl_initialize_extension_registry(&ptAppData->tExtensionRegistryCtx);
-    pl_register_data("memory", &ptAppData->tMemoryCtx);
-    pl_register_data("profile", &ptAppData->tProfileCtx);
+    pl_register_data("memory", ptAppData->ptMemoryCtx);
+    pl_register_data("profile", ptAppData->ptProfileCtx);
     pl_register_data("log", ptAppData->ptLogCtx);
     pl_register_data("io", ptIOCtx);
     
@@ -442,8 +444,9 @@ pl_app_load(plIOContext* ptIOCtx, plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_shutdown(plAppData* ptAppData)
+pl_app_shutdown(void* pAppData)
 {
+    plAppData* ptAppData = pAppData; 
     vkDeviceWaitIdle(ptAppData->tGraphics.tDevice.tLogicalDevice);
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
     pl_ui_destroy_context(NULL);
@@ -463,8 +466,9 @@ pl_app_shutdown(plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_resize(plAppData* ptAppData)
+pl_app_resize(void* pAppData)
 {
+    plAppData* ptAppData = pAppData;
     plIOContext* ptIOCtx = pl_get_io_context();
     pl_resize_graphics(&ptAppData->tGraphics);
     plCameraComponent* ptCamera = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tCameraEntity);
@@ -482,7 +486,7 @@ pl_app_update(plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~frame setup~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
     plIOContext* ptIOCtx = pl_get_io_context();
-    pl_begin_profile_frame(ptIOCtx->ulFrameCount);
+    pl_begin_profile_frame();
     pl_handle_extension_reloads();
     pl_process_cleanup_queue(&ptAppData->tGraphics.tResourceManager, 1);
 
