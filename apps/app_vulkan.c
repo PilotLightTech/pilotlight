@@ -526,8 +526,8 @@ pl_app_update(plAppData* ptAppData)
 
         if(pl_ui_begin_window("Offscreen", NULL, false))
         {
-            pl_ui_layout_static(1280.0f, 720.0f, 1);
-            pl_ui_image(ptAppData->sbtTextures[ptAppData->tGraphics.szCurrentFrameIndex], (plVec2){1280.0f, 720.0f});
+            pl_ui_layout_static(720.0f / 2.0f, 1280.0f / 2.0f, 1);
+            pl_ui_image(ptAppData->sbtTextures[ptAppData->tGraphics.szCurrentFrameIndex], (plVec2){1280.0f / 2.0f, 720.0f / 2.0f});
             pl_ui_end_window();
         }
 
