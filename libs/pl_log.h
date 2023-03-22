@@ -12,8 +12,8 @@
 */
 
 // library version
-#define PL_LOG_VERSION    "0.2.0"
-#define PL_LOG_VERSION_NUM 00200
+#define PL_LOG_VERSION    "0.3.0"
+#define PL_LOG_VERSION_NUM 00300
 
 /*
 Index of this file:
@@ -458,7 +458,9 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] internal structs
 // [SECTION] global context
+// [SECTION] internal api
 // [SECTION] public api implementation
+// [SECTION] internal api implementation
 */
 
 //-----------------------------------------------------------------------------
@@ -598,9 +600,12 @@ Index of this file:
 typedef struct _plLogChannel
 {
     char          cName[PL_LOG_MAX_LINE_SIZE];
+    bool          bOverflowInUse;
+    plLogEntry    atEntries[256];
     plLogEntry*   pEntries;
     uint32_t      uEntryCount;
     uint32_t      uEntryCapacity;
+    uint32_t      uOverflowEntryCapacity;
     uint32_t      uLevel;
     plChannelType tType;
     uint32_t      uID;
@@ -620,29 +625,14 @@ typedef struct _plLogContext
 plLogContext* gptLogContext = NULL;
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api implementation
+// [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static void
-pl__log_maybe_grow_entries(uint32_t uID)
-{
-    plLogChannel* tPChannel = &gptLogContext->atChannels[uID];
-    if(tPChannel->uEntryCount == tPChannel->uEntryCapacity - 1 || tPChannel->pEntries == NULL)
-    {
-        plLogEntry* ptOldEntries = tPChannel->pEntries;
-        tPChannel->pEntries = (plLogEntry*)PL_LOG_ALLOC(sizeof(plLogEntry) * tPChannel->uEntryCapacity * 2);
-        if(tPChannel->pEntries == NULL)
-        {
-            PL_ASSERT(false && "PL_LOG_ALLOC failed");
-            return;
-        }
-        memset(tPChannel->pEntries, 0, sizeof(plLogEntry) * tPChannel->uEntryCapacity * 2);
-        memcpy(tPChannel->pEntries, ptOldEntries, tPChannel->uEntryCapacity);
-        tPChannel->uEntryCapacity *= 2;
-        PL_LOG_FREE(ptOldEntries);
-        ptOldEntries = NULL;
-    }
-}
+static plLogEntry* pl__get_new_log_entry(uint32_t uID);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api implementation
+//-----------------------------------------------------------------------------
 
 plLogContext*
 pl__create_log_context(void)
@@ -664,7 +654,8 @@ pl__cleanup_log_context(void)
         {
             plLogChannel* ptChannel = &gptLogContext->atChannels[i];
             memset(ptChannel->cName, 0, sizeof(char) * PL_LOG_MAX_LINE_SIZE);
-            PL_LOG_FREE(ptChannel->pEntries);
+            if(ptChannel->bOverflowInUse)
+                PL_LOG_FREE(ptChannel->pEntries);
             ptChannel->pEntries       = NULL;
             ptChannel->uEntryCapacity = 0;
             ptChannel->uEntryCount    = 0;
@@ -700,8 +691,8 @@ pl__add_log_channel(const char* pcName, plChannelType tType)
     
     plLogChannel* ptChannel = &gptLogContext->atChannels[uID];
     strncpy(ptChannel->cName, pcName, PL_LOG_MAX_LINE_SIZE);
-    ptChannel->pEntries       = (plLogEntry*)PL_LOG_ALLOC(sizeof(plLogEntry) * 1024);
-    ptChannel->uEntryCapacity = 1024;
+    ptChannel->pEntries       = ptChannel->atEntries;
+    ptChannel->uEntryCapacity = 256;
     ptChannel->uEntryCount    = 0;
     ptChannel->uLevel         = 0;
     ptChannel->tType          = tType;
@@ -715,6 +706,13 @@ uint32_t
 pl__get_current_log_channel(void)
 {
     return gptLogContext->uCurrentChannel;
+}
+
+void
+pl__set_current_log_channel(uint32_t uID)
+{
+    PL_ASSERT(uID < gptLogContext->uChannelCount && "channel ID is not valid");
+    gptLogContext->uCurrentChannel = uID;
 }
 
 void
@@ -754,20 +752,19 @@ pl__get_log_entries(uint32_t uID, uint32_t* puEntryCount)
 }
 
 #define PL__LOG_LEVEL_MACRO(level, prefix, prefixSize) \
-    pl__log_maybe_grow_entries(uID); \
     plLogChannel* tPChannel = &gptLogContext->atChannels[uID]; \
+    plLogEntry* ptEntry = pl__get_new_log_entry(uID); \
     if(tPChannel->uLevel < level + 1) \
     { \
         if(tPChannel->tType & PL_CHANNEL_TYPE_CONSOLE) \
             printf(prefix "%s\n", pcMessage); \
         if(tPChannel->tType & PL_CHANNEL_TYPE_BUFFER) \
         { \
-            char* cPDest = tPChannel->pEntries[tPChannel->uEntryCount].cPBuffer; \
-            tPChannel->pEntries[tPChannel->uEntryCount].uLevel = level; \
+            char* cPDest = ptEntry->cPBuffer; \
+            ptEntry->uLevel = level; \
             strcpy(cPDest, prefix); \
             cPDest += prefixSize; \
             strcpy(cPDest, pcMessage); \
-            tPChannel->uEntryCount++; \
         } \
     }
 
@@ -864,12 +861,11 @@ pl__log_fatal_p(uint32_t uID, const char* cPFormat, ...)
 #define PL__LOG_LEVEL_VA_BUFFER_MACRO(level, prefix) \
         if(tPChannel->tType & PL_CHANNEL_TYPE_BUFFER) \
         { \
-            pl__log_maybe_grow_entries(uID); \
-            char* cPDest = tPChannel->pEntries[tPChannel->uEntryCount].cPBuffer; \
-            tPChannel->pEntries[tPChannel->uEntryCount].uLevel = level; \
+            plLogEntry* ptEntry = pl__get_new_log_entry(uID); \
+            char* cPDest = ptEntry->cPBuffer; \
+            ptEntry->uLevel = level; \
             cPDest += pl_snprintf(cPDest, PL_LOG_MAX_LINE_SIZE, prefix); \
             pl_vsnprintf(cPDest, PL_LOG_MAX_LINE_SIZE, cPFormat, args); \
-            tPChannel->uEntryCount++; \
         }
 
 void
@@ -1080,6 +1076,48 @@ pl__log_fatal_va(uint32_t uID, const char* cPFormat, va_list args)
         }
         PL__LOG_LEVEL_VA_BUFFER_MACRO(PL_LOG_LEVEL_FATAL, "[FATAL] ")
     }
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api implementation
+//-----------------------------------------------------------------------------
+
+static plLogEntry*
+pl__get_new_log_entry(uint32_t uID)
+{
+    plLogChannel* tPChannel = &gptLogContext->atChannels[uID];
+
+    plLogEntry* ptEntry = NULL;
+
+    // check if new overflow
+    if(!tPChannel->bOverflowInUse && tPChannel->uEntryCount == tPChannel->uEntryCapacity)
+    {
+        tPChannel->pEntries = (plLogEntry*)PL_LOG_ALLOC(sizeof(plLogEntry) * 256);
+        memset(tPChannel->pEntries, 0, sizeof(plLogEntry) * 256);
+        tPChannel->uOverflowEntryCapacity = 256;
+
+        // copy stack samples
+        memcpy(tPChannel->pEntries, tPChannel->atEntries, sizeof(plLogEntry) * tPChannel->uEntryCapacity);
+        tPChannel->bOverflowInUse = true;
+    }
+    // check if overflow reallocation is needed
+    else if(tPChannel->bOverflowInUse && tPChannel->uEntryCount == tPChannel->uOverflowEntryCapacity)
+    {
+        plLogEntry* sbtOldInputEvents = tPChannel->pEntries;
+        tPChannel->pEntries = (plLogEntry*)PL_LOG_ALLOC(sizeof(plLogEntry) * tPChannel->uOverflowEntryCapacity * 2);
+        memset(tPChannel->pEntries, 0, sizeof(plLogEntry) * tPChannel->uOverflowEntryCapacity * 2);
+        
+        // copy old values
+        memcpy(tPChannel->pEntries, sbtOldInputEvents, sizeof(plLogEntry) * tPChannel->uOverflowEntryCapacity);
+        tPChannel->uOverflowEntryCapacity *= 2;
+
+        PL_LOG_FREE(sbtOldInputEvents);
+    }
+
+    ptEntry = &tPChannel->pEntries[tPChannel->uEntryCount];
+    tPChannel->uEntryCount++;
+
+    return ptEntry;
 }
 
 #endif // PL_LOG_IMPLEMENTATION
