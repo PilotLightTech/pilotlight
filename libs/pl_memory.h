@@ -15,7 +15,7 @@
    Notes:
    * allocations return NULL on failure
    * general allocation uses malloc, free, & realloc by default
-   * override general allocators by defining PL_ALLOC(x), PL_FREE(x), & PL_REALLOC(x, y) OR PL_REALLOC_SIZED(x, y, x)
+   * override general allocators by defining PL_MEMORY_ALLOC(x), PL_MEMORY_FREE(x), & PL_MEMORY_REALLOC(x, y) OR PL_REALLOC_SIZED(x, y, x)
    * override assert by defining PL_ASSERT(x)
    * track memory w/ memory context by defining PL_MEMORY_USE_CONTEXT where ever you define PL_MEMORY_IMPLEMENTATION
 */
@@ -30,7 +30,7 @@ Index of this file:
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
 // [SECTION] structs
-// [SECTION] c file start
+// [SECTION] c/c++ file start
 */
 
 #ifndef PL_MEMORY_H
@@ -48,11 +48,12 @@ Index of this file:
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
-typedef struct _plMemoryContext        plMemoryContext;
-typedef struct _plStackAllocator       plStackAllocator;
-typedef struct _plStackAllocatorMarker plStackAllocatorMarker;
-typedef struct _plPoolAllocator        plPoolAllocator;
-typedef struct _plPoolAllocatorNode    plPoolAllocatorNode;
+typedef struct _plMemoryContext     plMemoryContext;
+typedef struct _plStackAllocator    plStackAllocator;
+typedef struct _plPoolAllocator     plPoolAllocator;
+typedef struct _plPoolAllocatorNode plPoolAllocatorNode;
+
+typedef size_t plStackAllocatorMarker;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -60,10 +61,11 @@ typedef struct _plPoolAllocatorNode    plPoolAllocatorNode;
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~context~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-void                   pl_initialize_memory_context(plMemoryContext* ptCtx);
-void                   pl_cleanup_memory_context   (void);
-void                   pl_set_memory_context       (plMemoryContext* ptCtx);
-plMemoryContext*       pl_get_memory_context       (void);
+plMemoryContext*       pl_create_memory_context (void);
+void                   pl_cleanup_memory_context(void);
+void                   pl_set_memory_context    (plMemoryContext* ptCtx);
+plMemoryContext*       pl_get_memory_context    (void);
+uint32_t               pl_get_active_allocations(void);
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~general purpose allocation~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -102,11 +104,13 @@ void                   pl_stack_allocator_free_to_marker(plStackAllocator* ptAll
 void                   pl_stack_allocator_reset         (plStackAllocator* ptAllocator);
 
 // double stack allocator (using regular stack allocator)
-void*                  pl_stack_allocator_aligned_alloc_bottom(plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment);
-plStackAllocatorMarker pl_stack_allocator_bottom_marker       (plStackAllocator* ptAllocator);
-plStackAllocatorMarker pl_stack_allocator_top_marker          (plStackAllocator* ptAllocator);
-void*                  pl_stack_allocator_alloc_bottom        (plStackAllocator* ptAllocator, size_t szSize);
-void*                  pl_stack_allocator_alloc_top           (plStackAllocator* ptAllocator, size_t szSize);
+void*                  pl_stack_allocator_aligned_alloc_bottom (plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment);
+plStackAllocatorMarker pl_stack_allocator_bottom_marker        (plStackAllocator* ptAllocator);
+plStackAllocatorMarker pl_stack_allocator_top_marker           (plStackAllocator* ptAllocator);
+void*                  pl_stack_allocator_alloc_bottom         (plStackAllocator* ptAllocator, size_t szSize);
+void*                  pl_stack_allocator_alloc_top            (plStackAllocator* ptAllocator, size_t szSize);
+void                   pl_stack_allocator_free_top_to_marker   (plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker);
+void                   pl_stack_allocator_free_bottom_to_marker(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker);
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~pool allocator~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -117,17 +121,6 @@ void                   pl_pool_allocator_free (plPoolAllocator* ptAllocator, voi
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
-
-typedef struct _plMemoryContext
-{
-    uint32_t uActiveAllocations;
-} plMemoryContext;
-
-typedef struct _plStackAllocatorMarker
-{
-    bool   bTop;
-    size_t szOffset;
-} plStackAllocatorMarker;
 
 typedef struct _plStackAllocator
 {
@@ -156,13 +149,14 @@ typedef struct _plPoolAllocator
 #endif // PL_MEMORY_H
 
 //-----------------------------------------------------------------------------
-// [SECTION] c file start
+// [SECTION] c/c++ file start
 //-----------------------------------------------------------------------------
 
 /*
 Index of this file:
 // [SECTION] defines
 // [SECTION] global context
+// [SECTION] internal structs
 // [SECTION] internal api
 // [SECTION] public api implementation
 */
@@ -173,23 +167,23 @@ Index of this file:
 
 #ifdef PL_MEMORY_IMPLEMENTATION
 
-#if defined(PL_ALLOC) && defined(PL_FREE) && (defined(PL_REALLOC) || defined(PL_REALLOC_SIZED))
+#if defined(PL_MEMORY_ALLOC) && defined(PL_MEMORY_FREE) && (defined(PL_MEMORY_REALLOC) || defined(PL_REALLOC_SIZED))
 // ok
-#elif !defined(PL_ALLOC) && !defined(PL_FREE) && !defined(PL_REALLOC) && !defined(PL_REALLOC_SIZED)
+#elif !defined(PL_MEMORY_ALLOC) && !defined(PL_MEMORY_FREE) && !defined(PL_MEMORY_REALLOC) && !defined(PL_REALLOC_SIZED)
 // ok
 #else
-#error "Must define all or none of PL_ALLOC, PL_FREE, and PL_REALLOC (or PL_REALLOC_SIZED)."
+#error "Must define all or none of PL_MEMORY_ALLOC, PL_MEMORY_FREE, and PL_MEMORY_REALLOC (or PL_REALLOC_SIZED)."
 #endif
 
-#ifndef PL_ALLOC
+#ifndef PL_MEMORY_ALLOC
     #include <stdlib.h>
-    #define PL_ALLOC(x)      malloc(x)
-    #define PL_REALLOC(x, y) realloc(x, y)
-    #define PL_FREE(x)       free(x)
+    #define PL_MEMORY_ALLOC(x)      malloc(x)
+    #define PL_MEMORY_REALLOC(x, y) realloc(x, y)
+    #define PL_MEMORY_FREE(x)       free(x)
 #endif
 
 #ifndef PL_REALLOC_SIZED
-    #define PL_REALLOC_SIZED(x, y, z) PL_REALLOC(x, z)
+    #define PL_REALLOC_SIZED(x, y, z) PL_MEMORY_REALLOC(x, z)
 #endif
 
 #ifndef PL_ASSERT
@@ -198,7 +192,8 @@ Index of this file:
 #endif
 
 #ifdef _WIN32
-    #include <memoryapi.h>  // VirtualAlloc, VirtualFree
+    #define WIN32_LEAN_AND_MEAN
+    #include <windows.h>  // VirtualAlloc, VirtualFree
     #include <sysinfoapi.h> // page size
 #elif defined(__APPLE__)
     #include <unistd.h>
@@ -215,6 +210,15 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 plMemoryContext* gptMemoryContext = NULL;
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal structs
+//-----------------------------------------------------------------------------
+
+typedef struct _plMemoryContext
+{
+    uint32_t uActiveAllocations;
+} plMemoryContext;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -257,18 +261,22 @@ pl__align_forward_size(size_t szPtr, size_t szAlign)
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-void
-pl_initialize_memory_context(plMemoryContext* ptCtx)
+plMemoryContext*
+pl_create_memory_context(void)
 {
-    memset(ptCtx, 0, sizeof(plMemoryContext));
-    gptMemoryContext = ptCtx;
+    gptMemoryContext = (plMemoryContext* )PL_MEMORY_ALLOC(sizeof(plMemoryContext));
+    memset(gptMemoryContext, 0, sizeof(plMemoryContext));
+    gptMemoryContext->uActiveAllocations = 1;
+    return gptMemoryContext;
 }
 
 void
 pl_cleanup_memory_context(void)
 {
-    PL_ASSERT(gptMemoryContext->uActiveAllocations == 0 && "memory leak");
+    PL_ASSERT(gptMemoryContext->uActiveAllocations == 1 && "memory leak");
     gptMemoryContext->uActiveAllocations = 0u;
+    PL_MEMORY_FREE(gptMemoryContext);
+    gptMemoryContext = NULL;
 }
 
 void
@@ -283,13 +291,19 @@ pl_get_memory_context(void)
     return gptMemoryContext;
 }
 
+uint32_t
+pl_get_active_allocations(void)
+{
+    return gptMemoryContext->uActiveAllocations;
+}
+
 void*
 pl_alloc(size_t szSize)
 {
     #ifdef PL_MEMORY_USE_CONTEXT
         gptMemoryContext->uActiveAllocations++;
     #endif
-    return PL_ALLOC(szSize);
+    return PL_MEMORY_ALLOC(szSize);
 }
 
 void
@@ -298,7 +312,7 @@ pl_free(void* pBuffer)
     #ifdef PL_MEMORY_USE_CONTEXT
         gptMemoryContext->uActiveAllocations--;
     #endif
-    PL_FREE(pBuffer);
+    PL_MEMORY_FREE(pBuffer);
 }
 
 void*
@@ -350,7 +364,7 @@ pl_realloc(void* pBuffer, size_t szSize)
         #ifdef PL_MEMORY_USE_CONTEXT
             gptMemoryContext->uActiveAllocations--;
         #endif
-        PL_FREE(pBuffer);
+        PL_MEMORY_FREE(pBuffer);
         pNewBuffer = NULL;
     }
     else if (szSize == 0)  // free
@@ -359,14 +373,14 @@ pl_realloc(void* pBuffer, size_t szSize)
     }
     else if(pBuffer) // resizing
     {
-        pNewBuffer = PL_REALLOC(pBuffer, szSize);
+        pNewBuffer = PL_MEMORY_REALLOC(pBuffer, szSize);
     }
     else
     {
         #ifdef PL_MEMORY_USE_CONTEXT
             gptMemoryContext->uActiveAllocations++;
         #endif
-        pNewBuffer = PL_ALLOC(szSize);
+        pNewBuffer = PL_MEMORY_ALLOC(szSize);
     }
     return pNewBuffer;
 }
@@ -378,7 +392,7 @@ pl_stack_allocator_init(plStackAllocator* ptAllocator, size_t szSize, void* pBuf
     PL_ASSERT(szSize > 0);
     PL_ASSERT(pBuffer);
 
-    ptAllocator->pucBuffer = pBuffer;
+    ptAllocator->pucBuffer = (unsigned char*)pBuffer;
     ptAllocator->szSize = szSize;
     ptAllocator->szBottomOffset = 0;
     ptAllocator->szTopOffset = szSize;
@@ -475,9 +489,7 @@ pl_stack_allocator_alloc_top(plStackAllocator* ptAllocator, size_t szSize)
 plStackAllocatorMarker
 pl_stack_allocator_marker(plStackAllocator* ptAllocator)
 {
-    plStackAllocatorMarker tMarker;
-    tMarker.szOffset = ptAllocator->szBottomOffset;
-    tMarker.bTop = false;
+    plStackAllocatorMarker tMarker = ptAllocator->szBottomOffset;
     return tMarker;
 }
 
@@ -490,19 +502,34 @@ pl_stack_allocator_bottom_marker(plStackAllocator* ptAllocator)
 plStackAllocatorMarker
 pl_stack_allocator_top_marker(plStackAllocator* ptAllocator)
 {
-    plStackAllocatorMarker tMarker;
-    tMarker.szOffset = ptAllocator->szTopOffset;
-    tMarker.bTop = true;
+    plStackAllocatorMarker tMarker = ptAllocator->szTopOffset;
     return tMarker;
 }
 
 void
 pl_stack_allocator_free_to_marker(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker)
 {
-    if(tMarker.bTop)
-        ptAllocator->szTopOffset = tMarker.szOffset;
-    else
-        ptAllocator->szBottomOffset = tMarker.szOffset;
+    ptAllocator->szBottomOffset = tMarker;
+
+    #ifdef _DEBUG
+    memset(&ptAllocator->pucBuffer[ptAllocator->szBottomOffset], 0, ptAllocator->szTopOffset - ptAllocator->szBottomOffset);
+    #endif
+}
+
+void
+pl_stack_allocator_free_top_to_marker(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker)
+{
+    ptAllocator->szTopOffset = tMarker;
+
+    #ifdef _DEBUG
+    memset(&ptAllocator->pucBuffer[ptAllocator->szBottomOffset], 0, ptAllocator->szTopOffset - ptAllocator->szBottomOffset);
+    #endif
+}
+
+void
+pl_stack_allocator_free_bottom_to_marker(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker)
+{
+    ptAllocator->szBottomOffset = tMarker;
 
     #ifdef _DEBUG
     memset(&ptAllocator->pucBuffer[ptAllocator->szBottomOffset], 0, ptAllocator->szTopOffset - ptAllocator->szBottomOffset);
@@ -533,7 +560,7 @@ pl_pool_allocator_init(plPoolAllocator* ptAllocator, size_t szItemCount, size_t 
     ptAllocator->szRequestedItemSize = szItemSize;
     ptAllocator->szGivenSize = szBufferSize;
     ptAllocator->szUsableSize = szBufferSize;
-    ptAllocator->pucBuffer = pBuffer;
+    ptAllocator->pucBuffer = (unsigned char*)pBuffer;
     ptAllocator->szItemSize = pl__align_forward_size(szItemSize, szItemAlignment);
 
     uintptr_t pInitialStart = (uintptr_t)pBuffer;
@@ -570,7 +597,7 @@ pl_pool_allocator_free(plPoolAllocator* ptAllocator, void* pItem)
 {
     ptAllocator->szFreeItems++;
     plPoolAllocatorNode* pOldFreeNode = ptAllocator->pFreeList;
-    ptAllocator->pFreeList = pItem;
+    ptAllocator->pFreeList = (plPoolAllocatorNode*)pItem;
     ptAllocator->pFreeList->ptNextNode = pOldFreeNode;
 }
 
