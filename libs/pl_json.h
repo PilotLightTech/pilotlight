@@ -109,11 +109,12 @@ void          pl_json_as_string_array    (plJsonObject* tPtrJson,    char** cPtr
 
 typedef struct _plJsonObject
 {
-    char          acName[PL_JSON_MAX_NAME_LENGTH];
     plJsonType    tType;
+    uint32_t      uChildCount;
+    char          acName[PL_JSON_MAX_NAME_LENGTH]; 
     plJsonObject* sbtChildren;
     uint32_t      uChildrenFound;
-    uint32_t      uChildCount;
+    
     union
     {
         struct
@@ -512,6 +513,7 @@ jsmn_init(jsmn_parser* parser)
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] stretchy buffer
 // [SECTION] internal api
 // [SECTION] internal enums
 // [SECTION] public api implementation
@@ -524,12 +526,111 @@ Index of this file:
 
 #include <string.h>
 #include <stdlib.h>
-#include "pl_ds.h"
 
 #ifndef PL_ASSERT
-#include <assert.h>
-#define PL_ASSERT(x) assert((x))
+    #include <assert.h>
+    #define PL_ASSERT(x) assert((x))
 #endif
+
+#if defined(PL_JSON_ALLOC) && defined(PL_JSON_FREE)
+// ok
+#elif !defined(PL_JSON_ALLOC) && !defined(PL_JSON_FREE)
+// ok
+#else
+#error "Must define both or none of PL_JSON_ALLOC and PL_JSON_FREE"
+#endif
+
+#ifndef PL_JSON_ALLOC
+    #include <stdlib.h>
+    #define PL_JSON_ALLOC(x) malloc(x)
+    #define PL_JSON_FREE(x)  free((x))
+#endif
+
+//-----------------------------------------------------------------------------
+// [SECTION] stretchy buffer
+//-----------------------------------------------------------------------------
+
+// based on pl_ds.h version "0.2.0"
+
+#define pl_sb_json_capacity(buf) \
+    ((buf) ? pl__sb_json_header((buf))->uCapacity : 0u)
+
+#define pl_sb_json_size(buf) \
+    ((buf) ? pl__sb_json_header((buf))->uSize : 0u)
+
+#define pl_sb_json_pop(buf) \
+    (buf)[--pl__sb_json_header((buf))->uSize]
+
+#define pl_sb_json_top(buf) \
+    ((buf)[pl__sb_json_header((buf))->uSize-1])
+
+#define pl_sb_json_free(buf) \
+    if((buf)){ PL_JSON_FREE(pl__sb_json_header(buf));} (buf) = NULL;
+
+#define pl_sb_json_reset(buf) \
+    if((buf)){ pl__sb_json_header((buf))->uSize = 0u;}
+
+#define pl_sb_json_push(buf, v) \
+    (pl__sb_json_may_grow((buf), sizeof(*(buf)), 1, 8), (buf)[pl__sb_json_header((buf))->uSize++] = (v))
+
+#define pl_sb_json_reserve(buf, n) \
+    (pl__sb_json_may_grow((buf), sizeof(*(buf)), (n), (n)))
+
+#define pl_sb_json_resize(buf, n) \
+    (pl__sb_json_may_grow((buf), sizeof(*(buf)), (n), (n)), memset((buf), 0, sizeof(*(buf)) * (n)), pl__sb_json_header((buf))->uSize = (n))
+
+#define pl_sb_json_add_n(buf, n) \
+    (pl__sb_json_may_grow((buf), sizeof(*(buf)), (n), (n)), (n) ? (pl__sb_json_header(buf)->uSize += (n), pl__sb_json_header(buf)->uSize - (n)) : pl_sb_json_size(buf))
+
+
+#define pl__sb_json_header(buf) ((plSbJsonHeader_*)(((char*)(buf)) - sizeof(plSbJsonHeader_)))
+#define pl__sb_json_may_grow(buf, s, n, m) pl__sb_json_may_grow_((void**)&(buf), (s), (n), (m))
+
+typedef struct
+{
+    uint32_t uSize;
+    uint32_t uCapacity;
+} plSbJsonHeader_;
+
+static void
+pl__sb_json_grow(void** ptrBuffer, size_t szElementSize, size_t szNewItems)
+{
+
+    plSbJsonHeader_* ptOldHeader = pl__sb_json_header(*ptrBuffer);
+
+    plSbJsonHeader_* ptNewHeader = (plSbJsonHeader_*)PL_JSON_ALLOC((ptOldHeader->uCapacity + szNewItems) * szElementSize + sizeof(plSbJsonHeader_));
+    if(ptNewHeader)
+    {
+        ptNewHeader->uSize = ptOldHeader->uSize;
+        ptNewHeader->uCapacity = ptOldHeader->uCapacity + (uint32_t)szNewItems;
+        memcpy(&ptNewHeader[1], *ptrBuffer, ptOldHeader->uSize * szElementSize);
+        PL_JSON_FREE(ptOldHeader);
+        *ptrBuffer = &ptNewHeader[1];
+    }
+}
+
+static void
+pl__sb_json_may_grow_(void** ptrBuffer, size_t szElementSize, size_t szNewItems, size_t szMinCapacity)
+{
+    if(*ptrBuffer)
+    {   
+        plSbJsonHeader_* ptOriginalHeader = pl__sb_json_header(*ptrBuffer);
+        if(ptOriginalHeader->uSize + szNewItems > ptOriginalHeader->uCapacity)
+        {
+            pl__sb_json_grow(ptrBuffer, szElementSize, szNewItems);
+        }
+    }
+    else // first run
+    {
+        plSbJsonHeader_* ptHeader = (plSbJsonHeader_*)PL_JSON_ALLOC(szMinCapacity * szElementSize + sizeof(plSbJsonHeader_));
+        if(ptHeader)
+        {
+            *ptrBuffer = &ptHeader[1]; 
+            ptHeader->uSize = 0u;
+            ptHeader->uCapacity = (uint32_t)szMinCapacity;
+        }
+    }     
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -561,14 +662,14 @@ pl_load_json(const char* cPtrJson, plJsonObject* tPtrJsonOut)
 {
     jsmn_parser tP = {0};
     jsmntok_t* sbtTokens = NULL;
-    pl_sb_resize(sbtTokens, 512);
+    pl_sb_json_resize(sbtTokens, 512);
 
     jsmn_init(&tP);
 
     int iResult = 0;
     while(true)
     {
-        iResult = jsmn_parse(&tP, cPtrJson, strlen(cPtrJson), sbtTokens, pl_sb_size(sbtTokens));
+        iResult = jsmn_parse(&tP, cPtrJson, strlen(cPtrJson), sbtTokens, pl_sb_json_size(sbtTokens));
 
         if(iResult == JSMN_ERROR_INVAL)
         {
@@ -576,7 +677,7 @@ pl_load_json(const char* cPtrJson, plJsonObject* tPtrJsonOut)
         }
         else if(iResult == JSMN_ERROR_NOMEM)
         {
-            pl_sb_add_n(sbtTokens, 256);
+            pl_sb_json_add_n(sbtTokens, 256);
         }
         else if(iResult == JSMN_ERROR_PART)
         {
@@ -594,17 +695,17 @@ pl_load_json(const char* cPtrJson, plJsonObject* tPtrJsonOut)
     tPtrJsonOut->tType = PL_JSON_TYPE_OBJECT;
     tPtrJsonOut->uChildCount = sbtTokens[uCurrentTokenIndex].size;
     strcpy(tPtrJsonOut->acName, "ROOT");
-    pl_sb_reserve(tPtrJsonOut->sbtChildren, sbtTokens[uCurrentTokenIndex].size);
-    pl_sb_push(sbtObjectStack, tPtrJsonOut);
+    pl_sb_json_reserve(tPtrJsonOut->sbtChildren, sbtTokens[uCurrentTokenIndex].size);
+    pl_sb_json_push(sbtObjectStack, tPtrJsonOut);
     while(uCurrentTokenIndex < (uint32_t)iResult - 1)
     {
 
-        if(pl_sb_top(sbtObjectStack)->uChildrenFound == pl_sb_top(sbtObjectStack)->uChildCount)
-            pl_sb_pop(sbtObjectStack);
+        if(pl_sb_json_top(sbtObjectStack)->uChildrenFound == pl_sb_json_top(sbtObjectStack)->uChildCount)
+            pl_sb_json_pop(sbtObjectStack);
         else
         {
             
-            plJsonObject* tPtrParentObject = pl_sb_top(sbtObjectStack);
+            plJsonObject* tPtrParentObject = pl_sb_json_top(sbtObjectStack);
 
             jsmntok_t* tPtrCurrentToken = &sbtTokens[uCurrentTokenIndex];
             jsmntok_t* tPtrNextToken = &sbtTokens[uCurrentTokenIndex + 1];
@@ -616,8 +717,8 @@ pl_load_json(const char* cPtrJson, plJsonObject* tPtrJsonOut)
             case JSMN_PRIMITIVE:
                 if(tPtrParentObject->tType == PL_JSON_TYPE_ARRAY)
                 {
-                    pl_sb_push(tPtrParentObject->sbcPtrValue, &cPtrJson[tPtrCurrentToken->start]);
-                    pl_sb_push(tPtrParentObject->sbuValueLength, tPtrCurrentToken->end - tPtrCurrentToken->start);
+                    pl_sb_json_push(tPtrParentObject->sbcPtrValue, &cPtrJson[tPtrCurrentToken->start]);
+                    pl_sb_json_push(tPtrParentObject->sbuValueLength, tPtrCurrentToken->end - tPtrCurrentToken->start);
                     tPtrParentObject->uChildrenFound++;
                 }
                 else
@@ -625,7 +726,7 @@ pl_load_json(const char* cPtrJson, plJsonObject* tPtrJsonOut)
                     tPtrParentObject->cPtrValue = &cPtrJson[tPtrCurrentToken->start];
                     tPtrParentObject->uValueLength = tPtrCurrentToken->end - tPtrCurrentToken->start;
                     tPtrParentObject->uChildrenFound++;
-                    pl_sb_pop(sbtObjectStack);
+                    pl_sb_json_pop(sbtObjectStack);
                 }
                 break;
 
@@ -637,15 +738,15 @@ pl_load_json(const char* cPtrJson, plJsonObject* tPtrJsonOut)
                     if(tPtrParentObject->tType == PL_JSON_TYPE_ARRAY)
                     {
                         tPtrParentObject->uChildrenFound++;
-                        pl_sb_push(tPtrParentObject->sbcPtrValue, &cPtrJson[tPtrCurrentToken->start]);
-                        pl_sb_push(tPtrParentObject->sbuValueLength, tPtrCurrentToken->end - tPtrCurrentToken->start);
+                        pl_sb_json_push(tPtrParentObject->sbcPtrValue, &cPtrJson[tPtrCurrentToken->start]);
+                        pl_sb_json_push(tPtrParentObject->sbuValueLength, tPtrCurrentToken->end - tPtrCurrentToken->start);
                     }
                     else
                     {
                         tPtrParentObject->uChildrenFound++;
                         tPtrParentObject->cPtrValue = &cPtrJson[tPtrCurrentToken->start];
                         tPtrParentObject->uValueLength = tPtrCurrentToken->end - tPtrCurrentToken->start;
-                        pl_sb_pop(sbtObjectStack);
+                        pl_sb_json_pop(sbtObjectStack);
                     }
                 }
 
@@ -653,8 +754,8 @@ pl_load_json(const char* cPtrJson, plJsonObject* tPtrJsonOut)
                 else
                 {
                     plJsonObject tNewJsonObject = {
-                        .uChildCount = tPtrNextToken->size,
-                        .tType       = pl__get_json_token_object_type(cPtrJson, tPtrNextToken)
+                        pl__get_json_token_object_type(cPtrJson, tPtrNextToken),
+                        (uint32_t)tPtrNextToken->size
                     };
                     if(tNewJsonObject.uChildCount == 0)
                     {
@@ -662,11 +763,11 @@ pl_load_json(const char* cPtrJson, plJsonObject* tPtrJsonOut)
                     }
                     tPtrParentObject->uChildrenFound++;
                     strncpy(tNewJsonObject.acName, &cPtrJson[tPtrCurrentToken->start], tPtrCurrentToken->end - tPtrCurrentToken->start);
-                    pl_sb_push(tPtrParentObject->sbtChildren, tNewJsonObject);
-                    pl_sb_reserve(pl_sb_top(tPtrParentObject->sbtChildren).sbtChildren, tPtrNextToken->size);
-                    pl_sb_reserve(pl_sb_top(tPtrParentObject->sbtChildren).sbcPtrValue, tPtrNextToken->size);
-                    pl_sb_reserve(pl_sb_top(tPtrParentObject->sbtChildren).sbuValueLength, tPtrNextToken->size);
-                    pl_sb_push(sbtObjectStack, &pl_sb_top(tPtrParentObject->sbtChildren));
+                    pl_sb_json_push(tPtrParentObject->sbtChildren, tNewJsonObject);
+                    pl_sb_json_reserve(pl_sb_json_top(tPtrParentObject->sbtChildren).sbtChildren, tPtrNextToken->size);
+                    pl_sb_json_reserve(pl_sb_json_top(tPtrParentObject->sbtChildren).sbcPtrValue, tPtrNextToken->size);
+                    pl_sb_json_reserve(pl_sb_json_top(tPtrParentObject->sbtChildren).sbuValueLength, tPtrNextToken->size);
+                    pl_sb_json_push(sbtObjectStack, &pl_sb_json_top(tPtrParentObject->sbtChildren));
 
                     if(tNewJsonObject.tType == PL_JSON_TYPE_ARRAY)
                     {
@@ -681,15 +782,15 @@ pl_load_json(const char* cPtrJson, plJsonObject* tPtrJsonOut)
                 if(tPtrParentObject->tType == PL_JSON_TYPE_ARRAY)
                 {
                     plJsonObject tNewJsonObject = {
-                        .uChildCount = tPtrCurrentToken->size,
-                        .tType       = pl__get_json_token_object_type(cPtrJson, tPtrCurrentToken)
+                        pl__get_json_token_object_type(cPtrJson, tPtrCurrentToken),
+                        (uint32_t)tPtrCurrentToken->size
                     };
                     strcpy(tNewJsonObject.acName, "UNNAMED OBJECT");
-                    pl_sb_push(tPtrParentObject->sbtChildren, tNewJsonObject);
-                    pl_sb_reserve(pl_sb_top(tPtrParentObject->sbtChildren).sbtChildren, tPtrCurrentToken->size);
-                    pl_sb_reserve(pl_sb_top(tPtrParentObject->sbtChildren).sbcPtrValue, tPtrCurrentToken->size);
-                    pl_sb_reserve(pl_sb_top(tPtrParentObject->sbtChildren).sbuValueLength, tPtrCurrentToken->size);
-                    pl_sb_push(sbtObjectStack, &pl_sb_top(tPtrParentObject->sbtChildren));
+                    pl_sb_json_push(tPtrParentObject->sbtChildren, tNewJsonObject);
+                    pl_sb_json_reserve(pl_sb_json_top(tPtrParentObject->sbtChildren).sbtChildren, tPtrCurrentToken->size);
+                    pl_sb_json_reserve(pl_sb_json_top(tPtrParentObject->sbtChildren).sbcPtrValue, tPtrCurrentToken->size);
+                    pl_sb_json_reserve(pl_sb_json_top(tPtrParentObject->sbtChildren).sbuValueLength, tPtrCurrentToken->size);
+                    pl_sb_json_push(sbtObjectStack, &pl_sb_json_top(tPtrParentObject->sbtChildren));
                     tPtrParentObject->uChildrenFound++;
                 }
                 else if(tPtrParentObject->tType == PL_JSON_TYPE_OBJECT)
@@ -710,15 +811,15 @@ pl_load_json(const char* cPtrJson, plJsonObject* tPtrJsonOut)
                 if(tPtrParentObject->tType == PL_JSON_TYPE_ARRAY)
                 {
                     plJsonObject tNewJsonObject = {
-                        .uChildCount = tPtrCurrentToken->size,
-                        .tType       = pl__get_json_token_object_type(cPtrJson, tPtrCurrentToken)
+                        pl__get_json_token_object_type(cPtrJson, tPtrCurrentToken),
+                        (uint32_t)tPtrCurrentToken->size
                     };
                     strcpy(tNewJsonObject.acName, "UNNAMED ARRAY");
-                    pl_sb_push(tPtrParentObject->sbtChildren, tNewJsonObject);
-                    pl_sb_reserve(pl_sb_top(tPtrParentObject->sbtChildren).sbtChildren, tPtrCurrentToken->size);
-                    pl_sb_reserve(pl_sb_top(tPtrParentObject->sbtChildren).sbcPtrValue, tPtrCurrentToken->size);
-                    pl_sb_reserve(pl_sb_top(tPtrParentObject->sbtChildren).sbuValueLength, tPtrCurrentToken->size);
-                    pl_sb_push(sbtObjectStack, &pl_sb_top(tPtrParentObject->sbtChildren));
+                    pl_sb_json_push(tPtrParentObject->sbtChildren, tNewJsonObject);
+                    pl_sb_json_reserve(pl_sb_json_top(tPtrParentObject->sbtChildren).sbtChildren, tPtrCurrentToken->size);
+                    pl_sb_json_reserve(pl_sb_json_top(tPtrParentObject->sbtChildren).sbcPtrValue, tPtrCurrentToken->size);
+                    pl_sb_json_reserve(pl_sb_json_top(tPtrParentObject->sbtChildren).sbuValueLength, tPtrCurrentToken->size);
+                    pl_sb_json_push(sbtObjectStack, &pl_sb_json_top(tPtrParentObject->sbtChildren));
                     tPtrParentObject->uChildrenFound++;
                 }
                 else if(tPtrParentObject->tType == PL_JSON_TYPE_STRING)
@@ -741,7 +842,7 @@ pl_load_json(const char* cPtrJson, plJsonObject* tPtrJsonOut)
         }
     }
 
-    pl_sb_free(sbtTokens);
+    pl_sb_json_free(sbtTokens);
     return true;
 }
 
@@ -753,9 +854,9 @@ pl_unload_json(plJsonObject* tPtrJson)
 
     if(tPtrJson->tType == PL_JSON_TYPE_ARRAY)
     {
-        pl_sb_free(tPtrJson->sbcPtrValue);
-        pl_sb_free(tPtrJson->sbtChildren);
-        pl_sb_free(tPtrJson->sbuValueLength);
+        pl_sb_json_free(tPtrJson->sbcPtrValue);
+        pl_sb_json_free(tPtrJson->sbtChildren);
+        pl_sb_json_free(tPtrJson->sbuValueLength);
     }
     else
     {
@@ -795,16 +896,16 @@ pl_json_member_list(plJsonObject* tPtrJson, char** cPtrListOut, uint32_t* uPtrSi
 {
     if(cPtrListOut)
     {
-        for(uint32_t i = 0; i < pl_sb_size(tPtrJson->sbtChildren); i++)
+        for(uint32_t i = 0; i < pl_sb_json_size(tPtrJson->sbtChildren); i++)
             strcpy(cPtrListOut[i], tPtrJson->sbtChildren[i].acName);
     }
 
     if(uPtrSizeOut)
-        *uPtrSizeOut = pl_sb_size(tPtrJson->sbtChildren);
+        *uPtrSizeOut = pl_sb_json_size(tPtrJson->sbtChildren);
 
     if(uPtrLength)
     {
-        for(uint32_t i = 0; i < pl_sb_size(tPtrJson->sbtChildren); i++)
+        for(uint32_t i = 0; i < pl_sb_json_size(tPtrJson->sbtChildren); i++)
         {
             const uint32_t uLength = (uint32_t)strlen(tPtrJson->sbtChildren[i].acName);
             if(uLength > *uPtrLength) *uPtrLength = uLength;
