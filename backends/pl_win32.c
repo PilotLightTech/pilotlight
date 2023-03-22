@@ -38,9 +38,7 @@ Index of this file:
 #pragma comment(lib, "ws2_32.lib") // winsock2 library
 #endif
 
-
 #include <windowsx.h> // GET_X_LPARAM(), GET_Y_LPARAM()
-
 
 #pragma comment(lib, "user32.lib")
 
@@ -94,7 +92,7 @@ pl_init_win32(HWND tHandle)
     
     memset(ptIOCtx->pBackendData, 0, sizeof(plWin32BackendData));
 
-    plWin32BackendData* ptWin32BackendData = ptIOCtx->pBackendData;
+    plWin32BackendData* ptWin32BackendData = (plWin32BackendData*)ptIOCtx->pBackendData;
     ptWin32BackendData->tHandle = tHandle;
     ptIOCtx->pBackendPlatformData = &ptWin32BackendData->tHandle;
 
@@ -112,7 +110,7 @@ void
 pl_new_frame_win32(void)
 {
     plIOContext* ptIOCtx = pl_get_io_context();
-    plWin32BackendData* ptWin32BackendData = ptIOCtx->pBackendData;
+    plWin32BackendData* ptWin32BackendData = (plWin32BackendData*)ptIOCtx->pBackendData;
 
     // setup time step
     INT64 ilCurrentTime = 0;
@@ -157,7 +155,7 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 {
     
     plIOContext* ptIOCtx = pl_get_io_context();
-    plWin32BackendData* ptWin32BackendData = ptIOCtx->pBackendData;
+    plWin32BackendData* ptWin32BackendData = (plWin32BackendData*)ptIOCtx->pBackendData;
 
     static UINT_PTR puIDEvent = 0;
     switch (tMsg)
