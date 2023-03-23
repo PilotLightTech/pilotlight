@@ -716,10 +716,9 @@ pl_draw_sky(plScene* ptScene)
 
     plGlobalInfo* ptGlobalInfo    = (plGlobalInfo*)&ptBuffer0->pucMapping[uBufferFrameOffset0];
     ptGlobalInfo->tCameraPos      = (plVec4){.xyz = ptScene->ptCamera->tPos, .w = 0.0f};
-    ptGlobalInfo->tCameraView     = ptScene->ptCamera->tViewMat;
-    plMat4 tReverseTransform      = pl_mat4_translate_xyz(ptScene->ptCamera->tPos.x, ptScene->ptCamera->tPos.y, ptScene->ptCamera->tPos.z);
-    ptGlobalInfo->tCameraViewProj = pl_mul_mat4(&ptScene->ptCamera->tViewMat, &tReverseTransform);
-    ptGlobalInfo->tCameraViewProj = pl_mul_mat4(&ptScene->ptCamera->tProjMat, &ptGlobalInfo->tCameraViewProj);
+    const plMat4 tRemoveTranslation = pl_mat4_translate_xyz(ptScene->ptCamera->tPos.x, ptScene->ptCamera->tPos.y, ptScene->ptCamera->tPos.z);
+    ptGlobalInfo->tCameraView     = pl_mul_mat4(&ptScene->ptCamera->tViewMat, &tRemoveTranslation);
+    ptGlobalInfo->tCameraViewProj = pl_mul_mat4(&ptScene->ptCamera->tProjMat, &ptGlobalInfo->tCameraView);
 
     uint32_t uSkyboxShaderVariant = UINT32_MAX;
 
@@ -1344,34 +1343,36 @@ pl_camera_rotate(plCameraComponent* ptCamera, float fDPitch, float fDYaw)
 void
 pl_camera_update(plCameraComponent* ptCamera)
 {
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    static const plVec4 tOriginalUpVec      = {0.0f, -1.0f, 0.0f, 0.0f};
-    static const plVec4 tOriginalForwardVec = {0.0f, 0.0f, -1.0f, 0.0f};
-    static const plVec4 tOriginalRightVec   = {1.0f, 0.0f, 0.0f, 0.0f};
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    const plMat4 tXRotMat = pl_mat4_rotate_vec3(ptCamera->fPitch, (plVec3){1.0f, 0.0f, 0.0f});
-    const plMat4 tYRotMat = pl_mat4_rotate_vec3(-ptCamera->fYaw, (plVec3){0.0f, 1.0f, 0.0f});
-    const plMat4 tZRotMat = pl_mat4_rotate_vec3(0.0f, (plVec3){0.0f, 0.0f, 1.0f});
+    // world space
+    static const plVec4 tOriginalUpVec      = {0.0f, 1.0f, 0.0f, 0.0f};
+    static const plVec4 tOriginalForwardVec = {0.0f, 0.0f, 1.0f, 0.0f};
+    static const plVec4 tOriginalRightVec   = {-1.0f, 0.0f, 0.0f, 0.0f};
 
-    // rotZ * rotY * rotX
-    const plMat4 tYRotMat2 = pl_mat4_rotate_vec3(ptCamera->fYaw, (plVec3){0.0f, 1.0f, 0.0f});
-    plMat4 tOp0            = pl_mul_mat4t(&tYRotMat2, &tXRotMat);
-    tOp0                   = pl_mul_mat4t(&tZRotMat, &tOp0);
+    const plMat4 tXRotMat   = pl_mat4_rotate_vec3(ptCamera->fPitch, tOriginalRightVec.xyz);
+    const plMat4 tYRotMat   = pl_mat4_rotate_vec3(ptCamera->fYaw, tOriginalUpVec.xyz);
+    const plMat4 tZRotMat   = pl_mat4_rotate_vec3(ptCamera->fRoll, tOriginalForwardVec.xyz);
+    const plMat4 tTranslate = pl_mat4_translate_vec3((plVec3){ptCamera->tPos.x, ptCamera->tPos.y, ptCamera->tPos.z});
 
-    const plMat4 tTranslate = pl_mat4_translate_vec3((plVec3){ptCamera->tPos.x, -ptCamera->tPos.y, -ptCamera->tPos.z});
+    // rotations: rotY * rotX * rotZ
+    plMat4 tRotations = pl_mul_mat4t(&tXRotMat, &tZRotMat);
+    tRotations        = pl_mul_mat4t(&tYRotMat, &tRotations);
 
-    // translate * rotZ * rotY * rotX
-    ptCamera->tTransformMat = pl_mul_mat4t(&tYRotMat, &tXRotMat);
-    ptCamera->tTransformMat = pl_mul_mat4t(&tZRotMat, &ptCamera->tTransformMat);
-    ptCamera->tTransformMat = pl_mul_mat4t(&tTranslate, &ptCamera->tTransformMat);
+    // update camera vectors
+    ptCamera->_tRightVec   = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalRightVec)).xyz;
+    ptCamera->_tUpVec      = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalUpVec)).xyz;
+    ptCamera->_tForwardVec = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalForwardVec)).xyz;
 
-    ptCamera->_tRightVec   = pl_norm_vec4(pl_mul_mat4_vec4(&tOp0, tOriginalRightVec)).xyz;
-    ptCamera->_tUpVec      = pl_norm_vec4(pl_mul_mat4_vec4(&tOp0, tOriginalUpVec)).xyz;
-    ptCamera->_tForwardVec = pl_norm_vec4(pl_mul_mat4_vec4(&tOp0, tOriginalForwardVec)).xyz;
+    // update camera transform: translate * rotate
+    ptCamera->tTransformMat = pl_mul_mat4t(&tTranslate, &tRotations);
 
-    const plMat4 tFlipY = pl_mat4_scale_xyz(1.0f, -1.0f, -1.0f);
-    ptCamera->tViewMat  = pl_mat4t_invert(&ptCamera->tTransformMat);
-    ptCamera->tViewMat  = pl_mul_mat4t(&ptCamera->tViewMat, &tFlipY);
+    // update camera view matrix
+    ptCamera->tViewMat   = pl_mat4t_invert(&ptCamera->tTransformMat);
+
+    // flip x & y so camera looks down +z and remains right handed (+x to the right)
+    const plMat4 tFlipXY = pl_mat4_scale_xyz(-1.0f, -1.0f, 1.0f);
+    ptCamera->tViewMat   = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMat);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~update projection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);

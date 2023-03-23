@@ -187,7 +187,9 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
     ptAppData->tOffscreenCameraEntity = pl_ecs_create_camera(&ptAppData->tScene, "offscreen camera", (plVec3){0.0f, 0.35f, 0.8f}, PL_PI_3, 1280.0f / 720.0f, 0.01f, 400.0f);
     ptAppData->tCameraEntity = pl_ecs_create_camera(&ptAppData->tScene, "main camera", (plVec3){-6.211f, 3.647f, 0.827f}, PL_PI_3, ptIOCtx->afMainViewportSize[0] / ptIOCtx->afMainViewportSize[1], 0.01f, 400.0f);
     plCameraComponent* ptCamera = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tCameraEntity);
-    pl_camera_set_pitch_yaw(ptCamera, -0.244f, -1.488f);
+    plCameraComponent* ptCamera2 = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tOffscreenCameraEntity);
+    pl_camera_set_pitch_yaw(ptCamera, -0.244f, 1.488f);
+    pl_camera_set_pitch_yaw(ptCamera2, 0.0f, -PL_PI);
 
     // objects
     ptAppData->tStlEntity   = pl_ecs_create_object(&ptAppData->tScene, "stl object");
@@ -494,10 +496,14 @@ pl_app_update(plAppData* ptAppData)
     static const float fCameraTravelSpeed = 8.0f;
     plCameraComponent* ptCamera = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tCameraEntity);
     plCameraComponent* ptOffscreenCamera = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tOffscreenCameraEntity);
+
+    // camera space
     if(pl_is_key_pressed(PL_KEY_W, true)) pl_camera_translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIOCtx->fDeltaTime);
     if(pl_is_key_pressed(PL_KEY_S, true)) pl_camera_translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIOCtx->fDeltaTime);
     if(pl_is_key_pressed(PL_KEY_A, true)) pl_camera_translate(ptCamera, -fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f,  0.0f);
     if(pl_is_key_pressed(PL_KEY_D, true)) pl_camera_translate(ptCamera,  fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f,  0.0f);
+
+    // world space
     if(pl_is_key_pressed(PL_KEY_F, true)) pl_camera_translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f);
     if(pl_is_key_pressed(PL_KEY_R, true)) pl_camera_translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f);
 
@@ -567,7 +573,7 @@ pl_app_update(plAppData* ptAppData)
                 pl_ui_text("Pitch: %.3f, Yaw: %.3f, Roll:%.3f", ptCamera->fPitch, ptCamera->fYaw, ptCamera->fRoll);
                 pl_ui_text("Up: %.3f, %.3f, %.3f", ptCamera->_tUpVec.x, ptCamera->_tUpVec.y, ptCamera->_tUpVec.z);
                 pl_ui_text("Forward: %.3f, %.3f, %.3f", ptCamera->_tForwardVec.x, ptCamera->_tForwardVec.y, ptCamera->_tForwardVec.z);
-                pl_ui_text("Right: %.3f, %.3f, %.3f", ptCamera->_tRightVec.x, ptCamera->_tRightVec.y, ptCamera->_tRightVec.z);  
+                pl_ui_text("Right: %.3f, %.3f, %.3f", ptCamera->_tRightVec.x, ptCamera->_tRightVec.y, ptCamera->_tRightVec.z);
                 pl_ui_end_window();
             }
             
