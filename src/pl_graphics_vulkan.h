@@ -90,12 +90,12 @@ void                  pl_end_recording                (plGraphics* ptGraphics);
 void                  pl_process_cleanup_queue        (plResourceManager* ptResourceManager, uint32_t uFramesToProcess);
 
 // resource manager commited resources
-uint32_t              pl_create_index_buffer          (plResourceManager* ptResourceManager, size_t szSize, const void* pData);
-uint32_t              pl_create_vertex_buffer         (plResourceManager* ptResourceManager, size_t szSize, size_t szStride, const void* pData);
-uint32_t              pl_create_constant_buffer_ex    (plResourceManager* ptResourceManager, size_t szSize);
-uint32_t              pl_create_constant_buffer       (plResourceManager* ptResourceManager, size_t szItemSize, size_t szItemCount);
-uint32_t              pl_create_texture               (plResourceManager* ptResourceManager, plTextureDesc tDesc, size_t szSize, const void* pData);
-uint32_t              pl_create_storage_buffer        (plResourceManager* ptResourceManager, size_t szSize, const void* pData);
+uint32_t              pl_create_index_buffer          (plResourceManager* ptResourceManager, size_t szSize, const void* pData, const char* pcName);
+uint32_t              pl_create_vertex_buffer         (plResourceManager* ptResourceManager, size_t szSize, size_t szStride, const void* pData, const char* pcName);
+uint32_t              pl_create_constant_buffer_ex    (plResourceManager* ptResourceManager, size_t szSize, const char* pcName);
+uint32_t              pl_create_constant_buffer       (plResourceManager* ptResourceManager, size_t szItemSize, size_t szItemCount, const char* pcName);
+uint32_t              pl_create_texture               (plResourceManager* ptResourceManager, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName);
+uint32_t              pl_create_storage_buffer        (plResourceManager* ptResourceManager, size_t szSize, const void* pData, const char* pcName);
 VkDescriptorSetLayout pl_request_descriptor_set_layout(plResourceManager* ptResourceManager, plBindGroupLayout* ptLayout);
 
 // resource manager misc.
@@ -131,6 +131,7 @@ VkFormat              pl_find_depth_format            (plDevice* ptDevice);
 VkFormat              pl_find_depth_stencil_format    (plDevice* ptDevice);
 bool                  pl_format_has_stencil           (VkFormat tFormat);
 VkSampleCountFlagBits pl_get_max_sample_count         (plDevice* ptDevice);
+void                  pl_set_vulkan_object_name       (plGraphics* ptGraphics, uint64_t uObjectHandle, VkDebugReportObjectTypeEXT tObjectType, const char* pcName);
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums

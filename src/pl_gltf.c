@@ -7217,8 +7217,8 @@ static void pl__load_gltf_object(plScene* ptScene, plEntity tParentEntity, const
 				.tMesh = {
 					.uIndexCount         = (uint32_t)ptPrimitive->indices->count,
 					.uVertexCount        = (uint32_t)szVertexCount,
-					.uIndexBuffer        = pl_create_index_buffer(&ptGraphics->tResourceManager, sizeof(uint32_t) * (uint32_t)ptPrimitive->indices->count, sbuIndexBuffer),
-					.uVertexBuffer       = pl_create_vertex_buffer(&ptGraphics->tResourceManager, sizeof(float) * szVertexCount * uAttributeComponents, sizeof(float) * uAttributeComponents, sbfVertexBuffer),
+					.uIndexBuffer        = pl_create_index_buffer(&ptGraphics->tResourceManager, sizeof(uint32_t) * (uint32_t)ptPrimitive->indices->count, sbuIndexBuffer, ptNode->name),
+					.uVertexBuffer       = pl_create_vertex_buffer(&ptGraphics->tResourceManager, sizeof(float) * szVertexCount * uAttributeComponents, sizeof(float) * uAttributeComponents, sbfVertexBuffer, ptNode->name),
 					.ulVertexStreamMask  = tVertexBufferFlags
 				},
 				.uStorageOffset = (uint32_t)*pszTotalOffset,
@@ -7334,7 +7334,7 @@ pl__load_gltf_material(plResourceManager* ptResourceManager, const char* pcPath,
                 .tType       = VK_IMAGE_TYPE_2D,
                 .tViewType   = VK_IMAGE_VIEW_TYPE_2D
             };
-            ptMaterialOut->uAlbedoMap = pl_create_texture(ptResourceManager, tTextureDesc, sizeof(unsigned char) * texHeight * texHeight * 4, rawBytes);
+            ptMaterialOut->uAlbedoMap = pl_create_texture(ptResourceManager, tTextureDesc, sizeof(unsigned char) * texHeight * texHeight * 4, rawBytes, acFilepath);
             ptMaterialOut->ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_0;
 
             stbi_image_free(rawBytes);
@@ -7362,7 +7362,7 @@ pl__load_gltf_material(plResourceManager* ptResourceManager, const char* pcPath,
                 .tType       = VK_IMAGE_TYPE_2D,
                 .tViewType   = VK_IMAGE_VIEW_TYPE_2D,
             };
-            ptMaterialOut->uNormalMap = pl_create_texture(ptResourceManager, tTextureDesc, sizeof(unsigned char) * texHeight * texHeight * 4, rawBytes);
+            ptMaterialOut->uNormalMap = pl_create_texture(ptResourceManager, tTextureDesc, sizeof(unsigned char) * texHeight * texHeight * 4, rawBytes, acFilepath);
             ptMaterialOut->ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_1;
             stbi_image_free(rawBytes);
         }
@@ -7387,7 +7387,7 @@ pl__load_gltf_material(plResourceManager* ptResourceManager, const char* pcPath,
                 .tType       = VK_IMAGE_TYPE_2D,
                 .tViewType   = VK_IMAGE_VIEW_TYPE_2D
             };
-            ptMaterialOut->uEmissiveMap = pl_create_texture(ptResourceManager, tTextureDesc, sizeof(unsigned char) * texHeight * texHeight * 4, rawBytes);
+            ptMaterialOut->uEmissiveMap = pl_create_texture(ptResourceManager, tTextureDesc, sizeof(unsigned char) * texHeight * texHeight * 4, rawBytes, acFilepath);
             ptMaterialOut->ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_2;
             stbi_image_free(rawBytes);
         }

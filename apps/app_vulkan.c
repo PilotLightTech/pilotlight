@@ -271,7 +271,7 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
     ptGrassMaterial->uShader = ptAppData->uGrassShader;
     ptGrassMaterial->tShaderType = PL_SHADER_TYPE_CUSTOM;
     ptGrassMaterial->bDoubleSided = true;
-    ptGrassMaterial->uAlbedoMap = pl_create_texture(&ptAppData->tGraphics.tResourceManager, tTextureDesc, sizeof(unsigned char) * texHeight * texHeight * 4, rawBytes);
+    ptGrassMaterial->uAlbedoMap = pl_create_texture(&ptAppData->tGraphics.tResourceManager, tTextureDesc, sizeof(unsigned char) * texHeight * texHeight * 4, rawBytes, "grass texture");
     ptGrassMaterial->tGraphicsState.ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0;
     ptGrassMaterial->tGraphicsState.ulCullMode           = VK_CULL_MODE_NONE;
     ptGrassMaterial->tGraphicsState.ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_0;
@@ -318,8 +318,8 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
         .tMesh = {
             .uIndexCount   = (uint32_t)tStlInfo.szIndexBufferSize,
             .uVertexCount  = (uint32_t)tStlInfo.szVertexStream0Size / 3,
-            .uIndexBuffer  = pl_create_index_buffer(&ptAppData->tGraphics.tResourceManager, sizeof(uint32_t) * tStlInfo.szIndexBufferSize, auIndexBuffer),
-            .uVertexBuffer = pl_create_vertex_buffer(&ptAppData->tGraphics.tResourceManager, tStlInfo.szVertexStream0Size * sizeof(float), sizeof(plVec3), afVertexBuffer0),
+            .uIndexBuffer  = pl_create_index_buffer(&ptAppData->tGraphics.tResourceManager, sizeof(uint32_t) * tStlInfo.szIndexBufferSize, auIndexBuffer, "stl index buffer"),
+            .uVertexBuffer = pl_create_vertex_buffer(&ptAppData->tGraphics.tResourceManager, tStlInfo.szVertexStream0Size * sizeof(float), sizeof(plVec3), afVertexBuffer0, "stl vertex buffer"),
             .ulVertexStreamMask = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_COLOR_0
         },
         .tMaterial = ptAppData->tSolidMaterial,
@@ -396,8 +396,8 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
         .tMesh = {
             .uIndexCount         = 18,
             .uVertexCount        = 36,
-            .uVertexBuffer       = pl_create_vertex_buffer(&ptAppData->tGraphics.tResourceManager, sizeof(plVec3) * 12, sizeof(plVec3), atVertexBuffer),
-            .uIndexBuffer        = pl_create_index_buffer(&ptAppData->tGraphics.tResourceManager, sizeof(uint32_t) * 18, auGrassIndexBuffer),
+            .uVertexBuffer       = pl_create_vertex_buffer(&ptAppData->tGraphics.tResourceManager, sizeof(plVec3) * 12, sizeof(plVec3), atVertexBuffer, "grass vertex buffer"),
+            .uIndexBuffer        = pl_create_index_buffer(&ptAppData->tGraphics.tResourceManager, sizeof(uint32_t) * 18, auGrassIndexBuffer, "grass index buffer"),
             .ulVertexStreamMask  = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0,
             .uVertexOffset       = 0
         },
@@ -591,7 +591,7 @@ pl_app_update(plAppData* ptAppData)
             {
                 pl_submit_buffer_for_deletion(&ptAppData->tGraphics.tResourceManager, ptAppData->tRenderer.uGlobalStorageBuffer);
             }
-            ptAppData->tRenderer.uGlobalStorageBuffer = pl_create_storage_buffer(&ptAppData->tGraphics.tResourceManager, pl_sb_size(ptAppData->tRenderer.sbfStorageBuffer) * sizeof(float), ptAppData->tRenderer.sbfStorageBuffer);
+            ptAppData->tRenderer.uGlobalStorageBuffer = pl_create_storage_buffer(&ptAppData->tGraphics.tResourceManager, pl_sb_size(ptAppData->tRenderer.sbfStorageBuffer) * sizeof(float), ptAppData->tRenderer.sbfStorageBuffer, "global storage");
             pl_sb_reset(ptAppData->tRenderer.sbfStorageBuffer);
 
             uint32_t atBuffers0[] = {ptAppData->tScene.uDynamicBuffer0, ptAppData->tRenderer.uGlobalStorageBuffer};

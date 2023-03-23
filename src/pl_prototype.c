@@ -65,9 +65,9 @@ pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc
 
     for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
     {
-        pl_sb_push(ptTargetOut->sbuColorTextures, pl_create_texture(&ptGraphics->tResourceManager, tColorTextureDesc, 0, NULL));
+        pl_sb_push(ptTargetOut->sbuColorTextures, pl_create_texture(&ptGraphics->tResourceManager, tColorTextureDesc, 0, NULL, "offscreen color"));
     }
-    ptTargetOut->uDepthTexture = pl_create_texture(&ptGraphics->tResourceManager, tDepthTextureDesc, 0, NULL);
+    ptTargetOut->uDepthTexture = pl_create_texture(&ptGraphics->tResourceManager, tDepthTextureDesc, 0, NULL, "offscreen depth");
 
     plTexture* ptDepthTexture = &ptGraphics->tResourceManager.sbtTextures[ptTargetOut->uDepthTexture];
 
@@ -123,7 +123,7 @@ pl_create_render_pass(plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, pl
             .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
             .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+            .initialLayout  = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             .finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         },
 
@@ -251,6 +251,7 @@ void
 pl_end_render_target(plGraphics* ptGraphics)
 {
     const plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
+
     vkCmdEndRenderPass(ptCurrentFrame->tCmdBuf);
 }
 
@@ -287,11 +288,9 @@ pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
         .tViewType   = VK_IMAGE_VIEW_TYPE_2D
     };
     static const float afSinglePixel[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-    pl_create_texture(&ptGraphics->tResourceManager, tTextureDesc2, sizeof(unsigned char) * 4, afSinglePixel);
+    pl_create_texture(&ptGraphics->tResourceManager, tTextureDesc2, sizeof(unsigned char) * 4, afSinglePixel, "dummy texture");
 
     ptRenderer->ptGraphics = ptGraphics;
-
-    // ptRenderer->uDynamicBuffer0 = pl_create_constant_buffer_ex(&ptGraphics->tResourceManager, pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536));
 
     ptRenderer->uGlobalStorageBuffer = UINT32_MAX;
 
@@ -475,9 +474,9 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
     ptSceneOut->tComponentLibrary.tHierarchyComponentManager.tComponentType = PL_COMPONENT_TYPE_HIERARCHY;
     ptSceneOut->tComponentLibrary.tHierarchyComponentManager.szStride = sizeof(plHierarchyComponent);
 
-    ptSceneOut->uDynamicBuffer0 = pl_create_constant_buffer_ex(ptResourceManager, pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536));
-    ptSceneOut->uDynamicBuffer1 = pl_create_constant_buffer_ex(ptResourceManager, pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536));
-    ptSceneOut->uDynamicBuffer2 = pl_create_constant_buffer_ex(ptResourceManager, pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536));
+    ptSceneOut->uDynamicBuffer0 = pl_create_constant_buffer_ex(ptResourceManager, pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536), "renderer dynamic buffer 0");
+    ptSceneOut->uDynamicBuffer1 = pl_create_constant_buffer_ex(ptResourceManager, pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536), "renderer dynamic buffer 1");
+    ptSceneOut->uDynamicBuffer2 = pl_create_constant_buffer_ex(ptResourceManager, pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536), "renderer dynamic buffer 2");
 
     ptSceneOut->ptOutlineMaterialComponentManager = &ptSceneOut->tComponentLibrary.tOutlineMaterialComponentManager;
     ptSceneOut->ptTagComponentManager = &ptSceneOut->tComponentLibrary.tTagComponentManager;
@@ -530,7 +529,7 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
         .tType       = VK_IMAGE_TYPE_2D,
         .tViewType   = VK_IMAGE_VIEW_TYPE_CUBE
     };
-    ptSceneOut->uSkyboxTexture  = pl_create_texture(&ptGraphics->tResourceManager, tTextureDesc, sizeof(unsigned char) * texHeight * texHeight * texNumChannels * 6, rawBytes);
+    ptSceneOut->uSkyboxTexture  = pl_create_texture(&ptGraphics->tResourceManager, tTextureDesc, sizeof(unsigned char) * texHeight * texHeight * texNumChannels * 6, rawBytes, "skybox texture");
     pl_free(rawBytes);
 
     const float fCubeSide = 0.5f;
@@ -559,8 +558,8 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
         .tMesh = {
             .uIndexCount   = 36,
             .uVertexCount  = 24,
-            .uIndexBuffer  = pl_create_index_buffer(&ptGraphics->tResourceManager, sizeof(uint32_t) * 36, acSkyboxIndices),
-            .uVertexBuffer = pl_create_vertex_buffer(&ptGraphics->tResourceManager, sizeof(float) * 24, sizeof(float), acSkyBoxVertices),
+            .uIndexBuffer  = pl_create_index_buffer(&ptGraphics->tResourceManager, sizeof(uint32_t) * 36, acSkyboxIndices, "skybox index buffer"),
+            .uVertexBuffer = pl_create_vertex_buffer(&ptGraphics->tResourceManager, sizeof(float) * 24, sizeof(float), acSkyBoxVertices, "skybox vertex buffer"),
             .ulVertexStreamMask = PL_MESH_FORMAT_FLAG_NONE
         }
     };

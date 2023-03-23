@@ -1234,7 +1234,7 @@ pl_transfer_data_to_image(plResourceManager* ptResourceManager, plTexture* ptDes
 }
 
 uint32_t
-pl_create_index_buffer(plResourceManager* ptResourceManager, size_t szSize, const void* pData)
+pl_create_index_buffer(plResourceManager* ptResourceManager, size_t szSize, const void* pData, const char* pcName)
 {
     const VkDevice tDevice = ptResourceManager->_ptDevice->tLogicalDevice;
 
@@ -1275,11 +1275,15 @@ pl_create_index_buffer(plResourceManager* ptResourceManager, size_t szSize, cons
     if(!pl__get_free_resource_index(ptResourceManager->_sbulBufferFreeIndices, &ulBufferIndex))
         ulBufferIndex = pl_sb_add_n(ptResourceManager->sbtBuffers, 1);
     ptResourceManager->sbtBuffers[ulBufferIndex] = tBuffer;
+
+    if(pcName)
+        pl_set_vulkan_object_name(ptResourceManager->_ptGraphics, (uint64_t)tBuffer.tBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, pcName);
+
     return ulBufferIndex;
 }
 
 uint32_t
-pl_create_vertex_buffer(plResourceManager* ptResourceManager, size_t szSize, size_t szStride, const void* pData)
+pl_create_vertex_buffer(plResourceManager* ptResourceManager, size_t szSize, size_t szStride, const void* pData, const char* pcName)
 {
     const VkDevice tDevice = ptResourceManager->_ptDevice->tLogicalDevice;
 
@@ -1321,11 +1325,15 @@ pl_create_vertex_buffer(plResourceManager* ptResourceManager, size_t szSize, siz
     if(!pl__get_free_resource_index(ptResourceManager->_sbulBufferFreeIndices, &ulBufferIndex))
         ulBufferIndex = pl_sb_add_n(ptResourceManager->sbtBuffers, 1);
     ptResourceManager->sbtBuffers[ulBufferIndex] = tBuffer;
+
+    if(pcName)
+        pl_set_vulkan_object_name(ptResourceManager->_ptGraphics, (uint64_t)tBuffer.tBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, pcName);
+
     return ulBufferIndex;  
 }
 
 uint32_t
-pl_create_constant_buffer_ex(plResourceManager* ptResourceManager, size_t szSize)
+pl_create_constant_buffer_ex(plResourceManager* ptResourceManager, size_t szSize, const char* pcName)
 {
     const VkDevice tDevice = ptResourceManager->_ptDevice->tLogicalDevice;
 
@@ -1365,11 +1373,15 @@ pl_create_constant_buffer_ex(plResourceManager* ptResourceManager, size_t szSize
     if(!pl__get_free_resource_index(ptResourceManager->_sbulBufferFreeIndices, &ulBufferIndex))
         ulBufferIndex = pl_sb_add_n(ptResourceManager->sbtBuffers, 1);
     ptResourceManager->sbtBuffers[ulBufferIndex] = tBuffer;
+
+    if(pcName)
+        pl_set_vulkan_object_name(ptResourceManager->_ptGraphics, (uint64_t)tBuffer.tBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, pcName);
+
     return ulBufferIndex;      
 }
 
 uint32_t
-pl_create_constant_buffer(plResourceManager* ptResourceManager, size_t szItemSize, size_t szItemCount)
+pl_create_constant_buffer(plResourceManager* ptResourceManager, size_t szItemSize, size_t szItemCount, const char* pcName)
 {
     const VkDevice tDevice = ptResourceManager->_ptDevice->tLogicalDevice;
 
@@ -1411,11 +1423,15 @@ pl_create_constant_buffer(plResourceManager* ptResourceManager, size_t szItemSiz
     if(!pl__get_free_resource_index(ptResourceManager->_sbulBufferFreeIndices, &ulBufferIndex))
         ulBufferIndex = pl_sb_add_n(ptResourceManager->sbtBuffers, 1);
     ptResourceManager->sbtBuffers[ulBufferIndex] = tBuffer;
+
+    if(pcName)
+        pl_set_vulkan_object_name(ptResourceManager->_ptGraphics, (uint64_t)tBuffer.tBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, pcName);
+
     return ulBufferIndex;  
 }
 
 uint32_t
-pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, size_t szSize, const void* pData)
+pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName)
 {
     VkDevice tDevice = ptResourceManager->_ptDevice->tLogicalDevice;
 
@@ -1529,11 +1545,15 @@ pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, siz
     if(!pl__get_free_resource_index(ptResourceManager->_sbulTextureFreeIndices, &ulTextureIndex))
         ulTextureIndex = pl_sb_add_n(ptResourceManager->sbtTextures, 1);
     ptResourceManager->sbtTextures[ulTextureIndex] = tTexture;
+
+    if(pcName)
+        pl_set_vulkan_object_name(ptResourceManager->_ptGraphics, (uint64_t)tTexture.tImage, VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, pcName);
+
     return ulTextureIndex;      
 }
 
 uint32_t
-pl_create_storage_buffer(plResourceManager* ptResourceManager, size_t szSize, const void* pData)
+pl_create_storage_buffer(plResourceManager* ptResourceManager, size_t szSize, const void* pData, const char* pcName)
 {
     const VkDevice tDevice = ptResourceManager->_ptDevice->tLogicalDevice;
 
@@ -1574,6 +1594,10 @@ pl_create_storage_buffer(plResourceManager* ptResourceManager, size_t szSize, co
     if(!pl__get_free_resource_index(ptResourceManager->_sbulBufferFreeIndices, &ulBufferIndex))
         ulBufferIndex = pl_sb_add_n(ptResourceManager->sbtBuffers, 1);
     ptResourceManager->sbtBuffers[ulBufferIndex] = tBuffer;
+
+    if(pcName)
+        pl_set_vulkan_object_name(ptResourceManager->_ptGraphics, (uint64_t)tBuffer.tBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, pcName);
+
     return ulBufferIndex;
 }
 
@@ -1924,6 +1948,20 @@ pl_get_max_sample_count(plDevice* ptDevice)
     if (tCounts & VK_SAMPLE_COUNT_4_BIT)  { return VK_SAMPLE_COUNT_4_BIT; }
     if (tCounts & VK_SAMPLE_COUNT_2_BIT)  { return VK_SAMPLE_COUNT_2_BIT; }
     return VK_SAMPLE_COUNT_1_BIT;    
+}
+
+void
+pl_set_vulkan_object_name(plGraphics* ptGraphics, uint64_t uObjectHandle, VkDebugReportObjectTypeEXT tObjectType, const char* pcName)
+{
+    const VkDebugMarkerObjectNameInfoEXT tNameInfo = 
+    {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
+        .objectType = tObjectType,
+        .object = uObjectHandle,
+        .pObjectName = pcName
+    };
+
+    ptGraphics->vkDebugMarkerSetObjectName(ptGraphics->tDevice.tLogicalDevice, &tNameInfo);
 }
 
 //-----------------------------------------------------------------------------
