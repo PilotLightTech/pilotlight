@@ -140,6 +140,14 @@ pl_register_drawlist(plDrawContext* ctx, plDrawList* drawlist)
     pl_sb_push(ctx->sbDrawlists, drawlist);
 }
 
+void
+pl_register_3d_drawlist(plDrawContext* ptCtx, plDrawList3D* ptDrawlist)
+{
+    memset(ptDrawlist, 0, sizeof(plDrawList3D));
+    ptDrawlist->ctx = ptCtx;
+    pl_sb_push(ptCtx->sb3DDrawlists, ptDrawlist);
+}
+
 plDrawLayer*
 pl_request_draw_layer(plDrawList* drawlist, const char* name)
 {
@@ -205,6 +213,18 @@ pl__new_draw_frame(plDrawContext* ctx)
         }
         pl_sb_reset(drawlist->sbSubmittedLayers);       
     }
+
+    // reset 3d drawlists
+    for(uint32_t i = 0u; i < pl_sb_size(ctx->sb3DDrawlists); i++)
+    {
+        plDrawList3D* drawlist = ctx->sb3DDrawlists[i];
+
+        pl_sb_reset(drawlist->sbVertexBuffer);
+        pl_sb_reset(drawlist->sbLineVertexBuffer);
+        pl_sb_reset(drawlist->sbIndexBuffer);    
+        pl_sb_reset(drawlist->sbLineIndexBuffer);    
+    }
+
     ctx->frameCount++;
 }
 
@@ -616,6 +636,174 @@ pl_add_image_ex(plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2
 
     pl__add_index(ptLayer, vertexStart, 0, 1, 2);
     pl__add_index(ptLayer, vertexStart, 0, 2, 3);
+}
+
+void
+pl_add_3d_triangle_filled(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor)
+{
+
+    pl_sb_reserve(ptDrawlist->sbVertexBuffer, pl_sb_size(ptDrawlist->sbVertexBuffer) + 3);
+    pl_sb_reserve(ptDrawlist->sbIndexBuffer, pl_sb_size(ptDrawlist->sbIndexBuffer) + 3);
+
+    const uint32_t uVertexStart = pl_sb_size(ptDrawlist->sbVertexBuffer);
+
+    uint32_t tU32Color = 0;
+    tU32Color = (uint32_t)  (255.0f * tColor.r + 0.5f);
+    tU32Color |= (uint32_t) (255.0f * tColor.g + 0.5f) << 8;
+    tU32Color |= (uint32_t) (255.0f * tColor.b + 0.5f) << 16;
+    tU32Color |= (uint32_t) (255.0f * tColor.a + 0.5f) << 24;
+
+    pl_sb_push(ptDrawlist->sbVertexBuffer, ((plDrawVertex3D){ {tP0.x, tP0.y, tP0.z}, tU32Color}));
+    pl_sb_push(ptDrawlist->sbVertexBuffer, ((plDrawVertex3D){ {tP1.x, tP1.y, tP1.z}, tU32Color}));
+    pl_sb_push(ptDrawlist->sbVertexBuffer, ((plDrawVertex3D){ {tP2.x, tP2.y, tP2.z}, tU32Color}));
+
+    pl_sb_push(ptDrawlist->sbIndexBuffer, uVertexStart + 0);
+    pl_sb_push(ptDrawlist->sbIndexBuffer, uVertexStart + 1);
+    pl_sb_push(ptDrawlist->sbIndexBuffer, uVertexStart + 2);
+}
+
+void
+pl_add_3d_line(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness)
+{
+    uint32_t tU32Color = 0;
+    tU32Color = (uint32_t)  (255.0f * tColor.r + 0.5f);
+    tU32Color |= (uint32_t) (255.0f * tColor.g + 0.5f) << 8;
+    tU32Color |= (uint32_t) (255.0f * tColor.b + 0.5f) << 16;
+    tU32Color |= (uint32_t) (255.0f * tColor.a + 0.5f) << 24;
+
+    pl_sb_reserve(ptDrawlist->sbLineVertexBuffer, pl_sb_size(ptDrawlist->sbLineVertexBuffer) + 4);
+    pl_sb_reserve(ptDrawlist->sbLineIndexBuffer, pl_sb_size(ptDrawlist->sbLineIndexBuffer) + 6);
+
+    plDrawVertex3DLine tNewVertex0 = {
+        {tP0.x, tP0.y, tP0.z},
+        -1.0f,
+        fThickness,
+        1.0f,
+        {tP1.x, tP1.y, tP1.z},
+        tU32Color
+    };
+
+    plDrawVertex3DLine tNewVertex1 = {
+        {tP1.x, tP1.y, tP1.z},
+        -1.0f,
+        fThickness,
+        -1.0f,
+        {tP0.x, tP0.y, tP0.z},
+        tU32Color
+    };
+
+    const uint32_t uVertexStart = pl_sb_size(ptDrawlist->sbLineVertexBuffer);
+    pl_sb_push(ptDrawlist->sbLineVertexBuffer, tNewVertex0);
+    pl_sb_push(ptDrawlist->sbLineVertexBuffer, tNewVertex1);
+
+    tNewVertex0.fDirection = 1.0f;
+    tNewVertex1.fDirection = 1.0f;
+    pl_sb_push(ptDrawlist->sbLineVertexBuffer, tNewVertex1);
+    pl_sb_push(ptDrawlist->sbLineVertexBuffer, tNewVertex0);
+
+    pl_sb_push(ptDrawlist->sbLineIndexBuffer, uVertexStart + 0);
+    pl_sb_push(ptDrawlist->sbLineIndexBuffer, uVertexStart + 1);
+    pl_sb_push(ptDrawlist->sbLineIndexBuffer, uVertexStart + 2);
+
+    pl_sb_push(ptDrawlist->sbLineIndexBuffer, uVertexStart + 0);
+    pl_sb_push(ptDrawlist->sbLineIndexBuffer, uVertexStart + 2);
+    pl_sb_push(ptDrawlist->sbLineIndexBuffer, uVertexStart + 3);
+}
+
+void
+pl_add_3d_point(plDrawList3D* ptDrawlist, plVec3 tP, plVec4 tColor, float fLength, float fThickness)
+{
+    const plVec3 tVerticies[6] = {
+        {  tP.x - fLength / 2.0f,  tP.y, tP.z},
+        {  tP.x + fLength / 2.0f,  tP.y, tP.z},
+        {  tP.x,  tP.y - fLength / 2.0f, tP.z},
+        {  tP.x,  tP.y + fLength / 2.0f, tP.z},
+        {  tP.x,  tP.y, tP.z - fLength / 2.0f},
+        {  tP.x,  tP.y, tP.z + fLength / 2.0f}
+    };
+
+    pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[2], tVerticies[3], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[4], tVerticies[5], tColor, fThickness);
+}
+
+void
+pl_add_3d_transform(plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fLength, float fThickness)
+{
+
+    const plVec3 tOrigin = pl_mul_mat4_vec3(ptTransform, (plVec3){0.0f, 0.0f, 0.0f});
+    const plVec3 tXAxis  = pl_mul_mat4_vec3(ptTransform, (plVec3){fLength, 0.0f, 0.0f});
+    const plVec3 tYAxis  = pl_mul_mat4_vec3(ptTransform, (plVec3){0.0f, fLength, 0.0f});
+    const plVec3 tZAxis  = pl_mul_mat4_vec3(ptTransform, (plVec3){0.0f, 0.0f, fLength});
+
+    pl_add_3d_line(ptDrawlist, tOrigin, tXAxis, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, fThickness);
+    pl_add_3d_line(ptDrawlist, tOrigin, tYAxis, (plVec4){0.0f, 1.0f, 0.0f, 1.0f}, fThickness);
+    pl_add_3d_line(ptDrawlist, tOrigin, tZAxis, (plVec4){0.0f, 0.0f, 1.0f, 1.0f}, fThickness);
+}
+
+void
+pl_add_3d_frustum(plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fYFov, float fAspect, float fNearZ, float fFarZ, plVec4 tColor, float fThickness)
+{
+    const float fSmallHeight = tanf(fYFov / 2.0f) * fNearZ;
+    const float fSmallWidth  = fSmallHeight * fAspect;
+    const float fBigHeight   = tanf(fYFov / 2.0f) * fFarZ;
+    const float fBigWidth    = fBigHeight * fAspect;
+
+    const plVec3 tVerticies[8] = {
+        pl_mul_mat4_vec3(ptTransform, (plVec3){  fSmallWidth,  fSmallHeight, fNearZ}),
+        pl_mul_mat4_vec3(ptTransform, (plVec3){  fSmallWidth, -fSmallHeight, fNearZ}),
+        pl_mul_mat4_vec3(ptTransform, (plVec3){ -fSmallWidth, -fSmallHeight, fNearZ}),
+        pl_mul_mat4_vec3(ptTransform, (plVec3){ -fSmallWidth,  fSmallHeight, fNearZ}),
+        pl_mul_mat4_vec3(ptTransform, (plVec3){  fBigWidth,    fBigHeight,   fFarZ}),
+        pl_mul_mat4_vec3(ptTransform, (plVec3){  fBigWidth,   -fBigHeight,   fFarZ}),
+        pl_mul_mat4_vec3(ptTransform, (plVec3){ -fBigWidth,   -fBigHeight,   fFarZ}),
+        pl_mul_mat4_vec3(ptTransform, (plVec3){ -fBigWidth,    fBigHeight,   fFarZ})
+    };
+
+    pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[1], tVerticies[2], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[2], tVerticies[3], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[3], tVerticies[0], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[4], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[1], tVerticies[5], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[2], tVerticies[6], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[3], tVerticies[7], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[4], tVerticies[5], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[5], tVerticies[6], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[6], tVerticies[7], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[7], tVerticies[4], tColor, fThickness);
+}
+
+void
+pl_add_3d_centered_box(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor, float fThickness)
+{
+    const plVec3 tWidthVec  = {fWidth / 2.0f, 0.0f, 0.0f};
+    const plVec3 tHeightVec = {0.0f, fHeight / 2.0f, 0.0f};
+    const plVec3 tDepthVec  = {0.0f, 0.0f, fDepth / 2.0f};
+
+    const plVec3 tVerticies[8] = {
+        {  tCenter.x - fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
+        {  tCenter.x - fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
+        {  tCenter.x + fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
+        {  tCenter.x + fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
+        {  tCenter.x - fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z + fDepth / 2.0f},
+        {  tCenter.x - fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z + fDepth / 2.0f},
+        {  tCenter.x + fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z + fDepth / 2.0f},
+        {  tCenter.x + fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z + fDepth / 2.0f}
+    };
+
+    pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[1], tVerticies[2], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[2], tVerticies[3], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[3], tVerticies[0], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[4], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[1], tVerticies[5], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[2], tVerticies[6], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[3], tVerticies[7], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[4], tVerticies[5], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[5], tVerticies[6], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[6], tVerticies[7], tColor, fThickness);
+    pl_add_3d_line(ptDrawlist, tVerticies[7], tVerticies[4], tColor, fThickness);
 }
 
 void

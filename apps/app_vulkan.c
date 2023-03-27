@@ -47,6 +47,7 @@ typedef struct _plAppData
     plGraphics          tGraphics;
     plDrawList          drawlist;
     plDrawList          drawlist2;
+    plDrawList3D        drawlist3d;
     plDrawLayer*        fgDrawLayer;
     plDrawLayer*        bgDrawLayer;
     plDrawLayer*        offscreenDrawLayer;
@@ -167,6 +168,7 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
     pl_initialize_draw_context_vulkan(pl_ui_get_draw_context(NULL), &tVulkanInit);
     pl_register_drawlist(pl_ui_get_draw_context(NULL), &ptAppData->drawlist);
     pl_register_drawlist(pl_ui_get_draw_context(NULL), &ptAppData->drawlist2);
+    pl_register_3d_drawlist(pl_ui_get_draw_context(NULL), &ptAppData->drawlist3d);
     ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
     ptAppData->fgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Foreground Layer");
     ptAppData->offscreenDrawLayer = pl_request_draw_layer(&ptAppData->drawlist2, "Foreground Layer");
@@ -184,7 +186,7 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~entity IDs~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
     // cameras
-    ptAppData->tOffscreenCameraEntity = pl_ecs_create_camera(&ptAppData->tScene, "offscreen camera", (plVec3){0.0f, 0.35f, 0.8f}, PL_PI_3, 1280.0f / 720.0f, 0.01f, 400.0f);
+    ptAppData->tOffscreenCameraEntity = pl_ecs_create_camera(&ptAppData->tScene, "offscreen camera", (plVec3){0.0f, 0.35f, 0.8f}, PL_PI_3, 1280.0f / 720.0f, 0.1f, 10.0f);
     ptAppData->tCameraEntity = pl_ecs_create_camera(&ptAppData->tScene, "main camera", (plVec3){-6.211f, 3.647f, 0.827f}, PL_PI_3, ptIOCtx->afMainViewportSize[0] / ptIOCtx->afMainViewportSize[1], 0.01f, 400.0f);
     plCameraComponent* ptCamera = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tCameraEntity);
     plCameraComponent* ptCamera2 = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tOffscreenCameraEntity);
@@ -528,6 +530,18 @@ pl_app_update(plAppData* ptAppData)
         ptAppData->ptDrawExtApi->pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, "Drawn from extension!");
         ptAppData->ptDrawExtApi->pl_add_text(ptAppData->offscreenDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 42.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, "Drawn from extension offscreen!");
 
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~3D drawing api~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        pl_add_3d_triangle_filled(&ptAppData->drawlist3d, (plVec3){0.0f, 0.0f, 0.0f}, (plVec3){1.0f, 0.0f, 0.0f}, (plVec3){1.0f, 1.0f, 0.0f}, (plVec4){1.0f, 0.0f, 0.0f, 0.5f});
+        pl_add_3d_transform(&ptAppData->drawlist3d, &ptOffscreenCamera->tTransformMat, 0.2f, 0.02f);
+        pl_add_3d_frustum(&ptAppData->drawlist3d, 
+            &ptOffscreenCamera->tTransformMat, ptOffscreenCamera->fFieldOfView, ptOffscreenCamera->fAspectRatio, 
+            ptOffscreenCamera->fNearZ, ptOffscreenCamera->fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
+
+        const plMat4 tTransform0 = pl_identity_mat4();
+        pl_add_3d_transform(&ptAppData->drawlist3d, &tTransform0, 10.0f, 0.02f);
+        pl_add_3d_point(&ptAppData->drawlist3d, (plVec3){-1.0f, -1.0f, -1.0f}, (plVec4){0.0f, 1.0f, 0.0f, 1.0f}, 0.1f, 0.01f);
+        pl_add_3d_centered_box(&ptAppData->drawlist3d, (plVec3){1.0f, 1.0f, 1.0f}, 1.0f, 2.0f, 3.0f, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.05f);
+
         // ui
 
         if(pl_ui_begin_window("Offscreen", NULL, false))
@@ -645,6 +659,10 @@ pl_app_update(plAppData* ptAppData)
         pl_scene_bind_camera(&ptAppData->tScene, ptCamera);
         pl_draw_scene(&ptAppData->tScene);
         pl_draw_sky(&ptAppData->tScene);
+
+        // submit 3D draw list
+        const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
+        pl_submit_3d_drawlist_vulkan(&ptAppData->drawlist3d, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex, &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST);
 
         // submit draw lists
         pl_submit_drawlist_vulkan(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);

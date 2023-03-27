@@ -12,6 +12,7 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] forward declarations
 // [SECTION] public api
+// [SECTION] enums
 // [SECTION] structs
 */
 
@@ -44,10 +45,19 @@ Index of this file:
 
 // drawing
 typedef struct _plDrawContext plDrawContext;    // pl_draw context (opaque structure)
-typedef struct _plDrawList    plDrawList;       // collection of draw layers for a specific target (opaque structure)
 typedef struct _plDrawLayer   plDrawLayer;      // layer for out of order drawing(opaque structure)
+
+// vertex types
+typedef struct _plDrawVertex       plDrawVertex;       // single vertex (2D pos + uv + color)
+typedef struct _plDrawVertex3D     plDrawVertex3D;     // single vertex (3D pos + uv + color)
+typedef struct _plDrawVertex3DLine plDrawVertex3DLine; // single vertex (pos + uv + color)
+
+// draw lists
+typedef struct _plDrawList   plDrawList;   // collection of draw layers for a specific target (opaque structure)
+typedef struct _plDrawList3D plDrawList3D;
+
+// draw commands
 typedef struct _plDrawCommand plDrawCommand;    // single draw call (opaque structure)
-typedef struct _plDrawVertex  plDrawVertex;     // single vertex (pos + uv + color)
 
 // fonts
 typedef struct _plFontChar       plFontChar;       // internal for now (opaque structure)
@@ -58,6 +68,9 @@ typedef struct _plFontRange      plFontRange;      // a range of characters
 typedef struct _plFont           plFont;           // a single font with a specific size and config
 typedef struct _plFontConfig     plFontConfig;     // configuration for loading a single font
 typedef struct _plFontAtlas      plFontAtlas;      // atlas for multiple fonts
+
+// enums
+typedef int pl3DDrawFlags;
 
 // plTextureID: used to represent texture for renderer backend
 typedef void* plTextureId;
@@ -73,6 +86,7 @@ void            pl_cleanup_draw_context(plDrawContext* ptCtx);  // implemented b
 
 // setup
 void            pl_register_drawlist   (plDrawContext* ptCtx, plDrawList* ptDrawlist);
+void            pl_register_3d_drawlist(plDrawContext* ptCtx, plDrawList3D* ptDrawlist);
 plDrawLayer*    pl_request_draw_layer  (plDrawList* ptDrawlist, const char* pcName);
 void            pl_return_draw_layer   (plDrawLayer* ptLayer);
 
@@ -98,6 +112,14 @@ void            pl_add_circle_filled  (plDrawLayer* ptLayer, plVec2 tP, float fR
 void            pl_add_image          (plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax);
 void            pl_add_image_ex       (plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, plVec4 tColor);
 
+// 3D drawing
+void            pl_add_3d_triangle_filled(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
+void            pl_add_3d_line           (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness);
+void            pl_add_3d_point          (plDrawList3D* ptDrawlist, plVec3 tP0, plVec4 tColor, float fLength, float fThickness);
+void            pl_add_3d_transform      (plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fLength, float fThickness);
+void            pl_add_3d_frustum        (plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fYFov, float fAspect, float fNearZ, float fFarZ, plVec4 tColor, float fThickness);
+void            pl_add_3d_centered_box   (plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor, float fThickness);
+
 // fonts
 void            pl_build_font_atlas        (plDrawContext* ptCtx, plFontAtlas* ptAtlas); // implemented by backend
 void            pl_cleanup_font_atlas      (plFontAtlas* ptAtlas);                     // implemented by backend
@@ -116,6 +138,20 @@ void            pl_pop_clip_rect           (plDrawList* ptDrawlist);
 const plRect*   pl_get_clip_rect           (plDrawList* ptDrawlist);
 
 //-----------------------------------------------------------------------------
+// [SECTION] enums
+//-----------------------------------------------------------------------------
+
+enum _pl3DDrawFlags
+{
+    PL_PIPELINE_FLAG_NONE          = 0,
+    PL_PIPELINE_FLAG_DEPTH_TEST    = 1 << 0,
+    PL_PIPELINE_FLAG_DEPTH_WRITE   = 1 << 1,
+    PL_PIPELINE_FLAG_CULL_FRONT    = 1 << 2,
+    PL_PIPELINE_FLAG_CULL_BACK     = 1 << 3,
+    PL_PIPELINE_FLAG_FRONT_FACE_CW = 1 << 4,
+};
+
+//-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
@@ -125,6 +161,22 @@ typedef struct _plDrawVertex
     float    uv[2];
     uint32_t uColor;
 } plDrawVertex;
+
+typedef struct _plDrawVertex3D
+{
+    float    pos[3];
+    uint32_t uColor;
+} plDrawVertex3D;
+
+typedef struct _plDrawVertex3DLine
+{
+    float    pos[3];
+    float    fDirection;
+    float    fThickness;
+    float    fMultiply;
+    float    posother[3];
+    uint32_t uColor;
+} plDrawVertex3DLine;
 
 typedef struct _plFontRange
 {
@@ -178,7 +230,6 @@ typedef struct _plFontAtlas
     plFontCustomRect* whiteRect;
     plTextureId       texture;
     plFontPrepData*   _sbPrepData;
-    void*             _platformData;
 } plFontAtlas;
 
 typedef struct _plDrawList
@@ -192,8 +243,16 @@ typedef struct _plDrawList
     uint32_t       indexBufferByteSize;
     uint32_t       layersCreated;
     plRect*        sbClipStack;
-    void*          _platformData;
 } plDrawList;
+
+typedef struct _plDrawList3D
+{
+    plDrawContext*      ctx;
+    plDrawVertex3D*     sbVertexBuffer;
+    uint32_t*           sbIndexBuffer;
+    plDrawVertex3DLine* sbLineVertexBuffer;
+    uint32_t*           sbLineIndexBuffer;
+} plDrawList3D;
 
 typedef struct _plFontCustomRect
 {
@@ -255,11 +314,12 @@ typedef struct _plFontGlyph
 
 typedef struct _plDrawContext
 {
-    plDrawList** sbDrawlists;
-    uint64_t     frameCount;
-    plFontAtlas* fontAtlas;
-    plVec2       tFrameBufferScale;
-    void*        _platformData;
+    plDrawList**   sbDrawlists;
+    plDrawList3D** sb3DDrawlists;
+    uint64_t       frameCount;
+    plFontAtlas*   fontAtlas;
+    plVec2         tFrameBufferScale;
+    void*          _platformData;
 } plDrawContext;
 
 #endif // PL_DRAW_H

@@ -46,6 +46,8 @@ typedef struct _plVulkanInit
 void pl_initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptInit);
 void pl_submit_drawlist_vulkan        (plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex);
 void pl_submit_drawlist_vulkan_ex     (plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount);
+void pl_submit_3d_drawlist_vulkan     (plDrawList3D* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, const plMat4* ptMVP, pl3DDrawFlags tFlags);
+void pl_submit_3d_drawlist_vulkan_ex  (plDrawList3D* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount, const plMat4* ptMVP, pl3DDrawFlags tFlags);
 void pl_new_draw_frame                (plDrawContext* ptCtx);
 
 // misc

@@ -29,6 +29,8 @@ Index of this file:
 // [SECTION] shaders
 //-----------------------------------------------------------------------------
 
+// # glslangValidator -V -x -o "output file" "input file"
+
 /*
 #version 450 core
 layout(location = 0) in vec2 aPos;
@@ -195,6 +197,232 @@ static uint32_t __glsl_shader_fragsdf_spv[] =
 	0x0000003b,0x00000038,0x0003003e,0x00000036,0x0000003c,0x000100fd,0x00010038
 };
 
+/*
+#version 450 core
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec4 aColor;
+layout(push_constant) uniform uPushConstant { mat4 tMVP; } pc;
+out gl_PerVertex { vec4 gl_Position; };
+layout(location = 0) out struct { vec4 Color; vec2 UV; } Out;
+
+void main()
+{
+    Out.Color = aColor;
+    gl_Position = pc.tMVP * vec4(aPos, 1.0);
+}
+*/
+static uint32_t __glsl_shader_vert_3d_spv[] =
+{
+	0x07230203,0x00010000,0x0008000b,0x00000027,0x00000000,0x00020011,0x00000001,0x0006000b,
+	0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
+	0x0009000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x0000000a,0x0000000e,0x00000014,
+	0x0000001e,0x00030003,0x00000002,0x000001c2,0x00040005,0x00000004,0x6e69616d,0x00000000,
+	0x00030005,0x00000008,0x00000000,0x00050006,0x00000008,0x00000000,0x6f6c6f43,0x00000072,
+	0x00030005,0x0000000a,0x0074754f,0x00040005,0x0000000e,0x6c6f4361,0x0000726f,0x00060005,
+	0x00000012,0x505f6c67,0x65567265,0x78657472,0x00000000,0x00060006,0x00000012,0x00000000,
+	0x505f6c67,0x7469736f,0x006e6f69,0x00030005,0x00000014,0x00000000,0x00060005,0x00000016,
+	0x73755075,0x6e6f4368,0x6e617473,0x00000074,0x00050006,0x00000016,0x00000000,0x50564d74,
+	0x00000000,0x00030005,0x00000018,0x00006370,0x00040005,0x0000001e,0x736f5061,0x00000000,
+	0x00040047,0x0000000a,0x0000001e,0x00000000,0x00040047,0x0000000e,0x0000001e,0x00000001,
+	0x00050048,0x00000012,0x00000000,0x0000000b,0x00000000,0x00030047,0x00000012,0x00000002,
+	0x00040048,0x00000016,0x00000000,0x00000005,0x00050048,0x00000016,0x00000000,0x00000023,
+	0x00000000,0x00050048,0x00000016,0x00000000,0x00000007,0x00000010,0x00030047,0x00000016,
+	0x00000002,0x00040047,0x0000001e,0x0000001e,0x00000000,0x00020013,0x00000002,0x00030021,
+	0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,0x00000007,0x00000006,
+	0x00000004,0x0003001e,0x00000008,0x00000007,0x00040020,0x00000009,0x00000003,0x00000008,
+	0x0004003b,0x00000009,0x0000000a,0x00000003,0x00040015,0x0000000b,0x00000020,0x00000001,
+	0x0004002b,0x0000000b,0x0000000c,0x00000000,0x00040020,0x0000000d,0x00000001,0x00000007,
+	0x0004003b,0x0000000d,0x0000000e,0x00000001,0x00040020,0x00000010,0x00000003,0x00000007,
+	0x0003001e,0x00000012,0x00000007,0x00040020,0x00000013,0x00000003,0x00000012,0x0004003b,
+	0x00000013,0x00000014,0x00000003,0x00040018,0x00000015,0x00000007,0x00000004,0x0003001e,
+	0x00000016,0x00000015,0x00040020,0x00000017,0x00000009,0x00000016,0x0004003b,0x00000017,
+	0x00000018,0x00000009,0x00040020,0x00000019,0x00000009,0x00000015,0x00040017,0x0000001c,
+	0x00000006,0x00000003,0x00040020,0x0000001d,0x00000001,0x0000001c,0x0004003b,0x0000001d,
+	0x0000001e,0x00000001,0x0004002b,0x00000006,0x00000020,0x3f800000,0x00050036,0x00000002,
+	0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,0x0004003d,0x00000007,0x0000000f,
+	0x0000000e,0x00050041,0x00000010,0x00000011,0x0000000a,0x0000000c,0x0003003e,0x00000011,
+	0x0000000f,0x00050041,0x00000019,0x0000001a,0x00000018,0x0000000c,0x0004003d,0x00000015,
+	0x0000001b,0x0000001a,0x0004003d,0x0000001c,0x0000001f,0x0000001e,0x00050051,0x00000006,
+	0x00000021,0x0000001f,0x00000000,0x00050051,0x00000006,0x00000022,0x0000001f,0x00000001,
+	0x00050051,0x00000006,0x00000023,0x0000001f,0x00000002,0x00070050,0x00000007,0x00000024,
+	0x00000021,0x00000022,0x00000023,0x00000020,0x00050091,0x00000007,0x00000025,0x0000001b,
+	0x00000024,0x00050041,0x00000010,0x00000026,0x00000014,0x0000000c,0x0003003e,0x00000026,
+	0x00000025,0x000100fd,0x00010038
+};
+
+/*
+#version 450 core
+layout(location = 0) out vec4 fColor;
+layout(set=0, binding=0) uniform sampler2D sTexture;
+layout(location = 0) in struct { vec4 Color; vec2 UV; } In;
+void main()
+{
+    fColor = In.Color * texture(sTexture, In.UV.st);
+}
+*/
+
+static uint32_t __glsl_shader_frag_3d_spv[] =
+{
+	0x07230203,0x00010000,0x0008000b,0x00000012,0x00000000,0x00020011,0x00000001,0x0006000b,
+	0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
+	0x0007000f,0x00000004,0x00000004,0x6e69616d,0x00000000,0x00000009,0x0000000c,0x00030010,
+	0x00000004,0x00000007,0x00030003,0x00000002,0x000001c2,0x00040005,0x00000004,0x6e69616d,
+	0x00000000,0x00040005,0x00000009,0x6c6f4366,0x0000726f,0x00030005,0x0000000a,0x00000000,
+	0x00050006,0x0000000a,0x00000000,0x6f6c6f43,0x00000072,0x00030005,0x0000000c,0x00006e49,
+	0x00040047,0x00000009,0x0000001e,0x00000000,0x00040047,0x0000000c,0x0000001e,0x00000000,
+	0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,
+	0x00040017,0x00000007,0x00000006,0x00000004,0x00040020,0x00000008,0x00000003,0x00000007,
+	0x0004003b,0x00000008,0x00000009,0x00000003,0x0003001e,0x0000000a,0x00000007,0x00040020,
+	0x0000000b,0x00000001,0x0000000a,0x0004003b,0x0000000b,0x0000000c,0x00000001,0x00040015,
+	0x0000000d,0x00000020,0x00000001,0x0004002b,0x0000000d,0x0000000e,0x00000000,0x00040020,
+	0x0000000f,0x00000001,0x00000007,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,
+	0x000200f8,0x00000005,0x00050041,0x0000000f,0x00000010,0x0000000c,0x0000000e,0x0004003d,
+	0x00000007,0x00000011,0x00000010,0x0003003e,0x00000009,0x00000011,0x000100fd,0x00010038
+};
+
+/*
+#version 450 core
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec4 aInfo;
+layout(location = 2) in vec3 aPosOther;
+layout(location = 3) in vec4 aColor;
+layout(push_constant) uniform uPushConstant { mat4 tMVP; float fAspect; } pc;
+out gl_PerVertex { vec4 gl_Position; };
+layout(location = 0) out struct { vec4 Color; } Out;
+
+void main()
+{
+    Out.Color = aColor;
+
+    // clip space
+    vec4 tCurrentProj = pc.tMVP * vec4(aPos.xyz, 1.0);
+    vec4 tOtherProj   = pc.tMVP * vec4(aPosOther.xyz, 1.0);
+
+    // NDC space
+    vec2 tCurrentNDC = tCurrentProj.xy / tCurrentProj.w;
+    vec2 tOtherNDC = tOtherProj.xy / tOtherProj.w;
+
+    // correct for aspect
+    tCurrentNDC.x *= pc.fAspect;
+    tOtherNDC.x *= pc.fAspect;
+
+    // normal of line (B - A)
+    vec2 dir = aInfo.z * normalize(tOtherNDC - tCurrentNDC);
+    vec2 normal = vec2(-dir.y, dir.x);
+
+    // extrude from center & correct aspect ratio
+    normal *= aInfo.y / 2.0;
+    normal.x /= pc.fAspect;
+
+    // offset by the direction of this point in the pair (-1 or 1)
+    vec4 offset = vec4(normal* aInfo.x, 0.0, 0.0);
+    gl_Position = tCurrentProj + offset;
+}
+*/
+
+static uint32_t __glsl_shader_vert_3d_line_spv[] =
+{
+	0x07230203,0x00010000,0x0008000b,0x00000080,0x00000000,0x00020011,0x00000001,0x0006000b,
+	0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
+	0x000b000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x0000000a,0x0000000e,0x0000001d,
+	0x00000028,0x00000052,0x0000007b,0x00030003,0x00000002,0x000001c2,0x00040005,0x00000004,
+	0x6e69616d,0x00000000,0x00030005,0x00000008,0x00000000,0x00050006,0x00000008,0x00000000,
+	0x6f6c6f43,0x00000072,0x00030005,0x0000000a,0x0074754f,0x00040005,0x0000000e,0x6c6f4361,
+	0x0000726f,0x00060005,0x00000013,0x72754374,0x746e6572,0x6a6f7250,0x00000000,0x00060005,
+	0x00000015,0x73755075,0x6e6f4368,0x6e617473,0x00000074,0x00050006,0x00000015,0x00000000,
+	0x50564d74,0x00000000,0x00050006,0x00000015,0x00000001,0x70734166,0x00746365,0x00030005,
+	0x00000017,0x00006370,0x00040005,0x0000001d,0x736f5061,0x00000000,0x00050005,0x00000025,
+	0x68744f74,0x72507265,0x00006a6f,0x00050005,0x00000028,0x736f5061,0x6568744f,0x00000072,
+	0x00050005,0x00000031,0x72754374,0x746e6572,0x0043444e,0x00050005,0x0000003b,0x68744f74,
+	0x444e7265,0x00000043,0x00030005,0x00000051,0x00726964,0x00040005,0x00000052,0x666e4961,
+	0x0000006f,0x00040005,0x0000005c,0x6d726f6e,0x00006c61,0x00040005,0x00000070,0x7366666f,
+	0x00007465,0x00060005,0x00000079,0x505f6c67,0x65567265,0x78657472,0x00000000,0x00060006,
+	0x00000079,0x00000000,0x505f6c67,0x7469736f,0x006e6f69,0x00030005,0x0000007b,0x00000000,
+	0x00040047,0x0000000a,0x0000001e,0x00000000,0x00040047,0x0000000e,0x0000001e,0x00000003,
+	0x00040048,0x00000015,0x00000000,0x00000005,0x00050048,0x00000015,0x00000000,0x00000023,
+	0x00000000,0x00050048,0x00000015,0x00000000,0x00000007,0x00000010,0x00050048,0x00000015,
+	0x00000001,0x00000023,0x00000040,0x00030047,0x00000015,0x00000002,0x00040047,0x0000001d,
+	0x0000001e,0x00000000,0x00040047,0x00000028,0x0000001e,0x00000002,0x00040047,0x00000052,
+	0x0000001e,0x00000001,0x00050048,0x00000079,0x00000000,0x0000000b,0x00000000,0x00030047,
+	0x00000079,0x00000002,0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,
+	0x00000006,0x00000020,0x00040017,0x00000007,0x00000006,0x00000004,0x0003001e,0x00000008,
+	0x00000007,0x00040020,0x00000009,0x00000003,0x00000008,0x0004003b,0x00000009,0x0000000a,
+	0x00000003,0x00040015,0x0000000b,0x00000020,0x00000001,0x0004002b,0x0000000b,0x0000000c,
+	0x00000000,0x00040020,0x0000000d,0x00000001,0x00000007,0x0004003b,0x0000000d,0x0000000e,
+	0x00000001,0x00040020,0x00000010,0x00000003,0x00000007,0x00040020,0x00000012,0x00000007,
+	0x00000007,0x00040018,0x00000014,0x00000007,0x00000004,0x0004001e,0x00000015,0x00000014,
+	0x00000006,0x00040020,0x00000016,0x00000009,0x00000015,0x0004003b,0x00000016,0x00000017,
+	0x00000009,0x00040020,0x00000018,0x00000009,0x00000014,0x00040017,0x0000001b,0x00000006,
+	0x00000003,0x00040020,0x0000001c,0x00000001,0x0000001b,0x0004003b,0x0000001c,0x0000001d,
+	0x00000001,0x0004002b,0x00000006,0x0000001f,0x3f800000,0x0004003b,0x0000001c,0x00000028,
+	0x00000001,0x00040017,0x0000002f,0x00000006,0x00000002,0x00040020,0x00000030,0x00000007,
+	0x0000002f,0x00040015,0x00000034,0x00000020,0x00000000,0x0004002b,0x00000034,0x00000035,
+	0x00000003,0x00040020,0x00000036,0x00000007,0x00000006,0x0004002b,0x0000000b,0x00000042,
+	0x00000001,0x00040020,0x00000043,0x00000009,0x00000006,0x0004002b,0x00000034,0x00000046,
+	0x00000000,0x0004003b,0x0000001c,0x00000052,0x00000001,0x0004002b,0x00000034,0x00000053,
+	0x00000002,0x00040020,0x00000054,0x00000001,0x00000006,0x0004002b,0x00000034,0x0000005d,
+	0x00000001,0x0004002b,0x00000006,0x00000066,0x40000000,0x0004002b,0x00000006,0x00000075,
+	0x00000000,0x0003001e,0x00000079,0x00000007,0x00040020,0x0000007a,0x00000003,0x00000079,
+	0x0004003b,0x0000007a,0x0000007b,0x00000003,0x00050036,0x00000002,0x00000004,0x00000000,
+	0x00000003,0x000200f8,0x00000005,0x0004003b,0x00000012,0x00000013,0x00000007,0x0004003b,
+	0x00000012,0x00000025,0x00000007,0x0004003b,0x00000030,0x00000031,0x00000007,0x0004003b,
+	0x00000030,0x0000003b,0x00000007,0x0004003b,0x00000030,0x00000051,0x00000007,0x0004003b,
+	0x00000030,0x0000005c,0x00000007,0x0004003b,0x00000012,0x00000070,0x00000007,0x0004003d,
+	0x00000007,0x0000000f,0x0000000e,0x00050041,0x00000010,0x00000011,0x0000000a,0x0000000c,
+	0x0003003e,0x00000011,0x0000000f,0x00050041,0x00000018,0x00000019,0x00000017,0x0000000c,
+	0x0004003d,0x00000014,0x0000001a,0x00000019,0x0004003d,0x0000001b,0x0000001e,0x0000001d,
+	0x00050051,0x00000006,0x00000020,0x0000001e,0x00000000,0x00050051,0x00000006,0x00000021,
+	0x0000001e,0x00000001,0x00050051,0x00000006,0x00000022,0x0000001e,0x00000002,0x00070050,
+	0x00000007,0x00000023,0x00000020,0x00000021,0x00000022,0x0000001f,0x00050091,0x00000007,
+	0x00000024,0x0000001a,0x00000023,0x0003003e,0x00000013,0x00000024,0x00050041,0x00000018,
+	0x00000026,0x00000017,0x0000000c,0x0004003d,0x00000014,0x00000027,0x00000026,0x0004003d,
+	0x0000001b,0x00000029,0x00000028,0x00050051,0x00000006,0x0000002a,0x00000029,0x00000000,
+	0x00050051,0x00000006,0x0000002b,0x00000029,0x00000001,0x00050051,0x00000006,0x0000002c,
+	0x00000029,0x00000002,0x00070050,0x00000007,0x0000002d,0x0000002a,0x0000002b,0x0000002c,
+	0x0000001f,0x00050091,0x00000007,0x0000002e,0x00000027,0x0000002d,0x0003003e,0x00000025,
+	0x0000002e,0x0004003d,0x00000007,0x00000032,0x00000013,0x0007004f,0x0000002f,0x00000033,
+	0x00000032,0x00000032,0x00000000,0x00000001,0x00050041,0x00000036,0x00000037,0x00000013,
+	0x00000035,0x0004003d,0x00000006,0x00000038,0x00000037,0x00050050,0x0000002f,0x00000039,
+	0x00000038,0x00000038,0x00050088,0x0000002f,0x0000003a,0x00000033,0x00000039,0x0003003e,
+	0x00000031,0x0000003a,0x0004003d,0x00000007,0x0000003c,0x00000025,0x0007004f,0x0000002f,
+	0x0000003d,0x0000003c,0x0000003c,0x00000000,0x00000001,0x00050041,0x00000036,0x0000003e,
+	0x00000025,0x00000035,0x0004003d,0x00000006,0x0000003f,0x0000003e,0x00050050,0x0000002f,
+	0x00000040,0x0000003f,0x0000003f,0x00050088,0x0000002f,0x00000041,0x0000003d,0x00000040,
+	0x0003003e,0x0000003b,0x00000041,0x00050041,0x00000043,0x00000044,0x00000017,0x00000042,
+	0x0004003d,0x00000006,0x00000045,0x00000044,0x00050041,0x00000036,0x00000047,0x00000031,
+	0x00000046,0x0004003d,0x00000006,0x00000048,0x00000047,0x00050085,0x00000006,0x00000049,
+	0x00000048,0x00000045,0x00050041,0x00000036,0x0000004a,0x00000031,0x00000046,0x0003003e,
+	0x0000004a,0x00000049,0x00050041,0x00000043,0x0000004b,0x00000017,0x00000042,0x0004003d,
+	0x00000006,0x0000004c,0x0000004b,0x00050041,0x00000036,0x0000004d,0x0000003b,0x00000046,
+	0x0004003d,0x00000006,0x0000004e,0x0000004d,0x00050085,0x00000006,0x0000004f,0x0000004e,
+	0x0000004c,0x00050041,0x00000036,0x00000050,0x0000003b,0x00000046,0x0003003e,0x00000050,
+	0x0000004f,0x00050041,0x00000054,0x00000055,0x00000052,0x00000053,0x0004003d,0x00000006,
+	0x00000056,0x00000055,0x0004003d,0x0000002f,0x00000057,0x0000003b,0x0004003d,0x0000002f,
+	0x00000058,0x00000031,0x00050083,0x0000002f,0x00000059,0x00000057,0x00000058,0x0006000c,
+	0x0000002f,0x0000005a,0x00000001,0x00000045,0x00000059,0x0005008e,0x0000002f,0x0000005b,
+	0x0000005a,0x00000056,0x0003003e,0x00000051,0x0000005b,0x00050041,0x00000036,0x0000005e,
+	0x00000051,0x0000005d,0x0004003d,0x00000006,0x0000005f,0x0000005e,0x0004007f,0x00000006,
+	0x00000060,0x0000005f,0x00050041,0x00000036,0x00000061,0x00000051,0x00000046,0x0004003d,
+	0x00000006,0x00000062,0x00000061,0x00050050,0x0000002f,0x00000063,0x00000060,0x00000062,
+	0x0003003e,0x0000005c,0x00000063,0x00050041,0x00000054,0x00000064,0x00000052,0x0000005d,
+	0x0004003d,0x00000006,0x00000065,0x00000064,0x00050088,0x00000006,0x00000067,0x00000065,
+	0x00000066,0x0004003d,0x0000002f,0x00000068,0x0000005c,0x0005008e,0x0000002f,0x00000069,
+	0x00000068,0x00000067,0x0003003e,0x0000005c,0x00000069,0x00050041,0x00000043,0x0000006a,
+	0x00000017,0x00000042,0x0004003d,0x00000006,0x0000006b,0x0000006a,0x00050041,0x00000036,
+	0x0000006c,0x0000005c,0x00000046,0x0004003d,0x00000006,0x0000006d,0x0000006c,0x00050088,
+	0x00000006,0x0000006e,0x0000006d,0x0000006b,0x00050041,0x00000036,0x0000006f,0x0000005c,
+	0x00000046,0x0003003e,0x0000006f,0x0000006e,0x0004003d,0x0000002f,0x00000071,0x0000005c,
+	0x00050041,0x00000054,0x00000072,0x00000052,0x00000046,0x0004003d,0x00000006,0x00000073,
+	0x00000072,0x0005008e,0x0000002f,0x00000074,0x00000071,0x00000073,0x00050051,0x00000006,
+	0x00000076,0x00000074,0x00000000,0x00050051,0x00000006,0x00000077,0x00000074,0x00000001,
+	0x00070050,0x00000007,0x00000078,0x00000076,0x00000077,0x00000075,0x00000075,0x0003003e,
+	0x00000070,0x00000078,0x0004003d,0x00000007,0x0000007c,0x00000013,0x0004003d,0x00000007,
+	0x0000007d,0x00000070,0x00050081,0x00000007,0x0000007e,0x0000007c,0x0000007d,0x00050041,
+	0x00000010,0x0000007f,0x0000007b,0x0000000c,0x0003003e,0x0000007f,0x0000007e,0x000100fd,
+	0x00010038
+
+};
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -218,10 +446,11 @@ typedef struct _plTextureReturn
 
 typedef struct _plVulkanPipelineEntry
 {    
-    VkRenderPass tRenderPass;
+    VkRenderPass          tRenderPass;
     VkSampleCountFlagBits tMSAASampleCount;
-    VkPipeline   tRegularPipeline;
-    VkPipeline   tSDFPipeline;
+    VkPipeline            tRegularPipeline;
+    VkPipeline            tSecondaryPipeline;
+    pl3DDrawFlags         tFlags;
 } plVulkanPipelineEntry;
 
 typedef struct _plVulkanBufferInfo
@@ -269,6 +498,8 @@ typedef struct _plVulkanDrawContext
 
     // vertex & index buffer
     plVulkanBufferInfo*              sbtBufferInfo;
+    plVulkanBufferInfo*              sbt3DBufferInfo;
+    plVulkanBufferInfo*              sbtLineBufferInfo;
 
     // staging buffer
     size_t                            szStageByteSize;
@@ -282,8 +513,18 @@ typedef struct _plVulkanDrawContext
     VkPipelineShaderStageCreateInfo   tSdfShdrStgInfo;
     VkPipelineShaderStageCreateInfo   tVtxShdrStgInfo;
 
+    // 3D drawlist pipeline caching
+    VkPipelineLayout                  t3DPipelineLayout;
+    VkPipelineShaderStageCreateInfo   t3DPxlShdrStgInfo;
+    VkPipelineShaderStageCreateInfo   t3DVtxShdrStgInfo;
+
+    // 3D line drawlist pipeline caching
+    VkPipelineLayout                  t3DLinePipelineLayout;
+    VkPipelineShaderStageCreateInfo   t3DLineVtxShdrStgInfo;
+
     // pipelines
     plVulkanPipelineEntry*            sbtPipelines;
+    plVulkanPipelineEntry*            sbt3DPipelines;
     VkRenderPass                      tRenderPass; // default render pass
     VkSampleCountFlagBits             tMSAASampleCount;
 
@@ -293,13 +534,13 @@ typedef struct _plVulkanDrawContext
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-extern void                   pl__cleanup_font_atlas       (plFontAtlas* ptAtlas); // in pl_draw.c
-extern void                   pl__new_draw_frame           (plDrawContext* ptCtx); // in pl_draw.c
-static uint32_t               pl__find_memory_type         (VkPhysicalDeviceMemoryProperties tMemProps, uint32_t typeFilter, VkMemoryPropertyFlags properties);
-static void                   pl__grow_vulkan_vertex_buffer(plDrawContext* ptCtx, uint32_t uVtxBufSzNeeded, uint32_t uFrameIndex);
-static void                   pl__grow_vulkan_index_buffer (plDrawContext* ptCtx, uint32_t uIdxBufSzNeeded, uint32_t uFrameIndex);
-static plVulkanPipelineEntry* pl__get_pipelines            (plVulkanDrawContext* ptCtx, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount);
-
+extern void                   pl__cleanup_font_atlas          (plFontAtlas* ptAtlas); // in pl_draw.c
+extern void                   pl__new_draw_frame              (plDrawContext* ptCtx); // in pl_draw.c
+static uint32_t               pl__find_memory_type            (VkPhysicalDeviceMemoryProperties tMemProps, uint32_t typeFilter, VkMemoryPropertyFlags properties);
+static void                   pl__grow_vulkan_vertex_buffer   (plDrawContext* ptCtx, uint32_t uVtxBufSzNeeded, plVulkanBufferInfo* ptBufferInfo);
+static void                   pl__grow_vulkan_index_buffer    (plDrawContext* ptCtx, uint32_t uIdxBufSzNeeded, plVulkanBufferInfo* ptBufferInfo);
+static plVulkanPipelineEntry* pl__get_pipelines               (plVulkanDrawContext* ptCtx, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount);
+static plVulkanPipelineEntry* pl__get_3d_pipelines            (plVulkanDrawContext* ptCtx, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount, pl3DDrawFlags tFlags);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -368,6 +609,9 @@ pl_initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptIn
     };
     PL_VULKAN(vkCreateSampler(ptVulkanDrawContext->tDevice, &tSamplerInfo, NULL, &ptVulkanDrawContext->tFontSampler));
 
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~2d setup~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     // create descriptor set layout
     const VkDescriptorSetLayoutBinding tDescriptorSetLayoutBinding = {
         .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -401,9 +645,7 @@ pl_initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptIn
 
     PL_VULKAN(vkCreatePipelineLayout(ptVulkanDrawContext->tDevice, &tPipelineLayoutInfo, NULL, &ptVulkanDrawContext->tPipelineLayout));
 
-    //---------------------------------------------------------------------
     // vertex shader stage
-    //---------------------------------------------------------------------
 
     ptVulkanDrawContext->tVtxShdrStgInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     ptVulkanDrawContext->tVtxShdrStgInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -416,9 +658,7 @@ pl_initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptIn
     };
     PL_ASSERT(vkCreateShaderModule(ptVulkanDrawContext->tDevice, &tVtxShdrInfo, NULL, &ptVulkanDrawContext->tVtxShdrStgInfo.module) == VK_SUCCESS);
 
-    //---------------------------------------------------------------------
     // fragment shader stage
-    //---------------------------------------------------------------------
     ptVulkanDrawContext->tPxlShdrStgInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     ptVulkanDrawContext->tPxlShdrStgInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     ptVulkanDrawContext->tPxlShdrStgInfo.pName = "main";
@@ -430,9 +670,7 @@ pl_initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptIn
     };
     PL_ASSERT(vkCreateShaderModule(ptVulkanDrawContext->tDevice, &tPxlShdrInfo, NULL, &ptVulkanDrawContext->tPxlShdrStgInfo.module) == VK_SUCCESS);
 
-    //---------------------------------------------------------------------
     // sdf fragment shader stage
-    //---------------------------------------------------------------------
     ptVulkanDrawContext->tSdfShdrStgInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     ptVulkanDrawContext->tSdfShdrStgInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     ptVulkanDrawContext->tSdfShdrStgInfo.pName = "main";
@@ -444,7 +682,87 @@ pl_initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptIn
     };
     PL_ASSERT(vkCreateShaderModule(ptVulkanDrawContext->tDevice, &tSdfShdrInfo, NULL, &ptVulkanDrawContext->tSdfShdrStgInfo.module) == VK_SUCCESS);
 
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~3d setup~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // create pipeline layout
+    const VkPushConstantRange t3DPushConstant = {
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+        .offset    = 0,
+        .size      = sizeof(float) * 16
+    };
+
+    const VkPipelineLayoutCreateInfo t3DPipelineLayoutInfo = {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount         = 0u,
+        .pSetLayouts            = NULL,
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges    = &t3DPushConstant,
+    };
+
+    PL_VULKAN(vkCreatePipelineLayout(ptVulkanDrawContext->tDevice, &t3DPipelineLayoutInfo, NULL, &ptVulkanDrawContext->t3DPipelineLayout));
+
+    // vertex shader stage
+
+    ptVulkanDrawContext->t3DVtxShdrStgInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    ptVulkanDrawContext->t3DVtxShdrStgInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    ptVulkanDrawContext->t3DVtxShdrStgInfo.pName = "main";
+
+    const VkShaderModuleCreateInfo t3DVtxShdrInfo = {
+        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = sizeof(__glsl_shader_vert_3d_spv),
+        .pCode    = __glsl_shader_vert_3d_spv
+    };
+    PL_ASSERT(vkCreateShaderModule(ptVulkanDrawContext->tDevice, &t3DVtxShdrInfo, NULL, &ptVulkanDrawContext->t3DVtxShdrStgInfo.module) == VK_SUCCESS);
+
+    // fragment shader stage
+    ptVulkanDrawContext->t3DPxlShdrStgInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    ptVulkanDrawContext->t3DPxlShdrStgInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    ptVulkanDrawContext->t3DPxlShdrStgInfo.pName = "main";
+
+    const VkShaderModuleCreateInfo t3DPxlShdrInfo = {
+        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = sizeof(__glsl_shader_frag_3d_spv),
+        .pCode    = __glsl_shader_frag_3d_spv
+    };
+    PL_ASSERT(vkCreateShaderModule(ptVulkanDrawContext->tDevice, &t3DPxlShdrInfo, NULL, &ptVulkanDrawContext->t3DPxlShdrStgInfo.module) == VK_SUCCESS);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~3d line setup~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // create pipeline layout
+    const VkPushConstantRange t3DLinePushConstant = 
+    {
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+        .offset    = 0,
+        .size      = sizeof(float) * 17
+    };
+
+    const VkPipelineLayoutCreateInfo t3DLinePipelineLayoutInfo = {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount         = 0u,
+        .pSetLayouts            = NULL,
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges    = &t3DLinePushConstant,
+    };
+
+    PL_VULKAN(vkCreatePipelineLayout(ptVulkanDrawContext->tDevice, &t3DLinePipelineLayoutInfo, NULL, &ptVulkanDrawContext->t3DLinePipelineLayout));
+
+    // vertex shader stage
+
+    ptVulkanDrawContext->t3DLineVtxShdrStgInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    ptVulkanDrawContext->t3DLineVtxShdrStgInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    ptVulkanDrawContext->t3DLineVtxShdrStgInfo.pName = "main";
+
+    const VkShaderModuleCreateInfo t3DLineVtxShdrInfo = {
+        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = sizeof(__glsl_shader_vert_3d_line_spv),
+        .pCode    = __glsl_shader_vert_3d_line_spv
+    };
+    PL_ASSERT(vkCreateShaderModule(ptVulkanDrawContext->tDevice, &t3DLineVtxShdrInfo, NULL, &ptVulkanDrawContext->t3DLineVtxShdrStgInfo.module) == VK_SUCCESS);
+
+
     pl_sb_resize(ptVulkanDrawContext->sbtBufferInfo, PL_MAX_FRAMES_IN_FLIGHT);
+    pl_sb_resize(ptVulkanDrawContext->sbt3DBufferInfo, PL_MAX_FRAMES_IN_FLIGHT);
+    pl_sb_resize(ptVulkanDrawContext->sbtLineBufferInfo, PL_MAX_FRAMES_IN_FLIGHT);
 }
 
 void
@@ -510,6 +828,12 @@ pl_new_draw_frame(plDrawContext* ptCtx)
         ptVulkanDrawContext->sbtBufferInfo[i].uIndexBufferOffset = 0;
     }
 
+    for(uint32_t i = 0; i < pl_sb_size(ptVulkanDrawContext->sbtLineBufferInfo); i++)
+    {
+        ptVulkanDrawContext->sbtLineBufferInfo[i].uVertexBufferOffset = 0;
+        ptVulkanDrawContext->sbtLineBufferInfo[i].uIndexBufferOffset = 0;
+    }
+
     pl__new_draw_frame(ptCtx);
 }
 
@@ -539,7 +863,6 @@ pl_submit_drawlist_vulkan(plDrawList* ptDrawlist, float fWidth, float fHeight, V
 void
 pl_submit_drawlist_vulkan_ex(plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount)
 {
-    
     if(pl_sb_size(ptDrawlist->sbVertexBuffer) == 0u)
         return;
 
@@ -560,7 +883,7 @@ pl_submit_drawlist_vulkan_ex(plDrawList* ptDrawlist, float fWidth, float fHeight
 
     // grow buffer if not enough room
     if(uVtxBufSzNeeded >= uAvailableVertexBufferSpace)
-        pl__grow_vulkan_vertex_buffer(ptCtx, uVtxBufSzNeeded * 2, uFrameIndex);
+        pl__grow_vulkan_vertex_buffer(ptCtx, uVtxBufSzNeeded * 2, tBufferInfo);
 
     // vertex GPU data transfer
     unsigned char* pucMappedVertexBufferLocation = tBufferInfo->ucVertexBufferMap;
@@ -577,7 +900,7 @@ pl_submit_drawlist_vulkan_ex(plDrawList* ptDrawlist, float fWidth, float fHeight
     const uint32_t uAvailableIndexBufferSpace = tBufferInfo->uIndexByteSize - tBufferInfo->uIndexBufferOffset;
 
     if(uIdxBufSzNeeded >= uAvailableIndexBufferSpace)
-        pl__grow_vulkan_index_buffer(ptCtx, uIdxBufSzNeeded * 2, uFrameIndex);
+        pl__grow_vulkan_index_buffer(ptCtx, uIdxBufSzNeeded * 2, tBufferInfo);
 
     unsigned char* pucMappedIndexBufferLocation = tBufferInfo->ucIndexBufferMap;
     unsigned char* pucDestination = &pucMappedIndexBufferLocation[tBufferInfo->uIndexBufferOffset];
@@ -663,7 +986,7 @@ pl_submit_drawlist_vulkan_ex(plDrawList* ptDrawlist, float fWidth, float fHeight
 
         if(cmd.sdf && !bSdf)
         {
-            vkCmdBindPipeline(tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, tPipelineEntry->tSDFPipeline); 
+            vkCmdBindPipeline(tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, tPipelineEntry->tSecondaryPipeline); 
             bSdf = true;
         }
         else if(!cmd.sdf && bSdf)
@@ -713,6 +1036,157 @@ pl_submit_drawlist_vulkan_ex(plDrawList* ptDrawlist, float fWidth, float fHeight
 }
 
 void
+pl_submit_3d_drawlist_vulkan(plDrawList3D* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, const plMat4* ptMVP, pl3DDrawFlags tFlags)
+{
+    plDrawContext* ptDrawContext = ptDrawlist->ctx;
+    plVulkanDrawContext* ptVulkanDrawCtx = ptDrawContext->_platformData;
+    pl_submit_3d_drawlist_vulkan_ex(ptDrawlist, fWidth, fHeight, tCmdBuf, uFrameIndex, ptVulkanDrawCtx->tRenderPass, ptVulkanDrawCtx->tMSAASampleCount, ptMVP, tFlags);
+}
+
+void
+pl_submit_3d_drawlist_vulkan_ex(plDrawList3D* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount, const plMat4* ptMVP, pl3DDrawFlags tFlags)
+{
+
+    plDrawContext* ptCtx = ptDrawlist->ctx;
+    plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
+    plVulkanPipelineEntry* tPipelineEntry = pl__get_3d_pipelines(ptVulkanDrawCtx, tRenderPass, tMSAASampleCount, tFlags);
+    const float fAspectRatio = fWidth / fHeight;
+
+    // regular 3D
+    if(pl_sb_size(ptDrawlist->sbVertexBuffer) > 0u)
+    {
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // ensure gpu vertex buffer size is adequate
+        const uint32_t uVtxBufSzNeeded = sizeof(plDrawVertex3D) * pl_sb_size(ptDrawlist->sbVertexBuffer);
+
+        plVulkanBufferInfo* ptBufferInfo = &ptVulkanDrawCtx->sbt3DBufferInfo[uFrameIndex];
+
+        // space left in vertex buffer
+        const uint32_t uAvailableVertexBufferSpace = ptBufferInfo->uVertexByteSize - ptBufferInfo->uVertexBufferOffset;
+
+        // grow buffer if not enough room
+        if(uVtxBufSzNeeded >= uAvailableVertexBufferSpace)
+            pl__grow_vulkan_vertex_buffer(ptCtx, uVtxBufSzNeeded * 2, ptBufferInfo);
+
+        // vertex GPU data transfer
+        unsigned char* pucMappedVertexBufferLocation = ptBufferInfo->ucVertexBufferMap;
+        memcpy(&pucMappedVertexBufferLocation[ptBufferInfo->uVertexBufferOffset], ptDrawlist->sbVertexBuffer, sizeof(plDrawVertex3D) * pl_sb_size(ptDrawlist->sbVertexBuffer)); //-V1004
+
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // ensure gpu index buffer size is adequate
+        const uint32_t uIdxBufSzNeeded = sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbIndexBuffer);
+
+        // space left in index buffer
+        const uint32_t uAvailableIndexBufferSpace = ptBufferInfo->uIndexByteSize - ptBufferInfo->uIndexBufferOffset;
+
+        if(uIdxBufSzNeeded >= uAvailableIndexBufferSpace)
+            pl__grow_vulkan_index_buffer(ptCtx, uIdxBufSzNeeded * 2, ptBufferInfo);
+
+        // index GPU data transfer
+        unsigned char* pucMappedIndexBufferLocation = ptBufferInfo->ucIndexBufferMap;
+        memcpy(&pucMappedIndexBufferLocation[ptBufferInfo->uIndexBufferOffset], ptDrawlist->sbIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbIndexBuffer)); //-V1004
+        
+        const VkMappedMemoryRange aRange[2] = {
+            {
+                .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                .memory = ptBufferInfo->tVertexMemory,
+                .size = VK_WHOLE_SIZE
+            },
+            {
+                .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                .memory = ptBufferInfo->tIndexMemory,
+                .size = VK_WHOLE_SIZE
+            }
+        };
+        PL_VULKAN(vkFlushMappedMemoryRanges(ptVulkanDrawCtx->tDevice, 2, aRange));
+
+        static const VkDeviceSize tOffsets = { 0u };
+        vkCmdBindIndexBuffer(tCmdBuf, ptBufferInfo->tIndexBuffer, 0u, VK_INDEX_TYPE_UINT32);
+        vkCmdBindVertexBuffers(tCmdBuf, 0, 1, &ptBufferInfo->tVertexBuffer, &tOffsets);
+
+        const int32_t iVertexOffset = ptBufferInfo->uVertexBufferOffset / sizeof(plDrawVertex3D);
+        const int32_t iIndexOffset = ptBufferInfo->uIndexBufferOffset / sizeof(uint32_t);
+
+        vkCmdBindPipeline(tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, tPipelineEntry->tRegularPipeline); 
+        vkCmdPushConstants(tCmdBuf, ptVulkanDrawCtx->t3DPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 16, ptMVP);
+        vkCmdDrawIndexed(tCmdBuf, pl_sb_size(ptDrawlist->sbIndexBuffer), 1, iIndexOffset, iVertexOffset, 0);
+        
+        // bump vertex & index buffer offset
+        ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
+        ptBufferInfo->uIndexBufferOffset += uIdxBufSzNeeded;
+    }
+
+    // 3D lines
+    if(pl_sb_size(ptDrawlist->sbLineVertexBuffer) > 0u)
+    {
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // ensure gpu vertex buffer size is adequate
+        const uint32_t uVtxBufSzNeeded = sizeof(plDrawVertex3DLine) * pl_sb_size(ptDrawlist->sbLineVertexBuffer);
+
+        plVulkanBufferInfo* ptBufferInfo = &ptVulkanDrawCtx->sbtLineBufferInfo[uFrameIndex];
+
+        // space left in vertex buffer
+        const uint32_t uAvailableVertexBufferSpace = ptBufferInfo->uVertexByteSize - ptBufferInfo->uVertexBufferOffset;
+
+        // grow buffer if not enough room
+        if(uVtxBufSzNeeded >= uAvailableVertexBufferSpace)
+            pl__grow_vulkan_vertex_buffer(ptCtx, uVtxBufSzNeeded * 2, ptBufferInfo);
+
+        // vertex GPU data transfer
+        unsigned char* pucMappedVertexBufferLocation = ptBufferInfo->ucVertexBufferMap;
+        memcpy(&pucMappedVertexBufferLocation[ptBufferInfo->uVertexBufferOffset], ptDrawlist->sbLineVertexBuffer, sizeof(plDrawVertex3DLine) * pl_sb_size(ptDrawlist->sbLineVertexBuffer)); //-V1004
+
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        // ensure gpu index buffer size is adequate
+        const uint32_t uIdxBufSzNeeded = sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbLineIndexBuffer);
+
+        // space left in index buffer
+        const uint32_t uAvailableIndexBufferSpace = ptBufferInfo->uIndexByteSize - ptBufferInfo->uIndexBufferOffset;
+
+        if(uIdxBufSzNeeded >= uAvailableIndexBufferSpace)
+            pl__grow_vulkan_index_buffer(ptCtx, uIdxBufSzNeeded * 2, ptBufferInfo);
+
+        // index GPU data transfer
+        unsigned char* pucMappedIndexBufferLocation = ptBufferInfo->ucIndexBufferMap;
+        memcpy(&pucMappedIndexBufferLocation[ptBufferInfo->uIndexBufferOffset], ptDrawlist->sbLineIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbLineIndexBuffer)); //-V1004
+        
+        const VkMappedMemoryRange aRange[2] = {
+            {
+                .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                .memory = ptBufferInfo->tVertexMemory,
+                .size = VK_WHOLE_SIZE
+            },
+            {
+                .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                .memory = ptBufferInfo->tIndexMemory,
+                .size = VK_WHOLE_SIZE
+            }
+        };
+        PL_VULKAN(vkFlushMappedMemoryRanges(ptVulkanDrawCtx->tDevice, 2, aRange));
+
+        static const VkDeviceSize tOffsets = { 0u };
+        vkCmdBindIndexBuffer(tCmdBuf, ptBufferInfo->tIndexBuffer, 0u, VK_INDEX_TYPE_UINT32);
+        vkCmdBindVertexBuffers(tCmdBuf, 0, 1, &ptBufferInfo->tVertexBuffer, &tOffsets);
+
+        const int32_t iVertexOffset = ptBufferInfo->uVertexBufferOffset / sizeof(plDrawVertex3DLine);
+        const int32_t iIndexOffset = ptBufferInfo->uIndexBufferOffset / sizeof(uint32_t);
+
+        vkCmdBindPipeline(tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, tPipelineEntry->tSecondaryPipeline); 
+        vkCmdPushConstants(tCmdBuf, ptVulkanDrawCtx->t3DLinePipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 16, ptMVP);
+        vkCmdPushConstants(tCmdBuf, ptVulkanDrawCtx->t3DLinePipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 16, sizeof(float), &fAspectRatio);
+        vkCmdDrawIndexed(tCmdBuf, pl_sb_size(ptDrawlist->sbLineIndexBuffer), 1, iIndexOffset, iVertexOffset, 0);
+        
+        // bump vertex & index buffer offset
+        ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
+        ptBufferInfo->uIndexBufferOffset += uIdxBufSzNeeded;
+    }
+}
+
+void
 pl_cleanup_draw_context(plDrawContext* ptCtx)
 {
     plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
@@ -720,11 +1194,16 @@ pl_cleanup_draw_context(plDrawContext* ptCtx)
     vkDestroyShaderModule(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tVtxShdrStgInfo.module, NULL);
     vkDestroyShaderModule(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tPxlShdrStgInfo.module, NULL);
     vkDestroyShaderModule(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tSdfShdrStgInfo.module, NULL);
+    vkDestroyShaderModule(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->t3DPxlShdrStgInfo.module, NULL);
+    vkDestroyShaderModule(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->t3DVtxShdrStgInfo.module, NULL);
+    vkDestroyShaderModule(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->t3DLineVtxShdrStgInfo.module, NULL);
     vkDestroyBuffer(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tStagingBuffer, NULL);
     vkFreeMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tStagingMemory, NULL);
     vkDestroyDescriptorSetLayout(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tDescriptorSetLayout, NULL);
     vkDestroySampler(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tFontSampler, NULL);
     vkDestroyPipelineLayout(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tPipelineLayout, NULL);
+    vkDestroyPipelineLayout(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->t3DPipelineLayout, NULL);
+    vkDestroyPipelineLayout(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->t3DLinePipelineLayout, NULL);
 
     for(uint32_t i = 0; i < pl_sb_size(ptVulkanDrawCtx->sbtBufferInfo); i++)
     {
@@ -734,10 +1213,32 @@ pl_cleanup_draw_context(plDrawContext* ptCtx)
         vkFreeMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbtBufferInfo[i].tIndexMemory, NULL);
     }
 
+    for(uint32_t i = 0; i < pl_sb_size(ptVulkanDrawCtx->sbt3DBufferInfo); i++)
+    {
+        vkDestroyBuffer(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbt3DBufferInfo[i].tVertexBuffer, NULL);
+        vkFreeMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbt3DBufferInfo[i].tVertexMemory, NULL);
+        vkDestroyBuffer(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbt3DBufferInfo[i].tIndexBuffer, NULL);
+        vkFreeMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbt3DBufferInfo[i].tIndexMemory, NULL);
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(ptVulkanDrawCtx->sbtLineBufferInfo); i++)
+    {
+        vkDestroyBuffer(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbtLineBufferInfo[i].tVertexBuffer, NULL);
+        vkFreeMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbtLineBufferInfo[i].tVertexMemory, NULL);
+        vkDestroyBuffer(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbtLineBufferInfo[i].tIndexBuffer, NULL);
+        vkFreeMemory(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbtLineBufferInfo[i].tIndexMemory, NULL);
+    }
+
     for(uint32_t i = 0u; i < pl_sb_size(ptVulkanDrawCtx->sbtPipelines); i++)
     {
         vkDestroyPipeline(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbtPipelines[i].tRegularPipeline, NULL);
-        vkDestroyPipeline(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbtPipelines[i].tSDFPipeline, NULL);
+        vkDestroyPipeline(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbtPipelines[i].tSecondaryPipeline, NULL);
+    }
+
+    for(uint32_t i = 0u; i < pl_sb_size(ptVulkanDrawCtx->sbt3DPipelines); i++)
+    {
+        vkDestroyPipeline(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbt3DPipelines[i].tRegularPipeline, NULL);
+        vkDestroyPipeline(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->sbt3DPipelines[i].tSecondaryPipeline, NULL);
     }
 
     if(ptVulkanDrawCtx->uBufferDeletionQueueSize > 0u)
@@ -995,22 +1496,22 @@ pl__find_memory_type(VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeF
 }
 
 static void
-pl__grow_vulkan_vertex_buffer(plDrawContext* ptCtx, uint32_t uVtxBufSzNeeded, uint32_t uFrameIndex)
+pl__grow_vulkan_vertex_buffer(plDrawContext* ptCtx, uint32_t uVtxBufSzNeeded, plVulkanBufferInfo* ptBufferInfo)
 {
     plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
-    plVulkanBufferInfo* tBufferInfo = &ptVulkanDrawCtx->sbtBufferInfo[uFrameIndex];
+    // plVulkanBufferInfo* ptBufferInfo = &ptVulkanDrawCtx->sbtBufferInfo[uFrameIndex];
 
     // buffer currently exists & mapped, submit for cleanup
-    if(tBufferInfo->ucVertexBufferMap)
+    if(ptBufferInfo->ucVertexBufferMap)
     {
         const plBufferReturn tReturnBuffer = {
-            .tBuffer       = tBufferInfo->tVertexBuffer,
-            .tDeviceMemory = tBufferInfo->tVertexMemory,
+            .tBuffer       = ptBufferInfo->tVertexBuffer,
+            .tDeviceMemory = ptBufferInfo->tVertexMemory,
             .slFreedFrame  = (int64_t)(ptCtx->frameCount + PL_MAX_FRAMES_IN_FLIGHT * 2)
         };
         pl_sb_push(ptVulkanDrawCtx->sbReturnedBuffers, tReturnBuffer);
         ptVulkanDrawCtx->uBufferDeletionQueueSize++;
-        vkUnmapMemory(ptVulkanDrawCtx->tDevice, tBufferInfo->tVertexMemory);
+        vkUnmapMemory(ptVulkanDrawCtx->tDevice, ptBufferInfo->tVertexMemory);
     }
 
     // create new buffer
@@ -1020,11 +1521,11 @@ pl__grow_vulkan_vertex_buffer(plDrawContext* ptCtx, uint32_t uVtxBufSzNeeded, ui
         .usage       = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
-    PL_VULKAN(vkCreateBuffer(ptVulkanDrawCtx->tDevice, &tBufferCreateInfo, NULL, &tBufferInfo->tVertexBuffer));
+    PL_VULKAN(vkCreateBuffer(ptVulkanDrawCtx->tDevice, &tBufferCreateInfo, NULL, &ptBufferInfo->tVertexBuffer));
 
     // check memory requirements
     VkMemoryRequirements tMemReqs = {0};
-    vkGetBufferMemoryRequirements(ptVulkanDrawCtx->tDevice, tBufferInfo->tVertexBuffer, &tMemReqs);
+    vkGetBufferMemoryRequirements(ptVulkanDrawCtx->tDevice, ptBufferInfo->tVertexBuffer, &tMemReqs);
 
     // allocate memory & bind buffer
     const VkMemoryAllocateInfo tAllocInfo = {
@@ -1032,33 +1533,32 @@ pl__grow_vulkan_vertex_buffer(plDrawContext* ptCtx, uint32_t uVtxBufSzNeeded, ui
         .allocationSize  = tMemReqs.size,
         .memoryTypeIndex = pl__find_memory_type(ptVulkanDrawCtx->tMemProps, tMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
     };
-    tBufferInfo->uVertexByteSize = (uint32_t)tMemReqs.size;
-    PL_VULKAN(vkAllocateMemory(ptVulkanDrawCtx->tDevice, &tAllocInfo, NULL, &tBufferInfo->tVertexMemory));
-    PL_VULKAN(vkBindBufferMemory(ptVulkanDrawCtx->tDevice, tBufferInfo->tVertexBuffer, tBufferInfo->tVertexMemory, 0));
+    ptBufferInfo->uVertexByteSize = (uint32_t)tMemReqs.size;
+    PL_VULKAN(vkAllocateMemory(ptVulkanDrawCtx->tDevice, &tAllocInfo, NULL, &ptBufferInfo->tVertexMemory));
+    PL_VULKAN(vkBindBufferMemory(ptVulkanDrawCtx->tDevice, ptBufferInfo->tVertexBuffer, ptBufferInfo->tVertexMemory, 0));
 
     // map memory persistently
-    PL_VULKAN(vkMapMemory(ptVulkanDrawCtx->tDevice, tBufferInfo->tVertexMemory, 0, tMemReqs.size, 0, (void**)&tBufferInfo->ucVertexBufferMap));
+    PL_VULKAN(vkMapMemory(ptVulkanDrawCtx->tDevice, ptBufferInfo->tVertexMemory, 0, tMemReqs.size, 0, (void**)&ptBufferInfo->ucVertexBufferMap));
 
-    tBufferInfo->uVertexBufferOffset = 0;
+    ptBufferInfo->uVertexBufferOffset = 0;
 }
 
 static void
-pl__grow_vulkan_index_buffer(plDrawContext* ptCtx, uint32_t uIdxBufSzNeeded, uint32_t uFrameIndex)
+pl__grow_vulkan_index_buffer(plDrawContext* ptCtx, uint32_t uIdxBufSzNeeded, plVulkanBufferInfo* ptBufferInfo)
 {
     plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
-    plVulkanBufferInfo* tBufferInfo = &ptVulkanDrawCtx->sbtBufferInfo[uFrameIndex];
 
     // buffer currently exists & mapped, submit for cleanup
-    if(tBufferInfo->ucIndexBufferMap)
+    if(ptBufferInfo->ucIndexBufferMap)
     {
         const plBufferReturn tReturnBuffer = {
-            .tBuffer       = tBufferInfo->tIndexBuffer,
-            .tDeviceMemory = tBufferInfo->tIndexMemory,
+            .tBuffer       = ptBufferInfo->tIndexBuffer,
+            .tDeviceMemory = ptBufferInfo->tIndexMemory,
             .slFreedFrame  = (int64_t)(ptCtx->frameCount + PL_MAX_FRAMES_IN_FLIGHT * 2)
         };
         pl_sb_push(ptVulkanDrawCtx->sbReturnedBuffers, tReturnBuffer);
         ptVulkanDrawCtx->uBufferDeletionQueueSize++;
-        vkUnmapMemory(ptVulkanDrawCtx->tDevice, tBufferInfo->tIndexMemory);
+        vkUnmapMemory(ptVulkanDrawCtx->tDevice, ptBufferInfo->tIndexMemory);
     }
 
     // create new buffer
@@ -1068,11 +1568,11 @@ pl__grow_vulkan_index_buffer(plDrawContext* ptCtx, uint32_t uIdxBufSzNeeded, uin
         .usage       = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
-    PL_VULKAN(vkCreateBuffer(ptVulkanDrawCtx->tDevice, &tBufferCreateInfo, NULL, &tBufferInfo->tIndexBuffer));
+    PL_VULKAN(vkCreateBuffer(ptVulkanDrawCtx->tDevice, &tBufferCreateInfo, NULL, &ptBufferInfo->tIndexBuffer));
 
     // check memory requirements
     VkMemoryRequirements tMemReqs = {0};
-    vkGetBufferMemoryRequirements(ptVulkanDrawCtx->tDevice, tBufferInfo->tIndexBuffer, &tMemReqs);
+    vkGetBufferMemoryRequirements(ptVulkanDrawCtx->tDevice, ptBufferInfo->tIndexBuffer, &tMemReqs);
 
     // alllocate memory & bind buffer
     const VkMemoryAllocateInfo tAllocInfo = {
@@ -1080,14 +1580,14 @@ pl__grow_vulkan_index_buffer(plDrawContext* ptCtx, uint32_t uIdxBufSzNeeded, uin
         .allocationSize = tMemReqs.size,
         .memoryTypeIndex = pl__find_memory_type(ptVulkanDrawCtx->tMemProps, tMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
     };
-    tBufferInfo->uIndexByteSize = (uint32_t)tMemReqs.size;
-    PL_VULKAN(vkAllocateMemory(ptVulkanDrawCtx->tDevice, &tAllocInfo, NULL, &tBufferInfo->tIndexMemory));
-    PL_VULKAN(vkBindBufferMemory(ptVulkanDrawCtx->tDevice, tBufferInfo->tIndexBuffer, tBufferInfo->tIndexMemory, 0));
+    ptBufferInfo->uIndexByteSize = (uint32_t)tMemReqs.size;
+    PL_VULKAN(vkAllocateMemory(ptVulkanDrawCtx->tDevice, &tAllocInfo, NULL, &ptBufferInfo->tIndexMemory));
+    PL_VULKAN(vkBindBufferMemory(ptVulkanDrawCtx->tDevice, ptBufferInfo->tIndexBuffer, ptBufferInfo->tIndexMemory, 0));
 
     // map memory persistently
-    PL_VULKAN(vkMapMemory(ptVulkanDrawCtx->tDevice, tBufferInfo->tIndexMemory, 0, tMemReqs.size, 0, (void**)&tBufferInfo->ucIndexBufferMap));
+    PL_VULKAN(vkMapMemory(ptVulkanDrawCtx->tDevice, ptBufferInfo->tIndexMemory, 0, tMemReqs.size, 0, (void**)&ptBufferInfo->ucIndexBufferMap));
 
-    tBufferInfo->uIndexBufferOffset = 0;
+    ptBufferInfo->uIndexBufferOffset = 0;
 }
 
 static plVulkanPipelineEntry*
@@ -1238,10 +1738,195 @@ pl__get_pipelines(plVulkanDrawContext* ptCtx, VkRenderPass tRenderPass, VkSample
     atShaderStages[1] = ptCtx->tSdfShdrStgInfo;
     pipeInfo.pStages = atShaderStages;
 
-    PL_VULKAN(vkCreateGraphicsPipelines(ptCtx->tDevice, VK_NULL_HANDLE, 1, &pipeInfo, NULL, &tEntry.tSDFPipeline));
+    PL_VULKAN(vkCreateGraphicsPipelines(ptCtx->tDevice, VK_NULL_HANDLE, 1, &pipeInfo, NULL, &tEntry.tSecondaryPipeline));
 
     // add to entries
     pl_sb_push(ptCtx->sbtPipelines, tEntry);
 
     return &pl_sb_back(ptCtx->sbtPipelines);
+}
+
+static plVulkanPipelineEntry*
+pl__get_3d_pipelines(plVulkanDrawContext* ptCtx, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount, pl3DDrawFlags tFlags)
+{
+    // return pipeline entry if it exists
+    for(uint32_t i = 0; i < pl_sb_size(ptCtx->sbt3DPipelines); i++)
+    {
+        if(ptCtx->sbt3DPipelines[i].tRenderPass == tRenderPass && tMSAASampleCount == ptCtx->sbt3DPipelines[i].tMSAASampleCount && ptCtx->sbt3DPipelines[i].tFlags == tFlags)
+            return &ptCtx->sbt3DPipelines[i];
+    }
+
+    // create new pipeline entry
+    plVulkanPipelineEntry tEntry = {
+        .tRenderPass      = tRenderPass,
+        .tMSAASampleCount = tMSAASampleCount,
+        .tFlags           = tFlags
+    };
+
+    const VkPipelineInputAssemblyStateCreateInfo tInputAssembly = {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .primitiveRestartEnable = VK_FALSE
+    };
+
+    const VkVertexInputAttributeDescription aAttributeDescriptions[] = {
+        {0u, 0u, VK_FORMAT_R32G32B32_SFLOAT, 0u},
+        {1u, 0u, VK_FORMAT_R8G8B8A8_UNORM,  12u}
+    };
+    
+    const VkVertexInputBindingDescription tBindingDescription = {
+        .binding   = 0u,
+        .stride    = sizeof(plDrawVertex3D),
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+    };
+
+    const VkPipelineVertexInputStateCreateInfo tVertexInputInfo = {
+        .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount   = 1u,
+        .vertexAttributeDescriptionCount = 2u,
+        .pVertexBindingDescriptions      = &tBindingDescription,
+        .pVertexAttributeDescriptions    = aAttributeDescriptions
+    };
+
+    const VkVertexInputAttributeDescription aLineAttributeDescriptions[] = {
+        {0u, 0u, VK_FORMAT_R32G32B32_SFLOAT, 0u},
+        {1u, 0u, VK_FORMAT_R32G32B32_SFLOAT, 12u},
+        {2u, 0u, VK_FORMAT_R32G32B32_SFLOAT, 24u},
+        {3u, 0u, VK_FORMAT_R8G8B8A8_UNORM,  36u}
+    };
+    
+    const VkVertexInputBindingDescription tLineBindingDescription = {
+        .binding   = 0u,
+        .stride    = sizeof(plDrawVertex3DLine),
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+    };
+
+    const VkPipelineVertexInputStateCreateInfo tLineVertexInputInfo = {
+        .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount   = 1u,
+        .vertexAttributeDescriptionCount = 4u,
+        .pVertexBindingDescriptions      = &tLineBindingDescription,
+        .pVertexAttributeDescriptions    = aLineAttributeDescriptions
+    };
+
+    // dynamic, set per frame
+    VkViewport tViewport = {0};
+    VkRect2D tScissor = {0};
+
+    const VkPipelineViewportStateCreateInfo tViewportState = {
+        .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .pViewports    = &tViewport,
+        .scissorCount  = 1,
+        .pScissors     = &tScissor
+    };
+
+    VkCullModeFlags tCullFlags = VK_CULL_MODE_NONE;
+    if(tFlags & PL_PIPELINE_FLAG_CULL_FRONT)
+        tCullFlags = VK_CULL_MODE_FRONT_BIT;
+    else if(tFlags & PL_PIPELINE_FLAG_CULL_BACK)
+        tCullFlags = VK_CULL_MODE_BACK_BIT;
+
+    const VkPipelineRasterizationStateCreateInfo tRasterizer = {
+        .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .depthClampEnable        = VK_FALSE,
+        .rasterizerDiscardEnable = VK_FALSE,
+        .polygonMode             = VK_POLYGON_MODE_FILL,
+        .lineWidth               = 1.0f,
+        .cullMode                = tCullFlags,
+        .frontFace               = tFlags & PL_PIPELINE_FLAG_FRONT_FACE_CW ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .depthBiasEnable         = VK_FALSE
+    };
+
+    const VkPipelineDepthStencilStateCreateInfo tDepthStencil = {
+        .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable       = tFlags & PL_PIPELINE_FLAG_DEPTH_TEST ? VK_TRUE : VK_FALSE,
+        .depthWriteEnable      = tFlags & PL_PIPELINE_FLAG_DEPTH_WRITE ? VK_TRUE : VK_FALSE,
+        .depthCompareOp        = VK_COMPARE_OP_LESS_OR_EQUAL,
+        .depthBoundsTestEnable = VK_FALSE,
+        .minDepthBounds        = 0.0f,
+        .maxDepthBounds        = 1.0f,
+        .stencilTestEnable     = VK_FALSE,
+        .front                 = {0},
+        .back                  = {0}
+    };
+
+    //---------------------------------------------------------------------
+    // color blending stage
+    //---------------------------------------------------------------------
+
+    const VkPipelineColorBlendAttachmentState tColorBlendAttachment = {
+        .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT,
+        .blendEnable         = VK_TRUE,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .colorBlendOp        = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .alphaBlendOp        = VK_BLEND_OP_ADD
+    };
+
+    const VkPipelineColorBlendStateCreateInfo tColorBlending = {
+        .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .logicOpEnable   = VK_FALSE,
+        .logicOp         = VK_LOGIC_OP_COPY,
+        .attachmentCount = 1,
+        .pAttachments    = &tColorBlendAttachment,
+        .blendConstants  = {0}
+    };
+
+    const VkPipelineMultisampleStateCreateInfo tMultisampling = {
+        .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .sampleShadingEnable  = VK_FALSE,
+        .rasterizationSamples = tMSAASampleCount
+    };
+
+    VkDynamicState atDynamicStateEnables[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+
+    const VkPipelineDynamicStateCreateInfo tDynamicState = {
+        .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = 2u,
+        .pDynamicStates    = atDynamicStateEnables
+    };
+
+    //---------------------------------------------------------------------
+    // Create Regular Pipeline
+    //---------------------------------------------------------------------
+
+    VkPipelineShaderStageCreateInfo atShaderStages[] = { ptCtx->t3DVtxShdrStgInfo, ptCtx->t3DPxlShdrStgInfo };
+
+    VkGraphicsPipelineCreateInfo pipeInfo = {
+        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .stageCount          = 2u,
+        .pStages             = atShaderStages,
+        .pVertexInputState   = &tVertexInputInfo,
+        .pInputAssemblyState = &tInputAssembly,
+        .pViewportState      = &tViewportState,
+        .pRasterizationState = &tRasterizer,
+        .pMultisampleState   = &tMultisampling,
+        .pColorBlendState    = &tColorBlending,
+        .pDynamicState       = &tDynamicState,
+        .layout              = ptCtx->t3DPipelineLayout,
+        .renderPass          = tRenderPass,
+        .subpass             = 0u,
+        .basePipelineHandle  = VK_NULL_HANDLE,
+        .pDepthStencilState  = &tDepthStencil
+    };
+    PL_VULKAN(vkCreateGraphicsPipelines(ptCtx->tDevice, VK_NULL_HANDLE, 1, &pipeInfo, NULL, &tEntry.tRegularPipeline));
+
+    // //---------------------------------------------------------------------
+    // // Create SDF Pipeline
+    // //---------------------------------------------------------------------
+
+    atShaderStages[0] = ptCtx->t3DLineVtxShdrStgInfo;
+    pipeInfo.pStages = atShaderStages;
+    pipeInfo.pVertexInputState = &tLineVertexInputInfo;
+    pipeInfo.layout = ptCtx->t3DLinePipelineLayout;
+
+    PL_VULKAN(vkCreateGraphicsPipelines(ptCtx->tDevice, VK_NULL_HANDLE, 1, &pipeInfo, NULL, &tEntry.tSecondaryPipeline));
+
+    // add to entries
+    pl_sb_push(ptCtx->sbt3DPipelines, tEntry);
+
+    return &pl_sb_back(ptCtx->sbt3DPipelines); 
 }
