@@ -474,9 +474,10 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
     ptSceneOut->tComponentLibrary.tHierarchyComponentManager.tComponentType = PL_COMPONENT_TYPE_HIERARCHY;
     ptSceneOut->tComponentLibrary.tHierarchyComponentManager.szStride = sizeof(plHierarchyComponent);
 
-    ptSceneOut->uDynamicBuffer0 = pl_create_constant_buffer_ex(ptResourceManager, pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536), "renderer dynamic buffer 0");
-    ptSceneOut->uDynamicBuffer1 = pl_create_constant_buffer_ex(ptResourceManager, pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536), "renderer dynamic buffer 1");
-    ptSceneOut->uDynamicBuffer2 = pl_create_constant_buffer_ex(ptResourceManager, pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536), "renderer dynamic buffer 2");
+    ptSceneOut->uDynamicBufferSize = pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536);
+    ptSceneOut->uDynamicBuffer0 = pl_create_constant_buffer_ex(ptResourceManager, ptSceneOut->uDynamicBufferSize, "renderer dynamic buffer 0");
+    ptSceneOut->uDynamicBuffer1 = pl_create_constant_buffer_ex(ptResourceManager, ptSceneOut->uDynamicBufferSize, "renderer dynamic buffer 1");
+    ptSceneOut->uDynamicBuffer2 = pl_create_constant_buffer_ex(ptResourceManager, ptSceneOut->uDynamicBufferSize, "renderer dynamic buffer 2");
 
     ptSceneOut->ptOutlineMaterialComponentManager = &ptSceneOut->tComponentLibrary.tOutlineMaterialComponentManager;
     ptSceneOut->ptTagComponentManager = &ptSceneOut->tComponentLibrary.tTagComponentManager;
@@ -918,7 +919,7 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
 
         VkSampleCountFlagBits tMSAASampleCount = ptScene->ptRenderTarget->bMSAA ? ptGraphics->tSwapchain.tMsaaSamples : VK_SAMPLE_COUNT_1_BIT;
         uint32_t* sbuTextures = NULL;
-        uint32_t uDataOffset = 0;
+        ptScene->uDynamicBuffer1_Offset = 0;
         size_t szRangeSize = sizeof(plMaterialInfo);
 
         plMaterialComponent* sbtComponents = ptManager->pData;
@@ -980,19 +981,19 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
 
             const uint32_t uBufferFrameOffset = ((uint32_t)ptBuffer->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex;
 
-            plMaterialInfo* ptMaterialInfo = (plMaterialInfo*)(ptBuffer->pucMapping + uDataOffset + uBufferFrameOffset);
+            plMaterialInfo* ptMaterialInfo = (plMaterialInfo*)(ptBuffer->pucMapping + ptScene->uDynamicBuffer1_Offset + uBufferFrameOffset);
             ptMaterialInfo->tAlbedo = ptMaterial->tAlbedo;
 
-            ptMaterial->uBufferOffset = ((uint32_t)ptBuffer->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + uDataOffset;
+            ptMaterial->uBufferOffset = ((uint32_t)ptBuffer->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer1_Offset;
 
-            uDataOffset = (uint32_t)pl_align_up((size_t)uDataOffset + sizeof(plMaterialInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);   
+            ptScene->uDynamicBuffer1_Offset = (uint32_t)pl_align_up((size_t)ptScene->uDynamicBuffer1_Offset + sizeof(plMaterialInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);   
         }
         break;
     }
 
     case PL_COMPONENT_TYPE_TRANSFORM:
     {
-        uint32_t uDataOffset = 0;
+        ptScene->uDynamicBuffer2_Offset = 0;
         size_t szRangeSize = sizeof(plTransformComponent);
 
         plTransformComponent* sbtComponents = ptManager->pData;
@@ -1018,13 +1019,13 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
 
             const uint32_t uBufferFrameOffset = ((uint32_t)ptBuffer->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex;
 
-            plObjectInfo* ptObjectInfo = (plObjectInfo*)(ptBuffer->pucMapping + uDataOffset + uBufferFrameOffset);
+            plObjectInfo* ptObjectInfo = (plObjectInfo*)(ptBuffer->pucMapping + ptScene->uDynamicBuffer2_Offset + uBufferFrameOffset);
             *ptObjectInfo = ptTransform->tInfo;
             ptObjectInfo->tModel = ptTransform->tFinalTransform;
 
-            ptTransform->uBufferOffset = uBufferFrameOffset + uDataOffset;
+            ptTransform->uBufferOffset = uBufferFrameOffset + ptScene->uDynamicBuffer2_Offset;
 
-            uDataOffset = (uint32_t)pl_align_up((size_t)uDataOffset + sizeof(plObjectInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);   
+            ptScene->uDynamicBuffer2_Offset = (uint32_t)pl_align_up((size_t)ptScene->uDynamicBuffer2_Offset + sizeof(plObjectInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);   
         }
         break;
     }

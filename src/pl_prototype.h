@@ -338,7 +338,10 @@ typedef struct _plScene
     
     plMeshComponent tSkyboxMesh;
     
+    uint32_t            uDynamicBufferSize;
     uint32_t            uDynamicBuffer0_Offset;
+    uint32_t            uDynamicBuffer1_Offset;
+    uint32_t            uDynamicBuffer2_Offset;
     uint32_t            uDynamicBuffer0;
     uint32_t            uDynamicBuffer1;
     uint32_t            uDynamicBuffer2;

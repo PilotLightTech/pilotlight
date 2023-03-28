@@ -195,7 +195,7 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
 
     // objects
     ptAppData->tStlEntity   = pl_ecs_create_object(&ptAppData->tScene, "stl object");
-    ptAppData->tStl2Entity  = pl_ecs_create_object(&ptAppData->tScene, "stl object");
+    ptAppData->tStl2Entity  = pl_ecs_create_object(&ptAppData->tScene, "stl object 2");
     ptAppData->tGrassEntity = pl_ecs_create_object(&ptAppData->tScene, "grass object");
     pl_sb_push(ptAppData->tRenderer.sbtObjectEntities, ptAppData->tGrassEntity);
     pl_sb_push(ptAppData->tRenderer.sbtObjectEntities, ptAppData->tStlEntity);
@@ -206,7 +206,7 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
     // materials
     ptAppData->tGrassMaterial   = pl_ecs_create_material(&ptAppData->tScene, "grass material");
     ptAppData->tSolidMaterial   = pl_ecs_create_material(&ptAppData->tScene, "solid material");
-    ptAppData->tSolid2Material  = pl_ecs_create_material(&ptAppData->tScene, "solid material");
+    ptAppData->tSolid2Material  = pl_ecs_create_material(&ptAppData->tScene, "solid material 2");
 
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~materials~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -395,7 +395,11 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
         pl_sb_push(ptAppData->tRenderer.sbfStorageBuffer, atStorageBuffer[i].w);
     }
 
-    plMeshComponent* ptGrassMeshComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tMeshComponentManager, ptAppData->tGrassEntity);
+    plObjectComponent* ptGrassObjectComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tObjectComponentManager, ptAppData->tGrassEntity);
+    plMeshComponent* ptGrassMeshComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tMeshComponentManager, ptGrassObjectComponent->tMesh);
+    plTransformComponent* ptGrassTransformComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tTransformComponentManager, ptGrassObjectComponent->tTransform);
+    ptGrassTransformComponent->tFinalTransform = pl_mat4_translate_xyz(4.0f, 0.0f, 4.0f);
+    ptGrassTransformComponent->tWorld = pl_mat4_translate_xyz(4.0f, 0.0f, 4.0f);
     const plSubMesh tGrassSubMesh = {
         .tMesh = {
             .uIndexCount         = 18,
@@ -544,14 +548,14 @@ pl_app_update(plAppData* ptAppData)
 
         // ui
 
-        if(pl_ui_begin_window("Offscreen", NULL, false))
+        if(pl_ui_begin_window("Offscreen", NULL, true))
         {
             pl_ui_layout_static(720.0f / 2.0f, 1280.0f / 2.0f, 1);
             pl_ui_image(ptAppData->sbtTextures[ptAppData->tGraphics.szCurrentFrameIndex], (plVec2){1280.0f / 2.0f, 720.0f / 2.0f});
             pl_ui_end_window();
         }
 
-        static bool bOpen = false;
+        static int iSelectedEntity = 1;
 
         pl_ui_set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
 
@@ -562,35 +566,124 @@ pl_app_update(plAppData* ptAppData)
             pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
             
             pl_ui_checkbox("UI Debug", &ptAppData->bShowUiDebug);
-            pl_ui_checkbox("Camera Info", &bOpen);
             pl_ui_checkbox("UI Demo", &ptAppData->bShowUiDemo);
             pl_ui_checkbox("UI Style", &ptAppData->bShowUiStyle);
-            
 
-            const float pfRatios2[] = {100.0f};
-            pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios2);
-            if(pl_ui_button("Move"))
+            if(pl_ui_collapsing_header("Renderer"))
             {
-                pl_ui_set_next_window_collapse(true, PL_UI_COND_ONCE);
+                pl_ui_text("Dynamic Buffers");
+                pl_ui_progress_bar((float)ptAppData->tScene.uDynamicBuffer0_Offset / (float)ptAppData->tScene.uDynamicBufferSize, (plVec2){-1.0f, 0.0f}, NULL);
+                pl_ui_progress_bar((float)ptAppData->tScene.uDynamicBuffer1_Offset / (float)ptAppData->tScene.uDynamicBufferSize, (plVec2){-1.0f, 0.0f}, NULL);
+                pl_ui_progress_bar((float)ptAppData->tScene.uDynamicBuffer2_Offset / (float)ptAppData->tScene.uDynamicBufferSize, (plVec2){-1.0f, 0.0f}, NULL);
+                pl_ui_end_collapsing_header();
             }
 
-            pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-            pl_ui_image(ptAppData->tGrassTexture, (plVec2){512.0f, 512.0f});
+            if(pl_ui_collapsing_header("Entities"))
+            {
+                plTagComponent* sbtTagComponents = ptAppData->tScene.ptTagComponentManager->pData;
+                for(uint32_t i = 0; i < pl_sb_size(sbtTagComponents); i++)
+                {
+                    plTagComponent* ptTagComponent = &sbtTagComponents[i];
+                    pl_ui_radio_button(ptTagComponent->acName, &iSelectedEntity, i + 1);
+                }
+
+                pl_ui_end_collapsing_header();
+            }
             pl_ui_end_window();
         }
-        
-        if(bOpen)
+
+        if(pl_ui_begin_window("Components", NULL, false))
         {
-            if(pl_ui_begin_window("Camera Info", &bOpen, true))
+            const float pfRatios[] = {1.0f};
+            pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+
+            if(pl_ui_collapsing_header("Tag"))
             {
-                pl_ui_text("Pos: %.3f, %.3f, %.3f", ptCamera->tPos.x, ptCamera->tPos.y, ptCamera->tPos.z);
-                pl_ui_text("Pitch: %.3f, Yaw: %.3f, Roll:%.3f", ptCamera->fPitch, ptCamera->fYaw, ptCamera->fRoll);
-                pl_ui_text("Up: %.3f, %.3f, %.3f", ptCamera->_tUpVec.x, ptCamera->_tUpVec.y, ptCamera->_tUpVec.z);
-                pl_ui_text("Forward: %.3f, %.3f, %.3f", ptCamera->_tForwardVec.x, ptCamera->_tForwardVec.y, ptCamera->_tForwardVec.z);
-                pl_ui_text("Right: %.3f, %.3f, %.3f", ptCamera->_tRightVec.x, ptCamera->_tRightVec.y, ptCamera->_tRightVec.z);
-                pl_ui_end_window();
+                plTagComponent* ptTagComponent = pl_ecs_get_component(ptAppData->tScene.ptTagComponentManager, iSelectedEntity);
+                pl_ui_text("Name: %s", ptTagComponent->acName);
+                pl_ui_end_collapsing_header();
             }
-            
+
+            if(pl_ecs_has_entity(ptAppData->tScene.ptTransformComponentManager, iSelectedEntity))
+            {
+                
+                if(pl_ui_collapsing_header("Transform"))
+                {
+                    plTransformComponent* ptTransformComponent = pl_ecs_get_component(ptAppData->tScene.ptTransformComponentManager, iSelectedEntity);
+                    pl_ui_text("Rotation: %0.3f, %0.3f, %0.3f, %0.3f", ptTransformComponent->tRotation.x, ptTransformComponent->tRotation.y, ptTransformComponent->tRotation.z, ptTransformComponent->tRotation.w);
+                    pl_ui_text("Scale: %0.3f, %0.3f, %0.3f", ptTransformComponent->tScale.x, ptTransformComponent->tScale.y, ptTransformComponent->tScale.z);
+                    pl_ui_text("Translation: %0.3f, %0.3f, %0.3f", ptTransformComponent->tTranslation.x, ptTransformComponent->tTranslation.y, ptTransformComponent->tTranslation.z);
+                    pl_ui_end_collapsing_header();
+                }  
+            }
+
+            if(pl_ecs_has_entity(ptAppData->tScene.ptMeshComponentManager, iSelectedEntity))
+            {
+                
+                if(pl_ui_collapsing_header("Mesh"))
+                {
+                    // plMeshComponent* ptMeshComponent = pl_ecs_get_component(ptAppData->tScene.ptMeshComponentManager, iSelectedEntity);
+                    pl_ui_end_collapsing_header();
+                }  
+            }
+
+            if(pl_ecs_has_entity(ptAppData->tScene.ptMaterialComponentManager, iSelectedEntity))
+            {
+                if(pl_ui_collapsing_header("Material"))
+                {
+                    plMaterialComponent* ptMaterialComponent = pl_ecs_get_component(ptAppData->tScene.ptMaterialComponentManager, iSelectedEntity);
+                    pl_ui_text("Albedo: %0.3f, %0.3f, %0.3f, %0.3f", ptMaterialComponent->tAlbedo.r, ptMaterialComponent->tAlbedo.g, ptMaterialComponent->tAlbedo.b, ptMaterialComponent->tAlbedo.a);
+                    pl_ui_text("Alpha Cutoff: %0.3f", ptMaterialComponent->fAlphaCutoff);
+                    pl_ui_text("Double Sided: %s", ptMaterialComponent->bDoubleSided ? "true" : "false");
+                    pl_ui_text("Outline: %s", ptMaterialComponent->bOutline ? "true" : "false");
+                    pl_ui_end_collapsing_header();
+                }  
+            }
+
+            if(pl_ecs_has_entity(ptAppData->tScene.ptObjectComponentManager, iSelectedEntity))
+            {
+                if(pl_ui_collapsing_header("Object"))
+                {
+                    plObjectComponent* ptObjectComponent = pl_ecs_get_component(ptAppData->tScene.ptObjectComponentManager, iSelectedEntity);
+                    plTagComponent* ptTransformTag = pl_ecs_get_component(ptAppData->tScene.ptTagComponentManager, ptObjectComponent->tTransform);
+                    plTagComponent* ptMeshTag = pl_ecs_get_component(ptAppData->tScene.ptTagComponentManager, ptObjectComponent->tMesh);
+                    pl_ui_text("Mesh: %s", ptMeshTag->acName);
+                    pl_ui_text("Transform: %s", ptTransformTag->acName);
+
+                    pl_ui_end_collapsing_header();
+                }  
+            }
+
+            if(pl_ecs_has_entity(ptAppData->tScene.ptCameraComponentManager, iSelectedEntity))
+            {
+                if(pl_ui_collapsing_header("Camera"))
+                {
+                    plCameraComponent* ptCameraComponent = pl_ecs_get_component(ptAppData->tScene.ptCameraComponentManager, iSelectedEntity);
+                    pl_ui_text("Pitch: %0.3f", ptCameraComponent->fPitch);
+                    pl_ui_text("Yaw: %0.3f", ptCameraComponent->fYaw);
+                    pl_ui_text("Roll: %0.3f", ptCameraComponent->fRoll);
+                    pl_ui_text("Near Z: %0.3f", ptCameraComponent->fNearZ);
+                    pl_ui_text("Far Z: %0.3f", ptCameraComponent->fFarZ);
+                    pl_ui_text("Y Field Of View: %0.3f", ptCameraComponent->fFieldOfView);
+                    pl_ui_text("Aspect Ratio: %0.3f", ptCameraComponent->fAspectRatio);
+                    pl_ui_text("Up Vector: %0.3f, %0.3f, %0.3f", ptCameraComponent->_tUpVec.x, ptCameraComponent->_tUpVec.y, ptCameraComponent->_tUpVec.z);
+                    pl_ui_text("Forward Vector: %0.3f, %0.3f, %0.3f", ptCameraComponent->_tForwardVec.x, ptCameraComponent->_tForwardVec.y, ptCameraComponent->_tForwardVec.z);
+                    pl_ui_text("Right Vector: %0.3f, %0.3f, %0.3f", ptCameraComponent->_tRightVec.x, ptCameraComponent->_tRightVec.y, ptCameraComponent->_tRightVec.z);
+                    pl_ui_end_collapsing_header();
+                }  
+            }
+
+            if(pl_ecs_has_entity(ptAppData->tScene.ptHierarchyComponentManager, iSelectedEntity))
+            {
+                if(pl_ui_collapsing_header("Hierarchy"))
+                {
+                    plHierarchyComponent* ptHierarchyComponent = pl_ecs_get_component(ptAppData->tScene.ptHierarchyComponentManager, iSelectedEntity);
+                    plTagComponent* ptParent = pl_ecs_get_component(ptAppData->tScene.ptTagComponentManager, ptHierarchyComponent->tParent);
+                    pl_ui_text("Parent: %s", ptParent->acName);
+                    pl_ui_end_collapsing_header();
+                }  
+            }
+            pl_ui_end_window();
         }
 
         if(ptAppData->bShowUiDemo)

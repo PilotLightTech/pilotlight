@@ -476,34 +476,24 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
 {
     PL_ASSERT(ptDescIn->uBindGroupLayoutCount < 5 && "only 4 descriptor sets allowed per pipeline.");
 
+    plGraphics* ptGraphics = ptResourceManager->_ptGraphics;
+    plDevice*   ptDevice   = &ptGraphics->tDevice;
+
     plShader tShader = {
         .tDesc = *ptDescIn
     };
 
+    // fill out descriptor set layouts
     for(uint32_t i = 0; i < tShader.tDesc.uBindGroupLayoutCount; i++)
         tShader.tDesc.atBindGroupLayouts[i]._tDescriptorSetLayout = pl_request_descriptor_set_layout(ptResourceManager, &tShader.tDesc.atBindGroupLayouts[i]);
 
-    if(pl_sb_size(tShader.tDesc.sbtVariants) > 0)
-    {
-        if(tShader.tDesc.sbtVariants[0].tGraphicsState.ulValue != tShader.tDesc.tGraphicsState.ulValue)
-        {
-            plShaderVariant tNewVariant = {
-                .tGraphicsState = tShader.tDesc.tGraphicsState,
-                .tRenderPass = ptResourceManager->_ptGraphics->tRenderPass,
-                .tMSAASampleCount = ptResourceManager->_ptGraphics->tSwapchain.tMsaaSamples
-            };
-            pl_sb_insert(tShader.tDesc.sbtVariants, 0,tNewVariant);
-        }
-    }
-    else
-    {
-        plShaderVariant tNewVariant = {
-            .tGraphicsState = tShader.tDesc.tGraphicsState,
-            .tRenderPass = ptResourceManager->_ptGraphics->tRenderPass,
-            .tMSAASampleCount = ptResourceManager->_ptGraphics->tSwapchain.tMsaaSamples
-        };
-        pl_sb_push(tShader.tDesc.sbtVariants, tNewVariant);
-    }
+    // place "default" graphics state into the variant list (for consolidation)
+    const plShaderVariant tNewVariant = {
+        .tGraphicsState   = tShader.tDesc.tGraphicsState,
+        .tRenderPass      = ptGraphics->tRenderPass,
+        .tMSAASampleCount = ptGraphics->tSwapchain.tMsaaSamples
+    };
+    pl_sb_push(tShader.tDesc.sbtVariants, tNewVariant);
 
     // hash shader
     uint32_t uHash = pl_str_hash_data(&tShader.tDesc.tGraphicsState.ulValue, sizeof(uint64_t), 0);
@@ -533,9 +523,7 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
         .setLayoutCount = tShader.tDesc.uBindGroupLayoutCount,
         .pSetLayouts    = atDescriptorSetLayouts
     };
-    VkPipelineLayout tPipelineLayout = VK_NULL_HANDLE;
-    PL_VULKAN(vkCreatePipelineLayout(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, &tPipelineLayoutInfo, NULL, &tPipelineLayout));
-    tShader.tPipelineLayout = tPipelineLayout;
+    PL_VULKAN(vkCreatePipelineLayout(ptDevice->tLogicalDevice, &tPipelineLayoutInfo, NULL, &tShader.tPipelineLayout));
 
     //---------------------------------------------------------------------
     // vertex shader stage
@@ -606,7 +594,7 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
 
         plVariantInfo tVariantInfo = {
             .tRenderPass         = tShader.tDesc.sbtVariants[i].tRenderPass,
-            .tPipelineLayout     = tPipelineLayout,
+            .tPipelineLayout     = tShader.tPipelineLayout,
             .tPixelShaderInfo    = tShader.tPixelShaderInfo,
             .tVertexShaderInfo   = tShader.tVertexShaderInfo,
             .tMSAASampleCount    = tShader.tDesc.sbtVariants[i].tMSAASampleCount,
@@ -617,8 +605,9 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
                 .pData         = aiData
             }
         };
-        plShaderVariant tShaderVariant = {
-            .tPipelineLayout = tPipelineLayout,
+
+        const plShaderVariant tShaderVariant = {
+            .tPipelineLayout = tShader.tPipelineLayout,
             .tPipeline       = pl__create_shader_pipeline(ptResourceManager, tShader.tDesc.sbtVariants[i].tGraphicsState, &tVariantInfo),
             .tGraphicsState  = tShader.tDesc.sbtVariants[i].tGraphicsState,
             .tRenderPass     = tShader.tDesc.sbtVariants[i].tRenderPass,
@@ -722,8 +711,6 @@ bool
 pl_shader_variant_exist(plResourceManager* ptResourceManager, uint32_t uShader, plGraphicsState tVariant, VkRenderPass ptRenderPass, VkSampleCountFlagBits tMSAASampleCount)
 {
     plShader* ptShader = &ptResourceManager->sbtShaders[uShader];
-
-    // check if variant exist already
     for(uint32_t i = 0; i < pl_sb_size(ptShader->tDesc.sbtVariants); i++)
     {
         if(ptShader->tDesc.sbtVariants[i].tGraphicsState.ulValue == tVariant.ulValue 
@@ -731,7 +718,6 @@ pl_shader_variant_exist(plResourceManager* ptResourceManager, uint32_t uShader, 
             && tMSAASampleCount == ptShader->tDesc.sbtVariants[i].tMSAASampleCount)
             return true;
     }
-
     return false;
 }
 

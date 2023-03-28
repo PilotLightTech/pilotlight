@@ -59,7 +59,7 @@ typedef struct _plBindGroup       plBindGroup;
 typedef struct _plMesh            plMesh;
 typedef struct _plDraw            plDraw;
 typedef struct _plDrawArea        plDrawArea;
-typedef struct _plShaderVariant   plShaderVariant;
+typedef struct _plShaderVariant   plShaderVariant; // unique combination of graphic state, renderpass, and msaa sample count
 
 // enums
 typedef int plBufferBindingType;  // -> enum _plBufferBindingType   // Enum:
@@ -416,10 +416,10 @@ typedef struct _plResourceManager
     plDevice*   _ptDevice;
     
     // staging buffer
-    size_t            _szStagingBufferSize;
-    VkBuffer          _tStagingBuffer;
-    VkDeviceMemory    _tStagingBufferMemory;
-    unsigned char*    _pucMapping;
+    size_t         _szStagingBufferSize;
+    VkBuffer       _tStagingBuffer;
+    VkDeviceMemory _tStagingBufferMemory;
+    unsigned char* _pucMapping;
 
     // descriptor set layouts
     VkDescriptorSetLayout* _sbtDescriptorSetLayouts;
