@@ -167,7 +167,9 @@ pl_ui_end_frame(void)
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptFocusedWindows); i++)
     {
         plUiWindow* ptRootWindow = gptCtx->sbptFocusedWindows[i];
-        pl_ui_submit_window(ptRootWindow);
+
+        if(ptRootWindow->bActive)
+            pl_ui_submit_window(ptRootWindow);
 
         // adjust window size if outside viewport
         if(ptRootWindow->tPos.x > pl_get_io_context()->afMainViewportSize[0])
