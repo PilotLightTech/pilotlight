@@ -48,7 +48,10 @@ typedef struct _plFrameContext    plFrameContext;    // per frame resource
 typedef struct _plResourceManager plResourceManager; // buffer/texture resource manager
 typedef struct _plBuffer          plBuffer;          // vulkan buffer
 typedef struct _plTexture         plTexture;         // vulkan texture
+typedef struct _plTextureView     plTextureView;     // vulkan texture view
 typedef struct _plTextureDesc     plTextureDesc;     // texture descriptor
+typedef struct _plTextureViewDesc plTextureViewDesc; // texture descriptor
+typedef struct _plSampler         plSampler;
 typedef struct _plBufferBinding   plBufferBinding;
 typedef struct _plTextureBinding  plTextureBinding;
 typedef struct _plShaderDesc      plShaderDesc;
@@ -70,6 +73,9 @@ typedef int plShaderTextureFlags; // -> enum _plShaderTextureFlags  // Flags:
 typedef int plBlendMode;          // -> enum _plBlendMode           // Enum:
 typedef int plDepthMode;          // -> enum _plDepthMode           // Enum:
 typedef int plStencilMode;        // -> enum _plStencilMode         // Enum:
+typedef int plFilter;             // -> enum _plFilter              // Enum:
+typedef int plWrapMode;           // -> enum _plWrapMode            // Enum:
+typedef int plCompareMode;        // -> enum _plCompareMode         // Enum:
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -97,12 +103,14 @@ uint32_t              pl_create_constant_buffer       (plResourceManager* ptReso
 uint32_t              pl_create_texture               (plResourceManager* ptResourceManager, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName);
 uint32_t              pl_create_storage_buffer        (plResourceManager* ptResourceManager, size_t szSize, const void* pData, const char* pcName);
 VkDescriptorSetLayout pl_request_descriptor_set_layout(plResourceManager* ptResourceManager, plBindGroupLayout* ptLayout);
+uint32_t              pl_create_texture_view          (plResourceManager* ptResourceManager, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, uint32_t uTextureHandle, const char* pcName);
 
 // resource manager misc.
-void                  pl_transfer_data_to_image       (plResourceManager* ptResourceManager, plTexture* ptDest, size_t szDataSize, const void* pData);
-void                  pl_transfer_data_to_buffer      (plResourceManager* ptResourceManager, VkBuffer tDest, size_t szSize, const void* pData);
-void                  pl_submit_buffer_for_deletion   (plResourceManager* ptResourceManager, uint32_t uBufferIndex);
-void                  pl_submit_texture_for_deletion  (plResourceManager* ptResourceManager, uint32_t uTextureIndex);
+void                  pl_transfer_data_to_image          (plResourceManager* ptResourceManager, plTexture* ptDest, size_t szDataSize, const void* pData);
+void                  pl_transfer_data_to_buffer         (plResourceManager* ptResourceManager, VkBuffer tDest, size_t szSize, const void* pData);
+void                  pl_submit_buffer_for_deletion      (plResourceManager* ptResourceManager, uint32_t uBufferIndex);
+void                  pl_submit_texture_for_deletion     (plResourceManager* ptResourceManager, uint32_t uTextureIndex);
+void                  pl_submit_texture_view_for_deletion(plResourceManager* ptResourceManager, uint32_t uTextureViewIndex);
 
 // command buffers
 VkCommandBuffer       pl_begin_command_buffer         (plGraphics* ptGraphics);
@@ -117,7 +125,7 @@ plBindGroupLayout*    pl_get_bind_group_layout     (plResourceManager* ptResourc
 plShaderVariant*      pl_get_shader                (plResourceManager* ptResourceManager, uint32_t uVariantIndex);
 
 // descriptors
-void                  pl_update_bind_group            (plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBufferCount, uint32_t* auBuffers, size_t* aszBufferRanges, uint32_t uTextureCount, uint32_t* auTextures);
+void                  pl_update_bind_group            (plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBufferCount, uint32_t* auBuffers, size_t* aszBufferRanges, uint32_t uTextureViewCount, uint32_t* auTextureViews);
 
 // drawing
 void                  pl_draw_areas                   (plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, plDraw* atDraws);
@@ -136,6 +144,34 @@ void                  pl_set_vulkan_object_name       (plGraphics* ptGraphics, u
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
+
+enum _plCompareMode
+{
+    PL_COMPARE_MODE_UNSPECIFIED,
+    PL_COMPARE_MODE_NEVER,
+    PL_COMPARE_MODE_LESS,
+    PL_COMPARE_MODE_EQUAL,
+    PL_COMPARE_MODE_LESS_OR_EQUAL,
+    PL_COMPARE_MODE_GREATER,
+    PL_COMPARE_MODE_NOT_EQUAL,
+    PL_COMPARE_MODE_GREATER_OR_EQUAL,
+    PL_COMPARE_MODE_ALWAYS
+};
+
+enum _plFilter
+{
+    PL_FILTER_UNSPECIFIED,
+    PL_FILTER_NEAREST,
+    PL_FILTER_LINEAR
+};
+
+enum _plWrapMode
+{
+    PL_WRAP_MODE_UNSPECIFIED,
+    PL_WRAP_MODE_WRAP,
+    PL_WRAP_MODE_CLAMP,
+    PL_WRAP_MODE_MIRROR
+};
 
 enum _plBufferBindingType
 {
@@ -267,10 +303,39 @@ typedef struct _plDraw
     uint32_t     uDynamicBufferOffset2;
 } plDraw;
 
+typedef struct _plTextureViewDesc
+{
+    VkFormat    tFormat; 
+    uint32_t    uBaseMip;
+    uint32_t    uMips;
+    uint32_t    uBaseLayer;
+    uint32_t    uLayerCount;
+    uint32_t    uSlot;  
+} plTextureViewDesc;
+
+typedef struct _plSampler
+{
+    plFilter      tFilter;
+    plCompareMode tCompare;
+    plWrapMode    tHorizontalWrap;
+    plWrapMode    tVerticalWrap;
+    float         fMipBias;
+    float         fMinMip;
+    float         fMaxMip; 
+} plSampler;
+
+typedef struct _plTextureView
+{
+    uint32_t          uTextureHandle;
+    plSampler         tSampler;
+    plTextureViewDesc tTextureViewDesc;
+    VkSampler         _tSampler;
+    VkImageView       _tImageView;
+} plTextureView;
+
 typedef struct _plTextureDesc
 {
     VkImageType          tType;
-    VkImageViewType      tViewType;
     plVec3               tDimensions;
     uint32_t             uLayers;
     uint32_t             uMips;
@@ -280,11 +345,9 @@ typedef struct _plTextureDesc
 
 typedef struct _plTexture
 {
-    plTextureDesc        tDesc;
-    VkSampler            tSampler;
-    VkImage              tImage;
-    VkImageView          tImageView;
-    VkDeviceMemory       tMemory;
+    plTextureDesc  tDesc;
+    VkImage        tImage;
+    VkDeviceMemory tMemory;
 } plTexture;
 
 typedef struct _plBuffer
@@ -391,6 +454,7 @@ typedef struct _plResourceManager
 
     plBuffer*        sbtBuffers;
     plTexture*       sbtTextures;
+    plTextureView*   sbtTextureViews;
     plShader*        sbtShaders;
     plShaderVariant* sbtShaderVariants; // from all different shaders
 
@@ -410,6 +474,10 @@ typedef struct _plResourceManager
     // textures
     uint32_t* _sbulTextureFreeIndices;
     uint32_t* _sbulTextureDeletionQueue;
+
+    // texture views
+    uint32_t* _sbulTextureViewFreeIndices;
+    uint32_t* _sbulTextureViewDeletionQueue;
 
     // cached
     plGraphics* _ptGraphics;

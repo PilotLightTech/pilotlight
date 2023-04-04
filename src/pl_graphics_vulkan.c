@@ -76,6 +76,16 @@ static bool                                pl__get_free_resource_index  (uint32_
 static size_t                              pl__get_const_buffer_req_size(plDevice* ptDevice, size_t szSize);
 static VkPipelineColorBlendAttachmentState pl__get_blend_state(plBlendMode tBlendMode);
 
+// pilotlight to vulkan conversions
+static VkFilter             pl__vulkan_filter (plFilter tFilter);
+static VkSamplerAddressMode pl__vulkan_wrap   (plWrapMode tWrap);
+static VkCompareOp          pl__vulkan_compare(plCompareMode tCompare);
+
+// vulkan to pilotlight conversions
+static plFilter      pl__pilotlight_filter (VkFilter tFilter);
+static plWrapMode    pl__pilotlight_wrap   (VkSamplerAddressMode tWrap);
+static plCompareMode pl__pilotlight_compare(VkCompareOp tCompare);
+
 //-----------------------------------------------------------------------------
 // [SECTION] implementations
 //-----------------------------------------------------------------------------
@@ -747,10 +757,10 @@ pl_get_shader(plResourceManager* ptResourceManager, uint32_t uVariantIndex)
 }
 
 void
-pl_update_bind_group(plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBufferCount, uint32_t* auBuffers, size_t* aszBufferRanges, uint32_t uTextureCount, uint32_t* auTextures)
+pl_update_bind_group(plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBufferCount, uint32_t* auBuffers, size_t* aszBufferRanges, uint32_t uTextureViewCount, uint32_t* auTextureViews)
 {
     PL_ASSERT(uBufferCount == ptGroup->tLayout.uBufferCount && "bind group buffer count & update buffer count must match.");
-    PL_ASSERT(uTextureCount == ptGroup->tLayout.uTextureCount && "bind group texture count & update texture count must match.");
+    PL_ASSERT(uTextureViewCount == ptGroup->tLayout.uTextureCount && "bind group texture count & update texture view count must match.");
 
     plDevice* ptDevice = &ptGraphics->tDevice;
     VkDevice tLogicalDevice = ptGraphics->tDevice.tLogicalDevice;
@@ -775,9 +785,9 @@ pl_update_bind_group(plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBuf
     VkWriteDescriptorSet* sbtWrites = NULL;
     VkDescriptorBufferInfo* sbtBufferDescInfos = NULL;
     VkDescriptorImageInfo* sbtImageDescInfos = NULL;
-    pl_sb_resize(sbtWrites, uBufferCount + uTextureCount);
+    pl_sb_resize(sbtWrites, uBufferCount + uTextureViewCount);
     pl_sb_resize(sbtBufferDescInfos, uBufferCount);
-    pl_sb_resize(sbtImageDescInfos, uTextureCount);
+    pl_sb_resize(sbtImageDescInfos, uTextureViewCount);
 
     uint32_t uCurrentWrite = 0;
     for(uint32_t i = 0 ; i < uBufferCount; i++)
@@ -800,14 +810,14 @@ pl_update_bind_group(plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBuf
         uCurrentWrite++;
     }
 
-    for(uint32_t i = 0 ; i < uTextureCount; i++)
+    for(uint32_t i = 0 ; i < uTextureViewCount; i++)
     {
 
-        const plTexture* ptTexture = &ptGraphics->tResourceManager.sbtTextures[auTextures[i]];
+        const plTextureView* ptTextureView = &ptGraphics->tResourceManager.sbtTextureViews[auTextureViews[i]];
 
         sbtImageDescInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        sbtImageDescInfos[i].imageView   = ptTexture->tImageView;
-        sbtImageDescInfos[i].sampler     = ptTexture->tSampler;
+        sbtImageDescInfos[i].imageView   = ptTextureView->_tImageView;
+        sbtImageDescInfos[i].sampler     = ptTextureView->_tSampler;
         
         sbtWrites[uCurrentWrite].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         sbtWrites[uCurrentWrite].dstBinding      = ptGroup->tLayout.aTextures[i].uSlot;
@@ -995,8 +1005,6 @@ pl_process_cleanup_queue(plResourceManager* ptResourceManager, uint32_t uFramesT
         if(ptTexture->tDesc.uMips == 0)
         {
             vkDestroyImage(tDevice, ptTexture->tImage, NULL);
-            vkDestroyImageView(tDevice, ptTexture->tImageView, NULL);
-            vkDestroySampler(tDevice, ptTexture->tSampler, NULL);
             vkFreeMemory(tDevice, ptTexture->tMemory, NULL);
 
             pl_log_debug_to_f(ptGraphics->uLogChannel, "destroying texture %u", ulTextureIndex);
@@ -1013,6 +1021,56 @@ pl_process_cleanup_queue(plResourceManager* ptResourceManager, uint32_t uFramesT
         else
         {
             pl_sb_push(ptResourceManager->_sbulTempQueue, ulTextureIndex);
+        }
+    }
+
+    if(bNeedUpdate)
+    {
+        // copy temporary queue data over
+        pl_sb_reset(ptResourceManager->_sbulTextureDeletionQueue);
+        pl_sb_resize(ptResourceManager->_sbulTextureDeletionQueue, pl_sb_size(ptResourceManager->_sbulTempQueue));
+        if(ptResourceManager->_sbulTempQueue)
+            memcpy(ptResourceManager->_sbulTextureDeletionQueue, ptResourceManager->_sbulTempQueue, pl_sb_size(ptResourceManager->_sbulTempQueue) * sizeof(uint32_t));
+    }
+
+    // texture view cleanup
+    pl_sb_reset(ptResourceManager->_sbulTempQueue);
+
+    bNeedUpdate = false;
+
+    for(uint32_t i = 0; i < pl_sb_size(ptResourceManager->_sbulTextureViewDeletionQueue); i++)
+    {
+        const uint32_t ulTextureViewIndex = ptResourceManager->_sbulTextureViewDeletionQueue[i];
+
+        plTextureView* ptTextureView = &ptResourceManager->sbtTextureViews[ulTextureViewIndex];
+
+        // we are hiding the frame
+        if(ptTextureView->tTextureViewDesc.uLayerCount < uFramesToProcess)
+            ptTextureView->tTextureViewDesc.uLayerCount = 0;
+        else
+            ptTextureView->tTextureViewDesc.uLayerCount -= uFramesToProcess;
+
+        if(ptTextureView->tTextureViewDesc.uLayerCount == 0)
+        {
+            vkDestroyImageView(tDevice, ptTextureView->_tImageView, NULL);
+            vkDestroySampler(tDevice, ptTextureView->_tSampler, NULL);
+
+            pl_log_debug_to_f(ptGraphics->uLogChannel, "destroying texture view %u", ulTextureViewIndex);
+
+            ptTextureView->tTextureViewDesc = (plTextureViewDesc){0};
+            ptTextureView->tSampler = (plSampler){0};
+            ptTextureView->_tImageView = VK_NULL_HANDLE;
+            ptTextureView->_tSampler = VK_NULL_HANDLE;
+
+
+            // add to free indices
+            pl_sb_push(ptResourceManager->_sbulTextureViewFreeIndices, ulTextureViewIndex);
+
+            bNeedUpdate = true;
+        }
+        else
+        {
+            pl_sb_push(ptResourceManager->_sbulTempQueue, ulTextureViewIndex);
         }
     }
 
@@ -1417,6 +1475,84 @@ pl_create_constant_buffer(plResourceManager* ptResourceManager, size_t szItemSiz
 }
 
 uint32_t
+pl_create_texture_view(plResourceManager* ptResourceManager, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, uint32_t uTextureHandle, const char* pcName)
+{
+    plTextureView tTextureView = {
+        .tSampler         = *ptSampler,
+        .tTextureViewDesc = *ptViewDesc,
+        .uTextureHandle   = uTextureHandle
+    };
+
+    VkDevice tDevice = ptResourceManager->_ptDevice->tLogicalDevice;
+    plTexture* ptTexture = &ptResourceManager->sbtTextures[uTextureHandle];
+
+    if(ptViewDesc->uMips == 0)
+        tTextureView.tTextureViewDesc.uMips = ptTexture->tDesc.uMips;
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    const VkImageViewType tImageViewType = ptViewDesc->uLayerCount == 6 ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D;    
+    PL_ASSERT((ptViewDesc->uLayerCount == 1 || ptViewDesc->uLayerCount == 6) && "unsupported layer count");
+
+    VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+    if(pl_format_has_stencil(ptViewDesc->tFormat))
+        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
+
+    VkImageViewCreateInfo tViewInfo = {
+        .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image                           = ptTexture->tImage,
+        .viewType                        = tImageViewType,
+        .format                          = ptViewDesc->tFormat,
+        .subresourceRange.baseMipLevel   = ptViewDesc->uBaseMip,
+        .subresourceRange.levelCount     = tTextureView.tTextureViewDesc.uMips,
+        .subresourceRange.baseArrayLayer = ptViewDesc->uBaseLayer,
+        .subresourceRange.layerCount     = ptViewDesc->uLayerCount,
+        .subresourceRange.aspectMask     = tImageAspectFlags,
+    };
+    PL_VULKAN(vkCreateImageView(tDevice, &tViewInfo, NULL, &tTextureView._tImageView));
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create sampler~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    VkSamplerCreateInfo tSamplerInfo = {
+        .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter               = pl__vulkan_filter(ptSampler->tFilter),
+        .addressModeU            = pl__vulkan_wrap(ptSampler->tHorizontalWrap),
+        .addressModeV            = pl__vulkan_wrap(ptSampler->tVerticalWrap),
+        .anisotropyEnable        = VK_FALSE,
+        .maxAnisotropy           = 0.0f,
+        .borderColor             = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
+        .unnormalizedCoordinates = VK_FALSE,
+        .compareEnable           = VK_FALSE,
+        .compareOp               = pl__vulkan_compare(ptSampler->tCompare),
+        .mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .mipLodBias              = ptSampler->fMipBias,
+        .minLod                  = ptSampler->fMinMip,
+        .maxLod                  = ptSampler->fMaxMip,
+    };
+
+    // .compareOp               = VK_COMPARE_OP_ALWAYS,
+    tSamplerInfo.minFilter    = tSamplerInfo.magFilter;
+    tSamplerInfo.addressModeW = tSamplerInfo.addressModeU;
+
+    PL_VULKAN(vkCreateSampler(tDevice, &tSamplerInfo, NULL, &tTextureView._tSampler));
+
+    // find free index
+    uint32_t ulTextureViewIndex = 0u;
+    if(!pl__get_free_resource_index(ptResourceManager->_sbulTextureViewFreeIndices, &ulTextureViewIndex))
+        ulTextureViewIndex = pl_sb_add_n(ptResourceManager->sbtTextureViews, 1);
+    ptResourceManager->sbtTextureViews[ulTextureViewIndex] = tTextureView;
+
+    if(pcName)
+    {
+        pl_set_vulkan_object_name(ptResourceManager->_ptGraphics, (uint64_t)tTextureView._tSampler, VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_EXT, pcName);
+        pl_set_vulkan_object_name(ptResourceManager->_ptGraphics, (uint64_t)tTextureView._tImageView, VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT, pcName);
+    }
+
+    return ulTextureViewIndex;
+}
+
+uint32_t
 pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName)
 {
     VkDevice tDevice = ptResourceManager->_ptDevice->tLogicalDevice;
@@ -1429,6 +1565,9 @@ pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, siz
     plTexture tTexture = {
         .tDesc = tDesc
     };
+
+    const VkImageViewType tImageViewType = tDesc.uLayers == 6 ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D;    
+    PL_ASSERT((tDesc.uLayers == 1 || tDesc.uLayers == 6) && "unsupported layer count");
 
     // create vulkan image
     VkImageCreateInfo tImageInfo = {
@@ -1445,10 +1584,11 @@ pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, siz
         .usage         = tDesc.tUsage,
         .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
         .samples       = VK_SAMPLE_COUNT_1_BIT,
-        .flags         = tDesc.tViewType == VK_IMAGE_VIEW_TYPE_CUBE ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0
+        .flags         = tImageViewType == VK_IMAGE_VIEW_TYPE_CUBE ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0
     };
 
-    if(pData) tImageInfo.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    if(pData)
+        tImageInfo.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     PL_VULKAN(vkCreateImage(tDevice, &tImageInfo, NULL, &tTexture.tImage));
 
     // get memory requirements
@@ -1468,47 +1608,11 @@ pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, siz
     if(pData)
         pl_transfer_data_to_image(ptResourceManager, &tTexture, szSize, pData);
 
-    // create view
-    VkImageViewCreateInfo tViewInfo = {
-        .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image                           = tTexture.tImage,
-        .viewType                        = tDesc.tViewType,
-        .format                          = tDesc.tFormat,
-        .subresourceRange.baseMipLevel   = 0u,
-        .subresourceRange.levelCount     = tDesc.uMips,
-        .subresourceRange.baseArrayLayer = 0u,
-        .subresourceRange.layerCount     = tDesc.uLayers,
-        .subresourceRange.aspectMask     = tDesc.tUsage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT,
-    };
-    if(pl_format_has_stencil(tViewInfo.format))
-        tViewInfo.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
-    PL_VULKAN(vkCreateImageView(tDevice, &tViewInfo, NULL, &tTexture.tImageView));
 
-    // create sampler
-    if(tDesc.tUsage & VK_IMAGE_USAGE_SAMPLED_BIT)
-    {
-        const VkSamplerCreateInfo tSamplerInfo = {
-            .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-            .magFilter               = VK_FILTER_LINEAR,
-            .minFilter               = VK_FILTER_LINEAR,
-            // .magFilter               = VK_FILTER_NEAREST,
-            // .minFilter               = VK_FILTER_NEAREST,
-            .addressModeU            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            .addressModeV            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            .addressModeW            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            .anisotropyEnable        = VK_FALSE,
-            .maxAnisotropy           = 0.0f,
-            .borderColor             = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
-            .unnormalizedCoordinates = VK_FALSE,
-            .compareEnable           = VK_FALSE,
-            .compareOp               = VK_COMPARE_OP_ALWAYS,
-            .mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-            .mipLodBias              = 0.0f,
-            .minLod                  = 0.0f,
-            .maxLod                  = (float)tDesc.uMips,
-        };
-        PL_VULKAN(vkCreateSampler(tDevice, &tSamplerInfo, NULL, &tTexture.tSampler));    
-    }
+    VkImageAspectFlags tImageAspectFlags = tDesc.tUsage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+    if(pl_format_has_stencil(tDesc.tFormat))
+        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
 
     VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(ptResourceManager->_ptGraphics);
     VkImageSubresourceRange tRange = {
@@ -1516,7 +1620,7 @@ pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, siz
         .levelCount     = 1,
         .baseArrayLayer = 0,
         .layerCount     = tDesc.uLayers,
-        .aspectMask     = tViewInfo.subresourceRange.aspectMask
+        .aspectMask     = tImageAspectFlags
     };
     if(pData)
         pl_transition_image_layout(tCommandBuffer, tTexture.tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
@@ -1674,6 +1778,16 @@ pl_submit_texture_for_deletion(plResourceManager* ptResourceManager, uint32_t ul
 }
 
 void
+pl_submit_texture_view_for_deletion(plResourceManager* ptResourceManager, uint32_t uTextureViewIndex)
+{
+    PL_ASSERT(uTextureViewIndex < pl_sb_size(ptResourceManager->sbtTextureViews)); 
+    pl_sb_push(ptResourceManager->_sbulTextureViewDeletionQueue, uTextureViewIndex);
+
+    // using tTextureViewDesc.uLayerCount member to store frame this buffer is ok to free
+    ptResourceManager->sbtTextureViews[uTextureViewIndex].tTextureViewDesc.uLayerCount = ptResourceManager->_ptGraphics->uFramesInFlight;    
+}
+
+void
 pl_cleanup_graphics(plGraphics* ptGraphics)
 {
 
@@ -1692,7 +1806,6 @@ pl_cleanup_graphics(plGraphics* ptGraphics)
     // destroy swapchain
     for (uint32_t i = 0u; i < ptGraphics->tSwapchain.uImageCount; i++)
     {
-
         vkDestroyImageView(ptGraphics->tDevice.tLogicalDevice, ptGraphics->tSwapchain.ptImageViews[i], NULL);
         vkDestroyFramebuffer(ptGraphics->tDevice.tLogicalDevice, ptGraphics->tSwapchain.ptFrameBuffers[i], NULL);
     }
@@ -2564,6 +2677,12 @@ pl__cleanup_resource_manager(plResourceManager* ptResourceManager)
             pl_submit_texture_for_deletion(ptResourceManager, i);
     }
 
+    for(uint32_t i = 0; i < pl_sb_size(ptResourceManager->sbtTextureViews); i++)
+    {
+        if(ptResourceManager->sbtTextureViews[i].tTextureViewDesc.uLayerCount > 0)
+            pl_submit_texture_view_for_deletion(ptResourceManager, i);
+    }
+
     for(uint32_t i = 0; i < pl_sb_size(ptResourceManager->sbtShaders); i++)
     {
         if(ptResourceManager->_sbulShaderHashes[i] > 0)
@@ -3030,4 +3149,104 @@ pl__create_shader_pipeline(plResourceManager* ptResourceManager, plGraphicsState
     pl_log_debug_to_f(ptGraphics->uLogChannel, "created new shader pipeline");
 
     return tPipeline;
+}
+
+static VkFilter
+pl__vulkan_filter(plFilter tFilter)
+{
+    switch(tFilter)
+    {
+        case PL_FILTER_UNSPECIFIED:
+        case PL_FILTER_NEAREST: return VK_FILTER_NEAREST;
+        case PL_FILTER_LINEAR:  return VK_FILTER_LINEAR;
+    }
+
+    PL_ASSERT(false && "Unsupported filter mode");
+    return VK_FILTER_LINEAR;
+}
+
+static VkSamplerAddressMode
+pl__vulkan_wrap(plWrapMode tWrap)
+{
+    switch(tWrap)
+    {
+        case PL_WRAP_MODE_UNSPECIFIED:
+        case PL_WRAP_MODE_WRAP:   return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        case PL_WRAP_MODE_CLAMP:  return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        case PL_WRAP_MODE_MIRROR: return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+    }
+
+    PL_ASSERT(false && "Unsupported wrap mode");
+    return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+}
+
+static VkCompareOp
+pl__vulkan_compare(plCompareMode tCompare)
+{
+    switch(tCompare)
+    {
+        case PL_COMPARE_MODE_UNSPECIFIED:
+        case PL_COMPARE_MODE_NEVER:            return VK_COMPARE_OP_NEVER;
+        case PL_COMPARE_MODE_LESS:             return VK_COMPARE_OP_LESS;
+        case PL_COMPARE_MODE_EQUAL:            return VK_COMPARE_OP_EQUAL;
+        case PL_COMPARE_MODE_LESS_OR_EQUAL:    return VK_COMPARE_OP_LESS_OR_EQUAL;
+        case PL_COMPARE_MODE_GREATER:          return VK_COMPARE_OP_GREATER;
+        case PL_COMPARE_MODE_NOT_EQUAL:        return VK_COMPARE_OP_NOT_EQUAL;
+        case PL_COMPARE_MODE_GREATER_OR_EQUAL: return VK_COMPARE_OP_GREATER_OR_EQUAL;
+        case PL_COMPARE_MODE_ALWAYS:           return VK_COMPARE_OP_ALWAYS;
+    }
+
+    PL_ASSERT(false && "Unsupported compare mode");
+    return VK_COMPARE_OP_NEVER;
+}
+
+static plFilter
+pl__pilotlight_filter(VkFilter tFilter)
+{
+    switch(tFilter)
+    {
+        case VK_FILTER_NEAREST: return PL_FILTER_NEAREST;
+        case VK_FILTER_LINEAR:  return PL_FILTER_LINEAR;
+    }
+
+    PL_ASSERT(false && "Unsupported compare mode");
+    return PL_FILTER_NEAREST;
+}
+
+static plWrapMode
+pl__pilotlight_wrap(VkSamplerAddressMode tWrap)
+{
+    switch(tWrap)
+    {
+        case VK_SAMPLER_ADDRESS_MODE_REPEAT:
+            return PL_WRAP_MODE_WRAP;
+
+        case VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE:
+            return PL_WRAP_MODE_CLAMP;
+
+        case VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT:
+            return PL_WRAP_MODE_MIRROR;
+    }
+
+    PL_ASSERT(false && "Unsupported wrap mode");
+    return PL_WRAP_MODE_WRAP;
+}
+
+static plCompareMode
+pl__pilotlight_compare(VkCompareOp tCompare)
+{
+    switch(tCompare)
+    {
+        case VK_COMPARE_OP_NEVER:            return PL_COMPARE_MODE_NEVER;
+        case VK_COMPARE_OP_LESS:             return PL_COMPARE_MODE_LESS;
+        case VK_COMPARE_OP_EQUAL:            return PL_COMPARE_MODE_EQUAL;
+        case VK_COMPARE_OP_LESS_OR_EQUAL:    return PL_COMPARE_MODE_LESS_OR_EQUAL;
+        case VK_COMPARE_OP_GREATER:          return PL_COMPARE_MODE_GREATER;
+        case VK_COMPARE_OP_NOT_EQUAL:        return PL_COMPARE_MODE_NOT_EQUAL;
+        case VK_COMPARE_OP_GREATER_OR_EQUAL: return PL_COMPARE_MODE_GREATER_OR_EQUAL;
+        case VK_COMPARE_OP_ALWAYS:           return PL_COMPARE_MODE_ALWAYS;
+    }
+
+    PL_ASSERT(false && "Unsupported compare mode");
+    return PL_COMPARE_MODE_NEVER;
 }

@@ -112,6 +112,7 @@ void pl_draw_scene        (plScene* ptScene);
 void pl_scene_bind_camera (plScene* ptScene, const plCameraComponent* ptCamera);
 void pl_scene_update_ecs  (plScene* ptScene);
 void pl_scene_bind_target (plScene* ptScene, plRenderTarget* ptTarget);
+void pl_scene_prepare     (plScene* ptScene);
 
 // entity component system
 plEntity pl_ecs_create_entity   (plRenderer* ptRenderer);
@@ -170,8 +171,8 @@ typedef struct _plRenderTargetDesc
 typedef struct _plRenderTarget
 {
     plRenderTargetDesc tDesc;
-    uint32_t*          sbuColorTextures;
-    uint32_t           uDepthTexture;
+    uint32_t*          sbuColorTextureViews;
+    uint32_t           uDepthTextureView;
     VkFramebuffer*     sbtFrameBuffers;
     bool               bMSAA;
 } plRenderTarget;
@@ -237,24 +238,28 @@ typedef struct _plTransformComponent
 
 typedef struct _plSubMesh
 {
-    plMesh   tMesh;
-    plEntity tMaterial;
-    uint32_t uStorageOffset;
+    plMesh    tMesh;
+    plEntity  tMaterial;
+    uint32_t  uStorageOffset;
+
+    plVec3*   sbtVertexPositions;
+    plVec3*   sbtVertexNormals;
+    plVec4*   sbtVertexTangents;
+    plVec4*   sbtVertexColors0;
+    plVec4*   sbtVertexColors1;
+    plVec4*   sbtVertexWeights0;
+    plVec4*   sbtVertexWeights1;
+    plVec4*   sbtVertexJoints0;
+    plVec4*   sbtVertexJoints1;
+    plVec2*   sbtVertexTextureCoordinates0;
+    plVec2*   sbtVertexTextureCoordinates1;
+    uint32_t* sbuIndices;
 } plSubMesh;
 
 typedef struct _plMeshComponent
 {
     plSubMesh* sbtSubmeshes;
-    plVec3*    sbtVertexPositions;
-    plVec3*    sbtVertexNormals;
-    plVec4*    sbtVertexTangents;
-    plVec4*    sbtVertexColors0;
-    plVec4*    sbtVertexColors1;
-    plVec4*    sbtVertexWeights0;
-    plVec4*    sbtVertexWeights1;
-    plVec2*    sbtVertexTextureCoordinates0;
-    plVec2*    sbtVertexTextureCoordinates1;
-    uint32_t*  sbuIndices;
+
 } plMeshComponent;
 
 typedef struct _plMaterialComponent
@@ -331,10 +336,13 @@ typedef struct _plScene
     plRenderer*              ptRenderer;
     plRenderTarget*          ptRenderTarget;
     const plCameraComponent* ptCamera;
+    float*                   sbfStorageBuffer;
+    uint32_t                 uGlobalStorageBuffer;
+    plBindGroup              tGlobalBindGroup;
 
     // skybox
     plBindGroup     tSkyboxBindGroup0;
-    uint32_t        uSkyboxTexture;
+    uint32_t        uSkyboxTextureView;
     
     plMeshComponent tSkyboxMesh;
     
@@ -360,9 +368,8 @@ typedef struct _plRenderer
 {
     plGraphics*              ptGraphics;
     plEntity*                sbtObjectEntities;
-    float*                   sbfStorageBuffer;
-    plBindGroup              tGlobalBindGroup;
-    uint32_t                 uGlobalStorageBuffer;
+    
+    
     size_t                   tNextEntity;
     uint32_t                 uLogChannel;
 

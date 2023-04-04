@@ -183,17 +183,12 @@ void main()
     const vec3 tReflected = normalize(reflect(-tLightDir0, n));
     const vec4 tLightColor = vec4(1.0, 1.0, 1.0, 1.0);
     const vec4 tDiffuseColor = tLightColor * clampedDot(n, -tLightDir0);
-    vec4 tMaterialColor = tMaterialInfo.tAlbedo;
+    vec4 tMaterialColor = tMaterialInfo.tAlbedo * tShaderIn.tColor;
     vec4 tEmissiveColor = vec4(0.0);
-
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0)) 
-    {
-        tMaterialColor = tShaderIn.tColor;
-    }
 
     if(bool(ShaderTextureFlags & PL_TEXTURE_HAS_BASE_COLOR)) 
     {
-        tMaterialColor = texture(tColorSampler, tShaderIn.tUV);
+        tMaterialColor = texture(tColorSampler, tShaderIn.tUV) * tShaderIn.tColor;
     }
 
     if(bool(ShaderTextureFlags & PL_TEXTURE_HAS_EMISSIVE)) 
@@ -203,8 +198,8 @@ void main()
 
     outColor = (tGlobalInfo.tAmbientColor + tDiffuseColor) * tMaterialColor + tEmissiveColor;
 
-    outColor.a = tMaterialColor.a;
-    if(tMaterialColor.a < 0.01)
+    outColor.a = tMaterialInfo.tAlbedo.a;
+    if(outColor.a < 0.01)
     {
         discard;
     }

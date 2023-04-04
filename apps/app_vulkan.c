@@ -69,14 +69,13 @@ typedef struct _plAppData
     plRenderer      tRenderer;
     plAssetRegistry tAssetRegistry;
     plScene         tScene;
-    VkDescriptorSet tGrassTexture;
-
-    // shaders
-    uint32_t uGrassShader;
 
     // cameras
     plEntity tCameraEntity;
     plEntity tOffscreenCameraEntity;
+
+    // shaders
+    uint32_t uGrassShader;
 
     // objects
     plEntity tGrassEntity;
@@ -89,9 +88,9 @@ typedef struct _plAppData
     plEntity tSolid2Material;
 
     // new stuff
-    plRenderPass   tOffscreenPass;
-    plRenderTarget tMainTarget;
-    plRenderTarget tOffscreenTarget;
+    plRenderPass     tOffscreenPass;
+    plRenderTarget   tMainTarget;
+    plRenderTarget   tOffscreenTarget;
     VkDescriptorSet* sbtTextures;
 
 } plAppData;
@@ -208,7 +207,6 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
     ptAppData->tSolidMaterial   = pl_ecs_create_material(&ptAppData->tScene, "solid material");
     ptAppData->tSolid2Material  = pl_ecs_create_material(&ptAppData->tScene, "solid material 2");
 
-
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~materials~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // grass
@@ -266,77 +264,82 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
         .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .uLayers     = 1,
         .uMips       = 1, // means all mips
-        .tType       = VK_IMAGE_TYPE_2D,
-        .tViewType   = VK_IMAGE_VIEW_TYPE_2D
+        .tType       = VK_IMAGE_TYPE_2D
     };
 
+	const plSampler tSampler = 
+	{
+		.fMinMip         = 0.0f,
+		.fMaxMip         = 64.0f,
+		.tFilter         = PL_FILTER_NEAREST,
+        .tHorizontalWrap = PL_WRAP_MODE_CLAMP,
+        .tVerticalWrap   = PL_WRAP_MODE_CLAMP
+	};
+
+	const plTextureViewDesc tView = {
+		.tFormat     = tTextureDesc.tFormat,
+		.uLayerCount = tTextureDesc.uLayers,
+		.uMips       = tTextureDesc.uMips
+	};
+
+	uint32_t uGrassTexture = pl_create_texture(&ptAppData->tGraphics.tResourceManager, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * 4, rawBytes, "../data/pilotlight-assets-master/images/grass.png");
+	
     // grass material
     plMaterialComponent* ptGrassMaterial = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tMaterialComponentManager, ptAppData->tGrassMaterial);
     ptGrassMaterial->uShader = ptAppData->uGrassShader;
     ptGrassMaterial->tShaderType = PL_SHADER_TYPE_CUSTOM;
     ptGrassMaterial->bDoubleSided = true;
-    ptGrassMaterial->uAlbedoMap = pl_create_texture(&ptAppData->tGraphics.tResourceManager, tTextureDesc, sizeof(unsigned char) * texHeight * texHeight * 4, rawBytes, "grass texture");
-    ptGrassMaterial->tGraphicsState.ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0;
-    ptGrassMaterial->tGraphicsState.ulCullMode           = VK_CULL_MODE_NONE;
-    ptGrassMaterial->tGraphicsState.ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_0;
+    ptGrassMaterial->uAlbedoMap = pl_create_texture_view(&ptAppData->tGraphics.tResourceManager, &tView, &tSampler, uGrassTexture, "grass texture");
 
-    plTexture* ptGrassTexture = &ptAppData->tGraphics.tResourceManager.sbtTextures[ptGrassMaterial->uAlbedoMap];
-    ptAppData->tGrassTexture = pl_add_texture(pl_ui_get_draw_context(NULL), ptGrassTexture->tImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    stbi_image_free(rawBytes);
 
     // solid materials
-    plMaterialComponent* ptSolidMaterial = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tMaterialComponentManager, ptAppData->tSolidMaterial);
-    ptSolidMaterial->tGraphicsState.ulVertexStreamMask = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_COLOR_0;
-
-    plMaterialComponent* ptSolidMaterial2 = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tMaterialComponentManager, ptAppData->tSolid2Material);
-    ptSolidMaterial2->tGraphicsState.ulVertexStreamMask = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_COLOR_0;
     pl_material_outline(&ptAppData->tScene, ptAppData->tSolid2Material);
-
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~STL Model~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    const plStlOptions tStlOptions = {
-        .bIncludeColor   = true,
-        .bIncludeNormals = true,
-        .afColor = { 1.0f, 0.0f, 0.0f, 1.0f }
-    };
     plStlInfo tStlInfo = {0};
     uint32_t uFileSize = 0u;
     pl_read_file("../data/pilotlight-assets-master/meshes/monkey.stl", &uFileSize, NULL, "rb");
     char* acFileData = pl_alloc(uFileSize);
     memset(acFileData, 0, uFileSize);
     pl_read_file("../data/pilotlight-assets-master/meshes/monkey.stl", &uFileSize, acFileData, "rb");
-    pl_load_stl(acFileData, uFileSize, tStlOptions, NULL, NULL, NULL, &tStlInfo);
-    float* afVertexBuffer0    = pl_alloc(sizeof(float) * tStlInfo.szVertexStream0Size);
-    float* afVertexBuffer1    = pl_alloc(sizeof(float) * tStlInfo.szVertexStream1Size);
-    memset(afVertexBuffer1, 0, sizeof(float) * tStlInfo.szVertexStream1Size);
-    uint32_t* auIndexBuffer = pl_alloc(sizeof(uint32_t) * tStlInfo.szIndexBufferSize);
-    pl_load_stl(acFileData, uFileSize, tStlOptions, afVertexBuffer0, afVertexBuffer1, auIndexBuffer, &tStlInfo);
-    const uint32_t uStlStorageOffset = pl_sb_size(ptAppData->tRenderer.sbfStorageBuffer) / 4;
+    pl_load_stl(acFileData, uFileSize, NULL, NULL, NULL, &tStlInfo);
 
-    const uint32_t uPrevIndex = pl_sb_add_n(ptAppData->tRenderer.sbfStorageBuffer, (uint32_t)tStlInfo.szVertexStream1Size);
-    memcpy(&ptAppData->tRenderer.sbfStorageBuffer[uPrevIndex], afVertexBuffer1, tStlInfo.szVertexStream1Size * sizeof(float));
+    plSubMesh tSubMesh = {
+        .tMaterial = ptAppData->tSolidMaterial
+    };
 
+    pl_sb_resize(tSubMesh.sbtVertexPositions, (uint32_t)tStlInfo.szPositionStreamSize / 3);
+    pl_sb_resize(tSubMesh.sbtVertexNormals, (uint32_t)tStlInfo.szNormalStreamSize / 3);
+    pl_sb_resize(tSubMesh.sbuIndices, (uint32_t)tStlInfo.szIndexBufferSize);
+    pl_load_stl(acFileData, (size_t)uFileSize, (float*)tSubMesh.sbtVertexPositions, (float*)tSubMesh.sbtVertexNormals, tSubMesh.sbuIndices, &tStlInfo);
+    pl_free(acFileData);
     plMeshComponent* ptMeshComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tMeshComponentManager, ptAppData->tStlEntity);
     plMeshComponent* ptMeshComponent2 = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tMeshComponentManager, ptAppData->tStl2Entity);
-    plSubMesh tSubMesh = {
-        .tMesh = {
-            .uIndexCount   = (uint32_t)tStlInfo.szIndexBufferSize,
-            .uVertexCount  = (uint32_t)tStlInfo.szVertexStream0Size / 3,
-            .uIndexBuffer  = pl_create_index_buffer(&ptAppData->tGraphics.tResourceManager, sizeof(uint32_t) * tStlInfo.szIndexBufferSize, auIndexBuffer, "stl index buffer"),
-            .uVertexBuffer = pl_create_vertex_buffer(&ptAppData->tGraphics.tResourceManager, tStlInfo.szVertexStream0Size * sizeof(float), sizeof(plVec3), afVertexBuffer0, "stl vertex buffer"),
-            .ulVertexStreamMask = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_COLOR_0
-        },
-        .tMaterial = ptAppData->tSolidMaterial,
-        .uStorageOffset = uStlStorageOffset
-    };
     pl_sb_push(ptMeshComponent->sbtSubmeshes, tSubMesh);
     tSubMesh.tMaterial = ptAppData->tSolid2Material;
     pl_sb_push(ptMeshComponent2->sbtSubmeshes, tSubMesh);
 
-    pl_free(acFileData);
-    pl_free(afVertexBuffer0);
-    pl_free(afVertexBuffer1);
-    pl_free(auIndexBuffer);
+    {
+		plTransformComponent* ptTransformComponent = pl_ecs_get_component(ptAppData->tScene.ptTransformComponentManager, ptAppData->tStlEntity);
+
+		ptTransformComponent->tRotation    = (plVec4){.w = 1.0f};
+		ptTransformComponent->tScale       = (plVec3){1.0f, 1.0f, 1.0f};
+		ptTransformComponent->tTranslation = (plVec3){0};
+		ptTransformComponent->tWorld = pl_rotation_translation_scale(ptTransformComponent->tRotation, ptTransformComponent->tTranslation, ptTransformComponent->tScale);
+		ptTransformComponent->tFinalTransform = ptTransformComponent->tWorld;
+    }
+
+    {
+		plTransformComponent* ptTransformComponent = pl_ecs_get_component(ptAppData->tScene.ptTransformComponentManager, ptAppData->tStl2Entity);
+
+		ptTransformComponent->tRotation    = (plVec4){.w = 1.0f};
+		ptTransformComponent->tScale       = (plVec3){1.0f, 1.0f, 1.0f};
+		ptTransformComponent->tTranslation = (plVec3){0};
+		ptTransformComponent->tWorld = pl_rotation_translation_scale(ptTransformComponent->tRotation, ptTransformComponent->tTranslation, ptTransformComponent->tScale);
+		ptTransformComponent->tFinalTransform = ptTransformComponent->tWorld;
+    }
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~grass~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -345,7 +348,7 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
     const float fGrassZ = 0.0f;
     const float fGrassHeight = 1.0f;
 
-    const plVec3 atVertexBuffer[] = {
+    const plVec3 atVertexBuffer[12] = {
 
         // first quad
         { -0.5f + fGrassX, fGrassHeight + fGrassY, 0.0f + fGrassZ},
@@ -367,16 +370,40 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
     };
 
     // uvs
-    const plVec4 atStorageBuffer[] = 
+    const plVec2 atUVs[12] = 
     {
-        {.y = 1.0f}, {.x = 0.0f, .y = 0.0f}, {.y = 1.0f},
-        {.x = 1.0f, .y = 0.0f}, {.y = 1.0f}, {.x = 1.0f, .y = 1.0f},
-        {.y = 1.0f}, {.x = 0.0f, .y = 1.0f}, {.y = 1.0f},
-        {.x = 0.0f, .y = 0.0f}, {.y = 1.0f}, {.x = 1.0f, .y = 0.0f},
-        {.y = 1.0f}, {.x = 1.0f, .y = 1.0f}, {.y = 1.0f},
-        {.x = 0.0f, .y = 1.0f}, {.y = 1.0f}, {.x = 0.0f, .y = 0.0f},
-        {.y = 1.0f}, {.x = 1.0f, .y = 0.0f}, {.y = 1.0f},
-        {.x = 1.0f, .y = 1.0f}, {.y = 1.0f},{.x = 0.0f, .y = 1.0f},
+        {.x = 0.0f, .y = 0.0f},
+        {.x = 1.0f, .y = 0.0f},
+        {.x = 1.0f, .y = 1.0f},
+        {.x = 0.0f, .y = 1.0f},
+
+        {.x = 0.0f, .y = 0.0f},
+        {.x = 1.0f, .y = 0.0f},
+        {.x = 1.0f, .y = 1.0f}, 
+        {.x = 0.0f, .y = 1.0f},
+
+        {.x = 0.0f, .y = 0.0f},
+        {.x = 1.0f, .y = 0.0f},
+        {.x = 1.0f, .y = 1.0f}, 
+        {.x = 0.0f, .y = 1.0f},
+    };
+
+    const plVec3 atNormals[12] = 
+    {
+        {.y = 2.0f},
+        {.y = 2.0f},
+        {.y = 2.0f},
+        {.y = 2.0f},
+
+        {.y = 2.0f},
+        {.y = 2.0f},
+        {.y = 2.0f},
+        {.y = 2.0f},
+
+        {.y = 2.0f},
+        {.y = 2.0f},
+        {.y = 2.0f},
+        {.y = 2.0f}
     };
 
     const uint32_t auGrassIndexBuffer[] = {
@@ -385,33 +412,22 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
         8, 11, 10, 8, 10, 9
     };
 
-    const uint32_t uStorageOffset = pl_sb_size(ptAppData->tRenderer.sbfStorageBuffer) / 4;
-    pl_sb_reserve(ptAppData->tRenderer.sbfStorageBuffer, pl_sb_size(ptAppData->tRenderer.sbfStorageBuffer) + 24);
-    for(uint32_t i = 0; i < 24; i++)
-    {
-        pl_sb_push(ptAppData->tRenderer.sbfStorageBuffer, atStorageBuffer[i].x);
-        pl_sb_push(ptAppData->tRenderer.sbfStorageBuffer, atStorageBuffer[i].y);
-        pl_sb_push(ptAppData->tRenderer.sbfStorageBuffer, atStorageBuffer[i].z);
-        pl_sb_push(ptAppData->tRenderer.sbfStorageBuffer, atStorageBuffer[i].w);
-    }
-
     plObjectComponent* ptGrassObjectComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tObjectComponentManager, ptAppData->tGrassEntity);
     plMeshComponent* ptGrassMeshComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tMeshComponentManager, ptGrassObjectComponent->tMesh);
     plTransformComponent* ptGrassTransformComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tTransformComponentManager, ptGrassObjectComponent->tTransform);
-    ptGrassTransformComponent->tFinalTransform = pl_mat4_translate_xyz(4.0f, 0.0f, 4.0f);
-    ptGrassTransformComponent->tWorld = pl_mat4_translate_xyz(4.0f, 0.0f, 4.0f);
-    const plSubMesh tGrassSubMesh = {
-        .tMesh = {
-            .uIndexCount         = 18,
-            .uVertexCount        = 36,
-            .uVertexBuffer       = pl_create_vertex_buffer(&ptAppData->tGraphics.tResourceManager, sizeof(plVec3) * 12, sizeof(plVec3), atVertexBuffer, "grass vertex buffer"),
-            .uIndexBuffer        = pl_create_index_buffer(&ptAppData->tGraphics.tResourceManager, sizeof(uint32_t) * 18, auGrassIndexBuffer, "grass index buffer"),
-            .ulVertexStreamMask  = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0,
-            .uVertexOffset       = 0
-        },
-        .tMaterial = ptAppData->tGrassMaterial,
-        .uStorageOffset = uStorageOffset
+    plSubMesh tGrassSubMesh = {
+        .tMaterial = ptAppData->tGrassMaterial
     };
+
+    pl_sb_resize(tGrassSubMesh.sbtVertexPositions, 12);
+    pl_sb_resize(tGrassSubMesh.sbtVertexTextureCoordinates0, 12);
+    pl_sb_resize(tGrassSubMesh.sbtVertexNormals, 12);
+    pl_sb_resize(tGrassSubMesh.sbuIndices, 18);
+
+    memcpy(tGrassSubMesh.sbtVertexPositions, atVertexBuffer, sizeof(plVec3) * pl_sb_size(tGrassSubMesh.sbtVertexPositions)); //-V1004
+    memcpy(tGrassSubMesh.sbtVertexTextureCoordinates0, atUVs, sizeof(plVec2) * pl_sb_size(tGrassSubMesh.sbtVertexTextureCoordinates0)); //-V1004
+    memcpy(tGrassSubMesh.sbtVertexNormals, atNormals, sizeof(plVec3) * pl_sb_size(tGrassSubMesh.sbtVertexNormals)); //-V1004
+    memcpy(tGrassSubMesh.sbuIndices, auGrassIndexBuffer, sizeof(uint32_t) * pl_sb_size(tGrassSubMesh.sbuIndices)); //-V1004
     pl_sb_push(ptGrassMeshComponent->sbtSubmeshes, tGrassSubMesh);
 
     pl_ecs_attach_component(&ptAppData->tScene, ptAppData->tStl2Entity, ptAppData->tStlEntity);
@@ -421,6 +437,17 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
         plTransformComponent* ptTransformComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tTransformComponentManager, ptObjectComponent->tTransform);
         const plMat4 tStlTranslation = pl_mat4_translate_xyz(4.0f, 0.0f, 0.0f);
         ptTransformComponent->tWorld = tStlTranslation;
+    }
+
+    {
+        plObjectComponent* ptObjectComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tObjectComponentManager, ptAppData->tGrassEntity);
+		plTransformComponent* ptTransformComponent = pl_ecs_get_component(ptAppData->tScene.ptTransformComponentManager, ptObjectComponent->tTransform);
+
+		ptTransformComponent->tRotation    = (plVec4){.w = 1.0f};
+		ptTransformComponent->tScale       = (plVec3){1.0f, 1.0f, 1.0f};
+		ptTransformComponent->tTranslation = (plVec3){2.0f, 0.0f, 2.0f};
+		ptTransformComponent->tWorld = pl_rotation_translation_scale(ptTransformComponent->tRotation, ptTransformComponent->tTranslation, ptTransformComponent->tScale);
+		ptTransformComponent->tFinalTransform = ptTransformComponent->tWorld;
     }
 
     // offscreen
@@ -438,11 +465,13 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
 
     for(uint32_t i = 0; i < ptAppData->tGraphics.tSwapchain.uImageCount; i++)
     {
-        plTexture* ptColorTexture = &ptAppData->tGraphics.tResourceManager.sbtTextures[ptAppData->tOffscreenTarget.sbuColorTextures[i]];
-        pl_sb_push(ptAppData->sbtTextures, pl_add_texture(pl_ui_get_draw_context(NULL), ptColorTexture->tImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+        plTextureView* ptColorTextureView = &ptAppData->tGraphics.tResourceManager.sbtTextureViews[ptAppData->tOffscreenTarget.sbuColorTextureViews[i]];
+        pl_sb_push(ptAppData->sbtTextures, pl_add_texture(pl_ui_get_draw_context(NULL), ptColorTextureView->_tImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
     }
 
     pl_create_main_render_target(&ptAppData->tGraphics, &ptAppData->tMainTarget);
+
+    pl_scene_prepare(&ptAppData->tScene);
 
     return ptAppData;
 }
@@ -535,7 +564,6 @@ pl_app_update(plAppData* ptAppData)
         ptAppData->ptDrawExtApi->pl_add_text(ptAppData->offscreenDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 42.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, "Drawn from extension offscreen!");
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~3D drawing api~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        pl_add_3d_triangle_filled(&ptAppData->drawlist3d, (plVec3){0.0f, 0.0f, 0.0f}, (plVec3){1.0f, 0.0f, 0.0f}, (plVec3){1.0f, 1.0f, 0.0f}, (plVec4){1.0f, 0.0f, 0.0f, 0.5f});
         pl_add_3d_transform(&ptAppData->drawlist3d, &ptOffscreenCamera->tTransformMat, 0.2f, 0.02f);
         pl_add_3d_frustum(&ptAppData->drawlist3d, 
             &ptOffscreenCamera->tTransformMat, ptOffscreenCamera->fFieldOfView, ptOffscreenCamera->fAspectRatio, 
@@ -543,8 +571,6 @@ pl_app_update(plAppData* ptAppData)
 
         const plMat4 tTransform0 = pl_identity_mat4();
         pl_add_3d_transform(&ptAppData->drawlist3d, &tTransform0, 10.0f, 0.02f);
-        pl_add_3d_point(&ptAppData->drawlist3d, (plVec3){-1.0f, -1.0f, -1.0f}, (plVec4){0.0f, 1.0f, 0.0f, 1.0f}, 0.1f, 0.01f);
-        pl_add_3d_centered_box(&ptAppData->drawlist3d, (plVec3){1.0f, 1.0f, 1.0f}, 1.0f, 2.0f, 3.0f, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.05f);
 
         // ui
 
@@ -696,23 +722,6 @@ pl_app_update(plAppData* ptAppData)
             pl_ui_debug(&ptAppData->bShowUiDebug);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~renderer begin frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        // storage buffer has items
-        if(pl_sb_size(ptAppData->tRenderer.sbfStorageBuffer) > 0)
-        {
-            if(ptAppData->tRenderer.uGlobalStorageBuffer != UINT32_MAX)
-            {
-                pl_submit_buffer_for_deletion(&ptAppData->tGraphics.tResourceManager, ptAppData->tRenderer.uGlobalStorageBuffer);
-            }
-            ptAppData->tRenderer.uGlobalStorageBuffer = pl_create_storage_buffer(&ptAppData->tGraphics.tResourceManager, pl_sb_size(ptAppData->tRenderer.sbfStorageBuffer) * sizeof(float), ptAppData->tRenderer.sbfStorageBuffer, "global storage");
-            pl_sb_reset(ptAppData->tRenderer.sbfStorageBuffer);
-
-            uint32_t atBuffers0[] = {ptAppData->tScene.uDynamicBuffer0, ptAppData->tRenderer.uGlobalStorageBuffer};
-            size_t aszRangeSizes[] = {sizeof(plGlobalInfo), VK_WHOLE_SIZE};
-            pl_update_bind_group(&ptAppData->tGraphics, &ptAppData->tRenderer.tGlobalBindGroup, 2, atBuffers0, aszRangeSizes, 0, NULL);
-        }
-
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submit meshes~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         // rotate stl model
         {

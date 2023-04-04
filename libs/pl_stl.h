@@ -3,8 +3,8 @@
 */
 
 // library version
-#define PL_STL_VERSION    "0.1.0"
-#define PL_STL_VERSION_NUM 00100
+#define PL_STL_VERSION    "0.2.0"
+#define PL_STL_VERSION_NUM 00200
 
 /*
 Index of this file:
@@ -33,30 +33,22 @@ Index of this file:
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
-typedef struct _plStlOptions plStlOptions;
 typedef struct _plStlInfo plStlInfo;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-void pl_load_stl(const char* pcData, size_t szDataSize, plStlOptions tOptions, float* afVertexStream0, float* afVertexStream1, uint32_t* auIndexBuffer, plStlInfo* ptInfoOut);
+void pl_load_stl(const char* pcData, size_t szDataSize, float* afPositionStream, float* afNormalStream, uint32_t* auIndexBuffer, plStlInfo* ptInfoOut);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plStlOptions
-{
-    bool   bIncludeNormals;
-    bool   bIncludeColor;
-    float  afColor[4];
-} plStlOptions;
-
 typedef struct _plStlInfo
 {
-    size_t szVertexStream0Size;
-    size_t szVertexStream1Size;
+    size_t szPositionStreamSize;
+    size_t szNormalStreamSize;
     size_t szIndexBufferSize;
     bool   bPreloaded;
 } plStlInfo;
@@ -104,7 +96,7 @@ static char pl__move_to_first_char(const char* pcData, size_t szDataSize, size_t
 //-----------------------------------------------------------------------------
 
 void
-pl_load_stl(const char* pcData, size_t szDataSize, plStlOptions tOptions, float* afVertexStream0, float* afVertexStream1, uint32_t* auIndexBuffer, plStlInfo* ptInfoOut)
+pl_load_stl(const char* pcData, size_t szDataSize, float* afPositionStream, float* afNormalStream, uint32_t* auIndexBuffer, plStlInfo* ptInfoOut)
 {
     plStlInfo _tInternalInfo = {0};
 
@@ -142,12 +134,9 @@ pl_load_stl(const char* pcData, size_t szDataSize, plStlOptions tOptions, float*
         ptInfoOut->bPreloaded = true;
     }
 
-    ptInfoOut->szIndexBufferSize   = szFacetCount * 3;
-    ptInfoOut->szVertexStream0Size = szVertexCount * 3;
-
-    ptInfoOut->szVertexStream1Size = 0;
-    if(tOptions.bIncludeColor && tOptions.bIncludeNormals)      ptInfoOut->szVertexStream1Size = szVertexCount * 8;
-    else if(tOptions.bIncludeNormals || tOptions.bIncludeColor) ptInfoOut->szVertexStream1Size = szVertexCount * 4;
+    ptInfoOut->szIndexBufferSize    = szFacetCount * 3;
+    ptInfoOut->szPositionStreamSize = szVertexCount * 3;
+    ptInfoOut->szNormalStreamSize   = szVertexCount * 3;
 
     // fill index buffer if provided
     if(auIndexBuffer)
@@ -163,7 +152,7 @@ pl_load_stl(const char* pcData, size_t szDataSize, plStlOptions tOptions, float*
     size_t szVertexStream0Pos = 0;
     
     // fill vertex stream 0 if provided
-    if(afVertexStream0)
+    if(afPositionStream)
     {
         if(bAsci)
         {
@@ -175,10 +164,10 @@ pl_load_stl(const char* pcData, size_t szDataSize, plStlOptions tOptions, float*
                     szCurrentCursor += 6;
                     const char* pcReturnString = &pcData[szCurrentCursor];
                     char* pcEnd = NULL;
-                    afVertexStream0[szVertexStream0Pos]     = strtof(pcReturnString, &pcEnd);
-                    afVertexStream0[szVertexStream0Pos + 1] = strtof(pcEnd, &pcEnd);
-                    afVertexStream0[szVertexStream0Pos + 2] = strtof(pcEnd, &pcEnd);
-                    szVertexStream0Pos += 3;
+                    afPositionStream[szVertexStream0Pos]     = strtof(pcReturnString, &pcEnd);
+                    afPositionStream[szVertexStream0Pos + 1] = strtof(pcEnd, &pcEnd);
+                    afPositionStream[szVertexStream0Pos + 2] = strtof(pcEnd, &pcEnd);
+                    afPositionStream += 3;
                 }
             }
         }
@@ -191,22 +180,22 @@ pl_load_stl(const char* pcData, size_t szDataSize, plStlOptions tOptions, float*
                 memcpy(afFacetBuffer, &pcData[szCurrentCursor], 48);
                 
                 // vertex 0
-                afVertexStream0[szVertexStream0Pos]     = afFacetBuffer[3];
-                afVertexStream0[szVertexStream0Pos + 1] = afFacetBuffer[4];
-                afVertexStream0[szVertexStream0Pos + 2] = afFacetBuffer[5];
+                afPositionStream[szVertexStream0Pos]     = afFacetBuffer[3];
+                afPositionStream[szVertexStream0Pos + 1] = afFacetBuffer[4];
+                afPositionStream[szVertexStream0Pos + 2] = afFacetBuffer[5];
                 szVertexStream0Pos += 3;
 
                 
                 // vertex 1
-                afVertexStream0[szVertexStream0Pos]     = afFacetBuffer[6];
-                afVertexStream0[szVertexStream0Pos + 1] = afFacetBuffer[7];
-                afVertexStream0[szVertexStream0Pos + 2] = afFacetBuffer[8];
+                afPositionStream[szVertexStream0Pos]     = afFacetBuffer[6];
+                afPositionStream[szVertexStream0Pos + 1] = afFacetBuffer[7];
+                afPositionStream[szVertexStream0Pos + 2] = afFacetBuffer[8];
                 szVertexStream0Pos += 3;
                 
                 // vertex 2
-                afVertexStream0[szVertexStream0Pos]     = afFacetBuffer[9];
-                afVertexStream0[szVertexStream0Pos + 1] = afFacetBuffer[10];
-                afVertexStream0[szVertexStream0Pos + 2] = afFacetBuffer[11];
+                afPositionStream[szVertexStream0Pos]     = afFacetBuffer[9];
+                afPositionStream[szVertexStream0Pos + 1] = afFacetBuffer[10];
+                afPositionStream[szVertexStream0Pos + 2] = afFacetBuffer[11];
                 szVertexStream0Pos += 3;
 
                 szCurrentCursor += 50;
@@ -216,23 +205,9 @@ pl_load_stl(const char* pcData, size_t szDataSize, plStlOptions tOptions, float*
 
     szCurrentCursor = 0;
     size_t szVertexStream1Pos = 0;
-    size_t szStride = 0;
-    if(tOptions.bIncludeColor)   { szStride += 4; };
-    if(tOptions.bIncludeNormals) { szStride += 4; szVertexStream1Pos = 4;};
+    const size_t szStride = 3;
 
-    if(afVertexStream1 && tOptions.bIncludeColor)
-    {
-
-        for(size_t i = 0; i < szVertexCount; i++)
-        {
-            memcpy(&afVertexStream1[szVertexStream1Pos], tOptions.afColor, sizeof(float) * 4);
-            szVertexStream1Pos += szStride;
-        }
-    }
-
-    szVertexStream1Pos = 0;
-
-    if(afVertexStream1 && tOptions.bIncludeNormals)
+    if(afNormalStream)
     {
         if(bAsci)
         {
@@ -250,24 +225,21 @@ pl_load_stl(const char* pcData, size_t szDataSize, plStlOptions tOptions, float*
                     const float fNz = strtof(pcEnd, &pcEnd);
 
                     // vertex 0
-                    afVertexStream1[szVertexStream1Pos]     = fNx;
-                    afVertexStream1[szVertexStream1Pos + 1] = fNy;
-                    afVertexStream1[szVertexStream1Pos + 2] = fNz;
-                    afVertexStream1[szVertexStream1Pos + 3] = 0.0f;
+                    afNormalStream[szVertexStream1Pos]     = fNx;
+                    afNormalStream[szVertexStream1Pos + 1] = fNy;
+                    afNormalStream[szVertexStream1Pos + 2] = fNz;
                     szVertexStream1Pos += szStride;
 
                     // vertex 1
-                    afVertexStream1[szVertexStream1Pos]     = fNx;
-                    afVertexStream1[szVertexStream1Pos + 1] = fNy;
-                    afVertexStream1[szVertexStream1Pos + 2] = fNz;
-                    afVertexStream1[szVertexStream1Pos + 3] = 0.0f;
+                    afNormalStream[szVertexStream1Pos]     = fNx;
+                    afNormalStream[szVertexStream1Pos + 1] = fNy;
+                    afNormalStream[szVertexStream1Pos + 2] = fNz;
                     szVertexStream1Pos += szStride;
 
                     // vertex 2
-                    afVertexStream1[szVertexStream1Pos]     = fNx;
-                    afVertexStream1[szVertexStream1Pos + 1] = fNy;
-                    afVertexStream1[szVertexStream1Pos + 2] = fNz;
-                    afVertexStream1[szVertexStream1Pos + 3] = 0.0f;
+                    afNormalStream[szVertexStream1Pos]     = fNx;
+                    afNormalStream[szVertexStream1Pos + 1] = fNy;
+                    afNormalStream[szVertexStream1Pos + 2] = fNz;
                     szVertexStream1Pos += szStride;
                 }
             }
@@ -285,24 +257,21 @@ pl_load_stl(const char* pcData, size_t szDataSize, plStlOptions tOptions, float*
                 const float fNz = afFacetBuffer[2];
 
                 // vertex 0
-                afVertexStream1[szVertexStream1Pos]     = fNx;
-                afVertexStream1[szVertexStream1Pos + 1] = fNy;
-                afVertexStream1[szVertexStream1Pos + 2] = fNz;
-                afVertexStream1[szVertexStream1Pos + 3] = 0.0f;
+                afNormalStream[szVertexStream1Pos]     = fNx;
+                afNormalStream[szVertexStream1Pos + 1] = fNy;
+                afNormalStream[szVertexStream1Pos + 2] = fNz;
                 szVertexStream1Pos += szStride;
                 
                 // vertex 1
-                afVertexStream1[szVertexStream1Pos]     = fNx;
-                afVertexStream1[szVertexStream1Pos + 1] = fNy;
-                afVertexStream1[szVertexStream1Pos + 2] = fNz;
-                afVertexStream1[szVertexStream1Pos + 3] = 0.0f;
+                afNormalStream[szVertexStream1Pos]     = fNx;
+                afNormalStream[szVertexStream1Pos + 1] = fNy;
+                afNormalStream[szVertexStream1Pos + 2] = fNz;
                 szVertexStream1Pos += szStride;
 
                 // vertex 2
-                afVertexStream1[szVertexStream1Pos]     = fNx;
-                afVertexStream1[szVertexStream1Pos + 1] = fNy;
-                afVertexStream1[szVertexStream1Pos + 2] = fNz;
-                afVertexStream1[szVertexStream1Pos + 3] = 0.0f;
+                afNormalStream[szVertexStream1Pos]     = fNx;
+                afNormalStream[szVertexStream1Pos + 1] = fNy;
+                afNormalStream[szVertexStream1Pos + 2] = fNz;
                 szVertexStream1Pos += szStride;
 
                 szCurrentCursor += 50;

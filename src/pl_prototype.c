@@ -49,8 +49,7 @@ pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc
         .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
         .uLayers     = 1,
         .uMips       = 1,
-        .tType       = VK_IMAGE_TYPE_2D,
-        .tViewType   = VK_IMAGE_VIEW_TYPE_2D
+        .tType       = VK_IMAGE_TYPE_2D
     };
 
     const plTextureDesc tDepthTextureDesc = {
@@ -59,24 +58,46 @@ pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc
         .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
         .uLayers     = 1,
         .uMips       = 1,
-        .tType       = VK_IMAGE_TYPE_2D,
-        .tViewType   = VK_IMAGE_VIEW_TYPE_2D
+        .tType       = VK_IMAGE_TYPE_2D
+    };
+
+    const plSampler tColorSampler = 
+    {
+        .fMinMip = 0.0f,
+        .fMaxMip = 64.0f,
+        .tFilter = PL_FILTER_NEAREST
+    };
+
+    const plTextureViewDesc tColorView = {
+        .tFormat     = tColorTextureDesc.tFormat,
+        .uLayerCount = tColorTextureDesc.uLayers,
+        .uMips       = tColorTextureDesc.uMips
     };
 
     for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
     {
-        pl_sb_push(ptTargetOut->sbuColorTextures, pl_create_texture(&ptGraphics->tResourceManager, tColorTextureDesc, 0, NULL, "offscreen color"));
+        uint32_t uColorTexture = pl_create_texture(&ptGraphics->tResourceManager, tColorTextureDesc, 0, NULL, "offscreen color texture");
+        pl_sb_push(ptTargetOut->sbuColorTextureViews, pl_create_texture_view(&ptGraphics->tResourceManager, &tColorView, &tColorSampler, uColorTexture, "offscreen color view"));
     }
-    ptTargetOut->uDepthTexture = pl_create_texture(&ptGraphics->tResourceManager, tDepthTextureDesc, 0, NULL, "offscreen depth");
 
-    plTexture* ptDepthTexture = &ptGraphics->tResourceManager.sbtTextures[ptTargetOut->uDepthTexture];
+    uint32_t uDepthTexture = pl_create_texture(&ptGraphics->tResourceManager, tDepthTextureDesc, 0, NULL, "offscreen depth texture");
+
+    const plTextureViewDesc tDepthView = {
+        .tFormat     = tDepthTextureDesc.tFormat,
+        .uLayerCount = tDepthTextureDesc.uLayers,
+        .uMips       = tDepthTextureDesc.uMips
+    };
+
+    ptTargetOut->uDepthTextureView = pl_create_texture_view(&ptGraphics->tResourceManager, &tDepthView, &tColorSampler, uDepthTexture, "offscreen depth view");
+
+    plTextureView* ptDepthTextureView = &ptGraphics->tResourceManager.sbtTextureViews[ptTargetOut->uDepthTextureView];
 
     for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
     {
-        plTexture* ptColorTexture = &ptGraphics->tResourceManager.sbtTextures[ptTargetOut->sbuColorTextures[i]];
+        plTextureView* ptColorTextureView = &ptGraphics->tResourceManager.sbtTextureViews[ptTargetOut->sbuColorTextureViews[i]];
         VkImageView atAttachments[] = {
-            ptColorTexture->tImageView,
-            ptDepthTexture->tImageView
+            ptColorTextureView->_tImageView,
+            ptDepthTextureView->_tImageView
         };
         VkFramebufferCreateInfo tFrameBufferInfo = {
             .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
@@ -284,36 +305,27 @@ pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
         .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .uLayers     = 1,
         .uMips       = 1,
-        .tType       = VK_IMAGE_TYPE_2D,
-        .tViewType   = VK_IMAGE_VIEW_TYPE_2D
+        .tType       = VK_IMAGE_TYPE_2D
     };
     static const float afSinglePixel[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-    pl_create_texture(&ptGraphics->tResourceManager, tTextureDesc2, sizeof(unsigned char) * 4, afSinglePixel, "dummy texture");
+    uint32_t uDummyTexture = pl_create_texture(&ptGraphics->tResourceManager, tTextureDesc2, sizeof(unsigned char) * 4, afSinglePixel, "dummy texture");
 
-    ptRenderer->ptGraphics = ptGraphics;
-
-    ptRenderer->uGlobalStorageBuffer = UINT32_MAX;
-
-    plBindGroupLayout tGlobalGroupLayout =
+    const plSampler tDummySampler = 
     {
-        .uBufferCount = 2,
-        .uTextureCount = 0,
-        .aBuffers = {
-            {
-                .tType       = PL_BUFFER_BINDING_TYPE_UNIFORM,
-                .uSlot       = 0,
-                .tStageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-            },
-            {
-                .tType       = PL_BUFFER_BINDING_TYPE_STORAGE,
-                .uSlot       = 1,
-                .tStageFlags = VK_SHADER_STAGE_VERTEX_BIT
-            }
-        }
+        .fMinMip = 0.0f,
+        .fMaxMip = 64.0f,
+        .tFilter = PL_FILTER_LINEAR
     };
 
-    // create & update global bind group
-    ptRenderer->tGlobalBindGroup.tLayout = tGlobalGroupLayout;
+    const plTextureViewDesc tDummyView = {
+        .tFormat     = tTextureDesc2.tFormat,
+        .uLayerCount = tTextureDesc2.uLayers,
+        .uMips       = tTextureDesc2.uMips
+    };
+
+    pl_create_texture_view(&ptGraphics->tResourceManager, &tDummyView, &tDummySampler, uDummyTexture, "dummy texture view");
+
+    ptRenderer->ptGraphics = ptGraphics;
 
     //~~~~~~~~~~~~~~~~~~~~~~~~create shader descriptions~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -324,7 +336,7 @@ pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
         .tGraphicsState.ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_COLOR_0,
         .tGraphicsState.ulDepthMode          = PL_DEPTH_MODE_LESS,
         .tGraphicsState.ulBlendMode          = PL_BLEND_MODE_ALPHA,
-        .tGraphicsState.ulCullMode           = VK_CULL_MODE_BACK_BIT,
+        .tGraphicsState.ulCullMode           = VK_CULL_MODE_NONE,
         .tGraphicsState.ulDepthWriteEnabled  = VK_TRUE,
         .tGraphicsState.ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_NONE,
         .tGraphicsState.ulStencilMode        = PL_STENCIL_MODE_ALWAYS,
@@ -435,8 +447,8 @@ pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
 void
 pl_cleanup_renderer(plRenderer* ptRenderer)
 {
-    pl_sb_free(ptRenderer->sbfStorageBuffer);
-    pl_submit_buffer_for_deletion(&ptRenderer->ptGraphics->tResourceManager, ptRenderer->uGlobalStorageBuffer);
+    // pl_sb_free(ptRenderer->sbfStorageBuffer);
+    // pl_submit_buffer_for_deletion(&ptRenderer->ptGraphics->tResourceManager, ptRenderer->uGlobalStorageBuffer);
 }
 
 void
@@ -447,6 +459,7 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
 
     memset(ptSceneOut, 0, sizeof(plScene));
 
+    ptSceneOut->uGlobalStorageBuffer = UINT32_MAX;
     ptSceneOut->ptRenderer = ptRenderer;
 
     // initialize component managers
@@ -527,10 +540,24 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
         .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .uLayers     = 6,
         .uMips       = 1,
-        .tType       = VK_IMAGE_TYPE_2D,
-        .tViewType   = VK_IMAGE_VIEW_TYPE_CUBE
+        .tType       = VK_IMAGE_TYPE_2D
     };
-    ptSceneOut->uSkyboxTexture  = pl_create_texture(&ptGraphics->tResourceManager, tTextureDesc, sizeof(unsigned char) * texHeight * texHeight * texNumChannels * 6, rawBytes, "skybox texture");
+
+    const plSampler tSkyboxSampler = 
+    {
+        .fMinMip = 0.0f,
+        .fMaxMip = 64.0f,
+        .tFilter = PL_FILTER_LINEAR
+    };
+
+    const plTextureViewDesc tSkyboxView = {
+        .tFormat     = tTextureDesc.tFormat,
+        .uLayerCount = tTextureDesc.uLayers,
+        .uMips       = tTextureDesc.uMips
+    };
+
+    uint32_t uSkyboxTexture = pl_create_texture(&ptGraphics->tResourceManager, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * texNumChannels * 6, rawBytes, "skybox texture");
+    ptSceneOut->uSkyboxTextureView  = pl_create_texture_view(&ptGraphics->tResourceManager, &tSkyboxView, &tSkyboxSampler, uSkyboxTexture, "skybox texture view");
     pl_free(rawBytes);
 
     const float fCubeSide = 0.5f;
@@ -578,7 +605,30 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
     };
     size_t szSkyboxRangeSize = sizeof(plGlobalInfo);
     ptSceneOut->tSkyboxBindGroup0.tLayout = tSkyboxGroupLayout0;
-    pl_update_bind_group(ptGraphics, &ptSceneOut->tSkyboxBindGroup0, 1, &ptSceneOut->uDynamicBuffer0, &szSkyboxRangeSize, 1, &ptSceneOut->uSkyboxTexture);
+    pl_update_bind_group(ptGraphics, &ptSceneOut->tSkyboxBindGroup0, 1, &ptSceneOut->uDynamicBuffer0, &szSkyboxRangeSize, 1, &ptSceneOut->uSkyboxTextureView);
+
+    ptSceneOut->uGlobalStorageBuffer = UINT32_MAX;
+
+    plBindGroupLayout tGlobalGroupLayout =
+    {
+        .uBufferCount = 2,
+        .uTextureCount = 0,
+        .aBuffers = {
+            {
+                .tType       = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                .uSlot       = 0,
+                .tStageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+            {
+                .tType       = PL_BUFFER_BINDING_TYPE_STORAGE,
+                .uSlot       = 1,
+                .tStageFlags = VK_SHADER_STAGE_VERTEX_BIT
+            }
+        }
+    };
+
+    // create & update global bind group
+    ptSceneOut->tGlobalBindGroup.tLayout = tGlobalGroupLayout;
 }
 
 void
@@ -639,7 +689,7 @@ pl_draw_scene(plScene* ptScene)
 
     // record draw area
     pl_sb_push(ptRenderer->sbtDrawAreas, ((plDrawArea){
-        .ptBindGroup0          = &ptRenderer->tGlobalBindGroup,
+        .ptBindGroup0          = &ptScene->tGlobalBindGroup,
         .uDrawOffset           = uDrawOffset,
         .uDrawCount            = pl_sb_size(ptRenderer->sbtDraws),
         .uDynamicBufferOffset0 = uBufferFrameOffset0
@@ -651,7 +701,7 @@ pl_draw_scene(plScene* ptScene)
 
     // record outlines draw areas
     pl_sb_push(ptRenderer->sbtDrawAreas, ((plDrawArea){
-        .ptBindGroup0          = &ptRenderer->tGlobalBindGroup,
+        .ptBindGroup0          = &ptScene->tGlobalBindGroup,
         .uDrawOffset           = uOutlineDrawOffset,
         .uDrawCount            = pl_sb_size(ptRenderer->sbtOutlineDraws),
         .uDynamicBufferOffset0 = uBufferFrameOffset0
@@ -680,6 +730,296 @@ void
 pl_scene_bind_target(plScene* ptScene, plRenderTarget* ptTarget)
 {
     ptScene->ptRenderTarget = ptTarget;
+}
+
+void
+pl_scene_prepare(plScene* ptScene)
+{
+
+    plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
+    plRenderer* ptRenderer = ptScene->ptRenderer;
+    plResourceManager* ptResourceManager = &ptGraphics->tResourceManager;
+
+    uint32_t uStorageOffset = pl_sb_size(ptScene->sbfStorageBuffer) / 4;
+
+    plMeshComponent* sbtMeshes = ptScene->tComponentLibrary.tMeshComponentManager.pData;
+
+    // calculate normals and tangents
+    for(uint32_t uMeshIndex = 0; uMeshIndex < pl_sb_size(sbtMeshes); uMeshIndex++)
+    {
+        plMeshComponent* ptMesh = &sbtMeshes[uMeshIndex];
+
+        for(uint32_t uSubMeshIndex = 0; uSubMeshIndex < pl_sb_size(ptMesh->sbtSubmeshes); uSubMeshIndex++)
+        {
+            plSubMesh* ptSubMesh = &ptMesh->sbtSubmeshes[uSubMeshIndex];
+
+            if(pl_sb_size(ptSubMesh->sbtVertexNormals) == 0)
+            {
+                pl_sb_resize(ptSubMesh->sbtVertexNormals, pl_sb_size(ptSubMesh->sbtVertexPositions));
+                for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbuIndices) - 2; i += 3)
+                {
+					const uint32_t uIndex0 = ptSubMesh->sbuIndices[i + 0];
+					const uint32_t uIndex1 = ptSubMesh->sbuIndices[i + 1];
+					const uint32_t uIndex2 = ptSubMesh->sbuIndices[i + 2];
+
+					const plVec3 tP0 = ptSubMesh->sbtVertexPositions[uIndex0];
+					const plVec3 tP1 = ptSubMesh->sbtVertexPositions[uIndex1];
+					const plVec3 tP2 = ptSubMesh->sbtVertexPositions[uIndex2];
+
+					const plVec3 tEdge1 = pl_sub_vec3(tP1, tP0);
+					const plVec3 tEdge2 = pl_sub_vec3(tP2, tP0);
+
+					const plVec3 tNorm = pl_norm_vec3(pl_cross_vec3(tEdge1, tEdge2));
+
+                    ptSubMesh->sbtVertexNormals[uIndex0] = tNorm;
+                    ptSubMesh->sbtVertexNormals[uIndex1] = tNorm;
+                    ptSubMesh->sbtVertexNormals[uIndex2] = tNorm;
+                }
+            }
+
+            if(pl_sb_size(ptSubMesh->sbtVertexTangents) == 0 && pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates0) > 0)
+            {
+                pl_sb_resize(ptSubMesh->sbtVertexTangents, pl_sb_size(ptSubMesh->sbtVertexPositions));
+                for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbuIndices) - 2; i += 3)
+                {
+					const uint32_t uIndex0 = ptSubMesh->sbuIndices[i + 0];
+					const uint32_t uIndex1 = ptSubMesh->sbuIndices[i + 1];
+					const uint32_t uIndex2 = ptSubMesh->sbuIndices[i + 2];
+
+					const plVec3 tP0 = ptSubMesh->sbtVertexPositions[uIndex0];
+					const plVec3 tP1 = ptSubMesh->sbtVertexPositions[uIndex1];
+					const plVec3 tP2 = ptSubMesh->sbtVertexPositions[uIndex2];
+
+					const plVec2 tTex0 = ptSubMesh->sbtVertexTextureCoordinates0[uIndex0];
+					const plVec2 tTex1 = ptSubMesh->sbtVertexTextureCoordinates0[uIndex1];
+					const plVec2 tTex2 = ptSubMesh->sbtVertexTextureCoordinates0[uIndex2];
+
+					const plVec3 tEdge1 = pl_sub_vec3(tP1, tP0);
+					const plVec3 tEdge2 = pl_sub_vec3(tP2, tP0);
+
+					const float fDeltaU1 = tTex1.x - tTex0.x;
+					const float fDeltaV1 = tTex1.y - tTex0.y;
+					const float fDeltaU2 = tTex2.x - tTex0.x;
+					const float fDeltaV2 = tTex2.y - tTex0.y;
+
+					const float fDividend = (fDeltaU1 * fDeltaV2 - fDeltaU2 * fDeltaV1);
+					const float fC = 1.0f / fDividend;
+
+					const float fSx = fDeltaU1;
+					const float fSy = fDeltaU2;
+					const float fTx = fDeltaV1;
+					const float fTy = fDeltaV2;
+					const float fHandedness = ((fTx * fSy - fTy * fSx) < 0.0f) ? -1.0f : 1.0f;
+
+					const plVec3 tTangent = 
+						pl_norm_vec3((plVec3){
+							fC * (fDeltaV2 * tEdge1.x - fDeltaV1 * tEdge2.x),
+							fC * (fDeltaV2 * tEdge1.y - fDeltaV1 * tEdge2.y),
+							fC * (fDeltaV2 * tEdge1.z - fDeltaV1 * tEdge2.z)
+					});
+
+                    ptSubMesh->sbtVertexTangents[uIndex0] = (plVec4){tTangent.x, tTangent.y, tTangent.z, fHandedness};
+                    ptSubMesh->sbtVertexTangents[uIndex1] = (plVec4){tTangent.x, tTangent.y, tTangent.z, fHandedness};
+                    ptSubMesh->sbtVertexTangents[uIndex2] = (plVec4){tTangent.x, tTangent.y, tTangent.z, fHandedness};
+                } 
+            }
+        }
+    }
+
+    for(uint32_t uMeshIndex = 0; uMeshIndex < pl_sb_size(sbtMeshes); uMeshIndex++)
+    {
+        plMeshComponent* ptMesh = &sbtMeshes[uMeshIndex];
+
+        for(uint32_t uSubMeshIndex = 0; uSubMeshIndex < pl_sb_size(ptMesh->sbtSubmeshes); uSubMeshIndex++)
+        {
+            plSubMesh* ptSubMesh = &ptMesh->sbtSubmeshes[uSubMeshIndex];
+
+            ptSubMesh->uStorageOffset = uStorageOffset / 4;
+            ptSubMesh->tMesh.uVertexCount = pl_sb_size(ptSubMesh->sbtVertexPositions);
+            ptSubMesh->tMesh.uIndexCount = pl_sb_size(ptSubMesh->sbuIndices);
+            ptSubMesh->tMesh.uIndexOffset = 0;
+
+            // stride within storage buffer
+            uint32_t uStride = 0;
+
+            if(pl_sb_size(ptSubMesh->sbtVertexNormals) > 0)             { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_NORMAL; }
+            if(pl_sb_size(ptSubMesh->sbtVertexTangents) > 0)            { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TANGENT; }
+            if(pl_sb_size(ptSubMesh->sbtVertexColors0) > 0)             { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_0; }
+            if(pl_sb_size(ptSubMesh->sbtVertexColors1) > 0)             { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_1; }
+            if(pl_sb_size(ptSubMesh->sbtVertexWeights0) > 0)            { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0; }
+            if(pl_sb_size(ptSubMesh->sbtVertexWeights1) > 0)            { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1; }
+            if(pl_sb_size(ptSubMesh->sbtVertexJoints0) > 0)             { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_0; }
+            if(pl_sb_size(ptSubMesh->sbtVertexJoints1) > 0)             { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_1; }
+            if(pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates0) > 0) { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0; }
+            if(pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates1) > 0) { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1; }
+
+            pl_sb_add_n(ptScene->sbfStorageBuffer, uStride * ptSubMesh->tMesh.uVertexCount);
+
+            // current attribute offset
+            uint32_t uOffset = 0;
+
+            // normals
+            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexNormals); i++)
+            {
+                const plVec3* ptNormal = &ptSubMesh->sbtVertexNormals[i];
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + 0] = ptNormal->x;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + 1] = ptNormal->y;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + 2] = ptNormal->z;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + 3] = 0.0f;
+            }
+
+            if(pl_sb_size(ptSubMesh->sbtVertexNormals) > 0)
+                uOffset += 4;
+
+            // tangents
+            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexTangents); i++)
+            {
+                const plVec4* ptTangent = &ptSubMesh->sbtVertexTangents[i];
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 0] = ptTangent->x;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 1] = ptTangent->y;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 2] = ptTangent->z;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 3] = ptTangent->w;
+            }
+
+            if(pl_sb_size(ptSubMesh->sbtVertexTangents) > 0)
+                uOffset += 4;
+
+            // texture coordinates 0
+            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates0); i++)
+            {
+                const plVec2* ptTextureCoordinates = &ptSubMesh->sbtVertexTextureCoordinates0[i];
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 0] = ptTextureCoordinates->u;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 1] = ptTextureCoordinates->v;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 2] = 0.0f;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 3] = 0.0f;
+            }
+
+            if(pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates0) > 0)
+                uOffset += 4;
+
+            // texture coordinates 1
+            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates1); i++)
+            {
+                const plVec2* ptTextureCoordinates = &ptSubMesh->sbtVertexTextureCoordinates1[i];
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 0] = ptTextureCoordinates->u;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 1] = ptTextureCoordinates->v;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 2] = 0.0f;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 3] = 0.0f;
+            }
+
+            if(pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates1) > 0)
+                uOffset += 4;
+
+            // color 0
+            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexColors0); i++)
+            {
+                const plVec4* ptColor = &ptSubMesh->sbtVertexColors0[i];
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 0] = ptColor->r;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 1] = ptColor->g;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 2] = ptColor->b;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 3] = ptColor->a;
+            }
+
+            if(pl_sb_size(ptSubMesh->sbtVertexColors0) > 0)
+                uOffset += 4;
+
+            // color 1
+            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexColors1); i++)
+            {
+                const plVec4* ptColor = &ptSubMesh->sbtVertexColors1[i];
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 0] = ptColor->r;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 1] = ptColor->g;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 2] = ptColor->b;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 3] = ptColor->a;
+            }
+
+            if(pl_sb_size(ptSubMesh->sbtVertexColors1) > 0)
+                uOffset += 4;
+
+            // joints 0
+            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexJoints0); i++)
+            {
+                const plVec4* ptJoint = &ptSubMesh->sbtVertexJoints0[i];
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 0] = ptJoint->x;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 1] = ptJoint->y;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 2] = ptJoint->z;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 3] = ptJoint->w;
+            }
+
+            if(pl_sb_size(ptSubMesh->sbtVertexJoints0) > 0)
+                uOffset += 4;
+
+            // joints 1
+            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexJoints1); i++)
+            {
+                const plVec4* ptJoint = &ptSubMesh->sbtVertexJoints1[i];
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 0] = ptJoint->x;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 1] = ptJoint->y;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 2] = ptJoint->z;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 3] = ptJoint->w;
+            }
+
+            if(pl_sb_size(ptSubMesh->sbtVertexJoints1) > 0)
+                uOffset += 4;
+
+            // weights 0
+            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexWeights0); i++)
+            {
+                const plVec4* ptWeight = &ptSubMesh->sbtVertexWeights0[i];
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 0] = ptWeight->x;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 1] = ptWeight->y;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 2] = ptWeight->z;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 3] = ptWeight->w;
+            }
+
+            if(pl_sb_size(ptSubMesh->sbtVertexWeights0) > 0)
+                uOffset += 4;
+
+            // weights 1
+            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexWeights1); i++)
+            {
+                const plVec4* ptWeight = &ptSubMesh->sbtVertexWeights1[i];
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 0] = ptWeight->x;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 1] = ptWeight->y;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 2] = ptWeight->z;
+                ptScene->sbfStorageBuffer[uStorageOffset + i * uStride + uOffset + 3] = ptWeight->w;
+            }
+
+            if(pl_sb_size(ptSubMesh->sbtVertexWeights1) > 0)
+                uOffset += 4;
+
+            PL_ASSERT(uOffset == uStride && "sanity check");
+
+
+            ptSubMesh->tMesh.uIndexBuffer = pl_create_index_buffer(ptResourceManager, 
+                sizeof(uint32_t) * ptSubMesh->tMesh.uIndexCount,
+                ptSubMesh->sbuIndices, "unnamed index buffer");
+
+            ptSubMesh->tMesh.uVertexBuffer = pl_create_vertex_buffer(ptResourceManager, 
+                ptSubMesh->tMesh.uVertexCount * sizeof(plVec3), sizeof(plVec3),
+                ptSubMesh->sbtVertexPositions, "unnamed vertex buffer");
+
+            plMaterialComponent* ptMaterialComponent = pl_ecs_get_component(ptScene->ptMaterialComponentManager, ptSubMesh->tMaterial);
+            ptMaterialComponent->tGraphicsState.ulVertexStreamMask = ptSubMesh->tMesh.ulVertexStreamMask;
+
+            uStorageOffset += uStride * ptSubMesh->tMesh.uVertexCount;
+        }
+    }
+
+    if(pl_sb_size(ptScene->sbfStorageBuffer) > 0)
+    {
+        if(ptScene->uGlobalStorageBuffer != UINT32_MAX)
+        {
+            pl_submit_buffer_for_deletion(ptResourceManager, ptScene->uGlobalStorageBuffer);
+        }
+        ptScene->uGlobalStorageBuffer = pl_create_storage_buffer(ptResourceManager, pl_sb_size(ptScene->sbfStorageBuffer) * sizeof(float), ptScene->sbfStorageBuffer, "global storage");
+        pl_sb_reset(ptScene->sbfStorageBuffer);
+
+        uint32_t atBuffers0[] = {ptScene->uDynamicBuffer0, ptScene->uGlobalStorageBuffer};
+        size_t aszRangeSizes[] = {sizeof(plGlobalInfo), VK_WHOLE_SIZE};
+        pl_update_bind_group(ptGraphics, &ptScene->tGlobalBindGroup, 2, atBuffers0, aszRangeSizes, 0, NULL);
+    }
+
 }
 
 void
@@ -951,6 +1291,8 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
             // find variants
             ptMaterial->uShaderVariant = UINT32_MAX;
 
+            // if(ptMaterial->bDoubleSided)    
+            ptMaterial->tGraphicsState.ulCullMode = ptMaterial->bDoubleSided ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
             if(ptMaterial->uAlbedoMap > 0)   ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_0;
             if(ptMaterial->uNormalMap > 0)   ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_1;
             if(ptMaterial->uEmissiveMap > 0) ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_2;
@@ -1039,10 +1381,8 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
         {
             plHierarchyComponent* ptHierarchyComponent = &sbtComponents[i];
             plEntity tChildEntity = ptManager->sbtEntities[i];
-            plObjectComponent* ptParent = pl_ecs_get_component(ptScene->ptObjectComponentManager, ptHierarchyComponent->tParent);
-            plObjectComponent* ptChild = pl_ecs_get_component(ptScene->ptObjectComponentManager, tChildEntity);
-            plTransformComponent* ptParentTransform = pl_ecs_get_component(ptScene->ptTransformComponentManager, ptParent->tTransform);
-            plTransformComponent* ptChildTransform = pl_ecs_get_component(ptScene->ptTransformComponentManager, ptChild->tTransform);
+            plTransformComponent* ptParentTransform = pl_ecs_get_component(ptScene->ptTransformComponentManager, ptHierarchyComponent->tParent);
+            plTransformComponent* ptChildTransform = pl_ecs_get_component(ptScene->ptTransformComponentManager, tChildEntity);
             ptChildTransform->tFinalTransform = pl_mul_mat4(&ptParentTransform->tFinalTransform, &ptChildTransform->tWorld);
         }
         break;
@@ -1130,7 +1470,7 @@ pl_ecs_create_material(plScene* ptScene, const char* pcName)
     ptMaterial->tGraphicsState.ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_NORMAL;
     ptMaterial->tGraphicsState.ulDepthMode          = PL_DEPTH_MODE_LESS_OR_EQUAL;
     ptMaterial->tGraphicsState.ulDepthWriteEnabled  = true;
-    ptMaterial->tGraphicsState.ulCullMode           = VK_CULL_MODE_BACK_BIT;
+    ptMaterial->tGraphicsState.ulCullMode           = VK_CULL_MODE_NONE;
     ptMaterial->tGraphicsState.ulBlendMode          = PL_BLEND_MODE_ALPHA;
     ptMaterial->tGraphicsState.ulShaderTextureFlags = 0;
     ptMaterial->tGraphicsState.ulStencilMode        = PL_STENCIL_MODE_ALWAYS;
@@ -1171,6 +1511,7 @@ pl_ecs_create_object(plScene* ptScene, const char* pcName)
     ptTransform->tWorld = pl_identity_mat4();
 
     plMeshComponent* ptMesh = pl_ecs_create_component(&ptScene->tComponentLibrary.tMeshComponentManager, tNewEntity);
+    memset(ptMesh, 0, sizeof(plMeshComponent));
 
     ptObject->tTransform = tNewEntity;
     ptObject->tMesh = tNewEntity;

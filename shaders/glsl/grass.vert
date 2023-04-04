@@ -61,8 +61,9 @@ void main()
 {
 
     vec3 inPosition  = inPos;
-    vec3 inNormal    = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset].xyz;
-    vec2 inTexCoord0 = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + 1].xy;
+    vec3 inNormal    = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset].xyz; 
+    vec3 inTangent    = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + 1].xyz; 
+    vec2 inTexCoord0 = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + 2].xy;
 
     // animate upper vertices and normals only
     if(inTexCoord0.y < 0.1)
