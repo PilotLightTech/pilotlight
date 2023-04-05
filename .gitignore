@@ -9,10 +9,13 @@ tools/__pycache__
 
 # debug files
 src/*.pdb
+tests/*.pdb
 
 # build scripts
 src/*.bat
 src/*.sh
+tests/*.bat
+tests/*.sh
 
 # misc
 .DS_Store

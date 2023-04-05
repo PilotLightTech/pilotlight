@@ -1,0 +1,94 @@
+name: Tests
+
+on:
+
+  push:
+
+    branches:
+      - master
+      - dev
+      - feature/*
+      - dev/*
+      - fix/*
+
+  pull_request:
+
+  workflow_dispatch:
+    
+jobs:
+
+  Windows:
+    
+    runs-on: windows-2019
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Run Tests
+      shell: cmd
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd scripts
+        python gen_tests.py
+        cd ../tests
+        call build.bat -c debug
+        cd ..
+        cd out
+        pilot_light_test.exe
+        @set PL_TEST_STATUS=%ERRORLEVEL%
+        @if %PL_TEST_STATUS% NEQ 0 (exit 1)
+
+  MacOS:
+    
+    runs-on: MacOS-latest
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v3
+    
+    - name: Run Tests
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd scripts
+        python3 gen_tests.py
+        cd ../tests
+        chmod +x build.sh
+        ./build.sh -c debug
+        cd ..
+        cd out
+        ./pilot_light_test
+        ((exit 1) || if [ $? = 1 ]; then exit 0; else exit 1; fi)
+
+  Ubuntu:
+    
+    runs-on: ubuntu-20.04
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Install Dependencies
+      run: |
+        sudo apt install libx11-dev
+        sudo apt install libxkbcommon-x11-dev
+        sudo apt install libx11-xcb-dev
+        sudo apt install libxcb-xfixes0-dev
+        sudo apt install libxcb-cursor-dev
+        sudo apt install libxcb-cursor0
+
+    - name: Run Tests
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd scripts
+        python3 gen_tests.py
+        cd ../tests
+        chmod +x build.sh
+        ./build.sh
+        cd ..
+        cd out
+        ./pilot_light_test
+        ((exit 1) || if [ $? = 1 ]; then exit 0; else exit 1; fi)

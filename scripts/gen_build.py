@@ -188,5 +188,6 @@ with pl.project("pilotlight"):
     pl.pop_include_directories()
     pl.pop_link_directories()
     pl.pop_output_directory()  
-    pl.pop_profile()    
+    pl.pop_profile()
+
 pl.generate_build_script("build")
