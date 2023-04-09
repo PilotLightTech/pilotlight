@@ -571,6 +571,8 @@ pl_app_update(plAppData* ptAppData)
 
         const plMat4 tTransform0 = pl_identity_mat4();
         pl_add_3d_transform(&ptAppData->drawlist3d, &tTransform0, 10.0f, 0.02f);
+        pl_add_3d_bezier_quad(&ptAppData->drawlist3d, (plVec3){0.0f,0.0f,0.0f}, (plVec3){5.0f,5.0f,5.0f}, (plVec3){3.0f,4.0f,3.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f, 20);
+        pl_add_3d_bezier_cubic(&ptAppData->drawlist3d, (plVec3){0.0f,0.0f,0.0f}, (plVec3){-0.5f,1.0f,-0.5f}, (plVec3){5.0f,3.5f,5.0f}, (plVec3){3.0f,4.0f,3.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f, 20);
 
         // ui
 

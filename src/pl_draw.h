@@ -111,6 +111,8 @@ void            pl_add_circle         (plDrawLayer* ptLayer, plVec2 tP, float fR
 void            pl_add_circle_filled  (plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments);
 void            pl_add_image          (plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax);
 void            pl_add_image_ex       (plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, plVec4 tColor);
+void            pl_add_bezier_quad    (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
+void            pl_add_bezier_cubic   (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
 
 // 3D drawing
 void            pl_add_3d_triangle_filled(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
@@ -119,6 +121,8 @@ void            pl_add_3d_point          (plDrawList3D* ptDrawlist, plVec3 tP0, 
 void            pl_add_3d_transform      (plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fLength, float fThickness);
 void            pl_add_3d_frustum        (plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fYFov, float fAspect, float fNearZ, float fFarZ, plVec4 tColor, float fThickness);
 void            pl_add_3d_centered_box   (plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor, float fThickness);
+void            pl_add_3d_bezier_quad    (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
+void            pl_add_3d_bezier_cubic   (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
 
 // fonts
 void            pl_build_font_atlas        (plDrawContext* ptCtx, plFontAtlas* ptAtlas); // implemented by backend

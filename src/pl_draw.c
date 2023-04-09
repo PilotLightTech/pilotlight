@@ -638,6 +638,70 @@ pl_add_image_ex(plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2
     pl__add_index(ptLayer, vertexStart, 0, 2, 3);
 }
 
+// order of the bezier curve inputs are 0=start, 1=control, 2=ending
+void
+pl_add_bezier_quad(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness, uint32_t uSegments)
+{
+    // Push first point
+    pl_sb_push(ptLayer->sbPath, tP0);
+
+    // Calculate and push points between first and last
+    for (int i = 1; i < (int)uSegments; i++)
+    {
+        const float t = i / (float)uSegments;
+        const float u = 1.0f - t;
+        const float tt = t * t;
+        const float uu = u * u;
+        
+        const plVec2 p0 = pl_mul_vec2_scalarf(tP0, uu);
+        const plVec2 p1 = pl_mul_vec2_scalarf(tP1, (2.0f * u * t)); 
+        const plVec2 p2 = pl_mul_vec2_scalarf(tP2, tt); 
+        const plVec2 p3 = pl_add_vec2(p0,p1);
+        const plVec2 p4 = pl_add_vec2(p2,p3);
+
+        pl_sb_push(ptLayer->sbPath, p4);
+    }
+
+    // Push last point
+    pl_sb_push(ptLayer->sbPath, tP2);
+
+    pl__submit_path(ptLayer, tColor, fThickness); 
+}
+
+// order of the bezier curve inputs are 0=start, 1=control 1, 2=control 2, 3=ending
+void
+pl_add_bezier_cubic(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness, uint32_t uSegments)
+{
+    // Push first point
+    pl_sb_push(ptLayer->sbPath, tP0);
+
+    // Calculate and push points between first and last
+    for (int i = 1; i < (int)uSegments; i++)
+    {
+        const float t = i / (float)uSegments;
+        const float u = 1.0f - t;
+        const float tt = t * t;
+        const float uu = u * u;
+        const float uuu = uu * u;
+        const float ttt = tt * t;
+        
+        const plVec2 p0 = pl_mul_vec2_scalarf(tP0, uuu);
+        const plVec2 p1 = pl_mul_vec2_scalarf(tP1, (3.0f * uu * t)); 
+        const plVec2 p2 = pl_mul_vec2_scalarf(tP2, (3.0f * u * tt)); 
+        const plVec2 p3 = pl_mul_vec2_scalarf(tP3, (ttt));
+        const plVec2 p5 = pl_add_vec2(p0,p1);
+        const plVec2 p6 = pl_add_vec2(p2,p3);
+        const plVec2 p7 = pl_add_vec2(p5,p6);
+
+        pl_sb_push(ptLayer->sbPath, p7);
+    }
+
+    // Push last point
+    pl_sb_push(ptLayer->sbPath, tP3);
+
+    pl__submit_path(ptLayer, tColor, fThickness); 
+}
+
 void
 pl_add_3d_triangle_filled(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor)
 {
@@ -804,6 +868,76 @@ pl_add_3d_centered_box(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, f
     pl_add_3d_line(ptDrawlist, tVerticies[5], tVerticies[6], tColor, fThickness);
     pl_add_3d_line(ptDrawlist, tVerticies[6], tVerticies[7], tColor, fThickness);
     pl_add_3d_line(ptDrawlist, tVerticies[7], tVerticies[4], tColor, fThickness);
+}
+
+// order of the bezier curve inputs are 0=start, 1=control, 2=ending
+void
+pl_add_3d_bezier_quad(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments)
+{
+    // Set up  first point
+    plVec3 tVerticies[2] = {(plVec3){0.0, 0.0, 0.0},tP0};
+
+    for (int i = 1; i < (int)uSegments; i++)
+    {
+        const float t = i / (float)uSegments;
+        const float u = 1.0f - t;
+        const float tt = t * t;
+        const float uu = u * u;
+        
+        const plVec3 p0 = pl_mul_vec3_scalarf(tP0, uu);
+        const plVec3 p1 = pl_mul_vec3_scalarf(tP1, (2.0f * u * t)); 
+        const plVec3 p2 = pl_mul_vec3_scalarf(tP2, tt); 
+        const plVec3 p3 = pl_add_vec3(p0,p1);
+        const plVec3 p4 = pl_add_vec3(p2,p3);
+        
+        // Shift and add next point
+        tVerticies[0] = tVerticies[1];
+        tVerticies[1] = p4;
+
+        pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
+    }
+
+    // Set up last point
+    tVerticies[0] = tVerticies[1];
+    tVerticies[1] = tP2;
+    pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
+}
+
+// order of the bezier curve inputs are 0=start, 1=control 1, 2=control 2, 3=ending
+void
+pl_add_3d_bezier_cubic(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments)
+{
+    // Set up first point
+    plVec3 tVerticies[2] = {(plVec3){0.0, 0.0, 0.0},tP0};
+
+    for (int i = 1; i < (int)uSegments; i++)
+    {
+        const float t = i / (float)uSegments;
+        const float u = 1.0f - t;
+        const float tt = t * t;
+        const float uu = u * u;
+        const float uuu = uu * u;
+        const float ttt = tt * t;
+        
+        const plVec3 p0 = pl_mul_vec3_scalarf(tP0, uuu);
+        const plVec3 p1 = pl_mul_vec3_scalarf(tP1, (3.0f * uu * t)); 
+        const plVec3 p2 = pl_mul_vec3_scalarf(tP2, (3.0f * u * tt)); 
+        const plVec3 p3 = pl_mul_vec3_scalarf(tP3, (ttt));
+        const plVec3 p5 = pl_add_vec3(p0,p1);
+        const plVec3 p6 = pl_add_vec3(p2,p3);
+        const plVec3 p7 = pl_add_vec3(p5,p6);
+        
+        // Shift and add next point
+        tVerticies[0] = tVerticies[1];
+        tVerticies[1] = p7;
+
+        pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
+    }
+
+    // Set up last point
+    tVerticies[0] = tVerticies[1];
+    tVerticies[1] = tP3;
+    pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
 }
 
 void
