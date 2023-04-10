@@ -520,6 +520,16 @@ pl_app_resize(void* pAppData)
 PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
+
+    static bool bVSyncChanged = false;
+
+    if(bVSyncChanged)
+    {
+        pl_resize_graphics(&ptAppData->tGraphics);
+        pl_create_main_render_target(&ptAppData->tGraphics, &ptAppData->tMainTarget);
+        bVSyncChanged = false;
+    }
+
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~frame setup~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
     plIOContext* ptIOCtx = pl_get_io_context();
@@ -596,6 +606,11 @@ pl_app_update(plAppData* ptAppData)
             pl_ui_checkbox("UI Debug", &ptAppData->bShowUiDebug);
             pl_ui_checkbox("UI Demo", &ptAppData->bShowUiDemo);
             pl_ui_checkbox("UI Style", &ptAppData->bShowUiStyle);
+            
+            if(pl_ui_checkbox("VSync", &ptAppData->tGraphics.tSwapchain.bVSync))
+            {
+                bVSyncChanged = true;
+            }
 
             if(pl_ui_collapsing_header("Renderer"))
             {
@@ -745,8 +760,9 @@ pl_app_update(plAppData* ptAppData)
 
         pl_begin_recording(&ptAppData->tGraphics);
 
-        pl_begin_render_target(&ptAppData->tGraphics, &ptAppData->tOffscreenTarget);
         pl_reset_scene(&ptAppData->tScene);
+
+        pl_begin_render_target(&ptAppData->tGraphics, &ptAppData->tOffscreenTarget);
         pl_scene_bind_target(&ptAppData->tScene, &ptAppData->tOffscreenTarget);
         pl_scene_update_ecs(&ptAppData->tScene);
         pl_scene_bind_camera(&ptAppData->tScene, ptOffscreenCamera);
