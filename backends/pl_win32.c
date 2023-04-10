@@ -161,6 +161,13 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
     switch (tMsg)
     {
 
+        case WM_SYSCOMMAND:
+        {
+            if(tWParam == SC_MINIMIZE)     ptIOCtx->bViewportMinimized = true;
+            else if(tWParam == SC_RESTORE) ptIOCtx->bViewportMinimized = false;
+            break;
+        }
+
         case WM_SIZE:
         case WM_SIZING:
         {
@@ -175,6 +182,11 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
                     iCWidth = tCRect.right - tCRect.left;
                     iCHeight = tCRect.bottom - tCRect.top;
                 }
+
+                if(iCWidth > 0 && iCHeight > 0)
+                    ptIOCtx->bViewportMinimized = false;
+                else
+                    ptIOCtx->bViewportMinimized = true;
 
                 if(ptIOCtx->afMainViewportSize[0] != (float)iCWidth || ptIOCtx->afMainViewportSize[1] != (float)iCHeight)
                     ptIOCtx->bViewportSizeChanged = true;

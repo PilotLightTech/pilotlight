@@ -57,11 +57,12 @@ static void             pl__render_frame(void);
 //-----------------------------------------------------------------------------
 
 static HWND            gtHandle = NULL;
-static bool            gbMinimized = false;
 static plSharedLibrary gtAppLibrary = {0};
 static void*           gpUserData = NULL;
 static bool            gbRunning = true;
+static bool            gbFirstRun = true;
 plIOContext            gtIOContext = {0};
+static bool            gbEnableVirtualTerminalProcessing = true;
 
 static void* (*pl_app_load)    (plIOContext* ptIOCtx, void* userData);
 static void  (*pl_app_shutdown)(void* userData);
@@ -72,8 +73,17 @@ static void  (*pl_app_update)  (void* userData);
 // [SECTION] entry point
 //-----------------------------------------------------------------------------
 
-int main()
+int main(int argc, char *argv[])
 {
+
+    for(int i = 1; i < argc; i++)
+    {
+        
+        if(strcmp(argv[i], "--disable_vt") == 0)
+        {
+            gbEnableVirtualTerminalProcessing = false;
+        }
+    }
 
     // initialize winsock
     WSADATA tWsaData = {0};
@@ -90,6 +100,7 @@ int main()
     ptIOCtx->tNextCursor = ptIOCtx->tCurrentCursor;
     ptIOCtx->afMainViewportSize[0] = 500.0f;
     ptIOCtx->afMainViewportSize[1] = 500.0f;
+    ptIOCtx->bViewportSizeChanged = true;
 
     // register window class
     const WNDCLASSEXW tWc = {
@@ -141,12 +152,21 @@ int main()
     
     // setup console
     DWORD tCurrentMode = 0;
-    HANDLE tStdOutHandle = GetStdHandle(STD_OUTPUT_HANDLE);
-    if(tStdOutHandle == INVALID_HANDLE_VALUE) exit(GetLastError());
-    if(!GetConsoleMode(tStdOutHandle, &tCurrentMode)) exit(GetLastError());
-    const DWORD tOriginalMode = tCurrentMode;
-    tCurrentMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING; // enable ANSI escape codes
-    if(!SetConsoleMode(tStdOutHandle, tCurrentMode)) exit(GetLastError());
+    DWORD tOriginalMode = 0;
+    HANDLE tStdOutHandle = NULL;
+
+    if(gbEnableVirtualTerminalProcessing)
+    {
+        tStdOutHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+        if(tStdOutHandle == INVALID_HANDLE_VALUE)
+            exit(GetLastError());
+        if(!GetConsoleMode(tStdOutHandle, &tCurrentMode))
+            exit(GetLastError());
+        tOriginalMode = tCurrentMode;
+        tCurrentMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING; // enable ANSI escape codes
+        if(!SetConsoleMode(tStdOutHandle, tCurrentMode))
+            exit(GetLastError());
+    }
 
     // load library
     if(pl_load_library(&gtAppLibrary, "./app.dll", "./app_", "./lock.tmp"))
@@ -213,7 +233,11 @@ int main()
     pl_cleanup_win32();
 
     // return console to original mode
-    if(!SetConsoleMode(tStdOutHandle, tOriginalMode)) exit(GetLastError());
+    if(gbEnableVirtualTerminalProcessing)
+    {
+        if(!SetConsoleMode(tStdOutHandle, tOriginalMode))
+            exit(GetLastError());
+    }
 
     // cleanup winsock
     WSACleanup();
@@ -239,26 +263,13 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
         {
             if (tWParam != SIZE_MINIMIZED)
             {
-                // client window size
-                RECT tCRect;
-                int iCWidth = 0;
-                int iCHeight = 0;
-                if (GetClientRect(tHwnd, &tCRect))
+                plIOContext* ptIOCtx = pl_get_io_context();
+                if(ptIOCtx->bViewportSizeChanged && !ptIOCtx->bViewportMinimized && !gbFirstRun)
                 {
-                    iCWidth = tCRect.right - tCRect.left;
-                    iCHeight = tCRect.bottom - tCRect.top;
-                }
-
-                // give app change to handle resize
-                if(iCWidth > 0 && iCHeight > 0)
-                {
-                    gbMinimized = false;
                     pl_app_resize(gpUserData);
+                    gbFirstRun = false;
                 }
-                else
-                {
-                    gbMinimized = true;
-                }
+                gbFirstRun = false;
 
                 // send paint message
                 InvalidateRect(tHwnd, NULL, TRUE);
@@ -314,13 +325,6 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             break;
         }
 
-        case WM_SYSCOMMAND:
-        {
-            if(tWParam == SC_MINIMIZE)     gbMinimized = true;
-            else if(tWParam == SC_RESTORE) gbMinimized = false;
-            return DefWindowProcW(tHwnd, tMsg, tWParam, tLParam);
-        }
-
         default:
             return DefWindowProcW(tHwnd, tMsg, tWParam, tLParam);
     }
@@ -344,7 +348,8 @@ static void
 pl__render_frame(void)
 {
     pl_new_frame_win32();
-    
-    if(!gbMinimized)
+
+    plIOContext* ptIOCtx = pl_get_io_context();
+    if(!ptIOCtx->bViewportMinimized)
         pl_app_update(gpUserData);   
 }

@@ -542,7 +542,9 @@ typedef struct _plDevice
     VkPhysicalDeviceMemoryProperties2         tMemProps2;
     VkPhysicalDeviceMemoryBudgetPropertiesEXT tMemBudgetInfo;
     VkDeviceSize                              tMaxLocalMemSize;
+    VkPhysicalDeviceFeatures                  tDeviceFeatures;
     bool                                      bSwapchainExtPresent;
+    bool                                      bPortabilitySubsetPresent;
 
 } plDevice;
 

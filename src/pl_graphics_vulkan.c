@@ -56,7 +56,7 @@ static void pl__create_frame_resources(plGraphics* ptGraphics, plDevice* ptDevic
 static void pl__create_device         (VkInstance tInstance, VkSurfaceKHR tSurface, plDevice* ptDeviceOut, bool bEnableValidation);
 
 // low level swapchain ops
-static void pl__create_swapchain   (plDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwapchainOut);
+static void pl__create_swapchain   (plGraphics* ptGraphics, VkSurfaceKHR tSurface, uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwapchainOut);
 static void pl__create_framebuffers(plDevice* ptDevice, VkRenderPass tRenderPass, plSwapchain* ptSwapchain);
 
 // resource manager setup
@@ -162,34 +162,19 @@ pl_setup_graphics(plGraphics* ptGraphics)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~swapchain~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     ptGraphics->tSwapchain.bVSync = true;
-    pl__create_swapchain(ptDevice, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
+    pl__create_swapchain(ptGraphics, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
     plSwapchain* ptSwapchain = &ptGraphics->tSwapchain;
-
-    // transition image layouts
-    VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(ptGraphics);
-    VkImageSubresourceRange tRange = {
-        .baseMipLevel   = 0,
-        .levelCount     = 1,
-        .baseArrayLayer = 0,
-        .layerCount     = 1,
-        .aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT
-    };
-    pl_transition_image_layout(tCommandBuffer, ptSwapchain->tDepthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);
-    tRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    pl_transition_image_layout(tCommandBuffer, ptSwapchain->tColorImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-    pl_submit_command_buffer(ptGraphics, tCommandBuffer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~main renderpass~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const VkAttachmentDescription atAttachments[] = {
 
-        // color attachment
+        // multisampled color attachment (render to this)
         {
-            .flags          = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT,
             .format         = ptSwapchain->tFormat,
             .samples        = ptSwapchain->tMsaaSamples,
             .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+            .storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -201,7 +186,7 @@ pl_setup_graphics(plGraphics* ptGraphics)
             .format         = pl_find_depth_stencil_format(ptDevice),
             .samples        = ptSwapchain->tMsaaSamples,
             .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
             .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
@@ -210,13 +195,12 @@ pl_setup_graphics(plGraphics* ptGraphics)
 
         // color resolve attachment
         {
-            .flags          = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT,
             .format         = ptSwapchain->tFormat,
             .samples        = VK_SAMPLE_COUNT_1_BIT,
             .loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
             .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
         },
@@ -224,23 +208,25 @@ pl_setup_graphics(plGraphics* ptGraphics)
 
     const VkSubpassDependency tSubpassDependencies[] = {
 
-        {
+        // color attachment
+        { 
             .srcSubpass      = VK_SUBPASS_EXTERNAL,
             .dstSubpass      = 0,
             .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .srcAccessMask   = 0,
             .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
+            .srcAccessMask   = 0,
+            .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+            .dependencyFlags = 0
         },
+        // depth attachment
         {
             .srcSubpass      = VK_SUBPASS_EXTERNAL,
             .dstSubpass      = 0,
             .srcStageMask    = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-            .srcAccessMask   = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
             .dstStageMask    = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-            .dstAccessMask   = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
+            .srcAccessMask   = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .dstAccessMask   = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+            .dependencyFlags = 0
         }
     };
 
@@ -251,7 +237,7 @@ pl_setup_graphics(plGraphics* ptGraphics)
         },
         {
             .attachment = 1,
-            .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL     
+            .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
         },
         {
             .attachment = 2,
@@ -331,7 +317,7 @@ pl_begin_frame(plGraphics* ptGraphics)
     {
         if(err == VK_ERROR_OUT_OF_DATE_KHR)
         {
-            pl__create_swapchain(ptDevice, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
+            pl__create_swapchain(ptGraphics, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
             pl__create_framebuffers(ptDevice, ptGraphics->tRenderPass, &ptGraphics->tSwapchain);
             return false;
         }
@@ -382,7 +368,7 @@ pl_end_frame(plGraphics* ptGraphics)
     if(tResult == VK_SUBOPTIMAL_KHR || tResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
         plIOContext* ptIOCtx = pl_get_io_context();
-        pl__create_swapchain(ptDevice, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
+        pl__create_swapchain(ptGraphics, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
         pl__create_framebuffers(ptDevice, ptGraphics->tRenderPass, &ptGraphics->tSwapchain);
     }
     else
@@ -396,27 +382,11 @@ pl_end_frame(plGraphics* ptGraphics)
 void
 pl_resize_graphics(plGraphics* ptGraphics)
 {
-    pl_log_trace_to_f(ptGraphics->uLogChannel, "resizing swapchain");
-    
     plIOContext* ptIOCtx = pl_get_io_context();
     plDevice* ptDevice = &ptGraphics->tDevice;
-
-    pl__create_swapchain(ptDevice, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
-    pl__create_framebuffers(ptDevice, ptGraphics->tRenderPass, &ptGraphics->tSwapchain);  
-
-    VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(ptGraphics);
-    VkImageSubresourceRange tRange = {
-        .baseMipLevel   = 0,
-        .levelCount     = 1,
-        .baseArrayLayer = 0,
-        .layerCount     = 1,
-        .aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT
-    };
-
-    pl_transition_image_layout(tCommandBuffer, ptGraphics->tSwapchain.tDepthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT ,VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);
-    tRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    pl_transition_image_layout(tCommandBuffer, ptGraphics->tSwapchain.tColorImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-    pl_submit_command_buffer(ptGraphics, tCommandBuffer);    
+    pl__create_swapchain(ptGraphics, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
+    pl__create_framebuffers(ptDevice, ptGraphics->tRenderPass, &ptGraphics->tSwapchain);
+    ptGraphics->szCurrentFrameIndex = 0;
 }
 
 void
@@ -1519,8 +1489,8 @@ pl_create_texture_view(plResourceManager* ptResourceManager, const plTextureView
         .magFilter               = pl__vulkan_filter(ptSampler->tFilter),
         .addressModeU            = pl__vulkan_wrap(ptSampler->tHorizontalWrap),
         .addressModeV            = pl__vulkan_wrap(ptSampler->tVerticalWrap),
-        .anisotropyEnable        = VK_FALSE,
-        .maxAnisotropy           = 0.0f,
+        .anisotropyEnable        = (bool)ptResourceManager->_ptDevice->tDeviceFeatures.sampleRateShading,
+        .maxAnisotropy           = ptResourceManager->_ptDevice->tDeviceProps.limits.maxSamplerAnisotropy,
         .borderColor             = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
         .unnormalizedCoordinates = VK_FALSE,
         .compareEnable           = VK_FALSE,
@@ -1608,11 +1578,11 @@ pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, siz
     if(pData)
         pl_transfer_data_to_image(ptResourceManager, &tTexture, szSize, pData);
 
-
     VkImageAspectFlags tImageAspectFlags = tDesc.tUsage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
     if(pl_format_has_stencil(tDesc.tFormat))
         tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
+
 
     VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(ptResourceManager->_ptGraphics);
     VkImageSubresourceRange tRange = {
@@ -1622,6 +1592,7 @@ pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, siz
         .layerCount     = tDesc.uLayers,
         .aspectMask     = tImageAspectFlags
     };
+
     if(pData)
         pl_transition_image_layout(tCommandBuffer, tTexture.tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
     else if(tDesc.tUsage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
@@ -2281,7 +2252,8 @@ pl__create_device(VkInstance tInstance, VkSurfaceKHR tSurface, plDevice* ptDevic
     // create logical device
     //-----------------------------------------------------------------------------
 
-    VkPhysicalDeviceFeatures atDeviceFeatures = {0};
+    vkGetPhysicalDeviceFeatures(ptDeviceOut->tPhysicalDevice, &ptDeviceOut->tDeviceFeatures);
+
     const float fQueuePriority = 1.0f;
     VkDeviceQueueCreateInfo atQueueCreateInfos[] = {
         {
@@ -2301,16 +2273,14 @@ pl__create_device(VkInstance tInstance, VkSurfaceKHR tSurface, plDevice* ptDevic
     static const char* pcValidationLayers = "VK_LAYER_KHRONOS_validation";
 
     const char** sbpcDeviceExts = NULL;
-    if(ptDeviceOut->bSwapchainExtPresent)   pl_sb_push(sbpcDeviceExts, VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    if(ptDeviceOut->bSwapchainExtPresent)      pl_sb_push(sbpcDeviceExts, VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    if(ptDeviceOut->bPortabilitySubsetPresent) pl_sb_push(sbpcDeviceExts, "VK_KHR_portability_subset");
     pl_sb_push(sbpcDeviceExts, VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
-    #ifdef __APPLE__
-        pl_sb_push(sbpcDeviceExts, "VK_KHR_portability_subset");
-    #endif
     VkDeviceCreateInfo tCreateDeviceInfo = {
         .sType                    = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .queueCreateInfoCount     = atQueueCreateInfos[0].queueFamilyIndex == atQueueCreateInfos[1].queueFamilyIndex ? 1 : 2,
         .pQueueCreateInfos        = atQueueCreateInfos,
-        .pEnabledFeatures         = &atDeviceFeatures,
+        .pEnabledFeatures         = &ptDeviceOut->tDeviceFeatures,
         .ppEnabledExtensionNames  = sbpcDeviceExts,
         .enabledLayerCount        = bEnableValidation ? 1 : 0,
         .ppEnabledLayerNames      = bEnableValidation ? &pcValidationLayers : NULL,
@@ -2381,8 +2351,9 @@ pl__create_framebuffers(plDevice* ptDevice, VkRenderPass tRenderPass, plSwapchai
 }
 
 static void
-pl__create_swapchain(plDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwapchainOut)
+pl__create_swapchain(plGraphics* ptGraphics, VkSurfaceKHR tSurface, uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwapchainOut)
 {
+    plDevice* ptDevice = &ptGraphics->tDevice;
     vkDeviceWaitIdle(ptDevice->tLogicalDevice);
 
     ptSwapchainOut->tMsaaSamples = pl_get_max_sample_count(ptDevice);
@@ -2475,26 +2446,66 @@ pl__create_swapchain(plDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uWidth,
 
     // decide image count
     const uint32_t uOldImageCount = ptSwapchainOut->uImageCount;
-    uint32_t uMinImageCount = tCapabilities.minImageCount + 1;
-    if(tCapabilities.maxImageCount > 0 && uMinImageCount > tCapabilities.maxImageCount) 
-        uMinImageCount = tCapabilities.maxImageCount;
+    uint32_t uDesiredMinImageCount = tCapabilities.minImageCount + 1;
+    if(tCapabilities.maxImageCount > 0 && uDesiredMinImageCount > tCapabilities.maxImageCount) 
+        uDesiredMinImageCount = tCapabilities.maxImageCount;
+
+	// find the transformation of the surface
+	VkSurfaceTransformFlagsKHR tPreTransform;
+	if (tCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+	{
+		// We prefer a non-rotated transform
+		tPreTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+	}
+	else
+	{
+		tPreTransform = tCapabilities.currentTransform;
+	}
+
+	// find a supported composite alpha format (not all devices support alpha opaque)
+	VkCompositeAlphaFlagBitsKHR tCompositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	
+    // simply select the first composite alpha format available
+	static const VkCompositeAlphaFlagBitsKHR atCompositeAlphaFlags[] = {
+		VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+		VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
+		VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR,
+		VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR
+	};
+
+	for (int i = 0; i < 4; i++)
+    {
+		if (tCapabilities.supportedCompositeAlpha & atCompositeAlphaFlags[i]) 
+        {
+			tCompositeAlpha = atCompositeAlphaFlags[i];
+			break;
+		};
+	}
 
     VkSwapchainCreateInfoKHR tCreateSwapchainInfo = {
         .sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         .surface          = tSurface,
-        .minImageCount    = uMinImageCount,
+        .minImageCount    = uDesiredMinImageCount,
         .imageFormat      = tSurfaceFormat.format,
         .imageColorSpace  = tSurfaceFormat.colorSpace,
         .imageExtent      = tExtent,
         .imageArrayLayers = 1,
         .imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-        .preTransform     = tCapabilities.currentTransform,
-        .compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        .preTransform     = (VkSurfaceTransformFlagBitsKHR)tPreTransform,
+        .compositeAlpha   = tCompositeAlpha,
         .presentMode      = tPresentMode,
-        .clipped          = VK_TRUE,
-        .oldSwapchain     = ptSwapchainOut->tSwapChain,
+        .clipped          = VK_TRUE, // setting clipped to VK_TRUE allows the implementation to discard rendering outside of the surface area
+        .oldSwapchain     = ptSwapchainOut->tSwapChain, // setting oldSwapChain to the saved handle of the previous swapchain aids in resource reuse and makes sure that we can still present already acquired images
         .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
+
+	// enable transfer source on swap chain images if supported
+	if (tCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+		tCreateSwapchainInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+
+	// enable transfer destination on swap chain images if supported
+	if (tCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+		tCreateSwapchainInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
     uint32_t auQueueFamilyIndices[] = { (uint32_t)ptDevice->iGraphicsQueueFamily, (uint32_t)ptDevice->iPresentQueueFamily};
     if (ptDevice->iGraphicsQueueFamily != ptDevice->iPresentQueueFamily)
@@ -2518,7 +2529,7 @@ pl__create_swapchain(plDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uWidth,
         vkDestroySwapchainKHR(ptDevice->tLogicalDevice, tOldSwapChain, NULL);
     }
 
-    vkGetSwapchainImagesKHR(ptDevice->tLogicalDevice, ptSwapchainOut->tSwapChain, &ptSwapchainOut->uImageCount, NULL);
+    PL_VULKAN(vkGetSwapchainImagesKHR(ptDevice->tLogicalDevice, ptSwapchainOut->tSwapChain, &ptSwapchainOut->uImageCount, NULL));
     if(ptSwapchainOut->uImageCount > ptSwapchainOut->uImageCapacity)
     {
         ptSwapchainOut->uImageCapacity = ptSwapchainOut->uImageCount;
@@ -2529,21 +2540,29 @@ pl__create_swapchain(plDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uWidth,
         ptSwapchainOut->ptImageViews     = pl_alloc(sizeof(VkImageView)*ptSwapchainOut->uImageCapacity);
         ptSwapchainOut->ptFrameBuffers   = pl_alloc(sizeof(VkFramebuffer)*ptSwapchainOut->uImageCapacity);
     }
-    vkGetSwapchainImagesKHR(ptDevice->tLogicalDevice, ptSwapchainOut->tSwapChain, &ptSwapchainOut->uImageCount, ptSwapchainOut->ptImages);
+    PL_VULKAN(vkGetSwapchainImagesKHR(ptDevice->tLogicalDevice, ptSwapchainOut->tSwapChain, &ptSwapchainOut->uImageCount, ptSwapchainOut->ptImages));
 
     for(uint32_t i = 0; i < ptSwapchainOut->uImageCount; i++)
     {
 
         VkImageViewCreateInfo tViewInfo = {
-            .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image                           = ptSwapchainOut->ptImages[i],
-            .viewType                        = VK_IMAGE_VIEW_TYPE_2D,
-            .format                          = ptSwapchainOut->tFormat,
-            .subresourceRange.baseMipLevel   = 0,
-            .subresourceRange.levelCount     = 1,
-            .subresourceRange.baseArrayLayer = 0,
-            .subresourceRange.layerCount     = 1,
-            .subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+            .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image            = ptSwapchainOut->ptImages[i],
+            .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+            .format           = ptSwapchainOut->tFormat,
+            .subresourceRange = {
+                .baseMipLevel   = 0,
+                .levelCount     = 1,
+                .baseArrayLayer = 0,
+                .layerCount     = 1,
+                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT
+            },
+            .components = {
+                        VK_COMPONENT_SWIZZLE_R,
+                        VK_COMPONENT_SWIZZLE_G,
+                        VK_COMPONENT_SWIZZLE_B,
+                        VK_COMPONENT_SWIZZLE_A
+                    }
         };
 
         PL_VULKAN(vkCreateImageView(ptDevice->tLogicalDevice, &tViewInfo, NULL, &ptSwapchainOut->ptImageViews[i]));   
@@ -2566,15 +2585,18 @@ pl__create_swapchain(plDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uWidth,
     VkImageCreateInfo tDepthImageInfo = {
         .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType     = VK_IMAGE_TYPE_2D,
-        .extent.width  = ptSwapchainOut->tExtent.width,
-        .extent.height = ptSwapchainOut->tExtent.height,
-        .extent.depth  = 1,
+        .extent        = 
+        {
+            .width  = ptSwapchainOut->tExtent.width,
+            .height = ptSwapchainOut->tExtent.height,
+            .depth  = 1
+        },
         .mipLevels     = 1,
         .arrayLayers   = 1,
         .format        = pl_find_depth_stencil_format(ptDevice),
         .tiling        = VK_IMAGE_TILING_OPTIMAL,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        .usage         = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
         .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
         .samples       = ptSwapchainOut->tMsaaSamples,
         .flags         = 0
@@ -2583,15 +2605,18 @@ pl__create_swapchain(plDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uWidth,
     VkImageCreateInfo tColorImageInfo = {
         .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType     = VK_IMAGE_TYPE_2D,
-        .extent.width  = ptSwapchainOut->tExtent.width,
-        .extent.height = ptSwapchainOut->tExtent.height,
-        .extent.depth  = 1,
+        .extent        = 
+        {
+            .width  = ptSwapchainOut->tExtent.width,
+            .height = ptSwapchainOut->tExtent.height,
+            .depth  = 1
+        },
         .mipLevels     = 1,
         .arrayLayers   = 1,
         .format        = ptSwapchainOut->tFormat,
         .tiling        = VK_IMAGE_TILING_OPTIMAL,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .usage         = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
         .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
         .samples       = ptSwapchainOut->tMsaaSamples,
         .flags         = 0
@@ -2621,6 +2646,20 @@ pl__create_swapchain(plDevice* ptDevice, VkSurfaceKHR tSurface, uint32_t uWidth,
     PL_VULKAN(vkAllocateMemory(ptDevice->tLogicalDevice, &tColorAllocInfo, NULL, &ptSwapchainOut->tColorMemory));
     PL_VULKAN(vkBindImageMemory(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthImage, ptSwapchainOut->tDepthMemory, 0));
     PL_VULKAN(vkBindImageMemory(ptDevice->tLogicalDevice, ptSwapchainOut->tColorImage, ptSwapchainOut->tColorMemory, 0));
+
+    VkCommandBuffer tCommandBuffer = pl_begin_command_buffer(ptGraphics);
+    VkImageSubresourceRange tRange = {
+        .baseMipLevel   = 0,
+        .levelCount     = 1,
+        .baseArrayLayer = 0,
+        .layerCount     = 1,
+        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT
+    };
+
+    pl_transition_image_layout(tCommandBuffer, ptSwapchainOut->tColorImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    tRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    pl_transition_image_layout(tCommandBuffer, ptSwapchainOut->tDepthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    pl_submit_command_buffer(ptGraphics, tCommandBuffer);
 
     VkImageViewCreateInfo tDepthViewInfo = {
         .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -2777,6 +2816,7 @@ pl__select_physical_device(VkInstance tInstance, plDevice* ptDeviceOut)
     }
 
     ptDeviceOut->tPhysicalDevice = atDevices[iBestDvcIdx];
+
     PL_ASSERT(ptDeviceOut->tPhysicalDevice != VK_NULL_HANDLE && "failed to find a suitable GPU!");
     vkGetPhysicalDeviceProperties(atDevices[iBestDvcIdx], &ptDeviceOut->tDeviceProps);
     vkGetPhysicalDeviceMemoryProperties(atDevices[iBestDvcIdx], &ptDeviceOut->tMemProps);
@@ -2798,6 +2838,7 @@ pl__select_physical_device(VkInstance tInstance, plDevice* ptDeviceOut)
     for(uint32_t i = 0; i < uExtensionCount; i++)
     {
         if(pl_str_equal(ptExtensions[i].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME)) ptDeviceOut->bSwapchainExtPresent = true; //-V522
+        if(pl_str_equal(ptExtensions[i].extensionName, "VK_KHR_portability_subset"))     ptDeviceOut->bPortabilitySubsetPresent = true; //-V522
     }
 
     pl_free(ptExtensions);
@@ -3052,7 +3093,8 @@ pl__create_shader_pipeline(plResourceManager* ptResourceManager, plGraphicsState
 
     const VkPipelineMultisampleStateCreateInfo tMultisampling = {
         .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .sampleShadingEnable  = VK_FALSE,
+        .sampleShadingEnable  = (bool)ptDevice->tDeviceFeatures.sampleRateShading,
+        .minSampleShading     = 0.2f,
         .rasterizationSamples = ptInfo->tMSAASampleCount
     };
 

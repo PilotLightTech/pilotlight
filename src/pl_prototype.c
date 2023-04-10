@@ -65,7 +65,7 @@ pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc
     {
         .fMinMip = 0.0f,
         .fMaxMip = 64.0f,
-        .tFilter = PL_FILTER_NEAREST
+        .tFilter = PL_FILTER_LINEAR
     };
 
     const plTextureViewDesc tColorView = {
@@ -163,23 +163,26 @@ pl_create_render_pass(plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, pl
 
     VkSubpassDependency tSubpassDependencies[] = {
 
+        // color attachment
         {
             .srcSubpass      = VK_SUBPASS_EXTERNAL,
             .dstSubpass      = 0,
             .srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT,
             .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT,
             .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
+            .dependencyFlags = 0
         },
+
+        // color attachment out
         {
             .srcSubpass      = 0,
             .dstSubpass      = VK_SUBPASS_EXTERNAL,
             .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT,
-            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
+            .dependencyFlags = 0
         },
     };
 
