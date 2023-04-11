@@ -4,8 +4,8 @@
 */
 
 // library version
-#define PL_DS_VERSION    "0.3.0"
-#define PL_DS_VERSION_NUM 00300
+#define PL_DS_VERSION    "0.4.0"
+#define PL_DS_VERSION_NUM 00400
 
 /*
 Index of this file:
@@ -111,6 +111,10 @@ STRETCHY BUFFER (dynamic array)
         void pl_sb_insert_n(T*, i, N);
             Inserts n new items starting at the ith index (uses memmove)
 
+    pl_sb_sprintf:
+        void pl_sb_sprintf(char*, pcFormat, ...);
+            Inserts characters into a char stretchy buffer (similar to sprintf)
+
 HASHMAPS
 
     pl_hm_hash_str:
@@ -213,6 +217,8 @@ COMPILE TIME OPTIONS
 #include <stdlib.h>  // malloc, free
 #include <string.h>  // memset, memmove
 #include <stdbool.h> // bool
+#include <stdarg.h>  // arg vars
+#include <stdio.h>   // vsprintf
 
 //-----------------------------------------------------------------------------
 // [SECTION] documentation
@@ -283,7 +289,7 @@ typedef struct _plHashMap
     (pl__sb_may_grow((buf), sizeof(*(buf)), (n), (n)))
 
 #define pl_sb_resize(buf, n) \
-    (pl__sb_may_grow((buf), sizeof(*(buf)), (n), (n)), memset((buf), 0, sizeof(*(buf)) * (n)), pl__sb_header((buf))->uSize = (n))
+    (pl__sb_may_grow((buf), sizeof(*(buf)), (n), (n)), pl__sb_header((buf))->uSize = (n))
 
 #define pl_sb_del_n(buf, i, n) \
     (memmove(&(buf)[i], &(buf)[(i) + (n)], sizeof *(buf) * (pl__sb_header(buf)->uSize - (n) - (i))), pl__sb_header(buf)->uSize -= (n))
@@ -299,6 +305,9 @@ typedef struct _plHashMap
 
 #define pl_sb_insert(buf, i, v) \
     (pl_sb_insert_n((buf), (i), 1), (buf)[i] = (v))
+
+#define pl_sb_sprintf(buf, pcFormat, ...) \
+    pl__sb_sprintf(&(buf), (pcFormat), __VA_ARGS__)
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api (hashmap)
@@ -338,6 +347,7 @@ pl__sb_grow(void** ptrBuffer, size_t szElementSize, size_t szNewItems)
     plSbHeader_* ptOldHeader = pl__sb_header(*ptrBuffer);
 
     plSbHeader_* ptNewHeader = (plSbHeader_*)PL_DS_ALLOC((ptOldHeader->uCapacity + szNewItems) * szElementSize + sizeof(plSbHeader_));
+    memset(ptNewHeader, 0, (ptOldHeader->uCapacity + szNewItems) * szElementSize + sizeof(plSbHeader_));
     if(ptNewHeader)
     {
         ptNewHeader->uSize = ptOldHeader->uSize;
@@ -362,6 +372,7 @@ pl__sb_may_grow_(void** ptrBuffer, size_t szElementSize, size_t szNewItems, size
     else // first run
     {
         plSbHeader_* ptHeader = (plSbHeader_*)PL_DS_ALLOC(szMinCapacity * szElementSize + sizeof(plSbHeader_));
+        memset(ptHeader, 0, szMinCapacity * szElementSize + sizeof(plSbHeader_));
         if(ptHeader)
         {
             *ptrBuffer = &ptHeader[1]; 
@@ -369,6 +380,27 @@ pl__sb_may_grow_(void** ptrBuffer, size_t szElementSize, size_t szNewItems, size
             ptHeader->uCapacity = (uint32_t)szMinCapacity;
         }
     }     
+}
+
+static void
+pl__sb_vsprintf(char** ppcBuffer, const char* pcFormat, va_list args)
+{
+    va_list args2;
+    va_copy(args2, args);
+    int32_t n = vsnprintf(NULL, 0, pcFormat, args2);
+    va_end(args2);
+    uint32_t an = pl_sb_size(*ppcBuffer);
+    pl_sb_resize(*ppcBuffer, an + n + 1);
+    vsnprintf(*ppcBuffer + an, n + 1, pcFormat, args);
+}
+
+static void
+pl__sb_sprintf(char** ppcBuffer, const char* pcFormat, ...)
+{
+    va_list args;
+    va_start(args, pcFormat);
+    pl__sb_vsprintf(ppcBuffer, pcFormat, args);
+    va_end(args);
 }
 
 //-----------------------------------------------------------------------------
