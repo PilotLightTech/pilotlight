@@ -472,7 +472,6 @@ pl_hm_insert(plHashMap* ptHashMap, uint64_t ulKey, uint64_t ulValue)
     else if(((float)ptHashMap->_uItemCount / (float)ptHashMap->_uBucketCount) > 0.60f)
         pl_hm_resize(ptHashMap, ptHashMap->_uBucketCount * 2);
 
-
     uint64_t ulModKey = ulKey % ptHashMap->_uBucketCount;
 
     while(ptHashMap->_aulKeys[ulModKey] != ulKey && ptHashMap->_aulKeys[ulModKey] != UINT64_MAX)
@@ -562,7 +561,8 @@ pl_hm_hash(const void* pData, size_t szDataSize, uint64_t uSeed)
 static inline uint64_t
 pl_hm_lookup(const plHashMap* ptHashMap, uint64_t ulKey)
 {
-    PL_DS_ASSERT(ptHashMap->_uBucketCount > 0 && "hashmap has no items");
+    if(ptHashMap->_uBucketCount == 0)
+        return UINT64_MAX;
 
     uint64_t ulModKey = ulKey % ptHashMap->_uBucketCount;
 
@@ -570,7 +570,7 @@ pl_hm_lookup(const plHashMap* ptHashMap, uint64_t ulKey)
         ulModKey = (ulModKey + 1) % ptHashMap->_uBucketCount;
 
     if(ptHashMap->_aulKeys[ulModKey] == UINT64_MAX)
-        return 0;
+        return UINT64_MAX;
     
     return ptHashMap->_aulValueIndices[ulModKey];
 }
