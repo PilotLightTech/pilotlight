@@ -41,28 +41,29 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plSwapchain       plSwapchain;       // swapchain resources & info
-typedef struct _plDevice          plDevice;          // device resources & info
-typedef struct _plGraphics        plGraphics;        // graphics context
-typedef struct _plFrameContext    plFrameContext;    // per frame resource
-typedef struct _plResourceManager plResourceManager; // buffer/texture resource manager
-typedef struct _plBuffer          plBuffer;          // vulkan buffer
-typedef struct _plTexture         plTexture;         // vulkan texture
-typedef struct _plTextureView     plTextureView;     // vulkan texture view
-typedef struct _plTextureDesc     plTextureDesc;     // texture descriptor
-typedef struct _plTextureViewDesc plTextureViewDesc; // texture descriptor
-typedef struct _plSampler         plSampler;
-typedef struct _plBufferBinding   plBufferBinding;
-typedef struct _plTextureBinding  plTextureBinding;
-typedef struct _plShaderDesc      plShaderDesc;
-typedef struct _plShader          plShader;
-typedef struct _plGraphicsState   plGraphicsState;
-typedef struct _plBindGroupLayout plBindGroupLayout;
-typedef struct _plBindGroup       plBindGroup;
-typedef struct _plMesh            plMesh;
-typedef struct _plDraw            plDraw;
-typedef struct _plDrawArea        plDrawArea;
-typedef struct _plShaderVariant   plShaderVariant; // unique combination of graphic state, renderpass, and msaa sample count
+typedef struct _plSwapchain         plSwapchain;       // swapchain resources & info
+typedef struct _plDevice            plDevice;          // device resources & info
+typedef struct _plGraphics          plGraphics;        // graphics context
+typedef struct _plFrameContext      plFrameContext;    // per frame resource
+typedef struct _plResourceManager   plResourceManager; // buffer/texture resource manager
+typedef struct _plDynamicBufferNode plDynamicBufferNode;
+typedef struct _plBuffer            plBuffer;          // vulkan buffer
+typedef struct _plTexture           plTexture;         // vulkan texture
+typedef struct _plTextureView       plTextureView;     // vulkan texture view
+typedef struct _plTextureDesc       plTextureDesc;     // texture descriptor
+typedef struct _plTextureViewDesc   plTextureViewDesc; // texture descriptor
+typedef struct _plSampler           plSampler;
+typedef struct _plBufferBinding     plBufferBinding;
+typedef struct _plTextureBinding    plTextureBinding;
+typedef struct _plShaderDesc        plShaderDesc;
+typedef struct _plShader            plShader;
+typedef struct _plGraphicsState     plGraphicsState;
+typedef struct _plBindGroupLayout   plBindGroupLayout;
+typedef struct _plBindGroup         plBindGroup;
+typedef struct _plMesh              plMesh;
+typedef struct _plDraw              plDraw;
+typedef struct _plDrawArea          plDrawArea;
+typedef struct _plShaderVariant     plShaderVariant; // unique combination of graphic state, renderpass, and msaa sample count
 
 // enums
 typedef int plBufferBindingType;  // -> enum _plBufferBindingType   // Enum:
@@ -104,6 +105,10 @@ uint32_t              pl_create_texture               (plResourceManager* ptReso
 uint32_t              pl_create_storage_buffer        (plResourceManager* ptResourceManager, size_t szSize, const void* pData, const char* pcName);
 VkDescriptorSetLayout pl_request_descriptor_set_layout(plResourceManager* ptResourceManager, plBindGroupLayout* ptLayout);
 uint32_t              pl_create_texture_view          (plResourceManager* ptResourceManager, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, uint32_t uTextureHandle, const char* pcName);
+
+// resource manager dynamic buffers
+uint32_t              pl_request_dynamic_buffer         (plResourceManager* ptResourceManager);
+void                  pl_return_dynamic_buffer          (plResourceManager* ptResourceManager, uint32_t uNodeIndex);
 
 // resource manager misc.
 void                  pl_transfer_data_to_image          (plResourceManager* ptResourceManager, plTexture* ptDest, size_t szDataSize, const void* pData);
@@ -449,6 +454,15 @@ typedef struct _plShader
     VkShaderModuleCreateInfo tPixelShaderInfo;
 } plShader;
 
+typedef struct _plDynamicBufferNode
+{
+    uint32_t    uPrev;
+    uint32_t    uNext;
+    uint32_t    uDynamicBuffer;
+    uint32_t    uDynamicBufferOffset;
+    uint32_t    uLastActiveFrame;
+} plDynamicBufferNode;
+
 typedef struct _plResourceManager
 {
 
@@ -492,6 +506,11 @@ typedef struct _plResourceManager
     // descriptor set layouts
     VkDescriptorSetLayout* _sbtDescriptorSetLayouts;
     uint32_t*              _sbuDescriptorSetLayoutHashes;
+
+    // dynamic buffers
+    uint32_t             _uDynamicBufferSize;
+    uint32_t*            _sbuDynamicBufferDeletionQueue;
+    plDynamicBufferNode* _sbtDynamicBufferList;
 
 } plResourceManager;
 

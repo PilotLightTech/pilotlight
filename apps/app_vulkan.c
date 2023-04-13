@@ -185,7 +185,7 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~entity IDs~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
     // cameras
-    ptAppData->tOffscreenCameraEntity = pl_ecs_create_camera(&ptAppData->tScene, "offscreen camera", (plVec3){0.0f, 0.35f, 0.8f}, PL_PI_3, 1280.0f / 720.0f, 0.1f, 10.0f);
+    ptAppData->tOffscreenCameraEntity = pl_ecs_create_camera(&ptAppData->tScene, "offscreen camera", (plVec3){0.0f, 0.35f, 1.2f}, PL_PI_3, 1280.0f / 720.0f, 0.1f, 10.0f);
     ptAppData->tCameraEntity = pl_ecs_create_camera(&ptAppData->tScene, "main camera", (plVec3){-6.211f, 3.647f, 0.827f}, PL_PI_3, ptIOCtx->afMainViewportSize[0] / ptIOCtx->afMainViewportSize[1], 0.01f, 400.0f);
     plCameraComponent* ptCamera = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tCameraEntity);
     plCameraComponent* ptCamera2 = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tOffscreenCameraEntity);
@@ -201,6 +201,7 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
     pl_sb_push(ptAppData->tRenderer.sbtObjectEntities, ptAppData->tStl2Entity);
 
     pl_ext_load_gltf(&ptAppData->tScene, "../data/glTF-Sample-Models-master/2.0/FlightHelmet/glTF/FlightHelmet.gltf");
+    // pl_ext_load_gltf(&ptAppData->tScene, "../data/glTF-Sample-Models-master/2.0/sponza/glTF/sponza.gltf");
 
     // materials
     ptAppData->tGrassMaterial   = pl_ecs_create_material(&ptAppData->tScene, "grass material");
@@ -615,9 +616,9 @@ pl_app_update(plAppData* ptAppData)
             if(pl_ui_collapsing_header("Renderer"))
             {
                 pl_ui_text("Dynamic Buffers");
-                pl_ui_progress_bar((float)ptAppData->tScene.uDynamicBuffer0_Offset / (float)ptAppData->tScene.uDynamicBufferSize, (plVec2){-1.0f, 0.0f}, NULL);
-                pl_ui_progress_bar((float)ptAppData->tScene.uDynamicBuffer1_Offset / (float)ptAppData->tScene.uDynamicBufferSize, (plVec2){-1.0f, 0.0f}, NULL);
-                pl_ui_progress_bar((float)ptAppData->tScene.uDynamicBuffer2_Offset / (float)ptAppData->tScene.uDynamicBufferSize, (plVec2){-1.0f, 0.0f}, NULL);
+                pl_ui_progress_bar((float)ptAppData->tScene.uDynamicBuffer0_Offset / (float)ptAppData->tGraphics.tResourceManager._uDynamicBufferSize, (plVec2){-1.0f, 0.0f}, NULL);
+                // pl_ui_progress_bar((float)ptAppData->tScene.uDynamicBuffer1_Offset / (float)ptAppData->tRenderer.uDynamicBufferSize, (plVec2){-1.0f, 0.0f}, NULL);
+                // pl_ui_progress_bar((float)ptAppData->tScene.uDynamicBuffer2_Offset / (float)ptAppData->tScene.uDynamicBufferSize, (plVec2){-1.0f, 0.0f}, NULL);
                 pl_ui_end_collapsing_header();
             }
 

@@ -25,6 +25,10 @@ Index of this file:
 #include "pl_log.h"
 
 //-----------------------------------------------------------------------------
+// [SECTION] internal functions
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
 // [SECTION] implementations
 //-----------------------------------------------------------------------------
 
@@ -445,6 +449,7 @@ pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
     ptRenderer->uMainShader    = pl_create_shader(&ptGraphics->tResourceManager, &tMainShaderDesc);
     ptRenderer->uOutlineShader = pl_create_shader(&ptGraphics->tResourceManager, &tOutlineShaderDesc);
     ptRenderer->uSkyboxShader  = pl_create_shader(&ptGraphics->tResourceManager, &tSkyboxShaderDesc);
+
 }
 
 void
@@ -464,6 +469,7 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
 
     ptSceneOut->uGlobalStorageBuffer = UINT32_MAX;
     ptSceneOut->ptRenderer = ptRenderer;
+    ptSceneOut->bMaterialsNeedUpdate = true;
 
     // initialize component managers
     ptSceneOut->tComponentLibrary.tTagComponentManager.tComponentType = PL_COMPONENT_TYPE_TAG;
@@ -490,10 +496,7 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
     ptSceneOut->tComponentLibrary.tHierarchyComponentManager.tComponentType = PL_COMPONENT_TYPE_HIERARCHY;
     ptSceneOut->tComponentLibrary.tHierarchyComponentManager.szStride = sizeof(plHierarchyComponent);
 
-    ptSceneOut->uDynamicBufferSize = pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536);
-    ptSceneOut->uDynamicBuffer0 = pl_create_constant_buffer_ex(ptResourceManager, ptSceneOut->uDynamicBufferSize, "renderer dynamic buffer 0");
-    ptSceneOut->uDynamicBuffer1 = pl_create_constant_buffer_ex(ptResourceManager, ptSceneOut->uDynamicBufferSize, "renderer dynamic buffer 1");
-    ptSceneOut->uDynamicBuffer2 = pl_create_constant_buffer_ex(ptResourceManager, ptSceneOut->uDynamicBufferSize, "renderer dynamic buffer 2");
+    ptSceneOut->uDynamicBuffer0 = pl_create_constant_buffer_ex(ptResourceManager, ptRenderer->ptGraphics->tResourceManager._uDynamicBufferSize, "renderer dynamic buffer 0");
 
     ptSceneOut->ptOutlineMaterialComponentManager = &ptSceneOut->tComponentLibrary.tOutlineMaterialComponentManager;
     ptSceneOut->ptTagComponentManager = &ptSceneOut->tComponentLibrary.tTagComponentManager;
@@ -637,6 +640,7 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
 void
 pl_reset_scene(plScene* ptScene)
 {
+    ptScene->bFirstEcsUpdate = true;
     ptScene->uDynamicBuffer0_Offset = 0;
 }
 
@@ -667,8 +671,8 @@ pl_draw_scene(plScene* ptScene)
             pl_sb_push(ptRenderer->sbtDraws, ((plDraw){
                 .uShaderVariant        = ptMaterial->uShaderVariant,
                 .ptMesh                = &ptSubmesh->tMesh,
-                .ptBindGroup1          = &ptMaterial->tMaterialBindGroup,
-                .ptBindGroup2          = &ptTransformComponent->tBindGroup2,
+                .ptBindGroup1          = &ptRenderer->sbtMaterialBindGroups[ptMaterial->uBindGroup1],
+                .ptBindGroup2          = &ptRenderer->sbtObjectBindGroups[ptTransformComponent->uBindGroup2],
                 .uDynamicBufferOffset1 = ptMaterial->uBufferOffset,
                 .uDynamicBufferOffset2 = ptTransformComponent->uBufferOffset
                 }));
@@ -681,8 +685,8 @@ pl_draw_scene(plScene* ptScene)
                 pl_sb_push(ptRenderer->sbtOutlineDraws, ((plDraw){
                     .uShaderVariant        = ptOutlineMaterial->uShaderVariant,
                     .ptMesh                = &ptSubmesh->tMesh,
-                    .ptBindGroup1          = &ptOutlineMaterial->tMaterialBindGroup,
-                    .ptBindGroup2          = &ptTransformComponent->tBindGroup2,
+                    .ptBindGroup1          = &ptRenderer->sbtMaterialBindGroups[ptMaterial->uBindGroup1],
+                    .ptBindGroup2          = &ptRenderer->sbtObjectBindGroups[ptTransformComponent->uBindGroup2],
                     .uDynamicBufferOffset1 = ptOutlineMaterial->uBufferOffset,
                     .uDynamicBufferOffset2 = ptTransformComponent->uBufferOffset
                     }));
@@ -722,11 +726,18 @@ pl_draw_scene(plScene* ptScene)
 void
 pl_scene_update_ecs(plScene* ptScene)
 {
+
     pl_ecs_update(ptScene, &ptScene->tComponentLibrary.tMaterialComponentManager);
     pl_ecs_update(ptScene, &ptScene->tComponentLibrary.tOutlineMaterialComponentManager);
-    pl_ecs_update(ptScene, &ptScene->tComponentLibrary.tObjectComponentManager); 
-    pl_ecs_update(ptScene, &ptScene->tComponentLibrary.tHierarchyComponentManager); 
-    pl_ecs_update(ptScene, &ptScene->tComponentLibrary.tTransformComponentManager); 
+
+    if(ptScene->bFirstEcsUpdate)
+    {
+        pl_ecs_update(ptScene, &ptScene->tComponentLibrary.tObjectComponentManager); 
+        pl_ecs_update(ptScene, &ptScene->tComponentLibrary.tHierarchyComponentManager); 
+        pl_ecs_update(ptScene, &ptScene->tComponentLibrary.tTransformComponentManager); 
+    }
+
+    ptScene->bFirstEcsUpdate = false;
 }
 
 void
@@ -1189,7 +1200,7 @@ pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
     case PL_COMPONENT_TYPE_TRANSFORM:
     {
         plTransformComponent* sbComponents = ptManager->pData;
-        pl_sb_push(sbComponents, ((plTransformComponent){.bDirty = true, .tWorld = pl_identity_mat4(), .tFinalTransform = pl_identity_mat4()}));
+        pl_sb_push(sbComponents, ((plTransformComponent){.tWorld = pl_identity_mat4(), .tFinalTransform = pl_identity_mat4()}));
         ptManager->pData = sbComponents;
         pl_sb_push(ptManager->sbtEntities, tEntity);
         return &pl_sb_back(sbComponents);
@@ -1198,7 +1209,7 @@ pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
     case PL_COMPONENT_TYPE_MATERIAL:
     {
         plMaterialComponent* sbComponents = ptManager->pData;
-        pl_sb_push(sbComponents, (plMaterialComponent){.bDirty = true});
+        pl_sb_push(sbComponents, (plMaterialComponent){0});
         ptManager->pData = sbComponents;
         pl_sb_push(ptManager->sbtEntities, tEntity);
         return &pl_sb_back(sbComponents);
@@ -1252,7 +1263,8 @@ void
 pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
 {
 
-    plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
+    plRenderer* ptRenderer = ptScene->ptRenderer;
+    plGraphics* ptGraphics = ptRenderer->ptGraphics;
     plResourceManager* ptResourceManager = &ptGraphics->tResourceManager;
 
     switch (ptManager->tComponentType)
@@ -1262,19 +1274,33 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
 
         VkSampleCountFlagBits tMSAASampleCount = ptScene->ptRenderTarget->bMSAA ? ptGraphics->tSwapchain.tMsaaSamples : VK_SAMPLE_COUNT_1_BIT;
         uint32_t* sbuTextures = NULL;
-        ptScene->uDynamicBuffer1_Offset = 0;
-        size_t szRangeSize = sizeof(plMaterialInfo);
 
+        size_t szRangeSize = pl_align_up(sizeof(plMaterialInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);
+        size_t szRangeSize2 = sizeof(plMaterialInfo);
         plMaterialComponent* sbtComponents = ptManager->pData;
 
-        const plBuffer* ptBuffer = &ptResourceManager->sbtBuffers[ptScene->uDynamicBuffer1];
+        const uint32_t uMaxMaterialsPerBuffer = (uint32_t)(ptResourceManager->_uDynamicBufferSize / (uint32_t)szRangeSize) - 1;
+        uint32_t uMaterialCount = pl_sb_size(sbtComponents);
+        const uint32_t uMinBuffersNeeded = (uint32_t)ceilf((float)uMaterialCount / (float)uMaxMaterialsPerBuffer);
+        uint32_t uCurrentMaterial = 0;
 
-        for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
+        for(uint32_t i = 0; i < uMinBuffersNeeded; i++)
         {
-            plMaterialComponent* ptMaterial = &sbtComponents[i];
+            uint32_t uDynamicBufferIndex = UINT32_MAX;
+            plDynamicBufferNode* ptDynamicBufferNode = NULL;
+            plBuffer* ptBuffer = NULL;
 
-            if(ptMaterial->bDirty)
+            if(ptScene->bMaterialsNeedUpdate)
             {
+                uDynamicBufferIndex = pl_request_dynamic_buffer(ptResourceManager);
+                ptDynamicBufferNode = &ptResourceManager->_sbtDynamicBufferList[uDynamicBufferIndex];
+                ptBuffer = &ptResourceManager->sbtBuffers[ptDynamicBufferNode->uDynamicBuffer];
+            }
+
+            uint32_t uIterationMaterialCount = pl_minu(uMaxMaterialsPerBuffer, uMaterialCount);
+            for(uint32_t j = 0; j < uIterationMaterialCount; j++)
+            {
+                plMaterialComponent* ptMaterial = &sbtComponents[uCurrentMaterial];
 
                 const uint32_t acShaderLookup[] = {
                     ptScene->ptRenderer->uMainShader,
@@ -1283,94 +1309,166 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
                 };
 
                 ptMaterial->uShader = acShaderLookup[ptMaterial->tShaderType];
-
                 pl_sb_push(sbuTextures, ptMaterial->uAlbedoMap);
                 pl_sb_push(sbuTextures, ptMaterial->uNormalMap);
                 pl_sb_push(sbuTextures, ptMaterial->uEmissiveMap);
-                ptMaterial->tMaterialBindGroup.tLayout = *pl_get_bind_group_layout(ptResourceManager, ptMaterial->uShader, 1);
-                pl_update_bind_group(ptGraphics, &ptMaterial->tMaterialBindGroup, 1, &ptScene->uDynamicBuffer1, &szRangeSize, pl_sb_size(sbuTextures), sbuTextures);
-            }
-                
-            // find variants
-            ptMaterial->uShaderVariant = UINT32_MAX;
 
-            // if(ptMaterial->bDoubleSided)    
-            ptMaterial->tGraphicsState.ulCullMode = ptMaterial->bDoubleSided ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
-            if(ptMaterial->uAlbedoMap > 0)   ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_0;
-            if(ptMaterial->uNormalMap > 0)   ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_1;
-            if(ptMaterial->uEmissiveMap > 0) ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_2;
-
-            const plShader* ptShader = &ptResourceManager->sbtShaders[ptMaterial->uShader];   
-            const uint32_t uVariantCount = pl_sb_size(ptShader->tDesc.sbtVariants);
-
-            for(uint32_t j = 0; j < uVariantCount; j++)
-            {
-                plGraphicsState ptVariant = ptShader->tDesc.sbtVariants[j].tGraphicsState;
-                if(ptVariant.ulValue == ptMaterial->tGraphicsState.ulValue 
-                    && ptShader->tDesc.sbtVariants[j].tRenderPass == ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass
-                    && tMSAASampleCount == ptShader->tDesc.sbtVariants[j].tMSAASampleCount)
+                if(ptScene->bMaterialsNeedUpdate)
                 {
-                        ptMaterial->uShaderVariant = ptShader->_sbuVariantPipelines[j];
-                        break;
+                    uint64_t uHashKey = pl_hm_hash(&ptMaterial->uShader, sizeof(uint32_t), 0);
+                    uHashKey = pl_hm_hash(&ptMaterial->uAlbedoMap, sizeof(uint32_t), uHashKey);
+                    uHashKey = pl_hm_hash(&ptMaterial->uNormalMap, sizeof(uint32_t), uHashKey);
+                    uHashKey = pl_hm_hash(&ptMaterial->uEmissiveMap, sizeof(uint32_t), uHashKey);
+
+                    // check if bind group for this buffer exist
+                    uint64_t uMaterialBindGroupIndex = pl_hm_lookup(&ptRenderer->tMaterialBindGroupdHashMap, uHashKey);
+
+                    if(uMaterialBindGroupIndex == UINT64_MAX) // doesn't exist
+                    {
+
+                        plBindGroup tNewBindGroup = {
+                            .tLayout = *pl_get_bind_group_layout(ptResourceManager, ptMaterial->uShader, 1)
+                        };
+                        pl_update_bind_group(ptGraphics, &tNewBindGroup, 1, &ptDynamicBufferNode->uDynamicBuffer, &szRangeSize2, pl_sb_size(sbuTextures), sbuTextures);
+
+                        // check for free index
+                        uMaterialBindGroupIndex = pl_hm_get_free_index(&ptRenderer->tMaterialBindGroupdHashMap);
+
+                        if(uMaterialBindGroupIndex == UINT64_MAX) // no free index
+                        {
+                            pl_sb_push(ptRenderer->sbtMaterialBindGroups, tNewBindGroup);
+                            uMaterialBindGroupIndex = pl_sb_size(ptRenderer->sbtMaterialBindGroups) - 1;
+                            pl_hm_insert(&ptRenderer->tMaterialBindGroupdHashMap, uHashKey, uMaterialBindGroupIndex);
+                        }
+                        else // resuse free index
+                        {
+                            ptRenderer->sbtMaterialBindGroups[uMaterialBindGroupIndex] = tNewBindGroup;
+                            pl_hm_insert(&ptRenderer->tMaterialBindGroupdHashMap, uHashKey, uMaterialBindGroupIndex);
+                        }  
+                    }
+                    ptMaterial->uBindGroup1 = uMaterialBindGroupIndex;
+
+                    plMaterialInfo* ptMaterialInfo = (plMaterialInfo*)(ptBuffer->pucMapping + ptDynamicBufferNode->uDynamicBufferOffset);
+                    ptMaterialInfo->tAlbedo = ptMaterial->tAlbedo;
+                    ptMaterial->uBufferOffset = ptDynamicBufferNode->uDynamicBufferOffset;
+                    ptDynamicBufferNode->uDynamicBufferOffset += (uint32_t)szRangeSize;
                 }
+                    
+                // find variants
+                ptMaterial->uShaderVariant = UINT32_MAX;
+
+                ptMaterial->tGraphicsState.ulCullMode = ptMaterial->bDoubleSided ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
+                if(ptMaterial->uAlbedoMap > 0)   ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_0;
+                if(ptMaterial->uNormalMap > 0)   ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_1;
+                if(ptMaterial->uEmissiveMap > 0) ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_2;
+
+                const plShader* ptShader = &ptResourceManager->sbtShaders[ptMaterial->uShader];   
+                const uint32_t uVariantCount = pl_sb_size(ptShader->tDesc.sbtVariants);
+
+                for(uint32_t k = 0; k < uVariantCount; k++)
+                {
+                    plGraphicsState ptVariant = ptShader->tDesc.sbtVariants[k].tGraphicsState;
+                    if(ptVariant.ulValue == ptMaterial->tGraphicsState.ulValue 
+                        && ptShader->tDesc.sbtVariants[k].tRenderPass == ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass
+                        && tMSAASampleCount == ptShader->tDesc.sbtVariants[k].tMSAASampleCount)
+                    {
+                            ptMaterial->uShaderVariant = ptShader->_sbuVariantPipelines[k];
+                            break;
+                    }
+                }
+
+                // create variant that matches texture count, vertex stream, and culling
+                if(ptMaterial->uShaderVariant == UINT32_MAX)
+                {
+                    ptMaterial->uShaderVariant = pl_add_shader_variant(ptResourceManager, ptMaterial->uShader, ptMaterial->tGraphicsState, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
+                }
+                
+                pl_sb_reset(sbuTextures);
+
+                uCurrentMaterial++;
             }
+            uMaterialCount = uMaterialCount - uIterationMaterialCount;
+            // pl_sb_push(ptRenderer->sbuDynamicBufferDeletionQueue, uDynamicBufferIndex);
 
-            // create variant that matches texture count, vertex stream, and culling
-            if(ptMaterial->uShaderVariant == UINT32_MAX)
-            {
-                ptMaterial->uShaderVariant = pl_add_shader_variant(ptResourceManager, ptMaterial->uShader, ptMaterial->tGraphicsState, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
-            }
-            
-            ptMaterial->bDirty = false;
-            pl_sb_reset(sbuTextures);
-
-            const uint32_t uBufferFrameOffset = ((uint32_t)ptBuffer->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex;
-
-            plMaterialInfo* ptMaterialInfo = (plMaterialInfo*)(ptBuffer->pucMapping + ptScene->uDynamicBuffer1_Offset + uBufferFrameOffset);
-            ptMaterialInfo->tAlbedo = ptMaterial->tAlbedo;
-
-            ptMaterial->uBufferOffset = ((uint32_t)ptBuffer->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer1_Offset;
-
-            ptScene->uDynamicBuffer1_Offset = (uint32_t)pl_align_up((size_t)ptScene->uDynamicBuffer1_Offset + sizeof(plMaterialInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);   
+            if(uMaterialCount == 0)
+                break;
         }
+
+        ptScene->bMaterialsNeedUpdate = false;
         break;
     }
 
     case PL_COMPONENT_TYPE_TRANSFORM:
     {
-        ptScene->uDynamicBuffer2_Offset = 0;
-        size_t szRangeSize = sizeof(plTransformComponent);
-
+        size_t szRangeSize = pl_align_up(sizeof(plObjectInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);
         plTransformComponent* sbtComponents = ptManager->pData;
 
-        const plBuffer* ptBuffer = &ptResourceManager->sbtBuffers[ptScene->uDynamicBuffer2];
+        const uint32_t uMaxObjectsPerBuffer = (uint32_t)(ptResourceManager->_uDynamicBufferSize / (uint32_t)szRangeSize) - 1;
+        uint32_t uObjectCount = pl_sb_size(sbtComponents);
+        const uint32_t uMinBuffersNeeded = (uint32_t)ceilf((float)uObjectCount / (float)uMaxObjectsPerBuffer);
+        uint32_t uCurrentTransform = 0;
 
-        for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
+        const plBindGroupLayout tGroupLayout2 = {
+            .uBufferCount = 1,
+            .aBuffers      = {
+                { .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .uSlot = 0, .tStageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT}  
+            }
+        };
+        size_t szRangeSize2 = sizeof(plObjectInfo);
+
+        for(uint32_t i = 0; i < uMinBuffersNeeded; i++)
         {
-            plTransformComponent* ptTransform = &sbtComponents[i];
+            const uint32_t uDynamicBufferIndex = pl_request_dynamic_buffer(ptResourceManager);
+            plDynamicBufferNode* ptDynamicBufferNode = &ptResourceManager->_sbtDynamicBufferList[uDynamicBufferIndex];
+            plBuffer* ptBuffer = &ptResourceManager->sbtBuffers[ptDynamicBufferNode->uDynamicBuffer];
 
-            if(ptTransform->bDirty)
+            const uint64_t uHashKey = pl_hm_hash(&uDynamicBufferIndex, sizeof(uint64_t), 0);
+
+            // check if bind group for this buffer exist
+            uint64_t uObjectBindGroupIndex = pl_hm_lookup(&ptRenderer->tObjectBindGroupdHashMap, uHashKey);
+
+            if(uObjectBindGroupIndex == UINT64_MAX) // doesn't exist
             {
-                const plBindGroupLayout tGroupLayout2 = {
-                    .uBufferCount = 1,
-                    .aBuffers      = {
-                        { .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .uSlot = 0, .tStageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT}  
-                    }
+                plBindGroup tNewBindGroup = {
+                    .tLayout = tGroupLayout2
                 };
-                ptTransform->tBindGroup2.tLayout = tGroupLayout2;
-                pl_update_bind_group(ptGraphics, &ptTransform->tBindGroup2, 1, &ptScene->uDynamicBuffer2, &szRangeSize, 0, NULL);
-                ptTransform->bDirty = false;
+                pl_update_bind_group(ptGraphics, &tNewBindGroup, 1, &ptDynamicBufferNode->uDynamicBuffer, &szRangeSize2, 0, NULL);
+
+                // check for free index
+                uObjectBindGroupIndex = pl_hm_get_free_index(&ptRenderer->tObjectBindGroupdHashMap);
+
+                if(uObjectBindGroupIndex == UINT64_MAX) // no free index
+                {
+                    pl_sb_push(ptRenderer->sbtObjectBindGroups, tNewBindGroup);
+                    uObjectBindGroupIndex = pl_sb_size(ptRenderer->sbtObjectBindGroups) - 1;
+                    pl_hm_insert(&ptRenderer->tObjectBindGroupdHashMap, uHashKey, uObjectBindGroupIndex);
+                }
+                else // resuse free index
+                {
+                    ptRenderer->sbtObjectBindGroups[uObjectBindGroupIndex] = tNewBindGroup;
+                    pl_hm_insert(&ptRenderer->tObjectBindGroupdHashMap, uHashKey, uObjectBindGroupIndex);
+                }  
             }
 
-            const uint32_t uBufferFrameOffset = ((uint32_t)ptBuffer->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex;
+            uint32_t uIterationObjectCount = pl_minu(uMaxObjectsPerBuffer, uObjectCount);
+            for(uint32_t j = 0; j < uIterationObjectCount; j++)
+            {
+                plTransformComponent* ptTransform = &sbtComponents[uCurrentTransform];
+                ptTransform->uBindGroup2 = uObjectBindGroupIndex;
 
-            plObjectInfo* ptObjectInfo = (plObjectInfo*)(ptBuffer->pucMapping + ptScene->uDynamicBuffer2_Offset + uBufferFrameOffset);
-            *ptObjectInfo = ptTransform->tInfo;
-            ptObjectInfo->tModel = ptTransform->tFinalTransform;
+                plObjectInfo* ptObjectInfo = (plObjectInfo*)(ptBuffer->pucMapping + ptDynamicBufferNode->uDynamicBufferOffset);
+                *ptObjectInfo = ptTransform->tInfo;
+                ptObjectInfo->tModel = ptTransform->tFinalTransform;
+                ptTransform->uBufferOffset = ptDynamicBufferNode->uDynamicBufferOffset;
+                ptDynamicBufferNode->uDynamicBufferOffset += (uint32_t)szRangeSize;
+                uCurrentTransform++;
+            }
+            uObjectCount = uObjectCount - uIterationObjectCount;
 
-            ptTransform->uBufferOffset = uBufferFrameOffset + ptScene->uDynamicBuffer2_Offset;
+            pl_sb_push(ptResourceManager->_sbuDynamicBufferDeletionQueue, uDynamicBufferIndex);
 
-            ptScene->uDynamicBuffer2_Offset = (uint32_t)pl_align_up((size_t)ptScene->uDynamicBuffer2_Offset + sizeof(plObjectInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);   
+            if(uObjectCount == 0)
+                break;
         }
         break;
     }
@@ -1422,7 +1520,6 @@ pl__ecs_create_outline_material(plScene* ptScene, plEntity tEntity)
 
     plMaterialComponent* ptMaterial = pl_ecs_create_component(&ptScene->tComponentLibrary.tOutlineMaterialComponentManager, tEntity);
     memset(ptMaterial, 0, sizeof(plMaterialComponent));
-    ptMaterial->bDirty                              = true;
     ptMaterial->uShader                             = UINT32_MAX;
     ptMaterial->tAlbedo                             = (plVec4){ 1.0f, 1.0f, 1.0f, 1.0f };
     ptMaterial->fAlphaCutoff                        = 0.1f;
@@ -1464,7 +1561,6 @@ pl_ecs_create_material(plScene* ptScene, const char* pcName)
 
     plMaterialComponent* ptMaterial = pl_ecs_create_component(&ptScene->tComponentLibrary.tMaterialComponentManager, tNewEntity);
     memset(ptMaterial, 0, sizeof(plMaterialComponent));
-    ptMaterial->bDirty = true;
     ptMaterial->uShader = UINT32_MAX;
     ptMaterial->tAlbedo = (plVec4){ 1.0f, 1.0f, 1.0f, 1.0f };
     ptMaterial->fAlphaCutoff = 0.1f;
@@ -1509,7 +1605,6 @@ pl_ecs_create_object(plScene* ptScene, const char* pcName)
 
     plTransformComponent* ptTransform = pl_ecs_create_component(&ptScene->tComponentLibrary.tTransformComponentManager, tNewEntity);
     memset(ptTransform, 0, sizeof(plTransformComponent));
-    ptTransform->bDirty = true;
     ptTransform->tInfo.tModel = pl_identity_mat4();
     ptTransform->tWorld = pl_identity_mat4();
 
@@ -1542,7 +1637,6 @@ pl_ecs_create_transform(plScene* ptScene, const char* pcName)
 
     plTransformComponent* ptTransform = pl_ecs_create_component(&ptScene->tComponentLibrary.tTransformComponentManager, tNewEntity);
     memset(ptTransform, 0, sizeof(plTransformComponent));
-    ptTransform->bDirty = true;
     ptTransform->tInfo.tModel = pl_identity_mat4();
     ptTransform->tWorld = pl_identity_mat4();
 
@@ -1728,3 +1822,7 @@ pl_camera_update(plCameraComponent* ptCamera)
     ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
     ptCamera->tProjMat.col[3].w = 0.0f;     
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal implementations
+//-----------------------------------------------------------------------------

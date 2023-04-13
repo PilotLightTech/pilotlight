@@ -35,7 +35,6 @@ Index of this file:
     #define PL_INVALID_ENTITY_HANDLE 0
 #endif
 
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -230,10 +229,9 @@ typedef struct _plTransformComponent
     plMat4 tFinalTransform;
     plMat4 tWorld;
 
-    plBindGroup tBindGroup2;
-    uint32_t    uBufferOffset;
+    uint64_t     uBindGroup2;
+    uint32_t     uBufferOffset;
     plObjectInfo tInfo;
-    bool         bDirty;
 } plTransformComponent;
 
 typedef struct _plSubMesh
@@ -281,12 +279,11 @@ typedef struct _plMaterialComponent
     uint32_t        uShader;
     uint32_t        uShaderVariant;
     plGraphicsState tGraphicsState;
-    plBindGroup     tMaterialBindGroup;
+    uint64_t        uBindGroup1;
     uint64_t        ulShaderTextureFlags;
 
     // internal
     uint32_t    uBufferOffset;
-    bool        bDirty;
 } plMaterialComponent;
 
 typedef struct _plCameraComponent
@@ -339,6 +336,8 @@ typedef struct _plScene
     float*                   sbfStorageBuffer;
     uint32_t                 uGlobalStorageBuffer;
     plBindGroup              tGlobalBindGroup;
+    bool                     bFirstEcsUpdate;
+    bool                     bMaterialsNeedUpdate;
 
     // skybox
     plBindGroup     tSkyboxBindGroup0;
@@ -346,32 +345,34 @@ typedef struct _plScene
     
     plMeshComponent tSkyboxMesh;
     
-    uint32_t            uDynamicBufferSize;
-    uint32_t            uDynamicBuffer0_Offset;
-    uint32_t            uDynamicBuffer1_Offset;
-    uint32_t            uDynamicBuffer2_Offset;
-    uint32_t            uDynamicBuffer0;
-    uint32_t            uDynamicBuffer1;
-    uint32_t            uDynamicBuffer2;
-    plComponentLibrary  tComponentLibrary;
-    plComponentManager* ptTagComponentManager;
-    plComponentManager* ptTransformComponentManager;
-    plComponentManager* ptMeshComponentManager;
-    plComponentManager* ptMaterialComponentManager;
-    plComponentManager* ptOutlineMaterialComponentManager;
-    plComponentManager* ptObjectComponentManager;
-    plComponentManager* ptCameraComponentManager;
-    plComponentManager* ptHierarchyComponentManager;
+    
+    uint32_t             uDynamicBuffer0_Offset;
+    uint32_t             uDynamicBuffer0;
+    plComponentLibrary   tComponentLibrary;
+    plComponentManager*  ptTagComponentManager;
+    plComponentManager*  ptTransformComponentManager;
+    plComponentManager*  ptMeshComponentManager;
+    plComponentManager*  ptMaterialComponentManager;
+    plComponentManager*  ptOutlineMaterialComponentManager;
+    plComponentManager*  ptObjectComponentManager;
+    plComponentManager*  ptCameraComponentManager;
+    plComponentManager*  ptHierarchyComponentManager;
 } plScene;
 
 typedef struct _plRenderer
 {
-    plGraphics*              ptGraphics;
-    plEntity*                sbtObjectEntities;
-    
-    
-    size_t                   tNextEntity;
-    uint32_t                 uLogChannel;
+    plGraphics* ptGraphics;
+    plEntity*   sbtObjectEntities;
+    size_t   tNextEntity;
+    uint32_t uLogChannel;
+
+    // material bind groups
+    plBindGroup*         sbtMaterialBindGroups;
+    plHashMap            tMaterialBindGroupdHashMap;
+
+    // object bind groups
+    plBindGroup*         sbtObjectBindGroups;
+    plHashMap            tObjectBindGroupdHashMap;
 
     // draw stream
     plDraw*     sbtDraws;

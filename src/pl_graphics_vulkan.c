@@ -759,6 +759,12 @@ pl_update_bind_group(plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBuf
     pl_sb_resize(sbtBufferDescInfos, uBufferCount);
     pl_sb_resize(sbtImageDescInfos, uTextureViewCount);
 
+    static const VkDescriptorType atDescriptorTypeLUT[] =
+    {
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    };
+
     uint32_t uCurrentWrite = 0;
     for(uint32_t i = 0 ; i < uBufferCount; i++)
     {
@@ -772,7 +778,7 @@ pl_update_bind_group(plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBuf
         sbtWrites[uCurrentWrite].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         sbtWrites[uCurrentWrite].dstBinding      = ptGroup->tLayout.aBuffers[i].uSlot;
         sbtWrites[uCurrentWrite].dstArrayElement = 0;
-        sbtWrites[uCurrentWrite].descriptorType  = ptGroup->tLayout.aBuffers[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        sbtWrites[uCurrentWrite].descriptorType  = atDescriptorTypeLUT[ptGroup->tLayout.aBuffers[i].tType - 1];
         sbtWrites[uCurrentWrite].descriptorCount = 1;
         sbtWrites[uCurrentWrite].dstSet          = ptGroup->_tDescriptorSet;
         sbtWrites[uCurrentWrite].pBufferInfo     = &sbtBufferDescInfos[i];
@@ -816,9 +822,7 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
     static VkDeviceSize tOffsets = { 0 };
     vkCmdSetDepthBias(ptCurrentFrame->tCmdBuf, 0.0f, 0.0f, 0.0f);
 
-    VkDescriptorSet tCurrentBindGroup0 = VK_NULL_HANDLE;
-    VkDescriptorSet tCurrentBindGroup1 = VK_NULL_HANDLE;
-    VkDescriptorSet tCurrentBindGroup2 = VK_NULL_HANDLE;
+    plBindGroup* ptCurrentBindGroup0 = NULL;
     uint32_t uCurrentVariant = UINT32_MAX;
     uint32_t uCurrentIndexBuffer = UINT32_MAX;
     uint32_t uCurrentVertexBuffer = UINT32_MAX;
@@ -855,10 +859,10 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
             }
 
             // bind group (set 0)
-            if(ptArea->ptBindGroup0 && tCurrentBindGroup0 != ptArea->ptBindGroup0->_tDescriptorSet)
+            if(ptArea->ptBindGroup0 && ptArea->ptBindGroup0 != ptCurrentBindGroup0)
             {
-                vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVariant->tPipelineLayout, 0, 1, &ptArea->ptBindGroup0->_tDescriptorSet, 1, &ptArea->uDynamicBufferOffset0);
-                tCurrentBindGroup0 = ptArea->ptBindGroup0->_tDescriptorSet;
+                ptCurrentBindGroup0 = ptArea->ptBindGroup0;
+                vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVariant->tPipelineLayout, 0, 1, &ptCurrentBindGroup0->_tDescriptorSet, 1, &ptArea->uDynamicBufferOffset0); 
             }
 
             // bind groups (sets 1 & 2)
@@ -867,19 +871,17 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
             uint32_t uSetCounter = 0;
             uint32_t uFirstSet = 0;
 
-            if(ptDraw->ptBindGroup1 && tCurrentBindGroup1 != ptDraw->ptBindGroup1->_tDescriptorSet)
+            if(ptDraw->ptBindGroup1)
             {
-                tCurrentBindGroup1 = ptDraw->ptBindGroup1->_tDescriptorSet;
                 auDynamicOffsets[uSetCounter] = ptDraw->uDynamicBufferOffset1;
-                atUpdateSets[uSetCounter++] = tCurrentBindGroup1;
+                atUpdateSets[uSetCounter++] = ptDraw->ptBindGroup1->_tDescriptorSet;
                 uFirstSet = 1;
             }
 
-            if(ptDraw->ptBindGroup2 && tCurrentBindGroup2 != ptDraw->ptBindGroup2->_tDescriptorSet)
+            if(ptDraw->ptBindGroup2)
             {
-                tCurrentBindGroup2 = ptDraw->ptBindGroup2->_tDescriptorSet;
                 auDynamicOffsets[uSetCounter] = ptDraw->uDynamicBufferOffset2;
-                atUpdateSets[uSetCounter++] = tCurrentBindGroup2;
+                atUpdateSets[uSetCounter++] = ptDraw->ptBindGroup2->_tDescriptorSet;
                 uFirstSet = uFirstSet == 0 ? 2 : 1;
             }
 
@@ -900,6 +902,16 @@ pl_process_cleanup_queue(plResourceManager* ptResourceManager, uint32_t uFramesT
 
     const VkDevice tDevice = ptResourceManager->_ptDevice->tLogicalDevice;
     plGraphics* ptGraphics = ptResourceManager->_ptGraphics;
+
+    for(uint32_t i = 2; i < pl_sb_size(ptResourceManager->_sbuDynamicBufferDeletionQueue); i++)
+    {
+        uint32_t uNodeToFree = ptResourceManager->_sbuDynamicBufferDeletionQueue[i];
+        if(ptResourceManager->_sbtDynamicBufferList[uNodeToFree].uLastActiveFrame == ptGraphics->szCurrentFrameIndex)
+        {
+            pl_return_dynamic_buffer(ptResourceManager, uNodeToFree);
+            pl_sb_del_swap(ptResourceManager->_sbuDynamicBufferDeletionQueue, i);
+        }
+    }
 
     // buffer cleanup
     pl_sb_reset(ptResourceManager->_sbulTempQueue);
@@ -1520,6 +1532,58 @@ pl_create_texture_view(plResourceManager* ptResourceManager, const plTextureView
     }
 
     return ulTextureViewIndex;
+}
+
+uint32_t
+pl_request_dynamic_buffer(plResourceManager* ptResourceManager)
+{
+
+    plDynamicBufferNode* sbtNodes = ptResourceManager->_sbtDynamicBufferList;
+    uint32_t n = 0;
+
+    if (sbtNodes[1].uNext != 1) // check free list
+    {
+        n = sbtNodes[1].uNext;
+        sbtNodes[n].uLastActiveFrame = (uint32_t)ptResourceManager->_ptGraphics->szCurrentFrameIndex;
+
+        // remove from free list
+        sbtNodes[sbtNodes[n].uNext].uPrev = sbtNodes[n].uPrev;
+        sbtNodes[sbtNodes[n].uPrev].uNext = sbtNodes[n].uNext;
+    }
+    else  // add new node
+    {
+        pl_sb_resize(sbtNodes, pl_sb_size(sbtNodes) + 1); //-V1004
+        n = pl_sb_size(sbtNodes) - 1;
+        ptResourceManager->_sbtDynamicBufferList = sbtNodes; // just incase realloc occurs
+        sbtNodes[n].uDynamicBufferOffset = 0;
+        sbtNodes[n].uLastActiveFrame = (uint32_t)ptResourceManager->_ptGraphics->szCurrentFrameIndex;
+
+        // add node to list
+        sbtNodes[n].uNext = sbtNodes[0].uNext;
+        sbtNodes[n].uPrev = 0;
+        sbtNodes[sbtNodes[n].uNext].uPrev = n;
+        sbtNodes[sbtNodes[n].uPrev].uNext = n;
+
+        pl_log_info_to(ptResourceManager->_ptGraphics->uLogChannel, "creating new dynamic buffer");
+        sbtNodes[n].uDynamicBuffer = pl_create_constant_buffer_ex(ptResourceManager, ptResourceManager->_uDynamicBufferSize, "temp dynamic buffer");
+
+    }
+    return n;
+}
+
+void
+pl_return_dynamic_buffer(plResourceManager* ptResourceManager, uint32_t uNodeIndex)
+{
+    // add node to free list
+    plDynamicBufferNode* sbtNodes = ptResourceManager->_sbtDynamicBufferList;
+    plDynamicBufferNode* ptNode = &sbtNodes[uNodeIndex];
+    plDynamicBufferNode* ptFreeNode = &sbtNodes[1];
+    ptNode->uNext = ptFreeNode->uNext;
+    ptNode->uPrev = 1;
+    ptNode->uDynamicBufferOffset = 0;
+    ptNode->uLastActiveFrame = 0;
+    sbtNodes[ptNode->uNext].uPrev = uNodeIndex;
+    ptFreeNode->uNext = uNodeIndex;
 }
 
 uint32_t
@@ -2697,6 +2761,12 @@ pl__create_resource_manager(plGraphics* ptGraphics, plDevice* ptDevice, plResour
 {
     ptResourceManagerOut->_ptGraphics = ptGraphics;
     ptResourceManagerOut->_ptDevice = ptDevice;
+    ptResourceManagerOut->_uDynamicBufferSize = pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536);
+
+    const plDynamicBufferNode tDummyNode0 = {0, 0};
+    const plDynamicBufferNode tDummyNode1 = {1, 1};
+    pl_sb_push(ptResourceManagerOut->_sbtDynamicBufferList, tDummyNode0);
+    pl_sb_push(ptResourceManagerOut->_sbtDynamicBufferList, tDummyNode1);
 }
 
 static void
