@@ -3,8 +3,8 @@
 */
 
 // library version
-#define PL_UI_VERSION    "0.6.3"
-#define PL_UI_VERSION_NUM 00603
+#define PL_UI_VERSION    "0.7.0"
+#define PL_UI_VERSION_NUM 00700
 
 /*
 Index of this file:
@@ -83,6 +83,11 @@ void           pl_ui_set_default_font(plFont* ptFont);
 bool           pl_ui_begin_window(const char* pcName, bool* pbOpen, bool bAutoSize);
 void           pl_ui_end_window  (void);
 
+// window utilities
+plDrawLayer*   pl_ui_get_window_fg_drawlayer(void); // returns current window foreground drawlist (call between pl_ui_begin_window(...) & pl_ui_end_window(...))
+plDrawLayer*   pl_ui_get_window_bg_drawlayer(void); // returns current window background drawlist (call between pl_ui_begin_window(...) & pl_ui_end_window(...))
+plVec2         pl_ui_get_cursor_pos(void);          // returns current cursor position (where the next widget will start drawing)
+
 // child windows
 // - only call "pl_ui_end_child()" if "pl_ui_begin_child()" returns true (its call automatically if false)
 // - self-contained window with scrolling & clipping
@@ -108,12 +113,14 @@ void           pl_ui_set_next_window_collapse(bool bCollapsed, plUiConditionFlag
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~widgets~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 // main
-bool           pl_ui_button      (const char* pcText);
-bool           pl_ui_selectable  (const char* pcText, bool* bpValue);
-bool           pl_ui_checkbox    (const char* pcText, bool* pbValue);
-bool           pl_ui_radio_button(const char* pcText, int* piValue, int iButtonValue);
-void           pl_ui_image       (plTextureId tTexture, plVec2 tSize);
-void           pl_ui_image_ex    (plTextureId tTexture, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor);
+bool           pl_ui_button          (const char* pcText);
+bool           pl_ui_selectable      (const char* pcText, bool* bpValue);
+bool           pl_ui_checkbox        (const char* pcText, bool* pbValue);
+bool           pl_ui_radio_button    (const char* pcText, int* piValue, int iButtonValue);
+void           pl_ui_image           (plTextureId tTexture, plVec2 tSize);
+void           pl_ui_image_ex        (plTextureId tTexture, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor);
+bool           pl_ui_invisible_button(const char* pcText, plVec2 tSize);
+void           pl_ui_dummy           (plVec2 tSize);
 
 // plotting
 void           pl_ui_progress_bar(float fFraction, plVec2 tSize, const char* pcOverlay);
@@ -178,7 +185,7 @@ void           pl_ui_layout_dynamic(float fHeight, uint32_t uWidgetCount);
 void           pl_ui_layout_static(float fHeight, float fWidth, uint32_t uWidgetCount);
 
 // layout system 3
-// - allows user to change the with per widget
+// - allows user to change the width per widget
 // - if tType=PL_UI_LAYOUT_ROW_TYPE_STATIC, then fWidth is pixel width
 // - if tType=PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, then fWidth is a ratio of the available width
 // - does not wrap
