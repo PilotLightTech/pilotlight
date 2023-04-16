@@ -548,6 +548,147 @@ pl_add_rect_filled(plDrawLayer* layer, plVec2 minP, plVec2 maxP, plVec4 color)
     pl__add_index(layer, vertexStart, 0, 2, 3);
 }
 
+// segments is the number of segments used to approximate one corner
+void
+pl_add_rect_rounded(plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments)
+{
+    if(uSegments == 0){ uSegments = 3; }
+    const float fIncrement = PL_PI_2 / uSegments;
+    float fTheta = 0.0f;
+
+
+    const plVec2 bottomRightStart = { tMaxP.x, tMaxP.y - fRadius };
+    const plVec2 bottomRightInner = { tMaxP.x - fRadius, tMaxP.y - fRadius };
+    const plVec2 bottomRightEnd   = { tMaxP.x - fRadius, tMaxP.y };
+
+    const plVec2 bottomLeftStart  = { tMinP.x + fRadius, tMaxP.y };
+    const plVec2 bottomLeftInner  = { tMinP.x + fRadius, tMaxP.y - fRadius };
+    const plVec2 bottomLeftEnd    = { tMinP.x , tMaxP.y - fRadius};
+ 
+    const plVec2 topLeftStart     = { tMinP.x, tMinP.y + fRadius };
+    const plVec2 topLeftInner     = { tMinP.x + fRadius, tMinP.y + fRadius };
+    const plVec2 topLeftEnd       = { tMinP.x + fRadius, tMinP.y };
+
+    const plVec2 topRightStart    = { tMaxP.x - fRadius, tMinP.y };
+    const plVec2 topRightInner    = { tMaxP.x - fRadius, tMinP.y + fRadius };
+    const plVec2 topRightEnd      = { tMaxP.x, tMinP.y + fRadius };
+    
+    pl_sb_push(ptLayer->sbPath, bottomRightStart);
+    fTheta += fIncrement;
+    for(uint32_t i = 1; i < uSegments; i++)
+    {
+        pl_sb_push(ptLayer->sbPath, ((plVec2){bottomRightInner.x + fRadius * sinf(fTheta + PL_PI_2), bottomRightInner.y + fRadius * sinf(fTheta)}));
+        fTheta += fIncrement;
+    }
+    pl_sb_push(ptLayer->sbPath, bottomRightEnd);
+
+    pl_sb_push(ptLayer->sbPath, bottomLeftStart);
+    fTheta += fIncrement;
+    for(uint32_t i = 1; i < uSegments; i++)
+    {
+        pl_sb_push(ptLayer->sbPath, ((plVec2){bottomLeftInner.x + fRadius * sinf(fTheta + PL_PI_2), bottomLeftInner.y + fRadius * sinf(fTheta)}));
+        fTheta += fIncrement;
+    }
+    pl_sb_push(ptLayer->sbPath, bottomLeftEnd);
+
+    pl_sb_push(ptLayer->sbPath, topLeftStart);
+    fTheta += fIncrement;
+    for(uint32_t i = 1; i < uSegments; i++)
+    {
+        pl_sb_push(ptLayer->sbPath, ((plVec2){topLeftInner.x + fRadius * sinf(fTheta + PL_PI_2), topLeftInner.y + fRadius * sinf(fTheta)}));
+        fTheta += fIncrement;
+    }
+    pl_sb_push(ptLayer->sbPath, topLeftEnd);
+
+    pl_sb_push(ptLayer->sbPath, topRightStart);
+    fTheta += fIncrement;
+    for(uint32_t i = 1; i < uSegments; i++)
+    {
+        pl_sb_push(ptLayer->sbPath, ((plVec2){topRightInner.x + fRadius * sinf(fTheta + PL_PI_2), topRightInner.y + fRadius * sinf(fTheta)}));
+        fTheta += fIncrement;
+    }
+    pl_sb_push(ptLayer->sbPath, topRightEnd);
+
+    pl_sb_push(ptLayer->sbPath, bottomRightStart);
+
+    pl__submit_path(ptLayer, tColor, fThickness);
+}
+
+// segments is the number of segments used to approximate one corner
+void
+pl_add_rect_rounded_filled(plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments)
+{
+    if(uSegments == 0){ uSegments = 3; }
+    const uint32_t numTriangles = (uSegments * 4 + 4); //number segments in midpoint circle, plus square
+    pl__prepare_draw_command(ptLayer, ptLayer->drawlist->ctx->fontAtlas->texture, false);
+    pl__reserve_triangles(ptLayer, numTriangles, numTriangles + 1);
+
+    const uint32_t uVertexStart = pl_sb_size(ptLayer->drawlist->sbVertexBuffer);
+
+    const float fIncrement = PL_PI_2 / uSegments;
+    float fTheta = 0.0f;
+
+    const plVec2 bottomRightStart = { tMaxP.x, tMaxP.y - fRadius };
+    const plVec2 bottomRightInner = { tMaxP.x - fRadius, tMaxP.y - fRadius };
+    const plVec2 bottomRightEnd   = { tMaxP.x - fRadius, tMaxP.y };
+
+    const plVec2 bottomLeftStart  = { tMinP.x + fRadius, tMaxP.y };
+    const plVec2 bottomLeftInner  = { tMinP.x + fRadius, tMaxP.y - fRadius };
+    const plVec2 bottomLeftEnd    = { tMinP.x , tMaxP.y - fRadius};
+ 
+    const plVec2 topLeftStart     = { tMinP.x, tMinP.y + fRadius };
+    const plVec2 topLeftInner     = { tMinP.x + fRadius, tMinP.y + fRadius };
+    const plVec2 topLeftEnd       = { tMinP.x + fRadius, tMinP.y };
+
+    const plVec2 topRightStart    = { tMaxP.x - fRadius, tMinP.y };
+    const plVec2 topRightInner    = { tMaxP.x - fRadius, tMinP.y + fRadius };
+    const plVec2 topRightEnd      = { tMaxP.x, tMinP.y + fRadius };
+
+    const plVec2 midPoint = {(tMaxP.x-tMinP.x)/2 + tMinP.x, (tMaxP.y-tMinP.y)/2 + tMinP.y};
+    pl__add_vertex(ptLayer, midPoint, tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]});
+
+    pl__add_vertex(ptLayer, bottomRightStart, tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]});
+    fTheta += fIncrement;
+    for(uint32_t i = 1; i < uSegments; i++)
+    {
+        pl__add_vertex(ptLayer, ((plVec2){bottomRightInner.x + fRadius * sinf(fTheta + PL_PI_2), bottomRightInner.y + fRadius * sinf(fTheta)}), tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]});
+        fTheta += fIncrement;
+    }
+    pl__add_vertex(ptLayer, bottomRightEnd, tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]});
+
+    pl__add_vertex(ptLayer, bottomLeftStart, tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]});
+    fTheta += fIncrement;
+    for(uint32_t i = 1; i < uSegments; i++)
+    {
+        pl__add_vertex(ptLayer, ((plVec2){bottomLeftInner.x + fRadius * sinf(fTheta + PL_PI_2), bottomLeftInner.y + fRadius * sinf(fTheta)}), tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]});
+        fTheta += fIncrement;
+    }
+    pl__add_vertex(ptLayer, bottomLeftEnd, tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]});
+
+    pl__add_vertex(ptLayer, topLeftStart, tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]});
+    fTheta += fIncrement;
+    for(uint32_t i = 1; i < uSegments; i++)
+    {
+        pl__add_vertex(ptLayer, ((plVec2){topLeftInner.x + fRadius * sinf(fTheta + PL_PI_2), topLeftInner.y + fRadius * sinf(fTheta)}), tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]});
+        fTheta += fIncrement;
+    }
+    pl__add_vertex(ptLayer, topLeftEnd, tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]});
+
+    pl__add_vertex(ptLayer, topRightStart, tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]});
+    fTheta += fIncrement;
+    for(uint32_t i = 1; i < uSegments; i++)
+    {
+        pl__add_vertex(ptLayer, ((plVec2){topRightInner.x + fRadius * sinf(fTheta + PL_PI_2), topRightInner.y + fRadius * sinf(fTheta)}), tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]});
+        fTheta += fIncrement;
+    }
+    pl__add_vertex(ptLayer, topRightEnd, tColor, (plVec2){ptLayer->drawlist->ctx->fontAtlas->whiteUv[0], ptLayer->drawlist->ctx->fontAtlas->whiteUv[1]});
+
+    for(uint32_t i = 0; i < numTriangles - 1; i++)
+        pl__add_index(ptLayer, uVertexStart, i + 1, 0, i + 2);
+    pl__add_index(ptLayer, uVertexStart, numTriangles, 0, 1);
+
+}
+
 void
 pl_add_quad(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness)
 {
