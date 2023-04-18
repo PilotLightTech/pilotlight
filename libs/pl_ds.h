@@ -4,8 +4,8 @@
 */
 
 // library version
-#define PL_DS_VERSION    "0.4.0"
-#define PL_DS_VERSION_NUM 00400
+#define PL_DS_VERSION    "0.4.1"
+#define PL_DS_VERSION_NUM 00401
 
 /*
 Index of this file:
@@ -462,10 +462,10 @@ pl_hm_insert(plHashMap* ptHashMap, uint64_t ulKey, uint64_t ulValue)
 {
     if(ptHashMap->_uBucketCount == 0)
     {
-        memset(ptHashMap->_aulStackValueIndices, 0xff, sizeof(uint64_t) * PL_DS_HASHMAP_INITIAL_SIZE);
-        memset(ptHashMap->_aulStackKeys, 0xff, sizeof(uint64_t) * PL_DS_HASHMAP_INITIAL_SIZE);
         ptHashMap->_aulValueIndices = ptHashMap->_aulStackValueIndices;
         ptHashMap->_aulKeys = ptHashMap->_aulStackKeys;
+        memset(ptHashMap->_aulStackValueIndices, 0xff, sizeof(uint64_t) * PL_DS_HASHMAP_INITIAL_SIZE);
+        memset(ptHashMap->_aulStackKeys, 0xff, sizeof(uint64_t) * PL_DS_HASHMAP_INITIAL_SIZE);
         ptHashMap->_uBucketCount = PL_DS_HASHMAP_INITIAL_SIZE;
         ptHashMap->_bHeapOverflowInUse = false;
     }
@@ -607,10 +607,15 @@ pl_hm_lookup_str(const plHashMap* ptHashMap, const char* pcKey)
 static inline bool
 pl_hm_has_key(plHashMap* ptHashMap, uint64_t ulKey)
 {
-    PL_DS_ASSERT(ptHashMap->_uBucketCount > 0 && "hashmap has no items");
+    if(ptHashMap->_uBucketCount == 0)
+        return false;
 
-    const uint64_t ulModKey = ulKey % ptHashMap->_uBucketCount;
-    return ptHashMap->_aulValueIndices[ulModKey] != UINT64_MAX;
+    uint64_t ulModKey = ulKey % ptHashMap->_uBucketCount;
+
+    while(ptHashMap->_aulKeys[ulModKey] != ulKey && ptHashMap->_aulKeys[ulModKey] != UINT64_MAX)
+        ulModKey = (ulModKey + 1)  % ptHashMap->_uBucketCount;
+
+    return ptHashMap->_aulKeys[ulModKey] != UINT64_MAX;
 }
 
 static inline bool
