@@ -1501,7 +1501,7 @@ pl_create_texture_view(plResourceManager* ptResourceManager, const plTextureView
         .magFilter               = pl__vulkan_filter(ptSampler->tFilter),
         .addressModeU            = pl__vulkan_wrap(ptSampler->tHorizontalWrap),
         .addressModeV            = pl__vulkan_wrap(ptSampler->tVerticalWrap),
-        .anisotropyEnable        = (bool)ptResourceManager->_ptDevice->tDeviceFeatures.sampleRateShading,
+        .anisotropyEnable        = (bool)ptResourceManager->_ptDevice->tDeviceFeatures.samplerAnisotropy,
         .maxAnisotropy           = ptResourceManager->_ptDevice->tDeviceProps.limits.maxSamplerAnisotropy,
         .borderColor             = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
         .unnormalizedCoordinates = VK_FALSE,
