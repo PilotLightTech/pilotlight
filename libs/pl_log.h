@@ -12,8 +12,8 @@
 */
 
 // library version
-#define PL_LOG_VERSION    "0.3.0"
-#define PL_LOG_VERSION_NUM 00300
+#define PL_LOG_VERSION    "0.3.1"
+#define PL_LOG_VERSION_NUM 00301
 
 /*
 Index of this file:
@@ -865,13 +865,17 @@ pl__log_fatal_p(uint32_t uID, const char* cPFormat, ...)
             char* cPDest = ptEntry->cPBuffer; \
             ptEntry->uLevel = level; \
             cPDest += pl_snprintf(cPDest, PL_LOG_MAX_LINE_SIZE, prefix); \
-            pl_vsnprintf(cPDest, PL_LOG_MAX_LINE_SIZE, cPFormat, args); \
+            va_list parm_copy; \
+            va_copy(parm_copy, args); \
+            pl_vsnprintf(cPDest, PL_LOG_MAX_LINE_SIZE, cPFormat, parm_copy); \
+            va_end(parm_copy); \
         }
 
 void
 pl__log_trace_va(uint32_t uID, const char* cPFormat, va_list args)
 {
-   
+
+
     plLogChannel* tPChannel = &gptLogContext->atChannels[uID];
 
     if(tPChannel->uLevel < PL_LOG_LEVEL_TRACE + 1)
@@ -896,11 +900,17 @@ pl__log_trace_va(uint32_t uID, const char* cPFormat, va_list args)
 
             printf("[TRACE] (%s) ", tPChannel->cName);
             char dest[PL_LOG_MAX_LINE_SIZE];
-            pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, args); 
-            printf("%s%s\n", dest, PL_LOG_POP_CODE); 
+
+            va_list parm_copy;
+            va_copy(parm_copy, args);
+            pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, parm_copy); 
+            printf("%s%s\n", dest, PL_LOG_POP_CODE);
+            va_end(parm_copy);
         }
         PL__LOG_LEVEL_VA_BUFFER_MACRO(PL_LOG_LEVEL_TRACE, "[TRACE] ")
     }
+
+    
 }
 
 void
@@ -931,8 +941,11 @@ pl__log_debug_va(uint32_t uID, const char* cPFormat, va_list args)
 
             printf("[DEBUG] (%s) ", tPChannel->cName);
             char dest[PL_LOG_MAX_LINE_SIZE];
-            pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, args);
-            printf("%s%s\n", dest, PL_LOG_POP_CODE); 
+            va_list parm_copy;
+            va_copy(parm_copy, args);
+            pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, parm_copy); 
+            printf("%s%s\n", dest, PL_LOG_POP_CODE);
+            va_end(parm_copy);
         }
         PL__LOG_LEVEL_VA_BUFFER_MACRO(PL_LOG_LEVEL_DEBUG, "[DEBUG] ")
     }
@@ -966,8 +979,11 @@ pl__log_info_va(uint32_t uID, const char* cPFormat, va_list args)
 
             printf("[INFO ] (%s) ", tPChannel->cName);
             char dest[PL_LOG_MAX_LINE_SIZE];
-            pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, args);
-            printf("%s%s\n", dest, PL_LOG_POP_CODE); 
+            va_list parm_copy;
+            va_copy(parm_copy, args);
+            pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, parm_copy); 
+            printf("%s%s\n", dest, PL_LOG_POP_CODE);
+            va_end(parm_copy);
         }
         PL__LOG_LEVEL_VA_BUFFER_MACRO(PL_LOG_LEVEL_INFO, "[INFO ] ")
     }
@@ -1001,8 +1017,11 @@ pl__log_warn_va(uint32_t uID, const char* cPFormat, va_list args)
 
             printf("[WARN ] (%s) ", tPChannel->cName);
             char dest[PL_LOG_MAX_LINE_SIZE];
-            pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, args);
-            printf("%s%s\n", dest, PL_LOG_POP_CODE); 
+            va_list parm_copy;
+            va_copy(parm_copy, args);
+            pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, parm_copy); 
+            printf("%s%s\n", dest, PL_LOG_POP_CODE);
+            va_end(parm_copy); 
         }
         PL__LOG_LEVEL_VA_BUFFER_MACRO(PL_LOG_LEVEL_WARN, "[WARN ] ")
     }
@@ -1036,8 +1055,11 @@ pl__log_error_va(uint32_t uID, const char* cPFormat, va_list args)
 
             printf("[ERROR] (%s) ", tPChannel->cName);
             char dest[PL_LOG_MAX_LINE_SIZE];
-            pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, args);
-            printf("%s%s\n", dest, PL_LOG_POP_CODE); 
+            va_list parm_copy;
+            va_copy(parm_copy, args);
+            pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, parm_copy); 
+            printf("%s%s\n", dest, PL_LOG_POP_CODE);
+            va_end(parm_copy);
         }
         PL__LOG_LEVEL_VA_BUFFER_MACRO(PL_LOG_LEVEL_ERROR, "[ERROR] ")
     }
@@ -1071,8 +1093,11 @@ pl__log_fatal_va(uint32_t uID, const char* cPFormat, va_list args)
 
             printf("[FATAL] (%s) ", tPChannel->cName);
             char dest[PL_LOG_MAX_LINE_SIZE];
-            pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, args);
-            printf("%s%s\n", dest, PL_LOG_POP_CODE); 
+            va_list parm_copy;
+            va_copy(parm_copy, args);
+            pl_vsnprintf(dest, PL_LOG_MAX_LINE_SIZE, cPFormat, parm_copy); 
+            printf("%s%s\n", dest, PL_LOG_POP_CODE);
+            va_end(parm_copy);
         }
         PL__LOG_LEVEL_VA_BUFFER_MACRO(PL_LOG_LEVEL_FATAL, "[FATAL] ")
     }
