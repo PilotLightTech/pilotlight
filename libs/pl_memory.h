@@ -17,12 +17,11 @@
    * general allocation uses malloc, free, & realloc by default
    * override general allocators by defining PL_MEMORY_ALLOC(x), PL_MEMORY_FREE(x), & PL_MEMORY_REALLOC(x, y) OR PL_REALLOC_SIZED(x, y, x)
    * override assert by defining PL_ASSERT(x)
-   * track memory w/ memory context by defining PL_MEMORY_USE_CONTEXT where ever you define PL_MEMORY_IMPLEMENTATION
 */
 
 // library version
-#define PL_MEMORY_VERSION    "0.1.1"
-#define PL_MEMORY_VERSION_NUM 00101
+#define PL_MEMORY_VERSION    "0.2.0"
+#define PL_MEMORY_VERSION_NUM 00200
 
 /*
 Index of this file:
@@ -58,14 +57,6 @@ typedef size_t plStackAllocatorMarker;
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~context~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-plMemoryContext*       pl_create_memory_context (void);
-void                   pl_cleanup_memory_context(void);
-void                   pl_set_memory_context    (plMemoryContext* ptCtx);
-plMemoryContext*       pl_get_memory_context    (void);
-uint32_t               pl_get_active_allocations(void);
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~general purpose allocation~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -155,7 +146,6 @@ typedef struct _plPoolAllocator
 /*
 Index of this file:
 // [SECTION] defines
-// [SECTION] global context
 // [SECTION] internal structs
 // [SECTION] internal api
 // [SECTION] public api implementation
@@ -204,12 +194,6 @@ Index of this file:
 #endif
 
 #define PL__ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
-
-//-----------------------------------------------------------------------------
-// [SECTION] global context
-//-----------------------------------------------------------------------------
-
-plMemoryContext* gptMemoryContext = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -261,57 +245,15 @@ pl__align_forward_size(size_t szPtr, size_t szAlign)
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-plMemoryContext*
-pl_create_memory_context(void)
-{
-    gptMemoryContext = (plMemoryContext* )PL_MEMORY_ALLOC(sizeof(plMemoryContext));
-    memset(gptMemoryContext, 0, sizeof(plMemoryContext));
-    gptMemoryContext->uActiveAllocations = 1;
-    return gptMemoryContext;
-}
-
-void
-pl_cleanup_memory_context(void)
-{
-    PL_ASSERT(gptMemoryContext->uActiveAllocations == 1 && "memory leak");
-    gptMemoryContext->uActiveAllocations = 0u;
-    PL_MEMORY_FREE(gptMemoryContext);
-    gptMemoryContext = NULL;
-}
-
-void
-pl_set_memory_context(plMemoryContext* ptCtx)
-{
-    gptMemoryContext = ptCtx;
-}
-
-plMemoryContext*
-pl_get_memory_context(void)
-{
-    return gptMemoryContext;
-}
-
-uint32_t
-pl_get_active_allocations(void)
-{
-    return gptMemoryContext->uActiveAllocations;
-}
-
 void*
 pl_alloc(size_t szSize)
 {
-    #ifdef PL_MEMORY_USE_CONTEXT
-        gptMemoryContext->uActiveAllocations++;
-    #endif
     return PL_MEMORY_ALLOC(szSize);
 }
 
 void
 pl_free(void* pBuffer)
 {
-    #ifdef PL_MEMORY_USE_CONTEXT
-        gptMemoryContext->uActiveAllocations--;
-    #endif
     PL_MEMORY_FREE(pBuffer);
 }
 
@@ -361,9 +303,6 @@ pl_realloc(void* pBuffer, size_t szSize)
 
     if(szSize == 0 && pBuffer)  // free
     { 
-        #ifdef PL_MEMORY_USE_CONTEXT
-            gptMemoryContext->uActiveAllocations--;
-        #endif
         PL_MEMORY_FREE(pBuffer);
         pNewBuffer = NULL;
     }
@@ -377,9 +316,6 @@ pl_realloc(void* pBuffer, size_t szSize)
     }
     else
     {
-        #ifdef PL_MEMORY_USE_CONTEXT
-            gptMemoryContext->uActiveAllocations++;
-        #endif
         pNewBuffer = PL_MEMORY_ALLOC(szSize);
     }
     return pNewBuffer;
