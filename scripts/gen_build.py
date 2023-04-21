@@ -11,7 +11,6 @@ with pl.project("pilotlight"):
     
     # configurations
     pl.add_configuration("debug")
-    pl.add_configuration("debugdx11")   # only used on win32 for direct x11
     pl.add_configuration("debugmetal") # only used on macos for vulkan
 
     # where to output build scripts
@@ -50,11 +49,6 @@ with pl.project("pilotlight"):
         pl.pop_definitions()
         pl.pop_profile() 
 
-        with pl.configuration("debugdx11"):
-            with pl.platform(pl.PlatformType.WIN32):
-                with pl.compiler("msvc", pl.CompilerType.MSVC):
-                    pl.add_definition("PL_DX11_BACKEND")
-
         with pl.configuration("debugmetal"):
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
@@ -86,11 +80,6 @@ with pl.project("pilotlight"):
                     pass
         pl.pop_definitions()
         pl.pop_profile() 
-
-        with pl.configuration("debugdx11"):
-            with pl.platform(pl.PlatformType.WIN32):
-                with pl.compiler("msvc", pl.CompilerType.MSVC):
-                    pl.add_definition("PL_DX11_BACKEND")
 
         with pl.configuration("debugmetal"):
             with pl.platform(pl.PlatformType.MACOS):
@@ -130,12 +119,6 @@ with pl.project("pilotlight"):
         pl.pop_vulkan_glsl_files() 
         pl.pop_vulkan_glsl_files() 
 
-        with pl.configuration("debugdx11"):
-            with pl.platform(pl.PlatformType.WIN32):
-                with pl.compiler("msvc", pl.CompilerType.MSVC):
-                    pl.add_source_file("../apps/app_dx11.c")
-                    pl.add_definition("PL_DX11_BACKEND")
-
         with pl.configuration("debugmetal"):
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
@@ -168,12 +151,6 @@ with pl.project("pilotlight"):
                     pl.add_source_file("pl_main_macos.m")
         pl.pop_definitions()
         pl.pop_profile() 
-
-        with pl.configuration("debugdx11"):
-            with pl.platform(pl.PlatformType.WIN32):
-                with pl.compiler("msvc", pl.CompilerType.MSVC):
-                    pl.add_source_file("pl_main_win32.c")
-                    pl.add_definition("PL_DX11_BACKEND")
 
         with pl.configuration("debugmetal"):
             with pl.platform(pl.PlatformType.MACOS):
