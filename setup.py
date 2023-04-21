@@ -7,11 +7,9 @@ defines = [
     "PL_LOG_IMPLEMENTATION",
     "PL_MEMORY_IMPLEMENTATION",
     "PL_PROFILE_IMPLEMENTATION",
-    "PL_REGISTRY_IMPLEMENTATION",
     "PL_LOG_ON",
     "PL_IO_IMPLEMENTATION",
     "PL_MEMORY_IMPLEMENTATION",
-    "PL_EXT_IMPLEMENTATION",
     "PL_STL_IMPLEMENTATION",
     "PL_STRING_IMPLEMENTATION",
     "PL_MATH_INCLUDE_FUNCTIONS",
@@ -123,7 +121,8 @@ with open('.vscode/settings.json', 'w') as file:
     lines = []
     lines.append('{')
     lines.append('  "files.associations": {')
-    lines.append('    "pl_*.h": "c",',)
+    lines.append('    "pl_*.h": "c",')
+    lines.append('    "pl_*.m": "objective-c",')
     lines.append('    "pl_*.inc": "c"')
     lines.append('   }')
     lines.append('}')

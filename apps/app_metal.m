@@ -23,16 +23,13 @@ Index of this file:
 #include "pl_io.h"
 #include "pl_profile.h"
 #include "pl_log.h"
+#include "pl_os.h"
 #include "pl_memory.h"
 #include "pl_metal.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
-#include "pl_registry.h" // data registry
-#include "pl_ext.h"      // extension registry
+#include "pl_registry.h"
 #include "pl_ui.h"
-
-// extensions
-#include "pl_draw_extension.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -63,12 +60,13 @@ typedef struct plAppData_t
     plProfileContext*        ptProfileCtx;
     plLogContext*            ptLogCtx;
     plMemoryContext*         ptMemoryCtx;
-    plDataRegistry*          ptDataRegistryCtx;
-    plExtensionRegistry      tExtensionRegistryCtx;
     plUiContext*             ptUiContext;
 
     // extension apis
-    plDrawExtension*         ptDrawExtApi;
+    plIOApiI*          ptIoI;
+    plLibraryApiI*     ptLibraryApi;
+    plFileApiI*        ptFileApi;
+    plApiRegistryApiI* ptApiRegistry;
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -76,59 +74,43 @@ typedef struct plAppData_t
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void*
-pl_app_load(plIOContext* ptIOCtx, void* pAppData)
+pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
 {
     plAppData* ptAppData = pAppData;
+    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
 
     if(ptAppData) // reload
     {
-        pl_set_log_context(ptAppData->ptLogCtx);
-        pl_set_profile_context(ptAppData->ptProfileCtx);
-        pl_set_memory_context(ptAppData->ptMemoryCtx);
-        pl_set_data_registry(ptAppData->ptDataRegistryCtx);
-        pl_set_extension_registry(&ptAppData->tExtensionRegistryCtx);
-        pl_set_io_context(ptIOCtx);
-        pl_ui_set_context(ptAppData->ptUiContext);
-
-        plExtension* ptExtension = pl_get_extension(PL_EXT_DRAW);
-        ptAppData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
-
+        pl_set_log_context(ptDataRegistry->get_data("log"));
+        pl_set_profile_context(ptDataRegistry->get_data("profile"));
+        pl_ui_set_context(ptDataRegistry->get_data("ui"));
         return ptAppData;
     }
+
+    plIOApiI* ptIoI = ptApiRegistry->first(PL_API_IO);
+    plLibraryApiI* ptLibraryApi = ptApiRegistry->first(PL_API_LIBRARY);
+    plFileApiI* ptFileApi = ptApiRegistry->first(PL_API_FILE);
     
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
+    ptAppData->ptApiRegistry = ptApiRegistry;
+    ptAppData->ptIoI = ptIoI;
+    ptAppData->ptLibraryApi = ptLibraryApi;
+    ptAppData->ptFileApi = ptFileApi;
+    plIOContext* ptIOCtx = ptAppData->ptIoI->get_context();
     ptAppData->device.device = ptIOCtx->pBackendPlatformData;
+    
+    // set contexts
 
-    pl_set_io_context(ptIOCtx);
+    // create profile context
+    plProfileContext* ptProfileCtx = pl_create_profile_context();
+    ptDataRegistry->set_data("profile", ptProfileCtx);
 
-    // setup memory context
-    ptAppData->ptMemoryCtx = pl_create_memory_context();
-
-    // setup profiling context
-    ptAppData->ptProfileCtx = pl_create_profile_context();
-
-    // setup data registry
-    ptAppData->ptDataRegistryCtx = pl_create_data_registry();
-
-    // setup logging
-    ptAppData->ptLogCtx = pl_create_log_context();
+    // create log context
+    plLogContext* ptLogCtx = pl_create_log_context();
     pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
     pl_log_info("Setup logging");
-
-    // setup extension registry
-    pl_initialize_extension_registry(&ptAppData->tExtensionRegistryCtx);
-    pl_register_data("memory", ptAppData->ptMemoryCtx);
-    pl_register_data("profile", ptAppData->ptProfileCtx);
-    pl_register_data("log", ptAppData->ptLogCtx);
-    pl_register_data("io", ptIOCtx);
-
-    plExtension tExtension = {0};
-    pl_get_draw_extension_info(&tExtension);
-    pl_load_extension(&tExtension);
-
-    plExtension* ptExtension = pl_get_extension(PL_EXT_DRAW);
-    ptAppData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
+    ptDataRegistry->set_data("log", ptLogCtx);
 
     // create command queue
     ptAppData->device.device = ptIOCtx->pBackendPlatformData;
@@ -147,8 +129,9 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
     ptAppData->drawableRenderDescriptor.depthAttachment.storeAction = MTLStoreActionDontCare;
     ptAppData->drawableRenderDescriptor.depthAttachment.clearDepth = 1.0;
 
-    // ui
-    ptAppData->ptUiContext = pl_ui_create_context();
+    // create ui context
+    plUiContext* ptUiContext = pl_ui_create_context();
+    ptDataRegistry->set_data("ui", ptUiContext);
 
     // initialize backend specifics for draw context
     pl_initialize_draw_context_metal(pl_ui_get_draw_context(NULL), ptAppData->device.device);
@@ -162,6 +145,7 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
     pl_add_default_font(&ptAppData->fontAtlas);
     pl_build_font_atlas(pl_ui_get_draw_context(NULL), &ptAppData->fontAtlas);
     pl_ui_set_default_font(&ptAppData->fontAtlas.sbFonts[0]);
+    ptDataRegistry->set_data("draw", pl_ui_get_draw_context(NULL));
 
     return ptAppData;
 }
@@ -179,10 +163,7 @@ pl_app_shutdown(void* pAppData)
     pl_cleanup_font_atlas(&ptAppData->fontAtlas);
     pl_ui_destroy_context(NULL);
     pl_cleanup_profile_context();
-    pl_cleanup_extension_registry();
     pl_cleanup_log_context();
-    pl_cleanup_data_registry();
-    pl_cleanup_memory_context();
 }
 
 //-----------------------------------------------------------------------------
@@ -193,8 +174,7 @@ PL_EXPORT void
 pl_app_resize(void* pAppData)
 {
     plAppData* ptAppData = pAppData;
-
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = ptAppData->ptIoI->get_context();
 
     // recreate depth texture
     MTLTextureDescriptor *depthTargetDescriptor = [MTLTextureDescriptor new];
@@ -216,11 +196,11 @@ pl_app_update(void* pAppData)
 {
     plAppData* ptAppData = pAppData;
 
-    pl_handle_extension_reloads();
     pl_new_draw_frame_metal(pl_ui_get_draw_context(NULL), ptAppData->drawableRenderDescriptor);
-    pl_ui_new_frame();
+    pl_ui_new_frame(ptAppData->ptIoI);
 
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOApiI* pTIoI = ptAppData->ptIoI;
+    plIOContext* ptIOCtx = pTIoI->get_context();
     ptAppData->graphics.metalLayer = ptIOCtx->pBackendRendererData;
 
     ptAppData->graphics.currentFrame++;
@@ -242,8 +222,6 @@ pl_app_update(void* pAppData)
 
     // create render command encoder
     id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:ptAppData->drawableRenderDescriptor];
-
-    ptAppData->ptDrawExtApi->pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, "extension baby");
 
     // draw profiling info
     pl_begin_profile_sample("Draw Profiling Info");

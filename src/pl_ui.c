@@ -107,20 +107,21 @@ pl_ui_get_debug_draw_list(plUiContext* ptContext)
 }
 
 void
-pl_ui_new_frame(void)
+pl_ui_new_frame(plIOApiI* ptIoI)
 {
-    pl_new_io_frame();
+    gptCtx->ptIo = ptIoI;
+    gptCtx->ptIo->new_frame();
     pl_new_draw_frame(gptCtx->ptDrawCtx);
 
-    if(gptCtx->bWantMouse && !pl_is_mouse_down(PL_MOUSE_BUTTON_LEFT))
+    if(gptCtx->bWantMouse && !gptCtx->ptIo->is_mouse_down(PL_MOUSE_BUTTON_LEFT))
         gptCtx->bMouseOwned = true;
 
-    if(pl_is_mouse_down(PL_MOUSE_BUTTON_LEFT))
+    if(gptCtx->ptIo->is_mouse_down(PL_MOUSE_BUTTON_LEFT))
         gptCtx->uNextActiveId = gptCtx->uActiveId;
 
-    if(gptCtx->ptHoveredWindow == NULL && pl_is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+    if(gptCtx->ptHoveredWindow == NULL && gptCtx->ptIo->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
         gptCtx->bMouseOwned = false;
-    else if (pl_is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+    else if (gptCtx->ptIo->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
         gptCtx->bMouseOwned = true;
 }
 
@@ -128,7 +129,7 @@ void
 pl_ui_end_frame(void)
 {
 
-    const plVec2 tMousePos = pl_get_mouse_pos();
+    const plVec2 tMousePos = gptCtx->ptIo->get_mouse_pos();
 
     // update state id's from previous frames
     gptCtx->uHoveredId = gptCtx->uNextHoveredId;
@@ -149,7 +150,7 @@ pl_ui_end_frame(void)
     gptCtx->tNextWindowData.tPosCondition = PL_UI_COND_NONE;
     gptCtx->tNextWindowData.tSizeCondition = PL_UI_COND_NONE;
 
-    if(pl_is_mouse_released(PL_MOUSE_BUTTON_LEFT))
+    if(gptCtx->ptIo->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
     {
         gptCtx->bWantMouseNextFrame = false;
         gptCtx->ptMovingWindow = NULL;
@@ -159,7 +160,7 @@ pl_ui_end_frame(void)
     }
 
     // reset active window
-    if(pl_is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+    if(gptCtx->ptIo->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
         gptCtx->uActiveWindowId = 0;
 
     // submit windows in display order
@@ -172,12 +173,12 @@ pl_ui_end_frame(void)
             pl_ui_submit_window(ptRootWindow);
 
         // adjust window size if outside viewport
-        if(ptRootWindow->tPos.x > pl_get_io_context()->afMainViewportSize[0])
-            ptRootWindow->tPos.x = pl_get_io_context()->afMainViewportSize[0] - ptRootWindow->tSize.x / 2.0f;
+        if(ptRootWindow->tPos.x > gptCtx->ptIo->get_context()->afMainViewportSize[0])
+            ptRootWindow->tPos.x = gptCtx->ptIo->get_context()->afMainViewportSize[0] - ptRootWindow->tSize.x / 2.0f;
 
-        if(ptRootWindow->tPos.y > pl_get_io_context()->afMainViewportSize[1])
+        if(ptRootWindow->tPos.y > gptCtx->ptIo->get_context()->afMainViewportSize[1])
         {
-            ptRootWindow->tPos.y = pl_get_io_context()->afMainViewportSize[1] - ptRootWindow->tSize.y / 2.0f;
+            ptRootWindow->tPos.y = gptCtx->ptIo->get_context()->afMainViewportSize[1] - ptRootWindow->tSize.y / 2.0f;
             ptRootWindow->tPos.y = pl_maxf(ptRootWindow->tPos.y, 0.0f);
         }
     }
@@ -194,32 +195,32 @@ pl_ui_end_frame(void)
     // scrolling window
     if(gptCtx->ptWheelingWindow)
     {
-        gptCtx->ptWheelingWindow->tScroll.y -= pl_get_mouse_wheel() * 10.0f;
+        gptCtx->ptWheelingWindow->tScroll.y -= gptCtx->ptIo->get_mouse_wheel() * 10.0f;
         gptCtx->ptWheelingWindow->tScroll.y = pl_clampf(0.0f, gptCtx->ptWheelingWindow->tScroll.y, gptCtx->ptWheelingWindow->tScrollMax.y);
     }
 
     // moving window
-    if(gptCtx->ptMovingWindow && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f))
+    if(gptCtx->ptMovingWindow && gptCtx->ptIo->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f))
     {
 
-        if(tMousePos.x > 0.0f && tMousePos.x < pl_get_io_context()->afMainViewportSize[0])
-            gptCtx->ptMovingWindow->tPos.x = gptCtx->ptMovingWindow->tPos.x + pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 2.0f).x;
+        if(tMousePos.x > 0.0f && tMousePos.x < gptCtx->ptIo->get_context()->afMainViewportSize[0])
+            gptCtx->ptMovingWindow->tPos.x = gptCtx->ptMovingWindow->tPos.x + gptCtx->ptIo->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 2.0f).x;
 
-        if(tMousePos.y > 0.0f && tMousePos.y < pl_get_io_context()->afMainViewportSize[1])
-            gptCtx->ptMovingWindow->tPos.y = gptCtx->ptMovingWindow->tPos.y + pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 2.0f).y;  
+        if(tMousePos.y > 0.0f && tMousePos.y < gptCtx->ptIo->get_context()->afMainViewportSize[1])
+            gptCtx->ptMovingWindow->tPos.y = gptCtx->ptMovingWindow->tPos.y + gptCtx->ptIo->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 2.0f).y;  
 
         // clamp x
         gptCtx->ptMovingWindow->tPos.x = pl_maxf(gptCtx->ptMovingWindow->tPos.x, -gptCtx->ptMovingWindow->tSize.x / 2.0f);   
-        gptCtx->ptMovingWindow->tPos.x = pl_minf(gptCtx->ptMovingWindow->tPos.x, pl_get_io_context()->afMainViewportSize[0] - gptCtx->ptMovingWindow->tSize.x / 2.0f);
+        gptCtx->ptMovingWindow->tPos.x = pl_minf(gptCtx->ptMovingWindow->tPos.x, gptCtx->ptIo->get_context()->afMainViewportSize[0] - gptCtx->ptMovingWindow->tSize.x / 2.0f);
 
         // clamp y
         gptCtx->ptMovingWindow->tPos.y = pl_maxf(gptCtx->ptMovingWindow->tPos.y, 0.0f);   
-        gptCtx->ptMovingWindow->tPos.y = pl_minf(gptCtx->ptMovingWindow->tPos.y, pl_get_io_context()->afMainViewportSize[1] - 50.0f);
+        gptCtx->ptMovingWindow->tPos.y = pl_minf(gptCtx->ptMovingWindow->tPos.y, gptCtx->ptIo->get_context()->afMainViewportSize[1] - 50.0f);
 
-        pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+        gptCtx->ptIo->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
     }
 
-    pl_end_io_frame(); 
+    gptCtx->ptIo->end_frame(); 
 }
 
 void
@@ -432,12 +433,12 @@ pl_ui_end_window(void)
             if(gptCtx->uActiveId == uResizeHash)
             {
                 pl_add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plVec4){0.99f, 0.02f, 0.10f, 1.0f});
-                pl_set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NWSE);
+                gptCtx->ptIo->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NWSE);
             }
             else if(gptCtx->uHoveredId == uResizeHash)
             {
                 pl_add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plVec4){0.66f, 0.02f, 0.10f, 1.0f});
-                pl_set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NWSE);
+                gptCtx->ptIo->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NWSE);
             }
             else
             {
@@ -458,12 +459,12 @@ pl_ui_end_window(void)
             if(gptCtx->uActiveId == uEastResizeHash)
             {
                 pl_add_line(ptWindow->ptFgLayer, tTopRight, tBottomRight, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                pl_set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
+                gptCtx->ptIo->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
             }
             else if(gptCtx->uHoveredId == uEastResizeHash)
             {
                 pl_add_line(ptWindow->ptFgLayer, tTopRight, tBottomRight, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                pl_set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
+                gptCtx->ptIo->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
             }
         }
 
@@ -479,12 +480,12 @@ pl_ui_end_window(void)
             if(gptCtx->uActiveId == uWestResizeHash)
             {
                 pl_add_line(ptWindow->ptFgLayer, tTopLeft, tBottomLeft, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                pl_set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
+                gptCtx->ptIo->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
             }
             else if(gptCtx->uHoveredId == uWestResizeHash)
             {
                 pl_add_line(ptWindow->ptFgLayer, tTopLeft, tBottomLeft, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                pl_set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
+                gptCtx->ptIo->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
             }
         }
 
@@ -500,12 +501,12 @@ pl_ui_end_window(void)
             if(gptCtx->uActiveId == uNorthResizeHash)
             {
                 pl_add_line(ptWindow->ptFgLayer, tTopLeft, tTopRight, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                pl_set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
+                gptCtx->ptIo->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
             }
             else if(gptCtx->uHoveredId == uNorthResizeHash)
             {
                 pl_add_line(ptWindow->ptFgLayer, tTopLeft, tTopRight, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                pl_set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
+                gptCtx->ptIo->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
             }
         }
 
@@ -521,12 +522,12 @@ pl_ui_end_window(void)
             if(gptCtx->uActiveId == uSouthResizeHash)
             {
                 pl_add_line(ptWindow->ptFgLayer, tBottomLeft, tBottomRight, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                pl_set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
+                gptCtx->ptIo->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
             }
             else if(gptCtx->uHoveredId == uSouthResizeHash)
             {
                 pl_add_line(ptWindow->ptFgLayer, tBottomLeft, tBottomRight, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                pl_set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
+                gptCtx->ptIo->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
             }
         }
 
@@ -534,9 +535,9 @@ pl_ui_end_window(void)
         pl_add_rect(ptWindow->ptFgLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax, gptCtx->tStyle.tWindowBorderColor, 1.0f);
 
         // handle corner resizing
-        if(pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f))
+        if(gptCtx->ptIo->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f))
         {
-            const plVec2 tMousePos = pl_get_mouse_pos();
+            const plVec2 tMousePos = gptCtx->ptIo->get_mouse_pos();
 
             if(gptCtx->uActiveId == uResizeHash)
             {  
@@ -592,9 +593,9 @@ pl_ui_end_window(void)
                 if(tMousePos.y > ptWindow->tPos.y && tMousePos.y < ptWindow->tPos.y + ptWindow->tSize.y)
                 {
                     const float fScrollConversion = roundf(ptWindow->tTempData.tCursorMaxPos.y / ptWindow->tSize.y);
-                    ptWindow->tScroll.y += pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).y * fScrollConversion;
+                    ptWindow->tScroll.y += gptCtx->ptIo->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).y * fScrollConversion;
                     ptWindow->tScroll.y = pl_clampf(0.0f, ptWindow->tScroll.y, ptWindow->tScrollMax.y);
-                    pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+                    gptCtx->ptIo->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
                 }
             }
 
@@ -606,9 +607,9 @@ pl_ui_end_window(void)
                 if(tMousePos.x > ptWindow->tPos.x && tMousePos.x < ptWindow->tPos.x + ptWindow->tSize.x)
                 {
                     const float fScrollConversion = roundf(ptWindow->tTempData.tCursorMaxPos.x / ptWindow->tSize.x);
-                    ptWindow->tScroll.x += pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fScrollConversion;
+                    ptWindow->tScroll.x += gptCtx->ptIo->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fScrollConversion;
                     ptWindow->tScroll.x = pl_clampf(0.0f, ptWindow->tScroll.x, ptWindow->tScrollMax.x);
-                    pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+                    gptCtx->ptIo->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
                 }
             }
         }
@@ -717,25 +718,25 @@ pl_ui_end_child(void)
         pl_ui_render_scrollbar(ptWindow, uHorizonatalScrollHash, PL_UI_AXIS_X);
 
     // handle vertical scrolling with scroll bar
-    if(gptCtx->uActiveId == uVerticalScrollHash && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f))
+    if(gptCtx->uActiveId == uVerticalScrollHash && gptCtx->ptIo->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f))
     {
         const float fScrollConversion = roundf(ptWindow->tTempData.tCursorMaxPos.y / ptWindow->tSize.y);
         gptCtx->ptScrollingWindow = ptWindow;
         gptCtx->uNextHoveredId = uVerticalScrollHash;
-        ptWindow->tScroll.y += pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).y * fScrollConversion;
+        ptWindow->tScroll.y += gptCtx->ptIo->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).y * fScrollConversion;
         ptWindow->tScroll.y = pl_clampf(0.0f, ptWindow->tScroll.y, ptWindow->tScrollMax.y);
-        pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+        gptCtx->ptIo->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
     }
 
     // handle horizontal scrolling with scroll bar
-    else if(gptCtx->uActiveId == uHorizonatalScrollHash && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f))
+    else if(gptCtx->uActiveId == uHorizonatalScrollHash && gptCtx->ptIo->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f))
     {
         const float fScrollConversion = roundf(ptWindow->tTempData.tCursorMaxPos.x / ptWindow->tSize.x);
         gptCtx->ptScrollingWindow = ptWindow;
         gptCtx->uNextHoveredId = uHorizonatalScrollHash;
-        ptWindow->tScroll.x += pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fScrollConversion;
+        ptWindow->tScroll.x += gptCtx->ptIo->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fScrollConversion;
         ptWindow->tScroll.x = pl_clampf(0.0f, ptWindow->tScroll.x, ptWindow->tScrollMax.x);
-        pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+        gptCtx->ptIo->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
     }
 
     ptWindow->tFullSize = ptWindow->tSize;
@@ -769,7 +770,7 @@ pl_ui_begin_tooltip(void)
         PL_UI_WINDOW_FLAGS_NO_MOVE;
 
     // place window at mouse position
-    const plVec2 tMousePos = pl_get_mouse_pos();
+    const plVec2 tMousePos = gptCtx->ptIo->get_mouse_pos();
     ptWindow->tTempData.tCursorStartPos = pl_add_vec2(tMousePos, (plVec2){gptCtx->tStyle.fWindowHorizontalPadding, 0.0f});
     ptWindow->tPos = tMousePos;
     ptWindow->tTempData.tRowPos.x = floorf(gptCtx->tStyle.fWindowHorizontalPadding + tMousePos.x);
@@ -1448,13 +1449,13 @@ pl_ui_slider_float_f(const char* pcLabel, float* pfValue, float fMin, float fMax
     pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tStyle.tTextCol, acTextBuffer, -1.0f);
 
     bool bDragged = false;
-    if(gptCtx->uActiveId == uHash && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+    if(gptCtx->uActiveId == uHash && gptCtx->ptIo->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
     {
-        *pfValue += pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fConv;
+        *pfValue += gptCtx->ptIo->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fConv;
         *pfValue = pl_clampf(fMin, *pfValue, fMax);
-        if(pl_get_mouse_pos().x < tBoundingBox.tMin.x) *pfValue = fMin;
-        if(pl_get_mouse_pos().x > tBoundingBox.tMax.x) *pfValue = fMax;
-        pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+        if(gptCtx->ptIo->get_mouse_pos().x < tBoundingBox.tMin.x) *pfValue = fMin;
+        if(gptCtx->ptIo->get_mouse_pos().x > tBoundingBox.tMax.x) *pfValue = fMax;
+        gptCtx->ptIo->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
     }
 
     pl_ui_advance_cursor(tWidgetSize.x, tWidgetSize.y);
@@ -1518,9 +1519,9 @@ pl_ui_slider_int_f(const char* pcLabel, int* piValue, int iMin, int iMax, const 
     pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tStyle.tTextCol, acTextBuffer, -1.0f);
 
     bool bDragged = false;
-    if(gptCtx->uActiveId == uHash && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+    if(gptCtx->uActiveId == uHash && gptCtx->ptIo->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
     {
-        const plVec2 tMousePos = pl_get_mouse_pos();
+        const plVec2 tMousePos = gptCtx->ptIo->get_mouse_pos();
 
         if(tMousePos.x > tGrabBox.tMax.x)
             (*piValue)++;
@@ -1579,9 +1580,9 @@ pl_ui_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin
     pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tStyle.tTextCol, acTextBuffer, -1.0f);
 
     bool bDragged = false;
-    if(gptCtx->uActiveId == uHash && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+    if(gptCtx->uActiveId == uHash && gptCtx->ptIo->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
     {
-        *pfValue = pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fSpeed;
+        *pfValue = gptCtx->ptIo->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fSpeed;
         *pfValue = pl_clampf(fMin, *pfValue, fMax);
     }
 
@@ -1674,7 +1675,7 @@ pl_ui_progress_bar(float fFraction, plVec2 tSize, const char* pcOverlay)
 
     pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tStyle.tTextCol, pcTextPtr, -1.0f);
 
-    const bool bHovered = pl_is_mouse_hovering_rect(tStartPos, pl_add_vec2(tStartPos, tWidgetSize)) && ptWindow == gptCtx->ptHoveredWindow;
+    const bool bHovered = gptCtx->ptIo->is_mouse_hovering_rect(tStartPos, pl_add_vec2(tStartPos, tWidgetSize)) && ptWindow == gptCtx->ptHoveredWindow;
     gptCtx->tPrevItemData.bHovered = bHovered;
     pl_ui_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 }
@@ -2083,7 +2084,7 @@ pl_ui_debug(bool* pbOpen)
     if(pl_ui_begin_window("Pilot Light UI Metrics/Debugger", pbOpen, false))
     {
 
-        plIOContext* ptIOCtx = pl_get_io_context();
+        plIOContext* ptIOCtx = gptCtx->ptIo->get_context();
 
         const float pfRatios[] = {1.0f};
         pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
@@ -2631,7 +2632,7 @@ pl_ui_button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, b
     if(bHovered)
         gptCtx->uNextHoveredId = uHash;
 
-    bool bHeld = bHovered && pl_is_mouse_down(PL_MOUSE_BUTTON_LEFT);
+    bool bHeld = bHovered && gptCtx->ptIo->is_mouse_down(PL_MOUSE_BUTTON_LEFT);
 
     if(uHash == gptCtx->uActiveId)
     {  
@@ -2643,12 +2644,12 @@ pl_ui_button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, b
 
     if(bHovered)
     {
-        if(pl_is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+        if(gptCtx->ptIo->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
         {
             gptCtx->uNextActiveId = uHash;
             gptCtx->tPrevItemData.bActive = true;
         }
-        else if(pl_is_mouse_released(PL_MOUSE_BUTTON_LEFT))
+        else if(gptCtx->ptIo->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
         {
             gptCtx->uNextActiveId = 0;
             bPressed = uHash == gptCtx->uActiveId;
@@ -2669,7 +2670,7 @@ pl_ui_is_item_hoverable(const plRect* ptBox, uint32_t uHash)
     if(gptCtx->ptMovingWindow || !gptCtx->bMouseOwned)
         return false;
 
-    if(!pl_is_mouse_hovering_rect(ptBox->tMin, ptBox->tMax))
+    if(!gptCtx->ptIo->is_mouse_hovering_rect(ptBox->tMin, ptBox->tMax))
         return false;
 
     if(ptWindow != gptCtx->ptHoveredWindow)
@@ -2686,7 +2687,7 @@ pl_ui_is_item_hoverable_circle(plVec2 tP, float fRadius, uint32_t uHash)
     if(ptWindow == gptCtx->ptMovingWindow || ptWindow == gptCtx->ptSizingWindow || ptWindow == gptCtx->ptWheelingWindow || !gptCtx->bMouseOwned)
         return false;
 
-    if(!pl_ui_does_circle_contain_point(tP, fRadius, pl_get_mouse_pos()))
+    if(!pl_ui_does_circle_contain_point(tP, fRadius, gptCtx->ptIo->get_mouse_pos()))
         return false;
 
     if(ptWindow != gptCtx->ptHoveredWindow)
@@ -2834,7 +2835,7 @@ pl_ui_begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     }
 
     // position & size
-    const plVec2 tMousePos = pl_get_mouse_pos();
+    const plVec2 tMousePos = gptCtx->ptIo->get_mouse_pos();
     plVec2 tStartPos = ptWindow->tPos;
 
     // next window calls
@@ -2910,8 +2911,8 @@ pl_ui_begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             if(pl_ui_does_circle_contain_point(tCloseCenterPos, fTitleBarButtonRadius, tMousePos) && gptCtx->ptHoveredWindow == ptWindow)
             {
                 pl_add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 12);
-                if(pl_is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false)) gptCtx->uActiveId = 1;
-                else if(pl_is_mouse_released(PL_MOUSE_BUTTON_LEFT)) *pbOpen = false;       
+                if(gptCtx->ptIo->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false)) gptCtx->uActiveId = 1;
+                else if(gptCtx->ptIo->is_mouse_released(PL_MOUSE_BUTTON_LEFT)) *pbOpen = false;       
             }
             else
                 pl_add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, (plVec4){0.5f, 0.0f, 0.0f, 1.0f}, 12);
@@ -2927,11 +2928,11 @@ pl_ui_begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             {
                 pl_add_circle_filled(ptWindow->ptFgLayer, tCollapsingCenterPos, fTitleBarButtonRadius, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 12);
 
-                if(pl_is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+                if(gptCtx->ptIo->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
                 {
                     gptCtx->uActiveId = 2;
                 }
-                else if(pl_is_mouse_released(PL_MOUSE_BUTTON_LEFT))
+                else if(gptCtx->ptIo->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
                 {
                     ptWindow->bCollapsed = !ptWindow->bCollapsed;
                     if(!ptWindow->bCollapsed)
@@ -3155,7 +3156,7 @@ pl_ui_submit_window(plUiWindow* ptWindow)
 {
     ptWindow->bActive = false; // no longer active (for next frame)
 
-    const size_t ulCurrentFrame = pl_get_io_context()->ulFrameCount;
+    const size_t ulCurrentFrame = gptCtx->ptIo->get_context()->ulFrameCount;
     // const plVec2 tMousePos = pl_get_mouse_pos();
     const float fTitleBarHeight = gptCtx->tStyle.fFontSize + 2.0f * gptCtx->tStyle.fTitlePadding;
 
@@ -3171,13 +3172,13 @@ pl_ui_submit_window(plUiWindow* ptWindow)
         tBoundBox = pl_rect_expand(&tBoundBox, 2.0f);
 
     // check if window is hovered
-    if(pl_is_mouse_hovering_rect(tBoundBox.tMin, tBoundBox.tMax))
+    if(gptCtx->ptIo->is_mouse_hovering_rect(tBoundBox.tMin, tBoundBox.tMax))
     {
         gptCtx->ptHoveredWindow = ptWindow;
         gptCtx->bWantMouseNextFrame = true;
 
         // check if window is activated
-        if(pl_is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+        if(gptCtx->ptIo->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
         {
             gptCtx->ptMovingWindow = NULL;
             gptCtx->uActiveWindowId = ptWindow->ptParentWindow->uId;
@@ -3187,12 +3188,12 @@ pl_ui_submit_window(plUiWindow* ptWindow)
             gptCtx->bMouseOwned = true;
 
             // check if window titlebar is clicked
-            if(!(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_TITLE_BAR) && pl_is_mouse_hovering_rect(tTitleBarHitRegion.tMin, tTitleBarHitRegion.tMax))
+            if(!(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_TITLE_BAR) && gptCtx->ptIo->is_mouse_hovering_rect(tTitleBarHitRegion.tMin, tTitleBarHitRegion.tMax))
                     gptCtx->ptMovingWindow = ptWindow;
         }
 
         // scrolling
-        if(!(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_AUTO_SIZE) && pl_get_mouse_wheel() != 0.0f)
+        if(!(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_AUTO_SIZE) && gptCtx->ptIo->get_mouse_wheel() != 0.0f)
             gptCtx->ptWheelingWindow = ptWindow;
     }
 

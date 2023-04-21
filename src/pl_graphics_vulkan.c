@@ -1,5 +1,5 @@
 /*
-   vulkan_pl_graphics.c
+   pl_graphics_vulkan.c
 */
 
 /*
@@ -17,12 +17,17 @@ Index of this file:
 
 #include "pl_graphics_vulkan.h"
 #include "pl_ds.h"
+#include "pl_registry.h"
 #include "pl_io.h"
+#include "pl_os.h"
 #include "pl_memory.h"
 #include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_string.h"
 #include <stdio.h>
+
+// extensions
+#include "pl_vulkan_ext.h"
 
 #ifdef _WIN32
 #pragma comment(lib, "vulkan-1.lib")
@@ -60,7 +65,7 @@ static void pl__create_swapchain   (plGraphics* ptGraphics, VkSurfaceKHR tSurfac
 static void pl__create_framebuffers(plDevice* ptDevice, VkRenderPass tRenderPass, plSwapchain* ptSwapchain);
 
 // resource manager setup
-static void pl__create_resource_manager  (plGraphics* ptGraphics, plDevice* ptDevice, plResourceManager* ptResourceManagerOut);
+static void pl__create_resource_manager  (plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plDevice* ptDevice, plResourceManager* ptResourceManagerOut);
 static void pl__cleanup_resource_manager (plResourceManager* ptResourceManager);
 
 // shaders
@@ -91,9 +96,10 @@ static plCompareMode pl__pilotlight_compare(VkCompareOp tCompare);
 //-----------------------------------------------------------------------------
 
 void
-pl_setup_graphics(plGraphics* ptGraphics)
+pl_setup_graphics(plGraphics* ptGraphics, plApiRegistryApiI* ptApiRegistry)
 {
-
+    ptGraphics->ptIoInterface = ptApiRegistry->first(PL_API_IO);
+    ptGraphics->ptFileApi = ptApiRegistry->first(PL_API_FILE);
     ptGraphics->uLogChannel = pl_add_log_channel("graphics", PL_CHANNEL_TYPE_CONSOLE | PL_CHANNEL_TYPE_BUFFER);
 
     // create vulkan instance
@@ -101,7 +107,7 @@ pl_setup_graphics(plGraphics* ptGraphics)
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create surface~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();
 
     #ifdef _WIN32
         const VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {
@@ -141,6 +147,10 @@ pl_setup_graphics(plGraphics* ptGraphics)
     plDevice* ptDevice = &ptGraphics->tDevice;
     VkDevice tLogicalDevice = ptDevice->tLogicalDevice;
     pl_set_current_log_channel(0);
+
+    plDeviceMemoryApiI* ptDeviceMemoryApi = ptApiRegistry->first(PL_API_DEVICE_MEMORY);
+    ptGraphics->tLocalAllocator = ptDeviceMemoryApi->create_device_local_allocator(ptDevice->tPhysicalDevice, tLogicalDevice);
+    ptGraphics->tStagingUnCachedAllocator = ptDeviceMemoryApi->create_staging_uncached_allocator(ptDevice->tPhysicalDevice, tLogicalDevice);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~debug markers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -299,13 +309,13 @@ pl_setup_graphics(plGraphics* ptGraphics)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~resource manager~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    pl__create_resource_manager(ptGraphics, ptDevice, &ptGraphics->tResourceManager);
+    pl__create_resource_manager(ptApiRegistry, ptGraphics, ptDevice, &ptGraphics->tResourceManager);
 }
 
 bool
 pl_begin_frame(plGraphics* ptGraphics)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();
     plDevice* ptDevice = &ptGraphics->tDevice;
     VkDevice tLogicalDevice = ptGraphics->tDevice.tLogicalDevice;
 
@@ -367,7 +377,7 @@ pl_end_frame(plGraphics* ptGraphics)
     const VkResult tResult = vkQueuePresentKHR(ptDevice->tPresentQueue, &tPresentInfo);
     if(tResult == VK_SUBOPTIMAL_KHR || tResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        plIOContext* ptIOCtx = pl_get_io_context();
+        plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();
         pl__create_swapchain(ptGraphics, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
         pl__create_framebuffers(ptDevice, ptGraphics->tRenderPass, &ptGraphics->tSwapchain);
     }
@@ -382,7 +392,7 @@ pl_end_frame(plGraphics* ptGraphics)
 void
 pl_resize_graphics(plGraphics* ptGraphics)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();
     plDevice* ptDevice = &ptGraphics->tDevice;
     pl__create_swapchain(ptGraphics, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
     pl__create_framebuffers(ptDevice, ptGraphics->tRenderPass, &ptGraphics->tSwapchain);
@@ -465,7 +475,7 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
 
     // fill out descriptor set layouts
     for(uint32_t i = 0; i < tShader.tDesc.uBindGroupLayoutCount; i++)
-        tShader.tDesc.atBindGroupLayouts[i]._tDescriptorSetLayout = pl_request_descriptor_set_layout(ptResourceManager, &tShader.tDesc.atBindGroupLayouts[i]);
+        tShader.tDesc.atBindGroupLayouts[i]._tDescriptorSetLayout = ptResourceManager->_ptDescriptorApi->request_layout(&ptResourceManager->_tDescriptorManager, &tShader.tDesc.atBindGroupLayouts[i]);
 
     // place "default" graphics state into the variant list (for consolidation)
     const plShaderVariant tNewVariant = {
@@ -510,9 +520,9 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
     //---------------------------------------------------------------------
 
     uint32_t uVertexByteCodeSize = 0;
-    pl_read_file(tShader.tDesc.pcVertexShader, &uVertexByteCodeSize, NULL, "rb");
+    ptGraphics->ptFileApi->read_file(tShader.tDesc.pcVertexShader, &uVertexByteCodeSize, NULL, "rb");
     char* pcVertexByteCode = pl_alloc(uVertexByteCodeSize);
-    pl_read_file(tShader.tDesc.pcVertexShader, &uVertexByteCodeSize, pcVertexByteCode, "rb");
+    ptGraphics->ptFileApi->read_file(tShader.tDesc.pcVertexShader, &uVertexByteCodeSize, pcVertexByteCode, "rb");
 
     tShader.tVertexShaderInfo = (VkShaderModuleCreateInfo){
         .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -525,9 +535,9 @@ pl_create_shader(plResourceManager* ptResourceManager, const plShaderDesc* ptDes
     //---------------------------------------------------------------------
 
     uint32_t uByteCodeSize = 0;
-    pl_read_file(tShader.tDesc.pcPixelShader, &uByteCodeSize, NULL, "rb");
+    ptGraphics->ptFileApi->read_file(tShader.tDesc.pcPixelShader, &uByteCodeSize, NULL, "rb");
     char* pcByteCode = pl_alloc(uByteCodeSize);
-    pl_read_file(tShader.tDesc.pcPixelShader, &uByteCodeSize, pcByteCode, "rb");
+    ptGraphics->ptFileApi->read_file(tShader.tDesc.pcPixelShader, &uByteCodeSize, pcByteCode, "rb");
 
     tShader.tPixelShaderInfo = (VkShaderModuleCreateInfo){
         .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -734,11 +744,13 @@ pl_update_bind_group(plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBuf
 
     plDevice* ptDevice = &ptGraphics->tDevice;
     VkDevice tLogicalDevice = ptGraphics->tDevice.tLogicalDevice;
+    plDescriptorManager* ptDescManager = &ptGraphics->tResourceManager._tDescriptorManager;
+    plDescriptorManagerApiI* ptDescApi = ptGraphics->tResourceManager._ptDescriptorApi;
 
     // allocate descriptors if not done already
     if(ptGroup->_tDescriptorSet == VK_NULL_HANDLE)
     {
-        ptGroup->tLayout._tDescriptorSetLayout = pl_request_descriptor_set_layout(&ptGraphics->tResourceManager, &ptGroup->tLayout);
+        ptGroup->tLayout._tDescriptorSetLayout = ptDescApi->request_layout(ptDescManager, &ptGroup->tLayout);
 
         // allocate descriptor sets
         const VkDescriptorSetAllocateInfo tDescriptorSetAllocInfo = {
@@ -1284,12 +1296,9 @@ pl_create_index_buffer(plResourceManager* ptResourceManager, size_t szSize, cons
     tBuffer.szSize = tMemoryRequirements.size;
 
     // allocate buffer
-    const VkMemoryAllocateInfo tAllocInfo = {
-        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize  = tMemoryRequirements.size,
-        .memoryTypeIndex = pl_find_memory_type(ptResourceManager->_ptDevice->tMemProps, tMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-    };
-    PL_VULKAN(vkAllocateMemory(tDevice, &tAllocInfo, NULL, &tBuffer.tBufferMemory));
+    plDeviceMemoryAllocatorI* ptAllocator = &ptResourceManager->_ptGraphics->tLocalAllocator;
+    plDeviceMemoryAllocation tDeviceAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
+    tBuffer.tBufferMemory = tDeviceAllocation.tMemory;
     PL_VULKAN(vkBindBufferMemory(tDevice, tBuffer.tBuffer, tBuffer.tBufferMemory, 0));
 
     // upload data if any is availble
@@ -1334,12 +1343,9 @@ pl_create_vertex_buffer(plResourceManager* ptResourceManager, size_t szSize, siz
     tBuffer.szSize = tMemoryRequirements.size;
 
     // allocate buffer
-    const VkMemoryAllocateInfo tAllocInfo = {
-        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize  = tMemoryRequirements.size,
-        .memoryTypeIndex = pl_find_memory_type(ptResourceManager->_ptDevice->tMemProps, tMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-    };
-    PL_VULKAN(vkAllocateMemory(tDevice, &tAllocInfo, NULL, &tBuffer.tBufferMemory));
+    plDeviceMemoryAllocatorI* ptAllocator = &ptResourceManager->_ptGraphics->tLocalAllocator;
+    plDeviceMemoryAllocation tDeviceAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
+    tBuffer.tBufferMemory = tDeviceAllocation.tMemory;
     PL_VULKAN(vkBindBufferMemory(tDevice, tBuffer.tBuffer, tBuffer.tBufferMemory, 0));
 
     // upload data if any is availble
@@ -1359,7 +1365,7 @@ pl_create_vertex_buffer(plResourceManager* ptResourceManager, size_t szSize, siz
 }
 
 uint32_t
-pl_create_constant_buffer_ex(plResourceManager* ptResourceManager, size_t szSize, const char* pcName)
+pl_create_constant_buffer(plResourceManager* ptResourceManager, size_t szSize, const char* pcName)
 {
     const VkDevice tDevice = ptResourceManager->_ptDevice->tLogicalDevice;
 
@@ -1385,14 +1391,12 @@ pl_create_constant_buffer_ex(plResourceManager* ptResourceManager, size_t szSize
     tBuffer.szStride = tMemoryRequirements.size;
 
     // allocate buffer
-    const VkMemoryAllocateInfo tAllocInfo = {
-        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize  = tMemoryRequirements.size,
-        .memoryTypeIndex = pl_find_memory_type(ptResourceManager->_ptDevice->tMemProps, tMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
-    };
-    PL_VULKAN(vkAllocateMemory(tDevice, &tAllocInfo, NULL, &tBuffer.tBufferMemory));
+    plDeviceMemoryAllocatorI* ptAllocator = &ptResourceManager->_ptGraphics->tStagingUnCachedAllocator;
+    plDeviceMemoryAllocation tDeviceAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
+    tBuffer.tBufferMemory = tDeviceAllocation.tMemory;
+    tBuffer.pucMapping = tDeviceAllocation.pHostMapped;
+
     PL_VULKAN(vkBindBufferMemory(tDevice, tBuffer.tBuffer, tBuffer.tBufferMemory, 0));
-    PL_VULKAN(vkMapMemory(tDevice, tBuffer.tBufferMemory, 0, tMemoryRequirements.size, 0, (void**)&tBuffer.pucMapping));
 
     // find free index
     uint32_t ulBufferIndex = 0u;
@@ -1404,56 +1408,6 @@ pl_create_constant_buffer_ex(plResourceManager* ptResourceManager, size_t szSize
         pl_set_vulkan_object_name(ptResourceManager->_ptGraphics, (uint64_t)tBuffer.tBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, pcName);
 
     return ulBufferIndex;      
-}
-
-uint32_t
-pl_create_constant_buffer(plResourceManager* ptResourceManager, size_t szItemSize, size_t szItemCount, const char* pcName)
-{
-    const VkDevice tDevice = ptResourceManager->_ptDevice->tLogicalDevice;
-
-    plBuffer tBuffer = {
-        .tUsage          = PL_BUFFER_USAGE_CONSTANT,
-        .szRequestedSize = szItemSize,
-        .szItemCount     = szItemCount
-    };
-
-    const size_t szRequiredSize = pl__get_const_buffer_req_size(ptResourceManager->_ptDevice, szItemSize);
-
-    // create vulkan buffer
-    const VkBufferCreateInfo tBufferCreateInfo = {
-        .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size        = szRequiredSize * szItemCount,
-        .usage       = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
-    };
-    PL_VULKAN(vkCreateBuffer(tDevice, &tBufferCreateInfo, NULL, &tBuffer.tBuffer));
-
-    // get memory requirements
-    VkMemoryRequirements tMemoryRequirements = {0};
-    vkGetBufferMemoryRequirements(tDevice, tBuffer.tBuffer, &tMemoryRequirements);
-    tBuffer.szSize = tMemoryRequirements.size;
-    tBuffer.szStride = szRequiredSize;
-
-    // allocate buffer
-    const VkMemoryAllocateInfo tAllocInfo = {
-        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize  = tMemoryRequirements.size,
-        .memoryTypeIndex = pl_find_memory_type(ptResourceManager->_ptDevice->tMemProps, tMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
-    };
-    PL_VULKAN(vkAllocateMemory(tDevice, &tAllocInfo, NULL, &tBuffer.tBufferMemory));
-    PL_VULKAN(vkBindBufferMemory(tDevice, tBuffer.tBuffer, tBuffer.tBufferMemory, 0));
-    PL_VULKAN(vkMapMemory(tDevice, tBuffer.tBufferMemory, 0, tMemoryRequirements.size, 0, (void**)&tBuffer.pucMapping));
-
-    // find free index
-    uint32_t ulBufferIndex = 0u;
-    if(!pl__get_free_resource_index(ptResourceManager->_sbulBufferFreeIndices, &ulBufferIndex))
-        ulBufferIndex = pl_sb_add_n(ptResourceManager->sbtBuffers, 1);
-    ptResourceManager->sbtBuffers[ulBufferIndex] = tBuffer;
-
-    if(pcName)
-        pl_set_vulkan_object_name(ptResourceManager->_ptGraphics, (uint64_t)tBuffer.tBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, pcName);
-
-    return ulBufferIndex;  
 }
 
 uint32_t
@@ -1565,7 +1519,7 @@ pl_request_dynamic_buffer(plResourceManager* ptResourceManager)
         sbtNodes[sbtNodes[n].uPrev].uNext = n;
 
         pl_log_info_to(ptResourceManager->_ptGraphics->uLogChannel, "creating new dynamic buffer");
-        sbtNodes[n].uDynamicBuffer = pl_create_constant_buffer_ex(ptResourceManager, ptResourceManager->_uDynamicBufferSize, "temp dynamic buffer");
+        sbtNodes[n].uDynamicBuffer = pl_create_constant_buffer(ptResourceManager, ptResourceManager->_uDynamicBufferSize, "temp dynamic buffer");
 
     }
     return n;
@@ -1629,13 +1583,11 @@ pl_create_texture(plResourceManager* ptResourceManager, plTextureDesc tDesc, siz
     VkMemoryRequirements tMemoryRequirements = {0};
     vkGetImageMemoryRequirements(tDevice, tTexture.tImage, &tMemoryRequirements);
 
-    // allocate memory
-    const VkMemoryAllocateInfo tAllocInfo = {
-        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize  = tMemoryRequirements.size,
-        .memoryTypeIndex = pl_find_memory_type(ptResourceManager->_ptDevice->tMemProps, tMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
-    };
-    PL_VULKAN(vkAllocateMemory(tDevice, &tAllocInfo, NULL, &tTexture.tMemory));
+    // allocate buffer
+    plDeviceMemoryAllocatorI* ptAllocator = &ptResourceManager->_ptGraphics->tLocalAllocator;
+    plDeviceMemoryAllocation tDeviceAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
+    tTexture.tMemory = tDeviceAllocation.tMemory;
+
     PL_VULKAN(vkBindImageMemory(tDevice, tTexture.tImage, tTexture.tMemory, 0));
 
     // upload data
@@ -1702,12 +1654,9 @@ pl_create_storage_buffer(plResourceManager* ptResourceManager, size_t szSize, co
     tBuffer.szSize = tMemoryRequirements.size;
 
     // allocate buffer
-    const VkMemoryAllocateInfo tAllocInfo = {
-        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize  = tMemoryRequirements.size,
-        .memoryTypeIndex = pl_find_memory_type(ptResourceManager->_ptDevice->tMemProps, tMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-    };
-    PL_VULKAN(vkAllocateMemory(tDevice, &tAllocInfo, NULL, &tBuffer.tBufferMemory));
+    plDeviceMemoryAllocatorI* ptAllocator = &ptResourceManager->_ptGraphics->tLocalAllocator;
+    plDeviceMemoryAllocation tDeviceAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
+    tBuffer.tBufferMemory = tDeviceAllocation.tMemory;
     PL_VULKAN(vkBindBufferMemory(tDevice, tBuffer.tBuffer, tBuffer.tBufferMemory, 0));
 
     // upload data if any is availble
@@ -1724,72 +1673,6 @@ pl_create_storage_buffer(plResourceManager* ptResourceManager, size_t szSize, co
         pl_set_vulkan_object_name(ptResourceManager->_ptGraphics, (uint64_t)tBuffer.tBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, pcName);
 
     return ulBufferIndex;
-}
-
-VkDescriptorSetLayout
-pl_request_descriptor_set_layout(plResourceManager* ptResourceManager, plBindGroupLayout* ptLayout)
-{
-    
-    // generate hash
-    uint32_t uHash = 0;
-    VkDescriptorSetLayoutBinding* sbtDescriptorSetLayoutBindings = NULL;
-    for(uint32_t i = 0 ; i < ptLayout->uBufferCount; i++)
-    {
-        uHash = pl_str_hash_data(&ptLayout->aBuffers[i].uSlot, sizeof(uint32_t), uHash);
-        uHash = pl_str_hash_data(&ptLayout->aBuffers[i].tType, sizeof(int), uHash);
-        uHash = pl_str_hash_data(&ptLayout->aBuffers[i].tStageFlags, sizeof(VkShaderStageFlags), uHash);
-
-        VkDescriptorSetLayoutBinding tBinding = {
-            .binding            = ptLayout->aBuffers[i].uSlot,
-            .descriptorType     = ptLayout->aBuffers[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-            .descriptorCount    = 1,
-            .stageFlags         = ptLayout->aBuffers[i].tStageFlags,
-            .pImmutableSamplers = NULL
-        };
-        pl_sb_push(sbtDescriptorSetLayoutBindings, tBinding);
-    }
-
-    for(uint32_t i = 0 ; i < ptLayout->uTextureCount; i++)
-    {
-        uHash = pl_str_hash_data(&ptLayout->aTextures[i].uSlot, sizeof(uint32_t), uHash);
-        uHash = pl_str_hash_data(&ptLayout->aTextures[i].tStageFlags, sizeof(VkShaderStageFlags), uHash);
-
-        VkDescriptorSetLayoutBinding tBinding = {
-            .binding            = ptLayout->aTextures[i].uSlot,
-            .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount    = 1,
-            .stageFlags         = ptLayout->aTextures[i].tStageFlags,
-            .pImmutableSamplers = NULL
-        };
-        pl_sb_push(sbtDescriptorSetLayoutBindings, tBinding);
-    }
-
-    // check if hash exists
-    for(uint32_t i = 0; i < pl_sb_size(ptResourceManager->_sbuDescriptorSetLayoutHashes); i++)
-    {
-        if(ptResourceManager->_sbuDescriptorSetLayoutHashes[i] == uHash)
-        {
-            pl_sb_free(sbtDescriptorSetLayoutBindings);
-            return ptResourceManager->_sbtDescriptorSetLayouts[i];
-        }
-    }
-
-    // create descriptor set layout
-    VkDescriptorSetLayout tDescriptorSetLayout = VK_NULL_HANDLE;
-    const VkDescriptorSetLayoutCreateInfo tDescriptorSetLayoutInfo = {
-        .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = pl_sb_size(sbtDescriptorSetLayoutBindings),
-        .pBindings    = sbtDescriptorSetLayoutBindings,
-    };
-    PL_VULKAN(vkCreateDescriptorSetLayout(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tDescriptorSetLayout));
-
-    pl_sb_push(ptResourceManager->_sbuDescriptorSetLayoutHashes, uHash);
-    pl_sb_push(ptResourceManager->_sbtDescriptorSetLayouts, tDescriptorSetLayout);
-    pl_sb_free(sbtDescriptorSetLayoutBindings);
-
-    pl_log_debug_to_f(ptResourceManager->_ptGraphics->uLogChannel, "created new descriptor set layout %u", uHash);
-
-    return tDescriptorSetLayout;
 }
 
 void
@@ -2757,11 +2640,13 @@ pl__create_swapchain(plGraphics* ptGraphics, VkSurfaceKHR tSurface, uint32_t uWi
 }
 
 static void
-pl__create_resource_manager(plGraphics* ptGraphics, plDevice* ptDevice, plResourceManager* ptResourceManagerOut)
+pl__create_resource_manager(plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plDevice* ptDevice, plResourceManager* ptResourceManagerOut)
 {
     ptResourceManagerOut->_ptGraphics = ptGraphics;
     ptResourceManagerOut->_ptDevice = ptDevice;
     ptResourceManagerOut->_uDynamicBufferSize = pl_minu(ptGraphics->tDevice.tDeviceProps.limits.maxUniformBufferRange, 65536);
+    ptResourceManagerOut->_ptDescriptorApi = ptApiRegistry->first(PL_API_DESCRIPTOR_MANAGER);
+    ptResourceManagerOut->_tDescriptorManager.tDevice = ptDevice->tLogicalDevice;
 
     const plDynamicBufferNode tDummyNode0 = {0, 0};
     const plDynamicBufferNode tDummyNode1 = {1, 1};
@@ -2773,6 +2658,8 @@ static void
 pl__cleanup_resource_manager(plResourceManager* ptResourceManager)
 {
     pl__staging_buffer_realloc(ptResourceManager, 0); // free staging buffer
+
+    ptResourceManager->_ptDescriptorApi->cleanup(&ptResourceManager->_tDescriptorManager);
 
     for(uint32_t i = 0; i < pl_sb_size(ptResourceManager->sbtBuffers); i++)
     {
@@ -2798,12 +2685,6 @@ pl__cleanup_resource_manager(plResourceManager* ptResourceManager)
             pl_submit_shader_for_deletion(ptResourceManager, i);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(ptResourceManager->_sbtDescriptorSetLayouts); i++)
-    {
-        vkDestroyDescriptorSetLayout(ptResourceManager->_ptGraphics->tDevice.tLogicalDevice, ptResourceManager->_sbtDescriptorSetLayouts[i], NULL);
-        ptResourceManager->_sbtDescriptorSetLayouts[i] = VK_NULL_HANDLE;
-    }
-
     pl_process_cleanup_queue(ptResourceManager, 100); // free deletion queued resources
 
     pl_sb_free(ptResourceManager->sbtBuffers);
@@ -2816,8 +2697,7 @@ pl__cleanup_resource_manager(plResourceManager* ptResourceManager)
     pl_sb_free(ptResourceManager->_sbulTextureDeletionQueue);
     pl_sb_free(ptResourceManager->_sbulShaderDeletionQueue);
     pl_sb_free(ptResourceManager->_sbulTempQueue);
-    pl_sb_free(ptResourceManager->_sbuDescriptorSetLayoutHashes);
-    pl_sb_free(ptResourceManager->_sbtDescriptorSetLayouts);
+
 
     ptResourceManager->_ptDevice = NULL;
     ptResourceManager->_ptGraphics = NULL;

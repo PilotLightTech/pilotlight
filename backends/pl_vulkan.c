@@ -20,9 +20,18 @@ Index of this file:
 #include "pl_vulkan.h"
 #include "pl_ds.h"
 
+#define PL_MATH_INCLUDE_FUNCTIONS
+#include "pl_math.h"
+
 #ifndef PL_VULKAN
 #include <assert.h>
 #define PL_VULKAN(x) PL_ASSERT(x == VK_SUCCESS)
+#endif
+
+#ifndef PL_VULKAN_ALLOC
+    #include <stdlib.h>
+    #define PL_VULKAN_ALLOC(x) malloc(x)
+    #define PL_VULKAN_FREE(x)  free((x))
 #endif
 
 //-----------------------------------------------------------------------------
@@ -536,6 +545,7 @@ typedef struct _plVulkanDrawContext
 
 extern void                   pl__cleanup_font_atlas          (plFontAtlas* ptAtlas); // in pl_draw.c
 extern void                   pl__new_draw_frame              (plDrawContext* ptCtx); // in pl_draw.c
+extern void                   pl__build_font_atlas            (plFontAtlas* ctx); // in pl_draw.c
 static uint32_t               pl__find_memory_type            (VkPhysicalDeviceMemoryProperties tMemProps, uint32_t typeFilter, VkMemoryPropertyFlags properties);
 static void                   pl__grow_vulkan_vertex_buffer   (plDrawContext* ptCtx, uint32_t uVtxBufSzNeeded, plVulkanBufferInfo* ptBufferInfo);
 static void                   pl__grow_vulkan_index_buffer    (plDrawContext* ptCtx, uint32_t uIdxBufSzNeeded, plVulkanBufferInfo* ptBufferInfo);
@@ -549,7 +559,7 @@ static plVulkanPipelineEntry* pl__get_3d_pipelines            (plVulkanDrawConte
 void
 pl_initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptInit)
 {
-    plVulkanDrawContext* ptVulkanDrawContext = PL_ALLOC(sizeof(plVulkanDrawContext));
+    plVulkanDrawContext* ptVulkanDrawContext = PL_VULKAN_ALLOC(sizeof(plVulkanDrawContext));
     memset(ptVulkanDrawContext, 0, sizeof(plVulkanDrawContext));
     ptVulkanDrawContext->tDevice = ptInit->tLogicalDevice;
     ptVulkanDrawContext->uImageCount = ptInit->uImageCount;
@@ -976,6 +986,7 @@ pl_submit_drawlist_vulkan_ex(plDrawList* ptDrawlist, float fWidth, float fHeight
 
     plVulkanPipelineEntry* tPipelineEntry = pl__get_pipelines(ptVulkanDrawCtx, tRenderPass, tMSAASampleCount);
 
+    const plVec2 tClipScale = ptDrawlist->ctx->tFrameBufferScale;
     const float fScale[] = { 2.0f / fWidth, 2.0f / fHeight};
     const float fTranslate[] = {-1.0f, -1.0f};
     bool bSdf = false;
@@ -998,13 +1009,18 @@ pl_submit_drawlist_vulkan_ex(plDrawList* ptDrawlist, float fWidth, float fHeight
         if(pl_rect_width(&cmd.tClip) == 0)
         {
             const VkRect2D tScissor = {
-                .extent.width = (int32_t) fWidth,
-                .extent.height = (int32_t) fHeight
+                .extent.width = (int32_t) (fWidth * tClipScale.x),
+                .extent.height = (int32_t) (fHeight * tClipScale.y)
             };
             vkCmdSetScissor(tCmdBuf, 0, 1, &tScissor);
         }
         else
         {
+
+            // cmd.tClip.tMin.x = tFrameBufferScale.x * cmd.tClip.tMin.x;
+            // cmd.tClip.tMax.x = tFrameBufferScale.x * cmd.tClip.tMax.x;
+            // cmd.tClip.tMin.y = tFrameBufferScale.y * cmd.tClip.tMin.y;
+            // cmd.tClip.tMax.y = tFrameBufferScale.y * cmd.tClip.tMax.y;
 
             // clamp to viewport
             if (cmd.tClip.tMin.x < 0.0f)   { cmd.tClip.tMin.x = 0.0f; }
@@ -1020,7 +1036,6 @@ pl_submit_drawlist_vulkan_ex(plDrawList* ptDrawlist, float fWidth, float fHeight
                 .extent.width  = (int32_t)pl_rect_width(&cmd.tClip),
                 .extent.height = (int32_t)pl_rect_height(&cmd.tClip)
             };
-
             vkCmdSetScissor(tCmdBuf, 0, 1, &tScissor);
         }
 
@@ -1263,7 +1278,7 @@ pl_cleanup_draw_context(plDrawContext* ptCtx)
     vkDestroyCommandPool(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tCmdPool, NULL);
     vkDestroyDescriptorPool(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tDescriptorPool, NULL);
 
-    PL_FREE(ptCtx->_platformData);
+    PL_VULKAN_FREE(ptCtx->_platformData);
     ptCtx->_platformData = NULL;
 }
 

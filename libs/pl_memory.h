@@ -15,7 +15,7 @@
    Notes:
    * allocations return NULL on failure
    * general allocation uses malloc, free, & realloc by default
-   * override general allocators by defining PL_MEMORY_ALLOC(x), PL_MEMORY_FREE(x), & PL_MEMORY_REALLOC(x, y) OR PL_REALLOC_SIZED(x, y, x)
+   * override general allocators by defining PL_MEMORY_ALLOC(x), PL_MEMORY_FREE(x), & PL_MEMORY_REALLOC(x, y) OR PL_MEMORY_REALLOC_SIZED(x, y, x)
    * override assert by defining PL_ASSERT(x)
 */
 
@@ -157,12 +157,12 @@ Index of this file:
 
 #ifdef PL_MEMORY_IMPLEMENTATION
 
-#if defined(PL_MEMORY_ALLOC) && defined(PL_MEMORY_FREE) && (defined(PL_MEMORY_REALLOC) || defined(PL_REALLOC_SIZED))
+#if defined(PL_MEMORY_ALLOC) && defined(PL_MEMORY_FREE) && (defined(PL_MEMORY_REALLOC) || defined(PL_MEMORY_REALLOC_SIZED))
 // ok
-#elif !defined(PL_MEMORY_ALLOC) && !defined(PL_MEMORY_FREE) && !defined(PL_MEMORY_REALLOC) && !defined(PL_REALLOC_SIZED)
+#elif !defined(PL_MEMORY_ALLOC) && !defined(PL_MEMORY_FREE) && !defined(PL_MEMORY_REALLOC) && !defined(PL_MEMORY_REALLOC_SIZED)
 // ok
 #else
-#error "Must define all or none of PL_MEMORY_ALLOC, PL_MEMORY_FREE, and PL_MEMORY_REALLOC (or PL_REALLOC_SIZED)."
+#error "Must define all or none of PL_MEMORY_ALLOC, PL_MEMORY_FREE, and PL_MEMORY_REALLOC (or PL_MEMORY_REALLOC_SIZED)."
 #endif
 
 #ifndef PL_MEMORY_ALLOC
@@ -172,8 +172,8 @@ Index of this file:
     #define PL_MEMORY_FREE(x)       free(x)
 #endif
 
-#ifndef PL_REALLOC_SIZED
-    #define PL_REALLOC_SIZED(x, y, z) PL_MEMORY_REALLOC(x, z)
+#ifndef PL_MEMORY_REALLOC_SIZED
+    #define PL_MEMORY_REALLOC_SIZED(x, y, z) PL_MEMORY_REALLOC(x, z)
 #endif
 
 #ifndef PL_ASSERT

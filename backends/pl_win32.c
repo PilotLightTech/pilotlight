@@ -7,6 +7,7 @@ Index of this file:
 // [SECTION] header mess
 // [SECTION] includes
 // [SECTION] structs
+// [SECTION] global data
 // [SECTION] internal api
 // [SECTION] public api implementation
 // [SECTION] internal api implementation
@@ -30,6 +31,7 @@ Index of this file:
 
 #ifdef PL_INCLUDE_OS_H
 #include "pl_os.h"
+#include "pl_registry.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -62,11 +64,28 @@ typedef struct
 } plWin32SharedLibrary;
 
 //-----------------------------------------------------------------------------
+// [SECTION] global data
+//-----------------------------------------------------------------------------
+
+plIOApiI* gptIoApi = NULL;
+
+//-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static inline bool pl__is_vk_down(int iVk){ return (GetKeyState(iVk) & 0x8000) != 0;}
+static inline bool pl__is_vk_down           (int iVk)         { return (GetKeyState(iVk) & 0x8000) != 0;}
 static plKey       pl__virtual_key_to_pl_key(WPARAM tWParam);
+static void        pl__read_file            (const char* pcFile, unsigned* puSize, char* pcBuffer, const char* pcMode);
+static void        pl__copy_file            (const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer);
+static void        pl__create_udp_socket    (plSocket* ptSocketOut, bool bNonBlocking);
+static void        pl__bind_udp_socket      (plSocket* ptSocket, int iPort);
+static bool        pl__send_udp_data        (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
+static bool        pl__get_udp_data         (plSocket* ptSocket, void* pData, size_t szSize);
+static bool        pl__has_library_changed  (plSharedLibrary* ptLibrary);
+static bool        pl__load_library         (plSharedLibrary* ptLibrary, const char* pcName, const char* pcTransitionalName, const char* pcLockFile);
+static void        pl__reload_library       (plSharedLibrary* ptLibrary);
+static void*       pl__load_library_function(plSharedLibrary* ptLibrary, const char* pcName);
+static int         pl__sleep                (uint32_t millisec);
 
 static inline FILETIME
 pl__get_last_write_time(const char* pcFilename)
@@ -85,9 +104,10 @@ pl__get_last_write_time(const char* pcFilename)
 //-----------------------------------------------------------------------------
 
 void
-pl_init_win32(HWND tHandle)
+pl_init_win32(HWND tHandle, plIOApiI* ptIoApi)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    gptIoApi = ptIoApi;
+    plIOContext* ptIOCtx = gptIoApi->get_context();
     ptIOCtx->pBackendData = malloc(sizeof(plWin32BackendData));
     
     memset(ptIOCtx->pBackendData, 0, sizeof(plWin32BackendData));
@@ -103,26 +123,27 @@ pl_init_win32(HWND tHandle)
 void
 pl_cleanup_win32(void)
 {
-
+    // plIOContext* ptIOCtx = gptIoApi->get_context();
+    // free(ptIOCtx->pBackendData);
 }
 
 void
 pl_new_frame_win32(void)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = gptIoApi->get_context();
     plWin32BackendData* ptWin32BackendData = (plWin32BackendData*)ptIOCtx->pBackendData;
 
     // setup time step
     INT64 ilCurrentTime = 0;
     QueryPerformanceCounter((LARGE_INTEGER*)&ilCurrentTime);
-    pl_get_io_context()->fDeltaTime = (float)(ilCurrentTime - ptWin32BackendData->ilTime) / ptWin32BackendData->ilTicksPerSecond;
+    ptIOCtx->fDeltaTime = (float)(ilCurrentTime - ptWin32BackendData->ilTime) / ptWin32BackendData->ilTicksPerSecond;
     ptWin32BackendData->ilTime = ilCurrentTime;
 }
 
 void
 pl_update_mouse_cursor_win32(void)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = gptIoApi->get_context();
 
     // updating mouse cursor
     if(ptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && ptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
@@ -153,16 +174,13 @@ pl_update_mouse_cursor_win32(void)
 LRESULT CALLBACK 
 pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 {
-    
-    plIOContext* ptIOCtx = pl_get_io_context();
-    plWin32BackendData* ptWin32BackendData = (plWin32BackendData*)ptIOCtx->pBackendData;
-
     static UINT_PTR puIDEvent = 0;
     switch (tMsg)
     {
 
         case WM_SYSCOMMAND:
         {
+            plIOContext* ptIOCtx = gptIoApi->get_context();
             if(tWParam == SC_MINIMIZE)     ptIOCtx->bViewportMinimized = true;
             else if(tWParam == SC_RESTORE) ptIOCtx->bViewportMinimized = false;
             break;
@@ -183,6 +201,7 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
                     iCHeight = tCRect.bottom - tCRect.top;
                 }
 
+                plIOContext* ptIOCtx = gptIoApi->get_context();
                 if(iCWidth > 0 && iCHeight > 0)
                     ptIOCtx->bViewportMinimized = false;
                 else
@@ -201,6 +220,7 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             // required to restore cursor when transitioning from e.g resize borders to client area.
             if (LOWORD(tLParam) == HTCLIENT)
             {
+                plIOContext* ptIOCtx = gptIoApi->get_context();
                 ptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
                 ptIOCtx->tCurrentCursor = PL_MOUSE_CURSOR_NONE;
                 pl_update_mouse_cursor_win32();
@@ -209,6 +229,8 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 
         case WM_MOUSEMOVE:
         {
+            plIOContext* ptIOCtx = gptIoApi->get_context();
+            plWin32BackendData* ptWin32BackendData = (plWin32BackendData*)ptIOCtx->pBackendData;
             ptWin32BackendData->tMouseHandle = tHwnd;
             if(!ptWin32BackendData->bMouseTracked)
             {
@@ -217,15 +239,17 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
                 ptWin32BackendData->bMouseTracked = true;        
             }
             POINT tMousePos = { (LONG)GET_X_LPARAM(tLParam), (LONG)GET_Y_LPARAM(tLParam) };
-            pl_add_mouse_pos_event((float)tMousePos.x, (float)tMousePos.y);
+            gptIoApi->add_mouse_pos_event((float)tMousePos.x, (float)tMousePos.y);
             break;
         }
         case WM_MOUSELEAVE:
         {
+            plIOContext* ptIOCtx = gptIoApi->get_context();
+            plWin32BackendData* ptWin32BackendData = (plWin32BackendData*)ptIOCtx->pBackendData;
             if(tHwnd == ptWin32BackendData->tMouseHandle)
             {
                 ptWin32BackendData->tMouseHandle = NULL;
-                pl_add_mouse_pos_event(-FLT_MAX, -FLT_MAX);
+                gptIoApi->add_mouse_pos_event(-FLT_MAX, -FLT_MAX);
             }
             ptWin32BackendData->bMouseTracked = false;
             break;
@@ -236,6 +260,7 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
         case WM_MBUTTONDOWN: case WM_MBUTTONDBLCLK:
         case WM_XBUTTONDOWN: case WM_XBUTTONDBLCLK:
         {
+            plIOContext* ptIOCtx = gptIoApi->get_context();
             int iButton = 0;
             if (tMsg == WM_LBUTTONDOWN || tMsg == WM_LBUTTONDBLCLK) { iButton = 0; }
             if (tMsg == WM_RBUTTONDOWN || tMsg == WM_RBUTTONDBLCLK) { iButton = 1; }
@@ -244,7 +269,7 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             if(ptIOCtx->_iMouseButtonsDown == 0 && GetCapture() == NULL)
                 SetCapture(tHwnd);
             ptIOCtx->_iMouseButtonsDown |= 1 << iButton;
-            pl_add_mouse_button_event(iButton, true);
+            gptIoApi->add_mouse_button_event(iButton, true);
             return 0;
         }
         case WM_LBUTTONUP:
@@ -252,6 +277,7 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
         case WM_MBUTTONUP:
         case WM_XBUTTONUP:
         {
+            plIOContext* ptIOCtx = gptIoApi->get_context();
             int iButton = 0;
             if (tMsg == WM_LBUTTONUP) { iButton = 0; }
             if (tMsg == WM_RBUTTONUP) { iButton = 1; }
@@ -260,19 +286,19 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             ptIOCtx->_iMouseButtonsDown &= ~(1 << iButton);
             if(ptIOCtx->_iMouseButtonsDown == 0 && GetCapture() == tHwnd)
                 ReleaseCapture();
-            pl_add_mouse_button_event(iButton, false);
+            gptIoApi->add_mouse_button_event(iButton, false);
             return 0;
         }
 
         case WM_MOUSEWHEEL:
         {
-            pl_add_mouse_wheel_event(0.0f, (float)GET_WHEEL_DELTA_WPARAM(tWParam) / (float)WHEEL_DELTA);
+            gptIoApi->add_mouse_wheel_event(0.0f, (float)GET_WHEEL_DELTA_WPARAM(tWParam) / (float)WHEEL_DELTA);
             return 0;
         }
 
         case WM_MOUSEHWHEEL:
         {
-            pl_add_mouse_wheel_event((float)GET_WHEEL_DELTA_WPARAM(tWParam) / (float)WHEEL_DELTA, 0.0f);
+            gptIoApi->add_mouse_wheel_event((float)GET_WHEEL_DELTA_WPARAM(tWParam) / (float)WHEEL_DELTA, 0.0f);
             return 0;
         }
 
@@ -286,10 +312,10 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             {
 
                 // Submit modifiers
-                pl_add_key_event(PL_KEY_MOD_CTRL,  pl__is_vk_down(VK_CONTROL));
-                pl_add_key_event(PL_KEY_MOD_SHIFT, pl__is_vk_down(VK_SHIFT));
-                pl_add_key_event(PL_KEY_MOD_ALT,   pl__is_vk_down(VK_MENU));
-                pl_add_key_event(PL_KEY_MOD_SUPER, pl__is_vk_down(VK_APPS));
+                gptIoApi->add_key_event(PL_KEY_MOD_CTRL,  pl__is_vk_down(VK_CONTROL));
+                gptIoApi->add_key_event(PL_KEY_MOD_SHIFT, pl__is_vk_down(VK_SHIFT));
+                gptIoApi->add_key_event(PL_KEY_MOD_ALT,   pl__is_vk_down(VK_MENU));
+                gptIoApi->add_key_event(PL_KEY_MOD_SUPER, pl__is_vk_down(VK_APPS));
 
                 // obtain virtual key code
                 int iVk = (int)tWParam;
@@ -303,24 +329,24 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 
                 if (tKey != PL_KEY_NONE)
                 {
-                    pl_add_key_event(tKey, bKeyDown);
+                    gptIoApi->add_key_event(tKey, bKeyDown);
                 }
 
                 // Submit individual left/right modifier events
                 if (iVk == VK_SHIFT)
                 {
-                    if (pl__is_vk_down(VK_LSHIFT) == bKeyDown) pl_add_key_event(PL_KEY_LEFT_SHIFT, bKeyDown);
-                    if (pl__is_vk_down(VK_RSHIFT) == bKeyDown) pl_add_key_event(PL_KEY_RIGHT_SHIFT, bKeyDown);
+                    if (pl__is_vk_down(VK_LSHIFT) == bKeyDown) gptIoApi->add_key_event(PL_KEY_LEFT_SHIFT, bKeyDown);
+                    if (pl__is_vk_down(VK_RSHIFT) == bKeyDown) gptIoApi->add_key_event(PL_KEY_RIGHT_SHIFT, bKeyDown);
                 }
                 else if (iVk == VK_CONTROL)
                 {
-                    if (pl__is_vk_down(VK_LCONTROL) == bKeyDown) pl_add_key_event(PL_KEY_LEFT_CTRL, bKeyDown);
-                    if (pl__is_vk_down(VK_RCONTROL) == bKeyDown) pl_add_key_event(PL_KEY_RIGHT_CTRL, bKeyDown);
+                    if (pl__is_vk_down(VK_LCONTROL) == bKeyDown) gptIoApi->add_key_event(PL_KEY_LEFT_CTRL, bKeyDown);
+                    if (pl__is_vk_down(VK_RCONTROL) == bKeyDown) gptIoApi->add_key_event(PL_KEY_RIGHT_CTRL, bKeyDown);
                 }
                 else if (iVk == VK_MENU)
                 {
-                    if (pl__is_vk_down(VK_LMENU) == bKeyDown) pl_add_key_event(PL_KEY_LEFT_ALT, bKeyDown);
-                    if (pl__is_vk_down(VK_RMENU) == bKeyDown) pl_add_key_event(PL_KEY_RIGHT_ALT, bKeyDown);
+                    if (pl__is_vk_down(VK_LMENU) == bKeyDown) gptIoApi->add_key_event(PL_KEY_LEFT_ALT, bKeyDown);
+                    if (pl__is_vk_down(VK_RMENU) == bKeyDown) gptIoApi->add_key_event(PL_KEY_RIGHT_ALT, bKeyDown);
                 }
                 return 0;
             }
@@ -332,223 +358,50 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 #ifdef PL_INCLUDE_OS_H
 
 void
-pl_read_file(const char* pcFile, unsigned* puSizeIn, char* pcBuffer, const char* pcMode)
+pl_load_file_api(plApiRegistryApiI* ptApiRegistry)
 {
-    PL_ASSERT(puSizeIn);
-
-    FILE* ptDataFile = fopen(pcFile, pcMode);
-    unsigned uSize = 0u;
-
-    if (ptDataFile == NULL)
-    {
-        PL_ASSERT(false && "File not found.");
-        *puSizeIn = 0u;
-        return;
-    }
-
-    // obtain file size
-    fseek(ptDataFile, 0, SEEK_END);
-    uSize = ftell(ptDataFile);
-    fseek(ptDataFile, 0, SEEK_SET);
-
-    if(pcBuffer == NULL)
-    {
-        *puSizeIn = uSize;
-        fclose(ptDataFile);
-        return;
-    }
-
-    // copy the file into the buffer:
-    size_t szResult = fread(pcBuffer, sizeof(char), uSize, ptDataFile);
-    if (szResult != uSize)
-    {
-        if (feof(ptDataFile))
-            printf("Error reading test.bin: unexpected end of file\n");
-        else if (ferror(ptDataFile)) {
-            perror("Error reading test.bin");
-        }
-        PL_ASSERT(false && "File not read.");
-    }
-
-    fclose(ptDataFile);
-}
-
-void
-pl_copy_file(const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer)
-{
-    CopyFile(pcSource, pcDestination, FALSE);
-}
-
-void
-pl_create_udp_socket(plSocket* ptSocketOut, bool bNonBlocking)
-{
-
-    UINT_PTR tWin32Socket = 0;
-
-    // create socket
-    if((tWin32Socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
-    {
-        printf("Could not create socket : %d\n", WSAGetLastError());
-        PL_ASSERT(false && "Could not create socket");
-    }
-
-    // enable non-blocking
-    if(bNonBlocking)
-    {
-        u_long uMode = 1;
-        ioctlsocket(tWin32Socket, FIONBIO, &uMode);
-    }
-
-    ptSocketOut->_pPlatformData = (void*)tWin32Socket;
-}
-
-void
-pl_bind_udp_socket(plSocket* ptSocket, int iPort)
-{
-    ptSocket->iPort = iPort;
-    PL_ASSERT(ptSocket->_pPlatformData && "Socket not created yet");
-    UINT_PTR tWin32Socket = (UINT_PTR)ptSocket->_pPlatformData;
-    
-    // prepare sockaddr_in struct
-    struct sockaddr_in tServer = {
-        .sin_family      = AF_INET,
-        .sin_port        = htons((u_short)iPort),
-        .sin_addr.s_addr = INADDR_ANY
+    static plFileApiI tApi = {
+        .copy_file = pl__copy_file,
+        .read_file = pl__read_file
     };
-
-    // bind socket
-    if(bind(tWin32Socket, (struct sockaddr* )&tServer, sizeof(tServer)) == SOCKET_ERROR)
-    {
-        printf("Bind socket failed with error code : %d\n", WSAGetLastError());
-        PL_ASSERT(false && "Socket error");
-    }
-}
-
-bool
-pl_send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize)
-{
-    PL_ASSERT(ptFromSocket->_pPlatformData && "Socket not created yet");
-    UINT_PTR tWin32Socket = (UINT_PTR)ptFromSocket->_pPlatformData;
-
-    struct sockaddr_in tDestSocket = {
-        .sin_family           = AF_INET,
-        .sin_port             = htons((u_short)iDestPort),
-        .sin_addr.S_un.S_addr = inet_addr(pcDestIP)
-    };
-    static const size_t szLen = sizeof(tDestSocket);
-
-    // send
-    if(sendto(tWin32Socket, (const char*)pData, (int)szSize, 0, (struct sockaddr*)&tDestSocket, (int)szLen) == SOCKET_ERROR)
-    {
-        printf("sendto() failed with error code : %d\n", WSAGetLastError());
-        PL_ASSERT(false && "Socket error");
-        return false;
-    }
-
-    return true;
-}
-
-bool
-pl_get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
-{
-    PL_ASSERT(ptSocket->_pPlatformData && "Socket not created yet");
-    UINT_PTR tWin32Socket = (UINT_PTR)ptSocket->_pPlatformData;
-
-    struct sockaddr_in tSiOther = {0};
-    static int iSLen = (int)sizeof(tSiOther);
-    memset(pData, 0, szSize);
-    int iRecvLen = recvfrom(tWin32Socket, (char*)pData, (int)szSize, 0, (struct sockaddr*)&tSiOther, &iSLen);
-
-    if(iRecvLen == SOCKET_ERROR)
-    {
-        const int iLastError = WSAGetLastError();
-        if(iLastError != WSAEWOULDBLOCK)
-        {
-            printf("recvfrom() failed with error code : %d\n", WSAGetLastError());
-            PL_ASSERT(false && "Socket error");
-            return false;
-        }
-    }
-
-    return iRecvLen > 0;
-}
-
-bool
-pl_has_library_changed(plSharedLibrary* ptLibrary)
-{
-    FILETIME newWriteTime = pl__get_last_write_time(ptLibrary->acPath);
-    plWin32SharedLibrary* win32Library = ptLibrary->_pPlatformData;
-    return CompareFileTime(&newWriteTime, &win32Library->tLastWriteTime) != 0;
-}
-
-bool
-pl_load_library(plSharedLibrary* ptLibrary, const char* pcName, const char* pcTransitionalName, const char* pcLockFile)
-{
-    if(ptLibrary->acPath[0] == 0)             strncpy(ptLibrary->acPath, pcName, PL_MAX_NAME_LENGTH);
-    if(ptLibrary->acTransitionalName[0] == 0) strncpy(ptLibrary->acTransitionalName, pcTransitionalName, PL_MAX_NAME_LENGTH);
-    if(ptLibrary->acLockFile[0] == 0)         strncpy(ptLibrary->acLockFile, pcLockFile, PL_MAX_NAME_LENGTH);
-    ptLibrary->bValid = false;
-
-    if(ptLibrary->_pPlatformData == NULL)
-        ptLibrary->_pPlatformData = malloc(sizeof(plWin32SharedLibrary));
-    plWin32SharedLibrary* ptWin32Library = ptLibrary->_pPlatformData;
-
-    WIN32_FILE_ATTRIBUTE_DATA tIgnored;
-    if(!GetFileAttributesExA(ptLibrary->acLockFile, GetFileExInfoStandard, &tIgnored))  // lock file gone
-    {
-        char acTemporaryName[2024] = {0};
-        ptWin32Library->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
-        
-        pl_sprintf(acTemporaryName, "%s%u%s", ptLibrary->acTransitionalName, ptLibrary->uTempIndex, ".dll");
-        if(++ptLibrary->uTempIndex >= 1024)
-        {
-            ptLibrary->uTempIndex = 0;
-        }
-        pl_copy_file(ptLibrary->acPath, acTemporaryName, NULL, NULL);
-
-        ptWin32Library->tHandle = NULL;
-        ptWin32Library->tHandle = LoadLibraryA(acTemporaryName);
-        if(ptWin32Library->tHandle)
-            ptLibrary->bValid = true;
-    }
-
-    return ptLibrary->bValid;
+    ptApiRegistry->add(PL_API_FILE, &tApi);
 }
 
 void
-pl_reload_library(plSharedLibrary* ptLibrary)
+pl_load_udp_api(plApiRegistryApiI* ptApiRegistry)
 {
-    ptLibrary->bValid = false;
-    for(uint32_t i = 0; i < 100; i++)
+    static plUdpApiI tApi = 
     {
-        if(pl_load_library(ptLibrary, ptLibrary->acPath, ptLibrary->acTransitionalName, ptLibrary->acLockFile))
-            break;
-        pl_sleep(100);
-    }
+        .create_udp_socket = pl__create_udp_socket,
+        .bind_udp_socket   = pl__bind_udp_socket,  
+        .get_udp_data      = pl__get_udp_data,
+        .send_udp_data     = pl__send_udp_data
+    };
+    ptApiRegistry->add(PL_API_UDP, &tApi);
 }
 
-void*
-pl_load_library_function(plSharedLibrary* ptLibrary, const char* name)
+void
+pl_load_library_api(plApiRegistryApiI* ptApiRegistry)
 {
-    PL_ASSERT(ptLibrary->bValid && "Library not valid");
-    void* pLoadedFunction = NULL;
-    if(ptLibrary->bValid)
-    {
-        plWin32SharedLibrary* ptWin32Library = ptLibrary->_pPlatformData;
-        pLoadedFunction = (void*)GetProcAddress(ptWin32Library->tHandle, name);
-    }
-    return pLoadedFunction;
+    static plLibraryApiI tApi = {
+        .has_library_changed   = pl__has_library_changed,
+        .load_library          = pl__load_library,
+        .load_library_function = pl__load_library_function,
+        .reload_library        = pl__reload_library
+    };
+    ptApiRegistry->add(PL_API_LIBRARY, &tApi);
 }
 
-int
-pl_sleep(uint32_t uMillisec)
+void
+pl_load_os_services_api(plApiRegistryApiI* ptApiRegistry)
 {
-    Sleep((long)uMillisec);
-    return 0;
+    static plOsServicesApiI tApi = {
+        .sleep = pl__sleep
+    };
+    ptApiRegistry->add(PL_API_OS_SERVICES, &tApi);
 }
 
 #endif // PL_INCLUDE_OS_H
-
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
@@ -666,3 +519,225 @@ pl__virtual_key_to_pl_key(WPARAM tWParam)
         default:                 return PL_KEY_NONE;
     }   
 }
+
+#ifdef PL_INCLUDE_OS_H
+
+static void
+pl__read_file(const char* pcFile, unsigned* puSizeIn, char* pcBuffer, const char* pcMode)
+{
+    PL_ASSERT(puSizeIn);
+
+    FILE* ptDataFile = fopen(pcFile, pcMode);
+    unsigned uSize = 0u;
+
+    if (ptDataFile == NULL)
+    {
+        PL_ASSERT(false && "File not found.");
+        *puSizeIn = 0u;
+        return;
+    }
+
+    // obtain file size
+    fseek(ptDataFile, 0, SEEK_END);
+    uSize = ftell(ptDataFile);
+    fseek(ptDataFile, 0, SEEK_SET);
+
+    if(pcBuffer == NULL)
+    {
+        *puSizeIn = uSize;
+        fclose(ptDataFile);
+        return;
+    }
+
+    // copy the file into the buffer:
+    size_t szResult = fread(pcBuffer, sizeof(char), uSize, ptDataFile);
+    if (szResult != uSize)
+    {
+        if (feof(ptDataFile))
+            printf("Error reading test.bin: unexpected end of file\n");
+        else if (ferror(ptDataFile)) {
+            perror("Error reading test.bin");
+        }
+        PL_ASSERT(false && "File not read.");
+    }
+
+    fclose(ptDataFile);
+}
+
+static void
+pl__copy_file(const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer)
+{
+    CopyFile(pcSource, pcDestination, FALSE);
+}
+
+static void
+pl__create_udp_socket(plSocket* ptSocketOut, bool bNonBlocking)
+{
+
+    UINT_PTR tWin32Socket = 0;
+
+    // create socket
+    if((tWin32Socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
+    {
+        printf("Could not create socket : %d\n", WSAGetLastError());
+        PL_ASSERT(false && "Could not create socket");
+    }
+
+    // enable non-blocking
+    if(bNonBlocking)
+    {
+        u_long uMode = 1;
+        ioctlsocket(tWin32Socket, FIONBIO, &uMode);
+    }
+
+    ptSocketOut->_pPlatformData = (void*)tWin32Socket;
+}
+
+static void
+pl__bind_udp_socket(plSocket* ptSocket, int iPort)
+{
+    ptSocket->iPort = iPort;
+    PL_ASSERT(ptSocket->_pPlatformData && "Socket not created yet");
+    UINT_PTR tWin32Socket = (UINT_PTR)ptSocket->_pPlatformData;
+    
+    // prepare sockaddr_in struct
+    struct sockaddr_in tServer = {
+        .sin_family      = AF_INET,
+        .sin_port        = htons((u_short)iPort),
+        .sin_addr.s_addr = INADDR_ANY
+    };
+
+    // bind socket
+    if(bind(tWin32Socket, (struct sockaddr* )&tServer, sizeof(tServer)) == SOCKET_ERROR)
+    {
+        printf("Bind socket failed with error code : %d\n", WSAGetLastError());
+        PL_ASSERT(false && "Socket error");
+    }
+}
+
+static bool
+pl__send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize)
+{
+    PL_ASSERT(ptFromSocket->_pPlatformData && "Socket not created yet");
+    UINT_PTR tWin32Socket = (UINT_PTR)ptFromSocket->_pPlatformData;
+
+    struct sockaddr_in tDestSocket = {
+        .sin_family           = AF_INET,
+        .sin_port             = htons((u_short)iDestPort),
+        .sin_addr.S_un.S_addr = inet_addr(pcDestIP)
+    };
+    static const size_t szLen = sizeof(tDestSocket);
+
+    // send
+    if(sendto(tWin32Socket, (const char*)pData, (int)szSize, 0, (struct sockaddr*)&tDestSocket, (int)szLen) == SOCKET_ERROR)
+    {
+        printf("sendto() failed with error code : %d\n", WSAGetLastError());
+        PL_ASSERT(false && "Socket error");
+        return false;
+    }
+
+    return true;
+}
+
+static bool
+pl__get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
+{
+    PL_ASSERT(ptSocket->_pPlatformData && "Socket not created yet");
+    UINT_PTR tWin32Socket = (UINT_PTR)ptSocket->_pPlatformData;
+
+    struct sockaddr_in tSiOther = {0};
+    static int iSLen = (int)sizeof(tSiOther);
+    memset(pData, 0, szSize);
+    int iRecvLen = recvfrom(tWin32Socket, (char*)pData, (int)szSize, 0, (struct sockaddr*)&tSiOther, &iSLen);
+
+    if(iRecvLen == SOCKET_ERROR)
+    {
+        const int iLastError = WSAGetLastError();
+        if(iLastError != WSAEWOULDBLOCK)
+        {
+            printf("recvfrom() failed with error code : %d\n", WSAGetLastError());
+            PL_ASSERT(false && "Socket error");
+            return false;
+        }
+    }
+
+    return iRecvLen > 0;
+}
+
+static bool
+pl__has_library_changed(plSharedLibrary* ptLibrary)
+{
+    FILETIME newWriteTime = pl__get_last_write_time(ptLibrary->acPath);
+    plWin32SharedLibrary* win32Library = ptLibrary->_pPlatformData;
+    return CompareFileTime(&newWriteTime, &win32Library->tLastWriteTime) != 0;
+}
+
+static bool
+pl__load_library(plSharedLibrary* ptLibrary, const char* pcName, const char* pcTransitionalName, const char* pcLockFile)
+{
+    if(ptLibrary->acPath[0] == 0)             strncpy(ptLibrary->acPath, pcName, PL_MAX_PATH_LENGTH);
+    if(ptLibrary->acTransitionalName[0] == 0) strncpy(ptLibrary->acTransitionalName, pcTransitionalName, PL_MAX_PATH_LENGTH);
+    if(ptLibrary->acLockFile[0] == 0)         strncpy(ptLibrary->acLockFile, pcLockFile, PL_MAX_PATH_LENGTH);
+    ptLibrary->bValid = false;
+
+    if(ptLibrary->_pPlatformData == NULL)
+        ptLibrary->_pPlatformData = malloc(sizeof(plWin32SharedLibrary));
+    plWin32SharedLibrary* ptWin32Library = ptLibrary->_pPlatformData;
+
+    WIN32_FILE_ATTRIBUTE_DATA tIgnored;
+    if(!GetFileAttributesExA(ptLibrary->acLockFile, GetFileExInfoStandard, &tIgnored))  // lock file gone
+    {
+        char acTemporaryName[2024] = {0};
+        ptWin32Library->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
+        
+        pl_sprintf(acTemporaryName, "%s%u%s", ptLibrary->acTransitionalName, ptLibrary->uTempIndex, ".dll");
+        if(++ptLibrary->uTempIndex >= 1024)
+        {
+            ptLibrary->uTempIndex = 0;
+        }
+        pl__copy_file(ptLibrary->acPath, acTemporaryName, NULL, NULL);
+
+        ptWin32Library->tHandle = NULL;
+        ptWin32Library->tHandle = LoadLibraryA(acTemporaryName);
+        if(ptWin32Library->tHandle)
+            ptLibrary->bValid = true;
+    }
+
+    return ptLibrary->bValid;
+}
+
+void
+pl__reload_library(plSharedLibrary* ptLibrary)
+{
+    ptLibrary->bValid = false;
+    for(uint32_t i = 0; i < 100; i++)
+    {
+        if(pl__load_library(ptLibrary, ptLibrary->acPath, ptLibrary->acTransitionalName, ptLibrary->acLockFile))
+            break;
+        pl__sleep(100);
+    }
+}
+
+void*
+pl__load_library_function(plSharedLibrary* ptLibrary, const char* name)
+{
+    PL_ASSERT(ptLibrary->bValid && "Library not valid");
+    void* pLoadedFunction = NULL;
+    if(ptLibrary->bValid)
+    {
+        plWin32SharedLibrary* ptWin32Library = ptLibrary->_pPlatformData;
+        pLoadedFunction = (void*)GetProcAddress(ptWin32Library->tHandle, name);
+        if(pLoadedFunction == NULL)
+            printf("Failed to start winsock with error code: %d\n", WSAGetLastError());
+    }
+    return pLoadedFunction;
+}
+
+static int
+pl__sleep(uint32_t uMillisec)
+{
+    Sleep((long)uMillisec);
+    return 0;
+}
+
+#endif // PL_INCLUDE_OS_H

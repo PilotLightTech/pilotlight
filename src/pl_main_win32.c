@@ -31,9 +31,10 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl_config.h"   // config
 #include "pl_io.h"       // io context
-#include "pl_os.h"       // shared library api
-#include "pl_registry.h" // data registry
+#include "pl_os.h"       // os apis
+#include "pl_registry.h" // data registry, api registry, extension registry
 #include <stdlib.h>      // exit
 #include <stdio.h>       // printf
 #include <wchar.h>       // mbsrtowcs, wcsrtombs
@@ -56,15 +57,32 @@ static void             pl__render_frame(void);
 // [SECTION] globals
 //-----------------------------------------------------------------------------
 
-static HWND            gtHandle = NULL;
-static plSharedLibrary gtAppLibrary = {0};
-static void*           gpUserData = NULL;
-static bool            gbRunning = true;
-static bool            gbFirstRun = true;
-plIOContext            gtIOContext = {0};
-static bool            gbEnableVirtualTerminalProcessing = true;
+// apis
+static plDataRegistryApiI*      gptDataRegistry = NULL;
+static plApiRegistryApiI*       gptApiRegistry = NULL;
+static plExtensionRegistryApiI* gptExtensionRegistry = NULL;
+static plIOApiI*                gptIoApiMain = NULL;
 
-static void* (*pl_app_load)    (plIOContext* ptIOCtx, void* userData);
+// OS apis
+static plFileApiI*       gptFileApi = NULL;
+static plLibraryApiI*    gptLibraryApi = NULL;
+static plOsServicesApiI* gptOsServicesApi = NULL;
+static plUdpApiI*        gptUdpApi = NULL;
+
+static HWND  gtHandle = NULL;
+static plSharedLibrary gtAppLibrary = {0};
+static void* gpUserData = NULL;
+static bool  gbRunning = true;
+static bool  gbFirstRun = true;
+static bool  gbEnableVirtualTerminalProcessing = true;
+
+// app dll info
+static HMODULE   gtAppHandle = {0};
+static FILETIME  gtLastWriteTime = {0};
+static bool      gbAppValid = false;
+static uint32_t  guAppTempIndex = 0;
+
+static void* (*pl_app_load)    (plApiRegistryApiI* ptApiRegistry, void* userData);
 static void  (*pl_app_shutdown)(void* userData);
 static void  (*pl_app_resize)  (void* userData);
 static void  (*pl_app_update)  (void* userData);
@@ -93,9 +111,28 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    // setup & retrieve io context
-    pl_initialize_io_context(&gtIOContext);
-    plIOContext* ptIOCtx = pl_get_io_context();
+    gptApiRegistry       = pl_load_api_registry();
+    pl_load_data_registry_api(gptApiRegistry);
+    pl_load_extension_registry(gptApiRegistry);
+    gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
+    gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+
+    gptIoApiMain = pl_load_io_api();
+    gptApiRegistry->add(PL_API_IO, gptIoApiMain);
+
+    // load os apis
+    pl_load_file_api(gptApiRegistry);
+    pl_load_library_api(gptApiRegistry);
+    pl_load_udp_api(gptApiRegistry);
+    pl_load_os_services_api(gptApiRegistry);
+    gptFileApi       = gptApiRegistry->first(PL_API_FILE);
+    gptLibraryApi    = gptApiRegistry->first(PL_API_LIBRARY);
+    gptUdpApi        = gptApiRegistry->first(PL_API_UDP);
+    gptOsServicesApi = gptApiRegistry->first(PL_API_OS_SERVICES);
+
+    // setup & retrieve io context 
+    plIOContext* ptIOCtx = gptIoApiMain->get_context();
+    gptDataRegistry->set_data("io", ptIOCtx);
     ptIOCtx->tCurrentCursor = PL_MOUSE_CURSOR_ARROW;
     ptIOCtx->tNextCursor = ptIOCtx->tCurrentCursor;
     ptIOCtx->afMainViewportSize[0] = 500.0f;
@@ -130,11 +167,7 @@ int main(int argc, char *argv[])
     AdjustWindowRect(&tWr, WS_OVERLAPPEDWINDOW, FALSE);
 
     wchar_t awWideTitle[1024];
-    #ifdef PL_VULKAN_BACKEND
     pl__convert_to_wide_string("Pilot Light (win32/vulkan)", awWideTitle);
-    #elif PL_DX11_BACKEND
-    pl__convert_to_wide_string("Pilot Light (win32/dx11)", awWideTitle);
-    #endif
 
     // create window & get handle
     gtHandle = CreateWindowExW(
@@ -148,7 +181,7 @@ int main(int argc, char *argv[])
         GetModuleHandle(NULL),
         NULL // user data
     );
-    pl_init_win32(gtHandle);
+    pl_init_win32(gtHandle, gptIoApiMain);
     
     // setup console
     DWORD tCurrentMode = 0;
@@ -169,13 +202,13 @@ int main(int argc, char *argv[])
     }
 
     // load library
-    if(pl_load_library(&gtAppLibrary, "./app.dll", "./app_", "./lock.tmp"))
+    if(gptLibraryApi->load_library(&gtAppLibrary, "./app.dll", "./app_", "./lock.tmp"))
     {
-        pl_app_load     = (void* (__cdecl  *)(plIOContext*, void*)) pl_load_library_function(&gtAppLibrary, "pl_app_load");
-        pl_app_shutdown = (void  (__cdecl  *)(void*)) pl_load_library_function(&gtAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__cdecl  *)(void*)) pl_load_library_function(&gtAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__cdecl  *)(void*)) pl_load_library_function(&gtAppLibrary, "pl_app_update");
-        gpUserData = pl_app_load(ptIOCtx, NULL);
+        pl_app_load     = (void* (__cdecl  *)(plApiRegistryApiI*, void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_load");
+        pl_app_shutdown = (void  (__cdecl  *)(void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__cdecl  *)(void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__cdecl  *)(void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_update");
+        gpUserData = pl_app_load(gptApiRegistry, NULL);
     }
 
     // show window
@@ -203,14 +236,14 @@ int main(int argc, char *argv[])
         pl_update_mouse_cursor_win32();
 
         // reload library
-        if(pl_has_library_changed(&gtAppLibrary))
+        if(gptLibraryApi->has_library_changed(&gtAppLibrary))
         {
-            pl_reload_library(&gtAppLibrary);
-            pl_app_load     = (void* (__cdecl *)(plIOContext*, void*)) pl_load_library_function(&gtAppLibrary, "pl_app_load");
-            pl_app_shutdown = (void  (__cdecl *)(void*)) pl_load_library_function(&gtAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__cdecl *)(void*)) pl_load_library_function(&gtAppLibrary, "pl_app_resize");
-            pl_app_update   = (void  (__cdecl *)(void*)) pl_load_library_function(&gtAppLibrary, "pl_app_update");
-            gpUserData = pl_app_load(ptIOCtx, gpUserData);
+            gptLibraryApi->reload_library(&gtAppLibrary);
+            pl_app_load     = (void* (__cdecl  *)(plApiRegistryApiI*, void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_load");
+            pl_app_shutdown = (void  (__cdecl  *)(void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_shutdown");
+            pl_app_resize   = (void  (__cdecl  *)(void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_resize");
+            pl_app_update   = (void  (__cdecl  *)(void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_update");
+            gpUserData = pl_app_load(gptApiRegistry, gpUserData);
         }
 
         // render a frame
@@ -221,14 +254,16 @@ int main(int argc, char *argv[])
     // app cleanup
     pl_app_shutdown(gpUserData);
 
+    pl_unload_extension_registry();
+    pl_unload_data_registry_api();
+
     // cleanup win32 stuff
     UnregisterClassW(tWc.lpszClassName, GetModuleHandle(NULL));
     DestroyWindow(gtHandle);
     gtHandle = NULL;
-    ptIOCtx->pBackendPlatformData = NULL;
 
     // cleanup io context
-    pl_cleanup_io_context();
+    pl_unload_io_api();
 
     pl_cleanup_win32();
 
@@ -263,7 +298,7 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
         {
             if (tWParam != SIZE_MINIMIZED)
             {
-                plIOContext* ptIOCtx = pl_get_io_context();
+                plIOContext* ptIOCtx = gptIoApiMain->get_context();
                 if(ptIOCtx->bViewportSizeChanged && !ptIOCtx->bViewportMinimized && !gbFirstRun)
                 {
                     pl_app_resize(gpUserData);
@@ -349,7 +384,23 @@ pl__render_frame(void)
 {
     pl_new_frame_win32();
 
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = gptIoApiMain->get_context();
     if(!ptIOCtx->bViewportMinimized)
+    {
+        gptExtensionRegistry->reload(gptApiRegistry, gptLibraryApi);
         pl_app_update(gpUserData);   
+    }
 }
+
+#include "pl_registry.c"
+#include "../backends/pl_win32.c"
+
+#define PL_IO_IMPLEMENTATION
+#include "pl_io.h"
+#undef PL_IO_IMPLEMENTATION
+
+#ifdef PL_USE_STB_SPRINTF
+#define STB_SPRINTF_IMPLEMENTATION
+#include "stb_sprintf.h"
+#undef STB_SPRINTF_IMPLEMENTATION
+#endif

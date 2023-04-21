@@ -289,6 +289,7 @@ typedef struct _plUiNextWindowData
 typedef struct _plUiContext
 {
     plUiStyle tStyle;
+    plIOApiI* ptIo;
 
     // prev/next state
     plUiNextWindowData tNextWindowData;        // info based on pl_ui_set_next_window_* functions

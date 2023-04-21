@@ -21,6 +21,9 @@ Index of this file:
 #include "pl_ds.h"
 #import <time.h>
 
+#define PL_MATH_INCLUDE_FUNCTIONS
+#include "pl_math.h"
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------

@@ -9,16 +9,13 @@
        - pl_macos.h + pl_macos.m
 */
 
-// library version
-#define PL_OS_VERSION    "0.1.1"
-#define PL_OS_VERSION_NUM 00101
-
 /*
 Index of this file:
 // [SECTION] includes
 // [SECTION] defines
 // [SECTION] forward declarations
 // [SECTION] public api
+// [SECTION] public api structs
 // [SECTION] structs
 */
 
@@ -41,48 +38,67 @@ Index of this file:
     #define PL_MAX_PATH_LENGTH 1024
 #endif
 
+#define PL_API_FILE        "FILE API"
+#define PL_API_UDP         "UDP API"
+#define PL_API_LIBRARY     "LIBRARY API"
+#define PL_API_OS_SERVICES "OS SERVICES API"
+
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
+
+// apis
+typedef struct _plOsServicesApiI plOsServicesApiI;
+typedef struct _plFileApiI       plFileApiI;
+typedef struct _plLibraryApiI    plLibraryApiI;
+typedef struct _plUdpApiI        plUdpApiI;
 
 // types
 typedef struct _plSharedLibrary plSharedLibrary;
 typedef struct _plSocket        plSocket;
 
+// external
+typedef struct _plApiRegistryApiI plApiRegistryApiI;
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~file ops~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void pl_load_file_api       (plApiRegistryApiI* ptApiRegistry);
+void pl_load_udp_api        (plApiRegistryApiI* ptApiRegistry);
+void pl_load_library_api    (plApiRegistryApiI* ptApiRegistry);
+void pl_load_os_services_api(plApiRegistryApiI* ptApiRegistry);
 
-// Notes
-//   - API subject to change slightly
-//   - additional error checks needs to be added
+//-----------------------------------------------------------------------------
+// [SECTION] public structs
+//-----------------------------------------------------------------------------
 
-void   pl_read_file            (const char* pcFile, unsigned* puSize, char* pcBuffer, const char* pcMode);
-void   pl_copy_file            (const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer);
+typedef struct _plFileApiI
+{
+  void (*read_file)(const char* pcFile, unsigned* puSize, char* pcBuffer, const char* pcMode);
+  void (*copy_file)(const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer);
+} plFileApiI;
 
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~UDP sockets~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+typedef struct _plUdpApiI
+{
+  void (*create_udp_socket) (plSocket* ptSocketOut, bool bNonBlocking);
+  void (*bind_udp_socket)   (plSocket* ptSocket, int iPort);
+  bool (*send_udp_data)     (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
+  bool (*get_udp_data)      (plSocket* ptSocket, void* pData, size_t szSize);
+} plUdpApiI;
 
-void   pl_create_udp_socket    (plSocket* ptSocketOut, bool bNonBlocking);
-void   pl_bind_udp_socket      (plSocket* ptSocket, int iPort);
-bool   pl_send_udp_data        (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
-bool   pl_get_udp_data         (plSocket* ptSocket, void* pData, size_t szSize);
+typedef struct _plLibraryApiI
+{
+  bool  (*has_library_changed)  (plSharedLibrary* ptLibrary);
+  bool  (*load_library)         (plSharedLibrary* ptLibrary, const char* pcName, const char* pcTransitionalName, const char* pcLockFile);
+  void  (*reload_library)       (plSharedLibrary* ptLibrary);
+  void* (*load_library_function)(plSharedLibrary* ptLibrary, const char* pcName);
+} plLibraryApiI;
 
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~shared libraries~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-// Notes
-//   - API subject to change slightly
-//   - additional error checks needs to be added
-
-bool   pl_has_library_changed  (plSharedLibrary* ptLibrary);
-bool   pl_load_library         (plSharedLibrary* ptLibrary, const char* pcName, const char* pcTransitionalName, const char* pcLockFile);
-void   pl_reload_library       (plSharedLibrary* ptLibrary);
-void*  pl_load_library_function(plSharedLibrary* ptLibrary, const char* pcName);
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~misc~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-int pl_sleep(uint32_t millisec);
+typedef struct _plOsServicesApiI
+{
+  int (*sleep)(uint32_t millisec);
+} plOsServicesApiI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs

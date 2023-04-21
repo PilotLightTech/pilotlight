@@ -18,13 +18,16 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl_config.h"   // config
+#include "pl_io.h"       // io context
+#include "pl_os.h"       // os apis
+#include "pl_registry.h" // data registry, api registry, extension registry
 #import <Cocoa/Cocoa.h>
 #import <Carbon/Carbon.h>
 #import <QuartzCore/CAMetalLayer.h>
 #import <Metal/Metal.h>
 #import <time.h>
-#include "pl_os.h"
-#include "pl_io.h"
+
 #include "pl_macos.h"
 
 //-----------------------------------------------------------------------------
@@ -63,26 +66,37 @@ Index of this file:
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static plKey                 pl__osx_key_to_pl_key(int iKey);
-static void                  pl__add_osx_tracking_area(NSView* _Nonnull view);
-static bool                  pl__handle_osx_event(NSEvent* event, NSView* view);
-static inline CFTimeInterval pl__get_absolute_time(void) { return (CFTimeInterval)((double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9); }
+static plKey pl__osx_key_to_pl_key(int iKey);
+static void  pl__add_osx_tracking_area(NSView* _Nonnull view);
+static bool  pl__handle_osx_event(NSEvent* event, NSView* view);
 
 //-----------------------------------------------------------------------------
 // [SECTION] globals
 //-----------------------------------------------------------------------------
 
+// apis
+static plDataRegistryApiI*      gptDataRegistry = NULL;
+static plApiRegistryApiI*       gptApiRegistry = NULL;
+static plExtensionRegistryApiI* gptExtensionRegistry = NULL;
+static plIOApiI*                gptIoApiMain = NULL;
+
+// OS apis
+static plFileApiI*       gptFileApi = NULL;
+static plLibraryApiI*    gptLibraryApi = NULL;
+static plOsServicesApiI* gptOsServicesApi = NULL;
+static plUdpApiI*        gptUdpApi = NULL;
+
 static NSWindow*            gWindow = NULL;
 static NSViewController*    gViewController = NULL;
-static plSharedLibrary      gAppLibrary = {0};
+static plSharedLibrary      gtAppLibrary = {0};
 static void*                gUserData = NULL;
 static bool                 gRunning = true;
-plIOContext                 gtIOContext = {0};
+plIOContext*                gtIOContext = NULL;
 static plKeyEventResponder* gKeyEventResponder = NULL;
 static NSTextInputContext*  gInputContext = NULL;
 static id                   gMonitor;
 
-static void* (*pl_app_load)    (plIOContext* ptIOCtx, void* ptAppData);
+static void* (*pl_app_load)    (plApiRegistryApiI* ptApiRegistry, void* ptAppData);
 static void  (*pl_app_shutdown)(void* ptAppData);
 static void  (*pl_app_resize)  (void* ptAppData);
 static void  (*pl_app_update)  (void* ptAppData);
@@ -93,9 +107,34 @@ static void  (*pl_app_update)  (void* ptAppData);
 
 int main()
 {
-    // setup io context
-    pl_initialize_io_context(&gtIOContext);
-    plIOContext* ptIOCtx = pl_get_io_context();
+    gptApiRegistry       = pl_load_api_registry();
+    pl_load_data_registry_api(gptApiRegistry);
+    pl_load_extension_registry(gptApiRegistry);
+    gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
+    gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+
+    gptIoApiMain = pl_load_io_api();
+    gptApiRegistry->add(PL_API_IO, gptIoApiMain);
+
+    // load os apis
+    pl_load_file_api(gptApiRegistry);
+    pl_load_library_api(gptApiRegistry);
+    pl_load_udp_api(gptApiRegistry);
+    pl_load_os_services_api(gptApiRegistry);
+    gptFileApi       = gptApiRegistry->first(PL_API_FILE);
+    gptLibraryApi    = gptApiRegistry->first(PL_API_LIBRARY);
+    gptUdpApi        = gptApiRegistry->first(PL_API_UDP);
+    gptOsServicesApi = gptApiRegistry->first(PL_API_OS_SERVICES);
+
+    // setup & retrieve io context 
+    plIOContext* ptIOCtx = gptIoApiMain->get_context();
+    gtIOContext = ptIOCtx;
+    gptDataRegistry->set_data("io", ptIOCtx);
+    ptIOCtx->tCurrentCursor = PL_MOUSE_CURSOR_ARROW;
+    ptIOCtx->tNextCursor = ptIOCtx->tCurrentCursor;
+    ptIOCtx->afMainViewportSize[0] = 500.0f;
+    ptIOCtx->afMainViewportSize[1] = 500.0f;
+    ptIOCtx->bViewportSizeChanged = true;
 
     // create view controller
     gViewController = [[plNSViewController alloc] init];
@@ -114,7 +153,7 @@ int main()
     gWindow.delegate = appDelegate;
     NSApplication.sharedApplication.delegate = appDelegate;
 
-    pl_init_macos();
+    pl_init_macos(gptIoApiMain);
 
     // run app
     [NSApplication sharedApplication];
@@ -157,8 +196,10 @@ int main()
 - (void)resizeDrawable:(CGFloat)scaleFactor
 {
     CGSize newSize = self.bounds.size;
-    newSize.width *= scaleFactor;
-    newSize.height *= scaleFactor;
+
+    plIOContext* ptIOCtx = gptIoApiMain->get_context();
+    ptIOCtx->afMainFramebufferScale[0] = scaleFactor;
+    ptIOCtx->afMainFramebufferScale[1] = scaleFactor;
 
     if(newSize.width <= 0 || newSize.width <= 0)
     {
@@ -338,40 +379,40 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     view.metalLayer.device = device;    
     view.delegate = self;
     view.metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    gtIOContext.pBackendPlatformData = device;
+    gtIOContext->pBackendPlatformData = device;
 
     #ifdef PL_VULKAN_BACKEND
-        plIOContext* ptIOCtx = pl_get_io_context();
+        plIOContext* ptIOCtx = gptIoApiMain->get_context();
         ptIOCtx->pBackendPlatformData = view.metalLayer;
     #endif
-    gtIOContext.afMainViewportSize[0] = 500;
-    gtIOContext.afMainViewportSize[1] = 500;
+    gtIOContext->afMainViewportSize[0] = 500;
+    gtIOContext->afMainViewportSize[1] = 500;
 
     // load library
-    if(pl_load_library(&gAppLibrary, "app.so", "app_", "lock.tmp"))
+    if(gptLibraryApi->load_library(&gtAppLibrary, "app.dylib", "app_", "lock.tmp"))
     {
-        pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, void*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
-        pl_app_shutdown = (void  (__attribute__(())  *)(void*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(())  *)(void*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__attribute__(())  *)(void*))               pl_load_library_function(&gAppLibrary, "pl_app_update");
-        gUserData = pl_app_load(&gtIOContext, NULL);
+        pl_app_load     = (void* (__attribute__(()) *)(plApiRegistryApiI*, void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_load");
+        pl_app_shutdown = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_update");
+        gUserData = pl_app_load(gptApiRegistry, NULL);
     }
 }
 
 - (void)drawableResize:(CGSize)size
 {
-    gtIOContext.afMainViewportSize[0] = size.width;
-    gtIOContext.afMainViewportSize[1] = size.height;
+    gtIOContext->afMainViewportSize[0] = size.width;
+    gtIOContext->afMainViewportSize[1] = size.height;
     pl_app_resize(gUserData);
 }
 
 - (void)renderToMetalLayer:(nonnull CAMetalLayer *)layer
 {
     // gAppData.graphics.metalLayer = layer;
-    gtIOContext.pBackendRendererData = layer;
+    gtIOContext->pBackendRendererData = layer;
 
-    gtIOContext.afMainFramebufferScale[0] = self.view.window.screen.backingScaleFactor ?: NSScreen.mainScreen.backingScaleFactor;
-    gtIOContext.afMainFramebufferScale[1] = gtIOContext.afMainFramebufferScale[0];
+    gtIOContext->afMainFramebufferScale[0] = self.view.window.screen.backingScaleFactor ?: NSScreen.mainScreen.backingScaleFactor;
+    gtIOContext->afMainFramebufferScale[1] = gtIOContext->afMainFramebufferScale[0];
 
     // not osx
     // CGFloat framebufferScale = view.window.screen.scale ?: UIScreen.mainScreen.scale;
@@ -379,17 +420,18 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     pl_update_mouse_cursor_macos();
 
     // reload library
-    if(pl_has_library_changed(&gAppLibrary))
+    if(gptLibraryApi->has_library_changed(&gtAppLibrary))
     {
-        pl_reload_library(&gAppLibrary);
-        pl_app_load     = (void* (__attribute__(())  *)(plIOContext*, void*)) pl_load_library_function(&gAppLibrary, "pl_app_load");
-        pl_app_shutdown = (void  (__attribute__(())  *)(void*))               pl_load_library_function(&gAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(())  *)(void*))               pl_load_library_function(&gAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__attribute__(())  *)(void*))               pl_load_library_function(&gAppLibrary, "pl_app_update");
-        gUserData = pl_app_load(&gtIOContext, gUserData);
+        gptLibraryApi->reload_library(&gtAppLibrary);
+        pl_app_load     = (void* (__attribute__(()) *)(plApiRegistryApiI*, void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_load");
+        pl_app_shutdown = (void  (__attribute__(()) *)(void*))               gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(()) *)(void*))               gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__attribute__(()) *)(void*))               gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_update");
+        gUserData = pl_app_load(gptApiRegistry, gUserData);
     }
 
-    pl_new_frame_macos();
+    pl_new_frame_macos(self.view);
+    gptExtensionRegistry->reload(gptApiRegistry, gptLibraryApi);
     pl_app_update(gUserData);
 }
 
@@ -534,3 +576,16 @@ pl__add_osx_tracking_area(NSView* _Nonnull view)
         return event;
     }]; 
 }
+
+#include "pl_registry.c"
+#include "../backends/pl_macos.m"
+
+#define PL_IO_IMPLEMENTATION
+#include "pl_io.h"
+#undef PL_IO_IMPLEMENTATION
+
+#ifdef PL_USE_STB_SPRINTF
+#define STB_SPRINTF_IMPLEMENTATION
+#include "stb_sprintf.h"
+#undef STB_SPRINTF_IMPLEMENTATION
+#endif

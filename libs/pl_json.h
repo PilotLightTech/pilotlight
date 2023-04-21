@@ -666,8 +666,8 @@ pl__sb_json_vsprintf(char** ppcBuffer, const char* pcFormat, va_list args)
     va_copy(args2, args);
     int32_t n = vsnprintf(NULL, 0, pcFormat, args2);
     va_end(args2);
-    uint32_t an = pl_sb_size(*ppcBuffer);
-    pl_sb_resize(*ppcBuffer, an + n + 1);
+    uint32_t an = pl_sb_json_size(*ppcBuffer);
+    pl_sb_json_resize(*ppcBuffer, an + n + 1);
     vsnprintf(*ppcBuffer + an, n + 1, pcFormat, args);
 }
 
@@ -743,7 +743,7 @@ pl_load_json(const char* cPtrJson, plJsonObject* tPtrJsonOut)
     uint32_t uCurrentTokenIndex = 0;
     plJsonObject** sbtObjectStack = NULL;
     tPtrJsonOut->tType = PL_JSON_TYPE_OBJECT;
-    pl_sb_reserve(tPtrJsonOut->sbcBuffer, strlen(cPtrJson));
+    pl_sb_json_reserve(tPtrJsonOut->sbcBuffer, strlen(cPtrJson));
     tPtrJsonOut->psbcBuffer = &tPtrJsonOut->sbcBuffer;
     tPtrJsonOut->uChildCount = sbtTokens[uCurrentTokenIndex].size;
     strcpy(tPtrJsonOut->acName, "ROOT");

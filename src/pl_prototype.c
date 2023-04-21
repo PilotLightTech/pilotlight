@@ -121,7 +121,7 @@ pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc
 void
 pl_create_main_render_target(plGraphics* ptGraphics, plRenderTarget* ptTargetOut)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();
     ptTargetOut->bMSAA = true;
     ptTargetOut->sbtFrameBuffers = ptGraphics->tSwapchain.ptFrameBuffers;
     ptTargetOut->tDesc.tRenderPass._tRenderPass = ptGraphics->tRenderPass;
@@ -496,7 +496,7 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
     ptSceneOut->tComponentLibrary.tHierarchyComponentManager.tComponentType = PL_COMPONENT_TYPE_HIERARCHY;
     ptSceneOut->tComponentLibrary.tHierarchyComponentManager.szStride = sizeof(plHierarchyComponent);
 
-    ptSceneOut->uDynamicBuffer0 = pl_create_constant_buffer_ex(ptResourceManager, ptRenderer->ptGraphics->tResourceManager._uDynamicBufferSize, "renderer dynamic buffer 0");
+    ptSceneOut->uDynamicBuffer0 = pl_create_constant_buffer(ptResourceManager, ptRenderer->ptGraphics->tResourceManager._uDynamicBufferSize, "renderer dynamic buffer 0");
 
     ptSceneOut->ptOutlineMaterialComponentManager = &ptSceneOut->tComponentLibrary.tOutlineMaterialComponentManager;
     ptSceneOut->ptTagComponentManager = &ptSceneOut->tComponentLibrary.tTagComponentManager;
@@ -1053,7 +1053,7 @@ pl_scene_bind_camera(plScene* ptScene, const plCameraComponent* ptCamera)
     ptGlobalInfo->tCameraView     = ptCamera->tViewMat;
     ptGlobalInfo->tCameraViewProj = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();
     ptGlobalInfo->fTime  = (float)ptIOCtx->dTime;
 }
 

@@ -5,6 +5,27 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../tools")
 
 import pl_build as pl
 
+###############################################################################
+#                                helpers                                      #
+###############################################################################
+
+def add_plugin(name):
+    with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY):
+        pl.push_output_binary(name)
+        pl.push_source_files("../extensions/" + name + ".c")
+        with pl.configuration("debug"):
+            with pl.platform(pl.PlatformType.WIN32):
+                with pl.compiler("msvc", pl.CompilerType.MSVC):
+                    pass
+            with pl.platform(pl.PlatformType.LINUX):
+                with pl.compiler("gcc", pl.CompilerType.GCC):
+                    pass
+            with pl.platform(pl.PlatformType.MACOS):
+                with pl.compiler("clang", pl.CompilerType.CLANG):
+                    pass
+        pl.pop_output_binary()
+        pl.pop_source_files()
+
 pl.register_standard_profiles()
 
 with pl.project("pilotlight"):
@@ -58,37 +79,15 @@ with pl.project("pilotlight"):
         pl.pop_source_files()
 
     ###############################################################################
-    #                                 pl_draw_extension                           #
+    #                                   plugins                                   #
     ###############################################################################
-    with pl.target("pl_draw_extension", pl.TargetType.DYNAMIC_LIBRARY):
-        
-        pl.push_output_binary("pl_draw_extension")
-        pl.push_source_files("../extensions/pl_draw_extension.c")
-        pl.push_target_links("pl_lib")
-
-        pl.push_profile(pl.Profile.VULKAN)
-        pl.push_definitions("PL_VULKAN_BACKEND")
-        with pl.configuration("debug"):
-            with pl.platform(pl.PlatformType.WIN32):
-                with pl.compiler("msvc", pl.CompilerType.MSVC):
-                    pass
-            with pl.platform(pl.PlatformType.LINUX):
-                with pl.compiler("gcc", pl.CompilerType.GCC):
-                    pass
-            with pl.platform(pl.PlatformType.MACOS):
-                with pl.compiler("clang", pl.CompilerType.CLANG):
-                    pass
-        pl.pop_definitions()
-        pl.pop_profile() 
-
-        with pl.configuration("debugmetal"):
-            with pl.platform(pl.PlatformType.MACOS):
-                with pl.compiler("clang", pl.CompilerType.CLANG):
-                    pl.add_definition("PL_METAL_BACKEND")
-
-        pl.pop_output_binary()
-        pl.pop_source_files()
-        pl.pop_target_links()
+    pl.push_target_links("pl_lib")
+    pl.push_profile(pl.Profile.VULKAN)
+    pl.push_definitions("PL_VULKAN_BACKEND")
+    add_plugin("pl_vulkan_ext")
+    pl.pop_profile()
+    pl.pop_definitions()
+    pl.pop_target_links()
 
     ###############################################################################
     #                                    app                                      #
@@ -134,7 +133,6 @@ with pl.project("pilotlight"):
     with pl.target("pilot_light", pl.TargetType.EXECUTABLE):
 
         pl.push_output_binary("pilot_light")
-        pl.push_target_links("pl_lib")
                
         pl.push_profile(pl.Profile.VULKAN)
         pl.push_definitions("PL_VULKAN_BACKEND")
@@ -159,7 +157,6 @@ with pl.project("pilotlight"):
                     pl.add_source_file("pl_main_macos.m")
 
         pl.pop_output_binary()
-        pl.pop_target_links()
 
     pl.pop_definitions()
     pl.pop_include_directories()

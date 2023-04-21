@@ -6,6 +6,7 @@
 Index of this file:
 // [SECTION] includes
 // [SECTION] structs
+// [SECTION] global data
 // [SECTION] internal api
 // [SECTION] public api implementation
 // [SECTION] internal api implementation
@@ -29,6 +30,7 @@ Index of this file:
 
 #ifdef PL_INCLUDE_OS_H
 #include "pl_os.h"
+#include "pl_registry.h"
 #include <stdio.h>        // file api
 #include <dlfcn.h>        // dlopen, dlsym, dlclose
 #include <sys/types.h>
@@ -62,6 +64,12 @@ typedef struct _plLinuxSharedLibrary
 } plLinuxSharedLibrary;
 
 //-----------------------------------------------------------------------------
+// [SECTION] global data
+//-----------------------------------------------------------------------------
+
+plIOApiI* gptIoApi = NULL;
+
+//-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
@@ -70,7 +78,7 @@ static plKey pl__xcb_key_to_pl_key(uint32_t x_keycode);
 static inline double
 pl__get_linux_absolute_time(void)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = gptIoApi->get_context();
     plLinuxBackendData* ptLinuxBackendData = ptIOCtx->pBackendData;
 
     struct timespec ts;
@@ -90,14 +98,27 @@ pl__get_last_write_time(const char* filename)
     return attr.st_mtime;
 }
 
+static void        pl__read_file            (const char* pcFile, unsigned* puSize, char* pcBuffer, const char* pcMode);
+static void        pl__copy_file            (const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer);
+static void        pl__create_udp_socket    (plSocket* ptSocketOut, bool bNonBlocking);
+static void        pl__bind_udp_socket      (plSocket* ptSocket, int iPort);
+static bool        pl__send_udp_data        (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
+static bool        pl__get_udp_data         (plSocket* ptSocket, void* pData, size_t szSize);
+static bool        pl__has_library_changed  (plSharedLibrary* ptLibrary);
+static bool        pl__load_library         (plSharedLibrary* ptLibrary, const char* pcName, const char* pcTransitionalName, const char* pcLockFile);
+static void        pl__reload_library       (plSharedLibrary* ptLibrary);
+static void*       pl__load_library_function(plSharedLibrary* ptLibrary, const char* pcName);
+static int         pl__sleep                (uint32_t millisec);
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
 void
-pl_init_linux(Display* ptDisplay, xcb_connection_t* ptConnection, xcb_screen_t* ptScreen, xcb_window_t* ptWindow)
+pl_init_linux(Display* ptDisplay, xcb_connection_t* ptConnection, xcb_screen_t* ptScreen, xcb_window_t* ptWindow, plIOApiI* ptIoApi)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    gptIoApi = ptIoApi;
+    plIOContext* ptIOCtx = gptIoApi->get_context();
     ptIOCtx->pBackendData = malloc(sizeof(plLinuxBackendData));
     if(ptIOCtx->pBackendData == NULL)
         return;
@@ -127,7 +148,7 @@ pl_init_linux(Display* ptDisplay, xcb_connection_t* ptConnection, xcb_screen_t* 
 void
 pl_cleanup_linux(void)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = gptIoApi->get_context();
     plLinuxBackendData* ptLinuxBackendData = ptIOCtx->pBackendData;
 
     xcb_cursor_context_free(ptLinuxBackendData->ptCursorContext);
@@ -136,18 +157,18 @@ pl_cleanup_linux(void)
 void
 pl_new_frame_linux(void)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = gptIoApi->get_context();
     plLinuxBackendData* ptLinuxBackendData = ptIOCtx->pBackendData;
 
     const double dCurrentTime = pl__get_linux_absolute_time();
-    pl_get_io_context()->fDeltaTime = (float)(dCurrentTime - ptLinuxBackendData->dTime);
+    ptIOCtx->fDeltaTime = (float)(dCurrentTime - ptLinuxBackendData->dTime);
     ptLinuxBackendData->dTime = dCurrentTime;
 }
 
 void
 pl_update_mouse_cursor_linux(void)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = gptIoApi->get_context();
     plLinuxBackendData* ptLinuxBackendData = ptIOCtx->pBackendData;
 
     // updating mouse cursor
@@ -189,7 +210,7 @@ pl_update_mouse_cursor_linux(void)
 void
 pl_linux_procedure(xcb_generic_event_t* event)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = gptIoApi->get_context();
     plLinuxBackendData* ptLinuxBackendData = ptIOCtx->pBackendData;
 
     xcb_client_message_event_t* cm;
@@ -200,7 +221,7 @@ pl_linux_procedure(xcb_generic_event_t* event)
         case XCB_MOTION_NOTIFY: 
         {
             xcb_motion_notify_event_t* motion = (xcb_motion_notify_event_t*)event;
-            pl_add_mouse_pos_event((float)motion->event_x, (float)motion->event_y);
+            gptIoApi->add_mouse_pos_event((float)motion->event_x, (float)motion->event_y);
             break;
         }
 
@@ -209,12 +230,12 @@ pl_linux_procedure(xcb_generic_event_t* event)
             xcb_button_press_event_t* press = (xcb_button_press_event_t*)event;
             switch (press->detail)
             {
-                case XCB_BUTTON_INDEX_1: pl_add_mouse_button_event(PL_MOUSE_BUTTON_LEFT, true);   break;
-                case XCB_BUTTON_INDEX_2: pl_add_mouse_button_event(PL_MOUSE_BUTTON_MIDDLE, true); break;
-                case XCB_BUTTON_INDEX_3: pl_add_mouse_button_event(PL_MOUSE_BUTTON_RIGHT, true);  break;
-                case XCB_BUTTON_INDEX_4: pl_add_mouse_wheel_event (0.0f, 1.0f);                   break;
-                case XCB_BUTTON_INDEX_5: pl_add_mouse_wheel_event (0.0f, -1.0f);                  break;
-                default:                 pl_add_mouse_button_event(press->detail, true);          break;
+                case XCB_BUTTON_INDEX_1: gptIoApi->add_mouse_button_event(PL_MOUSE_BUTTON_LEFT, true);   break;
+                case XCB_BUTTON_INDEX_2: gptIoApi->add_mouse_button_event(PL_MOUSE_BUTTON_MIDDLE, true); break;
+                case XCB_BUTTON_INDEX_3: gptIoApi->add_mouse_button_event(PL_MOUSE_BUTTON_RIGHT, true);  break;
+                case XCB_BUTTON_INDEX_4: gptIoApi->add_mouse_wheel_event (0.0f, 1.0f);                   break;
+                case XCB_BUTTON_INDEX_5: gptIoApi->add_mouse_wheel_event (0.0f, -1.0f);                  break;
+                default:                 gptIoApi->add_mouse_button_event(press->detail, true);          break;
             }
             break;
         }
@@ -224,12 +245,12 @@ pl_linux_procedure(xcb_generic_event_t* event)
             xcb_button_press_event_t* press = (xcb_button_press_event_t*)event;
             switch (press->detail)
             {
-                case XCB_BUTTON_INDEX_1: pl_add_mouse_button_event(PL_MOUSE_BUTTON_LEFT, false);   break;
-                case XCB_BUTTON_INDEX_2: pl_add_mouse_button_event(PL_MOUSE_BUTTON_MIDDLE, false); break;
-                case XCB_BUTTON_INDEX_3: pl_add_mouse_button_event(PL_MOUSE_BUTTON_RIGHT, false);  break;
-                case XCB_BUTTON_INDEX_4: pl_add_mouse_wheel_event (0.0f, 1.0f);                   break;
-                case XCB_BUTTON_INDEX_5: pl_add_mouse_wheel_event (0.0f, -1.0f);                  break;
-                default:                 pl_add_mouse_button_event(press->detail, false);          break;
+                case XCB_BUTTON_INDEX_1: gptIoApi->add_mouse_button_event(PL_MOUSE_BUTTON_LEFT, false);   break;
+                case XCB_BUTTON_INDEX_2: gptIoApi->add_mouse_button_event(PL_MOUSE_BUTTON_MIDDLE, false); break;
+                case XCB_BUTTON_INDEX_3: gptIoApi->add_mouse_button_event(PL_MOUSE_BUTTON_RIGHT, false);  break;
+                case XCB_BUTTON_INDEX_4: gptIoApi->add_mouse_wheel_event (0.0f, 1.0f);                   break;
+                case XCB_BUTTON_INDEX_5: gptIoApi->add_mouse_wheel_event (0.0f, -1.0f);                  break;
+                default:                 gptIoApi->add_mouse_button_event(press->detail, false);          break;
             }
             break;
         }
@@ -243,7 +264,7 @@ pl_linux_procedure(xcb_generic_event_t* event)
                 (KeyCode)code,  // event.xkey.keycode,
                 0,
                 0 /*code & ShiftMask ? 1 : 0*/);
-            pl_add_key_event(pl__xcb_key_to_pl_key(key_sym), true);
+            gptIoApi->add_key_event(pl__xcb_key_to_pl_key(key_sym), true);
             break;
         }
         case XCB_KEY_RELEASE:
@@ -255,7 +276,7 @@ pl_linux_procedure(xcb_generic_event_t* event)
                 (KeyCode)code,  // event.xkey.keycode,
                 0,
                 0 /*code & ShiftMask ? 1 : 0*/);
-            pl_add_key_event(pl__xcb_key_to_pl_key(key_sym), false);
+            gptIoApi->add_key_event(pl__xcb_key_to_pl_key(key_sym), false);
             break;
         }
         case XCB_CONFIGURE_NOTIFY: 
@@ -279,8 +300,57 @@ pl_linux_procedure(xcb_generic_event_t* event)
 }
 
 #ifdef PL_INCLUDE_OS_H
+
 void
-pl_read_file(const char* file, unsigned* sizeIn, char* buffer, const char* mode)
+pl_load_file_api(plApiRegistryApiI* ptApiRegistry)
+{
+    static plFileApiI tApi = {
+        .copy_file = pl__copy_file,
+        .read_file = pl__read_file
+    };
+    ptApiRegistry->add(PL_API_FILE, &tApi);
+}
+
+void
+pl_load_udp_api(plApiRegistryApiI* ptApiRegistry)
+{
+    static plUdpApiI tApi = 
+    {
+        .create_udp_socket = pl__create_udp_socket,
+        .bind_udp_socket   = pl__bind_udp_socket,  
+        .get_udp_data      = pl__get_udp_data,
+        .send_udp_data     = pl__send_udp_data
+    };
+    ptApiRegistry->add(PL_API_UDP, &tApi);
+}
+
+void
+pl_load_library_api(plApiRegistryApiI* ptApiRegistry)
+{
+    static plLibraryApiI tApi = {
+        .has_library_changed   = pl__has_library_changed,
+        .load_library          = pl__load_library,
+        .load_library_function = pl__load_library_function,
+        .reload_library        = pl__reload_library
+    };
+    ptApiRegistry->add(PL_API_LIBRARY, &tApi);
+}
+
+void
+pl_load_os_services_api(plApiRegistryApiI* ptApiRegistry)
+{
+    static plOsServicesApiI tApi = {
+        .sleep = pl__sleep
+    };
+    ptApiRegistry->add(PL_API_OS_SERVICES, &tApi);
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api implementation
+//-----------------------------------------------------------------------------
+
+static void
+pl__read_file(const char* file, unsigned* sizeIn, char* buffer, const char* mode)
 {
     PL_ASSERT(sizeIn);
 
@@ -321,11 +391,11 @@ pl_read_file(const char* file, unsigned* sizeIn, char* buffer, const char* mode)
     fclose(dataFile);
 }
 
-void
-pl_copy_file(const char* source, const char* destination, unsigned* size, char* buffer)
+static void
+pl__copy_file(const char* source, const char* destination, unsigned* size, char* buffer)
 {
     uint32_t bufferSize = 0u;
-    pl_read_file(source, &bufferSize, NULL, "rb");
+    pl__read_file(source, &bufferSize, NULL, "rb");
 
     struct stat stat_buf;
     int fromfd = open(source, O_RDONLY);
@@ -336,8 +406,8 @@ pl_copy_file(const char* source, const char* destination, unsigned* size, char* 
         n = sendfile(tofd, fromfd, 0, bufferSize * 2);
 }
 
-void
-pl_create_udp_socket(plSocket* ptSocketOut, bool bNonBlocking)
+static void
+pl__create_udp_socket(plSocket* ptSocketOut, bool bNonBlocking)
 {
 
     int iLinuxSocket = 0;
@@ -357,8 +427,8 @@ pl_create_udp_socket(plSocket* ptSocketOut, bool bNonBlocking)
     }
 }
 
-void
-pl_bind_udp_socket(plSocket* ptSocket, int iPort)
+static void
+pl__bind_udp_socket(plSocket* ptSocket, int iPort)
 {
     ptSocket->iPort = iPort;
     PL_ASSERT(ptSocket->_pPlatformData && "Socket not created yet");
@@ -379,8 +449,8 @@ pl_bind_udp_socket(plSocket* ptSocket, int iPort)
     }
 }
 
-bool
-pl_send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize)
+static bool
+pl__send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize)
 {
     PL_ASSERT(ptFromSocket->_pPlatformData && "Socket not created yet");
     int iLinuxSocket = (int)((intptr_t )ptFromSocket->_pPlatformData);
@@ -403,8 +473,8 @@ pl_send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, vo
     return true;
 }
 
-bool
-pl_get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
+static bool
+pl__get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
 {
     PL_ASSERT(ptSocket->_pPlatformData && "Socket not created yet");
     int iLinuxSocket = (int)((intptr_t )ptSocket->_pPlatformData);
@@ -426,16 +496,16 @@ pl_get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
     return iRecvLen > 0;
 }
 
-bool
-pl_has_library_changed(plSharedLibrary* library)
+static bool
+pl__has_library_changed(plSharedLibrary* library)
 {
     time_t newWriteTime = pl__get_last_write_time(library->acPath);
     plLinuxSharedLibrary* linuxLibrary = library->_pPlatformData;
     return newWriteTime != linuxLibrary->lastWriteTime;
 }
 
-bool
-pl_load_library(plSharedLibrary* library, const char* name, const char* transitionalName, const char* lockFile)
+static bool
+pl__load_library(plSharedLibrary* library, const char* name, const char* transitionalName, const char* lockFile)
 {
     if(library->acPath[0] == 0)             strncpy(library->acPath, name, PL_MAX_NAME_LENGTH);
     if(library->acTransitionalName[0] == 0) strncpy(library->acTransitionalName, transitionalName, PL_MAX_NAME_LENGTH);
@@ -459,7 +529,7 @@ pl_load_library(plSharedLibrary* library, const char* name, const char* transiti
             {
                 library->uTempIndex = 0;
             }
-            pl_copy_file(library->acPath, temporaryName, NULL, NULL);
+            pl__copy_file(library->acPath, temporaryName, NULL, NULL);
 
             linuxLibrary->handle = NULL;
             linuxLibrary->handle = dlopen(temporaryName, RTLD_NOW);
@@ -474,20 +544,20 @@ pl_load_library(plSharedLibrary* library, const char* name, const char* transiti
     return library->bValid;
 }
 
-void
-pl_reload_library(plSharedLibrary* library)
+static void
+pl__reload_library(plSharedLibrary* library)
 {
     library->bValid = false;
     for(uint32_t i = 0; i < 100; i++)
     {
-        if(pl_load_library(library, library->acPath, library->acTransitionalName, library->acLockFile))
+        if(pl__load_library(library, library->acPath, library->acTransitionalName, library->acLockFile))
             break;
-        pl_sleep(100);
+        pl__sleep(100);
     }
 }
 
-void*
-pl_load_library_function(plSharedLibrary* library, const char* name)
+static void*
+pl__load_library_function(plSharedLibrary* library, const char* name)
 {
     PL_ASSERT(library->bValid && "Library not valid");
     void* loadedFunction = NULL;
@@ -499,8 +569,8 @@ pl_load_library_function(plSharedLibrary* library, const char* name)
     return loadedFunction;
 }
 
-int
-pl_sleep(uint32_t millisec)
+static int
+pl__sleep(uint32_t millisec)
 {
     struct timespec ts = {0};
     int res;
@@ -516,6 +586,7 @@ pl_sleep(uint32_t millisec)
 
     return res;
 }
+
 #endif // PL_INCLUDE_OS_H
 
 //-----------------------------------------------------------------------------

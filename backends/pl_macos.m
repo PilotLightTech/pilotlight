@@ -4,16 +4,20 @@
 
 /*
 Index of this file:
+// [SECTION] header mess
 // [SECTION] includes
-// [SECTION] internal structs
+// [SECTION] structs
+// [SECTION] global data
 // [SECTION] internal api
-// [SECTION] implementations
+// [SECTION] public api implementation
+// [SECTION] internal api implementation
 */
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl_macos.h"
 #include "pl_io.h"
 #import <Cocoa/Cocoa.h>
 #import <Carbon/Carbon.h>
@@ -26,6 +30,7 @@ Index of this file:
 
 #ifdef PL_INCLUDE_OS_H
 #include "pl_os.h"
+#include "pl_registry.h"
 #include <stdio.h>    // file api
 #include <copyfile.h> // copyfile
 #include <dlfcn.h>    // dlopen, dlsym, dlclose
@@ -37,7 +42,7 @@ Index of this file:
 #endif // PL_INCLUDE_OS_H
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal structs
+// [SECTION] structs
 //-----------------------------------------------------------------------------
 
 typedef struct _plAppleSharedLibrary
@@ -51,6 +56,12 @@ typedef struct _plMacOsBackendData
     CFTimeInterval tTime;
     NSCursor*      aptMouseCursors[PL_MOUSE_CURSOR_COUNT];
 } plMacOsBackendData;
+
+//-----------------------------------------------------------------------------
+// [SECTION] global data
+//-----------------------------------------------------------------------------
+
+plIOApiI* gptIoApi = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -76,14 +87,27 @@ static inline CFTimeInterval pl__get_absolute_time(void) { return (CFTimeInterva
 + (id)_windowResizeEastWestCursor;
 @end
 
+static void  pl__read_file            (const char* pcFile, unsigned* puSize, char* pcBuffer, const char* pcMode);
+static void  pl__copy_file            (const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer);
+static void  pl__create_udp_socket    (plSocket* ptSocketOut, bool bNonBlocking);
+static void  pl__bind_udp_socket      (plSocket* ptSocket, int iPort);
+static bool  pl__send_udp_data        (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
+static bool  pl__get_udp_data         (plSocket* ptSocket, void* pData, size_t szSize);
+static bool  pl__has_library_changed  (plSharedLibrary* ptLibrary);
+static bool  pl__load_library         (plSharedLibrary* ptLibrary, const char* pcName, const char* pcTransitionalName, const char* pcLockFile);
+static void  pl__reload_library       (plSharedLibrary* ptLibrary);
+static void* pl__load_library_function(plSharedLibrary* ptLibrary, const char* pcName);
+static int   pl__sleep                (uint32_t millisec);
+
 //-----------------------------------------------------------------------------
 // [SECTION] implementations
 //-----------------------------------------------------------------------------
 
 void
-pl_init_macos(void)
+pl_init_macos(plIOApiI* ptIoApi)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    gptIoApi = ptIoApi;
+    plIOContext* ptIOCtx = ptIoApi->get_context();
     ptIOCtx->pBackendData = malloc(sizeof(plMacOsBackendData));
     
     memset(ptIOCtx->pBackendData, 0, sizeof(plMacOsBackendData));
@@ -110,10 +134,19 @@ pl_cleanup_macos(void)
 }
 
 void
-pl_new_frame_macos(void)
+pl_new_frame_macos(NSView* view)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = gptIoApi->get_context();
     plMacOsBackendData* ptMacBackendData = ptIOCtx->pBackendData;
+
+    if(view)
+    {
+        const float fDpi = (float)[view.window backingScaleFactor];
+        ptIOCtx->afMainViewportSize[0] = (float)view.bounds.size.width;
+        ptIOCtx->afMainViewportSize[1] = (float)view.bounds.size.height;
+        ptIOCtx->afMainFramebufferScale[0] = fDpi;
+        ptIOCtx->afMainFramebufferScale[1] = fDpi;
+    }
 
     // setup time step
 
@@ -128,7 +161,7 @@ pl_new_frame_macos(void)
 void
 pl_update_mouse_cursor_macos(void)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = gptIoApi->get_context();
     plMacOsBackendData* ptMacBackendData = ptIOCtx->pBackendData;
 
     // updating mouse cursor
@@ -152,7 +185,7 @@ pl_macos_procedure(NSEvent* event, NSView* view)
     {
         int button = (int)[event buttonNumber];
         if (button >= 0 && button < PL_MOUSE_BUTTON_COUNT)
-            pl_add_mouse_button_event(button, true);
+            gptIoApi->add_mouse_button_event(button, true);
         return true;
     }
 
@@ -160,7 +193,7 @@ pl_macos_procedure(NSEvent* event, NSView* view)
     {
         int button = (int)[event buttonNumber];
         if (button >= 0 && button < PL_MOUSE_BUTTON_COUNT)
-            pl_add_mouse_button_event(button, false);
+            gptIoApi->add_mouse_button_event(button, false);
         return true;
     }
 
@@ -172,7 +205,7 @@ pl_macos_procedure(NSEvent* event, NSView* view)
             mousePoint = NSMakePoint(mousePoint.x, mousePoint.y);
         else
             mousePoint = NSMakePoint(mousePoint.x, view.bounds.size.height - mousePoint.y);
-        pl_add_mouse_pos_event((float)mousePoint.x, (float)mousePoint.y);
+        gptIoApi->add_mouse_pos_event((float)mousePoint.x, (float)mousePoint.y);
         return true;
     }
 
@@ -214,7 +247,7 @@ pl_macos_procedure(NSEvent* event, NSView* view)
             wheel_dy = [event deltaY];
         }
         if (wheel_dx != 0.0 || wheel_dy != 0.0)
-            pl_add_mouse_wheel_event((float)wheel_dx * 0.1f, (float)wheel_dy * 0.1f);
+            gptIoApi->add_mouse_wheel_event((float)wheel_dx * 0.1f, (float)wheel_dy * 0.1f);
 
         return true;
     }
@@ -225,7 +258,7 @@ pl_macos_procedure(NSEvent* event, NSView* view)
             return true;
 
         int key_code = (int)[event keyCode];
-        pl_add_key_event(pl__osx_key_to_pl_key(key_code), event.type == NSEventTypeKeyDown);
+        gptIoApi->add_key_event(pl__osx_key_to_pl_key(key_code), event.type == NSEventTypeKeyDown);
         return true;
     }
 
@@ -234,10 +267,10 @@ pl_macos_procedure(NSEvent* event, NSView* view)
         unsigned short key_code = [event keyCode];
         NSEventModifierFlags modifier_flags = [event modifierFlags];
 
-        pl_add_key_event(PL_KEY_MOD_SHIFT, (modifier_flags & NSEventModifierFlagShift)   != 0);
-        pl_add_key_event(PL_KEY_MOD_CTRL,  (modifier_flags & NSEventModifierFlagControl) != 0);
-        pl_add_key_event(PL_KEY_MOD_ALT,   (modifier_flags & NSEventModifierFlagOption)  != 0);
-        pl_add_key_event(PL_KEY_MOD_SUPER, (modifier_flags & NSEventModifierFlagCommand) != 0);
+        gptIoApi->add_key_event(PL_KEY_MOD_SHIFT, (modifier_flags & NSEventModifierFlagShift)   != 0);
+        gptIoApi->add_key_event(PL_KEY_MOD_CTRL,  (modifier_flags & NSEventModifierFlagControl) != 0);
+        gptIoApi->add_key_event(PL_KEY_MOD_ALT,   (modifier_flags & NSEventModifierFlagOption)  != 0);
+        gptIoApi->add_key_event(PL_KEY_MOD_SUPER, (modifier_flags & NSEventModifierFlagCommand) != 0);
 
         plKey key = pl__osx_key_to_pl_key(key_code);
         if (key != PL_KEY_NONE)
@@ -259,7 +292,7 @@ pl_macos_procedure(NSEvent* event, NSView* view)
             }
 
             NSEventModifierFlags modifier_flags = [event modifierFlags];
-            pl_add_key_event(key, (modifier_flags & mask) != 0);
+            gptIoApi->add_key_event(key, (modifier_flags & mask) != 0);
             // io.SetKeyEventNativeData(key, key_code, -1); // To support legacy indexing (<1.87 user code)
         }
 
@@ -271,8 +304,57 @@ pl_macos_procedure(NSEvent* event, NSView* view)
 
 
 #ifdef PL_INCLUDE_OS_H
+
 void
-pl_read_file(const char* file, unsigned* sizeIn, char* buffer, const char* mode)
+pl_load_file_api(plApiRegistryApiI* ptApiRegistry)
+{
+    static plFileApiI tApi = {
+        .copy_file = pl__copy_file,
+        .read_file = pl__read_file
+    };
+    ptApiRegistry->add(PL_API_FILE, &tApi);
+}
+
+void
+pl_load_udp_api(plApiRegistryApiI* ptApiRegistry)
+{
+    static plUdpApiI tApi = 
+    {
+        .create_udp_socket = pl__create_udp_socket,
+        .bind_udp_socket   = pl__bind_udp_socket,  
+        .get_udp_data      = pl__get_udp_data,
+        .send_udp_data     = pl__send_udp_data
+    };
+    ptApiRegistry->add(PL_API_UDP, &tApi);
+}
+
+void
+pl_load_library_api(plApiRegistryApiI* ptApiRegistry)
+{
+    static plLibraryApiI tApi = {
+        .has_library_changed   = pl__has_library_changed,
+        .load_library          = pl__load_library,
+        .load_library_function = pl__load_library_function,
+        .reload_library        = pl__reload_library
+    };
+    ptApiRegistry->add(PL_API_LIBRARY, &tApi);
+}
+
+void
+pl_load_os_services_api(plApiRegistryApiI* ptApiRegistry)
+{
+    static plOsServicesApiI tApi = {
+        .sleep = pl__sleep
+    };
+    ptApiRegistry->add(PL_API_OS_SERVICES, &tApi);
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api implementation
+//-----------------------------------------------------------------------------
+
+static void
+pl__read_file(const char* file, unsigned* sizeIn, char* buffer, const char* mode)
 {
     PL_ASSERT(sizeIn);
 
@@ -313,8 +395,8 @@ pl_read_file(const char* file, unsigned* sizeIn, char* buffer, const char* mode)
     fclose(dataFile);
 }
 
-void
-pl_copy_file(const char* source, const char* destination, unsigned* size, char* buffer)
+static void
+pl__copy_file(const char* source, const char* destination, unsigned* size, char* buffer)
 {
     copyfile_state_t s;
     s = copyfile_state_alloc();
@@ -322,8 +404,8 @@ pl_copy_file(const char* source, const char* destination, unsigned* size, char* 
     copyfile_state_free(s);
 }
 
-void
-pl_create_udp_socket(plSocket* ptSocketOut, bool bNonBlocking)
+static void
+pl__create_udp_socket(plSocket* ptSocketOut, bool bNonBlocking)
 {
 
     int iLinuxSocket = 0;
@@ -343,8 +425,8 @@ pl_create_udp_socket(plSocket* ptSocketOut, bool bNonBlocking)
     }
 }
 
-void
-pl_bind_udp_socket(plSocket* ptSocket, int iPort)
+static void
+pl__bind_udp_socket(plSocket* ptSocket, int iPort)
 {
     ptSocket->iPort = iPort;
     PL_ASSERT(ptSocket->_pPlatformData && "Socket not created yet");
@@ -365,8 +447,8 @@ pl_bind_udp_socket(plSocket* ptSocket, int iPort)
     }
 }
 
-bool
-pl_send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize)
+static bool
+pl__send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize)
 {
     PL_ASSERT(ptFromSocket->_pPlatformData && "Socket not created yet");
     int iLinuxSocket = (int)((intptr_t )ptFromSocket->_pPlatformData);
@@ -389,8 +471,8 @@ pl_send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, vo
     return true;
 }
 
-bool
-pl_get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
+static bool
+pl__get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
 {
     PL_ASSERT(ptSocket->_pPlatformData && "Socket not created yet");
     int iLinuxSocket = (int)((intptr_t )ptSocket->_pPlatformData);
@@ -412,16 +494,16 @@ pl_get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
     return iRecvLen > 0;
 }
 
-bool
-pl_has_library_changed(plSharedLibrary* library)
+static bool
+pl__has_library_changed(plSharedLibrary* library)
 {
     struct timespec newWriteTime = pl__get_last_write_time(library->acPath);
     plAppleSharedLibrary* appleLibrary = library->_pPlatformData;
     return newWriteTime.tv_sec != appleLibrary->lastWriteTime.tv_sec;
 }
 
-bool
-pl_load_library(plSharedLibrary* library, const char* name, const char* transitionalName, const char* lockFile)
+static bool
+pl__load_library(plSharedLibrary* library, const char* name, const char* transitionalName, const char* lockFile)
 {
     if(library->acPath[0] == 0)             strncpy(library->acPath, name, PL_MAX_NAME_LENGTH);
     if(library->acTransitionalName[0] == 0) strncpy(library->acTransitionalName, transitionalName, PL_MAX_NAME_LENGTH);
@@ -438,12 +520,12 @@ pl_load_library(plSharedLibrary* library, const char* name, const char* transiti
         char temporaryName[2024] = {0};
         appleLibrary->lastWriteTime = pl__get_last_write_time(library->acPath);
         
-        pl_sprintf(temporaryName, "%s%u%s", library->acTransitionalName, library->uTempIndex, ".so");
+        pl_sprintf(temporaryName, "%s%u%s", library->acTransitionalName, library->uTempIndex, ".dylib");
         if(++library->uTempIndex >= 1024)
         {
             library->uTempIndex = 0;
         }
-        pl_copy_file(library->acPath, temporaryName, NULL, NULL);
+        pl__copy_file(library->acPath, temporaryName, NULL, NULL);
 
         appleLibrary->handle = NULL;
         appleLibrary->handle = dlopen(temporaryName, RTLD_NOW);
@@ -454,20 +536,20 @@ pl_load_library(plSharedLibrary* library, const char* name, const char* transiti
     return library->bValid;
 }
 
-void
-pl_reload_library(plSharedLibrary* library)
+static void
+pl__reload_library(plSharedLibrary* library)
 {
     library->bValid = false;
     for(uint32_t i = 0; i < 100; i++)
     {
-        if(pl_load_library(library, library->acPath, library->acTransitionalName, library->acLockFile))
+        if(pl__load_library(library, library->acPath, library->acTransitionalName, library->acLockFile))
             break;
-        pl_sleep(100);
+        pl__sleep(100);
     }
 }
 
-void*
-pl_load_library_function(plSharedLibrary* library, const char* name)
+static void*
+pl__load_library_function(plSharedLibrary* library, const char* name)
 {
     PL_ASSERT(library->bValid && "Library not valid");
     void* loadedFunction = NULL;
@@ -479,8 +561,8 @@ pl_load_library_function(plSharedLibrary* library, const char* name)
     return loadedFunction;
 }
 
-int
-pl_sleep(uint32_t millisec)
+static int
+pl__sleep(uint32_t millisec)
 {
     struct timespec ts;
     int res;

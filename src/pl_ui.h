@@ -3,8 +3,8 @@
 */
 
 // library version
-#define PL_UI_VERSION    "0.7.0"
-#define PL_UI_VERSION_NUM 00700
+#define PL_UI_VERSION    "0.8.0"
+#define PL_UI_VERSION_NUM 00800
 
 /*
 Index of this file:
@@ -42,6 +42,9 @@ typedef struct _plUiContext plUiContext; // internal
 typedef int plUiConditionFlags;
 typedef int plUiLayoutRowType;
 
+// external
+typedef struct _plIOApiI plIOApiI;
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
@@ -58,7 +61,7 @@ plDrawList*    pl_ui_get_draw_list      (plUiContext* ptContext);
 plDrawList*    pl_ui_get_debug_draw_list(plUiContext* ptContext);
 
 // main
-void           pl_ui_new_frame(void); // start a new pilotlight ui frame, this should be the first command before calling any commands below
+void           pl_ui_new_frame(plIOApiI* ptIoI); // start a new pilotlight ui frame, this should be the first command before calling any commands below
 void           pl_ui_end_frame(void); // ends pilotlight ui frame, automatically called by pl_ui_render()
 void           pl_ui_render   (void); // submits draw layers, you can then submit the ptDrawlist & ptDebugDrawlist from context
 

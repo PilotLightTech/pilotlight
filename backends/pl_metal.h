@@ -4,7 +4,7 @@
 
 /*
 Index of this file:
-// [SECTION] includess
+// [SECTION] includes
 // [SECTION] public api
 */
 

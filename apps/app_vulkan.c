@@ -10,6 +10,7 @@ Index of this file:
 // [SECTION] pl_app_shutdown
 // [SECTION] pl_app_resize
 // [SECTION] pl_app_update
+// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
@@ -22,20 +23,23 @@ Index of this file:
 #include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_ds.h"
+#include "pl_os.h"
 #include "pl_io.h"
 #include "pl_memory.h"
 #include "pl_vulkan.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 #include "pl_registry.h"
-#include "pl_ext.h"
 #include "pl_ui.h"
+#include "pl_ui_internal.h"
 #include "pl_stl.h"
 #include "pl_prototype.h"
 #include "pl_gltf.h"
 
 // extensions
-#include "pl_draw_extension.h"
+#include "pl_vulkan_ext.h"
+
+// 3rd party
 #include "stb_image.h"
 
 //-----------------------------------------------------------------------------
@@ -52,19 +56,16 @@ typedef struct _plAppData
     plDrawLayer*        bgDrawLayer;
     plDrawLayer*        offscreenDrawLayer;
     plFontAtlas         fontAtlas;
-    plProfileContext*   ptProfileCtx;
-    plLogContext*       ptLogCtx;
-    plMemoryContext*    ptMemoryCtx;
-    plDataRegistry*     ptDataRegistryCtx;
-    plExtensionRegistry tExtensionRegistryCtx;
-    plUiContext*        ptUiContext;
     bool                bShowUiDemo;
     bool                bShowUiDebug;
     bool                bShowUiStyle;
+    bool                bShowUiMemory;
 
     // extension apis
-    plDrawExtension* ptDrawExtApi;
-
+    plIOApiI*        ptIoI;
+    plLibraryApiI*   ptLibraryApi;
+    plFileApiI*      ptFileApi;
+    
     // renderer
     plRenderer      tRenderer;
     plAssetRegistry tAssetRegistry;
@@ -93,6 +94,8 @@ typedef struct _plAppData
     plRenderTarget   tOffscreenTarget;
     VkDescriptorSet* sbtTextures;
 
+    plApiRegistryApiI* ptApiRegistry;
+
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -100,61 +103,55 @@ typedef struct _plAppData
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void*
-pl_app_load(plIOContext* ptIOCtx, void* pAppData)
+pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
 {
-
     plAppData* ptAppData = pAppData;
+    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
 
     if(ptAppData) // reload
     {
-        pl_set_log_context(ptAppData->ptLogCtx);
-        pl_set_profile_context(ptAppData->ptProfileCtx);
-        pl_set_memory_context(ptAppData->ptMemoryCtx);
-        pl_set_data_registry(ptAppData->ptDataRegistryCtx);
-        pl_set_extension_registry(&ptAppData->tExtensionRegistryCtx);
-        pl_set_io_context(ptIOCtx);
-        pl_ui_set_context(ptAppData->ptUiContext);
-
-        plExtension* ptExtension = pl_get_extension(PL_EXT_DRAW);
-        ptAppData->ptDrawExtApi = pl_get_api(ptExtension, PL_EXT_API_DRAW);
-
+        pl_set_log_context(ptDataRegistry->get_data("log"));
+        pl_set_profile_context(ptDataRegistry->get_data("profile"));
+        pl_ui_set_context(ptDataRegistry->get_data("ui"));
         return ptAppData;
     }
 
+    plIOApiI* ptIoI = ptApiRegistry->first(PL_API_IO);
+    plLibraryApiI* ptLibraryApi = ptApiRegistry->first(PL_API_LIBRARY);
+    plFileApiI* ptFileApi = ptApiRegistry->first(PL_API_FILE);
+    
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
+    ptAppData->ptApiRegistry = ptApiRegistry;
+    ptAppData->ptIoI = ptIoI;
+    ptAppData->ptLibraryApi = ptLibraryApi;
+    ptAppData->ptFileApi = ptFileApi;
 
     // set contexts
-    pl_set_io_context(ptIOCtx);
-    ptAppData->ptMemoryCtx = pl_create_memory_context();
-    ptAppData->ptProfileCtx = pl_create_profile_context();
-    ptAppData->ptDataRegistryCtx = pl_create_data_registry();
 
-    // setup logging
-    ptAppData->ptLogCtx = pl_create_log_context();
+    // create profile context
+    plProfileContext* ptProfileCtx = pl_create_profile_context();
+    ptDataRegistry->set_data("profile", ptProfileCtx);
+
+    // create log context
+    plLogContext* ptLogCtx = pl_create_log_context();
     pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
     pl_log_info("Setup logging");
+    ptDataRegistry->set_data("log", ptLogCtx);
 
-    // setup extension registry
-    pl_initialize_extension_registry(&ptAppData->tExtensionRegistryCtx);
-    pl_register_data("memory", ptAppData->ptMemoryCtx);
-    pl_register_data("profile", ptAppData->ptProfileCtx);
-    pl_register_data("log", ptAppData->ptLogCtx);
-    pl_register_data("io", ptIOCtx);
-    
     // load extensions
-    plExtension tExtension = {0};
-    pl_get_draw_extension_info(&tExtension);
-    pl_load_extension(&tExtension);
+    plExtensionRegistryApiI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
 
-    // load extension apis
-    ptAppData->ptDrawExtApi = pl_get_api(pl_get_extension(PL_EXT_DRAW), PL_EXT_API_DRAW);
+    plExtension tExtension = {0};
+    pl_get_vulkan_ext_info(&tExtension);
+    ptExtensionRegistry->load(ptApiRegistry, &tExtension);
 
     // setup renderer
-    pl_setup_graphics(&ptAppData->tGraphics);
+    pl_setup_graphics(&ptAppData->tGraphics, ptApiRegistry);
 
-    // ui
-    ptAppData->ptUiContext = pl_ui_create_context();
+    // create ui context
+    plUiContext* ptUiContext = pl_ui_create_context();
+    ptDataRegistry->set_data("ui", ptUiContext);
 
     // setup drawing api
     const plVulkanInit tVulkanInit = {
@@ -176,7 +173,7 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
     pl_add_default_font(&ptAppData->fontAtlas);
     pl_build_font_atlas(pl_ui_get_draw_context(NULL), &ptAppData->fontAtlas);
     pl_ui_set_default_font(&ptAppData->fontAtlas.sbFonts[0]);
-    pl_register_data("draw", pl_ui_get_draw_context(NULL));
+    ptDataRegistry->set_data("draw", pl_ui_get_draw_context(NULL));
 
     // renderer
     pl_setup_renderer(&ptAppData->tGraphics, &ptAppData->tRenderer);
@@ -185,6 +182,7 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~entity IDs~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
     // cameras
+    plIOContext* ptIOCtx = ptAppData->ptIoI->get_context();
     ptAppData->tOffscreenCameraEntity = pl_ecs_create_camera(&ptAppData->tScene, "offscreen camera", (plVec3){0.0f, 0.35f, 1.2f}, PL_PI_3, 1280.0f / 720.0f, 0.1f, 10.0f);
     ptAppData->tCameraEntity = pl_ecs_create_camera(&ptAppData->tScene, "main camera", (plVec3){-6.211f, 3.647f, 0.827f}, PL_PI_3, ptIOCtx->afMainViewportSize[0] / ptIOCtx->afMainViewportSize[1], 0.01f, 400.0f);
     plCameraComponent* ptCamera = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tCameraEntity);
@@ -301,10 +299,10 @@ pl_app_load(plIOContext* ptIOCtx, void* pAppData)
 
     plStlInfo tStlInfo = {0};
     uint32_t uFileSize = 0u;
-    pl_read_file("../data/pilotlight-assets-master/meshes/monkey.stl", &uFileSize, NULL, "rb");
+    ptFileApi->read_file("../data/pilotlight-assets-master/meshes/monkey.stl", &uFileSize, NULL, "rb");
     char* acFileData = pl_alloc(uFileSize);
     memset(acFileData, 0, uFileSize);
-    pl_read_file("../data/pilotlight-assets-master/meshes/monkey.stl", &uFileSize, acFileData, "rb");
+    ptFileApi->read_file("../data/pilotlight-assets-master/meshes/monkey.stl", &uFileSize, acFileData, "rb");
     pl_load_stl(acFileData, uFileSize, NULL, NULL, NULL, &tStlInfo);
 
     plSubMesh tSubMesh = {
@@ -493,10 +491,7 @@ pl_app_shutdown(void* pAppData)
     pl_cleanup_renderer(&ptAppData->tRenderer);
     pl_cleanup_graphics(&ptAppData->tGraphics);
     pl_cleanup_profile_context();
-    pl_cleanup_extension_registry();
     pl_cleanup_log_context();
-    pl_cleanup_data_registry();
-    pl_cleanup_memory_context();
 }
 
 //-----------------------------------------------------------------------------
@@ -507,7 +502,7 @@ PL_EXPORT void
 pl_app_resize(void* pAppData)
 {
     plAppData* ptAppData = pAppData;
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* ptIOCtx = ptAppData->ptIoI->get_context();
     pl_resize_graphics(&ptAppData->tGraphics);
     plCameraComponent* ptCamera = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tCameraEntity);
     pl_camera_set_aspect(ptCamera, ptIOCtx->afMainViewportSize[0] / ptIOCtx->afMainViewportSize[1]);
@@ -532,10 +527,9 @@ pl_app_update(plAppData* ptAppData)
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~frame setup~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOApiI* pTIoI = ptAppData->ptIoI;
+    plIOContext* ptIOCtx = pTIoI->get_context();
     pl_begin_profile_frame();
-    pl_handle_extension_reloads();
     pl_process_cleanup_queue(&ptAppData->tGraphics.tResourceManager, 1);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~input handling~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -544,35 +538,30 @@ pl_app_update(plAppData* ptAppData)
     plCameraComponent* ptOffscreenCamera = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tOffscreenCameraEntity);
 
     // camera space
-    if(pl_is_key_pressed(PL_KEY_W, true)) pl_camera_translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIOCtx->fDeltaTime);
-    if(pl_is_key_pressed(PL_KEY_S, true)) pl_camera_translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIOCtx->fDeltaTime);
-    if(pl_is_key_pressed(PL_KEY_A, true)) pl_camera_translate(ptCamera, -fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f,  0.0f);
-    if(pl_is_key_pressed(PL_KEY_D, true)) pl_camera_translate(ptCamera,  fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f,  0.0f);
+    if(pTIoI->is_key_pressed(PL_KEY_W, true)) pl_camera_translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIOCtx->fDeltaTime);
+    if(pTIoI->is_key_pressed(PL_KEY_S, true)) pl_camera_translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIOCtx->fDeltaTime);
+    if(pTIoI->is_key_pressed(PL_KEY_A, true)) pl_camera_translate(ptCamera, -fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f,  0.0f);
+    if(pTIoI->is_key_pressed(PL_KEY_D, true)) pl_camera_translate(ptCamera,  fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f,  0.0f);
 
     // world space
-    if(pl_is_key_pressed(PL_KEY_F, true)) pl_camera_translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f);
-    if(pl_is_key_pressed(PL_KEY_R, true)) pl_camera_translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f);
+    if(pTIoI->is_key_pressed(PL_KEY_F, true)) pl_camera_translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f);
+    if(pTIoI->is_key_pressed(PL_KEY_R, true)) pl_camera_translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f);
 
     plFrameContext* ptCurrentFrame = pl_get_frame_resources(&ptAppData->tGraphics);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~begin frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     if(pl_begin_frame(&ptAppData->tGraphics))
     {
-        pl_ui_new_frame();
+        pl_ui_new_frame(ptAppData->ptIoI);
 
-        if(!pl_ui_is_mouse_owned() && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+        if(!pl_ui_is_mouse_owned() && pTIoI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
         {
-            const plVec2 tMouseDelta = pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
+            const plVec2 tMouseDelta = pTIoI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
             pl_camera_rotate(ptCamera,  -tMouseDelta.y * 0.1f * ptIOCtx->fDeltaTime,  -tMouseDelta.x * 0.1f * ptIOCtx->fDeltaTime);
-            pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+            pTIoI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
         }
         pl_camera_update(ptCamera);
         pl_camera_update(ptOffscreenCamera);
-
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~drawing api~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        ptAppData->ptDrawExtApi->pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, "Drawn from extension!");
-        ptAppData->ptDrawExtApi->pl_add_text(ptAppData->offscreenDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 42.0f, (plVec2){100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, "Drawn from extension offscreen!");
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~3D drawing api~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         pl_add_3d_transform(&ptAppData->drawlist3d, &ptOffscreenCamera->tTransformMat, 0.2f, 0.02f);
@@ -590,7 +579,7 @@ pl_app_update(plAppData* ptAppData)
         if(pl_ui_begin_window("Offscreen", NULL, true))
         {
             pl_ui_layout_static(720.0f / 2.0f, 1280.0f / 2.0f, 1);
-            pl_ui_image(ptAppData->sbtTextures[ptAppData->tGraphics.szCurrentFrameIndex], (plVec2){1280.0f / 2.0f, 720.0f / 2.0f});
+            pl_ui_image(ptAppData->sbtTextures[ptAppData->tGraphics.tSwapchain.uCurrentImageIndex], (plVec2){1280.0f / 2.0f, 720.0f / 2.0f});
             pl_ui_end_window();
         }
 
@@ -607,6 +596,7 @@ pl_app_update(plAppData* ptAppData)
             pl_ui_checkbox("UI Debug", &ptAppData->bShowUiDebug);
             pl_ui_checkbox("UI Demo", &ptAppData->bShowUiDemo);
             pl_ui_checkbox("UI Style", &ptAppData->bShowUiStyle);
+            pl_ui_checkbox("Device Memory", &ptAppData->bShowUiMemory);
             
             if(pl_ui_checkbox("VSync", &ptAppData->tGraphics.tSwapchain.bVSync))
             {
@@ -739,13 +729,52 @@ pl_app_update(plAppData* ptAppData)
         if(ptAppData->bShowUiDebug)
             pl_ui_debug(&ptAppData->bShowUiDebug);
 
+        if(ptAppData->bShowUiMemory)
+        {
+            if(pl_ui_begin_window("Device Memory", &ptAppData->bShowUiMemory, false))
+            {
+                plDrawLayer* ptFgLayer = pl_ui_get_window_fg_drawlayer();
+                const plVec2 tWindowSize = pl_ui_get_window_size();
+                const plVec2 tWindowPos = pl_ui_get_window_pos();
+                const plVec2 tWindowEnd = pl_add_vec2(tWindowSize, tWindowPos);
+
+                pl_ui_layout_template_begin(30.0f);
+                pl_ui_layout_template_push_static(150.0f);
+                pl_ui_layout_template_push_variable(300.0f);
+                pl_ui_layout_template_end();
+
+                pl_ui_button("Block 0: 256MB");
+
+                plVec2 tCursor0 = pl_ui_get_cursor_pos();
+                float fWidthAvailable = tWindowEnd.x - tCursor0.x;
+                pl_ui_invisible_button("Block 0", (plVec2){fWidthAvailable - 5.0f, 30.0f});
+                if(pl_ui_was_last_item_active())
+                {
+                    pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  + fWidthAvailable - 5.0f, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
+                    pl_add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  + fWidthAvailable - 5.0f, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
+                }
+                else
+                    pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  + fWidthAvailable - 5.0f, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
+
+                pl_ui_button("Block 1: 256MB");
+                tCursor0 = pl_ui_get_cursor_pos();
+                fWidthAvailable = tWindowEnd.x - tCursor0.x;
+                pl_ui_dummy((plVec2){fWidthAvailable - 5.0f, 30.0f});
+                pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  + fWidthAvailable - 5.0f, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
+                pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  + fWidthAvailable / 3.0f - 5.0f, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f}); // red
+                pl_add_rect_filled(ptFgLayer, (plVec2){tCursor0.x +  + fWidthAvailable / 2.0f - 5.0f, tCursor0.y}, (plVec2){tCursor0.x +  fWidthAvailable - 5.0f, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f}); // yellow
+
+                pl_ui_end_window();
+            }
+        }
+
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~renderer begin frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         // rotate stl model
         {
             plObjectComponent* ptObjectComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tObjectComponentManager, ptAppData->tStlEntity);
             plTransformComponent* ptTransformComponent = pl_ecs_get_component(&ptAppData->tScene.tComponentLibrary.tTransformComponentManager, ptObjectComponent->tTransform);
-            const plMat4 tStlRotation = pl_mat4_rotate_xyz(PL_PI * (float)pl_get_io_context()->dTime, 0.0f, 1.0f, 0.0f);
+            const plMat4 tStlRotation = pl_mat4_rotate_xyz(PL_PI * (float)ptAppData->ptIoI->get_context()->dTime, 0.0f, 1.0f, 0.0f);
             const plMat4 tStlTranslation = pl_mat4_translate_xyz(0.0f, 2.0f, 0.0f);
             const plMat4 tStlTransform = pl_mul_mat4(&tStlTranslation, &tStlRotation);
             ptTransformComponent->tFinalTransform = tStlTransform;
@@ -785,11 +814,15 @@ pl_app_update(plAppData* ptAppData)
         const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
         pl_submit_3d_drawlist_vulkan(&ptAppData->drawlist3d, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex, &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST);
 
+        pl_ui_get_draw_context(NULL)->tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
+        pl_ui_get_draw_context(NULL)->tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
+
         // submit draw lists
         pl_submit_drawlist_vulkan(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
 
         // submit ui drawlist
         pl_ui_render();
+
         pl_submit_drawlist_vulkan(pl_ui_get_draw_list(NULL), (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
         pl_submit_drawlist_vulkan(pl_ui_get_debug_draw_list(NULL), (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
         pl_end_render_target(&ptAppData->tGraphics);
@@ -800,3 +833,19 @@ pl_app_update(plAppData* ptAppData)
     } 
     pl_end_profile_frame();
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] unity build
+//-----------------------------------------------------------------------------
+
+#include "pl_graphics_vulkan.c"
+#include "pl_prototype.c"
+#include "pl_gltf.c"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+#undef STB_IMAGE_IMPLEMENTATION
+
+#define PL_STL_IMPLEMENTATION
+#include "pl_stl.h"
+#undef PL_STL_IMPLEMENTATION

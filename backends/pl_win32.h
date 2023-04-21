@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] header mess
+// [SECTION] forward declarations
 // [SECTION] includes
 // [SECTION] public api
 */
@@ -17,6 +18,13 @@ Index of this file:
 #define PL_WIN32_H
 
 //-----------------------------------------------------------------------------
+// [SECTION] forward declarations
+//-----------------------------------------------------------------------------
+
+// external
+typedef struct _plIOApiI plIOApiI;
+
+//-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
@@ -27,7 +35,7 @@ Index of this file:
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-void             pl_init_win32               (HWND tHandle);
+void             pl_init_win32               (HWND tHandle, plIOApiI* ptIoApi);
 void             pl_cleanup_win32            (void);
 void             pl_new_frame_win32          (void);
 void             pl_update_mouse_cursor_win32(void);
