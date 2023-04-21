@@ -1,4 +1,4 @@
-__version__ = "0.6.2"
+__version__ = "0.7.0"
 
 ###############################################################################
 #                                  Info                                       #
@@ -636,6 +636,8 @@ def _setup_defaults():
                             elif target._target_type == TargetType.DYNAMIC_LIBRARY:
                                 if settings._compiler_type == CompilerType.MSVC:
                                     settings._output_binary_extension = ".dll"
+                                elif settings._compiler_type == CompilerType.CLANG:
+                                    settings._output_binary_extension = ".dylib"
                                 else :
                                     settings._output_binary_extension = ".so"
                             elif target._target_type == TargetType.EXECUTABLE:
