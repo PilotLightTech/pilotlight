@@ -20,7 +20,6 @@ Index of this file:
 #include "pilotlight.h"
 #include "pl_macos.h"
 #include "pl_io.h"
-#include "pl_os.h"
 #import <Cocoa/Cocoa.h>
 #import <Carbon/Carbon.h>
 #import <QuartzCore/CAMetalLayer.h>
@@ -297,30 +296,6 @@ pl_macos_procedure(NSEvent* event, NSView* view)
     }
 
     return false;
-}
-
-void
-pl_load_os_apis(plApiRegistryApiI* ptApiRegistry)
-{
-    static plFileApiI tApi0 = {
-        .copy = pl__copy_file,
-        .read = pl__read_file
-    };
-    
-    static plUdpApiI tApi1 = {
-        .create_socket = pl__create_udp_socket,
-        .bind_socket   = pl__bind_udp_socket,  
-        .get_data      = pl__get_udp_data,
-        .send_data     = pl__send_udp_data
-    };
-
-    static plOsServicesApiI tApi2 = {
-        .sleep     = pl__sleep
-    };
-
-    ptApiRegistry->add(PL_API_FILE, &tApi0);
-    ptApiRegistry->add(PL_API_UDP, &tApi1);
-    ptApiRegistry->add(PL_API_OS_SERVICES, &tApi2);
 }
 
 //-----------------------------------------------------------------------------

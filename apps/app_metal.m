@@ -23,7 +23,6 @@ Index of this file:
 #include "pl_io.h"
 #include "pl_profile.h"
 #include "pl_log.h"
-#include "pl_os.h"
 #include "pl_memory.h"
 #include "pl_metal.h"
 

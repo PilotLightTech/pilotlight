@@ -22,7 +22,6 @@ Index of this file:
 #include "pl_string.h"
 #include "pl_ds.h"
 #include "pl_io.h"
-#include "pl_os.h"
 #include "pl_profile.h"
 #include "pl_log.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -70,6 +69,7 @@ typedef struct _plDeviceStagedUncachedAllocatorData
 static void                  pl_setup_graphics               (plGraphics* ptGraphics, plApiRegistryApiI* ptApiRegistry);
 static void                  pl_cleanup_graphics             (plGraphics* ptGraphics);
 static void                  pl_resize_graphics              (plGraphics* ptGraphics);
+static void                  pl_reload_contexts              (plApiRegistryApiI* ptApiRegistry);
 
 // per frame
 static bool                  pl_begin_frame                  (plGraphics* ptGraphics);
@@ -191,6 +191,7 @@ pl_load_graphics_api(void)
         .setup_graphics             = pl_setup_graphics,
         .cleanup_graphics           = pl_cleanup_graphics,
         .resize_graphics            = pl_resize_graphics,
+        .reload_contexts            = pl_reload_contexts,
         .begin_frame                = pl_begin_frame,
         .end_frame                  = pl_end_frame,
         .begin_recording            = pl_begin_recording,
@@ -2135,6 +2136,14 @@ pl_resize_graphics(plGraphics* ptGraphics)
     pl__create_swapchain(ptGraphics, ptGraphics->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
     pl__create_framebuffers(ptDevice, ptGraphics->tRenderPass, &ptGraphics->tSwapchain);
     ptGraphics->szCurrentFrameIndex = 0;
+}
+
+static void
+pl_reload_contexts(plApiRegistryApiI* ptApiRegistry)
+{
+    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    pl_set_log_context(ptDataRegistry->get_data("log"));
+    pl_set_profile_context(ptDataRegistry->get_data("profile"));
 }
 
 static void

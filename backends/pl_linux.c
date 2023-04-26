@@ -19,7 +19,6 @@ Index of this file:
 #include "pilotlight.h"
 #include "pl_linux.h"
 #include "pl_io.h"
-#include "pl_os.h"
 #include <time.h> // clock_gettime, clock_getres
 #include <xcb/xcb.h>
 #include <xcb/xfixes.h> //xcb_xfixes_query_version, apt install libxcb-xfixes0-dev
@@ -294,30 +293,6 @@ pl_linux_procedure(xcb_generic_event_t* event)
             break;
         } 
     }
-}
-
-void
-pl_load_os_apis(plApiRegistryApiI* ptApiRegistry)
-{
-    static plFileApiI tApi0 = {
-        .copy = pl__copy_file,
-        .read = pl__read_file
-    };
-    
-    static plUdpApiI tApi1 = {
-        .create_socket = pl__create_udp_socket,
-        .bind_socket   = pl__bind_udp_socket,  
-        .get_data      = pl__get_udp_data,
-        .send_data     = pl__send_udp_data
-    };
-
-    static plOsServicesApiI tApi2 = {
-        .sleep     = pl__sleep
-    };
-
-    ptApiRegistry->add(PL_API_FILE, &tApi0);
-    ptApiRegistry->add(PL_API_UDP, &tApi1);
-    ptApiRegistry->add(PL_API_OS_SERVICES, &tApi2);
 }
 
 //-----------------------------------------------------------------------------

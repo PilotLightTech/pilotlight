@@ -194,6 +194,7 @@ typedef struct _plGraphicsApiI
     void (*setup_graphics)  (plGraphics* ptGraphics, plApiRegistryApiI* ptApiRegistry);
     void (*cleanup_graphics)(plGraphics* ptGraphics);
     void (*resize_graphics) (plGraphics* ptGraphics);
+    void (*reload_contexts) (plApiRegistryApiI* ptApiRegistry);
 
     // per frame
     bool (*begin_frame)    (plGraphics* ptGraphics);

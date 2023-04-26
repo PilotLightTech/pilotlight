@@ -27,7 +27,6 @@ Index of this file:
 
 #include "pilotlight.h" // data registry, api registry, extension registry
 #include "pl_io.h"      // io context
-#include "pl_os.h"      // os apis
 #include "pl_linux.h"   // linux backend
 
 //-----------------------------------------------------------------------------
@@ -65,7 +64,6 @@ int main()
     // load apis
     gptApiRegistry = pl_load_core_apis();
     gptIoApiMain = pl_load_io_api();
-    pl_load_os_apis(gptApiRegistry);
     gptApiRegistry->add(PL_API_IO, gptIoApiMain);
     gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
     gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);

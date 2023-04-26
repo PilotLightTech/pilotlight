@@ -23,14 +23,13 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pilotlight.h"
 #include "stb_sprintf.h"
 #include "pl_win32.h"
 #include "pl_io.h"    // io context
 #include <stdio.h>  // file api
 #include <stdlib.h> // malloc
 #include <float.h>    // FLT_MAX, FLT_MIN
-#include "pl_os.h"
-#include "pilotlight.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -351,30 +350,6 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
         }
     }
     return 0;  
-}
-
-void
-pl_load_os_apis(plApiRegistryApiI* ptApiRegistry)
-{
-    static plFileApiI tApi0 = {
-        .copy = pl__copy_file,
-        .read = pl__read_file
-    };
-    
-    static plUdpApiI tApi1 = {
-        .create_socket = pl__create_udp_socket,
-        .bind_socket   = pl__bind_udp_socket,  
-        .get_data      = pl__get_udp_data,
-        .send_data     = pl__send_udp_data
-    };
-
-    static plOsServicesApiI tApi2 = {
-        .sleep     = pl__sleep
-    };
-
-    ptApiRegistry->add(PL_API_FILE, &tApi0);
-    ptApiRegistry->add(PL_API_UDP, &tApi1);
-    ptApiRegistry->add(PL_API_OS_SERVICES, &tApi2);
 }
 
 //-----------------------------------------------------------------------------

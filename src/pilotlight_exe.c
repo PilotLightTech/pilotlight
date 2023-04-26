@@ -158,10 +158,29 @@ pl_load_core_apis(void)
         .reload        = pl__reload_library
     };
 
+    static plFileApiI tApi4 = {
+        .copy = pl__copy_file,
+        .read = pl__read_file
+    };
+    
+    static plUdpApiI tApi5 = {
+        .create_socket = pl__create_udp_socket,
+        .bind_socket   = pl__bind_udp_socket,  
+        .get_data      = pl__get_udp_data,
+        .send_data     = pl__send_udp_data
+    };
+
+    static plOsServicesApiI tApi6 = {
+        .sleep     = pl__sleep
+    };
+
     tApiRegistry.add(PL_API_DATA_REGISTRY, &tApi0);
     tApiRegistry.add(PL_API_EXTENSION_REGISTRY, &tApi1);
     tApiRegistry.add(PL_API_MEMORY, &tApi2);
     tApiRegistry.add(PL_API_LIBRARY, &tApi3);
+    tApiRegistry.add(PL_API_FILE, &tApi4);
+    tApiRegistry.add(PL_API_UDP, &tApi5);
+    tApiRegistry.add(PL_API_OS_SERVICES, &tApi6);
 
     return &tApiRegistry;
 }

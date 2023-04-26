@@ -22,7 +22,6 @@ Index of this file:
 #include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_ds.h"
-#include "pl_os.h"
 #include "pl_io.h"
 #include "pl_memory.h"
 
@@ -47,31 +46,23 @@ Index of this file:
 
 typedef struct _plAppData
 {
-    plGraphics          tGraphics;
-    plDrawList          drawlist;
-    plDrawList          drawlist2;
-    plDrawList3D        drawlist3d;
-    plDrawLayer*        fgDrawLayer;
-    plDrawLayer*        bgDrawLayer;
-    plDrawLayer*        offscreenDrawLayer;
-    plFontAtlas         fontAtlas;
-    bool                bShowUiDemo;
-    bool                bShowUiDebug;
-    bool                bShowUiStyle;
-    bool                bShowUiMemory;
+    plGraphics   tGraphics;
+    plDrawList   drawlist;
+    plDrawList   drawlist2;
+    plDrawList3D drawlist3d;
+    plDrawLayer* fgDrawLayer;
+    plDrawLayer* bgDrawLayer;
+    plDrawLayer* offscreenDrawLayer;
+    plFontAtlas  fontAtlas;
+    bool         bShowUiDemo;
+    bool         bShowUiDebug;
+    bool         bShowUiStyle;
+    bool         bShowUiMemory;
 
     // apis
-    plIOApiI*               ptIoI;
-    plLibraryApiI*          ptLibraryApi;
-    plFileApiI*             ptFileApi;
-    
-    // extension apis
-    plGraphicsApiI*         ptGfx;
-    plResourceManager0ApiI* ptResourceApi;
-    plProtoApiI*            ptProtoApi;
-    plDrawApiI*             ptDrawApi;
-    plVulkanDrawApiI*       ptVulkanDrawApi;
-    plUiApiI*               ptUiApi;
+    plIOApiI*      ptIoI;
+    plLibraryApiI* ptLibraryApi;
+    plFileApiI*    ptFileApi;
     
     // renderer
     plRenderer      tRenderer;
@@ -109,23 +100,31 @@ typedef struct _plAppData
 // [SECTION] pl_app_load
 //-----------------------------------------------------------------------------
 
+plProtoApiI*            ptProtoApi      = NULL;
+plGraphicsApiI*         ptGfx           = NULL;
+plDrawApiI*             ptDrawApi       = NULL;
+plVulkanDrawApiI*       ptVulkanDrawApi = NULL;
+plUiApiI*               ptUi            = NULL;
+plIOApiI*               ptIoI           = NULL;
+plResourceManager0ApiI* ptResourceApi   = NULL;
+
 static void
 pl__api_update_callback(void* pNewInterface, void* pOldInterface, void* pAppData)
 {
     plAppData* ptAppData = pAppData;
     plDataRegistryApiI* ptDataRegistry = ptAppData->ptApiRegistry->first(PL_API_DATA_REGISTRY);
 
-    if(pOldInterface == ptAppData->ptUiApi)
+    if(pOldInterface == ptUi)
     {
-        ptAppData->ptUiApi = pNewInterface;
-        ptAppData->ptUiApi->set_context(ptDataRegistry->get_data("ui"));
-        ptAppData->ptUiApi->set_draw_api(ptAppData->ptDrawApi);
+        ptUi = pNewInterface;
+        ptUi->set_context(ptDataRegistry->get_data("ui"));
+        ptUi->set_draw_api(ptDrawApi);
     }
-    else if(pOldInterface == ptAppData->ptDrawApi)
+    else if(pOldInterface == ptDrawApi)
     {
-        ptAppData->ptDrawApi = pNewInterface;
-        ptAppData->ptDrawApi->set_context(ptDataRegistry->get_data("draw"));
-        ptAppData->ptUiApi->set_draw_api(ptAppData->ptDrawApi);
+        ptDrawApi = pNewInterface;
+        ptDrawApi->set_context(ptDataRegistry->get_data("draw"));
+        ptUi->set_draw_api(ptDrawApi);
     }
 }
 
@@ -141,22 +140,32 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
         pl_set_profile_context(ptDataRegistry->get_data("profile"));
         
         // must resubscribe (can't do in callback since callback is from previous binary)
-        ptApiRegistry->subscribe(ptAppData->ptUiApi, pl__api_update_callback, ptAppData);
-        ptApiRegistry->subscribe(ptAppData->ptDrawApi, pl__api_update_callback, ptAppData);
+        ptApiRegistry->subscribe(ptUi, pl__api_update_callback, ptAppData);
+        ptApiRegistry->subscribe(ptDrawApi, pl__api_update_callback, ptAppData);
+
+        ptProtoApi      = ptApiRegistry->first(PL_API_PROTO);
+        ptGfx           = ptApiRegistry->first(PL_API_GRAPHICS);
+        ptDrawApi       = ptApiRegistry->first(PL_API_DRAW);
+        ptVulkanDrawApi = ptApiRegistry->first(PL_API_VULKAN_DRAW);
+        ptUi            = ptApiRegistry->first(PL_API_UI);
+        ptIoI           = ptApiRegistry->first(PL_API_IO);
+        ptResourceApi   = ptApiRegistry->first(PL_API_RESOURCE_MANAGER_0);
+
+        ptGfx->reload_contexts(ptApiRegistry);
         return ptAppData;
     }
 
-    plIOApiI* ptIoI = ptApiRegistry->first(PL_API_IO);
+    ptIoI                       = ptApiRegistry->first(PL_API_IO);
     plLibraryApiI* ptLibraryApi = ptApiRegistry->first(PL_API_LIBRARY);
-    plFileApiI* ptFileApi = ptApiRegistry->first(PL_API_FILE);
-    plMemoryApiI* ptMemoryApi = ptApiRegistry->first(PL_API_MEMORY);
+    plFileApiI* ptFileApi       = ptApiRegistry->first(PL_API_FILE);
+    plMemoryApiI* ptMemoryApi   = ptApiRegistry->first(PL_API_MEMORY);
     
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
     ptAppData->ptApiRegistry = ptApiRegistry;
-    ptAppData->ptIoI = ptIoI;
-    ptAppData->ptLibraryApi = ptLibraryApi;
-    ptAppData->ptFileApi = ptFileApi;
+    ptAppData->ptIoI         = ptIoI;
+    ptAppData->ptLibraryApi  = ptLibraryApi;
+    ptAppData->ptFileApi     = ptFileApi;
     
     // create profile context
     plProfileContext* ptProfileCtx = pl_create_profile_context();
@@ -173,29 +182,25 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
 
     ptExtensionRegistry->load_from_config(ptApiRegistry, "../src/pl_config.json");
 
-    plProtoApiI* ptProtoApi = ptApiRegistry->first(PL_API_PROTO);
-    plGltfApiI* ptGltfApi = ptApiRegistry->first(PL_API_GLTF);
-    plGraphicsApiI* ptGfx = ptApiRegistry->first(PL_API_GRAPHICS);
     plImageApiI* ptImageApi = ptApiRegistry->first(PL_API_IMAGE);
-    plDrawApiI* ptDrawApi = ptApiRegistry->first(PL_API_DRAW);
-    plVulkanDrawApiI* ptVulkanDrawApi = ptApiRegistry->first(PL_API_VULKAN_DRAW);
-    plUiApiI* ptUi = ptApiRegistry->first(PL_API_UI);
-    ptAppData->ptGfx = ptGfx;
-    ptAppData->ptProtoApi = ptProtoApi;
-    ptAppData->ptDrawApi = ptDrawApi;
-    ptAppData->ptVulkanDrawApi = ptVulkanDrawApi;
-    ptAppData->ptUiApi = ptUi;
+    plGltfApiI*  ptGltfApi  = ptApiRegistry->first(PL_API_GLTF);
+
+    ptProtoApi      = ptApiRegistry->first(PL_API_PROTO);
+    ptGfx           = ptApiRegistry->first(PL_API_GRAPHICS);
+    ptDrawApi       = ptApiRegistry->first(PL_API_DRAW);
+    ptVulkanDrawApi = ptApiRegistry->first(PL_API_VULKAN_DRAW);
+    ptUi            = ptApiRegistry->first(PL_API_UI);
+    ptIoI           = ptApiRegistry->first(PL_API_IO);
 
     // subscribe to api updates
-    ptApiRegistry->subscribe(ptAppData->ptUiApi, pl__api_update_callback, ptAppData);
-    ptApiRegistry->subscribe(ptAppData->ptDrawApi, pl__api_update_callback, ptAppData);
+    ptApiRegistry->subscribe(ptUi, pl__api_update_callback, ptAppData);
+    ptApiRegistry->subscribe(ptDrawApi, pl__api_update_callback, ptAppData);
 
     // setup renderer
     ptGfx->setup_graphics(&ptAppData->tGraphics, ptApiRegistry);
 
     plDeviceApiI* ptDeviceApi = ptAppData->tGraphics.ptDeviceApi;
-    plResourceManager0ApiI* ptResourceApi = ptApiRegistry->first(PL_API_RESOURCE_MANAGER_0);
-    ptAppData->ptResourceApi = ptResourceApi;
+    ptResourceApi = ptApiRegistry->first(PL_API_RESOURCE_MANAGER_0);
 
     // create ui context
     plUiContext* ptUiContext = ptUi->create_context(ptIoI, ptDrawApi);
@@ -532,10 +537,6 @@ PL_EXPORT void
 pl_app_shutdown(void* pAppData)
 {
     plAppData* ptAppData = pAppData; 
-    plGraphicsApiI* ptGfx = ptAppData->ptGfx;
-    plProtoApiI* ptProtoApi = ptAppData->ptProtoApi;
-    plDrawApiI* ptDrawApi = ptAppData->ptDrawApi;
-    plUiApiI* ptUi = ptAppData->ptUiApi;
     vkDeviceWaitIdle(ptAppData->tGraphics.tDevice.tLogicalDevice);
     ptDrawApi->cleanup_font_atlas(&ptAppData->fontAtlas);
     ptUi->destroy_context(NULL);
@@ -555,8 +556,6 @@ PL_EXPORT void
 pl_app_resize(void* pAppData)
 {
     plAppData* ptAppData = pAppData;
-    plGraphicsApiI* ptGfx = ptAppData->ptGfx;
-    plProtoApiI* ptProtoApi = ptAppData->ptProtoApi;
     plIOContext* ptIOCtx = ptAppData->ptIoI->get_context();
     ptGfx->resize_graphics(&ptAppData->tGraphics);
     plCameraComponent* ptCamera = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tCameraEntity);
@@ -571,12 +570,6 @@ pl_app_resize(void* pAppData)
 PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
-    plGraphicsApiI* ptGfx = ptAppData->ptGfx;
-    plResourceManager0ApiI* ptResourceApi = ptAppData->ptResourceApi;
-    plProtoApiI* ptProtoApi = ptAppData->ptProtoApi;
-    plDrawApiI* ptDrawApi = ptAppData->ptDrawApi;
-    plVulkanDrawApiI* ptVulkanDrawApi = ptAppData->ptVulkanDrawApi;
-    plUiApiI* ptUi = ptAppData->ptUiApi;
 
     static bool bVSyncChanged = false;
 

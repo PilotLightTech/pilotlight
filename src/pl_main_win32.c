@@ -42,7 +42,6 @@ Index of this file:
 
 #include "pilotlight.h" // data registry, api registry, extension registry
 #include "pl_io.h"      // io context
-#include "pl_os.h"      // os apis
 #include "pl_win32.h"   // win32 backend
 
 //-----------------------------------------------------------------------------
@@ -62,9 +61,6 @@ static plDataRegistryApiI*      gptDataRegistry = NULL;
 static plApiRegistryApiI*       gptApiRegistry = NULL;
 static plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 static plIOApiI*                gptIoApiMain = NULL;
-
-// OS apis
-// static plLibraryApiI* ptLibraryApi = NULL;
 
 static HWND  gtHandle = NULL;
 static plSharedLibrary gtAppLibrary = {0};
@@ -105,8 +101,7 @@ int main(int argc, char *argv[])
 
     // load apis
     gptApiRegistry = pl_load_core_apis();
-    gptIoApiMain = pl_load_io_api();
-    pl_load_os_apis(gptApiRegistry);
+    gptIoApiMain   = pl_load_io_api();
     gptApiRegistry->add(PL_API_IO, gptIoApiMain);
     gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
     gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
@@ -243,9 +238,7 @@ int main(int argc, char *argv[])
 
     // cleanup io context
     pl_unload_io_api();
-
     pl_cleanup_win32();
-
     pl_unload_core_apis();
 
     // return console to original mode
