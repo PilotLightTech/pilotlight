@@ -60,8 +60,6 @@ typedef size_t plStackAllocatorMarker;
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~general purpose allocation~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-void*                  pl_alloc        (size_t szSize);
-void                   pl_free         (void* pBuffer);
 void*                  pl_aligned_alloc(size_t szAlignment, size_t szSize);
 void                   pl_aligned_free (void* pBuffer);
 void*                  pl_realloc      (void* pBuffer, size_t szSize);
@@ -246,18 +244,6 @@ pl__align_forward_size(size_t szPtr, size_t szAlign)
 //-----------------------------------------------------------------------------
 
 void*
-pl_alloc(size_t szSize)
-{
-    return PL_MEMORY_ALLOC(szSize);
-}
-
-void
-pl_free(void* pBuffer)
-{
-    PL_MEMORY_FREE(pBuffer);
-}
-
-void*
 pl_aligned_alloc(size_t szAlignment, size_t szSize)
 {
     void* pBuffer = NULL;
@@ -269,7 +255,7 @@ pl_aligned_alloc(size_t szAlignment, size_t szSize)
     {
         // allocate extra bytes for alignment
         uint64_t ulHeaderSize = sizeof(uint64_t) + (szAlignment - 1);
-        void* pActualBuffer = pl_alloc(szSize + ulHeaderSize);
+        void* pActualBuffer = PL_MEMORY_ALLOC(szSize + ulHeaderSize);
 
         if(pActualBuffer)
         {
@@ -293,7 +279,7 @@ pl_aligned_free(void* pBuffer)
 
     // get original buffer to free
     void* pActualBuffer = ((uint8_t*)pBuffer - ulOffset);
-    pl_free(pActualBuffer);
+    PL_MEMORY_FREE(pActualBuffer);
 }
 
 void*

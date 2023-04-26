@@ -20,16 +20,15 @@ Index of this file:
 #include <string.h>   // strlen
 #include <stdlib.h>   // free
 #include <assert.h>
-#include "pl_config.h"   // config
-#include "pl_io.h"       // io context
-#include "pl_os.h"       // os apis
-#include "pl_registry.h" // data registry, api registry, extension registry
 #include <xcb/xcb.h>
 #include <xcb/xfixes.h> //xcb_xfixes_query_version, apt install libxcb-xfixes0-dev
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <xcb/xcb_cursor.h> // apt install libxcb-cursor-dev, libxcb-cursor0
 
-#include "pl_linux.h"
+#include "pilotlight.h" // data registry, api registry, extension registry
+#include "pl_io.h"      // io context
+#include "pl_os.h"      // os apis
+#include "pl_linux.h"   // linux backend
 
 //-----------------------------------------------------------------------------
 // [SECTION] globals
@@ -41,12 +40,6 @@ static plApiRegistryApiI*       gptApiRegistry = NULL;
 static plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 static plIOApiI*                gptIoApiMain = NULL;
 
-// OS apis
-static plFileApiI*       gptFileApi = NULL;
-static plLibraryApiI*    gptLibraryApi = NULL;
-static plOsServicesApiI* gptOsServicesApi = NULL;
-static plUdpApiI*        gptUdpApi = NULL;
-
 static Display*          gDisplay;
 static xcb_connection_t* gConnection;
 static xcb_window_t      gWindow;
@@ -57,6 +50,7 @@ static xcb_atom_t        gWmDeleteWin;
 static plSharedLibrary   gtAppLibrary = {0};
 static void*             gUserData = NULL;
 
+// app function pointers
 static void* (*pl_app_load)    (plApiRegistryApiI* ptApiRegistry, void* ptAppData);
 static void  (*pl_app_shutdown)(void* ptAppData);
 static void  (*pl_app_resize)  (void* ptAppData);
@@ -68,26 +62,14 @@ static void  (*pl_app_update)  (void* ptAppData);
 
 int main()
 {
-
-    gptApiRegistry       = pl_load_api_registry();
-    pl_load_data_registry_api(gptApiRegistry);
-    pl_load_extension_registry(gptApiRegistry);
+    // load apis
+    gptApiRegistry = pl_load_core_apis();
+    gptIoApiMain = pl_load_io_api();
+    pl_load_os_apis(gptApiRegistry);
+    gptApiRegistry->add(PL_API_IO, gptIoApiMain);
     gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
     gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-
-    gptIoApiMain = pl_load_io_api();
-    gptApiRegistry->add(PL_API_IO, gptIoApiMain);
-
-    // load os apis
-    pl_load_file_api(gptApiRegistry);
-    pl_load_library_api(gptApiRegistry);
-    pl_load_udp_api(gptApiRegistry);
-    pl_load_os_services_api(gptApiRegistry);
-    gptFileApi       = gptApiRegistry->first(PL_API_FILE);
-    gptLibraryApi    = gptApiRegistry->first(PL_API_LIBRARY);
-    gptUdpApi        = gptApiRegistry->first(PL_API_UDP);
-    gptOsServicesApi = gptApiRegistry->first(PL_API_OS_SERVICES);
-
+    
     // setup & retrieve io context 
     plIOContext* ptIOCtx = gptIoApiMain->get_context();
     gptDataRegistry->set_data("io", ptIOCtx);
@@ -222,12 +204,13 @@ int main()
     ptIOCtx->pBackendPlatformData = &platformData;
 
     // load library
-    if(gptLibraryApi->load_library(&gtAppLibrary, "./app.so", "./app_", "./lock.tmp"))
+    plLibraryApiI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
+    if(ptLibraryApi->load(&gtAppLibrary, "./app.so", "./app_", "./lock.tmp"))
     {
-        pl_app_load     = (void* (__attribute__(()) *)(plApiRegistryApiI*, void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_load");
-        pl_app_shutdown = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_update");
+        pl_app_load     = (void* (__attribute__(()) *)(plApiRegistryApiI*, void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
+        pl_app_shutdown = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
         gUserData = pl_app_load(gptApiRegistry, NULL);
     }
 
@@ -267,19 +250,19 @@ int main()
         pl_update_mouse_cursor_linux();
 
         // reload library
-        if(gptLibraryApi->has_library_changed(&gtAppLibrary))
+        if(ptLibraryApi->has_changed(&gtAppLibrary))
         {
-            gptLibraryApi->reload_library(&gtAppLibrary);
-            pl_app_load     = (void* (__attribute__(()) *)(plApiRegistryApiI*, void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_load");
-            pl_app_shutdown = (void  (__attribute__(()) *)(void*))               gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__attribute__(()) *)(void*))               gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_resize");
-            pl_app_update   = (void  (__attribute__(()) *)(void*))               gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_update");
+            ptLibraryApi->reload(&gtAppLibrary);
+            pl_app_load     = (void* (__attribute__(()) *)(plApiRegistryApiI*, void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
+            pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     ptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
+            pl_app_resize   = (void  (__attribute__(()) *)(void*))                     ptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
+            pl_app_update   = (void  (__attribute__(()) *)(void*))                     ptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
             gUserData = pl_app_load(gptApiRegistry, gUserData);
         }
 
         // render a frame
         pl_new_frame_linux();
-        gptExtensionRegistry->reload(gptApiRegistry, gptLibraryApi);
+        gptExtensionRegistry->reload(gptApiRegistry);
         pl_app_update(gUserData);
     }
 
@@ -291,20 +274,12 @@ int main()
     xcb_destroy_window(gConnection, gWindow);
     pl_cleanup_linux();
     
-    pl_unload_extension_registry();
-    pl_unload_data_registry_api();
     pl_unload_io_api();
+    pl_unload_core_apis();
 }
 
-#include "pl_registry.c"
-#include "../backends/pl_linux.c"
+//-----------------------------------------------------------------------------
+// [SECTION] unity build
+//-----------------------------------------------------------------------------
 
-#define PL_IO_IMPLEMENTATION
-#include "pl_io.h"
-#undef PL_IO_IMPLEMENTATION
-
-#ifdef PL_USE_STB_SPRINTF
-#define STB_SPRINTF_IMPLEMENTATION
-#include "stb_sprintf.h"
-#undef STB_SPRINTF_IMPLEMENTATION
-#endif
+#include "pilotlight_exe.c"

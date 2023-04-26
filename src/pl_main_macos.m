@@ -18,16 +18,15 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_config.h"   // config
-#include "pl_io.h"       // io context
-#include "pl_os.h"       // os apis
-#include "pl_registry.h" // data registry, api registry, extension registry
 #import <Cocoa/Cocoa.h>
 #import <Carbon/Carbon.h>
 #import <QuartzCore/CAMetalLayer.h>
 #import <Metal/Metal.h>
 #import <time.h>
 
+#include "pilotlight.h" // data registry, api registry, extension registry
+#include "pl_io.h"      // io context
+#include "pl_os.h"      // os apis
 #include "pl_macos.h"
 
 //-----------------------------------------------------------------------------
@@ -81,10 +80,7 @@ static plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 static plIOApiI*                gptIoApiMain = NULL;
 
 // OS apis
-static plFileApiI*       gptFileApi = NULL;
-static plLibraryApiI*    gptLibraryApi = NULL;
-static plOsServicesApiI* gptOsServicesApi = NULL;
-static plUdpApiI*        gptUdpApi = NULL;
+static plLibraryApiI* gptLibraryApi = NULL;
 
 static NSWindow*            gWindow = NULL;
 static NSViewController*    gViewController = NULL;
@@ -96,6 +92,7 @@ static plKeyEventResponder* gKeyEventResponder = NULL;
 static NSTextInputContext*  gInputContext = NULL;
 static id                   gMonitor;
 
+// app function pointers
 static void* (*pl_app_load)    (plApiRegistryApiI* ptApiRegistry, void* ptAppData);
 static void  (*pl_app_shutdown)(void* ptAppData);
 static void  (*pl_app_resize)  (void* ptAppData);
@@ -107,24 +104,14 @@ static void  (*pl_app_update)  (void* ptAppData);
 
 int main()
 {
-    gptApiRegistry       = pl_load_api_registry();
-    pl_load_data_registry_api(gptApiRegistry);
-    pl_load_extension_registry(gptApiRegistry);
+    // load apis
+    gptApiRegistry = pl_load_core_apis();
+    gptIoApiMain = pl_load_io_api();
+    pl_load_os_apis(gptApiRegistry);
+    gptApiRegistry->add(PL_API_IO, gptIoApiMain);
     gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
     gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-
-    gptIoApiMain = pl_load_io_api();
-    gptApiRegistry->add(PL_API_IO, gptIoApiMain);
-
-    // load os apis
-    pl_load_file_api(gptApiRegistry);
-    pl_load_library_api(gptApiRegistry);
-    pl_load_udp_api(gptApiRegistry);
-    pl_load_os_services_api(gptApiRegistry);
-    gptFileApi       = gptApiRegistry->first(PL_API_FILE);
-    gptLibraryApi    = gptApiRegistry->first(PL_API_LIBRARY);
-    gptUdpApi        = gptApiRegistry->first(PL_API_UDP);
-    gptOsServicesApi = gptApiRegistry->first(PL_API_OS_SERVICES);
+    gptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
 
     // setup & retrieve io context 
     plIOContext* ptIOCtx = gptIoApiMain->get_context();
@@ -389,12 +376,12 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     gtIOContext->afMainViewportSize[1] = 500;
 
     // load library
-    if(gptLibraryApi->load_library(&gtAppLibrary, "app.dylib", "app_", "lock.tmp"))
+    if(gptLibraryApi->load(&gtAppLibrary, "app.dylib", "app_", "lock.tmp"))
     {
-        pl_app_load     = (void* (__attribute__(()) *)(plApiRegistryApiI*, void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_load");
-        pl_app_shutdown = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_update");
+        pl_app_load     = (void* (__attribute__(()) *)(plApiRegistryApiI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
+        pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
         gUserData = pl_app_load(gptApiRegistry, NULL);
     }
 }
@@ -420,18 +407,18 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     pl_update_mouse_cursor_macos();
 
     // reload library
-    if(gptLibraryApi->has_library_changed(&gtAppLibrary))
+    if(gptLibraryApi->has_changed(&gtAppLibrary))
     {
-        gptLibraryApi->reload_library(&gtAppLibrary);
-        pl_app_load     = (void* (__attribute__(()) *)(plApiRegistryApiI*, void*)) gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_load");
-        pl_app_shutdown = (void  (__attribute__(()) *)(void*))               gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(()) *)(void*))               gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__attribute__(()) *)(void*))               gptLibraryApi->load_library_function(&gtAppLibrary, "pl_app_update");
+        gptLibraryApi->reload(&gtAppLibrary);
+        pl_app_load     = (void* (__attribute__(()) *)(plApiRegistryApiI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
+        pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
         gUserData = pl_app_load(gptApiRegistry, gUserData);
     }
 
     pl_new_frame_macos(self.view);
-    gptExtensionRegistry->reload(gptApiRegistry, gptLibraryApi);
+    gptExtensionRegistry->reload(gptApiRegistry);
     pl_app_update(gUserData);
 }
 
@@ -577,15 +564,4 @@ pl__add_osx_tracking_area(NSView* _Nonnull view)
     }]; 
 }
 
-#include "pl_registry.c"
-#include "../backends/pl_macos.m"
-
-#define PL_IO_IMPLEMENTATION
-#include "pl_io.h"
-#undef PL_IO_IMPLEMENTATION
-
-#ifdef PL_USE_STB_SPRINTF
-#define STB_SPRINTF_IMPLEMENTATION
-#include "stb_sprintf.h"
-#undef STB_SPRINTF_IMPLEMENTATION
-#endif
+#include "pilotlight_exe.c"

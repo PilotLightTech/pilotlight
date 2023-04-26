@@ -1,34 +1,45 @@
 /*
-   pl_draw.h
+   pl_draw_ext.h
 */
 
 // library version
-#define PL_DRAW_VERSION    "0.1.0"
-#define PL_DRAW_VERSION_NUM 00100
+#define PL_DRAW_EXT_VERSION    "0.2.0"
+#define PL_DRAW_EXT_VERSION_NUM 00200
 
 /*
 Index of this file:
 // [SECTION] header mess
+// [SECTION] apis
+// [SECTION] defines
 // [SECTION] includes
 // [SECTION] forward declarations
 // [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] enums
 // [SECTION] structs
 */
-
-#ifndef PL_DRAW_H
-#define PL_DRAW_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
+#ifndef PL_DRAW_EXT_H
+#define PL_DRAW_EXT_H
+
+//-----------------------------------------------------------------------------
+// [SECTION] apis
+//-----------------------------------------------------------------------------
+
+// apis
+#define PL_API_DRAW "PL_API_DRAW"
+typedef struct _plDrawApiI plDrawApiI;
+
+//-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
+
 #ifndef PL_MAX_NAME_LENGTH
     #define PL_MAX_NAME_LENGTH 1024
-#endif
-
-#ifndef PL_MAX_FRAMES_IN_FLIGHT
-    #define PL_MAX_FRAMES_IN_FLIGHT 2
 #endif
 
 //-----------------------------------------------------------------------------
@@ -79,69 +90,78 @@ typedef void* plTextureId;
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-// context
-void            pl_set_draw_context(plDrawContext* ptCtx);
-plDrawContext*  pl_get_draw_context(void);
-void            pl_cleanup_draw_context(plDrawContext* ptCtx);  // implemented by backend
+plDrawApiI* pl_load_draw_api(void);
 
-// setup
-void            pl_register_drawlist   (plDrawContext* ptCtx, plDrawList* ptDrawlist);
-void            pl_register_3d_drawlist(plDrawContext* ptCtx, plDrawList3D* ptDrawlist);
-plDrawLayer*    pl_request_draw_layer  (plDrawList* ptDrawlist, const char* pcName);
-void            pl_return_draw_layer   (plDrawLayer* ptLayer);
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
+//-----------------------------------------------------------------------------
 
-// per frame
-void            pl_new_draw_frame   (plDrawContext* ptCtx); // implemented by backend
-void            pl_submit_draw_layer(plDrawLayer* ptLayer);
+typedef struct _plDrawApiI
+{
+    // context
+    void           (*set_context)    (plDrawContext* ptCtx);
+    plDrawContext* (*get_context)    (void);
+    void           (*cleanup_context)(plDrawContext* ptCtx);  // implemented by backend
 
-// drawing
-void            pl_add_line               (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec4 tColor, float fThickness);
-void            pl_add_lines              (plDrawLayer* ptLayer, plVec2* atPoints, uint32_t uCount, plVec4 tColor, float fThickness);
-void            pl_add_text               (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
-void            pl_add_text_ex            (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
-void            pl_add_text_clipped       (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
-void            pl_add_text_clipped_ex    (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
-void            pl_add_triangle           (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness);
-void            pl_add_triangle_filled    (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor);
-void            pl_add_rect               (plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness);
-void            pl_add_rect_filled        (plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor);
-void            pl_add_rect_rounded       (plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments);
-void            pl_add_rect_rounded_filled(plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments);
-void            pl_add_quad               (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness);
-void            pl_add_quad_filled        (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor);
-void            pl_add_circle             (plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments, float fThickness);
-void            pl_add_circle_filled      (plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments);
-void            pl_add_image              (plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax);
-void            pl_add_image_ex           (plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, plVec4 tColor);
-void            pl_add_bezier_quad        (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
-void            pl_add_bezier_cubic       (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
+    // setup
+    void        (*register_drawlist)   (plDrawContext* ptCtx, plDrawList* ptDrawlist);
+    void        (*register_3d_drawlist)(plDrawContext* ptCtx, plDrawList3D* ptDrawlist);
+    plDrawLayer*(*request_layer)       (plDrawList* ptDrawlist, const char* pcName);
+    void        (*return_layer)        (plDrawLayer* ptLayer);
 
-// 3D drawing
-void            pl_add_3d_triangle_filled(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
-void            pl_add_3d_line           (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness);
-void            pl_add_3d_point          (plDrawList3D* ptDrawlist, plVec3 tP0, plVec4 tColor, float fLength, float fThickness);
-void            pl_add_3d_transform      (plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fLength, float fThickness);
-void            pl_add_3d_frustum        (plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fYFov, float fAspect, float fNearZ, float fFarZ, plVec4 tColor, float fThickness);
-void            pl_add_3d_centered_box   (plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor, float fThickness);
-void            pl_add_3d_bezier_quad    (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
-void            pl_add_3d_bezier_cubic   (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
+    // per frame
+    void (*new_frame)   (plDrawContext* ptCtx); // implemented by backend
+    void (*submit_layer)(plDrawLayer* ptLayer);
 
-// fonts
-void            pl_build_font_atlas        (plDrawContext* ptCtx, plFontAtlas* ptAtlas); // implemented by backend
-void            pl_cleanup_font_atlas      (plFontAtlas* ptAtlas);                     // implemented by backend
-void            pl_add_default_font        (plFontAtlas* ptAtlas);
-void            pl_add_font_from_file_ttf  (plFontAtlas* ptAtlas, plFontConfig tConfig, const char* pcFile);
-void            pl_add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, void* pData);
-plVec2          pl_calculate_text_size     (plFont* ptFont, float fSize, const char* pcText, float fWrap);
-plVec2          pl_calculate_text_size_ex  (plFont* ptFont, float fSize, const char* pcText, const char* pcTextEnd, float fWrap);
-plRect          pl_calculate_text_bb       (plFont* ptFont, float fSize, plVec2 tP, const char* pcText, float fWrap);
-plRect          pl_calculate_text_bb_ex    (plFont* ptFont, float fSize, plVec2 tP, const char* pcText, const char* pcTextEnd, float fWrap);
+    // drawing
+    void (*add_line)               (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec4 tColor, float fThickness);
+    void (*add_lines)              (plDrawLayer* ptLayer, plVec2* atPoints, uint32_t uCount, plVec4 tColor, float fThickness);
+    void (*add_text)               (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
+    void (*add_text_ex)            (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
+    void (*add_text_clipped)       (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
+    void (*add_text_clipped_ex)    (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
+    void (*add_triangle)           (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness);
+    void (*add_triangle_filled)    (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor);
+    void (*add_rect)               (plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness);
+    void (*add_rect_filled)        (plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor);
+    void (*add_rect_rounded)       (plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments);
+    void (*add_rect_rounded_filled)(plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments);
+    void (*add_quad)               (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness);
+    void (*add_quad_filled)        (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor);
+    void (*add_circle)             (plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments, float fThickness);
+    void (*add_circle_filled)      (plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments);
+    void (*add_image)              (plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax);
+    void (*add_image_ex)           (plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, plVec4 tColor);
+    void (*add_bezier_quad)        (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
+    void (*add_bezier_cubic)       (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
 
-// clipping
-void            pl_push_clip_rect_pt       (plDrawList* ptDrawlist, const plRect* ptRect);
-void            pl_push_clip_rect          (plDrawList* ptDrawlist, plRect tRect, bool bAccumulate);
-void            pl_pop_clip_rect           (plDrawList* ptDrawlist);
-const plRect*   pl_get_clip_rect           (plDrawList* ptDrawlist);
+    // 3D drawing
+    void (*add_3d_triangle_filled)(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
+    void (*add_3d_line)           (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness);
+    void (*add_3d_point)          (plDrawList3D* ptDrawlist, plVec3 tP0, plVec4 tColor, float fLength, float fThickness);
+    void (*add_3d_transform)      (plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fLength, float fThickness);
+    void (*add_3d_frustum)        (plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fYFov, float fAspect, float fNearZ, float fFarZ, plVec4 tColor, float fThickness);
+    void (*add_3d_centered_box)   (plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor, float fThickness);
+    void (*add_3d_bezier_quad)    (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
+    void (*add_3d_bezier_cubic)   (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
+
+    // fonts
+    void   (*build_font_atlas)        (plDrawContext* ptCtx, plFontAtlas* ptAtlas); // implemented by backend
+    void   (*cleanup_font_atlas)      (plFontAtlas* ptAtlas);                     // implemented by backend
+    void   (*add_default_font)        (plFontAtlas* ptAtlas);
+    void   (*add_font_from_file_ttf)  (plFontAtlas* ptAtlas, plFontConfig tConfig, const char* pcFile);
+    void   (*add_font_from_memory_ttf)(plFontAtlas* ptAtlas, plFontConfig tConfig, void* pData);
+    plVec2 (*calculate_text_size)     (plFont* ptFont, float fSize, const char* pcText, float fWrap);
+    plVec2 (*calculate_text_size_ex)  (plFont* ptFont, float fSize, const char* pcText, const char* pcTextEnd, float fWrap);
+    plRect (*calculate_text_bb)       (plFont* ptFont, float fSize, plVec2 tP, const char* pcText, float fWrap);
+    plRect (*calculate_text_bb_ex)    (plFont* ptFont, float fSize, plVec2 tP, const char* pcText, const char* pcTextEnd, float fWrap);
+
+    // clipping
+    void          (*push_clip_rect_pt)(plDrawList* ptDrawlist, const plRect* ptRect);
+    void          (*push_clip_rect)   (plDrawList* ptDrawlist, plRect tRect, bool bAccumulate);
+    void          (*pop_clip_rect)    (plDrawList* ptDrawlist);
+    const plRect* (*get_clip_rect)    (plDrawList* ptDrawlist);
+} plDrawApiI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -328,4 +348,4 @@ typedef struct _plDrawContext
     void*          _platformData;
 } plDrawContext;
 
-#endif // PL_DRAW_H
+#endif // PL_DRAW_EXT_H

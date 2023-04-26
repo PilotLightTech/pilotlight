@@ -1,41 +1,43 @@
 /*
-   pl_gltf_extension.h
-   * not actually an extension yet, still a prototype
+   pl_image_ext.h
 */
 
 /*
 Index of this file:
 // [SECTION] header mess
-// [SECTION] includes
-// [SECTION] forward declarations & basic types
+// [SECTION] apis
 // [SECTION] public api
+// [SECTION] public api structs
 */
 
 //-----------------------------------------------------------------------------
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_GLTF_EXTENSION_H
-#define PL_GLTF_EXTENSION_H
+#ifndef PL_IMAGE_EXT_H
+#define PL_IMAGE_EXT_H
 
 //-----------------------------------------------------------------------------
-// [SECTION] includes
+// [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#include <stdbool.h>
-#include <stdint.h>
-
-//-----------------------------------------------------------------------------
-// [SECTION] forward declarations & basic types
-//-----------------------------------------------------------------------------
-
-typedef struct _plScene plScene;
+#define PL_API_IMAGE "PL_API_IMAGE"
+typedef struct _plImageApiI plImageApiI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-bool pl_ext_load_gltf(plScene* ptScene, const char* pcPath);
+plImageApiI* pl_load_image_api(void);
 
+//-----------------------------------------------------------------------------
+// [SECTION] public api structs
+//-----------------------------------------------------------------------------
 
-#endif // PL_GLTF_EXTENSION_H
+typedef struct _plImageApiI
+{
+    unsigned char* (*load)(char const* pcFilename, int* piX, int* piY, int* piChannels, int iDesiredChannels);
+    void           (*free)(void* pRetValueFromLoad);
+} plImageApiI;
+
+#endif // PL_IMAGE_EXT_H

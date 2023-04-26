@@ -26,10 +26,14 @@ Index of this file:
 #include "pl_os.h"
 #include "pl_memory.h"
 #include "pl_metal.h"
+
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
-#include "pl_registry.h"
-#include "pl_ui.h"
+
+// extensions
+#include "pl_image_ext.h"
+#include "pl_draw_ext.h"
+#include "pl_ui_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -62,16 +66,42 @@ typedef struct plAppData_t
     plMemoryContext*         ptMemoryCtx;
     plUiContext*             ptUiContext;
 
+    // apis
+    plIOApiI*               ptIoI;
+    plLibraryApiI*          ptLibraryApi;
+    plFileApiI*             ptFileApi;
+
     // extension apis
-    plIOApiI*          ptIoI;
-    plLibraryApiI*     ptLibraryApi;
-    plFileApiI*        ptFileApi;
+    plDrawApiI*             ptDrawApi;
+    plUiApiI*               ptUiApi;
+    plMetalDrawApiI*        ptMetalDrawApi;
+
     plApiRegistryApiI* ptApiRegistry;
 } plAppData;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
 //-----------------------------------------------------------------------------
+
+static void
+pl__api_update_callback(void* pNewInterface, void* pOldInterface, void* pAppData)
+{
+    plAppData* ptAppData = pAppData;
+    plDataRegistryApiI* ptDataRegistry = ptAppData->ptApiRegistry->first(PL_API_DATA_REGISTRY);
+
+    if(pOldInterface == ptAppData->ptUiApi)
+    {
+        ptAppData->ptUiApi = pNewInterface;
+        ptAppData->ptUiApi->set_context(ptDataRegistry->get_data("ui"));
+        ptAppData->ptUiApi->set_draw_api(ptAppData->ptDrawApi);
+    }
+    else if(pOldInterface == ptAppData->ptDrawApi)
+    {
+        ptAppData->ptDrawApi = pNewInterface;
+        ptAppData->ptDrawApi->set_context(ptDataRegistry->get_data("draw"));
+        ptAppData->ptUiApi->set_draw_api(ptAppData->ptDrawApi);
+    }
+}
 
 PL_EXPORT void*
 pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
@@ -83,13 +113,17 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     {
         pl_set_log_context(ptDataRegistry->get_data("log"));
         pl_set_profile_context(ptDataRegistry->get_data("profile"));
-        pl_ui_set_context(ptDataRegistry->get_data("ui"));
+        
+        // must resubscribe (can't do in callback since callback is from previous binary)
+        ptApiRegistry->subscribe(ptAppData->ptUiApi, pl__api_update_callback, ptAppData);
+        ptApiRegistry->subscribe(ptAppData->ptDrawApi, pl__api_update_callback, ptAppData);
         return ptAppData;
     }
 
     plIOApiI* ptIoI = ptApiRegistry->first(PL_API_IO);
     plLibraryApiI* ptLibraryApi = ptApiRegistry->first(PL_API_LIBRARY);
     plFileApiI* ptFileApi = ptApiRegistry->first(PL_API_FILE);
+    plMemoryApiI* ptMemoryApi = ptApiRegistry->first(PL_API_MEMORY);
     
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
@@ -97,6 +131,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     ptAppData->ptIoI = ptIoI;
     ptAppData->ptLibraryApi = ptLibraryApi;
     ptAppData->ptFileApi = ptFileApi;
+
     plIOContext* ptIOCtx = ptAppData->ptIoI->get_context();
     ptAppData->device.device = ptIOCtx->pBackendPlatformData;
     
@@ -111,6 +146,20 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
     pl_log_info("Setup logging");
     ptDataRegistry->set_data("log", ptLogCtx);
+
+    // load extensions
+    plExtensionRegistryApiI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    ptExtensionRegistry->load(ptApiRegistry, "pl_image_ext", "pl_load_image_ext", "pl_unload_image_ext");
+    ptExtensionRegistry->load(ptApiRegistry, "pl_draw_ext", "pl_load_draw_ext", "pl_unload_draw_ext");
+    ptExtensionRegistry->load(ptApiRegistry, "pl_ui_ext", "pl_load_ui_ext", "pl_unload_ui_ext");
+
+    plImageApiI* ptImageApi = ptApiRegistry->first(PL_API_IMAGE);
+    plDrawApiI* ptDrawApi = ptApiRegistry->first(PL_API_DRAW);
+    plMetalDrawApiI* ptMetalApi = ptApiRegistry->first(PL_API_METAL_DRAW);
+    plUiApiI* ptUi = ptApiRegistry->first(PL_API_UI);
+    ptAppData->ptDrawApi = ptDrawApi;
+    ptAppData->ptMetalDrawApi = ptMetalApi;
+    ptAppData->ptUiApi = ptUi;
 
     // create command queue
     ptAppData->device.device = ptIOCtx->pBackendPlatformData;
@@ -130,22 +179,22 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     ptAppData->drawableRenderDescriptor.depthAttachment.clearDepth = 1.0;
 
     // create ui context
-    plUiContext* ptUiContext = pl_ui_create_context();
+    plUiContext* ptUiContext = ptUi->create_context(ptIoI, ptDrawApi);
     ptDataRegistry->set_data("ui", ptUiContext);
 
     // initialize backend specifics for draw context
-    pl_initialize_draw_context_metal(pl_ui_get_draw_context(NULL), ptAppData->device.device);
+    ptMetalApi->initialize_context(ptUi->get_draw_context(NULL), ptAppData->device.device);
 
     // create draw list & layers
-    pl_register_drawlist(pl_ui_get_draw_context(NULL), &ptAppData->drawlist);
-    ptAppData->bgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Background Layer");
-    ptAppData->fgDrawLayer = pl_request_draw_layer(&ptAppData->drawlist, "Foreground Layer");
+    ptDrawApi->register_drawlist(ptUi->get_draw_context(NULL), &ptAppData->drawlist);
+    ptAppData->bgDrawLayer = ptDrawApi->request_layer(&ptAppData->drawlist, "Background Layer");
+    ptAppData->fgDrawLayer = ptDrawApi->request_layer(&ptAppData->drawlist, "Foreground Layer");
     
     // create font atlas
-    pl_add_default_font(&ptAppData->fontAtlas);
-    pl_build_font_atlas(pl_ui_get_draw_context(NULL), &ptAppData->fontAtlas);
-    pl_ui_set_default_font(&ptAppData->fontAtlas.sbFonts[0]);
-    ptDataRegistry->set_data("draw", pl_ui_get_draw_context(NULL));
+    ptDrawApi->add_default_font(&ptAppData->fontAtlas);
+    ptDrawApi->build_font_atlas(ptUi->get_draw_context(NULL), &ptAppData->fontAtlas);
+    ptUi->set_default_font(&ptAppData->fontAtlas.sbFonts[0]);
+    ptDataRegistry->set_data("draw", ptUi->get_draw_context(NULL));
 
     return ptAppData;
 }
@@ -158,10 +207,12 @@ PL_EXPORT void
 pl_app_shutdown(void* pAppData)
 {
     plAppData* ptAppData = pAppData;
+    plDrawApiI* ptDrawApi = ptAppData->ptDrawApi;
+    plUiApiI* ptUi = ptAppData->ptUiApi;
 
     // clean up contexts
-    pl_cleanup_font_atlas(&ptAppData->fontAtlas);
-    pl_ui_destroy_context(NULL);
+    ptDrawApi->cleanup_font_atlas(&ptAppData->fontAtlas);
+    ptUi->destroy_context(NULL);
     pl_cleanup_profile_context();
     pl_cleanup_log_context();
 }
@@ -195,9 +246,12 @@ PL_EXPORT void
 pl_app_update(void* pAppData)
 {
     plAppData* ptAppData = pAppData;
+    plDrawApiI* ptDrawApi = ptAppData->ptDrawApi;
+    plMetalDrawApiI* ptMetalApi = ptAppData->ptMetalDrawApi;
+    plUiApiI* ptUi = ptAppData->ptUiApi;
 
-    pl_new_draw_frame_metal(pl_ui_get_draw_context(NULL), ptAppData->drawableRenderDescriptor);
-    pl_ui_new_frame(ptAppData->ptIoI);
+    ptMetalApi->new_frame(ptUi->get_draw_context(NULL), ptAppData->drawableRenderDescriptor);
+    ptUi->new_frame();
 
     plIOApiI* pTIoI = ptAppData->ptIoI;
     plIOContext* ptIOCtx = pTIoI->get_context();
@@ -232,50 +286,50 @@ pl_app_update(void* pAppData)
     for(uint32_t i = 0u; i < uSampleCount; i++)
     {
         plProfileSample* tPSample = &ptSamples[i];
-        pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, tPSample->pcName, 0.0f);
-        plVec2 sampleTextSize = pl_calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, tPSample->pcName, 0.0f);
+        ptDrawApi->add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, tPSample->pcName, 0.0f);
+        plVec2 sampleTextSize = ptDrawApi->calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, tPSample->pcName, 0.0f);
         pl_sprintf(cPProfileValue, ": %0.5f", tPSample->dDuration);
-        pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){sampleTextSize.x + 15.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, cPProfileValue, 0.0f);
+        ptDrawApi->add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){sampleTextSize.x + 15.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, cPProfileValue, 0.0f);
     }
     pl_end_profile_sample();
 
     // draw commands
     pl_begin_profile_sample("Add draw commands");
-    pl_add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){300.0f, 10.0f}, (plVec4){0.1f, 0.5f, 0.0f, 1.0f}, "Pilot Light\nGraphics", 0.0f);
-    pl_add_triangle_filled(ptAppData->bgDrawLayer, (plVec2){300.0f, 50.0f}, (plVec2){300.0f, 150.0f}, (plVec2){350.0f, 50.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f});
+    ptDrawApi->add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){300.0f, 10.0f}, (plVec4){0.1f, 0.5f, 0.0f, 1.0f}, "Pilot Light\nGraphics", 0.0f);
+    ptDrawApi->add_triangle_filled(ptAppData->bgDrawLayer, (plVec2){300.0f, 50.0f}, (plVec2){300.0f, 150.0f}, (plVec2){350.0f, 50.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f});
     pl__begin_profile_sample("Calculate text size");
-    plVec2 textSize = pl_calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, "Pilot Light\nGraphics", 0.0f);
+    plVec2 textSize = ptDrawApi->calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, "Pilot Light\nGraphics", 0.0f);
     pl__end_profile_sample();
-    pl_add_rect_filled(ptAppData->bgDrawLayer, (plVec2){300.0f, 10.0f}, (plVec2){300.0f + textSize.x, 10.0f + textSize.y}, (plVec4){0.0f, 0.0f, 0.8f, 0.5f});
-    pl_add_line(ptAppData->bgDrawLayer, (plVec2){500.0f, 10.0f}, (plVec2){10.0f, 500.0f}, (plVec4){1.0f, 1.0f, 1.0f, 0.5f}, 2.0f);
+    ptDrawApi->add_rect_filled(ptAppData->bgDrawLayer, (plVec2){300.0f, 10.0f}, (plVec2){300.0f + textSize.x, 10.0f + textSize.y}, (plVec4){0.0f, 0.0f, 0.8f, 0.5f});
+    ptDrawApi->add_line(ptAppData->bgDrawLayer, (plVec2){500.0f, 10.0f}, (plVec2){10.0f, 500.0f}, (plVec4){1.0f, 1.0f, 1.0f, 0.5f}, 2.0f);
     pl_end_profile_sample();
 
     static bool bOpen = true;
 
 
-    if(pl_ui_begin_window("Pilot Light", NULL, false))
+    if(ptUi->begin_window("Pilot Light", NULL, false))
     {
-        pl_ui_text("%.6f ms", ptIOCtx->fDeltaTime);
+        ptUi->text("%.6f ms", ptIOCtx->fDeltaTime);
 
-        pl_ui_checkbox("Camera Info", &bOpen);
-        pl_ui_end_window();
+        ptUi->checkbox("Camera Info", &bOpen);
+        ptUi->end_window();
     }
 
     // submit draw layers
     pl_begin_profile_sample("Submit draw layers");
-    pl_submit_draw_layer(ptAppData->bgDrawLayer);
-    pl_submit_draw_layer(ptAppData->fgDrawLayer);
+    ptDrawApi->submit_layer(ptAppData->bgDrawLayer);
+    ptDrawApi->submit_layer(ptAppData->fgDrawLayer);
     pl_end_profile_sample();
 
-    pl_ui_render();
+    ptUi->render();
 
     // submit draw lists
     pl_begin_profile_sample("Submit draw lists");
-    pl_ui_get_draw_context(NULL)->tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
-    pl_ui_get_draw_context(NULL)->tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
-    pl_submit_drawlist_metal(&ptAppData->drawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
-    pl_submit_drawlist_metal(pl_ui_get_draw_list(NULL), ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
-    pl_submit_drawlist_metal(pl_ui_get_debug_draw_list(NULL), ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
+    ptUi->get_draw_context(NULL)->tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
+    ptUi->get_draw_context(NULL)->tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
+    ptMetalApi->submit_drawlist(&ptAppData->drawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
+    ptMetalApi->submit_drawlist(ptUi->get_draw_list(NULL), ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
+    ptMetalApi->submit_drawlist(ptUi->get_debug_draw_list(NULL), ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
     pl_end_profile_sample();
 
     // finish recording

@@ -9,7 +9,7 @@ import pl_build as pl
 #                                helpers                                      #
 ###############################################################################
 
-def add_plugin(name):
+def add_plugin_to_vulkan_app(name):
     with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY):
         pl.push_output_binary(name)
         pl.push_source_files("../extensions/" + name + ".c")
@@ -23,6 +23,17 @@ def add_plugin(name):
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
                     pass
+        pl.pop_output_binary()
+        pl.pop_source_files()
+
+def add_plugin_to_metal_app(name):
+    with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY):
+        pl.push_output_binary(name)
+        pl.push_source_files("../extensions/" + name + ".c")
+        with pl.configuration("debugmetal"):
+            with pl.platform(pl.PlatformType.MACOS):
+                with pl.compiler("clang", pl.CompilerType.CLANG):
+                    pl.add_definition("PL_METAL_BACKEND")
         pl.pop_output_binary()
         pl.pop_source_files()
 
@@ -48,11 +59,11 @@ with pl.project("pilotlight"):
     pl.push_output_directory("../out")
         
     ###############################################################################
-    #                                 pl_lib                                      #
+    #                            pilotlight_lib                                   #
     ###############################################################################
-    with pl.target("pl_lib", pl.TargetType.STATIC_LIBRARY):
+    with pl.target("pilotlight_lib", pl.TargetType.STATIC_LIBRARY):
 
-        pl.push_source_files("pilotlight.c")
+        pl.push_source_files("pilotlight_lib.c")
         pl.push_output_binary("pilotlight")
 
         pl.push_profile(pl.Profile.VULKAN)
@@ -81,12 +92,26 @@ with pl.project("pilotlight"):
     ###############################################################################
     #                                   plugins                                   #
     ###############################################################################
-    pl.push_target_links("pl_lib")
+    pl.push_target_links("pilotlight_lib")
+    
     pl.push_profile(pl.Profile.VULKAN)
     pl.push_definitions("PL_VULKAN_BACKEND")
-    add_plugin("pl_vulkan_ext")
+    add_plugin_to_vulkan_app("pl_draw_ext")
+    add_plugin_to_vulkan_app("pl_ui_ext")
+    add_plugin_to_vulkan_app("pl_image_ext")
+    add_plugin_to_vulkan_app("pl_proto_ext")
+    add_plugin_to_vulkan_app("pl_vulkan_ext")
+    add_plugin_to_vulkan_app("pl_gltf_ext")
     pl.pop_profile()
     pl.pop_definitions()
+
+
+    pl.push_definitions("PL_METAL_BACKEND")
+    add_plugin_to_metal_app("pl_draw_ext")
+    add_plugin_to_metal_app("pl_ui_ext")
+    add_plugin_to_metal_app("pl_image_ext")
+    pl.pop_definitions()
+
     pl.pop_target_links()
 
     ###############################################################################
@@ -95,7 +120,7 @@ with pl.project("pilotlight"):
     with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY):
 
         pl.push_output_binary("app")
-        pl.push_target_links("pl_lib")
+        pl.push_target_links("pilotlight_lib")
 
         pl.push_profile(pl.Profile.VULKAN)
         pl.push_definitions("PL_VULKAN_BACKEND")

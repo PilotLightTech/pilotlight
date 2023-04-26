@@ -485,6 +485,7 @@ typedef struct _plVulkanDrawContext
     VkCommandPool                    tCmdPool;
     VkQueue                          tGraphicsQueue;
     uint32_t                         uImageCount;
+    uint32_t                         uFramesInFlight;
     VkPhysicalDeviceMemoryProperties tMemProps;
     VkDescriptorSetLayout            tDescriptorSetLayout;
     VkDescriptorPool                 tDescriptorPool;
@@ -543,9 +544,20 @@ typedef struct _plVulkanDrawContext
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-extern void                   pl__cleanup_font_atlas          (plFontAtlas* ptAtlas); // in pl_draw.c
-extern void                   pl__new_draw_frame              (plDrawContext* ptCtx); // in pl_draw.c
-extern void                   pl__build_font_atlas            (plFontAtlas* ctx); // in pl_draw.c
+static void pl__initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptInit);
+static void pl__submit_drawlist_vulkan        (plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex);
+static void pl__submit_drawlist_vulkan_ex     (plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount);
+static void pl__submit_3d_drawlist_vulkan     (plDrawList3D* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, const plMat4* ptMVP, pl3DDrawFlags tFlags);
+static void pl__submit_3d_drawlist_vulkan_ex  (plDrawList3D* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount, const plMat4* ptMVP, pl3DDrawFlags tFlags);
+
+// misc
+static VkDescriptorSet pl__add_texture(plDrawContext* ptCtx, VkImageView tImageView, VkImageLayout tImageLayout);
+
+
+static void                   pl__cleanup_font_atlas_i        (plFontAtlas* ptAtlas); // in pl_draw.c
+static void                   pl__cleanup_draw_context_i      (plDrawContext* ctx); // in pl_draw.c
+static void                   pl__new_draw_frame_i            (plDrawContext* ptCtx); // in pl_draw.c
+static void                   pl__build_font_atlas_i          (plFontAtlas* ctx); // in pl_draw.c
 static uint32_t               pl__find_memory_type            (VkPhysicalDeviceMemoryProperties tMemProps, uint32_t typeFilter, VkMemoryPropertyFlags properties);
 static void                   pl__grow_vulkan_vertex_buffer   (plDrawContext* ptCtx, uint32_t uVtxBufSzNeeded, plVulkanBufferInfo* ptBufferInfo);
 static void                   pl__grow_vulkan_index_buffer    (plDrawContext* ptCtx, uint32_t uIdxBufSzNeeded, plVulkanBufferInfo* ptBufferInfo);
@@ -556,8 +568,22 @@ static plVulkanPipelineEntry* pl__get_3d_pipelines            (plVulkanDrawConte
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-void
-pl_initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptInit)
+plVulkanDrawApiI*
+pl_load_vulkan_draw_api(void)
+{
+    static plVulkanDrawApiI tApi0 = {
+        .initialize_context    = pl__initialize_draw_context_vulkan,
+        .submit_drawlist       = pl__submit_drawlist_vulkan,
+        .submit_drawlist_ex    = pl__submit_drawlist_vulkan_ex,
+        .submit_3d_drawlist    = pl__submit_3d_drawlist_vulkan,
+        .submit_3d_drawlist_ex = pl__submit_3d_drawlist_vulkan_ex,
+        .add_texture           = pl__add_texture
+    };
+    return &tApi0;
+}
+
+static void
+pl__initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptInit)
 {
     plVulkanDrawContext* ptVulkanDrawContext = PL_VULKAN_ALLOC(sizeof(plVulkanDrawContext));
     memset(ptVulkanDrawContext, 0, sizeof(plVulkanDrawContext));
@@ -565,6 +591,7 @@ pl_initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptIn
     ptVulkanDrawContext->uImageCount = ptInit->uImageCount;
     ptVulkanDrawContext->tRenderPass = ptInit->tRenderPass;
     ptVulkanDrawContext->tMSAASampleCount = ptInit->tMSAASampleCount;
+    ptVulkanDrawContext->uFramesInFlight = ptInit->uFramesInFlight;
     ptCtx->_platformData = ptVulkanDrawContext;
 
     // get physical tDevice properties
@@ -769,13 +796,12 @@ pl_initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptIn
     };
     PL_ASSERT(vkCreateShaderModule(ptVulkanDrawContext->tDevice, &t3DLineVtxShdrInfo, NULL, &ptVulkanDrawContext->t3DLineVtxShdrStgInfo.module) == VK_SUCCESS);
 
-
-    pl_sb_resize(ptVulkanDrawContext->sbtBufferInfo, PL_MAX_FRAMES_IN_FLIGHT);
-    pl_sb_resize(ptVulkanDrawContext->sbt3DBufferInfo, PL_MAX_FRAMES_IN_FLIGHT);
-    pl_sb_resize(ptVulkanDrawContext->sbtLineBufferInfo, PL_MAX_FRAMES_IN_FLIGHT);
+    pl_sb_resize(ptVulkanDrawContext->sbtBufferInfo, ptVulkanDrawContext->uFramesInFlight);
+    pl_sb_resize(ptVulkanDrawContext->sbt3DBufferInfo, ptVulkanDrawContext->uFramesInFlight);
+    pl_sb_resize(ptVulkanDrawContext->sbtLineBufferInfo, ptVulkanDrawContext->uFramesInFlight);
 }
 
-void
+static void
 pl_new_draw_frame(plDrawContext* ptCtx)
 {
     plVulkanDrawContext* ptVulkanDrawContext = ptCtx->_platformData;
@@ -844,10 +870,10 @@ pl_new_draw_frame(plDrawContext* ptCtx)
         ptVulkanDrawContext->sbtLineBufferInfo[i].uIndexBufferOffset = 0;
     }
 
-    pl__new_draw_frame(ptCtx);
+    pl__new_draw_frame_i(ptCtx);
 }
 
-void
+static void
 pl_cleanup_font_atlas(plFontAtlas* ptAtlas)
 {
     plVulkanDrawContext* ptVulkanDrawContext = ptAtlas->ctx->_platformData;
@@ -859,19 +885,19 @@ pl_cleanup_font_atlas(plFontAtlas* ptAtlas)
     };
     pl_sb_push(ptVulkanDrawContext->sbReturnedTextures, tReturnTexture);
     ptVulkanDrawContext->uTextureDeletionQueueSize++;
-    pl__cleanup_font_atlas(ptAtlas);
+    pl__cleanup_font_atlas_i(ptAtlas);
 }
 
-void
-pl_submit_drawlist_vulkan(plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex)
+static void
+pl__submit_drawlist_vulkan(plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex)
 {
     plDrawContext* ptDrawContext = ptDrawlist->ctx;
     plVulkanDrawContext* ptVulkanDrawCtx = ptDrawContext->_platformData;
-    pl_submit_drawlist_vulkan_ex(ptDrawlist, fWidth, fHeight, tCmdBuf, uFrameIndex, ptVulkanDrawCtx->tRenderPass, ptVulkanDrawCtx->tMSAASampleCount);
+    pl__submit_drawlist_vulkan_ex(ptDrawlist, fWidth, fHeight, tCmdBuf, uFrameIndex, ptVulkanDrawCtx->tRenderPass, ptVulkanDrawCtx->tMSAASampleCount);
 }
 
-void
-pl_submit_drawlist_vulkan_ex(plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount)
+static void
+pl__submit_drawlist_vulkan_ex(plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount)
 {
     if(pl_sb_size(ptDrawlist->sbVertexBuffer) == 0u)
         return;
@@ -1050,16 +1076,16 @@ pl_submit_drawlist_vulkan_ex(plDrawList* ptDrawlist, float fWidth, float fHeight
     tBufferInfo->uIndexBufferOffset += uIdxBufSzNeeded;
 }
 
-void
-pl_submit_3d_drawlist_vulkan(plDrawList3D* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, const plMat4* ptMVP, pl3DDrawFlags tFlags)
+static void
+pl__submit_3d_drawlist_vulkan(plDrawList3D* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, const plMat4* ptMVP, pl3DDrawFlags tFlags)
 {
     plDrawContext* ptDrawContext = ptDrawlist->ctx;
     plVulkanDrawContext* ptVulkanDrawCtx = ptDrawContext->_platformData;
-    pl_submit_3d_drawlist_vulkan_ex(ptDrawlist, fWidth, fHeight, tCmdBuf, uFrameIndex, ptVulkanDrawCtx->tRenderPass, ptVulkanDrawCtx->tMSAASampleCount, ptMVP, tFlags);
+    pl__submit_3d_drawlist_vulkan_ex(ptDrawlist, fWidth, fHeight, tCmdBuf, uFrameIndex, ptVulkanDrawCtx->tRenderPass, ptVulkanDrawCtx->tMSAASampleCount, ptMVP, tFlags);
 }
 
-void
-pl_submit_3d_drawlist_vulkan_ex(plDrawList3D* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount, const plMat4* ptMVP, pl3DDrawFlags tFlags)
+static void
+pl__submit_3d_drawlist_vulkan_ex(plDrawList3D* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount, const plMat4* ptMVP, pl3DDrawFlags tFlags)
 {
 
     plDrawContext* ptCtx = ptDrawlist->ctx;
@@ -1201,7 +1227,7 @@ pl_submit_3d_drawlist_vulkan_ex(plDrawList3D* ptDrawlist, float fWidth, float fH
     }
 }
 
-void
+static void
 pl_cleanup_draw_context(plDrawContext* ptCtx)
 {
     plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
@@ -1280,10 +1306,12 @@ pl_cleanup_draw_context(plDrawContext* ptCtx)
 
     PL_VULKAN_FREE(ptCtx->_platformData);
     ptCtx->_platformData = NULL;
+
+    pl__cleanup_draw_context_i(ptCtx);
 }
 
-VkDescriptorSet
-pl_add_texture(plDrawContext* ptCtx, VkImageView tImageView, VkImageLayout tImageLayout)
+static VkDescriptorSet
+pl__add_texture(plDrawContext* ptCtx, VkImageView tImageView, VkImageLayout tImageLayout)
 {
     plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
 
@@ -1316,12 +1344,12 @@ pl_add_texture(plDrawContext* ptCtx, VkImageView tImageView, VkImageLayout tImag
     return tDescriptorSet;
 }
 
-void
+static void
 pl_build_font_atlas(plDrawContext* ptCtx, plFontAtlas* ptAtlas)
 {
     plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
 
-    pl__build_font_atlas(ptAtlas);
+    pl__build_font_atlas_i(ptAtlas);
     ptAtlas->ctx = ptCtx;
     ptCtx->fontAtlas = ptAtlas;
 
@@ -1492,7 +1520,7 @@ pl_build_font_atlas(plDrawContext* ptCtx, plFontAtlas* ptAtlas)
     };
     PL_VULKAN(vkCreateImageView(ptVulkanDrawCtx->tDevice, &tViewInfo, NULL, &ptVulkanDrawCtx->tFontTextureImageView));
 
-    ptCtx->fontAtlas->texture = pl_add_texture(ptCtx, ptVulkanDrawCtx->tFontTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    ptCtx->fontAtlas->texture = pl__add_texture(ptCtx, ptVulkanDrawCtx->tFontTextureImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 //-----------------------------------------------------------------------------
@@ -1522,7 +1550,7 @@ pl__grow_vulkan_vertex_buffer(plDrawContext* ptCtx, uint32_t uVtxBufSzNeeded, pl
         const plBufferReturn tReturnBuffer = {
             .tBuffer       = ptBufferInfo->tVertexBuffer,
             .tDeviceMemory = ptBufferInfo->tVertexMemory,
-            .slFreedFrame  = (int64_t)(ptCtx->frameCount + PL_MAX_FRAMES_IN_FLIGHT * 2)
+            .slFreedFrame  = (int64_t)(ptCtx->frameCount + ptVulkanDrawCtx->uFramesInFlight * 2)
         };
         pl_sb_push(ptVulkanDrawCtx->sbReturnedBuffers, tReturnBuffer);
         ptVulkanDrawCtx->uBufferDeletionQueueSize++;
@@ -1569,7 +1597,7 @@ pl__grow_vulkan_index_buffer(plDrawContext* ptCtx, uint32_t uIdxBufSzNeeded, plV
         const plBufferReturn tReturnBuffer = {
             .tBuffer       = ptBufferInfo->tIndexBuffer,
             .tDeviceMemory = ptBufferInfo->tIndexMemory,
-            .slFreedFrame  = (int64_t)(ptCtx->frameCount + PL_MAX_FRAMES_IN_FLIGHT * 2)
+            .slFreedFrame  = (int64_t)(ptCtx->frameCount + ptVulkanDrawCtx->uFramesInFlight * 2)
         };
         pl_sb_push(ptVulkanDrawCtx->sbReturnedBuffers, tReturnBuffer);
         ptVulkanDrawCtx->uBufferDeletionQueueSize++;

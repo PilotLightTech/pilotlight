@@ -44,6 +44,13 @@ jobs:
         call build.bat -c debug
         if not exist ../out/pilot_light.exe exit 1
         if not exist ../out/app.dll exit 1
+        if not exist ../out/pl_draw_ext.dll exit 1
+        if not exist ../out/pl_gltf_ext.dll exit 1
+        if not exist ../out/pl_ui_ext.dll exit 1
+        if not exist ../out/pl_draw_ext.dll exit 1
+        if not exist ../out/pl_proto_ext.dll exit 1
+        if not exist ../out/pl_vulkan_ext.dll exit 1
+        if not exist ../out/pl_image_ext.dll exit 1
         if not exist ../out/pilotlight.lib exit 1
 
   MacOS:
@@ -66,7 +73,10 @@ jobs:
         cd ..
         test -f ./out/pilot_light || exit 1
         test -f ./out/app.dylib || exit 1
-        test -f ./out/pilotlight.o || exit 1
+        test -f ./out/pl_draw_ext.dylib || exit 1
+        test -f ./out/pl_ui_ext.dylib || exit 1
+        test -f ./out/pl_image_ext.dylib || exit 1
+        test -f ./out/pilotlight.a || exit 1
 
   Ubuntu:
     
@@ -101,4 +111,10 @@ jobs:
         cd ..
         test -f ./out/pilot_light || exit 1
         test -f ./out/app.so || exit 1
-        test -f ./out/pilotlight.o || exit 1
+        test -f ./out/pl_ui_ext.so || exit 1
+        test -f ./out/pl_draw_ext.so || exit 1
+        test -f ./out/pl_vulkan_ext.so || exit 1
+        test -f ./out/pl_image_ext.so || exit 1
+        test -f ./out/pl_gltf_ext.so || exit 1
+        test -f ./out/pl_proto_ext.so || exit 1
+        test -f ./out/pilotlight.a || exit 1

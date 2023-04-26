@@ -16,8 +16,10 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pilotlight.h"
 #include "pl_linux.h"
-#include "pl_io.h"       // io context
+#include "pl_io.h"
+#include "pl_os.h"
 #include <time.h> // clock_gettime, clock_getres
 #include <xcb/xcb.h>
 #include <xcb/xfixes.h> //xcb_xfixes_query_version, apt install libxcb-xfixes0-dev
@@ -27,10 +29,6 @@ Index of this file:
 #include <stdlib.h>       // malloc
 #include <string.h>       // memset, strncpy
 #include <sys/stat.h>     // stat, timespec
-
-#ifdef PL_INCLUDE_OS_H
-#include "pl_os.h"
-#include "pl_registry.h"
 #include <stdio.h>        // file api
 #include <dlfcn.h>        // dlopen, dlsym, dlclose
 #include <sys/types.h>
@@ -40,7 +38,6 @@ Index of this file:
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <errno.h>
-#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -299,50 +296,28 @@ pl_linux_procedure(xcb_generic_event_t* event)
     }
 }
 
-#ifdef PL_INCLUDE_OS_H
-
 void
-pl_load_file_api(plApiRegistryApiI* ptApiRegistry)
+pl_load_os_apis(plApiRegistryApiI* ptApiRegistry)
 {
-    static plFileApiI tApi = {
-        .copy_file = pl__copy_file,
-        .read_file = pl__read_file
+    static plFileApiI tApi0 = {
+        .copy = pl__copy_file,
+        .read = pl__read_file
     };
-    ptApiRegistry->add(PL_API_FILE, &tApi);
-}
+    
+    static plUdpApiI tApi1 = {
+        .create_socket = pl__create_udp_socket,
+        .bind_socket   = pl__bind_udp_socket,  
+        .get_data      = pl__get_udp_data,
+        .send_data     = pl__send_udp_data
+    };
 
-void
-pl_load_udp_api(plApiRegistryApiI* ptApiRegistry)
-{
-    static plUdpApiI tApi = 
-    {
-        .create_udp_socket = pl__create_udp_socket,
-        .bind_udp_socket   = pl__bind_udp_socket,  
-        .get_udp_data      = pl__get_udp_data,
-        .send_udp_data     = pl__send_udp_data
+    static plOsServicesApiI tApi2 = {
+        .sleep     = pl__sleep
     };
-    ptApiRegistry->add(PL_API_UDP, &tApi);
-}
 
-void
-pl_load_library_api(plApiRegistryApiI* ptApiRegistry)
-{
-    static plLibraryApiI tApi = {
-        .has_library_changed   = pl__has_library_changed,
-        .load_library          = pl__load_library,
-        .load_library_function = pl__load_library_function,
-        .reload_library        = pl__reload_library
-    };
-    ptApiRegistry->add(PL_API_LIBRARY, &tApi);
-}
-
-void
-pl_load_os_services_api(plApiRegistryApiI* ptApiRegistry)
-{
-    static plOsServicesApiI tApi = {
-        .sleep = pl__sleep
-    };
-    ptApiRegistry->add(PL_API_OS_SERVICES, &tApi);
+    ptApiRegistry->add(PL_API_FILE, &tApi0);
+    ptApiRegistry->add(PL_API_UDP, &tApi1);
+    ptApiRegistry->add(PL_API_OS_SERVICES, &tApi2);
 }
 
 //-----------------------------------------------------------------------------
@@ -586,8 +561,6 @@ pl__sleep(uint32_t millisec)
 
     return res;
 }
-
-#endif // PL_INCLUDE_OS_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation

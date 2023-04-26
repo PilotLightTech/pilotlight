@@ -346,7 +346,7 @@ pl__sb_grow(void** ptrBuffer, size_t szElementSize, size_t szNewItems)
 
     plSbHeader_* ptOldHeader = pl__sb_header(*ptrBuffer);
 
-    plSbHeader_* ptNewHeader = (plSbHeader_*)PL_DS_ALLOC((ptOldHeader->uCapacity + szNewItems) * szElementSize + sizeof(plSbHeader_));
+    plSbHeader_* ptNewHeader = (plSbHeader_*)PL_DS_ALLOC((ptOldHeader->uCapacity + szNewItems) * szElementSize + sizeof(plSbHeader_)); //-V592
     memset(ptNewHeader, 0, (ptOldHeader->uCapacity + szNewItems) * szElementSize + sizeof(plSbHeader_));
     if(ptNewHeader)
     {

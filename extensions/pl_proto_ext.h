@@ -1,5 +1,5 @@
 /*
-   pl_prototype.h
+   pl_proto_ext.h
 
    * temporary locations for testing new APIs
    * things here will change wildly!
@@ -8,10 +8,12 @@
 /*
 Index of this file:
 // [SECTION] header mess
+// [SECTION] apis
 // [SECTION] defines
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] structs
 // [SECTION] enums
 */
@@ -20,8 +22,15 @@ Index of this file:
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_PROTOTYPE_H
-#define PL_PROTOTYPE_H
+#ifndef PL_PROTO_EXT_H
+#define PL_PROTO_EXT_H
+
+//-----------------------------------------------------------------------------
+// [SECTION] apis
+//-----------------------------------------------------------------------------
+
+#define PL_API_PROTO "PL_API_PROTO"
+typedef struct _plProtoApiI plProtoApiI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -42,7 +51,8 @@ Index of this file:
 #include <stdint.h>    // uint*_t
 #include <stdbool.h>   // bool
 #include "pl_math.h"
-#include "pl_graphics_vulkan.h"
+#include "pl_ds.h" // hashmap
+#include "pl_vulkan_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -77,10 +87,11 @@ typedef struct _plObjectComponent    plObjectComponent;
 typedef struct _plCameraComponent    plCameraComponent;
 typedef struct _plHierarchyComponent plHierarchyComponent;
 
-//-----------------------------------------------------------------------------
-// [SECTION] enums
-//-----------------------------------------------------------------------------
+// external apis
+typedef struct _plApiRegistryApiI plApiRegistryApiI; // pilotlight.h
+typedef struct _plImageApiI plImageApiI;             // pl_image_ext.h
 
+// enums
 typedef int      plShaderType;
 typedef int      plComponentType;
 typedef uint64_t plEntity;
@@ -89,61 +100,72 @@ typedef uint64_t plEntity;
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-// graphics
-void pl_create_main_render_target(plGraphics* ptGraphics, plRenderTarget* ptTargetOut);
-void pl_create_render_pass  (plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, plRenderPass* ptPassOut);
-void pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut);
-void pl_begin_render_target (plGraphics* ptGraphics, plRenderTarget* ptTarget);
-void pl_end_render_target   (plGraphics* ptGraphics);
-void pl_cleanup_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget);
-void pl_cleanup_render_pass(plGraphics* ptGraphics, plRenderPass* ptPass);
+plProtoApiI* pl_load_proto_api(void);
 
-// new renderer
-void pl_setup_renderer  (plGraphics* ptGraphics, plRenderer* ptRenderer);
-void pl_cleanup_renderer(plRenderer* ptRenderer);
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
+//-----------------------------------------------------------------------------
 
-void pl_draw_sky        (plScene* ptScene);
+// apis
+typedef struct _plProtoApiI
+{
 
-// scene
-void pl_create_scene      (plRenderer* ptRenderer, plScene* ptSceneOut);
-void pl_reset_scene       (plScene* ptScene);
-void pl_draw_scene        (plScene* ptScene);
-void pl_scene_bind_camera (plScene* ptScene, const plCameraComponent* ptCamera);
-void pl_scene_update_ecs  (plScene* ptScene);
-void pl_scene_bind_target (plScene* ptScene, plRenderTarget* ptTarget);
-void pl_scene_prepare     (plScene* ptScene);
+    // graphics
+    void (*create_main_render_target)(plGraphics* ptGraphics, plRenderTarget* ptTargetOut);
+    void (*create_render_pass)       (plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, plRenderPass* ptPassOut);
+    void (*create_render_target)     (plResourceManager0ApiI* ptResourceApi, plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut);
+    void (*begin_render_target)      (plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTarget* ptTarget);
+    void (*end_render_target)        (plGraphicsApiI* ptGfx, plGraphics* ptGraphics);
+    void (*cleanup_render_target)    (plGraphics* ptGraphics, plRenderTarget* ptTarget);
+    void (*cleanup_render_pass)      (plGraphics* ptGraphics, plRenderPass* ptPass);
 
-// entity component system
-plEntity pl_ecs_create_entity   (plRenderer* ptRenderer);
-size_t   pl_ecs_get_index       (plComponentManager* ptManager, plEntity tEntity);
-void*    pl_ecs_get_component   (plComponentManager* ptManager, plEntity tEntity);
-void*    pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity);
-bool     pl_ecs_has_entity      (plComponentManager* ptManager, plEntity tEntity);
-void     pl_ecs_update          (plScene* ptScene, plComponentManager* ptManager);
+    // new renderer
+    void (*setup_renderer)  (plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plRenderer* ptRenderer);
+    void (*cleanup_renderer)(plRenderer* ptRenderer);
+    void (*draw_sky)        (plScene* ptScene);
 
-// components
-plEntity pl_ecs_create_mesh     (plScene* ptScene, const char* pcName);
-plEntity pl_ecs_create_material (plScene* ptScene, const char* pcName);
-plEntity pl_ecs_create_object   (plScene* ptScene, const char* pcName);
-plEntity pl_ecs_create_transform(plScene* ptScene, const char* pcName);
-plEntity pl_ecs_create_camera   (plScene* ptScene, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
+    // scene
+    void (*create_scene)      (plRenderer* ptRenderer, plScene* ptSceneOut);
+    void (*reset_scene)       (plScene* ptScene);
+    void (*draw_scene)        (plScene* ptScene);
+    void (*scene_bind_camera) (plScene* ptScene, const plCameraComponent* ptCamera);
+    void (*scene_update_ecs)  (plScene* ptScene);
+    void (*scene_bind_target) (plScene* ptScene, plRenderTarget* ptTarget);
+    void (*scene_prepare)     (plScene* ptScene);
 
-// hierarchy
-void     pl_ecs_attach_component  (plScene* ptScene, plEntity tEntity, plEntity tParent);
-void     pl_ecs_deattach_component(plScene* ptScene, plEntity tEntity);
+    // entity component system
+    plEntity (*ecs_create_entity)    (plRenderer* ptRenderer);
+    size_t   (*ecs_get_index)        (plComponentManager* ptManager, plEntity tEntity);
+    void*    (*ecs_get_component)    (plComponentManager* ptManager, plEntity tEntity);
+    void*    (*ecs_create_component) (plComponentManager* ptManager, plEntity tEntity);
+    bool     (*ecs_has_entity)       (plComponentManager* ptManager, plEntity tEntity);
+    void     (*ecs_update)           (plScene* ptScene, plComponentManager* ptManager);
 
-// material
-void     pl_material_outline(plScene* ptScene, plEntity tEntity);
+    // components
+    plEntity (*ecs_create_mesh)     (plScene* ptScene, const char* pcName);
+    plEntity (*ecs_create_material) (plScene* ptScene, const char* pcName);
+    plEntity (*ecs_create_object)   (plScene* ptScene, const char* pcName);
+    plEntity (*ecs_create_transform)(plScene* ptScene, const char* pcName);
+    plEntity (*ecs_create_camera)   (plScene* ptScene, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
 
-// camera
-void     pl_camera_set_fov        (plCameraComponent* ptCamera, float fYFov);
-void     pl_camera_set_clip_planes(plCameraComponent* ptCamera, float fNearZ, float fFarZ);
-void     pl_camera_set_aspect     (plCameraComponent* ptCamera, float fAspect);
-void     pl_camera_set_pos        (plCameraComponent* ptCamera, float fX, float fY, float fZ);
-void     pl_camera_set_pitch_yaw  (plCameraComponent* ptCamera, float fPitch, float fYaw);
-void     pl_camera_translate      (plCameraComponent* ptCamera, float fDx, float fDy, float fDz);
-void     pl_camera_rotate         (plCameraComponent* ptCamera, float fDPitch, float fDYaw);
-void     pl_camera_update         (plCameraComponent* ptCamera);
+    // hierarchy
+    void (*ecs_attach_component)   (plScene* ptScene, plEntity tEntity, plEntity tParent);
+    void (*ecs_deattach_component) (plScene* ptScene, plEntity tEntity);
+
+    // material
+    void (*material_outline)(plScene* ptScene, plEntity tEntity);
+
+    // camera
+    void (*camera_set_fov        )(plCameraComponent* ptCamera, float fYFov);
+    void (*camera_set_clip_planes)(plCameraComponent* ptCamera, float fNearZ, float fFarZ);
+    void (*camera_set_aspect     )(plCameraComponent* ptCamera, float fAspect);
+    void (*camera_set_pos        )(plCameraComponent* ptCamera, float fX, float fY, float fZ);
+    void (*camera_set_pitch_yaw  )(plCameraComponent* ptCamera, float fPitch, float fYaw);
+    void (*camera_translate      )(plCameraComponent* ptCamera, float fDx, float fDy, float fDz);
+    void (*camera_rotate         )(plCameraComponent* ptCamera, float fDPitch, float fDYaw);
+    void (*camera_update         )(plCameraComponent* ptCamera);
+
+} plProtoApiI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -362,6 +384,12 @@ typedef struct _plScene
 typedef struct _plRenderer
 {
     plGraphics* ptGraphics;
+    plGraphicsApiI* ptGfx;
+    plMemoryApiI*   ptMemoryApi;
+    plDataRegistryApiI* ptDataRegistry;
+    plResourceManager0ApiI* ptResourceApi;
+    plProtoApiI* ptProtoApi;
+    plImageApiI* ptImageApi;
     plEntity*   sbtObjectEntities;
     size_t   tNextEntity;
     uint32_t uLogChannel;
@@ -411,4 +439,4 @@ enum _plShaderType
     PL_SHADER_TYPE_COUNT
 };
 
-#endif // PL_PROTOTYPE_H
+#endif // PL_PROTO_EXT_H

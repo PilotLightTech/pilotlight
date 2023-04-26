@@ -1,4 +1,4 @@
-__version__ = "0.7.0"
+__version__ = "0.7.1"
 
 ###############################################################################
 #                                  Info                                       #
@@ -632,7 +632,7 @@ def _setup_defaults():
                                 if settings._compiler_type == CompilerType.MSVC:
                                     settings._output_binary_extension = ".lib"
                                 else :
-                                    settings._output_binary_extension = ".o"
+                                    settings._output_binary_extension = ".a"
                             elif target._target_type == TargetType.DYNAMIC_LIBRARY:
                                 if settings._compiler_type == CompilerType.MSVC:
                                     settings._output_binary_extension = ".dll"
@@ -886,7 +886,7 @@ def generate_macos_build(name_override=None):
                                                                         for platform2 in config2._platforms:
                                                                             if platform2._platform_type == PlatformType.MACOS:
                                                                                 for settings2 in platform2._compiler_settings:
-                                                                                    settings._source_files.append(settings2._output_directory + "/" + settings2._output_binary + ".o")
+                                                                                    settings._source_files.append(settings2._output_directory + "/" + settings2._output_binary + ".a")
 
                                                 if target._target_type == TargetType.STATIC_LIBRARY:
                     
@@ -900,6 +900,9 @@ def generate_macos_build(name_override=None):
                                                     for source in settings._source_files:
                                                         source_as_path = PurePath(source)
                                                         buffer += 'clang -c -fPIC $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ' + source + ' -o "./' + settings._output_directory + '/' + source_as_path.stem + '.o"\n'
+                                                    buffer += '\n# combine object files into a static lib\n'
+                                                    buffer += 'ar rcs ./' + settings._output_directory + '/' + settings._output_binary + '.a ./' + settings._output_directory + '/*.o\n'
+                                                    buffer += 'rm ./' + settings._output_directory + '/*.o\n'
 
                                                 elif target._target_type == TargetType.DYNAMIC_LIBRARY:
 
@@ -1191,7 +1194,7 @@ def generate_linux_build(name_override=None):
                                                                         for platform2 in config2._platforms:
                                                                             if platform2._platform_type == PlatformType.LINUX:
                                                                                 for settings2 in platform2._compiler_settings:
-                                                                                    settings._source_files.append(settings2._output_directory + "/" + settings2._output_binary + ".o")
+                                                                                    settings._source_files.append(settings2._output_directory + "/" + settings2._output_binary + ".a")
                                                 
                                                 if target._target_type == TargetType.STATIC_LIBRARY:
                     
@@ -1205,7 +1208,9 @@ def generate_linux_build(name_override=None):
                                                     for source in settings._source_files:
                                                         source_as_path = PurePath(source)
                                                         buffer += 'gcc -c -fPIC $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ' + source + ' -o "./' + settings._output_directory + '/' + source_as_path.stem + '.o"\n'
-                                                    
+                                                    buffer += '\n# combine object files into a static lib\n'
+                                                    buffer += 'ar rcs ./' + settings._output_directory + '/' + settings._output_binary + '.a ./' + settings._output_directory + '/*.o\n'
+                                                    buffer += 'rm ./' + settings._output_directory + '/*.o\n'
                                                 elif target._target_type == TargetType.DYNAMIC_LIBRARY:
 
                                                     buffer += '# source files\n'

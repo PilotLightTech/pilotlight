@@ -1,0 +1,34 @@
+{
+    "extensions" : [
+        {
+            "name" : "pl_proto_ext",
+            "load" : "pl_load_proto_ext",
+            "unload" : "pl_unload_proto_ext"
+        },
+        {
+            "name" : "pl_image_ext",
+            "load" : "pl_load_image_ext",
+            "unload" : "pl_unload_image_ext"
+        },
+        {
+            "name" : "pl_draw_ext",
+            "load" : "pl_load_draw_ext",
+            "unload" : "pl_unload_draw_ext"
+        },
+        {
+            "name" : "pl_ui_ext",
+            "load" : "pl_load_ui_ext",
+            "unload" : "pl_unload_ui_ext"
+        },
+        {
+            "name" : "pl_vulkan_ext",
+            "load" : "pl_load_vulkan_ext",
+            "unload" : "pl_unload_vulkan_ext"
+        },
+        {
+            "name" : "pl_gltf_ext",
+            "load" : "pl_load_gltf_ext",
+            "unload" : "pl_unload_gltf_ext"
+        }
+    ]
+}

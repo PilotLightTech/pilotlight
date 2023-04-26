@@ -12,8 +12,8 @@
 */
 
 // library version
-#define PL_LOG_VERSION    "0.3.1"
-#define PL_LOG_VERSION_NUM 00301
+#define PL_LOG_VERSION    "0.3.2"
+#define PL_LOG_VERSION_NUM 00302
 
 /*
 Index of this file:
@@ -581,6 +581,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <string.h> // memset
+#include <stdbool.h>
 
 #ifndef pl_snprintf
     #include <stdio.h>

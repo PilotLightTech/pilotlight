@@ -8,13 +8,14 @@ Index of this file:
 // [SECTION] header mess
 // [SECTION] includes
 // [SECTION] forward declarations
-// [SECTION] global context
+// [SECTION] context
 // [SECTION] enums
-// [SECTION] structs
+// [SECTION] internal structs
 // [SECTION] plUiStorage
 // [SECTION] plUiWindow
 // [SECTION] plUiContext
-// [SECTION] internal api
+// [SECTION] internal api (exposed)
+// [SECTION] internal api (not exposed)
 */
 
 //-----------------------------------------------------------------------------
@@ -28,7 +29,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_ui.h"
+#include "pl_ui_ext.h"
 #include "pl_string.h"
 #include "pl_ds.h"
 #include "pl_io.h"
@@ -57,7 +58,7 @@ typedef int plUiLayoutRowEntryType;
 typedef int plUiLayoutSystemType;
 
 //-----------------------------------------------------------------------------
-// [SECTION] global context
+// [SECTION] context
 //-----------------------------------------------------------------------------
 
 extern plUiContext* gptCtx;
@@ -113,7 +114,7 @@ enum plUiLayoutSystemType_
 };
 
 //-----------------------------------------------------------------------------
-// [SECTION] structs
+// [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
 typedef struct _plUiStyle
@@ -290,6 +291,7 @@ typedef struct _plUiContext
 {
     plUiStyle tStyle;
     plIOApiI* ptIo;
+    plDrawApiI* ptDraw;
 
     // prev/next state
     plUiNextWindowData tNextWindowData;        // info based on pl_ui_set_next_window_* functions
@@ -338,19 +340,107 @@ typedef struct _plUiContext
 } plUiContext;
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal api
+// [SECTION] internal api (exposed)
 //-----------------------------------------------------------------------------
 
-const char*         pl_ui_find_renderered_text_end(const char* pcText, const char* pcTextEnd);
-void                pl_ui_add_text                (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
-void                pl_ui_add_clipped_text        (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
-plVec2              pl_ui_calculate_text_size     (plFont* font, float size, const char* text, float wrap);
-static inline float pl_ui_get_frame_height        (void) { return gptCtx->tStyle.fFontSize + gptCtx->tStyle.tFramePadding.y * 2.0f; }
+plUiContext*   pl_ui_create_context               (plIOApiI* ptIoI, plDrawApiI* ptDraw);
+void           pl_ui_destroy_context              (plUiContext* ptContext);
+void           pl_ui_set_context                  (plUiContext* ptCtx);
+plUiContext*   pl_ui_get_context                  (void);
+void           pl_ui_set_draw_api                 (plDrawApiI* ptDraw);
+void           pl_ui_set_io_api                   (plIOApiI* ptIO);
+plDrawContext* pl_ui_get_draw_context             (plUiContext* ptContext);
+plDrawList*    pl_ui_get_draw_list                (plUiContext* ptContext);
+plDrawList*    pl_ui_get_debug_draw_list          (plUiContext* ptContext);
+void           pl_ui_new_frame                    (void);
+void           pl_ui_end_frame                    (void);
+void           pl_ui_render                       (void);
+void           pl_ui_debug                        (bool* pbOpen);
+void           pl_ui_style                        (bool* pbOpen);
+void           pl_ui_demo                         (bool* pbOpen);
+void           pl_ui_set_dark_theme               (void);
+void           pl_ui_set_default_font             (plFont* ptFont);
+bool           pl_ui_begin_window                 (const char* pcName, bool* pbOpen, bool bAutoSize);
+void           pl_ui_end_window                   (void);
+plDrawLayer*   pl_ui_get_window_fg_drawlayer      (void);
+plDrawLayer*   pl_ui_get_window_bg_drawlayer      (void);
+plVec2         pl_ui_get_cursor_pos               (void);
+bool           pl_ui_begin_child                  (const char* pcName);
+void           pl_ui_end_child                    (void);
+void           pl_ui_begin_tooltip                (void);
+void           pl_ui_end_tooltip                  (void);
+plVec2         pl_ui_get_window_pos               (void);
+plVec2         pl_ui_get_window_size              (void);
+void           pl_ui_set_next_window_pos          (plVec2 tPos, plUiConditionFlags tCondition);
+void           pl_ui_set_next_window_size         (plVec2 tSize, plUiConditionFlags tCondition);
+void           pl_ui_set_next_window_collapse     (bool bCollapsed, plUiConditionFlags tCondition);
+bool           pl_ui_button                       (const char* pcText);
+bool           pl_ui_selectable                   (const char* pcText, bool* bpValue);
+bool           pl_ui_checkbox                     (const char* pcText, bool* pbValue);
+bool           pl_ui_radio_button                 (const char* pcText, int* piValue, int iButtonValue);
+void           pl_ui_image                        (plTextureId tTexture, plVec2 tSize);
+void           pl_ui_image_ex                     (plTextureId tTexture, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor);
+bool           pl_ui_invisible_button             (const char* pcText, plVec2 tSize);
+void           pl_ui_dummy                        (plVec2 tSize);
+void           pl_ui_progress_bar                 (float fFraction, plVec2 tSize, const char* pcOverlay);
+void           pl_ui_text                         (const char* pcFmt, ...);
+void           pl_ui_text_v                       (const char* pcFmt, va_list args);
+void           pl_ui_color_text                   (plVec4 tColor, const char* pcFmt, ...);
+void           pl_ui_color_text_v                 (plVec4 tColor, const char* pcFmt, va_list args);
+void           pl_ui_labeled_text                 (const char* pcLabel, const char* pcFmt, ...);
+void           pl_ui_labeled_text_v               (const char* pcLabel, const char* pcFmt, va_list args);
+bool           pl_ui_slider_float                 (const char* pcLabel, float* pfValue, float fMin, float fMax);
+bool           pl_ui_slider_float_f               (const char* pcLabel, float* pfValue, float fMin, float fMax, const char* pcFormat);
+bool           pl_ui_slider_int                   (const char* pcLabel, int* piValue, int iMin, int iMax);
+bool           pl_ui_slider_int_f                 (const char* pcLabel, int* piValue, int iMin, int iMax, const char* pcFormat);
+bool           pl_ui_drag_float                   (const char* pcLabel, float* pfValue, float fSpeed, float fMin, float fMax);
+bool           pl_ui_drag_float_f                 (const char* pcLabel, float* pfValue, float fSpeed, float fMin, float fMax, const char* pcFormat);
+bool           pl_ui_collapsing_header            (const char* pcText);
+void           pl_ui_end_collapsing_header        (void);
+bool           pl_ui_tree_node                    (const char* pcText);
+bool           pl_ui_tree_node_f                  (const char* pcFmt, ...);
+bool           pl_ui_tree_node_v                  (const char* pcFmt, va_list args);
+void           pl_ui_tree_pop                     (void);
+bool           pl_ui_begin_tab_bar                (const char* pcText);
+void           pl_ui_end_tab_bar                  (void);
+bool           pl_ui_begin_tab                    (const char* pcText);
+void           pl_ui_end_tab                      (void);
+void           pl_ui_separator                    (void);
+void           pl_ui_vertical_spacing             (void);
+void           pl_ui_indent                       (float fIndent);
+void           pl_ui_unindent                     (float fIndent);
+void           pl_ui_layout_dynamic               (float fHeight, uint32_t uWidgetCount);
+void           pl_ui_layout_static                (float fHeight, float fWidth, uint32_t uWidgetCount);
+void           pl_ui_layout_row_begin             (plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount);
+void           pl_ui_layout_row_push              (float fWidth);
+void           pl_ui_layout_row_end               (void);
+void           pl_ui_layout_row                   (plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount, const float* pfSizesOrRatios);
+void           pl_ui_layout_template_begin        (float fHeight);
+void           pl_ui_layout_template_push_dynamic (void);
+void           pl_ui_layout_template_push_variable(float fWidth);
+void           pl_ui_layout_template_push_static  (float fWidth);
+void           pl_ui_layout_template_end          (void);
+void           pl_ui_layout_space_begin           (plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount);
+void           pl_ui_layout_space_push            (float fX, float fY, float fWidth, float fHeight);
+void           pl_ui_layout_space_end             (void);
+bool           pl_ui_was_last_item_hovered        (void);
+bool           pl_ui_was_last_item_active         (void);
+bool           pl_ui_is_mouse_owned               (void);
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api (not exposed)
+//-----------------------------------------------------------------------------
+
+const char*          pl_ui_find_renderered_text_end(const char* pcText, const char* pcTextEnd);
+void                 pl_ui_add_text                (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
+void                 pl_ui_add_clipped_text        (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
+plVec2               pl_ui_calculate_text_size     (plFont* font, float size, const char* text, float wrap);
+static inline float  pl_ui_get_frame_height        (void) { return gptCtx->tStyle.fFontSize + gptCtx->tStyle.tFramePadding.y * 2.0f; }
 
 // collision
-static inline bool pl_ui_does_circle_contain_point  (plVec2 cen, float radius, plVec2 point) { const float fDistanceSquared = powf(point.x - cen.x, 2) + powf(point.y - cen.y, 2); return fDistanceSquared <= radius * radius; }
-bool               pl_ui_does_triangle_contain_point(plVec2 p0, plVec2 p1, plVec2 p2, plVec2 point);
-bool               pl_ui_is_item_hoverable          (const plRect* ptBox, uint32_t uHash);
+static inline bool   pl_ui_does_circle_contain_point  (plVec2 cen, float radius, plVec2 point) { const float fDistanceSquared = powf(point.x - cen.x, 2) + powf(point.y - cen.y, 2); return fDistanceSquared <= radius * radius; }
+bool                 pl_ui_does_triangle_contain_point(plVec2 p0, plVec2 p1, plVec2 p2, plVec2 point);
+bool                 pl_ui_is_item_hoverable          (const plRect* ptBox, uint32_t uHash);
 
 // layouts
 static inline plVec2 pl__ui_get_cursor_pos    (void) { return (plVec2){gptCtx->ptCurrentWindow->tTempData.tRowPos.x + gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.fHorizontalOffset + (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize, gptCtx->ptCurrentWindow->tTempData.tRowPos.y + gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.fVerticalOffset};}
@@ -364,7 +454,7 @@ void                 pl_ui_submit_window   (plUiWindow* ptWindow);
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~widget behavior~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-bool              pl_ui_button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, bool* pbOutHeld);
+bool                 pl_ui_button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, bool* pbOutHeld);
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~storage system~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

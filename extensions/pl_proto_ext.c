@@ -1,35 +1,144 @@
 /*
-   pl_prototype.c
+   pl_proto_ext.c
 */
 
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] internal functions
-// [SECTION] implementations
-// [SECTION] internal implementations
+// [SECTION] internal api
+// [SECTION] public api implementations
+// [SECTION] internal api implementations
+// [SECTION] extension loading
 */
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_prototype.h"
+#include "pilotlight.h"
+#include "pl_proto_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
-#include "pl_ui.h"
-#include "pl_draw.h"
 #include "pl_ds.h"
 #include "pl_io.h"
 #include "pl_memory.h"
 #include "pl_log.h"
 
-//-----------------------------------------------------------------------------
-// [SECTION] internal functions
-//-----------------------------------------------------------------------------
+// required extensions
+#include "pl_ui_ext.h"
+#include "pl_draw_ext.h"
+#include "pl_image_ext.h"
 
 //-----------------------------------------------------------------------------
-// [SECTION] implementations
+// [SECTION] internal api
+//-----------------------------------------------------------------------------
+
+// graphics
+static void pl_create_main_render_target(plGraphics* ptGraphics, plRenderTarget* ptTargetOut);
+static void pl_create_render_pass  (plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, plRenderPass* ptPassOut);
+static void pl_create_render_target(plResourceManager0ApiI* ptResourceApi, plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut);
+static void pl_begin_render_target (plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTarget* ptTarget);
+static void pl_end_render_target   (plGraphicsApiI* ptGfx, plGraphics* ptGraphics);
+static void pl_cleanup_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget);
+static void pl_cleanup_render_pass(plGraphics* ptGraphics, plRenderPass* ptPass);
+static void pl_setup_renderer  (plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plRenderer* ptRenderer);
+static void pl_cleanup_renderer(plRenderer* ptRenderer);
+static void pl_draw_sky        (plScene* ptScene);
+
+// scene
+static void pl_create_scene      (plRenderer* ptRenderer, plScene* ptSceneOut);
+static void pl_reset_scene       (plScene* ptScene);
+static void pl_draw_scene        (plScene* ptScene);
+static void pl_scene_bind_camera (plScene* ptScene, const plCameraComponent* ptCamera);
+static void pl_scene_update_ecs  (plScene* ptScene);
+static void pl_scene_bind_target (plScene* ptScene, plRenderTarget* ptTarget);
+static void pl_scene_prepare     (plScene* ptScene);
+
+// entity component system
+static plEntity pl_ecs_create_entity   (plRenderer* ptRenderer);
+static size_t   pl_ecs_get_index       (plComponentManager* ptManager, plEntity tEntity);
+static void*    pl_ecs_get_component   (plComponentManager* ptManager, plEntity tEntity);
+static void*    pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity);
+static bool     pl_ecs_has_entity      (plComponentManager* ptManager, plEntity tEntity);
+static void     pl_ecs_update          (plScene* ptScene, plComponentManager* ptManager);
+
+// components
+static plEntity pl_ecs_create_mesh     (plScene* ptScene, const char* pcName);
+static plEntity pl_ecs_create_material (plScene* ptScene, const char* pcName);
+static plEntity pl_ecs_create_object   (plScene* ptScene, const char* pcName);
+static plEntity pl_ecs_create_transform(plScene* ptScene, const char* pcName);
+static plEntity pl_ecs_create_camera   (plScene* ptScene, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
+
+// hierarchy
+static void     pl_ecs_attach_component  (plScene* ptScene, plEntity tEntity, plEntity tParent);
+static void     pl_ecs_deattach_component(plScene* ptScene, plEntity tEntity);
+
+// material
+static void     pl_material_outline(plScene* ptScene, plEntity tEntity);
+
+// camera
+static void     pl_camera_set_fov        (plCameraComponent* ptCamera, float fYFov);
+static void     pl_camera_set_clip_planes(plCameraComponent* ptCamera, float fNearZ, float fFarZ);
+static void     pl_camera_set_aspect     (plCameraComponent* ptCamera, float fAspect);
+static void     pl_camera_set_pos        (plCameraComponent* ptCamera, float fX, float fY, float fZ);
+static void     pl_camera_set_pitch_yaw  (plCameraComponent* ptCamera, float fPitch, float fYaw);
+static void     pl_camera_translate      (plCameraComponent* ptCamera, float fDx, float fDy, float fDz);
+static void     pl_camera_rotate         (plCameraComponent* ptCamera, float fDPitch, float fDYaw);
+static void     pl_camera_update         (plCameraComponent* ptCamera);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api implementations
+//-----------------------------------------------------------------------------
+
+plProtoApiI*
+pl_load_proto_api(void)
+{
+    static plProtoApiI tApi0 = {
+        .create_main_render_target = pl_create_main_render_target,
+        .create_render_pass        = pl_create_render_pass,
+        .create_render_target      = pl_create_render_target,
+        .begin_render_target       = pl_begin_render_target,
+        .end_render_target         = pl_end_render_target,
+        .cleanup_render_target     = pl_cleanup_render_target,
+        .cleanup_render_pass       = pl_cleanup_render_pass,
+        .setup_renderer            = pl_setup_renderer,
+        .cleanup_renderer          = pl_cleanup_renderer,
+        .draw_sky                  = pl_draw_sky,
+        .create_scene              = pl_create_scene,
+        .reset_scene               = pl_reset_scene,
+        .draw_scene                = pl_draw_scene,
+        .scene_bind_camera         = pl_scene_bind_camera,
+        .scene_update_ecs          = pl_scene_update_ecs,
+        .scene_bind_target         = pl_scene_bind_target,
+        .scene_prepare             = pl_scene_prepare,
+        .ecs_create_entity         = pl_ecs_create_entity,
+        .ecs_get_index             = pl_ecs_get_index,
+        .ecs_get_component         = pl_ecs_get_component,
+        .ecs_create_component      = pl_ecs_create_component,
+        .ecs_has_entity            = pl_ecs_has_entity,
+        .ecs_update                = pl_ecs_update,
+        .ecs_create_mesh           = pl_ecs_create_mesh,
+        .ecs_create_material       = pl_ecs_create_material,
+        .ecs_create_object         = pl_ecs_create_object,
+        .ecs_create_transform      = pl_ecs_create_transform,
+        .ecs_create_camera         = pl_ecs_create_camera,
+        .ecs_attach_component      = pl_ecs_attach_component,
+        .ecs_deattach_component    = pl_ecs_deattach_component,
+        .material_outline          = pl_material_outline,
+        .camera_set_fov            = pl_camera_set_fov,
+        .camera_set_clip_planes    = pl_camera_set_clip_planes,
+        .camera_set_aspect         = pl_camera_set_aspect,
+        .camera_set_pos            = pl_camera_set_pos,
+        .camera_set_pitch_yaw      = pl_camera_set_pitch_yaw,
+        .camera_translate          = pl_camera_translate,
+        .camera_rotate             = pl_camera_rotate,
+        .camera_update             = pl_camera_update
+    };
+    return &tApi0;
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal implementations
 //-----------------------------------------------------------------------------
 
 static float
@@ -42,8 +151,8 @@ pl__wrap_angle(float tTheta)
     return fMod;
 }
 
-void
-pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut)
+static void
+pl_create_render_target(plResourceManager0ApiI* ptResourceApi, plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut)
 {
     ptTargetOut->tDesc = *ptDesc;
 
@@ -80,11 +189,11 @@ pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc
 
     for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
     {
-        uint32_t uColorTexture = pl_create_texture(&ptGraphics->tResourceManager, tColorTextureDesc, 0, NULL, "offscreen color texture");
-        pl_sb_push(ptTargetOut->sbuColorTextureViews, pl_create_texture_view(&ptGraphics->tResourceManager, &tColorView, &tColorSampler, uColorTexture, "offscreen color view"));
+        uint32_t uColorTexture = ptResourceApi->create_texture(&ptGraphics->tResourceManager, tColorTextureDesc, 0, NULL, "offscreen color texture");
+        pl_sb_push(ptTargetOut->sbuColorTextureViews, ptResourceApi->create_texture_view(&ptGraphics->tResourceManager, &tColorView, &tColorSampler, uColorTexture, "offscreen color view"));
     }
 
-    uint32_t uDepthTexture = pl_create_texture(&ptGraphics->tResourceManager, tDepthTextureDesc, 0, NULL, "offscreen depth texture");
+    uint32_t uDepthTexture = ptResourceApi->create_texture(&ptGraphics->tResourceManager, tDepthTextureDesc, 0, NULL, "offscreen depth texture");
 
     const plTextureViewDesc tDepthView = {
         .tFormat     = tDepthTextureDesc.tFormat,
@@ -92,7 +201,7 @@ pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc
         .uMips       = tDepthTextureDesc.uMips
     };
 
-    ptTargetOut->uDepthTextureView = pl_create_texture_view(&ptGraphics->tResourceManager, &tDepthView, &tColorSampler, uDepthTexture, "offscreen depth view");
+    ptTargetOut->uDepthTextureView = ptResourceApi->create_texture_view(&ptGraphics->tResourceManager, &tDepthView, &tColorSampler, uDepthTexture, "offscreen depth view");
 
     plTextureView* ptDepthTextureView = &ptGraphics->tResourceManager.sbtTextureViews[ptTargetOut->uDepthTextureView];
 
@@ -118,7 +227,7 @@ pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc
     }
 }
 
-void
+static void
 pl_create_main_render_target(plGraphics* ptGraphics, plRenderTarget* ptTargetOut)
 {
     plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();
@@ -127,11 +236,11 @@ pl_create_main_render_target(plGraphics* ptGraphics, plRenderTarget* ptTargetOut
     ptTargetOut->tDesc.tRenderPass._tRenderPass = ptGraphics->tRenderPass;
     ptTargetOut->tDesc.tRenderPass.tDesc.tColorFormat = ptGraphics->tSwapchain.tFormat;
     ptTargetOut->tDesc.tRenderPass.tDesc.tDepthFormat = ptGraphics->tSwapchain.tDepthFormat;
-    ptTargetOut->tDesc.tSize.x = ptIOCtx->afMainViewportSize[0];
-    ptTargetOut->tDesc.tSize.y = ptIOCtx->afMainViewportSize[1];
+    ptTargetOut->tDesc.tSize.x = (float)ptGraphics->tSwapchain.tExtent.width;
+    ptTargetOut->tDesc.tSize.y = (float)ptGraphics->tSwapchain.tExtent.height;
 }
 
-void
+static void
 pl_create_render_pass(plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, plRenderPass* ptPassOut)
 {
     ptPassOut->tDesc = *ptDesc;
@@ -220,10 +329,10 @@ pl_create_render_pass(plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, pl
     PL_VULKAN(vkCreateRenderPass(ptGraphics->tDevice.tLogicalDevice, &tRenderPassInfo, NULL, &ptPassOut->_tRenderPass));
 }
 
-void
-pl_begin_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget)
+static void
+pl_begin_render_target(plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTarget* ptTarget)
 {
-    const plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
+    const plFrameContext* ptCurrentFrame = ptGfx->get_frame_resources(ptGraphics);
 
     static const VkClearValue atClearValues[2] = 
     {
@@ -275,15 +384,15 @@ pl_begin_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget)
     vkCmdBeginRenderPass(ptCurrentFrame->tCmdBuf, &tRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 }
 
-void
-pl_end_render_target(plGraphics* ptGraphics)
+static void
+pl_end_render_target(plGraphicsApiI* ptGfx, plGraphics* ptGraphics)
 {
-    const plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
+    const plFrameContext* ptCurrentFrame = ptGfx->get_frame_resources(ptGraphics);
 
     vkCmdEndRenderPass(ptCurrentFrame->tCmdBuf);
 }
 
-void
+static void
 pl_cleanup_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget)
 {
     for (uint32_t i = 0u; i < pl_sb_size(ptTarget->sbtFrameBuffers); i++)
@@ -292,18 +401,30 @@ pl_cleanup_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget)
     }
 }
 
-void
+static void
 pl_cleanup_render_pass(plGraphics* ptGraphics, plRenderPass* ptPass)
 {
     vkDestroyRenderPass(ptGraphics->tDevice.tLogicalDevice, ptPass->_tRenderPass, NULL);
 }
 
-void
-pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
+static void
+pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plRenderer* ptRenderer)
 {
     memset(ptRenderer, 0, sizeof(plRenderer));
     ptRenderer->tNextEntity = 1;
+    
+    ptRenderer->ptGfx = ptApiRegistry->first(PL_API_GRAPHICS);
+    ptRenderer->ptMemoryApi = ptApiRegistry->first(PL_API_MEMORY);
+    ptRenderer->ptResourceApi = ptApiRegistry->first(PL_API_RESOURCE_MANAGER_0);
+    ptRenderer->ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    ptRenderer->ptProtoApi = ptApiRegistry->first(PL_API_PROTO);
+    ptRenderer->ptImageApi = ptApiRegistry->first(PL_API_IMAGE);
+
+	pl_set_log_context(ptRenderer->ptDataRegistry->get_data("log"));
     ptRenderer->uLogChannel = pl_add_log_channel("renderer", PL_CHANNEL_TYPE_CONSOLE | PL_CHANNEL_TYPE_BUFFER);
+
+    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+    plResourceManager0ApiI* ptResourceApi = ptRenderer->ptResourceApi;
 
     // create dummy texture (texture slot 0 when not used)
     const plTextureDesc tTextureDesc2 = {
@@ -315,7 +436,7 @@ pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
         .tType       = VK_IMAGE_TYPE_2D
     };
     static const float afSinglePixel[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-    uint32_t uDummyTexture = pl_create_texture(&ptGraphics->tResourceManager, tTextureDesc2, sizeof(unsigned char) * 4, afSinglePixel, "dummy texture");
+    uint32_t uDummyTexture = ptResourceApi->create_texture(&ptGraphics->tResourceManager, tTextureDesc2, sizeof(unsigned char) * 4, afSinglePixel, "dummy texture");
 
     const plSampler tDummySampler = 
     {
@@ -330,7 +451,7 @@ pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
         .uMips       = tTextureDesc2.uMips
     };
 
-    pl_create_texture_view(&ptGraphics->tResourceManager, &tDummyView, &tDummySampler, uDummyTexture, "dummy texture view");
+    ptResourceApi->create_texture_view(&ptGraphics->tResourceManager, &tDummyView, &tDummySampler, uDummyTexture, "dummy texture view");
 
     ptRenderer->ptGraphics = ptGraphics;
 
@@ -446,24 +567,28 @@ pl_setup_renderer(plGraphics* ptGraphics, plRenderer* ptRenderer)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create shaders~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    ptRenderer->uMainShader    = pl_create_shader(&ptGraphics->tResourceManager, &tMainShaderDesc);
-    ptRenderer->uOutlineShader = pl_create_shader(&ptGraphics->tResourceManager, &tOutlineShaderDesc);
-    ptRenderer->uSkyboxShader  = pl_create_shader(&ptGraphics->tResourceManager, &tSkyboxShaderDesc);
+    ptRenderer->uMainShader    = ptGfx->create_shader(&ptGraphics->tResourceManager, &tMainShaderDesc);
+    ptRenderer->uOutlineShader = ptGfx->create_shader(&ptGraphics->tResourceManager, &tOutlineShaderDesc);
+    ptRenderer->uSkyboxShader  = ptGfx->create_shader(&ptGraphics->tResourceManager, &tSkyboxShaderDesc);
 
 }
 
-void
+static void
 pl_cleanup_renderer(plRenderer* ptRenderer)
 {
     // pl_sb_free(ptRenderer->sbfStorageBuffer);
     // pl_submit_buffer_for_deletion(&ptRenderer->ptGraphics->tResourceManager, ptRenderer->uGlobalStorageBuffer);
 }
 
-void
+static void
 pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
 {
     plGraphics* ptGraphics = ptRenderer->ptGraphics;
     plResourceManager* ptResourceManager = &ptGraphics->tResourceManager;
+    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+    plMemoryApiI* ptMemoryApi = ptRenderer->ptMemoryApi;
+    plResourceManager0ApiI* ptResourceApi = ptRenderer->ptResourceApi;
+    plImageApiI* ptImageApi = ptRenderer->ptImageApi;
 
     memset(ptSceneOut, 0, sizeof(plScene));
 
@@ -496,7 +621,7 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
     ptSceneOut->tComponentLibrary.tHierarchyComponentManager.tComponentType = PL_COMPONENT_TYPE_HIERARCHY;
     ptSceneOut->tComponentLibrary.tHierarchyComponentManager.szStride = sizeof(plHierarchyComponent);
 
-    ptSceneOut->uDynamicBuffer0 = pl_create_constant_buffer(ptResourceManager, ptRenderer->ptGraphics->tResourceManager._uDynamicBufferSize, "renderer dynamic buffer 0");
+    ptSceneOut->uDynamicBuffer0 = ptResourceApi->create_constant_buffer(ptResourceManager, ptRenderer->ptGraphics->tResourceManager._uDynamicBufferSize, "renderer dynamic buffer 0");
 
     ptSceneOut->ptOutlineMaterialComponentManager = &ptSceneOut->tComponentLibrary.tOutlineMaterialComponentManager;
     ptSceneOut->ptTagComponentManager = &ptSceneOut->tComponentLibrary.tTagComponentManager;
@@ -512,12 +637,12 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
 
     int texWidth, texHeight, texNumChannels;
     int texForceNumChannels = 4;
-    unsigned char* rawBytes0 = stbi_load("../data/pilotlight-assets-master/SkyBox/right.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-    unsigned char* rawBytes1 = stbi_load("../data/pilotlight-assets-master/SkyBox/left.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-    unsigned char* rawBytes2 = stbi_load("../data/pilotlight-assets-master/SkyBox/top.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-    unsigned char* rawBytes3 = stbi_load("../data/pilotlight-assets-master/SkyBox/bottom.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-    unsigned char* rawBytes4 = stbi_load("../data/pilotlight-assets-master/SkyBox/front.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-    unsigned char* rawBytes5 = stbi_load("../data/pilotlight-assets-master/SkyBox/back.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+    unsigned char* rawBytes0 = ptImageApi->load("../data/pilotlight-assets-master/SkyBox/right.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+    unsigned char* rawBytes1 = ptImageApi->load("../data/pilotlight-assets-master/SkyBox/left.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+    unsigned char* rawBytes2 = ptImageApi->load("../data/pilotlight-assets-master/SkyBox/top.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+    unsigned char* rawBytes3 = ptImageApi->load("../data/pilotlight-assets-master/SkyBox/bottom.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+    unsigned char* rawBytes4 = ptImageApi->load("../data/pilotlight-assets-master/SkyBox/front.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+    unsigned char* rawBytes5 = ptImageApi->load("../data/pilotlight-assets-master/SkyBox/back.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
     PL_ASSERT(rawBytes0);
     PL_ASSERT(rawBytes1);
     PL_ASSERT(rawBytes2);
@@ -525,7 +650,7 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
     PL_ASSERT(rawBytes4);
     PL_ASSERT(rawBytes5);
 
-    unsigned char* rawBytes = pl_alloc(texWidth * texHeight * texNumChannels * 6);
+    unsigned char* rawBytes = ptMemoryApi->alloc(texWidth * texHeight * texNumChannels * 6);
     memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 0], rawBytes0, texWidth * texHeight * texNumChannels); //-V522 
     memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 1], rawBytes1, texWidth * texHeight * texNumChannels); //-V522
     memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 2], rawBytes2, texWidth * texHeight * texNumChannels); //-V522
@@ -533,12 +658,12 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
     memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 4], rawBytes4, texWidth * texHeight * texNumChannels); //-V522
     memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 5], rawBytes5, texWidth * texHeight * texNumChannels); //-V522
 
-    stbi_image_free(rawBytes0);
-    stbi_image_free(rawBytes1);
-    stbi_image_free(rawBytes2);
-    stbi_image_free(rawBytes3);
-    stbi_image_free(rawBytes4);
-    stbi_image_free(rawBytes5);
+    ptImageApi->free(rawBytes0);
+    ptImageApi->free(rawBytes1);
+    ptImageApi->free(rawBytes2);
+    ptImageApi->free(rawBytes3);
+    ptImageApi->free(rawBytes4);
+    ptImageApi->free(rawBytes5);
 
     const plTextureDesc tTextureDesc = {
         .tDimensions = {.x = (float)texWidth, .y = (float)texHeight, .z = 1.0f},
@@ -562,9 +687,9 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
         .uMips       = tTextureDesc.uMips
     };
 
-    uint32_t uSkyboxTexture = pl_create_texture(&ptGraphics->tResourceManager, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * texNumChannels * 6, rawBytes, "skybox texture");
-    ptSceneOut->uSkyboxTextureView  = pl_create_texture_view(&ptGraphics->tResourceManager, &tSkyboxView, &tSkyboxSampler, uSkyboxTexture, "skybox texture view");
-    pl_free(rawBytes);
+    uint32_t uSkyboxTexture = ptResourceApi->create_texture(&ptGraphics->tResourceManager, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * texNumChannels * 6, rawBytes, "skybox texture");
+    ptSceneOut->uSkyboxTextureView  = ptResourceApi->create_texture_view(&ptGraphics->tResourceManager, &tSkyboxView, &tSkyboxSampler, uSkyboxTexture, "skybox texture view");
+    ptMemoryApi->free(rawBytes);
 
     const float fCubeSide = 0.5f;
     float acSkyBoxVertices[] = {
@@ -592,8 +717,8 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
         .tMesh = {
             .uIndexCount   = 36,
             .uVertexCount  = 24,
-            .uIndexBuffer  = pl_create_index_buffer(&ptGraphics->tResourceManager, sizeof(uint32_t) * 36, acSkyboxIndices, "skybox index buffer"),
-            .uVertexBuffer = pl_create_vertex_buffer(&ptGraphics->tResourceManager, sizeof(float) * 24, sizeof(float), acSkyBoxVertices, "skybox vertex buffer"),
+            .uIndexBuffer  = ptResourceApi->create_index_buffer(&ptGraphics->tResourceManager, sizeof(uint32_t) * 36, acSkyboxIndices, "skybox index buffer"),
+            .uVertexBuffer = ptResourceApi->create_vertex_buffer(&ptGraphics->tResourceManager, sizeof(float) * 24, sizeof(float), acSkyBoxVertices, "skybox vertex buffer"),
             .ulVertexStreamMask = PL_MESH_FORMAT_FLAG_NONE
         }
     };
@@ -611,7 +736,7 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
     };
     size_t szSkyboxRangeSize = sizeof(plGlobalInfo);
     ptSceneOut->tSkyboxBindGroup0.tLayout = tSkyboxGroupLayout0;
-    pl_update_bind_group(ptGraphics, &ptSceneOut->tSkyboxBindGroup0, 1, &ptSceneOut->uDynamicBuffer0, &szSkyboxRangeSize, 1, &ptSceneOut->uSkyboxTextureView);
+    ptGfx->update_bind_group(ptGraphics, &ptSceneOut->tSkyboxBindGroup0, 1, &ptSceneOut->uDynamicBuffer0, &szSkyboxRangeSize, 1, &ptSceneOut->uSkyboxTextureView);
 
     ptSceneOut->uGlobalStorageBuffer = UINT32_MAX;
 
@@ -637,19 +762,20 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
     ptSceneOut->tGlobalBindGroup.tLayout = tGlobalGroupLayout;
 }
 
-void
+static void
 pl_reset_scene(plScene* ptScene)
 {
     ptScene->bFirstEcsUpdate = true;
     ptScene->uDynamicBuffer0_Offset = 0;
 }
 
-void
+static void
 pl_draw_scene(plScene* ptScene)
 {
     plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
     plRenderer* ptRenderer = ptScene->ptRenderer;
     plResourceManager* ptResourceManager = &ptGraphics->tResourceManager;
+    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
 
     const plBuffer* ptBuffer0 = &ptResourceManager->sbtBuffers[ptScene->uDynamicBuffer0];
     const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer0_Offset;
@@ -702,7 +828,7 @@ pl_draw_scene(plScene* ptScene)
         .uDynamicBufferOffset0 = uBufferFrameOffset0
     }));
 
-    pl_draw_areas(ptRenderer->ptGraphics, pl_sb_size(ptRenderer->sbtDrawAreas), ptRenderer->sbtDrawAreas, ptRenderer->sbtDraws);
+    ptGfx->draw_areas(ptRenderer->ptGraphics, pl_sb_size(ptRenderer->sbtDrawAreas), ptRenderer->sbtDrawAreas, ptRenderer->sbtDraws);
 
     pl_sb_reset(ptRenderer->sbtDrawAreas);
 
@@ -714,7 +840,7 @@ pl_draw_scene(plScene* ptScene)
         .uDynamicBufferOffset0 = uBufferFrameOffset0
     }));
 
-    pl_draw_areas(ptRenderer->ptGraphics, pl_sb_size(ptRenderer->sbtDrawAreas), ptRenderer->sbtDrawAreas, ptRenderer->sbtOutlineDraws);
+    ptGfx->draw_areas(ptRenderer->ptGraphics, pl_sb_size(ptRenderer->sbtDrawAreas), ptRenderer->sbtDrawAreas, ptRenderer->sbtOutlineDraws);
 
     pl_sb_reset(ptRenderer->sbtDraws);
     pl_sb_reset(ptRenderer->sbtOutlineDraws);
@@ -723,7 +849,7 @@ pl_draw_scene(plScene* ptScene)
     ptScene->uDynamicBuffer0_Offset = (uint32_t)pl_align_up((size_t)ptScene->uDynamicBuffer0_Offset + sizeof(plGlobalInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);
 }
 
-void
+static void
 pl_scene_update_ecs(plScene* ptScene)
 {
 
@@ -740,19 +866,21 @@ pl_scene_update_ecs(plScene* ptScene)
     ptScene->bFirstEcsUpdate = false;
 }
 
-void
+static void
 pl_scene_bind_target(plScene* ptScene, plRenderTarget* ptTarget)
 {
     ptScene->ptRenderTarget = ptTarget;
 }
 
-void
+static void
 pl_scene_prepare(plScene* ptScene)
 {
 
     plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
     plRenderer* ptRenderer = ptScene->ptRenderer;
     plResourceManager* ptResourceManager = &ptGraphics->tResourceManager;
+    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+    plResourceManager0ApiI* ptResourceApi = ptRenderer->ptResourceApi;
 
     uint32_t uStorageOffset = pl_sb_size(ptScene->sbfStorageBuffer) / 4;
 
@@ -1005,11 +1133,11 @@ pl_scene_prepare(plScene* ptScene)
             PL_ASSERT(uOffset == uStride && "sanity check");
 
 
-            ptSubMesh->tMesh.uIndexBuffer = pl_create_index_buffer(ptResourceManager, 
+            ptSubMesh->tMesh.uIndexBuffer = ptResourceApi->create_index_buffer(ptResourceManager, 
                 sizeof(uint32_t) * ptSubMesh->tMesh.uIndexCount,
                 ptSubMesh->sbuIndices, "unnamed index buffer");
 
-            ptSubMesh->tMesh.uVertexBuffer = pl_create_vertex_buffer(ptResourceManager, 
+            ptSubMesh->tMesh.uVertexBuffer = ptResourceApi->create_vertex_buffer(ptResourceManager, 
                 ptSubMesh->tMesh.uVertexCount * sizeof(plVec3), sizeof(plVec3),
                 ptSubMesh->sbtVertexPositions, "unnamed vertex buffer");
 
@@ -1024,19 +1152,19 @@ pl_scene_prepare(plScene* ptScene)
     {
         if(ptScene->uGlobalStorageBuffer != UINT32_MAX)
         {
-            pl_submit_buffer_for_deletion(ptResourceManager, ptScene->uGlobalStorageBuffer);
+            ptResourceApi->submit_buffer_for_deletion(ptResourceManager, ptScene->uGlobalStorageBuffer);
         }
-        ptScene->uGlobalStorageBuffer = pl_create_storage_buffer(ptResourceManager, pl_sb_size(ptScene->sbfStorageBuffer) * sizeof(float), ptScene->sbfStorageBuffer, "global storage");
+        ptScene->uGlobalStorageBuffer = ptResourceApi->create_storage_buffer(ptResourceManager, pl_sb_size(ptScene->sbfStorageBuffer) * sizeof(float), ptScene->sbfStorageBuffer, "global storage");
         pl_sb_reset(ptScene->sbfStorageBuffer);
 
         uint32_t atBuffers0[] = {ptScene->uDynamicBuffer0, ptScene->uGlobalStorageBuffer};
         size_t aszRangeSizes[] = {sizeof(plGlobalInfo), VK_WHOLE_SIZE};
-        pl_update_bind_group(ptGraphics, &ptScene->tGlobalBindGroup, 2, atBuffers0, aszRangeSizes, 0, NULL);
+        ptGfx->update_bind_group(ptGraphics, &ptScene->tGlobalBindGroup, 2, atBuffers0, aszRangeSizes, 0, NULL);
     }
 
 }
 
-void
+static void
 pl_scene_bind_camera(plScene* ptScene, const plCameraComponent* ptCamera)
 {
     ptScene->ptCamera = ptCamera;
@@ -1057,13 +1185,14 @@ pl_scene_bind_camera(plScene* ptScene, const plCameraComponent* ptCamera)
     ptGlobalInfo->fTime  = (float)ptIOCtx->dTime;
 }
 
-void
+static void
 pl_draw_sky(plScene* ptScene)
 {
 
     plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
     plRenderer* ptRenderer = ptScene->ptRenderer;
     plResourceManager* ptResourceManager = &ptGraphics->tResourceManager;
+    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
     VkSampleCountFlagBits tMSAASampleCount = ptScene->ptRenderTarget->bMSAA ? ptGraphics->tSwapchain.tMsaaSamples : VK_SAMPLE_COUNT_1_BIT;
 
     const plBuffer* ptBuffer0 = &ptResourceManager->sbtBuffers[ptScene->uDynamicBuffer0];
@@ -1109,7 +1238,7 @@ pl_draw_sky(plScene* ptScene)
     if(uSkyboxShaderVariant == UINT32_MAX)
     {
         pl_log_debug_to_f(ptRenderer->uLogChannel, "adding skybox shader variant");
-        uSkyboxShaderVariant = pl_add_shader_variant(ptResourceManager, ptRenderer->uSkyboxShader, tFillStateTemplate, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
+        uSkyboxShaderVariant = ptGfx->add_shader_variant(ptResourceManager, ptRenderer->uSkyboxShader, tFillStateTemplate, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
     }
 
     pl_sb_push(ptRenderer->sbtDrawAreas, ((plDrawArea){
@@ -1128,8 +1257,7 @@ pl_draw_sky(plScene* ptScene)
         .uDynamicBufferOffset2 = 0
         }));
 
-
-    pl_draw_areas(ptRenderer->ptGraphics, pl_sb_size(ptRenderer->sbtDrawAreas), ptRenderer->sbtDrawAreas, ptRenderer->sbtDraws);
+    ptGfx->draw_areas(ptRenderer->ptGraphics, pl_sb_size(ptRenderer->sbtDrawAreas), ptRenderer->sbtDrawAreas, ptRenderer->sbtDraws);
 
     pl_sb_reset(ptRenderer->sbtDraws);
     pl_sb_reset(ptRenderer->sbtDrawAreas);
@@ -1137,14 +1265,14 @@ pl_draw_sky(plScene* ptScene)
     ptScene->uDynamicBuffer0_Offset = (uint32_t)pl_align_up((size_t)ptScene->uDynamicBuffer0_Offset + sizeof(plGlobalInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);
 }
 
-plEntity
+static plEntity
 pl_ecs_create_entity(plRenderer* ptRenderer)
 {
     plEntity tNewEntity = ptRenderer->tNextEntity++;
     return tNewEntity;
 }
 
-size_t
+static size_t
 pl_ecs_get_index(plComponentManager* ptManager, plEntity tEntity)
 { 
     PL_ASSERT(tEntity != PL_INVALID_ENTITY_HANDLE);
@@ -1163,7 +1291,7 @@ pl_ecs_get_index(plComponentManager* ptManager, plEntity tEntity)
     return szIndex;
 }
 
-void*
+static void*
 pl_ecs_get_component(plComponentManager* ptManager, plEntity tEntity)
 {
     PL_ASSERT(tEntity != PL_INVALID_ENTITY_HANDLE);
@@ -1172,7 +1300,7 @@ pl_ecs_get_component(plComponentManager* ptManager, plEntity tEntity)
     return &pucData[szIndex * ptManager->szStride];
 }
 
-void*
+static void*
 pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
 {
     PL_ASSERT(tEntity != PL_INVALID_ENTITY_HANDLE);
@@ -1246,7 +1374,7 @@ pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
     return NULL;
 }
 
-bool
+static bool
 pl_ecs_has_entity(plComponentManager* ptManager, plEntity tEntity)
 {
     PL_ASSERT(tEntity != PL_INVALID_ENTITY_HANDLE);
@@ -1259,13 +1387,15 @@ pl_ecs_has_entity(plComponentManager* ptManager, plEntity tEntity)
     return false;
 }
 
-void
+static void
 pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
 {
 
     plRenderer* ptRenderer = ptScene->ptRenderer;
     plGraphics* ptGraphics = ptRenderer->ptGraphics;
     plResourceManager* ptResourceManager = &ptGraphics->tResourceManager;
+    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+    plResourceManager0ApiI* ptResourceApi = ptRenderer->ptResourceApi;
 
     switch (ptManager->tComponentType)
     {
@@ -1292,7 +1422,7 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
 
             if(ptScene->bMaterialsNeedUpdate)
             {
-                uDynamicBufferIndex = pl_request_dynamic_buffer(ptResourceManager);
+                uDynamicBufferIndex = ptResourceApi->request_dynamic_buffer(ptResourceManager);
                 ptDynamicBufferNode = &ptResourceManager->_sbtDynamicBufferList[uDynamicBufferIndex];
                 ptBuffer = &ptResourceManager->sbtBuffers[ptDynamicBufferNode->uDynamicBuffer];
             }
@@ -1327,9 +1457,9 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
                     {
 
                         plBindGroup tNewBindGroup = {
-                            .tLayout = *pl_get_bind_group_layout(ptResourceManager, ptMaterial->uShader, 1)
+                            .tLayout = *ptGfx->get_bind_group_layout(ptResourceManager, ptMaterial->uShader, 1)
                         };
-                        pl_update_bind_group(ptGraphics, &tNewBindGroup, 1, &ptDynamicBufferNode->uDynamicBuffer, &szRangeSize2, pl_sb_size(sbuTextures), sbuTextures);
+                        ptGfx->update_bind_group(ptGraphics, &tNewBindGroup, 1, &ptDynamicBufferNode->uDynamicBuffer, &szRangeSize2, pl_sb_size(sbuTextures), sbuTextures);
 
                         // check for free index
                         uMaterialBindGroupIndex = pl_hm_get_free_index(&ptRenderer->tMaterialBindGroupdHashMap);
@@ -1380,7 +1510,7 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
                 // create variant that matches texture count, vertex stream, and culling
                 if(ptMaterial->uShaderVariant == UINT32_MAX)
                 {
-                    ptMaterial->uShaderVariant = pl_add_shader_variant(ptResourceManager, ptMaterial->uShader, ptMaterial->tGraphicsState, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
+                    ptMaterial->uShaderVariant = ptGfx->add_shader_variant(ptResourceManager, ptMaterial->uShader, ptMaterial->tGraphicsState, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
                 }
                 
                 pl_sb_reset(sbuTextures);
@@ -1418,7 +1548,7 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
 
         for(uint32_t i = 0; i < uMinBuffersNeeded; i++)
         {
-            const uint32_t uDynamicBufferIndex = pl_request_dynamic_buffer(ptResourceManager);
+            const uint32_t uDynamicBufferIndex = ptResourceApi->request_dynamic_buffer(ptResourceManager);
             plDynamicBufferNode* ptDynamicBufferNode = &ptResourceManager->_sbtDynamicBufferList[uDynamicBufferIndex];
             plBuffer* ptBuffer = &ptResourceManager->sbtBuffers[ptDynamicBufferNode->uDynamicBuffer];
 
@@ -1432,7 +1562,7 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
                 plBindGroup tNewBindGroup = {
                     .tLayout = tGroupLayout2
                 };
-                pl_update_bind_group(ptGraphics, &tNewBindGroup, 1, &ptDynamicBufferNode->uDynamicBuffer, &szRangeSize2, 0, NULL);
+                ptGfx->update_bind_group(ptGraphics, &tNewBindGroup, 1, &ptDynamicBufferNode->uDynamicBuffer, &szRangeSize2, 0, NULL);
 
                 // check for free index
                 uObjectBindGroupIndex = pl_hm_get_free_index(&ptRenderer->tObjectBindGroupdHashMap);
@@ -1491,7 +1621,7 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
     }
 }
 
-plEntity
+static plEntity
 pl_ecs_create_mesh(plScene* ptScene, const char* pcName)
 {
     plRenderer* ptRenderer = ptScene->ptRenderer;
@@ -1513,8 +1643,8 @@ pl_ecs_create_mesh(plScene* ptScene, const char* pcName)
     return tNewEntity;
 }
 
-plMaterialComponent*
-pl__ecs_create_outline_material(plScene* ptScene, plEntity tEntity)
+static plMaterialComponent*
+pl_ecs_create_outline_material(plScene* ptScene, plEntity tEntity)
 {
     plRenderer* ptRenderer = ptScene->ptRenderer;
 
@@ -1541,7 +1671,7 @@ pl__ecs_create_outline_material(plScene* ptScene, plEntity tEntity)
     return ptMaterial;
 }
 
-plEntity
+static plEntity
 pl_ecs_create_material(plScene* ptScene, const char* pcName)
 {
     plRenderer* ptRenderer = ptScene->ptRenderer;
@@ -1582,7 +1712,7 @@ pl_ecs_create_material(plScene* ptScene, const char* pcName)
     return tNewEntity;    
 }
 
-plEntity
+static plEntity
 pl_ecs_create_object(plScene* ptScene, const char* pcName)
 {
     plRenderer* ptRenderer = ptScene->ptRenderer;
@@ -1617,7 +1747,7 @@ pl_ecs_create_object(plScene* ptScene, const char* pcName)
     return tNewEntity;    
 }
 
-plEntity
+static plEntity
 pl_ecs_create_transform(plScene* ptScene, const char* pcName)
 {
     plRenderer* ptRenderer = ptScene->ptRenderer;
@@ -1643,7 +1773,7 @@ pl_ecs_create_transform(plScene* ptScene, const char* pcName)
     return tNewEntity;  
 }
 
-plEntity
+static plEntity
 pl_ecs_create_camera(plScene* ptScene, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ)
 {
     plRenderer* ptRenderer = ptScene->ptRenderer;
@@ -1677,7 +1807,7 @@ pl_ecs_create_camera(plScene* ptScene, const char* pcName, plVec3 tPos, float fY
     return tNewEntity; 
 }
 
-void
+static void
 pl_ecs_attach_component(plScene* ptScene, plEntity tEntity, plEntity tParent)
 {
     plHierarchyComponent* ptHierarchyComponent = NULL;
@@ -1695,7 +1825,7 @@ pl_ecs_attach_component(plScene* ptScene, plEntity tEntity, plEntity tParent)
     ptHierarchyComponent->tParent = tParent;
 }
 
-void
+static void
 pl_ecs_deattach_component(plScene* ptScene, plEntity tEntity)
 {
     plHierarchyComponent* ptHierarchyComponent = NULL;
@@ -1713,7 +1843,7 @@ pl_ecs_deattach_component(plScene* ptScene, plEntity tEntity)
     ptHierarchyComponent->tParent = PL_INVALID_ENTITY_HANDLE;
 }
 
-void
+static void
 pl_material_outline(plScene* ptScene, plEntity tEntity)
 {
     plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptScene->tComponentLibrary.tMaterialComponentManager, tEntity);
@@ -1722,31 +1852,31 @@ pl_material_outline(plScene* ptScene, plEntity tEntity)
     ptMaterial->tGraphicsState.ulStencilOpPass      = VK_STENCIL_OP_REPLACE;
     ptMaterial->bOutline                            = true;
 
-    plMaterialComponent* ptOutlineMaterial = pl__ecs_create_outline_material(ptScene, tEntity);
+    plMaterialComponent* ptOutlineMaterial = pl_ecs_create_outline_material(ptScene, tEntity);
     ptOutlineMaterial->tGraphicsState.ulVertexStreamMask   = ptMaterial->tGraphicsState.ulVertexStreamMask;
 
 }
 
-void
+static void
 pl_camera_set_fov(plCameraComponent* ptCamera, float fYFov)
 {
     ptCamera->fFieldOfView = fYFov;
 }
 
-void
+static void
 pl_camera_set_clip_planes(plCameraComponent* ptCamera, float fNearZ, float fFarZ)
 {
     ptCamera->fNearZ = fNearZ;
     ptCamera->fFarZ = fFarZ;
 }
 
-void
+static void
 pl_camera_set_aspect(plCameraComponent* ptCamera, float fAspect)
 {
     ptCamera->fAspectRatio = fAspect;
 }
 
-void
+static void
 pl_camera_set_pos(plCameraComponent* ptCamera, float fX, float fY, float fZ)
 {
     ptCamera->tPos.x = fX;
@@ -1754,14 +1884,14 @@ pl_camera_set_pos(plCameraComponent* ptCamera, float fX, float fY, float fZ)
     ptCamera->tPos.z = fZ;
 }
 
-void
+static void
 pl_camera_set_pitch_yaw(plCameraComponent* ptCamera, float fPitch, float fYaw)
 {
     ptCamera->fPitch = fPitch;
     ptCamera->fYaw = fYaw;
 }
 
-void
+static void
 pl_camera_translate(plCameraComponent* ptCamera, float fDx, float fDy, float fDz)
 {
     ptCamera->tPos = pl_add_vec3(ptCamera->tPos, pl_mul_vec3_scalarf(ptCamera->_tRightVec, fDx));
@@ -1769,7 +1899,7 @@ pl_camera_translate(plCameraComponent* ptCamera, float fDx, float fDy, float fDz
     ptCamera->tPos.y += fDy;
 }
 
-void
+static void
 pl_camera_rotate(plCameraComponent* ptCamera, float fDPitch, float fDYaw)
 {
     ptCamera->fPitch += fDPitch;
@@ -1779,7 +1909,7 @@ pl_camera_rotate(plCameraComponent* ptCamera, float fDPitch, float fDYaw)
     ptCamera->fPitch = pl_clampf(0.995f * -PL_PI_2, ptCamera->fPitch, 0.995f * PL_PI_2);
 }
 
-void
+static void
 pl_camera_update(plCameraComponent* ptCamera)
 {
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1824,5 +1954,25 @@ pl_camera_update(plCameraComponent* ptCamera)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal implementations
+// [SECTION] extension loading
 //-----------------------------------------------------------------------------
+
+PL_EXPORT void
+pl_load_proto_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
+{
+
+    if(bReload)
+    {
+        ptApiRegistry->replace(ptApiRegistry->first(PL_API_PROTO), pl_load_proto_api());
+    }
+    else
+    {
+        ptApiRegistry->add(PL_API_PROTO, pl_load_proto_api());
+    }
+}
+
+PL_EXPORT void
+pl_unload_proto_ext(plApiRegistryApiI* ptApiRegistry)
+{
+    
+}

@@ -1,5 +1,5 @@
 /*
-   pl_gltf_extension.c
+   pl_gltf_ext.c
 */
 
 /*
@@ -9,22 +9,26 @@ Index of this file:
 // [SECTION] internal api
 // [SECTION] public api implementation
 // [SECTION] internal api implementation
+// [SECTION] extension loading
 */
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_gltf.h"
+#include "pilotlight.h"
+#include "pl_gltf_ext.h"
 #include "pl_ds.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
-#include "stb_image.h"
 #include "pl_memory.h"
-#include "pl_graphics_vulkan.h"
-#include "pl_prototype.h"
+#include "pl_log.h"
 #include "pl_string.h"
-#include "pilotlight.h"
+
+// extensions
+#include "pl_vulkan_ext.h"
+#include "pl_proto_ext.h"
+#include "pl_image_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] cgltf.h
@@ -6779,12 +6783,33 @@ static void jsmn_init(jsmn_parser *parser) {
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static void pl__load_gltf_material(plResourceManager* ptResourceManager, const char* pcPath, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut);
+static void pl__load_gltf_material(plImageApiI* ptImageApi, plResourceManager0ApiI* ptResourceApi, plResourceManager* ptResourceManager, const char* pcPath, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut);
+static void pl__load_gltf_object  (plProtoApiI* ptProtoApi, plResourceManager0ApiI* ptResourceApi, plScene* ptScene, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode);
+static bool pl_ext_load_gltf     (plScene* ptScene, const char* pcPath);
 
-static void pl__load_gltf_object(plScene* ptScene, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode)
+//-----------------------------------------------------------------------------
+// [SECTION] public api implementation
+//-----------------------------------------------------------------------------
+
+plGltfApiI*
+pl_load_gltf_api(void)
+{
+    static plGltfApiI tApi0 = {
+        .load = pl_ext_load_gltf
+    };
+	return &tApi0;
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api implementation
+//-----------------------------------------------------------------------------
+
+static void
+pl__load_gltf_object(plProtoApiI* ptProtoApi, plResourceManager0ApiI* ptResourceApi, plScene* ptScene, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode)
 {
 	plRenderer* ptRenderer = ptScene->ptRenderer;
 	plGraphics* ptGraphics = ptRenderer->ptGraphics;
+	plImageApiI* ptImageApi = ptRenderer->ptImageApi;
 
 	if(ptNode->mesh)
 	{
@@ -6793,23 +6818,23 @@ static void pl__load_gltf_object(plScene* ptScene, plEntity tParentEntity, const
 		for(size_t szPrimitiveIndex = 0; szPrimitiveIndex < ptMesh->primitives_count; szPrimitiveIndex++)
 		{
 
-			plEntity tObject = pl_ecs_create_object(ptScene, ptNode->name);
+			plEntity tObject = ptProtoApi->ecs_create_object(ptScene, ptNode->name);
 			pl_sb_push(ptRenderer->sbtObjectEntities, tObject);
 
 			if(tParentEntity != PL_INVALID_ENTITY_HANDLE)
-				pl_ecs_attach_component(ptScene, tObject, tParentEntity);
+				ptProtoApi->ecs_attach_component(ptScene, tObject, tParentEntity);
 
 			if(szPrimitiveIndex == ptMesh->primitives_count - 1)
 			{
 				for(size_t szChildIndex = 0; szChildIndex < ptNode->children_count; szChildIndex++)
 				{
 					const cgltf_node* ptChild = ptNode->children[szChildIndex];
-					pl__load_gltf_object(ptScene, tObject, pcPath, ptChild);
+					pl__load_gltf_object(ptProtoApi, ptResourceApi, ptScene, tObject, pcPath, ptChild);
 				}
 			}
 
-			plObjectComponent* ptObjectComponent = pl_ecs_get_component(ptScene->ptObjectComponentManager, tObject);
-			plTransformComponent* ptTransformComponent = pl_ecs_get_component(ptScene->ptTransformComponentManager, tObject);
+			plObjectComponent* ptObjectComponent = ptProtoApi->ecs_get_component(ptScene->ptObjectComponentManager, tObject);
+			plTransformComponent* ptTransformComponent = ptProtoApi->ecs_get_component(ptScene->ptTransformComponentManager, tObject);
 			ptTransformComponent->tWorld       = pl_identity_mat4();
 			ptTransformComponent->tRotation    = (plVec4){.w = 1.0f};
 			ptTransformComponent->tScale       = (plVec3){1.0f, 1.0f, 1.0f};
@@ -6830,7 +6855,7 @@ static void pl__load_gltf_object(plScene* ptScene, plEntity tParentEntity, const
 
 			ptTransformComponent->tFinalTransform = ptTransformComponent->tWorld;
 
-			plMeshComponent* ptMeshComponent = pl_ecs_get_component(ptScene->ptMeshComponentManager, tObject);
+			plMeshComponent* ptMeshComponent = ptProtoApi->ecs_get_component(ptScene->ptMeshComponentManager, tObject);
 
 			const cgltf_primitive* ptPrimitive = &ptMesh->primitives[szPrimitiveIndex];
 			const size_t szVertexCount = ptPrimitive->attributes[0].data->count;
@@ -6989,17 +7014,17 @@ static void pl__load_gltf_object(plScene* ptScene, plEntity tParentEntity, const
 				PL_ASSERT(false);
 			}
 
-			tSubMesh.tMaterial = pl_ecs_create_material(ptScene, ptPrimitive->material->name);
-			plMaterialComponent* ptMaterialComponent = pl_ecs_get_component(ptScene->ptMaterialComponentManager, tSubMesh.tMaterial);
-			pl__load_gltf_material(&ptGraphics->tResourceManager, pcPath, ptPrimitive->material, ptMaterialComponent);
+			tSubMesh.tMaterial = ptProtoApi->ecs_create_material(ptScene, ptPrimitive->material->name);
+			plMaterialComponent* ptMaterialComponent = ptProtoApi->ecs_get_component(ptScene->ptMaterialComponentManager, tSubMesh.tMaterial);
+			pl__load_gltf_material(ptImageApi, ptResourceApi, &ptGraphics->tResourceManager, pcPath, ptPrimitive->material, ptMaterialComponent);
 			pl_sb_push(ptMeshComponent->sbtSubmeshes, tSubMesh);
 		}
 	}
 	else
 	{
 
-		plEntity tHierarchyEntity = pl_ecs_create_entity(ptRenderer);
-		plTransformComponent* ptTransformComponent = pl_ecs_create_component(ptScene->ptTransformComponentManager, tHierarchyEntity);
+		plEntity tHierarchyEntity = ptProtoApi->ecs_create_entity(ptRenderer);
+		plTransformComponent* ptTransformComponent = ptProtoApi->ecs_create_component(ptScene->ptTransformComponentManager, tHierarchyEntity);
 
 		ptTransformComponent->tWorld       = pl_identity_mat4();
 		ptTransformComponent->tRotation    = (plVec4){.w = 1.0f};
@@ -7021,24 +7046,27 @@ static void pl__load_gltf_object(plScene* ptScene, plEntity tParentEntity, const
 		ptTransformComponent->tFinalTransform = ptTransformComponent->tWorld;
 
 		if(tParentEntity != PL_INVALID_ENTITY_HANDLE)
-			pl_ecs_attach_component(ptScene, tHierarchyEntity, tParentEntity);
+			ptProtoApi->ecs_attach_component(ptScene, tHierarchyEntity, tParentEntity);
 
 		for(size_t szChildIndex = 0; szChildIndex < ptNode->children_count; szChildIndex++)
 		{
 			const cgltf_node* ptChild = ptNode->children[szChildIndex];
-			pl__load_gltf_object(ptScene, tHierarchyEntity, pcPath, ptChild);
+			pl__load_gltf_object(ptProtoApi, ptResourceApi, ptScene, tHierarchyEntity, pcPath, ptChild);
 		}
 	}
 }
 
-//-----------------------------------------------------------------------------
-// [SECTION] public api implementation
-//-----------------------------------------------------------------------------
-
-bool
+static bool
 pl_ext_load_gltf(plScene* ptScene, const char* pcPath)
 {
 	plRenderer* ptRenderer = ptScene->ptRenderer;
+	plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+	plResourceManager0ApiI* ptResourceApi = ptRenderer->ptResourceApi;
+	plDataRegistryApiI* ptDataRegistry = ptRenderer->ptDataRegistry;
+	plProtoApiI* ptProtoApi = ptRenderer->ptProtoApi;
+	plImageApiI* ptImageApi = ptRenderer->ptImageApi;
+
+	pl_set_log_context(ptDataRegistry->get_data("log"));
 
     plGraphics* ptGraphics = ptRenderer->ptGraphics;
     char acFileName[1024] = {0};
@@ -7061,18 +7089,14 @@ pl_ext_load_gltf(plScene* ptScene, const char* pcPath)
     for(size_t szNodeIndex = 0; szNodeIndex < ptGltfData->scenes[0].nodes_count; szNodeIndex++)
     {
         const cgltf_node* ptNode = ptGltfData->scenes[0].nodes[szNodeIndex];
-		pl__load_gltf_object(ptScene, 0, pcPath, ptNode);
+		pl__load_gltf_object(ptProtoApi, ptResourceApi, ptScene, 0, pcPath, ptNode);
     }
 
     return true;    
 }
 
-//-----------------------------------------------------------------------------
-// [SECTION] internal api implementation
-//-----------------------------------------------------------------------------
-
 static uint32_t
-pl__load_texture(plResourceManager* ptResourceManager, const char* pcPath, cgltf_texture* ptTexture)
+pl__load_texture(plImageApiI* ptImageApi, plResourceManager0ApiI* ptResourceApi, plResourceManager* ptResourceManager, const char* pcPath, cgltf_texture* ptTexture)
 {
 	char acFilepath[2048] = {0};
 	pl_str_get_directory(pcPath, acFilepath);
@@ -7081,7 +7105,7 @@ pl__load_texture(plResourceManager* ptResourceManager, const char* pcPath, cgltf
 
 	int texWidth, texHeight, texNumChannels;
 	int texForceNumChannels = 4;
-	unsigned char* rawBytes = stbi_load(acFilepath, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+	unsigned char* rawBytes = ptImageApi->load(acFilepath, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
 	PL_ASSERT(rawBytes);
 
 	const plTextureDesc tTextureDesc = {
@@ -7160,13 +7184,13 @@ pl__load_texture(plResourceManager* ptResourceManager, const char* pcPath, cgltf
 		.uMips       = tTextureDesc.uMips
 	};
 
-	uint32_t uTexture = pl_create_texture(ptResourceManager, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * 4, rawBytes, acFilepath);
-	stbi_image_free(rawBytes);
-	return pl_create_texture_view(ptResourceManager, &tView, &tSampler, uTexture, pcSamplerName);	
+	uint32_t uTexture = ptResourceApi->create_texture(ptResourceManager, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * 4, rawBytes, acFilepath);
+	ptImageApi->free(rawBytes);
+	return ptResourceApi->create_texture_view(ptResourceManager, &tView, &tSampler, uTexture, pcSamplerName);	
 }
 
 static void
-pl__load_gltf_material(plResourceManager* ptResourceManager, const char* pcPath, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut)
+pl__load_gltf_material(plImageApiI* ptImageApi, plResourceManager0ApiI* ptResourceApi, plResourceManager* ptResourceManager, const char* pcPath, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut)
 {
     ptMaterialOut->bDoubleSided = ptMaterial->double_sided;
     ptMaterialOut->fAlphaCutoff = ptMaterial->alpha_cutoff;
@@ -7180,20 +7204,46 @@ pl__load_gltf_material(plResourceManager* ptResourceManager, const char* pcPath,
 
         if(ptMaterial->pbr_metallic_roughness.base_color_texture.texture)
         {
-            ptMaterialOut->uAlbedoMap = pl__load_texture(ptResourceManager, pcPath, ptMaterial->pbr_metallic_roughness.base_color_texture.texture);
+            ptMaterialOut->uAlbedoMap = pl__load_texture(ptImageApi, ptResourceApi, ptResourceManager, pcPath, ptMaterial->pbr_metallic_roughness.base_color_texture.texture);
             ptMaterialOut->ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_0;
         }
 
         if(ptMaterial->normal_texture.texture)
         {
-            ptMaterialOut->uNormalMap = pl__load_texture(ptResourceManager, pcPath, ptMaterial->normal_texture.texture);
+            ptMaterialOut->uNormalMap = pl__load_texture(ptImageApi, ptResourceApi, ptResourceManager, pcPath, ptMaterial->normal_texture.texture);
             ptMaterialOut->ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_1;
         }
 
         if(ptMaterial->emissive_texture.texture)
         {
-            ptMaterialOut->uEmissiveMap = pl__load_texture(ptResourceManager, pcPath, ptMaterial->emissive_texture.texture);
+            ptMaterialOut->uEmissiveMap = pl__load_texture(ptImageApi, ptResourceApi, ptResourceManager, pcPath, ptMaterial->emissive_texture.texture);
             ptMaterialOut->ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_2;
         }
     }
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] extension loading
+//-----------------------------------------------------------------------------
+
+PL_EXPORT void
+pl_load_gltf_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
+{
+
+
+
+    if(bReload)
+    {
+        ptApiRegistry->replace(ptApiRegistry->first(PL_API_GLTF), pl_load_gltf_api());
+    }
+    else
+    {
+        ptApiRegistry->add(PL_API_GLTF, pl_load_gltf_api());
+    }
+}
+
+PL_EXPORT void
+pl_unload_gltf_ext(plApiRegistryApiI* ptApiRegistry)
+{
+    
 }

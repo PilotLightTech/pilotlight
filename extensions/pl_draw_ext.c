@@ -1,5 +1,5 @@
 /*
-   pl_draw.c
+   pl_draw_ext.c
 */
 
 /*
@@ -9,25 +9,35 @@ Index of this file:
 // [SECTION] context
 // [SECTION] internal structs
 // [SECTION] internal api
-// [SECTION] implementation
 // [SECTION] internal api implementation
 // [SECTION] default font stuff
+// [SECTION] extension loading
+// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pilotlight.h"
 #include <math.h>
 #include <stdio.h>
 #include <float.h> // FLT_MAX
 #include "stb_rect_pack.h"
 #include "stb_truetype.h"
-#include "pl_draw.h"
+#include "pl_draw_ext.h"
 #include "pl_ds.h"
 
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
+
+#ifdef PL_METAL_BACKEND
+#include "../backends/pl_metal.m"
+#endif
+
+#ifdef PL_VULKAN_BACKEND
+#include "../backends/pl_vulkan.c"
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -53,19 +63,9 @@ Index of this file:
     #define PL_FREE(x)       free(x)
 #endif
 
-#ifdef PL_USE_STB_SPRINTF
 #include "stb_sprintf.h"
-#endif
-
-#ifndef pl_sprintf
-#ifdef PL_USE_STB_SPRINTF
-    #define pl_sprintf stbsp_sprintf
-    #define pl_vsprintf stbsp_vsprintf
-#else
-    #define pl_sprintf sprintf
-    #define pl_vsprintf vsprintf
-#endif
-#endif
+#define pl_sprintf stbsp_sprintf
+#define pl_vsprintf stbsp_vsprintf
 
 //-----------------------------------------------------------------------------
 // [SECTION] context
@@ -92,6 +92,71 @@ typedef struct _plFontPrepData
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
+// context
+static void            pl__set_draw_context(plDrawContext* ptCtx);
+static plDrawContext*  pl__get_draw_context(void);
+// static void            pl__cleanup_draw_context(plDrawContext* ptCtx);  // implemented by backend
+
+// setup
+static void            pl__register_drawlist   (plDrawContext* ptCtx, plDrawList* ptDrawlist);
+static void            pl__register_3d_drawlist(plDrawContext* ptCtx, plDrawList3D* ptDrawlist);
+static plDrawLayer*    pl__request_draw_layer  (plDrawList* ptDrawlist, const char* pcName);
+static void            pl__return_draw_layer   (plDrawLayer* ptLayer);
+
+// per frame
+// static void            pl__new_draw_frame   (plDrawContext* ptCtx); // implemented by backend
+static void            pl__submit_draw_layer(plDrawLayer* ptLayer);
+
+// drawing
+static void            pl__add_line               (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec4 tColor, float fThickness);
+static void            pl__add_lines              (plDrawLayer* ptLayer, plVec2* atPoints, uint32_t uCount, plVec4 tColor, float fThickness);
+static void            pl__add_text               (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
+static void            pl__add_text_ex            (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
+static void            pl__add_text_clipped       (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
+static void            pl__add_text_clipped_ex    (plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
+static void            pl__add_triangle           (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness);
+static void            pl__add_triangle_filled    (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor);
+static void            pl__add_rect               (plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness);
+static void            pl__add_rect_filled        (plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor);
+static void            pl__add_rect_rounded       (plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments);
+static void            pl__add_rect_rounded_filled(plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments);
+static void            pl__add_quad               (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness);
+static void            pl__add_quad_filled        (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor);
+static void            pl__add_circle             (plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments, float fThickness);
+static void            pl__add_circle_filled      (plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments);
+static void            pl__add_image              (plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax);
+static void            pl__add_image_ex           (plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, plVec4 tColor);
+static void            pl__add_bezier_quad        (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
+static void            pl__add_bezier_cubic       (plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
+
+// 3D drawing
+static void            pl__add_3d_triangle_filled(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
+static void            pl__add_3d_line           (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness);
+static void            pl__add_3d_point          (plDrawList3D* ptDrawlist, plVec3 tP0, plVec4 tColor, float fLength, float fThickness);
+static void            pl__add_3d_transform      (plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fLength, float fThickness);
+static void            pl__add_3d_frustum        (plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fYFov, float fAspect, float fNearZ, float fFarZ, plVec4 tColor, float fThickness);
+static void            pl__add_3d_centered_box   (plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor, float fThickness);
+static void            pl__add_3d_bezier_quad    (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
+static void            pl__add_3d_bezier_cubic   (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
+
+// fonts
+// static void            pl__build_font_atlas        (plDrawContext* ptCtx, plFontAtlas* ptAtlas); // implemented by backend
+// static void            pl__cleanup_font_atlas      (plFontAtlas* ptAtlas);                     // implemented by backend
+static void            pl__add_default_font        (plFontAtlas* ptAtlas);
+static void            pl__add_font_from_file_ttf  (plFontAtlas* ptAtlas, plFontConfig tConfig, const char* pcFile);
+static void            pl__add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, void* pData);
+static plVec2          pl__calculate_text_size     (plFont* ptFont, float fSize, const char* pcText, float fWrap);
+static plVec2          pl__calculate_text_size_ex  (plFont* ptFont, float fSize, const char* pcText, const char* pcTextEnd, float fWrap);
+static plRect          pl__calculate_text_bb       (plFont* ptFont, float fSize, plVec2 tP, const char* pcText, float fWrap);
+static plRect          pl__calculate_text_bb_ex    (plFont* ptFont, float fSize, plVec2 tP, const char* pcText, const char* pcTextEnd, float fWrap);
+
+// clipping
+static void            pl__push_clip_rect_pt       (plDrawList* ptDrawlist, const plRect* ptRect);
+static void            pl__push_clip_rect          (plDrawList* ptDrawlist, plRect tRect, bool bAccumulate);
+static void            pl__pop_clip_rect           (plDrawList* ptDrawlist);
+static const plRect*   pl__get_clip_rect           (plDrawList* ptDrawlist);
+
+// helpers
 static void  pl__prepare_draw_command(plDrawLayer* layer, plTextureId texture, bool sdf);
 static void  pl__reserve_triangles(plDrawLayer* layer, uint32_t indexCount, uint32_t vertexCount);
 static void  pl__add_vertex(plDrawLayer* layer, plVec2 pos, plVec4 color, plVec2 uv);
@@ -109,7 +174,7 @@ static char* pl__read_file(const char* file);
 
 // stateful drawing
 #define pl__submit_path(layer, color, thickness)\
-    pl_add_lines((layer), (layer)->sbPath, pl_sb_size((layer)->sbPath) - 1, (color), (thickness));\
+    pl__add_lines((layer), (layer)->sbPath, pl_sb_size((layer)->sbPath) - 1, (color), (thickness));\
     pl_sb_reset((layer)->sbPath);
 
 #define PL_NORMALIZE2F_OVER_ZERO(VX,VY) \
@@ -117,39 +182,39 @@ static char* pl__read_file(const char* file);
     if (d2 > 0.0f) { float inv_len = 1.0f / sqrtf(d2); (VX) *= inv_len; (VY) *= inv_len; } } (void)0
 
 //-----------------------------------------------------------------------------
-// [SECTION] implementation
+// [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
 
-void
-pl_set_draw_context(plDrawContext* ptCtx)
+static void
+pl__set_draw_context(plDrawContext* ptCtx)
 {
     gptDrawCtx = ptCtx;
 }
 
-plDrawContext*
-pl_get_draw_context(void)
+static plDrawContext*
+pl__get_draw_context(void)
 {
     return gptDrawCtx;
 }
 
-void
-pl_register_drawlist(plDrawContext* ctx, plDrawList* drawlist)
+static void
+pl__register_drawlist(plDrawContext* ctx, plDrawList* drawlist)
 {
     memset(drawlist, 0, sizeof(plDrawList));
     drawlist->ctx = ctx;
     pl_sb_push(ctx->sbDrawlists, drawlist);
 }
 
-void
-pl_register_3d_drawlist(plDrawContext* ptCtx, plDrawList3D* ptDrawlist)
+static void
+pl__register_3d_drawlist(plDrawContext* ptCtx, plDrawList3D* ptDrawlist)
 {
     memset(ptDrawlist, 0, sizeof(plDrawList3D));
     ptDrawlist->ctx = ptCtx;
     pl_sb_push(ptCtx->sb3DDrawlists, ptDrawlist);
 }
 
-plDrawLayer*
-pl_request_draw_layer(plDrawList* drawlist, const char* name)
+static plDrawLayer*
+pl__request_draw_layer(plDrawList* drawlist, const char* name)
 {
    plDrawLayer* layer = NULL;
    
@@ -176,8 +241,8 @@ pl_request_draw_layer(plDrawList* drawlist, const char* name)
    return layer;
 }
 
-void
-pl_return_draw_layer(plDrawLayer* layer)
+static void
+pl__return_draw_layer(plDrawLayer* layer)
 {
     layer->name[0] = 0;
     layer->_lastCommand = NULL;
@@ -188,8 +253,8 @@ pl_return_draw_layer(plDrawLayer* layer)
     pl_sb_push(layer->drawlist->sbLayerCache, layer);
 }
 
-void
-pl__new_draw_frame(plDrawContext* ctx)
+static void
+pl__new_draw_frame_i(plDrawContext* ctx)
 {
     gptDrawCtx = ctx;
 
@@ -228,23 +293,23 @@ pl__new_draw_frame(plDrawContext* ctx)
     ctx->frameCount++;
 }
 
-void
-pl_submit_draw_layer(plDrawLayer* layer)
+static void
+pl__submit_draw_layer(plDrawLayer* layer)
 {
     pl_sb_push(layer->drawlist->sbSubmittedLayers, layer);
     layer->drawlist->indexBufferByteSize += pl_sb_size(layer->sbIndexBuffer) * sizeof(uint32_t);
 }
 
-void
-pl_add_line(plDrawLayer* layer, plVec2 p0, plVec2 p1, plVec4 color, float thickness)
+static void
+pl__add_line(plDrawLayer* layer, plVec2 p0, plVec2 p1, plVec4 color, float thickness)
 {
     pl_sb_push(layer->sbPath, p0);
     pl_sb_push(layer->sbPath, p1);
     pl__submit_path(layer, color, thickness);
 }
 
-void
-pl_add_lines(plDrawLayer* layer, plVec2* points, uint32_t count, plVec4 color, float thickness)
+static void
+pl__add_lines(plDrawLayer* layer, plVec2* points, uint32_t count, plVec4 color, float thickness)
 {
     pl__prepare_draw_command(layer, layer->drawlist->ctx->fontAtlas->texture, false);
     pl__reserve_triangles(layer, 6 * count, 4 * count);
@@ -280,15 +345,15 @@ pl_add_lines(plDrawLayer* layer, plVec2* points, uint32_t count, plVec4 color, f
     }  
 }
 
-void
-pl_add_text(plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec4 color, const char* text, float wrap)
+static void
+pl__add_text(plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec4 color, const char* text, float wrap)
 {
     const char* pcTextEnd = text + strlen(text);
-    pl_add_text_ex(layer, font, size, p, color, text, pcTextEnd, wrap);
+    pl__add_text_ex(layer, font, size, p, color, text, pcTextEnd, wrap);
 }
 
-void
-pl_add_text_ex(plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec4 color, const char* text, const char* pcTextEnd, float wrap)
+static void
+pl__add_text_ex(plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec4 color, const char* text, const char* pcTextEnd, float wrap)
 {
     float scale = size > 0.0f ? size / font->config.fontSize : 1.0f;
 
@@ -384,15 +449,15 @@ pl_add_text_ex(plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec4 co
     }
 }
 
-void
-pl_add_text_clipped(plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap)
+static void
+pl__add_text_clipped(plDrawLayer* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap)
 {
     const char* pcTextEnd = pcText + strlen(pcText);
-    pl_add_text_clipped_ex(ptLayer, ptFont, fSize, tP, tMin, tMax, tColor, pcText, pcTextEnd, fWrap);
+    pl__add_text_clipped_ex(ptLayer, ptFont, fSize, tP, tMin, tMax, tColor, pcText, pcTextEnd, fWrap);
 }
 
-void
-pl_add_text_clipped_ex(plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec2 tMin, plVec2 tMax, plVec4 color, const char* text, const char* pcTextEnd, float wrap)
+static void
+pl__add_text_clipped_ex(plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec2 tMin, plVec2 tMax, plVec4 color, const char* text, const char* pcTextEnd, float wrap)
 {
     // const plVec2 tTextSize = pl_calculate_text_size_ex(font, size, text, pcTextEnd, wrap);
     const plRect tClipRect = {tMin, tMax};
@@ -491,8 +556,8 @@ pl_add_text_clipped_ex(plDrawLayer* layer, plFont* font, float size, plVec2 p, p
     }   
 }
 
-void
-pl_add_triangle(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness)
+static void
+pl__add_triangle(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness)
 {
     pl_sb_push(ptLayer->sbPath, tP0);
     pl_sb_push(ptLayer->sbPath, tP1);
@@ -501,8 +566,8 @@ pl_add_triangle(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4
     pl__submit_path(ptLayer, tColor, fThickness);    
 }
 
-void
-pl_add_triangle_filled(plDrawLayer* layer, plVec2 p0, plVec2 p1, plVec2 p2, plVec4 color)
+static void
+pl__add_triangle_filled(plDrawLayer* layer, plVec2 p0, plVec2 p1, plVec2 p2, plVec4 color)
 {
     pl__prepare_draw_command(layer, layer->drawlist->ctx->fontAtlas->texture, false);
     pl__reserve_triangles(layer, 3, 3);
@@ -515,8 +580,8 @@ pl_add_triangle_filled(plDrawLayer* layer, plVec2 p0, plVec2 p1, plVec2 p2, plVe
     pl__add_index(layer, vertexStart, 0, 1, 2);
 }
 
-void
-pl_add_rect(plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness)
+static void
+pl__add_rect(plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness)
 {
     const plVec2 fBotLeftVec  = {tMinP.x, tMaxP.y};
     const plVec2 fTopRightVec = {tMaxP.x, tMinP.y};
@@ -529,8 +594,8 @@ pl_add_rect(plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, flo
     pl__submit_path(ptLayer, tColor, fThickness);   
 }
 
-void
-pl_add_rect_filled(plDrawLayer* layer, plVec2 minP, plVec2 maxP, plVec4 color)
+static void
+pl__add_rect_filled(plDrawLayer* layer, plVec2 minP, plVec2 maxP, plVec4 color)
 {
     pl__prepare_draw_command(layer, layer->drawlist->ctx->fontAtlas->texture, false);
     pl__reserve_triangles(layer, 6, 4);
@@ -549,8 +614,8 @@ pl_add_rect_filled(plDrawLayer* layer, plVec2 minP, plVec2 maxP, plVec4 color)
 }
 
 // segments is the number of segments used to approximate one corner
-void
-pl_add_rect_rounded(plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments)
+static void
+pl__add_rect_rounded(plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments)
 {
     if(uSegments == 0){ uSegments = 3; }
     const float fIncrement = PL_PI_2 / uSegments;
@@ -615,8 +680,8 @@ pl_add_rect_rounded(plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tCo
 }
 
 // segments is the number of segments used to approximate one corner
-void
-pl_add_rect_rounded_filled(plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments)
+static void
+pl__add_rect_rounded_filled(plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments)
 {
     if(uSegments == 0){ uSegments = 3; }
     const uint32_t numTriangles = (uSegments * 4 + 4); //number segments in midpoint circle, plus square
@@ -689,8 +754,8 @@ pl_add_rect_rounded_filled(plDrawLayer* ptLayer, plVec2 tMinP, plVec2 tMaxP, plV
 
 }
 
-void
-pl_add_quad(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness)
+static void
+pl__add_quad(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness)
 {
     pl_sb_push(ptLayer->sbPath, tP0);
     pl_sb_push(ptLayer->sbPath, tP1);
@@ -700,8 +765,8 @@ pl_add_quad(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3
     pl__submit_path(ptLayer, tColor, fThickness);
 }
 
-void
-pl_add_quad_filled(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor)
+static void
+pl__add_quad_filled(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor)
 {
     pl__prepare_draw_command(ptLayer, ptLayer->drawlist->ctx->fontAtlas->texture, false);
     pl__reserve_triangles(ptLayer, 6, 4);
@@ -716,8 +781,8 @@ pl_add_quad_filled(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plV
     pl__add_index(ptLayer, uVtxStart, 0, 2, 3);
 }
 
-void
-pl_add_circle(plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments, float fThickness)
+static void
+pl__add_circle(plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments, float fThickness)
 {
     if(uSegments == 0){ uSegments = 12; }
     const float fIncrement = PL_2PI / uSegments;
@@ -731,8 +796,8 @@ pl_add_circle(plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uin
     pl__submit_path(ptLayer, tColor, fThickness);   
 }
 
-void
-pl_add_circle_filled(plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments)
+static void
+pl__add_circle_filled(plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments)
 {
     if(uSegments == 0){ uSegments = 12; }
     pl__prepare_draw_command(ptLayer, ptLayer->drawlist->ctx->fontAtlas->texture, false);
@@ -754,14 +819,14 @@ pl_add_circle_filled(plDrawLayer* ptLayer, plVec2 tP, float fRadius, plVec4 tCol
     pl__add_index(ptLayer, uVertexStart, uSegments, 0, 1);
 }
 
-void
-pl_add_image(plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax)
+static void
+pl__add_image(plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax)
 {
-    pl_add_image_ex(ptLayer, tTexture, tPMin, tPMax, (plVec2){0}, (plVec2){1.0f, 1.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f});
+    pl__add_image_ex(ptLayer, tTexture, tPMin, tPMax, (plVec2){0}, (plVec2){1.0f, 1.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f});
 }
 
-void
-pl_add_image_ex(plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, plVec4 tColor)
+static void
+pl__add_image_ex(plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, plVec4 tColor)
 {
     pl__prepare_draw_command(ptLayer, tTexture, false);
     pl__reserve_triangles(ptLayer, 6, 4);
@@ -780,8 +845,8 @@ pl_add_image_ex(plDrawLayer* ptLayer, plTextureId tTexture, plVec2 tPMin, plVec2
 }
 
 // order of the bezier curve inputs are 0=start, 1=control, 2=ending
-void
-pl_add_bezier_quad(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness, uint32_t uSegments)
+static void
+pl__add_bezier_quad(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness, uint32_t uSegments)
 {
 
     if(uSegments == 0)
@@ -814,8 +879,8 @@ pl_add_bezier_quad(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plV
 }
 
 // order of the bezier curve inputs are 0=start, 1=control 1, 2=control 2, 3=ending
-void
-pl_add_bezier_cubic(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness, uint32_t uSegments)
+static void
+pl__add_bezier_cubic(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness, uint32_t uSegments)
 {
 
     if(uSegments == 0)
@@ -851,8 +916,8 @@ pl_add_bezier_cubic(plDrawLayer* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, pl
     pl__submit_path(ptLayer, tColor, fThickness); 
 }
 
-void
-pl_add_3d_triangle_filled(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor)
+static void
+pl__add_3d_triangle_filled(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor)
 {
 
     pl_sb_reserve(ptDrawlist->sbVertexBuffer, pl_sb_size(ptDrawlist->sbVertexBuffer) + 3);
@@ -875,8 +940,8 @@ pl_add_3d_triangle_filled(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVe
     pl_sb_push(ptDrawlist->sbIndexBuffer, uVertexStart + 2);
 }
 
-void
-pl_add_3d_line(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness)
+static void
+pl__add_3d_line(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness)
 {
     uint32_t tU32Color = 0;
     tU32Color = (uint32_t)  (255.0f * tColor.r + 0.5f);
@@ -923,8 +988,8 @@ pl_add_3d_line(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec4 tColor, 
     pl_sb_push(ptDrawlist->sbLineIndexBuffer, uVertexStart + 3);
 }
 
-void
-pl_add_3d_point(plDrawList3D* ptDrawlist, plVec3 tP, plVec4 tColor, float fLength, float fThickness)
+static void
+pl__add_3d_point(plDrawList3D* ptDrawlist, plVec3 tP, plVec4 tColor, float fLength, float fThickness)
 {
     const plVec3 tVerticies[6] = {
         {  tP.x - fLength / 2.0f,  tP.y, tP.z},
@@ -935,13 +1000,13 @@ pl_add_3d_point(plDrawList3D* ptDrawlist, plVec3 tP, plVec4 tColor, float fLengt
         {  tP.x,  tP.y, tP.z + fLength / 2.0f}
     };
 
-    pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[2], tVerticies[3], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[4], tVerticies[5], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[2], tVerticies[3], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[4], tVerticies[5], tColor, fThickness);
 }
 
-void
-pl_add_3d_transform(plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fLength, float fThickness)
+static void
+pl__add_3d_transform(plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fLength, float fThickness)
 {
 
     const plVec3 tOrigin = pl_mul_mat4_vec3(ptTransform, (plVec3){0.0f, 0.0f, 0.0f});
@@ -949,13 +1014,13 @@ pl_add_3d_transform(plDrawList3D* ptDrawlist, const plMat4* ptTransform, float f
     const plVec3 tYAxis  = pl_mul_mat4_vec3(ptTransform, (plVec3){0.0f, fLength, 0.0f});
     const plVec3 tZAxis  = pl_mul_mat4_vec3(ptTransform, (plVec3){0.0f, 0.0f, fLength});
 
-    pl_add_3d_line(ptDrawlist, tOrigin, tXAxis, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, fThickness);
-    pl_add_3d_line(ptDrawlist, tOrigin, tYAxis, (plVec4){0.0f, 1.0f, 0.0f, 1.0f}, fThickness);
-    pl_add_3d_line(ptDrawlist, tOrigin, tZAxis, (plVec4){0.0f, 0.0f, 1.0f, 1.0f}, fThickness);
+    pl__add_3d_line(ptDrawlist, tOrigin, tXAxis, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, fThickness);
+    pl__add_3d_line(ptDrawlist, tOrigin, tYAxis, (plVec4){0.0f, 1.0f, 0.0f, 1.0f}, fThickness);
+    pl__add_3d_line(ptDrawlist, tOrigin, tZAxis, (plVec4){0.0f, 0.0f, 1.0f, 1.0f}, fThickness);
 }
 
-void
-pl_add_3d_frustum(plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fYFov, float fAspect, float fNearZ, float fFarZ, plVec4 tColor, float fThickness)
+static void
+pl__add_3d_frustum(plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fYFov, float fAspect, float fNearZ, float fFarZ, plVec4 tColor, float fThickness)
 {
     const float fSmallHeight = tanf(fYFov / 2.0f) * fNearZ;
     const float fSmallWidth  = fSmallHeight * fAspect;
@@ -973,22 +1038,22 @@ pl_add_3d_frustum(plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fYF
         pl_mul_mat4_vec3(ptTransform, (plVec3){ -fBigWidth,    fBigHeight,   fFarZ})
     };
 
-    pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[1], tVerticies[2], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[2], tVerticies[3], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[3], tVerticies[0], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[4], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[1], tVerticies[5], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[2], tVerticies[6], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[3], tVerticies[7], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[4], tVerticies[5], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[5], tVerticies[6], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[6], tVerticies[7], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[7], tVerticies[4], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[1], tVerticies[2], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[2], tVerticies[3], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[3], tVerticies[0], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[0], tVerticies[4], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[1], tVerticies[5], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[2], tVerticies[6], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[3], tVerticies[7], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[4], tVerticies[5], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[5], tVerticies[6], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[6], tVerticies[7], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[7], tVerticies[4], tColor, fThickness);
 }
 
-void
-pl_add_3d_centered_box(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor, float fThickness)
+static void
+pl__add_3d_centered_box(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor, float fThickness)
 {
     const plVec3 tWidthVec  = {fWidth / 2.0f, 0.0f, 0.0f};
     const plVec3 tHeightVec = {0.0f, fHeight / 2.0f, 0.0f};
@@ -1005,23 +1070,23 @@ pl_add_3d_centered_box(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, f
         {  tCenter.x + fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z + fDepth / 2.0f}
     };
 
-    pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[1], tVerticies[2], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[2], tVerticies[3], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[3], tVerticies[0], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[4], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[1], tVerticies[5], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[2], tVerticies[6], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[3], tVerticies[7], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[4], tVerticies[5], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[5], tVerticies[6], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[6], tVerticies[7], tColor, fThickness);
-    pl_add_3d_line(ptDrawlist, tVerticies[7], tVerticies[4], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[1], tVerticies[2], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[2], tVerticies[3], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[3], tVerticies[0], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[0], tVerticies[4], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[1], tVerticies[5], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[2], tVerticies[6], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[3], tVerticies[7], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[4], tVerticies[5], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[5], tVerticies[6], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[6], tVerticies[7], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[7], tVerticies[4], tColor, fThickness);
 }
 
 // order of the bezier curve inputs are 0=start, 1=control, 2=ending
-void
-pl_add_3d_bezier_quad(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments)
+static void
+pl__add_3d_bezier_quad(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments)
 {
 
     if(uSegments == 0)
@@ -1047,18 +1112,18 @@ pl_add_3d_bezier_quad(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 t
         tVerticies[0] = tVerticies[1];
         tVerticies[1] = p4;
 
-        pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
+        pl__add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
     }
 
     // set up last point
     tVerticies[0] = tVerticies[1];
     tVerticies[1] = tP2;
-    pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
 }
 
 // order of the bezier curve inputs are 0=start, 1=control 1, 2=control 2, 3=ending
-void
-pl_add_3d_bezier_cubic(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments)
+static void
+pl__add_3d_bezier_cubic(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments)
 {
 
     if(uSegments == 0)
@@ -1088,24 +1153,24 @@ pl_add_3d_bezier_cubic(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 
         tVerticies[0] = tVerticies[1];
         tVerticies[1] = p7;
 
-        pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
+        pl__add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
     }
 
     // set up last point
     tVerticies[0] = tVerticies[1];
     tVerticies[1] = tP3;
-    pl_add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
 }
 
-void
-pl_add_font_from_file_ttf(plFontAtlas* atlas, plFontConfig config, const char* file)
+static void
+pl__add_font_from_file_ttf(plFontAtlas* atlas, plFontConfig config, const char* file)
 {
     void* data = pl__read_file(file); // freed after atlas is created
-    pl_add_font_from_memory_ttf(atlas, config, data);
+    pl__add_font_from_memory_ttf(atlas, config, data);
 }
 
-void
-pl_add_font_from_memory_ttf(plFontAtlas* atlas, plFontConfig config, void* data)
+static void
+pl__add_font_from_memory_ttf(plFontAtlas* atlas, plFontConfig config, void* data)
 {
     atlas->dirty = true;
     atlas->glyphPadding = 1;
@@ -1275,15 +1340,15 @@ pl_add_font_from_memory_ttf(plFontAtlas* atlas, plFontConfig config, void* data)
     pl_sb_push(atlas->_sbPrepData, prep);
 }
 
-plVec2
-pl_calculate_text_size(plFont* font, float size, const char* text, float wrap)
+static plVec2
+pl__calculate_text_size(plFont* font, float size, const char* text, float wrap)
 {
     const char* pcTextEnd = text + strlen(text);
-    return pl_calculate_text_size_ex(font, size, text, pcTextEnd, wrap);
+    return pl__calculate_text_size_ex(font, size, text, pcTextEnd, wrap);
 }
 
-plVec2
-pl_calculate_text_size_ex(plFont* font, float size, const char* text, const char* pcTextEnd, float wrap)
+static plVec2
+pl__calculate_text_size_ex(plFont* font, float size, const char* text, const char* pcTextEnd, float wrap)
 {
     plVec2 result = {0};
     plVec2 cursor = {0};
@@ -1379,15 +1444,15 @@ pl_calculate_text_size_ex(plFont* font, float size, const char* text, const char
     return pl_sub_vec2(result, originalPosition);
 }
 
-plRect
-pl_calculate_text_bb(plFont* ptFont, float fSize, plVec2 tP, const char* pcText, float fWrap)
+static plRect
+pl__calculate_text_bb(plFont* ptFont, float fSize, plVec2 tP, const char* pcText, float fWrap)
 {
     const char* pcTextEnd = pcText + strlen(pcText);
-    return pl_calculate_text_bb_ex(ptFont, fSize, tP, pcText, pcTextEnd, fWrap);
+    return pl__calculate_text_bb_ex(ptFont, fSize, tP, pcText, pcTextEnd, fWrap);
 }
 
-plRect
-pl_calculate_text_bb_ex(plFont* font, float size, plVec2 tP, const char* text, const char* pcTextEnd, float wrap)
+static plRect
+pl__calculate_text_bb_ex(plFont* font, float size, plVec2 tP, const char* text, const char* pcTextEnd, float wrap)
 {
     plVec2 tTextSize = {0};
     plVec2 cursor = {0};
@@ -1490,36 +1555,36 @@ pl_calculate_text_bb_ex(plFont* font, float size, plVec2 tP, const char* text, c
     return tResult;
 }
 
-void
-pl_push_clip_rect_pt(plDrawList* ptDrawlist, const plRect* ptRect)
+static void
+pl__push_clip_rect_pt(plDrawList* ptDrawlist, const plRect* ptRect)
 {
     pl_sb_push(ptDrawlist->sbClipStack, *ptRect);
 }
 
-void
-pl_push_clip_rect(plDrawList* ptDrawlist, plRect tRect, bool bAccumulate)
+static void
+pl__push_clip_rect(plDrawList* ptDrawlist, plRect tRect, bool bAccumulate)
 {
     if(bAccumulate && pl_sb_size(ptDrawlist->sbClipStack) > 0)
         tRect = pl_rect_clip_full(&tRect, &pl_sb_back(ptDrawlist->sbClipStack));
     pl_sb_push(ptDrawlist->sbClipStack, tRect);
 }
 
-void
-pl_pop_clip_rect(plDrawList* ptDrawlist)
+static void
+pl__pop_clip_rect(plDrawList* ptDrawlist)
 {
     pl_sb_pop(ptDrawlist->sbClipStack);
 }
 
-const plRect*
-pl_get_clip_rect(plDrawList* ptDrawlist)
+static const plRect*
+pl__get_clip_rect(plDrawList* ptDrawlist)
 {
      if(pl_sb_size(ptDrawlist->sbClipStack) > 0)
         return &pl_sb_back(ptDrawlist->sbClipStack);
     return NULL;
 }
 
-void
-pl__cleanup_draw_context(plDrawContext* ctx)
+static void
+pl__cleanup_draw_context_i(plDrawContext* ctx)
 {
     for(uint32_t i = 0u; i < pl_sb_size(ctx->sbDrawlists); i++)
     {
@@ -1545,8 +1610,8 @@ pl__cleanup_draw_context(plDrawContext* ctx)
     pl_sb_free(ctx->sbDrawlists);
 }
 
-void
-pl__build_font_atlas(plFontAtlas* atlas)
+static void
+pl__build_font_atlas_i(plFontAtlas* atlas)
 {
     // calculate texture total area needed
     uint32_t totalAtlasArea = 0u;
@@ -1740,8 +1805,8 @@ pl__build_font_atlas(plFontAtlas* atlas)
     PL_FREE(rects);
 }
 
-void
-pl__cleanup_font_atlas(plFontAtlas* atlas)
+static void
+pl__cleanup_font_atlas_i(plFontAtlas* atlas)
 {
     for(uint32_t i = 0; i < pl_sb_size(atlas->sbFonts); i++)
     {
@@ -1758,10 +1823,6 @@ pl__cleanup_font_atlas(plFontAtlas* atlas)
     PL_FREE(atlas->pixelsAsAlpha8);
     PL_FREE(atlas->pixelsAsRGBA32);
 }
-
-//-----------------------------------------------------------------------------
-// [SECTION] internal api implementation
-//-----------------------------------------------------------------------------
 
 static void
 pl__prepare_draw_command(plDrawLayer* layer, plTextureId textureID, bool sdf)
@@ -2178,8 +2239,8 @@ static const char gcPtrDefaultFontCompressed[11980 + 1] =
     "GT4CPGT4CPGT4CPGT4CPGT4CPGT4CP-qekC`.9kEg^+F$kwViFJTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5o,^<-28ZI'O?;xp"
     "O?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xp;7q-#lLYI:xvD=#";
 
-void
-pl_add_default_font(plFontAtlas* ptrAtlas)
+static void
+pl__add_default_font(plFontAtlas* ptrAtlas)
 {
     static const char* cPtrEmbeddedFontName = "Proggy.ttf";
     
@@ -2209,5 +2270,121 @@ pl_add_default_font(plFontAtlas* ptrAtlas)
         .charCount = 0x00FF - 0x0020
     };
     pl_sb_push(fontConfig.sbRanges, range);
-    pl_add_font_from_memory_ttf(ptrAtlas, fontConfig, data);
+    pl__add_font_from_memory_ttf(ptrAtlas, fontConfig, data);
 }
+
+plDrawApiI*
+pl_load_draw_api(void)
+{
+    static plDrawApiI tApi0 = {
+
+        // provided by backend
+        .new_frame                = pl_new_draw_frame,
+        .cleanup_context          = pl_cleanup_draw_context,
+        .build_font_atlas         = pl_build_font_atlas,
+        .cleanup_font_atlas       = pl_cleanup_font_atlas,
+
+        // provided by this file
+        .set_context              = pl__set_draw_context,
+        .get_context              = pl__get_draw_context,
+        .register_drawlist        = pl__register_drawlist,
+        .register_3d_drawlist     = pl__register_3d_drawlist,
+        .request_layer            = pl__request_draw_layer,
+        .return_layer             = pl__return_draw_layer,
+        .submit_layer             = pl__submit_draw_layer,
+        .add_line                 = pl__add_line,
+        .add_lines                = pl__add_lines,
+        .add_text                 = pl__add_text,
+        .add_text_ex              = pl__add_text_ex,
+        .add_text_clipped         = pl__add_text_clipped,
+        .add_text_clipped_ex      = pl__add_text_clipped_ex,
+        .add_triangle             = pl__add_triangle,
+        .add_triangle_filled      = pl__add_triangle_filled,
+        .add_rect                 = pl__add_rect,
+        .add_rect_filled          = pl__add_rect_filled,
+        .add_rect_rounded         = pl__add_rect_rounded,
+        .add_rect_rounded_filled  = pl__add_rect_rounded_filled,
+        .add_quad                 = pl__add_quad,
+        .add_quad_filled          = pl__add_quad_filled,
+        .add_circle               = pl__add_circle,
+        .add_circle_filled        = pl__add_circle_filled,
+        .add_image                = pl__add_image,
+        .add_image_ex             = pl__add_image_ex,
+        .add_bezier_quad          = pl__add_bezier_quad,
+        .add_bezier_cubic         = pl__add_bezier_cubic,
+        .add_3d_triangle_filled   = pl__add_3d_triangle_filled,
+        .add_3d_line              = pl__add_3d_line,
+        .add_3d_point             = pl__add_3d_point,
+        .add_3d_transform         = pl__add_3d_transform,
+        .add_3d_frustum           = pl__add_3d_frustum,
+        .add_3d_centered_box      = pl__add_3d_centered_box,
+        .add_3d_bezier_quad       = pl__add_3d_bezier_quad,
+        .add_3d_bezier_cubic      = pl__add_3d_bezier_cubic,
+        .add_default_font         = pl__add_default_font,
+        .add_font_from_file_ttf   = pl__add_font_from_file_ttf,
+        .add_font_from_memory_ttf = pl__add_font_from_memory_ttf,
+        .calculate_text_size      = pl__calculate_text_size,
+        .calculate_text_size_ex   = pl__calculate_text_size_ex,
+        .calculate_text_bb        = pl__calculate_text_bb,
+        .calculate_text_bb_ex     = pl__calculate_text_bb_ex,
+        .push_clip_rect_pt        = pl__push_clip_rect_pt,
+        .push_clip_rect           = pl__push_clip_rect,
+        .pop_clip_rect            = pl__pop_clip_rect,
+        .get_clip_rect            = pl__get_clip_rect
+    };
+    return &tApi0;
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] extension loading
+//-----------------------------------------------------------------------------
+
+PL_EXPORT void
+pl_load_draw_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
+{
+
+
+    #ifdef PL_METAL_BACKEND
+    if(bReload)
+    {
+        ptApiRegistry->replace(ptApiRegistry->first(PL_API_DRAW), pl_load_draw_api());
+        ptApiRegistry->replace(ptApiRegistry->first(PL_API_METAL_DRAW), pl_load_metal_draw_api());
+    }
+    else
+    {
+        ptApiRegistry->add(PL_API_DRAW, pl_load_draw_api());
+        ptApiRegistry->add(PL_API_METAL_DRAW, pl_load_metal_draw_api());
+    }
+    #endif
+
+    #ifdef PL_VULKAN_BACKEND
+    if(bReload)
+    {
+        ptApiRegistry->replace(ptApiRegistry->first(PL_API_DRAW), pl_load_draw_api());
+        ptApiRegistry->replace(ptApiRegistry->first(PL_API_VULKAN_DRAW), pl_load_vulkan_draw_api());
+    }
+    else
+    {
+        ptApiRegistry->add(PL_API_DRAW, pl_load_draw_api());
+        ptApiRegistry->add(PL_API_VULKAN_DRAW, pl_load_vulkan_draw_api());
+    }
+    #endif
+}
+
+PL_EXPORT void
+pl_unload_draw_ext(plApiRegistryApiI* ptApiRegistry)
+{
+    
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] unity build
+//-----------------------------------------------------------------------------
+
+#define STB_RECT_PACK_IMPLEMENTATION
+#include "stb_rect_pack.h"
+#undef STB_RECT_PACK_IMPLEMENTATION
+
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
+#undef STB_TRUETYPE_IMPLEMENTATION

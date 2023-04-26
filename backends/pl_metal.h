@@ -11,11 +11,13 @@ Index of this file:
 #ifndef PL_DRAW_METAL_H
 #define PL_DRAW_METAL_H
 
+#define PL_API_METAL_DRAW "PL_API_METAL_DRAW"
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_draw.h"
+#include "pl_draw_ext.h"
 #import <Metal/Metal.h>
 
 //-----------------------------------------------------------------------------
@@ -23,9 +25,14 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 NS_ASSUME_NONNULL_BEGIN
-void pl_initialize_draw_context_metal(plDrawContext* ctx, id<MTLDevice> device);
-void pl_new_draw_frame_metal         (plDrawContext* ctx, MTLRenderPassDescriptor* renderPassDescriptor);
-void pl_submit_drawlist_metal        (plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder);
+typedef struct _plMetalDrawApiI
+{
+void (*initialize_context)(plDrawContext* ctx, id<MTLDevice> device);
+void (*new_frame)         (plDrawContext* ctx, MTLRenderPassDescriptor* renderPassDescriptor);
+void (*submit_drawlist)   (plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder);
+} plMetalDrawApiI;
+
+plMetalDrawApiI* pl_load_metal_draw_api(void);
 NS_ASSUME_NONNULL_END
 
 #endif // PL_METAL_H

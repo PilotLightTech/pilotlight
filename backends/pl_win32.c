@@ -23,22 +23,20 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "stb_sprintf.h"
 #include "pl_win32.h"
 #include "pl_io.h"    // io context
 #include <stdio.h>  // file api
 #include <stdlib.h> // malloc
 #include <float.h>    // FLT_MAX, FLT_MIN
-
-#ifdef PL_INCLUDE_OS_H
 #include "pl_os.h"
-#include "pl_registry.h"
+#include "pilotlight.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
 #include <windows.h>
 #pragma comment(lib, "ws2_32.lib") // winsock2 library
-#endif
 
 #include <windowsx.h> // GET_X_LPARAM(), GET_Y_LPARAM()
 
@@ -355,53 +353,29 @@ pl_windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
     return 0;  
 }
 
-#ifdef PL_INCLUDE_OS_H
-
 void
-pl_load_file_api(plApiRegistryApiI* ptApiRegistry)
+pl_load_os_apis(plApiRegistryApiI* ptApiRegistry)
 {
-    static plFileApiI tApi = {
-        .copy_file = pl__copy_file,
-        .read_file = pl__read_file
+    static plFileApiI tApi0 = {
+        .copy = pl__copy_file,
+        .read = pl__read_file
     };
-    ptApiRegistry->add(PL_API_FILE, &tApi);
-}
-
-void
-pl_load_udp_api(plApiRegistryApiI* ptApiRegistry)
-{
-    static plUdpApiI tApi = 
-    {
-        .create_udp_socket = pl__create_udp_socket,
-        .bind_udp_socket   = pl__bind_udp_socket,  
-        .get_udp_data      = pl__get_udp_data,
-        .send_udp_data     = pl__send_udp_data
+    
+    static plUdpApiI tApi1 = {
+        .create_socket = pl__create_udp_socket,
+        .bind_socket   = pl__bind_udp_socket,  
+        .get_data      = pl__get_udp_data,
+        .send_data     = pl__send_udp_data
     };
-    ptApiRegistry->add(PL_API_UDP, &tApi);
-}
 
-void
-pl_load_library_api(plApiRegistryApiI* ptApiRegistry)
-{
-    static plLibraryApiI tApi = {
-        .has_library_changed   = pl__has_library_changed,
-        .load_library          = pl__load_library,
-        .load_library_function = pl__load_library_function,
-        .reload_library        = pl__reload_library
+    static plOsServicesApiI tApi2 = {
+        .sleep     = pl__sleep
     };
-    ptApiRegistry->add(PL_API_LIBRARY, &tApi);
-}
 
-void
-pl_load_os_services_api(plApiRegistryApiI* ptApiRegistry)
-{
-    static plOsServicesApiI tApi = {
-        .sleep = pl__sleep
-    };
-    ptApiRegistry->add(PL_API_OS_SERVICES, &tApi);
+    ptApiRegistry->add(PL_API_FILE, &tApi0);
+    ptApiRegistry->add(PL_API_UDP, &tApi1);
+    ptApiRegistry->add(PL_API_OS_SERVICES, &tApi2);
 }
-
-#endif // PL_INCLUDE_OS_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
@@ -519,8 +493,6 @@ pl__virtual_key_to_pl_key(WPARAM tWParam)
         default:                 return PL_KEY_NONE;
     }   
 }
-
-#ifdef PL_INCLUDE_OS_H
 
 static void
 pl__read_file(const char* pcFile, unsigned* puSizeIn, char* pcBuffer, const char* pcMode)
@@ -690,7 +662,7 @@ pl__load_library(plSharedLibrary* ptLibrary, const char* pcName, const char* pcT
         char acTemporaryName[2024] = {0};
         ptWin32Library->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
         
-        pl_sprintf(acTemporaryName, "%s%u%s", ptLibrary->acTransitionalName, ptLibrary->uTempIndex, ".dll");
+        stbsp_sprintf(acTemporaryName, "%s%u%s", ptLibrary->acTransitionalName, ptLibrary->uTempIndex, ".dll");
         if(++ptLibrary->uTempIndex >= 1024)
         {
             ptLibrary->uTempIndex = 0;
@@ -728,7 +700,7 @@ pl__load_library_function(plSharedLibrary* ptLibrary, const char* name)
         plWin32SharedLibrary* ptWin32Library = ptLibrary->_pPlatformData;
         pLoadedFunction = (void*)GetProcAddress(ptWin32Library->tHandle, name);
         if(pLoadedFunction == NULL)
-            printf("Failed to start winsock with error code: %d\n", WSAGetLastError());
+            printf("Failed to load function with error code: %d\n", WSAGetLastError());
     }
     return pLoadedFunction;
 }
@@ -739,5 +711,3 @@ pl__sleep(uint32_t uMillisec)
     Sleep((long)uMillisec);
     return 0;
 }
-
-#endif // PL_INCLUDE_OS_H

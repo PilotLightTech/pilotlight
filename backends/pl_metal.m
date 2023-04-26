@@ -69,17 +69,21 @@ NS_ASSUME_NONNULL_BEGIN
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-extern void                  pl__cleanup_font_atlas(plFontAtlas* atlas); // in pl_draw.c
-extern void                  pl__cleanup_draw_context(plDrawContext* ctx); // in pl_draw.c
-extern void                  pl__new_draw_frame(plDrawContext* ctx); // in pl_draw.c
-extern void                  pl__build_font_atlas(plFontAtlas* ctx); // in pl_draw.c
+static void pl_initialize_draw_context_metal(plDrawContext* ctx, id<MTLDevice> device);
+static void pl_new_draw_frame_metal         (plDrawContext* ctx, MTLRenderPassDescriptor* renderPassDescriptor);
+static void pl_submit_drawlist_metal        (plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder);
+
+static void                  pl__cleanup_font_atlas_i(plFontAtlas* atlas); // in pl_draw.c
+static void                  pl__cleanup_draw_context_i(plDrawContext* ctx); // in pl_draw.c
+static void                  pl__new_draw_frame_i(plDrawContext* ctx); // in pl_draw.c
+static void                  pl__build_font_atlas_i(plFontAtlas* ctx); // in pl_draw.c
 static inline CFTimeInterval GetMachAbsoluteTimeInSeconds() { return (CFTimeInterval)(double)clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1e9; }
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-void
+static void
 pl_initialize_draw_context_metal(plDrawContext* ctx, id<MTLDevice> device)
 {
     ctx->_platformData = [[MetalContext alloc] init];
@@ -87,12 +91,12 @@ pl_initialize_draw_context_metal(plDrawContext* ctx, id<MTLDevice> device)
     metalCtx.device = device;
 }
 
-void
+static void
 pl_cleanup_draw_context(plDrawContext* ctx)
 {
     MetalContext* metalCtx = ctx->_platformData;
     [metalCtx dealloc];
-    pl__cleanup_draw_context(ctx);
+    pl__cleanup_draw_context_i(ctx);
 }
 
 void
@@ -101,15 +105,15 @@ pl_new_draw_frame(plDrawContext* ptCtx)
     
 }
 
-void
+static void
 pl_new_draw_frame_metal(plDrawContext* ctx, MTLRenderPassDescriptor* renderPassDescriptor)
 {
     MetalContext* metalCtx = ctx->_platformData;
     metalCtx.framebufferDescriptor = [[FramebufferDescriptor alloc] initWithRenderPassDescriptor:renderPassDescriptor];
-    pl__new_draw_frame(ctx);
+    pl__new_draw_frame_i(ctx);
 }
 
-void
+static void
 pl_submit_drawlist_metal(plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder)
 {
 
@@ -269,10 +273,10 @@ pl_submit_drawlist_metal(plDrawList* drawlist, float width, float height, id<MTL
     }
 }
 
-void
+static void
 pl_build_font_atlas(plDrawContext* ctx, plFontAtlas* atlas)
 {
-    pl__build_font_atlas(atlas);
+    pl__build_font_atlas_i(atlas);
     atlas->ctx = ctx;
     ctx->fontAtlas = atlas;
 
@@ -307,12 +311,12 @@ pl_build_font_atlas(plDrawContext* ctx, plFontAtlas* atlas)
     ctx->fontAtlas->texture = metalCtx.fontTexture;
 }
 
-void
+static void
 pl_cleanup_font_atlas(plFontAtlas* atlas)
 {
     MetalContext* metalCtx = atlas->ctx->_platformData;
     [metalCtx.textureDescriptor dealloc];
-    pl__cleanup_font_atlas(atlas);
+    pl__cleanup_font_atlas_i(atlas);
 }
 
 //-----------------------------------------------------------------------------
@@ -631,5 +635,16 @@ pl_cleanup_font_atlas(plFontAtlas* atlas)
     return renderPipelineState;
 }
 @end
+
+plMetalDrawApiI*
+pl_load_metal_draw_api(void)
+{
+    static plMetalDrawApiI tApi = {
+        .initialize_context = pl_initialize_draw_context_metal,
+        .new_frame          = pl_new_draw_frame_metal,
+        .submit_drawlist    = pl_submit_drawlist_metal
+    };
+    return &tApi;
+}
 
 NS_ASSUME_NONNULL_END
