@@ -9,8 +9,8 @@ import pl_build as pl
 #                                helpers                                      #
 ###############################################################################
 
-def add_plugin_to_vulkan_app(name):
-    with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY):
+def add_plugin_to_vulkan_app(name, reloadable):
+    with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, reloadable):
         pl.push_output_binary(name)
         pl.push_source_files("../extensions/" + name + ".c")
         with pl.configuration("debug"):
@@ -26,8 +26,8 @@ def add_plugin_to_vulkan_app(name):
         pl.pop_output_binary()
         pl.pop_source_files()
 
-def add_plugin_to_metal_app(name):
-    with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY):
+def add_plugin_to_metal_app(name, reloadable):
+    with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, reloadable):
         pl.push_output_binary(name)
         pl.push_source_files("../extensions/" + name + ".c")
         with pl.configuration("debugmetal"):
@@ -96,20 +96,19 @@ with pl.project("pilotlight"):
     
     pl.push_profile(pl.Profile.VULKAN)
     pl.push_definitions("PL_VULKAN_BACKEND")
-    add_plugin_to_vulkan_app("pl_draw_ext")
-    add_plugin_to_vulkan_app("pl_ui_ext")
-    add_plugin_to_vulkan_app("pl_image_ext")
-    add_plugin_to_vulkan_app("pl_proto_ext")
-    add_plugin_to_vulkan_app("pl_vulkan_ext")
-    add_plugin_to_vulkan_app("pl_gltf_ext")
+    add_plugin_to_vulkan_app("pl_draw_ext", True)
+    add_plugin_to_vulkan_app("pl_ui_ext", True)
+    add_plugin_to_vulkan_app("pl_image_ext", False)
+    add_plugin_to_vulkan_app("pl_proto_ext", False)
+    add_plugin_to_vulkan_app("pl_vulkan_ext", False)
+    add_plugin_to_vulkan_app("pl_gltf_ext", False)
     pl.pop_profile()
     pl.pop_definitions()
 
-
     pl.push_definitions("PL_METAL_BACKEND")
-    add_plugin_to_metal_app("pl_draw_ext")
-    add_plugin_to_metal_app("pl_ui_ext")
-    add_plugin_to_metal_app("pl_image_ext")
+    add_plugin_to_metal_app("pl_draw_ext", True)
+    add_plugin_to_metal_app("pl_ui_ext", True)
+    add_plugin_to_metal_app("pl_image_ext", False)
     pl.pop_definitions()
 
     pl.pop_target_links()
@@ -117,7 +116,7 @@ with pl.project("pilotlight"):
     ###############################################################################
     #                                    app                                      #
     ###############################################################################
-    with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY):
+    with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
 
         pl.push_output_binary("app")
         pl.push_target_links("pilotlight_lib")

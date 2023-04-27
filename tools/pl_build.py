@@ -1,4 +1,4 @@
-__version__ = "0.7.1"
+__version__ = "0.8.0"
 
 ###############################################################################
 #                                  Info                                       #
@@ -127,6 +127,7 @@ class Target:
         self._target_type = target_type
         self._lock_file = 'lock.tmp'
         self._configurations = []
+        self._reloadable = False
 
 
 class Project:
@@ -208,9 +209,10 @@ def set_build_macos_script_name(script_name: str):
 ###############################################################################
 
 @contextmanager
-def target(name: str, target_type: TargetType):
+def target(name: str, target_type: TargetType, reloadable: bool = False):
     try:
         _context._current_target = Target(name, target_type)
+        _context._current_target._reloadable = reloadable
         yield _context._current_target
     finally:
         _context._current_project._targets.append(_context._current_target)
@@ -775,6 +777,10 @@ def generate_macos_build(name_override=None):
                                                 buffer += "\n\n"
 
                                             if settings._source_files:
+
+                                                if not target._reloadable:
+                                                    buffer += '\n# skip during hot reload\n if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then \n'
+
                                                 buffer += '\n# create output directory\n'
                                                 buffer += 'if ! [[ -d "' + settings._output_directory + '" ]]; then\n'
                                                 buffer += '    mkdir "' + settings._output_directory + '"\n'
@@ -966,6 +972,9 @@ def generate_macos_build(name_override=None):
                                                 buffer += '\n# remove lock file\n'
                                                 buffer += 'rm "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
 
+                                                if not target._reloadable:
+                                                    buffer += 'fi\n\n'
+
                                                 if settings._post_build_step is not None:
                                                     buffer += settings._post_build_step
                                                     buffer += "\n\n"
@@ -1058,8 +1067,7 @@ def generate_linux_build(name_override=None):
 
                                                 if target._target_type == TargetType.EXECUTABLE:
                                                     buffer += "# let user know if hot reloading\n"
-                                                    buffer += 'if lsof | grep -i -q "' + settings._output_binary + ' "\n'
-                                                    buffer += 'then\n'
+                                                    buffer += 'if pidof -x "' + settings._output_binary + '" -o $$ >/dev/null;then\n'
                                                     buffer += 'PL_HOT_RELOAD_STATUS=1\n'
                                                     buffer += 'echo\n'
                                                     buffer += 'echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}\n'
@@ -1101,6 +1109,10 @@ def generate_linux_build(name_override=None):
                                                 buffer += "\n\n"
 
                                             if settings._source_files:
+
+                                                if not target._reloadable:
+                                                    buffer += '\n# skip during hot reload\nif [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then \n'
+
                                                 buffer += '\n# create output directory\n'
                                                 buffer += 'if ! [[ -d "' + settings._output_directory + '" ]]; then\n'
                                                 buffer += '    mkdir "' + settings._output_directory + '"\n'
@@ -1266,6 +1278,9 @@ def generate_linux_build(name_override=None):
                                                 buffer += '\n# remove lock file\n'
                                                 buffer += 'rm "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
 
+                                                if not target._reloadable:
+                                                    buffer += 'fi\n\n'
+
                                                 if settings._post_build_step is not None:
                                                     buffer += settings._post_build_step
                                                     buffer += "\n\n"
@@ -1403,6 +1418,12 @@ def generate_win32_build(name_override=None):
                                                 buffer += "\n\n"
 
                                             if settings._source_files:
+
+                                                if not target._reloadable:
+                                                    buffer += '@rem skip during hot reload\n'
+                                                    buffer += '@if %PL_HOT_RELOAD_STATUS% equ 1 (\n    goto '
+                                                    buffer += "Exit_" + target._name
+                                                    buffer += '\n)\n'
 
                                                 buffer += '@rem create output directory\n'
                                                 buffer += '@if not exist "' + settings._output_directory + '" @mkdir "' + settings._output_directory + '"'
@@ -1655,6 +1676,9 @@ def generate_win32_build(name_override=None):
                                                 buffer += "@echo [36mResult: [0m %PL_RESULT%\n"
                                                 buffer += "@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m\n"
                                                 buffer += "\n"
+
+                                                if not target._reloadable:
+                                                    buffer += ":Exit_" + target._name + '\n\n'
 
                                                 if settings._post_build_step is not None:
                                                     buffer += settings._post_build_step
