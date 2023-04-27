@@ -18,7 +18,6 @@ Index of this file:
 
 #include <stdio.h>
 #include "pilotlight.h"
-#include "pl_vulkan_ext.h"
 #include "pl_string.h"
 #include "pl_ds.h"
 #include "pl_io.h"
@@ -26,6 +25,10 @@ Index of this file:
 #include "pl_log.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
+
+// extensions
+#include "pl_memory.h"
+#include "pl_vulkan_ext.h"
 
 #ifdef _WIN32
 #pragma comment(lib, "vulkan-1.lib")
@@ -66,7 +69,7 @@ typedef struct _plDeviceStagedUncachedAllocatorData
 //-----------------------------------------------------------------------------
 
 // setup
-static void                  pl_setup_graphics               (plGraphics* ptGraphics, plApiRegistryApiI* ptApiRegistry);
+static void                  pl_setup_graphics               (plGraphics* ptGraphics, plApiRegistryApiI* ptApiRegistry, plTempAllocator* ptAllocator);
 static void                  pl_cleanup_graphics             (plGraphics* ptGraphics);
 static void                  pl_resize_graphics              (plGraphics* ptGraphics);
 static void                  pl_reload_contexts              (plApiRegistryApiI* ptApiRegistry);
@@ -1763,8 +1766,7 @@ pl_cleanup_descriptor_manager(plDescriptorManager* ptManager)
 
 static VkDescriptorSetLayout
 pl_request_descriptor_set_layout(plDescriptorManager* ptManager, plBindGroupLayout* ptLayout)
-{
-    
+{    
     // generate hash
     uint32_t uHash = 0;
     VkDescriptorSetLayoutBinding* sbtDescriptorSetLayoutBindings = NULL;
@@ -1826,20 +1828,27 @@ pl_request_descriptor_set_layout(plDescriptorManager* ptManager, plBindGroupLayo
 }
 
 static void
-pl_setup_graphics(plGraphics* ptGraphics, plApiRegistryApiI* ptApiRegistry)
+pl_setup_graphics(plGraphics* ptGraphics, plApiRegistryApiI* ptApiRegistry, plTempAllocator* ptAllocator)
 {
     plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_log_context(ptDataRegistry->get_data("log"));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
+
+    pl_set_log_context(ptDataRegistry->get_data("log"));
+    ptGraphics->uLogChannel = pl_add_log_channel("graphics", PL_CHANNEL_TYPE_CONSOLE | PL_CHANNEL_TYPE_BUFFER);
 
     if(ptGraphics->uFramesInFlight == 0)
         ptGraphics->uFramesInFlight = 2;
+    
+    // retrieve required apis
     ptGraphics->ptResourceApi = ptApiRegistry->first(PL_API_RESOURCE_MANAGER_0);
     ptGraphics->ptMemoryApi = ptApiRegistry->first(PL_API_MEMORY);
     ptGraphics->ptIoInterface = ptApiRegistry->first(PL_API_IO);
     ptGraphics->ptFileApi = ptApiRegistry->first(PL_API_FILE);
     ptGraphics->ptDeviceApi = ptApiRegistry->first(PL_API_DEVICE);
-    ptGraphics->uLogChannel = pl_add_log_channel("graphics", PL_CHANNEL_TYPE_CONSOLE | PL_CHANNEL_TYPE_BUFFER);
+    
+    // temporary allocator
+    ptGraphics->ptTempAllocApi = ptApiRegistry->first(PL_API_TEMP_ALLOCATOR);
+    ptGraphics->ptTempAllocator;
 
     // create vulkan instance
     pl__create_instance(ptGraphics, VK_API_VERSION_1_2, true);

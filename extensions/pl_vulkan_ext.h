@@ -119,11 +119,15 @@ typedef int plFilter;             // -> enum _plFilter              // Enum:
 typedef int plWrapMode;           // -> enum _plWrapMode            // Enum:
 typedef int plCompareMode;        // -> enum _plCompareMode         // Enum:
 
+// external apis
+typedef struct _plApiRegistryApiI   plApiRegistryApiI;
+typedef struct _plTempAllocatorApiI plTempAllocatorApiI;
+
 // external
-typedef struct _plApiRegistryApiI          plApiRegistryApiI;
 typedef struct _plIOApiI                   plIOApiI;
 typedef struct _plFileApiI                 plFileApiI;
 typedef struct _plMemoryApiI               plMemoryApiI;
+typedef struct _plTempAllocator            plTempAllocator;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -191,7 +195,7 @@ typedef struct _plResourceManager0ApiI
 typedef struct _plGraphicsApiI
 {
     // setup/shutdown/resize
-    void (*setup_graphics)  (plGraphics* ptGraphics, plApiRegistryApiI* ptApiRegistry);
+    void (*setup_graphics)  (plGraphics* ptGraphics, plApiRegistryApiI* ptApiRegistry, plTempAllocator* ptAllocator);
     void (*cleanup_graphics)(plGraphics* ptGraphics);
     void (*resize_graphics) (plGraphics* ptGraphics);
     void (*reload_contexts) (plApiRegistryApiI* ptApiRegistry);
@@ -566,6 +570,12 @@ typedef struct _plGraphics
     plFileApiI*              ptFileApi;
     plDeviceApiI*            ptDeviceApi;
     plResourceManager0ApiI*  ptResourceApi;
+    plTempAllocatorApiI*     ptTempAllocApi;
+
+    // cpu allocators
+    plTempAllocator* ptTempAllocator;
+
+    // gpu allocators
     plDeviceMemoryAllocatorI tLocalAllocator;
     plDeviceMemoryAllocatorI tStagingUnCachedAllocator;
 

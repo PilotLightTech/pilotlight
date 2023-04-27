@@ -20,11 +20,14 @@
 */
 
 // library version
-#define PL_MEMORY_VERSION    "0.2.0"
-#define PL_MEMORY_VERSION_NUM 00200
+#define PL_MEMORY_VERSION    "0.3.0"
+#define PL_MEMORY_VERSION_NUM 00300
 
 /*
 Index of this file:
+// [SECTION] header mess
+// [SECTION] apis
+// [SECTION] defines
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
@@ -32,8 +35,42 @@ Index of this file:
 // [SECTION] c/c++ file start
 */
 
+//-----------------------------------------------------------------------------
+// [SECTION] header mess
+//-----------------------------------------------------------------------------
+
 #ifndef PL_MEMORY_H
 #define PL_MEMORY_H
+
+//-----------------------------------------------------------------------------
+// [SECTION] apis
+//-----------------------------------------------------------------------------
+
+#define PL_API_GENERAL_ALLOCATOR "PL_API_GENERAL_ALLOCATOR"
+typedef struct _plGeneralAllocatorApiI plGeneralAllocatorApiI;
+
+#define PL_API_VIRTUAL_MEMORY "PL_API_VIRTUAL_MEMORY"
+typedef struct _plVirtualMemoryApiI plVirtualMemoryApiI;
+
+#define PL_API_STACK_ALLOCATOR "PL_API_STACK_ALLOCATOR"
+typedef struct _plStackAllocatorApiI plStackAllocatorApiI;
+
+#define PL_API_DOUBLE_STACK_ALLOCATOR "PL_API_DOUBLE_STACK_ALLOCATOR"
+typedef struct _plDoubleStackAllocatorApiI plDoubleStackAllocatorApiI;
+
+#define PL_API_POOL_ALLOCATOR "PL_API_POOL_ALLOCATOR"
+typedef struct _plPoolAllocatorApiI plPoolAllocatorApiI;
+
+#define PL_API_TEMP_ALLOCATOR "PL_API_TEMP_ALLOCATOR"
+typedef struct _plTempAllocatorApiI plTempAllocatorApiI;
+
+//-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
+
+#ifndef PL_MEMORY_TEMP_STACK_SIZE
+    #define PL_MEMORY_TEMP_STACK_SIZE 1024
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -47,7 +84,7 @@ Index of this file:
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
-typedef struct _plMemoryContext     plMemoryContext;
+typedef struct _plTempAllocator     plTempAllocator;
 typedef struct _plStackAllocator    plStackAllocator;
 typedef struct _plPoolAllocator     plPoolAllocator;
 typedef struct _plPoolAllocatorNode plPoolAllocatorNode;
@@ -58,11 +95,21 @@ typedef size_t plStackAllocatorMarker;
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
+plVirtualMemoryApiI*        pl_load_virtual_memory_api        (void);
+plGeneralAllocatorApiI*     pl_load_general_allocator_api     (void);
+plTempAllocatorApiI*        pl_load_temp_allocator_api        (void);
+plStackAllocatorApiI*       pl_load_stack_allocator_api       (void);
+plDoubleStackAllocatorApiI* pl_load_double_stack_allocator_api(void);
+plPoolAllocatorApiI*        pl_load_pool_allocator_api        (void);
+
 //~~~~~~~~~~~~~~~~~~~~~~~~~general purpose allocation~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-void*                  pl_aligned_alloc(size_t szAlignment, size_t szSize);
-void                   pl_aligned_free (void* pBuffer);
-void*                  pl_realloc      (void* pBuffer, size_t szSize);
+typedef struct _plGeneralAllocatorApiI
+{
+    void* (*aligned_alloc)(size_t szAlignment, size_t szSize);
+    void  (*aligned_free) (void* pBuffer);
+    void* (*realloc)      (void* pBuffer, size_t szSize);
+} plGeneralAllocatorApiI;
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~virtual memory system~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -75,41 +122,75 @@ void*                  pl_realloc      (void* pBuffer, size_t szSize);
 //   - uncommitted memory does not necessarily mean the memory will be immediately
 //     evicted. It is up to the OS.
 
-size_t                 pl_get_page_size   (void);                          // returns memory page size
-void*                  pl_virtual_alloc   (void* pAddress, size_t szSize); // reserves & commits a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
-void*                  pl_virtual_reserve (void* pAddress, size_t szSize); // reserves a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
-void*                  pl_virtual_commit  (void* pAddress, size_t szSize); // commits a block of reserved memory. szSize must be a multiple of memory page size.
-void                   pl_virtual_uncommit(void* pAddress, size_t szSize); // uncommits a block of committed memory.
-void                   pl_virtual_free    (void* pAddress, size_t szSize); // frees a block of previously reserved/committed memory. Must be the starting address returned from "pl_virtual_reserve()" or "pl_virtual_alloc()"
+typedef struct _plVirtualMemoryApiI
+{
+    size_t (*get_page_size)(void);                          // returns memory page size
+    void*  (*alloc)        (void* pAddress, size_t szSize); // reserves & commits a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
+    void*  (*reserve)      (void* pAddress, size_t szSize); // reserves a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
+    void*  (*commit)       (void* pAddress, size_t szSize); // commits a block of reserved memory. szSize must be a multiple of memory page size.
+    void   (*uncommit)     (void* pAddress, size_t szSize); // uncommits a block of committed memory.
+    void   (*free)         (void* pAddress, size_t szSize); // frees a block of previously reserved/committed memory. Must be the starting address returned from "pl_virtual_reserve()" or "pl_virtual_alloc()"
+    
+} plVirtualMemoryApiI;
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~temporary allocator~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+typedef struct _plTempAllocatorApiI
+{
+    void* (*alloc)  (plTempAllocator* ptAllocator, size_t szSize);
+    void  (*reset)  (plTempAllocator* ptAllocator);
+    void  (*free)   (plTempAllocator* ptAllocator);
+    char* (*sprintf)(plTempAllocator* ptAllocator, const char* cPFormat, ...);
+} plTempAllocatorApiI;
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~stack allocators~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-// single stack
-void                   pl_stack_allocator_init          (plStackAllocator* ptAllocator, size_t szSize, void* pBuffer);
-void*                  pl_stack_allocator_alloc         (plStackAllocator* ptAllocator, size_t szSize);
-void*                  pl_stack_allocator_aligned_alloc (plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment);
-plStackAllocatorMarker pl_stack_allocator_marker        (plStackAllocator* ptAllocator);
-void                   pl_stack_allocator_free_to_marker(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker);
-void                   pl_stack_allocator_reset         (plStackAllocator* ptAllocator);
+typedef struct _plStackAllocatorApiI
+{
+    void                   (*init)          (plStackAllocator* ptAllocator, size_t szSize, void* pBuffer);
+    void*                  (*alloc)         (plStackAllocator* ptAllocator, size_t szSize);
+    void*                  (*aligned_alloc) (plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment);
+    plStackAllocatorMarker (*marker)        (plStackAllocator* ptAllocator);
+    void                   (*free_to_marker)(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker);
+    void                   (*reset)         (plStackAllocator* ptAllocator);
+} plStackAllocatorApiI;
 
-// double stack allocator (using regular stack allocator)
-void*                  pl_stack_allocator_aligned_alloc_bottom (plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment);
-plStackAllocatorMarker pl_stack_allocator_bottom_marker        (plStackAllocator* ptAllocator);
-plStackAllocatorMarker pl_stack_allocator_top_marker           (plStackAllocator* ptAllocator);
-void*                  pl_stack_allocator_alloc_bottom         (plStackAllocator* ptAllocator, size_t szSize);
-void*                  pl_stack_allocator_alloc_top            (plStackAllocator* ptAllocator, size_t szSize);
-void                   pl_stack_allocator_free_top_to_marker   (plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker);
-void                   pl_stack_allocator_free_bottom_to_marker(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker);
+typedef struct _plDoubleStackAllocatorApiI
+{
+    void                   (*init)                 (plStackAllocator* ptAllocator, size_t szSize, void* pBuffer);
+    void*                  (*aligned_alloc_bottom) (plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment);
+    plStackAllocatorMarker (*bottom_marker)        (plStackAllocator* ptAllocator);
+    plStackAllocatorMarker (*top_marker)           (plStackAllocator* ptAllocator);
+    void*                  (*alloc_bottom)         (plStackAllocator* ptAllocator, size_t szSize);
+    void*                  (*alloc_top)            (plStackAllocator* ptAllocator, size_t szSize);
+    void                   (*free_top_to_marker)   (plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker);
+    void                   (*free_bottom_to_marker)(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker);
+} plDoubleStackAllocatorApiI;
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~pool allocator~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-void                   pl_pool_allocator_init (plPoolAllocator* ptAllocator, size_t szItemCount, size_t szItemSize, size_t szItemAlignment, size_t szBufferSize, void* pBuffer);
-void*                  pl_pool_allocator_alloc(plPoolAllocator* ptAllocator);
-void                   pl_pool_allocator_free (plPoolAllocator* ptAllocator, void* pItem);
+typedef struct _plPoolAllocatorApiI
+{
+    void  (*init) (plPoolAllocator* ptAllocator, size_t szItemCount, size_t szItemSize, size_t szItemAlignment, size_t szBufferSize, void* pBuffer);
+    void* (*alloc)(plPoolAllocator* ptAllocator);
+    void  (*free) (plPoolAllocator* ptAllocator, void* pItem);
+} plPoolAllocatorApiI;
+
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plTempAllocator
+{
+    size_t szSize;
+    size_t szOffset;
+    char*  pcBuffer;
+    char   acStackBuffer[PL_MEMORY_TEMP_STACK_SIZE];
+    char** ppcMemoryBlocks;
+    size_t szMemoryBlockCount;
+    size_t szMemoryBlockCapacity;
+} plTempAllocator;
 
 typedef struct _plStackAllocator
 {
@@ -144,9 +225,9 @@ typedef struct _plPoolAllocator
 /*
 Index of this file:
 // [SECTION] defines
-// [SECTION] internal structs
 // [SECTION] internal api
 // [SECTION] public api implementation
+// [SECTION] internal api implementation
 */
 
 //-----------------------------------------------------------------------------
@@ -179,6 +260,10 @@ Index of this file:
 #define PL_ASSERT(x) assert((x))
 #endif
 
+#ifndef PL_MEMORY_TEMP_STACK_BLOCK_SIZE
+    #define PL_MEMORY_TEMP_BLOCK_SIZE 4194304
+#endif
+
 #ifdef _WIN32
     #define WIN32_LEAN_AND_MEAN
     #include <windows.h>  // VirtualAlloc, VirtualFree
@@ -193,14 +278,12 @@ Index of this file:
 
 #define PL__ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
 
-//-----------------------------------------------------------------------------
-// [SECTION] internal structs
-//-----------------------------------------------------------------------------
+#ifndef pl_vnsprintf
+#include <stdio.h>
+#define pl_vnsprintf vnsprintf
+#endif
 
-typedef struct _plMemoryContext
-{
-    uint32_t uActiveAllocations;
-} plMemoryContext;
+#include <stdarg.h>
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -239,11 +322,219 @@ pl__align_forward_size(size_t szPtr, size_t szAlign)
 	return p;
 }
 
+// general memory
+static void* pl_aligned_alloc(size_t szAlignment, size_t szSize);
+static void  pl_aligned_free (void* pBuffer);
+static void* pl_realloc      (void* pBuffer, size_t szSize);
+
+// virtual memory
+static size_t pl_get_page_size   (void);                          // returns memory page size
+static void*  pl_virtual_alloc   (void* pAddress, size_t szSize); // reserves & commits a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
+static void*  pl_virtual_reserve (void* pAddress, size_t szSize); // reserves a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
+static void*  pl_virtual_commit  (void* pAddress, size_t szSize); // commits a block of reserved memory. szSize must be a multiple of memory page size.
+static void   pl_virtual_uncommit(void* pAddress, size_t szSize); // uncommits a block of committed memory.
+static void   pl_virtual_free    (void* pAddress, size_t szSize); // frees a block of previously reserved/committed memory. Must be the starting address returned from "pl_virtual_reserve()" or "pl_virtual_alloc()"
+
+// temporary allocator
+static void* pl_temp_allocator_alloc  (plTempAllocator* ptAllocator, size_t szSize);
+static void  pl_temp_allocator_reset  (plTempAllocator* ptAllocator);
+static void  pl_temp_allocator_free   (plTempAllocator* ptAllocator);
+static char* pl_temp_allocator_sprintf(plTempAllocator* ptAllocator, const char* cPFormat, ...);
+
+// single stack allocator
+static void                   pl_stack_allocator_init          (plStackAllocator* ptAllocator, size_t szSize, void* pBuffer);
+static void*                  pl_stack_allocator_alloc         (plStackAllocator* ptAllocator, size_t szSize);
+static void*                  pl_stack_allocator_aligned_alloc (plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment);
+static plStackAllocatorMarker pl_stack_allocator_marker        (plStackAllocator* ptAllocator);
+static void                   pl_stack_allocator_free_to_marker(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker);
+static void                   pl_stack_allocator_reset         (plStackAllocator* ptAllocator);
+
+// double stack allocator (using regular stack allocator)
+static void*                  pl_stack_allocator_aligned_alloc_bottom (plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment);
+static plStackAllocatorMarker pl_stack_allocator_top_marker           (plStackAllocator* ptAllocator);
+static void*                  pl_stack_allocator_alloc_bottom         (plStackAllocator* ptAllocator, size_t szSize);
+static void*                  pl_stack_allocator_alloc_top            (plStackAllocator* ptAllocator, size_t szSize);
+static void                   pl_stack_allocator_free_top_to_marker   (plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker);
+static void                   pl_stack_allocator_free_bottom_to_marker(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker);
+
+// pool allocator
+static void  pl_pool_allocator_init (plPoolAllocator* ptAllocator, size_t szItemCount, size_t szItemSize, size_t szItemAlignment, size_t szBufferSize, void* pBuffer);
+static void* pl_pool_allocator_alloc(plPoolAllocator* ptAllocator);
+static void  pl_pool_allocator_free (plPoolAllocator* ptAllocator, void* pItem);
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-void*
+plGeneralAllocatorApiI*
+pl_load_general_allocator_api(void)
+{
+    static plGeneralAllocatorApiI tApi0 =
+    {
+        pl_aligned_alloc,
+        pl_aligned_free,
+        pl_realloc
+    };
+    return &tApi0;    
+}
+
+plVirtualMemoryApiI*
+pl_load_virtual_memory_api(void)
+{
+    static plVirtualMemoryApiI tApi0 =
+    {
+        pl_get_page_size,
+        pl_virtual_alloc,
+        pl_virtual_reserve,
+        pl_virtual_commit,
+        pl_virtual_uncommit,
+        pl_virtual_free
+    };
+    return &tApi0;
+}
+
+plTempAllocatorApiI*
+pl_load_temp_allocator_api(void)
+{
+    static plTempAllocatorApiI tApi0 =
+    {
+        pl_temp_allocator_alloc,
+        pl_temp_allocator_reset,
+        pl_temp_allocator_free,
+        pl_temp_allocator_sprintf
+    };
+    return &tApi0;
+}
+
+plStackAllocatorApiI*
+pl_load_stack_allocator_api(void)
+{
+    static plStackAllocatorApiI tApi0 =
+    {
+        pl_stack_allocator_init,
+        pl_stack_allocator_alloc,
+        pl_stack_allocator_aligned_alloc,
+        pl_stack_allocator_marker,
+        pl_stack_allocator_free_to_marker,
+        pl_stack_allocator_reset
+    };
+    return &tApi0;
+}
+
+plDoubleStackAllocatorApiI*
+pl_load_double_stack_allocator_api(void)
+{
+    static plDoubleStackAllocatorApiI tApi0 =
+    {
+        pl_stack_allocator_init,
+        pl_stack_allocator_aligned_alloc_bottom,
+        pl_stack_allocator_marker,
+        pl_stack_allocator_top_marker,
+        pl_stack_allocator_alloc_bottom,
+        pl_stack_allocator_alloc_top,
+        pl_stack_allocator_free_top_to_marker,
+        pl_stack_allocator_free_bottom_to_marker
+    };
+    return &tApi0;
+}
+
+plPoolAllocatorApiI*
+pl_load_pool_allocator_api(void)
+{
+    static plPoolAllocatorApiI tApi0 =
+    {
+        pl_pool_allocator_init,
+        pl_pool_allocator_alloc,
+        pl_pool_allocator_free
+    };
+    return &tApi0; 
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api implementation
+//-----------------------------------------------------------------------------
+
+static size_t
+pl_get_page_size(void)
+{
+    #ifdef _WIN32
+        SYSTEM_INFO tInfo = {0};
+        GetSystemInfo(&tInfo);
+        return (size_t)tInfo.dwPageSize;
+    #elif defined(__APPLE__)
+        return (size_t)getpagesize();
+    #else // linux
+        return (size_t)getpagesize();
+    #endif
+}
+
+static void*
+pl_virtual_alloc(void* pAddress, size_t szSize)
+{
+    #ifdef _WIN32
+        return VirtualAlloc(pAddress, szSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    #elif defined(__APPLE__)
+        void* pResult = mmap(pAddress, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        return pResult;
+    #else // linux
+        void* pResult = mmap(pAddress, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        return pResult;
+    #endif
+}
+
+static void*
+pl_virtual_reserve(void* pAddress, size_t szSize)
+{
+    #ifdef _WIN32
+        return VirtualAlloc(pAddress, szSize, MEM_RESERVE, PAGE_READWRITE);
+    #elif defined(__APPLE__)
+        void* pResult = mmap(pAddress, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        return pResult;
+    #else // linux
+        void* pResult = mmap(pAddress, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        return pResult;
+    #endif
+}
+
+static void*
+pl_virtual_commit(void* pAddress, size_t szSize)
+{
+    #ifdef _WIN32
+        return VirtualAlloc(pAddress, szSize, MEM_COMMIT, PAGE_READWRITE);
+    #elif defined(__APPLE__)
+        mprotect(pAddress, szSize, PROT_READ | PROT_WRITE);
+        return pAddress;
+    #else // linux
+        mprotect(pAddress, szSize, PROT_READ | PROT_WRITE);
+        return pAddress;
+    #endif
+}
+
+static void
+pl_virtual_free(void* pAddress, size_t szSize)
+{
+    #ifdef _WIN32
+        PL_ASSERT(VirtualFree(pAddress, szSize, MEM_RELEASE));
+    #elif defined(__APPLE__)
+        PL_ASSERT(munmap(pAddress, szSize) == 0);
+    #else // linux
+        PL_ASSERT(munmap(pAddress, szSize) == 0); //-V586
+    #endif
+}
+
+static void
+pl_virtual_uncommit(void* pAddress, size_t szSize)
+{
+    #ifdef _WIN32
+        PL_ASSERT(VirtualFree(pAddress, szSize, MEM_DECOMMIT));
+    #elif defined(__APPLE__)
+        mprotect(pAddress, szSize, PROT_NONE);
+    #else // linux
+        mprotect(pAddress, szSize, PROT_NONE);
+    #endif
+}
+
+static void*
 pl_aligned_alloc(size_t szAlignment, size_t szSize)
 {
     void* pBuffer = NULL;
@@ -269,7 +560,7 @@ pl_aligned_alloc(size_t szAlignment, size_t szSize)
     return pBuffer;
 }
 
-void
+static void
 pl_aligned_free(void* pBuffer)
 {
     PL_ASSERT(pBuffer);
@@ -282,7 +573,7 @@ pl_aligned_free(void* pBuffer)
     PL_MEMORY_FREE(pActualBuffer);
 }
 
-void*
+static void*
 pl_realloc(void* pBuffer, size_t szSize)
 {
     void* pNewBuffer = NULL;
@@ -307,7 +598,124 @@ pl_realloc(void* pBuffer, size_t szSize)
     return pNewBuffer;
 }
 
-void
+static void*
+pl_temp_allocator_alloc(plTempAllocator* ptAllocator, size_t szSize)
+{
+
+    if(ptAllocator->szSize == 0) // first usage ever
+    {
+        ptAllocator->ppcMemoryBlocks = NULL;
+        ptAllocator->szMemoryBlockCount = 0;
+        ptAllocator->szMemoryBlockCapacity = 0;
+        ptAllocator->szSize = PL_MEMORY_TEMP_STACK_SIZE;
+        ptAllocator->pcBuffer = ptAllocator->acStackBuffer;
+        ptAllocator->szOffset = 0;
+        memset(ptAllocator->acStackBuffer, 0, PL_MEMORY_TEMP_STACK_SIZE); 
+    }
+
+    void* pRequestedMemory = NULL;
+
+    // not enough room is available
+    if(szSize > ptAllocator->szSize - ptAllocator->szOffset)
+    {
+        PL_ASSERT(szSize < PL_MEMORY_TEMP_BLOCK_SIZE);
+        if(ptAllocator->szMemoryBlockCapacity == 0) // first overflow
+        {
+            // allocate block array
+            ptAllocator->szMemoryBlockCapacity = 1;
+            ptAllocator->ppcMemoryBlocks = (char**)PL_MEMORY_ALLOC(sizeof(char*) * ptAllocator->szMemoryBlockCapacity);
+            memset(ptAllocator->ppcMemoryBlocks, 0, (sizeof(char*) * ptAllocator->szMemoryBlockCapacity));
+
+            // allocate first block
+            ptAllocator->ppcMemoryBlocks[0] = (char*)PL_MEMORY_ALLOC(PL_MEMORY_TEMP_BLOCK_SIZE);
+            ptAllocator->szSize = PL_MEMORY_TEMP_BLOCK_SIZE;
+            ptAllocator->szOffset = 0;
+            ptAllocator->pcBuffer = ptAllocator->ppcMemoryBlocks[0];
+        }
+        else if(ptAllocator->szMemoryBlockCount == ptAllocator->szMemoryBlockCapacity) // grow memory block storage
+        {
+            char** ppcOldBlocks = ptAllocator->ppcMemoryBlocks;
+            ptAllocator->ppcMemoryBlocks = (char**)PL_MEMORY_ALLOC(sizeof(char*) * (ptAllocator->szMemoryBlockCapacity + 1));
+            memset(ptAllocator->ppcMemoryBlocks, 0, (sizeof(char*) * (ptAllocator->szMemoryBlockCapacity + 1)));
+            memcpy(ptAllocator->ppcMemoryBlocks, ppcOldBlocks, sizeof(char*) * ptAllocator->szMemoryBlockCapacity);
+            ptAllocator->szMemoryBlockCapacity++;
+            ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount] = (char*)PL_MEMORY_ALLOC(PL_MEMORY_TEMP_BLOCK_SIZE);
+            ptAllocator->szSize = PL_MEMORY_TEMP_BLOCK_SIZE;
+            ptAllocator->pcBuffer = ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount];
+            ptAllocator->szOffset = 0;
+        }
+        else // block is available
+        {
+            ptAllocator->szSize = PL_MEMORY_TEMP_BLOCK_SIZE;
+            ptAllocator->szOffset = 0;
+            ptAllocator->pcBuffer = ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount];
+        }
+        
+        ptAllocator->szMemoryBlockCount++;
+    }
+
+    pRequestedMemory = &ptAllocator->pcBuffer[ptAllocator->szOffset];
+    ptAllocator->szOffset += szSize;
+    return pRequestedMemory;
+}
+
+static void
+pl_temp_allocator_reset(plTempAllocator* ptAllocator)
+{
+    ptAllocator->szSize = PL_MEMORY_TEMP_STACK_SIZE;
+    ptAllocator->szOffset = 0;
+    ptAllocator->szMemoryBlockCount = 0;
+    ptAllocator->pcBuffer = ptAllocator->acStackBuffer;
+}
+
+static void
+pl_temp_allocator_free(plTempAllocator* ptAllocator)
+{
+    for(size_t i = 0; i < ptAllocator->szMemoryBlockCapacity; i++)
+    {
+        PL_MEMORY_FREE(ptAllocator->ppcMemoryBlocks[i]);
+    }
+    PL_MEMORY_FREE(ptAllocator->ppcMemoryBlocks);
+    ptAllocator->ppcMemoryBlocks = NULL;
+    ptAllocator->szMemoryBlockCapacity = 0;
+    ptAllocator->szMemoryBlockCount = 0;
+    ptAllocator->pcBuffer = NULL;
+    ptAllocator->szSize = 0;
+    ptAllocator->szOffset = 0;
+}
+
+inline static char*
+pl__temp_allocator_sprintf_va(plTempAllocator* ptAllocator, const char* cPFormat, va_list args)
+{
+    void* pRequestedMemory = NULL;
+
+    // sprint
+    va_list args2;
+    va_copy(args2, args);
+    int32_t n = pl_vnsprintf(NULL, 0, cPFormat, args2);
+    va_end(args2);
+
+    pRequestedMemory = pl_temp_allocator_alloc(ptAllocator, n + 1);
+    memset(pRequestedMemory, 0, n + 1);
+    pl_vnsprintf(pRequestedMemory, n + 1, cPFormat, args);
+
+    return pRequestedMemory;
+}
+
+static char*
+pl_temp_allocator_sprintf(plTempAllocator* ptAllocator, const char* cPFormat, ...)
+{
+    void* pRequestedMemory = NULL;
+
+    va_list argptr;
+    va_start(argptr, cPFormat);
+    pRequestedMemory = pl__temp_allocator_sprintf_va(ptAllocator, cPFormat, argptr);
+    va_end(argptr);
+
+    return pRequestedMemory;   
+}
+
+static void
 pl_stack_allocator_init(plStackAllocator* ptAllocator, size_t szSize, void* pBuffer)
 {
     PL_ASSERT(ptAllocator);
@@ -320,7 +728,7 @@ pl_stack_allocator_init(plStackAllocator* ptAllocator, size_t szSize, void* pBuf
     ptAllocator->szTopOffset = szSize;
 }
 
-void*
+static void*
 pl_stack_allocator_alloc(plStackAllocator* ptAllocator, size_t szSize)
 {
     size_t szOffset = ptAllocator->szBottomOffset + szSize;
@@ -334,7 +742,7 @@ pl_stack_allocator_alloc(plStackAllocator* ptAllocator, size_t szSize)
     return pBuffer;
 }
 
-void*
+static void*
 pl_stack_allocator_aligned_alloc(plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment)
 {
     void* pBuffer = NULL;
@@ -358,13 +766,13 @@ pl_stack_allocator_aligned_alloc(plStackAllocator* ptAllocator, size_t szSize, s
     return pBuffer;
 }
 
-void*
+static void*
 pl_stack_allocator_aligned_alloc_bottom(plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment)
 {
     return pl_stack_allocator_aligned_alloc(ptAllocator, szSize, szAlignment);
 }
 
-void*
+static void*
 pl_stack_allocator_aligned_alloc_top(plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment)
 {
     void* pBuffer = NULL;
@@ -388,13 +796,13 @@ pl_stack_allocator_aligned_alloc_top(plStackAllocator* ptAllocator, size_t szSiz
     return pBuffer;
 }
 
-void*
+static void*
 pl_stack_allocator_alloc_bottom(plStackAllocator* ptAllocator, size_t szSize)
 {
     return pl_stack_allocator_alloc(ptAllocator, szSize);
 }
 
-void*
+static void*
 pl_stack_allocator_alloc_top(plStackAllocator* ptAllocator, size_t szSize)
 {
     size_t szOffset = ptAllocator->szTopOffset - szSize;
@@ -408,27 +816,21 @@ pl_stack_allocator_alloc_top(plStackAllocator* ptAllocator, size_t szSize)
     return pBuffer;
 }
 
-plStackAllocatorMarker
+static plStackAllocatorMarker
 pl_stack_allocator_marker(plStackAllocator* ptAllocator)
 {
     plStackAllocatorMarker tMarker = ptAllocator->szBottomOffset;
     return tMarker;
 }
 
-plStackAllocatorMarker
-pl_stack_allocator_bottom_marker(plStackAllocator* ptAllocator)
-{
-    return pl_stack_allocator_marker(ptAllocator);
-}
-
-plStackAllocatorMarker
+static plStackAllocatorMarker
 pl_stack_allocator_top_marker(plStackAllocator* ptAllocator)
 {
     plStackAllocatorMarker tMarker = ptAllocator->szTopOffset;
     return tMarker;
 }
 
-void
+static void
 pl_stack_allocator_free_to_marker(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker)
 {
     ptAllocator->szBottomOffset = tMarker;
@@ -438,7 +840,7 @@ pl_stack_allocator_free_to_marker(plStackAllocator* ptAllocator, plStackAllocato
     #endif
 }
 
-void
+static void
 pl_stack_allocator_free_top_to_marker(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker)
 {
     ptAllocator->szTopOffset = tMarker;
@@ -448,7 +850,7 @@ pl_stack_allocator_free_top_to_marker(plStackAllocator* ptAllocator, plStackAllo
     #endif
 }
 
-void
+static void
 pl_stack_allocator_free_bottom_to_marker(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker)
 {
     ptAllocator->szBottomOffset = tMarker;
@@ -458,7 +860,7 @@ pl_stack_allocator_free_bottom_to_marker(plStackAllocator* ptAllocator, plStackA
     #endif
 }
 
-void
+static void
 pl_stack_allocator_reset(plStackAllocator* ptAllocator)
 {
     ptAllocator->szBottomOffset = 0;
@@ -469,7 +871,7 @@ pl_stack_allocator_reset(plStackAllocator* ptAllocator)
     #endif
 }
 
-void
+static void
 pl_pool_allocator_init(plPoolAllocator* ptAllocator, size_t szItemCount, size_t szItemSize, size_t szItemAlignment, size_t szBufferSize, void* pBuffer)
 {
     PL_ASSERT(ptAllocator);
@@ -502,7 +904,7 @@ pl_pool_allocator_init(plPoolAllocator* ptAllocator, size_t szItemCount, size_t 
     ptAllocator->pFreeList = (plPoolAllocatorNode*)pUsableBuffer;
 }
 
-void*
+static void*
 pl_pool_allocator_alloc(plPoolAllocator* ptAllocator)
 {
     PL_ASSERT(ptAllocator->szFreeItems > 0 && "pool allocator is full");
@@ -514,93 +916,13 @@ pl_pool_allocator_alloc(plPoolAllocator* ptAllocator)
     return pFirstNode;
 }
 
-void
+static void
 pl_pool_allocator_free(plPoolAllocator* ptAllocator, void* pItem)
 {
     ptAllocator->szFreeItems++;
     plPoolAllocatorNode* pOldFreeNode = ptAllocator->pFreeList;
     ptAllocator->pFreeList = (plPoolAllocatorNode*)pItem;
     ptAllocator->pFreeList->ptNextNode = pOldFreeNode;
-}
-
-size_t
-pl_get_page_size(void)
-{
-    #ifdef _WIN32
-        SYSTEM_INFO tInfo = {0};
-        GetSystemInfo(&tInfo);
-        return (size_t)tInfo.dwPageSize;
-    #elif defined(__APPLE__)
-        return (size_t)getpagesize();
-    #else // linux
-        return (size_t)getpagesize();
-    #endif
-}
-
-void*
-pl_virtual_alloc(void* pAddress, size_t szSize)
-{
-    #ifdef _WIN32
-        return VirtualAlloc(pAddress, szSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    #elif defined(__APPLE__)
-        void* pResult = mmap(pAddress, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        return pResult;
-    #else // linux
-        void* pResult = mmap(pAddress, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        return pResult;
-    #endif
-}
-
-void*
-pl_virtual_reserve(void* pAddress, size_t szSize)
-{
-    #ifdef _WIN32
-        return VirtualAlloc(pAddress, szSize, MEM_RESERVE, PAGE_READWRITE);
-    #elif defined(__APPLE__)
-        void* pResult = mmap(pAddress, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        return pResult;
-    #else // linux
-        void* pResult = mmap(pAddress, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        return pResult;
-    #endif
-}
-
-void*
-pl_virtual_commit(void* pAddress, size_t szSize)
-{
-    #ifdef _WIN32
-        return VirtualAlloc(pAddress, szSize, MEM_COMMIT, PAGE_READWRITE);
-    #elif defined(__APPLE__)
-        mprotect(pAddress, szSize, PROT_READ | PROT_WRITE);
-        return pAddress;
-    #else // linux
-        mprotect(pAddress, szSize, PROT_READ | PROT_WRITE);
-        return pAddress;
-    #endif
-}
-
-void
-pl_virtual_free(void* pAddress, size_t szSize)
-{
-    #ifdef _WIN32
-        PL_ASSERT(VirtualFree(pAddress, szSize, MEM_RELEASE));
-    #elif defined(__APPLE__)
-        PL_ASSERT(munmap(pAddress, szSize) == 0);
-    #else // linux
-        PL_ASSERT(munmap(pAddress, szSize) == 0); //-V586
-    #endif
-}
-
-void
-pl_virtual_uncommit(void* pAddress, size_t szSize)
-{
-    #ifdef _WIN32
-        PL_ASSERT(VirtualFree(pAddress, szSize, MEM_DECOMMIT));
-    #elif defined(__APPLE__)
-        mprotect(pAddress, szSize, PROT_NONE);
-    #else // linux
-        mprotect(pAddress, szSize, PROT_NONE);
-    #endif
 }
 
 #endif

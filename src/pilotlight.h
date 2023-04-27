@@ -157,8 +157,10 @@ typedef struct _plExtensionRegistryApiI
 
 typedef struct _plMemoryApiI
 {
-    void* (*alloc)(size_t szSize);
-    void  (*free) (void* pBuffer);
+    void* (*alloc)  (size_t szSize);
+    void  (*free)   (void* pBuffer);
+    void* (*realloc)(void* pBuffer, size_t szSize);
+
 } plMemoryApiI;
 
 typedef struct _plLibraryApiI

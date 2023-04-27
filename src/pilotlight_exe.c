@@ -18,12 +18,18 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // memory functions (forward declared to be used in pl_ds.h)
-static void* pl__alloc(size_t szSize);
-static void  pl__free (void* pBuffer);
+static void* pl__alloc  (size_t szSize);
+static void  pl__free   (void* pBuffer);
+static void* pl__realloc(void* pBuffer, size_t szSize);
 
 // pl_ds.h allocators (so they can be tracked)
 #define PL_DS_ALLOC(x) pl__alloc((x))
 #define PL_DS_FREE(x)  pl__free((x))
+
+// pl_memory.h allocators (so they can be tracked)
+#define PL_MEMORY_ALLOC(x)      pl__alloc((x))
+#define PL_MEMORY_REALLOC(x, y) pl__realloc(x, y)
+#define PL_MEMORY_FREE(x)       pl__free((x))
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -34,6 +40,7 @@ static void  pl__free (void* pBuffer);
 #include "pilotlight.h"
 #include "pl_json.h"
 #include "pl_ds.h"
+#include "pl_memory.h"
 
 #ifdef _WIN32
     #include "../backends/pl_win32.c"
@@ -148,8 +155,9 @@ pl_load_core_apis(void)
     };
 
     static plMemoryApiI tApi2 = {
-        .alloc = pl__alloc,
-        .free  = pl__free
+        .alloc   = pl__alloc,
+        .free    = pl__free,
+        .realloc = pl__realloc
     };
 
     static plLibraryApiI tApi3 = {
@@ -175,6 +183,12 @@ pl_load_core_apis(void)
         .sleep     = pl__sleep
     };
 
+    // apis more likely to not be stored, should be first (api registry is not sorted)
+    tApiRegistry.add(PL_API_TEMP_ALLOCATOR, pl_load_temp_allocator_api());
+    tApiRegistry.add(PL_API_STACK_ALLOCATOR, pl_load_stack_allocator_api());
+    tApiRegistry.add(PL_API_DOUBLE_STACK_ALLOCATOR, pl_load_double_stack_allocator_api());
+    tApiRegistry.add(PL_API_GENERAL_ALLOCATOR, pl_load_general_allocator_api());
+    tApiRegistry.add(PL_API_POOL_ALLOCATOR, pl_load_pool_allocator_api());
     tApiRegistry.add(PL_API_DATA_REGISTRY, &tApi0);
     tApiRegistry.add(PL_API_EXTENSION_REGISTRY, &tApi1);
     tApiRegistry.add(PL_API_MEMORY, &tApi2);
@@ -560,6 +574,34 @@ pl__free(void* pBuffer)
     free(pBuffer);
 }
 
+static void*
+pl__realloc(void* pBuffer, size_t szSize)
+{
+    void* pNewBuffer = NULL;
+
+    if(szSize == 0 && pBuffer)  // free
+    { 
+        gszActiveAllocations--;
+        free(pBuffer);
+        pNewBuffer = NULL;
+    }
+    else if (szSize == 0)  // free
+    { 
+        gszActiveAllocations--;
+        pNewBuffer = NULL;
+    }
+    else if(pBuffer) // resizing
+    {
+        pNewBuffer = realloc(pBuffer, szSize);
+    }
+    else
+    {
+        gszActiveAllocations++;
+        pNewBuffer = malloc(szSize);
+    }
+    return pNewBuffer;
+}
+
 #define PL_IO_IMPLEMENTATION
 #include "pl_io.h"
 #undef PL_IO_IMPLEMENTATION
@@ -571,3 +613,7 @@ pl__free(void* pBuffer)
 #define PL_JSON_IMPLEMENTATION
 #include "pl_json.h"
 #undef PL_JSON_IMPLEMENTATION
+
+#define PL_MEMORY_IMPLEMENTATION
+#include "pl_memory.h"
+#undef PL_MEMORY_IMPLEMENTATION

@@ -1,5 +1,6 @@
 /*
    vulkan_app.c
+    - just some nasty testing code
 */
 
 /*
@@ -59,10 +60,12 @@ typedef struct _plAppData
     bool         bShowUiStyle;
     bool         bShowUiMemory;
 
+    // allocators
+    plTempAllocator tTempAllocator;
+
     // apis
-    plIOApiI*      ptIoI;
-    plLibraryApiI* ptLibraryApi;
-    plFileApiI*    ptFileApi;
+    plIOApiI*      io;
+    plFileApiI*    files;
     
     // renderer
     plRenderer      tRenderer;
@@ -92,7 +95,7 @@ typedef struct _plAppData
     plRenderTarget   tOffscreenTarget;
     VkDescriptorSet* sbtTextures;
 
-    plApiRegistryApiI* ptApiRegistry;
+    plApiRegistryApiI* api;
 
 } plAppData;
 
@@ -100,173 +103,164 @@ typedef struct _plAppData
 // [SECTION] pl_app_load
 //-----------------------------------------------------------------------------
 
-plProtoApiI*            ptProtoApi      = NULL;
-plGraphicsApiI*         ptGfx           = NULL;
-plDrawApiI*             ptDrawApi       = NULL;
-plVulkanDrawApiI*       ptVulkanDrawApi = NULL;
-plUiApiI*               ptUi            = NULL;
-plIOApiI*               ptIoI           = NULL;
-plResourceManager0ApiI* ptResourceApi   = NULL;
+plProtoApiI*            proto     = NULL;
+plGraphicsApiI*         g         = NULL;
+plDrawApiI*             draw      = NULL;
+plVulkanDrawApiI*       vkDraw    = NULL;
+plUiApiI*               ui        = NULL;
+plIOApiI*               io        = NULL;
+plResourceManager0ApiI* resources = NULL;
 
 static void
-pl__api_update_callback(void* pNewInterface, void* pOldInterface, void* pAppData)
+pl__api_update_callback(void* newInterface, void* oldInterface, void* data)
 {
-    plAppData* ptAppData = pAppData;
-    plDataRegistryApiI* ptDataRegistry = ptAppData->ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    plAppData* appData = data;
+    plDataRegistryApiI* dataReg = appData->api->first(PL_API_DATA_REGISTRY);
 
-    if(pOldInterface == ptUi)
+    if(oldInterface == ui)
     {
-        ptUi = pNewInterface;
-        ptUi->set_context(ptDataRegistry->get_data("ui"));
-        ptUi->set_draw_api(ptDrawApi);
+        ui = newInterface;
+        ui->set_context(dataReg->get_data("ui"));
+        ui->set_draw_api(draw);
     }
-    else if(pOldInterface == ptDrawApi)
+    else if(oldInterface == draw)
     {
-        ptDrawApi = pNewInterface;
-        ptDrawApi->set_context(ptDataRegistry->get_data("draw"));
-        ptUi->set_draw_api(ptDrawApi);
+        draw = newInterface;
+        draw->set_context(dataReg->get_data("draw"));
+        ui->set_draw_api(draw);
     }
 }
 
 PL_EXPORT void*
-pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
+pl_app_load(plApiRegistryApiI* api, void* data)
 {
-    plAppData* ptAppData = pAppData;
-    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    plAppData* app = data;
+    plDataRegistryApiI* dataReg = api->first(PL_API_DATA_REGISTRY);
 
-    if(ptAppData) // reload
+    if(app) // reload
     {
-        pl_set_log_context(ptDataRegistry->get_data("log"));
-        pl_set_profile_context(ptDataRegistry->get_data("profile"));
+        pl_set_log_context(dataReg->get_data("log"));
+        pl_set_profile_context(dataReg->get_data("profile"));
         
         // must resubscribe (can't do in callback since callback is from previous binary)
-        ptApiRegistry->subscribe(ptUi, pl__api_update_callback, ptAppData);
-        ptApiRegistry->subscribe(ptDrawApi, pl__api_update_callback, ptAppData);
+        api->subscribe(ui, pl__api_update_callback, app);
+        api->subscribe(draw, pl__api_update_callback, app);
 
-        ptProtoApi      = ptApiRegistry->first(PL_API_PROTO);
-        ptGfx           = ptApiRegistry->first(PL_API_GRAPHICS);
-        ptDrawApi       = ptApiRegistry->first(PL_API_DRAW);
-        ptVulkanDrawApi = ptApiRegistry->first(PL_API_VULKAN_DRAW);
-        ptUi            = ptApiRegistry->first(PL_API_UI);
-        ptIoI           = ptApiRegistry->first(PL_API_IO);
-        ptResourceApi   = ptApiRegistry->first(PL_API_RESOURCE_MANAGER_0);
+        // reload apis for this binary
+        proto     = api->first(PL_API_PROTO);
+        g         = api->first(PL_API_GRAPHICS);
+        draw      = api->first(PL_API_DRAW);
+        vkDraw    = api->first(PL_API_VULKAN_DRAW);
+        ui        = api->first(PL_API_UI);
+        io        = api->first(PL_API_IO);
+        resources = api->first(PL_API_RESOURCE_MANAGER_0);
 
-        ptDrawApi->set_context(ptDataRegistry->get_data("draw"));
-        ptUi->set_context(ptDataRegistry->get_data("ui"));
+        draw->set_context(dataReg->get_data("draw"));
+        ui->set_context(dataReg->get_data("ui"));
 
-        ptGfx->reload_contexts(ptApiRegistry);
-        return ptAppData;
+        g->reload_contexts(api);
+        return app;
     }
 
-    ptIoI                       = ptApiRegistry->first(PL_API_IO);
-    plLibraryApiI* ptLibraryApi = ptApiRegistry->first(PL_API_LIBRARY);
-    plFileApiI* ptFileApi       = ptApiRegistry->first(PL_API_FILE);
-    plMemoryApiI* ptMemoryApi   = ptApiRegistry->first(PL_API_MEMORY);
+    plMemoryApiI* ptMemoryApi   = api->first(PL_API_MEMORY);
     
-    ptAppData = malloc(sizeof(plAppData));
-    memset(ptAppData, 0, sizeof(plAppData));
-    ptAppData->ptApiRegistry = ptApiRegistry;
-    ptAppData->ptIoI         = ptIoI;
-    ptAppData->ptLibraryApi  = ptLibraryApi;
-    ptAppData->ptFileApi     = ptFileApi;
+    app = ptMemoryApi->alloc(sizeof(plAppData));
+    memset(app, 0, sizeof(plAppData));
+    app->api   = api;
+    app->io    = api->first(PL_API_IO);
+    app->files = api->first(PL_API_FILE);
     
     // create profile context
-    plProfileContext* ptProfileCtx = pl_create_profile_context();
-    ptDataRegistry->set_data("profile", ptProfileCtx);
+    dataReg->set_data("profile", pl_create_profile_context());
 
     // create log context
-    plLogContext* ptLogCtx = pl_create_log_context();
+    dataReg->set_data("log", pl_create_log_context());
     pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
     pl_log_info("Setup logging");
-    ptDataRegistry->set_data("log", ptLogCtx);
-
+    
     // load extensions
-    plExtensionRegistryApiI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    plExtensionRegistryApiI* extensions = api->first(PL_API_EXTENSION_REGISTRY);
+    extensions->load_from_config(api, "../src/pl_config.json");
 
-    ptExtensionRegistry->load_from_config(ptApiRegistry, "../src/pl_config.json");
-
-    plImageApiI* ptImageApi = ptApiRegistry->first(PL_API_IMAGE);
-    plGltfApiI*  ptGltfApi  = ptApiRegistry->first(PL_API_GLTF);
-
-    ptProtoApi      = ptApiRegistry->first(PL_API_PROTO);
-    ptGfx           = ptApiRegistry->first(PL_API_GRAPHICS);
-    ptDrawApi       = ptApiRegistry->first(PL_API_DRAW);
-    ptVulkanDrawApi = ptApiRegistry->first(PL_API_VULKAN_DRAW);
-    ptUi            = ptApiRegistry->first(PL_API_UI);
-    ptIoI           = ptApiRegistry->first(PL_API_IO);
+    g      = api->first(PL_API_GRAPHICS);
+    draw   = api->first(PL_API_DRAW);
+    vkDraw = api->first(PL_API_VULKAN_DRAW);
+    ui     = api->first(PL_API_UI);
+    io     = api->first(PL_API_IO);
 
     // subscribe to api updates
-    ptApiRegistry->subscribe(ptUi, pl__api_update_callback, ptAppData);
-    ptApiRegistry->subscribe(ptDrawApi, pl__api_update_callback, ptAppData);
+    api->subscribe(ui, pl__api_update_callback, app);
+    api->subscribe(draw, pl__api_update_callback, app);
 
     // setup renderer
-    ptGfx->setup_graphics(&ptAppData->tGraphics, ptApiRegistry);
+    g->setup_graphics(&app->tGraphics, api, &app->tTempAllocator);
 
-    plDeviceApiI* ptDeviceApi = ptAppData->tGraphics.ptDeviceApi;
-    ptResourceApi = ptApiRegistry->first(PL_API_RESOURCE_MANAGER_0);
+    plDeviceApiI* device = app->tGraphics.ptDeviceApi;
+    resources = api->first(PL_API_RESOURCE_MANAGER_0);
 
     // create ui context
-    plUiContext* ptUiContext = ptUi->create_context(ptIoI, ptDrawApi);
-    ptDataRegistry->set_data("ui", ptUiContext);
+    dataReg->set_data("ui", ui->create_context(io, draw));
 
     // setup drawing api
-    const plVulkanInit tVulkanInit = {
-        .tPhysicalDevice  = ptAppData->tGraphics.tDevice.tPhysicalDevice,
-        .tLogicalDevice   = ptAppData->tGraphics.tDevice.tLogicalDevice,
-        .uImageCount      = ptAppData->tGraphics.tSwapchain.uImageCount,
-        .tRenderPass      = ptAppData->tGraphics.tRenderPass,
-        .tMSAASampleCount = ptAppData->tGraphics.tSwapchain.tMsaaSamples,
-        .uFramesInFlight  = ptAppData->tGraphics.uFramesInFlight
+    const plVulkanInit vkInit = {
+        .tPhysicalDevice  = app->tGraphics.tDevice.tPhysicalDevice,
+        .tLogicalDevice   = app->tGraphics.tDevice.tLogicalDevice,
+        .uImageCount      = app->tGraphics.tSwapchain.uImageCount,
+        .tRenderPass      = app->tGraphics.tRenderPass,
+        .tMSAASampleCount = app->tGraphics.tSwapchain.tMsaaSamples,
+        .uFramesInFlight  = app->tGraphics.uFramesInFlight
     };
-    ptVulkanDrawApi->initialize_context(ptUi->get_draw_context(NULL), &tVulkanInit);
-    ptDrawApi->register_drawlist(ptUi->get_draw_context(NULL), &ptAppData->drawlist);
-    ptDrawApi->register_drawlist(ptUi->get_draw_context(NULL), &ptAppData->drawlist2);
-    ptDrawApi->register_3d_drawlist(ptUi->get_draw_context(NULL), &ptAppData->drawlist3d);
-    ptAppData->bgDrawLayer = ptDrawApi->request_layer(&ptAppData->drawlist, "Background Layer");
-    ptAppData->fgDrawLayer = ptDrawApi->request_layer(&ptAppData->drawlist, "Foreground Layer");
-    ptAppData->offscreenDrawLayer = ptDrawApi->request_layer(&ptAppData->drawlist2, "Foreground Layer");
+    vkDraw->initialize_context(ui->get_draw_context(NULL), &vkInit);
+    draw->register_drawlist(ui->get_draw_context(NULL), &app->drawlist);
+    draw->register_drawlist(ui->get_draw_context(NULL), &app->drawlist2);
+    draw->register_3d_drawlist(ui->get_draw_context(NULL), &app->drawlist3d);
+    app->bgDrawLayer = draw->request_layer(&app->drawlist, "Background Layer");
+    app->fgDrawLayer = draw->request_layer(&app->drawlist, "Foreground Layer");
+    app->offscreenDrawLayer = draw->request_layer(&app->drawlist2, "Foreground Layer");
 
     // create font atlas
-    ptDrawApi->add_default_font(&ptAppData->fontAtlas);
-    ptDrawApi->build_font_atlas(ptUi->get_draw_context(NULL), &ptAppData->fontAtlas);
-    ptUi->set_default_font(&ptAppData->fontAtlas.sbFonts[0]);
-    ptDataRegistry->set_data("draw", ptUi->get_draw_context(NULL));
+    draw->add_default_font(&app->fontAtlas);
+    draw->build_font_atlas(ui->get_draw_context(NULL), &app->fontAtlas);
+    ui->set_default_font(&app->fontAtlas.sbFonts[0]);
+    dataReg->set_data("draw", ui->get_draw_context(NULL));
 
     // renderer
-    ptProtoApi->setup_renderer(ptApiRegistry, &ptAppData->tGraphics, &ptAppData->tRenderer);
-    ptProtoApi->create_scene(&ptAppData->tRenderer, &ptAppData->tScene);
+    proto = api->first(PL_API_PROTO);
+    proto->setup_renderer(api, &app->tGraphics, &app->tRenderer);
+    proto->create_scene(&app->tRenderer, &app->tScene);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~entity IDs~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
     // cameras
-    plIOContext* ptIOCtx = ptAppData->ptIoI->get_context();
-    ptAppData->tOffscreenCameraEntity = ptProtoApi->ecs_create_camera(&ptAppData->tScene, "offscreen camera", (plVec3){0.0f, 0.35f, 1.2f}, PL_PI_3, 1280.0f / 720.0f, 0.1f, 10.0f);
-    ptAppData->tCameraEntity = ptProtoApi->ecs_create_camera(&ptAppData->tScene, "main camera", (plVec3){-6.211f, 3.647f, 0.827f}, PL_PI_3, ptIOCtx->afMainViewportSize[0] / ptIOCtx->afMainViewportSize[1], 0.01f, 400.0f);
-    plCameraComponent* ptCamera = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tCameraEntity);
-    plCameraComponent* ptCamera2 = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tOffscreenCameraEntity);
-    ptProtoApi->camera_set_pitch_yaw(ptCamera, -0.244f, 1.488f);
-    ptProtoApi->camera_set_pitch_yaw(ptCamera2, 0.0f, -PL_PI);
+    plIOContext* ioCtx = app->io->get_context();
+    app->tOffscreenCameraEntity = proto->ecs_create_camera(&app->tScene, "offscreen camera", (plVec3){0.0f, 0.35f, 1.2f}, PL_PI_3, 1280.0f / 720.0f, 0.1f, 10.0f);
+    app->tCameraEntity = proto->ecs_create_camera(&app->tScene, "main camera", (plVec3){-6.211f, 3.647f, 0.827f}, PL_PI_3, ioCtx->afMainViewportSize[0] / ioCtx->afMainViewportSize[1], 0.01f, 400.0f);
+    plCameraComponent* cam0 = proto->ecs_get_component(&app->tScene.tComponentLibrary.tCameraComponentManager, app->tCameraEntity);
+    plCameraComponent* cam1 = proto->ecs_get_component(&app->tScene.tComponentLibrary.tCameraComponentManager, app->tOffscreenCameraEntity);
+    proto->camera_set_pitch_yaw(cam0, -0.244f, 1.488f);
+    proto->camera_set_pitch_yaw(cam1, 0.0f, -PL_PI);
 
     // objects
-    ptAppData->tStlEntity   = ptProtoApi->ecs_create_object(&ptAppData->tScene, "stl object");
-    ptAppData->tStl2Entity  = ptProtoApi->ecs_create_object(&ptAppData->tScene, "stl object 2");
-    ptAppData->tGrassEntity = ptProtoApi->ecs_create_object(&ptAppData->tScene, "grass object");
-    pl_sb_push(ptAppData->tRenderer.sbtObjectEntities, ptAppData->tGrassEntity);
-    pl_sb_push(ptAppData->tRenderer.sbtObjectEntities, ptAppData->tStlEntity);
-    pl_sb_push(ptAppData->tRenderer.sbtObjectEntities, ptAppData->tStl2Entity);
+    app->tStlEntity   = proto->ecs_create_object(&app->tScene, "stl object");
+    app->tStl2Entity  = proto->ecs_create_object(&app->tScene, "stl object 2");
+    app->tGrassEntity = proto->ecs_create_object(&app->tScene, "grass object");
+    pl_sb_push(app->tRenderer.sbtObjectEntities, app->tGrassEntity);
+    pl_sb_push(app->tRenderer.sbtObjectEntities, app->tStlEntity);
+    pl_sb_push(app->tRenderer.sbtObjectEntities, app->tStl2Entity);
 
-    ptGltfApi->load(&ptAppData->tScene, "../data/glTF-Sample-Models-master/2.0/FlightHelmet/glTF/FlightHelmet.gltf");
-    // pl_ext_load_gltf(&ptAppData->tScene, "../data/glTF-Sample-Models-master/2.0/sponza/glTF/sponza.gltf");
+    plGltfApiI* gltf = api->first(PL_API_GLTF);
+    gltf->load(&app->tScene, "../data/glTF-Sample-Models-master/2.0/FlightHelmet/glTF/FlightHelmet.gltf");
+    // pl_ext_load_gltf(&app->tScene, "../data/glTF-Sample-Models-master/2.0/sponza/glTF/sponza.gltf");
 
     // materials
-    ptAppData->tGrassMaterial   = ptProtoApi->ecs_create_material(&ptAppData->tScene, "grass material");
-    ptAppData->tSolidMaterial   = ptProtoApi->ecs_create_material(&ptAppData->tScene, "solid material");
-    ptAppData->tSolid2Material  = ptProtoApi->ecs_create_material(&ptAppData->tScene, "solid material 2");
+    app->tGrassMaterial   = proto->ecs_create_material(&app->tScene, "grass material");
+    app->tSolidMaterial   = proto->ecs_create_material(&app->tScene, "solid material");
+    app->tSolid2Material  = proto->ecs_create_material(&app->tScene, "solid material 2");
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~materials~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // grass
-    plShaderDesc tGrassShaderDesc = {
+    plShaderDesc grassShaderDesc = {
         .pcPixelShader                       = "grass.frag.spv",
         .pcVertexShader                      = "grass.vert.spv",
         .tGraphicsState.ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0,
@@ -306,12 +300,13 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
         },   
     };
 
-    ptAppData->uGrassShader   = ptGfx->create_shader(&ptAppData->tGraphics.tResourceManager, &tGrassShaderDesc);
+    app->uGrassShader   = g->create_shader(&app->tGraphics.tResourceManager, &grassShaderDesc);
 
     // grass material
     int texWidth, texHeight, texNumChannels;
     int texForceNumChannels = 4;
-    unsigned char* rawBytes = ptImageApi->load("../data/pilotlight-assets-master/images/grass.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+    plImageApiI* images = api->first(PL_API_IMAGE);
+    unsigned char* rawBytes = images->load("../data/pilotlight-assets-master/images/grass.png", &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
     PL_ASSERT(rawBytes);
 
     const plTextureDesc tTextureDesc = {
@@ -338,63 +333,64 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
 		.uMips       = tTextureDesc.uMips
 	};
 
-	uint32_t uGrassTexture = ptResourceApi->create_texture(&ptAppData->tGraphics.tResourceManager, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * 4, rawBytes, "../data/pilotlight-assets-master/images/grass.png");
+	uint32_t uGrassTexture = resources->create_texture(&app->tGraphics.tResourceManager, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * 4, rawBytes, "../data/pilotlight-assets-master/images/grass.png");
 	
     // grass material
-    plMaterialComponent* ptGrassMaterial = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tMaterialComponentManager, ptAppData->tGrassMaterial);
-    ptGrassMaterial->uShader = ptAppData->uGrassShader;
+    plMaterialComponent* ptGrassMaterial = proto->ecs_get_component(&app->tScene.tComponentLibrary.tMaterialComponentManager, app->tGrassMaterial);
+    ptGrassMaterial->uShader = app->uGrassShader;
     ptGrassMaterial->tShaderType = PL_SHADER_TYPE_CUSTOM;
     ptGrassMaterial->bDoubleSided = true;
-    ptGrassMaterial->uAlbedoMap = ptResourceApi->create_texture_view(&ptAppData->tGraphics.tResourceManager, &tView, &tSampler, uGrassTexture, "grass texture");
+    ptGrassMaterial->uAlbedoMap = resources->create_texture_view(&app->tGraphics.tResourceManager, &tView, &tSampler, uGrassTexture, "grass texture");
 
-    ptImageApi->free(rawBytes);
+    images->free(rawBytes);
 
     // solid materials
-    ptProtoApi->material_outline(&ptAppData->tScene, ptAppData->tSolid2Material);
+    proto->material_outline(&app->tScene, app->tSolid2Material);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~STL Model~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    plTempAllocatorApiI* tempAlloc = api->first(PL_API_TEMP_ALLOCATOR);
     plStlInfo tStlInfo = {0};
-    uint32_t uFileSize = 0u;
-    ptFileApi->read("../data/pilotlight-assets-master/meshes/monkey.stl", &uFileSize, NULL, "rb");
-    char* acFileData = ptMemoryApi->alloc(uFileSize);
-    memset(acFileData, 0, uFileSize);
-    ptFileApi->read("../data/pilotlight-assets-master/meshes/monkey.stl", &uFileSize, acFileData, "rb");
-    pl_load_stl(acFileData, uFileSize, NULL, NULL, NULL, &tStlInfo);
+    uint32_t fileSize = 0u;
+    app->files->read("../data/pilotlight-assets-master/meshes/monkey.stl", &fileSize, NULL, "rb");
+    char* acFileData = tempAlloc->alloc(&app->tTempAllocator, fileSize);
+    memset(acFileData, 0, fileSize);
+    app->files->read("../data/pilotlight-assets-master/meshes/monkey.stl", &fileSize, acFileData, "rb");
+    pl_load_stl(acFileData, fileSize, NULL, NULL, NULL, &tStlInfo);
 
     plSubMesh tSubMesh = {
-        .tMaterial = ptAppData->tSolidMaterial
+        .tMaterial = app->tSolidMaterial
     };
 
     pl_sb_resize(tSubMesh.sbtVertexPositions, (uint32_t)tStlInfo.szPositionStreamSize / 3);
     pl_sb_resize(tSubMesh.sbtVertexNormals, (uint32_t)tStlInfo.szNormalStreamSize / 3);
     pl_sb_resize(tSubMesh.sbuIndices, (uint32_t)tStlInfo.szIndexBufferSize);
-    pl_load_stl(acFileData, (size_t)uFileSize, (float*)tSubMesh.sbtVertexPositions, (float*)tSubMesh.sbtVertexNormals, tSubMesh.sbuIndices, &tStlInfo);
-    ptMemoryApi->free(acFileData);
-    plMeshComponent* ptMeshComponent = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tMeshComponentManager, ptAppData->tStlEntity);
-    plMeshComponent* ptMeshComponent2 = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tMeshComponentManager, ptAppData->tStl2Entity);
+    pl_load_stl(acFileData, (size_t)fileSize, (float*)tSubMesh.sbtVertexPositions, (float*)tSubMesh.sbtVertexNormals, tSubMesh.sbuIndices, &tStlInfo);
+    tempAlloc->reset(&app->tTempAllocator);
+    plMeshComponent* ptMeshComponent = proto->ecs_get_component(&app->tScene.tComponentLibrary.tMeshComponentManager, app->tStlEntity);
+    plMeshComponent* ptMeshComponent2 = proto->ecs_get_component(&app->tScene.tComponentLibrary.tMeshComponentManager, app->tStl2Entity);
     pl_sb_push(ptMeshComponent->sbtSubmeshes, tSubMesh);
-    tSubMesh.tMaterial = ptAppData->tSolid2Material;
+    tSubMesh.tMaterial = app->tSolid2Material;
     pl_sb_push(ptMeshComponent2->sbtSubmeshes, tSubMesh);
 
     {
-		plTransformComponent* ptTransformComponent = ptProtoApi->ecs_get_component(ptAppData->tScene.ptTransformComponentManager, ptAppData->tStlEntity);
+		plTransformComponent* transform = proto->ecs_get_component(app->tScene.ptTransformComponentManager, app->tStlEntity);
 
-		ptTransformComponent->tRotation    = (plVec4){.w = 1.0f};
-		ptTransformComponent->tScale       = (plVec3){1.0f, 1.0f, 1.0f};
-		ptTransformComponent->tTranslation = (plVec3){0};
-		ptTransformComponent->tWorld = pl_rotation_translation_scale(ptTransformComponent->tRotation, ptTransformComponent->tTranslation, ptTransformComponent->tScale);
-		ptTransformComponent->tFinalTransform = ptTransformComponent->tWorld;
+		transform->tRotation    = (plVec4){.w = 1.0f};
+		transform->tScale       = (plVec3){1.0f, 1.0f, 1.0f};
+		transform->tTranslation = (plVec3){0};
+		transform->tWorld = pl_rotation_translation_scale(transform->tRotation, transform->tTranslation, transform->tScale);
+		transform->tFinalTransform = transform->tWorld;
     }
 
     {
-		plTransformComponent* ptTransformComponent = ptProtoApi->ecs_get_component(ptAppData->tScene.ptTransformComponentManager, ptAppData->tStl2Entity);
+		plTransformComponent* transform = proto->ecs_get_component(app->tScene.ptTransformComponentManager, app->tStl2Entity);
 
-		ptTransformComponent->tRotation    = (plVec4){.w = 1.0f};
-		ptTransformComponent->tScale       = (plVec3){1.0f, 1.0f, 1.0f};
-		ptTransformComponent->tTranslation = (plVec3){0};
-		ptTransformComponent->tWorld = pl_rotation_translation_scale(ptTransformComponent->tRotation, ptTransformComponent->tTranslation, ptTransformComponent->tScale);
-		ptTransformComponent->tFinalTransform = ptTransformComponent->tWorld;
+		transform->tRotation    = (plVec4){.w = 1.0f};
+		transform->tScale       = (plVec3){1.0f, 1.0f, 1.0f};
+		transform->tTranslation = (plVec3){0};
+		transform->tWorld = pl_rotation_translation_scale(transform->tRotation, transform->tTranslation, transform->tScale);
+		transform->tFinalTransform = transform->tWorld;
     }
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~grass~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -404,7 +400,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     const float fGrassZ = 0.0f;
     const float fGrassHeight = 1.0f;
 
-    const plVec3 atVertexBuffer[12] = {
+    const plVec3 vtxBuf[12] = {
 
         // first quad
         { -0.5f + fGrassX, fGrassHeight + fGrassY, 0.0f + fGrassZ},
@@ -426,7 +422,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     };
 
     // uvs
-    const plVec2 atUVs[12] = 
+    const plVec2 uvs[12] = 
     {
         {.x = 0.0f, .y = 0.0f},
         {.x = 1.0f, .y = 0.0f},
@@ -444,7 +440,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
         {.x = 0.0f, .y = 1.0f},
     };
 
-    const plVec3 atNormals[12] = 
+    const plVec3 norms[12] = 
     {
         {.y = 2.0f},
         {.y = 2.0f},
@@ -462,74 +458,74 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
         {.y = 2.0f}
     };
 
-    const uint32_t auGrassIndexBuffer[] = {
+    const uint32_t idxBuf[] = {
         0,  3,  2, 0,  2, 1,
         4,  7,  6, 4,  6, 5,
         8, 11, 10, 8, 10, 9
     };
 
-    plObjectComponent* ptGrassObjectComponent = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tObjectComponentManager, ptAppData->tGrassEntity);
-    plMeshComponent* ptGrassMeshComponent = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tMeshComponentManager, ptGrassObjectComponent->tMesh);
-    plTransformComponent* ptGrassTransformComponent = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tTransformComponentManager, ptGrassObjectComponent->tTransform);
-    plSubMesh tGrassSubMesh = {
-        .tMaterial = ptAppData->tGrassMaterial
+    plObjectComponent* grassObject = proto->ecs_get_component(&app->tScene.tComponentLibrary.tObjectComponentManager, app->tGrassEntity);
+    plMeshComponent* grassMesh = proto->ecs_get_component(&app->tScene.tComponentLibrary.tMeshComponentManager, grassObject->tMesh);
+    plTransformComponent* grassTransform = proto->ecs_get_component(&app->tScene.tComponentLibrary.tTransformComponentManager, grassObject->tTransform);
+    plSubMesh grassSubMesh = {
+        .tMaterial = app->tGrassMaterial
     };
 
-    pl_sb_resize(tGrassSubMesh.sbtVertexPositions, 12);
-    pl_sb_resize(tGrassSubMesh.sbtVertexTextureCoordinates0, 12);
-    pl_sb_resize(tGrassSubMesh.sbtVertexNormals, 12);
-    pl_sb_resize(tGrassSubMesh.sbuIndices, 18);
+    pl_sb_resize(grassSubMesh.sbtVertexPositions, 12);
+    pl_sb_resize(grassSubMesh.sbtVertexTextureCoordinates0, 12);
+    pl_sb_resize(grassSubMesh.sbtVertexNormals, 12);
+    pl_sb_resize(grassSubMesh.sbuIndices, 18);
 
-    memcpy(tGrassSubMesh.sbtVertexPositions, atVertexBuffer, sizeof(plVec3) * pl_sb_size(tGrassSubMesh.sbtVertexPositions)); //-V1004
-    memcpy(tGrassSubMesh.sbtVertexTextureCoordinates0, atUVs, sizeof(plVec2) * pl_sb_size(tGrassSubMesh.sbtVertexTextureCoordinates0)); //-V1004
-    memcpy(tGrassSubMesh.sbtVertexNormals, atNormals, sizeof(plVec3) * pl_sb_size(tGrassSubMesh.sbtVertexNormals)); //-V1004
-    memcpy(tGrassSubMesh.sbuIndices, auGrassIndexBuffer, sizeof(uint32_t) * pl_sb_size(tGrassSubMesh.sbuIndices)); //-V1004
-    pl_sb_push(ptGrassMeshComponent->sbtSubmeshes, tGrassSubMesh);
+    memcpy(grassSubMesh.sbtVertexPositions, vtxBuf, sizeof(plVec3) * pl_sb_size(grassSubMesh.sbtVertexPositions)); //-V1004
+    memcpy(grassSubMesh.sbtVertexTextureCoordinates0, uvs, sizeof(plVec2) * pl_sb_size(grassSubMesh.sbtVertexTextureCoordinates0)); //-V1004
+    memcpy(grassSubMesh.sbtVertexNormals, norms, sizeof(plVec3) * pl_sb_size(grassSubMesh.sbtVertexNormals)); //-V1004
+    memcpy(grassSubMesh.sbuIndices, idxBuf, sizeof(uint32_t) * pl_sb_size(grassSubMesh.sbuIndices)); //-V1004
+    pl_sb_push(grassMesh->sbtSubmeshes, grassSubMesh);
 
-    ptProtoApi->ecs_attach_component(&ptAppData->tScene, ptAppData->tStl2Entity, ptAppData->tStlEntity);
+    proto->ecs_attach_component(&app->tScene, app->tStl2Entity, app->tStlEntity);
 
     {
-        plObjectComponent* ptObjectComponent = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tObjectComponentManager, ptAppData->tStl2Entity);
-        plTransformComponent* ptTransformComponent = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tTransformComponentManager, ptObjectComponent->tTransform);
+        plObjectComponent* object = proto->ecs_get_component(&app->tScene.tComponentLibrary.tObjectComponentManager, app->tStl2Entity);
+        plTransformComponent* transform = proto->ecs_get_component(&app->tScene.tComponentLibrary.tTransformComponentManager, object->tTransform);
         const plMat4 tStlTranslation = pl_mat4_translate_xyz(4.0f, 0.0f, 0.0f);
-        ptTransformComponent->tWorld = tStlTranslation;
+        transform->tWorld = tStlTranslation;
     }
 
     {
-        plObjectComponent* ptObjectComponent = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tObjectComponentManager, ptAppData->tGrassEntity);
-		plTransformComponent* ptTransformComponent = ptProtoApi->ecs_get_component(ptAppData->tScene.ptTransformComponentManager, ptObjectComponent->tTransform);
+        plObjectComponent* object = proto->ecs_get_component(&app->tScene.tComponentLibrary.tObjectComponentManager, app->tGrassEntity);
+		plTransformComponent* transform = proto->ecs_get_component(app->tScene.ptTransformComponentManager, object->tTransform);
 
-		ptTransformComponent->tRotation    = (plVec4){.w = 1.0f};
-		ptTransformComponent->tScale       = (plVec3){1.0f, 1.0f, 1.0f};
-		ptTransformComponent->tTranslation = (plVec3){2.0f, 0.0f, 2.0f};
-		ptTransformComponent->tWorld = pl_rotation_translation_scale(ptTransformComponent->tRotation, ptTransformComponent->tTranslation, ptTransformComponent->tScale);
-		ptTransformComponent->tFinalTransform = ptTransformComponent->tWorld;
+		transform->tRotation    = (plVec4){.w = 1.0f};
+		transform->tScale       = (plVec3){1.0f, 1.0f, 1.0f};
+		transform->tTranslation = (plVec3){2.0f, 0.0f, 2.0f};
+		transform->tWorld = pl_rotation_translation_scale(transform->tRotation, transform->tTranslation, transform->tScale);
+		transform->tFinalTransform = transform->tWorld;
     }
 
     // offscreen
-    plRenderPassDesc tRenderPassDesc = {
+    plRenderPassDesc renderPassDesc = {
         .tColorFormat = VK_FORMAT_R8G8B8A8_UNORM,
-        .tDepthFormat = ptDeviceApi->find_depth_stencil_format(&ptAppData->tGraphics.tDevice)
+        .tDepthFormat = device->find_depth_stencil_format(&app->tGraphics.tDevice)
     };
-    ptProtoApi->create_render_pass(&ptAppData->tGraphics, &tRenderPassDesc, &ptAppData->tOffscreenPass);
+    proto->create_render_pass(&app->tGraphics, &renderPassDesc, &app->tOffscreenPass);
 
-    plRenderTargetDesc tRenderTargetDesc = {
-        .tRenderPass = ptAppData->tOffscreenPass,
+    plRenderTargetDesc targetDesc = {
+        .tRenderPass = app->tOffscreenPass,
         .tSize = {1280.0f, 720.0f},
     };
-    ptProtoApi->create_render_target(ptResourceApi, &ptAppData->tGraphics, &tRenderTargetDesc, &ptAppData->tOffscreenTarget);
+    proto->create_render_target(resources, &app->tGraphics, &targetDesc, &app->tOffscreenTarget);
 
-    for(uint32_t i = 0; i < ptAppData->tGraphics.tSwapchain.uImageCount; i++)
+    for(uint32_t i = 0; i < app->tGraphics.tSwapchain.uImageCount; i++)
     {
-        plTextureView* ptColorTextureView = &ptAppData->tGraphics.tResourceManager.sbtTextureViews[ptAppData->tOffscreenTarget.sbuColorTextureViews[i]];
-        pl_sb_push(ptAppData->sbtTextures, ptVulkanDrawApi->add_texture(ptUi->get_draw_context(NULL), ptColorTextureView->_tImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+        plTextureView* colorView = &app->tGraphics.tResourceManager.sbtTextureViews[app->tOffscreenTarget.sbuColorTextureViews[i]];
+        pl_sb_push(app->sbtTextures, vkDraw->add_texture(ui->get_draw_context(NULL), colorView->_tImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
     }
 
-    ptProtoApi->create_main_render_target(&ptAppData->tGraphics, &ptAppData->tMainTarget);
+    proto->create_main_render_target(&app->tGraphics, &app->tMainTarget);
 
-    ptProtoApi->scene_prepare(&ptAppData->tScene);
+    proto->scene_prepare(&app->tScene);
 
-    return ptAppData;
+    return app;
 }
 
 //-----------------------------------------------------------------------------
@@ -539,16 +535,21 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
 PL_EXPORT void
 pl_app_shutdown(void* pAppData)
 {
-    plAppData* ptAppData = pAppData; 
-    vkDeviceWaitIdle(ptAppData->tGraphics.tDevice.tLogicalDevice);
-    ptDrawApi->cleanup_font_atlas(&ptAppData->fontAtlas);
-    ptUi->destroy_context(NULL);
-    ptProtoApi->cleanup_render_pass(&ptAppData->tGraphics, &ptAppData->tOffscreenPass);
-    ptProtoApi->cleanup_render_target(&ptAppData->tGraphics, &ptAppData->tOffscreenTarget);
-    ptProtoApi->cleanup_renderer(&ptAppData->tRenderer);
-    ptGfx->cleanup_graphics(&ptAppData->tGraphics);
+    
+    plAppData* app = pAppData; 
+    plTempAllocatorApiI* tempAlloc = app->api->first(PL_API_TEMP_ALLOCATOR);
+    plMemoryApiI* memoryApi = app->api->first(PL_API_MEMORY);
+    vkDeviceWaitIdle(app->tGraphics.tDevice.tLogicalDevice);
+    draw->cleanup_font_atlas(&app->fontAtlas);
+    ui->destroy_context(NULL);
+    proto->cleanup_render_pass(&app->tGraphics, &app->tOffscreenPass);
+    proto->cleanup_render_target(&app->tGraphics, &app->tOffscreenTarget);
+    proto->cleanup_renderer(&app->tRenderer);
+    g->cleanup_graphics(&app->tGraphics);
     pl_cleanup_profile_context();
     pl_cleanup_log_context();
+    tempAlloc->free(&app->tTempAllocator);
+    memoryApi->free(pAppData);
 }
 
 //-----------------------------------------------------------------------------
@@ -558,12 +559,12 @@ pl_app_shutdown(void* pAppData)
 PL_EXPORT void
 pl_app_resize(void* pAppData)
 {
-    plAppData* ptAppData = pAppData;
-    plIOContext* ptIOCtx = ptAppData->ptIoI->get_context();
-    ptGfx->resize_graphics(&ptAppData->tGraphics);
-    plCameraComponent* ptCamera = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tCameraEntity);
-    ptProtoApi->camera_set_aspect(ptCamera, ptIOCtx->afMainViewportSize[0] / ptIOCtx->afMainViewportSize[1]);
-    ptProtoApi->create_main_render_target(&ptAppData->tGraphics, &ptAppData->tMainTarget);
+    plAppData* app = pAppData;
+    plIOContext* ioCtx = app->io->get_context();
+    g->resize_graphics(&app->tGraphics);
+    plCameraComponent* cam0 = proto->ecs_get_component(&app->tScene.tComponentLibrary.tCameraComponentManager, app->tCameraEntity);
+    proto->camera_set_aspect(cam0, ioCtx->afMainViewportSize[0] / ioCtx->afMainViewportSize[1]);
+    proto->create_main_render_target(&app->tGraphics, &app->tMainTarget);
 }
 
 //-----------------------------------------------------------------------------
@@ -571,257 +572,257 @@ pl_app_resize(void* pAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_update(plAppData* ptAppData)
+pl_app_update(plAppData* app)
 {
 
-    static bool bVSyncChanged = false;
+    static bool vsyncChange = false;
 
-    if(bVSyncChanged)
+    if(vsyncChange)
     {
-        ptGfx->resize_graphics(&ptAppData->tGraphics);
-        ptProtoApi->create_main_render_target(&ptAppData->tGraphics, &ptAppData->tMainTarget);
-        bVSyncChanged = false;
+        g->resize_graphics(&app->tGraphics);
+        proto->create_main_render_target(&app->tGraphics, &app->tMainTarget);
+        vsyncChange = false;
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~frame setup~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    plIOApiI* pTIoI = ptAppData->ptIoI;
-    plIOContext* ptIOCtx = pTIoI->get_context();
+    plIOApiI* io = app->io;
+    plIOContext* ioCtx = io->get_context();
     pl_begin_profile_frame();
-    ptResourceApi->process_cleanup_queue(&ptAppData->tGraphics.tResourceManager, 1);
+    resources->process_cleanup_queue(&app->tGraphics.tResourceManager, 1);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~input handling~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    static const float fCameraTravelSpeed = 8.0f;
-    plCameraComponent* ptCamera = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tCameraEntity);
-    plCameraComponent* ptOffscreenCamera = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tCameraComponentManager, ptAppData->tOffscreenCameraEntity);
+    static const float camSpeed = 8.0f;
+    plCameraComponent* cam0 = proto->ecs_get_component(&app->tScene.tComponentLibrary.tCameraComponentManager, app->tCameraEntity);
+    plCameraComponent* cam1 = proto->ecs_get_component(&app->tScene.tComponentLibrary.tCameraComponentManager, app->tOffscreenCameraEntity);
 
     // camera space
-    if(pTIoI->is_key_pressed(PL_KEY_W, true)) ptProtoApi->camera_translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIOCtx->fDeltaTime);
-    if(pTIoI->is_key_pressed(PL_KEY_S, true)) ptProtoApi->camera_translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIOCtx->fDeltaTime);
-    if(pTIoI->is_key_pressed(PL_KEY_A, true)) ptProtoApi->camera_translate(ptCamera, -fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f,  0.0f);
-    if(pTIoI->is_key_pressed(PL_KEY_D, true)) ptProtoApi->camera_translate(ptCamera,  fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f,  0.0f);
+    if(io->is_key_pressed(PL_KEY_W, true)) proto->camera_translate(cam0,  0.0f,  0.0f,  camSpeed * ioCtx->fDeltaTime);
+    if(io->is_key_pressed(PL_KEY_S, true)) proto->camera_translate(cam0,  0.0f,  0.0f, -camSpeed* ioCtx->fDeltaTime);
+    if(io->is_key_pressed(PL_KEY_A, true)) proto->camera_translate(cam0, -camSpeed * ioCtx->fDeltaTime,  0.0f,  0.0f);
+    if(io->is_key_pressed(PL_KEY_D, true)) proto->camera_translate(cam0,  camSpeed * ioCtx->fDeltaTime,  0.0f,  0.0f);
 
     // world space
-    if(pTIoI->is_key_pressed(PL_KEY_F, true)) ptProtoApi->camera_translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f);
-    if(pTIoI->is_key_pressed(PL_KEY_R, true)) ptProtoApi->camera_translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f);
+    if(io->is_key_pressed(PL_KEY_F, true)) proto->camera_translate(cam0,  0.0f, -camSpeed * ioCtx->fDeltaTime,  0.0f);
+    if(io->is_key_pressed(PL_KEY_R, true)) proto->camera_translate(cam0,  0.0f,  camSpeed * ioCtx->fDeltaTime,  0.0f);
 
-    plFrameContext* ptCurrentFrame = ptGfx->get_frame_resources(&ptAppData->tGraphics);
+    plFrameContext* ptCurrentFrame = g->get_frame_resources(&app->tGraphics);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~begin frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    if(ptGfx->begin_frame(&ptAppData->tGraphics))
+    if(g->begin_frame(&app->tGraphics))
     {
-        ptUi->new_frame();
+        ui->new_frame();
 
-        if(!ptUi->is_mouse_owned() && pTIoI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+        if(!ui->is_mouse_owned() && io->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
         {
-            const plVec2 tMouseDelta = pTIoI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
-            ptProtoApi->camera_rotate(ptCamera,  -tMouseDelta.y * 0.1f * ptIOCtx->fDeltaTime,  -tMouseDelta.x * 0.1f * ptIOCtx->fDeltaTime);
-            pTIoI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+            const plVec2 delta = io->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
+            proto->camera_rotate(cam0,  -delta.y * 0.1f * ioCtx->fDeltaTime,  -delta.x * 0.1f * ioCtx->fDeltaTime);
+            io->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
         }
-        ptProtoApi->camera_update(ptCamera);
-        ptProtoApi->camera_update(ptOffscreenCamera);
+        proto->camera_update(cam0);
+        proto->camera_update(cam1);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~3D drawing api~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        ptDrawApi->add_3d_transform(&ptAppData->drawlist3d, &ptOffscreenCamera->tTransformMat, 0.2f, 0.02f);
-        ptDrawApi->add_3d_frustum(&ptAppData->drawlist3d, 
-            &ptOffscreenCamera->tTransformMat, ptOffscreenCamera->fFieldOfView, ptOffscreenCamera->fAspectRatio, 
-            ptOffscreenCamera->fNearZ, ptOffscreenCamera->fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
+        draw->add_3d_transform(&app->drawlist3d, &cam1->tTransformMat, 0.2f, 0.02f);
+        draw->add_3d_frustum(&app->drawlist3d, 
+            &cam1->tTransformMat, cam1->fFieldOfView, cam1->fAspectRatio, 
+            cam1->fNearZ, cam1->fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
 
-        const plMat4 tTransform0 = pl_identity_mat4();
-        ptDrawApi->add_3d_transform(&ptAppData->drawlist3d, &tTransform0, 10.0f, 0.02f);
-        ptDrawApi->add_3d_bezier_quad(&ptAppData->drawlist3d, (plVec3){0.0f,0.0f,0.0f}, (plVec3){5.0f,5.0f,5.0f}, (plVec3){3.0f,4.0f,3.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f, 20);
-        ptDrawApi->add_3d_bezier_cubic(&ptAppData->drawlist3d, (plVec3){0.0f,0.0f,0.0f}, (plVec3){-0.5f,1.0f,-0.5f}, (plVec3){5.0f,3.5f,5.0f}, (plVec3){3.0f,4.0f,3.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f, 20);
+        const plMat4 transform0 = pl_identity_mat4();
+        draw->add_3d_transform(&app->drawlist3d, &transform0, 10.0f, 0.02f);
+        draw->add_3d_bezier_quad(&app->drawlist3d, (plVec3){0.0f,0.0f,0.0f}, (plVec3){5.0f,5.0f,5.0f}, (plVec3){3.0f,4.0f,3.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f, 20);
+        draw->add_3d_bezier_cubic(&app->drawlist3d, (plVec3){0.0f,0.0f,0.0f}, (plVec3){-0.5f,1.0f,-0.5f}, (plVec3){5.0f,3.5f,5.0f}, (plVec3){3.0f,4.0f,3.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f, 20);
 
         // ui
 
-        if(ptUi->begin_window("Offscreen", NULL, true))
+        if(ui->begin_window("Offscreen", NULL, true))
         {
-            ptUi->layout_static(720.0f / 2.0f, 1280.0f / 2.0f, 1);
-            ptUi->image(ptAppData->sbtTextures[ptAppData->tGraphics.tSwapchain.uCurrentImageIndex], (plVec2){1280.0f / 2.0f, 720.0f / 2.0f});
-            ptUi->end_window();
+            ui->layout_static(720.0f / 2.0f, 1280.0f / 2.0f, 1);
+            ui->image(app->sbtTextures[app->tGraphics.tSwapchain.uCurrentImageIndex], (plVec2){1280.0f / 2.0f, 720.0f / 2.0f});
+            ui->end_window();
         }
 
-        static int iSelectedEntity = 1;
+        static int selectedEntity = 1;
 
-        ptUi->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
+        ui->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
 
-        if(ptUi->begin_window("Pilot Light", NULL, false))
+        if(ui->begin_window("Pilot Light", NULL, false))
         {
     
             const float pfRatios[] = {1.0f};
-            ptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+            ui->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
             
-            ptUi->checkbox("UI Debug", &ptAppData->bShowUiDebug);
-            ptUi->checkbox("UI Demo", &ptAppData->bShowUiDemo);
-            ptUi->checkbox("UI Style", &ptAppData->bShowUiStyle);
-            ptUi->checkbox("Device Memory", &ptAppData->bShowUiMemory);
+            ui->checkbox("UI Debug", &app->bShowUiDebug);
+            ui->checkbox("UI Demo", &app->bShowUiDemo);
+            ui->checkbox("UI Style", &app->bShowUiStyle);
+            ui->checkbox("Device Memory", &app->bShowUiMemory);
             
-            if(ptUi->checkbox("VSync", &ptAppData->tGraphics.tSwapchain.bVSync))
+            if(ui->checkbox("VSync", &app->tGraphics.tSwapchain.bVSync))
             {
-                bVSyncChanged = true;
+                vsyncChange = true;
             }
 
-            if(ptUi->collapsing_header("Renderer"))
+            if(ui->collapsing_header("Renderer"))
             {
-                ptUi->text("Dynamic Buffers");
-                ptUi->progress_bar((float)ptAppData->tScene.uDynamicBuffer0_Offset / (float)ptAppData->tGraphics.tResourceManager._uDynamicBufferSize, (plVec2){-1.0f, 0.0f}, NULL);
-                // ptUi->progress_bar((float)ptAppData->tScene.uDynamicBuffer1_Offset / (float)ptAppData->tRenderer.uDynamicBufferSize, (plVec2){-1.0f, 0.0f}, NULL);
-                // ptUi->progress_bar((float)ptAppData->tScene.uDynamicBuffer2_Offset / (float)ptAppData->tScene.uDynamicBufferSize, (plVec2){-1.0f, 0.0f}, NULL);
-                ptUi->end_collapsing_header();
+                ui->text("Dynamic Buffers");
+                ui->progress_bar((float)app->tScene.uDynamicBuffer0_Offset / (float)app->tGraphics.tResourceManager._uDynamicBufferSize, (plVec2){-1.0f, 0.0f}, NULL);
+                // ui->progress_bar((float)app->tScene.uDynamicBuffer1_Offset / (float)app->tRenderer.uDynamicBufferSize, (plVec2){-1.0f, 0.0f}, NULL);
+                // ui->progress_bar((float)app->tScene.uDynamicBuffer2_Offset / (float)app->tScene.uDynamicBufferSize, (plVec2){-1.0f, 0.0f}, NULL);
+                ui->end_collapsing_header();
             }
 
-            if(ptUi->collapsing_header("Entities"))
+            if(ui->collapsing_header("Entities"))
             {
-                plTagComponent* sbtTagComponents = ptAppData->tScene.ptTagComponentManager->pData;
+                plTagComponent* sbtTagComponents = app->tScene.ptTagComponentManager->pData;
                 for(uint32_t i = 0; i < pl_sb_size(sbtTagComponents); i++)
                 {
                     plTagComponent* ptTagComponent = &sbtTagComponents[i];
-                    ptUi->radio_button(ptTagComponent->acName, &iSelectedEntity, i + 1);
+                    ui->radio_button(ptTagComponent->acName, &selectedEntity, i + 1);
                 }
 
-                ptUi->end_collapsing_header();
+                ui->end_collapsing_header();
             }
-            ptUi->end_window();
+            ui->end_window();
         }
 
-        if(ptUi->begin_window("Components", NULL, false))
+        if(ui->begin_window("Components", NULL, false))
         {
             const float pfRatios[] = {1.0f};
-            ptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+            ui->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
 
-            if(ptUi->collapsing_header("Tag"))
+            if(ui->collapsing_header("Tag"))
             {
-                plTagComponent* ptTagComponent = ptProtoApi->ecs_get_component(ptAppData->tScene.ptTagComponentManager, iSelectedEntity);
-                ptUi->text("Name: %s", ptTagComponent->acName);
-                ptUi->end_collapsing_header();
+                plTagComponent* ptTagComponent = proto->ecs_get_component(app->tScene.ptTagComponentManager, selectedEntity);
+                ui->text("Name: %s", ptTagComponent->acName);
+                ui->end_collapsing_header();
             }
 
-            if(ptProtoApi->ecs_has_entity(ptAppData->tScene.ptTransformComponentManager, iSelectedEntity))
-            {
-                
-                if(ptUi->collapsing_header("Transform"))
-                {
-                    plTransformComponent* ptTransformComponent = ptProtoApi->ecs_get_component(ptAppData->tScene.ptTransformComponentManager, iSelectedEntity);
-                    ptUi->text("Rotation: %0.3f, %0.3f, %0.3f, %0.3f", ptTransformComponent->tRotation.x, ptTransformComponent->tRotation.y, ptTransformComponent->tRotation.z, ptTransformComponent->tRotation.w);
-                    ptUi->text("Scale: %0.3f, %0.3f, %0.3f", ptTransformComponent->tScale.x, ptTransformComponent->tScale.y, ptTransformComponent->tScale.z);
-                    ptUi->text("Translation: %0.3f, %0.3f, %0.3f", ptTransformComponent->tTranslation.x, ptTransformComponent->tTranslation.y, ptTransformComponent->tTranslation.z);
-                    ptUi->end_collapsing_header();
-                }  
-            }
-
-            if(ptProtoApi->ecs_has_entity(ptAppData->tScene.ptMeshComponentManager, iSelectedEntity))
+            if(proto->ecs_has_entity(app->tScene.ptTransformComponentManager, selectedEntity))
             {
                 
-                if(ptUi->collapsing_header("Mesh"))
+                if(ui->collapsing_header("Transform"))
                 {
-                    // plMeshComponent* ptMeshComponent = pl_ecs_get_component(ptAppData->tScene.ptMeshComponentManager, iSelectedEntity);
-                    ptUi->end_collapsing_header();
+                    plTransformComponent* transform = proto->ecs_get_component(app->tScene.ptTransformComponentManager, selectedEntity);
+                    ui->text("Rotation: %0.3f, %0.3f, %0.3f, %0.3f", transform->tRotation.x, transform->tRotation.y, transform->tRotation.z, transform->tRotation.w);
+                    ui->text("Scale: %0.3f, %0.3f, %0.3f", transform->tScale.x, transform->tScale.y, transform->tScale.z);
+                    ui->text("Translation: %0.3f, %0.3f, %0.3f", transform->tTranslation.x, transform->tTranslation.y, transform->tTranslation.z);
+                    ui->end_collapsing_header();
                 }  
             }
 
-            if(ptProtoApi->ecs_has_entity(ptAppData->tScene.ptMaterialComponentManager, iSelectedEntity))
+            if(proto->ecs_has_entity(app->tScene.ptMeshComponentManager, selectedEntity))
             {
-                if(ptUi->collapsing_header("Material"))
+                
+                if(ui->collapsing_header("Mesh"))
                 {
-                    plMaterialComponent* ptMaterialComponent = ptProtoApi->ecs_get_component(ptAppData->tScene.ptMaterialComponentManager, iSelectedEntity);
-                    ptUi->text("Albedo: %0.3f, %0.3f, %0.3f, %0.3f", ptMaterialComponent->tAlbedo.r, ptMaterialComponent->tAlbedo.g, ptMaterialComponent->tAlbedo.b, ptMaterialComponent->tAlbedo.a);
-                    ptUi->text("Alpha Cutoff: %0.3f", ptMaterialComponent->fAlphaCutoff);
-                    ptUi->text("Double Sided: %s", ptMaterialComponent->bDoubleSided ? "true" : "false");
-                    ptUi->text("Outline: %s", ptMaterialComponent->bOutline ? "true" : "false");
-                    ptUi->end_collapsing_header();
+                    // plMeshComponent* ptMeshComponent = pl_ecs_get_component(app->tScene.ptMeshComponentManager, selectedEntity);
+                    ui->end_collapsing_header();
                 }  
             }
 
-            if(ptProtoApi->ecs_has_entity(ptAppData->tScene.ptObjectComponentManager, iSelectedEntity))
+            if(proto->ecs_has_entity(app->tScene.ptMaterialComponentManager, selectedEntity))
             {
-                if(ptUi->collapsing_header("Object"))
+                if(ui->collapsing_header("Material"))
                 {
-                    plObjectComponent* ptObjectComponent = ptProtoApi->ecs_get_component(ptAppData->tScene.ptObjectComponentManager, iSelectedEntity);
-                    plTagComponent* ptTransformTag = ptProtoApi->ecs_get_component(ptAppData->tScene.ptTagComponentManager, ptObjectComponent->tTransform);
-                    plTagComponent* ptMeshTag = ptProtoApi->ecs_get_component(ptAppData->tScene.ptTagComponentManager, ptObjectComponent->tMesh);
-                    ptUi->text("Mesh: %s", ptMeshTag->acName);
-                    ptUi->text("Transform: %s", ptTransformTag->acName);
-
-                    ptUi->end_collapsing_header();
+                    plMaterialComponent* ptMaterialComponent = proto->ecs_get_component(app->tScene.ptMaterialComponentManager, selectedEntity);
+                    ui->text("Albedo: %0.3f, %0.3f, %0.3f, %0.3f", ptMaterialComponent->tAlbedo.r, ptMaterialComponent->tAlbedo.g, ptMaterialComponent->tAlbedo.b, ptMaterialComponent->tAlbedo.a);
+                    ui->text("Alpha Cutoff: %0.3f", ptMaterialComponent->fAlphaCutoff);
+                    ui->text("Double Sided: %s", ptMaterialComponent->bDoubleSided ? "true" : "false");
+                    ui->text("Outline: %s", ptMaterialComponent->bOutline ? "true" : "false");
+                    ui->end_collapsing_header();
                 }  
             }
 
-            if(ptProtoApi->ecs_has_entity(ptAppData->tScene.ptCameraComponentManager, iSelectedEntity))
+            if(proto->ecs_has_entity(app->tScene.ptObjectComponentManager, selectedEntity))
             {
-                if(ptUi->collapsing_header("Camera"))
+                if(ui->collapsing_header("Object"))
                 {
-                    plCameraComponent* ptCameraComponent = ptProtoApi->ecs_get_component(ptAppData->tScene.ptCameraComponentManager, iSelectedEntity);
-                    ptUi->text("Pitch: %0.3f", ptCameraComponent->fPitch);
-                    ptUi->text("Yaw: %0.3f", ptCameraComponent->fYaw);
-                    ptUi->text("Roll: %0.3f", ptCameraComponent->fRoll);
-                    ptUi->text("Near Z: %0.3f", ptCameraComponent->fNearZ);
-                    ptUi->text("Far Z: %0.3f", ptCameraComponent->fFarZ);
-                    ptUi->text("Y Field Of View: %0.3f", ptCameraComponent->fFieldOfView);
-                    ptUi->text("Aspect Ratio: %0.3f", ptCameraComponent->fAspectRatio);
-                    ptUi->text("Up Vector: %0.3f, %0.3f, %0.3f", ptCameraComponent->_tUpVec.x, ptCameraComponent->_tUpVec.y, ptCameraComponent->_tUpVec.z);
-                    ptUi->text("Forward Vector: %0.3f, %0.3f, %0.3f", ptCameraComponent->_tForwardVec.x, ptCameraComponent->_tForwardVec.y, ptCameraComponent->_tForwardVec.z);
-                    ptUi->text("Right Vector: %0.3f, %0.3f, %0.3f", ptCameraComponent->_tRightVec.x, ptCameraComponent->_tRightVec.y, ptCameraComponent->_tRightVec.z);
-                    ptUi->end_collapsing_header();
+                    plObjectComponent* object = proto->ecs_get_component(app->tScene.ptObjectComponentManager, selectedEntity);
+                    plTagComponent* ptTransformTag = proto->ecs_get_component(app->tScene.ptTagComponentManager, object->tTransform);
+                    plTagComponent* ptMeshTag = proto->ecs_get_component(app->tScene.ptTagComponentManager, object->tMesh);
+                    ui->text("Mesh: %s", ptMeshTag->acName);
+                    ui->text("Transform: %s", ptTransformTag->acName);
+
+                    ui->end_collapsing_header();
                 }  
             }
 
-            if(ptProtoApi->ecs_has_entity(ptAppData->tScene.ptHierarchyComponentManager, iSelectedEntity))
+            if(proto->ecs_has_entity(app->tScene.ptCameraComponentManager, selectedEntity))
             {
-                if(ptUi->collapsing_header("Hierarchy"))
+                if(ui->collapsing_header("Camera"))
                 {
-                    plHierarchyComponent* ptHierarchyComponent = ptProtoApi->ecs_get_component(ptAppData->tScene.ptHierarchyComponentManager, iSelectedEntity);
-                    plTagComponent* ptParent = ptProtoApi->ecs_get_component(ptAppData->tScene.ptTagComponentManager, ptHierarchyComponent->tParent);
-                    ptUi->text("Parent: %s", ptParent->acName);
-                    ptUi->end_collapsing_header();
+                    plCameraComponent* cam = proto->ecs_get_component(app->tScene.ptCameraComponentManager, selectedEntity);
+                    ui->text("Pitch: %0.3f", cam->fPitch);
+                    ui->text("Yaw: %0.3f", cam->fYaw);
+                    ui->text("Roll: %0.3f", cam->fRoll);
+                    ui->text("Near Z: %0.3f", cam->fNearZ);
+                    ui->text("Far Z: %0.3f", cam->fFarZ);
+                    ui->text("Y Field Of View: %0.3f", cam->fFieldOfView);
+                    ui->text("Aspect Ratio: %0.3f", cam->fAspectRatio);
+                    ui->text("Up Vector: %0.3f, %0.3f, %0.3f", cam->_tUpVec.x, cam->_tUpVec.y, cam->_tUpVec.z);
+                    ui->text("Forward Vector: %0.3f, %0.3f, %0.3f", cam->_tForwardVec.x, cam->_tForwardVec.y, cam->_tForwardVec.z);
+                    ui->text("Right Vector: %0.3f, %0.3f, %0.3f", cam->_tRightVec.x, cam->_tRightVec.y, cam->_tRightVec.z);
+                    ui->end_collapsing_header();
                 }  
             }
-            ptUi->end_window();
+
+            if(proto->ecs_has_entity(app->tScene.ptHierarchyComponentManager, selectedEntity))
+            {
+                if(ui->collapsing_header("Hierarchy"))
+                {
+                    plHierarchyComponent* hierarchy = proto->ecs_get_component(app->tScene.ptHierarchyComponentManager, selectedEntity);
+                    plTagComponent* ptParent = proto->ecs_get_component(app->tScene.ptTagComponentManager, hierarchy->tParent);
+                    ui->text("Parent: %s", ptParent->acName);
+                    ui->end_collapsing_header();
+                }  
+            }
+            ui->end_window();
         }
 
-        if(ptAppData->bShowUiDemo)
-            ptUi->demo(&ptAppData->bShowUiDemo);
+        if(app->bShowUiDemo)
+            ui->demo(&app->bShowUiDemo);
             
-        if(ptAppData->bShowUiStyle)
-            ptUi->style(&ptAppData->bShowUiStyle);
+        if(app->bShowUiStyle)
+            ui->style(&app->bShowUiStyle);
 
-        if(ptAppData->bShowUiDebug)
-            ptUi->debug(&ptAppData->bShowUiDebug);
+        if(app->bShowUiDebug)
+            ui->debug(&app->bShowUiDebug);
 
-        if(ptAppData->bShowUiMemory)
+        if(app->bShowUiMemory)
         {
-            if(ptUi->begin_window("Device Memory", &ptAppData->bShowUiMemory, false))
+            if(ui->begin_window("Device Memory", &app->bShowUiMemory, false))
             {
-                plDrawLayer* ptFgLayer = ptUi->get_window_fg_drawlayer();
-                const plVec2 tWindowSize = ptUi->get_window_size();
-                const plVec2 tWindowPos = ptUi->get_window_pos();
+                plDrawLayer* ptFgLayer = ui->get_window_fg_drawlayer();
+                const plVec2 tWindowSize = ui->get_window_size();
+                const plVec2 tWindowPos = ui->get_window_pos();
                 const plVec2 tWindowEnd = pl_add_vec2(tWindowSize, tWindowPos);
 
-                ptUi->layout_template_begin(30.0f);
-                ptUi->layout_template_push_static(150.0f);
-                ptUi->layout_template_push_variable(300.0f);
-                ptUi->layout_template_end();
+                ui->layout_template_begin(30.0f);
+                ui->layout_template_push_static(150.0f);
+                ui->layout_template_push_variable(300.0f);
+                ui->layout_template_end();
 
-                ptUi->button("Block 0: 256MB");
+                ui->button("Block 0: 256MB");
 
-                plVec2 tCursor0 = ptUi->get_cursor_pos();
+                plVec2 tCursor0 = ui->get_cursor_pos();
                 float fWidthAvailable = tWindowEnd.x - tCursor0.x;
-                ptUi->invisible_button("Block 0", (plVec2){fWidthAvailable - 5.0f, 30.0f});
-                if(ptUi->was_last_item_active())
+                ui->invisible_button("Block 0", (plVec2){fWidthAvailable - 5.0f, 30.0f});
+                if(ui->was_last_item_active())
                 {
-                    ptDrawApi->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  + fWidthAvailable - 5.0f, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
-                    ptDrawApi->add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  + fWidthAvailable - 5.0f, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
+                    draw->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  + fWidthAvailable - 5.0f, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
+                    draw->add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  + fWidthAvailable - 5.0f, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
                 }
                 else
-                    ptDrawApi->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  + fWidthAvailable - 5.0f, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
+                    draw->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  + fWidthAvailable - 5.0f, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
 
-                ptUi->button("Block 1: 256MB");
-                tCursor0 = ptUi->get_cursor_pos();
+                ui->button("Block 1: 256MB");
+                tCursor0 = ui->get_cursor_pos();
                 fWidthAvailable = tWindowEnd.x - tCursor0.x;
-                ptUi->dummy((plVec2){fWidthAvailable - 5.0f, 30.0f});
-                ptDrawApi->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  + fWidthAvailable - 5.0f, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
-                ptDrawApi->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  + fWidthAvailable / 3.0f - 5.0f, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f}); // red
-                ptDrawApi->add_rect_filled(ptFgLayer, (plVec2){tCursor0.x +  + fWidthAvailable / 2.0f - 5.0f, tCursor0.y}, (plVec2){tCursor0.x +  fWidthAvailable - 5.0f, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f}); // yellow
+                ui->dummy((plVec2){fWidthAvailable - 5.0f, 30.0f});
+                draw->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  + fWidthAvailable - 5.0f, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
+                draw->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  + fWidthAvailable / 3.0f - 5.0f, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f}); // red
+                draw->add_rect_filled(ptFgLayer, (plVec2){tCursor0.x +  + fWidthAvailable / 2.0f - 5.0f, tCursor0.y}, (plVec2){tCursor0.x +  fWidthAvailable - 5.0f, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f}); // yellow
 
-                ptUi->end_window();
+                ui->end_window();
             }
         }
 
@@ -829,64 +830,64 @@ pl_app_update(plAppData* ptAppData)
 
         // rotate stl model
         {
-            plObjectComponent* ptObjectComponent = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tObjectComponentManager, ptAppData->tStlEntity);
-            plTransformComponent* ptTransformComponent = ptProtoApi->ecs_get_component(&ptAppData->tScene.tComponentLibrary.tTransformComponentManager, ptObjectComponent->tTransform);
-            const plMat4 tStlRotation = pl_mat4_rotate_xyz(PL_PI * (float)ptAppData->ptIoI->get_context()->dTime, 0.0f, 1.0f, 0.0f);
+            plObjectComponent* object = proto->ecs_get_component(&app->tScene.tComponentLibrary.tObjectComponentManager, app->tStlEntity);
+            plTransformComponent* transform = proto->ecs_get_component(&app->tScene.tComponentLibrary.tTransformComponentManager, object->tTransform);
+            const plMat4 tStlRotation = pl_mat4_rotate_xyz(PL_PI * (float)app->io->get_context()->dTime, 0.0f, 1.0f, 0.0f);
             const plMat4 tStlTranslation = pl_mat4_translate_xyz(0.0f, 2.0f, 0.0f);
             const plMat4 tStlTransform = pl_mul_mat4(&tStlTranslation, &tStlRotation);
-            ptTransformComponent->tFinalTransform = tStlTransform;
+            transform->tFinalTransform = tStlTransform;
         }
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submit draws~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         // submit draw layers
         pl_begin_profile_sample("Submit draw layers");
-        ptDrawApi->submit_layer(ptAppData->bgDrawLayer);
-        ptDrawApi->submit_layer(ptAppData->fgDrawLayer);
+        draw->submit_layer(app->bgDrawLayer);
+        draw->submit_layer(app->fgDrawLayer);
         pl_end_profile_sample();
 
-        ptGfx->begin_recording(&ptAppData->tGraphics);
+        g->begin_recording(&app->tGraphics);
 
-        ptProtoApi->reset_scene(&ptAppData->tScene);
+        proto->reset_scene(&app->tScene);
 
-        ptProtoApi->begin_render_target(ptGfx, &ptAppData->tGraphics, &ptAppData->tOffscreenTarget);
-        ptProtoApi->scene_bind_target(&ptAppData->tScene, &ptAppData->tOffscreenTarget);
-        ptProtoApi->scene_update_ecs(&ptAppData->tScene);
-        ptProtoApi->scene_bind_camera(&ptAppData->tScene, ptOffscreenCamera);
-        ptProtoApi->draw_scene(&ptAppData->tScene);
-        ptProtoApi->draw_sky(&ptAppData->tScene);
+        proto->begin_render_target(g, &app->tGraphics, &app->tOffscreenTarget);
+        proto->scene_bind_target(&app->tScene, &app->tOffscreenTarget);
+        proto->scene_update_ecs(&app->tScene);
+        proto->scene_bind_camera(&app->tScene, cam1);
+        proto->draw_scene(&app->tScene);
+        proto->draw_sky(&app->tScene);
 
-        ptDrawApi->submit_layer(ptAppData->offscreenDrawLayer);
-        ptVulkanDrawApi->submit_drawlist_ex(&ptAppData->drawlist2, 1280.0f, 720.0f, ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex, ptAppData->tOffscreenPass._tRenderPass, VK_SAMPLE_COUNT_1_BIT);
-        ptProtoApi->end_render_target(ptGfx, &ptAppData->tGraphics);
+        draw->submit_layer(app->offscreenDrawLayer);
+        vkDraw->submit_drawlist_ex(&app->drawlist2, 1280.0f, 720.0f, ptCurrentFrame->tCmdBuf, (uint32_t)app->tGraphics.szCurrentFrameIndex, app->tOffscreenPass._tRenderPass, VK_SAMPLE_COUNT_1_BIT);
+        proto->end_render_target(g, &app->tGraphics);
 
-        ptProtoApi->begin_render_target(ptGfx, &ptAppData->tGraphics, &ptAppData->tMainTarget);
-        ptProtoApi->scene_bind_target(&ptAppData->tScene, &ptAppData->tMainTarget);
-        ptProtoApi->scene_update_ecs(&ptAppData->tScene);
-        ptProtoApi->scene_bind_camera(&ptAppData->tScene, ptCamera);
-        ptProtoApi->draw_scene(&ptAppData->tScene);
-        ptProtoApi->draw_sky(&ptAppData->tScene);
+        proto->begin_render_target(g, &app->tGraphics, &app->tMainTarget);
+        proto->scene_bind_target(&app->tScene, &app->tMainTarget);
+        proto->scene_update_ecs(&app->tScene);
+        proto->scene_bind_camera(&app->tScene, cam0);
+        proto->draw_scene(&app->tScene);
+        proto->draw_sky(&app->tScene);
 
         // submit 3D draw list
-        const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-        ptVulkanDrawApi->submit_3d_drawlist(&ptAppData->drawlist3d, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex, &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST);
+        const plMat4 tMVP = pl_mul_mat4(&cam0->tProjMat, &cam0->tViewMat);
+        vkDraw->submit_3d_drawlist(&app->drawlist3d, (float)ioCtx->afMainViewportSize[0], (float)ioCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)app->tGraphics.szCurrentFrameIndex, &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST);
 
-        ptUi->get_draw_context(NULL)->tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
-        ptUi->get_draw_context(NULL)->tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
+        ui->get_draw_context(NULL)->tFrameBufferScale.x = ioCtx->afMainFramebufferScale[0];
+        ui->get_draw_context(NULL)->tFrameBufferScale.y = ioCtx->afMainFramebufferScale[1];
 
         // submit draw lists
-        ptVulkanDrawApi->submit_drawlist(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
+        vkDraw->submit_drawlist(&app->drawlist, (float)ioCtx->afMainViewportSize[0], (float)ioCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)app->tGraphics.szCurrentFrameIndex);
 
         // submit ui drawlist
-        ptUi->render();
+        ui->render();
 
-        ptVulkanDrawApi->submit_drawlist(ptUi->get_draw_list(NULL), (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
-        ptVulkanDrawApi->submit_drawlist(ptUi->get_debug_draw_list(NULL), (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptAppData->tGraphics.szCurrentFrameIndex);
-        ptProtoApi->end_render_target(ptGfx, &ptAppData->tGraphics);
-        ptGfx->end_recording(&ptAppData->tGraphics);
+        vkDraw->submit_drawlist(ui->get_draw_list(NULL), (float)ioCtx->afMainViewportSize[0], (float)ioCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)app->tGraphics.szCurrentFrameIndex);
+        vkDraw->submit_drawlist(ui->get_debug_draw_list(NULL), (float)ioCtx->afMainViewportSize[0], (float)ioCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)app->tGraphics.szCurrentFrameIndex);
+        proto->end_render_target(g, &app->tGraphics);
+        g->end_recording(&app->tGraphics);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~end frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        ptGfx->end_frame(&ptAppData->tGraphics);
+        g->end_frame(&app->tGraphics);
     } 
     pl_end_profile_frame();
 }
