@@ -62,7 +62,6 @@ typedef struct plAppData_t
     plFontAtlas              fontAtlas;
     plProfileContext*        ptProfileCtx;
     plLogContext*            ptLogCtx;
-    plMemoryContext*         ptMemoryCtx;
     plUiContext*             ptUiContext;
 
     // apis
@@ -116,6 +115,10 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
         // must resubscribe (can't do in callback since callback is from previous binary)
         ptApiRegistry->subscribe(ptAppData->ptUiApi, pl__api_update_callback, ptAppData);
         ptApiRegistry->subscribe(ptAppData->ptDrawApi, pl__api_update_callback, ptAppData);
+
+        ptAppData->ptUiApi->set_context(ptDataRegistry->get_data("ui"));
+        ptAppData->ptDrawApi->set_context(ptDataRegistry->get_data("draw"));
+
         return ptAppData;
     }
 
@@ -148,9 +151,9 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
 
     // load extensions
     plExtensionRegistryApiI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    ptExtensionRegistry->load(ptApiRegistry, "pl_image_ext", "pl_load_image_ext", "pl_unload_image_ext");
-    ptExtensionRegistry->load(ptApiRegistry, "pl_draw_ext", "pl_load_draw_ext", "pl_unload_draw_ext");
-    ptExtensionRegistry->load(ptApiRegistry, "pl_ui_ext", "pl_load_ui_ext", "pl_unload_ui_ext");
+    ptExtensionRegistry->load(ptApiRegistry, "pl_image_ext", "pl_load_image_ext", "pl_unload_image_ext", false);
+    ptExtensionRegistry->load(ptApiRegistry, "pl_draw_ext", "pl_load_draw_ext", "pl_unload_draw_ext", true);
+    ptExtensionRegistry->load(ptApiRegistry, "pl_ui_ext", "pl_load_ui_ext", "pl_unload_ui_ext", true);
 
     plImageApiI* ptImageApi = ptApiRegistry->first(PL_API_IMAGE);
     plDrawApiI* ptDrawApi = ptApiRegistry->first(PL_API_DRAW);

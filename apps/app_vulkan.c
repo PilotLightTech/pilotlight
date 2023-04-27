@@ -151,6 +151,9 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
         ptIoI           = ptApiRegistry->first(PL_API_IO);
         ptResourceApi   = ptApiRegistry->first(PL_API_RESOURCE_MANAGER_0);
 
+        ptDrawApi->set_context(ptDataRegistry->get_data("draw"));
+        ptUi->set_context(ptDataRegistry->get_data("ui"));
+
         ptGfx->reload_contexts(ptApiRegistry);
         return ptAppData;
     }

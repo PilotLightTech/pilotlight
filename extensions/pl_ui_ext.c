@@ -171,12 +171,12 @@ pl_ui_destroy_context(plUiContext* ptContext)
 {
     if(ptContext == NULL)
         ptContext = gptCtx;
-    gptCtx->ptDraw->cleanup_context(ptContext->ptDrawCtx);
     for(uint32_t i = 0; i < pl_sb_size(ptContext->sbptWindows); i++)
     {
         gptCtx->ptDraw->return_layer(ptContext->sbptWindows[i]->ptBgLayer);
         gptCtx->ptDraw->return_layer(ptContext->sbptWindows[i]->ptFgLayer);
     }
+    gptCtx->ptDraw->cleanup_context(ptContext->ptDrawCtx);
     PL_FREE(ptContext->ptDrawlist);
     PL_FREE(ptContext->ptDebugDrawlist);
     pl_sb_free(ptContext->sbptWindows);

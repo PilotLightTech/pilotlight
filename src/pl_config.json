@@ -13,12 +13,14 @@
         {
             "name" : "pl_draw_ext",
             "load" : "pl_load_draw_ext",
-            "unload" : "pl_unload_draw_ext"
+            "unload" : "pl_unload_draw_ext",
+            "reloadable" : true
         },
         {
             "name" : "pl_ui_ext",
             "load" : "pl_load_ui_ext",
-            "unload" : "pl_unload_ui_ext"
+            "unload" : "pl_unload_ui_ext",
+            "reloadable" : true
         },
         {
             "name" : "pl_vulkan_ext",
@@ -28,7 +30,8 @@
         {
             "name" : "pl_gltf_ext",
             "load" : "pl_load_gltf_ext",
-            "unload" : "pl_unload_gltf_ext"
+            "unload" : "pl_unload_gltf_ext",
+            "reloadable" : false
         }
     ]
 }

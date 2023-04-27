@@ -71,6 +71,7 @@ typedef struct _plOsServicesApiI plOsServicesApiI;
 
 #define pl_sprintf stbsp_sprintf
 #define pl_vsprintf stbsp_vsprintf
+#define pl_vnsprintf stbsp_vsnprintf
 
 #ifndef PL_ASSERT
     #include <assert.h>
@@ -131,7 +132,7 @@ void               pl_unload_core_apis(void);
 
 typedef struct _plApiRegistryApiI
 {
-    void  (*add)        (const char* pcName, void* pInterface);
+    void* (*add)        (const char* pcName, void* pInterface);
     void  (*remove)     (void* pInterface);
     void  (*replace)    (void* pOldInterface, void* pNewInterface);
     void  (*subscribe)  (void* pInterface, ptApiUpdateCallback ptCallback, void* pUserData);
@@ -148,7 +149,7 @@ typedef struct _plDataRegistryApiI
 typedef struct _plExtensionRegistryApiI
 {
     void (*reload)          (plApiRegistryApiI* ptApiRegistry);
-    void (*load)            (plApiRegistryApiI* ptApiRegistry, const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc);
+    void (*load)            (plApiRegistryApiI* ptApiRegistry, const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
     void (*unload)          (plApiRegistryApiI* ptApiRegistry, const char* pcName);
     void (*load_from_config)(plApiRegistryApiI* ptApiRegistry, const char* pcConfigFile);
     void (*load_from_file)  (plApiRegistryApiI* ptApiRegistry, const char* pcFile);
