@@ -1848,7 +1848,6 @@ pl_setup_graphics(plGraphics* ptGraphics, plApiRegistryApiI* ptApiRegistry, plTe
     
     // temporary allocator
     ptGraphics->ptTempAllocApi = ptApiRegistry->first(PL_API_TEMP_ALLOCATOR);
-    ptGraphics->ptTempAllocator;
 
     // create vulkan instance
     pl__create_instance(ptGraphics, VK_API_VERSION_1_2, true);
