@@ -675,7 +675,8 @@ pl_temp_allocator_free(plTempAllocator* ptAllocator)
     {
         PL_MEMORY_FREE(ptAllocator->ppcMemoryBlocks[i]);
     }
-    PL_MEMORY_FREE(ptAllocator->ppcMemoryBlocks);
+    if(ptAllocator->ppcMemoryBlocks)
+        PL_MEMORY_FREE(ptAllocator->ppcMemoryBlocks);
     ptAllocator->ppcMemoryBlocks = NULL;
     ptAllocator->szMemoryBlockCapacity = 0;
     ptAllocator->szMemoryBlockCount = 0;

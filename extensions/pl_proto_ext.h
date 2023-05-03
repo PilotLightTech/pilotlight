@@ -90,6 +90,7 @@ typedef struct _plHierarchyComponent plHierarchyComponent;
 // external apis
 typedef struct _plApiRegistryApiI plApiRegistryApiI; // pilotlight.h
 typedef struct _plImageApiI plImageApiI;             // pl_image_ext.h
+typedef struct _plDataRegistryApiI plDataRegistryApiI;
 
 // enums
 typedef int      plShaderType;
@@ -113,7 +114,7 @@ typedef struct _plProtoApiI
     // graphics
     void (*create_main_render_target)(plGraphics* ptGraphics, plRenderTarget* ptTargetOut);
     void (*create_render_pass)       (plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, plRenderPass* ptPassOut);
-    void (*create_render_target)     (plResourceManager0ApiI* ptResourceApi, plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut);
+    void (*create_render_target)     (plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut);
     void (*begin_render_target)      (plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTarget* ptTarget);
     void (*end_render_target)        (plGraphicsApiI* ptGfx, plGraphics* ptGraphics);
     void (*cleanup_render_target)    (plGraphics* ptGraphics, plRenderTarget* ptTarget);
@@ -387,7 +388,7 @@ typedef struct _plRenderer
     plGraphicsApiI* ptGfx;
     plMemoryApiI*   ptMemoryApi;
     plDataRegistryApiI* ptDataRegistry;
-    plResourceManager0ApiI* ptResourceApi;
+    plDeviceApiI* ptDeviceApi;
     plProtoApiI* ptProtoApi;
     plImageApiI* ptImageApi;
     plEntity*   sbtObjectEntities;

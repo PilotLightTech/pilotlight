@@ -260,8 +260,8 @@ int main()
 
         // render a frame
         pl_new_frame_linux();
-        gptExtensionRegistry->reload(gptApiRegistry);
         pl_app_update(gUserData);
+        gptExtensionRegistry->reload(gptApiRegistry);
     }
 
     // app cleanup

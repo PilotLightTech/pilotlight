@@ -28,6 +28,7 @@ Index of this file:
 #include "pl_ui_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_image_ext.h"
+#include "pl_vulkan_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -36,7 +37,7 @@ Index of this file:
 // graphics
 static void pl_create_main_render_target(plGraphics* ptGraphics, plRenderTarget* ptTargetOut);
 static void pl_create_render_pass  (plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, plRenderPass* ptPassOut);
-static void pl_create_render_target(plResourceManager0ApiI* ptResourceApi, plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut);
+static void pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut);
 static void pl_begin_render_target (plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTarget* ptTarget);
 static void pl_end_render_target   (plGraphicsApiI* ptGfx, plGraphics* ptGraphics);
 static void pl_cleanup_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget);
@@ -152,9 +153,11 @@ pl__wrap_angle(float tTheta)
 }
 
 static void
-pl_create_render_target(plResourceManager0ApiI* ptResourceApi, plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut)
+pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut)
 {
     ptTargetOut->tDesc = *ptDesc;
+    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
+    plDevice* ptDevice = &ptGraphics->tDevice;
 
     const plTextureDesc tColorTextureDesc = {
         .tDimensions = {.x = ptDesc->tSize.x, .y = ptDesc->tSize.y, .z = 1.0f},
@@ -189,11 +192,11 @@ pl_create_render_target(plResourceManager0ApiI* ptResourceApi, plGraphics* ptGra
 
     for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
     {
-        uint32_t uColorTexture = ptResourceApi->create_texture(&ptGraphics->tResourceManager, tColorTextureDesc, 0, NULL, "offscreen color texture");
-        pl_sb_push(ptTargetOut->sbuColorTextureViews, ptResourceApi->create_texture_view(&ptGraphics->tResourceManager, &tColorView, &tColorSampler, uColorTexture, "offscreen color view"));
+        uint32_t uColorTexture = ptDeviceApi->create_texture(ptDevice, tColorTextureDesc, 0, NULL, "offscreen color texture");
+        pl_sb_push(ptTargetOut->sbuColorTextureViews, ptDeviceApi->create_texture_view(ptDevice, &tColorView, &tColorSampler, uColorTexture, "offscreen color view"));
     }
 
-    uint32_t uDepthTexture = ptResourceApi->create_texture(&ptGraphics->tResourceManager, tDepthTextureDesc, 0, NULL, "offscreen depth texture");
+    uint32_t uDepthTexture = ptDeviceApi->create_texture(ptDevice, tDepthTextureDesc, 0, NULL, "offscreen depth texture");
 
     const plTextureViewDesc tDepthView = {
         .tFormat     = tDepthTextureDesc.tFormat,
@@ -201,13 +204,13 @@ pl_create_render_target(plResourceManager0ApiI* ptResourceApi, plGraphics* ptGra
         .uMips       = tDepthTextureDesc.uMips
     };
 
-    ptTargetOut->uDepthTextureView = ptResourceApi->create_texture_view(&ptGraphics->tResourceManager, &tDepthView, &tColorSampler, uDepthTexture, "offscreen depth view");
+    ptTargetOut->uDepthTextureView = ptDeviceApi->create_texture_view(ptDevice, &tDepthView, &tColorSampler, uDepthTexture, "offscreen depth view");
 
-    plTextureView* ptDepthTextureView = &ptGraphics->tResourceManager.sbtTextureViews[ptTargetOut->uDepthTextureView];
+    plTextureView* ptDepthTextureView = &ptDevice->sbtTextureViews[ptTargetOut->uDepthTextureView];
 
     for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
     {
-        plTextureView* ptColorTextureView = &ptGraphics->tResourceManager.sbtTextureViews[ptTargetOut->sbuColorTextureViews[i]];
+        plTextureView* ptColorTextureView = &ptDevice->sbtTextureViews[ptTargetOut->sbuColorTextureViews[i]];
         VkImageView atAttachments[] = {
             ptColorTextureView->_tImageView,
             ptDepthTextureView->_tImageView
@@ -412,10 +415,10 @@ pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plRe
 {
     memset(ptRenderer, 0, sizeof(plRenderer));
     ptRenderer->tNextEntity = 1;
-    
+
     ptRenderer->ptGfx = ptApiRegistry->first(PL_API_GRAPHICS);
     ptRenderer->ptMemoryApi = ptApiRegistry->first(PL_API_MEMORY);
-    ptRenderer->ptResourceApi = ptApiRegistry->first(PL_API_RESOURCE_MANAGER_0);
+    ptRenderer->ptDeviceApi = ptApiRegistry->first(PL_API_DEVICE);
     ptRenderer->ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     ptRenderer->ptProtoApi = ptApiRegistry->first(PL_API_PROTO);
     ptRenderer->ptImageApi = ptApiRegistry->first(PL_API_IMAGE);
@@ -424,7 +427,8 @@ pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plRe
     ptRenderer->uLogChannel = pl_add_log_channel("renderer", PL_CHANNEL_TYPE_CONSOLE | PL_CHANNEL_TYPE_BUFFER);
 
     plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
-    plResourceManager0ApiI* ptResourceApi = ptRenderer->ptResourceApi;
+    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
+    plDevice* ptDevice = &ptGraphics->tDevice;
 
     // create dummy texture (texture slot 0 when not used)
     const plTextureDesc tTextureDesc2 = {
@@ -436,7 +440,7 @@ pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plRe
         .tType       = VK_IMAGE_TYPE_2D
     };
     static const float afSinglePixel[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-    uint32_t uDummyTexture = ptResourceApi->create_texture(&ptGraphics->tResourceManager, tTextureDesc2, sizeof(unsigned char) * 4, afSinglePixel, "dummy texture");
+    uint32_t uDummyTexture = ptDeviceApi->create_texture(ptDevice, tTextureDesc2, sizeof(unsigned char) * 4, afSinglePixel, "dummy texture");
 
     const plSampler tDummySampler = 
     {
@@ -451,7 +455,7 @@ pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plRe
         .uMips       = tTextureDesc2.uMips
     };
 
-    ptResourceApi->create_texture_view(&ptGraphics->tResourceManager, &tDummyView, &tDummySampler, uDummyTexture, "dummy texture view");
+    ptDeviceApi->create_texture_view(ptDevice, &tDummyView, &tDummySampler, uDummyTexture, "dummy texture view");
 
     ptRenderer->ptGraphics = ptGraphics;
 
@@ -567,9 +571,9 @@ pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plRe
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create shaders~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    ptRenderer->uMainShader    = ptGfx->create_shader(&ptGraphics->tResourceManager, &tMainShaderDesc);
-    ptRenderer->uOutlineShader = ptGfx->create_shader(&ptGraphics->tResourceManager, &tOutlineShaderDesc);
-    ptRenderer->uSkyboxShader  = ptGfx->create_shader(&ptGraphics->tResourceManager, &tSkyboxShaderDesc);
+    ptRenderer->uMainShader    = ptGfx->create_shader(ptGraphics, &tMainShaderDesc);
+    ptRenderer->uOutlineShader = ptGfx->create_shader(ptGraphics, &tOutlineShaderDesc);
+    ptRenderer->uSkyboxShader  = ptGfx->create_shader(ptGraphics, &tSkyboxShaderDesc);
 
 }
 
@@ -584,11 +588,11 @@ static void
 pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
 {
     plGraphics* ptGraphics = ptRenderer->ptGraphics;
-    plResourceManager* ptResourceManager = &ptGraphics->tResourceManager;
     plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
     plMemoryApiI* ptMemoryApi = ptRenderer->ptMemoryApi;
-    plResourceManager0ApiI* ptResourceApi = ptRenderer->ptResourceApi;
     plImageApiI* ptImageApi = ptRenderer->ptImageApi;
+    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
+    plDevice* ptDevice = &ptGraphics->tDevice;
 
     memset(ptSceneOut, 0, sizeof(plScene));
 
@@ -621,7 +625,7 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
     ptSceneOut->tComponentLibrary.tHierarchyComponentManager.tComponentType = PL_COMPONENT_TYPE_HIERARCHY;
     ptSceneOut->tComponentLibrary.tHierarchyComponentManager.szStride = sizeof(plHierarchyComponent);
 
-    ptSceneOut->uDynamicBuffer0 = ptResourceApi->create_constant_buffer(ptResourceManager, ptRenderer->ptGraphics->tResourceManager._uDynamicBufferSize, "renderer dynamic buffer 0");
+    ptSceneOut->uDynamicBuffer0 = ptDeviceApi->create_constant_buffer(ptDevice, ptDevice->tDeviceProps.limits.maxUniformBufferRange, "renderer dynamic buffer 0");
 
     ptSceneOut->ptOutlineMaterialComponentManager = &ptSceneOut->tComponentLibrary.tOutlineMaterialComponentManager;
     ptSceneOut->ptTagComponentManager = &ptSceneOut->tComponentLibrary.tTagComponentManager;
@@ -650,7 +654,7 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
     PL_ASSERT(rawBytes4);
     PL_ASSERT(rawBytes5);
 
-    unsigned char* rawBytes = ptMemoryApi->alloc(texWidth * texHeight * texNumChannels * 6);
+    unsigned char* rawBytes = ptMemoryApi->alloc(texWidth * texHeight * texNumChannels * 6, __FUNCTION__, __LINE__);
     memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 0], rawBytes0, texWidth * texHeight * texNumChannels); //-V522 
     memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 1], rawBytes1, texWidth * texHeight * texNumChannels); //-V522
     memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 2], rawBytes2, texWidth * texHeight * texNumChannels); //-V522
@@ -687,8 +691,8 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
         .uMips       = tTextureDesc.uMips
     };
 
-    uint32_t uSkyboxTexture = ptResourceApi->create_texture(&ptGraphics->tResourceManager, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * texNumChannels * 6, rawBytes, "skybox texture");
-    ptSceneOut->uSkyboxTextureView  = ptResourceApi->create_texture_view(&ptGraphics->tResourceManager, &tSkyboxView, &tSkyboxSampler, uSkyboxTexture, "skybox texture view");
+    uint32_t uSkyboxTexture = ptDeviceApi->create_texture(ptDevice, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * texNumChannels * 6, rawBytes, "skybox texture");
+    ptSceneOut->uSkyboxTextureView  = ptDeviceApi->create_texture_view(ptDevice, &tSkyboxView, &tSkyboxSampler, uSkyboxTexture, "skybox texture view");
     ptMemoryApi->free(rawBytes);
 
     const float fCubeSide = 0.5f;
@@ -717,8 +721,8 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
         .tMesh = {
             .uIndexCount   = 36,
             .uVertexCount  = 24,
-            .uIndexBuffer  = ptResourceApi->create_index_buffer(&ptGraphics->tResourceManager, sizeof(uint32_t) * 36, acSkyboxIndices, "skybox index buffer"),
-            .uVertexBuffer = ptResourceApi->create_vertex_buffer(&ptGraphics->tResourceManager, sizeof(float) * 24, sizeof(float), acSkyBoxVertices, "skybox vertex buffer"),
+            .uIndexBuffer  = ptDeviceApi->create_index_buffer(ptDevice, sizeof(uint32_t) * 36, acSkyboxIndices, "skybox index buffer"),
+            .uVertexBuffer = ptDeviceApi->create_vertex_buffer(ptDevice, sizeof(float) * 24, sizeof(float), acSkyBoxVertices, "skybox vertex buffer"),
             .ulVertexStreamMask = PL_MESH_FORMAT_FLAG_NONE
         }
     };
@@ -774,10 +778,9 @@ pl_draw_scene(plScene* ptScene)
 {
     plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
     plRenderer* ptRenderer = ptScene->ptRenderer;
-    plResourceManager* ptResourceManager = &ptGraphics->tResourceManager;
     plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
 
-    const plBuffer* ptBuffer0 = &ptResourceManager->sbtBuffers[ptScene->uDynamicBuffer0];
+    const plBuffer* ptBuffer0 = &ptGraphics->tDevice.sbtBuffers[ptScene->uDynamicBuffer0];
     const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer0_Offset;
 
     const uint32_t uDrawOffset = pl_sb_size(ptRenderer->sbtDraws);
@@ -878,9 +881,9 @@ pl_scene_prepare(plScene* ptScene)
 
     plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
     plRenderer* ptRenderer = ptScene->ptRenderer;
-    plResourceManager* ptResourceManager = &ptGraphics->tResourceManager;
     plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
-    plResourceManager0ApiI* ptResourceApi = ptRenderer->ptResourceApi;
+    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
+    plDevice* ptDevice = &ptGraphics->tDevice;
 
     uint32_t uStorageOffset = pl_sb_size(ptScene->sbfStorageBuffer) / 4;
 
@@ -1133,11 +1136,11 @@ pl_scene_prepare(plScene* ptScene)
             PL_ASSERT(uOffset == uStride && "sanity check");
 
 
-            ptSubMesh->tMesh.uIndexBuffer = ptResourceApi->create_index_buffer(ptResourceManager, 
+            ptSubMesh->tMesh.uIndexBuffer = ptDeviceApi->create_index_buffer(ptDevice, 
                 sizeof(uint32_t) * ptSubMesh->tMesh.uIndexCount,
                 ptSubMesh->sbuIndices, "unnamed index buffer");
 
-            ptSubMesh->tMesh.uVertexBuffer = ptResourceApi->create_vertex_buffer(ptResourceManager, 
+            ptSubMesh->tMesh.uVertexBuffer = ptDeviceApi->create_vertex_buffer(ptDevice, 
                 ptSubMesh->tMesh.uVertexCount * sizeof(plVec3), sizeof(plVec3),
                 ptSubMesh->sbtVertexPositions, "unnamed vertex buffer");
 
@@ -1152,9 +1155,9 @@ pl_scene_prepare(plScene* ptScene)
     {
         if(ptScene->uGlobalStorageBuffer != UINT32_MAX)
         {
-            ptResourceApi->submit_buffer_for_deletion(ptResourceManager, ptScene->uGlobalStorageBuffer);
+            ptDeviceApi->submit_buffer_for_deletion(ptDevice, ptScene->uGlobalStorageBuffer);
         }
-        ptScene->uGlobalStorageBuffer = ptResourceApi->create_storage_buffer(ptResourceManager, pl_sb_size(ptScene->sbfStorageBuffer) * sizeof(float), ptScene->sbfStorageBuffer, "global storage");
+        ptScene->uGlobalStorageBuffer = ptDeviceApi->create_storage_buffer(ptDevice, pl_sb_size(ptScene->sbfStorageBuffer) * sizeof(float), ptScene->sbfStorageBuffer, "global storage");
         pl_sb_reset(ptScene->sbfStorageBuffer);
 
         uint32_t atBuffers0[] = {ptScene->uDynamicBuffer0, ptScene->uGlobalStorageBuffer};
@@ -1172,7 +1175,7 @@ pl_scene_bind_camera(plScene* ptScene, const plCameraComponent* ptCamera)
     plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
     plRenderer* ptRenderer = ptScene->ptRenderer;
 
-    const plBuffer* ptBuffer0 = &ptGraphics->tResourceManager.sbtBuffers[ptScene->uDynamicBuffer0];
+    const plBuffer* ptBuffer0 = &ptGraphics->tDevice.sbtBuffers[ptScene->uDynamicBuffer0];
     const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer0_Offset;
 
     plGlobalInfo* ptGlobalInfo    = (plGlobalInfo*)&ptBuffer0->pucMapping[uBufferFrameOffset0];
@@ -1191,11 +1194,10 @@ pl_draw_sky(plScene* ptScene)
 
     plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
     plRenderer* ptRenderer = ptScene->ptRenderer;
-    plResourceManager* ptResourceManager = &ptGraphics->tResourceManager;
     plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
     VkSampleCountFlagBits tMSAASampleCount = ptScene->ptRenderTarget->bMSAA ? ptGraphics->tSwapchain.tMsaaSamples : VK_SAMPLE_COUNT_1_BIT;
 
-    const plBuffer* ptBuffer0 = &ptResourceManager->sbtBuffers[ptScene->uDynamicBuffer0];
+    const plBuffer* ptBuffer0 = &ptGraphics->tDevice.sbtBuffers[ptScene->uDynamicBuffer0];
     const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer0_Offset;
 
     plGlobalInfo* ptGlobalInfo    = (plGlobalInfo*)&ptBuffer0->pucMapping[uBufferFrameOffset0];
@@ -1206,7 +1208,7 @@ pl_draw_sky(plScene* ptScene)
 
     uint32_t uSkyboxShaderVariant = UINT32_MAX;
 
-    const plShader* ptShader = &ptResourceManager->sbtShaders[ptRenderer->uSkyboxShader];   
+    const plShader* ptShader = &ptGraphics->sbtShaders[ptRenderer->uSkyboxShader];   
     const uint32_t uFillVariantCount = pl_sb_size(ptShader->tDesc.sbtVariants);
 
     plGraphicsState tFillStateTemplate = {
@@ -1238,7 +1240,7 @@ pl_draw_sky(plScene* ptScene)
     if(uSkyboxShaderVariant == UINT32_MAX)
     {
         pl_log_debug_to_f(ptRenderer->uLogChannel, "adding skybox shader variant");
-        uSkyboxShaderVariant = ptGfx->add_shader_variant(ptResourceManager, ptRenderer->uSkyboxShader, tFillStateTemplate, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
+        uSkyboxShaderVariant = ptGfx->add_shader_variant(ptGraphics, ptRenderer->uSkyboxShader, tFillStateTemplate, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
     }
 
     pl_sb_push(ptRenderer->sbtDrawAreas, ((plDrawArea){
@@ -1393,9 +1395,9 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
 
     plRenderer* ptRenderer = ptScene->ptRenderer;
     plGraphics* ptGraphics = ptRenderer->ptGraphics;
-    plResourceManager* ptResourceManager = &ptGraphics->tResourceManager;
     plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
-    plResourceManager0ApiI* ptResourceApi = ptRenderer->ptResourceApi;
+    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
+    plDevice* ptDevice = &ptGraphics->tDevice;
 
     switch (ptManager->tComponentType)
     {
@@ -1405,11 +1407,11 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
         VkSampleCountFlagBits tMSAASampleCount = ptScene->ptRenderTarget->bMSAA ? ptGraphics->tSwapchain.tMsaaSamples : VK_SAMPLE_COUNT_1_BIT;
         uint32_t* sbuTextures = NULL;
 
-        size_t szRangeSize = pl_align_up(sizeof(plMaterialInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);
+        size_t szRangeSize = pl_align_up(sizeof(plMaterialInfo), ptDevice->tDeviceProps.limits.minUniformBufferOffsetAlignment);
         size_t szRangeSize2 = sizeof(plMaterialInfo);
         plMaterialComponent* sbtComponents = ptManager->pData;
 
-        const uint32_t uMaxMaterialsPerBuffer = (uint32_t)(ptResourceManager->_uDynamicBufferSize / (uint32_t)szRangeSize) - 1;
+        const uint32_t uMaxMaterialsPerBuffer = (uint32_t)(ptDevice->tDeviceProps.limits.maxUniformBufferRange / (uint32_t)szRangeSize) - 1;
         uint32_t uMaterialCount = pl_sb_size(sbtComponents);
         const uint32_t uMinBuffersNeeded = (uint32_t)ceilf((float)uMaterialCount / (float)uMaxMaterialsPerBuffer);
         uint32_t uCurrentMaterial = 0;
@@ -1422,9 +1424,9 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
 
             if(ptScene->bMaterialsNeedUpdate)
             {
-                uDynamicBufferIndex = ptResourceApi->request_dynamic_buffer(ptResourceManager);
-                ptDynamicBufferNode = &ptResourceManager->_sbtDynamicBufferList[uDynamicBufferIndex];
-                ptBuffer = &ptResourceManager->sbtBuffers[ptDynamicBufferNode->uDynamicBuffer];
+                uDynamicBufferIndex = ptDeviceApi->request_dynamic_buffer(ptDevice);
+                ptDynamicBufferNode = &ptDevice->_sbtDynamicBufferList[uDynamicBufferIndex];
+                ptBuffer = &ptDevice->sbtBuffers[ptDynamicBufferNode->uDynamicBuffer];
             }
 
             uint32_t uIterationMaterialCount = pl_minu(uMaxMaterialsPerBuffer, uMaterialCount);
@@ -1457,7 +1459,7 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
                     {
 
                         plBindGroup tNewBindGroup = {
-                            .tLayout = *ptGfx->get_bind_group_layout(ptResourceManager, ptMaterial->uShader, 1)
+                            .tLayout = *ptGfx->get_bind_group_layout(ptGraphics, ptMaterial->uShader, 1)
                         };
                         ptGfx->update_bind_group(ptGraphics, &tNewBindGroup, 1, &ptDynamicBufferNode->uDynamicBuffer, &szRangeSize2, pl_sb_size(sbuTextures), sbuTextures);
 
@@ -1492,7 +1494,7 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
                 if(ptMaterial->uNormalMap > 0)   ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_1;
                 if(ptMaterial->uEmissiveMap > 0) ptMaterial->tGraphicsState.ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_2;
 
-                const plShader* ptShader = &ptResourceManager->sbtShaders[ptMaterial->uShader];   
+                const plShader* ptShader = &ptGraphics->sbtShaders[ptMaterial->uShader];   
                 const uint32_t uVariantCount = pl_sb_size(ptShader->tDesc.sbtVariants);
 
                 for(uint32_t k = 0; k < uVariantCount; k++)
@@ -1510,7 +1512,7 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
                 // create variant that matches texture count, vertex stream, and culling
                 if(ptMaterial->uShaderVariant == UINT32_MAX)
                 {
-                    ptMaterial->uShaderVariant = ptGfx->add_shader_variant(ptResourceManager, ptMaterial->uShader, ptMaterial->tGraphicsState, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
+                    ptMaterial->uShaderVariant = ptGfx->add_shader_variant(ptGraphics, ptMaterial->uShader, ptMaterial->tGraphicsState, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
                 }
                 
                 pl_sb_reset(sbuTextures);
@@ -1533,7 +1535,7 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
         size_t szRangeSize = pl_align_up(sizeof(plObjectInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);
         plTransformComponent* sbtComponents = ptManager->pData;
 
-        const uint32_t uMaxObjectsPerBuffer = (uint32_t)(ptResourceManager->_uDynamicBufferSize / (uint32_t)szRangeSize) - 1;
+        const uint32_t uMaxObjectsPerBuffer = (uint32_t)(ptDevice->tDeviceProps.limits.maxUniformBufferRange / (uint32_t)szRangeSize) - 1;
         uint32_t uObjectCount = pl_sb_size(sbtComponents);
         const uint32_t uMinBuffersNeeded = (uint32_t)ceilf((float)uObjectCount / (float)uMaxObjectsPerBuffer);
         uint32_t uCurrentTransform = 0;
@@ -1548,9 +1550,9 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
 
         for(uint32_t i = 0; i < uMinBuffersNeeded; i++)
         {
-            const uint32_t uDynamicBufferIndex = ptResourceApi->request_dynamic_buffer(ptResourceManager);
-            plDynamicBufferNode* ptDynamicBufferNode = &ptResourceManager->_sbtDynamicBufferList[uDynamicBufferIndex];
-            plBuffer* ptBuffer = &ptResourceManager->sbtBuffers[ptDynamicBufferNode->uDynamicBuffer];
+            const uint32_t uDynamicBufferIndex = ptDeviceApi->request_dynamic_buffer(ptDevice);
+            plDynamicBufferNode* ptDynamicBufferNode = &ptDevice->_sbtDynamicBufferList[uDynamicBufferIndex];
+            plBuffer* ptBuffer = &ptDevice->sbtBuffers[ptDynamicBufferNode->uDynamicBuffer];
 
             const uint64_t uHashKey = pl_hm_hash(&uDynamicBufferIndex, sizeof(uint64_t), 0);
 
@@ -1595,7 +1597,7 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
             }
             uObjectCount = uObjectCount - uIterationObjectCount;
 
-            pl_sb_push(ptResourceManager->_sbuDynamicBufferDeletionQueue, uDynamicBufferIndex);
+            pl_sb_push(ptDevice->_sbuDynamicBufferDeletionQueue, uDynamicBufferIndex);
 
             if(uObjectCount == 0)
                 break;

@@ -9,10 +9,13 @@ import pl_build as pl
 #                                helpers                                      #
 ###############################################################################
 
-def add_plugin_to_vulkan_app(name, reloadable):
+def add_plugin_to_vulkan_app(name, reloadable, *kwargs):
     with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, reloadable):
         pl.push_output_binary(name)
-        pl.push_source_files("../extensions/" + name + ".c")
+        source_files = ["../extensions/" + name + ".c"]
+        for source in kwargs:
+            source_files.append("../extensions/" + source + ".c")
+        pl.push_source_files(*source_files)
         with pl.configuration("debug"):
             with pl.platform(pl.PlatformType.WIN32):
                 with pl.compiler("msvc", pl.CompilerType.MSVC):

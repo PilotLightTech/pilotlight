@@ -361,8 +361,8 @@ pl__render_frame(void)
     plIOContext* ptIOCtx = gptIoApiMain->get_context();
     if(!ptIOCtx->bViewportMinimized)
     {
+        pl_app_update(gpUserData);
         gptExtensionRegistry->reload(gptApiRegistry);
-        pl_app_update(gpUserData);   
     }
 }
 

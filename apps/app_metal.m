@@ -81,26 +81,6 @@ typedef struct plAppData_t
 // [SECTION] pl_app_load
 //-----------------------------------------------------------------------------
 
-static void
-pl__api_update_callback(void* pNewInterface, void* pOldInterface, void* pAppData)
-{
-    plAppData* ptAppData = pAppData;
-    plDataRegistryApiI* ptDataRegistry = ptAppData->ptApiRegistry->first(PL_API_DATA_REGISTRY);
-
-    if(pOldInterface == ptAppData->ptUiApi)
-    {
-        ptAppData->ptUiApi = pNewInterface;
-        ptAppData->ptUiApi->set_context(ptDataRegistry->get_data("ui"));
-        ptAppData->ptUiApi->set_draw_api(ptAppData->ptDrawApi);
-    }
-    else if(pOldInterface == ptAppData->ptDrawApi)
-    {
-        ptAppData->ptDrawApi = pNewInterface;
-        ptAppData->ptDrawApi->set_context(ptDataRegistry->get_data("draw"));
-        ptAppData->ptUiApi->set_draw_api(ptAppData->ptDrawApi);
-    }
-}
-
 PL_EXPORT void*
 pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
 {
@@ -112,20 +92,18 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
         pl_set_log_context(ptDataRegistry->get_data("log"));
         pl_set_profile_context(ptDataRegistry->get_data("profile"));
         
-        // must resubscribe (can't do in callback since callback is from previous binary)
-        ptApiRegistry->subscribe(ptAppData->ptUiApi, pl__api_update_callback, ptAppData);
-        ptApiRegistry->subscribe(ptAppData->ptDrawApi, pl__api_update_callback, ptAppData);
+        ptAppData->ptDrawApi = ptApiRegistry->first(PL_API_DRAW);
+        ptAppData->ptUiApi      = ptApiRegistry->first(PL_API_UI);
 
-        ptAppData->ptUiApi->set_context(ptDataRegistry->get_data("ui"));
-        ptAppData->ptDrawApi->set_context(ptDataRegistry->get_data("draw"));
+        ptAppData->ptUiApi->set_draw_api(ptAppData->ptDrawApi);
 
         return ptAppData;
     }
 
-    plIOApiI* ptIoI = ptApiRegistry->first(PL_API_IO);
+    plIOApiI* ptIoI             = ptApiRegistry->first(PL_API_IO);
     plLibraryApiI* ptLibraryApi = ptApiRegistry->first(PL_API_LIBRARY);
-    plFileApiI* ptFileApi = ptApiRegistry->first(PL_API_FILE);
-    plMemoryApiI* ptMemoryApi = ptApiRegistry->first(PL_API_MEMORY);
+    plFileApiI* ptFileApi       = ptApiRegistry->first(PL_API_FILE);
+    plMemoryApiI* ptMemoryApi   = ptApiRegistry->first(PL_API_MEMORY);
     
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));

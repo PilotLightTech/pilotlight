@@ -18,16 +18,16 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // memory functions (forward declared to be used in pl_ds.h)
-static void* pl__alloc  (size_t szSize);
+static void* pl__alloc  (size_t szSize, const char* pcFile, int iLine);
 static void  pl__free   (void* pBuffer);
 static void* pl__realloc(void* pBuffer, size_t szSize);
 
 // pl_ds.h allocators (so they can be tracked)
-#define PL_DS_ALLOC(x) pl__alloc((x))
+#define PL_DS_ALLOC(x) pl__alloc((x), (__FILE__), (__LINE__))
 #define PL_DS_FREE(x)  pl__free((x))
 
 // pl_memory.h allocators (so they can be tracked)
-#define PL_MEMORY_ALLOC(x)      pl__alloc((x))
+#define PL_MEMORY_ALLOC(x)      pl__alloc((x), (__FILE__), (__LINE__))
 #define PL_MEMORY_REALLOC(x, y) pl__realloc(x, y)
 #define PL_MEMORY_FREE(x)       pl__free((x))
 
@@ -79,6 +79,15 @@ typedef struct _plApiEntry
     void**               sbUserData;
 } plApiEntry;
 
+typedef struct _plAllocationEntry
+{
+    bool        bFree;
+    void*       pAddress;
+    size_t      szSize;
+    int         iLine;
+    const char* pcFile; 
+} plAllocationEntry;
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
@@ -123,6 +132,11 @@ uint32_t*         gsbtHotLibs     = NULL;
 
 // memory
 size_t gszActiveAllocations = 0;
+
+#if 0
+plAllocationEntry gatAllocations[10000] = {0};
+size_t gszAllocCount = 0;
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -203,7 +217,8 @@ pl_load_core_apis(void)
 void
 pl_unload_core_apis(void)
 {
-    for(uint32_t i = 0; i < pl_sb_size(gsbApiEntries); i++)
+    const uint32_t uApiCount = pl_sb_size(gsbApiEntries);
+    for(uint32_t i = 0; i < uApiCount; i++)
     {
         pl_sb_free(gsbApiEntries[i].sbSubscribers);
         pl_sb_free(gsbApiEntries[i].sbUserData);
@@ -374,7 +389,7 @@ pl__load_extensions_from_config(plApiRegistryApiI* ptApiRegistry, const char* pc
 
     unsigned int uFileSize = 0;
     ptFileApi->read(pcConfigFile, &uFileSize, NULL, "rb");
-    char* pcBuffer = pl__alloc(uFileSize + 1);
+    char* pcBuffer = pl__alloc(uFileSize + 1, __FILE__, __LINE__);
     memset(pcBuffer, 0, uFileSize + 1);
     ptFileApi->read(pcConfigFile, &uFileSize, pcBuffer, "rb");
 
@@ -443,7 +458,7 @@ pl__load_extensions_from_file(plApiRegistryApiI* ptApiRegistry, const char* pcFi
 
     unsigned int uFileSize = 0;
     ptFileApi->read(pcFile, &uFileSize, NULL, "rb");
-    char* pcBuffer = pl__alloc(uFileSize + 1);
+    char* pcBuffer = pl__alloc(uFileSize + 1, __FILE__, __LINE__);
     memset(pcBuffer, 0, uFileSize + 1);
     ptFileApi->read(pcFile, &uFileSize, pcBuffer, "rb");
 
@@ -561,15 +576,63 @@ pl__handle_extension_reloads(plApiRegistryApiI* ptApiRegistry)
 }
 
 static void*
-pl__alloc(size_t szSize)
+pl__alloc(size_t szSize, const char* pcFile, int iLine)
 {
     gszActiveAllocations++;
-    return malloc(szSize);
+    void* pBuffer = malloc(szSize);
+
+#if 0
+    bool bReusedAddress = false;
+    for(uint32_t i = 0; i < gszAllocCount; i++)
+    {
+        if(pBuffer == gatAllocations[i].pAddress)
+        {
+            PL_ASSERT(gatAllocations[i].bFree);
+            gatAllocations[i].bFree = false;
+            gatAllocations[i].iLine = iLine;
+            gatAllocations[i].pcFile = pcFile;
+            gatAllocations[i].pAddress = pBuffer;
+            gatAllocations[i].szSize = szSize;
+            bReusedAddress = true;
+            break;
+        }
+    }
+
+    if(!bReusedAddress)
+    {
+        gatAllocations[gszAllocCount].bFree = false;
+        gatAllocations[gszAllocCount].iLine = iLine;
+        gatAllocations[gszAllocCount].pcFile = pcFile;
+        gatAllocations[gszAllocCount].pAddress = pBuffer;
+        gatAllocations[gszAllocCount].szSize = szSize;
+        gszAllocCount++;
+    }
+
+#endif
+    
+    return pBuffer;
 }
 
 static void
 pl__free(void* pBuffer)
 {
+    PL_ASSERT(gszActiveAllocations > 0);
+
+#if 0
+    bool bFound = false;
+    for(uint32_t i = 0; i < gszAllocCount; i++)
+    {
+        if(pBuffer == gatAllocations[i].pAddress)
+        {
+            bFound = true;
+            PL_ASSERT(gatAllocations[i].bFree == false);
+            gatAllocations[i].bFree = true;
+            break;
+        }
+    }
+    PL_ASSERT(bFound);
+#endif
+ 
     gszActiveAllocations--;
     free(pBuffer);
 }

@@ -6783,8 +6783,8 @@ static void jsmn_init(jsmn_parser *parser) {
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static void pl__load_gltf_material(plImageApiI* ptImageApi, plResourceManager0ApiI* ptResourceApi, plResourceManager* ptResourceManager, const char* pcPath, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut);
-static void pl__load_gltf_object  (plProtoApiI* ptProtoApi, plResourceManager0ApiI* ptResourceApi, plScene* ptScene, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode);
+static void pl__load_gltf_material(plImageApiI* ptImageApi, plDeviceApiI* ptDeviceApi, plDevice* ptDevice, const char* pcPath, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut);
+static void pl__load_gltf_object  (plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene* ptScene, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode);
 static bool pl_ext_load_gltf     (plScene* ptScene, const char* pcPath);
 
 //-----------------------------------------------------------------------------
@@ -6805,9 +6805,10 @@ pl_load_gltf_api(void)
 //-----------------------------------------------------------------------------
 
 static void
-pl__load_gltf_object(plProtoApiI* ptProtoApi, plResourceManager0ApiI* ptResourceApi, plScene* ptScene, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode)
+pl__load_gltf_object(plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene* ptScene, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode)
 {
 	plRenderer* ptRenderer = ptScene->ptRenderer;
+	plDevice* ptDevice = &ptRenderer->ptGraphics->tDevice;
 	plGraphics* ptGraphics = ptRenderer->ptGraphics;
 	plImageApiI* ptImageApi = ptRenderer->ptImageApi;
 
@@ -6829,7 +6830,7 @@ pl__load_gltf_object(plProtoApiI* ptProtoApi, plResourceManager0ApiI* ptResource
 				for(size_t szChildIndex = 0; szChildIndex < ptNode->children_count; szChildIndex++)
 				{
 					const cgltf_node* ptChild = ptNode->children[szChildIndex];
-					pl__load_gltf_object(ptProtoApi, ptResourceApi, ptScene, tObject, pcPath, ptChild);
+					pl__load_gltf_object(ptProtoApi, ptDeviceApi, ptScene, tObject, pcPath, ptChild);
 				}
 			}
 
@@ -7016,7 +7017,7 @@ pl__load_gltf_object(plProtoApiI* ptProtoApi, plResourceManager0ApiI* ptResource
 
 			tSubMesh.tMaterial = ptProtoApi->ecs_create_material(ptScene, ptPrimitive->material->name);
 			plMaterialComponent* ptMaterialComponent = ptProtoApi->ecs_get_component(ptScene->ptMaterialComponentManager, tSubMesh.tMaterial);
-			pl__load_gltf_material(ptImageApi, ptResourceApi, &ptGraphics->tResourceManager, pcPath, ptPrimitive->material, ptMaterialComponent);
+			pl__load_gltf_material(ptImageApi, ptDeviceApi, ptDevice, pcPath, ptPrimitive->material, ptMaterialComponent);
 			pl_sb_push(ptMeshComponent->sbtSubmeshes, tSubMesh);
 		}
 	}
@@ -7051,7 +7052,7 @@ pl__load_gltf_object(plProtoApiI* ptProtoApi, plResourceManager0ApiI* ptResource
 		for(size_t szChildIndex = 0; szChildIndex < ptNode->children_count; szChildIndex++)
 		{
 			const cgltf_node* ptChild = ptNode->children[szChildIndex];
-			pl__load_gltf_object(ptProtoApi, ptResourceApi, ptScene, tHierarchyEntity, pcPath, ptChild);
+			pl__load_gltf_object(ptProtoApi, ptDeviceApi, ptScene, tHierarchyEntity, pcPath, ptChild);
 		}
 	}
 }
@@ -7061,7 +7062,7 @@ pl_ext_load_gltf(plScene* ptScene, const char* pcPath)
 {
 	plRenderer* ptRenderer = ptScene->ptRenderer;
 	plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
-	plResourceManager0ApiI* ptResourceApi = ptRenderer->ptResourceApi;
+	plDeviceApiI* ptDeviceApi = ptRenderer->ptDeviceApi;
 	plDataRegistryApiI* ptDataRegistry = ptRenderer->ptDataRegistry;
 	plProtoApiI* ptProtoApi = ptRenderer->ptProtoApi;
 	plImageApiI* ptImageApi = ptRenderer->ptImageApi;
@@ -7089,14 +7090,14 @@ pl_ext_load_gltf(plScene* ptScene, const char* pcPath)
     for(size_t szNodeIndex = 0; szNodeIndex < ptGltfData->scenes[0].nodes_count; szNodeIndex++)
     {
         const cgltf_node* ptNode = ptGltfData->scenes[0].nodes[szNodeIndex];
-		pl__load_gltf_object(ptProtoApi, ptResourceApi, ptScene, 0, pcPath, ptNode);
+		pl__load_gltf_object(ptProtoApi, ptDeviceApi, ptScene, 0, pcPath, ptNode);
     }
 
     return true;    
 }
 
 static uint32_t
-pl__load_texture(plImageApiI* ptImageApi, plResourceManager0ApiI* ptResourceApi, plResourceManager* ptResourceManager, const char* pcPath, cgltf_texture* ptTexture)
+pl__load_texture(plImageApiI* ptImageApi, plDeviceApiI* ptDeviceApi, plDevice* ptDevice, const char* pcPath, cgltf_texture* ptTexture)
 {
 	char acFilepath[2048] = {0};
 	pl_str_get_directory(pcPath, acFilepath);
@@ -7184,13 +7185,13 @@ pl__load_texture(plImageApiI* ptImageApi, plResourceManager0ApiI* ptResourceApi,
 		.uMips       = tTextureDesc.uMips
 	};
 
-	uint32_t uTexture = ptResourceApi->create_texture(ptResourceManager, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * 4, rawBytes, acFilepath);
+	uint32_t uTexture =  ptDeviceApi->create_texture(ptDevice, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * 4, rawBytes, acFilepath);
 	ptImageApi->free(rawBytes);
-	return ptResourceApi->create_texture_view(ptResourceManager, &tView, &tSampler, uTexture, pcSamplerName);	
+	return ptDeviceApi->create_texture_view(ptDevice, &tView, &tSampler, uTexture, pcSamplerName);	
 }
 
 static void
-pl__load_gltf_material(plImageApiI* ptImageApi, plResourceManager0ApiI* ptResourceApi, plResourceManager* ptResourceManager, const char* pcPath, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut)
+pl__load_gltf_material(plImageApiI* ptImageApi, plDeviceApiI* ptDeviceApi, plDevice* ptDevice, const char* pcPath, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut)
 {
     ptMaterialOut->bDoubleSided = ptMaterial->double_sided;
     ptMaterialOut->fAlphaCutoff = ptMaterial->alpha_cutoff;
@@ -7204,19 +7205,19 @@ pl__load_gltf_material(plImageApiI* ptImageApi, plResourceManager0ApiI* ptResour
 
         if(ptMaterial->pbr_metallic_roughness.base_color_texture.texture)
         {
-            ptMaterialOut->uAlbedoMap = pl__load_texture(ptImageApi, ptResourceApi, ptResourceManager, pcPath, ptMaterial->pbr_metallic_roughness.base_color_texture.texture);
+            ptMaterialOut->uAlbedoMap = pl__load_texture(ptImageApi, ptDeviceApi, ptDevice, pcPath, ptMaterial->pbr_metallic_roughness.base_color_texture.texture);
             ptMaterialOut->ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_0;
         }
 
         if(ptMaterial->normal_texture.texture)
         {
-            ptMaterialOut->uNormalMap = pl__load_texture(ptImageApi, ptResourceApi, ptResourceManager, pcPath, ptMaterial->normal_texture.texture);
+            ptMaterialOut->uNormalMap = pl__load_texture(ptImageApi, ptDeviceApi, ptDevice, pcPath, ptMaterial->normal_texture.texture);
             ptMaterialOut->ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_1;
         }
 
         if(ptMaterial->emissive_texture.texture)
         {
-            ptMaterialOut->uEmissiveMap = pl__load_texture(ptImageApi, ptResourceApi, ptResourceManager, pcPath, ptMaterial->emissive_texture.texture);
+            ptMaterialOut->uEmissiveMap = pl__load_texture(ptImageApi, ptDeviceApi, ptDevice, pcPath, ptMaterial->emissive_texture.texture);
             ptMaterialOut->ulShaderTextureFlags |= PL_SHADER_TEXTURE_FLAG_BINDING_2;
         }
     }

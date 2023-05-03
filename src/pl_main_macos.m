@@ -416,8 +416,8 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     }
 
     pl_new_frame_macos(self.view);
-    gptExtensionRegistry->reload(gptApiRegistry);
     pl_app_update(gUserData);
+    gptExtensionRegistry->reload(gptApiRegistry);
 }
 
 - (void)shutdown

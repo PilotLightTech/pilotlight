@@ -2342,17 +2342,26 @@ pl_load_draw_api(void)
 PL_EXPORT void
 pl_load_draw_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
+    plDrawApiI* ptDrawApi = pl_load_draw_api();
 
+    if(bReload)
+    {
+        plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+        ptDrawApi->set_context(ptDataRegistry->get_data("draw"));
+        ptApiRegistry->replace(ptApiRegistry->first(PL_API_DRAW), ptDrawApi);
+    }
+    else
+    {
+        ptApiRegistry->add(PL_API_DRAW, ptDrawApi);
+    }
 
     #ifdef PL_METAL_BACKEND
     if(bReload)
     {
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_DRAW), pl_load_draw_api());
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_METAL_DRAW), pl_load_metal_draw_api());
     }
     else
     {
-        ptApiRegistry->add(PL_API_DRAW, pl_load_draw_api());
         ptApiRegistry->add(PL_API_METAL_DRAW, pl_load_metal_draw_api());
     }
     #endif
@@ -2360,12 +2369,10 @@ pl_load_draw_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
     #ifdef PL_VULKAN_BACKEND
     if(bReload)
     {
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_DRAW), pl_load_draw_api());
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_VULKAN_DRAW), pl_load_vulkan_draw_api());
     }
     else
     {
-        ptApiRegistry->add(PL_API_DRAW, pl_load_draw_api());
         ptApiRegistry->add(PL_API_VULKAN_DRAW, pl_load_vulkan_draw_api());
     }
     #endif

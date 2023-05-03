@@ -116,9 +116,6 @@ typedef void (*ptApiUpdateCallback)(void*, void*, void*);
 typedef struct _plSharedLibrary plSharedLibrary;
 typedef struct _plSocket plSocket;
 
-// external apis
-typedef struct _plLibraryApiI plLibraryApiI;
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
@@ -157,7 +154,7 @@ typedef struct _plExtensionRegistryApiI
 
 typedef struct _plMemoryApiI
 {
-    void* (*alloc)  (size_t szSize);
+    void* (*alloc)  (size_t szSize, const char* pcFile, int iLine);
     void  (*free)   (void* pBuffer);
     void* (*realloc)(void* pBuffer, size_t szSize);
 
