@@ -7111,7 +7111,7 @@ pl__load_texture(plImageApiI* ptImageApi, plDeviceApiI* ptDeviceApi, plDevice* p
 
 	const plTextureDesc tTextureDesc = {
 		.tDimensions = {.x = (float)texWidth, .y = (float)texHeight, .z = 1.0f},
-		.tFormat     = VK_FORMAT_R8G8B8A8_UNORM,
+		.tFormat     = PL_FORMAT_R8G8B8A8_UNORM,
 		.tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 		.uLayers     = 1,
 		.uMips       = 0, // means all mips

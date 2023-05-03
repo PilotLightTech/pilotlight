@@ -29,9 +29,12 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // types
-typedef struct _plMesh          plMesh;
-typedef struct _plSampler       plSampler;
-typedef struct _plGraphicsState plGraphicsState;
+typedef struct _plMesh                   plMesh;
+typedef struct _plSampler                plSampler;
+typedef struct _plGraphicsState          plGraphicsState;
+typedef struct _plTextureViewDesc        plTextureViewDesc;
+typedef struct _plDeviceMemoryAllocation plDeviceMemoryAllocation;
+typedef struct _plDeviceMemoryAllocatorI plDeviceMemoryAllocatorI;
 
 // enums
 typedef int plBufferBindingType;  // -> enum _plBufferBindingType   // Enum:
@@ -45,10 +48,21 @@ typedef int plStencilMode;        // -> enum _plStencilMode         // Enum:
 typedef int plFilter;             // -> enum _plFilter              // Enum:
 typedef int plWrapMode;           // -> enum _plWrapMode            // Enum:
 typedef int plCompareMode;        // -> enum _plCompareMode         // Enum:
+typedef int plFormat;             // -> enum _plFormat              // Enum:
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plTextureViewDesc
+{
+    plFormat    tFormat; 
+    uint32_t    uBaseMip;
+    uint32_t    uMips;
+    uint32_t    uBaseLayer;
+    uint32_t    uLayerCount;
+    uint32_t    uSlot;  
+} plTextureViewDesc;
 
 typedef struct _plMesh
 {
@@ -97,9 +111,42 @@ typedef struct _plGraphicsState
     
 } plGraphicsState;
 
+typedef struct _plDeviceMemoryAllocation
+{
+    uint64_t tMemory; // backend specific handle, (i.e. VkDeviceMemory)
+    uint64_t ulOffset;
+    uint64_t ulSize;
+    char*    pHostMapped;
+} plDeviceMemoryAllocation;
+
+typedef struct _plDeviceMemoryAllocatorI
+{
+
+    struct plDeviceMemoryAllocatorO* ptInst; // opaque pointer
+
+    plDeviceMemoryAllocation (*allocate)(struct plDeviceMemoryAllocatorO* ptInst, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
+    void                     (*free)    (struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation);
+
+} plDeviceMemoryAllocatorI;
+
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
+
+enum _plFormat
+{
+    PL_FORMAT_UNKNOWN,
+    PL_FORMAT_R32G32B32_FLOAT,
+    PL_FORMAT_R8G8B8A8_UNORM,
+    PL_FORMAT_R32G32_FLOAT,
+    PL_FORMAT_R8G8B8A8_SRGB,
+    PL_FORMAT_B8G8R8A8_SRGB,
+    PL_FORMAT_B8G8R8A8_UNORM,
+    PL_FORMAT_D32_FLOAT,
+    PL_FORMAT_D32_FLOAT_S8_UINT,
+    PL_FORMAT_D24_UNORM_S8_UINT,
+    PL_FORMAT_D16_UNORM_S8_UINT
+};
 
 enum _plCompareMode
 {

@@ -89,7 +89,6 @@ typedef struct _plBuffer            plBuffer;          // vulkan buffer
 typedef struct _plTexture           plTexture;         // vulkan texture
 typedef struct _plTextureView       plTextureView;     // vulkan texture view
 typedef struct _plTextureDesc       plTextureDesc;     // texture descriptor
-typedef struct _plTextureViewDesc   plTextureViewDesc; // texture descriptor
 typedef struct _plBufferBinding     plBufferBinding;
 typedef struct _plTextureBinding    plTextureBinding;
 typedef struct _plShaderDesc        plShaderDesc;
@@ -133,11 +132,12 @@ typedef struct _plDeviceApiI
     VkCommandBuffer (*begin_command_buffer)  (plDevice* ptDevice, VkCommandPool tCmdPool);
     void            (*submit_command_buffer) (plDevice* ptDevice, VkCommandPool tCmdPool, VkCommandBuffer tCmdBuffer);
 
-    bool                  (*format_has_stencil )      (VkFormat tFormat);
+    bool                  (*format_has_stencil )      (plFormat tFormat);
     VkSampleCountFlagBits (*get_max_sample_count)     (plDevice* ptDevice);
-    VkFormat              (*find_supported_format)    (plDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount);
-    VkFormat              (*find_depth_format)        (plDevice* ptDevice);
-    VkFormat              (*find_depth_stencil_format)(plDevice* ptDevice);
+    plFormat              (*find_supported_format)    (plDevice* ptDevice, VkFormatFeatureFlags tFlags, const plFormat* ptFormats, uint32_t uFormatCount);
+    plFormat              (*find_depth_format)        (plDevice* ptDevice);
+    plFormat              (*find_depth_stencil_format)(plDevice* ptDevice);
+    VkFormat              (*vulkan_format)            (plFormat tFormat);
 
     void     (*set_vulkan_object_name)  (plDevice* ptDevice, uint64_t uObjectHandle, VkDebugReportObjectTypeEXT tObjectType, const char* pcName);
     uint32_t (*find_memory_type)        (VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties);
@@ -258,16 +258,6 @@ typedef struct _plDraw
     uint32_t     uDynamicBufferOffset2;
 } plDraw;
 
-typedef struct _plTextureViewDesc
-{
-    VkFormat    tFormat; 
-    uint32_t    uBaseMip;
-    uint32_t    uMips;
-    uint32_t    uBaseLayer;
-    uint32_t    uLayerCount;
-    uint32_t    uSlot;  
-} plTextureViewDesc;
-
 typedef struct _plTextureView
 {
     uint32_t          uTextureHandle;
@@ -283,27 +273,25 @@ typedef struct _plTextureDesc
     plVec3               tDimensions;
     uint32_t             uLayers;
     uint32_t             uMips;
-    VkFormat             tFormat;
+    plFormat             tFormat;
     VkImageUsageFlagBits tUsage;
 } plTextureDesc;
 
 typedef struct _plTexture
 {
-    plTextureDesc  tDesc;
-    VkImage        tImage;
-    VkDeviceMemory tMemory;
+    plTextureDesc            tDesc;
+    VkImage                  tImage;
+    plDeviceMemoryAllocation tAllocation;
 } plTexture;
 
 typedef struct _plBuffer
 {
-    plBufferUsage  tUsage;
-    size_t         szRequestedSize;
-    size_t         szSize;
-    size_t         szStride;
-    size_t         szItemCount;
-    VkBuffer       tBuffer;
-    VkDeviceMemory tBufferMemory;
-    unsigned char* pucMapping;
+    plBufferUsage            tUsage;
+    size_t                   szRequestedSize;
+    size_t                   szStride;
+    size_t                   szItemCount;
+    VkBuffer                 tBuffer;
+    plDeviceMemoryAllocation tAllocation;
 } plBuffer;
 
 typedef struct _plBufferBinding
@@ -379,46 +367,28 @@ typedef struct _plFrameContext
 
 typedef struct _plSwapchain
 {
-    VkSwapchainKHR        tSwapChain;
-    VkExtent2D            tExtent;
-    VkFramebuffer*        ptFrameBuffers;
-    VkFormat              tFormat;
-    VkFormat              tDepthFormat;
-    VkImage*              ptImages;
-    VkImageView*          ptImageViews;
-    VkImage               tColorImage;
-    VkImageView           tColorImageView;
-    VkDeviceMemory        tColorMemory;
-    VkImage               tDepthImage;
-    VkImageView           tDepthImageView;
-    VkDeviceMemory        tDepthMemory;
-    uint32_t              uImageCount;
-    uint32_t              uImageCapacity;
-    uint32_t              uCurrentImageIndex; // current image to use within the swap chain
-    bool                  bVSync;
-    VkSampleCountFlagBits tMsaaSamples;
-    VkSurfaceFormatKHR*   ptSurfaceFormats_;
-    uint32_t              uSurfaceFormatCapacity_;
+    VkSwapchainKHR           tSwapChain;
+    VkExtent2D               tExtent;
+    VkFramebuffer*           ptFrameBuffers;
+    plFormat                 tFormat;
+    plFormat                 tDepthFormat;
+    VkImage*                 ptImages;
+    VkImageView*             ptImageViews;
+    VkImage                  tColorImage;
+    VkImageView              tColorImageView;
+    plDeviceMemoryAllocation tColorAllocation;
+    VkImage                  tDepthImage;
+    VkImageView              tDepthImageView;
+    plDeviceMemoryAllocation tDepthAllocation;
+    uint32_t                 uImageCount;
+    uint32_t                 uImageCapacity;
+    uint32_t                 uCurrentImageIndex; // current image to use within the swap chain
+    bool                     bVSync;
+    VkSampleCountFlagBits    tMsaaSamples;
+    VkSurfaceFormatKHR*      ptSurfaceFormats_;
+    uint32_t                 uSurfaceFormatCapacity_;
 
 } plSwapchain;
-
-typedef struct _plDeviceMemoryAllocation
-{
-    VkDeviceMemory tMemory;
-    uint64_t       ulOffset;
-    uint64_t       ulSize;
-    void*          pHostMapped;
-} plDeviceMemoryAllocation;
-
-typedef struct _plDeviceMemoryAllocatorI
-{
-
-    struct plDeviceMemoryAllocatorO* ptInst; // opaque pointer
-
-    plDeviceMemoryAllocation (*allocate)(struct plDeviceMemoryAllocatorO* ptInst, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
-    void                     (*free)    (struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation);
-
-} plDeviceMemoryAllocatorI;
 
 typedef struct _plDynamicBufferNode
 {
@@ -474,10 +444,8 @@ typedef struct _plDevice
     uint32_t* _sbulTextureViewDeletionQueue;
     
     // staging buffer
-    size_t         _szStagingBufferSize;
-    VkBuffer       _tStagingBuffer;
-    VkDeviceMemory _tStagingBufferMemory;
-    unsigned char* _pucMapping;
+    VkBuffer                 _tStagingBuffer;
+    plDeviceMemoryAllocation _tStagingAllocation;
 
     // dynamic buffers
     uint32_t*            _sbuDynamicBufferDeletionQueue;

@@ -318,7 +318,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
 
     const plTextureDesc tTextureDesc = {
         .tDimensions = {.x = (float)texWidth, .y = (float)texHeight, .z = 1.0f},
-        .tFormat     = VK_FORMAT_R8G8B8A8_UNORM,
+        .tFormat     = PL_FORMAT_R8G8B8A8_UNORM,
         .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .uLayers     = 1,
         .uMips       = 1, // means all mips
@@ -508,7 +508,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
 
     // offscreen
     plRenderPassDesc tRenderPassDesc = {
-        .tColorFormat = VK_FORMAT_R8G8B8A8_UNORM,
+        .tColorFormat = PL_FORMAT_R8G8B8A8_UNORM,
         .tDepthFormat = ptDeviceApi->find_depth_stencil_format(ptDevice)
     };
     ptProtoApi->create_render_pass(ptGraphics, &tRenderPassDesc, &ptAppData->tOffscreenPass);

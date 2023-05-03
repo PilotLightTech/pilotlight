@@ -174,8 +174,8 @@ typedef struct _plProtoApiI
 
 typedef struct _plRenderPassDesc
 {
-    VkFormat tColorFormat;
-    VkFormat tDepthFormat;
+    plFormat tColorFormat;
+    plFormat tDepthFormat;
 } plRenderPassDesc;
 
 typedef struct _plRenderPass

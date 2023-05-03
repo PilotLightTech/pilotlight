@@ -130,21 +130,21 @@ static VkCommandBuffer pl_begin_command_buffer (plDevice* ptDevice, VkCommandPoo
 static void            pl_submit_command_buffer(plDevice* ptDevice, VkCommandPool tCmdPool, VkCommandBuffer tCmdBuffer);
 
 // misc
-static VkFormat              pl_find_supported_format    (plDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount);
-static VkFormat              pl_find_depth_format        (plDevice* ptDevice);
-static VkFormat              pl_find_depth_stencil_format(plDevice* ptDevice);
-static bool                  pl_format_has_stencil       (VkFormat tFormat);
+static plFormat              pl_find_supported_format    (plDevice* ptDevice, VkFormatFeatureFlags tFlags, const plFormat* ptFormats, uint32_t uFormatCount);
+static plFormat              pl_find_depth_format        (plDevice* ptDevice);
+static plFormat              pl_find_depth_stencil_format(plDevice* ptDevice);
+static bool                  pl_format_has_stencil       (plFormat tFormat);
 static VkSampleCountFlagBits pl_get_max_sample_count     (plDevice* ptDevice);
 static uint32_t              pl_find_memory_type         (VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties);
 static void                  pl_transition_image_layout  (VkCommandBuffer tCommandBuffer, VkImage tImage, VkImageLayout tOldLayout, VkImageLayout tNewLayout, VkImageSubresourceRange tSubresourceRange, VkPipelineStageFlags tSrcStageMask, VkPipelineStageFlags tDstStageMask);
 static void                  pl_set_vulkan_object_name   (plDevice* ptDevice, uint64_t uObjectHandle, VkDebugReportObjectTypeEXT tObjectType, const char* pcName);
 
 // resource manager per frame
-static void                  pl_process_cleanup_queue        (plDevice* ptDevice, uint32_t uFramesToProcess);
+static void                  pl_process_cleanup_queue (plDevice* ptDevice, uint32_t uFramesToProcess);
 
 // resource manager dynamic buffers
-static uint32_t              pl_request_dynamic_buffer         (plDevice* ptDevice);
-static void                  pl_return_dynamic_buffer          (plDevice* ptDevice, uint32_t uNodeIndex);
+static uint32_t              pl_request_dynamic_buffer(plDevice* ptDevice);
+static void                  pl_return_dynamic_buffer (plDevice* ptDevice, uint32_t uNodeIndex);
 
 // resource manager commited resources
 static uint32_t              pl_create_index_buffer          (plDevice* ptDevice, size_t szSize, const void* pData, const char* pcName);
@@ -189,6 +189,8 @@ static bool pl__get_free_resource_index(uint32_t* sbuFreeIndices, uint32_t* puIn
 static VkFilter             pl__vulkan_filter (plFilter tFilter);
 static VkSamplerAddressMode pl__vulkan_wrap   (plWrapMode tWrap);
 static VkCompareOp          pl__vulkan_compare(plCompareMode tCompare);
+static VkFormat             pl__vulkan_format (plFormat tFormat);
+static plFormat             pl__pilotlight_format (VkFormat tFormat);
 
 static void pl__staging_buffer_realloc   (plDevice* ptDevice, size_t szNewSize);
 static void pl__staging_buffer_may_grow  (plDevice* ptDevice, size_t szSize);
@@ -257,6 +259,7 @@ pl_load_device_api(void)
         .find_supported_format            = pl_find_supported_format,
         .format_has_stencil               = pl_format_has_stencil,
         .get_max_sample_count             = pl_get_max_sample_count,
+        .vulkan_format                    = pl__vulkan_format,
         .set_vulkan_object_name           = pl_set_vulkan_object_name,
         .find_memory_type                 = pl_find_memory_type,
         .transition_image_layout          = pl_transition_image_layout,
@@ -632,6 +635,7 @@ pl__create_swapchain(plRenderBackend* ptBackend, plDevice* ptDevice, VkSurfaceKH
 
     bool bPreferenceFound = false;
     VkSurfaceFormatKHR tSurfaceFormat = ptSwapchainOut->ptSurfaceFormats_[0];
+    ptSwapchainOut->tFormat = pl__pilotlight_format(tSurfaceFormat.format);
 
     for(uint32_t i = 0u; i < 4; i++)
     {
@@ -642,7 +646,7 @@ pl__create_swapchain(plRenderBackend* ptBackend, plDevice* ptDevice, VkSurfaceKH
             if(ptSwapchainOut->ptSurfaceFormats_[j].format == atSurfaceFormatPreference[i] && ptSwapchainOut->ptSurfaceFormats_[j].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
             {
                 tSurfaceFormat = ptSwapchainOut->ptSurfaceFormats_[j];
-                ptSwapchainOut->tFormat = tSurfaceFormat.format;
+                ptSwapchainOut->tFormat = pl__pilotlight_format(tSurfaceFormat.format);
                 bPreferenceFound = true;
                 break;
             }
@@ -782,7 +786,7 @@ pl__create_swapchain(plRenderBackend* ptBackend, plDevice* ptDevice, VkSurfaceKH
             .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image            = ptSwapchainOut->ptImages[i],
             .viewType         = VK_IMAGE_VIEW_TYPE_2D,
-            .format           = ptSwapchainOut->tFormat,
+            .format           = pl__vulkan_format(ptSwapchainOut->tFormat),
             .subresourceRange = {
                 .baseMipLevel   = 0,
                 .levelCount     = 1,
@@ -802,18 +806,17 @@ pl__create_swapchain(plRenderBackend* ptBackend, plDevice* ptDevice, VkSurfaceKH
     }  //-V1020
 
     // color & depth
+    plDeviceMemoryAllocatorI* ptAllocator = &ptDevice->tLocalAllocator;
     if(ptSwapchainOut->tColorImageView) vkDestroyImageView(ptDevice->tLogicalDevice, ptSwapchainOut->tColorImageView, NULL);
     if(ptSwapchainOut->tColorImage)     vkDestroyImage(ptDevice->tLogicalDevice, ptSwapchainOut->tColorImage, NULL);
-    if(ptSwapchainOut->tColorMemory)    vkFreeMemory(ptDevice->tLogicalDevice, ptSwapchainOut->tColorMemory, NULL);
+    if(ptSwapchainOut->tColorAllocation.tMemory) ptAllocator->free(ptAllocator->ptInst, &ptSwapchainOut->tColorAllocation);
     ptSwapchainOut->tColorImageView = VK_NULL_HANDLE;
     ptSwapchainOut->tColorImage     = VK_NULL_HANDLE;
-    ptSwapchainOut->tColorMemory    = VK_NULL_HANDLE;
     if(ptSwapchainOut->tDepthImageView) vkDestroyImageView(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthImageView, NULL);
     if(ptSwapchainOut->tDepthImage)     vkDestroyImage(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthImage, NULL);
-    if(ptSwapchainOut->tDepthMemory)    vkFreeMemory(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthMemory, NULL);
+    if(ptSwapchainOut->tDepthAllocation.tMemory) ptAllocator->free(ptAllocator->ptInst, &ptSwapchainOut->tDepthAllocation);
     ptSwapchainOut->tDepthImageView = VK_NULL_HANDLE;
     ptSwapchainOut->tDepthImage     = VK_NULL_HANDLE;
-    ptSwapchainOut->tDepthMemory    = VK_NULL_HANDLE;
 
     VkImageCreateInfo tDepthImageInfo = {
         .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -826,7 +829,7 @@ pl__create_swapchain(plRenderBackend* ptBackend, plDevice* ptDevice, VkSurfaceKH
         },
         .mipLevels     = 1,
         .arrayLayers   = 1,
-        .format        = ptBackend->ptDeviceApi->find_depth_stencil_format(ptDevice),
+        .format        = pl__vulkan_format(ptBackend->ptDeviceApi->find_depth_stencil_format(ptDevice)),
         .tiling        = VK_IMAGE_TILING_OPTIMAL,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .usage         = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
@@ -846,7 +849,7 @@ pl__create_swapchain(plRenderBackend* ptBackend, plDevice* ptDevice, VkSurfaceKH
         },
         .mipLevels     = 1,
         .arrayLayers   = 1,
-        .format        = ptSwapchainOut->tFormat,
+        .format        = pl__vulkan_format(ptSwapchainOut->tFormat),
         .tiling        = VK_IMAGE_TILING_OPTIMAL,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
@@ -863,22 +866,11 @@ pl__create_swapchain(plRenderBackend* ptBackend, plDevice* ptDevice, VkSurfaceKH
     vkGetImageMemoryRequirements(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthImage, &tDepthMemReqs);
     vkGetImageMemoryRequirements(ptDevice->tLogicalDevice, ptSwapchainOut->tColorImage, &tColorMemReqs);
 
-    VkMemoryAllocateInfo tDepthAllocInfo = {
-        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize  = tDepthMemReqs.size,
-        .memoryTypeIndex = ptBackend->ptDeviceApi->find_memory_type(ptDevice->tMemProps, tDepthMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-    };
+    ptSwapchainOut->tColorAllocation = ptAllocator->allocate(ptAllocator->ptInst, tColorMemReqs.size, tColorMemReqs.alignment, "swapchain color");
+    ptSwapchainOut->tDepthAllocation = ptAllocator->allocate(ptAllocator->ptInst, tDepthMemReqs.size, tDepthMemReqs.alignment, "swapchain depth");
 
-    VkMemoryAllocateInfo tColorAllocInfo = {
-        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize  = tColorMemReqs.size,
-        .memoryTypeIndex = ptBackend->ptDeviceApi->find_memory_type(ptDevice->tMemProps, tColorMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-    };
-
-    PL_VULKAN(vkAllocateMemory(ptDevice->tLogicalDevice, &tDepthAllocInfo, NULL, &ptSwapchainOut->tDepthMemory));
-    PL_VULKAN(vkAllocateMemory(ptDevice->tLogicalDevice, &tColorAllocInfo, NULL, &ptSwapchainOut->tColorMemory));
-    PL_VULKAN(vkBindImageMemory(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthImage, ptSwapchainOut->tDepthMemory, 0));
-    PL_VULKAN(vkBindImageMemory(ptDevice->tLogicalDevice, ptSwapchainOut->tColorImage, ptSwapchainOut->tColorMemory, 0));
+    PL_VULKAN(vkBindImageMemory(ptDevice->tLogicalDevice, ptSwapchainOut->tDepthImage, (VkDeviceMemory)ptSwapchainOut->tDepthAllocation.tMemory, 0));
+    PL_VULKAN(vkBindImageMemory(ptDevice->tLogicalDevice, ptSwapchainOut->tColorImage, (VkDeviceMemory)ptSwapchainOut->tColorAllocation.tMemory, 0));
 
     VkCommandBuffer tCommandBuffer = ptBackend->ptDeviceApi->begin_command_buffer(ptDevice, ptDevice->tCmdPool);
     VkImageSubresourceRange tRange = {
@@ -930,12 +922,13 @@ pl__cleanup_swapchain(plRenderBackend* ptBackend, plDevice* ptDevice, plSwapchai
 {
     VkDevice tLogicalDevice = ptDevice->tLogicalDevice;
 
-    if(ptSwapchain->tDepthImageView) vkDestroyImageView(tLogicalDevice, ptSwapchain->tDepthImageView, NULL);
-    if(ptSwapchain->tDepthImage)     vkDestroyImage(tLogicalDevice, ptSwapchain->tDepthImage, NULL);
-    if(ptSwapchain->tDepthMemory)    vkFreeMemory(tLogicalDevice, ptSwapchain->tDepthMemory, NULL);
-    if(ptSwapchain->tColorImageView) vkDestroyImageView(tLogicalDevice, ptSwapchain->tColorImageView, NULL);
-    if(ptSwapchain->tColorImage)     vkDestroyImage(tLogicalDevice, ptSwapchain->tColorImage, NULL);
-    if(ptSwapchain->tColorMemory)    vkFreeMemory(tLogicalDevice, ptSwapchain->tColorMemory, NULL);
+    plDeviceMemoryAllocatorI* ptAllocator = &ptDevice->tLocalAllocator;
+    if(ptSwapchain->tDepthImageView)          vkDestroyImageView(tLogicalDevice, ptSwapchain->tDepthImageView, NULL);
+    if(ptSwapchain->tDepthImage)              vkDestroyImage(tLogicalDevice, ptSwapchain->tDepthImage, NULL);
+    if(ptSwapchain->tDepthAllocation.tMemory) ptAllocator->free(ptAllocator->ptInst, &ptSwapchain->tDepthAllocation);
+    if(ptSwapchain->tColorImageView)          vkDestroyImageView(tLogicalDevice, ptSwapchain->tColorImageView, NULL);
+    if(ptSwapchain->tColorImage)              vkDestroyImage(tLogicalDevice, ptSwapchain->tColorImage, NULL);
+    if(ptSwapchain->tColorAllocation.tMemory) ptAllocator->free(ptAllocator->ptInst, &ptSwapchain->tColorAllocation);
 
     // destroy swapchain
     for (uint32_t i = 0u; i < ptSwapchain->uImageCount; i++)
@@ -1071,7 +1064,7 @@ pl_setup_graphics(plGraphics* ptGraphics, plRenderBackend* ptBackend, plApiRegis
 
         // multisampled color attachment (render to this)
         {
-            .format         = ptSwapchain->tFormat,
+            .format         = pl__vulkan_format(ptSwapchain->tFormat),
             .samples        = ptSwapchain->tMsaaSamples,
             .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -1083,7 +1076,7 @@ pl_setup_graphics(plGraphics* ptGraphics, plRenderBackend* ptBackend, plApiRegis
 
         // depth attachment
         {
-            .format         = ptGraphics->ptDeviceApi->find_depth_stencil_format(ptDevice),
+            .format         = pl__vulkan_format(ptGraphics->ptDeviceApi->find_depth_stencil_format(ptDevice)),
             .samples        = ptSwapchain->tMsaaSamples,
             .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
@@ -1095,7 +1088,7 @@ pl_setup_graphics(plGraphics* ptGraphics, plRenderBackend* ptBackend, plApiRegis
 
         // color resolve attachment
         {
-            .format         = ptSwapchain->tFormat,
+            .format         = pl__vulkan_format(ptSwapchain->tFormat),
             .samples        = VK_SAMPLE_COUNT_1_BIT,
             .loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
@@ -1895,51 +1888,51 @@ pl_init_device(plApiRegistryApiI* ptApiRegistry, plDevice* ptDevice, uint32_t uF
     pl_sb_push(ptDevice->_sbtDynamicBufferList, tDummyNode1);
 }
 
-static VkFormat
-pl_find_supported_format(plDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount)
+static plFormat
+pl_find_supported_format(plDevice* ptDevice, VkFormatFeatureFlags tFlags, const plFormat* ptFormats, uint32_t uFormatCount)
 {
     for(uint32_t i = 0u; i < uFormatCount; i++)
     {
         VkFormatProperties tProps = {0};
-        vkGetPhysicalDeviceFormatProperties(ptDevice->tPhysicalDevice, ptFormats[i], &tProps);
+        vkGetPhysicalDeviceFormatProperties(ptDevice->tPhysicalDevice, pl__vulkan_format(ptFormats[i]), &tProps);
         if(tProps.optimalTilingFeatures & tFlags)
             return ptFormats[i];
     }
 
     PL_ASSERT(false && "no supported format found");
-    return VK_FORMAT_UNDEFINED;   
+    return PL_FORMAT_UNKNOWN;
 }
 
-static VkFormat
+static plFormat
 pl_find_depth_format(plDevice* ptDevice)
 {
-    const VkFormat atFormats[] = {
-        VK_FORMAT_D32_SFLOAT,
-        VK_FORMAT_D32_SFLOAT_S8_UINT,
-        VK_FORMAT_D24_UNORM_S8_UINT
+    const plFormat atFormats[] = {
+        PL_FORMAT_D32_FLOAT,
+        PL_FORMAT_D32_FLOAT_S8_UINT,
+        PL_FORMAT_D24_UNORM_S8_UINT
     };
     return pl_find_supported_format(ptDevice, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT, atFormats, 3);
 }
 
-static VkFormat
+static plFormat
 pl_find_depth_stencil_format(plDevice* ptDevice)
 {
-     const VkFormat atFormats[] = {
-        VK_FORMAT_D32_SFLOAT_S8_UINT,
-        VK_FORMAT_D24_UNORM_S8_UINT
+     const plFormat atFormats[] = {
+        PL_FORMAT_D32_FLOAT_S8_UINT,
+        PL_FORMAT_D24_UNORM_S8_UINT
     };
     return pl_find_supported_format(ptDevice, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT, atFormats, 2);   
 }
 
 static bool
-pl_format_has_stencil(VkFormat tFormat)
+pl_format_has_stencil(plFormat tFormat)
 {
     switch(tFormat)
     {
-        case VK_FORMAT_D16_UNORM_S8_UINT:
-        case VK_FORMAT_D24_UNORM_S8_UINT:
-        case VK_FORMAT_D32_SFLOAT_S8_UINT: return true;
-        case VK_FORMAT_D32_SFLOAT:
+        case PL_FORMAT_D16_UNORM_S8_UINT:
+        case PL_FORMAT_D24_UNORM_S8_UINT:
+        case PL_FORMAT_D32_FLOAT_S8_UINT: return true;
+        case PL_FORMAT_D32_FLOAT:
         default: return false;
     }
 }
@@ -2160,6 +2153,8 @@ pl_process_cleanup_queue(plDevice* ptDevice, uint32_t uFramesToProcess)
 
     bool bNeedUpdate = false;
 
+    plDeviceMemoryAllocatorI* ptLocalAllocator = &ptDevice->tLocalAllocator;
+    plDeviceMemoryAllocatorI* ptStagingAllocator = &ptDevice->tStagingUnCachedAllocator;
     for(uint32_t i = 0; i < pl_sb_size(ptDevice->_sbulBufferDeletionQueue); i++)
     {
         const uint32_t ulBufferIndex = ptDevice->_sbulBufferDeletionQueue[i];
@@ -2174,16 +2169,14 @@ pl_process_cleanup_queue(plDevice* ptDevice, uint32_t uFramesToProcess)
 
         if(ptBuffer->szStride == 0)
         {
-            if(ptBuffer->pucMapping)
-                vkUnmapMemory(tDevice, ptBuffer->tBufferMemory);
-
             vkDestroyBuffer(tDevice, ptBuffer->tBuffer, NULL);
-            vkFreeMemory(tDevice, ptBuffer->tBufferMemory, NULL);
 
-            ptBuffer->pucMapping = NULL;
+            if(ptBuffer->tAllocation.pHostMapped)
+                ptStagingAllocator->free(ptStagingAllocator->ptInst, &ptBuffer->tAllocation);
+            else
+                ptLocalAllocator->free(ptLocalAllocator->ptInst, &ptBuffer->tAllocation);
+
             ptBuffer->tBuffer = VK_NULL_HANDLE;
-            ptBuffer->tBufferMemory = VK_NULL_HANDLE;
-            ptBuffer->szSize = 0;
             ptBuffer->szRequestedSize = 0;
             ptBuffer->tUsage = PL_BUFFER_USAGE_UNSPECIFIED;
 
@@ -2227,10 +2220,9 @@ pl_process_cleanup_queue(plDevice* ptDevice, uint32_t uFramesToProcess)
         if(ptTexture->tDesc.uMips == 0)
         {
             vkDestroyImage(tDevice, ptTexture->tImage, NULL);
-            vkFreeMemory(tDevice, ptTexture->tMemory, NULL);
 
+            ptLocalAllocator->free(ptLocalAllocator->ptInst, &ptTexture->tAllocation);
             ptTexture->tImage = VK_NULL_HANDLE;
-            ptTexture->tMemory = VK_NULL_HANDLE;
             ptTexture->tDesc = (plTextureDesc){0};
 
             // add to free indices
@@ -2311,12 +2303,12 @@ pl_transfer_data_to_buffer(plDevice* ptDevice, VkBuffer tDest, size_t szSize, co
     pl__staging_buffer_may_grow(ptDevice, szSize);
 
     // copy data
-    memcpy(ptDevice->_pucMapping, pData, szSize);
+    memcpy(ptDevice->_tStagingAllocation.pHostMapped, pData, szSize);
 
     // flush memory (incase we are using non-coherent memory)
     const VkMappedMemoryRange tMemoryRange = {
         .sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-        .memory = ptDevice->_tStagingBufferMemory,
+        .memory = (VkDeviceMemory)ptDevice->_tStagingAllocation.tMemory,
         .size   = VK_WHOLE_SIZE
     };
     PL_VULKAN(vkFlushMappedMemoryRanges(ptDevice->tLogicalDevice, 1, &tMemoryRange));
@@ -2339,12 +2331,12 @@ pl_transfer_data_to_image(plDevice* ptDevice, plTexture* ptDest, size_t szDataSi
     pl__staging_buffer_may_grow(ptDevice, szDataSize);
 
     // copy data to staging buffer
-    memcpy(ptDevice->_pucMapping, pData, szDataSize);
+    memcpy(ptDevice->_tStagingAllocation.pHostMapped, pData, szDataSize);
 
     // flush memory (incase we are using non-coherent memory)
     const VkMappedMemoryRange tMemoryRange = {
         .sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-        .memory = ptDevice->_tStagingBufferMemory,
+        .memory = (VkDeviceMemory)ptDevice->_tStagingAllocation.tMemory,
         .size   = VK_WHOLE_SIZE
     };
     PL_VULKAN(vkFlushMappedMemoryRanges(ptDevice->tLogicalDevice, 1, &tMemoryRange));
@@ -2381,7 +2373,7 @@ pl_transfer_data_to_image(plDevice* ptDevice, plTexture* ptDest, size_t szDataSi
     {
         // check if format supports linear blitting
         VkFormatProperties tFormatProperties = {0};
-        vkGetPhysicalDeviceFormatProperties(ptDevice->tPhysicalDevice, ptDest->tDesc.tFormat, &tFormatProperties);
+        vkGetPhysicalDeviceFormatProperties(ptDevice->tPhysicalDevice, pl__vulkan_format(ptDest->tDesc.tFormat), &tFormatProperties);
 
         if(tFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)
         {
@@ -2470,13 +2462,11 @@ pl_create_index_buffer(plDevice* ptDevice, size_t szSize, const void* pData, con
     // get memory requirements
     VkMemoryRequirements tMemoryRequirements = {0};
     vkGetBufferMemoryRequirements(tDevice, tBuffer.tBuffer, &tMemoryRequirements);
-    tBuffer.szSize = tMemoryRequirements.size;
 
     // allocate buffer
     plDeviceMemoryAllocatorI* ptAllocator = &ptDevice->tLocalAllocator;
-    plDeviceMemoryAllocation tDeviceAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
-    tBuffer.tBufferMemory = tDeviceAllocation.tMemory;
-    PL_VULKAN(vkBindBufferMemory(tDevice, tBuffer.tBuffer, tBuffer.tBufferMemory, 0));
+    tBuffer.tAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
+    PL_VULKAN(vkBindBufferMemory(tDevice, tBuffer.tBuffer, (VkDeviceMemory)tBuffer.tAllocation.tMemory, 0));
 
     // upload data if any is availble
     if(pData)
@@ -2517,13 +2507,11 @@ pl_create_vertex_buffer(plDevice* ptDevice, size_t szSize, size_t szStride, cons
     // get memory requirements
     VkMemoryRequirements tMemoryRequirements = {0};
     vkGetBufferMemoryRequirements(tDevice, tBuffer.tBuffer, &tMemoryRequirements);
-    tBuffer.szSize = tMemoryRequirements.size;
 
     // allocate buffer
     plDeviceMemoryAllocatorI* ptAllocator = &ptDevice->tLocalAllocator;
-    plDeviceMemoryAllocation tDeviceAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
-    tBuffer.tBufferMemory = tDeviceAllocation.tMemory;
-    PL_VULKAN(vkBindBufferMemory(tDevice, tBuffer.tBuffer, tBuffer.tBufferMemory, 0));
+    tBuffer.tAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
+    PL_VULKAN(vkBindBufferMemory(tDevice, tBuffer.tBuffer, (VkDeviceMemory)tBuffer.tAllocation.tMemory, 0));
 
     // upload data if any is availble
     if(pData)
@@ -2564,16 +2552,12 @@ pl_create_constant_buffer(plDevice* ptDevice, size_t szSize, const char* pcName)
     // get memory requirements
     VkMemoryRequirements tMemoryRequirements = {0};
     vkGetBufferMemoryRequirements(tDevice, tBuffer.tBuffer, &tMemoryRequirements);
-    tBuffer.szSize = tMemoryRequirements.size;
     tBuffer.szStride = tMemoryRequirements.size;
 
     // allocate buffer
     plDeviceMemoryAllocatorI* ptAllocator = &ptDevice->tStagingUnCachedAllocator;
-    plDeviceMemoryAllocation tDeviceAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
-    tBuffer.tBufferMemory = tDeviceAllocation.tMemory;
-    tBuffer.pucMapping = tDeviceAllocation.pHostMapped;
-
-    PL_VULKAN(vkBindBufferMemory(tDevice, tBuffer.tBuffer, tBuffer.tBufferMemory, 0));
+    tBuffer.tAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
+    PL_VULKAN(vkBindBufferMemory(tDevice, tBuffer.tBuffer, (VkDeviceMemory)tBuffer.tAllocation.tMemory, 0));
 
     // find free index
     uint32_t ulBufferIndex = 0u;
@@ -2616,7 +2600,7 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
         .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image                           = ptTexture->tImage,
         .viewType                        = tImageViewType,
-        .format                          = ptViewDesc->tFormat,
+        .format                          = pl__vulkan_format(ptViewDesc->tFormat),
         .subresourceRange.baseMipLevel   = ptViewDesc->uBaseMip,
         .subresourceRange.levelCount     = tTextureView.tTextureViewDesc.uMips,
         .subresourceRange.baseArrayLayer = ptViewDesc->uBaseLayer,
@@ -2744,7 +2728,7 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
         .extent.depth  = (uint32_t)tDesc.tDimensions.z,
         .mipLevels     = tDesc.uMips,
         .arrayLayers   = tDesc.uLayers,
-        .format        = tDesc.tFormat,
+        .format        = pl__vulkan_format(tDesc.tFormat),
         .tiling        = VK_IMAGE_TILING_OPTIMAL,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .usage         = tDesc.tUsage,
@@ -2763,10 +2747,9 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
 
     // allocate buffer
     plDeviceMemoryAllocatorI* ptAllocator = &ptDevice->tLocalAllocator;
-    plDeviceMemoryAllocation tDeviceAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
-    tTexture.tMemory = tDeviceAllocation.tMemory;
+    tTexture.tAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
 
-    PL_VULKAN(vkBindImageMemory(tDevice, tTexture.tImage, tTexture.tMemory, 0));
+    PL_VULKAN(vkBindImageMemory(tDevice, tTexture.tImage, (VkDeviceMemory)tTexture.tAllocation.tMemory, 0));
 
     // upload data
     if(pData)
@@ -2828,13 +2811,11 @@ pl_create_storage_buffer(plDevice* ptDevice, size_t szSize, const void* pData, c
     // get memory requirements
     VkMemoryRequirements tMemoryRequirements = {0};
     vkGetBufferMemoryRequirements(tDevice, tBuffer.tBuffer, &tMemoryRequirements);
-    tBuffer.szSize = tMemoryRequirements.size;
 
     // allocate buffer
     plDeviceMemoryAllocatorI* ptAllocator = &ptDevice->tLocalAllocator;
-    plDeviceMemoryAllocation tDeviceAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
-    tBuffer.tBufferMemory = tDeviceAllocation.tMemory;
-    PL_VULKAN(vkBindBufferMemory(tDevice, tBuffer.tBuffer, tBuffer.tBufferMemory, 0));
+    tBuffer.tAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
+    PL_VULKAN(vkBindBufferMemory(tDevice, tBuffer.tBuffer, (VkDeviceMemory)tBuffer.tAllocation.tMemory, 0));
 
     // upload data if any is availble
     if(pData)
@@ -2890,7 +2871,7 @@ pl_cleanup_device(plDevice* ptDevice)
 
     for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtBuffers); i++)
     {
-        if(ptDevice->sbtBuffers[i].szSize > 0)
+        if(ptDevice->sbtBuffers[i].tAllocation.ulSize > 0)
             pl_submit_buffer_for_deletion(ptDevice, i);
     }
 
@@ -2936,7 +2917,7 @@ pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint64_t ulSize, 
 
     plDeviceMemoryAllocation tAllocation = {
         .pHostMapped = NULL,
-        .tMemory     = VK_NULL_HANDLE,
+        .tMemory     = 0,
         .ulOffset    = 0,
         .ulSize      = ulSize
     };
@@ -2947,7 +2928,7 @@ pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint64_t ulSize, 
         .memoryTypeIndex = ptData->uMemoryType
     };
 
-    PL_VULKAN(vkAllocateMemory(ptData->tDevice, &tAllocInfo, NULL, &tAllocation.tMemory));
+    PL_VULKAN(vkAllocateMemory(ptData->tDevice, &tAllocInfo, NULL, (VkDeviceMemory*)&tAllocation.tMemory));
 
     return tAllocation;
 }
@@ -2957,10 +2938,10 @@ pl_free_dedicated(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocat
 {
     plDeviceDedicatedAllocatorData* ptData = (plDeviceDedicatedAllocatorData*)ptInst;
 
-    vkFreeMemory(ptData->tDevice, ptAllocation->tMemory, NULL);
+    vkFreeMemory(ptData->tDevice, (VkDeviceMemory)ptAllocation->tMemory, NULL);
 
     ptAllocation->pHostMapped  = NULL;
-    ptAllocation->tMemory      = VK_NULL_HANDLE;
+    ptAllocation->tMemory      = 0;
     ptAllocation->ulOffset     = 0;
     ptAllocation->ulSize       = 0;
 
@@ -2975,7 +2956,7 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint64_t u
 
     plDeviceMemoryAllocation tAllocation = {
         .pHostMapped = NULL,
-        .tMemory     = VK_NULL_HANDLE,
+        .tMemory     = 0,
         .ulOffset    = 0,
         .ulSize      = ulSize
     };
@@ -2986,9 +2967,9 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint64_t u
         .memoryTypeIndex = ptData->uMemoryType
     };
 
-    PL_VULKAN(vkAllocateMemory(ptData->tDevice, &tAllocInfo, NULL, &tAllocation.tMemory));
+    PL_VULKAN(vkAllocateMemory(ptData->tDevice, &tAllocInfo, NULL, (VkDeviceMemory*)&tAllocation.tMemory));
 
-    PL_VULKAN(vkMapMemory(ptData->tDevice, tAllocation.tMemory, 0, ulSize, 0, (void**)&tAllocation.pHostMapped));
+    PL_VULKAN(vkMapMemory(ptData->tDevice, (VkDeviceMemory)tAllocation.tMemory, 0, ulSize, 0, (void**)&tAllocation.pHostMapped));
 
     return tAllocation;
 }
@@ -2999,12 +2980,13 @@ pl_free_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemory
 {
     plDeviceDedicatedAllocatorData* ptData = (plDeviceDedicatedAllocatorData*)ptInst;
 
-    vkUnmapMemory(ptData->tDevice, ptAllocation->tMemory);
+    if(ptAllocation->pHostMapped)
+        vkUnmapMemory(ptData->tDevice, (VkDeviceMemory)ptAllocation->tMemory);
 
-    vkFreeMemory(ptData->tDevice, ptAllocation->tMemory, NULL);
+    vkFreeMemory(ptData->tDevice, (VkDeviceMemory)ptAllocation->tMemory, NULL);
 
     ptAllocation->pHostMapped  = NULL;
-    ptAllocation->tMemory      = VK_NULL_HANDLE;
+    ptAllocation->tMemory      = 0;
     ptAllocation->ulOffset     = 0;
     ptAllocation->ulSize       = 0;
 
@@ -3146,6 +3128,48 @@ pl__vulkan_compare(plCompareMode tCompare)
     return VK_COMPARE_OP_NEVER;
 }
 
+static VkFormat
+pl__vulkan_format(plFormat tFormat)
+{
+    switch(tFormat)
+    {
+        case PL_FORMAT_R32G32B32_FLOAT:   return VK_FORMAT_R32G32B32_SFLOAT;
+        case PL_FORMAT_R8G8B8A8_UNORM:    return VK_FORMAT_R8G8B8A8_UNORM;
+        case PL_FORMAT_R32G32_FLOAT:      return VK_FORMAT_R32G32_SFLOAT;
+        case PL_FORMAT_R8G8B8A8_SRGB:     return VK_FORMAT_R8G8B8A8_SRGB;
+        case PL_FORMAT_B8G8R8A8_SRGB:     return VK_FORMAT_B8G8R8A8_SRGB;
+        case PL_FORMAT_B8G8R8A8_UNORM:    return VK_FORMAT_B8G8R8A8_UNORM;
+        case PL_FORMAT_D32_FLOAT:         return VK_FORMAT_D32_SFLOAT;
+        case PL_FORMAT_D32_FLOAT_S8_UINT: return VK_FORMAT_D32_SFLOAT_S8_UINT;
+        case PL_FORMAT_D24_UNORM_S8_UINT: return VK_FORMAT_D24_UNORM_S8_UINT;
+        case PL_FORMAT_D16_UNORM_S8_UINT: return VK_FORMAT_D16_UNORM_S8_UINT;
+    }
+
+    PL_ASSERT(false && "Unsupported format");
+    return VK_FORMAT_UNDEFINED;
+}
+
+static plFormat
+pl__pilotlight_format(VkFormat tFormat)
+{
+    switch(tFormat)
+    {
+        case VK_FORMAT_R32G32B32_SFLOAT:   return PL_FORMAT_R32G32B32_FLOAT;
+        case VK_FORMAT_R8G8B8A8_UNORM:     return PL_FORMAT_R8G8B8A8_UNORM;
+        case VK_FORMAT_R32G32_SFLOAT:      return PL_FORMAT_R32G32_FLOAT;
+        case VK_FORMAT_R8G8B8A8_SRGB:      return PL_FORMAT_R8G8B8A8_SRGB;
+        case VK_FORMAT_B8G8R8A8_SRGB:      return PL_FORMAT_B8G8R8A8_SRGB;
+        case VK_FORMAT_B8G8R8A8_UNORM:     return PL_FORMAT_B8G8R8A8_UNORM;
+        case VK_FORMAT_D32_SFLOAT:         return PL_FORMAT_D32_FLOAT;
+        case VK_FORMAT_D32_SFLOAT_S8_UINT: return PL_FORMAT_D32_FLOAT_S8_UINT;
+        case VK_FORMAT_D24_UNORM_S8_UINT:  return PL_FORMAT_D24_UNORM_S8_UINT;
+        case VK_FORMAT_D16_UNORM_S8_UINT:  return PL_FORMAT_D16_UNORM_S8_UINT;
+    }
+
+    PL_ASSERT(false && "Unsupported format");
+    return PL_FORMAT_UNKNOWN;
+}
+
 static VKAPI_ATTR VkBool32 VKAPI_CALL
 pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT tMsgSeverity, VkDebugUtilsMessageTypeFlagsEXT tMsgType, const VkDebugUtilsMessengerCallbackDataEXT* ptCallbackData, void* pUserData) 
 {
@@ -3241,7 +3265,7 @@ pl__select_physical_device(VkInstance tInstance, plDevice* ptDeviceOut)
 static void
 pl__staging_buffer_may_grow(plDevice* ptDevice, size_t szSize)
 {
-    if(ptDevice->_szStagingBufferSize < szSize)
+    if(ptDevice->_tStagingAllocation.ulSize < szSize)
         pl__staging_buffer_realloc(ptDevice, szSize * 2);
 }
 
@@ -3251,31 +3275,21 @@ pl__staging_buffer_realloc(plDevice* ptDevice, size_t szNewSize)
 
     const VkDevice tDevice = ptDevice->tLogicalDevice;
 
-    // unmap host visible address
-    if(ptDevice->_pucMapping && szNewSize != ptDevice->_szStagingBufferSize)
-    {
-        vkUnmapMemory(tDevice, ptDevice->_tStagingBufferMemory);
-        ptDevice->_pucMapping = NULL;
-    }
+    plDeviceMemoryAllocatorI* ptAllocator = &ptDevice->tStagingUnCachedAllocator;
 
     if(szNewSize == 0) // free
     {
-        if(ptDevice->_tStagingBuffer)       vkDestroyBuffer(tDevice, ptDevice->_tStagingBuffer, NULL);
-        if(ptDevice->_tStagingBufferMemory) vkFreeMemory(tDevice, ptDevice->_tStagingBufferMemory, NULL);
-
-        ptDevice->_tStagingBuffer       = VK_NULL_HANDLE;
-        ptDevice->_tStagingBufferMemory = VK_NULL_HANDLE;
-        ptDevice->_szStagingBufferSize  = 0;
+        if(ptDevice->_tStagingBuffer) vkDestroyBuffer(tDevice, ptDevice->_tStagingBuffer, NULL);
+        ptAllocator->free(ptAllocator->ptInst, &ptDevice->_tStagingAllocation);
+        ptDevice->_tStagingBuffer = VK_NULL_HANDLE;
     }
-    else if(szNewSize != ptDevice->_szStagingBufferSize)
+    else if(szNewSize != ptDevice->_tStagingAllocation.ulSize)
     {
         // free old buffer if needed
-        if(ptDevice->_tStagingBuffer)       vkDestroyBuffer(tDevice, ptDevice->_tStagingBuffer, NULL);
-        if(ptDevice->_tStagingBufferMemory) vkFreeMemory(tDevice, ptDevice->_tStagingBufferMemory, NULL);
-
-        ptDevice->_tStagingBuffer       = VK_NULL_HANDLE;
-        ptDevice->_tStagingBufferMemory = VK_NULL_HANDLE;
-
+        if(ptDevice->_tStagingBuffer) vkDestroyBuffer(tDevice, ptDevice->_tStagingBuffer, NULL);
+        ptAllocator->free(ptAllocator->ptInst, &ptDevice->_tStagingAllocation);
+        ptDevice->_tStagingBuffer = VK_NULL_HANDLE;
+        
         // create buffer
         const VkBufferCreateInfo tBufferCreateInfo = {
             .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -3288,19 +3302,9 @@ pl__staging_buffer_realloc(plDevice* ptDevice, size_t szNewSize)
         // find memory requirements
         VkMemoryRequirements tMemoryRequirements = {0};
         vkGetBufferMemoryRequirements(tDevice, ptDevice->_tStagingBuffer, &tMemoryRequirements);
-        ptDevice->_szStagingBufferSize = szNewSize;
 
-        // allocate & bind buffer
-        VkMemoryAllocateInfo tAllocInfo = {
-            .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-            .allocationSize  = tMemoryRequirements.size,
-            .memoryTypeIndex = ptDevice->ptDeviceApi->find_memory_type(ptDevice->tMemProps, tMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
-        };
-        PL_VULKAN(vkAllocateMemory(tDevice, &tAllocInfo, NULL, &ptDevice->_tStagingBufferMemory));
-        PL_VULKAN(vkBindBufferMemory(tDevice, ptDevice->_tStagingBuffer, ptDevice->_tStagingBufferMemory, 0));   
-
-        // map memory to host visible address
-        PL_VULKAN(vkMapMemory(tDevice, ptDevice->_tStagingBufferMemory, 0, VK_WHOLE_SIZE, 0, (void**)&ptDevice->_pucMapping));
+        ptDevice->_tStagingAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.size, tMemoryRequirements.alignment, "device staging buffer");
+        PL_VULKAN(vkBindBufferMemory(tDevice, ptDevice->_tStagingBuffer, (VkDeviceMemory)ptDevice->_tStagingAllocation.tMemory, 0));   
     }   
 }
 

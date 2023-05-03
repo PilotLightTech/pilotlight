@@ -247,6 +247,7 @@ static void
 pl_create_render_pass(plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, plRenderPass* ptPassOut)
 {
     ptPassOut->tDesc = *ptDesc;
+    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
 
     // create render pass
     VkAttachmentDescription atAttachments[] = {
@@ -254,7 +255,7 @@ pl_create_render_pass(plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, pl
         // color attachment
         {
             .flags          = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT,
-            .format         = ptDesc->tColorFormat,
+            .format         = ptDeviceApi->vulkan_format(ptDesc->tColorFormat),
             .samples        = VK_SAMPLE_COUNT_1_BIT,
             .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
@@ -266,7 +267,7 @@ pl_create_render_pass(plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, pl
 
         // depth attachment
         {
-            .format         = ptDesc->tDepthFormat,
+            .format         = ptDeviceApi->vulkan_format(ptDesc->tDepthFormat),
             .samples        = VK_SAMPLE_COUNT_1_BIT,
             .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -433,7 +434,7 @@ pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plRe
     // create dummy texture (texture slot 0 when not used)
     const plTextureDesc tTextureDesc2 = {
         .tDimensions = {.x = (float)1.0f, .y = (float)1.0f, .z = 1.0f},
-        .tFormat     = VK_FORMAT_R8G8B8A8_UNORM,
+        .tFormat     = PL_FORMAT_R8G8B8A8_UNORM,
         .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .uLayers     = 1,
         .uMips       = 1,
@@ -671,7 +672,7 @@ pl_create_scene(plRenderer* ptRenderer, plScene* ptSceneOut)
 
     const plTextureDesc tTextureDesc = {
         .tDimensions = {.x = (float)texWidth, .y = (float)texHeight, .z = 1.0f},
-        .tFormat     = VK_FORMAT_R8G8B8A8_UNORM,
+        .tFormat     = PL_FORMAT_R8G8B8A8_UNORM,
         .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .uLayers     = 6,
         .uMips       = 1,
@@ -781,7 +782,7 @@ pl_draw_scene(plScene* ptScene)
     plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
 
     const plBuffer* ptBuffer0 = &ptGraphics->tDevice.sbtBuffers[ptScene->uDynamicBuffer0];
-    const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer0_Offset;
+    const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->tAllocation.ulSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer0_Offset;
 
     const uint32_t uDrawOffset = pl_sb_size(ptRenderer->sbtDraws);
     const uint32_t uOutlineDrawOffset = pl_sb_size(ptRenderer->sbtOutlineDraws);
@@ -1176,9 +1177,9 @@ pl_scene_bind_camera(plScene* ptScene, const plCameraComponent* ptCamera)
     plRenderer* ptRenderer = ptScene->ptRenderer;
 
     const plBuffer* ptBuffer0 = &ptGraphics->tDevice.sbtBuffers[ptScene->uDynamicBuffer0];
-    const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer0_Offset;
+    const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->tAllocation.ulSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer0_Offset;
 
-    plGlobalInfo* ptGlobalInfo    = (plGlobalInfo*)&ptBuffer0->pucMapping[uBufferFrameOffset0];
+    plGlobalInfo* ptGlobalInfo    = (plGlobalInfo*)&ptBuffer0->tAllocation.pHostMapped[uBufferFrameOffset0];
     ptGlobalInfo->tAmbientColor   = (plVec4){0.0f, 0.0f, 0.0f, 1.0f};
     ptGlobalInfo->tCameraPos      = (plVec4){.xyz = ptCamera->tPos, .w = 0.0f};
     ptGlobalInfo->tCameraView     = ptCamera->tViewMat;
@@ -1198,9 +1199,9 @@ pl_draw_sky(plScene* ptScene)
     VkSampleCountFlagBits tMSAASampleCount = ptScene->ptRenderTarget->bMSAA ? ptGraphics->tSwapchain.tMsaaSamples : VK_SAMPLE_COUNT_1_BIT;
 
     const plBuffer* ptBuffer0 = &ptGraphics->tDevice.sbtBuffers[ptScene->uDynamicBuffer0];
-    const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->szSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer0_Offset;
+    const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->tAllocation.ulSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer0_Offset;
 
-    plGlobalInfo* ptGlobalInfo    = (plGlobalInfo*)&ptBuffer0->pucMapping[uBufferFrameOffset0];
+    plGlobalInfo* ptGlobalInfo    = (plGlobalInfo*)&ptBuffer0->tAllocation.pHostMapped[uBufferFrameOffset0];
     ptGlobalInfo->tCameraPos      = (plVec4){.xyz = ptScene->ptCamera->tPos, .w = 0.0f};
     const plMat4 tRemoveTranslation = pl_mat4_translate_xyz(ptScene->ptCamera->tPos.x, ptScene->ptCamera->tPos.y, ptScene->ptCamera->tPos.z);
     ptGlobalInfo->tCameraView     = pl_mul_mat4(&ptScene->ptCamera->tViewMat, &tRemoveTranslation);
@@ -1480,7 +1481,7 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
                     }
                     ptMaterial->uBindGroup1 = uMaterialBindGroupIndex;
 
-                    plMaterialInfo* ptMaterialInfo = (plMaterialInfo*)(ptBuffer->pucMapping + ptDynamicBufferNode->uDynamicBufferOffset);
+                    plMaterialInfo* ptMaterialInfo = (plMaterialInfo*)(ptBuffer->tAllocation.pHostMapped + ptDynamicBufferNode->uDynamicBufferOffset);
                     ptMaterialInfo->tAlbedo = ptMaterial->tAlbedo;
                     ptMaterial->uBufferOffset = ptDynamicBufferNode->uDynamicBufferOffset;
                     ptDynamicBufferNode->uDynamicBufferOffset += (uint32_t)szRangeSize;
@@ -1588,7 +1589,7 @@ pl_ecs_update(plScene* ptScene, plComponentManager* ptManager)
                 plTransformComponent* ptTransform = &sbtComponents[uCurrentTransform];
                 ptTransform->uBindGroup2 = uObjectBindGroupIndex;
 
-                plObjectInfo* ptObjectInfo = (plObjectInfo*)(ptBuffer->pucMapping + ptDynamicBufferNode->uDynamicBufferOffset);
+                plObjectInfo* ptObjectInfo = (plObjectInfo*)(ptBuffer->tAllocation.pHostMapped + ptDynamicBufferNode->uDynamicBufferOffset);
                 *ptObjectInfo = ptTransform->tInfo;
                 ptObjectInfo->tModel = ptTransform->tFinalTransform;
                 ptTransform->uBufferOffset = ptDynamicBufferNode->uDynamicBufferOffset;
