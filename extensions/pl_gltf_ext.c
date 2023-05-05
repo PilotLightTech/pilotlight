@@ -29,6 +29,7 @@ Index of this file:
 #include "pl_vulkan_ext.h"
 #include "pl_proto_ext.h"
 #include "pl_image_ext.h"
+#include "pl_ecs_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] cgltf.h
@@ -6811,6 +6812,7 @@ pl__load_gltf_object(plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene
 	plDevice* ptDevice = &ptRenderer->ptGraphics->tDevice;
 	plGraphics* ptGraphics = ptRenderer->ptGraphics;
 	plImageApiI* ptImageApi = ptRenderer->ptImageApi;
+	plEcsI* ptEcs = ptRenderer->ptEcs;
 
 	if(ptNode->mesh)
 	{
@@ -6819,11 +6821,11 @@ pl__load_gltf_object(plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene
 		for(size_t szPrimitiveIndex = 0; szPrimitiveIndex < ptMesh->primitives_count; szPrimitiveIndex++)
 		{
 
-			plEntity tObject = ptProtoApi->ecs_create_object(ptScene, ptNode->name);
+			plEntity tObject = ptEcs->create_object(&ptScene->tComponentLibrary, ptNode->name);
 			pl_sb_push(ptRenderer->sbtObjectEntities, tObject);
 
 			if(tParentEntity != PL_INVALID_ENTITY_HANDLE)
-				ptProtoApi->ecs_attach_component(ptScene, tObject, tParentEntity);
+				ptEcs->attach_component(&ptScene->tComponentLibrary, tObject, tParentEntity);
 
 			if(szPrimitiveIndex == ptMesh->primitives_count - 1)
 			{
@@ -6834,8 +6836,8 @@ pl__load_gltf_object(plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene
 				}
 			}
 
-			plObjectComponent* ptObjectComponent = ptProtoApi->ecs_get_component(ptScene->ptObjectComponentManager, tObject);
-			plTransformComponent* ptTransformComponent = ptProtoApi->ecs_get_component(ptScene->ptTransformComponentManager, tObject);
+			plObjectComponent* ptObjectComponent = ptEcs->get_component(ptScene->ptObjectComponentManager, tObject);
+			plTransformComponent* ptTransformComponent = ptEcs->get_component(ptScene->ptTransformComponentManager, tObject);
 			ptTransformComponent->tWorld       = pl_identity_mat4();
 			ptTransformComponent->tRotation    = (plVec4){.w = 1.0f};
 			ptTransformComponent->tScale       = (plVec3){1.0f, 1.0f, 1.0f};
@@ -6856,7 +6858,7 @@ pl__load_gltf_object(plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene
 
 			ptTransformComponent->tFinalTransform = ptTransformComponent->tWorld;
 
-			plMeshComponent* ptMeshComponent = ptProtoApi->ecs_get_component(ptScene->ptMeshComponentManager, tObject);
+			plMeshComponent* ptMeshComponent = ptEcs->get_component(ptScene->ptMeshComponentManager, tObject);
 
 			const cgltf_primitive* ptPrimitive = &ptMesh->primitives[szPrimitiveIndex];
 			const size_t szVertexCount = ptPrimitive->attributes[0].data->count;
@@ -7015,8 +7017,8 @@ pl__load_gltf_object(plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene
 				PL_ASSERT(false);
 			}
 
-			tSubMesh.tMaterial = ptProtoApi->ecs_create_material(ptScene, ptPrimitive->material->name);
-			plMaterialComponent* ptMaterialComponent = ptProtoApi->ecs_get_component(ptScene->ptMaterialComponentManager, tSubMesh.tMaterial);
+			tSubMesh.tMaterial = ptEcs->create_material(&ptScene->tComponentLibrary, ptPrimitive->material->name);
+			plMaterialComponent* ptMaterialComponent = ptEcs->get_component(ptScene->ptMaterialComponentManager, tSubMesh.tMaterial);
 			pl__load_gltf_material(ptImageApi, ptDeviceApi, ptDevice, pcPath, ptPrimitive->material, ptMaterialComponent);
 			pl_sb_push(ptMeshComponent->sbtSubmeshes, tSubMesh);
 		}
@@ -7024,8 +7026,8 @@ pl__load_gltf_object(plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene
 	else
 	{
 
-		plEntity tHierarchyEntity = ptProtoApi->ecs_create_entity(ptRenderer);
-		plTransformComponent* ptTransformComponent = ptProtoApi->ecs_create_component(ptScene->ptTransformComponentManager, tHierarchyEntity);
+		plEntity tHierarchyEntity = ptEcs->create_entity(&ptScene->tComponentLibrary);
+		plTransformComponent* ptTransformComponent = ptEcs->create_component(ptScene->ptTransformComponentManager, tHierarchyEntity);
 
 		ptTransformComponent->tWorld       = pl_identity_mat4();
 		ptTransformComponent->tRotation    = (plVec4){.w = 1.0f};
@@ -7047,7 +7049,7 @@ pl__load_gltf_object(plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene
 		ptTransformComponent->tFinalTransform = ptTransformComponent->tWorld;
 
 		if(tParentEntity != PL_INVALID_ENTITY_HANDLE)
-			ptProtoApi->ecs_attach_component(ptScene, tHierarchyEntity, tParentEntity);
+			ptEcs->attach_component(&ptScene->tComponentLibrary, tHierarchyEntity, tParentEntity);
 
 		for(size_t szChildIndex = 0; szChildIndex < ptNode->children_count; szChildIndex++)
 		{
