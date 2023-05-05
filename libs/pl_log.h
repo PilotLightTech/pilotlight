@@ -399,7 +399,7 @@ typedef struct _plLogEntry
 plLogContext* pl__create_log_context (void);
 void          pl__cleanup_log_context(void);
 void          pl__set_log_context    (plLogContext* tPContext);
-plLogContext* pl__get_log_context    (plLogContext* tPContext);
+plLogContext* pl__get_log_context    (void);
 
 // channels
 uint32_t    pl__add_log_channel        (const char* pcName, plChannelType tType);
@@ -679,7 +679,7 @@ pl__set_log_context(plLogContext* tPContext)
 }
 
 plLogContext*
-pl__get_log_context(plLogContext* tPContext)
+pl__get_log_context(void)
 {
     PL_ASSERT(gptLogContext && "no global log context set");
     return gptLogContext;
