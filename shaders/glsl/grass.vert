@@ -44,8 +44,9 @@ layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
 layout(set = 2, binding = 0) uniform _plObjectInfo
 {
     mat4  tModel;
+    uint  uMaterialIndex;
+    uint  uVertexDataOffset;
     uint  uVertexOffset;
-    // ivec3 _unused0;
 } tObjectInfo;
 
 
@@ -61,9 +62,9 @@ void main()
 {
 
     vec3 inPosition  = inPos;
-    vec3 inNormal    = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset].xyz; 
-    vec3 inTangent    = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + 1].xyz; 
-    vec2 inTexCoord0 = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + 2].xy;
+    vec3 inNormal    = tVertexBuffer.atVertexData[VertexStride * (gl_VertexIndex - tObjectInfo.uVertexOffset) + tObjectInfo.uVertexDataOffset].xyz; 
+    vec3 inTangent   = tVertexBuffer.atVertexData[VertexStride * (gl_VertexIndex - tObjectInfo.uVertexOffset) + tObjectInfo.uVertexDataOffset + 1].xyz; 
+    vec2 inTexCoord0 = tVertexBuffer.atVertexData[VertexStride * (gl_VertexIndex - tObjectInfo.uVertexOffset) + tObjectInfo.uVertexDataOffset + 2].xy;
 
     // animate upper vertices and normals only
     if(inTexCoord0.y < 0.1)

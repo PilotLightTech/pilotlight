@@ -1,9 +1,9 @@
 {
     "extensions" : [
         {
-            "name" : "pl_proto_ext",
-            "load" : "pl_load_proto_ext",
-            "unload" : "pl_unload_proto_ext"
+            "name" : "pl_renderer_ext",
+            "load" : "pl_load_renderer_ext",
+            "unload" : "pl_unload_renderer_ext"
         },
         {
             "name" : "pl_ecs_ext",

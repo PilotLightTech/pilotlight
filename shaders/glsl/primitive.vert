@@ -49,8 +49,9 @@ layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
 layout(set = 2, binding = 0) uniform _plObjectInfo
 {
     mat4  tModel;
+    uint  uMaterialIndex;
+    uint  uVertexDataOffset;
     uint  uVertexOffset;
-    // ivec3 _unused0;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -75,7 +76,7 @@ const int PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 10;
 //-----------------------------------------------------------------------------
 
 layout(constant_id = 0) const int MeshVariantFlags = PL_MESH_FORMAT_FLAG_NONE;
-layout(constant_id = 1) const int VertexStride = 0;
+layout(constant_id = 1) const int VertexStride = 50;
 layout(constant_id = 2) const int ShaderTextureFlags = 0;
 
 void main() 
@@ -96,18 +97,19 @@ void main()
     const mat4 tMVP = tGlobalInfo.tCameraViewProj * tObjectInfo.tModel;
 
     int iCurrentAttribute = 0;
+    const uint iVertexDataOffset = VertexStride * (gl_VertexIndex - tObjectInfo.uVertexOffset) + tObjectInfo.uVertexDataOffset;
 
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { inPosition  = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { inNormal    = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))   { inTangent   = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0)){ inTexCoord0 = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1)){ inTexCoord1 = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0))   { inColor0    = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_1))   { inColor1    = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0))  { inJoints0   = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1))  { inJoints1   = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0)) { inWeights0  = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1)) { inWeights1  = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { inPosition  = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { inNormal    = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))   { inTangent   = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0)){ inTexCoord0 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1)){ inTexCoord1 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0))   { inColor0    = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_1))   { inColor1    = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0))  { inJoints0   = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1))  { inJoints1   = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0)) { inWeights0  = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1)) { inWeights1  = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
 
     gl_Position = tMVP * vec4(inPosition, 1.0);
     tShaderOut.tPosition = gl_Position.xyz;

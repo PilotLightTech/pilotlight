@@ -38,7 +38,8 @@ typedef struct _plGltfApiI plGltfApiI;
 //-----------------------------------------------------------------------------
 
 // TYPES
-typedef struct _plScene plScene;
+typedef struct _plScene            plScene;
+typedef struct _plComponentLibrary plComponentLibrary;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -52,7 +53,7 @@ plGltfApiI* pl_load_gltf_api(void);
 
 typedef struct _plGltfApiI
 {
-   bool (*load)(plScene* ptScene, const char* pcPath);
+   bool (*load)(plScene* ptScene, plComponentLibrary* ptComponentLibrary, const char* pcPath);
 } plGltfApiI;
 
 #endif // PL_GLTF_EXT_H

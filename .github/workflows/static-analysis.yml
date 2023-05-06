@@ -70,7 +70,8 @@ jobs:
           test -f ./out/pl_vulkan_ext.so || exit 1
           test -f ./out/pl_image_ext.so || exit 1
           test -f ./out/pl_gltf_ext.so || exit 1
-          test -f ./out/pl_proto_ext.so || exit 1
+          test -f ./out/pl_ecs_ext.so || exit 1
+          test -f ./out/pl_renderer_ext.so || exit 1
           test -f ./out/pilotlight.a || exit 1
       - name: Archive Results
         if: ${{ always() }}

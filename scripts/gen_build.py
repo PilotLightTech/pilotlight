@@ -102,7 +102,7 @@ with pl.project("pilotlight"):
     add_plugin_to_vulkan_app("pl_draw_ext", True)
     add_plugin_to_vulkan_app("pl_ui_ext", True)
     add_plugin_to_vulkan_app("pl_image_ext", False)
-    add_plugin_to_vulkan_app("pl_proto_ext", False)
+    add_plugin_to_vulkan_app("pl_renderer_ext", False)
     add_plugin_to_vulkan_app("pl_ecs_ext", False)
     add_plugin_to_vulkan_app("pl_vulkan_ext", False)
     add_plugin_to_vulkan_app("pl_gltf_ext", False)

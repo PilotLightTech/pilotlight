@@ -38,8 +38,9 @@ layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
 layout(set = 2, binding = 0) uniform _plObjectInfo
 {
     mat4  tModel;
+    uint  uMaterialIndex;
+    uint  uVertexDataOffset;
     uint  uVertexOffset;
-    // ivec3 _unused0;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -77,8 +78,8 @@ void main()
 
     int iCurrentAttribute = 0;
 
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { inPosition  = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { inNormal    = tVertexBuffer.atVertexData[VertexStride * gl_VertexIndex + tObjectInfo.uVertexOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { inPosition  = tVertexBuffer.atVertexData[VertexStride * (gl_VertexIndex - tObjectInfo.uVertexOffset) + tObjectInfo.uVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { inNormal    = tVertexBuffer.atVertexData[VertexStride * (gl_VertexIndex - tObjectInfo.uVertexOffset) + tObjectInfo.uVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
     if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))   { iCurrentAttribute++;}
     if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0)){ iCurrentAttribute++;}
     if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1)){ iCurrentAttribute++;}

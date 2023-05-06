@@ -1,5 +1,5 @@
 /*
-   pl_proto_ext.h
+   pl_renderer_ext.h
 
    * temporary locations for testing new APIs
    * things here will change wildly!
@@ -21,15 +21,15 @@ Index of this file:
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_PROTO_EXT_H
-#define PL_PROTO_EXT_H
+#ifndef PL_RENDERER_EXT_H
+#define PL_RENDERER_EXT_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define PL_API_PROTO "PL_API_PROTO"
-typedef struct _plProtoApiI plProtoApiI;
+#define PL_API_RENDERER "PL_API_RENDERER"
+typedef struct _plRendererI plRendererI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -41,14 +41,11 @@ typedef struct _plProtoApiI plProtoApiI;
 #include "pl_ds.h" // hashmap
 #include "pl_vulkan_ext.h"
 
-#include "pl_ecs_ext.h"
-
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
 // forward declarations
-typedef struct _plObjectInfo    plObjectInfo;
 typedef struct _plMaterialInfo  plMaterialInfo;
 typedef struct _plGlobalInfo    plGlobalInfo;
 
@@ -63,27 +60,28 @@ typedef struct _plRenderer plRenderer;
 typedef struct _plScene       plScene;
 
 // external apis
-typedef struct _plApiRegistryApiI plApiRegistryApiI; // pilotlight.h
-typedef struct _plImageApiI plImageApiI;             // pl_image_ext.h
-typedef struct _plDataRegistryApiI plDataRegistryApiI;
+typedef struct _plApiRegistryApiI  plApiRegistryApiI;  // pilotlight.h
+typedef struct _plDataRegistryApiI plDataRegistryApiI; // pilotlight.h
+typedef struct _plImageApiI        plImageApiI;        // pl_image_ext.h
+typedef struct _plEcsI             plEcsI;             // pl_ecs_ext.h
 
-// enums
-typedef int      plShaderType;
-typedef int      plComponentType;
+// external
+typedef struct _plComponentLibrary plComponentLibrary;
+typedef struct _plCameraComponent plCameraComponent;
 typedef uint64_t plEntity;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-plProtoApiI* pl_load_proto_api(void);
+plRendererI* pl_load_renderer_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 // apis
-typedef struct _plProtoApiI
+typedef struct _plRendererI
 {
 
     // graphics
@@ -101,21 +99,33 @@ typedef struct _plProtoApiI
     void (*draw_sky)        (plScene* ptScene);
 
     // scene
-    void (*create_scene)      (plRenderer* ptRenderer, plScene* ptSceneOut);
-    void (*reset_scene)       (plScene* ptScene);
-    void (*draw_scene)        (plScene* ptScene);
-    void (*scene_bind_camera) (plScene* ptScene, const plCameraComponent* ptCamera);
-    void (*scene_update_ecs)  (plScene* ptScene);
-    void (*scene_bind_target) (plScene* ptScene, plRenderTarget* ptTarget);
-    void (*scene_prepare)     (plScene* ptScene);
-
-    // entity component system
-    void (*ecs_update)(plScene* ptScene, plComponentManager* ptManager);
-} plProtoApiI;
+    void (*create_scene)          (plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, plScene* ptSceneOut);
+    void (*reset_scene)           (plScene* ptScene);
+    void (*draw_scene)            (plScene* ptScene);
+    void (*scene_bind_camera)     (plScene* ptScene, const plCameraComponent* ptCamera);
+    void (*scene_bind_target)     (plScene* ptScene, plRenderTarget* ptTarget);
+    void (*scene_prepare)         (plScene* ptScene);   // creates global vertex/index buffer + other setup when dirty
+    void (*prepare_scene_gpu_data)(plScene* ptScene);  // updates dynamic buffers for materials + objects
+} plRendererI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plGlobalInfo
+{
+    plVec4 tAmbientColor;
+    plVec4 tCameraPos;
+    plMat4 tCameraView;
+    plMat4 tCameraViewProj;
+    float  fTime;
+    int    _unused[3];
+} plGlobalInfo;
+
+typedef struct _plMaterialInfo
+{
+    plVec4 tAlbedo;
+} plMaterialInfo;
 
 typedef struct _plRenderPassDesc
 {
@@ -144,56 +154,52 @@ typedef struct _plRenderTarget
     bool               bMSAA;
 } plRenderTarget;
 
-typedef struct _plAssetRegistry
-{
-    plGraphics*          ptGraphics;
-    plMaterialComponent* sbtMaterials;
-    uint32_t             uDummyTexture;
-} plAssetRegistry;
-
 typedef struct _plScene
 {
     plRenderer*              ptRenderer;
     plRenderTarget*          ptRenderTarget;
     const plCameraComponent* ptCamera;
-    float*                   sbfStorageBuffer;
-    uint32_t                 uGlobalStorageBuffer;
-    plBindGroup              tGlobalBindGroup;
-    bool                     bFirstEcsUpdate;
     bool                     bMaterialsNeedUpdate;
+    bool                     bMeshesNeedUpdate;
+    
+    // global data
+    plBindGroup     tGlobalBindGroup;
+    uint32_t        uGlobalVertexData;
+    float*          sbfGlobalVertexData;
+    uint32_t        uGlobalMaterialData;
+    plMaterialInfo* sbtGlobalMaterialData;
 
+    // global vertex/index buffers
+    plVec3*   sbtVertexData;
+    uint32_t* sbuIndexData;
+    uint32_t  uIndexBuffer;
+    uint32_t  uVertexBuffer;
+    
     // skybox
-    plBindGroup     tSkyboxBindGroup0;
-    uint32_t        uSkyboxTextureView;
+    plBindGroup tSkyboxBindGroup0;
+    uint32_t    uSkyboxTextureView;
+    plMesh      tSkyboxMesh;
     
-    plMeshComponent tSkyboxMesh;
-    
-    
-    uint32_t             uDynamicBuffer0_Offset;
-    uint32_t             uDynamicBuffer0;
-    plComponentLibrary   tComponentLibrary;
-    plComponentManager*  ptTagComponentManager;
-    plComponentManager*  ptTransformComponentManager;
-    plComponentManager*  ptMeshComponentManager;
-    plComponentManager*  ptMaterialComponentManager;
-    plComponentManager*  ptOutlineMaterialComponentManager;
-    plComponentManager*  ptObjectComponentManager;
-    plComponentManager*  ptCameraComponentManager;
-    plComponentManager*  ptHierarchyComponentManager;
+    uint32_t            uDynamicBuffer0_Offset;
+    uint32_t            uDynamicBuffer0;
+    plComponentLibrary* ptComponentLibrary;
 } plScene;
 
 typedef struct _plRenderer
 {
     plGraphics* ptGraphics;
-    plGraphicsApiI* ptGfx;
-    plMemoryApiI*   ptMemoryApi;
-    plDataRegistryApiI* ptDataRegistry;
-    plDeviceApiI* ptDeviceApi;
-    plProtoApiI* ptProtoApi;
-    plImageApiI* ptImageApi;
-    plEcsI* ptEcs;
+
     plEntity*   sbtObjectEntities;
     uint32_t uLogChannel;
+
+    // apis
+    plGraphicsApiI*     ptGfx;
+    plMemoryApiI*       ptMemoryApi;
+    plDataRegistryApiI* ptDataRegistry;
+    plDeviceApiI*       ptDeviceApi;
+    plRendererI*        ptRendererApi;
+    plImageApiI*        ptImageApi;
+    plEcsI*             ptEcs;
 
     // material bind groups
     plBindGroup*         sbtMaterialBindGroups;
@@ -215,4 +221,4 @@ typedef struct _plRenderer
 
 } plRenderer;
 
-#endif // PL_PROTO_EXT_H
+#endif // PL_RENDERER_EXT_H

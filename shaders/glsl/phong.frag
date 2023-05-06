@@ -62,14 +62,19 @@ layout(set = 0, binding = 0) uniform _plGlobalInfo
 
 } tGlobalInfo;
 
+struct plMaterialInfo
+{
+    vec4 tAlbedo;
+};
+
+layout(std140, set = 0, binding = 2) readonly buffer _plMaterialBuffer
+{
+	plMaterialInfo atMaterialData[];
+} tMaterialBuffer;
+
 //-----------------------------------------------------------------------------
 // [SECTION] material
 //-----------------------------------------------------------------------------
-
-layout(set = 1, binding = 0) uniform _plMaterialInfo
-{
-    vec4 tAlbedo;
-} tMaterialInfo;
 
 layout(set = 1, binding = 1) uniform sampler2D tColorSampler;
 layout(set = 1, binding = 2) uniform sampler2D tNormalSampler;
@@ -81,9 +86,10 @@ layout(set = 1, binding = 3) uniform sampler2D tEmissiveSampler;
 
 layout(set = 2, binding = 0) uniform _plObjectInfo
 {
-    mat4 tModel;
-    uint uVertexOffset;
-    // ivec3 _unused0;
+    mat4  tModel;
+    uint  uMaterialIndex;
+    uint  uVertexDataOffset;
+    uint  uVertexOffset;
 } tObjectInfo;
 
 struct NormalInfo
@@ -183,7 +189,7 @@ void main()
     const vec3 tReflected = normalize(reflect(-tLightDir0, n));
     const vec4 tLightColor = vec4(1.0, 1.0, 1.0, 1.0);
     const vec4 tDiffuseColor = tLightColor * clampedDot(n, -tLightDir0);
-    vec4 tMaterialColor = tMaterialInfo.tAlbedo * tShaderIn.tColor;
+    vec4 tMaterialColor = tMaterialBuffer.atMaterialData[tObjectInfo.uMaterialIndex].tAlbedo * tShaderIn.tColor;
     vec4 tEmissiveColor = vec4(0.0);
 
     if(bool(ShaderTextureFlags & PL_TEXTURE_HAS_BASE_COLOR)) 
@@ -198,7 +204,7 @@ void main()
 
     outColor = (tGlobalInfo.tAmbientColor + tDiffuseColor) * tMaterialColor + tEmissiveColor;
 
-    outColor.a = tMaterialInfo.tAlbedo.a;
+    outColor.a = tMaterialBuffer.atMaterialData[tObjectInfo.uMaterialIndex].tAlbedo.a;
     if(outColor.a < 0.01)
     {
         discard;

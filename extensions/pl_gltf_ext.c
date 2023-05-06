@@ -27,7 +27,7 @@ Index of this file:
 
 // extensions
 #include "pl_vulkan_ext.h"
-#include "pl_proto_ext.h"
+#include "pl_renderer_ext.h"
 #include "pl_image_ext.h"
 #include "pl_ecs_ext.h"
 
@@ -6785,8 +6785,8 @@ static void jsmn_init(jsmn_parser *parser) {
 //-----------------------------------------------------------------------------
 
 static void pl__load_gltf_material(plImageApiI* ptImageApi, plDeviceApiI* ptDeviceApi, plDevice* ptDevice, const char* pcPath, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut);
-static void pl__load_gltf_object  (plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene* ptScene, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode);
-static bool pl_ext_load_gltf     (plScene* ptScene, const char* pcPath);
+static void pl__load_gltf_object  (plRendererI* ptRendererApi, plDeviceApiI* ptDeviceApi, plScene* ptScene, plComponentLibrary* ptComponentLibrary, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode);
+static bool pl_ext_load_gltf     (plScene* ptScene, plComponentLibrary* ptComponentLibrary, const char* pcPath);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -6806,7 +6806,7 @@ pl_load_gltf_api(void)
 //-----------------------------------------------------------------------------
 
 static void
-pl__load_gltf_object(plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene* ptScene, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode)
+pl__load_gltf_object(plRendererI* ptRendererApi, plDeviceApiI* ptDeviceApi, plScene* ptScene, plComponentLibrary* ptComponentLibrary, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode)
 {
 	plRenderer* ptRenderer = ptScene->ptRenderer;
 	plDevice* ptDevice = &ptRenderer->ptGraphics->tDevice;
@@ -6821,28 +6821,27 @@ pl__load_gltf_object(plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene
 		for(size_t szPrimitiveIndex = 0; szPrimitiveIndex < ptMesh->primitives_count; szPrimitiveIndex++)
 		{
 
-			plEntity tObject = ptEcs->create_object(&ptScene->tComponentLibrary, ptNode->name);
+			plEntity tObject = ptEcs->create_object(ptComponentLibrary, ptNode->name);
 			pl_sb_push(ptRenderer->sbtObjectEntities, tObject);
 
 			if(tParentEntity != PL_INVALID_ENTITY_HANDLE)
-				ptEcs->attach_component(&ptScene->tComponentLibrary, tObject, tParentEntity);
+				ptEcs->attach_component(ptComponentLibrary, tObject, tParentEntity);
 
 			if(szPrimitiveIndex == ptMesh->primitives_count - 1)
 			{
 				for(size_t szChildIndex = 0; szChildIndex < ptNode->children_count; szChildIndex++)
 				{
 					const cgltf_node* ptChild = ptNode->children[szChildIndex];
-					pl__load_gltf_object(ptProtoApi, ptDeviceApi, ptScene, tObject, pcPath, ptChild);
+					pl__load_gltf_object(ptRendererApi, ptDeviceApi, ptScene, ptComponentLibrary, tObject, pcPath, ptChild);
 				}
 			}
 
-			plObjectComponent* ptObjectComponent = ptEcs->get_component(ptScene->ptObjectComponentManager, tObject);
-			plTransformComponent* ptTransformComponent = ptEcs->get_component(ptScene->ptTransformComponentManager, tObject);
+			plObjectComponent* ptObjectComponent = ptEcs->get_component(&ptComponentLibrary->tObjectComponentManager, tObject);
+			plTransformComponent* ptTransformComponent = ptEcs->get_component(&ptComponentLibrary->tTransformComponentManager, tObject);
 			ptTransformComponent->tWorld       = pl_identity_mat4();
 			ptTransformComponent->tRotation    = (plVec4){.w = 1.0f};
 			ptTransformComponent->tScale       = (plVec3){1.0f, 1.0f, 1.0f};
 			ptTransformComponent->tTranslation = (plVec3){0};
-
 
 			if(ptNode->has_rotation)    memcpy(ptTransformComponent->tRotation.d, ptNode->rotation, sizeof(float) * 4);
 			if(ptNode->has_scale)       memcpy(ptTransformComponent->tScale.d, ptNode->scale, sizeof(float) * 3);
@@ -6858,7 +6857,7 @@ pl__load_gltf_object(plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene
 
 			ptTransformComponent->tFinalTransform = ptTransformComponent->tWorld;
 
-			plMeshComponent* ptMeshComponent = ptEcs->get_component(ptScene->ptMeshComponentManager, tObject);
+			plMeshComponent* ptMeshComponent = ptEcs->get_component(&ptComponentLibrary->tMeshComponentManager, tObject);
 
 			const cgltf_primitive* ptPrimitive = &ptMesh->primitives[szPrimitiveIndex];
 			const size_t szVertexCount = ptPrimitive->attributes[0].data->count;
@@ -7017,8 +7016,8 @@ pl__load_gltf_object(plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene
 				PL_ASSERT(false);
 			}
 
-			tSubMesh.tMaterial = ptEcs->create_material(&ptScene->tComponentLibrary, ptPrimitive->material->name);
-			plMaterialComponent* ptMaterialComponent = ptEcs->get_component(ptScene->ptMaterialComponentManager, tSubMesh.tMaterial);
+			tSubMesh.tMaterial = ptEcs->create_material(ptComponentLibrary, ptPrimitive->material->name);
+			plMaterialComponent* ptMaterialComponent = ptEcs->get_component(&ptComponentLibrary->tMaterialComponentManager, tSubMesh.tMaterial);
 			pl__load_gltf_material(ptImageApi, ptDeviceApi, ptDevice, pcPath, ptPrimitive->material, ptMaterialComponent);
 			pl_sb_push(ptMeshComponent->sbtSubmeshes, tSubMesh);
 		}
@@ -7026,8 +7025,8 @@ pl__load_gltf_object(plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene
 	else
 	{
 
-		plEntity tHierarchyEntity = ptEcs->create_entity(&ptScene->tComponentLibrary);
-		plTransformComponent* ptTransformComponent = ptEcs->create_component(ptScene->ptTransformComponentManager, tHierarchyEntity);
+		plEntity tHierarchyEntity = ptEcs->create_entity(ptComponentLibrary);
+		plTransformComponent* ptTransformComponent = ptEcs->create_component(&ptComponentLibrary->tTransformComponentManager, tHierarchyEntity);
 
 		ptTransformComponent->tWorld       = pl_identity_mat4();
 		ptTransformComponent->tRotation    = (plVec4){.w = 1.0f};
@@ -7049,24 +7048,24 @@ pl__load_gltf_object(plProtoApiI* ptProtoApi, plDeviceApiI* ptDeviceApi, plScene
 		ptTransformComponent->tFinalTransform = ptTransformComponent->tWorld;
 
 		if(tParentEntity != PL_INVALID_ENTITY_HANDLE)
-			ptEcs->attach_component(&ptScene->tComponentLibrary, tHierarchyEntity, tParentEntity);
+			ptEcs->attach_component(ptComponentLibrary, tHierarchyEntity, tParentEntity);
 
 		for(size_t szChildIndex = 0; szChildIndex < ptNode->children_count; szChildIndex++)
 		{
 			const cgltf_node* ptChild = ptNode->children[szChildIndex];
-			pl__load_gltf_object(ptProtoApi, ptDeviceApi, ptScene, tHierarchyEntity, pcPath, ptChild);
+			pl__load_gltf_object(ptRendererApi, ptDeviceApi, ptScene, ptComponentLibrary, tHierarchyEntity, pcPath, ptChild);
 		}
 	}
 }
 
 static bool
-pl_ext_load_gltf(plScene* ptScene, const char* pcPath)
+pl_ext_load_gltf(plScene* ptScene, plComponentLibrary* ptComponentLibrary, const char* pcPath)
 {
 	plRenderer* ptRenderer = ptScene->ptRenderer;
 	plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
 	plDeviceApiI* ptDeviceApi = ptRenderer->ptDeviceApi;
 	plDataRegistryApiI* ptDataRegistry = ptRenderer->ptDataRegistry;
-	plProtoApiI* ptProtoApi = ptRenderer->ptProtoApi;
+	plRendererI* ptRendererApi = ptRenderer->ptRendererApi;
 	plImageApiI* ptImageApi = ptRenderer->ptImageApi;
 
 	pl_set_log_context(ptDataRegistry->get_data("log"));
@@ -7092,7 +7091,7 @@ pl_ext_load_gltf(plScene* ptScene, const char* pcPath)
     for(size_t szNodeIndex = 0; szNodeIndex < ptGltfData->scenes[0].nodes_count; szNodeIndex++)
     {
         const cgltf_node* ptNode = ptGltfData->scenes[0].nodes[szNodeIndex];
-		pl__load_gltf_object(ptProtoApi, ptDeviceApi, ptScene, 0, pcPath, ptNode);
+		pl__load_gltf_object(ptRendererApi, ptDeviceApi, ptScene, ptComponentLibrary, 0, pcPath, ptNode);
     }
 
     return true;    

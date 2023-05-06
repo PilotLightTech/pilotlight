@@ -1621,7 +1621,7 @@ pl_get_shader(plGraphics* ptGraphics, uint32_t uVariantIndex)
 static void
 pl_update_bind_group(plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBufferCount, uint32_t* auBuffers, size_t* aszBufferRanges, uint32_t uTextureViewCount, uint32_t* auTextureViews)
 {
-    PL_ASSERT(uBufferCount == ptGroup->tLayout.uBufferCount && "bind group buffer count & update buffer count must match.");
+    // PL_ASSERT(uBufferCount == ptGroup->tLayout.uBufferCount && "bind group buffer count & update buffer count must match.");
     PL_ASSERT(uTextureViewCount == ptGroup->tLayout.uTextureCount && "bind group texture count & update texture view count must match.");
 
     plDevice* ptDevice = &ptGraphics->tDevice;
@@ -1714,8 +1714,6 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
 
     plDevice* ptDevice = &ptGraphics->tDevice;
     plBindGroup* ptCurrentBindGroup0 = NULL;
-    plBindGroup* ptCurrentBindGroup1 = NULL;
-    plBindGroup* ptCurrentBindGroup2 = NULL;
     uint32_t uCurrentVariant = UINT32_MAX;
     uint32_t uCurrentIndexBuffer = UINT32_MAX;
     uint32_t uCurrentVertexBuffer = UINT32_MAX;
@@ -1764,17 +1762,15 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
             uint32_t uSetCounter = 0;
             uint32_t uFirstSet = 0;
 
-            if(ptDraw->ptBindGroup1 && ptDraw->ptBindGroup1 != ptCurrentBindGroup1)
+            if(ptDraw->ptBindGroup1)
             {
-                ptCurrentBindGroup1 = ptDraw->ptBindGroup1;
                 auDynamicOffsets[uSetCounter] = ptDraw->uDynamicBufferOffset1;
                 atUpdateSets[uSetCounter++] = ptDraw->ptBindGroup1->_tDescriptorSet;
                 uFirstSet = 1;
             }
 
-            if(ptDraw->ptBindGroup2 && ptDraw->ptBindGroup2 != ptCurrentBindGroup2)
+            if(ptDraw->ptBindGroup2)
             {
-                ptCurrentBindGroup2 = ptDraw->ptBindGroup1;
                 auDynamicOffsets[uSetCounter] = ptDraw->uDynamicBufferOffset2;
                 atUpdateSets[uSetCounter++] = ptDraw->ptBindGroup2->_tDescriptorSet;
                 uFirstSet = uFirstSet == 0 ? 2 : 1;
@@ -1783,7 +1779,7 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
             if(uSetCounter > 0)
                 vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVariant->tPipelineLayout, uFirstSet, uSetCounter, atUpdateSets, uSetCounter, auDynamicOffsets);
 
-            vkCmdDrawIndexed(ptCurrentFrame->tCmdBuf, ptDraw->ptMesh->uIndexCount, 1, 0, ptDraw->ptMesh->uVertexOffset, 0);
+            vkCmdDrawIndexed(ptCurrentFrame->tCmdBuf, ptDraw->ptMesh->uIndexCount, 1, ptDraw->ptMesh->uIndexOffset, ptDraw->ptMesh->uVertexOffset, 0);
         }
 
     }

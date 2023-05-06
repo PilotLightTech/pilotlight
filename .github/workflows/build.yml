@@ -48,8 +48,7 @@ jobs:
         if not exist ../out/pl_ecs_ext.dll exit 1
         if not exist ../out/pl_gltf_ext.dll exit 1
         if not exist ../out/pl_ui_ext.dll exit 1
-        if not exist ../out/pl_draw_ext.dll exit 1
-        if not exist ../out/pl_proto_ext.dll exit 1
+        if not exist ../out/pl_renderer_ext.dll exit 1
         if not exist ../out/pl_vulkan_ext.dll exit 1
         if not exist ../out/pl_image_ext.dll exit 1
         if not exist ../out/pilotlight.lib exit 1
@@ -117,5 +116,6 @@ jobs:
         test -f ./out/pl_vulkan_ext.so || exit 1
         test -f ./out/pl_image_ext.so || exit 1
         test -f ./out/pl_gltf_ext.so || exit 1
-        test -f ./out/pl_proto_ext.so || exit 1
+        test -f ./out/pl_ecs_ext.so || exit 1
+        test -f ./out/pl_renderer_ext.so || exit 1
         test -f ./out/pilotlight.a || exit 1
