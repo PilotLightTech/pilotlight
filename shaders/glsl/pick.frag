@@ -1,12 +1,13 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-#include "common.glsl"
+layout(location = 0) in struct plShaderIn {
+    vec4 tColor;
+} tShaderIn;
 
-// output
 layout(location = 0) out vec4 outColor;
 
 void main() 
 {
-    outColor = tMaterialBuffer.atMaterialData[tObjectInfo.uMaterialIndex].tAlbedo;
+    outColor = tShaderIn.tColor;
 }

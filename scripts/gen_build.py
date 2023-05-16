@@ -129,7 +129,7 @@ with pl.project("pilotlight"):
         pl.push_definitions("PL_VULKAN_BACKEND")
         pl.push_source_files("../apps/app_vulkan.c")
         pl.push_vulkan_glsl_files("../shaders/glsl/", "phong.frag", "primitive.vert", "skybox.frag", "skybox.vert")
-        pl.push_vulkan_glsl_files("../shaders/glsl/", "grass.frag", "grass.vert", "outline.frag", "outline.vert")
+        pl.push_vulkan_glsl_files("../shaders/glsl/", "outline.frag", "outline.vert", "pick.frag", "pick.vert")
         with pl.configuration("debug"):
             with pl.platform(pl.PlatformType.WIN32):
                 with pl.compiler("msvc", pl.CompilerType.MSVC):

@@ -1,26 +1,37 @@
-#version 450
-#extension GL_ARB_separate_shader_objects : enable
-
-//-----------------------------------------------------------------------------
-// [SECTION] shader input/output
-//-----------------------------------------------------------------------------
-
-// input
-layout(location = 0) in struct plShaderOut {
-    vec3 tWorldNormal;
-    vec2 tUV;
-} tShaderIn;
-
-// output
-layout(location = 0) out vec4 outColor;
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
-layout(constant_id = 0) const int MeshVariantFlags = 0;
+const int PL_MESH_FORMAT_FLAG_NONE           = 0;
+const int PL_MESH_FORMAT_FLAG_HAS_POSITION   = 1 << 0;
+const int PL_MESH_FORMAT_FLAG_HAS_NORMAL     = 1 << 1;
+const int PL_MESH_FORMAT_FLAG_HAS_TANGENT    = 1 << 2;
+const int PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 = 1 << 3;
+const int PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1 = 1 << 4;
+const int PL_MESH_FORMAT_FLAG_HAS_COLOR_0    = 1 << 5;
+const int PL_MESH_FORMAT_FLAG_HAS_COLOR_1    = 1 << 6;
+const int PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   = 1 << 7;
+const int PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   = 1 << 8;
+const int PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  = 1 << 9;
+const int PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 10;
+
+const int PL_TEXTURE_HAS_BASE_COLOR   = 1 << 0;
+const int PL_TEXTURE_HAS_NORMAL       = 1 << 1;
+const int PL_TEXTURE_HAS_EMISSIVE     = 1 << 2;
+
+layout(constant_id = 0) const int MeshVariantFlags = PL_MESH_FORMAT_FLAG_NONE;
 layout(constant_id = 1) const int VertexStride = 0;
 layout(constant_id = 2) const int ShaderTextureFlags = 0;
+
+//-----------------------------------------------------------------------------
+// [SECTION] structs
+//-----------------------------------------------------------------------------
+
+struct plMaterialInfo
+{
+    vec4 tAlbedo;
+};
 
 //-----------------------------------------------------------------------------
 // [SECTION] global
@@ -40,10 +51,10 @@ layout(set = 0, binding = 0) uniform _plGlobalInfo
 
 } tGlobalInfo;
 
-struct plMaterialInfo
+layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
 {
-    vec4 tAlbedo;
-};
+	vec4 atVertexData[];
+} tVertexBuffer;
 
 layout(std140, set = 0, binding = 2) readonly buffer _plMaterialBuffer
 {
@@ -59,7 +70,7 @@ layout(set = 1, binding = 2) uniform sampler2D tNormalSampler;
 layout(set = 1, binding = 3) uniform sampler2D tEmissiveSampler;
 
 //-----------------------------------------------------------------------------
-// [SECTION] object
+// [SECTION] per object
 //-----------------------------------------------------------------------------
 
 layout(set = 2, binding = 0) uniform _plObjectInfo
@@ -69,30 +80,3 @@ layout(set = 2, binding = 0) uniform _plObjectInfo
     uint  uVertexDataOffset;
     uint  uVertexOffset;
 } tObjectInfo;
-
-
-float clampedDot(vec3 x, vec3 y)
-{
-    return clamp(dot(x, y), 0.0, 1.0);
-}
-
-void main() 
-{
-    
-    const vec3 n = normalize(tShaderIn.tWorldNormal);
-
-    const vec3 tLightDir0 = normalize(vec3(0.0, -1.0, -1.0));
-    const vec3 tEyePos = normalize(-tGlobalInfo.tCameraPos.xyz);
-    const vec3 tReflected = normalize(reflect(-tLightDir0, n));
-    const vec4 tLightColor = vec4(1.0, 1.0, 1.0, 1.0);
-    const vec4 tDiffuseColor = tLightColor * clampedDot(n, -tLightDir0);
-    const vec4 tMaterialColor = texture(tColorSampler, tShaderIn.tUV);
-
-    outColor = (tGlobalInfo.tAmbientColor + tDiffuseColor) * tMaterialColor;
-    outColor.a = tMaterialColor.a;
-    if(tMaterialColor.a < 0.01)
-    {
-        discard;
-    }
-
-}
