@@ -316,7 +316,7 @@ pl_ui_end_frame(void)
     {
         pl_sb_top(gptCtx->sbptFocusedWindows)->uFocusOrder = gptCtx->ptActiveWindow->uFocusOrder;
         gptCtx->ptActiveWindow->uFocusOrder = pl_sb_size(gptCtx->sbptFocusedWindows) - 1;
-        pl_sb_del_swap(gptCtx->sbptFocusedWindows, pl_sb_top(gptCtx->sbptFocusedWindows)->uFocusOrder); //-V1004
+        pl_sb_del_swap(gptCtx->sbptFocusedWindows, pl_sb_top(gptCtx->sbptFocusedWindows)->uFocusOrder);
         pl_sb_push(gptCtx->sbptFocusedWindows, gptCtx->ptActiveWindow);
     }
 

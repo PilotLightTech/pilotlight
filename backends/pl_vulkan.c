@@ -923,7 +923,7 @@ pl__submit_drawlist_vulkan_ex(plDrawList* ptDrawlist, float fWidth, float fHeigh
 
     // vertex GPU data transfer
     unsigned char* pucMappedVertexBufferLocation = tBufferInfo->ucVertexBufferMap;
-    memcpy(&pucMappedVertexBufferLocation[tBufferInfo->uVertexBufferOffset], ptDrawlist->sbVertexBuffer, sizeof(plDrawVertex) * pl_sb_size(ptDrawlist->sbVertexBuffer)); //-V1004
+    memcpy(&pucMappedVertexBufferLocation[tBufferInfo->uVertexBufferOffset], ptDrawlist->sbVertexBuffer, sizeof(plDrawVertex) * pl_sb_size(ptDrawlist->sbVertexBuffer));
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -950,7 +950,7 @@ pl__submit_drawlist_vulkan_ex(plDrawList* ptDrawlist, float fWidth, float fHeigh
         plDrawCommand* ptLastCommand = NULL;
         plDrawLayer* ptLayer = ptDrawlist->sbSubmittedLayers[i];
 
-        memcpy(&pucDestination[uTempIndexBufferOffset], ptLayer->sbIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptLayer->sbIndexBuffer)); //-V1004
+        memcpy(&pucDestination[uTempIndexBufferOffset], ptLayer->sbIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptLayer->sbIndexBuffer));
 
         uTempIndexBufferOffset += pl_sb_size(ptLayer->sbIndexBuffer)*sizeof(uint32_t);
 
@@ -1112,7 +1112,7 @@ pl__submit_3d_drawlist_vulkan_ex(plDrawList3D* ptDrawlist, float fWidth, float f
 
         // vertex GPU data transfer
         unsigned char* pucMappedVertexBufferLocation = ptBufferInfo->ucVertexBufferMap;
-        memcpy(&pucMappedVertexBufferLocation[ptBufferInfo->uVertexBufferOffset], ptDrawlist->sbVertexBuffer, sizeof(plDrawVertex3D) * pl_sb_size(ptDrawlist->sbVertexBuffer)); //-V1004
+        memcpy(&pucMappedVertexBufferLocation[ptBufferInfo->uVertexBufferOffset], ptDrawlist->sbVertexBuffer, sizeof(plDrawVertex3D) * pl_sb_size(ptDrawlist->sbVertexBuffer));
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1127,7 +1127,7 @@ pl__submit_3d_drawlist_vulkan_ex(plDrawList3D* ptDrawlist, float fWidth, float f
 
         // index GPU data transfer
         unsigned char* pucMappedIndexBufferLocation = ptBufferInfo->ucIndexBufferMap;
-        memcpy(&pucMappedIndexBufferLocation[ptBufferInfo->uIndexBufferOffset], ptDrawlist->sbIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbIndexBuffer)); //-V1004
+        memcpy(&pucMappedIndexBufferLocation[ptBufferInfo->uIndexBufferOffset], ptDrawlist->sbIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbIndexBuffer));
         
         const VkMappedMemoryRange aRange[2] = {
             {
@@ -1178,7 +1178,7 @@ pl__submit_3d_drawlist_vulkan_ex(plDrawList3D* ptDrawlist, float fWidth, float f
 
         // vertex GPU data transfer
         unsigned char* pucMappedVertexBufferLocation = ptBufferInfo->ucVertexBufferMap;
-        memcpy(&pucMappedVertexBufferLocation[ptBufferInfo->uVertexBufferOffset], ptDrawlist->sbLineVertexBuffer, sizeof(plDrawVertex3DLine) * pl_sb_size(ptDrawlist->sbLineVertexBuffer)); //-V1004
+        memcpy(&pucMappedVertexBufferLocation[ptBufferInfo->uVertexBufferOffset], ptDrawlist->sbLineVertexBuffer, sizeof(plDrawVertex3DLine) * pl_sb_size(ptDrawlist->sbLineVertexBuffer));
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1193,7 +1193,7 @@ pl__submit_3d_drawlist_vulkan_ex(plDrawList3D* ptDrawlist, float fWidth, float f
 
         // index GPU data transfer
         unsigned char* pucMappedIndexBufferLocation = ptBufferInfo->ucIndexBufferMap;
-        memcpy(&pucMappedIndexBufferLocation[ptBufferInfo->uIndexBufferOffset], ptDrawlist->sbLineIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbLineIndexBuffer)); //-V1004
+        memcpy(&pucMappedIndexBufferLocation[ptBufferInfo->uIndexBufferOffset], ptDrawlist->sbLineIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbLineIndexBuffer));
         
         const VkMappedMemoryRange aRange[2] = {
             {

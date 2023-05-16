@@ -1829,7 +1829,7 @@ pl__prepare_draw_command(plDrawLayer* layer, plTextureId textureID, bool sdf)
 {
     bool createNewCommand = true;
 
-    const plRect tCurrentClip = pl_sb_size(layer->drawlist->sbClipStack) > 0 ? pl_sb_top(layer->drawlist->sbClipStack) : (plRect){0}; //-V1004
+    const plRect tCurrentClip = pl_sb_size(layer->drawlist->sbClipStack) > 0 ? pl_sb_top(layer->drawlist->sbClipStack) : (plRect){0};
 
     
     if(layer->_lastCommand)

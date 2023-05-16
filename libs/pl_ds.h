@@ -196,7 +196,7 @@ COMPILE TIME OPTIONS
 
 #ifndef PL_DS_ALLOC
     #include <stdlib.h>
-    #define PL_DS_ALLOC(x) malloc(x)
+    #define PL_DS_ALLOC(x) malloc((x))
     #define PL_DS_FREE(x)  free((x))
 #endif
 
@@ -346,7 +346,8 @@ pl__sb_grow(void** ptrBuffer, size_t szElementSize, size_t szNewItems)
 
     plSbHeader_* ptOldHeader = pl__sb_header(*ptrBuffer);
 
-    plSbHeader_* ptNewHeader = (plSbHeader_*)PL_DS_ALLOC((ptOldHeader->uCapacity + szNewItems) * szElementSize + sizeof(plSbHeader_)); //-V592
+    const size_t szNewSize = (ptOldHeader->uCapacity + szNewItems) * szElementSize + sizeof(plSbHeader_);
+    plSbHeader_* ptNewHeader = (plSbHeader_*)PL_DS_ALLOC(szNewSize); //-V592
     memset(ptNewHeader, 0, (ptOldHeader->uCapacity + szNewItems) * szElementSize + sizeof(plSbHeader_));
     if(ptNewHeader)
     {
@@ -371,7 +372,8 @@ pl__sb_may_grow_(void** ptrBuffer, size_t szElementSize, size_t szNewItems, size
     }
     else // first run
     {
-        plSbHeader_* ptHeader = (plSbHeader_*)PL_DS_ALLOC(szMinCapacity * szElementSize + sizeof(plSbHeader_));
+        const size_t szNewSize = szMinCapacity * szElementSize + sizeof(plSbHeader_);
+        plSbHeader_* ptHeader = (plSbHeader_*)PL_DS_ALLOC(szNewSize);
         memset(ptHeader, 0, szMinCapacity * szElementSize + sizeof(plSbHeader_));
         if(ptHeader)
         {

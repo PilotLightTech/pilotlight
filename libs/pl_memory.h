@@ -137,10 +137,10 @@ typedef struct _plVirtualMemoryApiI
 
 typedef struct _plTempAllocatorApiI
 {
-    void* (*alloc)  (plTempAllocator* ptAllocator, size_t szSize);
-    void  (*reset)  (plTempAllocator* ptAllocator);
-    void  (*free)   (plTempAllocator* ptAllocator);
-    char* (*sprintf)(plTempAllocator* ptAllocator, const char* cPFormat, ...);
+    void* (*alloc) (plTempAllocator* ptAllocator, size_t szSize);
+    void  (*reset) (plTempAllocator* ptAllocator);
+    void  (*free)  (plTempAllocator* ptAllocator);
+    char* (*printf)(plTempAllocator* ptAllocator, const char* cPFormat, ...);
 } plTempAllocatorApiI;
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~stack allocators~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -7232,8 +7232,6 @@ PL_EXPORT void
 pl_load_gltf_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
 
-
-
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_GLTF), pl_load_gltf_api());
