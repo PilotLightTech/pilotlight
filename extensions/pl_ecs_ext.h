@@ -114,7 +114,8 @@ typedef struct _plEcsI
     void (*deattach_component) (plComponentLibrary* ptLibrary, plEntity tEntity);
 
     // material
-    void (*material_outline)(plComponentLibrary* ptLibrary, plEntity tEntity);
+    void (*add_mesh_outline)(plComponentLibrary* ptLibrary, plEntity tEntity);
+    void (*remove_mesh_outline)(plComponentLibrary* ptLibrary, plEntity tEntity);
 
     // systems
     void (*cleanup_systems)            (plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
@@ -158,6 +159,7 @@ typedef struct _plSubMesh
 {
     plMesh       tMesh;
     plEntity     tMaterial;
+    plEntity     tOutlineMaterial;
     plVec3*      sbtVertexPositions;
     plVec3*      sbtVertexNormals;
     plVec4*      sbtVertexTangents;
@@ -191,7 +193,6 @@ typedef struct _plComponentLibrary
     plComponentManager tTransformComponentManager;
     plComponentManager tMeshComponentManager;
     plComponentManager tMaterialComponentManager;
-    plComponentManager tOutlineMaterialComponentManager;
     plComponentManager tObjectComponentManager;
     plComponentManager tCameraComponentManager;
     plComponentManager tHierarchyComponentManager;
@@ -239,7 +240,6 @@ typedef struct _plMaterialComponent
     plVec4 tAlbedo;
     float  fAlphaCutoff;
     bool   bDoubleSided;
-    bool   bOutline;
 
     // maps
     uint32_t uAlbedoMap;

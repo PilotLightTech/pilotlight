@@ -6822,7 +6822,8 @@ pl__load_gltf_object(plRendererI* ptRendererApi, plDeviceApiI* ptDeviceApi, plSc
 		{
 
 			plEntity tObject = ptEcs->create_object(ptComponentLibrary, ptNode->name);
-			pl_sb_push(ptRenderer->sbtObjectEntities, tObject);
+			plObjectComponent* ptNewObjectComponent = ptEcs->get_component(&ptComponentLibrary->tObjectComponentManager, tObject);
+			pl_sb_push(ptRenderer->sbtVisibleMeshes, ptNewObjectComponent->tMesh);
 
 			if(tParentEntity != PL_INVALID_ENTITY_HANDLE)
 				ptEcs->attach_component(ptComponentLibrary, tObject, tParentEntity);

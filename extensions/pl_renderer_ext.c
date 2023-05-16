@@ -37,20 +37,20 @@ Index of this file:
 
 // graphics
 static void pl_create_main_render_target(plGraphics* ptGraphics, plRenderTarget* ptTargetOut);
-static void pl_create_render_pass  (plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, plRenderPass* ptPassOut);
 static void pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut);
 static void pl_begin_render_target (plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTarget* ptTarget);
 static void pl_end_render_target   (plGraphicsApiI* ptGfx, plGraphics* ptGraphics);
 static void pl_cleanup_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget);
-static void pl_cleanup_render_pass(plGraphics* ptGraphics, plRenderPass* ptPass);
-static void pl_setup_renderer  (plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plRenderer* ptRenderer);
+static void pl_setup_renderer  (plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptComponentLibrary, plGraphics* ptGraphics, plRenderer* ptRenderer);
 static void pl_cleanup_renderer(plRenderer* ptRenderer);
+static void pl_resize_renderer (plRenderer* ptRenderer, float fWidth, float fHeight);
 static void pl_draw_sky        (plScene* ptScene);
 
 // scene
 static void pl_create_scene      (plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, plScene* ptSceneOut);
 static void pl_reset_scene       (plScene* ptScene);
 static void pl_draw_scene        (plScene* ptScene);
+static void pl_draw_pick_scene   (plScene* ptScene);
 static void pl_scene_bind_camera (plScene* ptScene, const plCameraComponent* ptCamera);
 static void pl_scene_bind_target (plScene* ptScene, plRenderTarget* ptTarget);
 static void pl_scene_prepare     (plScene* ptScene);
@@ -59,6 +59,19 @@ static void pl_scene_prepare     (plScene* ptScene);
 static void pl_prepare_gpu_data(plScene* ptScene);
 static void pl__prepare_material_gpu_data(plScene* ptScene, plComponentManager* ptManager);
 static void pl__prepare_object_gpu_data(plScene* ptScene, plComponentManager* ptManager);
+
+static bool
+pl__get_free_resource_index(uint32_t* sbuFreeIndices, uint32_t* puIndexOut)
+{
+    // check if previous index is availble
+    if(pl_sb_size(sbuFreeIndices) > 0)
+    {
+        const uint32_t uFreeIndex = pl_sb_pop(sbuFreeIndices);
+        *puIndexOut = uFreeIndex;
+        return true;
+    }
+    return false;    
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementations
@@ -69,18 +82,18 @@ pl_load_renderer_api(void)
 {
     static plRendererI tApi0 = {
         .create_main_render_target = pl_create_main_render_target,
-        .create_render_pass        = pl_create_render_pass,
         .create_render_target      = pl_create_render_target,
         .begin_render_target       = pl_begin_render_target,
         .end_render_target         = pl_end_render_target,
         .cleanup_render_target     = pl_cleanup_render_target,
-        .cleanup_render_pass       = pl_cleanup_render_pass,
         .setup_renderer            = pl_setup_renderer,
+        .resize                    = pl_resize_renderer,
         .cleanup_renderer          = pl_cleanup_renderer,
         .draw_sky                  = pl_draw_sky,
         .create_scene              = pl_create_scene,
         .reset_scene               = pl_reset_scene,
         .draw_scene                = pl_draw_scene,
+        .draw_pick_scene           = pl_draw_pick_scene,
         .scene_bind_camera         = pl_scene_bind_camera,
         .scene_bind_target         = pl_scene_bind_target,
         .scene_prepare             = pl_scene_prepare,
@@ -94,6 +107,83 @@ pl_load_renderer_api(void)
 //-----------------------------------------------------------------------------
 
 static void
+pl_create_render_target2(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut, const char* pcName)
+{
+    ptTargetOut->tDesc = *ptDesc;
+    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
+    plDevice* ptDevice = &ptGraphics->tDevice;
+
+    const plTextureDesc tColorTextureDesc = {
+        .tDimensions = {.x = ptDesc->tSize.x, .y = ptDesc->tSize.y, .z = 1.0f},
+        .tFormat     = ptDevice->sbtRenderPasses[ptDesc->uRenderPass].tDesc.tColorFormat,
+        .tUsage      = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        .uLayers     = 1,
+        .uMips       = 1,
+        .tType       = VK_IMAGE_TYPE_2D
+    };
+
+    const plTextureDesc tDepthTextureDesc = {
+        .tDimensions = {.x = ptDesc->tSize.x, .y = ptDesc->tSize.y, .z = 1.0f},
+        .tFormat     = ptDevice->sbtRenderPasses[ptDesc->uRenderPass].tDesc.tDepthFormat,
+        .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        .uLayers     = 1,
+        .uMips       = 1,
+        .tType       = VK_IMAGE_TYPE_2D
+    };
+
+    const plSampler tColorSampler = 
+    {
+        .fMinMip = 0.0f,
+        .fMaxMip = 64.0f,
+        .tFilter = PL_FILTER_LINEAR
+    };
+
+    const plTextureViewDesc tColorView = {
+        .tFormat     = tColorTextureDesc.tFormat,
+        .uLayerCount = tColorTextureDesc.uLayers,
+        .uMips       = tColorTextureDesc.uMips
+    };
+
+    pl_sb_reset(ptTargetOut->sbuColorTextureViews);
+    for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
+    {
+        uint32_t uColorTexture = ptDeviceApi->create_texture(ptDevice, tColorTextureDesc, 0, NULL, "pick color texture");
+        pl_sb_push(ptTargetOut->sbuColorTextureViews, ptDeviceApi->create_texture_view(ptDevice, &tColorView, &tColorSampler, uColorTexture, "offscreen color view"));
+    }
+
+    uint32_t uDepthTexture = ptDeviceApi->create_texture(ptDevice, tDepthTextureDesc, 0, NULL, "pick depth texture");
+
+    const plTextureViewDesc tDepthView = {
+        .tFormat     = tDepthTextureDesc.tFormat,
+        .uLayerCount = tDepthTextureDesc.uLayers,
+        .uMips       = tDepthTextureDesc.uMips
+    };
+
+    ptTargetOut->uDepthTextureView = ptDeviceApi->create_texture_view(ptDevice, &tDepthView, &tColorSampler, uDepthTexture, "offscreen depth view");
+
+    plTextureView* ptDepthTextureView = &ptDevice->sbtTextureViews[ptTargetOut->uDepthTextureView];
+
+    pl_sb_reset(ptTargetOut->sbuFrameBuffers);
+    for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
+    {
+
+        uint32_t auAttachments[] = {
+            ptTargetOut->sbuColorTextureViews[i],
+            ptTargetOut->uDepthTextureView
+        };
+
+        plFrameBufferDesc tFBDesc = {
+            .uAttachmentCount = 2,
+            .puAttachments    = auAttachments,
+            .uRenderPass      = ptDesc->uRenderPass,
+            .uWidth           = (uint32_t)ptDesc->tSize.x,
+            .uHeight          = (uint32_t)ptDesc->tSize.y,
+        };
+        pl_sb_push(ptTargetOut->sbuFrameBuffers, ptDeviceApi->create_frame_buffer(ptDevice, &tFBDesc, pcName));    
+    }
+}
+
+static void
 pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut)
 {
     ptTargetOut->tDesc = *ptDesc;
@@ -102,7 +192,7 @@ pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc
 
     const plTextureDesc tColorTextureDesc = {
         .tDimensions = {.x = ptDesc->tSize.x, .y = ptDesc->tSize.y, .z = 1.0f},
-        .tFormat     = ptDesc->tRenderPass.tDesc.tColorFormat,
+        .tFormat     = ptDevice->sbtRenderPasses[ptDesc->uRenderPass].tDesc.tColorFormat,
         .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
         .uLayers     = 1,
         .uMips       = 1,
@@ -111,7 +201,7 @@ pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc
 
     const plTextureDesc tDepthTextureDesc = {
         .tDimensions = {.x = ptDesc->tSize.x, .y = ptDesc->tSize.y, .z = 1.0f},
-        .tFormat     = ptDesc->tRenderPass.tDesc.tDepthFormat,
+        .tFormat     = ptDevice->sbtRenderPasses[ptDesc->uRenderPass].tDesc.tDepthFormat,
         .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
         .uLayers     = 1,
         .uMips       = 1,
@@ -147,27 +237,21 @@ pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc
 
     ptTargetOut->uDepthTextureView = ptDeviceApi->create_texture_view(ptDevice, &tDepthView, &tColorSampler, uDepthTexture, "offscreen depth view");
 
-    plTextureView* ptDepthTextureView = &ptDevice->sbtTextureViews[ptTargetOut->uDepthTextureView];
-
     for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
     {
-        plTextureView* ptColorTextureView = &ptDevice->sbtTextureViews[ptTargetOut->sbuColorTextureViews[i]];
-        VkImageView atAttachments[] = {
-            ptColorTextureView->_tImageView,
-            ptDepthTextureView->_tImageView
+        uint32_t auAttachments[] = {
+            ptTargetOut->sbuColorTextureViews[i],
+            ptTargetOut->uDepthTextureView
         };
-        VkFramebufferCreateInfo tFrameBufferInfo = {
-            .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-            .renderPass      = ptDesc->tRenderPass._tRenderPass,
-            .attachmentCount = 2u,
-            .pAttachments    = atAttachments,
-            .width           = (uint32_t)ptDesc->tSize.x,
-            .height          = (uint32_t)ptDesc->tSize.y,
-            .layers          = 1u,
+
+        plFrameBufferDesc tFrameBufferDesc = {
+            .uAttachmentCount = 2,
+            .uWidth           = (uint32_t)ptDesc->tSize.x,
+            .uHeight          = (uint32_t)ptDesc->tSize.y,
+            .uRenderPass      = ptDesc->uRenderPass,
+            .puAttachments    = auAttachments
         };
-        VkFramebuffer tFrameBuffer = {0};
-        PL_VULKAN(vkCreateFramebuffer(ptGraphics->tDevice.tLogicalDevice, &tFrameBufferInfo, NULL, &tFrameBuffer));
-        pl_sb_push(ptTargetOut->sbtFrameBuffers, tFrameBuffer);
+        pl_sb_push(ptTargetOut->sbuFrameBuffers, ptDeviceApi->create_frame_buffer(ptDevice, &tFrameBufferDesc, "offscreen target"));
     }
 }
 
@@ -175,109 +259,21 @@ static void
 pl_create_main_render_target(plGraphics* ptGraphics, plRenderTarget* ptTargetOut)
 {
     plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();
+    plDevice* ptDevice = &ptGraphics->tDevice;
     ptTargetOut->bMSAA = true;
-    ptTargetOut->sbtFrameBuffers = ptGraphics->tSwapchain.ptFrameBuffers;
-    ptTargetOut->tDesc.tRenderPass._tRenderPass = ptGraphics->tRenderPass;
-    ptTargetOut->tDesc.tRenderPass.tDesc.tColorFormat = ptGraphics->tSwapchain.tFormat;
-    ptTargetOut->tDesc.tRenderPass.tDesc.tDepthFormat = ptGraphics->tSwapchain.tDepthFormat;
+    ptTargetOut->sbuFrameBuffers = ptGraphics->tSwapchain.puFrameBuffers;
+    ptTargetOut->tDesc.uRenderPass = ptGraphics->uRenderPass;
+    ptDevice->sbtRenderPasses[ptTargetOut->tDesc.uRenderPass].tDesc.tColorFormat = ptGraphics->tSwapchain.tFormat;
+    ptDevice->sbtRenderPasses[ptTargetOut->tDesc.uRenderPass].tDesc.tDepthFormat = ptGraphics->tSwapchain.tDepthFormat;
     ptTargetOut->tDesc.tSize.x = (float)ptGraphics->tSwapchain.tExtent.width;
     ptTargetOut->tDesc.tSize.y = (float)ptGraphics->tSwapchain.tExtent.height;
-}
-
-static void
-pl_create_render_pass(plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, plRenderPass* ptPassOut)
-{
-    ptPassOut->tDesc = *ptDesc;
-    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
-
-    // create render pass
-    VkAttachmentDescription atAttachments[] = {
-
-        // color attachment
-        {
-            .flags          = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT,
-            .format         = ptDeviceApi->vulkan_format(ptDesc->tColorFormat),
-            .samples        = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
-            .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout  = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            .finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-        },
-
-        // depth attachment
-        {
-            .format         = ptDeviceApi->vulkan_format(ptDesc->tDepthFormat),
-            .samples        = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            .finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-        }
-    };
-
-    VkSubpassDependency tSubpassDependencies[] = {
-
-        // color attachment
-        {
-            .srcSubpass      = VK_SUBPASS_EXTERNAL,
-            .dstSubpass      = 0,
-            .srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT,
-            .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dependencyFlags = 0
-        },
-
-        // color attachment out
-        {
-            .srcSubpass      = 0,
-            .dstSubpass      = VK_SUBPASS_EXTERNAL,
-            .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT,
-            .dependencyFlags = 0
-        },
-    };
-
-    VkAttachmentReference atAttachmentReferences[] = {
-        {
-            .attachment = 0,
-            .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-        },
-        {
-            .attachment = 1,
-            .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL     
-        }
-    };
-
-    VkSubpassDescription tSubpass = {
-        .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
-        .colorAttachmentCount    = 1,
-        .pColorAttachments       = &atAttachmentReferences[0],
-        .pDepthStencilAttachment = &atAttachmentReferences[1]
-    };
-
-    VkRenderPassCreateInfo tRenderPassInfo = {
-        .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .attachmentCount = 2,
-        .pAttachments    = atAttachments,
-        .subpassCount    = 1,
-        .pSubpasses      = &tSubpass,
-        .dependencyCount = 2,
-        .pDependencies   = tSubpassDependencies
-    };
-    PL_VULKAN(vkCreateRenderPass(ptGraphics->tDevice.tLogicalDevice, &tRenderPassInfo, NULL, &ptPassOut->_tRenderPass));
 }
 
 static void
 pl_begin_render_target(plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTarget* ptTarget)
 {
     const plFrameContext* ptCurrentFrame = ptGfx->get_frame_resources(ptGraphics);
+    plDevice* ptDevice = &ptGraphics->tDevice;
 
     static const VkClearValue atClearValues[2] = 
     {
@@ -315,8 +311,8 @@ pl_begin_render_target(plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTa
 
     const VkRenderPassBeginInfo tRenderPassBeginInfo = {
         .sType               = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass          = ptTarget->tDesc.tRenderPass._tRenderPass,
-        .framebuffer         = ptTarget->sbtFrameBuffers[ptGraphics->tSwapchain.uCurrentImageIndex],
+        .renderPass          = ptDevice->sbtRenderPasses[ptTarget->tDesc.uRenderPass]._tRenderPass,
+        .framebuffer         = ptDevice->sbtFrameBuffers[ptTarget->sbuFrameBuffers[ptGraphics->tSwapchain.uCurrentImageIndex]]._tFrameBuffer,
         .renderArea          = {
                                     .extent = {
                                         .width  = (uint32_t)ptTarget->tDesc.tSize.x,
@@ -340,20 +336,16 @@ pl_end_render_target(plGraphicsApiI* ptGfx, plGraphics* ptGraphics)
 static void
 pl_cleanup_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget)
 {
-    for (uint32_t i = 0u; i < pl_sb_size(ptTarget->sbtFrameBuffers); i++)
-    {
-        vkDestroyFramebuffer(ptGraphics->tDevice.tLogicalDevice, ptTarget->sbtFrameBuffers[i], NULL);
-    }
+    plDevice* ptDevice = &ptGraphics->tDevice;
+    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
+
+    for (uint32_t i = 0u; i < pl_sb_size(ptTarget->sbuFrameBuffers); i++)
+        ptDeviceApi->submit_frame_buffer_for_deletion(ptDevice, ptTarget->sbuFrameBuffers[i]);
+    pl_sb_reset(ptTarget->sbuFrameBuffers);
 }
 
 static void
-pl_cleanup_render_pass(plGraphics* ptGraphics, plRenderPass* ptPass)
-{
-    vkDestroyRenderPass(ptGraphics->tDevice.tLogicalDevice, ptPass->_tRenderPass, NULL);
-}
-
-static void
-pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plRenderer* ptRenderer)
+pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptComponentLibrary, plGraphics* ptGraphics, plRenderer* ptRenderer)
 {
     memset(ptRenderer, 0, sizeof(plRenderer));
     ptRenderer->ptGfx = ptApiRegistry->first(PL_API_GRAPHICS);
@@ -370,33 +362,6 @@ pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plRe
     plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
     plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
     plDevice* ptDevice = &ptGraphics->tDevice;
-
-    // create dummy texture (texture slot 0 when not used)
-    const plTextureDesc tTextureDesc2 = {
-        .tDimensions = {.x = (float)1.0f, .y = (float)1.0f, .z = 1.0f},
-        .tFormat     = PL_FORMAT_R8G8B8A8_UNORM,
-        .tUsage      = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        .uLayers     = 1,
-        .uMips       = 1,
-        .tType       = VK_IMAGE_TYPE_2D
-    };
-    static const float afSinglePixel[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-    uint32_t uDummyTexture = ptDeviceApi->create_texture(ptDevice, tTextureDesc2, sizeof(unsigned char) * 4, afSinglePixel, "dummy texture");
-
-    const plSampler tDummySampler = 
-    {
-        .fMinMip = 0.0f,
-        .fMaxMip = 64.0f,
-        .tFilter = PL_FILTER_LINEAR
-    };
-
-    const plTextureViewDesc tDummyView = {
-        .tFormat     = tTextureDesc2.tFormat,
-        .uLayerCount = tTextureDesc2.uLayers,
-        .uMips       = tTextureDesc2.uMips
-    };
-
-    ptDeviceApi->create_texture_view(ptDevice, &tDummyView, &tDummySampler, uDummyTexture, "dummy texture view");
 
     ptRenderer->ptGraphics = ptGraphics;
 
@@ -512,12 +477,144 @@ pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plRe
         },   
     };
 
+    // pick
+    plShaderDesc tPickShaderDesc = {
+        .pcPixelShader                       = "pick.frag.spv",
+        .pcVertexShader                      = "pick.vert.spv",
+        .tGraphicsState.ulDepthMode          = PL_DEPTH_MODE_LESS,
+        .tGraphicsState.ulBlendMode          = PL_BLEND_MODE_NONE,
+        .tGraphicsState.ulCullMode           = VK_CULL_MODE_BACK_BIT,
+        .tGraphicsState.ulDepthWriteEnabled  = VK_TRUE,
+        .tGraphicsState.ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_NONE,
+        .tGraphicsState.ulStencilMode        = PL_STENCIL_MODE_ALWAYS,
+        .uBindGroupLayoutCount               = 2,
+        .atBindGroupLayouts                  = {
+            {
+                .uBufferCount = 2,
+                .aBuffers = {
+                    { .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .uSlot = 0, .tStageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 1, .tStageFlags = VK_SHADER_STAGE_VERTEX_BIT }
+                },
+            },
+            {
+                .uBufferCount  = 1,
+                .aBuffers      = {
+                    { .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .uSlot = 0, .tStageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT}
+                }
+            }
+        },   
+    };
+
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create shaders~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     ptRenderer->uMainShader    = ptGfx->create_shader(ptGraphics, &tMainShaderDesc);
     ptRenderer->uOutlineShader = ptGfx->create_shader(ptGraphics, &tOutlineShaderDesc);
     ptRenderer->uSkyboxShader  = ptGfx->create_shader(ptGraphics, &tSkyboxShaderDesc);
+    ptRenderer->uPickShader    = ptGfx->create_shader(ptGraphics, &tPickShaderDesc);
 
+    // offscreen
+    plRenderPassDesc tRenderPassDesc = {
+        .tColorFormat = PL_FORMAT_R8G8B8A8_UNORM,
+        .tDepthFormat = ptRenderer->ptDeviceApi->find_depth_stencil_format(ptDevice)
+    };
+
+    ptRenderer->uPickPass = 0u;
+    if(!pl__get_free_resource_index(ptDevice->_sbulFrameBufferFreeIndices, &ptRenderer->uPickPass))
+        ptRenderer->uPickPass = pl_sb_add_n(ptDevice->sbtRenderPasses, 1);
+    ptDevice->sbtRenderPasses[ptRenderer->uPickPass].tDesc = tRenderPassDesc;
+    // pl_create_render_pass(ptGraphics, &tRenderPassDesc, &ptRenderer->tPickPass);
+
+    // create render pass
+    VkAttachmentDescription atAttachments[] = {
+
+        // color attachment
+        {
+            .flags          = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT,
+            .format         = ptRenderer->ptDeviceApi->vulkan_format(tRenderPassDesc.tColorFormat),
+            .samples        = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout  = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            .finalLayout    = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+        },
+
+        // depth attachment
+        {
+            .format         = ptRenderer->ptDeviceApi->vulkan_format(tRenderPassDesc.tDepthFormat),
+            .samples        = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            .finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        }
+    };
+
+    VkSubpassDependency tSubpassDependencies[] = {
+
+        // color attachment
+        {
+            .srcSubpass      = VK_SUBPASS_EXTERNAL,
+            .dstSubpass      = 0,
+            .srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT,
+            .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .dependencyFlags = 0
+        },
+
+        // color attachment out
+        {
+            .srcSubpass      = 0,
+            .dstSubpass      = VK_SUBPASS_EXTERNAL,
+            .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT,
+            .dependencyFlags = 0
+        },
+    };
+
+    VkAttachmentReference atAttachmentReferences[] = {
+        {
+            .attachment = 0,
+            .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        },
+        {
+            .attachment = 1,
+            .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL     
+        }
+    };
+
+    VkSubpassDescription tSubpass = {
+        .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .colorAttachmentCount    = 1,
+        .pColorAttachments       = &atAttachmentReferences[0],
+        .pDepthStencilAttachment = &atAttachmentReferences[1]
+    };
+
+    VkRenderPassCreateInfo tRenderPassInfo = {
+        .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+        .attachmentCount = 2,
+        .pAttachments    = atAttachments,
+        .subpassCount    = 1,
+        .pSubpasses      = &tSubpass,
+        .dependencyCount = 2,
+        .pDependencies   = tSubpassDependencies
+    };
+    PL_VULKAN(vkCreateRenderPass(ptGraphics->tDevice.tLogicalDevice, &tRenderPassInfo, NULL, &ptDevice->sbtRenderPasses[ptRenderer->uPickPass]._tRenderPass));
+
+    plRenderTargetDesc tRenderTargetDesc = {
+        .uRenderPass = ptRenderer->uPickPass,
+        .tSize = {500.0f, 500.0f}
+    };
+    pl_create_render_target2(ptGraphics, &tRenderTargetDesc, &ptRenderer->tPickTarget, "pick render target");
+
+    ptRenderer->uPickMaterial = ptGfx->add_shader_variant(ptGraphics, ptRenderer->uPickShader, 
+        tPickShaderDesc.tGraphicsState, ptRenderer->tPickTarget.tDesc.uRenderPass, VK_SAMPLE_COUNT_1_BIT);
 }
 
 static void
@@ -525,6 +622,39 @@ pl_cleanup_renderer(plRenderer* ptRenderer)
 {
     // pl_sb_free(ptRenderer->sbfGlobalVertexData);
     // pl_submit_buffer_for_deletion(&ptRenderer->ptGraphics->tResourceManager, ptRenderer->uGlobalVertexData);
+}
+
+static void
+pl_resize_renderer(plRenderer* ptRenderer, float fWidth, float fHeight)
+{
+    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+    plGraphics* ptGraphics = ptRenderer->ptGraphics;
+    plDevice* ptDevice = &ptGraphics->tDevice;
+    plDeviceApiI* ptDeviceApi = ptRenderer->ptDeviceApi;
+
+    pl_cleanup_render_target(ptGraphics, &ptRenderer->tPickTarget);
+    pl_sb_reset(ptRenderer->tPickTarget.sbuFrameBuffers);
+    
+
+    for(uint32_t i = 0; i < pl_sb_size(ptRenderer->tPickTarget.sbuColorTextureViews); i++)
+    {
+        uint32_t uTextureView = ptRenderer->tPickTarget.sbuColorTextureViews[i];
+        uint32_t uTexture = ptDevice->sbtTextureViews[uTextureView].uTextureHandle;
+        ptDeviceApi->submit_texture_for_deletion(ptDevice, uTexture);
+        ptDeviceApi->submit_texture_view_for_deletion(ptDevice, uTextureView);
+    }
+    pl_sb_reset(ptRenderer->tPickTarget.sbuColorTextureViews);
+
+    uint32_t uDepthTextureView = ptRenderer->tPickTarget.uDepthTextureView;
+    uint32_t uDepthTexture = ptDevice->sbtTextureViews[uDepthTextureView].uTextureHandle;
+    ptDeviceApi->submit_texture_for_deletion(ptDevice, uDepthTexture);
+    ptDeviceApi->submit_texture_view_for_deletion(ptDevice, uDepthTextureView);
+
+    plRenderTargetDesc tRenderTargetDesc = {
+        .uRenderPass = ptRenderer->uPickPass,
+        .tSize = {fWidth, fHeight}
+    };
+    pl_create_render_target2(ptGraphics, &tRenderTargetDesc, &ptRenderer->tPickTarget, "pick target");
 }
 
 static void
@@ -546,7 +676,7 @@ pl_create_scene(plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, 
     ptSceneOut->bMaterialsNeedUpdate = true;
     ptSceneOut->bMeshesNeedUpdate = true;
 
-    ptSceneOut->uDynamicBuffer0 = ptDeviceApi->create_constant_buffer(ptDevice, ptDevice->tDeviceProps.limits.maxUniformBufferRange, "renderer dynamic buffer 0");
+    ptSceneOut->uDynamicBuffer0 = ptDeviceApi->create_constant_buffer(ptDevice, ptDevice->uUniformBufferBlockSize, "renderer dynamic buffer 0");
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~skybox~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -656,6 +786,7 @@ pl_create_scene(plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, 
 
     ptSceneOut->uGlobalVertexData = UINT32_MAX;
     ptSceneOut->uGlobalMaterialData = UINT32_MAX;
+    ptSceneOut->uGlobalPickData = UINT32_MAX;
 
     plBindGroupLayout tGlobalGroupLayout =
     {
@@ -679,9 +810,29 @@ pl_create_scene(plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, 
             }
         }
     };
-
+    
     // create & update global bind group
     ptSceneOut->tGlobalBindGroup.tLayout = tGlobalGroupLayout;
+
+    plBindGroupLayout tGlobalPickGroupLayout =
+    {
+        .uBufferCount = 2,
+        .aBuffers = {
+            {
+                .tType       = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                .uSlot       = 0,
+                .tStageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+            {
+                .tType       = PL_BUFFER_BINDING_TYPE_STORAGE,
+                .uSlot       = 1,
+                .tStageFlags = VK_SHADER_STAGE_VERTEX_BIT
+            },
+        }
+    };
+
+    // create & update global bind group
+    ptSceneOut->tGlobalPickBindGroup.tLayout = tGlobalPickGroupLayout;
 }
 
 static void
@@ -701,14 +852,12 @@ pl_draw_scene(plScene* ptScene)
     plEcsI* ptEcs = ptScene->ptRenderer->ptEcs;
 
     const uint32_t uDrawOffset = pl_sb_size(ptRenderer->sbtDraws);
-    const uint32_t uOutlineDrawOffset = pl_sb_size(ptRenderer->sbtOutlineDraws);
+    // const uint32_t uOutlineDrawOffset = pl_sb_size(ptRenderer->sbtOutlineDraws);
 
     // record draws
-    for(uint32_t i = 0; i < pl_sb_size(ptRenderer->sbtObjectEntities); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptRenderer->sbtVisibleMeshes); i++)
     {
-        plObjectComponent* ptObjectComponent = ptEcs->get_component(&ptScene->ptComponentLibrary->tObjectComponentManager, ptRenderer->sbtObjectEntities[i]);
-        plMeshComponent* ptMeshComponent = ptEcs->get_component(&ptScene->ptComponentLibrary->tMeshComponentManager, ptObjectComponent->tMesh);
-        plTransformComponent* ptTransformComponent = ptEcs->get_component(&ptScene->ptComponentLibrary->tTransformComponentManager, ptObjectComponent->tTransform);
+        plMeshComponent* ptMeshComponent = ptEcs->get_component(&ptScene->ptComponentLibrary->tMeshComponentManager, ptRenderer->sbtVisibleMeshes[i]);
         for(uint32_t j = 0; j < pl_sb_size(ptMeshComponent->sbtSubmeshes); j++)
         {
             plSubMesh* ptSubmesh = &ptMeshComponent->sbtSubmeshes[j];
@@ -722,21 +871,27 @@ pl_draw_scene(plScene* ptScene)
                 .uDynamicBufferOffset1 = 0,
                 .uDynamicBufferOffset2 = ptSubmesh->uBufferOffset
                 }));
-            // ptObjectComponent->tInfo.uVertexOffset = ptSubmesh->uGlobalVtxOffset;
+        }
+    }
 
-            if(ptMaterial->bOutline)
-            {
-                plMaterialComponent* ptOutlineMaterial = ptEcs->get_component(&ptScene->ptComponentLibrary->tOutlineMaterialComponentManager, ptSubmesh->tMaterial);
+    // record draws
+    for(uint32_t i = 0; i < pl_sb_size(ptRenderer->sbtVisibleOutlinedMeshes); i++)
+    {
+        plMeshComponent* ptMeshComponent = ptEcs->get_component(&ptScene->ptComponentLibrary->tMeshComponentManager, ptRenderer->sbtVisibleOutlinedMeshes[i]);
+        for(uint32_t j = 0; j < pl_sb_size(ptMeshComponent->sbtSubmeshes); j++)
+        {
+            plSubMesh* ptSubmesh = &ptMeshComponent->sbtSubmeshes[j];
+            plMaterialComponent* ptMaterial = ptEcs->get_component(&ptScene->ptComponentLibrary->tMaterialComponentManager, ptSubmesh->tMaterial);
+            plMaterialComponent* ptOutlineMaterial = ptEcs->get_component(&ptScene->ptComponentLibrary->tMaterialComponentManager, ptSubmesh->tOutlineMaterial);
 
-                pl_sb_push(ptRenderer->sbtOutlineDraws, ((plDraw){
-                    .uShaderVariant        = ptOutlineMaterial->uShaderVariant,
-                    .ptMesh                = &ptSubmesh->tMesh,
-                    .ptBindGroup1          = &ptRenderer->sbtMaterialBindGroups[ptMaterial->uBindGroup1],
-                    .ptBindGroup2          = &ptRenderer->sbtObjectBindGroups[ptSubmesh->uBindGroup2],
-                    .uDynamicBufferOffset1 = 0,
-                    .uDynamicBufferOffset2 = ptSubmesh->uBufferOffset
-                    }));
-            }
+            pl_sb_push(ptRenderer->sbtDraws, ((plDraw){
+                .uShaderVariant        = ptOutlineMaterial->uShaderVariant,
+                .ptMesh                = &ptSubmesh->tMesh,
+                .ptBindGroup1          = &ptRenderer->sbtMaterialBindGroups[ptMaterial->uBindGroup1],
+                .ptBindGroup2          = &ptRenderer->sbtObjectBindGroups[ptSubmesh->uBindGroup2],
+                .uDynamicBufferOffset1 = 0,
+                .uDynamicBufferOffset2 = ptSubmesh->uBufferOffset
+                }));
         }
     }
 
@@ -753,20 +908,52 @@ pl_draw_scene(plScene* ptScene)
 
     ptGfx->draw_areas(ptRenderer->ptGraphics, pl_sb_size(ptRenderer->sbtDrawAreas), ptRenderer->sbtDrawAreas, ptRenderer->sbtDraws);
 
+    pl_sb_reset(ptRenderer->sbtDraws);
     pl_sb_reset(ptRenderer->sbtDrawAreas);
 
-    // record outlines draw areas
+    ptScene->uDynamicBuffer0_Offset = (uint32_t)pl_align_up((size_t)ptScene->uDynamicBuffer0_Offset + sizeof(plGlobalInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);
+}
+
+static void
+pl_draw_pick_scene(plScene* ptScene)
+{
+    plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
+    plRenderer* ptRenderer = ptScene->ptRenderer;
+    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+    plEcsI* ptEcs = ptScene->ptRenderer->ptEcs;
+
+    const uint32_t uDrawOffset = pl_sb_size(ptRenderer->sbtDraws);
+
+    // record draws
+    for(uint32_t i = 0; i < pl_sb_size(ptRenderer->sbtVisibleMeshes); i++)
+    {
+        plMeshComponent* ptMeshComponent = ptEcs->get_component(&ptScene->ptComponentLibrary->tMeshComponentManager, ptRenderer->sbtVisibleMeshes[i]);
+        for(uint32_t j = 0; j < pl_sb_size(ptMeshComponent->sbtSubmeshes); j++)
+        {
+            plSubMesh* ptSubmesh = &ptMeshComponent->sbtSubmeshes[j];
+            pl_sb_push(ptRenderer->sbtDraws, ((plDraw){
+                .uShaderVariant        = ptRenderer->uPickMaterial,
+                .ptMesh                = &ptSubmesh->tMesh,
+                .ptBindGroup1          = &ptRenderer->sbtObjectBindGroups[ptSubmesh->uBindGroup2],
+                .uDynamicBufferOffset1 = ptSubmesh->uBufferOffset
+                }));
+        }
+    }
+
+    // record draw area
+    const plBuffer* ptBuffer0 = &ptGraphics->tDevice.sbtBuffers[ptScene->uDynamicBuffer0];
+    const uint32_t uBufferFrameOffset0 = ((uint32_t)ptBuffer0->tAllocation.ulSize / ptGraphics->uFramesInFlight) * (uint32_t)ptGraphics->szCurrentFrameIndex + ptScene->uDynamicBuffer0_Offset;
+
     pl_sb_push(ptRenderer->sbtDrawAreas, ((plDrawArea){
-        .ptBindGroup0          = &ptScene->tGlobalBindGroup,
-        .uDrawOffset           = uOutlineDrawOffset,
-        .uDrawCount            = pl_sb_size(ptRenderer->sbtOutlineDraws),
+        .ptBindGroup0          = &ptScene->tGlobalPickBindGroup,
+        .uDrawOffset           = uDrawOffset,
+        .uDrawCount            = pl_sb_size(ptRenderer->sbtDraws),
         .uDynamicBufferOffset0 = uBufferFrameOffset0
     }));
 
-    ptGfx->draw_areas(ptRenderer->ptGraphics, pl_sb_size(ptRenderer->sbtDrawAreas), ptRenderer->sbtDrawAreas, ptRenderer->sbtOutlineDraws);
+    ptGfx->draw_areas(ptRenderer->ptGraphics, pl_sb_size(ptRenderer->sbtDrawAreas), ptRenderer->sbtDrawAreas, ptRenderer->sbtDraws);
 
     pl_sb_reset(ptRenderer->sbtDraws);
-    pl_sb_reset(ptRenderer->sbtOutlineDraws);
     pl_sb_reset(ptRenderer->sbtDrawAreas);
 
     ptScene->uDynamicBuffer0_Offset = (uint32_t)pl_align_up((size_t)ptScene->uDynamicBuffer0_Offset + sizeof(plGlobalInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);
@@ -776,7 +963,6 @@ static void
 pl_prepare_gpu_data(plScene* ptScene)
 {
     pl__prepare_material_gpu_data(ptScene, &ptScene->ptComponentLibrary->tMaterialComponentManager);
-    pl__prepare_material_gpu_data(ptScene, &ptScene->ptComponentLibrary->tOutlineMaterialComponentManager);
     pl__prepare_object_gpu_data(ptScene, &ptScene->ptComponentLibrary->tObjectComponentManager);
 }
 
@@ -804,7 +990,8 @@ pl_scene_prepare(plScene* ptScene)
     uint32_t uGlobalVtxOffset = pl_sb_size(ptScene->sbfGlobalVertexData) / 4;
     plMeshComponent* sbtMeshes = ptScene->ptComponentLibrary->tMeshComponentManager.pComponents;
 
-    for(uint32_t uMeshIndex = 0; uMeshIndex < pl_sb_size(sbtMeshes); uMeshIndex++)
+    const uint32_t uMeshCount = pl_sb_size(sbtMeshes);
+    for(uint32_t uMeshIndex = 0; uMeshIndex < uMeshCount; uMeshIndex++)
     {
         plMeshComponent* ptMesh = &sbtMeshes[uMeshIndex];
 
@@ -816,7 +1003,16 @@ pl_scene_prepare(plScene* ptScene)
             const plMaterialInfo tMaterialInfo = {
                 .tAlbedo = ptMaterial->tAlbedo
             };
+
+            plPickInfo tPickInfo = {0};
+            const uint32_t uId = (uint32_t)ptScene->ptComponentLibrary->tMeshComponentManager.sbtEntities[uMeshIndex];
+            tPickInfo.tColor.r = ((float)(uId & 0xff) / 255.0f);
+            tPickInfo.tColor.g = ((float)((uId >> 8) & 0xff) / 255.0f);
+            tPickInfo.tColor.b = ((float)((uId >> 16) & 0xff) / 255.0f);
+            tPickInfo.tColor.a = 1.0f;
+
             pl_sb_push(ptScene->sbtGlobalMaterialData, tMaterialInfo);
+            pl_sb_push(ptScene->sbtGlobalPickData, tPickInfo);
             ptSubMesh->tInfo.uMaterialIndex = pl_sb_size(ptScene->sbtGlobalMaterialData) - 1;
             ptSubMesh->tInfo.uVertexDataOffset = uGlobalVtxOffset / 4;
             ptSubMesh->tMesh.uVertexCount = pl_sb_size(ptSubMesh->sbtVertexPositions);
@@ -845,6 +1041,7 @@ pl_scene_prepare(plScene* ptScene)
             // normals
             for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexNormals); i++)
             {
+                ptSubMesh->sbtVertexNormals[i] = pl_norm_vec3(ptSubMesh->sbtVertexNormals[i]);
                 const plVec3* ptNormal = &ptSubMesh->sbtVertexNormals[i];
                 ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + 0] = ptNormal->x;
                 ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + 1] = ptNormal->y;
@@ -869,17 +1066,19 @@ pl_scene_prepare(plScene* ptScene)
                 uOffset += 4;
 
             // texture coordinates 0
-            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates0); i++)
-            {
-                const plVec2* ptTextureCoordinates = &ptSubMesh->sbtVertexTextureCoordinates0[i];
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 0] = ptTextureCoordinates->u;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 1] = ptTextureCoordinates->v;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 2] = 0.0f;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 3] = 0.0f;
-            }
-
             if(pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates0) > 0)
+            {
+                for(uint32_t i = 0; i < ptSubMesh->tMesh.uVertexCount; i++)
+                {
+                    const plVec2* ptTextureCoordinates = &ptSubMesh->sbtVertexTextureCoordinates0[i];
+                    ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 0] = ptTextureCoordinates->u;
+                    ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 1] = ptTextureCoordinates->v;
+                    ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 2] = 0.0f;
+                    ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 3] = 0.0f;
+
+                }
                 uOffset += 4;
+            }
 
             // texture coordinates 1
             for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates1); i++)
@@ -983,8 +1182,8 @@ pl_scene_prepare(plScene* ptScene)
             ptSubMesh->tMesh.uVertexOffset = uVertexBufferPos;
             ptSubMesh->tInfo.uVertexOffset = uVertexBufferPos;
 
-            memcpy(&ptScene->sbuIndexData[uIndexBufferPos], ptSubMesh->sbuIndices, sizeof(uint32_t) * ptSubMesh->tMesh.uIndexCount); //-V1004
-            memcpy(&ptScene->sbtVertexData[uVertexBufferPos], ptSubMesh->sbtVertexPositions, sizeof(plVec3) * ptSubMesh->tMesh.uVertexCount); //-V1004
+            memcpy(&ptScene->sbuIndexData[uIndexBufferPos], ptSubMesh->sbuIndices, sizeof(uint32_t) * ptSubMesh->tMesh.uIndexCount);
+            memcpy(&ptScene->sbtVertexData[uVertexBufferPos], ptSubMesh->sbtVertexPositions, sizeof(plVec3) * ptSubMesh->tMesh.uVertexCount); 
 
             plMaterialComponent* ptMaterialComponent = ptEcs->get_component(&ptScene->ptComponentLibrary->tMaterialComponentManager, ptSubMesh->tMaterial);
             ptMaterialComponent->tGraphicsState.ulVertexStreamMask = ptSubMesh->tMesh.ulVertexStreamMask;
@@ -999,12 +1198,20 @@ pl_scene_prepare(plScene* ptScene)
     if(ptScene->uGlobalMaterialData != UINT32_MAX)
         ptDeviceApi->submit_buffer_for_deletion(ptDevice, ptScene->uGlobalMaterialData);
 
+    if(ptScene->uGlobalPickData != UINT32_MAX)
+        ptDeviceApi->submit_buffer_for_deletion(ptDevice, ptScene->uGlobalPickData);
+
     ptScene->uGlobalVertexData = ptDeviceApi->create_storage_buffer(ptDevice, pl_sb_size(ptScene->sbfGlobalVertexData) * sizeof(float), ptScene->sbfGlobalVertexData, "global vertex data");
     ptScene->uGlobalMaterialData = ptDeviceApi->create_storage_buffer(ptDevice, pl_sb_size(ptScene->sbtGlobalMaterialData) * sizeof(plMaterialInfo), ptScene->sbtGlobalMaterialData, "global material data");
+    ptScene->uGlobalPickData = ptDeviceApi->create_storage_buffer(ptDevice, pl_sb_size(ptScene->sbtGlobalPickData) * sizeof(plPickInfo), ptScene->sbtGlobalPickData, "global pick data");
 
     uint32_t atBuffers0[] = {ptScene->uDynamicBuffer0, ptScene->uGlobalVertexData, ptScene->uGlobalMaterialData};
     size_t aszRangeSizes[] = {sizeof(plGlobalInfo), VK_WHOLE_SIZE, VK_WHOLE_SIZE};
     ptGfx->update_bind_group(ptGraphics, &ptScene->tGlobalBindGroup, 3, atBuffers0, aszRangeSizes, 0, NULL);
+
+    uint32_t atBuffers1[] = {ptScene->uDynamicBuffer0, ptScene->uGlobalPickData};
+    size_t aszRangeSizes1[] = {sizeof(plGlobalInfo), VK_WHOLE_SIZE};
+    ptGfx->update_bind_group(ptGraphics, &ptScene->tGlobalPickBindGroup, 2, atBuffers1, aszRangeSizes1, 0, NULL);
 
     ptScene->uIndexBuffer = ptDeviceApi->create_index_buffer(ptDevice, 
         sizeof(uint32_t) * pl_sb_size(ptScene->sbuIndexData),
@@ -1016,6 +1223,7 @@ pl_scene_prepare(plScene* ptScene)
 
     pl_sb_reset(ptScene->sbfGlobalVertexData);
     pl_sb_reset(ptScene->sbtGlobalMaterialData);
+    pl_sb_reset(ptScene->sbtGlobalPickData);
     pl_sb_reset(ptScene->sbuIndexData)
     pl_sb_reset(ptScene->sbtVertexData)
 }
@@ -1083,7 +1291,7 @@ pl_draw_sky(plScene* ptScene)
     for(uint32_t j = 0; j < uFillVariantCount; j++)
     {
         if(ptShader->tDesc.sbtVariants[j].tGraphicsState.ulValue == tFillStateTemplate.ulValue 
-            && ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass == ptShader->tDesc.sbtVariants[j].tRenderPass)
+            && ptScene->ptRenderTarget->tDesc.uRenderPass == ptShader->tDesc.sbtVariants[j].uRenderPass)
         {
                 uSkyboxShaderVariant = ptShader->_sbuVariantPipelines[j];
                 break;
@@ -1094,7 +1302,7 @@ pl_draw_sky(plScene* ptScene)
     if(uSkyboxShaderVariant == UINT32_MAX)
     {
         pl_log_debug_to_f(ptRenderer->uLogChannel, "adding skybox shader variant");
-        uSkyboxShaderVariant = ptGfx->add_shader_variant(ptGraphics, ptRenderer->uSkyboxShader, tFillStateTemplate, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
+        uSkyboxShaderVariant = ptGfx->add_shader_variant(ptGraphics, ptRenderer->uSkyboxShader, tFillStateTemplate, ptScene->ptRenderTarget->tDesc.uRenderPass, tMSAASampleCount);
     }
 
     pl_sb_push(ptRenderer->sbtDrawAreas, ((plDrawArea){
@@ -1131,7 +1339,6 @@ pl__prepare_material_gpu_data(plScene* ptScene, plComponentManager* ptManager)
     plDevice* ptDevice = &ptGraphics->tDevice;
 
     VkSampleCountFlagBits tMSAASampleCount = ptScene->ptRenderTarget->bMSAA ? ptGraphics->tSwapchain.tMsaaSamples : VK_SAMPLE_COUNT_1_BIT;
-    uint32_t* sbuTextures = NULL;
 
     plMaterialComponent* sbtComponents = ptManager->pComponents;
     for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
@@ -1146,9 +1353,10 @@ pl__prepare_material_gpu_data(plScene* ptScene, plComponentManager* ptManager)
         };
 
         ptMaterial->uShader = acShaderLookup[ptMaterial->tShaderType];
-        pl_sb_push(sbuTextures, ptMaterial->uAlbedoMap);
-        pl_sb_push(sbuTextures, ptMaterial->uNormalMap);
-        pl_sb_push(sbuTextures, ptMaterial->uEmissiveMap);
+        uint32_t sbuTextures[16] = {0};
+        sbuTextures[0] = ptMaterial->uAlbedoMap;
+        sbuTextures[1] = ptMaterial->uNormalMap;
+        sbuTextures[2] = ptMaterial->uEmissiveMap;
 
         if(ptScene->bMaterialsNeedUpdate)
         {
@@ -1156,6 +1364,7 @@ pl__prepare_material_gpu_data(plScene* ptScene, plComponentManager* ptManager)
             uHashKey = pl_hm_hash(&ptMaterial->uAlbedoMap, sizeof(uint32_t), uHashKey);
             uHashKey = pl_hm_hash(&ptMaterial->uNormalMap, sizeof(uint32_t), uHashKey);
             uHashKey = pl_hm_hash(&ptMaterial->uEmissiveMap, sizeof(uint32_t), uHashKey);
+            uHashKey = pl_hm_hash(&ptMaterial->tGraphicsState, sizeof(uint64_t), uHashKey);
 
             // check if bind group for this buffer exist
             uint64_t uMaterialBindGroupIndex = pl_hm_lookup(&ptRenderer->tMaterialBindGroupdHashMap, uHashKey);
@@ -1166,7 +1375,7 @@ pl__prepare_material_gpu_data(plScene* ptScene, plComponentManager* ptManager)
                 plBindGroup tNewBindGroup = {
                     .tLayout = *ptGfx->get_bind_group_layout(ptGraphics, ptMaterial->uShader, 1)
                 };
-                ptGfx->update_bind_group(ptGraphics, &tNewBindGroup, 0, NULL, NULL, pl_sb_size(sbuTextures), sbuTextures);
+                ptGfx->update_bind_group(ptGraphics, &tNewBindGroup, 0, NULL, NULL, 3, sbuTextures);
 
                 // check for free index
                 uMaterialBindGroupIndex = pl_hm_get_free_index(&ptRenderer->tMaterialBindGroupdHashMap);
@@ -1201,7 +1410,7 @@ pl__prepare_material_gpu_data(plScene* ptScene, plComponentManager* ptManager)
         {
             plGraphicsState ptVariant = ptShader->tDesc.sbtVariants[k].tGraphicsState;
             if(ptVariant.ulValue == ptMaterial->tGraphicsState.ulValue 
-                && ptShader->tDesc.sbtVariants[k].tRenderPass == ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass
+                && ptShader->tDesc.sbtVariants[k].uRenderPass == ptScene->ptRenderTarget->tDesc.uRenderPass
                 && tMSAASampleCount == ptShader->tDesc.sbtVariants[k].tMSAASampleCount)
             {
                     ptMaterial->uShaderVariant = ptShader->_sbuVariantPipelines[k];
@@ -1212,15 +1421,11 @@ pl__prepare_material_gpu_data(plScene* ptScene, plComponentManager* ptManager)
         // create variant that matches texture count, vertex stream, and culling
         if(ptMaterial->uShaderVariant == UINT32_MAX)
         {
-            ptMaterial->uShaderVariant = ptGfx->add_shader_variant(ptGraphics, ptMaterial->uShader, ptMaterial->tGraphicsState, ptScene->ptRenderTarget->tDesc.tRenderPass._tRenderPass, tMSAASampleCount);
+            ptMaterial->uShaderVariant = ptGfx->add_shader_variant(ptGraphics, ptMaterial->uShader, ptMaterial->tGraphicsState, ptScene->ptRenderTarget->tDesc.uRenderPass, tMSAASampleCount);
         }
-        
-        pl_sb_reset(sbuTextures);
     }
 
     ptScene->bMaterialsNeedUpdate = false;
-    pl_sb_free(sbuTextures);
-
 }
 
 static void
@@ -1240,7 +1445,7 @@ pl__prepare_object_gpu_data(plScene* ptScene, plComponentManager* ptManager)
     size_t szRangeSize = pl_align_up(sizeof(plObjectInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);
     plObjectComponent* sbtComponents = ptManager->pComponents;
 
-    const uint32_t uMaxObjectsPerBuffer = (uint32_t)(ptDevice->tDeviceProps.limits.maxUniformBufferRange / (uint32_t)szRangeSize) - 1;
+    const uint32_t uMaxObjectsPerBuffer = (uint32_t)(ptDevice->uUniformBufferBlockSize / (uint32_t)szRangeSize) - 1;
     uint32_t uSubmeshCount = pl_sb_size(ptObjectSystemData->sbtSubmeshes);
 
     const uint32_t uMinBuffersNeeded = (uint32_t)ceilf((float)uSubmeshCount / (float)uMaxObjectsPerBuffer);

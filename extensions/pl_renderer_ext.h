@@ -50,8 +50,6 @@ typedef struct _plMaterialInfo  plMaterialInfo;
 typedef struct _plGlobalInfo    plGlobalInfo;
 
 // graphics
-typedef struct _plRenderPass       plRenderPass;
-typedef struct _plRenderPassDesc   plRenderPassDesc;
 typedef struct _plRenderTarget     plRenderTarget;
 typedef struct _plRenderTargetDesc plRenderTargetDesc;
 
@@ -86,15 +84,14 @@ typedef struct _plRendererI
 
     // graphics
     void (*create_main_render_target)(plGraphics* ptGraphics, plRenderTarget* ptTargetOut);
-    void (*create_render_pass)       (plGraphics* ptGraphics, const plRenderPassDesc* ptDesc, plRenderPass* ptPassOut);
     void (*create_render_target)     (plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut);
     void (*begin_render_target)      (plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTarget* ptTarget);
     void (*end_render_target)        (plGraphicsApiI* ptGfx, plGraphics* ptGraphics);
     void (*cleanup_render_target)    (plGraphics* ptGraphics, plRenderTarget* ptTarget);
-    void (*cleanup_render_pass)      (plGraphics* ptGraphics, plRenderPass* ptPass);
 
     // new renderer
-    void (*setup_renderer)  (plApiRegistryApiI* ptApiRegistry, plGraphics* ptGraphics, plRenderer* ptRenderer);
+    void (*setup_renderer)  (plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptComponentLibrary, plGraphics* ptGraphics, plRenderer* ptRenderer);
+    void (*resize)          (plRenderer* ptRenderer, float fWidth, float fHeight);
     void (*cleanup_renderer)(plRenderer* ptRenderer);
     void (*draw_sky)        (plScene* ptScene);
 
@@ -102,6 +99,7 @@ typedef struct _plRendererI
     void (*create_scene)          (plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, plScene* ptSceneOut);
     void (*reset_scene)           (plScene* ptScene);
     void (*draw_scene)            (plScene* ptScene);
+    void (*draw_pick_scene)       (plScene* ptScene);
     void (*scene_bind_camera)     (plScene* ptScene, const plCameraComponent* ptCamera);
     void (*scene_bind_target)     (plScene* ptScene, plRenderTarget* ptTarget);
     void (*scene_prepare)         (plScene* ptScene);   // creates global vertex/index buffer + other setup when dirty
@@ -111,6 +109,11 @@ typedef struct _plRendererI
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plPickInfo
+{
+    plVec4 tColor;
+} plPickInfo;
 
 typedef struct _plGlobalInfo
 {
@@ -127,21 +130,9 @@ typedef struct _plMaterialInfo
     plVec4 tAlbedo;
 } plMaterialInfo;
 
-typedef struct _plRenderPassDesc
-{
-    plFormat tColorFormat;
-    plFormat tDepthFormat;
-} plRenderPassDesc;
-
-typedef struct _plRenderPass
-{
-    plRenderPassDesc tDesc;
-    VkRenderPass     _tRenderPass;
-} plRenderPass;
-
 typedef struct _plRenderTargetDesc
 {
-    plRenderPass tRenderPass;
+    uint32_t     uRenderPass;
     plVec2       tSize;
 } plRenderTargetDesc;
 
@@ -150,7 +141,7 @@ typedef struct _plRenderTarget
     plRenderTargetDesc tDesc;
     uint32_t*          sbuColorTextureViews;
     uint32_t           uDepthTextureView;
-    VkFramebuffer*     sbtFrameBuffers;
+    uint32_t*          sbuFrameBuffers;
     bool               bMSAA;
 } plRenderTarget;
 
@@ -168,6 +159,10 @@ typedef struct _plScene
     float*          sbfGlobalVertexData;
     uint32_t        uGlobalMaterialData;
     plMaterialInfo* sbtGlobalMaterialData;
+
+    plBindGroup     tGlobalPickBindGroup;
+    uint32_t        uGlobalPickData;
+    plPickInfo*     sbtGlobalPickData;
 
     // global vertex/index buffers
     plVec3*   sbtVertexData;
@@ -189,8 +184,9 @@ typedef struct _plRenderer
 {
     plGraphics* ptGraphics;
 
-    plEntity*   sbtObjectEntities;
-    uint32_t uLogChannel;
+    plEntity*   sbtVisibleMeshes;
+    plEntity*   sbtVisibleOutlinedMeshes;
+    uint32_t    uLogChannel;
 
     // apis
     plGraphicsApiI*     ptGfx;
@@ -202,22 +198,28 @@ typedef struct _plRenderer
     plEcsI*             ptEcs;
 
     // material bind groups
-    plBindGroup*         sbtMaterialBindGroups;
-    plHashMap            tMaterialBindGroupdHashMap;
+    plBindGroup* sbtMaterialBindGroups;
+    plHashMap    tMaterialBindGroupdHashMap;
 
     // object bind groups
-    plBindGroup*         sbtObjectBindGroups;
-    plHashMap            tObjectBindGroupdHashMap;
+    plBindGroup* sbtObjectBindGroups;
+    plHashMap    tObjectBindGroupdHashMap;
 
     // draw stream
     plDraw*     sbtDraws;
-    plDraw*     sbtOutlineDraws;
     plDrawArea* sbtDrawAreas;
 
     // shaders
     uint32_t uMainShader;
     uint32_t uOutlineShader;
     uint32_t uSkyboxShader;
+    uint32_t uPickShader;
+
+    // picking
+    uint32_t         uPickPass;
+    plRenderTarget   tPickTarget;
+    VkDescriptorSet* sbtTextures;
+    uint32_t         uPickMaterial;
 
 } plRenderer;
 

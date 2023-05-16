@@ -83,6 +83,7 @@ typedef struct _plSwapchain         plSwapchain;       // swapchain resources & 
 typedef struct _plDevice            plDevice;          // device resources & info
 typedef struct _plGraphics          plGraphics;        // graphics context
 typedef struct _plFrameContext      plFrameContext;    // per frame resource
+typedef struct _plFrameGarbage      plFrameGarbage;
 typedef struct _plResourceManager   plResourceManager; // buffer/texture resource manager
 typedef struct _plDynamicBufferNode plDynamicBufferNode;
 typedef struct _plBuffer            plBuffer;          // vulkan buffer
@@ -97,6 +98,9 @@ typedef struct _plBindGroupLayout   plBindGroupLayout;
 typedef struct _plBindGroup         plBindGroup;
 typedef struct _plDraw              plDraw;
 typedef struct _plDrawArea          plDrawArea;
+typedef struct _plFrameBuffer       plFrameBuffer;
+typedef struct _plFrameBufferDesc   plFrameBufferDesc;
+typedef struct _plRenderPass        plRenderPass;
 typedef struct _plShaderVariant     plShaderVariant; // unique combination of graphic state, renderpass, and msaa sample count
 
 // external types
@@ -146,15 +150,19 @@ typedef struct _plDeviceApiI
     // resource management
 
     // per frame
-    void (*process_cleanup_queue) (plDevice* ptDevice, uint32_t uFramesToProcess);
+    void (*process_cleanup_queue) (plDevice* ptDevice, uint32_t uCurrentFrame);
 
     // commited resources
-    uint32_t (*create_index_buffer)   (plDevice* ptDevice, size_t szSize, const void* pData, const char* pcName);
-    uint32_t (*create_vertex_buffer)  (plDevice* ptDevice, size_t szSize, size_t szStride, const void* pData, const char* pcName);
-    uint32_t (*create_constant_buffer)(plDevice* ptDevice, size_t szSize, const char* pcName);
-    uint32_t (*create_texture)        (plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName);
-    uint32_t (*create_storage_buffer) (plDevice* ptDevice, size_t szSize, const void* pData, const char* pcName);
-    uint32_t (*create_texture_view)   (plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, uint32_t uTextureHandle, const char* pcName);
+    uint32_t (*create_index_buffer)    (plDevice* ptDevice, size_t szSize, const void* pData, const char* pcName);
+    uint32_t (*create_vertex_buffer)   (plDevice* ptDevice, size_t szSize, size_t szStride, const void* pData, const char* pcName);
+    uint32_t (*create_constant_buffer) (plDevice* ptDevice, size_t szSize, const char* pcName);
+    uint32_t (*create_read_back_buffer)(plDevice* ptDevice, size_t szSize, const char* pcName);
+    uint32_t (*create_staging_buffer)  (plDevice* ptDevice, size_t szSize, const char* pcName);
+    uint32_t (*create_texture)         (plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName);
+    uint32_t (*create_storage_buffer)  (plDevice* ptDevice, size_t szSize, const void* pData, const char* pcName);
+    uint32_t (*create_texture_view)    (plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, uint32_t uTextureHandle, const char* pcName);
+    uint32_t (*create_frame_buffer)    (plDevice* ptDevice, plFrameBufferDesc* ptDesc, const char* pcName);
+    uint32_t (*create_render_pass)     (plDevice* ptDevice, plRenderPassDesc* ptDesc, const char* pcName);
 
     // resource manager dynamic buffers
     uint32_t (*request_dynamic_buffer) (plDevice* ptDevice);
@@ -163,9 +171,12 @@ typedef struct _plDeviceApiI
     // resource manager misc.
     void (*transfer_data_to_image)           (plDevice* ptDevice, plTexture* ptDest, size_t szDataSize, const void* pData);
     void (*transfer_data_to_buffer)          (plDevice* ptDevice, VkBuffer tDest, size_t szSize, const void* pData);
+    void (*transfer_image_to_buffer)         (plDevice* ptDevice, VkBuffer tDest, size_t szSize, plTexture* ptDest);
     void (*submit_buffer_for_deletion)       (plDevice* ptDevice, uint32_t uBufferIndex);
     void (*submit_texture_for_deletion)      (plDevice* ptDevice, uint32_t uTextureIndex);
     void (*submit_texture_view_for_deletion) (plDevice* ptDevice, uint32_t uTextureViewIndex);
+    void (*submit_frame_buffer_for_deletion) (plDevice* ptDevice, uint32_t uFrameBufferIndex);
+    void (*submit_render_pass_for_deletion)  (plDevice* ptDevice, uint32_t uRenderPassIndex);
 } plDeviceApiI;
 
 typedef struct _plRenderBackendI
@@ -198,8 +209,8 @@ typedef struct _plGraphicsApiI
 
     // shaders
     uint32_t          (*create_shader)              (plGraphics* ptGraphics, const plShaderDesc* ptDesc);
-    uint32_t          (*add_shader_variant)         (plGraphics* ptGraphics, uint32_t uShader, plGraphicsState tVariant, VkRenderPass ptRenderPass, VkSampleCountFlagBits tMSAASampleCount);
-    bool              (*shader_variant_exist)       (plGraphics* ptGraphics, uint32_t uShader, plGraphicsState tVariant, VkRenderPass ptRenderPass, VkSampleCountFlagBits tMSAASampleCount);
+    uint32_t          (*add_shader_variant)         (plGraphics* ptGraphics, uint32_t uShader, plGraphicsState tVariant, uint32_t uRenderPass, VkSampleCountFlagBits tMSAASampleCount);
+    bool              (*shader_variant_exist)       (plGraphics* ptGraphics, uint32_t uShader, plGraphicsState tVariant, uint32_t uRenderPass, VkSampleCountFlagBits tMSAASampleCount);
     void              (*submit_shader_for_deletion) (plGraphics* ptGraphics, uint32_t uShaderIndex);
     plBindGroupLayout*(*get_bind_group_layout)      (plGraphics* ptGraphics, uint32_t uShaderIndex, uint32_t uBindGroupIndex);
     plShaderVariant*  (*get_shader)                 (plGraphics* ptGraphics, uint32_t uVariantIndex);
@@ -223,8 +234,15 @@ typedef struct _plDescriptorManagerApiI
 
 typedef struct _plDeviceMemoryApiI
 {
-    plDeviceMemoryAllocatorI (*create_device_local_allocator)    (VkPhysicalDevice tPhysicalDevice, VkDevice tDevice);
-    plDeviceMemoryAllocatorI (*create_staging_uncached_allocator)(VkPhysicalDevice tPhysicalDevice, VkDevice tDevice);
+    plDeviceMemoryAllocatorI (*create_device_local_dedicated_allocator)(VkPhysicalDevice tPhysicalDevice, VkDevice tDevice);
+    plDeviceMemoryAllocatorI (*create_device_local_buddy_allocator)    (VkPhysicalDevice tPhysicalDevice, VkDevice tDevice);
+    plDeviceMemoryAllocatorI (*create_staging_uncached_allocator)      (VkPhysicalDevice tPhysicalDevice, VkDevice tDevice);
+    plDeviceMemoryAllocatorI (*create_staging_cached_allocator)        (VkPhysicalDevice tPhysicalDevice, VkDevice tDevice);
+
+    void (*cleanup_device_local_dedicated_allocator)(plDeviceMemoryAllocatorI* ptAllocator);
+    void (*cleanup_device_local_buddy_allocator)    (plDeviceMemoryAllocatorI* ptAllocator);
+    void (*cleanup_staging_uncached_allocator)      (plDeviceMemoryAllocatorI* ptAllocator);
+    void (*cleanup_staging_cached_allocator)        (plDeviceMemoryAllocatorI* ptAllocator);
 } plDeviceMemoryApiI;
 
 //-----------------------------------------------------------------------------
@@ -331,7 +349,7 @@ typedef struct _plBindGroup
 typedef struct _plShaderVariant
 {
     VkPipelineLayout      tPipelineLayout;
-    VkRenderPass          tRenderPass;
+    uint32_t              uRenderPass;
     plGraphicsState       tGraphicsState;
     VkSampleCountFlagBits tMSAASampleCount;
     VkPipeline            tPipeline;
@@ -356,6 +374,26 @@ typedef struct _plShader
     VkShaderModuleCreateInfo tPixelShaderInfo;
 } plShader;
 
+typedef struct _plFrameBufferDesc
+{
+    uint32_t  uRenderPass;
+    uint32_t  uWidth;
+    uint32_t  uHeight;
+    uint32_t  uAttachmentCount;
+    uint32_t* puAttachments;
+} plFrameBufferDesc;
+
+typedef struct _plRenderPass
+{
+    plRenderPassDesc tDesc;
+    VkRenderPass     _tRenderPass;
+} plRenderPass;
+
+typedef struct _plFrameBuffer
+{
+    VkFramebuffer _tFrameBuffer;
+} plFrameBuffer;
+
 typedef struct _plFrameContext
 {
     VkSemaphore     tImageAvailable;
@@ -365,21 +403,28 @@ typedef struct _plFrameContext
     VkCommandBuffer tCmdBuf;
 } plFrameContext;
 
+typedef struct _plFrameGarbage
+{
+    uint32_t* _sbulFrameBufferDeletionQueue;
+    uint32_t* _sbulBufferDeletionQueue;
+    uint32_t* _sbulTextureDeletionQueue;
+    uint32_t* _sbulTextureViewDeletionQueue;
+    uint32_t* _sbulRenderPassDeletionQueue;
+} plFrameGarbage;
+
 typedef struct _plSwapchain
 {
     VkSwapchainKHR           tSwapChain;
     VkExtent2D               tExtent;
-    VkFramebuffer*           ptFrameBuffers;
+    uint32_t*                puFrameBuffers;
     plFormat                 tFormat;
     plFormat                 tDepthFormat;
     VkImage*                 ptImages;
-    VkImageView*             ptImageViews;
-    VkImage                  tColorImage;
-    VkImageView              tColorImageView;
-    plDeviceMemoryAllocation tColorAllocation;
-    VkImage                  tDepthImage;
-    VkImageView              tDepthImageView;
-    plDeviceMemoryAllocation tDepthAllocation;
+    uint32_t*                puImageViews;
+    uint32_t                 uColorTexture;
+    uint32_t                 uColorTextureView;
+    uint32_t                 uDepthTexture;
+    uint32_t                 uDepthTextureView;
     uint32_t                 uImageCount;
     uint32_t                 uImageCapacity;
     uint32_t                 uCurrentImageIndex; // current image to use within the swap chain
@@ -416,6 +461,7 @@ typedef struct _plDevice
     bool                                      bSwapchainExtPresent;
     bool                                      bPortabilitySubsetPresent;
     VkCommandPool                             tCmdPool;
+    uint32_t                                  uUniformBufferBlockSize;
 
 	PFN_vkDebugMarkerSetObjectTagEXT  vkDebugMarkerSetObjectTag;
 	PFN_vkDebugMarkerSetObjectNameEXT vkDebugMarkerSetObjectName;
@@ -423,30 +469,25 @@ typedef struct _plDevice
 	PFN_vkCmdDebugMarkerEndEXT        vkCmdDebugMarkerEnd;
 	PFN_vkCmdDebugMarkerInsertEXT     vkCmdDebugMarkerInsert;
 
-    plBuffer*        sbtBuffers;
-    plTexture*       sbtTextures;
-    plTextureView*   sbtTextureViews;
+    // resources
+    plBuffer*      sbtBuffers;
+    plTexture*     sbtTextures;
+    plTextureView* sbtTextureViews;
+    plFrameBuffer* sbtFrameBuffers;
+    plRenderPass*  sbtRenderPasses;
 
     // [INTERNAL]
     
+    plFrameGarbage* _sbtFrameGarbage;
     uint32_t* _sbulTempQueue;
     
-    // buffers
+    // free indices
     uint32_t* _sbulBufferFreeIndices;
-    uint32_t* _sbulBufferDeletionQueue;
-
-    // textures
     uint32_t* _sbulTextureFreeIndices;
-    uint32_t* _sbulTextureDeletionQueue;
-
-    // texture views
     uint32_t* _sbulTextureViewFreeIndices;
-    uint32_t* _sbulTextureViewDeletionQueue;
+    uint32_t* _sbulFrameBufferFreeIndices;
+    uint32_t* _sbulRenderPassFreeIndices;
     
-    // staging buffer
-    VkBuffer                 _tStagingBuffer;
-    plDeviceMemoryAllocation _tStagingAllocation;
-
     // dynamic buffers
     uint32_t*            _sbuDynamicBufferDeletionQueue;
     plDynamicBufferNode* _sbtDynamicBufferList;
@@ -454,14 +495,17 @@ typedef struct _plDevice
     // new
     size_t   szGeneration;
     uint32_t uFramesInFlight;
+    uint32_t uCurrentFrame;
 
     // apis
     plMemoryApiI* ptMemoryApi;
     plDeviceApiI* ptDeviceApi;
 
     // gpu allocators
-    plDeviceMemoryAllocatorI tLocalAllocator;
+    plDeviceMemoryAllocatorI tLocalDedicatedAllocator;
+    plDeviceMemoryAllocatorI tLocalBuddyAllocator;
     plDeviceMemoryAllocatorI tStagingUnCachedAllocator;
+    plDeviceMemoryAllocatorI tStagingCachedAllocator;
 
 } plDevice;
 
@@ -471,7 +515,7 @@ typedef struct _plGraphics
     plDevice                 tDevice;
     plSwapchain              tSwapchain;
     VkDescriptorPool         tDescriptorPool;
-    VkRenderPass             tRenderPass;
+    uint32_t                 uRenderPass;
     plFrameContext*          sbFrames;
     uint32_t                 uFramesInFlight;
     size_t                   szCurrentFrameIndex; // current frame being used

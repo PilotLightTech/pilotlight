@@ -913,6 +913,9 @@ pl_ui_begin_tooltip(void)
 
     ptWindow->ptParentWindow = gptCtx->ptCurrentWindow;
     gptCtx->ptCurrentWindow = ptWindow;
+
+    static const float pfRatios[] = {300.0f};
+    pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios);
 }
 
 void

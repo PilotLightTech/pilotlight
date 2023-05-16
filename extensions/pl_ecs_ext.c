@@ -36,17 +36,19 @@ static void*    pl_ecs_create_component      (plComponentManager* ptManager, plE
 static bool     pl_ecs_has_entity            (plComponentManager* ptManager, plEntity tEntity);
 
 // components
-static plEntity pl_ecs_create_mesh     (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_material (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_object   (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_transform(plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_camera   (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
+static plEntity pl_ecs_create_mesh            (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_material        (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_outline_material(plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_object          (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_transform       (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_camera          (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
 
 static void pl_ecs_attach_component (plComponentLibrary* ptLibrary, plEntity tEntity, plEntity tParent);
 static void pl_ecs_deattach_component(plComponentLibrary* ptLibrary, plEntity tEntity);
 
 // material
-static void pl_material_outline(plComponentLibrary* ptLibrary, plEntity tEntity);
+static void pl_add_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity);
+static void pl_remove_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity);
 
 // update systems
 static void pl_ecs_cleanup_systems        (plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
@@ -83,7 +85,8 @@ pl_load_ecs_api(void)
         .create_object               = pl_ecs_create_object,
         .create_transform            = pl_ecs_create_transform,
         .create_camera               = pl_ecs_create_camera,
-        .material_outline            = pl_material_outline,
+        .add_mesh_outline            = pl_add_mesh_outline,
+        .remove_mesh_outline         = pl_remove_mesh_outline,
         .attach_component            = pl_ecs_attach_component,
         .deattach_component          = pl_ecs_deattach_component,
         .cleanup_systems             = pl_ecs_cleanup_systems,
@@ -145,9 +148,6 @@ pl_ecs_init_component_library(plApiRegistryApiI* ptApiRegistry, plComponentLibra
 
     ptLibrary->tMaterialComponentManager.tComponentType = PL_COMPONENT_TYPE_MATERIAL;
     ptLibrary->tMaterialComponentManager.szStride = sizeof(plMaterialComponent);
-
-    ptLibrary->tOutlineMaterialComponentManager.tComponentType = PL_COMPONENT_TYPE_MATERIAL;
-    ptLibrary->tOutlineMaterialComponentManager.szStride = sizeof(plMaterialComponent);
 
     ptLibrary->tMeshComponentManager.tComponentType = PL_COMPONENT_TYPE_MESH;
     ptLibrary->tMeshComponentManager.szStride = sizeof(plMeshComponent);
@@ -264,6 +264,7 @@ pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
         pl_sb_push(ptManager->sbtEntities, tEntity);
         return &pl_sb_back(sbComponents);
     }
+
     }
 
     return NULL;
@@ -281,7 +282,6 @@ pl_ecs_has_entity(plComponentManager* ptManager, plEntity tEntity)
     }
     return false;
 }
-
 
 static plEntity
 pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName)
@@ -302,11 +302,23 @@ pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName)
     return tNewEntity;
 }
 
-static plMaterialComponent*
-pl_ecs_create_outline_material(plComponentLibrary* ptLibrary, plEntity tEntity)
+static plEntity
+pl_ecs_create_outline_material(plComponentLibrary* ptLibrary, const char* pcName)
 {
 
-    plMaterialComponent* ptMaterial = pl_ecs_create_component(&ptLibrary->tOutlineMaterialComponentManager, tEntity);
+    plEntity tNewEntity = pl_ecs_create_entity(ptLibrary);
+
+    plTagComponent* ptTag = pl_ecs_create_component(&ptLibrary->tTagComponentManager, tNewEntity);
+    if(pcName)
+    {
+        strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
+    }
+    else
+    {
+        strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
+    }
+
+    plMaterialComponent* ptMaterial = pl_ecs_create_component(&ptLibrary->tMaterialComponentManager, tNewEntity);
     memset(ptMaterial, 0, sizeof(plMaterialComponent));
     ptMaterial->uShader                             = UINT32_MAX;
     ptMaterial->tAlbedo                             = (plVec4){ 1.0f, 1.0f, 1.0f, 1.0f };
@@ -325,8 +337,7 @@ pl_ecs_create_outline_material(plComponentLibrary* ptLibrary, plEntity tEntity)
     ptMaterial->tGraphicsState.ulStencilOpFail      = VK_STENCIL_OP_KEEP;
     ptMaterial->tGraphicsState.ulStencilOpDepthFail = VK_STENCIL_OP_KEEP;
     ptMaterial->tGraphicsState.ulStencilOpPass      = VK_STENCIL_OP_REPLACE;
-
-    return ptMaterial;
+    return tNewEntity;   
 }
 
 static plEntity
@@ -368,16 +379,32 @@ pl_ecs_create_material(plComponentLibrary* ptLibrary, const char* pcName)
 }
 
 static void
-pl_material_outline(plComponentLibrary* ptLibrary, plEntity tEntity)
+pl_add_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
-    plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, tEntity);
+    plMeshComponent* ptMesh = pl_ecs_get_component(&ptLibrary->tMeshComponentManager, tEntity);
+
+    plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tMaterial);
     ptMaterial->tGraphicsState.ulStencilOpFail      = VK_STENCIL_OP_REPLACE;
     ptMaterial->tGraphicsState.ulStencilOpDepthFail = VK_STENCIL_OP_REPLACE;
     ptMaterial->tGraphicsState.ulStencilOpPass      = VK_STENCIL_OP_REPLACE;
-    ptMaterial->bOutline                            = true;
 
-    plMaterialComponent* ptOutlineMaterial = pl_ecs_create_outline_material(ptLibrary, tEntity);
-    ptOutlineMaterial->tGraphicsState.ulVertexStreamMask   = ptMaterial->tGraphicsState.ulVertexStreamMask;
+    if(ptMesh->sbtSubmeshes[0].tOutlineMaterial == 0)
+    {
+        ptMesh->sbtSubmeshes[0].tOutlineMaterial = pl_ecs_create_outline_material(ptLibrary, "outline material");
+        plMaterialComponent* ptOutlineMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tOutlineMaterial);
+        ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tMaterial);
+        ptOutlineMaterial->tGraphicsState.ulVertexStreamMask = ptMaterial->tGraphicsState.ulVertexStreamMask;
+    }
+}
+
+static void
+pl_remove_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity)
+{
+    plMeshComponent* ptMesh = pl_ecs_get_component(&ptLibrary->tMeshComponentManager, tEntity);
+    plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tMaterial);
+    ptMaterial->tGraphicsState.ulStencilOpFail      = VK_STENCIL_OP_KEEP;
+    ptMaterial->tGraphicsState.ulStencilOpDepthFail = VK_STENCIL_OP_KEEP;
+    ptMaterial->tGraphicsState.ulStencilOpPass      = VK_STENCIL_OP_KEEP;
 }
 
 static void
@@ -441,7 +468,7 @@ pl_run_mesh_update_system(plComponentLibrary* ptLibrary)
 					const plVec3 tEdge1 = pl_sub_vec3(tP1, tP0);
 					const plVec3 tEdge2 = pl_sub_vec3(tP2, tP0);
 
-					const plVec3 tNorm = pl_norm_vec3(pl_cross_vec3(tEdge1, tEdge2));
+					const plVec3 tNorm = pl_cross_vec3(tEdge1, tEdge2);
 
                     ptSubMesh->sbtVertexNormals[uIndex0] = tNorm;
                     ptSubMesh->sbtVertexNormals[uIndex1] = tNorm;

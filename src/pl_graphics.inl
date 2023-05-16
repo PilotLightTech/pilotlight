@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] header mess
+// [SECTION] defines
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] structs
@@ -19,6 +20,13 @@ Index of this file:
 #define PL_GRAPHICS_H
 
 //-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
+
+#define PL_DEVICE_ALLOCATION_BLOCK_SIZE 268435456
+#define PL_DEVICE_LOCAL_LEVELS 8
+
+//-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
@@ -31,28 +39,39 @@ Index of this file:
 // types
 typedef struct _plMesh                   plMesh;
 typedef struct _plSampler                plSampler;
+typedef struct _plRenderPassDesc         plRenderPassDesc;
 typedef struct _plGraphicsState          plGraphicsState;
 typedef struct _plTextureViewDesc        plTextureViewDesc;
 typedef struct _plDeviceMemoryAllocation plDeviceMemoryAllocation;
 typedef struct _plDeviceMemoryAllocatorI plDeviceMemoryAllocatorI;
+typedef struct _plDeviceAllocationRange  plDeviceAllocationRange;
+typedef struct _plDeviceAllocationBlock  plDeviceAllocationBlock;
+typedef struct _plDeviceAllocationNode   plDeviceAllocationNode;
 
 // enums
-typedef int plBufferBindingType;  // -> enum _plBufferBindingType   // Enum:
-typedef int plTextureBindingType; // -> enum _plTextureBindingType  // Enum:
-typedef int plBufferUsage;        // -> enum _plBufferUsage         // Enum:
-typedef int plMeshFormatFlags;    // -> enum _plMeshFormatFlags     // Flags:
-typedef int plShaderTextureFlags; // -> enum _plShaderTextureFlags  // Flags:
-typedef int plBlendMode;          // -> enum _plBlendMode           // Enum:
-typedef int plDepthMode;          // -> enum _plDepthMode           // Enum:
-typedef int plStencilMode;        // -> enum _plStencilMode         // Enum:
-typedef int plFilter;             // -> enum _plFilter              // Enum:
-typedef int plWrapMode;           // -> enum _plWrapMode            // Enum:
-typedef int plCompareMode;        // -> enum _plCompareMode         // Enum:
-typedef int plFormat;             // -> enum _plFormat              // Enum:
+typedef int plBufferBindingType;      // -> enum _plBufferBindingType      // Enum:
+typedef int plTextureBindingType;     // -> enum _plTextureBindingType     // Enum:
+typedef int plBufferUsage;            // -> enum _plBufferUsage            // Enum:
+typedef int plMeshFormatFlags;        // -> enum _plMeshFormatFlags        // Flags:
+typedef int plShaderTextureFlags;     // -> enum _plShaderTextureFlags     // Flags:
+typedef int plBlendMode;              // -> enum _plBlendMode              // Enum:
+typedef int plDepthMode;              // -> enum _plDepthMode              // Enum:
+typedef int plStencilMode;            // -> enum _plStencilMode            // Enum:
+typedef int plFilter;                 // -> enum _plFilter                 // Enum:
+typedef int plWrapMode;               // -> enum _plWrapMode               // Enum:
+typedef int plCompareMode;            // -> enum _plCompareMode            // Enum:
+typedef int plFormat;                 // -> enum _plFormat                 // Enum:
+typedef int plDeviceAllocationStatus; // -> enum  // Enum:
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plRenderPassDesc
+{
+    plFormat tColorFormat;
+    plFormat tDepthFormat;
+} plRenderPassDesc;
 
 typedef struct _plTextureViewDesc
 {
@@ -117,6 +136,8 @@ typedef struct _plDeviceMemoryAllocation
     uint64_t ulOffset;
     uint64_t ulSize;
     char*    pHostMapped;
+    uint32_t uNodeIndex;
+    struct plDeviceMemoryAllocatorO* ptInst;
 } plDeviceMemoryAllocation;
 
 typedef struct _plDeviceMemoryAllocatorI
@@ -124,10 +145,41 @@ typedef struct _plDeviceMemoryAllocatorI
 
     struct plDeviceMemoryAllocatorO* ptInst; // opaque pointer
 
-    plDeviceMemoryAllocation (*allocate)(struct plDeviceMemoryAllocatorO* ptInst, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
+    plDeviceMemoryAllocation (*allocate)(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
     void                     (*free)    (struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation);
+    plDeviceAllocationBlock* (*blocks)  (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
+    plDeviceAllocationNode*  (*nodes)   (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
+    const char**             (*names)   (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
 
 } plDeviceMemoryAllocatorI;
+
+typedef struct _plDeviceAllocationRange
+{
+    const char*              pcName;
+    plDeviceAllocationStatus tStatus;
+    plDeviceMemoryAllocation tAllocation;
+} plDeviceAllocationRange;
+
+typedef struct _plDeviceAllocationNode
+{
+    // static
+    uint64_t uNodeIndex;
+    uint32_t uMemoryType;
+    uint64_t uBlockIndex;
+    uint64_t ulSize;
+    uint64_t ulOffset;
+    
+    // dynamic
+    uint32_t uNext;
+    uint64_t ulSizeWasted; // ulSize if ignored, ulSize + 1 if free, otherwise inuse
+} plDeviceAllocationNode;
+
+typedef struct _plDeviceAllocationBlock
+{
+    uint64_t                 ulAddress;
+    uint64_t                 ulSize;
+    plDeviceAllocationRange* sbtRanges;
+} plDeviceAllocationBlock;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -269,6 +321,13 @@ enum _plShaderTextureFlags
     // PL_SHADER_TEXTURE_FLAG_BINDING_12         = 1 << 12,
     // PL_SHADER_TEXTURE_FLAG_BINDING_13         = 1 << 13,
     // PL_SHADER_TEXTURE_FLAG_BINDING_14         = 1 << 14
+};
+
+enum _plDeviceAllocationStatus
+{
+    PL_DEVICE_ALLOCATION_STATUS_FREE,
+    PL_DEVICE_ALLOCATION_STATUS_USED,
+    PL_DEVICE_ALLOCATION_STATUS_WASTE
 };
 
 #endif // PL_GRAPHICS_H
