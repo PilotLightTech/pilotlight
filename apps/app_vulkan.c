@@ -17,6 +17,10 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+// pl_ds.h allocators (so they can be tracked)
+#define PL_DS_ALLOC(x, FILE, LINE) pl_alloc((x), FILE, LINE)
+#define PL_DS_FREE(x)  pl_free((x))
+
 #include <string.h> // memset
 #include "pilotlight.h"
 #include "pl_profile.h"
@@ -113,6 +117,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
 {
     plAppData* ptAppData = pAppData;
     plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    pl_set_memory_context(ptDataRegistry->get_data("memory"));
 
     if(ptAppData) // reload
     {
@@ -138,6 +143,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
     ptAppData->ptApiRegistry = ptApiRegistry;
+    pl_set_memory_context(ptDataRegistry->get_data("memory"));
 
     // load extensions
     plExtensionRegistryApiI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
@@ -147,7 +153,6 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     plIOApiI*            ptIoI           = ptApiRegistry->first(PL_API_IO);
     plLibraryApiI*       ptLibraryApi    = ptApiRegistry->first(PL_API_LIBRARY);
     plFileApiI*          ptFileApi       = ptApiRegistry->first(PL_API_FILE);
-    plMemoryApiI*        ptMemoryApi     = ptApiRegistry->first(PL_API_MEMORY);
     plDeviceApiI*        ptDeviceApi     = ptApiRegistry->first(PL_API_DEVICE);
     plRenderBackendI*    ptBackendApi    = ptApiRegistry->first(PL_API_BACKEND_VULKAN);
     plImageApiI*         ptImageApi      = ptApiRegistry->first(PL_API_IMAGE);
@@ -255,7 +260,8 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     ptAppData->ptCameraApi->set_pitch_yaw(ptCamera, -0.244f, 1.488f);
     ptAppData->ptCameraApi->set_pitch_yaw(ptCamera2, 0.0f, -PL_PI);
 
-    ptGltfApi->load(ptScene, ptComponentLibrary, "../data/glTF-Sample-Models-master/2.0/FlightHelmet/glTF/FlightHelmet.gltf");
+    ptGltfApi->load(ptScene, ptComponentLibrary, "../data/glTF-Sample-Models-master/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf");
+    // ptGltfApi->load(ptScene, ptComponentLibrary, "../data/glTF-Sample-Models-master/2.0/Sponza/glTF/Sponza.gltf");
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~materials~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -623,6 +629,78 @@ pl_app_update(plAppData* ptAppData)
                 }
                 ptUi->end_window();
             }
+        }
+
+        if(ptUi->begin_window("Memory Allocations", NULL, false))
+        {
+
+            plMemoryContext* ptMemoryCtx = pl_get_memory_context();
+            ptUi->layout_dynamic(0.0f, 1);
+
+            ptUi->text("Active Allocations: %u", ptMemoryCtx->szActiveAllocations);
+            ptUi->text("Freed Allocations: %u", pl_sb_size(ptMemoryCtx->sbtFreeAllocations));
+
+            if(ptUi->begin_tab_bar("main toolbar"))
+            {
+                static char pcFile[1024] = {0};
+                if(ptUi->begin_tab("Active Allocations"))
+                {
+                    ptUi->layout_template_begin(30.0f);
+                    ptUi->layout_template_push_static(50.0f);
+                    ptUi->layout_template_push_variable(300.0f);
+                    ptUi->layout_template_push_variable(50.0f);
+                    ptUi->layout_template_push_variable(50.0f);
+                    ptUi->layout_template_end();
+
+                    ptUi->text("%s", "Entry");
+                    ptUi->text("%s", "File");
+                    ptUi->text("%s", "Line");
+                    ptUi->text("%s", "Size");
+
+                    const uint32_t uOriginalAllocationCount = pl_sb_size(ptMemoryCtx->sbtAllocations);
+                    
+                    for(uint32_t i = 0; i < uOriginalAllocationCount; i++)
+                    {
+                        plAllocationEntry tEntry = ptMemoryCtx->sbtAllocations[i];
+                        strncpy(pcFile, tEntry.pcFile, 1024);
+                        ptUi->text("%i", i);
+                        ptUi->text("%s", pcFile);
+                        ptUi->text("%i", tEntry.iLine);
+                        ptUi->text("%u", tEntry.szSize);
+                    }
+
+                    ptUi->end_tab();
+                }
+                ptUi->layout_dynamic(0.0f, 1);
+                if(ptUi->begin_tab("Freed Allocations"))
+                {
+                    ptUi->layout_template_begin(30.0f);
+                    ptUi->layout_template_push_static(50.0f);
+                    ptUi->layout_template_push_variable(300.0f);
+                    ptUi->layout_template_push_variable(50.0f);
+                    ptUi->layout_template_push_variable(50.0f);
+                    ptUi->layout_template_end();
+
+                    ptUi->text("%s", "Entry");
+                    ptUi->text("%s", "File");
+                    ptUi->text("%s", "Line");
+                    ptUi->text("%s", "Size");
+
+                    const uint32_t uOriginalAllocationCount = pl_sb_size(ptMemoryCtx->sbtFreeAllocations);
+                    for(uint32_t i = 0; i < uOriginalAllocationCount; i++)
+                    {
+                        plAllocationEntry tEntry = ptMemoryCtx->sbtFreeAllocations[i];
+                        strncpy(pcFile, tEntry.pcFile, 1024);
+                        ptUi->text("%i", i);
+                        ptUi->text("%s", pcFile);
+                        ptUi->text("%i", tEntry.iLine);
+                        ptUi->text("%u", tEntry.szSize);
+                    }
+                    ptUi->end_tab();
+                }
+                ptUi->end_tab_bar();
+            }
+            ptUi->end_window();
         }
 
         if(ptAppData->bShowUiDemo)

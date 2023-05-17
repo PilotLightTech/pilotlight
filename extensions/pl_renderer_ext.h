@@ -190,7 +190,6 @@ typedef struct _plRenderer
 
     // apis
     plGraphicsApiI*     ptGfx;
-    plMemoryApiI*       ptMemoryApi;
     plDataRegistryApiI* ptDataRegistry;
     plDeviceApiI*       ptDeviceApi;
     plRendererI*        ptRendererApi;

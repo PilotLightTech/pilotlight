@@ -5,31 +5,12 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] header mess
 // [SECTION] internal structs
 // [SECTION] internal api
 // [SECTION] global data
 // [SECTION] public api implementation
 // [SECTION] internal api implementation
 */
-
-//-----------------------------------------------------------------------------
-// [SECTION] header mess
-//-----------------------------------------------------------------------------
-
-// memory functions (forward declared to be used in pl_ds.h)
-static void* pl__alloc  (size_t szSize, const char* pcFile, int iLine);
-static void  pl__free   (void* pBuffer);
-static void* pl__realloc(void* pBuffer, size_t szSize);
-
-// pl_ds.h allocators (so they can be tracked)
-#define PL_DS_ALLOC(x) pl__alloc((x), (__FILE__), (__LINE__))
-#define PL_DS_FREE(x)  pl__free((x))
-
-// pl_memory.h allocators (so they can be tracked)
-#define PL_MEMORY_ALLOC(x)      pl__alloc((x), (__FILE__), (__LINE__))
-#define PL_MEMORY_REALLOC(x, y) pl__realloc(x, y)
-#define PL_MEMORY_FREE(x)       pl__free((x))
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -78,15 +59,6 @@ typedef struct _plApiEntry
     ptApiUpdateCallback* sbSubscribers;
     void**               sbUserData;
 } plApiEntry;
-
-typedef struct _plAllocationEntry
-{
-    bool        bFree;
-    void*       pAddress;
-    size_t      szSize;
-    int         iLine;
-    const char* pcFile; 
-} plAllocationEntry;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -168,12 +140,6 @@ pl_load_core_apis(void)
         .load_from_file   = pl__load_extensions_from_file
     };
 
-    static plMemoryApiI tApi2 = {
-        .alloc   = pl__alloc,
-        .free    = pl__free,
-        .realloc = pl__realloc
-    };
-
     static plLibraryApiI tApi3 = {
         .has_changed   = pl__has_library_changed,
         .load          = pl__load_library,
@@ -205,7 +171,6 @@ pl_load_core_apis(void)
     tApiRegistry.add(PL_API_POOL_ALLOCATOR, pl_load_pool_allocator_api());
     tApiRegistry.add(PL_API_DATA_REGISTRY, &tApi0);
     tApiRegistry.add(PL_API_EXTENSION_REGISTRY, &tApi1);
-    tApiRegistry.add(PL_API_MEMORY, &tApi2);
     tApiRegistry.add(PL_API_LIBRARY, &tApi3);
     tApiRegistry.add(PL_API_FILE, &tApi4);
     tApiRegistry.add(PL_API_UDP, &tApi5);
@@ -389,7 +354,7 @@ pl__load_extensions_from_config(plApiRegistryApiI* ptApiRegistry, const char* pc
 
     unsigned int uFileSize = 0;
     ptFileApi->read(pcConfigFile, &uFileSize, NULL, "rb");
-    char* pcBuffer = pl__alloc(uFileSize + 1, __FILE__, __LINE__);
+    char* pcBuffer = pl_alloc(uFileSize + 1, __FILE__, __LINE__);
     memset(pcBuffer, 0, uFileSize + 1);
     ptFileApi->read(pcConfigFile, &uFileSize, pcBuffer, "rb");
 
@@ -399,7 +364,7 @@ pl__load_extensions_from_config(plApiRegistryApiI* ptApiRegistry, const char* pc
     if(!pl_json_member_exist(&tRootJsonObject, "extensions"))
     {
         pl_unload_json(&tRootJsonObject);
-        pl__free(pcBuffer);
+        pl_free(pcBuffer);
         return;
     }
 
@@ -448,7 +413,7 @@ pl__load_extensions_from_config(plApiRegistryApiI* ptApiRegistry, const char* pc
     }
 
     pl_unload_json(&tRootJsonObject);
-    pl__free(pcBuffer);
+    pl_free(pcBuffer);
 }
 
 static void
@@ -458,7 +423,7 @@ pl__load_extensions_from_file(plApiRegistryApiI* ptApiRegistry, const char* pcFi
 
     unsigned int uFileSize = 0;
     ptFileApi->read(pcFile, &uFileSize, NULL, "rb");
-    char* pcBuffer = pl__alloc(uFileSize + 1, __FILE__, __LINE__);
+    char* pcBuffer = pl_alloc(uFileSize + 1, __FILE__, __LINE__);
     memset(pcBuffer, 0, uFileSize + 1);
     ptFileApi->read(pcFile, &uFileSize, pcBuffer, "rb");
 
@@ -487,7 +452,7 @@ pl__load_extensions_from_file(plApiRegistryApiI* ptApiRegistry, const char* pcFi
         pl__load_extension(ptApiRegistry, acLibName, tExtension.pcLoadFunc, tExtension.pcUnloadFunc, bReloadable);
 
     pl_unload_json(&tRootJsonObject);
-    pl__free(pcBuffer);
+    pl_free(pcBuffer);
 }
 
 static void
@@ -528,6 +493,7 @@ pl__load_extension(plApiRegistryApiI* ptApiRegistry, const char* pcName, const c
     }
     else
     {
+        printf("Extension: %s not loaded\n", tExtension.pcLibName);
         PL_ASSERT(false && "extension not loaded");
     }
 }
@@ -575,96 +541,6 @@ pl__handle_extension_reloads(plApiRegistryApiI* ptApiRegistry)
     }
 }
 
-static void*
-pl__alloc(size_t szSize, const char* pcFile, int iLine)
-{
-    gszActiveAllocations++;
-    void* pBuffer = malloc(szSize);
-
-#if 0
-    bool bReusedAddress = false;
-    for(uint32_t i = 0; i < gszAllocCount; i++)
-    {
-        if(pBuffer == gatAllocations[i].pAddress)
-        {
-            PL_ASSERT(gatAllocations[i].bFree);
-            gatAllocations[i].bFree = false;
-            gatAllocations[i].iLine = iLine;
-            gatAllocations[i].pcFile = pcFile;
-            gatAllocations[i].pAddress = pBuffer;
-            gatAllocations[i].szSize = szSize;
-            bReusedAddress = true;
-            break;
-        }
-    }
-
-    if(!bReusedAddress)
-    {
-        gatAllocations[gszAllocCount].bFree = false;
-        gatAllocations[gszAllocCount].iLine = iLine;
-        gatAllocations[gszAllocCount].pcFile = pcFile;
-        gatAllocations[gszAllocCount].pAddress = pBuffer;
-        gatAllocations[gszAllocCount].szSize = szSize;
-        gszAllocCount++;
-    }
-
-#endif
-    
-    return pBuffer;
-}
-
-static void
-pl__free(void* pBuffer)
-{
-    PL_ASSERT(gszActiveAllocations > 0);
-
-#if 0
-    bool bFound = false;
-    for(uint32_t i = 0; i < gszAllocCount; i++)
-    {
-        if(pBuffer == gatAllocations[i].pAddress)
-        {
-            bFound = true;
-            PL_ASSERT(gatAllocations[i].bFree == false);
-            gatAllocations[i].bFree = true;
-            break;
-        }
-    }
-    PL_ASSERT(bFound);
-#endif
- 
-    gszActiveAllocations--;
-    free(pBuffer);
-}
-
-static void*
-pl__realloc(void* pBuffer, size_t szSize)
-{
-    void* pNewBuffer = NULL;
-
-    if(szSize == 0 && pBuffer)  // free
-    { 
-        gszActiveAllocations--;
-        free(pBuffer);
-        pNewBuffer = NULL;
-    }
-    else if (szSize == 0)  // free
-    { 
-        gszActiveAllocations--;
-        pNewBuffer = NULL;
-    }
-    else if(pBuffer) // resizing
-    {
-        pNewBuffer = realloc(pBuffer, szSize);
-    }
-    else
-    {
-        gszActiveAllocations++;
-        pNewBuffer = malloc(szSize);
-    }
-    return pNewBuffer;
-}
-
 #define PL_IO_IMPLEMENTATION
 #include "pl_io.h"
 #undef PL_IO_IMPLEMENTATION
@@ -680,3 +556,41 @@ pl__realloc(void* pBuffer, size_t szSize)
 #define PL_MEMORY_IMPLEMENTATION
 #include "pl_memory.h"
 #undef PL_MEMORY_IMPLEMENTATION
+
+void*
+pl_alloc(size_t szSize, const char* pcFile, int iLine)
+{
+    void* pBuffer = malloc(szSize);
+    return pBuffer;
+}
+
+void
+pl_free(void* pBuffer)
+{
+    free(pBuffer);
+}
+
+void*
+pl_realloc(void* pBuffer, size_t szSize)
+{
+    void* pNewBuffer = NULL;
+
+    if(szSize == 0 && pBuffer)  // free
+    { 
+        free(pBuffer);
+        pNewBuffer = NULL;
+    }
+    else if (szSize == 0)  // free
+    { 
+        pNewBuffer = NULL;
+    }
+    else if(pBuffer) // resizing
+    {
+        pNewBuffer = realloc(pBuffer, szSize);
+    }
+    else
+    {
+        pNewBuffer = malloc(szSize);
+    }
+    return pNewBuffer;
+}

@@ -15,6 +15,10 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+// pl_ds.h allocators (so they can be tracked)
+#define PL_DS_ALLOC(x, FILE, LINE) pl_alloc((x), FILE, LINE)
+#define PL_DS_FREE(x)  pl_free((x))
+
 #include "pilotlight.h"
 #include "pl_renderer_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -349,7 +353,6 @@ pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptCompon
 {
     memset(ptRenderer, 0, sizeof(plRenderer));
     ptRenderer->ptGfx = ptApiRegistry->first(PL_API_GRAPHICS);
-    ptRenderer->ptMemoryApi = ptApiRegistry->first(PL_API_MEMORY);
     ptRenderer->ptDeviceApi = ptApiRegistry->first(PL_API_DEVICE);
     ptRenderer->ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     ptRenderer->ptRendererApi = ptApiRegistry->first(PL_API_RENDERER);
@@ -662,7 +665,6 @@ pl_create_scene(plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, 
 {
     plGraphics* ptGraphics = ptRenderer->ptGraphics;
     plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
-    plMemoryApiI* ptMemoryApi = ptRenderer->ptMemoryApi;
     plImageApiI* ptImageApi = ptRenderer->ptImageApi;
     plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
     plDevice* ptDevice = &ptGraphics->tDevice;
@@ -695,7 +697,7 @@ pl_create_scene(plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, 
     PL_ASSERT(rawBytes4);
     PL_ASSERT(rawBytes5);
 
-    unsigned char* rawBytes = ptMemoryApi->alloc(texWidth * texHeight * texNumChannels * 6, __FUNCTION__, __LINE__);
+    unsigned char* rawBytes = pl_alloc(texWidth * texHeight * texNumChannels * 6, __FUNCTION__, __LINE__);
     memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 0], rawBytes0, texWidth * texHeight * texNumChannels); //-V522 
     memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 1], rawBytes1, texWidth * texHeight * texNumChannels); //-V522
     memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 2], rawBytes2, texWidth * texHeight * texNumChannels); //-V522
@@ -734,7 +736,7 @@ pl_create_scene(plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, 
 
     uint32_t uSkyboxTexture = ptDeviceApi->create_texture(ptDevice, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * texNumChannels * 6, rawBytes, "skybox texture");
     ptSceneOut->uSkyboxTextureView  = ptDeviceApi->create_texture_view(ptDevice, &tSkyboxView, &tSkyboxSampler, uSkyboxTexture, "skybox texture view");
-    ptMemoryApi->free(rawBytes);
+    pl_free(rawBytes);
 
     const float fCubeSide = 0.5f;
     float acSkyBoxVertices[] = {
@@ -1522,6 +1524,8 @@ pl__prepare_object_gpu_data(plScene* ptScene, plComponentManager* ptManager)
 PL_EXPORT void
 pl_load_renderer_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
+    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    pl_set_memory_context(ptDataRegistry->get_data("memory"));
 
     if(bReload)
     {

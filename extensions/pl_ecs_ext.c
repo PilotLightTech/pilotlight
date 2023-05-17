@@ -15,6 +15,10 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+// pl_ds.h allocators (so they can be tracked)
+#define PL_DS_ALLOC(x, FILE, LINE) pl_alloc((x), FILE, LINE)
+#define PL_DS_FREE(x)  pl_free((x))
+
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pilotlight.h"
 #include "pl_ecs_ext.h"
@@ -131,7 +135,6 @@ static void
 pl_ecs_init_component_library(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary)
 {
 
-    plMemoryApiI* ptMemoryApi = ptApiRegistry->first(PL_API_MEMORY);
     ptLibrary->tNextEntity = 1;
 
     // initialize component managers
@@ -143,7 +146,7 @@ pl_ecs_init_component_library(plApiRegistryApiI* ptApiRegistry, plComponentLibra
 
     ptLibrary->tObjectComponentManager.tComponentType = PL_COMPONENT_TYPE_OBJECT;
     ptLibrary->tObjectComponentManager.szStride = sizeof(plObjectComponent);
-    ptLibrary->tObjectComponentManager.pSystemData = ptMemoryApi->alloc(sizeof(plObjectSystemData), __FILE__, __LINE__);
+    ptLibrary->tObjectComponentManager.pSystemData = pl_alloc(sizeof(plObjectSystemData), __FILE__, __LINE__);
     memset(ptLibrary->tObjectComponentManager.pSystemData, 0, sizeof(plObjectSystemData));
 
     ptLibrary->tMaterialComponentManager.tComponentType = PL_COMPONENT_TYPE_MATERIAL;
@@ -410,12 +413,10 @@ pl_remove_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity)
 static void
 pl_ecs_cleanup_systems(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary)
 {
-
-    plMemoryApiI* ptMemoryApi = ptApiRegistry->first(PL_API_MEMORY);
     plObjectSystemData* ptObjectSystemData = ptLibrary->tObjectComponentManager.pSystemData;
     pl_sb_free(ptObjectSystemData->sbtSubmeshes);
 
-    ptMemoryApi->free(ptObjectSystemData);
+    pl_free(ptObjectSystemData);
     ptLibrary->tObjectComponentManager.pSystemData = NULL;
 }
 
@@ -767,6 +768,8 @@ pl_camera_update(plCameraComponent* ptCamera)
 PL_EXPORT void
 pl_load_ecs_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
+    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    pl_set_memory_context(ptDataRegistry->get_data("memory"));
 
     if(bReload)
     {

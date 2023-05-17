@@ -16,8 +16,14 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+// pl_ds.h allocators (so they can be tracked)
+#define PL_DS_ALLOC(x, FILE, LINE) pl_alloc((x), FILE, LINE)
+#define PL_DS_FREE(x)  pl_free((x))
+
 #include "pilotlight.h"
 #include "pl_gltf_ext.h"
+
+// pl_ds.h allocators (so they can be tracked)
 #include "pl_ds.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -6878,91 +6884,77 @@ pl__load_gltf_object(plRendererI* ptRendererApi, plDeviceApiI* ptDeviceApi, plSc
 				switch(ptAttribute->type)
 				{
 					case cgltf_attribute_type_position:
+						pl_sb_resize(tSubMesh.sbtVertexPositions, (uint32_t)szVertexCount);
 						for(size_t i = 0; i < szVertexCount; i++)
 						{
 							float* ptRawData = ((float*)&pucBufferStart[i * szStride]);
-							const plVec3 tPosition = {
-								ptRawData[0],
-								ptRawData[1],
-								ptRawData[2]
-							};
-							pl_sb_push(tSubMesh.sbtVertexPositions, tPosition);
+							tSubMesh.sbtVertexPositions[i].x = ptRawData[0];
+							tSubMesh.sbtVertexPositions[i].y = ptRawData[1];
+							tSubMesh.sbtVertexPositions[i].z = ptRawData[2];
 						}
 						break;
 
 					case cgltf_attribute_type_normal:
+						pl_sb_resize(tSubMesh.sbtVertexNormals, (uint32_t)szVertexCount);
 						for(size_t i = 0; i < szVertexCount; i++)
 						{
 							float* ptRawData = ((float*)&pucBufferStart[i * szStride]);
-							const plVec3 tNormal = {
-								ptRawData[0],
-								ptRawData[1],
-								ptRawData[2]
-							};
-							pl_sb_push(tSubMesh.sbtVertexNormals, tNormal);
+							tSubMesh.sbtVertexNormals[i].x = ptRawData[0];
+							tSubMesh.sbtVertexNormals[i].y = ptRawData[1];
+							tSubMesh.sbtVertexNormals[i].z = ptRawData[2];
 						}
 						break;
 					case cgltf_attribute_type_tangent:
+						pl_sb_resize(tSubMesh.sbtVertexTangents, (uint32_t)szVertexCount);
 						for(size_t i = 0; i < szVertexCount; i++)
 						{
 							float* ptRawData = ((float*)&pucBufferStart[i * szStride]);
-							const plVec4 tTangent = {
-								ptRawData[0],
-								ptRawData[1],
-								ptRawData[2],
-								ptRawData[3]
-							};
-							pl_sb_push(tSubMesh.sbtVertexTangents, tTangent);
+							tSubMesh.sbtVertexTangents[i].x = ptRawData[0];
+							tSubMesh.sbtVertexTangents[i].y = ptRawData[1];
+							tSubMesh.sbtVertexTangents[i].z = ptRawData[2];
+							tSubMesh.sbtVertexTangents[i].w = ptRawData[3];
 						}
 						break;
 					case cgltf_attribute_type_texcoord:
+						pl_sb_resize(tSubMesh.sbtVertexTextureCoordinates0, (uint32_t)szVertexCount);
 						for(size_t i = 0; i < szVertexCount; i++)
 						{
 							float* ptRawData = ((float*)&pucBufferStart[i * szStride]);
-							const plVec2 tTextureCoordinate = {
-								ptRawData[0],
-								ptRawData[1]
-							};
-							pl_sb_push(tSubMesh.sbtVertexTextureCoordinates0, tTextureCoordinate);
+							tSubMesh.sbtVertexTextureCoordinates0[i].x = ptRawData[0];
+							tSubMesh.sbtVertexTextureCoordinates0[i].y = ptRawData[1];
 						}
 						break;
 					case cgltf_attribute_type_color:
+						pl_sb_resize(tSubMesh.sbtVertexColors0, (uint32_t)szVertexCount);
 						for(size_t i = 0; i < szVertexCount; i++)
 							{
 								float* ptRawData = ((float*)&pucBufferStart[i * szStride]);
-								const plVec4 tColor = {
-									ptRawData[0],
-									ptRawData[1],
-									ptRawData[2],
-									ptRawData[3]
-								};
-								pl_sb_push(tSubMesh.sbtVertexColors0, tColor);
+								tSubMesh.sbtVertexColors0[i].x = ptRawData[0];
+								tSubMesh.sbtVertexColors0[i].y = ptRawData[1];
+								tSubMesh.sbtVertexColors0[i].z = ptRawData[2];
+								tSubMesh.sbtVertexColors0[i].w = ptRawData[3];
 							}
 							break;
 					case cgltf_attribute_type_joints:
+						pl_sb_resize(tSubMesh.sbtVertexJoints0, (uint32_t)szVertexCount);
 						for(size_t i = 0; i < szVertexCount; i++)
 							{
 								float* ptRawData = ((float*)&pucBufferStart[i * szStride]);
-								const plVec4 tJoint = {
-									ptRawData[0],
-									ptRawData[1],
-									ptRawData[2],
-									ptRawData[3]
-								};
-								pl_sb_push(tSubMesh.sbtVertexJoints0, tJoint);
+								tSubMesh.sbtVertexJoints0[i].x = ptRawData[0];
+								tSubMesh.sbtVertexJoints0[i].y = ptRawData[1];
+								tSubMesh.sbtVertexJoints0[i].z = ptRawData[2];
+								tSubMesh.sbtVertexJoints0[i].w = ptRawData[3];
 							}
 							break;
 					case cgltf_attribute_type_weights:
+						pl_sb_resize(tSubMesh.sbtVertexWeights0, (uint32_t)szVertexCount);
 						for(size_t i = 0; i < szVertexCount; i++)
 							{
 								float* ptRawData = ((float*)&pucBufferStart[i * szStride]);
-								const plVec4 tWeights = {
-									ptRawData[0],
-									ptRawData[1],
-									ptRawData[2],
-									ptRawData[3]
-								};
-								pl_sb_push(tSubMesh.sbtVertexWeights0, tWeights);
+								tSubMesh.sbtVertexWeights0[i].x = ptRawData[0];
+								tSubMesh.sbtVertexWeights0[i].y = ptRawData[1];
+								tSubMesh.sbtVertexWeights0[i].z = ptRawData[2];
+								tSubMesh.sbtVertexWeights0[i].w = ptRawData[3];
 							}
 							break;
 					default:
@@ -6975,41 +6967,44 @@ pl__load_gltf_object(plRendererI* ptRendererApi, plDeviceApiI* ptDeviceApi, plSc
 			unsigned char* pucIdexBufferStart = &((unsigned char*)ptPrimitive->indices->buffer_view->buffer->data)[ptPrimitive->indices->buffer_view->offset + ptPrimitive->indices->offset];
 			if(ptPrimitive->indices->component_type == cgltf_component_type_r_32u)
 			{
+				pl_sb_resize(tSubMesh.sbuIndices, (uint32_t)ptPrimitive->indices->count);
 				if(ptPrimitive->indices->buffer_view->stride == 0)
 				{
 					for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-						pl_sb_push(tSubMesh.sbuIndices, *(uint32_t*)&pucIdexBufferStart[i * sizeof(uint32_t)]);
+						tSubMesh.sbuIndices[i] = *(uint32_t*)&pucIdexBufferStart[i * sizeof(uint32_t)];
 				}
 				else
 				{
 					for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-						pl_sb_push(tSubMesh.sbuIndices, *(uint32_t*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride]);
+						tSubMesh.sbuIndices[i] = *(uint32_t*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
 				}
 			}
 			else if(ptPrimitive->indices->component_type == cgltf_component_type_r_16u)
 			{
+				pl_sb_resize(tSubMesh.sbuIndices, (uint32_t)ptPrimitive->indices->count);
 				if(ptPrimitive->indices->buffer_view->stride == 0)
 				{
 					for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-						pl_sb_push(tSubMesh.sbuIndices, (uint32_t)*(unsigned short*)&pucIdexBufferStart[i * sizeof(unsigned short)]);
+						tSubMesh.sbuIndices[i] = (uint32_t)*(unsigned short*)&pucIdexBufferStart[i * sizeof(unsigned short)];
 				}
 				else
 				{
 					for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-						pl_sb_push(tSubMesh.sbuIndices, (uint32_t)*(unsigned short*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride]);
+						tSubMesh.sbuIndices[i] = (uint32_t)*(unsigned short*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
 				}
 			}
 			else if(ptPrimitive->indices->component_type == cgltf_component_type_r_8u)
 			{
+				pl_sb_resize(tSubMesh.sbuIndices, (uint32_t)ptPrimitive->indices->count);
 				if(ptPrimitive->indices->buffer_view->stride == 0)
 				{
 					for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-						pl_sb_push(tSubMesh.sbuIndices, (uint32_t)*(uint8_t*)&pucIdexBufferStart[i * sizeof(uint8_t)]);
+						tSubMesh.sbuIndices[i] = (uint32_t)*(uint8_t*)&pucIdexBufferStart[i * sizeof(uint8_t)];
 				}
 				else
 				{
 					for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-						pl_sb_push(tSubMesh.sbuIndices, (uint32_t)*(uint8_t*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride]);
+						tSubMesh.sbuIndices[i] = (uint32_t)*(uint8_t*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
 				}
 			}
 			else
@@ -7232,6 +7227,8 @@ pl__load_gltf_material(plImageApiI* ptImageApi, plDeviceApiI* ptDeviceApi, plDev
 PL_EXPORT void
 pl_load_gltf_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
+    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    pl_set_memory_context(ptDataRegistry->get_data("memory"));
 
     if(bReload)
     {

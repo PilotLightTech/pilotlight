@@ -42,9 +42,6 @@ typedef struct _plDataRegistryApiI plDataRegistryApiI;
 #define PL_API_EXTENSION_REGISTRY "PL_API_EXTENSION_REGISTRY"
 typedef struct _plExtensionRegistryApiI plExtensionRegistryApiI;
 
-#define PL_API_MEMORY "PL_API_MEMORY"
-typedef struct _plMemoryApiI plMemoryApiI;
-
 #define PL_API_LIBRARY "PL_API_LIBRARY"
 typedef struct _plLibraryApiI plLibraryApiI;
 
@@ -115,6 +112,8 @@ typedef void (*ptApiUpdateCallback)(void*, void*, void*);
 // types
 typedef struct _plSharedLibrary plSharedLibrary;
 typedef struct _plSocket plSocket;
+typedef struct _plMemoryContext plMemoryContext;
+typedef struct _plAllocationEntry plAllocationEntry;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -122,6 +121,12 @@ typedef struct _plSocket plSocket;
 
 plApiRegistryApiI* pl_load_core_apis  (void);
 void               pl_unload_core_apis(void);
+
+void              pl_set_memory_context(plMemoryContext* ptMemoryContext);
+plMemoryContext*  pl_get_memory_context(void);
+void*             pl_alloc             (size_t szSize, const char* pcFile, int iLine);
+void              pl_free              (void* pBuffer);
+void*             pl_realloc           (void* pBuffer, size_t szSize);
 
 //-----------------------------------------------------------------------------
 // [SECTION] api structs
@@ -151,14 +156,6 @@ typedef struct _plExtensionRegistryApiI
     void (*load_from_config)(plApiRegistryApiI* ptApiRegistry, const char* pcConfigFile);
     void (*load_from_file)  (plApiRegistryApiI* ptApiRegistry, const char* pcFile);
 } plExtensionRegistryApiI;
-
-typedef struct _plMemoryApiI
-{
-    void* (*alloc)  (size_t szSize, const char* pcFile, int iLine);
-    void  (*free)   (void* pBuffer);
-    void* (*realloc)(void* pBuffer, size_t szSize);
-
-} plMemoryApiI;
 
 typedef struct _plLibraryApiI
 {
@@ -206,5 +203,24 @@ typedef struct _plSharedLibrary
     char     acLockFile[PL_MAX_PATH_LENGTH];
     void*    _pPlatformData;
 } plSharedLibrary;
+
+typedef struct _plAllocationEntry
+{
+    void*       pAddress;
+    size_t      szSize;
+    int         iLine;
+    const char* pcFile; 
+} plAllocationEntry;
+
+typedef struct _plHashMap plHashMap;
+typedef struct _plMemoryContext
+{
+  size_t             szActiveAllocations;
+  size_t             szAllocationCount;
+  plHashMap*         ptHashMap;
+  plAllocationEntry* sbtAllocations;
+  plAllocationEntry* sbtFreeAllocations;
+}
+plMemoryContext;
 
 #endif // PL_PILOTLIGHT_H

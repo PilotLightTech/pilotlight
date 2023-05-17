@@ -498,7 +498,6 @@ typedef struct _plDevice
     uint32_t uCurrentFrame;
 
     // apis
-    plMemoryApiI* ptMemoryApi;
     plDeviceApiI* ptDeviceApi;
 
     // gpu allocators
@@ -522,7 +521,6 @@ typedef struct _plGraphics
     uint32_t                 uLogChannel;
 
     // apis
-    plMemoryApiI*            ptMemoryApi;
     plIOApiI*                ptIoInterface;
     plFileApiI*              ptFileApi;
     plDeviceApiI*            ptDeviceApi;

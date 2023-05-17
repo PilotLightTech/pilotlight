@@ -18,6 +18,10 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+// pl_ds.h allocators (so they can be tracked)
+#define PL_DS_ALLOC(x, FILE, LINE) pl_alloc((x), FILE, LINE)
+#define PL_DS_FREE(x)  pl_free((x))
+
 #include <stdio.h>
 #include "pilotlight.h"
 #include "pl_vulkan_ext.h"
@@ -1025,7 +1029,7 @@ pl_request_descriptor_set_layout(plDescriptorManager* ptManager, plBindGroupLayo
 {    
     // generate hash
     uint32_t uHash = 0;
-    VkDescriptorSetLayoutBinding* sbtDescriptorSetLayoutBindings = NULL;
+    static VkDescriptorSetLayoutBinding* sbtDescriptorSetLayoutBindings = NULL;
     for(uint32_t i = 0 ; i < ptLayout->uBufferCount; i++)
     {
         uHash = pl_str_hash_data(&ptLayout->aBuffers[i].uSlot, sizeof(uint32_t), uHash);
@@ -1078,7 +1082,7 @@ pl_request_descriptor_set_layout(plDescriptorManager* ptManager, plBindGroupLayo
 
     pl_sb_push(ptManager->_sbuDescriptorSetLayoutHashes, uHash);
     pl_sb_push(ptManager->_sbtDescriptorSetLayouts, tDescriptorSetLayout);
-    pl_sb_free(sbtDescriptorSetLayoutBindings);
+    pl_sb_reset(sbtDescriptorSetLayoutBindings);
 
     return tDescriptorSetLayout;
 }
@@ -1092,7 +1096,6 @@ pl_setup_graphics(plGraphics* ptGraphics, plRenderBackend* ptBackend, plApiRegis
         ptGraphics->uFramesInFlight = 2;
     
     // retrieve required apis
-    ptGraphics->ptMemoryApi = ptApiRegistry->first(PL_API_MEMORY);
     ptGraphics->ptIoInterface = ptApiRegistry->first(PL_API_IO);
     ptGraphics->ptFileApi = ptApiRegistry->first(PL_API_FILE);
     ptGraphics->ptDeviceApi = ptApiRegistry->first(PL_API_DEVICE);
@@ -1285,8 +1288,8 @@ pl_begin_frame(plGraphics* ptGraphics)
 
         if(ptGraphics->_sbulShaderHashes[uShaderIndex] == 0)
         {
-            ptGraphics->ptMemoryApi->free((uint32_t*)ptShader->tPixelShaderInfo.pCode);
-            ptGraphics->ptMemoryApi->free((uint32_t*)ptShader->tVertexShaderInfo.pCode);
+            pl_free((uint32_t*)ptShader->tPixelShaderInfo.pCode);
+            pl_free((uint32_t*)ptShader->tVertexShaderInfo.pCode);
             vkDestroyPipelineLayout(tLogicalDevice, ptShader->tPipelineLayout, NULL);
 
             for(uint32_t uVariantIndex = 0; uVariantIndex < pl_sb_size(ptShader->_sbuVariantPipelines); uVariantIndex++)
@@ -1471,7 +1474,7 @@ pl_create_shader(plGraphics* ptGraphics, const plShaderDesc* ptDescIn)
 
     uint32_t uVertexByteCodeSize = 0;
     ptGraphics->ptFileApi->read(tShader.tDesc.pcVertexShader, &uVertexByteCodeSize, NULL, "rb");
-    char* pcVertexByteCode = ptGraphics->ptMemoryApi->alloc(uVertexByteCodeSize, __FUNCTION__, __LINE__);
+    char* pcVertexByteCode = pl_alloc(uVertexByteCodeSize, __FUNCTION__, __LINE__);
     ptGraphics->ptFileApi->read(tShader.tDesc.pcVertexShader, &uVertexByteCodeSize, pcVertexByteCode, "rb");
 
     tShader.tVertexShaderInfo = (VkShaderModuleCreateInfo){
@@ -1486,7 +1489,7 @@ pl_create_shader(plGraphics* ptGraphics, const plShaderDesc* ptDescIn)
 
     uint32_t uByteCodeSize = 0;
     ptGraphics->ptFileApi->read(tShader.tDesc.pcPixelShader, &uByteCodeSize, NULL, "rb");
-    char* pcByteCode = ptGraphics->ptMemoryApi->alloc(uByteCodeSize, __FUNCTION__, __LINE__);
+    char* pcByteCode = pl_alloc(uByteCodeSize, __FUNCTION__, __LINE__);
     ptGraphics->ptFileApi->read(tShader.tDesc.pcPixelShader, &uByteCodeSize, pcByteCode, "rb");
 
     tShader.tPixelShaderInfo = (VkShaderModuleCreateInfo){
@@ -1888,8 +1891,8 @@ pl_cleanup_graphics(plGraphics* ptGraphics)
         if(ptGraphics->_sbulShaderHashes[uShaderIndex] == 0)
         {
 
-            ptGraphics->ptMemoryApi->free((uint32_t*)ptShader->tPixelShaderInfo.pCode);
-            ptGraphics->ptMemoryApi->free((uint32_t*)ptShader->tVertexShaderInfo.pCode);
+            pl_free((uint32_t*)ptShader->tPixelShaderInfo.pCode);
+            pl_free((uint32_t*)ptShader->tVertexShaderInfo.pCode);
             vkDestroyPipelineLayout(ptGraphics->tDevice.tLogicalDevice, ptShader->tPipelineLayout, NULL);
 
             for(uint32_t uVariantIndex = 0; uVariantIndex < pl_sb_size(ptShader->_sbuVariantPipelines); uVariantIndex++)
@@ -1946,7 +1949,6 @@ pl_init_device(plApiRegistryApiI* ptApiRegistry, plDevice* ptDevice, uint32_t uF
     ptDevice->tStagingUnCachedAllocator = ptDeviceMemoryApi->create_staging_uncached_allocator(ptDevice->tPhysicalDevice, ptDevice->tLogicalDevice);
     ptDevice->tStagingCachedAllocator = ptDeviceMemoryApi->create_staging_cached_allocator(ptDevice->tPhysicalDevice, ptDevice->tLogicalDevice);
 
-    ptDevice->ptMemoryApi = ptApiRegistry->first(PL_API_MEMORY);
     ptDevice->ptDeviceApi = ptApiRegistry->first(PL_API_DEVICE);
 
     const plDynamicBufferNode tDummyNode0 = {0, 0};
@@ -4626,7 +4628,9 @@ pl__create_shader_pipeline(plGraphics* ptGraphics, plGraphicsState tVariant, plV
 PL_EXPORT void
 pl_load_vulkan_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
-
+    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    pl_set_memory_context(ptDataRegistry->get_data("memory"));
+    
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_DESCRIPTOR_MANAGER), pl_load_descriptor_manager_api());

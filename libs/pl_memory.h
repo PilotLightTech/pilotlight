@@ -325,7 +325,7 @@ pl__align_forward_size(size_t szPtr, size_t szAlign)
 // general memory
 static void* pl_aligned_alloc(size_t szAlignment, size_t szSize);
 static void  pl_aligned_free (void* pBuffer);
-static void* pl_realloc      (void* pBuffer, size_t szSize);
+static void* pl__realloc      (void* pBuffer, size_t szSize);
 
 // virtual memory
 static size_t pl_get_page_size   (void);                          // returns memory page size
@@ -373,7 +373,7 @@ pl_load_general_allocator_api(void)
     {
         pl_aligned_alloc,
         pl_aligned_free,
-        pl_realloc
+        pl__realloc
     };
     return &tApi0;    
 }
@@ -574,7 +574,7 @@ pl_aligned_free(void* pBuffer)
 }
 
 static void*
-pl_realloc(void* pBuffer, size_t szSize)
+pl__realloc(void* pBuffer, size_t szSize)
 {
     void* pNewBuffer = NULL;
 

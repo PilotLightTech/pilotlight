@@ -29,6 +29,9 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#define PL_DS_ALLOC(x, FILE, LINE) pl_alloc((x), FILE, LINE)
+#define PL_DS_FREE(x)  pl_free((x))
+
 #include "pl_ui_ext.h"
 #include "pl_string.h"
 #include "pl_ds.h"

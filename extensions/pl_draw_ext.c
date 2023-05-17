@@ -26,6 +26,10 @@ Index of this file:
 #include "stb_rect_pack.h"
 #include "stb_truetype.h"
 #include "pl_draw_ext.h"
+
+// pl_ds.h allocators (so they can be tracked)
+#define PL_DS_ALLOC(x, FILE, LINE) pl_alloc((x), FILE, LINE)
+#define PL_DS_FREE(x)  pl_free((x))
 #include "pl_ds.h"
 
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -2343,10 +2347,11 @@ PL_EXPORT void
 pl_load_draw_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
     plDrawApiI* ptDrawApi = pl_load_draw_api();
+    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    pl_set_memory_context(ptDataRegistry->get_data("memory"));
 
     if(bReload)
-    {
-        plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    { 
         ptDrawApi->set_context(ptDataRegistry->get_data("draw"));
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_DRAW), ptDrawApi);
     }

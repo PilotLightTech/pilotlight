@@ -28,6 +28,7 @@ Index of this file:
 #include "pilotlight.h" // data registry, api registry, extension registry
 #include "pl_io.h"      // io context
 #include "pl_linux.h"   // linux backend
+#include "pl_ds.h"      // hashmap
 
 //-----------------------------------------------------------------------------
 // [SECTION] globals
@@ -49,6 +50,10 @@ static xcb_atom_t        gWmDeleteWin;
 static plSharedLibrary   gtAppLibrary = {0};
 static void*             gUserData = NULL;
 
+// memory tracking
+static plMemoryContext gtMemoryContext = {0};
+static plHashMap gtMemoryHashMap = {0};
+
 // app function pointers
 static void* (*pl_app_load)    (plApiRegistryApiI* ptApiRegistry, void* ptAppData);
 static void  (*pl_app_shutdown)(void* ptAppData);
@@ -62,6 +67,7 @@ static void  (*pl_app_update)  (void* ptAppData);
 int main()
 {
     // load apis
+    gtMemoryContext.ptHashMap = &gtMemoryHashMap;
     gptApiRegistry = pl_load_core_apis();
     gptIoApiMain = pl_load_io_api();
     gptApiRegistry->add(PL_API_IO, gptIoApiMain);
@@ -71,6 +77,7 @@ int main()
     // setup & retrieve io context 
     plIOContext* ptIOCtx = gptIoApiMain->get_context();
     gptDataRegistry->set_data("io", ptIOCtx);
+    gptDataRegistry->set_data("memory", &gtMemoryContext);
     ptIOCtx->tCurrentCursor = PL_MOUSE_CURSOR_ARROW;
     ptIOCtx->tNextCursor = ptIOCtx->tCurrentCursor;
     ptIOCtx->afMainViewportSize[0] = 500.0f;
@@ -274,6 +281,12 @@ int main()
     
     pl_unload_io_api();
     pl_unload_core_apis();
+
+    for(uint32_t i = 0; i < pl_sb_size(gtMemoryContext.sbtAllocations); i++)
+        printf("Unfreed memory from line %i in file '%s'.\n", gtMemoryContext.sbtAllocations[i].iLine, gtMemoryContext.sbtAllocations[i].pcFile);
+
+    if(pl_sb_size(gtMemoryContext.sbtAllocations) > 0)
+        printf("%u unfreed allocations.\n", pl_sb_size(gtMemoryContext.sbtAllocations));
 }
 
 //-----------------------------------------------------------------------------

@@ -75,6 +75,7 @@ typedef struct plAppData_t
     plMetalDrawApiI*        ptMetalDrawApi;
 
     plApiRegistryApiI* ptApiRegistry;
+
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -86,6 +87,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
 {
     plAppData* ptAppData = pAppData;
     plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    pl_set_memory_context(ptDataRegistry->get_data("memory"));
 
     if(ptAppData) // reload
     {
@@ -103,7 +105,6 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     plIOApiI* ptIoI             = ptApiRegistry->first(PL_API_IO);
     plLibraryApiI* ptLibraryApi = ptApiRegistry->first(PL_API_LIBRARY);
     plFileApiI* ptFileApi       = ptApiRegistry->first(PL_API_FILE);
-    plMemoryApiI* ptMemoryApi   = ptApiRegistry->first(PL_API_MEMORY);
     
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));

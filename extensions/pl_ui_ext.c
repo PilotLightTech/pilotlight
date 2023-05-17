@@ -3364,10 +3364,11 @@ pl_ui_submit_window(plUiWindow* ptWindow)
 PL_EXPORT void
 pl_load_ui_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
+    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    pl_set_memory_context(ptDataRegistry->get_data("memory"));
     plUiApiI* ptUiApi = pl_load_ui_api();
     if(bReload)
     {
-        plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
         ptUiApi->set_context(ptDataRegistry->get_data("ui"));
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_UI), ptUiApi);
     }
