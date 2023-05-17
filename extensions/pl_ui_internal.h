@@ -176,6 +176,13 @@ typedef struct _plUiPrevItemData
     bool bActive;
 } plUiPrevItemData;
 
+typedef struct _plUiLayoutSortLevel
+{
+    float    fWidth;
+    uint32_t uStartIndex;
+    uint32_t uCount;
+} plUiLayoutSortLevel;
+
 typedef struct _plUiLayoutRowEntry
 {
     plUiLayoutRowEntryType tType;  // entry type (PL_UI_LAYOUT_ROW_ENTRY_TYPE_*)
@@ -235,6 +242,10 @@ typedef struct _plUiTempWindowData
     float                fExtraIndent;      // extra indent added by pl_ui_indent
     plUiLayoutRow        tCurrentLayoutRow; // current layout row to use
     plVec2               tRowPos;           // current row starting position
+
+    // template layout system
+    float fTempMinWidth;
+    float fTempStaticWidth;
 } plUiTempWindowData;
 
 typedef struct _plUiWindow
@@ -264,6 +275,8 @@ typedef struct _plUiWindow
     plUiTempWindowData   tTempData;               // temporary data reset at the beginning of frame
     plUiWindow**         sbtChildWindows;         // child windows if any (reset every frame)
     plUiLayoutRow*       sbtRowStack;             // row stack for containers to push parents row onto and pop when they exist (reset every frame)
+    plUiLayoutSortLevel* sbtTempLayoutSort;       // blah
+    uint32_t*            sbuTempLayoutIndexSort;  // blah
     plUiLayoutRowEntry*  sbtRowTemplateEntries;   // row template entries (shared and reset every frame)            
     plDrawLayer*         ptBgLayer;               // background draw layer
     plDrawLayer*         ptFgLayer;               // foreground draw layer

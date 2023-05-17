@@ -1951,10 +1951,12 @@ pl_ui_layout_template_push_variable(float fWidth)
     plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
     ptCurrentRow->uVariableEntryCount++;
     ptCurrentRow->fWidth += fWidth;
+    pl_sb_push(ptWindow->sbuTempLayoutIndexSort, ptCurrentRow->uColumns);
     pl_sb_add(ptWindow->sbtRowTemplateEntries);
     pl_sb_back(ptWindow->sbtRowTemplateEntries).tType = PL_UI_LAYOUT_ROW_ENTRY_TYPE_VARIABLE;
     pl_sb_back(ptWindow->sbtRowTemplateEntries).fWidth = fWidth;
     ptCurrentRow->uColumns++;
+    ptWindow->tTempData.fTempMinWidth += fWidth;
 }
 
 void
@@ -1968,6 +1970,8 @@ pl_ui_layout_template_push_static(float fWidth)
     pl_sb_back(ptWindow->sbtRowTemplateEntries).tType = PL_UI_LAYOUT_ROW_ENTRY_TYPE_STATIC;
     pl_sb_back(ptWindow->sbtRowTemplateEntries).fWidth = fWidth;
     ptCurrentRow->uColumns++;
+    ptWindow->tTempData.fTempStaticWidth += fWidth;
+    ptWindow->tTempData.fTempMinWidth += fWidth;
 }
 
 void
@@ -1978,69 +1982,162 @@ pl_ui_layout_template_end(void)
     PL_ASSERT(ptCurrentRow->tSystemType == PL_UI_LAYOUT_SYSTEM_TYPE_TEMPLATE);
     ptWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, ptWindow->tTempData.tCursorMaxPos.x);
     ptWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight, ptWindow->tTempData.tCursorMaxPos.y);
-
     ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
 
     // total available width minus padding/spacing
-    float fTotalWidth = 0.0f;
+    float fWidthAvailable = 0.0f;
     if(ptWindow->bScrollbarY)
-        fTotalWidth = (ptWindow->tSize.x - gptCtx->tStyle.fWindowHorizontalPadding * 2.0f  - gptCtx->tStyle.tItemSpacing.x * (float)(ptCurrentRow->uColumns - 1) - 2.0f - gptCtx->tStyle.fScrollbarSize - (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize);
+        fWidthAvailable = (ptWindow->tSize.x - gptCtx->tStyle.fWindowHorizontalPadding * 2.0f  - gptCtx->tStyle.tItemSpacing.x * (float)(ptCurrentRow->uColumns - 1) - 2.0f - gptCtx->tStyle.fScrollbarSize - (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize);
     else
-        fTotalWidth = (ptWindow->tSize.x - gptCtx->tStyle.fWindowHorizontalPadding * 2.0f  - gptCtx->tStyle.tItemSpacing.x * (float)(ptCurrentRow->uColumns - 1) - (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize);
+        fWidthAvailable = (ptWindow->tSize.x - gptCtx->tStyle.fWindowHorizontalPadding * 2.0f  - gptCtx->tStyle.tItemSpacing.x * (float)(ptCurrentRow->uColumns - 1) - (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize);
 
-
-    // remove static widths
-    for(uint32_t i = 0; i < ptCurrentRow->uColumns; i++)
+    // simplest cast, not enough room, so nothing left to distribute to dynamic widths
+    if(ptWindow->tTempData.fTempMinWidth >= fWidthAvailable)
     {
-        if(ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + i].tType == PL_UI_LAYOUT_ROW_ENTRY_TYPE_STATIC)
-            fTotalWidth -= ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + i].fWidth;
-    }
-
-    const float fDynamicRawWidth = fTotalWidth / (ptCurrentRow->uDynamicEntryCount + ptCurrentRow->uVariableEntryCount);
-
-    // assign initial widths & check how much width is needed
-    float fWidthNeeded = 0.0f;
-    float fExtraVariableWidth = 0.0f;
-    for(uint32_t i = 0; i < ptCurrentRow->uColumns; i++)
-    {
-        if(ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + i].tType == PL_UI_LAYOUT_ROW_ENTRY_TYPE_DYNAMIC)
+        for(uint32_t i = 0; i < ptCurrentRow->uColumns; i++)
         {
-            ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + i].fWidth = fDynamicRawWidth;
+            plUiLayoutRowEntry* ptEntry = &ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + i];
+            if(ptEntry->tType == PL_UI_LAYOUT_ROW_ENTRY_TYPE_DYNAMIC)
+                ptEntry->fWidth = 0.0f;
         }
-        else if(ptWindow->sbtRowTemplateEntries[i].tType == PL_UI_LAYOUT_ROW_ENTRY_TYPE_VARIABLE)
+    }
+    else if((ptCurrentRow->uDynamicEntryCount + ptCurrentRow->uVariableEntryCount) != 0)
+    {
+
+        // sort large to small (slow bubble sort, should replace later)
+        bool bSwapOccured = true;
+        while(bSwapOccured)
         {
-            if(ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + i].fWidth > fDynamicRawWidth)
+            bSwapOccured = false;
+            for(uint32_t i = 0; i < ptCurrentRow->uVariableEntryCount - 1; i++)
             {
-                fWidthNeeded += (ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + i].fWidth - fDynamicRawWidth);
+                const uint32_t ii = ptWindow->sbuTempLayoutIndexSort[i];
+                const uint32_t jj = ptWindow->sbuTempLayoutIndexSort[i + 1];
+                
+                plUiLayoutRowEntry* ptEntry0 = &ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + ii];
+                plUiLayoutRowEntry* ptEntry1 = &ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + jj];
+
+                if(ptEntry0->fWidth < ptEntry1->fWidth)
+                {
+                    ptWindow->sbuTempLayoutIndexSort[i] = jj;
+                    ptWindow->sbuTempLayoutIndexSort[i + 1] = ii;
+                    bSwapOccured = true;
+                }
+            }
+        }
+
+        // add dynamic to the end
+        if(ptCurrentRow->uDynamicEntryCount > 0)
+        {
+
+            // dynamic entries appended to the end so they will be "sorted" from the get go
+            for(uint32_t i = 0; i < ptCurrentRow->uColumns; i++)
+            {
+                plUiLayoutRowEntry* ptEntry = &ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + i];
+                if(ptEntry->tType == PL_UI_LAYOUT_ROW_ENTRY_TYPE_DYNAMIC)
+                    pl_sb_push(ptWindow->sbuTempLayoutIndexSort, i);
+            }
+        }
+
+        // organize into levels
+        float fCurrentWidth = -10000.0f;
+        for(uint32_t i = 0; i < ptCurrentRow->uVariableEntryCount; i++)
+        {
+            const uint32_t ii = ptWindow->sbuTempLayoutIndexSort[i];
+            plUiLayoutRowEntry* ptEntry = &ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + ii];
+
+            if(ptEntry->fWidth == fCurrentWidth)
+            {
+                pl_sb_back(ptWindow->sbtTempLayoutSort).uCount++;
             }
             else
             {
-                fExtraVariableWidth += fDynamicRawWidth - ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + i].fWidth;
+                const plUiLayoutSortLevel tNewSortLevel = {
+                    .fWidth      = ptEntry->fWidth,
+                    .uCount      = 1,
+                    .uStartIndex = i
+                };
+                pl_sb_push(ptWindow->sbtTempLayoutSort, tNewSortLevel);
+                fCurrentWidth = ptEntry->fWidth;
             }
         }
-    }
 
-    // see how much variable widths can contribute
-    if(fWidthNeeded > 0.0f)
-    {
-
-        fWidthNeeded = fWidthNeeded - fExtraVariableWidth;
-        float fDynamicWidth = fWidthNeeded / (float)ptCurrentRow->uDynamicEntryCount;
-        for(uint32_t i = 0; i < ptCurrentRow->uColumns; i++)
+        // add dynamic to the end
+        if(ptCurrentRow->uDynamicEntryCount > 0)
         {
-            if(ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + i].tType == PL_UI_LAYOUT_ROW_ENTRY_TYPE_DYNAMIC)
-                ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + i].fWidth = pl_maxf(fDynamicRawWidth - fDynamicWidth, 10.0f);
+            const plUiLayoutSortLevel tInitialSortLevel = {
+                .fWidth      = 0.0f,
+                .uCount      = ptCurrentRow->uDynamicEntryCount,
+                .uStartIndex = ptCurrentRow->uVariableEntryCount
+            };
+            pl_sb_push(ptWindow->sbtTempLayoutSort, tInitialSortLevel);
+        }
+
+        // calculate left over width
+        float fExtraWidth = fWidthAvailable - ptWindow->tTempData.fTempMinWidth;
+
+        // distribute to levels
+        const uint32_t uLevelCount = pl_sb_size(ptWindow->sbtTempLayoutSort);
+        if(uLevelCount == 1)
+        {
+            plUiLayoutSortLevel tCurrentSortLevel = pl_sb_pop(ptWindow->sbtTempLayoutSort);
+            const float fDistributableWidth = fExtraWidth / (float)tCurrentSortLevel.uCount;
+            for(uint32_t i = tCurrentSortLevel.uStartIndex; i < tCurrentSortLevel.uCount; i++)
+            {
+                plUiLayoutRowEntry* ptEntry = &ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + i];
+                ptEntry->fWidth += fDistributableWidth;
+            }
+        }
+        else
+        {
+            while(fExtraWidth > 0.0f)
+            {
+                plUiLayoutSortLevel tCurrentSortLevel = pl_sb_pop(ptWindow->sbtTempLayoutSort);
+
+                if(pl_sb_size(ptWindow->sbtTempLayoutSort) == 0) // final
+                {
+                    const float fDistributableWidth = fExtraWidth / (float)tCurrentSortLevel.uCount;
+                    for(uint32_t i = tCurrentSortLevel.uStartIndex; i < tCurrentSortLevel.uStartIndex + tCurrentSortLevel.uCount; i++)
+                    {
+                        plUiLayoutRowEntry* ptEntry = &ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + ptWindow->sbuTempLayoutIndexSort[i]];
+                        ptEntry->fWidth += fDistributableWidth;
+                    }
+                    fExtraWidth = 0.0f;
+                    break;
+                }
+                    
+                const float fDelta = pl_sb_back(ptWindow->sbtTempLayoutSort).fWidth - tCurrentSortLevel.fWidth;
+                const float fTotalOwed = fDelta * (float)tCurrentSortLevel.uCount;
+                
+                if(fTotalOwed < fExtraWidth) // perform operations
+                {
+                    for(uint32_t i = tCurrentSortLevel.uStartIndex; i < tCurrentSortLevel.uStartIndex + tCurrentSortLevel.uCount; i++)
+                    {
+                        plUiLayoutRowEntry* ptEntry = &ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + ptWindow->sbuTempLayoutIndexSort[i]];
+                        ptEntry->fWidth += fDelta;
+                    }
+                    pl_sb_back(ptWindow->sbtTempLayoutSort).uCount += tCurrentSortLevel.uCount;
+                    fExtraWidth -= fTotalOwed;
+                }
+                else // do the best we can
+                {
+                    const float fDistributableWidth = fExtraWidth / (float)tCurrentSortLevel.uCount;
+                    for(uint32_t i = tCurrentSortLevel.uStartIndex; i < tCurrentSortLevel.uStartIndex + tCurrentSortLevel.uCount; i++)
+                    {
+                        plUiLayoutRowEntry* ptEntry = &ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + ptWindow->sbuTempLayoutIndexSort[i]];
+                        ptEntry->fWidth += fDistributableWidth;
+                    }
+                    fExtraWidth = 0.0f;
+                }
+            }
         }
 
     }
-    else // evenly distribute
-    {
-        for(uint32_t i = 0; i < ptCurrentRow->uColumns; i++)
-        {
-            if(ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + i].tType != PL_UI_LAYOUT_ROW_ENTRY_TYPE_STATIC)
-                ptWindow->sbtRowTemplateEntries[ptCurrentRow->uEntryStartIndex + i].fWidth = fDynamicRawWidth;
-        } 
-    }
+
+    pl_sb_reset(ptWindow->sbuTempLayoutIndexSort);
+    pl_sb_reset(ptWindow->sbtTempLayoutSort);
+    ptWindow->tTempData.fTempMinWidth = 0.0f;
+    ptWindow->tTempData.fTempStaticWidth = 0.0f;
 }
 
 void
