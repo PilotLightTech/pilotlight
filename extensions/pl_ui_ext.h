@@ -3,8 +3,8 @@
 */
 
 // library version
-#define PL_UI_VERSION    "0.8.0"
-#define PL_UI_VERSION_NUM 00800
+#define PL_UI_VERSION    "0.9.0"
+#define PL_UI_VERSION_NUM 00900
 
 /*
 Index of this file:

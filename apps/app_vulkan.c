@@ -66,6 +66,7 @@ typedef struct _plAppData
     bool         bShowUiDebug;
     bool         bShowUiStyle;
     bool         bShowUiMemory;
+    bool         bShowMemoryAllocations;
 
     // allocators
     plTempAllocator tTempAllocator;
@@ -515,6 +516,7 @@ pl_app_update(plAppData* ptAppData)
             ptUi->checkbox("UI Demo", &ptAppData->bShowUiDemo);
             ptUi->checkbox("UI Style", &ptAppData->bShowUiStyle);
             ptUi->checkbox("Device Memory", &ptAppData->bShowUiMemory);
+            ptUi->checkbox("Memory Allocations", &ptAppData->bShowMemoryAllocations);
             
             if(ptUi->checkbox("VSync", &ptGraphics->tSwapchain.bVSync))
             {
@@ -631,76 +633,79 @@ pl_app_update(plAppData* ptAppData)
             }
         }
 
-        if(ptUi->begin_window("Memory Allocations", NULL, false))
+        if(ptAppData->bShowMemoryAllocations)
         {
-
-            plMemoryContext* ptMemoryCtx = pl_get_memory_context();
-            ptUi->layout_dynamic(0.0f, 1);
-
-            ptUi->text("Active Allocations: %u", ptMemoryCtx->szActiveAllocations);
-            ptUi->text("Freed Allocations: %u", pl_sb_size(ptMemoryCtx->sbtFreeAllocations));
-
-            if(ptUi->begin_tab_bar("main toolbar"))
+            if(ptUi->begin_window("Memory Allocations", &ptAppData->bShowMemoryAllocations, false))
             {
-                static char pcFile[1024] = {0};
-                if(ptUi->begin_tab("Active Allocations"))
-                {
-                    ptUi->layout_template_begin(30.0f);
-                    ptUi->layout_template_push_static(50.0f);
-                    ptUi->layout_template_push_variable(300.0f);
-                    ptUi->layout_template_push_variable(50.0f);
-                    ptUi->layout_template_push_variable(50.0f);
-                    ptUi->layout_template_end();
 
-                    ptUi->text("%s", "Entry");
-                    ptUi->text("%s", "File");
-                    ptUi->text("%s", "Line");
-                    ptUi->text("%s", "Size");
-
-                    const uint32_t uOriginalAllocationCount = pl_sb_size(ptMemoryCtx->sbtAllocations);
-                    
-                    for(uint32_t i = 0; i < uOriginalAllocationCount; i++)
-                    {
-                        plAllocationEntry tEntry = ptMemoryCtx->sbtAllocations[i];
-                        strncpy(pcFile, tEntry.pcFile, 1024);
-                        ptUi->text("%i", i);
-                        ptUi->text("%s", pcFile);
-                        ptUi->text("%i", tEntry.iLine);
-                        ptUi->text("%u", tEntry.szSize);
-                    }
-
-                    ptUi->end_tab();
-                }
+                plMemoryContext* ptMemoryCtx = pl_get_memory_context();
                 ptUi->layout_dynamic(0.0f, 1);
-                if(ptUi->begin_tab("Freed Allocations"))
+
+                ptUi->text("Active Allocations: %u", ptMemoryCtx->szActiveAllocations);
+                ptUi->text("Freed Allocations: %u", pl_sb_size(ptMemoryCtx->sbtFreeAllocations));
+
+                if(ptUi->begin_tab_bar("main toolbar"))
                 {
-                    ptUi->layout_template_begin(30.0f);
-                    ptUi->layout_template_push_static(50.0f);
-                    ptUi->layout_template_push_variable(300.0f);
-                    ptUi->layout_template_push_variable(50.0f);
-                    ptUi->layout_template_push_variable(50.0f);
-                    ptUi->layout_template_end();
-
-                    ptUi->text("%s", "Entry");
-                    ptUi->text("%s", "File");
-                    ptUi->text("%s", "Line");
-                    ptUi->text("%s", "Size");
-
-                    const uint32_t uOriginalAllocationCount = pl_sb_size(ptMemoryCtx->sbtFreeAllocations);
-                    for(uint32_t i = 0; i < uOriginalAllocationCount; i++)
+                    static char pcFile[1024] = {0};
+                    if(ptUi->begin_tab("Active Allocations"))
                     {
-                        plAllocationEntry tEntry = ptMemoryCtx->sbtFreeAllocations[i];
-                        strncpy(pcFile, tEntry.pcFile, 1024);
-                        ptUi->text("%i", i);
-                        ptUi->text("%s", pcFile);
-                        ptUi->text("%i", tEntry.iLine);
-                        ptUi->text("%u", tEntry.szSize);
+                        ptUi->layout_template_begin(30.0f);
+                        ptUi->layout_template_push_static(50.0f);
+                        ptUi->layout_template_push_variable(300.0f);
+                        ptUi->layout_template_push_variable(50.0f);
+                        ptUi->layout_template_push_variable(50.0f);
+                        ptUi->layout_template_end();
+
+                        ptUi->text("%s", "Entry");
+                        ptUi->text("%s", "File");
+                        ptUi->text("%s", "Line");
+                        ptUi->text("%s", "Size");
+
+                        const uint32_t uOriginalAllocationCount = pl_sb_size(ptMemoryCtx->sbtAllocations);
+                        
+                        for(uint32_t i = 0; i < uOriginalAllocationCount; i++)
+                        {
+                            plAllocationEntry tEntry = ptMemoryCtx->sbtAllocations[i];
+                            strncpy(pcFile, tEntry.pcFile, 1024);
+                            ptUi->text("%i", i);
+                            ptUi->text("%s", pcFile);
+                            ptUi->text("%i", tEntry.iLine);
+                            ptUi->text("%u", tEntry.szSize);
+                        }
+
+                        ptUi->end_tab();
                     }
-                    ptUi->end_tab();
+                    ptUi->layout_dynamic(0.0f, 1);
+                    if(ptUi->begin_tab("Freed Allocations"))
+                    {
+                        ptUi->layout_template_begin(30.0f);
+                        ptUi->layout_template_push_static(50.0f);
+                        ptUi->layout_template_push_variable(300.0f);
+                        ptUi->layout_template_push_variable(50.0f);
+                        ptUi->layout_template_push_variable(50.0f);
+                        ptUi->layout_template_end();
+
+                        ptUi->text("%s", "Entry");
+                        ptUi->text("%s", "File");
+                        ptUi->text("%s", "Line");
+                        ptUi->text("%s", "Size");
+
+                        const uint32_t uOriginalAllocationCount = pl_sb_size(ptMemoryCtx->sbtFreeAllocations);
+                        for(uint32_t i = 0; i < uOriginalAllocationCount; i++)
+                        {
+                            plAllocationEntry tEntry = ptMemoryCtx->sbtFreeAllocations[i];
+                            strncpy(pcFile, tEntry.pcFile, 1024);
+                            ptUi->text("%i", i);
+                            ptUi->text("%s", pcFile);
+                            ptUi->text("%i", tEntry.iLine);
+                            ptUi->text("%u", tEntry.szSize);
+                        }
+                        ptUi->end_tab();
+                    }
+                    ptUi->end_tab_bar();
                 }
-                ptUi->end_tab_bar();
+                ptUi->end_window();
             }
-            ptUi->end_window();
         }
 
         if(ptAppData->bShowUiDemo)
