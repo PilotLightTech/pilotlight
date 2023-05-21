@@ -514,15 +514,16 @@ pl__handle_extension_reloads(plApiRegistryApiI* ptApiRegistry)
         if(pl__has_library_changed(&gsbtLibs[gsbtHotLibs[i]]))
         {
             plSharedLibrary* ptLibrary = &gsbtLibs[gsbtHotLibs[i]];
-            pl__reload_library(ptLibrary);
             plExtension* ptExtension = &gsbtExtensions[gsbtHotLibs[i]];
-                #ifdef _WIN32
-                    ptExtension->pl_load   = (void (__cdecl *)(plApiRegistryApiI*, bool)) pl__load_library_function(ptLibrary, ptExtension->pcLoadFunc);
-                    ptExtension->pl_unload = (void (__cdecl *)(plApiRegistryApiI*))       pl__load_library_function(ptLibrary, ptExtension->pcUnloadFunc);
-                #else // linux & apple
-                    ptExtension->pl_load   = (void (__attribute__(()) *)(plApiRegistryApiI*, bool)) pl__load_library_function(ptLibrary, ptExtension->pcLoadFunc);
-                    ptExtension->pl_unload = (void (__attribute__(()) *)(plApiRegistryApiI*))       pl__load_library_function(ptLibrary, ptExtension->pcUnloadFunc);
-                #endif
+            ptExtension->pl_unload(ptApiRegistry);
+            pl__reload_library(ptLibrary); 
+            #ifdef _WIN32
+                ptExtension->pl_load   = (void (__cdecl *)(plApiRegistryApiI*, bool)) pl__load_library_function(ptLibrary, ptExtension->pcLoadFunc);
+                ptExtension->pl_unload = (void (__cdecl *)(plApiRegistryApiI*))       pl__load_library_function(ptLibrary, ptExtension->pcUnloadFunc);
+            #else // linux & apple
+                ptExtension->pl_load   = (void (__attribute__(()) *)(plApiRegistryApiI*, bool)) pl__load_library_function(ptLibrary, ptExtension->pcLoadFunc);
+                ptExtension->pl_unload = (void (__attribute__(()) *)(plApiRegistryApiI*))       pl__load_library_function(ptLibrary, ptExtension->pcUnloadFunc);
+            #endif
             PL_ASSERT(ptExtension->pl_load);
             PL_ASSERT(ptExtension->pl_unload);
             ptExtension->pl_load(ptApiRegistry, true);
