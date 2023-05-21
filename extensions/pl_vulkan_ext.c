@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] global data
 // [SECTION] internal structs
 // [SECTION] internal api (public api structs)
 // [SECTION] internal api
@@ -29,12 +30,19 @@ Index of this file:
 #include "pl_ds.h"
 #include "pl_io.h"
 #include "pl_memory.h"
+#include "pl_profile.h"
+#include "pl_log.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
 #ifdef _WIN32
 #pragma comment(lib, "vulkan-1.lib")
 #endif
+
+//-----------------------------------------------------------------------------
+// [SECTION] global data
+//-----------------------------------------------------------------------------
+static uint32_t uLogChannel = UINT32_MAX;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -57,7 +65,8 @@ typedef struct _plDeviceAllocatorData
     plDeviceAllocationBlock*         sbtBlocks;
 
     // buddy allocator data
-    const char**            sbtDebugNames;
+    char*                   sbcDebugNames;
+    char**                  sbtDebugNamesInDir;
     plDeviceAllocationNode* sbtNodes;
     uint32_t                auFreeList[PL_DEVICE_LOCAL_LEVELS];
 
@@ -115,7 +124,7 @@ static plDeviceMemoryAllocation pl_allocate_dedicated(struct plDeviceMemoryAlloc
 static void                     pl_free_dedicated    (struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation);
 static plDeviceAllocationBlock* pl_blocks_dedicated  (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
 static plDeviceAllocationNode*  pl_nodes_dedicated   (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
-static const char**             pl_names_dedicated   (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
+static char**                   pl_names_dedicated   (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
 static plDeviceMemoryAllocatorI pl_create_device_local_dedicated_allocator    (VkPhysicalDevice tPhysicalDevice, VkDevice tDevice);
 static void                     pl_cleanup_device_local_dedicated_allocator   (plDeviceMemoryAllocatorI* ptAllocator);
 
@@ -376,7 +385,7 @@ pl__create_instance_ex(plRenderBackend* ptBackend, uint32_t uVersion, uint32_t u
     {
         if(strcmp("VK_LAYER_KHRONOS_validation", ppcEnabledLayers[i]) == 0)
         {
-            // pl_log_trace_to_f(ptBackend->uLogChannel, "vulkan validation enabled");
+            pl_log_trace_to_f(uLogChannel, "vulkan validation enabled");
             bValidationEnabled = true;
             break;
         }
@@ -412,7 +421,7 @@ pl__create_instance_ex(plRenderBackend* ptBackend, uint32_t uVersion, uint32_t u
         {
             if(strcmp(requestedExtension, ptAvailableExtensions[j].extensionName) == 0)
             {
-                // pl_log_trace_to_f(ptBackend->uLogChannel, "extension %s found", ptAvailableExtensions[j].extensionName);
+                pl_log_trace_to_f(uLogChannel, "extension %s found", ptAvailableExtensions[j].extensionName);
                 extensionFound = true;
                 break;
             }
@@ -427,11 +436,11 @@ pl__create_instance_ex(plRenderBackend* ptBackend, uint32_t uVersion, uint32_t u
     // report if all requested extensions aren't found
     if(pl_sb_size(sbpcMissingExtensions) > 0)
     {
-        // pl_log_error_to_f(ptBackend->uLogChannel, "%d %s", pl_sb_size(sbpcMissingExtensions), "Missing Extensions:");
-        // for(uint32_t i = 0; i < pl_sb_size(sbpcMissingExtensions); i++)
-        // {
-        //     pl_log_error_to_f(ptBackend->uLogChannel, "  * %s", sbpcMissingExtensions[i]);
-        // }
+        pl_log_error_to_f(uLogChannel, "%d %s", pl_sb_size(sbpcMissingExtensions), "Missing Extensions:");
+        for(uint32_t i = 0; i < pl_sb_size(sbpcMissingExtensions); i++)
+        {
+            pl_log_error_to_f(uLogChannel, "  * %s", sbpcMissingExtensions[i]);
+        }
 
         PL_ASSERT(false && "Can't find all requested extensions");
     }
@@ -446,7 +455,7 @@ pl__create_instance_ex(plRenderBackend* ptBackend, uint32_t uVersion, uint32_t u
         {
             if(strcmp(pcRequestedLayer, ptAvailableLayers[j].layerName) == 0)
             {
-                // pl_log_trace_to_f(ptBackend->uLogChannel, "layer %s found", ptAvailableLayers[j].layerName);
+                pl_log_trace_to_f(uLogChannel, "layer %s found", ptAvailableLayers[j].layerName);
                 bLayerFound = true;
                 break;
             }
@@ -461,11 +470,11 @@ pl__create_instance_ex(plRenderBackend* ptBackend, uint32_t uVersion, uint32_t u
     // report if all requested layers aren't found
     if(pl_sb_size(sbpcMissingLayers) > 0)
     {
-        // pl_log_error_to_f(ptBackend->uLogChannel, "%d %s", pl_sb_size(sbpcMissingLayers), "Missing Layers:");
-        // for(uint32_t i = 0; i < pl_sb_size(sbpcMissingLayers); i++)
-        // {
-        //     pl_log_error_to_f(ptBackend->uLogChannel, "  * %s", sbpcMissingLayers[i]);
-        // }
+        pl_log_error_to_f(uLogChannel, "%d %s", pl_sb_size(sbpcMissingLayers), "Missing Layers:");
+        for(uint32_t i = 0; i < pl_sb_size(sbpcMissingLayers); i++)
+        {
+            pl_log_error_to_f(uLogChannel, "  * %s", sbpcMissingLayers[i]);
+        }
         PL_ASSERT(false && "Can't find all requested layers");
     }
 
@@ -499,7 +508,7 @@ pl__create_instance_ex(plRenderBackend* ptBackend, uint32_t uVersion, uint32_t u
     };
 
     PL_VULKAN(vkCreateInstance(&tCreateInfo, NULL, &ptBackend->tInstance));
-    // pl_log_trace_to_f(ptBackend->uLogChannel, "created vulkan instance");
+    pl_log_trace_to_f(uLogChannel, "created vulkan instance");
 
     // cleanup
     if(ptAvailableLayers)     free(ptAvailableLayers);
@@ -512,7 +521,7 @@ pl__create_instance_ex(plRenderBackend* ptBackend, uint32_t uVersion, uint32_t u
         PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(ptBackend->tInstance, "vkCreateDebugUtilsMessengerEXT");
         PL_ASSERT(func != NULL && "failed to set up debug messenger!");
         PL_VULKAN(func(ptBackend->tInstance, &tDebugCreateInfo, NULL, &ptBackend->tDbgMessenger));     
-        // pl_log_trace_to_f(ptBackend->uLogChannel, "enabled Vulkan validation layers");
+        pl_log_trace_to_f(uLogChannel, "enabled Vulkan validation layers");
     }
 }
 
@@ -1265,6 +1274,7 @@ pl_setup_graphics(plGraphics* ptGraphics, plRenderBackend* ptBackend, plApiRegis
 static bool
 pl_begin_frame(plGraphics* ptGraphics)
 {
+    pl_begin_profile_sample(__FUNCTION__);
     plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();
     plDevice* ptDevice = &ptGraphics->tDevice;
     VkDevice tLogicalDevice = ptGraphics->tDevice.tLogicalDevice;
@@ -1326,6 +1336,7 @@ pl_begin_frame(plGraphics* ptGraphics)
         {
             ptGraphics->ptBackendApi->create_swapchain(ptGraphics->ptBackend, &ptGraphics->tDevice, ptGraphics->ptBackend->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
             pl__create_framebuffers(ptDevice, ptGraphics->uRenderPass, &ptGraphics->tSwapchain);
+            pl_end_profile_sample();
             return false;
         }
     }
@@ -1337,12 +1348,14 @@ pl_begin_frame(plGraphics* ptGraphics)
     if (ptCurrentFrame->tInFlight != VK_NULL_HANDLE)
         PL_VULKAN(vkWaitForFences(tLogicalDevice, 1, &ptCurrentFrame->tInFlight, VK_TRUE, UINT64_MAX));
 
+    pl_end_profile_sample();
     return true; 
 }
 
 static void
 pl_end_frame(plGraphics* ptGraphics)
 {
+    pl_begin_profile_sample(__FUNCTION__);
     plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
     plDevice* ptDevice = &ptGraphics->tDevice;
     VkDevice tLogicalDevice = ptGraphics->tDevice.tLogicalDevice;
@@ -1384,6 +1397,7 @@ pl_end_frame(plGraphics* ptGraphics)
     }
 
     ptGraphics->szCurrentFrameIndex = (ptGraphics->szCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;
+    pl_end_profile_sample();
 }
 
 static void
@@ -1778,7 +1792,7 @@ pl_update_bind_group(plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBuf
 static void
 pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, plDraw* atDraws)
 {
-    
+    pl_begin_profile_sample(__FUNCTION__);
     const plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
     static VkDeviceSize tOffsets = { 0 };
     vkCmdSetDepthBias(ptCurrentFrame->tCmdBuf, 0.0f, 0.0f, 0.0f);
@@ -1854,6 +1868,7 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
         }
 
     }
+    pl_end_profile_sample();
 }
 
 static void
@@ -3362,13 +3377,13 @@ pl_nodes_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut)
     return ptData->sbtNodes;    
 }
 
-static const char**
+static char**
 pl_names_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut)
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
     if(puSizeOut)
-        *puSizeOut = pl_sb_size(ptData->sbtDebugNames);
-    return ptData->sbtDebugNames;  
+        *puSizeOut = pl_sb_size(ptData->sbtDebugNamesInDir);
+    return ptData->sbtDebugNamesInDir;  
 }
 
 static plDeviceMemoryAllocation
@@ -3655,7 +3670,10 @@ pl_allocate_local_buffer(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uType
     if(ulAlignment > 0)
         tAllocation.ulOffset = (((tAllocation.ulOffset) + ((ulAlignment)-1)) & ~((ulAlignment)-1));
 
-    ptData->sbtDebugNames[uNode] = pcName;
+    if(pcName == NULL)
+        strncpy(ptData->sbtDebugNamesInDir[uNode], "unnamed", PL_MAX_NAME_LENGTH);
+    else
+        strncpy(ptData->sbtDebugNamesInDir[uNode], pcName, PL_MAX_NAME_LENGTH);
     return tAllocation;
 }
 
@@ -3758,8 +3776,6 @@ pl__coalesce_nodes(plDeviceAllocatorData* ptData, uint32_t uLevel, uint32_t uNod
         }
     }
     
-
-
     if(bBothFree) // need to coalese
     {
 
@@ -3769,8 +3785,6 @@ pl__coalesce_nodes(plDeviceAllocatorData* ptData, uint32_t uLevel, uint32_t uNod
             const uint64_t uSizeOfParentLevel = PL_DEVICE_ALLOCATION_BLOCK_SIZE / ((uint64_t)1 << (uint64_t)(uLevel - 1));
             const uint32_t uParentLevelBlockCount = (1 << (uLevel - 1));
             uint32_t uIndexInLevel = (uint32_t)(ptData->sbtNodes[uLeftNode].ulOffset / uSizeOfParentLevel);
-            // if(ptNode->uBlockIndex % 2 == 1)
-            //     uIndexInLevel++;
             const uint32_t uParentNode = uLeftNode - uParentLevelBlockCount - uIndexInLevel;
             pl__coalesce_nodes(ptData, uLevel - 1, uParentNode);
         }
@@ -3809,7 +3823,7 @@ pl_free_local_buffer(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllo
     }
     uLevel = pl_minu(uLevel, PL_DEVICE_LOCAL_LEVELS - 1);
     pl__coalesce_nodes(ptData, uLevel, ptAllocation->uNodeIndex);
-    ptData->sbtDebugNames[ptNode->uNodeIndex] = "not used";
+    strncpy(ptData->sbtDebugNamesInDir[ptNode->uNodeIndex], "not used", PL_MAX_NAME_LENGTH);
 }
 
 static plDeviceMemoryAllocatorI
@@ -3985,7 +3999,8 @@ pl__create_device_node(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uMemory
     
     uNode = pl_sb_size(ptData->sbtNodes);
     uint32_t uNodeIndex = uNode;
-    pl_sb_resize(ptData->sbtDebugNames, pl_sb_size(ptData->sbtDebugNames) + (1 << PL_DEVICE_LOCAL_LEVELS) - 1);
+    pl_sb_resize(ptData->sbcDebugNames, pl_sb_size(ptData->sbcDebugNames) + PL_MAX_NAME_LENGTH * ((1 << PL_DEVICE_LOCAL_LEVELS) - 1));
+    pl_sb_resize(ptData->sbtDebugNamesInDir, pl_sb_size(ptData->sbtDebugNamesInDir) + (1 << PL_DEVICE_LOCAL_LEVELS) - 1);
     pl_sb_resize(ptData->sbtNodes, pl_sb_size(ptData->sbtNodes) + (1 << PL_DEVICE_LOCAL_LEVELS) - 1);
     const uint32_t uBlockIndex = pl_sb_size(ptData->sbtBlocks);
     for(uint32_t uLevelIndex = 0; uLevelIndex < PL_DEVICE_LOCAL_LEVELS; uLevelIndex++)
@@ -4002,12 +4017,16 @@ pl__create_device_node(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uMemory
             ptData->sbtNodes[uNodeIndex].uBlockIndex  = uBlockIndex;
             ptData->sbtNodes[uNodeIndex].uMemoryType  = uMemoryType;
             ptData->sbtNodes[uNodeIndex].ulSizeWasted = uSizeOfLevel;
-            ptData->sbtDebugNames[uNodeIndex] = "not used";
+            strncpy(&ptData->sbcDebugNames[uNodeIndex * PL_MAX_NAME_LENGTH], "not used", PL_MAX_NAME_LENGTH);
+            ptData->sbtDebugNamesInDir[uNodeIndex] = &ptData->sbcDebugNames[uNodeIndex * PL_MAX_NAME_LENGTH];
+
             uCurrentOffset += uSizeOfLevel;
             uNodeIndex++;
         }
     }
     pl_sb_push(ptData->sbtBlocks, tAllocationBlock);  
+    for(uint32_t i = 0; i < pl_sb_size(ptData->sbtDebugNamesInDir); i++)
+        ptData->sbtDebugNamesInDir[i] = &ptData->sbcDebugNames[i * PL_MAX_NAME_LENGTH];
     return uNode;
 }
 
@@ -4210,21 +4229,23 @@ pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT tMsgSeverity, VkDebugU
     if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
     {
         printf("error validation layer: %s\n", ptCallbackData->pMessage);
+        pl_log_error_to_f(uLogChannel, "error validation layer: %s\n", ptCallbackData->pMessage);
     }
 
     else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
     {
         printf("warn validation layer: %s\n", ptCallbackData->pMessage);
+        pl_log_warn_to_f(uLogChannel, "warn validation layer: %s\n", ptCallbackData->pMessage);
     }
 
-    // else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
-    // {
-    //     printf("info validation layer: %s\n", ptCallbackData->pMessage);
-    // }
-    // else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
-    // {
-    //     printf("trace validation layer: %s\n", ptCallbackData->pMessage);
-    // }
+    else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
+    {
+        // pl_log_trace_to_f(uLogChannel, "info validation layer: %s\n", ptCallbackData->pMessage);
+    }
+    else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
+    {
+        // pl_log_trace_to_f(uLogChannel, "trace validation layer: %s\n", ptCallbackData->pMessage);
+    }
     
     return VK_FALSE;
 }
@@ -4274,12 +4295,12 @@ pl__select_physical_device(VkInstance tInstance, plDevice* ptDeviceOut)
     static const char* pacDeviceTypeName[] = {"Other", "Integrated", "Discrete", "Virtual", "CPU"};
 
     // print info on chosen device
-    // pl_log_debug_f("Device ID: %u", ptDeviceOut->tDeviceProps.deviceID);
-    // pl_log_debug_f("Vendor ID: %u", ptDeviceOut->tDeviceProps.vendorID);
-    // pl_log_debug_f("API Version: %u", ptDeviceOut->tDeviceProps.apiVersion);
-    // pl_log_debug_f("Driver Version: %u", ptDeviceOut->tDeviceProps.driverVersion);
-    // pl_log_debug_f("Device Type: %s", pacDeviceTypeName[ptDeviceOut->tDeviceProps.deviceType]);
-    // pl_log_debug_f("Device Name: %s", ptDeviceOut->tDeviceProps.deviceName);
+    pl_log_info_to_f(uLogChannel, "Device ID: %u", ptDeviceOut->tDeviceProps.deviceID);
+    pl_log_info_to_f(uLogChannel, "Vendor ID: %u", ptDeviceOut->tDeviceProps.vendorID);
+    pl_log_info_to_f(uLogChannel, "API Version: %u", ptDeviceOut->tDeviceProps.apiVersion);
+    pl_log_info_to_f(uLogChannel, "Driver Version: %u", ptDeviceOut->tDeviceProps.driverVersion);
+    pl_log_info_to_f(uLogChannel, "Device Type: %s", pacDeviceTypeName[ptDeviceOut->tDeviceProps.deviceType]);
+    pl_log_info_to_f(uLogChannel, "Device Name: %s", ptDeviceOut->tDeviceProps.deviceName);
 
     uint32_t uExtensionCount = 0;
     vkEnumerateDeviceExtensionProperties(ptDeviceOut->tPhysicalDevice, NULL, &uExtensionCount, NULL);
@@ -4630,6 +4651,8 @@ pl_load_vulkan_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
     plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data("memory"));
+    pl_set_profile_context(ptDataRegistry->get_data("profile"));
+    pl_set_log_context(ptDataRegistry->get_data("log"));
     
     if(bReload)
     {
@@ -4638,6 +4661,18 @@ pl_load_vulkan_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_GRAPHICS), pl_load_graphics_api());
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_DEVICE_MEMORY), pl_load_device_memory_api());
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_BACKEND_VULKAN), pl_load_render_backend_api());
+
+        // find log channel
+        uint32_t uChannelCount = 0;
+        plLogChannel* ptChannels = pl_get_log_channels(&uChannelCount);
+        for(uint32_t i = 0; i < uChannelCount; i++)
+        {
+            if(strcmp(ptChannels[i].pcName, "Vulkan") == 0)
+            {
+                uLogChannel = i;
+                break;
+            }
+        }
     }
     else
     {
@@ -4646,6 +4681,7 @@ pl_load_vulkan_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
         ptApiRegistry->add(PL_API_GRAPHICS, pl_load_graphics_api());
         ptApiRegistry->add(PL_API_DEVICE_MEMORY, pl_load_device_memory_api());
         ptApiRegistry->add(PL_API_BACKEND_VULKAN, pl_load_render_backend_api());
+        uLogChannel = pl_add_log_channel("Vulkan", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
     }
 }
 

@@ -149,7 +149,7 @@ typedef struct _plDeviceMemoryAllocatorI
     void                     (*free)    (struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation);
     plDeviceAllocationBlock* (*blocks)  (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
     plDeviceAllocationNode*  (*nodes)   (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
-    const char**             (*names)   (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
+    char**                   (*names)   (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
 
 } plDeviceMemoryAllocatorI;
 
