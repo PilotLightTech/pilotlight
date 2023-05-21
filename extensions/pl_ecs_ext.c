@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] global data
 // [SECTION] internal api
 // [SECTION] public api implementations
 // [SECTION] internal api implementations
@@ -24,9 +25,16 @@ Index of this file:
 #include "pl_ecs_ext.h"
 #include "pl_ds.h"
 #include "pl_math.h"
+#include "pl_profile.h"
+#include "pl_log.h"
 
 // extensions
 #include "pl_vulkan_ext.h"
+
+//-----------------------------------------------------------------------------
+// [SECTION] global data
+//-----------------------------------------------------------------------------
+static uint32_t uLogChannel = UINT32_MAX;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -61,14 +69,14 @@ static void pl_run_mesh_update_system     (plComponentLibrary* ptLibrary);
 static void pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary);
 
 // camera
-static void     pl_camera_set_fov        (plCameraComponent* ptCamera, float fYFov);
-static void     pl_camera_set_clip_planes(plCameraComponent* ptCamera, float fNearZ, float fFarZ);
-static void     pl_camera_set_aspect     (plCameraComponent* ptCamera, float fAspect);
-static void     pl_camera_set_pos        (plCameraComponent* ptCamera, float fX, float fY, float fZ);
-static void     pl_camera_set_pitch_yaw  (plCameraComponent* ptCamera, float fPitch, float fYaw);
-static void     pl_camera_translate      (plCameraComponent* ptCamera, float fDx, float fDy, float fDz);
-static void     pl_camera_rotate         (plCameraComponent* ptCamera, float fDPitch, float fDYaw);
-static void     pl_camera_update         (plCameraComponent* ptCamera);
+static void pl_camera_set_fov        (plCameraComponent* ptCamera, float fYFov);
+static void pl_camera_set_clip_planes(plCameraComponent* ptCamera, float fNearZ, float fFarZ);
+static void pl_camera_set_aspect     (plCameraComponent* ptCamera, float fAspect);
+static void pl_camera_set_pos        (plCameraComponent* ptCamera, float fX, float fY, float fZ);
+static void pl_camera_set_pitch_yaw  (plCameraComponent* ptCamera, float fPitch, float fYaw);
+static void pl_camera_translate      (plCameraComponent* ptCamera, float fDx, float fDy, float fDz);
+static void pl_camera_rotate         (plCameraComponent* ptCamera, float fDPitch, float fDYaw);
+static void pl_camera_update         (plCameraComponent* ptCamera);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -160,6 +168,8 @@ pl_ecs_init_component_library(plApiRegistryApiI* ptApiRegistry, plComponentLibra
 
     ptLibrary->tHierarchyComponentManager.tComponentType = PL_COMPONENT_TYPE_HIERARCHY;
     ptLibrary->tHierarchyComponentManager.szStride = sizeof(plHierarchyComponent);
+
+    pl_log_info_to(uLogChannel, "initialized component library");
 
 }
 
@@ -294,10 +304,12 @@ pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName)
     plTagComponent* ptTag = pl_ecs_create_component(&ptLibrary->tTagComponentManager, tNewEntity);
     if(pcName)
     {
+        pl_log_debug_to_f(uLogChannel, "created mesh '%s'", pcName);
         strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
     }
     else
     {
+        pl_log_debug_to(uLogChannel, "created unnamed mesh");
         strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
     }
 
@@ -314,10 +326,12 @@ pl_ecs_create_outline_material(plComponentLibrary* ptLibrary, const char* pcName
     plTagComponent* ptTag = pl_ecs_create_component(&ptLibrary->tTagComponentManager, tNewEntity);
     if(pcName)
     {
+        pl_log_debug_to_f(uLogChannel, "created outline material '%s'", pcName);
         strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
     }
     else
     {
+        pl_log_debug_to(uLogChannel, "created unnamed outline material");
         strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
     }
 
@@ -351,10 +365,12 @@ pl_ecs_create_material(plComponentLibrary* ptLibrary, const char* pcName)
     plTagComponent* ptTag = pl_ecs_create_component(&ptLibrary->tTagComponentManager, tNewEntity);
     if(pcName)
     {
+        pl_log_debug_to_f(uLogChannel, "created material '%s'", pcName);
         strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
     }
     else
     {
+        pl_log_debug_to(uLogChannel, "created unnamed material");
         strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
     }
 
@@ -384,30 +400,42 @@ pl_ecs_create_material(plComponentLibrary* ptLibrary, const char* pcName)
 static void
 pl_add_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
-    plMeshComponent* ptMesh = pl_ecs_get_component(&ptLibrary->tMeshComponentManager, tEntity);
 
-    plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tMaterial);
-    ptMaterial->tGraphicsState.ulStencilOpFail      = VK_STENCIL_OP_REPLACE;
-    ptMaterial->tGraphicsState.ulStencilOpDepthFail = VK_STENCIL_OP_REPLACE;
-    ptMaterial->tGraphicsState.ulStencilOpPass      = VK_STENCIL_OP_REPLACE;
+    pl_log_debug_to_f(uLogChannel, "add mesh outline to %u", tEntity);
 
-    if(ptMesh->sbtSubmeshes[0].tOutlineMaterial == 0)
+
+    if(pl_ecs_has_entity(&ptLibrary->tMeshComponentManager, tEntity))
     {
-        ptMesh->sbtSubmeshes[0].tOutlineMaterial = pl_ecs_create_outline_material(ptLibrary, "outline material");
-        plMaterialComponent* ptOutlineMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tOutlineMaterial);
-        ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tMaterial);
-        ptOutlineMaterial->tGraphicsState.ulVertexStreamMask = ptMaterial->tGraphicsState.ulVertexStreamMask;
+        plMeshComponent* ptMesh = pl_ecs_get_component(&ptLibrary->tMeshComponentManager, tEntity);
+
+        plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tMaterial);
+        ptMaterial->tGraphicsState.ulStencilOpFail      = VK_STENCIL_OP_REPLACE;
+        ptMaterial->tGraphicsState.ulStencilOpDepthFail = VK_STENCIL_OP_REPLACE;
+        ptMaterial->tGraphicsState.ulStencilOpPass      = VK_STENCIL_OP_REPLACE;
+
+        if(ptMesh->sbtSubmeshes[0].tOutlineMaterial == 0)
+        {
+            ptMesh->sbtSubmeshes[0].tOutlineMaterial = pl_ecs_create_outline_material(ptLibrary, "outline material");
+            plMaterialComponent* ptOutlineMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tOutlineMaterial);
+            ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tMaterial);
+            ptOutlineMaterial->tGraphicsState.ulVertexStreamMask = ptMaterial->tGraphicsState.ulVertexStreamMask;
+        }
     }
 }
 
 static void
 pl_remove_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
-    plMeshComponent* ptMesh = pl_ecs_get_component(&ptLibrary->tMeshComponentManager, tEntity);
-    plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tMaterial);
-    ptMaterial->tGraphicsState.ulStencilOpFail      = VK_STENCIL_OP_KEEP;
-    ptMaterial->tGraphicsState.ulStencilOpDepthFail = VK_STENCIL_OP_KEEP;
-    ptMaterial->tGraphicsState.ulStencilOpPass      = VK_STENCIL_OP_KEEP;
+    pl_log_debug_to_f(uLogChannel, "remove mesh outline to %u", tEntity);
+
+    if(pl_ecs_has_entity(&ptLibrary->tMeshComponentManager, tEntity))
+    {
+        plMeshComponent* ptMesh = pl_ecs_get_component(&ptLibrary->tMeshComponentManager, tEntity);
+        plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tMaterial);
+        ptMaterial->tGraphicsState.ulStencilOpFail      = VK_STENCIL_OP_KEEP;
+        ptMaterial->tGraphicsState.ulStencilOpDepthFail = VK_STENCIL_OP_KEEP;
+        ptMaterial->tGraphicsState.ulStencilOpPass      = VK_STENCIL_OP_KEEP;
+    }
 }
 
 static void
@@ -423,6 +451,7 @@ pl_ecs_cleanup_systems(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptL
 static void
 pl_run_object_update_system(plComponentLibrary* ptLibrary)
 {
+    pl_begin_profile_sample(__FUNCTION__);
     plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
     plObjectSystemData* ptObjectSystemData = ptLibrary->tObjectComponentManager.pSystemData;
     pl_sb_reset(ptObjectSystemData->sbtSubmeshes);
@@ -437,11 +466,13 @@ pl_run_object_update_system(plComponentLibrary* ptLibrary)
             pl_sb_push(ptObjectSystemData->sbtSubmeshes, &ptMeshComponent->sbtSubmeshes[j]);
         }
     }
+    pl_end_profile_sample();
 }
 
 static void
 pl_run_mesh_update_system(plComponentLibrary* ptLibrary)
 {
+    pl_begin_profile_sample(__FUNCTION__);
     plMeshComponent* sbtMeshes = ptLibrary->tMeshComponentManager.pComponents;
 
     // calculate normals and tangents
@@ -525,11 +556,13 @@ pl_run_mesh_update_system(plComponentLibrary* ptLibrary)
             }
         }
     }
+    pl_end_profile_sample();
 }
 
 static void
 pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
 {
+    pl_begin_profile_sample(__FUNCTION__);
     plHierarchyComponent* sbtComponents = ptLibrary->tHierarchyComponentManager.pComponents;
 
     for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
@@ -540,6 +573,8 @@ pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
         plTransformComponent* ptChildTransform = pl_ecs_get_component(&ptLibrary->tTransformComponentManager, tChildEntity);
         ptChildTransform->tFinalTransform = pl_mul_mat4(&ptParentTransform->tFinalTransform, &ptChildTransform->tWorld);
     }
+
+    pl_end_profile_sample();
 }
 
 
@@ -551,10 +586,12 @@ pl_ecs_create_object(plComponentLibrary* ptLibrary, const char* pcName)
     plTagComponent* ptTag = pl_ecs_create_component(&ptLibrary->tTagComponentManager, tNewEntity);
     if(pcName)
     {
+        pl_log_debug_to_f(uLogChannel, "created object '%s'", pcName);
         strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
     }
     else
     {
+        pl_log_debug_to(uLogChannel, "created unnamed object");
         strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
     }
 
@@ -563,7 +600,6 @@ pl_ecs_create_object(plComponentLibrary* ptLibrary, const char* pcName)
 
     plTransformComponent* ptTransform = pl_ecs_create_component(&ptLibrary->tTransformComponentManager, tNewEntity);
     memset(ptTransform, 0, sizeof(plTransformComponent));
-    // ptTransform->tInfo.tModel = pl_identity_mat4();
     ptTransform->tWorld = pl_identity_mat4();
 
     plMeshComponent* ptMesh = pl_ecs_create_component(&ptLibrary->tMeshComponentManager, tNewEntity);
@@ -583,16 +619,17 @@ pl_ecs_create_transform(plComponentLibrary* ptLibrary, const char* pcName)
     plTagComponent* ptTag = pl_ecs_create_component(&ptLibrary->tTagComponentManager, tNewEntity);
     if(pcName)
     {
+        pl_log_debug_to_f(uLogChannel, "created transform '%s'", pcName);
         strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
     }
     else
     {
+        pl_log_debug_to(uLogChannel, "created unnamed transform");
         strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
     }
 
     plTransformComponent* ptTransform = pl_ecs_create_component(&ptLibrary->tTransformComponentManager, tNewEntity);
     memset(ptTransform, 0, sizeof(plTransformComponent));
-    // ptTransform->tInfo.tModel = pl_identity_mat4();
     ptTransform->tWorld = pl_identity_mat4();
 
     return tNewEntity;  
@@ -606,10 +643,12 @@ pl_ecs_create_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 t
     plTagComponent* ptTag = pl_ecs_create_component(&ptLibrary->tTagComponentManager, tNewEntity);
     if(pcName)
     {
+        pl_log_debug_to_f(uLogChannel, "created camera '%s'", pcName);
         strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
     }
     else
     {
+        pl_log_debug_to(uLogChannel, "created unnamed camera");
         strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
     }
 
@@ -638,7 +677,6 @@ pl_ecs_attach_component(plComponentLibrary* ptLibrary, plEntity tEntity, plEntit
     if(pl_ecs_has_entity(&ptLibrary->tHierarchyComponentManager, tEntity))
     {
         ptHierarchyComponent = pl_ecs_get_component(&ptLibrary->tHierarchyComponentManager, tEntity);
-
     }
     else
     {
@@ -656,7 +694,6 @@ pl_ecs_deattach_component(plComponentLibrary* ptLibrary, plEntity tEntity)
     if(pl_ecs_has_entity(&ptLibrary->tHierarchyComponentManager, tEntity))
     {
         ptHierarchyComponent = pl_ecs_get_component(&ptLibrary->tHierarchyComponentManager, tEntity);
-
     }
     else
     {
@@ -720,6 +757,7 @@ pl_camera_rotate(plCameraComponent* ptCamera, float fDPitch, float fDYaw)
 static void
 pl_camera_update(plCameraComponent* ptCamera)
 {
+    pl_begin_profile_sample(__FUNCTION__);
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // world space
@@ -758,7 +796,9 @@ pl_camera_update(plCameraComponent* ptCamera)
     ptCamera->tProjMat.col[2].z = ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
     ptCamera->tProjMat.col[2].w = 1.0f;
     ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
-    ptCamera->tProjMat.col[3].w = 0.0f;     
+    ptCamera->tProjMat.col[3].w = 0.0f;    
+
+    pl_end_profile_sample(); 
 }
 
 //-----------------------------------------------------------------------------
@@ -770,16 +810,31 @@ pl_load_ecs_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
     plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data("memory"));
+    pl_set_profile_context(ptDataRegistry->get_data("profile"));
+    pl_set_log_context(ptDataRegistry->get_data("log"));
 
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_ECS), pl_load_ecs_api());
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_CAMERA), pl_load_camera_api());
+
+        // find log channel
+        uint32_t uChannelCount = 0;
+        plLogChannel* ptChannels = pl_get_log_channels(&uChannelCount);
+        for(uint32_t i = 0; i < uChannelCount; i++)
+        {
+            if(strcmp(ptChannels[i].pcName, "ECS") == 0)
+            {
+                uLogChannel = i;
+                break;
+            }
+        }
     }
     else
     {
         ptApiRegistry->add(PL_API_ECS, pl_load_ecs_api());
         ptApiRegistry->add(PL_API_CAMERA, pl_load_camera_api());
+        uLogChannel = pl_add_log_channel("ECS", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
     }
 }
 
