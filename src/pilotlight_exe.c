@@ -102,14 +102,6 @@ plExtension*      gsbtExtensions  = NULL;
 plSharedLibrary*  gsbtLibs        = NULL;
 uint32_t*         gsbtHotLibs     = NULL;
 
-// memory
-size_t gszActiveAllocations = 0;
-
-#if 0
-plAllocationEntry gatAllocations[10000] = {0};
-size_t gszAllocCount = 0;
-#endif
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
@@ -195,8 +187,6 @@ pl_unload_core_apis(void)
     pl_sb_free(gsbtHotLibs);
     pl_sb_free(gsbApiEntries);
     pl_hm_free(&gtHashMap);
-
-    PL_ASSERT(gszActiveAllocations == 0);
 }
 
 //-----------------------------------------------------------------------------

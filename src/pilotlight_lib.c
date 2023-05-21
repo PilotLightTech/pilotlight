@@ -79,7 +79,7 @@ pl_free(void* pBuffer)
     {
         const uint64_t ulIndex = pl_hm_lookup(gptMemoryContext->ptHashMap, ulHash);
         pl_hm_remove(gptMemoryContext->ptHashMap, ulHash);
-        pl_sb_push(gptMemoryContext->sbtFreeAllocations, gptMemoryContext->sbtAllocations[ulIndex]);
+        gptMemoryContext->szAllocationFrees++;
         gptMemoryContext->szActiveAllocations--;
     }
     free(pBuffer);

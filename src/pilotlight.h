@@ -115,6 +115,9 @@ typedef struct _plSocket plSocket;
 typedef struct _plMemoryContext plMemoryContext;
 typedef struct _plAllocationEntry plAllocationEntry;
 
+// external forward declarations
+typedef struct _plHashMap plHashMap; // pl_ds.h
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
@@ -212,14 +215,13 @@ typedef struct _plAllocationEntry
     const char* pcFile; 
 } plAllocationEntry;
 
-typedef struct _plHashMap plHashMap;
 typedef struct _plMemoryContext
 {
   size_t             szActiveAllocations;
   size_t             szAllocationCount;
+  size_t             szAllocationFrees;
   plHashMap*         ptHashMap;
   plAllocationEntry* sbtAllocations;
-  plAllocationEntry* sbtFreeAllocations;
 }
 plMemoryContext;
 
