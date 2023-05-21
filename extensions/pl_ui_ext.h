@@ -3,8 +3,8 @@
 */
 
 // library version
-#define PL_UI_VERSION    "0.9.0"
-#define PL_UI_VERSION_NUM 00900
+#define PL_UI_VERSION    "0.10.0"
+#define PL_UI_VERSION_NUM 001000
 
 /*
 Index of this file:
@@ -45,6 +45,7 @@ typedef struct _plUiApiI plUiApiI;
 
 // basic types
 typedef struct _plUiContext plUiContext; // internal
+typedef struct _plUiClipper plUiClipper;
 
 // enums
 typedef int plUiConditionFlags;
@@ -101,6 +102,7 @@ typedef struct _plUiApiI
 
     // fonts
     void           (*set_default_font)(plFont* ptFont);
+    plFont*        (*get_default_font)(void);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~windows~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -130,8 +132,11 @@ typedef struct _plUiApiI
 
     // window utilities
     // - refers to current window (between "pl_ui_begin_window()" & "pl_ui_end_window()")
-    plVec2         (*get_window_pos) (void);
-    plVec2         (*get_window_size)(void);
+    plVec2         (*get_window_pos)       (void);
+    plVec2         (*get_window_size)      (void);
+    plVec2         (*get_window_scroll)    (void);
+    plVec2         (*get_window_scroll_max)(void);
+    void           (*set_window_scroll)    (plVec2 tScroll);
 
     // window manipulation
     // - call before "pl_ui_begin_window()"
@@ -196,6 +201,19 @@ typedef struct _plUiApiI
     void           (*indent)          (float fIndent);
     void           (*unindent)        (float fIndent);
 
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~clipper~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // - clipper based on "Dear ImGui"'s ImGuiListClipper (https://github.com/ocornut/imgui)
+    // - Used for large numbers of evenly spaced rows.
+    // - Without Clipper:
+    //       for(uint32_t i = 0; i < QUANTITY; i++)
+    //           ptUi->text("%i", i);
+    // - With Clipper:
+    //       plUiClipper tClipper = {QUANTITY};
+    //       while(ptUi->step_clipper(&tClipper))
+    //           for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
+    //               ptUi->text("%i", i);
+    bool           (*step_clipper)(plUiClipper* ptClipper);
+
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~layout systems~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // - layout systems are based on "Nuklear" (https://github.com/Immediate-Mode-UI/Nuklear)
@@ -251,6 +269,19 @@ typedef struct _plUiApiI
     bool          (*was_last_item_active) (void);
     bool          (*is_mouse_owned)       (void);
 } plUiApiI;
+
+//-----------------------------------------------------------------------------
+// [SECTION] structs
+//-----------------------------------------------------------------------------
+
+typedef struct _plUiClipper
+{
+    uint32_t uItemCount;
+    uint32_t uDisplayStart;
+    uint32_t uDisplayEnd;
+    float    _fItemHeight;
+    float    _fStartPosY;
+} plUiClipper;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums

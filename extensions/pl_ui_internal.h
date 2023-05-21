@@ -45,6 +45,7 @@ Index of this file:
 
 // basic types
 typedef struct _plUiStyle          plUiStyle;
+typedef struct _plUiColorScheme    plUiColorScheme;
 typedef struct _plUiWindow         plUiWindow;
 typedef struct _plUiTabBar         plUiTabBar;
 typedef struct _plUiPrevItemData   plUiPrevItemData;
@@ -120,21 +121,8 @@ enum plUiLayoutSystemType_
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plUiStyle
+typedef struct _plUiColorScheme
 {
-    // style
-    float  fTitlePadding;
-    float  fFontSize;
-    float  fIndentSize;
-    float  fWindowHorizontalPadding;
-    float  fWindowVerticalPadding;
-    float  fScrollbarSize;
-    float  fSliderSize;
-    plVec2 tItemSpacing;
-    plVec2 tInnerSpacing;
-    plVec2 tFramePadding;
-
-    // colors
     plVec4 tTitleActiveCol;
     plVec4 tTitleBgCol;
     plVec4 tTitleBgCollapsedCol;
@@ -158,6 +146,21 @@ typedef struct _plUiStyle
     plVec4 tScrollbarFrameCol;
     plVec4 tScrollbarActiveCol;
     plVec4 tScrollbarHoveredCol;
+} plUiColorScheme;
+
+typedef struct _plUiStyle
+{
+    // style
+    float  fTitlePadding;
+    float  fFontSize;
+    float  fIndentSize;
+    float  fWindowHorizontalPadding;
+    float  fWindowVerticalPadding;
+    float  fScrollbarSize;
+    float  fSliderSize;
+    plVec2 tItemSpacing;
+    plVec2 tInnerSpacing;
+    plVec2 tFramePadding;
 } plUiStyle;
 
 typedef struct _plUiTabBar
@@ -203,6 +206,7 @@ typedef struct _plUiLayoutRow
     uint32_t             uCurrentColumn;       // current column
     float                fMaxWidth;            // maximum row width  (to help set max cursor position)
     float                fMaxHeight;           // maximum row height (to help set next row position + max cursor position)
+    float                fRowStartX;           // offset where the row starts from (think of a tab bar being the second widget in the row)
     const float*         pfSizesOrRatios;      // size or rations when using array layout system (system 4)
     uint32_t             uStaticEntryCount;    // number of static entries when using template layout system (system 5)
     uint32_t             uDynamicEntryCount;   // number of dynamic entries when using template layout system (system 5)
@@ -242,6 +246,7 @@ typedef struct _plUiTempWindowData
     float                fExtraIndent;      // extra indent added by pl_ui_indent
     plUiLayoutRow        tCurrentLayoutRow; // current layout row to use
     plVec2               tRowPos;           // current row starting position
+    float                fAccumRowX;        // additional indent due to a parent (like tab bar) not being the first item in a row
 
     // template layout system
     float fTempMinWidth;
@@ -305,9 +310,10 @@ typedef struct _plUiNextWindowData
 
 typedef struct _plUiContext
 {
-    plUiStyle tStyle;
-    plIOApiI* ptIo;
-    plDrawApiI* ptDraw;
+    plUiStyle       tStyle;
+    plUiColorScheme tColorScheme;
+    plIOApiI*       ptIo;
+    plDrawApiI*     ptDraw;
 
     // prev/next state
     plUiNextWindowData tNextWindowData;        // info based on pl_ui_set_next_window_* functions
@@ -376,6 +382,7 @@ void           pl_ui_style                        (bool* pbOpen);
 void           pl_ui_demo                         (bool* pbOpen);
 void           pl_ui_set_dark_theme               (void);
 void           pl_ui_set_default_font             (plFont* ptFont);
+plFont*        pl_ui_get_default_font             (void);
 bool           pl_ui_begin_window                 (const char* pcName, bool* pbOpen, bool bAutoSize);
 void           pl_ui_end_window                   (void);
 plDrawLayer*   pl_ui_get_window_fg_drawlayer      (void);
@@ -387,6 +394,9 @@ void           pl_ui_begin_tooltip                (void);
 void           pl_ui_end_tooltip                  (void);
 plVec2         pl_ui_get_window_pos               (void);
 plVec2         pl_ui_get_window_size              (void);
+plVec2         pl_ui_get_window_scroll            (void);
+plVec2         pl_ui_get_window_scroll_max        (void);
+void           pl_ui_set_window_scroll            (plVec2 tScroll);
 void           pl_ui_set_next_window_pos          (plVec2 tPos, plUiConditionFlags tCondition);
 void           pl_ui_set_next_window_size         (plVec2 tSize, plUiConditionFlags tCondition);
 void           pl_ui_set_next_window_collapse     (bool bCollapsed, plUiConditionFlags tCondition);
@@ -425,6 +435,7 @@ void           pl_ui_separator                    (void);
 void           pl_ui_vertical_spacing             (void);
 void           pl_ui_indent                       (float fIndent);
 void           pl_ui_unindent                     (float fIndent);
+bool           pl_ui_step_clipper                 (plUiClipper* ptClipper);
 void           pl_ui_layout_dynamic               (float fHeight, uint32_t uWidgetCount);
 void           pl_ui_layout_static                (float fHeight, float fWidth, uint32_t uWidgetCount);
 void           pl_ui_layout_row_begin             (plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount);
@@ -459,7 +470,7 @@ bool                 pl_ui_does_triangle_contain_point(plVec2 p0, plVec2 p1, plV
 bool                 pl_ui_is_item_hoverable          (const plRect* ptBox, uint32_t uHash);
 
 // layouts
-static inline plVec2 pl__ui_get_cursor_pos    (void) { return (plVec2){gptCtx->ptCurrentWindow->tTempData.tRowPos.x + gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.fHorizontalOffset + (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize, gptCtx->ptCurrentWindow->tTempData.tRowPos.y + gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.fVerticalOffset};}
+static inline plVec2 pl__ui_get_cursor_pos    (void) { return (plVec2){gptCtx->ptCurrentWindow->tTempData.tRowPos.x + gptCtx->ptCurrentWindow->tTempData.fAccumRowX + gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.fHorizontalOffset + (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize, gptCtx->ptCurrentWindow->tTempData.tRowPos.y + gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.fVerticalOffset};}
 plVec2               pl_ui_calculate_item_size(float fDefaultHeight);
 void                 pl_ui_advance_cursor     (float fWidth, float fHeight);
 
@@ -467,6 +478,8 @@ void                 pl_ui_advance_cursor     (float fWidth, float fHeight);
 bool                 pl_ui_begin_window_ex (const char* pcName, bool* pbOpen, plUiWindowFlags tFlags);
 void                 pl_ui_render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis);
 void                 pl_ui_submit_window   (plUiWindow* ptWindow);
+
+static inline bool   pl__ui_should_render(const plVec2* ptStartPos, const plVec2* ptWidgetSize) { return !(ptStartPos->y + ptWidgetSize->y < gptCtx->ptCurrentWindow->tPos.y || ptStartPos->y > gptCtx->ptCurrentWindow->tPos.y + gptCtx->ptCurrentWindow->tSize.y); }
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~widget behavior~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
