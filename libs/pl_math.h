@@ -13,8 +13,8 @@
 */
 
 // library version
-#define PL_MATH_VERSION    "0.5.0"
-#define PL_MATH_VERSION_NUM 00500
+#define PL_MATH_VERSION    "0.6.0"
+#define PL_MATH_VERSION_NUM 00600
 
 /*
 Index of this file:
@@ -208,20 +208,29 @@ typedef struct _plRect
 // [SECTION] general math
 //-----------------------------------------------------------------------------
 
-static inline float    pl_radiansf(float fDegrees)                       { return fDegrees * 0.0174532925f; }
-static inline float    pl_degreesf(float fRadians)                       { return fRadians * 57.29577951f; }
-static inline float    pl_maxf    (float fValue1, float fValue2)         { return fValue1 > fValue2 ? fValue1 : fValue2; }
-static inline float    pl_minf    (float fValue1, float fValue2)         { return fValue1 > fValue2 ? fValue2 : fValue1; }
-static inline int      pl_maxi    (int iValue1, int iValue2)             { return iValue1 > iValue2 ? iValue1 : iValue2; }
-static inline int      pl_mini    (int iValue1, int iValue2)             { return iValue1 > iValue2 ? iValue2 : iValue1; }
-static inline uint32_t pl_maxu    (uint32_t uValue1, uint32_t uValue2)   { return uValue1 > uValue2 ? uValue1 : uValue2; }
-static inline uint32_t pl_minu    (uint32_t uValue1, uint32_t uValue2)   { return uValue1 > uValue2 ? uValue2 : uValue1; }
-static inline float    pl_squaref (float fValue)                         { return fValue * fValue;}
-static inline float    pl_cubef   (float fValue)                         { return fValue * fValue * fValue;}
-static inline int      pl_clampi  (int iMin, int iValue, int iMax)       { if (iValue < iMin) return iMin; else if (iValue > iMax) return iMax; return iValue; }
-static inline float    pl_clampf  (float fMin, float fValue, float fMax) { if (fValue < fMin) return fMin; else if (fValue > fMax) return fMax; return fValue; }
-static inline float    pl_clamp01f(float fValue)                         { return pl_clampf(0.0f, fValue, 1.0f); }
-static inline size_t   pl_align_up(size_t szValue, size_t szAlign)       { return ((szValue + (szAlign - 1)) & ~(szAlign - 1)); }
+#define pl_max(Value1, Value2) ((Value1) > (Value2) ? (Value1) : (Value2))
+#define pl_min(Value1, Value2) ((Value1) > (Value2) ? (Value2) : (Value1))
+#define pl_square(Value)       ((Value) * (Value))
+#define pl_cube(Value)         ((Value) * (Value) * (Value))
+
+static inline float    pl_radiansf(float fDegrees)                          { return fDegrees * 0.0174532925f; }
+static inline float    pl_degreesf(float fRadians)                          { return fRadians * 57.29577951f; }
+static inline float    pl_maxf    (float fValue1, float fValue2)            { return fValue1 > fValue2 ? fValue1 : fValue2; }
+static inline float    pl_minf    (float fValue1, float fValue2)            { return fValue1 > fValue2 ? fValue2 : fValue1; }
+static inline int      pl_maxi    (int iValue1, int iValue2)                { return iValue1 > iValue2 ? iValue1 : iValue2; }
+static inline int      pl_mini    (int iValue1, int iValue2)                { return iValue1 > iValue2 ? iValue2 : iValue1; }
+static inline uint32_t pl_maxu    (uint32_t uValue1, uint32_t uValue2)      { return uValue1 > uValue2 ? uValue1 : uValue2; }
+static inline uint32_t pl_minu    (uint32_t uValue1, uint32_t uValue2)      { return uValue1 > uValue2 ? uValue2 : uValue1; }
+static inline double   pl_maxd    (double dValue1, double dValue2)          { return dValue1 > dValue2 ? dValue1 : dValue2; }
+static inline double   pl_mind    (double dValue1, double dValue2)          { return dValue1 > dValue2 ? dValue2 : dValue1; }
+static inline float    pl_squaref (float fValue)                            { return fValue * fValue;}
+static inline float    pl_cubef   (float fValue)                            { return fValue * fValue * fValue;}
+static inline int      pl_clampi  (int iMin, int iValue, int iMax)          { if (iValue < iMin) return iMin; else if (iValue > iMax) return iMax; return iValue; }
+static inline float    pl_clampf  (float fMin, float fValue, float fMax)    { if (fValue < fMin) return fMin; else if (fValue > fMax) return fMax; return fValue; }
+static inline double   pl_clampd  (double dMin, double dValue, double dMax) { if (dValue < dMin) return dMin; else if (dValue > dMax) return dMax; return dValue; }
+static inline float    pl_clamp01f(float fValue)                            { return pl_clampf(0.0f, fValue, 1.0f); }
+static inline double   pl_clamp01d(double dValue)                           { return pl_clampd(0.0, dValue, 1.0); }
+static inline size_t   pl_align_up(size_t szValue, size_t szAlign)          { return ((szValue + (szAlign - 1)) & ~(szAlign - 1)); }
 
 #define PL__ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
 
