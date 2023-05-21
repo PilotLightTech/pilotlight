@@ -270,6 +270,7 @@ typedef struct _plIOContext
 {
     double   dTime;
     float    fDeltaTime;
+    float    fFrameRate; // rough estimate(rolling average of fDeltaTime over 120 frames)
     bool     bViewportSizeChanged;
     bool     bViewportMinimized;
     float    afMainViewportSize[2];
@@ -321,6 +322,13 @@ typedef struct _plIOContext
     float     _afMouseDownDuration[5];     // duration mouse button has been down (0.0f == just clicked)
     float     _afMouseDownDurationPrev[5]; // previous duration of mouse button down
     float     _afMouseDragMaxDistSqr[5];   // squared max distance mouse traveled from clicked position
+
+    // frame rate calcs
+    float _afFrameRateSecPerFrame[120];
+    int   _iFrameRateSecPerFrameIdx;
+    int   _iFrameRateSecPerFrameCount;
+    float _fFrameRateSecPerFrameAccum;
+
 
 } plIOContext;
 
@@ -528,6 +536,14 @@ pl_new_io_frame(void)
     ptIO->dTime += (double)ptIO->fDeltaTime;
     ptIO->ulFrameCount++;
     ptIO->bViewportSizeChanged = false;
+
+    // calculate frame rate
+    ptIO->_fFrameRateSecPerFrameAccum += ptIO->fDeltaTime - ptIO->_afFrameRateSecPerFrame[ptIO->_iFrameRateSecPerFrameIdx];
+    ptIO->_afFrameRateSecPerFrame[ptIO->_iFrameRateSecPerFrameIdx] = ptIO->fDeltaTime;
+    ptIO->_iFrameRateSecPerFrameIdx = (ptIO->_iFrameRateSecPerFrameIdx + 1) % 120;
+    ptIO->_iFrameRateSecPerFrameCount = PL_IO_MAX(ptIO->_iFrameRateSecPerFrameCount, 120);
+    ptIO->fFrameRate = FLT_MAX;
+    if(ptIO->_fFrameRateSecPerFrameAccum > 0) ptIO->fFrameRate = ((float) ptIO->_iFrameRateSecPerFrameCount) / ptIO->_fFrameRateSecPerFrameAccum;
 
     pl__update_events();
     pl__update_keyboard_inputs();
