@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] global data
 // [SECTION] internal api
 // [SECTION] public api implementations
 // [SECTION] internal api implementations
@@ -27,6 +28,7 @@ Index of this file:
 #include "pl_io.h"
 #include "pl_memory.h"
 #include "pl_log.h"
+#include "pl_profile.h"
 
 // required extensions
 #include "pl_ui_ext.h"
@@ -34,6 +36,11 @@ Index of this file:
 #include "pl_image_ext.h"
 #include "pl_vulkan_ext.h"
 #include "pl_ecs_ext.h"
+
+//-----------------------------------------------------------------------------
+// [SECTION] global data
+//-----------------------------------------------------------------------------
+static uint32_t uLogChannel = UINT32_MAX;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -359,9 +366,6 @@ pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptCompon
     ptRenderer->ptImageApi = ptApiRegistry->first(PL_API_IMAGE);
     ptRenderer->ptEcs = ptApiRegistry->first(PL_API_ECS);
 
-	pl_set_log_context(ptRenderer->ptDataRegistry->get_data("log"));
-    ptRenderer->uLogChannel = pl_add_log_channel("renderer", PL_CHANNEL_TYPE_CONSOLE | PL_CHANNEL_TYPE_BUFFER);
-
     plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
     plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
     plDevice* ptDevice = &ptGraphics->tDevice;
@@ -638,7 +642,6 @@ pl_resize_renderer(plRenderer* ptRenderer, float fWidth, float fHeight)
     pl_cleanup_render_target(ptGraphics, &ptRenderer->tPickTarget);
     pl_sb_reset(ptRenderer->tPickTarget.sbuFrameBuffers);
     
-
     for(uint32_t i = 0; i < pl_sb_size(ptRenderer->tPickTarget.sbuColorTextureViews); i++)
     {
         uint32_t uTextureView = ptRenderer->tPickTarget.sbuColorTextureViews[i];
@@ -767,10 +770,6 @@ pl_create_scene(plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, 
         .uVertexBuffer = ptDeviceApi->create_vertex_buffer(ptDevice, sizeof(float) * 24, sizeof(float), acSkyBoxVertices, "skybox vertex buffer"),
         .ulVertexStreamMask = PL_MESH_FORMAT_FLAG_NONE
     };
-    
-    // ptSceneOut->tSkyboxMesh = ptEcsApi->create_mesh(&ptSceneOut->tComponentLibrary, "skybox mesh");
-    // plMeshComponent* ptSkyboxMeshComponent = ptEcsApi->get_component(&ptSceneOut->tComponentLibrary.tMeshComponentManager, ptSceneOut->tSkyboxMesh);
-    // pl_sb_push(ptSkyboxMeshComponent->sbtSubmeshes, tSubMesh);
 
     plBindGroupLayout tSkyboxGroupLayout0 = {
         .uBufferCount = 1,
@@ -848,13 +847,13 @@ pl_reset_scene(plScene* ptScene)
 static void
 pl_draw_scene(plScene* ptScene)
 {
+    pl_begin_profile_sample(__FUNCTION__);
     plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
     plRenderer* ptRenderer = ptScene->ptRenderer;
     plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
     plEcsI* ptEcs = ptScene->ptRenderer->ptEcs;
 
     const uint32_t uDrawOffset = pl_sb_size(ptRenderer->sbtDraws);
-    // const uint32_t uOutlineDrawOffset = pl_sb_size(ptRenderer->sbtOutlineDraws);
 
     // record draws
     for(uint32_t i = 0; i < pl_sb_size(ptRenderer->sbtVisibleMeshes); i++)
@@ -914,11 +913,13 @@ pl_draw_scene(plScene* ptScene)
     pl_sb_reset(ptRenderer->sbtDrawAreas);
 
     ptScene->uDynamicBuffer0_Offset = (uint32_t)pl_align_up((size_t)ptScene->uDynamicBuffer0_Offset + sizeof(plGlobalInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);
+    pl_end_profile_sample();
 }
 
 static void
 pl_draw_pick_scene(plScene* ptScene)
 {
+    pl_begin_profile_sample(__FUNCTION__);
     plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
     plRenderer* ptRenderer = ptScene->ptRenderer;
     plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
@@ -959,13 +960,16 @@ pl_draw_pick_scene(plScene* ptScene)
     pl_sb_reset(ptRenderer->sbtDrawAreas);
 
     ptScene->uDynamicBuffer0_Offset = (uint32_t)pl_align_up((size_t)ptScene->uDynamicBuffer0_Offset + sizeof(plGlobalInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);
+    pl_end_profile_sample();
 }
 
 static void
 pl_prepare_gpu_data(plScene* ptScene)
 {
+    pl_begin_profile_sample(__FUNCTION__);
     pl__prepare_material_gpu_data(ptScene, &ptScene->ptComponentLibrary->tMaterialComponentManager);
     pl__prepare_object_gpu_data(ptScene, &ptScene->ptComponentLibrary->tObjectComponentManager);
+    pl_end_profile_sample();
 }
 
 static void
@@ -981,6 +985,7 @@ pl_scene_prepare(plScene* ptScene)
     if(!ptScene->bMeshesNeedUpdate)
         return;
 
+    pl_begin_profile_sample(__FUNCTION__);
     ptScene->bMeshesNeedUpdate = false;
     plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
     plRenderer* ptRenderer = ptScene->ptRenderer;
@@ -1228,6 +1233,8 @@ pl_scene_prepare(plScene* ptScene)
     pl_sb_reset(ptScene->sbtGlobalPickData);
     pl_sb_reset(ptScene->sbuIndexData)
     pl_sb_reset(ptScene->sbtVertexData)
+
+    pl_end_profile_sample();
 }
 
 static void
@@ -1254,7 +1261,7 @@ pl_scene_bind_camera(plScene* ptScene, const plCameraComponent* ptCamera)
 static void
 pl_draw_sky(plScene* ptScene)
 {
-
+    pl_begin_profile_sample(__FUNCTION__);
     plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
     plRenderer* ptRenderer = ptScene->ptRenderer;
     plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
@@ -1303,7 +1310,7 @@ pl_draw_sky(plScene* ptScene)
     // create variant that matches texture count, vertex stream, and culling
     if(uSkyboxShaderVariant == UINT32_MAX)
     {
-        pl_log_debug_to_f(ptRenderer->uLogChannel, "adding skybox shader variant");
+        pl_log_debug_to_f(uLogChannel, "adding skybox shader variant");
         uSkyboxShaderVariant = ptGfx->add_shader_variant(ptGraphics, ptRenderer->uSkyboxShader, tFillStateTemplate, ptScene->ptRenderTarget->tDesc.uRenderPass, tMSAASampleCount);
     }
 
@@ -1329,11 +1336,13 @@ pl_draw_sky(plScene* ptScene)
     pl_sb_reset(ptRenderer->sbtDrawAreas);
 
     ptScene->uDynamicBuffer0_Offset = (uint32_t)pl_align_up((size_t)ptScene->uDynamicBuffer0_Offset + sizeof(plGlobalInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);
+    pl_end_profile_sample();
 }
 
 static void
 pl__prepare_material_gpu_data(plScene* ptScene, plComponentManager* ptManager)
 {
+    pl_begin_profile_sample(__FUNCTION__);
     plRenderer* ptRenderer = ptScene->ptRenderer;
     plGraphics* ptGraphics = ptRenderer->ptGraphics;
     plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
@@ -1428,6 +1437,7 @@ pl__prepare_material_gpu_data(plScene* ptScene, plComponentManager* ptManager)
     }
 
     ptScene->bMaterialsNeedUpdate = false;
+    pl_end_profile_sample();
 }
 
 static void
@@ -1438,11 +1448,12 @@ pl__prepare_object_gpu_data(plScene* ptScene, plComponentManager* ptManager)
     plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
     plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
     plDevice* ptDevice = &ptGraphics->tDevice;
-    // plEcsI* ptEcs = ptRenderer->ptEcs;
 
     plObjectSystemData* ptObjectSystemData = ptManager->pSystemData;
     if(!ptObjectSystemData->bDirty)
         return;
+
+    pl_begin_profile_sample(__FUNCTION__);
 
     size_t szRangeSize = pl_align_up(sizeof(plObjectInfo), ptGraphics->tDevice.tDeviceProps.limits.minUniformBufferOffsetAlignment);
     plObjectComponent* sbtComponents = ptManager->pComponents;
@@ -1515,6 +1526,7 @@ pl__prepare_object_gpu_data(plScene* ptScene, plComponentManager* ptManager)
             break;
     }
     ptObjectSystemData->bDirty = false;
+    pl_end_profile_sample();
 }
 
 //-----------------------------------------------------------------------------
@@ -1526,14 +1538,29 @@ pl_load_renderer_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
     plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data("memory"));
+    pl_set_profile_context(ptDataRegistry->get_data("profile"));
+    pl_set_log_context(ptDataRegistry->get_data("log"));
 
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_RENDERER), pl_load_renderer_api());
+
+        // find log channel
+        uint32_t uChannelCount = 0;
+        plLogChannel* ptChannels = pl_get_log_channels(&uChannelCount);
+        for(uint32_t i = 0; i < uChannelCount; i++)
+        {
+            if(strcmp(ptChannels[i].pcName, "Renderer") == 0)
+            {
+                uLogChannel = i;
+                break;
+            }
+        }
     }
     else
     {
         ptApiRegistry->add(PL_API_RENDERER, pl_load_renderer_api());
+        uLogChannel = pl_add_log_channel("Renderer", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
     }
 }
 

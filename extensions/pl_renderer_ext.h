@@ -186,7 +186,6 @@ typedef struct _plRenderer
 
     plEntity*   sbtVisibleMeshes;
     plEntity*   sbtVisibleOutlinedMeshes;
-    uint32_t    uLogChannel;
 
     // apis
     plGraphicsApiI*     ptGfx;
