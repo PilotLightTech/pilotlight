@@ -40,6 +40,8 @@ Index of this file:
 #include "pl_gltf_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_ui_ext.h"
+#include "pl_stats_ext.h"
+#include "pl_debug_ext.h"
 
 // backends
 #include "pl_vulkan.h"
@@ -65,8 +67,7 @@ typedef struct _plAppData
     bool         bShowUiDemo;
     bool         bShowUiDebug;
     bool         bShowUiStyle;
-    bool         bShowUiMemory;
-    bool         bShowMemoryAllocations;
+    bool         bShowEcs;
 
     // allocators
     plTempAllocator tTempAllocator;
@@ -80,11 +81,12 @@ typedef struct _plAppData
     plDrawApiI*          ptDrawApi;
     plVulkanDrawApiI*    ptVulkanDrawApi;
     plUiApiI*            ptUi;
-    plUiApiI*            ptDebugApi;
     plDeviceApiI*        ptDeviceApi;
     plEcsI*              ptEcs;
     plCameraI*           ptCameraApi;
     plTempAllocatorApiI* ptTempMemoryApi;
+    plStatsApiI*         ptStatsApi;
+    plDebugApiI*         ptDebugApi;
     
     // renderer
     plRenderer         tRenderer;
@@ -102,10 +104,19 @@ typedef struct _plAppData
     VkDescriptorSet* sbtTextures;
 
     plApiRegistryApiI* ptApiRegistry;
-
-    bool bLayoutDebug;
+    plDebugApiInfo     tDebugInfo;
+    int                iSelectedEntity;
+    bool               bVSyncChanged;
 
 } plAppData;
+
+//-----------------------------------------------------------------------------
+// [SECTION] helper functions
+//-----------------------------------------------------------------------------
+
+static void pl__show_main_window(plAppData* ptAppData);
+static void pl__show_ecs_window (plAppData* ptAppData);
+static void pl__select_entity   (plAppData* ptAppData);
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -135,20 +146,26 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
         ptAppData->ptEcs           = ptApiRegistry->first(PL_API_ECS);
         ptAppData->ptCameraApi     = ptApiRegistry->first(PL_API_CAMERA);
         ptAppData->ptTempMemoryApi = ptApiRegistry->first(PL_API_TEMP_ALLOCATOR);
+        ptAppData->ptDebugApi      = ptApiRegistry->first(PL_API_DEBUG);
 
         ptAppData->ptUi->set_draw_api(ptAppData->ptDrawApi);
         return ptAppData;
     }
 
+    plProfileContext* ptProfileCtx = pl_create_profile_context();
+    plLogContext*     ptLogCtx     = pl_create_log_context();
+
     // allocate original app memory
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
     ptAppData->ptApiRegistry = ptApiRegistry;
-    pl_set_memory_context(ptDataRegistry->get_data("memory"));
+    ptDataRegistry->set_data("profile", ptProfileCtx);
+    ptDataRegistry->set_data("log", ptLogCtx);
+    ptAppData->iSelectedEntity = 1;
 
     // load extensions
     plExtensionRegistryApiI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    ptExtensionRegistry->load_from_config(ptApiRegistry, "../src/pl_config.json");
+    ptExtensionRegistry->load_from_config(ptApiRegistry, "../apps/pl_config.json");
 
     // load apis 
     plIOApiI*            ptIoI           = ptApiRegistry->first(PL_API_IO);
@@ -163,10 +180,11 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     plDrawApiI*          ptDrawApi       = ptApiRegistry->first(PL_API_DRAW);
     plVulkanDrawApiI*    ptVulkanDrawApi = ptApiRegistry->first(PL_API_VULKAN_DRAW);
     plUiApiI*            ptUi            = ptApiRegistry->first(PL_API_UI);
-    plUiApiI*            ptDebugApi      = ptApiRegistry->next(ptUi);
     plEcsI*              ptEcs           = ptApiRegistry->first(PL_API_ECS);
     plCameraI*           ptCameraApi     = ptApiRegistry->first(PL_API_CAMERA);
     plTempAllocatorApiI* ptTempMemoryApi = ptApiRegistry->first(PL_API_TEMP_ALLOCATOR);
+    plStatsApiI*         ptStatsApi      = ptApiRegistry->first(PL_API_STATS);
+    plDebugApiI*         ptDebugApi      = ptApiRegistry->first(PL_API_DEBUG);
 
     // save apis that are used often
     ptAppData->ptRendererApi = ptRendererApi;
@@ -174,12 +192,13 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     ptAppData->ptDrawApi = ptDrawApi;
     ptAppData->ptVulkanDrawApi = ptVulkanDrawApi;
     ptAppData->ptUi = ptUi;
-    ptAppData->ptDebugApi = ptDebugApi;
     ptAppData->ptDeviceApi = ptDeviceApi;
     ptAppData->ptIoI = ptIoI;
     ptAppData->ptEcs = ptEcs;
     ptAppData->ptCameraApi = ptCameraApi;
     ptAppData->ptTempMemoryApi = ptTempMemoryApi;
+    ptAppData->ptStatsApi = ptStatsApi;
+    ptAppData->ptDebugApi = ptDebugApi;
 
     // for convience
     plGraphics*         ptGraphics         = &ptAppData->tGraphics;
@@ -191,20 +210,13 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     
     // contexts
     plIOContext*      ptIoCtx      = ptIoI->get_context();
-    plProfileContext* ptProfileCtx = pl_create_profile_context();
-    plLogContext*     ptLogCtx     = pl_create_log_context();
     plUiContext*      ptUiContext  = ptUi->create_context(ptIoI, ptDrawApi);
     plDrawContext*    ptDrawCtx    = ptUi->get_draw_context(NULL);
 
     // add some context to data registry
-    ptDataRegistry->set_data("profile", ptProfileCtx);
-    ptDataRegistry->set_data("log", ptLogCtx);
     ptDataRegistry->set_data("ui", ptUiContext);
     ptDataRegistry->set_data("draw", ptDrawCtx);
-
-    // setup log channels
-    pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
-    pl_log_info("Setup logging");
+    ptDataRegistry->set_data("device", ptDevice);
 
     // setup sbackend
     ptBackendApi->setup(ptApiRegistry, ptBackend, VK_API_VERSION_1_2, true);
@@ -261,7 +273,8 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     ptAppData->ptCameraApi->set_pitch_yaw(ptCamera, -0.244f, 1.488f);
     ptAppData->ptCameraApi->set_pitch_yaw(ptCamera2, 0.0f, -PL_PI);
 
-    ptGltfApi->load(ptScene, ptComponentLibrary, "../data/glTF-Sample-Models-master/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf");
+    ptGltfApi->load(ptScene, ptComponentLibrary, "../data/glTF-Sample-Models-master/2.0/FlightHelmet/glTF/FlightHelmet.gltf");
+    // ptGltfApi->load(ptScene, ptComponentLibrary, "../data/glTF-Sample-Models-master/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf");
     // ptGltfApi->load(ptScene, ptComponentLibrary, "../data/glTF-Sample-Models-master/2.0/Sponza/glTF/Sponza.gltf");
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~materials~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -378,17 +391,20 @@ PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
 
+    pl_begin_profile_frame();
+    pl_begin_profile_sample(__FUNCTION__);
+
     // load apis 
-    plIOApiI*         ptIoI           = ptAppData->ptIoI;
-    plDeviceApiI*     ptDeviceApi     = ptAppData->ptDeviceApi;
-    plRendererI*      ptRendererApi   = ptAppData->ptRendererApi;
-    plGraphicsApiI*   ptGfx           = ptAppData->ptGfx;
-    plDrawApiI*       ptDrawApi       = ptAppData->ptDrawApi;
-    plVulkanDrawApiI* ptVulkanDrawApi = ptAppData->ptVulkanDrawApi;
-    plUiApiI*         ptUi            = ptAppData->ptUi;
-    plEcsI*           ptEcs           = ptAppData->ptEcs;
-    plCameraI*        ptCameraApi     = ptAppData->ptCameraApi;
-    plTempAllocatorApiI*     ptTempMemoryApi     = ptAppData->ptTempMemoryApi;
+    plIOApiI*            ptIoI           = ptAppData->ptIoI;
+    plDeviceApiI*        ptDeviceApi     = ptAppData->ptDeviceApi;
+    plRendererI*         ptRendererApi   = ptAppData->ptRendererApi;
+    plGraphicsApiI*      ptGfx           = ptAppData->ptGfx;
+    plDrawApiI*          ptDrawApi       = ptAppData->ptDrawApi;
+    plVulkanDrawApiI*    ptVulkanDrawApi = ptAppData->ptVulkanDrawApi;
+    plUiApiI*            ptUi            = ptAppData->ptUi;
+    plEcsI*              ptEcs           = ptAppData->ptEcs;
+    plCameraI*           ptCameraApi     = ptAppData->ptCameraApi;
+    plTempAllocatorApiI* ptTempMemoryApi = ptAppData->ptTempMemoryApi;
 
     // for convience
     plGraphics*         ptGraphics         = &ptAppData->tGraphics;
@@ -396,7 +412,6 @@ pl_app_update(plAppData* ptAppData)
     plDevice*           ptDevice           = &ptGraphics->tDevice;
     plRenderer*         ptRenderer         = &ptAppData->tRenderer;
     plScene*            ptScene            = &ptAppData->tScene;
-    plComponentLibrary* ptComponentLibrary = &ptAppData->tComponentLibrary;
 
     // contexts
     plIOContext*      ptIoCtx      = ptAppData->ptIoI->get_context();
@@ -404,22 +419,25 @@ pl_app_update(plAppData* ptAppData)
     plLogContext*     ptLogCtx     = pl_get_log_context();
     plDrawContext*    ptDrawCtx    = ptAppData->ptUi->get_draw_context(NULL);
 
-    if(ptAppData->bLayoutDebug)
-        ptUi = ptAppData->ptDebugApi;
+    ptAppData->ptStatsApi->new_frame();
 
-    static bool bVSyncChanged = false;
+    {
+        static double* pdFrameTimeCounter = NULL;
+        if(!pdFrameTimeCounter)
+            pdFrameTimeCounter = ptAppData->ptStatsApi->get_counter("frame rate");
+        *pdFrameTimeCounter = (double)ptAppData->ptIoI->get_context()->fFrameRate;
+    }
 
-    if(bVSyncChanged)
+    if(ptAppData->bVSyncChanged)
     {
         ptGfx->resize(&ptAppData->tGraphics);
         ptRendererApi->create_main_render_target(&ptAppData->tGraphics, &ptAppData->tMainTarget);
-        bVSyncChanged = false;
+        ptAppData->bVSyncChanged = false;
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~frame setup~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     plIOApiI* pTIoI = ptAppData->ptIoI;
     plIOContext* ptIOCtx = pTIoI->get_context();
-    pl_begin_profile_frame();
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~input handling~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     static const float fCameraTravelSpeed = 8.0f;
@@ -437,13 +455,18 @@ pl_app_update(plAppData* ptAppData)
     if(pTIoI->is_key_pressed(PL_KEY_R, true)) ptCameraApi->translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f);
 
     plFrameContext* ptCurrentFrame = ptGfx->get_frame_resources(ptGraphics);
-    static uint32_t uPickedID = 0;
-    static int iSelectedEntity = 1;
+    
+    static double* pdFrameTimeCounter = NULL;
+    if(!pdFrameTimeCounter)
+        pdFrameTimeCounter = ptAppData->ptStatsApi->get_counter("frame");
+    *pdFrameTimeCounter = (double)ptDevice->uCurrentFrame;
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~begin frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     if(ptGfx->begin_frame(ptGraphics))
     {
+        pl_begin_profile_sample("process_cleanup_queue");
         ptDeviceApi->process_cleanup_queue(&ptGraphics->tDevice, (uint32_t)ptGraphics->szCurrentFrameIndex);
+        pl_end_profile_sample();
         ptUi->new_frame();
 
         if(!ptUi->is_mouse_owned() && pTIoI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
@@ -467,36 +490,9 @@ pl_app_update(plAppData* ptAppData)
         ptDrawApi->add_3d_bezier_cubic(&ptAppData->drawlist3d, (plVec3){0.0f,0.0f,0.0f}, (plVec3){-0.5f,1.0f,-0.5f}, (plVec3){5.0f,3.5f,5.0f}, (plVec3){3.0f,4.0f,3.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f, 20);
 
         if(pTIoI->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false))
-        {
-            uint32_t uReadBackBuffer = ptDeviceApi->create_read_back_buffer(ptDevice, (size_t)(ptIOCtx->afMainViewportSize[0] * ptIOCtx->afMainViewportSize[1]) * 4, "pick readback");
-            ptDeviceApi->transfer_image_to_buffer(ptDevice, ptDevice->sbtBuffers[uReadBackBuffer].tBuffer, 
-                (size_t)(ptIOCtx->afMainViewportSize[0] * ptIOCtx->afMainViewportSize[1]) * 4, 
-                &ptDevice->sbtTextures[ptDevice->sbtTextureViews[ptRenderer->tPickTarget.sbuColorTextureViews[ptGraphics->tSwapchain.uCurrentImageIndex]].uTextureHandle]);
-
-            unsigned char* mapping = (unsigned char*)ptDevice->sbtBuffers[uReadBackBuffer].tAllocation.pHostMapped;
-
-            const plVec2 tMousePos = pTIoI->get_mouse_pos();
-            
-            uint32_t uRowWidth = (uint32_t)ptIOCtx->afMainViewportSize[0] * 4;
-            uint32_t uPos = uRowWidth * (uint32_t)tMousePos.y + (uint32_t)tMousePos.x * 4;
-
-            if(uPickedID > 0)
-                ptEcs->remove_mesh_outline(ptComponentLibrary, (plEntity)uPickedID);
-
-            uPickedID = mapping[uPos] | mapping[uPos + 1] << 8 | mapping[uPos + 2] << 16;
-            iSelectedEntity = (int)uPickedID;
-            if(uPickedID > 0)
-            {
-                ptEcs->add_mesh_outline(ptComponentLibrary, (plEntity)uPickedID);
-                pl_sb_reset(ptRenderer->sbtVisibleOutlinedMeshes);
-                pl_sb_push(ptRenderer->sbtVisibleOutlinedMeshes, (plEntity)uPickedID);
-            }
-
-            ptDeviceApi->submit_buffer_for_deletion(ptDevice, uReadBackBuffer);
-        }
+            pl__select_entity(ptAppData);
 
         // ui
-
         if(ptUi->begin_window("Offscreen", NULL, true))
         {
             ptUi->layout_static(720.0f / 2.0f, 1280.0f / 2.0f, 1);
@@ -504,212 +500,19 @@ pl_app_update(plAppData* ptAppData)
             ptUi->end_window();
         }
 
-        ptUi->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
+        pl__show_main_window(ptAppData);
 
-        if(ptUi->begin_window("Pilot Light", NULL, false))
-        {
-    
-            const float pfRatios[] = {1.0f};
-            ptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-            
-            ptUi->checkbox("UI Debug", &ptAppData->bShowUiDebug);
-            ptUi->checkbox("UI Demo", &ptAppData->bShowUiDemo);
-            ptUi->checkbox("UI Style", &ptAppData->bShowUiStyle);
-            ptUi->checkbox("Device Memory", &ptAppData->bShowUiMemory);
-            ptUi->checkbox("Memory Allocations", &ptAppData->bShowMemoryAllocations);
-            
-            if(ptUi->checkbox("VSync", &ptGraphics->tSwapchain.bVSync))
-            {
-                bVSyncChanged = true;
-            }
+        if(ptAppData->bShowEcs)
+            pl__show_ecs_window(ptAppData);
 
-            if(ptUi->collapsing_header("Entities"))
-            {
-                plTagComponent* sbtTagComponents = ptAppData->tComponentLibrary.tTagComponentManager.pComponents;
-                for(uint32_t i = 0; i < pl_sb_size(sbtTagComponents); i++)
-                {
-                    plTagComponent* ptTagComponent = &sbtTagComponents[i];
-                    ptUi->radio_button(ptTagComponent->acName, &iSelectedEntity, i + 1);
-                }
-
-                ptUi->end_collapsing_header();
-            }
-            ptUi->end_window();
-        }
-
-        if(iSelectedEntity > 0)
-        {
-            if(ptUi->begin_window("Components", NULL, false))
-            {
-                const float pfRatios[] = {1.0f};
-                ptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-
-                if(ptUi->collapsing_header("Tag"))
-                {
-                    plTagComponent* ptTagComponent = ptEcs->get_component(&ptAppData->tComponentLibrary.tTagComponentManager, iSelectedEntity);
-                    ptUi->text("Name: %s", ptTagComponent->acName);
-                    ptUi->end_collapsing_header();
-                }
-
-                if(ptEcs->has_entity(&ptAppData->tComponentLibrary.tHierarchyComponentManager, iSelectedEntity))
-                {
-                    
-                    if(ptUi->collapsing_header("Transform"))
-                    {
-                        plTransformComponent* ptTransformComponent = ptEcs->get_component(&ptAppData->tComponentLibrary.tTransformComponentManager, iSelectedEntity);
-                        ptUi->text("Rotation: %0.3f, %0.3f, %0.3f, %0.3f", ptTransformComponent->tRotation.x, ptTransformComponent->tRotation.y, ptTransformComponent->tRotation.z, ptTransformComponent->tRotation.w);
-                        ptUi->text("Scale: %0.3f, %0.3f, %0.3f", ptTransformComponent->tScale.x, ptTransformComponent->tScale.y, ptTransformComponent->tScale.z);
-                        ptUi->text("Translation: %0.3f, %0.3f, %0.3f", ptTransformComponent->tTranslation.x, ptTransformComponent->tTranslation.y, ptTransformComponent->tTranslation.z);
-                        ptUi->end_collapsing_header();
-                    }  
-                }
-
-                if(ptEcs->has_entity(&ptAppData->tComponentLibrary.tMeshComponentManager, iSelectedEntity))
-                {
-                    
-                    if(ptUi->collapsing_header("Mesh"))
-                    {
-                        // plMeshComponent* ptMeshComponent = pl_ecs_get_component(ptScene->ptMeshComponentManager, iSelectedEntity);
-                        ptUi->end_collapsing_header();
-                    }  
-                }
-
-                if(ptEcs->has_entity(&ptAppData->tComponentLibrary.tMaterialComponentManager, iSelectedEntity))
-                {
-                    if(ptUi->collapsing_header("Material"))
-                    {
-                        plMaterialComponent* ptMaterialComponent = ptEcs->get_component(&ptAppData->tComponentLibrary.tMaterialComponentManager, iSelectedEntity);
-                        ptUi->text("Albedo: %0.3f, %0.3f, %0.3f, %0.3f", ptMaterialComponent->tAlbedo.r, ptMaterialComponent->tAlbedo.g, ptMaterialComponent->tAlbedo.b, ptMaterialComponent->tAlbedo.a);
-                        ptUi->text("Alpha Cutoff: %0.3f", ptMaterialComponent->fAlphaCutoff);
-                        ptUi->text("Double Sided: %s", ptMaterialComponent->bDoubleSided ? "true" : "false");
-                        ptUi->end_collapsing_header();
-                    }  
-                }
-
-                if(ptEcs->has_entity(&ptAppData->tComponentLibrary.tObjectComponentManager, iSelectedEntity))
-                {
-                    if(ptUi->collapsing_header("Object"))
-                    {
-                        plObjectComponent* ptObjectComponent = ptEcs->get_component(&ptAppData->tComponentLibrary.tObjectComponentManager, iSelectedEntity);
-                        plTagComponent* ptTransformTag = ptEcs->get_component(&ptAppData->tComponentLibrary.tTagComponentManager, ptObjectComponent->tTransform);
-                        plTagComponent* ptMeshTag = ptEcs->get_component(&ptAppData->tComponentLibrary.tTagComponentManager, ptObjectComponent->tMesh);
-                        ptUi->text("Mesh: %s", ptMeshTag->acName);
-                        ptUi->text("Transform: %s", ptTransformTag->acName);
-
-                        ptUi->end_collapsing_header();
-                    }  
-                }
-
-                if(ptEcs->has_entity(&ptAppData->tComponentLibrary.tCameraComponentManager, iSelectedEntity))
-                {
-                    if(ptUi->collapsing_header("Camera"))
-                    {
-                        plCameraComponent* ptCameraComponent = ptEcs->get_component(&ptAppData->tComponentLibrary.tCameraComponentManager, iSelectedEntity);
-                        ptUi->text("Pitch: %0.3f", ptCameraComponent->fPitch);
-                        ptUi->text("Yaw: %0.3f", ptCameraComponent->fYaw);
-                        ptUi->text("Roll: %0.3f", ptCameraComponent->fRoll);
-                        ptUi->text("Near Z: %0.3f", ptCameraComponent->fNearZ);
-                        ptUi->text("Far Z: %0.3f", ptCameraComponent->fFarZ);
-                        ptUi->text("Y Field Of View: %0.3f", ptCameraComponent->fFieldOfView);
-                        ptUi->text("Aspect Ratio: %0.3f", ptCameraComponent->fAspectRatio);
-                        ptUi->text("Up Vector: %0.3f, %0.3f, %0.3f", ptCameraComponent->_tUpVec.x, ptCameraComponent->_tUpVec.y, ptCameraComponent->_tUpVec.z);
-                        ptUi->text("Forward Vector: %0.3f, %0.3f, %0.3f", ptCameraComponent->_tForwardVec.x, ptCameraComponent->_tForwardVec.y, ptCameraComponent->_tForwardVec.z);
-                        ptUi->text("Right Vector: %0.3f, %0.3f, %0.3f", ptCameraComponent->_tRightVec.x, ptCameraComponent->_tRightVec.y, ptCameraComponent->_tRightVec.z);
-                        ptUi->end_collapsing_header();
-                    }  
-                }
-
-                if(ptEcs->has_entity(&ptAppData->tComponentLibrary.tHierarchyComponentManager, iSelectedEntity))
-                {
-                    if(ptUi->collapsing_header("Hierarchy"))
-                    {
-                        plHierarchyComponent* ptHierarchyComponent = ptEcs->get_component(&ptAppData->tComponentLibrary.tHierarchyComponentManager, iSelectedEntity);
-                        plTagComponent* ptParent = ptEcs->get_component(&ptAppData->tComponentLibrary.tTagComponentManager, ptHierarchyComponent->tParent);
-                        ptUi->text("Parent: %s", ptParent->acName);
-                        ptUi->end_collapsing_header();
-                    }  
-                }
-                ptUi->end_window();
-            }
-        }
-
-        if(ptAppData->bShowMemoryAllocations)
-        {
-            if(ptUi->begin_window("Memory Allocations", &ptAppData->bShowMemoryAllocations, false))
-            {
-
-                plMemoryContext* ptMemoryCtx = pl_get_memory_context();
-                ptUi->layout_dynamic(0.0f, 1);
-
-                ptUi->text("Active Allocations: %u", ptMemoryCtx->szActiveAllocations);
-                ptUi->text("Freed Allocations: %u", pl_sb_size(ptMemoryCtx->sbtFreeAllocations));
-
-                if(ptUi->begin_tab_bar("main toolbar"))
-                {
-                    static char pcFile[1024] = {0};
-                    if(ptUi->begin_tab("Active Allocations"))
-                    {
-                        ptUi->layout_template_begin(30.0f);
-                        ptUi->layout_template_push_static(50.0f);
-                        ptUi->layout_template_push_variable(300.0f);
-                        ptUi->layout_template_push_variable(50.0f);
-                        ptUi->layout_template_push_variable(50.0f);
-                        ptUi->layout_template_end();
-
-                        ptUi->text("%s", "Entry");
-                        ptUi->text("%s", "File");
-                        ptUi->text("%s", "Line");
-                        ptUi->text("%s", "Size");
-
-                        const uint32_t uOriginalAllocationCount = pl_sb_size(ptMemoryCtx->sbtAllocations);
-                        
-                        for(uint32_t i = 0; i < uOriginalAllocationCount; i++)
-                        {
-                            plAllocationEntry tEntry = ptMemoryCtx->sbtAllocations[i];
-                            strncpy(pcFile, tEntry.pcFile, 1024);
-                            ptUi->text("%i", i);
-                            ptUi->text("%s", pcFile);
-                            ptUi->text("%i", tEntry.iLine);
-                            ptUi->text("%u", tEntry.szSize);
-                        }
-
-                        ptUi->end_tab();
-                    }
-                    ptUi->layout_dynamic(0.0f, 1);
-                    if(ptUi->begin_tab("Freed Allocations"))
-                    {
-                        ptUi->layout_template_begin(30.0f);
-                        ptUi->layout_template_push_static(50.0f);
-                        ptUi->layout_template_push_variable(300.0f);
-                        ptUi->layout_template_push_variable(50.0f);
-                        ptUi->layout_template_push_variable(50.0f);
-                        ptUi->layout_template_end();
-
-                        ptUi->text("%s", "Entry");
-                        ptUi->text("%s", "File");
-                        ptUi->text("%s", "Line");
-                        ptUi->text("%s", "Size");
-
-                        const uint32_t uOriginalAllocationCount = pl_sb_size(ptMemoryCtx->sbtFreeAllocations);
-                        for(uint32_t i = 0; i < uOriginalAllocationCount; i++)
-                        {
-                            plAllocationEntry tEntry = ptMemoryCtx->sbtFreeAllocations[i];
-                            strncpy(pcFile, tEntry.pcFile, 1024);
-                            ptUi->text("%i", i);
-                            ptUi->text("%s", pcFile);
-                            ptUi->text("%i", tEntry.iLine);
-                            ptUi->text("%u", tEntry.szSize);
-                        }
-                        ptUi->end_tab();
-                    }
-                    ptUi->end_tab_bar();
-                }
-                ptUi->end_window();
-            }
-        }
+        ptAppData->ptDebugApi->show_windows(&ptAppData->tDebugInfo);
 
         if(ptAppData->bShowUiDemo)
+        {
+            pl_begin_profile_sample("ui demo");
             ptUi->demo(&ptAppData->bShowUiDemo);
+            pl_end_profile_sample();
+        }
             
         if(ptAppData->bShowUiStyle)
             ptUi->style(&ptAppData->bShowUiStyle);
@@ -717,262 +520,21 @@ pl_app_update(plAppData* ptAppData)
         if(ptAppData->bShowUiDebug)
             ptUi->debug(&ptAppData->bShowUiDebug);
 
-        if(ptAppData->bShowUiMemory)
-        {
-            if(ptUi->begin_window("Device Memory", &ptAppData->bShowUiMemory, false))
-            {
-                plDrawLayer* ptFgLayer = ptUi->get_window_fg_drawlayer();
-                const plVec2 tWindowSize = ptUi->get_window_size();
-                const plVec2 tWindowPos = ptUi->get_window_pos();
-                const plVec2 tWindowEnd = pl_add_vec2(tWindowSize, tWindowPos);
-
-                ptUi->text("Device Memory: Staging Cached");
-
-                {
-
-                    ptUi->layout_template_begin(30.0f);
-                    ptUi->layout_template_push_static(150.0f);
-                    ptUi->layout_template_push_variable(300.0f);
-                    ptUi->layout_template_end();
-
-                    uint32_t uBlockCount = 0;
-                    plDeviceAllocationBlock* sbtBlocks = ptDevice->tStagingCachedAllocator.blocks(ptDevice->tStagingCachedAllocator.ptInst, &uBlockCount);
-
-                    static const uint64_t ulMaxBlockSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE;
-
-                    for(uint32_t i = 0; i < uBlockCount; i++)
-                    {
-                        // ptAppData->tTempAllocator
-                        plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
-                        char* pcTempBuffer0 = ptTempMemoryApi->printf(&ptAppData->tTempAllocator, "Block %u: %0.1fMB##sc", i, ((double)ptBlock->ulSize)/1000000.0);
-                        char* pcTempBuffer1 = ptTempMemoryApi->printf(&ptAppData->tTempAllocator, "Block %u##sc", i);
-
-                        ptUi->button(pcTempBuffer0);
-                        
-
-                        plVec2 tCursor0 = ptUi->get_cursor_pos();
-                        const float fWidthAvailable = tWindowEnd.x - tCursor0.x;
-                        float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)ulMaxBlockSize;
-                        float fUsedWidth = fWidthAvailable * ((float)ptBlock->sbtRanges[0].tAllocation.ulSize) / (float)ulMaxBlockSize;
-
-                        ptUi->invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
-                        ptDrawApi->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
-                        ptDrawApi->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
-                        if(ptUi->was_last_item_active())
-                            ptDrawApi->add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  fTotalWidth, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
-
-                        if(ptUi->was_last_item_hovered())
-                        {
-                            ptUi->begin_tooltip();
-                            ptUi->text(ptBlock->sbtRanges[0].pcName);
-                            ptUi->end_tooltip();
-                        }
-
-                        ptTempMemoryApi->reset(&ptAppData->tTempAllocator);
-                    }
-
-                }
-
-                ptUi->layout_dynamic(0.0f, 1);
-                ptUi->separator();
-                ptUi->text("Device Memory: Staging Uncached");
-
-                {
-
-                    ptUi->layout_template_begin(30.0f);
-                    ptUi->layout_template_push_static(150.0f);
-                    ptUi->layout_template_push_variable(300.0f);
-                    ptUi->layout_template_end();
-
-                    uint32_t uBlockCount = 0;
-                    plDeviceAllocationBlock* sbtBlocks = ptDevice->tStagingUnCachedAllocator.blocks(ptDevice->tStagingUnCachedAllocator.ptInst, &uBlockCount);
-
-                    static const uint64_t ulMaxBlockSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE;
-
-                    for(uint32_t i = 0; i < uBlockCount; i++)
-                    {
-                        plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
-                        char* pcTempBuffer0 = ptTempMemoryApi->printf(&ptAppData->tTempAllocator, "Block %u: %0.1fMB##suc", i, ((double)ptBlock->ulSize)/1000000.0);
-                        char* pcTempBuffer1 = ptTempMemoryApi->printf(&ptAppData->tTempAllocator, "Block %u##suc", i);
-
-                        ptUi->button(pcTempBuffer0);
-                        
-
-                        plVec2 tCursor0 = ptUi->get_cursor_pos();
-                        const float fWidthAvailable = tWindowEnd.x - tCursor0.x;
-                        float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)ulMaxBlockSize;
-                        float fUsedWidth = fWidthAvailable * ((float)ptBlock->sbtRanges[0].tAllocation.ulSize) / (float)ulMaxBlockSize;
-
-                        ptUi->invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
-                        ptDrawApi->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
-                        ptDrawApi->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
-                        if(ptUi->was_last_item_active())
-                            ptDrawApi->add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  fTotalWidth, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
-
-                        if(ptUi->was_last_item_hovered())
-                        {
-                            ptUi->begin_tooltip();
-                            ptUi->text(ptBlock->sbtRanges[0].pcName);
-                            ptUi->end_tooltip();
-                        }
-
-                        ptTempMemoryApi->reset(&ptAppData->tTempAllocator);
-                    }
-
-                }
-
-                ptUi->layout_dynamic(0.0f, 1);
-                ptUi->separator();
-                ptUi->text("Device Memory: Local Buddy");
-
-                {
-
-                    ptUi->layout_template_begin(30.0f);
-                    ptUi->layout_template_push_static(150.0f);
-                    ptUi->layout_template_push_variable(300.0f);
-                    ptUi->layout_template_end();
-
-                    uint32_t uBlockCount = 0;
-                    uint32_t uNodeCount = 0;
-                    plDeviceAllocationBlock* sbtBlocks = ptDevice->tLocalBuddyAllocator.blocks(ptDevice->tLocalBuddyAllocator.ptInst, &uBlockCount);
-                    plDeviceAllocationNode* sbtNodes = ptDevice->tLocalBuddyAllocator.nodes(ptDevice->tLocalBuddyAllocator.ptInst, &uNodeCount);
-                    const char** sbDebugNames = ptDevice->tLocalBuddyAllocator.names(ptDevice->tLocalBuddyAllocator.ptInst, &uNodeCount);
-
-                    const uint32_t uNodesPerBlock = uNodeCount / uBlockCount;
-                    for(uint32_t i = 0; i < uBlockCount; i++)
-                    {
-                        plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
-                        char* pcTempBuffer0 = ptTempMemoryApi->printf(&ptAppData->tTempAllocator, "Block %u: 256 MB##b", i);
-                        char* pcTempBuffer1 = ptTempMemoryApi->printf(&ptAppData->tTempAllocator, "Block %u ##b", i);
-                        ptUi->button(pcTempBuffer0);
-
-                        plVec2 tCursor0 = ptUi->get_cursor_pos();
-                        const plVec2 tMousePos = ptIoI->get_mouse_pos();
-                        uint32_t uHoveredNode = 0;
-                        const float fWidthAvailable = tWindowEnd.x - tCursor0.x;
-                        float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)PL_DEVICE_ALLOCATION_BLOCK_SIZE;
-                        ptUi->invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
-                        ptDrawApi->add_rect_filled(ptFgLayer, (plVec2){tCursor0.x, tCursor0.y}, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f}); 
-
-
-                        for(uint32_t j = 0; j < uNodesPerBlock; j++)
-                        {
-                            plDeviceAllocationNode* ptNode = &sbtNodes[uNodesPerBlock * i + j];
-
-                            if(ptNode->ulSizeWasted >= ptNode->ulSize)
-                                continue;
-
-                            float fUsedWidth = fWidthAvailable * ((float)ptNode->ulSize - ptNode->ulSizeWasted) / (float)PL_DEVICE_ALLOCATION_BLOCK_SIZE;
-                            float fStart = fWidthAvailable * ((float) ptNode->ulOffset) / (float)PL_DEVICE_ALLOCATION_BLOCK_SIZE;
-                            ptDrawApi->add_rect_filled(ptFgLayer, (plVec2){tCursor0.x + fStart, tCursor0.y}, (plVec2){tCursor0.x + fStart + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f}); 
-
-                            if(ptNode->ulSizeWasted > 0)
-                            {
-                                
-                                const float fWastedWidth = fWidthAvailable * ((float)ptNode->ulSizeWasted) / (float)PL_DEVICE_ALLOCATION_BLOCK_SIZE;
-                                const float fWasteStart = fStart + fUsedWidth;
-                                ptDrawApi->add_rect_filled(ptFgLayer, (plVec2){tCursor0.x + fWasteStart, tCursor0.y}, (plVec2){tCursor0.x + fWasteStart + fWastedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f}); 
-                                if(tMousePos.x > tCursor0.x + fStart && tMousePos.x < tCursor0.x + fWasteStart + fWastedWidth)
-                                    uHoveredNode = (uint32_t)ptNode->uNodeIndex;
-                            }
-                            else if(tMousePos.x > tCursor0.x + fStart && tMousePos.x < tCursor0.x + fStart + fUsedWidth)
-                                uHoveredNode = (uint32_t)ptNode->uNodeIndex;
-                        }
-
-                        if(ptUi->was_last_item_hovered())
-                        {
-                            ptUi->begin_tooltip();
-                            ptUi->text(sbDebugNames[uHoveredNode]);
-                            ptUi->end_tooltip();
-                        }
-                    }
-
-                }
-
-
-                ptUi->layout_dynamic(0.0f, 1);
-                ptUi->separator();
-                ptUi->text("Device Memory: Local Dedicated");
-
-                {
-
-                    ptUi->layout_template_begin(30.0f);
-                    ptUi->layout_template_push_static(150.0f);
-                    ptUi->layout_template_push_variable(300.0f);
-                    ptUi->layout_template_end();
-
-                    uint32_t uBlockCount = 0;
-                    plDeviceAllocationBlock* sbtBlocks = ptDevice->tLocalDedicatedAllocator.blocks(ptDevice->tLocalDedicatedAllocator.ptInst, &uBlockCount);
-
-                    static const uint64_t ulMaxBlockSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE;
-
-                    for(uint32_t i = 0; i < uBlockCount; i++)
-                    {
-                        // ptAppData->tTempAllocator
-                        plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
-                        char* pcTempBuffer0 = ptTempMemoryApi->printf(&ptAppData->tTempAllocator, "Block %u: %0.1fMB###d", i, ((double)ptBlock->ulSize)/1000000.0);
-                        char* pcTempBuffer1 = ptTempMemoryApi->printf(&ptAppData->tTempAllocator, "Block %u###d", i);
-
-                        ptUi->button(pcTempBuffer0);
-                        
-                        plVec2 tCursor0 = ptUi->get_cursor_pos();
-                        const float fWidthAvailable = tWindowEnd.x - tCursor0.x;
-                        float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)ulMaxBlockSize;
-                        float fUsedWidth = fWidthAvailable * ((float)ptBlock->sbtRanges[0].tAllocation.ulSize) / (float)ulMaxBlockSize;
-
-                        if(fUsedWidth < 10.0f)
-                            fUsedWidth = 10.0f;
-                        else if (fUsedWidth > 500.0f)
-                            fUsedWidth = 525.0f;
-                            
-                        if (fTotalWidth > 500.0f)
-                            fTotalWidth = 525.0f;
-                        
-                        ptUi->invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
-                        if(ptUi->was_last_item_active())
-                        {
-                            ptDrawApi->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f});
-                            ptDrawApi->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
-                            ptDrawApi->add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  fTotalWidth, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
-                        }
-                        else
-                        {
-                            ptDrawApi->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f});
-                            ptDrawApi->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
-                        }
-
-                        if(ptUi->was_last_item_hovered())
-                        {
-                            ptUi->begin_tooltip();
-                            ptUi->text(ptBlock->sbtRanges[0].pcName);
-                            ptUi->end_tooltip();
-                        }
-
-                        ptTempMemoryApi->reset(&ptAppData->tTempAllocator);
-                    }
-                }
-
-                ptUi->end_window();
-            }
-        }
-
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~renderer begin frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submit draws~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         // submit draw layers
-        pl_begin_profile_sample("Submit draw layers");
         ptDrawApi->submit_layer(ptAppData->bgDrawLayer);
         ptDrawApi->submit_layer(ptAppData->fgDrawLayer);
-        pl_end_profile_sample();
-
+        
         ptGfx->begin_recording(ptGraphics);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~scene prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         ptRendererApi->reset_scene(ptScene);
-        ptEcs->run_mesh_update_system(ptComponentLibrary);
-        ptEcs->run_hierarchy_update_system(ptComponentLibrary);
-        ptEcs->run_object_update_system(ptComponentLibrary);
+        ptEcs->run_mesh_update_system(&ptAppData->tComponentLibrary);
+        ptEcs->run_hierarchy_update_system(&ptAppData->tComponentLibrary);
+        ptEcs->run_object_update_system(&ptAppData->tComponentLibrary);
         ptRendererApi->scene_prepare(&ptAppData->tScene);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~offscreen target~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1029,7 +591,210 @@ pl_app_update(plAppData* ptAppData)
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~end frame~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         ptGfx->end_frame(ptGraphics);
     } 
+    pl_end_profile_sample();
     pl_end_profile_frame();
+}
+
+static void
+pl__show_ecs_window(plAppData* ptAppData)
+{
+    plUiApiI* ptUi = ptAppData->ptUi;
+    plEcsI* ptEcs  = ptAppData->ptEcs;
+
+    if(ptUi->begin_window("Components", &ptAppData->bShowEcs, false))
+    {
+        const float pfRatios[] = {1.0f};
+        ptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+
+        if(ptAppData->iSelectedEntity > 0)
+        {
+
+            if(ptUi->collapsing_header("Tag"))
+            {
+                plTagComponent* ptTagComponent = ptEcs->get_component(&ptAppData->tComponentLibrary.tTagComponentManager, ptAppData->iSelectedEntity);
+                ptUi->text("Name: %s", ptTagComponent->acName);
+                ptUi->end_collapsing_header();
+            }
+
+            if(ptEcs->has_entity(&ptAppData->tComponentLibrary.tHierarchyComponentManager, ptAppData->iSelectedEntity))
+            {
+                
+                if(ptUi->collapsing_header("Transform"))
+                {
+                    plTransformComponent* ptTransformComponent = ptEcs->get_component(&ptAppData->tComponentLibrary.tTransformComponentManager, ptAppData->iSelectedEntity);
+                    ptUi->text("Rotation: %0.3f, %0.3f, %0.3f, %0.3f", ptTransformComponent->tRotation.x, ptTransformComponent->tRotation.y, ptTransformComponent->tRotation.z, ptTransformComponent->tRotation.w);
+                    ptUi->text("Scale: %0.3f, %0.3f, %0.3f", ptTransformComponent->tScale.x, ptTransformComponent->tScale.y, ptTransformComponent->tScale.z);
+                    ptUi->text("Translation: %0.3f, %0.3f, %0.3f", ptTransformComponent->tTranslation.x, ptTransformComponent->tTranslation.y, ptTransformComponent->tTranslation.z);
+                    ptUi->end_collapsing_header();
+                }  
+            }
+
+            if(ptEcs->has_entity(&ptAppData->tComponentLibrary.tMeshComponentManager, ptAppData->iSelectedEntity))
+            {
+                
+                if(ptUi->collapsing_header("Mesh"))
+                {
+                    // plMeshComponent* ptMeshComponent = pl_ecs_get_component(ptScene->ptMeshComponentManager, iSelectedEntity);
+                    ptUi->end_collapsing_header();
+                }  
+            }
+
+            if(ptEcs->has_entity(&ptAppData->tComponentLibrary.tMaterialComponentManager, ptAppData->iSelectedEntity))
+            {
+                if(ptUi->collapsing_header("Material"))
+                {
+                    plMaterialComponent* ptMaterialComponent = ptEcs->get_component(&ptAppData->tComponentLibrary.tMaterialComponentManager, ptAppData->iSelectedEntity);
+                    ptUi->text("Albedo: %0.3f, %0.3f, %0.3f, %0.3f", ptMaterialComponent->tAlbedo.r, ptMaterialComponent->tAlbedo.g, ptMaterialComponent->tAlbedo.b, ptMaterialComponent->tAlbedo.a);
+                    ptUi->text("Alpha Cutoff: %0.3f", ptMaterialComponent->fAlphaCutoff);
+                    ptUi->text("Double Sided: %s", ptMaterialComponent->bDoubleSided ? "true" : "false");
+                    ptUi->end_collapsing_header();
+                }  
+            }
+
+            if(ptEcs->has_entity(&ptAppData->tComponentLibrary.tObjectComponentManager, ptAppData->iSelectedEntity))
+            {
+                if(ptUi->collapsing_header("Object"))
+                {
+                    plObjectComponent* ptObjectComponent = ptEcs->get_component(&ptAppData->tComponentLibrary.tObjectComponentManager, ptAppData->iSelectedEntity);
+                    plTagComponent* ptTransformTag = ptEcs->get_component(&ptAppData->tComponentLibrary.tTagComponentManager, ptObjectComponent->tTransform);
+                    plTagComponent* ptMeshTag = ptEcs->get_component(&ptAppData->tComponentLibrary.tTagComponentManager, ptObjectComponent->tMesh);
+                    ptUi->text("Mesh: %s", ptMeshTag->acName);
+                    ptUi->text("Transform: %s", ptTransformTag->acName);
+
+                    ptUi->end_collapsing_header();
+                }  
+            }
+
+            if(ptEcs->has_entity(&ptAppData->tComponentLibrary.tCameraComponentManager, ptAppData->iSelectedEntity))
+            {
+                if(ptUi->collapsing_header("Camera"))
+                {
+                    plCameraComponent* ptCameraComponent = ptEcs->get_component(&ptAppData->tComponentLibrary.tCameraComponentManager, ptAppData->iSelectedEntity);
+                    ptUi->text("Pitch: %0.3f", ptCameraComponent->fPitch);
+                    ptUi->text("Yaw: %0.3f", ptCameraComponent->fYaw);
+                    ptUi->text("Roll: %0.3f", ptCameraComponent->fRoll);
+                    ptUi->text("Near Z: %0.3f", ptCameraComponent->fNearZ);
+                    ptUi->text("Far Z: %0.3f", ptCameraComponent->fFarZ);
+                    ptUi->text("Y Field Of View: %0.3f", ptCameraComponent->fFieldOfView);
+                    ptUi->text("Aspect Ratio: %0.3f", ptCameraComponent->fAspectRatio);
+                    ptUi->text("Up Vector: %0.3f, %0.3f, %0.3f", ptCameraComponent->_tUpVec.x, ptCameraComponent->_tUpVec.y, ptCameraComponent->_tUpVec.z);
+                    ptUi->text("Forward Vector: %0.3f, %0.3f, %0.3f", ptCameraComponent->_tForwardVec.x, ptCameraComponent->_tForwardVec.y, ptCameraComponent->_tForwardVec.z);
+                    ptUi->text("Right Vector: %0.3f, %0.3f, %0.3f", ptCameraComponent->_tRightVec.x, ptCameraComponent->_tRightVec.y, ptCameraComponent->_tRightVec.z);
+                    ptUi->end_collapsing_header();
+                }  
+            }
+
+            if(ptEcs->has_entity(&ptAppData->tComponentLibrary.tHierarchyComponentManager, ptAppData->iSelectedEntity))
+            {
+                if(ptUi->collapsing_header("Hierarchy"))
+                {
+                    plHierarchyComponent* ptHierarchyComponent = ptEcs->get_component(&ptAppData->tComponentLibrary.tHierarchyComponentManager, ptAppData->iSelectedEntity);
+                    plTagComponent* ptParent = ptEcs->get_component(&ptAppData->tComponentLibrary.tTagComponentManager, ptHierarchyComponent->tParent);
+                    ptUi->text("Parent: %s", ptParent->acName);
+                    ptUi->end_collapsing_header();
+                }  
+            } 
+        }
+        ptUi->end_window();
+    }
+}
+
+static void
+pl__select_entity(plAppData* ptAppData)
+{
+    plEcsI* ptEcs = ptAppData->ptEcs;
+    plDeviceApiI* ptDeviceApi = ptAppData->ptDeviceApi;
+    plDevice* ptDevice = &ptAppData->tGraphics.tDevice;
+    plIOContext* ptIOCtx = ptAppData->ptIoI->get_context();
+    plIOApiI* ptIoI = ptAppData->ptIoI;
+    plGraphics* ptGraphics = &ptAppData->tGraphics;
+    plRenderer* ptRenderer = &ptAppData->tRenderer;
+    plComponentLibrary* ptComponentLibrary = &ptAppData->tComponentLibrary;
+
+    uint32_t uReadBackBuffer = ptDeviceApi->create_read_back_buffer(ptDevice, (size_t)(ptIOCtx->afMainViewportSize[0] * ptIOCtx->afMainViewportSize[1]) * 4, "pick readback");
+    ptDeviceApi->transfer_image_to_buffer(ptDevice, ptDevice->sbtBuffers[uReadBackBuffer].tBuffer, 
+        (size_t)(ptIOCtx->afMainViewportSize[0] * ptIOCtx->afMainViewportSize[1]) * 4, 
+        &ptDevice->sbtTextures[ptDevice->sbtTextureViews[ptRenderer->tPickTarget.sbuColorTextureViews[ptGraphics->tSwapchain.uCurrentImageIndex]].uTextureHandle]);
+
+    unsigned char* mapping = (unsigned char*)ptDevice->sbtBuffers[uReadBackBuffer].tAllocation.pHostMapped;
+
+    const plVec2 tMousePos = ptIoI->get_mouse_pos();
+    
+    uint32_t uRowWidth = (uint32_t)ptIOCtx->afMainViewportSize[0] * 4;
+    uint32_t uPos = uRowWidth * (uint32_t)tMousePos.y + (uint32_t)tMousePos.x * 4;
+
+    static uint32_t uPickedID = 0;
+    if(ptAppData->iSelectedEntity > 0)
+    {
+        ptEcs->remove_mesh_outline(ptComponentLibrary, (plEntity)ptAppData->iSelectedEntity);
+        pl_sb_reset(ptRenderer->sbtVisibleOutlinedMeshes);
+    }
+
+    uPickedID = mapping[uPos] | mapping[uPos + 1] << 8 | mapping[uPos + 2] << 16;
+    ptAppData->iSelectedEntity = (int)uPickedID;
+    if(uPickedID > 0)
+    {
+        ptEcs->add_mesh_outline(ptComponentLibrary, (plEntity)uPickedID);
+        pl_sb_reset(ptRenderer->sbtVisibleOutlinedMeshes);
+        pl_sb_push(ptRenderer->sbtVisibleOutlinedMeshes, (plEntity)uPickedID);
+    }
+
+    ptDeviceApi->submit_buffer_for_deletion(ptDevice, uReadBackBuffer);
+}
+
+static void
+pl__show_main_window(plAppData* ptAppData)
+{
+    plUiApiI* ptUi = ptAppData->ptUi;
+    plGraphics* ptGraphics = &ptAppData->tGraphics;
+
+    ptUi->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
+
+    if(ptUi->begin_window("Pilot Light", NULL, false))
+    {
+
+        const float pfRatios[] = {1.0f};
+        ptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+        
+        if(ptUi->collapsing_header("General"))
+        {
+            if(ptUi->checkbox("VSync", &ptGraphics->tSwapchain.bVSync))
+                ptAppData->bVSyncChanged = true;
+            ptUi->end_collapsing_header();
+        }
+
+        if(ptUi->collapsing_header("Tools"))
+        {
+            ptUi->checkbox("Device Memory Analyzer", &ptAppData->tDebugInfo.bShowDeviceMemoryAnalyzer);
+            ptUi->checkbox("Memory Allocations", &ptAppData->tDebugInfo.bShowMemoryAllocations);
+            ptUi->checkbox("Profiling", &ptAppData->tDebugInfo.bShowProfiling);
+            ptUi->checkbox("Statistics", &ptAppData->tDebugInfo.bShowStats);
+            ptUi->checkbox("Logging", &ptAppData->tDebugInfo.bShowLogging);
+            ptUi->end_collapsing_header();
+        }
+
+        if(ptUi->collapsing_header("User Interface"))
+        {
+            ptUi->checkbox("UI Debug", &ptAppData->bShowUiDebug);
+            ptUi->checkbox("UI Demo", &ptAppData->bShowUiDemo);
+            ptUi->checkbox("UI Style", &ptAppData->bShowUiStyle);
+            ptUi->end_collapsing_header();
+        }
+
+        if(ptUi->collapsing_header("Entities"))
+        {
+            ptUi->checkbox("Show Components", &ptAppData->bShowEcs);
+            plTagComponent* sbtTagComponents = ptAppData->tComponentLibrary.tTagComponentManager.pComponents;
+            for(uint32_t i = 0; i < pl_sb_size(sbtTagComponents); i++)
+            {
+                plTagComponent* ptTagComponent = &sbtTagComponents[i];
+                ptUi->radio_button(ptTagComponent->acName, &ptAppData->iSelectedEntity, i + 1);
+            }
+
+            ptUi->end_collapsing_header();
+        }
+        ptUi->end_window();
+    }
 }
 
 static VkSurfaceKHR

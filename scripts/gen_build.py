@@ -106,6 +106,8 @@ with pl.project("pilotlight"):
     add_plugin_to_vulkan_app("pl_ecs_ext", False)
     add_plugin_to_vulkan_app("pl_vulkan_ext", False)
     add_plugin_to_vulkan_app("pl_gltf_ext", False)
+    add_plugin_to_vulkan_app("pl_stats_ext", False)
+    add_plugin_to_vulkan_app("pl_debug_ext", True)
     pl.pop_profile()
     pl.pop_definitions()
 
@@ -113,6 +115,7 @@ with pl.project("pilotlight"):
     add_plugin_to_metal_app("pl_draw_ext", True)
     add_plugin_to_metal_app("pl_ui_ext", True)
     add_plugin_to_metal_app("pl_image_ext", False)
+    add_plugin_to_metal_app("pl_stats_ext", False)
     pl.pop_definitions()
 
     pl.pop_target_links()

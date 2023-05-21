@@ -37,6 +37,18 @@
             "load" : "pl_load_gltf_ext",
             "unload" : "pl_unload_gltf_ext",
             "reloadable" : false
+        },
+        {
+            "name" : "pl_stats_ext",
+            "load" : "pl_load_stats_ext",
+            "unload" : "pl_unload_stats_ext",
+            "reloadable" : false
+        },
+        {
+            "name" : "pl_debug_ext",
+            "load" : "pl_load_debug_ext",
+            "unload" : "pl_unload_debug_ext",
+            "reloadable" : true
         }
     ]
 }
