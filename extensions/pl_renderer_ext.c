@@ -700,13 +700,13 @@ pl_create_scene(plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, 
     PL_ASSERT(rawBytes4);
     PL_ASSERT(rawBytes5);
 
-    unsigned char* rawBytes = pl_alloc(texWidth * texHeight * texNumChannels * 6, __FUNCTION__, __LINE__);
-    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 0], rawBytes0, texWidth * texHeight * texNumChannels); //-V522 
-    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 1], rawBytes1, texWidth * texHeight * texNumChannels); //-V522
-    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 2], rawBytes2, texWidth * texHeight * texNumChannels); //-V522
-    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 3], rawBytes3, texWidth * texHeight * texNumChannels); //-V522
-    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 4], rawBytes4, texWidth * texHeight * texNumChannels); //-V522
-    memcpy(&rawBytes[texWidth * texHeight * texNumChannels * 5], rawBytes5, texWidth * texHeight * texNumChannels); //-V522
+    unsigned char* rawBytes = pl_alloc(texWidth * texHeight * texForceNumChannels * 6, __FUNCTION__, __LINE__);
+    memcpy(&rawBytes[texWidth * texHeight * texForceNumChannels * 0], rawBytes0, texWidth * texHeight * texForceNumChannels); //-V522 
+    memcpy(&rawBytes[texWidth * texHeight * texForceNumChannels * 1], rawBytes1, texWidth * texHeight * texForceNumChannels); //-V522
+    memcpy(&rawBytes[texWidth * texHeight * texForceNumChannels * 2], rawBytes2, texWidth * texHeight * texForceNumChannels); //-V522
+    memcpy(&rawBytes[texWidth * texHeight * texForceNumChannels * 3], rawBytes3, texWidth * texHeight * texForceNumChannels); //-V522
+    memcpy(&rawBytes[texWidth * texHeight * texForceNumChannels * 4], rawBytes4, texWidth * texHeight * texForceNumChannels); //-V522
+    memcpy(&rawBytes[texWidth * texHeight * texForceNumChannels * 5], rawBytes5, texWidth * texHeight * texForceNumChannels); //-V522
 
     ptImageApi->free(rawBytes0);
     ptImageApi->free(rawBytes1);
@@ -737,7 +737,7 @@ pl_create_scene(plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, 
         .uMips       = tTextureDesc.uMips
     };
 
-    uint32_t uSkyboxTexture = ptDeviceApi->create_texture(ptDevice, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * texNumChannels * 6, rawBytes, "skybox texture");
+    uint32_t uSkyboxTexture = ptDeviceApi->create_texture(ptDevice, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * texForceNumChannels * 6, rawBytes, "skybox texture");
     ptSceneOut->uSkyboxTextureView  = ptDeviceApi->create_texture_view(ptDevice, &tSkyboxView, &tSkyboxSampler, uSkyboxTexture, "skybox texture view");
     pl_free(rawBytes);
 
