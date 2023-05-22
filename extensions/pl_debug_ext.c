@@ -365,6 +365,14 @@ pl__show_profiling(bool* bValue)
                             const double dNewPixelStart = dNewConvertToPixel * (dTimeHovered - fConservedRatio * dInitialVisibleTime);
                             ptUi->set_window_scroll((plVec2){(float)dNewPixelStart, 0.0f});
                         }
+
+                        if(ptIo->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 5.0f))
+                        {
+                            const plVec2 tWindowScroll = ptUi->get_window_scroll();
+                            const plVec2 tMouseDrag = ptIo->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 5.0f);
+                            ptUi->set_window_scroll((plVec2){tWindowScroll.x - tMouseDrag.x, tWindowScroll.y});
+                            ptIo->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+                        }
                     }
                     
                     ptDrawApi->add_rect_filled(ptFgLayer, tCursorPos, pl_add_vec2(tCursorPos, tTimelineBarSize), (plVec4){0.5f, 0.0f, 0.0f, 0.7f});
