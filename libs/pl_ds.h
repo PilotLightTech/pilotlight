@@ -4,8 +4,8 @@
 */
 
 // library version
-#define PL_DS_VERSION    "0.4.1"
-#define PL_DS_VERSION_NUM 00401
+#define PL_DS_VERSION    "0.4.2"
+#define PL_DS_VERSION_NUM 00402
 
 /*
 Index of this file:
@@ -486,7 +486,11 @@ pl__hm_insert(plHashMap* ptHashMap, uint64_t ulKey, uint64_t ulValue, const char
     uint64_t ulModKey = ulKey % ptHashMap->_uBucketCount;
 
     while(ptHashMap->_aulKeys[ulModKey] != ulKey && ptHashMap->_aulKeys[ulModKey] != UINT64_MAX)
+    {
         ulModKey = (ulModKey + 1)  % ptHashMap->_uBucketCount;
+        if(ptHashMap->_aulKeys[ulModKey] == UINT64_MAX - 1)
+            break;
+    }
 
     ptHashMap->_aulKeys[ulModKey] = ulKey;
     ptHashMap->_aulValueIndices[ulModKey] = ulValue;
@@ -498,11 +502,16 @@ pl_hm_remove(plHashMap* ptHashMap, uint64_t ulKey)
 {
     PL_DS_ASSERT(ptHashMap->_uBucketCount > 0 && "hashmap has no items");
 
-    const uint64_t ulModKey = ulKey % ptHashMap->_uBucketCount;
+    uint64_t ulModKey = ulKey % ptHashMap->_uBucketCount;
+
+    while(ptHashMap->_aulKeys[ulModKey] != ulKey && ptHashMap->_aulKeys[ulModKey] != UINT64_MAX)
+        ulModKey = (ulModKey + 1) % ptHashMap->_uBucketCount;
+
     const uint64_t ulValue = ptHashMap->_aulValueIndices[ulModKey];
     pl_sb_push(ptHashMap->_sbulFreeIndices, ulValue);
+
     ptHashMap->_aulValueIndices[ulModKey] = UINT64_MAX;
-    ptHashMap->_aulKeys[ulModKey] = UINT64_MAX;
+    ptHashMap->_aulKeys[ulModKey] = UINT64_MAX - 1;
     ptHashMap->_uItemCount--;
 }
 
