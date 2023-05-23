@@ -178,13 +178,21 @@ pl_ui_destroy_context(plUiContext* ptContext)
         ptContext = gptCtx;
     for(uint32_t i = 0; i < pl_sb_size(ptContext->sbptWindows); i++)
     {
+        pl_sb_free(ptContext->sbptWindows[i]->tStorage.sbtData);
+        pl_sb_free(ptContext->sbptWindows[i]->sbuTempLayoutIndexSort);
+        pl_sb_free(ptContext->sbptWindows[i]->sbtTempLayoutSort);
+        pl_sb_free(ptContext->sbptWindows[i]->sbtRowStack);
+        pl_sb_free(ptContext->sbptWindows[i]->sbtChildWindows);
+        pl_sb_free(ptContext->sbptWindows[i]->sbtRowTemplateEntries);
         gptCtx->ptDraw->return_layer(ptContext->sbptWindows[i]->ptBgLayer);
         gptCtx->ptDraw->return_layer(ptContext->sbptWindows[i]->ptFgLayer);
     }
     gptCtx->ptDraw->cleanup_context(ptContext->ptDrawCtx);
     PL_FREE(ptContext->ptDrawlist);
     PL_FREE(ptContext->ptDebugDrawlist);
+    pl_sb_free(ptContext->tWindows.sbtData);
     pl_sb_free(ptContext->sbptWindows);
+    pl_sb_free(ptContext->sbtTabBars);
     pl_sb_free(ptContext->sbptFocusedWindows);
     pl_sb_free(ptContext->sbuIdStack);
     PL_FREE(ptContext);

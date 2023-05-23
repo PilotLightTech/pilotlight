@@ -1162,15 +1162,9 @@ pl_load_debug_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 PL_EXPORT void
 pl_unload_debug_ext(plApiRegistryApiI* ptApiRegistry)
 {
-    ptTempMemoryApi->free(&tTempAllocator);
-
-    for(uint32_t i = 0; i < pl_sb_size(sbppdValues); i++)
-    {
-        *ptStatsApi->get_counter_data(ppcNames[i]) = NULL;
-    }
-
     pl_sb_free(sbppdValues);
     pl_sb_free(sbppdFrameValues);
     pl_sb_free(sbdRawValues);
     pl_sb_free(sbbValues);
+    ptTempMemoryApi->free(&tTempAllocator);
 }

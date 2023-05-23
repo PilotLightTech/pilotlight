@@ -97,6 +97,7 @@ typedef struct _plRendererI
 
     // scene
     void (*create_scene)          (plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, plScene* ptSceneOut);
+    void (*cleanup_scene)         (plScene* ptScene);
     void (*reset_scene)           (plScene* ptScene);
     void (*draw_scene)            (plScene* ptScene);
     void (*draw_pick_scene)       (plScene* ptScene);

@@ -156,6 +156,7 @@ typedef struct _plExtensionRegistryApiI
     void (*reload)          (plApiRegistryApiI* ptApiRegistry);
     void (*load)            (plApiRegistryApiI* ptApiRegistry, const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
     void (*unload)          (plApiRegistryApiI* ptApiRegistry, const char* pcName);
+    void (*unload_all)      (plApiRegistryApiI* ptApiRegistry);
     void (*load_from_config)(plApiRegistryApiI* ptApiRegistry, const char* pcConfigFile);
     void (*load_from_file)  (plApiRegistryApiI* ptApiRegistry, const char* pcFile);
 } plExtensionRegistryApiI;

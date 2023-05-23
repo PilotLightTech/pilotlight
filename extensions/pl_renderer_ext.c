@@ -59,6 +59,7 @@ static void pl_draw_sky        (plScene* ptScene);
 
 // scene
 static void pl_create_scene      (plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, plScene* ptSceneOut);
+static void pl_cleanup_scene     (plScene* ptScene);
 static void pl_reset_scene       (plScene* ptScene);
 static void pl_draw_scene        (plScene* ptScene);
 static void pl_draw_pick_scene   (plScene* ptScene);
@@ -102,6 +103,7 @@ pl_load_renderer_api(void)
         .cleanup_renderer          = pl_cleanup_renderer,
         .draw_sky                  = pl_draw_sky,
         .create_scene              = pl_create_scene,
+        .cleanup_scene             = pl_cleanup_scene,
         .reset_scene               = pl_reset_scene,
         .draw_scene                = pl_draw_scene,
         .draw_pick_scene           = pl_draw_pick_scene,
@@ -352,7 +354,8 @@ pl_cleanup_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget)
 
     for (uint32_t i = 0u; i < pl_sb_size(ptTarget->sbuFrameBuffers); i++)
         ptDeviceApi->submit_frame_buffer_for_deletion(ptDevice, ptTarget->sbuFrameBuffers[i]);
-    pl_sb_reset(ptTarget->sbuFrameBuffers);
+    pl_sb_free(ptTarget->sbuFrameBuffers);
+    pl_sb_free(ptTarget->sbuColorTextureViews);
 }
 
 static void
@@ -627,8 +630,13 @@ pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptCompon
 static void
 pl_cleanup_renderer(plRenderer* ptRenderer)
 {
-    // pl_sb_free(ptRenderer->sbfGlobalVertexData);
-    // pl_submit_buffer_for_deletion(&ptRenderer->ptGraphics->tResourceManager, ptRenderer->uGlobalVertexData);
+    pl_sb_free(ptRenderer->sbtVisibleMeshes);
+    pl_sb_free(ptRenderer->sbtVisibleOutlinedMeshes);
+    pl_sb_free(ptRenderer->sbtMaterialBindGroups);
+    pl_sb_free(ptRenderer->sbtObjectBindGroups);
+    pl_sb_free(ptRenderer->sbtDraws);
+    pl_sb_free(ptRenderer->sbtDrawAreas);
+    pl_sb_free(ptRenderer->sbtTextures);
 }
 
 static void
@@ -834,6 +842,16 @@ pl_create_scene(plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, 
 
     // create & update global bind group
     ptSceneOut->tGlobalPickBindGroup.tLayout = tGlobalPickGroupLayout;
+}
+
+static void
+pl_cleanup_scene(plScene* ptScene)
+{
+    pl_sb_free(ptScene->sbfGlobalVertexData);
+    pl_sb_free(ptScene->sbtGlobalMaterialData);
+    pl_sb_free(ptScene->sbtGlobalPickData);
+    pl_sb_free(ptScene->sbtVertexData);
+    pl_sb_free(ptScene->sbuIndexData);
 }
 
 static void

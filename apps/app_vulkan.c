@@ -330,8 +330,9 @@ pl_app_shutdown(void* pAppData)
     plEcsI*                 ptEcs = ptAppData->ptEcs;
     ptDrawApi->cleanup_font_atlas(&ptAppData->fontAtlas);
     ptUiApi->destroy_context(NULL);
-    // ptRendererApi->(&ptAppData->tGraphics, &ptAppData->tOffscreenPass);
     ptRendererApi->cleanup_render_target(&ptAppData->tGraphics, &ptAppData->tOffscreenTarget);
+    ptRendererApi->cleanup_render_target(&ptAppData->tGraphics, &ptAppData->tRenderer.tPickTarget);
+    ptRendererApi->cleanup_scene(&ptAppData->tScene);
     ptRendererApi->cleanup_renderer(&ptAppData->tRenderer);
     ptEcs->cleanup_systems(ptAppData->ptApiRegistry, &ptAppData->tComponentLibrary);
     ptGfx->cleanup(&ptAppData->tGraphics);
@@ -339,6 +340,7 @@ pl_app_shutdown(void* pAppData)
     pl_cleanup_profile_context();
     pl_cleanup_log_context();
     tempAlloc->free(&ptAppData->tTempAllocator);
+    pl_sb_free(ptAppData->sbtTextures);
     free(pAppData);
 }
 

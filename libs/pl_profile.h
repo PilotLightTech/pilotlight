@@ -365,7 +365,7 @@ pl__cleanup_profile_context(void)
 void
 pl__set_profile_context(plProfileContext* ptContext)
 {
-    PL_ASSERT(ptContext && "log context is NULL");
+    PL_ASSERT(ptContext && "profile context is NULL");
     gTPProfileContext = ptContext;
 }
 

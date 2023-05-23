@@ -1,5 +1,8 @@
 #include "pilotlight.h"
 
+#include <stdlib.h>
+#define PL_DS_ALLOC(x, FILE, LINE) malloc((x))
+#define PL_DS_FREE(x)  free((x))
 #include "pl_ds.h"
 
 #define PL_LOG_IMPLEMENTATION
@@ -42,27 +45,20 @@ pl_alloc(size_t szSize, const char* pcFile, int iLine)
     gptMemoryContext->szActiveAllocations++;
     void* pBuffer = malloc(szSize);
 
-    const uint64_t ulHash = pl_hm_hash(&pBuffer, sizeof(void*), 0);
+    const uint64_t ulHash = pl_hm_hash(&pBuffer, sizeof(void*), 1);
 
-    const bool bDataExists = pl_hm_has_key(gptMemoryContext->ptHashMap, ulHash);
-
+    uint64_t ulFreeIndex = pl_hm_get_free_index(gptMemoryContext->ptHashMap);
+    if(ulFreeIndex == UINT64_MAX)
     {
-        uint64_t ulFreeIndex = pl_hm_get_free_index(gptMemoryContext->ptHashMap);
-        if(ulFreeIndex == UINT64_MAX)
-        {
-            pl_sb_add(gptMemoryContext->sbtAllocations);
-            ulFreeIndex = pl_sb_size(gptMemoryContext->sbtAllocations) - 1;
-        }
-
-        pl_hm_insert(gptMemoryContext->ptHashMap, ulHash, ulFreeIndex);
-
-        gptMemoryContext->sbtAllocations[ulFreeIndex].iLine = iLine;
-        gptMemoryContext->sbtAllocations[ulFreeIndex].pcFile = pcFile;
-        gptMemoryContext->sbtAllocations[ulFreeIndex].pAddress = pBuffer;
-        gptMemoryContext->sbtAllocations[ulFreeIndex].szSize = szSize;
-        gptMemoryContext->szAllocationCount++;
+        pl_sb_push(gptMemoryContext->sbtAllocations, (plAllocationEntry){0});
+        ulFreeIndex = pl_sb_size(gptMemoryContext->sbtAllocations) - 1;
     }
-
+    pl_hm_insert(gptMemoryContext->ptHashMap, ulHash, ulFreeIndex);
+    gptMemoryContext->sbtAllocations[ulFreeIndex].iLine = iLine;
+    gptMemoryContext->sbtAllocations[ulFreeIndex].pcFile = pcFile;
+    gptMemoryContext->sbtAllocations[ulFreeIndex].pAddress = pBuffer;
+    gptMemoryContext->sbtAllocations[ulFreeIndex].szSize = szSize;
+    gptMemoryContext->szAllocationCount++;
     return pBuffer;
 }
 
@@ -71,16 +67,23 @@ pl_free(void* pBuffer)
 {
     PL_ASSERT(gptMemoryContext->szActiveAllocations > 0);
     
-    const uint64_t ulHash = pl_hm_hash(&pBuffer, sizeof(void*), 0);
+    const uint64_t ulHash = pl_hm_hash(&pBuffer, sizeof(void*), 1);
 
     const bool bDataExists = pl_hm_has_key(gptMemoryContext->ptHashMap, ulHash);
 
     if(bDataExists)
     {
         const uint64_t ulIndex = pl_hm_lookup(gptMemoryContext->ptHashMap, ulHash);
+
+        gptMemoryContext->sbtAllocations[ulIndex].pAddress = NULL;
+        gptMemoryContext->sbtAllocations[ulIndex].szSize = 0;
         pl_hm_remove(gptMemoryContext->ptHashMap, ulHash);
         gptMemoryContext->szAllocationFrees++;
         gptMemoryContext->szActiveAllocations--;
+    }
+    else
+    {
+        PL_ASSERT(false);
     }
     free(pBuffer);
 }

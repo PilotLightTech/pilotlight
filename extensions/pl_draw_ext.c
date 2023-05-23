@@ -1611,7 +1611,16 @@ pl__cleanup_draw_context_i(plDrawContext* ctx)
         pl_sb_free(drawlist->sbSubmittedLayers);   
         pl_sb_free(drawlist->sbClipStack);   
     }
+    for(uint32_t i = 0u; i < pl_sb_size(ctx->sb3DDrawlists); i++)
+    {
+        plDrawList3D* drawlist = ctx->sb3DDrawlists[i];
+        pl_sb_free(drawlist->sbIndexBuffer);
+        pl_sb_free(drawlist->sbVertexBuffer);
+        pl_sb_free(drawlist->sbLineVertexBuffer);
+        pl_sb_free(drawlist->sbLineIndexBuffer);  
+    }
     pl_sb_free(ctx->sbDrawlists);
+    pl_sb_free(ctx->sb3DDrawlists);
 }
 
 static void

@@ -1925,7 +1925,7 @@ pl_cleanup_graphics(plGraphics* ptGraphics)
     pl_sb_free(ptGraphics->_sbulShaderDeletionQueue);
     pl_sb_free(ptGraphics->_sbulShaderHashes);
     pl_sb_free(ptGraphics->_sbulTempQueue);
-
+    
     // destroy swapchain
     vkDestroyDescriptorPool(tLogicalDevice, ptGraphics->tDescriptorPool, NULL);
 
@@ -1943,6 +1943,7 @@ pl_cleanup_graphics(plGraphics* ptGraphics)
         vkDestroyFence(tLogicalDevice, ptGraphics->sbFrames[i].tInFlight, NULL);
         vkDestroyCommandPool(tLogicalDevice, ptGraphics->sbFrames[i].tCmdPool, NULL);
     }
+    pl_sb_free(ptGraphics->sbFrames);
 }
 
 
@@ -3265,6 +3266,7 @@ pl_cleanup_device(plDevice* ptDevice)
     pl_sb_free(ptDevice->_sbuDynamicBufferDeletionQueue);
     pl_sb_free(ptDevice->_sbtDynamicBufferList);
     pl_sb_free(ptDevice->_sbulTempQueue);
+    pl_sb_free(ptDevice->_sbulFrameBufferFreeIndices);
 
     for(uint32_t i = 0; i < pl_sb_size(ptDevice->_sbtFrameGarbage); i++)
     {
@@ -3272,9 +3274,11 @@ pl_cleanup_device(plDevice* ptDevice)
         pl_sb_free(ptDevice->_sbtFrameGarbage[i]._sbulTextureDeletionQueue);
         pl_sb_free(ptDevice->_sbtFrameGarbage[i]._sbulTextureViewDeletionQueue);
         pl_sb_free(ptDevice->_sbtFrameGarbage[i]._sbulRenderPassDeletionQueue);
+        pl_sb_free(ptDevice->_sbtFrameGarbage[i]._sbulFrameBufferDeletionQueue);
     }
 
     pl_sb_free(ptDevice->_sbtFrameGarbage);
+    pl_sb_free(ptDevice->sbtFrameBuffers);
 
     // destroy command pool
     vkDestroyCommandPool(ptDevice->tLogicalDevice, ptDevice->tCmdPool, NULL);
@@ -3613,6 +3617,8 @@ pl_cleanup_device_local_buddy_allocator(plDeviceMemoryAllocatorI* ptAllocator)
         vkFreeMemory(ptData->tDevice, (VkDeviceMemory)ptBlock->ulAddress, NULL);
     }
     pl_sb_free(ptData->sbtBlocks);
+    pl_sb_free(ptData->sbtDebugNamesInDir);
+    pl_sb_free(ptData->sbcDebugNames);
     pl_sb_free(ptData->sbtNodes);
 }
 
@@ -3885,6 +3891,9 @@ pl_cleanup_device_local_dedicated_allocator(plDeviceMemoryAllocatorI* ptAllocato
         pl_sb_free(ptBlock->sbtRanges);
     }
     pl_sb_free(ptData->sbtBlocks);
+    pl_sb_free(ptData->sbtDebugNamesInDir);
+    pl_sb_free(ptData->sbcDebugNames);
+    pl_sb_free(ptData->sbtNodes);
 }
 
 static void
@@ -3908,6 +3917,9 @@ pl_cleanup_staging_uncached_allocator(plDeviceMemoryAllocatorI* ptAllocator)
         pl_sb_free(ptBlock->sbtRanges);
     }
     pl_sb_free(ptData->sbtBlocks);
+    pl_sb_free(ptData->sbtDebugNamesInDir);
+    pl_sb_free(ptData->sbcDebugNames);
+    pl_sb_free(ptData->sbtNodes);
 }
 static void
 pl_cleanup_staging_cached_allocator(plDeviceMemoryAllocatorI* ptAllocator)
@@ -3930,6 +3942,9 @@ pl_cleanup_staging_cached_allocator(plDeviceMemoryAllocatorI* ptAllocator)
         pl_sb_free(ptBlock->sbtRanges);
     }
     pl_sb_free(ptData->sbtBlocks);
+    pl_sb_free(ptData->sbtDebugNamesInDir);
+    pl_sb_free(ptData->sbcDebugNames);
+    pl_sb_free(ptData->sbtNodes);
 }
 
 //-----------------------------------------------------------------------------

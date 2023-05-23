@@ -252,5 +252,6 @@ pl_load_stats_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 PL_EXPORT void
 pl_unload_stats_ext(plApiRegistryApiI* ptApiRegistry)
 {
-    
+    pl_sb_free(gtStatsContext.sbtBlocks);
+    pl_sb_free(gtStatsContext.sbtNames);
 }

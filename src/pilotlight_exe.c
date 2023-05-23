@@ -81,6 +81,7 @@ static void pl__load_extensions_from_config(plApiRegistryApiI* ptApiRegistry, co
 static void pl__load_extensions_from_file  (plApiRegistryApiI* ptApiRegistry, const char* pcFile);
 static void pl__load_extension             (plApiRegistryApiI* ptApiRegistry, const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
 static void pl__unload_extension           (plApiRegistryApiI* ptApiRegistry, const char* pcName);
+static void pl__unload_all_extensions      (plApiRegistryApiI* ptApiRegistry);
 static void pl__handle_extension_reloads   (plApiRegistryApiI* ptApiRegistry);
 
 // extension registry helper functions
@@ -127,6 +128,7 @@ pl_load_core_apis(void)
     static plExtensionRegistryApiI tApi1 = {
         .load             = pl__load_extension,
         .unload           = pl__unload_extension,
+        .unload_all       = pl__unload_all_extensions,
         .reload           = pl__handle_extension_reloads,
         .load_from_config = pl__load_extensions_from_config,
         .load_from_file   = pl__load_extensions_from_file
@@ -504,6 +506,16 @@ pl__unload_extension(plApiRegistryApiI* ptApiRegistry, const char* pcName)
     }
 
     PL_ASSERT(false && "extension not found");
+}
+
+static void
+pl__unload_all_extensions(plApiRegistryApiI* ptApiRegistry)
+{
+    for(uint32_t i = 0; i < pl_sb_size(gsbtExtensions); i++)
+    {
+        if(gsbtExtensions[i].pl_unload)
+            gsbtExtensions[i].pl_unload(ptApiRegistry);
+    }
 }
 
 static void

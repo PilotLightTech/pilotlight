@@ -244,6 +244,7 @@ int main(int argc, char *argv[])
     gtHandle = NULL;
 
     // cleanup io context
+    gptExtensionRegistry->unload_all(gptApiRegistry);
     pl_unload_io_api();
     pl_cleanup_win32();
     pl_unload_core_apis();
@@ -258,11 +259,19 @@ int main(int argc, char *argv[])
     // cleanup winsock
     WSACleanup();
 
+    uint32_t uMemoryLeakCount = 0;
     for(uint32_t i = 0; i < pl_sb_size(gtMemoryContext.sbtAllocations); i++)
-        printf("Unfreed memory from line %i in file '%s'.\n", gtMemoryContext.sbtAllocations[i].iLine, gtMemoryContext.sbtAllocations[i].pcFile);
-
-    if(pl_sb_size(gtMemoryContext.sbtAllocations) > 0)
-        printf("%u unfreed allocations.\n", pl_sb_size(gtMemoryContext.sbtAllocations));
+    {
+        if(gtMemoryContext.sbtAllocations[i].pAddress != NULL)
+        {
+            printf("Unfreed memory from line %i in file '%s'.\n", gtMemoryContext.sbtAllocations[i].iLine, gtMemoryContext.sbtAllocations[i].pcFile);
+            uMemoryLeakCount++;
+        }
+    }
+        
+    assert(uMemoryLeakCount == gtMemoryContext.szActiveAllocations);
+    if(uMemoryLeakCount > 0)
+        printf("%u unfreed allocations.\n", uMemoryLeakCount);
 }
 
 //-----------------------------------------------------------------------------

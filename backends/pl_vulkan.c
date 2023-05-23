@@ -1304,6 +1304,15 @@ pl_cleanup_draw_context(plDrawContext* ptCtx)
     vkDestroyCommandPool(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tCmdPool, NULL);
     vkDestroyDescriptorPool(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tDescriptorPool, NULL);
 
+    pl_sb_free(ptVulkanDrawCtx->sbReturnedBuffers);
+    pl_sb_free(ptVulkanDrawCtx->sbReturnedBuffersTemp);
+    pl_sb_free(ptVulkanDrawCtx->sbtBufferInfo);
+    pl_sb_free(ptVulkanDrawCtx->sbt3DBufferInfo);
+    pl_sb_free(ptVulkanDrawCtx->sbtLineBufferInfo);
+    pl_sb_free(ptVulkanDrawCtx->sbt3DPipelines);
+    pl_sb_free(ptVulkanDrawCtx->sbtPipelines);
+    pl_sb_free(ptVulkanDrawCtx->sbReturnedTextures);
+
     PL_VULKAN_FREE(ptCtx->_platformData);
     ptCtx->_platformData = NULL;
 

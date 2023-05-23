@@ -441,11 +441,54 @@ pl_remove_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity)
 static void
 pl_ecs_cleanup_systems(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary)
 {
-    plObjectSystemData* ptObjectSystemData = ptLibrary->tObjectComponentManager.pSystemData;
-    pl_sb_free(ptObjectSystemData->sbtSubmeshes);
 
+    plObjectSystemData* ptObjectSystemData = ptLibrary->tObjectComponentManager.pSystemData;
+
+    for(uint32_t i = 0; i < pl_sb_size(ptObjectSystemData->sbtSubmeshes); i++)
+    {
+        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexPositions);
+        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexNormals);
+        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexTangents);
+        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexColors0);
+        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexColors1);
+        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexWeights0);
+        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexWeights1);
+        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexJoints0);
+        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexJoints1);
+        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexTextureCoordinates0);
+        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexTextureCoordinates1);
+        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbuIndices);
+    }
+    pl_sb_free(ptObjectSystemData->sbtSubmeshes);
     pl_free(ptObjectSystemData);
     ptLibrary->tObjectComponentManager.pSystemData = NULL;
+
+    plMeshComponent* ptMeshComponents = ptLibrary->tMeshComponentManager.pComponents;
+    for(uint32_t i = 0; i < pl_sb_size(ptMeshComponents); i++)
+    {
+        pl_sb_free(ptMeshComponents[i].sbtSubmeshes);
+    }
+
+    // components
+    pl_sb_free(ptLibrary->tTagComponentManager.pComponents);
+    pl_sb_free(ptLibrary->tTransformComponentManager.pComponents);
+    pl_sb_free(ptLibrary->tMeshComponentManager.pComponents);
+    pl_sb_free(ptLibrary->tMaterialComponentManager.pComponents);
+    pl_sb_free(ptLibrary->tObjectComponentManager.pComponents);
+    pl_sb_free(ptLibrary->tCameraComponentManager.pComponents);
+    pl_sb_free(ptLibrary->tHierarchyComponentManager.pComponents);
+
+    // entities
+    pl_sb_free(ptLibrary->tTagComponentManager.sbtEntities);
+    pl_sb_free(ptLibrary->tTransformComponentManager.sbtEntities);
+    pl_sb_free(ptLibrary->tMeshComponentManager.sbtEntities);
+    pl_sb_free(ptLibrary->tMaterialComponentManager.sbtEntities);
+    pl_sb_free(ptLibrary->tObjectComponentManager.sbtEntities);
+    pl_sb_free(ptLibrary->tCameraComponentManager.sbtEntities);
+    pl_sb_free(ptLibrary->tHierarchyComponentManager.sbtEntities);
+    
+
+
 }
 
 static void
