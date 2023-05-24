@@ -39,6 +39,8 @@ pl_load_image_api(void)
 PL_EXPORT void
 pl_load_image_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
+    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    pl_set_memory_context(ptDataRegistry->get_data("memory"));
     if(bReload)
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_IMAGE), pl_load_image_api());
     else
@@ -56,5 +58,8 @@ pl_unload_image_ext(plApiRegistryApiI* ptApiRegistry)
 //-----------------------------------------------------------------------------
 
 #define STB_IMAGE_IMPLEMENTATION
+// #define STBI_MALLOC(x) PL_ALLOC(x)
+// #define STBI_FREE(x) PL_FREE(x)
+// #define STBI_REALLOC(x, y) PL_REALLOC(x, y)
 #include "stb_image.h"
 #undef STB_IMAGE_IMPLEMENTATION

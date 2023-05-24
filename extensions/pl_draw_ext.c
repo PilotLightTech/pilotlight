@@ -26,10 +26,6 @@ Index of this file:
 #include "stb_rect_pack.h"
 #include "stb_truetype.h"
 #include "pl_draw_ext.h"
-
-// pl_ds.h allocators (so they can be tracked)
-#define PL_DS_ALLOC(x, FILE, LINE) pl_alloc((x), FILE, LINE)
-#define PL_DS_FREE(x)  pl_free((x))
 #include "pl_ds.h"
 
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -46,26 +42,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------
-
-#ifndef PL_ASSERT
-#include <assert.h>
-#define PL_ASSERT(x) assert((x))
-#endif
-
-#if defined(PL_ALLOC) && defined(PL_FREE) && (defined(PL_REALLOC) || defined(PL_REALLOC_SIZED))
-// ok
-#elif !defined(PL_ALLOC) && !defined(PL_FREE) && !defined(PL_REALLOC) && !defined(PL_REALLOC_SIZED)
-// ok
-#else
-#error "Must define all or none of PL_ALLOC, PL_FREE, and PL_REALLOC (or PL_REALLOC_SIZED)."
-#endif
-
-#ifndef PL_ALLOC
-    #include <stdlib.h>
-    #define PL_ALLOC(x)      malloc(x)
-    #define PL_REALLOC(x, y) realloc(x, y)
-    #define PL_FREE(x)       free(x)
-#endif
 
 #include "stb_sprintf.h"
 #define pl_sprintf stbsp_sprintf
@@ -1830,6 +1806,15 @@ pl__cleanup_font_atlas_i(plFontAtlas* atlas)
         pl_sb_free(font->sbGlyphs);
         pl_sb_free(font->sbCharData);
     }
+    for(uint32_t i = 0; i < pl_sb_size(atlas->_sbPrepData); i++)
+    {
+        PL_FREE(atlas->_sbPrepData[i].ranges);
+        PL_FREE(atlas->_sbPrepData[i].rects);
+    }
+    for(uint32_t i = 0; i < pl_sb_size(atlas->sbCustomRects); i++)
+    {
+        PL_FREE(atlas->sbCustomRects[i].bytes);
+    }
     pl_sb_free(atlas->sbCustomRects);
     pl_sb_free(atlas->sbFonts);
     pl_sb_free(atlas->_sbPrepData);
@@ -2407,5 +2392,7 @@ pl_unload_draw_ext(plApiRegistryApiI* ptApiRegistry)
 #undef STB_RECT_PACK_IMPLEMENTATION
 
 #define STB_TRUETYPE_IMPLEMENTATION
+#define STBTT_malloc(x, U) PL_ALLOC(x)
+#define STBTT_free(x, U) PL_FREE(x)
 #include "stb_truetype.h"
 #undef STB_TRUETYPE_IMPLEMENTATION

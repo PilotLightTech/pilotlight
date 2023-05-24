@@ -569,7 +569,7 @@ pl_free(void* pBuffer)
 }
 
 void*
-pl_realloc(void* pBuffer, size_t szSize)
+pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
 {
     void* pNewBuffer = NULL;
 

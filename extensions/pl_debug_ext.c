@@ -4,7 +4,6 @@
 
 /*
 Index of this file:
-// [SECTION] header mess
 // [SECTION] includes
 // [SECTION] global data
 // [SECTION] internal api
@@ -12,14 +11,6 @@ Index of this file:
 // [SECTION] internal api implementation
 // [SECTION] extension loading
 */
-
-//-----------------------------------------------------------------------------
-// [SECTION] header mess
-//-----------------------------------------------------------------------------
-
-// pl_ds.h allocators (so they can be tracked)
-#define PL_DS_ALLOC(x, FILE, LINE) pl_alloc((x), FILE, LINE)
-#define PL_DS_FREE(x)  pl_free((x))
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

@@ -1,8 +1,12 @@
 #include "pilotlight.h"
 
 #include <stdlib.h>
+#undef PL_DS_ALLOC
+#undef PL_DS_FREE
+#undef PL_REALLOC
 #define PL_DS_ALLOC(x, FILE, LINE) malloc((x))
 #define PL_DS_FREE(x)  free((x))
+#define PL_REALLOC(x, y)  realloc((x), (y))
 #include "pl_ds.h"
 
 #define PL_LOG_IMPLEMENTATION
@@ -24,6 +28,7 @@
 #define PL_MEMORY_IMPLEMENTATION
 #include "pl_memory.h"
 #undef PL_MEMORY_IMPLEMENTATION
+
 
 static plMemoryContext* gptMemoryContext = NULL;
 
@@ -66,6 +71,9 @@ void
 pl_free(void* pBuffer)
 {
     PL_ASSERT(gptMemoryContext->szActiveAllocations > 0);
+
+    if(pBuffer == NULL)
+        return;
     
     const uint64_t ulHash = pl_hm_hash(&pBuffer, sizeof(void*), 1);
 
@@ -89,29 +97,13 @@ pl_free(void* pBuffer)
 }
 
 void*
-pl_realloc(void* pBuffer, size_t szSize)
+pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
 {
     void* pNewBuffer = NULL;
-
-    if(szSize == 0 && pBuffer)  // free
-    { 
-        gptMemoryContext->szActiveAllocations--;
-        free(pBuffer);
-        pNewBuffer = NULL;
-    }
-    else if (szSize == 0)  // free
-    { 
-        gptMemoryContext->szActiveAllocations--;
-        pNewBuffer = NULL;
-    }
-    else if(pBuffer) // resizing
-    {
-        pNewBuffer = realloc(pBuffer, szSize);
-    }
-    else
-    {
-        gptMemoryContext->szActiveAllocations++;
-        pNewBuffer = malloc(szSize);
-    }
+    if(pBuffer)
+        pl_free(pBuffer);
+    if(szSize > 0)
+        pNewBuffer = pl_alloc(szSize, pcFile, iLine);
     return pNewBuffer;
+    // return realloc(pBuffer, szSize);
 }

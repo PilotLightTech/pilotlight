@@ -19,10 +19,6 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-// pl_ds.h allocators (so they can be tracked)
-#define PL_DS_ALLOC(x, FILE, LINE) pl_alloc((x), FILE, LINE)
-#define PL_DS_FREE(x)  pl_free((x))
-
 #include <stdio.h>
 #include "pilotlight.h"
 #include "pl_vulkan_ext.h"
@@ -397,7 +393,7 @@ pl__create_instance_ex(plRenderBackend* ptBackend, uint32_t uVersion, uint32_t u
     PL_VULKAN(vkEnumerateInstanceLayerProperties(&uInstanceLayersFound, NULL));
     if(uInstanceLayersFound > 0)
     {
-        ptAvailableLayers = (VkLayerProperties*)malloc(sizeof(VkLayerProperties) * uInstanceLayersFound);
+        ptAvailableLayers = (VkLayerProperties*)PL_ALLOC(sizeof(VkLayerProperties) * uInstanceLayersFound);
         PL_VULKAN(vkEnumerateInstanceLayerProperties(&uInstanceLayersFound, ptAvailableLayers));
     }
 
@@ -407,7 +403,7 @@ pl__create_instance_ex(plRenderBackend* ptBackend, uint32_t uVersion, uint32_t u
     PL_VULKAN(vkEnumerateInstanceExtensionProperties(NULL, &uInstanceExtensionsFound, NULL));
     if(uInstanceExtensionsFound > 0)
     {
-        ptAvailableExtensions = (VkExtensionProperties*)malloc(sizeof(VkExtensionProperties) * uInstanceExtensionsFound);
+        ptAvailableExtensions = (VkExtensionProperties*)PL_ALLOC(sizeof(VkExtensionProperties) * uInstanceExtensionsFound);
         PL_VULKAN(vkEnumerateInstanceExtensionProperties(NULL, &uInstanceExtensionsFound, ptAvailableExtensions));
     }
 
@@ -511,8 +507,8 @@ pl__create_instance_ex(plRenderBackend* ptBackend, uint32_t uVersion, uint32_t u
     pl_log_trace_to_f(uLogChannel, "created vulkan instance");
 
     // cleanup
-    if(ptAvailableLayers)     free(ptAvailableLayers);
-    if(ptAvailableExtensions) free(ptAvailableExtensions);
+    if(ptAvailableLayers)     PL_FREE(ptAvailableLayers);
+    if(ptAvailableExtensions) PL_FREE(ptAvailableExtensions);
     pl_sb_free(sbpcMissingLayers);
     pl_sb_free(sbpcMissingExtensions);
 
@@ -658,9 +654,9 @@ pl__create_swapchain(plRenderBackend* ptBackend, plDevice* ptDevice, VkSurfaceKH
     
     if(uFormatCount >ptSwapchainOut->uSurfaceFormatCapacity_)
     {
-        if(ptSwapchainOut->ptSurfaceFormats_) free(ptSwapchainOut->ptSurfaceFormats_);
+        if(ptSwapchainOut->ptSurfaceFormats_) PL_FREE(ptSwapchainOut->ptSurfaceFormats_);
 
-        ptSwapchainOut->ptSurfaceFormats_ = malloc(sizeof(VkSurfaceFormatKHR) * uFormatCount);
+        ptSwapchainOut->ptSurfaceFormats_ = PL_ALLOC(sizeof(VkSurfaceFormatKHR) * uFormatCount);
         ptSwapchainOut->uSurfaceFormatCapacity_ = uFormatCount;
     }
 
@@ -822,12 +818,12 @@ pl__create_swapchain(plRenderBackend* ptBackend, plDevice* ptDevice, VkSurfaceKH
     if(ptSwapchainOut->uImageCount > ptSwapchainOut->uImageCapacity)
     {
         ptSwapchainOut->uImageCapacity = ptSwapchainOut->uImageCount;
-        if(ptSwapchainOut->ptImages)       free(ptSwapchainOut->ptImages);
-        if(ptSwapchainOut->puImageViews)   free(ptSwapchainOut->puImageViews);
-        if(ptSwapchainOut->puFrameBuffers) free(ptSwapchainOut->puFrameBuffers);
-        ptSwapchainOut->ptImages         = malloc(sizeof(VkImage)*ptSwapchainOut->uImageCapacity);
-        ptSwapchainOut->puImageViews     = malloc(sizeof(uint32_t)*ptSwapchainOut->uImageCapacity);
-        ptSwapchainOut->puFrameBuffers   = malloc(sizeof(uint32_t)*ptSwapchainOut->uImageCapacity);
+        if(ptSwapchainOut->ptImages)       PL_FREE(ptSwapchainOut->ptImages);
+        if(ptSwapchainOut->puImageViews)   PL_FREE(ptSwapchainOut->puImageViews);
+        if(ptSwapchainOut->puFrameBuffers) PL_FREE(ptSwapchainOut->puFrameBuffers);
+        ptSwapchainOut->ptImages         = PL_ALLOC(sizeof(VkImage)*ptSwapchainOut->uImageCapacity);
+        ptSwapchainOut->puImageViews     = PL_ALLOC(sizeof(uint32_t)*ptSwapchainOut->uImageCapacity);
+        ptSwapchainOut->puFrameBuffers   = PL_ALLOC(sizeof(uint32_t)*ptSwapchainOut->uImageCapacity);
     }
     PL_VULKAN(vkGetSwapchainImagesKHR(ptDevice->tLogicalDevice, ptSwapchainOut->tSwapChain, &ptSwapchainOut->uImageCount, ptSwapchainOut->ptImages));
 
@@ -999,25 +995,13 @@ pl__cleanup_swapchain(plRenderBackend* ptBackend, plDevice* ptDevice, plSwapchai
 {
     VkDevice tLogicalDevice = ptDevice->tLogicalDevice;
 
-    if(ptSwapchain->uDepthTextureView)  pl_submit_texture_view_for_deletion(ptDevice, ptSwapchain->uDepthTextureView);
-    if(ptSwapchain->uDepthTexture)      pl_submit_texture_for_deletion(ptDevice, ptSwapchain->uDepthTexture);
-    if(ptSwapchain->uColorTextureView)  pl_submit_texture_view_for_deletion(ptDevice, ptSwapchain->uColorTextureView);
-    if(ptSwapchain->uColorTexture)      pl_submit_texture_for_deletion(ptDevice, ptSwapchain->uColorTexture);
-
-    // destroy swapchain
-    for (uint32_t i = 0u; i < ptSwapchain->uImageCount; i++)
-    {
-        pl_submit_texture_view_for_deletion(ptDevice, ptSwapchain->puImageViews[i]);
-        pl_submit_frame_buffer_for_deletion(ptDevice, ptSwapchain->puFrameBuffers[i]);
-    }
-
     // destroy default render pass
     vkDestroySwapchainKHR(tLogicalDevice, ptSwapchain->tSwapChain, NULL);
 
-    free(ptSwapchain->ptSurfaceFormats_);
-    free(ptSwapchain->ptImages);
-    free(ptSwapchain->puImageViews);
-    free(ptSwapchain->puFrameBuffers);
+    PL_FREE(ptSwapchain->ptSurfaceFormats_);
+    PL_FREE(ptSwapchain->ptImages);
+    PL_FREE(ptSwapchain->puImageViews);
+    PL_FREE(ptSwapchain->puFrameBuffers);
 }
 
 static void
@@ -3558,7 +3542,7 @@ pl_free_staging_cached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAl
 static plDeviceMemoryAllocatorI
 pl_create_device_local_dedicated_allocator(VkPhysicalDevice tPhysicalDevice, VkDevice tDevice)
 {
-    plDeviceAllocatorData* ptData = malloc(sizeof(plDeviceAllocatorData));
+    plDeviceAllocatorData* ptData = PL_ALLOC(sizeof(plDeviceAllocatorData));
     memset(ptData, 0, sizeof(plDeviceAllocatorData));
 
     // create allocator interface
@@ -3580,7 +3564,7 @@ pl_create_device_local_dedicated_allocator(VkPhysicalDevice tPhysicalDevice, VkD
 static plDeviceMemoryAllocatorI
 pl_create_device_local_buddy_allocator(VkPhysicalDevice tPhysicalDevice, VkDevice tDevice)
 {
-    plDeviceAllocatorData* ptData = malloc(sizeof(plDeviceAllocatorData));
+    plDeviceAllocatorData* ptData = PL_ALLOC(sizeof(plDeviceAllocatorData));
     memset(ptData, 0, sizeof(plDeviceAllocatorData));
 
     for(uint32_t i = 0; i < PL_DEVICE_LOCAL_LEVELS; i++)
@@ -3616,6 +3600,7 @@ pl_cleanup_device_local_buddy_allocator(plDeviceMemoryAllocatorI* ptAllocator)
     pl_sb_free(ptData->sbtDebugNamesInDir);
     pl_sb_free(ptData->sbcDebugNames);
     pl_sb_free(ptData->sbtNodes);
+    PL_FREE(ptData);
 }
 
 static plDeviceMemoryAllocation
@@ -3832,7 +3817,7 @@ static plDeviceMemoryAllocatorI
 pl_create_staging_uncached_allocator(VkPhysicalDevice tPhysicalDevice, VkDevice tDevice)
 {
 
-    plDeviceAllocatorData* ptData = malloc(sizeof(plDeviceAllocatorData));
+    plDeviceAllocatorData* ptData = PL_ALLOC(sizeof(plDeviceAllocatorData));
     memset(ptData, 0, sizeof(plDeviceAllocatorData));
 
     // create allocator interface
@@ -3853,7 +3838,7 @@ pl_create_staging_uncached_allocator(VkPhysicalDevice tPhysicalDevice, VkDevice 
 static plDeviceMemoryAllocatorI
 pl_create_staging_cached_allocator(VkPhysicalDevice tPhysicalDevice, VkDevice tDevice)
 {
-    plDeviceAllocatorData* ptData = malloc(sizeof(plDeviceAllocatorData));
+    plDeviceAllocatorData* ptData = PL_ALLOC(sizeof(plDeviceAllocatorData));
     memset(ptData, 0, sizeof(plDeviceAllocatorData));
 
     // create allocator interface
@@ -3890,6 +3875,7 @@ pl_cleanup_device_local_dedicated_allocator(plDeviceMemoryAllocatorI* ptAllocato
     pl_sb_free(ptData->sbtDebugNamesInDir);
     pl_sb_free(ptData->sbcDebugNames);
     pl_sb_free(ptData->sbtNodes);
+    PL_FREE(ptData);
 }
 
 static void
@@ -3916,6 +3902,7 @@ pl_cleanup_staging_uncached_allocator(plDeviceMemoryAllocatorI* ptAllocator)
     pl_sb_free(ptData->sbtDebugNamesInDir);
     pl_sb_free(ptData->sbcDebugNames);
     pl_sb_free(ptData->sbtNodes);
+    PL_FREE(ptData);
 }
 static void
 pl_cleanup_staging_cached_allocator(plDeviceMemoryAllocatorI* ptAllocator)
@@ -3941,6 +3928,7 @@ pl_cleanup_staging_cached_allocator(plDeviceMemoryAllocatorI* ptAllocator)
     pl_sb_free(ptData->sbtDebugNamesInDir);
     pl_sb_free(ptData->sbcDebugNames);
     pl_sb_free(ptData->sbtNodes);
+    PL_FREE(ptData);
 }
 
 //-----------------------------------------------------------------------------
@@ -4315,7 +4303,7 @@ pl__select_physical_device(VkInstance tInstance, plDevice* ptDeviceOut)
 
     uint32_t uExtensionCount = 0;
     vkEnumerateDeviceExtensionProperties(ptDeviceOut->tPhysicalDevice, NULL, &uExtensionCount, NULL);
-    VkExtensionProperties* ptExtensions = malloc(uExtensionCount * sizeof(VkExtensionProperties));
+    VkExtensionProperties* ptExtensions = PL_ALLOC(uExtensionCount * sizeof(VkExtensionProperties));
     vkEnumerateDeviceExtensionProperties(ptDeviceOut->tPhysicalDevice, NULL, &uExtensionCount, ptExtensions);
 
     for(uint32_t i = 0; i < uExtensionCount; i++)
@@ -4324,7 +4312,7 @@ pl__select_physical_device(VkInstance tInstance, plDevice* ptDeviceOut)
         if(pl_str_equal(ptExtensions[i].extensionName, "VK_KHR_portability_subset"))     ptDeviceOut->bPortabilitySubsetPresent = true; //-V522
     }
 
-    free(ptExtensions);
+    PL_FREE(ptExtensions);
     return iBestDvcIdx;
 }
 

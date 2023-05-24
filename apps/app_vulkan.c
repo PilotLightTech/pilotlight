@@ -17,10 +17,6 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-// pl_ds.h allocators (so they can be tracked)
-#define PL_DS_ALLOC(x, FILE, LINE) pl_alloc((x), FILE, LINE)
-#define PL_DS_FREE(x)  pl_free((x))
-
 #include <string.h> // memset
 #include "pilotlight.h"
 #include "pl_profile.h"
@@ -154,7 +150,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     plLogContext*     ptLogCtx     = pl_create_log_context();
 
     // allocate original app memory
-    ptAppData = malloc(sizeof(plAppData));
+    ptAppData = PL_ALLOC(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
     ptAppData->ptApiRegistry = ptApiRegistry;
     ptDataRegistry->set_data("profile", ptProfileCtx);
@@ -330,12 +326,13 @@ pl_app_shutdown(void* pAppData)
     ptRendererApi->cleanup_renderer(&ptAppData->tRenderer);
     ptEcs->cleanup_systems(ptAppData->ptApiRegistry, &ptAppData->tComponentLibrary);
     ptGfx->cleanup(&ptAppData->tGraphics);
+    ptBackendApi->cleanup_swapchain(ptBackend, ptDevice, &ptGraphics->tSwapchain);
     ptBackendApi->cleanup_device(&ptGraphics->tDevice);
     pl_cleanup_profile_context();
     pl_cleanup_log_context();
     pl_temp_allocator_free(&ptAppData->tTempAllocator);
     pl_sb_free(ptAppData->sbtTextures);
-    free(pAppData);
+    PL_FREE(pAppData);
 }
 
 //-----------------------------------------------------------------------------

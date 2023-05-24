@@ -5,7 +5,6 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] defines
 // [SECTION] context
 // [SECTION] public api implementations
 // [SECTION] internal api implementations
@@ -20,21 +19,6 @@ Index of this file:
 #include "pl_ui_ext.h"
 #include "pl_ui_internal.h"
 #include "pl_draw_ext.h"
-#include "stb_sprintf.h"
-
-//-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
-
-#ifndef PL_ALLOC
-    #include <stdlib.h>
-    #define PL_ALLOC(x)      malloc(x)
-    #define PL_REALLOC(x, y) realloc(x, y)
-    #define PL_FREE(x)       free(x)
-#endif
-
-#define pl_sprintf stbsp_sprintf
-#define pl_vsprintf stbsp_vsprintf
 
 //-----------------------------------------------------------------------------
 // [SECTION] context
@@ -186,10 +170,12 @@ pl_ui_destroy_context(plUiContext* ptContext)
         pl_sb_free(ptContext->sbptWindows[i]->sbtRowTemplateEntries);
         gptCtx->ptDraw->return_layer(ptContext->sbptWindows[i]->ptBgLayer);
         gptCtx->ptDraw->return_layer(ptContext->sbptWindows[i]->ptFgLayer);
+        PL_FREE(ptContext->sbptWindows[i]);
     }
     gptCtx->ptDraw->cleanup_context(ptContext->ptDrawCtx);
     PL_FREE(ptContext->ptDrawlist);
     PL_FREE(ptContext->ptDebugDrawlist);
+    PL_FREE(ptContext->ptDrawCtx);
     pl_sb_free(ptContext->tWindows.sbtData);
     pl_sb_free(ptContext->sbptWindows);
     pl_sb_free(ptContext->sbtTabBars);

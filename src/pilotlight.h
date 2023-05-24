@@ -75,6 +75,18 @@ typedef struct _plOsServicesApiI plOsServicesApiI;
     #define PL_ASSERT(x) assert((x))
 #endif
 
+#ifndef PL_ALLOC
+    #include <stdlib.h>
+    #define PL_ALLOC(x)      pl_alloc(x, __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) pl_realloc(x, y, __FILE__, __LINE__)
+    #define PL_FREE(x)       pl_free(x)
+#endif
+
+// pl_ds.h allocators (so they can be tracked)
+#define PL_DS_ALLOC(x, FILE, LINE) pl_alloc((x), FILE, LINE)
+#define PL_DS_FREE(x)  pl_free((x))
+
+
 // settings
 #define PL_MAX_NAME_LENGTH 1024
 #define PL_MAX_PATH_LENGTH 1024
@@ -129,7 +141,7 @@ void              pl_set_memory_context(plMemoryContext* ptMemoryContext);
 plMemoryContext*  pl_get_memory_context(void);
 void*             pl_alloc             (size_t szSize, const char* pcFile, int iLine);
 void              pl_free              (void* pBuffer);
-void*             pl_realloc           (void* pBuffer, size_t szSize);
+void*             pl_realloc           (void* pBuffer, size_t szSize, const char* pcFile, int iLine);
 
 //-----------------------------------------------------------------------------
 // [SECTION] api structs

@@ -16,6 +16,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pilotlight.h"
 #include <string.h> // memset
 #include "pl_vulkan.h"
 #include "pl_ds.h"
@@ -26,12 +27,6 @@ Index of this file:
 #ifndef PL_VULKAN
 #include <assert.h>
 #define PL_VULKAN(x) PL_ASSERT(x == VK_SUCCESS)
-#endif
-
-#ifndef PL_VULKAN_ALLOC
-    #include <stdlib.h>
-    #define PL_VULKAN_ALLOC(x) malloc(x)
-    #define PL_VULKAN_FREE(x)  free((x))
 #endif
 
 //-----------------------------------------------------------------------------
@@ -585,7 +580,7 @@ pl_load_vulkan_draw_api(void)
 static void
 pl__initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptInit)
 {
-    plVulkanDrawContext* ptVulkanDrawContext = PL_VULKAN_ALLOC(sizeof(plVulkanDrawContext));
+    plVulkanDrawContext* ptVulkanDrawContext = PL_ALLOC(sizeof(plVulkanDrawContext));
     memset(ptVulkanDrawContext, 0, sizeof(plVulkanDrawContext));
     ptVulkanDrawContext->tDevice = ptInit->tLogicalDevice;
     ptVulkanDrawContext->uImageCount = ptInit->uImageCount;
@@ -1313,7 +1308,7 @@ pl_cleanup_draw_context(plDrawContext* ptCtx)
     pl_sb_free(ptVulkanDrawCtx->sbtPipelines);
     pl_sb_free(ptVulkanDrawCtx->sbReturnedTextures);
 
-    PL_VULKAN_FREE(ptCtx->_platformData);
+    PL_FREE(ptCtx->_platformData);
     ptCtx->_platformData = NULL;
 
     pl__cleanup_draw_context_i(ptCtx);

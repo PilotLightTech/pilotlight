@@ -16,9 +16,6 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-// pl_ds.h allocators (so they can be tracked)
-#define PL_DS_ALLOC(x, FILE, LINE) pl_alloc((x), FILE, LINE)
-#define PL_DS_FREE(x)  pl_free((x))
 
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pilotlight.h"
