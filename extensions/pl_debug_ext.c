@@ -56,7 +56,6 @@ static plUiApiI*            ptUi            = NULL;
 static plIOApiI*            ptIo            = NULL;
 static plStatsApiI*         ptStatsApi      = NULL;
 static plDrawApiI*          ptDrawApi       = NULL;
-static plTempAllocatorApiI* ptTempMemoryApi = NULL;
 static plGraphicsApiI*      ptGfx           = NULL;
 static plDataRegistryApiI*  ptDataRegistry  = NULL;
 
@@ -391,12 +390,12 @@ pl__show_profiling(bool* bValue)
                     while(true)
                     {
                         const double dTime0 = (double)uScrollStartPosNearestUnit * dIncrement;
-                        char* pcDecimals = ptTempMemoryApi->printf(&tTempAllocator, "%%0.%uf", uDecimalPlaces);
-                        char* pcText0 = ptTempMemoryApi->printf(&tTempAllocator, pcDecimals, (double)dTime0 * dUnitMultiplier);
+                        char* pcDecimals = pl_temp_allocator_sprintf(&tTempAllocator, "%%0.%uf", uDecimalPlaces);
+                        char* pcText0 = pl_temp_allocator_sprintf(&tTempAllocator, pcDecimals, (double)dTime0 * dUnitMultiplier);
   
                         const double dTime1 = dTime0 + dIncrement * 0.5;
-                        char* pcText1 = ptTempMemoryApi->printf(&tTempAllocator, pcDecimals, (double)dTime1 * dUnitMultiplier);
-                        ptTempMemoryApi->reset(&tTempAllocator);
+                        char* pcText1 = pl_temp_allocator_sprintf(&tTempAllocator, pcDecimals, (double)dTime1 * dUnitMultiplier);
+                        pl_temp_allocator_reset(&tTempAllocator);
 
                         if(strcmp(pcText0, pcText1) != 0)
                             break;
@@ -410,15 +409,15 @@ pl__show_profiling(bool* bValue)
                     {
                         const double dTime0 = (double)uScrollEndPosNearestUnit * dIncrement;
                         const double dLineX0 = (double)(dTime0 * dConvertToPixel) + tCursorPos.x;
-                        char* pcDecimals = ptTempMemoryApi->printf(&tTempAllocator, " %%0.%uf ms ", uDecimalPlaces);
-                        char* pcText0 = ptTempMemoryApi->printf(&tTempAllocator, pcDecimals, (double)dTime0 * dUnitMultiplier);
+                        char* pcDecimals = pl_temp_allocator_sprintf(&tTempAllocator, " %%0.%uf ms ", uDecimalPlaces);
+                        char* pcText0 = pl_temp_allocator_sprintf(&tTempAllocator, pcDecimals, (double)dTime0 * dUnitMultiplier);
                         const plRect tBB0 = ptDrawApi->calculate_text_bb(ptUi->get_default_font(), 13.0f, (plVec2){roundf((float)dLineX0), tCursorPos.y + 20.0f}, pcText0, 0.0f);
 
                         const double dTime1 = dTime0 + dIncrement;
                         const float dLineX1 = (float)(dTime1 * dConvertToPixel) + tCursorPos.x;
-                        char* pcText1 = ptTempMemoryApi->printf(&tTempAllocator, pcDecimals, (double)dTime1 * dUnitMultiplier);
+                        char* pcText1 = pl_temp_allocator_sprintf(&tTempAllocator, pcDecimals, (double)dTime1 * dUnitMultiplier);
                         const plRect tBB1 = ptDrawApi->calculate_text_bb(ptUi->get_default_font(), 13.0f, (plVec2){roundf((float)dLineX1), tCursorPos.y + 20.0f}, pcText1, 0.0f);
-                        ptTempMemoryApi->reset(&tTempAllocator);
+                        pl_temp_allocator_reset(&tTempAllocator);
 
                         if(!pl_rect_overlaps_rect(&tBB0, &tBB1))
                             break;
@@ -454,12 +453,12 @@ pl__show_profiling(bool* bValue)
                     while(dCurrentTime < dEndTime)
                     {
                         const float fLineX = (float)((dCurrentTime * dConvertToPixel)) + tCursorPos.x;
-                        char* pcDecimals = ptTempMemoryApi->printf(&tTempAllocator, "%%0.%uf ms", uDecimalPlaces);
-                        char* pcText = ptTempMemoryApi->printf(&tTempAllocator, pcDecimals, (double)dCurrentTime * dUnitMultiplier);
+                        char* pcDecimals = pl_temp_allocator_sprintf(&tTempAllocator, "%%0.%uf ms", uDecimalPlaces);
+                        char* pcText = pl_temp_allocator_sprintf(&tTempAllocator, pcDecimals, (double)dCurrentTime * dUnitMultiplier);
                         const float fTextWidth = ptDrawApi->calculate_text_size(ptUi->get_default_font(), 13.0f, pcText, 0.0f).x;
                         ptDrawApi->add_line(ptFgLayer, (plVec2){fLineX, tCursorPos.y}, (plVec2){fLineX, tCursorPos.y + 20.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
                         ptDrawApi->add_text(ptFgLayer, ptUi->get_default_font(), 13.0f, (plVec2){roundf(fLineX - fTextWidth / 2.0f), tCursorPos.y + 20.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, pcText, 0.0f);
-                        ptTempMemoryApi->reset(&tTempAllocator);  
+                        pl_temp_allocator_reset(&tTempAllocator);  
                         dCurrentTime += dIncrement;
                     }
 
@@ -470,7 +469,7 @@ pl__show_profiling(bool* bValue)
                         const float fPixelWidth = (float)(dConvertToPixel * ptSamples[i].dDuration);
                         const float fPixelStart = (float)(dConvertToPixel * ptSamples[i].dStartTime);
                         ptUi->layout_space_push(fPixelStart, (float)ptSamples[i].uDepth * 25.0f + 55.0f, fPixelWidth, 20.0f);
-                        char* pcTempBuffer = ptTempMemoryApi->printf(&tTempAllocator, "%s##pro%u", ptSamples[i].pcName, i);
+                        char* pcTempBuffer = pl_temp_allocator_sprintf(&tTempAllocator, "%s##pro%u", ptSamples[i].pcName, i);
                         *tTempButtonColor = atColors[ptSamples[i].uDepth % 6];
                         if(ptUi->button(pcTempBuffer))
                         {
@@ -480,7 +479,7 @@ pl__show_profiling(bool* bValue)
                             const double dNewScrollX = dNewPixelStart - dNewConvertToPixel * dInitialVisibleTime * 0.5;
                             ptUi->set_window_scroll((plVec2){(float)dNewScrollX, 0.0f});
                         }
-                        ptTempMemoryApi->reset(&tTempAllocator);
+                        pl_temp_allocator_reset(&tTempAllocator);
                         if(ptUi->was_last_item_hovered())
                         {
                             bHovered = false;
@@ -498,9 +497,9 @@ pl__show_profiling(bool* bValue)
                     {
                         const plVec2 tMousePos = ptIo->get_mouse_pos();
                         ptDrawApi->add_line(ptFgLayer, (plVec2){tMousePos.x, tCursorPos.y}, (plVec2){tMousePos.x, tWindowEnd.y}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
-                        char* pcText = ptTempMemoryApi->printf(&tTempAllocator, "%0.6f", (double)dConvertToTime * (double)(tMousePos.x - tParentCursorPos.x + ptUi->get_window_scroll().x));
+                        char* pcText = pl_temp_allocator_sprintf(&tTempAllocator, "%0.6f", (double)dConvertToTime * (double)(tMousePos.x - tParentCursorPos.x + ptUi->get_window_scroll().x));
                         ptDrawApi->add_text(ptFgLayer, ptUi->get_default_font(), 13.0f, tMousePos, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, pcText, 0.0f);
-                        ptTempMemoryApi->reset(&tTempAllocator);
+                        pl_temp_allocator_reset(&tTempAllocator);
                     }
 
                     ptUi->layout_space_end();
@@ -597,7 +596,7 @@ pl__show_statistics(bool* bValue)
         }
 
         uint32_t uSelectionSlot = 0;
-        apcTempNames = ptTempMemoryApi->alloc(&tTempAllocator, sizeof(const char*) * uSelectedCount);
+        apcTempNames = pl_temp_allocator_alloc(&tTempAllocator, sizeof(const char*) * uSelectedCount);
         for(uint32_t i = 0; i < pl_sb_size(sbbValues); i++)
         {
             if(sbbValues[i])
@@ -735,7 +734,7 @@ pl__show_statistics(bool* bValue)
             }
             ptUi->end_tab_bar();
         }
-        ptTempMemoryApi->reset(&tTempAllocator);
+        pl_temp_allocator_reset(&tTempAllocator);
         ptUi->end_window();
     } 
 }
@@ -771,8 +770,8 @@ pl__show_device_memory(bool* bValue)
             {
                 // ptAppData->tTempAllocator
                 plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
-                char* pcTempBuffer0 = ptTempMemoryApi->printf(&tTempAllocator, "Block %u: %0.1fMB##sc", i, ((double)ptBlock->ulSize)/1000000.0);
-                char* pcTempBuffer1 = ptTempMemoryApi->printf(&tTempAllocator, "Block %u##sc", i);
+                char* pcTempBuffer0 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u: %0.1fMB##sc", i, ((double)ptBlock->ulSize)/1000000.0);
+                char* pcTempBuffer1 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u##sc", i);
 
                 ptUi->button(pcTempBuffer0);
                 
@@ -795,7 +794,7 @@ pl__show_device_memory(bool* bValue)
                     ptUi->end_tooltip();
                 }
 
-                ptTempMemoryApi->reset(&tTempAllocator);
+                pl_temp_allocator_reset(&tTempAllocator);
             }
 
         }
@@ -817,8 +816,8 @@ pl__show_device_memory(bool* bValue)
             for(uint32_t i = 0; i < uBlockCount; i++)
             {
                 plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
-                char* pcTempBuffer0 = ptTempMemoryApi->printf(&tTempAllocator, "Block %u: %0.1fMB##suc", i, ((double)ptBlock->ulSize)/1000000.0);
-                char* pcTempBuffer1 = ptTempMemoryApi->printf(&tTempAllocator, "Block %u##suc", i);
+                char* pcTempBuffer0 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u: %0.1fMB##suc", i, ((double)ptBlock->ulSize)/1000000.0);
+                char* pcTempBuffer1 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u##suc", i);
 
                 ptUi->button(pcTempBuffer0);
                 
@@ -841,7 +840,7 @@ pl__show_device_memory(bool* bValue)
                     ptUi->end_tooltip();
                 }
 
-                ptTempMemoryApi->reset(&tTempAllocator);
+                pl_temp_allocator_reset(&tTempAllocator);
             }
 
         }
@@ -867,8 +866,8 @@ pl__show_device_memory(bool* bValue)
             for(uint32_t i = 0; i < uBlockCount; i++)
             {
                 plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
-                char* pcTempBuffer0 = ptTempMemoryApi->printf(&tTempAllocator, "Block %u: 256 MB##b", i);
-                char* pcTempBuffer1 = ptTempMemoryApi->printf(&tTempAllocator, "Block %u ##b", i);
+                char* pcTempBuffer0 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u: 256 MB##b", i);
+                char* pcTempBuffer1 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u ##b", i);
                 ptUi->button(pcTempBuffer0);
 
                 plVec2 tCursor0 = ptUi->get_cursor_pos();
@@ -948,8 +947,8 @@ pl__show_device_memory(bool* bValue)
             for(uint32_t i = 0; i < uBlockCount; i++)
             {
                 plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
-                char* pcTempBuffer0 = ptTempMemoryApi->printf(&tTempAllocator, "Block %u: %0.1fMB###d", i, ((double)ptBlock->ulSize)/1000000.0);
-                char* pcTempBuffer1 = ptTempMemoryApi->printf(&tTempAllocator, "Block %u###d", i);
+                char* pcTempBuffer0 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u: %0.1fMB###d", i, ((double)ptBlock->ulSize)/1000000.0);
+                char* pcTempBuffer1 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u###d", i);
 
                 ptUi->button(pcTempBuffer0);
                 
@@ -986,7 +985,7 @@ pl__show_device_memory(bool* bValue)
                     ptUi->end_tooltip();
                 }
 
-                ptTempMemoryApi->reset(&tTempAllocator);
+                pl_temp_allocator_reset(&tTempAllocator);
             }
         }
 
@@ -1143,7 +1142,6 @@ pl_load_debug_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
     ptUi = ptApiRegistry->first(PL_API_UI);
     ptIo = ptApiRegistry->first(PL_API_IO);
     ptStatsApi = ptApiRegistry->first(PL_API_STATS);
-    ptTempMemoryApi = ptApiRegistry->first(PL_API_TEMP_ALLOCATOR);
     ptIOCtx = ptIo->get_context();
     ptDrawApi = ptApiRegistry->first(PL_API_DRAW);
     ptGfx = ptApiRegistry->first(PL_API_GRAPHICS);
@@ -1166,5 +1164,5 @@ pl_unload_debug_ext(plApiRegistryApiI* ptApiRegistry)
     pl_sb_free(sbppdFrameValues);
     pl_sb_free(sbdRawValues);
     pl_sb_free(sbbValues);
-    ptTempMemoryApi->free(&tTempAllocator);
+    pl_temp_allocator_free(&tTempAllocator);
 }

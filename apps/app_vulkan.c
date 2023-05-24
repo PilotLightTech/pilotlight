@@ -73,20 +73,19 @@ typedef struct _plAppData
     plTempAllocator tTempAllocator;
 
     // apis
-    plIOApiI*            ptIoI;
-    plLibraryApiI*       ptLibraryApi;
-    plFileApiI*          ptFileApi;
-    plRendererI*         ptRendererApi;
-    plGraphicsApiI*      ptGfx;
-    plDrawApiI*          ptDrawApi;
-    plVulkanDrawApiI*    ptVulkanDrawApi;
-    plUiApiI*            ptUi;
-    plDeviceApiI*        ptDeviceApi;
-    plEcsI*              ptEcs;
-    plCameraI*           ptCameraApi;
-    plTempAllocatorApiI* ptTempMemoryApi;
-    plStatsApiI*         ptStatsApi;
-    plDebugApiI*         ptDebugApi;
+    plIOApiI*         ptIoI;
+    plLibraryApiI*    ptLibraryApi;
+    plFileApiI*       ptFileApi;
+    plRendererI*      ptRendererApi;
+    plGraphicsApiI*   ptGfx;
+    plDrawApiI*       ptDrawApi;
+    plVulkanDrawApiI* ptVulkanDrawApi;
+    plUiApiI*         ptUi;
+    plDeviceApiI*     ptDeviceApi;
+    plEcsI*           ptEcs;
+    plCameraI*        ptCameraApi;
+    plStatsApiI*      ptStatsApi;
+    plDebugApiI*      ptDebugApi;
     
     // renderer
     plRenderer         tRenderer;
@@ -145,7 +144,6 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
         ptAppData->ptDeviceApi     = ptApiRegistry->first(PL_API_DEVICE);
         ptAppData->ptEcs           = ptApiRegistry->first(PL_API_ECS);
         ptAppData->ptCameraApi     = ptApiRegistry->first(PL_API_CAMERA);
-        ptAppData->ptTempMemoryApi = ptApiRegistry->first(PL_API_TEMP_ALLOCATOR);
         ptAppData->ptDebugApi      = ptApiRegistry->first(PL_API_DEBUG);
 
         ptAppData->ptUi->set_draw_api(ptAppData->ptDrawApi);
@@ -182,7 +180,6 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     plUiApiI*            ptUi            = ptApiRegistry->first(PL_API_UI);
     plEcsI*              ptEcs           = ptApiRegistry->first(PL_API_ECS);
     plCameraI*           ptCameraApi     = ptApiRegistry->first(PL_API_CAMERA);
-    plTempAllocatorApiI* ptTempMemoryApi = ptApiRegistry->first(PL_API_TEMP_ALLOCATOR);
     plStatsApiI*         ptStatsApi      = ptApiRegistry->first(PL_API_STATS);
     plDebugApiI*         ptDebugApi      = ptApiRegistry->first(PL_API_DEBUG);
 
@@ -196,7 +193,6 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     ptAppData->ptIoI = ptIoI;
     ptAppData->ptEcs = ptEcs;
     ptAppData->ptCameraApi = ptCameraApi;
-    ptAppData->ptTempMemoryApi = ptTempMemoryApi;
     ptAppData->ptStatsApi = ptStatsApi;
     ptAppData->ptDebugApi = ptDebugApi;
 
@@ -323,8 +319,6 @@ pl_app_shutdown(void* pAppData)
     plGraphicsApiI*         ptGfx       = ptAppData->ptApiRegistry->first(PL_API_GRAPHICS);
     plDrawApiI*             ptDrawApi      = ptAppData->ptApiRegistry->first(PL_API_DRAW);
     plUiApiI*               ptUiApi       = ptAppData->ptApiRegistry->first(PL_API_UI);
-    plTempAllocatorApiI*    tempAlloc = ptAppData->ptApiRegistry->first(PL_API_TEMP_ALLOCATOR);
-    plTempAllocatorApiI*           memoryApi = ptAppData->ptApiRegistry->first(PL_API_TEMP_ALLOCATOR);
     plDeviceApiI*           deviceApi = ptAppData->ptApiRegistry->first(PL_API_DEVICE);
     plRenderBackendI*       ptBackendApi = ptAppData->ptApiRegistry->first(PL_API_BACKEND_VULKAN);
     plEcsI*                 ptEcs = ptAppData->ptEcs;
@@ -339,7 +333,7 @@ pl_app_shutdown(void* pAppData)
     ptBackendApi->cleanup_device(&ptGraphics->tDevice);
     pl_cleanup_profile_context();
     pl_cleanup_log_context();
-    tempAlloc->free(&ptAppData->tTempAllocator);
+    pl_temp_allocator_free(&ptAppData->tTempAllocator);
     pl_sb_free(ptAppData->sbtTextures);
     free(pAppData);
 }
@@ -406,7 +400,6 @@ pl_app_update(plAppData* ptAppData)
     plUiApiI*            ptUi            = ptAppData->ptUi;
     plEcsI*              ptEcs           = ptAppData->ptEcs;
     plCameraI*           ptCameraApi     = ptAppData->ptCameraApi;
-    plTempAllocatorApiI* ptTempMemoryApi = ptAppData->ptTempMemoryApi;
 
     // for convience
     plGraphics*         ptGraphics         = &ptAppData->tGraphics;

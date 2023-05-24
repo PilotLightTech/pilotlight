@@ -1111,10 +1111,6 @@ pl_setup_graphics(plGraphics* ptGraphics, plRenderBackend* ptBackend, plApiRegis
     ptGraphics->_ptDescriptorApi = ptApiRegistry->first(PL_API_DESCRIPTOR_MANAGER);
     ptGraphics->ptBackendApi = ptApiRegistry->first(PL_API_BACKEND_VULKAN);
     
-    // temporary allocator
-    ptGraphics->ptTempAllocApi = ptApiRegistry->first(PL_API_TEMP_ALLOCATOR);
-
-    
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create surface~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();

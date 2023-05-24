@@ -158,11 +158,6 @@ pl_load_core_apis(void)
     };
 
     // apis more likely to not be stored, should be first (api registry is not sorted)
-    tApiRegistry.add(PL_API_TEMP_ALLOCATOR, pl_load_temp_allocator_api());
-    tApiRegistry.add(PL_API_STACK_ALLOCATOR, pl_load_stack_allocator_api());
-    tApiRegistry.add(PL_API_DOUBLE_STACK_ALLOCATOR, pl_load_double_stack_allocator_api());
-    tApiRegistry.add(PL_API_GENERAL_ALLOCATOR, pl_load_general_allocator_api());
-    tApiRegistry.add(PL_API_POOL_ALLOCATOR, pl_load_pool_allocator_api());
     tApiRegistry.add(PL_API_DATA_REGISTRY, &tApi0);
     tApiRegistry.add(PL_API_EXTENSION_REGISTRY, &tApi1);
     tApiRegistry.add(PL_API_LIBRARY, &tApi3);

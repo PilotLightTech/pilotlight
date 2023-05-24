@@ -108,8 +108,7 @@ typedef struct _plTempAllocator plTempAllocator;  // pl_memory.h
 
 // external apis (pilotlight.h)
 typedef struct _plApiRegistryApiI        plApiRegistryApiI;   // pilotlight.h
-typedef struct _plTempAllocatorApiI      plTempAllocatorApiI; // pl_memory.h
-typedef struct _plMemoryApiI             plMemoryApiI;        // pl_memory.h
+typedef struct _plMemoryApiI             plMemoryApiI;
 typedef struct _plIOApiI                 plIOApiI;
 typedef struct _plFileApiI               plFileApiI;
 
@@ -524,7 +523,6 @@ typedef struct _plGraphics
     plIOApiI*                ptIoInterface;
     plFileApiI*              ptFileApi;
     plDeviceApiI*            ptDeviceApi;
-    plTempAllocatorApiI*     ptTempAllocApi;
     plRenderBackendI*        ptBackendApi;
 
     // cpu allocators
