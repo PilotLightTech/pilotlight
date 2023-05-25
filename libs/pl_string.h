@@ -12,8 +12,8 @@
 */
 
 // library version
-#define PL_STRING_VERSION    "0.1.0"
-#define PL_STRING_VERSION_NUM 00100
+#define PL_STRING_VERSION    "0.2.0"
+#define PL_STRING_VERSION_NUM 00200
 
 /*
 Index of this file:
@@ -53,9 +53,10 @@ const char* pl_str_get_file_name_only(const char* pcFilePath, char* pcFileOut);
 void        pl_str_get_directory     (const char* pcFilePath, char* pcDirectoryOut);
 
 // misc. opts
-bool        pl_str_concatenate(const char* pcStr0, const char* pcStr1, char* pcStringOut, size_t szDataSize);
-bool        pl_str_equal      (const char* pcStr0, const char* pcStr1);
-bool        pl_str_contains   (const char* pcStr, const char* pcSub);
+bool        pl_str_concatenate    (const char* pcStr0, const char* pcStr1, char* pcStringOut, size_t szDataSize);
+bool        pl_str_equal          (const char* pcStr0, const char* pcStr1);
+bool        pl_str_contains       (const char* pcStr, const char* pcSub);
+int         pl_text_char_from_utf8(uint32_t* puOutChars, const char* pcInText, const char* pcTextEnd);
 
 #endif // PL_STRING_H
 
@@ -356,6 +357,64 @@ pl_str_contains(const char* pcStr, const char* pcSub)
 {
     const char* pcSubString = strstr(pcStr, pcSub);
     return pcSubString != NULL;
+}
+
+// Convert UTF-8 to 32-bit character, process single character input.
+// A nearly-branchless UTF-8 decoder, based on work of Christopher Wellons (https://github.com/skeeto/branchless-utf8).
+// We handle UTF-8 decoding error by skipping forward.
+
+#define pl_string_min(Value1, Value2) ((Value1) > (Value2) ? (Value2) : (Value1))
+int
+pl_text_char_from_utf8(uint32_t* puOutChars, const char* pcInText, const char* pcTextEnd)
+{
+    static const char lengths[32] = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 3, 3, 4, 0 };
+    static const int masks[]  = { 0x00, 0x7f, 0x1f, 0x0f, 0x07 };
+    static const uint32_t mins[] = { 0x400000, 0, 0x80, 0x800, 0x10000 };
+    static const int shiftc[] = { 0, 18, 12, 6, 0 };
+    static const int shifte[] = { 0, 6, 4, 2, 0 };
+    int len = lengths[*(const unsigned char*)pcInText >> 3];
+    int wanted = len + (len ? 0 : 1);
+
+    if (pcTextEnd == NULL)
+        pcTextEnd = pcInText + wanted; // Max length, nulls will be taken into account.
+
+    // Copy at most 'len' bytes, stop copying at 0 or past pcTextEnd. Branch predictor does a good job here,
+    // so it is fast even with excessive branching.
+    unsigned char s[4];
+    s[0] = pcInText + 0 < pcTextEnd ? pcInText[0] : 0;
+    s[1] = pcInText + 1 < pcTextEnd ? pcInText[1] : 0;
+    s[2] = pcInText + 2 < pcTextEnd ? pcInText[2] : 0;
+    s[3] = pcInText + 3 < pcTextEnd ? pcInText[3] : 0;
+
+    // Assume a four-byte character and load four bytes. Unused bits are shifted out.
+    *puOutChars  = (uint32_t)(s[0] & masks[len]) << 18;
+    *puOutChars |= (uint32_t)(s[1] & 0x3f) << 12;
+    *puOutChars |= (uint32_t)(s[2] & 0x3f) <<  6;
+    *puOutChars |= (uint32_t)(s[3] & 0x3f) <<  0;
+    *puOutChars >>= shiftc[len];
+
+    // Accumulate the various error conditions.
+    int e = 0;
+    e  = (*puOutChars < mins[len]) << 6; // non-canonical encoding
+    e |= ((*puOutChars >> 11) == 0x1b) << 7;  // surrogate half?
+    e |= (*puOutChars > 0xFFFF) << 8;  // out of range?
+    e |= (s[1] & 0xc0) >> 2;
+    e |= (s[2] & 0xc0) >> 4;
+    e |= (s[3]       ) >> 6;
+    e ^= 0x2a; // top two bits of each tail byte correct?
+    e >>= shifte[len];
+
+    if (e)
+    {
+        // No bytes are consumed when *pcInText == 0 || pcInText == pcTextEnd.
+        // One byte is consumed in case of invalid first byte of pcInText.
+        // All available bytes (at most `len` bytes) are consumed on incomplete/invalid second to last bytes.
+        // Invalid or incomplete input may consume less bytes than wanted, therefore every byte has to be inspected in s.
+        wanted = pl_string_min(wanted, !!s[0] + !!s[1] + !!s[2] + !!s[3]);
+        *puOutChars = 0xFFFD;
+    }
+
+    return wanted;
 }
 
 #endif // PL_STRING_IMPLEMENTATION

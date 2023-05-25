@@ -27,6 +27,7 @@ Index of this file:
 #include "stb_truetype.h"
 #include "pl_draw_ext.h"
 #include "pl_ds.h"
+#include "pl_string.h"
 
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -143,7 +144,6 @@ static void  pl__add_vertex(plDrawLayer* layer, plVec2 pos, plVec4 color, plVec2
 static void  pl__add_index(plDrawLayer* layer, uint32_t vertexStart, uint32_t i0, uint32_t i1, uint32_t i2);
 static float pl__get_max(float v1, float v2) { return v1 > v2 ? v1 : v2;}
 static int   pl__get_min(int v1, int v2)     { return v1 < v2 ? v1 : v2;}
-static int   pl__text_char_from_utf8(uint32_t* outChar, const char* text);
 static char* pl__read_file(const char* file);
 
 // math
@@ -353,7 +353,7 @@ pl__add_text_ex(plDrawLayer* layer, plFont* font, float size, plVec2 p, plVec4 c
             text += 1;
         else
         {
-            text += pl__text_char_from_utf8(&c, text);
+            text += pl_text_char_from_utf8(&c, text, NULL);
             if(c == 0) // malformed UTF-8?
                 break;
         }
@@ -460,7 +460,7 @@ pl__add_text_clipped_ex(plDrawLayer* layer, plFont* font, float size, plVec2 p, 
             text += 1;
         else
         {
-            text += pl__text_char_from_utf8(&c, text);
+            text += pl_text_char_from_utf8(&c, text, NULL);
             if(c == 0) // malformed UTF-8?
                 break;
         }
@@ -1351,7 +1351,7 @@ pl__calculate_text_size_ex(plFont* font, float size, const char* text, const cha
             text += 1;
         else
         {
-            text += pl__text_char_from_utf8(&c, text);
+            text += pl_text_char_from_utf8(&c, text, NULL);
             if(c == 0) // malformed UTF-8?
                 break;
         }
@@ -1455,7 +1455,7 @@ pl__calculate_text_bb_ex(plFont* font, float size, plVec2 tP, const char* text, 
             text += 1;
         else
         {
-            text += pl__text_char_from_utf8(&c, text);
+            text += pl_text_char_from_utf8(&c, text, NULL);
             if(c == 0) // malformed UTF-8?
                 break;
         }
@@ -1906,62 +1906,6 @@ pl__add_index(plDrawLayer* layer, uint32_t vertexStart, uint32_t i0, uint32_t i1
     pl_sb_push(layer->sbIndexBuffer, vertexStart + i0);
     pl_sb_push(layer->sbIndexBuffer, vertexStart + i1);
     pl_sb_push(layer->sbIndexBuffer, vertexStart + i2);
-}
-
-// Convert UTF-8 to 32-bit character, process single character input.
-// A nearly-branchless UTF-8 decoder, based on work of Christopher Wellons (https://github.com/skeeto/branchless-utf8).
-// We handle UTF-8 decoding error by skipping forward.
-static int
-pl__text_char_from_utf8(uint32_t* outChar, const char* text)
-{
-    static const char cPtrLen[32] = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 3, 3, 4, 0 };
-    static const int iPtrMasks[]  = { 0x00, 0x7f, 0x1f, 0x0f, 0x07 };
-    static const uint32_t uPtrMins[] = { 0x400000, 0, 0x80, 0x800, 0x10000 };
-    static const int iPtrShiftc[] = { 0, 18, 12, 6, 0 };
-    static const int iPtrShifte[] = { 0, 6, 4, 2, 0 };
-    int iLen = cPtrLen[*(const unsigned char*)text >> 3];
-    int iWanted = iLen + !iLen;
-
-    const char* cPtrTextEnd = text + iWanted;
-
-    // Copy at most 'iLen' bytes, stop copying at 0 or past in_text_end. Branch predictor does a good job here,
-    // so it is fast even with excessive branching.
-    char s[4] = {0};
-
-    if(text + 0 < cPtrTextEnd){ s[0] = text[0];}
-    if(text + 1 < cPtrTextEnd){ s[1] = text[1];}
-    if(text + 2 < cPtrTextEnd){ s[2] = text[2];}
-    if(text + 3 < cPtrTextEnd){ s[3] = text[3];}
-
-    // Assume a four-unsigned char character and load four bytes. Unused bits are shifted out.
-    *outChar  = (uint32_t)(s[0] & iPtrMasks[iLen]) << 18;
-    *outChar |= (uint32_t)(s[1] & 0x3f) << 12;
-    *outChar |= (uint32_t)(s[2] & 0x3f) <<  6;
-    *outChar |= (uint32_t)(s[3] & 0x3f) <<  0;
-    *outChar >>= iPtrShiftc[iLen];
-
-    // Accumulate the various error conditions.
-    int iE = 0;
-    iE  = (*outChar < uPtrMins[iLen]) << 6; // non-canonical encoding
-    iE |= ((*outChar >> 11) == 0x1b) << 7;  // surrogate half?
-    iE |= (*outChar > 0xffff) << 8;  // out of range?
-    iE |= (s[1] & 0xc0) >> 2;
-    iE |= (s[2] & 0xc0) >> 4;
-    iE |= (s[3]       ) >> 6;
-    iE ^= 0x2a; // top two bits of each tail unsigned char correct?
-    iE >>= iPtrShifte[iLen];
-
-    if (iE)
-    {
-        // No bytes are consumed when *cPtrText == 0 || cPtrText == cPtrTextEnd.
-        // One unsigned char is consumed in case of invalid first unsigned char of cPtrText.
-        // All available bytes (at most `iLen` bytes) are consumed on incomplete/invalid second to last bytes.
-        // Invalid or incomplete input may consume less bytes than wanted, therefore every unsigned char has to be inspected in s.
-        iWanted = pl__get_min(iWanted, !!s[0] + !!s[1] + !!s[2] + !!s[3]);
-        *outChar = 0xfffd;
-    }
-
-    return iWanted;
 }
 
 static char*

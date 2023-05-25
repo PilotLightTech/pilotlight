@@ -32,7 +32,6 @@
 
 #include "pl_io.c"
 
-
 static plMemoryContext* gptMemoryContext = NULL;
 
 void

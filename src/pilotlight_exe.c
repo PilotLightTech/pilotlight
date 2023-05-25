@@ -519,6 +519,9 @@ pl__handle_extension_reloads(plApiRegistryApiI* ptApiRegistry)
 #include "pl_memory.h"
 #undef PL_MEMORY_IMPLEMENTATION
 
+#define PL_STRING_IMPLEMENTATION
+#include "pl_string.h"
+#undef PL_STRING_IMPLEMENTATION
 
 void*
 pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
