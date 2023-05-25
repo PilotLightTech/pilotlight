@@ -186,17 +186,18 @@ COMPILE TIME OPTIONS
 #ifndef PL_DS_H
 #define PL_DS_H
 
-#if defined(PL_DS_ALLOC) && defined(PL_DS_FREE)
+#if defined(PL_DS_ALLOC) && defined(PL_DS_FREE) && defined(PL_DS_ALLOC_INDIRECT)
 // ok
-#elif !defined(PL_DS_ALLOC) && !defined(PL_DS_FREE)
+#elif !defined(PL_DS_ALLOC) && !defined(PL_DS_FREE) && !defined(PL_DS_ALLOC_INDIRECT)
 // ok
 #else
-#error "Must define both or none of PL_DS_ALLOC and PL_DS_FREE"
+#error "Must define all or none of PL_DS_ALLOC and PL_DS_FREE and PL_DS_ALLOC_INDIRECT"
 #endif
 
 #ifndef PL_DS_ALLOC
     #include <stdlib.h>
-    #define PL_DS_ALLOC(x, FILE, LINE) malloc((x))
+    #define PL_DS_ALLOC(x) malloc((x))
+    #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) malloc((x))
     #define PL_DS_FREE(x)  free((x))
 #endif
 
@@ -356,7 +357,7 @@ pl__sb_grow(void** ptrBuffer, size_t szElementSize, size_t szNewItems, const cha
     plSbHeader_* ptOldHeader = pl__sb_header(*ptrBuffer);
 
     const size_t szNewSize = (ptOldHeader->uCapacity + szNewItems) * szElementSize + sizeof(plSbHeader_);
-    plSbHeader_* ptNewHeader = (plSbHeader_*)PL_DS_ALLOC(szNewSize, pcFile, iLine); //-V592
+    plSbHeader_* ptNewHeader = (plSbHeader_*)PL_DS_ALLOC_INDIRECT(szNewSize, pcFile, iLine); //-V592
     memset(ptNewHeader, 0, (ptOldHeader->uCapacity + szNewItems) * szElementSize + sizeof(plSbHeader_));
     if(ptNewHeader)
     {
@@ -382,7 +383,7 @@ pl__sb_may_grow_(void** ptrBuffer, size_t szElementSize, size_t szNewItems, size
     else // first run
     {
         const size_t szNewSize = szMinCapacity * szElementSize + sizeof(plSbHeader_);
-        plSbHeader_* ptHeader = (plSbHeader_*)PL_DS_ALLOC(szNewSize, pcFile, iLine);
+        plSbHeader_* ptHeader = (plSbHeader_*)PL_DS_ALLOC_INDIRECT(szNewSize, pcFile, iLine);
         memset(ptHeader, 0, szMinCapacity * szElementSize + sizeof(plSbHeader_));
         if(ptHeader)
         {
@@ -429,8 +430,8 @@ pl__hm_resize(plHashMap* ptHashMap, uint32_t uBucketCount, const char* pcFile, i
     if(uBucketCount > 0)
     {
         
-        ptHashMap->_aulValueIndices = (uint64_t*)PL_DS_ALLOC(sizeof(uint64_t) * ptHashMap->_uBucketCount, pcFile, iLine);
-        ptHashMap->_aulKeys  = (uint64_t*)PL_DS_ALLOC(sizeof(uint64_t) * ptHashMap->_uBucketCount, pcFile, iLine);
+        ptHashMap->_aulValueIndices = (uint64_t*)PL_DS_ALLOC_INDIRECT(sizeof(uint64_t) * ptHashMap->_uBucketCount, pcFile, iLine);
+        ptHashMap->_aulKeys  = (uint64_t*)PL_DS_ALLOC_INDIRECT(sizeof(uint64_t) * ptHashMap->_uBucketCount, pcFile, iLine);
         memset(ptHashMap->_aulValueIndices, 0xff, sizeof(uint64_t) * ptHashMap->_uBucketCount);
         memset(ptHashMap->_aulKeys, 0xff, sizeof(uint64_t) * ptHashMap->_uBucketCount);
     

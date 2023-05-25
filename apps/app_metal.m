@@ -16,14 +16,16 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#import <Metal/Metal.h>
-#import <QuartzCore/CAMetalLayer.h>
 #include "pilotlight.h"
-#include "pl_ds.h"
-#include "pl_io.h"
 #include "pl_profile.h"
 #include "pl_log.h"
+#include "pl_ds.h"
+#include "pl_io.h"
+#include "pl_os.h"
 #include "pl_memory.h"
+
+#import <Metal/Metal.h>
+#import <QuartzCore/CAMetalLayer.h>
 #include "pl_metal.h"
 
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -65,8 +67,6 @@ typedef struct plAppData_t
     plUiContext*             ptUiContext;
 
     // apis
-    plIOApiI*               ptIoI;
-    plLibraryApiI*          ptLibraryApi;
     plFileApiI*             ptFileApi;
 
     // extension apis
@@ -88,6 +88,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     plAppData* ptAppData = pAppData;
     plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data("memory"));
+    pl_set_io_context(ptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
 
     if(ptAppData) // reload
     {
@@ -97,36 +98,27 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
         ptAppData->ptDrawApi = ptApiRegistry->first(PL_API_DRAW);
         ptAppData->ptUiApi      = ptApiRegistry->first(PL_API_UI);
 
-        ptAppData->ptUiApi->set_draw_api(ptAppData->ptDrawApi);
-
         return ptAppData;
     }
 
-    plIOApiI* ptIoI             = ptApiRegistry->first(PL_API_IO);
-    plLibraryApiI* ptLibraryApi = ptApiRegistry->first(PL_API_LIBRARY);
-    plFileApiI* ptFileApi       = ptApiRegistry->first(PL_API_FILE);
+    plProfileContext* ptProfileCtx = pl_create_profile_context();
+    plLogContext*     ptLogCtx     = pl_create_log_context();
     
+    // add some context to data registry
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
     ptAppData->ptApiRegistry = ptApiRegistry;
-    ptAppData->ptIoI = ptIoI;
-    ptAppData->ptLibraryApi = ptLibraryApi;
-    ptAppData->ptFileApi = ptFileApi;
+    ptDataRegistry->set_data("profile", ptProfileCtx);
+    ptDataRegistry->set_data("log", ptLogCtx);
 
-    plIOContext* ptIOCtx = ptAppData->ptIoI->get_context();
+    plIOContext* ptIOCtx = pl_get_io_context();
     ptAppData->device.device = ptIOCtx->pBackendPlatformData;
     
     // set contexts
 
-    // create profile context
-    plProfileContext* ptProfileCtx = pl_create_profile_context();
-    ptDataRegistry->set_data("profile", ptProfileCtx);
-
     // create log context
-    plLogContext* ptLogCtx = pl_create_log_context();
     pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
     pl_log_info("Setup logging");
-    ptDataRegistry->set_data("log", ptLogCtx);
 
     // load extensions
     plExtensionRegistryApiI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
@@ -141,6 +133,10 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     ptAppData->ptDrawApi = ptDrawApi;
     ptAppData->ptMetalDrawApi = ptMetalApi;
     ptAppData->ptUiApi = ptUi;
+    plUiContext* ptUiContext  = ptUi->create_context();
+    ptDataRegistry->set_data(PL_CONTEXT_DRAW_NAME, ptDrawApi->get_context());
+    ptDataRegistry->set_data("ui", ptUiContext);
+    ptDataRegistry->set_data("device", &ptAppData->device);
 
     // create command queue
     ptAppData->device.device = ptIOCtx->pBackendPlatformData;
@@ -159,23 +155,19 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     ptAppData->drawableRenderDescriptor.depthAttachment.storeAction = MTLStoreActionDontCare;
     ptAppData->drawableRenderDescriptor.depthAttachment.clearDepth = 1.0;
 
-    // create ui context
-    plUiContext* ptUiContext = ptUi->create_context(ptIoI, ptDrawApi);
-    ptDataRegistry->set_data("ui", ptUiContext);
-
     // initialize backend specifics for draw context
-    ptMetalApi->initialize_context(ptUi->get_draw_context(NULL), ptAppData->device.device);
+    ptMetalApi->initialize_context(ptAppData->device.device);
 
     // create draw list & layers
-    ptDrawApi->register_drawlist(ptUi->get_draw_context(NULL), &ptAppData->drawlist);
+    plDrawContext* ptDrawCtx = ptDrawApi->get_context();
+    ptDrawApi->register_drawlist(ptDrawCtx, &ptAppData->drawlist);
     ptAppData->bgDrawLayer = ptDrawApi->request_layer(&ptAppData->drawlist, "Background Layer");
     ptAppData->fgDrawLayer = ptDrawApi->request_layer(&ptAppData->drawlist, "Foreground Layer");
     
     // create font atlas
     ptDrawApi->add_default_font(&ptAppData->fontAtlas);
-    ptDrawApi->build_font_atlas(ptUi->get_draw_context(NULL), &ptAppData->fontAtlas);
+    ptDrawApi->build_font_atlas(ptDrawCtx, &ptAppData->fontAtlas);
     ptUi->set_default_font(&ptAppData->fontAtlas.sbFonts[0]);
-    ptDataRegistry->set_data("draw", ptUi->get_draw_context(NULL));
 
     return ptAppData;
 }
@@ -206,7 +198,7 @@ PL_EXPORT void
 pl_app_resize(void* pAppData)
 {
     plAppData* ptAppData = pAppData;
-    plIOContext* ptIOCtx = ptAppData->ptIoI->get_context();
+    plIOContext* ptIOCtx = pl_get_io_context();
 
     // recreate depth texture
     MTLTextureDescriptor *depthTargetDescriptor = [MTLTextureDescriptor new];
@@ -231,11 +223,10 @@ pl_app_update(void* pAppData)
     plMetalDrawApiI* ptMetalApi = ptAppData->ptMetalDrawApi;
     plUiApiI* ptUi = ptAppData->ptUiApi;
 
-    ptMetalApi->new_frame(ptUi->get_draw_context(NULL), ptAppData->drawableRenderDescriptor);
+    ptMetalApi->new_frame(ptDrawApi->get_context(), ptAppData->drawableRenderDescriptor);
     ptUi->new_frame();
 
-    plIOApiI* pTIoI = ptAppData->ptIoI;
-    plIOContext* ptIOCtx = pTIoI->get_context();
+    plIOContext* ptIOCtx = pl_get_io_context();
     ptAppData->graphics.metalLayer = ptIOCtx->pBackendRendererData;
 
     ptAppData->graphics.currentFrame++;
@@ -306,8 +297,8 @@ pl_app_update(void* pAppData)
 
     // submit draw lists
     pl_begin_profile_sample("Submit draw lists");
-    ptUi->get_draw_context(NULL)->tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
-    ptUi->get_draw_context(NULL)->tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
+    ptDrawApi->get_context()->tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
+    ptDrawApi->get_context()->tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
     ptMetalApi->submit_drawlist(&ptAppData->drawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
     ptMetalApi->submit_drawlist(ptUi->get_draw_list(NULL), ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
     ptMetalApi->submit_drawlist(ptUi->get_debug_draw_list(NULL), ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);

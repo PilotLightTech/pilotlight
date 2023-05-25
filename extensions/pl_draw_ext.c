@@ -174,6 +174,11 @@ pl__set_draw_context(plDrawContext* ptCtx)
 static plDrawContext*
 pl__get_draw_context(void)
 {
+    if(gptDrawCtx == NULL)
+    {
+        static plDrawContext tContext = {0};
+        gptDrawCtx = &tContext;
+    }
     return gptDrawCtx;
 }
 
@@ -1585,7 +1590,7 @@ pl__cleanup_draw_context_i(plDrawContext* ctx)
         pl_sb_free(drawlist->sbLayerCache);
         pl_sb_free(drawlist->sbLayersCreated);
         pl_sb_free(drawlist->sbSubmittedLayers);   
-        pl_sb_free(drawlist->sbClipStack);   
+        pl_sb_free(drawlist->sbClipStack);
     }
     for(uint32_t i = 0u; i < pl_sb_size(ctx->sb3DDrawlists); i++)
     {
@@ -2346,7 +2351,7 @@ pl_load_draw_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 
     if(bReload)
     { 
-        ptDrawApi->set_context(ptDataRegistry->get_data("draw"));
+        ptDrawApi->set_context(ptDataRegistry->get_data(PL_CONTEXT_DRAW_NAME));
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_DRAW), ptDrawApi);
     }
     else

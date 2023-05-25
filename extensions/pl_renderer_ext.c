@@ -267,7 +267,7 @@ pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc
 static void
 pl_create_main_render_target(plGraphics* ptGraphics, plRenderTarget* ptTargetOut)
 {
-    plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();
+    plIOContext* ptIOCtx = pl_get_io_context();
     plDevice* ptDevice = &ptGraphics->tDevice;
     ptTargetOut->bMSAA = true;
     ptTargetOut->sbuFrameBuffers = ptGraphics->tSwapchain.puFrameBuffers;
@@ -704,7 +704,7 @@ pl_create_scene(plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, 
     PL_ASSERT(rawBytes4);
     PL_ASSERT(rawBytes5);
 
-    unsigned char* rawBytes = pl_alloc(texWidth * texHeight * texForceNumChannels * 6, __FUNCTION__, __LINE__);
+    unsigned char* rawBytes = PL_ALLOC(texWidth * texHeight * texForceNumChannels * 6);
     memcpy(&rawBytes[texWidth * texHeight * texForceNumChannels * 0], rawBytes0, texWidth * texHeight * texForceNumChannels); //-V522 
     memcpy(&rawBytes[texWidth * texHeight * texForceNumChannels * 1], rawBytes1, texWidth * texHeight * texForceNumChannels); //-V522
     memcpy(&rawBytes[texWidth * texHeight * texForceNumChannels * 2], rawBytes2, texWidth * texHeight * texForceNumChannels); //-V522
@@ -743,7 +743,7 @@ pl_create_scene(plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, 
 
     uint32_t uSkyboxTexture = ptDeviceApi->create_texture(ptDevice, tTextureDesc, sizeof(unsigned char) * texWidth * texHeight * texForceNumChannels * 6, rawBytes, "skybox texture");
     ptSceneOut->uSkyboxTextureView  = ptDeviceApi->create_texture_view(ptDevice, &tSkyboxView, &tSkyboxSampler, uSkyboxTexture, "skybox texture view");
-    pl_free(rawBytes);
+    PL_FREE(rawBytes);
 
     const float fCubeSide = 0.5f;
     float acSkyBoxVertices[] = {
@@ -1268,8 +1268,7 @@ pl_scene_bind_camera(plScene* ptScene, const plCameraComponent* ptCamera)
     ptGlobalInfo->tCameraView     = ptCamera->tViewMat;
     ptGlobalInfo->tCameraViewProj = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
-    plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();
-    ptGlobalInfo->fTime  = (float)ptIOCtx->dTime;
+    ptGlobalInfo->fTime  = (float)pl_get_io_context()->dTime;
 }
 
 static void
@@ -1554,6 +1553,7 @@ pl_load_renderer_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
     pl_set_memory_context(ptDataRegistry->get_data("memory"));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));
+    pl_set_io_context(ptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
 
     if(bReload)
     {

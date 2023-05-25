@@ -44,7 +44,6 @@ Index of this file:
 // apis
 static plApiRegistryApiI*   gptApiRegistry  = NULL;
 static plUiApiI*            ptUi            = NULL;
-static plIOApiI*            ptIo            = NULL;
 static plStatsApiI*         ptStatsApi      = NULL;
 static plDrawApiI*          ptDrawApi       = NULL;
 static plGraphicsApiI*      ptGfx           = NULL;
@@ -338,7 +337,7 @@ pl__show_profiling(bool* bValue)
                     {
                         
                         const double dStartVisibleTime = dInitialVisibleTime;
-                        float fWheel = ptIo->get_mouse_wheel();
+                        float fWheel = pl_get_mouse_wheel();
                         if(fWheel < 0)      dInitialVisibleTime += dInitialVisibleTime * 0.2;
                         else if(fWheel > 0) dInitialVisibleTime -= dInitialVisibleTime * 0.2;
                         dInitialVisibleTime = pl_clampd(0.0001, dInitialVisibleTime, fDeltaTime);
@@ -348,7 +347,7 @@ pl__show_profiling(bool* bValue)
                             const double dNewConvertToPixel = tChildWindowSize.x / dInitialVisibleTime;
                             const double dNewConvertToTime = dInitialVisibleTime / tChildWindowSize.x;
 
-                            const plVec2 tMousePos = ptIo->get_mouse_pos();
+                            const plVec2 tMousePos = pl_get_mouse_pos();
                             const double dTimeHovered = (double)dConvertToTime * (double)(tMousePos.x - tParentCursorPos.x + ptUi->get_window_scroll().x);
                             const float fConservedRatio = (tMousePos.x - tParentCursorPos.x) / tChildWindowSize.x;
                             const double dOldPixelStart = dConvertToPixel * dTimeHovered;
@@ -356,12 +355,12 @@ pl__show_profiling(bool* bValue)
                             ptUi->set_window_scroll((plVec2){(float)dNewPixelStart, 0.0f});
                         }
 
-                        if(ptIo->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 5.0f))
+                        if(pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 5.0f))
                         {
                             const plVec2 tWindowScroll = ptUi->get_window_scroll();
-                            const plVec2 tMouseDrag = ptIo->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 5.0f);
+                            const plVec2 tMouseDrag = pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 5.0f);
                             ptUi->set_window_scroll((plVec2){tWindowScroll.x - tMouseDrag.x, tWindowScroll.y});
-                            ptIo->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+                            pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
                         }
                     }
                     
@@ -486,7 +485,7 @@ pl__show_profiling(bool* bValue)
 
                     if(bHovered)
                     {
-                        const plVec2 tMousePos = ptIo->get_mouse_pos();
+                        const plVec2 tMousePos = pl_get_mouse_pos();
                         ptDrawApi->add_line(ptFgLayer, (plVec2){tMousePos.x, tCursorPos.y}, (plVec2){tMousePos.x, tWindowEnd.y}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
                         char* pcText = pl_temp_allocator_sprintf(&tTempAllocator, "%0.6f", (double)dConvertToTime * (double)(tMousePos.x - tParentCursorPos.x + ptUi->get_window_scroll().x));
                         ptDrawApi->add_text(ptFgLayer, ptUi->get_default_font(), 13.0f, tMousePos, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, pcText, 0.0f);
@@ -851,7 +850,7 @@ pl__show_device_memory(bool* bValue)
 
             uint32_t uNodeCount = 0;
             plDeviceAllocationNode* sbtNodes = ptDevice->tLocalBuddyAllocator.nodes(ptDevice->tLocalBuddyAllocator.ptInst, &uNodeCount);
-            const char** sbDebugNames = ptDevice->tLocalBuddyAllocator.names(ptDevice->tLocalBuddyAllocator.ptInst, &uNodeCount);
+            char** sbDebugNames = ptDevice->tLocalBuddyAllocator.names(ptDevice->tLocalBuddyAllocator.ptInst, &uNodeCount);
 
             const uint32_t uNodesPerBlock = uNodeCount / uBlockCount;
             for(uint32_t i = 0; i < uBlockCount; i++)
@@ -862,7 +861,7 @@ pl__show_device_memory(bool* bValue)
                 ptUi->button(pcTempBuffer0);
 
                 plVec2 tCursor0 = ptUi->get_cursor_pos();
-                const plVec2 tMousePos = ptIo->get_mouse_pos();
+                const plVec2 tMousePos = pl_get_mouse_pos();
                 uint32_t uHoveredNode = 0;
                 const float fWidthAvailable = tWindowEnd.x - tCursor0.x;
                 float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)PL_DEVICE_ALLOCATION_BLOCK_SIZE;
@@ -1130,10 +1129,10 @@ pl_load_debug_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
     pl_set_memory_context(ptMemoryCtx);
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));
+    pl_set_io_context(ptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
     ptUi = ptApiRegistry->first(PL_API_UI);
-    ptIo = ptApiRegistry->first(PL_API_IO);
     ptStatsApi = ptApiRegistry->first(PL_API_STATS);
-    ptIOCtx = ptIo->get_context();
+    ptIOCtx = pl_get_io_context();
     ptDrawApi = ptApiRegistry->first(PL_API_DRAW);
     ptGfx = ptApiRegistry->first(PL_API_GRAPHICS);
     ptDevice = ptDataRegistry->get_data("device");

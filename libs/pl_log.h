@@ -467,7 +467,7 @@ void pl__log_fatal_va(uint32_t uID, const char* cPFormat, va_list args);
 #ifndef PL_LOG_ON
     #define pl_create_log_context() NULL
     #define pl_cleanup_log_context() //
-    #define pl_set_log_context() //
+    #define pl_set_log_context(ctx) //
     #define pl_get_log_context() NULL
     #define pl_add_log_channel(pcName, tType) 0u
     #define pl_set_log_level(uID, uLevel) //
@@ -665,12 +665,12 @@ pl__create_log_context(void)
     // setup log channels
     pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE | PL_CHANNEL_TYPE_BUFFER);
 
-    pl_log_trace("<- global enabled");
-    pl_log_debug("<- global enabled");
-    pl_log_info("<- global enabled");
-    pl_log_warn("<- global enabled");
-    pl_log_error("<- global enabled");
-    pl_log_fatal("<- global enabled");
+    pl_log_trace_f("<- global enabled");
+    pl_log_debug_f("<- global enabled");
+    pl_log_info_f("<- global enabled");
+    pl_log_warn_f("<- global enabled");
+    pl_log_error_f("<- global enabled");
+    pl_log_fatal_f("<- global enabled");
     
     return tPContext;
 }

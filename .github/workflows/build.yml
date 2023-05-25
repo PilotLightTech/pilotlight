@@ -76,8 +76,8 @@ jobs:
         test -f ./out/pilot_light || exit 1
         test -f ./out/app.dylib || exit 1
         test -f ./out/pl_draw_ext.dylib || exit 1
-        test -f ./out/pl_ui_ext.dylib || exit 1
         test -f ./out/pl_stats_ext.dylib || exit 1
+        test -f ./out/pl_ui_ext.dylib || exit 1
         test -f ./out/pl_image_ext.dylib || exit 1
         test -f ./out/pilotlight.a || exit 1
 

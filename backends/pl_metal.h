@@ -27,7 +27,7 @@ Index of this file:
 NS_ASSUME_NONNULL_BEGIN
 typedef struct _plMetalDrawApiI
 {
-void (*initialize_context)(plDrawContext* ctx, id<MTLDevice> device);
+void (*initialize_context)(id<MTLDevice> device);
 void (*new_frame)         (plDrawContext* ctx, MTLRenderPassDescriptor* renderPassDescriptor);
 void (*submit_drawlist)   (plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder);
 } plMetalDrawApiI;

@@ -69,7 +69,7 @@ NS_ASSUME_NONNULL_BEGIN
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static void pl_initialize_draw_context_metal(plDrawContext* ctx, id<MTLDevice> device);
+static void pl_initialize_draw_context_metal(id<MTLDevice> device);
 static void pl_new_draw_frame_metal         (plDrawContext* ctx, MTLRenderPassDescriptor* renderPassDescriptor);
 static void pl_submit_drawlist_metal        (plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder);
 
@@ -84,19 +84,23 @@ static inline CFTimeInterval GetMachAbsoluteTimeInSeconds() { return (CFTimeInte
 //-----------------------------------------------------------------------------
 
 static void
-pl_initialize_draw_context_metal(plDrawContext* ctx, id<MTLDevice> device)
+pl_initialize_draw_context_metal(id<MTLDevice> device)
 {
-    ctx->_platformData = [[MetalContext alloc] init];
-    MetalContext* metalCtx = ctx->_platformData;
+    plDrawApiI* ptDrawApi = pl_load_draw_api();
+    plDrawContext* ptCtx = ptDrawApi->get_context();
+    ptCtx->_platformData = [[MetalContext alloc] init];
+    MetalContext* metalCtx = ptCtx->_platformData;
     metalCtx.device = device;
 }
 
 static void
-pl_cleanup_draw_context(plDrawContext* ctx)
+pl_cleanup_draw_context(void)
 {
-    MetalContext* metalCtx = ctx->_platformData;
+    plDrawApiI* ptDrawApi = pl_load_draw_api();
+    plDrawContext* ptCtx = ptDrawApi->get_context();
+    MetalContext* metalCtx = ptCtx->_platformData;
     [metalCtx dealloc];
-    pl__cleanup_draw_context_i(ctx);
+    pl__cleanup_draw_context_i(ptCtx);
 }
 
 void

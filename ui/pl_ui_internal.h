@@ -29,9 +29,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#define PL_DS_ALLOC(x, FILE, LINE) pl_alloc((x), FILE, LINE)
-#define PL_DS_FREE(x)  pl_free((x))
-
+#include "pilotlight.h"
 #include "pl_ui_ext.h"
 #include "pl_string.h"
 #include "pl_ds.h"
@@ -312,9 +310,7 @@ typedef struct _plUiContext
 {
     plUiStyle       tStyle;
     plUiColorScheme tColorScheme;
-    plIOApiI*       ptIo;
-    plDrawApiI*     ptDraw;
-
+    
     // prev/next state
     plUiNextWindowData tNextWindowData;        // info based on pl_ui_set_next_window_* functions
     plUiPrevItemData   tPrevItemData;          // data for use by pl_ui_was_last_item_* functions
@@ -351,7 +347,6 @@ typedef struct _plUiContext
     plUiTabBar*        ptCurrentTabBar;        // current tab bar being appended to
 
     // drawing
-    plDrawContext*     ptDrawCtx;              // pointer to draw context
     plDrawList*        ptDrawlist;             // main ui drawlist
     plDrawList*        ptDebugDrawlist;        // ui debug drawlist (i.e. overlays)
     plFont*            ptFont;                 // current font
@@ -365,13 +360,10 @@ typedef struct _plUiContext
 // [SECTION] internal api (exposed)
 //-----------------------------------------------------------------------------
 
-plUiContext*   pl_ui_create_context               (plIOApiI* ptIoI, plDrawApiI* ptDraw);
+plUiContext*   pl_ui_create_context               (void);
 void           pl_ui_destroy_context              (plUiContext* ptContext);
 void           pl_ui_set_context                  (plUiContext* ptCtx);
 plUiContext*   pl_ui_get_context                  (void);
-void           pl_ui_set_draw_api                 (plDrawApiI* ptDraw);
-void           pl_ui_set_io_api                   (plIOApiI* ptIO);
-plDrawContext* pl_ui_get_draw_context             (plUiContext* ptContext);
 plDrawList*    pl_ui_get_draw_list                (plUiContext* ptContext);
 plDrawList*    pl_ui_get_debug_draw_list          (plUiContext* ptContext);
 void           pl_ui_new_frame                    (void);

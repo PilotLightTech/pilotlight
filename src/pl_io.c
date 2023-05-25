@@ -1,346 +1,9 @@
 /*
-   pl_io.h
-   * no dependencies
-   * simple
-   Do this:
-        #define PL_IO_IMPLEMENTATION
-   before you include this file in *one* C or C++ file to create the implementation.
-   // i.e. it should look like this:
-   #include ...
-   #include ...
-   #include ...
-   #define PL_IO_IMPLEMENTATION
-   #include "pl_io.h"
+   pl_io.c
 */
-
-// library version
-#define PL_IO_VERSION    "0.3.0"
-#define PL_IO_VERSION_NUM 00300
 
 /*
 Index of this file:
-// [SECTION] header mess
-// [SECTION] apis
-// [SECTION] includes
-// [SECTION] forward declarations & basic types
-// [SECTION] public api
-// [SECTION] public api structs
-// [SECTION] enums
-// [SECTION] structs
-// [SECTION] c file
-*/
-
-//-----------------------------------------------------------------------------
-// [SECTION] header mess
-//-----------------------------------------------------------------------------
-
-#ifndef PL_IO_H
-#define PL_IO_H
-
-//-----------------------------------------------------------------------------
-// [SECTION] apis
-//-----------------------------------------------------------------------------
-
-#define PL_API_IO "IO API"
-typedef struct _plIOApiI plIOApiI;
-
-//-----------------------------------------------------------------------------
-// [SECTION] includes
-//-----------------------------------------------------------------------------
-
-#include <stdbool.h> // bool
-#include <stdint.h>  // uint*_t
-
-//-----------------------------------------------------------------------------
-// [SECTION] forward declarations & basic types
-//-----------------------------------------------------------------------------
-
-// forward declarations
-typedef struct _plIOContext  plIOContext;
-typedef struct _plInputEvent plInputEvent;
-typedef struct _plKeyData    plKeyData;
-typedef union  _plVec2       plVec2;
-
-// enums
-typedef int plKey;
-typedef int plMouseButton;
-typedef int plCursor;
-typedef int plInputEventType;
-typedef int plInputEventSource;
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api
-//-----------------------------------------------------------------------------
-
-plIOApiI* pl_load_io_api(void);
-void      pl_unload_io_api(void);
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api structs
-//-----------------------------------------------------------------------------
-
-typedef struct _plIOApiI
-{
-    // context
-    plIOContext* (*get_context)(void);
-    void         (*new_frame)  (void);
-    void         (*end_frame)  (void);
-
-    // keyboard
-    bool         (*is_key_down)           (plKey tKey);
-    bool         (*is_key_pressed)        (plKey tKey, bool bRepeat);
-    bool         (*is_key_released)       (plKey tKey);
-    int          (*get_key_pressed_amount)(plKey tKey, float fRepeatDelay, float fRate);
-
-    // mouse
-    bool         (*is_mouse_down)          (plMouseButton tButton);
-    bool         (*is_mouse_clicked)       (plMouseButton tButton, bool bRepeat);
-    bool         (*is_mouse_released)      (plMouseButton tButton);
-    bool         (*is_mouse_double_clicked)(plMouseButton tButton);
-    bool         (*is_mouse_dragging)      (plMouseButton tButton, float fThreshold);
-    bool         (*is_mouse_hovering_rect) (plVec2 minVec, plVec2 maxVec);
-    void         (*reset_mouse_drag_delta) (plMouseButton tButton);
-    plVec2       (*get_mouse_drag_delta)   (plMouseButton tButton, float fThreshold);
-    plVec2       (*get_mouse_pos)          (void);
-    float        (*get_mouse_wheel)        (void);
-    bool         (*is_mouse_pos_valid)     (plVec2 tPos);
-    void         (*set_mouse_cursor)       (plCursor tCursor);
-
-    // input functions
-    plKeyData*   (*get_key_data)          (plKey tKey);
-    void         (*add_key_event)         (plKey tKey, bool bDown);
-    void         (*add_mouse_pos_event)   (float fX, float fY);
-    void         (*add_mouse_button_event)(int iButton, bool bDown);
-    void         (*add_mouse_wheel_event) (float fX, float fY);
-} plIOApiI;
-
-//-----------------------------------------------------------------------------
-// [SECTION] enums
-//-----------------------------------------------------------------------------
-
-enum plMouseButton_
-{
-    PL_MOUSE_BUTTON_LEFT   = 0,
-    PL_MOUSE_BUTTON_RIGHT  = 1,
-    PL_MOUSE_BUTTON_MIDDLE = 2,
-    PL_MOUSE_BUTTON_COUNT  = 5    
-};
-
-enum plKey_
-{
-    PL_KEY_NONE = 0,
-    PL_KEY_TAB,
-    PL_KEY_LEFT_ARROW,
-    PL_KEY_RIGHT_ARROW,
-    PL_KEY_UP_ARROW,
-    PL_KEY_DOWN_ARROW,
-    PL_KEY_PAGE_UP,
-    PL_KEY_PAGE_DOWN,
-    PL_KEY_HOME,
-    PL_KEY_END,
-    PL_KEY_INSERT,
-    PL_KEY_DELETE,
-    PL_KEY_BACKSPACE,
-    PL_KEY_SPACE,
-    PL_KEY_ENTER,
-    PL_KEY_ESCAPE,
-    PL_KEY_LEFT_CTRL,
-    PL_KEY_LEFT_SHIFT,
-    PL_KEY_LEFT_ALT,
-    PL_KEY_LEFT_SUPER,
-    PL_KEY_RIGHT_CTRL,
-    PL_KEY_RIGHT_SHIFT,
-    PL_KEY_RIGHT_ALT,
-    PL_KEY_RIGHT_SUPER,
-    PL_KEY_MENU,
-    PL_KEY_0, PL_KEY_1, PL_KEY_2, PL_KEY_3, PL_KEY_4, PL_KEY_5, PL_KEY_6, PL_KEY_7, PL_KEY_8, PL_KEY_9,
-    PL_KEY_A, PL_KEY_B, PL_KEY_C, PL_KEY_D, PL_KEY_E, PL_KEY_F, PL_KEY_G, PL_KEY_H, PL_KEY_I, PL_KEY_J,
-    PL_KEY_K, PL_KEY_L, PL_KEY_M, PL_KEY_N, PL_KEY_O, PL_KEY_P, PL_KEY_Q, PL_KEY_R, PL_KEY_S, PL_KEY_T,
-    PL_KEY_U, PL_KEY_V, PL_KEY_W, PL_KEY_X, PL_KEY_Y, PL_KEY_Z,
-    PL_KEY_F1, PL_KEY_F2, PL_KEY_F3,PL_KEY_F4, PL_KEY_F5, PL_KEY_F6, PL_KEY_F7, PL_KEY_F8, PL_KEY_F9,
-    PL_KEY_F10, PL_KEY_F11, PL_KEY_F12, PL_KEY_F13, PL_KEY_F14, PL_KEY_F15, PL_KEY_F16, PL_KEY_F17,
-    PL_KEY_F18, PL_KEY_F19, PL_KEY_F20, PL_KEY_F21, PL_KEY_F22, PL_KEY_F23, PL_KEY_F24,
-    PL_KEY_APOSTROPHE,    // '
-    PL_KEY_COMMA,         // ,
-    PL_KEY_MINUS,         // -
-    PL_KEY_PERIOD,        // .
-    PL_KEY_SLASH,         // /
-    PL_KEY_SEMICOLON,     // ;
-    PL_KEY_EQUAL,         // =
-    PL_KEY_LEFT_BRACKET,  // [
-    PL_KEY_BACKSLASH,     // \ (this text inhibit multiline comment caused by backslash)
-    PL_KEY_RIGHT_BRACKET, // ]
-    PL_KEY_GRAVE_ACCENT,  // `
-    PL_KEY_CAPS_LOCK,
-    PL_KEY_SCROLL_LOCK,
-    PL_KEY_NUM_LOCK,
-    PL_KEY_PRINT_SCREEN,
-    PL_KEY_PAUSE,
-    PL_KEY_KEYPAD_0, PL_KEY_KEYPAD_1, PL_KEY_KEYPAD_2, PL_KEY_KEYPAD_3, 
-    PL_KEY_KEYPAD_4, PL_KEY_KEYPAD_5, PL_KEY_KEYPAD_6, PL_KEY_KEYPAD_7, 
-    PL_KEY_KEYPAD_8, PL_KEY_KEYPAD_9,
-    PL_KEY_KEYPAD_DECIMAL,
-    PL_KEY_KEYPAD_DIVIDE,
-    PL_KEY_KEYPAD_MULTIPLY,
-    PL_KEY_KEYPAD_SUBTRACT,
-    PL_KEY_KEYPAD_ADD,
-    PL_KEY_KEYPAD_ENTER,
-    PL_KEY_KEYPAD_EQUAL,
-    PL_KEY_MOD_CTRL,
-    PL_KEY_MOD_SHIFT,
-    PL_KEY_MOD_ALT,
-    PL_KEY_MOD_SUPER,
-    
-    PL_KEY_COUNT // no valid plKey_ is ever greater than this value
-};
-
-enum plCursor_
-{
-    PL_MOUSE_CURSOR_NONE  = -1,
-    PL_MOUSE_CURSOR_ARROW =  0,
-    PL_MOUSE_CURSOR_TEXT_INPUT,
-    PL_MOUSE_CURSOR_RESIZE_ALL,
-    PL_MOUSE_CURSOR_RESIZE_NS,
-    PL_MOUSE_CURSOR_RESIZE_EW,
-    PL_MOUSE_CURSOR_RESIZE_NESW,
-    PL_MOUSE_CURSOR_RESIZE_NWSE,
-    PL_MOUSE_CURSOR_HAND,
-    PL_MOUSE_CURSOR_NOT_ALLOWED,
-    PL_MOUSE_CURSOR_COUNT
-};
-
-//-----------------------------------------------------------------------------
-// [SECTION] structs
-//-----------------------------------------------------------------------------
-
-#ifndef PL_MATH_VEC2_DEFINED
-#define PL_MATH_VEC2_DEFINED
-typedef union _plVec2
-{
-    struct { float x, y; };
-    struct { float r, g; };
-    struct { float u, v; };
-    float d[2];
-} plVec2;
-#endif
-
-typedef struct _plKeyData
-{
-    bool  bDown;
-    float fDownDuration;
-    float fDownDurationPrev;
-} plKeyData;
-
-typedef struct _plInputEvent
-{
-    plInputEventType   tType;
-    plInputEventSource tSource;
-
-    union
-    {
-        struct // mouse pos event
-        {
-            float fPosX;
-            float fPosY;
-        };
-
-        struct // mouse wheel event
-        {
-            float fWheelX;
-            float fWheelY;
-        };
-        
-        struct // mouse button event
-        {
-            int  iButton;
-            bool bMouseDown;
-        };
-
-        struct // key event
-        {
-            plKey tKey;
-            bool  bKeyDown;
-        };
-        
-    };
-
-} plInputEvent;
-
-typedef struct _plIOContext
-{
-    double   dTime;
-    float    fDeltaTime;
-    float    fFrameRate; // rough estimate(rolling average of fDeltaTime over 120 frames)
-    bool     bViewportSizeChanged;
-    bool     bViewportMinimized;
-    float    afMainViewportSize[2];
-    float    afMainFramebufferScale[2];
-    uint64_t ulFrameCount;
-
-    // settings
-    float  fMouseDragThreshold;      // default 6.0f
-    float  fMouseDoubleClickTime;    // default 0.3f seconds
-    float  fMouseDoubleClickMaxDist; // default 6.0f
-    float  fKeyRepeatDelay;          // default 0.275f
-    float  fKeyRepeatRate;           // default 0.050f
-    void*  pUserData;
-    void*  pBackendPlatformData;
-    void*  pBackendRendererData;
-    void*  pBackendData;
-
-    // [INTERNAL]
-    bool          _bOverflowInUse;
-    plInputEvent  _atInputEvents[64];
-    plInputEvent* _sbtInputEvents;
-    uint32_t      _uInputEventSize;
-    uint32_t      _uInputEventCapacity;
-    uint32_t      _uInputEventOverflowCapacity;
-
-    // main input state
-    plVec2 _tMousePos;
-    bool   _abMouseDown[5];
-    int    _iMouseButtonsDown;
-    float  _fMouseWheel;
-    float  _fMouseWheelH;
-
-    // mouse cursor
-    plCursor tCurrentCursor;
-    plCursor tNextCursor;
-    bool     bCursorChanged;
-
-    // other state
-    plKeyData _tKeyData[PL_KEY_COUNT];
-    plVec2    _tLastValidMousePos;
-    plVec2    _tMouseDelta;
-    plVec2    _tMousePosPrev;              // previous mouse position
-    plVec2    _atMouseClickedPos[5];       // position when clicked
-    double    _adMouseClickedTime[5];      // time of last click
-    bool      _abMouseClicked[5];          // mouse went from !down to down
-    uint32_t  _auMouseClickedCount[5];     // 
-    uint32_t  _auMouseClickedLastCount[5]; // 
-    bool      _abMouseReleased[5];         // mouse went from down to !down
-    float     _afMouseDownDuration[5];     // duration mouse button has been down (0.0f == just clicked)
-    float     _afMouseDownDurationPrev[5]; // previous duration of mouse button down
-    float     _afMouseDragMaxDistSqr[5];   // squared max distance mouse traveled from clicked position
-
-    // frame rate calcs
-    float _afFrameRateSecPerFrame[120];
-    int   _iFrameRateSecPerFrameIdx;
-    int   _iFrameRateSecPerFrameCount;
-    float _fFrameRateSecPerFrameAccum;
-
-
-} plIOContext;
-
-#endif // PL_IO_H
-
-//-----------------------------------------------------------------------------
-// [SECTION] c file
-//-----------------------------------------------------------------------------
-
-/*
-Index of this file:
-// [SECTION] header mess
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] context
@@ -350,26 +13,11 @@ Index of this file:
 */
 
 //-----------------------------------------------------------------------------
-// [SECTION] header mess
-//-----------------------------------------------------------------------------
-
-#ifdef PL_IO_IMPLEMENTATION
-
-#ifndef PL_ASSERT
-    #include <assert.h>
-    #define PL_ASSERT(x) assert((x))
-#endif
-
-#ifndef PL_IO_ALLOC
-    #include <stdlib.h>
-    #define PL_IO_ALLOC(x) malloc((x))
-    #define PL_IO_FREE(x)  free((x))
-#endif
-
-//-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pilotlight.h"
+#include "pl_io.h"
 #include <math.h>   // floorf
 #include <string.h> // memset
 #include <float.h>  // FLT_MAX
@@ -402,21 +50,15 @@ typedef enum
 // [SECTION] global context
 //-----------------------------------------------------------------------------
 
-plIOContext* gptIOContext = NULL;
+static plIOContext* gptIOContext = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api 
 //-----------------------------------------------------------------------------
 
 #define PL_IO_VEC2_LENGTH_SQR(vec) (((vec).x * (vec).x) + ((vec).y * (vec).y))
-
-#ifdef __cplusplus
-    #define PL_IO_VEC2_SUBTRACT(v1, v2) { (v1).x - (v2).x, (v1).y - (v2).y }
-    #define PL_IO_VEC2(v1, v2) {(v1), (v2)}
-#else
-    #define PL_IO_VEC2_SUBTRACT(v1, v2) (plVec2){ (v1).x - (v2).x, (v1).y - (v2).y}
-    #define PL_IO_VEC2(v1, v2) (plVec2){(v1), (v2)}
-#endif
+#define PL_IO_VEC2_SUBTRACT(v1, v2) (plVec2){ (v1).x - (v2).x, (v1).y - (v2).y}
+#define PL_IO_VEC2(v1, v2) (plVec2){(v1), (v2)}
 #define PL_IO_MAX(x, y) (x) > (y) ? (x) : (y)
 
 static void          pl__update_events(void);
@@ -426,109 +68,45 @@ static int           pl__calc_typematic_repeat_amount(float fT0, float fT1, floa
 static plInputEvent* pl__get_last_event(plInputEventType tType, int iButtonOrKey);
 static plInputEvent* pl__get_event(void);
 
-// context
-static plIOContext* pl_get_io_context       (void);
-static void         pl_new_io_frame         (void);
-static void         pl_end_io_frame         (void);
-
-// keyboard
-static bool         pl_is_key_down           (plKey tKey);
-static bool         pl_is_key_pressed        (plKey tKey, bool bRepeat);
-static bool         pl_is_key_released       (plKey tKey);
-static int          pl_get_key_pressed_amount(plKey tKey, float fRepeatDelay, float fRate);
-
-// mouse
-static bool         pl_is_mouse_down          (plMouseButton tButton);
-static bool         pl_is_mouse_clicked       (plMouseButton tButton, bool bRepeat);
-static bool         pl_is_mouse_released      (plMouseButton tButton);
-static bool         pl_is_mouse_double_clicked(plMouseButton tButton);
-static bool         pl_is_mouse_dragging      (plMouseButton tButton, float fThreshold);
-static bool         pl_is_mouse_hovering_rect (plVec2 minVec, plVec2 maxVec);
-static void         pl_reset_mouse_drag_delta (plMouseButton tButton);
-static plVec2       pl_get_mouse_drag_delta   (plMouseButton tButton, float fThreshold);
-static plVec2       pl_get_mouse_pos          (void);
-static float        pl_get_mouse_wheel        (void);
-static bool         pl_is_mouse_pos_valid     (plVec2 tPos);
-static void         pl_set_mouse_cursor       (plCursor tCursor);
-
-// input functions
-static plKeyData*   pl_get_key_data          (plKey tKey);
-static void         pl_add_key_event         (plKey tKey, bool bDown);
-static void         pl_add_mouse_pos_event   (float fX, float fY);
-static void         pl_add_mouse_button_event(int iButton, bool bDown);
-static void         pl_add_mouse_wheel_event (float fX, float fY);
-
 //-----------------------------------------------------------------------------
-// [SECTION] public api implementation
+// [SECTION] public api implementations
 //-----------------------------------------------------------------------------
-
-plIOApiI*
-pl_load_io_api(void)
-{
-    static plIOApiI tIoI = {
-        .get_context             = pl_get_io_context,
-        .new_frame               = pl_new_io_frame,
-        .end_frame               = pl_end_io_frame,
-        .is_key_down             = pl_is_key_down,
-        .is_key_pressed          = pl_is_key_pressed,
-        .is_key_released         = pl_is_key_released,
-        .get_key_pressed_amount  = pl_get_key_pressed_amount,
-        .is_mouse_down           = pl_is_mouse_down,
-        .is_mouse_clicked        = pl_is_mouse_clicked,
-        .is_mouse_released       = pl_is_mouse_released,
-        .is_mouse_double_clicked = pl_is_mouse_double_clicked,
-        .is_mouse_dragging       = pl_is_mouse_dragging,
-        .is_mouse_hovering_rect  = pl_is_mouse_hovering_rect,
-        .reset_mouse_drag_delta  = pl_reset_mouse_drag_delta,
-        .get_mouse_drag_delta    = pl_get_mouse_drag_delta,
-        .get_mouse_pos           = pl_get_mouse_pos,
-        .get_mouse_wheel         = pl_get_mouse_wheel,
-        .is_mouse_pos_valid      = pl_is_mouse_pos_valid,
-        .set_mouse_cursor        = pl_set_mouse_cursor,
-        .get_key_data            = pl_get_key_data,
-        .add_key_event           = pl_add_key_event,
-        .add_mouse_pos_event     = pl_add_mouse_pos_event,
-        .add_mouse_button_event  = pl_add_mouse_button_event,
-        .add_mouse_wheel_event   = pl_add_mouse_wheel_event
-    };
-
-    static plIOContext tIOContext;
-    memset(&tIOContext, 0, sizeof(plIOContext));
-
-    gptIOContext = &tIOContext;
-    gptIOContext->fMouseDoubleClickTime    = 0.3f;
-    gptIOContext->fMouseDoubleClickMaxDist = 6.0f;
-    gptIOContext->fMouseDragThreshold      = 6.0f;
-    gptIOContext->fKeyRepeatDelay          = 0.275f;
-    gptIOContext->fKeyRepeatRate           = 0.050f;
-    
-    gptIOContext->_sbtInputEvents = gptIOContext->_atInputEvents;
-    gptIOContext->_uInputEventCapacity = 64;
-    gptIOContext->afMainFramebufferScale[0] = 1.0f;
-    gptIOContext->afMainFramebufferScale[1] = 1.0f;
-
-    return &tIoI;
-}
 
 void
-pl_unload_io_api(void)
+pl_set_io_context(plIOContext* ptCtx)
 {
-    if(gptIOContext->_bOverflowInUse)
-        PL_IO_FREE(gptIOContext->_sbtInputEvents);
-    gptIOContext = NULL;
+    gptIOContext = ptCtx;
 }
 
-//-----------------------------------------------------------------------------
-// [SECTION] internal api implementation
-//-----------------------------------------------------------------------------
-
-static plIOContext*
+plIOContext*
 pl_get_io_context(void)
 {
+    if(gptIOContext == NULL)
+    {
+        static plIOContext tIOContext;
+        memset(&tIOContext, 0, sizeof(plIOContext));
+        gptIOContext = &tIOContext;
+        gptIOContext->fMouseDoubleClickTime    = 0.3f;
+        gptIOContext->fMouseDoubleClickMaxDist = 6.0f;
+        gptIOContext->fMouseDragThreshold      = 6.0f;
+        gptIOContext->fKeyRepeatDelay          = 0.275f;
+        gptIOContext->fKeyRepeatRate           = 0.050f;
+        
+        gptIOContext->_sbtInputEvents = gptIOContext->_atInputEvents;
+        gptIOContext->_uInputEventCapacity = 64;
+        gptIOContext->afMainFramebufferScale[0] = 1.0f;
+        gptIOContext->afMainFramebufferScale[1] = 1.0f;
+
+        gptIOContext->tCurrentCursor = PL_MOUSE_CURSOR_ARROW;
+        gptIOContext->tNextCursor = gptIOContext->tCurrentCursor;
+        gptIOContext->afMainViewportSize[0] = 500.0f;
+        gptIOContext->afMainViewportSize[1] = 500.0f;
+        gptIOContext->bViewportSizeChanged = true;
+    }
     return gptIOContext;
 }
 
-static void
+void
 pl_new_io_frame(void)
 {
     plIOContext* ptIO = gptIOContext;
@@ -550,7 +128,7 @@ pl_new_io_frame(void)
     pl__update_mouse_inputs();
 }
 
-static void
+void
 pl_end_io_frame(void)
 {
     plIOContext* ptIO = gptIOContext;
@@ -558,14 +136,14 @@ pl_end_io_frame(void)
     ptIO->_fMouseWheelH = 0.0f;
 }
 
-static plKeyData*
+plKeyData*
 pl_get_key_data(plKey tKey)
 {
     PL_ASSERT(tKey > PL_KEY_NONE && tKey < PL_KEY_COUNT && "Key not valid");
     return &gptIOContext->_tKeyData[tKey];
 }
 
-static void
+void
 pl_add_key_event(plKey tKey, bool bDown)
 {
     // check for duplicate
@@ -580,7 +158,7 @@ pl_add_key_event(plKey tKey, bool bDown)
     ptEvent->bKeyDown = bDown;
 }
 
-static void
+void
 pl_add_mouse_pos_event(float fX, float fY)
 {
 
@@ -596,7 +174,7 @@ pl_add_mouse_pos_event(float fX, float fY)
     ptEvent->fPosY   = fY;
 }
 
-static void
+void
 pl_add_mouse_button_event(int iButton, bool bDown)
 {
 
@@ -612,7 +190,7 @@ pl_add_mouse_button_event(int iButton, bool bDown)
     ptEvent->bMouseDown = bDown;
 }
 
-static void
+void
 pl_add_mouse_wheel_event(float fX, float fY)
 {
     plInputEvent* ptEvent = pl__get_event();
@@ -622,14 +200,14 @@ pl_add_mouse_wheel_event(float fX, float fY)
     ptEvent->fWheelY = fY;
 }
 
-static bool
+bool
 pl_is_key_down(plKey tKey)
 {
     const plKeyData* ptData = pl_get_key_data(tKey);
     return ptData->bDown;
 }
 
-static bool
+bool
 pl_is_key_pressed(plKey tKey, bool bRepeat)
 {
     const plKeyData* ptData = pl_get_key_data(tKey);
@@ -652,7 +230,7 @@ pl_is_key_pressed(plKey tKey, bool bRepeat)
     return true;
 }
 
-static bool
+bool
 pl_is_key_released(plKey tKey)
 {
     const plKeyData* ptData = pl_get_key_data(tKey);
@@ -661,7 +239,7 @@ pl_is_key_released(plKey tKey)
     return true;
 }
 
-static int
+int
 pl_get_key_pressed_amount(plKey tKey, float fRepeatDelay, float fRate)
 {
     plIOContext* ptIO = gptIOContext;
@@ -672,13 +250,13 @@ pl_get_key_pressed_amount(plKey tKey, float fRepeatDelay, float fRate)
     return pl__calc_typematic_repeat_amount(fT - ptIO->fDeltaTime, fT, fRepeatDelay, fRate);
 }
 
-static bool
+bool
 pl_is_mouse_down(plMouseButton tButton)
 {
     return gptIOContext->_abMouseDown[tButton];
 }
 
-static bool
+bool
 pl_is_mouse_clicked(plMouseButton tButton, bool bRepeat)
 {
     plIOContext* ptIO = gptIOContext;
@@ -692,19 +270,19 @@ pl_is_mouse_clicked(plMouseButton tButton, bool bRepeat)
     return false;
 }
 
-static bool
+bool
 pl_is_mouse_released(plMouseButton tButton)
 {
     return gptIOContext->_abMouseReleased[tButton];
 }
 
-static bool
+bool
 pl_is_mouse_double_clicked(plMouseButton tButton)
 {
     return gptIOContext->_auMouseClickedCount[tButton] == 2;
 }
 
-static bool
+bool
 pl_is_mouse_dragging(plMouseButton tButton, float fThreshold)
 {
     plIOContext* ptIO = gptIOContext;
@@ -715,20 +293,20 @@ pl_is_mouse_dragging(plMouseButton tButton, float fThreshold)
     return ptIO->_afMouseDragMaxDistSqr[tButton] >= fThreshold * fThreshold;
 }
 
-static bool
+bool
 pl_is_mouse_hovering_rect(plVec2 minVec, plVec2 maxVec)
 {
     const plVec2 tMousePos = gptIOContext->_tMousePos;
     return ( tMousePos.x >= minVec.x && tMousePos.y >= minVec.y && tMousePos.x <= maxVec.x && tMousePos.y <= maxVec.y);
 }
 
-static void
+void
 pl_reset_mouse_drag_delta(plMouseButton tButton)
 {
     gptIOContext->_atMouseClickedPos[tButton] = gptIOContext->_tMousePos;
 }
 
-static plVec2
+plVec2
 pl_get_mouse_drag_delta(plMouseButton tButton, float fThreshold)
 {
     plIOContext* ptIO = gptIOContext;
@@ -746,30 +324,34 @@ pl_get_mouse_drag_delta(plMouseButton tButton, float fThreshold)
     return PL_IO_VEC2(0.0f, 0.0f);
 }
 
-static plVec2
+plVec2
 pl_get_mouse_pos(void)
 {
     return gptIOContext->_tMousePos;
 }
 
-static float
+float
 pl_get_mouse_wheel(void)
 {
     return gptIOContext->_fMouseWheel;
 }
 
-static bool
+bool
 pl_is_mouse_pos_valid(plVec2 tPos)
 {
     return tPos.x >= -FLT_MAX && tPos.y >= -FLT_MAX;
 }
 
-static void
+void
 pl_set_mouse_cursor(plCursor tCursor)
 {
     gptIOContext->tNextCursor = tCursor;
     gptIOContext->bCursorChanged = true;
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api implementation
+//-----------------------------------------------------------------------------
 
 static void
 pl__update_events(void)
@@ -948,7 +530,7 @@ pl__get_event(void)
     // check if new overflow
     if(!gptIOContext->_bOverflowInUse && gptIOContext->_uInputEventSize == gptIOContext->_uInputEventCapacity)
     {
-        gptIOContext->_sbtInputEvents = (plInputEvent*)PL_IO_ALLOC(sizeof(plInputEvent) * 256);
+        gptIOContext->_sbtInputEvents = (plInputEvent*)PL_ALLOC(sizeof(plInputEvent) * 256);
         memset(gptIOContext->_sbtInputEvents, 0, sizeof(plInputEvent) * 256);
         gptIOContext->_uInputEventOverflowCapacity = 256;
 
@@ -960,14 +542,14 @@ pl__get_event(void)
     else if(gptIOContext->_bOverflowInUse && gptIOContext->_uInputEventSize == gptIOContext->_uInputEventOverflowCapacity)
     {
         plInputEvent* sbtOldInputEvents = gptIOContext->_sbtInputEvents;
-        gptIOContext->_sbtInputEvents = (plInputEvent*)PL_IO_ALLOC(sizeof(plInputEvent) * gptIOContext->_uInputEventOverflowCapacity * 2);
+        gptIOContext->_sbtInputEvents = (plInputEvent*)PL_ALLOC(sizeof(plInputEvent) * gptIOContext->_uInputEventOverflowCapacity * 2);
         memset(gptIOContext->_sbtInputEvents, 0, sizeof(plInputEvent) * gptIOContext->_uInputEventOverflowCapacity * 2);
         
         // copy old values
         memcpy(gptIOContext->_sbtInputEvents, sbtOldInputEvents, sizeof(plInputEvent) * gptIOContext->_uInputEventOverflowCapacity);
         gptIOContext->_uInputEventOverflowCapacity *= 2;
 
-        PL_IO_FREE(sbtOldInputEvents);
+        PL_FREE(sbtOldInputEvents);
     }
 
     ptEvent = &gptIOContext->_sbtInputEvents[gptIOContext->_uInputEventSize];
@@ -975,5 +557,3 @@ pl__get_event(void)
 
     return ptEvent;
 }
-
-#endif // PL_IO_IMPLEMENTATION

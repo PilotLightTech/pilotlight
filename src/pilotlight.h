@@ -42,18 +42,6 @@ typedef struct _plDataRegistryApiI plDataRegistryApiI;
 #define PL_API_EXTENSION_REGISTRY "PL_API_EXTENSION_REGISTRY"
 typedef struct _plExtensionRegistryApiI plExtensionRegistryApiI;
 
-#define PL_API_LIBRARY "PL_API_LIBRARY"
-typedef struct _plLibraryApiI plLibraryApiI;
-
-#define PL_API_FILE "FILE API"
-typedef struct _plFileApiI plFileApiI;
-
-#define PL_API_UDP "UDP API"
-typedef struct _plUdpApiI plUdpApiI;
-
-#define PL_API_OS_SERVICES "OS SERVICES API"
-typedef struct _plOsServicesApiI plOsServicesApiI;
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -77,15 +65,15 @@ typedef struct _plOsServicesApiI plOsServicesApiI;
 
 #ifndef PL_ALLOC
     #include <stdlib.h>
-    #define PL_ALLOC(x)      pl_alloc(x, __FILE__, __LINE__)
+    #define PL_ALLOC(x)      pl_realloc(NULL, x, __FILE__, __LINE__)
     #define PL_REALLOC(x, y) pl_realloc(x, y, __FILE__, __LINE__)
-    #define PL_FREE(x)       pl_free(x)
+    #define PL_FREE(x)       pl_realloc(x, 0, __FILE__, __LINE__)
 #endif
 
 // pl_ds.h allocators (so they can be tracked)
-#define PL_DS_ALLOC(x, FILE, LINE) pl_alloc((x), FILE, LINE)
-#define PL_DS_FREE(x)  pl_free((x))
-
+#define PL_DS_ALLOC(x)                      pl_realloc(NULL, (x), __FILE__, __LINE__)
+#define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) pl_realloc(NULL, (x), FILE, LINE)
+#define PL_DS_FREE(x)                       pl_realloc((x), 0, __FILE__, __LINE__)
 
 // settings
 #define PL_MAX_NAME_LENGTH 1024
@@ -139,8 +127,6 @@ void               pl_unload_core_apis(void);
 
 void              pl_set_memory_context(plMemoryContext* ptMemoryContext);
 plMemoryContext*  pl_get_memory_context(void);
-void*             pl_alloc             (size_t szSize, const char* pcFile, int iLine);
-void              pl_free              (void* pBuffer);
 void*             pl_realloc           (void* pBuffer, size_t szSize, const char* pcFile, int iLine);
 
 //-----------------------------------------------------------------------------
@@ -173,52 +159,9 @@ typedef struct _plExtensionRegistryApiI
     void (*load_from_file)  (plApiRegistryApiI* ptApiRegistry, const char* pcFile);
 } plExtensionRegistryApiI;
 
-typedef struct _plLibraryApiI
-{
-  bool  (*has_changed)  (plSharedLibrary* ptLibrary);
-  bool  (*load)         (plSharedLibrary* ptLibrary, const char* pcName, const char* pcTransitionalName, const char* pcLockFile);
-  void  (*reload)       (plSharedLibrary* ptLibrary);
-  void* (*load_function)(plSharedLibrary* ptLibrary, const char* pcName);
-} plLibraryApiI;
-
-typedef struct _plFileApiI
-{
-  void (*read)(const char* pcFile, unsigned* puSize, char* pcBuffer, const char* pcMode);
-  void (*copy)(const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer);
-} plFileApiI;
-
-typedef struct _plUdpApiI
-{
-  void (*create_socket) (plSocket* ptSocketOut, bool bNonBlocking);
-  void (*bind_socket)   (plSocket* ptSocket, int iPort);
-  bool (*send_data)     (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
-  bool (*get_data)      (plSocket* ptSocket, void* pData, size_t szSize);
-} plUdpApiI;
-
-typedef struct _plOsServicesApiI
-{
-  int (*sleep) (uint32_t millisec);
-} plOsServicesApiI;
-
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
-
-typedef struct _plSocket
-{
-  int   iPort;
-  void* _pPlatformData;
-} plSocket;
-
-typedef struct _plSharedLibrary
-{
-    bool     bValid;
-    uint32_t uTempIndex;
-    char     acPath[PL_MAX_PATH_LENGTH];
-    char     acTransitionalName[PL_MAX_PATH_LENGTH];
-    char     acLockFile[PL_MAX_PATH_LENGTH];
-    void*    _pPlatformData;
-} plSharedLibrary;
 
 typedef struct _plAllocationEntry
 {

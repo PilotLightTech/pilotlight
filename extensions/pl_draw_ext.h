@@ -9,6 +9,7 @@
 /*
 Index of this file:
 // [SECTION] header mess
+// [SECTION] context name
 // [SECTION] apis
 // [SECTION] defines
 // [SECTION] includes
@@ -25,6 +26,12 @@ Index of this file:
 
 #ifndef PL_DRAW_EXT_H
 #define PL_DRAW_EXT_H
+
+//-----------------------------------------------------------------------------
+// [SECTION] context name
+//-----------------------------------------------------------------------------
+
+#define PL_CONTEXT_DRAW_NAME "PL_CONTEXT_DRAW_NAME"
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
@@ -101,7 +108,7 @@ typedef struct _plDrawApiI
     // context
     void           (*set_context)    (plDrawContext* ptCtx);
     plDrawContext* (*get_context)    (void);
-    void           (*cleanup_context)(plDrawContext* ptCtx);  // implemented by backend
+    void           (*cleanup_context)(void);  // implemented by backend
 
     // setup
     void        (*register_drawlist)   (plDrawContext* ptCtx, plDrawList* ptDrawlist);

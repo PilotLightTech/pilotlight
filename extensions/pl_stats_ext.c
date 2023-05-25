@@ -131,7 +131,7 @@ pl__get_counter(char const* pcName)
                 plStatsSourceBlock* ptLastBlock = &gtStatsContext.tInitialBlock;
                 while(ptLastBlock->ptNextBlock)
                     ptLastBlock = ptLastBlock->ptNextBlock;
-                ptLastBlock->ptNextBlock = pl_alloc(sizeof(plStatsSourceBlock), __FILE__, __LINE__);
+                ptLastBlock->ptNextBlock = PL_ALLOC(sizeof(plStatsSourceBlock));
                 memset(ptLastBlock->ptNextBlock, 0, sizeof(plStatsSourceBlock));
                 gtStatsContext.uBlockCount++;
                 pl_sb_push(gtStatsContext.sbtBlocks, ptLastBlock->ptNextBlock);
@@ -212,7 +212,7 @@ pl__get_counter_data(char const* pcName)
                 plStatsSourceBlock* ptLastBlock = &gtStatsContext.tInitialBlock;
                 while(ptLastBlock->ptNextBlock)
                     ptLastBlock = ptLastBlock->ptNextBlock;
-                ptLastBlock->ptNextBlock = pl_alloc(sizeof(plStatsSourceBlock), __FILE__, __LINE__);
+                ptLastBlock->ptNextBlock = PL_ALLOC(sizeof(plStatsSourceBlock));
                 memset(ptLastBlock->ptNextBlock, 0, sizeof(plStatsSourceBlock));
                 gtStatsContext.uBlockCount++;
                 pl_sb_push(gtStatsContext.sbtBlocks, ptLastBlock->ptNextBlock);

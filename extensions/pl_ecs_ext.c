@@ -151,7 +151,7 @@ pl_ecs_init_component_library(plApiRegistryApiI* ptApiRegistry, plComponentLibra
 
     ptLibrary->tObjectComponentManager.tComponentType = PL_COMPONENT_TYPE_OBJECT;
     ptLibrary->tObjectComponentManager.szStride = sizeof(plObjectComponent);
-    ptLibrary->tObjectComponentManager.pSystemData = pl_alloc(sizeof(plObjectSystemData), __FILE__, __LINE__);
+    ptLibrary->tObjectComponentManager.pSystemData = PL_ALLOC(sizeof(plObjectSystemData));
     memset(ptLibrary->tObjectComponentManager.pSystemData, 0, sizeof(plObjectSystemData));
 
     ptLibrary->tMaterialComponentManager.tComponentType = PL_COMPONENT_TYPE_MATERIAL;
@@ -457,7 +457,7 @@ pl_ecs_cleanup_systems(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptL
         pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbuIndices);
     }
     pl_sb_free(ptObjectSystemData->sbtSubmeshes);
-    pl_free(ptObjectSystemData);
+    PL_FREE(ptObjectSystemData);
     ptLibrary->tObjectComponentManager.pSystemData = NULL;
 
     plMeshComponent* ptMeshComponents = ptLibrary->tMeshComponentManager.pComponents;

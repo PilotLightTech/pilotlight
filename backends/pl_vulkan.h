@@ -44,7 +44,7 @@ typedef struct _plVulkanInit
 
 typedef struct _plVulkanDrawApiI
 {
-   void (*initialize_context)   (plDrawContext* ptCtx, const plVulkanInit* ptInit);
+   void (*initialize_context)   (const plVulkanInit* ptInit);
    void (*submit_drawlist)      (plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex);
    void (*submit_drawlist_ex)   (plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount);
    void (*submit_3d_drawlist)   (plDrawList3D* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, const plMat4* ptMVP, pl3DDrawFlags tFlags);

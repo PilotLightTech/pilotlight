@@ -2,10 +2,6 @@
    pl_ui_ext.h
 */
 
-// library version
-#define PL_UI_VERSION    "0.10.0"
-#define PL_UI_VERSION_NUM 001000
-
 /*
 Index of this file:
 // [SECTION] header mess
@@ -75,15 +71,12 @@ plUiApiI* pl_load_ui_api(void);
 typedef struct _plUiApiI
 {
     // context creation & access
-    plUiContext*   (*create_context) (plIOApiI* ptIoI, plDrawApiI* ptDraw);
+    plUiContext*   (*create_context) (void);
     void           (*destroy_context)(plUiContext* ptContext);
     void           (*set_context)    (plUiContext* ptCtx); // must be set when crossing DLL boundary
     plUiContext*   (*get_context)    (void);
-    void           (*set_draw_api)   (plDrawApiI* ptDraw);
-    void           (*set_io_api)     (plIOApiI* ptIoI);
 
     // render data
-    plDrawContext* (*get_draw_context)   (plUiContext* ptContext);
     plDrawList*    (*get_draw_list)      (plUiContext* ptContext);
     plDrawList*    (*get_debug_draw_list)(plUiContext* ptContext);
 

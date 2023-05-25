@@ -520,7 +520,6 @@ typedef struct _plGraphics
     uint32_t                 uLogChannel;
 
     // apis
-    plIOApiI*                ptIoInterface;
     plFileApiI*              ptFileApi;
     plDeviceApiI*            ptDeviceApi;
     plRenderBackendI*        ptBackendApi;

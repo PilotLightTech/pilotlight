@@ -58,8 +58,8 @@ pl_unload_image_ext(plApiRegistryApiI* ptApiRegistry)
 //-----------------------------------------------------------------------------
 
 #define STB_IMAGE_IMPLEMENTATION
-// #define STBI_MALLOC(x) PL_ALLOC(x)
-// #define STBI_FREE(x) PL_FREE(x)
-// #define STBI_REALLOC(x, y) PL_REALLOC(x, y)
+#define STBI_MALLOC(x) PL_ALLOC(x)
+#define STBI_FREE(x) PL_FREE(x)
+#define STBI_REALLOC(x, y) PL_REALLOC(x, y)
 #include "stb_image.h"
 #undef STB_IMAGE_IMPLEMENTATION

@@ -22,14 +22,7 @@ Index of this file:
 #include "pl_json.h"
 #include "pl_ds.h"
 #include "pl_memory.h"
-
-#ifdef _WIN32
-    #include "../backends/pl_win32.c"
-#elif defined(__APPLE__)
-    #include "../backends/pl_macos.m"
-#else
-    #include "../backends/pl_linux.c"
-#endif
+#include "pl_os.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -134,36 +127,9 @@ pl_load_core_apis(void)
         .load_from_file   = pl__load_extensions_from_file
     };
 
-    static plLibraryApiI tApi3 = {
-        .has_changed   = pl__has_library_changed,
-        .load          = pl__load_library,
-        .load_function = pl__load_library_function,
-        .reload        = pl__reload_library
-    };
-
-    static plFileApiI tApi4 = {
-        .copy = pl__copy_file,
-        .read = pl__read_file
-    };
-    
-    static plUdpApiI tApi5 = {
-        .create_socket = pl__create_udp_socket,
-        .bind_socket   = pl__bind_udp_socket,  
-        .get_data      = pl__get_udp_data,
-        .send_data     = pl__send_udp_data
-    };
-
-    static plOsServicesApiI tApi6 = {
-        .sleep     = pl__sleep
-    };
-
     // apis more likely to not be stored, should be first (api registry is not sorted)
     tApiRegistry.add(PL_API_DATA_REGISTRY, &tApi0);
     tApiRegistry.add(PL_API_EXTENSION_REGISTRY, &tApi1);
-    tApiRegistry.add(PL_API_LIBRARY, &tApi3);
-    tApiRegistry.add(PL_API_FILE, &tApi4);
-    tApiRegistry.add(PL_API_UDP, &tApi5);
-    tApiRegistry.add(PL_API_OS_SERVICES, &tApi6);
 
     return &tApiRegistry;
 }
@@ -341,7 +307,7 @@ pl__load_extensions_from_config(plApiRegistryApiI* ptApiRegistry, const char* pc
 
     unsigned int uFileSize = 0;
     ptFileApi->read(pcConfigFile, &uFileSize, NULL, "rb");
-    char* pcBuffer = pl_alloc(uFileSize + 1, __FILE__, __LINE__);
+    char* pcBuffer = PL_ALLOC(uFileSize + 1);
     memset(pcBuffer, 0, uFileSize + 1);
     ptFileApi->read(pcConfigFile, &uFileSize, pcBuffer, "rb");
 
@@ -351,7 +317,7 @@ pl__load_extensions_from_config(plApiRegistryApiI* ptApiRegistry, const char* pc
     if(!pl_json_member_exist(&tRootJsonObject, "extensions"))
     {
         pl_unload_json(&tRootJsonObject);
-        pl_free(pcBuffer);
+        PL_FREE(pcBuffer);
         return;
     }
 
@@ -400,7 +366,7 @@ pl__load_extensions_from_config(plApiRegistryApiI* ptApiRegistry, const char* pc
     }
 
     pl_unload_json(&tRootJsonObject);
-    pl_free(pcBuffer);
+    PL_FREE(pcBuffer);
 }
 
 static void
@@ -410,7 +376,7 @@ pl__load_extensions_from_file(plApiRegistryApiI* ptApiRegistry, const char* pcFi
 
     unsigned int uFileSize = 0;
     ptFileApi->read(pcFile, &uFileSize, NULL, "rb");
-    char* pcBuffer = pl_alloc(uFileSize + 1, __FILE__, __LINE__);
+    char* pcBuffer = PL_ALLOC(uFileSize + 1);
     memset(pcBuffer, 0, uFileSize + 1);
     ptFileApi->read(pcFile, &uFileSize, pcBuffer, "rb");
 
@@ -439,7 +405,7 @@ pl__load_extensions_from_file(plApiRegistryApiI* ptApiRegistry, const char* pcFi
         pl__load_extension(ptApiRegistry, acLibName, tExtension.pcLoadFunc, tExtension.pcUnloadFunc, bReloadable);
 
     pl_unload_json(&tRootJsonObject);
-    pl_free(pcBuffer);
+    PL_FREE(pcBuffer);
 }
 
 static void
@@ -539,9 +505,7 @@ pl__handle_extension_reloads(plApiRegistryApiI* ptApiRegistry)
     }
 }
 
-#define PL_IO_IMPLEMENTATION
-#include "pl_io.h"
-#undef PL_IO_IMPLEMENTATION
+#include "pl_io.c"
 
 #define STB_SPRINTF_IMPLEMENTATION
 #include "stb_sprintf.h"
@@ -555,40 +519,9 @@ pl__handle_extension_reloads(plApiRegistryApiI* ptApiRegistry)
 #include "pl_memory.h"
 #undef PL_MEMORY_IMPLEMENTATION
 
-void*
-pl_alloc(size_t szSize, const char* pcFile, int iLine)
-{
-    void* pBuffer = malloc(szSize);
-    return pBuffer;
-}
-
-void
-pl_free(void* pBuffer)
-{
-    free(pBuffer);
-}
 
 void*
 pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
 {
-    void* pNewBuffer = NULL;
-
-    if(szSize == 0 && pBuffer)  // free
-    { 
-        free(pBuffer);
-        pNewBuffer = NULL;
-    }
-    else if (szSize == 0)  // free
-    { 
-        pNewBuffer = NULL;
-    }
-    else if(pBuffer) // resizing
-    {
-        pNewBuffer = realloc(pBuffer, szSize);
-    }
-    else
-    {
-        pNewBuffer = malloc(szSize);
-    }
-    return pNewBuffer;
+    return realloc(pBuffer, szSize);
 }

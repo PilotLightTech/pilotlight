@@ -17,6 +17,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pilotlight.h"
+#include "pl_os.h"
 #include <string.h> // memset
 #include "pl_vulkan.h"
 #include "pl_ds.h"
@@ -539,7 +540,7 @@ typedef struct _plVulkanDrawContext
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static void pl__initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptInit);
+static void pl__initialize_draw_context_vulkan(const plVulkanInit* ptInit);
 static void pl__submit_drawlist_vulkan        (plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex);
 static void pl__submit_drawlist_vulkan_ex     (plDrawList* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount);
 static void pl__submit_3d_drawlist_vulkan     (plDrawList3D* ptDrawlist, float fWidth, float fHeight, VkCommandBuffer tCmdBuf, uint32_t uFrameIndex, const plMat4* ptMVP, pl3DDrawFlags tFlags);
@@ -578,8 +579,10 @@ pl_load_vulkan_draw_api(void)
 }
 
 static void
-pl__initialize_draw_context_vulkan(plDrawContext* ptCtx, const plVulkanInit* ptInit)
+pl__initialize_draw_context_vulkan(const plVulkanInit* ptInit)
 {
+    plDrawApiI* ptDrawApi = pl_load_draw_api();
+    plDrawContext* ptCtx = ptDrawApi->get_context();
     plVulkanDrawContext* ptVulkanDrawContext = PL_ALLOC(sizeof(plVulkanDrawContext));
     memset(ptVulkanDrawContext, 0, sizeof(plVulkanDrawContext));
     ptVulkanDrawContext->tDevice = ptInit->tLogicalDevice;
@@ -1223,8 +1226,10 @@ pl__submit_3d_drawlist_vulkan_ex(plDrawList3D* ptDrawlist, float fWidth, float f
 }
 
 static void
-pl_cleanup_draw_context(plDrawContext* ptCtx)
+pl_cleanup_draw_context(void)
 {
+    plDrawApiI* ptDrawApi = pl_load_draw_api();
+    plDrawContext* ptCtx = ptDrawApi->get_context();
     plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
 
     vkDestroyShaderModule(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tVtxShdrStgInfo.module, NULL);

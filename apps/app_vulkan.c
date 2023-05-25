@@ -23,6 +23,7 @@ Index of this file:
 #include "pl_log.h"
 #include "pl_ds.h"
 #include "pl_io.h"
+#include "pl_os.h"
 #include "pl_memory.h"
 
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -51,7 +52,6 @@ typedef struct _plAppData
 
     // vulkan
     plRenderBackend tBackend;
-
     plGraphics   tGraphics;
     plDrawList   drawlist;
     plDrawList   drawlist2;
@@ -69,7 +69,6 @@ typedef struct _plAppData
     plTempAllocator tTempAllocator;
 
     // apis
-    plIOApiI*         ptIoI;
     plLibraryApiI*    ptLibraryApi;
     plFileApiI*       ptFileApi;
     plRendererI*      ptRendererApi;
@@ -125,24 +124,23 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     plAppData* ptAppData = pAppData;
     plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data("memory"));
+    pl_set_io_context(ptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
 
     if(ptAppData) // reload
     {
         pl_set_log_context(ptDataRegistry->get_data("log"));
         pl_set_profile_context(ptDataRegistry->get_data("profile"));
-    
+
+        
         ptAppData->ptRendererApi   = ptApiRegistry->first(PL_API_RENDERER);
         ptAppData->ptGfx           = ptApiRegistry->first(PL_API_GRAPHICS);
         ptAppData->ptDrawApi       = ptApiRegistry->first(PL_API_DRAW);
         ptAppData->ptVulkanDrawApi = ptApiRegistry->first(PL_API_VULKAN_DRAW);
         ptAppData->ptUi            = ptApiRegistry->first(PL_API_UI);
-        ptAppData->ptIoI           = ptApiRegistry->first(PL_API_IO);
         ptAppData->ptDeviceApi     = ptApiRegistry->first(PL_API_DEVICE);
         ptAppData->ptEcs           = ptApiRegistry->first(PL_API_ECS);
         ptAppData->ptCameraApi     = ptApiRegistry->first(PL_API_CAMERA);
         ptAppData->ptDebugApi      = ptApiRegistry->first(PL_API_DEBUG);
-
-        ptAppData->ptUi->set_draw_api(ptAppData->ptDrawApi);
         return ptAppData;
     }
 
@@ -162,7 +160,6 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     ptExtensionRegistry->load_from_config(ptApiRegistry, "../apps/pl_config.json");
 
     // load apis 
-    plIOApiI*            ptIoI           = ptApiRegistry->first(PL_API_IO);
     plLibraryApiI*       ptLibraryApi    = ptApiRegistry->first(PL_API_LIBRARY);
     plFileApiI*          ptFileApi       = ptApiRegistry->first(PL_API_FILE);
     plDeviceApiI*        ptDeviceApi     = ptApiRegistry->first(PL_API_DEVICE);
@@ -186,7 +183,6 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     ptAppData->ptVulkanDrawApi = ptVulkanDrawApi;
     ptAppData->ptUi = ptUi;
     ptAppData->ptDeviceApi = ptDeviceApi;
-    ptAppData->ptIoI = ptIoI;
     ptAppData->ptEcs = ptEcs;
     ptAppData->ptCameraApi = ptCameraApi;
     ptAppData->ptStatsApi = ptStatsApi;
@@ -201,13 +197,12 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     plComponentLibrary* ptComponentLibrary = &ptAppData->tComponentLibrary;
     
     // contexts
-    plIOContext*      ptIoCtx      = ptIoI->get_context();
-    plUiContext*      ptUiContext  = ptUi->create_context(ptIoI, ptDrawApi);
-    plDrawContext*    ptDrawCtx    = ptUi->get_draw_context(NULL);
+    plIOContext*      ptIoCtx      = pl_get_io_context();
+    plUiContext*      ptUiContext  = ptUi->create_context();
 
     // add some context to data registry
     ptDataRegistry->set_data("ui", ptUiContext);
-    ptDataRegistry->set_data("draw", ptDrawCtx);
+    ptDataRegistry->set_data(PL_CONTEXT_DRAW_NAME, ptDrawApi->get_context());
     ptDataRegistry->set_data("device", ptDevice);
 
     // setup sbackend
@@ -237,7 +232,8 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
         .tMSAASampleCount = ptGraphics->tSwapchain.tMsaaSamples,
         .uFramesInFlight  = ptGraphics->uFramesInFlight
     };
-    ptVulkanDrawApi->initialize_context(ptDrawCtx, &tVulkanInit);
+    ptVulkanDrawApi->initialize_context(&tVulkanInit);
+    plDrawContext* ptDrawCtx = ptDrawApi->get_context();
     ptDrawApi->register_drawlist(ptDrawCtx, &ptAppData->drawlist);
     ptDrawApi->register_drawlist(ptDrawCtx, &ptAppData->drawlist2);
     ptDrawApi->register_3d_drawlist(ptDrawCtx, &ptAppData->drawlist3d);
@@ -288,7 +284,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
     {
         plTextureView* ptColorTextureView = &ptDevice->sbtTextureViews[ptAppData->tOffscreenTarget.sbuColorTextureViews[i]];
-        pl_sb_push(ptAppData->sbtTextures, ptVulkanDrawApi->add_texture(ptUi->get_draw_context(NULL), ptColorTextureView->_tImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+        pl_sb_push(ptAppData->sbtTextures, ptVulkanDrawApi->add_texture(ptDrawCtx, ptColorTextureView->_tImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
     }
 
     ptRendererApi->create_main_render_target(ptGraphics, &ptAppData->tMainTarget);
@@ -319,7 +315,9 @@ pl_app_shutdown(void* pAppData)
     plRenderBackendI*       ptBackendApi = ptAppData->ptApiRegistry->first(PL_API_BACKEND_VULKAN);
     plEcsI*                 ptEcs = ptAppData->ptEcs;
     ptDrawApi->cleanup_font_atlas(&ptAppData->fontAtlas);
+    ptDrawApi->cleanup_context();
     ptUiApi->destroy_context(NULL);
+    
     ptRendererApi->cleanup_render_target(&ptAppData->tGraphics, &ptAppData->tOffscreenTarget);
     ptRendererApi->cleanup_render_target(&ptAppData->tGraphics, &ptAppData->tRenderer.tPickTarget);
     ptRendererApi->cleanup_scene(&ptAppData->tScene);
@@ -345,7 +343,6 @@ pl_app_resize(void* pAppData)
     plAppData* ptAppData = pAppData;
 
     // load apis 
-    plIOApiI*         ptIoI           = ptAppData->ptIoI;
     plDeviceApiI*     ptDeviceApi     = ptAppData->ptDeviceApi;
     plRendererI*      ptRendererApi      = ptAppData->ptRendererApi;
     plGraphicsApiI*   ptGfx           = ptAppData->ptGfx;
@@ -364,10 +361,10 @@ pl_app_resize(void* pAppData)
     plComponentLibrary* ptComponentLibrary = &ptAppData->tComponentLibrary;
 
     // contexts
-    plIOContext*      ptIoCtx      = ptAppData->ptIoI->get_context();
+    plIOContext*      ptIoCtx      = pl_get_io_context();
     plProfileContext* ptProfileCtx = pl_get_profile_context();
     plLogContext*     ptLogCtx     = pl_get_log_context();
-    plDrawContext*    ptDrawCtx    = ptAppData->ptUi->get_draw_context(NULL);
+    plDrawContext*    ptDrawCtx    = ptDrawApi->get_context();
 
     ptGfx->resize(ptGraphics);
     ptRendererApi->resize(ptRenderer, ptIoCtx->afMainViewportSize[0], ptIoCtx->afMainViewportSize[1]);
@@ -387,8 +384,7 @@ pl_app_update(plAppData* ptAppData)
     pl_begin_profile_frame();
     pl_begin_profile_sample(__FUNCTION__);
 
-    // load apis 
-    plIOApiI*            ptIoI           = ptAppData->ptIoI;
+    // load apis
     plDeviceApiI*        ptDeviceApi     = ptAppData->ptDeviceApi;
     plRendererI*         ptRendererApi   = ptAppData->ptRendererApi;
     plGraphicsApiI*      ptGfx           = ptAppData->ptGfx;
@@ -406,10 +402,10 @@ pl_app_update(plAppData* ptAppData)
     plScene*            ptScene            = &ptAppData->tScene;
 
     // contexts
-    plIOContext*      ptIoCtx      = ptAppData->ptIoI->get_context();
+    plIOContext*      ptIoCtx      = pl_get_io_context();
     plProfileContext* ptProfileCtx = pl_get_profile_context();
     plLogContext*     ptLogCtx     = pl_get_log_context();
-    plDrawContext*    ptDrawCtx    = ptAppData->ptUi->get_draw_context(NULL);
+    plDrawContext*    ptDrawCtx    = ptDrawApi->get_context();
 
     ptAppData->ptStatsApi->new_frame();
 
@@ -417,7 +413,7 @@ pl_app_update(plAppData* ptAppData)
         static double* pdFrameTimeCounter = NULL;
         if(!pdFrameTimeCounter)
             pdFrameTimeCounter = ptAppData->ptStatsApi->get_counter("frame rate");
-        *pdFrameTimeCounter = (double)ptAppData->ptIoI->get_context()->fFrameRate;
+        *pdFrameTimeCounter = (double)ptIoCtx->fFrameRate;
     }
 
     if(ptAppData->bVSyncChanged)
@@ -426,10 +422,6 @@ pl_app_update(plAppData* ptAppData)
         ptRendererApi->create_main_render_target(&ptAppData->tGraphics, &ptAppData->tMainTarget);
         ptAppData->bVSyncChanged = false;
     }
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~frame setup~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    plIOApiI* pTIoI = ptAppData->ptIoI;
-    plIOContext* ptIOCtx = pTIoI->get_context();
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~input handling~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     static const float fCameraTravelSpeed = 8.0f;
@@ -437,14 +429,14 @@ pl_app_update(plAppData* ptAppData)
     plCameraComponent* ptOffscreenCamera = ptEcs->get_component(&ptAppData->tComponentLibrary.tCameraComponentManager, ptAppData->tOffscreenCameraEntity);
 
     // camera space
-    if(pTIoI->is_key_pressed(PL_KEY_W, true)) ptCameraApi->translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIOCtx->fDeltaTime);
-    if(pTIoI->is_key_pressed(PL_KEY_S, true)) ptCameraApi->translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIOCtx->fDeltaTime);
-    if(pTIoI->is_key_pressed(PL_KEY_A, true)) ptCameraApi->translate(ptCamera, -fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f,  0.0f);
-    if(pTIoI->is_key_pressed(PL_KEY_D, true)) ptCameraApi->translate(ptCamera,  fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f,  0.0f);
+    if(pl_is_key_pressed(PL_KEY_W, true)) ptCameraApi->translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIoCtx->fDeltaTime);
+    if(pl_is_key_pressed(PL_KEY_S, true)) ptCameraApi->translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIoCtx->fDeltaTime);
+    if(pl_is_key_pressed(PL_KEY_A, true)) ptCameraApi->translate(ptCamera, -fCameraTravelSpeed * ptIoCtx->fDeltaTime,  0.0f,  0.0f);
+    if(pl_is_key_pressed(PL_KEY_D, true)) ptCameraApi->translate(ptCamera,  fCameraTravelSpeed * ptIoCtx->fDeltaTime,  0.0f,  0.0f);
 
     // world space
-    if(pTIoI->is_key_pressed(PL_KEY_F, true)) ptCameraApi->translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f);
-    if(pTIoI->is_key_pressed(PL_KEY_R, true)) ptCameraApi->translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIOCtx->fDeltaTime,  0.0f);
+    if(pl_is_key_pressed(PL_KEY_F, true)) ptCameraApi->translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIoCtx->fDeltaTime,  0.0f);
+    if(pl_is_key_pressed(PL_KEY_R, true)) ptCameraApi->translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIoCtx->fDeltaTime,  0.0f);
 
     plFrameContext* ptCurrentFrame = ptGfx->get_frame_resources(ptGraphics);
     
@@ -461,11 +453,11 @@ pl_app_update(plAppData* ptAppData)
         pl_end_profile_sample();
         ptUi->new_frame();
 
-        if(!ptUi->is_mouse_owned() && pTIoI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+        if(!ptUi->is_mouse_owned() && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
         {
-            const plVec2 tMouseDelta = pTIoI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
-            ptCameraApi->rotate(ptCamera,  -tMouseDelta.y * 0.1f * ptIOCtx->fDeltaTime,  -tMouseDelta.x * 0.1f * ptIOCtx->fDeltaTime);
-            pTIoI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+            const plVec2 tMouseDelta = pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
+            ptCameraApi->rotate(ptCamera,  -tMouseDelta.y * 0.1f * ptIoCtx->fDeltaTime,  -tMouseDelta.x * 0.1f * ptIoCtx->fDeltaTime);
+            pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
         }
         ptCameraApi->update(ptCamera);
         ptCameraApi->update(ptOffscreenCamera);
@@ -481,7 +473,7 @@ pl_app_update(plAppData* ptAppData)
         ptDrawApi->add_3d_bezier_quad(&ptAppData->drawlist3d, (plVec3){0.0f,0.0f,0.0f}, (plVec3){5.0f,5.0f,5.0f}, (plVec3){3.0f,4.0f,3.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f, 20);
         ptDrawApi->add_3d_bezier_cubic(&ptAppData->drawlist3d, (plVec3){0.0f,0.0f,0.0f}, (plVec3){-0.5f,1.0f,-0.5f}, (plVec3){5.0f,3.5f,5.0f}, (plVec3){3.0f,4.0f,3.0f}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f, 20);
 
-        if(pTIoI->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false))
+        if(pl_is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false))
             pl__select_entity(ptAppData);
 
         // ui
@@ -556,19 +548,19 @@ pl_app_update(plAppData* ptAppData)
 
         // submit 3D draw list
         const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-        ptVulkanDrawApi->submit_3d_drawlist(&ptAppData->drawlist3d, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptGraphics->szCurrentFrameIndex, &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST);
+        ptVulkanDrawApi->submit_3d_drawlist(&ptAppData->drawlist3d, (float)ptIoCtx->afMainViewportSize[0], (float)ptIoCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptGraphics->szCurrentFrameIndex, &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST);
 
-        ptUi->get_draw_context(NULL)->tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
-        ptUi->get_draw_context(NULL)->tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
+        ptDrawCtx->tFrameBufferScale.x = ptIoCtx->afMainFramebufferScale[0];
+        ptDrawCtx->tFrameBufferScale.y = ptIoCtx->afMainFramebufferScale[1];
 
         // submit draw lists
-        ptVulkanDrawApi->submit_drawlist(&ptAppData->drawlist, (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptGraphics->szCurrentFrameIndex);
+        ptVulkanDrawApi->submit_drawlist(&ptAppData->drawlist, (float)ptIoCtx->afMainViewportSize[0], (float)ptIoCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptGraphics->szCurrentFrameIndex);
 
         // submit ui drawlist
         ptUi->render();
 
-        ptVulkanDrawApi->submit_drawlist(ptUi->get_draw_list(NULL), (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptGraphics->szCurrentFrameIndex);
-        ptVulkanDrawApi->submit_drawlist(ptUi->get_debug_draw_list(NULL), (float)ptIOCtx->afMainViewportSize[0], (float)ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptGraphics->szCurrentFrameIndex);
+        ptVulkanDrawApi->submit_drawlist(ptUi->get_draw_list(NULL), (float)ptIoCtx->afMainViewportSize[0], (float)ptIoCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptGraphics->szCurrentFrameIndex);
+        ptVulkanDrawApi->submit_drawlist(ptUi->get_debug_draw_list(NULL), (float)ptIoCtx->afMainViewportSize[0], (float)ptIoCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptGraphics->szCurrentFrameIndex);
         ptRendererApi->end_render_target(ptGfx, ptGraphics);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~pick target~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -697,22 +689,21 @@ pl__select_entity(plAppData* ptAppData)
     plEcsI* ptEcs = ptAppData->ptEcs;
     plDeviceApiI* ptDeviceApi = ptAppData->ptDeviceApi;
     plDevice* ptDevice = &ptAppData->tGraphics.tDevice;
-    plIOContext* ptIOCtx = ptAppData->ptIoI->get_context();
-    plIOApiI* ptIoI = ptAppData->ptIoI;
+    plIOContext* ptIoCtx = pl_get_io_context();
     plGraphics* ptGraphics = &ptAppData->tGraphics;
     plRenderer* ptRenderer = &ptAppData->tRenderer;
     plComponentLibrary* ptComponentLibrary = &ptAppData->tComponentLibrary;
 
-    uint32_t uReadBackBuffer = ptDeviceApi->create_read_back_buffer(ptDevice, (size_t)(ptIOCtx->afMainViewportSize[0] * ptIOCtx->afMainViewportSize[1]) * 4, "pick readback");
+    uint32_t uReadBackBuffer = ptDeviceApi->create_read_back_buffer(ptDevice, (size_t)(ptIoCtx->afMainViewportSize[0] * ptIoCtx->afMainViewportSize[1]) * 4, "pick readback");
     ptDeviceApi->transfer_image_to_buffer(ptDevice, ptDevice->sbtBuffers[uReadBackBuffer].tBuffer, 
-        (size_t)(ptIOCtx->afMainViewportSize[0] * ptIOCtx->afMainViewportSize[1]) * 4, 
+        (size_t)(ptIoCtx->afMainViewportSize[0] * ptIoCtx->afMainViewportSize[1]) * 4, 
         &ptDevice->sbtTextures[ptDevice->sbtTextureViews[ptRenderer->tPickTarget.sbuColorTextureViews[ptGraphics->tSwapchain.uCurrentImageIndex]].uTextureHandle]);
 
     unsigned char* mapping = (unsigned char*)ptDevice->sbtBuffers[uReadBackBuffer].tAllocation.pHostMapped;
 
-    const plVec2 tMousePos = ptIoI->get_mouse_pos();
+    const plVec2 tMousePos = pl_get_mouse_pos();
     
-    uint32_t uRowWidth = (uint32_t)ptIOCtx->afMainViewportSize[0] * 4;
+    uint32_t uRowWidth = (uint32_t)ptIoCtx->afMainViewportSize[0] * 4;
     uint32_t uPos = uRowWidth * (uint32_t)tMousePos.y + (uint32_t)tMousePos.x * 4;
 
     static uint32_t uPickedID = 0;

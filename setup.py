@@ -8,7 +8,6 @@ defines = [
     "PL_MEMORY_IMPLEMENTATION",
     "PL_PROFILE_IMPLEMENTATION",
     "PL_LOG_ON",
-    "PL_IO_IMPLEMENTATION",
     "PL_MEMORY_IMPLEMENTATION",
     "PL_STL_IMPLEMENTATION",
     "PL_STRING_IMPLEMENTATION",
@@ -23,6 +22,7 @@ includes = [
     "${workspaceFolder}/src",
     "${workspaceFolder}/backends",
     "${workspaceFolder}/libs",
+    "${workspaceFolder}/ui",
     "${workspaceFolder}/extensions",
     "${workspaceFolder}/dependencies/stb",
     "${env:VK_SDK_PATH}/Include"

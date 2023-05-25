@@ -57,7 +57,7 @@ with pl.project("pilotlight"):
     pl.push_profile(pl.Profile.PILOT_LIGHT_DEBUG_C)
 
     pl.push_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS")
-    pl.push_include_directories("../apps", "../src", "../libs", "../extensions", "../backends", "../out", "../dependencies/stb")
+    pl.push_include_directories("../apps", "../src", "../libs", "../ui", "../extensions", "../backends", "../out", "../dependencies/stb")
     pl.push_link_directories("../out")
     pl.push_output_directory("../out")
         
@@ -100,7 +100,6 @@ with pl.project("pilotlight"):
     pl.push_profile(pl.Profile.VULKAN)
     pl.push_definitions("PL_VULKAN_BACKEND")
     add_plugin_to_vulkan_app("pl_draw_ext", True)
-    add_plugin_to_vulkan_app("pl_ui_ext", True)
     add_plugin_to_vulkan_app("pl_image_ext", False)
     add_plugin_to_vulkan_app("pl_renderer_ext", False)
     add_plugin_to_vulkan_app("pl_ecs_ext", False)
@@ -113,11 +112,44 @@ with pl.project("pilotlight"):
 
     pl.push_definitions("PL_METAL_BACKEND")
     add_plugin_to_metal_app("pl_draw_ext", True)
-    add_plugin_to_metal_app("pl_ui_ext", True)
     add_plugin_to_metal_app("pl_image_ext", False)
     add_plugin_to_metal_app("pl_stats_ext", False)
     pl.pop_definitions()
 
+    pl.pop_target_links()
+
+    ###############################################################################
+    #                                ui extension                                 #
+    ###############################################################################
+    pl.push_target_links("pilotlight_lib")
+    with pl.target("pl_ui_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
+        pl.push_output_binary("pl_ui_ext")
+        pl.push_source_files("../ui/pl_ui_ext.c")
+
+        pl.push_profile(pl.Profile.VULKAN)
+        pl.push_definitions("PL_VULKAN_BACKEND")
+        with pl.configuration("debug"):
+            with pl.platform(pl.PlatformType.WIN32):
+                with pl.compiler("msvc", pl.CompilerType.MSVC):
+                    pass
+            with pl.platform(pl.PlatformType.LINUX):
+                with pl.compiler("gcc", pl.CompilerType.GCC):
+                    pass
+            with pl.platform(pl.PlatformType.MACOS):
+                with pl.compiler("clang", pl.CompilerType.CLANG):
+                    pass
+        pl.pop_profile()
+        pl.pop_definitions()
+
+        pl.push_definitions("PL_METAL_BACKEND")
+        with pl.configuration("debugmetal"):
+            with pl.platform(pl.PlatformType.MACOS):
+                with pl.compiler("clang", pl.CompilerType.CLANG):
+                    pass
+        pl.pop_definitions()
+
+        pl.pop_output_binary()
+        pl.pop_source_files()
     pl.pop_target_links()
 
     ###############################################################################

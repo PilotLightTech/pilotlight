@@ -25,6 +25,7 @@ Index of this file:
 #include "pl_string.h"
 #include "pl_ds.h"
 #include "pl_io.h"
+#include "pl_os.h"
 #include "pl_memory.h"
 #include "pl_profile.h"
 #include "pl_log.h"
@@ -1089,7 +1090,6 @@ pl_setup_graphics(plGraphics* ptGraphics, plRenderBackend* ptBackend, plApiRegis
         ptGraphics->uFramesInFlight = 2;
     
     // retrieve required apis
-    ptGraphics->ptIoInterface = ptApiRegistry->first(PL_API_IO);
     ptGraphics->ptFileApi = ptApiRegistry->first(PL_API_FILE);
     ptGraphics->ptDeviceApi = ptApiRegistry->first(PL_API_DEVICE);
     ptGraphics->_ptDescriptorApi = ptApiRegistry->first(PL_API_DESCRIPTOR_MANAGER);
@@ -1097,7 +1097,7 @@ pl_setup_graphics(plGraphics* ptGraphics, plRenderBackend* ptBackend, plApiRegis
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create surface~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();
+    plIOContext* ptIOCtx = pl_get_io_context();
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~devices~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1255,7 +1255,7 @@ static bool
 pl_begin_frame(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();
+    plIOContext* ptIOCtx = pl_get_io_context();
     plDevice* ptDevice = &ptGraphics->tDevice;
     VkDevice tLogicalDevice = ptGraphics->tDevice.tLogicalDevice;
 
@@ -1278,8 +1278,8 @@ pl_begin_frame(plGraphics* ptGraphics)
 
         if(ptGraphics->_sbulShaderHashes[uShaderIndex] == 0)
         {
-            pl_free((uint32_t*)ptShader->tPixelShaderInfo.pCode);
-            pl_free((uint32_t*)ptShader->tVertexShaderInfo.pCode);
+            PL_FREE((uint32_t*)ptShader->tPixelShaderInfo.pCode);
+            PL_FREE((uint32_t*)ptShader->tVertexShaderInfo.pCode);
             vkDestroyPipelineLayout(tLogicalDevice, ptShader->tPipelineLayout, NULL);
 
             for(uint32_t uVariantIndex = 0; uVariantIndex < pl_sb_size(ptShader->_sbuVariantPipelines); uVariantIndex++)
@@ -1367,7 +1367,7 @@ pl_end_frame(plGraphics* ptGraphics)
     const VkResult tResult = vkQueuePresentKHR(ptDevice->tPresentQueue, &tPresentInfo);
     if(tResult == VK_SUBOPTIMAL_KHR || tResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();
+        plIOContext* ptIOCtx = pl_get_io_context();
         ptGraphics->ptBackendApi->create_swapchain(ptGraphics->ptBackend, &ptGraphics->tDevice, ptGraphics->ptBackend->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
         pl__create_framebuffers(ptDevice, ptGraphics->uRenderPass, &ptGraphics->tSwapchain);
     }
@@ -1383,7 +1383,7 @@ pl_end_frame(plGraphics* ptGraphics)
 static void
 pl_resize_graphics(plGraphics* ptGraphics)
 {
-    plIOContext* ptIOCtx = ptGraphics->ptIoInterface->get_context();
+    plIOContext* ptIOCtx = pl_get_io_context();
     plDevice* ptDevice = &ptGraphics->tDevice;
     ptGraphics->ptBackendApi->create_swapchain(ptGraphics->ptBackend, &ptGraphics->tDevice, ptGraphics->ptBackend->tSurface, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptGraphics->tSwapchain);
     pl__create_framebuffers(ptDevice, ptGraphics->uRenderPass, &ptGraphics->tSwapchain);
@@ -1468,7 +1468,7 @@ pl_create_shader(plGraphics* ptGraphics, const plShaderDesc* ptDescIn)
 
     uint32_t uVertexByteCodeSize = 0;
     ptGraphics->ptFileApi->read(tShader.tDesc.pcVertexShader, &uVertexByteCodeSize, NULL, "rb");
-    char* pcVertexByteCode = pl_alloc(uVertexByteCodeSize, __FUNCTION__, __LINE__);
+    char* pcVertexByteCode = PL_ALLOC(uVertexByteCodeSize);
     ptGraphics->ptFileApi->read(tShader.tDesc.pcVertexShader, &uVertexByteCodeSize, pcVertexByteCode, "rb");
 
     tShader.tVertexShaderInfo = (VkShaderModuleCreateInfo){
@@ -1483,7 +1483,7 @@ pl_create_shader(plGraphics* ptGraphics, const plShaderDesc* ptDescIn)
 
     uint32_t uByteCodeSize = 0;
     ptGraphics->ptFileApi->read(tShader.tDesc.pcPixelShader, &uByteCodeSize, NULL, "rb");
-    char* pcByteCode = pl_alloc(uByteCodeSize, __FUNCTION__, __LINE__);
+    char* pcByteCode = PL_ALLOC(uByteCodeSize);
     ptGraphics->ptFileApi->read(tShader.tDesc.pcPixelShader, &uByteCodeSize, pcByteCode, "rb");
 
     tShader.tPixelShaderInfo = (VkShaderModuleCreateInfo){
@@ -1886,8 +1886,8 @@ pl_cleanup_graphics(plGraphics* ptGraphics)
         if(ptGraphics->_sbulShaderHashes[uShaderIndex] == 0)
         {
 
-            pl_free((uint32_t*)ptShader->tPixelShaderInfo.pCode);
-            pl_free((uint32_t*)ptShader->tVertexShaderInfo.pCode);
+            PL_FREE((uint32_t*)ptShader->tPixelShaderInfo.pCode);
+            PL_FREE((uint32_t*)ptShader->tVertexShaderInfo.pCode);
             vkDestroyPipelineLayout(ptGraphics->tDevice.tLogicalDevice, ptShader->tPipelineLayout, NULL);
 
             for(uint32_t uVariantIndex = 0; uVariantIndex < pl_sb_size(ptShader->_sbuVariantPipelines); uVariantIndex++)
@@ -4216,6 +4216,8 @@ pl__pilotlight_format(VkFormat tFormat)
         case VK_FORMAT_D32_SFLOAT_S8_UINT: return PL_FORMAT_D32_FLOAT_S8_UINT;
         case VK_FORMAT_D24_UNORM_S8_UINT:  return PL_FORMAT_D24_UNORM_S8_UINT;
         case VK_FORMAT_D16_UNORM_S8_UINT:  return PL_FORMAT_D16_UNORM_S8_UINT;
+        default:
+            break;
     }
 
     PL_ASSERT(false && "Unsupported format");
@@ -4652,6 +4654,7 @@ pl_load_vulkan_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
     pl_set_memory_context(ptDataRegistry->get_data("memory"));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));
+    pl_set_io_context(ptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
     
     if(bReload)
     {
