@@ -619,6 +619,8 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
         characters = [aString string];
     else
         characters = (NSString*)aString;
+
+    pl_add_text_events_utf8(characters.UTF8String);
 }
 
 - (BOOL)acceptsFirstResponder
