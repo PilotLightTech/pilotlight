@@ -402,6 +402,21 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             break;
         }
 
+        case WM_CHAR:
+            if (IsWindowUnicode(tHwnd))
+            {
+                // You can also use ToAscii()+GetKeyboardState() to retrieve characters.
+                if (tWParam > 0 && tWParam < 0x10000)
+                    pl_add_text_event_utf16((uint16_t)tWParam);
+            }
+            else
+            {
+                wchar_t wch = 0;
+                MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, (char*)&tWParam, 1, &wch, 1);
+                pl_add_text_event(wch);
+            }
+            break;
+
         case WM_SETCURSOR:
             // required to restore cursor when transitioning from e.g resize borders to client area.
             if (LOWORD(tLParam) == HTCLIENT)
