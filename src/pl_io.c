@@ -18,6 +18,8 @@ Index of this file:
 
 #include "pilotlight.h"
 #include "pl_io.h"
+#include "pl_ds.h"
+#include "pl_string.h"
 #include <math.h>   // floorf
 #include <string.h> // memset
 #include <float.h>  // FLT_MAX
@@ -33,6 +35,7 @@ typedef enum
     PL_INPUT_EVENT_TYPE_MOUSE_WHEEL,
     PL_INPUT_EVENT_TYPE_MOUSE_BUTTON,
     PL_INPUT_EVENT_TYPE_KEY,
+    PL_INPUT_EVENT_TYPE_TEXT,
     
     PL_INPUT_EVENT_TYPE_COUNT
 } _plInputEventType;
@@ -131,9 +134,9 @@ pl_new_io_frame(void)
 void
 pl_end_io_frame(void)
 {
-    plIOContext* ptIO = gptIOContext;
-    ptIO->_fMouseWheel = 0.0f;
-    ptIO->_fMouseWheelH = 0.0f;
+    gptIOContext->_fMouseWheel = 0.0f;
+    gptIOContext->_fMouseWheelH = 0.0f;
+    pl_sb_reset(gptIOContext->_sbInputQueueCharacters);
 }
 
 plKeyData*
@@ -156,6 +159,57 @@ pl_add_key_event(plKey tKey, bool bDown)
     ptEvent->tSource  = PL_INPUT_EVENT_SOURCE_KEYBOARD;
     ptEvent->tKey     = tKey;
     ptEvent->bKeyDown = bDown;
+}
+
+void
+pl_add_text_event(uint32_t uChar)
+{
+    plInputEvent* ptEvent = pl__get_event();
+    ptEvent->tType    = PL_INPUT_EVENT_TYPE_TEXT;
+    ptEvent->tSource  = PL_INPUT_EVENT_SOURCE_KEYBOARD;
+    ptEvent->uChar    = uChar;
+}
+
+void
+pl_add_text_event_utf16(uint16_t uChar)
+{
+    if (uChar == 0 && gptIOContext->_tInputQueueSurrogate == 0)
+        return;
+
+    if ((uChar & 0xFC00) == 0xD800) // High surrogate, must save
+    {
+        if (gptIOContext->_tInputQueueSurrogate != 0)
+            pl_add_text_event(0xFFFD);
+        gptIOContext->_tInputQueueSurrogate = uChar;
+        return;
+    }
+
+    plWChar cp = uChar;
+    if (gptIOContext->_tInputQueueSurrogate != 0)
+    {
+        if ((uChar & 0xFC00) != 0xDC00) // Invalid low surrogate
+        {
+            pl_add_text_event(0xFFFD);
+        }
+        else
+        {
+            cp = 0xFFFD; // Codepoint will not fit in ImWchar
+        }
+
+        gptIOContext->_tInputQueueSurrogate = 0;
+    }
+    pl_add_text_event((uint32_t)cp);
+}
+
+void
+pl_add_text_events_utf8(const char* pcText)
+{
+    while(*pcText != 0)
+    {
+        uint32_t uChar = 0;
+        pcText += pl_text_char_from_utf8(&uChar, pcText, NULL);
+        pl_add_text_event(uChar);
+    }
 }
 
 void
@@ -198,6 +252,12 @@ pl_add_mouse_wheel_event(float fX, float fY)
     ptEvent->tSource = PL_INPUT_EVENT_SOURCE_MOUSE;
     ptEvent->fWheelX = fX;
     ptEvent->fWheelY = fY;
+}
+
+void
+pl_clear_input_characters(void)
+{
+    pl_sb_reset(gptIOContext->_sbInputQueueCharacters);
 }
 
 bool
@@ -395,6 +455,13 @@ pl__update_events(void)
                 PL_ASSERT(tKey != PL_KEY_NONE);
                 plKeyData* ptKeyData = pl_get_key_data(tKey);
                 ptKeyData->bDown = ptEvent->bKeyDown;
+                break;
+            }
+
+            case PL_INPUT_EVENT_TYPE_TEXT:
+            {
+                plWChar uChar = (plWChar)ptEvent->uChar;
+                pl_sb_push(gptIOContext->_sbInputQueueCharacters, uChar);
                 break;
             }
 

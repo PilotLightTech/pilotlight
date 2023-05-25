@@ -45,6 +45,9 @@ typedef struct _plInputEvent plInputEvent;
 typedef struct _plKeyData    plKeyData;
 typedef union  _plVec2       plVec2;
 
+// character types
+typedef uint16_t plWChar;
+
 // enums
 typedef int plKey;
 typedef int plMouseButton;
@@ -85,9 +88,14 @@ void         pl_set_mouse_cursor       (plCursor tCursor);
 // input functions
 plKeyData*   pl_get_key_data          (plKey tKey);
 void         pl_add_key_event         (plKey tKey, bool bDown);
+void         pl_add_text_event        (uint32_t uChar);
+void         pl_add_text_event_utf16  (uint16_t uChar);
+void         pl_add_text_events_utf8  (const char* pcText);
 void         pl_add_mouse_pos_event   (float fX, float fY);
 void         pl_add_mouse_button_event(int iButton, bool bDown);
 void         pl_add_mouse_wheel_event (float fX, float fY);
+
+void         pl_clear_input_characters(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -225,6 +233,11 @@ typedef struct _plInputEvent
             plKey tKey;
             bool  bKeyDown;
         };
+
+        struct // text event
+        {
+            uint32_t uChar;
+        };
         
     };
 
@@ -259,6 +272,8 @@ typedef struct _plIOContext
     uint32_t      _uInputEventSize;
     uint32_t      _uInputEventCapacity;
     uint32_t      _uInputEventOverflowCapacity;
+    plWChar*      _sbInputQueueCharacters;
+    plWChar       _tInputQueueSurrogate; 
 
     // main input state
     plVec2 _tMousePos;
