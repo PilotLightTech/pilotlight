@@ -2,6 +2,10 @@
    pl_ui_ext.h
 */
 
+// library version
+#define PL_UI_VERSION    "0.10.0"
+#define PL_UI_VERSION_NUM 001000
+
 /*
 Index of this file:
 // [SECTION] header mess
