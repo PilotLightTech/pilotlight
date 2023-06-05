@@ -643,8 +643,7 @@ pl_resize_renderer(plRenderer* ptRenderer, float fWidth, float fHeight)
     plDevice* ptDevice = &ptGraphics->tDevice;
     plDeviceApiI* ptDeviceApi = ptRenderer->ptDeviceApi;
 
-    pl_cleanup_render_target(ptGraphics, &ptRenderer->tPickTarget);
-    pl_sb_reset(ptRenderer->tPickTarget.sbuFrameBuffers);
+
     
     for(uint32_t i = 0; i < pl_sb_size(ptRenderer->tPickTarget.sbuColorTextureViews); i++)
     {
@@ -653,7 +652,10 @@ pl_resize_renderer(plRenderer* ptRenderer, float fWidth, float fHeight)
         ptDeviceApi->submit_texture_for_deletion(ptDevice, uTexture);
         ptDeviceApi->submit_texture_view_for_deletion(ptDevice, uTextureView);
     }
+    
+    pl_cleanup_render_target(ptGraphics, &ptRenderer->tPickTarget);
     pl_sb_reset(ptRenderer->tPickTarget.sbuColorTextureViews);
+    pl_sb_reset(ptRenderer->tPickTarget.sbuFrameBuffers);
 
     uint32_t uDepthTextureView = ptRenderer->tPickTarget.uDepthTextureView;
     uint32_t uDepthTexture = ptDevice->sbtTextureViews[uDepthTextureView].uTextureHandle;
