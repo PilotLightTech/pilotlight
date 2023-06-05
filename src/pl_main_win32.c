@@ -58,12 +58,14 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // internal
-LRESULT CALLBACK pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam);
-void             pl__convert_to_wide_string(const char* narrowValue, wchar_t* wideValue);
-void             pl__render_frame(void);
-void             pl_update_mouse_cursor(void);
-inline bool      pl__is_vk_down           (int iVk)         { return (GetKeyState(iVk) & 0x8000) != 0;}
-plKey            pl__virtual_key_to_pl_key(WPARAM tWParam);
+LRESULT CALLBACK   pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam);
+void               pl__convert_to_wide_string(const char* narrowValue, wchar_t* wideValue);
+void               pl__render_frame(void);
+void               pl_update_mouse_cursor(void);
+inline bool        pl__is_vk_down           (int iVk)         { return (GetKeyState(iVk) & 0x8000) != 0;}
+plKey              pl__virtual_key_to_pl_key(WPARAM tWParam);
+static const char* pl__get_clipboard_text(void* user_data_ctx);
+static void        pl__set_clipboard_text(void* pUnused, const char* text);
 
 // os services
 void  pl__read_file            (const char* pcFile, unsigned* puSize, char* pcBuffer, const char* pcMode);
@@ -116,6 +118,9 @@ static INT64 ilTime = 0;
 static INT64 ilTicksPerSecond = 0;
 static HWND  tMouseHandle = NULL;
 static bool  bMouseTracked = true;
+
+// io
+plIOContext* gptIOCtx = NULL;
 
 // memory tracking
 static plMemoryContext gtMemoryContext = {0};
@@ -188,6 +193,9 @@ int main(int argc, char *argv[])
     
     // setup & retrieve io context 
     plIOContext* ptIOCtx = pl_get_io_context();
+    gptIOCtx = ptIOCtx;
+    ptIOCtx->set_clipboard_text_fn = pl__set_clipboard_text;
+    ptIOCtx->get_clipboard_text_fn = pl__get_clipboard_text;
     gptDataRegistry->set_data(PL_CONTEXT_IO_NAME, ptIOCtx);
     gptDataRegistry->set_data("memory", &gtMemoryContext);
 
@@ -384,7 +392,7 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
                     ptIOCtx->bViewportMinimized = true;
 
                 if(ptIOCtx->afMainViewportSize[0] != (float)iCWidth || ptIOCtx->afMainViewportSize[1] != (float)iCHeight)
-                    ptIOCtx->bViewportSizeChanged = true;
+                    ptIOCtx->bViewportSizeChanged = true;  
 
                 ptIOCtx->afMainViewportSize[0] = (float)iCWidth;
                 ptIOCtx->afMainViewportSize[1] = (float)iCHeight;    
@@ -532,17 +540,13 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
                 // obtain virtual key code
                 int iVk = (int)tWParam;
                 if ((tWParam == VK_RETURN) && (HIWORD(tLParam) & KF_EXTENDED))
-                {
                     iVk = PL_VK_KEYPAD_ENTER;
-                }
 
                 // submit key event
                 const plKey tKey = pl__virtual_key_to_pl_key(iVk);
 
                 if (tKey != PL_KEY_NONE)
-                {
                     pl_add_key_event(tKey, bKeyDown);
-                }
 
                 // Submit individual left/right modifier events
                 if (iVk == VK_SHIFT)
@@ -987,6 +991,51 @@ pl__sleep(uint32_t uMillisec)
 {
     Sleep((long)uMillisec);
     return 0;
+}
+
+static const char*
+pl__get_clipboard_text(void* user_data_ctx)
+{
+    pl_sb_reset(gptIOCtx->sbcClipboardData);
+    if (!OpenClipboard(NULL))
+        return NULL;
+    HANDLE wbuf_handle = GetClipboardData(CF_UNICODETEXT);
+    if (wbuf_handle == NULL)
+    {
+        CloseClipboard();
+        return NULL;
+    }
+    const WCHAR* wbuf_global = (const WCHAR*)GlobalLock(wbuf_handle);
+    if (wbuf_global)
+    {
+        int buf_len = WideCharToMultiByte(CP_UTF8, 0, wbuf_global, -1, NULL, 0, NULL, NULL);
+        pl_sb_resize(gptIOCtx->sbcClipboardData, buf_len);
+        WideCharToMultiByte(CP_UTF8, 0, wbuf_global, -1, gptIOCtx->sbcClipboardData, buf_len, NULL, NULL);
+    }
+    GlobalUnlock(wbuf_handle);
+    CloseClipboard();
+    return gptIOCtx->sbcClipboardData;
+}
+
+static void
+pl__set_clipboard_text(void* pUnused, const char* text)
+{
+    if (!OpenClipboard(NULL))
+        return;
+    const int wbuf_length = MultiByteToWideChar(CP_UTF8, 0, text, -1, NULL, 0);
+    HGLOBAL wbuf_handle = GlobalAlloc(GMEM_MOVEABLE, (SIZE_T)wbuf_length * sizeof(WCHAR));
+    if (wbuf_handle == NULL)
+    {
+        CloseClipboard();
+        return;
+    }
+    WCHAR* wbuf_global = (WCHAR*)GlobalLock(wbuf_handle);
+    MultiByteToWideChar(CP_UTF8, 0, text, -1, wbuf_global, wbuf_length);
+    GlobalUnlock(wbuf_handle);
+    EmptyClipboard();
+    if (SetClipboardData(CF_UNICODETEXT, wbuf_handle) == NULL)
+        GlobalFree(wbuf_handle);
+    CloseClipboard();
 }
 
 //-----------------------------------------------------------------------------

@@ -48,6 +48,9 @@ typedef union  _plVec2       plVec2;
 // character types
 typedef uint16_t plWChar;
 
+// flags
+typedef int plKeyChord;
+
 // enums
 typedef int plKey;
 typedef int plMouseButton;
@@ -169,12 +172,17 @@ enum plKey_
     PL_KEY_KEYPAD_ADD,
     PL_KEY_KEYPAD_ENTER,
     PL_KEY_KEYPAD_EQUAL,
-    PL_KEY_MOD_CTRL,
-    PL_KEY_MOD_SHIFT,
-    PL_KEY_MOD_ALT,
-    PL_KEY_MOD_SUPER,
     
-    PL_KEY_COUNT // no valid plKey_ is ever greater than this value
+    PL_KEY_RESERVED_MOD_CTRL, PL_KEY_RESERVED_MOD_SHIFT, PL_KEY_RESERVED_MOD_ALT, PL_RESERVED_KEY_MOD_SUPER,
+    PL_KEY_COUNT, // no valid plKey_ is ever greater than this value
+
+    PL_KEY_MOD_NONE     = 0,
+    PL_KEY_MOD_CTRL     = 1 << 12, // ctrl
+    PL_KEY_MOD_SHIFT    = 1 << 13, // shift
+    PL_KEY_MOD_ALT      = 1 << 14, // option/menu
+    PL_KEY_MOD_SUPER    = 1 << 15, // cmd/super/windows
+    PL_KEY_MOD_SHORTCUT = 1 << 11, // alias for Ctrl (non-macOS) _or_ super (macOS)
+    PL_KEY_MOD_MASK_    = 0xF800   // 5 bits
 };
 
 enum plCursor_
@@ -245,25 +253,58 @@ typedef struct _plInputEvent
 
 typedef struct _plIOContext
 {
+
+    //------------------------------------------------------------------
+    // Configuration                            // Default value
+    //------------------------------------------------------------------
+
+    float fDeltaTime;
+    float fMouseDragThreshold;      // default 6.0f
+    float fMouseDoubleClickTime;    // default 0.3f seconds
+    float fMouseDoubleClickMaxDist; // default 6.0f
+    float fKeyRepeatDelay;          // default 0.275f
+    float fKeyRepeatRate;           // default 0.050f
+    float afMainViewportSize[2];
+    float afMainFramebufferScale[2];
+    void* pUserData;
+
+    // miscellaneous options
+    bool bConfigMacOSXBehaviors;
+
+    //------------------------------------------------------------------
+    // platform functions
+    //------------------------------------------------------------------
+
+    void* pBackendPlatformData;
+    void* pBackendRendererData;
+    void* pBackendData;
+
+    // access OS clipboard
+    // (default to use native Win32 clipboard on Windows, otherwise uses a private clipboard. Override to access OS clipboard on other architectures)
+    const char* (*get_clipboard_text_fn)(void* pUserData);
+    void        (*set_clipboard_text_fn)(void* pUserData, const char* pcText);
+    void*       pClipboardUserData;
+    char*       sbcClipboardData;
+
+    //------------------------------------------------------------------
+    // Output
+    //------------------------------------------------------------------
+
     double   dTime;
-    float    fDeltaTime;
     float    fFrameRate; // rough estimate(rolling average of fDeltaTime over 120 frames)
     bool     bViewportSizeChanged;
     bool     bViewportMinimized;
-    float    afMainViewportSize[2];
-    float    afMainFramebufferScale[2];
     uint64_t ulFrameCount;
 
-    // settings
-    float  fMouseDragThreshold;      // default 6.0f
-    float  fMouseDoubleClickTime;    // default 0.3f seconds
-    float  fMouseDoubleClickMaxDist; // default 6.0f
-    float  fKeyRepeatDelay;          // default 0.275f
-    float  fKeyRepeatRate;           // default 0.050f
-    void*  pUserData;
-    void*  pBackendPlatformData;
-    void*  pBackendRendererData;
-    void*  pBackendData;
+    // new
+    plKeyChord tKeyMods;
+    bool       bWantCaptureMouse;
+    bool       bWantCaptureKeyboard;
+    bool       bWantTextInput;
+    bool       bKeyCtrl;  // Keyboard modifier down: Control
+    bool       bKeyShift; // Keyboard modifier down: Shift
+    bool       bKeyAlt;   // Keyboard modifier down: Alt
+    bool       bKeySuper; // Keyboard modifier down: Cmd/Super/Windows
 
     // [INTERNAL]
     bool          _bOverflowInUse;
@@ -295,6 +336,7 @@ typedef struct _plIOContext
     plVec2    _atMouseClickedPos[5];       // position when clicked
     double    _adMouseClickedTime[5];      // time of last click
     bool      _abMouseClicked[5];          // mouse went from !down to down
+    bool      _abMouseOwned[5];
     uint32_t  _auMouseClickedCount[5];     // 
     uint32_t  _auMouseClickedLastCount[5]; // 
     bool      _abMouseReleased[5];         // mouse went from down to !down

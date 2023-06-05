@@ -117,6 +117,9 @@ pl_new_io_frame(void)
     ptIO->dTime += (double)ptIO->fDeltaTime;
     ptIO->ulFrameCount++;
     ptIO->bViewportSizeChanged = false;
+    ptIO->bWantTextInput = false;
+    ptIO->bWantCaptureMouse = false;
+    ptIO->bWantCaptureKeyboard = false;
 
     // calculate frame rate
     ptIO->_fFrameRateSecPerFrameAccum += ptIO->fDeltaTime - ptIO->_afFrameRateSecPerFrame[ptIO->_iFrameRateSecPerFrameIdx];
@@ -142,6 +145,14 @@ pl_end_io_frame(void)
 plKeyData*
 pl_get_key_data(plKey tKey)
 {
+    if(tKey & PL_KEY_MOD_MASK_)
+    {
+        if     (tKey == PL_KEY_MOD_CTRL)  tKey = PL_KEY_RESERVED_MOD_CTRL;
+        else if(tKey == PL_KEY_MOD_SHIFT) tKey = PL_KEY_RESERVED_MOD_SHIFT;
+        else if(tKey == PL_KEY_MOD_ALT)   tKey = PL_KEY_RESERVED_MOD_ALT;
+        else if(tKey == PL_KEY_MOD_SUPER) tKey = PL_RESERVED_KEY_MOD_SUPER;
+        else if(tKey == PL_KEY_MOD_SHORTCUT) tKey = (gptIOContext->bConfigMacOSXBehaviors ? PL_RESERVED_KEY_MOD_SUPER : PL_KEY_RESERVED_MOD_CTRL);
+    }
     PL_ASSERT(tKey > PL_KEY_NONE && tKey < PL_KEY_COUNT && "Key not valid");
     return &gptIOContext->_tKeyData[tKey];
 }
@@ -479,7 +490,18 @@ pl__update_events(void)
 static void
 pl__update_keyboard_inputs(void)
 {
-   plIOContext* ptIO = gptIOContext; 
+   plIOContext* ptIO = gptIOContext;
+
+    ptIO->tKeyMods = 0;
+    if (pl_is_key_down(PL_KEY_MOD_CTRL))     { ptIO->tKeyMods |= PL_KEY_MOD_CTRL; }
+    if (pl_is_key_down(PL_KEY_MOD_SHIFT))    { ptIO->tKeyMods |= PL_KEY_MOD_SHIFT; }
+    if (pl_is_key_down(PL_KEY_MOD_ALT))      { ptIO->tKeyMods |= PL_KEY_MOD_ALT; }
+    if (pl_is_key_down(PL_KEY_MOD_SUPER))    { ptIO->tKeyMods |= PL_KEY_MOD_SUPER; }
+
+    ptIO->bKeyCtrl  = (ptIO->tKeyMods & PL_KEY_MOD_CTRL) != 0;
+    ptIO->bKeyShift = (ptIO->tKeyMods & PL_KEY_MOD_SHIFT) != 0;
+    ptIO->bKeyAlt   = (ptIO->tKeyMods & PL_KEY_MOD_ALT) != 0;
+    ptIO->bKeySuper = (ptIO->tKeyMods & PL_KEY_MOD_SUPER) != 0;
 
     // Update keys
     for (uint32_t i = 0; i < PL_KEY_COUNT; i++)
