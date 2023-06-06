@@ -451,9 +451,11 @@ pl_app_update(plAppData* ptAppData)
         pl_begin_profile_sample("process_cleanup_queue");
         ptDeviceApi->process_cleanup_queue(&ptGraphics->tDevice, (uint32_t)ptGraphics->szCurrentFrameIndex);
         pl_end_profile_sample();
+
+        bool bOwnMouse = ptIoCtx->bWantCaptureMouse;
         ptUi->new_frame();
 
-        if(!ptUi->is_mouse_owned() && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+        if(!bOwnMouse && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
         {
             const plVec2 tMouseDelta = pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
             ptCameraApi->rotate(ptCamera,  -tMouseDelta.y * 0.1f * ptIoCtx->fDeltaTime,  -tMouseDelta.x * 0.1f * ptIoCtx->fDeltaTime);

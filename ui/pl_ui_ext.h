@@ -50,6 +50,7 @@ typedef struct _plUiClipper plUiClipper;
 // enums
 typedef int plUiConditionFlags;
 typedef int plUiLayoutRowType;
+typedef int plUiInputTextFlags;
 
 // external apis
 typedef struct _plIOApiI plIOApiI; // pilotlight.h
@@ -164,6 +165,12 @@ typedef struct _plUiApiI
     void           (*labeled_text)  (const char* pcLabel, const char* pcFmt, ...);
     void           (*labeled_text_v)(const char* pcLabel, const char* pcFmt, va_list args);
 
+    // input
+    bool           (*input_text)     (const char* pcLabel, char* pcBuffer, size_t szBufferSize);
+    bool           (*input_text_hint)(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t szBufferSize);
+    bool           (*input_float)    (const char* pcLabel, float* fValue, const char* pcFormat);
+    bool           (*input_int)      (const char* pcLabel, int* iValue);
+
     // sliders
     bool           (*slider_float)  (const char* pcLabel, float* pfValue, float fMin, float fMax);
     bool           (*slider_float_f)(const char* pcLabel, float* pfValue, float fMin, float fMax, const char* pcFormat);
@@ -264,7 +271,6 @@ typedef struct _plUiApiI
 
     bool          (*was_last_item_hovered)(void);
     bool          (*was_last_item_active) (void);
-    bool          (*is_mouse_owned)       (void);
 } plUiApiI;
 
 //-----------------------------------------------------------------------------

@@ -37,6 +37,20 @@ Index of this file:
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
+// stb
+#undef STB_TEXTEDIT_STRING
+#undef STB_TEXTEDIT_CHARTYPE
+#define STB_TEXTEDIT_STRING           plInputTextState
+#define STB_TEXTEDIT_CHARTYPE         plWChar
+#define STB_TEXTEDIT_GETWIDTH_NEWLINE (-1.0f)
+#define STB_TEXTEDIT_UNDOSTATECOUNT   99
+#define STB_TEXTEDIT_UNDOCHARCOUNT    999
+#include "stb_textedit.h"
+
+// Helper: Unicode defines
+#define PL_UNICODE_CODEPOINT_INVALID 0xFFFD     // Invalid Unicode code point (standard value).
+#define PL_UNICODE_CODEPOINT_MAX     0xFFFF     // Maximum Unicode code point supported by this build.
+
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
@@ -51,6 +65,7 @@ typedef struct _plUiNextWindowData plUiNextWindowData;
 typedef struct _plUiTempWindowData plUiTempWindowData;
 typedef struct _plUiStorage        plUiStorage;
 typedef struct _plUiStorageEntry   plUiStorageEntry;
+typedef struct _plInputTextState   plInputTextState;
 
 // enums
 typedef int plUiNextWindowFlags;
@@ -113,6 +128,36 @@ enum plUiLayoutSystemType_
     PL_UI_LAYOUT_SYSTEM_TYPE_ARRAY,
     PL_UI_LAYOUT_SYSTEM_TYPE_TEMPLATE,
     PL_UI_LAYOUT_SYSTEM_TYPE_ROW_XXX
+};
+
+enum plUiInputTextFlags_ // borrowed from "Dear ImGui"
+{
+    PL_UI_INPUT_TEXT_FLAGS_NONE                    = 0,
+    PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL           = 1 << 0,   // allow 0123456789.+-*/
+    PL_UI_INPUT_TEXT_FLAGS_CHARS_HEXADECIMAL       = 1 << 1,   // allow 0123456789ABCDEFabcdef
+    PL_UI_INPUT_TEXT_FLAGS_CHARS_UPPERCASE         = 1 << 2,   // turn a..z into A..Z
+    PL_UI_INPUT_TEXT_FLAGS_CHARS_NO_BLANK          = 1 << 3,   // filter out spaces, tabs
+    PL_UI_INPUT_TEXT_FLAGS_AUTO_SELECT_ALL         = 1 << 4,   // select entire text when first taking mouse focus
+    PL_UI_INPUT_TEXT_FLAGS_ENTER_RETURNS_TRUE      = 1 << 5,   // return 'true' when Enter is pressed (as opposed to every time the value was modified). Consider looking at the IsItemDeactivatedAfterEdit() function.
+    PL_UI_INPUT_TEXT_FLAGS_CALLBACK_COMPLETION     = 1 << 6,   // callback on pressing TAB (for completion handling)
+    PL_UI_INPUT_TEXT_FLAGS_CALLBACK_HISTORY        = 1 << 7,   // callback on pressing Up/Down arrows (for history handling)
+    PL_UI_INPUT_TEXT_FLAGS_CALLBACK_ALWAYS         = 1 << 8,   // callback on each iteration. User code may query cursor position, modify text buffer.
+    PL_UI_INPUT_TEXT_FLAGS_CALLBACK_CHAR_FILTER    = 1 << 9,   // callback on character inputs to replace or discard them. Modify 'EventChar' to replace or discard, or return 1 in callback to discard.
+    PL_UI_INPUT_TEXT_FLAGS_ALLOW_TAB_INPUT         = 1 << 10,  // pressing TAB input a '\t' character into the text field
+    PL_UI_INPUT_TEXT_FLAGS_CTRL_ENTER_FOR_NEW_LINE = 1 << 11,  // in multi-line mode, unfocus with Enter, add new line with Ctrl+Enter (default is opposite: unfocus with Ctrl+Enter, add line with Enter).
+    PL_UI_INPUT_TEXT_FLAGS_NO_HORIZONTAL_SCROLL    = 1 << 12,  // disable following the cursor horizontally
+    PL_UI_INPUT_TEXT_FLAGS_ALWAYS_OVERWRITE        = 1 << 13,  // overwrite mode
+    PL_UI_INPUT_TEXT_FLAGS_READ_ONLY               = 1 << 14,  // read-only mode
+    PL_UI_INPUT_TEXT_FLAGS_PASSWORD                = 1 << 15,  // password mode, display all characters as '*'
+    PL_UI_INPUT_TEXT_FLAGS_NO_UNDO_REDO            = 1 << 16,  // disable undo/redo. Note that input text owns the text data while active, if you want to provide your own undo/redo stack you need e.g. to call ClearActiveID().
+    PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC        = 1 << 17,  // allow 0123456789.+-*/eE (Scientific notation input)
+    PL_UI_INPUT_TEXT_FLAGS_CALLBACK_RESIZE         = 1 << 18,  // callback on buffer capacity changes request (beyond 'buf_size' parameter value), allowing the string to grow. Notify when the string wants to be resized (for string types which hold a cache of their Size). You will be provided a new BufSize in the callback and NEED to honor it. (see misc/cpp/imgui_stdlib.h for an example of using this)
+    PL_UI_INPUT_TEXT_FLAGS_CALLBACK_EDIT           = 1 << 19,  // callback on any edit (note that InputText() already returns true on edit, the callback is useful mainly to manipulate the underlying buffer while focus is active)
+    PL_UI_INPUT_TEXT_FLAGS_ESCAPE_CLEARS_ALL       = 1 << 20,  // escape key clears content if not empty, and deactivate otherwise (contrast to default behavior of Escape to revert)
+    
+    // internal
+    PL_UI_INPUT_TEXT_FLAGS_MULTILINE      = 1 << 21,  // escape key clears content if not empty, and deactivate otherwise (contrast to default behavior of Escape to revert)
+    PL_UI_INPUT_TEXT_FLAGS_NO_MARK_EDITED = 1 << 22,  // escape key clears content if not empty, and deactivate otherwise (contrast to default behavior of Escape to revert)
 };
 
 //-----------------------------------------------------------------------------
@@ -211,6 +256,25 @@ typedef struct _plUiLayoutRow
     uint32_t             uVariableEntryCount;  // number of variable entries when using template layout system (system 5)
     uint32_t             uEntryStartIndex;     // offset into parent window sbtRowTemplateEntries buffer
 } plUiLayoutRow;
+
+typedef struct _plInputTextState
+{
+    uint32_t           uId;
+    int                iCurrentLengthW;        // widget id owning the text state
+    int                iCurrentLengthA;        // we need to maintain our buffer length in both UTF-8 and wchar format. UTF-8 length is valid even if TextA is not.
+    plWChar*           sbTextW;                // edit buffer, we need to persist but can't guarantee the persistence of the user-provided buffer. so we copy into own buffer.
+    char*              sbTextA;                // temporary UTF8 buffer for callbacks and other operations. this is not updated in every code-path! size=capacity.
+    char*              sbInitialTextA;         // backup of end-user buffer at the time of focus (in UTF-8, unaltered)
+    bool               bTextAIsValid;          // temporary UTF8 buffer is not initially valid before we make the widget active (until then we pull the data from user argument)
+    int                iBufferCapacityA;       // end-user buffer capacity
+    float              fScrollX;               // horizontal scrolling/offset
+    STB_TexteditState  tStb;                   // state for stb_textedit.h
+    float              fCursorAnim;            // timer for cursor blink, reset on every user action so the cursor reappears immediately
+    bool               bCursorFollow;          // set when we want scrolling to follow the current cursor position (not always!)
+    bool               bSelectedAllMouseLock;  // after a double-click to select all, we ignore further mouse drags to update selection
+    bool               bEdited;                // edited this frame
+    plUiInputTextFlags tFlags;    // copy of InputText() flags. may be used to check if e.g. ImGuiInputTextFlags_Password is set.
+} plInputTextState;
 
 //-----------------------------------------------------------------------------
 // [SECTION] plUiStorage
@@ -317,17 +381,16 @@ typedef struct _plUiContext
     uint32_t*          sbuIdStack;             // id stack for hashing IDs, container items usually push/pop these
 
     // widget state
+    plInputTextState   tInputTextState;
     uint32_t           uHoveredId;             // set at the end of the previous frame from uNextHoveredId
     uint32_t           uActiveId;              // set at the end of the previous frame from uNextActiveId
     uint32_t           uNextHoveredId;         // set during current frame (by end of frame, should be last item hovered)
     uint32_t           uNextActiveId;          // set during current frame (by end of frame, should be last item active)
 
-
-    uint32_t           uActiveWindowId;        // current active window id
-    bool               bActiveIdJustActivated; // window was just activated, so bring it to the front
-    bool               bMouseOwned;            // mouse is owned by us, apps should not dispatch mouse events
-    bool               bWantMouse;             // we want the mouse
-    bool               bWantMouseNextFrame;    // wen want the mouse next frame
+    uint32_t           uActiveWindowId;               // current active window id
+    bool               bActiveIdJustActivated;        // window was just activated, so bring it to the front
+    bool               bWantCaptureKeyboardNextFrame; // we want the mouse
+    bool               bWantCaptureMouseNextFrame;    // wen want the mouse next frame
     
     // windows
     plUiWindow         tTooltipWindow;         // persistent tooltip window (since there can only ever be 1 at a time)
@@ -407,6 +470,11 @@ void           pl_ui_color_text                   (plVec4 tColor, const char* pc
 void           pl_ui_color_text_v                 (plVec4 tColor, const char* pcFmt, va_list args);
 void           pl_ui_labeled_text                 (const char* pcLabel, const char* pcFmt, ...);
 void           pl_ui_labeled_text_v               (const char* pcLabel, const char* pcFmt, va_list args);
+bool           pl_ui_input_text_ex                (const char* pcLabel, const char* pcHint, char* pcBuffer, size_t szBufferSize, plUiInputTextFlags tFlags);
+bool           pl_ui_input_text                   (const char* pcLabel, char* pcBuffer, size_t szBufferSize);
+bool           pl_ui_input_text_hint              (const char* pcLabel, const char* pcHint, char* pcBuffer, size_t szBufferSize);
+bool           pl_ui_input_float                  (const char* pcLabel, float* fValue, const char* pcFormat);
+bool           pl_ui_input_int                    (const char* pcLabel, int* iValue);
 bool           pl_ui_slider_float                 (const char* pcLabel, float* pfValue, float fMin, float fMax);
 bool           pl_ui_slider_float_f               (const char* pcLabel, float* pfValue, float fMin, float fMax, const char* pcFormat);
 bool           pl_ui_slider_int                   (const char* pcLabel, int* piValue, int iMin, int iMax);
@@ -444,7 +512,6 @@ void           pl_ui_layout_space_push            (float fX, float fY, float fWi
 void           pl_ui_layout_space_end             (void);
 bool           pl_ui_was_last_item_hovered        (void);
 bool           pl_ui_was_last_item_active         (void);
-bool           pl_ui_is_mouse_owned               (void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api (not exposed)
@@ -467,15 +534,33 @@ plVec2               pl_ui_calculate_item_size(float fDefaultHeight);
 void                 pl_ui_advance_cursor     (float fWidth, float fHeight);
 
 // misc
-bool                 pl_ui_begin_window_ex (const char* pcName, bool* pbOpen, plUiWindowFlags tFlags);
-void                 pl_ui_render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis);
-void                 pl_ui_submit_window   (plUiWindow* ptWindow);
+bool pl_ui_begin_window_ex (const char* pcName, bool* pbOpen, plUiWindowFlags tFlags);
+void pl_ui_render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis);
+void pl_ui_submit_window   (plUiWindow* ptWindow);
 
 static inline bool   pl__ui_should_render(const plVec2* ptStartPos, const plVec2* ptWidgetSize) { return !(ptStartPos->y + ptWidgetSize->y < gptCtx->ptCurrentWindow->tPos.y || ptStartPos->y > gptCtx->ptCurrentWindow->tPos.y + gptCtx->ptCurrentWindow->tSize.y); }
 
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~text state system~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+static bool        pl__input_text_filter_character(unsigned int* puChar, plUiInputTextFlags tFlags);
+static inline void pl__text_state_cursor_anim_reset  (plInputTextState* ptState) { ptState->fCursorAnim = -0.30f; }
+static inline void pl__text_state_cursor_clamp       (plInputTextState* ptState) { ptState->tStb.cursor = pl_min(ptState->tStb.cursor, ptState->iCurrentLengthW); ptState->tStb.select_start = pl_min(ptState->tStb.select_start, ptState->iCurrentLengthW); ptState->tStb.select_end = pl_min(ptState->tStb.select_end, ptState->iCurrentLengthW);}
+static inline bool pl__text_state_has_selection      (plInputTextState* ptState) { return ptState->tStb.select_start != ptState->tStb.select_end; }
+static inline void pl__text_state_clear_selection    (plInputTextState* ptState) { ptState->tStb.select_start = ptState->tStb.select_end = ptState->tStb.cursor; }
+static inline int  pl__text_state_get_cursor_pos     (plInputTextState* ptState) { return ptState->tStb.cursor; }
+static inline int  pl__text_state_get_selection_start(plInputTextState* ptState) { return ptState->tStb.select_start; }
+static inline int  pl__text_state_get_selection_end  (plInputTextState* ptState) { return ptState->tStb.select_end; }
+static inline void pl__text_state_select_all         (plInputTextState* ptState) { ptState->tStb.select_start = 0; ptState->tStb.cursor = ptState->tStb.select_end = ptState->iCurrentLengthW; ptState->tStb.has_preferred_x = 0; }
+
+static inline void pl__text_state_clear_text      (plInputTextState* ptState)           { ptState->iCurrentLengthA = ptState->iCurrentLengthW = 0; ptState->sbTextA[0] = 0; ptState->sbTextW[0] = 0; pl__text_state_cursor_clamp(ptState);}
+static inline void pl__text_state_free_memory     (plInputTextState* ptState)           { pl_sb_free(ptState->sbTextA); pl_sb_free(ptState->sbTextW); pl_sb_free(ptState->sbInitialTextA);}
+static inline int  pl__text_state_undo_avail_count(plInputTextState* ptState)           { return ptState->tStb.undostate.undo_point;}
+static inline int  pl__text_state_redo_avail_count(plInputTextState* ptState)           { return STB_TEXTEDIT_UNDOSTATECOUNT - ptState->tStb.undostate.redo_point; }
+static void        pl__text_state_on_key_press    (plInputTextState* ptState, int iKey);
+
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~widget behavior~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-bool                 pl_ui_button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, bool* pbOutHeld);
+bool pl_ui_button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, bool* pbOutHeld);
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~storage system~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
