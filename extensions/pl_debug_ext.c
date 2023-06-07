@@ -1046,25 +1046,25 @@ pl__show_logging(bool* bValue)
                             
                             if(bUseClipper)
                             {
-                                plUiClipper tClipper = {(uint32_t)ptChannel->uEntryCount};
+                                plUiClipper tClipper = {(uint32_t)uLogCount};
                                 while(ptUi->step_clipper(&tClipper))
                                 {
                                     for(uint32_t j = tClipper.uDisplayStart; j < tClipper.uDisplayEnd; j++)
                                     {
                                         uint32_t uActualIndex0 = (uIndexStart + j) % (uint32_t)uLogCount;
                                         const plLogEntry* ptEntry = &ptChannel->atEntries[uActualIndex0];
-                                        ptUi->color_text(atColors[ptEntry->uLevel / 1000 - 5], ptEntry->cPBuffer);
+                                        ptUi->color_text(atColors[ptEntry->uLevel / 1000 - 5], &ptChannel->pcBuffer0[ptEntry->uOffset + ptChannel->uBufferCapacity * (ptEntry->uGeneration % 2)]);
                                     } 
                                 }
                             }
                             else
                             {
-                                    for(uint32_t j = i; j < ptChannel->uEntryCount; j++)
+                                    for(uint32_t j = i; j < uLogCount; j++)
                                     {
                                         uint32_t uActualIndex0 = (uIndexStart + j) % (uint32_t)uLogCount;
                                         const plLogEntry* ptEntry = &ptChannel->atEntries[uActualIndex0];
                                         if(bActiveLevels[ptEntry->uLevel / 1000 - 5])
-                                            ptUi->color_text(atColors[ptEntry->uLevel / 1000 - 5], ptEntry->cPBuffer);
+                                            ptUi->color_text(atColors[ptEntry->uLevel / 1000 - 5], &ptChannel->pcBuffer0[ptEntry->uOffset + ptChannel->uBufferCapacity * (ptEntry->uGeneration % 2)]);
                                     }  
                             }
                             ptUi->end_child();
@@ -1090,7 +1090,7 @@ pl__show_logging(bool* bValue)
                                     for(uint32_t j = tClipper.uDisplayStart; j < tClipper.uDisplayEnd; j++)
                                     {
                                         plLogEntry* ptEntry = &ptChannel->pEntries[j];
-                                        ptUi->color_text(atColors[ptEntry->uLevel / 1000 - 5], ptEntry->cPBuffer);
+                                        ptUi->color_text(atColors[ptEntry->uLevel / 1000 - 5], &ptChannel->pcBuffer0[ptEntry->uOffset]);
                                     } 
                                 }
                             }
@@ -1100,7 +1100,7 @@ pl__show_logging(bool* bValue)
                                 {
                                     plLogEntry* ptEntry = &ptChannel->pEntries[j];
                                     if(bActiveLevels[ptEntry->uLevel / 1000 - 5])
-                                        ptUi->color_text(atColors[ptEntry->uLevel / 1000 - 5], ptEntry->cPBuffer);
+                                        ptUi->color_text(atColors[ptEntry->uLevel / 1000 - 5], &ptChannel->pcBuffer0[ptEntry->uOffset]);
                                 } 
                             }
                             ptUi->end_child();

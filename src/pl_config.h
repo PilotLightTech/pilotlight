@@ -22,6 +22,7 @@
 #define PL_PROFILE_ON
 
 // logging (see pl_log.h)
+// #define PL_LOG_CYCLIC_BUFFER_SIZE 256
 #define PL_LOG_ON
 #define PL_GLOBAL_LOG_LEVEL PL_LOG_LEVEL_ALL
 #define PL_LOG_ERROR_BOLD

@@ -12,8 +12,8 @@
 */
 
 // library version
-#define PL_LOG_VERSION    "0.4.0"
-#define PL_LOG_VERSION_NUM 00400
+#define PL_LOG_VERSION    "0.5.0"
+#define PL_LOG_VERSION_NUM 00500
 
 /*
 Index of this file:
@@ -405,13 +405,19 @@ enum plChannelType_
 typedef struct _plLogEntry
 {
     uint32_t uLevel;
-    char     cPBuffer[PL_LOG_MAX_LINE_SIZE];
+    uint64_t uOffset;
+    uint64_t uGeneration;
 } plLogEntry;
 
 typedef struct _plLogChannel
 {
     const char*   pcName;
     bool          bOverflowInUse;
+    char*         pcBuffer0;
+    char*         pcBuffer1;
+    uint64_t      uGeneration;
+    uint64_t      uBufferSize;
+    uint64_t      uBufferCapacity;
     plLogEntry    atEntries[PL_LOG_CYCLIC_BUFFER_SIZE];
     plLogEntry*   pEntries;
     uint64_t      uEntryCount;
@@ -650,6 +656,23 @@ plLogContext* gptLogContext = NULL;
 
 static plLogEntry* pl__get_new_log_entry(uint32_t uID);
 
+static inline void pl__log_buffer_may_grow(plLogChannel* ptChannel, int iAdditionalSize)
+{
+    if(ptChannel->uBufferSize + iAdditionalSize > ptChannel->uBufferCapacity) // grow
+    {
+        char* pcOldBuffer = ptChannel->pcBuffer0;
+        uint64_t uNewCapacity = ptChannel->uBufferCapacity * 2;
+        if(uNewCapacity < ptChannel->uBufferSize + iAdditionalSize)
+            uNewCapacity = (ptChannel->uBufferSize + (uint64_t)iAdditionalSize) * 2;
+        ptChannel->pcBuffer0 = (char*)PL_LOG_ALLOC(uNewCapacity * 2);
+        memset(ptChannel->pcBuffer0, 0, uNewCapacity * 2);
+        memcpy(ptChannel->pcBuffer0, pcOldBuffer, ptChannel->uBufferCapacity);
+        ptChannel->uBufferCapacity = uNewCapacity;
+        ptChannel->pcBuffer1 = &ptChannel->pcBuffer0[uNewCapacity];
+        PL_LOG_FREE(pcOldBuffer);
+    }
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
@@ -684,14 +707,19 @@ pl__cleanup_log_context(void)
         for(uint32_t i = 0; i < gptLogContext->uChannelCount; i++)
         {
             plLogChannel* ptChannel = &gptLogContext->atChannels[i];
+            if(ptChannel->pcBuffer0)
+                PL_LOG_FREE(ptChannel->pcBuffer0);
             if(ptChannel->bOverflowInUse)
                 PL_LOG_FREE(ptChannel->pEntries);
-            ptChannel->pEntries       = NULL;
-            ptChannel->uEntryCapacity = 0;
-            ptChannel->uEntryCount    = 0;
-            ptChannel->uLevel         = 0;
-            ptChannel->tType          = 0;
-            ptChannel->uID            = 0;
+            ptChannel->pEntries        = NULL;
+            ptChannel->pcBuffer0        = NULL;
+            ptChannel->uBufferCapacity = 0;
+            ptChannel->uBufferSize     = 0;
+            ptChannel->uEntryCapacity  = 0;
+            ptChannel->uEntryCount     = 0;
+            ptChannel->uLevel          = 0;
+            ptChannel->tType           = 0;
+            ptChannel->uID             = 0;
         }
         memset(gptLogContext->atChannels, 0, sizeof(plLogChannel) * PL_LOG_MAX_CHANNEL_COUNT);
         gptLogContext->uChannelCount = 0;
@@ -735,11 +763,13 @@ pl__add_log_channel(const char* pcName, plChannelType tType)
     {
         ptChannel->pEntries       = NULL;
         ptChannel->uEntryCapacity = PL_LOG_CYCLIC_BUFFER_SIZE;
+        pl__log_buffer_may_grow(ptChannel, PL_LOG_MAX_LINE_SIZE);
     }
     else
     {
         ptChannel->pEntries       = NULL;
-        ptChannel->uEntryCapacity = 0;  
+        ptChannel->uEntryCapacity = 0;
+        pl__log_buffer_may_grow(ptChannel, PL_LOG_MAX_LINE_SIZE);
     }
 
     ptChannel->uEntryCount    = 0;
@@ -828,7 +858,10 @@ pl__get_log_channels(uint32_t* puChannelCount)
             printf(prefix " (%s) %s\n", tPChannel->pcName, pcMessage); \
         if((tPChannel->tType & PL_CHANNEL_TYPE_CYCLIC_BUFFER) || (tPChannel->tType & PL_CHANNEL_TYPE_BUFFER)) \
         { \
-            char* cPDest = ptEntry->cPBuffer; \
+            const size_t szNewSize = strlen(pcMessage) + 10; \
+            pl__log_buffer_may_grow(tPChannel, (int)szNewSize); \
+            ptEntry->uOffset = tPChannel->uBufferSize; \
+            char* cPDest = &tPChannel->pcBuffer0[tPChannel->uBufferSize + tPChannel->uBufferCapacity * (ptEntry->uGeneration % 2)]; \
             ptEntry->uLevel = level; \
             strcpy(cPDest, prefix); \
             cPDest += prefixSize; \
@@ -929,13 +962,17 @@ pl__log_fatal_p(uint32_t uID, const char* cPFormat, ...)
 #define PL__LOG_LEVEL_VA_BUFFER_MACRO(level, prefix) \
         if((tPChannel->tType & PL_CHANNEL_TYPE_CYCLIC_BUFFER) || (tPChannel->tType & PL_CHANNEL_TYPE_BUFFER)) \
         { \
-            plLogEntry* ptEntry = pl__get_new_log_entry(uID); \
-            char* cPDest = ptEntry->cPBuffer; \
-            ptEntry->uLevel = level; \
-            cPDest += pl_snprintf(cPDest, PL_LOG_MAX_LINE_SIZE, prefix); \
             va_list parm_copy; \
             va_copy(parm_copy, args); \
-            pl_vsnprintf(cPDest, PL_LOG_MAX_LINE_SIZE, cPFormat, parm_copy); \
+            plLogEntry* ptEntry = pl__get_new_log_entry(uID); \
+            const int iNewSize = pl_vsnprintf(NULL, 0, cPFormat, parm_copy) + 9; \
+            pl__log_buffer_may_grow(tPChannel, iNewSize); \
+            ptEntry->uOffset = tPChannel->uBufferSize; \
+            char* cPDest = &tPChannel->pcBuffer0[tPChannel->uBufferSize + tPChannel->uBufferCapacity * (ptEntry->uGeneration % 2)]; \
+            tPChannel->uBufferSize += iNewSize; \
+            ptEntry->uLevel = level; \
+            cPDest += pl_snprintf(cPDest, 9, prefix); \
+            pl_vsnprintf(cPDest, iNewSize, cPFormat, parm_copy); \
             va_end(parm_copy); \
         }
 
@@ -1187,6 +1224,11 @@ pl__get_new_log_entry(uint32_t uID)
         tPChannel->uNextEntry++;
         tPChannel->uNextEntry = tPChannel->uNextEntry % PL_LOG_CYCLIC_BUFFER_SIZE;
         tPChannel->uEntryCount++;
+        if(tPChannel->uNextEntry == 0)
+        {
+            tPChannel->uBufferSize = 0;
+            tPChannel->uGeneration++;
+        }
     }
     else if(tPChannel->tType & PL_CHANNEL_TYPE_BUFFER)
     {
@@ -1209,6 +1251,7 @@ pl__get_new_log_entry(uint32_t uID)
         tPChannel->uEntryCount++;
     }
 
+    ptEntry->uGeneration = tPChannel->uGeneration;
     return ptEntry;
 }
 
