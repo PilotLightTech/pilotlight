@@ -322,7 +322,7 @@ typedef int plChannelType;
 #else
     #define pl_log_trace(pcMessage) //
     #define pl_log_trace_f(...) //
-    #define pl_log_trace_to(tPContext, uID, pcMessage) //
+    #define pl_log_trace_to(uID, pcMessage) //
     #define pl_log_trace_to_f(...) //
 #endif
 
@@ -334,7 +334,7 @@ typedef int plChannelType;
 #else
     #define pl_log_debug(pcMessage) //
     #define pl_log_debug_f(...) //
-    #define pl_log_debug_to(tPContext, uID, pcMessage) //
+    #define pl_log_debug_to(uID, pcMessage) //
     #define pl_log_debug_to_f(...) //
 #endif
 
@@ -346,7 +346,7 @@ typedef int plChannelType;
 #else
     #define pl_log_info(pcMessage) //
     #define pl_log_info_f(...) //
-    #define pl_log_info_to(tPContext, uID, pcMessage) //
+    #define pl_log_info_to(uID, pcMessage) //
     #define pl_log_info_to_f(...) //
 #endif
 
@@ -358,7 +358,7 @@ typedef int plChannelType;
 #else
     #define pl_log_warn(pcMessage) //
     #define pl_log_warn_f(...) //
-    #define pl_log_warn_to(tPContext, uID, pcMessage) //
+    #define pl_log_warn_to(tPContext, uID) //
     #define pl_log_warn_to_f(...) //
 #endif
 
@@ -370,7 +370,7 @@ typedef int plChannelType;
 #else
     #define pl_log_error(pcMessage) //
     #define pl_log_error_f(...) //
-    #define pl_log_error_to(tPContext, uID, pcMessage) //
+    #define pl_log_error_to(tPContext, uID) //
     #define pl_log_error_to_f(...) //
 #endif
 

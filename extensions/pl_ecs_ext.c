@@ -849,7 +849,7 @@ PL_EXPORT void
 pl_load_ecs_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
     plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data("memory"));
+    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));
 

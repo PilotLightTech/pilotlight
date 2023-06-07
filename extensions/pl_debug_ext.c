@@ -1125,7 +1125,7 @@ pl_load_debug_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
     gptApiRegistry = ptApiRegistry;
     ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    ptMemoryCtx = ptDataRegistry->get_data("memory");
+    ptMemoryCtx = ptDataRegistry->get_data(PL_CONTEXT_MEMORY);
     pl_set_memory_context(ptMemoryCtx);
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));

@@ -4886,7 +4886,7 @@ PL_EXPORT void
 pl_load_ui_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
     plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data("memory"));
+    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     pl_set_io_context(ptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
     gptDraw = ptApiRegistry->first(PL_API_DRAW);
     plUiApiI* ptUiApi = pl_load_ui_api();

@@ -40,7 +40,7 @@ PL_EXPORT void
 pl_load_image_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
     plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data("memory"));
+    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     if(bReload)
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_IMAGE), pl_load_image_api());
     else

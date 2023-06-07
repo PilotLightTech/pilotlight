@@ -171,6 +171,7 @@ plProfileSample*  pl__get_last_frame_samples(uint32_t* puSize);
     #define pl_end_profile_frame() //
     #define pl_begin_profile_sample(pcName) //
     #define pl_end_profile_sample() //
+    #define pl_get_last_frame_samples(puSize) NULL
 #endif
 
 #endif // PL_PROFILE_H

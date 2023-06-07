@@ -1,5 +1,5 @@
 /*
-   win32_pl.c
+   pl_main_win32.c
 */
 
 /*
@@ -8,6 +8,7 @@ Index of this file:
 // [SECTION] defines
 // [SECTION] includes
 // [SECTION] forward declarations
+// [SECTION] structs
 // [SECTION] globals
 // [SECTION] entry point
 // [SECTION] windows procedure
@@ -21,7 +22,7 @@ Index of this file:
 
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "Ole32.lib")
-#pragma comment(lib, "ws2_32.lib") // winsock2 library
+#pragma comment(lib, "ws2_32.lib")
 
 #ifdef _DEBUG
 #pragma comment(lib, "ucrtd.lib")
@@ -57,40 +58,40 @@ Index of this file:
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
-// internal
-LRESULT CALLBACK   pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam);
-void               pl__convert_to_wide_string(const char* narrowValue, wchar_t* wideValue);
-void               pl__render_frame(void);
-void               pl_update_mouse_cursor(void);
-inline bool        pl__is_vk_down           (int iVk)         { return (GetKeyState(iVk) & 0x8000) != 0;}
-plKey              pl__virtual_key_to_pl_key(WPARAM tWParam);
+// internal helpers
+LRESULT CALLBACK pl__windows_procedure     (HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam);
+void             pl__convert_to_wide_string(const char* narrowValue, wchar_t* wideValue);
+void             pl__render_frame          (void);
+void             pl_update_mouse_cursor    (void);
+inline bool      pl__is_vk_down            (int iVk) { return (GetKeyState(iVk) & 0x8000) != 0;}
+plKey            pl__virtual_key_to_pl_key (WPARAM tWParam);
+
+// clip board
 static const char* pl__get_clipboard_text(void* user_data_ctx);
 static void        pl__set_clipboard_text(void* pUnused, const char* text);
 
-// os services
-void  pl__read_file            (const char* pcFile, unsigned* puSize, char* pcBuffer, const char* pcMode);
-void  pl__copy_file            (const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer);
-void  pl__create_udp_socket    (plSocket* ptSocketOut, bool bNonBlocking);
-void  pl__bind_udp_socket      (plSocket* ptSocket, int iPort);
-bool  pl__send_udp_data        (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
-bool  pl__get_udp_data         (plSocket* ptSocket, void* pData, size_t szSize);
+// file api
+void pl__read_file(const char* pcFile, unsigned* puSize, char* pcBuffer, const char* pcMode);
+void pl__copy_file(const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer);
+
+// udp api
+void pl__create_udp_socket (plSocket* ptSocketOut, bool bNonBlocking);
+void pl__bind_udp_socket   (plSocket* ptSocket, int iPort);
+bool pl__send_udp_data     (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
+bool pl__get_udp_data      (plSocket* ptSocket, void* pData, size_t szSize);
+
+// library api
 bool  pl__has_library_changed  (plSharedLibrary* ptLibrary);
 bool  pl__load_library         (plSharedLibrary* ptLibrary, const char* pcName, const char* pcTransitionalName, const char* pcLockFile);
 void  pl__reload_library       (plSharedLibrary* ptLibrary);
 void* pl__load_library_function(plSharedLibrary* ptLibrary, const char* pcName);
-int   pl__sleep                (uint32_t millisec);
 
-static inline FILETIME
-pl__get_last_write_time(const char* pcFilename)
-{
-    FILETIME tLastWriteTime = {0};
-    
-    WIN32_FILE_ATTRIBUTE_DATA tData = {0};
-    if(GetFileAttributesExA(pcFilename, GetFileExInfoStandard, &tData))
-        tLastWriteTime = tData.ftLastWriteTime;
-    
-    return tLastWriteTime;
-}
+// os services api
+int pl__sleep(uint32_t millisec);
+
+//-----------------------------------------------------------------------------
+// [SECTION] structs
+//-----------------------------------------------------------------------------
 
 typedef struct _plWin32SharedLibrary
 {
@@ -102,35 +103,33 @@ typedef struct _plWin32SharedLibrary
 // [SECTION] globals
 //-----------------------------------------------------------------------------
 
-// apis
-static plDataRegistryApiI*      gptDataRegistry = NULL;
-static plApiRegistryApiI*       gptApiRegistry = NULL;
-static plExtensionRegistryApiI* gptExtensionRegistry = NULL;
-
 // win32 stuff
-static HWND  gtHandle = NULL;
-static plSharedLibrary gtAppLibrary = {0};
-static void* gpUserData = NULL;
-static bool  gbRunning = true;
-static bool  gbFirstRun = true;
-static bool  gbEnableVirtualTerminalProcessing = true;
-static INT64 ilTime = 0;
-static INT64 ilTicksPerSecond = 0;
-static HWND  tMouseHandle = NULL;
-static bool  bMouseTracked = true;
+HWND            gtHandle                          = NULL;
+plSharedLibrary gtAppLibrary                      = {0};
+void*           gpUserData                        = NULL;
+bool            gbRunning                         = true;
+bool            gbFirstRun                        = true;
+bool            gbEnableVirtualTerminalProcessing = true;
+INT64           ilTime                            = 0;
+INT64           ilTicksPerSecond                  = 0;
+HWND            tMouseHandle                      = NULL;
+bool            bMouseTracked                     = true;
+plIOContext*    gptIOCtx                          = NULL;
 
-// io
-plIOContext* gptIOCtx = NULL;
+// apis
+plDataRegistryApiI*      gptDataRegistry      = NULL;
+plApiRegistryApiI*       gptApiRegistry       = NULL;
+plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 
 // memory tracking
-static plMemoryContext gtMemoryContext = {0};
-static plHashMap gtMemoryHashMap = {0};
+plHashMap       gtMemoryHashMap = {0};
+plMemoryContext gtMemoryContext = {.ptHashMap = &gtMemoryHashMap};
 
 // app function pointers
-static void* (*pl_app_load)    (plApiRegistryApiI* ptApiRegistry, void* userData);
-static void  (*pl_app_shutdown)(void* userData);
-static void  (*pl_app_resize)  (void* userData);
-static void  (*pl_app_update)  (void* userData);
+void* (*pl_app_load)    (plApiRegistryApiI* ptApiRegistry, void* userData);
+void  (*pl_app_shutdown)(void* userData);
+void  (*pl_app_resize)  (void* userData);
+void  (*pl_app_update)  (void* userData);
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -138,14 +137,12 @@ static void  (*pl_app_update)  (void* userData);
 
 int main(int argc, char *argv[])
 {
-
+    // check for disabling of escape characters.
+    // this is necessary for some vkconfig's "console"
     for(int i = 1; i < argc; i++)
-    {
-        
+    { 
         if(strcmp(argv[i], "--disable_vt") == 0)
-        {
             gbEnableVirtualTerminalProcessing = false;
-        }
     }
 
     // initialize winsock
@@ -156,63 +153,67 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    // load apis
-    gtMemoryContext.ptHashMap = &gtMemoryHashMap;
-    gptApiRegistry = pl_load_core_apis();
+    // os provided apis
 
-    static plLibraryApiI tApi3 = {
+    static plLibraryApiI tLibraryApi = {
         .has_changed   = pl__has_library_changed,
         .load          = pl__load_library,
         .load_function = pl__load_library_function,
         .reload        = pl__reload_library
     };
 
-    static plFileApiI tApi4 = {
+    static plFileApiI tFileApi = {
         .copy = pl__copy_file,
         .read = pl__read_file
     };
     
-    static plUdpApiI tApi5 = {
+    static plUdpApiI tUdpApi = {
         .create_socket = pl__create_udp_socket,
         .bind_socket   = pl__bind_udp_socket,  
         .get_data      = pl__get_udp_data,
         .send_data     = pl__send_udp_data
     };
 
-    static plOsServicesApiI tApi6 = {
-        .sleep     = pl__sleep
+    static plOsServicesApiI tOsApi = {
+        .sleep = pl__sleep
     };
 
-    gptApiRegistry->add(PL_API_LIBRARY, &tApi3);
-    gptApiRegistry->add(PL_API_FILE, &tApi4);
-    gptApiRegistry->add(PL_API_UDP, &tApi5);
-    gptApiRegistry->add(PL_API_OS_SERVICES, &tApi6);
-
+    // load core apis
+    gptApiRegistry       = pl_load_core_apis();
     gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
     gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    
+
+    // add os specific apis
+    gptApiRegistry->add(PL_API_LIBRARY, &tLibraryApi);
+    gptApiRegistry->add(PL_API_FILE, &tFileApi);
+    gptApiRegistry->add(PL_API_UDP, &tUdpApi);
+    gptApiRegistry->add(PL_API_OS_SERVICES, &tOsApi);
+
     // setup & retrieve io context 
-    plIOContext* ptIOCtx = pl_get_io_context();
-    gptIOCtx = ptIOCtx;
-    ptIOCtx->set_clipboard_text_fn = pl__set_clipboard_text;
-    ptIOCtx->get_clipboard_text_fn = pl__get_clipboard_text;
-    gptDataRegistry->set_data(PL_CONTEXT_IO_NAME, ptIOCtx);
-    gptDataRegistry->set_data("memory", &gtMemoryContext);
+    gptIOCtx = pl_get_io_context(); // initialized on first retrieval
+
+    // set clipboard functions (may need to move this to OS api)
+    gptIOCtx->set_clipboard_text_fn = pl__set_clipboard_text;
+    gptIOCtx->get_clipboard_text_fn = pl__get_clipboard_text;
+
+    // add contexts to data registry
+    gptDataRegistry->set_data(PL_CONTEXT_IO_NAME, gptIOCtx);
+    gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
     // register window class
     const WNDCLASSEXW tWc = {
-        .cbSize = sizeof(WNDCLASSEX),
-        .style = CS_HREDRAW | CS_VREDRAW,
-        .lpfnWndProc = pl__windows_procedure,
-        .cbClsExtra = 0,
-        .cbWndExtra = 0,
-        .hInstance = GetModuleHandle(NULL),
-        .hIcon = NULL,
-        .hCursor = NULL,
+        .cbSize        = sizeof(WNDCLASSEX),
+        .style         = CS_HREDRAW | CS_VREDRAW,
+        .lpfnWndProc   = pl__windows_procedure,
+        .cbClsExtra    = 0,
+        .cbWndExtra    = 0,
+        .hInstance     = GetModuleHandle(NULL),
+        .hIcon         = NULL,
+        .hCursor       = NULL,
         .hbrBackground = NULL,
-        .lpszMenuName = NULL,
+        .lpszMenuName  = NULL,
         .lpszClassName = L"Pilot Light (win32)",
-        .hIconSm = NULL
+        .hIconSm       = NULL
     };
     RegisterClassExW(&tWc);
 
@@ -226,6 +227,7 @@ int main(int argc, char *argv[])
     };
     AdjustWindowRect(&tWr, WS_OVERLAPPEDWINDOW, FALSE);
 
+    // convert title to wide chars
     wchar_t awWideTitle[1024];
     pl__convert_to_wide_string("Pilot Light (win32/vulkan)", awWideTitle);
 
@@ -241,14 +243,15 @@ int main(int argc, char *argv[])
         GetModuleHandle(NULL),
         NULL // user data
     );
+    gptIOCtx->pBackendPlatformData = &gtHandle; // required to create surfaces for vulkan
+
+    // setup info for clock
     QueryPerformanceFrequency((LARGE_INTEGER*)&ilTicksPerSecond);
     QueryPerformanceCounter((LARGE_INTEGER*)&ilTime);
-    // tMouseHandle = gtHandle;
-    ptIOCtx->pBackendPlatformData = &gtHandle;
     
     // setup console
-    DWORD tCurrentMode = 0;
-    DWORD tOriginalMode = 0;
+    DWORD tCurrentMode   = 0;
+    DWORD tOriginalMode  = 0;
     HANDLE tStdOutHandle = NULL;
 
     if(gbEnableVirtualTerminalProcessing)
@@ -297,6 +300,7 @@ int main(int argc, char *argv[])
             DispatchMessage(&tMsg);
         }
 
+        // update mouse cursor icon if changed
         pl_update_mouse_cursor();
 
         // reload library
@@ -310,7 +314,7 @@ int main(int argc, char *argv[])
             gpUserData = pl_app_load(gptApiRegistry, gpUserData);
         }
 
-        // render a frame
+        // render frame
         if(gbRunning)
             pl__render_frame();
     }
@@ -337,6 +341,7 @@ int main(int argc, char *argv[])
     // cleanup winsock
     WSACleanup();
 
+    // check for unfreed memory
     uint32_t uMemoryLeakCount = 0;
     for(uint32_t i = 0; i < pl_sb_size(gtMemoryContext.sbtAllocations); i++)
     {
@@ -359,15 +364,14 @@ int main(int argc, char *argv[])
 LRESULT CALLBACK 
 pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
     static UINT_PTR puIDEvent = 0;
     switch (tMsg)
     {
 
         case WM_SYSCOMMAND:
         {
-            if(tWParam == SC_MINIMIZE)     ptIOCtx->bViewportMinimized = true;
-            else if(tWParam == SC_RESTORE) ptIOCtx->bViewportMinimized = false;
+            if     (tWParam == SC_MINIMIZE) gptIOCtx->bViewportMinimized = true;
+            else if(tWParam == SC_RESTORE)  gptIOCtx->bViewportMinimized = false;
             break;
         }
 
@@ -387,17 +391,17 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
                 }
 
                 if(iCWidth > 0 && iCHeight > 0)
-                    ptIOCtx->bViewportMinimized = false;
+                    gptIOCtx->bViewportMinimized = false;
                 else
-                    ptIOCtx->bViewportMinimized = true;
+                    gptIOCtx->bViewportMinimized = true;
 
-                if(ptIOCtx->afMainViewportSize[0] != (float)iCWidth || ptIOCtx->afMainViewportSize[1] != (float)iCHeight)
-                    ptIOCtx->bViewportSizeChanged = true;  
+                if(gptIOCtx->afMainViewportSize[0] != (float)iCWidth || gptIOCtx->afMainViewportSize[1] != (float)iCHeight)
+                    gptIOCtx->bViewportSizeChanged = true;  
 
-                ptIOCtx->afMainViewportSize[0] = (float)iCWidth;
-                ptIOCtx->afMainViewportSize[1] = (float)iCHeight;    
+                gptIOCtx->afMainViewportSize[0] = (float)iCWidth;
+                gptIOCtx->afMainViewportSize[1] = (float)iCHeight;    
 
-                if(ptIOCtx->bViewportSizeChanged && !ptIOCtx->bViewportMinimized && !gbFirstRun)
+                if(gptIOCtx->bViewportSizeChanged && !gptIOCtx->bViewportMinimized && !gbFirstRun)
                 {
                     pl_app_resize(gpUserData);
                     gbFirstRun = false;
@@ -429,8 +433,8 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             // required to restore cursor when transitioning from e.g resize borders to client area.
             if (LOWORD(tLParam) == HTCLIENT)
             {
-                ptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
-                ptIOCtx->tCurrentCursor = PL_MOUSE_CURSOR_NONE;
+                gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
+                gptIOCtx->tCurrentCursor = PL_MOUSE_CURSOR_NONE;
                 pl_update_mouse_cursor();
             }
             break;
@@ -487,9 +491,9 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             if (tMsg == WM_RBUTTONDOWN || tMsg == WM_RBUTTONDBLCLK) { iButton = 1; }
             if (tMsg == WM_MBUTTONDOWN || tMsg == WM_MBUTTONDBLCLK) { iButton = 2; }
             if (tMsg == WM_XBUTTONDOWN || tMsg == WM_XBUTTONDBLCLK) { iButton = (GET_XBUTTON_WPARAM(tWParam) == XBUTTON1) ? 3 : 4; }
-            if(ptIOCtx->_iMouseButtonsDown == 0 && GetCapture() == NULL)
+            if(gptIOCtx->_iMouseButtonsDown == 0 && GetCapture() == NULL)
                 SetCapture(tHwnd);
-            ptIOCtx->_iMouseButtonsDown |= 1 << iButton;
+            gptIOCtx->_iMouseButtonsDown |= 1 << iButton;
             pl_add_mouse_button_event(iButton, true);
             break;
         }
@@ -503,8 +507,8 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             if (tMsg == WM_RBUTTONUP) { iButton = 1; }
             if (tMsg == WM_MBUTTONUP) { iButton = 2; }
             if (tMsg == WM_XBUTTONUP) { iButton = (GET_XBUTTON_WPARAM(tWParam) == XBUTTON1) ? 3 : 4; }
-            ptIOCtx->_iMouseButtonsDown &= ~(1 << iButton);
-            if(ptIOCtx->_iMouseButtonsDown == 0 && GetCapture() == tHwnd)
+            gptIOCtx->_iMouseButtonsDown &= ~(1 << iButton);
+            if(gptIOCtx->_iMouseButtonsDown == 0 && GetCapture() == tHwnd)
                 ReleaseCapture();
             pl_add_mouse_button_event(iButton, false);
             break;
@@ -617,14 +621,12 @@ pl__convert_to_wide_string(const char* pcNarrowValue, wchar_t* pwWideValue)
 void
 pl__render_frame(void)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
-
     // setup time step
     INT64 ilCurrentTime = 0;
     QueryPerformanceCounter((LARGE_INTEGER*)&ilCurrentTime);
-    ptIOCtx->fDeltaTime = (float)(ilCurrentTime - ilTime) / ilTicksPerSecond;
+    gptIOCtx->fDeltaTime = (float)(ilCurrentTime - ilTime) / ilTicksPerSecond;
     ilTime = ilCurrentTime;
-    if(!ptIOCtx->bViewportMinimized)
+    if(!gptIOCtx->bViewportMinimized)
     {
         pl_app_update(gpUserData);
         gptExtensionRegistry->reload(gptApiRegistry);
@@ -634,17 +636,15 @@ pl__render_frame(void)
 void
 pl_update_mouse_cursor(void)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
-
     // updating mouse cursor
-    if(ptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && ptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
-        ptIOCtx->bCursorChanged = true;
+    if(gptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
+        gptIOCtx->bCursorChanged = true;
 
-    if(ptIOCtx->bCursorChanged && ptIOCtx->tNextCursor != ptIOCtx->tCurrentCursor)
+    if(gptIOCtx->bCursorChanged && gptIOCtx->tNextCursor != gptIOCtx->tCurrentCursor)
     {
-        ptIOCtx->tCurrentCursor = ptIOCtx->tNextCursor;
+        gptIOCtx->tCurrentCursor = gptIOCtx->tNextCursor;
         LPTSTR tWin32Cursor = IDC_ARROW;
-        switch (ptIOCtx->tNextCursor)
+        switch (gptIOCtx->tNextCursor)
         {
             case PL_MOUSE_CURSOR_ARROW:       tWin32Cursor = IDC_ARROW; break;
             case PL_MOUSE_CURSOR_TEXT_INPUT:  tWin32Cursor = IDC_IBEAM; break;
@@ -658,8 +658,8 @@ pl_update_mouse_cursor(void)
         }
         SetCursor(LoadCursor(NULL, tWin32Cursor));    
     }
-    ptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
-    ptIOCtx->bCursorChanged = false;
+    gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
+    gptIOCtx->bCursorChanged = false;
 }
 
 plKey
@@ -917,6 +917,18 @@ pl__get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
     return iRecvLen > 0;
 }
 
+static inline FILETIME
+pl__get_last_write_time(const char* pcFilename)
+{
+    FILETIME tLastWriteTime = {0};
+    
+    WIN32_FILE_ATTRIBUTE_DATA tData = {0};
+    if(GetFileAttributesExA(pcFilename, GetFileExInfoStandard, &tData))
+        tLastWriteTime = tData.ftLastWriteTime;
+    
+    return tLastWriteTime;
+}
+
 bool
 pl__has_library_changed(plSharedLibrary* ptLibrary)
 {
@@ -993,7 +1005,7 @@ pl__sleep(uint32_t uMillisec)
     return 0;
 }
 
-static const char*
+const char*
 pl__get_clipboard_text(void* user_data_ctx)
 {
     pl_sb_reset(gptIOCtx->sbcClipboardData);
@@ -1017,7 +1029,7 @@ pl__get_clipboard_text(void* user_data_ctx)
     return gptIOCtx->sbcClipboardData;
 }
 
-static void
+void
 pl__set_clipboard_text(void* pUnused, const char* text)
 {
     if (!OpenClipboard(NULL))

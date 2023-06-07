@@ -197,7 +197,7 @@ int main()
     // setup & retrieve io context 
     gtIOContext = pl_get_io_context();
     gptDataRegistry->set_data(PL_CONTEXT_IO_NAME, gtIOContext);
-    gptDataRegistry->set_data("memory", &gtMemoryContext);
+    gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
     // create view controller
     gViewController = [[plNSViewController alloc] init];

@@ -237,7 +237,7 @@ PL_EXPORT void
 pl_load_stats_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
     plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data("memory"));
+    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
 
     if(bReload)
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_STATS), pl_load_stats_api());

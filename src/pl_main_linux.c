@@ -165,7 +165,7 @@ int main()
     // setup & retrieve io context 
     plIOContext* ptIOCtx = pl_get_io_context();
     gptDataRegistry->set_data(PL_CONTEXT_IO_NAME, ptIOCtx);
-    gptDataRegistry->set_data("memory", &gtMemoryContext);
+    gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
     // connect to x
     gDisplay = XOpenDisplay(NULL);

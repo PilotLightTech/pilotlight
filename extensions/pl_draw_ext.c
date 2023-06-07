@@ -5,7 +5,6 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] defines
 // [SECTION] context
 // [SECTION] internal structs
 // [SECTION] internal api
@@ -39,14 +38,6 @@ Index of this file:
 #ifdef PL_VULKAN_BACKEND
 #include "../backends/pl_vulkan.c"
 #endif
-
-//-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
-
-#include "stb_sprintf.h"
-#define pl_sprintf stbsp_sprintf
-#define pl_vsprintf stbsp_vsprintf
 
 //-----------------------------------------------------------------------------
 // [SECTION] context
@@ -2291,7 +2282,7 @@ pl_load_draw_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
     plDrawApiI* ptDrawApi = pl_load_draw_api();
     plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data("memory"));
+    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
 
     if(bReload)
     { 

@@ -87,7 +87,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
 {
     plAppData* ptAppData = pAppData;
     plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data("memory"));
+    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     pl_set_io_context(ptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
 
     if(ptAppData) // reload
