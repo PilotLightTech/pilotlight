@@ -22,9 +22,11 @@
 #include "pl_string.h"
 #undef PL_STRING_IMPLEMENTATION
 
-#define STB_SPRINTF_IMPLEMENTATION
-#include "stb_sprintf.h"
-#undef STB_SPRINTF_IMPLEMENTATION
+#ifdef PL_USE_STB_SPRINTF
+    #define STB_SPRINTF_IMPLEMENTATION
+    #include "stb_sprintf.h"
+    #undef STB_SPRINTF_IMPLEMENTATION
+#endif
 
 #define PL_MEMORY_IMPLEMENTATION
 #include "pl_memory.h"

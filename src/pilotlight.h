@@ -6,6 +6,7 @@
 Index of this file:
 // [SECTION] header mess
 // [SECTION] apis
+// [SECTION] contexts
 // [SECTION] includes
 // [SECTION] defines
 // [SECTION] forward declarations & basic types
@@ -43,6 +44,12 @@ typedef struct _plDataRegistryApiI plDataRegistryApiI;
 typedef struct _plExtensionRegistryApiI plExtensionRegistryApiI;
 
 //-----------------------------------------------------------------------------
+// [SECTION] contexts
+//-----------------------------------------------------------------------------
+
+#define PL_CONTEXT_MEMORY "PL_CONTEXT_MEMORY"
+
+//-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
@@ -50,13 +57,24 @@ typedef struct _plExtensionRegistryApiI plExtensionRegistryApiI;
 #include <stdint.h>
 #include "stb_sprintf.h"
 
+#ifdef PL_USER_CONFIG
+#include PL_USER_CONFIG
+#endif
+#include "pl_config.h"
+
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------
 
+#ifdef PL_USE_STB_SPRINTF
 #define pl_sprintf stbsp_sprintf
 #define pl_vsprintf stbsp_vsprintf
 #define pl_vnsprintf stbsp_vsnprintf
+#else
+#define pl_sprintf sprintf
+#define pl_vsprintf vsprintf
+#define pl_vnsprintf vsnprintf
+#endif
 
 #ifndef PL_ASSERT
     #include <assert.h>
@@ -76,31 +94,18 @@ typedef struct _plExtensionRegistryApiI plExtensionRegistryApiI;
 #define PL_DS_FREE(x)                       pl_realloc((x), 0, __FILE__, __LINE__)
 
 // settings
-#define PL_MAX_NAME_LENGTH 1024
-#define PL_MAX_PATH_LENGTH 1024
+#ifndef PL_MAX_NAME_LENGTH
+    #define PL_MAX_NAME_LENGTH 1024
+#endif
 
-// profile settings
-#define PL_PROFILE_ON
+#ifndef PL_MAX_PATH_LENGTH
+    #define PL_MAX_PATH_LENGTH 1024
+#endif
 
 // log settings
-#define PL_LOG_ON
 #ifndef PL_GLOBAL_LOG_LEVEL
     #define PL_GLOBAL_LOG_LEVEL PL_LOG_LEVEL_ALL
 #endif
-#define PL_LOG_ERROR_BOLD
-#define PL_LOG_FATAL_BOLD
-#define PL_LOG_TRACE_BG_COLOR PL_LOG_BG_COLOR_CODE_BLACK
-#define PL_LOG_DEBUG_BG_COLOR PL_LOG_BG_COLOR_CODE_BLACK
-#define PL_LOG_INFO_BG_COLOR  PL_LOG_BG_COLOR_CODE_BLACK
-#define PL_LOG_WARN_BG_COLOR  PL_LOG_BG_COLOR_CODE_BLACK
-#define PL_LOG_ERROR_BG_COLOR PL_LOG_BG_COLOR_CODE_BLACK
-#define PL_LOG_FATAL_BG_COLOR PL_LOG_BG_COLOR_CODE_RED
-#define PL_LOG_TRACE_FG_COLOR PL_LOG_FG_COLOR_CODE_GREEN
-#define PL_LOG_DEBUG_FG_COLOR PL_LOG_FG_COLOR_CODE_CYAN
-#define PL_LOG_INFO_FG_COLOR  PL_LOG_FG_COLOR_CODE_WHITE
-#define PL_LOG_WARN_FG_COLOR  PL_LOG_FG_COLOR_CODE_YELLOW
-#define PL_LOG_ERROR_FG_COLOR PL_LOG_FG_COLOR_CODE_RED
-#define PL_LOG_FATAL_FG_COLOR PL_LOG_FG_COLOR_CODE_WHITE
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
