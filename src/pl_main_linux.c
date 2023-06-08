@@ -81,33 +81,35 @@ typedef struct _plLinuxSharedLibrary
 // [SECTION] globals
 //-----------------------------------------------------------------------------
 
-// apis
-static plDataRegistryApiI*      gptDataRegistry = NULL;
-static plApiRegistryApiI*       gptApiRegistry = NULL;
-static plExtensionRegistryApiI* gptExtensionRegistry = NULL;
+// x11 & xcb stuff
+Display*              gDisplay       = NULL;
+xcb_connection_t*     gConnection    = NULL;
+xcb_window_t          gWindow;
+xcb_screen_t*         gScreen        = NULL;
+bool                  gRunning       = true;
+xcb_atom_t            gWmProtocols;
+xcb_atom_t            gWmDeleteWin;
+plSharedLibrary       gtAppLibrary    = {0};
+void*                 gUserData       = NULL;
+double                dTime           = 0.0;
+double                dFrequency      = 0.0;
+xcb_cursor_context_t* ptCursorContext = NULL;
+plIOContext*          gptIOCtx        = NULL;
 
-static Display*          gDisplay;
-static xcb_connection_t* gConnection;
-static xcb_window_t      gWindow;
-static xcb_screen_t*     gScreen;
-static bool              gRunning = true;
-static xcb_atom_t        gWmProtocols;
-static xcb_atom_t        gWmDeleteWin;
-static plSharedLibrary   gtAppLibrary = {0};
-static void*             gUserData = NULL;
-double                   dTime;
-double                   dFrequency;
-xcb_cursor_context_t*    ptCursorContext;
+// apis
+plDataRegistryApiI*      gptDataRegistry      = NULL;
+plApiRegistryApiI*       gptApiRegistry       = NULL;
+plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 
 // memory tracking
-static plMemoryContext gtMemoryContext = {0};
-static plHashMap gtMemoryHashMap = {0};
+plHashMap       gtMemoryHashMap = {0};
+plMemoryContext gtMemoryContext = {.ptHashMap = &gtMemoryHashMap};
 
 // app function pointers
-static void* (*pl_app_load)    (plApiRegistryApiI* ptApiRegistry, void* ptAppData);
-static void  (*pl_app_shutdown)(void* ptAppData);
-static void  (*pl_app_resize)  (void* ptAppData);
-static void  (*pl_app_update)  (void* ptAppData);
+void* (*pl_app_load)    (plApiRegistryApiI* ptApiRegistry, void* ptAppData);
+void  (*pl_app_shutdown)(void* ptAppData);
+void  (*pl_app_resize)  (void* ptAppData);
+void  (*pl_app_update)  (void* ptAppData);
 
 static inline double
 pl__get_linux_absolute_time(void)
@@ -127,44 +129,48 @@ pl__get_linux_absolute_time(void)
 
 int main()
 {
-    // load apis
-    gtMemoryContext.ptHashMap = &gtMemoryHashMap;
-    gptApiRegistry = pl_load_core_apis();
 
-    static plLibraryApiI tApi3 = {
+    // os provided apis
+
+    static plLibraryApiI tLibraryApi = {
         .has_changed   = pl__has_library_changed,
         .load          = pl__load_library,
         .load_function = pl__load_library_function,
         .reload        = pl__reload_library
     };
 
-    static plFileApiI tApi4 = {
+    static plFileApiI tFileApi = {
         .copy = pl__copy_file,
         .read = pl__read_file
     };
     
-    static plUdpApiI tApi5 = {
+    static plUdpApiI tUdpApi = {
         .create_socket = pl__create_udp_socket,
         .bind_socket   = pl__bind_udp_socket,  
         .get_data      = pl__get_udp_data,
         .send_data     = pl__send_udp_data
     };
 
-    static plOsServicesApiI tApi6 = {
-        .sleep     = pl__sleep
+    static plOsServicesApiI tOsApi = {
+        .sleep = pl__sleep
     };
 
-    gptApiRegistry->add(PL_API_LIBRARY, &tApi3);
-    gptApiRegistry->add(PL_API_FILE, &tApi4);
-    gptApiRegistry->add(PL_API_UDP, &tApi5);
-    gptApiRegistry->add(PL_API_OS_SERVICES, &tApi6);
-
+    // load CORE apis
+    gptApiRegistry       = pl_load_core_apis();
     gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
     gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    
+
+    // add os specific apis
+    gptApiRegistry->add(PL_API_LIBRARY, &tLibraryApi);
+    gptApiRegistry->add(PL_API_FILE, &tFileApi);
+    gptApiRegistry->add(PL_API_UDP, &tUdpApi);
+    gptApiRegistry->add(PL_API_OS_SERVICES, &tOsApi);
+
     // setup & retrieve io context 
-    plIOContext* ptIOCtx = pl_get_io_context();
-    gptDataRegistry->set_data(PL_CONTEXT_IO_NAME, ptIOCtx);
+    gptIOCtx = pl_get_io_context(); // initialized on first retrieval
+
+    // add contexts to data registry
+    gptDataRegistry->set_data(PL_CONTEXT_IO_NAME, gptIOCtx);
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
     // connect to x
@@ -302,7 +308,7 @@ int main()
     } platformData;
     platformData.ptConnection = gConnection;
     platformData.tWindow = gWindow;
-    ptIOCtx->pBackendPlatformData = &platformData;
+    gptIOCtx->pBackendPlatformData = &platformData;
 
     // load library
     plLibraryApiI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
@@ -324,7 +330,7 @@ int main()
         while (event = xcb_poll_for_event(gConnection)) 
             pl_linux_procedure(event);
 
-        if(ptIOCtx->bViewportSizeChanged) //-V547
+        if(gptIOCtx->bViewportSizeChanged) //-V547
             pl_app_resize(gUserData);
 
         pl_update_mouse_cursor_linux();
@@ -342,7 +348,7 @@ int main()
 
         // render a frame
         const double dCurrentTime = pl__get_linux_absolute_time();
-        ptIOCtx->fDeltaTime = (float)(dCurrentTime - dTime);
+        gptIOCtx->fDeltaTime = (float)(dCurrentTime - dTime);
         dTime = dCurrentTime;
         pl_app_update(gUserData);
         gptExtensionRegistry->reload(gptApiRegistry);
@@ -378,7 +384,7 @@ void
 pl_linux_procedure(xcb_generic_event_t* event)
 {
 
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* gptIOCtx = pl_get_io_context();
     xcb_client_message_event_t* cm;
 
     switch (event->response_type & ~0x80) 
@@ -466,11 +472,11 @@ pl_linux_procedure(xcb_generic_event_t* event)
 
             // Fire the event. The application layer should pick this up, but not handle it
             // as it shouldn be visible to other parts of the application.
-            if(configure_event->width != ptIOCtx->afMainViewportSize[0] || configure_event->height != ptIOCtx->afMainViewportSize[1])
+            if(configure_event->width != gptIOCtx->afMainViewportSize[0] || configure_event->height != gptIOCtx->afMainViewportSize[1])
             {
-                ptIOCtx->afMainViewportSize[0] = configure_event->width;
-                ptIOCtx->afMainViewportSize[1] = configure_event->height;
-                ptIOCtx->bViewportSizeChanged = true;
+                gptIOCtx->afMainViewportSize[0] = configure_event->width;
+                gptIOCtx->afMainViewportSize[1] = configure_event->height;
+                gptIOCtx->bViewportSizeChanged = true;
             }
             break;
         } 
@@ -482,17 +488,17 @@ pl_linux_procedure(xcb_generic_event_t* event)
 void
 pl_update_mouse_cursor_linux(void)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIOContext* gptIOCtx = pl_get_io_context();
 
     // updating mouse cursor
-    if(ptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && ptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
-        ptIOCtx->bCursorChanged = true;
+    if(gptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
+        gptIOCtx->bCursorChanged = true;
 
-    if(ptIOCtx->bCursorChanged && ptIOCtx->tNextCursor != ptIOCtx->tCurrentCursor)
+    if(gptIOCtx->bCursorChanged && gptIOCtx->tNextCursor != gptIOCtx->tCurrentCursor)
     {
-        ptIOCtx->tCurrentCursor = ptIOCtx->tNextCursor;
+        gptIOCtx->tCurrentCursor = gptIOCtx->tNextCursor;
         const char* tX11Cursor = NULL;
-        switch (ptIOCtx->tNextCursor)
+        switch (gptIOCtx->tNextCursor)
         {
             case PL_MOUSE_CURSOR_ARROW:       tX11Cursor = "left_ptr"; break;
             case PL_MOUSE_CURSOR_TEXT_INPUT:  tX11Cursor = "xterm"; break;
@@ -516,8 +522,8 @@ pl_update_mouse_cursor_linux(void)
         xcb_free_cursor(gConnection, cursor);
         xcb_close_font_checked(gConnection, font);
     }
-    ptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
-    ptIOCtx->bCursorChanged = false;
+    gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
+    gptIOCtx->bCursorChanged = false;
 }
 
 void

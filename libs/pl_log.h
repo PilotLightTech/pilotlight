@@ -12,8 +12,8 @@
 */
 
 // library version
-#define PL_LOG_VERSION    "0.5.0"
-#define PL_LOG_VERSION_NUM 00500
+#define PL_LOG_VERSION    "0.5.1"
+#define PL_LOG_VERSION_NUM 00501
 
 /*
 Index of this file:
@@ -966,14 +966,17 @@ pl__log_fatal_p(uint32_t uID, const char* cPFormat, ...)
             va_copy(parm_copy, args); \
             plLogEntry* ptEntry = pl__get_new_log_entry(uID); \
             const int iNewSize = pl_vsnprintf(NULL, 0, cPFormat, parm_copy) + 9; \
+            va_end(parm_copy); \
             pl__log_buffer_may_grow(tPChannel, iNewSize); \
             ptEntry->uOffset = tPChannel->uBufferSize; \
             char* cPDest = &tPChannel->pcBuffer0[tPChannel->uBufferSize + tPChannel->uBufferCapacity * (ptEntry->uGeneration % 2)]; \
             tPChannel->uBufferSize += iNewSize; \
             ptEntry->uLevel = level; \
             cPDest += pl_snprintf(cPDest, 9, prefix); \
-            pl_vsnprintf(cPDest, iNewSize, cPFormat, parm_copy); \
-            va_end(parm_copy); \
+            va_list parm_copy2; \
+            va_copy(parm_copy2, args); \
+            pl_vsnprintf(cPDest, iNewSize, cPFormat, parm_copy2); \
+            va_end(parm_copy2); \
         }
 
 void
@@ -1011,7 +1014,7 @@ pl__log_trace_va(uint32_t uID, const char* cPFormat, va_list args)
             printf("%s%s\n", dest, PL_LOG_POP_CODE);
             va_end(parm_copy);
         }
-        PL__LOG_LEVEL_VA_BUFFER_MACRO(PL_LOG_LEVEL_TRACE, "[TRACE] ")
+        PL__LOG_LEVEL_VA_BUFFER_MACRO(PL_LOG_LEVEL_TRACE, "[TRACE] ") 
     }
 
     
