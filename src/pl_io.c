@@ -493,10 +493,10 @@ pl__update_keyboard_inputs(void)
    plIOContext* ptIO = gptIOContext;
 
     ptIO->tKeyMods = 0;
-    if (pl_is_key_down(PL_KEY_MOD_CTRL))     { ptIO->tKeyMods |= PL_KEY_MOD_CTRL; }
-    if (pl_is_key_down(PL_KEY_MOD_SHIFT))    { ptIO->tKeyMods |= PL_KEY_MOD_SHIFT; }
-    if (pl_is_key_down(PL_KEY_MOD_ALT))      { ptIO->tKeyMods |= PL_KEY_MOD_ALT; }
-    if (pl_is_key_down(PL_KEY_MOD_SUPER))    { ptIO->tKeyMods |= PL_KEY_MOD_SUPER; }
+    if (pl_is_key_down(PL_KEY_LEFT_CTRL) || pl_is_key_down(PL_KEY_RIGHT_CTRL))     { ptIO->tKeyMods |= PL_KEY_MOD_CTRL; }
+    if (pl_is_key_down(PL_KEY_LEFT_SHIFT) || pl_is_key_down(PL_KEY_RIGHT_SHIFT))    { ptIO->tKeyMods |= PL_KEY_MOD_SHIFT; }
+    if (pl_is_key_down(PL_KEY_LEFT_ALT) || pl_is_key_down(PL_KEY_RIGHT_ALT))      { ptIO->tKeyMods |= PL_KEY_MOD_ALT; }
+    if (pl_is_key_down(PL_KEY_LEFT_SUPER) || pl_is_key_down(PL_KEY_RIGHT_SUPER))    { ptIO->tKeyMods |= PL_KEY_MOD_SUPER; }
 
     ptIO->bKeyCtrl  = (ptIO->tKeyMods & PL_KEY_MOD_CTRL) != 0;
     ptIO->bKeyShift = (ptIO->tKeyMods & PL_KEY_MOD_SHIFT) != 0;

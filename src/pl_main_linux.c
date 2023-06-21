@@ -29,6 +29,7 @@ Index of this file:
 #include <xcb/xfixes.h> //xcb_xfixes_query_version, apt install libxcb-xfixes0-dev
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <xcb/xcb_cursor.h> // apt install libxcb-cursor-dev, libxcb-cursor0
+#include <xcb/xcb_keysyms.h>
 #include <X11/XKBlib.h>
 #include <sys/stat.h>     // stat, timespec
 #include <stdio.h>        // file api
@@ -84,6 +85,7 @@ typedef struct _plLinuxSharedLibrary
 // x11 & xcb stuff
 Display*              gDisplay       = NULL;
 xcb_connection_t*     gConnection    = NULL;
+xcb_key_symbols_t*    gKeySyms       = NULL;
 xcb_window_t          gWindow;
 xcb_screen_t*         gScreen        = NULL;
 bool                  gRunning       = true;
@@ -310,6 +312,9 @@ int main()
     platformData.tWindow = gWindow;
     gptIOCtx->pBackendPlatformData = &platformData;
 
+    // get the current key map
+    gKeySyms = xcb_key_symbols_alloc(gConnection);
+
     // load library
     plLibraryApiI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
     if(ptLibraryApi->load(&gtAppLibrary, "./app.so", "./app_", "./lock.tmp"))
@@ -361,6 +366,7 @@ int main()
     XAutoRepeatOn(gDisplay);
     xcb_destroy_window(gConnection, gWindow);
     xcb_cursor_context_free(ptCursorContext);
+    xcb_key_symbols_free(gKeySyms);
     
     gptExtensionRegistry->unload_all(gptApiRegistry);
     pl_unload_core_apis();
@@ -441,14 +447,21 @@ pl_linux_procedure(xcb_generic_event_t* event)
 
         case XCB_KEY_PRESS:
         {
-            const xcb_key_release_event_t *keyEvent = (const xcb_key_release_event_t *)event;
+            xcb_key_release_event_t *keyEvent = (xcb_key_release_event_t *)event;
+
             xcb_keycode_t code = keyEvent->detail;
+            uint32_t uCol = gptIOCtx->bKeyShift ? 1 : 0;
             KeySym key_sym = XkbKeycodeToKeysym(
                 gDisplay, 
                 (KeyCode)code,  // event.xkey.keycode,
                 0,
-                0 /*code & ShiftMask ? 1 : 0*/);
+                uCol);
+            xcb_keysym_t k = xcb_key_press_lookup_keysym(gKeySyms, keyEvent, uCol);
             pl_add_key_event(pl__xcb_key_to_pl_key(key_sym), true);
+            if(k < 0xFF)
+                pl_add_text_event(k);
+            else if (k >= 0x1000100 && k <= 0x110ffff) // utf range
+                pl_add_text_event_utf16(k);
             break;
         }
         case XCB_KEY_RELEASE:
@@ -908,7 +921,8 @@ pl__xcb_key_to_pl_key(uint32_t x_keycode)
         case XKB_KEY_Y:           return PL_KEY_Y;
         case XKB_KEY_z:
         case XKB_KEY_Z:           return PL_KEY_Z;
-        default:                  return PL_KEY_NONE;
+        default:
+        return PL_KEY_NONE;
     }            
 }
 

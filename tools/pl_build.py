@@ -15,7 +15,6 @@ __version__ = "0.8.1"
 # - handle multiple compilers per platform
 # - combine multiple compilers/platforms in a single script
 # - variable levels of verbosity in output scripts
-# - add profiles maybe?
 # - add shader support
 # - pypi
 # - documentation
@@ -563,7 +562,7 @@ def register_standard_profiles():
         with platform(PlatformType.LINUX):
             with compiler("gcc", CompilerType.GCC):
                 add_link_directories("/usr/lib/x86_64-linux-gnu")
-                add_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes")
+                add_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms")
                 add_compiler_flag("-std=gnu99")
                 add_compiler_flags("--debug", "-g")
                 add_linker_flags("dl", "m")
