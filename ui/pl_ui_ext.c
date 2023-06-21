@@ -4851,7 +4851,6 @@ pl_ui_submit_window(plUiWindow* ptWindow)
     if(pl_is_mouse_hovering_rect(tBoundBox.tMin, tBoundBox.tMax))
     {
         gptCtx->ptHoveredWindow = ptWindow;
-        gptCtx->bWantCaptureMouseNextFrame = true;
 
         // check if window is activated
         if(pl_is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
