@@ -228,7 +228,7 @@ pl_add_mouse_pos_event(float fX, float fY)
 {
 
     // check for duplicate
-    const plInputEvent* ptLastEvent = pl__get_last_event(PL_INPUT_EVENT_TYPE_MOUSE_POS, -1);
+    const plInputEvent* ptLastEvent = pl__get_last_event(PL_INPUT_EVENT_TYPE_MOUSE_POS, (int)(fX + fY));
     if(ptLastEvent && ptLastEvent->fPosX == fX && ptLastEvent->fPosY == fY)
         return;
 
@@ -410,7 +410,7 @@ pl_get_mouse_wheel(void)
 bool
 pl_is_mouse_pos_valid(plVec2 tPos)
 {
-    return tPos.x >= -FLT_MAX && tPos.y >= -FLT_MAX;
+    return tPos.x > -FLT_MAX && tPos.y > -FLT_MAX;
 }
 
 void
@@ -604,7 +604,9 @@ pl__get_last_event(plInputEventType tType, int iButtonOrKey)
             continue;
         if(tType == PL_INPUT_EVENT_TYPE_KEY && (int)ptEvent->tKey != iButtonOrKey)
             continue;
-        if(tType == PL_INPUT_EVENT_TYPE_MOUSE_BUTTON && ptEvent->iButton != iButtonOrKey)
+        else if(tType == PL_INPUT_EVENT_TYPE_MOUSE_BUTTON && ptEvent->iButton != iButtonOrKey)
+            continue;
+        else if(tType == PL_INPUT_EVENT_TYPE_MOUSE_POS && (int)(ptEvent->fPosX + ptEvent->fPosY) != iButtonOrKey)
             continue;
         return ptEvent;
     }

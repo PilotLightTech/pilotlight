@@ -569,7 +569,9 @@ pl_ui_new_frame(void)
     for(uint32_t i = 0; i < 5; i++)
     {
         if(ptIo->_abMouseClicked[i])
+        {
             ptIo->_abMouseOwned[i] = (gptCtx->ptHoveredWindow != NULL);
+        }
     }
 
     pl_new_io_frame();
@@ -589,7 +591,7 @@ pl_ui_end_frame(void)
     gptCtx->uHoveredId = gptCtx->uNextHoveredId;
     gptCtx->uActiveId = gptCtx->uNextActiveId;
     pl_get_io_context()->bWantCaptureKeyboard = gptCtx->bWantCaptureKeyboardNextFrame;
-    pl_get_io_context()->bWantCaptureMouse = gptCtx->bWantCaptureMouseNextFrame || gptCtx->uActiveId != 0 || gptCtx->ptMovingWindow != NULL;
+    pl_get_io_context()->bWantCaptureMouse = gptCtx->bWantCaptureMouseNextFrame || pl_get_io_context()->_abMouseOwned[0] || gptCtx->uActiveId != 0 || gptCtx->ptMovingWindow != NULL;
 
     // null starting state
     gptCtx->bActiveIdJustActivated = false;
