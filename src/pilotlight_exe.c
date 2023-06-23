@@ -31,6 +31,7 @@ Index of this file:
 typedef struct _plExtension
 {
     char pcLibName[128];
+    char pcLibPath[128];
     char pcTransName[128];
     char pcLoadFunc[128];
     char pcUnloadFunc[128];
@@ -288,12 +289,13 @@ pl__create_extension(const char* pcName, const char* pcLoadFunc, const char* pcU
 {
 
     #ifdef _WIN32
-        pl_sprintf(ptExtensionOut->pcLibName, "./%s.dll", pcName);
+        pl_sprintf(ptExtensionOut->pcLibPath, "./%s.dll", pcName);
     #elif defined(__APPLE__)
-        pl_sprintf(ptExtensionOut->pcLibName, "./%s.dylib", pcName);
+        pl_sprintf(ptExtensionOut->pcLibPath, "./%s.dylib", pcName);
     #else
-        pl_sprintf(ptExtensionOut->pcLibName, "./%s.so", pcName);
+        pl_sprintf(ptExtensionOut->pcLibPath, "./%s.so", pcName);
     #endif
+    strcpy(ptExtensionOut->pcLibName, pcName);
     strcpy(ptExtensionOut->pcLoadFunc, pcLoadFunc);
     strcpy(ptExtensionOut->pcUnloadFunc, pcUnloadFunc);
     pl_sprintf(ptExtensionOut->pcTransName, "./%s_", pcName); 
@@ -354,7 +356,7 @@ pl__load_extensions_from_config(plApiRegistryApiI* ptApiRegistry, const char* pc
             bool bExists = false;
             for(uint32_t i = 0; i < pl_sb_size(gsbtLibs); i++)
             {
-                if(strcmp(tExtension.pcLibName, gsbtLibs[i].acPath) == 0)
+                if(strcmp(tExtension.pcLibPath, gsbtLibs[i].acPath) == 0)
                 {
                     bExists = true;
                 }
@@ -395,7 +397,7 @@ pl__load_extensions_from_file(plApiRegistryApiI* ptApiRegistry, const char* pcFi
     bool bExists = false;
     for(uint32_t i = 0; i < pl_sb_size(gsbtLibs); i++)
     {
-        if(strcmp(tExtension.pcLibName, gsbtLibs[i].acPath) == 0)
+        if(strcmp(tExtension.pcLibPath, gsbtLibs[i].acPath) == 0)
         {
             bExists = true;
         }
@@ -418,7 +420,7 @@ pl__load_extension(plApiRegistryApiI* ptApiRegistry, const char* pcName, const c
     // check if extension exists already
     for(uint32_t i = 0; i < pl_sb_size(gsbtLibs); i++)
     {
-        if(strcmp(tExtension.pcLibName, gsbtLibs[i].acPath) == 0)
+        if(strcmp(tExtension.pcLibPath, gsbtLibs[i].acPath) == 0)
             return;
     }
 
@@ -426,7 +428,7 @@ pl__load_extension(plApiRegistryApiI* ptApiRegistry, const char* pcName, const c
 
     plLibraryApiI* ptLibraryApi = ptApiRegistry->first(PL_API_LIBRARY);
 
-    if(ptLibraryApi->load(&tLibrary, tExtension.pcLibName, tExtension.pcTransName, "./lock.tmp"))
+    if(ptLibraryApi->load(&tLibrary, tExtension.pcLibPath, tExtension.pcTransName, "./lock.tmp"))
     {
         #ifdef _WIN32
             tExtension.pl_load   = (void (__cdecl *)(plApiRegistryApiI*, bool))  ptLibraryApi->load_function(&tLibrary, tExtension.pcLoadFunc);
@@ -446,7 +448,7 @@ pl__load_extension(plApiRegistryApiI* ptApiRegistry, const char* pcName, const c
     }
     else
     {
-        printf("Extension: %s not loaded\n", tExtension.pcLibName);
+        printf("Extension: %s not loaded\n", tExtension.pcLibPath);
         PL_ASSERT(false && "extension not loaded");
     }
 }
