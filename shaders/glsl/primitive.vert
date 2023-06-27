@@ -56,7 +56,7 @@ void main()
     tShaderOut.tNormal  = inNormal;
     tShaderOut.tColor = inColor0;
     tShaderOut.tWorldNormal = normalize(tObjectInfo.tModel * vec4(inNormal, 0.0)).xyz;
-    tShaderOut.tWorldPosition = normalize(tObjectInfo.tModel * vec4(inPos, 1.0)).xyz;
+    tShaderOut.tWorldPosition = (tObjectInfo.tModel * vec4(inPos, 1.0)).xyz;
 
     if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))
     {

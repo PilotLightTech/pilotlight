@@ -39,6 +39,7 @@ static uint32_t uLogChannel = UINT32_MAX;
 
 static void     pl_ecs_init_component_library(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
 static plEntity pl_ecs_create_entity         (plComponentLibrary* ptLibrary);
+static plEntity pl_ecs_get_entity            (plComponentLibrary* ptLibrary, const char* pcName);
 static size_t   pl_ecs_get_index             (plComponentManager* ptManager, plEntity tEntity);
 static void*    pl_ecs_get_component         (plComponentManager* ptManager, plEntity tEntity);
 static void*    pl_ecs_create_component      (plComponentManager* ptManager, plEntity tEntity);
@@ -51,6 +52,7 @@ static plEntity pl_ecs_create_outline_material(plComponentLibrary* ptLibrary, co
 static plEntity pl_ecs_create_object          (plComponentLibrary* ptLibrary, const char* pcName);
 static plEntity pl_ecs_create_transform       (plComponentLibrary* ptLibrary, const char* pcName);
 static plEntity pl_ecs_create_camera          (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
+static plEntity pl_ecs_create_light           (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, plVec3 tColor);
 
 static void pl_ecs_attach_component (plComponentLibrary* ptLibrary, plEntity tEntity, plEntity tParent);
 static void pl_ecs_deattach_component(plComponentLibrary* ptLibrary, plEntity tEntity);
@@ -62,8 +64,11 @@ static void pl_remove_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEnti
 // update systems
 static void pl_ecs_cleanup_systems        (plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
 static void pl_run_object_update_system   (plComponentLibrary* ptLibrary);
-static void pl_run_mesh_update_system     (plComponentLibrary* ptLibrary);
 static void pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary);
+
+// misc.
+static void pl_calculate_normals (plMeshComponent* atMeshes, uint32_t uComponentCount);
+static void pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount);
 
 // camera
 static void pl_camera_set_fov        (plCameraComponent* ptCamera, float fYFov);
@@ -85,6 +90,7 @@ pl_load_ecs_api(void)
     static plEcsI tApi = {
         .init_component_library      = pl_ecs_init_component_library,
         .create_entity               = pl_ecs_create_entity,
+        .get_entity                  = pl_ecs_get_entity,
         .get_index                   = pl_ecs_get_index,
         .get_component               = pl_ecs_get_component,
         .create_component            = pl_ecs_create_component,
@@ -94,13 +100,15 @@ pl_load_ecs_api(void)
         .create_object               = pl_ecs_create_object,
         .create_transform            = pl_ecs_create_transform,
         .create_camera               = pl_ecs_create_camera,
+        .create_light                = pl_ecs_create_light,
         .add_mesh_outline            = pl_add_mesh_outline,
         .remove_mesh_outline         = pl_remove_mesh_outline,
         .attach_component            = pl_ecs_attach_component,
         .deattach_component          = pl_ecs_deattach_component,
         .cleanup_systems             = pl_ecs_cleanup_systems,
         .run_object_update_system    = pl_run_object_update_system,
-        .run_mesh_update_system      = pl_run_mesh_update_system,
+        .calculate_normals           = pl_calculate_normals,
+        .calculate_tangents          = pl_calculate_tangents,
         .run_hierarchy_update_system = pl_run_hierarchy_update_system
     };
     return &tApi;
@@ -166,6 +174,9 @@ pl_ecs_init_component_library(plApiRegistryApiI* ptApiRegistry, plComponentLibra
     ptLibrary->tHierarchyComponentManager.tComponentType = PL_COMPONENT_TYPE_HIERARCHY;
     ptLibrary->tHierarchyComponentManager.szStride = sizeof(plHierarchyComponent);
 
+    ptLibrary->tLightComponentManager.tComponentType = PL_COMPONENT_TYPE_LIGHT;
+    ptLibrary->tLightComponentManager.szStride = sizeof(plLightComponent);
+
     pl_log_info_to(uLogChannel, "initialized component library");
 
 }
@@ -175,6 +186,21 @@ pl_ecs_create_entity(plComponentLibrary* ptLibrary)
 {
     plEntity tNewEntity = ptLibrary->tNextEntity++;
     return tNewEntity;
+}
+
+static plEntity
+pl_ecs_get_entity(plComponentLibrary* ptLibrary, const char* pcName)
+{
+    plTagComponent* sbComponents = ptLibrary->tTagComponentManager.pComponents;
+    for(uint32_t i = 0; i < pl_sb_size(sbComponents); i++)
+    {
+        if(strcmp(sbComponents[i].acName, pcName) == 0)
+        {
+            return ptLibrary->tTagComponentManager.sbtEntities[i];
+        }
+    }
+
+    return PL_INVALID_ENTITY_HANDLE;
 }
 
 static size_t
@@ -270,6 +296,15 @@ pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
     {
         plHierarchyComponent* sbComponents = ptManager->pComponents;
         pl_sb_push(sbComponents, (plHierarchyComponent){0});
+        ptManager->pComponents = sbComponents;
+        pl_sb_push(ptManager->sbtEntities, tEntity);
+        return &pl_sb_back(sbComponents);
+    }
+
+    case PL_COMPONENT_TYPE_LIGHT:
+    {
+        plLightComponent* sbComponents = ptManager->pComponents;
+        pl_sb_push(sbComponents, ((plLightComponent){.tColor = {1.0f, 1.0f, 1.0f}}));
         ptManager->pComponents = sbComponents;
         pl_sb_push(ptManager->sbtEntities, tEntity);
         return &pl_sb_back(sbComponents);
@@ -483,9 +518,6 @@ pl_ecs_cleanup_systems(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptL
     pl_sb_free(ptLibrary->tObjectComponentManager.sbtEntities);
     pl_sb_free(ptLibrary->tCameraComponentManager.sbtEntities);
     pl_sb_free(ptLibrary->tHierarchyComponentManager.sbtEntities);
-    
-
-
 }
 
 static void
@@ -510,15 +542,13 @@ pl_run_object_update_system(plComponentLibrary* ptLibrary)
 }
 
 static void
-pl_run_mesh_update_system(plComponentLibrary* ptLibrary)
+pl_calculate_normals(plMeshComponent* atMeshes, uint32_t uComponentCount)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plMeshComponent* sbtMeshes = ptLibrary->tMeshComponentManager.pComponents;
 
-    // calculate normals and tangents
-    for(uint32_t uMeshIndex = 0; uMeshIndex < pl_sb_size(sbtMeshes); uMeshIndex++)
+    for(uint32_t uMeshIndex = 0; uMeshIndex < uComponentCount; uMeshIndex++)
     {
-        plMeshComponent* ptMesh = &sbtMeshes[uMeshIndex];
+        plMeshComponent* ptMesh = &atMeshes[uMeshIndex];
 
         for(uint32_t uSubMeshIndex = 0; uSubMeshIndex < pl_sb_size(ptMesh->sbtSubmeshes); uSubMeshIndex++)
         {
@@ -547,6 +577,23 @@ pl_run_mesh_update_system(plComponentLibrary* ptLibrary)
                     ptSubMesh->sbtVertexNormals[uIndex2] = tNorm;
                 }
             }
+        }
+    }
+    pl_end_profile_sample();
+}
+
+static void
+pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+
+    for(uint32_t uMeshIndex = 0; uMeshIndex < uComponentCount; uMeshIndex++)
+    {
+        plMeshComponent* ptMesh = &atMeshes[uMeshIndex];
+
+        for(uint32_t uSubMeshIndex = 0; uSubMeshIndex < pl_sb_size(ptMesh->sbtSubmeshes); uSubMeshIndex++)
+        {
+            plSubMesh* ptSubMesh = &ptMesh->sbtSubmeshes[uSubMeshIndex];
 
             if(pl_sb_size(ptSubMesh->sbtVertexTangents) == 0 && pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates0) > 0)
             {
@@ -706,6 +753,31 @@ pl_ecs_create_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 t
     pl_camera_update(ptCamera);
 
     return tNewEntity; 
+}
+
+static plEntity
+pl_ecs_create_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, plVec3 tColor)
+{
+    plEntity tNewEntity = pl_ecs_create_entity(ptLibrary);
+
+    plTagComponent* ptTag = pl_ecs_create_component(&ptLibrary->tTagComponentManager, tNewEntity);
+    if(pcName)
+    {
+        pl_log_debug_to_f(uLogChannel, "created light '%s'", pcName);
+        strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
+    }
+    else
+    {
+        pl_log_debug_to(uLogChannel, "created unnamed light");
+        strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
+    }
+
+    plLightComponent* ptLight = pl_ecs_create_component(&ptLibrary->tLightComponentManager, tNewEntity);
+    memset(ptLight, 0, sizeof(plObjectComponent));
+    
+    ptLight->tColor = tColor;
+    ptLight->tPosition = tPos;
+    return tNewEntity;   
 }
 
 static void

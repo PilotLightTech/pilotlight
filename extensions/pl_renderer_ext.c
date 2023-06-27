@@ -1269,8 +1269,14 @@ pl_scene_bind_camera(plScene* ptScene, const plCameraComponent* ptCamera)
     ptGlobalInfo->tCameraPos      = (plVec4){.xyz = ptCamera->tPos, .w = 0.0f};
     ptGlobalInfo->tCameraView     = ptCamera->tViewMat;
     ptGlobalInfo->tCameraViewProj = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
+    ptGlobalInfo->fTime           = (float)pl_get_io_context()->dTime;
 
-    ptGlobalInfo->fTime  = (float)pl_get_io_context()->dTime;
+    plLightComponent* sbtLights = ptScene->ptComponentLibrary->tLightComponentManager.pComponents;
+    if(pl_sb_size(sbtLights) > 0)
+    {
+        ptGlobalInfo->tLightPos = (plVec4){.x = sbtLights[0].tPosition.x, .y = sbtLights[0].tPosition.y, .z = sbtLights[0].tPosition.z};
+        ptGlobalInfo->tLightColor = (plVec4){.rgb = sbtLights[0].tColor};
+    }
 }
 
 static void

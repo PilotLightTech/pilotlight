@@ -5,13 +5,17 @@ layout(set = 0, binding = 0) uniform _plGlobalInfo
 {
     vec4 tAmbientColor;
 
+    // misc
+    float fTime;
+
+    // light info
+    vec4 tLightColor;
+    vec4 tLightPos;
+
     // camera info
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraViewProj;
-
-    // misc
-    float fTime;
 
 } tGlobalInfo;
 

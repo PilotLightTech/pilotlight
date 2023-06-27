@@ -70,6 +70,7 @@ typedef struct _plMaterialComponent  plMaterialComponent;
 typedef struct _plObjectComponent    plObjectComponent;
 typedef struct _plCameraComponent    plCameraComponent;
 typedef struct _plHierarchyComponent plHierarchyComponent;
+typedef struct _plLightComponent     plLightComponent;
 
 // ecs systems data
 typedef struct _plObjectSystemData plObjectSystemData;
@@ -97,6 +98,7 @@ typedef struct _plEcsI
 {
     void     (*init_component_library)(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
     plEntity (*create_entity)         (plComponentLibrary* ptLibrary);
+    plEntity (*get_entity)            (plComponentLibrary* ptLibrary, const char* pcName);
     size_t   (*get_index)             (plComponentManager* ptManager, plEntity tEntity);
     void*    (*get_component)         (plComponentManager* ptManager, plEntity tEntity);
     void*    (*create_component)      (plComponentManager* ptManager, plEntity tEntity);
@@ -108,6 +110,7 @@ typedef struct _plEcsI
     plEntity (*create_object)   (plComponentLibrary* ptLibrary, const char* pcName);
     plEntity (*create_transform)(plComponentLibrary* ptLibrary, const char* pcName);
     plEntity (*create_camera)   (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
+    plEntity (*create_light)    (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, plVec3 tColor);
 
     // hierarchy
     void (*attach_component)   (plComponentLibrary* ptLibrary, plEntity tEntity, plEntity tParent);
@@ -117,11 +120,15 @@ typedef struct _plEcsI
     void (*add_mesh_outline)(plComponentLibrary* ptLibrary, plEntity tEntity);
     void (*remove_mesh_outline)(plComponentLibrary* ptLibrary, plEntity tEntity);
 
+    // meshes
+    void (*calculate_normals) (plMeshComponent* atMeshes, uint32_t uComponentCount);
+    void (*calculate_tangents)(plMeshComponent* atMeshes, uint32_t uComponentCount);
+
     // systems
     void (*cleanup_systems)            (plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
     void (*run_object_update_system)   (plComponentLibrary* ptLibrary);
-    void (*run_mesh_update_system)     (plComponentLibrary* ptLibrary);
     void (*run_hierarchy_update_system)(plComponentLibrary* ptLibrary);
+
 } plEcsI;
 
 typedef struct _plCameraI
@@ -196,6 +203,7 @@ typedef struct _plComponentLibrary
     plComponentManager tObjectComponentManager;
     plComponentManager tCameraComponentManager;
     plComponentManager tHierarchyComponentManager;
+    plComponentManager tLightComponentManager;
 } plComponentLibrary;
 
 //-----------------------------------------------------------------------------
@@ -212,6 +220,12 @@ typedef struct _plHierarchyComponent
 {
     plEntity tParent;
 } plHierarchyComponent;
+
+typedef struct _plLightComponent
+{
+    plVec3 tPosition;
+    plVec3 tColor;
+} plLightComponent;
 
 typedef struct _plTagComponent
 {
@@ -289,7 +303,8 @@ enum _plComponentType
     PL_COMPONENT_TYPE_MATERIAL,
     PL_COMPONENT_TYPE_CAMERA,
     PL_COMPONENT_TYPE_OBJECT,
-    PL_COMPONENT_TYPE_HIERARCHY
+    PL_COMPONENT_TYPE_HIERARCHY,
+    PL_COMPONENT_TYPE_LIGHT
 };
 
 enum _plShaderType

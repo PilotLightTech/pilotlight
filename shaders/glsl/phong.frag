@@ -105,14 +105,10 @@ float clampedDot(vec3 x, vec3 y)
 void main() 
 {
     NormalInfo normalInfo = getNormalInfo();
-    
-    vec3 n = normalInfo.n;
-
-    const vec3 tLightDir0 = normalize(vec3(0.0, -1.0, -0.2));
-    const vec3 tEyePos = normalize(-tGlobalInfo.tCameraPos.xyz);
-    const vec3 tReflected = normalize(reflect(-tLightDir0, n));
-    const vec4 tLightColor = vec4(1.0, 1.0, 1.0, 1.0);
-    const vec4 tDiffuseColor = tLightColor * clampedDot(n, -tLightDir0);
+    vec3 n = normalize(normalInfo.n);
+    const vec3 tLightDir0 = normalize(tGlobalInfo.tLightPos.xyz - tShaderIn.tWorldPosition);
+    const vec4 tLightColor = vec4(tGlobalInfo.tLightColor.rgb, 1.0);
+    const vec4 tDiffuseColor = tLightColor * clampedDot(n, tLightDir0);
     vec4 tMaterialColor = tMaterialBuffer.atMaterialData[tObjectInfo.uMaterialIndex].tAlbedo * tShaderIn.tColor;
     vec4 tEmissiveColor = vec4(0.0);
 

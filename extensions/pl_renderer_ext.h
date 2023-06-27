@@ -119,11 +119,16 @@ typedef struct _plPickInfo
 typedef struct _plGlobalInfo
 {
     plVec4 tAmbientColor;
+
+    float  fTime;
+    int    _unused[3];
+    plVec4 tLightColor;
+    plVec4 tLightPos;
+    
     plVec4 tCameraPos;
     plMat4 tCameraView;
     plMat4 tCameraViewProj;
-    float  fTime;
-    int    _unused[3];
+
 } plGlobalInfo;
 
 typedef struct _plMaterialInfo
