@@ -1827,17 +1827,17 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
             uint32_t uSetCounter = 0;
             uint32_t uFirstSet = 0;
 
-            if(ptDraw->ptBindGroup1)
+            if(ptDraw->aptBindGroups[0])
             {
-                auDynamicOffsets[uSetCounter] = ptDraw->uDynamicBufferOffset1;
-                atUpdateSets[uSetCounter++] = ptDraw->ptBindGroup1->_tDescriptorSet;
+                auDynamicOffsets[uSetCounter] = ptDraw->auDynamicBufferOffset[0];
+                atUpdateSets[uSetCounter++] = ptDraw->aptBindGroups[0]->_tDescriptorSet;
                 uFirstSet = 1;
             }
 
-            if(ptDraw->ptBindGroup2)
+            if(ptDraw->aptBindGroups[1])
             {
-                auDynamicOffsets[uSetCounter] = ptDraw->uDynamicBufferOffset2;
-                atUpdateSets[uSetCounter++] = ptDraw->ptBindGroup2->_tDescriptorSet;
+                auDynamicOffsets[uSetCounter] = ptDraw->auDynamicBufferOffset[1];
+                atUpdateSets[uSetCounter++] = ptDraw->aptBindGroups[1]->_tDescriptorSet;
                 uFirstSet = uFirstSet == 0 ? 2 : 1;
             }
 

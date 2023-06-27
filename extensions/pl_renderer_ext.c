@@ -883,10 +883,10 @@ pl_draw_scene(plScene* ptScene)
             pl_sb_push(ptRenderer->sbtDraws, ((plDraw){
                 .uShaderVariant        = ptMaterial->uShaderVariant,
                 .ptMesh                = &ptSubmesh->tMesh,
-                .ptBindGroup1          = &ptRenderer->sbtMaterialBindGroups[ptMaterial->uBindGroup1],
-                .ptBindGroup2          = &ptRenderer->sbtObjectBindGroups[ptSubmesh->uBindGroup2],
-                .uDynamicBufferOffset1 = 0,
-                .uDynamicBufferOffset2 = ptSubmesh->uBufferOffset
+                .aptBindGroups          = {
+                    &ptRenderer->sbtMaterialBindGroups[ptMaterial->uBindGroup1],
+                    &ptRenderer->sbtObjectBindGroups[ptSubmesh->uBindGroup2]},
+                .auDynamicBufferOffset = {0, ptSubmesh->uBufferOffset}
                 }));
         }
     }
@@ -904,10 +904,10 @@ pl_draw_scene(plScene* ptScene)
             pl_sb_push(ptRenderer->sbtDraws, ((plDraw){
                 .uShaderVariant        = ptOutlineMaterial->uShaderVariant,
                 .ptMesh                = &ptSubmesh->tMesh,
-                .ptBindGroup1          = &ptRenderer->sbtMaterialBindGroups[ptMaterial->uBindGroup1],
-                .ptBindGroup2          = &ptRenderer->sbtObjectBindGroups[ptSubmesh->uBindGroup2],
-                .uDynamicBufferOffset1 = 0,
-                .uDynamicBufferOffset2 = ptSubmesh->uBufferOffset
+                .aptBindGroups         = { 
+                        &ptRenderer->sbtMaterialBindGroups[ptMaterial->uBindGroup1],
+                        &ptRenderer->sbtObjectBindGroups[ptSubmesh->uBindGroup2] },
+                .auDynamicBufferOffset = { 0, ptSubmesh->uBufferOffset }
                 }));
         }
     }
@@ -953,8 +953,8 @@ pl_draw_pick_scene(plScene* ptScene)
             pl_sb_push(ptRenderer->sbtDraws, ((plDraw){
                 .uShaderVariant        = ptRenderer->uPickMaterial,
                 .ptMesh                = &ptSubmesh->tMesh,
-                .ptBindGroup1          = &ptRenderer->sbtObjectBindGroups[ptSubmesh->uBindGroup2],
-                .uDynamicBufferOffset1 = ptSubmesh->uBufferOffset
+                .aptBindGroups         = { &ptRenderer->sbtObjectBindGroups[ptSubmesh->uBindGroup2], NULL },
+                .auDynamicBufferOffset = { ptSubmesh->uBufferOffset, 0}
                 }));
         }
     }
@@ -1339,10 +1339,8 @@ pl_draw_sky(plScene* ptScene)
     pl_sb_push(ptRenderer->sbtDraws, ((plDraw){
         .uShaderVariant        = uSkyboxShaderVariant,
         .ptMesh                = &ptScene->tSkyboxMesh,
-        .ptBindGroup1          = NULL,
-        .ptBindGroup2          = NULL,
-        .uDynamicBufferOffset1 = 0,
-        .uDynamicBufferOffset2 = 0
+        .aptBindGroups         = { NULL, NULL },
+        .auDynamicBufferOffset = {0, 0}
         }));
 
     ptGfx->draw_areas(ptRenderer->ptGraphics, pl_sb_size(ptRenderer->sbtDrawAreas), ptRenderer->sbtDrawAreas, ptRenderer->sbtDraws);

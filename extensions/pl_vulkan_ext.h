@@ -268,11 +268,9 @@ typedef struct _plDrawArea
 typedef struct _plDraw
 {
     plMesh*      ptMesh;
-    plBindGroup* ptBindGroup1;
-    plBindGroup* ptBindGroup2;
     uint32_t     uShaderVariant;
-    uint32_t     uDynamicBufferOffset1;
-    uint32_t     uDynamicBufferOffset2;
+    plBindGroup* aptBindGroups[2];
+    uint32_t     auDynamicBufferOffset[2];
 } plDraw;
 
 typedef struct _plTextureView
