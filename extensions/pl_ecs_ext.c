@@ -16,7 +16,6 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pilotlight.h"
 #include "pl_ecs_ext.h"
@@ -44,6 +43,9 @@ static size_t   pl_ecs_get_index             (plComponentManager* ptManager, plE
 static void*    pl_ecs_get_component         (plComponentManager* ptManager, plEntity tEntity);
 static void*    pl_ecs_create_component      (plComponentManager* ptManager, plEntity tEntity);
 static bool     pl_ecs_has_entity            (plComponentManager* ptManager, plEntity tEntity);
+
+static plVec4   pl_entity_to_color(plEntity tEntity);
+static plEntity pl_color_to_entity(const plVec4* ptColor);
 
 // components
 static plEntity pl_ecs_create_mesh            (plComponentLibrary* ptLibrary, const char* pcName);
@@ -109,7 +111,9 @@ pl_load_ecs_api(void)
         .run_object_update_system    = pl_run_object_update_system,
         .calculate_normals           = pl_calculate_normals,
         .calculate_tangents          = pl_calculate_tangents,
-        .run_hierarchy_update_system = pl_run_hierarchy_update_system
+        .run_hierarchy_update_system = pl_run_hierarchy_update_system,
+        .entity_to_color             = pl_entity_to_color,
+        .color_to_entity             = pl_color_to_entity
     };
     return &tApi;
 }
@@ -328,6 +332,24 @@ pl_ecs_has_entity(plComponentManager* ptManager, plEntity tEntity)
     return false;
 }
 
+static plVec4
+pl_entity_to_color(plEntity tEntity)
+{
+    const uint32_t uId = (uint32_t)tEntity;
+    return (plVec4){
+        ((float)(uId & 0xff) / 255.0f),
+        ((float)((uId >> 8) & 0xff) / 255.0f),
+        ((float)((uId >> 16) & 0xff) / 255.0f),
+        1.0f};
+}
+
+static plEntity
+pl_color_to_entity(const plVec4* ptColor)
+{
+    unsigned char* pucMapping = (unsigned char*)ptColor;
+    return (plEntity)(pucMapping[0] | pucMapping[1] << 8 | pucMapping[2] << 16);
+}
+
 static plEntity
 pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName)
 {
@@ -440,16 +462,16 @@ pl_add_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity)
     {
         plMeshComponent* ptMesh = pl_ecs_get_component(&ptLibrary->tMeshComponentManager, tEntity);
 
-        plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tMaterial);
+        plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->tMaterial);
         ptMaterial->tGraphicsState.ulStencilOpFail      = VK_STENCIL_OP_REPLACE;
         ptMaterial->tGraphicsState.ulStencilOpDepthFail = VK_STENCIL_OP_REPLACE;
         ptMaterial->tGraphicsState.ulStencilOpPass      = VK_STENCIL_OP_REPLACE;
 
-        if(ptMesh->sbtSubmeshes[0].tOutlineMaterial == 0)
+        if(ptMesh->tOutlineMaterial == 0)
         {
-            ptMesh->sbtSubmeshes[0].tOutlineMaterial = pl_ecs_create_outline_material(ptLibrary, "outline material");
-            plMaterialComponent* ptOutlineMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tOutlineMaterial);
-            ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tMaterial);
+            ptMesh->tOutlineMaterial = pl_ecs_create_outline_material(ptLibrary, "outline material");
+            plMaterialComponent* ptOutlineMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->tOutlineMaterial);
+            ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->tMaterial);
             ptOutlineMaterial->tGraphicsState.ulVertexStreamMask = ptMaterial->tGraphicsState.ulVertexStreamMask;
         }
     }
@@ -463,7 +485,7 @@ pl_remove_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity)
     if(pl_ecs_has_entity(&ptLibrary->tMeshComponentManager, tEntity))
     {
         plMeshComponent* ptMesh = pl_ecs_get_component(&ptLibrary->tMeshComponentManager, tEntity);
-        plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->sbtSubmeshes[0].tMaterial);
+        plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->tMaterial);
         ptMaterial->tGraphicsState.ulStencilOpFail      = VK_STENCIL_OP_KEEP;
         ptMaterial->tGraphicsState.ulStencilOpDepthFail = VK_STENCIL_OP_KEEP;
         ptMaterial->tGraphicsState.ulStencilOpPass      = VK_STENCIL_OP_KEEP;
@@ -496,10 +518,6 @@ pl_ecs_cleanup_systems(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptL
     ptLibrary->tObjectComponentManager.pSystemData = NULL;
 
     plMeshComponent* ptMeshComponents = ptLibrary->tMeshComponentManager.pComponents;
-    for(uint32_t i = 0; i < pl_sb_size(ptMeshComponents); i++)
-    {
-        pl_sb_free(ptMeshComponents[i].sbtSubmeshes);
-    }
 
     // components
     pl_sb_free(ptLibrary->tTagComponentManager.pComponents);
@@ -532,11 +550,8 @@ pl_run_object_update_system(plComponentLibrary* ptLibrary)
     {
         plMeshComponent* ptMeshComponent = pl_ecs_get_component(&ptLibrary->tMeshComponentManager, sbtComponents[i].tMesh);
         plTransformComponent* ptTransform = pl_ecs_get_component(&ptLibrary->tTransformComponentManager, sbtComponents[i].tTransform);
-        for(uint32_t j = 0; j < pl_sb_size(ptMeshComponent->sbtSubmeshes); j++)
-        {
-            ptMeshComponent->sbtSubmeshes[j].tInfo.tModel = ptTransform->tFinalTransform;
-            pl_sb_push(ptObjectSystemData->sbtSubmeshes, &ptMeshComponent->sbtSubmeshes[j]);
-        }
+        ptMeshComponent->tInfo.tModel = ptTransform->tFinalTransform;
+        pl_sb_push(ptObjectSystemData->sbtSubmeshes, ptMeshComponent);
     }
     pl_end_profile_sample();
 }
@@ -550,32 +565,27 @@ pl_calculate_normals(plMeshComponent* atMeshes, uint32_t uComponentCount)
     {
         plMeshComponent* ptMesh = &atMeshes[uMeshIndex];
 
-        for(uint32_t uSubMeshIndex = 0; uSubMeshIndex < pl_sb_size(ptMesh->sbtSubmeshes); uSubMeshIndex++)
+        if(pl_sb_size(ptMesh->sbtVertexNormals) == 0)
         {
-            plSubMesh* ptSubMesh = &ptMesh->sbtSubmeshes[uSubMeshIndex];
-
-            if(pl_sb_size(ptSubMesh->sbtVertexNormals) == 0)
+            pl_sb_resize(ptMesh->sbtVertexNormals, pl_sb_size(ptMesh->sbtVertexPositions));
+            for(uint32_t i = 0; i < pl_sb_size(ptMesh->sbuIndices) - 2; i += 3)
             {
-                pl_sb_resize(ptSubMesh->sbtVertexNormals, pl_sb_size(ptSubMesh->sbtVertexPositions));
-                for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbuIndices) - 2; i += 3)
-                {
-					const uint32_t uIndex0 = ptSubMesh->sbuIndices[i + 0];
-					const uint32_t uIndex1 = ptSubMesh->sbuIndices[i + 1];
-					const uint32_t uIndex2 = ptSubMesh->sbuIndices[i + 2];
+                const uint32_t uIndex0 = ptMesh->sbuIndices[i + 0];
+                const uint32_t uIndex1 = ptMesh->sbuIndices[i + 1];
+                const uint32_t uIndex2 = ptMesh->sbuIndices[i + 2];
 
-					const plVec3 tP0 = ptSubMesh->sbtVertexPositions[uIndex0];
-					const plVec3 tP1 = ptSubMesh->sbtVertexPositions[uIndex1];
-					const plVec3 tP2 = ptSubMesh->sbtVertexPositions[uIndex2];
+                const plVec3 tP0 = ptMesh->sbtVertexPositions[uIndex0];
+                const plVec3 tP1 = ptMesh->sbtVertexPositions[uIndex1];
+                const plVec3 tP2 = ptMesh->sbtVertexPositions[uIndex2];
 
-					const plVec3 tEdge1 = pl_sub_vec3(tP1, tP0);
-					const plVec3 tEdge2 = pl_sub_vec3(tP2, tP0);
+                const plVec3 tEdge1 = pl_sub_vec3(tP1, tP0);
+                const plVec3 tEdge2 = pl_sub_vec3(tP2, tP0);
 
-					const plVec3 tNorm = pl_cross_vec3(tEdge1, tEdge2);
+                const plVec3 tNorm = pl_cross_vec3(tEdge1, tEdge2);
 
-                    ptSubMesh->sbtVertexNormals[uIndex0] = tNorm;
-                    ptSubMesh->sbtVertexNormals[uIndex1] = tNorm;
-                    ptSubMesh->sbtVertexNormals[uIndex2] = tNorm;
-                }
+                ptMesh->sbtVertexNormals[uIndex0] = tNorm;
+                ptMesh->sbtVertexNormals[uIndex1] = tNorm;
+                ptMesh->sbtVertexNormals[uIndex2] = tNorm;
             }
         }
     }
@@ -591,56 +601,51 @@ pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
     {
         plMeshComponent* ptMesh = &atMeshes[uMeshIndex];
 
-        for(uint32_t uSubMeshIndex = 0; uSubMeshIndex < pl_sb_size(ptMesh->sbtSubmeshes); uSubMeshIndex++)
+        if(pl_sb_size(ptMesh->sbtVertexTangents) == 0 && pl_sb_size(ptMesh->sbtVertexTextureCoordinates0) > 0)
         {
-            plSubMesh* ptSubMesh = &ptMesh->sbtSubmeshes[uSubMeshIndex];
-
-            if(pl_sb_size(ptSubMesh->sbtVertexTangents) == 0 && pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates0) > 0)
+            pl_sb_resize(ptMesh->sbtVertexTangents, pl_sb_size(ptMesh->sbtVertexPositions));
+            for(uint32_t i = 0; i < pl_sb_size(ptMesh->sbuIndices) - 2; i += 3)
             {
-                pl_sb_resize(ptSubMesh->sbtVertexTangents, pl_sb_size(ptSubMesh->sbtVertexPositions));
-                for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbuIndices) - 2; i += 3)
-                {
-					const uint32_t uIndex0 = ptSubMesh->sbuIndices[i + 0];
-					const uint32_t uIndex1 = ptSubMesh->sbuIndices[i + 1];
-					const uint32_t uIndex2 = ptSubMesh->sbuIndices[i + 2];
+                const uint32_t uIndex0 = ptMesh->sbuIndices[i + 0];
+                const uint32_t uIndex1 = ptMesh->sbuIndices[i + 1];
+                const uint32_t uIndex2 = ptMesh->sbuIndices[i + 2];
 
-					const plVec3 tP0 = ptSubMesh->sbtVertexPositions[uIndex0];
-					const plVec3 tP1 = ptSubMesh->sbtVertexPositions[uIndex1];
-					const plVec3 tP2 = ptSubMesh->sbtVertexPositions[uIndex2];
+                const plVec3 tP0 = ptMesh->sbtVertexPositions[uIndex0];
+                const plVec3 tP1 = ptMesh->sbtVertexPositions[uIndex1];
+                const plVec3 tP2 = ptMesh->sbtVertexPositions[uIndex2];
 
-					const plVec2 tTex0 = ptSubMesh->sbtVertexTextureCoordinates0[uIndex0];
-					const plVec2 tTex1 = ptSubMesh->sbtVertexTextureCoordinates0[uIndex1];
-					const plVec2 tTex2 = ptSubMesh->sbtVertexTextureCoordinates0[uIndex2];
+                const plVec2 tTex0 = ptMesh->sbtVertexTextureCoordinates0[uIndex0];
+                const plVec2 tTex1 = ptMesh->sbtVertexTextureCoordinates0[uIndex1];
+                const plVec2 tTex2 = ptMesh->sbtVertexTextureCoordinates0[uIndex2];
 
-					const plVec3 tEdge1 = pl_sub_vec3(tP1, tP0);
-					const plVec3 tEdge2 = pl_sub_vec3(tP2, tP0);
+                const plVec3 tEdge1 = pl_sub_vec3(tP1, tP0);
+                const plVec3 tEdge2 = pl_sub_vec3(tP2, tP0);
 
-					const float fDeltaU1 = tTex1.x - tTex0.x;
-					const float fDeltaV1 = tTex1.y - tTex0.y;
-					const float fDeltaU2 = tTex2.x - tTex0.x;
-					const float fDeltaV2 = tTex2.y - tTex0.y;
+                const float fDeltaU1 = tTex1.x - tTex0.x;
+                const float fDeltaV1 = tTex1.y - tTex0.y;
+                const float fDeltaU2 = tTex2.x - tTex0.x;
+                const float fDeltaV2 = tTex2.y - tTex0.y;
 
-					const float fDividend = (fDeltaU1 * fDeltaV2 - fDeltaU2 * fDeltaV1);
-					const float fC = 1.0f / fDividend;
+                const float fDividend = (fDeltaU1 * fDeltaV2 - fDeltaU2 * fDeltaV1);
+                const float fC = 1.0f / fDividend;
 
-					const float fSx = fDeltaU1;
-					const float fSy = fDeltaU2;
-					const float fTx = fDeltaV1;
-					const float fTy = fDeltaV2;
-					const float fHandedness = ((fTx * fSy - fTy * fSx) < 0.0f) ? -1.0f : 1.0f;
+                const float fSx = fDeltaU1;
+                const float fSy = fDeltaU2;
+                const float fTx = fDeltaV1;
+                const float fTy = fDeltaV2;
+                const float fHandedness = ((fTx * fSy - fTy * fSx) < 0.0f) ? -1.0f : 1.0f;
 
-					const plVec3 tTangent = 
-						pl_norm_vec3((plVec3){
-							fC * (fDeltaV2 * tEdge1.x - fDeltaV1 * tEdge2.x),
-							fC * (fDeltaV2 * tEdge1.y - fDeltaV1 * tEdge2.y),
-							fC * (fDeltaV2 * tEdge1.z - fDeltaV1 * tEdge2.z)
-					});
+                const plVec3 tTangent = 
+                    pl_norm_vec3((plVec3){
+                        fC * (fDeltaV2 * tEdge1.x - fDeltaV1 * tEdge2.x),
+                        fC * (fDeltaV2 * tEdge1.y - fDeltaV1 * tEdge2.y),
+                        fC * (fDeltaV2 * tEdge1.z - fDeltaV1 * tEdge2.z)
+                });
 
-                    ptSubMesh->sbtVertexTangents[uIndex0] = (plVec4){tTangent.x, tTangent.y, tTangent.z, fHandedness};
-                    ptSubMesh->sbtVertexTangents[uIndex1] = (plVec4){tTangent.x, tTangent.y, tTangent.z, fHandedness};
-                    ptSubMesh->sbtVertexTangents[uIndex2] = (plVec4){tTangent.x, tTangent.y, tTangent.z, fHandedness};
-                } 
-            }
+                ptMesh->sbtVertexTangents[uIndex0] = (plVec4){tTangent.x, tTangent.y, tTangent.z, fHandedness};
+                ptMesh->sbtVertexTangents[uIndex1] = (plVec4){tTangent.x, tTangent.y, tTangent.z, fHandedness};
+                ptMesh->sbtVertexTangents[uIndex2] = (plVec4){tTangent.x, tTangent.y, tTangent.z, fHandedness};
+            } 
         }
     }
     pl_end_profile_sample();
@@ -773,7 +778,7 @@ pl_ecs_create_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tP
     }
 
     plLightComponent* ptLight = pl_ecs_create_component(&ptLibrary->tLightComponentManager, tNewEntity);
-    memset(ptLight, 0, sizeof(plObjectComponent));
+    memset(ptLight, 0, sizeof(plLightComponent));
     
     ptLight->tColor = tColor;
     ptLight->tPosition = tPos;

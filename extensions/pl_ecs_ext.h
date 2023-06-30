@@ -64,7 +64,6 @@ typedef struct _plObjectInfo    plObjectInfo;
 // ecs components
 typedef struct _plTagComponent       plTagComponent;
 typedef struct _plMeshComponent      plMeshComponent;
-typedef struct _plSubMesh            plSubMesh;
 typedef struct _plTransformComponent plTransformComponent;
 typedef struct _plMaterialComponent  plMaterialComponent;
 typedef struct _plObjectComponent    plObjectComponent;
@@ -103,6 +102,10 @@ typedef struct _plEcsI
     void*    (*get_component)         (plComponentManager* ptManager, plEntity tEntity);
     void*    (*create_component)      (plComponentManager* ptManager, plEntity tEntity);
     bool     (*has_entity)            (plComponentManager* ptManager, plEntity tEntity);
+
+    // color encoding/decoding
+    plVec4   (*entity_to_color)(plEntity tEntity);
+    plEntity (*color_to_entity)(const plVec4* ptColor);
 
     // components
     plEntity (*create_mesh)     (plComponentLibrary* ptLibrary, const char* pcName);
@@ -158,31 +161,9 @@ typedef struct _plObjectInfo
 
 typedef struct _plObjectSystemData
 {
-    bool        bDirty;
-    plSubMesh** sbtSubmeshes;
+    bool              bDirty;
+    plMeshComponent** sbtSubmeshes;
 } plObjectSystemData;
-
-typedef struct _plSubMesh
-{
-    plMesh       tMesh;
-    plEntity     tMaterial;
-    plEntity     tOutlineMaterial;
-    plVec3*      sbtVertexPositions;
-    plVec3*      sbtVertexNormals;
-    plVec4*      sbtVertexTangents;
-    plVec4*      sbtVertexColors0;
-    plVec4*      sbtVertexColors1;
-    plVec4*      sbtVertexWeights0;
-    plVec4*      sbtVertexWeights1;
-    plVec4*      sbtVertexJoints0;
-    plVec4*      sbtVertexJoints1;
-    plVec2*      sbtVertexTextureCoordinates0;
-    plVec2*      sbtVertexTextureCoordinates1;
-    uint32_t*    sbuIndices;
-    plObjectInfo tInfo;
-    uint64_t     uBindGroup2;
-    uint32_t     uBufferOffset;
-} plSubMesh;
 
 typedef struct _plComponentManager
 {
@@ -243,7 +224,24 @@ typedef struct _plTransformComponent
 
 typedef struct _plMeshComponent
 {
-    plSubMesh* sbtSubmeshes;
+    plMesh       tMesh;
+    plEntity     tMaterial;
+    plEntity     tOutlineMaterial;
+    plVec3*      sbtVertexPositions;
+    plVec3*      sbtVertexNormals;
+    plVec4*      sbtVertexTangents;
+    plVec4*      sbtVertexColors0;
+    plVec4*      sbtVertexColors1;
+    plVec4*      sbtVertexWeights0;
+    plVec4*      sbtVertexWeights1;
+    plVec4*      sbtVertexJoints0;
+    plVec4*      sbtVertexJoints1;
+    plVec2*      sbtVertexTextureCoordinates0;
+    plVec2*      sbtVertexTextureCoordinates1;
+    uint32_t*    sbuIndices;
+    plObjectInfo tInfo;
+    uint64_t     uBindGroup2;
+    uint32_t     uBufferOffset;
 } plMeshComponent;
 
 typedef struct _plMaterialComponent

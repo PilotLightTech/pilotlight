@@ -170,6 +170,8 @@ typedef struct _plScene
     uint32_t        uGlobalPickData;
     plPickInfo*     sbtGlobalPickData;
 
+    uint32_t uGlobalVtxOffset;
+
     // global vertex/index buffers
     plVec3*   sbtVertexData;
     uint32_t* sbuIndexData;

@@ -731,7 +731,7 @@ pl__select_entity(plAppData* ptAppData)
         pl_sb_reset(ptRenderer->sbtVisibleOutlinedMeshes);
     }
 
-    uPickedID = mapping[uPos] | mapping[uPos + 1] << 8 | mapping[uPos + 2] << 16;
+    uPickedID = (uint32_t)gptEcs->color_to_entity((plVec4*)&mapping[uPos]);
     ptAppData->iSelectedEntity = (int)uPickedID;
     if(uPickedID > 0)
     {

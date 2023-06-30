@@ -875,41 +875,33 @@ pl_draw_scene(plScene* ptScene)
     for(uint32_t i = 0; i < pl_sb_size(ptRenderer->sbtVisibleMeshes); i++)
     {
         plMeshComponent* ptMeshComponent = ptEcs->get_component(&ptScene->ptComponentLibrary->tMeshComponentManager, ptRenderer->sbtVisibleMeshes[i]);
-        for(uint32_t j = 0; j < pl_sb_size(ptMeshComponent->sbtSubmeshes); j++)
-        {
-            plSubMesh* ptSubmesh = &ptMeshComponent->sbtSubmeshes[j];
-            plMaterialComponent* ptMaterial = ptEcs->get_component(&ptScene->ptComponentLibrary->tMaterialComponentManager, ptSubmesh->tMaterial);
+        plMaterialComponent* ptMaterial = ptEcs->get_component(&ptScene->ptComponentLibrary->tMaterialComponentManager, ptMeshComponent->tMaterial);
 
-            pl_sb_push(ptRenderer->sbtDraws, ((plDraw){
-                .uShaderVariant        = ptMaterial->uShaderVariant,
-                .ptMesh                = &ptSubmesh->tMesh,
-                .aptBindGroups          = {
-                    &ptRenderer->sbtMaterialBindGroups[ptMaterial->uBindGroup1],
-                    &ptRenderer->sbtObjectBindGroups[ptSubmesh->uBindGroup2]},
-                .auDynamicBufferOffset = {0, ptSubmesh->uBufferOffset}
-                }));
-        }
+        pl_sb_push(ptRenderer->sbtDraws, ((plDraw){
+            .uShaderVariant        = ptMaterial->uShaderVariant,
+            .ptMesh                = &ptMeshComponent->tMesh,
+            .aptBindGroups          = {
+                &ptRenderer->sbtMaterialBindGroups[ptMaterial->uBindGroup1],
+                &ptRenderer->sbtObjectBindGroups[ptMeshComponent->uBindGroup2]},
+            .auDynamicBufferOffset = {0, ptMeshComponent->uBufferOffset}
+            }));
     }
 
     // record draws
     for(uint32_t i = 0; i < pl_sb_size(ptRenderer->sbtVisibleOutlinedMeshes); i++)
     {
         plMeshComponent* ptMeshComponent = ptEcs->get_component(&ptScene->ptComponentLibrary->tMeshComponentManager, ptRenderer->sbtVisibleOutlinedMeshes[i]);
-        for(uint32_t j = 0; j < pl_sb_size(ptMeshComponent->sbtSubmeshes); j++)
-        {
-            plSubMesh* ptSubmesh = &ptMeshComponent->sbtSubmeshes[j];
-            plMaterialComponent* ptMaterial = ptEcs->get_component(&ptScene->ptComponentLibrary->tMaterialComponentManager, ptSubmesh->tMaterial);
-            plMaterialComponent* ptOutlineMaterial = ptEcs->get_component(&ptScene->ptComponentLibrary->tMaterialComponentManager, ptSubmesh->tOutlineMaterial);
+        plMaterialComponent* ptMaterial = ptEcs->get_component(&ptScene->ptComponentLibrary->tMaterialComponentManager, ptMeshComponent->tMaterial);
+        plMaterialComponent* ptOutlineMaterial = ptEcs->get_component(&ptScene->ptComponentLibrary->tMaterialComponentManager, ptMeshComponent->tOutlineMaterial);
 
-            pl_sb_push(ptRenderer->sbtDraws, ((plDraw){
-                .uShaderVariant        = ptOutlineMaterial->uShaderVariant,
-                .ptMesh                = &ptSubmesh->tMesh,
-                .aptBindGroups         = { 
-                        &ptRenderer->sbtMaterialBindGroups[ptMaterial->uBindGroup1],
-                        &ptRenderer->sbtObjectBindGroups[ptSubmesh->uBindGroup2] },
-                .auDynamicBufferOffset = { 0, ptSubmesh->uBufferOffset }
-                }));
-        }
+        pl_sb_push(ptRenderer->sbtDraws, ((plDraw){
+            .uShaderVariant        = ptOutlineMaterial->uShaderVariant,
+            .ptMesh                = &ptMeshComponent->tMesh,
+            .aptBindGroups         = { 
+                    &ptRenderer->sbtMaterialBindGroups[ptMaterial->uBindGroup1],
+                    &ptRenderer->sbtObjectBindGroups[ptMeshComponent->uBindGroup2] },
+            .auDynamicBufferOffset = { 0, ptMeshComponent->uBufferOffset }
+            }));
     }
 
     // record draw area
@@ -947,16 +939,12 @@ pl_draw_pick_scene(plScene* ptScene)
     for(uint32_t i = 0; i < pl_sb_size(ptRenderer->sbtVisibleMeshes); i++)
     {
         plMeshComponent* ptMeshComponent = ptEcs->get_component(&ptScene->ptComponentLibrary->tMeshComponentManager, ptRenderer->sbtVisibleMeshes[i]);
-        for(uint32_t j = 0; j < pl_sb_size(ptMeshComponent->sbtSubmeshes); j++)
-        {
-            plSubMesh* ptSubmesh = &ptMeshComponent->sbtSubmeshes[j];
-            pl_sb_push(ptRenderer->sbtDraws, ((plDraw){
-                .uShaderVariant        = ptRenderer->uPickMaterial,
-                .ptMesh                = &ptSubmesh->tMesh,
-                .aptBindGroups         = { &ptRenderer->sbtObjectBindGroups[ptSubmesh->uBindGroup2], NULL },
-                .auDynamicBufferOffset = { ptSubmesh->uBufferOffset, 0}
-                }));
-        }
+        pl_sb_push(ptRenderer->sbtDraws, ((plDraw){
+            .uShaderVariant        = ptRenderer->uPickMaterial,
+            .ptMesh                = &ptMeshComponent->tMesh,
+            .aptBindGroups         = { &ptRenderer->sbtObjectBindGroups[ptMeshComponent->uBindGroup2], NULL },
+            .auDynamicBufferOffset = { ptMeshComponent->uBufferOffset, 0}
+            }));
     }
 
     // record draw area
@@ -1003,12 +991,12 @@ pl_scene_prepare(plScene* ptScene)
 
     pl_begin_profile_sample(__FUNCTION__);
     ptScene->bMeshesNeedUpdate = false;
-    plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
-    plRenderer* ptRenderer = ptScene->ptRenderer;
-    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
-    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
-    plDevice* ptDevice = &ptGraphics->tDevice;
-    plEcsI* ptEcs = ptScene->ptRenderer->ptEcs;
+    plGraphics*     ptGraphics  = ptScene->ptRenderer->ptGraphics;
+    plRenderer*     ptRenderer  = ptScene->ptRenderer;
+    plGraphicsApiI* ptGfx       = ptRenderer->ptGfx;
+    plDeviceApiI*   ptDeviceApi = ptGraphics->ptDeviceApi;
+    plDevice*       ptDevice    = &ptGraphics->tDevice;
+    plEcsI*         ptEcs       = ptScene->ptRenderer->ptEcs;
 
     uint32_t uGlobalVtxOffset = pl_sb_size(ptScene->sbfGlobalVertexData) / 4;
     plMeshComponent* sbtMeshes = ptScene->ptComponentLibrary->tMeshComponentManager.pComponents;
@@ -1018,201 +1006,195 @@ pl_scene_prepare(plScene* ptScene)
     {
         plMeshComponent* ptMesh = &sbtMeshes[uMeshIndex];
 
-        for(uint32_t uSubMeshIndex = 0; uSubMeshIndex < pl_sb_size(ptMesh->sbtSubmeshes); uSubMeshIndex++)
+        plMaterialComponent* ptMaterial = ptEcs->get_component(&ptScene->ptComponentLibrary->tMaterialComponentManager, ptMesh->tMaterial);
+
+        const plMaterialInfo tMaterialInfo = {
+            .tAlbedo = ptMaterial->tAlbedo
+        };
+
+        const plPickInfo tPickInfo = {
+            .tColor = ptEcs->entity_to_color(ptScene->ptComponentLibrary->tMeshComponentManager.sbtEntities[uMeshIndex])
+        };
+
+        pl_sb_push(ptScene->sbtGlobalMaterialData, tMaterialInfo);
+        pl_sb_push(ptScene->sbtGlobalPickData, tPickInfo);
+        ptMesh->tInfo.uMaterialIndex = pl_sb_size(ptScene->sbtGlobalMaterialData) - 1;
+        ptMesh->tInfo.uVertexDataOffset = ptScene->uGlobalVtxOffset / 4;
+        ptMesh->tMesh.uVertexCount = pl_sb_size(ptMesh->sbtVertexPositions);
+        ptMesh->tMesh.uIndexCount = pl_sb_size(ptMesh->sbuIndices);
+        ptMesh->tMesh.uIndexOffset = 0;
+
+        // stride within storage buffer
+        uint32_t uStride = 0;
+
+        // calculate vertex stream mask
+        if(pl_sb_size(ptMesh->sbtVertexNormals) > 0)             { uStride += 4; ptMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_NORMAL; }
+        if(pl_sb_size(ptMesh->sbtVertexTangents) > 0)            { uStride += 4; ptMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TANGENT; }
+        if(pl_sb_size(ptMesh->sbtVertexColors0) > 0)             { uStride += 4; ptMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_0; }
+        if(pl_sb_size(ptMesh->sbtVertexColors1) > 0)             { uStride += 4; ptMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_1; }
+        if(pl_sb_size(ptMesh->sbtVertexWeights0) > 0)            { uStride += 4; ptMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0; }
+        if(pl_sb_size(ptMesh->sbtVertexWeights1) > 0)            { uStride += 4; ptMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1; }
+        if(pl_sb_size(ptMesh->sbtVertexJoints0) > 0)             { uStride += 4; ptMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_0; }
+        if(pl_sb_size(ptMesh->sbtVertexJoints1) > 0)             { uStride += 4; ptMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_1; }
+        if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates0) > 0) { uStride += 4; ptMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0; }
+        if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates1) > 0) { uStride += 4; ptMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1; }
+
+        pl_sb_add_n(ptScene->sbfGlobalVertexData, uStride * ptMesh->tMesh.uVertexCount);
+
+        // current attribute offset
+        uint32_t uOffset = 0;
+
+        // normals
+        for(uint32_t i = 0; i < pl_sb_size(ptMesh->sbtVertexNormals); i++)
         {
-            plSubMesh* ptSubMesh = &ptMesh->sbtSubmeshes[uSubMeshIndex];
-            plMaterialComponent* ptMaterial = ptEcs->get_component(&ptScene->ptComponentLibrary->tMaterialComponentManager, ptSubMesh->tMaterial);
-
-            const plMaterialInfo tMaterialInfo = {
-                .tAlbedo = ptMaterial->tAlbedo
-            };
-
-            plPickInfo tPickInfo = {0};
-            const uint32_t uId = (uint32_t)ptScene->ptComponentLibrary->tMeshComponentManager.sbtEntities[uMeshIndex];
-            tPickInfo.tColor.r = ((float)(uId & 0xff) / 255.0f);
-            tPickInfo.tColor.g = ((float)((uId >> 8) & 0xff) / 255.0f);
-            tPickInfo.tColor.b = ((float)((uId >> 16) & 0xff) / 255.0f);
-            tPickInfo.tColor.a = 1.0f;
-
-            pl_sb_push(ptScene->sbtGlobalMaterialData, tMaterialInfo);
-            pl_sb_push(ptScene->sbtGlobalPickData, tPickInfo);
-            ptSubMesh->tInfo.uMaterialIndex = pl_sb_size(ptScene->sbtGlobalMaterialData) - 1;
-            ptSubMesh->tInfo.uVertexDataOffset = uGlobalVtxOffset / 4;
-            ptSubMesh->tMesh.uVertexCount = pl_sb_size(ptSubMesh->sbtVertexPositions);
-            ptSubMesh->tMesh.uIndexCount = pl_sb_size(ptSubMesh->sbuIndices);
-            ptSubMesh->tMesh.uIndexOffset = 0;
-
-            // stride within storage buffer
-            uint32_t uStride = 0;
-
-            if(pl_sb_size(ptSubMesh->sbtVertexNormals) > 0)             { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_NORMAL; }
-            if(pl_sb_size(ptSubMesh->sbtVertexTangents) > 0)            { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TANGENT; }
-            if(pl_sb_size(ptSubMesh->sbtVertexColors0) > 0)             { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_0; }
-            if(pl_sb_size(ptSubMesh->sbtVertexColors1) > 0)             { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_1; }
-            if(pl_sb_size(ptSubMesh->sbtVertexWeights0) > 0)            { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0; }
-            if(pl_sb_size(ptSubMesh->sbtVertexWeights1) > 0)            { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1; }
-            if(pl_sb_size(ptSubMesh->sbtVertexJoints0) > 0)             { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_0; }
-            if(pl_sb_size(ptSubMesh->sbtVertexJoints1) > 0)             { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_1; }
-            if(pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates0) > 0) { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0; }
-            if(pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates1) > 0) { uStride += 4; ptSubMesh->tMesh.ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1; }
-
-            pl_sb_add_n(ptScene->sbfGlobalVertexData, uStride * ptSubMesh->tMesh.uVertexCount);
-
-            // current attribute offset
-            uint32_t uOffset = 0;
-
-            // normals
-            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexNormals); i++)
-            {
-                ptSubMesh->sbtVertexNormals[i] = pl_norm_vec3(ptSubMesh->sbtVertexNormals[i]);
-                const plVec3* ptNormal = &ptSubMesh->sbtVertexNormals[i];
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + 0] = ptNormal->x;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + 1] = ptNormal->y;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + 2] = ptNormal->z;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + 3] = 0.0f;
-            }
-
-            if(pl_sb_size(ptSubMesh->sbtVertexNormals) > 0)
-                uOffset += 4;
-
-            // tangents
-            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexTangents); i++)
-            {
-                const plVec4* ptTangent = &ptSubMesh->sbtVertexTangents[i];
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 0] = ptTangent->x;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 1] = ptTangent->y;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 2] = ptTangent->z;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 3] = ptTangent->w;
-            }
-
-            if(pl_sb_size(ptSubMesh->sbtVertexTangents) > 0)
-                uOffset += 4;
-
-            // texture coordinates 0
-            if(pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates0) > 0)
-            {
-                for(uint32_t i = 0; i < ptSubMesh->tMesh.uVertexCount; i++)
-                {
-                    const plVec2* ptTextureCoordinates = &ptSubMesh->sbtVertexTextureCoordinates0[i];
-                    ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 0] = ptTextureCoordinates->u;
-                    ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 1] = ptTextureCoordinates->v;
-                    ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 2] = 0.0f;
-                    ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 3] = 0.0f;
-
-                }
-                uOffset += 4;
-            }
-
-            // texture coordinates 1
-            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates1); i++)
-            {
-                const plVec2* ptTextureCoordinates = &ptSubMesh->sbtVertexTextureCoordinates1[i];
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 0] = ptTextureCoordinates->u;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 1] = ptTextureCoordinates->v;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 2] = 0.0f;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 3] = 0.0f;
-            }
-
-            if(pl_sb_size(ptSubMesh->sbtVertexTextureCoordinates1) > 0)
-                uOffset += 4;
-
-            // color 0
-            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexColors0); i++)
-            {
-                const plVec4* ptColor = &ptSubMesh->sbtVertexColors0[i];
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 0] = ptColor->r;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 1] = ptColor->g;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 2] = ptColor->b;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 3] = ptColor->a;
-            }
-
-            if(pl_sb_size(ptSubMesh->sbtVertexColors0) > 0)
-                uOffset += 4;
-
-            // color 1
-            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexColors1); i++)
-            {
-                const plVec4* ptColor = &ptSubMesh->sbtVertexColors1[i];
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 0] = ptColor->r;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 1] = ptColor->g;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 2] = ptColor->b;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 3] = ptColor->a;
-            }
-
-            if(pl_sb_size(ptSubMesh->sbtVertexColors1) > 0)
-                uOffset += 4;
-
-            // joints 0
-            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexJoints0); i++)
-            {
-                const plVec4* ptJoint = &ptSubMesh->sbtVertexJoints0[i];
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 0] = ptJoint->x;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 1] = ptJoint->y;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 2] = ptJoint->z;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 3] = ptJoint->w;
-            }
-
-            if(pl_sb_size(ptSubMesh->sbtVertexJoints0) > 0)
-                uOffset += 4;
-
-            // joints 1
-            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexJoints1); i++)
-            {
-                const plVec4* ptJoint = &ptSubMesh->sbtVertexJoints1[i];
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 0] = ptJoint->x;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 1] = ptJoint->y;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 2] = ptJoint->z;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 3] = ptJoint->w;
-            }
-
-            if(pl_sb_size(ptSubMesh->sbtVertexJoints1) > 0)
-                uOffset += 4;
-
-            // weights 0
-            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexWeights0); i++)
-            {
-                const plVec4* ptWeight = &ptSubMesh->sbtVertexWeights0[i];
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 0] = ptWeight->x;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 1] = ptWeight->y;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 2] = ptWeight->z;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 3] = ptWeight->w;
-            }
-
-            if(pl_sb_size(ptSubMesh->sbtVertexWeights0) > 0)
-                uOffset += 4;
-
-            // weights 1
-            for(uint32_t i = 0; i < pl_sb_size(ptSubMesh->sbtVertexWeights1); i++)
-            {
-                const plVec4* ptWeight = &ptSubMesh->sbtVertexWeights1[i];
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 0] = ptWeight->x;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 1] = ptWeight->y;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 2] = ptWeight->z;
-                ptScene->sbfGlobalVertexData[uGlobalVtxOffset + i * uStride + uOffset + 3] = ptWeight->w;
-            }
-
-            if(pl_sb_size(ptSubMesh->sbtVertexWeights1) > 0)
-                uOffset += 4;
-
-            PL_ASSERT(uOffset == uStride && "sanity check");
-
-            const uint32_t uIndexBufferPos = pl_sb_size(ptScene->sbuIndexData);
-            const uint32_t uVertexBufferPos = pl_sb_size(ptScene->sbtVertexData);
-
-            pl_sb_add_n(ptScene->sbuIndexData, ptSubMesh->tMesh.uIndexCount);
-            pl_sb_add_n(ptScene->sbtVertexData, ptSubMesh->tMesh.uVertexCount);
-            ptSubMesh->tMesh.uIndexOffset = uIndexBufferPos;
-            ptSubMesh->tMesh.uVertexOffset = uVertexBufferPos;
-            ptSubMesh->tInfo.uVertexOffset = uVertexBufferPos;
-
-            memcpy(&ptScene->sbuIndexData[uIndexBufferPos], ptSubMesh->sbuIndices, sizeof(uint32_t) * ptSubMesh->tMesh.uIndexCount);
-            memcpy(&ptScene->sbtVertexData[uVertexBufferPos], ptSubMesh->sbtVertexPositions, sizeof(plVec3) * ptSubMesh->tMesh.uVertexCount); 
-
-            plMaterialComponent* ptMaterialComponent = ptEcs->get_component(&ptScene->ptComponentLibrary->tMaterialComponentManager, ptSubMesh->tMaterial);
-            ptMaterialComponent->tGraphicsState.ulVertexStreamMask = ptSubMesh->tMesh.ulVertexStreamMask;
-
-            uGlobalVtxOffset += uStride * ptSubMesh->tMesh.uVertexCount;
+            ptMesh->sbtVertexNormals[i] = pl_norm_vec3(ptMesh->sbtVertexNormals[i]);
+            const plVec3* ptNormal = &ptMesh->sbtVertexNormals[i];
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + 0] = ptNormal->x;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + 1] = ptNormal->y;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + 2] = ptNormal->z;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + 3] = 0.0f;
         }
+
+        if(ptMesh->tMesh.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_NORMAL)
+            uOffset += 4;
+
+        // tangents
+        for(uint32_t i = 0; i < pl_sb_size(ptMesh->sbtVertexTangents); i++)
+        {
+            const plVec4* ptTangent = &ptMesh->sbtVertexTangents[i];
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 0] = ptTangent->x;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 1] = ptTangent->y;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 2] = ptTangent->z;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 3] = ptTangent->w;
+        }
+
+        if(pl_sb_size(ptMesh->sbtVertexTangents) > 0)
+            uOffset += 4;
+
+        // texture coordinates 0
+        if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates0) > 0)
+        {
+            for(uint32_t i = 0; i < ptMesh->tMesh.uVertexCount; i++)
+            {
+                const plVec2* ptTextureCoordinates = &ptMesh->sbtVertexTextureCoordinates0[i];
+                ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 0] = ptTextureCoordinates->u;
+                ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 1] = ptTextureCoordinates->v;
+                ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 2] = 0.0f;
+                ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 3] = 0.0f;
+
+            }
+            uOffset += 4;
+        }
+
+        // texture coordinates 1
+        for(uint32_t i = 0; i < pl_sb_size(ptMesh->sbtVertexTextureCoordinates1); i++)
+        {
+            const plVec2* ptTextureCoordinates = &ptMesh->sbtVertexTextureCoordinates1[i];
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 0] = ptTextureCoordinates->u;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 1] = ptTextureCoordinates->v;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 2] = 0.0f;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 3] = 0.0f;
+        }
+
+        if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates1) > 0)
+            uOffset += 4;
+
+        // color 0
+        for(uint32_t i = 0; i < pl_sb_size(ptMesh->sbtVertexColors0); i++)
+        {
+            const plVec4* ptColor = &ptMesh->sbtVertexColors0[i];
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 0] = ptColor->r;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 1] = ptColor->g;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 2] = ptColor->b;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 3] = ptColor->a;
+        }
+
+        if(pl_sb_size(ptMesh->sbtVertexColors0) > 0)
+            uOffset += 4;
+
+        // color 1
+        for(uint32_t i = 0; i < pl_sb_size(ptMesh->sbtVertexColors1); i++)
+        {
+            const plVec4* ptColor = &ptMesh->sbtVertexColors1[i];
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 0] = ptColor->r;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 1] = ptColor->g;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 2] = ptColor->b;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 3] = ptColor->a;
+        }
+
+        if(pl_sb_size(ptMesh->sbtVertexColors1) > 0)
+            uOffset += 4;
+
+        // joints 0
+        for(uint32_t i = 0; i < pl_sb_size(ptMesh->sbtVertexJoints0); i++)
+        {
+            const plVec4* ptJoint = &ptMesh->sbtVertexJoints0[i];
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 0] = ptJoint->x;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 1] = ptJoint->y;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 2] = ptJoint->z;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 3] = ptJoint->w;
+        }
+
+        if(pl_sb_size(ptMesh->sbtVertexJoints0) > 0)
+            uOffset += 4;
+
+        // joints 1
+        for(uint32_t i = 0; i < pl_sb_size(ptMesh->sbtVertexJoints1); i++)
+        {
+            const plVec4* ptJoint = &ptMesh->sbtVertexJoints1[i];
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 0] = ptJoint->x;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 1] = ptJoint->y;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 2] = ptJoint->z;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 3] = ptJoint->w;
+        }
+
+        if(pl_sb_size(ptMesh->sbtVertexJoints1) > 0)
+            uOffset += 4;
+
+        // weights 0
+        for(uint32_t i = 0; i < pl_sb_size(ptMesh->sbtVertexWeights0); i++)
+        {
+            const plVec4* ptWeight = &ptMesh->sbtVertexWeights0[i];
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 0] = ptWeight->x;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 1] = ptWeight->y;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 2] = ptWeight->z;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 3] = ptWeight->w;
+        }
+
+        if(pl_sb_size(ptMesh->sbtVertexWeights0) > 0)
+            uOffset += 4;
+
+        // weights 1
+        for(uint32_t i = 0; i < pl_sb_size(ptMesh->sbtVertexWeights1); i++)
+        {
+            const plVec4* ptWeight = &ptMesh->sbtVertexWeights1[i];
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 0] = ptWeight->x;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 1] = ptWeight->y;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 2] = ptWeight->z;
+            ptScene->sbfGlobalVertexData[ptScene->uGlobalVtxOffset + i * uStride + uOffset + 3] = ptWeight->w;
+        }
+
+        if(pl_sb_size(ptMesh->sbtVertexWeights1) > 0)
+            uOffset += 4;
+
+        PL_ASSERT(uOffset == uStride && "sanity check");
+
+        const uint32_t uIndexBufferPos = pl_sb_size(ptScene->sbuIndexData);
+        const uint32_t uVertexBufferPos = pl_sb_size(ptScene->sbtVertexData);
+
+        pl_sb_add_n(ptScene->sbuIndexData, ptMesh->tMesh.uIndexCount);
+        pl_sb_add_n(ptScene->sbtVertexData, ptMesh->tMesh.uVertexCount);
+        ptMesh->tMesh.uIndexOffset = uIndexBufferPos;
+        ptMesh->tMesh.uVertexOffset = uVertexBufferPos;
+        ptMesh->tInfo.uVertexOffset = uVertexBufferPos;
+
+        memcpy(&ptScene->sbuIndexData[uIndexBufferPos], ptMesh->sbuIndices, sizeof(uint32_t) * ptMesh->tMesh.uIndexCount);
+        memcpy(&ptScene->sbtVertexData[uVertexBufferPos], ptMesh->sbtVertexPositions, sizeof(plVec3) * ptMesh->tMesh.uVertexCount); 
+
+        plMaterialComponent* ptMaterialComponent = ptEcs->get_component(&ptScene->ptComponentLibrary->tMaterialComponentManager, ptMesh->tMaterial);
+        ptMaterialComponent->tGraphicsState.ulVertexStreamMask = ptMesh->tMesh.ulVertexStreamMask;
+
+        ptScene->uGlobalVtxOffset += uStride * ptMesh->tMesh.uVertexCount;
     }
 
     if(ptScene->uGlobalVertexData != UINT32_MAX)
