@@ -6786,18 +6786,18 @@ static void jsmn_init(jsmn_parser *parser) {
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static void pl__load_gltf_material(plImageApiI* ptImageApi, plDeviceApiI* ptDeviceApi, plDevice* ptDevice, const char* pcPath, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut);
-static void pl__load_gltf_object  (plRendererI* ptRendererApi, plDeviceApiI* ptDeviceApi, plScene* ptScene, plComponentLibrary* ptComponentLibrary, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode);
+static void pl__load_gltf_material(const plImageApiI* ptImageApi, const plDeviceApiI* ptDeviceApi, plDevice* ptDevice, const char* pcPath, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut);
+static void pl__load_gltf_object  (const plRendererI* ptRendererApi, const plDeviceApiI* ptDeviceApi, plScene* ptScene, plComponentLibrary* ptComponentLibrary, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode);
 static bool pl_ext_load_gltf     (plScene* ptScene, plComponentLibrary* ptComponentLibrary, const char* pcPath);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-plGltfApiI*
+const plGltfApiI*
 pl_load_gltf_api(void)
 {
-    static plGltfApiI tApi0 = {
+    static const plGltfApiI tApi0 = {
         .load = pl_ext_load_gltf
     };
 	return &tApi0;
@@ -6808,13 +6808,13 @@ pl_load_gltf_api(void)
 //-----------------------------------------------------------------------------
 
 static void
-pl__load_gltf_object(plRendererI* ptRendererApi, plDeviceApiI* ptDeviceApi, plScene* ptScene, plComponentLibrary* ptComponentLibrary, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode)
+pl__load_gltf_object(const plRendererI* ptRendererApi, const plDeviceApiI* ptDeviceApi, plScene* ptScene, plComponentLibrary* ptComponentLibrary, plEntity tParentEntity, const char* pcPath, const cgltf_node* ptNode)
 {
 	plRenderer* ptRenderer = ptScene->ptRenderer;
 	plDevice* ptDevice = &ptRenderer->ptGraphics->tDevice;
 	plGraphics* ptGraphics = ptRenderer->ptGraphics;
-	plImageApiI* ptImageApi = ptRenderer->ptImageApi;
-	plEcsI* ptEcs = ptRenderer->ptEcs;
+	const plImageApiI* ptImageApi = ptRenderer->ptImageApi;
+	const plEcsI* ptEcs = ptRenderer->ptEcs;
 
 	if(ptNode->mesh)
 	{
@@ -7051,11 +7051,11 @@ static bool
 pl_ext_load_gltf(plScene* ptScene, plComponentLibrary* ptComponentLibrary, const char* pcPath)
 {
 	plRenderer* ptRenderer = ptScene->ptRenderer;
-	plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
-	plDeviceApiI* ptDeviceApi = ptRenderer->ptDeviceApi;
-	plDataRegistryApiI* ptDataRegistry = ptRenderer->ptDataRegistry;
-	plRendererI* ptRendererApi = ptRenderer->ptRendererApi;
-	plImageApiI* ptImageApi = ptRenderer->ptImageApi;
+	const plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+	const plDeviceApiI* ptDeviceApi = ptRenderer->ptDeviceApi;
+	const plDataRegistryApiI* ptDataRegistry = ptRenderer->ptDataRegistry;
+	const plRendererI* ptRendererApi = ptRenderer->ptRendererApi;
+	const plImageApiI* ptImageApi = ptRenderer->ptImageApi;
 
 	pl_set_log_context(ptDataRegistry->get_data("log"));
 
@@ -7087,7 +7087,7 @@ pl_ext_load_gltf(plScene* ptScene, plComponentLibrary* ptComponentLibrary, const
 }
 
 static uint32_t
-pl__load_texture(plImageApiI* ptImageApi, plDeviceApiI* ptDeviceApi, plDevice* ptDevice, const char* pcPath, cgltf_texture* ptTexture)
+pl__load_texture(const plImageApiI* ptImageApi, const plDeviceApiI* ptDeviceApi, plDevice* ptDevice, const char* pcPath, cgltf_texture* ptTexture)
 {
 	char acFilepath[2048] = {0};
 	pl_str_get_directory(pcPath, acFilepath);
@@ -7181,7 +7181,7 @@ pl__load_texture(plImageApiI* ptImageApi, plDeviceApiI* ptDeviceApi, plDevice* p
 }
 
 static void
-pl__load_gltf_material(plImageApiI* ptImageApi, plDeviceApiI* ptDeviceApi, plDevice* ptDevice, const char* pcPath, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut)
+pl__load_gltf_material(const plImageApiI* ptImageApi, const plDeviceApiI* ptDeviceApi, plDevice* ptDevice, const char* pcPath, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut)
 {
     ptMaterialOut->bDoubleSided = ptMaterial->double_sided;
     ptMaterialOut->fAlphaCutoff = ptMaterial->alpha_cutoff;
@@ -7220,7 +7220,7 @@ pl__load_gltf_material(plImageApiI* ptImageApi, plDeviceApiI* ptDeviceApi, plDev
 PL_EXPORT void
 pl_load_gltf_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
-    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
 
     if(bReload)

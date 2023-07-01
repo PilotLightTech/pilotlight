@@ -116,11 +116,11 @@ typedef struct _plFileApiI               plFileApiI;
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-plGraphicsApiI*          pl_load_graphics_api          (void);
-plDescriptorManagerApiI* pl_load_descriptor_manager_api(void);
-plDeviceApiI*            pl_load_device_api            (void);
-plRenderBackendI*        pl_load_render_backend_api    (void);
-plDeviceMemoryApiI*      pl_load_device_memory_api     (void);
+const plGraphicsApiI*          pl_load_graphics_api          (void);
+const plDescriptorManagerApiI* pl_load_descriptor_manager_api(void);
+const plDeviceApiI*            pl_load_device_api            (void);
+const plRenderBackendI*        pl_load_render_backend_api    (void);
+const plDeviceMemoryApiI*      pl_load_device_memory_api     (void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
@@ -129,7 +129,7 @@ plDeviceMemoryApiI*      pl_load_device_memory_api     (void);
 typedef struct _plDeviceApiI
 {
 
-    void (*init)    (plApiRegistryApiI* ptApiRegistry, plDevice* ptDevice, uint32_t uFramesInFlight);
+    void (*init)    (const plApiRegistryApiI* ptApiRegistry, plDevice* ptDevice, uint32_t uFramesInFlight);
 
     // command buffers
     VkCommandBuffer (*begin_command_buffer)  (plDevice* ptDevice, VkCommandPool tCmdPool);
@@ -181,8 +181,8 @@ typedef struct _plDeviceApiI
 typedef struct _plRenderBackendI
 {
     // main
-    void (*setup)  (plApiRegistryApiI* ptApiRegistry, plRenderBackend* ptBackend, uint32_t uVersion, bool bEnableValidation);
-    void (*cleanup)(plApiRegistryApiI* ptApiRegistry, plRenderBackend* ptBackend);
+    void (*setup)  (const plApiRegistryApiI* ptApiRegistry, plRenderBackend* ptBackend, uint32_t uVersion, bool bEnableValidation);
+    void (*cleanup)(const plApiRegistryApiI* ptApiRegistry, plRenderBackend* ptBackend);
 
     // devices
     void (*create_device) (plRenderBackend* ptBackend, VkSurfaceKHR tSurface, bool bEnableValidation, plDevice* ptDeviceOut);
@@ -196,7 +196,7 @@ typedef struct _plRenderBackendI
 typedef struct _plGraphicsApiI
 {
     // setup/shutdown/resize
-    void (*setup)  (plGraphics* ptGraphics, plRenderBackend* ptBackend, plApiRegistryApiI* ptApiRegistry, plTempAllocator* ptAllocator);
+    void (*setup)  (plGraphics* ptGraphics, plRenderBackend* ptBackend, const plApiRegistryApiI* ptApiRegistry, plTempAllocator* ptAllocator);
     void (*cleanup)(plGraphics* ptGraphics);
     void (*resize) (plGraphics* ptGraphics);
 
@@ -495,7 +495,7 @@ typedef struct _plDevice
     uint32_t uCurrentFrame;
 
     // apis
-    plDeviceApiI* ptDeviceApi;
+    const plDeviceApiI* ptDeviceApi;
 
     // gpu allocators
     plDeviceMemoryAllocatorI tLocalDedicatedAllocator;
@@ -518,9 +518,9 @@ typedef struct _plGraphics
     uint32_t                 uLogChannel;
 
     // apis
-    plFileApiI*              ptFileApi;
-    plDeviceApiI*            ptDeviceApi;
-    plRenderBackendI*        ptBackendApi;
+    const plFileApiI*              ptFileApi;
+    const plDeviceApiI*            ptDeviceApi;
+    const plRenderBackendI*        ptBackendApi;
 
     // cpu allocators
     plTempAllocator* ptTempAllocator;
@@ -528,7 +528,7 @@ typedef struct _plGraphics
     // shaders
 
     uint32_t* _sbulTempQueue;
-    plDescriptorManagerApiI* _ptDescriptorApi;
+    const plDescriptorManagerApiI* _ptDescriptorApi;
     plDescriptorManager      _tDescriptorManager;
 
     uint32_t* _sbulShaderHashes;
@@ -545,7 +545,7 @@ typedef struct _plRenderBackend
     VkInstance               tInstance;
     VkDebugUtilsMessengerEXT tDbgMessenger;
     VkSurfaceKHR             tSurface;
-    plDeviceApiI*            ptDeviceApi;
+    const plDeviceApiI*            ptDeviceApi;
 } plRenderBackend;
 
 #endif // PL_VULKAN_EXT_H

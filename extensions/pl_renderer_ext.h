@@ -72,7 +72,7 @@ typedef uint64_t plEntity;
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-plRendererI* pl_load_renderer_api(void);
+const plRendererI* pl_load_renderer_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -85,12 +85,12 @@ typedef struct _plRendererI
     // graphics
     void (*create_main_render_target)(plGraphics* ptGraphics, plRenderTarget* ptTargetOut);
     void (*create_render_target)     (plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut);
-    void (*begin_render_target)      (plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTarget* ptTarget);
-    void (*end_render_target)        (plGraphicsApiI* ptGfx, plGraphics* ptGraphics);
+    void (*begin_render_target)      (const plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTarget* ptTarget);
+    void (*end_render_target)        (const plGraphicsApiI* ptGfx, plGraphics* ptGraphics);
     void (*cleanup_render_target)    (plGraphics* ptGraphics, plRenderTarget* ptTarget);
 
     // new renderer
-    void (*setup_renderer)  (plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptComponentLibrary, plGraphics* ptGraphics, plRenderer* ptRenderer);
+    void (*setup_renderer)  (const plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptComponentLibrary, plGraphics* ptGraphics, plRenderer* ptRenderer);
     void (*resize)          (plRenderer* ptRenderer, float fWidth, float fHeight);
     void (*cleanup_renderer)(plRenderer* ptRenderer);
     void (*draw_sky)        (plScene* ptScene);
@@ -196,12 +196,12 @@ typedef struct _plRenderer
     plEntity*   sbtVisibleOutlinedMeshes;
 
     // apis
-    plGraphicsApiI*     ptGfx;
-    plDataRegistryApiI* ptDataRegistry;
-    plDeviceApiI*       ptDeviceApi;
-    plRendererI*        ptRendererApi;
-    plImageApiI*        ptImageApi;
-    plEcsI*             ptEcs;
+    const plGraphicsApiI*     ptGfx;
+    const plDataRegistryApiI* ptDataRegistry;
+    const plDeviceApiI*       ptDeviceApi;
+    const plRendererI*        ptRendererApi;
+    const plImageApiI*        ptImageApi;
+    const plEcsI*             ptEcs;
 
     // material bind groups
     plBindGroup* sbtMaterialBindGroups;

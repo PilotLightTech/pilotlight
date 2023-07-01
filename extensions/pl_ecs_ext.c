@@ -36,7 +36,7 @@ static uint32_t uLogChannel = UINT32_MAX;
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static void     pl_ecs_init_component_library(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
+static void     pl_ecs_init_component_library(const plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
 static plEntity pl_ecs_create_entity         (plComponentLibrary* ptLibrary);
 static plEntity pl_ecs_get_entity            (plComponentLibrary* ptLibrary, const char* pcName);
 static size_t   pl_ecs_get_index             (plComponentManager* ptManager, plEntity tEntity);
@@ -64,7 +64,7 @@ static void pl_add_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity)
 static void pl_remove_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity);
 
 // update systems
-static void pl_ecs_cleanup_systems        (plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
+static void pl_ecs_cleanup_systems        (const plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
 static void pl_run_object_update_system   (plComponentLibrary* ptLibrary);
 static void pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary);
 
@@ -86,10 +86,10 @@ static void pl_camera_update         (plCameraComponent* ptCamera);
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-plEcsI*
+const plEcsI*
 pl_load_ecs_api(void)
 {
-    static plEcsI tApi = {
+    static const plEcsI tApi = {
         .init_component_library      = pl_ecs_init_component_library,
         .create_entity               = pl_ecs_create_entity,
         .get_entity                  = pl_ecs_get_entity,
@@ -118,10 +118,10 @@ pl_load_ecs_api(void)
     return &tApi;
 }
 
-plCameraI*
+const plCameraI*
 pl_load_camera_api(void)
 {
-    static plCameraI tApi = {
+    static const plCameraI tApi = {
         .set_fov         = pl_camera_set_fov,
         .set_clip_planes = pl_camera_set_clip_planes,
         .set_aspect      = pl_camera_set_aspect,
@@ -149,7 +149,7 @@ pl__wrap_angle(float tTheta)
 }
 
 static void
-pl_ecs_init_component_library(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary)
+pl_ecs_init_component_library(const plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary)
 {
 
     ptLibrary->tNextEntity = 1;
@@ -493,7 +493,7 @@ pl_remove_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity)
 }
 
 static void
-pl_ecs_cleanup_systems(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary)
+pl_ecs_cleanup_systems(const plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary)
 {
 
     plObjectSystemData* ptObjectSystemData = ptLibrary->tObjectComponentManager.pSystemData;
@@ -925,7 +925,7 @@ pl_camera_update(plCameraComponent* ptCamera)
 PL_EXPORT void
 pl_load_ecs_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
-    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));

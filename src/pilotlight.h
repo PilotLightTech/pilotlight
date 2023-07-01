@@ -112,7 +112,7 @@ typedef struct _plExtensionRegistryApiI plExtensionRegistryApiI;
 //-----------------------------------------------------------------------------
 
 // forward declarations
-typedef void (*ptApiUpdateCallback)(void*, void*, void*);
+typedef void (*ptApiUpdateCallback)(const void*, const void*, void*);
 
 // types
 typedef struct _plSharedLibrary plSharedLibrary;
@@ -127,8 +127,8 @@ typedef struct _plHashMap plHashMap; // pl_ds.h
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-plApiRegistryApiI* pl_load_core_apis  (void);
-void               pl_unload_core_apis(void);
+const plApiRegistryApiI* pl_load_core_apis  (void);
+void                     pl_unload_core_apis(void);
 
 void              pl_set_memory_context(plMemoryContext* ptMemoryContext);
 plMemoryContext*  pl_get_memory_context(void);
@@ -140,12 +140,12 @@ void*             pl_realloc           (void* pBuffer, size_t szSize, const char
 
 typedef struct _plApiRegistryApiI
 {
-    void* (*add)        (const char* pcName, void* pInterface);
-    void  (*remove)     (void* pInterface);
-    void  (*replace)    (void* pOldInterface, void* pNewInterface);
-    void  (*subscribe)  (void* pInterface, ptApiUpdateCallback ptCallback, void* pUserData);
-    void* (*first)      (const char* pcName);
-    void* (*next)       (void* pPrev);
+    const void* (*add)       (const char* pcName, const void* pInterface);
+    void        (*remove)    (const void* pInterface);
+    void        (*replace)   (const void* pOldInterface, const void* pNewInterface);
+    void        (*subscribe) (const void* pInterface, ptApiUpdateCallback ptCallback, void* pUserData);
+    const void* (*first)     (const char* pcName);
+    const void* (*next)      (const void* pPrev);
 } plApiRegistryApiI;
 
 typedef struct _plDataRegistryApiI
@@ -156,12 +156,12 @@ typedef struct _plDataRegistryApiI
 
 typedef struct _plExtensionRegistryApiI
 {
-    void (*reload)          (plApiRegistryApiI* ptApiRegistry);
-    void (*load)            (plApiRegistryApiI* ptApiRegistry, const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
-    void (*unload)          (plApiRegistryApiI* ptApiRegistry, const char* pcName);
-    void (*unload_all)      (plApiRegistryApiI* ptApiRegistry);
-    void (*load_from_config)(plApiRegistryApiI* ptApiRegistry, const char* pcConfigFile);
-    void (*load_from_file)  (plApiRegistryApiI* ptApiRegistry, const char* pcFile);
+    void (*reload)          (void);
+    void (*unload_all)      (void);
+    void (*load)            (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
+    void (*unload)          (const char* pcName); 
+    void (*load_from_config)(const plApiRegistryApiI* ptApiRegistry, const char* pcConfigFile);
+    void (*load_from_file)  (const plApiRegistryApiI* ptApiRegistry, const char* pcFile);
 } plExtensionRegistryApiI;
 
 //-----------------------------------------------------------------------------

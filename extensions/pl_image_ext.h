@@ -28,7 +28,7 @@ typedef struct _plImageApiI plImageApiI;
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-plImageApiI* pl_load_image_api(void);
+const plImageApiI* pl_load_image_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs

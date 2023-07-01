@@ -117,16 +117,16 @@ bool            bMouseTracked                     = true;
 plIOContext*    gptIOCtx                          = NULL;
 
 // apis
-plDataRegistryApiI*      gptDataRegistry      = NULL;
-plApiRegistryApiI*       gptApiRegistry       = NULL;
-plExtensionRegistryApiI* gptExtensionRegistry = NULL;
+const plDataRegistryApiI*      gptDataRegistry      = NULL;
+const plApiRegistryApiI*       gptApiRegistry       = NULL;
+const plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 
 // memory tracking
 plHashMap       gtMemoryHashMap = {0};
 plMemoryContext gtMemoryContext = {.ptHashMap = &gtMemoryHashMap};
 
 // app function pointers
-void* (*pl_app_load)    (plApiRegistryApiI* ptApiRegistry, void* userData);
+void* (*pl_app_load)    (const plApiRegistryApiI* ptApiRegistry, void* userData);
 void  (*pl_app_shutdown)(void* userData);
 void  (*pl_app_resize)  (void* userData);
 void  (*pl_app_update)  (void* userData);
@@ -155,26 +155,26 @@ int main(int argc, char *argv[])
 
     // os provided apis
 
-    static plLibraryApiI tLibraryApi = {
+    static const plLibraryApiI tLibraryApi = {
         .has_changed   = pl__has_library_changed,
         .load          = pl__load_library,
         .load_function = pl__load_library_function,
         .reload        = pl__reload_library
     };
 
-    static plFileApiI tFileApi = {
+    static const plFileApiI tFileApi = {
         .copy = pl__copy_file,
         .read = pl__read_file
     };
     
-    static plUdpApiI tUdpApi = {
+    static const plUdpApiI tUdpApi = {
         .create_socket = pl__create_udp_socket,
         .bind_socket   = pl__bind_udp_socket,  
         .get_data      = pl__get_udp_data,
         .send_data     = pl__send_udp_data
     };
 
-    static plOsServicesApiI tOsApi = {
+    static const plOsServicesApiI tOsApi = {
         .sleep = pl__sleep
     };
 
@@ -268,10 +268,10 @@ int main(int argc, char *argv[])
     }
 
     // load library
-    plLibraryApiI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
+    const plLibraryApiI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
     if(ptLibraryApi->load(&gtAppLibrary, "./app.dll", "./app_", "./lock.tmp"))
     {
-        pl_app_load     = (void* (__cdecl  *)(plApiRegistryApiI*, void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
+        pl_app_load     = (void* (__cdecl  *)(const plApiRegistryApiI*, void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
         pl_app_shutdown = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
         pl_app_resize   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
         pl_app_update   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
@@ -307,7 +307,7 @@ int main(int argc, char *argv[])
         if(ptLibraryApi->has_changed(&gtAppLibrary))
         {
             ptLibraryApi->reload(&gtAppLibrary);
-            pl_app_load     = (void* (__cdecl  *)(plApiRegistryApiI*, void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
+            pl_app_load     = (void* (__cdecl  *)(const plApiRegistryApiI*, void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
             pl_app_shutdown = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
             pl_app_resize   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
             pl_app_update   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
     gtHandle = NULL;
 
     // cleanup io context
-    gptExtensionRegistry->unload_all(gptApiRegistry);
+    gptExtensionRegistry->unload_all();
     pl_unload_core_apis();
 
     // return console to original mode
@@ -629,7 +629,7 @@ pl__render_frame(void)
     if(!gptIOCtx->bViewportMinimized)
     {
         pl_app_update(gpUserData);
-        gptExtensionRegistry->reload(gptApiRegistry);
+        gptExtensionRegistry->reload();
     }
 }
 

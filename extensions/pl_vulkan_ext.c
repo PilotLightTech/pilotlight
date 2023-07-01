@@ -75,9 +75,9 @@ typedef struct _plDeviceAllocatorData
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~backend api~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-static void pl__create_instance   (plApiRegistryApiI* ptApiRegistry, plRenderBackend* ptBackend, uint32_t uVersion, bool bEnableValidation);
+static void pl__create_instance   (const plApiRegistryApiI* ptApiRegistry, plRenderBackend* ptBackend, uint32_t uVersion, bool bEnableValidation);
 static void pl__create_instance_ex(plRenderBackend* ptBackend, uint32_t uVersion, uint32_t uLayerCount, const char** ppcEnabledLayers, uint32_t uExtensioncount, const char** ppcEnabledExtensions);
-static void pl__cleanup_backend(plApiRegistryApiI* ptApiRegistry, plRenderBackend* ptBackend);
+static void pl__cleanup_backend(const plApiRegistryApiI* ptApiRegistry, plRenderBackend* ptBackend);
 
 static void pl__create_device(plRenderBackend* ptBackend, VkSurfaceKHR tSurface, bool bEnableValidation, plDevice* ptDeviceOut);
 static void pl_cleanup_device(plDevice* ptDevice);
@@ -88,7 +88,7 @@ static void pl__cleanup_swapchain(plRenderBackend* ptBackend, plDevice* ptDevice
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~graphics api~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 // setup
-static void pl_setup_graphics   (plGraphics* ptGraphics, plRenderBackend* ptBackend, plApiRegistryApiI* ptApiRegistry, plTempAllocator* ptAllocator);
+static void pl_setup_graphics   (plGraphics* ptGraphics, plRenderBackend* ptBackend, const plApiRegistryApiI* ptApiRegistry, plTempAllocator* ptAllocator);
 static void pl_cleanup_graphics (plGraphics* ptGraphics);
 static void pl_resize_graphics  (plGraphics* ptGraphics);
 
@@ -148,7 +148,7 @@ static VkDescriptorSetLayout    pl_request_descriptor_set_layout(plDescriptorMan
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~device api~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-static void pl_init_device(plApiRegistryApiI* ptApiRegistry, plDevice* ptDevice, uint32_t uFramesInFlight);
+static void pl_init_device(const plApiRegistryApiI* ptApiRegistry, plDevice* ptDevice, uint32_t uFramesInFlight);
 
 // command buffers
 static VkCommandBuffer pl_begin_command_buffer (plDevice* ptDevice, VkCommandPool tCmdPool);
@@ -234,10 +234,10 @@ static uint32_t pl__get_device_node          (struct plDeviceMemoryAllocatorO* p
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-plRenderBackendI*
+const plRenderBackendI*
 pl_load_render_backend_api(void)
 {
-    static plRenderBackendI tApi = 
+    static const plRenderBackendI tApi = 
     {
         .setup             = pl__create_instance,
         .cleanup           = pl__cleanup_backend,
@@ -249,10 +249,10 @@ pl_load_render_backend_api(void)
     return &tApi;
 }
 
-plDeviceMemoryApiI*
+const plDeviceMemoryApiI*
 pl_load_device_memory_api(void)
 {
-    static plDeviceMemoryApiI tApi = {
+    static const plDeviceMemoryApiI tApi = {
         .create_device_local_dedicated_allocator  = pl_create_device_local_dedicated_allocator,
         .create_device_local_buddy_allocator      = pl_create_device_local_buddy_allocator,
         .create_staging_uncached_allocator        = pl_create_staging_uncached_allocator,
@@ -265,10 +265,10 @@ pl_load_device_memory_api(void)
     return &tApi;
 }
 
-plGraphicsApiI*
+const plGraphicsApiI*
 pl_load_graphics_api(void)
 {
-    static plGraphicsApiI tApi = {
+    static const plGraphicsApiI tApi = {
         .setup                      = pl_setup_graphics,
         .cleanup                    = pl_cleanup_graphics,
         .resize                     = pl_resize_graphics,
@@ -289,10 +289,10 @@ pl_load_graphics_api(void)
     return &tApi;
 }
 
-plDeviceApiI*
+const plDeviceApiI*
 pl_load_device_api(void)
 {
-    static plDeviceApiI tApi = {
+    static const plDeviceApiI tApi = {
         .begin_command_buffer             = pl_begin_command_buffer,
         .submit_command_buffer            = pl_submit_command_buffer,
         .find_depth_format                = pl_find_depth_format,
@@ -330,10 +330,10 @@ pl_load_device_api(void)
     return &tApi;
 }
 
-plDescriptorManagerApiI*
+const plDescriptorManagerApiI*
 pl_load_descriptor_manager_api(void)
 {
-    static plDescriptorManagerApiI tApi = {
+    static const plDescriptorManagerApiI tApi = {
         .request_layout = pl_request_descriptor_set_layout,
         .cleanup        = pl_cleanup_descriptor_manager
     };
@@ -345,7 +345,7 @@ pl_load_descriptor_manager_api(void)
 //-----------------------------------------------------------------------------
 
 static void
-pl__create_instance(plApiRegistryApiI* ptApiRegistry, plRenderBackend* ptBackend, uint32_t uVersion, bool bEnableValidation)
+pl__create_instance(const plApiRegistryApiI* ptApiRegistry, plRenderBackend* ptBackend, uint32_t uVersion, bool bEnableValidation)
 {
     ptBackend->ptDeviceApi = ptApiRegistry->first(PL_API_DEVICE);
     static const char* pcKhronosValidationLayer = "VK_LAYER_KHRONOS_validation";
@@ -523,7 +523,7 @@ pl__create_instance_ex(plRenderBackend* ptBackend, uint32_t uVersion, uint32_t u
 }
 
 static void
-pl__cleanup_backend(plApiRegistryApiI* ptApiRegistry, plRenderBackend* ptBackend)
+pl__cleanup_backend(const plApiRegistryApiI* ptApiRegistry, plRenderBackend* ptBackend)
 {
     if(ptBackend->tDbgMessenger)
     {
@@ -1082,9 +1082,9 @@ pl_request_descriptor_set_layout(plDescriptorManager* ptManager, plBindGroupLayo
 }
 
 static void
-pl_setup_graphics(plGraphics* ptGraphics, plRenderBackend* ptBackend, plApiRegistryApiI* ptApiRegistry, plTempAllocator* ptAllocator)
+pl_setup_graphics(plGraphics* ptGraphics, plRenderBackend* ptBackend, const plApiRegistryApiI* ptApiRegistry, plTempAllocator* ptAllocator)
 {
-    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
 
     if(ptGraphics->uFramesInFlight == 0)
         ptGraphics->uFramesInFlight = 2;
@@ -1692,7 +1692,7 @@ pl_update_bind_group(plGraphics* ptGraphics, plBindGroup* ptGroup, uint32_t uBuf
     plDevice* ptDevice = &ptGraphics->tDevice;
     VkDevice tLogicalDevice = ptGraphics->tDevice.tLogicalDevice;
     plDescriptorManager* ptDescManager = &ptGraphics->_tDescriptorManager;
-    plDescriptorManagerApiI* ptDescApi = ptGraphics->_ptDescriptorApi;
+    const plDescriptorManagerApiI* ptDescApi = ptGraphics->_ptDescriptorApi;
 
     // allocate descriptors if not done already
     if(ptGroup->_tDescriptorSet == VK_NULL_HANDLE)
@@ -1934,9 +1934,9 @@ pl_get_frame_resources(plGraphics* ptGraphics)
 }
 
 static void
-pl_init_device(plApiRegistryApiI* ptApiRegistry, plDevice* ptDevice, uint32_t uFramesInFlight)
+pl_init_device(const plApiRegistryApiI* ptApiRegistry, plDevice* ptDevice, uint32_t uFramesInFlight)
 {
-    plDeviceMemoryApiI* ptDeviceMemoryApi = ptApiRegistry->first(PL_API_DEVICE_MEMORY);
+    const plDeviceMemoryApiI* ptDeviceMemoryApi = ptApiRegistry->first(PL_API_DEVICE_MEMORY);
     pl_sb_resize(ptDevice->_sbtFrameGarbage, uFramesInFlight);
     ptDevice->uFramesInFlight = uFramesInFlight;
     
@@ -3007,7 +3007,7 @@ static uint32_t
 pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName)
 {
     VkDevice tDevice = ptDevice->tLogicalDevice;
-    plDeviceApiI* ptDeviceApi = ptDevice->ptDeviceApi;
+    const plDeviceApiI* ptDeviceApi = ptDevice->ptDeviceApi;
 
     if(tDesc.uMips == 0)
     {
@@ -4650,7 +4650,7 @@ pl__create_shader_pipeline(plGraphics* ptGraphics, plGraphicsState tVariant, plV
 PL_EXPORT void
 pl_load_vulkan_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
-    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));

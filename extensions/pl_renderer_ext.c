@@ -45,10 +45,10 @@ static uint32_t uLogChannel = UINT32_MAX;
 // graphics
 static void pl_create_main_render_target(plGraphics* ptGraphics, plRenderTarget* ptTargetOut);
 static void pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut);
-static void pl_begin_render_target (plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTarget* ptTarget);
-static void pl_end_render_target   (plGraphicsApiI* ptGfx, plGraphics* ptGraphics);
+static void pl_begin_render_target (const plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTarget* ptTarget);
+static void pl_end_render_target   (const plGraphicsApiI* ptGfx, plGraphics* ptGraphics);
 static void pl_cleanup_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget);
-static void pl_setup_renderer  (plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptComponentLibrary, plGraphics* ptGraphics, plRenderer* ptRenderer);
+static void pl_setup_renderer  (const plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptComponentLibrary, plGraphics* ptGraphics, plRenderer* ptRenderer);
 static void pl_cleanup_renderer(plRenderer* ptRenderer);
 static void pl_resize_renderer (plRenderer* ptRenderer, float fWidth, float fHeight);
 static void pl_draw_sky        (plScene* ptScene);
@@ -85,10 +85,10 @@ pl__get_free_resource_index(uint32_t* sbuFreeIndices, uint32_t* puIndexOut)
 // [SECTION] public api implementations
 //-----------------------------------------------------------------------------
 
-plRendererI*
+const plRendererI*
 pl_load_renderer_api(void)
 {
-    static plRendererI tApi0 = {
+    static const plRendererI tApi0 = {
         .create_main_render_target = pl_create_main_render_target,
         .create_render_target      = pl_create_render_target,
         .begin_render_target       = pl_begin_render_target,
@@ -119,7 +119,7 @@ static void
 pl_create_render_target2(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut, const char* pcName)
 {
     ptTargetOut->tDesc = *ptDesc;
-    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
+    const plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
     plDevice* ptDevice = &ptGraphics->tDevice;
 
     const plTextureDesc tColorTextureDesc = {
@@ -196,7 +196,7 @@ static void
 pl_create_render_target(plGraphics* ptGraphics, const plRenderTargetDesc* ptDesc, plRenderTarget* ptTargetOut)
 {
     ptTargetOut->tDesc = *ptDesc;
-    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
+    const plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
     plDevice* ptDevice = &ptGraphics->tDevice;
 
     const plTextureDesc tColorTextureDesc = {
@@ -279,7 +279,7 @@ pl_create_main_render_target(plGraphics* ptGraphics, plRenderTarget* ptTargetOut
 }
 
 static void
-pl_begin_render_target(plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTarget* ptTarget)
+pl_begin_render_target(const plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTarget* ptTarget)
 {
     const plFrameContext* ptCurrentFrame = ptGfx->get_frame_resources(ptGraphics);
     plDevice* ptDevice = &ptGraphics->tDevice;
@@ -335,7 +335,7 @@ pl_begin_render_target(plGraphicsApiI* ptGfx, plGraphics* ptGraphics, plRenderTa
 }
 
 static void
-pl_end_render_target(plGraphicsApiI* ptGfx, plGraphics* ptGraphics)
+pl_end_render_target(const plGraphicsApiI* ptGfx, plGraphics* ptGraphics)
 {
     const plFrameContext* ptCurrentFrame = ptGfx->get_frame_resources(ptGraphics);
 
@@ -346,7 +346,7 @@ static void
 pl_cleanup_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget)
 {
     plDevice* ptDevice = &ptGraphics->tDevice;
-    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
+    const plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
 
     for (uint32_t i = 0u; i < pl_sb_size(ptTarget->sbuFrameBuffers); i++)
         ptDeviceApi->submit_frame_buffer_for_deletion(ptDevice, ptTarget->sbuFrameBuffers[i]);
@@ -355,7 +355,7 @@ pl_cleanup_render_target(plGraphics* ptGraphics, plRenderTarget* ptTarget)
 }
 
 static void
-pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptComponentLibrary, plGraphics* ptGraphics, plRenderer* ptRenderer)
+pl_setup_renderer(const plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptComponentLibrary, plGraphics* ptGraphics, plRenderer* ptRenderer)
 {
     memset(ptRenderer, 0, sizeof(plRenderer));
     ptRenderer->ptGfx = ptApiRegistry->first(PL_API_GRAPHICS);
@@ -365,8 +365,8 @@ pl_setup_renderer(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptCompon
     ptRenderer->ptImageApi = ptApiRegistry->first(PL_API_IMAGE);
     ptRenderer->ptEcs = ptApiRegistry->first(PL_API_ECS);
 
-    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
-    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
+    const plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+    const plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
     plDevice* ptDevice = &ptGraphics->tDevice;
 
     ptRenderer->ptGraphics = ptGraphics;
@@ -638,13 +638,11 @@ pl_cleanup_renderer(plRenderer* ptRenderer)
 static void
 pl_resize_renderer(plRenderer* ptRenderer, float fWidth, float fHeight)
 {
-    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+    const plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
     plGraphics* ptGraphics = ptRenderer->ptGraphics;
     plDevice* ptDevice = &ptGraphics->tDevice;
-    plDeviceApiI* ptDeviceApi = ptRenderer->ptDeviceApi;
+    const plDeviceApiI* ptDeviceApi = ptRenderer->ptDeviceApi;
 
-
-    
     for(uint32_t i = 0; i < pl_sb_size(ptRenderer->tPickTarget.sbuColorTextureViews); i++)
     {
         uint32_t uTextureView = ptRenderer->tPickTarget.sbuColorTextureViews[i];
@@ -673,11 +671,11 @@ static void
 pl_create_scene(plRenderer* ptRenderer, plComponentLibrary* ptComponentLibrary, plScene* ptSceneOut)
 {
     plGraphics* ptGraphics = ptRenderer->ptGraphics;
-    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
-    plImageApiI* ptImageApi = ptRenderer->ptImageApi;
-    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
+    const plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+    const plImageApiI* ptImageApi = ptRenderer->ptImageApi;
+    const plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
     plDevice* ptDevice = &ptGraphics->tDevice;
-    plEcsI* ptEcsApi = ptRenderer->ptEcs;
+    const plEcsI* ptEcsApi = ptRenderer->ptEcs;
 
     memset(ptSceneOut, 0, sizeof(plScene));
 
@@ -866,8 +864,8 @@ pl_draw_scene(plScene* ptScene)
     pl_begin_profile_sample(__FUNCTION__);
     plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
     plRenderer* ptRenderer = ptScene->ptRenderer;
-    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
-    plEcsI* ptEcs = ptScene->ptRenderer->ptEcs;
+    const plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+    const plEcsI* ptEcs = ptScene->ptRenderer->ptEcs;
 
     const uint32_t uDrawOffset = pl_sb_size(ptRenderer->sbtDraws);
 
@@ -930,8 +928,8 @@ pl_draw_pick_scene(plScene* ptScene)
     pl_begin_profile_sample(__FUNCTION__);
     plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
     plRenderer* ptRenderer = ptScene->ptRenderer;
-    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
-    plEcsI* ptEcs = ptScene->ptRenderer->ptEcs;
+    const plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+    const plEcsI* ptEcs = ptScene->ptRenderer->ptEcs;
 
     const uint32_t uDrawOffset = pl_sb_size(ptRenderer->sbtDraws);
 
@@ -993,10 +991,10 @@ pl_scene_prepare(plScene* ptScene)
     ptScene->bMeshesNeedUpdate = false;
     plGraphics*     ptGraphics  = ptScene->ptRenderer->ptGraphics;
     plRenderer*     ptRenderer  = ptScene->ptRenderer;
-    plGraphicsApiI* ptGfx       = ptRenderer->ptGfx;
-    plDeviceApiI*   ptDeviceApi = ptGraphics->ptDeviceApi;
+    const plGraphicsApiI* ptGfx       = ptRenderer->ptGfx;
+    const plDeviceApiI*   ptDeviceApi = ptGraphics->ptDeviceApi;
     plDevice*       ptDevice    = &ptGraphics->tDevice;
-    plEcsI*         ptEcs       = ptScene->ptRenderer->ptEcs;
+    const plEcsI*         ptEcs       = ptScene->ptRenderer->ptEcs;
 
     uint32_t uGlobalVtxOffset = pl_sb_size(ptScene->sbfGlobalVertexData) / 4;
     plMeshComponent* sbtMeshes = ptScene->ptComponentLibrary->tMeshComponentManager.pComponents;
@@ -1267,8 +1265,8 @@ pl_draw_sky(plScene* ptScene)
     pl_begin_profile_sample(__FUNCTION__);
     plGraphics* ptGraphics = ptScene->ptRenderer->ptGraphics;
     plRenderer* ptRenderer = ptScene->ptRenderer;
-    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
-    plEcsI* ptEcs = ptRenderer->ptEcs;
+    const plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+    const plEcsI* ptEcs = ptRenderer->ptEcs;
     VkSampleCountFlagBits tMSAASampleCount = ptScene->ptRenderTarget->bMSAA ? ptGraphics->tSwapchain.tMsaaSamples : VK_SAMPLE_COUNT_1_BIT;
 
     const plBuffer* ptBuffer0 = &ptGraphics->tDevice.sbtBuffers[ptScene->uDynamicBuffer0];
@@ -1346,8 +1344,8 @@ pl__prepare_material_gpu_data(plScene* ptScene, plComponentManager* ptManager)
     pl_begin_profile_sample(__FUNCTION__);
     plRenderer* ptRenderer = ptScene->ptRenderer;
     plGraphics* ptGraphics = ptRenderer->ptGraphics;
-    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
-    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
+    const plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+    const plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
     plDevice* ptDevice = &ptGraphics->tDevice;
 
     VkSampleCountFlagBits tMSAASampleCount = ptScene->ptRenderTarget->bMSAA ? ptGraphics->tSwapchain.tMsaaSamples : VK_SAMPLE_COUNT_1_BIT;
@@ -1446,8 +1444,8 @@ pl__prepare_object_gpu_data(plScene* ptScene, plComponentManager* ptManager)
 {
     plRenderer* ptRenderer = ptScene->ptRenderer;
     plGraphics* ptGraphics = ptRenderer->ptGraphics;
-    plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
-    plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
+    const plGraphicsApiI* ptGfx = ptRenderer->ptGfx;
+    const plDeviceApiI* ptDeviceApi = ptGraphics->ptDeviceApi;
     plDevice* ptDevice = &ptGraphics->tDevice;
 
     plObjectSystemData* ptObjectSystemData = ptManager->pSystemData;
@@ -1537,7 +1535,7 @@ pl__prepare_object_gpu_data(plScene* ptScene, plComponentManager* ptManager)
 PL_EXPORT void
 pl_load_renderer_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
-    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));

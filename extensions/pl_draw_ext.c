@@ -2211,10 +2211,10 @@ pl__add_default_font(plFontAtlas* ptrAtlas)
     pl__add_font_from_memory_ttf(ptrAtlas, fontConfig, data);
 }
 
-plDrawApiI*
+const plDrawApiI*
 pl_load_draw_api(void)
 {
-    static plDrawApiI tApi0 = {
+    static const plDrawApiI tApi0 = {
 
         // provided by backend
         .new_frame                = pl_new_draw_frame,
@@ -2280,8 +2280,8 @@ pl_load_draw_api(void)
 PL_EXPORT void
 pl_load_draw_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
-    plDrawApiI* ptDrawApi = pl_load_draw_api();
-    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDrawApiI* ptDrawApi = pl_load_draw_api();
+    const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
 
     if(bReload)

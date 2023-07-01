@@ -90,10 +90,10 @@ static const char** pl__get_names       (uint32_t* puCount);
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-plStatsApiI*
+const plStatsApiI*
 pl_load_stats_api(void)
 {
-    static plStatsApiI tApi = {
+    static const plStatsApiI tApi = {
         .get_counter      = pl__get_counter,
         .new_frame        = pl__new_frame,
         .get_counter_data = pl__get_counter_data,
@@ -236,7 +236,7 @@ pl__get_counter_data(char const* pcName)
 PL_EXPORT void
 pl_load_stats_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
-    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
 
     if(bReload)

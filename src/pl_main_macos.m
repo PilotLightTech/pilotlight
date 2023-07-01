@@ -123,12 +123,12 @@ int   pl__sleep                (uint32_t millisec);
 //-----------------------------------------------------------------------------
 
 // apis
-static plDataRegistryApiI*      gptDataRegistry = NULL;
-static plApiRegistryApiI*       gptApiRegistry = NULL;
-static plExtensionRegistryApiI* gptExtensionRegistry = NULL;
+static const plDataRegistryApiI*      gptDataRegistry = NULL;
+static const plApiRegistryApiI*       gptApiRegistry = NULL;
+static const plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 
 // OS apis
-static plLibraryApiI* gptLibraryApi = NULL;
+static const plLibraryApiI* gptLibraryApi = NULL;
 
 static NSWindow*            gWindow = NULL;
 static NSViewController*    gViewController = NULL;
@@ -147,7 +147,7 @@ static plMemoryContext gtMemoryContext = {0};
 static plHashMap gtMemoryHashMap = {0};
 
 // app function pointers
-static void* (*pl_app_load)    (plApiRegistryApiI* ptApiRegistry, void* ptAppData);
+static void* (*pl_app_load)    (const plApiRegistryApiI* ptApiRegistry, void* ptAppData);
 static void  (*pl_app_shutdown)(void* ptAppData);
 static void  (*pl_app_resize)  (void* ptAppData);
 static void  (*pl_app_update)  (void* ptAppData);
@@ -162,26 +162,26 @@ int main()
     gtMemoryContext.ptHashMap = &gtMemoryHashMap;
     gptApiRegistry = pl_load_core_apis();
 
-    static plLibraryApiI tApi3 = {
+    static const plLibraryApiI tApi3 = {
         .has_changed   = pl__has_library_changed,
         .load          = pl__load_library,
         .load_function = pl__load_library_function,
         .reload        = pl__reload_library
     };
 
-    static plFileApiI tApi4 = {
+    static const plFileApiI tApi4 = {
         .copy = pl__copy_file,
         .read = pl__read_file
     };
     
-    static plUdpApiI tApi5 = {
+    static const plUdpApiI tApi5 = {
         .create_socket = pl__create_udp_socket,
         .bind_socket   = pl__bind_udp_socket,  
         .get_data      = pl__get_udp_data,
         .send_data     = pl__send_udp_data
     };
 
-    static plOsServicesApiI tApi6 = {
+    static const plOsServicesApiI tApi6 = {
         .sleep     = pl__sleep
     };
 
@@ -387,7 +387,7 @@ int main()
     }
 
     pl_app_shutdown(gUserData);
-    gptExtensionRegistry->unload_all(gptApiRegistry);
+    gptExtensionRegistry->unload_all();
 
     uint32_t uMemoryLeakCount = 0;
     for(uint32_t i = 0; i < pl_sb_size(gtMemoryContext.sbtAllocations); i++)
@@ -478,7 +478,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     // load library
     if(gptLibraryApi->load(&gtAppLibrary, "app.dylib", "app_", "lock.tmp"))
     {
-        pl_app_load     = (void* (__attribute__(()) *)(plApiRegistryApiI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
+        pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryApiI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
         pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
         pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
         pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
@@ -523,7 +523,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     if(gptLibraryApi->has_changed(&gtAppLibrary))
     {
         gptLibraryApi->reload(&gtAppLibrary);
-        pl_app_load     = (void* (__attribute__(()) *)(plApiRegistryApiI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
+        pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryApiI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
         pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
         pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
         pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
@@ -548,7 +548,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     tTime = dCurrentTime;
 
     pl_app_update(gUserData);
-    gptExtensionRegistry->reload(gptApiRegistry);
+    gptExtensionRegistry->reload();
 }
 
 - (void)shutdown

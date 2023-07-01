@@ -564,10 +564,10 @@ static plVulkanPipelineEntry* pl__get_3d_pipelines            (plVulkanDrawConte
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-plVulkanDrawApiI*
+const plVulkanDrawApiI*
 pl_load_vulkan_draw_api(void)
 {
-    static plVulkanDrawApiI tApi0 = {
+    static const plVulkanDrawApiI tApi0 = {
         .initialize_context    = pl__initialize_draw_context_vulkan,
         .submit_drawlist       = pl__submit_drawlist_vulkan,
         .submit_drawlist_ex    = pl__submit_drawlist_vulkan_ex,
@@ -581,7 +581,7 @@ pl_load_vulkan_draw_api(void)
 static void
 pl__initialize_draw_context_vulkan(const plVulkanInit* ptInit)
 {
-    plDrawApiI* ptDrawApi = pl_load_draw_api();
+    const plDrawApiI* ptDrawApi = pl_load_draw_api();
     plDrawContext* ptCtx = ptDrawApi->get_context();
     plVulkanDrawContext* ptVulkanDrawContext = PL_ALLOC(sizeof(plVulkanDrawContext));
     memset(ptVulkanDrawContext, 0, sizeof(plVulkanDrawContext));
@@ -1228,7 +1228,7 @@ pl__submit_3d_drawlist_vulkan_ex(plDrawList3D* ptDrawlist, float fWidth, float f
 static void
 pl_cleanup_draw_context(void)
 {
-    plDrawApiI* ptDrawApi = pl_load_draw_api();
+    const plDrawApiI* ptDrawApi = pl_load_draw_api();
     plDrawContext* ptCtx = ptDrawApi->get_context();
     plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
 

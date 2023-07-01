@@ -57,6 +57,6 @@ typedef struct _plVulkanDrawApiI
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-plVulkanDrawApiI* pl_load_vulkan_draw_api(void);
+const plVulkanDrawApiI* pl_load_vulkan_draw_api(void);
 
 #endif // PL_VULKAN_H

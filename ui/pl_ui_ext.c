@@ -381,16 +381,16 @@ plUiContext* gptCtx = NULL;
 // [SECTION] global data
 //-----------------------------------------------------------------------------
 
-static plDrawApiI* gptDraw = NULL;
+static const plDrawApiI* gptDraw = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementations
 //-----------------------------------------------------------------------------
 
-plUiApiI*
+const plUiApiI*
 pl_load_ui_api(void)
 {
-    static plUiApiI tApi0 = {
+    static const plUiApiI tApi0 = {
         .create_context                = pl_ui_create_context,
         .destroy_context               = pl_ui_destroy_context,
         .set_context                   = pl_ui_set_context,
@@ -4886,11 +4886,11 @@ pl_ui_submit_window(plUiWindow* ptWindow)
 PL_EXPORT void
 pl_load_ui_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
-    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     pl_set_io_context(ptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
     gptDraw = ptApiRegistry->first(PL_API_DRAW);
-    plUiApiI* ptUiApi = pl_load_ui_api();
+    const plUiApiI* ptUiApi = pl_load_ui_api();
     if(bReload)
     {
         ptUiApi->set_context(ptDataRegistry->get_data("ui"));

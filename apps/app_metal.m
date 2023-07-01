@@ -67,14 +67,14 @@ typedef struct plAppData_t
     plUiContext*             ptUiContext;
 
     // apis
-    plFileApiI*             ptFileApi;
+    const plFileApiI*             ptFileApi;
 
     // extension apis
-    plDrawApiI*             ptDrawApi;
-    plUiApiI*               ptUiApi;
-    plMetalDrawApiI*        ptMetalDrawApi;
+    const plDrawApiI*             ptDrawApi;
+    const plUiApiI*               ptUiApi;
+    const plMetalDrawApiI*        ptMetalDrawApi;
 
-    plApiRegistryApiI* ptApiRegistry;
+    const plApiRegistryApiI* ptApiRegistry;
 
 } plAppData;
 
@@ -86,7 +86,7 @@ PL_EXPORT void*
 pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
 {
     plAppData* ptAppData = pAppData;
-    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     pl_set_io_context(ptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
 
@@ -96,7 +96,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
         pl_set_profile_context(ptDataRegistry->get_data("profile"));
         
         ptAppData->ptDrawApi = ptApiRegistry->first(PL_API_DRAW);
-        ptAppData->ptUiApi      = ptApiRegistry->first(PL_API_UI);
+        ptAppData->ptUiApi   = ptApiRegistry->first(PL_API_UI);
 
         return ptAppData;
     }
@@ -121,15 +121,15 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     pl_log_info("Setup logging");
 
     // load extensions
-    plExtensionRegistryApiI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    ptExtensionRegistry->load(ptApiRegistry, "pl_image_ext", "pl_load_image_ext", "pl_unload_image_ext", false);
-    ptExtensionRegistry->load(ptApiRegistry, "pl_draw_ext", "pl_load_draw_ext", "pl_unload_draw_ext", true);
-    ptExtensionRegistry->load(ptApiRegistry, "pl_ui_ext", "pl_load_ui_ext", "pl_unload_ui_ext", true);
+    const plExtensionRegistryApiI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    ptExtensionRegistry->load("pl_image_ext", "pl_load_image_ext", "pl_unload_image_ext", false);
+    ptExtensionRegistry->load("pl_draw_ext", "pl_load_draw_ext", "pl_unload_draw_ext", true);
+    ptExtensionRegistry->load("pl_ui_ext", "pl_load_ui_ext", "pl_unload_ui_ext", true);
 
-    plImageApiI* ptImageApi = ptApiRegistry->first(PL_API_IMAGE);
-    plDrawApiI* ptDrawApi = ptApiRegistry->first(PL_API_DRAW);
-    plMetalDrawApiI* ptMetalApi = ptApiRegistry->first(PL_API_METAL_DRAW);
-    plUiApiI* ptUi = ptApiRegistry->first(PL_API_UI);
+    const plImageApiI* ptImageApi = ptApiRegistry->first(PL_API_IMAGE);
+    const plDrawApiI* ptDrawApi = ptApiRegistry->first(PL_API_DRAW);
+    const plMetalDrawApiI* ptMetalApi = ptApiRegistry->first(PL_API_METAL_DRAW);
+    const plUiApiI* ptUi = ptApiRegistry->first(PL_API_UI);
     ptAppData->ptDrawApi = ptDrawApi;
     ptAppData->ptMetalDrawApi = ptMetalApi;
     ptAppData->ptUiApi = ptUi;

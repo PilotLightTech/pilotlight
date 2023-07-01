@@ -42,12 +42,12 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // apis
-static plApiRegistryApiI*   gptApiRegistry  = NULL;
-static plUiApiI*            ptUi            = NULL;
-static plStatsApiI*         ptStatsApi      = NULL;
-static plDrawApiI*          ptDrawApi       = NULL;
-static plGraphicsApiI*      ptGfx           = NULL;
-static plDataRegistryApiI*  ptDataRegistry  = NULL;
+static const plApiRegistryApiI*   gptApiRegistry  = NULL;
+static const plUiApiI*            ptUi            = NULL;
+static const plStatsApiI*         ptStatsApi      = NULL;
+static const plDrawApiI*          ptDrawApi       = NULL;
+static const plGraphicsApiI*      ptGfx           = NULL;
+static const plDataRegistryApiI*  ptDataRegistry  = NULL;
 
 // contexts
 static plMemoryContext* ptMemoryCtx = NULL;
@@ -84,10 +84,10 @@ static void pl__show_logging           (bool* bValue);
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-plDebugApiI*
+const plDebugApiI*
 pl_load_debug_api(void)
 {
-    static plDebugApiI tApi = {
+    static const plDebugApiI tApi = {
         .show_windows = pl_show_debug_windows
     };
     return &tApi;

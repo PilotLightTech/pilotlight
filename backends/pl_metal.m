@@ -640,10 +640,10 @@ pl_cleanup_font_atlas(plFontAtlas* atlas)
 }
 @end
 
-plMetalDrawApiI*
+const plMetalDrawApiI*
 pl_load_metal_draw_api(void)
 {
-    static plMetalDrawApiI tApi = {
+    static const plMetalDrawApiI tApi = {
         .initialize_context = pl_initialize_draw_context_metal,
         .new_frame          = pl_new_draw_frame_metal,
         .submit_drawlist    = pl_submit_drawlist_metal

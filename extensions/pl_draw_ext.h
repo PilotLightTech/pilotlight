@@ -97,7 +97,7 @@ typedef void* plTextureId;
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-plDrawApiI* pl_load_draw_api(void);
+const plDrawApiI* pl_load_draw_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct

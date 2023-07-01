@@ -98,24 +98,24 @@ typedef struct _plAppData
 // [SECTION] global apis
 //-----------------------------------------------------------------------------
 
-plApiRegistryApiI*       gptApiRegistry       = NULL;
-plDataRegistryApiI*      gptDataRegistry      = NULL;
-plLibraryApiI*           gptLibrary           = NULL;
-plFileApiI*              gptFile              = NULL;
-plDeviceApiI*            gptDevice            = NULL;
-plRenderBackendI*        gptBackend           = NULL;
-plImageApiI*             gptImage             = NULL;
-plGltfApiI*              gptGltf              = NULL;
-plRendererI*             gptRenderer          = NULL;
-plGraphicsApiI*          gptGfx               = NULL;
-plDrawApiI*              gptDraw              = NULL;
-plVulkanDrawApiI*        gptVulkanDraw        = NULL;
-plUiApiI*                gptUi                = NULL;
-plEcsI*                  gptEcs               = NULL;
-plCameraI*               gptCamera            = NULL;
-plStatsApiI*             gptStats             = NULL;
-plDebugApiI*             gptDebug             = NULL;
-plExtensionRegistryApiI* gptExtensionRegistry = NULL;
+const plApiRegistryApiI*       gptApiRegistry       = NULL;
+const plDataRegistryApiI*      gptDataRegistry      = NULL;
+const plLibraryApiI*           gptLibrary           = NULL;
+const plFileApiI*              gptFile              = NULL;
+const plDeviceApiI*            gptDevice            = NULL;
+const plRenderBackendI*        gptBackend           = NULL;
+const plImageApiI*             gptImage             = NULL;
+const plGltfApiI*              gptGltf              = NULL;
+const plRendererI*             gptRenderer          = NULL;
+const plGraphicsApiI*          gptGfx               = NULL;
+const plDrawApiI*              gptDraw              = NULL;
+const plVulkanDrawApiI*        gptVulkanDraw        = NULL;
+const plUiApiI*                gptUi                = NULL;
+const plEcsI*                  gptEcs               = NULL;
+const plCameraI*               gptCamera            = NULL;
+const plStatsApiI*             gptStats             = NULL;
+const plDebugApiI*             gptDebug             = NULL;
+const plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper functions
@@ -131,7 +131,7 @@ VkSurfaceKHR pl__create_surface  (VkInstance tInstance, plIOContext* ptIoCtx);
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void*
-pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
+pl_app_load(const plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
 {
     gptApiRegistry  = ptApiRegistry;
     gptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);

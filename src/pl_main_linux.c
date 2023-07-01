@@ -99,16 +99,16 @@ xcb_cursor_context_t* ptCursorContext = NULL;
 plIOContext*          gptIOCtx        = NULL;
 
 // apis
-plDataRegistryApiI*      gptDataRegistry      = NULL;
-plApiRegistryApiI*       gptApiRegistry       = NULL;
-plExtensionRegistryApiI* gptExtensionRegistry = NULL;
+const plDataRegistryApiI*      gptDataRegistry      = NULL;
+const plApiRegistryApiI*       gptApiRegistry       = NULL;
+const plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 
 // memory tracking
 plHashMap       gtMemoryHashMap = {0};
 plMemoryContext gtMemoryContext = {.ptHashMap = &gtMemoryHashMap};
 
 // app function pointers
-void* (*pl_app_load)    (plApiRegistryApiI* ptApiRegistry, void* ptAppData);
+void* (*pl_app_load)    (const plApiRegistryApiI* ptApiRegistry, void* ptAppData);
 void  (*pl_app_shutdown)(void* ptAppData);
 void  (*pl_app_resize)  (void* ptAppData);
 void  (*pl_app_update)  (void* ptAppData);
@@ -134,26 +134,26 @@ int main()
 
     // os provided apis
 
-    static plLibraryApiI tLibraryApi = {
+    static const plLibraryApiI tLibraryApi = {
         .has_changed   = pl__has_library_changed,
         .load          = pl__load_library,
         .load_function = pl__load_library_function,
         .reload        = pl__reload_library
     };
 
-    static plFileApiI tFileApi = {
+    static const plFileApiI tFileApi = {
         .copy = pl__copy_file,
         .read = pl__read_file
     };
     
-    static plUdpApiI tUdpApi = {
+    static const plUdpApiI tUdpApi = {
         .create_socket = pl__create_udp_socket,
         .bind_socket   = pl__bind_udp_socket,  
         .get_data      = pl__get_udp_data,
         .send_data     = pl__send_udp_data
     };
 
-    static plOsServicesApiI tOsApi = {
+    static const plOsServicesApiI tOsApi = {
         .sleep = pl__sleep
     };
 
@@ -316,10 +316,10 @@ int main()
     gKeySyms = xcb_key_symbols_alloc(gConnection);
 
     // load library
-    plLibraryApiI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
+    const plLibraryApiI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
     if(ptLibraryApi->load(&gtAppLibrary, "./app.so", "./app_", "./lock.tmp"))
     {
-        pl_app_load     = (void* (__attribute__(()) *)(plApiRegistryApiI*, void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
+        pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryApiI*, void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
         pl_app_shutdown = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
         pl_app_resize   = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
         pl_app_update   = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
@@ -344,7 +344,7 @@ int main()
         if(ptLibraryApi->has_changed(&gtAppLibrary))
         {
             ptLibraryApi->reload(&gtAppLibrary);
-            pl_app_load     = (void* (__attribute__(()) *)(plApiRegistryApiI*, void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
+            pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryApiI*, void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
             pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     ptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
             pl_app_resize   = (void  (__attribute__(()) *)(void*))                     ptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
             pl_app_update   = (void  (__attribute__(()) *)(void*))                     ptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
@@ -356,7 +356,7 @@ int main()
         gptIOCtx->fDeltaTime = (float)(dCurrentTime - dTime);
         dTime = dCurrentTime;
         pl_app_update(gUserData);
-        gptExtensionRegistry->reload(gptApiRegistry);
+        gptExtensionRegistry->reload();
     }
 
     // app cleanup
@@ -368,7 +368,7 @@ int main()
     xcb_cursor_context_free(ptCursorContext);
     xcb_key_symbols_free(gKeySyms);
     
-    gptExtensionRegistry->unload_all(gptApiRegistry);
+    gptExtensionRegistry->unload_all();
     pl_unload_core_apis();
 
     uint32_t uMemoryLeakCount = 0;

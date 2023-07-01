@@ -44,7 +44,7 @@ typedef struct _plStatsApiI plStatsApiI;
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-plStatsApiI* pl_load_stats_api(void);
+const plStatsApiI* pl_load_stats_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs

@@ -22,10 +22,10 @@ Index of this file:
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-plImageApiI*
+const plImageApiI*
 pl_load_image_api(void)
 {
-    static plImageApiI tApi = {
+    static const plImageApiI tApi = {
         .load = stbi_load,
         .free = stbi_image_free
     };
@@ -39,7 +39,7 @@ pl_load_image_api(void)
 PL_EXPORT void
 pl_load_image_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
-    plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     if(bReload)
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_IMAGE), pl_load_image_api());

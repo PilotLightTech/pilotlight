@@ -45,7 +45,7 @@ typedef struct _plComponentLibrary plComponentLibrary;
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-plGltfApiI* pl_load_gltf_api(void);
+const plGltfApiI* pl_load_gltf_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct

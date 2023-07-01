@@ -86,8 +86,8 @@ typedef struct _plApiRegistryApiI plApiRegistryApiI;
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-plEcsI*    pl_load_ecs_api   (void);
-plCameraI* pl_load_camera_api(void);
+const plEcsI*    pl_load_ecs_api   (void);
+const plCameraI* pl_load_camera_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
@@ -95,7 +95,7 @@ plCameraI* pl_load_camera_api(void);
 
 typedef struct _plEcsI
 {
-    void     (*init_component_library)(plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
+    void     (*init_component_library)(const plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
     plEntity (*create_entity)         (plComponentLibrary* ptLibrary);
     plEntity (*get_entity)            (plComponentLibrary* ptLibrary, const char* pcName);
     size_t   (*get_index)             (plComponentManager* ptManager, plEntity tEntity);
@@ -128,7 +128,7 @@ typedef struct _plEcsI
     void (*calculate_tangents)(plMeshComponent* atMeshes, uint32_t uComponentCount);
 
     // systems
-    void (*cleanup_systems)            (plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
+    void (*cleanup_systems)            (const plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
     void (*run_object_update_system)   (plComponentLibrary* ptLibrary);
     void (*run_hierarchy_update_system)(plComponentLibrary* ptLibrary);
 

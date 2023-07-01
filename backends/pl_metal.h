@@ -32,7 +32,7 @@ void (*new_frame)         (plDrawContext* ctx, MTLRenderPassDescriptor* renderPa
 void (*submit_drawlist)   (plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder);
 } plMetalDrawApiI;
 
-plMetalDrawApiI* pl_load_metal_draw_api(void);
+const plMetalDrawApiI* pl_load_metal_draw_api(void);
 NS_ASSUME_NONNULL_END
 
 #endif // PL_METAL_H

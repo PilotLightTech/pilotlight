@@ -43,7 +43,7 @@ typedef struct _plDebugApiInfo plDebugApiInfo;
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-plDebugApiI* pl_load_debug_api(void);
+const plDebugApiI* pl_load_debug_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
