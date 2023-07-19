@@ -268,6 +268,7 @@ pl_app_load(const plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     // gptGltf->load(ptScene, ptComponentLibrary, "../data/glTF-Sample-Models-master/2.0/FlightHelmet/glTF/FlightHelmet.gltf");
     // gptGltf->load(ptScene, ptComponentLibrary, "../data/glTF-Sample-Models-master/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf");
     gptGltf->load(ptScene, ptComponentLibrary, "../data/glTF-Sample-Models-master/2.0/Sponza/glTF/Sponza.gltf");
+
     plMeshComponent* sbtMeshes = (plMeshComponent*)ptComponentLibrary->tMeshComponentManager.pComponents;
     gptEcs->calculate_normals(sbtMeshes, pl_sb_size(sbtMeshes));
     gptEcs->calculate_tangents(sbtMeshes, pl_sb_size(sbtMeshes));
@@ -297,6 +298,8 @@ pl_app_load(const plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
 
     // lights
     ptAppData->tLightEntity = gptEcs->create_light(ptComponentLibrary, "light", (plVec3){1.0f, 1.0f, 1.0f}, (plVec3){1.0f, 1.0f, 1.0f});
+
+    gptRenderer->scene_prepare(&ptAppData->tScene);
 
     return ptAppData;
 }
@@ -542,7 +545,6 @@ pl_app_update(plAppData* ptAppData)
         gptRenderer->reset_scene(ptScene);                                  // mark object data dirty, reset dynamic buffer offset
         gptEcs->run_hierarchy_update_system(&ptAppData->tComponentLibrary); // calculate final transforms
         gptEcs->run_object_update_system(&ptAppData->tComponentLibrary);    // set final tranforms
-        gptRenderer->scene_prepare(&ptAppData->tScene);                     // update meshes, global buffers
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~offscreen target~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

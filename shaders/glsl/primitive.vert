@@ -35,7 +35,9 @@ void main()
     const mat4 tMVP = tGlobalInfo.tCameraViewProj * tObjectInfo.tModel;
 
     int iCurrentAttribute = 0;
-    const uint iVertexDataOffset = VertexStride * (gl_VertexIndex - tObjectInfo.uVertexOffset) + tObjectInfo.uVertexDataOffset;
+    
+    // offset = offset into current mesh + offset into global buffer
+    const uint iVertexDataOffset = VertexStride * (gl_VertexIndex - tObjectInfo.uVertexPosOffset) + tObjectInfo.uVertexDataOffset;
 
     if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { inPosition  = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
     if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { inNormal    = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}

@@ -498,22 +498,22 @@ pl_ecs_cleanup_systems(const plApiRegistryApiI* ptApiRegistry, plComponentLibrar
 
     plObjectSystemData* ptObjectSystemData = ptLibrary->tObjectComponentManager.pSystemData;
 
-    for(uint32_t i = 0; i < pl_sb_size(ptObjectSystemData->sbtSubmeshes); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptObjectSystemData->sbtMeshes); i++)
     {
-        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexPositions);
-        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexNormals);
-        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexTangents);
-        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexColors0);
-        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexColors1);
-        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexWeights0);
-        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexWeights1);
-        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexJoints0);
-        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexJoints1);
-        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexTextureCoordinates0);
-        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbtVertexTextureCoordinates1);
-        pl_sb_free(ptObjectSystemData->sbtSubmeshes[i]->sbuIndices);
+        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexPositions);
+        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexNormals);
+        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexTangents);
+        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexColors0);
+        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexColors1);
+        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexWeights0);
+        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexWeights1);
+        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexJoints0);
+        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexJoints1);
+        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexTextureCoordinates0);
+        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexTextureCoordinates1);
+        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbuIndices);
     }
-    pl_sb_free(ptObjectSystemData->sbtSubmeshes);
+    pl_sb_free(ptObjectSystemData->sbtMeshes);
     PL_FREE(ptObjectSystemData);
     ptLibrary->tObjectComponentManager.pSystemData = NULL;
 
@@ -544,14 +544,14 @@ pl_run_object_update_system(plComponentLibrary* ptLibrary)
     pl_begin_profile_sample(__FUNCTION__);
     plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
     plObjectSystemData* ptObjectSystemData = ptLibrary->tObjectComponentManager.pSystemData;
-    pl_sb_reset(ptObjectSystemData->sbtSubmeshes);
+    pl_sb_reset(ptObjectSystemData->sbtMeshes);
 
     for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
     {
         plMeshComponent* ptMeshComponent = pl_ecs_get_component(&ptLibrary->tMeshComponentManager, sbtComponents[i].tMesh);
         plTransformComponent* ptTransform = pl_ecs_get_component(&ptLibrary->tTransformComponentManager, sbtComponents[i].tTransform);
         ptMeshComponent->tInfo.tModel = ptTransform->tFinalTransform;
-        pl_sb_push(ptObjectSystemData->sbtSubmeshes, ptMeshComponent);
+        pl_sb_push(ptObjectSystemData->sbtMeshes, ptMeshComponent);
     }
     pl_end_profile_sample();
 }

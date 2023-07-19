@@ -16,8 +16,8 @@ void main()
 
     int iCurrentAttribute = 0;
 
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { inPosition  = tVertexBuffer.atVertexData[VertexStride * (gl_VertexIndex - tObjectInfo.uVertexOffset) + tObjectInfo.uVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { inNormal    = tVertexBuffer.atVertexData[VertexStride * (gl_VertexIndex - tObjectInfo.uVertexOffset) + tObjectInfo.uVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { inPosition  = tVertexBuffer.atVertexData[VertexStride * (gl_VertexIndex - tObjectInfo.uVertexPosOffset) + tObjectInfo.uVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { inNormal    = tVertexBuffer.atVertexData[VertexStride * (gl_VertexIndex - tObjectInfo.uVertexPosOffset) + tObjectInfo.uVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
 
     vec4 tPos = tMVP * vec4(inPosition, 1.0);
     vec4 tNorm = normalize(tMVP * vec4(inNormal, 0.0));

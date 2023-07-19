@@ -82,5 +82,5 @@ layout(set = 2, binding = 0) uniform _plObjectInfo
     mat4  tModel;
     uint  uMaterialIndex;
     uint  uVertexDataOffset;
-    uint  uVertexOffset;
+    uint  uVertexPosOffset;
 } tObjectInfo;

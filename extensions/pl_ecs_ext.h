@@ -155,14 +155,14 @@ typedef struct _plObjectInfo
     plMat4   tModel;
     uint32_t uMaterialIndex;
     uint32_t uVertexDataOffset;
-    uint32_t uVertexOffset;
+    uint32_t uVertexPosOffset;
     int      _unused;
 } plObjectInfo;
 
 typedef struct _plObjectSystemData
 {
     bool              bDirty;
-    plMeshComponent** sbtSubmeshes;
+    plMeshComponent** sbtMeshes;
 } plObjectSystemData;
 
 typedef struct _plComponentManager
