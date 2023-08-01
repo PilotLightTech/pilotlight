@@ -24,12 +24,10 @@ Index of this file:
 #include "pl_profile.h"
 #include "pl_log.h"
 
-// extensions
-#include "pl_vulkan_ext.h"
-
 //-----------------------------------------------------------------------------
 // [SECTION] global data
 //-----------------------------------------------------------------------------
+
 static uint32_t uLogChannel = UINT32_MAX;
 
 //-----------------------------------------------------------------------------
@@ -211,18 +209,8 @@ static size_t
 pl_ecs_get_index(plComponentManager* ptManager, plEntity tEntity)
 { 
     PL_ASSERT(tEntity != PL_INVALID_ENTITY_HANDLE);
-    bool bFound = false;
-    size_t szIndex = 0;
-    for(uint32_t i = 0; i < pl_sb_size(ptManager->sbtEntities); i++)
-    {
-        if(ptManager->sbtEntities[i] == tEntity)
-        {
-            szIndex = (size_t)i;
-            bFound = true;
-            break;
-        }
-    }
-    PL_ASSERT(bFound);
+    size_t szIndex = pl_hm_lookup(&ptManager->tHashMap, (uint64_t)tEntity);
+    PL_ASSERT(szIndex != UINT64_MAX);
     return szIndex;
 }
 
@@ -247,6 +235,7 @@ pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
         plTagComponent* sbComponents = ptManager->pComponents;
         pl_sb_push(sbComponents, (plTagComponent){0});
         ptManager->pComponents = sbComponents;
+        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
         pl_sb_push(ptManager->sbtEntities, tEntity);
         return &pl_sb_back(sbComponents);
     }
@@ -256,6 +245,7 @@ pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
         plMeshComponent* sbComponents = ptManager->pComponents;
         pl_sb_push(sbComponents, (plMeshComponent){0});
         ptManager->pComponents = sbComponents;
+        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
         pl_sb_push(ptManager->sbtEntities, tEntity);
         return &pl_sb_back(sbComponents);
     }
@@ -265,6 +255,7 @@ pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
         plTransformComponent* sbComponents = ptManager->pComponents;
         pl_sb_push(sbComponents, ((plTransformComponent){.tWorld = pl_identity_mat4(), .tFinalTransform = pl_identity_mat4()}));
         ptManager->pComponents = sbComponents;
+        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
         pl_sb_push(ptManager->sbtEntities, tEntity);
         return &pl_sb_back(sbComponents);
     }
@@ -274,6 +265,7 @@ pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
         plMaterialComponent* sbComponents = ptManager->pComponents;
         pl_sb_push(sbComponents, (plMaterialComponent){0});
         ptManager->pComponents = sbComponents;
+        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
         pl_sb_push(ptManager->sbtEntities, tEntity);
         return &pl_sb_back(sbComponents);
     }
@@ -283,6 +275,7 @@ pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
         plObjectComponent* sbComponents = ptManager->pComponents;
         pl_sb_push(sbComponents, (plObjectComponent){0});
         ptManager->pComponents = sbComponents;
+        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
         pl_sb_push(ptManager->sbtEntities, tEntity);
         return &pl_sb_back(sbComponents);
     }
@@ -292,6 +285,7 @@ pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
         plCameraComponent* sbComponents = ptManager->pComponents;
         pl_sb_push(sbComponents, (plCameraComponent){0});
         ptManager->pComponents = sbComponents;
+        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
         pl_sb_push(ptManager->sbtEntities, tEntity);
         return &pl_sb_back(sbComponents);
     }
@@ -301,6 +295,7 @@ pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
         plHierarchyComponent* sbComponents = ptManager->pComponents;
         pl_sb_push(sbComponents, (plHierarchyComponent){0});
         ptManager->pComponents = sbComponents;
+        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
         pl_sb_push(ptManager->sbtEntities, tEntity);
         return &pl_sb_back(sbComponents);
     }
@@ -310,6 +305,7 @@ pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
         plLightComponent* sbComponents = ptManager->pComponents;
         pl_sb_push(sbComponents, ((plLightComponent){.tColor = {1.0f, 1.0f, 1.0f}}));
         ptManager->pComponents = sbComponents;
+        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
         pl_sb_push(ptManager->sbtEntities, tEntity);
         return &pl_sb_back(sbComponents);
     }
@@ -399,15 +395,15 @@ pl_ecs_create_outline_material(plComponentLibrary* ptLibrary, const char* pcName
     ptMaterial->tGraphicsState.ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_NORMAL;
     ptMaterial->tGraphicsState.ulDepthMode          = PL_DEPTH_MODE_ALWAYS;
     ptMaterial->tGraphicsState.ulDepthWriteEnabled  = false;
-    ptMaterial->tGraphicsState.ulCullMode           = VK_CULL_MODE_FRONT_BIT;
+    ptMaterial->tGraphicsState.ulCullMode           = PL_CULL_MODE_FRONT;
     ptMaterial->tGraphicsState.ulBlendMode          = PL_BLEND_MODE_ALPHA;
     ptMaterial->tGraphicsState.ulShaderTextureFlags = 0;
     ptMaterial->tGraphicsState.ulStencilMode        = PL_STENCIL_MODE_NOT_EQUAL;
     ptMaterial->tGraphicsState.ulStencilRef         = 0xff;
     ptMaterial->tGraphicsState.ulStencilMask        = 0xff;
-    ptMaterial->tGraphicsState.ulStencilOpFail      = VK_STENCIL_OP_KEEP;
-    ptMaterial->tGraphicsState.ulStencilOpDepthFail = VK_STENCIL_OP_KEEP;
-    ptMaterial->tGraphicsState.ulStencilOpPass      = VK_STENCIL_OP_REPLACE;
+    ptMaterial->tGraphicsState.ulStencilOpFail      = PL_STENCIL_OP_KEEP;
+    ptMaterial->tGraphicsState.ulStencilOpDepthFail = PL_STENCIL_OP_KEEP;
+    ptMaterial->tGraphicsState.ulStencilOpPass      = PL_STENCIL_OP_REPLACE;
     return tNewEntity;   
 }
 
@@ -438,15 +434,15 @@ pl_ecs_create_material(plComponentLibrary* ptLibrary, const char* pcName)
     ptMaterial->tGraphicsState.ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_NORMAL;
     ptMaterial->tGraphicsState.ulDepthMode          = PL_DEPTH_MODE_LESS_OR_EQUAL;
     ptMaterial->tGraphicsState.ulDepthWriteEnabled  = true;
-    ptMaterial->tGraphicsState.ulCullMode           = VK_CULL_MODE_NONE;
+    ptMaterial->tGraphicsState.ulCullMode           = PL_CULL_MODE_NONE;
     ptMaterial->tGraphicsState.ulBlendMode          = PL_BLEND_MODE_ALPHA;
     ptMaterial->tGraphicsState.ulShaderTextureFlags = 0;
     ptMaterial->tGraphicsState.ulStencilMode        = PL_STENCIL_MODE_ALWAYS;
     ptMaterial->tGraphicsState.ulStencilRef         = 0xff;
     ptMaterial->tGraphicsState.ulStencilMask        = 0xff;
-    ptMaterial->tGraphicsState.ulStencilOpFail      = VK_STENCIL_OP_KEEP;
-    ptMaterial->tGraphicsState.ulStencilOpDepthFail = VK_STENCIL_OP_KEEP;
-    ptMaterial->tGraphicsState.ulStencilOpPass      = VK_STENCIL_OP_KEEP;
+    ptMaterial->tGraphicsState.ulStencilOpFail      = PL_STENCIL_OP_KEEP;
+    ptMaterial->tGraphicsState.ulStencilOpDepthFail = PL_STENCIL_OP_KEEP;
+    ptMaterial->tGraphicsState.ulStencilOpPass      = PL_STENCIL_OP_KEEP;
 
     return tNewEntity;    
 }
@@ -463,9 +459,9 @@ pl_add_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity)
         plMeshComponent* ptMesh = pl_ecs_get_component(&ptLibrary->tMeshComponentManager, tEntity);
 
         plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->tMaterial);
-        ptMaterial->tGraphicsState.ulStencilOpFail      = VK_STENCIL_OP_REPLACE;
-        ptMaterial->tGraphicsState.ulStencilOpDepthFail = VK_STENCIL_OP_REPLACE;
-        ptMaterial->tGraphicsState.ulStencilOpPass      = VK_STENCIL_OP_REPLACE;
+        ptMaterial->tGraphicsState.ulStencilOpFail      = PL_STENCIL_OP_REPLACE;
+        ptMaterial->tGraphicsState.ulStencilOpDepthFail = PL_STENCIL_OP_REPLACE;
+        ptMaterial->tGraphicsState.ulStencilOpPass      = PL_STENCIL_OP_REPLACE;
 
         if(ptMesh->tOutlineMaterial == 0)
         {
@@ -486,9 +482,9 @@ pl_remove_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity)
     {
         plMeshComponent* ptMesh = pl_ecs_get_component(&ptLibrary->tMeshComponentManager, tEntity);
         plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->tMaterial);
-        ptMaterial->tGraphicsState.ulStencilOpFail      = VK_STENCIL_OP_KEEP;
-        ptMaterial->tGraphicsState.ulStencilOpDepthFail = VK_STENCIL_OP_KEEP;
-        ptMaterial->tGraphicsState.ulStencilOpPass      = VK_STENCIL_OP_KEEP;
+        ptMaterial->tGraphicsState.ulStencilOpFail      = PL_STENCIL_OP_KEEP;
+        ptMaterial->tGraphicsState.ulStencilOpDepthFail = PL_STENCIL_OP_KEEP;
+        ptMaterial->tGraphicsState.ulStencilOpPass      = PL_STENCIL_OP_KEEP;
     }
 }
 
@@ -527,6 +523,7 @@ pl_ecs_cleanup_systems(const plApiRegistryApiI* ptApiRegistry, plComponentLibrar
     pl_sb_free(ptLibrary->tObjectComponentManager.pComponents);
     pl_sb_free(ptLibrary->tCameraComponentManager.pComponents);
     pl_sb_free(ptLibrary->tHierarchyComponentManager.pComponents);
+    pl_sb_free(ptLibrary->tLightComponentManager.pComponents);
 
     // entities
     pl_sb_free(ptLibrary->tTagComponentManager.sbtEntities);
@@ -536,6 +533,17 @@ pl_ecs_cleanup_systems(const plApiRegistryApiI* ptApiRegistry, plComponentLibrar
     pl_sb_free(ptLibrary->tObjectComponentManager.sbtEntities);
     pl_sb_free(ptLibrary->tCameraComponentManager.sbtEntities);
     pl_sb_free(ptLibrary->tHierarchyComponentManager.sbtEntities);
+    pl_sb_free(ptLibrary->tLightComponentManager.sbtEntities);
+
+    // hashmaps
+    pl_hm_free(&ptLibrary->tTagComponentManager.tHashMap);
+    pl_hm_free(&ptLibrary->tTransformComponentManager.tHashMap);
+    pl_hm_free(&ptLibrary->tMeshComponentManager.tHashMap);
+    pl_hm_free(&ptLibrary->tMaterialComponentManager.tHashMap);
+    pl_hm_free(&ptLibrary->tObjectComponentManager.tHashMap);
+    pl_hm_free(&ptLibrary->tCameraComponentManager.tHashMap);
+    pl_hm_free(&ptLibrary->tHierarchyComponentManager.tHashMap);
+    pl_hm_free(&ptLibrary->tLightComponentManager.tHashMap);
 }
 
 static void

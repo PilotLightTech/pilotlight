@@ -84,7 +84,6 @@ typedef struct _plDevice            plDevice;          // device resources & inf
 typedef struct _plGraphics          plGraphics;        // graphics context
 typedef struct _plFrameContext      plFrameContext;    // per frame resource
 typedef struct _plFrameGarbage      plFrameGarbage;
-typedef struct _plResourceManager   plResourceManager; // buffer/texture resource manager
 typedef struct _plDynamicBufferNode plDynamicBufferNode;
 typedef struct _plBuffer            plBuffer;          // vulkan buffer
 typedef struct _plTexture           plTexture;         // vulkan texture

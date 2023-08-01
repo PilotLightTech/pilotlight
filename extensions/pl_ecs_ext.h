@@ -51,6 +51,7 @@ typedef struct _plCameraI plCameraI;
 #include <stdint.h> // uint*_t
 #include "pl_graphics.inl"
 #include "pl_math.h"
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -168,6 +169,7 @@ typedef struct _plObjectSystemData
 typedef struct _plComponentManager
 {
     plComponentType tComponentType;
+    plHashMap       tHashMap;
     plEntity*       sbtEntities;
     void*           pComponents;
     size_t          szStride;

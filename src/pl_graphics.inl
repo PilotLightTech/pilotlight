@@ -36,6 +36,10 @@ Index of this file:
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
+// finalized types
+typedef struct _plViewportRegion plViewportRegion;
+typedef struct _plCommandBuffer  plCommandBuffer;
+
 // types
 typedef struct _plMesh                   plMesh;
 typedef struct _plSampler                plSampler;
@@ -60,12 +64,29 @@ typedef int plStencilMode;            // -> enum _plStencilMode            // En
 typedef int plFilter;                 // -> enum _plFilter                 // Enum:
 typedef int plWrapMode;               // -> enum _plWrapMode               // Enum:
 typedef int plCompareMode;            // -> enum _plCompareMode            // Enum:
+typedef int plCullMode;               // -> enum _plCullMode               // Enum:
 typedef int plFormat;                 // -> enum _plFormat                 // Enum:
+typedef int plStencilOp;              // -> enum _plStencilOp              // Enum:
 typedef int plDeviceAllocationStatus; // -> enum  // Enum:
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plViewportRegion
+{
+    float    fX;
+    float    fY;
+    float    fWidth;
+    float    fHeight;
+    float    fMinDepth;
+    float    fMaxDepth;
+} plViewportRegion;
+
+typedef struct _plCommandBuffer
+{
+    uint64_t uHandle; // backend specific handle, (i.e. VkCommandBuffer)
+} plCommandBuffer;
 
 typedef struct _plRenderPassDesc
 {
@@ -114,15 +135,15 @@ typedef struct _plGraphicsState
             uint64_t ulVertexStreamMask   : 11; // PL_MESH_FORMAT_FLAG_*
             uint64_t ulDepthMode          :  3; // PL_DEPTH_MODE_
             uint64_t ulDepthWriteEnabled  :  1; // bool
-            uint64_t ulCullMode           :  2; // VK_CULL_MODE_*
+            uint64_t ulCullMode           :  2; // PL_CULL_MODE_*
             uint64_t ulBlendMode          :  3; // PL_BLEND_MODE_*
             uint64_t ulShaderTextureFlags :  4; // PL_SHADER_TEXTURE_FLAG_* 
-            uint64_t ulStencilMode        :  3;
+            uint64_t ulStencilMode        :  3; // PL_STENCIL_MODE_*
             uint64_t ulStencilRef         :  8;
             uint64_t ulStencilMask        :  8;
-            uint64_t ulStencilOpFail      :  3;
-            uint64_t ulStencilOpDepthFail :  3;
-            uint64_t ulStencilOpPass      :  3;
+            uint64_t ulStencilOpFail      :  3; // PL_STENCIL_OP_*
+            uint64_t ulStencilOpDepthFail :  3; // PL_STENCIL_OP_*
+            uint64_t ulStencilOpPass      :  3; // PL_STENCIL_OP_*
             uint64_t _ulUnused            : 12;
         };
         uint64_t ulValue;
@@ -285,6 +306,25 @@ enum _plStencilMode
     PL_STENCIL_MODE_NOT_EQUAL,
     PL_STENCIL_MODE_GREATER_OR_EQUAL,
     PL_STENCIL_MODE_ALWAYS,
+};
+
+enum _plCullMode
+{
+    PL_CULL_MODE_NONE  = 0,
+    PL_CULL_MODE_FRONT = 1 << 0,
+    PL_CULL_MODE_BACK  = 1 << 1,
+};
+
+enum _plStencilOp
+{
+    PL_STENCIL_OP_KEEP,
+    PL_STENCIL_OP_ZERO,
+    PL_STENCIL_OP_REPLACE,
+    PL_STENCIL_OP_INCREMENT_AND_CLAMP,
+    PL_STENCIL_OP_DECREMENT_AND_CLAMP,
+    PL_STENCIL_OP_INVERT,
+    PL_STENCIL_OP_INCREMENT_AND_WRAP,
+    PL_STENCIL_OP_DECREMENT_AND_WRAP
 };
 
 enum _plMeshFormatFlags

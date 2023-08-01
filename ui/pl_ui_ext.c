@@ -4893,11 +4893,12 @@ pl_load_ui_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
     const plUiApiI* ptUiApi = pl_load_ui_api();
     if(bReload)
     {
-        ptUiApi->set_context(ptDataRegistry->get_data("ui"));
+        ptUiApi->set_context(ptDataRegistry->get_data("pilotlight ui"));
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_UI), ptUiApi);
     }
     else
     {
+        ptDataRegistry->set_data("pilotlight ui", pl_ui_create_context());
         ptApiRegistry->add(PL_API_UI, ptUiApi);
     }
 }

@@ -2286,33 +2286,38 @@ pl_load_draw_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 
     if(bReload)
     { 
-        ptDrawApi->set_context(ptDataRegistry->get_data(PL_CONTEXT_DRAW_NAME));
+        ptDrawApi->set_context(ptDataRegistry->get_data("pilotlight draw"));
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_DRAW), ptDrawApi);
     }
     else
     {
         ptApiRegistry->add(PL_API_DRAW, ptDrawApi);
+        ptDataRegistry->set_data("pilotlight draw", pl__get_draw_context());
     }
 
     #ifdef PL_METAL_BACKEND
     if(bReload)
     {
+        ptDrawApi->set_context(ptDataRegistry->get_data("pilotlight draw"));
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_METAL_DRAW), pl_load_metal_draw_api());
     }
     else
     {
         ptApiRegistry->add(PL_API_METAL_DRAW, pl_load_metal_draw_api());
+        ptDataRegistry->set_data("pilotlight draw", pl__get_draw_context());
     }
     #endif
 
     #ifdef PL_VULKAN_BACKEND
     if(bReload)
     {
+        ptDrawApi->set_context(ptDataRegistry->get_data("pilotlight draw"));
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_VULKAN_DRAW), pl_load_vulkan_draw_api());
     }
     else
     {
         ptApiRegistry->add(PL_API_VULKAN_DRAW, pl_load_vulkan_draw_api());
+        ptDataRegistry->set_data("pilotlight draw", pl__get_draw_context());
     }
     #endif
 }

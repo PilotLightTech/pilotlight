@@ -2238,6 +2238,7 @@ pl_process_cleanup_queue(plDevice* ptDevice, uint32_t uCurrentFrame)
         {
             pl_return_dynamic_buffer(ptDevice, uNodeToFree);
             pl_sb_del_swap(ptDevice->_sbuDynamicBufferDeletionQueue, i);
+            i--;
         }
     }
 
@@ -2982,7 +2983,7 @@ pl_request_dynamic_buffer(plDevice* ptDevice)
         sbtNodes[sbtNodes[n].uNext].uPrev = n;
         sbtNodes[sbtNodes[n].uPrev].uNext = n;
 
-        // pl_log_info_to(ptDevice->_ptGraphics->uLogChannel, "creating new dynamic buffer");
+        pl_log_info("creating new dynamic buffer");
         sbtNodes[n].uDynamicBuffer = pl_create_constant_buffer(ptDevice, ptDevice->uUniformBufferBlockSize, "temp dynamic buffer");
     }
     return n;

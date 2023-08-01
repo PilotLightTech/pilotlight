@@ -16,6 +16,8 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include <stdio.h>
+
 #include "pilotlight.h"
 #include "pl_profile.h"
 #include "pl_log.h"
@@ -35,6 +37,7 @@ Index of this file:
 #include "pl_image_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_ui_ext.h"
+#include "pl_stats_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -62,41 +65,54 @@ typedef struct plAppData_t
     plDrawLayer*             fgDrawLayer;
     plDrawLayer*             bgDrawLayer;
     plFontAtlas              fontAtlas;
-    plProfileContext*        ptProfileCtx;
-    plLogContext*            ptLogCtx;
-    plUiContext*             ptUiContext;
+    bool                     bShowUiDemo;
+    bool                     bShowUiStyle;
+    bool                     bShowUiDebug;
 
-    // apis
-    const plFileApiI*             ptFileApi;
-
-    // extension apis
-    const plDrawApiI*             ptDrawApi;
-    const plUiApiI*               ptUiApi;
-    const plMetalDrawApiI*        ptMetalDrawApi;
-
-    const plApiRegistryApiI* ptApiRegistry;
-
+    // new
+    id<MTLBuffer>              tIndexBuffer;
+    id<MTLBuffer>              tVertexBuffer;
+    id<MTLRenderPipelineState> tPipeline;
+    id<MTLDepthStencilState>   tDepthStencilState;
+    id<MTLRenderPipelineState> tRenderPipelineState;
 } plAppData;
+
+//-----------------------------------------------------------------------------
+// [SECTION] global apis
+//-----------------------------------------------------------------------------
+
+const plApiRegistryApiI*       gptApiRegistry       = NULL;
+const plDataRegistryApiI*      gptDataRegistry      = NULL;
+const plDrawApiI*              gptDraw              = NULL;
+const plMetalDrawApiI*         gptMetalDraw         = NULL;
+const plUiApiI*                gptUi                = NULL;
+const plStatsApiI*             gptStats             = NULL;
+const plExtensionRegistryApiI* gptExtensionRegistry = NULL;
+const plFileApiI*              gptFile              = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void*
-pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
+pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
 {
-    plAppData* ptAppData = pAppData;
-    const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-    pl_set_io_context(ptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
+    gptApiRegistry  = ptApiRegistry;
+    gptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    pl_set_memory_context(gptDataRegistry->get_data(PL_CONTEXT_MEMORY));
+    pl_set_io_context(gptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
 
     if(ptAppData) // reload
     {
-        pl_set_log_context(ptDataRegistry->get_data("log"));
-        pl_set_profile_context(ptDataRegistry->get_data("profile"));
-        
-        ptAppData->ptDrawApi = ptApiRegistry->first(PL_API_DRAW);
-        ptAppData->ptUiApi   = ptApiRegistry->first(PL_API_UI);
+        pl_set_log_context(gptDataRegistry->get_data("log"));
+        pl_set_profile_context(gptDataRegistry->get_data("profile"));
+
+        // reload global apis
+        gptDraw      = ptApiRegistry->first(PL_API_DRAW);
+        gptMetalDraw = ptApiRegistry->first(PL_API_METAL_DRAW);
+        gptUi        = ptApiRegistry->first(PL_API_UI);
+        gptStats     = ptApiRegistry->first(PL_API_STATS);
+        gptFile      = ptApiRegistry->first(PL_API_FILE);
 
         return ptAppData;
     }
@@ -105,16 +121,13 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     plLogContext*     ptLogCtx     = pl_create_log_context();
     
     // add some context to data registry
-    ptAppData = malloc(sizeof(plAppData));
+    ptAppData = PL_ALLOC(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
-    ptAppData->ptApiRegistry = ptApiRegistry;
-    ptDataRegistry->set_data("profile", ptProfileCtx);
-    ptDataRegistry->set_data("log", ptLogCtx);
+    gptDataRegistry->set_data("profile", ptProfileCtx);
+    gptDataRegistry->set_data("log", ptLogCtx);
 
     plIOContext* ptIOCtx = pl_get_io_context();
     ptAppData->device.device = ptIOCtx->pBackendPlatformData;
-    
-    // set contexts
 
     // create log context
     pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
@@ -125,18 +138,17 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     ptExtensionRegistry->load("pl_image_ext", "pl_load_image_ext", "pl_unload_image_ext", false);
     ptExtensionRegistry->load("pl_draw_ext", "pl_load_draw_ext", "pl_unload_draw_ext", true);
     ptExtensionRegistry->load("pl_ui_ext", "pl_load_ui_ext", "pl_unload_ui_ext", true);
+    ptExtensionRegistry->load("pl_stats_ext", "pl_load_stats_ext", "pl_unload_stats_ext", false);
 
-    const plImageApiI* ptImageApi = ptApiRegistry->first(PL_API_IMAGE);
-    const plDrawApiI* ptDrawApi = ptApiRegistry->first(PL_API_DRAW);
-    const plMetalDrawApiI* ptMetalApi = ptApiRegistry->first(PL_API_METAL_DRAW);
-    const plUiApiI* ptUi = ptApiRegistry->first(PL_API_UI);
-    ptAppData->ptDrawApi = ptDrawApi;
-    ptAppData->ptMetalDrawApi = ptMetalApi;
-    ptAppData->ptUiApi = ptUi;
-    plUiContext* ptUiContext  = ptUi->create_context();
-    ptDataRegistry->set_data(PL_CONTEXT_DRAW_NAME, ptDrawApi->get_context());
-    ptDataRegistry->set_data("ui", ptUiContext);
-    ptDataRegistry->set_data("device", &ptAppData->device);
+    // load apis
+    gptDraw      = ptApiRegistry->first(PL_API_DRAW);
+    gptMetalDraw = ptApiRegistry->first(PL_API_METAL_DRAW);
+    gptUi        = ptApiRegistry->first(PL_API_UI);
+    gptStats     = ptApiRegistry->first(PL_API_STATS);
+    gptFile      = ptApiRegistry->first(PL_API_FILE);
+
+    plUiContext* ptUiContext  = gptUi->create_context();
+    gptDataRegistry->set_data("device", &ptAppData->device);
 
     // create command queue
     ptAppData->device.device = ptIOCtx->pBackendPlatformData;
@@ -156,18 +168,37 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
     ptAppData->drawableRenderDescriptor.depthAttachment.clearDepth = 1.0;
 
     // initialize backend specifics for draw context
-    ptMetalApi->initialize_context(ptAppData->device.device);
+    gptMetalDraw->initialize_context(ptAppData->device.device);
 
     // create draw list & layers
-    plDrawContext* ptDrawCtx = ptDrawApi->get_context();
-    ptDrawApi->register_drawlist(ptDrawCtx, &ptAppData->drawlist);
-    ptAppData->bgDrawLayer = ptDrawApi->request_layer(&ptAppData->drawlist, "Background Layer");
-    ptAppData->fgDrawLayer = ptDrawApi->request_layer(&ptAppData->drawlist, "Foreground Layer");
+    plDrawContext* ptDrawCtx = gptDraw->get_context();
+    gptDraw->register_drawlist(ptDrawCtx, &ptAppData->drawlist);
+    ptAppData->bgDrawLayer = gptDraw->request_layer(&ptAppData->drawlist, "Background Layer");
+    ptAppData->fgDrawLayer = gptDraw->request_layer(&ptAppData->drawlist, "Foreground Layer");
     
     // create font atlas
-    ptDrawApi->add_default_font(&ptAppData->fontAtlas);
-    ptDrawApi->build_font_atlas(ptDrawCtx, &ptAppData->fontAtlas);
-    ptUi->set_default_font(&ptAppData->fontAtlas.sbFonts[0]);
+    gptDraw->add_default_font(&ptAppData->fontAtlas);
+    gptDraw->build_font_atlas(ptDrawCtx, &ptAppData->fontAtlas);
+    gptUi->set_default_font(&ptAppData->fontAtlas.sbFonts[0]);
+
+    // new demo
+
+    // vertex buffer
+    const float fVertexBuffer[] = {
+        // x, y, z, r, g, b, a
+        -0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+         0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f,
+         0.0f,  0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+    };
+    ptAppData->tVertexBuffer = [ptAppData->device.device newBufferWithLength:sizeof(float) * 21 options:MTLResourceStorageModeShared];
+    memcpy(ptAppData->tVertexBuffer.contents, fVertexBuffer, sizeof(float) * 21);
+
+    // index buffer
+    const uint32_t uIndexBuffer[] = {
+        0, 1, 2
+    };
+    ptAppData->tIndexBuffer = [ptAppData->device.device newBufferWithLength:sizeof(uint32_t) * 3 options:MTLResourceStorageModeShared];
+    memcpy(ptAppData->tIndexBuffer.contents, uIndexBuffer, sizeof(uint32_t) * 3);
 
     return ptAppData;
 }
@@ -177,17 +208,14 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, void* pAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_shutdown(void* pAppData)
+pl_app_shutdown(plAppData* ptAppData)
 {
-    plAppData* ptAppData = pAppData;
-    plDrawApiI* ptDrawApi = ptAppData->ptDrawApi;
-    plUiApiI* ptUi = ptAppData->ptUiApi;
-
     // clean up contexts
-    ptDrawApi->cleanup_font_atlas(&ptAppData->fontAtlas);
-    ptUi->destroy_context(NULL);
+    gptDraw->cleanup_font_atlas(&ptAppData->fontAtlas);
+    gptUi->destroy_context(NULL);
     pl_cleanup_profile_context();
     pl_cleanup_log_context();
+    PL_FREE(ptAppData);
 }
 
 //-----------------------------------------------------------------------------
@@ -195,9 +223,8 @@ pl_app_shutdown(void* pAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_resize(void* pAppData)
+pl_app_resize(plAppData* ptAppData)
 {
-    plAppData* ptAppData = pAppData;
     plIOContext* ptIOCtx = pl_get_io_context();
 
     // recreate depth texture
@@ -216,15 +243,74 @@ pl_app_resize(void* pAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_update(void* pAppData)
+pl_app_update(plAppData* ptAppData)
 {
-    plAppData* ptAppData = pAppData;
-    plDrawApiI* ptDrawApi = ptAppData->ptDrawApi;
-    plMetalDrawApiI* ptMetalApi = ptAppData->ptMetalDrawApi;
-    plUiApiI* ptUi = ptAppData->ptUiApi;
 
-    ptMetalApi->new_frame(ptDrawApi->get_context(), ptAppData->drawableRenderDescriptor);
-    ptUi->new_frame();
+    static int bFirstRun = true;
+    if(bFirstRun)
+    {
+
+        unsigned uShaderFileSize = 0;
+        gptFile->read("../shaders/metal/primitive.metal", &uShaderFileSize, NULL, "rb");
+        char* pcFileData = PL_ALLOC(uShaderFileSize);
+        gptFile->read("../shaders/metal/primitive.metal", &uShaderFileSize, pcFileData, "rb");
+
+        NSError* error = nil;
+        NSString* shaderSource = [NSString stringWithUTF8String:pcFileData];
+        id<MTLLibrary> library = [ptAppData->device.device newLibraryWithSource:shaderSource options:nil error:&error];
+        if (library == nil)
+        {
+            NSLog(@"Error: failed to create Metal library: %@", error);
+        }
+
+        id<MTLFunction> vertexFunction = [library newFunctionWithName:@"vertex_main"];
+        id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"fragment_main"];
+
+        if (vertexFunction == nil || fragmentFunction == nil)
+        {
+            NSLog(@"Error: failed to find Metal shader functions in library: %@", error);
+        }
+
+        MTLVertexDescriptor* vertexDescriptor = [MTLVertexDescriptor vertexDescriptor];
+        vertexDescriptor.attributes[0].offset = 0;
+        vertexDescriptor.attributes[0].format = MTLVertexFormatFloat3; // position
+        vertexDescriptor.attributes[0].bufferIndex = 0;
+        vertexDescriptor.attributes[1].offset = sizeof(float) * 3;
+        vertexDescriptor.attributes[1].format = MTLVertexFormatFloat4; // color
+        vertexDescriptor.attributes[1].bufferIndex = 0;
+        vertexDescriptor.layouts[0].stepRate = 1;
+        vertexDescriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
+        vertexDescriptor.layouts[0].stride = sizeof(float) * 7;
+
+        MTLDepthStencilDescriptor *depthDescriptor = [MTLDepthStencilDescriptor new];
+        depthDescriptor.depthCompareFunction = MTLCompareFunctionAlways;
+        depthDescriptor.depthWriteEnabled = NO;
+        ptAppData->tDepthStencilState = [ptAppData->device.device newDepthStencilStateWithDescriptor:depthDescriptor];
+
+        MTLRenderPipelineDescriptor* pipelineDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
+        pipelineDescriptor.vertexFunction = vertexFunction;
+        pipelineDescriptor.fragmentFunction = fragmentFunction;
+        pipelineDescriptor.vertexDescriptor = vertexDescriptor;
+        pipelineDescriptor.rasterSampleCount = 1;
+        pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+        pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
+        pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
+        pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+        pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+        pipelineDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
+        pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
+        pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorZero;
+        pipelineDescriptor.depthAttachmentPixelFormat = ptAppData->drawableRenderDescriptor.depthAttachment.texture.pixelFormat;
+        pipelineDescriptor.stencilAttachmentPixelFormat = ptAppData->drawableRenderDescriptor.stencilAttachment.texture.pixelFormat;
+
+        ptAppData->tRenderPipelineState = [ptAppData->device.device newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
+        if (error != nil)
+            NSLog(@"Error: failed to create Metal pipeline state: %@", error);
+        bFirstRun = false;
+    }
+
+    gptMetalDraw->new_frame(gptDraw->get_context(), ptAppData->drawableRenderDescriptor);
+    gptUi->new_frame();
 
     plIOContext* ptIOCtx = pl_get_io_context();
     ptAppData->graphics.metalLayer = ptIOCtx->pBackendRendererData;
@@ -249,60 +335,55 @@ pl_app_update(void* pAppData)
     // create render command encoder
     id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:ptAppData->drawableRenderDescriptor];
 
-    // draw profiling info
-    pl_begin_profile_sample("Draw Profiling Info");
-
-    char cPProfileValue[64] = {0};
-    uint32_t uSampleCount = 0;
-    plProfileSample* ptSamples = pl_get_last_frame_samples(&uSampleCount);
-    for(uint32_t i = 0u; i < uSampleCount; i++)
+    if(gptUi->begin_window("Pilot Light", NULL, false))
     {
-        plProfileSample* tPSample = &ptSamples[i];
-        ptDrawApi->add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){10.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, tPSample->pcName, 0.0f);
-        plVec2 sampleTextSize = ptDrawApi->calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, tPSample->pcName, 0.0f);
-        pl_sprintf(cPProfileValue, ": %0.5f", tPSample->dDuration);
-        ptDrawApi->add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){sampleTextSize.x + 15.0f + (float)tPSample->uDepth * 15.0f, 50.0f + (float)i * 15.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, cPProfileValue, 0.0f);
+        if(gptUi->collapsing_header("User Interface"))
+        {
+            gptUi->checkbox("UI Debug", &ptAppData->bShowUiDebug);
+            gptUi->checkbox("UI Demo", &ptAppData->bShowUiDemo);
+            gptUi->checkbox("UI Style", &ptAppData->bShowUiStyle);
+            gptUi->end_collapsing_header();
+        }
+        gptUi->end_window();
     }
-    pl_end_profile_sample();
 
-    // draw commands
-    pl_begin_profile_sample("Add draw commands");
-    ptDrawApi->add_text(ptAppData->fgDrawLayer, &ptAppData->fontAtlas.sbFonts[0], 13.0f, (plVec2){300.0f, 10.0f}, (plVec4){0.1f, 0.5f, 0.0f, 1.0f}, "Pilot Light\nGraphics", 0.0f);
-    ptDrawApi->add_triangle_filled(ptAppData->bgDrawLayer, (plVec2){300.0f, 50.0f}, (plVec2){300.0f, 150.0f}, (plVec2){350.0f, 50.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f});
-    pl__begin_profile_sample("Calculate text size");
-    plVec2 textSize = ptDrawApi->calculate_text_size(&ptAppData->fontAtlas.sbFonts[0], 13.0f, "Pilot Light\nGraphics", 0.0f);
-    pl__end_profile_sample();
-    ptDrawApi->add_rect_filled(ptAppData->bgDrawLayer, (plVec2){300.0f, 10.0f}, (plVec2){300.0f + textSize.x, 10.0f + textSize.y}, (plVec4){0.0f, 0.0f, 0.8f, 0.5f});
-    ptDrawApi->add_line(ptAppData->bgDrawLayer, (plVec2){500.0f, 10.0f}, (plVec2){10.0f, 500.0f}, (plVec4){1.0f, 1.0f, 1.0f, 0.5f}, 2.0f);
-    pl_end_profile_sample();
-
-    static bool bOpen = true;
-
-
-    if(ptUi->begin_window("Pilot Light", NULL, false))
+    if(ptAppData->bShowUiDemo)
     {
-        ptUi->text("%.6f ms", ptIOCtx->fDeltaTime);
-
-        ptUi->checkbox("Camera Info", &bOpen);
-        ptUi->end_window();
+        pl_begin_profile_sample("ui demo");
+        gptUi->demo(&ptAppData->bShowUiDemo);
+        pl_end_profile_sample();
     }
+
+    if(ptAppData->bShowUiStyle)
+        gptUi->style(&ptAppData->bShowUiStyle);
+
+    if(ptAppData->bShowUiDebug)
+        gptUi->debug(&ptAppData->bShowUiDebug);
 
     // submit draw layers
     pl_begin_profile_sample("Submit draw layers");
-    ptDrawApi->submit_layer(ptAppData->bgDrawLayer);
-    ptDrawApi->submit_layer(ptAppData->fgDrawLayer);
+    gptDraw->submit_layer(ptAppData->bgDrawLayer);
+    gptDraw->submit_layer(ptAppData->fgDrawLayer);
     pl_end_profile_sample();
 
-    ptUi->render();
+    gptUi->render();
 
     // submit draw lists
     pl_begin_profile_sample("Submit draw lists");
-    ptDrawApi->get_context()->tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
-    ptDrawApi->get_context()->tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
-    ptMetalApi->submit_drawlist(&ptAppData->drawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
-    ptMetalApi->submit_drawlist(ptUi->get_draw_list(NULL), ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
-    ptMetalApi->submit_drawlist(ptUi->get_debug_draw_list(NULL), ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
+    gptDraw->get_context()->tFrameBufferScale.x = ptIOCtx->afMainFramebufferScale[0];
+    gptDraw->get_context()->tFrameBufferScale.y = ptIOCtx->afMainFramebufferScale[1];
+    gptMetalDraw->submit_drawlist(&ptAppData->drawlist, ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
+    gptMetalDraw->submit_drawlist(gptUi->get_draw_list(NULL), ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
+    gptMetalDraw->submit_drawlist(gptUi->get_debug_draw_list(NULL), ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], renderEncoder);
     pl_end_profile_sample();
+
+    // new
+    // [renderEncoder setVertexBytes:&ortho_projection length:sizeof(ortho_projection) atIndex:1 ];
+    [renderEncoder setDepthStencilState:ptAppData->tDepthStencilState];
+    [renderEncoder setVertexBuffer:ptAppData->tVertexBuffer offset:0 atIndex:0];
+    [renderEncoder setRenderPipelineState:ptAppData->tRenderPipelineState];
+    [renderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:3 indexType:MTLIndexTypeUInt32 indexBuffer:ptAppData->tIndexBuffer indexBufferOffset:0];
+
 
     // finish recording
     [renderEncoder endEncoding];

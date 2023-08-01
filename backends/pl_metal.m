@@ -86,7 +86,7 @@ static inline CFTimeInterval GetMachAbsoluteTimeInSeconds() { return (CFTimeInte
 static void
 pl_initialize_draw_context_metal(id<MTLDevice> device)
 {
-    plDrawApiI* ptDrawApi = pl_load_draw_api();
+    const plDrawApiI* ptDrawApi = pl_load_draw_api();
     plDrawContext* ptCtx = ptDrawApi->get_context();
     ptCtx->_platformData = [[MetalContext alloc] init];
     MetalContext* metalCtx = ptCtx->_platformData;
@@ -96,7 +96,7 @@ pl_initialize_draw_context_metal(id<MTLDevice> device)
 static void
 pl_cleanup_draw_context(void)
 {
-    plDrawApiI* ptDrawApi = pl_load_draw_api();
+    const plDrawApiI* ptDrawApi = pl_load_draw_api();
     plDrawContext* ptCtx = ptDrawApi->get_context();
     MetalContext* metalCtx = ptCtx->_platformData;
     [metalCtx dealloc];
@@ -123,13 +123,12 @@ pl_submit_drawlist_metal(plDrawList* drawlist, float width, float height, id<MTL
 
     MetalContext* metalCtx = drawlist->ctx->_platformData;
 
-    // early exit if vertex buffer is empty
-    if(pl_sb_size(drawlist->sbVertexBuffer) == 0u)
-        return;
-
     // ensure gpu vertex buffer size is adequate
     size_t vertexBufferLength = (size_t)pl_sb_size(drawlist->sbVertexBuffer) * sizeof(plDrawVertex);
     size_t indexBufferLength = (size_t)drawlist->indexBufferByteSize;
+
+    if(indexBufferLength == 0)
+        return;
     MetalBuffer* vertexBuffer = [metalCtx dequeueReusableBufferOfLength:vertexBufferLength device:metalCtx.device];
     MetalBuffer* indexBuffer = [metalCtx dequeueReusableBufferOfLength:indexBufferLength device:metalCtx.device];
 
