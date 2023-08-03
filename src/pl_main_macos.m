@@ -84,6 +84,10 @@ typedef struct _plAppleSharedLibrary
 
 static plKey pl__osx_key_to_pl_key(int iKey);
 
+// clip board
+static const char* pl__get_clipboard_text(void* user_data_ctx);
+static void        pl__set_clipboard_text(void* pUnused, const char* text);
+
 static struct timespec
 pl__get_last_write_time(const char* filename)
 {
@@ -201,6 +205,11 @@ int main()
 
     // create view controller
     gViewController = [[plNSViewController alloc] init];
+    gKeyEventResponder = [[plKeyEventResponder alloc] initWithFrame:NSZeroRect];
+
+    // set clipboard functions (may need to move this to OS api)
+    gtIOContext->set_clipboard_text_fn = pl__set_clipboard_text;
+    gtIOContext->get_clipboard_text_fn = pl__get_clipboard_text;
 
     // create window
     gWindow = [NSWindow windowWithContentViewController:gViewController];
@@ -208,7 +217,6 @@ int main()
     [gWindow center];
     [gWindow becomeKeyWindow];
 
-    gKeyEventResponder = [[plKeyEventResponder alloc] initWithFrame:NSZeroRect];
     gInputContext = [[NSTextInputContext alloc] initWithClient:gKeyEventResponder];
 
     // create app delegate
@@ -575,6 +583,9 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     float _posY;
     NSRect _imeRect;
 }
+
+#pragma mark - Public
+
 - (void)setImePosX:(float)posX imePosY:(float)posY
 {
     _posX = posX;
@@ -1042,6 +1053,36 @@ pl__sleep(uint32_t millisec)
     while (res);
 
     return res;
+}
+
+const char*
+pl__get_clipboard_text(void* user_data_ctx)
+{
+    plIOContext* gptIOCtx = pl_get_io_context();
+    pl_sb_reset(gptIOCtx->sbcClipboardData);
+
+    NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
+    NSString* available = [pasteboard availableTypeFromArray: [NSArray arrayWithObject:NSPasteboardTypeString]];
+    if (![available isEqualToString:NSPasteboardTypeString])
+        return NULL;
+
+    NSString* string = [pasteboard stringForType:NSPasteboardTypeString];
+    if (string == nil)
+        return NULL;
+
+    const char* string_c = (const char*)[string UTF8String];
+    size_t string_len = strlen(string_c);
+    pl_sb_resize(gptIOCtx->sbcClipboardData, (int)string_len + 1);
+    strcpy(gptIOCtx->sbcClipboardData, string_c);
+    return gptIOCtx->sbcClipboardData;
+}
+
+void
+pl__set_clipboard_text(void* pUnused, const char* text)
+{
+    NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
+    [pasteboard declareTypes:[NSArray arrayWithObject:NSPasteboardTypeString] owner:nil];
+    [pasteboard setString:[NSString stringWithUTF8String:text] forType:NSPasteboardTypeString];
 }
 
 plKey
