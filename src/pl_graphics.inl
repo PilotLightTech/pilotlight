@@ -83,11 +83,6 @@ typedef struct _plViewportRegion
     float    fMaxDepth;
 } plViewportRegion;
 
-typedef struct _plCommandBuffer
-{
-    uint64_t uHandle; // backend specific handle, (i.e. VkCommandBuffer)
-} plCommandBuffer;
-
 typedef struct _plRenderPassDesc
 {
     plFormat tColorFormat;
@@ -103,17 +98,6 @@ typedef struct _plTextureViewDesc
     uint32_t    uLayerCount;
     uint32_t    uSlot;  
 } plTextureViewDesc;
-
-typedef struct _plMesh
-{
-    uint32_t uVertexBuffer;
-    uint32_t uIndexBuffer;
-    uint32_t uVertexOffset;
-    uint32_t uVertexCount;
-    uint32_t uIndexOffset;
-    uint32_t uIndexCount;
-    uint64_t ulVertexStreamMask; // PL_MESH_FORMAT_FLAG_*
-} plMesh;
 
 typedef struct _plSampler
 {

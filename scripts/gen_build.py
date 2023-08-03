@@ -29,10 +29,13 @@ def add_plugin_to_vulkan_app(name, reloadable, *kwargs):
         pl.pop_output_binary()
         pl.pop_source_files()
 
-def add_plugin_to_metal_app(name, reloadable):
+def add_plugin_to_metal_app(name, reloadable, objc = False):
     with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, reloadable):
         pl.push_output_binary(name)
-        pl.push_source_files("../extensions/" + name + ".c")
+        if objc:
+            pl.push_source_files("../extensions/" + name + ".m")
+        else:
+            pl.push_source_files("../extensions/" + name + ".c")
         with pl.configuration("debugmetal"):
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
@@ -101,10 +104,8 @@ with pl.project("pilotlight"):
     pl.push_definitions("PL_VULKAN_BACKEND")
     add_plugin_to_vulkan_app("pl_draw_ext", True)
     add_plugin_to_vulkan_app("pl_image_ext", False)
-    add_plugin_to_vulkan_app("pl_ecs_ext", False)
     add_plugin_to_vulkan_app("pl_vulkan_ext", False)
     add_plugin_to_vulkan_app("pl_stats_ext", False)
-    add_plugin_to_vulkan_app("pl_debug_ext", True)
     pl.pop_profile()
     pl.pop_definitions()
 
@@ -112,6 +113,7 @@ with pl.project("pilotlight"):
     add_plugin_to_metal_app("pl_draw_ext", True)
     add_plugin_to_metal_app("pl_image_ext", False)
     add_plugin_to_metal_app("pl_stats_ext", False)
+    add_plugin_to_metal_app("pl_metal_ext", False, True)
     pl.pop_definitions()
 
     pl.pop_target_links()
@@ -160,9 +162,8 @@ with pl.project("pilotlight"):
 
         pl.push_profile(pl.Profile.VULKAN)
         pl.push_definitions("PL_VULKAN_BACKEND")
-        pl.push_source_files("../apps/app_vulkan.c")
-        pl.push_vulkan_glsl_files("../shaders/glsl/", "phong.frag", "primitive.vert", "skybox.frag", "skybox.vert")
-        pl.push_vulkan_glsl_files("../shaders/glsl/", "outline.frag", "outline.vert", "pick.frag", "pick.vert")
+        pl.push_source_files("../apps/app.c")
+        pl.push_vulkan_glsl_files("../shaders/glsl/", "primitive.frag", "primitive.vert")
         with pl.configuration("debug"):
             with pl.platform(pl.PlatformType.WIN32):
                 with pl.compiler("msvc", pl.CompilerType.MSVC):
@@ -176,14 +177,13 @@ with pl.project("pilotlight"):
         pl.pop_definitions()
         pl.pop_source_files()
         pl.pop_profile() 
-        pl.pop_vulkan_glsl_files() 
-        pl.pop_vulkan_glsl_files() 
+        pl.pop_vulkan_glsl_files()
 
         with pl.configuration("debugmetal"):
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
                     pl.add_definition("PL_METAL_BACKEND")
-                    pl.add_source_file("../apps/app_metal.m")
+                    pl.add_source_file("../apps/app.c")
 
         pl.pop_output_binary()
         pl.pop_target_links()

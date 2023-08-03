@@ -19,6 +19,14 @@ Index of this file:
 #ifndef PL_VULKAN_H
 #define PL_VULKAN_H
 
+#if defined(_WIN32)
+    #define VK_USE_PLATFORM_WIN32_KHR
+#elif defined(__APPLE__)
+    #define VK_USE_PLATFORM_METAL_EXT
+#else // linux
+    #define VK_USE_PLATFORM_XCB_KHR
+#endif
+
 #define PL_API_VULKAN_DRAW "PL_API_VULKAN_DRAW"
 
 //-----------------------------------------------------------------------------

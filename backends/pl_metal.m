@@ -70,8 +70,7 @@ NS_ASSUME_NONNULL_BEGIN
 //-----------------------------------------------------------------------------
 
 static void pl_initialize_draw_context_metal(id<MTLDevice> device);
-static void pl_new_draw_frame_metal         (plDrawContext* ctx, MTLRenderPassDescriptor* renderPassDescriptor);
-static void pl_submit_drawlist_metal        (plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder);
+static void pl_submit_drawlist_metal        (plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder, MTLRenderPassDescriptor* renderPassDescriptor);
 
 static void                  pl__cleanup_font_atlas_i(plFontAtlas* atlas); // in pl_draw.c
 static void                  pl__cleanup_draw_context_i(plDrawContext* ctx); // in pl_draw.c
@@ -106,22 +105,15 @@ pl_cleanup_draw_context(void)
 void
 pl_new_draw_frame(plDrawContext* ptCtx)
 {
-    
+    pl__new_draw_frame_i(ptCtx);
 }
 
 static void
-pl_new_draw_frame_metal(plDrawContext* ctx, MTLRenderPassDescriptor* renderPassDescriptor)
-{
-    MetalContext* metalCtx = ctx->_platformData;
-    metalCtx.framebufferDescriptor = [[FramebufferDescriptor alloc] initWithRenderPassDescriptor:renderPassDescriptor];
-    pl__new_draw_frame_i(ctx);
-}
-
-static void
-pl_submit_drawlist_metal(plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder)
+pl_submit_drawlist_metal(plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder, MTLRenderPassDescriptor* renderPassDescriptor2)
 {
 
     MetalContext* metalCtx = drawlist->ctx->_platformData;
+    FramebufferDescriptor* renderPassDescriptor = [[FramebufferDescriptor alloc] initWithRenderPassDescriptor:renderPassDescriptor2];
 
     // ensure gpu vertex buffer size is adequate
     size_t vertexBufferLength = (size_t)pl_sb_size(drawlist->sbVertexBuffer) * sizeof(plDrawVertex);
@@ -186,24 +178,24 @@ pl_submit_drawlist_metal(plDrawList* drawlist, float width, float height, id<MTL
     
     // Try to retrieve a render pipeline state that is compatible with the framebuffer config for this frame
     // The hit rate for this cache should be very near 100%.
-    id<MTLRenderPipelineState> renderPipelineState = metalCtx.renderPipelineStateCache[metalCtx.framebufferDescriptor];
+    id<MTLRenderPipelineState> renderPipelineState = metalCtx.renderPipelineStateCache[renderPassDescriptor];
     if (renderPipelineState == nil)
     {
         // No luck; make a new render pipeline state
-        renderPipelineState = [metalCtx renderPipelineStateForFramebufferDescriptor:metalCtx.framebufferDescriptor device:metalCtx.device];
+        renderPipelineState = [metalCtx renderPipelineStateForFramebufferDescriptor:renderPassDescriptor device:metalCtx.device];
 
         // Cache render pipeline state for later reuse
-        metalCtx.renderPipelineStateCache[metalCtx.framebufferDescriptor] = renderPipelineState;
+        metalCtx.renderPipelineStateCache[renderPassDescriptor] = renderPipelineState;
     }
 
-    id<MTLRenderPipelineState> renderPipelineStateSDF = metalCtx.renderPipelineStateSDFCache[metalCtx.framebufferDescriptor];
+    id<MTLRenderPipelineState> renderPipelineStateSDF = metalCtx.renderPipelineStateSDFCache[renderPassDescriptor];
     if (renderPipelineStateSDF == nil)
     {
         // No luck; make a new render pipeline state
-        renderPipelineStateSDF = [metalCtx renderPipelineStateForFramebufferDescriptorSDF:metalCtx.framebufferDescriptor device:metalCtx.device];
+        renderPipelineStateSDF = [metalCtx renderPipelineStateForFramebufferDescriptorSDF:renderPassDescriptor device:metalCtx.device];
 
         // Cache render pipeline state for later reuse
-        metalCtx.renderPipelineStateSDFCache[metalCtx.framebufferDescriptor] = renderPipelineStateSDF;
+        metalCtx.renderPipelineStateSDFCache[renderPassDescriptor] = renderPipelineStateSDF;
     }
 
     // update uniform buffer
@@ -523,7 +515,7 @@ pl_cleanup_font_atlas(plFontAtlas* atlas)
     pipelineDescriptor.vertexDescriptor = vertexDescriptor;
     pipelineDescriptor.rasterSampleCount = 1;
     // pipelineDescriptor.rasterSampleCount = self.framebufferDescriptor.sampleCount;
-    pipelineDescriptor.colorAttachments[0].pixelFormat = self.framebufferDescriptor.colorPixelFormat;
+    pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
     pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
     pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
     pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
@@ -531,7 +523,7 @@ pl_cleanup_font_atlas(plFontAtlas* atlas)
     pipelineDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
     pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
     pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorZero;
-    pipelineDescriptor.depthAttachmentPixelFormat = self.framebufferDescriptor.depthPixelFormat;
+    pipelineDescriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
     pipelineDescriptor.stencilAttachmentPixelFormat = self.framebufferDescriptor.stencilPixelFormat;
 
     id<MTLRenderPipelineState> renderPipelineState = [device newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
@@ -644,7 +636,6 @@ pl_load_metal_draw_api(void)
 {
     static const plMetalDrawApiI tApi = {
         .initialize_context = pl_initialize_draw_context_metal,
-        .new_frame          = pl_new_draw_frame_metal,
         .submit_drawlist    = pl_submit_drawlist_metal
     };
     return &tApi;

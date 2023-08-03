@@ -28,8 +28,7 @@ NS_ASSUME_NONNULL_BEGIN
 typedef struct _plMetalDrawApiI
 {
 void (*initialize_context)(id<MTLDevice> device);
-void (*new_frame)         (plDrawContext* ctx, MTLRenderPassDescriptor* renderPassDescriptor);
-void (*submit_drawlist)   (plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder);
+void (*submit_drawlist)   (plDrawList* drawlist, float width, float height, id<MTLRenderCommandEncoder> renderEncoder, MTLRenderPassDescriptor* renderPassDescriptor);
 } plMetalDrawApiI;
 
 const plMetalDrawApiI* pl_load_metal_draw_api(void);

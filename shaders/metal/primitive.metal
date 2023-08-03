@@ -15,12 +15,12 @@ vertex VertexOut vertex_main(VertexIn in [[stage_in]])
 {
     VertexOut tOut;
     tOut.tPosition = float4(in.tPosition, 1);
+    tOut.tPosition.y = tOut.tPosition.y * -1;
     tOut.tColor = in.tColor;
     return tOut;
 }
 
 fragment half4 fragment_main(VertexOut in [[stage_in]])
 {
-    // return half4(in.tColor);
-    return half4(float4(1.0, 1.0, 0.0, 1.0));
+    return half4(in.tColor);
 }
