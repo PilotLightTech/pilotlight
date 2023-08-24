@@ -68,6 +68,7 @@ typedef struct _plGraphicsI
 {
     void (*initialize)(plGraphics* ptGraphics);
     void (*resize)    (plGraphics* ptGraphics);
+    void (*cleanup)   (plGraphics* ptGraphics);
 
     // per frame
     bool (*begin_frame)    (plGraphics* ptGraphics);

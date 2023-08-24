@@ -184,6 +184,7 @@ pl_app_shutdown(plAppData* ptAppData)
     // clean up contexts
     gptDraw->cleanup_font_atlas(&ptAppData->fontAtlas);
     gptUi->destroy_context(NULL);
+    gptGfx->cleanup(&ptAppData->tGraphics);
     pl_cleanup_profile_context();
     pl_cleanup_log_context();
     PL_FREE(ptAppData);
@@ -220,6 +221,10 @@ pl_app_update(plAppData* ptAppData)
 
     if(gptUi->begin_window("Pilot Light", NULL, false))
     {
+
+        const float pfRatios[] = {1.0f};
+        gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+
         if(gptUi->collapsing_header("User Interface"))
         {
             gptUi->checkbox("UI Debug", &ptAppData->bShowUiDebug);

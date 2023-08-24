@@ -309,6 +309,12 @@ pl_draw_list(plGraphics* ptGraphics, uint32_t uListCount, plDrawList* atLists)
     }
 }
 
+static void
+pl_cleanup(plGraphics* ptGraphics)
+{
+
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
@@ -324,7 +330,8 @@ pl_load_graphics_api(void)
         .begin_recording = pl_begin_recording,
         .end_recording   = pl_end_recording,
         .draw_areas      = pl_draw_areas,
-        .draw_lists      = pl_draw_list
+        .draw_lists      = pl_draw_list,
+        .cleanup         = pl_cleanup
     };
     return &tApi;
 }

@@ -409,7 +409,7 @@ pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT tMsgSeverity, VkDebugU
     return VK_FALSE;
 }
 
-void
+static void
 create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight, plVulkanSwapchain* ptSwapchainOut)
 {
     plVulkanGraphics* ptVulkanGfx    = ptGraphics->_pInternalData;
@@ -799,7 +799,7 @@ read_file(const char* file, unsigned* size, const char* mode)
     return data;
 }
 
-void
+static void
 pl_initialize_graphics(plGraphics* ptGraphics)
 {
 
@@ -1567,7 +1567,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
 
 }
 
-bool
+static bool
 pl_begin_frame(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
@@ -1649,7 +1649,7 @@ pl_begin_frame(plGraphics* ptGraphics)
     return true; 
 }
 
-void
+static void
 pl_end_frame(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
@@ -1723,7 +1723,7 @@ pl_end_frame(plGraphics* ptGraphics)
     pl_end_profile_sample();
 }
 
-void
+static void
 pl_resize(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
@@ -1765,7 +1765,7 @@ pl_resize(plGraphics* ptGraphics)
     pl_end_profile_sample();
 }
 
-void
+static void
 pl_shutdown(plGraphics* ptGraphics)
 {
     plIOContext* ptIOCtx = pl_get_io_context();
@@ -1795,7 +1795,7 @@ pl_shutdown(plGraphics* ptGraphics)
     vkDestroyInstance(ptVulkanGfx->tInstance, NULL);
 }
 
-void
+static void
 pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, plDraw* atDraws)
 {
     plIOContext* ptIOCtx = pl_get_io_context();
@@ -1843,7 +1843,7 @@ find_memory_type(VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilte
     return uMemoryType;    
 }
 
-uint32_t
+static uint32_t
 pl_create_index_buffer(plDevice* ptDevice, size_t szSize, const void* pData, const char* pcName)
 {
     plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
@@ -1945,7 +1945,7 @@ pl_create_index_buffer(plDevice* ptDevice, size_t szSize, const void* pData, con
     return uBufferIndex;
 }
 
-uint32_t
+static uint32_t
 pl_create_vertex_buffer(plDevice* ptDevice, size_t szSize, size_t szStride, const void* pData, const char* pcName)
 {
     plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
@@ -2135,7 +2135,8 @@ pl_load_graphics_api(void)
         .begin_recording = pl_begin_recording,
         .end_recording   = pl_end_recording,
         .draw_areas      = pl_draw_areas,
-        .draw_lists      = pl_draw_list
+        .draw_lists      = pl_draw_list,
+        .cleanup         = pl_shutdown
     };
     return &tApi;
 }
@@ -2144,7 +2145,7 @@ static const plDeviceI*
 pl_load_device_api(void)
 {
     static const plDeviceI tApi = {
-        .create_index_buffer = pl_create_index_buffer,
+        .create_index_buffer  = pl_create_index_buffer,
         .create_vertex_buffer = pl_create_vertex_buffer
     };
     return &tApi;
