@@ -69,7 +69,7 @@ jobs:
           test -f ./out/app.so || exit 1
           test -f ./out/pl_ui_ext.so || exit 1
           test -f ./out/pl_draw_ext.so || exit 1
-          test -f ./out/pl_vulkan_ext.so || exit 1
+          test -f ./out/pl_graphics_ext.so || exit 1
           test -f ./out/pl_image_ext.so || exit 1
           test -f ./out/pl_stats_ext.so || exit 1
           test -f ./out/pilotlight.a || exit 1

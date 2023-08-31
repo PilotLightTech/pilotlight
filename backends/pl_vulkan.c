@@ -1232,6 +1232,8 @@ pl_cleanup_draw_context(void)
     plDrawContext* ptCtx = ptDrawApi->get_context();
     plVulkanDrawContext* ptVulkanDrawCtx = ptCtx->_platformData;
 
+    vkDeviceWaitIdle(ptVulkanDrawCtx->tDevice);
+
     vkDestroyShaderModule(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tVtxShdrStgInfo.module, NULL);
     vkDestroyShaderModule(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tPxlShdrStgInfo.module, NULL);
     vkDestroyShaderModule(ptVulkanDrawCtx->tDevice, ptVulkanDrawCtx->tSdfShdrStgInfo.module, NULL);

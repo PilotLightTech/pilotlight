@@ -17,7 +17,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <stdio.h>
-
 #include "pilotlight.h"
 #include "pl_profile.h"
 #include "pl_log.h"
@@ -87,12 +86,12 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         pl_set_profile_context(gptDataRegistry->get_data("profile"));
 
         // reload global apis
-        gptDraw      = ptApiRegistry->first(PL_API_DRAW);
-        gptUi        = ptApiRegistry->first(PL_API_UI);
-        gptStats     = ptApiRegistry->first(PL_API_STATS);
-        gptFile      = ptApiRegistry->first(PL_API_FILE);
-        gptGfx       = ptApiRegistry->first(PL_API_GRAPHICS);
-        gptDevice    = ptApiRegistry->first(PL_API_DEVICE);
+        gptDraw   = ptApiRegistry->first(PL_API_DRAW);
+        gptUi     = ptApiRegistry->first(PL_API_UI);
+        gptStats  = ptApiRegistry->first(PL_API_STATS);
+        gptFile   = ptApiRegistry->first(PL_API_FILE);
+        gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
+        gptDevice = ptApiRegistry->first(PL_API_DEVICE);
 
         return ptAppData;
     }
@@ -114,24 +113,19 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
 
     // load extensions
     const plExtensionRegistryApiI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    ptExtensionRegistry->load("pl_image_ext", "pl_load_image_ext", "pl_unload_image_ext", false);
-    ptExtensionRegistry->load("pl_draw_ext", "pl_load_draw_ext", "pl_unload_draw_ext", true);
-    ptExtensionRegistry->load("pl_ui_ext", "pl_load_ui_ext", "pl_unload_ui_ext", true);
-    ptExtensionRegistry->load("pl_stats_ext", "pl_load_stats_ext", "pl_unload_stats_ext", false);
-
-    #ifdef PL_METAL_BACKEND
-    ptExtensionRegistry->load("pl_metal_ext", "pl_load_ext", "pl_unload_ext", false);
-    #elif PL_VULKAN_BACKEND
-    ptExtensionRegistry->load("pl_vulkan_ext", "pl_load_ext", "pl_unload_ext", false);
-    #endif
+    ptExtensionRegistry->load("pl_image_ext",    "pl_load_image_ext", "pl_unload_image_ext", false);
+    ptExtensionRegistry->load("pl_draw_ext",     "pl_load_draw_ext",  "pl_unload_draw_ext",  true);
+    ptExtensionRegistry->load("pl_ui_ext",       "pl_load_ui_ext",    "pl_unload_ui_ext",    true);
+    ptExtensionRegistry->load("pl_stats_ext",    "pl_load_stats_ext", "pl_unload_stats_ext", false);
+    ptExtensionRegistry->load("pl_graphics_ext", "pl_load_ext",       "pl_unload_ext",       false);
 
     // load apis
-    gptDraw      = ptApiRegistry->first(PL_API_DRAW);
-    gptUi        = ptApiRegistry->first(PL_API_UI);
-    gptStats     = ptApiRegistry->first(PL_API_STATS);
-    gptFile      = ptApiRegistry->first(PL_API_FILE);
-    gptGfx       = ptApiRegistry->first(PL_API_GRAPHICS);
-    gptDevice    = ptApiRegistry->first(PL_API_DEVICE);
+    gptDraw   = ptApiRegistry->first(PL_API_DRAW);
+    gptUi     = ptApiRegistry->first(PL_API_UI);
+    gptStats  = ptApiRegistry->first(PL_API_STATS);
+    gptFile   = ptApiRegistry->first(PL_API_FILE);
+    gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
+    gptDevice = ptApiRegistry->first(PL_API_DEVICE);
 
     plUiContext* ptUiContext  = gptUi->create_context();
 
@@ -183,6 +177,7 @@ pl_app_shutdown(plAppData* ptAppData)
 {
     // clean up contexts
     gptDraw->cleanup_font_atlas(&ptAppData->fontAtlas);
+    gptDraw->cleanup_context();
     gptUi->destroy_context(NULL);
     gptGfx->cleanup(&ptAppData->tGraphics);
     pl_cleanup_profile_context();

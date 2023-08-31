@@ -9,9 +9,12 @@ import pl_build as pl
 #                                helpers                                      #
 ###############################################################################
 
-def add_plugin_to_vulkan_app(name, reloadable, *kwargs):
+def add_plugin_to_vulkan_app(name, reloadable, binary_name = None, *kwargs):
     with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, reloadable):
-        pl.push_output_binary(name)
+        if binary_name is None:
+            pl.push_output_binary(name)
+        else:
+            pl.push_output_binary(binary_name)
         source_files = ["../extensions/" + name + ".c"]
         for source in kwargs:
             source_files.append("../extensions/" + source + ".c")
@@ -29,9 +32,13 @@ def add_plugin_to_vulkan_app(name, reloadable, *kwargs):
         pl.pop_output_binary()
         pl.pop_source_files()
 
-def add_plugin_to_metal_app(name, reloadable, objc = False):
+def add_plugin_to_metal_app(name, reloadable, objc = False, binary_name = None):
     with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, reloadable):
-        pl.push_output_binary(name)
+
+        if binary_name is None:
+            pl.push_output_binary(name)
+        else:
+            pl.push_output_binary(binary_name)
         if objc:
             pl.push_source_files("../extensions/" + name + ".m")
         else:
@@ -104,7 +111,7 @@ with pl.project("pilotlight"):
     pl.push_definitions("PL_VULKAN_BACKEND")
     add_plugin_to_vulkan_app("pl_draw_ext", True)
     add_plugin_to_vulkan_app("pl_image_ext", False)
-    add_plugin_to_vulkan_app("pl_vulkan_ext", False)
+    add_plugin_to_vulkan_app("pl_vulkan_ext", False, "pl_graphics_ext")
     add_plugin_to_vulkan_app("pl_stats_ext", False)
     pl.pop_profile()
     pl.pop_definitions()
@@ -113,7 +120,7 @@ with pl.project("pilotlight"):
     add_plugin_to_metal_app("pl_draw_ext", True)
     add_plugin_to_metal_app("pl_image_ext", False)
     add_plugin_to_metal_app("pl_stats_ext", False)
-    add_plugin_to_metal_app("pl_metal_ext", False, True)
+    add_plugin_to_metal_app("pl_metal_ext", False, True, "pl_graphics_ext")
     pl.pop_definitions()
 
     pl.pop_target_links()

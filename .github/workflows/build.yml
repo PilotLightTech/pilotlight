@@ -47,7 +47,7 @@ jobs:
         if not exist ../out/app.dll exit 1
         if not exist ../out/pl_draw_ext.dll exit 1
         if not exist ../out/pl_ui_ext.dll exit 1
-        if not exist ../out/pl_vulkan_ext.dll exit 1
+        if not exist ../out/pl_graphics_ext.dll exit 1
         if not exist ../out/pl_image_ext.dll exit 1
         if not exist ../out/pl_stats_ext.dll exit 1
         if not exist ../out/pilotlight.lib exit 1
@@ -76,6 +76,7 @@ jobs:
         test -f ./out/pl_stats_ext.dylib || exit 1
         test -f ./out/pl_ui_ext.dylib || exit 1
         test -f ./out/pl_image_ext.dylib || exit 1
+        test -f ./out/pl_graphics_ext.dylib || exit 1
         test -f ./out/pilotlight.a || exit 1
 
   Ubuntu:
@@ -114,7 +115,7 @@ jobs:
         test -f ./out/app.so || exit 1
         test -f ./out/pl_ui_ext.so || exit 1
         test -f ./out/pl_draw_ext.so || exit 1
-        test -f ./out/pl_vulkan_ext.so || exit 1
+        test -f ./out/pl_graphics_ext.so || exit 1
         test -f ./out/pl_image_ext.so || exit 1
         test -f ./out/pl_stats_ext.so || exit 1
         test -f ./out/pilotlight.a || exit 1

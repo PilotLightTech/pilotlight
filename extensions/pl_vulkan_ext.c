@@ -54,6 +54,7 @@ Index of this file:
 
 const plFileApiI* gptFile      = NULL;
 const plVulkanDrawApiI* gptVulkanDraw = NULL;
+const plDrawApiI* gptDraw = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] global data
@@ -1773,7 +1774,48 @@ pl_shutdown(plGraphics* ptGraphics)
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
+    vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice);
+
+    // cleanup buffers
+    for(uint32_t i = 0; i < pl_sb_size(ptGraphics->tDevice.sbtBuffers); i++)
+    {
+        plVulkanBuffer* ptBuffer = ptGraphics->tDevice.sbtBuffers[i].pBuffer;
+        vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptBuffer->tBuffer, NULL);
+        vkFreeMemory(ptVulkanDevice->tLogicalDevice, ptBuffer->tMemory, NULL);
+        PL_FREE(ptGraphics->tDevice.sbtBuffers[i].pBuffer);
+    }
+
+    // cleanup per frame resources
+    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbFrames); i++)
+    {
+        plFrameContext* ptFrame = &ptVulkanGfx->sbFrames[i];
+        vkDestroySemaphore(ptVulkanDevice->tLogicalDevice, ptFrame->tImageAvailable, NULL);
+        vkDestroySemaphore(ptVulkanDevice->tLogicalDevice, ptFrame->tRenderFinish, NULL);
+        vkDestroyFence(ptVulkanDevice->tLogicalDevice, ptFrame->tInFlight, NULL);
+        vkDestroyCommandPool(ptVulkanDevice->tLogicalDevice, ptFrame->tCmdPool, NULL);
+    }
+
+    // swapchain stuff
+    vkDestroyImageView(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tSwapchain.tColorTextureView, NULL);
+    vkDestroyImageView(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tSwapchain.tDepthTextureView, NULL);
+    vkDestroyImage(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tSwapchain.tColorTexture, NULL);
+    vkDestroyImage(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tSwapchain.tDepthTexture, NULL);
+    vkFreeMemory(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tSwapchain.tColorTextureMemory, NULL);
+    vkFreeMemory(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tSwapchain.tDepthTextureMemory, NULL);
+
+    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->tSwapchain.sbtImageViews); i++)
+        vkDestroyImageView(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tSwapchain.sbtImageViews[i], NULL);
+
+    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->tSwapchain.sbtFrameBuffers); i++)
+        vkDestroyFramebuffer(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tSwapchain.sbtFrameBuffers[i], NULL);
+    
+
+    vkDestroyPipelineLayout(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->g_pipelineLayout, NULL);
+    vkDestroyPipeline(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->g_pipeline, NULL);
+
     vkDestroyRenderPass(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tRenderPass, NULL);
+
+    vkDestroyDescriptorPool(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tDescriptorPool, NULL);
 
     // destroy command pool
     vkDestroyCommandPool(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, NULL);
@@ -1793,6 +1835,24 @@ pl_shutdown(plGraphics* ptGraphics)
 
     // destroy tInstance
     vkDestroyInstance(ptVulkanGfx->tInstance, NULL);
+
+    for(uint32_t i = 0; i < pl_sb_size(ptVulkanDevice->_sbtFrameGarbage); i++)
+    {
+        pl_sb_free(ptVulkanDevice->_sbtFrameGarbage[i].sbtFrameBuffers);
+        pl_sb_free(ptVulkanDevice->_sbtFrameGarbage[i].sbtMemory);
+        pl_sb_free(ptVulkanDevice->_sbtFrameGarbage[i].sbtTextures);
+        pl_sb_free(ptVulkanDevice->_sbtFrameGarbage[i].sbtTextureViews);
+    }
+
+    pl_sb_free(ptVulkanDevice->_sbtFrameGarbage);
+    pl_sb_free(ptVulkanGfx->sbFrames);
+    pl_sb_free(ptVulkanGfx->tSwapchain.sbtSurfaceFormats);
+    pl_sb_free(ptVulkanGfx->tSwapchain.sbtImages);
+    pl_sb_free(ptVulkanGfx->tSwapchain.sbtFrameBuffers);
+    pl_sb_free(ptVulkanGfx->tSwapchain.sbtImageViews);
+    pl_sb_free(ptGraphics->tDevice.sbtBuffers);
+    PL_FREE(ptGraphics->_pInternalData);
+    PL_FREE(ptGraphics->tDevice._pInternalData);
 }
 
 static void
@@ -1942,6 +2002,9 @@ pl_create_index_buffer(plDevice* ptDevice, size_t szSize, const void* pData, con
     PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
     PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
     vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
+
+    vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, stagingBuffer, NULL);
+    vkFreeMemory(ptVulkanDevice->tLogicalDevice, stagingBufferDeviceMemory, NULL);
     return uBufferIndex;
 }
 
@@ -2044,6 +2107,9 @@ pl_create_vertex_buffer(plDevice* ptDevice, size_t szSize, size_t szStride, cons
     PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
     PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
     vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
+
+    vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, stagingBuffer, NULL);
+    vkFreeMemory(ptVulkanDevice->tLogicalDevice, stagingBufferDeviceMemory, NULL);
     return uBufferIndex;
 }
 
@@ -2165,6 +2231,7 @@ pl_load_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
     pl_set_io_context(ptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
     gptFile = ptApiRegistry->first(PL_API_FILE);
     gptVulkanDraw = ptApiRegistry->first(PL_API_VULKAN_DRAW);
+    gptDraw = ptApiRegistry->first(PL_API_DRAW);
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_GRAPHICS), pl_load_graphics_api());
