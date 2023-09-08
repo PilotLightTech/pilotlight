@@ -45,6 +45,10 @@ jobs:
             sudo apt-get install -y pvs-studio
             pvs-studio-analyzer credentials -o pvs-studio.lic $PVS_STUDIO_LICENSE
           fi
+
+    - name: Retrieve submodules
+      run: git submodule update --init --recursive
+
       - name: Static Analysis
         run: |
           cd $GITHUB_WORKSPACE

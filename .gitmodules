@@ -1,0 +1,3 @@
+[submodule "dependencies/pilotlight-libs"]
+	path = dependencies/pilotlight-libs
+	url = https://github.com/hoffstadt/pilotlight-libs

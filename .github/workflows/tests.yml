@@ -26,6 +26,9 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v3
 
+    - name: Retrieve submodules
+      run: git submodule update --init --recursive
+
     - name: Run Tests
       shell: cmd
       run: |
@@ -48,6 +51,9 @@ jobs:
 
     - name: Checkout
       uses: actions/checkout@v3
+
+    - name: Retrieve submodules
+      run: git submodule update --init --recursive
     
     - name: Run Tests
       run: |
@@ -70,6 +76,9 @@ jobs:
 
     - name: Checkout
       uses: actions/checkout@v3
+
+    - name: Retrieve submodules
+      run: git submodule update --init --recursive
 
     - name: Install Dependencies
       run: |

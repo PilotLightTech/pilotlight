@@ -21,10 +21,10 @@ includes = [
     "${workspaceFolder}/apps",
     "${workspaceFolder}/src",
     "${workspaceFolder}/backends",
-    "${workspaceFolder}/libs",
     "${workspaceFolder}/ui",
     "${workspaceFolder}/extensions",
     "${workspaceFolder}/dependencies/stb",
+    "${workspaceFolder}/dependencies/pilotlight-libs",
     "${env:VK_SDK_PATH}/Include"
 ]
 
