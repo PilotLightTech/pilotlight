@@ -38,7 +38,6 @@ Index of this file:
 #define PL_DEVICE_LOCAL_LEVELS 8
 
 #include "vulkan/vulkan.h"
-#include "pl_vulkan.h"
 
 #ifdef _WIN32
 #pragma comment(lib, "vulkan-1.lib")
@@ -49,12 +48,8 @@ Index of this file:
     #define PL_VULKAN(x) assert(x == VK_SUCCESS)
 #endif
 
-// extensions
-#include "pl_draw_ext.h"
 
-const plFileApiI* gptFile      = NULL;
-const plVulkanDrawApiI* gptVulkanDraw = NULL;
-const plDrawApiI* gptDraw = NULL;
+const plFileApiI* gptFile = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] global data
@@ -1355,18 +1350,6 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     };
     PL_VULKAN(vkCreateDescriptorPool(ptVulkanDevice->tLogicalDevice, &tDescriptorPoolInfo, NULL, &ptVulkanGfx->tDescriptorPool));
 
-
-    // setup drawing api
-    const plVulkanInit tVulkanInit = {
-        .tPhysicalDevice  = ptVulkanDevice->tPhysicalDevice,
-        .tLogicalDevice   = ptVulkanDevice->tLogicalDevice,
-        .uImageCount      = ptVulkanGfx->tSwapchain.uImageCount,
-        .tRenderPass      = ptVulkanGfx->tRenderPass,
-        .tMSAASampleCount = ptVulkanGfx->tSwapchain.tMsaaSamples,
-        .uFramesInFlight  = ptVulkanGfx->uFramesInFlight
-    };
-    gptVulkanDraw->initialize_context(&tVulkanInit);
-
     ptVulkanGfx->g_bindingDescriptions[0].binding = 0;
     ptVulkanGfx->g_bindingDescriptions[0].stride = sizeof(float)*7;
     ptVulkanGfx->g_bindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
@@ -2171,21 +2154,6 @@ pl_end_recording(plGraphics* ptGraphics)
     PL_VULKAN(vkEndCommandBuffer(ptCurrentFrame->tCmdBuf));
 }
 
-static void
-pl_draw_list(plGraphics* ptGraphics, uint32_t uListCount, plDrawList* atLists)
-{
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-
-    plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
-
-    plIOContext* ptIOCtx = pl_get_io_context();
-    for(uint32_t i = 0; i < uListCount; i++)
-    {
-        gptVulkanDraw->submit_drawlist(&atLists[i], ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptVulkanGfx->szCurrentFrameIndex);
-    }
-}
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
@@ -2201,7 +2169,6 @@ pl_load_graphics_api(void)
         .begin_recording = pl_begin_recording,
         .end_recording   = pl_end_recording,
         .draw_areas      = pl_draw_areas,
-        .draw_lists      = pl_draw_list,
         .cleanup         = pl_shutdown
     };
     return &tApi;
@@ -2230,8 +2197,6 @@ pl_load_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
     pl_set_log_context(ptDataRegistry->get_data("log"));
     pl_set_io_context(ptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
     gptFile = ptApiRegistry->first(PL_API_FILE);
-    gptVulkanDraw = ptApiRegistry->first(PL_API_VULKAN_DRAW);
-    gptDraw = ptApiRegistry->first(PL_API_DRAW);
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_GRAPHICS), pl_load_graphics_api());

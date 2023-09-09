@@ -23,13 +23,9 @@ Index of this file:
 // metal stuff
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
-#include "pl_metal.h"
 
-// extensions
-#include "pl_draw_ext.h"
 
 const plFileApiI*      gptFile      = NULL;
-const plMetalDrawApiI* gptMetalDraw = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -128,9 +124,6 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     ptMetalGraphics->drawableRenderDescriptor.depthAttachment.storeAction = MTLStoreActionDontCare;
     ptMetalGraphics->drawableRenderDescriptor.depthAttachment.clearDepth = 1.0;
 
-    // drawing api
-    gptMetalDraw->initialize_context(ptMetalDevice->tDevice);
-    
 }
 
 static void
@@ -299,17 +292,6 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
 }
 
 static void
-pl_draw_list(plGraphics* ptGraphics, uint32_t uListCount, plDrawList* atLists)
-{
-    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
-    plIOContext* ptIOCtx = pl_get_io_context();
-    for(uint32_t i = 0; i < uListCount; i++)
-    {
-        gptMetalDraw->submit_drawlist(&atLists[i], ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], ptMetalGraphics->tCurrentRenderEncoder, ptMetalGraphics->drawableRenderDescriptor);
-    }
-}
-
-static void
 pl_cleanup(plGraphics* ptGraphics)
 {
 
@@ -330,7 +312,6 @@ pl_load_graphics_api(void)
         .begin_recording = pl_begin_recording,
         .end_recording   = pl_end_recording,
         .draw_areas      = pl_draw_areas,
-        .draw_lists      = pl_draw_list,
         .cleanup         = pl_cleanup
     };
     return &tApi;
@@ -357,7 +338,6 @@ pl_load_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     pl_set_io_context(ptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
     gptFile = ptApiRegistry->first(PL_API_FILE);
-    gptMetalDraw = ptApiRegistry->first(PL_API_METAL_DRAW);
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_GRAPHICS), pl_load_graphics_api());
