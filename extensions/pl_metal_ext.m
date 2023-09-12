@@ -17,8 +17,11 @@ Index of this file:
 #include "pilotlight.h"
 #include "pl_graphics_ext.h"
 #include "pl_ds.h"
-#include "pl_io.h"
 #include "pl_os.h"
+
+// ui
+#include "pl_ui.h"
+#include "pl_ui_metal.h"
 
 // metal stuff
 #import <Metal/Metal.h>
@@ -95,7 +98,7 @@ pl_create_vertex_buffer(plDevice* ptDevice, size_t szSize, size_t szStride, cons
 static void
 pl_initialize_graphics(plGraphics* ptGraphics)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIO* ptIOCtx = pl_get_io();
 
     ptGraphics->_pInternalData = PL_ALLOC(sizeof(plGraphicsMetal));
     memset(ptGraphics->_pInternalData, 0, sizeof(plGraphicsMetal));
@@ -109,6 +112,8 @@ pl_initialize_graphics(plGraphics* ptGraphics)
 
     // create command queue
     ptMetalGraphics->tCmdQueue = [ptMetalDevice->tDevice newCommandQueue];
+
+    pl_initialize_metal(ptMetalDevice->tDevice);
 
     // setup
     // render pass descriptor
@@ -129,7 +134,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
 static void
 pl_resize(plGraphics* ptGraphics)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIO* ptIOCtx = pl_get_io();
 
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
@@ -151,8 +156,8 @@ pl_begin_frame(plGraphics* ptGraphics)
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
 
-    plIOContext* ptIOCtx = pl_get_io_context();
-    ptMetalGraphics->pMetalLayer = ptIOCtx->pBackendRendererData;
+    plIO* ptIOCtx = pl_get_io();
+    ptMetalGraphics->pMetalLayer = ptIOCtx->pBackendPlatformData;
     
     ptMetalGraphics->uCurrentFrame++;
 
@@ -235,7 +240,7 @@ pl_begin_frame(plGraphics* ptGraphics)
 }
 
 static void
-pl_end_frame(plGraphics* ptGraphics)
+pl_end_gfx_frame(plGraphics* ptGraphics)
 {
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
 
@@ -294,8 +299,23 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
 static void
 pl_cleanup(plGraphics* ptGraphics)
 {
-
+    pl_cleanup_metal();
 }
+
+static void
+pl_draw_lists(plGraphics* ptGraphics, uint32_t uListCount, plDrawList* atLists)
+{
+    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
+    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
+    id<MTLDevice> tDevice = ptMetalDevice->tDevice;
+
+    plIO* ptIOCtx = pl_get_io();
+    for(uint32_t i = 0; i < uListCount; i++)
+    {
+        pl_submit_metal_drawlist(&atLists[i], ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], ptMetalGraphics->tCurrentRenderEncoder, ptMetalGraphics->drawableRenderDescriptor);
+    }
+}
+
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -305,14 +325,17 @@ static const plGraphicsI*
 pl_load_graphics_api(void)
 {
     static const plGraphicsI tApi = {
-        .initialize      = pl_initialize_graphics,
-        .resize          = pl_resize,
-        .begin_frame     = pl_begin_frame,
-        .end_frame       = pl_end_frame,
-        .begin_recording = pl_begin_recording,
-        .end_recording   = pl_end_recording,
-        .draw_areas      = pl_draw_areas,
-        .cleanup         = pl_cleanup
+        .initialize         = pl_initialize_graphics,
+        .resize             = pl_resize,
+        .begin_frame        = pl_begin_frame,
+        .end_frame          = pl_end_gfx_frame,
+        .begin_recording    = pl_begin_recording,
+        .end_recording      = pl_end_recording,
+        .draw_areas         = pl_draw_areas,
+        .draw_lists         = pl_draw_lists,
+        .cleanup            = pl_cleanup,
+        .create_font_atlas  = pl_create_metal_font_texture,
+        .destroy_font_atlas = pl_cleanup_metal_font_texture
     };
     return &tApi;
 }
@@ -336,7 +359,7 @@ pl_load_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
     const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-    pl_set_io_context(ptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
+    pl_set_ui_context(ptDataRegistry->get_data("ui"));
     gptFile = ptApiRegistry->first(PL_API_FILE);
     if(bReload)
     {
@@ -355,3 +378,5 @@ pl_unload_ext(plApiRegistryApiI* ptApiRegistry)
 {
     
 }
+
+#include "pl_ui_metal.m"

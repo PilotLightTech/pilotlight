@@ -32,8 +32,6 @@
 #include "pl_memory.h"
 #undef PL_MEMORY_IMPLEMENTATION
 
-#include "pl_io.c"
-
 static plMemoryContext* gptMemoryContext = NULL;
 
 void
@@ -103,3 +101,9 @@ pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
     }
     return pNewBuffer;
 }
+
+// ui
+#include "pl_ui.c"
+#include "pl_ui_widgets.c"
+#include "pl_ui_demo.c"
+#include "pl_ui_draw.c"

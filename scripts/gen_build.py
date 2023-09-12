@@ -67,7 +67,7 @@ with pl.project("pilotlight"):
     pl.push_profile(pl.Profile.PILOT_LIGHT_DEBUG_C)
 
     pl.push_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS")
-    pl.push_include_directories("../apps", "../src", "../extensions", "../backends", "../out", "../dependencies/pilotlight-libs", "../dependencies/stb")
+    pl.push_include_directories("../apps", "../src", "../extensions", "../backends", "../out", "../dependencies/pilotlight-ui", "../dependencies/pilotlight-ui/backends", "../dependencies/pilotlight-libs", "../dependencies/stb")
     pl.push_link_directories("../out")
     pl.push_output_directory("../out")
         
@@ -109,6 +109,7 @@ with pl.project("pilotlight"):
     
     pl.push_profile(pl.Profile.VULKAN)
     pl.push_definitions("PL_VULKAN_BACKEND")
+    add_plugin_to_vulkan_app("pl_debug_ext", False)
     add_plugin_to_vulkan_app("pl_image_ext", False)
     add_plugin_to_vulkan_app("pl_vulkan_ext", False, "pl_graphics_ext")
     add_plugin_to_vulkan_app("pl_stats_ext", False)
@@ -116,6 +117,7 @@ with pl.project("pilotlight"):
     pl.pop_definitions()
 
     pl.push_definitions("PL_METAL_BACKEND")
+    add_plugin_to_metal_app("pl_debug_ext", False)
     add_plugin_to_metal_app("pl_image_ext", False)
     add_plugin_to_metal_app("pl_stats_ext", False)
     add_plugin_to_metal_app("pl_metal_ext", False, True, "pl_graphics_ext")

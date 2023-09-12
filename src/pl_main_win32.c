@@ -42,7 +42,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pilotlight.h" // data registry, api registry, extension registry
-#include "pl_io.h"      // io context
+#include "pl_ui.h"      // io context
 #include "pl_os.h"      // os apis
 #include "pl_ds.h"      // hashmap
 
@@ -114,7 +114,8 @@ INT64           ilTime                            = 0;
 INT64           ilTicksPerSecond                  = 0;
 HWND            tMouseHandle                      = NULL;
 bool            bMouseTracked                     = true;
-plIOContext*    gptIOCtx                          = NULL;
+plIO*           gptIOCtx                          = NULL;
+plUiContext*    gptUiCtx                          = NULL;
 
 // apis
 const plDataRegistryApiI*      gptDataRegistry      = NULL;
@@ -137,6 +138,10 @@ void  (*pl_app_update)  (void* userData);
 
 int main(int argc, char *argv[])
 {
+
+    gptUiCtx = pl_create_ui_context();
+    gptIOCtx = pl_get_io();
+
     // check for disabling of escape characters.
     // this is necessary for some vkconfig's "console"
     for(int i = 1; i < argc; i++)
@@ -189,15 +194,12 @@ int main(int argc, char *argv[])
     gptApiRegistry->add(PL_API_UDP, &tUdpApi);
     gptApiRegistry->add(PL_API_OS_SERVICES, &tOsApi);
 
-    // setup & retrieve io context 
-    gptIOCtx = pl_get_io_context(); // initialized on first retrieval
-
     // set clipboard functions (may need to move this to OS api)
     gptIOCtx->set_clipboard_text_fn = pl__set_clipboard_text;
     gptIOCtx->get_clipboard_text_fn = pl__get_clipboard_text;
 
     // add contexts to data registry
-    gptDataRegistry->set_data(PL_CONTEXT_IO_NAME, gptIOCtx);
+    gptDataRegistry->set_data("ui", gptUiCtx);
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
     // register window class

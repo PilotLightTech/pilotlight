@@ -19,7 +19,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pilotlight.h" // data registry, api registry, extension registry
-#include "pl_io.h"      // io context
+#include "pl_ui.h"      // io context
 #include "pl_os.h"
 #include "pl_ds.h"      // hashmap
 
@@ -139,12 +139,15 @@ static NSViewController*    gViewController = NULL;
 static plSharedLibrary      gtAppLibrary = {0};
 static void*                gUserData = NULL;
 static bool                 gRunning = true;
-plIOContext*                gtIOContext = NULL;
 static plKeyEventResponder* gKeyEventResponder = NULL;
 static NSTextInputContext*  gInputContext = NULL;
 static id                   gMonitor;
 static CFTimeInterval tTime;
 static NSCursor*      aptMouseCursors[PL_MOUSE_CURSOR_COUNT];
+
+// ui
+plIO*        gptIOCtx = NULL;
+plUiContext* gptUiCtx = NULL;
 
 // memory tracking
 static plMemoryContext gtMemoryContext = {0};
@@ -162,6 +165,10 @@ static void  (*pl_app_update)  (void* ptAppData);
 
 int main()
 {
+
+    gptUiCtx = pl_create_ui_context();
+    gptIOCtx = pl_get_io();
+
     // load apis
     gtMemoryContext.ptHashMap = &gtMemoryHashMap;
     gptApiRegistry = pl_load_core_apis();
@@ -196,11 +203,10 @@ int main()
 
     gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
     gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    gptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
+    gptLibraryApi        = gptApiRegistry->first(PL_API_LIBRARY);
 
     // setup & retrieve io context 
-    gtIOContext = pl_get_io_context();
-    gptDataRegistry->set_data(PL_CONTEXT_IO_NAME, gtIOContext);
+    gptDataRegistry->set_data("ui", gptUiCtx);
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
     // create view controller
@@ -208,8 +214,8 @@ int main()
     gKeyEventResponder = [[plKeyEventResponder alloc] initWithFrame:NSZeroRect];
 
     // set clipboard functions (may need to move this to OS api)
-    gtIOContext->set_clipboard_text_fn = pl__set_clipboard_text;
-    gtIOContext->get_clipboard_text_fn = pl__get_clipboard_text;
+    gptIOCtx->set_clipboard_text_fn = pl__set_clipboard_text;
+    gptIOCtx->get_clipboard_text_fn = pl__get_clipboard_text;
 
     // create window
     gWindow = [NSWindow windowWithContentViewController:gViewController];
@@ -277,9 +283,8 @@ int main()
 {
     CGSize newSize = self.bounds.size;
 
-    plIOContext* gtIOContext = pl_get_io_context();
-    gtIOContext->afMainFramebufferScale[0] = scaleFactor;
-    gtIOContext->afMainFramebufferScale[1] = scaleFactor;
+    gptIOCtx->afMainFramebufferScale[0] = scaleFactor;
+    gptIOCtx->afMainFramebufferScale[1] = scaleFactor;
 
     if(newSize.width <= 0 || newSize.width <= 0)
     {
@@ -474,14 +479,13 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     view.metalLayer.device = device;    
     view.delegate = self;
     view.metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    gtIOContext->pBackendPlatformData = device;
+    gptIOCtx->pBackendPlatformData = device;
 
     #ifdef PL_VULKAN_BACKEND
-        plIOContext* gtIOContext = pl_get_io_context();
-        gtIOContext->pBackendPlatformData = view.metalLayer;
+        gptIOCtx->pBackendPlatformData = view.metalLayer;
     #endif
-    gtIOContext->afMainViewportSize[0] = 500;
-    gtIOContext->afMainViewportSize[1] = 500;
+    gptIOCtx->afMainViewportSize[0] = 500;
+    gptIOCtx->afMainViewportSize[1] = 500;
 
     // load library
     if(gptLibraryApi->load(&gtAppLibrary, "app.dylib", "app_", "lock.tmp"))
@@ -496,36 +500,34 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 
 - (void)drawableResize:(CGSize)size
 {
-    gtIOContext->afMainViewportSize[0] = size.width;
-    gtIOContext->afMainViewportSize[1] = size.height;
+    gptIOCtx->afMainViewportSize[0] = size.width;
+    gptIOCtx->afMainViewportSize[1] = size.height;
     pl_app_resize(gUserData);
 }
 
 - (void)renderToMetalLayer:(nonnull CAMetalLayer *)layer
 {
-    plIOContext* gtIOContext = pl_get_io_context();
-
     // gAppData.graphics.metalLayer = layer;
-    gtIOContext->pBackendRendererData = layer;
+    gptIOCtx->pBackendPlatformData = layer;
 
-    gtIOContext->afMainFramebufferScale[0] = self.view.window.screen.backingScaleFactor ?: NSScreen.mainScreen.backingScaleFactor;
-    gtIOContext->afMainFramebufferScale[1] = gtIOContext->afMainFramebufferScale[0];
+    gptIOCtx->afMainFramebufferScale[0] = self.view.window.screen.backingScaleFactor ?: NSScreen.mainScreen.backingScaleFactor;
+    gptIOCtx->afMainFramebufferScale[1] = gptIOCtx->afMainFramebufferScale[0];
 
     // not osx
     // CGFloat framebufferScale = view.window.screen.scale ?: UIScreen.mainScreen.scale;
 
     // updating mouse cursor
-    if(gtIOContext->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gtIOContext->tNextCursor == PL_MOUSE_CURSOR_ARROW)
-        gtIOContext->bCursorChanged = true;
+    if(gptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
+        gptIOCtx->bCursorChanged = true;
 
-    if(gtIOContext->bCursorChanged && gtIOContext->tNextCursor != gtIOContext->tCurrentCursor)
+    if(gptIOCtx->bCursorChanged && gptIOCtx->tNextCursor != gptIOCtx->tCurrentCursor)
     {
-        gtIOContext->tCurrentCursor = gtIOContext->tNextCursor;
-        NSCursor* ptMacCursor = aptMouseCursors[gtIOContext->tCurrentCursor] ?: aptMouseCursors[PL_MOUSE_CURSOR_ARROW];
+        gptIOCtx->tCurrentCursor = gptIOCtx->tNextCursor;
+        NSCursor* ptMacCursor = aptMouseCursors[gptIOCtx->tCurrentCursor] ?: aptMouseCursors[PL_MOUSE_CURSOR_ARROW];
         [ptMacCursor set];
     }
-    gtIOContext->tNextCursor = PL_MOUSE_CURSOR_ARROW;
-    gtIOContext->bCursorChanged = false;
+    gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
+    gptIOCtx->bCursorChanged = false;
 
     // reload library
     if(gptLibraryApi->has_changed(&gtAppLibrary))
@@ -542,17 +544,17 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     if(self.view)
     {
         const float fDpi = (float)[self.view.window backingScaleFactor];
-        gtIOContext->afMainViewportSize[0] = (float)self.view.bounds.size.width;
-        gtIOContext->afMainViewportSize[1] = (float)self.view.bounds.size.height;
-        gtIOContext->afMainFramebufferScale[0] = fDpi;
-        gtIOContext->afMainFramebufferScale[1] = fDpi;
+        gptIOCtx->afMainViewportSize[0] = (float)self.view.bounds.size.width;
+        gptIOCtx->afMainViewportSize[1] = (float)self.view.bounds.size.height;
+        gptIOCtx->afMainFramebufferScale[0] = fDpi;
+        gptIOCtx->afMainFramebufferScale[1] = fDpi;
     }
 
     if(tTime == 0.0)
         tTime = pl__get_absolute_time();
 
     double dCurrentTime = pl__get_absolute_time();
-    gtIOContext->fDeltaTime = (float)(dCurrentTime - tTime);
+    gptIOCtx->fDeltaTime = (float)(dCurrentTime - tTime);
     tTime = dCurrentTime;
 
     pl_app_update(gUserData);
@@ -1058,7 +1060,6 @@ pl__sleep(uint32_t millisec)
 const char*
 pl__get_clipboard_text(void* user_data_ctx)
 {
-    plIOContext* gptIOCtx = pl_get_io_context();
     pl_sb_reset(gptIOCtx->sbcClipboardData);
 
     NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];

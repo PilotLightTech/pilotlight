@@ -50,6 +50,10 @@ typedef struct _plDraw          plDraw;
 typedef struct _plDrawArea      plDrawArea;
 typedef struct _plMesh          plMesh;
 
+// external
+typedef struct _plDrawList plDrawList;
+typedef struct _plFontAtlas plFontAtlas;
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
 //-----------------------------------------------------------------------------
@@ -75,7 +79,12 @@ typedef struct _plGraphicsI
 
     // drawing
     void (*draw_areas)(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, plDraw* atDraws);
-    
+
+    // drawing api
+    void (*draw_lists)(plGraphics* ptGraphics, uint32_t uListCount, plDrawList* atLists);
+    void (*create_font_atlas)(plFontAtlas* ptAtlas);
+    void (*destroy_font_atlas)(plFontAtlas* ptAtlas);
+
 } plGraphicsI;
 
 //-----------------------------------------------------------------------------

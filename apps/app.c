@@ -21,17 +21,19 @@ Index of this file:
 #include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_ds.h"
-#include "pl_io.h"
 #include "pl_os.h"
 #include "pl_memory.h"
 
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
+#include "pl_ui.h"
+
 // extensions
 #include "pl_image_ext.h"
 #include "pl_stats_ext.h"
 #include "pl_graphics_ext.h"
+#include "pl_debug_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -39,6 +41,16 @@ Index of this file:
 
 typedef struct plAppData_t
 {
+    plDrawList   drawlist;
+    plDrawLayer* fgDrawLayer;
+    plDrawLayer* bgDrawLayer;
+    plFontAtlas  fontAtlas;
+
+    plDebugApiInfo tDebugInfo;
+    bool           bShowUiDemo;
+    bool           bShowUiDebug;
+    bool           bShowUiStyle;
+
     plGraphics tGraphics;
     plMesh     tMesh;
 } plAppData;
@@ -54,6 +66,7 @@ const plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 const plFileApiI*              gptFile              = NULL;
 const plGraphicsI*             gptGfx               = NULL;
 const plDeviceI*               gptDevice            = NULL;
+const plDebugApiI*             gptDebug             = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -65,7 +78,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptApiRegistry  = ptApiRegistry;
     gptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(gptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-    pl_set_io_context(gptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
+    pl_set_ui_context(gptDataRegistry->get_data("ui"));
 
     if(ptAppData) // reload
     {
@@ -77,6 +90,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         gptFile   = ptApiRegistry->first(PL_API_FILE);
         gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
         gptDevice = ptApiRegistry->first(PL_API_DEVICE);
+        gptDebug  = ptApiRegistry->first(PL_API_DEBUG);
 
         return ptAppData;
     }
@@ -90,8 +104,6 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptDataRegistry->set_data("profile", ptProfileCtx);
     gptDataRegistry->set_data("log", ptLogCtx);
 
-    plIOContext* ptIOCtx = pl_get_io_context();
-
     // create log context
     pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
     pl_log_info("Setup logging");
@@ -101,12 +113,14 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_image_ext",    "pl_load_image_ext", "pl_unload_image_ext", false);
     ptExtensionRegistry->load("pl_stats_ext",    "pl_load_stats_ext", "pl_unload_stats_ext", false);
     ptExtensionRegistry->load("pl_graphics_ext", "pl_load_ext",       "pl_unload_ext",       false);
+    ptExtensionRegistry->load("pl_debug_ext",    "pl_load_debug_ext", "pl_unload_debug_ext", true);
 
     // load apis
     gptStats  = ptApiRegistry->first(PL_API_STATS);
     gptFile   = ptApiRegistry->first(PL_API_FILE);
     gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
     gptDevice = ptApiRegistry->first(PL_API_DEVICE);
+    gptDebug  = ptApiRegistry->first(PL_API_DEBUG);
 
     // create command queue
     gptGfx->initialize(&ptAppData->tGraphics);
@@ -132,6 +146,17 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
 
     ptAppData->tMesh.uIndexCount = 3;
     ptAppData->tMesh.uVertexCount = 3;
+
+    // create draw list & layers
+    pl_register_drawlist(&ptAppData->drawlist);
+    ptAppData->bgDrawLayer = pl_request_layer(&ptAppData->drawlist, "Background Layer");
+    ptAppData->fgDrawLayer = pl_request_layer(&ptAppData->drawlist, "Foreground Layer");
+    
+    // create font atlas
+    pl_add_default_font(&ptAppData->fontAtlas);
+    pl_build_font_atlas(&ptAppData->fontAtlas);
+    gptGfx->create_font_atlas(&ptAppData->fontAtlas);
+    pl_set_default_font(&ptAppData->fontAtlas.sbFonts[0]);
     
     return ptAppData;
 }
@@ -143,6 +168,9 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
+    gptGfx->destroy_font_atlas(&ptAppData->fontAtlas);
+    pl_cleanup_font_atlas(&ptAppData->fontAtlas);
+
     gptGfx->cleanup(&ptAppData->tGraphics);
     pl_cleanup_profile_context();
     pl_cleanup_log_context();
@@ -166,15 +194,78 @@ pl_app_resize(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
-
     if(!gptGfx->begin_frame(&ptAppData->tGraphics))
         return;
 
     // begin profiling frame
     pl_begin_profile_frame();
 
+    gptStats->new_frame();
+
+    static double* pdFrameTimeCounter = NULL;
+    if(!pdFrameTimeCounter)
+        pdFrameTimeCounter = gptStats->get_counter("framerate");
+    *pdFrameTimeCounter = (double)pl_get_io()->fFrameRate;
+
+
+
     gptGfx->begin_recording(&ptAppData->tGraphics);
+
+    pl_new_frame();
+
+    pl_set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
+
+    if(pl_begin_window("Pilot Light", NULL, false))
+    {
+
+        const float pfRatios[] = {1.0f};
+        pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+        
+        if(pl_collapsing_header("Tools"))
+        {
+            // pl_checkbox("Device Memory Analyzer", &ptAppData->tDebugInfo.bShowDeviceMemoryAnalyzer);
+            pl_checkbox("Memory Allocations", &ptAppData->tDebugInfo.bShowMemoryAllocations);
+            pl_checkbox("Profiling", &ptAppData->tDebugInfo.bShowProfiling);
+            pl_checkbox("Statistics", &ptAppData->tDebugInfo.bShowStats);
+            pl_checkbox("Logging", &ptAppData->tDebugInfo.bShowLogging);
+            pl_end_collapsing_header();
+        }
+
+        if(pl_collapsing_header("User Interface"))
+        {
+            pl_checkbox("UI Debug", &ptAppData->bShowUiDebug);
+            pl_checkbox("UI Demo", &ptAppData->bShowUiDemo);
+            pl_checkbox("UI Style", &ptAppData->bShowUiStyle);
+            pl_end_collapsing_header();
+        }
+        pl_end_window();
+    }
+
+    gptDebug->show_windows(&ptAppData->tDebugInfo);
+
+    if(ptAppData->bShowUiDemo)
+    {
+        pl_begin_profile_sample("ui demo");
+        pl_demo(&ptAppData->bShowUiDemo);
+        pl_end_profile_sample();
+    }
+        
+    if(ptAppData->bShowUiStyle)
+        pl_style(&ptAppData->bShowUiStyle);
+
+    if(ptAppData->bShowUiDebug)
+        pl_debug(&ptAppData->bShowUiDebug);
+
+    pl_add_line(ptAppData->fgDrawLayer, (plVec2){0}, (plVec2){300.0f, 500.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 1.0f);
+
+    // submit draw layers
+    pl_begin_profile_sample("Submit draw layers");
+    pl_submit_layer(ptAppData->bgDrawLayer);
+    pl_submit_layer(ptAppData->fgDrawLayer);
+    pl_end_profile_sample();
+
+    pl_render();
+
 
     plDraw tDraw = {
         .ptMesh = &ptAppData->tMesh
@@ -185,6 +276,13 @@ pl_app_update(plAppData* ptAppData)
         .uDrawCount = 1
     };
     gptGfx->draw_areas(&ptAppData->tGraphics, 1, &tArea, &tDraw);
+
+    // submit draw lists
+    pl_begin_profile_sample("Submit draw lists");
+    gptGfx->draw_lists(&ptAppData->tGraphics, 1, &ptAppData->drawlist);
+    gptGfx->draw_lists(&ptAppData->tGraphics, 1, pl_get_draw_list(NULL));
+    gptGfx->draw_lists(&ptAppData->tGraphics, 1, pl_get_debug_draw_list(NULL));
+    pl_end_profile_sample();
 
     gptGfx->end_recording(&ptAppData->tGraphics);
     gptGfx->end_frame(&ptAppData->tGraphics);

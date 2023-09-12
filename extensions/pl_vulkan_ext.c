@@ -17,13 +17,13 @@ Index of this file:
 #include "pilotlight.h"
 #include "pl_graphics_ext.h"
 #include "pl_ds.h"
-#include "pl_io.h"
 #include "pl_os.h"
 #include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_string.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
+
 
 // vulkan stuff
 #if defined(_WIN32)
@@ -37,6 +37,8 @@ Index of this file:
 #define PL_DEVICE_ALLOCATION_BLOCK_SIZE 268435456
 #define PL_DEVICE_LOCAL_LEVELS 8
 
+#include "pl_ui.h"
+#include "pl_ui_vulkan.h"
 #include "vulkan/vulkan.h"
 
 #ifdef _WIN32
@@ -799,7 +801,7 @@ static void
 pl_initialize_graphics(plGraphics* ptGraphics)
 {
 
-    plIOContext* ptIoCtx = pl_get_io_context();
+    plIO* ptIOCtx = pl_get_io();
 
     ptGraphics->_pInternalData = PL_ALLOC(sizeof(plVulkanGraphics));
     memset(ptGraphics->_pInternalData, 0, sizeof(plVulkanGraphics));
@@ -979,18 +981,18 @@ pl_initialize_graphics(plGraphics* ptGraphics)
             .pNext = NULL,
             .flags = 0,
             .hinstance = GetModuleHandle(NULL),
-            .hwnd = *(HWND*)ptIoCtx->pBackendPlatformData
+            .hwnd = *(HWND*)ptIOCtx->pBackendPlatformData
         };
         PL_VULKAN(vkCreateWin32SurfaceKHR(ptVulkanGfx->tInstance, &tSurfaceCreateInfo, NULL, &ptVulkanGfx->tSurface));
     #elif defined(__APPLE__)
         const VkMetalSurfaceCreateInfoEXT tSurfaceCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT,
-            .pLayer = (CAMetalLayer*)ptIoCtx->pBackendPlatformData
+            .pLayer = (CAMetalLayer*)ptIOCtx->pBackendPlatformData
         };
         PL_VULKAN(vkCreateMetalSurfaceEXT(ptVulkanGfx->tInstance, &tSurfaceCreateInfo, NULL, &ptVulkanGfx->tSurface));
     #else // linux
         struct tPlatformData { xcb_connection_t* ptConnection; xcb_window_t tWindow;};
-        struct tPlatformData* ptPlatformData = (struct tPlatformData*)ptIoCtx->pBackendPlatformData;
+        struct tPlatformData* ptPlatformData = (struct tPlatformData*)ptIOCtx->pBackendPlatformData;
         const VkXcbSurfaceCreateInfoKHR tSurfaceCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
             .pNext = NULL,
@@ -1161,7 +1163,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~swapchain~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     ptVulkanGfx->tSwapchain.bVSync = true;
-    create_swapchain(ptGraphics, (uint32_t)ptIoCtx->afMainViewportSize[0], (uint32_t)ptIoCtx->afMainViewportSize[1], &ptVulkanGfx->tSwapchain);
+    create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptVulkanGfx->tSwapchain);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~main renderpass~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1349,6 +1351,18 @@ pl_initialize_graphics(plGraphics* ptGraphics)
         .pPoolSizes    = atPoolSizes,
     };
     PL_VULKAN(vkCreateDescriptorPool(ptVulkanDevice->tLogicalDevice, &tDescriptorPoolInfo, NULL, &ptVulkanGfx->tDescriptorPool));
+    
+
+    // setup drawing api
+    const plVulkanInit tVulkanInit = {
+        .tPhysicalDevice  = ptVulkanDevice->tPhysicalDevice,
+        .tLogicalDevice   = ptVulkanDevice->tLogicalDevice,
+        .uImageCount      = ptVulkanGfx->tSwapchain.uImageCount,
+        .tRenderPass      = ptVulkanGfx->tRenderPass,
+        .tMSAASampleCount = ptVulkanGfx->tSwapchain.tMsaaSamples,
+        .uFramesInFlight  = ptVulkanGfx->uFramesInFlight
+    };
+    pl_initialize_vulkan(&tVulkanInit);
 
     ptVulkanGfx->g_bindingDescriptions[0].binding = 0;
     ptVulkanGfx->g_bindingDescriptions[0].stride = sizeof(float)*7;
@@ -1435,8 +1449,8 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     VkViewport viewport = {0};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = (float)ptIoCtx->afMainViewportSize[0];
-    viewport.height = (float)ptIoCtx->afMainViewportSize[1];
+    viewport.width = (float)ptIOCtx->afMainViewportSize[0];
+    viewport.height = (float)ptIOCtx->afMainViewportSize[1];
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
@@ -1555,7 +1569,7 @@ static bool
 pl_begin_frame(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIO* ptIOCtx = pl_get_io();
 
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
@@ -1634,10 +1648,10 @@ pl_begin_frame(plGraphics* ptGraphics)
 }
 
 static void
-pl_end_frame(plGraphics* ptGraphics)
+pl_end_gfx_frame(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIO* ptIOCtx = pl_get_io();
 
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
@@ -1711,7 +1725,7 @@ static void
 pl_resize(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plIOContext* ptIOCtx = pl_get_io_context();
+    plIO* ptIOCtx = pl_get_io();
 
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
@@ -1752,12 +1766,12 @@ pl_resize(plGraphics* ptGraphics)
 static void
 pl_shutdown(plGraphics* ptGraphics)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
-
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
     vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice);
+
+    pl_cleanup_vulkan();
 
     // cleanup buffers
     for(uint32_t i = 0; i < pl_sb_size(ptGraphics->tDevice.sbtBuffers); i++)
@@ -1841,8 +1855,6 @@ pl_shutdown(plGraphics* ptGraphics)
 static void
 pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, plDraw* atDraws)
 {
-    plIOContext* ptIOCtx = pl_get_io_context();
-
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
@@ -2139,6 +2151,8 @@ pl_begin_recording(plGraphics* ptGraphics)
 
     vkCmdBeginRenderPass(ptCurrentFrame->tCmdBuf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+    pl_new_draw_frame_vulkan();
+
 }
 
 static void
@@ -2154,6 +2168,21 @@ pl_end_recording(plGraphics* ptGraphics)
     PL_VULKAN(vkEndCommandBuffer(ptCurrentFrame->tCmdBuf));
 }
 
+static void
+pl_draw_list(plGraphics* ptGraphics, uint32_t uListCount, plDrawList* atLists)
+{
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
+
+    plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
+
+    plIO* ptIOCtx = pl_get_io();
+    for(uint32_t i = 0; i < uListCount; i++)
+    {
+        pl_submit_vulkan_drawlist(&atLists[i], ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptVulkanGfx->szCurrentFrameIndex);
+    }
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
@@ -2165,11 +2194,14 @@ pl_load_graphics_api(void)
         .initialize      = pl_initialize_graphics,
         .resize          = pl_resize,
         .begin_frame     = pl_begin_frame,
-        .end_frame       = pl_end_frame,
+        .end_frame       = pl_end_gfx_frame,
         .begin_recording = pl_begin_recording,
         .end_recording   = pl_end_recording,
         .draw_areas      = pl_draw_areas,
-        .cleanup         = pl_shutdown
+        .draw_lists      = pl_draw_list,
+        .cleanup         = pl_shutdown,
+        .create_font_atlas = pl_create_vulkan_font_texture,
+        .destroy_font_atlas = pl_cleanup_vulkan_font_texture
     };
     return &tApi;
 }
@@ -2195,7 +2227,7 @@ pl_load_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));
-    pl_set_io_context(ptDataRegistry->get_data(PL_CONTEXT_IO_NAME));
+    pl_set_ui_context(ptDataRegistry->get_data("ui"));
     gptFile = ptApiRegistry->first(PL_API_FILE);
     if(bReload)
     {
@@ -2227,3 +2259,5 @@ pl_unload_ext(plApiRegistryApiI* ptApiRegistry)
 {
     
 }
+
+#include "pl_ui_vulkan.c"

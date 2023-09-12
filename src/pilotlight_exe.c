@@ -523,8 +523,6 @@ pl__handle_extension_reloads(void)
     }
 }
 
-#include "pl_io.c"
-
 #define STB_SPRINTF_IMPLEMENTATION
 #include "stb_sprintf.h"
 #undef STB_SPRINTF_IMPLEMENTATION
@@ -546,3 +544,8 @@ pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
 {
     return realloc(pBuffer, szSize);
 }
+
+// ui
+#include "pl_ui.c"
+#include "pl_ui_widgets.c"
+#include "pl_ui_draw.c"

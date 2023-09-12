@@ -17,7 +17,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pilotlight.h" // data registry, api registry, extension registry
-#include "pl_io.h"      // io context
+#include "pl_ui.h"      // io context
 #include "pl_ds.h"      // hashmap
 #include "pl_os.h"      // os services
 
@@ -96,7 +96,10 @@ void*                 gUserData       = NULL;
 double                dTime           = 0.0;
 double                dFrequency      = 0.0;
 xcb_cursor_context_t* ptCursorContext = NULL;
-plIOContext*          gptIOCtx        = NULL;
+
+// ui
+plIO*           gptIOCtx = NULL;
+plUiContext*    gptUiCtx = NULL;
 
 // apis
 const plDataRegistryApiI*      gptDataRegistry      = NULL;
@@ -131,6 +134,9 @@ pl__get_linux_absolute_time(void)
 
 int main()
 {
+
+    gptUiCtx = pl_create_ui_context();
+    gptIOCtx = pl_get_io();
 
     // os provided apis
 
@@ -168,11 +174,8 @@ int main()
     gptApiRegistry->add(PL_API_UDP, &tUdpApi);
     gptApiRegistry->add(PL_API_OS_SERVICES, &tOsApi);
 
-    // setup & retrieve io context 
-    gptIOCtx = pl_get_io_context(); // initialized on first retrieval
-
     // add contexts to data registry
-    gptDataRegistry->set_data(PL_CONTEXT_IO_NAME, gptIOCtx);
+    gptDataRegistry->set_data("ui", gptUiCtx);
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
     // connect to x
@@ -389,8 +392,6 @@ int main()
 void
 pl_linux_procedure(xcb_generic_event_t* event)
 {
-
-    plIOContext* gptIOCtx = pl_get_io_context();
     xcb_client_message_event_t* cm;
 
     switch (event->response_type & ~0x80) 
@@ -501,8 +502,6 @@ pl_linux_procedure(xcb_generic_event_t* event)
 void
 pl_update_mouse_cursor_linux(void)
 {
-    plIOContext* gptIOCtx = pl_get_io_context();
-
     // updating mouse cursor
     if(gptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
         gptIOCtx->bCursorChanged = true;

@@ -74,6 +74,7 @@ jobs:
           test -f ./out/pl_graphics_ext.so || exit 1
           test -f ./out/pl_image_ext.so || exit 1
           test -f ./out/pl_stats_ext.so || exit 1
+          test -f ./out/pl_debug_ext.so || exit 1
           test -f ./out/pilotlight.a || exit 1
       - name: Archive Results
         if: ${{ always() }}

@@ -60,7 +60,7 @@ typedef struct _plDebugApiI
 
 typedef struct _plDebugApiInfo
 {
-    bool bShowDeviceMemoryAnalyzer;
+    // bool bShowDeviceMemoryAnalyzer;
     bool bShowMemoryAllocations;
     bool bShowProfiling;
     bool bShowStats;
