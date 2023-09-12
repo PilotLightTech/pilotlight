@@ -4,3 +4,6 @@
 [submodule "dependencies/pilotlight-ui"]
 	path = dependencies/pilotlight-ui
 	url = https://github.com/hoffstadt/pilotlight-ui
+[submodule "dependencies/pilotlight-build"]
+	path = dependencies/pilotlight-build
+	url = https://github.com/hoffstadt/pilotlight-build

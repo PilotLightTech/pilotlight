@@ -5,7 +5,6 @@
 .idea/
 data/
 out/
-tools/__pycache__
 
 # debug files
 src/*.pdb

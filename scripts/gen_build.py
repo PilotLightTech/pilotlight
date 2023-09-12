@@ -1,7 +1,7 @@
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../tools")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../dependencies/pilotlight-build/pilotlight_build")
 
 import pl_build as pl
 
