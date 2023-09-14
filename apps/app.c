@@ -78,7 +78,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptApiRegistry  = ptApiRegistry;
     gptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(gptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-    pl_set_ui_context(gptDataRegistry->get_data("ui"));
+    pl_set_context(gptDataRegistry->get_data("ui"));
 
     if(ptAppData) // reload
     {
@@ -156,7 +156,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     pl_add_default_font(&ptAppData->fontAtlas);
     pl_build_font_atlas(&ptAppData->fontAtlas);
     gptGfx->create_font_atlas(&ptAppData->fontAtlas);
-    pl_set_default_font(&ptAppData->fontAtlas.sbFonts[0]);
+    pl_set_default_font(&ptAppData->fontAtlas.sbtFonts[0]);
     
     return ptAppData;
 }

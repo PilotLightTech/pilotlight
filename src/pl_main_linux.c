@@ -135,7 +135,7 @@ pl__get_linux_absolute_time(void)
 int main()
 {
 
-    gptUiCtx = pl_create_ui_context();
+    gptUiCtx = pl_create_context();
     gptIOCtx = pl_get_io();
 
     // os provided apis

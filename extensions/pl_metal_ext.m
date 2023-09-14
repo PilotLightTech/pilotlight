@@ -359,7 +359,7 @@ pl_load_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
     const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-    pl_set_ui_context(ptDataRegistry->get_data("ui"));
+    pl_set_context(ptDataRegistry->get_data("ui"));
     gptFile = ptApiRegistry->first(PL_API_FILE);
     if(bReload)
     {

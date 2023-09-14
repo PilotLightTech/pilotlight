@@ -166,7 +166,7 @@ static void  (*pl_app_update)  (void* ptAppData);
 int main()
 {
 
-    gptUiCtx = pl_create_ui_context();
+    gptUiCtx = pl_create_context();
     gptIOCtx = pl_get_io();
 
     // load apis

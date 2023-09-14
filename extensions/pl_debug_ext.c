@@ -268,8 +268,8 @@ pl__show_profiling(bool* bValue)
 
                 plUiClipper tClipper = {uSampleSize};
 
-                const plVec4 tOriginalProgressColor = pl_get_ui_context()->tColorScheme.tProgressBarCol;
-                plVec4* tTempProgressColor = &pl_get_ui_context()->tColorScheme.tProgressBarCol;
+                const plVec4 tOriginalProgressColor = pl_get_context()->tColorScheme.tProgressBarCol;
+                plVec4* tTempProgressColor = &pl_get_context()->tColorScheme.tProgressBarCol;
                 while(pl_step_clipper(&tClipper))
                 {
                     for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
@@ -447,8 +447,8 @@ pl__show_profiling(bool* bValue)
                         dCurrentTime += dIncrement;
                     }
 
-                    const plVec4 tOriginalButtonColor = pl_get_ui_context()->tColorScheme.tButtonCol;
-                    plVec4* tTempButtonColor = &pl_get_ui_context()->tColorScheme.tButtonCol;
+                    const plVec4 tOriginalButtonColor = pl_get_context()->tColorScheme.tButtonCol;
+                    plVec4* tTempButtonColor = &pl_get_context()->tColorScheme.tButtonCol;
                     for(uint32_t i = 0; i < uSampleSize; i++)
                     {
                         const float fPixelWidth = (float)(dConvertToPixel * ptSamples[i].dDuration);
@@ -553,8 +553,8 @@ pl__show_statistics(bool* bValue)
         {
             pl_layout_dynamic(0.0f, 1);
  
-            const plVec4 tOriginalButtonColor = pl_get_ui_context()->tColorScheme.tHeaderCol;
-            pl_get_ui_context()->tColorScheme.tHeaderCol = (plVec4){0.0f, 0.5f, 0.0f, 0.75f};
+            const plVec4 tOriginalButtonColor = pl_get_context()->tColorScheme.tHeaderCol;
+            pl_get_context()->tColorScheme.tHeaderCol = (plVec4){0.0f, 0.5f, 0.0f, 0.75f};
             for(uint32_t i = 0; i < pl_sb_size(sbppdValues); i++)
             {
                 if(pl_selectable(ppcNames[i], &sbbValues[i]))
@@ -576,7 +576,7 @@ pl__show_statistics(bool* bValue)
                     }
                 }
             }
-            pl_get_ui_context()->tColorScheme.tHeaderCol = tOriginalButtonColor;
+            pl_get_context()->tColorScheme.tHeaderCol = tOriginalButtonColor;
             pl_end_child();
         }
 
@@ -1124,7 +1124,7 @@ pl_load_debug_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
     pl_set_memory_context(ptMemoryCtx);
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));
-    pl_set_ui_context(ptDataRegistry->get_data("ui"));
+    pl_set_context(ptDataRegistry->get_data("ui"));
 
     ptStatsApi = ptApiRegistry->first(PL_API_STATS);
     ptIOCtx = pl_get_io();

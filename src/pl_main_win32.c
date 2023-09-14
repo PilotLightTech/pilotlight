@@ -139,7 +139,7 @@ void  (*pl_app_update)  (void* userData);
 int main(int argc, char *argv[])
 {
 
-    gptUiCtx = pl_create_ui_context();
+    gptUiCtx = pl_create_context();
     gptIOCtx = pl_get_io();
 
     // check for disabling of escape characters.
