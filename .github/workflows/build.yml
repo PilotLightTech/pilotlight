@@ -45,7 +45,7 @@ jobs:
         cd scripts
         python gen_build.py
         cd ../src
-        call build.bat -c debug
+        call build.bat
         if not exist ../out/pilot_light.exe exit 1
         if not exist ../out/app.dll exit 1
         if not exist ../out/pl_graphics_ext.dll exit 1
@@ -73,7 +73,7 @@ jobs:
         python3 gen_build.py
         cd ../src
         chmod +x build.sh
-        ./build.sh  -c debugmetal
+        ./build.sh
         cd ..
         test -f ./out/pilot_light || exit 1
         test -f ./out/app.dylib || exit 1

@@ -10,6 +10,9 @@ import pl_build as pl
 ###############################################################################
 
 def add_plugin_to_vulkan_app(name, reloadable, binary_name = None, *kwargs):
+
+    pl.push_profile(pl.Profile.VULKAN)
+    pl.push_definitions("PL_VULKAN_BACKEND")
     with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, reloadable):
         if binary_name is None:
             pl.push_output_binary(name)
@@ -26,13 +29,18 @@ def add_plugin_to_vulkan_app(name, reloadable, binary_name = None, *kwargs):
             with pl.platform(pl.PlatformType.LINUX):
                 with pl.compiler("gcc", pl.CompilerType.GCC):
                     pass
+        with pl.configuration("vulkan"):
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
                     pass
         pl.pop_output_binary()
         pl.pop_source_files()
+    pl.pop_profile()
+    pl.pop_definitions()
 
 def add_plugin_to_metal_app(name, reloadable, objc = False, binary_name = None):
+
+    pl.push_definitions("PL_METAL_BACKEND")
     with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, reloadable):
 
         if binary_name is None:
@@ -43,12 +51,13 @@ def add_plugin_to_metal_app(name, reloadable, objc = False, binary_name = None):
             pl.push_source_files("../extensions/" + name + ".m")
         else:
             pl.push_source_files("../extensions/" + name + ".c")
-        with pl.configuration("debugmetal"):
+        with pl.configuration("debug"):
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
                     pl.add_definition("PL_METAL_BACKEND")
         pl.pop_output_binary()
         pl.pop_source_files()
+    pl.pop_definitions()
 
 pl.register_standard_profiles()
 
@@ -56,7 +65,7 @@ with pl.project("pilotlight"):
     
     # configurations
     pl.add_configuration("debug")
-    pl.add_configuration("debugmetal") # only used on macos for vulkan
+    pl.add_configuration("vulkan") # only used on macos for vulkan
 
     # where to output build scripts
     pl.set_working_directory(os.path.dirname(os.path.abspath(__file__)) + "/../src")
@@ -79,25 +88,24 @@ with pl.project("pilotlight"):
         pl.push_source_files("pilotlight_lib.c")
         pl.push_output_binary("pilotlight")
 
-        pl.push_profile(pl.Profile.VULKAN)
-        pl.push_definitions("PL_VULKAN_BACKEND")
         with pl.configuration("debug"):
+            pl.push_profile(pl.Profile.VULKAN)
             with pl.platform(pl.PlatformType.WIN32):
                 with pl.compiler("msvc", pl.CompilerType.MSVC):
-                    pass
+                    pl.add_definition("PL_VULKAN_BACKEND")
             with pl.platform(pl.PlatformType.LINUX):
                 with pl.compiler("gcc", pl.CompilerType.GCC):
-                    pass
-            with pl.platform(pl.PlatformType.MACOS):
-                with pl.compiler("clang", pl.CompilerType.CLANG):
-                    pass
-        pl.pop_definitions()
-        pl.pop_profile() 
-
-        with pl.configuration("debugmetal"):
+                    pl.add_definition("PL_VULKAN_BACKEND")
+            pl.pop_profile()
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
                     pl.add_definition("PL_METAL_BACKEND")
+        
+
+        with pl.configuration("vulkan"):
+            with pl.platform(pl.PlatformType.MACOS):
+                with pl.compiler("clang", pl.CompilerType.CLANG):
+                    pl.add_definition("PL_VULKAN_BACKEND")
 
         pl.pop_output_binary()
         pl.pop_source_files()
@@ -107,21 +115,15 @@ with pl.project("pilotlight"):
     ###############################################################################
     pl.push_target_links("pilotlight_lib")
     
-    pl.push_profile(pl.Profile.VULKAN)
-    pl.push_definitions("PL_VULKAN_BACKEND")
     add_plugin_to_vulkan_app("pl_debug_ext", False)
     add_plugin_to_vulkan_app("pl_image_ext", False)
     add_plugin_to_vulkan_app("pl_vulkan_ext", False, "pl_graphics_ext")
     add_plugin_to_vulkan_app("pl_stats_ext", False)
-    pl.pop_profile()
-    pl.pop_definitions()
 
-    pl.push_definitions("PL_METAL_BACKEND")
     add_plugin_to_metal_app("pl_debug_ext", False)
     add_plugin_to_metal_app("pl_image_ext", False)
     add_plugin_to_metal_app("pl_stats_ext", False)
     add_plugin_to_metal_app("pl_metal_ext", False, True, "pl_graphics_ext")
-    pl.pop_definitions()
 
     pl.pop_target_links()
 
@@ -133,31 +135,35 @@ with pl.project("pilotlight"):
         pl.push_output_binary("app")
         pl.push_target_links("pilotlight_lib")
 
-        pl.push_profile(pl.Profile.VULKAN)
-        pl.push_definitions("PL_VULKAN_BACKEND")
+        
         pl.push_source_files("../apps/app.c")
-        pl.push_vulkan_glsl_files("../shaders/glsl/", "primitive.frag", "primitive.vert")
+        
         with pl.configuration("debug"):
+            pl.push_profile(pl.Profile.VULKAN)
+            pl.push_vulkan_glsl_files("../shaders/glsl/", "primitive.frag", "primitive.vert")
             with pl.platform(pl.PlatformType.WIN32):
                 with pl.compiler("msvc", pl.CompilerType.MSVC):
-                    pass
+                    pl.add_definition("PL_VULKAN_BACKEND")
             with pl.platform(pl.PlatformType.LINUX):
                 with pl.compiler("gcc", pl.CompilerType.GCC):
-                    pass
-            with pl.platform(pl.PlatformType.MACOS):
-                with pl.compiler("clang", pl.CompilerType.CLANG):
-                    pass
-        pl.pop_definitions()
-        pl.pop_source_files()
-        pl.pop_profile() 
-        pl.pop_vulkan_glsl_files()
-
-        with pl.configuration("debugmetal"):
+                    pl.add_definition("PL_VULKAN_BACKEND")
+            pl.pop_profile() 
+            pl.pop_vulkan_glsl_files()
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
                     pl.add_definition("PL_METAL_BACKEND")
-                    pl.add_source_file("../apps/app.c")
+        
+        
+        pl.push_profile(pl.Profile.VULKAN)
+        pl.push_vulkan_glsl_files("../shaders/glsl/", "primitive.frag", "primitive.vert")
+        with pl.configuration("vulkan"):
+            with pl.platform(pl.PlatformType.MACOS):
+                with pl.compiler("clang", pl.CompilerType.CLANG):
+                    pl.add_definition("PL_VULKAN_BACKEND")
+        pl.pop_profile() 
+        pl.pop_vulkan_glsl_files()
 
+        pl.pop_source_files()
         pl.pop_output_binary()
         pl.pop_target_links()
 
@@ -168,27 +174,30 @@ with pl.project("pilotlight"):
 
         pl.push_output_binary("pilot_light")
                
-        pl.push_profile(pl.Profile.VULKAN)
-        pl.push_definitions("PL_VULKAN_BACKEND")
         with pl.configuration("debug"):
+            pl.push_profile(pl.Profile.VULKAN)
             with pl.platform(pl.PlatformType.WIN32):
                 with pl.compiler("msvc", pl.CompilerType.MSVC):
+                    pl.add_definition("PL_VULKAN_BACKEND")
                     pl.add_source_file("pl_main_win32.c")
                     pl.add_definition("_DEBUG")          
             with pl.platform(pl.PlatformType.LINUX):
                 with pl.compiler("gcc", pl.CompilerType.GCC):
+                    pl.add_definition("PL_VULKAN_BACKEND")
                     pl.add_source_file("pl_main_linux.c")
-            with pl.platform(pl.PlatformType.MACOS):
-                with pl.compiler("clang", pl.CompilerType.CLANG):
-                    pl.add_source_file("pl_main_macos.m")
-        pl.pop_definitions()
-        pl.pop_profile() 
-
-        with pl.configuration("debugmetal"):
+            pl.pop_profile() 
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
                     pl.add_definition("PL_METAL_BACKEND")
                     pl.add_source_file("pl_main_macos.m")
+        
+        with pl.configuration("vulkan"):
+            pl.push_profile(pl.Profile.VULKAN)
+            with pl.platform(pl.PlatformType.MACOS):
+                with pl.compiler("clang", pl.CompilerType.CLANG):
+                    pl.add_definition("PL_VULKAN_BACKEND")
+                    pl.add_source_file("pl_main_macos.m")
+            pl.pop_profile() 
 
         pl.pop_output_binary()
 
