@@ -23,10 +23,8 @@ Index of this file:
 #include "pl_ds.h"
 #include "pl_os.h"
 #include "pl_memory.h"
-
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
-
 #include "pl_ui.h"
 
 // extensions
@@ -34,6 +32,9 @@ Index of this file:
 #include "pl_stats_ext.h"
 #include "pl_graphics_ext.h"
 #include "pl_debug_ext.h"
+
+// app specific
+#include "camera.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -53,6 +54,9 @@ typedef struct plAppData_t
 
     plGraphics tGraphics;
     plMesh     tMesh;
+
+    // scene
+    plCamera tMainCamera;
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -126,6 +130,12 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptGfx->initialize(&ptAppData->tGraphics);
 
     // new demo
+
+    // create camera
+    plIO* ptIO = pl_get_io();
+    ptAppData->tMainCamera = pl_camera_create((plVec3){-6.211f, 3.647f, 0.827f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.01f, 400.0f);
+    pl_camera_set_pitch_yaw(&ptAppData->tMainCamera, -0.244f, 1.488f);
+    pl_camera_update(&ptAppData->tMainCamera);
 
     // vertex buffer
     const float fVertexBuffer[] = {
@@ -288,3 +298,9 @@ pl_app_update(plAppData* ptAppData)
     gptGfx->end_frame(&ptAppData->tGraphics);
     pl_end_profile_frame();
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] unity build
+//-----------------------------------------------------------------------------
+
+#include "camera.c"
