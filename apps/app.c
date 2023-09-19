@@ -56,7 +56,8 @@ typedef struct plAppData_t
     plMesh     tMesh;
 
     // scene
-    plCamera tMainCamera;
+    plCamera     tMainCamera;
+    plDrawList3D t3DDrawList;
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -167,6 +168,9 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     pl_build_font_atlas(&ptAppData->fontAtlas);
     gptGfx->create_font_atlas(&ptAppData->fontAtlas);
     pl_set_default_font(&ptAppData->fontAtlas.sbtFonts[0]);
+
+    // 3D drawlist
+    gptGfx->register_3d_drawlist(&ptAppData->tGraphics, &ptAppData->t3DDrawList);
     
     return ptAppData;
 }
@@ -194,7 +198,10 @@ pl_app_shutdown(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_resize(plAppData* ptAppData)
 {
+    plIO* ptIO = pl_get_io();
+    pl_camera_set_aspect(&ptAppData->tMainCamera, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1]);
     gptGfx->resize(&ptAppData->tGraphics);
+
 }
 
 //-----------------------------------------------------------------------------
@@ -210,6 +217,8 @@ pl_app_update(plAppData* ptAppData)
     // begin profiling frame
     pl_begin_profile_frame();
 
+    plIO* ptIO = pl_get_io();
+
     gptStats->new_frame();
 
     static double* pdFrameTimeCounter = NULL;
@@ -217,7 +226,27 @@ pl_app_update(plAppData* ptAppData)
         pdFrameTimeCounter = gptStats->get_counter("framerate");
     *pdFrameTimeCounter = (double)pl_get_io()->fFrameRate;
 
+    // camera
+    static const float fCameraTravelSpeed = 8.0f;
 
+    // camera space
+    if(pl_is_key_pressed(PL_KEY_W, true)) pl_camera_translate(&ptAppData->tMainCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
+    if(pl_is_key_pressed(PL_KEY_S, true)) pl_camera_translate(&ptAppData->tMainCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
+    if(pl_is_key_pressed(PL_KEY_A, true)) pl_camera_translate(&ptAppData->tMainCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+    if(pl_is_key_pressed(PL_KEY_D, true)) pl_camera_translate(&ptAppData->tMainCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+
+    // world space
+    if(pl_is_key_pressed(PL_KEY_F, true)) pl_camera_translate(&ptAppData->tMainCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
+    if(pl_is_key_pressed(PL_KEY_R, true)) pl_camera_translate(&ptAppData->tMainCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
+
+    bool bOwnMouse = ptIO->bWantCaptureMouse;
+    if(!bOwnMouse && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+    {
+        const plVec2 tMouseDelta = pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
+        pl_camera_rotate(&ptAppData->tMainCamera,  -tMouseDelta.y * 0.1f * ptIO->fDeltaTime,  -tMouseDelta.x * 0.1f * ptIO->fDeltaTime);
+        pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+    }
+    pl_camera_update(&ptAppData->tMainCamera);
 
     gptGfx->begin_recording(&ptAppData->tGraphics);
 
@@ -267,6 +296,14 @@ pl_app_update(plAppData* ptAppData)
         pl_debug(&ptAppData->bShowUiDebug);
 
     pl_add_line(ptAppData->fgDrawLayer, (plVec2){0}, (plVec2){300.0f, 500.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 1.0f);
+
+    const plMat4 tTransform0 = pl_identity_mat4();
+    gptGfx->add_3d_transform(&ptAppData->t3DDrawList, &tTransform0, 10.0f, 0.02f);
+    gptGfx->add_3d_triangle_filled(&ptAppData->t3DDrawList, (plVec3){0}, (plVec3){0.0f, 0.0f, 1.0f}, (plVec3){0.0f, 1.0f, 0.0f}, (plVec4){1.0f, 0.0f, 0.0f, 0.25f});
+
+    // submit 3D draw list
+    const plMat4 tMVP = pl_mul_mat4(&ptAppData->tMainCamera.tProjMat, &ptAppData->tMainCamera.tViewMat);
+    gptGfx->submit_3d_drawlist(&ptAppData->t3DDrawList, pl_get_io()->afMainViewportSize[0], pl_get_io()->afMainViewportSize[1], &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE);
 
     // submit draw layers
     pl_begin_profile_sample("Submit draw layers");
