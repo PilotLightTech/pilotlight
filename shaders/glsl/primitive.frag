@@ -1,12 +1,25 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-layout(location = 0) in vec4 inPos;
-layout(location = 1) in vec4 inColor;
+#include "common.glsl"
 
 layout(location = 0) out vec4 outColor;
 
+// output
+layout(location = 0) in struct plShaderIn {
+    vec4 tPosition;
+    vec2 tUV;
+    vec4 tColor;
+} tShaderIn;
+
 void main() 
 {
-    outColor = inColor;
+    outColor = tShaderIn.tColor;
+
+    if(bool(ShaderTextureFlags & PL_TEXTURE_HAS_BASE_COLOR)) 
+    {
+        outColor = texture(tSampler0, tShaderIn.tUV);
+    }
+
+    outColor = tShaderInfo.shaderSpecific + outColor;
 }

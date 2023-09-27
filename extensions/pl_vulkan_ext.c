@@ -6,11 +6,11 @@
 Index of this file:
 // [SECTION] includes
 // [SECTION] global data
-// [SECTION] shaders
 // [SECTION] internal structs
 // [SECTION] internal api
 // [SECTION] public api implementation
 // [SECTION] drawing
+// [SECTION] internal api implementation
 // [SECTION] extension loading
 // [SECTION] unity build
 */
@@ -59,236 +59,6 @@ const plFileApiI* gptFile = NULL;
 static uint32_t uLogChannel = UINT32_MAX;
 
 //-----------------------------------------------------------------------------
-// [SECTION] shaders
-//-----------------------------------------------------------------------------
-
-/*
-#version 450 core
-layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec4 aColor;
-layout(push_constant) uniform uPushConstant { mat4 tMVP; } pc;
-out gl_PerVertex { vec4 gl_Position; };
-layout(location = 0) out struct { vec4 Color; vec2 UV; } Out;
-
-void main()
-{
-    Out.Color = aColor;
-    gl_Position = pc.tMVP * vec4(aPos, 1.0);
-}
-*/
-static uint32_t __glsl_shader_vert_3d_spv[] =
-{
-	0x07230203,0x00010000,0x0008000b,0x00000027,0x00000000,0x00020011,0x00000001,0x0006000b,
-	0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
-	0x0009000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x0000000a,0x0000000e,0x00000014,
-	0x0000001e,0x00030003,0x00000002,0x000001c2,0x00040005,0x00000004,0x6e69616d,0x00000000,
-	0x00030005,0x00000008,0x00000000,0x00050006,0x00000008,0x00000000,0x6f6c6f43,0x00000072,
-	0x00030005,0x0000000a,0x0074754f,0x00040005,0x0000000e,0x6c6f4361,0x0000726f,0x00060005,
-	0x00000012,0x505f6c67,0x65567265,0x78657472,0x00000000,0x00060006,0x00000012,0x00000000,
-	0x505f6c67,0x7469736f,0x006e6f69,0x00030005,0x00000014,0x00000000,0x00060005,0x00000016,
-	0x73755075,0x6e6f4368,0x6e617473,0x00000074,0x00050006,0x00000016,0x00000000,0x50564d74,
-	0x00000000,0x00030005,0x00000018,0x00006370,0x00040005,0x0000001e,0x736f5061,0x00000000,
-	0x00040047,0x0000000a,0x0000001e,0x00000000,0x00040047,0x0000000e,0x0000001e,0x00000001,
-	0x00050048,0x00000012,0x00000000,0x0000000b,0x00000000,0x00030047,0x00000012,0x00000002,
-	0x00040048,0x00000016,0x00000000,0x00000005,0x00050048,0x00000016,0x00000000,0x00000023,
-	0x00000000,0x00050048,0x00000016,0x00000000,0x00000007,0x00000010,0x00030047,0x00000016,
-	0x00000002,0x00040047,0x0000001e,0x0000001e,0x00000000,0x00020013,0x00000002,0x00030021,
-	0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,0x00000007,0x00000006,
-	0x00000004,0x0003001e,0x00000008,0x00000007,0x00040020,0x00000009,0x00000003,0x00000008,
-	0x0004003b,0x00000009,0x0000000a,0x00000003,0x00040015,0x0000000b,0x00000020,0x00000001,
-	0x0004002b,0x0000000b,0x0000000c,0x00000000,0x00040020,0x0000000d,0x00000001,0x00000007,
-	0x0004003b,0x0000000d,0x0000000e,0x00000001,0x00040020,0x00000010,0x00000003,0x00000007,
-	0x0003001e,0x00000012,0x00000007,0x00040020,0x00000013,0x00000003,0x00000012,0x0004003b,
-	0x00000013,0x00000014,0x00000003,0x00040018,0x00000015,0x00000007,0x00000004,0x0003001e,
-	0x00000016,0x00000015,0x00040020,0x00000017,0x00000009,0x00000016,0x0004003b,0x00000017,
-	0x00000018,0x00000009,0x00040020,0x00000019,0x00000009,0x00000015,0x00040017,0x0000001c,
-	0x00000006,0x00000003,0x00040020,0x0000001d,0x00000001,0x0000001c,0x0004003b,0x0000001d,
-	0x0000001e,0x00000001,0x0004002b,0x00000006,0x00000020,0x3f800000,0x00050036,0x00000002,
-	0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,0x0004003d,0x00000007,0x0000000f,
-	0x0000000e,0x00050041,0x00000010,0x00000011,0x0000000a,0x0000000c,0x0003003e,0x00000011,
-	0x0000000f,0x00050041,0x00000019,0x0000001a,0x00000018,0x0000000c,0x0004003d,0x00000015,
-	0x0000001b,0x0000001a,0x0004003d,0x0000001c,0x0000001f,0x0000001e,0x00050051,0x00000006,
-	0x00000021,0x0000001f,0x00000000,0x00050051,0x00000006,0x00000022,0x0000001f,0x00000001,
-	0x00050051,0x00000006,0x00000023,0x0000001f,0x00000002,0x00070050,0x00000007,0x00000024,
-	0x00000021,0x00000022,0x00000023,0x00000020,0x00050091,0x00000007,0x00000025,0x0000001b,
-	0x00000024,0x00050041,0x00000010,0x00000026,0x00000014,0x0000000c,0x0003003e,0x00000026,
-	0x00000025,0x000100fd,0x00010038
-};
-
-/*
-#version 450 core
-layout(location = 0) out vec4 fColor;
-layout(set=0, binding=0) uniform sampler2D sTexture;
-layout(location = 0) in struct { vec4 Color; vec2 UV; } In;
-void main()
-{
-    fColor = In.Color * texture(sTexture, In.UV.st);
-}
-*/
-
-static uint32_t __glsl_shader_frag_3d_spv[] =
-{
-	0x07230203,0x00010000,0x0008000b,0x00000012,0x00000000,0x00020011,0x00000001,0x0006000b,
-	0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
-	0x0007000f,0x00000004,0x00000004,0x6e69616d,0x00000000,0x00000009,0x0000000c,0x00030010,
-	0x00000004,0x00000007,0x00030003,0x00000002,0x000001c2,0x00040005,0x00000004,0x6e69616d,
-	0x00000000,0x00040005,0x00000009,0x6c6f4366,0x0000726f,0x00030005,0x0000000a,0x00000000,
-	0x00050006,0x0000000a,0x00000000,0x6f6c6f43,0x00000072,0x00030005,0x0000000c,0x00006e49,
-	0x00040047,0x00000009,0x0000001e,0x00000000,0x00040047,0x0000000c,0x0000001e,0x00000000,
-	0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,
-	0x00040017,0x00000007,0x00000006,0x00000004,0x00040020,0x00000008,0x00000003,0x00000007,
-	0x0004003b,0x00000008,0x00000009,0x00000003,0x0003001e,0x0000000a,0x00000007,0x00040020,
-	0x0000000b,0x00000001,0x0000000a,0x0004003b,0x0000000b,0x0000000c,0x00000001,0x00040015,
-	0x0000000d,0x00000020,0x00000001,0x0004002b,0x0000000d,0x0000000e,0x00000000,0x00040020,
-	0x0000000f,0x00000001,0x00000007,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,
-	0x000200f8,0x00000005,0x00050041,0x0000000f,0x00000010,0x0000000c,0x0000000e,0x0004003d,
-	0x00000007,0x00000011,0x00000010,0x0003003e,0x00000009,0x00000011,0x000100fd,0x00010038
-};
-
-/*
-#version 450 core
-layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec4 aInfo;
-layout(location = 2) in vec3 aPosOther;
-layout(location = 3) in vec4 aColor;
-layout(push_constant) uniform uPushConstant { mat4 tMVP; float fAspect; } pc;
-out gl_PerVertex { vec4 gl_Position; };
-layout(location = 0) out struct { vec4 Color; } Out;
-
-void main()
-{
-    Out.Color = aColor;
-
-    // clip space
-    vec4 tCurrentProj = pc.tMVP * vec4(aPos.xyz, 1.0);
-    vec4 tOtherProj   = pc.tMVP * vec4(aPosOther.xyz, 1.0);
-
-    // NDC space
-    vec2 tCurrentNDC = tCurrentProj.xy / tCurrentProj.w;
-    vec2 tOtherNDC = tOtherProj.xy / tOtherProj.w;
-
-    // correct for aspect
-    tCurrentNDC.x *= pc.fAspect;
-    tOtherNDC.x *= pc.fAspect;
-
-    // normal of line (B - A)
-    vec2 dir = aInfo.z * normalize(tOtherNDC - tCurrentNDC);
-    vec2 normal = vec2(-dir.y, dir.x);
-
-    // extrude from center & correct aspect ratio
-    normal *= aInfo.y / 2.0;
-    normal.x /= pc.fAspect;
-
-    // offset by the direction of this point in the pair (-1 or 1)
-    vec4 offset = vec4(normal* aInfo.x, 0.0, 0.0);
-    gl_Position = tCurrentProj + offset;
-}
-*/
-
-static uint32_t __glsl_shader_vert_3d_line_spv[] =
-{
-	0x07230203,0x00010000,0x0008000b,0x00000080,0x00000000,0x00020011,0x00000001,0x0006000b,
-	0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
-	0x000b000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x0000000a,0x0000000e,0x0000001d,
-	0x00000028,0x00000052,0x0000007b,0x00030003,0x00000002,0x000001c2,0x00040005,0x00000004,
-	0x6e69616d,0x00000000,0x00030005,0x00000008,0x00000000,0x00050006,0x00000008,0x00000000,
-	0x6f6c6f43,0x00000072,0x00030005,0x0000000a,0x0074754f,0x00040005,0x0000000e,0x6c6f4361,
-	0x0000726f,0x00060005,0x00000013,0x72754374,0x746e6572,0x6a6f7250,0x00000000,0x00060005,
-	0x00000015,0x73755075,0x6e6f4368,0x6e617473,0x00000074,0x00050006,0x00000015,0x00000000,
-	0x50564d74,0x00000000,0x00050006,0x00000015,0x00000001,0x70734166,0x00746365,0x00030005,
-	0x00000017,0x00006370,0x00040005,0x0000001d,0x736f5061,0x00000000,0x00050005,0x00000025,
-	0x68744f74,0x72507265,0x00006a6f,0x00050005,0x00000028,0x736f5061,0x6568744f,0x00000072,
-	0x00050005,0x00000031,0x72754374,0x746e6572,0x0043444e,0x00050005,0x0000003b,0x68744f74,
-	0x444e7265,0x00000043,0x00030005,0x00000051,0x00726964,0x00040005,0x00000052,0x666e4961,
-	0x0000006f,0x00040005,0x0000005c,0x6d726f6e,0x00006c61,0x00040005,0x00000070,0x7366666f,
-	0x00007465,0x00060005,0x00000079,0x505f6c67,0x65567265,0x78657472,0x00000000,0x00060006,
-	0x00000079,0x00000000,0x505f6c67,0x7469736f,0x006e6f69,0x00030005,0x0000007b,0x00000000,
-	0x00040047,0x0000000a,0x0000001e,0x00000000,0x00040047,0x0000000e,0x0000001e,0x00000003,
-	0x00040048,0x00000015,0x00000000,0x00000005,0x00050048,0x00000015,0x00000000,0x00000023,
-	0x00000000,0x00050048,0x00000015,0x00000000,0x00000007,0x00000010,0x00050048,0x00000015,
-	0x00000001,0x00000023,0x00000040,0x00030047,0x00000015,0x00000002,0x00040047,0x0000001d,
-	0x0000001e,0x00000000,0x00040047,0x00000028,0x0000001e,0x00000002,0x00040047,0x00000052,
-	0x0000001e,0x00000001,0x00050048,0x00000079,0x00000000,0x0000000b,0x00000000,0x00030047,
-	0x00000079,0x00000002,0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,
-	0x00000006,0x00000020,0x00040017,0x00000007,0x00000006,0x00000004,0x0003001e,0x00000008,
-	0x00000007,0x00040020,0x00000009,0x00000003,0x00000008,0x0004003b,0x00000009,0x0000000a,
-	0x00000003,0x00040015,0x0000000b,0x00000020,0x00000001,0x0004002b,0x0000000b,0x0000000c,
-	0x00000000,0x00040020,0x0000000d,0x00000001,0x00000007,0x0004003b,0x0000000d,0x0000000e,
-	0x00000001,0x00040020,0x00000010,0x00000003,0x00000007,0x00040020,0x00000012,0x00000007,
-	0x00000007,0x00040018,0x00000014,0x00000007,0x00000004,0x0004001e,0x00000015,0x00000014,
-	0x00000006,0x00040020,0x00000016,0x00000009,0x00000015,0x0004003b,0x00000016,0x00000017,
-	0x00000009,0x00040020,0x00000018,0x00000009,0x00000014,0x00040017,0x0000001b,0x00000006,
-	0x00000003,0x00040020,0x0000001c,0x00000001,0x0000001b,0x0004003b,0x0000001c,0x0000001d,
-	0x00000001,0x0004002b,0x00000006,0x0000001f,0x3f800000,0x0004003b,0x0000001c,0x00000028,
-	0x00000001,0x00040017,0x0000002f,0x00000006,0x00000002,0x00040020,0x00000030,0x00000007,
-	0x0000002f,0x00040015,0x00000034,0x00000020,0x00000000,0x0004002b,0x00000034,0x00000035,
-	0x00000003,0x00040020,0x00000036,0x00000007,0x00000006,0x0004002b,0x0000000b,0x00000042,
-	0x00000001,0x00040020,0x00000043,0x00000009,0x00000006,0x0004002b,0x00000034,0x00000046,
-	0x00000000,0x0004003b,0x0000001c,0x00000052,0x00000001,0x0004002b,0x00000034,0x00000053,
-	0x00000002,0x00040020,0x00000054,0x00000001,0x00000006,0x0004002b,0x00000034,0x0000005d,
-	0x00000001,0x0004002b,0x00000006,0x00000066,0x40000000,0x0004002b,0x00000006,0x00000075,
-	0x00000000,0x0003001e,0x00000079,0x00000007,0x00040020,0x0000007a,0x00000003,0x00000079,
-	0x0004003b,0x0000007a,0x0000007b,0x00000003,0x00050036,0x00000002,0x00000004,0x00000000,
-	0x00000003,0x000200f8,0x00000005,0x0004003b,0x00000012,0x00000013,0x00000007,0x0004003b,
-	0x00000012,0x00000025,0x00000007,0x0004003b,0x00000030,0x00000031,0x00000007,0x0004003b,
-	0x00000030,0x0000003b,0x00000007,0x0004003b,0x00000030,0x00000051,0x00000007,0x0004003b,
-	0x00000030,0x0000005c,0x00000007,0x0004003b,0x00000012,0x00000070,0x00000007,0x0004003d,
-	0x00000007,0x0000000f,0x0000000e,0x00050041,0x00000010,0x00000011,0x0000000a,0x0000000c,
-	0x0003003e,0x00000011,0x0000000f,0x00050041,0x00000018,0x00000019,0x00000017,0x0000000c,
-	0x0004003d,0x00000014,0x0000001a,0x00000019,0x0004003d,0x0000001b,0x0000001e,0x0000001d,
-	0x00050051,0x00000006,0x00000020,0x0000001e,0x00000000,0x00050051,0x00000006,0x00000021,
-	0x0000001e,0x00000001,0x00050051,0x00000006,0x00000022,0x0000001e,0x00000002,0x00070050,
-	0x00000007,0x00000023,0x00000020,0x00000021,0x00000022,0x0000001f,0x00050091,0x00000007,
-	0x00000024,0x0000001a,0x00000023,0x0003003e,0x00000013,0x00000024,0x00050041,0x00000018,
-	0x00000026,0x00000017,0x0000000c,0x0004003d,0x00000014,0x00000027,0x00000026,0x0004003d,
-	0x0000001b,0x00000029,0x00000028,0x00050051,0x00000006,0x0000002a,0x00000029,0x00000000,
-	0x00050051,0x00000006,0x0000002b,0x00000029,0x00000001,0x00050051,0x00000006,0x0000002c,
-	0x00000029,0x00000002,0x00070050,0x00000007,0x0000002d,0x0000002a,0x0000002b,0x0000002c,
-	0x0000001f,0x00050091,0x00000007,0x0000002e,0x00000027,0x0000002d,0x0003003e,0x00000025,
-	0x0000002e,0x0004003d,0x00000007,0x00000032,0x00000013,0x0007004f,0x0000002f,0x00000033,
-	0x00000032,0x00000032,0x00000000,0x00000001,0x00050041,0x00000036,0x00000037,0x00000013,
-	0x00000035,0x0004003d,0x00000006,0x00000038,0x00000037,0x00050050,0x0000002f,0x00000039,
-	0x00000038,0x00000038,0x00050088,0x0000002f,0x0000003a,0x00000033,0x00000039,0x0003003e,
-	0x00000031,0x0000003a,0x0004003d,0x00000007,0x0000003c,0x00000025,0x0007004f,0x0000002f,
-	0x0000003d,0x0000003c,0x0000003c,0x00000000,0x00000001,0x00050041,0x00000036,0x0000003e,
-	0x00000025,0x00000035,0x0004003d,0x00000006,0x0000003f,0x0000003e,0x00050050,0x0000002f,
-	0x00000040,0x0000003f,0x0000003f,0x00050088,0x0000002f,0x00000041,0x0000003d,0x00000040,
-	0x0003003e,0x0000003b,0x00000041,0x00050041,0x00000043,0x00000044,0x00000017,0x00000042,
-	0x0004003d,0x00000006,0x00000045,0x00000044,0x00050041,0x00000036,0x00000047,0x00000031,
-	0x00000046,0x0004003d,0x00000006,0x00000048,0x00000047,0x00050085,0x00000006,0x00000049,
-	0x00000048,0x00000045,0x00050041,0x00000036,0x0000004a,0x00000031,0x00000046,0x0003003e,
-	0x0000004a,0x00000049,0x00050041,0x00000043,0x0000004b,0x00000017,0x00000042,0x0004003d,
-	0x00000006,0x0000004c,0x0000004b,0x00050041,0x00000036,0x0000004d,0x0000003b,0x00000046,
-	0x0004003d,0x00000006,0x0000004e,0x0000004d,0x00050085,0x00000006,0x0000004f,0x0000004e,
-	0x0000004c,0x00050041,0x00000036,0x00000050,0x0000003b,0x00000046,0x0003003e,0x00000050,
-	0x0000004f,0x00050041,0x00000054,0x00000055,0x00000052,0x00000053,0x0004003d,0x00000006,
-	0x00000056,0x00000055,0x0004003d,0x0000002f,0x00000057,0x0000003b,0x0004003d,0x0000002f,
-	0x00000058,0x00000031,0x00050083,0x0000002f,0x00000059,0x00000057,0x00000058,0x0006000c,
-	0x0000002f,0x0000005a,0x00000001,0x00000045,0x00000059,0x0005008e,0x0000002f,0x0000005b,
-	0x0000005a,0x00000056,0x0003003e,0x00000051,0x0000005b,0x00050041,0x00000036,0x0000005e,
-	0x00000051,0x0000005d,0x0004003d,0x00000006,0x0000005f,0x0000005e,0x0004007f,0x00000006,
-	0x00000060,0x0000005f,0x00050041,0x00000036,0x00000061,0x00000051,0x00000046,0x0004003d,
-	0x00000006,0x00000062,0x00000061,0x00050050,0x0000002f,0x00000063,0x00000060,0x00000062,
-	0x0003003e,0x0000005c,0x00000063,0x00050041,0x00000054,0x00000064,0x00000052,0x0000005d,
-	0x0004003d,0x00000006,0x00000065,0x00000064,0x00050088,0x00000006,0x00000067,0x00000065,
-	0x00000066,0x0004003d,0x0000002f,0x00000068,0x0000005c,0x0005008e,0x0000002f,0x00000069,
-	0x00000068,0x00000067,0x0003003e,0x0000005c,0x00000069,0x00050041,0x00000043,0x0000006a,
-	0x00000017,0x00000042,0x0004003d,0x00000006,0x0000006b,0x0000006a,0x00050041,0x00000036,
-	0x0000006c,0x0000005c,0x00000046,0x0004003d,0x00000006,0x0000006d,0x0000006c,0x00050088,
-	0x00000006,0x0000006e,0x0000006d,0x0000006b,0x00050041,0x00000036,0x0000006f,0x0000005c,
-	0x00000046,0x0003003e,0x0000006f,0x0000006e,0x0004003d,0x0000002f,0x00000071,0x0000005c,
-	0x00050041,0x00000054,0x00000072,0x00000052,0x00000046,0x0004003d,0x00000006,0x00000073,
-	0x00000072,0x0005008e,0x0000002f,0x00000074,0x00000071,0x00000073,0x00050051,0x00000006,
-	0x00000076,0x00000074,0x00000000,0x00050051,0x00000006,0x00000077,0x00000074,0x00000001,
-	0x00070050,0x00000007,0x00000078,0x00000076,0x00000077,0x00000075,0x00000075,0x0003003e,
-	0x00000070,0x00000078,0x0004003d,0x00000007,0x0000007c,0x00000013,0x0004003d,0x00000007,
-	0x0000007d,0x00000070,0x00050081,0x00000007,0x0000007e,0x0000007c,0x0000007d,0x00050041,
-	0x00000010,0x0000007f,0x0000007b,0x0000000c,0x0003003e,0x0000007f,0x0000007e,0x000100fd,
-	0x00010038
-
-};
-
-//-----------------------------------------------------------------------------
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
@@ -325,11 +95,52 @@ typedef struct _pl3DVulkanBufferInfo
     uint32_t       uIndexBufferOffset;
 } pl3DVulkanBufferInfo;
 
+typedef struct _plVulkanDynamicBuffer
+{
+    uint32_t              uHandle;
+    VkBuffer              tBuffer;
+    VkDeviceMemory        tMemory;
+    VkDescriptorSet       tDescriptorSet;
+} plVulkanDynamicBuffer;
+
 typedef struct _plVulkanBuffer
 {
+    char*          pcData;
     VkBuffer       tBuffer;
     VkDeviceMemory tMemory;
 } plVulkanBuffer;
+
+typedef struct _plVulkanTexture
+{
+    VkImage        tImage;
+    VkDeviceMemory tMemory;
+} plVulkanTexture;
+
+typedef struct _plVulkanSampler
+{
+    VkSampler   tSampler;
+    VkImageView tImageView;
+} plVulkanSampler;
+
+typedef struct _plVulkanBindGroupLayout
+{
+    VkDescriptorSetLayout tDescriptorSetLayout;
+} plVulkanBindGroupLayout;
+
+typedef struct _plVulkanBindGroup
+{
+    VkDescriptorSet       tDescriptorSet;
+    VkDescriptorSetLayout tDescriptorSetLayout;
+} plVulkanBindGroup;
+
+typedef struct _plVulkanShader
+{
+    VkPipelineLayout      tPipelineLayout;
+    VkPipeline            tPipeline;
+    VkSampleCountFlagBits tMSAASampleCount;
+    VkShaderModule        tVertexShaderModule;
+    VkShaderModule        tPixelShaderModule;
+} plVulkanShader;
 
 typedef struct _plFrameGarbage
 {
@@ -350,29 +161,30 @@ typedef struct _plFrameContext
 
 typedef struct _plVulkanSwapchain
 {
-    VkSwapchainKHR           tSwapChain;
-    VkExtent2D               tExtent;
-    VkFramebuffer*           sbtFrameBuffers;
-    VkFormat                 tFormat;
-    VkFormat                 tDepthFormat;
-    uint32_t                 uImageCount;
-    VkImage*                 sbtImages;
-    VkImageView*             sbtImageViews;
-    VkImage                  tColorTexture;
-    VkDeviceMemory           tColorTextureMemory;
-    VkImageView              tColorTextureView;
-    VkImage                  tDepthTexture;
-    VkDeviceMemory           tDepthTextureMemory;
-    VkImageView              tDepthTextureView;
-    uint32_t                 uCurrentImageIndex; // current image to use within the swap chain
-    bool                     bVSync;
-    VkSampleCountFlagBits    tMsaaSamples;
-    VkSurfaceFormatKHR*      sbtSurfaceFormats;
+    VkSwapchainKHR        tSwapChain;
+    VkExtent2D            tExtent;
+    VkFramebuffer*        sbtFrameBuffers;
+    VkFormat              tFormat;
+    VkFormat              tDepthFormat;
+    uint32_t              uImageCount;
+    VkImage*              sbtImages;
+    VkImageView*          sbtImageViews;
+    VkImage               tColorTexture;
+    VkDeviceMemory        tColorTextureMemory;
+    VkImageView           tColorTextureView;
+    VkImage               tDepthTexture;
+    VkDeviceMemory        tDepthTextureMemory;
+    VkImageView           tDepthTextureView;
+    uint32_t              uCurrentImageIndex; // current image to use within the swap chain
+    bool                  bVSync;
+    VkSampleCountFlagBits tMsaaSamples;
+    VkSurfaceFormatKHR*   sbtSurfaceFormats;
 
 } plVulkanSwapchain;
 
 typedef struct _plVulkanDevice
 {
+    plGraphics*                               ptGraphics;
     VkDevice                                  tLogicalDevice;
     VkPhysicalDevice                          tPhysicalDevice;
     int                                       iGraphicsQueueFamily;
@@ -409,1002 +221,86 @@ typedef struct _plVulkanGraphics
     VkSurfaceKHR             tSurface;
     plFrameContext*          sbFrames;
     VkRenderPass             tRenderPass;
-    uint32_t                 uFramesInFlight;
-    size_t                   szCurrentFrameIndex; // current frame being used
     VkDescriptorPool         tDescriptorPool;
     plVulkanSwapchain        tSwapchain;
 
+    plVulkanTexture*         sbtTextures;
+    plVulkanSampler*         sbtSamplers;
+    plVulkanBindGroup*       sbtBindGroups;
+    plVulkanBuffer*          sbtBuffers;
+    plVulkanShader*          sbtShaders;
+    plVulkanBindGroupLayout* sbtBindGroupLayouts;
 
-    VkPipelineLayout                  g_pipelineLayout;
-    VkPipeline                        g_pipeline;
-    VkVertexInputAttributeDescription g_attributeDescriptions[2];
-    VkVertexInputBindingDescription   g_bindingDescriptions[1];
-    VkShaderModule                    g_vertexShaderModule;
-    VkShaderModule                    g_pixelShaderModule;
+    VkDescriptorSetLayout tDynamicDescriptorSetLayout;
+    plVulkanDynamicBuffer tDynamicBuffers[2];
+    uint32_t              uDynamicByteOffset;
+
+    // staging buffer
+    size_t         szStageByteSize;
+    VkBuffer       tStagingBuffer;
+    VkDeviceMemory tStagingMemory;
+    void*          pStageMapping; // persistent mapping for staging buffer
 
     // drawing
 
     // committed buffers
-    pl3DBufferReturn*                  sbReturnedBuffers;
-    pl3DBufferReturn*                  sbReturnedBuffersTemp;
-    uint32_t                           uBufferDeletionQueueSize;
+    pl3DBufferReturn* sbReturnedBuffers;
+    pl3DBufferReturn* sbReturnedBuffersTemp;
+    uint32_t          uBufferDeletionQueueSize;
 
     // vertex & index buffer
-    pl3DVulkanBufferInfo*              sbt3DBufferInfo;
-    pl3DVulkanBufferInfo*              sbtLineBufferInfo;
-
-    // staging buffer
-    size_t                            szStageByteSize;
-    VkBuffer                          tStagingBuffer;
-    VkDeviceMemory                    tStagingMemory;
-    void*                             pStageMapping; // persistent mapping for staging buffer
+    pl3DVulkanBufferInfo* sbt3DBufferInfo;
+    pl3DVulkanBufferInfo* sbtLineBufferInfo;
 
     // 3D drawlist pipeline caching
-    VkPipelineLayout                  t3DPipelineLayout;
-    VkPipelineShaderStageCreateInfo   t3DPxlShdrStgInfo;
-    VkPipelineShaderStageCreateInfo   t3DVtxShdrStgInfo;
+    VkPipelineLayout                t3DPipelineLayout;
+    VkPipelineShaderStageCreateInfo t3DPxlShdrStgInfo;
+    VkPipelineShaderStageCreateInfo t3DVtxShdrStgInfo;
 
     // 3D line drawlist pipeline caching
-    VkPipelineLayout                  t3DLinePipelineLayout;
-    VkPipelineShaderStageCreateInfo   t3DLineVtxShdrStgInfo;
+    VkPipelineLayout                t3DLinePipelineLayout;
+    VkPipelineShaderStageCreateInfo t3DLineVtxShdrStgInfo;
 
     // pipelines
-    pl3DVulkanPipelineEntry*            sbt3DPipelines;
+    pl3DVulkanPipelineEntry* sbt3DPipelines;
 } plVulkanGraphics;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-// 3D drawing
-static void                   pl__grow_vulkan_3d_vertex_buffer   (plGraphics* ptGraphics, uint32_t uVtxBufSzNeeded, pl3DVulkanBufferInfo* ptBufferInfo);
-static void                   pl__grow_vulkan_3d_index_buffer    (plGraphics* ptGraphics, uint32_t uIdxBufSzNeeded, pl3DVulkanBufferInfo* ptBufferInfo);
-static pl3DVulkanPipelineEntry* pl__get_3d_pipelines            (plGraphics* ptGfx, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount, pl3DDrawFlags tFlags);
-
-static void pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags tFlags);
-
-static plFrameContext*
-pl_get_frame_resources(plGraphics* ptGraphics)
-{
-    plVulkanGraphics* ptVulkanGfx    = ptGraphics->_pInternalData;
-    return &ptVulkanGfx->sbFrames[ptVulkanGfx->szCurrentFrameIndex];
-}
-
-static VkDeviceMemory
-allocate_dedicated(plDevice* ptDevice, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
-{
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-
-    uint32_t uMemoryType = 0u;
-    bool bFound = false;
-    for (uint32_t i = 0; i < ptVulkanDevice->tMemProps.memoryTypeCount; i++) 
-    {
-        if ((uTypeFilter & (1 << i)) && (ptVulkanDevice->tMemProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) 
-        {
-            uMemoryType = i;
-            bFound = true;
-            break;
-        }
-    }
-    PL_ASSERT(bFound);
-
-    const VkMemoryAllocateInfo tAllocInfo = {
-        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize  = (uint32_t)ulSize,
-        .memoryTypeIndex = uMemoryType
-    };
-
-    VkDeviceMemory tMemory = VK_NULL_HANDLE;
-    VkResult tResult = vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, &tMemory);
-    PL_VULKAN(tResult);
-
-    return tMemory;
-}
-
-static VkSampleCountFlagBits
-get_max_sample_count(plDevice* ptDevice)
-{
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-
-    VkPhysicalDeviceProperties tPhysicalDeviceProperties = {0};
-    vkGetPhysicalDeviceProperties(ptVulkanDevice->tPhysicalDevice, &tPhysicalDeviceProperties);
-
-    VkSampleCountFlags tCounts = tPhysicalDeviceProperties.limits.framebufferColorSampleCounts & tPhysicalDeviceProperties.limits.framebufferDepthSampleCounts;
-    if (tCounts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT; }
-    if (tCounts & VK_SAMPLE_COUNT_32_BIT) { return VK_SAMPLE_COUNT_32_BIT; }
-    if (tCounts & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT; }
-    if (tCounts & VK_SAMPLE_COUNT_8_BIT)  { return VK_SAMPLE_COUNT_8_BIT; }
-    if (tCounts & VK_SAMPLE_COUNT_4_BIT)  { return VK_SAMPLE_COUNT_4_BIT; }
-    if (tCounts & VK_SAMPLE_COUNT_2_BIT)  { return VK_SAMPLE_COUNT_2_BIT; }
-    return VK_SAMPLE_COUNT_1_BIT;    
-}
-
-static VkFormat
-find_supported_format(plDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount)
-{
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-
-    for(uint32_t i = 0u; i < uFormatCount; i++)
-    {
-        VkFormatProperties tProps = {0};
-        vkGetPhysicalDeviceFormatProperties(ptVulkanDevice->tPhysicalDevice, ptFormats[i], &tProps);
-        if(tProps.optimalTilingFeatures & tFlags)
-            return ptFormats[i];
-    }
-
-    PL_ASSERT(false && "no supported format found");
-    return VK_FORMAT_UNDEFINED;
-}
-
-static VkFormat
-find_depth_format(plDevice* ptDevice)
-{
-    const VkFormat atFormats[] = {
-        VK_FORMAT_D32_SFLOAT,
-        VK_FORMAT_D32_SFLOAT_S8_UINT,
-        VK_FORMAT_D24_UNORM_S8_UINT
-    };
-    return find_supported_format(ptDevice, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT, atFormats, 3);
-}
-
-static VkFormat
-find_depth_stencil_format(plDevice* ptDevice)
-{
-     const VkFormat atFormats[] = {
-        VK_FORMAT_D32_SFLOAT_S8_UINT,
-        VK_FORMAT_D24_UNORM_S8_UINT
-    };
-    return find_supported_format(ptDevice, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT, atFormats, 2);   
-}
-
-static bool
-format_has_stencil(VkFormat tFormat)
-{
-    switch(tFormat)
-    {
-        case VK_FORMAT_D16_UNORM_S8_UINT:
-        case VK_FORMAT_D24_UNORM_S8_UINT:
-        case VK_FORMAT_D32_SFLOAT_S8_UINT: return true;
-        case VK_FORMAT_D32_SFLOAT:
-        default: return false;
-    }
-}
-
-static void
-transition_image_layout(VkCommandBuffer tCommandBuffer, VkImage tImage, VkImageLayout tOldLayout, VkImageLayout tNewLayout, VkImageSubresourceRange tSubresourceRange, VkPipelineStageFlags tSrcStageMask, VkPipelineStageFlags tDstStageMask)
-{
-    //VkCommandBuffer commandBuffer = mvBeginSingleTimeCommands();
-    VkImageMemoryBarrier tBarrier = {
-        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .oldLayout           = tOldLayout,
-        .newLayout           = tNewLayout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image               = tImage,
-        .subresourceRange    = tSubresourceRange,
-    };
-
-    // Source layouts (old)
-    // Source access mask controls actions that have to be finished on the old layout
-    // before it will be transitioned to the new layout
-    switch (tOldLayout)
-    {
-        case VK_IMAGE_LAYOUT_UNDEFINED:
-            // Image layout is undefined (or does not matter)
-            // Only valid as initial layout
-            // No flags required, listed only for completeness
-            tBarrier.srcAccessMask = 0;
-            break;
-
-        case VK_IMAGE_LAYOUT_PREINITIALIZED:
-            // Image is preinitialized
-            // Only valid as initial layout for linear images, preserves memory contents
-            // Make sure host writes have been finished
-            tBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-            // Image is a color attachment
-            // Make sure any writes to the color buffer have been finished
-            tBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-            // Image is a depth/stencil attachment
-            // Make sure any writes to the depth/stencil buffer have been finished
-            tBarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-            // Image is a transfer source
-            // Make sure any reads from the image have been finished
-            tBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-            // Image is a transfer destination
-            // Make sure any writes to the image have been finished
-            tBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-            // Image is read by a shader
-            // Make sure any shader reads from the image have been finished
-            tBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            break;
-        default:
-            // Other source layouts aren't handled (yet)
-            break;
-        }
-
-        // Target layouts (new)
-        // Destination access mask controls the dependency for the new image layout
-        switch (tNewLayout)
-        {
-        case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-            // Image will be used as a transfer destination
-            // Make sure any writes to the image have been finished
-            tBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-            // Image will be used as a transfer source
-            // Make sure any reads from the image have been finished
-            tBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-            // Image will be used as a color attachment
-            // Make sure any writes to the color buffer have been finished
-            tBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-            // Image layout will be used as a depth/stencil attachment
-            // Make sure any writes to depth/stencil buffer have been finished
-            tBarrier.dstAccessMask = tBarrier.dstAccessMask | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-            // Image will be read in a shader (sampler, input attachment)
-            // Make sure any writes to the image have been finished
-            if (tBarrier.srcAccessMask == 0)
-                tBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
-            tBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            break;
-        default:
-            // Other source layouts aren't handled (yet)
-            break;
-    }
-    vkCmdPipelineBarrier(tCommandBuffer, tSrcStageMask, tDstStageMask, 0, 0, NULL, 0, NULL, 1, &tBarrier);
-}
-
-static VKAPI_ATTR VkBool32 VKAPI_CALL
-pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT tMsgSeverity, VkDebugUtilsMessageTypeFlagsEXT tMsgType, const VkDebugUtilsMessengerCallbackDataEXT* ptCallbackData, void* pUserData) 
-{
-    if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
-    {
-        printf("error validation layer: %s\n", ptCallbackData->pMessage);
-        pl_log_error_to_f(uLogChannel, "error validation layer: %s\n", ptCallbackData->pMessage);
-    }
-
-    else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
-    {
-        printf("warn validation layer: %s\n", ptCallbackData->pMessage);
-        pl_log_warn_to_f(uLogChannel, "warn validation layer: %s\n", ptCallbackData->pMessage);
-    }
-
-    else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
-    {
-        // pl_log_trace_to_f(uLogChannel, "info validation layer: %s\n", ptCallbackData->pMessage);
-    }
-    else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
-    {
-        // pl_log_trace_to_f(uLogChannel, "trace validation layer: %s\n", ptCallbackData->pMessage);
-    }
-    
-    return VK_FALSE;
-}
-
-static void
-create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight, plVulkanSwapchain* ptSwapchainOut)
-{
-    plVulkanGraphics* ptVulkanGfx    = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-
-    vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice);
-
-    ptSwapchainOut->tMsaaSamples = get_max_sample_count(&ptGraphics->tDevice);
-
-    // query swapchain support
-
-    VkSurfaceCapabilitiesKHR tCapabilities = {0};
-    PL_VULKAN(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ptVulkanDevice->tPhysicalDevice, ptVulkanGfx->tSurface, &tCapabilities));
-
-    uint32_t uFormatCount = 0u;
-    PL_VULKAN(vkGetPhysicalDeviceSurfaceFormatsKHR(ptVulkanDevice->tPhysicalDevice, ptVulkanGfx->tSurface, &uFormatCount, NULL));
-    
-    pl_sb_resize(ptSwapchainOut->sbtSurfaceFormats, uFormatCount);
-
-    VkBool32 tPresentSupport = false;
-    PL_VULKAN(vkGetPhysicalDeviceSurfaceSupportKHR(ptVulkanDevice->tPhysicalDevice, 0, ptVulkanGfx->tSurface, &tPresentSupport));
-    PL_ASSERT(uFormatCount > 0);
-    PL_VULKAN(vkGetPhysicalDeviceSurfaceFormatsKHR(ptVulkanDevice->tPhysicalDevice, ptVulkanGfx->tSurface, &uFormatCount, ptSwapchainOut->sbtSurfaceFormats));
-
-    uint32_t uPresentModeCount = 0u;
-    PL_VULKAN(vkGetPhysicalDeviceSurfacePresentModesKHR(ptVulkanDevice->tPhysicalDevice, ptVulkanGfx->tSurface, &uPresentModeCount, NULL));
-    PL_ASSERT(uPresentModeCount > 0 && uPresentModeCount < 16);
-
-    VkPresentModeKHR atPresentModes[16] = {0};
-    PL_VULKAN(vkGetPhysicalDeviceSurfacePresentModesKHR(ptVulkanDevice->tPhysicalDevice, ptVulkanGfx->tSurface, &uPresentModeCount, atPresentModes));
-
-    // choose swap tSurface Format
-    static VkFormat atSurfaceFormatPreference[4] = 
-    {
-        VK_FORMAT_R8G8B8A8_UNORM,
-        VK_FORMAT_B8G8R8A8_UNORM,
-        VK_FORMAT_R8G8B8A8_SRGB,
-        VK_FORMAT_B8G8R8A8_SRGB
-    };
-
-    bool bPreferenceFound = false;
-    VkSurfaceFormatKHR tSurfaceFormat = ptSwapchainOut->sbtSurfaceFormats[0];
-    ptSwapchainOut->tFormat = tSurfaceFormat.format;
-
-    for(uint32_t i = 0u; i < 4; i++)
-    {
-        if(bPreferenceFound) break;
-        
-        for(uint32_t j = 0u; j < uFormatCount; j++)
-        {
-            if(ptSwapchainOut->sbtSurfaceFormats[j].format == atSurfaceFormatPreference[i] && ptSwapchainOut->sbtSurfaceFormats[j].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
-            {
-                tSurfaceFormat = ptSwapchainOut->sbtSurfaceFormats[j];
-                ptSwapchainOut->tFormat = tSurfaceFormat.format;
-                bPreferenceFound = true;
-                break;
-            }
-        }
-    }
-    PL_ASSERT(bPreferenceFound && "no preferred surface format found");
-
-    // chose swap present mode
-    VkPresentModeKHR tPresentMode = VK_PRESENT_MODE_FIFO_KHR;
-    if(!ptSwapchainOut->bVSync)
-    {
-        for(uint32_t i = 0 ; i < uPresentModeCount; i++)
-        {
-			if (atPresentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR)
-			{
-				tPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
-				break;
-			}
-			if (atPresentModes[i] == VK_PRESENT_MODE_IMMEDIATE_KHR)
-				tPresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-        }
-    }
-
-    // chose swap extent 
-    VkExtent2D tExtent = {0};
-    if(tCapabilities.currentExtent.width != UINT32_MAX)
-        tExtent = tCapabilities.currentExtent;
-    else
-    {
-        tExtent.width = pl_max(tCapabilities.minImageExtent.width, pl_min(tCapabilities.maxImageExtent.width, uWidth));
-        tExtent.height = pl_max(tCapabilities.minImageExtent.height, pl_min(tCapabilities.maxImageExtent.height, uHeight));
-    }
-    ptSwapchainOut->tExtent = tExtent;
-
-    // decide image count
-    const uint32_t uOldImageCount = ptSwapchainOut->uImageCount;
-    uint32_t uDesiredMinImageCount = tCapabilities.minImageCount + 1;
-    if(tCapabilities.maxImageCount > 0 && uDesiredMinImageCount > tCapabilities.maxImageCount) 
-        uDesiredMinImageCount = tCapabilities.maxImageCount;
-
-	// find the transformation of the surface
-	VkSurfaceTransformFlagsKHR tPreTransform;
-	if (tCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
-	{
-		// We prefer a non-rotated transform
-		tPreTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-	}
-	else
-	{
-		tPreTransform = tCapabilities.currentTransform;
-	}
-
-	// find a supported composite alpha format (not all devices support alpha opaque)
-	VkCompositeAlphaFlagBitsKHR tCompositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	
-    // simply select the first composite alpha format available
-	static const VkCompositeAlphaFlagBitsKHR atCompositeAlphaFlags[] = {
-		VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-		VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
-		VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR,
-		VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR
-	};
-
-	for (int i = 0; i < 4; i++)
-    {
-		if (tCapabilities.supportedCompositeAlpha & atCompositeAlphaFlags[i]) 
-        {
-			tCompositeAlpha = atCompositeAlphaFlags[i];
-			break;
-		};
-	}
-
-    VkSwapchainCreateInfoKHR tCreateSwapchainInfo = {
-        .sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-        .surface          = ptVulkanGfx->tSurface,
-        .minImageCount    = uDesiredMinImageCount,
-        .imageFormat      = tSurfaceFormat.format,
-        .imageColorSpace  = tSurfaceFormat.colorSpace,
-        .imageExtent      = tExtent,
-        .imageArrayLayers = 1,
-        .imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-        .preTransform     = (VkSurfaceTransformFlagBitsKHR)tPreTransform,
-        .compositeAlpha   = tCompositeAlpha,
-        .presentMode      = tPresentMode,
-        .clipped          = VK_TRUE, // setting clipped to VK_TRUE allows the implementation to discard rendering outside of the surface area
-        .oldSwapchain     = ptSwapchainOut->tSwapChain, // setting oldSwapChain to the saved handle of the previous swapchain aids in resource reuse and makes sure that we can still present already acquired images
-        .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE
-    };
-
-	// enable transfer source on swap chain images if supported
-	if (tCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
-		tCreateSwapchainInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-
-	// enable transfer destination on swap chain images if supported
-	if (tCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT)
-		tCreateSwapchainInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-
-    uint32_t auQueueFamilyIndices[] = { (uint32_t)ptVulkanDevice->iGraphicsQueueFamily, (uint32_t)ptVulkanDevice->iPresentQueueFamily};
-    if (ptVulkanDevice->iGraphicsQueueFamily != ptVulkanDevice->iPresentQueueFamily)
-    {
-        tCreateSwapchainInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-        tCreateSwapchainInfo.queueFamilyIndexCount = 2;
-        tCreateSwapchainInfo.pQueueFamilyIndices = auQueueFamilyIndices;
-    }
-
-    VkSwapchainKHR tOldSwapChain = ptSwapchainOut->tSwapChain;
-
-    PL_VULKAN(vkCreateSwapchainKHR(ptVulkanDevice->tLogicalDevice, &tCreateSwapchainInfo, NULL, &ptSwapchainOut->tSwapChain));
-
-    if(tOldSwapChain)
-    {
-        if(pl_sb_size(ptVulkanDevice->_sbtFrameGarbage) == 0)
-        {
-            pl_sb_resize(ptVulkanDevice->_sbtFrameGarbage, ptSwapchainOut->uImageCount);
-        }
-        for (uint32_t i = 0u; i < uOldImageCount; i++)
-        {
-            pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtTextureViews, ptSwapchainOut->sbtImageViews[i]);
-            pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtFrameBuffers, ptSwapchainOut->sbtFrameBuffers[i]);
-        }
-        vkDestroySwapchainKHR(ptVulkanDevice->tLogicalDevice, tOldSwapChain, NULL);
-    }
-
-    // get swapchain images
-
-    PL_VULKAN(vkGetSwapchainImagesKHR(ptVulkanDevice->tLogicalDevice, ptSwapchainOut->tSwapChain, &ptSwapchainOut->uImageCount, NULL));
-    pl_sb_resize(ptSwapchainOut->sbtImages, ptSwapchainOut->uImageCount);
-    pl_sb_resize(ptSwapchainOut->sbtImageViews, ptSwapchainOut->uImageCount);
-
-    PL_VULKAN(vkGetSwapchainImagesKHR(ptVulkanDevice->tLogicalDevice, ptSwapchainOut->tSwapChain, &ptSwapchainOut->uImageCount, ptSwapchainOut->sbtImages));
-
-    for(uint32_t i = 0; i < ptSwapchainOut->uImageCount; i++)
-    {
-
-        ptSwapchainOut->sbtImageViews[i] = VK_NULL_HANDLE;
-
-        VkImageViewCreateInfo tViewInfo = {
-            .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image            = ptSwapchainOut->sbtImages[i],
-            .viewType         = VK_IMAGE_VIEW_TYPE_2D,
-            .format           = ptSwapchainOut->tFormat,
-            .subresourceRange = {
-                .baseMipLevel   = 0,
-                .levelCount     = 1,
-                .baseArrayLayer = 0,
-                .layerCount     = 1,
-                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT
-            },
-            .components = {
-                        VK_COMPONENT_SWIZZLE_R,
-                        VK_COMPONENT_SWIZZLE_G,
-                        VK_COMPONENT_SWIZZLE_B,
-                        VK_COMPONENT_SWIZZLE_A
-                    }
-        };
-
-        PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tViewInfo, NULL, &ptSwapchainOut->sbtImageViews[i]));
-    }  //-V1020
-
-    // color & depth
-    if(ptSwapchainOut->tColorTextureView)  pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtTextureViews, ptSwapchainOut->tColorTextureView);
-    if(ptSwapchainOut->tDepthTextureView)  pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtTextureViews, ptSwapchainOut->tDepthTextureView);
-    if(ptSwapchainOut->tColorTexture)      pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtTextures, ptSwapchainOut->tColorTexture);
-    if(ptSwapchainOut->tDepthTexture)      pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtTextures, ptSwapchainOut->tDepthTexture);
-    if(ptSwapchainOut->tColorTextureMemory)      pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtMemory, ptSwapchainOut->tColorTextureMemory);
-    if(ptSwapchainOut->tDepthTextureMemory)      pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtMemory, ptSwapchainOut->tDepthTextureMemory);
-
-    ptSwapchainOut->tColorTextureView = VK_NULL_HANDLE;
-    ptSwapchainOut->tColorTexture     = VK_NULL_HANDLE;
-    ptSwapchainOut->tDepthTextureView = VK_NULL_HANDLE;
-    ptSwapchainOut->tDepthTexture     = VK_NULL_HANDLE;
-
-    VkImageCreateInfo tDepthImageInfo = {
-        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType     = VK_IMAGE_TYPE_2D,
-        .extent        = 
-        {
-            .width  = ptSwapchainOut->tExtent.width,
-            .height = ptSwapchainOut->tExtent.height,
-            .depth  = 1
-        },
-        .mipLevels     = 1,
-        .arrayLayers   = 1,
-        .format        = find_depth_stencil_format(&ptGraphics->tDevice),
-        .tiling        = VK_IMAGE_TILING_OPTIMAL,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .usage         = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
-        .samples       = ptSwapchainOut->tMsaaSamples,
-        .flags         = 0
-    };
-
-    VkImageCreateInfo tColorImageInfo = {
-        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType     = VK_IMAGE_TYPE_2D,
-        .extent        = 
-        {
-            .width  = ptSwapchainOut->tExtent.width,
-            .height = ptSwapchainOut->tExtent.height,
-            .depth  = 1
-        },
-        .mipLevels     = 1,
-        .arrayLayers   = 1,
-        .format        = ptSwapchainOut->tFormat,
-        .tiling        = VK_IMAGE_TILING_OPTIMAL,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
-        .samples       = ptSwapchainOut->tMsaaSamples,
-        .flags         = 0
-    };
-
-    PL_VULKAN(vkCreateImage(ptVulkanDevice->tLogicalDevice, &tDepthImageInfo, NULL, &ptSwapchainOut->tDepthTexture));
-    PL_VULKAN(vkCreateImage(ptVulkanDevice->tLogicalDevice, &tColorImageInfo, NULL, &ptSwapchainOut->tColorTexture));
-
-    VkMemoryRequirements tDepthMemReqs = {0};
-    VkMemoryRequirements tColorMemReqs = {0};
-    vkGetImageMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptSwapchainOut->tDepthTexture, &tDepthMemReqs);
-    vkGetImageMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptSwapchainOut->tColorTexture, &tColorMemReqs);
-
-
-    ptSwapchainOut->tColorTextureMemory = allocate_dedicated(&ptGraphics->tDevice, tColorMemReqs.memoryTypeBits, tColorMemReqs.size, tColorMemReqs.alignment, "swapchain color");
-    ptSwapchainOut->tDepthTextureMemory = allocate_dedicated(&ptGraphics->tDevice, tDepthMemReqs.memoryTypeBits, tDepthMemReqs.size, tDepthMemReqs.alignment, "swapchain depth");
-
-    PL_VULKAN(vkBindImageMemory(ptVulkanDevice->tLogicalDevice, ptSwapchainOut->tDepthTexture, ptSwapchainOut->tDepthTextureMemory, 0));
-    PL_VULKAN(vkBindImageMemory(ptVulkanDevice->tLogicalDevice, ptSwapchainOut->tColorTexture, ptSwapchainOut->tColorTextureMemory, 0));
-
-    VkCommandBuffer tCommandBuffer = {0};
-    
-    const VkCommandBufferAllocateInfo tAllocInfo = {
-        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandPool        = ptVulkanDevice->tCmdPool,
-        .commandBufferCount = 1u,
-    };
-    vkAllocateCommandBuffers(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tCommandBuffer);
-
-    const VkCommandBufferBeginInfo tBeginInfo = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-    };
-
-    vkBeginCommandBuffer(tCommandBuffer, &tBeginInfo);
-
-    VkImageSubresourceRange tRange = {
-        .baseMipLevel   = 0,
-        .levelCount     = 1,
-        .baseArrayLayer = 0,
-        .layerCount     = 1,
-        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT
-    };
-
-    transition_image_layout(tCommandBuffer, ptSwapchainOut->tColorTexture, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-    tRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-    transition_image_layout(tCommandBuffer, ptSwapchainOut->tDepthTexture, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-
-    PL_VULKAN(vkEndCommandBuffer(tCommandBuffer));
-    const VkSubmitInfo tSubmitInfo = {
-        .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .commandBufferCount = 1u,
-        .pCommandBuffers    = &tCommandBuffer,
-    };
-
-    PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
-    PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
-    vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
-
-    VkImageViewCreateInfo tDepthViewInfo = {
-        .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image                           = ptSwapchainOut->tDepthTexture,
-        .viewType                        = VK_IMAGE_VIEW_TYPE_2D,
-        .format                          = tDepthImageInfo.format,
-        .subresourceRange.baseMipLevel   = 0,
-        .subresourceRange.levelCount     = 1,
-        .subresourceRange.baseArrayLayer = 0,
-        .subresourceRange.layerCount     = 1,
-        .subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT,
-    };
-
-    if(format_has_stencil(tDepthViewInfo.format))
-        tDepthViewInfo.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
-
-    VkImageViewCreateInfo tColorViewInfo = {
-        .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image                           = ptSwapchainOut->tColorTexture,
-        .viewType                        = VK_IMAGE_VIEW_TYPE_2D,
-        .format                          = tColorImageInfo.format,
-        .subresourceRange.baseMipLevel   = 0,
-        .subresourceRange.levelCount     = 1,
-        .subresourceRange.baseArrayLayer = 0,
-        .subresourceRange.layerCount     = 1,
-        .subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-    };
-
-    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tDepthViewInfo, NULL, &ptSwapchainOut->tDepthTextureView));
-    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tColorViewInfo, NULL, &ptSwapchainOut->tColorTextureView));
-
-}
-
-static char*
-read_file(const char* file, unsigned* size, const char* mode)
-{
-    FILE* dataFile = fopen(file, mode);
-
-    if (dataFile == NULL)
-    {
-        assert(false && "File not found.");
-        return NULL;
-    }
-
-    // obtain file size:
-    fseek(dataFile, 0, SEEK_END);
-    *size = ftell(dataFile);
-    fseek(dataFile, 0, SEEK_SET);
-
-    // allocate memory to contain the whole file:
-    char* data = (char*)malloc(sizeof(char)*(*size));
-
-    // copy the file into the buffer:
-    size_t result = fread(data, sizeof(char), *size, dataFile);
-    if (result != *size)
-    {
-        if (feof(dataFile))
-            printf("Error reading test.bin: unexpected end of file\n");
-        else if (ferror(dataFile)) {
-            perror("Error reading test.bin");
-        }
-        assert(false && "File not read.");
-    }
-
-    fclose(dataFile);
-
-    return data;
-}
-
-static uint32_t
-find_memory_type(VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties)
-{
-    uint32_t uMemoryType = 0u;
-    for (uint32_t i = 0; i < tMemProps.memoryTypeCount; i++) 
-    {
-        if ((uTypeFilter & (1 << i)) && (tMemProps.memoryTypes[i].propertyFlags & tProperties) == tProperties) 
-        {
-            uMemoryType = i;
-            break;
-        }
-    }
-    return uMemoryType;    
-}
-
-static uint32_t
-pl__find_memory_type_(VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties)
-{
-    for (uint32_t i = 0; i < tMemProps.memoryTypeCount; i++) 
-    {
-        if ((uTypeFilter & (1 << i)) && (tMemProps.memoryTypes[i].propertyFlags & tProperties) == tProperties) 
-            return i;
-    }
-    return 0;
-}
-
-static void
-pl__grow_vulkan_3d_vertex_buffer(plGraphics* ptGfx, uint32_t uVtxBufSzNeeded, pl3DVulkanBufferInfo* ptBufferInfo)
-{
-    plVulkanGraphics* ptVulkanGfx = ptGfx->_pInternalData;
-    plVulkanDevice* ptVulkanDevice = ptGfx->tDevice._pInternalData;
-
-    // buffer currently exists & mapped, submit for cleanup
-    if(ptBufferInfo->ucVertexBufferMap)
-    {
-        const pl3DBufferReturn tReturnBuffer = {
-            .tBuffer       = ptBufferInfo->tVertexBuffer,
-            .tDeviceMemory = ptBufferInfo->tVertexMemory,
-            .slFreedFrame  = (int64_t)(pl_get_io()->ulFrameCount + ptVulkanGfx->uFramesInFlight * 2)
-        };
-        pl_sb_push(ptVulkanGfx->sbReturnedBuffers, tReturnBuffer);
-        ptVulkanGfx->uBufferDeletionQueueSize++;
-        vkUnmapMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexMemory);
-    }
-
-    // create new buffer
-    const VkBufferCreateInfo tBufferCreateInfo = {
-        .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size        = uVtxBufSzNeeded,
-        .usage       = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
-    };
-    PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &tBufferCreateInfo, NULL, &ptBufferInfo->tVertexBuffer));
-
-    // check memory requirements
-    VkMemoryRequirements tMemReqs = {0};
-    vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexBuffer, &tMemReqs);
-
-    // allocate memory & bind buffer
-    const VkMemoryAllocateInfo tAllocInfo = {
-        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize  = tMemReqs.size,
-        .memoryTypeIndex = pl__find_memory_type_(ptVulkanDevice->tMemProps, tMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
-    };
-    ptBufferInfo->uVertexByteSize = (uint32_t)tMemReqs.size;
-    PL_VULKAN(vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, &ptBufferInfo->tVertexMemory));
-    PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexBuffer, ptBufferInfo->tVertexMemory, 0));
-
-    // map memory persistently
-    PL_VULKAN(vkMapMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexMemory, 0, tMemReqs.size, 0, (void**)&ptBufferInfo->ucVertexBufferMap));
-
-    ptBufferInfo->uVertexBufferOffset = 0;
-}
-
-static void
-pl__grow_vulkan_3d_index_buffer(plGraphics* ptGfx, uint32_t uIdxBufSzNeeded, pl3DVulkanBufferInfo* ptBufferInfo)
-{
-    plVulkanGraphics* ptVulkanGfx = ptGfx->_pInternalData;
-    plVulkanDevice* ptVulkanDevice = ptGfx->tDevice._pInternalData;
-
-    // buffer currently exists & mapped, submit for cleanup
-    if(ptBufferInfo->ucIndexBufferMap)
-    {
-        const pl3DBufferReturn tReturnBuffer = {
-            .tBuffer       = ptBufferInfo->tIndexBuffer,
-            .tDeviceMemory = ptBufferInfo->tIndexMemory,
-            .slFreedFrame  = (int64_t)(pl_get_io()->ulFrameCount + ptVulkanGfx->uFramesInFlight * 2)
-        };
-        pl_sb_push(ptVulkanGfx->sbReturnedBuffers, tReturnBuffer);
-        ptVulkanGfx->uBufferDeletionQueueSize++;
-        vkUnmapMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexMemory);
-    }
-
-    // create new buffer
-    const VkBufferCreateInfo tBufferCreateInfo = {
-        .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size        = uIdxBufSzNeeded,
-        .usage       = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
-    };
-    PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &tBufferCreateInfo, NULL, &ptBufferInfo->tIndexBuffer));
-
-    // check memory requirements
-    VkMemoryRequirements tMemReqs = {0};
-    vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexBuffer, &tMemReqs);
-
-    // alllocate memory & bind buffer
-    const VkMemoryAllocateInfo tAllocInfo = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize = tMemReqs.size,
-        .memoryTypeIndex = pl__find_memory_type_(ptVulkanDevice->tMemProps, tMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
-    };
-    ptBufferInfo->uIndexByteSize = (uint32_t)tMemReqs.size;
-    PL_VULKAN(vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, &ptBufferInfo->tIndexMemory));
-    PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexBuffer, ptBufferInfo->tIndexMemory, 0));
-
-    // map memory persistently
-    PL_VULKAN(vkMapMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexMemory, 0, tMemReqs.size, 0, (void**)&ptBufferInfo->ucIndexBufferMap));
-
-    ptBufferInfo->uIndexBufferOffset = 0;
-}
-
-static pl3DVulkanPipelineEntry*
-pl__get_3d_pipelines(plGraphics* ptGfx, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount, pl3DDrawFlags tFlags)
-{
-    plVulkanGraphics* ptVulkanGfx = ptGfx->_pInternalData;
-    plVulkanDevice* ptVulkanDevice = ptGfx->tDevice._pInternalData;
-
-    // return pipeline entry if it exists
-    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbt3DPipelines); i++)
-    {
-        if(ptVulkanGfx->sbt3DPipelines[i].tRenderPass == tRenderPass && tMSAASampleCount == ptVulkanGfx->sbt3DPipelines[i].tMSAASampleCount && ptVulkanGfx->sbt3DPipelines[i].tFlags == tFlags)
-            return &ptVulkanGfx->sbt3DPipelines[i];
-    }
-
-    // create new pipeline entry
-    pl3DVulkanPipelineEntry tEntry = {
-        .tRenderPass      = tRenderPass,
-        .tMSAASampleCount = tMSAASampleCount,
-        .tFlags           = tFlags
-    };
-
-    const VkPipelineInputAssemblyStateCreateInfo tInputAssembly = {
-        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        .primitiveRestartEnable = VK_FALSE
-    };
-
-    const VkVertexInputAttributeDescription aAttributeDescriptions[] = {
-        {0u, 0u, VK_FORMAT_R32G32B32_SFLOAT, 0u},
-        {1u, 0u, VK_FORMAT_R8G8B8A8_UNORM,  12u}
-    };
-    
-    const VkVertexInputBindingDescription tBindingDescription = {
-        .binding   = 0u,
-        .stride    = sizeof(plDrawVertex3DSolid),
-        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-    };
-
-    const VkPipelineVertexInputStateCreateInfo tVertexInputInfo = {
-        .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount   = 1u,
-        .vertexAttributeDescriptionCount = 2u,
-        .pVertexBindingDescriptions      = &tBindingDescription,
-        .pVertexAttributeDescriptions    = aAttributeDescriptions
-    };
-
-    const VkVertexInputAttributeDescription aLineAttributeDescriptions[] = {
-        {0u, 0u, VK_FORMAT_R32G32B32_SFLOAT, 0u},
-        {1u, 0u, VK_FORMAT_R32G32B32_SFLOAT, 12u},
-        {2u, 0u, VK_FORMAT_R32G32B32_SFLOAT, 24u},
-        {3u, 0u, VK_FORMAT_R8G8B8A8_UNORM,  36u}
-    };
-    
-    const VkVertexInputBindingDescription tLineBindingDescription = {
-        .binding   = 0u,
-        .stride    = sizeof(plDrawVertex3DLine),
-        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-    };
-
-    const VkPipelineVertexInputStateCreateInfo tLineVertexInputInfo = {
-        .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount   = 1u,
-        .vertexAttributeDescriptionCount = 4u,
-        .pVertexBindingDescriptions      = &tLineBindingDescription,
-        .pVertexAttributeDescriptions    = aLineAttributeDescriptions
-    };
-
-    // dynamic, set per frame
-    VkViewport tViewport = {0};
-    VkRect2D tScissor = {0};
-
-    const VkPipelineViewportStateCreateInfo tViewportState = {
-        .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewportCount = 1,
-        .pViewports    = &tViewport,
-        .scissorCount  = 1,
-        .pScissors     = &tScissor
-    };
-
-    VkCullModeFlags tCullFlags = VK_CULL_MODE_NONE;
-    if(tFlags & PL_PIPELINE_FLAG_CULL_FRONT)
-        tCullFlags = VK_CULL_MODE_FRONT_BIT;
-    else if(tFlags & PL_PIPELINE_FLAG_CULL_BACK)
-        tCullFlags = VK_CULL_MODE_BACK_BIT;
-
-    const VkPipelineRasterizationStateCreateInfo tRasterizer = {
-        .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .depthClampEnable        = VK_FALSE,
-        .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode             = VK_POLYGON_MODE_FILL,
-        .lineWidth               = 1.0f,
-        .cullMode                = tCullFlags,
-        .frontFace               = tFlags & PL_PIPELINE_FLAG_FRONT_FACE_CW ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE,
-        .depthBiasEnable         = VK_FALSE
-    };
-
-    const VkPipelineDepthStencilStateCreateInfo tDepthStencil = {
-        .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthTestEnable       = tFlags & PL_PIPELINE_FLAG_DEPTH_TEST ? VK_TRUE : VK_FALSE,
-        .depthWriteEnable      = tFlags & PL_PIPELINE_FLAG_DEPTH_WRITE ? VK_TRUE : VK_FALSE,
-        .depthCompareOp        = VK_COMPARE_OP_LESS_OR_EQUAL,
-        .depthBoundsTestEnable = VK_FALSE,
-        .minDepthBounds        = 0.0f,
-        .maxDepthBounds        = 1.0f,
-        .stencilTestEnable     = VK_FALSE,
-        .front                 = {0},
-        .back                  = {0}
-    };
-
-    //---------------------------------------------------------------------
-    // color blending stage
-    //---------------------------------------------------------------------
-
-    const VkPipelineColorBlendAttachmentState tColorBlendAttachment = {
-        .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT,
-        .blendEnable         = VK_TRUE,
-        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-        .colorBlendOp        = VK_BLEND_OP_ADD,
-        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-        .alphaBlendOp        = VK_BLEND_OP_ADD
-    };
-
-    const VkPipelineColorBlendStateCreateInfo tColorBlending = {
-        .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .logicOpEnable   = VK_FALSE,
-        .logicOp         = VK_LOGIC_OP_COPY,
-        .attachmentCount = 1,
-        .pAttachments    = &tColorBlendAttachment,
-        .blendConstants  = {0}
-    };
-
-    const VkPipelineMultisampleStateCreateInfo tMultisampling = {
-        .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .sampleShadingEnable  = VK_FALSE,
-        .rasterizationSamples = tMSAASampleCount
-    };
-
-    VkDynamicState atDynamicStateEnables[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-
-    const VkPipelineDynamicStateCreateInfo tDynamicState = {
-        .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .dynamicStateCount = 2u,
-        .pDynamicStates    = atDynamicStateEnables
-    };
-
-    //---------------------------------------------------------------------
-    // Create Regular Pipeline
-    //---------------------------------------------------------------------
-
-    VkPipelineShaderStageCreateInfo atShaderStages[] = { ptVulkanGfx->t3DVtxShdrStgInfo, ptVulkanGfx->t3DPxlShdrStgInfo };
-
-    VkGraphicsPipelineCreateInfo pipeInfo = {
-        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .stageCount          = 2u,
-        .pStages             = atShaderStages,
-        .pVertexInputState   = &tVertexInputInfo,
-        .pInputAssemblyState = &tInputAssembly,
-        .pViewportState      = &tViewportState,
-        .pRasterizationState = &tRasterizer,
-        .pMultisampleState   = &tMultisampling,
-        .pColorBlendState    = &tColorBlending,
-        .pDynamicState       = &tDynamicState,
-        .layout              = ptVulkanGfx->t3DPipelineLayout,
-        .renderPass          = tRenderPass,
-        .subpass             = 0u,
-        .basePipelineHandle  = VK_NULL_HANDLE,
-        .pDepthStencilState  = &tDepthStencil
-    };
-    PL_VULKAN(vkCreateGraphicsPipelines(ptVulkanDevice->tLogicalDevice, VK_NULL_HANDLE, 1, &pipeInfo, NULL, &tEntry.tRegularPipeline));
-
-    // //---------------------------------------------------------------------
-    // // Create SDF Pipeline
-    // //---------------------------------------------------------------------
-
-    atShaderStages[0] = ptVulkanGfx->t3DLineVtxShdrStgInfo;
-    pipeInfo.pStages = atShaderStages;
-    pipeInfo.pVertexInputState = &tLineVertexInputInfo;
-    pipeInfo.layout = ptVulkanGfx->t3DLinePipelineLayout;
-
-    PL_VULKAN(vkCreateGraphicsPipelines(ptVulkanDevice->tLogicalDevice, VK_NULL_HANDLE, 1, &pipeInfo, NULL, &tEntry.tSecondaryPipeline));
-
-    // add to entries
-    pl_sb_push(ptVulkanGfx->sbt3DPipelines, tEntry);
-
-    return &pl_sb_back(ptVulkanGfx->sbt3DPipelines); 
-}
+// conversion between pilotlight & vulkan types
+static VkFilter             pl__vulkan_filter (plFilter tFilter);
+static VkSamplerAddressMode pl__vulkan_wrap   (plWrapMode tWrap);
+static VkCompareOp          pl__vulkan_compare(plCompareMode tCompare);
+static VkFormat             pl__vulkan_format (plFormat tFormat);
+static plFormat             pl__pilotlight_format(VkFormat tFormat);
+
+// 3D drawing helpers
+static void                     pl__grow_vulkan_3d_vertex_buffer(plGraphics* ptGraphics, uint32_t uVtxBufSzNeeded, pl3DVulkanBufferInfo* ptBufferInfo);
+static void                     pl__grow_vulkan_3d_index_buffer(plGraphics* ptGraphics, uint32_t uIdxBufSzNeeded, pl3DVulkanBufferInfo* ptBufferInfo);
+static pl3DVulkanPipelineEntry* pl__get_3d_pipelines(plGraphics* ptGfx, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount, pl3DDrawFlags tFlags);
+static void                     pl__grow_vulkan_3d_vertex_buffer(plGraphics* ptGfx, uint32_t uVtxBufSzNeeded, pl3DVulkanBufferInfo* ptBufferInfo);
+static void                     pl__grow_vulkan_3d_index_buffer(plGraphics* ptGfx, uint32_t uIdxBufSzNeeded, pl3DVulkanBufferInfo* ptBufferInfo);
+
+static plFrameContext*       pl__get_frame_resources(plGraphics* ptGraphics);
+static VkDeviceMemory        pl__allocate_dedicated(plDevice* ptDevice, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
+static VkSampleCountFlagBits pl__get_max_sample_count(plDevice* ptDevice);
+static VkFormat              pl__find_supported_format(plDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount);
+static VkFormat              pl__find_depth_format(plDevice* ptDevice);
+static VkFormat              pl__find_depth_stencil_format(plDevice* ptDevice);
+static bool                  pl__format_has_stencil(VkFormat tFormat);
+static void                  pl__transition_image_layout(VkCommandBuffer tCommandBuffer, VkImage tImage, VkImageLayout tOldLayout, VkImageLayout tNewLayout, VkImageSubresourceRange tSubresourceRange, VkPipelineStageFlags tSrcStageMask, VkPipelineStageFlags tDstStageMask);
+static void                  pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight, plVulkanSwapchain* ptSwapchainOut);
+static uint32_t              pl__find_memory_type_(VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties);
+static void                  pl__transfer_data_to_buffer(plDevice* ptDevice, VkBuffer tDest, size_t szSize, const void* pData);
+static void                  pl__transfer_data_to_image(plDevice* ptDevice, plTexture* ptDest, size_t szDataSize, const void* pData);
+
+static VKAPI_ATTR VkBool32 VKAPI_CALL pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT tMsgSeverity, VkDebugUtilsMessageTypeFlagsEXT tMsgType, const VkDebugUtilsMessengerCallbackDataEXT* ptCallbackData, void* pUserData);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api implementation
+//-----------------------------------------------------------------------------
 
 static void
 pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags tFlags)
@@ -1416,7 +312,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
     pl3DVulkanPipelineEntry* tPipelineEntry = pl__get_3d_pipelines(ptGfx, ptVulkanGfx->tRenderPass, ptVulkanGfx->tSwapchain.tMsaaSamples, tFlags);
     const float fAspectRatio = fWidth / fHeight;
 
-    plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGfx);
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGfx);
 
     // regular 3D
     if(pl_sb_size(ptDrawlist->sbtSolidVertexBuffer) > 0u)
@@ -1426,7 +322,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
         // ensure gpu vertex buffer size is adequate
         const uint32_t uVtxBufSzNeeded = sizeof(plDrawVertex3DSolid) * pl_sb_size(ptDrawlist->sbtSolidVertexBuffer);
 
-        pl3DVulkanBufferInfo* ptBufferInfo = &ptVulkanGfx->sbt3DBufferInfo[ptVulkanGfx->szCurrentFrameIndex];
+        pl3DVulkanBufferInfo* ptBufferInfo = &ptVulkanGfx->sbt3DBufferInfo[ptGfx->uCurrentFrameIndex];
 
         // space left in vertex buffer
         const uint32_t uAvailableVertexBufferSpace = ptBufferInfo->uVertexByteSize - ptBufferInfo->uVertexBufferOffset;
@@ -1492,7 +388,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
         // ensure gpu vertex buffer size is adequate
         const uint32_t uVtxBufSzNeeded = sizeof(plDrawVertex3DLine) * pl_sb_size(ptDrawlist->sbtLineVertexBuffer);
 
-        pl3DVulkanBufferInfo* ptBufferInfo = &ptVulkanGfx->sbtLineBufferInfo[ptVulkanGfx->szCurrentFrameIndex];
+        pl3DVulkanBufferInfo* ptBufferInfo = &ptVulkanGfx->sbtLineBufferInfo[ptGfx->uCurrentFrameIndex];
 
         // space left in vertex buffer
         const uint32_t uAvailableVertexBufferSpace = ptBufferInfo->uVertexByteSize - ptBufferInfo->uVertexBufferOffset;
@@ -1552,183 +448,185 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
     }
 }
 
-//-----------------------------------------------------------------------------
-// [SECTION] public api implementation
-//-----------------------------------------------------------------------------
-
-static uint32_t
-pl_create_index_buffer(plDevice* ptDevice, size_t szSize, const void* pData, const char* pcName)
+static plBuffer
+pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc)
 {
     plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-
-    const uint32_t uBufferIndex = pl_sb_size(ptDevice->sbtBuffers);
-
-    plVulkanBuffer* ptBuffer = PL_ALLOC(sizeof(plVulkanBuffer));
-    memset(ptBuffer, 0, sizeof(plVulkanBuffer));
+    plVulkanGraphics* ptVulkanGraphics = ptVulkanDevice->ptGraphics->_pInternalData;
 
     plBuffer tBuffer = {
-        .pBuffer = ptBuffer
+        .tDescription = *ptDesc,
+        .uHandle      = pl_sb_size(ptVulkanGraphics->sbtBuffers)
     };
-    pl_sb_push(ptDevice->sbtBuffers, tBuffer);
 
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferDeviceMemory;
+    if(ptDesc->tMemory == PL_MEMORY_GPU_CPU)
+    {
+        plVulkanBuffer tVulkanBuffer = {0};
+        VkBufferUsageFlagBits tBufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        if(ptDesc->tUsage == PL_BUFFER_USAGE_VERTEX)
+            tBufferUsageFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        if(ptDesc->tUsage == PL_BUFFER_USAGE_INDEX)
+            tBufferUsageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        if(ptDesc->tUsage == PL_BUFFER_USAGE_STORAGE)
+            tBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        if(ptDesc->tUsage == PL_BUFFER_USAGE_UNIFORM)
+            tBufferUsageFlags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 
-    { // create staging buffer
+        const VkBufferCreateInfo tBufferInfo = {
+            .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .size        = ptDesc->uByteSize,
+            .usage       = tBufferUsageFlags,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        };
+        PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &tBufferInfo, NULL, &tVulkanBuffer.tBuffer));
 
-        VkBufferCreateInfo bufferInfo = {0};
-        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = szSize;
-        bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        VkMemoryRequirements tMemRequirements = {0};
+        vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, tVulkanBuffer.tBuffer, &tMemRequirements);
 
-        PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &bufferInfo, NULL, &stagingBuffer));
+        const VkMemoryAllocateInfo tAllocInfo = {
+            .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .allocationSize  = tMemRequirements.size,
+            .memoryTypeIndex = pl__find_memory_type_(ptVulkanDevice->tMemProps, tMemRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+        };
 
-        VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, stagingBuffer, &memRequirements);
+        PL_VULKAN(vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, &tVulkanBuffer.tMemory));
+        PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, tVulkanBuffer.tBuffer, tVulkanBuffer.tMemory, 0));
 
-        VkMemoryAllocateInfo allocInfo = {0};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = find_memory_type(ptVulkanDevice->tMemProps, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        PL_VULKAN(vkMapMemory(ptVulkanDevice->tLogicalDevice, tVulkanBuffer.tMemory, 0, ptDesc->uByteSize, 0, (void**)&tBuffer.pcData));
+        memset(tBuffer.pcData, 0, tMemRequirements.size);
+        if(ptDesc->puInitialData)
+            memcpy(tBuffer.pcData, ptDesc->puInitialData, ptDesc->uInitialDataByteSize);
+        tVulkanBuffer.pcData = tBuffer.pcData;
+        pl_sb_push(ptVulkanGraphics->sbtBuffers, tVulkanBuffer);
+    }
+    else if(ptDesc->tMemory == PL_MEMORY_GPU)
+    {
+        // todo: finish
 
-        PL_VULKAN(vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &allocInfo, NULL, &stagingBufferDeviceMemory));
-        PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, stagingBuffer, stagingBufferDeviceMemory, 0));
+        // pl__transfer_data_to_buffer
 
-        void* mapping;
-        PL_VULKAN(vkMapMemory(ptVulkanDevice->tLogicalDevice, stagingBufferDeviceMemory, 0, bufferInfo.size, 0, &mapping));
-        memcpy(mapping, pData, bufferInfo.size);
-        vkUnmapMemory(ptVulkanDevice->tLogicalDevice, stagingBufferDeviceMemory);
+        plVulkanBuffer tVulkanBuffer = {0};
+        VkBufferUsageFlagBits tBufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        if(ptDesc->tUsage == PL_BUFFER_USAGE_VERTEX)
+            tBufferUsageFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        if(ptDesc->tUsage == PL_BUFFER_USAGE_INDEX)
+            tBufferUsageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        if(ptDesc->tUsage == PL_BUFFER_USAGE_STORAGE)
+            tBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        if(ptDesc->tUsage == PL_BUFFER_USAGE_UNIFORM)
+            tBufferUsageFlags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+        const VkBufferCreateInfo tBufferInfo = {
+            .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .size        = ptDesc->uByteSize,
+            .usage       = tBufferUsageFlags,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        };
+        PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &tBufferInfo, NULL, &tVulkanBuffer.tBuffer));
+
+        VkMemoryRequirements tMemRequirements = {0};
+        vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, tVulkanBuffer.tBuffer, &tMemRequirements);
+
+        const VkMemoryAllocateInfo tAllocInfo = {
+            .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .allocationSize  = tMemRequirements.size,
+            .memoryTypeIndex = pl__find_memory_type_(ptVulkanDevice->tMemProps, tMemRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+        };
+
+        PL_VULKAN(vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, &tVulkanBuffer.tMemory));
+        PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, tVulkanBuffer.tBuffer, tVulkanBuffer.tMemory, 0));
+
+        if(ptDesc->puInitialData)
+            pl__transfer_data_to_buffer(ptDevice, tVulkanBuffer.tBuffer, ptDesc->uInitialDataByteSize, ptDesc->puInitialData);
+
+        pl_sb_push(ptVulkanGraphics->sbtBuffers, tVulkanBuffer);
     }
 
-    { // create final buffer
-
-        VkBufferCreateInfo bufferInfo = {0};
-        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = szSize;
-        bufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &bufferInfo, NULL, &ptBuffer->tBuffer));
-
-        VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptBuffer->tBuffer, &memRequirements);
-
-        VkMemoryAllocateInfo allocInfo = {0};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = find_memory_type(ptVulkanDevice->tMemProps, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-        PL_VULKAN(vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &allocInfo, NULL, &ptBuffer->tMemory));
-        PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBuffer->tBuffer, ptBuffer->tMemory, 0));
-    }
-
-    // copy buffer
-    VkCommandBuffer tCommandBuffer = {0};
-    
-    const VkCommandBufferAllocateInfo tAllocInfo = {
-        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandPool        = ptVulkanDevice->tCmdPool,
-        .commandBufferCount = 1u,
-    };
-    vkAllocateCommandBuffers(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tCommandBuffer);
-
-    const VkCommandBufferBeginInfo tBeginInfo = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-    };
-
-    vkBeginCommandBuffer(tCommandBuffer, &tBeginInfo);
-
-    VkBufferCopy copyRegion = {0};
-    copyRegion.size = szSize;
-    vkCmdCopyBuffer(tCommandBuffer, stagingBuffer, ptBuffer->tBuffer, 1, &copyRegion);
-
-    PL_VULKAN(vkEndCommandBuffer(tCommandBuffer));
-    const VkSubmitInfo tSubmitInfo = {
-        .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .commandBufferCount = 1u,
-        .pCommandBuffers    = &tCommandBuffer,
-    };
-
-    PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
-    PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
-    vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
-
-    vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, stagingBuffer, NULL);
-    vkFreeMemory(ptVulkanDevice->tLogicalDevice, stagingBufferDeviceMemory, NULL);
-    return uBufferIndex;
+    return tBuffer;
 }
 
-static uint32_t
-pl_create_vertex_buffer(plDevice* ptDevice, size_t szSize, size_t szStride, const void* pData, const char* pcName)
+static plDynamicBinding
+pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
 {
     plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptVulkanDevice->ptGraphics->_pInternalData;
 
-    const uint32_t uBufferIndex = pl_sb_size(ptDevice->sbtBuffers);
+    plVulkanBuffer* ptBuffer = &ptVulkanGraphics->sbtBuffers[ptVulkanGraphics->tDynamicBuffers[ptVulkanDevice->ptGraphics->uCurrentFrameIndex].uHandle];
 
-    plVulkanBuffer* ptBuffer = PL_ALLOC(sizeof(plVulkanBuffer));
-    memset(ptBuffer, 0, sizeof(plVulkanBuffer));
-
-    plBuffer tBuffer = {
-        .pBuffer = ptBuffer
+    plDynamicBinding tDynamicBinding = {
+        .uBufferHandle = ptVulkanDevice->ptGraphics->uCurrentFrameIndex,
+        .uByteOffset   = ptVulkanGraphics->uDynamicByteOffset,
+        .pcData        = &ptBuffer->pcData[ptVulkanGraphics->uDynamicByteOffset]
     };
-    pl_sb_push(ptDevice->sbtBuffers, tBuffer);
+    ptVulkanGraphics->uDynamicByteOffset = (uint32_t)pl_align_up((size_t)ptVulkanGraphics->uDynamicByteOffset + szSize, ptVulkanDevice->tDeviceProps.limits.minUniformBufferOffsetAlignment);
+    return tDynamicBinding;
+}
 
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferDeviceMemory;
+static plTexture
+pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptVulkanDevice->ptGraphics->_pInternalData;
 
-    { // create staging buffer
-
-        VkBufferCreateInfo bufferInfo = {0};
-        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = szSize;
-        bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &bufferInfo, NULL, &stagingBuffer));
-
-        VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, stagingBuffer, &memRequirements);
-
-        VkMemoryAllocateInfo allocInfo = {0};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = find_memory_type(ptVulkanDevice->tMemProps, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-        PL_VULKAN(vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &allocInfo, NULL, &stagingBufferDeviceMemory));
-        PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, stagingBuffer, stagingBufferDeviceMemory, 0));
-
-        void* mapping;
-        PL_VULKAN(vkMapMemory(ptVulkanDevice->tLogicalDevice, stagingBufferDeviceMemory, 0, bufferInfo.size, 0, &mapping));
-        memcpy(mapping, pData, bufferInfo.size);
-        vkUnmapMemory(ptVulkanDevice->tLogicalDevice, stagingBufferDeviceMemory);
+    if(tDesc.uMips == 0)
+    {
+        tDesc.uMips = (uint32_t)floorf(log2f((float)pl_maxi((int)tDesc.tDimensions.x, (int)tDesc.tDimensions.y))) + 1u;
     }
 
-    { // create final buffer
+    plTexture tTexture = {
+        .tDesc = tDesc,
+        .uHandle = pl_sb_size(ptVulkanGraphics->sbtTextures)
+    };
 
-        VkBufferCreateInfo bufferInfo = {0};
-        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = szSize;
-        bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    plVulkanTexture tVulkanTexture = {0};
 
-        PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &bufferInfo, NULL, &ptBuffer->tBuffer));
+    const VkImageViewType tImageViewType = tDesc.uLayers == 6 ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D;
+    PL_ASSERT((tDesc.uLayers == 1 || tDesc.uLayers == 6) && "unsupported layer count");
 
-        VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptBuffer->tBuffer, &memRequirements);
+    // create vulkan image
+    VkImageCreateInfo tImageInfo = {
+        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType     = VK_IMAGE_TYPE_2D,
+        .extent.width  = (uint32_t)tDesc.tDimensions.x,
+        .extent.height = (uint32_t)tDesc.tDimensions.y,
+        .extent.depth  = (uint32_t)tDesc.tDimensions.z,
+        .mipLevels     = tDesc.uMips,
+        .arrayLayers   = tDesc.uLayers,
+        .format        = pl__vulkan_format(tDesc.tFormat),
+        .tiling        = VK_IMAGE_TILING_OPTIMAL,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .usage         = VK_IMAGE_USAGE_SAMPLED_BIT,
+        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
+        .samples       = VK_SAMPLE_COUNT_1_BIT,
+        .flags         = tImageViewType == VK_IMAGE_VIEW_TYPE_CUBE ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0
+    };
 
-        VkMemoryAllocateInfo allocInfo = {0};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = find_memory_type(ptVulkanDevice->tMemProps, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    if(pData)
+        tImageInfo.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
-        PL_VULKAN(vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &allocInfo, NULL, &ptBuffer->tMemory));
-        PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBuffer->tBuffer, ptBuffer->tMemory, 0));
-    }
+    PL_VULKAN(vkCreateImage(ptVulkanDevice->tLogicalDevice, &tImageInfo, NULL, &tVulkanTexture.tImage));
 
-    // copy buffer
+    // get memory requirements
+    VkMemoryRequirements tMemoryRequirements = {0};
+    vkGetImageMemoryRequirements(ptVulkanDevice->tLogicalDevice, tVulkanTexture.tImage, &tMemoryRequirements);
+
+    // allocate memory
+    tVulkanTexture.tMemory = pl__allocate_dedicated(ptDevice, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, "text");
+
+    PL_VULKAN(vkBindImageMemory(ptVulkanDevice->tLogicalDevice, tVulkanTexture.tImage, tVulkanTexture.tMemory, 0));
+
+    pl_sb_push(ptVulkanGraphics->sbtTextures, tVulkanTexture);
+
+    // upload data
+    if(pData)
+        pl__transfer_data_to_image(ptDevice, &tTexture, szSize, pData);
+
+    // VkImageAspectFlags tImageAspectFlags = tDesc.tUsage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    VkImageAspectFlags tImageAspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
+
+    if(pl__format_has_stencil(tDesc.tFormat))
+        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
+
     VkCommandBuffer tCommandBuffer = {0};
     
     const VkCommandBufferAllocateInfo tAllocInfo = {
@@ -1746,9 +644,23 @@ pl_create_vertex_buffer(plDevice* ptDevice, size_t szSize, size_t szStride, cons
 
     vkBeginCommandBuffer(tCommandBuffer, &tBeginInfo);
 
-    VkBufferCopy copyRegion = {0};
-    copyRegion.size = szSize;
-    vkCmdCopyBuffer(tCommandBuffer, stagingBuffer, ptBuffer->tBuffer, 1, &copyRegion);
+    VkImageSubresourceRange tRange = {
+        .baseMipLevel   = 0,
+        .levelCount     = 1,
+        .baseArrayLayer = 0,
+        .layerCount     = tDesc.uLayers,
+        .aspectMask     = tImageAspectFlags
+    };
+
+    if(pData)
+        pl__transition_image_layout(tCommandBuffer, tVulkanTexture.tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    // else if (tDesc.tUsage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+    //     ptDeviceApi->pl__transition_image_layout(tCommandBuffer, tTexture.tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    // else if(tDesc.tUsage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+    //     ptDeviceApi->pl__transition_image_layout(tCommandBuffer, tTexture.tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    // else if(tDesc.tUsage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+    //     ptDeviceApi->pl__transition_image_layout(tCommandBuffer, tTexture.tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    // ptDeviceApi->submit_command_buffer(ptDevice, ptDevice->tCmdPool, tCommandBuffer);
 
     PL_VULKAN(vkEndCommandBuffer(tCommandBuffer));
     const VkSubmitInfo tSubmitInfo = {
@@ -1761,9 +673,549 @@ pl_create_vertex_buffer(plDevice* ptDevice, size_t szSize, size_t szStride, cons
     PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
     vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
 
-    vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, stagingBuffer, NULL);
-    vkFreeMemory(ptVulkanDevice->tLogicalDevice, stagingBufferDeviceMemory, NULL);
-    return uBufferIndex;
+    return tTexture;
+}
+
+static plTextureView
+pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, uint32_t uTextureHandle, const char* pcName)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptVulkanDevice->ptGraphics->_pInternalData;
+
+    plVulkanTexture* ptVulkanTexture = &ptVulkanGraphics->sbtTextures[uTextureHandle];
+
+    plTextureView tTextureView = {
+        .tSampler         = *ptSampler,
+        .tTextureViewDesc = *ptViewDesc,
+        .uTextureHandle   = uTextureHandle,
+        ._uSamplerHandle  = pl_sb_size(ptVulkanGraphics->sbtSamplers)
+    };
+
+    plVulkanSampler tVulkanSampler = {0};
+
+    if(ptViewDesc->uMips == 0)
+        tTextureView.tTextureViewDesc.uMips = ptViewDesc->uMips;
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    const VkImageViewType tImageViewType = ptViewDesc->uLayerCount == 6 ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D;    
+    PL_ASSERT((ptViewDesc->uLayerCount == 1 || ptViewDesc->uLayerCount == 6) && "unsupported layer count");
+
+    // VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    VkImageAspectFlags tImageAspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
+
+    if(pl__format_has_stencil(ptViewDesc->tFormat))
+        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
+
+    VkImageViewCreateInfo tViewInfo = {
+        .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image                           = ptVulkanTexture->tImage,
+        .viewType                        = tImageViewType,
+        .format                          = pl__vulkan_format(ptViewDesc->tFormat),
+        .subresourceRange.baseMipLevel   = ptViewDesc->uBaseMip,
+        .subresourceRange.levelCount     = tTextureView.tTextureViewDesc.uMips,
+        .subresourceRange.baseArrayLayer = ptViewDesc->uBaseLayer,
+        .subresourceRange.layerCount     = ptViewDesc->uLayerCount,
+        .subresourceRange.aspectMask     = tImageAspectFlags,
+    };
+    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tViewInfo, NULL, &tVulkanSampler.tImageView));
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create sampler~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    VkSamplerCreateInfo tSamplerInfo = {
+        .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter               = pl__vulkan_filter(ptSampler->tFilter),
+        .addressModeU            = pl__vulkan_wrap(ptSampler->tHorizontalWrap),
+        .addressModeV            = pl__vulkan_wrap(ptSampler->tVerticalWrap),
+        .anisotropyEnable        = (bool)ptVulkanDevice->tDeviceFeatures.samplerAnisotropy,
+        .maxAnisotropy           = ptVulkanDevice->tDeviceProps.limits.maxSamplerAnisotropy,
+        .borderColor             = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
+        .unnormalizedCoordinates = VK_FALSE,
+        .compareEnable           = VK_FALSE,
+        .compareOp               = pl__vulkan_compare(ptSampler->tCompare),
+        .mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .mipLodBias              = ptSampler->fMipBias,
+        .minLod                  = ptSampler->fMinMip,
+        .maxLod                  = ptSampler->fMaxMip,
+    };
+
+    // .compareOp               = VK_COMPARE_OP_ALWAYS,
+    tSamplerInfo.minFilter    = tSamplerInfo.magFilter;
+    tSamplerInfo.addressModeW = tSamplerInfo.addressModeU;
+
+    PL_VULKAN(vkCreateSampler(ptVulkanDevice->tLogicalDevice, &tSamplerInfo, NULL, &tVulkanSampler.tSampler));
+
+    pl_sb_push(ptVulkanGraphics->sbtSamplers, tVulkanSampler);
+
+    return tTextureView;
+}
+
+static void
+pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptVulkanDevice->ptGraphics->_pInternalData;
+
+    plVulkanBindGroupLayout tVulkanBindGroupLayout = {0};
+
+    ptLayout->uHandle = pl_sb_size(ptVulkanGraphics->sbtBindGroupLayouts);
+
+    VkDescriptorSetLayoutBinding* sbtDescriptorSetLayoutBindings = NULL;
+    for(uint32_t i = 0; i < ptLayout->uBufferCount; i++)
+    {
+        VkDescriptorSetLayoutBinding tBinding =  {
+            .binding         = ptLayout->aBuffers[i].uSlot,
+            .descriptorType  = ptLayout->aBuffers[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
+            .pImmutableSamplers = NULL
+        };
+        pl_sb_push(sbtDescriptorSetLayoutBindings, tBinding);
+    }
+
+    for(uint32_t i = 0 ; i < ptLayout->uTextureCount; i++)
+    {
+        VkDescriptorSetLayoutBinding tBinding = {
+            .binding            = ptLayout->aTextures[i].uSlot,
+            .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount    = 1,
+            .stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pImmutableSamplers = NULL
+        };
+        pl_sb_push(sbtDescriptorSetLayoutBindings, tBinding);
+    }
+
+    // create descriptor set layout
+    const VkDescriptorSetLayoutCreateInfo tDescriptorSetLayoutInfo = {
+        .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = pl_sb_size(sbtDescriptorSetLayoutBindings),
+        .pBindings    = sbtDescriptorSetLayoutBindings,
+    };
+    PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tVulkanBindGroupLayout.tDescriptorSetLayout));
+
+    pl_sb_free(sbtDescriptorSetLayoutBindings);
+
+    pl_sb_push(ptVulkanGraphics->sbtBindGroupLayouts, tVulkanBindGroupLayout);
+}
+
+static plBindGroup
+pl_create_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptVulkanDevice->ptGraphics->_pInternalData;
+
+    plBindGroup tBindGroup = {
+        .tLayout = *ptLayout,
+        .uHandle = pl_sb_size(ptVulkanGraphics->sbtBindGroups)
+    };
+
+    VkDescriptorSetLayoutBinding* sbtDescriptorSetLayoutBindings = NULL;
+    for(uint32_t i = 0; i < ptLayout->uBufferCount; i++)
+    {
+        VkDescriptorSetLayoutBinding tBinding =  {
+            .binding         = ptLayout->aBuffers[i].uSlot,
+            .descriptorType  = ptLayout->aBuffers[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
+            .pImmutableSamplers = NULL
+        };
+        pl_sb_push(sbtDescriptorSetLayoutBindings, tBinding);
+    }
+
+    for(uint32_t i = 0 ; i < ptLayout->uTextureCount; i++)
+    {
+        VkDescriptorSetLayoutBinding tBinding = {
+            .binding            = ptLayout->aTextures[i].uSlot,
+            .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount    = 1,
+            .stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pImmutableSamplers = NULL
+        };
+        pl_sb_push(sbtDescriptorSetLayoutBindings, tBinding);
+    }
+
+    // create descriptor set layout
+    VkDescriptorSetLayout tDescriptorSetLayout = VK_NULL_HANDLE;
+    const VkDescriptorSetLayoutCreateInfo tDescriptorSetLayoutInfo = {
+        .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = pl_sb_size(sbtDescriptorSetLayoutBindings),
+        .pBindings    = sbtDescriptorSetLayoutBindings,
+    };
+    PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tDescriptorSetLayout));
+
+    pl_sb_free(sbtDescriptorSetLayoutBindings);
+
+    plVulkanBindGroup tVulkanBindGroup = {
+        .tDescriptorSetLayout = tDescriptorSetLayout
+    };
+
+    // allocate descriptor sets
+    const VkDescriptorSetAllocateInfo tAllocInfo = {
+        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool     = ptVulkanGraphics->tDescriptorPool,
+        .descriptorSetCount = 1,
+        .pSetLayouts        = &tDescriptorSetLayout
+    };
+
+    PL_VULKAN(vkAllocateDescriptorSets(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tVulkanBindGroup.tDescriptorSet));
+
+    pl_sb_push(ptVulkanGraphics->sbtBindGroups, tVulkanBindGroup);
+    return tBindGroup;
+}
+
+static void
+pl_update_bind_group(plDevice* ptDevice, plBindGroup* ptGroup, uint32_t uBufferCount, plBuffer* atBuffers, size_t* aszBufferRanges, uint32_t uTextureViewCount, plTextureView* atTextureViews)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptVulkanDevice->ptGraphics->_pInternalData;
+
+    plVulkanBindGroup* ptVulkanBindGroup = &ptVulkanGraphics->sbtBindGroups[ptGroup->uHandle];
+
+    VkWriteDescriptorSet* sbtWrites = NULL;
+    VkDescriptorBufferInfo* sbtBufferDescInfos = NULL;
+    VkDescriptorImageInfo* sbtImageDescInfos = NULL;
+    pl_sb_resize(sbtWrites, uBufferCount + uTextureViewCount);
+    pl_sb_resize(sbtBufferDescInfos, uBufferCount);
+    pl_sb_resize(sbtImageDescInfos, uTextureViewCount);
+
+    static const VkDescriptorType atDescriptorTypeLUT[] =
+    {
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    };
+
+    uint32_t uCurrentWrite = 0;
+    for(uint32_t i = 0 ; i < uBufferCount; i++)
+    {
+
+        const plVulkanBuffer* ptVulkanBuffer = &ptVulkanGraphics->sbtBuffers[atBuffers[i].uHandle];
+
+        sbtBufferDescInfos[i].buffer = ptVulkanBuffer->tBuffer;
+        sbtBufferDescInfos[i].offset = 0;
+        sbtBufferDescInfos[i].range  = aszBufferRanges[i];
+
+        sbtWrites[uCurrentWrite].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        sbtWrites[uCurrentWrite].dstBinding      = ptGroup->tLayout.aBuffers[i].uSlot;
+        sbtWrites[uCurrentWrite].dstArrayElement = 0;
+        sbtWrites[uCurrentWrite].descriptorType  = atDescriptorTypeLUT[ptGroup->tLayout.aBuffers[i].tType - 1];
+        sbtWrites[uCurrentWrite].descriptorCount = 1;
+        sbtWrites[uCurrentWrite].dstSet          = ptVulkanBindGroup->tDescriptorSet;
+        sbtWrites[uCurrentWrite].pBufferInfo     = &sbtBufferDescInfos[i];
+        sbtWrites[uCurrentWrite].pNext           = NULL;
+        uCurrentWrite++;
+    }
+
+    for(uint32_t i = 0 ; i < uTextureViewCount; i++)
+    {
+
+        sbtImageDescInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        sbtImageDescInfos[i].imageView   = ptVulkanGraphics->sbtSamplers[atTextureViews[i]._uSamplerHandle].tImageView;
+        sbtImageDescInfos[i].sampler     = ptVulkanGraphics->sbtSamplers[atTextureViews[i]._uSamplerHandle].tSampler;
+        
+        sbtWrites[uCurrentWrite].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        sbtWrites[uCurrentWrite].dstBinding      = ptGroup->tLayout.aTextures[i].uSlot;
+        sbtWrites[uCurrentWrite].dstArrayElement = 0;
+        sbtWrites[uCurrentWrite].descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        sbtWrites[uCurrentWrite].descriptorCount = 1;
+        sbtWrites[uCurrentWrite].dstSet          = ptVulkanBindGroup->tDescriptorSet;
+        sbtWrites[uCurrentWrite].pImageInfo      = &sbtImageDescInfos[i];
+        sbtWrites[uCurrentWrite].pNext           = NULL;
+        uCurrentWrite++;
+    }
+    vkUpdateDescriptorSets(ptVulkanDevice->tLogicalDevice, uCurrentWrite, sbtWrites, 0, NULL);
+    pl_sb_free(sbtWrites);
+    pl_sb_free(sbtBufferDescInfos);
+    pl_sb_free(sbtImageDescInfos);
+
+}
+
+static plShader
+pl_create_shader(plGraphics* ptGraphics, plShaderDescription* ptDescription)
+{
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
+
+    plShader tShader = {
+        .uHandle = pl_sb_size(ptVulkanGfx->sbtShaders),
+        .tDescription = *ptDescription
+    };
+
+    plVulkanShader tVulkanShader = {0};
+
+    const VkSpecializationMapEntry tSpecializationEntries[] = 
+    {
+        {
+            .constantID = 0,
+            .offset     = 0,
+            .size       = sizeof(int)
+        },
+        {
+            .constantID = 1,
+            .offset     = sizeof(int),
+            .size       = sizeof(int)
+        },
+        {
+            .constantID = 2,
+            .offset     = sizeof(int) * 2,
+            .size       = sizeof(int)
+        },
+
+    };
+
+        int aiData[3] = {
+            (int)ptDescription->tGraphicsState.ulVertexStreamMask,
+            0,
+            (int)ptDescription->tGraphicsState.ulShaderTextureFlags
+        };
+
+        int iFlagCopy = (int)ptDescription->tGraphicsState.ulVertexStreamMask;
+        while(iFlagCopy)
+        {
+            aiData[1] += iFlagCopy & 1;
+            iFlagCopy >>= 1;
+        }
+
+    VkSpecializationInfo tSpecializationInfo = {
+        .mapEntryCount = 3,
+        .pMapEntries   = tSpecializationEntries,
+        .dataSize      = sizeof(int) * 3,
+        .pData         = aiData
+    };
+
+    VkVertexInputAttributeDescription tAttributeDescription = {
+        .binding  = 0,
+        .location = 0,
+        .format   = VK_FORMAT_R32G32B32_SFLOAT,
+        .offset   = 0,
+    };
+
+    VkVertexInputBindingDescription tBindingDescription = {
+        .binding   = 0,
+        .stride    = sizeof(float) * 3,
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+    };
+
+    VkDescriptorSetLayout atDescriptorSetLayouts[4] = {0};
+    for(uint32_t i = 0; i < ptDescription->uBindGroupLayoutCount; i++)
+    {
+        pl_create_bind_group_layout(&ptGraphics->tDevice, &ptDescription->atBindGroupLayouts[i]);
+        atDescriptorSetLayouts[i] = ptVulkanGfx->sbtBindGroupLayouts[ptDescription->atBindGroupLayouts[i].uHandle].tDescriptorSetLayout;
+    }
+    atDescriptorSetLayouts[ptDescription->uBindGroupLayoutCount]  = ptVulkanGfx->tDynamicDescriptorSetLayout;
+
+    VkPipelineLayoutCreateInfo tPipelineLayoutInfo = {
+        .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = ptDescription->uBindGroupLayoutCount + 1,
+        .pSetLayouts    = atDescriptorSetLayouts
+    };
+    PL_VULKAN(vkCreatePipelineLayout(ptVulkanDevice->tLogicalDevice, &tPipelineLayoutInfo, NULL, &tVulkanShader.tPipelineLayout));
+
+    uint32_t uVertShaderSize0 = 0u;
+    uint32_t uPixelShaderSize0 = 0u;
+
+    gptFile->read(ptDescription->pcVertexShader, &uVertShaderSize0, NULL, "rb");
+    gptFile->read(ptDescription->pcPixelShader, &uPixelShaderSize0, NULL, "rb");
+
+    char* vertexShaderCode = PL_ALLOC(uVertShaderSize0);
+    char* pixelShaderCode  = PL_ALLOC(uPixelShaderSize0);
+
+    gptFile->read(ptDescription->pcVertexShader, &uVertShaderSize0, vertexShaderCode, "rb");
+    gptFile->read(ptDescription->pcPixelShader, &uPixelShaderSize0, pixelShaderCode, "rb");
+
+    VkShaderModuleCreateInfo tVertexShaderCreateInfo = {
+        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = uVertShaderSize0,
+        .pCode    = (const uint32_t*)(vertexShaderCode)
+    };
+
+    PL_VULKAN(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &tVertexShaderCreateInfo, NULL, &tVulkanShader.tVertexShaderModule));
+
+    VkShaderModuleCreateInfo tPixelShaderCreateInfo = {
+        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = uPixelShaderSize0,
+        .pCode    = (const uint32_t*)(pixelShaderCode),
+    };
+    PL_VULKAN(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &tPixelShaderCreateInfo, NULL, &tVulkanShader.tPixelShaderModule));
+
+    PL_FREE(vertexShaderCode);
+    PL_FREE(pixelShaderCode);
+
+    //---------------------------------------------------------------------
+    // input assembler stage
+    //---------------------------------------------------------------------
+
+    VkPipelineInputAssemblyStateCreateInfo tInputAssembly = {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .primitiveRestartEnable = VK_FALSE
+    };
+
+    VkPipelineVertexInputStateCreateInfo tVertexInputInfo = {
+        .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount   = 1,
+        .vertexAttributeDescriptionCount = 1,
+        .pVertexBindingDescriptions      = &tBindingDescription,
+        .pVertexAttributeDescriptions    = &tAttributeDescription,
+    };
+
+
+    //---------------------------------------------------------------------
+    // vertex shader stage
+    //---------------------------------------------------------------------
+
+    VkPipelineShaderStageCreateInfo tVertShaderStageInfo = {
+        .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage  = VK_SHADER_STAGE_VERTEX_BIT,
+        .module = tVulkanShader.tVertexShaderModule,
+        .pName  = "main",
+        .pSpecializationInfo = &tSpecializationInfo
+    };
+
+    //---------------------------------------------------------------------
+    // tesselation stage
+    //---------------------------------------------------------------------
+
+    //---------------------------------------------------------------------
+    // geometry shader stage
+    //---------------------------------------------------------------------
+
+    //---------------------------------------------------------------------
+    // rasterization stage
+    //---------------------------------------------------------------------
+
+    VkViewport tViewport = {
+        .x        = 0.0f,
+        .y        = 0.0f,
+        .width    = 100.0f,
+        .height   = 100.0f,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f
+    };
+
+    VkRect2D tScissor = {
+        .extent = {
+            .width  = 100,
+            .height = 100
+        }
+    };
+
+    VkPipelineViewportStateCreateInfo tViewportState = {
+        .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .pViewports    = &tViewport,
+        .scissorCount  = 1,
+        .pScissors     = &tScissor
+    };
+
+    VkPipelineRasterizationStateCreateInfo tRasterizer = {
+        .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .depthClampEnable        = VK_FALSE,
+        .rasterizerDiscardEnable = VK_FALSE,
+        .polygonMode             = VK_POLYGON_MODE_FILL,
+        .lineWidth               = 1.0f,
+        .cullMode                = VK_CULL_MODE_NONE,
+        .frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .depthBiasEnable         = VK_FALSE
+    };
+
+    //---------------------------------------------------------------------
+    // fragment shader stage
+    //---------------------------------------------------------------------
+
+    VkPipelineShaderStageCreateInfo tFragShaderStageInfo = {
+        .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage  = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .module = tVulkanShader.tPixelShaderModule,
+        .pName  = "main",
+        .pSpecializationInfo = &tSpecializationInfo
+    };
+
+    VkPipelineDepthStencilStateCreateInfo tDepthStencil = {
+        .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable       = VK_TRUE,
+        .depthWriteEnable      = VK_TRUE,
+        .depthCompareOp        = VK_COMPARE_OP_LESS_OR_EQUAL,
+        .depthBoundsTestEnable = VK_FALSE,
+        .minDepthBounds        = 0.0f, // Optional,
+        .maxDepthBounds        = 1.0f, // Optional,
+        .stencilTestEnable     = VK_FALSE,
+    };
+
+    //---------------------------------------------------------------------
+    // color blending stage
+    //---------------------------------------------------------------------
+
+    VkPipelineColorBlendAttachmentState tColorBlendAttachment = {
+        .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+        .blendEnable         = VK_TRUE,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .colorBlendOp        = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .alphaBlendOp        = VK_BLEND_OP_ADD,
+    };
+
+    VkPipelineColorBlendStateCreateInfo tColorBlending = {
+        .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .logicOpEnable   = VK_FALSE,
+        .logicOp         = VK_LOGIC_OP_COPY,
+        .attachmentCount = 1,
+        .pAttachments    = &tColorBlendAttachment,
+        .blendConstants  = {0}
+    };
+
+    VkPipelineMultisampleStateCreateInfo tMultisampling = {
+        .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .sampleShadingEnable  = VK_FALSE,
+        .rasterizationSamples = ptVulkanGfx->tSwapchain.tMsaaSamples,
+    };
+
+
+    //---------------------------------------------------------------------
+    // Create Pipeline
+    //---------------------------------------------------------------------
+    VkPipelineShaderStageCreateInfo shaderStages[] = {
+        tVertShaderStageInfo,
+        tFragShaderStageInfo
+    };
+
+    VkDynamicState tDynamicStateEnables[3] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS };
+    VkPipelineDynamicStateCreateInfo tDynamicState = {
+        .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = 3,
+        .pDynamicStates    = tDynamicStateEnables,
+    };
+
+    VkGraphicsPipelineCreateInfo tPipelineInfo = {
+        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .stageCount          = 2,
+        .pStages             = shaderStages,
+        .pVertexInputState   = &tVertexInputInfo,
+        .pInputAssemblyState = &tInputAssembly,
+        .pViewportState      = &tViewportState,
+        .pRasterizationState = &tRasterizer,
+        .pMultisampleState   = &tMultisampling,
+        .pColorBlendState    = &tColorBlending,
+        .pDynamicState       = &tDynamicState,
+        .layout              = tVulkanShader.tPipelineLayout,
+        .renderPass          = ptVulkanGfx->tRenderPass,
+        .subpass             = 0,
+        .basePipelineHandle  = VK_NULL_HANDLE,
+        .pDepthStencilState  = &tDepthStencil
+    };
+
+
+    PL_VULKAN(vkCreateGraphicsPipelines(ptVulkanDevice->tLogicalDevice, VK_NULL_HANDLE, 1, &tPipelineInfo, NULL, &tVulkanShader.tPipeline));
+
+    // no longer need these
+    vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, tVulkanShader.tVertexShaderModule, NULL);
+    vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, tVulkanShader.tPixelShaderModule, NULL);
+    tVulkanShader.tVertexShaderModule = VK_NULL_HANDLE;
+    tVulkanShader.tPixelShaderModule = VK_NULL_HANDLE;
+
+    pl_sb_push(ptVulkanGfx->sbtShaders, tVulkanShader);
+
+    return tShader;
 }
 
 static void
@@ -1772,7 +1224,7 @@ pl_begin_recording(plGraphics* ptGraphics)
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
-    plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
 
     const VkCommandBufferBeginInfo tBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
@@ -1819,7 +1271,7 @@ pl_end_recording(plGraphics* ptGraphics)
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
-    plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
 
     vkCmdEndRenderPass(ptCurrentFrame->tCmdBuf);
 
@@ -1832,12 +1284,12 @@ pl_draw_list(plGraphics* ptGraphics, uint32_t uListCount, plDrawList* atLists)
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
-    plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
 
     plIO* ptIOCtx = pl_get_io();
     for(uint32_t i = 0; i < uListCount; i++)
     {
-        pl_submit_vulkan_drawlist(&atLists[i], ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, (uint32_t)ptVulkanGfx->szCurrentFrameIndex);
+        pl_submit_vulkan_drawlist(&atLists[i], ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], ptCurrentFrame->tCmdBuf, ptGraphics->uCurrentFrameIndex);
     }
 }
 
@@ -1855,8 +1307,9 @@ pl_initialize_graphics(plGraphics* ptGraphics)
 
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
+    ptVulkanDevice->ptGraphics = ptGraphics;
     
-    ptVulkanGfx->uFramesInFlight = 2;
+    ptGraphics->uFramesInFlight = 2;
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create instance~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2207,7 +1660,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~swapchain~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     ptVulkanGfx->tSwapchain.bVSync = true;
-    create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptVulkanGfx->tSwapchain);
+    pl__create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptVulkanGfx->tSwapchain);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~main renderpass~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2227,7 +1680,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
 
         // depth attachment
         {
-            .format         = find_depth_stencil_format(&ptGraphics->tDevice),
+            .format         = pl__find_depth_stencil_format(&ptGraphics->tDevice),
             .samples        = ptVulkanGfx->tSwapchain.tMsaaSamples,
             .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
@@ -2351,8 +1804,8 @@ pl_initialize_graphics(plGraphics* ptGraphics)
         .flags = VK_FENCE_CREATE_SIGNALED_BIT
     };
 
-    pl_sb_resize(ptVulkanGfx->sbFrames, ptVulkanGfx->uFramesInFlight);
-    for(uint32_t i = 0; i < ptVulkanGfx->uFramesInFlight; i++)
+    pl_sb_resize(ptVulkanGfx->sbFrames, ptGraphics->uFramesInFlight);
+    for(uint32_t i = 0; i < ptGraphics->uFramesInFlight; i++)
     {
         plFrameContext tFrame = {0};
         PL_VULKAN(vkCreateSemaphore(ptVulkanDevice->tLogicalDevice, &tSemaphoreInfo, NULL, &tFrame.tImageAvailable));
@@ -2404,212 +1857,10 @@ pl_initialize_graphics(plGraphics* ptGraphics)
         .uImageCount      = ptVulkanGfx->tSwapchain.uImageCount,
         .tRenderPass      = ptVulkanGfx->tRenderPass,
         .tMSAASampleCount = ptVulkanGfx->tSwapchain.tMsaaSamples,
-        .uFramesInFlight  = ptVulkanGfx->uFramesInFlight
+        .uFramesInFlight  = ptGraphics->uFramesInFlight
     };
     pl_initialize_vulkan(&tVulkanInit);
 
-    // app crap
-
-    ptVulkanGfx->g_bindingDescriptions[0].binding = 0;
-    ptVulkanGfx->g_bindingDescriptions[0].stride = sizeof(float)*7;
-    ptVulkanGfx->g_bindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-    ptVulkanGfx->g_attributeDescriptions[0].binding = 0;
-    ptVulkanGfx->g_attributeDescriptions[0].location = 0;
-    ptVulkanGfx->g_attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-    ptVulkanGfx->g_attributeDescriptions[0].offset = 0u;
-
-    ptVulkanGfx->g_attributeDescriptions[1].binding = 0;
-    ptVulkanGfx->g_attributeDescriptions[1].location = 1;
-    ptVulkanGfx->g_attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    ptVulkanGfx->g_attributeDescriptions[1].offset = sizeof(float)*3;
-
-    VkPipelineMultisampleStateCreateInfo multisampling = {0};
-    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo = {0};
-    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 0;
-
-    PL_VULKAN(vkCreatePipelineLayout(ptVulkanDevice->tLogicalDevice, &pipelineLayoutInfo, NULL, &ptVulkanGfx->g_pipelineLayout));
-
-    unsigned vertexFileSize = 0u;
-    unsigned pixelFileSize = 0u;
-    char* vertexShaderCode = read_file("primitive.vert.spv", &vertexFileSize, "rb");
-    char* pixelShaderCode = read_file("primitive.frag.spv", &pixelFileSize, "rb");
-
-    {
-        VkShaderModuleCreateInfo createInfo = {0};
-        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        createInfo.codeSize = vertexFileSize;
-        createInfo.pCode = (const uint32_t*)(vertexShaderCode);
-        assert(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &createInfo, NULL, &ptVulkanGfx->g_vertexShaderModule) == VK_SUCCESS);
-    }
-
-    {
-        VkShaderModuleCreateInfo createInfo = {0};
-        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        createInfo.codeSize = pixelFileSize;
-        createInfo.pCode = (const uint32_t*)(pixelShaderCode);
-        assert(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &createInfo, NULL, &ptVulkanGfx->g_pixelShaderModule) == VK_SUCCESS);
-    }
-
-    //---------------------------------------------------------------------
-    // input assembler stage
-    //---------------------------------------------------------------------
-    VkPipelineInputAssemblyStateCreateInfo inputAssembly = {0};
-    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    inputAssembly.primitiveRestartEnable = VK_FALSE;
-
-    VkPipelineVertexInputStateCreateInfo vertexInputInfo = {0};
-    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount = 1u;
-    vertexInputInfo.vertexAttributeDescriptionCount = 2u;
-    vertexInputInfo.pVertexBindingDescriptions = ptVulkanGfx->g_bindingDescriptions;
-    vertexInputInfo.pVertexAttributeDescriptions = ptVulkanGfx->g_attributeDescriptions;
-
-    //---------------------------------------------------------------------
-    // vertex shader stage
-    //---------------------------------------------------------------------
-    VkPipelineShaderStageCreateInfo vertShaderStageInfo = {0};
-    vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertShaderStageInfo.module = ptVulkanGfx->g_vertexShaderModule;
-    vertShaderStageInfo.pName = "main";
-
-    //---------------------------------------------------------------------
-    // tesselation stage
-    //---------------------------------------------------------------------
-
-    //---------------------------------------------------------------------
-    // geometry shader stage
-    //---------------------------------------------------------------------
-
-    //---------------------------------------------------------------------
-    // rasterization stage
-    //---------------------------------------------------------------------
-
-    VkViewport viewport = {0};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = (float)ptIOCtx->afMainViewportSize[0];
-    viewport.height = (float)ptIOCtx->afMainViewportSize[1];
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-
-    VkRect2D scissor = {0};
-    scissor.extent.width = (unsigned)viewport.width;
-    scissor.extent.height = (unsigned)viewport.y;
-
-    VkPipelineViewportStateCreateInfo viewportState = {0};
-    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    viewportState.viewportCount = 1;
-    viewportState.pViewports = &viewport;
-    viewportState.scissorCount = 1;
-    viewportState.pScissors = &scissor;
-
-    VkPipelineRasterizationStateCreateInfo rasterizer = {0};
-    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    rasterizer.depthClampEnable = VK_FALSE;
-    rasterizer.rasterizerDiscardEnable = VK_FALSE;
-    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-    rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_NONE;
-    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    rasterizer.depthBiasEnable = VK_FALSE;
-
-    //---------------------------------------------------------------------
-    // fragment shader stage
-    //---------------------------------------------------------------------
-    VkPipelineShaderStageCreateInfo fragShaderStageInfo = {0};
-    fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragShaderStageInfo.module = ptVulkanGfx->g_pixelShaderModule;
-    fragShaderStageInfo.pName = "main";
-
-    VkPipelineDepthStencilStateCreateInfo depthStencil = {0};
-    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depthStencil.depthTestEnable = VK_TRUE;
-    depthStencil.depthWriteEnable = VK_TRUE;
-    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-    depthStencil.depthBoundsTestEnable = VK_FALSE;
-    depthStencil.minDepthBounds = 0.0f; // Optional
-    depthStencil.maxDepthBounds = 1.0f; // Optional
-    depthStencil.stencilTestEnable = VK_FALSE;
-
-    //---------------------------------------------------------------------
-    // color blending stage
-    //---------------------------------------------------------------------
-    VkPipelineColorBlendAttachmentState colorBlendAttachment = {0};
-    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment.blendEnable = VK_TRUE;
-    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-
-    VkPipelineColorBlendStateCreateInfo colorBlending = {0};
-    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    colorBlending.logicOpEnable = VK_FALSE;
-    colorBlending.logicOp = VK_LOGIC_OP_COPY;
-    colorBlending.attachmentCount = 1;
-    colorBlending.pAttachments = &colorBlendAttachment;
-    colorBlending.blendConstants[0] = 0.0f;
-    colorBlending.blendConstants[1] = 0.0f;
-    colorBlending.blendConstants[2] = 0.0f;
-    colorBlending.blendConstants[3] = 0.0f;
-
-    VkPipelineMultisampleStateCreateInfo multisampling2 = {0};
-    multisampling2.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    multisampling2.sampleShadingEnable = VK_FALSE;
-    multisampling2.rasterizationSamples = ptVulkanGfx->tSwapchain.tMsaaSamples;
-
-    //---------------------------------------------------------------------
-    // Create Pipeline
-    //---------------------------------------------------------------------
-    VkPipelineShaderStageCreateInfo shaderStages[] = {
-        vertShaderStageInfo,
-        fragShaderStageInfo
-    };
-
-
-    VkDynamicState dynamicStateEnables[3] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS };
-    VkPipelineDynamicStateCreateInfo dynamicState = {0};
-    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicState.dynamicStateCount = 3;
-    dynamicState.pDynamicStates = dynamicStateEnables;
-    
-    VkGraphicsPipelineCreateInfo pipelineInfo = {0};
-    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineInfo.stageCount = 2u;
-    pipelineInfo.pStages = shaderStages;
-    pipelineInfo.pVertexInputState = &vertexInputInfo;
-    pipelineInfo.pInputAssemblyState = &inputAssembly;
-    pipelineInfo.pViewportState = &viewportState;
-    pipelineInfo.pRasterizationState = &rasterizer;
-    pipelineInfo.pMultisampleState = &multisampling2;
-    pipelineInfo.pColorBlendState = &colorBlending;
-    pipelineInfo.pDynamicState = &dynamicState;
-    pipelineInfo.layout = ptVulkanGfx->g_pipelineLayout;
-    pipelineInfo.renderPass = ptVulkanGfx->tRenderPass;
-    pipelineInfo.subpass = 0;
-    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
-    pipelineInfo.pDepthStencilState = &depthStencil;
-
-    PL_VULKAN(vkCreateGraphicsPipelines(ptVulkanDevice->tLogicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &ptVulkanGfx->g_pipeline));
-
-    // no longer need these
-    vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->g_vertexShaderModule, NULL);
-    vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->g_pixelShaderModule, NULL);
-    ptVulkanGfx->g_vertexShaderModule = VK_NULL_HANDLE;
-    ptVulkanGfx->g_pixelShaderModule = VK_NULL_HANDLE;
-
-    ///////////////////////////////
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~3d setup~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2636,10 +1887,26 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     ptVulkanGfx->t3DVtxShdrStgInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
     ptVulkanGfx->t3DVtxShdrStgInfo.pName = "main";
 
+    uint32_t uVertShaderSize0 = 0u;
+    uint32_t uVertShaderSize1 = 0u;
+    uint32_t uPixelShaderSize0 = 0u;
+
+    gptFile->read("draw_3d.vert.spv", &uVertShaderSize0, NULL, "rb");
+    gptFile->read("draw_3d_line.vert.spv", &uVertShaderSize1, NULL, "rb");
+    gptFile->read("draw_3d.frag.spv", &uPixelShaderSize0, NULL, "rb");
+
+    char* __glsl_shader_vert_3d_spv      = PL_ALLOC(uVertShaderSize0);
+    char* __glsl_shader_vert_3d_line_spv = PL_ALLOC(uVertShaderSize1);
+    char* __glsl_shader_frag_3d_spv      = PL_ALLOC(uPixelShaderSize0);
+
+    gptFile->read("draw_3d.vert.spv", &uVertShaderSize0, __glsl_shader_vert_3d_spv, "rb");
+    gptFile->read("draw_3d_line.vert.spv", &uVertShaderSize1, __glsl_shader_vert_3d_line_spv, "rb");
+    gptFile->read("draw_3d.frag.spv", &uPixelShaderSize0, __glsl_shader_frag_3d_spv, "rb");
+
     const VkShaderModuleCreateInfo t3DVtxShdrInfo = {
         .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = sizeof(__glsl_shader_vert_3d_spv),
-        .pCode    = __glsl_shader_vert_3d_spv
+        .codeSize = uVertShaderSize0,
+        .pCode    = (uint32_t*)__glsl_shader_vert_3d_spv
     };
     PL_ASSERT(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &t3DVtxShdrInfo, NULL, &ptVulkanGfx->t3DVtxShdrStgInfo.module) == VK_SUCCESS);
 
@@ -2650,8 +1917,8 @@ pl_initialize_graphics(plGraphics* ptGraphics)
 
     const VkShaderModuleCreateInfo t3DPxlShdrInfo = {
         .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = sizeof(__glsl_shader_frag_3d_spv),
-        .pCode    = __glsl_shader_frag_3d_spv
+        .codeSize = uPixelShaderSize0,
+        .pCode    = (uint32_t*)__glsl_shader_frag_3d_spv
     };
     PL_ASSERT(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &t3DPxlShdrInfo, NULL, &ptVulkanGfx->t3DPxlShdrStgInfo.module) == VK_SUCCESS);
 
@@ -2683,13 +1950,152 @@ pl_initialize_graphics(plGraphics* ptGraphics)
 
     const VkShaderModuleCreateInfo t3DLineVtxShdrInfo = {
         .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = sizeof(__glsl_shader_vert_3d_line_spv),
-        .pCode    = __glsl_shader_vert_3d_line_spv
+        .codeSize = uVertShaderSize1,
+        .pCode    = (uint32_t*)__glsl_shader_vert_3d_line_spv
     };
     PL_ASSERT(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &t3DLineVtxShdrInfo, NULL, &ptVulkanGfx->t3DLineVtxShdrStgInfo.module) == VK_SUCCESS);
 
-    pl_sb_resize(ptVulkanGfx->sbt3DBufferInfo, ptVulkanGfx->uFramesInFlight);
-    pl_sb_resize(ptVulkanGfx->sbtLineBufferInfo, ptVulkanGfx->uFramesInFlight);
+    pl_sb_resize(ptVulkanGfx->sbt3DBufferInfo, ptGraphics->uFramesInFlight);
+    pl_sb_resize(ptVulkanGfx->sbtLineBufferInfo, ptGraphics->uFramesInFlight);
+
+    // dynamic buffer stuff
+    VkDescriptorSetLayoutBinding tBinding =  {
+        .binding         = 0,
+        .descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+        .descriptorCount = 1,
+        .stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
+        .pImmutableSamplers = NULL
+    };
+
+    const VkDescriptorSetLayoutCreateInfo tDescriptorSetLayoutInfo = {
+        .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = 1,
+        .pBindings    = &tBinding,
+    };
+    PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &ptVulkanGfx->tDynamicDescriptorSetLayout));
+
+    PL_FREE(__glsl_shader_vert_3d_spv);
+    PL_FREE(__glsl_shader_vert_3d_line_spv);
+    PL_FREE(__glsl_shader_frag_3d_spv);
+
+    {
+        const plBufferDescription tStagingBufferDescription0 = {
+            .pcDebugName          = "dynamic buffer 0",
+            .tMemory              = PL_MEMORY_GPU_CPU,
+            .tUsage               = PL_BUFFER_USAGE_UNIFORM,
+            .uByteSize            = 134217728,
+            .uInitialDataByteSize = 0,
+            .puInitialData        = NULL
+        };
+
+        const plBufferDescription tStagingBufferDescription1 = {
+            .pcDebugName          = "dynamic buffer 1",
+            .tMemory              = PL_MEMORY_GPU_CPU,
+            .tUsage               = PL_BUFFER_USAGE_UNIFORM,
+            .uByteSize            = 134217728,
+            .uInitialDataByteSize = 0,
+            .puInitialData        = NULL
+        };
+        plBuffer tStagingBuffer0 = pl_create_buffer(&ptGraphics->tDevice, &tStagingBufferDescription0);
+        plBuffer tStagingBuffer1 = pl_create_buffer(&ptGraphics->tDevice, &tStagingBufferDescription1);
+
+        ptVulkanGfx->tDynamicBuffers[0].uHandle = tStagingBuffer0.uHandle;
+        ptVulkanGfx->tDynamicBuffers[0].tBuffer = ptVulkanGfx->sbtBuffers[tStagingBuffer0.uHandle].tBuffer;
+        ptVulkanGfx->tDynamicBuffers[0].tMemory = ptVulkanGfx->sbtBuffers[tStagingBuffer0.uHandle].tMemory;
+
+        ptVulkanGfx->tDynamicBuffers[1].uHandle = tStagingBuffer1.uHandle;
+        ptVulkanGfx->tDynamicBuffers[1].tBuffer = ptVulkanGfx->sbtBuffers[tStagingBuffer1.uHandle].tBuffer;
+        ptVulkanGfx->tDynamicBuffers[1].tMemory = ptVulkanGfx->sbtBuffers[tStagingBuffer1.uHandle].tMemory;
+
+        // allocate descriptor sets
+        const VkDescriptorSetAllocateInfo tAllocInfo = {
+            .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool     = ptVulkanGfx->tDescriptorPool,
+            .descriptorSetCount = 1,
+            .pSetLayouts        = &ptVulkanGfx->tDynamicDescriptorSetLayout
+        };
+
+        PL_VULKAN(vkAllocateDescriptorSets(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &ptVulkanGfx->tDynamicBuffers[0].tDescriptorSet));
+        PL_VULKAN(vkAllocateDescriptorSets(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &ptVulkanGfx->tDynamicBuffers[1].tDescriptorSet));
+
+
+        VkDescriptorBufferInfo tDescriptorInfo0 = {
+            .buffer = ptVulkanGfx->tDynamicBuffers[0].tBuffer,
+            .offset = 0,
+            .range  = 1024
+        };
+
+        VkDescriptorBufferInfo tDescriptorInfo1 = {
+            .buffer = ptVulkanGfx->tDynamicBuffers[1].tBuffer,
+            .offset = 0,
+            .range  = 1024
+        };
+
+        VkWriteDescriptorSet tWrite0 = {
+            .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstBinding      = 0,
+            .dstArrayElement = 0,
+            .descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .descriptorCount = 1,
+            .dstSet          = ptVulkanGfx->tDynamicBuffers[0].tDescriptorSet,
+            .pBufferInfo     = &tDescriptorInfo0,
+            .pNext           = NULL,
+        };
+
+        VkWriteDescriptorSet tWrite1 = {
+            .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstBinding      = 0,
+            .dstArrayElement = 0,
+            .descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .descriptorCount = 1,
+            .dstSet          = ptVulkanGfx->tDynamicBuffers[1].tDescriptorSet,
+            .pBufferInfo     = &tDescriptorInfo1,
+            .pNext           = NULL,
+        };
+
+        vkUpdateDescriptorSets(ptVulkanDevice->tLogicalDevice, 1, &tWrite0, 0, NULL);
+        vkUpdateDescriptorSets(ptVulkanDevice->tLogicalDevice, 1, &tWrite1, 0, NULL);
+    }
+
+    // staging buffer
+    {
+        const VkBufferCreateInfo tBufferCreateInfo = {
+            .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .size        = PL_DEVICE_ALLOCATION_BLOCK_SIZE,
+            .usage       = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE
+        };
+        ptVulkanGfx->szStageByteSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE;
+        PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &tBufferCreateInfo, NULL, &ptVulkanGfx->tStagingBuffer));
+
+        VkMemoryRequirements tMemoryRequirements = {0};
+        vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tStagingBuffer, &tMemoryRequirements);
+        ptVulkanGfx->szStageByteSize = tMemoryRequirements.size;
+
+        uint32_t uMemoryType = 0u;
+        bool bFound = false;
+        const VkMemoryPropertyFlags tProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        for (uint32_t i = 0; i < ptVulkanDevice->tMemProps.memoryTypeCount; i++) 
+        {
+            if ((tMemoryRequirements.memoryTypeBits & (1 << i)) && (ptVulkanDevice->tMemProps.memoryTypes[i].propertyFlags & tProperties) == tProperties) 
+            {
+                uMemoryType = i;
+                bFound = true;
+                break;
+            }
+        }
+
+        const VkMemoryAllocateInfo tAllocInfo = {
+            .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .allocationSize  = ptVulkanGfx->szStageByteSize,
+            .memoryTypeIndex = uMemoryType
+        };
+
+        PL_VULKAN(vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, &ptVulkanGfx->tStagingMemory));
+
+        PL_VULKAN(vkMapMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptVulkanGfx->tStagingMemory, 0, ptVulkanGfx->szStageByteSize, 0, &ptVulkanGfx->pStageMapping));
+        PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tStagingBuffer, ptVulkanGfx->tStagingMemory, 0));
+    }
 }
 
 static bool
@@ -2700,8 +2106,9 @@ pl_begin_frame(plGraphics* ptGraphics)
 
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
+    ptVulkanGfx->uDynamicByteOffset = 0;
 
-    plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
 
     // cleanup queue
     plFrameGarbage* ptGarbage = &ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame];
@@ -2732,7 +2139,7 @@ pl_begin_frame(plGraphics* ptGraphics)
     {
         if(err == VK_ERROR_OUT_OF_DATE_KHR)
         {
-            create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptVulkanGfx->tSwapchain);
+            pl__create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptVulkanGfx->tSwapchain);
 
             // recreate frame buffers
             pl_sb_resize(ptVulkanGfx->tSwapchain.sbtFrameBuffers, ptVulkanGfx->tSwapchain.uImageCount);
@@ -2779,7 +2186,7 @@ pl_begin_frame(plGraphics* ptGraphics)
     {
         for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbReturnedBuffers); i++)
         {
-            if(ptVulkanGfx->sbReturnedBuffers[i].slFreedFrame < (int64_t)ptVulkanGfx->szCurrentFrameIndex)
+            if(ptVulkanGfx->sbReturnedBuffers[i].slFreedFrame < (int64_t)ptGraphics->uCurrentFrameIndex)
             {
                 ptVulkanGfx->uBufferDeletionQueueSize--;
                 vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbReturnedBuffers[i].tBuffer, NULL);
@@ -2833,7 +2240,7 @@ pl_end_gfx_frame(plGraphics* ptGraphics)
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
-    plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
 
     // submit
     const VkPipelineStageFlags atWaitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
@@ -2862,7 +2269,7 @@ pl_end_gfx_frame(plGraphics* ptGraphics)
     const VkResult tResult = vkQueuePresentKHR(ptVulkanDevice->tPresentQueue, &tPresentInfo);
     if(tResult == VK_SUBOPTIMAL_KHR || tResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptVulkanGfx->tSwapchain);
+        pl__create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptVulkanGfx->tSwapchain);
 
         // recreate frame buffers
         pl_sb_resize(ptVulkanGfx->tSwapchain.sbtFrameBuffers, ptVulkanGfx->tSwapchain.uImageCount);
@@ -2893,7 +2300,7 @@ pl_end_gfx_frame(plGraphics* ptGraphics)
         PL_VULKAN(tResult);
     }
 
-    ptVulkanGfx->szCurrentFrameIndex = (ptVulkanGfx->szCurrentFrameIndex + 1) % ptVulkanGfx->uFramesInFlight;
+    ptGraphics->uCurrentFrameIndex = (ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;  
 
     pl_end_profile_sample();
 }
@@ -2907,9 +2314,9 @@ pl_resize(plGraphics* ptGraphics)
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
-    plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics);
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
 
-    create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptVulkanGfx->tSwapchain);
+    pl__create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], &ptVulkanGfx->tSwapchain);
 
     // recreate frame buffers
     pl_sb_resize(ptVulkanGfx->tSwapchain.sbtFrameBuffers, ptVulkanGfx->tSwapchain.uImageCount);
@@ -2935,7 +2342,7 @@ pl_resize(plGraphics* ptGraphics)
         PL_VULKAN(vkCreateFramebuffer(ptVulkanDevice->tLogicalDevice, &tFrameBufferInfo, NULL, &ptVulkanGfx->tSwapchain.sbtFrameBuffers[i]));
     }
 
-    ptVulkanGfx->szCurrentFrameIndex = 0;
+    ptGraphics->uCurrentFrameIndex = 0;
 
     pl_end_profile_sample();
 }
@@ -2996,6 +2403,48 @@ pl_shutdown(plGraphics* ptGraphics)
         pl_sb_free(ptVulkanGfx->sbt3DBufferInfo);
         pl_sb_free(ptVulkanGfx->sbtLineBufferInfo);
         pl_sb_free(ptVulkanGfx->sbt3DPipelines);
+
+        for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtTextures); i++)
+        {
+            vkDestroyImage(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtTextures[i].tImage, NULL);
+            vkFreeMemory(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtTextures[i].tMemory, NULL);
+        }
+
+        for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtSamplers); i++)
+        {
+            vkDestroySampler(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtSamplers[i].tSampler, NULL);
+            vkDestroyImageView(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtSamplers[i].tImageView, NULL);
+        }
+
+        for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtBindGroups); i++)
+        {
+            vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtBindGroups[i].tDescriptorSetLayout, NULL);
+        }
+
+        for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtBuffers); i++)
+        {
+            vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtBuffers[i].tBuffer, NULL);
+            vkFreeMemory(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtBuffers[i].tMemory, NULL);
+        }
+
+        for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtShaders); i++)
+        {
+            vkDestroyPipeline(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtShaders[i].tPipeline, NULL);
+            vkDestroyPipelineLayout(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtShaders[i].tPipelineLayout, NULL);
+        }
+
+        for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtBindGroupLayouts); i++)
+        {
+            vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtBindGroupLayouts[i].tDescriptorSetLayout, NULL);    
+        }
+
+        vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tDynamicDescriptorSetLayout, NULL);
+        pl_sb_free(ptVulkanGfx->sbtTextures);
+        pl_sb_free(ptVulkanGfx->sbtSamplers);
+        pl_sb_free(ptVulkanGfx->sbtBindGroups);
+        pl_sb_free(ptVulkanGfx->sbtBuffers);
+        pl_sb_free(ptVulkanGfx->sbtShaders);
+        pl_sb_free(ptVulkanGfx->sbtBindGroupLayouts);
         
         for(uint32_t i = 0u; i < pl_sb_size(ptGraphics->sbt3DDrawlists); i++)
         {
@@ -3009,13 +2458,13 @@ pl_shutdown(plGraphics* ptGraphics)
     }
 
     // cleanup buffers
-    for(uint32_t i = 0; i < pl_sb_size(ptGraphics->tDevice.sbtBuffers); i++)
-    {
-        plVulkanBuffer* ptBuffer = ptGraphics->tDevice.sbtBuffers[i].pBuffer;
-        vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptBuffer->tBuffer, NULL);
-        vkFreeMemory(ptVulkanDevice->tLogicalDevice, ptBuffer->tMemory, NULL);
-        PL_FREE(ptGraphics->tDevice.sbtBuffers[i].pBuffer);
-    }
+    // for(uint32_t i = 0; i < pl_sb_size(ptGraphics->tDevice.sbtBuffers); i++)
+    // {
+    //     plVulkanBuffer* ptBuffer = ptGraphics->tDevice.sbtBuffers[i].pBuffer;
+    //     vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptBuffer->tBuffer, NULL);
+    //     vkFreeMemory(ptVulkanDevice->tLogicalDevice, ptBuffer->tMemory, NULL);
+    //     PL_FREE(ptGraphics->tDevice.sbtBuffers[i].pBuffer);
+    // }
 
     // cleanup per frame resources
     for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbFrames); i++)
@@ -3042,8 +2491,8 @@ pl_shutdown(plGraphics* ptGraphics)
         vkDestroyFramebuffer(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tSwapchain.sbtFrameBuffers[i], NULL);
     
 
-    vkDestroyPipelineLayout(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->g_pipelineLayout, NULL);
-    vkDestroyPipeline(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->g_pipeline, NULL);
+    // vkDestroyPipelineLayout(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->g_pipelineLayout, NULL);
+    // vkDestroyPipeline(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->g_pipeline, NULL);
 
     vkDestroyRenderPass(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tRenderPass, NULL);
 
@@ -3051,6 +2500,9 @@ pl_shutdown(plGraphics* ptGraphics)
 
     // destroy command pool
     vkDestroyCommandPool(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, NULL);
+
+    vkDestroySwapchainKHR(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tSwapchain.tSwapChain, NULL);
+
 
     // destroy device
     vkDestroyDevice(ptVulkanDevice->tLogicalDevice, NULL);
@@ -3064,6 +2516,7 @@ pl_shutdown(plGraphics* ptGraphics)
 
     // destroy tSurface
     vkDestroySurfaceKHR(ptVulkanGfx->tInstance, ptVulkanGfx->tSurface, NULL);
+
 
     // destroy tInstance
     vkDestroyInstance(ptVulkanGfx->tInstance, NULL);
@@ -3082,7 +2535,7 @@ pl_shutdown(plGraphics* ptGraphics)
     pl_sb_free(ptVulkanGfx->tSwapchain.sbtImages);
     pl_sb_free(ptVulkanGfx->tSwapchain.sbtFrameBuffers);
     pl_sb_free(ptVulkanGfx->tSwapchain.sbtImageViews);
-    pl_sb_free(ptGraphics->tDevice.sbtBuffers);
+    // pl_sb_free(ptGraphics->tDevice.sbtBuffers);
     PL_FREE(ptGraphics->_pInternalData);
     PL_FREE(ptGraphics->tDevice._pInternalData);
 }
@@ -3093,11 +2546,10 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
-    plFrameContext* ptCurrentFrame = pl_get_frame_resources(ptGraphics); 
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics); 
 
     static VkDeviceSize offsets = { 0 };
     vkCmdSetDepthBias(ptCurrentFrame->tCmdBuf, 0.0f, 0.0f, 0.0f);
-    vkCmdBindPipeline(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanGfx->g_pipeline);
 
     for(uint32_t i = 0; i < uAreaCount; i++)
     {
@@ -3105,16 +2557,1224 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
 
         for(uint32_t j = 0; j < ptArea->uDrawCount; j++)
         {
-            plDraw* ptDraw = &atDraws[ptArea->uDrawOffset];
+            plDraw* ptDraw = &atDraws[ptArea->uDrawOffset + j];
+            plVulkanShader* ptVulkanShader = &ptVulkanGfx->sbtShaders[ptDraw->uShaderVariant];
+            vkCmdBindPipeline(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
 
-            plVulkanBuffer* ptVertexBuffer = ptGraphics->tDevice.sbtBuffers[ptDraw->ptMesh->uVertexBuffer].pBuffer;
-            plVulkanBuffer* ptIndexBuffer = ptGraphics->tDevice.sbtBuffers[ptDraw->ptMesh->uIndexBuffer].pBuffer;
+            plVulkanBindGroup* ptBindGroup0 = &ptVulkanGfx->sbtBindGroups[ptDraw->aptBindGroups[0]->uHandle];
+            plVulkanBindGroup* ptBindGroup1 = &ptVulkanGfx->sbtBindGroups[ptDraw->aptBindGroups[1]->uHandle];
+            plVulkanBindGroup* ptBindGroup2 = &ptVulkanGfx->sbtBindGroups[ptDraw->aptBindGroups[2]->uHandle];
+            plVulkanDynamicBuffer* ptVulkanDynamicBuffer = &ptVulkanGfx->tDynamicBuffers[ptDraw->uDynamicBuffer];
+
+            vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, 0, 1, &ptBindGroup0->tDescriptorSet, 0, NULL);
+            vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, 1, 1, &ptBindGroup1->tDescriptorSet, 0, NULL);
+            vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, 2, 1, &ptBindGroup2->tDescriptorSet, 0, NULL);
+            vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, 3, 1, &ptVulkanDynamicBuffer->tDescriptorSet, 1, &ptDraw->auDynamicBufferOffset[0]);
+
+            plVulkanBuffer* ptVertexBuffer = &ptVulkanGfx->sbtBuffers[ptDraw->uVertexBuffer];
+            plVulkanBuffer* ptIndexBuffer = &ptVulkanGfx->sbtBuffers[ptDraw->uIndexBuffer];
             vkCmdBindIndexBuffer(ptCurrentFrame->tCmdBuf, ptIndexBuffer->tBuffer, 0, VK_INDEX_TYPE_UINT32);
             vkCmdBindVertexBuffers(ptCurrentFrame->tCmdBuf, 0, 1, &ptVertexBuffer->tBuffer, &offsets);
-            vkCmdDrawIndexed(ptCurrentFrame->tCmdBuf, ptDraw->ptMesh->uIndexCount, 1, 0, 0, 0);
+
+            vkCmdDrawIndexed(ptCurrentFrame->tCmdBuf, ptDraw->uIndexCount, 1, ptDraw->uIndexOffset, 0, 0);
+
         }
-        
     }
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api implementation
+//-----------------------------------------------------------------------------
+
+static VkDeviceMemory
+pl__allocate_dedicated(plDevice* ptDevice, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+
+    uint32_t uMemoryType = 0u;
+    bool bFound = false;
+    for (uint32_t i = 0; i < ptVulkanDevice->tMemProps.memoryTypeCount; i++) 
+    {
+        if ((uTypeFilter & (1 << i)) && (ptVulkanDevice->tMemProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) 
+        {
+            uMemoryType = i;
+            bFound = true;
+            break;
+        }
+    }
+    PL_ASSERT(bFound);
+
+    const VkMemoryAllocateInfo tAllocInfo = {
+        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize  = (uint32_t)ulSize,
+        .memoryTypeIndex = uMemoryType
+    };
+
+    VkDeviceMemory tMemory = VK_NULL_HANDLE;
+    VkResult tResult = vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, &tMemory);
+    PL_VULKAN(tResult);
+
+    return tMemory;
+}
+
+static VkSampleCountFlagBits
+pl__get_max_sample_count(plDevice* ptDevice)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+
+    VkPhysicalDeviceProperties tPhysicalDeviceProperties = {0};
+    vkGetPhysicalDeviceProperties(ptVulkanDevice->tPhysicalDevice, &tPhysicalDeviceProperties);
+
+    VkSampleCountFlags tCounts = tPhysicalDeviceProperties.limits.framebufferColorSampleCounts & tPhysicalDeviceProperties.limits.framebufferDepthSampleCounts;
+    if (tCounts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT; }
+    if (tCounts & VK_SAMPLE_COUNT_32_BIT) { return VK_SAMPLE_COUNT_32_BIT; }
+    if (tCounts & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT; }
+    if (tCounts & VK_SAMPLE_COUNT_8_BIT)  { return VK_SAMPLE_COUNT_8_BIT; }
+    if (tCounts & VK_SAMPLE_COUNT_4_BIT)  { return VK_SAMPLE_COUNT_4_BIT; }
+    if (tCounts & VK_SAMPLE_COUNT_2_BIT)  { return VK_SAMPLE_COUNT_2_BIT; }
+    return VK_SAMPLE_COUNT_1_BIT;    
+}
+
+static VkFormat
+pl__find_supported_format(plDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+
+    for(uint32_t i = 0u; i < uFormatCount; i++)
+    {
+        VkFormatProperties tProps = {0};
+        vkGetPhysicalDeviceFormatProperties(ptVulkanDevice->tPhysicalDevice, ptFormats[i], &tProps);
+        if(tProps.optimalTilingFeatures & tFlags)
+            return ptFormats[i];
+    }
+
+    PL_ASSERT(false && "no supported format found");
+    return VK_FORMAT_UNDEFINED;
+}
+
+static VkFormat
+pl__find_depth_format(plDevice* ptDevice)
+{
+    const VkFormat atFormats[] = {
+        VK_FORMAT_D32_SFLOAT,
+        VK_FORMAT_D32_SFLOAT_S8_UINT,
+        VK_FORMAT_D24_UNORM_S8_UINT
+    };
+    return pl__find_supported_format(ptDevice, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT, atFormats, 3);
+}
+
+static VkFormat
+pl__find_depth_stencil_format(plDevice* ptDevice)
+{
+     const VkFormat atFormats[] = {
+        VK_FORMAT_D32_SFLOAT_S8_UINT,
+        VK_FORMAT_D24_UNORM_S8_UINT
+    };
+    return pl__find_supported_format(ptDevice, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT, atFormats, 2);   
+}
+
+static bool
+pl__format_has_stencil(VkFormat tFormat)
+{
+    switch(tFormat)
+    {
+        case VK_FORMAT_D16_UNORM_S8_UINT:
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+        case VK_FORMAT_D32_SFLOAT_S8_UINT: return true;
+        case VK_FORMAT_D32_SFLOAT:
+        default: return false;
+    }
+}
+
+static void
+pl__transition_image_layout(VkCommandBuffer tCommandBuffer, VkImage tImage, VkImageLayout tOldLayout, VkImageLayout tNewLayout, VkImageSubresourceRange tSubresourceRange, VkPipelineStageFlags tSrcStageMask, VkPipelineStageFlags tDstStageMask)
+{
+    //VkCommandBuffer commandBuffer = mvBeginSingleTimeCommands();
+    VkImageMemoryBarrier tBarrier = {
+        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .oldLayout           = tOldLayout,
+        .newLayout           = tNewLayout,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image               = tImage,
+        .subresourceRange    = tSubresourceRange,
+    };
+
+    // Source layouts (old)
+    // Source access mask controls actions that have to be finished on the old layout
+    // before it will be transitioned to the new layout
+    switch (tOldLayout)
+    {
+        case VK_IMAGE_LAYOUT_UNDEFINED:
+            // Image layout is undefined (or does not matter)
+            // Only valid as initial layout
+            // No flags required, listed only for completeness
+            tBarrier.srcAccessMask = 0;
+            break;
+
+        case VK_IMAGE_LAYOUT_PREINITIALIZED:
+            // Image is preinitialized
+            // Only valid as initial layout for linear images, preserves memory contents
+            // Make sure host writes have been finished
+            tBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+            break;
+
+        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+            // Image is a color attachment
+            // Make sure any writes to the color buffer have been finished
+            tBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            break;
+
+        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+            // Image is a depth/stencil attachment
+            // Make sure any writes to the depth/stencil buffer have been finished
+            tBarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            break;
+
+        case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+            // Image is a transfer source
+            // Make sure any reads from the image have been finished
+            tBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            break;
+
+        case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+            // Image is a transfer destination
+            // Make sure any writes to the image have been finished
+            tBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            break;
+
+        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+            // Image is read by a shader
+            // Make sure any shader reads from the image have been finished
+            tBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            break;
+        default:
+            // Other source layouts aren't handled (yet)
+            break;
+        }
+
+        // Target layouts (new)
+        // Destination access mask controls the dependency for the new image layout
+        switch (tNewLayout)
+        {
+        case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+            // Image will be used as a transfer destination
+            // Make sure any writes to the image have been finished
+            tBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            break;
+
+        case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+            // Image will be used as a transfer source
+            // Make sure any reads from the image have been finished
+            tBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            break;
+
+        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+            // Image will be used as a color attachment
+            // Make sure any writes to the color buffer have been finished
+            tBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            break;
+
+        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+            // Image layout will be used as a depth/stencil attachment
+            // Make sure any writes to depth/stencil buffer have been finished
+            tBarrier.dstAccessMask = tBarrier.dstAccessMask | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            break;
+
+        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+            // Image will be read in a shader (sampler, input attachment)
+            // Make sure any writes to the image have been finished
+            if (tBarrier.srcAccessMask == 0)
+                tBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+            tBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            break;
+        default:
+            // Other source layouts aren't handled (yet)
+            break;
+    }
+    vkCmdPipelineBarrier(tCommandBuffer, tSrcStageMask, tDstStageMask, 0, 0, NULL, 0, NULL, 1, &tBarrier);
+}
+
+static VKAPI_ATTR VkBool32 VKAPI_CALL
+pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT tMsgSeverity, VkDebugUtilsMessageTypeFlagsEXT tMsgType, const VkDebugUtilsMessengerCallbackDataEXT* ptCallbackData, void* pUserData) 
+{
+    if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+    {
+        printf("error validation layer: %s\n", ptCallbackData->pMessage);
+        pl_log_error_to_f(uLogChannel, "error validation layer: %s\n", ptCallbackData->pMessage);
+    }
+
+    else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+    {
+        printf("warn validation layer: %s\n", ptCallbackData->pMessage);
+        pl_log_warn_to_f(uLogChannel, "warn validation layer: %s\n", ptCallbackData->pMessage);
+    }
+
+    else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
+    {
+        // pl_log_trace_to_f(uLogChannel, "info validation layer: %s\n", ptCallbackData->pMessage);
+    }
+    else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
+    {
+        // pl_log_trace_to_f(uLogChannel, "trace validation layer: %s\n", ptCallbackData->pMessage);
+    }
+    
+    return VK_FALSE;
+}
+
+static void
+pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight, plVulkanSwapchain* ptSwapchainOut)
+{
+    plVulkanGraphics* ptVulkanGfx    = ptGraphics->_pInternalData;
+    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
+
+    vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice);
+
+    ptSwapchainOut->tMsaaSamples = pl__get_max_sample_count(&ptGraphics->tDevice);
+
+    // query swapchain support
+
+    VkSurfaceCapabilitiesKHR tCapabilities = {0};
+    PL_VULKAN(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ptVulkanDevice->tPhysicalDevice, ptVulkanGfx->tSurface, &tCapabilities));
+
+    uint32_t uFormatCount = 0u;
+    PL_VULKAN(vkGetPhysicalDeviceSurfaceFormatsKHR(ptVulkanDevice->tPhysicalDevice, ptVulkanGfx->tSurface, &uFormatCount, NULL));
+    
+    pl_sb_resize(ptSwapchainOut->sbtSurfaceFormats, uFormatCount);
+
+    VkBool32 tPresentSupport = false;
+    PL_VULKAN(vkGetPhysicalDeviceSurfaceSupportKHR(ptVulkanDevice->tPhysicalDevice, 0, ptVulkanGfx->tSurface, &tPresentSupport));
+    PL_ASSERT(uFormatCount > 0);
+    PL_VULKAN(vkGetPhysicalDeviceSurfaceFormatsKHR(ptVulkanDevice->tPhysicalDevice, ptVulkanGfx->tSurface, &uFormatCount, ptSwapchainOut->sbtSurfaceFormats));
+
+    uint32_t uPresentModeCount = 0u;
+    PL_VULKAN(vkGetPhysicalDeviceSurfacePresentModesKHR(ptVulkanDevice->tPhysicalDevice, ptVulkanGfx->tSurface, &uPresentModeCount, NULL));
+    PL_ASSERT(uPresentModeCount > 0 && uPresentModeCount < 16);
+
+    VkPresentModeKHR atPresentModes[16] = {0};
+    PL_VULKAN(vkGetPhysicalDeviceSurfacePresentModesKHR(ptVulkanDevice->tPhysicalDevice, ptVulkanGfx->tSurface, &uPresentModeCount, atPresentModes));
+
+    // choose swap tSurface Format
+    static VkFormat atSurfaceFormatPreference[4] = 
+    {
+        VK_FORMAT_R8G8B8A8_UNORM,
+        VK_FORMAT_B8G8R8A8_UNORM,
+        VK_FORMAT_R8G8B8A8_SRGB,
+        VK_FORMAT_B8G8R8A8_SRGB
+    };
+
+    bool bPreferenceFound = false;
+    VkSurfaceFormatKHR tSurfaceFormat = ptSwapchainOut->sbtSurfaceFormats[0];
+    ptSwapchainOut->tFormat = tSurfaceFormat.format;
+
+    for(uint32_t i = 0u; i < 4; i++)
+    {
+        if(bPreferenceFound) break;
+        
+        for(uint32_t j = 0u; j < uFormatCount; j++)
+        {
+            if(ptSwapchainOut->sbtSurfaceFormats[j].format == atSurfaceFormatPreference[i] && ptSwapchainOut->sbtSurfaceFormats[j].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+            {
+                tSurfaceFormat = ptSwapchainOut->sbtSurfaceFormats[j];
+                ptSwapchainOut->tFormat = tSurfaceFormat.format;
+                bPreferenceFound = true;
+                break;
+            }
+        }
+    }
+    PL_ASSERT(bPreferenceFound && "no preferred surface format found");
+
+    // chose swap present mode
+    VkPresentModeKHR tPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+    if(!ptSwapchainOut->bVSync)
+    {
+        for(uint32_t i = 0 ; i < uPresentModeCount; i++)
+        {
+			if (atPresentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR)
+			{
+				tPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+				break;
+			}
+			if (atPresentModes[i] == VK_PRESENT_MODE_IMMEDIATE_KHR)
+				tPresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+        }
+    }
+
+    // chose swap extent 
+    VkExtent2D tExtent = {0};
+    if(tCapabilities.currentExtent.width != UINT32_MAX)
+        tExtent = tCapabilities.currentExtent;
+    else
+    {
+        tExtent.width = pl_max(tCapabilities.minImageExtent.width, pl_min(tCapabilities.maxImageExtent.width, uWidth));
+        tExtent.height = pl_max(tCapabilities.minImageExtent.height, pl_min(tCapabilities.maxImageExtent.height, uHeight));
+    }
+    ptSwapchainOut->tExtent = tExtent;
+
+    // decide image count
+    const uint32_t uOldImageCount = ptSwapchainOut->uImageCount;
+    uint32_t uDesiredMinImageCount = tCapabilities.minImageCount + 1;
+    if(tCapabilities.maxImageCount > 0 && uDesiredMinImageCount > tCapabilities.maxImageCount) 
+        uDesiredMinImageCount = tCapabilities.maxImageCount;
+
+	// find the transformation of the surface
+	VkSurfaceTransformFlagsKHR tPreTransform;
+	if (tCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+	{
+		// We prefer a non-rotated transform
+		tPreTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+	}
+	else
+	{
+		tPreTransform = tCapabilities.currentTransform;
+	}
+
+	// find a supported composite alpha format (not all devices support alpha opaque)
+	VkCompositeAlphaFlagBitsKHR tCompositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	
+    // simply select the first composite alpha format available
+	static const VkCompositeAlphaFlagBitsKHR atCompositeAlphaFlags[] = {
+		VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+		VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
+		VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR,
+		VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR
+	};
+
+	for (int i = 0; i < 4; i++)
+    {
+		if (tCapabilities.supportedCompositeAlpha & atCompositeAlphaFlags[i]) 
+        {
+			tCompositeAlpha = atCompositeAlphaFlags[i];
+			break;
+		};
+	}
+
+    VkSwapchainCreateInfoKHR tCreateSwapchainInfo = {
+        .sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        .surface          = ptVulkanGfx->tSurface,
+        .minImageCount    = uDesiredMinImageCount,
+        .imageFormat      = tSurfaceFormat.format,
+        .imageColorSpace  = tSurfaceFormat.colorSpace,
+        .imageExtent      = tExtent,
+        .imageArrayLayers = 1,
+        .imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .preTransform     = (VkSurfaceTransformFlagBitsKHR)tPreTransform,
+        .compositeAlpha   = tCompositeAlpha,
+        .presentMode      = tPresentMode,
+        .clipped          = VK_TRUE, // setting clipped to VK_TRUE allows the implementation to discard rendering outside of the surface area
+        .oldSwapchain     = ptSwapchainOut->tSwapChain, // setting oldSwapChain to the saved handle of the previous swapchain aids in resource reuse and makes sure that we can still present already acquired images
+        .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE
+    };
+
+	// enable transfer source on swap chain images if supported
+	if (tCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+		tCreateSwapchainInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+
+	// enable transfer destination on swap chain images if supported
+	if (tCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+		tCreateSwapchainInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+
+    uint32_t auQueueFamilyIndices[] = { (uint32_t)ptVulkanDevice->iGraphicsQueueFamily, (uint32_t)ptVulkanDevice->iPresentQueueFamily};
+    if (ptVulkanDevice->iGraphicsQueueFamily != ptVulkanDevice->iPresentQueueFamily)
+    {
+        tCreateSwapchainInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        tCreateSwapchainInfo.queueFamilyIndexCount = 2;
+        tCreateSwapchainInfo.pQueueFamilyIndices = auQueueFamilyIndices;
+    }
+
+    VkSwapchainKHR tOldSwapChain = ptSwapchainOut->tSwapChain;
+
+    PL_VULKAN(vkCreateSwapchainKHR(ptVulkanDevice->tLogicalDevice, &tCreateSwapchainInfo, NULL, &ptSwapchainOut->tSwapChain));
+
+    if(tOldSwapChain)
+    {
+        if(pl_sb_size(ptVulkanDevice->_sbtFrameGarbage) == 0)
+        {
+            pl_sb_resize(ptVulkanDevice->_sbtFrameGarbage, ptSwapchainOut->uImageCount);
+        }
+        for (uint32_t i = 0u; i < uOldImageCount; i++)
+        {
+            pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtTextureViews, ptSwapchainOut->sbtImageViews[i]);
+            pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtFrameBuffers, ptSwapchainOut->sbtFrameBuffers[i]);
+        }
+        vkDestroySwapchainKHR(ptVulkanDevice->tLogicalDevice, tOldSwapChain, NULL);
+    }
+
+    // get swapchain images
+
+    PL_VULKAN(vkGetSwapchainImagesKHR(ptVulkanDevice->tLogicalDevice, ptSwapchainOut->tSwapChain, &ptSwapchainOut->uImageCount, NULL));
+    pl_sb_resize(ptSwapchainOut->sbtImages, ptSwapchainOut->uImageCount);
+    pl_sb_resize(ptSwapchainOut->sbtImageViews, ptSwapchainOut->uImageCount);
+
+    PL_VULKAN(vkGetSwapchainImagesKHR(ptVulkanDevice->tLogicalDevice, ptSwapchainOut->tSwapChain, &ptSwapchainOut->uImageCount, ptSwapchainOut->sbtImages));
+
+    for(uint32_t i = 0; i < ptSwapchainOut->uImageCount; i++)
+    {
+
+        ptSwapchainOut->sbtImageViews[i] = VK_NULL_HANDLE;
+
+        VkImageViewCreateInfo tViewInfo = {
+            .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image            = ptSwapchainOut->sbtImages[i],
+            .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+            .format           = ptSwapchainOut->tFormat,
+            .subresourceRange = {
+                .baseMipLevel   = 0,
+                .levelCount     = 1,
+                .baseArrayLayer = 0,
+                .layerCount     = 1,
+                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT
+            },
+            .components = {
+                        VK_COMPONENT_SWIZZLE_R,
+                        VK_COMPONENT_SWIZZLE_G,
+                        VK_COMPONENT_SWIZZLE_B,
+                        VK_COMPONENT_SWIZZLE_A
+                    }
+        };
+
+        PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tViewInfo, NULL, &ptSwapchainOut->sbtImageViews[i]));
+    }  //-V1020
+
+    // color & depth
+    if(ptSwapchainOut->tColorTextureView)  pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtTextureViews, ptSwapchainOut->tColorTextureView);
+    if(ptSwapchainOut->tDepthTextureView)  pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtTextureViews, ptSwapchainOut->tDepthTextureView);
+    if(ptSwapchainOut->tColorTexture)      pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtTextures, ptSwapchainOut->tColorTexture);
+    if(ptSwapchainOut->tDepthTexture)      pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtTextures, ptSwapchainOut->tDepthTexture);
+    if(ptSwapchainOut->tColorTextureMemory)      pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtMemory, ptSwapchainOut->tColorTextureMemory);
+    if(ptSwapchainOut->tDepthTextureMemory)      pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtMemory, ptSwapchainOut->tDepthTextureMemory);
+
+    ptSwapchainOut->tColorTextureView = VK_NULL_HANDLE;
+    ptSwapchainOut->tColorTexture     = VK_NULL_HANDLE;
+    ptSwapchainOut->tDepthTextureView = VK_NULL_HANDLE;
+    ptSwapchainOut->tDepthTexture     = VK_NULL_HANDLE;
+
+    VkImageCreateInfo tDepthImageInfo = {
+        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType     = VK_IMAGE_TYPE_2D,
+        .extent        = 
+        {
+            .width  = ptSwapchainOut->tExtent.width,
+            .height = ptSwapchainOut->tExtent.height,
+            .depth  = 1
+        },
+        .mipLevels     = 1,
+        .arrayLayers   = 1,
+        .format        = pl__find_depth_stencil_format(&ptGraphics->tDevice),
+        .tiling        = VK_IMAGE_TILING_OPTIMAL,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .usage         = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
+        .samples       = ptSwapchainOut->tMsaaSamples,
+        .flags         = 0
+    };
+
+    VkImageCreateInfo tColorImageInfo = {
+        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType     = VK_IMAGE_TYPE_2D,
+        .extent        = 
+        {
+            .width  = ptSwapchainOut->tExtent.width,
+            .height = ptSwapchainOut->tExtent.height,
+            .depth  = 1
+        },
+        .mipLevels     = 1,
+        .arrayLayers   = 1,
+        .format        = ptSwapchainOut->tFormat,
+        .tiling        = VK_IMAGE_TILING_OPTIMAL,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
+        .samples       = ptSwapchainOut->tMsaaSamples,
+        .flags         = 0
+    };
+
+    PL_VULKAN(vkCreateImage(ptVulkanDevice->tLogicalDevice, &tDepthImageInfo, NULL, &ptSwapchainOut->tDepthTexture));
+    PL_VULKAN(vkCreateImage(ptVulkanDevice->tLogicalDevice, &tColorImageInfo, NULL, &ptSwapchainOut->tColorTexture));
+
+    VkMemoryRequirements tDepthMemReqs = {0};
+    VkMemoryRequirements tColorMemReqs = {0};
+    vkGetImageMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptSwapchainOut->tDepthTexture, &tDepthMemReqs);
+    vkGetImageMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptSwapchainOut->tColorTexture, &tColorMemReqs);
+
+
+    ptSwapchainOut->tColorTextureMemory = pl__allocate_dedicated(&ptGraphics->tDevice, tColorMemReqs.memoryTypeBits, tColorMemReqs.size, tColorMemReqs.alignment, "swapchain color");
+    ptSwapchainOut->tDepthTextureMemory = pl__allocate_dedicated(&ptGraphics->tDevice, tDepthMemReqs.memoryTypeBits, tDepthMemReqs.size, tDepthMemReqs.alignment, "swapchain depth");
+
+    PL_VULKAN(vkBindImageMemory(ptVulkanDevice->tLogicalDevice, ptSwapchainOut->tDepthTexture, ptSwapchainOut->tDepthTextureMemory, 0));
+    PL_VULKAN(vkBindImageMemory(ptVulkanDevice->tLogicalDevice, ptSwapchainOut->tColorTexture, ptSwapchainOut->tColorTextureMemory, 0));
+
+    VkCommandBuffer tCommandBuffer = {0};
+    
+    const VkCommandBufferAllocateInfo tAllocInfo = {
+        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandPool        = ptVulkanDevice->tCmdPool,
+        .commandBufferCount = 1u,
+    };
+    vkAllocateCommandBuffers(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tCommandBuffer);
+
+    const VkCommandBufferBeginInfo tBeginInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+    };
+
+    vkBeginCommandBuffer(tCommandBuffer, &tBeginInfo);
+
+    VkImageSubresourceRange tRange = {
+        .baseMipLevel   = 0,
+        .levelCount     = 1,
+        .baseArrayLayer = 0,
+        .layerCount     = 1,
+        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT
+    };
+
+    pl__transition_image_layout(tCommandBuffer, ptSwapchainOut->tColorTexture, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    tRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    pl__transition_image_layout(tCommandBuffer, ptSwapchainOut->tDepthTexture, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+
+    PL_VULKAN(vkEndCommandBuffer(tCommandBuffer));
+    const VkSubmitInfo tSubmitInfo = {
+        .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1u,
+        .pCommandBuffers    = &tCommandBuffer,
+    };
+
+    PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
+    PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
+    vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
+
+    VkImageViewCreateInfo tDepthViewInfo = {
+        .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image                           = ptSwapchainOut->tDepthTexture,
+        .viewType                        = VK_IMAGE_VIEW_TYPE_2D,
+        .format                          = tDepthImageInfo.format,
+        .subresourceRange.baseMipLevel   = 0,
+        .subresourceRange.levelCount     = 1,
+        .subresourceRange.baseArrayLayer = 0,
+        .subresourceRange.layerCount     = 1,
+        .subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT,
+    };
+
+    if(pl__format_has_stencil(tDepthViewInfo.format))
+        tDepthViewInfo.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+
+    VkImageViewCreateInfo tColorViewInfo = {
+        .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image                           = ptSwapchainOut->tColorTexture,
+        .viewType                        = VK_IMAGE_VIEW_TYPE_2D,
+        .format                          = tColorImageInfo.format,
+        .subresourceRange.baseMipLevel   = 0,
+        .subresourceRange.levelCount     = 1,
+        .subresourceRange.baseArrayLayer = 0,
+        .subresourceRange.layerCount     = 1,
+        .subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+    };
+
+    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tDepthViewInfo, NULL, &ptSwapchainOut->tDepthTextureView));
+    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tColorViewInfo, NULL, &ptSwapchainOut->tColorTextureView));
+
+}
+
+static uint32_t
+pl__find_memory_type_(VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties)
+{
+    uint32_t uMemoryType = 0u;
+    for (uint32_t i = 0; i < tMemProps.memoryTypeCount; i++) 
+    {
+        if ((uTypeFilter & (1 << i)) && (tMemProps.memoryTypes[i].propertyFlags & tProperties) == tProperties) 
+        {
+            uMemoryType = i;
+            break;
+        }
+    }
+    return uMemoryType;    
+}
+
+static void
+pl__grow_vulkan_3d_vertex_buffer(plGraphics* ptGfx, uint32_t uVtxBufSzNeeded, pl3DVulkanBufferInfo* ptBufferInfo)
+{
+    plVulkanGraphics* ptVulkanGfx = ptGfx->_pInternalData;
+    plVulkanDevice* ptVulkanDevice = ptGfx->tDevice._pInternalData;
+
+    // buffer currently exists & mapped, submit for cleanup
+    if(ptBufferInfo->ucVertexBufferMap)
+    {
+        const pl3DBufferReturn tReturnBuffer = {
+            .tBuffer       = ptBufferInfo->tVertexBuffer,
+            .tDeviceMemory = ptBufferInfo->tVertexMemory,
+            .slFreedFrame  = (int64_t)(pl_get_io()->ulFrameCount + ptGfx->uFramesInFlight * 2)
+        };
+        pl_sb_push(ptVulkanGfx->sbReturnedBuffers, tReturnBuffer);
+        ptVulkanGfx->uBufferDeletionQueueSize++;
+        vkUnmapMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexMemory);
+    }
+
+    // create new buffer
+    const VkBufferCreateInfo tBufferCreateInfo = {
+        .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size        = uVtxBufSzNeeded,
+        .usage       = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
+    };
+    PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &tBufferCreateInfo, NULL, &ptBufferInfo->tVertexBuffer));
+
+    // check memory requirements
+    VkMemoryRequirements tMemReqs = {0};
+    vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexBuffer, &tMemReqs);
+
+    // allocate memory & bind buffer
+    const VkMemoryAllocateInfo tAllocInfo = {
+        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize  = tMemReqs.size,
+        .memoryTypeIndex = pl__find_memory_type_(ptVulkanDevice->tMemProps, tMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+    };
+    ptBufferInfo->uVertexByteSize = (uint32_t)tMemReqs.size;
+    PL_VULKAN(vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, &ptBufferInfo->tVertexMemory));
+    PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexBuffer, ptBufferInfo->tVertexMemory, 0));
+
+    // map memory persistently
+    PL_VULKAN(vkMapMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexMemory, 0, tMemReqs.size, 0, (void**)&ptBufferInfo->ucVertexBufferMap));
+
+    ptBufferInfo->uVertexBufferOffset = 0;
+}
+
+static void
+pl__grow_vulkan_3d_index_buffer(plGraphics* ptGfx, uint32_t uIdxBufSzNeeded, pl3DVulkanBufferInfo* ptBufferInfo)
+{
+    plVulkanGraphics* ptVulkanGfx = ptGfx->_pInternalData;
+    plVulkanDevice* ptVulkanDevice = ptGfx->tDevice._pInternalData;
+
+    // buffer currently exists & mapped, submit for cleanup
+    if(ptBufferInfo->ucIndexBufferMap)
+    {
+        const pl3DBufferReturn tReturnBuffer = {
+            .tBuffer       = ptBufferInfo->tIndexBuffer,
+            .tDeviceMemory = ptBufferInfo->tIndexMemory,
+            .slFreedFrame  = (int64_t)(pl_get_io()->ulFrameCount + ptGfx->uFramesInFlight * 2)
+        };
+        pl_sb_push(ptVulkanGfx->sbReturnedBuffers, tReturnBuffer);
+        ptVulkanGfx->uBufferDeletionQueueSize++;
+        vkUnmapMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexMemory);
+    }
+
+    // create new buffer
+    const VkBufferCreateInfo tBufferCreateInfo = {
+        .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size        = uIdxBufSzNeeded,
+        .usage       = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
+    };
+    PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &tBufferCreateInfo, NULL, &ptBufferInfo->tIndexBuffer));
+
+    // check memory requirements
+    VkMemoryRequirements tMemReqs = {0};
+    vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexBuffer, &tMemReqs);
+
+    // alllocate memory & bind buffer
+    const VkMemoryAllocateInfo tAllocInfo = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize = tMemReqs.size,
+        .memoryTypeIndex = pl__find_memory_type_(ptVulkanDevice->tMemProps, tMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+    };
+    ptBufferInfo->uIndexByteSize = (uint32_t)tMemReqs.size;
+    PL_VULKAN(vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, &ptBufferInfo->tIndexMemory));
+    PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexBuffer, ptBufferInfo->tIndexMemory, 0));
+
+    // map memory persistently
+    PL_VULKAN(vkMapMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexMemory, 0, tMemReqs.size, 0, (void**)&ptBufferInfo->ucIndexBufferMap));
+
+    ptBufferInfo->uIndexBufferOffset = 0;
+}
+
+static pl3DVulkanPipelineEntry*
+pl__get_3d_pipelines(plGraphics* ptGfx, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount, pl3DDrawFlags tFlags)
+{
+    plVulkanGraphics* ptVulkanGfx = ptGfx->_pInternalData;
+    plVulkanDevice* ptVulkanDevice = ptGfx->tDevice._pInternalData;
+
+    // return pipeline entry if it exists
+    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbt3DPipelines); i++)
+    {
+        if(ptVulkanGfx->sbt3DPipelines[i].tRenderPass == tRenderPass && tMSAASampleCount == ptVulkanGfx->sbt3DPipelines[i].tMSAASampleCount && ptVulkanGfx->sbt3DPipelines[i].tFlags == tFlags)
+            return &ptVulkanGfx->sbt3DPipelines[i];
+    }
+
+    // create new pipeline entry
+    pl3DVulkanPipelineEntry tEntry = {
+        .tRenderPass      = tRenderPass,
+        .tMSAASampleCount = tMSAASampleCount,
+        .tFlags           = tFlags
+    };
+
+    const VkPipelineInputAssemblyStateCreateInfo tInputAssembly = {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .primitiveRestartEnable = VK_FALSE
+    };
+
+    const VkVertexInputAttributeDescription aAttributeDescriptions[] = {
+        {0u, 0u, VK_FORMAT_R32G32B32_SFLOAT, 0u},
+        {1u, 0u, VK_FORMAT_R8G8B8A8_UNORM,  12u}
+    };
+    
+    const VkVertexInputBindingDescription tBindingDescription = {
+        .binding   = 0u,
+        .stride    = sizeof(plDrawVertex3DSolid),
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+    };
+
+    const VkPipelineVertexInputStateCreateInfo tVertexInputInfo = {
+        .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount   = 1u,
+        .vertexAttributeDescriptionCount = 2u,
+        .pVertexBindingDescriptions      = &tBindingDescription,
+        .pVertexAttributeDescriptions    = aAttributeDescriptions
+    };
+
+    const VkVertexInputAttributeDescription aLineAttributeDescriptions[] = {
+        {0u, 0u, VK_FORMAT_R32G32B32_SFLOAT, 0u},
+        {1u, 0u, VK_FORMAT_R32G32B32_SFLOAT, 12u},
+        {2u, 0u, VK_FORMAT_R32G32B32_SFLOAT, 24u},
+        {3u, 0u, VK_FORMAT_R8G8B8A8_UNORM,  36u}
+    };
+    
+    const VkVertexInputBindingDescription tLineBindingDescription = {
+        .binding   = 0u,
+        .stride    = sizeof(plDrawVertex3DLine),
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+    };
+
+    const VkPipelineVertexInputStateCreateInfo tLineVertexInputInfo = {
+        .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount   = 1u,
+        .vertexAttributeDescriptionCount = 4u,
+        .pVertexBindingDescriptions      = &tLineBindingDescription,
+        .pVertexAttributeDescriptions    = aLineAttributeDescriptions
+    };
+
+    // dynamic, set per frame
+    VkViewport tViewport = {0};
+    VkRect2D tScissor = {0};
+
+    const VkPipelineViewportStateCreateInfo tViewportState = {
+        .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .pViewports    = &tViewport,
+        .scissorCount  = 1,
+        .pScissors     = &tScissor
+    };
+
+    VkCullModeFlags tCullFlags = VK_CULL_MODE_NONE;
+    if(tFlags & PL_PIPELINE_FLAG_CULL_FRONT)
+        tCullFlags = VK_CULL_MODE_FRONT_BIT;
+    else if(tFlags & PL_PIPELINE_FLAG_CULL_BACK)
+        tCullFlags = VK_CULL_MODE_BACK_BIT;
+
+    const VkPipelineRasterizationStateCreateInfo tRasterizer = {
+        .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .depthClampEnable        = VK_FALSE,
+        .rasterizerDiscardEnable = VK_FALSE,
+        .polygonMode             = VK_POLYGON_MODE_FILL,
+        .lineWidth               = 1.0f,
+        .cullMode                = tCullFlags,
+        .frontFace               = tFlags & PL_PIPELINE_FLAG_FRONT_FACE_CW ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .depthBiasEnable         = VK_FALSE
+    };
+
+    const VkPipelineDepthStencilStateCreateInfo tDepthStencil = {
+        .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable       = tFlags & PL_PIPELINE_FLAG_DEPTH_TEST ? VK_TRUE : VK_FALSE,
+        .depthWriteEnable      = tFlags & PL_PIPELINE_FLAG_DEPTH_WRITE ? VK_TRUE : VK_FALSE,
+        .depthCompareOp        = VK_COMPARE_OP_LESS_OR_EQUAL,
+        .depthBoundsTestEnable = VK_FALSE,
+        .minDepthBounds        = 0.0f,
+        .maxDepthBounds        = 1.0f,
+        .stencilTestEnable     = VK_FALSE,
+        .front                 = {0},
+        .back                  = {0}
+    };
+
+    //---------------------------------------------------------------------
+    // color blending stage
+    //---------------------------------------------------------------------
+
+    const VkPipelineColorBlendAttachmentState tColorBlendAttachment = {
+        .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT,
+        .blendEnable         = VK_TRUE,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .colorBlendOp        = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .alphaBlendOp        = VK_BLEND_OP_ADD
+    };
+
+    const VkPipelineColorBlendStateCreateInfo tColorBlending = {
+        .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .logicOpEnable   = VK_FALSE,
+        .logicOp         = VK_LOGIC_OP_COPY,
+        .attachmentCount = 1,
+        .pAttachments    = &tColorBlendAttachment,
+        .blendConstants  = {0}
+    };
+
+    const VkPipelineMultisampleStateCreateInfo tMultisampling = {
+        .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .sampleShadingEnable  = VK_FALSE,
+        .rasterizationSamples = tMSAASampleCount
+    };
+
+    VkDynamicState atDynamicStateEnables[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+
+    const VkPipelineDynamicStateCreateInfo tDynamicState = {
+        .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = 2u,
+        .pDynamicStates    = atDynamicStateEnables
+    };
+
+    //---------------------------------------------------------------------
+    // Create Regular Pipeline
+    //---------------------------------------------------------------------
+
+    VkPipelineShaderStageCreateInfo atShaderStages[] = { ptVulkanGfx->t3DVtxShdrStgInfo, ptVulkanGfx->t3DPxlShdrStgInfo };
+
+    VkGraphicsPipelineCreateInfo pipeInfo = {
+        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .stageCount          = 2u,
+        .pStages             = atShaderStages,
+        .pVertexInputState   = &tVertexInputInfo,
+        .pInputAssemblyState = &tInputAssembly,
+        .pViewportState      = &tViewportState,
+        .pRasterizationState = &tRasterizer,
+        .pMultisampleState   = &tMultisampling,
+        .pColorBlendState    = &tColorBlending,
+        .pDynamicState       = &tDynamicState,
+        .layout              = ptVulkanGfx->t3DPipelineLayout,
+        .renderPass          = tRenderPass,
+        .subpass             = 0u,
+        .basePipelineHandle  = VK_NULL_HANDLE,
+        .pDepthStencilState  = &tDepthStencil
+    };
+    PL_VULKAN(vkCreateGraphicsPipelines(ptVulkanDevice->tLogicalDevice, VK_NULL_HANDLE, 1, &pipeInfo, NULL, &tEntry.tRegularPipeline));
+
+    // //---------------------------------------------------------------------
+    // // Create SDF Pipeline
+    // //---------------------------------------------------------------------
+
+    atShaderStages[0] = ptVulkanGfx->t3DLineVtxShdrStgInfo;
+    pipeInfo.pStages = atShaderStages;
+    pipeInfo.pVertexInputState = &tLineVertexInputInfo;
+    pipeInfo.layout = ptVulkanGfx->t3DLinePipelineLayout;
+
+    PL_VULKAN(vkCreateGraphicsPipelines(ptVulkanDevice->tLogicalDevice, VK_NULL_HANDLE, 1, &pipeInfo, NULL, &tEntry.tSecondaryPipeline));
+
+    // add to entries
+    pl_sb_push(ptVulkanGfx->sbt3DPipelines, tEntry);
+
+    return &pl_sb_back(ptVulkanGfx->sbt3DPipelines); 
+}
+
+static void
+pl__transfer_data_to_buffer(plDevice* ptDevice, VkBuffer tDest, size_t szSize, const void* pData)
+{
+
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptVulkanDevice->ptGraphics->_pInternalData;
+
+    // copy data
+    memcpy(ptVulkanGraphics->pStageMapping, pData, szSize);
+
+    // flush memory (incase we are using non-coherent memory)
+    const VkMappedMemoryRange tMemoryRange = {
+        .sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+        .memory = ptVulkanGraphics->tStagingMemory,
+        .size   = VK_WHOLE_SIZE
+    };
+    PL_VULKAN(vkFlushMappedMemoryRanges(ptVulkanDevice->tLogicalDevice, 1, &tMemoryRange));
+
+    // perform copy from staging buffer to destination buffer
+    VkCommandBuffer tCommandBuffer = {0};
+    
+    const VkCommandBufferAllocateInfo tAllocInfo = {
+        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandPool        = ptVulkanDevice->tCmdPool,
+        .commandBufferCount = 1u,
+    };
+    vkAllocateCommandBuffers(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tCommandBuffer);
+
+    const VkCommandBufferBeginInfo tBeginInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+    };
+
+    vkBeginCommandBuffer(tCommandBuffer, &tBeginInfo);
+
+    const VkBufferCopy tCopyRegion = {
+        .size = szSize
+    };
+    vkCmdCopyBuffer(tCommandBuffer, ptVulkanGraphics->tStagingBuffer, tDest, 1, &tCopyRegion);
+
+    PL_VULKAN(vkEndCommandBuffer(tCommandBuffer));
+    const VkSubmitInfo tSubmitInfo = {
+        .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1u,
+        .pCommandBuffers    = &tCommandBuffer,
+    };
+
+    PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
+    PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
+    vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
+}
+
+static void
+pl__transfer_data_to_image(plDevice* ptDevice, plTexture* ptDest, size_t szDataSize, const void* pData)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptVulkanDevice->ptGraphics->_pInternalData;
+
+    const plBufferDescription tStagingBufferDescription = {
+        .pcDebugName          = "image staging",
+        .tMemory              = PL_MEMORY_GPU_CPU,
+        .tUsage               = PL_BUFFER_USAGE_UNSPECIFIED,
+        .uByteSize            = (uint32_t)szDataSize,
+        .uInitialDataByteSize = (uint32_t)szDataSize,
+        .puInitialData        = pData
+    };
+    plBuffer tStagingBuffer = pl_create_buffer(ptDevice, &tStagingBufferDescription);
+    plVulkanBuffer* ptVulkanStagingBuffer = &ptVulkanGraphics->sbtBuffers[tStagingBuffer.uHandle];
+
+    // flush memory (incase we are using non-coherent memory)
+    const VkMappedMemoryRange tMemoryRange = {
+        .sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+        .memory = (VkDeviceMemory)ptVulkanStagingBuffer->tMemory,
+        .size   = VK_WHOLE_SIZE
+    };
+    PL_VULKAN(vkFlushMappedMemoryRanges(ptVulkanDevice->tLogicalDevice, 1, &tMemoryRange));
+
+    const VkImageSubresourceRange tSubResourceRange = {
+        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel   = 0,
+        .levelCount     = ptDest->tDesc.uMips,
+        .baseArrayLayer = 0,
+        .layerCount     = ptDest->tDesc.uLayers
+    };
+
+    VkCommandBuffer tCommandBuffer = {0};
+    
+    const VkCommandBufferAllocateInfo tAllocInfo = {
+        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandPool        = ptVulkanDevice->tCmdPool,
+        .commandBufferCount = 1u,
+    };
+    vkAllocateCommandBuffers(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tCommandBuffer);
+
+    const VkCommandBufferBeginInfo tBeginInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+    };
+
+    vkBeginCommandBuffer(tCommandBuffer, &tBeginInfo);
+
+    // transition destination image layout to transfer destination
+    pl__transition_image_layout(tCommandBuffer, ptVulkanGraphics->sbtTextures[ptDest->uHandle].tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+
+    // copy regions
+    const VkBufferImageCopy tCopyRegion = {
+        .bufferOffset                    = 0u,
+        .bufferRowLength                 = 0u,
+        .bufferImageHeight               = 0u,
+        .imageSubresource.aspectMask     = tSubResourceRange.aspectMask,
+        .imageSubresource.mipLevel       = 0,
+        .imageSubresource.baseArrayLayer = 0,
+        .imageSubresource.layerCount     = ptDest->tDesc.uLayers,
+        .imageExtent                     = {.width = (uint32_t)ptDest->tDesc.tDimensions.x, .height = (uint32_t)ptDest->tDesc.tDimensions.y, .depth = (uint32_t)ptDest->tDesc.tDimensions.z},
+    };
+    vkCmdCopyBufferToImage(tCommandBuffer, ptVulkanStagingBuffer->tBuffer, ptVulkanGraphics->sbtTextures[ptDest->uHandle].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &tCopyRegion);
+
+    // generate mips
+    if(ptDest->tDesc.uMips > 1)
+    {
+        // check if format supports linear blitting
+        VkFormatProperties tFormatProperties = {0};
+        vkGetPhysicalDeviceFormatProperties(ptVulkanDevice->tPhysicalDevice, pl__vulkan_format(ptDest->tDesc.tFormat), &tFormatProperties);
+
+        if(tFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)
+        {
+            VkImageSubresourceRange tMipSubResourceRange = {
+                .aspectMask     = tSubResourceRange.aspectMask,
+                .baseArrayLayer = 0,
+                .layerCount     = ptDest->tDesc.uLayers,
+                .levelCount     = 1
+            };
+
+            int iMipWidth = (int)ptDest->tDesc.tDimensions.x;
+            int iMipHeight = (int)ptDest->tDesc.tDimensions.y;
+
+            for(uint32_t i = 1; i < ptDest->tDesc.uMips; i++)
+            {
+                tMipSubResourceRange.baseMipLevel = i - 1;
+
+                pl__transition_image_layout(tCommandBuffer, ptVulkanGraphics->sbtTextures[ptDest->uHandle].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+                VkImageBlit tBlit = {
+                    .srcOffsets[1].x               = iMipWidth,
+                    .srcOffsets[1].y               = iMipHeight,
+                    .srcOffsets[1].z               = 1,
+                    .srcSubresource.aspectMask     = tSubResourceRange.aspectMask,
+                    .srcSubresource.mipLevel       = i - 1,
+                    .srcSubresource.baseArrayLayer = 0,
+                    .srcSubresource.layerCount     = 1,     
+                    .dstOffsets[1].x               = 1,
+                    .dstOffsets[1].y               = 1,
+                    .dstOffsets[1].z               = 1,
+                    .dstSubresource.aspectMask     = tSubResourceRange.aspectMask,
+                    .dstSubresource.mipLevel       = i,
+                    .dstSubresource.baseArrayLayer = 0,
+                    .dstSubresource.layerCount     = 1,
+                };
+
+                if(iMipWidth > 1)  tBlit.dstOffsets[1].x = iMipWidth / 2;
+                if(iMipHeight > 1) tBlit.dstOffsets[1].y = iMipHeight / 2;
+
+                vkCmdBlitImage(tCommandBuffer, ptVulkanGraphics->sbtTextures[ptDest->uHandle].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, ptVulkanGraphics->sbtTextures[ptDest->uHandle].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &tBlit, VK_FILTER_LINEAR);
+
+                pl__transition_image_layout(tCommandBuffer, ptVulkanGraphics->sbtTextures[ptDest->uHandle].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+
+                if(iMipWidth > 1)  iMipWidth /= 2;
+                if(iMipHeight > 1) iMipHeight /= 2;
+            }
+
+            tMipSubResourceRange.baseMipLevel = ptDest->tDesc.uMips - 1;
+            pl__transition_image_layout(tCommandBuffer, ptVulkanGraphics->sbtTextures[ptDest->uHandle].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+        }
+        else
+        {
+            PL_ASSERT(false && "format does not support linear blitting");
+        }
+    }
+    else
+    {
+        // transition destination image layout to shader usage
+        pl__transition_image_layout(tCommandBuffer, ptVulkanGraphics->sbtTextures[ptDest->uHandle].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    }
+
+    PL_VULKAN(vkEndCommandBuffer(tCommandBuffer));
+    const VkSubmitInfo tSubmitInfo = {
+        .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1u,
+        .pCommandBuffers    = &tCommandBuffer,
+    };
+
+    PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
+    PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
+    vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
+    // pl_delete_buffer(ptDevice, uStagingBuffer);
+}
+
+static plFrameContext*
+pl__get_frame_resources(plGraphics* ptGraphics)
+{
+    plVulkanGraphics* ptVulkanGfx    = ptGraphics->_pInternalData;
+    return &ptVulkanGfx->sbFrames[ptGraphics->uCurrentFrameIndex];
+}
+
+static VkFilter
+pl__vulkan_filter(plFilter tFilter)
+{
+    switch(tFilter)
+    {
+        case PL_FILTER_UNSPECIFIED:
+        case PL_FILTER_NEAREST: return VK_FILTER_NEAREST;
+        case PL_FILTER_LINEAR:  return VK_FILTER_LINEAR;
+    }
+
+    PL_ASSERT(false && "Unsupported filter mode");
+    return VK_FILTER_LINEAR;
+}
+
+static VkSamplerAddressMode
+pl__vulkan_wrap(plWrapMode tWrap)
+{
+    switch(tWrap)
+    {
+        case PL_WRAP_MODE_UNSPECIFIED:
+        case PL_WRAP_MODE_WRAP:   return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        case PL_WRAP_MODE_CLAMP:  return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        case PL_WRAP_MODE_MIRROR: return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+    }
+
+    PL_ASSERT(false && "Unsupported wrap mode");
+    return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+}
+
+static VkCompareOp
+pl__vulkan_compare(plCompareMode tCompare)
+{
+    switch(tCompare)
+    {
+        case PL_COMPARE_MODE_UNSPECIFIED:
+        case PL_COMPARE_MODE_NEVER:            return VK_COMPARE_OP_NEVER;
+        case PL_COMPARE_MODE_LESS:             return VK_COMPARE_OP_LESS;
+        case PL_COMPARE_MODE_EQUAL:            return VK_COMPARE_OP_EQUAL;
+        case PL_COMPARE_MODE_LESS_OR_EQUAL:    return VK_COMPARE_OP_LESS_OR_EQUAL;
+        case PL_COMPARE_MODE_GREATER:          return VK_COMPARE_OP_GREATER;
+        case PL_COMPARE_MODE_NOT_EQUAL:        return VK_COMPARE_OP_NOT_EQUAL;
+        case PL_COMPARE_MODE_GREATER_OR_EQUAL: return VK_COMPARE_OP_GREATER_OR_EQUAL;
+        case PL_COMPARE_MODE_ALWAYS:           return VK_COMPARE_OP_ALWAYS;
+    }
+
+    PL_ASSERT(false && "Unsupported compare mode");
+    return VK_COMPARE_OP_NEVER;
+}
+
+static VkFormat
+pl__vulkan_format(plFormat tFormat)
+{
+    switch(tFormat)
+    {
+        case PL_FORMAT_R32G32B32A32_FLOAT: return VK_FORMAT_R32G32B32A32_SFLOAT;
+        case PL_FORMAT_R32G32B32_FLOAT:    return VK_FORMAT_R32G32B32_SFLOAT;
+        case PL_FORMAT_R8G8B8A8_UNORM:     return VK_FORMAT_R8G8B8A8_UNORM;
+        case PL_FORMAT_R32G32_FLOAT:       return VK_FORMAT_R32G32_SFLOAT;
+        case PL_FORMAT_R8G8B8A8_SRGB:      return VK_FORMAT_R8G8B8A8_SRGB;
+        case PL_FORMAT_B8G8R8A8_SRGB:      return VK_FORMAT_B8G8R8A8_SRGB;
+        case PL_FORMAT_B8G8R8A8_UNORM:     return VK_FORMAT_B8G8R8A8_UNORM;
+        case PL_FORMAT_D32_FLOAT:          return VK_FORMAT_D32_SFLOAT;
+        case PL_FORMAT_D32_FLOAT_S8_UINT:  return VK_FORMAT_D32_SFLOAT_S8_UINT;
+        case PL_FORMAT_D24_UNORM_S8_UINT:  return VK_FORMAT_D24_UNORM_S8_UINT;
+        case PL_FORMAT_D16_UNORM_S8_UINT:  return VK_FORMAT_D16_UNORM_S8_UINT;
+    }
+
+    PL_ASSERT(false && "Unsupported format");
+    return VK_FORMAT_UNDEFINED;
+}
+
+static plFormat
+pl__pilotlight_format(VkFormat tFormat)
+{
+    switch(tFormat)
+    {
+        case VK_FORMAT_R32G32B32_SFLOAT:   return PL_FORMAT_R32G32B32_FLOAT;
+        case VK_FORMAT_R8G8B8A8_UNORM:     return PL_FORMAT_R8G8B8A8_UNORM;
+        case VK_FORMAT_R32G32_SFLOAT:      return PL_FORMAT_R32G32_FLOAT;
+        case VK_FORMAT_R8G8B8A8_SRGB:      return PL_FORMAT_R8G8B8A8_SRGB;
+        case VK_FORMAT_B8G8R8A8_SRGB:      return PL_FORMAT_B8G8R8A8_SRGB;
+        case VK_FORMAT_B8G8R8A8_UNORM:     return PL_FORMAT_B8G8R8A8_UNORM;
+        case VK_FORMAT_D32_SFLOAT:         return PL_FORMAT_D32_FLOAT;
+        case VK_FORMAT_D32_SFLOAT_S8_UINT: return PL_FORMAT_D32_FLOAT_S8_UINT;
+        case VK_FORMAT_D24_UNORM_S8_UINT:  return PL_FORMAT_D24_UNORM_S8_UINT;
+        case VK_FORMAT_D16_UNORM_S8_UINT:  return PL_FORMAT_D16_UNORM_S8_UINT;
+        default:
+            break;
+    }
+
+    PL_ASSERT(false && "Unsupported format");
+    return PL_FORMAT_UNKNOWN;
 }
 
 //-----------------------------------------------------------------------------
@@ -3145,7 +3805,8 @@ pl_load_graphics_api(void)
         .add_3d_bezier_quad       = pl__add_3d_bezier_quad,
         .add_3d_bezier_cubic      = pl__add_3d_bezier_cubic,
         .register_3d_drawlist     = pl__register_3d_drawlist,
-        .submit_3d_drawlist       = pl__submit_3d_drawlist
+        .submit_3d_drawlist       = pl__submit_3d_drawlist,
+        .create_shader            = pl_create_shader,
     };
     return &tApi;
 }
@@ -3154,8 +3815,12 @@ static const plDeviceI*
 pl_load_device_api(void)
 {
     static const plDeviceI tApi = {
-        .create_index_buffer  = pl_create_index_buffer,
-        .create_vertex_buffer = pl_create_vertex_buffer
+        .create_buffer         = pl_create_buffer,
+        .create_texture        = pl_create_texture,
+        .create_texture_view   = pl_create_texture_view,
+        .create_bind_group     = pl_create_bind_group,
+        .update_bind_group     = pl_update_bind_group,
+        .allocate_dynamic_data = pl_allocate_dynamic_data
     };
     return &tApi;
 }

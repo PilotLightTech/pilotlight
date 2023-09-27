@@ -1010,6 +1010,10 @@ pl__load_library(plSharedLibrary* library, const char* name, const char* transit
         appleLibrary->handle = dlopen(temporaryName, RTLD_NOW);
         if(appleLibrary->handle)
             library->bValid = true;
+        else
+        {
+            printf("\n\n%s\n\n", dlerror());
+        }
     }
 
     return library->bValid;

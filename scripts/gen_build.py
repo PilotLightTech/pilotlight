@@ -140,7 +140,7 @@ with pl.project("pilotlight"):
         
         with pl.configuration("debug"):
             pl.push_profile(pl.Profile.VULKAN)
-            pl.push_vulkan_glsl_files("../shaders/glsl/", "primitive.frag", "primitive.vert")
+            pl.push_vulkan_glsl_files("../shaders/glsl/", "primitive.frag", "primitive.vert", "draw_3d.vert", "draw_3d.frag", "draw_3d_line.vert")
             with pl.platform(pl.PlatformType.WIN32):
                 with pl.compiler("msvc", pl.CompilerType.MSVC):
                     pl.add_definition("PL_VULKAN_BACKEND")
@@ -155,7 +155,7 @@ with pl.project("pilotlight"):
         
         
         pl.push_profile(pl.Profile.VULKAN)
-        pl.push_vulkan_glsl_files("../shaders/glsl/", "primitive.frag", "primitive.vert")
+        pl.push_vulkan_glsl_files("../shaders/glsl/", "primitive.frag", "primitive.vert", "draw_3d.vert", "draw_3d.frag", "draw_3d_line.vert")
         with pl.configuration("vulkan"):
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):

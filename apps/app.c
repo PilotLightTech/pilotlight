@@ -1,5 +1,5 @@
 /*
-   app.c (just an experimental)
+   app.c (just experimental)
 */
 
 /*
@@ -42,23 +42,65 @@ Index of this file:
 
 typedef struct plAppData_t
 {
-    plDrawList   drawlist;
-    plDrawLayer* fgDrawLayer;
-    plDrawLayer* bgDrawLayer;
-    plFontAtlas  fontAtlas;
+    plGraphics tGraphics;
 
+    // drawing
+    plDrawList   tDrawlist;
+    plDrawLayer* ptFgDrawLayer;
+    plDrawLayer* ptBgDrawLayer;
+    plFontAtlas  tFontAtlas;
+
+    // ui options
     plDebugApiInfo tDebugInfo;
     bool           bShowUiDemo;
     bool           bShowUiDebug;
     bool           bShowUiStyle;
 
-    plGraphics tGraphics;
-    plMesh     tMesh;
+    // texture
+    plTexture     tTexture;
+    plTextureView tTextureView;
+
+    // bind groups
+    plBindGroup atBindGroups0[2];
+    plBindGroup tBindGroup1_0;
+    plBindGroup tBindGroup1_1;
+    plBindGroup tBindGroup2;
+    
+    // shaders
+    plShader tShader0;
+    plShader tShader1;
+
+    // global index/vertex/data buffers
+    plBuffer tVertexBuffer;
+    plBuffer tIndexBuffer;
+    plBuffer tStorageBuffer;
+    plBuffer tShaderSpecificBuffer;
+    plBuffer atGlobalBuffers[2];
 
     // scene
     plCamera     tMainCamera;
     plDrawList3D t3DDrawList;
 } plAppData;
+
+typedef struct _BindGroup_0
+{
+    plMat4 tCameraView;
+    plMat4 tCameraProjection;   
+    plMat4 tCameraViewProjection;   
+} BindGroup_0;
+
+typedef struct _BindGroup_2
+{
+    plVec4 tShaderSpecific;
+} BindGroup_2;
+
+typedef struct _DynamicData
+{
+    int    iDataOffset;
+    int    iVertexOffset;
+    int    iPadding[2];
+    plMat4 tModel;
+} DynamicData;
 
 //-----------------------------------------------------------------------------
 // [SECTION] global apis
@@ -138,38 +180,326 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     pl_camera_set_pitch_yaw(&ptAppData->tMainCamera, -0.244f, 1.488f);
     pl_camera_update(&ptAppData->tMainCamera);
 
+    // shader specific buffer
+    const BindGroup_2 tShaderSpecificBufferDesc = {
+        .tShaderSpecific = {-1.0f, 0.0f, 0.0f, -0.25f}
+    };
+    const plBufferDescription tShaderBufferDesc = {
+        .pcDebugName          = "shader buffer",
+        .tMemory              = PL_MEMORY_GPU,
+        .tUsage               = PL_BUFFER_USAGE_UNIFORM,
+        .uByteSize            = sizeof(BindGroup_2),
+        .uInitialDataByteSize = sizeof(BindGroup_2),
+        .puInitialData        = (uint8_t*)&tShaderSpecificBufferDesc
+    };
+    ptAppData->tShaderSpecificBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tShaderBufferDesc);
+
+    // storage buffer
+    const float fStorageBuffer[] = {
+        // u, v, _, _, r, g, b, a
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f,
+        1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+
+        // r, g, b, a
+        0.0f, 1.0f, 1.0f, 1.0f,
+        1.0f, 0.0f, 0.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 1.0f, 1.0f
+    };
+    const plBufferDescription tStorageBufferDesc = {
+        .pcDebugName          = "storage buffer",
+        .tMemory              = PL_MEMORY_GPU,
+        .tUsage               = PL_BUFFER_USAGE_STORAGE,
+        .uByteSize            = sizeof(float) * 48,
+        .uInitialDataByteSize = sizeof(float) * 48,
+        .puInitialData        = (uint8_t*)fStorageBuffer
+    };
+    ptAppData->tStorageBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tStorageBufferDesc);
+
     // vertex buffer
     const float fVertexBuffer[] = {
-        // x, y, z, r, g, b, a
-        -0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
-         0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f,
-         0.0f,  0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+        // x, y, z
+        -0.5f, -0.5f, 0.0f,
+        -0.5f,  0.5f, 0.0f,
+         0.5f,  0.5f, 0.0f,
+         0.5f, -0.5f, 0.0f,
+
+        // x, y, z
+        -0.5f, 1.0f, 0.0f,
+        -0.5f, 2.0f, 0.0f,
+         0.5f, 2.0f, 0.0f,
+         0.5f, 1.0f, 0.0f
     };
 
-    ptAppData->tMesh.uVertexBuffer = gptDevice->create_vertex_buffer(&ptAppData->tGraphics.tDevice, sizeof(float) * 21, sizeof(float) * 3, fVertexBuffer, "vertex buffer");
-
-
+    const plBufferDescription tVertexBufferDesc = {
+        .pcDebugName          = "vertex buffer",
+        .tMemory              = PL_MEMORY_GPU,
+        .tUsage               = PL_BUFFER_USAGE_VERTEX,
+        .uByteSize            = sizeof(float) * 24,
+        .uInitialDataByteSize = sizeof(float) * 24,
+        .puInitialData        = (uint8_t*)fVertexBuffer
+    };
+    ptAppData->tVertexBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tVertexBufferDesc);
+    
     // index buffer
     const uint32_t uIndexBuffer[] = {
-        0, 1, 2
-    };
-    ptAppData->tMesh.uIndexBuffer = gptDevice->create_index_buffer(&ptAppData->tGraphics.tDevice, sizeof(uint32_t) * 3, uIndexBuffer, "index buffer");
+        0, 1, 2,
+        0, 2, 3,
 
-    ptAppData->tMesh.uIndexCount = 3;
-    ptAppData->tMesh.uVertexCount = 3;
+        4, 5, 6,
+        4, 6, 7
+    };
+    const plBufferDescription tIndexBufferDesc = {
+        .pcDebugName          = "index buffer",
+        .tMemory              = PL_MEMORY_GPU_CPU,
+        .tUsage               = PL_BUFFER_USAGE_INDEX,
+        .uByteSize            = sizeof(uint32_t) * 12,
+        .uInitialDataByteSize = sizeof(uint32_t) * 12,
+        .puInitialData        = (uint8_t*)uIndexBuffer
+    };
+    ptAppData->tIndexBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tIndexBufferDesc);
+
+    static float image[] = {
+        1.0f,   0,   0, 1.0f,
+        0, 1.0f,   0, 1.0f,
+        0,   0, 1.0f, 1.0f,
+        1.0f,   0, 1.0f, 1.0f
+    };
+    plTextureDesc tTextureDesc = {
+        .tDimensions = {2, 2, 1},
+        .tFormat = PL_FORMAT_R32G32B32A32_FLOAT,
+        .uLayers = 1,
+        .uMips = 1
+    };
+    ptAppData->tTexture = gptDevice->create_texture(&ptAppData->tGraphics.tDevice, tTextureDesc, sizeof(float) * 4 * 4, image, "texture");
+
+    plTextureViewDesc tTextureViewDesc = {
+        .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+        .uBaseLayer  = 0,
+        .uBaseMip    = 0,
+        .uLayerCount = 1,
+        .uMips       = 1,
+        .uSlot       = 0
+    };
+    plSampler tSampler = {
+        .tFilter = PL_FILTER_NEAREST,
+        .fMinMip = 0.0f,
+        .fMaxMip = 64.0f,
+        .tVerticalWrap = PL_WRAP_MODE_CLAMP,
+        .tHorizontalWrap = PL_WRAP_MODE_CLAMP
+    };
+    ptAppData->tTextureView = gptDevice->create_texture_view(&ptAppData->tGraphics.tDevice, &tTextureViewDesc, &tSampler, ptAppData->tTexture.uHandle, "texture view");
+
+    const plBufferDescription atGlobalBuffersDesc = {
+        .pcDebugName          = "global buffer",
+        .tMemory              = PL_MEMORY_GPU_CPU,
+        .tUsage               = PL_BUFFER_USAGE_UNIFORM,
+        .uByteSize            = sizeof(BindGroup_0),
+        .uInitialDataByteSize = 0,
+        .puInitialData        = NULL
+    };
+    ptAppData->atGlobalBuffers[0] = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &atGlobalBuffersDesc);
+    ptAppData->atGlobalBuffers[1] = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &atGlobalBuffersDesc);
+
+    plBindGroupLayout tBindGroupLayout0 = {
+        .uBufferCount  = 1,
+        .aBuffers = {
+            {
+                .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                .uSlot = 0
+            }
+        }
+    };
+    ptAppData->atBindGroups0[0] = gptDevice->create_bind_group(&ptAppData->tGraphics.tDevice, &tBindGroupLayout0);
+    ptAppData->atBindGroups0[1] = gptDevice->create_bind_group(&ptAppData->tGraphics.tDevice, &tBindGroupLayout0);
+    size_t szBufferRangeSize = sizeof(BindGroup_0);
+    gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->atBindGroups0[0], 1, &ptAppData->atGlobalBuffers[0], &szBufferRangeSize, 0, NULL);
+    gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->atBindGroups0[1], 1, &ptAppData->atGlobalBuffers[1], &szBufferRangeSize, 0, NULL);
+
+    plBindGroupLayout tBindGroupLayout1_0 = {
+        .uBufferCount  = 1,
+        .aBuffers = {
+            {
+                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                .uSlot = 0
+            },
+        },
+        .uTextureCount  = 1,
+        .aTextures = {
+            {.uSlot = 1}
+        }
+    };
+    ptAppData->tBindGroup1_0 = gptDevice->create_bind_group(&ptAppData->tGraphics.tDevice, &tBindGroupLayout1_0);
+    size_t szGroup1BufferRange = sizeof(float) * 48;
+    gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->tBindGroup1_0, 1, &ptAppData->tStorageBuffer, &szGroup1BufferRange, 1, &ptAppData->tTextureView);
+
+    plBindGroupLayout tBindGroupLayout1_1 = {
+        .uBufferCount  = 1,
+        .aBuffers = {
+            {
+                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                .uSlot = 0
+            }
+        },
+        .uTextureCount  = 1,
+        .aTextures = {
+            {.uSlot = 1}
+        }
+    };
+    ptAppData->tBindGroup1_1 = gptDevice->create_bind_group(&ptAppData->tGraphics.tDevice, &tBindGroupLayout1_1);
+    gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->tBindGroup1_1, 1, &ptAppData->tStorageBuffer, &szGroup1BufferRange, 1, &ptAppData->tTextureView);
+
+    plBindGroupLayout tBindGroupLayout2_0 = {
+        .uBufferCount  = 1,
+        .aBuffers = {
+            {
+                .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                .uSlot = 0
+            },
+        }
+    };
+    ptAppData->tBindGroup2 = gptDevice->create_bind_group(&ptAppData->tGraphics.tDevice, &tBindGroupLayout2_0);
+    size_t szGroup2BufferRange = sizeof(BindGroup_2);
+    gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->tBindGroup2, 1, &ptAppData->tShaderSpecificBuffer, &szGroup2BufferRange, 0, NULL);
+
+    plShaderDescription tShaderDescription0 = {
+
+#ifdef PL_METAL_BACKEND
+        .pcVertexShader = "../shaders/metal/primitive.metal",
+        .pcPixelShader = "../shaders/metal/primitive.metal",
+#else // VULKAN
+        .pcVertexShader = "primitive.vert.spv",
+        .pcPixelShader = "primitive.frag.spv",
+#endif
+
+        .tGraphicsState = {
+            .ulDepthWriteEnabled  = 1,
+            .ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 | PL_MESH_FORMAT_FLAG_HAS_COLOR_0,
+            .ulBlendMode          = PL_BLEND_MODE_ALPHA,
+            .ulDepthMode          = PL_DEPTH_MODE_LESS_OR_EQUAL,
+            .ulCullMode           = PL_CULL_MODE_CULL_BACK,
+            .ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_0,
+            .ulStencilMode        = PL_STENCIL_MODE_ALWAYS,
+            .ulStencilRef         = 0xff,
+            .ulStencilMask        = 0xff,
+            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+        },
+        .uBindGroupLayoutCount = 3,
+        .atBindGroupLayouts = {
+            {
+                .uBufferCount  = 1,
+                .aBuffers = {
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                        .uSlot = 0
+                    },
+                },
+            },
+            {
+                .uBufferCount  = 1,
+                .aBuffers = {
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                        .uSlot = 0
+                    },
+                },
+                .uTextureCount = 1,
+                .aTextures = {
+                    {
+                        .uSlot = 1
+                    }
+                 },
+            },
+            {
+                .uBufferCount  = 1,
+                .aBuffers = {
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                        .uSlot = 0
+                    },
+                },
+            }
+        }
+    };
+    ptAppData->tShader0 = gptGfx->create_shader(&ptAppData->tGraphics, &tShaderDescription0);
+
+    plShaderDescription tShaderDescription1 = {
+#ifdef PL_METAL_BACKEND
+        .pcVertexShader = "../shaders/metal/primitive.metal",
+        .pcPixelShader = "../shaders/metal/primitive.metal",
+#else // linux
+        .pcVertexShader = "primitive.vert.spv",
+        .pcPixelShader = "primitive.frag.spv",
+#endif
+        .tGraphicsState = {
+            .ulDepthWriteEnabled  = 1,
+            .ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_COLOR_0,
+            .ulBlendMode          = PL_BLEND_MODE_ALPHA,
+            .ulDepthMode          = PL_DEPTH_MODE_LESS_OR_EQUAL,
+            .ulCullMode           = PL_CULL_MODE_NONE,
+            .ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_NONE,
+            .ulStencilMode        = PL_STENCIL_MODE_ALWAYS,
+            .ulStencilRef         = 0xff,
+            .ulStencilMask        = 0xff,
+            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+        },
+        .uBindGroupLayoutCount = 3,
+        .atBindGroupLayouts = {
+            {
+                .uBufferCount  = 1,
+                .aBuffers = {
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                        .uSlot = 0
+                    },
+                },
+            },
+            {
+                .uBufferCount  = 1,
+                .aBuffers = {
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                        .uSlot = 0
+                    },
+                },
+                .uTextureCount = 1,
+                .aTextures = {
+                    {
+                        .uSlot = 1
+                    }
+                 },
+            },
+            {
+                .uBufferCount  = 1,
+                .aBuffers = {
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                        .uSlot = 0
+                    },
+                },
+            }
+        }
+    };
+    ptAppData->tShader1 = gptGfx->create_shader(&ptAppData->tGraphics, &tShaderDescription1);
 
     // create draw list & layers
-    pl_register_drawlist(&ptAppData->drawlist);
-    ptAppData->bgDrawLayer = pl_request_layer(&ptAppData->drawlist, "Background Layer");
-    ptAppData->fgDrawLayer = pl_request_layer(&ptAppData->drawlist, "Foreground Layer");
+    pl_register_drawlist(&ptAppData->tDrawlist);
+    ptAppData->ptBgDrawLayer = pl_request_layer(&ptAppData->tDrawlist, "Background Layer");
+    ptAppData->ptFgDrawLayer = pl_request_layer(&ptAppData->tDrawlist, "Foreground Layer");
     
     // create font atlas
-    pl_add_default_font(&ptAppData->fontAtlas);
-    pl_build_font_atlas(&ptAppData->fontAtlas);
-    gptGfx->create_font_atlas(&ptAppData->fontAtlas);
-    pl_set_default_font(&ptAppData->fontAtlas.sbtFonts[0]);
+    pl_add_default_font(&ptAppData->tFontAtlas);
+    pl_build_font_atlas(&ptAppData->tFontAtlas);
+    gptGfx->create_font_atlas(&ptAppData->tFontAtlas);
+    pl_set_default_font(&ptAppData->tFontAtlas.sbtFonts[0]);
 
-    // 3D drawlist
+    // 3D tDrawlist
     gptGfx->register_3d_drawlist(&ptAppData->tGraphics, &ptAppData->t3DDrawList);
     
     return ptAppData;
@@ -182,8 +512,8 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
-    gptGfx->destroy_font_atlas(&ptAppData->fontAtlas);
-    pl_cleanup_font_atlas(&ptAppData->fontAtlas);
+    gptGfx->destroy_font_atlas(&ptAppData->tFontAtlas);
+    pl_cleanup_font_atlas(&ptAppData->tFontAtlas);
 
     gptGfx->cleanup(&ptAppData->tGraphics);
     pl_cleanup_profile_context();
@@ -211,11 +541,16 @@ pl_app_resize(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
-    if(!gptGfx->begin_frame(&ptAppData->tGraphics))
-        return;
-
     // begin profiling frame
     pl_begin_profile_frame();
+    pl_begin_profile_sample(__FUNCTION__);
+
+    if(!gptGfx->begin_frame(&ptAppData->tGraphics))
+    {
+        pl_end_profile_sample();
+        pl_end_profile_frame();
+        return;
+    }
 
     plIO* ptIO = pl_get_io();
 
@@ -247,6 +582,13 @@ pl_app_update(plAppData* ptAppData)
         pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
     }
     pl_camera_update(&ptAppData->tMainCamera);
+
+    const BindGroup_0 tBindGroupBuffer = {
+        .tCameraProjection = ptAppData->tMainCamera.tProjMat,
+        .tCameraView = ptAppData->tMainCamera.tViewMat,
+        .tCameraViewProjection = pl_mul_mat4(&ptAppData->tMainCamera.tProjMat, &ptAppData->tMainCamera.tViewMat)
+    };
+    memcpy(ptAppData->atGlobalBuffers[ptAppData->tGraphics.uCurrentFrameIndex].pcData, &tBindGroupBuffer, sizeof(BindGroup_0));
 
     gptGfx->begin_recording(&ptAppData->tGraphics);
 
@@ -295,44 +637,90 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowUiDebug)
         pl_debug(&ptAppData->bShowUiDebug);
 
-    pl_add_line(ptAppData->fgDrawLayer, (plVec2){0}, (plVec2){300.0f, 500.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 1.0f);
+    pl_add_line(ptAppData->ptFgDrawLayer, (plVec2){0}, (plVec2){300.0f, 500.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 1.0f);
 
     const plMat4 tTransform0 = pl_identity_mat4();
     gptGfx->add_3d_transform(&ptAppData->t3DDrawList, &tTransform0, 10.0f, 0.02f);
     gptGfx->add_3d_triangle_filled(&ptAppData->t3DDrawList, (plVec3){0}, (plVec3){0.0f, 0.0f, 1.0f}, (plVec3){0.0f, 1.0f, 0.0f}, (plVec4){1.0f, 0.0f, 0.0f, 0.25f});
 
-    // submit 3D draw list
     const plMat4 tMVP = pl_mul_mat4(&ptAppData->tMainCamera.tProjMat, &ptAppData->tMainCamera.tViewMat);
-    gptGfx->submit_3d_drawlist(&ptAppData->t3DDrawList, pl_get_io()->afMainViewportSize[0], pl_get_io()->afMainViewportSize[1], &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE);
 
-    // submit draw layers
-    pl_begin_profile_sample("Submit draw layers");
-    pl_submit_layer(ptAppData->bgDrawLayer);
-    pl_submit_layer(ptAppData->fgDrawLayer);
-    pl_end_profile_sample();
+    plDynamicBinding tDynamicBinding0 = gptDevice->allocate_dynamic_data(&ptAppData->tGraphics.tDevice, sizeof(DynamicData));
+    DynamicData* ptDynamicData0 = (DynamicData*)tDynamicBinding0.pcData;
+    ptDynamicData0->iDataOffset = 0;
+    ptDynamicData0->iVertexOffset = 0;
+    ptDynamicData0->tModel = pl_mat4_rotate_xyz(0.05f * (float)ptIO->dTime, 0.0f, 1.0f, 0.0f);
 
-    pl_render();
+    plDynamicBinding tDynamicBinding1 = gptDevice->allocate_dynamic_data(&ptAppData->tGraphics.tDevice, sizeof(DynamicData));
+    DynamicData* ptDynamicData1 = (DynamicData*)tDynamicBinding1.pcData;
+    ptDynamicData1->iDataOffset = 32;
+    ptDynamicData1->iVertexOffset = 4;
+    ptDynamicData1->tModel = pl_identity_mat4();
 
-
-    plDraw tDraw = {
-        .ptMesh = &ptAppData->tMesh
+    plDraw tDraw[2] = {
+        {
+            .uDynamicBuffer = tDynamicBinding0.uBufferHandle,
+            .uVertexBuffer = ptAppData->tVertexBuffer.uHandle,
+            .uIndexBuffer = ptAppData->tIndexBuffer.uHandle,
+            .uIndexCount = 6,
+            .uVertexCount = 4,
+            .aptBindGroups = {
+                &ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex],
+                &ptAppData->tBindGroup1_0,
+                &ptAppData->tBindGroup2
+            },
+            .uShaderVariant = ptAppData->tShader0.uHandle,
+            .auDynamicBufferOffset = {
+                tDynamicBinding0.uByteOffset
+            }
+        },
+        {
+            .uDynamicBuffer = tDynamicBinding1.uBufferHandle,
+            .uVertexBuffer = ptAppData->tVertexBuffer.uHandle,
+            .uIndexBuffer = ptAppData->tIndexBuffer.uHandle,
+            .uIndexCount = 6,
+            .uVertexCount = 4,
+            .uIndexOffset = 6,
+            .uVertexOffset = 4,
+            .aptBindGroups = {
+                &ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex],
+                &ptAppData->tBindGroup1_1,
+                &ptAppData->tBindGroup2
+            },
+            .uShaderVariant = ptAppData->tShader1.uHandle,
+            .auDynamicBufferOffset = {
+                tDynamicBinding1.uByteOffset
+            }
+        }
     };
 
     plDrawArea tArea = {
         .uDrawOffset = 0,
-        .uDrawCount = 1
+        .uDrawCount = 2
     };
-    gptGfx->draw_areas(&ptAppData->tGraphics, 1, &tArea, &tDraw);
+    gptGfx->draw_areas(&ptAppData->tGraphics, 1, &tArea, tDraw);
+
+    // submit 3D draw list
+    gptGfx->submit_3d_drawlist(&ptAppData->t3DDrawList, pl_get_io()->afMainViewportSize[0], pl_get_io()->afMainViewportSize[1], &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE);
+
+    // submit draw layers
+    pl_begin_profile_sample("Submit draw layers");
+    pl_submit_layer(ptAppData->ptBgDrawLayer);
+    pl_submit_layer(ptAppData->ptFgDrawLayer);
+    pl_end_profile_sample();
+
+    pl_render();
 
     // submit draw lists
     pl_begin_profile_sample("Submit draw lists");
-    gptGfx->draw_lists(&ptAppData->tGraphics, 1, &ptAppData->drawlist);
+    gptGfx->draw_lists(&ptAppData->tGraphics, 1, &ptAppData->tDrawlist);
     gptGfx->draw_lists(&ptAppData->tGraphics, 1, pl_get_draw_list(NULL));
     gptGfx->draw_lists(&ptAppData->tGraphics, 1, pl_get_debug_draw_list(NULL));
     pl_end_profile_sample();
 
     gptGfx->end_recording(&ptAppData->tGraphics);
     gptGfx->end_frame(&ptAppData->tGraphics);
+    pl_end_profile_sample();
     pl_end_profile_frame();
 }
 
