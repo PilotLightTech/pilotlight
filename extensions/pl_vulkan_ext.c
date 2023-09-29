@@ -462,7 +462,7 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc)
     if(ptDesc->tMemory == PL_MEMORY_GPU_CPU)
     {
         plVulkanBuffer tVulkanBuffer = {0};
-        VkBufferUsageFlagBits tBufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        VkBufferUsageFlagBits tBufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
         if(ptDesc->tUsage == PL_BUFFER_USAGE_VERTEX)
             tBufferUsageFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
         if(ptDesc->tUsage == PL_BUFFER_USAGE_INDEX)
@@ -506,7 +506,7 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc)
         // pl__transfer_data_to_buffer
 
         plVulkanBuffer tVulkanBuffer = {0};
-        VkBufferUsageFlagBits tBufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        VkBufferUsageFlagBits tBufferUsageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         if(ptDesc->tUsage == PL_BUFFER_USAGE_VERTEX)
             tBufferUsageFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
         if(ptDesc->tUsage == PL_BUFFER_USAGE_INDEX)
