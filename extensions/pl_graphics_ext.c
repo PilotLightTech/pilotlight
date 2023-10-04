@@ -256,3 +256,27 @@ pl__add_3d_bezier_cubic(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3
     tVerticies[1] = tP3;
     pl__add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
 }
+
+typedef struct _plDeviceAllocatorData
+{
+    plDevice*                 ptDevice;
+    plDeviceAllocationBlock*  sbtBlocks;
+
+    // buddy allocator data
+    // char*                   sbcDebugNames;
+    // char**                  sbtDebugNamesInDir;
+    // plDeviceAllocationNode* sbtNodes;
+    // uint32_t                auFreeList[PL_DEVICE_LOCAL_LEVELS];
+} plDeviceAllocatorData;
+
+static plDeviceAllocationBlock*
+pl_get_allocator_blocks(struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut)
+{
+    plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
+
+    if(puSizeOut)
+    {
+        *puSizeOut = pl_sb_size(ptData->sbtBlocks);
+    }
+    return ptData->sbtBlocks;
+}

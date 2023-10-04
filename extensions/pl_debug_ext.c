@@ -34,6 +34,7 @@ Index of this file:
 #include "pl_ui.h"
 #include "pl_ui_internal.h"
 #include "pl_stats_ext.h"
+#include "pl_graphics_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] global data
@@ -49,7 +50,7 @@ static plMemoryContext* ptMemoryCtx = NULL;
 static plIO*            ptIOCtx     = NULL;
 
 // other
-// static plDevice*       ptDevice       = NULL;
+static plDevice*       ptDevice       = NULL;
 static plTempAllocator tTempAllocator = {0};
 
 // stat data
@@ -118,12 +119,12 @@ pl_show_debug_windows(plDebugApiInfo* ptInfo)
         pl_end_profile_sample();
     }
 
-    // if(ptInfo->bShowDeviceMemoryAnalyzer)
-    // {
-    //     pl_begin_profile_sample("Device Memory Analyzer");
-    //     pl__show_device_memory(&ptInfo->bShowDeviceMemoryAnalyzer);
-    //     pl_end_profile_sample();
-    // }
+    if(ptInfo->bShowDeviceMemoryAnalyzer)
+    {
+        pl_begin_profile_sample("Device Memory Analyzer");
+        pl__show_device_memory(&ptInfo->bShowDeviceMemoryAnalyzer);
+        pl_end_profile_sample();
+    }
 
     if(ptInfo->bShowLogging)
     {
@@ -724,259 +725,259 @@ pl__show_statistics(bool* bValue)
     } 
 }
 
-// static void
-// pl__show_device_memory(bool* bValue)
-// {
-//     if(!ptDevice)
-//         ptDevice = ptDataRegistry->get_data("device");
+static void
+pl__show_device_memory(bool* bValue)
+{
+    if(!ptDevice)
+        ptDevice = ptDataRegistry->get_data("device");
         
-//     if(pl_begin_window("Device Memory Analyzer", bValue, false))
-//     {
-//         plDrawLayer* ptFgLayer = pl_get_window_fg_drawlayer();
-//         const plVec2 tWindowSize = pl_get_window_size();
-//         const plVec2 tWindowPos = pl_get_window_pos();
-//         const plVec2 tWindowEnd = pl_add_vec2(tWindowSize, tWindowPos);
+    if(pl_begin_window("Device Memory Analyzer", bValue, false))
+    {
+        plDrawLayer* ptFgLayer = pl_get_window_fg_drawlayer();
+        const plVec2 tWindowSize = pl_get_window_size();
+        const plVec2 tWindowPos = pl_get_window_pos();
+        const plVec2 tWindowEnd = pl_add_vec2(tWindowSize, tWindowPos);
 
-//         uint32_t uBlockCount = 0;
-//         plDeviceAllocationBlock* sbtBlocks = ptDevice->tStagingCachedAllocator.blocks(ptDevice->tStagingCachedAllocator.ptInst, &uBlockCount);
+        uint32_t uBlockCount = 0;
+        // plDeviceAllocationBlock* sbtBlocks = ptDevice->tStagingCachedAllocator.blocks(ptDevice->tStagingCachedAllocator.ptInst, &uBlockCount);
 
-//         if(uBlockCount > 0)
-//         {
-//             pl_text("Device Memory: Staging Cached");
+        // if(uBlockCount > 0)
+        // {
+        //     pl_text("Device Memory: Staging Cached");
 
-//             pl_layout_template_begin(30.0f);
-//             pl_layout_template_push_static(150.0f);
-//             pl_layout_template_push_variable(300.0f);
-//             pl_layout_template_end();
+        //     pl_layout_template_begin(30.0f);
+        //     pl_layout_template_push_static(150.0f);
+        //     pl_layout_template_push_variable(300.0f);
+        //     pl_layout_template_end();
 
-//             static const uint64_t ulMaxBlockSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE;
+        //     static const uint64_t ulMaxBlockSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE;
 
-//             for(uint32_t i = 0; i < uBlockCount; i++)
-//             {
-//                 // ptAppData->tTempAllocator
-//                 plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
-//                 char* pcTempBuffer0 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u: %0.1fMB##sc", i, ((double)ptBlock->ulSize)/1000000.0);
-//                 char* pcTempBuffer1 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u##sc", i);
+        //     for(uint32_t i = 0; i < uBlockCount; i++)
+        //     {
+        //         // ptAppData->tTempAllocator
+        //         plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
+        //         char* pcTempBuffer0 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u: %0.1fMB##sc", i, ((double)ptBlock->ulSize)/1000000.0);
+        //         char* pcTempBuffer1 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u##sc", i);
 
-//                 pl_button(pcTempBuffer0);
+        //         pl_button(pcTempBuffer0);
                 
 
-//                 plVec2 tCursor0 = pl_get_cursor_pos();
-//                 const float fWidthAvailable = tWindowEnd.x - tCursor0.x;
-//                 float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)ulMaxBlockSize;
-//                 float fUsedWidth = fWidthAvailable * ((float)ptBlock->sbtRanges[0].tAllocation.ulSize) / (float)ulMaxBlockSize;
+        //         plVec2 tCursor0 = pl_get_cursor_pos();
+        //         const float fWidthAvailable = tWindowEnd.x - tCursor0.x;
+        //         float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)ulMaxBlockSize;
+        //         float fUsedWidth = fWidthAvailable * ((float)ptBlock->sbtRanges[0].tAllocation.ulSize) / (float)ulMaxBlockSize;
 
-//                 pl_invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
-//                 pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
-//                 pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
-//                 if(pl_was_last_item_active())
-//                     pl_add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  fTotalWidth, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
+        //         pl_invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
+        //         pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
+        //         pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
+        //         if(pl_was_last_item_active())
+        //             pl_add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  fTotalWidth, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
 
-//                 if(pl_was_last_item_hovered())
-//                 {
-//                     pl_begin_tooltip();
-//                     pl_text(ptBlock->sbtRanges[0].pcName);
-//                     pl_end_tooltip();
-//                 }
+        //         if(pl_was_last_item_hovered())
+        //         {
+        //             pl_begin_tooltip();
+        //             pl_text(ptBlock->sbtRanges[0].pcName);
+        //             pl_end_tooltip();
+        //         }
 
-//                 pl_temp_allocator_reset(&tTempAllocator);
-//             }
+        //         pl_temp_allocator_reset(&tTempAllocator);
+        //     }
 
-//         }
+        // }
 
-//         sbtBlocks = ptDevice->tStagingUnCachedAllocator.blocks(ptDevice->tStagingUnCachedAllocator.ptInst, &uBlockCount);
-//         if(uBlockCount > 0)
-//         {
-//             pl_layout_dynamic(0.0f, 1);
-//             pl_separator();
-//             pl_text("Device Memory: Staging Uncached");
+        plDeviceAllocationBlock* sbtBlocks = ptDevice->tStagingUnCachedAllocator.blocks(ptDevice->tStagingUnCachedAllocator.ptInst, &uBlockCount);
+        if(uBlockCount > 0)
+        {
+            pl_layout_dynamic(0.0f, 1);
+            pl_separator();
+            pl_text("Device Memory: Staging Uncached");
 
-//             pl_layout_template_begin(30.0f);
-//             pl_layout_template_push_static(150.0f);
-//             pl_layout_template_push_variable(300.0f);
-//             pl_layout_template_end();
+            pl_layout_template_begin(30.0f);
+            pl_layout_template_push_static(150.0f);
+            pl_layout_template_push_variable(300.0f);
+            pl_layout_template_end();
 
-//             static const uint64_t ulMaxBlockSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE;
+            static const uint64_t ulMaxBlockSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE;
 
-//             for(uint32_t i = 0; i < uBlockCount; i++)
-//             {
-//                 plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
-//                 char* pcTempBuffer0 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u: %0.1fMB##suc", i, ((double)ptBlock->ulSize)/1000000.0);
-//                 char* pcTempBuffer1 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u##suc", i);
+            for(uint32_t i = 0; i < uBlockCount; i++)
+            {
+                plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
+                char* pcTempBuffer0 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u: %0.1fMB##suc", i, ((double)ptBlock->ulSize)/1000000.0);
+                char* pcTempBuffer1 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u##suc", i);
 
-//                 pl_button(pcTempBuffer0);
+                pl_button(pcTempBuffer0);
                 
 
-//                 plVec2 tCursor0 = pl_get_cursor_pos();
-//                 const float fWidthAvailable = tWindowEnd.x - tCursor0.x;
-//                 float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)ulMaxBlockSize;
-//                 float fUsedWidth = fWidthAvailable * ((float)ptBlock->sbtRanges[0].tAllocation.ulSize) / (float)ulMaxBlockSize;
+                plVec2 tCursor0 = pl_get_cursor_pos();
+                const float fWidthAvailable = tWindowEnd.x - tCursor0.x;
+                float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)ulMaxBlockSize;
+                float fUsedWidth = fWidthAvailable * ((float)ptBlock->tRange.tAllocation.ulSize) / (float)ulMaxBlockSize;
 
-//                 pl_invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
-//                 pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
-//                 pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
-//                 if(pl_was_last_item_active())
-//                     pl_add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  fTotalWidth, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
+                if(fUsedWidth < 10.0f)
+                    fUsedWidth = 10.0f;
 
-//                 if(pl_was_last_item_hovered())
-//                 {
-//                     pl_begin_tooltip();
-//                     pl_text(ptBlock->sbtRanges[0].pcName);
-//                     pl_end_tooltip();
-//                 }
+                pl_invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
+                pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f});
+                pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
+                if(pl_was_last_item_active())
+                    pl_add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  fTotalWidth, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
 
-//                 pl_temp_allocator_reset(&tTempAllocator);
-//             }
+                if(pl_was_last_item_hovered() && ptBlock->tRange.pcName)
+                {
+                    pl_begin_tooltip();
+                    pl_text(ptBlock->tRange.pcName);
+                    pl_text("Size: %lu", ptBlock->tRange.tAllocation.ulSize);
+                    pl_end_tooltip();
+                }
 
-//         }
+                pl_temp_allocator_reset(&tTempAllocator);
+            }
 
-//         sbtBlocks = ptDevice->tLocalBuddyAllocator.blocks(ptDevice->tLocalBuddyAllocator.ptInst, &uBlockCount);
-//         if(uBlockCount > 0)
-//         {
+        }
 
-//             pl_layout_dynamic(0.0f, 1);
-//             pl_separator();
-//             pl_text("Device Memory: Local Buddy");
+        // sbtBlocks = ptDevice->tLocalBuddyAllocator.blocks(ptDevice->tLocalBuddyAllocator.ptInst, &uBlockCount);
+        // if(uBlockCount > 0)
+        // {
 
-//             pl_layout_template_begin(30.0f);
-//             pl_layout_template_push_static(150.0f);
-//             pl_layout_template_push_variable(300.0f);
-//             pl_layout_template_end();
+        //     pl_layout_dynamic(0.0f, 1);
+        //     pl_separator();
+        //     pl_text("Device Memory: Local Buddy");
 
-//             uint32_t uNodeCount = 0;
-//             plDeviceAllocationNode* sbtNodes = ptDevice->tLocalBuddyAllocator.nodes(ptDevice->tLocalBuddyAllocator.ptInst, &uNodeCount);
-//             char** sbDebugNames = ptDevice->tLocalBuddyAllocator.names(ptDevice->tLocalBuddyAllocator.ptInst, &uNodeCount);
+        //     pl_layout_template_begin(30.0f);
+        //     pl_layout_template_push_static(150.0f);
+        //     pl_layout_template_push_variable(300.0f);
+        //     pl_layout_template_end();
 
-//             const uint32_t uNodesPerBlock = uNodeCount / uBlockCount;
-//             for(uint32_t i = 0; i < uBlockCount; i++)
-//             {
-//                 plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
-//                 char* pcTempBuffer0 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u: 256 MB##b", i);
-//                 char* pcTempBuffer1 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u ##b", i);
-//                 pl_button(pcTempBuffer0);
+        //     uint32_t uNodeCount = 0;
+        //     plDeviceAllocationNode* sbtNodes = ptDevice->tLocalBuddyAllocator.nodes(ptDevice->tLocalBuddyAllocator.ptInst, &uNodeCount);
+        //     char** sbDebugNames = ptDevice->tLocalBuddyAllocator.names(ptDevice->tLocalBuddyAllocator.ptInst, &uNodeCount);
 
-//                 plVec2 tCursor0 = pl_get_cursor_pos();
-//                 const plVec2 tMousePos = pl_get_mouse_pos();
-//                 uint32_t uHoveredNode = 0;
-//                 const float fWidthAvailable = tWindowEnd.x - tCursor0.x;
-//                 float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)PL_DEVICE_ALLOCATION_BLOCK_SIZE;
-//                 pl_invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
-//                 pl_add_rect_filled(ptFgLayer, (plVec2){tCursor0.x, tCursor0.y}, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f}); 
-//                 bool bFreeNode = false;
+        //     const uint32_t uNodesPerBlock = uNodeCount / uBlockCount;
+        //     for(uint32_t i = 0; i < uBlockCount; i++)
+        //     {
+        //         plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
+        //         char* pcTempBuffer0 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u: 256 MB##b", i);
+        //         char* pcTempBuffer1 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u ##b", i);
+        //         pl_button(pcTempBuffer0);
 
-//                 for(uint32_t j = 0; j < uNodesPerBlock; j++)
-//                 {
-//                     plDeviceAllocationNode* ptNode = &sbtNodes[uNodesPerBlock * i + j];
+        //         plVec2 tCursor0 = pl_get_cursor_pos();
+        //         const plVec2 tMousePos = pl_get_mouse_pos();
+        //         uint32_t uHoveredNode = 0;
+        //         const float fWidthAvailable = tWindowEnd.x - tCursor0.x;
+        //         float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)PL_DEVICE_ALLOCATION_BLOCK_SIZE;
+        //         pl_invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
+        //         pl_add_rect_filled(ptFgLayer, (plVec2){tCursor0.x, tCursor0.y}, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f}); 
+        //         bool bFreeNode = false;
 
-//                     if(ptNode->ulSizeWasted == ptNode->ulSize)
-//                         continue;
+        //         for(uint32_t j = 0; j < uNodesPerBlock; j++)
+        //         {
+        //             plDeviceAllocationNode* ptNode = &sbtNodes[uNodesPerBlock * i + j];
 
-//                     float fStart = fWidthAvailable * ((float) ptNode->ulOffset) / (float)PL_DEVICE_ALLOCATION_BLOCK_SIZE;
+        //             if(ptNode->ulSizeWasted == ptNode->ulSize)
+        //                 continue;
+
+        //             float fStart = fWidthAvailable * ((float) ptNode->ulOffset) / (float)PL_DEVICE_ALLOCATION_BLOCK_SIZE;
                     
-//                     if(ptNode->ulSizeWasted > ptNode->ulSize)
-//                     {
-//                         float fFreeWidth = fWidthAvailable * ((float)ptNode->ulSize) / (float)PL_DEVICE_ALLOCATION_BLOCK_SIZE;
-//                         if(tMousePos.x > tCursor0.x + fStart && tMousePos.x < tCursor0.x + fStart + fFreeWidth)
-//                         uHoveredNode = (uint32_t)ptNode->uNodeIndex;
-//                         bFreeNode = true;
-//                         continue;
-//                     }
+        //             if(ptNode->ulSizeWasted > ptNode->ulSize)
+        //             {
+        //                 float fFreeWidth = fWidthAvailable * ((float)ptNode->ulSize) / (float)PL_DEVICE_ALLOCATION_BLOCK_SIZE;
+        //                 if(tMousePos.x > tCursor0.x + fStart && tMousePos.x < tCursor0.x + fStart + fFreeWidth)
+        //                 uHoveredNode = (uint32_t)ptNode->uNodeIndex;
+        //                 bFreeNode = true;
+        //                 continue;
+        //             }
 
-//                     float fUsedWidth = fWidthAvailable * ((float)ptNode->ulSize - ptNode->ulSizeWasted) / (float)PL_DEVICE_ALLOCATION_BLOCK_SIZE;
+        //             float fUsedWidth = fWidthAvailable * ((float)ptNode->ulSize - ptNode->ulSizeWasted) / (float)PL_DEVICE_ALLOCATION_BLOCK_SIZE;
                     
-//                     pl_add_rect_filled(ptFgLayer, (plVec2){tCursor0.x + fStart, tCursor0.y}, (plVec2){tCursor0.x + fStart + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f}); 
+        //             pl_add_rect_filled(ptFgLayer, (plVec2){tCursor0.x + fStart, tCursor0.y}, (plVec2){tCursor0.x + fStart + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f}); 
 
-//                     if(ptNode->ulSizeWasted > 0)
-//                     {
+        //             if(ptNode->ulSizeWasted > 0)
+        //             {
                         
-//                         const float fWastedWidth = fWidthAvailable * ((float)ptNode->ulSizeWasted) / (float)PL_DEVICE_ALLOCATION_BLOCK_SIZE;
-//                         const float fWasteStart = fStart + fUsedWidth;
-//                         pl_add_rect_filled(ptFgLayer, (plVec2){tCursor0.x + fWasteStart, tCursor0.y}, (plVec2){tCursor0.x + fWasteStart + fWastedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f}); 
-//                         if(tMousePos.x > tCursor0.x + fStart && tMousePos.x < tCursor0.x + fWasteStart + fWastedWidth)
-//                             uHoveredNode = (uint32_t)ptNode->uNodeIndex;
-//                     }
-//                     else if(tMousePos.x > tCursor0.x + fStart && tMousePos.x < tCursor0.x + fStart + fUsedWidth)
-//                         uHoveredNode = (uint32_t)ptNode->uNodeIndex;
-//                 }
+        //                 const float fWastedWidth = fWidthAvailable * ((float)ptNode->ulSizeWasted) / (float)PL_DEVICE_ALLOCATION_BLOCK_SIZE;
+        //                 const float fWasteStart = fStart + fUsedWidth;
+        //                 pl_add_rect_filled(ptFgLayer, (plVec2){tCursor0.x + fWasteStart, tCursor0.y}, (plVec2){tCursor0.x + fWasteStart + fWastedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f}); 
+        //                 if(tMousePos.x > tCursor0.x + fStart && tMousePos.x < tCursor0.x + fWasteStart + fWastedWidth)
+        //                     uHoveredNode = (uint32_t)ptNode->uNodeIndex;
+        //             }
+        //             else if(tMousePos.x > tCursor0.x + fStart && tMousePos.x < tCursor0.x + fStart + fUsedWidth)
+        //                 uHoveredNode = (uint32_t)ptNode->uNodeIndex;
+        //         }
 
-//                 if(pl_was_last_item_hovered())
-//                 {
-//                     pl_begin_tooltip();
-//                     pl_text(sbDebugNames[uHoveredNode]);
-//                     pl_text("Total Size:  %u", sbtNodes[uHoveredNode].ulSize);
-//                     pl_text("Size Used:   %u", bFreeNode ? 0 : sbtNodes[uHoveredNode].ulSize - sbtNodes[uHoveredNode].ulSizeWasted);
-//                     pl_text("Size Wasted: %u", bFreeNode ? 0 : sbtNodes[uHoveredNode].ulSizeWasted);
-//                     pl_text("Offset:      %u", sbtNodes[uHoveredNode].ulOffset);
-//                     pl_text("Memory Type: %u", sbtNodes[uHoveredNode].uMemoryType);
-//                     pl_end_tooltip();
-//                 }
-//             }
+        //         if(pl_was_last_item_hovered())
+        //         {
+        //             pl_begin_tooltip();
+        //             pl_text(sbDebugNames[uHoveredNode]);
+        //             pl_text("Total Size:  %u", sbtNodes[uHoveredNode].ulSize);
+        //             pl_text("Size Used:   %u", bFreeNode ? 0 : sbtNodes[uHoveredNode].ulSize - sbtNodes[uHoveredNode].ulSizeWasted);
+        //             pl_text("Size Wasted: %u", bFreeNode ? 0 : sbtNodes[uHoveredNode].ulSizeWasted);
+        //             pl_text("Offset:      %u", sbtNodes[uHoveredNode].ulOffset);
+        //             pl_text("Memory Type: %u", sbtNodes[uHoveredNode].uMemoryType);
+        //             pl_end_tooltip();
+        //         }
+        //     }
 
-//         }
+        // }
 
-//         sbtBlocks = ptDevice->tLocalDedicatedAllocator.blocks(ptDevice->tLocalDedicatedAllocator.ptInst, &uBlockCount);
-//         if(uBlockCount > 0)
-//         {
+        sbtBlocks = ptDevice->tLocalDedicatedAllocator.blocks(ptDevice->tLocalDedicatedAllocator.ptInst, &uBlockCount);
+        if(uBlockCount > 0)
+        {
 
-//             pl_layout_dynamic(0.0f, 1);
-//             pl_separator();
-//             pl_text("Device Memory: Local Dedicated");
+            pl_layout_dynamic(0.0f, 1);
+            pl_separator();
+            pl_text("Device Memory: Local Dedicated");
 
-//             pl_layout_template_begin(30.0f);
-//             pl_layout_template_push_static(150.0f);
-//             pl_layout_template_push_variable(300.0f);
-//             pl_layout_template_end();
+            pl_layout_template_begin(30.0f);
+            pl_layout_template_push_static(150.0f);
+            pl_layout_template_push_variable(300.0f);
+            pl_layout_template_end();
 
-//             static const uint64_t ulMaxBlockSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE;
+            static const uint64_t ulMaxBlockSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE;
 
-//             for(uint32_t i = 0; i < uBlockCount; i++)
-//             {
-//                 plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
-//                 char* pcTempBuffer0 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u: %0.1fMB###d", i, ((double)ptBlock->ulSize)/1000000.0);
-//                 char* pcTempBuffer1 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u###d", i);
+            for(uint32_t i = 0; i < uBlockCount; i++)
+            {
+                plDeviceAllocationBlock* ptBlock = &sbtBlocks[i];
+                char* pcTempBuffer0 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u: %0.1fMB##d", i, ((double)ptBlock->ulSize)/1000000.0);
+                char* pcTempBuffer1 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u##d", i);
 
-//                 pl_button(pcTempBuffer0);
+                pl_button(pcTempBuffer0);
                 
-//                 plVec2 tCursor0 = pl_get_cursor_pos();
-//                 const float fWidthAvailable = tWindowEnd.x - tCursor0.x;
-//                 float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)ulMaxBlockSize;
-//                 float fUsedWidth = fWidthAvailable * ((float)ptBlock->sbtRanges[0].tAllocation.ulSize) / (float)ulMaxBlockSize;
+                plVec2 tCursor0 = pl_get_cursor_pos();
+                const float fWidthAvailable = tWindowEnd.x - tCursor0.x;
+                float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)ulMaxBlockSize;
+                float fUsedWidth = fWidthAvailable * ((float)ptBlock->tRange.tAllocation.ulSize) / (float)ulMaxBlockSize;
 
-//                 if(fUsedWidth < 10.0f)
-//                     fUsedWidth = 10.0f;
-//                 else if (fUsedWidth > 500.0f)
-//                     fUsedWidth = 525.0f;
-                    
-//                 if (fTotalWidth > 500.0f)
-//                     fTotalWidth = 525.0f;
-                
-//                 pl_invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
-//                 if(pl_was_last_item_active())
-//                 {
-//                     pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f});
-//                     pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
-//                     pl_add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  fTotalWidth, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
-//                 }
-//                 else
-//                 {
-//                     pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f});
-//                     pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
-//                 }
+                if(fUsedWidth < 10.0f)
+                    fUsedWidth = 10.0f;
 
-//                 if(pl_was_last_item_hovered())
-//                 {
-//                     pl_begin_tooltip();
-//                     pl_text(ptBlock->sbtRanges[0].pcName);
-//                     pl_end_tooltip();
-//                 }
+                pl_invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
+                if(pl_was_last_item_active())
+                {
+                    pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f});
+                    pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
+                    pl_add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  fTotalWidth, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
+                }
+                else
+                {
+                    pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f});
+                    pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
+                }
 
-//                 pl_temp_allocator_reset(&tTempAllocator);
-//             }
-//         }
+                if(pl_was_last_item_hovered() && ptBlock->tRange.pcName)
+                {
+                    pl_begin_tooltip();
+                    pl_text(ptBlock->tRange.pcName);
+                    pl_text("Size: %lu", ptBlock->tRange.tAllocation.ulSize);
+                    pl_end_tooltip();
+                }
 
-//         pl_end_window();
-//     }
-// }
+                pl_temp_allocator_reset(&tTempAllocator);
+            }
+        }
+
+        pl_end_window();
+    }
+}
 
 static void
 pl__show_logging(bool* bValue)

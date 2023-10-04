@@ -19,6 +19,14 @@ Index of this file:
 #ifndef PL_GRAPHICS_EXT_H
 #define PL_GRAPHICS_EXT_H
 
+#ifndef PL_DEVICE_ALLOCATION_BLOCK_SIZE
+    #define PL_DEVICE_ALLOCATION_BLOCK_SIZE 268435456
+#endif
+
+#ifndef PL_DEVICE_LOCAL_LEVELS
+    #define PL_DEVICE_LOCAL_LEVELS 8
+#endif
+
 #define PL_ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
 
 //-----------------------------------------------------------------------------
@@ -67,6 +75,12 @@ typedef struct _plBufferBinding     plBufferBinding;
 typedef struct _plTextureBinding    plTextureBinding;
 typedef struct _plDynamicBinding    plDynamicBinding;
 
+// device memory
+typedef struct _plDeviceAllocationRange  plDeviceAllocationRange;
+typedef struct _plDeviceAllocationBlock  plDeviceAllocationBlock;
+typedef struct _plDeviceMemoryAllocation plDeviceMemoryAllocation;
+typedef struct _plDeviceMemoryAllocatorI plDeviceMemoryAllocatorI;
+
 // 3D drawing api
 typedef struct _plDrawList3D        plDrawList3D;
 typedef struct _plDrawVertex3DSolid plDrawVertex3DSolid; // single vertex (3D pos + uv + color)
@@ -77,6 +91,7 @@ typedef int pl3DDrawFlags;
 typedef int plBufferBindingType;      // -> enum _plBufferBindingType      // Enum:
 typedef int plTextureBindingType;     // -> enum _plTextureBindingType     // Enum:
 typedef int plBufferUsage;            // -> enum _plBufferUsage            // Enum:
+typedef int plTextureUsage;           // -> enum _plTextureUsage           // Enum:
 typedef int plMeshFormatFlags;        // -> enum _plMeshFormatFlags        // Flags:
 typedef int plShaderTextureFlags;     // -> enum _plShaderTextureFlags     // Flags:
 typedef int plBlendMode;              // -> enum _plBlendMode              // Enum:
@@ -89,6 +104,7 @@ typedef int plCompareMode;            // -> enum _plCompareMode            // En
 typedef int plFormat;                 // -> enum _plFormat                 // Enum:
 typedef int plStencilOp;              // -> enum _plStencilOp              // Enum:
 typedef int plMemoryMode;             // -> enum _plMemoryMode             // Enum:
+typedef int plDeviceAllocationStatus; // -> enum _plDeviceAllocationStatus // Enum:
 
 // external
 typedef struct _plDrawList plDrawList;
@@ -203,6 +219,43 @@ typedef struct _plDrawList3D
     uint32_t*            sbtLineIndexBuffer;
 } plDrawList3D;
 
+typedef struct _plDeviceMemoryAllocation
+{
+    uint64_t                         uHandle;
+    uint64_t                         ulOffset;
+    uint64_t                         ulSize;
+    char*                            pHostMapped;
+    struct plDeviceMemoryAllocatorO* ptInst;
+} plDeviceMemoryAllocation;
+
+typedef struct _plDeviceAllocationRange
+{
+    const char*              pcName;
+    plDeviceAllocationStatus tStatus;
+    plDeviceMemoryAllocation tAllocation;
+} plDeviceAllocationRange;
+
+typedef struct _plDeviceAllocationBlock
+{
+    uint64_t                 ulAddress;
+    uint64_t                 ulSize;
+    char*                    pHostMapped;
+    plDeviceAllocationRange  tRange;
+} plDeviceAllocationBlock;
+
+typedef struct _plDeviceMemoryAllocatorI
+{
+
+    struct plDeviceMemoryAllocatorO* ptInst; // opaque pointer
+
+    plDeviceMemoryAllocation (*allocate)(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
+    void                     (*free)    (struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation);
+    plDeviceAllocationBlock* (*blocks)  (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
+    // plDeviceAllocationNode*  (*nodes)   (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
+    // char**                   (*names)   (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
+
+} plDeviceMemoryAllocatorI;
+
 typedef struct _plTextureViewDesc
 {
     plFormat tFormat; 
@@ -234,16 +287,18 @@ typedef struct _plTextureView
 
 typedef struct _plTextureDesc
 {
-    plVec3   tDimensions;
-    uint32_t uLayers;
-    uint32_t uMips;
-    plFormat tFormat;
+    plVec3         tDimensions;
+    uint32_t       uLayers;
+    uint32_t       uMips;
+    plFormat       tFormat;
+    plTextureUsage tUsage;
 } plTextureDesc;
 
 typedef struct _plTexture
 {
-    plTextureDesc tDesc;
-    uint32_t      uHandle;
+    plTextureDesc            tDesc;
+    uint32_t                 uHandle;
+    plDeviceMemoryAllocation tMemoryAllocation;
 } plTexture;
 
 typedef struct _plBufferDescription
@@ -258,9 +313,9 @@ typedef struct _plBufferDescription
 
 typedef struct _plBuffer
 {
-    plBufferDescription tDescription;
-    char*               pcData;
-    uint32_t            uHandle;
+    plBufferDescription      tDescription;
+    uint32_t                 uHandle;
+    plDeviceMemoryAllocation tMemoryAllocation;
 } plBuffer;
 
 typedef struct _plBufferBinding
@@ -337,6 +392,8 @@ typedef struct _plShader
 
 typedef struct _plDevice
 {
+    plDeviceMemoryAllocatorI tLocalDedicatedAllocator;
+    plDeviceMemoryAllocatorI tStagingUnCachedAllocator;
     void* _pInternalData;
 } plDevice;
 
@@ -437,6 +494,14 @@ enum _plBufferUsage
     PL_BUFFER_USAGE_STORAGE
 };
 
+enum _plTextureUsage
+{
+    PL_TEXTURE_USAGE_UNSPECIFIED              = 0,
+    PL_TEXTURE_USAGE_SAMPLED                  = 1 << 0,
+    PL_TEXTURE_USAGE_COLOR_ATTACHMENT         = 1 << 1,
+    PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT = 1 << 2
+};
+
 enum _plBlendMode
 {
     PL_BLEND_MODE_NONE,
@@ -488,17 +553,17 @@ enum _plStencilOp
 enum _plMeshFormatFlags
 {
     PL_MESH_FORMAT_FLAG_NONE           = 0,
-    // PL_MESH_FORMAT_FLAG_HAS_POSITION   = 1 << 0,
-    // PL_MESH_FORMAT_FLAG_HAS_NORMAL     = 1 << 1,
-    // PL_MESH_FORMAT_FLAG_HAS_TANGENT    = 1 << 2,
+    PL_MESH_FORMAT_FLAG_HAS_POSITION   = 1 << 0,
+    PL_MESH_FORMAT_FLAG_HAS_NORMAL     = 1 << 1,
+    PL_MESH_FORMAT_FLAG_HAS_TANGENT    = 1 << 2,
     PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 = 1 << 3,
-    // PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1 = 1 << 4,
+    PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1 = 1 << 4,
     PL_MESH_FORMAT_FLAG_HAS_COLOR_0    = 1 << 5,
-    // PL_MESH_FORMAT_FLAG_HAS_COLOR_1    = 1 << 6,
-    // PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   = 1 << 7,
-    // PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   = 1 << 8,
-    // PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  = 1 << 9,
-    // PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 10
+    PL_MESH_FORMAT_FLAG_HAS_COLOR_1    = 1 << 6,
+    PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   = 1 << 7,
+    PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   = 1 << 8,
+    PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  = 1 << 9,
+    PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 10
 };
 
 enum _plShaderTextureFlags
@@ -506,25 +571,33 @@ enum _plShaderTextureFlags
     PL_SHADER_TEXTURE_FLAG_BINDING_NONE       = 0,
     PL_SHADER_TEXTURE_FLAG_BINDING_0          = 1 << 0,
     PL_SHADER_TEXTURE_FLAG_BINDING_1          = 1 << 1,
-    // PL_SHADER_TEXTURE_FLAG_BINDING_2          = 1 << 2,
-    // PL_SHADER_TEXTURE_FLAG_BINDING_3          = 1 << 3,
-    // PL_SHADER_TEXTURE_FLAG_BINDING_4          = 1 << 4,
-    // PL_SHADER_TEXTURE_FLAG_BINDING_5          = 1 << 5,
-    // PL_SHADER_TEXTURE_FLAG_BINDING_6          = 1 << 6,
-    // PL_SHADER_TEXTURE_FLAG_BINDING_7          = 1 << 7,
-    // PL_SHADER_TEXTURE_FLAG_BINDING_8          = 1 << 8,
-    // PL_SHADER_TEXTURE_FLAG_BINDING_9          = 1 << 9,
-    // PL_SHADER_TEXTURE_FLAG_BINDING_10         = 1 << 10,
-    // PL_SHADER_TEXTURE_FLAG_BINDING_11         = 1 << 11,
-    // PL_SHADER_TEXTURE_FLAG_BINDING_12         = 1 << 12,
-    // PL_SHADER_TEXTURE_FLAG_BINDING_13         = 1 << 13,
-    // PL_SHADER_TEXTURE_FLAG_BINDING_14         = 1 << 14
+    PL_SHADER_TEXTURE_FLAG_BINDING_2          = 1 << 2,
+    PL_SHADER_TEXTURE_FLAG_BINDING_3          = 1 << 3,
+    PL_SHADER_TEXTURE_FLAG_BINDING_4          = 1 << 4,
+    PL_SHADER_TEXTURE_FLAG_BINDING_5          = 1 << 5,
+    PL_SHADER_TEXTURE_FLAG_BINDING_6          = 1 << 6,
+    PL_SHADER_TEXTURE_FLAG_BINDING_7          = 1 << 7,
+    PL_SHADER_TEXTURE_FLAG_BINDING_8          = 1 << 8,
+    PL_SHADER_TEXTURE_FLAG_BINDING_9          = 1 << 9,
+    PL_SHADER_TEXTURE_FLAG_BINDING_10         = 1 << 10,
+    PL_SHADER_TEXTURE_FLAG_BINDING_11         = 1 << 11,
+    PL_SHADER_TEXTURE_FLAG_BINDING_12         = 1 << 12,
+    PL_SHADER_TEXTURE_FLAG_BINDING_13         = 1 << 13,
+    PL_SHADER_TEXTURE_FLAG_BINDING_14         = 1 << 14
 };
 
 enum _plMemoryMode
 {
     PL_MEMORY_GPU,
-    PL_MEMORY_GPU_CPU
+    PL_MEMORY_GPU_CPU,
+    PL_MEMORY_CPU
+};
+
+enum _plDeviceAllocationStatus
+{
+    PL_DEVICE_ALLOCATION_STATUS_FREE,
+    PL_DEVICE_ALLOCATION_STATUS_USED,
+    PL_DEVICE_ALLOCATION_STATUS_WASTE
 };
 
 #endif // PL_GRAPHICS_EXT_H

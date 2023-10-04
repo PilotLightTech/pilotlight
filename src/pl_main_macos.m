@@ -166,6 +166,16 @@ static void  (*pl_app_update)  (void* ptAppData);
 int main()
 {
 
+#if __has_feature(objc_arc)
+    // ARC is On
+    NSLog(@"ARC on");
+
+#else
+    // ARC is Off
+    NSLog(@"ARC off");
+
+#endif
+
     gptUiCtx = pl_create_context();
     gptIOCtx = pl_get_io();
 

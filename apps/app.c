@@ -171,6 +171,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
 
     // create command queue
     gptGfx->initialize(&ptAppData->tGraphics);
+    gptDataRegistry->set_data("device", &ptAppData->tGraphics.tDevice);
 
     // new demo
 
@@ -253,7 +254,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     };
     const plBufferDescription tIndexBufferDesc = {
         .pcDebugName          = "index buffer",
-        .tMemory              = PL_MEMORY_GPU_CPU,
+        .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_INDEX,
         .uByteSize            = sizeof(uint32_t) * 12,
         .uInitialDataByteSize = sizeof(uint32_t) * 12,
@@ -294,7 +295,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
 
     const plBufferDescription atGlobalBuffersDesc = {
         .pcDebugName          = "global buffer",
-        .tMemory              = PL_MEMORY_GPU_CPU,
+        .tMemory              = PL_MEMORY_CPU,
         .tUsage               = PL_BUFFER_USAGE_UNIFORM,
         .uByteSize            = sizeof(BindGroup_0),
         .uInitialDataByteSize = 0,
@@ -588,7 +589,7 @@ pl_app_update(plAppData* ptAppData)
         .tCameraView = ptAppData->tMainCamera.tViewMat,
         .tCameraViewProjection = pl_mul_mat4(&ptAppData->tMainCamera.tProjMat, &ptAppData->tMainCamera.tViewMat)
     };
-    memcpy(ptAppData->atGlobalBuffers[ptAppData->tGraphics.uCurrentFrameIndex].pcData, &tBindGroupBuffer, sizeof(BindGroup_0));
+    memcpy(ptAppData->atGlobalBuffers[ptAppData->tGraphics.uCurrentFrameIndex].tMemoryAllocation.pHostMapped, &tBindGroupBuffer, sizeof(BindGroup_0));
 
     gptGfx->begin_recording(&ptAppData->tGraphics);
 
@@ -604,7 +605,7 @@ pl_app_update(plAppData* ptAppData)
         
         if(pl_collapsing_header("Tools"))
         {
-            // pl_checkbox("Device Memory Analyzer", &ptAppData->tDebugInfo.bShowDeviceMemoryAnalyzer);
+            pl_checkbox("Device Memory Analyzer", &ptAppData->tDebugInfo.bShowDeviceMemoryAnalyzer);
             pl_checkbox("Memory Allocations", &ptAppData->tDebugInfo.bShowMemoryAllocations);
             pl_checkbox("Profiling", &ptAppData->tDebugInfo.bShowProfiling);
             pl_checkbox("Statistics", &ptAppData->tDebugInfo.bShowStats);
