@@ -80,6 +80,11 @@ typedef struct plAppData_t
     // scene
     plCamera     tMainCamera;
     plDrawList3D t3DDrawList;
+
+    plVec3*   sbtVertexPosBuffer;
+    plVec4*   sbtVertexDataBuffer;
+    uint32_t* sbuIndexBuffer;
+    plDraw*   sbtDraws;
 } plAppData;
 
 typedef struct _BindGroup_0
@@ -195,72 +200,94 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     };
     ptAppData->tShaderSpecificBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tShaderBufferDesc);
 
-    // storage buffer
-    const float fStorageBuffer[] = {
-        // u, v, _, _, r, g, b, a
-        0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
-        1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f,
-        1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+    pl_sb_resize(ptAppData->sbtDraws, 2);
 
-        // r, g, b, a
-        0.0f, 1.0f, 1.0f, 1.0f,
-        1.0f, 0.0f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f,
-        0.0f, 0.0f, 1.0f, 1.0f
-    };
-    const plBufferDescription tStorageBufferDesc = {
-        .pcDebugName          = "storage buffer",
+    // mesh 0
+    {
+        const uint32_t uStartIndex = pl_sb_size(ptAppData->sbuIndexBuffer);
+
+        // indices
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 0);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 1);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 2);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 0);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 2);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 3);
+
+        // vertices (position)
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){-0.5f, -0.5f, 0.0f}));
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){-0.5f, 0.5f, 0.0f}));
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){0.5f, 0.5f, 0.0f}));
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){0.5f, -0.5f, 0.0f}));
+
+        // vertices (data - uv, color)
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 0.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 1.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 0.0f, 0.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 0.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 0.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 0.0f, 1.0f, 1.0f}));
+    }
+    
+    // mesh 1
+    {
+        const uint32_t uStartIndex = pl_sb_size(ptAppData->sbuIndexBuffer);
+
+        // indices
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 0);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 1);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 2);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 0);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 2);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 3);
+
+        // vertices (position)
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){-0.5f, 1.0f, 0.0f}));
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){-0.5f, 2.0f, 0.0f}));
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){0.5f, 2.0f, 0.0f}));
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){0.5f, 1.0f, 0.0f}));
+
+        // vertices (data - color)
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 1.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 0.0f, 0.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 0.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 0.0f, 1.0f, 1.0f}));
+    }
+    
+    const plBufferDescription tIndexBufferDesc = {
+        .pcDebugName          = "index buffer",
         .tMemory              = PL_MEMORY_GPU,
-        .tUsage               = PL_BUFFER_USAGE_STORAGE,
-        .uByteSize            = sizeof(float) * 48,
-        .uInitialDataByteSize = sizeof(float) * 48,
-        .puInitialData        = (uint8_t*)fStorageBuffer
+        .tUsage               = PL_BUFFER_USAGE_INDEX,
+        .uByteSize            = sizeof(uint32_t) * pl_sb_size(ptAppData->sbuIndexBuffer),
+        .uInitialDataByteSize = sizeof(uint32_t) * pl_sb_size(ptAppData->sbuIndexBuffer),
+        .puInitialData        = (uint8_t*)ptAppData->sbuIndexBuffer
     };
-    ptAppData->tStorageBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tStorageBufferDesc);
-
-    // vertex buffer
-    const float fVertexBuffer[] = {
-        // x, y, z
-        -0.5f, -0.5f, 0.0f,
-        -0.5f,  0.5f, 0.0f,
-         0.5f,  0.5f, 0.0f,
-         0.5f, -0.5f, 0.0f,
-
-        // x, y, z
-        -0.5f, 1.0f, 0.0f,
-        -0.5f, 2.0f, 0.0f,
-         0.5f, 2.0f, 0.0f,
-         0.5f, 1.0f, 0.0f
-    };
+    ptAppData->tIndexBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tIndexBufferDesc);
+    pl_sb_free(ptAppData->sbuIndexBuffer);
 
     const plBufferDescription tVertexBufferDesc = {
         .pcDebugName          = "vertex buffer",
         .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_VERTEX,
-        .uByteSize            = sizeof(float) * 24,
-        .uInitialDataByteSize = sizeof(float) * 24,
-        .puInitialData        = (uint8_t*)fVertexBuffer
+        .uByteSize            = sizeof(plVec3) * pl_sb_size(ptAppData->sbtVertexPosBuffer),
+        .uInitialDataByteSize = sizeof(plVec3) * pl_sb_size(ptAppData->sbtVertexPosBuffer),
+        .puInitialData        = (uint8_t*)ptAppData->sbtVertexPosBuffer
     };
     ptAppData->tVertexBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tVertexBufferDesc);
-    
-    // index buffer
-    const uint32_t uIndexBuffer[] = {
-        0, 1, 2,
-        0, 2, 3,
+    pl_sb_free(ptAppData->sbtVertexPosBuffer);
 
-        4, 5, 6,
-        4, 6, 7
-    };
-    const plBufferDescription tIndexBufferDesc = {
-        .pcDebugName          = "index buffer",
+    const plBufferDescription tStorageBufferDesc = {
+        .pcDebugName          = "storage buffer",
         .tMemory              = PL_MEMORY_GPU,
-        .tUsage               = PL_BUFFER_USAGE_INDEX,
-        .uByteSize            = sizeof(uint32_t) * 12,
-        .uInitialDataByteSize = sizeof(uint32_t) * 12,
-        .puInitialData        = (uint8_t*)uIndexBuffer
+        .tUsage               = PL_BUFFER_USAGE_STORAGE,
+        .uByteSize            = sizeof(plVec4) * pl_sb_size(ptAppData->sbtVertexDataBuffer),
+        .uInitialDataByteSize = sizeof(plVec4) * pl_sb_size(ptAppData->sbtVertexDataBuffer),
+        .puInitialData        = (uint8_t*)ptAppData->sbtVertexDataBuffer
     };
-    ptAppData->tIndexBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tIndexBufferDesc);
+    ptAppData->tStorageBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tStorageBufferDesc);
+    pl_sb_free(ptAppData->sbtVertexDataBuffer);
 
     static float image[] = {
         1.0f,   0,   0, 1.0f,

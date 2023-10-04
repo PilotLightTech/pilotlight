@@ -22,6 +22,7 @@ includes = [
     "${workspaceFolder}/src",
     "${workspaceFolder}/extensions",
     "${workspaceFolder}/dependencies/stb",
+    "${workspaceFolder}/dependencies/cgltf",
     "${workspaceFolder}/dependencies/pilotlight-libs",
     "${workspaceFolder}/dependencies/pilotlight-ui",
     "${workspaceFolder}/dependencies/pilotlight-ui/backends",
