@@ -455,11 +455,17 @@ pl_create_shader(plGraphics* ptGraphics, plShaderDescription* ptDescription)
     MTLCompileOptions* ptCompileOptions = [MTLCompileOptions new];
 
     int iDataStride = 0;
-    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0)
-        iDataStride += 4;
-
-    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_0)
-        iDataStride += 4;
+    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_POSITION) iDataStride += 4;
+    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_NORMAL) iDataStride += 4;
+    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TANGENT) iDataStride += 4;
+    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0) iDataStride += 4;
+    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1) iDataStride += 4;
+    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_0) iDataStride += 4;
+    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_1) iDataStride += 4;
+    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0) iDataStride += 4;
+    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1) iDataStride += 4;
+    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0) iDataStride += 4;
+    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1) iDataStride += 4;
 
     int iTextureCount = 0;
     if(ptDescription->tGraphicsState.ulShaderTextureFlags & PL_SHADER_TEXTURE_FLAG_BINDING_0)
@@ -467,10 +473,18 @@ pl_create_shader(plGraphics* ptGraphics, plShaderDescription* ptDescription)
 
     ptCompileOptions.preprocessorMacros = @{
         @"PL_TEXTURE_COUNT" : [NSNumber numberWithInt:iTextureCount],
-        @"PL_BUFFER_COUNT" : [NSNumber numberWithInt:ptDescription->atBindGroupLayouts[1].uBufferCount + 1],
         @"PL_DATA_STRIDE" : [NSNumber numberWithInt:iDataStride],
+        @"PL_MESH_FORMAT_FLAG_HAS_POSITION" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_POSITION)],
+        @"PL_MESH_FORMAT_FLAG_HAS_NORMAL" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_NORMAL)],
+        @"PL_MESH_FORMAT_FLAG_HAS_TANGENT" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TANGENT)],
         @"PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0)],
-        @"PL_MESH_FORMAT_FLAG_HAS_COLOR_0" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_0)]
+        @"PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1)],
+        @"PL_MESH_FORMAT_FLAG_HAS_COLOR_0" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_0)],
+        @"PL_MESH_FORMAT_FLAG_HAS_COLOR_1" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_1)],
+        @"PL_MESH_FORMAT_FLAG_HAS_JOINTS_0" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0)],
+        @"PL_MESH_FORMAT_FLAG_HAS_JOINTS_1" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1)],
+        @"PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0)],
+        @"PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1)]
     };
 
     // compile shader source
@@ -779,6 +793,12 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
                 [ptMetalGraphics->tCurrentRenderEncoder useResource:ptMetalGraphics->sbtTextures[ptDraw->aptBindGroups[1]->tLayout.aTextures[k].tTextureView.uTextureHandle].tTexture
                     usage:MTLResourceUsageRead
                     stages:MTLRenderStageFragment];  
+            }
+
+            // make resources available to gpu
+            for(uint32_t k = 0; k < ptDraw->aptBindGroups[0]->tLayout.uBufferCount; k++)
+            {
+                [ptMetalGraphics->tCurrentRenderEncoder useHeap:ptMetalGraphics->sbtBuffers[ptDraw->aptBindGroups[0]->tLayout.aBuffers[k].tBuffer.uHandle].tHeap stages:MTLRenderStageVertex];
             }
 
             // make resources available to gpu

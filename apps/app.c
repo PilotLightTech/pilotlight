@@ -84,7 +84,6 @@ typedef struct plAppData_t
     plVec3*   sbtVertexPosBuffer;
     plVec4*   sbtVertexDataBuffer;
     uint32_t* sbuIndexBuffer;
-    plDraw*   sbtDraws;
 } plAppData;
 
 typedef struct _BindGroup_0
@@ -200,8 +199,6 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     };
     ptAppData->tShaderSpecificBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tShaderBufferDesc);
 
-    pl_sb_resize(ptAppData->sbtDraws, 2);
-
     // mesh 0
     {
         const uint32_t uStartIndex = pl_sb_size(ptAppData->sbuIndexBuffer);
@@ -233,7 +230,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     
     // mesh 1
     {
-        const uint32_t uStartIndex = pl_sb_size(ptAppData->sbuIndexBuffer);
+        const uint32_t uStartIndex = pl_sb_size(ptAppData->sbtVertexPosBuffer);
 
         // indices
         pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 0);
@@ -332,52 +329,44 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->atGlobalBuffers[1] = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &atGlobalBuffersDesc);
 
     plBindGroupLayout tBindGroupLayout0 = {
-        .uBufferCount  = 1,
+        .uBufferCount  = 2,
         .aBuffers = {
             {
                 .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
                 .uSlot = 0
-            }
+            },
+            {
+                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                .uSlot = 1
+            },
         }
     };
     ptAppData->atBindGroups0[0] = gptDevice->create_bind_group(&ptAppData->tGraphics.tDevice, &tBindGroupLayout0);
     ptAppData->atBindGroups0[1] = gptDevice->create_bind_group(&ptAppData->tGraphics.tDevice, &tBindGroupLayout0);
-    size_t szBufferRangeSize = sizeof(BindGroup_0);
-    gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->atBindGroups0[0], 1, &ptAppData->atGlobalBuffers[0], &szBufferRangeSize, 0, NULL);
-    gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->atBindGroups0[1], 1, &ptAppData->atGlobalBuffers[1], &szBufferRangeSize, 0, NULL);
+    size_t szBufferRangeSize[2] = {sizeof(BindGroup_0), tStorageBufferDesc.uByteSize};
+
+    plBuffer atBindGroup0_buffers0[2] = {ptAppData->atGlobalBuffers[0], ptAppData->tStorageBuffer};
+    plBuffer atBindGroup0_buffers1[2] = {ptAppData->atGlobalBuffers[1], ptAppData->tStorageBuffer};
+    gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->atBindGroups0[0], 2, atBindGroup0_buffers0, szBufferRangeSize, 0, NULL);
+    gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->atBindGroups0[1], 2, atBindGroup0_buffers1, szBufferRangeSize, 0, NULL);
 
     plBindGroupLayout tBindGroupLayout1_0 = {
-        .uBufferCount  = 1,
-        .aBuffers = {
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                .uSlot = 0
-            },
-        },
         .uTextureCount  = 1,
         .aTextures = {
-            {.uSlot = 1}
+            {.uSlot = 0}
         }
     };
     ptAppData->tBindGroup1_0 = gptDevice->create_bind_group(&ptAppData->tGraphics.tDevice, &tBindGroupLayout1_0);
-    size_t szGroup1BufferRange = sizeof(float) * 48;
-    gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->tBindGroup1_0, 1, &ptAppData->tStorageBuffer, &szGroup1BufferRange, 1, &ptAppData->tTextureView);
+    gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->tBindGroup1_0, 0, NULL, NULL, 1, &ptAppData->tTextureView);
 
     plBindGroupLayout tBindGroupLayout1_1 = {
-        .uBufferCount  = 1,
-        .aBuffers = {
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                .uSlot = 0
-            }
-        },
         .uTextureCount  = 1,
         .aTextures = {
-            {.uSlot = 1}
+            {.uSlot = 0}
         }
     };
     ptAppData->tBindGroup1_1 = gptDevice->create_bind_group(&ptAppData->tGraphics.tDevice, &tBindGroupLayout1_1);
-    gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->tBindGroup1_1, 1, &ptAppData->tStorageBuffer, &szGroup1BufferRange, 1, &ptAppData->tTextureView);
+    gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->tBindGroup1_1, 0, NULL, NULL, 1, &ptAppData->tTextureView);
 
     plBindGroupLayout tBindGroupLayout2_0 = {
         .uBufferCount  = 1,
@@ -419,26 +408,23 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         .uBindGroupLayoutCount = 3,
         .atBindGroupLayouts = {
             {
-                .uBufferCount  = 1,
+                .uBufferCount  = 2,
                 .aBuffers = {
                     {
                         .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
                         .uSlot = 0
                     },
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                        .uSlot = 1
+                    }
                 },
             },
             {
-                .uBufferCount  = 1,
-                .aBuffers = {
-                    {
-                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                        .uSlot = 0
-                    },
-                },
                 .uTextureCount = 1,
                 .aTextures = {
                     {
-                        .uSlot = 1
+                        .uSlot = 0
                     }
                  },
             },
@@ -480,26 +466,23 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         .uBindGroupLayoutCount = 3,
         .atBindGroupLayouts = {
             {
-                .uBufferCount  = 1,
+                .uBufferCount  = 2,
                 .aBuffers = {
                     {
                         .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
                         .uSlot = 0
                     },
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                        .uSlot = 1
+                    },
                 },
             },
             {
-                .uBufferCount  = 1,
-                .aBuffers = {
-                    {
-                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                        .uSlot = 0
-                    },
-                },
                 .uTextureCount = 1,
                 .aTextures = {
                     {
-                        .uSlot = 1
+                        .uSlot = 0
                     }
                  },
             },

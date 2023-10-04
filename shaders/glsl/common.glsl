@@ -34,12 +34,12 @@ layout(set = 0, binding = 0) uniform _plGlobalInfo
     mat4 tCameraViewProjection;
 } tGlobalInfo;
 
-layout(std140, set = 1, binding = 0) readonly buffer _tVertexBuffer
+layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
 {
 	vec4 atVertexData[];
 } tVertexBuffer;
 
-layout(set = 1, binding = 1) uniform sampler2D tSampler0;
+layout(set = 1, binding = 0) uniform sampler2D tSampler0;
 // layout(set = 1, binding = 2) uniform sampler2D tSampler1;
 
 layout(set = 2, binding = 0) uniform _plShaderInfo
