@@ -22,6 +22,9 @@ Index of this file:
 #ifndef PL_PILOTLIGHT_H
 #define PL_PILOTLIGHT_H
 
+#define PILOTLIGHT_VERSION    "0.1.0"
+#define PILOTLIGHT_VERSION_NUM 000100
+
 #if defined(_MSC_VER) //  Microsoft 
     #define PL_EXPORT __declspec(dllexport)
 #elif defined(__GNUC__) //  GCC
