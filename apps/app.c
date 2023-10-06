@@ -305,8 +305,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         .uBaseLayer  = 0,
         .uBaseMip    = 0,
         .uLayerCount = 1,
-        .uMips       = 1,
-        .uSlot       = 0
+        .uMips       = 1
     };
     plSampler tSampler = {
         .tFilter = PL_FILTER_NEAREST,

@@ -251,9 +251,6 @@ typedef struct _plDeviceMemoryAllocatorI
     plDeviceMemoryAllocation (*allocate)(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
     void                     (*free)    (struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation);
     plDeviceAllocationBlock* (*blocks)  (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
-    // plDeviceAllocationNode*  (*nodes)   (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
-    // char**                   (*names)   (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
-
 } plDeviceMemoryAllocatorI;
 
 typedef struct _plTextureViewDesc
@@ -263,7 +260,6 @@ typedef struct _plTextureViewDesc
     uint32_t uMips;
     uint32_t uBaseLayer;
     uint32_t uLayerCount;
-    uint32_t uSlot;  
 } plTextureViewDesc;
 
 typedef struct _plSampler
