@@ -119,7 +119,7 @@ typedef struct _plDeviceI
     // commited resources
     plBuffer      (*create_buffer)            (plDevice* ptDevice, const plBufferDescription* ptDesc);
     plTexture     (*create_texture)           (plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName);
-    plTextureView (*create_texture_view)      (plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, uint32_t uTextureHandle, const char* pcName);
+    plTextureView (*create_texture_view)      (plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, plTexture* ptTexture, const char* pcName);
     plBindGroup   (*create_bind_group)        (plDevice* ptDevice, plBindGroupLayout* ptLayout);
     void          (*update_bind_group)        (plDevice* ptDevice, plBindGroup* ptGroup, uint32_t uBufferCount, plBuffer* atBuffers, size_t* aszBufferRanges, uint32_t uTextureViewCount, plTextureView* atTextureViews);
 

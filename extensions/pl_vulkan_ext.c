@@ -602,9 +602,7 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
     plVulkanGraphics* ptVulkanGraphics = ptVulkanDevice->ptGraphics->_pInternalData;
 
     if(tDesc.uMips == 0)
-    {
         tDesc.uMips = (uint32_t)floorf(log2f((float)pl_maxi((int)tDesc.tDimensions.x, (int)tDesc.tDimensions.y))) + 1u;
-    }
 
     plTexture tTexture = {
         .tDesc = tDesc,
@@ -711,24 +709,26 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
 }
 
 static plTextureView
-pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, uint32_t uTextureHandle, const char* pcName)
+pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, plTexture* ptTexture, const char* pcName)
 {
     plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
     plVulkanGraphics* ptVulkanGraphics = ptVulkanDevice->ptGraphics->_pInternalData;
 
-    plVulkanTexture* ptVulkanTexture = &ptVulkanGraphics->sbtTextures[uTextureHandle];
+    plVulkanTexture* ptVulkanTexture = &ptVulkanGraphics->sbtTextures[ptTexture->uHandle];
 
     plTextureView tTextureView = {
         .tSampler         = *ptSampler,
         .tTextureViewDesc = *ptViewDesc,
-        .uTextureHandle   = uTextureHandle,
+        .uTextureHandle   = ptTexture->uHandle,
         ._uSamplerHandle  = pl_sb_size(ptVulkanGraphics->sbtSamplers)
     };
 
     plVulkanSampler tVulkanSampler = {0};
 
     if(ptViewDesc->uMips == 0)
-        tTextureView.tTextureViewDesc.uMips = ptViewDesc->uMips;
+        tTextureView.tTextureViewDesc.uMips = ptTexture->tDesc.uMips;
+
+
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const VkImageViewType tImageViewType = ptViewDesc->uLayerCount == 6 ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D;    

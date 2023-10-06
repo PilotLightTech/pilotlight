@@ -277,6 +277,9 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
     plGraphicsMetal* ptMetalGraphics = ptMetalDevice->ptGraphics->_pInternalData;
 
+    if(tDesc.uMips == 0)
+        tDesc.uMips = (uint32_t)floorf(log2f((float)pl_maxi((int)tDesc.tDimensions.x, (int)tDesc.tDimensions.y))) + 1u;
+
     plTexture tTexture = {
         .tDesc = tDesc,
         .uHandle = pl_sb_size(ptMetalGraphics->sbtTextures)
@@ -287,7 +290,7 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
                         atValue:ptMetalGraphics->uNextFenceValue++
                         block:^(id<MTLSharedEvent> sharedEvent, uint64_t value) {
         if(pData)
-            memcpy(ptMetalGraphics->tStagingBuffer.contents, pData, tDesc.tDimensions.x * tDesc.tDimensions.y * 4 * sizeof(float));
+            memcpy(ptMetalGraphics->tStagingBuffer.contents, pData, szSize);
         sharedEvent.signaledValue = ptMetalGraphics->uNextFenceValue;
     }];
 
@@ -322,7 +325,7 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
     id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
     blitEncoder.label = @"Heap Transfer Blit Encoder";
 
-    NSUInteger uBytesPerRow = tDesc.tDimensions.x * 4 * sizeof(float);
+    NSUInteger uBytesPerRow = szSize / tDesc.tDimensions.y;
     MTLOrigin tOrigin;
     tOrigin.x = 0;
     tOrigin.y = 0;
@@ -332,6 +335,9 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
     tSize.height = tDesc.tDimensions.y;
     tSize.depth = tDesc.tDimensions.z;
     [blitEncoder copyFromBuffer:ptMetalGraphics->tStagingBuffer sourceOffset: 0 sourceBytesPerRow:uBytesPerRow sourceBytesPerImage:uBytesPerRow * tDesc.tDimensions.y sourceSize:tSize toTexture:tMetalTexture.tTexture destinationSlice:0 destinationLevel:0 destinationOrigin:tOrigin];
+
+    if(tDesc.uMips > 1)
+        [blitEncoder generateMipmapsForTexture:tMetalTexture.tTexture];
 
     [blitEncoder endEncoding];
     [commandBuffer encodeSignalEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue];
@@ -343,19 +349,22 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
 
 
 static plTextureView
-pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, uint32_t uTextureHandle, const char* pcName)
+pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, plTexture* ptTexture, const char* pcName)
 {
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
     plGraphicsMetal* ptMetalGraphics = ptMetalDevice->ptGraphics->_pInternalData;
 
-    plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTextures[uTextureHandle];
+    plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTextures[ptTexture->uHandle];
 
     plTextureView tTextureView = {
         .tSampler         = *ptSampler,
         .tTextureViewDesc = *ptViewDesc,
-        .uTextureHandle   = uTextureHandle,
+        .uTextureHandle   = ptTexture->uHandle,
         ._uSamplerHandle  = pl_sb_size(ptMetalGraphics->sbtSamplers)
     };
+
+    if(ptViewDesc->uMips == 0)
+        tTextureView.tTextureViewDesc.uMips = ptTexture->tDesc.uMips;
 
     MTLSamplerDescriptor *samplerDesc = [MTLSamplerDescriptor new];
     samplerDesc.minFilter = pl__metal_filter(ptSampler->tFilter);

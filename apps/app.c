@@ -118,6 +118,7 @@ const plFileApiI*              gptFile              = NULL;
 const plGraphicsI*             gptGfx               = NULL;
 const plDeviceI*               gptDevice            = NULL;
 const plDebugApiI*             gptDebug             = NULL;
+const plImageApiI*             gptImage             = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -142,6 +143,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
         gptDevice = ptApiRegistry->first(PL_API_DEVICE);
         gptDebug  = ptApiRegistry->first(PL_API_DEBUG);
+        gptImage  = ptApiRegistry->first(PL_API_IMAGE);
 
         return ptAppData;
     }
@@ -172,6 +174,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
     gptDevice = ptApiRegistry->first(PL_API_DEVICE);
     gptDebug  = ptApiRegistry->first(PL_API_DEBUG);
+    gptImage  = ptApiRegistry->first(PL_API_IMAGE);
 
     // create command queue
     gptGfx->initialize(&ptAppData->tGraphics);
@@ -187,7 +190,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
 
     // shader specific buffer
     const BindGroup_2 tShaderSpecificBufferDesc = {
-        .tShaderSpecific = {-1.0f, 0.0f, 0.0f, -0.25f}
+        .tShaderSpecific = {0}
     };
     const plBufferDescription tShaderBufferDesc = {
         .pcDebugName          = "shader buffer",
@@ -218,13 +221,13 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){0.5f, -0.5f, 0.0f}));
 
         // vertices (data - uv, color)
-        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 0.0f}));
-        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 1.0f, 1.0f}));
         pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 1.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 0.0f}));
         pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 0.0f, 0.0f, 1.0f}));
-        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 1.0f}));
-        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 0.0f, 1.0f}));
         pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 0.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 0.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 1.0f}));
         pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 0.0f, 1.0f, 1.0f}));
     }
     
@@ -296,7 +299,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         .tDimensions = {2, 2, 1},
         .tFormat = PL_FORMAT_R32G32B32A32_FLOAT,
         .uLayers = 1,
-        .uMips = 1
+        .uMips = 0
     };
     ptAppData->tTexture = gptDevice->create_texture(&ptAppData->tGraphics.tDevice, tTextureDesc, sizeof(float) * 4 * 4, image, "texture");
 
@@ -304,8 +307,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
         .uBaseLayer  = 0,
         .uBaseMip    = 0,
-        .uLayerCount = 1,
-        .uMips       = 1
+        .uLayerCount = 1
     };
     plSampler tSampler = {
         .tFilter = PL_FILTER_NEAREST,
@@ -314,7 +316,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         .tVerticalWrap = PL_WRAP_MODE_CLAMP,
         .tHorizontalWrap = PL_WRAP_MODE_CLAMP
     };
-    ptAppData->tTextureView = gptDevice->create_texture_view(&ptAppData->tGraphics.tDevice, &tTextureViewDesc, &tSampler, ptAppData->tTexture.uHandle, "texture view");
+    ptAppData->tTextureView = gptDevice->create_texture_view(&ptAppData->tGraphics.tDevice, &tTextureViewDesc, &tSampler, &ptAppData->tTexture, "texture view");
 
     const plBufferDescription atGlobalBuffersDesc = {
         .pcDebugName          = "global buffer",
