@@ -93,6 +93,7 @@ typedef struct _plMetalPipelineEntry
     id<MTLRenderPipelineState> tSolidRenderPipelineState;
     id<MTLRenderPipelineState> tLineRenderPipelineState;
     pl3DDrawFlags              tFlags;
+    uint32_t                   uSampleCount;
 } plMetalPipelineEntry;
 
 typedef struct _plGraphicsMetal
@@ -103,6 +104,7 @@ typedef struct _plGraphicsMetal
 
     // temp
     id<MTLTexture>             depthTarget;
+    id<MTLTexture>             multisampleTexture;
     MTLRenderPassDescriptor*   drawableRenderDescriptor;
 
     uint64_t                 uNextFenceValue;
@@ -136,7 +138,7 @@ typedef struct _plGraphicsMetal
     // frames in flight
     dispatch_semaphore_t tFrameBoundarySemaphore;
 
-
+    uint32_t uMultiSamplingCount;
 
 } plGraphicsMetal;
 
@@ -157,7 +159,7 @@ static MTLCompareFunction     pl__metal_compare(plCompareMode tCompare);
 static MTLPixelFormat         pl__metal_format(plFormat tFormat);
 
 static plTrackedMetalBuffer* pl__dequeue_reusable_buffer(plGraphics* ptGraphics, NSUInteger length);
-static plMetalPipelineEntry* pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags);
+static plMetalPipelineEntry* pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags, uint32_t uSampleCount);
 
 // device memory allocators specifics
 static plDeviceMemoryAllocation pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
@@ -539,7 +541,7 @@ pl_create_shader(plGraphics* ptGraphics, plShaderDescription* ptDescription)
     pipelineDescriptor.vertexFunction = vertexFunction;
     pipelineDescriptor.fragmentFunction = fragmentFunction;
     pipelineDescriptor.vertexDescriptor = vertexDescriptor;
-    pipelineDescriptor.rasterSampleCount = 1;
+    pipelineDescriptor.rasterSampleCount = ptMetalGraphics->uMultiSamplingCount;
 
     // renderpass stuff
 
@@ -595,14 +597,29 @@ pl_initialize_graphics(plGraphics* ptGraphics)
 
     pl_initialize_metal(ptMetalDevice->tDevice);
 
+    ptMetalGraphics->uMultiSamplingCount = 4;
+    if([ptMetalDevice->tDevice supportsTextureSampleCount:8])
+        ptMetalGraphics->uMultiSamplingCount = 8;
+
+    MTLTextureDescriptor *msaaTargetDescriptor = [MTLTextureDescriptor new];
+    msaaTargetDescriptor.width       = (uint32_t)ptIOCtx->afMainViewportSize[0];
+    msaaTargetDescriptor.height      = (uint32_t)ptIOCtx->afMainViewportSize[1];
+    msaaTargetDescriptor.pixelFormat = MTLPixelFormatBGRA8Unorm;
+    msaaTargetDescriptor.storageMode = MTLStorageModePrivate;
+    msaaTargetDescriptor.usage       = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+    msaaTargetDescriptor.sampleCount = ptMetalGraphics->uMultiSamplingCount;
+    msaaTargetDescriptor.textureType = MTLTextureType2DMultisample;
+    ptMetalGraphics->multisampleTexture = [ptMetalDevice->tDevice newTextureWithDescriptor:msaaTargetDescriptor];
+
     // setup
     // render pass descriptor
     ptMetalGraphics->drawableRenderDescriptor = [MTLRenderPassDescriptor new];
 
     // color attachment
     ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-    ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
+    ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].storeAction = MTLStoreActionMultisampleResolve;
     ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+    ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].texture = ptMetalGraphics->multisampleTexture;
 
     // depth attachment
     ptMetalGraphics->drawableRenderDescriptor.depthAttachment.loadAction = MTLLoadActionClear;
@@ -696,8 +713,22 @@ pl_resize(plGraphics* ptGraphics)
     depthTargetDescriptor.pixelFormat = MTLPixelFormatDepth32Float;
     depthTargetDescriptor.storageMode = MTLStorageModePrivate;
     depthTargetDescriptor.usage       = MTLTextureUsageRenderTarget;
+    depthTargetDescriptor.sampleCount = ptMetalGraphics->uMultiSamplingCount;
+    depthTargetDescriptor.textureType = MTLTextureType2DMultisample;
     ptMetalGraphics->depthTarget = [ptMetalDevice->tDevice newTextureWithDescriptor:depthTargetDescriptor];
     ptMetalGraphics->drawableRenderDescriptor.depthAttachment.texture = ptMetalGraphics->depthTarget;
+
+    MTLTextureDescriptor *msaaTargetDescriptor = [MTLTextureDescriptor new];
+    msaaTargetDescriptor.width       = (uint32_t)ptIOCtx->afMainViewportSize[0];
+    msaaTargetDescriptor.height      = (uint32_t)ptIOCtx->afMainViewportSize[1];
+    msaaTargetDescriptor.pixelFormat = MTLPixelFormatBGRA8Unorm;
+    msaaTargetDescriptor.storageMode = MTLStorageModePrivate;
+    msaaTargetDescriptor.usage       = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+    msaaTargetDescriptor.sampleCount = ptMetalGraphics->uMultiSamplingCount;
+    msaaTargetDescriptor.textureType = MTLTextureType2DMultisample;
+    ptMetalGraphics->multisampleTexture = [ptMetalDevice->tDevice newTextureWithDescriptor:msaaTargetDescriptor];
+    ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].texture = ptMetalGraphics->multisampleTexture;
+
     pl_end_profile_sample();
 }
 
@@ -728,7 +759,7 @@ pl_begin_frame(plGraphics* ptGraphics)
     }
 
     // set color attachment to next drawable
-    ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].texture = ptMetalGraphics->tCurrentDrawable.texture;
+    ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].resolveTexture = ptMetalGraphics->tCurrentDrawable.texture;
 
     ptMetalGraphics->tCurrentCommandBuffer = [ptMetalGraphics->tCmdQueue commandBuffer];
 
@@ -742,6 +773,8 @@ pl_begin_frame(plGraphics* ptGraphics)
         pl_sb_reset(drawlist->sbtSolidIndexBuffer);    
         pl_sb_reset(drawlist->sbtLineIndexBuffer);    
     }
+
+    pl_new_draw_frame_metal(ptMetalGraphics->drawableRenderDescriptor);
 
     pl_end_profile_sample();
     return true;
@@ -953,7 +986,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
     plGraphicsMetal* ptMetalGraphics = ptGfx->_pInternalData;
     plDeviceMetal* ptMetalDevice = ptGfx->tDevice._pInternalData;
 
-    plMetalPipelineEntry* ptPipelineEntry = pl__get_3d_pipelines(ptGfx, tFlags);
+    plMetalPipelineEntry* ptPipelineEntry = pl__get_3d_pipelines(ptGfx, tFlags, ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].texture.sampleCount);
 
     const float fAspectRatio = fWidth / fHeight;
 
@@ -1140,21 +1173,22 @@ pl__dequeue_reusable_buffer(plGraphics* ptGraphics, NSUInteger length)
 }
 
 static plMetalPipelineEntry*
-pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags)
+pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags, uint32_t uSampleCount)
 {
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
 
     for(uint32_t i = 0; i < pl_sb_size(ptMetalGraphics->sbtPipelineEntries); i++)
     {
-        if(ptMetalGraphics->sbtPipelineEntries[i].tFlags == tFlags)
+        if(ptMetalGraphics->sbtPipelineEntries[i].tFlags == tFlags && ptMetalGraphics->sbtPipelineEntries[i].uSampleCount == uSampleCount)
             return &ptMetalGraphics->sbtPipelineEntries[i];
     }
 
     // pipeline not found, make new one
 
     plMetalPipelineEntry tPipelineEntry = {
-        .tFlags = tFlags
+        .tFlags = tFlags,
+        .uSampleCount = uSampleCount
     };
 
     NSError* error = nil;
@@ -1191,7 +1225,8 @@ pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags)
         pipelineDescriptor.vertexFunction = ptMetalGraphics->tLineVertexFunction;
         pipelineDescriptor.fragmentFunction = ptMetalGraphics->tFragmentFunction;
         pipelineDescriptor.vertexDescriptor = vertexDescriptor;
-        pipelineDescriptor.rasterSampleCount = 1;
+        pipelineDescriptor.rasterSampleCount = ptMetalGraphics->uMultiSamplingCount;
+
         pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
         pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
         pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
@@ -1226,7 +1261,7 @@ pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags)
         pipelineDescriptor.vertexFunction = ptMetalGraphics->tSolidVertexFunction;
         pipelineDescriptor.fragmentFunction = ptMetalGraphics->tFragmentFunction;
         pipelineDescriptor.vertexDescriptor = vertexDescriptor;
-        pipelineDescriptor.rasterSampleCount = 1;
+        pipelineDescriptor.rasterSampleCount = ptMetalGraphics->uMultiSamplingCount;
         pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
         pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
         pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
