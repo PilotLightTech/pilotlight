@@ -150,6 +150,12 @@ typedef struct _plDeviceMetal
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
+// conversion between pilotlight & vulkan types
+static MTLSamplerMinMagFilter pl__metal_filter(plFilter tFilter);
+static MTLSamplerAddressMode  pl__metal_wrap(plWrapMode tWrap);
+static MTLCompareFunction     pl__metal_compare(plCompareMode tCompare);
+static MTLPixelFormat         pl__metal_format(plFormat tFormat);
+
 static plTrackedMetalBuffer* pl__dequeue_reusable_buffer(plGraphics* ptGraphics, NSUInteger length);
 static plMetalPipelineEntry* pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags);
 
@@ -294,7 +300,7 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
 
 
     MTLTextureDescriptor* ptTextureDescriptor = [[MTLTextureDescriptor alloc] init];
-    ptTextureDescriptor.pixelFormat = MTLPixelFormatRGBA32Float;
+    ptTextureDescriptor.pixelFormat = pl__metal_format(tDesc.tFormat);
     ptTextureDescriptor.width = tDesc.tDimensions.x;
     ptTextureDescriptor.height = tDesc.tDimensions.y;
     ptTextureDescriptor.mipmapLevelCount = tDesc.uMips;
@@ -352,11 +358,18 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
     };
 
     MTLSamplerDescriptor *samplerDesc = [MTLSamplerDescriptor new];
-    samplerDesc.minFilter = MTLSamplerMinMagFilterNearest;
-    samplerDesc.magFilter = MTLSamplerMinMagFilterNearest;
-    samplerDesc.mipFilter = MTLSamplerMipFilterNotMipmapped;
+    samplerDesc.minFilter = pl__metal_filter(ptSampler->tFilter);
+    samplerDesc.magFilter = pl__metal_filter(ptSampler->tFilter);
+    samplerDesc.mipFilter = MTLSamplerMipFilterLinear;
     samplerDesc.normalizedCoordinates = YES;
     samplerDesc.supportArgumentBuffers = YES;
+    samplerDesc.sAddressMode = pl__metal_wrap(ptSampler->tHorizontalWrap);
+    samplerDesc.tAddressMode = pl__metal_wrap(ptSampler->tVerticalWrap);
+    samplerDesc.borderColor = MTLSamplerBorderColorTransparentBlack;
+    samplerDesc.compareFunction = pl__metal_compare(ptSampler->tCompare);
+    samplerDesc.lodMinClamp = ptSampler->fMinMip;
+    samplerDesc.lodMaxClamp = ptSampler->fMaxMip;
+    samplerDesc.label = [NSString stringWithUTF8String:pcName];
 
     plMetalSampler tMetalSampler = {
         .tSampler = [ptMetalDevice->tDevice newSamplerStateWithDescriptor:samplerDesc]
@@ -1007,6 +1020,75 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
+
+static MTLSamplerMinMagFilter
+pl__metal_filter(plFilter tFilter)
+{
+    switch(tFilter)
+    {
+        case PL_FILTER_UNSPECIFIED:
+        case PL_FILTER_NEAREST: return MTLSamplerMinMagFilterNearest;
+        case PL_FILTER_LINEAR:  return MTLSamplerMinMagFilterLinear;
+    }
+
+    PL_ASSERT(false && "Unsupported filter mode");
+    return MTLSamplerMinMagFilterLinear;
+}
+
+static MTLSamplerAddressMode
+pl__metal_wrap(plWrapMode tWrap)
+{
+    switch(tWrap)
+    {
+        case PL_WRAP_MODE_UNSPECIFIED:
+        case PL_WRAP_MODE_WRAP:   return MTLSamplerAddressModeMirrorRepeat;
+        case PL_WRAP_MODE_CLAMP:  return MTLSamplerAddressModeClampToEdge;
+        case PL_WRAP_MODE_MIRROR: return MTLSamplerAddressModeMirrorRepeat;
+    }
+
+    PL_ASSERT(false && "Unsupported wrap mode");
+    return MTLSamplerAddressModeMirrorRepeat;
+}
+
+static MTLCompareFunction
+pl__metal_compare(plCompareMode tCompare)
+{
+    switch(tCompare)
+    {
+        case PL_COMPARE_MODE_UNSPECIFIED:
+        case PL_COMPARE_MODE_NEVER:            return MTLCompareFunctionNever;
+        case PL_COMPARE_MODE_LESS:             return MTLCompareFunctionLess;
+        case PL_COMPARE_MODE_EQUAL:            return MTLCompareFunctionEqual;
+        case PL_COMPARE_MODE_LESS_OR_EQUAL:    return MTLCompareFunctionLessEqual;
+        case PL_COMPARE_MODE_GREATER:          return MTLCompareFunctionGreater;
+        case PL_COMPARE_MODE_NOT_EQUAL:        return MTLCompareFunctionNotEqual;
+        case PL_COMPARE_MODE_GREATER_OR_EQUAL: return MTLCompareFunctionGreaterEqual;
+        case PL_COMPARE_MODE_ALWAYS:           return MTLCompareFunctionAlways;
+    }
+
+    PL_ASSERT(false && "Unsupported compare mode");
+    return MTLCompareFunctionNever;
+}
+
+static MTLPixelFormat
+pl__metal_format(plFormat tFormat)
+{
+    switch(tFormat)
+    {
+        case PL_FORMAT_R32G32B32A32_FLOAT: return MTLPixelFormatRGBA32Float;
+        case PL_FORMAT_R8G8B8A8_UNORM:     return MTLPixelFormatRGBA8Unorm;
+        case PL_FORMAT_R32G32_FLOAT:       return MTLPixelFormatRG32Float;
+        case PL_FORMAT_R8G8B8A8_SRGB:      return MTLPixelFormatRGBA8Unorm_sRGB;
+        case PL_FORMAT_B8G8R8A8_SRGB:      return MTLPixelFormatBGRA8Unorm_sRGB;
+        case PL_FORMAT_B8G8R8A8_UNORM:     return MTLPixelFormatBGRA8Unorm;
+        case PL_FORMAT_D32_FLOAT:          return MTLPixelFormatDepth32Float;
+        case PL_FORMAT_D32_FLOAT_S8_UINT:  return MTLPixelFormatDepth32Float_Stencil8;
+        case PL_FORMAT_D24_UNORM_S8_UINT:  return MTLPixelFormatDepth24Unorm_Stencil8;
+    }
+
+    PL_ASSERT(false && "Unsupported format");
+    return MTLPixelFormatInvalid;
+}
 
 static plTrackedMetalBuffer*
 pl__dequeue_reusable_buffer(plGraphics* ptGraphics, NSUInteger length)
