@@ -25,6 +25,7 @@ jobs:
           PVS_STUDIO_LICENSE: ${{ secrets.PVS_STUDIO_LICENSE }}
         run: |
           cd $GITHUB_WORKSPACE
+          sudo apt update
           sudo apt install libx11-dev
           sudo apt install libxkbcommon-x11-dev
           sudo apt install libx11-xcb-dev

@@ -82,6 +82,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
+        sudo apt update
         sudo apt install libx11-dev
         sudo apt install libxkbcommon-x11-dev
         sudo apt install libx11-xcb-dev

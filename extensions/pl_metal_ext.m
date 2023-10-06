@@ -870,7 +870,7 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
                 indexCount:ptDraw->uIndexCount
                 indexType:MTLIndexTypeUInt32
                 indexBuffer:ptMetalGraphics->sbtBuffers[ptDraw->uIndexBuffer].tBuffer
-                indexBufferOffset:0
+                indexBufferOffset:ptDraw->uIndexOffset * sizeof(uint32_t)
                 instanceCount:1
                 baseVertex:ptDraw->uVertexOffset
                 baseInstance:0

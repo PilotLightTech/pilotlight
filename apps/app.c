@@ -692,7 +692,6 @@ pl_app_update(plAppData* ptAppData)
             .uIndexCount = 6,
             .uVertexCount = 4,
             .uIndexOffset = 6,
-            .uVertexOffset = 4,
             .aptBindGroups = {
                 &ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex],
                 &ptAppData->tBindGroup1_1,

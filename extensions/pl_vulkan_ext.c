@@ -2582,7 +2582,7 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
             vkCmdBindIndexBuffer(ptCurrentFrame->tCmdBuf, ptIndexBuffer->tBuffer, 0, VK_INDEX_TYPE_UINT32);
             vkCmdBindVertexBuffers(ptCurrentFrame->tCmdBuf, 0, 1, &ptVertexBuffer->tBuffer, &offsets);
 
-            vkCmdDrawIndexed(ptCurrentFrame->tCmdBuf, ptDraw->uIndexCount, 1, ptDraw->uIndexOffset, 0, 0);
+            vkCmdDrawIndexed(ptCurrentFrame->tCmdBuf, ptDraw->uIndexCount, 1, ptDraw->uIndexOffset, ptDraw->uVertexOffset, 0);
 
         }
     }
