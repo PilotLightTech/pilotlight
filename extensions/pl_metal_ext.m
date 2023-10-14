@@ -59,6 +59,25 @@ const plFileApiI* gptFile = NULL;
 }
 @end
 
+typedef struct _plFrameGarbage
+{
+    id<MTLTexture>*               sbtTextures;
+    id<MTLSamplerState>*          sbtSamplerStates;
+    id<MTLBuffer>*                sbtBuffers;
+    plDeviceMemoryAllocation* sbtMemory;
+} plFrameGarbage;
+
+typedef struct _plFrameContext
+{
+    dispatch_semaphore_t tFrameBoundarySemaphore;
+    // VkSemaphore     tImageAvailable;
+    // VkSemaphore     tRenderFinish;
+    // VkFence         tInFlight;
+    // VkCommandPool   tCmdPool;
+    // VkCommandBuffer tCmdBuf;
+    plFrameGarbage  tGarbage;
+} plFrameContext;
+
 typedef struct _plMetalBuffer
 {
     id<MTLBuffer> tBuffer;
@@ -116,6 +135,7 @@ typedef struct _plGraphicsMetal
     id<MTLBuffer>            tDynamicBuffer[2];
     uint32_t                 uDynamicByteOffset;
     
+    plFrameContext*   sbFrames;
     plMetalTexture*   sbtTextures;
     plMetalSampler*   sbtSamplers;
     plMetalBindGroup* sbtBindGroups;
@@ -134,9 +154,6 @@ typedef struct _plGraphicsMetal
     id<CAMetalDrawable>         tCurrentDrawable;
     id<MTLCommandBuffer>        tCurrentCommandBuffer;
     id<MTLRenderCommandEncoder> tCurrentRenderEncoder;
-
-    // frames in flight
-    dispatch_semaphore_t tFrameBoundarySemaphore;
 
     uint32_t uMultiSamplingCount;
 
@@ -174,6 +191,52 @@ static plDeviceAllocationBlock* pl_get_allocator_blocks(struct plDeviceMemoryAll
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
+
+static plFrameContext*
+pl__get_frame_resources(plGraphics* ptGraphics)
+{
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    return &ptMetalGraphics->sbFrames[ptGraphics->uCurrentFrameIndex];
+}
+
+static void
+pl_submit_buffer_for_deletion(plDevice* ptDevice, plBuffer* ptBuffer)
+{
+    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
+    plGraphicsMetal* ptMetalGraphics = ptMetalDevice->ptGraphics->_pInternalData;
+    plGraphics* ptGraphics = ptMetalDevice->ptGraphics;
+
+    plFrameContext* ptFrame = &ptMetalGraphics->sbFrames[ptGraphics->uCurrentFrameIndex];
+    pl_sb_push(ptFrame->tGarbage.sbtBuffers, ptMetalGraphics->sbtBuffers[ptBuffer->uHandle].tBuffer);
+    pl_sb_push(ptFrame->tGarbage.sbtMemory, ptBuffer->tMemoryAllocation);
+    // ptMetalGraphics->sbtBuffers[ptBuffer->uHandle].tBuffer = VK_NULL_HANDLE;
+}
+
+static void
+pl_submit_texture_for_deletion(plDevice* ptDevice, plTexture* ptTexture)
+{
+    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
+    plGraphicsMetal* ptMetalGraphics = ptMetalDevice->ptGraphics->_pInternalData;
+    plGraphics* ptGraphics = ptMetalDevice->ptGraphics;
+
+    plFrameContext* ptFrame = &ptMetalGraphics->sbFrames[ptGraphics->uCurrentFrameIndex];
+    pl_sb_push(ptFrame->tGarbage.sbtTextures, ptMetalGraphics->sbtTextures[ptTexture->uHandle].tTexture);
+    pl_sb_push(ptFrame->tGarbage.sbtMemory, ptTexture->tMemoryAllocation);
+    // ptVulkanGfx->sbtTextures[ptTexture->uHandle].tImage = VK_NULL_HANDLE;
+}
+
+static void
+pl_submit_texture_view_for_deletion(plDevice* ptDevice, plTextureView* ptView)
+{
+    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
+    plGraphicsMetal* ptMetalGraphics = ptMetalDevice->ptGraphics->_pInternalData;
+    plGraphics* ptGraphics = ptMetalDevice->ptGraphics;
+
+    plFrameContext* ptFrame = &ptMetalGraphics->sbFrames[ptGraphics->uCurrentFrameIndex];
+    pl_sb_push(ptFrame->tGarbage.sbtSamplerStates, ptMetalGraphics->sbtSamplers[ptView->_uSamplerHandle].tSampler);
+    // ptVulkanGfx->sbtSamplers[ptView->_uSamplerHandle].tImageView = VK_NULL_HANDLE;
+    // ptVulkanGfx->sbtSamplers[ptView->_uSamplerHandle].tSampler = VK_NULL_HANDLE;
+}
 
 static void*
 pl_get_ui_texture_handle(plGraphics* ptGraphics, plTextureView* ptTextureView)
@@ -694,7 +757,13 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     dispatch_queue_t tQueue = dispatch_queue_create("com.example.apple-samplecode.MyQueue", NULL);
     ptMetalGraphics->ptSharedEventListener = [[MTLSharedEventListener alloc] initWithDispatchQueue:tQueue];
 
-    ptMetalGraphics->tFrameBoundarySemaphore = dispatch_semaphore_create(ptGraphics->uFramesInFlight);
+    for(uint32_t i = 0; i < ptGraphics->uFramesInFlight; i++)
+    {
+        plFrameContext tFrame = {
+            .tFrameBoundarySemaphore = dispatch_semaphore_create(ptGraphics->uFramesInFlight)
+        };
+        pl_sb_push(ptMetalGraphics->sbFrames, tFrame);
+    }
 
     ptMetalGraphics->tStagingMemory = ptGraphics->tDevice.tStagingUnCachedAllocator.allocate(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, 0, PL_DEVICE_ALLOCATION_BLOCK_SIZE, 0, "staging");
     ptMetalGraphics->tDynamicMemory[0] = ptGraphics->tDevice.tStagingUnCachedAllocator.allocate(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, 0, PL_DEVICE_ALLOCATION_BLOCK_SIZE, 0, "dynamic 0");
@@ -748,8 +817,40 @@ pl_begin_frame(plGraphics* ptGraphics)
     ptMetalGraphics->uDynamicByteOffset = 0;
 
     // Wait until the inflight command buffer has completed its work
-    dispatch_semaphore_wait(ptMetalGraphics->tFrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
     ptGraphics->uCurrentFrameIndex = (ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;
+    plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
+    dispatch_semaphore_wait(ptFrame->tFrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
+
+    for(uint32_t i = 0; i < pl_sb_size(ptFrame->tGarbage.sbtSamplerStates); i++)
+    {
+        // vkDestroySampler(ptVulkanDevice->tLogicalDevice, ptFrame->tGarbage.sbtSamplerStates[i], NULL);
+        [ptFrame->tGarbage.sbtSamplerStates[i] release];
+        // ptFrame->tGarbage.sbtSamplers[i] = VK_NULL_HANDLE;
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(ptFrame->tGarbage.sbtTextures); i++)
+    {
+        [ptFrame->tGarbage.sbtTextures[i] release];
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(ptFrame->tGarbage.sbtBuffers); i++)
+    {
+        [ptFrame->tGarbage.sbtBuffers[i] release];
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(ptFrame->tGarbage.sbtMemory); i++)
+    {
+        if(ptFrame->tGarbage.sbtMemory[i].ptInst == ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst)
+            ptGraphics->tDevice.tLocalDedicatedAllocator.free(ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst, &ptFrame->tGarbage.sbtMemory[i]);
+        else if(ptFrame->tGarbage.sbtMemory[i].ptInst == ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst)
+            ptGraphics->tDevice.tStagingUnCachedAllocator.free(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, &ptFrame->tGarbage.sbtMemory[i]);
+    }
+
+    pl_sb_reset(ptFrame->tGarbage.sbtTextures);
+    pl_sb_reset(ptFrame->tGarbage.sbtMemory);
+    pl_sb_reset(ptFrame->tGarbage.sbtBuffers);
+    pl_sb_reset(ptFrame->tGarbage.sbtSamplerStates);
+    
 
     plIO* ptIOCtx = pl_get_io();
     ptMetalGraphics->pMetalLayer = ptIOCtx->pBackendPlatformData;
@@ -795,7 +896,9 @@ pl_end_gfx_frame(plGraphics* ptGraphics)
 
     [ptMetalGraphics->tCurrentCommandBuffer presentDrawable:ptMetalGraphics->tCurrentDrawable];
 
-    dispatch_semaphore_t semaphore = ptMetalGraphics->tFrameBoundarySemaphore;
+    plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
+
+    dispatch_semaphore_t semaphore = ptFrame->tFrameBoundarySemaphore;
     [ptMetalGraphics->tCurrentCommandBuffer addCompletedHandler:^(id<MTLCommandBuffer> commandBuffer) {
         // GPU work is complete
         // Signal the semaphore to start the CPU work
@@ -961,11 +1064,27 @@ pl_cleanup(plGraphics* ptGraphics)
     }
     pl_sb_free(ptGraphics->sbt3DDrawlists);
 
+    // cleanup per frame resources
+    for(uint32_t i = 0; i < pl_sb_size(ptMetalGraphics->sbFrames); i++)
+    {
+        plFrameContext* ptFrame = &ptMetalGraphics->sbFrames[i];
+        pl_sb_free(ptFrame->tGarbage.sbtMemory);
+        pl_sb_free(ptFrame->tGarbage.sbtTextures);
+        pl_sb_free(ptFrame->tGarbage.sbtSamplerStates);
+        pl_sb_free(ptFrame->tGarbage.sbtBuffers);
+    }
+
+    pl_sb_free(ptMetalGraphics->sbFrames);
     pl_sb_free(ptMetalGraphics->sbtTextures);
     pl_sb_free(ptMetalGraphics->sbtSamplers);
     pl_sb_free(ptMetalGraphics->sbtBindGroups);
     pl_sb_free(ptMetalGraphics->sbtBuffers);
     pl_sb_free(ptMetalGraphics->sbtShaders);
+
+    plDeviceAllocatorData* ptData0 = (plDeviceAllocatorData*)ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst;
+    plDeviceAllocatorData* ptData1 = (plDeviceAllocatorData*)ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst;
+    pl_sb_free(ptData0->sbtBlocks);
+    pl_sb_free(ptData1->sbtBlocks);
 
     pl_sb_free(ptMetalGraphics->sbtPipelineEntries);
     PL_FREE(ptGraphics->_pInternalData);
@@ -982,7 +1101,7 @@ pl_draw_lists(plGraphics* ptGraphics, uint32_t uListCount, plDrawList* atLists)
     plIO* ptIOCtx = pl_get_io();
     for(uint32_t i = 0; i < uListCount; i++)
     {
-        pl_submit_metal_drawlist(&atLists[i], ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], ptMetalGraphics->tCurrentRenderEncoder, ptMetalGraphics->drawableRenderDescriptor);
+        pl_submit_metal_drawlist(&atLists[i], ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], ptMetalGraphics->tCurrentRenderEncoder, ptMetalGraphics->tCurrentCommandBuffer, ptMetalGraphics->drawableRenderDescriptor);
     }
 }
 
@@ -1145,7 +1264,7 @@ pl__dequeue_reusable_buffer(plGraphics* ptGraphics, NSUInteger length)
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
 
-    uint64_t now = pl_get_io()->dTime;
+    double now = pl_get_io()->dTime;
 
     @synchronized(ptMetalGraphics->bufferCache)
     {
@@ -1156,6 +1275,11 @@ pl__dequeue_reusable_buffer(plGraphics* ptGraphics, NSUInteger length)
             for (plTrackedMetalBuffer* candidate in ptMetalGraphics->bufferCache)
                 if (candidate.lastReuseTime > ptMetalGraphics->lastBufferCachePurge)
                     [survivors addObject:candidate];
+                else
+                {
+                    [candidate.buffer release];
+                    [candidate release];
+                }
             ptMetalGraphics->bufferCache = [survivors mutableCopy];
             ptMetalGraphics->lastBufferCachePurge = now;
         }
@@ -1347,6 +1471,7 @@ pl_free_dedicated(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocat
     pl_sb_del_swap(ptData->sbtBlocks, uIndex);
 
     id<MTLHeap> tHeap = (id<MTLHeap>)ptAllocation->uHandle;
+    [tHeap release];
     tHeap = nil;
 
     ptAllocation->pHostMapped  = NULL;
@@ -1463,12 +1588,15 @@ static const plDeviceI*
 pl_load_device_api(void)
 {
     static const plDeviceI tApi = {
-        .create_buffer         = pl_create_buffer,
-        .create_texture_view   = pl_create_texture_view,
-        .create_texture        = pl_create_texture,
-        .create_bind_group     = pl_create_bind_group,
-        .update_bind_group     = pl_update_bind_group,
-        .allocate_dynamic_data = pl_allocate_dynamic_data
+        .create_buffer                    = pl_create_buffer,
+        .create_texture_view              = pl_create_texture_view,
+        .create_texture                   = pl_create_texture,
+        .create_bind_group                = pl_create_bind_group,
+        .update_bind_group                = pl_update_bind_group,
+        .allocate_dynamic_data            = pl_allocate_dynamic_data,
+        .submit_buffer_for_deletion       = pl_submit_buffer_for_deletion,
+        .submit_texture_for_deletion      = pl_submit_texture_for_deletion,
+        .submit_texture_view_for_deletion = pl_submit_texture_view_for_deletion
     };
     return &tApi;
 }

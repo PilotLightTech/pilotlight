@@ -126,6 +126,10 @@ typedef struct _plDeviceI
 
     plDynamicBinding (*allocate_dynamic_data)(plDevice* ptDevice, size_t szSize);
 
+    // cleanup
+    void (*submit_buffer_for_deletion)      (plDevice* ptDevice, plBuffer* ptBuffer);
+    void (*submit_texture_for_deletion)     (plDevice* ptDevice, plTexture* ptTexture);
+    void (*submit_texture_view_for_deletion)(plDevice* ptDevice, plTextureView* ptView);
 } plDeviceI;
 
 typedef struct _plGraphicsI

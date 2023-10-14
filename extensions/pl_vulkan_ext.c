@@ -142,6 +142,7 @@ typedef struct _plFrameGarbage
     VkFramebuffer*            sbtFrameBuffers;
     VkBuffer*                 sbtBuffers;
     plDeviceMemoryAllocation* sbtMemory;
+    VkSampler*                sbtSamplers;
 } plFrameGarbage;
 
 typedef struct _plFrameContext
@@ -151,6 +152,7 @@ typedef struct _plFrameContext
     VkFence         tInFlight;
     VkCommandPool   tCmdPool;
     VkCommandBuffer tCmdBuf;
+    plFrameGarbage  tGarbage;
 } plFrameContext;
 
 typedef struct _plVulkanSwapchain
@@ -202,9 +204,6 @@ typedef struct _plVulkanDevice
 	PFN_vkCmdDebugMarkerBeginEXT      vkCmdDebugMarkerBegin;
 	PFN_vkCmdDebugMarkerEndEXT        vkCmdDebugMarkerEnd;
 	PFN_vkCmdDebugMarkerInsertEXT     vkCmdDebugMarkerInsert;
-
-    // [INTERNAL]
-    plFrameGarbage* _sbtFrameGarbage;
 
 } plVulkanDevice;
 
@@ -332,7 +331,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
             if(ptBufferInfo->tVertexBuffer)
             {
                 ptGfx->tDevice.tStagingUnCachedAllocator.free(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, &ptBufferInfo->tVertexMemory);
-                pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtBuffers, ptBufferInfo->tVertexBuffer);
+                pl_sb_push(ptCurrentFrame->tGarbage.sbtBuffers, ptBufferInfo->tVertexBuffer);
             }
 
             const VkBufferCreateInfo tBufferCreateInfo = {
@@ -367,7 +366,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
             if(ptBufferInfo->tIndexBuffer)
             {
                 ptGfx->tDevice.tStagingUnCachedAllocator.free(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, &ptBufferInfo->tIndexMemory);
-                pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtBuffers, ptBufferInfo->tIndexBuffer);
+                pl_sb_push(ptCurrentFrame->tGarbage.sbtBuffers, ptBufferInfo->tIndexBuffer);
             }
 
             const VkBufferCreateInfo tBufferCreateInfo = {
@@ -438,7 +437,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
             if(ptBufferInfo->tVertexBuffer)
             {
                 ptGfx->tDevice.tStagingUnCachedAllocator.free(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, &ptBufferInfo->tVertexMemory);
-                pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtBuffers, ptBufferInfo->tVertexBuffer);
+                pl_sb_push(ptCurrentFrame->tGarbage.sbtBuffers, ptBufferInfo->tVertexBuffer);
             }
 
             const VkBufferCreateInfo tBufferCreateInfo = {
@@ -473,7 +472,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
             if(ptBufferInfo->tIndexBuffer)
             {
                 ptGfx->tDevice.tStagingUnCachedAllocator.free(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, &ptBufferInfo->tIndexMemory);
-                pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtBuffers, ptBufferInfo->tIndexBuffer);
+                pl_sb_push(ptCurrentFrame->tGarbage.sbtBuffers, ptBufferInfo->tIndexBuffer);
             }
 
             const VkBufferCreateInfo tBufferCreateInfo = {
@@ -584,6 +583,43 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc)
 
     pl_sb_push(ptVulkanGraphics->sbtBuffers, tVulkanBuffer);
     return tBuffer;
+}
+
+static void
+pl_submit_buffer_for_deletion(plDevice* ptDevice, plBuffer* ptBuffer)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plGraphics* ptGraphics = ptVulkanDevice->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plFrameContext* ptFrame = &ptVulkanGfx->sbFrames[ptGraphics->uCurrentFrameIndex];
+    pl_sb_push(ptFrame->tGarbage.sbtBuffers, ptVulkanGfx->sbtBuffers[ptBuffer->uHandle].tBuffer);
+    pl_sb_push(ptFrame->tGarbage.sbtMemory, ptBuffer->tMemoryAllocation);
+    ptVulkanGfx->sbtBuffers[ptBuffer->uHandle].tBuffer = VK_NULL_HANDLE;
+}
+
+static void
+pl_submit_texture_for_deletion(plDevice* ptDevice, plTexture* ptTexture)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plGraphics* ptGraphics = ptVulkanDevice->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plFrameContext* ptFrame = &ptVulkanGfx->sbFrames[ptGraphics->uCurrentFrameIndex];
+    pl_sb_push(ptFrame->tGarbage.sbtTextures, ptVulkanGfx->sbtTextures[ptTexture->uHandle].tImage);
+    pl_sb_push(ptFrame->tGarbage.sbtMemory, ptTexture->tMemoryAllocation);
+    ptVulkanGfx->sbtTextures[ptTexture->uHandle].tImage = VK_NULL_HANDLE;
+}
+
+static void
+pl_submit_texture_view_for_deletion(plDevice* ptDevice, plTextureView* ptView)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plGraphics* ptGraphics = ptVulkanDevice->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plFrameContext* ptFrame = &ptVulkanGfx->sbFrames[ptGraphics->uCurrentFrameIndex];
+    pl_sb_push(ptFrame->tGarbage.sbtTextureViews, ptVulkanGfx->sbtSamplers[ptView->_uSamplerHandle].tImageView);
+    pl_sb_push(ptFrame->tGarbage.sbtSamplers, ptVulkanGfx->sbtSamplers[ptView->_uSamplerHandle].tSampler);
+    ptVulkanGfx->sbtSamplers[ptView->_uSamplerHandle].tImageView = VK_NULL_HANDLE;
+    ptVulkanGfx->sbtSamplers[ptView->_uSamplerHandle].tSampler = VK_NULL_HANDLE;
 }
 
 static plDynamicBinding
@@ -1353,8 +1389,6 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     
     ptGraphics->uFramesInFlight = 2;
 
-    pl_sb_resize(ptVulkanDevice->_sbtFrameGarbage, ptGraphics->uFramesInFlight + 1);
-
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create instance~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const bool bEnableValidation = true;
@@ -1555,7 +1589,8 @@ pl_initialize_graphics(plGraphics* ptGraphics)
 
     uint32_t uDeviceCount = 0u;
     int iBestDvcIdx = 0;
-    bool bDiscreteGPUFound = false;
+    int iDiscreteGPUIdx   = -1;
+    int iIntegratedGPUIdx = -1;
     VkDeviceSize tMaxLocalMemorySize = 0u;
 
     PL_VULKAN(vkEnumeratePhysicalDevices(ptVulkanGfx->tInstance, &uDeviceCount, NULL));
@@ -1571,21 +1606,20 @@ pl_initialize_graphics(plGraphics* ptGraphics)
         vkGetPhysicalDeviceProperties(atDevices[i], &ptVulkanDevice->tDeviceProps);
         vkGetPhysicalDeviceMemoryProperties(atDevices[i], &ptVulkanDevice->tMemProps);
 
-        for(uint32_t j = 0; j < ptVulkanDevice->tMemProps.memoryHeapCount; j++)
+        if(ptVulkanDevice->tDeviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
         {
-            if(ptVulkanDevice->tMemProps.memoryHeaps[j].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT && ptVulkanDevice->tMemProps.memoryHeaps[j].size > tMaxLocalMemorySize && !bDiscreteGPUFound)
-            {
-                    tMaxLocalMemorySize = ptVulkanDevice->tMemProps.memoryHeaps[j].size;
-                iBestDvcIdx = i;
-            }
+            iDiscreteGPUIdx = i;
         }
-
-        if(ptVulkanDevice->tDeviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && !bDiscreteGPUFound)
+        if(ptVulkanDevice->tDeviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
         {
-            iBestDvcIdx = i;
-            bDiscreteGPUFound = true;
+            iIntegratedGPUIdx = i;
         }
     }
+
+    if(iDiscreteGPUIdx > -1)
+        iBestDvcIdx = iDiscreteGPUIdx;
+    else if(iIntegratedGPUIdx > -1)
+        iBestDvcIdx = iIntegratedGPUIdx;
 
     ptVulkanDevice->tPhysicalDevice = atDevices[iBestDvcIdx];
 
@@ -2132,37 +2166,50 @@ pl_begin_frame(plGraphics* ptGraphics)
 
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
 
-    // cleanup queue
-    plFrameGarbage* ptGarbage = &ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame];
-
-    if(ptGarbage)
+    for(uint32_t i = 0; i < pl_sb_size(ptCurrentFrame->tGarbage.sbtSamplers); i++)
     {
-        for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtTextures); i++)
-            vkDestroyImage(ptVulkanDevice->tLogicalDevice, ptGarbage->sbtTextures[i], NULL);
-
-        for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtTextureViews); i++)
-            vkDestroyImageView(ptVulkanDevice->tLogicalDevice, ptGarbage->sbtTextureViews[i], NULL);
-
-        for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtFrameBuffers); i++)
-            vkDestroyFramebuffer(ptVulkanDevice->tLogicalDevice, ptGarbage->sbtFrameBuffers[i], NULL);
-
-        for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBuffers); i++)
-            vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptGarbage->sbtBuffers[i], NULL);
-
-        for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtMemory); i++)
-        {
-            if(ptGarbage->sbtMemory[i].ptInst == ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst)
-                ptGraphics->tDevice.tLocalDedicatedAllocator.free(ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst, &ptGarbage->sbtMemory[i]);
-            else if(ptGarbage->sbtMemory[i].ptInst == ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst)
-                ptGraphics->tDevice.tStagingUnCachedAllocator.free(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, &ptGarbage->sbtMemory[i]);
-        }
-
-        pl_sb_reset(ptGarbage->sbtTextures);
-        pl_sb_reset(ptGarbage->sbtTextureViews);
-        pl_sb_reset(ptGarbage->sbtFrameBuffers);
-        pl_sb_reset(ptGarbage->sbtMemory);
-        pl_sb_reset(ptGarbage->sbtBuffers);
+        vkDestroySampler(ptVulkanDevice->tLogicalDevice, ptCurrentFrame->tGarbage.sbtSamplers[i], NULL);
+        ptCurrentFrame->tGarbage.sbtSamplers[i] = VK_NULL_HANDLE;
     }
+
+    for(uint32_t i = 0; i < pl_sb_size(ptCurrentFrame->tGarbage.sbtTextures); i++)
+    {
+        vkDestroyImage(ptVulkanDevice->tLogicalDevice, ptCurrentFrame->tGarbage.sbtTextures[i], NULL);
+        ptCurrentFrame->tGarbage.sbtTextures[i] = VK_NULL_HANDLE;
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(ptCurrentFrame->tGarbage.sbtTextureViews); i++)
+    {
+        vkDestroyImageView(ptVulkanDevice->tLogicalDevice, ptCurrentFrame->tGarbage.sbtTextureViews[i], NULL);
+        ptCurrentFrame->tGarbage.sbtTextureViews[i] = VK_NULL_HANDLE;
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(ptCurrentFrame->tGarbage.sbtFrameBuffers); i++)
+    {
+        vkDestroyFramebuffer(ptVulkanDevice->tLogicalDevice, ptCurrentFrame->tGarbage.sbtFrameBuffers[i], NULL);
+        ptCurrentFrame->tGarbage.sbtFrameBuffers[i] = VK_NULL_HANDLE;
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(ptCurrentFrame->tGarbage.sbtBuffers); i++)
+    {
+        vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptCurrentFrame->tGarbage.sbtBuffers[i], NULL);
+        ptCurrentFrame->tGarbage.sbtBuffers[i] = VK_NULL_HANDLE;
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(ptCurrentFrame->tGarbage.sbtMemory); i++)
+    {
+        if(ptCurrentFrame->tGarbage.sbtMemory[i].ptInst == ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst)
+            ptGraphics->tDevice.tLocalDedicatedAllocator.free(ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst, &ptCurrentFrame->tGarbage.sbtMemory[i]);
+        else if(ptCurrentFrame->tGarbage.sbtMemory[i].ptInst == ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst)
+            ptGraphics->tDevice.tStagingUnCachedAllocator.free(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, &ptCurrentFrame->tGarbage.sbtMemory[i]);
+    }
+
+    pl_sb_reset(ptCurrentFrame->tGarbage.sbtTextures);
+    pl_sb_reset(ptCurrentFrame->tGarbage.sbtTextureViews);
+    pl_sb_reset(ptCurrentFrame->tGarbage.sbtFrameBuffers);
+    pl_sb_reset(ptCurrentFrame->tGarbage.sbtMemory);
+    pl_sb_reset(ptCurrentFrame->tGarbage.sbtBuffers);
+    pl_sb_reset(ptCurrentFrame->tGarbage.sbtSamplers);
 
     PL_VULKAN(vkWaitForFences(ptVulkanDevice->tLogicalDevice, 1, &ptCurrentFrame->tInFlight, VK_TRUE, UINT64_MAX));
     VkResult err = vkAcquireNextImageKHR(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tSwapchain.tSwapChain, UINT64_MAX, ptCurrentFrame->tImageAvailable, VK_NULL_HANDLE, &ptVulkanGfx->tSwapchain.uCurrentImageIndex);
@@ -2401,13 +2448,16 @@ pl_shutdown(plGraphics* ptGraphics)
 
         for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtTextures); i++)
         {
-            vkDestroyImage(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtTextures[i].tImage, NULL);
+            if(ptVulkanGfx->sbtTextures[i].tImage)
+                vkDestroyImage(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtTextures[i].tImage, NULL);
         }
 
         for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtSamplers); i++)
         {
-            vkDestroySampler(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtSamplers[i].tSampler, NULL);
-            vkDestroyImageView(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtSamplers[i].tImageView, NULL);
+            if(ptVulkanGfx->sbtSamplers[i].tSampler)
+                vkDestroySampler(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtSamplers[i].tSampler, NULL);
+            if(ptVulkanGfx->sbtSamplers[i].tImageView)
+                vkDestroyImageView(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtSamplers[i].tImageView, NULL);
         }
 
         for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtBindGroups); i++)
@@ -2417,7 +2467,8 @@ pl_shutdown(plGraphics* ptGraphics)
 
         for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtBuffers); i++)
         {
-            vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtBuffers[i].tBuffer, NULL);
+            if(ptVulkanGfx->sbtBuffers[i].tBuffer)
+                vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtBuffers[i].tBuffer, NULL);
         }
 
         for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtShaders); i++)
@@ -2467,6 +2518,12 @@ pl_shutdown(plGraphics* ptGraphics)
         vkDestroySemaphore(ptVulkanDevice->tLogicalDevice, ptFrame->tRenderFinish, NULL);
         vkDestroyFence(ptVulkanDevice->tLogicalDevice, ptFrame->tInFlight, NULL);
         vkDestroyCommandPool(ptVulkanDevice->tLogicalDevice, ptFrame->tCmdPool, NULL);
+        pl_sb_free(ptFrame->tGarbage.sbtFrameBuffers);
+        pl_sb_free(ptFrame->tGarbage.sbtMemory);
+        pl_sb_free(ptFrame->tGarbage.sbtTextures);
+        pl_sb_free(ptFrame->tGarbage.sbtTextureViews);
+        pl_sb_free(ptFrame->tGarbage.sbtBuffers);
+        pl_sb_free(ptFrame->tGarbage.sbtSamplers);
     }
 
     // swapchain stuff
@@ -2534,16 +2591,6 @@ pl_shutdown(plGraphics* ptGraphics)
     // destroy tInstance
     vkDestroyInstance(ptVulkanGfx->tInstance, NULL);
 
-    for(uint32_t i = 0; i < pl_sb_size(ptVulkanDevice->_sbtFrameGarbage); i++)
-    {
-        pl_sb_free(ptVulkanDevice->_sbtFrameGarbage[i].sbtFrameBuffers);
-        pl_sb_free(ptVulkanDevice->_sbtFrameGarbage[i].sbtMemory);
-        pl_sb_free(ptVulkanDevice->_sbtFrameGarbage[i].sbtTextures);
-        pl_sb_free(ptVulkanDevice->_sbtFrameGarbage[i].sbtTextureViews);
-        pl_sb_free(ptVulkanDevice->_sbtFrameGarbage[i].sbtBuffers);
-    }
-
-    pl_sb_free(ptVulkanDevice->_sbtFrameGarbage);
     pl_sb_free(ptVulkanGfx->sbFrames);
     pl_sb_free(ptVulkanGfx->tSwapchain.sbtSurfaceFormats);
     pl_sb_free(ptVulkanGfx->tSwapchain.sbtImages);
@@ -2969,12 +3016,14 @@ pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight, 
 
     PL_VULKAN(vkCreateSwapchainKHR(ptVulkanDevice->tLogicalDevice, &tCreateSwapchainInfo, NULL, &ptSwapchainOut->tSwapChain));
 
+    plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
     if(tOldSwapChain)
     {
+        
         for (uint32_t i = 0u; i < uOldImageCount; i++)
         {
-            pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtTextureViews, ptSwapchainOut->sbtImageViews[i]);
-            pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtFrameBuffers, ptSwapchainOut->sbtFrameBuffers[i]);
+            pl_sb_push(ptFrame->tGarbage.sbtTextureViews, ptSwapchainOut->sbtImageViews[i]);
+            pl_sb_push(ptFrame->tGarbage.sbtFrameBuffers, ptSwapchainOut->sbtFrameBuffers[i]);
         }
         vkDestroySwapchainKHR(ptVulkanDevice->tLogicalDevice, tOldSwapChain, NULL);
     }
@@ -3016,13 +3065,13 @@ pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight, 
     }  //-V1020
 
     // color & depth
-    if(ptSwapchainOut->tColorTextureView)  pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtTextureViews, ptSwapchainOut->tColorTextureView);
-    if(ptSwapchainOut->tDepthTextureView)  pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtTextureViews, ptSwapchainOut->tDepthTextureView);
-    if(ptSwapchainOut->tColorTexture)      pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtTextures, ptSwapchainOut->tColorTexture);
-    if(ptSwapchainOut->tDepthTexture)      pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtTextures, ptSwapchainOut->tDepthTexture);
+    if(ptSwapchainOut->tColorTextureView)  pl_sb_push(ptFrame->tGarbage.sbtTextureViews, ptSwapchainOut->tColorTextureView);
+    if(ptSwapchainOut->tDepthTextureView)  pl_sb_push(ptFrame->tGarbage.sbtTextureViews, ptSwapchainOut->tDepthTextureView);
+    if(ptSwapchainOut->tColorTexture)      pl_sb_push(ptFrame->tGarbage.sbtTextures, ptSwapchainOut->tColorTexture);
+    if(ptSwapchainOut->tDepthTexture)      pl_sb_push(ptFrame->tGarbage.sbtTextures, ptSwapchainOut->tDepthTexture);
 
-    if(ptSwapchainOut->tColorTextureMemory.uHandle) pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtMemory, ptSwapchainOut->tColorTextureMemory);
-    if(ptSwapchainOut->tDepthTextureMemory.uHandle) pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtMemory, ptSwapchainOut->tDepthTextureMemory);
+    if(ptSwapchainOut->tColorTextureMemory.uHandle) pl_sb_push(ptFrame->tGarbage.sbtMemory, ptSwapchainOut->tColorTextureMemory);
+    if(ptSwapchainOut->tDepthTextureMemory.uHandle) pl_sb_push(ptFrame->tGarbage.sbtMemory, ptSwapchainOut->tDepthTextureMemory);
 
     ptSwapchainOut->tColorTextureView = VK_NULL_HANDLE;
     ptSwapchainOut->tColorTexture     = VK_NULL_HANDLE;
@@ -3365,13 +3414,14 @@ pl__transfer_data_to_buffer(plDevice* ptDevice, VkBuffer tDest, size_t szSize, c
 
     plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
     plVulkanGraphics* ptVulkanGraphics = ptVulkanDevice->ptGraphics->_pInternalData;
+    plFrameContext* ptFrame = pl__get_frame_resources(ptVulkanDevice->ptGraphics);
 
     if(ptVulkanGraphics->tStagingMemory.ulSize <= szSize)
     {
 
         ptDevice->tStagingUnCachedAllocator.free(ptDevice->tStagingUnCachedAllocator.ptInst, &ptVulkanGraphics->tStagingMemory);
 
-        pl_sb_push(ptVulkanDevice->_sbtFrameGarbage[ptVulkanDevice->uCurrentFrame].sbtBuffers, ptVulkanGraphics->tStagingBuffer);
+        pl_sb_push(ptFrame->tGarbage.sbtBuffers, ptVulkanGraphics->tStagingBuffer);
 
         const VkBufferCreateInfo tBufferCreateInfo = {
             .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -3579,13 +3629,13 @@ pl__transfer_data_to_image(plDevice* ptDevice, plTexture* ptDest, size_t szDataS
     PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
     PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
     vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
-    // pl_delete_buffer(ptDevice, uStagingBuffer);
+    pl_submit_buffer_for_deletion(ptDevice, &tStagingBuffer);
 }
 
 static plFrameContext*
 pl__get_frame_resources(plGraphics* ptGraphics)
 {
-    plVulkanGraphics* ptVulkanGfx    = ptGraphics->_pInternalData;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     return &ptVulkanGfx->sbFrames[ptGraphics->uCurrentFrameIndex];
 }
 
@@ -3916,12 +3966,15 @@ static const plDeviceI*
 pl_load_device_api(void)
 {
     static const plDeviceI tApi = {
-        .create_buffer         = pl_create_buffer,
-        .create_texture        = pl_create_texture,
-        .create_texture_view   = pl_create_texture_view,
-        .create_bind_group     = pl_create_bind_group,
-        .update_bind_group     = pl_update_bind_group,
-        .allocate_dynamic_data = pl_allocate_dynamic_data
+        .create_buffer                    = pl_create_buffer,
+        .create_texture                   = pl_create_texture,
+        .create_texture_view              = pl_create_texture_view,
+        .create_bind_group                = pl_create_bind_group,
+        .update_bind_group                = pl_update_bind_group,
+        .allocate_dynamic_data            = pl_allocate_dynamic_data,
+        .submit_buffer_for_deletion       = pl_submit_buffer_for_deletion,
+        .submit_texture_for_deletion      = pl_submit_texture_for_deletion,
+        .submit_texture_view_for_deletion = pl_submit_texture_view_for_deletion
     };
     return &tApi;
 }
