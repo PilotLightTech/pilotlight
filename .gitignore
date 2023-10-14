@@ -17,7 +17,7 @@ tests/*.bat
 tests/*.sh
 
 # apps
-# apps/*_user.*
+apps/*_user.*
 
 # misc
 .DS_Store

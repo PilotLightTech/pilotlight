@@ -119,11 +119,13 @@ with pl.project("pilotlight"):
     add_plugin_to_vulkan_app("pl_image_ext", False)
     add_plugin_to_vulkan_app("pl_vulkan_ext", False, "pl_graphics_ext")
     add_plugin_to_vulkan_app("pl_stats_ext", False)
+    add_plugin_to_vulkan_app("pl_2d_graphics_ext", False)
 
     add_plugin_to_metal_app("pl_debug_ext", False)
     add_plugin_to_metal_app("pl_image_ext", False)
     add_plugin_to_metal_app("pl_stats_ext", False)
     add_plugin_to_metal_app("pl_metal_ext", False, True, "pl_graphics_ext")
+    add_plugin_to_metal_app("pl_2d_graphics_ext", False)
 
     pl.pop_target_links()
 
@@ -135,12 +137,14 @@ with pl.project("pilotlight"):
         pl.push_output_binary("app")
         pl.push_target_links("pilotlight_lib")
 
-        
-        pl.push_source_files("../apps/app.c")
+        if os.path.isfile('../apps/app_user.c'):
+            pl.push_source_files("../apps/app_user.c")
+        else:
+            pl.push_source_files("../apps/app.c")
         
         with pl.configuration("debug"):
             pl.push_profile(pl.Profile.VULKAN)
-            pl.push_vulkan_glsl_files("../shaders/glsl/", "primitive.frag", "primitive.vert", "draw_3d.vert", "draw_3d.frag", "draw_3d_line.vert")
+            pl.push_vulkan_glsl_files("../shaders/glsl/", "primitive.frag", "primitive.vert", "draw_3d.vert", "draw_3d.frag", "draw_3d_line.vert", "primitive_2d.frag", "primitive_2d.vert")
             with pl.platform(pl.PlatformType.WIN32):
                 with pl.compiler("msvc", pl.CompilerType.MSVC):
                     pl.add_definition("PL_VULKAN_BACKEND")
@@ -155,7 +159,7 @@ with pl.project("pilotlight"):
         
         
         pl.push_profile(pl.Profile.VULKAN)
-        pl.push_vulkan_glsl_files("../shaders/glsl/", "primitive.frag", "primitive.vert", "draw_3d.vert", "draw_3d.frag", "draw_3d_line.vert")
+        pl.push_vulkan_glsl_files("../shaders/glsl/", "primitive.frag", "primitive.vert", "draw_3d.vert", "draw_3d.frag", "draw_3d_line.vert", "primitive_2d.frag", "primitive_2d.vert")
         with pl.configuration("vulkan"):
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
