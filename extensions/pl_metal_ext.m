@@ -175,6 +175,13 @@ static plDeviceAllocationBlock* pl_get_allocator_blocks(struct plDeviceMemoryAll
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
+static void*
+pl_get_ui_texture_handle(plGraphics* ptGraphics, plTextureView* ptTextureView)
+{
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    return ptMetalGraphics->sbtTextures[ptTextureView->uTextureHandle].tTexture;
+}
+
 static plBuffer
 pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc)
 {
@@ -839,7 +846,7 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
             plMetalBindGroup* ptMetalBindGroup0 = &ptMetalGraphics->sbtBindGroups[ptDraw->aptBindGroups[0]->uHandle];
 
             // pipeline state
-            [ptMetalGraphics->tCurrentRenderEncoder setCullMode:MTLCullModeBack];
+            [ptMetalGraphics->tCurrentRenderEncoder setCullMode:MTLCullModeNone];
             [ptMetalGraphics->tCurrentRenderEncoder setDepthStencilState:ptMetalShader->tDepthStencilState];
             [ptMetalGraphics->tCurrentRenderEncoder setRenderPipelineState:ptMetalShader->tRenderPipelineState];
             
@@ -1446,7 +1453,8 @@ pl_load_graphics_api(void)
         .add_3d_bezier_quad     = pl__add_3d_bezier_quad,
         .add_3d_bezier_cubic    = pl__add_3d_bezier_cubic,
         .register_3d_drawlist   = pl__register_3d_drawlist,
-        .submit_3d_drawlist     = pl__submit_3d_drawlist
+        .submit_3d_drawlist     = pl__submit_3d_drawlist,
+        .get_ui_texture_handle  = pl_get_ui_texture_handle
     };
     return &tApi;
 }

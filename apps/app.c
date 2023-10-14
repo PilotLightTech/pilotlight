@@ -665,7 +665,7 @@ pl_app_update(plAppData* ptAppData)
 
     plDynamicBinding tDynamicBinding1 = gptDevice->allocate_dynamic_data(&ptAppData->tGraphics.tDevice, sizeof(DynamicData));
     DynamicData* ptDynamicData1 = (DynamicData*)tDynamicBinding1.pcData;
-    ptDynamicData1->iDataOffset = 32;
+    ptDynamicData1->iDataOffset = 8;
     ptDynamicData1->iVertexOffset = 4;
     ptDynamicData1->tModel = pl_identity_mat4();
 

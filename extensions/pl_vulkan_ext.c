@@ -293,6 +293,14 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL pl__debug_callback(VkDebugUtilsMessageSeve
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
+static void*
+pl_get_ui_texture_handle(plGraphics* ptGraphics, plTextureView* ptTextureView)
+{
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+
+    return pl_add_texture(ptVulkanGfx->sbtSamplers[ptTextureView->_uSamplerHandle].tImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+}
+
 static void
 pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags tFlags)
 {
@@ -3899,6 +3907,7 @@ pl_load_graphics_api(void)
         .register_3d_drawlist     = pl__register_3d_drawlist,
         .submit_3d_drawlist       = pl__submit_3d_drawlist,
         .create_shader            = pl_create_shader,
+        .get_ui_texture_handle    = pl_get_ui_texture_handle
     };
     return &tApi;
 }

@@ -8,6 +8,7 @@ Index of this file:
 // [SECTION] defines
 // [SECTION] apis
 // [SECTION] includes
+// [SECTION] forward declarations & basic types
 // [SECTION] public api structs
 // [SECTION] structs
 */
@@ -163,6 +164,9 @@ typedef struct _plGraphicsI
     void (*add_3d_centered_box)   (plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor, float fThickness);
     void (*add_3d_bezier_quad)    (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
     void (*add_3d_bezier_cubic)   (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
+
+    // misc
+    void* (*get_ui_texture_handle)(plGraphics* ptGraphics, plTextureView* ptTextureView);
 } plGraphicsI;
 
 //-----------------------------------------------------------------------------

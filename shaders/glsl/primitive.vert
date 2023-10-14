@@ -32,7 +32,7 @@ void main()
     int iCurrentAttribute = 0;
     
     // offset = offset into current mesh + offset into global buffer
-    const uint iVertexDataOffset = PL_DATA_STRIDE * (gl_VertexIndex - tObjectInfo.iVertexOffset) + tObjectInfo.iDataOffset / 4;
+    const uint iVertexDataOffset = PL_DATA_STRIDE * (gl_VertexIndex - tObjectInfo.iVertexOffset) + tObjectInfo.iDataOffset;
 
     if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { inPosition  = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
     if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { inNormal    = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}

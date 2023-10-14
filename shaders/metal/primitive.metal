@@ -87,7 +87,7 @@ vertex VertexOut vertex_main(
 
     uint uDataOffset = 0;
 
-    const uint iVertexDataOffset = PL_DATA_STRIDE * (vertexID - bg3.iVertexOffset) + bg3.iDataOffset;
+    const uint iVertexDataOffset = PL_DATA_STRIDE * (vertexID - bg3.iVertexOffset) + bg3.iDataOffset * 4;
 
     #if PL_MESH_FORMAT_FLAG_HAS_POSITION > 0
     inPosition.x = bg0.buffer_0[iVertexDataOffset + 0 + uDataOffset];
