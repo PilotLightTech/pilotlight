@@ -31,17 +31,12 @@ Index of this file:
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plTileMap
+typedef struct _plTileMapResources
 {
-    plTile*       sbtTiles;
-    uint32_t      uHorizontalTiles;
-    uint32_t      uVerticalTiles;
-    uint32_t      uTileSize;
-    uint32_t      uMargin;
     plTexture     tTexture;
     plTextureView tTextureView;
     plBindGroup   tBindGroup1;
-} plTileMap;
+} plTileMapResources;
 
 typedef struct _pl2DLayerDraw
 {
@@ -80,7 +75,11 @@ typedef struct _plDynamicData
 typedef struct _pl2DContext
 {
 
-    plTileMap*  sbtTilemaps;
+    // tilemaps
+    plTileMap*          sbtTilemaps;
+    plTileMapResources* sbtTileMapResources;
+
+    // layers
     pl2DLayer*  sbtLayersCreated;
     pl2DLayer** sbtLayersSubmitted;
 
@@ -239,6 +238,7 @@ pl_cleanup_2d_graphics(plGraphics* ptGraphics)
     }
 
     pl_sb_free(gptCtx->sbtTilemaps);
+    pl_sb_free(gptCtx->sbtTileMapResources);
     pl_sb_free(gptCtx->sbtLayersCreated);
     pl_sb_free(gptCtx->sbtLayersSubmitted);
     pl_sb_free(gptCtx->sbtDraws);
@@ -362,7 +362,7 @@ pl_draw_layers(plGraphics* ptGraphics)
                     .uIndexOffset = ptLayer->sbtDraws[i].uIndexOffset,
                     .aptBindGroups = {
                         &gptCtx->atBindGroups0[ptGraphics->uCurrentFrameIndex],
-                        &ptMap->tBindGroup1,
+                        &gptCtx->sbtTileMapResources[ptMap->uResourceHandle].tBindGroup1,
                         &gptCtx->tBindGroup2
                     },
                     .uShaderVariant = gptCtx->tShader0.uHandle,
@@ -535,22 +535,35 @@ pl_get_tile(uint32_t uMap, uint32_t uX, uint32_t uY, plTile* ptTileOut)
 }
 
 static uint32_t
-pl_create_tile_map(const char* pcPath, plGraphics* ptGraphics, uint32_t uHorizontalTiles, uint32_t uVerticalTiles, uint32_t uTileSize, uint32_t uTileMargin)
+pl_create_tile_map(const char* pcName, const char* pcPath, plGraphics* ptGraphics, uint32_t uTileSize, uint32_t uTileSpacing)
 {
-    plTileMap tMap = {0};
+    plTileMap tMap = {
+        .pcName       = pcName,
+        .pcImagePath  = pcPath,
+        .uTileSize    = uTileSize,
+        .uTileSpacing = uTileSpacing,
+        .uResourceHandle = pl_sb_size(gptCtx->sbtTileMapResources)
+    };
+
+    plTileMapResources tResources = {0};
+
     plDevice* ptDevice = &ptGraphics->tDevice;
-    tMap.uHorizontalTiles = uHorizontalTiles;
-    tMap.uVerticalTiles = uVerticalTiles;
-    tMap.uTileSize = uTileSize;
-    tMap.uMargin = uTileMargin;
+
+    int iUnused;
+    int iTileMapWidth;
+    int iTileMapHeight;
+    unsigned char* pucImageData = gptImage->load(pcPath, &iTileMapWidth, &iTileMapHeight, &iUnused, 4);
+
+    tMap.uHorizontalTiles = ((uint32_t)iTileMapWidth + uTileSpacing) / (uTileSize + uTileSpacing);
+    tMap.uVerticalTiles = ((uint32_t)iTileMapHeight + uTileSpacing) / (uTileSize + uTileSpacing);
 
     pl_sb_resize(tMap.sbtTiles, tMap.uHorizontalTiles * tMap.uVerticalTiles);
 
-    const float fImageWidth  = (float)(tMap.uHorizontalTiles * tMap.uTileSize + tMap.uMargin * (tMap.uHorizontalTiles - 1));
-    const float fImageHeight = (float)(tMap.uVerticalTiles * tMap.uTileSize + tMap.uMargin * (tMap.uVerticalTiles - 1));
+    const float fImageWidth  = (float)(tMap.uHorizontalTiles * tMap.uTileSize + tMap.uTileSpacing * (tMap.uHorizontalTiles - 1));
+    const float fImageHeight = (float)(tMap.uVerticalTiles * tMap.uTileSize + tMap.uTileSpacing * (tMap.uVerticalTiles - 1));
 
-    const float fHorizontalMargin = (float)tMap.uMargin / fImageWidth;
-    const float fVerticalMargin = (float)tMap.uMargin / fImageHeight;
+    const float fHorizontalMargin = (float)tMap.uTileSpacing / fImageWidth;
+    const float fVerticalMargin = (float)tMap.uTileSpacing / fImageHeight;
 
     for(uint32_t i = 0; i < tMap.uHorizontalTiles; i++)
     {
@@ -558,11 +571,11 @@ pl_create_tile_map(const char* pcPath, plGraphics* ptGraphics, uint32_t uHorizon
         {
             const uint32_t uTileIndex = i + j * tMap.uHorizontalTiles;
 
-            tMap.sbtTiles[uTileIndex].tTopLeft.x = (float)(i * (tMap.uTileSize + tMap.uMargin) ) / fImageWidth;
-            tMap.sbtTiles[uTileIndex].tTopLeft.y = (float)(j * (tMap.uTileSize + tMap.uMargin) ) / fImageHeight;
+            tMap.sbtTiles[uTileIndex].tTopLeft.x = (float)(i * (tMap.uTileSize + tMap.uTileSpacing) ) / fImageWidth;
+            tMap.sbtTiles[uTileIndex].tTopLeft.y = (float)(j * (tMap.uTileSize + tMap.uTileSpacing) ) / fImageHeight;
 
-            tMap.sbtTiles[uTileIndex].tBottomRight.x = -fHorizontalMargin + tMap.sbtTiles[uTileIndex].tTopLeft.x + (float)(tMap.uTileSize + tMap.uMargin) / fImageWidth;
-            tMap.sbtTiles[uTileIndex].tBottomRight.y = -fVerticalMargin + tMap.sbtTiles[uTileIndex].tTopLeft.y + (float)(tMap.uTileSize + tMap.uMargin) / fImageHeight;
+            tMap.sbtTiles[uTileIndex].tBottomRight.x = -fHorizontalMargin + tMap.sbtTiles[uTileIndex].tTopLeft.x + (float)(tMap.uTileSize + tMap.uTileSpacing) / fImageWidth;
+            tMap.sbtTiles[uTileIndex].tBottomRight.y = -fVerticalMargin + tMap.sbtTiles[uTileIndex].tTopLeft.y + (float)(tMap.uTileSize + tMap.uTileSpacing) / fImageHeight;
 
             tMap.sbtTiles[uTileIndex].tTopRight.x = tMap.sbtTiles[uTileIndex].tBottomRight.x;
             tMap.sbtTiles[uTileIndex].tTopRight.y = tMap.sbtTiles[uTileIndex].tTopLeft.y;
@@ -574,10 +587,7 @@ pl_create_tile_map(const char* pcPath, plGraphics* ptGraphics, uint32_t uHorizon
         }
     }
 
-    int iUnused;
-    int iTileMapWidth;
-    int iTileMapHeight;
-    unsigned char* pucImageData = gptImage->load(pcPath, &iTileMapWidth, &iTileMapHeight, &iUnused, 4);
+
 
     plTextureDesc tTextureDesc = {
         .tDimensions = {(float)iTileMapWidth, (float)iTileMapHeight, 1},
@@ -585,7 +595,7 @@ pl_create_tile_map(const char* pcPath, plGraphics* ptGraphics, uint32_t uHorizon
         .uLayers = 1,
         .uMips = 0
     };
-    tMap.tTexture = gptDevice->create_texture(ptDevice, tTextureDesc, iTileMapWidth * iTileMapHeight * 4, pucImageData, pcPath);
+    tResources.tTexture = gptDevice->create_texture(ptDevice, tTextureDesc, iTileMapWidth * iTileMapHeight * 4, pucImageData, pcPath);
 
     gptImage->free(pucImageData);
 
@@ -602,7 +612,7 @@ pl_create_tile_map(const char* pcPath, plGraphics* ptGraphics, uint32_t uHorizon
         .tVerticalWrap = PL_WRAP_MODE_CLAMP,
         .tHorizontalWrap = PL_WRAP_MODE_CLAMP
     };
-    tMap.tTextureView = gptDevice->create_texture_view(ptDevice, &tTextureViewDesc, &tSampler, &tMap.tTexture, pcPath);
+    tResources.tTextureView = gptDevice->create_texture_view(ptDevice, &tTextureViewDesc, &tSampler, &tResources.tTexture, pcPath);
 
     plBindGroupLayout tBindGroupLayout1 = {
         .uTextureCount  = 1,
@@ -610,17 +620,18 @@ pl_create_tile_map(const char* pcPath, plGraphics* ptGraphics, uint32_t uHorizon
             {.uSlot = 0}
         }
     };
-    tMap.tBindGroup1 = gptDevice->create_bind_group(ptDevice, &tBindGroupLayout1);
-    gptDevice->update_bind_group(ptDevice, &tMap.tBindGroup1, 0, NULL, NULL, 1, &tMap.tTextureView);
+    tResources.tBindGroup1 = gptDevice->create_bind_group(ptDevice, &tBindGroupLayout1);
+    gptDevice->update_bind_group(ptDevice, &tResources.tBindGroup1, 0, NULL, NULL, 1, &tResources.tTextureView);
 
     pl_sb_push(gptCtx->sbtTilemaps, tMap);
+    pl_sb_push(gptCtx->sbtTileMapResources, tResources);
     return pl_sb_size(gptCtx->sbtTilemaps) - 1;
 }
 
 static void*
 pl_get_ui_texture(plGraphics* ptGraphics, uint32_t uTileMapHandle)
 {
-    return gptGfx->get_ui_texture_handle(ptGraphics, &gptCtx->sbtTilemaps[uTileMapHandle].tTextureView);
+    return gptGfx->get_ui_texture_handle(ptGraphics, &gptCtx->sbtTileMapResources[gptCtx->sbtTilemaps[uTileMapHandle].uResourceHandle].tTextureView);
 }
 
 //-----------------------------------------------------------------------------

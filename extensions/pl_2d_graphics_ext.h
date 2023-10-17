@@ -36,8 +36,6 @@ typedef struct _pl2DGraphicsI pl2DGraphicsI;
 #include <stdbool.h>
 #include "pl_math.h"
 
-#include "pl_graphics_ext.h"
-
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
@@ -49,6 +47,9 @@ typedef struct _plDynamicTile plDynamicTile;
 // tile map
 typedef struct _plTile    plTile;
 typedef struct _plTileMap plTileMap;
+
+// external
+typedef struct _plGraphics plGraphics;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -77,7 +78,7 @@ typedef struct _pl2DGraphicsI
     void     (*update_tile)         (uint32_t uLayerHandle, uint32_t uTileHandle, plVec2 tPos);
 
     // tile maps
-    uint32_t (*create_tile_map)(const char* pcPath, plGraphics* ptGraphics, uint32_t uHorizontalTiles, uint32_t uVerticalTiles, uint32_t uTileSize, uint32_t uTileMargin);
+    uint32_t (*create_tile_map)(const char* pcName, const char* pcPath, plGraphics* ptGraphics, uint32_t uTileSize, uint32_t uTileSpacing);
     void     (*get_tile)       (uint32_t uMap, uint32_t uX, uint32_t uY, plTile* ptTileOut);
     void*    (*get_ui_texture)(plGraphics* ptGraphics, uint32_t uTileMapHandle);
 } pl2DGraphicsI;
@@ -94,5 +95,21 @@ typedef struct _plTile
     plVec2   tBottomRight;
     uint32_t uParentMap;
 } plTile;
+
+typedef struct _plTileMap
+{
+    // inputs
+    const char*   pcName;
+    const char*   pcImagePath;
+    uint32_t      uTileSize;
+    uint32_t      uTileSpacing;
+
+    // outputs
+    plTile*       sbtTiles;
+    uint32_t      uHorizontalTiles;
+    uint32_t      uVerticalTiles;
+
+    uint32_t uResourceHandle;
+} plTileMap;
 
 #endif // PL_2D_GRAPHICS_EXT_H
