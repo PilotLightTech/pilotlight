@@ -517,58 +517,61 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 
 - (void)renderToMetalLayer:(nonnull CAMetalLayer *)layer
 {
-    // gAppData.graphics.metalLayer = layer;
-    gptIOCtx->pBackendPlatformData = layer;
-
-    gptIOCtx->afMainFramebufferScale[0] = self.view.window.screen.backingScaleFactor ?: NSScreen.mainScreen.backingScaleFactor;
-    gptIOCtx->afMainFramebufferScale[1] = gptIOCtx->afMainFramebufferScale[0];
-
-    // not osx
-    // CGFloat framebufferScale = view.window.screen.scale ?: UIScreen.mainScreen.scale;
-
-    // updating mouse cursor
-    if(gptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
-        gptIOCtx->bCursorChanged = true;
-
-    if(gptIOCtx->bCursorChanged && gptIOCtx->tNextCursor != gptIOCtx->tCurrentCursor)
+    @autoreleasepool
     {
-        gptIOCtx->tCurrentCursor = gptIOCtx->tNextCursor;
-        NSCursor* ptMacCursor = aptMouseCursors[gptIOCtx->tCurrentCursor] ?: aptMouseCursors[PL_MOUSE_CURSOR_ARROW];
-        [ptMacCursor set];
+        // gAppData.graphics.metalLayer = layer;
+        gptIOCtx->pBackendPlatformData = layer;
+
+        gptIOCtx->afMainFramebufferScale[0] = self.view.window.screen.backingScaleFactor ?: NSScreen.mainScreen.backingScaleFactor;
+        gptIOCtx->afMainFramebufferScale[1] = gptIOCtx->afMainFramebufferScale[0];
+
+        // not osx
+        // CGFloat framebufferScale = view.window.screen.scale ?: UIScreen.mainScreen.scale;
+
+        // updating mouse cursor
+        if(gptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
+            gptIOCtx->bCursorChanged = true;
+
+        if(gptIOCtx->bCursorChanged && gptIOCtx->tNextCursor != gptIOCtx->tCurrentCursor)
+        {
+            gptIOCtx->tCurrentCursor = gptIOCtx->tNextCursor;
+            NSCursor* ptMacCursor = aptMouseCursors[gptIOCtx->tCurrentCursor] ?: aptMouseCursors[PL_MOUSE_CURSOR_ARROW];
+            [ptMacCursor set];
+        }
+        gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
+        gptIOCtx->bCursorChanged = false;
+
+        // reload library
+        if(gptLibraryApi->has_changed(&gtAppLibrary))
+        {
+            gptLibraryApi->reload(&gtAppLibrary);
+            pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryApiI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
+            pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
+            pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
+            pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
+            gUserData = pl_app_load(gptApiRegistry, gUserData);
+        }
+
+
+        if(self.view)
+        {
+            const float fDpi = (float)[self.view.window backingScaleFactor];
+            gptIOCtx->afMainViewportSize[0] = (float)self.view.bounds.size.width;
+            gptIOCtx->afMainViewportSize[1] = (float)self.view.bounds.size.height;
+            gptIOCtx->afMainFramebufferScale[0] = fDpi;
+            gptIOCtx->afMainFramebufferScale[1] = fDpi;
+        }
+
+        if(tTime == 0.0)
+            tTime = pl__get_absolute_time();
+
+        double dCurrentTime = pl__get_absolute_time();
+        gptIOCtx->fDeltaTime = (float)(dCurrentTime - tTime);
+        tTime = dCurrentTime;
+
+        pl_app_update(gUserData);
+        gptExtensionRegistry->reload();
     }
-    gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
-    gptIOCtx->bCursorChanged = false;
-
-    // reload library
-    if(gptLibraryApi->has_changed(&gtAppLibrary))
-    {
-        gptLibraryApi->reload(&gtAppLibrary);
-        pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryApiI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
-        pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
-        gUserData = pl_app_load(gptApiRegistry, gUserData);
-    }
-
-
-    if(self.view)
-    {
-        const float fDpi = (float)[self.view.window backingScaleFactor];
-        gptIOCtx->afMainViewportSize[0] = (float)self.view.bounds.size.width;
-        gptIOCtx->afMainViewportSize[1] = (float)self.view.bounds.size.height;
-        gptIOCtx->afMainFramebufferScale[0] = fDpi;
-        gptIOCtx->afMainFramebufferScale[1] = fDpi;
-    }
-
-    if(tTime == 0.0)
-        tTime = pl__get_absolute_time();
-
-    double dCurrentTime = pl__get_absolute_time();
-    gptIOCtx->fDeltaTime = (float)(dCurrentTime - tTime);
-    tTime = dCurrentTime;
-
-    pl_app_update(gUserData);
-    gptExtensionRegistry->reload();
 }
 
 - (void)shutdown

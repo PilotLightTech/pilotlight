@@ -296,7 +296,7 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc)
 
         tBuffer.tMemoryAllocation = ptDevice->tLocalDedicatedAllocator.allocate(ptDevice->tLocalDedicatedAllocator.ptInst, 0, ptDesc->uByteSize, 0, ptDesc->pcDebugName);
 
-        id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBuffer];
+        id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
         commandBuffer.label = @"Heap Transfer Blit Encoder";
 
         [commandBuffer encodeWaitForEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue++];
@@ -389,7 +389,7 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
     };
     tMetalTexture.tTexture.label = [NSString stringWithUTF8String:pcName];
 
-    id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBuffer];
+    id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
     commandBuffer.label = @"Heap Transfer Blit Encoder";
 
     [commandBuffer encodeWaitForEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue++];
@@ -416,6 +416,7 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
     [commandBuffer commit];
 
     pl_sb_push(ptMetalGraphics->sbtTextures, tMetalTexture);
+    [ptTextureDescriptor release];
     return tTexture;
 }
 
@@ -474,7 +475,7 @@ pl_create_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout)
     NSUInteger argumentBufferLength = sizeof(MTLResourceID) * ptLayout->uTextureCount * 2 + sizeof(void*) * ptLayout->uBufferCount;
 
     plMetalBindGroup tMetalBindGroup = {
-        .tShaderArgumentBuffer = [ptMetalDevice->tDevice  newBufferWithLength:argumentBufferLength options:0]
+        .tShaderArgumentBuffer = [ptMetalDevice->tDevice newBufferWithLength:argumentBufferLength options:0]
     };
 
     pl_sb_push(ptMetalGraphics->sbtBindGroups, tMetalBindGroup);
@@ -787,7 +788,7 @@ pl_resize(plGraphics* ptGraphics)
     depthTargetDescriptor.width       = (uint32_t)ptIOCtx->afMainViewportSize[0];
     depthTargetDescriptor.height      = (uint32_t)ptIOCtx->afMainViewportSize[1];
     depthTargetDescriptor.pixelFormat = MTLPixelFormatDepth32Float;
-    depthTargetDescriptor.storageMode = MTLStorageModePrivate;
+    depthTargetDescriptor.storageMode = MTLStorageModeMemoryless;
     depthTargetDescriptor.usage       = MTLTextureUsageRenderTarget;
     depthTargetDescriptor.sampleCount = ptMetalGraphics->uMultiSamplingCount;
     depthTargetDescriptor.textureType = MTLTextureType2DMultisample;
@@ -869,7 +870,7 @@ pl_begin_frame(plGraphics* ptGraphics)
     // set color attachment to next drawable
     ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].resolveTexture = ptMetalGraphics->tCurrentDrawable.texture;
 
-    ptMetalGraphics->tCurrentCommandBuffer = [ptMetalGraphics->tCmdQueue commandBuffer];
+    ptMetalGraphics->tCurrentCommandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
 
     // reset 3d drawlists
     for(uint32_t i = 0u; i < pl_sb_size(ptGraphics->sbt3DDrawlists); i++)
@@ -1277,6 +1278,7 @@ pl__dequeue_reusable_buffer(plGraphics* ptGraphics, NSUInteger length)
                     [survivors addObject:candidate];
                 else
                 {
+                    [candidate.buffer setPurgeableState:MTLPurgeableStateEmpty];
                     [candidate.buffer release];
                     [candidate release];
                 }
@@ -1432,6 +1434,7 @@ pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFil
     ptHeapDescriptor.storageMode = MTLStorageModePrivate;
     ptHeapDescriptor.size        = tBlock.ulSize;
     ptHeapDescriptor.type        = MTLHeapTypePlacement;
+    ptHeapDescriptor.hazardTrackingMode = MTLHazardTrackingModeUntracked;
 
     tBlock.ulAddress = (uint64_t)[ptMetalDevice->tDevice newHeapWithDescriptor:ptHeapDescriptor];
     
@@ -1451,6 +1454,7 @@ pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFil
 
     tBlock.tRange = tRange;
     pl_sb_push(ptData->sbtBlocks, tBlock);
+    [ptHeapDescriptor release];
     return tAllocation;
 }
 
@@ -1471,6 +1475,7 @@ pl_free_dedicated(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocat
     pl_sb_del_swap(ptData->sbtBlocks, uIndex);
 
     id<MTLHeap> tHeap = (id<MTLHeap>)ptAllocation->uHandle;
+    [tHeap setPurgeableState:MTLPurgeableStateEmpty];
     [tHeap release];
     tHeap = nil;
 
