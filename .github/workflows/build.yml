@@ -54,6 +54,20 @@ jobs:
         if not exist ../out/pl_debug_ext.dll exit 1
         if not exist ../out/pilotlight.lib exit 1
 
+    - name: Package Pilot Light
+      shell: cmd
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd scripts
+        python package.py
+
+    - name: Upload Pilot Light
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v3
+      with:
+        name: pvs-results
+        path: D:\a\pilotlight\pilotlight\out\pilotlight_win32.zip
+
   MacOS:
     
     runs-on: MacOS-latest
@@ -82,6 +96,19 @@ jobs:
         test -f ./out/pl_debug_ext.dylib || exit 1
         test -f ./out/pl_graphics_ext.dylib || exit 1
         test -f ./out/pilotlight.a || exit 1
+
+    - name: Package Pilot Light
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd scripts
+        python3 package.py
+
+    - name: Upload Pilot Light
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v3
+      with:
+        name: pvs-results
+        path: /Users/runner/work/pilotlight/pilotlight/out/pilotlight_macos.zip
 
   Ubuntu:
     
@@ -125,3 +152,17 @@ jobs:
         test -f ./out/pl_stats_ext.so || exit 1
         test -f ./out/pl_debug_ext.so || exit 1
         test -f ./out/pilotlight.a || exit 1
+
+    - name: Package Pilot Light
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd scripts
+        python3 package.py
+        pwd
+
+    - name: Upload Pilot Light
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v3
+      with:
+        name: pvs-results
+        path: /home/runner/work/pilotlight/pilotlight/out/pilotlight_linux_amd64.zip
