@@ -80,6 +80,7 @@ for extension in extensions:
 if platform.system() == "Windows":
     shutil.copy("../out/pilot_light.exe", target_directory + "/bin/pilot_light.exe")
     shutil.copy("../out/pilotlight.lib", target_directory + "/lib/pilotlight.lib")
+    shutil.copy("../src/vc140.pdb", target_directory + "/bin/vc140.pdb")
 elif platform.system() == "Darwin":
     shutil.copy("../out/pilot_light", target_directory + "/bin/pilot_light")
     shutil.copy("../out/pilotlight.a", target_directory + "/lib/pilotlight.a")
