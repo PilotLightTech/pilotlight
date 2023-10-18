@@ -119,13 +119,11 @@ with pl.project("pilotlight"):
     add_plugin_to_vulkan_app("pl_image_ext", False)
     add_plugin_to_vulkan_app("pl_vulkan_ext", False, "pl_graphics_ext")
     add_plugin_to_vulkan_app("pl_stats_ext", False)
-    add_plugin_to_vulkan_app("pl_2d_graphics_ext", False)
 
     add_plugin_to_metal_app("pl_debug_ext", False)
     add_plugin_to_metal_app("pl_image_ext", False)
     add_plugin_to_metal_app("pl_stats_ext", False)
     add_plugin_to_metal_app("pl_metal_ext", False, True, "pl_graphics_ext")
-    add_plugin_to_metal_app("pl_2d_graphics_ext", False)
 
     pl.pop_target_links()
 
