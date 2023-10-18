@@ -30,6 +30,8 @@ Index of this file:
 // vulkan stuff
 #if defined(_WIN32)
     #define VK_USE_PLATFORM_WIN32_KHR
+#elif defined(__ANDROID__)
+    #define VK_USE_PLATFORM_ANDROID_KHR
 #elif defined(__APPLE__)
     #define VK_USE_PLATFORM_METAL_EXT
 #else // linux
@@ -1400,6 +1402,8 @@ pl_initialize_graphics(plGraphics* ptGraphics)
 
     #ifdef _WIN32
         pl_sb_push(sbpcEnabledExtensions, VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+    #elif defined(__ANDROID__)
+        pl_sb_push(sbpcEnabledExtensions, VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
     #elif defined(__APPLE__)
         pl_sb_push(sbpcEnabledExtensions, "VK_EXT_metal_surface");
         pl_sb_push(sbpcEnabledExtensions, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
@@ -1559,6 +1563,14 @@ pl_initialize_graphics(plGraphics* ptGraphics)
             .hwnd = *(HWND*)ptIOCtx->pBackendPlatformData
         };
         PL_VULKAN(vkCreateWin32SurfaceKHR(ptVulkanGfx->tInstance, &tSurfaceCreateInfo, NULL, &ptVulkanGfx->tSurface));
+    #elif defined(__ANDROID__)
+        const VkAndroidSurfaceCreateInfoKHR tSurfaceCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
+            .pNext = NULL,
+            .flags = 0,
+            .window =
+        };
+        PL_VULKAN(vkCreateAndroidSurfaceKHR(ptVulkanGfx->tInstance, &tSurfaceCreateInfo, NULL, &ptVulkanGfx->tSurface));
     #elif defined(__APPLE__)
         const VkMetalSurfaceCreateInfoEXT tSurfaceCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT,
@@ -3980,7 +3992,7 @@ pl_load_device_api(void)
 }
 
 PL_EXPORT void
-pl_load_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
+pl_load_graphics_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 {
     const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
@@ -4014,7 +4026,7 @@ pl_load_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 }
 
 PL_EXPORT void
-pl_unload_ext(plApiRegistryApiI* ptApiRegistry)
+pl_unload_graphics_ext(plApiRegistryApiI* ptApiRegistry)
 {
     
 }
