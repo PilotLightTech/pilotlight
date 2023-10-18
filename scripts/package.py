@@ -89,6 +89,8 @@ elif platform.system() == "Linux":
     shutil.copy("../out/pilot_light", target_directory + "/bin/pilot_light")
     shutil.copy("../out/pilotlight.a", target_directory + "/lib/pilotlight.a")
 
+shutil.copy("../apps/pl_config.json", target_directory + "/bin/pl_config.json")
+
 ###############################################################################
 #                                     zip                                     #
 ###############################################################################

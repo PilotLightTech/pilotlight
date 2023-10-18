@@ -65,7 +65,7 @@ jobs:
       if: ${{ always() }}
       uses: actions/upload-artifact@v3
       with:
-        name: pvs-results
+        name: pilotlight_win32
         path: D:\a\pilotlight\pilotlight\out\pilotlight_win32.zip
 
   MacOS:
@@ -89,6 +89,9 @@ jobs:
         chmod +x build.sh
         ./build.sh
         cd ..
+        cd out
+        chmod +x pilot_light
+        cd ..
         test -f ./out/pilot_light || exit 1
         test -f ./out/app.dylib || exit 1
         test -f ./out/pl_stats_ext.dylib || exit 1
@@ -107,7 +110,7 @@ jobs:
       if: ${{ always() }}
       uses: actions/upload-artifact@v3
       with:
-        name: pvs-results
+        name: pilotlight_macos
         path: /Users/runner/work/pilotlight/pilotlight/out/pilotlight_macos.zip
 
   Ubuntu:
@@ -145,6 +148,9 @@ jobs:
         chmod +x build.sh
         ./build.sh
         cd ..
+        cd out
+        chmod +x pilot_light
+        cd ..
         test -f ./out/pilot_light || exit 1
         test -f ./out/app.so || exit 1
         test -f ./out/pl_graphics_ext.so || exit 1
@@ -164,5 +170,5 @@ jobs:
       if: ${{ always() }}
       uses: actions/upload-artifact@v3
       with:
-        name: pvs-results
+        name: pilotlight_linux_amd64
         path: /home/runner/work/pilotlight/pilotlight/out/pilotlight_linux_amd64.zip

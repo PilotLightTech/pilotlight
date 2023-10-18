@@ -20,6 +20,7 @@ Index of this file:
 #include "pl_ui.h"      // io context
 #include "pl_ds.h"      // hashmap
 #include "pl_os.h"      // os services
+#include "pl_json.h"
 
 #include <time.h>     // clock_gettime, clock_getres
 #include <string.h>   // strlen
@@ -110,6 +111,9 @@ const plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 plHashMap       gtMemoryHashMap = {0};
 plMemoryContext gtMemoryContext = {.ptHashMap = &gtMemoryHashMap};
 
+// app name
+char acAppName[256] = {0};
+
 // app function pointers
 void* (*pl_app_load)    (const plApiRegistryApiI* ptApiRegistry, void* ptAppData);
 void  (*pl_app_shutdown)(void* ptAppData);
@@ -162,6 +166,18 @@ int main()
     static const plOsServicesApiI tOsApi = {
         .sleep = pl__sleep
     };
+
+    uint32_t uFileSize = 0;
+    tFileApi.read("pl_config.json", &uFileSize, NULL, "rb");
+    char* pcFileData = PL_ALLOC(uFileSize + 1);
+    memset(pcFileData, 0, uFileSize);
+    tFileApi.read("pl_config.json", &uFileSize, pcFileData, "rb");
+
+    plJsonObject tJsonRoot = {0};
+    pl_load_json(pcFileData, &tJsonRoot);
+    pl_json_string_member(&tJsonRoot, "app name", acAppName, 256);
+    pl_unload_json(&tJsonRoot);
+    PL_FREE(pcFileData);
 
     // load CORE apis
     gptApiRegistry       = pl_load_core_apis();
@@ -320,7 +336,11 @@ int main()
 
     // load library
     const plLibraryApiI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
-    if(ptLibraryApi->load(&gtAppLibrary, "./app.so", "./app_", "./lock.tmp"))
+    static char acLibraryName[256] = {0};
+    static char acTransitionalName[256] = {0};
+    pl_sprintf(acLibraryName, "./%s.so", acAppName);
+    pl_sprintf(acTransitionalName, "./%s_", acAppName);
+    if(ptLibraryApi->load(&gtAppLibrary, acLibraryName, acTransitionalName, "./lock.tmp"))
     {
         pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryApiI*, void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
         pl_app_shutdown = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
