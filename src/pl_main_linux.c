@@ -170,7 +170,7 @@ int main()
     uint32_t uFileSize = 0;
     tFileApi.read("pl_config.json", &uFileSize, NULL, "rb");
     char* pcFileData = PL_ALLOC(uFileSize + 1);
-    memset(pcFileData, 0, uFileSize);
+    memset(pcFileData, 0, uFileSize + 1);
     tFileApi.read("pl_config.json", &uFileSize, pcFileData, "rb");
 
     plJsonObject tJsonRoot = {0};

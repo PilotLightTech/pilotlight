@@ -65,7 +65,7 @@ jobs:
       if: ${{ always() }}
       uses: actions/upload-artifact@v3
       with:
-        name: pilotlight_win32
+        name: pilotlight_release
         path: D:\a\pilotlight\pilotlight\out\pilotlight_win32.zip
 
   MacOS:
@@ -110,7 +110,7 @@ jobs:
       if: ${{ always() }}
       uses: actions/upload-artifact@v3
       with:
-        name: pilotlight_macos
+        name: pilotlight_release
         path: /Users/runner/work/pilotlight/pilotlight/out/pilotlight_macos.zip
 
   Ubuntu:
@@ -170,5 +170,5 @@ jobs:
       if: ${{ always() }}
       uses: actions/upload-artifact@v3
       with:
-        name: pilotlight_linux_amd64
+        name: pilotlight_release
         path: /home/runner/work/pilotlight/pilotlight/out/pilotlight_linux_amd64.zip
