@@ -98,6 +98,7 @@ typedef struct _plMetalSampler
 typedef struct _plMetalBindGroup
 {
     id<MTLBuffer> tShaderArgumentBuffer;
+    plBindGroup*  ptParentBindGroup;
 } plMetalBindGroup;
 
 typedef struct _plMetalShader
@@ -502,6 +503,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroup* ptGroup, uint32_t uBufferC
     plGraphicsMetal* ptMetalGraphics = ptMetalDevice->ptGraphics->_pInternalData;
 
     plMetalBindGroup* ptMetalBindGroup = &ptMetalGraphics->sbtBindGroups[ptGroup->uHandle];
+    ptMetalBindGroup->ptParentBindGroup = ptGroup;
 
     // start of buffers
     float** ptBufferResources = (float**)ptMetalBindGroup->tShaderArgumentBuffer.contents;
@@ -960,39 +962,41 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
             plDraw* ptDraw = &atDraws[ptArea->uDrawOffset + j];
             plMetalShader* ptMetalShader = &ptMetalGraphics->sbtShaders[ptDraw->uShaderVariant];
 
-            plMetalBindGroup* ptMetalBindGroup0 = &ptMetalGraphics->sbtBindGroups[ptDraw->aptBindGroups[0]->uHandle];
+            plMetalBindGroup* ptMetalBindGroup0 = &ptMetalGraphics->sbtBindGroups[ptDraw->auBindGroups[0]];
+            plMetalBindGroup* ptMetalBindGroup1 = &ptMetalGraphics->sbtBindGroups[ptDraw->auBindGroups[1]];
+            plMetalBindGroup* ptMetalBindGroup2 = &ptMetalGraphics->sbtBindGroups[ptDraw->auBindGroups[2]];
 
             // pipeline state
             [ptMetalGraphics->tCurrentRenderEncoder setCullMode:MTLCullModeNone];
             [ptMetalGraphics->tCurrentRenderEncoder setDepthStencilState:ptMetalShader->tDepthStencilState];
             [ptMetalGraphics->tCurrentRenderEncoder setRenderPipelineState:ptMetalShader->tRenderPipelineState];
             
-            for(uint32_t k = 0; k < ptDraw->aptBindGroups[1]->tLayout.uTextureCount; k++)
+            for(uint32_t k = 0; k < ptMetalBindGroup1->ptParentBindGroup->tLayout.uTextureCount; k++)
             {
-                [ptMetalGraphics->tCurrentRenderEncoder useResource:ptMetalGraphics->sbtTextures[ptDraw->aptBindGroups[1]->tLayout.aTextures[k].tTextureView.uTextureHandle].tTexture
+                [ptMetalGraphics->tCurrentRenderEncoder useResource:ptMetalGraphics->sbtTextures[ptMetalBindGroup1->ptParentBindGroup->tLayout.aTextures[k].tTextureView.uTextureHandle].tTexture
                     usage:MTLResourceUsageRead
                     stages:MTLRenderStageFragment];  
             }
 
             // make resources available to gpu
-            for(uint32_t k = 0; k < ptDraw->aptBindGroups[0]->tLayout.uBufferCount; k++)
+            for(uint32_t k = 0; k < ptMetalBindGroup0->ptParentBindGroup->tLayout.uBufferCount; k++)
             {
-                [ptMetalGraphics->tCurrentRenderEncoder useHeap:ptMetalGraphics->sbtBuffers[ptDraw->aptBindGroups[0]->tLayout.aBuffers[k].tBuffer.uHandle].tHeap stages:MTLRenderStageVertex];
+                [ptMetalGraphics->tCurrentRenderEncoder useHeap:ptMetalGraphics->sbtBuffers[ptMetalBindGroup0->ptParentBindGroup->tLayout.aBuffers[k].tBuffer.uHandle].tHeap stages:MTLRenderStageVertex];
             }
 
             // make resources available to gpu
-            for(uint32_t k = 0; k < ptDraw->aptBindGroups[1]->tLayout.uBufferCount; k++)
+            for(uint32_t k = 0; k < ptMetalBindGroup1->ptParentBindGroup->tLayout.uBufferCount; k++)
             {
-                [ptMetalGraphics->tCurrentRenderEncoder useHeap:ptMetalGraphics->sbtBuffers[ptDraw->aptBindGroups[1]->tLayout.aBuffers[k].tBuffer.uHandle].tHeap stages:MTLRenderStageVertex];
+                [ptMetalGraphics->tCurrentRenderEncoder useHeap:ptMetalGraphics->sbtBuffers[ptMetalBindGroup1->ptParentBindGroup->tLayout.aBuffers[k].tBuffer.uHandle].tHeap stages:MTLRenderStageVertex];
             }
 
             // make resources available to gpu
-            for(uint32_t k = 0; k < ptDraw->aptBindGroups[2]->tLayout.uBufferCount; k++)
+            for(uint32_t k = 0; k < ptMetalBindGroup2->ptParentBindGroup->tLayout.uBufferCount; k++)
             {
-                [ptMetalGraphics->tCurrentRenderEncoder useHeap:ptMetalGraphics->sbtBuffers[ptDraw->aptBindGroups[2]->tLayout.aBuffers[k].tBuffer.uHandle].tHeap stages:MTLRenderStageVertex];
+                [ptMetalGraphics->tCurrentRenderEncoder useHeap:ptMetalGraphics->sbtBuffers[ptMetalBindGroup2->ptParentBindGroup->tLayout.aBuffers[k].tBuffer.uHandle].tHeap stages:MTLRenderStageVertex];
             }
             
-            [ptMetalGraphics->tCurrentRenderEncoder useHeap:ptMetalGraphics->sbtBuffers[ptDraw->aptBindGroups[0]->tLayout.aBuffers[0].tBuffer.uHandle].tHeap stages:MTLRenderStageVertex];
+            [ptMetalGraphics->tCurrentRenderEncoder useHeap:ptMetalGraphics->sbtBuffers[ptMetalBindGroup0->ptParentBindGroup->tLayout.aBuffers[0].tBuffer.uHandle].tHeap stages:MTLRenderStageVertex];
 
             // bind group 0
             [ptMetalGraphics->tCurrentRenderEncoder setVertexBuffer:ptMetalBindGroup0->tShaderArgumentBuffer
@@ -1005,22 +1009,22 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
                 atIndex:1];
 
             // bind group 1
-            [ptMetalGraphics->tCurrentRenderEncoder setFragmentBuffer:ptMetalGraphics->sbtBindGroups[ptDraw->aptBindGroups[1]->uHandle].tShaderArgumentBuffer
+            [ptMetalGraphics->tCurrentRenderEncoder setFragmentBuffer:ptMetalGraphics->sbtBindGroups[ptDraw->auBindGroups[1]].tShaderArgumentBuffer
                 offset:0
                 atIndex:2];
 
             // bind group 1
-            [ptMetalGraphics->tCurrentRenderEncoder setVertexBuffer:ptMetalGraphics->sbtBindGroups[ptDraw->aptBindGroups[1]->uHandle].tShaderArgumentBuffer
+            [ptMetalGraphics->tCurrentRenderEncoder setVertexBuffer:ptMetalGraphics->sbtBindGroups[ptDraw->auBindGroups[1]].tShaderArgumentBuffer
                 offset:0
                 atIndex:2];
 
             // bind group 2
-            [ptMetalGraphics->tCurrentRenderEncoder setFragmentBuffer:ptMetalGraphics->sbtBindGroups[ptDraw->aptBindGroups[2]->uHandle].tShaderArgumentBuffer
+            [ptMetalGraphics->tCurrentRenderEncoder setFragmentBuffer:ptMetalGraphics->sbtBindGroups[ptDraw->auBindGroups[2]].tShaderArgumentBuffer
                 offset:0
                 atIndex:3];
 
             // bind group 2
-            [ptMetalGraphics->tCurrentRenderEncoder setVertexBuffer:ptMetalGraphics->sbtBindGroups[ptDraw->aptBindGroups[2]->uHandle].tShaderArgumentBuffer
+            [ptMetalGraphics->tCurrentRenderEncoder setVertexBuffer:ptMetalGraphics->sbtBindGroups[ptDraw->auBindGroups[2]].tShaderArgumentBuffer
                 offset:0
                 atIndex:3];
 

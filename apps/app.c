@@ -850,10 +850,10 @@ pl_app_update(plAppData* ptAppData)
             .uIndexCount = 36,
             .uVertexCount = 8,
             .uIndexOffset = 12,
-            .aptBindGroups = {
-                &ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex],
-                &ptAppData->tBindGroup1_2,
-                &ptAppData->tBindGroup2
+            .auBindGroups = {
+                ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex].uHandle,
+                ptAppData->tBindGroup1_2.uHandle,
+                ptAppData->tBindGroup2.uHandle
             },
             .uShaderVariant = ptAppData->tShader2.uHandle,
             .auDynamicBufferOffset = {
@@ -866,10 +866,10 @@ pl_app_update(plAppData* ptAppData)
             .uIndexBuffer = ptAppData->tIndexBuffer.uHandle,
             .uIndexCount = 6,
             .uVertexCount = 4,
-            .aptBindGroups = {
-                &ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex],
-                &ptAppData->tBindGroup1_0,
-                &ptAppData->tBindGroup2
+            .auBindGroups = {
+                ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex].uHandle,
+                ptAppData->tBindGroup1_0.uHandle,
+                ptAppData->tBindGroup2.uHandle
             },
             .uShaderVariant = ptAppData->tShader0.uHandle,
             .auDynamicBufferOffset = {
@@ -883,10 +883,10 @@ pl_app_update(plAppData* ptAppData)
             .uIndexCount = 6,
             .uVertexCount = 4,
             .uIndexOffset = 6,
-            .aptBindGroups = {
-                &ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex],
-                &ptAppData->tBindGroup1_1,
-                &ptAppData->tBindGroup2
+            .auBindGroups = {
+                ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex].uHandle,
+                ptAppData->tBindGroup1_1.uHandle,
+                ptAppData->tBindGroup2.uHandle
             },
             .uShaderVariant = ptAppData->tShader1.uHandle,
             .auDynamicBufferOffset = {

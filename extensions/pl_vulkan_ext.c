@@ -2642,9 +2642,9 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, 
             plVulkanShader* ptVulkanShader = &ptVulkanGfx->sbtShaders[ptDraw->uShaderVariant];
             vkCmdBindPipeline(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
 
-            plVulkanBindGroup* ptBindGroup0 = &ptVulkanGfx->sbtBindGroups[ptDraw->aptBindGroups[0]->uHandle];
-            plVulkanBindGroup* ptBindGroup1 = &ptVulkanGfx->sbtBindGroups[ptDraw->aptBindGroups[1]->uHandle];
-            plVulkanBindGroup* ptBindGroup2 = &ptVulkanGfx->sbtBindGroups[ptDraw->aptBindGroups[2]->uHandle];
+            plVulkanBindGroup* ptBindGroup0 = &ptVulkanGfx->sbtBindGroups[ptDraw->auBindGroups[0]];
+            plVulkanBindGroup* ptBindGroup1 = &ptVulkanGfx->sbtBindGroups[ptDraw->auBindGroups[1]];
+            plVulkanBindGroup* ptBindGroup2 = &ptVulkanGfx->sbtBindGroups[ptDraw->auBindGroups[2]];
             plVulkanDynamicBuffer* ptVulkanDynamicBuffer = &ptVulkanGfx->tDynamicBuffers[ptDraw->uDynamicBuffer];
 
             vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, 0, 1, &ptBindGroup0->tDescriptorSet, 0, NULL);

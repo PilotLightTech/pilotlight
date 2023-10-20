@@ -369,16 +369,16 @@ typedef struct _plDrawArea
 
 typedef struct _plDraw
 {
-    uint32_t         uDynamicBuffer;
-    uint32_t         uVertexBuffer;
-    uint32_t         uIndexBuffer;
-    uint32_t         uVertexOffset;
-    uint32_t         uIndexOffset;
-    uint32_t         uVertexCount;
-    uint32_t         uIndexCount;
-    uint32_t         uShaderVariant;
-    plBindGroup*     aptBindGroups[3];
-    uint32_t         auDynamicBufferOffset[1];
+    uint32_t uDynamicBuffer;
+    uint32_t uVertexBuffer;
+    uint32_t uIndexBuffer;
+    uint32_t uVertexOffset;
+    uint32_t uIndexOffset;
+    uint32_t uVertexCount;
+    uint32_t uIndexCount;
+    uint32_t uShaderVariant;
+    uint32_t auBindGroups[3];
+    uint32_t auDynamicBufferOffset[1];
 } plDraw;
 
 typedef struct _plShaderDescription
