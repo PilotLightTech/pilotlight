@@ -131,6 +131,19 @@ with pl.project("pilotlight"):
     ###############################################################################
     #                                    app                                      #
     ###############################################################################
+
+    vulkan_shaders = [
+        "skybox.frag",
+        "skybox.vert",
+        "primitive.frag",
+        "primitive.vert",
+        "draw_3d.vert",
+        "draw_3d.frag",
+        "draw_3d_line.vert",
+        "primitive_2d.frag",
+        "primitive_2d.vert"
+    ]
+
     with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
 
         pl.push_output_binary("app")
@@ -143,7 +156,7 @@ with pl.project("pilotlight"):
         
         with pl.configuration("debug"):
             pl.push_profile(pl.Profile.VULKAN)
-            pl.push_vulkan_glsl_files("../shaders/glsl/", "primitive.frag", "primitive.vert", "draw_3d.vert", "draw_3d.frag", "draw_3d_line.vert", "primitive_2d.frag", "primitive_2d.vert")
+            pl.push_vulkan_glsl_files("../shaders/glsl/", *vulkan_shaders)
             with pl.platform(pl.PlatformType.WIN32):
                 with pl.compiler("msvc", pl.CompilerType.MSVC):
                     pl.add_definition("PL_VULKAN_BACKEND")
@@ -158,7 +171,7 @@ with pl.project("pilotlight"):
         
         
         pl.push_profile(pl.Profile.VULKAN)
-        pl.push_vulkan_glsl_files("../shaders/glsl/", "primitive.frag", "primitive.vert", "draw_3d.vert", "draw_3d.frag", "draw_3d_line.vert", "primitive_2d.frag", "primitive_2d.vert")
+        pl.push_vulkan_glsl_files("../shaders/glsl/",  *vulkan_shaders)
         with pl.configuration("vulkan"):
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):

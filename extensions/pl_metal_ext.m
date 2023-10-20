@@ -380,6 +380,17 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
     ptTextureDescriptor.height = tDesc.tDimensions.y;
     ptTextureDescriptor.mipmapLevelCount = tDesc.uMips;
     ptTextureDescriptor.storageMode = MTLStorageModePrivate;
+    ptTextureDescriptor.arrayLength = 1;
+    ptTextureDescriptor.depth = tDesc.tDimensions.z;
+
+    if(tDesc.tType == PL_TEXTURE_TYPE_2D)
+        ptTextureDescriptor.textureType = MTLTextureType2D;
+    else if(tDesc.tType == PL_TEXTURE_TYPE_CUBE)
+        ptTextureDescriptor.textureType = MTLTextureTypeCube;
+    else
+    {
+        PL_ASSERT(false && "unsupported texture type");
+    }
 
     MTLSizeAndAlign tSizeAndAlign = [ptMetalDevice->tDevice heapTextureSizeAndAlignWithDescriptor:ptTextureDescriptor];
     tTexture.tMemoryAllocation = ptDevice->tLocalDedicatedAllocator.allocate(ptDevice->tLocalDedicatedAllocator.ptInst, 0, tSizeAndAlign.size, tSizeAndAlign.align, pcName);
@@ -398,6 +409,7 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
     blitEncoder.label = @"Heap Transfer Blit Encoder";
 
     NSUInteger uBytesPerRow = szSize / tDesc.tDimensions.y;
+    uBytesPerRow = uBytesPerRow / tDesc.uLayers;
     MTLOrigin tOrigin;
     tOrigin.x = 0;
     tOrigin.y = 0;
@@ -406,7 +418,8 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
     tSize.width = tDesc.tDimensions.x;
     tSize.height = tDesc.tDimensions.y;
     tSize.depth = tDesc.tDimensions.z;
-    [blitEncoder copyFromBuffer:ptMetalGraphics->tStagingBuffer sourceOffset: 0 sourceBytesPerRow:uBytesPerRow sourceBytesPerImage:uBytesPerRow * tDesc.tDimensions.y sourceSize:tSize toTexture:tMetalTexture.tTexture destinationSlice:0 destinationLevel:0 destinationOrigin:tOrigin];
+    for(uint32_t i = 0; i < tDesc.uLayers; i++)
+        [blitEncoder copyFromBuffer:ptMetalGraphics->tStagingBuffer sourceOffset:uBytesPerRow * tDesc.tDimensions.y * i sourceBytesPerRow:uBytesPerRow sourceBytesPerImage:0 sourceSize:tSize toTexture:tMetalTexture.tTexture destinationSlice:i destinationLevel:0 destinationOrigin:tOrigin];
 
     if(tDesc.uMips > 1)
         [blitEncoder generateMipmapsForTexture:tMetalTexture.tTexture];
@@ -618,7 +631,7 @@ pl_create_shader(plGraphics* ptGraphics, plShaderDescription* ptDescription)
 
     MTLDepthStencilDescriptor *depthDescriptor = [MTLDepthStencilDescriptor new];
     depthDescriptor.depthCompareFunction = MTLCompareFunctionLessEqual;
-    depthDescriptor.depthWriteEnabled = YES;
+    depthDescriptor.depthWriteEnabled = ptDescription->tGraphicsState.ulDepthWriteEnabled ? YES : NO;
 
     pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
     pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;

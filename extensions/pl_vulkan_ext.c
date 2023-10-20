@@ -657,7 +657,15 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
 
     plVulkanTexture tVulkanTexture = {0};
 
-    const VkImageViewType tImageViewType = tDesc.uLayers == 6 ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D;
+    VkImageViewType tImageViewType = 0;
+    if(tDesc.tType == PL_TEXTURE_TYPE_CUBE)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
+    else if(tDesc.tType == PL_TEXTURE_TYPE_2D)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
+    else
+    {
+        PL_ASSERT(false && "unsupported texture type");
+    }
     PL_ASSERT((tDesc.uLayers == 1 || tDesc.uLayers == 6) && "unsupported layer count");
 
     // create vulkan image
@@ -725,7 +733,7 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
 
     VkImageSubresourceRange tRange = {
         .baseMipLevel   = 0,
-        .levelCount     = 1,
+        .levelCount     = tDesc.uMips,
         .baseArrayLayer = 0,
         .layerCount     = tDesc.uLayers,
         .aspectMask     = tImageAspectFlags
@@ -774,11 +782,11 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
     if(ptViewDesc->uMips == 0)
         tTextureView.tTextureViewDesc.uMips = ptTexture->tDesc.uMips;
 
-
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const VkImageViewType tImageViewType = ptViewDesc->uLayerCount == 6 ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D;    
     PL_ASSERT((ptViewDesc->uLayerCount == 1 || ptViewDesc->uLayerCount == 6) && "unsupported layer count");
+
 
     // VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
     VkImageAspectFlags tImageAspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -3550,18 +3558,22 @@ pl__transfer_data_to_image(plDevice* ptDevice, plTexture* ptDest, size_t szDataS
     pl__transition_image_layout(tCommandBuffer, ptVulkanGraphics->sbtTextures[ptDest->uHandle].tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 
     // copy regions
-    const VkBufferImageCopy tCopyRegion = {
-        .bufferOffset                    = 0u,
-        .bufferRowLength                 = 0u,
-        .bufferImageHeight               = 0u,
-        .imageSubresource.aspectMask     = tSubResourceRange.aspectMask,
-        .imageSubresource.mipLevel       = 0,
-        .imageSubresource.baseArrayLayer = 0,
-        .imageSubresource.layerCount     = ptDest->tDesc.uLayers,
-        .imageExtent                     = {.width = (uint32_t)ptDest->tDesc.tDimensions.x, .height = (uint32_t)ptDest->tDesc.tDimensions.y, .depth = (uint32_t)ptDest->tDesc.tDimensions.z},
-    };
-    vkCmdCopyBufferToImage(tCommandBuffer, ptVulkanStagingBuffer->tBuffer, ptVulkanGraphics->sbtTextures[ptDest->uHandle].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &tCopyRegion);
 
+    for(uint32_t i = 0; i < ptDest->tDesc.uLayers; i++)
+    {
+        const VkBufferImageCopy tCopyRegion = {
+            .bufferOffset                    = i * szDataSize / ptDest->tDesc.uLayers,
+            .bufferRowLength                 = 0u,
+            .bufferImageHeight               = 0u,
+            .imageSubresource.aspectMask     = tSubResourceRange.aspectMask,
+            .imageSubresource.mipLevel       = 0,
+            .imageSubresource.baseArrayLayer = i,
+            // .imageSubresource.layerCount     = ptDest->tDesc.uLayers,
+            .imageSubresource.layerCount     = 1,
+            .imageExtent                     = {.width = (uint32_t)ptDest->tDesc.tDimensions.x, .height = (uint32_t)ptDest->tDesc.tDimensions.y, .depth = (uint32_t)ptDest->tDesc.tDimensions.z},
+        };
+        vkCmdCopyBufferToImage(tCommandBuffer, ptVulkanStagingBuffer->tBuffer, ptVulkanGraphics->sbtTextures[ptDest->uHandle].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &tCopyRegion);
+    }
     // generate mips
     if(ptDest->tDesc.uMips > 1)
     {

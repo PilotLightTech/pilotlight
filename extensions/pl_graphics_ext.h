@@ -91,6 +91,7 @@ typedef struct _plDrawVertex3DLine  plDrawVertex3DLine; // single vertex (pos + 
 typedef int pl3DDrawFlags;
 typedef int plBufferBindingType;      // -> enum _plBufferBindingType      // Enum:
 typedef int plTextureBindingType;     // -> enum _plTextureBindingType     // Enum:
+typedef int plTextureType;            // -> enum _plTextureType            // Enum:
 typedef int plBufferUsage;            // -> enum _plBufferUsage            // Enum:
 typedef int plTextureUsage;           // -> enum _plTextureUsage           // Enum:
 typedef int plMeshFormatFlags;        // -> enum _plMeshFormatFlags        // Flags:
@@ -295,6 +296,7 @@ typedef struct _plTextureDesc
     uint32_t       uLayers;
     uint32_t       uMips;
     plFormat       tFormat;
+    plTextureType  tType;
     plTextureUsage tUsage;
 } plTextureDesc;
 
@@ -487,6 +489,13 @@ enum _plTextureBindingType
     PL_TEXTURE_BINDING_TYPE_UNSPECIFIED,
     PL_TEXTURE_BINDING_TYPE_SAMPLED,
     PL_TEXTURE_BINDING_TYPE_STORAGE
+};
+
+enum _plTextureType
+{
+    PL_TEXTURE_TYPE_UNSPECIFIED,
+    PL_TEXTURE_TYPE_2D,
+    PL_TEXTURE_TYPE_CUBE
 };
 
 enum _plBufferUsage

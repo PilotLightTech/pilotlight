@@ -59,16 +59,20 @@ typedef struct plAppData_t
     // texture
     plTexture     tTexture;
     plTextureView tTextureView;
+    plTexture     tSkyboxTexture;
+    plTextureView tSkyboxTextureView;
 
     // bind groups
     plBindGroup atBindGroups0[2];
     plBindGroup tBindGroup1_0;
     plBindGroup tBindGroup1_1;
+    plBindGroup tBindGroup1_2;
     plBindGroup tBindGroup2;
     
     // shaders
     plShader tShader0;
     plShader tShader1;
+    plShader tShader2;
 
     // global index/vertex/data buffers
     plBuffer tVertexBuffer;
@@ -255,6 +259,65 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 0.0f, 1.0f}));
         pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 0.0f, 1.0f, 1.0f}));
     }
+
+    // mesh 2
+    {
+        const uint32_t uStartIndex = pl_sb_size(ptAppData->sbtVertexPosBuffer);
+
+        // indices
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 0);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 2);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 1);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 2);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 3);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 1);
+        
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 1);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 3);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 5);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 3);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 7);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 5);
+
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 2);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 6);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 3);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 3);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 6);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 7);
+        
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 4);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 5);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 7);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 4);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 7);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 6);
+        
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 0);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 4);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 2);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 2);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 4);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 6);
+        
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 0);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 1);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 4);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 1);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 5);
+        pl_sb_push(ptAppData->sbuIndexBuffer, uStartIndex + 4);
+
+        // vertices (position)
+        const float fCubeSide = 0.5f;
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){-fCubeSide, -fCubeSide, -fCubeSide}));
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){ fCubeSide, -fCubeSide, -fCubeSide}));
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){-fCubeSide,  fCubeSide, -fCubeSide}));
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){ fCubeSide,  fCubeSide, -fCubeSide}));
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){-fCubeSide, -fCubeSide,  fCubeSide}));
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){ fCubeSide, -fCubeSide,  fCubeSide}));
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){-fCubeSide,  fCubeSide,  fCubeSide}));
+        pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){ fCubeSide,  fCubeSide,  fCubeSide}));
+    }
     
     const plBufferDescription tIndexBufferDesc = {
         .pcDebugName          = "index buffer",
@@ -289,34 +352,73 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->tStorageBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tStorageBufferDesc);
     pl_sb_free(ptAppData->sbtVertexDataBuffer);
 
-    static float image[] = {
-        1.0f,   0,   0, 1.0f,
-        0, 1.0f,   0, 1.0f,
-        0,   0, 1.0f, 1.0f,
-        1.0f,   0, 1.0f, 1.0f
-    };
-    plTextureDesc tTextureDesc = {
-        .tDimensions = {2, 2, 1},
-        .tFormat = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uLayers = 1,
-        .uMips = 0
-    };
-    ptAppData->tTexture = gptDevice->create_texture(&ptAppData->tGraphics.tDevice, tTextureDesc, sizeof(float) * 4 * 4, image, "texture");
+    {
+        static float image[] = {
+            1.0f,   0,   0, 1.0f,
+            0, 1.0f,   0, 1.0f,
+            0,   0, 1.0f, 1.0f,
+            1.0f,   0, 1.0f, 1.0f
+        };
+        plTextureDesc tTextureDesc = {
+            .tDimensions = {2, 2, 1},
+            .tFormat = PL_FORMAT_R32G32B32A32_FLOAT,
+            .uLayers = 1,
+            .uMips = 0,
+            .tType = PL_TEXTURE_TYPE_2D
+        };
+        ptAppData->tTexture = gptDevice->create_texture(&ptAppData->tGraphics.tDevice, tTextureDesc, sizeof(float) * 4 * 4, image, "texture");
 
-    plTextureViewDesc tTextureViewDesc = {
-        .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uBaseLayer  = 0,
-        .uBaseMip    = 0,
-        .uLayerCount = 1
-    };
-    plSampler tSampler = {
-        .tFilter = PL_FILTER_NEAREST,
-        .fMinMip = 0.0f,
-        .fMaxMip = 64.0f,
-        .tVerticalWrap = PL_WRAP_MODE_CLAMP,
-        .tHorizontalWrap = PL_WRAP_MODE_CLAMP
-    };
-    ptAppData->tTextureView = gptDevice->create_texture_view(&ptAppData->tGraphics.tDevice, &tTextureViewDesc, &tSampler, &ptAppData->tTexture, "texture view");
+        plTextureViewDesc tTextureViewDesc = {
+            .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+            .uBaseLayer  = 0,
+            .uBaseMip    = 0,
+            .uLayerCount = 1
+        };
+        plSampler tSampler = {
+            .tFilter = PL_FILTER_NEAREST,
+            .fMinMip = 0.0f,
+            .fMaxMip = 64.0f,
+            .tVerticalWrap = PL_WRAP_MODE_CLAMP,
+            .tHorizontalWrap = PL_WRAP_MODE_CLAMP
+        };
+        ptAppData->tTextureView = gptDevice->create_texture_view(&ptAppData->tGraphics.tDevice, &tTextureViewDesc, &tSampler, &ptAppData->tTexture, "texture view");
+
+    }
+
+    {
+        static float image[] = {
+            0.25f,   0,   0, 1.0f,
+            0, 0.25f,   0, 1.0f,
+            0,   0, 0.25f, 1.0f,
+            0.25f,   0, 0.25f, 1.0f,
+            0.25f,   0.25, 0.25f, 1.0f,
+            0.0f,   0.25, 0.25f, 1.0f
+        };
+        plTextureDesc tTextureDesc = {
+            .tDimensions = {1, 1, 1},
+            .tFormat = PL_FORMAT_R32G32B32A32_FLOAT,
+            .uLayers = 6,
+            .uMips = 1,
+            .tType = PL_TEXTURE_TYPE_CUBE
+        };
+        ptAppData->tSkyboxTexture = gptDevice->create_texture(&ptAppData->tGraphics.tDevice, tTextureDesc, sizeof(float) * 4 * 6, image, "skybox texture");
+
+        plTextureViewDesc tTextureViewDesc = {
+            .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+            .uBaseLayer  = 0,
+            .uBaseMip    = 0,
+            .uLayerCount = 6
+        };
+        plSampler tSampler = {
+            .tFilter = PL_FILTER_NEAREST,
+            .fMinMip = 0.0f,
+            .fMaxMip = 64.0f,
+            .tVerticalWrap = PL_WRAP_MODE_CLAMP,
+            .tHorizontalWrap = PL_WRAP_MODE_CLAMP
+        };
+        ptAppData->tSkyboxTextureView = gptDevice->create_texture_view(&ptAppData->tGraphics.tDevice, &tTextureViewDesc, &tSampler, &ptAppData->tSkyboxTexture, "skybox texture view");
+
+    }
 
     const plBufferDescription atGlobalBuffersDesc = {
         .pcDebugName          = "global buffer",
@@ -368,6 +470,15 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     };
     ptAppData->tBindGroup1_1 = gptDevice->create_bind_group(&ptAppData->tGraphics.tDevice, &tBindGroupLayout1_1);
     gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->tBindGroup1_1, 0, NULL, NULL, 1, &ptAppData->tTextureView);
+
+    plBindGroupLayout tBindGroupLayout1_2 = {
+        .uTextureCount  = 1,
+        .aTextures = {
+            {.uSlot = 0}
+        }
+    };
+    ptAppData->tBindGroup1_2 = gptDevice->create_bind_group(&ptAppData->tGraphics.tDevice, &tBindGroupLayout1_2);
+    gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->tBindGroup1_2, 0, NULL, NULL, 1, &ptAppData->tSkyboxTextureView);
 
     plBindGroupLayout tBindGroupLayout2_0 = {
         .uBufferCount  = 1,
@@ -499,6 +610,64 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         }
     };
     ptAppData->tShader1 = gptGfx->create_shader(&ptAppData->tGraphics, &tShaderDescription1);
+
+    plShaderDescription tShaderDescription2 = {
+#ifdef PL_METAL_BACKEND
+        .pcVertexShader = "../shaders/metal/skybox.metal",
+        .pcPixelShader = "../shaders/metal/skybox.metal",
+#else // linux
+        .pcVertexShader = "skybox.vert.spv",
+        .pcPixelShader = "skybox.frag.spv",
+#endif
+        .tGraphicsState = {
+            .ulDepthWriteEnabled  = 0,
+            .ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_NONE,
+            .ulBlendMode          = PL_BLEND_MODE_ALPHA,
+            .ulDepthMode          = PL_DEPTH_MODE_LESS_OR_EQUAL,
+            .ulCullMode           = PL_CULL_MODE_NONE,
+            .ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_0,
+            .ulStencilMode        = PL_STENCIL_MODE_ALWAYS,
+            .ulStencilRef         = 0xff,
+            .ulStencilMask        = 0xff,
+            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+        },
+        .uBindGroupLayoutCount = 3,
+        .atBindGroupLayouts = {
+            {
+                .uBufferCount  = 2,
+                .aBuffers = {
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                        .uSlot = 0
+                    },
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                        .uSlot = 1
+                    },
+                },
+            },
+            {
+                .uTextureCount = 1,
+                .aTextures = {
+                    {
+                        .uSlot = 0
+                    }
+                 },
+            },
+            {
+                .uBufferCount  = 1,
+                .aBuffers = {
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                        .uSlot = 0
+                    },
+                },
+            }
+        }
+    };
+    ptAppData->tShader2 = gptGfx->create_shader(&ptAppData->tGraphics, &tShaderDescription2);
 
     // create draw list & layers
     pl_register_drawlist(&ptAppData->tDrawlist);
@@ -669,7 +838,28 @@ pl_app_update(plAppData* ptAppData)
     ptDynamicData1->iVertexOffset = 4;
     ptDynamicData1->tModel = pl_identity_mat4();
 
-    plDraw tDraw[2] = {
+    plDynamicBinding tDynamicBinding2 = gptDevice->allocate_dynamic_data(&ptAppData->tGraphics.tDevice, sizeof(plMat4));
+    plMat4* ptDynamicData2 = (plMat4*)tDynamicBinding2.pcData;
+    *ptDynamicData2 = pl_mat4_translate_vec3(ptAppData->tMainCamera.tPos);
+
+    plDraw tDraw[] = {
+        {
+            .uDynamicBuffer = tDynamicBinding2.uBufferHandle,
+            .uVertexBuffer = ptAppData->tVertexBuffer.uHandle,
+            .uIndexBuffer = ptAppData->tIndexBuffer.uHandle,
+            .uIndexCount = 36,
+            .uVertexCount = 8,
+            .uIndexOffset = 12,
+            .aptBindGroups = {
+                &ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex],
+                &ptAppData->tBindGroup1_2,
+                &ptAppData->tBindGroup2
+            },
+            .uShaderVariant = ptAppData->tShader2.uHandle,
+            .auDynamicBufferOffset = {
+                tDynamicBinding2.uByteOffset
+            }
+        },
         {
             .uDynamicBuffer = tDynamicBinding0.uBufferHandle,
             .uVertexBuffer = ptAppData->tVertexBuffer.uHandle,
@@ -707,7 +897,7 @@ pl_app_update(plAppData* ptAppData)
 
     plDrawArea tArea = {
         .uDrawOffset = 0,
-        .uDrawCount = 2
+        .uDrawCount = 3
     };
     gptGfx->draw_areas(&ptAppData->tGraphics, 1, &tArea, tDraw);
 
