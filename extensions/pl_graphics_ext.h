@@ -40,6 +40,9 @@ typedef struct _plGraphicsI plGraphicsI;
 #define PL_API_DEVICE "PL_API_DEVICE"
 typedef struct _plDeviceI plDeviceI;
 
+#define PL_API_DRAW_STREAM "PL_API_DRAW_STREAM"
+typedef struct _plDrawStreamI plDrawStreamI;
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -59,6 +62,7 @@ typedef struct _plBuffer            plBuffer;
 typedef struct _plGraphics          plGraphics;
 typedef struct _plDraw              plDraw;
 typedef struct _plDrawArea          plDrawArea;
+typedef struct _plDrawStream        plDrawStream;
 typedef struct _plGraphicsState     plGraphicsState;
 typedef struct _plShaderDescription plShaderDescription;
 typedef struct _plShader            plShader;
@@ -75,6 +79,13 @@ typedef struct _plBindGroup         plBindGroup;
 typedef struct _plBufferBinding     plBufferBinding;
 typedef struct _plTextureBinding    plTextureBinding;
 typedef struct _plDynamicBinding    plDynamicBinding;
+
+// handles
+typedef struct _plBufferHandle      plBufferHandle;
+typedef struct _plTextureHandle     plTextureHandle;
+typedef struct _plTextureViewHandle plTextureViewHandle;
+typedef struct _plBindGroupHandle   plBindGroupHandle;
+typedef struct _plShaderHandle      plShaderHandle;
 
 // device memory
 typedef struct _plDeviceAllocationRange  plDeviceAllocationRange;
@@ -116,21 +127,35 @@ typedef struct _plFontAtlas plFontAtlas;
 // [SECTION] public api structs
 //-----------------------------------------------------------------------------
 
+typedef struct _plDrawStreamI
+{
+    void (*reset)  (plDrawStream* ptStream);
+    void (*cleanup)(plDrawStream* ptStream);
+    void (*draw)   (plDrawStream* ptStream, plDraw tDraw);
+} plDrawStreamI;
+
 typedef struct _plDeviceI
 {
-    // commited resources
-    plBuffer      (*create_buffer)            (plDevice* ptDevice, const plBufferDescription* ptDesc);
-    plTexture     (*create_texture)           (plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName);
-    plTextureView (*create_texture_view)      (plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, plTexture* ptTexture, const char* pcName);
-    plBindGroup   (*create_bind_group)        (plDevice* ptDevice, plBindGroupLayout* ptLayout);
-    void          (*update_bind_group)        (plDevice* ptDevice, plBindGroup* ptGroup, uint32_t uBufferCount, plBuffer* atBuffers, size_t* aszBufferRanges, uint32_t uTextureViewCount, plTextureView* atTextureViews);
+    // resources
+    plBufferHandle       (*create_buffer)      (plDevice* ptDevice, const plBufferDescription* ptDesc);
+    plTextureHandle      (*create_texture)     (plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName);
+    plTextureViewHandle  (*create_texture_view)(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, plTextureHandle* ptTexture, const char* pcName);
+    plBindGroupHandle    (*create_bind_group)  (plDevice* ptDevice, plBindGroupLayout* ptLayout);
+    void                 (*update_bind_group)  (plDevice* ptDevice, plBindGroupHandle* ptGroup, uint32_t uBufferCount, plBufferHandle* atBuffers, size_t* aszBufferRanges, uint32_t uTextureViewCount, plTextureViewHandle* atTextureViews);
 
     plDynamicBinding (*allocate_dynamic_data)(plDevice* ptDevice, size_t szSize);
 
+    // resource retrieval
+    plBuffer*       (*get_buffer)      (plDevice* ptDevice, plBufferHandle* ptHandle);
+    plTexture*      (*get_texture)     (plDevice* ptDevice, plTextureHandle* ptHandle);
+    plTextureView*  (*get_texture_view)(plDevice* ptDevice, plTextureViewHandle* ptHandle);
+    plBindGroup*    (*get_bind_group)  (plDevice* ptDevice, plBindGroupHandle* ptHandle);
+    plShader*       (*get_shader)      (plDevice* ptDevice, plShaderHandle* ptHandle);
+
     // cleanup
-    void (*submit_buffer_for_deletion)      (plDevice* ptDevice, plBuffer* ptBuffer);
-    void (*submit_texture_for_deletion)     (plDevice* ptDevice, plTexture* ptTexture);
-    void (*submit_texture_view_for_deletion)(plDevice* ptDevice, plTextureView* ptView);
+    void (*submit_buffer_for_deletion)      (plDevice* ptDevice, plBufferHandle* ptBuffer);
+    void (*submit_texture_for_deletion)     (plDevice* ptDevice, plTextureHandle* ptTexture);
+    void (*submit_texture_view_for_deletion)(plDevice* ptDevice, plTextureViewHandle* ptView);
 } plDeviceI;
 
 typedef struct _plGraphicsI
@@ -148,10 +173,10 @@ typedef struct _plGraphicsI
     void (*end_recording)  (plGraphics* ptGraphics);
 
     // shaders
-    plShader (*create_shader)(plGraphics* ptGraphics, plShaderDescription* ptDescription);
+    plShaderHandle (*create_shader)(plGraphics* ptGraphics, plShaderDescription* ptDescription);
 
     // drawing
-    void (*draw_areas)(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas, plDraw* atDraws);
+    void (*draw_areas)(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas);
 
     // 2D drawing api
     void (*draw_lists)(plGraphics* ptGraphics, uint32_t uListCount, plDrawList* atLists);
@@ -171,12 +196,42 @@ typedef struct _plGraphicsI
     void (*add_3d_bezier_cubic)   (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
 
     // misc
-    void* (*get_ui_texture_handle)(plGraphics* ptGraphics, plTextureView* ptTextureView);
+    void* (*get_ui_texture_handle)(plGraphics* ptGraphics, plTextureViewHandle* ptTextureView);
 } plGraphicsI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plBufferHandle
+{
+    uint32_t uIndex;
+    uint32_t uGeneration;
+} plBufferHandle;
+
+typedef struct _plTextureHandle
+{
+    uint32_t uIndex;
+    uint32_t uGeneration;
+} plTextureHandle;
+
+typedef struct _plTextureViewHandle
+{
+    uint32_t uIndex;
+    uint32_t uGeneration;
+} plTextureViewHandle;
+
+typedef struct _plBindGroupHandle
+{
+    uint32_t uIndex;
+    uint32_t uGeneration;
+} plBindGroupHandle;
+
+typedef struct _plShaderHandle
+{
+    uint32_t uIndex;
+    uint32_t uGeneration;
+} plShaderHandle;
 
 typedef struct _plGraphicsState
 {
@@ -284,10 +339,9 @@ typedef struct _plSampler
 
 typedef struct _plTextureView
 {
-    uint32_t          uTextureHandle;
+    plTextureHandle   tTexture;
     plSampler         tSampler;
     plTextureViewDesc tTextureViewDesc;
-    uint32_t          _uSamplerHandle;
 } plTextureView;
 
 typedef struct _plTextureDesc
@@ -303,7 +357,6 @@ typedef struct _plTextureDesc
 typedef struct _plTexture
 {
     plTextureDesc            tDesc;
-    uint32_t                 uHandle;
     plDeviceMemoryAllocation tMemoryAllocation;
 } plTexture;
 
@@ -320,7 +373,6 @@ typedef struct _plBufferDescription
 typedef struct _plBuffer
 {
     plBufferDescription      tDescription;
-    uint32_t                 uHandle;
     plDeviceMemoryAllocation tMemoryAllocation;
 } plBuffer;
 
@@ -330,13 +382,13 @@ typedef struct _plBufferBinding
     uint32_t            uSlot;
     size_t              szSize;
     size_t              szOffset;
-    plBuffer            tBuffer;
+    plBufferHandle      tBuffer;
 } plBufferBinding;
 
 typedef struct _plTextureBinding
 {
-    uint32_t      uSlot;
-    plTextureView tTextureView;
+    uint32_t            uSlot;
+    plTextureViewHandle tTextureView;
 } plTextureBinding;
 
 typedef struct _plDynamicBinding
@@ -358,13 +410,11 @@ typedef struct _plBindGroupLayout
 typedef struct _plBindGroup
 {
     plBindGroupLayout tLayout;
-    uint32_t          uHandle;
 } plBindGroup;
 
 typedef struct _plDrawArea
 {
-    uint32_t     uDrawOffset;
-    uint32_t     uDrawCount;
+    plDrawStream* ptDrawStream;
 } plDrawArea;
 
 typedef struct _plDraw
@@ -374,12 +424,20 @@ typedef struct _plDraw
     uint32_t uIndexBuffer;
     uint32_t uVertexOffset;
     uint32_t uIndexOffset;
-    uint32_t uVertexCount;
-    uint32_t uIndexCount;
+    uint32_t uTriangleCount;
     uint32_t uShaderVariant;
-    uint32_t auBindGroups[3];
-    uint32_t auDynamicBufferOffset[1];
+    uint32_t uBindGroup0;
+    uint32_t uBindGroup1;
+    uint32_t uBindGroup2;
+    uint32_t uDynamicBufferOffset;
 } plDraw;
+
+typedef struct _plDrawStream
+{
+    plDraw    tCurrentDraw;
+    
+    uint32_t* sbtStream;
+} plDrawStream;
 
 typedef struct _plShaderDescription
 {
@@ -393,11 +451,11 @@ typedef struct _plShaderDescription
 typedef struct _plShader
 {
     plShaderDescription tDescription;
-    uint32_t            uHandle;
 } plShader;
 
 typedef struct _plDevice
 {
+    plGraphics* ptGraphics;
     plDeviceMemoryAllocatorI tLocalDedicatedAllocator;
     plDeviceMemoryAllocatorI tStagingUnCachedAllocator;
     void* _pInternalData;
@@ -409,7 +467,29 @@ typedef struct _plGraphics
     uint32_t       uCurrentFrameIndex;
     uint32_t       uFramesInFlight;
     plDrawList3D** sbt3DDrawlists;
-    void*          _pInternalData;
+
+    // shaders
+    plShader* sbtShadersCold;
+    uint32_t* sbtShaderGenerations;
+
+    // buffers
+    plBuffer* sbtBuffersCold;
+    uint32_t* sbtBufferGenerations;
+
+    // textures
+    plTexture* sbtTexturesCold;
+    uint32_t*  sbtTextureGenerations;
+
+    // texture views
+    plTextureView* sbtTextureViewsCold;
+    uint32_t*      sbtTextureViewGenerations;
+
+    // bind groupd
+    plBindGroup* sbtBindGroupsCold;
+    uint32_t*    sbtBindGroupGenerations;
+
+    // platform specific
+    void* _pInternalData;
 } plGraphics;
 
 //-----------------------------------------------------------------------------

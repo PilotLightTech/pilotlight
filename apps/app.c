@@ -57,31 +57,32 @@ typedef struct plAppData_t
     bool           bShowUiStyle;
 
     // texture
-    plTexture     tTexture;
-    plTextureView tTextureView;
-    plTexture     tSkyboxTexture;
-    plTextureView tSkyboxTextureView;
+    plTextureHandle     tTexture;
+    plTextureViewHandle tTextureView;
+    plTextureHandle     tSkyboxTexture;
+    plTextureViewHandle tSkyboxTextureView;
 
     // bind groups
-    plBindGroup atBindGroups0[2];
-    plBindGroup tBindGroup1_0;
-    plBindGroup tBindGroup1_1;
-    plBindGroup tBindGroup1_2;
-    plBindGroup tBindGroup2;
+    plBindGroupHandle atBindGroups0[2];
+    plBindGroupHandle tBindGroup1_0;
+    plBindGroupHandle tBindGroup1_1;
+    plBindGroupHandle tBindGroup1_2;
+    plBindGroupHandle tBindGroup2;
     
     // shaders
-    plShader tShader0;
-    plShader tShader1;
-    plShader tShader2;
+    plShaderHandle tShader0;
+    plShaderHandle tShader1;
+    plShaderHandle tShader2;
 
     // global index/vertex/data buffers
-    plBuffer tVertexBuffer;
-    plBuffer tIndexBuffer;
-    plBuffer tStorageBuffer;
-    plBuffer tShaderSpecificBuffer;
-    plBuffer atGlobalBuffers[2];
+    plBufferHandle tVertexBuffer;
+    plBufferHandle tIndexBuffer;
+    plBufferHandle tStorageBuffer;
+    plBufferHandle tShaderSpecificBuffer;
+    plBufferHandle atGlobalBuffers[2];
 
     // scene
+    plDrawStream tDrawStream;
     plCamera     tMainCamera;
     plDrawList3D t3DDrawList;
 
@@ -123,6 +124,7 @@ const plGraphicsI*             gptGfx               = NULL;
 const plDeviceI*               gptDevice            = NULL;
 const plDebugApiI*             gptDebug             = NULL;
 const plImageApiI*             gptImage             = NULL;
+const plDrawStreamI*           gptStream            = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -148,6 +150,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         gptDevice = ptApiRegistry->first(PL_API_DEVICE);
         gptDebug  = ptApiRegistry->first(PL_API_DEBUG);
         gptImage  = ptApiRegistry->first(PL_API_IMAGE);
+        gptStream = ptApiRegistry->first(PL_API_DRAW_STREAM);
 
         return ptAppData;
     }
@@ -179,6 +182,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptDevice = ptApiRegistry->first(PL_API_DEVICE);
     gptDebug  = ptApiRegistry->first(PL_API_DEBUG);
     gptImage  = ptApiRegistry->first(PL_API_IMAGE);
+    gptStream = ptApiRegistry->first(PL_API_DRAW_STREAM);
 
     // create command queue
     gptGfx->initialize(&ptAppData->tGraphics);
@@ -228,11 +232,11 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f}));
         pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 1.0f, 1.0f}));
         pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 0.0f}));
-        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 0.0f, 0.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 1.0f, 1.0f}));
         pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 0.0f}));
-        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 0.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 1.0f, 1.0f}));
         pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 1.0f}));
-        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 0.0f, 1.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 1.0f, 1.0f}));
     }
     
     // mesh 1
@@ -254,10 +258,10 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         pl_sb_push(ptAppData->sbtVertexPosBuffer, ((plVec3){0.5f, 1.0f, 0.0f}));
 
         // vertices (data - color)
-        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 1.0f, 1.0f}));
-        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 0.0f, 0.0f, 1.0f}));
-        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 1.0f, 0.0f, 1.0f}));
-        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){0.0f, 0.0f, 1.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 1.0f, 1.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 1.0f, 1.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 1.0f, 1.0f, 1.0f}));
+        pl_sb_push(ptAppData->sbtVertexDataBuffer, ((plVec4){1.0f, 1.0f, 1.0f, 1.0f}));
     }
 
     // mesh 2
@@ -448,8 +452,8 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->atBindGroups0[1] = gptDevice->create_bind_group(&ptAppData->tGraphics.tDevice, &tBindGroupLayout0);
     size_t szBufferRangeSize[2] = {sizeof(BindGroup_0), tStorageBufferDesc.uByteSize};
 
-    plBuffer atBindGroup0_buffers0[2] = {ptAppData->atGlobalBuffers[0], ptAppData->tStorageBuffer};
-    plBuffer atBindGroup0_buffers1[2] = {ptAppData->atGlobalBuffers[1], ptAppData->tStorageBuffer};
+    plBufferHandle atBindGroup0_buffers0[2] = {ptAppData->atGlobalBuffers[0], ptAppData->tStorageBuffer};
+    plBufferHandle atBindGroup0_buffers1[2] = {ptAppData->atGlobalBuffers[1], ptAppData->tStorageBuffer};
     gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->atBindGroups0[0], 2, atBindGroup0_buffers0, szBufferRangeSize, 0, NULL);
     gptDevice->update_bind_group(&ptAppData->tGraphics.tDevice, &ptAppData->atBindGroups0[1], 2, atBindGroup0_buffers1, szBufferRangeSize, 0, NULL);
 
@@ -695,7 +699,7 @@ pl_app_shutdown(plAppData* ptAppData)
 {
     gptGfx->destroy_font_atlas(&ptAppData->tFontAtlas);
     pl_cleanup_font_atlas(&ptAppData->tFontAtlas);
-
+    gptStream->cleanup(&ptAppData->tDrawStream);
     gptGfx->cleanup(&ptAppData->tGraphics);
     pl_cleanup_profile_context();
     pl_cleanup_log_context();
@@ -734,6 +738,7 @@ pl_app_update(plAppData* ptAppData)
     }
 
     plIO* ptIO = pl_get_io();
+    plGraphics* ptGraphics = &ptAppData->tGraphics;
 
     gptStats->new_frame();
 
@@ -769,7 +774,7 @@ pl_app_update(plAppData* ptAppData)
         .tCameraView = ptAppData->tMainCamera.tViewMat,
         .tCameraViewProjection = pl_mul_mat4(&ptAppData->tMainCamera.tProjMat, &ptAppData->tMainCamera.tViewMat)
     };
-    memcpy(ptAppData->atGlobalBuffers[ptAppData->tGraphics.uCurrentFrameIndex].tMemoryAllocation.pHostMapped, &tBindGroupBuffer, sizeof(BindGroup_0));
+    memcpy(ptGraphics->sbtBuffersCold[ptAppData->atGlobalBuffers[ptAppData->tGraphics.uCurrentFrameIndex].uIndex].tMemoryAllocation.pHostMapped, &tBindGroupBuffer, sizeof(BindGroup_0));
 
     gptGfx->begin_recording(&ptAppData->tGraphics);
 
@@ -842,64 +847,56 @@ pl_app_update(plAppData* ptAppData)
     plMat4* ptDynamicData2 = (plMat4*)tDynamicBinding2.pcData;
     *ptDynamicData2 = pl_mat4_translate_vec3(ptAppData->tMainCamera.tPos);
 
-    plDraw tDraw[] = {
-        {
-            .uDynamicBuffer = tDynamicBinding2.uBufferHandle,
-            .uVertexBuffer = ptAppData->tVertexBuffer.uHandle,
-            .uIndexBuffer = ptAppData->tIndexBuffer.uHandle,
-            .uIndexCount = 36,
-            .uVertexCount = 8,
-            .uIndexOffset = 12,
-            .auBindGroups = {
-                ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex].uHandle,
-                ptAppData->tBindGroup1_2.uHandle,
-                ptAppData->tBindGroup2.uHandle
-            },
-            .uShaderVariant = ptAppData->tShader2.uHandle,
-            .auDynamicBufferOffset = {
-                tDynamicBinding2.uByteOffset
-            }
-        },
-        {
-            .uDynamicBuffer = tDynamicBinding0.uBufferHandle,
-            .uVertexBuffer = ptAppData->tVertexBuffer.uHandle,
-            .uIndexBuffer = ptAppData->tIndexBuffer.uHandle,
-            .uIndexCount = 6,
-            .uVertexCount = 4,
-            .auBindGroups = {
-                ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex].uHandle,
-                ptAppData->tBindGroup1_0.uHandle,
-                ptAppData->tBindGroup2.uHandle
-            },
-            .uShaderVariant = ptAppData->tShader0.uHandle,
-            .auDynamicBufferOffset = {
-                tDynamicBinding0.uByteOffset
-            }
-        },
-        {
-            .uDynamicBuffer = tDynamicBinding1.uBufferHandle,
-            .uVertexBuffer = ptAppData->tVertexBuffer.uHandle,
-            .uIndexBuffer = ptAppData->tIndexBuffer.uHandle,
-            .uIndexCount = 6,
-            .uVertexCount = 4,
-            .uIndexOffset = 6,
-            .auBindGroups = {
-                ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex].uHandle,
-                ptAppData->tBindGroup1_1.uHandle,
-                ptAppData->tBindGroup2.uHandle
-            },
-            .uShaderVariant = ptAppData->tShader1.uHandle,
-            .auDynamicBufferOffset = {
-                tDynamicBinding1.uByteOffset
-            }
-        }
-    };
+    gptStream->reset(&ptAppData->tDrawStream);
+
+    // object 0
+    gptStream->draw(&ptAppData->tDrawStream, (plDraw)
+    {
+        .uShaderVariant       = ptAppData->tShader2.uIndex,
+        .uDynamicBuffer       = tDynamicBinding2.uBufferHandle,
+        .uVertexBuffer        = ptAppData->tVertexBuffer.uIndex,
+        .uIndexBuffer         = ptAppData->tIndexBuffer.uIndex,
+        .uTriangleCount       = 12,
+        .uIndexOffset         = 12,
+        .uBindGroup0          = ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex].uIndex,
+        .uBindGroup1          = ptAppData->tBindGroup1_2.uIndex,
+        .uBindGroup2          = ptAppData->tBindGroup2.uIndex,
+        .uDynamicBufferOffset = tDynamicBinding2.uByteOffset
+    });
+
+    // object 1
+    gptStream->draw(&ptAppData->tDrawStream, (plDraw)
+    {
+        .uShaderVariant       = ptAppData->tShader0.uIndex,
+        .uDynamicBuffer       = tDynamicBinding0.uBufferHandle,
+        .uVertexBuffer        = ptAppData->tVertexBuffer.uIndex,
+        .uIndexBuffer         = ptAppData->tIndexBuffer.uIndex,
+        .uTriangleCount       = 2,
+        .uBindGroup0          = ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex].uIndex,
+        .uBindGroup1          = ptAppData->tBindGroup1_0.uIndex,
+        .uBindGroup2          = ptAppData->tBindGroup2.uIndex,
+        .uDynamicBufferOffset = tDynamicBinding0.uByteOffset
+    });
+
+    // object 2
+    gptStream->draw(&ptAppData->tDrawStream, (plDraw)
+    {
+        .uShaderVariant       = ptAppData->tShader1.uIndex,
+        .uDynamicBuffer       = tDynamicBinding1.uBufferHandle,
+        .uVertexBuffer        = ptAppData->tVertexBuffer.uIndex,
+        .uIndexBuffer         = ptAppData->tIndexBuffer.uIndex,
+        .uTriangleCount       = 2,
+        .uIndexOffset         = 6,
+        .uBindGroup0          = ptAppData->atBindGroups0[ptAppData->tGraphics.uCurrentFrameIndex].uIndex,
+        .uBindGroup1          = ptAppData->tBindGroup1_1.uIndex,
+        .uBindGroup2          = ptAppData->tBindGroup2.uIndex,
+        .uDynamicBufferOffset = tDynamicBinding1.uByteOffset
+    });
 
     plDrawArea tArea = {
-        .uDrawOffset = 0,
-        .uDrawCount = 3
+       .ptDrawStream = &ptAppData->tDrawStream
     };
-    gptGfx->draw_areas(&ptAppData->tGraphics, 1, &tArea, tDraw);
+    gptGfx->draw_areas(&ptAppData->tGraphics, 1, &tArea);
 
     // submit 3D draw list
     gptGfx->submit_3d_drawlist(&ptAppData->t3DDrawList, pl_get_io()->afMainViewportSize[0], pl_get_io()->afMainViewportSize[1], &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE);
