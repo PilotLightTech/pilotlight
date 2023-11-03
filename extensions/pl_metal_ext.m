@@ -59,18 +59,30 @@ const plFileApiI* gptFile = NULL;
 }
 @end
 
+typedef struct _plMetalDynamicBuffer
+{
+    uint32_t                 uByteOffset;
+    uint32_t                 uHandle;
+    plDeviceMemoryAllocation tMemory;
+    id<MTLBuffer>            tBuffer;
+} plMetalDynamicBuffer;
+
 typedef struct _plFrameGarbage
 {
-    id<MTLTexture>*               sbtTexturesHot;
-    id<MTLSamplerState>*          sbtSamplerStates;
-    id<MTLBuffer>*                sbtBuffers;
+    id<MTLTexture>*           sbtTexturesHot;
+    id<MTLSamplerState>*      sbtSamplerStates;
+    id<MTLBuffer>*            sbtBuffers;
     plDeviceMemoryAllocation* sbtMemory;
 } plFrameGarbage;
 
 typedef struct _plFrameContext
 {
     dispatch_semaphore_t tFrameBoundarySemaphore;
-    plFrameGarbage  tGarbage;
+    plFrameGarbage       tGarbage;
+
+    // dynamic buffer stuff
+    uint32_t              uCurrentBufferIndex;
+    plMetalDynamicBuffer* sbtDynamicBuffers;
 } plFrameContext;
 
 typedef struct _plMetalBuffer
@@ -128,9 +140,6 @@ typedef struct _plGraphicsMetal
     MTLSharedEventListener*  ptSharedEventListener;
     id<MTLBuffer>            tStagingBuffer;
     plDeviceMemoryAllocation tStagingMemory;
-    plDeviceMemoryAllocation tDynamicMemory[2];
-    id<MTLBuffer>            tDynamicBuffer[2];
-    uint32_t                 uDynamicByteOffset;
     
     plFrameContext*   sbFrames;
     plMetalTexture*   sbtTexturesHot;
@@ -243,7 +252,7 @@ pl_get_ui_texture_handle(plGraphics* ptGraphics, plTextureViewHandle* ptTextureV
 }
 
 static plBufferHandle
-pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc)
+pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const char* pcName)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
@@ -258,14 +267,19 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc)
         .tDescription = *ptDesc
     };
 
+    if(pcName)
+    {
+        pl_sprintf(tBuffer.tDescription.acDebugName, "%s", pcName);
+    }
+
     if(ptDesc->tMemory == PL_MEMORY_GPU_CPU)
     {
-        tBuffer.tMemoryAllocation = ptDevice->tStagingUnCachedAllocator.allocate(ptDevice->tStagingUnCachedAllocator.ptInst, 0, ptDesc->uByteSize, 0, ptDesc->pcDebugName);
+        tBuffer.tMemoryAllocation = ptDevice->tStagingUnCachedAllocator.allocate(ptDevice->tStagingUnCachedAllocator.ptInst, 0, ptDesc->uByteSize, 0, ptDesc->acDebugName);
 
         plMetalBuffer tMetalBuffer = {
             .tBuffer = [(id<MTLHeap>)tBuffer.tMemoryAllocation.uHandle newBufferWithLength:ptDesc->uByteSize options:MTLResourceStorageModeShared offset:0]
         };
-        tMetalBuffer.tBuffer.label = [NSString stringWithUTF8String:ptDesc->pcDebugName];
+        tMetalBuffer.tBuffer.label = [NSString stringWithUTF8String:ptDesc->acDebugName];
         memset(tMetalBuffer.tBuffer.contents, 0, ptDesc->uByteSize);
         
         if(ptDesc->puInitialData)
@@ -295,7 +309,7 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc)
                 break;
         }
 
-        tBuffer.tMemoryAllocation = ptDevice->tLocalDedicatedAllocator.allocate(ptDevice->tLocalDedicatedAllocator.ptInst, 0, ptDesc->uByteSize, 0, ptDesc->pcDebugName);
+        tBuffer.tMemoryAllocation = ptDevice->tLocalDedicatedAllocator.allocate(ptDevice->tLocalDedicatedAllocator.ptInst, 0, ptDesc->uByteSize, 0, ptDesc->acDebugName);
 
         id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
         commandBuffer.label = @"Heap Transfer Blit Encoder";
@@ -310,7 +324,7 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc)
         plMetalBuffer tMetalBuffer = {
             .tBuffer = [(id<MTLHeap>)tBuffer.tMemoryAllocation.uHandle newBufferWithLength:ptDesc->uByteSize options:MTLResourceStorageModePrivate offset:0]
         };
-        tMetalBuffer.tBuffer.label = [NSString stringWithUTF8String:ptDesc->pcDebugName];
+        tMetalBuffer.tBuffer.label = [NSString stringWithUTF8String:ptDesc->acDebugName];
 
         [blitEncoder copyFromBuffer:ptMetalGraphics->tStagingBuffer sourceOffset:0 toBuffer:tMetalBuffer.tBuffer destinationOffset:0 size:ptDesc->uByteSize];
 
@@ -323,12 +337,12 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc)
     }
     else if(ptDesc->tMemory == PL_MEMORY_CPU)
     {
-        tBuffer.tMemoryAllocation = ptDevice->tStagingUnCachedAllocator.allocate(ptDevice->tStagingUnCachedAllocator.ptInst, 0, ptDesc->uByteSize, 0, ptDesc->pcDebugName);
+        tBuffer.tMemoryAllocation = ptDevice->tStagingUnCachedAllocator.allocate(ptDevice->tStagingUnCachedAllocator.ptInst, 0, ptDesc->uByteSize, 0, ptDesc->acDebugName);
 
         plMetalBuffer tMetalBuffer = {
             .tBuffer = [(id<MTLHeap>)tBuffer.tMemoryAllocation.uHandle newBufferWithLength:ptDesc->uByteSize options:MTLResourceStorageModeShared offset:0]
         };
-        tMetalBuffer.tBuffer.label = [NSString stringWithUTF8String:ptDesc->pcDebugName];
+        tMetalBuffer.tBuffer.label = [NSString stringWithUTF8String:ptDesc->acDebugName];
         memset(tMetalBuffer.tBuffer.contents, 0, ptDesc->uByteSize);
 
         if(ptDesc->puInitialData)
@@ -564,13 +578,50 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
     plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
+
+    PL_ASSERT(szSize <= PL_MAX_DYNAMIC_DATA_SIZE && "Dynamic data size too large");
+
+    plMetalDynamicBuffer* ptDynamicBuffer = NULL;
+
+    // first call this frame
+    if(ptFrame->uCurrentBufferIndex == UINT32_MAX)
+    {
+        ptFrame->uCurrentBufferIndex = 0;
+        ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[0];
+        ptDynamicBuffer->uByteOffset = 0;
+    }
+    ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
+
+    // check if current block has room
+    if(ptDynamicBuffer->uByteOffset + szSize > PL_DEVICE_ALLOCATION_BLOCK_SIZE)
+    {
+        ptFrame->uCurrentBufferIndex++;
+        
+        // check if we have available block
+        if(ptFrame->uCurrentBufferIndex + 1 > pl_sb_size(ptFrame->sbtDynamicBuffers)) // create new buffer
+        {
+            // dynamic buffer stuff
+            pl_sb_add(ptFrame->sbtDynamicBuffers);
+            ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
+            ptDynamicBuffer->uByteOffset = 0;
+            static char atNameBuffer[PL_MAX_NAME_LENGTH] = {0};
+            pl_sprintf(atNameBuffer, "D-BUF-F%d-%d", (int)ptGraphics->uCurrentFrameIndex, (int)ptFrame->uCurrentBufferIndex);
+
+            ptDynamicBuffer->tMemory = ptGraphics->tDevice.tStagingUnCachedAllocator.allocate(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, 0, PL_DEVICE_ALLOCATION_BLOCK_SIZE, 0, atNameBuffer);
+            ptDynamicBuffer->tBuffer = [(id<MTLHeap>)ptDynamicBuffer->tMemory.uHandle newBufferWithLength:PL_DEVICE_ALLOCATION_BLOCK_SIZE options:MTLResourceStorageModeShared offset:0];
+        }
+
+        ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
+        ptDynamicBuffer->uByteOffset = 0;
+    }
 
     plDynamicBinding tDynamicBinding = {
-        .uBufferHandle = ptGraphics->uCurrentFrameIndex,
-        .uByteOffset   = ptMetalGraphics->uDynamicByteOffset,
-        .pcData        = &ptMetalGraphics->tDynamicBuffer[ptGraphics->uCurrentFrameIndex].contents[ptMetalGraphics->uDynamicByteOffset]
+        .uBufferHandle = ptFrame->uCurrentBufferIndex,
+        .uByteOffset   = ptDynamicBuffer->uByteOffset,
+        .pcData        = &ptDynamicBuffer->tBuffer.contents[ptDynamicBuffer->uByteOffset]
     };
-    ptMetalGraphics->uDynamicByteOffset = pl_align_up((size_t)ptMetalGraphics->uDynamicByteOffset + szSize, 256);
+    ptDynamicBuffer->uByteOffset = pl_align_up((size_t)ptDynamicBuffer->uByteOffset + PL_MAX_DYNAMIC_DATA_SIZE, 256);
     return tDynamicBinding;
 }
 
@@ -816,15 +867,16 @@ pl_initialize_graphics(plGraphics* ptGraphics)
         plFrameContext tFrame = {
             .tFrameBoundarySemaphore = dispatch_semaphore_create(ptGraphics->uFramesInFlight)
         };
+        pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
+        static char atNameBuffer[PL_MAX_NAME_LENGTH] = {0};
+        pl_sprintf(atNameBuffer, "D-BUF-F%d-0", (int)i);
+        tFrame.sbtDynamicBuffers[0].tMemory = ptGraphics->tDevice.tStagingUnCachedAllocator.allocate(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, 0, PL_DEVICE_ALLOCATION_BLOCK_SIZE, 0,atNameBuffer);
+        tFrame.sbtDynamicBuffers[0].tBuffer = [(id<MTLHeap>)tFrame.sbtDynamicBuffers[0].tMemory.uHandle newBufferWithLength:PL_DEVICE_ALLOCATION_BLOCK_SIZE options:MTLResourceStorageModeShared offset:0];
         pl_sb_push(ptMetalGraphics->sbFrames, tFrame);
     }
 
     ptMetalGraphics->tStagingMemory = ptGraphics->tDevice.tStagingUnCachedAllocator.allocate(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, 0, PL_DEVICE_ALLOCATION_BLOCK_SIZE, 0, "staging");
-    ptMetalGraphics->tDynamicMemory[0] = ptGraphics->tDevice.tStagingUnCachedAllocator.allocate(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, 0, PL_DEVICE_ALLOCATION_BLOCK_SIZE, 0, "dynamic 0");
-    ptMetalGraphics->tDynamicMemory[1] = ptGraphics->tDevice.tStagingUnCachedAllocator.allocate(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, 0, PL_DEVICE_ALLOCATION_BLOCK_SIZE, 0, "dynamic 1");
     ptMetalGraphics->tStagingBuffer = [(id<MTLHeap>)ptMetalGraphics->tStagingMemory.uHandle newBufferWithLength:PL_DEVICE_ALLOCATION_BLOCK_SIZE options:MTLResourceStorageModeShared offset:0];
-    ptMetalGraphics->tDynamicBuffer[0] = [(id<MTLHeap>)ptMetalGraphics->tDynamicMemory[0].uHandle newBufferWithLength:PL_DEVICE_ALLOCATION_BLOCK_SIZE options:MTLResourceStorageModeShared offset:0];
-    ptMetalGraphics->tDynamicBuffer[1] = [(id<MTLHeap>)ptMetalGraphics->tDynamicMemory[1].uHandle newBufferWithLength:PL_DEVICE_ALLOCATION_BLOCK_SIZE options:MTLResourceStorageModeShared offset:0];
 }
 
 static void
@@ -868,7 +920,6 @@ pl_begin_frame(plGraphics* ptGraphics)
     pl_begin_profile_sample(__FUNCTION__);
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
-    ptMetalGraphics->uDynamicByteOffset = 0;
 
     // Wait until the inflight command buffer has completed its work
     ptGraphics->uCurrentFrameIndex = (ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;
@@ -951,6 +1002,7 @@ pl_end_gfx_frame(plGraphics* ptGraphics)
     [ptMetalGraphics->tCurrentCommandBuffer presentDrawable:ptMetalGraphics->tCurrentDrawable];
 
     plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
+    ptFrame->uCurrentBufferIndex = UINT32_MAX;
 
     dispatch_semaphore_t semaphore = ptFrame->tFrameBoundarySemaphore;
     [ptMetalGraphics->tCurrentCommandBuffer addCompletedHandler:^(id<MTLCommandBuffer> commandBuffer) {
@@ -990,6 +1042,7 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
     id<MTLDevice> tDevice = ptMetalDevice->tDevice;
+    plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
 
     for(uint32_t i = 0; i < uAreaCount; i++)
     {
@@ -1136,11 +1189,11 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
             {
 
-                [ptMetalGraphics->tCurrentRenderEncoder setVertexBuffer:ptMetalGraphics->tDynamicBuffer[ptStream->sbtStream[uCurrentStreamIndex]]
+                [ptMetalGraphics->tCurrentRenderEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptStream->sbtStream[uCurrentStreamIndex]].tBuffer
                     offset:0
                     atIndex:4];
 
-                [ptMetalGraphics->tCurrentRenderEncoder setFragmentBuffer:ptMetalGraphics->tDynamicBuffer[ptStream->sbtStream[uCurrentStreamIndex]]
+                [ptMetalGraphics->tCurrentRenderEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptStream->sbtStream[uCurrentStreamIndex]].tBuffer
                     offset:0
                     atIndex:4];
 
@@ -1210,6 +1263,7 @@ pl_cleanup(plGraphics* ptGraphics)
         pl_sb_free(ptFrame->tGarbage.sbtTexturesHot);
         pl_sb_free(ptFrame->tGarbage.sbtSamplerStates);
         pl_sb_free(ptFrame->tGarbage.sbtBuffers);
+        pl_sb_free(ptFrame->sbtDynamicBuffers);
     }
 
     pl_sb_free(ptMetalGraphics->sbFrames);
@@ -1606,11 +1660,11 @@ pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFil
         .ptInst      = ptInst
     };
 
-    const plDeviceAllocationRange tRange = {
+    plDeviceAllocationRange tRange = {
         .tAllocation  = tAllocation,
         .tStatus      = PL_DEVICE_ALLOCATION_STATUS_USED,
-        .pcName       = pcName
     };
+    pl_sprintf(tRange.acName, "%s", pcName);
 
     tBlock.tRange = tRange;
     pl_sb_push(ptData->sbtBlocks, tBlock);
@@ -1665,7 +1719,7 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
         if(ptBlock->tRange.tStatus == PL_DEVICE_ALLOCATION_STATUS_FREE && ptBlock->ulSize >= ulSize)
         {
             ptBlock->tRange.tStatus = PL_DEVICE_ALLOCATION_STATUS_USED;
-            ptBlock->tRange.pcName = pcName;
+            pl_sprintf(ptBlock->tRange.acName, "%s", pcName);
             tAllocation.pHostMapped = ptBlock->pHostMapped;
             tAllocation.uHandle = ptBlock->ulAddress;
             tAllocation.ulOffset = 0;
@@ -1681,8 +1735,8 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
 
     plDeviceAllocationRange tRange = {
         .tStatus      = PL_DEVICE_ALLOCATION_STATUS_USED,
-        .pcName       = pcName
     };
+    pl_sprintf(tRange.acName, "%s", pcName);
 
     MTLHeapDescriptor* ptHeapDescriptor = [MTLHeapDescriptor new];
     ptHeapDescriptor.storageMode = MTLStorageModeShared;
@@ -1709,7 +1763,7 @@ pl_free_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemory
         if(ptBlock->ulAddress == ptAllocation->uHandle)
         {
             ptBlock->tRange.tStatus = PL_DEVICE_ALLOCATION_STATUS_FREE;
-            ptBlock->tRange.pcName = "";
+            memset(ptBlock->tRange.acName, 0, PL_MAX_NAME_LENGTH);
         }
     }
 }

@@ -38,10 +38,6 @@ Index of this file:
     #define VK_USE_PLATFORM_XCB_KHR
 #endif
 
-#ifndef PL_DEVICE_ALLOCATION_BLOCK_SIZE
-    #define PL_DEVICE_ALLOCATION_BLOCK_SIZE 268435456
-#endif
-
 #ifndef PL_DEVICE_LOCAL_LEVELS
     #define PL_DEVICE_LOCAL_LEVELS 8
 #endif
@@ -94,6 +90,7 @@ typedef struct _pl3DVulkanBufferInfo
 
 typedef struct _plVulkanDynamicBuffer
 {
+    uint32_t                 uByteOffset;
     uint32_t                 uHandle;
     VkBuffer                 tBuffer;
     plDeviceMemoryAllocation tMemory;
@@ -149,12 +146,16 @@ typedef struct _plFrameGarbage
 
 typedef struct _plFrameContext
 {
-    VkSemaphore     tImageAvailable;
-    VkSemaphore     tRenderFinish;
-    VkFence         tInFlight;
-    VkCommandPool   tCmdPool;
-    VkCommandBuffer tCmdBuf;
-    plFrameGarbage  tGarbage;
+    VkSemaphore           tImageAvailable;
+    VkSemaphore           tRenderFinish;
+    VkFence               tInFlight;
+    VkCommandPool         tCmdPool;
+    VkCommandBuffer       tCmdBuf;
+    plFrameGarbage        tGarbage;
+
+    // dynamic buffer stuff
+    uint32_t               uCurrentBufferIndex;
+    plVulkanDynamicBuffer* sbtDynamicBuffers;
 } plFrameContext;
 
 typedef struct _plVulkanSwapchain
@@ -226,9 +227,7 @@ typedef struct _plVulkanGraphics
     plVulkanBindGroupLayout* sbtBindGroupLayouts;
 
     VkDescriptorSetLayout tDynamicDescriptorSetLayout;
-    plVulkanDynamicBuffer tDynamicBuffers[2];
-    uint32_t              uDynamicByteOffset;
-
+    
     // staging buffer
     VkBuffer                 tStagingBuffer;
     plDeviceMemoryAllocation tStagingMemory;
@@ -529,7 +528,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
 }
 
 static plBufferHandle
-pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc)
+pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const char* pcName)
 {
     plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
     plVulkanGraphics* ptVulkanGraphics = ptDevice->ptGraphics->_pInternalData;
@@ -543,6 +542,11 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc)
     plBuffer tBuffer = {
         .tDescription = *ptDesc
     };
+
+    if(pcName)
+    {
+        pl_sprintf(tBuffer.tDescription.acDebugName, "%s", pcName);
+    }
 
     plVulkanBuffer tVulkanBuffer = {0};
 
@@ -573,9 +577,9 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc)
     vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, tVulkanBuffer.tBuffer, &tMemRequirements);
 
     if(ptDesc->tMemory == PL_MEMORY_GPU_CPU || ptDesc->tMemory == PL_MEMORY_CPU)
-        tBuffer.tMemoryAllocation = ptDevice->tStagingUnCachedAllocator.allocate(ptDevice->tStagingUnCachedAllocator.ptInst, tMemRequirements.memoryTypeBits, tMemRequirements.size, tMemRequirements.alignment, ptDesc->pcDebugName);
+        tBuffer.tMemoryAllocation = ptDevice->tStagingUnCachedAllocator.allocate(ptDevice->tStagingUnCachedAllocator.ptInst, tMemRequirements.memoryTypeBits, tMemRequirements.size, tMemRequirements.alignment, ptDesc->acDebugName);
     else
-        tBuffer.tMemoryAllocation = ptDevice->tLocalDedicatedAllocator.allocate(ptDevice->tLocalDedicatedAllocator.ptInst, tMemRequirements.memoryTypeBits, tMemRequirements.size, tMemRequirements.alignment, ptDesc->pcDebugName);
+        tBuffer.tMemoryAllocation = ptDevice->tLocalDedicatedAllocator.allocate(ptDevice->tLocalDedicatedAllocator.ptInst, tMemRequirements.memoryTypeBits, tMemRequirements.size, tMemRequirements.alignment, ptDesc->acDebugName);
 
     PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, tVulkanBuffer.tBuffer, (VkDeviceMemory)tBuffer.tMemoryAllocation.uHandle, tBuffer.tMemoryAllocation.ulOffset));
     tVulkanBuffer.pcData = tBuffer.tMemoryAllocation.pHostMapped;
@@ -640,15 +644,89 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
     plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
+    plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
 
-    plVulkanBuffer* ptBuffer = &ptVulkanGraphics->sbtBuffersHot[ptVulkanGraphics->tDynamicBuffers[ptGraphics->uCurrentFrameIndex].uHandle];
+    PL_ASSERT(szSize <= PL_MAX_DYNAMIC_DATA_SIZE && "Dynamic data size too large");
+
+    plVulkanDynamicBuffer* ptDynamicBuffer = NULL;
+
+    // first call this frame
+    if(ptFrame->uCurrentBufferIndex == UINT32_MAX)
+    {
+        ptFrame->uCurrentBufferIndex = 0;
+        ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[0];
+        ptDynamicBuffer->uByteOffset = 0;
+    }
+    ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
+    
+    // check if current block has room
+    if(ptDynamicBuffer->uByteOffset + szSize > PL_DEVICE_ALLOCATION_BLOCK_SIZE)
+    {
+        ptFrame->uCurrentBufferIndex++;
+        
+        // check if we have available block
+        if(ptFrame->uCurrentBufferIndex + 1 > pl_sb_size(ptFrame->sbtDynamicBuffers)) // create new buffer
+        {
+            // dynamic buffer stuff
+            pl_sb_add(ptFrame->sbtDynamicBuffers);
+            ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
+
+            plBufferDescription tStagingBufferDescription0 = {
+                .tMemory              = PL_MEMORY_CPU,
+                .tUsage               = PL_BUFFER_USAGE_UNIFORM,
+                .uByteSize            = PL_DEVICE_ALLOCATION_BLOCK_SIZE,
+                .uInitialDataByteSize = 0,
+                .puInitialData        = NULL
+            };
+            pl_sprintf(tStagingBufferDescription0.acDebugName, "D-BUF-F%d-%d", (int)ptGraphics->uCurrentFrameIndex, (int)ptFrame->uCurrentBufferIndex);
+
+            plBufferHandle tStagingBuffer0 = pl_create_buffer(&ptGraphics->tDevice, &tStagingBufferDescription0, NULL);
+
+            ptDynamicBuffer->uHandle = tStagingBuffer0.uIndex;
+            ptDynamicBuffer->tBuffer = ptVulkanGraphics->sbtBuffersHot[tStagingBuffer0.uIndex].tBuffer;
+            ptDynamicBuffer->tMemory = ptGraphics->sbtBuffersCold[tStagingBuffer0.uIndex].tMemoryAllocation;
+            ptDynamicBuffer->uByteOffset = 0;
+
+            // allocate descriptor sets
+            const VkDescriptorSetAllocateInfo tDynamicAllocInfo = {
+                .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool     = ptVulkanGraphics->tDescriptorPool,
+                .descriptorSetCount = 1,
+                .pSetLayouts        = &ptVulkanGraphics->tDynamicDescriptorSetLayout
+            };
+            PL_VULKAN(vkAllocateDescriptorSets(ptVulkanDevice->tLogicalDevice, &tDynamicAllocInfo, &ptDynamicBuffer->tDescriptorSet));
+
+            VkDescriptorBufferInfo tDescriptorInfo0 = {
+                .buffer = ptDynamicBuffer->tBuffer,
+                .offset = 0,
+                .range  = PL_MAX_DYNAMIC_DATA_SIZE
+            };
+
+            VkWriteDescriptorSet tWrite0 = {
+                .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstBinding      = 0,
+                .dstArrayElement = 0,
+                .descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                .descriptorCount = 1,
+                .dstSet          = ptDynamicBuffer->tDescriptorSet,
+                .pBufferInfo     = &tDescriptorInfo0,
+                .pNext           = NULL,
+            };
+            vkUpdateDescriptorSets(ptVulkanDevice->tLogicalDevice, 1, &tWrite0, 0, NULL);
+        }
+
+        ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
+        ptDynamicBuffer->uByteOffset = 0;
+    }
+
+    plVulkanBuffer* ptBuffer = &ptVulkanGraphics->sbtBuffersHot[ptDynamicBuffer->uHandle];
 
     plDynamicBinding tDynamicBinding = {
-        .uBufferHandle = ptGraphics->uCurrentFrameIndex,
-        .uByteOffset   = ptVulkanGraphics->uDynamicByteOffset,
-        .pcData        = &ptBuffer->pcData[ptVulkanGraphics->uDynamicByteOffset]
+        .uBufferHandle = ptFrame->uCurrentBufferIndex,
+        .uByteOffset   = ptDynamicBuffer->uByteOffset,
+        .pcData        = &ptBuffer->pcData[ptDynamicBuffer->uByteOffset]
     };
-    ptVulkanGraphics->uDynamicByteOffset = (uint32_t)pl_align_up((size_t)ptVulkanGraphics->uDynamicByteOffset + szSize, ptVulkanDevice->tDeviceProps.limits.minUniformBufferOffsetAlignment);
+    ptDynamicBuffer->uByteOffset = (uint32_t)pl_align_up((size_t)ptDynamicBuffer->uByteOffset + PL_MAX_DYNAMIC_DATA_SIZE, ptVulkanDevice->tDeviceProps.limits.minUniformBufferOffsetAlignment);
     return tDynamicBinding;
 }
 
@@ -1943,43 +2021,6 @@ pl_initialize_graphics(plGraphics* ptGraphics)
         PL_VULKAN(vkCreateFramebuffer(ptVulkanDevice->tLogicalDevice, &tFrameBufferInfo, NULL, &ptVulkanGfx->tSwapchain.sbtFrameBuffers[i]));
     }
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~frame resources~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    const VkCommandPoolCreateInfo tFrameCommandPoolInfo = {
-        .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .queueFamilyIndex = ptVulkanDevice->iGraphicsQueueFamily,
-        .flags            = 0
-    };
-    
-    const VkSemaphoreCreateInfo tSemaphoreInfo = {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
-    };
-
-    const VkFenceCreateInfo tFenceInfo = {
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .flags = VK_FENCE_CREATE_SIGNALED_BIT
-    };
-
-    pl_sb_resize(ptVulkanGfx->sbFrames, ptGraphics->uFramesInFlight);
-    for(uint32_t i = 0; i < ptGraphics->uFramesInFlight; i++)
-    {
-        plFrameContext tFrame = {0};
-        PL_VULKAN(vkCreateSemaphore(ptVulkanDevice->tLogicalDevice, &tSemaphoreInfo, NULL, &tFrame.tImageAvailable));
-        PL_VULKAN(vkCreateSemaphore(ptVulkanDevice->tLogicalDevice, &tSemaphoreInfo, NULL, &tFrame.tRenderFinish));
-        PL_VULKAN(vkCreateFence(ptVulkanDevice->tLogicalDevice, &tFenceInfo, NULL, &tFrame.tInFlight));
-        PL_VULKAN(vkCreateCommandPool(ptVulkanDevice->tLogicalDevice, &tFrameCommandPoolInfo, NULL, &tFrame.tCmdPool));
-
-        const VkCommandBufferAllocateInfo tAllocInfo = {
-            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .commandPool        = tFrame.tCmdPool,
-            .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-            .commandBufferCount = 1
-        };
-
-        PL_VULKAN(vkAllocateCommandBuffers(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tFrame.tCmdBuf));  
-        ptVulkanGfx->sbFrames[i] = tFrame;
-    }
-
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~main descriptor pool~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     VkDescriptorPoolSize atPoolSizes[] =
@@ -2017,6 +2058,104 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     };
     pl_initialize_vulkan(&tVulkanInit);
 
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~frame resources~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // dynamic buffer stuff
+    VkDescriptorSetLayoutBinding tBinding =  {
+        .binding         = 0,
+        .descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+        .descriptorCount = 1,
+        .stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
+        .pImmutableSamplers = NULL
+    };
+
+    const VkDescriptorSetLayoutCreateInfo tDescriptorSetLayoutInfo = {
+        .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = 1,
+        .pBindings    = &tBinding,
+    };
+    PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &ptVulkanGfx->tDynamicDescriptorSetLayout));
+
+    const VkCommandPoolCreateInfo tFrameCommandPoolInfo = {
+        .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .queueFamilyIndex = ptVulkanDevice->iGraphicsQueueFamily,
+        .flags            = 0
+    };
+    
+    const VkSemaphoreCreateInfo tSemaphoreInfo = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+    };
+
+    const VkFenceCreateInfo tFenceInfo = {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags = VK_FENCE_CREATE_SIGNALED_BIT
+    };
+
+    pl_sb_resize(ptVulkanGfx->sbFrames, ptGraphics->uFramesInFlight);
+    for(uint32_t i = 0; i < ptGraphics->uFramesInFlight; i++)
+    {
+        plFrameContext tFrame = {0};
+        PL_VULKAN(vkCreateSemaphore(ptVulkanDevice->tLogicalDevice, &tSemaphoreInfo, NULL, &tFrame.tImageAvailable));
+        PL_VULKAN(vkCreateSemaphore(ptVulkanDevice->tLogicalDevice, &tSemaphoreInfo, NULL, &tFrame.tRenderFinish));
+        PL_VULKAN(vkCreateFence(ptVulkanDevice->tLogicalDevice, &tFenceInfo, NULL, &tFrame.tInFlight));
+        PL_VULKAN(vkCreateCommandPool(ptVulkanDevice->tLogicalDevice, &tFrameCommandPoolInfo, NULL, &tFrame.tCmdPool));
+
+        const VkCommandBufferAllocateInfo tAllocInfo = {
+            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool        = tFrame.tCmdPool,
+            .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = 1
+        };
+
+        PL_VULKAN(vkAllocateCommandBuffers(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tFrame.tCmdBuf));  
+        
+        // dynamic buffer stuff
+        pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
+        plBufferDescription tStagingBufferDescription0 = {
+            .tMemory              = PL_MEMORY_CPU,
+            .tUsage               = PL_BUFFER_USAGE_UNIFORM,
+            .uByteSize            = PL_DEVICE_ALLOCATION_BLOCK_SIZE,
+            .uInitialDataByteSize = 0,
+            .puInitialData        = NULL
+        };
+        pl_sprintf(tStagingBufferDescription0.acDebugName, "D-BUF-F%d-0", (int)i);
+
+        plBufferHandle tStagingBuffer0 = pl_create_buffer(&ptGraphics->tDevice, &tStagingBufferDescription0, NULL);
+
+        tFrame.sbtDynamicBuffers[0].uHandle = tStagingBuffer0.uIndex;
+        tFrame.sbtDynamicBuffers[0].tBuffer = ptVulkanGfx->sbtBuffersHot[tStagingBuffer0.uIndex].tBuffer;
+        tFrame.sbtDynamicBuffers[0].tMemory = ptGraphics->sbtBuffersCold[tStagingBuffer0.uIndex].tMemoryAllocation;
+        tFrame.sbtDynamicBuffers[0].uByteOffset = 0;
+
+          // allocate descriptor sets
+        const VkDescriptorSetAllocateInfo tDynamicAllocInfo = {
+            .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool     = ptVulkanGfx->tDescriptorPool,
+            .descriptorSetCount = 1,
+            .pSetLayouts        = &ptVulkanGfx->tDynamicDescriptorSetLayout
+        };
+        PL_VULKAN(vkAllocateDescriptorSets(ptVulkanDevice->tLogicalDevice, &tDynamicAllocInfo, &tFrame.sbtDynamicBuffers[0].tDescriptorSet));
+
+        VkDescriptorBufferInfo tDescriptorInfo0 = {
+            .buffer = tFrame.sbtDynamicBuffers[0].tBuffer,
+            .offset = 0,
+            .range  = PL_MAX_DYNAMIC_DATA_SIZE
+        };
+
+        VkWriteDescriptorSet tWrite0 = {
+            .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstBinding      = 0,
+            .dstArrayElement = 0,
+            .descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .descriptorCount = 1,
+            .dstSet          = tFrame.sbtDynamicBuffers[0].tDescriptorSet,
+            .pBufferInfo     = &tDescriptorInfo0,
+            .pNext           = NULL,
+        };
+        vkUpdateDescriptorSets(ptVulkanDevice->tLogicalDevice, 1, &tWrite0, 0, NULL);
+
+        ptVulkanGfx->sbFrames[i] = tFrame;
+    }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~3d setup~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2114,105 +2253,9 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     pl_sb_resize(ptVulkanGfx->sbt3DBufferInfo, ptGraphics->uFramesInFlight);
     pl_sb_resize(ptVulkanGfx->sbtLineBufferInfo, ptGraphics->uFramesInFlight);
 
-    // dynamic buffer stuff
-    VkDescriptorSetLayoutBinding tBinding =  {
-        .binding         = 0,
-        .descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-        .descriptorCount = 1,
-        .stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
-        .pImmutableSamplers = NULL
-    };
-
-    const VkDescriptorSetLayoutCreateInfo tDescriptorSetLayoutInfo = {
-        .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = 1,
-        .pBindings    = &tBinding,
-    };
-    PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &ptVulkanGfx->tDynamicDescriptorSetLayout));
-
     PL_FREE(__glsl_shader_vert_3d_spv);
     PL_FREE(__glsl_shader_vert_3d_line_spv);
     PL_FREE(__glsl_shader_frag_3d_spv);
-
-    {
-        const plBufferDescription tStagingBufferDescription0 = {
-            .pcDebugName          = "dynamic buffer 0",
-            .tMemory              = PL_MEMORY_CPU,
-            .tUsage               = PL_BUFFER_USAGE_UNIFORM,
-            .uByteSize            = PL_DEVICE_ALLOCATION_BLOCK_SIZE,
-            .uInitialDataByteSize = 0,
-            .puInitialData        = NULL
-        };
-
-        const plBufferDescription tStagingBufferDescription1 = {
-            .pcDebugName          = "dynamic buffer 1",
-            .tMemory              = PL_MEMORY_CPU,
-            .tUsage               = PL_BUFFER_USAGE_UNIFORM,
-            .uByteSize            = PL_DEVICE_ALLOCATION_BLOCK_SIZE,
-            .uInitialDataByteSize = 0,
-            .puInitialData        = NULL
-        };
-        plBufferHandle tStagingBuffer0 = pl_create_buffer(&ptGraphics->tDevice, &tStagingBufferDescription0);
-        plBufferHandle tStagingBuffer1 = pl_create_buffer(&ptGraphics->tDevice, &tStagingBufferDescription1);
-
-        ptVulkanGfx->tDynamicBuffers[0].uHandle = tStagingBuffer0.uIndex;
-        ptVulkanGfx->tDynamicBuffers[0].tBuffer = ptVulkanGfx->sbtBuffersHot[tStagingBuffer0.uIndex].tBuffer;
-        ptVulkanGfx->tDynamicBuffers[0].tMemory = ptGraphics->sbtBuffersCold[tStagingBuffer0.uIndex].tMemoryAllocation;
-
-        ptVulkanGfx->tDynamicBuffers[1].uHandle = tStagingBuffer1.uIndex;
-        ptVulkanGfx->tDynamicBuffers[1].tBuffer = ptVulkanGfx->sbtBuffersHot[tStagingBuffer1.uIndex].tBuffer;
-        ptVulkanGfx->tDynamicBuffers[1].tMemory = ptGraphics->sbtBuffersCold[tStagingBuffer1.uIndex].tMemoryAllocation;
-
-        // allocate descriptor sets
-        const VkDescriptorSetAllocateInfo tAllocInfo = {
-            .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool     = ptVulkanGfx->tDescriptorPool,
-            .descriptorSetCount = 1,
-            .pSetLayouts        = &ptVulkanGfx->tDynamicDescriptorSetLayout
-        };
-
-        PL_VULKAN(vkAllocateDescriptorSets(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &ptVulkanGfx->tDynamicBuffers[0].tDescriptorSet));
-        PL_VULKAN(vkAllocateDescriptorSets(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &ptVulkanGfx->tDynamicBuffers[1].tDescriptorSet));
-
-
-        VkDescriptorBufferInfo tDescriptorInfo0 = {
-            .buffer = ptVulkanGfx->tDynamicBuffers[0].tBuffer,
-            .offset = 0,
-            .range  = 1024
-        };
-
-        VkDescriptorBufferInfo tDescriptorInfo1 = {
-            .buffer = ptVulkanGfx->tDynamicBuffers[1].tBuffer,
-            .offset = 0,
-            .range  = 1024
-        };
-
-        VkWriteDescriptorSet tWrite0 = {
-            .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstBinding      = 0,
-            .dstArrayElement = 0,
-            .descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-            .descriptorCount = 1,
-            .dstSet          = ptVulkanGfx->tDynamicBuffers[0].tDescriptorSet,
-            .pBufferInfo     = &tDescriptorInfo0,
-            .pNext           = NULL,
-        };
-
-        VkWriteDescriptorSet tWrite1 = {
-            .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstBinding      = 0,
-            .dstArrayElement = 0,
-            .descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-            .descriptorCount = 1,
-            .dstSet          = ptVulkanGfx->tDynamicBuffers[1].tDescriptorSet,
-            .pBufferInfo     = &tDescriptorInfo1,
-            .pNext           = NULL,
-        };
-
-        vkUpdateDescriptorSets(ptVulkanDevice->tLogicalDevice, 1, &tWrite0, 0, NULL);
-        vkUpdateDescriptorSets(ptVulkanDevice->tLogicalDevice, 1, &tWrite1, 0, NULL);
-    }
-
 }
 
 static bool
@@ -2223,7 +2266,6 @@ pl_begin_frame(plGraphics* ptGraphics)
 
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    ptVulkanGfx->uDynamicByteOffset = 0;
 
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
 
@@ -2358,6 +2400,7 @@ pl_end_gfx_frame(plGraphics* ptGraphics)
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
+    ptCurrentFrame->uCurrentBufferIndex = UINT32_MAX;
 
     // submit
     const VkPipelineStageFlags atWaitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
@@ -2576,6 +2619,7 @@ pl_shutdown(plGraphics* ptGraphics)
         pl_sb_free(ptFrame->tGarbage.sbtTextureViews);
         pl_sb_free(ptFrame->tGarbage.sbtBuffersHot);
         pl_sb_free(ptFrame->tGarbage.sbtSamplersHot);
+        pl_sb_free(ptFrame->sbtDynamicBuffers);
     }
 
     // swapchain stuff
@@ -2735,7 +2779,7 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
             {
-                ptVulkanDynamicBuffer = &ptVulkanGfx->tDynamicBuffers[ptStream->sbtStream[uCurrentStreamIndex]];
+                ptVulkanDynamicBuffer = &ptCurrentFrame->sbtDynamicBuffers[ptStream->sbtStream[uCurrentStreamIndex]];
                 vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, 3, 1, &ptVulkanDynamicBuffer->tDescriptorSet, 1, &uDynamicBufferOffset);
                 uCurrentStreamIndex++;
             }
@@ -3616,14 +3660,13 @@ pl__transfer_data_to_image(plDevice* ptDevice, plTextureHandle* ptDest, size_t s
     plTexture* ptDestTexture = &ptGraphics->sbtTexturesCold[ptDest->uIndex];
 
     const plBufferDescription tStagingBufferDescription = {
-        .pcDebugName          = "image staging",
         .tMemory              = PL_MEMORY_GPU_CPU,
         .tUsage               = PL_BUFFER_USAGE_UNSPECIFIED,
         .uByteSize            = (uint32_t)szDataSize,
         .uInitialDataByteSize = (uint32_t)szDataSize,
         .puInitialData        = pData
     };
-    plBufferHandle tStagingBuffer = pl_create_buffer(ptDevice, &tStagingBufferDescription);
+    plBufferHandle tStagingBuffer = pl_create_buffer(ptDevice, &tStagingBufferDescription, "image staging");
     plVulkanBuffer* ptVulkanStagingBuffer = &ptVulkanGraphics->sbtBuffersHot[tStagingBuffer.uIndex];
     
 
@@ -3923,11 +3966,11 @@ pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFil
         .ulSize    = tAllocInfo.allocationSize,
     };
 
-    const plDeviceAllocationRange tRange = {
+    plDeviceAllocationRange tRange = {
         .tAllocation  = tAllocation,
-        .tStatus      = PL_DEVICE_ALLOCATION_STATUS_USED,
-        .pcName       = pcName
+        .tStatus      = PL_DEVICE_ALLOCATION_STATUS_USED
     };
+    pl_sprintf(tRange.acName, "%s", pcName);
 
     if(pcName)
         pl_set_vulkan_object_name(ptData->ptDevice, tAllocation.uHandle, VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT, pcName);
@@ -3983,7 +4026,7 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
         if(ptBlock->tRange.tStatus == PL_DEVICE_ALLOCATION_STATUS_FREE && ptBlock->ulSize >= ulSize)
         {
             ptBlock->tRange.tStatus = PL_DEVICE_ALLOCATION_STATUS_USED;
-            ptBlock->tRange.pcName = pcName;
+            pl_sprintf(ptBlock->tRange.acName, "%s", pcName);
             tAllocation.pHostMapped = ptBlock->pHostMapped;
             tAllocation.uHandle = ptBlock->ulAddress;
             tAllocation.ulOffset = 0;
@@ -4000,9 +4043,9 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
     };
 
     plDeviceAllocationRange tRange = {
-        .tStatus      = PL_DEVICE_ALLOCATION_STATUS_USED,
-        .pcName       = pcName
+        .tStatus      = PL_DEVICE_ALLOCATION_STATUS_USED
     };
+    pl_sprintf(tRange.acName, "%s", pcName);
 
     uint32_t uMemoryType = 0u;
     bool bFound = false;
@@ -4052,7 +4095,7 @@ pl_free_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemory
         if(ptBlock->ulAddress == ptAllocation->uHandle)
         {
             ptBlock->tRange.tStatus = PL_DEVICE_ALLOCATION_STATUS_FREE;
-            ptBlock->tRange.pcName = "";
+            memset(ptBlock->tRange.acName, 0, PL_MAX_NAME_LENGTH);
         }
     }
 }

@@ -201,14 +201,13 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         .tShaderSpecific = {0}
     };
     const plBufferDescription tShaderBufferDesc = {
-        .pcDebugName          = "shader buffer",
         .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_UNIFORM,
         .uByteSize            = sizeof(BindGroup_2),
         .uInitialDataByteSize = sizeof(BindGroup_2),
         .puInitialData        = (uint8_t*)&tShaderSpecificBufferDesc
     };
-    ptAppData->tShaderSpecificBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tShaderBufferDesc);
+    ptAppData->tShaderSpecificBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tShaderBufferDesc, "shader buffer");
 
     // mesh 0
     {
@@ -324,36 +323,33 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     }
     
     const plBufferDescription tIndexBufferDesc = {
-        .pcDebugName          = "index buffer",
         .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_INDEX,
         .uByteSize            = sizeof(uint32_t) * pl_sb_size(ptAppData->sbuIndexBuffer),
         .uInitialDataByteSize = sizeof(uint32_t) * pl_sb_size(ptAppData->sbuIndexBuffer),
         .puInitialData        = (uint8_t*)ptAppData->sbuIndexBuffer
     };
-    ptAppData->tIndexBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tIndexBufferDesc);
+    ptAppData->tIndexBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tIndexBufferDesc, "index buffer");
     pl_sb_free(ptAppData->sbuIndexBuffer);
 
     const plBufferDescription tVertexBufferDesc = {
-        .pcDebugName          = "vertex buffer",
         .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_VERTEX,
         .uByteSize            = sizeof(plVec3) * pl_sb_size(ptAppData->sbtVertexPosBuffer),
         .uInitialDataByteSize = sizeof(plVec3) * pl_sb_size(ptAppData->sbtVertexPosBuffer),
         .puInitialData        = (uint8_t*)ptAppData->sbtVertexPosBuffer
     };
-    ptAppData->tVertexBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tVertexBufferDesc);
+    ptAppData->tVertexBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tVertexBufferDesc, "vertex buffer");
     pl_sb_free(ptAppData->sbtVertexPosBuffer);
 
     const plBufferDescription tStorageBufferDesc = {
-        .pcDebugName          = "storage buffer",
         .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_STORAGE,
         .uByteSize            = sizeof(plVec4) * pl_sb_size(ptAppData->sbtVertexDataBuffer),
         .uInitialDataByteSize = sizeof(plVec4) * pl_sb_size(ptAppData->sbtVertexDataBuffer),
         .puInitialData        = (uint8_t*)ptAppData->sbtVertexDataBuffer
     };
-    ptAppData->tStorageBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tStorageBufferDesc);
+    ptAppData->tStorageBuffer = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &tStorageBufferDesc, "storage buffer");
     pl_sb_free(ptAppData->sbtVertexDataBuffer);
 
     {
@@ -425,15 +421,14 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     }
 
     const plBufferDescription atGlobalBuffersDesc = {
-        .pcDebugName          = "global buffer",
         .tMemory              = PL_MEMORY_CPU,
         .tUsage               = PL_BUFFER_USAGE_UNIFORM,
         .uByteSize            = sizeof(BindGroup_0),
         .uInitialDataByteSize = 0,
         .puInitialData        = NULL
     };
-    ptAppData->atGlobalBuffers[0] = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &atGlobalBuffersDesc);
-    ptAppData->atGlobalBuffers[1] = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &atGlobalBuffersDesc);
+    ptAppData->atGlobalBuffers[0] = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &atGlobalBuffersDesc, "global buffer 0");
+    ptAppData->atGlobalBuffers[1] = gptDevice->create_buffer(&ptAppData->tGraphics.tDevice, &atGlobalBuffersDesc, "global buffer 1");
 
     plBindGroupLayout tBindGroupLayout0 = {
         .uBufferCount  = 2,

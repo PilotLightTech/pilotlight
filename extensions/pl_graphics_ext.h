@@ -24,6 +24,10 @@ Index of this file:
     #define PL_DEVICE_ALLOCATION_BLOCK_SIZE 268435456
 #endif
 
+#ifndef PL_MAX_DYNAMIC_DATA_SIZE
+    #define PL_MAX_DYNAMIC_DATA_SIZE 512
+#endif
+
 #ifndef PL_DEVICE_LOCAL_LEVELS
     #define PL_DEVICE_LOCAL_LEVELS 8
 #endif
@@ -137,7 +141,7 @@ typedef struct _plDrawStreamI
 typedef struct _plDeviceI
 {
     // resources
-    plBufferHandle       (*create_buffer)      (plDevice* ptDevice, const plBufferDescription* ptDesc);
+    plBufferHandle       (*create_buffer)      (plDevice* ptDevice, const plBufferDescription* ptDesc, const char* pcName);
     plTextureHandle      (*create_texture)     (plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName);
     plTextureViewHandle  (*create_texture_view)(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, plTextureHandle* ptTexture, const char* pcName);
     plBindGroupHandle    (*create_bind_group)  (plDevice* ptDevice, plBindGroupLayout* ptLayout);
@@ -294,7 +298,7 @@ typedef struct _plDeviceMemoryAllocation
 
 typedef struct _plDeviceAllocationRange
 {
-    const char*              pcName;
+    char                     acName[PL_MAX_NAME_LENGTH];
     plDeviceAllocationStatus tStatus;
     plDeviceMemoryAllocation tAllocation;
 } plDeviceAllocationRange;
@@ -362,7 +366,7 @@ typedef struct _plTexture
 
 typedef struct _plBufferDescription
 {
-    const char*    pcDebugName;
+    char           acDebugName[PL_MAX_NAME_LENGTH];
     plBufferUsage  tUsage;
     plMemoryMode   tMemory;
     uint32_t       uByteSize;

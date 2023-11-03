@@ -822,10 +822,10 @@ pl__show_device_memory(bool* bValue)
                 if(pl_was_last_item_active())
                     pl_add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  fTotalWidth, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
 
-                if(pl_was_last_item_hovered() && ptBlock->tRange.pcName)
+                if(pl_was_last_item_hovered() && ptBlock->tRange.acName[0] != 0)
                 {
                     pl_begin_tooltip();
-                    pl_text(ptBlock->tRange.pcName);
+                    pl_text(ptBlock->tRange.acName);
                     pl_text("Size: %lu", ptBlock->tRange.tAllocation.ulSize);
                     pl_end_tooltip();
                 }
@@ -963,10 +963,10 @@ pl__show_device_memory(bool* bValue)
                     pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
                 }
 
-                if(pl_was_last_item_hovered() && ptBlock->tRange.pcName)
+                if(pl_was_last_item_hovered() && ptBlock->tRange.acName[0] != 0)
                 {
                     pl_begin_tooltip();
-                    pl_text(ptBlock->tRange.pcName);
+                    pl_text(ptBlock->tRange.acName);
                     pl_text("Size: %lu", ptBlock->tRange.tAllocation.ulSize);
                     pl_end_tooltip();
                 }
