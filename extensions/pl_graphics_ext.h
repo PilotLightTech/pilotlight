@@ -146,6 +146,7 @@ typedef struct _plDeviceI
     plTextureViewHandle  (*create_texture_view)(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, plTextureHandle* ptTexture, const char* pcName);
     plBindGroupHandle    (*create_bind_group)  (plDevice* ptDevice, plBindGroupLayout* ptLayout);
     void                 (*update_bind_group)  (plDevice* ptDevice, plBindGroupHandle* ptGroup, uint32_t uBufferCount, plBufferHandle* atBuffers, size_t* aszBufferRanges, uint32_t uTextureViewCount, plTextureViewHandle* atTextureViews);
+    void                 (*update_texture)     (plDevice* ptDevice, plTextureHandle tHandle, size_t szSize, const void* pData);
 
     plDynamicBinding (*allocate_dynamic_data)(plDevice* ptDevice, size_t szSize);
 

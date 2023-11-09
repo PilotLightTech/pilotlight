@@ -277,6 +277,7 @@ static void                  pl__create_swapchain(plGraphics* ptGraphics, uint32
 static uint32_t              pl__find_memory_type_(VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties);
 static void                  pl__transfer_data_to_buffer(plDevice* ptDevice, VkBuffer tDest, size_t szSize, const void* pData);
 static void                  pl__transfer_data_to_image(plDevice* ptDevice, plTextureHandle* ptDest, size_t szDataSize, const void* pData);
+static void                  pl__update_image_data     (plDevice* ptDevice, plTextureHandle* ptDest, size_t szDataSize, const void* pData);
 
 // device memory allocators
 static plDeviceMemoryAllocation pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
@@ -728,6 +729,16 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
     };
     ptDynamicBuffer->uByteOffset = (uint32_t)pl_align_up((size_t)ptDynamicBuffer->uByteOffset + PL_MAX_DYNAMIC_DATA_SIZE, ptVulkanDevice->tDeviceProps.limits.minUniformBufferOffsetAlignment);
     return tDynamicBinding;
+}
+
+static void
+pl_update_texture(plDevice* ptDevice, plTextureHandle tHandle, size_t szSize, const void* pData)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
+
+    pl__update_image_data(ptDevice, &tHandle, szSize, pData);
 }
 
 static plTextureHandle
@@ -3652,6 +3663,159 @@ pl__transfer_data_to_buffer(plDevice* ptDevice, VkBuffer tDest, size_t szSize, c
 }
 
 static void
+pl__update_image_data(plDevice* ptDevice, plTextureHandle* ptDest, size_t szDataSize, const void* pData)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
+    plTexture* ptDestTexture = &ptGraphics->sbtTexturesCold[ptDest->uIndex];
+
+    const plBufferDescription tStagingBufferDescription = {
+        .tMemory              = PL_MEMORY_GPU_CPU,
+        .tUsage               = PL_BUFFER_USAGE_UNSPECIFIED,
+        .uByteSize            = (uint32_t)szDataSize,
+        .uInitialDataByteSize = (uint32_t)szDataSize,
+        .puInitialData        = pData
+    };
+    plBufferHandle tStagingBuffer = pl_create_buffer(ptDevice, &tStagingBufferDescription, "image staging");
+    plVulkanBuffer* ptVulkanStagingBuffer = &ptVulkanGraphics->sbtBuffersHot[tStagingBuffer.uIndex];
+    
+    // flush memory (incase we are using non-coherent memory)
+    const VkMappedMemoryRange tMemoryRange = {
+        .sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+        .memory = (VkDeviceMemory)ptGraphics->sbtBuffersCold[tStagingBuffer.uIndex].tMemoryAllocation.uHandle,
+        .size   = VK_WHOLE_SIZE
+    };
+    PL_VULKAN(vkFlushMappedMemoryRanges(ptVulkanDevice->tLogicalDevice, 1, &tMemoryRange));
+
+    const VkImageSubresourceRange tSubResourceRange = {
+        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel   = 0,
+        .levelCount     = ptDestTexture->tDesc.uMips,
+        .baseArrayLayer = 0,
+        .layerCount     = ptDestTexture->tDesc.uLayers
+    };
+
+    VkCommandBuffer tCommandBuffer = {0};
+    
+    const VkCommandBufferAllocateInfo tAllocInfo = {
+        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandPool        = ptVulkanDevice->tCmdPool,
+        .commandBufferCount = 1u,
+    };
+    vkAllocateCommandBuffers(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tCommandBuffer);
+
+    const VkCommandBufferBeginInfo tBeginInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+    };
+
+    vkBeginCommandBuffer(tCommandBuffer, &tBeginInfo);
+
+    // transition destination image layout to transfer destination
+    pl__transition_image_layout(tCommandBuffer, ptVulkanGraphics->sbtTexturesHot[ptDest->uIndex].tImage, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+
+    // copy regions
+
+    for(uint32_t i = 0; i < ptDestTexture->tDesc.uLayers; i++)
+    {
+        const VkBufferImageCopy tCopyRegion = {
+            .bufferOffset                    = i * szDataSize / ptDestTexture->tDesc.uLayers,
+            .bufferRowLength                 = 0u,
+            .bufferImageHeight               = 0u,
+            .imageSubresource.aspectMask     = tSubResourceRange.aspectMask,
+            .imageSubresource.mipLevel       = 0,
+            .imageSubresource.baseArrayLayer = i,
+            // .imageSubresource.layerCount     = ptDest->tDesc.uLayers,
+            .imageSubresource.layerCount     = 1,
+            .imageExtent                     = {.width = (uint32_t)ptDestTexture->tDesc.tDimensions.x, .height = (uint32_t)ptDestTexture->tDesc.tDimensions.y, .depth = (uint32_t)ptDestTexture->tDesc.tDimensions.z},
+        };
+        vkCmdCopyBufferToImage(tCommandBuffer, ptVulkanStagingBuffer->tBuffer, ptVulkanGraphics->sbtTexturesHot[ptDest->uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &tCopyRegion);
+    }
+    // generate mips
+    if(ptDestTexture->tDesc.uMips > 1)
+    {
+        // check if format supports linear blitting
+        VkFormatProperties tFormatProperties = {0};
+        vkGetPhysicalDeviceFormatProperties(ptVulkanDevice->tPhysicalDevice, pl__vulkan_format(ptDestTexture->tDesc.tFormat), &tFormatProperties);
+
+        if(tFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)
+        {
+            VkImageSubresourceRange tMipSubResourceRange = {
+                .aspectMask     = tSubResourceRange.aspectMask,
+                .baseArrayLayer = 0,
+                .layerCount     = ptDestTexture->tDesc.uLayers,
+                .levelCount     = 1
+            };
+
+            int iMipWidth = (int)ptDestTexture->tDesc.tDimensions.x;
+            int iMipHeight = (int)ptDestTexture->tDesc.tDimensions.y;
+
+            for(uint32_t i = 1; i < ptDestTexture->tDesc.uMips; i++)
+            {
+                tMipSubResourceRange.baseMipLevel = i - 1;
+
+                pl__transition_image_layout(tCommandBuffer, ptVulkanGraphics->sbtTexturesHot[ptDest->uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+                VkImageBlit tBlit = {
+                    .srcOffsets[1].x               = iMipWidth,
+                    .srcOffsets[1].y               = iMipHeight,
+                    .srcOffsets[1].z               = 1,
+                    .srcSubresource.aspectMask     = tSubResourceRange.aspectMask,
+                    .srcSubresource.mipLevel       = i - 1,
+                    .srcSubresource.baseArrayLayer = 0,
+                    .srcSubresource.layerCount     = 1,     
+                    .dstOffsets[1].x               = 1,
+                    .dstOffsets[1].y               = 1,
+                    .dstOffsets[1].z               = 1,
+                    .dstSubresource.aspectMask     = tSubResourceRange.aspectMask,
+                    .dstSubresource.mipLevel       = i,
+                    .dstSubresource.baseArrayLayer = 0,
+                    .dstSubresource.layerCount     = 1,
+                };
+
+                if(iMipWidth > 1)  tBlit.dstOffsets[1].x = iMipWidth / 2;
+                if(iMipHeight > 1) tBlit.dstOffsets[1].y = iMipHeight / 2;
+
+                vkCmdBlitImage(tCommandBuffer, ptVulkanGraphics->sbtTexturesHot[ptDest->uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, ptVulkanGraphics->sbtTexturesHot[ptDest->uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &tBlit, VK_FILTER_LINEAR);
+
+                pl__transition_image_layout(tCommandBuffer, ptVulkanGraphics->sbtTexturesHot[ptDest->uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+
+                if(iMipWidth > 1)  iMipWidth /= 2;
+                if(iMipHeight > 1) iMipHeight /= 2;
+            }
+
+            tMipSubResourceRange.baseMipLevel = ptDestTexture->tDesc.uMips - 1;
+            pl__transition_image_layout(tCommandBuffer, ptVulkanGraphics->sbtTexturesHot[ptDest->uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+        }
+        else
+        {
+            PL_ASSERT(false && "format does not support linear blitting");
+        }
+    }
+    else
+    {
+        // transition destination image layout to shader usage
+        pl__transition_image_layout(tCommandBuffer, ptVulkanGraphics->sbtTexturesHot[ptDest->uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    }
+
+    PL_VULKAN(vkEndCommandBuffer(tCommandBuffer));
+    const VkSubmitInfo tSubmitInfo = {
+        .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1u,
+        .pCommandBuffers    = &tCommandBuffer,
+    };
+
+    PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
+    PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
+    vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
+    pl_submit_buffer_for_deletion(ptDevice, &tStagingBuffer);
+}
+
+static void
 pl__transfer_data_to_image(plDevice* ptDevice, plTextureHandle* ptDest, size_t szDataSize, const void* pData)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
@@ -3669,7 +3833,6 @@ pl__transfer_data_to_image(plDevice* ptDevice, plTextureHandle* ptDest, size_t s
     plBufferHandle tStagingBuffer = pl_create_buffer(ptDevice, &tStagingBufferDescription, "image staging");
     plVulkanBuffer* ptVulkanStagingBuffer = &ptVulkanGraphics->sbtBuffersHot[tStagingBuffer.uIndex];
     
-
     // flush memory (incase we are using non-coherent memory)
     const VkMappedMemoryRange tMemoryRange = {
         .sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
@@ -4144,6 +4307,7 @@ pl_load_device_api(void)
         .create_texture_view              = pl_create_texture_view,
         .create_bind_group                = pl_create_bind_group,
         .update_bind_group                = pl_update_bind_group,
+        .update_texture                   = pl_update_texture,
         .allocate_dynamic_data            = pl_allocate_dynamic_data,
         .submit_buffer_for_deletion       = pl_submit_buffer_for_deletion,
         .submit_texture_for_deletion      = pl_submit_texture_for_deletion,

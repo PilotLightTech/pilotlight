@@ -360,6 +360,61 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
     return tHandle;
 }
 
+static void
+pl_update_texture(plDevice* ptDevice, plTextureHandle tHandle, size_t szSize, const void* pData)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+
+    // copy from cpu to gpu once staging buffer is free
+    [ptMetalGraphics->tStagingEvent notifyListener:ptMetalGraphics->ptSharedEventListener
+                        atValue:ptMetalGraphics->uNextFenceValue++
+                        block:^(id<MTLSharedEvent> sharedEvent, uint64_t value) {
+        if(pData)
+            memcpy(ptMetalGraphics->tStagingBuffer.contents, pData, szSize);
+        sharedEvent.signaledValue = ptMetalGraphics->uNextFenceValue;
+    }];
+
+    // wait for cpu to gpu copying to take place before continuing
+    while(true)
+    {
+        if(ptMetalGraphics->tStagingEvent.signaledValue == ptMetalGraphics->uNextFenceValue)
+            break;
+    }
+
+    id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
+    commandBuffer.label = @"Heap Transfer Blit Encoder";
+
+    [commandBuffer encodeWaitForEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue++];
+
+    plMetalTexture tMetalTexture = ptMetalGraphics->sbtTexturesHot[tHandle.uIndex];
+    plTexture tTexture = ptGraphics->sbtTexturesCold[tHandle.uIndex];
+
+    id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
+    blitEncoder.label = @"Heap Transfer Blit Encoder";
+
+    NSUInteger uBytesPerRow = szSize / tTexture.tDesc.tDimensions.y;
+    uBytesPerRow = uBytesPerRow / tTexture.tDesc.uLayers;
+    MTLOrigin tOrigin;
+    tOrigin.x = 0;
+    tOrigin.y = 0;
+    tOrigin.z = 0;
+    MTLSize tSize;
+    tSize.width = tTexture.tDesc.tDimensions.x;
+    tSize.height = tTexture.tDesc.tDimensions.y;
+    tSize.depth = tTexture.tDesc.tDimensions.z;
+    for(uint32_t i = 0; i < tTexture.tDesc.uLayers; i++)
+        [blitEncoder copyFromBuffer:ptMetalGraphics->tStagingBuffer sourceOffset:uBytesPerRow * tTexture.tDesc.tDimensions.y * i sourceBytesPerRow:uBytesPerRow sourceBytesPerImage:0 sourceSize:tSize toTexture:tMetalTexture.tTexture destinationSlice:i destinationLevel:0 destinationOrigin:tOrigin];
+
+    if(tTexture.tDesc.uMips > 1)
+        [blitEncoder generateMipmapsForTexture:tMetalTexture.tTexture];
+
+    [blitEncoder endEncoding];
+    [commandBuffer encodeSignalEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue];
+    [commandBuffer commit];
+}
+
 static plTextureHandle
 pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName)
 {
@@ -1812,6 +1867,7 @@ pl_load_device_api(void)
         .create_texture                   = pl_create_texture,
         .create_bind_group                = pl_create_bind_group,
         .update_bind_group                = pl_update_bind_group,
+        .update_texture                   = pl_update_texture,
         .allocate_dynamic_data            = pl_allocate_dynamic_data,
         .submit_buffer_for_deletion       = pl_submit_buffer_for_deletion,
         .submit_texture_for_deletion      = pl_submit_texture_for_deletion,
