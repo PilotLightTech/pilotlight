@@ -988,6 +988,11 @@ pl__load_library(plSharedLibrary* ptLibrary, const char* pcName, const char* pcT
         ptWin32Library->tHandle = LoadLibraryA(acTemporaryName);
         if(ptWin32Library->tHandle)
             ptLibrary->bValid = true;
+        else
+        {
+            DWORD iLastError = GetLastError();
+            printf("LoadLibaryA() failed with error code : %d\n", iLastError);
+        }
     }
 
     return ptLibrary->bValid;
