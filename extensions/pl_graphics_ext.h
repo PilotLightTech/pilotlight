@@ -480,6 +480,7 @@ typedef struct _plGraphics
     // buffers
     plBuffer* sbtBuffersCold;
     uint32_t* sbtBufferGenerations;
+    uint32_t* sbtBufferFreeIndices;
 
     // textures
     plTexture* sbtTexturesCold;
