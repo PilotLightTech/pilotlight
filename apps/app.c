@@ -808,15 +808,15 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowUiDemo)
     {
         pl_begin_profile_sample("ui demo");
-        pl_demo(&ptAppData->bShowUiDemo);
+        pl_show_demo_window(&ptAppData->bShowUiDemo);
         pl_end_profile_sample();
     }
         
     if(ptAppData->bShowUiStyle)
-        pl_style(&ptAppData->bShowUiStyle);
+        pl_show_style_editor_window(&ptAppData->bShowUiStyle);
 
     if(ptAppData->bShowUiDebug)
-        pl_debug(&ptAppData->bShowUiDebug);
+        pl_show_debug_window(&ptAppData->bShowUiDebug);
 
     pl_add_line(ptAppData->ptFgDrawLayer, (plVec2){0}, (plVec2){300.0f, 500.0f}, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 1.0f);
 
