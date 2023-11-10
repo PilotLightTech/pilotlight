@@ -17,6 +17,7 @@ Index of this file:
 #include "pilotlight.h"
 #include "pl_image_ext.h"
 #include "stb_image.h"
+#include "stb_image_write.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -26,8 +27,13 @@ const plImageApiI*
 pl_load_image_api(void)
 {
     static const plImageApiI tApi = {
-        .load = stbi_load,
-        .free = stbi_image_free
+        .load      = stbi_load,
+        .free      = stbi_image_free,
+        .write_png = stbi_write_png,
+        .write_bmp = stbi_write_bmp,
+        .write_tga = stbi_write_tga,
+        .write_jpg = stbi_write_jpg,
+        .write_hdr = stbi_write_hdr
     };
     return &tApi;
 }
@@ -63,3 +69,10 @@ pl_unload_image_ext(plApiRegistryApiI* ptApiRegistry)
 #define STBI_REALLOC(x, y) PL_REALLOC(x, y)
 #include "stb_image.h"
 #undef STB_IMAGE_IMPLEMENTATION
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define STBIW_MALLOC(x) PL_ALLOC(x)
+#define STBIW_FREE(x) PL_FREE(x)
+#define STBIW_REALLOC(x, y) PL_REALLOC(x, y)
+#include "stb_image_write.h"
+#undef STB_IMAGE_WRITE_IMPLEMENTATION

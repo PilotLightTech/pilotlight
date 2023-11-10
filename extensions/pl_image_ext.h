@@ -36,8 +36,16 @@ const plImageApiI* pl_load_image_api(void);
 
 typedef struct _plImageApiI
 {
+    // read
     unsigned char* (*load)(char const* pcFilename, int* piX, int* piY, int* piChannels, int iDesiredChannels);
     void           (*free)(void* pRetValueFromLoad);
+
+    // write
+     int (*write_png)(char const *pcFileName, int iW, int iH, int iComp, const void *pData, int iByteStride);
+     int (*write_bmp)(char const *pcFileName, int iW, int iH, int iComp, const void *pData);
+     int (*write_tga)(char const *pcFileName, int iW, int iH, int iComp, const void *pData);
+     int (*write_jpg)(char const *pcFileName, int iW, int iH, int iComp, const void *pData, int iQuality);
+     int (*write_hdr)(char const *pcFileName, int iW, int iH, int iComp, const float *pfData);
 } plImageApiI;
 
 #endif // PL_IMAGE_EXT_H
