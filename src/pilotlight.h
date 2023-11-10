@@ -25,13 +25,25 @@ Index of this file:
 #define PILOTLIGHT_VERSION    "0.3.0"
 #define PILOTLIGHT_VERSION_NUM 000300
 
-#if defined(_MSC_VER) //  Microsoft 
-    #define PL_EXPORT __declspec(dllexport)
-#elif defined(__GNUC__) //  GCC
-    #define PL_EXPORT __attribute__((visibility("default")))
-#else //  do nothing and hope for the best?
-    #define PL_EXPORT
-    #pragma warning Unknown dynamic link import/export semantics.
+#ifdef __cplusplus
+    #if defined(_MSC_VER) //  Microsoft 
+        #define PL_EXPORT extern "C" __declspec(dllexport)
+    #elif defined(__GNUC__) //  GCC
+        #define PL_EXPORT extern "C" __attribute__((visibility("default")))
+    #else //  do nothing and hope for the best?
+        #define PL_EXPORT
+        #pragma warning Unknown dynamic link import/export semantics.
+    #endif
+#else
+
+    #if defined(_MSC_VER) //  Microsoft 
+        #define PL_EXPORT __declspec(dllexport)
+    #elif defined(__GNUC__) //  GCC
+        #define PL_EXPORT __attribute__((visibility("default")))
+    #else //  do nothing and hope for the best?
+        #define PL_EXPORT
+        #pragma warning Unknown dynamic link import/export semantics.
+    #endif
 #endif
 
 //-----------------------------------------------------------------------------
