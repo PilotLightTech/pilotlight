@@ -206,7 +206,7 @@ pl__show_profiling(bool* bValue)
         {1.0f, 0.0f, 1.0f, 0.75}
     };
 
-    if(pl_begin_window("Profiling", bValue, false))
+    if(pl_begin_window("Profiling (WIP)", bValue, false))
     {
         const plVec2 tWindowSize = pl_get_window_size();
         const plVec2 tWindowPos = pl_get_window_pos();
@@ -327,8 +327,12 @@ pl__show_profiling(bool* bValue)
                     pl_layout_space_push(0.0f, 0.0f, (float)(dMaxTime * dConvertToPixel), 50.0f);
                     const plVec2 tTimelineSize = {(float)(dMaxTime * dConvertToPixel), tWindowEnd.y - tParentCursorPos.y - 15.0f};
                     const plVec2 tTimelineBarSize = {(float)(dMaxTime * dConvertToPixel), 50.0f};
-                    pl_invisible_button("hitregion", tTimelineSize);
-                    bool bHovered = pl_was_last_item_hovered();
+                    // pl_invisible_button("hitregion", tTimelineSize);
+
+                    // bool bHovered = pl_was_last_item_hovered();
+                    const plVec2 tMousePos = pl_get_mouse_pos();
+                    const plRect tWidgetRect = pl_calculate_rect(tCursorPos, tTimelineSize);
+                    bool bHovered = pl_rect_contains_point(&tWidgetRect, tMousePos);
                     if(bHovered)
                     {
                         
@@ -343,7 +347,6 @@ pl__show_profiling(bool* bValue)
                             const double dNewConvertToPixel = tChildWindowSize.x / dInitialVisibleTime;
                             const double dNewConvertToTime = dInitialVisibleTime / tChildWindowSize.x;
 
-                            const plVec2 tMousePos = pl_get_mouse_pos();
                             const double dTimeHovered = (double)dConvertToTime * (double)(tMousePos.x - tParentCursorPos.x + pl_get_window_scroll().x);
                             const float fConservedRatio = (tMousePos.x - tParentCursorPos.x) / tChildWindowSize.x;
                             const double dOldPixelStart = dConvertToPixel * dTimeHovered;
@@ -468,7 +471,7 @@ pl__show_profiling(bool* bValue)
                         pl_temp_allocator_reset(&tTempAllocator);
                         if(pl_was_last_item_hovered())
                         {
-                            bHovered = false;
+                            // bHovered = false;
                             pl_begin_tooltip();
                             pl_color_text(atColors[ptSamples[i].uDepth % 6], "%s", ptSamples[i].pcName);
                             pl_text("Duration:   %0.7f seconds", ptSamples[i].dDuration);
@@ -481,7 +484,6 @@ pl__show_profiling(bool* bValue)
 
                     if(bHovered)
                     {
-                        const plVec2 tMousePos = pl_get_mouse_pos();
                         pl_add_line(ptFgLayer, (plVec2){tMousePos.x, tCursorPos.y}, (plVec2){tMousePos.x, tWindowEnd.y}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
                         char* pcText = pl_temp_allocator_sprintf(&tTempAllocator, "%0.6f", (double)dConvertToTime * (double)(tMousePos.x - tParentCursorPos.x + pl_get_window_scroll().x));
                         pl_add_text(ptFgLayer, pl_get_default_font(), 13.0f, tMousePos, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, pcText, 0.0f);
@@ -817,16 +819,23 @@ pl__show_device_memory(bool* bValue)
                     fUsedWidth = 10.0f;
 
                 pl_invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
-                pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f});
-                pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
+                if(ptBlock->tRange.tAllocation.ulSize == 0)
+                    pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
+                else
+                {
+                    pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f});
+                    pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
+                }
                 if(pl_was_last_item_active())
                     pl_add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  fTotalWidth, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
 
-                if(pl_was_last_item_hovered() && ptBlock->tRange.acName[0] != 0)
+                if(pl_was_last_item_hovered())
                 {
                     pl_begin_tooltip();
-                    pl_text(ptBlock->tRange.acName);
-                    pl_text("Size: %lu", ptBlock->tRange.tAllocation.ulSize);
+                    if(ptBlock->tRange.acName[0] != 0)
+                        pl_text(ptBlock->tRange.acName);
+                    pl_text("Used Size: %lu", ptBlock->tRange.tAllocation.ulSize);
+                    pl_text("Block Size: %lu", ptBlock->ulSize);
                     pl_end_tooltip();
                 }
 
@@ -953,21 +962,33 @@ pl__show_device_memory(bool* bValue)
                 pl_invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
                 if(pl_was_last_item_active())
                 {
-                    pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f});
-                    pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
-                    pl_add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  fTotalWidth, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
+                    if(ptBlock->tRange.tStatus == PL_DEVICE_ALLOCATION_STATUS_FREE)
+                        pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
+                    else
+                    {
+                        pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f});
+                        pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
+                        pl_add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x +  fTotalWidth, 30.0f + tCursor0.y}, (plVec4){ 1.f, 1.0f, 1.0f, 1.0f}, 2.0f);
+                    }
                 }
                 else
                 {
-                    pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f});
-                    pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
+                    if(ptBlock->tRange.tStatus == PL_DEVICE_ALLOCATION_STATUS_FREE)
+                        pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.234f, 0.703f, 0.234f, 1.0f});
+                    else
+                    {
+                        pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.703f, 0.234f, 1.0f});
+                        pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fUsedWidth, 30.0f + tCursor0.y}, (plVec4){0.703f, 0.234f, 0.234f, 1.0f});
+                    }
                 }
 
-                if(pl_was_last_item_hovered() && ptBlock->tRange.acName[0] != 0)
+                if(pl_was_last_item_hovered())
                 {
                     pl_begin_tooltip();
-                    pl_text(ptBlock->tRange.acName);
-                    pl_text("Size: %lu", ptBlock->tRange.tAllocation.ulSize);
+                    if(ptBlock->tRange.acName[0] != 0)
+                        pl_text(ptBlock->tRange.acName);
+                    pl_text("Used Size: %lu", ptBlock->tRange.tAllocation.ulSize);
+                    pl_text("Block Size: %lu", ptBlock->ulSize);
                     pl_end_tooltip();
                 }
 
