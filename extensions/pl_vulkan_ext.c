@@ -335,12 +335,12 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
             if(ptBufferInfo->tVertexBuffer)
             {
                 ptGfx->tDevice.tStagingUnCachedAllocator.free(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, &ptBufferInfo->tVertexMemory);
-                pl_sb_push(ptCurrentFrame->tGarbage.sbtBuffersHot, ptBufferInfo->tVertexBuffer);
+                pl_sb_push(ptCurrentFrame->tGarbage.sbtRawBuffers, ptBufferInfo->tVertexBuffer);
             }
 
             const VkBufferCreateInfo tBufferCreateInfo = {
                 .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                .size        = uVtxBufSzNeeded * 2,
+                .size        = pl_max(PL_DEVICE_ALLOCATION_BLOCK_SIZE, ptBufferInfo->tVertexMemory.ulSize * 2),
                 .usage       = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE
             };
@@ -349,7 +349,9 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
             VkMemoryRequirements tMemoryRequirements = {0};
             vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexBuffer, &tMemoryRequirements);
 
-            ptBufferInfo->tVertexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, "solid 3d vertex buffer");
+            char acBuffer[256] = {0};
+            pl_sprintf(acBuffer, "3D-SOLID_VTX-F%d", (int)ptGfx->uCurrentFrameIndex);
+            ptBufferInfo->tVertexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
             PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexBuffer, (VkDeviceMemory)ptBufferInfo->tVertexMemory.uHandle, ptBufferInfo->tVertexMemory.ulOffset));
         }
 
@@ -370,12 +372,12 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
             if(ptBufferInfo->tIndexBuffer)
             {
                 ptGfx->tDevice.tStagingUnCachedAllocator.free(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, &ptBufferInfo->tIndexMemory);
-                pl_sb_push(ptCurrentFrame->tGarbage.sbtBuffersHot, ptBufferInfo->tIndexBuffer);
+                pl_sb_push(ptCurrentFrame->tGarbage.sbtRawBuffers, ptBufferInfo->tIndexBuffer);
             }
 
             const VkBufferCreateInfo tBufferCreateInfo = {
                 .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                .size        = uIdxBufSzNeeded * 2,
+                .size        = pl_max(PL_DEVICE_ALLOCATION_BLOCK_SIZE, ptBufferInfo->tIndexMemory.ulSize * 2),
                 .usage       = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE
             };
@@ -384,7 +386,9 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
             VkMemoryRequirements tMemoryRequirements = {0};
             vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexBuffer, &tMemoryRequirements);
 
-            ptBufferInfo->tIndexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, "solid 3d index buffer");
+            char acBuffer[256] = {0};
+            pl_sprintf(acBuffer, "3D-SOLID_IDX-F%d", (int)ptGfx->uCurrentFrameIndex);
+            ptBufferInfo->tIndexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
             PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexBuffer, (VkDeviceMemory)ptBufferInfo->tIndexMemory.uHandle, ptBufferInfo->tIndexMemory.ulOffset));
         }
 
@@ -441,21 +445,24 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
             if(ptBufferInfo->tVertexBuffer)
             {
                 ptGfx->tDevice.tStagingUnCachedAllocator.free(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, &ptBufferInfo->tVertexMemory);
-                pl_sb_push(ptCurrentFrame->tGarbage.sbtBuffersHot, ptBufferInfo->tVertexBuffer);
+                pl_sb_push(ptCurrentFrame->tGarbage.sbtRawBuffers, ptBufferInfo->tVertexBuffer);
             }
 
             const VkBufferCreateInfo tBufferCreateInfo = {
                 .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                .size        = uVtxBufSzNeeded * 2,
+                .size        = pl_max(PL_DEVICE_ALLOCATION_BLOCK_SIZE, ptBufferInfo->tVertexMemory.ulSize * 2),
                 .usage       = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE
             };
+            // PL_DEVICE_ALLOCATION_BLOCK_SIZE
             PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &tBufferCreateInfo, NULL, &ptBufferInfo->tVertexBuffer));
 
             VkMemoryRequirements tMemoryRequirements = {0};
             vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexBuffer, &tMemoryRequirements);
 
-            ptBufferInfo->tVertexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, "solid 3d vertex buffer");
+            char acBuffer[256] = {0};
+            pl_sprintf(acBuffer, "3D-LINE_VTX-F%d", (int)ptGfx->uCurrentFrameIndex);
+            ptBufferInfo->tVertexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
             PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexBuffer, (VkDeviceMemory)ptBufferInfo->tVertexMemory.uHandle, ptBufferInfo->tVertexMemory.ulOffset));
         }
 
@@ -476,12 +483,12 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
             if(ptBufferInfo->tIndexBuffer)
             {
                 ptGfx->tDevice.tStagingUnCachedAllocator.free(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, &ptBufferInfo->tIndexMemory);
-                pl_sb_push(ptCurrentFrame->tGarbage.sbtBuffersHot, ptBufferInfo->tIndexBuffer);
+                pl_sb_push(ptCurrentFrame->tGarbage.sbtRawBuffers, ptBufferInfo->tIndexBuffer);
             }
 
             const VkBufferCreateInfo tBufferCreateInfo = {
                 .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                .size        = uIdxBufSzNeeded * 2,
+                .size        = pl_max(PL_DEVICE_ALLOCATION_BLOCK_SIZE, ptBufferInfo->tIndexMemory.ulSize * 2),
                 .usage       = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE
             };
@@ -490,7 +497,9 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
             VkMemoryRequirements tMemoryRequirements = {0};
             vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexBuffer, &tMemoryRequirements);
 
-            ptBufferInfo->tIndexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, "solid 3d index buffer");
+            char acBuffer[256] = {0};
+            pl_sprintf(acBuffer, "3D-LINE_IDX-F%d", (int)ptGfx->uCurrentFrameIndex);
+            ptBufferInfo->tIndexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
             PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexBuffer, (VkDeviceMemory)ptBufferInfo->tIndexMemory.uHandle, ptBufferInfo->tIndexMemory.ulOffset));
         }
 
