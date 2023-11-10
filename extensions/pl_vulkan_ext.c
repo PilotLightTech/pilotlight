@@ -268,6 +268,7 @@ static pl3DVulkanPipelineEntry* pl__get_3d_pipelines(plGraphics* ptGfx, VkRender
 
 static void                  pl_set_vulkan_object_name(plDevice* ptDevice, uint64_t uObjectHandle, VkDebugReportObjectTypeEXT tObjectType, const char* pcName);
 static plFrameContext*       pl__get_frame_resources(plGraphics* ptGraphics);
+static plFrameContext*       pl__get_next_frame_resources(plGraphics* ptGraphics);
 static VkSampleCountFlagBits pl__get_max_sample_count(plDevice* ptDevice);
 static VkFormat              pl__find_supported_format(plDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount);
 static VkFormat              pl__find_depth_format(plDevice* ptDevice);
@@ -3214,7 +3215,7 @@ pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight, 
 
     PL_VULKAN(vkCreateSwapchainKHR(ptVulkanDevice->tLogicalDevice, &tCreateSwapchainInfo, NULL, &ptSwapchainOut->tSwapChain));
 
-    plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
+    plFrameContext* ptFrame = pl__get_next_frame_resources(ptGraphics);
     if(tOldSwapChain)
     {
         
@@ -3993,6 +3994,13 @@ pl__get_frame_resources(plGraphics* ptGraphics)
 {
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     return &ptVulkanGfx->sbFrames[ptGraphics->uCurrentFrameIndex];
+}
+
+static plFrameContext*
+pl__get_next_frame_resources(plGraphics* ptGraphics)
+{
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    return &ptVulkanGfx->sbFrames[(ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight];
 }
 
 static void
