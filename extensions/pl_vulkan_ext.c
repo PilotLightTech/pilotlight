@@ -345,12 +345,14 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE
             };
             PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &tBufferCreateInfo, NULL, &ptBufferInfo->tVertexBuffer));
+            
 
             VkMemoryRequirements tMemoryRequirements = {0};
             vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexBuffer, &tMemoryRequirements);
 
             char acBuffer[256] = {0};
             pl_sprintf(acBuffer, "3D-SOLID_VTX-F%d", (int)ptGfx->uCurrentFrameIndex);
+            pl_set_vulkan_object_name(&ptGfx->tDevice, (uint64_t)ptBufferInfo->tVertexBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, acBuffer);
             ptBufferInfo->tVertexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
             PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexBuffer, (VkDeviceMemory)ptBufferInfo->tVertexMemory.uHandle, ptBufferInfo->tVertexMemory.ulOffset));
         }
@@ -388,6 +390,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
 
             char acBuffer[256] = {0};
             pl_sprintf(acBuffer, "3D-SOLID_IDX-F%d", (int)ptGfx->uCurrentFrameIndex);
+            pl_set_vulkan_object_name(&ptGfx->tDevice, (uint64_t)ptBufferInfo->tIndexBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, acBuffer);
             ptBufferInfo->tIndexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
             PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexBuffer, (VkDeviceMemory)ptBufferInfo->tIndexMemory.uHandle, ptBufferInfo->tIndexMemory.ulOffset));
         }
@@ -462,6 +465,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
 
             char acBuffer[256] = {0};
             pl_sprintf(acBuffer, "3D-LINE_VTX-F%d", (int)ptGfx->uCurrentFrameIndex);
+            pl_set_vulkan_object_name(&ptGfx->tDevice, (uint64_t)ptBufferInfo->tVertexBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, acBuffer);
             ptBufferInfo->tVertexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
             PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexBuffer, (VkDeviceMemory)ptBufferInfo->tVertexMemory.uHandle, ptBufferInfo->tVertexMemory.ulOffset));
         }
@@ -499,6 +503,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
 
             char acBuffer[256] = {0};
             pl_sprintf(acBuffer, "3D-LINE_IDX-F%d", (int)ptGfx->uCurrentFrameIndex);
+            pl_set_vulkan_object_name(&ptGfx->tDevice, (uint64_t)ptBufferInfo->tIndexBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, acBuffer);
             ptBufferInfo->tIndexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
             PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexBuffer, (VkDeviceMemory)ptBufferInfo->tIndexMemory.uHandle, ptBufferInfo->tIndexMemory.ulOffset));
         }
@@ -597,6 +602,8 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
         tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
     PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &tBufferInfo, NULL, &tVulkanBuffer.tBuffer));
+    if(pcName)
+        pl_set_vulkan_object_name(ptDevice, (uint64_t)tVulkanBuffer.tBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, pcName);
     vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, tVulkanBuffer.tBuffer, &tMemRequirements);
 
     if(ptDesc->tMemory == PL_MEMORY_GPU_CPU || ptDesc->tMemory == PL_MEMORY_CPU)
@@ -630,7 +637,7 @@ pl_submit_buffer_for_deletion(plDevice* ptDevice, plBufferHandle* ptBuffer)
     plFrameContext* ptFrame = &ptVulkanGfx->sbFrames[ptGraphics->uCurrentFrameIndex];
     pl_sb_push(ptFrame->tGarbage.sbtBuffers, *ptBuffer);
     pl_sb_push(ptFrame->tGarbage.sbtMemory, ptGraphics->sbtBuffersCold[ptBuffer->uIndex].tMemoryAllocation);
-    ptVulkanGfx->sbtBuffersHot[ptBuffer->uIndex].tBuffer = VK_NULL_HANDLE;
+    // ptVulkanGfx->sbtBuffersHot[ptBuffer->uIndex].tBuffer = VK_NULL_HANDLE;
     ptGraphics->sbtBufferGenerations[ptBuffer->uIndex]++;
 }
 
@@ -2655,6 +2662,13 @@ pl_shutdown(plGraphics* ptGraphics)
         vkDestroySemaphore(ptVulkanDevice->tLogicalDevice, ptFrame->tRenderFinish, NULL);
         vkDestroyFence(ptVulkanDevice->tLogicalDevice, ptFrame->tInFlight, NULL);
         vkDestroyCommandPool(ptVulkanDevice->tLogicalDevice, ptFrame->tCmdPool, NULL);
+
+        for(uint32_t j = 0; j < pl_sb_size(ptFrame->tGarbage.sbtRawBuffers); j++)
+        {
+            vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptFrame->tGarbage.sbtRawBuffers[j], NULL);
+            ptFrame->tGarbage.sbtRawBuffers[j] = VK_NULL_HANDLE;
+        }
+
         pl_sb_free(ptFrame->tGarbage.sbtFrameBuffers);
         pl_sb_free(ptFrame->tGarbage.sbtMemory);
         pl_sb_free(ptFrame->tGarbage.sbtTexturesHot);
