@@ -121,7 +121,6 @@ typedef int plCompareMode;            // -> enum _plCompareMode            // En
 typedef int plFormat;                 // -> enum _plFormat                 // Enum:
 typedef int plStencilOp;              // -> enum _plStencilOp              // Enum:
 typedef int plMemoryMode;             // -> enum _plMemoryMode             // Enum:
-typedef int plDeviceAllocationStatus; // -> enum _plDeviceAllocationStatus // Enum:
 
 // external
 typedef struct _plDrawList plDrawList;
@@ -299,17 +298,22 @@ typedef struct _plDeviceMemoryAllocation
 
 typedef struct _plDeviceAllocationRange
 {
-    char                     acName[PL_MAX_NAME_LENGTH];
-    plDeviceAllocationStatus tStatus;
-    plDeviceMemoryAllocation tAllocation;
+    char     acName[PL_MAX_NAME_LENGTH];
+    uint64_t ulOffset;
+    uint64_t ulUsedSize;
+    uint64_t ulTotalSize;
+    uint64_t ulBlockIndex;
+    uint32_t uNodeIndex;
+    uint32_t uNextNode;
 } plDeviceAllocationRange;
 
 typedef struct _plDeviceAllocationBlock
 {
+    uint64_t                 ulMemoryType;
     uint64_t                 ulAddress;
     uint64_t                 ulSize;
     char*                    pHostMapped;
-    plDeviceAllocationRange  tRange;
+    uint32_t                 uCurrentIndex; // used but debug tool
 } plDeviceAllocationBlock;
 
 typedef struct _plDeviceMemoryAllocatorI
@@ -320,6 +324,7 @@ typedef struct _plDeviceMemoryAllocatorI
     plDeviceMemoryAllocation (*allocate)(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
     void                     (*free)    (struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation);
     plDeviceAllocationBlock* (*blocks)  (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
+    plDeviceAllocationRange* (*ranges)  (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
 } plDeviceMemoryAllocatorI;
 
 typedef struct _plTextureViewDesc
@@ -462,6 +467,7 @@ typedef struct _plDevice
 {
     plGraphics* ptGraphics;
     plDeviceMemoryAllocatorI tLocalDedicatedAllocator;
+    plDeviceMemoryAllocatorI tLocalBuddyAllocator;
     plDeviceMemoryAllocatorI tStagingUnCachedAllocator;
     void* _pInternalData;
 } plDevice;
@@ -690,13 +696,6 @@ enum _plMemoryMode
     PL_MEMORY_GPU,
     PL_MEMORY_GPU_CPU,
     PL_MEMORY_CPU
-};
-
-enum _plDeviceAllocationStatus
-{
-    PL_DEVICE_ALLOCATION_STATUS_FREE,
-    PL_DEVICE_ALLOCATION_STATUS_USED,
-    PL_DEVICE_ALLOCATION_STATUS_WASTE
 };
 
 #endif // PL_GRAPHICS_EXT_H
