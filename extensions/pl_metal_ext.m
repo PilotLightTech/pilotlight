@@ -67,18 +67,24 @@ typedef struct _plMetalDynamicBuffer
     id<MTLBuffer>            tBuffer;
 } plMetalDynamicBuffer;
 
-typedef struct _plFrameGarbage
+typedef struct _plMetalFrameBuffer
 {
-    id<MTLTexture>*           sbtTexturesHot;
-    id<MTLSamplerState>*      sbtSamplerStates;
-    id<MTLBuffer>*            sbtBuffers;
-    plDeviceMemoryAllocation* sbtMemory;
-} plFrameGarbage;
+    int a;
+} plMetalFrameBuffer;
+
+typedef struct _plMetalSwapchain
+{
+    int unused;
+} plMetalSwapchain;
+
+typedef struct _plMetalRenderPass
+{
+    MTLRenderPassDescriptor* ptRenderPassDescriptor;
+} plMetalRenderPass;
 
 typedef struct _plFrameContext
 {
     dispatch_semaphore_t tFrameBoundarySemaphore;
-    plFrameGarbage       tGarbage;
 
     // dynamic buffer stuff
     uint32_t              uCurrentBufferIndex;
@@ -127,13 +133,7 @@ typedef struct _plMetalPipelineEntry
 typedef struct _plGraphicsMetal
 {
     id<MTLCommandQueue> tCmdQueue;
-    uint32_t            uCurrentFrame;
     CAMetalLayer*       pMetalLayer;
-
-    // temp
-    id<MTLTexture>             depthTarget;
-    id<MTLTexture>             multisampleTexture;
-    MTLRenderPassDescriptor*   drawableRenderDescriptor;
 
     uint64_t                 uNextFenceValue;
     id<MTLSharedEvent>       tStagingEvent;
@@ -141,12 +141,13 @@ typedef struct _plGraphicsMetal
     id<MTLBuffer>            tStagingBuffer;
     plDeviceMemoryAllocation tStagingMemory;
     
-    plFrameContext*   sbFrames;
-    plMetalTexture*   sbtTexturesHot;
-    plMetalSampler*   sbtSamplersHot;
-    plMetalBindGroup* sbtBindGroupsHot;
-    plMetalBuffer*    sbtBuffersHot;
-    plMetalShader*    sbtShadersHot;
+    plFrameContext*    sbFrames;
+    plMetalTexture*    sbtTexturesHot;
+    plMetalSampler*    sbtSamplersHot;
+    plMetalBindGroup*  sbtBindGroupsHot;
+    plMetalBuffer*     sbtBuffersHot;
+    plMetalShader*     sbtShadersHot;
+    plMetalRenderPass* sbtRenderPassesHot;
     
     // drawing
     plMetalPipelineEntry*           sbtPipelineEntries;
@@ -160,9 +161,6 @@ typedef struct _plGraphicsMetal
     id<CAMetalDrawable>         tCurrentDrawable;
     id<MTLCommandBuffer>        tCurrentCommandBuffer;
     id<MTLRenderCommandEncoder> tCurrentRenderEncoder;
-
-    uint32_t uMultiSamplingCount;
-
 } plGraphicsMetal;
 
 typedef struct _plDeviceMetal
@@ -180,9 +178,11 @@ static MTLSamplerAddressMode  pl__metal_wrap(plWrapMode tWrap);
 static MTLCompareFunction     pl__metal_compare(plCompareMode tCompare);
 static MTLPixelFormat         pl__metal_format(plFormat tFormat);
 static MTLCullMode            pl__metal_cull(plCullMode tCullMode);
+static MTLLoadAction          pl__metal_load_op   (plLoadOp tOp);
+static MTLStoreAction         pl__metal_store_op  (plStoreOp tOp);
 
 static plTrackedMetalBuffer* pl__dequeue_reusable_buffer(plGraphics* ptGraphics, NSUInteger length);
-static plMetalPipelineEntry* pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags, uint32_t uSampleCount);
+static plMetalPipelineEntry* pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags, uint32_t uSampleCount, MTLRenderPassDescriptor* ptRenderPassDescriptor);
 
 // device memory allocators specifics
 static plDeviceMemoryAllocation pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
@@ -207,50 +207,120 @@ pl__get_frame_resources(plGraphics* ptGraphics)
     return &ptMetalGraphics->sbFrames[ptGraphics->uCurrentFrameIndex];
 }
 
-static void
-pl_submit_buffer_for_deletion(plDevice* ptDevice, plBufferHandle* ptBuffer)
-{
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
-    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
-
-    plFrameContext* ptFrame = &ptMetalGraphics->sbFrames[ptGraphics->uCurrentFrameIndex];
-    pl_sb_push(ptFrame->tGarbage.sbtBuffers, ptMetalGraphics->sbtBuffersHot[ptBuffer->uIndex].tBuffer);
-    pl_sb_push(ptFrame->tGarbage.sbtMemory, ptGraphics->sbtBuffersCold[ptBuffer->uIndex].tMemoryAllocation);
-    ptGraphics->sbtBufferGenerations[ptBuffer->uIndex]++;
-}
-
-static void
-pl_submit_texture_for_deletion(plDevice* ptDevice, plTextureHandle* ptTexture)
-{
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
-    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
-
-    plFrameContext* ptFrame = &ptMetalGraphics->sbFrames[ptGraphics->uCurrentFrameIndex];
-    pl_sb_push(ptFrame->tGarbage.sbtTexturesHot, ptMetalGraphics->sbtTexturesHot[ptTexture->uIndex].tTexture);
-    pl_sb_push(ptFrame->tGarbage.sbtMemory, ptGraphics->sbtTexturesCold[ptTexture->uIndex].tMemoryAllocation);
-    ptGraphics->sbtTextureGenerations[ptTexture->uIndex]++;
-}
-
-static void
-pl_submit_texture_view_for_deletion(plDevice* ptDevice, plTextureViewHandle* ptView)
-{
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
-    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
-
-    plFrameContext* ptFrame = &ptMetalGraphics->sbFrames[ptGraphics->uCurrentFrameIndex];
-    pl_sb_push(ptFrame->tGarbage.sbtSamplerStates, ptMetalGraphics->sbtSamplersHot[ptView->uIndex].tSampler);
-    ptGraphics->sbtTextureViewGenerations[ptView->uIndex]++;
-}
-
 static void*
-pl_get_ui_texture_handle(plGraphics* ptGraphics, plTextureViewHandle* ptTextureView)
+pl_get_ui_texture_handle(plGraphics* ptGraphics, plTextureViewHandle tHandle)
 {
     plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
-    plTextureView* ptView = &ptGraphics->sbtTextureViewsCold[ptTextureView->uIndex];
+
+    plTextureView* ptView = pl__get_texture_view(&ptGraphics->tDevice, tHandle);
     return ptMetalGraphics->sbtTexturesHot[ptView->tTexture.uIndex].tTexture;
+}
+
+static plFrameBufferHandle
+pl_create_frame_buffer(plDevice* ptDevice, const plFrameBufferDescription* ptDescription)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+
+    uint32_t uBufferIndex = UINT32_MAX;
+    if(pl_sb_size(ptGraphics->sbtFrameBufferFreeIndices) > 0)
+        uBufferIndex = pl_sb_pop(ptGraphics->sbtFrameBufferFreeIndices);
+    else
+    {
+        uBufferIndex = pl_sb_size(ptGraphics->sbtFrameBuffersCold);
+        pl_sb_add(ptGraphics->sbtFrameBuffersCold);
+        pl_sb_push(ptGraphics->sbtFrameBufferGenerations, UINT32_MAX);
+        // pl_sb_add(ptVulkanGfx->sbtFrameBuffersHot);
+    }
+
+    plFrameBufferHandle tHandle = {
+        .uGeneration = ptGraphics->sbtFrameBufferGenerations[uBufferIndex],
+        .uIndex = uBufferIndex
+    };
+
+    plFrameBuffer tFrameBuffer = {
+        .tDescription = *ptDescription
+    };
+
+    ptGraphics->sbtFrameBuffersCold[uBufferIndex] = tFrameBuffer;
+    ptGraphics->sbtFrameBufferGenerations[uBufferIndex]++;
+    return tHandle;
+}
+
+static plRenderPassLayoutHandle
+pl_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDescription* ptDesc)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+
+    plRenderPassLayoutHandle tHandle = {
+        .uGeneration = 0,
+        .uIndex = pl_sb_size(ptGraphics->sbtRenderPassLayoutsCold)
+    };
+
+    plRenderPassLayout tLayout = {
+        .tDesc = *ptDesc
+    };
+
+    // pl_sb_push(ptVulkanGfx->sbtRenderPassLayoutsHot, tVulkanRenderPass);
+    pl_sb_push(ptGraphics->sbtRenderPassLayoutsCold, tLayout);
+    return tHandle;
+}
+
+static plRenderPassHandle
+pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+
+    plRenderPassHandle tHandle = {
+        .uGeneration = 0,
+        .uIndex = pl_sb_size(ptMetalGraphics->sbtRenderPassesHot)
+    };
+
+    plRenderPass tRenderPass = {
+        .tDesc = *ptDesc,
+        .tSampleCount = 1
+    };
+
+    const plRenderPassLayout* ptLayout = &ptGraphics->sbtRenderPassLayoutsCold[ptDesc->tLayout.uIndex];
+
+
+    plMetalRenderPass tMetalRenderPass = {0};
+
+    // render pass descriptor
+    tMetalRenderPass.ptRenderPassDescriptor = [MTLRenderPassDescriptor new];
+
+    if(ptLayout->tDesc.tDepthTarget.tFormat != PL_FORMAT_UNKNOWN)
+    {
+        tMetalRenderPass.ptRenderPassDescriptor.depthAttachment.loadAction = pl__metal_load_op(ptDesc->tDepthTarget.tLoadOp);
+        tMetalRenderPass.ptRenderPassDescriptor.depthAttachment.storeAction = pl__metal_store_op(ptDesc->tDepthTarget.tStoreOp);
+        tMetalRenderPass.ptRenderPassDescriptor.depthAttachment.clearDepth = ptDesc->tDepthTarget.fClearZ;
+    }
+
+    for(uint32_t i = 0; i < 16; i++)
+    {
+        if(ptLayout->tDesc.atRenderTargets[i].tFormat == PL_FORMAT_UNKNOWN)
+        {
+            break;
+        }
+
+        if(ptLayout->tDesc.atRenderTargets[i].tSampleCount != 1)
+            tRenderPass.tSampleCount = ptLayout->tDesc.atRenderTargets[i].tSampleCount;
+
+        tMetalRenderPass.ptRenderPassDescriptor.colorAttachments[i].loadAction = pl__metal_load_op(ptDesc->atRenderTargets[i].tLoadOp);
+        tMetalRenderPass.ptRenderPassDescriptor.colorAttachments[i].storeAction = pl__metal_store_op(ptDesc->atRenderTargets[i].tStoreOp);
+        tMetalRenderPass.ptRenderPassDescriptor.colorAttachments[i].clearColor = MTLClearColorMake(
+            ptDesc->atRenderTargets[i].tClearColor.r,
+            ptDesc->atRenderTargets[i].tClearColor.g,
+            ptDesc->atRenderTargets[i].tClearColor.b,
+            ptDesc->atRenderTargets[i].tClearColor.a
+            );
+    }
+
+    pl_sb_push(ptMetalGraphics->sbtRenderPassesHot, tMetalRenderPass);
+    pl_sb_push(ptGraphics->sbtRenderPassesCold, tRenderPass);
+
+    return tHandle;
 }
 
 static plBufferHandle
@@ -260,9 +330,20 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
     plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
 
+    uint32_t uBufferIndex = UINT32_MAX;
+    if(pl_sb_size(ptGraphics->sbtBufferFreeIndices) > 0)
+        uBufferIndex = pl_sb_pop(ptGraphics->sbtBufferFreeIndices);
+    else
+    {
+        uBufferIndex = pl_sb_size(ptGraphics->sbtBuffersCold);
+        pl_sb_add(ptGraphics->sbtBuffersCold);
+        pl_sb_push(ptGraphics->sbtBufferGenerations, UINT32_MAX);
+        pl_sb_add(ptMetalGraphics->sbtBuffersHot);
+    }
+
     plBufferHandle tHandle = {
-        .uIndex = pl_sb_size(ptMetalGraphics->sbtBuffersHot),
-        .uGeneration = 0
+        .uGeneration = ++ptGraphics->sbtBufferGenerations[uBufferIndex],
+        .uIndex = uBufferIndex
     };
 
     plBuffer tBuffer = {
@@ -291,7 +372,7 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
         tBuffer.tMemoryAllocation.ulOffset = 0;
         tBuffer.tMemoryAllocation.ulSize = ptDesc->uByteSize;
         tMetalBuffer.tHeap = (id<MTLHeap>)tBuffer.tMemoryAllocation.uHandle;
-        pl_sb_push(ptMetalGraphics->sbtBuffersHot, tMetalBuffer);
+        ptMetalGraphics->sbtBuffersHot[uBufferIndex] = tMetalBuffer;
     }
     else if(ptDesc->tMemory == PL_MEMORY_GPU)
     {
@@ -312,7 +393,7 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
         }
 
         plDeviceMemoryAllocatorI* ptAllocator = ptDesc->uByteSize > PL_DEVICE_ALLOCATION_BLOCK_SIZE ? &ptDevice->tLocalDedicatedAllocator : &ptDevice->tLocalBuddyAllocator;
-        tBuffer.tMemoryAllocation = ptAllocator->allocate(ptAllocator->ptInst, 0, ptDesc->uByteSize, 0, pcName);
+        tBuffer.tMemoryAllocation = ptAllocator->allocate(ptAllocator->ptInst, MTLStorageModePrivate, ptDesc->uByteSize, 0, pcName);
 
         id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
         commandBuffer.label = @"Heap Transfer Blit Encoder";
@@ -336,11 +417,11 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
         [commandBuffer commit];
 
         tMetalBuffer.tHeap = (id<MTLHeap>)tBuffer.tMemoryAllocation.uHandle;
-        pl_sb_push(ptMetalGraphics->sbtBuffersHot, tMetalBuffer);
+        ptMetalGraphics->sbtBuffersHot[uBufferIndex] = tMetalBuffer;
     }
     else if(ptDesc->tMemory == PL_MEMORY_CPU)
     {
-        tBuffer.tMemoryAllocation = ptDevice->tStagingUnCachedAllocator.allocate(ptDevice->tStagingUnCachedAllocator.ptInst, 0, ptDesc->uByteSize, 0, pcName);
+        tBuffer.tMemoryAllocation = ptDevice->tStagingUnCachedAllocator.allocate(ptDevice->tStagingUnCachedAllocator.ptInst, MTLStorageModePrivate, ptDesc->uByteSize, 0, pcName);
 
         plMetalBuffer tMetalBuffer = {
             .tBuffer = [(id<MTLHeap>)tBuffer.tMemoryAllocation.uHandle newBufferWithLength:ptDesc->uByteSize options:MTLResourceStorageModeShared offset:0]
@@ -355,11 +436,10 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
         tBuffer.tMemoryAllocation.ulOffset = 0;
         tBuffer.tMemoryAllocation.ulSize = ptDesc->uByteSize;
         tMetalBuffer.tHeap = (id<MTLHeap>)tBuffer.tMemoryAllocation.uHandle;
-        pl_sb_push(ptMetalGraphics->sbtBuffersHot, tMetalBuffer);
+        ptMetalGraphics->sbtBuffersHot[uBufferIndex] = tMetalBuffer;
     }
 
-    pl_sb_push(ptGraphics->sbtBuffersCold, tBuffer);
-    pl_sb_push(ptGraphics->sbtBufferGenerations, 0);
+    ptGraphics->sbtBuffersCold[uBufferIndex] = tBuffer;
     return tHandle;
 }
 
@@ -425,9 +505,20 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
     plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
 
+    uint32_t uTextureIndex = UINT32_MAX;
+    if(pl_sb_size(ptGraphics->sbtTextureFreeIndices) > 0)
+        uTextureIndex = pl_sb_pop(ptGraphics->sbtTextureFreeIndices);
+    else
+    {
+        uTextureIndex = pl_sb_size(ptGraphics->sbtTexturesCold);
+        pl_sb_add(ptGraphics->sbtTexturesCold);
+        pl_sb_push(ptGraphics->sbtTextureGenerations, UINT32_MAX);
+        pl_sb_add(ptMetalGraphics->sbtTexturesHot);
+    }
+
     plTextureHandle tHandle = {
-        .uGeneration = 0,
-        .uIndex      = pl_sb_size(ptMetalGraphics->sbtTexturesHot)
+        .uGeneration = ++ptGraphics->sbtTextureGenerations[uTextureIndex],
+        .uIndex = uTextureIndex
     };
 
     if(tDesc.uMips == 0)
@@ -462,8 +553,21 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
     ptTextureDescriptor.storageMode = MTLStorageModePrivate;
     ptTextureDescriptor.arrayLength = 1;
     ptTextureDescriptor.depth = tDesc.tDimensions.z;
+    ptTextureDescriptor.sampleCount = tDesc.tSamples;
 
-    if(tDesc.tType == PL_TEXTURE_TYPE_2D)
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
+        ptTextureDescriptor.usage |= MTLTextureUsageShaderRead;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)
+        ptTextureDescriptor.usage |= MTLTextureUsageRenderTarget;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
+        ptTextureDescriptor.usage |= MTLTextureUsageRenderTarget;
+
+    // if(tDesc.tUsage & PL_TEXTURE_USAGE_TRANSIENT_ATTACHMENT)
+    //     ptTextureDescriptor.storageMode = MTLStorageModeMemoryless;
+
+    if(tDesc.tSamples > 1)
+        ptTextureDescriptor.textureType = MTLTextureType2DMultisample;
+    else if(tDesc.tType == PL_TEXTURE_TYPE_2D)
         ptTextureDescriptor.textureType = MTLTextureType2D;
     else if(tDesc.tType == PL_TEXTURE_TYPE_CUBE)
         ptTextureDescriptor.textureType = MTLTextureTypeCube;
@@ -474,7 +578,7 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
 
     MTLSizeAndAlign tSizeAndAlign = [ptMetalDevice->tDevice heapTextureSizeAndAlignWithDescriptor:ptTextureDescriptor];
     plDeviceMemoryAllocatorI* ptAllocator = tSizeAndAlign.size > PL_DEVICE_ALLOCATION_BLOCK_SIZE ? &ptGraphics->tDevice.tLocalDedicatedAllocator : &ptGraphics->tDevice.tLocalBuddyAllocator;
-    tTexture.tMemoryAllocation = ptAllocator->allocate(ptAllocator->ptInst, 0, tSizeAndAlign.size, tSizeAndAlign.align, pcName);
+    tTexture.tMemoryAllocation = ptAllocator->allocate(ptAllocator->ptInst, ptTextureDescriptor.storageMode, tSizeAndAlign.size, tSizeAndAlign.align, pcName);
 
     plMetalTexture tMetalTexture = {
         .tTexture = [(id<MTLHeap>)tTexture.tMemoryAllocation.uHandle newTextureWithDescriptor:ptTextureDescriptor offset:tTexture.tMemoryAllocation.ulOffset],
@@ -482,61 +586,73 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
     };
     tMetalTexture.tTexture.label = [NSString stringWithUTF8String:pcName];
 
-    id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
-    commandBuffer.label = @"Heap Transfer Blit Encoder";
+    if(pData)
+    {
+        id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
+        commandBuffer.label = @"Heap Transfer Blit Encoder";
 
-    [commandBuffer encodeWaitForEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue++];
+        [commandBuffer encodeWaitForEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue++];
 
-    id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
-    blitEncoder.label = @"Heap Transfer Blit Encoder";
+        id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
+        blitEncoder.label = @"Heap Transfer Blit Encoder";
 
-    NSUInteger uBytesPerRow = szSize / tDesc.tDimensions.y;
-    uBytesPerRow = uBytesPerRow / tDesc.uLayers;
-    MTLOrigin tOrigin;
-    tOrigin.x = 0;
-    tOrigin.y = 0;
-    tOrigin.z = 0;
-    MTLSize tSize;
-    tSize.width = tDesc.tDimensions.x;
-    tSize.height = tDesc.tDimensions.y;
-    tSize.depth = tDesc.tDimensions.z;
-    for(uint32_t i = 0; i < tDesc.uLayers; i++)
-        [blitEncoder copyFromBuffer:ptMetalGraphics->tStagingBuffer sourceOffset:uBytesPerRow * tDesc.tDimensions.y * i sourceBytesPerRow:uBytesPerRow sourceBytesPerImage:0 sourceSize:tSize toTexture:tMetalTexture.tTexture destinationSlice:i destinationLevel:0 destinationOrigin:tOrigin];
+        NSUInteger uBytesPerRow = szSize / tDesc.tDimensions.y;
+        uBytesPerRow = uBytesPerRow / tDesc.uLayers;
+        MTLOrigin tOrigin;
+        tOrigin.x = 0;
+        tOrigin.y = 0;
+        tOrigin.z = 0;
+        MTLSize tSize;
+        tSize.width = tDesc.tDimensions.x;
+        tSize.height = tDesc.tDimensions.y;
+        tSize.depth = tDesc.tDimensions.z;
+        for(uint32_t i = 0; i < tDesc.uLayers; i++)
+            [blitEncoder copyFromBuffer:ptMetalGraphics->tStagingBuffer sourceOffset:uBytesPerRow * tDesc.tDimensions.y * i sourceBytesPerRow:uBytesPerRow sourceBytesPerImage:0 sourceSize:tSize toTexture:tMetalTexture.tTexture destinationSlice:i destinationLevel:0 destinationOrigin:tOrigin];
 
-    if(tDesc.uMips > 1)
-        [blitEncoder generateMipmapsForTexture:tMetalTexture.tTexture];
+        if(tDesc.uMips > 1)
+            [blitEncoder generateMipmapsForTexture:tMetalTexture.tTexture];
 
-    [blitEncoder endEncoding];
-    [commandBuffer encodeSignalEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue];
-    [commandBuffer commit];
-
-    pl_sb_push(ptMetalGraphics->sbtTexturesHot, tMetalTexture);
-    pl_sb_push(ptGraphics->sbtTexturesCold, tTexture);
-    pl_sb_push(ptGraphics->sbtTextureGenerations, 0);
+        [blitEncoder endEncoding];
+        [commandBuffer encodeSignalEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue];
+        [commandBuffer commit];
+    }
+    ptMetalGraphics->sbtTexturesHot[uTextureIndex] = tMetalTexture;
+    ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
     [ptTextureDescriptor release];
     return tHandle;
 }
 
 
 static plTextureViewHandle
-pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, plTextureHandle* ptTextureHandle, const char* pcName)
+pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, plTextureHandle tTextureHandle, const char* pcName)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
     plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
 
-    plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[ptTextureHandle->uIndex];
-    plTexture* ptTexture = &ptGraphics->sbtTexturesCold[ptTextureHandle->uIndex];
+    plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
+    plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex];
+
+    uint32_t uTextureViewIndex = UINT32_MAX;
+    if(pl_sb_size(ptGraphics->sbtTextureViewFreeIndices) > 0)
+        uTextureViewIndex = pl_sb_pop(ptGraphics->sbtTextureViewFreeIndices);
+    else
+    {
+        uTextureViewIndex = pl_sb_size(ptGraphics->sbtTextureViewsCold);
+        pl_sb_add(ptGraphics->sbtTextureViewsCold);
+        pl_sb_push(ptGraphics->sbtTextureViewGenerations, UINT32_MAX);
+        pl_sb_add(ptMetalGraphics->sbtSamplersHot);
+    }
 
     plTextureViewHandle tHandle = {
-        .uGeneration = 0,
-        .uIndex = pl_sb_size(ptMetalGraphics->sbtSamplersHot)
+        .uGeneration = ++ptGraphics->sbtTextureViewGenerations[uTextureViewIndex],
+        .uIndex = uTextureViewIndex
     };
 
     plTextureView tTextureView = {
         .tSampler         = *ptSampler,
         .tTextureViewDesc = *ptViewDesc,
-        .tTexture         = *ptTextureHandle
+        .tTexture         = tTextureHandle
     };
 
     if(ptViewDesc->uMips == 0)
@@ -560,9 +676,8 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
         .tSampler = [ptMetalDevice->tDevice newSamplerStateWithDescriptor:samplerDesc]
     };
 
-    pl_sb_push(ptMetalGraphics->sbtSamplersHot, tMetalSampler);
-    pl_sb_push(ptGraphics->sbtTextureViewsCold, tTextureView);
-    pl_sb_push(ptGraphics->sbtTextureViewGenerations, 0);
+    ptMetalGraphics->sbtSamplersHot[uTextureViewIndex] = tMetalSampler;
+    ptGraphics->sbtTextureViewsCold[uTextureViewIndex] = tTextureView;
     return tHandle;
 }
 
@@ -685,9 +800,9 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
 }
 
 static plShaderHandle
-pl_create_shader(plGraphics* ptGraphics, plShaderDescription* ptDescription)
+pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription)
 {
-    
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
     plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
 
@@ -772,15 +887,17 @@ pl_create_shader(plGraphics* ptGraphics, plShaderDescription* ptDescription)
     pipelineDescriptor.vertexFunction = vertexFunction;
     pipelineDescriptor.fragmentFunction = fragmentFunction;
     pipelineDescriptor.vertexDescriptor = vertexDescriptor;
-    pipelineDescriptor.rasterSampleCount = ptMetalGraphics->uMultiSamplingCount;
+    pipelineDescriptor.rasterSampleCount = ptGraphics->sbtRenderPassesCold[ptDescription->tRenderPass.uIndex].tSampleCount;
 
     // renderpass stuff
+    plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[ptDescription->tRenderPass.uIndex];
+    const plRenderPassLayout* ptLayout = &ptGraphics->sbtRenderPassLayoutsCold[ptGraphics->sbtRenderPassesCold[ptDescription->tRenderPass.uIndex].tDesc.tLayout.uIndex];
 
     MTLDepthStencilDescriptor *depthDescriptor = [MTLDepthStencilDescriptor new];
     depthDescriptor.depthCompareFunction = MTLCompareFunctionLessEqual;
     depthDescriptor.depthWriteEnabled = ptDescription->tGraphicsState.ulDepthWriteEnabled ? YES : NO;
 
-    pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+    pipelineDescriptor.colorAttachments[0].pixelFormat = pl__metal_format(ptLayout->tDesc.atRenderTargets[0].tFormat);
     pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
     pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
     pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
@@ -788,8 +905,8 @@ pl_create_shader(plGraphics* ptGraphics, plShaderDescription* ptDescription)
     pipelineDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
     pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
     pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorZero;
-    pipelineDescriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
-    pipelineDescriptor.stencilAttachmentPixelFormat = ptMetalGraphics->drawableRenderDescriptor.stencilAttachment.texture.pixelFormat;
+    pipelineDescriptor.depthAttachmentPixelFormat = pl__metal_format(ptLayout->tDesc.tDepthTarget.tFormat);
+    pipelineDescriptor.stencilAttachmentPixelFormat = ptMetalRenderPass->ptRenderPassDescriptor.stencilAttachment.texture.pixelFormat;
 
     const plMetalShader tMetalShader = {
         .tDepthStencilState   = [ptMetalDevice->tDevice newDepthStencilStateWithDescriptor:depthDescriptor],
@@ -819,46 +936,26 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     ptGraphics->tDevice._pInternalData = PL_ALLOC(sizeof(plDeviceMetal));
     memset(ptGraphics->tDevice._pInternalData, 0, sizeof(plDeviceMetal));
 
+    ptGraphics->tSwapchain._pInternalData = PL_ALLOC(sizeof(plMetalSwapchain));
+    memset(ptGraphics->tSwapchain._pInternalData, 0, sizeof(plMetalSwapchain));
+
     ptGraphics->tDevice.ptGraphics = ptGraphics;
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
     ptMetalDevice->tDevice = (__bridge id)ptIOCtx->pBackendPlatformData;
 
     ptGraphics->uFramesInFlight = 2;
+    ptGraphics->tSwapchain.uImageCount = 2;
+    ptGraphics->tSwapchain.tFormat = PL_FORMAT_B8G8R8A8_UNORM;
+    ptGraphics->tSwapchain.tDepthFormat = PL_FORMAT_D32_FLOAT;
+    pl_sb_resize(ptGraphics->tSwapchain.sbtSwapchainTextureViews, 2);
 
     // create command queue
     ptMetalGraphics->tCmdQueue = [ptMetalDevice->tDevice newCommandQueue];
 
-    pl_initialize_metal(ptMetalDevice->tDevice);
-
-    ptMetalGraphics->uMultiSamplingCount = 4;
+    ptGraphics->tSwapchain.tMsaaSamples = 4;
     if([ptMetalDevice->tDevice supportsTextureSampleCount:8])
-        ptMetalGraphics->uMultiSamplingCount = 8;
-
-    MTLTextureDescriptor *msaaTargetDescriptor = [MTLTextureDescriptor new];
-    msaaTargetDescriptor.width       = (uint32_t)ptIOCtx->afMainViewportSize[0];
-    msaaTargetDescriptor.height      = (uint32_t)ptIOCtx->afMainViewportSize[1];
-    msaaTargetDescriptor.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    msaaTargetDescriptor.storageMode = MTLStorageModePrivate;
-    msaaTargetDescriptor.usage       = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
-    msaaTargetDescriptor.sampleCount = ptMetalGraphics->uMultiSamplingCount;
-    msaaTargetDescriptor.textureType = MTLTextureType2DMultisample;
-    ptMetalGraphics->multisampleTexture = [ptMetalDevice->tDevice newTextureWithDescriptor:msaaTargetDescriptor];
-
-    // setup
-    // render pass descriptor
-    ptMetalGraphics->drawableRenderDescriptor = [MTLRenderPassDescriptor new];
-
-    // color attachment
-    ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-    ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].storeAction = MTLStoreActionMultisampleResolve;
-    ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
-    ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].texture = ptMetalGraphics->multisampleTexture;
-
-    // depth attachment
-    ptMetalGraphics->drawableRenderDescriptor.depthAttachment.loadAction = MTLLoadActionClear;
-    ptMetalGraphics->drawableRenderDescriptor.depthAttachment.storeAction = MTLStoreActionDontCare;
-    ptMetalGraphics->drawableRenderDescriptor.depthAttachment.clearDepth = 1.0;
+        ptGraphics->tSwapchain.tMsaaSamples = 8;
 
     // line rendering
     {
@@ -934,10 +1031,11 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     dispatch_queue_t tQueue = dispatch_queue_create("com.example.apple-samplecode.MyQueue", NULL);
     ptMetalGraphics->ptSharedEventListener = [[MTLSharedEventListener alloc] initWithDispatchQueue:tQueue];
 
+    pl_sb_resize(ptGraphics->sbtGarbage, ptGraphics->uFramesInFlight);
     for(uint32_t i = 0; i < ptGraphics->uFramesInFlight; i++)
     {
         plFrameContext tFrame = {
-            .tFrameBoundarySemaphore = dispatch_semaphore_create(ptGraphics->uFramesInFlight)
+            .tFrameBoundarySemaphore = dispatch_semaphore_create(1)
         };
         pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
         static char atNameBuffer[PL_MAX_NAME_LENGTH] = {0};
@@ -949,6 +1047,63 @@ pl_initialize_graphics(plGraphics* ptGraphics)
 
     ptMetalGraphics->tStagingMemory = ptGraphics->tDevice.tStagingUnCachedAllocator.allocate(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, 0, PL_DEVICE_ALLOCATION_BLOCK_SIZE, 0, "staging");
     ptMetalGraphics->tStagingBuffer = [(id<MTLHeap>)ptMetalGraphics->tStagingMemory.uHandle newBufferWithLength:PL_DEVICE_ALLOCATION_BLOCK_SIZE options:MTLResourceStorageModeShared offset:0];
+
+    // color & depth
+    const plTextureDesc tDepthTextureDesc = {
+        .tDimensions = {ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], 1},
+        .tFormat = PL_FORMAT_D32_FLOAT,
+        .uLayers = 1,
+        .uMips = 1,
+        .tType = PL_TEXTURE_TYPE_2D,
+        .tUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_TRANSIENT_ATTACHMENT,
+        .tSamples = ptGraphics->tSwapchain.tMsaaSamples
+    };
+    ptGraphics->tSwapchain.tDepthTexture = pl_create_texture(&ptGraphics->tDevice, tDepthTextureDesc, 0, NULL, "Swapchain depth");
+
+    const plTextureDesc tColorTextureDesc = {
+        .tDimensions = {ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], 1},
+        .tFormat = PL_FORMAT_B8G8R8A8_UNORM,
+        .uLayers = 1,
+        .uMips = 1,
+        .tType = PL_TEXTURE_TYPE_2D,
+        .tUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
+        .tSamples = ptGraphics->tSwapchain.tMsaaSamples
+    };
+    ptGraphics->tSwapchain.tColorTexture = pl_create_texture(&ptGraphics->tDevice, tColorTextureDesc, 0, NULL, "Swapchain color");
+
+    plSampler tSampler = {
+        .tFilter = PL_FILTER_NEAREST,
+        .fMinMip = 0.0f,
+        .fMaxMip = 64.0f,
+        .tVerticalWrap = PL_WRAP_MODE_CLAMP,
+        .tHorizontalWrap = PL_WRAP_MODE_CLAMP
+    };
+
+    plTextureViewDesc tColorTextureViewDesc = {
+        .tFormat     = tColorTextureDesc.tFormat,
+        .uBaseLayer  = 0,
+        .uBaseMip    = 0,
+        .uLayerCount = 1
+    };
+    ptGraphics->tSwapchain.tColorTextureView = pl_create_texture_view(&ptGraphics->tDevice, &tColorTextureViewDesc, &tSampler, ptGraphics->tSwapchain.tColorTexture, "Swapchain color view");
+
+    plTextureViewDesc tDepthTextureViewDesc = {
+        .tFormat     = tDepthTextureDesc.tFormat,
+        .uBaseLayer  = 0,
+        .uBaseMip    = 0,
+        .uLayerCount = 1
+    };
+    ptGraphics->tSwapchain.tDepthTextureView = pl_create_texture_view(&ptGraphics->tDevice, &tDepthTextureViewDesc, &tSampler, ptGraphics->tSwapchain.tDepthTexture, "Swapchain depth view");
+
+}
+
+static void
+pl_setup_ui(plGraphics* ptGraphics, plRenderPassHandle tPass)
+{
+    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
+    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
+
+    pl_initialize_metal(ptMetalDevice->tDevice);
 }
 
 static void
@@ -961,27 +1116,58 @@ pl_resize(plGraphics* ptGraphics)
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
 
     // recreate depth texture
-    MTLTextureDescriptor *depthTargetDescriptor = [MTLTextureDescriptor new];
-    depthTargetDescriptor.width       = (uint32_t)ptIOCtx->afMainViewportSize[0];
-    depthTargetDescriptor.height      = (uint32_t)ptIOCtx->afMainViewportSize[1];
-    depthTargetDescriptor.pixelFormat = MTLPixelFormatDepth32Float;
-    depthTargetDescriptor.storageMode = MTLStorageModeMemoryless;
-    depthTargetDescriptor.usage       = MTLTextureUsageRenderTarget;
-    depthTargetDescriptor.sampleCount = ptMetalGraphics->uMultiSamplingCount;
-    depthTargetDescriptor.textureType = MTLTextureType2DMultisample;
-    ptMetalGraphics->depthTarget = [ptMetalDevice->tDevice newTextureWithDescriptor:depthTargetDescriptor];
-    ptMetalGraphics->drawableRenderDescriptor.depthAttachment.texture = ptMetalGraphics->depthTarget;
 
-    MTLTextureDescriptor *msaaTargetDescriptor = [MTLTextureDescriptor new];
-    msaaTargetDescriptor.width       = (uint32_t)ptIOCtx->afMainViewportSize[0];
-    msaaTargetDescriptor.height      = (uint32_t)ptIOCtx->afMainViewportSize[1];
-    msaaTargetDescriptor.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    msaaTargetDescriptor.storageMode = MTLStorageModePrivate;
-    msaaTargetDescriptor.usage       = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
-    msaaTargetDescriptor.sampleCount = ptMetalGraphics->uMultiSamplingCount;
-    msaaTargetDescriptor.textureType = MTLTextureType2DMultisample;
-    ptMetalGraphics->multisampleTexture = [ptMetalDevice->tDevice newTextureWithDescriptor:msaaTargetDescriptor];
-    ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].texture = ptMetalGraphics->multisampleTexture;
+    pl_submit_texture_for_deletion(&ptGraphics->tDevice, ptGraphics->tSwapchain.tColorTexture);
+    pl_submit_texture_for_deletion(&ptGraphics->tDevice, ptGraphics->tSwapchain.tDepthTexture);
+    pl_submit_texture_view_for_deletion(&ptGraphics->tDevice, ptGraphics->tSwapchain.tColorTextureView);
+    pl_submit_texture_view_for_deletion(&ptGraphics->tDevice, ptGraphics->tSwapchain.tDepthTextureView);
+
+    // color & depth
+    const plTextureDesc tDepthTextureDesc = {
+        .tDimensions = {ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], 1},
+        .tFormat = PL_FORMAT_D32_FLOAT,
+        .uLayers = 1,
+        .uMips = 1,
+        .tType = PL_TEXTURE_TYPE_2D,
+        .tUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_TRANSIENT_ATTACHMENT,
+        .tSamples = ptGraphics->tSwapchain.tMsaaSamples
+    };
+    ptGraphics->tSwapchain.tDepthTexture = pl_create_texture(&ptGraphics->tDevice, tDepthTextureDesc, 0, NULL, "Swapchain depth");
+
+    const plTextureDesc tColorTextureDesc = {
+        .tDimensions = {ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], 1},
+        .tFormat = PL_FORMAT_B8G8R8A8_UNORM,
+        .uLayers = 1,
+        .uMips = 1,
+        .tType = PL_TEXTURE_TYPE_2D,
+        .tUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
+        .tSamples = ptGraphics->tSwapchain.tMsaaSamples
+    };
+    ptGraphics->tSwapchain.tColorTexture = pl_create_texture(&ptGraphics->tDevice, tColorTextureDesc, 0, NULL, "Swapchain color");
+
+    plSampler tSampler = {
+        .tFilter = PL_FILTER_NEAREST,
+        .fMinMip = 0.0f,
+        .fMaxMip = 64.0f,
+        .tVerticalWrap = PL_WRAP_MODE_CLAMP,
+        .tHorizontalWrap = PL_WRAP_MODE_CLAMP
+    };
+
+    plTextureViewDesc tColorTextureViewDesc = {
+        .tFormat     = tColorTextureDesc.tFormat,
+        .uBaseLayer  = 0,
+        .uBaseMip    = 0,
+        .uLayerCount = 1
+    };
+    ptGraphics->tSwapchain.tColorTextureView = pl_create_texture_view(&ptGraphics->tDevice, &tColorTextureViewDesc, &tSampler, ptGraphics->tSwapchain.tColorTexture, "Swapchain color view");
+
+    plTextureViewDesc tDepthTextureViewDesc = {
+        .tFormat     = tDepthTextureDesc.tFormat,
+        .uBaseLayer  = 0,
+        .uBaseMip    = 0,
+        .uLayerCount = 1
+    };
+    ptGraphics->tSwapchain.tDepthTextureView = pl_create_texture_view(&ptGraphics->tDevice, &tDepthTextureViewDesc, &tSampler, ptGraphics->tSwapchain.tDepthTexture, "Swapchain depth view");
 
     pl_end_profile_sample();
 }
@@ -995,47 +1181,63 @@ pl_begin_frame(plGraphics* ptGraphics)
 
     // Wait until the inflight command buffer has completed its work
     ptGraphics->uCurrentFrameIndex = (ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;
+    ptGraphics->tSwapchain.uCurrentImageIndex = ptGraphics->uCurrentFrameIndex;
     plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
     dispatch_semaphore_wait(ptFrame->tFrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
+    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
 
-    for(uint32_t i = 0; i < pl_sb_size(ptFrame->tGarbage.sbtSamplerStates); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtFrameBuffers); i++)
     {
-        // vkDestroySampler(ptVulkanDevice->tLogicalDevice, ptFrame->tGarbage.sbtSamplerStates[i], NULL);
-        [ptFrame->tGarbage.sbtSamplerStates[i] release];
-        // ptFrame->tGarbage.sbtSamplersHot[i] = VK_NULL_HANDLE;
+        const uint32_t iBufferIndex = ptGarbage->sbtFrameBuffers[i].uIndex;
+        pl_sb_push(ptGraphics->sbtFrameBufferFreeIndices, iBufferIndex);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(ptFrame->tGarbage.sbtTexturesHot); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtTextures); i++)
     {
-        [ptFrame->tGarbage.sbtTexturesHot[i] release];
+        const uint32_t uTextureIndex = ptGarbage->sbtTextures[i].uIndex;
+        plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[uTextureIndex];
+        [ptMetalTexture->tTexture release];
+        ptMetalTexture->tTexture = nil;
+        pl_sb_push(ptGraphics->sbtTextureFreeIndices, uTextureIndex);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(ptFrame->tGarbage.sbtBuffers); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtTextureViews); i++)
     {
-        [ptFrame->tGarbage.sbtBuffers[i] release];
+        const uint32_t uTextureViewIndex = ptGarbage->sbtTextureViews[i].uIndex;
+        plMetalSampler* ptMetalSampler = &ptMetalGraphics->sbtSamplersHot[uTextureViewIndex];
+        [ptMetalSampler->tSampler release];
+        ptMetalSampler->tSampler = nil;
+        pl_sb_push(ptGraphics->sbtTextureViewFreeIndices, uTextureViewIndex);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(ptFrame->tGarbage.sbtMemory); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBuffers); i++)
     {
-        if(ptFrame->tGarbage.sbtMemory[i].ptInst == ptGraphics->tDevice.tLocalBuddyAllocator.ptInst)
-            ptGraphics->tDevice.tLocalBuddyAllocator.free(ptGraphics->tDevice.tLocalBuddyAllocator.ptInst, &ptFrame->tGarbage.sbtMemory[i]);
-        else if(ptFrame->tGarbage.sbtMemory[i].ptInst == ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst)
-            ptGraphics->tDevice.tLocalDedicatedAllocator.free(ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst, &ptFrame->tGarbage.sbtMemory[i]);
-        else if(ptFrame->tGarbage.sbtMemory[i].ptInst == ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst)
-            ptGraphics->tDevice.tStagingUnCachedAllocator.free(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, &ptFrame->tGarbage.sbtMemory[i]);
+        const uint32_t iBufferIndex = ptGarbage->sbtBuffers[i].uIndex;
+        [ptMetalGraphics->sbtBuffersHot[iBufferIndex].tBuffer release];
+        ptMetalGraphics->sbtBuffersHot[iBufferIndex].tBuffer = nil;
+        pl_sb_push(ptGraphics->sbtBufferFreeIndices, iBufferIndex);
     }
 
-    pl_sb_reset(ptFrame->tGarbage.sbtTexturesHot);
-    pl_sb_reset(ptFrame->tGarbage.sbtMemory);
-    pl_sb_reset(ptFrame->tGarbage.sbtBuffers);
-    pl_sb_reset(ptFrame->tGarbage.sbtSamplerStates);
+    for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtMemory); i++)
+    {
+        if(ptGarbage->sbtMemory[i].ptInst == ptGraphics->tDevice.tLocalBuddyAllocator.ptInst)
+            ptGraphics->tDevice.tLocalBuddyAllocator.free(ptGraphics->tDevice.tLocalBuddyAllocator.ptInst, &ptGarbage->sbtMemory[i]);
+        else if(ptGarbage->sbtMemory[i].ptInst == ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst)
+            ptGraphics->tDevice.tLocalDedicatedAllocator.free(ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst, &ptGarbage->sbtMemory[i]);
+        else if(ptGarbage->sbtMemory[i].ptInst == ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst)
+            ptGraphics->tDevice.tStagingUnCachedAllocator.free(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, &ptGarbage->sbtMemory[i]);
+    }
+
+    pl_sb_reset(ptGarbage->sbtTextures);
+    pl_sb_reset(ptGarbage->sbtMemory);
+    pl_sb_reset(ptGarbage->sbtBuffers);
+    pl_sb_reset(ptGarbage->sbtTextureViews);
+    pl_sb_reset(ptGarbage->sbtFrameBuffers);
     
     plIO* ptIOCtx = pl_get_io();
     ptMetalGraphics->pMetalLayer = ptIOCtx->pBackendPlatformData;
     
-    ptMetalGraphics->uCurrentFrame++;
-
-        // get next drawable
+    // get next drawable
     ptMetalGraphics->tCurrentDrawable = [ptMetalGraphics->pMetalLayer nextDrawable];
 
     if(!ptMetalGraphics->tCurrentDrawable)
@@ -1043,9 +1245,6 @@ pl_begin_frame(plGraphics* ptGraphics)
         pl_end_profile_sample();
         return false;
     }
-
-    // set color attachment to next drawable
-    ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].resolveTexture = ptMetalGraphics->tCurrentDrawable.texture;
 
     ptMetalGraphics->tCurrentCommandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
 
@@ -1060,13 +1259,11 @@ pl_begin_frame(plGraphics* ptGraphics)
         pl_sb_reset(drawlist->sbtLineIndexBuffer);    
     }
 
-    pl_new_draw_frame_metal(ptMetalGraphics->drawableRenderDescriptor);
-
     pl_end_profile_sample();
     return true;
 }
 
-static void
+static bool
 pl_end_gfx_frame(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
@@ -1086,21 +1283,71 @@ pl_end_gfx_frame(plGraphics* ptGraphics)
 
     [ptMetalGraphics->tCurrentCommandBuffer commit];
 
-    
     pl_end_profile_sample();
+    return true;
 }
 
 static void
 pl_begin_recording(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
-    ptMetalGraphics->tCurrentRenderEncoder = [ptMetalGraphics->tCurrentCommandBuffer renderCommandEncoderWithDescriptor:ptMetalGraphics->drawableRenderDescriptor];
     pl_end_profile_sample();
 }
 
 static void
 pl_end_recording(plGraphics* ptGraphics)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+    pl_end_profile_sample();
+}
+
+static void
+pl_begin_main_pass(plGraphics* ptGraphics, plFrameBufferHandle tFrameBufferHandle)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+    plFrameBuffer* ptFrameBuffer = &ptGraphics->sbtFrameBuffersCold[tFrameBufferHandle.uIndex];
+    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
+    plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[ptFrameBuffer->tDescription.tRenderPass.uIndex];
+
+    const uint32_t uColorIndex = ptGraphics->sbtTextureViewsCold[ptFrameBuffer->tDescription.atViewAttachments[0].uIndex].tTexture.uIndex;
+    const uint32_t uDepthIndex = ptGraphics->sbtTextureViewsCold[ptFrameBuffer->tDescription.atViewAttachments[1].uIndex].tTexture.uIndex;
+    ptMetalRenderPass->ptRenderPassDescriptor.depthAttachment.texture = ptMetalGraphics->sbtTexturesHot[uDepthIndex].tTexture;
+    ptMetalRenderPass->ptRenderPassDescriptor.colorAttachments[0].texture = ptMetalGraphics->sbtTexturesHot[uColorIndex].tTexture;
+    ptMetalRenderPass->ptRenderPassDescriptor.colorAttachments[0].resolveTexture = ptMetalGraphics->tCurrentDrawable.texture;
+    ptMetalGraphics->tCurrentRenderEncoder = [ptMetalGraphics->tCurrentCommandBuffer renderCommandEncoderWithDescriptor:ptMetalRenderPass->ptRenderPassDescriptor];
+
+    pl_new_draw_frame_metal(ptMetalRenderPass->ptRenderPassDescriptor);
+    pl_end_profile_sample();
+}
+
+static void
+pl_end_main_pass(plGraphics* ptGraphics)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
+    [ptMetalGraphics->tCurrentRenderEncoder endEncoding];
+    pl_end_profile_sample();
+}
+
+static void
+pl_begin_pass(plGraphics* ptGraphics, plFrameBufferHandle tFrameBufferHandle)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+    plFrameBuffer* ptFrameBuffer = &ptGraphics->sbtFrameBuffersCold[tFrameBufferHandle.uIndex];
+    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
+    plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[ptFrameBuffer->tDescription.tRenderPass.uIndex];
+
+    const uint32_t uColorIndex = ptGraphics->sbtTextureViewsCold[ptFrameBuffer->tDescription.atViewAttachments[0].uIndex].tTexture.uIndex;
+    const uint32_t uDepthIndex = ptGraphics->sbtTextureViewsCold[ptFrameBuffer->tDescription.atViewAttachments[1].uIndex].tTexture.uIndex;
+    ptMetalRenderPass->ptRenderPassDescriptor.depthAttachment.texture = ptMetalGraphics->sbtTexturesHot[uDepthIndex].tTexture;
+    ptMetalRenderPass->ptRenderPassDescriptor.colorAttachments[0].texture = ptMetalGraphics->sbtTexturesHot[uColorIndex].tTexture;
+    ptMetalGraphics->tCurrentRenderEncoder = [ptMetalGraphics->tCurrentCommandBuffer renderCommandEncoderWithDescriptor:ptMetalRenderPass->ptRenderPassDescriptor];
+
+    pl_end_profile_sample();
+}
+
+static void
+pl_end_pass(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
@@ -1121,6 +1368,22 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
     {
         plDrawArea* ptArea = &atAreas[i];
         plDrawStream* ptStream = ptArea->ptDrawStream;
+
+        MTLScissorRect tScissorRect = {
+            .x      = (NSUInteger)(ptArea->tScissor.iOffsetX),
+            .y      = (NSUInteger)(ptArea->tScissor.iOffsetY),
+            .width  = (NSUInteger)(ptArea->tScissor.uWidth),
+            .height = (NSUInteger)(ptArea->tScissor.uHeight)
+        };
+        [ptMetalGraphics->tCurrentRenderEncoder setScissorRect:tScissorRect];
+
+        MTLViewport tViewport = {
+            .originX = ptArea->tViewport.fX,
+            .originY = ptArea->tViewport.fY,
+            .width   = ptArea->tViewport.fWidth,
+            .height  = ptArea->tViewport.fHeight
+        };
+        [ptMetalGraphics->tCurrentRenderEncoder setViewport:tViewport];
 
         const uint32_t uTokens = pl_sb_size(ptStream->sbtStream);
         uint32_t uCurrentStreamIndex = 0;
@@ -1329,16 +1592,19 @@ pl_cleanup(plGraphics* ptGraphics)
     pl_sb_free(ptGraphics->sbt3DDrawlists);
 
     // cleanup per frame resources
-    for(uint32_t i = 0; i < pl_sb_size(ptMetalGraphics->sbFrames); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptGraphics->sbtGarbage); i++)
     {
+        plFrameGarbage* ptGarbage = &ptGraphics->sbtGarbage[i];
         plFrameContext* ptFrame = &ptMetalGraphics->sbFrames[i];
-        pl_sb_free(ptFrame->tGarbage.sbtMemory);
-        pl_sb_free(ptFrame->tGarbage.sbtTexturesHot);
-        pl_sb_free(ptFrame->tGarbage.sbtSamplerStates);
-        pl_sb_free(ptFrame->tGarbage.sbtBuffers);
+        pl_sb_free(ptGarbage->sbtMemory);
+        pl_sb_free(ptGarbage->sbtTextures);
+        pl_sb_free(ptGarbage->sbtTextureViews);
+        pl_sb_free(ptGarbage->sbtBuffers);
+        pl_sb_free(ptGarbage->sbtFrameBuffers);
         pl_sb_free(ptFrame->sbtDynamicBuffers);
     }
 
+    pl_sb_free(ptGraphics->sbtGarbage);
     pl_sb_free(ptMetalGraphics->sbFrames);
     pl_sb_free(ptMetalGraphics->sbtTexturesHot);
     pl_sb_free(ptMetalGraphics->sbtSamplersHot);
@@ -1362,8 +1628,12 @@ pl_cleanup(plGraphics* ptGraphics)
     pl_sb_free(ptData2->sbtFreeBlockIndices);
 
     pl_sb_free(ptMetalGraphics->sbtPipelineEntries);
+    pl_sb_free(ptMetalGraphics->sbFrames);
+    pl_sb_free(ptMetalGraphics->sbtRenderPassesHot);
+    pl_sb_free(ptGraphics->tSwapchain.sbtSwapchainTextureViews);
     pl_sb_free(ptGraphics->sbtShadersCold);
     pl_sb_free(ptGraphics->sbtBuffersCold);
+    pl_sb_free(ptGraphics->sbtBufferFreeIndices);
     pl_sb_free(ptGraphics->sbtTexturesCold);
     pl_sb_free(ptGraphics->sbtTextureViewsCold);
     pl_sb_free(ptGraphics->sbtBindGroupsCold);
@@ -1372,32 +1642,42 @@ pl_cleanup(plGraphics* ptGraphics)
     pl_sb_free(ptGraphics->sbtTextureGenerations);
     pl_sb_free(ptGraphics->sbtTextureViewGenerations);
     pl_sb_free(ptGraphics->sbtBindGroupGenerations);
+    pl_sb_free(ptGraphics->sbtFrameBufferFreeIndices);
+    pl_sb_free(ptGraphics->sbtFrameBuffersCold);
+    pl_sb_free(ptGraphics->sbtFrameBufferGenerations);
+    pl_sb_free(ptGraphics->sbtRenderPassesCold);
+    pl_sb_free(ptGraphics->sbtRenderPassGenerations);
+    pl_sb_free(ptGraphics->sbtTextureFreeIndices);
+    pl_sb_free(ptGraphics->sbtTextureViewFreeIndices);
     PL_FREE(ptGraphics->_pInternalData);
     PL_FREE(ptGraphics->tDevice._pInternalData);
+    PL_FREE(ptGraphics->tSwapchain._pInternalData);
 }
 
 static void
-pl_draw_lists(plGraphics* ptGraphics, uint32_t uListCount, plDrawList* atLists)
+pl_draw_lists(plGraphics* ptGraphics, uint32_t uListCount, plDrawList* atLists, plRenderPassHandle tPass)
 {
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
     id<MTLDevice> tDevice = ptMetalDevice->tDevice;
+    plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[tPass.uIndex];
 
     plIO* ptIOCtx = pl_get_io();
     for(uint32_t i = 0; i < uListCount; i++)
     {
-        pl_submit_metal_drawlist(&atLists[i], ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], ptMetalGraphics->tCurrentRenderEncoder, ptMetalGraphics->tCurrentCommandBuffer, ptMetalGraphics->drawableRenderDescriptor);
+        pl_submit_metal_drawlist(&atLists[i], ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], ptMetalGraphics->tCurrentRenderEncoder, ptMetalGraphics->tCurrentCommandBuffer, ptMetalRenderPass->ptRenderPassDescriptor);
     }
 }
 
 static void
-pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags tFlags)
+pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags tFlags, plRenderPassHandle tPass, uint32_t uMSAASampleCount)
 {
     plGraphics* ptGfx = ptDrawlist->ptGraphics;
     plGraphicsMetal* ptMetalGraphics = ptGfx->_pInternalData;
     plDeviceMetal* ptMetalDevice = ptGfx->tDevice._pInternalData;
 
-    plMetalPipelineEntry* ptPipelineEntry = pl__get_3d_pipelines(ptGfx, tFlags, ptMetalGraphics->drawableRenderDescriptor.colorAttachments[0].texture.sampleCount);
+    plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[tPass.uIndex];
+    plMetalPipelineEntry* ptPipelineEntry = pl__get_3d_pipelines(ptGfx, tFlags, ptMetalRenderPass->ptRenderPassDescriptor.colorAttachments[0].texture.sampleCount, ptMetalRenderPass->ptRenderPassDescriptor);
 
     const float fAspectRatio = fWidth / fHeight;
 
@@ -1473,6 +1753,35 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
+
+static MTLLoadAction
+pl__metal_load_op(plLoadOp tOp)
+{
+    switch(tOp)
+    {
+        case PL_LOAD_OP_LOAD:      return MTLLoadActionLoad;
+        case PL_LOAD_OP_CLEAR:     return MTLLoadActionClear;
+        case PL_LOAD_OP_DONT_CARE: return MTLLoadActionDontCare;
+    }
+
+    PL_ASSERT(false && "Unsupported load op");
+    return MTLLoadActionDontCare;
+}
+
+static MTLStoreAction
+pl__metal_store_op(plStoreOp tOp)
+{
+    switch(tOp)
+    {
+        case PL_STORE_OP_STORE:               return MTLStoreActionStore;
+        case PL_STORE_OP_MULTISAMPLE_RESOLVE: return MTLStoreActionMultisampleResolve;
+        case PL_STORE_OP_DONT_CARE:           return MTLStoreActionDontCare;
+        case PL_STORE_OP_NONE:                return MTLStoreActionUnknown;
+    }
+
+    PL_ASSERT(false && "Unsupported store op");
+    return MTLStoreActionUnknown;
+}
 
 static MTLSamplerMinMagFilter
 pl__metal_filter(plFilter tFilter)
@@ -1603,7 +1912,7 @@ pl__dequeue_reusable_buffer(plGraphics* ptGraphics, NSUInteger length)
 }
 
 static plMetalPipelineEntry*
-pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags, uint32_t uSampleCount)
+pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags, uint32_t uSampleCount, MTLRenderPassDescriptor* ptRenderPassDescriptor)
 {
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
@@ -1655,9 +1964,9 @@ pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags, uint32_t uSam
         pipelineDescriptor.vertexFunction = ptMetalGraphics->tLineVertexFunction;
         pipelineDescriptor.fragmentFunction = ptMetalGraphics->tFragmentFunction;
         pipelineDescriptor.vertexDescriptor = vertexDescriptor;
-        pipelineDescriptor.rasterSampleCount = ptMetalGraphics->uMultiSamplingCount;
+        pipelineDescriptor.rasterSampleCount = uSampleCount;
 
-        pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+        pipelineDescriptor.colorAttachments[0].pixelFormat = ptRenderPassDescriptor.colorAttachments[0].texture.pixelFormat;
         pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
         pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
         pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
@@ -1665,8 +1974,8 @@ pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags, uint32_t uSam
         pipelineDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
         pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
         pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorZero;
-        pipelineDescriptor.depthAttachmentPixelFormat = ptMetalGraphics->drawableRenderDescriptor.depthAttachment.texture.pixelFormat;
-        pipelineDescriptor.stencilAttachmentPixelFormat = ptMetalGraphics->drawableRenderDescriptor.stencilAttachment.texture.pixelFormat;
+        pipelineDescriptor.depthAttachmentPixelFormat = ptRenderPassDescriptor.depthAttachment.texture.pixelFormat;
+        pipelineDescriptor.stencilAttachmentPixelFormat = ptRenderPassDescriptor.stencilAttachment.texture.pixelFormat;
 
         tPipelineEntry.tLineRenderPipelineState = [ptMetalDevice->tDevice newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
 
@@ -1691,7 +2000,7 @@ pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags, uint32_t uSam
         pipelineDescriptor.vertexFunction = ptMetalGraphics->tSolidVertexFunction;
         pipelineDescriptor.fragmentFunction = ptMetalGraphics->tFragmentFunction;
         pipelineDescriptor.vertexDescriptor = vertexDescriptor;
-        pipelineDescriptor.rasterSampleCount = ptMetalGraphics->uMultiSamplingCount;
+        pipelineDescriptor.rasterSampleCount = uSampleCount;
         pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
         pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
         pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
@@ -1700,8 +2009,8 @@ pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags, uint32_t uSam
         pipelineDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
         pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
         pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorZero;
-        pipelineDescriptor.depthAttachmentPixelFormat = ptMetalGraphics->drawableRenderDescriptor.depthAttachment.texture.pixelFormat;
-        pipelineDescriptor.stencilAttachmentPixelFormat = ptMetalGraphics->drawableRenderDescriptor.stencilAttachment.texture.pixelFormat;
+        pipelineDescriptor.depthAttachmentPixelFormat = ptRenderPassDescriptor.depthAttachment.texture.pixelFormat;
+        pipelineDescriptor.stencilAttachmentPixelFormat = ptRenderPassDescriptor.stencilAttachment.texture.pixelFormat;
 
         tPipelineEntry.tSolidRenderPipelineState = [ptMetalDevice->tDevice newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
         if (error != nil)
@@ -1728,7 +2037,7 @@ pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFil
     };
 
     MTLHeapDescriptor* ptHeapDescriptor = [MTLHeapDescriptor new];
-    ptHeapDescriptor.storageMode = MTLStorageModePrivate;
+    ptHeapDescriptor.storageMode = uTypeFilter;
     ptHeapDescriptor.size        = tBlock.ulSize;
     ptHeapDescriptor.type        = MTLHeapTypePlacement;
     ptHeapDescriptor.hazardTrackingMode = MTLHazardTrackingModeUntracked;
@@ -1809,7 +2118,7 @@ pl_allocate_buddy(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter,
     {
         plDeviceAllocationBlock* ptBlock = &pl_sb_top(ptData->sbtBlocks);
         MTLHeapDescriptor* ptHeapDescriptor = [MTLHeapDescriptor new];
-        ptHeapDescriptor.storageMode = MTLStorageModePrivate;
+        ptHeapDescriptor.storageMode = uTypeFilter;
         ptHeapDescriptor.size        = PL_DEVICE_ALLOCATION_BLOCK_SIZE;
         ptHeapDescriptor.type        = MTLHeapTypePlacement;
         ptHeapDescriptor.hazardTrackingMode = MTLHazardTrackingModeUntracked;
@@ -1905,29 +2214,33 @@ static const plGraphicsI*
 pl_load_graphics_api(void)
 {
     static const plGraphicsI tApi = {
-        .initialize             = pl_initialize_graphics,
-        .resize                 = pl_resize,
-        .begin_frame            = pl_begin_frame,
-        .end_frame              = pl_end_gfx_frame,
-        .begin_recording        = pl_begin_recording,
-        .end_recording          = pl_end_recording,
-        .create_shader          = pl_create_shader,
-        .draw_areas             = pl_draw_areas,
-        .draw_lists             = pl_draw_lists,
-        .cleanup                = pl_cleanup,
-        .create_font_atlas      = pl_create_metal_font_texture,
-        .destroy_font_atlas     = pl_cleanup_metal_font_texture,
-        .add_3d_triangle_filled = pl__add_3d_triangle_filled,
-        .add_3d_line            = pl__add_3d_line,
-        .add_3d_point           = pl__add_3d_point,
-        .add_3d_transform       = pl__add_3d_transform,
-        .add_3d_frustum         = pl__add_3d_frustum,
-        .add_3d_centered_box    = pl__add_3d_centered_box,
-        .add_3d_bezier_quad     = pl__add_3d_bezier_quad,
-        .add_3d_bezier_cubic    = pl__add_3d_bezier_cubic,
-        .register_3d_drawlist   = pl__register_3d_drawlist,
-        .submit_3d_drawlist     = pl__submit_3d_drawlist,
-        .get_ui_texture_handle  = pl_get_ui_texture_handle
+        .initialize                       = pl_initialize_graphics,
+        .resize                           = pl_resize,
+        .setup_ui                         = pl_setup_ui,
+        .begin_frame                      = pl_begin_frame,
+        .end_frame                        = pl_end_gfx_frame,
+        .begin_recording                  = pl_begin_recording,
+        .end_recording                    = pl_end_recording,
+        .begin_main_pass                  = pl_begin_main_pass,
+        .end_main_pass                    = pl_end_main_pass,
+        .begin_pass                       = pl_begin_pass,
+        .end_pass                         = pl_end_pass,
+        .draw_areas                       = pl_draw_areas,
+        .draw_lists                       = pl_draw_lists,
+        .cleanup                          = pl_cleanup,
+        .create_font_atlas                = pl_create_metal_font_texture,
+        .destroy_font_atlas               = pl_cleanup_metal_font_texture,
+        .add_3d_triangle_filled           = pl__add_3d_triangle_filled,
+        .add_3d_line                      = pl__add_3d_line,
+        .add_3d_point                     = pl__add_3d_point,
+        .add_3d_transform                 = pl__add_3d_transform,
+        .add_3d_frustum                   = pl__add_3d_frustum,
+        .add_3d_centered_box              = pl__add_3d_centered_box,
+        .add_3d_bezier_quad               = pl__add_3d_bezier_quad,
+        .add_3d_bezier_cubic              = pl__add_3d_bezier_cubic,
+        .register_3d_drawlist             = pl__register_3d_drawlist,
+        .submit_3d_drawlist               = pl__submit_3d_drawlist,
+        .get_ui_texture_handle            = pl_get_ui_texture_handle,
     };
     return &tApi;
 }
@@ -1939,6 +2252,10 @@ pl_load_device_api(void)
         .create_buffer                    = pl_create_buffer,
         .create_texture_view              = pl_create_texture_view,
         .create_texture                   = pl_create_texture,
+        .create_shader                    = pl_create_shader,
+        .create_render_pass_layout        = pl_create_render_pass_layout,
+        .create_render_pass               = pl_create_render_pass,
+        .create_frame_buffer              = pl_create_frame_buffer,
         .create_bind_group                = pl_create_bind_group,
         .update_bind_group                = pl_update_bind_group,
         .update_texture                   = pl_update_texture,
@@ -1950,7 +2267,8 @@ pl_load_device_api(void)
         .get_texture                      = pl__get_texture,
         .get_texture_view                 = pl__get_texture_view,
         .get_bind_group                   = pl__get_bind_group,
-        .get_shader                       = pl__get_shader
+        .get_shader                       = pl__get_shader,
+        .submit_frame_buffer_for_deletion = pl_submit_frame_buffer_for_deletion
     };
     return &tApi;
 }

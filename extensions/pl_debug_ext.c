@@ -1031,5 +1031,6 @@ pl_unload_debug_ext(plApiRegistryApiI* ptApiRegistry)
     pl_sb_free(sbppdFrameValues);
     pl_sb_free(sbdRawValues);
     pl_sb_free(sbbValues);
+    pl_sb_free(sbtSamples);
     pl_temp_allocator_free(&tTempAllocator);
 }

@@ -3,49 +3,102 @@
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
+typedef struct _plFrameGarbage
+{
+    plTextureHandle*          sbtTextures;
+    plTextureViewHandle*      sbtTextureViews;
+    plFrameBufferHandle*      sbtFrameBuffers;
+    plBufferHandle*           sbtBuffers;
+    plDeviceMemoryAllocation* sbtMemory;
+} plFrameGarbage;
+
+static plFrameGarbage*
+pl__get_frame_garbage(plGraphics* ptGraphics)
+{
+    return &ptGraphics->sbtGarbage[ptGraphics->uCurrentFrameIndex];
+}
+
 static plBuffer*
-pl__get_buffer(plDevice* ptDevice, plBufferHandle* ptHandle)
+pl__get_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
-    if(ptHandle->uGeneration != ptGraphics->sbtBufferGenerations[ptHandle->uIndex])
+    if(tHandle.uGeneration != ptGraphics->sbtBufferGenerations[tHandle.uIndex])
         return NULL;
-    return &ptGraphics->sbtBuffersCold[ptHandle->uIndex];
+    return &ptGraphics->sbtBuffersCold[tHandle.uIndex];
 }
 
 static plTexture*
-pl__get_texture(plDevice* ptDevice, plTextureHandle* ptHandle)
+pl__get_texture(plDevice* ptDevice, plTextureHandle tHandle)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
-    if(ptHandle->uGeneration != ptGraphics->sbtTextureGenerations[ptHandle->uIndex])
+    if(tHandle.uGeneration != ptGraphics->sbtTextureGenerations[tHandle.uIndex])
         return NULL;
-    return &ptGraphics->sbtTexturesCold[ptHandle->uIndex];
+    return &ptGraphics->sbtTexturesCold[tHandle.uIndex];
 }
 
 static plTextureView*
-pl__get_texture_view(plDevice* ptDevice, plTextureViewHandle* ptHandle)
+pl__get_texture_view(plDevice* ptDevice, plTextureViewHandle tHandle)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
-    if(ptHandle->uGeneration != ptGraphics->sbtTextureViewGenerations[ptHandle->uIndex])
+    if(tHandle.uGeneration != ptGraphics->sbtTextureViewGenerations[tHandle.uIndex])
         return NULL;
-    return &ptGraphics->sbtTextureViewsCold[ptHandle->uIndex];
+    return &ptGraphics->sbtTextureViewsCold[tHandle.uIndex];
 }
 
 static plBindGroup*
-pl__get_bind_group(plDevice* ptDevice, plBindGroupHandle* ptHandle)
+pl__get_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
-    if(ptHandle->uGeneration != ptGraphics->sbtBindGroupGenerations[ptHandle->uIndex])
+    if(tHandle.uGeneration != ptGraphics->sbtBindGroupGenerations[tHandle.uIndex])
         return NULL;
-    return &ptGraphics->sbtBindGroupsCold[ptHandle->uIndex];
+    return &ptGraphics->sbtBindGroupsCold[tHandle.uIndex];
 }
 
 static plShader*
-pl__get_shader(plDevice* ptDevice, plShaderHandle* ptHandle)
+pl__get_shader(plDevice* ptDevice, plShaderHandle tHandle)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
-    if(ptHandle->uGeneration != ptGraphics->sbtShaderGenerations[ptHandle->uIndex])
+    if(tHandle.uGeneration != ptGraphics->sbtShaderGenerations[tHandle.uIndex])
         return NULL;
-    return &ptGraphics->sbtShadersCold[ptHandle->uIndex];
+    return &ptGraphics->sbtShadersCold[tHandle.uIndex];
+}
+
+static void
+pl_submit_frame_buffer_for_deletion(plDevice* ptDevice, plFrameBufferHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
+    pl_sb_push(ptGarbage->sbtFrameBuffers, tHandle);
+    ptGraphics->sbtFrameBufferGenerations[tHandle.uIndex]++;
+}
+
+static void
+pl_submit_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
+    pl_sb_push(ptGarbage->sbtBuffers, tHandle);
+    pl_sb_push(ptGarbage->sbtMemory, ptGraphics->sbtBuffersCold[tHandle.uIndex].tMemoryAllocation);
+    ptGraphics->sbtBufferGenerations[tHandle.uIndex]++;
+}
+
+static void
+pl_submit_texture_for_deletion(plDevice* ptDevice, plTextureHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
+    pl_sb_push(ptGarbage->sbtTextures, tHandle);
+    pl_sb_push(ptGarbage->sbtMemory, ptGraphics->sbtTexturesCold[tHandle.uIndex].tMemoryAllocation);
+    ptGraphics->sbtTextureGenerations[tHandle.uIndex]++;
+}
+
+static void
+pl_submit_texture_view_for_deletion(plDevice* ptDevice, plTextureViewHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
+    pl_sb_push(ptGarbage->sbtTextureViews, tHandle);
+    ptGraphics->sbtTextureViewGenerations[tHandle.uIndex]++;
 }
 
 static void
