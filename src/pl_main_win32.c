@@ -127,8 +127,11 @@ const plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 plHashMap       gtMemoryHashMap = {0};
 plMemoryContext gtMemoryContext = {.ptHashMap = &gtMemoryHashMap};
 
-// app name
+// app config
 char acAppName[256] = {0};
+char acWindowName[256] = {0};
+plVec2 tViewportSize = {500.0f, 500.0f};
+plVec2 tViewportPos  = {200.0f, 200.0f};
 
 // app function pointers
 void* (*pl_app_load)    (const plApiRegistryApiI* ptApiRegistry, void* userData);
@@ -196,6 +199,9 @@ int main(int argc, char *argv[])
     plJsonObject tJsonRoot = {0};
     pl_load_json(pcFileData, &tJsonRoot);
     pl_json_string_member(&tJsonRoot, "app name", acAppName, 256);
+    pl_json_string_member(&tJsonRoot, "viewport title", acWindowName, 256);
+    pl_json_float_array_member(&tJsonRoot, "viewport size", tViewportSize.d, NULL);
+    pl_json_float_array_member(&tJsonRoot, "viewport pos", tViewportPos.d, NULL);
     pl_unload_json(&tJsonRoot);
     PL_FREE(pcFileData);
 
@@ -238,16 +244,16 @@ int main(int argc, char *argv[])
     // calculate window size based on desired client region size
     RECT tWr = 
     {
-        .left = 0,
-        .right = 500 + tWr.left,
-        .top = 0,
-        .bottom = 500 + tWr.top
+        .left = (LONG)tViewportPos.x,
+        .right = (LONG)(tViewportSize.x + tViewportPos.x),
+        .top = (LONG)tViewportPos.y,
+        .bottom = (LONG)(tViewportSize.y + tViewportPos.y)
     };
     AdjustWindowRect(&tWr, WS_OVERLAPPEDWINDOW, FALSE);
 
     // convert title to wide chars
     wchar_t awWideTitle[1024];
-    pl__convert_to_wide_string("Pilot Light (win32/vulkan)", awWideTitle);
+    pl__convert_to_wide_string(acWindowName, awWideTitle);
 
     // create window & get handle
     gtHandle = CreateWindowExW(

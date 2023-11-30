@@ -154,8 +154,11 @@ plUiContext* gptUiCtx = NULL;
 static plMemoryContext gtMemoryContext = {0};
 static plHashMap gtMemoryHashMap = {0};
 
-// app name
+// app config
 char acAppName[256] = {0};
+char acWindowName[256] = {0};
+plVec2 tViewportSize = {500.0f, 500.0f};
+plVec2 tViewportPos  = {200.0f, 200.0f};
 
 // app function pointers
 static void* (*pl_app_load)    (const plApiRegistryApiI* ptApiRegistry, void* ptAppData);
@@ -219,6 +222,9 @@ int main()
     plJsonObject tJsonRoot = {0};
     pl_load_json(pcFileData, &tJsonRoot);
     pl_json_string_member(&tJsonRoot, "app name", acAppName, 256);
+    pl_json_string_member(&tJsonRoot, "viewport title", acWindowName, 256);
+    pl_json_float_array_member(&tJsonRoot, "viewport size", tViewportSize.d, NULL);
+    pl_json_float_array_member(&tJsonRoot, "viewport pos", tViewportPos.d, NULL);
     pl_unload_json(&tJsonRoot);
     PL_FREE(pcFileData);
 
@@ -248,6 +254,13 @@ int main()
     [gWindow orderFront:nil];
     [gWindow center];
     [gWindow becomeKeyWindow];
+
+    NSString* tWindowTitle = [NSString stringWithUTF8String:acWindowName];
+    [gWindow setTitle:tWindowTitle];
+
+
+    NSPoint tOrigin = NSMakePoint(tViewportPos.x, gWindow.screen.frame.size.height - tViewportPos.y);
+    [gWindow setFrameTopLeftPoint:tOrigin];
 
     gInputContext = [[NSTextInputContext alloc] initWithClient:gKeyEventResponder];
 
@@ -498,7 +511,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 {
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
 
-    NSRect frame = NSMakeRect(0, 0, 500, 500);
+    NSRect frame = NSMakeRect(0, 0, tViewportSize.x, tViewportSize.y);
     self.view = [[plNSView alloc] initWithFrame:frame];
 
     plNSView *view = (plNSView *)self.view;
@@ -510,8 +523,8 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     #ifdef PL_VULKAN_BACKEND
         gptIOCtx->pBackendPlatformData = view.metalLayer;
     #endif
-    gptIOCtx->afMainViewportSize[0] = 500;
-    gptIOCtx->afMainViewportSize[1] = 500;
+    gptIOCtx->afMainViewportSize[0] = tViewportSize.x;
+    gptIOCtx->afMainViewportSize[1] = tViewportSize.y;
 
     // load library
     static char acLibraryName[256] = {0};

@@ -111,8 +111,11 @@ const plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 plHashMap       gtMemoryHashMap = {0};
 plMemoryContext gtMemoryContext = {.ptHashMap = &gtMemoryHashMap};
 
-// app name
+// app config
 char acAppName[256] = {0};
+char acWindowName[256] = {0};
+plVec2 tViewportSize = {500.0f, 500.0f};
+plVec2 tViewportPos  = {200.0f, 200.0f};
 
 // app function pointers
 void* (*pl_app_load)    (const plApiRegistryApiI* ptApiRegistry, void* ptAppData);
@@ -176,6 +179,9 @@ int main()
     plJsonObject tJsonRoot = {0};
     pl_load_json(pcFileData, &tJsonRoot);
     pl_json_string_member(&tJsonRoot, "app name", acAppName, 256);
+    pl_json_string_member(&tJsonRoot, "viewport title", acWindowName, 256);
+    pl_json_float_array_member(&tJsonRoot, "viewport size", tViewportSize.d, NULL);
+    pl_json_float_array_member(&tJsonRoot, "viewport pos", tViewportPos.d, NULL);
     pl_unload_json(&tJsonRoot);
     PL_FREE(pcFileData);
 
@@ -248,10 +254,10 @@ int main()
         XCB_COPY_FROM_PARENT,  // depth
         gWindow,               // window
         gScreen->root,         // parent
-        200,                   // x
-        200,                   // y
-        500,                   // width
-        500,                   // height
+        tViewportPos.x,        // x
+        tViewportPos.y,        // y
+        tViewportSize.x,       // width
+        tViewportSize.y,       // height
         0,                     // No border
         XCB_WINDOW_CLASS_INPUT_OUTPUT,  //class
         gScreen->root_visual,
@@ -281,8 +287,8 @@ int main()
         XCB_ATOM_WM_NAME,
         XCB_ATOM_STRING,
         8,  // data should be viewed 8 bits at a time
-        strlen("Pilot Light (linux)"),
-        "Pilot Light (linux)");
+        strlen(acWindowName),
+        acWindowName);
 
     // Tell the server to notify when the window manager
     // attempts to destroy the window.
