@@ -1217,7 +1217,7 @@ create_shaders(plAppData* ptAppData)
     plComputeShaderDescription tComputeShaderDescription0 = {
 
 #ifdef PL_METAL_BACKEND
-        .pcShader = "../shaders/metal/compute.metal",
+        .pcShader = "compute.metal",
 #else // VULKAN
         .pcShader = "compute.comp.spv",
 #endif
@@ -1244,8 +1244,8 @@ create_shaders(plAppData* ptAppData)
     plShaderDescription tShaderDescription0 = {
 
 #ifdef PL_METAL_BACKEND
-        .pcVertexShader = "../shaders/metal/primitive.metal",
-        .pcPixelShader = "../shaders/metal/primitive.metal",
+        .pcVertexShader = "primitive.metal",
+        .pcPixelShader = "primitive.metal",
 #else // VULKAN
         .pcVertexShader = "primitive.vert.spv",
         .pcPixelShader = "primitive.frag.spv",
@@ -1306,8 +1306,8 @@ create_shaders(plAppData* ptAppData)
 
     plShaderDescription tShaderDescription1 = {
 #ifdef PL_METAL_BACKEND
-        .pcVertexShader = "../shaders/metal/primitive.metal",
-        .pcPixelShader = "../shaders/metal/primitive.metal",
+        .pcVertexShader = "primitive.metal",
+        .pcPixelShader = "primitive.metal",
 #else // linux
         .pcVertexShader = "primitive.vert.spv",
         .pcPixelShader = "primitive.frag.spv",
@@ -1367,8 +1367,8 @@ create_shaders(plAppData* ptAppData)
 
     plShaderDescription tShaderDescription2 = {
 #ifdef PL_METAL_BACKEND
-        .pcVertexShader = "../shaders/metal/skybox.metal",
-        .pcPixelShader = "../shaders/metal/skybox.metal",
+        .pcVertexShader = "skybox.metal",
+        .pcPixelShader = "skybox.metal",
 #else // linux
         .pcVertexShader = "skybox.vert.spv",
         .pcPixelShader = "skybox.frag.spv",

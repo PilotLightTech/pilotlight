@@ -143,6 +143,14 @@ with pl.project("pilotlight"):
         "compute.comp",
     ]
 
+    metal_shaders = [
+        "compute.metal",
+        "draw_3d_line.metal",
+        "draw_3d.metal",
+        "primitive.metal",
+        "skybox.metal"
+    ]
+
     with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
 
         pl.push_output_binary("app")
@@ -167,6 +175,7 @@ with pl.project("pilotlight"):
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
                     pl.add_definition("PL_METAL_BACKEND")
+                    pl.add_metal_files("../shaders/metal/", *metal_shaders)
         
         
         pl.push_profile(pl.Profile.VULKAN)
