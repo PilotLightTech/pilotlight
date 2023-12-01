@@ -63,33 +63,36 @@ typedef struct _plDrawStreamI plDrawStreamI;
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plDevice            plDevice;
-typedef struct _plBuffer            plBuffer;
-typedef struct _plSwapchain         plSwapchain;
-typedef struct _plGraphics          plGraphics;
-typedef struct _plDraw              plDraw;
-typedef struct _plDrawArea          plDrawArea;
-typedef struct _plDrawStream        plDrawStream;
-typedef struct _plGraphicsState     plGraphicsState;
-typedef struct _plShaderDescription plShaderDescription;
-typedef struct _plShader            plShader;
-typedef struct _plBuffer            plBuffer;
-typedef struct _plBufferDescription plBufferDescription;
-typedef struct _plDynamicBuffer     plDynamicBuffer;
-typedef struct _plSampler           plSampler;
-typedef struct _plTextureViewDesc   plTextureViewDesc;
-typedef struct _plTexture           plTexture;
-typedef struct _plTextureView       plTextureView;
-typedef struct _plTextureDesc       plTextureDesc;
-typedef struct _plBindGroupLayout   plBindGroupLayout;
-typedef struct _plBindGroup         plBindGroup;
-typedef struct _plBufferBinding     plBufferBinding;
-typedef struct _plTextureBinding    plTextureBinding;
-typedef struct _plDynamicBinding    plDynamicBinding;
-typedef struct _plRenderViewport    plRenderViewport;
-typedef struct _plScissor           plScissor;
-typedef struct _plExtent            plExtent;
-typedef struct _plFrameGarbage      plFrameGarbage;
+typedef struct _plDevice                   plDevice;
+typedef struct _plBuffer                   plBuffer;
+typedef struct _plSwapchain                plSwapchain;
+typedef struct _plGraphics                 plGraphics;
+typedef struct _plDraw                     plDraw;
+typedef struct _plDispatch                 plDispatch;
+typedef struct _plDrawArea                 plDrawArea;
+typedef struct _plDrawStream               plDrawStream;
+typedef struct _plGraphicsState            plGraphicsState;
+typedef struct _plShaderDescription        plShaderDescription;
+typedef struct _plShader                   plShader;
+typedef struct _plComputeShaderDescription plComputeShaderDescription;
+typedef struct _plComputeShader            plComputeShader;
+typedef struct _plBuffer                   plBuffer;
+typedef struct _plBufferDescription        plBufferDescription;
+typedef struct _plDynamicBuffer            plDynamicBuffer;
+typedef struct _plSampler                  plSampler;
+typedef struct _plTextureViewDesc          plTextureViewDesc;
+typedef struct _plTexture                  plTexture;
+typedef struct _plTextureView              plTextureView;
+typedef struct _plTextureDesc              plTextureDesc;
+typedef struct _plBindGroupLayout          plBindGroupLayout;
+typedef struct _plBindGroup                plBindGroup;
+typedef struct _plBufferBinding            plBufferBinding;
+typedef struct _plTextureBinding           plTextureBinding;
+typedef struct _plDynamicBinding           plDynamicBinding;
+typedef struct _plRenderViewport           plRenderViewport;
+typedef struct _plScissor                  plScissor;
+typedef struct _plExtent                   plExtent;
+typedef struct _plFrameGarbage             plFrameGarbage;
 
 // render passes
 typedef struct _plRenderTarget                plRenderTarget;
@@ -108,6 +111,7 @@ PL_DEFINE_HANDLE(plTextureHandle);
 PL_DEFINE_HANDLE(plTextureViewHandle);
 PL_DEFINE_HANDLE(plBindGroupHandle);
 PL_DEFINE_HANDLE(plShaderHandle);
+PL_DEFINE_HANDLE(plComputeShaderHandle);
 PL_DEFINE_HANDLE(plRenderPassHandle);
 PL_DEFINE_HANDLE(plRenderPassLayoutHandle);
 PL_DEFINE_HANDLE(plFrameBufferHandle);
@@ -167,6 +171,7 @@ typedef struct _plDeviceI
 {
     // resources
     plShaderHandle           (*create_shader)             (plDevice* ptDevice, plShaderDescription* ptDescription);
+    plComputeShaderHandle    (*create_compute_shader)     (plDevice* ptDevice, plComputeShaderDescription* ptDescription);
     plRenderPassLayoutHandle (*create_render_pass_layout) (plDevice* ptDevice, const plRenderPassLayoutDescription* ptDesc);
     plRenderPassHandle       (*create_render_pass)        (plDevice* ptDevice, const plRenderPassDescription* ptDesc);
     plFrameBufferHandle      (*create_frame_buffer)       (plDevice* ptDevice, const plFrameBufferDescription* ptDescription);
@@ -210,6 +215,9 @@ typedef struct _plGraphicsI
     void (*end_main_pass)  (plGraphics* ptGraphics);
     void (*begin_pass)     (plGraphics* ptGraphics, plFrameBufferHandle tFrameBuffer);
     void (*end_pass)       (plGraphics* ptGraphics);
+
+    // compute
+    void (*dispatch)(plGraphics* ptGraphics, uint32_t uDispatchCount, plDispatch* atDispatches);
 
     // drawing
     void (*draw_areas)(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas);
@@ -454,6 +462,18 @@ typedef struct _plDrawArea
     plDrawStream*    ptDrawStream;
 } plDrawArea;
 
+typedef struct _plDispatch
+{
+    uint32_t uThreadPerGroupX;
+    uint32_t uThreadPerGroupY;
+    uint32_t uThreadPerGroupZ;
+    uint32_t uGroupCountX;
+    uint32_t uGroupCountY;
+    uint32_t uGroupCountZ;
+    uint32_t uShaderVariant;
+    uint32_t uBindGroup0;
+} plDispatch;
+
 typedef struct _plDraw
 {
     uint32_t uDynamicBuffer;
@@ -489,6 +509,17 @@ typedef struct _plShader
 {
     plShaderDescription tDescription;
 } plShader;
+
+typedef struct _plComputeShaderDescription
+{
+    const char*        pcShader;
+    plBindGroupLayout  tBindGroupLayout;
+} plComputeShaderDescription;
+
+typedef struct _plComputeShader
+{
+    plComputeShaderDescription tDescription;
+} plComputeShader;
 
 typedef struct _plSubpass
 {
@@ -619,6 +650,10 @@ typedef struct _plGraphics
     // shaders
     plShader* sbtShadersCold;
     uint32_t* sbtShaderGenerations;
+
+    // compute shaders
+    plComputeShader* sbtComputeShadersCold;
+    uint32_t*        sbtComputeShaderGenerations;
 
     // buffers
     plBuffer* sbtBuffersCold;

@@ -63,6 +63,7 @@ typedef struct plAppData_t
     plRenderPassHandle   tOffscreenRenderPass;
 
     // offscreen
+    plVec2              tOffscreenTargetSize;
     plTextureHandle     tOffscreenTexture[2];
     plTextureViewHandle tOffscreenTextureView[2];
     plTextureHandle     tOffscreenDepthTexture;
@@ -82,16 +83,19 @@ typedef struct plAppData_t
     plBindGroupHandle tBindGroup1_1;
     plBindGroupHandle tBindGroup1_2;
     plBindGroupHandle tBindGroup2;
+    plBindGroupHandle tBindGroupCompute;
     
     // shaders
-    plShaderHandle tShader0;
-    plShaderHandle tShader1;
-    plShaderHandle tShader2;
-    plShaderHandle tOffscreenShader0;
-    plShaderHandle tOffscreenShader1;
-    plShaderHandle tOffscreenShader2;
+    plComputeShaderHandle tComputeShader0;
+    plShaderHandle        tShader0;
+    plShaderHandle        tShader1;
+    plShaderHandle        tShader2;
+    plShaderHandle        tOffscreenShader0;
+    plShaderHandle        tOffscreenShader1;
+    plShaderHandle        tOffscreenShader2;
 
     // global index/vertex/data buffers
+    plBufferHandle tComputeUniformBuffer;
     plBufferHandle tVertexBuffer;
     plBufferHandle tIndexBuffer;
     plBufferHandle tStorageBuffer;
@@ -194,6 +198,8 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     // add some context to data registry
     ptAppData = PL_ALLOC(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
+    ptAppData->tOffscreenTargetSize.x = 1024.0f;
+    ptAppData->tOffscreenTargetSize.y = 1024.0f;
     gptDataRegistry->set_data("profile", ptProfileCtx);
     gptDataRegistry->set_data("log", ptLogCtx);
 
@@ -251,7 +257,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     const plRenderPassLayoutDescription tOffscreenRenderPassLayoutDesc = {
         .tDepthTarget = { .tFormat = PL_FORMAT_D32_FLOAT, .tSampleCount = PL_SAMPLE_COUNT_1 },
         .atRenderTargets = {
-            { .tFormat = PL_FORMAT_R8G8B8A8_UNORM, .tSampleCount = PL_SAMPLE_COUNT_1}
+            { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT, .tSampleCount = PL_SAMPLE_COUNT_1}
         },
         .atSubpasses = {
             {
@@ -516,12 +522,12 @@ pl_app_update(plAppData* ptAppData)
     plDrawArea tArea0 = {
        .ptDrawStream = &ptAppData->tDrawStream,
        .tScissor = {
-            .uWidth  = 500,
-            .uHeight = 500,
+            .uWidth  = (uint32_t)ptAppData->tOffscreenTargetSize.x,
+            .uHeight = (uint32_t)ptAppData->tOffscreenTargetSize.y,
        },
        .tViewport = {
-            .fWidth  = 500,
-            .fHeight = 500
+            .fWidth  = ptAppData->tOffscreenTargetSize.x,
+            .fHeight = ptAppData->tOffscreenTargetSize.y
        }
     };
     gptGfx->draw_areas(&ptAppData->tGraphics, 1, &tArea0);
@@ -530,7 +536,7 @@ pl_app_update(plAppData* ptAppData)
     const plMat4 tTransform00 = pl_identity_mat4();
     gptGfx->add_3d_transform(&ptAppData->tOffscreen3DDrawList, &tTransform00, 10.0f, 0.02f);
     gptGfx->add_3d_frustum(&ptAppData->t3DDrawList, &ptAppData->tOffscreenCamera.tTransformMat, ptAppData->tOffscreenCamera.fFieldOfView, ptAppData->tOffscreenCamera.fAspectRatio, ptAppData->tOffscreenCamera.fNearZ, ptAppData->tOffscreenCamera.fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
-    gptGfx->submit_3d_drawlist(&ptAppData->tOffscreen3DDrawList, 500.0f, 500.0f, &tOffscreenMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, ptAppData->tOffscreenRenderPass, 1);
+    gptGfx->submit_3d_drawlist(&ptAppData->tOffscreen3DDrawList, ptAppData->tOffscreenTargetSize.x, ptAppData->tOffscreenTargetSize.y, &tOffscreenMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, ptAppData->tOffscreenRenderPass, 1);
     gptGfx->end_pass(&ptAppData->tGraphics);
     gptGfx->begin_main_pass(&ptAppData->tGraphics, ptAppData->sbtMainFrameBuffers[ptAppData->tGraphics.tSwapchain.uCurrentImageIndex]);
 
@@ -546,12 +552,35 @@ pl_app_update(plAppData* ptAppData)
         {
             const plBufferDescription tReadbackBufferDesc = {
                 .tMemory              = PL_MEMORY_CPU,
-                .uByteSize            = 500*500*4,
+                .uByteSize            = (uint32_t)ptAppData->tOffscreenTargetSize.x * (uint32_t)ptAppData->tOffscreenTargetSize.y * 4 * sizeof(float),
             };
             plBufferHandle tReadbackBuffer = gptDevice->create_buffer(ptDevice, &tReadbackBufferDesc, "readback buffer");
+            plBufferHandle tReadbackBuffer2 = gptDevice->create_buffer(ptDevice, &tReadbackBufferDesc, "readback buffer2");
             gptDevice->transfer_image_to_buffer(ptDevice, ptAppData->tOffscreenTexture[ptAppData->tGraphics.uCurrentFrameIndex], tReadbackBuffer);
-            gptImage->write_png("offscreen.png", 500, 500, 4, ptGraphics->sbtBuffersCold[tReadbackBuffer.uIndex].tMemoryAllocation.pHostMapped, 4 * 500);
+            gptImage->write_hdr("offscreen.hdr", (int)ptAppData->tOffscreenTargetSize.x, (int)ptAppData->tOffscreenTargetSize.y, 4, (float*)ptGraphics->sbtBuffersCold[tReadbackBuffer.uIndex].tMemoryAllocation.pHostMapped);
+
+            uint32_t* ptComputeInfoBuffer = (uint32_t*)ptGraphics->sbtBuffersCold[ptAppData->tComputeUniformBuffer.uIndex].tMemoryAllocation.pHostMapped;
+            *ptComputeInfoBuffer = (uint32_t)ptAppData->tOffscreenTargetSize.x;
+            plBufferHandle atBindGroup0_buffers1[3] = {ptAppData->tComputeUniformBuffer, tReadbackBuffer, tReadbackBuffer2};
+            size_t szBufferRangeSize[3] = {sizeof(uint32_t), (uint32_t)ptAppData->tOffscreenTargetSize.x * (uint32_t)ptAppData->tOffscreenTargetSize.y*4* sizeof(float), (uint32_t)ptAppData->tOffscreenTargetSize.x * (uint32_t)ptAppData->tOffscreenTargetSize.y*4* sizeof(float)};
+            gptDevice->update_bind_group(ptDevice, &ptAppData->tBindGroupCompute, 3, atBindGroup0_buffers1, szBufferRangeSize, 0, NULL);
+
+            plDispatch tDispach = {
+                .uBindGroup0 = ptAppData->tBindGroupCompute.uIndex,
+                .uGroupCountX = (uint32_t)ptAppData->tOffscreenTargetSize.x,
+                .uGroupCountY = (uint32_t)ptAppData->tOffscreenTargetSize.y,
+                .uGroupCountZ = 1,
+                .uThreadPerGroupX = 1,
+                .uThreadPerGroupY = 1,
+                .uThreadPerGroupZ = 1,
+                .uShaderVariant = ptAppData->tComputeShader0.uIndex
+            };
+            gptGfx->dispatch(ptGraphics, 1, &tDispach);
+
+            gptImage->write_hdr("offscreen2.hdr", (int)ptAppData->tOffscreenTargetSize.x, (int)ptAppData->tOffscreenTargetSize.y, 4, (float*)ptGraphics->sbtBuffersCold[tReadbackBuffer2.uIndex].tMemoryAllocation.pHostMapped);
+
             gptDevice->submit_buffer_for_deletion(ptDevice, tReadbackBuffer);
+            gptDevice->submit_buffer_for_deletion(ptDevice, tReadbackBuffer2);
         }
         
         pl_image(ptAppData->ptOffscreenTextureID[ptAppData->tGraphics.uCurrentFrameIndex], (plVec2){500.0f, 500.0f});
@@ -708,8 +737,8 @@ create_offscreen_frame_buffer(plAppData* ptAppData)
     {
         const plFrameBufferDescription tFrameBufferDesc = {
             .tRenderPass      = ptAppData->tOffscreenRenderPass,
-            .uWidth           = 500,
-            .uHeight          = 500,
+            .uWidth           = (uint32_t)ptAppData->tOffscreenTargetSize.x,
+            .uHeight          = (uint32_t)ptAppData->tOffscreenTargetSize.y,
             .uAttachmentCount = 2,
             .atViewAttachments = {
                 ptAppData->tOffscreenTextureView[i],
@@ -897,6 +926,16 @@ create_buffers(plAppData* ptAppData)
     ptAppData->tIndexBuffer = gptDevice->create_buffer(ptDevice, &tIndexBufferDesc, "index buffer");
     pl_sb_free(ptAppData->sbuIndexBuffer);
 
+    // tComputeUniformBuffer
+    const plBufferDescription tComputeBufferDesc = {
+        .tMemory              = PL_MEMORY_GPU_CPU,
+        .tUsage               = PL_BUFFER_USAGE_UNIFORM,
+        .uByteSize            = sizeof(uint32_t),
+        .uInitialDataByteSize = 0,
+        .puInitialData        = NULL
+    };
+    ptAppData->tComputeUniformBuffer = gptDevice->create_buffer(ptDevice, &tComputeBufferDesc, "compute uniform buffer");
+
     const plBufferDescription tVertexBufferDesc = {
         .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_VERTEX,
@@ -938,8 +977,8 @@ create_offscreen_textures(plAppData* ptAppData)
     for(uint32_t i = 0; i < 2; i++)
     {
         plTextureDesc tTextureDesc = {
-            .tDimensions = {500.0f, 500.0f, 1},
-            .tFormat = PL_FORMAT_R8G8B8A8_UNORM,
+            .tDimensions = {ptAppData->tOffscreenTargetSize.x, ptAppData->tOffscreenTargetSize.y, 1},
+            .tFormat = PL_FORMAT_R32G32B32A32_FLOAT,
             .uLayers = 1,
             .uMips = 1,
             .tType = PL_TEXTURE_TYPE_2D,
@@ -949,13 +988,13 @@ create_offscreen_textures(plAppData* ptAppData)
         ptAppData->tOffscreenTexture[i] = gptDevice->create_texture(ptDevice, tTextureDesc, 0, NULL, "offscreen texture");
 
         plTextureViewDesc tTextureViewDesc = {
-            .tFormat     = PL_FORMAT_R8G8B8A8_UNORM,
+            .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
             .uBaseLayer  = 0,
             .uBaseMip    = 0,
             .uLayerCount = 1
         };
         plSampler tSampler = {
-            .tFilter = PL_FILTER_NEAREST,
+            .tFilter = PL_FILTER_LINEAR,
             .fMinMip = 0.0f,
             .fMaxMip = 64.0f,
             .tVerticalWrap = PL_WRAP_MODE_CLAMP,
@@ -969,7 +1008,7 @@ create_offscreen_textures(plAppData* ptAppData)
     {
 
         plTextureDesc tTextureDesc = {
-            .tDimensions = {500.0f, 500.0f, 1},
+            .tDimensions = {ptAppData->tOffscreenTargetSize.x, ptAppData->tOffscreenTargetSize.y, 1},
             .tFormat = PL_FORMAT_D32_FLOAT,
             .uLayers = 1,
             .uMips = 1,
@@ -1080,6 +1119,25 @@ create_bind_groups(plAppData* ptAppData)
 
     plDevice* ptDevice = &ptAppData->tGraphics.tDevice;
 
+    plBindGroupLayout tComputeBindGroupLayout0 = {
+        .uBufferCount  = 3,
+        .aBuffers = {
+            {
+                .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                .uSlot = 0
+            },
+            {
+                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                .uSlot = 1
+            },
+            {
+                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                .uSlot = 2
+            },
+        }
+    };
+    ptAppData->tBindGroupCompute = gptDevice->create_bind_group(ptDevice, &tComputeBindGroupLayout0);
+
     plBindGroupLayout tBindGroupLayout0 = {
         .uBufferCount  = 2,
         .aBuffers = {
@@ -1155,6 +1213,34 @@ create_shaders(plAppData* ptAppData)
 {
 
     plDevice* ptDevice = &ptAppData->tGraphics.tDevice;
+
+    plComputeShaderDescription tComputeShaderDescription0 = {
+
+#ifdef PL_METAL_BACKEND
+        .pcShader = "../shaders/metal/compute.metal",
+#else // VULKAN
+        .pcShader = "compute.comp.spv",
+#endif
+        .tBindGroupLayout = {
+            .uBufferCount = 3,
+            .aBuffers = {
+                {
+                    .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                    .uSlot = 0
+                },
+                {
+                    .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                    .uSlot = 1
+                },
+                {
+                    .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                    .uSlot = 2
+                }
+            },
+        }
+    };
+    ptAppData->tComputeShader0 = gptDevice->create_compute_shader(ptDevice, &tComputeShaderDescription0);
+
     plShaderDescription tShaderDescription0 = {
 
 #ifdef PL_METAL_BACKEND

@@ -149,6 +149,13 @@ typedef struct _plVulkanShader
     VkShaderModule        tPixelShaderModule;
 } plVulkanShader;
 
+typedef struct _plVulkanComputeShader
+{
+    VkPipelineLayout tPipelineLayout;
+    VkPipeline       tPipeline;
+    VkShaderModule   tShaderModule;
+} plVulkanComputeShader;
+
 typedef struct _plFrameContext
 {
     VkSemaphore           tImageAvailable;
@@ -212,6 +219,7 @@ typedef struct _plVulkanGraphics
     plVulkanBindGroup*        sbtBindGroupsHot;
     plVulkanBuffer*           sbtBuffersHot;
     plVulkanShader*           sbtShadersHot;
+    plVulkanComputeShader*    sbtComputeShadersHot;
     plVulkanBindGroupLayout*  sbtBindGroupLayouts;
     plVulkanRenderPass*       sbtRenderPassesHot;
     plVulkanRenderPassLayout* sbtRenderPassLayoutsHot;
@@ -593,7 +601,7 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
     else if(ptDesc->tMemory == PL_MEMORY_GPU)
         tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     else if(ptDesc->tMemory == PL_MEMORY_CPU)
-        tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
     PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &tBufferInfo, NULL, &tVulkanBuffer.tBuffer));
     if(pcName)
@@ -776,7 +784,6 @@ pl_transfer_image_to_buffer(plDevice* ptDevice, plTextureHandle tTexture, plBuff
     pl__transition_image_layout(tCommandBuffer, ptVulkanTexture->tImage, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
     vkCmdCopyImageToBuffer(tCommandBuffer, ptVulkanTexture->tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, ptVulkanBuffer->tBuffer, 1, &tCopyRegion);
     pl__transition_image_layout(tCommandBuffer, ptVulkanTexture->tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-    // vkCmdCopyImageToBuffer(tCommandBuffer, ptVulkanTexture->tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, ptVulkanBuffer->tBuffer, 1, &tCopyRegion);
 
     PL_VULKAN(vkEndCommandBuffer(tCommandBuffer));
     const VkSubmitInfo tSubmitInfo = {
@@ -1131,7 +1138,7 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout)
             .binding         = ptLayout->aBuffers[i].uSlot,
             .descriptorType  = ptLayout->aBuffers[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = 1,
-            .stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
+            .stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
             .pImmutableSamplers = NULL
         };
         pl_sb_push(sbtDescriptorSetLayoutBindings, tBinding);
@@ -1185,7 +1192,7 @@ pl_create_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout)
             .binding         = ptLayout->aBuffers[i].uSlot,
             .descriptorType  = ptLayout->aBuffers[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = 1,
-            .stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
+            .stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
             .pImmutableSamplers = NULL
         };
         pl_sb_push(sbtDescriptorSetLayoutBindings, tBinding);
@@ -1350,6 +1357,69 @@ pl_create_frame_buffer(plDevice* ptDevice, const plFrameBufferDescription* ptDes
     ptVulkanGfx->sbtFrameBuffersHot[uFrameBufferIndex] = tVulkanFrameBuffer;
     ptGraphics->sbtFrameBuffersCold[uFrameBufferIndex] = tFrameBuffer;
     ptGraphics->sbtFrameBufferGenerations[uFrameBufferIndex]++;
+    return tHandle;
+}
+
+static plComputeShaderHandle
+pl_create_compute_shader(plDevice* ptDevice, plComputeShaderDescription* ptDescription)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
+
+    plComputeShaderHandle tHandle = {
+        .uGeneration = 0,
+        .uIndex = pl_sb_size(ptVulkanGfx->sbtComputeShadersHot)
+    };
+
+    plComputeShader tShader = {
+        .tDescription = *ptDescription
+    };
+
+    plVulkanComputeShader tVulkanShader = {0};
+
+    pl_create_bind_group_layout(&ptGraphics->tDevice, &ptDescription->tBindGroupLayout);
+
+    VkPipelineLayoutCreateInfo tPipelineLayoutInfo = {
+        .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 1,
+        .pSetLayouts    = &ptVulkanGfx->sbtBindGroupLayouts[ptDescription->tBindGroupLayout.uHandle].tDescriptorSetLayout
+    };
+    PL_VULKAN(vkCreatePipelineLayout(ptVulkanDevice->tLogicalDevice, &tPipelineLayoutInfo, NULL, &tVulkanShader.tPipelineLayout));
+
+    uint32_t uShaderSize = 0u;
+    gptFile->read(ptDescription->pcShader, &uShaderSize, NULL, "rb");
+    char* pcShaderCode = PL_ALLOC(uShaderSize);
+    gptFile->read(ptDescription->pcShader, &uShaderSize, pcShaderCode, "rb");
+
+    VkShaderModuleCreateInfo tShaderCreateInfo = {
+        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = uShaderSize,
+        .pCode    = (const uint32_t*)(pcShaderCode)
+    };
+
+    PL_VULKAN(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &tShaderCreateInfo, NULL, &tVulkanShader.tShaderModule));
+
+    VkPipelineShaderStageCreateInfo tShaderStage = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+        .module = tVulkanShader.tShaderModule,
+        .pName = "main"
+    };
+
+    VkComputePipelineCreateInfo tPipelineCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+        .layout = tVulkanShader.tPipelineLayout,
+        .stage  = tShaderStage
+    };
+    PL_VULKAN(vkCreateComputePipelines(ptVulkanDevice->tLogicalDevice, VK_NULL_HANDLE, 1, &tPipelineCreateInfo, NULL, &tVulkanShader.tPipeline));
+
+    PL_FREE(pcShaderCode);
+    vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, tVulkanShader.tShaderModule, NULL);
+
+    pl_sb_push(ptVulkanGfx->sbtComputeShadersHot, tVulkanShader);
+    pl_sb_push(ptGraphics->sbtComputeShadersCold, tShader);
+    pl_sb_push(ptGraphics->sbtComputeShaderGenerations, 0);
     return tHandle;
 }
 
@@ -2991,6 +3061,12 @@ pl_shutdown(plGraphics* ptGraphics)
             vkDestroyPipelineLayout(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtShadersHot[i].tPipelineLayout, NULL);
         }
 
+        for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtComputeShadersHot); i++)
+        {
+            vkDestroyPipeline(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtComputeShadersHot[i].tPipeline, NULL);
+            vkDestroyPipelineLayout(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtComputeShadersHot[i].tPipelineLayout, NULL);
+        }
+
         for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtBindGroupLayouts); i++)
         {
             vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtBindGroupLayouts[i].tDescriptorSetLayout, NULL);    
@@ -3002,6 +3078,7 @@ pl_shutdown(plGraphics* ptGraphics)
         pl_sb_free(ptVulkanGfx->sbtBindGroupsHot);
         pl_sb_free(ptVulkanGfx->sbtBuffersHot);
         pl_sb_free(ptVulkanGfx->sbtShadersHot);
+        pl_sb_free(ptVulkanGfx->sbtComputeShadersHot);
         pl_sb_free(ptVulkanGfx->sbtBindGroupLayouts);
         
         for(uint32_t i = 0u; i < pl_sb_size(ptGraphics->sbt3DDrawlists); i++)
@@ -3146,9 +3223,59 @@ pl_shutdown(plGraphics* ptGraphics)
     pl_sb_free(ptGraphics->sbtTextureFreeIndices);
     pl_sb_free(ptGraphics->sbtTextureViewFreeIndices);
     pl_sb_free(ptGraphics->sbtRenderPassLayoutsCold);
+    pl_sb_free(ptGraphics->sbtComputeShadersCold);
+    pl_sb_free(ptGraphics->sbtComputeShaderGenerations);
     PL_FREE(ptGraphics->_pInternalData);
     PL_FREE(ptGraphics->tSwapchain._pInternalData);
     PL_FREE(ptGraphics->tDevice._pInternalData);
+}
+
+static void
+pl_dispatch(plGraphics* ptGraphics, uint32_t uDispatchCount, plDispatch* atDispatches)
+{
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics); 
+
+    // perform copy from staging buffer to destination buffer
+    VkCommandBuffer tCommandBuffer = {0};
+    
+    const VkCommandBufferAllocateInfo tAllocInfo = {
+        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandPool        = ptVulkanDevice->tCmdPool,
+        .commandBufferCount = 1u,
+    };
+    vkAllocateCommandBuffers(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tCommandBuffer);
+
+    const VkCommandBufferBeginInfo tBeginInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+    };
+
+    vkBeginCommandBuffer(tCommandBuffer, &tBeginInfo);
+
+    for(uint32_t i = 0; i < uDispatchCount; i++)
+    {
+        const plDispatch* ptDispatch = &atDispatches[i];
+        plVulkanComputeShader* ptComputeShader = &ptVulkanGfx->sbtComputeShadersHot[ptDispatch->uShaderVariant];
+        plVulkanBindGroup* ptBindGroup = &ptVulkanGfx->sbtBindGroupsHot[ptDispatch->uBindGroup0];
+
+        vkCmdBindPipeline(tCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptComputeShader->tPipeline);
+        vkCmdBindDescriptorSets(tCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptComputeShader->tPipelineLayout, 0, 1, &ptBindGroup->tDescriptorSet, 0, 0);
+        vkCmdDispatch(tCommandBuffer, ptDispatch->uGroupCountX, ptDispatch->uGroupCountY, ptDispatch->uGroupCountZ);
+    }
+
+    PL_VULKAN(vkEndCommandBuffer(tCommandBuffer));
+    const VkSubmitInfo tSubmitInfo = {
+        .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1u,
+        .pCommandBuffers    = &tCommandBuffer,
+    };
+
+    PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
+    PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
+    vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
 }
 
 static void
@@ -4855,6 +4982,7 @@ pl_load_graphics_api(void)
         .end_main_pass                    = pl_end_main_pass,
         .begin_pass                       = pl_begin_pass,
         .end_pass                         = pl_end_pass,
+        .dispatch                         = pl_dispatch,
         .draw_areas                       = pl_draw_areas,
         .draw_lists                       = pl_draw_list,
         .cleanup                          = pl_shutdown,
@@ -4881,6 +5009,7 @@ pl_load_device_api(void)
     static const plDeviceI tApi = {
         .create_buffer                    = pl_create_buffer,
         .create_shader                    = pl_create_shader,
+        .create_compute_shader            = pl_create_compute_shader,
         .create_render_pass_layout        = pl_create_render_pass_layout,
         .create_render_pass               = pl_create_render_pass,
         .create_frame_buffer              = pl_create_frame_buffer,

@@ -140,8 +140,7 @@ with pl.project("pilotlight"):
         "draw_3d.vert",
         "draw_3d.frag",
         "draw_3d_line.vert",
-        "primitive_2d.frag",
-        "primitive_2d.vert"
+        "compute.comp",
     ]
 
     with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):

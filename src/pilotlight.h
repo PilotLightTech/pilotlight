@@ -22,8 +22,8 @@ Index of this file:
 #ifndef PL_PILOTLIGHT_H
 #define PL_PILOTLIGHT_H
 
-#define PILOTLIGHT_VERSION    "0.3.0"
-#define PILOTLIGHT_VERSION_NUM 000300
+#define PILOTLIGHT_VERSION    "0.4.0"
+#define PILOTLIGHT_VERSION_NUM 000400
 
 #ifdef __cplusplus
     #if defined(_MSC_VER) //  Microsoft 
