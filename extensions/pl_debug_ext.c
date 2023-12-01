@@ -750,19 +750,21 @@ pl__show_device_memory(bool* bValue)
         const plDeviceMemoryAllocatorI atAllocators[] = {
             ptDevice->tLocalBuddyAllocator,
             ptDevice->tLocalDedicatedAllocator,
-            ptDevice->tStagingUnCachedAllocator
+            ptDevice->tStagingUnCachedAllocator,
+            ptDevice->tStagingCachedAllocator
         };
 
         const char* apcAllocatorNames[] = {
             "Device Memory: Local Buddy",
             "Device Memory: Local Dedicated",
-            "Device Memory: Staging Uncached"
+            "Device Memory: Staging Uncached",
+            "Device Memory: Staging Cached"
         };
 
         pl_push_theme_color(PL_UI_COLOR_BUTTON, &tButtonColor);
         pl_push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, &tButtonColor);
         pl_push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, &tButtonColor);
-        for(uint32_t uAllocatorIndex = 0; uAllocatorIndex < 3; uAllocatorIndex++)
+        for(uint32_t uAllocatorIndex = 0; uAllocatorIndex < 4; uAllocatorIndex++)
         {
             uint32_t uBlockCount = 0;
             uint32_t uRangeCount = 0;

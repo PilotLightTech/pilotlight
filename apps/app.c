@@ -100,11 +100,11 @@ typedef struct plAppData_t
     plBufferHandle atOffscreenGlobalBuffers[2];
 
     // scene
-    plDrawStream tDrawStream;
-    plCamera     tMainCamera;
-    plCamera     tOffscreenCamera;
-    plDrawList3D t3DDrawList;
-    plDrawList3D tOffscreen3DDrawList;
+    plDrawStream   tDrawStream;
+    plCamera       tMainCamera;
+    plCamera       tOffscreenCamera;
+    plDrawList3D   t3DDrawList;
+    plDrawList3D   tOffscreen3DDrawList;
 
     plVec3*   sbtVertexPosBuffer;
     plVec4*   sbtVertexDataBuffer;
@@ -541,6 +541,18 @@ pl_app_update(plAppData* ptAppData)
 
         const float pfRatios[] = {1.0f};
         pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+
+        if(pl_button("Read"))
+        {
+            const plBufferDescription tReadbackBufferDesc = {
+                .tMemory              = PL_MEMORY_CPU,
+                .uByteSize            = 500*500*4,
+            };
+            plBufferHandle tReadbackBuffer = gptDevice->create_buffer(ptDevice, &tReadbackBufferDesc, "readback buffer");
+            gptDevice->transfer_image_to_buffer(ptDevice, ptAppData->tOffscreenTexture[ptAppData->tGraphics.uCurrentFrameIndex], tReadbackBuffer);
+            gptImage->write_png("offscreen.png", 500, 500, 4, ptGraphics->sbtBuffersCold[tReadbackBuffer.uIndex].tMemoryAllocation.pHostMapped, 4 * 500);
+            gptDevice->submit_buffer_for_deletion(ptDevice, tReadbackBuffer);
+        }
         
         pl_image(ptAppData->ptOffscreenTextureID[ptAppData->tGraphics.uCurrentFrameIndex], (plVec2){500.0f, 500.0f});
         pl_end_window();
@@ -906,7 +918,7 @@ create_buffers(plAppData* ptAppData)
     pl_sb_free(ptAppData->sbtVertexDataBuffer);
 
     const plBufferDescription atGlobalBuffersDesc = {
-        .tMemory              = PL_MEMORY_CPU,
+        .tMemory              = PL_MEMORY_GPU_CPU,
         .tUsage               = PL_BUFFER_USAGE_UNIFORM,
         .uByteSize            = sizeof(BindGroup_0),
         .uInitialDataByteSize = 0,

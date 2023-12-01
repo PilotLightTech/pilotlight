@@ -176,6 +176,7 @@ typedef struct _plDeviceI
     plBindGroupHandle        (*create_bind_group)         (plDevice* ptDevice, plBindGroupLayout* ptLayout);
     void                     (*update_bind_group)         (plDevice* ptDevice, plBindGroupHandle* ptGroup, uint32_t uBufferCount, plBufferHandle* atBuffers, size_t* aszBufferRanges, uint32_t uTextureViewCount, plTextureViewHandle* atTextureViews);
     void                     (*update_texture)            (plDevice* ptDevice, plTextureHandle tHandle, size_t szSize, const void* pData);
+    void                     (*transfer_image_to_buffer)  (plDevice* ptDevice, plTextureHandle tTexture, plBufferHandle tBuffer);
 
     plDynamicBinding (*allocate_dynamic_data)(plDevice* ptDevice, size_t szSize);
 
@@ -569,6 +570,7 @@ typedef struct _plDevice
     plDeviceMemoryAllocatorI tLocalDedicatedAllocator;
     plDeviceMemoryAllocatorI tLocalBuddyAllocator;
     plDeviceMemoryAllocatorI tStagingUnCachedAllocator;
+    plDeviceMemoryAllocatorI tStagingCachedAllocator;
     void* _pInternalData;
 } plDevice;
 

@@ -140,6 +140,7 @@ typedef struct _plGraphicsMetal
     MTLSharedEventListener*  ptSharedEventListener;
     id<MTLBuffer>            tStagingBuffer;
     plDeviceMemoryAllocation tStagingMemory;
+    id<MTLFence>             tPassFence;
     
     plFrameContext*    sbFrames;
     plMetalTexture*    sbtTexturesHot;
@@ -323,6 +324,56 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc)
     return tHandle;
 }
 
+static void
+pl_transfer_image_to_buffer(plDevice* ptDevice, plTextureHandle tTexture, plBufferHandle tBuffer)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+
+    const plTexture* ptTexture = pl__get_texture(ptDevice, tTexture);
+    const plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[tTexture.uIndex];
+    const plMetalBuffer* ptMetalBuffer = &ptMetalGraphics->sbtBuffersHot[tBuffer.uIndex];
+
+    // copy from cpu to gpu once staging buffer is free
+    [ptMetalGraphics->tStagingEvent notifyListener:ptMetalGraphics->ptSharedEventListener
+                        atValue:ptMetalGraphics->uNextFenceValue + 2
+                        block:^(id<MTLSharedEvent> sharedEvent, uint64_t value) {
+        sharedEvent.signaledValue = ptMetalGraphics->uNextFenceValue;
+    }];
+
+    id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
+    commandBuffer.label = @"Heap Transfer Blit Encoder";
+
+    [commandBuffer encodeWaitForEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue++];
+
+    id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
+    blitEncoder.label = @"Heap Transfer Blit Encoder";
+
+    MTLOrigin tOrigin;
+    tOrigin.x = 0;
+    tOrigin.y = 0;
+    tOrigin.z = 0;
+    MTLSize tSize;
+    tSize.width = ptTexture->tDesc.tDimensions.x;
+    tSize.height = ptTexture->tDesc.tDimensions.y;
+    tSize.depth = ptTexture->tDesc.tDimensions.z;
+
+    [blitEncoder copyFromTexture:ptMetalTexture->tTexture sourceSlice:0 sourceLevel:0 sourceOrigin:tOrigin sourceSize:tSize toBuffer:ptMetalBuffer->tBuffer destinationOffset:0 destinationBytesPerRow:ptTexture->tDesc.tDimensions.x * 4 destinationBytesPerImage:0];
+
+    [blitEncoder endEncoding];
+    [commandBuffer encodeSignalEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue];
+    [commandBuffer commit];
+
+    // wait for cpu to gpu copying to take place before continuing
+    while(true)
+    {
+        if(ptMetalGraphics->tStagingEvent.signaledValue == ptMetalGraphics->uNextFenceValue)
+            break;
+    }
+
+}
+
 static plBufferHandle
 pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const char* pcName)
 {
@@ -421,7 +472,7 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
     }
     else if(ptDesc->tMemory == PL_MEMORY_CPU)
     {
-        tBuffer.tMemoryAllocation = ptDevice->tStagingUnCachedAllocator.allocate(ptDevice->tStagingUnCachedAllocator.ptInst, MTLStorageModePrivate, ptDesc->uByteSize, 0, pcName);
+        tBuffer.tMemoryAllocation = ptDevice->tStagingCachedAllocator.allocate(ptDevice->tStagingCachedAllocator.ptInst, MTLStorageModePrivate, ptDesc->uByteSize, 0, pcName);
 
         plMetalBuffer tMetalBuffer = {
             .tBuffer = [(id<MTLHeap>)tBuffer.tMemoryAllocation.uHandle newBufferWithLength:ptDesc->uByteSize options:MTLResourceStorageModeShared offset:0]
@@ -1027,6 +1078,15 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     ptGraphics->tDevice.tStagingUnCachedAllocator.ranges = pl_get_allocator_ranges;
     ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&tStagingUncachedData;
 
+    // staging cached
+    static plDeviceAllocatorData tStagingCachedData = {0};
+    tStagingCachedData.ptDevice = &ptGraphics->tDevice;
+    ptGraphics->tDevice.tStagingCachedAllocator.allocate = pl_allocate_staging_uncached;
+    ptGraphics->tDevice.tStagingCachedAllocator.free = pl_free_staging_uncached;
+    ptGraphics->tDevice.tStagingCachedAllocator.blocks = pl_get_allocator_blocks;
+    ptGraphics->tDevice.tStagingCachedAllocator.ranges = pl_get_allocator_ranges;
+    ptGraphics->tDevice.tStagingCachedAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&tStagingCachedData;
+
     ptMetalGraphics->tStagingEvent = [ptMetalDevice->tDevice newSharedEvent];
     dispatch_queue_t tQueue = dispatch_queue_create("com.example.apple-samplecode.MyQueue", NULL);
     ptMetalGraphics->ptSharedEventListener = [[MTLSharedEventListener alloc] initWithDispatchQueue:tQueue];
@@ -1095,6 +1155,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     };
     ptGraphics->tSwapchain.tDepthTextureView = pl_create_texture_view(&ptGraphics->tDevice, &tDepthTextureViewDesc, &tSampler, ptGraphics->tSwapchain.tDepthTexture, "Swapchain depth view");
 
+    ptMetalGraphics->tPassFence = [ptMetalDevice->tDevice newFence];
 }
 
 static void
@@ -1180,7 +1241,6 @@ pl_begin_frame(plGraphics* ptGraphics)
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
 
     // Wait until the inflight command buffer has completed its work
-    ptGraphics->uCurrentFrameIndex = (ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;
     ptGraphics->tSwapchain.uCurrentImageIndex = ptGraphics->uCurrentFrameIndex;
     plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
     dispatch_semaphore_wait(ptFrame->tFrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
@@ -1283,6 +1343,8 @@ pl_end_gfx_frame(plGraphics* ptGraphics)
 
     [ptMetalGraphics->tCurrentCommandBuffer commit];
 
+    ptGraphics->uCurrentFrameIndex = (ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;
+
     pl_end_profile_sample();
     return true;
 }
@@ -1315,6 +1377,8 @@ pl_begin_main_pass(plGraphics* ptGraphics, plFrameBufferHandle tFrameBufferHandl
     ptMetalRenderPass->ptRenderPassDescriptor.colorAttachments[0].texture = ptMetalGraphics->sbtTexturesHot[uColorIndex].tTexture;
     ptMetalRenderPass->ptRenderPassDescriptor.colorAttachments[0].resolveTexture = ptMetalGraphics->tCurrentDrawable.texture;
     ptMetalGraphics->tCurrentRenderEncoder = [ptMetalGraphics->tCurrentCommandBuffer renderCommandEncoderWithDescriptor:ptMetalRenderPass->ptRenderPassDescriptor];
+
+    [ptMetalGraphics->tCurrentRenderEncoder waitForFence:ptMetalGraphics->tPassFence beforeStages:MTLRenderStageFragment];
 
     pl_new_draw_frame_metal(ptMetalRenderPass->ptRenderPassDescriptor);
     pl_end_profile_sample();
@@ -1351,6 +1415,7 @@ pl_end_pass(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
+    [ptMetalGraphics->tCurrentRenderEncoder updateFence:ptMetalGraphics->tPassFence afterStages:MTLRenderStageFragment];
     [ptMetalGraphics->tCurrentRenderEncoder endEncoding];
     pl_end_profile_sample();
 }
@@ -1649,6 +1714,7 @@ pl_cleanup(plGraphics* ptGraphics)
     pl_sb_free(ptGraphics->sbtRenderPassGenerations);
     pl_sb_free(ptGraphics->sbtTextureFreeIndices);
     pl_sb_free(ptGraphics->sbtTextureViewFreeIndices);
+    pl_sb_free(ptGraphics->sbtRenderPassLayoutsCold);
     PL_FREE(ptGraphics->_pInternalData);
     PL_FREE(ptGraphics->tDevice._pInternalData);
     PL_FREE(ptGraphics->tSwapchain._pInternalData);
@@ -2259,6 +2325,7 @@ pl_load_device_api(void)
         .create_bind_group                = pl_create_bind_group,
         .update_bind_group                = pl_update_bind_group,
         .update_texture                   = pl_update_texture,
+        .transfer_image_to_buffer         = pl_transfer_image_to_buffer,
         .allocate_dynamic_data            = pl_allocate_dynamic_data,
         .submit_buffer_for_deletion       = pl_submit_buffer_for_deletion,
         .submit_texture_for_deletion      = pl_submit_texture_for_deletion,

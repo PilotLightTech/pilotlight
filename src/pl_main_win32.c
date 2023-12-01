@@ -398,8 +398,39 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 
         case WM_SYSCOMMAND:
         {
-            if     (tWParam == SC_MINIMIZE) gptIOCtx->bViewportMinimized = true;
-            else if(tWParam == SC_RESTORE)  gptIOCtx->bViewportMinimized = false;
+            static float fOldWidth = 0.0f;
+            static float fOldHeight = 0.0f;
+            if(tWParam == SC_MINIMIZE)
+            {
+                fOldWidth = gptIOCtx->afMainViewportSize[0];
+                fOldHeight = gptIOCtx->afMainViewportSize[1];
+                gptIOCtx->bViewportMinimized = true;
+            }
+            else if(tWParam == SC_RESTORE)
+            {
+                gptIOCtx->afMainViewportSize[0] = fOldWidth;
+                gptIOCtx->afMainViewportSize[1] = fOldHeight;
+                gptIOCtx->bViewportMinimized = false;
+            }
+            else if(tWParam == SC_MAXIMIZE)
+            {
+                fOldWidth = gptIOCtx->afMainViewportSize[0];
+                fOldHeight = gptIOCtx->afMainViewportSize[1];
+                gptIOCtx->bViewportMinimized = false;
+            }
+            else if(!gptIOCtx->bViewportMinimized && fOldWidth > 0.0f)
+            {
+                gptIOCtx->afMainViewportSize[0] = fOldWidth;
+                gptIOCtx->afMainViewportSize[1] = fOldHeight;
+                gptIOCtx->bViewportMinimized = false;
+            }
+            else if(!gptIOCtx->bViewportMinimized && fOldWidth == 0.0f)
+            {
+                fOldWidth = gptIOCtx->afMainViewportSize[0];
+                fOldHeight = gptIOCtx->afMainViewportSize[1];
+                gptIOCtx->bViewportMinimized = false;
+            }
+
             break;
         }
 
