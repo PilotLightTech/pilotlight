@@ -16,6 +16,7 @@ extensions = [
     "pl_debug_ext",
     "pl_graphics_ext",
     "pl_image_ext",
+    "pl_ecs_ext",
     "pl_stats_ext"
 ]
 

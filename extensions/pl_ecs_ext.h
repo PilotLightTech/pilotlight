@@ -10,9 +10,9 @@ Index of this file:
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
 // [SECTION] public api structs
+// [SECTION] enums
 // [SECTION] structs
 // [SECTION] components
-// [SECTION] enums
 */
 
 //-----------------------------------------------------------------------------
@@ -40,16 +40,12 @@ typedef struct _plCameraI plCameraI;
     #define PL_MAX_NAME_LENGTH 1024
 #endif
 
-#ifndef PL_INVALID_ENTITY_HANDLE
-    #define PL_INVALID_ENTITY_HANDLE 0
-#endif
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdint.h> // uint*_t
-#include "pl_graphics.inl"
+#include <stdint.h>  // uint*_t
+#include <stdbool.h> // bool
 #include "pl_math.h"
 #include "pl_ds.h"
 
@@ -60,28 +56,25 @@ typedef struct _plCameraI plCameraI;
 // basic types
 typedef struct _plComponentLibrary plComponentLibrary;
 typedef struct _plComponentManager plComponentManager;
-typedef struct _plObjectInfo    plObjectInfo;
 
 // ecs components
 typedef struct _plTagComponent       plTagComponent;
 typedef struct _plMeshComponent      plMeshComponent;
 typedef struct _plTransformComponent plTransformComponent;
-typedef struct _plMaterialComponent  plMaterialComponent;
 typedef struct _plObjectComponent    plObjectComponent;
-typedef struct _plCameraComponent    plCameraComponent;
 typedef struct _plHierarchyComponent plHierarchyComponent;
-typedef struct _plLightComponent     plLightComponent;
-
-// ecs systems data
-typedef struct _plObjectSystemData plObjectSystemData;
+typedef struct _plMaterialComponent  plMaterialComponent;
+typedef struct _plSkinComponent      plSkinComponent;
+typedef struct _plCameraComponent    plCameraComponent;
 
 // enums
-typedef int      plShaderType;
-typedef int      plComponentType;
-typedef uint64_t plEntity;
+typedef int plComponentType;
 
-// external
-typedef struct _plApiRegistryApiI plApiRegistryApiI;
+typedef struct _plEntity
+{
+    uint32_t uIndex;
+    uint32_t uGeneration;
+} plEntity;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -96,43 +89,39 @@ const plCameraI* pl_load_camera_api(void);
 
 typedef struct _plEcsI
 {
-    void     (*init_component_library)(const plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
-    plEntity (*create_entity)         (plComponentLibrary* ptLibrary);
-    plEntity (*get_entity)            (plComponentLibrary* ptLibrary, const char* pcName);
-    size_t   (*get_index)             (plComponentManager* ptManager, plEntity tEntity);
-    void*    (*get_component)         (plComponentManager* ptManager, plEntity tEntity);
-    void*    (*create_component)      (plComponentManager* ptManager, plEntity tEntity);
-    bool     (*has_entity)            (plComponentManager* ptManager, plEntity tEntity);
+    // setup/shutdown
+    void     (*init_component_library)   (plComponentLibrary* ptLibrary);
+    void     (*cleanup_component_library)(plComponentLibrary* ptLibrary);
 
-    // color encoding/decoding
-    plVec4   (*entity_to_color)(plEntity tEntity);
-    plEntity (*color_to_entity)(const plVec4* ptColor);
-
-    // components
+    // misc
+    plEntity (*create_entity)  (plComponentLibrary* ptLibrary); // prefer entity helpers below
+    void     (*remove_entity)  (plComponentLibrary* ptLibrary, plEntity tEntity);
+    bool     (*is_entity_valid)(plComponentLibrary* ptLibrary, plEntity tEntity);
+    plEntity (*get_entity)     (plComponentLibrary* ptLibrary, const char* pcName);
+    void*    (*get_component)  (plComponentLibrary* ptLibrary, plComponentType tType, plEntity tEntity);
+    void*    (*add_component)  (plComponentLibrary* ptLibrary, plComponentType tType, plEntity tEntity);
+    size_t   (*get_index)      (plComponentManager* ptManager, plEntity tEntity);
+    
+    // entity helpers (creates entity and necessary components)
+    plEntity (*create_tag)      (plComponentLibrary* ptLibrary, const char* pcName);
     plEntity (*create_mesh)     (plComponentLibrary* ptLibrary, const char* pcName);
-    plEntity (*create_material) (plComponentLibrary* ptLibrary, const char* pcName);
     plEntity (*create_object)   (plComponentLibrary* ptLibrary, const char* pcName);
     plEntity (*create_transform)(plComponentLibrary* ptLibrary, const char* pcName);
+    plEntity (*create_material) (plComponentLibrary* ptLibrary, const char* pcName);
+    plEntity (*create_skin)     (plComponentLibrary* ptLibrary, const char* pcName);
     plEntity (*create_camera)   (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
-    plEntity (*create_light)    (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, plVec3 tColor);
 
     // hierarchy
     void (*attach_component)   (plComponentLibrary* ptLibrary, plEntity tEntity, plEntity tParent);
     void (*deattach_component) (plComponentLibrary* ptLibrary, plEntity tEntity);
-
-    // material
-    void (*add_mesh_outline)(plComponentLibrary* ptLibrary, plEntity tEntity);
-    void (*remove_mesh_outline)(plComponentLibrary* ptLibrary, plEntity tEntity);
 
     // meshes
     void (*calculate_normals) (plMeshComponent* atMeshes, uint32_t uComponentCount);
     void (*calculate_tangents)(plMeshComponent* atMeshes, uint32_t uComponentCount);
 
     // systems
-    void (*cleanup_systems)            (const plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
-    void (*run_object_update_system)   (plComponentLibrary* ptLibrary);
+    void (*run_skin_update_system)     (plComponentLibrary* ptLibrary);
     void (*run_hierarchy_update_system)(plComponentLibrary* ptLibrary);
-
 } plEcsI;
 
 typedef struct _plCameraI
@@ -148,46 +137,63 @@ typedef struct _plCameraI
 } plCameraI;
 
 //-----------------------------------------------------------------------------
+// [SECTION] enums
+//-----------------------------------------------------------------------------
+
+enum _plComponentType
+{
+    PL_COMPONENT_TYPE_TAG,
+    PL_COMPONENT_TYPE_TRANSFORM,
+    PL_COMPONENT_TYPE_MESH,
+    PL_COMPONENT_TYPE_OBJECT,
+    PL_COMPONENT_TYPE_HIERARCHY,
+    PL_COMPONENT_TYPE_MATERIAL,
+    PL_COMPONENT_TYPE_SKIN,
+    PL_COMPONENT_TYPE_CAMERA,
+    
+    PL_COMPONENT_TYPE_COUNT
+};
+
+//-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plObjectInfo
-{
-    plMat4   tModel;
-    uint32_t uMaterialIndex;
-    uint32_t uVertexDataOffset;
-    uint32_t uVertexPosOffset;
-    int      _unused;
-} plObjectInfo;
-
-typedef struct _plObjectSystemData
-{
-    bool              bDirty;
-    plMeshComponent** sbtMeshes;
-} plObjectSystemData;
-
 typedef struct _plComponentManager
 {
-    plComponentType tComponentType;
-    plHashMap       tHashMap;
-    plEntity*       sbtEntities;
-    void*           pComponents;
-    size_t          szStride;
-    void*           pSystemData;
+    plComponentLibrary* ptParentLibrary;
+    plComponentType     tComponentType;
+    plHashMap           tHashMap;
+    plEntity*           sbtEntities;
+    void*               pComponents;
+    size_t              szStride;
 } plComponentManager;
 
 typedef struct _plComponentLibrary
 {
-    size_t             tNextEntity;
+    uint32_t* sbtEntityGenerations;
+    uint32_t* sbtEntityFreeIndices;
+    plHashMap tTagHashMap;
+
     plComponentManager tTagComponentManager;
     plComponentManager tTransformComponentManager;
     plComponentManager tMeshComponentManager;
-    plComponentManager tMaterialComponentManager;
     plComponentManager tObjectComponentManager;
-    plComponentManager tCameraComponentManager;
     plComponentManager tHierarchyComponentManager;
-    plComponentManager tLightComponentManager;
+    plComponentManager tMaterialComponentManager;
+    plComponentManager tSkinComponentManager;
+    plComponentManager tCameraComponentManager;
+
+    plComponentManager* _ptManagers[PL_COMPONENT_TYPE_COUNT]; // just for internal convenience
 } plComponentLibrary;
+
+typedef struct _plMesh
+{
+    uint32_t uDataOffset;
+    uint32_t uVertexOffset;
+    uint32_t uVertexCount;
+    uint32_t uIndexOffset;
+    uint32_t uIndexCount;
+} plMesh;
 
 //-----------------------------------------------------------------------------
 // [SECTION] components
@@ -224,11 +230,22 @@ typedef struct _plTransformComponent
     plMat4 tWorld;
 } plTransformComponent;
 
+typedef struct _plMaterialComponent
+{
+    // properties
+    plVec4 tAlbedo;
+    float  fAlphaCutoff;
+    bool   bDoubleSided;
+
+    const char* pcAlbedoMap;
+} plMaterialComponent;
+
 typedef struct _plMeshComponent
 {
     plMesh       tMesh;
+    uint64_t     ulVertexStreamMask;
     plEntity     tMaterial;
-    plEntity     tOutlineMaterial;
+    plEntity     tSkinComponent;
     plVec3*      sbtVertexPositions;
     plVec3*      sbtVertexNormals;
     plVec4*      sbtVertexTangents;
@@ -241,32 +258,15 @@ typedef struct _plMeshComponent
     plVec2*      sbtVertexTextureCoordinates0;
     plVec2*      sbtVertexTextureCoordinates1;
     uint32_t*    sbuIndices;
-    plObjectInfo tInfo;
-    uint64_t     uBindGroup2;
-    uint32_t     uBufferOffset;
 } plMeshComponent;
 
-typedef struct _plMaterialComponent
+typedef struct _plSkinComponent
 {
-    plShaderType tShaderType;
-    
-    // properties
-    plVec4 tAlbedo;
-    float  fAlphaCutoff;
-    bool   bDoubleSided;
-
-    // maps
-    uint32_t uAlbedoMap;
-    uint32_t uNormalMap;
-    uint32_t uEmissiveMap;
-
-    // misc
-    uint32_t        uShader;
-    uint32_t        uShaderVariant;
-    plGraphicsState tGraphicsState;
-    uint64_t        uBindGroup1;
-    uint64_t        ulShaderTextureFlags;
-} plMaterialComponent;
+    plEntity  tSkeleton;
+    plMat4*   sbtInverseBindMatrices;
+    plEntity* sbtJoints;
+    plMat4*   sbtTextureData;
+} plSkinComponent;
 
 typedef struct _plCameraComponent
 {
@@ -289,31 +289,5 @@ typedef struct _plCameraComponent
     plVec3       _tForwardVec;
     plVec3       _tRightVec;
 } plCameraComponent;
-
-//-----------------------------------------------------------------------------
-// [SECTION] enums
-//-----------------------------------------------------------------------------
-
-enum _plComponentType
-{
-    PL_COMPONENT_TYPE_NONE,
-    PL_COMPONENT_TYPE_TAG,
-    PL_COMPONENT_TYPE_TRANSFORM,
-    PL_COMPONENT_TYPE_MESH,
-    PL_COMPONENT_TYPE_MATERIAL,
-    PL_COMPONENT_TYPE_CAMERA,
-    PL_COMPONENT_TYPE_OBJECT,
-    PL_COMPONENT_TYPE_HIERARCHY,
-    PL_COMPONENT_TYPE_LIGHT
-};
-
-enum _plShaderType
-{
-    PL_SHADER_TYPE_PBR,
-    PL_SHADER_TYPE_UNLIT,
-    PL_SHADER_TYPE_CUSTOM,
-    
-    PL_SHADER_TYPE_COUNT
-};
 
 #endif // PL_ECS_EXT_H

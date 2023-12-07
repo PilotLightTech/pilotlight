@@ -32,9 +32,7 @@ Index of this file:
 #include "pl_stats_ext.h"
 #include "pl_graphics_ext.h"
 #include "pl_debug_ext.h"
-
-// app specific
-#include "camera.h"
+#include "pl_ecs_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -103,10 +101,13 @@ typedef struct plAppData_t
     plBufferHandle atGlobalBuffers[2];
     plBufferHandle atOffscreenGlobalBuffers[2];
 
+    // ecs
+    plComponentLibrary tComponentLibrary;
+    plEntity           tMainCamera;
+    plEntity           tOffscreenCamera;
+
     // scene
     plDrawStream   tDrawStream;
-    plCamera       tMainCamera;
-    plCamera       tOffscreenCamera;
     plDrawList3D   t3DDrawList;
     plDrawList3D   tOffscreen3DDrawList;
 
@@ -149,6 +150,8 @@ const plDeviceI*               gptDevice            = NULL;
 const plDebugApiI*             gptDebug             = NULL;
 const plImageApiI*             gptImage             = NULL;
 const plDrawStreamI*           gptStream            = NULL;
+const plEcsI*                  gptEcs               = NULL;
+const plCameraI*               gptCamera            = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] helpers
@@ -188,6 +191,8 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         gptDebug  = ptApiRegistry->first(PL_API_DEBUG);
         gptImage  = ptApiRegistry->first(PL_API_IMAGE);
         gptStream = ptApiRegistry->first(PL_API_DRAW_STREAM);
+        gptEcs    = ptApiRegistry->first(PL_API_ECS);
+        gptCamera = ptApiRegistry->first(PL_API_CAMERA);
 
         return ptAppData;
     }
@@ -213,6 +218,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_stats_ext",    "pl_load_stats_ext",    "pl_unload_stats_ext",    false);
     ptExtensionRegistry->load("pl_graphics_ext", "pl_load_graphics_ext", "pl_unload_graphics_ext", false);
     ptExtensionRegistry->load("pl_debug_ext",    "pl_load_debug_ext",    "pl_unload_debug_ext",    true);
+    ptExtensionRegistry->load("pl_ecs_ext",      "pl_load_ecs_ext",      "pl_unload_ecs_ext",    false);
 
     // load apis
     gptStats  = ptApiRegistry->first(PL_API_STATS);
@@ -222,6 +228,11 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptDebug  = ptApiRegistry->first(PL_API_DEBUG);
     gptImage  = ptApiRegistry->first(PL_API_IMAGE);
     gptStream = ptApiRegistry->first(PL_API_DRAW_STREAM);
+    gptEcs    = ptApiRegistry->first(PL_API_ECS);
+    gptCamera = ptApiRegistry->first(PL_API_CAMERA);
+
+    // initialize ecs
+    gptEcs->init_component_library(&ptAppData->tComponentLibrary);
 
     // create command queue
     gptGfx->initialize(&ptAppData->tGraphics);
@@ -230,11 +241,11 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
 
     // create camera
     plIO* ptIO = pl_get_io();
-    ptAppData->tMainCamera = pl_camera_create((plVec3){-6.211f, 3.647f, 0.827f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.01f, 400.0f);
-    ptAppData->tOffscreenCamera = pl_camera_create((plVec3){0.0f, 0.0f, 2.0f}, PL_PI_3, 1.0f, 0.01f, 400.0f);
-    pl_camera_set_pitch_yaw(&ptAppData->tOffscreenCamera, 0.0f, PL_PI);
-    pl_camera_set_pitch_yaw(&ptAppData->tMainCamera, -0.244f, 1.488f);
-    pl_camera_update(&ptAppData->tMainCamera);
+    ptAppData->tMainCamera = gptEcs->create_camera(&ptAppData->tComponentLibrary, "main camera", (plVec3){-6.211f, 3.647f, 0.827f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.01f, 400.0f);
+    ptAppData->tOffscreenCamera = gptEcs->create_camera(&ptAppData->tComponentLibrary, "offscreen camera", (plVec3){0.0f, 0.0f, 2.0f}, PL_PI_3, 1.0f, 0.01f, 400.0f);
+    gptCamera->set_pitch_yaw(gptEcs->get_component(&ptAppData->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tOffscreenCamera), 0.0f, PL_PI);
+    gptCamera->set_pitch_yaw(gptEcs->get_component(&ptAppData->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), -0.244f, 1.488f);
+    gptCamera->update(gptEcs->get_component(&ptAppData->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera));
 
     // render pass layouts
     const plRenderPassLayoutDescription tMainRenderPassLayoutDesc = {
@@ -355,6 +366,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
+    gptEcs->cleanup_component_library(&ptAppData->tComponentLibrary);
     pl_sb_free(ptAppData->sbtMainFrameBuffers);
     pl_sb_free(ptAppData->sbtOffscreenFrameBuffers);
     gptGfx->destroy_font_atlas(&ptAppData->tFontAtlas);
@@ -375,7 +387,7 @@ pl_app_resize(plAppData* ptAppData)
 {
     plIO* ptIO = pl_get_io();
     plDevice* ptDevice = &ptAppData->tGraphics.tDevice;
-    pl_camera_set_aspect(&ptAppData->tMainCamera, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1]);
+    gptCamera->set_aspect(gptEcs->get_component(&ptAppData->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1]);
     gptGfx->resize(&ptAppData->tGraphics);
     recreate_main_frame_buffer(ptAppData);
 }
@@ -393,6 +405,9 @@ pl_app_update(plAppData* ptAppData)
 
     plIO* ptIO = pl_get_io();
     plDevice* ptDevice = &ptAppData->tGraphics.tDevice;
+
+    plCameraComponent* ptMainCamera = gptEcs->get_component(&ptAppData->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
+    plCameraComponent* ptOffscreenCamera = gptEcs->get_component(&ptAppData->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tOffscreenCamera);
 
     if(!gptGfx->begin_frame(&ptAppData->tGraphics))
     {
@@ -415,40 +430,40 @@ pl_app_update(plAppData* ptAppData)
     static const float fCameraTravelSpeed = 8.0f;
 
     // camera space
-    if(pl_is_key_pressed(PL_KEY_W, true)) pl_camera_translate(&ptAppData->tMainCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
-    if(pl_is_key_pressed(PL_KEY_S, true)) pl_camera_translate(&ptAppData->tMainCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
-    if(pl_is_key_pressed(PL_KEY_A, true)) pl_camera_translate(&ptAppData->tMainCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
-    if(pl_is_key_pressed(PL_KEY_D, true)) pl_camera_translate(&ptAppData->tMainCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+    if(pl_is_key_pressed(PL_KEY_W, true)) gptCamera->translate(ptMainCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
+    if(pl_is_key_pressed(PL_KEY_S, true)) gptCamera->translate(ptMainCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
+    if(pl_is_key_pressed(PL_KEY_A, true)) gptCamera->translate(ptMainCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+    if(pl_is_key_pressed(PL_KEY_D, true)) gptCamera->translate(ptMainCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
 
     // world space
-    if(pl_is_key_pressed(PL_KEY_F, true)) pl_camera_translate(&ptAppData->tMainCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
-    if(pl_is_key_pressed(PL_KEY_R, true)) pl_camera_translate(&ptAppData->tMainCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
+    if(pl_is_key_pressed(PL_KEY_F, true)) gptCamera->translate(ptMainCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
+    if(pl_is_key_pressed(PL_KEY_R, true)) gptCamera->translate(ptMainCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
 
     bool bOwnMouse = ptIO->bWantCaptureMouse;
     if(!bOwnMouse && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
     {
         const plVec2 tMouseDelta = pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
-        pl_camera_rotate(&ptAppData->tMainCamera,  -tMouseDelta.y * 0.1f * ptIO->fDeltaTime,  -tMouseDelta.x * 0.1f * ptIO->fDeltaTime);
+        gptCamera->rotate(ptMainCamera,  -tMouseDelta.y * 0.1f * ptIO->fDeltaTime,  -tMouseDelta.x * 0.1f * ptIO->fDeltaTime);
         pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
     }
-    pl_camera_update(&ptAppData->tMainCamera);
-    pl_camera_update(&ptAppData->tOffscreenCamera);
+    gptCamera->update(ptMainCamera);
+    gptCamera->update(ptOffscreenCamera);
 
     const BindGroup_0 tBindGroupBufferOffscreen = {
-        .tCameraProjection = ptAppData->tOffscreenCamera.tProjMat,
-        .tCameraView = ptAppData->tOffscreenCamera.tViewMat,
-        .tCameraViewProjection = pl_mul_mat4(&ptAppData->tOffscreenCamera.tProjMat, &ptAppData->tOffscreenCamera.tViewMat)
+        .tCameraProjection = ptOffscreenCamera->tProjMat,
+        .tCameraView = ptOffscreenCamera->tViewMat,
+        .tCameraViewProjection = pl_mul_mat4(&ptOffscreenCamera->tProjMat, &ptOffscreenCamera->tViewMat)
     };
     memcpy(ptGraphics->sbtBuffersCold[ptAppData->atOffscreenGlobalBuffers[ptAppData->tGraphics.uCurrentFrameIndex].uIndex].tMemoryAllocation.pHostMapped, &tBindGroupBufferOffscreen, sizeof(BindGroup_0));
 
     const BindGroup_0 tBindGroupBuffer = {
-        .tCameraProjection = ptAppData->tMainCamera.tProjMat,
-        .tCameraView = ptAppData->tMainCamera.tViewMat,
-        .tCameraViewProjection = pl_mul_mat4(&ptAppData->tMainCamera.tProjMat, &ptAppData->tMainCamera.tViewMat)
+        .tCameraProjection = ptMainCamera->tProjMat,
+        .tCameraView = ptMainCamera->tViewMat,
+        .tCameraViewProjection = pl_mul_mat4(&ptMainCamera->tProjMat, &ptMainCamera->tViewMat)
     };
     memcpy(ptGraphics->sbtBuffersCold[ptAppData->atGlobalBuffers[ptAppData->tGraphics.uCurrentFrameIndex].uIndex].tMemoryAllocation.pHostMapped, &tBindGroupBuffer, sizeof(BindGroup_0));
 
-    const plMat4 tMVP = pl_mul_mat4(&ptAppData->tMainCamera.tProjMat, &ptAppData->tMainCamera.tViewMat);
+    const plMat4 tMVP = pl_mul_mat4(&ptMainCamera->tProjMat, &ptMainCamera->tViewMat);
 
     plDynamicBinding tDynamicBinding0 = gptDevice->allocate_dynamic_data(ptDevice, sizeof(DynamicData));
     DynamicData* ptDynamicData0 = (DynamicData*)tDynamicBinding0.pcData;
@@ -464,11 +479,11 @@ pl_app_update(plAppData* ptAppData)
 
     plDynamicBinding tDynamicBinding2 = gptDevice->allocate_dynamic_data(ptDevice, sizeof(plMat4));
     plMat4* ptDynamicData2 = (plMat4*)tDynamicBinding2.pcData;
-    *ptDynamicData2 = pl_mat4_translate_vec3(ptAppData->tMainCamera.tPos);
+    *ptDynamicData2 = pl_mat4_translate_vec3(ptMainCamera->tPos);
 
     plDynamicBinding tDynamicBinding3 = gptDevice->allocate_dynamic_data(ptDevice, sizeof(plMat4));
     plMat4* ptDynamicData3 = (plMat4*)tDynamicBinding3.pcData;
-    *ptDynamicData3 = pl_mat4_translate_vec3(ptAppData->tOffscreenCamera.tPos);
+    *ptDynamicData3 = pl_mat4_translate_vec3(ptOffscreenCamera->tPos);
 
     gptGfx->begin_recording(&ptAppData->tGraphics);
     gptGfx->begin_pass(&ptAppData->tGraphics, ptAppData->sbtOffscreenFrameBuffers[ptAppData->tGraphics.uCurrentFrameIndex]);
@@ -532,10 +547,10 @@ pl_app_update(plAppData* ptAppData)
     };
     gptGfx->draw_areas(&ptAppData->tGraphics, 1, &tArea0);
 
-    const plMat4 tOffscreenMVP = pl_mul_mat4(&ptAppData->tOffscreenCamera.tProjMat, &ptAppData->tOffscreenCamera.tViewMat);
+    const plMat4 tOffscreenMVP = pl_mul_mat4(&ptOffscreenCamera->tProjMat, &ptOffscreenCamera->tViewMat);
     const plMat4 tTransform00 = pl_identity_mat4();
     gptGfx->add_3d_transform(&ptAppData->tOffscreen3DDrawList, &tTransform00, 10.0f, 0.02f);
-    gptGfx->add_3d_frustum(&ptAppData->t3DDrawList, &ptAppData->tOffscreenCamera.tTransformMat, ptAppData->tOffscreenCamera.fFieldOfView, ptAppData->tOffscreenCamera.fAspectRatio, ptAppData->tOffscreenCamera.fNearZ, ptAppData->tOffscreenCamera.fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
+    gptGfx->add_3d_frustum(&ptAppData->t3DDrawList, &ptOffscreenCamera->tTransformMat, ptOffscreenCamera->fFieldOfView, ptOffscreenCamera->fAspectRatio, ptOffscreenCamera->fNearZ, ptOffscreenCamera->fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
     gptGfx->submit_3d_drawlist(&ptAppData->tOffscreen3DDrawList, ptAppData->tOffscreenTargetSize.x, ptAppData->tOffscreenTargetSize.y, &tOffscreenMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, ptAppData->tOffscreenRenderPass, 1);
     gptGfx->end_pass(&ptAppData->tGraphics);
     gptGfx->begin_main_pass(&ptAppData->tGraphics, ptAppData->sbtMainFrameBuffers[ptAppData->tGraphics.tSwapchain.uCurrentImageIndex]);
@@ -1255,10 +1270,10 @@ create_shaders(plAppData* ptAppData)
             .ulDepthWriteEnabled  = 1,
             .ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 | PL_MESH_FORMAT_FLAG_HAS_COLOR_0,
             .ulBlendMode          = PL_BLEND_MODE_ALPHA,
-            .ulDepthMode          = PL_DEPTH_MODE_LESS_OR_EQUAL,
+            .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
             .ulCullMode           = PL_CULL_MODE_CULL_BACK,
             .ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_0,
-            .ulStencilMode        = PL_STENCIL_MODE_ALWAYS,
+            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
             .ulStencilRef         = 0xff,
             .ulStencilMask        = 0xff,
             .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
@@ -1316,10 +1331,10 @@ create_shaders(plAppData* ptAppData)
             .ulDepthWriteEnabled  = 1,
             .ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_COLOR_0,
             .ulBlendMode          = PL_BLEND_MODE_ALPHA,
-            .ulDepthMode          = PL_DEPTH_MODE_LESS_OR_EQUAL,
+            .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
             .ulCullMode           = PL_CULL_MODE_NONE,
             .ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_NONE,
-            .ulStencilMode        = PL_STENCIL_MODE_ALWAYS,
+            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
             .ulStencilRef         = 0xff,
             .ulStencilMask        = 0xff,
             .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
@@ -1377,10 +1392,10 @@ create_shaders(plAppData* ptAppData)
             .ulDepthWriteEnabled  = 0,
             .ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_NONE,
             .ulBlendMode          = PL_BLEND_MODE_ALPHA,
-            .ulDepthMode          = PL_DEPTH_MODE_LESS_OR_EQUAL,
+            .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
             .ulCullMode           = PL_CULL_MODE_NONE,
             .ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_0,
-            .ulStencilMode        = PL_STENCIL_MODE_ALWAYS,
+            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
             .ulStencilRef         = 0xff,
             .ulStencilMask        = 0xff,
             .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
@@ -1426,9 +1441,3 @@ create_shaders(plAppData* ptAppData)
     tShaderDescription2.tRenderPass = ptAppData->tOffscreenRenderPass;
     ptAppData->tOffscreenShader2 = gptDevice->create_shader(ptDevice, &tShaderDescription2);
 }
-
-//-----------------------------------------------------------------------------
-// [SECTION] unity build
-//-----------------------------------------------------------------------------
-
-#include "camera.c"

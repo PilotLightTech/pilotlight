@@ -34,36 +34,34 @@ static uint32_t uLogChannel = UINT32_MAX;
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static void     pl_ecs_init_component_library(const plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
+// setup/shutdown
+static void     pl_ecs_init_component_library   (plComponentLibrary* ptLibrary);
+static void     pl_ecs_cleanup_component_library(plComponentLibrary* ptLibrary);
+
+// low level (most users shouldn't use this)
 static plEntity pl_ecs_create_entity         (plComponentLibrary* ptLibrary);
+static void     pl_ecs_remove_entity         (plComponentLibrary* ptLibrary, plEntity tEntity);
+static bool     pl_ecs_is_entity_valid       (plComponentLibrary* ptLibrary, plEntity tEntity);
 static plEntity pl_ecs_get_entity            (plComponentLibrary* ptLibrary, const char* pcName);
 static size_t   pl_ecs_get_index             (plComponentManager* ptManager, plEntity tEntity);
-static void*    pl_ecs_get_component         (plComponentManager* ptManager, plEntity tEntity);
-static void*    pl_ecs_create_component      (plComponentManager* ptManager, plEntity tEntity);
-static bool     pl_ecs_has_entity            (plComponentManager* ptManager, plEntity tEntity);
-
-static plVec4   pl_entity_to_color(plEntity tEntity);
-static plEntity pl_color_to_entity(const plVec4* ptColor);
+static void*    pl_ecs_get_component         (plComponentLibrary* ptLibrary, plComponentType tType, plEntity tEntity);
+static void*    pl_ecs_add_component         (plComponentLibrary* ptLibrary, plComponentType tType, plEntity tEntity);
 
 // components
+static plEntity pl_ecs_create_tag             (plComponentLibrary* ptLibrary, const char* pcName);
 static plEntity pl_ecs_create_mesh            (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_material        (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_outline_material(plComponentLibrary* ptLibrary, const char* pcName);
 static plEntity pl_ecs_create_object          (plComponentLibrary* ptLibrary, const char* pcName);
 static plEntity pl_ecs_create_transform       (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_material        (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_skin            (plComponentLibrary* ptLibrary, const char* pcName);
 static plEntity pl_ecs_create_camera          (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
-static plEntity pl_ecs_create_light           (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, plVec3 tColor);
 
+// heirarchy
 static void pl_ecs_attach_component (plComponentLibrary* ptLibrary, plEntity tEntity, plEntity tParent);
 static void pl_ecs_deattach_component(plComponentLibrary* ptLibrary, plEntity tEntity);
 
-// material
-static void pl_add_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity);
-static void pl_remove_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity);
-
 // update systems
-static void pl_ecs_cleanup_systems        (const plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary);
-static void pl_run_object_update_system   (plComponentLibrary* ptLibrary);
+static void pl_run_skin_update_system     (plComponentLibrary* ptLibrary);
 static void pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary);
 
 // misc.
@@ -80,6 +78,23 @@ static void pl_camera_translate      (plCameraComponent* ptCamera, float fDx, fl
 static void pl_camera_rotate         (plCameraComponent* ptCamera, float fDPitch, float fDYaw);
 static void pl_camera_update         (plCameraComponent* ptCamera);
 
+static inline float
+pl__wrap_angle(float tTheta)
+{
+    static const float f2Pi = 2.0f * PL_PI;
+    const float fMod = fmodf(tTheta, f2Pi);
+    if (fMod > PL_PI)       return fMod - f2Pi;
+    else if (fMod < -PL_PI) return fMod + f2Pi;
+    return fMod;
+}
+
+static inline bool
+pl_ecs_has_entity(plComponentManager* ptManager, plEntity tEntity)
+{
+    PL_ASSERT(tEntity.uIndex != UINT32_MAX);
+    return pl_hm_has_key(&ptManager->tHashMap, tEntity.uIndex);
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
@@ -89,29 +104,27 @@ pl_load_ecs_api(void)
 {
     static const plEcsI tApi = {
         .init_component_library      = pl_ecs_init_component_library,
+        .cleanup_component_library   = pl_ecs_cleanup_component_library,
         .create_entity               = pl_ecs_create_entity,
+        .remove_entity               = pl_ecs_remove_entity,
         .get_entity                  = pl_ecs_get_entity,
+        .is_entity_valid             = pl_ecs_is_entity_valid,
         .get_index                   = pl_ecs_get_index,
         .get_component               = pl_ecs_get_component,
-        .create_component            = pl_ecs_create_component,
-        .has_entity                  = pl_ecs_has_entity,
+        .add_component               = pl_ecs_add_component,
+        .create_tag                  = pl_ecs_create_tag,
         .create_mesh                 = pl_ecs_create_mesh,
-        .create_material             = pl_ecs_create_material,
+        .create_camera               = pl_ecs_create_camera,
         .create_object               = pl_ecs_create_object,
         .create_transform            = pl_ecs_create_transform,
-        .create_camera               = pl_ecs_create_camera,
-        .create_light                = pl_ecs_create_light,
-        .add_mesh_outline            = pl_add_mesh_outline,
-        .remove_mesh_outline         = pl_remove_mesh_outline,
+        .create_material             = pl_ecs_create_material,
+        .create_skin                 = pl_ecs_create_skin,
         .attach_component            = pl_ecs_attach_component,
         .deattach_component          = pl_ecs_deattach_component,
-        .cleanup_systems             = pl_ecs_cleanup_systems,
-        .run_object_update_system    = pl_run_object_update_system,
         .calculate_normals           = pl_calculate_normals,
         .calculate_tangents          = pl_calculate_tangents,
         .run_hierarchy_update_system = pl_run_hierarchy_update_system,
-        .entity_to_color             = pl_entity_to_color,
-        .color_to_entity             = pl_color_to_entity
+        .run_skin_update_system      = pl_run_skin_update_system
     };
     return &tApi;
 }
@@ -129,29 +142,16 @@ pl_load_camera_api(void)
         .rotate          = pl_camera_rotate,
         .update          = pl_camera_update
     };
-    return &tApi;    
+    return &tApi;   
 }
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
 
-static float
-pl__wrap_angle(float tTheta)
-{
-    static const float f2Pi = 2.0f * PL_PI;
-    const float fMod = fmodf(tTheta, f2Pi);
-    if (fMod > PL_PI)       return fMod - f2Pi;
-    else if (fMod < -PL_PI) return fMod + f2Pi;
-    return fMod;
-}
-
 static void
-pl_ecs_init_component_library(const plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary)
+pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
 {
-
-    ptLibrary->tNextEntity = 1;
-
     // initialize component managers
     ptLibrary->tTagComponentManager.tComponentType = PL_COMPONENT_TYPE_TAG;
     ptLibrary->tTagComponentManager.szStride = sizeof(plTagComponent);
@@ -161,153 +161,255 @@ pl_ecs_init_component_library(const plApiRegistryApiI* ptApiRegistry, plComponen
 
     ptLibrary->tObjectComponentManager.tComponentType = PL_COMPONENT_TYPE_OBJECT;
     ptLibrary->tObjectComponentManager.szStride = sizeof(plObjectComponent);
-    ptLibrary->tObjectComponentManager.pSystemData = PL_ALLOC(sizeof(plObjectSystemData));
-    memset(ptLibrary->tObjectComponentManager.pSystemData, 0, sizeof(plObjectSystemData));
-
-    ptLibrary->tMaterialComponentManager.tComponentType = PL_COMPONENT_TYPE_MATERIAL;
-    ptLibrary->tMaterialComponentManager.szStride = sizeof(plMaterialComponent);
 
     ptLibrary->tMeshComponentManager.tComponentType = PL_COMPONENT_TYPE_MESH;
     ptLibrary->tMeshComponentManager.szStride = sizeof(plMeshComponent);
     
-    ptLibrary->tCameraComponentManager.tComponentType = PL_COMPONENT_TYPE_CAMERA;
-    ptLibrary->tCameraComponentManager.szStride = sizeof(plCameraComponent);
-
     ptLibrary->tHierarchyComponentManager.tComponentType = PL_COMPONENT_TYPE_HIERARCHY;
     ptLibrary->tHierarchyComponentManager.szStride = sizeof(plHierarchyComponent);
 
-    ptLibrary->tLightComponentManager.tComponentType = PL_COMPONENT_TYPE_LIGHT;
-    ptLibrary->tLightComponentManager.szStride = sizeof(plLightComponent);
+    ptLibrary->tMaterialComponentManager.tComponentType = PL_COMPONENT_TYPE_MATERIAL;
+    ptLibrary->tMaterialComponentManager.szStride = sizeof(plMaterialComponent);
+
+    ptLibrary->tSkinComponentManager.tComponentType = PL_COMPONENT_TYPE_SKIN;
+    ptLibrary->tSkinComponentManager.szStride = sizeof(plSkinComponent);
+
+    ptLibrary->tCameraComponentManager.tComponentType = PL_COMPONENT_TYPE_CAMERA;
+    ptLibrary->tCameraComponentManager.szStride = sizeof(plCameraComponent);
+
+    ptLibrary->_ptManagers[0] = &ptLibrary->tTagComponentManager;
+    ptLibrary->_ptManagers[1] = &ptLibrary->tTransformComponentManager;
+    ptLibrary->_ptManagers[2] = &ptLibrary->tMeshComponentManager;
+    ptLibrary->_ptManagers[3] = &ptLibrary->tObjectComponentManager;
+    ptLibrary->_ptManagers[4] = &ptLibrary->tHierarchyComponentManager;
+    ptLibrary->_ptManagers[5] = &ptLibrary->tMaterialComponentManager;
+    ptLibrary->_ptManagers[6] = &ptLibrary->tSkinComponentManager;
+    ptLibrary->_ptManagers[7] = &ptLibrary->tCameraComponentManager;
+
+    for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
+        ptLibrary->_ptManagers[i]->ptParentLibrary = ptLibrary;
 
     pl_log_info_to(uLogChannel, "initialized component library");
+}
 
+static void
+pl_ecs_cleanup_component_library(plComponentLibrary* ptLibrary)
+{
+    plMeshComponent* sbtMeshes = ptLibrary->tMeshComponentManager.pComponents;
+
+    for(uint32_t i = 0; i < pl_sb_size(sbtMeshes); i++)
+    {
+        pl_sb_free(sbtMeshes[i].sbtVertexPositions);
+        pl_sb_free(sbtMeshes[i].sbtVertexNormals);
+        pl_sb_free(sbtMeshes[i].sbtVertexTangents);
+        pl_sb_free(sbtMeshes[i].sbtVertexColors0);
+        pl_sb_free(sbtMeshes[i].sbtVertexColors1);
+        pl_sb_free(sbtMeshes[i].sbtVertexWeights0);
+        pl_sb_free(sbtMeshes[i].sbtVertexWeights1);
+        pl_sb_free(sbtMeshes[i].sbtVertexJoints0);
+        pl_sb_free(sbtMeshes[i].sbtVertexJoints1);
+        pl_sb_free(sbtMeshes[i].sbtVertexTextureCoordinates0);
+        pl_sb_free(sbtMeshes[i].sbtVertexTextureCoordinates1);
+        pl_sb_free(sbtMeshes[i].sbuIndices);
+    }
+
+    for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
+    {
+        pl_sb_free(ptLibrary->_ptManagers[i]->pComponents);
+        pl_sb_free(ptLibrary->_ptManagers[i]->sbtEntities);
+        pl_hm_free(&ptLibrary->_ptManagers[i]->tHashMap);
+    }
+
+    // general
+    pl_sb_free(ptLibrary->sbtEntityFreeIndices);
+    pl_sb_free(ptLibrary->sbtEntityGenerations);
+    pl_hm_free(&ptLibrary->tTagHashMap);
 }
 
 static plEntity
 pl_ecs_create_entity(plComponentLibrary* ptLibrary)
 {
-    plEntity tNewEntity = ptLibrary->tNextEntity++;
+    plEntity tNewEntity = {0};
+    if(pl_sb_size(ptLibrary->sbtEntityFreeIndices) > 0) // free slot available
+    {
+        tNewEntity.uIndex = pl_sb_pop(ptLibrary->sbtEntityFreeIndices);
+        tNewEntity.uGeneration = ptLibrary->sbtEntityGenerations[tNewEntity.uIndex];
+    }
+    else // create new slot
+    {
+        tNewEntity.uIndex = pl_sb_size(ptLibrary->sbtEntityGenerations);
+        pl_sb_push(ptLibrary->sbtEntityGenerations, 0);
+    }
     return tNewEntity;
+}
+
+static void
+pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
+{
+
+    pl_sb_push(ptLibrary->sbtEntityFreeIndices, tEntity.uIndex);
+    ptLibrary->sbtEntityGenerations[tEntity.uIndex]++;
+
+    // remove from tag hashmap
+    plTagComponent* ptTag = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, tEntity);
+    if(ptTag)
+    {
+        pl_hm_remove_str(&ptLibrary->tTagHashMap, ptTag->acName);
+    }
+
+    // remove from individual managers
+    for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
+    {
+        if(pl_hm_has_key(&ptLibrary->_ptManagers[i]->tHashMap, tEntity.uIndex))
+            pl_hm_remove(&ptLibrary->_ptManagers[i]->tHashMap, tEntity.uIndex);
+    }
+}
+
+static bool
+pl_ecs_is_entity_valid(plComponentLibrary* ptLibrary, plEntity tEntity)
+{
+    return ptLibrary->sbtEntityGenerations[tEntity.uIndex] == tEntity.uGeneration;
 }
 
 static plEntity
 pl_ecs_get_entity(plComponentLibrary* ptLibrary, const char* pcName)
 {
-    plTagComponent* sbComponents = ptLibrary->tTagComponentManager.pComponents;
-    for(uint32_t i = 0; i < pl_sb_size(sbComponents); i++)
+    const uint64_t ulHash = pl_hm_hash_str(pcName);
+    if(pl_hm_has_key(&ptLibrary->tTagHashMap, ulHash))
     {
-        if(strcmp(sbComponents[i].acName, pcName) == 0)
-        {
-            return ptLibrary->tTagComponentManager.sbtEntities[i];
-        }
+        uint64_t uIndex = pl_hm_lookup(&ptLibrary->tTagHashMap, ulHash);
+        return (plEntity){.uIndex = (uint32_t)uIndex, .uGeneration = ptLibrary->sbtEntityGenerations[uIndex]};
     }
-
-    return PL_INVALID_ENTITY_HANDLE;
+    return (plEntity){UINT32_MAX, UINT32_MAX};
 }
 
 static size_t
 pl_ecs_get_index(plComponentManager* ptManager, plEntity tEntity)
 { 
-    PL_ASSERT(tEntity != PL_INVALID_ENTITY_HANDLE);
-    size_t szIndex = pl_hm_lookup(&ptManager->tHashMap, (uint64_t)tEntity);
+    PL_ASSERT(tEntity.uIndex != UINT32_MAX);
+    size_t szIndex = pl_hm_lookup(&ptManager->tHashMap, (uint64_t)tEntity.uIndex);
     PL_ASSERT(szIndex != UINT64_MAX);
     return szIndex;
 }
 
 static void*
-pl_ecs_get_component(plComponentManager* ptManager, plEntity tEntity)
+pl_ecs_get_component(plComponentLibrary* ptLibrary, plComponentType tType, plEntity tEntity)
 {
-    PL_ASSERT(tEntity != PL_INVALID_ENTITY_HANDLE);
+    PL_ASSERT(tEntity.uIndex != UINT32_MAX);
+
+    plComponentManager* ptManager = ptLibrary->_ptManagers[tType];
+
+    if(ptManager->ptParentLibrary->sbtEntityGenerations[tEntity.uIndex] != tEntity.uGeneration)
+        return NULL;
+
     size_t szIndex = pl_ecs_get_index(ptManager, tEntity);
     unsigned char* pucData = ptManager->pComponents;
     return &pucData[szIndex * ptManager->szStride];
 }
 
 static void*
-pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
+pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEntity tEntity)
 {
-    PL_ASSERT(tEntity != PL_INVALID_ENTITY_HANDLE);
+    PL_ASSERT(tEntity.uIndex != UINT32_MAX);
+
+    plComponentManager* ptManager = ptLibrary->_ptManagers[tType];
+
+    if(ptManager->ptParentLibrary->sbtEntityGenerations[tEntity.uIndex] != tEntity.uGeneration)
+        return NULL;
+
+    PL_ASSERT(tEntity.uIndex != UINT32_MAX);
+
+    uint64_t uComponentIndex = pl_hm_get_free_index(&ptManager->tHashMap);
+    bool bAddSlot = false; // can't add component with SB without correct type
+    if(uComponentIndex == UINT64_MAX)
+    {
+        uComponentIndex = pl_sb_size(ptManager->sbtEntities);
+        pl_sb_add(ptManager->sbtEntities);
+        bAddSlot = true;
+    }
+    pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity.uIndex, uComponentIndex);
+
 
     switch (ptManager->tComponentType)
     {
     case PL_COMPONENT_TYPE_TAG:
     {
         plTagComponent* sbComponents = ptManager->pComponents;
-        pl_sb_push(sbComponents, (plTagComponent){0});
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
-        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
-        pl_sb_push(ptManager->sbtEntities, tEntity);
-        return &pl_sb_back(sbComponents);
+        sbComponents[uComponentIndex] = (plTagComponent){0};
+        return &sbComponents[uComponentIndex];
     }
 
     case PL_COMPONENT_TYPE_MESH:
     {
         plMeshComponent* sbComponents = ptManager->pComponents;
-        pl_sb_push(sbComponents, (plMeshComponent){0});
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
-        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
-        pl_sb_push(ptManager->sbtEntities, tEntity);
-        return &pl_sb_back(sbComponents);
+        sbComponents[uComponentIndex] = (plMeshComponent){.tSkinComponent = {UINT32_MAX, UINT32_MAX}};
+        return &sbComponents[uComponentIndex];
     }
 
     case PL_COMPONENT_TYPE_TRANSFORM:
     {
         plTransformComponent* sbComponents = ptManager->pComponents;
-        pl_sb_push(sbComponents, ((plTransformComponent){.tWorld = pl_identity_mat4(), .tFinalTransform = pl_identity_mat4()}));
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
-        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
-        pl_sb_push(ptManager->sbtEntities, tEntity);
-        return &pl_sb_back(sbComponents);
-    }
-
-    case PL_COMPONENT_TYPE_MATERIAL:
-    {
-        plMaterialComponent* sbComponents = ptManager->pComponents;
-        pl_sb_push(sbComponents, (plMaterialComponent){0});
-        ptManager->pComponents = sbComponents;
-        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
-        pl_sb_push(ptManager->sbtEntities, tEntity);
-        return &pl_sb_back(sbComponents);
+        sbComponents[uComponentIndex] = (plTransformComponent){.tWorld = pl_identity_mat4(), .tFinalTransform = pl_identity_mat4()};
+        return &sbComponents[uComponentIndex];
     }
 
     case PL_COMPONENT_TYPE_OBJECT:
     {
         plObjectComponent* sbComponents = ptManager->pComponents;
-        pl_sb_push(sbComponents, (plObjectComponent){0});
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
-        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
-        pl_sb_push(ptManager->sbtEntities, tEntity);
-        return &pl_sb_back(sbComponents);
-    }
-
-    case PL_COMPONENT_TYPE_CAMERA:
-    {
-        plCameraComponent* sbComponents = ptManager->pComponents;
-        pl_sb_push(sbComponents, (plCameraComponent){0});
-        ptManager->pComponents = sbComponents;
-        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
-        pl_sb_push(ptManager->sbtEntities, tEntity);
-        return &pl_sb_back(sbComponents);
+        sbComponents[uComponentIndex] = (plObjectComponent){0};
+        return &sbComponents[uComponentIndex];
     }
 
     case PL_COMPONENT_TYPE_HIERARCHY:
     {
         plHierarchyComponent* sbComponents = ptManager->pComponents;
-        pl_sb_push(sbComponents, (plHierarchyComponent){0});
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
-        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
-        pl_sb_push(ptManager->sbtEntities, tEntity);
-        return &pl_sb_back(sbComponents);
+        sbComponents[uComponentIndex] = (plHierarchyComponent){0};
+        return &sbComponents[uComponentIndex];
     }
 
-    case PL_COMPONENT_TYPE_LIGHT:
+    case PL_COMPONENT_TYPE_MATERIAL:
     {
-        plLightComponent* sbComponents = ptManager->pComponents;
-        pl_sb_push(sbComponents, ((plLightComponent){.tColor = {1.0f, 1.0f, 1.0f}}));
+        plMaterialComponent* sbComponents = ptManager->pComponents;
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
-        pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity, pl_sb_size(ptManager->sbtEntities));
-        pl_sb_push(ptManager->sbtEntities, tEntity);
-        return &pl_sb_back(sbComponents);
+        sbComponents[uComponentIndex] = (plMaterialComponent){0};
+        return &sbComponents[uComponentIndex];
+    }
+
+    case PL_COMPONENT_TYPE_SKIN:
+    {
+        plSkinComponent* sbComponents = ptManager->pComponents;
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
+        ptManager->pComponents = sbComponents;
+        sbComponents[uComponentIndex] = (plSkinComponent){.tSkeleton = {UINT32_MAX, UINT32_MAX}};
+        return &sbComponents[uComponentIndex];
+    }
+
+    case PL_COMPONENT_TYPE_CAMERA:
+    {
+        plCameraComponent* sbComponents = ptManager->pComponents;
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
+        ptManager->pComponents = sbComponents;
+        sbComponents[uComponentIndex] = (plCameraComponent){0};
+        return &sbComponents[uComponentIndex];
     }
 
     }
@@ -315,253 +417,298 @@ pl_ecs_create_component(plComponentManager* ptManager, plEntity tEntity)
     return NULL;
 }
 
-static bool
-pl_ecs_has_entity(plComponentManager* ptManager, plEntity tEntity)
-{
-    PL_ASSERT(tEntity != PL_INVALID_ENTITY_HANDLE);
-
-    for(uint32_t i = 0; i < pl_sb_size(ptManager->sbtEntities); i++)
-    {
-        if(ptManager->sbtEntities[i] == tEntity)
-            return true;
-    }
-    return false;
-}
-
-static plVec4
-pl_entity_to_color(plEntity tEntity)
-{
-    const uint32_t uId = (uint32_t)tEntity;
-    return (plVec4){
-        ((float)(uId & 0xff) / 255.0f),
-        ((float)((uId >> 8) & 0xff) / 255.0f),
-        ((float)((uId >> 16) & 0xff) / 255.0f),
-        1.0f};
-}
-
 static plEntity
-pl_color_to_entity(const plVec4* ptColor)
+pl_ecs_create_tag(plComponentLibrary* ptLibrary, const char* pcName)
 {
-    unsigned char* pucMapping = (unsigned char*)ptColor;
-    return (plEntity)(pucMapping[0] | pucMapping[1] << 8 | pucMapping[2] << 16);
+    plEntity tNewEntity = pl_ecs_create_entity(ptLibrary);
+
+    plTagComponent* ptTag = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_TAG, tNewEntity);
+    if(pcName)
+        strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
+    else
+        strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
+
+    pl_hm_insert_str(&ptLibrary->tTagHashMap, pcName, tNewEntity.uIndex);
+    return tNewEntity;
 }
 
 static plEntity
 pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName)
 {
-    plEntity tNewEntity = pl_ecs_create_entity(ptLibrary);
-
-    plTagComponent* ptTag = pl_ecs_create_component(&ptLibrary->tTagComponentManager, tNewEntity);
-    if(pcName)
-    {
-        pl_log_debug_to_f(uLogChannel, "created mesh '%s'", pcName);
-        strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
-    }
-    else
-    {
-        pl_log_debug_to(uLogChannel, "created unnamed mesh");
-        strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
-    }
-
-    plMeshComponent* ptMesh = pl_ecs_create_component(&ptLibrary->tMeshComponentManager, tNewEntity);
+    pl_log_debug_to_f(uLogChannel, "created mesh: '%s'", pcName ? pcName : "unnamed");
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+    plMeshComponent* ptMesh = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
     return tNewEntity;
 }
 
 static plEntity
-pl_ecs_create_outline_material(plComponentLibrary* ptLibrary, const char* pcName)
+pl_ecs_create_object(plComponentLibrary* ptLibrary, const char* pcName)
 {
+    pl_log_debug_to_f(uLogChannel, "created object: '%s'", pcName ? pcName : "unnamed");
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
-    plEntity tNewEntity = pl_ecs_create_entity(ptLibrary);
+    plObjectComponent* ptObject = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewEntity);
+    memset(ptObject, 0, sizeof(plObjectComponent));
 
-    plTagComponent* ptTag = pl_ecs_create_component(&ptLibrary->tTagComponentManager, tNewEntity);
-    if(pcName)
-    {
-        pl_log_debug_to_f(uLogChannel, "created outline material '%s'", pcName);
-        strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
-    }
-    else
-    {
-        pl_log_debug_to(uLogChannel, "created unnamed outline material");
-        strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
-    }
+    plTransformComponent* ptTransform = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
+    memset(ptTransform, 0, sizeof(plTransformComponent));
+    ptTransform->tWorld = pl_identity_mat4();
 
-    plMaterialComponent* ptMaterial = pl_ecs_create_component(&ptLibrary->tMaterialComponentManager, tNewEntity);
-    memset(ptMaterial, 0, sizeof(plMaterialComponent));
-    ptMaterial->uShader                             = UINT32_MAX;
-    ptMaterial->tAlbedo                             = (plVec4){ 1.0f, 1.0f, 1.0f, 1.0f };
-    ptMaterial->fAlphaCutoff                        = 0.1f;
-    ptMaterial->bDoubleSided                        = false;
-    ptMaterial->tShaderType                         = PL_SHADER_TYPE_UNLIT;
-    ptMaterial->tGraphicsState.ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_NORMAL;
-    ptMaterial->tGraphicsState.ulDepthMode          = PL_DEPTH_MODE_ALWAYS;
-    ptMaterial->tGraphicsState.ulDepthWriteEnabled  = false;
-    ptMaterial->tGraphicsState.ulCullMode           = PL_CULL_MODE_FRONT;
-    ptMaterial->tGraphicsState.ulBlendMode          = PL_BLEND_MODE_ALPHA;
-    ptMaterial->tGraphicsState.ulShaderTextureFlags = 0;
-    ptMaterial->tGraphicsState.ulStencilMode        = PL_STENCIL_MODE_NOT_EQUAL;
-    ptMaterial->tGraphicsState.ulStencilRef         = 0xff;
-    ptMaterial->tGraphicsState.ulStencilMask        = 0xff;
-    ptMaterial->tGraphicsState.ulStencilOpFail      = PL_STENCIL_OP_KEEP;
-    ptMaterial->tGraphicsState.ulStencilOpDepthFail = PL_STENCIL_OP_KEEP;
-    ptMaterial->tGraphicsState.ulStencilOpPass      = PL_STENCIL_OP_REPLACE;
-    return tNewEntity;   
+    plMeshComponent* ptMesh = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
+    memset(ptMesh, 0, sizeof(plMeshComponent));
+
+    ptObject->tTransform = tNewEntity;
+    ptObject->tMesh = tNewEntity;
+
+    return tNewEntity;    
+}
+
+static plEntity
+pl_ecs_create_transform(plComponentLibrary* ptLibrary, const char* pcName)
+{
+    pl_log_debug_to_f(uLogChannel, "created transform: '%s'", pcName ? pcName : "unnamed");
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+
+    plTransformComponent* ptTransform = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
+    memset(ptTransform, 0, sizeof(plTransformComponent));
+    ptTransform->tWorld = pl_identity_mat4();
+
+    return tNewEntity;  
 }
 
 static plEntity
 pl_ecs_create_material(plComponentLibrary* ptLibrary, const char* pcName)
 {
-    plEntity tNewEntity = pl_ecs_create_entity(ptLibrary);
+    pl_log_debug_to_f(uLogChannel, "created material: '%s'", pcName ? pcName : "unnamed");
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
-    plTagComponent* ptTag = pl_ecs_create_component(&ptLibrary->tTagComponentManager, tNewEntity);
-    if(pcName)
-    {
-        pl_log_debug_to_f(uLogChannel, "created material '%s'", pcName);
-        strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
-    }
-    else
-    {
-        pl_log_debug_to(uLogChannel, "created unnamed material");
-        strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
-    }
-
-    plMaterialComponent* ptMaterial = pl_ecs_create_component(&ptLibrary->tMaterialComponentManager, tNewEntity);
+    plMaterialComponent* ptMaterial = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, tNewEntity);
     memset(ptMaterial, 0, sizeof(plMaterialComponent));
-    ptMaterial->uShader = UINT32_MAX;
     ptMaterial->tAlbedo = (plVec4){ 1.0f, 1.0f, 1.0f, 1.0f };
     ptMaterial->fAlphaCutoff = 0.1f;
     ptMaterial->bDoubleSided = false;
-    ptMaterial->tShaderType = PL_SHADER_TYPE_PBR;
-    ptMaterial->tGraphicsState.ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_NORMAL;
-    ptMaterial->tGraphicsState.ulDepthMode          = PL_DEPTH_MODE_LESS_OR_EQUAL;
-    ptMaterial->tGraphicsState.ulDepthWriteEnabled  = true;
-    ptMaterial->tGraphicsState.ulCullMode           = PL_CULL_MODE_NONE;
-    ptMaterial->tGraphicsState.ulBlendMode          = PL_BLEND_MODE_ALPHA;
-    ptMaterial->tGraphicsState.ulShaderTextureFlags = 0;
-    ptMaterial->tGraphicsState.ulStencilMode        = PL_STENCIL_MODE_ALWAYS;
-    ptMaterial->tGraphicsState.ulStencilRef         = 0xff;
-    ptMaterial->tGraphicsState.ulStencilMask        = 0xff;
-    ptMaterial->tGraphicsState.ulStencilOpFail      = PL_STENCIL_OP_KEEP;
-    ptMaterial->tGraphicsState.ulStencilOpDepthFail = PL_STENCIL_OP_KEEP;
-    ptMaterial->tGraphicsState.ulStencilOpPass      = PL_STENCIL_OP_KEEP;
-
     return tNewEntity;    
 }
 
-static void
-pl_add_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity)
+static plEntity
+pl_ecs_create_skin(plComponentLibrary* ptLibrary, const char* pcName)
 {
+    pl_log_debug_to_f(uLogChannel, "created skin: '%s'", pcName ? pcName : "unnamed");
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
-    pl_log_debug_to_f(uLogChannel, "add mesh outline to %u", tEntity);
+    plSkinComponent* ptSkin = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, tNewEntity);
+    return tNewEntity;
+}
+
+static plEntity
+pl_ecs_create_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ)
+{
+    pl_log_debug_to_f(uLogChannel, "created camera: '%s'", pcName ? pcName : "unnamed");
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+
+    const plCameraComponent tCamera = {
+        .tPos         = tPos,
+        .fNearZ       = fNearZ,
+        .fFarZ        = fFarZ,
+        .fFieldOfView = fYFov,
+        .fAspectRatio = fAspect
+    };
+
+    plCameraComponent* ptCamera = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, tNewEntity);
+    memset(ptCamera, 0, sizeof(plCameraComponent));
+    *ptCamera = tCamera;
+    pl_camera_update(ptCamera);
+
+    return tNewEntity; 
+}
 
 
-    if(pl_ecs_has_entity(&ptLibrary->tMeshComponentManager, tEntity))
+static void
+pl_ecs_attach_component(plComponentLibrary* ptLibrary, plEntity tEntity, plEntity tParent)
+{
+    plHierarchyComponent* ptHierarchyComponent = NULL;
+
+    // check if entity already has a hierarchy component
+    if(pl_ecs_has_entity(&ptLibrary->tHierarchyComponentManager, tEntity))
     {
-        plMeshComponent* ptMesh = pl_ecs_get_component(&ptLibrary->tMeshComponentManager, tEntity);
-
-        plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->tMaterial);
-        ptMaterial->tGraphicsState.ulStencilOpFail      = PL_STENCIL_OP_REPLACE;
-        ptMaterial->tGraphicsState.ulStencilOpDepthFail = PL_STENCIL_OP_REPLACE;
-        ptMaterial->tGraphicsState.ulStencilOpPass      = PL_STENCIL_OP_REPLACE;
-
-        if(ptMesh->tOutlineMaterial == 0)
-        {
-            ptMesh->tOutlineMaterial = pl_ecs_create_outline_material(ptLibrary, "outline material");
-            plMaterialComponent* ptOutlineMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->tOutlineMaterial);
-            ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->tMaterial);
-            ptOutlineMaterial->tGraphicsState.ulVertexStreamMask = ptMaterial->tGraphicsState.ulVertexStreamMask;
-        }
+        ptHierarchyComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tEntity);
     }
+    else
+    {
+        ptHierarchyComponent = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tEntity);
+    }
+    ptHierarchyComponent->tParent = tParent;
 }
 
 static void
-pl_remove_mesh_outline(plComponentLibrary* ptLibrary, plEntity tEntity)
+pl_ecs_deattach_component(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
-    pl_log_debug_to_f(uLogChannel, "remove mesh outline to %u", tEntity);
+    plHierarchyComponent* ptHierarchyComponent = NULL;
 
-    if(pl_ecs_has_entity(&ptLibrary->tMeshComponentManager, tEntity))
+    // check if entity already has a hierarchy component
+    if(pl_ecs_has_entity(&ptLibrary->tHierarchyComponentManager, tEntity))
     {
-        plMeshComponent* ptMesh = pl_ecs_get_component(&ptLibrary->tMeshComponentManager, tEntity);
-        plMaterialComponent* ptMaterial = pl_ecs_get_component(&ptLibrary->tMaterialComponentManager, ptMesh->tMaterial);
-        ptMaterial->tGraphicsState.ulStencilOpFail      = PL_STENCIL_OP_KEEP;
-        ptMaterial->tGraphicsState.ulStencilOpDepthFail = PL_STENCIL_OP_KEEP;
-        ptMaterial->tGraphicsState.ulStencilOpPass      = PL_STENCIL_OP_KEEP;
+        ptHierarchyComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tEntity);
     }
+    else
+    {
+        ptHierarchyComponent = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tEntity);
+    }
+    ptHierarchyComponent->tParent.uIndex = UINT32_MAX;
 }
 
 static void
-pl_ecs_cleanup_systems(const plApiRegistryApiI* ptApiRegistry, plComponentLibrary* ptLibrary)
-{
-
-    plObjectSystemData* ptObjectSystemData = ptLibrary->tObjectComponentManager.pSystemData;
-
-    for(uint32_t i = 0; i < pl_sb_size(ptObjectSystemData->sbtMeshes); i++)
-    {
-        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexPositions);
-        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexNormals);
-        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexTangents);
-        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexColors0);
-        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexColors1);
-        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexWeights0);
-        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexWeights1);
-        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexJoints0);
-        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexJoints1);
-        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexTextureCoordinates0);
-        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbtVertexTextureCoordinates1);
-        pl_sb_free(ptObjectSystemData->sbtMeshes[i]->sbuIndices);
-    }
-    pl_sb_free(ptObjectSystemData->sbtMeshes);
-    PL_FREE(ptObjectSystemData);
-    ptLibrary->tObjectComponentManager.pSystemData = NULL;
-
-    plMeshComponent* ptMeshComponents = ptLibrary->tMeshComponentManager.pComponents;
-
-    // components
-    pl_sb_free(ptLibrary->tTagComponentManager.pComponents);
-    pl_sb_free(ptLibrary->tTransformComponentManager.pComponents);
-    pl_sb_free(ptLibrary->tMeshComponentManager.pComponents);
-    pl_sb_free(ptLibrary->tMaterialComponentManager.pComponents);
-    pl_sb_free(ptLibrary->tObjectComponentManager.pComponents);
-    pl_sb_free(ptLibrary->tCameraComponentManager.pComponents);
-    pl_sb_free(ptLibrary->tHierarchyComponentManager.pComponents);
-    pl_sb_free(ptLibrary->tLightComponentManager.pComponents);
-
-    // entities
-    pl_sb_free(ptLibrary->tTagComponentManager.sbtEntities);
-    pl_sb_free(ptLibrary->tTransformComponentManager.sbtEntities);
-    pl_sb_free(ptLibrary->tMeshComponentManager.sbtEntities);
-    pl_sb_free(ptLibrary->tMaterialComponentManager.sbtEntities);
-    pl_sb_free(ptLibrary->tObjectComponentManager.sbtEntities);
-    pl_sb_free(ptLibrary->tCameraComponentManager.sbtEntities);
-    pl_sb_free(ptLibrary->tHierarchyComponentManager.sbtEntities);
-    pl_sb_free(ptLibrary->tLightComponentManager.sbtEntities);
-
-    // hashmaps
-    pl_hm_free(&ptLibrary->tTagComponentManager.tHashMap);
-    pl_hm_free(&ptLibrary->tTransformComponentManager.tHashMap);
-    pl_hm_free(&ptLibrary->tMeshComponentManager.tHashMap);
-    pl_hm_free(&ptLibrary->tMaterialComponentManager.tHashMap);
-    pl_hm_free(&ptLibrary->tObjectComponentManager.tHashMap);
-    pl_hm_free(&ptLibrary->tCameraComponentManager.tHashMap);
-    pl_hm_free(&ptLibrary->tHierarchyComponentManager.tHashMap);
-    pl_hm_free(&ptLibrary->tLightComponentManager.tHashMap);
-}
-
-static void
-pl_run_object_update_system(plComponentLibrary* ptLibrary)
+pl_run_skin_update_system(plComponentLibrary* ptLibrary)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
-    plObjectSystemData* ptObjectSystemData = ptLibrary->tObjectComponentManager.pSystemData;
-    pl_sb_reset(ptObjectSystemData->sbtMeshes);
+    plSkinComponent* sbtComponents = ptLibrary->tSkinComponentManager.pComponents;
 
     for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
     {
-        plMeshComponent* ptMeshComponent = pl_ecs_get_component(&ptLibrary->tMeshComponentManager, sbtComponents[i].tMesh);
-        plTransformComponent* ptTransform = pl_ecs_get_component(&ptLibrary->tTransformComponentManager, sbtComponents[i].tTransform);
-        ptMeshComponent->tInfo.tModel = ptTransform->tFinalTransform;
-        pl_sb_push(ptObjectSystemData->sbtMeshes, ptMeshComponent);
+        plSkinComponent* ptSkinComponent = &sbtComponents[i];
+        plMat4 tWorldTransform = pl_identity_mat4();
+        plMat4 tInverseWorldTransform = pl_identity_mat4();
+        if(ptSkinComponent->tSkeleton.uIndex != UINT32_MAX)
+        {
+            plTransformComponent* ptParentComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptSkinComponent->tSkeleton);
+            tWorldTransform = ptParentComponent->tFinalTransform;
+            tInverseWorldTransform = pl_mat4_invert(&ptParentComponent->tFinalTransform);
+
+        }
+        for(uint32_t j = 0; j < pl_sb_size(ptSkinComponent->sbtJoints); j++)
+        {
+            plEntity tJointEntity = ptSkinComponent->sbtJoints[j];
+            plTransformComponent* ptJointComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tJointEntity);
+
+            const plMat4* ptIBM = &ptSkinComponent->sbtInverseBindMatrices[j];
+            plMat4 tJointMatrix = pl_mul_mat4(&ptJointComponent->tFinalTransform, ptIBM);
+            tJointMatrix = pl_mul_mat4(&tInverseWorldTransform, &tJointMatrix);
+            plMat4 tInvertJoint = pl_mat4_invert(&tJointMatrix);
+            plMat4 tNormalMatrix = pl_mat4_transpose(&tInvertJoint);
+            ptSkinComponent->sbtTextureData[j*2] = tJointMatrix;
+            ptSkinComponent->sbtTextureData[j*2 + 1] = tNormalMatrix;
+        }
     }
+
     pl_end_profile_sample();
+}
+
+static void
+pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+    plHierarchyComponent* sbtComponents = ptLibrary->tHierarchyComponentManager.pComponents;
+
+    for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
+    {
+        plHierarchyComponent* ptHierarchyComponent = &sbtComponents[i];
+        plEntity tChildEntity = ptLibrary->tHierarchyComponentManager.sbtEntities[i];
+        plTransformComponent* ptParentTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptHierarchyComponent->tParent);
+        plTransformComponent* ptChildTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tChildEntity);
+        ptChildTransform->tFinalTransform = pl_mul_mat4(&ptParentTransform->tFinalTransform, &ptChildTransform->tWorld);
+    }
+
+    pl_end_profile_sample();
+}
+
+static void
+pl_camera_set_fov(plCameraComponent* ptCamera, float fYFov)
+{
+    ptCamera->fFieldOfView = fYFov;
+}
+
+static void
+pl_camera_set_clip_planes(plCameraComponent* ptCamera, float fNearZ, float fFarZ)
+{
+    ptCamera->fNearZ = fNearZ;
+    ptCamera->fFarZ = fFarZ;
+}
+
+static void
+pl_camera_set_aspect(plCameraComponent* ptCamera, float fAspect)
+{
+        ptCamera->fAspectRatio = fAspect;
+}
+
+static void
+pl_camera_set_pos(plCameraComponent* ptCamera, float fX, float fY, float fZ)
+{
+    ptCamera->tPos.x = fX;
+    ptCamera->tPos.y = fY;
+    ptCamera->tPos.z = fZ;
+}
+
+static void
+pl_camera_set_pitch_yaw(plCameraComponent* ptCamera, float fPitch, float fYaw)
+{
+    ptCamera->fPitch = fPitch;
+    ptCamera->fYaw = fYaw;
+}
+
+static void
+pl_camera_translate(plCameraComponent* ptCamera, float fDx, float fDy, float fDz)
+{
+    ptCamera->tPos = pl_add_vec3(ptCamera->tPos, pl_mul_vec3_scalarf(ptCamera->_tRightVec, fDx));
+    ptCamera->tPos = pl_add_vec3(ptCamera->tPos, pl_mul_vec3_scalarf(ptCamera->_tForwardVec, fDz));
+    ptCamera->tPos.y += fDy;
+}
+
+static void
+pl_camera_rotate(plCameraComponent* ptCamera, float fDPitch, float fDYaw)
+{
+    ptCamera->fPitch += fDPitch;
+    ptCamera->fYaw += fDYaw;
+
+    ptCamera->fYaw = pl__wrap_angle(ptCamera->fYaw);
+    ptCamera->fPitch = pl_clampf(0.995f * -PL_PI_2, ptCamera->fPitch, 0.995f * PL_PI_2);
+}
+
+static void
+pl_camera_update(plCameraComponent* ptCamera)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // world space
+    static const plVec4 tOriginalUpVec      = {0.0f, 1.0f, 0.0f, 0.0f};
+    static const plVec4 tOriginalForwardVec = {0.0f, 0.0f, 1.0f, 0.0f};
+    static const plVec4 tOriginalRightVec   = {-1.0f, 0.0f, 0.0f, 0.0f};
+
+    const plMat4 tXRotMat   = pl_mat4_rotate_vec3(ptCamera->fPitch, tOriginalRightVec.xyz);
+    const plMat4 tYRotMat   = pl_mat4_rotate_vec3(ptCamera->fYaw, tOriginalUpVec.xyz);
+    const plMat4 tZRotMat   = pl_mat4_rotate_vec3(ptCamera->fRoll, tOriginalForwardVec.xyz);
+    const plMat4 tTranslate = pl_mat4_translate_vec3((plVec3){ptCamera->tPos.x, ptCamera->tPos.y, ptCamera->tPos.z});
+
+    // rotations: rotY * rotX * rotZ
+    plMat4 tRotations = pl_mul_mat4t(&tXRotMat, &tZRotMat);
+    tRotations        = pl_mul_mat4t(&tYRotMat, &tRotations);
+
+    // update camera vectors
+    ptCamera->_tRightVec   = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalRightVec)).xyz;
+    ptCamera->_tUpVec      = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalUpVec)).xyz;
+    ptCamera->_tForwardVec = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalForwardVec)).xyz;
+
+    // update camera transform: translate * rotate
+    ptCamera->tTransformMat = pl_mul_mat4t(&tTranslate, &tRotations);
+
+    // update camera view matrix
+    ptCamera->tViewMat   = pl_mat4t_invert(&ptCamera->tTransformMat);
+
+    // flip x & y so camera looks down +z and remains right handed (+x to the right)
+    const plMat4 tFlipXY = pl_mat4_scale_xyz(-1.0f, -1.0f, 1.0f);
+    ptCamera->tViewMat   = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMat);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~update projection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);
+    ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
+    ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
+    ptCamera->tProjMat.col[2].z = ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
+    ptCamera->tProjMat.col[2].w = 1.0f;
+    ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
+    ptCamera->tProjMat.col[3].w = 0.0f;  
+
+    pl_end_profile_sample();  
 }
 
 static void
@@ -659,273 +806,6 @@ pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
     pl_end_profile_sample();
 }
 
-static void
-pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
-{
-    pl_begin_profile_sample(__FUNCTION__);
-    plHierarchyComponent* sbtComponents = ptLibrary->tHierarchyComponentManager.pComponents;
-
-    for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
-    {
-        plHierarchyComponent* ptHierarchyComponent = &sbtComponents[i];
-        plEntity tChildEntity = ptLibrary->tHierarchyComponentManager.sbtEntities[i];
-        plTransformComponent* ptParentTransform = pl_ecs_get_component(&ptLibrary->tTransformComponentManager, ptHierarchyComponent->tParent);
-        plTransformComponent* ptChildTransform = pl_ecs_get_component(&ptLibrary->tTransformComponentManager, tChildEntity);
-        ptChildTransform->tFinalTransform = pl_mul_mat4(&ptParentTransform->tFinalTransform, &ptChildTransform->tWorld);
-    }
-
-    pl_end_profile_sample();
-}
-
-
-static plEntity
-pl_ecs_create_object(plComponentLibrary* ptLibrary, const char* pcName)
-{
-    plEntity tNewEntity = pl_ecs_create_entity(ptLibrary);
-
-    plTagComponent* ptTag = pl_ecs_create_component(&ptLibrary->tTagComponentManager, tNewEntity);
-    if(pcName)
-    {
-        pl_log_debug_to_f(uLogChannel, "created object '%s'", pcName);
-        strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
-    }
-    else
-    {
-        pl_log_debug_to(uLogChannel, "created unnamed object");
-        strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
-    }
-
-    plObjectComponent* ptObject = pl_ecs_create_component(&ptLibrary->tObjectComponentManager, tNewEntity);
-    memset(ptObject, 0, sizeof(plObjectComponent));
-
-    plTransformComponent* ptTransform = pl_ecs_create_component(&ptLibrary->tTransformComponentManager, tNewEntity);
-    memset(ptTransform, 0, sizeof(plTransformComponent));
-    ptTransform->tWorld = pl_identity_mat4();
-
-    plMeshComponent* ptMesh = pl_ecs_create_component(&ptLibrary->tMeshComponentManager, tNewEntity);
-    memset(ptMesh, 0, sizeof(plMeshComponent));
-
-    ptObject->tTransform = tNewEntity;
-    ptObject->tMesh = tNewEntity;
-
-    return tNewEntity;    
-}
-
-static plEntity
-pl_ecs_create_transform(plComponentLibrary* ptLibrary, const char* pcName)
-{
-    plEntity tNewEntity = pl_ecs_create_entity(ptLibrary);
-
-    plTagComponent* ptTag = pl_ecs_create_component(&ptLibrary->tTagComponentManager, tNewEntity);
-    if(pcName)
-    {
-        pl_log_debug_to_f(uLogChannel, "created transform '%s'", pcName);
-        strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
-    }
-    else
-    {
-        pl_log_debug_to(uLogChannel, "created unnamed transform");
-        strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
-    }
-
-    plTransformComponent* ptTransform = pl_ecs_create_component(&ptLibrary->tTransformComponentManager, tNewEntity);
-    memset(ptTransform, 0, sizeof(plTransformComponent));
-    ptTransform->tWorld = pl_identity_mat4();
-
-    return tNewEntity;  
-}
-
-static plEntity
-pl_ecs_create_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ)
-{
-    plEntity tNewEntity = pl_ecs_create_entity(ptLibrary);
-
-    plTagComponent* ptTag = pl_ecs_create_component(&ptLibrary->tTagComponentManager, tNewEntity);
-    if(pcName)
-    {
-        pl_log_debug_to_f(uLogChannel, "created camera '%s'", pcName);
-        strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
-    }
-    else
-    {
-        pl_log_debug_to(uLogChannel, "created unnamed camera");
-        strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
-    }
-
-    const plCameraComponent tCamera = {
-        .tPos         = tPos,
-        .fNearZ       = fNearZ,
-        .fFarZ        = fFarZ,
-        .fFieldOfView = fYFov,
-        .fAspectRatio = fAspect
-    };
-
-    plCameraComponent* ptCamera = pl_ecs_create_component(&ptLibrary->tCameraComponentManager, tNewEntity);
-    memset(ptCamera, 0, sizeof(plCameraComponent));
-    *ptCamera = tCamera;
-    pl_camera_update(ptCamera);
-
-    return tNewEntity; 
-}
-
-static plEntity
-pl_ecs_create_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, plVec3 tColor)
-{
-    plEntity tNewEntity = pl_ecs_create_entity(ptLibrary);
-
-    plTagComponent* ptTag = pl_ecs_create_component(&ptLibrary->tTagComponentManager, tNewEntity);
-    if(pcName)
-    {
-        pl_log_debug_to_f(uLogChannel, "created light '%s'", pcName);
-        strncpy(ptTag->acName, pcName, PL_MAX_NAME_LENGTH);
-    }
-    else
-    {
-        pl_log_debug_to(uLogChannel, "created unnamed light");
-        strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
-    }
-
-    plLightComponent* ptLight = pl_ecs_create_component(&ptLibrary->tLightComponentManager, tNewEntity);
-    memset(ptLight, 0, sizeof(plLightComponent));
-    
-    ptLight->tColor = tColor;
-    ptLight->tPosition = tPos;
-    return tNewEntity;   
-}
-
-static void
-pl_ecs_attach_component(plComponentLibrary* ptLibrary, plEntity tEntity, plEntity tParent)
-{
-    plHierarchyComponent* ptHierarchyComponent = NULL;
-
-    // check if entity already has a hierarchy component
-    if(pl_ecs_has_entity(&ptLibrary->tHierarchyComponentManager, tEntity))
-    {
-        ptHierarchyComponent = pl_ecs_get_component(&ptLibrary->tHierarchyComponentManager, tEntity);
-    }
-    else
-    {
-        ptHierarchyComponent = pl_ecs_create_component(&ptLibrary->tHierarchyComponentManager, tEntity);
-    }
-    ptHierarchyComponent->tParent = tParent;
-}
-
-static void
-pl_ecs_deattach_component(plComponentLibrary* ptLibrary, plEntity tEntity)
-{
-    plHierarchyComponent* ptHierarchyComponent = NULL;
-
-    // check if entity already has a hierarchy component
-    if(pl_ecs_has_entity(&ptLibrary->tHierarchyComponentManager, tEntity))
-    {
-        ptHierarchyComponent = pl_ecs_get_component(&ptLibrary->tHierarchyComponentManager, tEntity);
-    }
-    else
-    {
-        ptHierarchyComponent = pl_ecs_create_component(&ptLibrary->tHierarchyComponentManager, tEntity);
-    }
-    ptHierarchyComponent->tParent = PL_INVALID_ENTITY_HANDLE;
-}
-
-static void
-pl_camera_set_fov(plCameraComponent* ptCamera, float fYFov)
-{
-    ptCamera->fFieldOfView = fYFov;
-}
-
-static void
-pl_camera_set_clip_planes(plCameraComponent* ptCamera, float fNearZ, float fFarZ)
-{
-    ptCamera->fNearZ = fNearZ;
-    ptCamera->fFarZ = fFarZ;
-}
-
-static void
-pl_camera_set_aspect(plCameraComponent* ptCamera, float fAspect)
-{
-    ptCamera->fAspectRatio = fAspect;
-}
-
-static void
-pl_camera_set_pos(plCameraComponent* ptCamera, float fX, float fY, float fZ)
-{
-    ptCamera->tPos.x = fX;
-    ptCamera->tPos.y = fY;
-    ptCamera->tPos.z = fZ;
-}
-
-static void
-pl_camera_set_pitch_yaw(plCameraComponent* ptCamera, float fPitch, float fYaw)
-{
-    ptCamera->fPitch = fPitch;
-    ptCamera->fYaw = fYaw;
-}
-
-static void
-pl_camera_translate(plCameraComponent* ptCamera, float fDx, float fDy, float fDz)
-{
-    ptCamera->tPos = pl_add_vec3(ptCamera->tPos, pl_mul_vec3_scalarf(ptCamera->_tRightVec, fDx));
-    ptCamera->tPos = pl_add_vec3(ptCamera->tPos, pl_mul_vec3_scalarf(ptCamera->_tForwardVec, fDz));
-    ptCamera->tPos.y += fDy;
-}
-
-static void
-pl_camera_rotate(plCameraComponent* ptCamera, float fDPitch, float fDYaw)
-{
-    ptCamera->fPitch += fDPitch;
-    ptCamera->fYaw += fDYaw;
-
-    ptCamera->fYaw = pl__wrap_angle(ptCamera->fYaw);
-    ptCamera->fPitch = pl_clampf(0.995f * -PL_PI_2, ptCamera->fPitch, 0.995f * PL_PI_2);
-}
-
-static void
-pl_camera_update(plCameraComponent* ptCamera)
-{
-    pl_begin_profile_sample(__FUNCTION__);
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // world space
-    static const plVec4 tOriginalUpVec      = {0.0f, 1.0f, 0.0f, 0.0f};
-    static const plVec4 tOriginalForwardVec = {0.0f, 0.0f, 1.0f, 0.0f};
-    static const plVec4 tOriginalRightVec   = {-1.0f, 0.0f, 0.0f, 0.0f};
-
-    const plMat4 tXRotMat   = pl_mat4_rotate_vec3(ptCamera->fPitch, tOriginalRightVec.xyz);
-    const plMat4 tYRotMat   = pl_mat4_rotate_vec3(ptCamera->fYaw, tOriginalUpVec.xyz);
-    const plMat4 tZRotMat   = pl_mat4_rotate_vec3(ptCamera->fRoll, tOriginalForwardVec.xyz);
-    const plMat4 tTranslate = pl_mat4_translate_vec3((plVec3){ptCamera->tPos.x, ptCamera->tPos.y, ptCamera->tPos.z});
-
-    // rotations: rotY * rotX * rotZ
-    plMat4 tRotations = pl_mul_mat4t(&tXRotMat, &tZRotMat);
-    tRotations        = pl_mul_mat4t(&tYRotMat, &tRotations);
-
-    // update camera vectors
-    ptCamera->_tRightVec   = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalRightVec)).xyz;
-    ptCamera->_tUpVec      = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalUpVec)).xyz;
-    ptCamera->_tForwardVec = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalForwardVec)).xyz;
-
-    // update camera transform: translate * rotate
-    ptCamera->tTransformMat = pl_mul_mat4t(&tTranslate, &tRotations);
-
-    // update camera view matrix
-    ptCamera->tViewMat   = pl_mat4t_invert(&ptCamera->tTransformMat);
-
-    // flip x & y so camera looks down +z and remains right handed (+x to the right)
-    const plMat4 tFlipXY = pl_mat4_scale_xyz(-1.0f, -1.0f, 1.0f);
-    ptCamera->tViewMat   = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMat);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~update projection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);
-    ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
-    ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
-    ptCamera->tProjMat.col[2].z = ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
-    ptCamera->tProjMat.col[2].w = 1.0f;
-    ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
-    ptCamera->tProjMat.col[3].w = 0.0f;    
-
-    pl_end_profile_sample(); 
-}
-
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -960,6 +840,7 @@ pl_load_ecs_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
         ptApiRegistry->add(PL_API_ECS, pl_load_ecs_api());
         ptApiRegistry->add(PL_API_CAMERA, pl_load_camera_api());
         uLogChannel = pl_add_log_channel("ECS", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
+        // uLogChannel = pl_add_log_channel("ECS", PL_CHANNEL_TYPE_BUFFER | PL_CHANNEL_TYPE_CONSOLE);
     }
 }
 

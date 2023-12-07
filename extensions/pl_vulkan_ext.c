@@ -2394,10 +2394,8 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     static const char* pcValidationLayers = "VK_LAYER_KHRONOS_validation";
 
     uint32_t uDeviceExtensionCount = 1;
-    const char* apcDeviceExts[16] = {
-        VK_EXT_DEBUG_MARKER_EXTENSION_NAME
-    };
-    // const char** sbpcDeviceExts = NULL;
+    const char* apcDeviceExts[16] = {0};
+    apcDeviceExts[0] = VK_EXT_DEBUG_MARKER_EXTENSION_NAME;
     if(ptVulkanDevice->bSwapchainExtPresent)      apcDeviceExts[uDeviceExtensionCount++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
     if(ptVulkanDevice->bPortabilitySubsetPresent) apcDeviceExts[uDeviceExtensionCount++] = "VK_KHR_portability_subset";
     VkDeviceCreateInfo tCreateDeviceInfo = {
