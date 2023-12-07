@@ -25,6 +25,7 @@ Index of this file:
 #include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_string.h"
+#include "pl_memory.h"
 #include "pl_graphics_ext.c"
 
 // vulkan stuff
@@ -208,6 +209,7 @@ typedef struct _plVulkanDevice
 
 typedef struct _plVulkanGraphics
 {
+    plTempAllocator          tTempAllocator;
     VkInstance               tInstance;
     VkDebugUtilsMessengerEXT tDbgMessenger;
     VkSurfaceKHR             tSurface;
@@ -1131,7 +1133,9 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout)
 
     ptLayout->uHandle = pl_sb_size(ptVulkanGraphics->sbtBindGroupLayouts);
 
-    VkDescriptorSetLayoutBinding* sbtDescriptorSetLayoutBindings = NULL;
+    uint32_t uCurrentBinding = 0;
+    const uint32_t uDescriptorBindingCount = ptLayout->uTextureCount + ptLayout->uBufferCount;
+    VkDescriptorSetLayoutBinding* atDescriptorSetLayoutBindings = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorSetLayoutBinding));
     for(uint32_t i = 0; i < ptLayout->uBufferCount; i++)
     {
         VkDescriptorSetLayoutBinding tBinding =  {
@@ -1141,7 +1145,7 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout)
             .stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
             .pImmutableSamplers = NULL
         };
-        pl_sb_push(sbtDescriptorSetLayoutBindings, tBinding);
+        atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
 
     for(uint32_t i = 0 ; i < ptLayout->uTextureCount; i++)
@@ -1150,21 +1154,21 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout)
             .binding            = ptLayout->aTextures[i].uSlot,
             .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount    = 1,
-            .stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
             .pImmutableSamplers = NULL
         };
-        pl_sb_push(sbtDescriptorSetLayoutBindings, tBinding);
+        atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
 
     // create descriptor set layout
     const VkDescriptorSetLayoutCreateInfo tDescriptorSetLayoutInfo = {
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = pl_sb_size(sbtDescriptorSetLayoutBindings),
-        .pBindings    = sbtDescriptorSetLayoutBindings,
+        .bindingCount = uDescriptorBindingCount,
+        .pBindings    = atDescriptorSetLayoutBindings,
     };
     PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tVulkanBindGroupLayout.tDescriptorSetLayout));
 
-    pl_sb_free(sbtDescriptorSetLayoutBindings);
+    pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
 
     pl_sb_push(ptVulkanGraphics->sbtBindGroupLayouts, tVulkanBindGroupLayout);
 }
@@ -1185,7 +1189,10 @@ pl_create_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout)
         .tLayout = *ptLayout
     };
 
-    VkDescriptorSetLayoutBinding* sbtDescriptorSetLayoutBindings = NULL;
+    uint32_t uCurrentBinding = 0;
+    const uint32_t uDescriptorBindingCount = ptLayout->uTextureCount + ptLayout->uBufferCount;
+    VkDescriptorSetLayoutBinding* atDescriptorSetLayoutBindings = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorSetLayoutBinding));
+
     for(uint32_t i = 0; i < ptLayout->uBufferCount; i++)
     {
         VkDescriptorSetLayoutBinding tBinding =  {
@@ -1195,7 +1202,7 @@ pl_create_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout)
             .stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
             .pImmutableSamplers = NULL
         };
-        pl_sb_push(sbtDescriptorSetLayoutBindings, tBinding);
+        atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
 
     for(uint32_t i = 0 ; i < ptLayout->uTextureCount; i++)
@@ -1204,22 +1211,22 @@ pl_create_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout)
             .binding            = ptLayout->aTextures[i].uSlot,
             .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount    = 1,
-            .stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
             .pImmutableSamplers = NULL
         };
-        pl_sb_push(sbtDescriptorSetLayoutBindings, tBinding);
+        atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
 
     // create descriptor set layout
     VkDescriptorSetLayout tDescriptorSetLayout = VK_NULL_HANDLE;
     const VkDescriptorSetLayoutCreateInfo tDescriptorSetLayoutInfo = {
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = pl_sb_size(sbtDescriptorSetLayoutBindings),
-        .pBindings    = sbtDescriptorSetLayoutBindings,
+        .bindingCount = uDescriptorBindingCount,
+        .pBindings    = atDescriptorSetLayoutBindings,
     };
     PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tDescriptorSetLayout));
 
-    pl_sb_free(sbtDescriptorSetLayoutBindings);
+    pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
 
     plVulkanBindGroup tVulkanBindGroup = {
         .tDescriptorSetLayout = tDescriptorSetLayout
@@ -1251,12 +1258,10 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle* ptGroup, uint32_t uB
     plBindGroup* ptBindGroup = &ptGraphics->sbtBindGroupsCold[ptGroup->uIndex];
     plVulkanBindGroup* ptVulkanBindGroup = &ptVulkanGraphics->sbtBindGroupsHot[ptGroup->uIndex];
 
-    VkWriteDescriptorSet* sbtWrites = NULL;
-    VkDescriptorBufferInfo* sbtBufferDescInfos = NULL;
-    VkDescriptorImageInfo* sbtImageDescInfos = NULL;
-    pl_sb_resize(sbtWrites, uBufferCount + uTextureViewCount);
-    pl_sb_resize(sbtBufferDescInfos, uBufferCount);
-    pl_sb_resize(sbtImageDescInfos, uTextureViewCount);
+    VkWriteDescriptorSet*   sbtWrites = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, (uBufferCount + uTextureViewCount) * sizeof(VkWriteDescriptorSet));
+    VkDescriptorBufferInfo* sbtBufferDescInfos = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, uBufferCount * sizeof(VkDescriptorBufferInfo));
+    VkDescriptorImageInfo*  sbtImageDescInfos = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, uTextureViewCount * sizeof(VkDescriptorImageInfo));
+
 
     static const VkDescriptorType atDescriptorTypeLUT[] =
     {
@@ -1303,10 +1308,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle* ptGroup, uint32_t uB
         uCurrentWrite++;
     }
     vkUpdateDescriptorSets(ptVulkanDevice->tLogicalDevice, uCurrentWrite, sbtWrites, 0, NULL);
-    pl_sb_free(sbtWrites);
-    pl_sb_free(sbtBufferDescInfos);
-    pl_sb_free(sbtImageDescInfos);
-
+    pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
 }
 
 static plFrameBufferHandle
@@ -1389,7 +1391,7 @@ pl_create_compute_shader(plDevice* ptDevice, plComputeShaderDescription* ptDescr
 
     uint32_t uShaderSize = 0u;
     gptFile->read(ptDescription->pcShader, &uShaderSize, NULL, "rb");
-    char* pcShaderCode = PL_ALLOC(uShaderSize);
+    char* pcShaderCode = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, uShaderSize);
     gptFile->read(ptDescription->pcShader, &uShaderSize, pcShaderCode, "rb");
 
     VkShaderModuleCreateInfo tShaderCreateInfo = {
@@ -1414,7 +1416,7 @@ pl_create_compute_shader(plDevice* ptDevice, plComputeShaderDescription* ptDescr
     };
     PL_VULKAN(vkCreateComputePipelines(ptVulkanDevice->tLogicalDevice, VK_NULL_HANDLE, 1, &tPipelineCreateInfo, NULL, &tVulkanShader.tPipeline));
 
-    PL_FREE(pcShaderCode);
+    pl_temp_allocator_reset(&ptVulkanGfx->tTempAllocator);
     vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, tVulkanShader.tShaderModule, NULL);
 
     pl_sb_push(ptVulkanGfx->sbtComputeShadersHot, tVulkanShader);
@@ -1515,8 +1517,8 @@ pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription)
     gptFile->read(ptDescription->pcVertexShader, &uVertShaderSize0, NULL, "rb");
     gptFile->read(ptDescription->pcPixelShader, &uPixelShaderSize0, NULL, "rb");
 
-    char* vertexShaderCode = PL_ALLOC(uVertShaderSize0);
-    char* pixelShaderCode  = PL_ALLOC(uPixelShaderSize0);
+    char* vertexShaderCode = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, uVertShaderSize0);
+    char* pixelShaderCode  = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, uPixelShaderSize0);
 
     gptFile->read(ptDescription->pcVertexShader, &uVertShaderSize0, vertexShaderCode, "rb");
     gptFile->read(ptDescription->pcPixelShader, &uPixelShaderSize0, pixelShaderCode, "rb");
@@ -1536,8 +1538,7 @@ pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription)
     };
     PL_VULKAN(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &tPixelShaderCreateInfo, NULL, &tVulkanShader.tPixelShaderModule));
 
-    PL_FREE(vertexShaderCode);
-    PL_FREE(pixelShaderCode);
+    pl_temp_allocator_reset(&ptVulkanGfx->tTempAllocator);
 
     //---------------------------------------------------------------------
     // input assembler stage
@@ -2163,6 +2164,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
 
         PL_ASSERT(false && "Can't find all requested extensions");
     }
+    pl_sb_free(sbpcMissingExtensions);
 
     // ensure layers are supported
     const char** sbpcMissingLayers = NULL;
@@ -2196,6 +2198,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
         }
         PL_ASSERT(false && "Can't find all requested layers");
     }
+    pl_sb_free(sbpcMissingLayers);
 
     // Setup debug messenger for vulkan tInstance
     VkDebugUtilsMessengerCreateInfoEXT tDebugCreateInfo = {
@@ -2232,9 +2235,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     // cleanup
     if(ptAvailableLayers)     PL_FREE(ptAvailableLayers);
     if(ptAvailableExtensions) PL_FREE(ptAvailableExtensions);
-    pl_sb_free(sbpcMissingLayers);
-    pl_sb_free(sbpcMissingExtensions);
-
+    
     if(bEnableValidation)
     {
         PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(ptVulkanGfx->tInstance, "vkCreateDebugUtilsMessengerEXT");
@@ -2343,7 +2344,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
 
     uint32_t uExtensionCount = 0;
     vkEnumerateDeviceExtensionProperties(ptVulkanDevice->tPhysicalDevice, NULL, &uExtensionCount, NULL);
-    VkExtensionProperties* ptExtensions = PL_ALLOC(uExtensionCount * sizeof(VkExtensionProperties));
+    VkExtensionProperties* ptExtensions = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, uExtensionCount * sizeof(VkExtensionProperties));
     vkEnumerateDeviceExtensionProperties(ptVulkanDevice->tPhysicalDevice, NULL, &uExtensionCount, ptExtensions);
 
     for(uint32_t i = 0; i < uExtensionCount; i++)
@@ -2351,8 +2352,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
         if(pl_str_equal(ptExtensions[i].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME)) ptVulkanDevice->bSwapchainExtPresent = true; //-V522
         if(pl_str_equal(ptExtensions[i].extensionName, "VK_KHR_portability_subset"))     ptVulkanDevice->bPortabilitySubsetPresent = true; //-V522
     }
-
-    PL_FREE(ptExtensions);
+    pl_temp_allocator_reset(&ptVulkanGfx->tTempAllocator);
 
     ptVulkanDevice->tMaxLocalMemSize = ptVulkanDevice->tMemProps.memoryHeaps[iBestDvcIdx].size;
     ptVulkanDevice->uUniformBufferBlockSize = pl_minu(PL_DEVICE_ALLOCATION_BLOCK_SIZE, ptVulkanDevice->tDeviceProps.limits.maxUniformBufferRange);
@@ -2400,23 +2400,24 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     
     static const char* pcValidationLayers = "VK_LAYER_KHRONOS_validation";
 
-    const char** sbpcDeviceExts = NULL;
-    if(ptVulkanDevice->bSwapchainExtPresent)      pl_sb_push(sbpcDeviceExts, VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-    if(ptVulkanDevice->bPortabilitySubsetPresent) pl_sb_push(sbpcDeviceExts, "VK_KHR_portability_subset");
-    pl_sb_push(sbpcDeviceExts, VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
+    uint32_t uDeviceExtensionCount = 1;
+    const char* apcDeviceExts[16] = {
+        VK_EXT_DEBUG_MARKER_EXTENSION_NAME
+    };
+    // const char** sbpcDeviceExts = NULL;
+    if(ptVulkanDevice->bSwapchainExtPresent)      apcDeviceExts[uDeviceExtensionCount++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+    if(ptVulkanDevice->bPortabilitySubsetPresent) apcDeviceExts[uDeviceExtensionCount++] = "VK_KHR_portability_subset";
     VkDeviceCreateInfo tCreateDeviceInfo = {
         .sType                    = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .queueCreateInfoCount     = atQueueCreateInfos[0].queueFamilyIndex == atQueueCreateInfos[1].queueFamilyIndex ? 1 : 2,
         .pQueueCreateInfos        = atQueueCreateInfos,
         .pEnabledFeatures         = &ptVulkanDevice->tDeviceFeatures,
-        .ppEnabledExtensionNames  = sbpcDeviceExts,
+        .ppEnabledExtensionNames  = apcDeviceExts,
         .enabledLayerCount        = bEnableValidation ? 1 : 0,
         .ppEnabledLayerNames      = bEnableValidation ? &pcValidationLayers : NULL,
-        .enabledExtensionCount    = pl_sb_size(sbpcDeviceExts)
+        .enabledExtensionCount    = uDeviceExtensionCount
     };
     PL_VULKAN(vkCreateDevice(ptVulkanDevice->tPhysicalDevice, &tCreateDeviceInfo, NULL, &ptVulkanDevice->tLogicalDevice));
-
-    pl_sb_free(sbpcDeviceExts);
 
     // get device queues
     vkGetDeviceQueue(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->iGraphicsQueueFamily, 0, &ptVulkanDevice->tGraphicsQueue);
@@ -2643,9 +2644,9 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     gptFile->read("draw_3d_line.vert.spv", &uVertShaderSize1, NULL, "rb");
     gptFile->read("draw_3d.frag.spv", &uPixelShaderSize0, NULL, "rb");
 
-    char* __glsl_shader_vert_3d_spv      = PL_ALLOC(uVertShaderSize0);
-    char* __glsl_shader_vert_3d_line_spv = PL_ALLOC(uVertShaderSize1);
-    char* __glsl_shader_frag_3d_spv      = PL_ALLOC(uPixelShaderSize0);
+    char* __glsl_shader_vert_3d_spv      = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, uVertShaderSize0);
+    char* __glsl_shader_vert_3d_line_spv = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, uVertShaderSize1);
+    char* __glsl_shader_frag_3d_spv      = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, uPixelShaderSize0);
 
     gptFile->read("draw_3d.vert.spv", &uVertShaderSize0, __glsl_shader_vert_3d_spv, "rb");
     gptFile->read("draw_3d_line.vert.spv", &uVertShaderSize1, __glsl_shader_vert_3d_line_spv, "rb");
@@ -2706,9 +2707,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     pl_sb_resize(ptVulkanGfx->sbt3DBufferInfo, ptGraphics->uFramesInFlight);
     pl_sb_resize(ptVulkanGfx->sbtLineBufferInfo, ptGraphics->uFramesInFlight);
 
-    PL_FREE(__glsl_shader_vert_3d_spv);
-    PL_FREE(__glsl_shader_vert_3d_line_spv);
-    PL_FREE(__glsl_shader_frag_3d_spv);
+    pl_temp_allocator_reset(&ptVulkanGfx->tTempAllocator);
 }
 
 static void
@@ -3202,6 +3201,7 @@ pl_shutdown(plGraphics* ptGraphics)
     // destroy tInstance
     vkDestroyInstance(ptVulkanGfx->tInstance, NULL);
 
+    pl_temp_allocator_free(&ptVulkanGfx->tTempAllocator);
     pl_sb_free(ptVulkanGfx->sbFrames);
     pl_sb_free(ptVulkanGfx->sbtRenderPassesHot);
     pl_sb_free(ptVulkanGfx->sbtFrameBuffersHot);
