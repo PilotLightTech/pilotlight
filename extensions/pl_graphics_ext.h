@@ -137,9 +137,7 @@ typedef int plTextureUsage;           // -> enum _plTextureUsage           // En
 typedef int plMeshFormatFlags;        // -> enum _plMeshFormatFlags        // Flags:
 typedef int plShaderTextureFlags;     // -> enum _plShaderTextureFlags     // Flags:
 typedef int plBlendMode;              // -> enum _plBlendMode              // Enum:
-typedef int plDepthMode;              // -> enum _plDepthMode              // Enum:
 typedef int plCullMode;               // -> enum _plCullMode               // Enum:
-typedef int plStencilMode;            // -> enum _plStencilMode            // Enum:
 typedef int plFilter;                 // -> enum _plFilter                 // Enum:
 typedef int plWrapMode;               // -> enum _plWrapMode               // Enum:
 typedef int plCompareMode;            // -> enum _plCompareMode            // Enum:
@@ -801,30 +799,6 @@ enum _plBlendMode
     PL_BLEND_MODE_CLIP_MASK,
     
     PL_BLEND_MODE_COUNT
-};
-
-enum _plDepthMode
-{
-    PL_DEPTH_MODE_NEVER,
-    PL_DEPTH_MODE_LESS,
-    PL_DEPTH_MODE_EQUAL,
-    PL_DEPTH_MODE_LESS_OR_EQUAL,
-    PL_DEPTH_MODE_GREATER,
-    PL_DEPTH_MODE_NOT_EQUAL,
-    PL_DEPTH_MODE_GREATER_OR_EQUAL,
-    PL_DEPTH_MODE_ALWAYS,
-};
-
-enum _plStencilMode
-{
-    PL_STENCIL_MODE_NEVER,
-    PL_STENCIL_MODE_LESS,
-    PL_STENCIL_MODE_EQUAL,
-    PL_STENCIL_MODE_LESS_OR_EQUAL,
-    PL_STENCIL_MODE_GREATER,
-    PL_STENCIL_MODE_NOT_EQUAL,
-    PL_STENCIL_MODE_GREATER_OR_EQUAL,
-    PL_STENCIL_MODE_ALWAYS,
 };
 
 enum _plStencilOp
