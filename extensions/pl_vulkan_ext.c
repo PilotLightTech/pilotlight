@@ -2892,6 +2892,7 @@ pl_end_gfx_frame(plGraphics* ptGraphics)
     if(tResult == VK_SUBOPTIMAL_KHR || tResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
         pl__create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1]);
+        pl_end_profile_sample();
         return false;
     }
     else
