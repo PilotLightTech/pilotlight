@@ -260,7 +260,9 @@ static VkFormat             pl__vulkan_format    (plFormat tFormat);
 static VkImageLayout        pl__vulkan_layout    (plTextureLayout tLayout);
 static VkAttachmentLoadOp   pl__vulkan_load_op   (plLoadOp tOp);
 static VkAttachmentStoreOp  pl__vulkan_store_op  (plStoreOp tOp);
+static VkCullModeFlags      pl__vulkan_cull      (plCullMode tFlag);
 static plFormat             pl__pilotlight_format(VkFormat tFormat);
+static VkPipelineColorBlendAttachmentState pl__get_blend_state(plBlendMode tBlendMode);
 
 // 3D drawing helpers
 static pl3DVulkanPipelineEntry* pl__get_3d_pipelines(plGraphics* ptGfx, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount, pl3DDrawFlags tFlags);
@@ -1613,7 +1615,7 @@ pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription)
         .rasterizerDiscardEnable = VK_FALSE,
         .polygonMode             = VK_POLYGON_MODE_FILL,
         .lineWidth               = 1.0f,
-        .cullMode                = VK_CULL_MODE_NONE,
+        .cullMode                = pl__vulkan_cull((plCullMode)ptDescription->tGraphicsState.ulCullMode),
         .frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE,
         .depthBiasEnable         = VK_FALSE
     };
@@ -1632,9 +1634,9 @@ pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription)
 
     VkPipelineDepthStencilStateCreateInfo tDepthStencil = {
         .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthTestEnable       = VK_TRUE,
-        .depthWriteEnable      = VK_TRUE,
-        .depthCompareOp        = VK_COMPARE_OP_LESS_OR_EQUAL,
+        .depthTestEnable       = ptDescription->tGraphicsState.ulDepthMode == PL_COMPARE_MODE_ALWAYS ? VK_FALSE : VK_TRUE,
+        .depthWriteEnable      = ptDescription->tGraphicsState.ulDepthWriteEnabled ? VK_TRUE : VK_FALSE,
+        .depthCompareOp        = pl__vulkan_compare((plCompareMode)ptDescription->tGraphicsState.ulDepthMode),
         .depthBoundsTestEnable = VK_FALSE,
         .minDepthBounds        = 0.0f, // Optional,
         .maxDepthBounds        = 1.0f, // Optional,
@@ -1645,16 +1647,7 @@ pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription)
     // color blending stage
     //---------------------------------------------------------------------
 
-    VkPipelineColorBlendAttachmentState tColorBlendAttachment = {
-        .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-        .blendEnable         = VK_TRUE,
-        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-        .colorBlendOp        = VK_BLEND_OP_ADD,
-        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-        .alphaBlendOp        = VK_BLEND_OP_ADD,
-    };
+    VkPipelineColorBlendAttachmentState tColorBlendAttachment = pl__get_blend_state((plBlendMode)ptDescription->tGraphicsState.ulBlendMode);
 
     VkPipelineColorBlendStateCreateInfo tColorBlending = {
         .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
@@ -1667,9 +1660,9 @@ pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription)
 
     VkPipelineMultisampleStateCreateInfo tMultisampling = {
         .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .sampleShadingEnable  = VK_FALSE,
+        .sampleShadingEnable  = (bool)ptVulkanDevice->tDeviceFeatures.sampleRateShading,
+        .minSampleShading     =  0.2f,
         .rasterizationSamples = ptGraphics->sbtRenderPassesCold[ptDescription->tRenderPass.uIndex].tSampleCount
-        // .rasterizationSamples = ptGraphics->tSwapchain.tMsaaSamples,
     };
 
     //---------------------------------------------------------------------
@@ -4598,6 +4591,20 @@ pl__vulkan_store_op(plStoreOp tOp)
     return VK_ATTACHMENT_STORE_OP_DONT_CARE;
 }
 
+static VkCullModeFlags
+pl__vulkan_cull(plCullMode tFlag)
+{
+    switch(tFlag)
+    {
+        case PL_CULL_MODE_CULL_FRONT: return VK_CULL_MODE_FRONT_BIT;
+        case PL_CULL_MODE_CULL_BACK: return VK_CULL_MODE_BACK_BIT;
+        case PL_CULL_MODE_NONE: return VK_CULL_MODE_NONE;
+    }
+
+    PL_ASSERT(false && "Unsupported cull mode");
+    return VK_CULL_MODE_NONE;
+}
+
 static plFormat
 pl__pilotlight_format(VkFormat tFormat)
 {
@@ -4619,6 +4626,83 @@ pl__pilotlight_format(VkFormat tFormat)
 
     PL_ASSERT(false && "Unsupported format");
     return PL_FORMAT_UNKNOWN;
+}
+
+static VkPipelineColorBlendAttachmentState
+pl__get_blend_state(plBlendMode tBlendMode)
+{
+
+    static const VkPipelineColorBlendAttachmentState atStateMap[PL_BLEND_MODE_COUNT] =
+    {
+        // PL_BLEND_MODE_NONE
+        { 
+            .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            .blendEnable         = VK_FALSE,
+        },
+
+        // PL_BLEND_MODE_ALPHA
+        {
+            .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            .blendEnable         = VK_TRUE,
+            .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .colorBlendOp        = VK_BLEND_OP_ADD,
+            .srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .alphaBlendOp        = VK_BLEND_OP_ADD
+        },
+
+        // PL_BLEND_MODE_ADDITIVE
+        {
+            .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            .blendEnable         = VK_TRUE,
+            .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+            .colorBlendOp        = VK_BLEND_OP_ADD,
+            .srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+            .alphaBlendOp        = VK_BLEND_OP_ADD
+        },
+
+        // PL_BLEND_MODE_PREMULTIPLY
+        {
+            .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            .blendEnable         = VK_TRUE,
+            .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .colorBlendOp        = VK_BLEND_OP_ADD,
+            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .alphaBlendOp        = VK_BLEND_OP_ADD
+        },
+
+        // PL_BLEND_MODE_MULTIPLY
+        {
+            .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            .blendEnable         = VK_TRUE,
+            .srcColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR,
+            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .colorBlendOp        = VK_BLEND_OP_ADD,
+            .srcAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA,
+            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .alphaBlendOp        = VK_BLEND_OP_ADD
+        },
+
+        // PL_BLEND_MODE_CLIP_MASK
+        {
+            .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            .blendEnable         = VK_TRUE,
+            .srcColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .colorBlendOp        = VK_BLEND_OP_ADD,
+            .srcAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA,
+            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+            .alphaBlendOp        = VK_BLEND_OP_ADD
+        }
+    };
+
+    PL_ASSERT(tBlendMode < PL_BLEND_MODE_COUNT && "blend mode out of range");
+    return atStateMap[tBlendMode];
 }
 
 //-----------------------------------------------------------------------------
