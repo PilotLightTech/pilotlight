@@ -538,7 +538,7 @@ pl__show_statistics(bool* bValue)
     if(pl_begin_window("Statistics", bValue, false))
     {
         pl_text("Frame rate: %.0f FPS", ptIOCtx->fFrameRate);
-        pl_text("Frame time: %.6f ms", ptIOCtx->fDeltaTime);
+        pl_text("Frame time: %.6f s", ptIOCtx->fDeltaTime);
         const plVec2 tCursor = pl_get_cursor_pos();
 
         plDrawLayer* ptFgLayer = pl_get_window_fg_drawlayer();
