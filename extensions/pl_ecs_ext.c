@@ -329,7 +329,7 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
     }
     pl_hm_insert(&ptManager->tHashMap, (uint64_t)tEntity.uIndex, uComponentIndex);
 
-
+    ptManager->sbtEntities[uComponentIndex] = tEntity;
     switch (ptManager->tComponentType)
     {
     case PL_COMPONENT_TYPE_TAG:
