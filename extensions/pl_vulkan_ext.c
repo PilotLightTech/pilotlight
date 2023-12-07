@@ -1968,7 +1968,9 @@ pl_begin_pass(plGraphics* ptGraphics, plFrameBufferHandle tFrameBufferHandle)
 
     const VkViewport tViewport = {
         .width  = (float)ptFrameBuffer->tDescription.uWidth,
-        .height = (float)ptFrameBuffer->tDescription.uHeight
+        .height = (float)ptFrameBuffer->tDescription.uHeight,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f
     };
 
     vkCmdSetViewport(ptCurrentFrame->tCmdBuf, 0, 1, &tViewport);
@@ -1997,7 +1999,7 @@ pl_begin_main_pass(plGraphics* ptGraphics, plFrameBufferHandle tFrameBufferHandl
 
     const VkClearValue atClearValues[2] = {
         { .color.float32 = {0.0f, 0.0f, 0.0f, 1.0f}},
-        { .depthStencil.depth = 0.0f}
+        { .depthStencil.depth = 1.0f}
     };
 
     VkRenderPassBeginInfo tRenderPassInfo = {
@@ -2023,7 +2025,9 @@ pl_begin_main_pass(plGraphics* ptGraphics, plFrameBufferHandle tFrameBufferHandl
 
     const VkViewport tViewport = {
         .width  = (float)ptFrameBuffer->tDescription.uWidth,
-        .height = (float)ptFrameBuffer->tDescription.uHeight
+        .height = (float)ptFrameBuffer->tDescription.uHeight,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f
     };
 
     vkCmdSetViewport(ptCurrentFrame->tCmdBuf, 0, 1, &tViewport);
@@ -3309,7 +3313,9 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
             .x      = ptArea->tViewport.fX,
             .y      = ptArea->tViewport.fY,
             .width  = ptArea->tViewport.fWidth,
-            .height = ptArea->tViewport.fHeight
+            .height = ptArea->tViewport.fHeight,
+            .minDepth = ptArea->tViewport.fMinDepth,
+            .maxDepth = ptArea->tViewport.fMaxDepth
         };
 
         vkCmdSetViewport(ptCurrentFrame->tCmdBuf, 0, 1, &tViewport);

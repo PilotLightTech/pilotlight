@@ -437,6 +437,8 @@ typedef struct _plRenderViewport
     float fY;
     float fWidth;
     float fHeight;
+    float fMinDepth;
+    float fMaxDepth;
 } plRenderViewport;
 
 typedef struct _plScissor
