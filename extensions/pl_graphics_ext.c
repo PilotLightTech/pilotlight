@@ -913,3 +913,24 @@ pl_load_drawstream_api(void)
     };
     return &tApi;
 }
+
+static uint32_t
+pl__format_stride(plFormat tFormat)
+{
+    switch(tFormat)
+    {
+        case PL_FORMAT_D32_FLOAT_S8_UINT:  return 5;
+        case PL_FORMAT_R32G32B32A32_FLOAT: return 16;
+        case PL_FORMAT_R32G32_FLOAT:       return 8;
+        case PL_FORMAT_R8G8B8A8_SRGB:
+        case PL_FORMAT_B8G8R8A8_SRGB:
+        case PL_FORMAT_B8G8R8A8_UNORM:
+        case PL_FORMAT_R8G8B8A8_UNORM:     return 4;
+        case PL_FORMAT_D24_UNORM_S8_UINT:
+        case PL_FORMAT_D32_FLOAT:          return 1;
+        
+    }
+
+    PL_ASSERT(false && "Unsupported format");
+    return 0;
+}

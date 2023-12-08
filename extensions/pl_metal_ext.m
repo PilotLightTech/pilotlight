@@ -185,7 +185,6 @@ static MTLSamplerMinMagFilter pl__metal_filter(plFilter tFilter);
 static MTLSamplerAddressMode  pl__metal_wrap(plWrapMode tWrap);
 static MTLCompareFunction     pl__metal_compare(plCompareMode tCompare);
 static MTLPixelFormat         pl__metal_format(plFormat tFormat);
-static uint32_t               pl__metal_format_stride(plFormat tFormat);
 static MTLCullMode            pl__metal_cull(plCullMode tCullMode);
 static MTLLoadAction          pl__metal_load_op   (plLoadOp tOp);
 static MTLStoreAction         pl__metal_store_op  (plStoreOp tOp);
@@ -367,7 +366,7 @@ pl_transfer_image_to_buffer(plDevice* ptDevice, plTextureHandle tTexture, plBuff
     tSize.height = ptTexture->tDesc.tDimensions.y;
     tSize.depth = ptTexture->tDesc.tDimensions.z;
 
-    const uint32_t uFormatStride = pl__metal_format_stride(ptTexture->tDesc.tFormat);
+    const uint32_t uFormatStride = pl__format_stride(ptTexture->tDesc.tFormat);
 
     [blitEncoder copyFromTexture:ptMetalTexture->tTexture
         sourceSlice:0
@@ -1397,6 +1396,11 @@ pl_begin_frame(plGraphics* ptGraphics)
     return true;
 }
 
+static void
+pl_flush_transfers(plGraphics* ptGraphics)
+{
+}
+
 static bool
 pl_end_gfx_frame(plGraphics* ptGraphics)
 {
@@ -2045,27 +2049,6 @@ pl__metal_format(plFormat tFormat)
     return MTLPixelFormatInvalid;
 }
 
-static uint32_t
-pl__metal_format_stride(plFormat tFormat)
-{
-    switch(tFormat)
-    {
-        case PL_FORMAT_D32_FLOAT_S8_UINT:  return 5;
-        case PL_FORMAT_R32G32B32A32_FLOAT: return 16;
-        case PL_FORMAT_R32G32_FLOAT:       return 8;
-        case PL_FORMAT_R8G8B8A8_SRGB:
-        case PL_FORMAT_B8G8R8A8_SRGB:
-        case PL_FORMAT_B8G8R8A8_UNORM:
-        case PL_FORMAT_R8G8B8A8_UNORM:     return 4;
-        case PL_FORMAT_D24_UNORM_S8_UINT:
-        case PL_FORMAT_D32_FLOAT:          return 1;
-        
-    }
-
-    PL_ASSERT(false && "Unsupported format");
-    return 0;
-}
-
 static MTLCullMode
 pl__metal_cull(plCullMode tCullMode)
 {
@@ -2433,6 +2416,7 @@ pl_load_graphics_api(void)
         .setup_ui                         = pl_setup_ui,
         .begin_frame                      = pl_begin_frame,
         .end_frame                        = pl_end_gfx_frame,
+        .flush_transfers                  = pl_flush_transfers,
         .begin_recording                  = pl_begin_recording,
         .end_recording                    = pl_end_recording,
         .begin_main_pass                  = pl_begin_main_pass,

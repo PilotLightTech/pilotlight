@@ -207,6 +207,7 @@ typedef struct _plGraphicsI
     // per frame
     bool (*begin_frame)    (plGraphics* ptGraphics);
     bool (*end_frame)      (plGraphics* ptGraphics);
+    void (*flush_transfers)(plGraphics* ptGraphics);
     void (*begin_recording)(plGraphics* ptGraphics);
     void (*end_recording)  (plGraphics* ptGraphics);
     void (*begin_main_pass)(plGraphics* ptGraphics, plFrameBufferHandle tFrameBuffer);
