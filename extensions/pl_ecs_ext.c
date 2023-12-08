@@ -428,7 +428,8 @@ pl_ecs_create_tag(plComponentLibrary* ptLibrary, const char* pcName)
     else
         strncpy(ptTag->acName, "unnamed", PL_MAX_NAME_LENGTH);
 
-    pl_hm_insert_str(&ptLibrary->tTagHashMap, pcName, tNewEntity.uIndex);
+    if(pcName)
+        pl_hm_insert_str(&ptLibrary->tTagHashMap, pcName, tNewEntity.uIndex);
     return tNewEntity;
 }
 
@@ -437,7 +438,7 @@ pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName)
 {
     pl_log_debug_to_f(uLogChannel, "created mesh: '%s'", pcName ? pcName : "unnamed");
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
-    plMeshComponent* ptMesh = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
+    pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
     return tNewEntity;
 }
 
@@ -448,14 +449,8 @@ pl_ecs_create_object(plComponentLibrary* ptLibrary, const char* pcName)
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     plObjectComponent* ptObject = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewEntity);
-    memset(ptObject, 0, sizeof(plObjectComponent));
-
-    plTransformComponent* ptTransform = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
-    memset(ptTransform, 0, sizeof(plTransformComponent));
-    ptTransform->tWorld = pl_identity_mat4();
-
-    plMeshComponent* ptMesh = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
-    memset(ptMesh, 0, sizeof(plMeshComponent));
+    pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
+    pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
 
     ptObject->tTransform = tNewEntity;
     ptObject->tMesh = tNewEntity;
@@ -470,7 +465,6 @@ pl_ecs_create_transform(plComponentLibrary* ptLibrary, const char* pcName)
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     plTransformComponent* ptTransform = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
-    memset(ptTransform, 0, sizeof(plTransformComponent));
     ptTransform->tWorld = pl_identity_mat4();
 
     return tNewEntity;  
@@ -483,7 +477,6 @@ pl_ecs_create_material(plComponentLibrary* ptLibrary, const char* pcName)
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     plMaterialComponent* ptMaterial = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, tNewEntity);
-    memset(ptMaterial, 0, sizeof(plMaterialComponent));
     ptMaterial->tAlbedo = (plVec4){ 1.0f, 1.0f, 1.0f, 1.0f };
     ptMaterial->fAlphaCutoff = 0.1f;
     ptMaterial->bDoubleSided = false;
@@ -515,7 +508,6 @@ pl_ecs_create_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 t
     };
 
     plCameraComponent* ptCamera = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, tNewEntity);
-    memset(ptCamera, 0, sizeof(plCameraComponent));
     *ptCamera = tCamera;
     pl_camera_update(ptCamera);
 
@@ -714,7 +706,6 @@ pl_camera_update(plCameraComponent* ptCamera)
 static void
 pl_calculate_normals(plMeshComponent* atMeshes, uint32_t uComponentCount)
 {
-    pl_begin_profile_sample(__FUNCTION__);
 
     for(uint32_t uMeshIndex = 0; uMeshIndex < uComponentCount; uMeshIndex++)
     {
@@ -744,13 +735,11 @@ pl_calculate_normals(plMeshComponent* atMeshes, uint32_t uComponentCount)
             }
         }
     }
-    pl_end_profile_sample();
 }
 
 static void
 pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
 {
-    pl_begin_profile_sample(__FUNCTION__);
 
     for(uint32_t uMeshIndex = 0; uMeshIndex < uComponentCount; uMeshIndex++)
     {
@@ -803,7 +792,6 @@ pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
             } 
         }
     }
-    pl_end_profile_sample();
 }
 
 //-----------------------------------------------------------------------------

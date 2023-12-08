@@ -237,7 +237,7 @@ typedef struct _plMaterialComponent
     float  fAlphaCutoff;
     bool   bDoubleSided;
 
-    const char* pcAlbedoMap;
+    char acAlbedoMap[PL_MAX_NAME_LENGTH];
 } plMaterialComponent;
 
 typedef struct _plMeshComponent

@@ -4320,6 +4320,7 @@ pl__transfer_data_to_image(plDevice* ptDevice, plTextureHandle* ptDest, size_t s
     plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
     plTexture* ptDestTexture = &ptGraphics->sbtTexturesCold[ptDest->uIndex];
     plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
+    const size_t szOriginalDataSize = szDataSize;
     szDataSize = szDataSize + (pl__format_stride(ptDestTexture->tDesc.tFormat) - 1);
     ptFrame->szCurrentStagingOffset = (((ptFrame->szCurrentStagingOffset) + ((pl__format_stride(ptDestTexture->tDesc.tFormat))-1)) & ~((pl__format_stride(ptDestTexture->tDesc.tFormat))-1));
 
@@ -4355,17 +4356,15 @@ pl__transfer_data_to_image(plDevice* ptDevice, plTextureHandle* ptDest, size_t s
     pl__transition_image_layout(ptFrame->tCmdBuf, ptVulkanGraphics->sbtTexturesHot[ptDest->uIndex].tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 
     // copy regions
-
     for(uint32_t i = 0; i < ptDestTexture->tDesc.uLayers; i++)
     {
         const VkBufferImageCopy tCopyRegion = {
-            .bufferOffset                    = ptFrame->szCurrentStagingOffset + i * szDataSize / ptDestTexture->tDesc.uLayers,
+            .bufferOffset                    = ptFrame->szCurrentStagingOffset + i * szOriginalDataSize / ptDestTexture->tDesc.uLayers,
             .bufferRowLength                 = 0u,
             .bufferImageHeight               = 0u,
             .imageSubresource.aspectMask     = tSubResourceRange.aspectMask,
             .imageSubresource.mipLevel       = 0,
             .imageSubresource.baseArrayLayer = i,
-            // .imageSubresource.layerCount     = ptDest->tDesc.uLayers,
             .imageSubresource.layerCount     = 1,
             .imageExtent                     = {.width = (uint32_t)ptDestTexture->tDesc.tDimensions.x, .height = (uint32_t)ptDestTexture->tDesc.tDimensions.y, .depth = (uint32_t)ptDestTexture->tDesc.tDimensions.z},
         };

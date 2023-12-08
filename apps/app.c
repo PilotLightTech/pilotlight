@@ -333,14 +333,6 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->tOffscreenRenderPass = gptDevice->create_render_pass(ptDevice, &tOffscreenRenderPassDesc);
     gptGfx->setup_ui(&ptAppData->tGraphics, ptAppData->tMainRenderPass);
 
-    create_main_frame_buffer(ptAppData);
-    create_buffers(ptAppData);
-    create_textures(ptAppData);
-    create_offscreen_textures(ptAppData);
-    create_offscreen_frame_buffer(ptAppData);
-    create_bind_groups(ptAppData);
-    create_shaders(ptAppData);
-
     // create draw list & layers
     pl_register_drawlist(&ptAppData->tDrawlist);
     ptAppData->ptBgDrawLayer = pl_request_layer(&ptAppData->tDrawlist, "Background Layer");
@@ -356,6 +348,17 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptGfx->register_3d_drawlist(&ptAppData->tGraphics, &ptAppData->t3DDrawList);
     gptGfx->register_3d_drawlist(&ptAppData->tGraphics, &ptAppData->tOffscreen3DDrawList);
     
+    gptGfx->begin_recording(&ptAppData->tGraphics);
+    create_main_frame_buffer(ptAppData);
+    create_buffers(ptAppData);
+    create_textures(ptAppData);
+    create_offscreen_textures(ptAppData);
+    create_offscreen_frame_buffer(ptAppData);
+    create_bind_groups(ptAppData);
+    create_shaders(ptAppData);
+    gptGfx->end_recording(&ptAppData->tGraphics);
+    gptGfx->flush_transfers(&ptAppData->tGraphics);
+
     return ptAppData;
 }
 
