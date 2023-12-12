@@ -56,6 +56,7 @@ typedef struct _plCameraI plCameraI;
 // basic types
 typedef struct _plComponentLibrary plComponentLibrary;
 typedef struct _plComponentManager plComponentManager;
+typedef struct _plTextureMap       plTextureMap;
 
 // ecs components
 typedef struct _plTagComponent       plTagComponent;
@@ -69,8 +70,9 @@ typedef struct _plCameraComponent    plCameraComponent;
 
 // enums
 typedef int plComponentType;
+typedef int plTextureSlot;
 
-typedef struct _plEntity
+typedef struct plEntity
 {
     uint32_t uIndex;
     uint32_t uGeneration;
@@ -154,15 +156,38 @@ enum _plComponentType
     PL_COMPONENT_TYPE_COUNT
 };
 
+enum _plTextureSlot
+{
+    PL_TEXTURE_SLOT_BASE_COLOR_MAP,
+    PL_TEXTURE_SLOT_NORMAL_MAP,
+    
+    PL_TEXTURE_SLOT_COUNT
+};
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+#ifndef PL_RESOURCE_HANDLE_DEFINED
+#define PL_RESOURCE_HANDLE_DEFINED
+typedef struct _plResourceHandle
+{
+    uint32_t uIndex;
+    uint32_t uGeneration;
+} plResourceHandle;
+#endif // PL_RESOURCE_HANDLE_DEFINED
+
+typedef struct _plTextureMap
+{
+    char             acName[PL_MAX_NAME_LENGTH];
+    plResourceHandle tResource;
+} plTextureMap;
 
 typedef struct _plComponentManager
 {
     plComponentLibrary* ptParentLibrary;
     plComponentType     tComponentType;
-    plHashMap           tHashMap;
+    plHashMap           tHashMap; // map entity -> index in sbtEntities/pComponents
     plEntity*           sbtEntities;
     void*               pComponents;
     size_t              szStride;
@@ -185,15 +210,6 @@ typedef struct _plComponentLibrary
 
     plComponentManager* _ptManagers[PL_COMPONENT_TYPE_COUNT]; // just for internal convenience
 } plComponentLibrary;
-
-typedef struct _plMesh
-{
-    uint32_t uDataOffset;
-    uint32_t uVertexOffset;
-    uint32_t uVertexCount;
-    uint32_t uIndexOffset;
-    uint32_t uIndexCount;
-} plMesh;
 
 //-----------------------------------------------------------------------------
 // [SECTION] components
@@ -237,12 +253,11 @@ typedef struct _plMaterialComponent
     float  fAlphaCutoff;
     bool   bDoubleSided;
 
-    char acAlbedoMap[PL_MAX_NAME_LENGTH];
+    plTextureMap atTextureMaps[PL_TEXTURE_SLOT_COUNT];
 } plMaterialComponent;
 
 typedef struct _plMeshComponent
 {
-    plMesh       tMesh;
     uint64_t     ulVertexStreamMask;
     plEntity     tMaterial;
     plEntity     tSkinComponent;

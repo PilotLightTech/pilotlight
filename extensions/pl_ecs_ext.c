@@ -248,7 +248,6 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
 
     pl_sb_push(ptLibrary->sbtEntityFreeIndices, tEntity.uIndex);
-    ptLibrary->sbtEntityGenerations[tEntity.uIndex]++;
 
     // remove from tag hashmap
     plTagComponent* ptTag = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, tEntity);
@@ -257,11 +256,86 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
         pl_hm_remove_str(&ptLibrary->tTagHashMap, ptTag->acName);
     }
 
+    ptLibrary->sbtEntityGenerations[tEntity.uIndex]++;
+
     // remove from individual managers
     for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
     {
         if(pl_hm_has_key(&ptLibrary->_ptManagers[i]->tHashMap, tEntity.uIndex))
+        {
             pl_hm_remove(&ptLibrary->_ptManagers[i]->tHashMap, tEntity.uIndex);
+            const uint64_t uEntityValue = pl_hm_get_free_index(&ptLibrary->_ptManagers[i]->tHashMap);
+            
+
+            // must keep valid entities contiguous (move last entity into removed slot)
+            if(pl_sb_size(ptLibrary->_ptManagers[i]->sbtEntities) > 1)
+            {
+                plEntity tLastEntity = pl_sb_back(ptLibrary->_ptManagers[i]->sbtEntities);
+                pl_hm_remove(&ptLibrary->_ptManagers[i]->tHashMap, tLastEntity.uIndex);
+                pl_hm_get_free_index(&ptLibrary->_ptManagers[i]->tHashMap); // burn slot
+                pl_hm_insert(&ptLibrary->_ptManagers[i]->tHashMap, tLastEntity.uIndex, uEntityValue);
+            }
+
+            pl_sb_del_swap(ptLibrary->_ptManagers[i]->sbtEntities, uEntityValue);
+            switch(i)
+            {
+                case PL_COMPONENT_TYPE_TAG:
+                {
+                    plTagComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_MESH:
+                {
+                    plMeshComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_TRANSFORM:
+                {
+                    plTransformComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_OBJECT:
+                {
+                    plObjectComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_HIERARCHY:
+                {
+                    plHierarchyComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_MATERIAL:
+                {
+                    plMaterialComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_SKIN:
+                {
+                    plSkinComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_CAMERA:
+                {
+                    plCameraComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -288,14 +362,14 @@ pl_ecs_get_index(plComponentManager* ptManager, plEntity tEntity)
 { 
     PL_ASSERT(tEntity.uIndex != UINT32_MAX);
     size_t szIndex = pl_hm_lookup(&ptManager->tHashMap, (uint64_t)tEntity.uIndex);
-    PL_ASSERT(szIndex != UINT64_MAX);
     return szIndex;
 }
 
 static void*
 pl_ecs_get_component(plComponentLibrary* ptLibrary, plComponentType tType, plEntity tEntity)
 {
-    PL_ASSERT(tEntity.uIndex != UINT32_MAX);
+    if(tEntity.uIndex == UINT32_MAX)
+        return NULL;
 
     plComponentManager* ptManager = ptLibrary->_ptManagers[tType];
 
@@ -303,6 +377,10 @@ pl_ecs_get_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         return NULL;
 
     size_t szIndex = pl_ecs_get_index(ptManager, tEntity);
+
+    if(szIndex == UINT64_MAX)
+        return NULL;
+
     unsigned char* pucData = ptManager->pComponents;
     return &pucData[szIndex * ptManager->szStride];
 }
@@ -310,14 +388,13 @@ pl_ecs_get_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
 static void*
 pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEntity tEntity)
 {
-    PL_ASSERT(tEntity.uIndex != UINT32_MAX);
+    if(tEntity.uIndex == UINT32_MAX)
+        return NULL;
 
     plComponentManager* ptManager = ptLibrary->_ptManagers[tType];
 
     if(ptManager->ptParentLibrary->sbtEntityGenerations[tEntity.uIndex] != tEntity.uGeneration)
         return NULL;
-
-    PL_ASSERT(tEntity.uIndex != UINT32_MAX);
 
     uint64_t uComponentIndex = pl_hm_get_free_index(&ptManager->tHashMap);
     bool bAddSlot = false; // can't add component with SB without correct type
