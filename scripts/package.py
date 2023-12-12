@@ -17,7 +17,8 @@ extensions = [
     "pl_graphics_ext",
     "pl_image_ext",
     "pl_ecs_ext",
-    "pl_stats_ext"
+    "pl_stats_ext",
+    "pl_resource_ext"
 ]
 
 if os.path.isdir(target_directory):

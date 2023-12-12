@@ -33,6 +33,7 @@ Index of this file:
 #include "pl_graphics_ext.h"
 #include "pl_debug_ext.h"
 #include "pl_ecs_ext.h"
+#include "pl_resource_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -152,6 +153,7 @@ const plImageApiI*             gptImage             = NULL;
 const plDrawStreamI*           gptStream            = NULL;
 const plEcsI*                  gptEcs               = NULL;
 const plCameraI*               gptCamera            = NULL;
+const plResourceI*             gptResource          = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] helpers
@@ -184,15 +186,16 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         pl_set_profile_context(gptDataRegistry->get_data("profile"));
 
         // reload global apis
-        gptStats  = ptApiRegistry->first(PL_API_STATS);
-        gptFile   = ptApiRegistry->first(PL_API_FILE);
-        gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
-        gptDevice = ptApiRegistry->first(PL_API_DEVICE);
-        gptDebug  = ptApiRegistry->first(PL_API_DEBUG);
-        gptImage  = ptApiRegistry->first(PL_API_IMAGE);
-        gptStream = ptApiRegistry->first(PL_API_DRAW_STREAM);
-        gptEcs    = ptApiRegistry->first(PL_API_ECS);
-        gptCamera = ptApiRegistry->first(PL_API_CAMERA);
+        gptStats   = ptApiRegistry->first(PL_API_STATS);
+        gptFile    = ptApiRegistry->first(PL_API_FILE);
+        gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
+        gptDevice  = ptApiRegistry->first(PL_API_DEVICE);
+        gptDebug   = ptApiRegistry->first(PL_API_DEBUG);
+        gptImage   = ptApiRegistry->first(PL_API_IMAGE);
+        gptStream  = ptApiRegistry->first(PL_API_DRAW_STREAM);
+        gptEcs     = ptApiRegistry->first(PL_API_ECS);
+        gptCamera  = ptApiRegistry->first(PL_API_CAMERA);
+        gptResource = ptApiRegistry->first(PL_API_RESOURCE);
 
         return ptAppData;
     }
@@ -218,18 +221,20 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_stats_ext",    "pl_load_stats_ext",    "pl_unload_stats_ext",    false);
     ptExtensionRegistry->load("pl_graphics_ext", "pl_load_graphics_ext", "pl_unload_graphics_ext", false);
     ptExtensionRegistry->load("pl_debug_ext",    "pl_load_debug_ext",    "pl_unload_debug_ext",    true);
-    ptExtensionRegistry->load("pl_ecs_ext",      "pl_load_ecs_ext",      "pl_unload_ecs_ext",    false);
+    ptExtensionRegistry->load("pl_ecs_ext",      "pl_load_ecs_ext",      "pl_unload_ecs_ext",      false);
+    ptExtensionRegistry->load("pl_resource_ext", "pl_load_resource_ext", "pl_unload_resource_ext", false);
 
     // load apis
-    gptStats  = ptApiRegistry->first(PL_API_STATS);
-    gptFile   = ptApiRegistry->first(PL_API_FILE);
-    gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
-    gptDevice = ptApiRegistry->first(PL_API_DEVICE);
-    gptDebug  = ptApiRegistry->first(PL_API_DEBUG);
-    gptImage  = ptApiRegistry->first(PL_API_IMAGE);
-    gptStream = ptApiRegistry->first(PL_API_DRAW_STREAM);
-    gptEcs    = ptApiRegistry->first(PL_API_ECS);
-    gptCamera = ptApiRegistry->first(PL_API_CAMERA);
+    gptStats    = ptApiRegistry->first(PL_API_STATS);
+    gptFile     = ptApiRegistry->first(PL_API_FILE);
+    gptGfx      = ptApiRegistry->first(PL_API_GRAPHICS);
+    gptDevice   = ptApiRegistry->first(PL_API_DEVICE);
+    gptDebug    = ptApiRegistry->first(PL_API_DEBUG);
+    gptImage    = ptApiRegistry->first(PL_API_IMAGE);
+    gptStream   = ptApiRegistry->first(PL_API_DRAW_STREAM);
+    gptEcs      = ptApiRegistry->first(PL_API_ECS);
+    gptCamera   = ptApiRegistry->first(PL_API_CAMERA);
+    gptResource = ptApiRegistry->first(PL_API_RESOURCE);
 
     // initialize ecs
     gptEcs->init_component_library(&ptAppData->tComponentLibrary);
