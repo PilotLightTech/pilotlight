@@ -27,13 +27,14 @@ const plImageApiI*
 pl_load_image_api(void)
 {
     static const plImageApiI tApi = {
-        .load      = stbi_load,
-        .free      = stbi_image_free,
-        .write_png = stbi_write_png,
-        .write_bmp = stbi_write_bmp,
-        .write_tga = stbi_write_tga,
-        .write_jpg = stbi_write_jpg,
-        .write_hdr = stbi_write_hdr
+        .load_from_memory = stbi_load_from_memory,
+        .load             = stbi_load,
+        .free             = stbi_image_free,
+        .write_png        = stbi_write_png,
+        .write_bmp        = stbi_write_bmp,
+        .write_tga        = stbi_write_tga,
+        .write_jpg        = stbi_write_jpg,
+        .write_hdr        = stbi_write_hdr
     };
     return &tApi;
 }

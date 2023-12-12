@@ -37,8 +37,9 @@ const plImageApiI* pl_load_image_api(void);
 typedef struct _plImageApiI
 {
     // read
-    unsigned char* (*load)(char const* pcFilename, int* piX, int* piY, int* piChannels, int iDesiredChannels);
-    void           (*free)(void* pRetValueFromLoad);
+    unsigned char* (*load_from_memory)(const unsigned char* pcBuffer, int iLength, int* piX, int* piY, int* piChannels, int iDesiredChannels);
+    unsigned char* (*load)            (char const* pcFilename, int* piX, int* piY, int* piChannels, int iDesiredChannels);
+    void           (*free)            (void* pRetValueFromLoad);
 
     // write
      int (*write_png)(char const *pcFileName, int iW, int iH, int iComp, const void *pData, int iByteStride);
