@@ -95,7 +95,7 @@ pl_load_resource(const char* pcName, plResourceLoadFlags tFlags, char* pcData, s
 
     strncpy(tResource.acName, pcName, PL_MAX_NAME_LENGTH);
 
-    if(tFlags | PL_RESOURCE_LOAD_FLAG_RETAIN_DATA)
+    if(tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_DATA)
     {
         tResource.pcFileData = PL_ALLOC(szDataSize);
         memcpy(tResource.pcFileData, pcData, szDataSize);
@@ -130,7 +130,7 @@ pl_unload_resource(plResourceHandle tResourceHandle)
     {
         plResource* ptResource = &gptResourceManager->sbtResources[tResourceHandle.uIndex];
 
-        if(ptResource->tFlags | PL_RESOURCE_LOAD_FLAG_RETAIN_DATA)
+        if(ptResource->tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_DATA)
         {
             PL_FREE(ptResource->pcFileData);
         }
@@ -184,7 +184,7 @@ pl_unload_resource_ext(plApiRegistryApiI* ptApiRegistry)
 {
     for(uint32_t i = 0; i < pl_sb_size(gptResourceManager->sbtResources); i++)
     {
-        if(gptResourceManager->sbtResources[i].tFlags | PL_RESOURCE_LOAD_FLAG_RETAIN_DATA)
+        if(gptResourceManager->sbtResources[i].tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_DATA)
         {
             PL_FREE(gptResourceManager->sbtResources[i].pcFileData);
         }

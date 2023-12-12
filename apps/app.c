@@ -1000,7 +1000,7 @@ create_buffers(plAppData* ptAppData)
         .puInitialData        = (uint8_t*)ptAppData->sbtVertexDataBuffer
     };
     ptAppData->tStorageBuffer = gptDevice->create_buffer(ptDevice, &tStorageBufferDesc, "storage buffer");
-    pl_sb_free(ptAppData->sbtVertexDataBuffer);
+    // pl_sb_free(ptAppData->sbtVertexDataBuffer);
 
     const plBufferDescription atGlobalBuffersDesc = {
         .tMemory              = PL_MEMORY_GPU_CPU,
@@ -1199,7 +1199,7 @@ create_bind_groups(plAppData* ptAppData)
     };
     ptAppData->atBindGroups0[0] = gptDevice->create_bind_group(ptDevice, &tBindGroupLayout0);
     ptAppData->atBindGroups0[1] = gptDevice->create_bind_group(ptDevice, &tBindGroupLayout0);
-    size_t szBufferRangeSize[2] = {sizeof(BindGroup_0), sizeof(BindGroup_0)};
+    size_t szBufferRangeSize[2] = {sizeof(BindGroup_0), pl_sb_size(ptAppData->sbtVertexDataBuffer) * sizeof(plVec4)};
 
     plBufferHandle atBindGroup0_buffers0[2] = {ptAppData->atGlobalBuffers[0], ptAppData->tStorageBuffer};
     plBufferHandle atBindGroup0_buffers1[2] = {ptAppData->atGlobalBuffers[1], ptAppData->tStorageBuffer};
