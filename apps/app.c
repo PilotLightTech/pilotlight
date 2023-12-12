@@ -35,6 +35,9 @@ Index of this file:
 #include "pl_ecs_ext.h"
 #include "pl_resource_ext.h"
 
+// misc
+#include "helper_windows.h"
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -103,6 +106,7 @@ typedef struct plAppData_t
     plBufferHandle atOffscreenGlobalBuffers[2];
 
     // ecs
+    bool               bShowEntityWindow;
     plComponentLibrary tComponentLibrary;
     plEntity           tMainCamera;
     plEntity           tOffscreenCamera;
@@ -648,6 +652,7 @@ pl_app_update(plAppData* ptAppData)
             pl_checkbox("Profiling", &ptAppData->tDebugInfo.bShowProfiling);
             pl_checkbox("Statistics", &ptAppData->tDebugInfo.bShowStats);
             pl_checkbox("Logging", &ptAppData->tDebugInfo.bShowLogging);
+            pl_checkbox("Entities", &ptAppData->bShowEntityWindow);
             pl_end_collapsing_header();
         }
 
@@ -662,6 +667,9 @@ pl_app_update(plAppData* ptAppData)
     }
 
     gptDebug->show_windows(&ptAppData->tDebugInfo);
+
+    if(ptAppData->bShowEntityWindow)
+        pl_show_ecs_window(gptEcs, &ptAppData->tComponentLibrary, &ptAppData->bShowEntityWindow);
 
     if(ptAppData->bShowUiDemo)
     {

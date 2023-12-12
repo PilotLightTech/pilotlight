@@ -465,7 +465,34 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         if(bAddSlot)
             pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
-        sbComponents[uComponentIndex] = (plMaterialComponent){0};
+        sbComponents[uComponentIndex] = (plMaterialComponent){
+            .tBlendMode                    = PL_MATERIAL_BLEND_MODE_OPAQUE,
+            .tFlags                        = PL_MATERIAL_FLAG_NONE,
+            .tShaderType                   = PL_SHADER_TYPE_PBR,
+            .tBaseColor                    = {1.0f, 1.0f, 1.0f, 1.0f},
+            .tSpecularColor                = {1.0f, 1.0f, 1.0f, 1.0f},
+            .tEmissiveColor                = {1.0f, 1.0f, 1.0f, 0.0f},
+            .tSheenColor                   = {1.0f, 1.0f, 1.0f, 1.0f},
+            .tSubsurfaceScattering         = {1.0f, 1.0f, 1.0f, 0.0f},
+            .tSheenColor                   = {1.0f, 1.0f, 1.0f, 0.0f},
+            .fRoughness                    = 1.0f,
+            .fReflectance                  = 0.04f,
+            .fMetalness                    = 1.0f,
+            .fNormalMapStrength            = 1.0f,
+            .fOcclusionMapStrength         = 1.0f,
+            .fParallaxOcclusionMapStrength = 1.0f,
+            .fDisplacementMapStrength      = 1.0f,
+            .fRefraction                   = 0.0f,
+            .fTransmission                 = 0.0f,
+            .fAnisotropyStrength           = 0.0f,
+            .fAnisotropyRotation           = 0.0f,
+            .fSheenRoughness               = 0.0f,
+            .fClearcoatFactor              = 0.0f,
+            .fClearcoatRoughness           = 0.0f,
+            .fThicknessFactor              = 0.0f,
+            .fAlphaCutoff                  = 0.5f,
+            .atTextureMaps                 = {0}
+        };
         return &sbComponents[uComponentIndex];
     }
 
@@ -553,10 +580,7 @@ pl_ecs_create_material(plComponentLibrary* ptLibrary, const char* pcName)
     pl_log_debug_to_f(uLogChannel, "created material: '%s'", pcName ? pcName : "unnamed");
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
-    plMaterialComponent* ptMaterial = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, tNewEntity);
-    ptMaterial->tAlbedo = (plVec4){ 1.0f, 1.0f, 1.0f, 1.0f };
-    ptMaterial->fAlphaCutoff = 0.1f;
-    ptMaterial->bDoubleSided = false;
+    pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, tNewEntity);
     return tNewEntity;    
 }
 

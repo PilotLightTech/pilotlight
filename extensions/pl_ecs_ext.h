@@ -69,8 +69,11 @@ typedef struct _plSkinComponent      plSkinComponent;
 typedef struct _plCameraComponent    plCameraComponent;
 
 // enums
+typedef int plShaderType;
 typedef int plComponentType;
 typedef int plTextureSlot;
+typedef int plMaterialFlags;
+typedef int plMaterialBlendMode;
 
 typedef struct plEntity
 {
@@ -160,8 +163,45 @@ enum _plTextureSlot
 {
     PL_TEXTURE_SLOT_BASE_COLOR_MAP,
     PL_TEXTURE_SLOT_NORMAL_MAP,
+    PL_TEXTURE_SLOT_EMISSIVE_MAP,
+    PL_TEXTURE_SLOT_OCCLUSSION_MAP,
+    PL_TEXTURE_SLOT_CLEARCOAT_MAP,
+    PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP,
+    PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP,
+    PL_TEXTURE_SLOT_SHEEN_COLOR_MAP,
+    PL_TEXTURE_SLOT_SHEEN_ROUGHNESS_MAP,
+    PL_TEXTURE_SLOT_TRANSMISSION_MAP,
+    PL_TEXTURE_SLOT_DISPLACEMENT_MAP,
+    PL_TEXTURE_SLOT_SPECULAR_MAP,
+    PL_TEXTURE_SLOT_ANISOTROPY_MAP,
+    PL_TEXTURE_SLOT_SURFACE_MAP,
     
     PL_TEXTURE_SLOT_COUNT
+};
+
+enum _plShaderType
+{
+    PL_SHADER_TYPE_PBR,
+    PL_SHADER_TYPE_UNLIT,
+    PL_SHADER_TYPE_CUSTOM,
+    
+    PL_SHADER_TYPE_COUNT
+};
+
+enum _plMaterialFlags
+{
+    PL_MATERIAL_FLAG_NONE         = 0,
+    PL_MATERIAL_FLAG_DOUBLE_SIDED = 1 << 0,
+};
+
+enum _plMaterialBlendMode
+{
+    PL_MATERIAL_BLEND_MODE_OPAQUE,
+    PL_MATERIAL_BLEND_MODE_ALPHA,
+    PL_MATERIAL_BLEND_MODE_PREMULTIPLIED,
+    PL_MATERIAL_BLEND_MODE_ADDITIVE,
+    PL_MATERIAL_BLEND_MODE_MULTIPLY,
+    PL_MATERIAL_BLEND_MODE_COUNT
 };
 
 //-----------------------------------------------------------------------------
@@ -181,6 +221,7 @@ typedef struct _plTextureMap
 {
     char             acName[PL_MAX_NAME_LENGTH];
     plResourceHandle tResource;
+    uint32_t         uUVSet;
 } plTextureMap;
 
 typedef struct _plComponentManager
@@ -199,6 +240,7 @@ typedef struct _plComponentLibrary
     uint32_t* sbtEntityFreeIndices;
     plHashMap tTagHashMap;
 
+    // managers
     plComponentManager tTagComponentManager;
     plComponentManager tTransformComponentManager;
     plComponentManager tMeshComponentManager;
@@ -248,12 +290,31 @@ typedef struct _plTransformComponent
 
 typedef struct _plMaterialComponent
 {
-    // properties
-    plVec4 tAlbedo;
-    float  fAlphaCutoff;
-    bool   bDoubleSided;
-
-    plTextureMap atTextureMaps[PL_TEXTURE_SLOT_COUNT];
+    plMaterialBlendMode tBlendMode;
+    plMaterialFlags     tFlags;
+    plShaderType        tShaderType;
+    plVec4              tBaseColor;
+    plVec4              tSpecularColor;
+    plVec4              tEmissiveColor;
+    plVec4              tSheenColor;
+    plVec4              tSubsurfaceScattering;
+    float               fRoughness;
+    float               fReflectance;
+    float               fMetalness;
+    float               fNormalMapStrength;
+    float               fOcclusionMapStrength;
+    float               fParallaxOcclusionMapStrength;
+    float               fDisplacementMapStrength;
+    float               fRefraction;
+    float               fTransmission;
+    float               fAnisotropyStrength;
+    float               fAnisotropyRotation; // radians, counter-clockwise
+    float               fSheenRoughness;
+    float               fClearcoatFactor;
+    float               fClearcoatRoughness;
+    float               fThicknessFactor;
+    float               fAlphaCutoff;
+    plTextureMap        atTextureMaps[PL_TEXTURE_SLOT_COUNT];
 } plMaterialComponent;
 
 typedef struct _plMeshComponent
