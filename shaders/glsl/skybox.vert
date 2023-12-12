@@ -1,12 +1,10 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-layout(constant_id = 0) const int MeshVariantFlags = 0;
-layout(constant_id = 1) const int PL_DATA_STRIDE = 0;
-layout(constant_id = 2) const int ShaderTextureFlags = 0;
 
 layout(set = 0, binding = 0) uniform _plGlobalInfo
 {
+    vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;

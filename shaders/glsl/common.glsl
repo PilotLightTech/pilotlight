@@ -29,6 +29,7 @@ layout(constant_id = 2) const int ShaderTextureFlags = 0;
 
 layout(set = 0, binding = 0) uniform _plGlobalInfo
 {
+    vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
@@ -39,8 +40,9 @@ layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
 	vec4 atVertexData[];
 } tVertexBuffer;
 
-layout(set = 1, binding = 0) uniform sampler2D tSampler0;
-// layout(set = 1, binding = 2) uniform sampler2D tSampler1;
+layout(set = 1, binding = 0) uniform sampler2D tSampler0; // base color
+layout(set = 1, binding = 1) uniform sampler2D tSampler1; // normal
+layout(set = 1, binding = 2) uniform sampler2D tSampler2; // skinning
 
 layout(set = 2, binding = 0) uniform _plShaderInfo
 {

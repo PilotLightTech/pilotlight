@@ -1369,7 +1369,7 @@ pl_create_frame_buffer(plDevice* ptDevice, const plFrameBufferDescription* ptDes
 }
 
 static plComputeShaderHandle
-pl_create_compute_shader(plDevice* ptDevice, plComputeShaderDescription* ptDescription)
+pl_create_compute_shader(plDevice* ptDevice, plComputeShaderDescription* ptDescription, const void* pConstantData)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
@@ -1385,6 +1385,25 @@ pl_create_compute_shader(plDevice* ptDevice, plComputeShaderDescription* ptDescr
     };
 
     plVulkanComputeShader tVulkanShader = {0};
+
+    VkSpecializationMapEntry tSpecializationEntries[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS] = {0};
+
+    size_t uTotalConstantSize = 0;
+    for(uint32_t i = 0; i < ptDescription->uConstantCount; i++)
+    {
+        const plSpecializationConstant* ptConstant = &ptDescription->atConstants[i];
+        tSpecializationEntries[i].constantID = ptConstant->uID;
+        tSpecializationEntries[i].offset = ptConstant->uOffset;
+        tSpecializationEntries[i].size = pl__get_data_type_size(ptConstant->tType);
+        uTotalConstantSize += tSpecializationEntries[i].size;
+    }
+
+    const VkSpecializationInfo tSpecializationInfo = {
+        .mapEntryCount = ptDescription->uConstantCount,
+        .pMapEntries   = tSpecializationEntries,
+        .dataSize      = uTotalConstantSize,
+        .pData         = pConstantData
+    };
 
     pl_create_bind_group_layout(&ptGraphics->tDevice, &ptDescription->tBindGroupLayout);
 
@@ -1409,10 +1428,11 @@ pl_create_compute_shader(plDevice* ptDevice, plComputeShaderDescription* ptDescr
     PL_VULKAN(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &tShaderCreateInfo, NULL, &tVulkanShader.tShaderModule));
 
     VkPipelineShaderStageCreateInfo tShaderStage = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_COMPUTE_BIT,
-        .module = tVulkanShader.tShaderModule,
-        .pName = "main"
+        .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage               = VK_SHADER_STAGE_COMPUTE_BIT,
+        .module              = tVulkanShader.tShaderModule,
+        .pName               = "main",
+        .pSpecializationInfo = ptDescription->uConstantCount > 0 ? &tSpecializationInfo : NULL
     };
 
     VkComputePipelineCreateInfo tPipelineCreateInfo = {
@@ -1432,7 +1452,7 @@ pl_create_compute_shader(plDevice* ptDevice, plComputeShaderDescription* ptDescr
 }
 
 static plShaderHandle
-pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription)
+pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription, const void* pConstantData)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
@@ -1449,44 +1469,23 @@ pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription)
 
     plVulkanShader tVulkanShader = {0};
 
-    const VkSpecializationMapEntry tSpecializationEntries[] = 
+    VkSpecializationMapEntry tSpecializationEntries[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS] = {0};
+
+    size_t uTotalConstantSize = 0;
+    for(uint32_t i = 0; i < ptDescription->uConstantCount; i++)
     {
-        {
-            .constantID = 0,
-            .offset     = 0,
-            .size       = sizeof(int)
-        },
-        {
-            .constantID = 1,
-            .offset     = sizeof(int),
-            .size       = sizeof(int)
-        },
-        {
-            .constantID = 2,
-            .offset     = sizeof(int) * 2,
-            .size       = sizeof(int)
-        },
+        const plSpecializationConstant* ptConstant = &ptDescription->atConstants[i];
+        tSpecializationEntries[i].constantID = ptConstant->uID;
+        tSpecializationEntries[i].offset = ptConstant->uOffset;
+        tSpecializationEntries[i].size = pl__get_data_type_size(ptConstant->tType);
+        uTotalConstantSize += tSpecializationEntries[i].size;
+    }
 
-    };
-
-        int aiData[3] = {
-            (int)ptDescription->tGraphicsState.ulVertexStreamMask,
-            0,
-            (int)ptDescription->tGraphicsState.ulShaderTextureFlags
-        };
-
-        int iFlagCopy = (int)ptDescription->tGraphicsState.ulVertexStreamMask;
-        while(iFlagCopy)
-        {
-            aiData[1] += iFlagCopy & 1;
-            iFlagCopy >>= 1;
-        }
-
-    VkSpecializationInfo tSpecializationInfo = {
-        .mapEntryCount = 3,
+    const VkSpecializationInfo tSpecializationInfo = {
+        .mapEntryCount = ptDescription->uConstantCount,
         .pMapEntries   = tSpecializationEntries,
-        .dataSize      = sizeof(int) * 3,
-        .pData         = aiData
+        .dataSize      = uTotalConstantSize,
+        .pData         = pConstantData
     };
 
     VkVertexInputAttributeDescription tAttributeDescription = {
@@ -1574,7 +1573,7 @@ pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription)
         .stage  = VK_SHADER_STAGE_VERTEX_BIT,
         .module = tVulkanShader.tVertexShaderModule,
         .pName  = "main",
-        .pSpecializationInfo = &tSpecializationInfo
+        .pSpecializationInfo = ptDescription->uConstantCount > 0 ? &tSpecializationInfo : NULL
     };
 
     //---------------------------------------------------------------------

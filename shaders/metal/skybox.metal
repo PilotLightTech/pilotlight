@@ -5,6 +5,7 @@ using namespace metal;
 
 struct BindGroupData_0
 {
+    float4   tCameraPosition;
     float4x4 tCameraView;
     float4x4 tCameraProjection;   
     float4x4 tCameraViewProjection;   

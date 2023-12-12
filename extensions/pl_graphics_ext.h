@@ -32,10 +32,15 @@ Index of this file:
     #define PL_DEVICE_LOCAL_LEVELS 8
 #endif
 
+#ifndef PL_MAX_SHADER_SPECIALIZATION_CONSTANTS
+    #define PL_MAX_SHADER_SPECIALIZATION_CONSTANTS 8
+#endif
+
 #define PL_ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
 
-#define PL_DEFINE_HANDLE(x) typedef struct x { uint32_t uIndex; uint32_t uGeneration;} x;
-
+#ifndef PL_DEFINE_HANDLE
+    #define PL_DEFINE_HANDLE(x) typedef struct x { uint32_t uIndex; uint32_t uGeneration;} x;
+#endif
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
@@ -72,6 +77,7 @@ typedef struct _plDispatch                 plDispatch;
 typedef struct _plDrawArea                 plDrawArea;
 typedef struct _plDrawStream               plDrawStream;
 typedef struct _plGraphicsState            plGraphicsState;
+typedef struct _plSpecializationConstant   plSpecializationConstant;
 typedef struct _plShaderDescription        plShaderDescription;
 typedef struct _plShader                   plShader;
 typedef struct _plComputeShaderDescription plComputeShaderDescription;
@@ -129,13 +135,13 @@ typedef struct _plDrawVertex3DLine  plDrawVertex3DLine; // single vertex (pos + 
 
 // enums
 typedef int pl3DDrawFlags;
+typedef int plDataType;               // -> enum _plDataType               // Enum:
 typedef int plBufferBindingType;      // -> enum _plBufferBindingType      // Enum:
 typedef int plTextureBindingType;     // -> enum _plTextureBindingType     // Enum:
 typedef int plTextureType;            // -> enum _plTextureType            // Enum:
 typedef int plBufferUsage;            // -> enum _plBufferUsage            // Enum:
 typedef int plTextureUsage;           // -> enum _plTextureUsage           // Enum:
 typedef int plMeshFormatFlags;        // -> enum _plMeshFormatFlags        // Flags:
-typedef int plShaderTextureFlags;     // -> enum _plShaderTextureFlags     // Flags:
 typedef int plBlendMode;              // -> enum _plBlendMode              // Enum:
 typedef int plCullMode;               // -> enum _plCullMode               // Enum:
 typedef int plFilter;                 // -> enum _plFilter                 // Enum:
@@ -168,8 +174,8 @@ typedef struct _plDrawStreamI
 typedef struct _plDeviceI
 {
     // resources
-    plShaderHandle           (*create_shader)             (plDevice* ptDevice, plShaderDescription* ptDescription);
-    plComputeShaderHandle    (*create_compute_shader)     (plDevice* ptDevice, plComputeShaderDescription* ptDescription);
+    plShaderHandle           (*create_shader)             (plDevice* ptDevice, plShaderDescription* ptDescription, const void* pConstantData);
+    plComputeShaderHandle    (*create_compute_shader)     (plDevice* ptDevice, plComputeShaderDescription* ptDescription, const void* pConstantData);
     plRenderPassLayoutHandle (*create_render_pass_layout) (plDevice* ptDevice, const plRenderPassLayoutDescription* ptDesc);
     plRenderPassHandle       (*create_render_pass)        (plDevice* ptDevice, const plRenderPassDescription* ptDesc);
     plFrameBufferHandle      (*create_frame_buffer)       (plDevice* ptDevice, const plFrameBufferDescription* ptDescription);
@@ -253,18 +259,17 @@ typedef struct _plGraphicsState
         struct
         {
             uint64_t ulVertexStreamMask   : 11; // PL_MESH_FORMAT_FLAG_*
-            uint64_t ulDepthMode          :  3; // PL_DEPTH_MODE_
+            uint64_t ulDepthMode          :  4; // PL_DEPTH_MODE_
             uint64_t ulDepthWriteEnabled  :  1; // bool
             uint64_t ulCullMode           :  2; // VK_CULL_MODE_*
             uint64_t ulBlendMode          :  3; // PL_BLEND_MODE_*
-            uint64_t ulShaderTextureFlags :  4; // PL_SHADER_TEXTURE_FLAG_* 
-            uint64_t ulStencilMode        :  3;
+            uint64_t ulStencilMode        :  4;
             uint64_t ulStencilRef         :  8;
             uint64_t ulStencilMask        :  8;
             uint64_t ulStencilOpFail      :  3;
             uint64_t ulStencilOpDepthFail :  3;
             uint64_t ulStencilOpPass      :  3;
-            uint64_t _ulUnused            : 12;
+            uint64_t _ulUnused            : 14;
         };
         uint64_t ulValue;
     };
@@ -496,14 +501,23 @@ typedef struct _plDrawStream
     uint32_t* sbtStream;
 } plDrawStream;
 
+typedef struct _plSpecializationConstant
+{
+    uint32_t   uID;
+    uint32_t   uOffset;
+    plDataType tType;
+} plSpecializationConstant;
+
 typedef struct _plShaderDescription
 {
-    plGraphicsState    tGraphicsState;
-    const char*        pcVertexShader;
-    const char*        pcPixelShader;
-    plBindGroupLayout  atBindGroupLayouts[3];
-    uint32_t           uBindGroupLayoutCount;
-    plRenderPassHandle tRenderPass; // should be layout soon
+    plSpecializationConstant atConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
+    uint32_t                 uConstantCount;
+    plGraphicsState          tGraphicsState;
+    const char*              pcVertexShader;
+    const char*              pcPixelShader;
+    plBindGroupLayout        atBindGroupLayouts[3];
+    uint32_t                 uBindGroupLayoutCount;
+    plRenderPassHandle       tRenderPass; // should be layout soon
 } plShaderDescription;
 
 typedef struct _plShader
@@ -513,8 +527,10 @@ typedef struct _plShader
 
 typedef struct _plComputeShaderDescription
 {
-    const char*        pcShader;
-    plBindGroupLayout  tBindGroupLayout;
+    const char*              pcShader;
+    plBindGroupLayout        tBindGroupLayout;
+    plSpecializationConstant atConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
+    uint32_t                 uConstantCount;
 } plComputeShaderDescription;
 
 typedef struct _plComputeShader
@@ -847,26 +863,6 @@ enum _plMeshFormatFlags
     PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 10
 };
 
-enum _plShaderTextureFlags
-{
-    PL_SHADER_TEXTURE_FLAG_BINDING_NONE = 0,
-    PL_SHADER_TEXTURE_FLAG_BINDING_0    = 1 << 0,
-    PL_SHADER_TEXTURE_FLAG_BINDING_1    = 1 << 1,
-    PL_SHADER_TEXTURE_FLAG_BINDING_2    = 1 << 2,
-    PL_SHADER_TEXTURE_FLAG_BINDING_3    = 1 << 3,
-    PL_SHADER_TEXTURE_FLAG_BINDING_4    = 1 << 4,
-    PL_SHADER_TEXTURE_FLAG_BINDING_5    = 1 << 5,
-    PL_SHADER_TEXTURE_FLAG_BINDING_6    = 1 << 6,
-    PL_SHADER_TEXTURE_FLAG_BINDING_7    = 1 << 7,
-    PL_SHADER_TEXTURE_FLAG_BINDING_8    = 1 << 8,
-    PL_SHADER_TEXTURE_FLAG_BINDING_9    = 1 << 9,
-    PL_SHADER_TEXTURE_FLAG_BINDING_10   = 1 << 10,
-    PL_SHADER_TEXTURE_FLAG_BINDING_11   = 1 << 11,
-    PL_SHADER_TEXTURE_FLAG_BINDING_12   = 1 << 12,
-    PL_SHADER_TEXTURE_FLAG_BINDING_13   = 1 << 13,
-    PL_SHADER_TEXTURE_FLAG_BINDING_14   = 1 << 14
-};
-
 enum _plMemoryMode
 {
     PL_MEMORY_GPU,
@@ -890,6 +886,13 @@ enum _plSampleCount
     PL_SAMPLE_COUNT_16 = 16,
     PL_SAMPLE_COUNT_32 = 32,
     PL_SAMPLE_COUNT_64 = 64,
+};
+
+enum _plDataType
+{
+    PL_DATA_TYPE_BOOL,
+    PL_DATA_TYPE_FLOAT,
+    PL_DATA_TYPE_INT
 };
 
 #endif // PL_GRAPHICS_EXT_H

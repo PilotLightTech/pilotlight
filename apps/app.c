@@ -1,5 +1,5 @@
 /*
-   app.c (just experimental)
+   app.c (just experimental & absolute mess)
 */
 
 /*
@@ -119,6 +119,7 @@ typedef struct plAppData_t
 
 typedef struct _BindGroup_0
 {
+    plVec4 tCameraPos;
     plMat4 tCameraView;
     plMat4 tCameraProjection;   
     plMat4 tCameraViewProjection;   
@@ -136,6 +137,26 @@ typedef struct _DynamicData
     int    iPadding[2];
     plMat4 tModel;
 } DynamicData;
+
+enum plShaderTextureFlags
+{
+    PL_SHADER_TEXTURE_FLAG_BINDING_NONE = 0,
+    PL_SHADER_TEXTURE_FLAG_BINDING_0    = 1 << 0,
+    PL_SHADER_TEXTURE_FLAG_BINDING_1    = 1 << 1,
+    PL_SHADER_TEXTURE_FLAG_BINDING_2    = 1 << 2,
+    PL_SHADER_TEXTURE_FLAG_BINDING_3    = 1 << 3,
+    PL_SHADER_TEXTURE_FLAG_BINDING_4    = 1 << 4,
+    PL_SHADER_TEXTURE_FLAG_BINDING_5    = 1 << 5,
+    PL_SHADER_TEXTURE_FLAG_BINDING_6    = 1 << 6,
+    PL_SHADER_TEXTURE_FLAG_BINDING_7    = 1 << 7,
+    PL_SHADER_TEXTURE_FLAG_BINDING_8    = 1 << 8,
+    PL_SHADER_TEXTURE_FLAG_BINDING_9    = 1 << 9,
+    PL_SHADER_TEXTURE_FLAG_BINDING_10   = 1 << 10,
+    PL_SHADER_TEXTURE_FLAG_BINDING_11   = 1 << 11,
+    PL_SHADER_TEXTURE_FLAG_BINDING_12   = 1 << 12,
+    PL_SHADER_TEXTURE_FLAG_BINDING_13   = 1 << 13,
+    PL_SHADER_TEXTURE_FLAG_BINDING_14   = 1 << 14
+};
 
 //-----------------------------------------------------------------------------
 // [SECTION] global apis
@@ -458,6 +479,7 @@ pl_app_update(plAppData* ptAppData)
     gptCamera->update(ptOffscreenCamera);
 
     const BindGroup_0 tBindGroupBufferOffscreen = {
+        .tCameraPos = ptOffscreenCamera->tPos,
         .tCameraProjection = ptOffscreenCamera->tProjMat,
         .tCameraView = ptOffscreenCamera->tViewMat,
         .tCameraViewProjection = pl_mul_mat4(&ptOffscreenCamera->tProjMat, &ptOffscreenCamera->tViewMat)
@@ -465,6 +487,7 @@ pl_app_update(plAppData* ptAppData)
     memcpy(ptGraphics->sbtBuffersCold[ptAppData->atOffscreenGlobalBuffers[ptAppData->tGraphics.uCurrentFrameIndex].uIndex].tMemoryAllocation.pHostMapped, &tBindGroupBufferOffscreen, sizeof(BindGroup_0));
 
     const BindGroup_0 tBindGroupBuffer = {
+        .tCameraPos = ptMainCamera->tPos,
         .tCameraProjection = ptMainCamera->tProjMat,
         .tCameraView = ptMainCamera->tViewMat,
         .tCameraViewProjection = pl_mul_mat4(&ptMainCamera->tProjMat, &ptMainCamera->tViewMat)
@@ -1190,23 +1213,30 @@ create_bind_groups(plAppData* ptAppData)
     gptDevice->update_bind_group(ptDevice, &ptAppData->atBindGroups0Offscreen[0], 2, atBindGroup0_buffers0Off, szBufferRangeSize, 0, NULL);
     gptDevice->update_bind_group(ptDevice, &ptAppData->atBindGroups0Offscreen[1], 2, atBindGroup0_buffers1Off, szBufferRangeSize, 0, NULL);
 
+    plTextureViewHandle atTextureViews[3] = {ptAppData->tTextureView, ptAppData->tTextureView, ptAppData->tTextureView};
+
     plBindGroupLayout tBindGroupLayout1_0 = {
-        .uTextureCount  = 1,
+        .uTextureCount  = 3,
         .aTextures = {
-            {.uSlot = 0}
+            {.uSlot = 0},
+            {.uSlot = 1},
+            {.uSlot = 2},
         }
     };
     ptAppData->tBindGroup1_0 = gptDevice->create_bind_group(ptDevice, &tBindGroupLayout1_0);
-    gptDevice->update_bind_group(ptDevice, &ptAppData->tBindGroup1_0, 0, NULL, NULL, 1, &ptAppData->tTextureView);
+    gptDevice->update_bind_group(ptDevice, &ptAppData->tBindGroup1_0, 0, NULL, NULL, 3, atTextureViews);
 
     plBindGroupLayout tBindGroupLayout1_1 = {
-        .uTextureCount  = 1,
+        .uTextureCount  = 3,
         .aTextures = {
-            {.uSlot = 0}
+            {.uSlot = 0},
+            {.uSlot = 1},
+            {.uSlot = 2},
         }
     };
     ptAppData->tBindGroup1_1 = gptDevice->create_bind_group(ptDevice, &tBindGroupLayout1_1);
-    gptDevice->update_bind_group(ptDevice, &ptAppData->tBindGroup1_1, 0, NULL, NULL, 1, &ptAppData->tTextureView);
+    
+    gptDevice->update_bind_group(ptDevice, &ptAppData->tBindGroup1_1, 0, NULL, NULL, 3, atTextureViews);
 
     plBindGroupLayout tBindGroupLayout1_2 = {
         .uTextureCount  = 1,
@@ -1244,6 +1274,14 @@ create_shaders(plAppData* ptAppData)
 #else // VULKAN
         .pcShader = "compute.comp.spv",
 #endif
+        .uConstantCount = 1,
+        .atConstants = {
+            {
+                .uID = 0,
+                .uOffset = 0,
+                .tType = PL_DATA_TYPE_BOOL
+            },
+        },
         .tBindGroupLayout = {
             .uBufferCount = 3,
             .aBuffers = {
@@ -1262,13 +1300,14 @@ create_shaders(plAppData* ptAppData)
             },
         }
     };
-    ptAppData->tComputeShader0 = gptDevice->create_compute_shader(ptDevice, &tComputeShaderDescription0);
+    int iSwitchChannels = 1;
+    ptAppData->tComputeShader0 = gptDevice->create_compute_shader(ptDevice, &tComputeShaderDescription0, &iSwitchChannels);
 
     plShaderDescription tShaderDescription0 = {
 
 #ifdef PL_METAL_BACKEND
-        .pcVertexShader = "primitive.metal",
-        .pcPixelShader = "primitive.metal",
+        .pcVertexShader = "../shaders/metal/primitive.metal",
+        .pcPixelShader = "../shaders/metal/primitive.metal",
 #else // VULKAN
         .pcVertexShader = "primitive.vert.spv",
         .pcPixelShader = "primitive.frag.spv",
@@ -1276,17 +1315,34 @@ create_shaders(plAppData* ptAppData)
 
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
-            .ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 | PL_MESH_FORMAT_FLAG_HAS_COLOR_0,
+            .ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_POSITION,
             .ulBlendMode          = PL_BLEND_MODE_ALPHA,
             .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
             .ulCullMode           = PL_CULL_MODE_CULL_BACK,
-            .ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_0,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
             .ulStencilRef         = 0xff,
             .ulStencilMask        = 0xff,
             .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+        },
+        .uConstantCount = 3,
+        .atConstants = {
+            {
+                .uID = 0,
+                .uOffset = 0,
+                .tType = PL_DATA_TYPE_INT
+            },
+            {
+                .uID = 1,
+                .uOffset = sizeof(int),
+                .tType = PL_DATA_TYPE_INT
+            },
+            {
+                .uID = 2,
+                .uOffset = sizeof(int) * 2,
+                .tType = PL_DATA_TYPE_INT
+            }
         },
         .tRenderPass = ptAppData->tMainRenderPass,
         .uBindGroupLayoutCount = 3,
@@ -1305,10 +1361,16 @@ create_shaders(plAppData* ptAppData)
                 },
             },
             {
-                .uTextureCount = 1,
+                .uTextureCount = 3,
                 .aTextures = {
                     {
                         .uSlot = 0
+                    },
+                    {
+                        .uSlot = 1
+                    },
+                    {
+                        .uSlot = 2
                     }
                  },
             },
@@ -1323,31 +1385,55 @@ create_shaders(plAppData* ptAppData)
             }
         }
     };
-    ptAppData->tShader0 = gptDevice->create_shader(ptDevice, &tShaderDescription0);
+    int aiConstantData0[3] = { (int)PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 | PL_MESH_FORMAT_FLAG_HAS_COLOR_0, 0, PL_SHADER_TEXTURE_FLAG_BINDING_0 | PL_SHADER_TEXTURE_FLAG_BINDING_1};
+    int iFlagCopy = (int)PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 | PL_MESH_FORMAT_FLAG_HAS_COLOR_0;
+    while(iFlagCopy)
+    {
+        aiConstantData0[1] += iFlagCopy & 1;
+        iFlagCopy >>= 1;
+    }
+    ptAppData->tShader0 = gptDevice->create_shader(ptDevice, &tShaderDescription0, aiConstantData0);
     tShaderDescription0.tRenderPass = ptAppData->tOffscreenRenderPass;
-    ptAppData->tOffscreenShader0 = gptDevice->create_shader(ptDevice, &tShaderDescription0);
+    ptAppData->tOffscreenShader0 = gptDevice->create_shader(ptDevice, &tShaderDescription0, aiConstantData0);
 
     plShaderDescription tShaderDescription1 = {
 #ifdef PL_METAL_BACKEND
-        .pcVertexShader = "primitive.metal",
-        .pcPixelShader = "primitive.metal",
+        .pcVertexShader = "../shaders/metal/primitive.metal",
+        .pcPixelShader = "../shaders/metal/primitive.metal",
 #else // linux
         .pcVertexShader = "primitive.vert.spv",
         .pcPixelShader = "primitive.frag.spv",
 #endif
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
-            .ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_COLOR_0,
+            .ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_POSITION,
             .ulBlendMode          = PL_BLEND_MODE_ALPHA,
             .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
             .ulCullMode           = PL_CULL_MODE_NONE,
-            .ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_NONE,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
             .ulStencilRef         = 0xff,
             .ulStencilMask        = 0xff,
             .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+        },
+        .uConstantCount = 3,
+        .atConstants = {
+            {
+                .uID = 0,
+                .uOffset = 0,
+                .tType = PL_DATA_TYPE_INT
+            },
+            {
+                .uID = 1,
+                .uOffset = sizeof(int),
+                .tType = PL_DATA_TYPE_INT
+            },
+            {
+                .uID = 2,
+                .uOffset = sizeof(int) * 2,
+                .tType = PL_DATA_TYPE_INT
+            }
         },
         .tRenderPass = ptAppData->tMainRenderPass,
         .uBindGroupLayoutCount = 3,
@@ -1366,10 +1452,16 @@ create_shaders(plAppData* ptAppData)
                 },
             },
             {
-                .uTextureCount = 1,
+                .uTextureCount = 3,
                 .aTextures = {
                     {
                         .uSlot = 0
+                    },
+                    {
+                        .uSlot = 1
+                    },
+                    {
+                        .uSlot = 2
                     }
                  },
             },
@@ -1384,25 +1476,31 @@ create_shaders(plAppData* ptAppData)
             }
         }
     };
-    ptAppData->tShader1 = gptDevice->create_shader(ptDevice, &tShaderDescription1);
+    int aiConstantData1[3] = { (int)PL_MESH_FORMAT_FLAG_HAS_COLOR_0, 0, 0};
+    iFlagCopy = (int)PL_MESH_FORMAT_FLAG_HAS_COLOR_0;
+    while(iFlagCopy)
+    {
+        aiConstantData1[1] += iFlagCopy & 1;
+        iFlagCopy >>= 1;
+    }
+    ptAppData->tShader1 = gptDevice->create_shader(ptDevice, &tShaderDescription1, aiConstantData1);
     tShaderDescription1.tRenderPass = ptAppData->tOffscreenRenderPass;
-    ptAppData->tOffscreenShader1 = gptDevice->create_shader(ptDevice, &tShaderDescription1);
+    ptAppData->tOffscreenShader1 = gptDevice->create_shader(ptDevice, &tShaderDescription1, aiConstantData1);
 
     plShaderDescription tShaderDescription2 = {
 #ifdef PL_METAL_BACKEND
-        .pcVertexShader = "skybox.metal",
-        .pcPixelShader = "skybox.metal",
+        .pcVertexShader = "../shaders/metal/skybox.metal",
+        .pcPixelShader = "../shaders/metal/skybox.metal",
 #else // linux
         .pcVertexShader = "skybox.vert.spv",
         .pcPixelShader = "skybox.frag.spv",
 #endif
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
-            .ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_NONE,
+            .ulVertexStreamMask   = PL_MESH_FORMAT_FLAG_HAS_POSITION,
             .ulBlendMode          = PL_BLEND_MODE_ALPHA,
             .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
             .ulCullMode           = PL_CULL_MODE_NONE,
-            .ulShaderTextureFlags = PL_SHADER_TEXTURE_FLAG_BINDING_0,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
             .ulStencilRef         = 0xff,
             .ulStencilMask        = 0xff,
@@ -1445,7 +1543,7 @@ create_shaders(plAppData* ptAppData)
             }
         }
     };
-    ptAppData->tShader2 = gptDevice->create_shader(ptDevice, &tShaderDescription2);
+    ptAppData->tShader2 = gptDevice->create_shader(ptDevice, &tShaderDescription2, NULL);
     tShaderDescription2.tRenderPass = ptAppData->tOffscreenRenderPass;
-    ptAppData->tOffscreenShader2 = gptDevice->create_shader(ptDevice, &tShaderDescription2);
+    ptAppData->tOffscreenShader2 = gptDevice->create_shader(ptDevice, &tShaderDescription2, NULL);
 }

@@ -22,8 +22,8 @@ Index of this file:
 #ifndef PL_PILOTLIGHT_H
 #define PL_PILOTLIGHT_H
 
-#define PILOTLIGHT_VERSION    "0.4.0"
-#define PILOTLIGHT_VERSION_NUM 000400
+#define PILOTLIGHT_VERSION    "0.5.0"
+#define PILOTLIGHT_VERSION_NUM 000500
 
 #ifdef __cplusplus
     #if defined(_MSC_VER) //  Microsoft 
@@ -122,6 +122,10 @@ typedef struct _plExtensionRegistryApiI plExtensionRegistryApiI;
     #define PL_GLOBAL_LOG_LEVEL PL_LOG_LEVEL_ALL
 #endif
 
+#ifndef PL_DEFINE_HANDLE
+    #define PL_DEFINE_HANDLE(x) typedef struct x { uint32_t uIndex; uint32_t uGeneration;} x;
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
@@ -130,10 +134,11 @@ typedef struct _plExtensionRegistryApiI plExtensionRegistryApiI;
 typedef void (*ptApiUpdateCallback)(const void*, const void*, void*);
 
 // types
-typedef struct _plSharedLibrary plSharedLibrary;
-typedef struct _plSocket plSocket;
-typedef struct _plMemoryContext plMemoryContext;
+typedef struct _plSharedLibrary   plSharedLibrary;
+typedef struct _plSocket          plSocket;
+typedef struct _plMemoryContext   plMemoryContext;
 typedef struct _plAllocationEntry plAllocationEntry;
+typedef struct _plHandle          plHandle;
 
 // external forward declarations
 typedef struct _plHashMap plHashMap; // pl_ds.h
@@ -198,7 +203,12 @@ typedef struct _plMemoryContext
   size_t             szAllocationFrees;
   plHashMap*         ptHashMap;
   plAllocationEntry* sbtAllocations;
-}
-plMemoryContext;
+} plMemoryContext;
+
+typedef struct _plHandle
+{
+    uint32_t uIndex;
+    uint32_t uGeneration;
+} plHandle;
 
 #endif // PL_PILOTLIGHT_H

@@ -18,6 +18,20 @@ pl__get_frame_garbage(plGraphics* ptGraphics)
     return &ptGraphics->sbtGarbage[ptGraphics->uCurrentFrameIndex];
 }
 
+static size_t
+pl__get_data_type_size(plDataType tType)
+{
+    switch(tType)
+    {
+        case PL_DATA_TYPE_BOOL:  return sizeof(int);
+        case PL_DATA_TYPE_FLOAT: return sizeof(float);
+        case PL_DATA_TYPE_INT:   return sizeof(int);
+    }
+
+    PL_ASSERT(false && "Unsupported data type");
+    return 0;
+}
+
 static plBuffer*
 pl__get_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 {

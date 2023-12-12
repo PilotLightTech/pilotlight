@@ -188,6 +188,7 @@ static MTLPixelFormat         pl__metal_format(plFormat tFormat);
 static MTLCullMode            pl__metal_cull(plCullMode tCullMode);
 static MTLLoadAction          pl__metal_load_op   (plLoadOp tOp);
 static MTLStoreAction         pl__metal_store_op  (plStoreOp tOp);
+static MTLDataType            pl__metal_data_type  (plDataType tType);
 
 static plTrackedMetalBuffer* pl__dequeue_reusable_buffer(plGraphics* ptGraphics, NSUInteger length);
 static plMetalPipelineEntry* pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags, uint32_t uSampleCount, MTLRenderPassDescriptor* ptRenderPassDescriptor);
@@ -868,7 +869,7 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
 }
 
 static plComputeShaderHandle
-pl_create_compute_shader(plDevice* ptDevice, plComputeShaderDescription* ptDescription)
+pl_create_compute_shader(plDevice* ptDevice, plComputeShaderDescription* ptDescription, const void* pConstantData)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
@@ -899,7 +900,16 @@ pl_create_compute_shader(plDevice* ptDevice, plComputeShaderDescription* ptDescr
         NSLog(@"Error: failed to create Metal library: %@", error);
     }
 
-    id<MTLFunction> computeFunction = [library newFunctionWithName:@"kernel_main"];
+    MTLFunctionConstantValues* ptConstantValues = [MTLFunctionConstantValues new];
+
+    const char* pcConstantData = pConstantData;
+    for(uint32_t i = 0; i < ptDescription->uConstantCount; i++)
+    {
+        const plSpecializationConstant* ptConstant = &ptDescription->atConstants[i];
+        [ptConstantValues setConstantValue:&pcConstantData[ptConstant->uOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:ptConstant->uID];
+    }
+
+    id<MTLFunction> computeFunction = [library newFunctionWithName:@"kernel_main" constantValues:ptConstantValues error:&error];
 
     if (computeFunction == nil)
     {
@@ -922,7 +932,7 @@ pl_create_compute_shader(plDevice* ptDevice, plComputeShaderDescription* ptDescr
 }
 
 static plShaderHandle
-pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription)
+pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription, const void* pConstantData)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
@@ -946,39 +956,6 @@ pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription)
     // prepare preprocessor defines
     MTLCompileOptions* ptCompileOptions = [MTLCompileOptions new];
 
-    int iDataStride = 0;
-    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_POSITION) iDataStride += 4;
-    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_NORMAL) iDataStride += 4;
-    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TANGENT) iDataStride += 4;
-    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0) iDataStride += 4;
-    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1) iDataStride += 4;
-    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_0) iDataStride += 4;
-    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_1) iDataStride += 4;
-    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0) iDataStride += 4;
-    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1) iDataStride += 4;
-    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0) iDataStride += 4;
-    if(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1) iDataStride += 4;
-
-    int iTextureCount = 0;
-    if(ptDescription->tGraphicsState.ulShaderTextureFlags & PL_SHADER_TEXTURE_FLAG_BINDING_0)
-        iTextureCount++;
-
-    ptCompileOptions.preprocessorMacros = @{
-        @"PL_TEXTURE_COUNT" : [NSNumber numberWithInt:iTextureCount],
-        @"PL_DATA_STRIDE" : [NSNumber numberWithInt:iDataStride],
-        @"PL_MESH_FORMAT_FLAG_HAS_POSITION" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_POSITION)],
-        @"PL_MESH_FORMAT_FLAG_HAS_NORMAL" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_NORMAL)],
-        @"PL_MESH_FORMAT_FLAG_HAS_TANGENT" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TANGENT)],
-        @"PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0)],
-        @"PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1)],
-        @"PL_MESH_FORMAT_FLAG_HAS_COLOR_0" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_0)],
-        @"PL_MESH_FORMAT_FLAG_HAS_COLOR_1" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_1)],
-        @"PL_MESH_FORMAT_FLAG_HAS_JOINTS_0" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0)],
-        @"PL_MESH_FORMAT_FLAG_HAS_JOINTS_1" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1)],
-        @"PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0)],
-        @"PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1" : [NSNumber numberWithInt:(ptDescription->tGraphicsState.ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1)]
-    };
-
     // compile shader source
     NSError* error = nil;
     NSString* shaderSource = [NSString stringWithUTF8String:pcFileData];
@@ -988,13 +965,24 @@ pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription)
         NSLog(@"Error: failed to create Metal library: %@", error);
     }
 
-    id<MTLFunction> vertexFunction = [library newFunctionWithName:@"vertex_main"];
-    id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"fragment_main"];
+    MTLFunctionConstantValues* ptConstantValues = [MTLFunctionConstantValues new];
+
+    const char* pcConstantData = pConstantData;
+    for(uint32_t i = 0; i < ptDescription->uConstantCount; i++)
+    {
+        const plSpecializationConstant* ptConstant = &ptDescription->atConstants[i];
+        [ptConstantValues setConstantValue:&pcConstantData[ptConstant->uOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:ptConstant->uID];
+    }
+
+    id<MTLFunction> vertexFunction = [library newFunctionWithName:@"vertex_main" constantValues:ptConstantValues error:&error];
+    id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"fragment_main" constantValues:ptConstantValues error:&error];
 
     if (vertexFunction == nil || fragmentFunction == nil)
     {
         NSLog(@"Error: failed to find Metal shader functions in library: %@", error);
     }
+
+
 
     // vertex layout
     MTLVertexDescriptor* vertexDescriptor = [MTLVertexDescriptor vertexDescriptor];
@@ -1010,6 +998,7 @@ pl_create_shader(plDevice* ptDevice, plShaderDescription* ptDescription)
     pipelineDescriptor.fragmentFunction = fragmentFunction;
     pipelineDescriptor.vertexDescriptor = vertexDescriptor;
     pipelineDescriptor.rasterSampleCount = ptGraphics->sbtRenderPassesCold[ptDescription->tRenderPass.uIndex].tSampleCount;
+    // pipelineDescriptor.fcon
 
     // renderpass stuff
     plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[ptDescription->tRenderPass.uIndex];
@@ -1591,6 +1580,7 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
             {
                 plMetalShader* ptMetalShader = &ptMetalGraphics->sbtShadersHot[ptStream->sbtStream[uCurrentStreamIndex]];
                 [ptMetalGraphics->tCurrentRenderEncoder setCullMode:ptMetalShader->tCullMode];
+                [ptMetalGraphics->tCurrentRenderEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
                 [ptMetalGraphics->tCurrentRenderEncoder setDepthStencilState:ptMetalShader->tDepthStencilState];
                 [ptMetalGraphics->tCurrentRenderEncoder setRenderPipelineState:ptMetalShader->tRenderPipelineState];
                 uCurrentStreamIndex++;
@@ -1963,6 +1953,20 @@ pl__metal_load_op(plLoadOp tOp)
 
     PL_ASSERT(false && "Unsupported load op");
     return MTLLoadActionDontCare;
+}
+
+static MTLDataType
+pl__metal_data_type(plDataType tType)
+{
+    switch(tType)
+    {
+        case PL_DATA_TYPE_BOOL:  return MTLDataTypeBool;
+        case PL_DATA_TYPE_FLOAT: return MTLDataTypeFloat;
+        case PL_DATA_TYPE_INT:   return MTLDataTypeInt;
+    }
+
+    PL_ASSERT(false && "Unsupported data type");
+    return 0;
 }
 
 static MTLStoreAction
