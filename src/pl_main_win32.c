@@ -398,39 +398,13 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 
         case WM_SYSCOMMAND:
         {
-            static float fOldWidth = 0.0f;
-            static float fOldHeight = 0.0f;
-            if(tWParam == SC_MINIMIZE)
-            {
-                fOldWidth = gptIOCtx->afMainViewportSize[0];
-                fOldHeight = gptIOCtx->afMainViewportSize[1];
-                gptIOCtx->bViewportMinimized = true;
-            }
-            else if(tWParam == SC_RESTORE)
-            {
-                gptIOCtx->afMainViewportSize[0] = fOldWidth;
-                gptIOCtx->afMainViewportSize[1] = fOldHeight;
-                gptIOCtx->bViewportMinimized = false;
-            }
-            else if(tWParam == SC_MAXIMIZE)
-            {
-                fOldWidth = gptIOCtx->afMainViewportSize[0];
-                fOldHeight = gptIOCtx->afMainViewportSize[1];
-                gptIOCtx->bViewportMinimized = false;
-            }
-            else if(!gptIOCtx->bViewportMinimized && fOldWidth > 0.0f)
-            {
-                gptIOCtx->afMainViewportSize[0] = fOldWidth;
-                gptIOCtx->afMainViewportSize[1] = fOldHeight;
-                gptIOCtx->bViewportMinimized = false;
-            }
-            else if(!gptIOCtx->bViewportMinimized && fOldWidth == 0.0f)
-            {
-                fOldWidth = gptIOCtx->afMainViewportSize[0];
-                fOldHeight = gptIOCtx->afMainViewportSize[1];
-                gptIOCtx->bViewportMinimized = false;
-            }
 
+            if(tWParam == SC_MINIMIZE)
+                gptIOCtx->bViewportMinimized = true;
+            else if(tWParam == SC_RESTORE)
+                gptIOCtx->bViewportMinimized = false;
+            else if(tWParam == SC_MAXIMIZE)
+                gptIOCtx->bViewportMinimized = false;
             break;
         }
 
@@ -497,13 +471,6 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
                 pl_update_mouse_cursor();
             }
             break;
-
-        case WM_MOVE:
-        case WM_MOVING:
-        {
-            pl__render_frame();
-            break;
-        }
 
         case WM_PAINT:
         {
@@ -637,6 +604,14 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             break;
         }
 
+    #ifdef PL_EXPERIMENTAL_RENDER_WHILE_RESIZE
+        case WM_MOVE:
+        case WM_MOVING:
+        {
+            pl__render_frame();
+            break;
+        }
+
         case WM_ENTERSIZEMOVE:
         {
             // DefWindowProc below will block until mouse is released or moved.
@@ -660,6 +635,7 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
                 pl__render_frame();
             break;
         }
+    #endif
     }
     return DefWindowProcW(tHwnd, tMsg, tWParam, tLParam);
 }

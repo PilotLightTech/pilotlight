@@ -15,6 +15,7 @@
 
 // general
 #define PL_USE_STB_SPRINTF
+// #define PL_EXPERIMENTAL_RENDER_WHILE_RESIZE
 //#define PL_MAX_NAME_LENGTH 1024
 //#define PL_MAX_PATH_LENGTH 1024
 
