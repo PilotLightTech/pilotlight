@@ -250,4 +250,5 @@ pl_unload_stats_ext(plApiRegistryApiI* ptApiRegistry)
 {
     pl_sb_free(gtStatsContext.sbtBlocks);
     pl_sb_free(gtStatsContext.sbtNames);
+    pl_hm_free(&gtStatsContext.tHashmap);
 }
