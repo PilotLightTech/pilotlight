@@ -7,8 +7,12 @@ typedef struct _plFrameGarbage
 {
     plTextureHandle*          sbtTextures;
     plTextureViewHandle*      sbtTextureViews;
-    plFrameBufferHandle*      sbtFrameBuffers;
     plBufferHandle*           sbtBuffers;
+    plBindGroupHandle*        sbtBindGroups;
+    plShaderHandle*           sbtShaders;
+    plComputeShaderHandle*    sbtComputeShaders;
+    plRenderPassLayoutHandle* sbtRenderPassLayouts;
+    plRenderPassHandle*       sbtRenderPasses;
     plDeviceMemoryAllocation* sbtMemory;
 } plFrameGarbage;
 
@@ -132,15 +136,6 @@ pl__get_shader(plDevice* ptDevice, plShaderHandle tHandle)
 }
 
 static void
-pl_submit_frame_buffer_for_deletion(plDevice* ptDevice, plFrameBufferHandle tHandle)
-{
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
-    pl_sb_push(ptGarbage->sbtFrameBuffers, tHandle);
-    ptGraphics->sbtFrameBufferGenerations[tHandle.uIndex]++;
-}
-
-static void
 pl_submit_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
@@ -158,6 +153,51 @@ pl_submit_texture_for_deletion(plDevice* ptDevice, plTextureHandle tHandle)
     pl_sb_push(ptGarbage->sbtTextures, tHandle);
     pl_sb_push(ptGarbage->sbtMemory, ptGraphics->sbtTexturesCold[tHandle.uIndex].tMemoryAllocation);
     ptGraphics->sbtTextureGenerations[tHandle.uIndex]++;
+}
+
+static void
+pl_submit_render_pass_for_deletion(plDevice* ptDevice, plRenderPassHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
+    pl_sb_push(ptGarbage->sbtRenderPasses, tHandle);
+    ptGraphics->sbtRenderPassGenerations[tHandle.uIndex]++;
+}
+
+static void
+pl_submit_render_pass_layout_for_deletion(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
+    pl_sb_push(ptGarbage->sbtRenderPassLayouts, tHandle);
+    ptGraphics->sbtRenderPassLayoutGenerations[tHandle.uIndex]++;
+}
+
+static void
+pl_submit_shader_for_deletion(plDevice* ptDevice, plShaderHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
+    pl_sb_push(ptGarbage->sbtShaders, tHandle);
+    ptGraphics->sbtShaderGenerations[tHandle.uIndex]++;
+}
+
+static void
+pl_submit_compute_shader_for_deletion(plDevice* ptDevice, plComputeShaderHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
+    pl_sb_push(ptGarbage->sbtComputeShaders, tHandle);
+    ptGraphics->sbtComputeShaderGenerations[tHandle.uIndex]++;
+}
+
+static void
+pl_submit_bind_group_for_deletion(plDevice* ptDevice, plBindGroupHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
+    pl_sb_push(ptGarbage->sbtBindGroups, tHandle);
+    ptGraphics->sbtBindGroupGenerations[tHandle.uIndex]++;
 }
 
 static void
@@ -841,6 +881,52 @@ pl_free_buddy(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation*
     strncpy(ptNode->acName, "not used", PL_MAX_NAME_LENGTH);
 }
 
+static plShaderHandle
+pl_get_shader_variant(plDevice* ptDevice, plShaderHandle tHandle, const plShaderVariant* ptVariant)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plShader* ptShader = &ptGraphics->sbtShadersCold[tHandle.uIndex];
+
+    size_t uTotalConstantSize = 0;
+    for(uint32_t i = 0; i < ptShader->tDescription.uConstantCount; i++)
+    {
+        const plSpecializationConstant* ptConstant = &ptShader->tDescription.atConstants[i];
+        uTotalConstantSize += pl__get_data_type_size(ptConstant->tType);
+    }
+
+    const uint64_t ulVariantHash = pl_hm_hash(ptVariant->pTempConstantData, uTotalConstantSize, ptVariant->tGraphicsState.ulValue);
+    const uint64_t ulIndex = pl_hm_lookup(&ptShader->tVariantHashmap, ulVariantHash);
+
+    plShaderHandle tVariantHandle = {UINT32_MAX, UINT32_MAX};
+    if(ulIndex == UINT64_MAX)
+        return tVariantHandle;
+    tVariantHandle = ptShader->_sbtVariantHandles[ulIndex];
+    return tVariantHandle;
+}
+
+static plComputeShaderHandle
+pl_get_compute_shader_variant(plDevice* ptDevice, plComputeShaderHandle tHandle, const plComputeShaderVariant* ptVariant)
+{
+    plGraphics*       ptGraphics = ptDevice->ptGraphics;
+    plComputeShader* ptShader = &ptGraphics->sbtComputeShadersCold[tHandle.uIndex];
+
+    size_t uTotalConstantSize = 0;
+    for(uint32_t i = 0; i < ptShader->tDescription.uConstantCount; i++)
+    {
+        const plSpecializationConstant* ptConstant = &ptShader->tDescription.atConstants[i];
+        uTotalConstantSize += pl__get_data_type_size(ptConstant->tType);
+    }
+
+    const uint64_t ulVariantHash = pl_hm_hash(ptVariant->pTempConstantData, uTotalConstantSize, 0);
+    const uint64_t ulIndex = pl_hm_lookup(&ptShader->tVariantHashmap, ulVariantHash);
+
+    plComputeShaderHandle tVariantHandle = {UINT32_MAX, UINT32_MAX};
+    if(ulIndex == UINT64_MAX)
+        return tVariantHandle;
+    tVariantHandle = ptShader->_sbtVariantHandles[ulIndex];
+    return tVariantHandle;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
@@ -1001,4 +1087,92 @@ pl__format_stride(plFormat tFormat)
 
     PL_ASSERT(false && "Unsupported format");
     return 0;
+}
+
+static void
+pl__cleanup_common_graphics(plGraphics* ptGraphics)
+{
+    for(uint32_t i = 0u; i < pl_sb_size(ptGraphics->sbt3DDrawlists); i++)
+    {
+        plDrawList3D* drawlist = ptGraphics->sbt3DDrawlists[i];
+        pl_sb_free(drawlist->sbtSolidIndexBuffer);
+        pl_sb_free(drawlist->sbtSolidVertexBuffer);
+        pl_sb_free(drawlist->sbtLineVertexBuffer);
+        pl_sb_free(drawlist->sbtLineIndexBuffer);
+    }
+    pl_sb_free(ptGraphics->sbt3DDrawlists);
+
+    // cleanup per frame resources
+    for(uint32_t i = 0; i < pl_sb_size(ptGraphics->sbtGarbage); i++)
+    {
+        plFrameGarbage* ptGarbage = &ptGraphics->sbtGarbage[i];
+        pl_sb_free(ptGarbage->sbtMemory);
+        pl_sb_free(ptGarbage->sbtTextures);
+        pl_sb_free(ptGarbage->sbtTextureViews);
+        pl_sb_free(ptGarbage->sbtBuffers);
+        pl_sb_free(ptGarbage->sbtComputeShaders);
+        pl_sb_free(ptGarbage->sbtShaders);
+        pl_sb_free(ptGarbage->sbtRenderPasses);
+        pl_sb_free(ptGarbage->sbtRenderPassLayouts);
+        pl_sb_free(ptGarbage->sbtBindGroups);
+    }
+
+    plDeviceAllocatorData* ptData0 = (plDeviceAllocatorData*)ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst;
+    plDeviceAllocatorData* ptData1 = (plDeviceAllocatorData*)ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst;
+    plDeviceAllocatorData* ptData2 = (plDeviceAllocatorData*)ptGraphics->tDevice.tLocalBuddyAllocator.ptInst;
+    plDeviceAllocatorData* ptData3 = (plDeviceAllocatorData*)ptGraphics->tDevice.tStagingCachedAllocator.ptInst;
+    pl_sb_free(ptData0->sbtBlocks);
+    pl_sb_free(ptData1->sbtBlocks);
+    pl_sb_free(ptData2->sbtBlocks);
+    pl_sb_free(ptData3->sbtBlocks);
+
+    pl_sb_free(ptData0->sbtNodes);
+    pl_sb_free(ptData1->sbtNodes);
+    pl_sb_free(ptData2->sbtNodes);
+    pl_sb_free(ptData3->sbtNodes);
+
+    pl_sb_free(ptData0->sbtFreeBlockIndices);
+    pl_sb_free(ptData1->sbtFreeBlockIndices);
+    pl_sb_free(ptData2->sbtFreeBlockIndices);
+    pl_sb_free(ptData3->sbtFreeBlockIndices);
+
+    for(uint32_t i = 0; i < pl_sb_size(ptGraphics->sbtShadersCold); i++)
+    {
+        plShader* ptResource = &ptGraphics->sbtShadersCold[i];
+        pl_sb_free(ptResource->_sbtVariantHandles);
+        pl_hm_free(&ptResource->tVariantHashmap);
+    }
+    for(uint32_t i = 0; i < pl_sb_size(ptGraphics->sbtComputeShadersCold); i++)
+    {
+        plComputeShader* ptResource = &ptGraphics->sbtComputeShadersCold[i];
+        pl_sb_free(ptResource->_sbtVariantHandles);
+        pl_hm_free(&ptResource->tVariantHashmap);
+    }
+
+    pl_sb_free(ptGraphics->sbtGarbage);
+    pl_sb_free(ptGraphics->tSwapchain.sbtSwapchainTextureViews);
+    pl_sb_free(ptGraphics->sbtShadersCold);
+    pl_sb_free(ptGraphics->sbtBuffersCold);
+    pl_sb_free(ptGraphics->sbtBufferFreeIndices);
+    pl_sb_free(ptGraphics->sbtTexturesCold);
+    pl_sb_free(ptGraphics->sbtTextureViewsCold);
+    pl_sb_free(ptGraphics->sbtBindGroupsCold);
+    pl_sb_free(ptGraphics->sbtShaderGenerations);
+    pl_sb_free(ptGraphics->sbtBufferGenerations);
+    pl_sb_free(ptGraphics->sbtTextureGenerations);
+    pl_sb_free(ptGraphics->sbtTextureViewGenerations);
+    pl_sb_free(ptGraphics->sbtBindGroupGenerations);
+    pl_sb_free(ptGraphics->sbtRenderPassesCold);
+    pl_sb_free(ptGraphics->sbtRenderPassGenerations);
+    pl_sb_free(ptGraphics->sbtTextureFreeIndices);
+    pl_sb_free(ptGraphics->sbtTextureViewFreeIndices);
+    pl_sb_free(ptGraphics->sbtRenderPassLayoutsCold);
+    pl_sb_free(ptGraphics->sbtComputeShadersCold);
+    pl_sb_free(ptGraphics->sbtComputeShaderGenerations);
+    pl_sb_free(ptGraphics->sbtRenderPassLayoutGenerations);
+    pl_sb_free(ptGraphics->sbtBindGroupFreeIndices);
+
+    PL_FREE(ptGraphics->_pInternalData);
+    PL_FREE(ptGraphics->tDevice._pInternalData);
+    PL_FREE(ptGraphics->tSwapchain._pInternalData);
 }

@@ -33,7 +33,7 @@ Index of this file:
 #endif
 
 #ifndef PL_MAX_SHADER_SPECIALIZATION_CONSTANTS
-    #define PL_MAX_SHADER_SPECIALIZATION_CONSTANTS 8
+    #define PL_MAX_SHADER_SPECIALIZATION_CONSTANTS 64
 #endif
 
 #define PL_ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
@@ -62,6 +62,7 @@ typedef struct _plDrawStreamI plDrawStreamI;
 #include <stdint.h>
 #include <stdbool.h>
 #include "pl_math.h"
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -82,6 +83,8 @@ typedef struct _plShaderDescription        plShaderDescription;
 typedef struct _plShader                   plShader;
 typedef struct _plComputeShaderDescription plComputeShaderDescription;
 typedef struct _plComputeShader            plComputeShader;
+typedef struct _plShaderVariant            plShaderVariant;
+typedef struct _plComputeShaderVariant     plComputeShaderVariant;
 typedef struct _plBuffer                   plBuffer;
 typedef struct _plBufferDescription        plBufferDescription;
 typedef struct _plDynamicBuffer            plDynamicBuffer;
@@ -108,8 +111,7 @@ typedef struct _plRenderPassLayout            plRenderPassLayout;
 typedef struct _plRenderPassLayoutDescription plRenderPassLayoutDescription;
 typedef struct _plRenderPassDescription       plRenderPassDescription;
 typedef struct _plRenderPass                  plRenderPass;
-typedef struct _plFrameBuffer                 plFrameBuffer;
-typedef struct _plFrameBufferDescription      plFrameBufferDescription;
+typedef struct _plRenderPassAttachments       plRenderPassAttachments;
 
 // handles
 PL_DEFINE_HANDLE(plBufferHandle);
@@ -120,7 +122,6 @@ PL_DEFINE_HANDLE(plShaderHandle);
 PL_DEFINE_HANDLE(plComputeShaderHandle);
 PL_DEFINE_HANDLE(plRenderPassHandle);
 PL_DEFINE_HANDLE(plRenderPassLayoutHandle);
-PL_DEFINE_HANDLE(plFrameBufferHandle);
 
 // device memory
 typedef struct _plDeviceAllocationRange  plDeviceAllocationRange;
@@ -142,6 +143,7 @@ typedef int plTextureType;            // -> enum _plTextureType            // En
 typedef int plBufferUsage;            // -> enum _plBufferUsage            // Enum:
 typedef int plTextureUsage;           // -> enum _plTextureUsage           // Enum:
 typedef int plMeshFormatFlags;        // -> enum _plMeshFormatFlags        // Flags:
+typedef int plStageFlags;             // -> enum _plStageFlags             // Flags:
 typedef int plBlendMode;              // -> enum _plBlendMode              // Enum:
 typedef int plCullMode;               // -> enum _plCullMode               // Enum:
 typedef int plFilter;                 // -> enum _plFilter                 // Enum:
@@ -174,18 +176,21 @@ typedef struct _plDrawStreamI
 typedef struct _plDeviceI
 {
     // resources
-    plShaderHandle           (*create_shader)             (plDevice* ptDevice, plShaderDescription* ptDescription, const void* pConstantData);
-    plComputeShaderHandle    (*create_compute_shader)     (plDevice* ptDevice, plComputeShaderDescription* ptDescription, const void* pConstantData);
-    plRenderPassLayoutHandle (*create_render_pass_layout) (plDevice* ptDevice, const plRenderPassLayoutDescription* ptDesc);
-    plRenderPassHandle       (*create_render_pass)        (plDevice* ptDevice, const plRenderPassDescription* ptDesc);
-    plFrameBufferHandle      (*create_frame_buffer)       (plDevice* ptDevice, const plFrameBufferDescription* ptDescription);
-    plBufferHandle           (*create_buffer)             (plDevice* ptDevice, const plBufferDescription* ptDesc, const char* pcName);
-    plTextureHandle          (*create_texture)            (plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName);
-    plTextureViewHandle      (*create_texture_view)       (plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, plTextureHandle tTexture, const char* pcName);
-    plBindGroupHandle        (*create_bind_group)         (plDevice* ptDevice, plBindGroupLayout* ptLayout);
-    void                     (*update_bind_group)         (plDevice* ptDevice, plBindGroupHandle* ptGroup, uint32_t uBufferCount, plBufferHandle* atBuffers, size_t* aszBufferRanges, uint32_t uTextureViewCount, plTextureViewHandle* atTextureViews);
-    void                     (*update_texture)            (plDevice* ptDevice, plTextureHandle tHandle, size_t szSize, const void* pData);
-    void                     (*transfer_image_to_buffer)  (plDevice* ptDevice, plTextureHandle tTexture, plBufferHandle tBuffer);
+    plShaderHandle           (*get_shader_variant)            (plDevice* ptDevice, plShaderHandle tHandle, const plShaderVariant* ptVariant);
+    plComputeShaderHandle    (*get_compute_shader_variant)    (plDevice* ptDevice, plComputeShaderHandle tHandle, const plComputeShaderVariant* ptVariant);
+    plShaderHandle           (*create_shader)                 (plDevice* ptDevice, const plShaderDescription* ptDescription);
+    plComputeShaderHandle    (*create_compute_shader)         (plDevice* ptDevice, const plComputeShaderDescription* ptDescription);
+    plRenderPassLayoutHandle (*create_render_pass_layout)     (plDevice* ptDevice, const plRenderPassLayoutDescription* ptDesc);
+    plRenderPassHandle       (*create_render_pass)            (plDevice* ptDevice, const plRenderPassDescription* ptDesc, const plRenderPassAttachments* ptAttachments);
+    plBufferHandle           (*create_buffer)                 (plDevice* ptDevice, const plBufferDescription* ptDesc, const char* pcName);
+    plTextureHandle          (*create_texture)                (plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName);
+    plTextureViewHandle      (*create_texture_view)           (plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, plTextureHandle tTexture, const char* pcName);
+    plBindGroupHandle        (*create_bind_group)             (plDevice* ptDevice, plBindGroupLayout* ptLayout);
+    plBindGroupHandle        (*get_temporary_bind_group)      (plDevice* ptDevice, plBindGroupLayout* ptLayout);
+    void                     (*update_bind_group)             (plDevice* ptDevice, plBindGroupHandle* ptGroup, uint32_t uBufferCount, plBufferHandle* atBuffers, size_t* aszBufferRanges, uint32_t uTextureViewCount, plTextureViewHandle* atTextureViews);
+    void                     (*update_texture)                (plDevice* ptDevice, plTextureHandle tHandle, size_t szSize, const void* pData);
+    void                     (*transfer_image_to_buffer)      (plDevice* ptDevice, plTextureHandle tTexture, plBufferHandle tBuffer);
+    void                     (*update_render_pass_attachments)(plDevice* ptDevice, plRenderPassHandle tHandle, plVec2 tDimensions, const plRenderPassAttachments* ptAttachments);
 
     plDynamicBinding (*allocate_dynamic_data)(plDevice* ptDevice, size_t szSize);
 
@@ -197,10 +202,14 @@ typedef struct _plDeviceI
     plShader*       (*get_shader)      (plDevice* ptDevice, plShaderHandle ptHandle);
 
     // cleanup
-    void (*submit_buffer_for_deletion)      (plDevice* ptDevice, plBufferHandle ptBuffer);
-    void (*submit_texture_for_deletion)     (plDevice* ptDevice, plTextureHandle ptTexture);
-    void (*submit_texture_view_for_deletion)(plDevice* ptDevice, plTextureViewHandle ptView);
-    void (*submit_frame_buffer_for_deletion)(plDevice* ptDevice, plFrameBufferHandle ptHandle);
+    void (*submit_buffer_for_deletion)            (plDevice* ptDevice, plBufferHandle           tHandle);
+    void (*submit_texture_for_deletion)           (plDevice* ptDevice, plTextureHandle          tHandle);
+    void (*submit_texture_view_for_deletion)      (plDevice* ptDevice, plTextureViewHandle      tHandle);
+    void (*submit_render_pass_for_deletion)       (plDevice* ptDevice, plRenderPassHandle       tHandle);
+    void (*submit_render_pass_layout_for_deletion)(plDevice* ptDevice, plRenderPassLayoutHandle tHandle);
+    void (*submit_shader_for_deletion)            (plDevice* ptDevice, plShaderHandle           tHandle);
+    void (*submit_compute_shader_for_deletion)    (plDevice* ptDevice, plComputeShaderHandle    tHandle);
+    void (*submit_bind_group_for_deletion)        (plDevice* ptDevice, plBindGroupHandle        tHandle);
 } plDeviceI;
 
 typedef struct _plGraphicsI
@@ -216,9 +225,9 @@ typedef struct _plGraphicsI
     void (*flush_transfers)(plGraphics* ptGraphics);
     void (*begin_recording)(plGraphics* ptGraphics);
     void (*end_recording)  (plGraphics* ptGraphics);
-    void (*begin_main_pass)(plGraphics* ptGraphics, plFrameBufferHandle tFrameBuffer);
+    void (*begin_main_pass)(plGraphics* ptGraphics, plRenderPassHandle tPass);
     void (*end_main_pass)  (plGraphics* ptGraphics);
-    void (*begin_pass)     (plGraphics* ptGraphics, plFrameBufferHandle tFrameBuffer);
+    void (*begin_pass)     (plGraphics* ptGraphics, plRenderPassHandle tPass);
     void (*end_pass)       (plGraphics* ptGraphics);
 
     // compute
@@ -408,12 +417,14 @@ typedef struct _plBufferBinding
     size_t              szSize;
     size_t              szOffset;
     plBufferHandle      tBuffer;
+    plStageFlags        tStages;
 } plBufferBinding;
 
 typedef struct _plTextureBinding
 {
     uint32_t            uSlot;
     plTextureViewHandle tTextureView;
+    plStageFlags        tStages;
 } plTextureBinding;
 
 typedef struct _plDynamicBinding
@@ -508,34 +519,59 @@ typedef struct _plSpecializationConstant
     plDataType tType;
 } plSpecializationConstant;
 
+typedef struct _plShaderVariant
+{
+    plGraphicsState tGraphicsState;
+    const void*     pTempConstantData;
+} plShaderVariant;
+
+typedef struct _plComputeShaderVariant
+{
+    const void* pTempConstantData;
+} plComputeShaderVariant;
+
 typedef struct _plShaderDescription
 {
     plSpecializationConstant atConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
     uint32_t                 uConstantCount;
     plGraphicsState          tGraphicsState;
+    const void*              pTempConstantData;
     const char*              pcVertexShader;
     const char*              pcPixelShader;
+    const char*              pcVertexShaderEntryFunc;
+    const char*              pcPixelShaderEntryFunc;
     plBindGroupLayout        atBindGroupLayouts[3];
     uint32_t                 uBindGroupLayoutCount;
-    plRenderPassHandle       tRenderPass; // should be layout soon
+    plRenderPassLayoutHandle tRenderPassLayout;
+    uint32_t                 uVariantCount;
+    const plShaderVariant*   ptVariants;
+    
 } plShaderDescription;
 
 typedef struct _plShader
 {
     plShaderDescription tDescription;
+    plHashMap           tVariantHashmap;
+    plShaderHandle*     _sbtVariantHandles; // needed for cleanup
 } plShader;
 
 typedef struct _plComputeShaderDescription
 {
-    const char*              pcShader;
-    plBindGroupLayout        tBindGroupLayout;
-    plSpecializationConstant atConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
-    uint32_t                 uConstantCount;
+    const char*                    pcShader;
+    const char*                    pcShaderEntryFunc;
+    plBindGroupLayout              tBindGroupLayout;
+    plSpecializationConstant       atConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
+    uint32_t                       uConstantCount;
+    const void*                    pTempConstantData;
+    const plComputeShaderVariant*  ptVariants;
+    uint32_t                       uVariantCount;
 } plComputeShaderDescription;
 
 typedef struct _plComputeShader
 {
     plComputeShaderDescription tDescription;
+    plHashMap                  tVariantHashmap;
+    plComputeShaderHandle*     _sbtVariantHandles; // needed for cleanup
 } plComputeShader;
 
 typedef struct _plSubpass
@@ -582,7 +618,13 @@ typedef struct _plRenderPassLayoutDescription
 typedef struct _plRenderPassLayout
 {
     plRenderPassLayoutDescription tDesc;
+    plSampleCount                 tSampleCount;
 } plRenderPassLayout;
+
+typedef struct _plRenderPassAttachments
+{
+    plTextureViewHandle atViewAttachments[16];
+} plRenderPassAttachments;
 
 typedef struct _plRenderPassDescription
 {
@@ -590,27 +632,15 @@ typedef struct _plRenderPassDescription
     plRenderTarget           atRenderTargets[16];
     plDepthTarget            tDepthTarget;
     plRenderTarget           tResolveTarget;
+    plVec2                   tDimensions;
+    uint32_t                 uAttachmentCount;
+    uint32_t                 uAttachmentSets;
 } plRenderPassDescription;
 
 typedef struct _plRenderPass
 {
     plRenderPassDescription tDesc;
-    plSampleCount tSampleCount; // temp
 } plRenderPass;
-
-typedef struct _plFrameBufferDescription
-{
-    plRenderPassHandle  tRenderPass;
-    uint32_t            uWidth;
-    uint32_t            uHeight;
-    uint32_t            uAttachmentCount;
-    plTextureViewHandle atViewAttachments[3];
-} plFrameBufferDescription;
-
-typedef struct _plFrameBuffer
-{
-    plFrameBufferDescription tDescription;
-} plFrameBuffer;
 
 typedef struct _plDevice
 {
@@ -650,11 +680,6 @@ typedef struct _plGraphics
     plDrawList3D**  sbt3DDrawlists;
     plFrameGarbage* sbtGarbage;
 
-    // frame buffers
-    plFrameBuffer* sbtFrameBuffersCold;
-    uint32_t*      sbtFrameBufferGenerations;
-    uint32_t*      sbtFrameBufferFreeIndices;
-
     // render pass layouts
     plRenderPassLayout* sbtRenderPassLayoutsCold;
     uint32_t*           sbtRenderPassLayoutGenerations;
@@ -663,14 +688,17 @@ typedef struct _plGraphics
     // render passes
     plRenderPass* sbtRenderPassesCold;
     uint32_t*     sbtRenderPassGenerations;
+    uint32_t*     sbtRenderPassFreeIndices;
 
     // shaders
     plShader* sbtShadersCold;
     uint32_t* sbtShaderGenerations;
+    uint32_t* sbtShaderFreeIndices;
 
     // compute shaders
     plComputeShader* sbtComputeShadersCold;
     uint32_t*        sbtComputeShaderGenerations;
+    uint32_t*        sbtComputeShaderFreeIndices;
 
     // buffers
     plBuffer* sbtBuffersCold;
@@ -690,6 +718,7 @@ typedef struct _plGraphics
     // bind groupd
     plBindGroup* sbtBindGroupsCold;
     uint32_t*    sbtBindGroupGenerations;
+    uint32_t*    sbtBindGroupFreeIndices;
 
     // platform specific
     void* _pInternalData;
@@ -707,6 +736,15 @@ enum _pl3DDrawFlags
     PL_PIPELINE_FLAG_CULL_FRONT    = 1 << 2,
     PL_PIPELINE_FLAG_CULL_BACK     = 1 << 3,
     PL_PIPELINE_FLAG_FRONT_FACE_CW = 1 << 4,
+};
+
+enum _plStageFlags
+{
+    PL_STAGE_NONE    = 1 << 0,
+    PL_STAGE_VERTEX  = 1 << 1,
+    PL_STAGE_PIXEL   = 1 << 2,
+    PL_STAGE_COMPUTE = 1 << 3,
+    PL_STAGE_ALL     = PL_STAGE_VERTEX | PL_STAGE_PIXEL | PL_STAGE_COMPUTE
 };
 
 enum _plCullMode

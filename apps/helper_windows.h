@@ -189,6 +189,7 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
                         "PL_TEXTURE_SLOT_NORMAL_MAP",
                         "PL_TEXTURE_SLOT_EMISSIVE_MAP",
                         "PL_TEXTURE_SLOT_OCCLUSSION_MAP",
+                        "PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP",
                         "PL_TEXTURE_SLOT_CLEARCOAT_MAP",
                         "PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP",
                         "PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP",
