@@ -342,6 +342,8 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
 static bool
 pl_ecs_is_entity_valid(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
+    if(tEntity.uIndex == UINT32_MAX)
+        return false;
     return ptLibrary->sbtEntityGenerations[tEntity.uIndex] == tEntity.uGeneration;
 }
 
@@ -472,7 +474,6 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
             .tBaseColor                    = {1.0f, 1.0f, 1.0f, 1.0f},
             .tSpecularColor                = {1.0f, 1.0f, 1.0f, 1.0f},
             .tEmissiveColor                = {1.0f, 1.0f, 1.0f, 0.0f},
-            .tSheenColor                   = {1.0f, 1.0f, 1.0f, 1.0f},
             .tSubsurfaceScattering         = {1.0f, 1.0f, 1.0f, 0.0f},
             .tSheenColor                   = {1.0f, 1.0f, 1.0f, 0.0f},
             .fRoughness                    = 1.0f,

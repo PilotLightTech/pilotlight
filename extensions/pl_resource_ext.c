@@ -192,6 +192,7 @@ pl_unload_resource_ext(plApiRegistryApiI* ptApiRegistry)
 
     pl_sb_free(gptResourceManager->sbtResourceGenerations);
     pl_sb_free(gptResourceManager->sbtResources);
+    pl_hm_free(&gptResourceManager->tNameHashMap);
 
     PL_FREE(gptResourceManager);
 
