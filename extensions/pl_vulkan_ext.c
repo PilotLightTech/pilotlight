@@ -221,9 +221,10 @@ typedef struct _plVulkanGraphics
     plVulkanBuffer*           sbtBuffersHot;
     plVulkanShader*           sbtShadersHot;
     plVulkanComputeShader*    sbtComputeShadersHot;
-    plVulkanBindGroupLayout*  sbtBindGroupLayouts;
     plVulkanRenderPass*       sbtRenderPassesHot;
     plVulkanRenderPassLayout* sbtRenderPassLayoutsHot;
+    plVulkanBindGroupLayout*  sbtBindGroupLayouts;
+    uint32_t*                 sbtBindGroupLayoutFreeIndices;
     
     VkDescriptorSetLayout tDynamicDescriptorSetLayout;
     
@@ -1133,7 +1134,16 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout)
 
     plVulkanBindGroupLayout tVulkanBindGroupLayout = {0};
 
-    ptLayout->uHandle = pl_sb_size(ptVulkanGraphics->sbtBindGroupLayouts);
+    uint32_t uBindGroupLayoutIndex = UINT32_MAX;
+    if(pl_sb_size(ptVulkanGraphics->sbtBindGroupLayoutFreeIndices) > 0)
+        uBindGroupLayoutIndex = pl_sb_pop(ptVulkanGraphics->sbtBindGroupLayoutFreeIndices);
+    else
+    {
+        uBindGroupLayoutIndex = pl_sb_size(ptVulkanGraphics->sbtBindGroupLayouts);
+        pl_sb_add(ptVulkanGraphics->sbtBindGroupLayouts);
+    }
+
+    ptLayout->uHandle = uBindGroupLayoutIndex;
 
     uint32_t uCurrentBinding = 0;
     const uint32_t uDescriptorBindingCount = ptLayout->uTextureCount + ptLayout->uBufferCount;
@@ -1172,7 +1182,7 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout)
 
     pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
 
-    pl_sb_push(ptVulkanGraphics->sbtBindGroupLayouts, tVulkanBindGroupLayout);
+    ptVulkanGraphics->sbtBindGroupLayouts[uBindGroupLayoutIndex] = tVulkanBindGroupLayout;
 }
 
 static plBindGroupHandle
@@ -1269,7 +1279,7 @@ pl_get_temporary_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout)
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
 
     uint32_t uBindGroupIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtBufferFreeIndices) > 0)
+    if(pl_sb_size(ptGraphics->sbtBindGroupFreeIndices) > 0)
         uBindGroupIndex = pl_sb_pop(ptGraphics->sbtBindGroupFreeIndices);
     else
     {
@@ -3376,7 +3386,8 @@ pl_shutdown(plGraphics* ptGraphics)
 
     for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtBindGroupLayouts); i++)
     {
-        vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtBindGroupLayouts[i].tDescriptorSetLayout, NULL);    
+        if(ptVulkanGfx->sbtBindGroupLayouts[i].tDescriptorSetLayout)
+            vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtBindGroupLayouts[i].tDescriptorSetLayout, NULL);    
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtRenderPassLayoutsHot); i++)
@@ -3488,6 +3499,7 @@ pl_shutdown(plGraphics* ptGraphics)
     pl_temp_allocator_free(&ptVulkanGfx->tTempAllocator);
     pl_sb_free(ptVulkanGfx->sbFrames);
     pl_sb_free(ptVulkanGfx->sbtRenderPassesHot);
+    pl_sb_free(ptVulkanGfx->sbtBindGroupLayoutFreeIndices);
     pl_sb_free(ptVulkanSwapchain->sbtSurfaceFormats);
     pl_sb_free(ptVulkanSwapchain->sbtImages);
     // pl_sb_free(ptGraphics->tSwapchain.sbtSwapchainTextureViews);
@@ -5374,6 +5386,13 @@ pl__garbage_collect(plGraphics* ptGraphics)
             ptVariantVulkanResource->tPipelineLayout = VK_NULL_HANDLE;
             ptVariantVulkanResource->tPipeline = VK_NULL_HANDLE;
             pl_sb_push(ptGraphics->sbtShaderFreeIndices, iVariantIndex);
+            for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount + 1; k++)
+            {
+                plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptVulkanGfx->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
+                vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
+                ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
+                pl_sb_push(ptVulkanGfx->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k].uHandle);
+            }
         }
         pl_sb_free(ptResource->_sbtVariantHandles);
         pl_hm_free(&ptResource->tVariantHashmap);
@@ -5393,6 +5412,11 @@ pl__garbage_collect(plGraphics* ptGraphics)
             ptVariantVulkanResource->tPipelineLayout = VK_NULL_HANDLE;
             ptVariantVulkanResource->tPipeline = VK_NULL_HANDLE;
             pl_sb_push(ptGraphics->sbtComputeShaderFreeIndices, iVariantIndex);
+   
+            plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptVulkanGfx->sbtBindGroupLayouts[ptResource->tDescription.tBindGroupLayout.uHandle];
+            vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
+            ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
+            pl_sb_push(ptVulkanGfx->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.tBindGroupLayout.uHandle);
         }
         pl_sb_free(ptResource->_sbtVariantHandles);
         pl_hm_free(&ptResource->tVariantHashmap);

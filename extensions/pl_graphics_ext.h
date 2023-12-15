@@ -715,7 +715,7 @@ typedef struct _plGraphics
     uint32_t*      sbtTextureViewGenerations;
     uint32_t*      sbtTextureViewFreeIndices;
 
-    // bind groupd
+    // bind groups
     plBindGroup* sbtBindGroupsCold;
     uint32_t*    sbtBindGroupGenerations;
     uint32_t*    sbtBindGroupFreeIndices;
