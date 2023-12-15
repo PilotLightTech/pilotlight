@@ -369,6 +369,52 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
 }
 
 static void
+pl_copy_buffer_to_texture(plDevice* ptDevice, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+{
+    plGraphics*      ptGraphics       = ptDevice->ptGraphics;
+    plDeviceMetal*   ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+
+    id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
+    commandBuffer.label = @"Buffer to Texture Blit Encoder";
+
+    id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
+    blitEncoder.label = @"Buffer to Texture Blit Encoder";
+
+    plMetalBuffer* ptBuffer = &ptMetalGraphics->sbtBuffersHot[tBufferHandle.uIndex];
+    plMetalTexture* ptTexture = &ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex];
+    plTexture* ptColdTexture = pl__get_texture(ptDevice, tTextureHandle);
+
+    for(uint32_t i = 0; i < uRegionCount; i++)
+    {
+
+        MTLOrigin tOrigin;
+        tOrigin.x = ptRegions[i].iImageOffsetX;
+        tOrigin.y = ptRegions[i].iImageOffsetY;
+        tOrigin.z = ptRegions[i].iImageOffsetZ;
+
+        MTLSize tSize;
+        tSize.width  = ptRegions[i].tImageExtent.uWidth;
+        tSize.height = ptRegions[i].tImageExtent.uHeight;
+        tSize.depth  = ptRegions[i].tImageExtent.uDepth;
+
+        NSUInteger uBytesPerRow = tSize.width * pl__format_stride(ptColdTexture->tDesc.tFormat);
+        [blitEncoder copyFromBuffer:ptBuffer->tBuffer
+            sourceOffset:ptRegions[i].szBufferOffset
+            sourceBytesPerRow:uBytesPerRow 
+            sourceBytesPerImage:0 
+            sourceSize:tSize 
+            toTexture:ptTexture->tTexture
+            destinationSlice:ptRegions[i].uBaseArrayLayer
+            destinationLevel:0 
+            destinationOrigin:tOrigin];
+    }
+
+    [blitEncoder endEncoding];
+    [commandBuffer commit];
+}
+
+static void
 pl_transfer_image_to_buffer(plDevice* ptDevice, plTextureHandle tTexture, plBufferHandle tBuffer)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
@@ -2806,7 +2852,8 @@ pl_load_device_api(void)
         .get_bind_group                         = pl__get_bind_group,
         .get_shader                             = pl__get_shader,
         .get_compute_shader_variant             = pl_get_compute_shader_variant,
-        .get_shader_variant                     = pl_get_shader_variant
+        .get_shader_variant                     = pl_get_shader_variant,
+        .copy_buffer_to_texture                 = pl_copy_buffer_to_texture
     };
     return &tApi;
 }

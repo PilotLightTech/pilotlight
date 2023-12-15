@@ -857,7 +857,7 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
 
     VkImageUsageFlags tUsageFlags = 0;
     if(tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
-        tUsageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT;
+        tUsageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     if(tDesc.tUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)
         tUsageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     if(tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
@@ -882,10 +882,7 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
         .samples       = tDesc.tSamples,
         .flags         = tImageViewType == VK_IMAGE_VIEW_TYPE_CUBE ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0
     };
-
-    if(pData)
-        tImageInfo.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-
+    
     PL_VULKAN(vkCreateImage(ptVulkanDevice->tLogicalDevice, &tImageInfo, NULL, &tVulkanTexture.tImage));
 
     // get memory requirements
@@ -4567,6 +4564,49 @@ pl__update_image_data(plDevice* ptDevice, plTextureHandle* ptDest, size_t szData
 }
 
 static void
+pl_copy_buffer_to_texture(plDevice* ptDevice, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+{
+    plGraphics*       ptGraphics       = ptDevice->ptGraphics;
+    plVulkanDevice*   ptVulkanDevice   = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
+    plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
+
+    plTexture* ptColdTexture = pl__get_texture(ptDevice, tTextureHandle);
+    VkImageSubresourceRange* atSubResourceRanges = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, sizeof(VkImageSubresourceRange) * uRegionCount);
+    VkBufferImageCopy*       atCopyRegions       = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, sizeof(VkBufferImageCopy) * uRegionCount);
+    memset(atSubResourceRanges, 0, sizeof(VkImageSubresourceRange) * uRegionCount);
+    memset(atCopyRegions, 0, sizeof(VkBufferImageCopy) * uRegionCount);
+
+    for(uint32_t i = 0; i < uRegionCount; i++)
+    {
+        atSubResourceRanges[i].aspectMask     = ptColdTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        atSubResourceRanges[i].baseMipLevel   = ptRegions[i].uMipLevel;
+        atSubResourceRanges[i].levelCount     = 1;
+        atSubResourceRanges[i].baseArrayLayer = ptRegions[i].uBaseArrayLayer;
+        atSubResourceRanges[i].layerCount     = ptRegions[i].uLayerCount;
+        pl__transition_image_layout(ptFrame->tTransferCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+
+        atCopyRegions[i].bufferOffset                    = ptRegions[i].szBufferOffset;
+        atCopyRegions[i].bufferRowLength                 = ptRegions[i].uBufferRowLength;
+        atCopyRegions[i].bufferImageHeight               = ptRegions[i].uImageHeight;
+        atCopyRegions[i].imageSubresource.aspectMask     = atSubResourceRanges[i].aspectMask;
+        atCopyRegions[i].imageSubresource.mipLevel       = ptRegions[i].uMipLevel;
+        atCopyRegions[i].imageSubresource.baseArrayLayer = ptRegions[i].uBaseArrayLayer;
+        atCopyRegions[i].imageSubresource.layerCount     = ptRegions[i].uLayerCount;
+        atCopyRegions[i].imageExtent.width = ptRegions[i].tImageExtent.uWidth;
+        atCopyRegions[i].imageExtent.height = ptRegions[i].tImageExtent.uHeight;
+        atCopyRegions[i].imageExtent.depth = ptRegions[i].tImageExtent.uDepth;
+        
+    }
+    vkCmdCopyBufferToImage(ptFrame->tTransferCmdBuffer, ptVulkanGraphics->sbtBuffersHot[tBufferHandle.uIndex].tBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, uRegionCount, atCopyRegions);
+
+    for(uint32_t i = 0; i < uRegionCount; i++)
+        pl__transition_image_layout(ptFrame->tTransferCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+        
+    pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
+}
+
+static void
 pl__transfer_data_to_image(plDevice* ptDevice, plTextureHandle* ptDest, size_t szDataSize, const void* pData)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
@@ -5551,7 +5591,8 @@ pl_load_device_api(void)
         .get_bind_group                         = pl__get_bind_group,
         .get_shader                             = pl__get_shader,
         .get_compute_shader_variant             = pl_get_compute_shader_variant,
-        .get_shader_variant                     = pl_get_shader_variant
+        .get_shader_variant                     = pl_get_shader_variant,
+        .copy_buffer_to_texture                 = pl_copy_buffer_to_texture
     };
     return &tApi;
 }
