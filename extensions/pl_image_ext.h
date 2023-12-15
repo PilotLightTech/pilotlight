@@ -22,24 +22,26 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #define PL_API_IMAGE "PL_API_IMAGE"
-typedef struct _plImageApiI plImageApiI;
+typedef struct _plImageI plImageI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-const plImageApiI* pl_load_image_api(void);
+const plImageI* pl_load_image_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plImageApiI
+typedef struct _plImageI
 {
     // read
-    unsigned char* (*load_from_memory)(const unsigned char* pcBuffer, int iLength, int* piX, int* piY, int* piChannels, int iDesiredChannels);
-    unsigned char* (*load)            (char const* pcFilename, int* piX, int* piY, int* piChannels, int iDesiredChannels);
-    void           (*free)            (void* pRetValueFromLoad);
+    unsigned char* (*load_from_memory) (const unsigned char* pcBuffer, int iLength, int* piX, int* piY, int* piChannels, int iDesiredChannels);
+    float*         (*loadf_from_memory)(const unsigned char* pcBuffer, int iLength, int* piX, int* piY, int* piChannels, int iDesiredChannels);
+    unsigned char* (*load)             (char const* pcFilename, int* piX, int* piY, int* piChannels, int iDesiredChannels);
+    float*         (*loadf)            (char const* pcFilename, int* piX, int* piY, int* piChannels, int iDesiredChannels);
+    void           (*free)             (void* pRetValueFromLoad);
 
     // write
      int (*write_png)(char const *pcFileName, int iW, int iH, int iComp, const void *pData, int iByteStride);
@@ -47,6 +49,6 @@ typedef struct _plImageApiI
      int (*write_tga)(char const *pcFileName, int iW, int iH, int iComp, const void *pData);
      int (*write_jpg)(char const *pcFileName, int iW, int iH, int iComp, const void *pData, int iQuality);
      int (*write_hdr)(char const *pcFileName, int iW, int iH, int iComp, const float *pfData);
-} plImageApiI;
+} plImageI;
 
 #endif // PL_IMAGE_EXT_H
