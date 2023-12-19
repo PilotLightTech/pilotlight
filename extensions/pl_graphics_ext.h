@@ -711,6 +711,8 @@ typedef struct _plGraphics
     uint32_t        uFramesInFlight;
     plDrawList3D**  sbt3DDrawlists;
     plFrameGarbage* sbtGarbage;
+    size_t          szLocalMemoryInUse;
+    size_t          szHostMemoryInUse;
 
     // render pass layouts
     plRenderPassLayout* sbtRenderPassLayoutsCold;

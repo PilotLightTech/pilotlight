@@ -747,6 +747,24 @@ pl__show_device_memory(bool* bValue)
         const plVec2 tWindowEnd = pl_add_vec2(tWindowSize, tWindowPos);
         const plVec2 tMousePos = pl_get_mouse_pos();
 
+        if(ptDevice->ptGraphics->szLocalMemoryInUse > 1000000000)
+            pl_text("Device Local Memory: %0.3f gb", (double)ptDevice->ptGraphics->szLocalMemoryInUse / 1000000000);
+        else if(ptDevice->ptGraphics->szLocalMemoryInUse > 1000000)
+            pl_text("Device Local Memory: %0.3f mb", (double)ptDevice->ptGraphics->szLocalMemoryInUse / 1000000);
+        else if(ptDevice->ptGraphics->szLocalMemoryInUse > 1000)
+            pl_text("Device Local Memory: %0.3f kb", (double)ptDevice->ptGraphics->szLocalMemoryInUse / 1000);
+        else
+            pl_text("Device Local Memory: %llu bytes", (double)ptDevice->ptGraphics->szLocalMemoryInUse);
+
+        if(ptDevice->ptGraphics->szHostMemoryInUse > 1000000000)
+            pl_text("Host Memory: %0.3f gb", (double)ptDevice->ptGraphics->szHostMemoryInUse / 1000000000);
+        else if(ptDevice->ptGraphics->szHostMemoryInUse > 1000000)
+            pl_text("Host Memory: %0.3f mb", (double)ptDevice->ptGraphics->szHostMemoryInUse / 1000000);
+        else if(ptDevice->ptGraphics->szHostMemoryInUse > 1000)
+            pl_text("Host Memory: %0.3f kb", (double)ptDevice->ptGraphics->szHostMemoryInUse / 1000);
+        else
+            pl_text("Host Memory: %llu bytes", (double)ptDevice->ptGraphics->szHostMemoryInUse);
+
         const plDeviceMemoryAllocatorI atAllocators[] = {
             ptDevice->tLocalBuddyAllocator,
             ptDevice->tLocalDedicatedAllocator,
