@@ -3039,6 +3039,8 @@ pl_load_device_api(void)
         .queue_render_pass_layout_for_deletion  = pl_queue_render_pass_layout_for_deletion,
         .destroy_texture_view                   = pl_queue_texture_view_for_deletion,
         .destroy_bind_group                     = pl_destroy_bind_group,
+        .destroy_buffer                         = pl_destroy_buffer,
+        .destroy_texture                        = pl_destroy_texture,
         .destroy_shader                         = pl_destroy_shader,
         .destroy_compute_shader                 = pl_destroy_compute_shader,
         .destroy_render_pass                    = pl_destroy_render_pass,
