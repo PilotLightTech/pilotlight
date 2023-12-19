@@ -117,6 +117,7 @@ typedef struct plAppData_t
     plVec3*   sbtVertexPosBuffer;
     plVec4*   sbtVertexDataBuffer;
     uint32_t* sbuIndexBuffer;
+    bool      bReloadSwapchain;
 } plAppData;
 
 typedef struct _BindGroup_0
@@ -383,6 +384,16 @@ pl_app_update(plAppData* ptAppData)
     pl_begin_profile_frame();
     pl_begin_profile_sample(__FUNCTION__);
 
+    if(ptAppData->bReloadSwapchain)
+    {
+        ptAppData->bReloadSwapchain = false;
+        gptGfx->resize(&ptAppData->tGraphics);
+        recreate_main_render_pass(ptAppData);
+        pl_end_profile_sample();
+        pl_end_profile_frame();
+        return;
+    }
+
     plIO* ptIO = pl_get_io();
     plDevice* ptDevice = &ptAppData->tGraphics.tDevice;
 
@@ -407,23 +418,24 @@ pl_app_update(plAppData* ptAppData)
     *pdFrameTimeCounter = (double)pl_get_io()->fFrameRate;
 
     // camera
-    static const float fCameraTravelSpeed = 8.0f;
+    static const float fCameraTravelSpeed = 4.0f;
+    static const float fCameraRotationSpeed = 0.005f;
 
     // camera space
-    if(pl_is_key_pressed(PL_KEY_W, true)) gptCamera->translate(ptMainCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
-    if(pl_is_key_pressed(PL_KEY_S, true)) gptCamera->translate(ptMainCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
-    if(pl_is_key_pressed(PL_KEY_A, true)) gptCamera->translate(ptMainCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
-    if(pl_is_key_pressed(PL_KEY_D, true)) gptCamera->translate(ptMainCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+    if(pl_is_key_down(PL_KEY_W)) gptCamera->translate(ptMainCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
+    if(pl_is_key_down(PL_KEY_S)) gptCamera->translate(ptMainCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
+    if(pl_is_key_down(PL_KEY_A)) gptCamera->translate(ptMainCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+    if(pl_is_key_down(PL_KEY_D)) gptCamera->translate(ptMainCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
 
     // world space
-    if(pl_is_key_pressed(PL_KEY_F, true)) gptCamera->translate(ptMainCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
-    if(pl_is_key_pressed(PL_KEY_R, true)) gptCamera->translate(ptMainCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
+    if(pl_is_key_down(PL_KEY_F)) gptCamera->translate(ptMainCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
+    if(pl_is_key_down(PL_KEY_R)) gptCamera->translate(ptMainCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
 
     bool bOwnMouse = ptIO->bWantCaptureMouse;
     if(!bOwnMouse && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
     {
         const plVec2 tMouseDelta = pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
-        gptCamera->rotate(ptMainCamera,  -tMouseDelta.y * 0.1f * ptIO->fDeltaTime,  -tMouseDelta.x * 0.1f * ptIO->fDeltaTime);
+        gptCamera->rotate(ptMainCamera,  -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed);
         pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
     }
     gptCamera->update(ptMainCamera);
@@ -620,6 +632,8 @@ pl_app_update(plAppData* ptAppData)
             pl_text("Pilot Light %s", PILOTLIGHT_VERSION);
             pl_text("Pilot Light UI %s", PL_UI_VERSION);
             pl_text("Pilot Light DS %s", PL_DS_VERSION);
+            if(pl_checkbox("VSync", &ptAppData->tGraphics.tSwapchain.bVSync))
+                ptAppData->bReloadSwapchain = true;
             pl_end_collapsing_header();
         }
         if(pl_collapsing_header("Tools"))
