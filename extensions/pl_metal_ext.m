@@ -2584,6 +2584,31 @@ pl__garbage_collect(plGraphics* ptGraphics)
             ptGraphics->tDevice.tStagingCachedAllocator.free(ptGraphics->tDevice.tStagingCachedAllocator.ptInst, &ptGarbage->sbtMemory[i]);
     }
 
+    plDeviceAllocatorData* ptUnCachedAllocatorData = (plDeviceAllocatorData*)ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst;
+
+    plIO* ptIO = pl_get_io();
+    for(uint32_t i = 0; i < pl_sb_size(ptUnCachedAllocatorData->sbtNodes); i++)
+    {
+        plDeviceAllocationRange* ptNode = &ptUnCachedAllocatorData->sbtNodes[i];
+        plDeviceAllocationBlock* ptBlock = &ptUnCachedAllocatorData->sbtBlocks[ptNode->ulBlockIndex];
+
+        if(ptBlock->ulAddress == 0)
+        {
+            continue;
+        }
+        if(ptNode->ulUsedSize == 0 && ptIO->dTime - ptBlock->dLastTimeUsed > 1.0)
+        {
+            id<MTLHeap> tMetalHeap = (id<MTLHeap>)ptBlock->ulAddress;
+            [tMetalHeap release];
+            tMetalHeap = nil;
+
+            ptBlock->ulAddress = 0;
+            pl_sb_push(ptUnCachedAllocatorData->sbtFreeBlockIndices, ptNode->ulBlockIndex);
+        }
+        else if(ptNode->ulUsedSize != 0)
+            ptBlock->dLastTimeUsed = ptIO->dTime;
+    }
+
     pl_sb_reset(ptGarbage->sbtTextures);
     pl_sb_reset(ptGarbage->sbtTextureViews);
     pl_sb_reset(ptGarbage->sbtShaders);
@@ -2740,11 +2765,23 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
         .ulSize    = pl_maxu((uint32_t)ulSize, PL_DEVICE_ALLOCATION_BLOCK_SIZE)
     };
 
+    uint32_t uIndex = UINT32_MAX;
+    if(pl_sb_size(ptData->sbtFreeBlockIndices) > 0)
+    {
+        uIndex = pl_sb_pop(ptData->sbtFreeBlockIndices);
+    }
+    else
+    {
+        uIndex = pl_sb_size(ptData->sbtFreeBlockIndices);
+        pl_sb_add(ptData->sbtNodes);
+        pl_sb_add(ptData->sbtBlocks);
+    }
+
     plDeviceAllocationRange tRange = {
         .ulOffset     = 0,
         .ulUsedSize   = ulSize,
         .ulTotalSize  = tBlock.ulSize,
-        .ulBlockIndex = pl_sb_size(ptData->sbtBlocks)
+        .ulBlockIndex = uIndex
     };
     pl_sprintf(tRange.acName, "%s", pcName);
 
@@ -2756,8 +2793,8 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
     tBlock.ulAddress = (uint64_t)[ptMetalDevice->tDevice newHeapWithDescriptor:ptHeapDescriptor];
     tAllocation.uHandle = tBlock.ulAddress;
 
-    pl_sb_push(ptData->sbtNodes, tRange);
-    pl_sb_push(ptData->sbtBlocks, tBlock);
+    ptData->sbtNodes[uIndex] = tRange;
+    ptData->sbtBlocks[uIndex] = tBlock;
     return tAllocation;
 }
 

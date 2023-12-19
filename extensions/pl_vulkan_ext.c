@@ -5192,6 +5192,18 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
         }
     }
 
+    uint32_t uIndex = UINT32_MAX;
+    if(pl_sb_size(ptData->sbtFreeBlockIndices) > 0)
+    {
+        uIndex = pl_sb_pop(ptData->sbtFreeBlockIndices);
+    }
+    else
+    {
+        uIndex = pl_sb_size(ptData->sbtBlocks);
+        pl_sb_add(ptData->sbtNodes);
+        pl_sb_add(ptData->sbtBlocks);
+    }
+
     // block not found, create new block
     plDeviceAllocationBlock tBlock = {
         .ulAddress    = 0,
@@ -5203,7 +5215,7 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
         .ulOffset     = 0,
         .ulUsedSize   = ulSize,
         .ulTotalSize  = tBlock.ulSize,
-        .ulBlockIndex = pl_sb_size(ptData->sbtBlocks)
+        .ulBlockIndex = uIndex
     };
     pl_sprintf(tRange.acName, "%s", pcName);
 
@@ -5224,8 +5236,8 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
     if(pcName)
         pl_set_vulkan_object_name(ptData->ptDevice, tAllocation.uHandle, VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT, pcName);
 
-    pl_sb_push(ptData->sbtNodes, tRange);
-    pl_sb_push(ptData->sbtBlocks, tBlock);
+    ptData->sbtNodes[uIndex] = tRange;
+    ptData->sbtBlocks[uIndex] = tBlock;
     return tAllocation;
 }
 
@@ -5500,6 +5512,29 @@ pl__garbage_collect(plGraphics* ptGraphics)
             ptGraphics->tDevice.tStagingUnCachedAllocator.free(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, &ptGarbage->sbtMemory[i]);
         else if(ptGarbage->sbtMemory[i].ptInst == ptGraphics->tDevice.tStagingCachedAllocator.ptInst)
             ptGraphics->tDevice.tStagingCachedAllocator.free(ptGraphics->tDevice.tStagingCachedAllocator.ptInst, &ptGarbage->sbtMemory[i]);
+    }
+
+    plDeviceAllocatorData* ptUnCachedAllocatorData = (plDeviceAllocatorData*)ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst;
+
+    plIO* ptIO = pl_get_io();
+    for(uint32_t i = 0; i < pl_sb_size(ptUnCachedAllocatorData->sbtNodes); i++)
+    {
+        plDeviceAllocationRange* ptNode = &ptUnCachedAllocatorData->sbtNodes[i];
+        plDeviceAllocationBlock* ptBlock = &ptUnCachedAllocatorData->sbtBlocks[ptNode->ulBlockIndex];
+
+        if(ptBlock->ulAddress == 0)
+        {
+            continue;
+        }
+        if(ptNode->ulUsedSize == 0 && ptIO->dTime - ptBlock->dLastTimeUsed > 1.0)
+        {
+            vkUnmapMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptBlock->ulAddress);
+            vkFreeMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptBlock->ulAddress, NULL);
+            ptBlock->ulAddress = 0;
+            pl_sb_push(ptUnCachedAllocatorData->sbtFreeBlockIndices, ptNode->ulBlockIndex);
+        }
+        else if(ptNode->ulUsedSize != 0)
+            ptBlock->dLastTimeUsed = ptIO->dTime;
     }
 
     pl_sb_reset(ptGarbage->sbtTextures);
