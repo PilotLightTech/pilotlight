@@ -600,8 +600,8 @@ pl_app_update(plAppData* ptAppData)
 
             gptImage->write_hdr("offscreen2.hdr", (int)ptAppData->tOffscreenTargetSize.x, (int)ptAppData->tOffscreenTargetSize.y, 4, (float*)ptGraphics->sbtBuffersCold[tReadbackBuffer2.uIndex].tMemoryAllocation.pHostMapped);
 
-            gptDevice->submit_buffer_for_deletion(ptDevice, tReadbackBuffer);
-            gptDevice->submit_buffer_for_deletion(ptDevice, tReadbackBuffer2);
+            gptDevice->queue_buffer_for_deletion(ptDevice, tReadbackBuffer);
+            gptDevice->queue_buffer_for_deletion(ptDevice, tReadbackBuffer2);
         }
         
         pl_image(ptAppData->ptOffscreenTextureID[ptAppData->tGraphics.uCurrentFrameIndex], (plVec2){500.0f, 500.0f});

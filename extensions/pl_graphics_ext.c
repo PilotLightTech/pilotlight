@@ -136,7 +136,7 @@ pl__get_shader(plDevice* ptDevice, plShaderHandle tHandle)
 }
 
 static void
-pl_submit_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
+pl_queue_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
@@ -146,7 +146,7 @@ pl_submit_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
 }
 
 static void
-pl_submit_texture_for_deletion(plDevice* ptDevice, plTextureHandle tHandle)
+pl_queue_texture_for_deletion(plDevice* ptDevice, plTextureHandle tHandle)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
@@ -156,7 +156,7 @@ pl_submit_texture_for_deletion(plDevice* ptDevice, plTextureHandle tHandle)
 }
 
 static void
-pl_submit_render_pass_for_deletion(plDevice* ptDevice, plRenderPassHandle tHandle)
+pl_queue_render_pass_for_deletion(plDevice* ptDevice, plRenderPassHandle tHandle)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
@@ -165,7 +165,7 @@ pl_submit_render_pass_for_deletion(plDevice* ptDevice, plRenderPassHandle tHandl
 }
 
 static void
-pl_submit_render_pass_layout_for_deletion(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
+pl_queue_render_pass_layout_for_deletion(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
@@ -174,7 +174,7 @@ pl_submit_render_pass_layout_for_deletion(plDevice* ptDevice, plRenderPassLayout
 }
 
 static void
-pl_submit_shader_for_deletion(plDevice* ptDevice, plShaderHandle tHandle)
+pl_queue_shader_for_deletion(plDevice* ptDevice, plShaderHandle tHandle)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
@@ -183,7 +183,7 @@ pl_submit_shader_for_deletion(plDevice* ptDevice, plShaderHandle tHandle)
 }
 
 static void
-pl_submit_compute_shader_for_deletion(plDevice* ptDevice, plComputeShaderHandle tHandle)
+pl_queue_compute_shader_for_deletion(plDevice* ptDevice, plComputeShaderHandle tHandle)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
@@ -192,7 +192,7 @@ pl_submit_compute_shader_for_deletion(plDevice* ptDevice, plComputeShaderHandle 
 }
 
 static void
-pl_submit_bind_group_for_deletion(plDevice* ptDevice, plBindGroupHandle tHandle)
+pl_queue_bind_group_for_deletion(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
@@ -201,7 +201,7 @@ pl_submit_bind_group_for_deletion(plDevice* ptDevice, plBindGroupHandle tHandle)
 }
 
 static void
-pl_submit_texture_view_for_deletion(plDevice* ptDevice, plTextureViewHandle tHandle)
+pl_queue_texture_view_for_deletion(plDevice* ptDevice, plTextureViewHandle tHandle)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);

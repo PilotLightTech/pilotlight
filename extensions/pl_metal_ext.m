@@ -887,7 +887,7 @@ pl_get_temporary_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout)
 
     ptMetalGraphics->sbtBindGroupsHot[uBindGroupIndex] = tMetalBindGroup;
     ptGraphics->sbtBindGroupsCold[uBindGroupIndex] = tBindGroup;
-    pl_submit_bind_group_for_deletion(ptDevice, tHandle);
+    pl_queue_bind_group_for_deletion(ptDevice, tHandle);
     return tHandle;
 }
 
@@ -1531,10 +1531,10 @@ pl_resize(plGraphics* ptGraphics)
 
     // recreate depth texture
 
-    pl_submit_texture_for_deletion(&ptGraphics->tDevice, ptGraphics->tSwapchain.tColorTexture);
-    pl_submit_texture_for_deletion(&ptGraphics->tDevice, ptGraphics->tSwapchain.tDepthTexture);
-    pl_submit_texture_view_for_deletion(&ptGraphics->tDevice, ptGraphics->tSwapchain.tColorTextureView);
-    pl_submit_texture_view_for_deletion(&ptGraphics->tDevice, ptGraphics->tSwapchain.tDepthTextureView);
+    pl_queue_texture_for_deletion(&ptGraphics->tDevice, ptGraphics->tSwapchain.tColorTexture);
+    pl_queue_texture_for_deletion(&ptGraphics->tDevice, ptGraphics->tSwapchain.tDepthTexture);
+    pl_queue_texture_view_for_deletion(&ptGraphics->tDevice, ptGraphics->tSwapchain.tColorTextureView);
+    pl_queue_texture_view_for_deletion(&ptGraphics->tDevice, ptGraphics->tSwapchain.tDepthTextureView);
 
     // color & depth
     const plTextureDesc tDepthTextureDesc = {
@@ -2779,6 +2779,159 @@ pl_free_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemory
     }
 }
 
+static void
+pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    plDeviceMetal* ptMetalDevice = ptDevice->_pInternalData;
+
+    ptGraphics->sbtBufferGenerations[tHandle.uIndex]++;
+    pl_sb_push(ptGraphics->sbtBufferFreeIndices, tHandle.uIndex);
+
+    [ptMetalGraphics->sbtBuffersHot[tHandle.uIndex].tBuffer release];
+    ptMetalGraphics->sbtBuffersHot[tHandle.uIndex].tBuffer = nil;
+
+    plBuffer* ptBuffer = &ptGraphics->sbtBuffersCold[tHandle.uIndex];
+
+    if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalBuddyAllocator.ptInst)
+        ptGraphics->tDevice.tLocalBuddyAllocator.free(ptGraphics->tDevice.tLocalBuddyAllocator.ptInst, &ptBuffer->tMemoryAllocation);
+    else if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst)
+        ptGraphics->tDevice.tLocalDedicatedAllocator.free(ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst, &ptBuffer->tMemoryAllocation);
+    else if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst)
+        ptGraphics->tDevice.tStagingUnCachedAllocator.free(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, &ptBuffer->tMemoryAllocation);
+    else if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingCachedAllocator.ptInst)
+        ptGraphics->tDevice.tStagingCachedAllocator.free(ptGraphics->tDevice.tStagingCachedAllocator.ptInst, &ptBuffer->tMemoryAllocation);
+}
+
+static void
+pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    plDeviceMetal* ptMetalDevice = ptDevice->_pInternalData;
+
+    pl_sb_push(ptGraphics->sbtTextureFreeIndices, tHandle.uIndex);
+    ptGraphics->sbtTextureGenerations[tHandle.uIndex]++;
+
+    plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[tHandle.uIndex];
+    [ptMetalTexture->tTexture release];
+    ptMetalTexture->tTexture = nil;
+
+    plTexture* ptTexture = &ptGraphics->sbtTexturesCold[tHandle.uIndex];
+
+    if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalBuddyAllocator.ptInst)
+        ptGraphics->tDevice.tLocalBuddyAllocator.free(ptGraphics->tDevice.tLocalBuddyAllocator.ptInst, &ptTexture->tMemoryAllocation);
+    else if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst)
+        ptGraphics->tDevice.tLocalDedicatedAllocator.free(ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst, &ptTexture->tMemoryAllocation);
+    else if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst)
+        ptGraphics->tDevice.tStagingUnCachedAllocator.free(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, &ptTexture->tMemoryAllocation);
+    else if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingCachedAllocator.ptInst)
+        ptGraphics->tDevice.tStagingCachedAllocator.free(ptGraphics->tDevice.tStagingCachedAllocator.ptInst, &ptTexture->tMemoryAllocation);
+}
+
+static void
+pl_destroy_texture_view(plDevice* ptDevice, plTextureViewHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    plDeviceMetal* ptMetalDevice = ptDevice->_pInternalData;
+
+    ptGraphics->sbtTextureViewGenerations[tHandle.uIndex]++;
+    pl_sb_push(ptGraphics->sbtTextureViewFreeIndices, tHandle.uIndex);
+
+    plMetalSampler* ptMetalSampler = &ptMetalGraphics->sbtSamplersHot[tHandle.uIndex];
+    [ptMetalSampler->tSampler release];
+    ptMetalSampler->tSampler = nil;
+}
+
+static void
+pl_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    plDeviceMetal* ptMetalDevice = ptDevice->_pInternalData;
+    
+    ptGraphics->sbtBindGroupGenerations[tHandle.uIndex]++;
+    pl_sb_push(ptGraphics->sbtBindGroupFreeIndices, tHandle.uIndex);
+
+    plMetalBindGroup* ptMetalResource = &ptMetalGraphics->sbtBindGroupsHot[tHandle.uIndex];
+    [ptMetalResource->tShaderArgumentBuffer release];
+    ptMetalResource->tShaderArgumentBuffer = nil;
+}
+
+static void
+pl_destroy_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    plDeviceMetal* ptMetalDevice = ptDevice->_pInternalData;
+    
+    ptGraphics->sbtRenderPassGenerations[tHandle.uIndex]++;
+    pl_sb_push(ptGraphics->sbtRenderPassFreeIndices, tHandle.uIndex);
+
+    plMetalRenderPass* ptMetalResource = &ptMetalGraphics->sbtRenderPassesHot[tHandle.uIndex];
+    [ptMetalResource->ptRenderPassDescriptor release];
+    ptMetalResource->ptRenderPassDescriptor = nil;
+}
+
+static void
+pl_destroy_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    plDeviceMetal* ptMetalDevice = ptDevice->_pInternalData;
+    
+    ptGraphics->sbtRenderPassLayoutGenerations[tHandle.uIndex]++;
+    pl_sb_push(ptGraphics->sbtRenderPassLayoutFreeIndices, tHandle.uIndex);
+}
+
+static void
+pl_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    plDeviceMetal* ptMetalDevice = ptDevice->_pInternalData;
+    ptGraphics->sbtShaderGenerations[tHandle.uIndex]++;
+
+    plShader* ptResource = &ptGraphics->sbtShadersCold[tHandle.uIndex];
+
+    for(uint32_t j = 0; j < pl_sb_size(ptResource->_sbtVariantHandles); j++)
+    {
+        const uint32_t iVariantIndex = ptResource->_sbtVariantHandles[j].uIndex;
+        plMetalShader* ptVariantMetalResource = &ptMetalGraphics->sbtShadersHot[iVariantIndex];
+        [ptVariantMetalResource->tDepthStencilState release];
+        [ptVariantMetalResource->tRenderPipelineState release];
+        ptVariantMetalResource->tDepthStencilState = nil;
+        ptVariantMetalResource->tRenderPipelineState = nil;
+        pl_sb_push(ptGraphics->sbtShaderFreeIndices, iVariantIndex);
+    }
+    pl_sb_free(ptResource->_sbtVariantHandles);
+    pl_hm_free(&ptResource->tVariantHashmap);
+}
+
+static void
+pl_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    plDeviceMetal* ptMetalDevice = ptDevice->_pInternalData;
+    ptGraphics->sbtComputeShaderGenerations[tHandle.uIndex]++;
+
+    plComputeShader* ptResource = &ptGraphics->sbtComputeShadersCold[tHandle.uIndex];
+
+    for(uint32_t j = 0; j < pl_sb_size(ptResource->_sbtVariantHandles); j++)
+    {
+        const uint32_t iVariantIndex = ptResource->_sbtVariantHandles[j].uIndex;
+        plMetalComputeShader* ptVariantMetalResource = &ptMetalGraphics->sbtComputeShadersHot[iVariantIndex];
+        [ptVariantMetalResource->tPipelineState release];
+        ptVariantMetalResource->tPipelineState = nil;
+        pl_sb_push(ptGraphics->sbtComputeShaderFreeIndices, iVariantIndex);
+    }
+    pl_sb_free(ptResource->_sbtVariantHandles);
+    pl_hm_free(&ptResource->tVariantHashmap);
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -2837,14 +2990,20 @@ pl_load_device_api(void)
         .update_texture                         = pl_update_texture,
         .transfer_image_to_buffer               = pl_transfer_image_to_buffer,
         .allocate_dynamic_data                  = pl_allocate_dynamic_data,
-        .submit_buffer_for_deletion             = pl_submit_buffer_for_deletion,
-        .submit_texture_for_deletion            = pl_submit_texture_for_deletion,
-        .submit_texture_view_for_deletion       = pl_submit_texture_view_for_deletion,
-        .submit_bind_group_for_deletion         = pl_submit_bind_group_for_deletion,
-        .submit_shader_for_deletion             = pl_submit_shader_for_deletion,
-        .submit_compute_shader_for_deletion     = pl_submit_compute_shader_for_deletion,
-        .submit_render_pass_for_deletion        = pl_submit_render_pass_for_deletion,
-        .submit_render_pass_layout_for_deletion = pl_submit_render_pass_layout_for_deletion,
+        .queue_buffer_for_deletion              = pl_queue_buffer_for_deletion,
+        .queue_texture_for_deletion             = pl_queue_texture_for_deletion,
+        .queue_texture_view_for_deletion        = pl_queue_texture_view_for_deletion,
+        .queue_bind_group_for_deletion          = pl_queue_bind_group_for_deletion,
+        .queue_shader_for_deletion              = pl_queue_shader_for_deletion,
+        .queue_compute_shader_for_deletion      = pl_queue_compute_shader_for_deletion,
+        .queue_render_pass_for_deletion         = pl_queue_render_pass_for_deletion,
+        .queue_render_pass_layout_for_deletion  = pl_queue_render_pass_layout_for_deletion,
+        .destroy_texture_view                   = pl_queue_texture_view_for_deletion,
+        .destroy_bind_group                     = pl_destroy_bind_group,
+        .destroy_shader                         = pl_destroy_shader,
+        .destroy_compute_shader                 = pl_destroy_compute_shader,
+        .destroy_render_pass                    = pl_destroy_render_pass,
+        .destroy_render_pass_layout             = pl_destroy_render_pass_layout,
         .update_render_pass_attachments         = pl_update_render_pass_attachments,
         .get_buffer                             = pl__get_buffer,
         .get_texture                            = pl__get_texture,

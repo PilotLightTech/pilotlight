@@ -1350,7 +1350,7 @@ pl_get_temporary_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout)
 
     ptVulkanGraphics->sbtBindGroupsHot[uBindGroupIndex] = tVulkanBindGroup;
     ptGraphics->sbtBindGroupsCold[uBindGroupIndex] = tBindGroup;
-    pl_submit_bind_group_for_deletion(ptDevice, tHandle);
+    pl_queue_bind_group_for_deletion(ptDevice, tHandle);
     return tHandle;
 }
 
@@ -3139,7 +3139,7 @@ pl_begin_frame(plGraphics* ptGraphics)
     pl__garbage_collect(ptGraphics);
 
     for(uint32_t i = 0; i < pl_sb_size(ptCurrentFrame->sbtStagingBuffers); i++)
-        pl_submit_buffer_for_deletion(&ptGraphics->tDevice, ptCurrentFrame->sbtStagingBuffers[i]);
+        pl_queue_buffer_for_deletion(&ptGraphics->tDevice, ptCurrentFrame->sbtStagingBuffers[i]);
 
     pl_sb_reset(ptCurrentFrame->sbtStagingBuffers);
     ptCurrentFrame->szCurrentStagingOffset = PL_DEVICE_ALLOCATION_BLOCK_SIZE;
@@ -4086,14 +4086,14 @@ pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight)
         
         for (uint32_t i = 0u; i < uOldImageCount; i++)
         {
-            pl_submit_texture_view_for_deletion(&ptGraphics->tDevice, ptSwapchain->sbtSwapchainTextureViews[i]);
+            pl_queue_texture_view_for_deletion(&ptGraphics->tDevice, ptSwapchain->sbtSwapchainTextureViews[i]);
         }
         vkDestroySwapchainKHR(ptVulkanDevice->tLogicalDevice, tOldSwapChain, NULL);
 
-        pl_submit_texture_for_deletion(&ptGraphics->tDevice, ptSwapchain->tColorTexture);
-        pl_submit_texture_for_deletion(&ptGraphics->tDevice, ptSwapchain->tDepthTexture);
-        pl_submit_texture_view_for_deletion(&ptGraphics->tDevice, ptSwapchain->tColorTextureView);
-        pl_submit_texture_view_for_deletion(&ptGraphics->tDevice, ptSwapchain->tDepthTextureView);
+        pl_queue_texture_for_deletion(&ptGraphics->tDevice, ptSwapchain->tColorTexture);
+        pl_queue_texture_for_deletion(&ptGraphics->tDevice, ptSwapchain->tDepthTexture);
+        pl_queue_texture_view_for_deletion(&ptGraphics->tDevice, ptSwapchain->tColorTextureView);
+        pl_queue_texture_view_for_deletion(&ptGraphics->tDevice, ptSwapchain->tDepthTextureView);
     }
 
     // get swapchain images
@@ -4560,7 +4560,7 @@ pl__update_image_data(plDevice* ptDevice, plTextureHandle* ptDest, size_t szData
     PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
     PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
     vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
-    pl_submit_buffer_for_deletion(ptDevice, tStagingBuffer);
+    pl_queue_buffer_for_deletion(ptDevice, tStagingBuffer);
 }
 
 static void
@@ -5214,8 +5214,7 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
         .memoryTypeIndex = uMemoryType
     };
 
-    VkResult blah = vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, (VkDeviceMemory*)&tBlock.ulAddress);
-    PL_VULKAN(blah);
+    PL_VULKAN(vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, (VkDeviceMemory*)&tBlock.ulAddress));
 
     PL_VULKAN(vkMapMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)tBlock.ulAddress, 0, tBlock.ulSize, 0, (void**)&tBlock.pHostMapped));
 
@@ -5518,6 +5517,180 @@ pl__garbage_collect(plGraphics* ptGraphics)
     pl_end_profile_sample();
 }
 
+static void
+pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+
+    vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtBuffersHot[tHandle.uIndex].tBuffer, NULL);
+    ptVulkanGfx->sbtBuffersHot[tHandle.uIndex].tBuffer = VK_NULL_HANDLE;
+    ptGraphics->sbtBufferGenerations[tHandle.uIndex]++;
+    pl_sb_push(ptGraphics->sbtBufferFreeIndices, tHandle.uIndex);
+
+    plBuffer* ptBuffer = &ptGraphics->sbtBuffersCold[tHandle.uIndex];
+
+    if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalBuddyAllocator.ptInst)
+        ptGraphics->tDevice.tLocalBuddyAllocator.free(ptGraphics->tDevice.tLocalBuddyAllocator.ptInst, &ptBuffer->tMemoryAllocation);
+    else if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst)
+        ptGraphics->tDevice.tLocalDedicatedAllocator.free(ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst, &ptBuffer->tMemoryAllocation);
+    else if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst)
+        ptGraphics->tDevice.tStagingUnCachedAllocator.free(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, &ptBuffer->tMemoryAllocation);
+    else if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingCachedAllocator.ptInst)
+        ptGraphics->tDevice.tStagingCachedAllocator.free(ptGraphics->tDevice.tStagingCachedAllocator.ptInst, &ptBuffer->tMemoryAllocation);
+}
+
+static void
+pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+
+    plVulkanTexture* ptVulkanResource = &ptVulkanGfx->sbtTexturesHot[tHandle.uIndex];
+    vkDestroyImage(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tImage, NULL);
+    ptVulkanResource->tImage = VK_NULL_HANDLE;
+    pl_sb_push(ptGraphics->sbtTextureFreeIndices, tHandle.uIndex);
+    ptGraphics->sbtTextureGenerations[tHandle.uIndex]++;
+
+    plTexture* ptTexture = &ptGraphics->sbtTexturesCold[tHandle.uIndex];
+
+    if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalBuddyAllocator.ptInst)
+        ptGraphics->tDevice.tLocalBuddyAllocator.free(ptGraphics->tDevice.tLocalBuddyAllocator.ptInst, &ptTexture->tMemoryAllocation);
+    else if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst)
+        ptGraphics->tDevice.tLocalDedicatedAllocator.free(ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst, &ptTexture->tMemoryAllocation);
+    else if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst)
+        ptGraphics->tDevice.tStagingUnCachedAllocator.free(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, &ptTexture->tMemoryAllocation);
+    else if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingCachedAllocator.ptInst)
+        ptGraphics->tDevice.tStagingCachedAllocator.free(ptGraphics->tDevice.tStagingCachedAllocator.ptInst, &ptTexture->tMemoryAllocation);
+}
+
+static void
+pl_destroy_texture_view(plDevice* ptDevice, plTextureViewHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+
+    plVulkanSampler* ptVulkanResource = &ptVulkanGfx->sbtSamplersHot[tHandle.uIndex];
+    vkDestroyImageView(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tImageView, NULL);
+    vkDestroySampler(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tSampler, NULL);
+    ptVulkanResource->tImageView = VK_NULL_HANDLE;
+    ptVulkanResource->tSampler = VK_NULL_HANDLE;
+    ptGraphics->sbtTextureViewGenerations[tHandle.uIndex]++;
+    pl_sb_push(ptGraphics->sbtTextureViewFreeIndices, tHandle.uIndex);
+}
+
+static void
+pl_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    ptGraphics->sbtBindGroupGenerations[tHandle.uIndex]++;
+
+    plVulkanBindGroup* ptVulkanResource = &ptVulkanGfx->sbtBindGroupsHot[tHandle.uIndex];
+    ptVulkanResource->tDescriptorSet = VK_NULL_HANDLE;
+    vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tDescriptorSetLayout, NULL);
+    ptVulkanResource->tDescriptorSetLayout = VK_NULL_HANDLE;
+    pl_sb_push(ptGraphics->sbtBindGroupFreeIndices, tHandle.uIndex);
+}
+
+static void
+pl_destroy_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    ptGraphics->sbtRenderPassGenerations[tHandle.uIndex]++;
+
+    plVulkanRenderPass* ptVulkanResource = &ptVulkanGfx->sbtRenderPassesHot[tHandle.uIndex];
+    for(uint32_t j = 0; j < pl_sb_size(ptVulkanResource->sbtFrameBuffers); j++)
+    {
+        vkDestroyFramebuffer(ptVulkanDevice->tLogicalDevice, ptVulkanResource->sbtFrameBuffers[j], NULL);
+        ptVulkanResource->sbtFrameBuffers[j] = VK_NULL_HANDLE;
+    }
+    if(ptVulkanResource->tRenderPass)
+        vkDestroyRenderPass(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tRenderPass, NULL);
+    ptVulkanResource->tRenderPass = VK_NULL_HANDLE;
+    pl_sb_push(ptGraphics->sbtRenderPassFreeIndices, tHandle.uIndex);
+    pl_sb_reset(ptVulkanResource->sbtFrameBuffers);
+}
+
+static void
+pl_destroy_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    ptGraphics->sbtRenderPassLayoutGenerations[tHandle.uIndex]++;
+
+    plVulkanRenderPassLayout* ptVulkanResource = &ptVulkanGfx->sbtRenderPassLayoutsHot[tHandle.uIndex];
+    vkDestroyRenderPass(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tRenderPass, NULL);
+    pl_sb_push(ptGraphics->sbtRenderPassLayoutFreeIndices, tHandle.uIndex);
+}
+
+static void
+pl_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    ptGraphics->sbtShaderGenerations[tHandle.uIndex]++;
+
+    plShader* ptResource = &ptGraphics->sbtShadersCold[tHandle.uIndex];
+
+    for(uint32_t j = 0; j < pl_sb_size(ptResource->_sbtVariantHandles); j++)
+    {
+        const uint32_t iVariantIndex = ptResource->_sbtVariantHandles[j].uIndex;
+        plVulkanShader* ptVariantVulkanResource = &ptVulkanGfx->sbtShadersHot[iVariantIndex];
+        vkDestroyPipelineLayout(ptVulkanDevice->tLogicalDevice, ptVariantVulkanResource->tPipelineLayout, NULL);
+        vkDestroyPipeline(ptVulkanDevice->tLogicalDevice, ptVariantVulkanResource->tPipeline, NULL);
+        ptVariantVulkanResource->tPipelineLayout = VK_NULL_HANDLE;
+        ptVariantVulkanResource->tPipeline = VK_NULL_HANDLE;
+        pl_sb_push(ptGraphics->sbtShaderFreeIndices, iVariantIndex);
+        for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount + 1; k++)
+        {
+            plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptVulkanGfx->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
+            vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
+            ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
+            pl_sb_push(ptVulkanGfx->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k].uHandle);
+        }
+    }
+    pl_sb_free(ptResource->_sbtVariantHandles);
+    pl_hm_free(&ptResource->tVariantHashmap);
+}
+
+static void
+pl_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    ptGraphics->sbtComputeShaderGenerations[tHandle.uIndex]++;
+
+    plComputeShader* ptResource = &ptGraphics->sbtComputeShadersCold[tHandle.uIndex];
+
+    for(uint32_t j = 0; j < pl_sb_size(ptResource->_sbtVariantHandles); j++)
+    {
+        const uint32_t iVariantIndex = ptResource->_sbtVariantHandles[j].uIndex;
+        plVulkanComputeShader* ptVariantVulkanResource = &ptVulkanGfx->sbtComputeShadersHot[iVariantIndex];
+        vkDestroyPipelineLayout(ptVulkanDevice->tLogicalDevice, ptVariantVulkanResource->tPipelineLayout, NULL);
+        vkDestroyPipeline(ptVulkanDevice->tLogicalDevice, ptVariantVulkanResource->tPipeline, NULL);
+        ptVariantVulkanResource->tPipelineLayout = VK_NULL_HANDLE;
+        ptVariantVulkanResource->tPipeline = VK_NULL_HANDLE;
+        pl_sb_push(ptGraphics->sbtComputeShaderFreeIndices, iVariantIndex);
+
+        plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptVulkanGfx->sbtBindGroupLayouts[ptResource->tDescription.tBindGroupLayout.uHandle];
+        vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
+        ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
+        pl_sb_push(ptVulkanGfx->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.tBindGroupLayout.uHandle);
+    }
+    pl_sb_free(ptResource->_sbtVariantHandles);
+    pl_hm_free(&ptResource->tVariantHashmap);
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -5576,14 +5749,20 @@ pl_load_device_api(void)
         .update_texture                         = pl_update_texture,
         .transfer_image_to_buffer               = pl_transfer_image_to_buffer,
         .allocate_dynamic_data                  = pl_allocate_dynamic_data,
-        .submit_buffer_for_deletion             = pl_submit_buffer_for_deletion,
-        .submit_texture_for_deletion            = pl_submit_texture_for_deletion,
-        .submit_texture_view_for_deletion       = pl_submit_texture_view_for_deletion,
-        .submit_bind_group_for_deletion         = pl_submit_bind_group_for_deletion,
-        .submit_shader_for_deletion             = pl_submit_shader_for_deletion,
-        .submit_compute_shader_for_deletion     = pl_submit_compute_shader_for_deletion,
-        .submit_render_pass_for_deletion        = pl_submit_render_pass_for_deletion,
-        .submit_render_pass_layout_for_deletion = pl_submit_render_pass_layout_for_deletion,
+        .queue_buffer_for_deletion              = pl_queue_buffer_for_deletion,
+        .queue_texture_for_deletion             = pl_queue_texture_for_deletion,
+        .queue_texture_view_for_deletion        = pl_queue_texture_view_for_deletion,
+        .queue_bind_group_for_deletion          = pl_queue_bind_group_for_deletion,
+        .queue_shader_for_deletion              = pl_queue_shader_for_deletion,
+        .queue_compute_shader_for_deletion      = pl_queue_compute_shader_for_deletion,
+        .queue_render_pass_for_deletion         = pl_queue_render_pass_for_deletion,
+        .queue_render_pass_layout_for_deletion  = pl_queue_render_pass_layout_for_deletion,
+        .destroy_texture_view                   = pl_queue_texture_view_for_deletion,
+        .destroy_bind_group                     = pl_destroy_bind_group,
+        .destroy_shader                         = pl_destroy_shader,
+        .destroy_compute_shader                 = pl_destroy_compute_shader,
+        .destroy_render_pass                    = pl_destroy_render_pass,
+        .destroy_render_pass_layout             = pl_destroy_render_pass_layout,
         .update_render_pass_attachments         = pl_update_render_pass_attachments,
         .get_buffer                             = pl__get_buffer,
         .get_texture                            = pl__get_texture,

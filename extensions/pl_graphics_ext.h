@@ -177,41 +177,49 @@ typedef struct _plDrawStreamI
 typedef struct _plDeviceI
 {
     // buffers
-    plBufferHandle (*create_buffer)             (plDevice* ptDevice, const plBufferDescription* ptDesc, const char* pcName);
-    void           (*submit_buffer_for_deletion)(plDevice* ptDevice, plBufferHandle tHandle);
-    plBuffer*      (*get_buffer)                (plDevice* ptDevice, plBufferHandle ptHandle); // do not store
+    plBufferHandle (*create_buffer)            (plDevice* ptDevice, const plBufferDescription* ptDesc, const char* pcName);
+    void           (*queue_buffer_for_deletion)(plDevice* ptDevice, plBufferHandle tHandle);
+    void           (*destroy_buffer)           (plDevice* ptDevice, plBufferHandle tHandle);
+    plBuffer*      (*get_buffer)               (plDevice* ptDevice, plBufferHandle ptHandle); // do not store
 
     // textures (if manually handling mips/levels, don't use initial data, use "copy_buffer_to_texture" instead)
-    plTextureHandle     (*create_texture)                  (plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName);
-    plTextureViewHandle (*create_texture_view)             (plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, plTextureHandle tTexture, const char* pcName);
-    void                (*submit_texture_for_deletion)     (plDevice* ptDevice, plTextureHandle tHandle);
-    void                (*submit_texture_view_for_deletion)(plDevice* ptDevice, plTextureViewHandle tHandle);
-    plTexture*          (*get_texture)                     (plDevice* ptDevice, plTextureHandle ptHandle);     // do not store
-    plTextureView*      (*get_texture_view)                (plDevice* ptDevice, plTextureViewHandle ptHandle); // do not store
+    plTextureHandle     (*create_texture)                 (plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName);
+    plTextureViewHandle (*create_texture_view)            (plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, plTextureHandle tTexture, const char* pcName);
+    void                (*queue_texture_for_deletion)     (plDevice* ptDevice, plTextureHandle tHandle);
+    void                (*queue_texture_view_for_deletion)(plDevice* ptDevice, plTextureViewHandle tHandle);
+    void                (*destroy_texture)                (plDevice* ptDevice, plTextureHandle tHandle);
+    void                (*destroy_texture_view)           (plDevice* ptDevice, plTextureViewHandle tHandle);
+    plTexture*          (*get_texture)                    (plDevice* ptDevice, plTextureHandle ptHandle);     // do not store
+    plTextureView*      (*get_texture_view)               (plDevice* ptDevice, plTextureViewHandle ptHandle); // do not store
 
     // bind groups
-    plBindGroupHandle (*create_bind_group)             (plDevice* ptDevice, plBindGroupLayout* ptLayout);
-    plBindGroupHandle (*get_temporary_bind_group)      (plDevice* ptDevice, plBindGroupLayout* ptLayout); // don't submit for deletion
-    void              (*update_bind_group)             (plDevice* ptDevice, plBindGroupHandle* ptGroup, uint32_t uBufferCount, plBufferHandle* atBuffers, size_t* aszBufferRanges, uint32_t uTextureViewCount, plTextureViewHandle* atTextureViews);
-    void              (*submit_bind_group_for_deletion)(plDevice* ptDevice, plBindGroupHandle tHandle);
-    plBindGroup*      (*get_bind_group)                (plDevice* ptDevice, plBindGroupHandle ptHandle); // do not store
-    plDynamicBinding  (*allocate_dynamic_data)         (plDevice* ptDevice, size_t szSize);
+    plBindGroupHandle (*create_bind_group)            (plDevice* ptDevice, plBindGroupLayout* ptLayout);
+    plBindGroupHandle (*get_temporary_bind_group)     (plDevice* ptDevice, plBindGroupLayout* ptLayout); // don't submit for deletion
+    void              (*update_bind_group)            (plDevice* ptDevice, plBindGroupHandle* ptGroup, uint32_t uBufferCount, plBufferHandle* atBuffers, size_t* aszBufferRanges, uint32_t uTextureViewCount, plTextureViewHandle* atTextureViews);
+    void              (*queue_bind_group_for_deletion)(plDevice* ptDevice, plBindGroupHandle tHandle);
+    void              (*destroy_bind_group)           (plDevice* ptDevice, plBindGroupHandle tHandle);
+    plBindGroup*      (*get_bind_group)               (plDevice* ptDevice, plBindGroupHandle ptHandle); // do not store
+    plDynamicBinding  (*allocate_dynamic_data)        (plDevice* ptDevice, size_t szSize);
 
     // render passes
-    plRenderPassLayoutHandle (*create_render_pass_layout)             (plDevice* ptDevice, const plRenderPassLayoutDescription* ptDesc);
-    plRenderPassHandle       (*create_render_pass)                    (plDevice* ptDevice, const plRenderPassDescription* ptDesc, const plRenderPassAttachments* ptAttachments);
-    void                     (*update_render_pass_attachments)        (plDevice* ptDevice, plRenderPassHandle tHandle, plVec2 tDimensions, const plRenderPassAttachments* ptAttachments);
-    void                     (*submit_render_pass_for_deletion)       (plDevice* ptDevice, plRenderPassHandle       tHandle);
-    void                     (*submit_render_pass_layout_for_deletion)(plDevice* ptDevice, plRenderPassLayoutHandle tHandle);
+    plRenderPassLayoutHandle (*create_render_pass_layout)            (plDevice* ptDevice, const plRenderPassLayoutDescription* ptDesc);
+    plRenderPassHandle       (*create_render_pass)                   (plDevice* ptDevice, const plRenderPassDescription* ptDesc, const plRenderPassAttachments* ptAttachments);
+    void                     (*update_render_pass_attachments)       (plDevice* ptDevice, plRenderPassHandle tHandle, plVec2 tDimensions, const plRenderPassAttachments* ptAttachments);
+    void                     (*queue_render_pass_for_deletion)       (plDevice* ptDevice, plRenderPassHandle       tHandle);
+    void                     (*queue_render_pass_layout_for_deletion)(plDevice* ptDevice, plRenderPassLayoutHandle tHandle);
+    void                     (*destroy_render_pass)                  (plDevice* ptDevice, plRenderPassHandle       tHandle);
+    void                     (*destroy_render_pass_layout)           (plDevice* ptDevice, plRenderPassLayoutHandle tHandle);
 
     // shaders
-    plShaderHandle        (*create_shader)                     (plDevice* ptDevice, const plShaderDescription* ptDescription);
-    plShaderHandle        (*get_shader_variant)                (plDevice* ptDevice, plShaderHandle tHandle, const plShaderVariant* ptVariant);
-    plComputeShaderHandle (*create_compute_shader)             (plDevice* ptDevice, const plComputeShaderDescription* ptDescription);
-    plComputeShaderHandle (*get_compute_shader_variant)        (plDevice* ptDevice, plComputeShaderHandle tHandle, const plComputeShaderVariant* ptVariant);
-    void                  (*submit_shader_for_deletion)        (plDevice* ptDevice, plShaderHandle tHandle);
-    void                  (*submit_compute_shader_for_deletion)(plDevice* ptDevice, plComputeShaderHandle tHandle);
-    plShader*             (*get_shader)                        (plDevice* ptDevice, plShaderHandle ptHandle); // do not store
+    plShaderHandle        (*create_shader)                    (plDevice* ptDevice, const plShaderDescription* ptDescription);
+    plShaderHandle        (*get_shader_variant)               (plDevice* ptDevice, plShaderHandle tHandle, const plShaderVariant* ptVariant);
+    plComputeShaderHandle (*create_compute_shader)            (plDevice* ptDevice, const plComputeShaderDescription* ptDescription);
+    plComputeShaderHandle (*get_compute_shader_variant)       (plDevice* ptDevice, plComputeShaderHandle tHandle, const plComputeShaderVariant* ptVariant);
+    void                  (*queue_shader_for_deletion)        (plDevice* ptDevice, plShaderHandle tHandle);
+    void                  (*queue_compute_shader_for_deletion)(plDevice* ptDevice, plComputeShaderHandle tHandle);
+    void                  (*destroy_shader)                   (plDevice* ptDevice, plShaderHandle tHandle);
+    void                  (*destroy_compute_shader)           (plDevice* ptDevice, plComputeShaderHandle tHandle);
+    plShader*             (*get_shader)                       (plDevice* ptDevice, plShaderHandle ptHandle); // do not store
 
     // texture/buffer ops (blocking)
     void (*transfer_image_to_buffer)(plDevice* ptDevice, plTextureHandle tTexture, plBufferHandle tBuffer);          // from single layer & single mip textures
@@ -345,6 +353,7 @@ typedef struct _plDeviceAllocationBlock
     uint64_t                 ulSize;
     char*                    pHostMapped;
     uint32_t                 uCurrentIndex; // used but debug tool
+    double                   dLastTimeUsed;
 } plDeviceAllocationBlock;
 
 typedef struct _plDeviceMemoryAllocatorI
