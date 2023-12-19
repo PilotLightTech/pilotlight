@@ -813,7 +813,7 @@ pl__show_device_memory(bool* bValue)
                     const float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)ulMaxBlockSize;
 
                     if(ptBlock->ulAddress == 0)
-                        pl_add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth - 2.0f, 30.0f + tCursor0.y}, tAvailableColor, 1.0f);
+                        pl_add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth - 6.0f, 30.0f + tCursor0.y}, tAvailableColor, 1.0f);
                     else
                         pl_add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, tAvailableColor);
                     pl_invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
