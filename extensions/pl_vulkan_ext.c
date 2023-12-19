@@ -2296,6 +2296,7 @@ pl_end_recording(plGraphics* ptGraphics)
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
+    vkCmdPipelineBarrier(ptCurrentFrame->tTransferCmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, NULL, 0, NULL, 0, NULL);
     PL_VULKAN(vkEndCommandBuffer(ptCurrentFrame->tTransferCmdBuffer));
     PL_VULKAN(vkEndCommandBuffer(ptCurrentFrame->tCmdBuf));
 }
@@ -3211,7 +3212,7 @@ pl_flush_transfers(plGraphics* ptGraphics)
 
     // submit
     const VkPipelineStageFlags atWaitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    VkCommandBuffer atCmdBuffers[] = {ptCurrentFrame->tCmdBuf, ptCurrentFrame->tTransferCmdBuffer};
+    VkCommandBuffer atCmdBuffers[] = {ptCurrentFrame->tTransferCmdBuffer, ptCurrentFrame->tCmdBuf};
     const VkSubmitInfo tSubmitInfo = {
         .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount   = 0,
@@ -3245,7 +3246,7 @@ pl_end_gfx_frame(plGraphics* ptGraphics)
 
     // submit
     const VkPipelineStageFlags atWaitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    VkCommandBuffer atCmdBuffers[] = {ptCurrentFrame->tCmdBuf, ptCurrentFrame->tTransferCmdBuffer};
+    VkCommandBuffer atCmdBuffers[] = {ptCurrentFrame->tTransferCmdBuffer, ptCurrentFrame->tCmdBuf};
     const VkSubmitInfo tSubmitInfo = {
         .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount   = 1,
@@ -4600,7 +4601,7 @@ pl_copy_buffer_to_texture(plDevice* ptDevice, plBufferHandle tBufferHandle, plTe
     vkCmdCopyBufferToImage(ptFrame->tTransferCmdBuffer, ptVulkanGraphics->sbtBuffersHot[tBufferHandle.uIndex].tBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, uRegionCount, atCopyRegions);
 
     for(uint32_t i = 0; i < uRegionCount; i++)
-        pl__transition_image_layout(ptFrame->tTransferCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+        pl__transition_image_layout(ptFrame->tTransferCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
         
     pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
 }
