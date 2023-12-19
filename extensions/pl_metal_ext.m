@@ -1148,6 +1148,7 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
             memset(&ptGraphics->sbtComputeShadersCold[uNewResourceIndex].tVariantHashmap, 0, sizeof(plHashMap));
         }
     }
+    ptGraphics->sbtComputeShadersCold[uResourceIndex] = tShader;
     return tHandle;
 }
 
@@ -1318,6 +1319,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         }
     }
     pl_temp_allocator_reset(&ptMetalGraphics->tTempAllocator);
+    ptGraphics->sbtShadersCold[uResourceIndex] = tShader;
     return tHandle;
 }
 

@@ -1118,7 +1118,6 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
 
     ptVulkanGraphics->sbtSamplersHot[uTextureViewIndex] = tVulkanSampler;
     ptGraphics->sbtTextureViewsCold[uTextureViewIndex] = tTextureView;
-    ptGraphics->sbtTextureViewGenerations[uTextureViewIndex]++;
     return tHandle;
 }
 
@@ -1190,7 +1189,7 @@ pl_create_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout)
     plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
 
     uint32_t uBindGroupIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtBufferFreeIndices) > 0)
+    if(pl_sb_size(ptGraphics->sbtBindGroupFreeIndices) > 0)
         uBindGroupIndex = pl_sb_pop(ptGraphics->sbtBindGroupFreeIndices);
     else
     {
@@ -1560,7 +1559,7 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
     }
 
     vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, tShaderModule, NULL);
-
+    ptGraphics->sbtComputeShadersCold[uResourceIndex] = tShader;
     return tHandle;
 }
 
@@ -1888,7 +1887,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
     vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, tPixelShaderModule, NULL);
     tVertexShaderModule = VK_NULL_HANDLE;
     tPixelShaderModule = VK_NULL_HANDLE;
-
+    ptGraphics->sbtShadersCold[uResourceIndex] = tShader;
     return tHandle;
 }
 
