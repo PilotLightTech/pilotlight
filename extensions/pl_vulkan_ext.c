@@ -5532,7 +5532,7 @@ pl__garbage_collect(plGraphics* ptGraphics)
             vkUnmapMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptBlock->ulAddress);
             vkFreeMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptBlock->ulAddress, NULL);
             ptBlock->ulAddress = 0;
-            pl_sb_push(ptUnCachedAllocatorData->sbtFreeBlockIndices, ptNode->ulBlockIndex);
+            pl_sb_push(ptUnCachedAllocatorData->sbtFreeBlockIndices, (uint32_t)ptNode->ulBlockIndex);
         }
         else if(ptNode->ulUsedSize != 0)
             ptBlock->dLastTimeUsed = ptIO->dTime;
