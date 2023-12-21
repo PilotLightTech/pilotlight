@@ -473,7 +473,7 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
             .tShaderType                   = PL_SHADER_TYPE_PBR,
             .tBaseColor                    = {1.0f, 1.0f, 1.0f, 1.0f},
             .tSpecularColor                = {1.0f, 1.0f, 1.0f, 1.0f},
-            .tEmissiveColor                = {1.0f, 1.0f, 1.0f, 0.0f},
+            .tEmissiveColor                = {0.0f, 0.0f, 0.0f, 0.0f},
             .tSubsurfaceScattering         = {1.0f, 1.0f, 1.0f, 0.0f},
             .tSheenColor                   = {1.0f, 1.0f, 1.0f, 0.0f},
             .fRoughness                    = 1.0f,
@@ -494,6 +494,11 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
             .fAlphaCutoff                  = 0.5f,
             .atTextureMaps                 = {0}
         };
+        for(uint32_t i = 0; i < PL_TEXTURE_SLOT_COUNT; i++)
+        {
+            sbComponents[uComponentIndex].atTextureMaps[i].tResource.uIndex = UINT32_MAX;
+            sbComponents[uComponentIndex].atTextureMaps[i].tResource.uGeneration = UINT32_MAX;
+        }
         return &sbComponents[uComponentIndex];
     }
 
@@ -850,6 +855,7 @@ pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
         if(pl_sb_size(ptMesh->sbtVertexTangents) == 0 && pl_sb_size(ptMesh->sbtVertexTextureCoordinates0) > 0)
         {
             pl_sb_resize(ptMesh->sbtVertexTangents, pl_sb_size(ptMesh->sbtVertexPositions));
+            memset(ptMesh->sbtVertexTangents, 0, pl_sb_size(ptMesh->sbtVertexPositions) * sizeof(plVec4));
             for(uint32_t i = 0; i < pl_sb_size(ptMesh->sbuIndices) - 2; i += 3)
             {
                 const uint32_t uIndex0 = ptMesh->sbuIndices[i + 0];
@@ -864,6 +870,12 @@ pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
                 const plVec2 tTex1 = ptMesh->sbtVertexTextureCoordinates0[uIndex1];
                 const plVec2 tTex2 = ptMesh->sbtVertexTextureCoordinates0[uIndex2];
 
+                const plVec3 atNormals[3] = { 
+                    ptMesh->sbtVertexNormals[uIndex0],
+                    ptMesh->sbtVertexNormals[uIndex1],
+                    ptMesh->sbtVertexNormals[uIndex2],
+                };
+
                 const plVec3 tEdge1 = pl_sub_vec3(tP1, tP0);
                 const plVec3 tEdge2 = pl_sub_vec3(tP2, tP0);
 
@@ -872,25 +884,35 @@ pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
                 const float fDeltaU2 = tTex2.x - tTex0.x;
                 const float fDeltaV2 = tTex2.y - tTex0.y;
 
-                const float fDividend = (fDeltaU1 * fDeltaV2 - fDeltaU2 * fDeltaV1);
-                const float fC = 1.0f / fDividend;
-
                 const float fSx = fDeltaU1;
                 const float fSy = fDeltaU2;
                 const float fTx = fDeltaV1;
                 const float fTy = fDeltaV2;
-                const float fHandedness = ((fTx * fSy - fTy * fSx) < 0.0f) ? -1.0f : 1.0f;
+                const float fHandedness = ((fSx * fTy - fTx * fSy) < 0.0f) ? -1.0f : 1.0f;
 
-                const plVec3 tTangent = 
-                    pl_norm_vec3((plVec3){
-                        fC * (fDeltaV2 * tEdge1.x - fDeltaV1 * tEdge2.x),
-                        fC * (fDeltaV2 * tEdge1.y - fDeltaV1 * tEdge2.y),
-                        fC * (fDeltaV2 * tEdge1.z - fDeltaV1 * tEdge2.z)
-                });
+                const plVec3 tTangent = {
+                        fHandedness * (fDeltaV2 * tEdge1.x - fDeltaV1 * tEdge2.x),
+                        fHandedness * (fDeltaV2 * tEdge1.y - fDeltaV1 * tEdge2.y),
+                        fHandedness * (fDeltaV2 * tEdge1.z - fDeltaV1 * tEdge2.z)
+                };
 
-                ptMesh->sbtVertexTangents[uIndex0] = (plVec4){tTangent.x, tTangent.y, tTangent.z, fHandedness};
-                ptMesh->sbtVertexTangents[uIndex1] = (plVec4){tTangent.x, tTangent.y, tTangent.z, fHandedness};
-                ptMesh->sbtVertexTangents[uIndex2] = (plVec4){tTangent.x, tTangent.y, tTangent.z, fHandedness};
+                plVec4 atFinalTangents[3] = {0};
+                for(uint32_t j = 0; j < 3; j++)
+                {
+                    atFinalTangents[j].xyz = pl_mul_vec3(tTangent, atNormals[j]);
+                    atFinalTangents[j].xyz = pl_mul_vec3(atNormals[j], atFinalTangents[j].xyz);
+                    atFinalTangents[j].xyz = pl_norm_vec3(pl_sub_vec3(tTangent, atFinalTangents[j].xyz));
+                    atFinalTangents[j].w = fHandedness;
+                }
+
+                if(uIndex0 == 0 || uIndex1 == 0 || uIndex2 == 0)
+                {
+                    __debugbreak();
+                }
+
+                ptMesh->sbtVertexTangents[uIndex0] = atFinalTangents[0];
+                ptMesh->sbtVertexTangents[uIndex1] = atFinalTangents[1];
+                ptMesh->sbtVertexTangents[uIndex2] = atFinalTangents[2];
             } 
         }
     }
