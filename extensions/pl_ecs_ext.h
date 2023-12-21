@@ -176,7 +176,8 @@ enum _plTextureSlot
     PL_TEXTURE_SLOT_SPECULAR_MAP,
     PL_TEXTURE_SLOT_ANISOTROPY_MAP,
     PL_TEXTURE_SLOT_SURFACE_MAP,
-    
+    PL_TEXTURE_SLOT_IRIDESCENCE_MAP,
+    PL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS_MAP,
     PL_TEXTURE_SLOT_COUNT
 };
 
@@ -315,6 +316,10 @@ typedef struct _plMaterialComponent
     float               fClearcoatRoughness;
     float               fThicknessFactor;
     float               fAlphaCutoff;
+    float               fIridescenceFactor;
+    float               fIridescenceIor;
+    float               fIridescenceThicknessMinimum;
+    float               fIridescenceThicknessMaximum;
     plTextureMap        atTextureMaps[PL_TEXTURE_SLOT_COUNT];
 } plMaterialComponent;
 

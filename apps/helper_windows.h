@@ -199,7 +199,9 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
                         "PL_TEXTURE_SLOT_DISPLACEMENT_MAP",
                         "PL_TEXTURE_SLOT_SPECULAR_MAP",
                         "PL_TEXTURE_SLOT_ANISOTROPY_MAP",
-                        "PL_TEXTURE_SLOT_SURFACE_MAP"
+                        "PL_TEXTURE_SLOT_SURFACE_MAP",
+                        "PL_TEXTURE_SLOT_IRIDESCENCE_MAP",
+                        "PL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS_MAP",
                     };
 
                     for(uint32_t i = 0; i < PL_TEXTURE_SLOT_COUNT; i++)
