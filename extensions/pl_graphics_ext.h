@@ -32,6 +32,14 @@ Index of this file:
     #define PL_DEVICE_LOCAL_LEVELS 8
 #endif
 
+#ifndef PL_MAX_BUFFERS_PER_BIND_GROUP
+    #define PL_MAX_BUFFERS_PER_BIND_GROUP 16
+#endif
+
+#ifndef PL_MAX_TEXTURES_PER_BIND_GROUP
+    #define PL_MAX_TEXTURES_PER_BIND_GROUP 16
+#endif
+
 #ifndef PL_MAX_SHADER_SPECIALIZATION_CONSTANTS
     #define PL_MAX_SHADER_SPECIALIZATION_CONSTANTS 64
 #endif
@@ -455,8 +463,8 @@ typedef struct _plBindGroupLayout
 {
     uint32_t         uTextureCount;
     uint32_t         uBufferCount;
-    plTextureBinding aTextures[8];
-    plBufferBinding  aBuffers[8];
+    plTextureBinding aTextures[PL_MAX_TEXTURES_PER_BIND_GROUP];
+    plBufferBinding  aBuffers[PL_MAX_BUFFERS_PER_BIND_GROUP];
     uint32_t         uHandle;
 } plBindGroupLayout;
 
