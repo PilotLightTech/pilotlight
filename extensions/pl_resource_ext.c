@@ -150,7 +150,9 @@ pl_is_resource_loaded(const char* pcName)
 static bool
 pl_is_resource_valid(plResourceHandle tResourceHandle)
 {
-    return tResourceHandle.uGeneration == gptResourceManager->sbtResourceGenerations[tResourceHandle.uGeneration];
+    if(tResourceHandle.uGeneration == UINT32_MAX ||  tResourceHandle.uIndex == UINT32_MAX)
+        return false;
+    return tResourceHandle.uGeneration == gptResourceManager->sbtResourceGenerations[tResourceHandle.uIndex];
 }
 
 //-----------------------------------------------------------------------------
