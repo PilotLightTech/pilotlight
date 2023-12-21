@@ -905,11 +905,6 @@ pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
                     atFinalTangents[j].w = fHandedness;
                 }
 
-                if(uIndex0 == 0 || uIndex1 == 0 || uIndex2 == 0)
-                {
-                    __debugbreak();
-                }
-
                 ptMesh->sbtVertexTangents[uIndex0] = atFinalTangents[0];
                 ptMesh->sbtVertexTangents[uIndex1] = atFinalTangents[1];
                 ptMesh->sbtVertexTangents[uIndex2] = atFinalTangents[2];
