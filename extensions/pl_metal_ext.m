@@ -1633,11 +1633,6 @@ pl_begin_frame(plGraphics* ptGraphics)
     return true;
 }
 
-static void
-pl_flush_transfers(plGraphics* ptGraphics)
-{
-}
-
 static bool
 pl_end_gfx_frame(plGraphics* ptGraphics)
 {
@@ -1673,6 +1668,20 @@ pl_begin_recording(plGraphics* ptGraphics)
 
 static void
 pl_end_recording(plGraphics* ptGraphics)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+    pl_end_profile_sample();
+}
+
+static void
+pl_start_transfers(plGraphics* ptGraphics)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+    pl_end_profile_sample();
+}
+
+static void
+pl_end_transfers(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
     pl_end_profile_sample();
@@ -2984,9 +2993,10 @@ pl_load_graphics_api(void)
         .setup_ui                         = pl_setup_ui,
         .begin_frame                      = pl_begin_frame,
         .end_frame                        = pl_end_gfx_frame,
-        .flush_transfers                  = pl_flush_transfers,
         .begin_recording                  = pl_begin_recording,
         .end_recording                    = pl_end_recording,
+        .start_transfers                  = pl_start_transfers,
+        .end_transfers                    = pl_end_transfers,
         .begin_main_pass                  = pl_begin_main_pass,
         .end_main_pass                    = pl_end_main_pass,
         .begin_pass                       = pl_begin_pass,

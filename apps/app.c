@@ -327,15 +327,14 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     create_main_render_pass(ptAppData);
     gptGfx->setup_ui(&ptAppData->tGraphics, ptAppData->tMainRenderPass);
 
-    gptGfx->begin_recording(&ptAppData->tGraphics);
+    gptGfx->start_transfers(&ptAppData->tGraphics);
     create_buffers(ptAppData);
     create_textures(ptAppData);
     create_offscreen_textures(ptAppData);
     create_offscreen_render_pass(ptAppData);
     create_bind_groups(ptAppData);
     create_shaders(ptAppData);
-    gptGfx->end_recording(&ptAppData->tGraphics);
-    gptGfx->flush_transfers(&ptAppData->tGraphics);
+    gptGfx->end_transfers(&ptAppData->tGraphics);
 
     gptGfx->create_font_atlas(&ptAppData->tFontAtlas);
     pl_set_default_font(&ptAppData->tFontAtlas.sbtFonts[0]);
