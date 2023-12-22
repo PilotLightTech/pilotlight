@@ -174,6 +174,7 @@ enum _plTextureSlot
     PL_TEXTURE_SLOT_TRANSMISSION_MAP,
     PL_TEXTURE_SLOT_DISPLACEMENT_MAP,
     PL_TEXTURE_SLOT_SPECULAR_MAP,
+    PL_TEXTURE_SLOT_SPECULAR_COLOR_MAP,
     PL_TEXTURE_SLOT_ANISOTROPY_MAP,
     PL_TEXTURE_SLOT_SURFACE_MAP,
     PL_TEXTURE_SLOT_IRIDESCENCE_MAP,
@@ -312,6 +313,7 @@ typedef struct _plMaterialComponent
     float               fAnisotropyStrength;
     float               fAnisotropyRotation; // radians, counter-clockwise
     float               fSheenRoughness;
+    float               fSpecularFactor;
     float               fClearcoatFactor;
     float               fClearcoatRoughness;
     float               fThicknessFactor;
