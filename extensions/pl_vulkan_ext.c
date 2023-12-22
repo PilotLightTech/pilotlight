@@ -3650,7 +3650,7 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
             {
-                uDescriptorStart = 3;
+                // uDescriptorStart = 3;
                 ptVulkanDynamicBuffer = &ptCurrentFrame->sbtDynamicBuffers[ptStream->sbtStream[uCurrentStreamIndex]];
                 atDescriptorSets[3] = ptVulkanDynamicBuffer->tDescriptorSet;
                 uCurrentStreamIndex++;
