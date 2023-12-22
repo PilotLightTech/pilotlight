@@ -1846,8 +1846,30 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
                 [ptMetalGraphics->tCurrentRenderEncoder setRenderPipelineState:ptMetalShader->tRenderPipelineState];
                 uCurrentStreamIndex++;
             }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
+            {
+                uDynamicBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
+                uCurrentStreamIndex++;
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
+            {
 
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
+                [ptMetalGraphics->tCurrentRenderEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptStream->sbtStream[uCurrentStreamIndex]].tBuffer
+                    offset:0
+                    atIndex:4];
+
+                [ptMetalGraphics->tCurrentRenderEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptStream->sbtStream[uCurrentStreamIndex]].tBuffer
+                    offset:0
+                    atIndex:4];
+
+                uCurrentStreamIndex++;
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
+            {
+                [ptMetalGraphics->tCurrentRenderEncoder setVertexBufferOffset:uDynamicBufferOffset atIndex:4];
+                [ptMetalGraphics->tCurrentRenderEncoder setFragmentBufferOffset:uDynamicBufferOffset atIndex:4];
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
             {
                 plMetalBindGroup* ptMetalBindGroup = &ptMetalGraphics->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
 
@@ -1860,26 +1882,23 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
                         stages:pl__metal_stage_flags(ptMetalBindGroup->tLayout.aBuffers[k].tStages)]; 
                 }
 
-
                 for(uint32_t k = 0; k < ptMetalBindGroup->tLayout.uTextureCount; k++)
                 {
-                    
                     const plTextureHandle tTextureHandle = ptGraphics->sbtTextureViewsCold[ptMetalBindGroup->tLayout.aTextures[k].tTextureView.uIndex].tTexture;
                     id<MTLHeap> tHeap = ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tHeap;
                     [ptMetalGraphics->tCurrentRenderEncoder useHeap:tHeap stages:pl__metal_stage_flags(ptMetalBindGroup->tLayout.aTextures[k].tStages)];
                     [ptMetalGraphics->tCurrentRenderEncoder useResource:ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tTexture
                         usage:MTLResourceUsageRead
-                        stages:pl__metal_stage_flags(ptMetalBindGroup->tLayout.aTextures[k].tStages)];  
+                        stages:pl__metal_stage_flags(ptMetalBindGroup->tLayout.aTextures[k].tStages)]; 
                 }
 
                 [ptMetalGraphics->tCurrentRenderEncoder setVertexBuffer:ptMetalBindGroup->tShaderArgumentBuffer
                     offset:ptMetalBindGroup->uOffset
-                    atIndex:1];
+                    atIndex:3];
 
                 [ptMetalGraphics->tCurrentRenderEncoder setFragmentBuffer:ptMetalBindGroup->tShaderArgumentBuffer
                     offset:ptMetalBindGroup->uOffset
-                    atIndex:1];
-
+                    atIndex:3];
                 uCurrentStreamIndex++;
             }
      
@@ -1915,7 +1934,7 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
                     atIndex:2];
                 uCurrentStreamIndex++;
             }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
             {
                 plMetalBindGroup* ptMetalBindGroup = &ptMetalGraphics->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
 
@@ -1928,23 +1947,26 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
                         stages:pl__metal_stage_flags(ptMetalBindGroup->tLayout.aBuffers[k].tStages)]; 
                 }
 
+
                 for(uint32_t k = 0; k < ptMetalBindGroup->tLayout.uTextureCount; k++)
                 {
+                    
                     const plTextureHandle tTextureHandle = ptGraphics->sbtTextureViewsCold[ptMetalBindGroup->tLayout.aTextures[k].tTextureView.uIndex].tTexture;
                     id<MTLHeap> tHeap = ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tHeap;
                     [ptMetalGraphics->tCurrentRenderEncoder useHeap:tHeap stages:pl__metal_stage_flags(ptMetalBindGroup->tLayout.aTextures[k].tStages)];
                     [ptMetalGraphics->tCurrentRenderEncoder useResource:ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tTexture
                         usage:MTLResourceUsageRead
-                        stages:pl__metal_stage_flags(ptMetalBindGroup->tLayout.aTextures[k].tStages)]; 
+                        stages:pl__metal_stage_flags(ptMetalBindGroup->tLayout.aTextures[k].tStages)];  
                 }
 
                 [ptMetalGraphics->tCurrentRenderEncoder setVertexBuffer:ptMetalBindGroup->tShaderArgumentBuffer
                     offset:ptMetalBindGroup->uOffset
-                    atIndex:3];
+                    atIndex:1];
 
                 [ptMetalGraphics->tCurrentRenderEncoder setFragmentBuffer:ptMetalBindGroup->tShaderArgumentBuffer
                     offset:ptMetalBindGroup->uOffset
-                    atIndex:3];
+                    atIndex:1];
+
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
@@ -1956,29 +1978,6 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
             {
                 uVertexBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
-            {
-                uDynamicBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
-            {
-
-                [ptMetalGraphics->tCurrentRenderEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptStream->sbtStream[uCurrentStreamIndex]].tBuffer
-                    offset:0
-                    atIndex:4];
-
-                [ptMetalGraphics->tCurrentRenderEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptStream->sbtStream[uCurrentStreamIndex]].tBuffer
-                    offset:0
-                    atIndex:4];
-
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
-            {
-                [ptMetalGraphics->tCurrentRenderEncoder setVertexBufferOffset:uDynamicBufferOffset atIndex:4];
-                [ptMetalGraphics->tCurrentRenderEncoder setFragmentBufferOffset:uDynamicBufferOffset atIndex:4];
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_BUFFER)
             {

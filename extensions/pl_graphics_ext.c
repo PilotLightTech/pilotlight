@@ -930,17 +930,18 @@ pl_get_compute_shader_variant(plDevice* ptDevice, plComputeShaderHandle tHandle,
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
+
 enum plDrawStreamBits
 {
     PL_DRAW_STREAM_BIT_NONE             = 0,
     PL_DRAW_STREAM_BIT_SHADER           = 1 << 0,
-    PL_DRAW_STREAM_BIT_BINDGROUP_0      = 1 << 1,
-    PL_DRAW_STREAM_BIT_BINDGROUP_1      = 1 << 2,
+    PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET   = 1 << 1,
+    PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER   = 1 << 2,
     PL_DRAW_STREAM_BIT_BINDGROUP_2      = 1 << 3,
-    PL_DRAW_STREAM_BIT_INDEX_OFFSET     = 1 << 4,
-    PL_DRAW_STREAM_BIT_VERTEX_OFFSET    = 1 << 5,
-    PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET   = 1 << 6,
-    PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER   = 1 << 7,
+    PL_DRAW_STREAM_BIT_BINDGROUP_1      = 1 << 4,
+    PL_DRAW_STREAM_BIT_BINDGROUP_0      = 1 << 5,
+    PL_DRAW_STREAM_BIT_INDEX_OFFSET     = 1 << 6,
+    PL_DRAW_STREAM_BIT_VERTEX_OFFSET    = 1 << 7,
     PL_DRAW_STREAM_BIT_INDEX_BUFFER     = 1 << 8,
     PL_DRAW_STREAM_BIT_VERTEX_BUFFER    = 1 << 9,
     PL_DRAW_STREAM_BIT_TRIANGLES        = 1 << 10,
@@ -972,10 +973,22 @@ pl_drawstream_draw(plDrawStream* ptStream, plDraw tDraw)
         uDirtyMask |= PL_DRAW_STREAM_BIT_SHADER;
     }
 
-    if(ptStream->tCurrentDraw.uBindGroup0 != tDraw.uBindGroup0)
+    if(ptStream->tCurrentDraw.uDynamicBufferOffset != tDraw.uDynamicBufferOffset)
+    {   
+        ptStream->tCurrentDraw.uDynamicBufferOffset = tDraw.uDynamicBufferOffset;
+        uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET;
+    }
+
+    if(ptStream->tCurrentDraw.uDynamicBuffer != tDraw.uDynamicBuffer)
     {
-        ptStream->tCurrentDraw.uBindGroup0 = tDraw.uBindGroup0;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_0;
+        ptStream->tCurrentDraw.uDynamicBuffer = tDraw.uDynamicBuffer;
+        uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER;
+    }
+
+    if(ptStream->tCurrentDraw.uBindGroup2 != tDraw.uBindGroup2)
+    {
+        ptStream->tCurrentDraw.uBindGroup2 = tDraw.uBindGroup2;
+        uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_2;
     }
 
     if(ptStream->tCurrentDraw.uBindGroup1 != tDraw.uBindGroup1)
@@ -984,10 +997,10 @@ pl_drawstream_draw(plDrawStream* ptStream, plDraw tDraw)
         uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_1;
     }
 
-    if(ptStream->tCurrentDraw.uBindGroup2 != tDraw.uBindGroup2)
+    if(ptStream->tCurrentDraw.uBindGroup0 != tDraw.uBindGroup0)
     {
-        ptStream->tCurrentDraw.uBindGroup2 = tDraw.uBindGroup2;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_2;
+        ptStream->tCurrentDraw.uBindGroup0 = tDraw.uBindGroup0;
+        uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_0;
     }
 
     if(ptStream->tCurrentDraw.uIndexOffset != tDraw.uIndexOffset)
@@ -1000,18 +1013,6 @@ pl_drawstream_draw(plDrawStream* ptStream, plDraw tDraw)
     {   
         ptStream->tCurrentDraw.uVertexOffset = tDraw.uVertexOffset;
         uDirtyMask |= PL_DRAW_STREAM_BIT_VERTEX_OFFSET;
-    }
-
-    if(ptStream->tCurrentDraw.uDynamicBufferOffset != tDraw.uDynamicBufferOffset)
-    {   
-        ptStream->tCurrentDraw.uDynamicBufferOffset = tDraw.uDynamicBufferOffset;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET;
-    }
-
-    if(ptStream->tCurrentDraw.uDynamicBuffer != tDraw.uDynamicBuffer)
-    {
-        ptStream->tCurrentDraw.uDynamicBuffer = tDraw.uDynamicBuffer;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER;
     }
 
     if(ptStream->tCurrentDraw.uIndexBuffer != tDraw.uIndexBuffer)
@@ -1035,20 +1036,20 @@ pl_drawstream_draw(plDrawStream* ptStream, plDraw tDraw)
     pl_sb_push(ptStream->sbtStream, uDirtyMask);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
         pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uShaderVariant);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uBindGroup0);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uBindGroup1);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uBindGroup2);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uIndexOffset);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_OFFSET)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uVertexOffset);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
         pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uDynamicBufferOffset);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
         pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uDynamicBuffer);
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
+        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uBindGroup2);
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
+        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uBindGroup1);
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
+        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uBindGroup0);
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
+        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uIndexOffset);
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_OFFSET)
+        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uVertexOffset);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_BUFFER)
         pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uIndexBuffer);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER)

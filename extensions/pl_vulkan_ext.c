@@ -3524,31 +3524,6 @@ pl_shutdown(plGraphics* ptGraphics)
     pl_sb_free(ptVulkanGfx->sbtBindGroupLayoutFreeIndices);
     pl_sb_free(ptVulkanSwapchain->sbtSurfaceFormats);
     pl_sb_free(ptVulkanSwapchain->sbtImages);
-    // pl_sb_free(ptGraphics->tSwapchain.sbtSwapchainTextureViews);
-    // pl_sb_free(ptGraphics->sbtGarbage);
-    // pl_sb_free(ptGraphics->sbtShadersCold);
-    // pl_sb_free(ptGraphics->sbtBuffersCold);
-    // pl_sb_free(ptGraphics->sbtBufferFreeIndices);
-    // pl_sb_free(ptGraphics->sbtTexturesCold);
-    // pl_sb_free(ptGraphics->sbtTextureViewsCold);
-    // pl_sb_free(ptGraphics->sbtBindGroupsCold);
-    // pl_sb_free(ptGraphics->sbtShaderGenerations);
-    // pl_sb_free(ptGraphics->sbtBufferGenerations);
-    // pl_sb_free(ptGraphics->sbtTextureGenerations);
-    // pl_sb_free(ptGraphics->sbtTextureViewGenerations);
-    // pl_sb_free(ptGraphics->sbtBindGroupGenerations);
-    // pl_sb_free(ptGraphics->sbtBindGroupFreeIndices);
-    // pl_sb_free(ptGraphics->sbtRenderPassesCold);
-    // pl_sb_free(ptGraphics->sbtRenderPassGenerations);
-    // pl_sb_free(ptGraphics->sbtTextureFreeIndices);
-    // pl_sb_free(ptGraphics->sbtTextureViewFreeIndices);
-    // pl_sb_free(ptGraphics->sbtRenderPassLayoutsCold);
-    // pl_sb_free(ptGraphics->sbtComputeShadersCold);
-    // pl_sb_free(ptGraphics->sbtComputeShaderGenerations);
-    // pl_sb_free(ptGraphics->sbtComputeShaderFreeIndices);
-    // pl_sb_free(ptGraphics->sbtShaderFreeIndices);
-    // pl_sb_free(ptGraphics->sbtRenderPassFreeIndices);
-    // pl_sb_free(ptGraphics->sbtRenderPassLayoutGenerations);
     pl_sb_free(ptVulkanGfx->sbtRenderPassLayoutsHot);
     pl__cleanup_common_graphics(ptGraphics);
 }
@@ -3604,6 +3579,7 @@ pl_dispatch(plGraphics* ptGraphics, uint32_t uDispatchCount, plDispatch* atDispa
 static void
 pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
 {
+    pl_begin_profile_sample(__FUNCTION__);
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
@@ -3651,8 +3627,13 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
         plVulkanShader* ptVulkanShader = NULL;
         plVulkanDynamicBuffer* ptVulkanDynamicBuffer = NULL;
 
+        VkDescriptorSet atDescriptorSets[4] = {VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE};
+
         while(uCurrentStreamIndex < uTokens)
         {
+
+            uint32_t uDescriptorStart = 3;
+
             const uint32_t uDirtyMask = ptStream->sbtStream[uCurrentStreamIndex];
             uCurrentStreamIndex++;
 
@@ -3662,22 +3643,37 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
                 vkCmdBindPipeline(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
                 uCurrentStreamIndex++;
             }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
             {
-                plVulkanBindGroup* ptBindGroup0 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, 0, 1, &ptBindGroup0->tDescriptorSet, 0, NULL);
+                uDynamicBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
             {
-                plVulkanBindGroup* ptBindGroup1 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, 1, 1, &ptBindGroup1->tDescriptorSet, 0, NULL);
+                uDescriptorStart = 3;
+                ptVulkanDynamicBuffer = &ptCurrentFrame->sbtDynamicBuffers[ptStream->sbtStream[uCurrentStreamIndex]];
+                atDescriptorSets[3] = ptVulkanDynamicBuffer->tDescriptorSet;
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
             {
+                uDescriptorStart = 2;
                 plVulkanBindGroup* ptBindGroup2 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, 2, 1, &ptBindGroup2->tDescriptorSet, 0, NULL);
+                atDescriptorSets[2] = ptBindGroup2->tDescriptorSet;
+                uCurrentStreamIndex++;
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
+            {
+                uDescriptorStart = 1;
+                plVulkanBindGroup* ptBindGroup1 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                atDescriptorSets[1] = ptBindGroup1->tDescriptorSet;
+                uCurrentStreamIndex++;
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
+            {
+                uDescriptorStart = 0;
+                plVulkanBindGroup* ptBindGroup0 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                atDescriptorSets[0] = ptBindGroup0->tDescriptorSet;
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
@@ -3689,21 +3685,6 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
             {
                 uVertexBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
-            {
-                uDynamicBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
-            {
-                ptVulkanDynamicBuffer = &ptCurrentFrame->sbtDynamicBuffers[ptStream->sbtStream[uCurrentStreamIndex]];
-                vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, 3, 1, &ptVulkanDynamicBuffer->tDescriptorSet, 1, &uDynamicBufferOffset);
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
-            {
-                vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, 3, 1, &ptVulkanDynamicBuffer->tDescriptorSet, 1, &uDynamicBufferOffset);
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_BUFFER)
             {
@@ -3723,9 +3704,11 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
                 uCurrentStreamIndex++;
             }
 
+            vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, uDescriptorStart, 4 - uDescriptorStart, &atDescriptorSets[uDescriptorStart], 1, &uDynamicBufferOffset);
             vkCmdDrawIndexed(ptCurrentFrame->tCmdBuf, uTriangleCount * 3, 1, uIndexBufferOffset, uVertexBufferOffset, 0);
         }
     }
+    pl_end_profile_sample();
 }
 
 //-----------------------------------------------------------------------------
