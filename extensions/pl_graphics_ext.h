@@ -33,11 +33,11 @@ Index of this file:
 #endif
 
 #ifndef PL_MAX_BUFFERS_PER_BIND_GROUP
-    #define PL_MAX_BUFFERS_PER_BIND_GROUP 16
+    #define PL_MAX_BUFFERS_PER_BIND_GROUP 8
 #endif
 
 #ifndef PL_MAX_TEXTURES_PER_BIND_GROUP
-    #define PL_MAX_TEXTURES_PER_BIND_GROUP 16
+    #define PL_MAX_TEXTURES_PER_BIND_GROUP 32
 #endif
 
 #ifndef PL_MAX_SHADER_SPECIALIZATION_CONSTANTS
@@ -722,6 +722,7 @@ typedef struct _plGraphics
     plFrameGarbage* sbtGarbage;
     size_t          szLocalMemoryInUse;
     size_t          szHostMemoryInUse;
+    bool            bValidationActive;
 
     // render pass layouts
     plRenderPassLayout* sbtRenderPassLayoutsCold;

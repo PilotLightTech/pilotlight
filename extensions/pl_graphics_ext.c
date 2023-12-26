@@ -881,52 +881,6 @@ pl_free_buddy(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation*
     strncpy(ptNode->acName, "not used", PL_MAX_NAME_LENGTH);
 }
 
-static plShaderHandle
-pl_get_shader_variant(plDevice* ptDevice, plShaderHandle tHandle, const plShaderVariant* ptVariant)
-{
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plShader* ptShader = &ptGraphics->sbtShadersCold[tHandle.uIndex];
-
-    size_t uTotalConstantSize = 0;
-    for(uint32_t i = 0; i < ptShader->tDescription.uConstantCount; i++)
-    {
-        const plSpecializationConstant* ptConstant = &ptShader->tDescription.atConstants[i];
-        uTotalConstantSize += pl__get_data_type_size(ptConstant->tType);
-    }
-
-    const uint64_t ulVariantHash = pl_hm_hash(ptVariant->pTempConstantData, uTotalConstantSize, ptVariant->tGraphicsState.ulValue);
-    const uint64_t ulIndex = pl_hm_lookup(&ptShader->tVariantHashmap, ulVariantHash);
-
-    plShaderHandle tVariantHandle = {UINT32_MAX, UINT32_MAX};
-    if(ulIndex == UINT64_MAX)
-        return tVariantHandle;
-    tVariantHandle = ptShader->_sbtVariantHandles[ulIndex];
-    return tVariantHandle;
-}
-
-static plComputeShaderHandle
-pl_get_compute_shader_variant(plDevice* ptDevice, plComputeShaderHandle tHandle, const plComputeShaderVariant* ptVariant)
-{
-    plGraphics*       ptGraphics = ptDevice->ptGraphics;
-    plComputeShader* ptShader = &ptGraphics->sbtComputeShadersCold[tHandle.uIndex];
-
-    size_t uTotalConstantSize = 0;
-    for(uint32_t i = 0; i < ptShader->tDescription.uConstantCount; i++)
-    {
-        const plSpecializationConstant* ptConstant = &ptShader->tDescription.atConstants[i];
-        uTotalConstantSize += pl__get_data_type_size(ptConstant->tType);
-    }
-
-    const uint64_t ulVariantHash = pl_hm_hash(ptVariant->pTempConstantData, uTotalConstantSize, 0);
-    const uint64_t ulIndex = pl_hm_lookup(&ptShader->tVariantHashmap, ulVariantHash);
-
-    plComputeShaderHandle tVariantHandle = {UINT32_MAX, UINT32_MAX};
-    if(ulIndex == UINT64_MAX)
-        return tVariantHandle;
-    tVariantHandle = ptShader->_sbtVariantHandles[ulIndex];
-    return tVariantHandle;
-}
-
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------

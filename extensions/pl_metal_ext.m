@@ -127,11 +127,13 @@ typedef struct _plMetalShader
     id<MTLDepthStencilState>   tDepthStencilState;
     id<MTLRenderPipelineState> tRenderPipelineState;
     MTLCullMode                tCullMode;
+    id<MTLLibrary>             library;
 } plMetalShader;
 
 typedef struct _plMetalComputeShader
 {
     id<MTLComputePipelineState> tPipelineState;
+    id<MTLLibrary> library;
 } plMetalComputeShader;
 
 typedef struct _plMetalPipelineEntry
@@ -1024,6 +1026,81 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
 }
 
 static plComputeShaderHandle
+pl_get_compute_shader_variant(plDevice* ptDevice, plComputeShaderHandle tHandle, const plComputeShaderVariant* ptVariant)
+{
+    plGraphics*       ptGraphics = ptDevice->ptGraphics;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    plDeviceMetal*   ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
+
+    plComputeShader* ptShader = &ptGraphics->sbtComputeShadersCold[tHandle.uIndex];
+
+    size_t uTotalConstantSize = 0;
+    for(uint32_t i = 0; i < ptShader->tDescription.uConstantCount; i++)
+    {
+        const plSpecializationConstant* ptConstant = &ptShader->tDescription.atConstants[i];
+        uTotalConstantSize += pl__get_data_type_size(ptConstant->tType);
+    }
+
+    const uint64_t ulVariantHash = pl_hm_hash(ptVariant->pTempConstantData, uTotalConstantSize, 0);
+    const uint64_t ulIndex = pl_hm_lookup(&ptShader->tVariantHashmap, ulVariantHash);
+
+    if(ulIndex != UINT64_MAX)
+        return ptShader->_sbtVariantHandles[ulIndex];
+
+    uint32_t uNewResourceIndex = UINT32_MAX;
+    if(pl_sb_size(ptGraphics->sbtComputeShaderFreeIndices) > 0)
+        uNewResourceIndex = pl_sb_pop(ptGraphics->sbtComputeShaderFreeIndices);
+    else
+    {
+        uNewResourceIndex = pl_sb_size(ptGraphics->sbtComputeShadersCold);
+        pl_sb_add(ptGraphics->sbtComputeShadersCold);
+        pl_sb_push(ptGraphics->sbtComputeShaderGenerations, UINT32_MAX);
+        pl_sb_add(ptMetalGraphics->sbtComputeShadersHot);
+    }
+    ptShader = &ptGraphics->sbtComputeShadersCold[tHandle.uIndex];
+    plMetalComputeShader* ptMetalShader = &ptMetalGraphics->sbtComputeShadersHot[uNewResourceIndex];
+
+
+    plComputeShaderHandle tVariantHandle = {
+        .uGeneration = ++ptGraphics->sbtComputeShaderGenerations[uNewResourceIndex],
+        .uIndex = uNewResourceIndex
+    };
+
+    pl_hm_insert(&ptShader->tVariantHashmap, ulVariantHash, pl_sb_size(ptShader->_sbtVariantHandles));
+    pl_sb_push(ptShader->_sbtVariantHandles, tVariantHandle);
+
+    MTLFunctionConstantValues* ptConstantValues = [MTLFunctionConstantValues new];
+
+    const char* pcConstantData = ptVariant->pTempConstantData;
+    for(uint32_t i = 0; i < ptShader->tDescription.uConstantCount; i++)
+    {
+        const plSpecializationConstant* ptConstant = &ptShader->tDescription.atConstants[i];
+        [ptConstantValues setConstantValue:&pcConstantData[ptConstant->uOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:ptConstant->uID];
+    }
+
+    NSError* error = nil;
+    id<MTLFunction> computeFunction = [ptMetalShader->library newFunctionWithName:@"kernel_main" constantValues:ptConstantValues error:&error];
+
+    if (computeFunction == nil)
+    {
+        NSLog(@"Error: failed to find Metal shader functions in library: %@", error);
+    }
+
+    const plMetalComputeShader tMetalShader = {
+        .tPipelineState = [ptMetalDevice->tDevice newComputePipelineStateWithFunction:computeFunction error:&error]
+    };
+
+    if (error != nil)
+        NSLog(@"Error: failed to create Metal pipeline state: %@", error);
+
+    ptMetalGraphics->sbtComputeShadersHot[uNewResourceIndex] = tMetalShader;
+    ptGraphics->sbtComputeShadersCold[uNewResourceIndex] = *ptShader;
+    ptGraphics->sbtComputeShadersCold[uNewResourceIndex]._sbtVariantHandles = NULL;
+    memset(&ptGraphics->sbtComputeShadersCold[uNewResourceIndex].tVariantHashmap, 0, sizeof(plHashMap));
+    return tVariantHandle;
+}
+
+static plComputeShaderHandle
 pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* ptDescription)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
@@ -1050,6 +1127,8 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
         .tDescription = *ptDescription
     };
 
+    plMetalComputeShader* ptMetalShader = &ptMetalGraphics->sbtComputeShadersHot[uResourceIndex];
+
     if(ptDescription->pcShaderEntryFunc == NULL)
         tShader.tDescription.pcShaderEntryFunc = "kernel_main";
 
@@ -1063,8 +1142,8 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
     NSError* error = nil;
     NSString* shaderSource = [NSString stringWithUTF8String:pcFileData];
     MTLCompileOptions* ptCompileOptions = [MTLCompileOptions new];
-    id<MTLLibrary> library = [ptMetalDevice->tDevice  newLibraryWithSource:shaderSource options:ptCompileOptions error:&error];
-    if (library == nil)
+    ptMetalShader->library = [ptMetalDevice->tDevice  newLibraryWithSource:shaderSource options:ptCompileOptions error:&error];
+    if (ptMetalShader->library == nil)
     {
         NSLog(@"Error: failed to create Metal library: %@", error);
     }
@@ -1104,6 +1183,7 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
                 pl_sb_add(ptGraphics->sbtComputeShadersCold);
                 pl_sb_push(ptGraphics->sbtComputeShaderGenerations, UINT32_MAX);
                 pl_sb_add(ptMetalGraphics->sbtComputeShadersHot);
+                ptMetalShader = &ptMetalGraphics->sbtComputeShadersHot[uResourceIndex];
             }
         }
 
@@ -1125,7 +1205,7 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
             [ptConstantValues setConstantValue:&pcConstantData[ptConstant->uOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:ptConstant->uID];
         }
 
-        id<MTLFunction> computeFunction = [library newFunctionWithName:@"kernel_main" constantValues:ptConstantValues error:&error];
+        id<MTLFunction> computeFunction = [ptMetalShader->library newFunctionWithName:@"kernel_main" constantValues:ptConstantValues error:&error];
 
         if (computeFunction == nil)
         {
@@ -1139,17 +1219,130 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
         if (error != nil)
             NSLog(@"Error: failed to create Metal pipeline state: %@", error);
 
-        ptMetalGraphics->sbtComputeShadersHot[uNewResourceIndex] = tMetalShader;
         ptGraphics->sbtComputeShadersCold[uNewResourceIndex] = tShader;
-
-        if(i != 0)
+        if(i == 0)
         {
+            ptMetalShader->tPipelineState = tMetalShader.tPipelineState;
+        }
+        else
+        {
+            ptMetalGraphics->sbtComputeShadersHot[uNewResourceIndex] = tMetalShader;
             ptGraphics->sbtComputeShadersCold[uNewResourceIndex]._sbtVariantHandles = NULL;
             memset(&ptGraphics->sbtComputeShadersCold[uNewResourceIndex].tVariantHashmap, 0, sizeof(plHashMap));
         }
     }
     ptGraphics->sbtComputeShadersCold[uResourceIndex] = tShader;
     return tHandle;
+}
+
+static plShaderHandle
+pl_get_shader_variant(plDevice* ptDevice, plShaderHandle tHandle, const plShaderVariant* ptVariant)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
+    plShader* ptShader = &ptGraphics->sbtShadersCold[tHandle.uIndex];
+
+    size_t uTotalConstantSize = 0;
+    for(uint32_t i = 0; i < ptShader->tDescription.uConstantCount; i++)
+    {
+        const plSpecializationConstant* ptConstant = &ptShader->tDescription.atConstants[i];
+        uTotalConstantSize += pl__get_data_type_size(ptConstant->tType);
+    }
+
+    const uint64_t ulVariantHash = pl_hm_hash(ptVariant->pTempConstantData, uTotalConstantSize, ptVariant->tGraphicsState.ulValue);
+    const uint64_t ulIndex = pl_hm_lookup(&ptShader->tVariantHashmap, ulVariantHash);
+
+    if(ulIndex != UINT64_MAX)
+        return ptShader->_sbtVariantHandles[ulIndex];;
+
+    uint32_t uNewResourceIndex = UINT32_MAX;
+
+    if(pl_sb_size(ptGraphics->sbtShaderFreeIndices) > 0)
+        uNewResourceIndex = pl_sb_pop(ptGraphics->sbtShaderFreeIndices);
+    else
+    {
+        uNewResourceIndex = pl_sb_size(ptGraphics->sbtShadersCold);
+        pl_sb_add(ptGraphics->sbtShadersCold);
+        pl_sb_push(ptGraphics->sbtShaderGenerations, UINT32_MAX);
+        pl_sb_add(ptMetalGraphics->sbtShadersHot);
+        ptShader = &ptGraphics->sbtShadersCold[tHandle.uIndex];
+    }
+
+    plMetalShader* ptMetalShader = &ptMetalGraphics->sbtShadersHot[tHandle.uIndex];
+    MTLFunctionConstantValues* ptConstantValues = [MTLFunctionConstantValues new];
+
+    const char* pcConstantData = ptVariant->pTempConstantData;
+    for(uint32_t i = 0; i < ptShader->tDescription.uConstantCount; i++)
+    {
+        const plSpecializationConstant* ptConstant = &ptShader->tDescription.atConstants[i];
+        [ptConstantValues setConstantValue:&pcConstantData[ptConstant->uOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:ptConstant->uID];
+    }
+
+    NSError* error = nil;
+    id<MTLFunction> vertexFunction = [ptMetalShader->library newFunctionWithName:@"vertex_main" constantValues:ptConstantValues error:&error];
+    id<MTLFunction> fragmentFunction = [ptMetalShader->library newFunctionWithName:@"fragment_main" constantValues:ptConstantValues error:&error];
+
+    if (vertexFunction == nil || fragmentFunction == nil)
+    {
+        NSLog(@"Error: failed to find Metal shader functions in library: %@", error);
+    }
+
+    MTLDepthStencilDescriptor *depthDescriptor = [MTLDepthStencilDescriptor new];
+    depthDescriptor.depthCompareFunction = pl__metal_compare((plCompareMode)ptVariant->tGraphicsState.ulDepthMode);
+    depthDescriptor.depthWriteEnabled = ptVariant->tGraphicsState.ulDepthWriteEnabled ? YES : NO;
+
+    // vertex layout
+    MTLVertexDescriptor* vertexDescriptor = [MTLVertexDescriptor vertexDescriptor];
+    vertexDescriptor.attributes[0].offset = 0;
+    vertexDescriptor.attributes[0].format = MTLVertexFormatFloat3; // position
+    vertexDescriptor.attributes[0].bufferIndex = 0;
+    vertexDescriptor.layouts[0].stepRate = 1;
+    vertexDescriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
+    vertexDescriptor.layouts[0].stride = sizeof(float) * 3;
+
+    MTLRenderPipelineDescriptor* pipelineDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
+    pipelineDescriptor.vertexFunction = vertexFunction;
+    pipelineDescriptor.fragmentFunction = fragmentFunction;
+    pipelineDescriptor.vertexDescriptor = vertexDescriptor;
+    pipelineDescriptor.rasterSampleCount = ptGraphics->sbtRenderPassLayoutsCold[ptShader->tDescription.tRenderPassLayout.uIndex].tSampleCount;
+
+    // renderpass stuff
+    const plRenderPassLayout* ptLayout = &ptGraphics->sbtRenderPassLayoutsCold[ptShader->tDescription.tRenderPassLayout.uIndex];
+
+    pipelineDescriptor.colorAttachments[0].pixelFormat = pl__metal_format(ptLayout->tDesc.atRenderTargets[0].tFormat);
+    pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
+    pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
+    pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+    pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+    pipelineDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
+    pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
+    pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorZero;
+    pipelineDescriptor.depthAttachmentPixelFormat = pl__metal_format(ptLayout->tDesc.tDepthTarget.tFormat);
+    // pipelineDescriptor.stencilAttachmentPixelFormat = ptMetalRenderPass->ptRenderPassDescriptor.stencilAttachment.texture.pixelFormat;
+
+    const plMetalShader tMetalShader = {
+        .tDepthStencilState   = [ptMetalDevice->tDevice newDepthStencilStateWithDescriptor:depthDescriptor],
+        .tRenderPipelineState = [ptMetalDevice->tDevice newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error],
+        .tCullMode            = pl__metal_cull(ptVariant->tGraphicsState.ulCullMode)
+    };
+
+    if (error != nil)
+        NSLog(@"Error: failed to create Metal pipeline state: %@", error);
+
+    plShaderHandle tVariantHandle = {
+        .uGeneration = ++ptGraphics->sbtShaderGenerations[uNewResourceIndex],
+        .uIndex = uNewResourceIndex
+    };
+    
+    pl_hm_insert(&ptShader->tVariantHashmap, ulVariantHash, pl_sb_size(ptShader->_sbtVariantHandles));
+    pl_sb_push(ptShader->_sbtVariantHandles, tVariantHandle);
+
+    ptGraphics->sbtShadersCold[uNewResourceIndex] = *ptShader;
+    ptMetalGraphics->sbtShadersHot[uNewResourceIndex] = tMetalShader;
+    ptGraphics->sbtShadersCold[uNewResourceIndex]._sbtVariantHandles = NULL;
+    memset(&ptGraphics->sbtShadersCold[uNewResourceIndex].tVariantHashmap, 0, sizeof(plHashMap));
+    return tVariantHandle;
 }
 
 static plShaderHandle
@@ -1179,6 +1372,8 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         .tDescription = *ptDescription
     };
 
+    plMetalShader* ptMetalShader = &ptMetalGraphics->sbtShadersHot[uResourceIndex];
+
     if(ptDescription->pcPixelShaderEntryFunc == NULL)
         tShader.tDescription.pcPixelShaderEntryFunc = "fragment_main";
 
@@ -1207,8 +1402,8 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
     // compile shader source
     NSError* error = nil;
     NSString* shaderSource = [NSString stringWithUTF8String:pcFileData];
-    id<MTLLibrary> library = [ptMetalDevice->tDevice  newLibraryWithSource:shaderSource options:ptCompileOptions error:&error];
-    if (library == nil)
+    ptMetalShader->library = [ptMetalDevice->tDevice  newLibraryWithSource:shaderSource options:ptCompileOptions error:&error];
+    if (ptMetalShader->library == nil)
     {
         NSLog(@"Error: failed to create Metal library: %@", error);
     }
@@ -1250,6 +1445,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
                 pl_sb_add(ptGraphics->sbtShadersCold);
                 pl_sb_push(ptGraphics->sbtShaderGenerations, UINT32_MAX);
                 pl_sb_add(ptMetalGraphics->sbtShadersHot);
+                ptMetalShader = &ptMetalGraphics->sbtShadersHot[uResourceIndex];
             }
         }
 
@@ -1262,8 +1458,8 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
             [ptConstantValues setConstantValue:&pcConstantData[ptConstant->uOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:ptConstant->uID];
         }
 
-        id<MTLFunction> vertexFunction = [library newFunctionWithName:@"vertex_main" constantValues:ptConstantValues error:&error];
-        id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"fragment_main" constantValues:ptConstantValues error:&error];
+        id<MTLFunction> vertexFunction = [ptMetalShader->library newFunctionWithName:@"vertex_main" constantValues:ptConstantValues error:&error];
+        id<MTLFunction> fragmentFunction = [ptMetalShader->library newFunctionWithName:@"fragment_main" constantValues:ptConstantValues error:&error];
 
         if (vertexFunction == nil || fragmentFunction == nil)
         {
@@ -1309,17 +1505,22 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         pl_hm_insert(&tShader.tVariantHashmap, ulVariantHash, pl_sb_size(tShader._sbtVariantHandles));
         pl_sb_push(tShader._sbtVariantHandles, tVariantHandle);
 
-        ptMetalGraphics->sbtShadersHot[uNewResourceIndex] = tMetalShader;
         ptGraphics->sbtShadersCold[uNewResourceIndex] = tShader;
 
-        if(i != 0)
+        if(i == 0)
         {
+            ptMetalShader->tDepthStencilState = tMetalShader.tDepthStencilState;
+            ptMetalShader->tRenderPipelineState = tMetalShader.tRenderPipelineState;
+            ptMetalShader->tCullMode = tMetalShader.tCullMode;
+        }
+        else
+        {
+            ptMetalGraphics->sbtShadersHot[uNewResourceIndex] = tMetalShader;
             ptGraphics->sbtShadersCold[uNewResourceIndex]._sbtVariantHandles = NULL;
             memset(&ptGraphics->sbtShadersCold[uNewResourceIndex].tVariantHashmap, 0, sizeof(plHashMap));
         }
     }
     pl_temp_allocator_reset(&ptMetalGraphics->tTempAllocator);
-    ptGraphics->sbtShadersCold[uResourceIndex] = tShader;
     return tHandle;
 }
 
@@ -2522,6 +2723,11 @@ pl__garbage_collect(plGraphics* ptGraphics)
             [ptVariantMetalResource->tRenderPipelineState release];
             ptVariantMetalResource->tDepthStencilState = nil;
             ptVariantMetalResource->tRenderPipelineState = nil;
+            if(ptVariantMetalResource->library)
+            {
+                [ptVariantMetalResource->library release];
+                ptVariantMetalResource->library = nil;
+            }
             pl_sb_push(ptGraphics->sbtShaderFreeIndices, iVariantIndex);
         }
         pl_sb_free(ptResource->_sbtVariantHandles);
@@ -2539,6 +2745,11 @@ pl__garbage_collect(plGraphics* ptGraphics)
             plMetalComputeShader* ptVariantMetalResource = &ptMetalGraphics->sbtComputeShadersHot[iVariantIndex];
             [ptVariantMetalResource->tPipelineState release];
             ptVariantMetalResource->tPipelineState = nil;
+            if(ptVariantMetalResource->library)
+            {
+                [ptVariantMetalResource->library release];
+                ptVariantMetalResource->library = nil;
+            }
             pl_sb_push(ptGraphics->sbtComputeShaderFreeIndices, iVariantIndex);
         }
         pl_sb_free(ptResource->_sbtVariantHandles);
@@ -2606,6 +2817,7 @@ pl__garbage_collect(plGraphics* ptGraphics)
         }
         if(ptNode->ulUsedSize == 0 && ptIO->dTime - ptBlock->dLastTimeUsed > 1.0)
         {
+            ptGraphics->szHostMemoryInUse -= ptBlock->ulSize;
             id<MTLHeap> tMetalHeap = (id<MTLHeap>)ptBlock->ulAddress;
             [tMetalHeap release];
             tMetalHeap = nil;
@@ -2651,6 +2863,7 @@ pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFil
     ptHeapDescriptor.hazardTrackingMode = MTLHazardTrackingModeUntracked;
 
     tBlock.ulAddress = (uint64_t)[ptMetalDevice->tDevice newHeapWithDescriptor:ptHeapDescriptor];
+    ptData->ptDevice->ptGraphics->szLocalMemoryInUse += tBlock.ulSize;
     
     plDeviceMemoryAllocation tAllocation = {
         .pHostMapped = NULL,
@@ -2696,6 +2909,7 @@ pl_free_dedicated(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocat
         {
             uNodeIndex = i;
             uBlockIndex = (uint32_t)ptNode->ulBlockIndex;
+            ptData->ptDevice->ptGraphics->szLocalMemoryInUse -= ptBlock->ulSize;
             ptBlock->ulSize = 0;
             break;
         }
@@ -2732,6 +2946,7 @@ pl_allocate_buddy(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter,
         ptHeapDescriptor.hazardTrackingMode = MTLHazardTrackingModeUntracked;
         ptBlock->ulAddress = (uint64_t)[ptMetalDevice->tDevice newHeapWithDescriptor:ptHeapDescriptor];
         tAllocation.uHandle = (uint64_t)ptBlock->ulAddress;
+        ptData->ptDevice->ptGraphics->szLocalMemoryInUse += ptBlock->ulSize;
     }
 
     return tAllocation;
@@ -2756,7 +2971,7 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
     {
         plDeviceAllocationRange* ptNode = &ptData->sbtNodes[i];
         plDeviceAllocationBlock* ptBlock = &ptData->sbtBlocks[ptNode->ulBlockIndex];
-        if(ptNode->ulUsedSize == 0 && ptNode->ulTotalSize >= ulSize)
+        if(ptNode->ulUsedSize == 0 && ptNode->ulTotalSize >= ulSize && ptBlock->ulAddress != 0)
         {
             ptNode->ulUsedSize = ulSize;
             pl_sprintf(ptNode->acName, "%s", pcName);
@@ -2768,11 +2983,6 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
         }
     }
 
-    plDeviceAllocationBlock tBlock = {
-        .ulAddress = 0,
-        .ulSize    = pl_maxu((uint32_t)ulSize, PL_DEVICE_ALLOCATION_BLOCK_SIZE)
-    };
-
     uint32_t uIndex = UINT32_MAX;
     if(pl_sb_size(ptData->sbtFreeBlockIndices) > 0)
     {
@@ -2780,10 +2990,15 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
     }
     else
     {
-        uIndex = pl_sb_size(ptData->sbtFreeBlockIndices);
+        uIndex = pl_sb_size(ptData->sbtBlocks);
         pl_sb_add(ptData->sbtNodes);
         pl_sb_add(ptData->sbtBlocks);
     }
+
+    plDeviceAllocationBlock tBlock = {
+        .ulAddress = 0,
+        .ulSize    = pl_maxu((uint32_t)ulSize, PL_DEVICE_ALLOCATION_BLOCK_SIZE)
+    };
 
     plDeviceAllocationRange tRange = {
         .ulOffset     = 0,
@@ -2797,6 +3012,7 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
     ptHeapDescriptor.storageMode = MTLStorageModeShared;
     ptHeapDescriptor.size = tBlock.ulSize;
     ptHeapDescriptor.type = MTLHeapTypePlacement;
+    ptData->ptDevice->ptGraphics->szHostMemoryInUse += tBlock.ulSize;
 
     tBlock.ulAddress = (uint64_t)[ptMetalDevice->tDevice newHeapWithDescriptor:ptHeapDescriptor];
     tAllocation.uHandle = tBlock.ulAddress;
@@ -2822,6 +3038,7 @@ pl_free_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemory
             ptRange->ulUsedSize = 0;
             memset(ptRange->acName, 0, PL_MAX_NAME_LENGTH);
             strncpy(ptRange->acName, "not used", PL_MAX_NAME_LENGTH);
+            break;
         }
     }
 }

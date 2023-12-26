@@ -1458,8 +1458,6 @@ create_shaders(plAppData* ptAppData)
     }
     tShaderDescription0.pTempConstantData = aiConstantData0;
     const plShaderVariant tVariant = {.tGraphicsState = tShaderDescription0.tGraphicsState, .pTempConstantData = aiConstantData1 };
-    tShaderDescription0.ptVariants = &tVariant;
-    tShaderDescription0.uVariantCount = 1;
     ptAppData->tShader0 = gptDevice->create_shader(ptDevice, &tShaderDescription0);
     ptAppData->tShader1 = gptDevice->get_shader_variant(ptDevice, ptAppData->tShader0, &tVariant);
     tShaderDescription0.tRenderPassLayout = ptAppData->tOffscreenPassLayout;
