@@ -1453,7 +1453,6 @@ pl_get_compute_shader_variant(plDevice* ptDevice, plComputeShaderHandle tHandle,
         ptShader = &ptGraphics->sbtComputeShadersCold[tHandle.uIndex];
         ptParentVulkanShader = &ptVulkanGfx->sbtComputeShadersHot[tHandle.uIndex];
     }
-    ptShader = &ptGraphics->sbtComputeShadersCold[tHandle.uIndex];
 
     plVulkanComputeShader* ptVulkanShader = &ptVulkanGfx->sbtComputeShadersHot[uNewResourceIndex];
 
@@ -2778,7 +2777,6 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     ptGraphics->uFramesInFlight = 2;
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create instance~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    ptGraphics->bValidationActive = true;
 
     static const char* pcKhronosValidationLayer = "VK_LAYER_KHRONOS_validation";
 

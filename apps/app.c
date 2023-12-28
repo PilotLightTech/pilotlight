@@ -264,6 +264,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptEcs->init_component_library(&ptAppData->tComponentLibrary);
 
     // create command queue
+    ptAppData->tGraphics.bValidationActive = true;
     gptGfx->initialize(&ptAppData->tGraphics);
     plDevice* ptDevice = &ptAppData->tGraphics.tDevice;
     gptDataRegistry->set_data("device", ptDevice);
