@@ -86,6 +86,17 @@ pl_resource_get_file_data(plResourceHandle tResourceHandle, size_t* pszDataSize)
 static plResourceHandle
 pl_load_resource(const char* pcName, plResourceLoadFlags tFlags, char* pcData, size_t szDataSize)
 {
+    const uint64_t ulHash = pl_hm_hash_str(pcName);
+    if(pl_hm_has_key(&gptResourceManager->tNameHashMap, ulHash))
+    {
+        uint64_t ulExistingSlot = pl_hm_lookup(&gptResourceManager->tNameHashMap, ulHash);
+
+        plResourceHandle tResource = {
+            .uIndex      = (uint32_t)ulExistingSlot,
+            .uGeneration = gptResourceManager->sbtResourceGenerations[ulExistingSlot]
+        };
+        return tResource;
+    }
 
     plResource tResource = {
         .tFlags         = tFlags,
@@ -95,20 +106,20 @@ pl_load_resource(const char* pcName, plResourceLoadFlags tFlags, char* pcData, s
 
     strncpy(tResource.acName, pcName, PL_MAX_NAME_LENGTH);
 
-    if(tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_DATA)
-    {
-        tResource.pcFileData = PL_ALLOC(szDataSize);
-        memcpy(tResource.pcFileData, pcData, szDataSize);
-    }
-
     uint64_t uIndex = pl_hm_get_free_index(&gptResourceManager->tNameHashMap);
     if(uIndex == UINT64_MAX)
     {
         uIndex = pl_sb_size(gptResourceManager->sbtResourceGenerations);
         pl_sb_push(gptResourceManager->sbtResourceGenerations, 0);
         pl_sb_add(gptResourceManager->sbtResources);
+
     }
 
+    if(tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_DATA)
+    {
+        tResource.pcFileData = PL_ALLOC(szDataSize);
+        memcpy(tResource.pcFileData, pcData, szDataSize);
+    }  
     pl_hm_insert_str(&gptResourceManager->tNameHashMap, pcName, uIndex);
 
     plResourceHandle tNewResource = {
