@@ -627,7 +627,7 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
         tBuffer.tMemoryAllocation = ptDevice->tStagingCachedAllocator.allocate(ptDevice->tStagingCachedAllocator.ptInst, tMemRequirements.memoryTypeBits, tMemRequirements.size, tMemRequirements.alignment, tBuffer.tDescription.acDebugName);
     else
     {
-        plDeviceMemoryAllocatorI* ptAllocator = tMemRequirements.size > PL_DEVICE_ALLOCATION_BLOCK_SIZE ? &ptDevice->tLocalDedicatedAllocator : &ptDevice->tLocalBuddyAllocator;
+        plDeviceMemoryAllocatorI* ptAllocator = tMemRequirements.size > PL_DEVICE_BUDDY_BLOCK_SIZE ? &ptDevice->tLocalDedicatedAllocator : &ptDevice->tLocalBuddyAllocator;
         tBuffer.tMemoryAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemRequirements.memoryTypeBits, tMemRequirements.size, tMemRequirements.alignment, tBuffer.tDescription.acDebugName);
     }
 
@@ -898,7 +898,7 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
     vkGetImageMemoryRequirements(ptVulkanDevice->tLogicalDevice, tVulkanTexture.tImage, &tMemoryRequirements);
 
     // allocate memory
-    plDeviceMemoryAllocatorI* ptAllocator = tMemoryRequirements.size > PL_DEVICE_ALLOCATION_BLOCK_SIZE ? &ptDevice->tLocalDedicatedAllocator : &ptDevice->tLocalBuddyAllocator;
+    plDeviceMemoryAllocatorI* ptAllocator = tMemoryRequirements.size > PL_DEVICE_BUDDY_BLOCK_SIZE ? &ptDevice->tLocalDedicatedAllocator : &ptDevice->tLocalBuddyAllocator;
     tTexture.tMemoryAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
 
     PL_VULKAN(vkBindImageMemory(ptVulkanDevice->tLogicalDevice, tVulkanTexture.tImage, (VkDeviceMemory)tTexture.tMemoryAllocation.uHandle, tTexture.tMemoryAllocation.ulOffset));
@@ -1112,13 +1112,17 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
         .unnormalizedCoordinates = VK_FALSE,
         .compareEnable           = VK_FALSE,
         .compareOp               = pl__vulkan_compare(ptSampler->tCompare),
-        .mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        // .mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .mipmapMode              = VK_SAMPLER_MIPMAP_MODE_NEAREST,
         .mipLodBias              = ptSampler->fMipBias,
         .minLod                  = ptSampler->fMinMip,
         .maxLod                  = ptSampler->fMaxMip,
     };
 
-    // .compareOp               = VK_COMPARE_OP_ALWAYS,
+    if(ptSampler->fMaxMip == 64.0f)
+        tSamplerInfo.maxLod = (float)tTextureView.tTextureViewDesc.uMips;
+
+    tSamplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
     tSamplerInfo.minFilter    = tSamplerInfo.magFilter;
     tSamplerInfo.addressModeW = tSamplerInfo.addressModeU;
 
@@ -2635,7 +2639,7 @@ pl_begin_pass(plGraphics* ptGraphics, plRenderPassHandle tPass)
 
     const VkClearValue atClearValues[2] = {
         { .color.float32 = {0.0f, 0.0f, 0.0f, 1.0f}},
-        { .depthStencil.depth = 0.0f}
+        { .depthStencil.depth = 1.0f}
     };
 
     VkRenderPassBeginInfo tRenderPassInfo = {
@@ -3529,9 +3533,12 @@ pl_start_transfers(plGraphics* ptGraphics)
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
+    plFrameContext* ptCurrentFrame = &ptVulkanGfx->sbFrames[ptGraphics->uCurrentFrameIndex];
 
     PL_VULKAN(vkWaitForFences(ptVulkanDevice->tLogicalDevice, 1, &ptCurrentFrame->tInFlight, VK_TRUE, UINT64_MAX));
+
+    pl_sb_reset(ptCurrentFrame->sbtStagingBuffers);
+    ptCurrentFrame->szCurrentStagingOffset = PL_DEVICE_ALLOCATION_BLOCK_SIZE;
 
     const VkCommandBufferBeginInfo tBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
@@ -3544,33 +3551,30 @@ static void
 pl_end_transfers(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
+
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plFrameContext* ptCurrentFrame = &ptVulkanGfx->sbFrames[ptGraphics->uCurrentFrameIndex];
     
     PL_VULKAN(vkEndCommandBuffer(ptCurrentFrame->tTransferCmdBuffer));
 
-    plIO* ptIOCtx = pl_get_io();
-
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    plVulkanSwapchain* ptVulkanSwapchain = ptGraphics->tSwapchain._pInternalData;
 
     ptCurrentFrame->uCurrentBufferIndex = UINT32_MAX;
 
     // submit
-    const VkPipelineStageFlags atWaitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     VkCommandBuffer atCmdBuffers[] = {ptCurrentFrame->tTransferCmdBuffer};
     const VkSubmitInfo tSubmitInfo = {
         .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount   = 0,
         .pWaitSemaphores      = NULL,
-        .pWaitDstStageMask    = atWaitStages,
+        .pWaitDstStageMask    = NULL,
         .commandBufferCount   = 1,
         .pCommandBuffers      = atCmdBuffers,
         .signalSemaphoreCount = 0,
         .pSignalSemaphores    = NULL
     };
     PL_VULKAN(vkResetFences(ptVulkanDevice->tLogicalDevice, 1, &ptCurrentFrame->tInFlight));
-    PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, ptCurrentFrame->tInFlight));          
+    PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, ptCurrentFrame->tInFlight));  
 
     ptGraphics->uCurrentFrameIndex = (ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;  
 
@@ -4725,7 +4729,23 @@ pl__transfer_data_to_buffer(plDevice* ptDevice, VkBuffer tDest, size_t szSize, c
 
     plBuffer* ptBuffer = NULL;
     plVulkanBuffer* ptVulkanStagingBuffer = NULL;
-    if(ptFrame->szCurrentStagingOffset + szSize > PL_DEVICE_ALLOCATION_BLOCK_SIZE)
+    size_t szStagingOffset = 0;
+    bool bDedicatedStaging = false;
+    if(szSize > PL_DEVICE_ALLOCATION_BLOCK_SIZE)
+    {
+        const plBufferDescription tStagingBufferDescription = {
+            .tMemory              = PL_MEMORY_GPU_CPU,
+            .tUsage               = PL_BUFFER_USAGE_UNSPECIFIED,
+            .uByteSize            = (uint32_t)szSize
+        };
+
+        plBufferHandle tStagingBuffer = pl_create_buffer(ptDevice, &tStagingBufferDescription, "staging overflow");
+        ptBuffer = &ptGraphics->sbtBuffersCold[tStagingBuffer.uIndex];
+        ptVulkanStagingBuffer = &ptVulkanGraphics->sbtBuffersHot[tStagingBuffer.uIndex];
+        pl_queue_buffer_for_deletion(ptDevice, tStagingBuffer);
+        bDedicatedStaging = true;
+    }
+    else if(ptFrame->szCurrentStagingOffset + szSize > PL_DEVICE_ALLOCATION_BLOCK_SIZE)
     {
         const plBufferDescription tStagingBufferDescription = {
             .tMemory              = PL_MEMORY_GPU_CPU,
@@ -4737,17 +4757,24 @@ pl__transfer_data_to_buffer(plDevice* ptDevice, VkBuffer tDest, size_t szSize, c
         ptFrame->szCurrentStagingOffset = 0;
     }
 
-    ptBuffer = &ptGraphics->sbtBuffersCold[pl_sb_back(ptFrame->sbtStagingBuffers).uIndex];
-    ptVulkanStagingBuffer = &ptVulkanGraphics->sbtBuffersHot[pl_sb_back(ptFrame->sbtStagingBuffers).uIndex];
+    if(ptBuffer == NULL)
+    {
+        ptBuffer = &ptGraphics->sbtBuffersCold[pl_sb_back(ptFrame->sbtStagingBuffers).uIndex];
+        ptVulkanStagingBuffer = &ptVulkanGraphics->sbtBuffersHot[pl_sb_back(ptFrame->sbtStagingBuffers).uIndex];
+        szStagingOffset = ptFrame->szCurrentStagingOffset;
+    }
 
     // copy data
-    memcpy(&ptBuffer->tMemoryAllocation.pHostMapped[ptFrame->szCurrentStagingOffset], pData, szSize);
+    memcpy(&ptBuffer->tMemoryAllocation.pHostMapped[szStagingOffset], pData, szSize);
     
     const VkBufferCopy tCopyRegion = {
         .size = szSize,
-        .srcOffset = ptFrame->szCurrentStagingOffset
+        .srcOffset = szStagingOffset
     };
-    ptFrame->szCurrentStagingOffset += szSize;
+
+    if(!bDedicatedStaging)
+        ptFrame->szCurrentStagingOffset += szSize;
+
     vkCmdCopyBuffer(ptFrame->tTransferCmdBuffer, ptVulkanStagingBuffer->tBuffer, tDest, 1, &tCopyRegion);
 }
 
@@ -4961,7 +4988,23 @@ pl__transfer_data_to_image(plDevice* ptDevice, plTextureHandle* ptDest, size_t s
 
     plBuffer* ptBuffer = NULL;
     plVulkanBuffer* ptVulkanStagingBuffer = NULL;
-    if(ptFrame->szCurrentStagingOffset + szDataSize > PL_DEVICE_ALLOCATION_BLOCK_SIZE)
+    size_t szStagingOffset = 0;
+    bool bDedicatedStaging = false;
+    if(szOriginalDataSize > PL_DEVICE_ALLOCATION_BLOCK_SIZE) // won't fit in standard block size
+    {
+        const plBufferDescription tStagingBufferDescription = {
+            .tMemory              = PL_MEMORY_GPU_CPU,
+            .tUsage               = PL_BUFFER_USAGE_UNSPECIFIED,
+            .uByteSize            = (uint32_t)szDataSize
+        };
+
+        plBufferHandle tStagingBuffer = pl_create_buffer(ptDevice, &tStagingBufferDescription, "staging overflow");
+        ptBuffer = &ptGraphics->sbtBuffersCold[tStagingBuffer.uIndex];
+        ptVulkanStagingBuffer = &ptVulkanGraphics->sbtBuffersHot[tStagingBuffer.uIndex];
+        pl_queue_buffer_for_deletion(ptDevice, tStagingBuffer);
+        bDedicatedStaging = true;
+    }
+    else if(ptFrame->szCurrentStagingOffset + szDataSize > PL_DEVICE_ALLOCATION_BLOCK_SIZE)
     {
         const plBufferDescription tStagingBufferDescription = {
             .tMemory              = PL_MEMORY_GPU_CPU,
@@ -4973,11 +5016,15 @@ pl__transfer_data_to_image(plDevice* ptDevice, plTextureHandle* ptDest, size_t s
         ptFrame->szCurrentStagingOffset = 0;
     }
 
-    ptBuffer = &ptGraphics->sbtBuffersCold[pl_sb_back(ptFrame->sbtStagingBuffers).uIndex];
-    ptVulkanStagingBuffer = &ptVulkanGraphics->sbtBuffersHot[pl_sb_back(ptFrame->sbtStagingBuffers).uIndex];
+    if(ptBuffer == NULL)
+    {
+        ptBuffer = &ptGraphics->sbtBuffersCold[pl_sb_back(ptFrame->sbtStagingBuffers).uIndex];
+        ptVulkanStagingBuffer = &ptVulkanGraphics->sbtBuffersHot[pl_sb_back(ptFrame->sbtStagingBuffers).uIndex];
+        szStagingOffset = ptFrame->szCurrentStagingOffset;
+    }
 
     // copy data
-    memcpy(&ptBuffer->tMemoryAllocation.pHostMapped[ptFrame->szCurrentStagingOffset], pData, szDataSize);
+    memcpy(&ptBuffer->tMemoryAllocation.pHostMapped[szStagingOffset], pData, szDataSize);
 
     const VkImageSubresourceRange tSubResourceRange = {
         .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -4994,7 +5041,7 @@ pl__transfer_data_to_image(plDevice* ptDevice, plTextureHandle* ptDest, size_t s
     for(uint32_t i = 0; i < ptDestTexture->tDesc.uLayers; i++)
     {
         const VkBufferImageCopy tCopyRegion = {
-            .bufferOffset                    = ptFrame->szCurrentStagingOffset + i * szOriginalDataSize / ptDestTexture->tDesc.uLayers,
+            .bufferOffset                    = szStagingOffset + i * szOriginalDataSize / ptDestTexture->tDesc.uLayers,
             .bufferRowLength                 = 0u,
             .bufferImageHeight               = 0u,
             .imageSubresource.aspectMask     = tSubResourceRange.aspectMask,
@@ -5005,7 +5052,9 @@ pl__transfer_data_to_image(plDevice* ptDevice, plTextureHandle* ptDest, size_t s
         };
         vkCmdCopyBufferToImage(ptFrame->tTransferCmdBuffer, ptVulkanStagingBuffer->tBuffer, ptVulkanGraphics->sbtTexturesHot[ptDest->uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &tCopyRegion);
     }
-    ptFrame->szCurrentStagingOffset += szDataSize;
+
+    if(!bDedicatedStaging)
+        ptFrame->szCurrentStagingOffset += szDataSize;
 
     // generate mips
     if(ptDestTexture->tDesc.uMips > 1)
@@ -5479,12 +5528,12 @@ pl_allocate_buddy(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter,
 
         const VkMemoryAllocateInfo tAllocInfo = {
             .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-            .allocationSize  = PL_DEVICE_ALLOCATION_BLOCK_SIZE,
+            .allocationSize  = PL_DEVICE_BUDDY_BLOCK_SIZE,
             .memoryTypeIndex = uMemoryType
         };
         VkResult tResult = vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, (VkDeviceMemory*)&ptBlock->ulAddress);
         PL_VULKAN(tResult);
-        ptData->ptDevice->ptGraphics->szLocalMemoryInUse += PL_DEVICE_ALLOCATION_BLOCK_SIZE;
+        ptData->ptDevice->ptGraphics->szLocalMemoryInUse += PL_DEVICE_BUDDY_BLOCK_SIZE;
         tAllocation.uHandle = (uint64_t)ptBlock->ulAddress;
     }
 
@@ -5780,6 +5829,9 @@ pl__garbage_collect(plGraphics* ptGraphics)
         if(ptVulkanResource->tPixelShaderModule)
             vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tPixelShaderModule, NULL);
 
+        ptVulkanResource->tVertexShaderModule = VK_NULL_HANDLE;
+        ptVulkanResource->tPixelShaderModule = VK_NULL_HANDLE;
+
         for(uint32_t j = 0; j < pl_sb_size(ptResource->_sbtVariantHandles); j++)
         {
             const uint32_t iVariantIndex = ptResource->_sbtVariantHandles[j].uIndex;
@@ -5808,6 +5860,8 @@ pl__garbage_collect(plGraphics* ptGraphics)
         plVulkanComputeShader* ptVulkanResource = &ptVulkanGfx->sbtComputeShadersHot[iResourceIndex];
         if(ptVulkanResource->tShaderModule)
             vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tShaderModule, NULL);
+
+        ptVulkanResource->tShaderModule = VK_NULL_HANDLE;
 
         for(uint32_t j = 0; j < pl_sb_size(ptResource->_sbtVariantHandles); j++)
         {

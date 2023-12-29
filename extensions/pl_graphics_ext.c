@@ -552,7 +552,7 @@ pl__create_device_node(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uMemory
 
     plDeviceAllocationBlock tBlock = {
         .ulAddress    = 0,
-        .ulSize       = PL_DEVICE_ALLOCATION_BLOCK_SIZE,
+        .ulSize       = PL_DEVICE_BUDDY_BLOCK_SIZE,
         .ulMemoryType = uMemoryType
     };
 
@@ -562,7 +562,7 @@ pl__create_device_node(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uMemory
     const uint32_t uBlockIndex = pl_sb_size(ptData->sbtBlocks);
     for(uint32_t uLevelIndex = 0; uLevelIndex < PL_DEVICE_LOCAL_LEVELS; uLevelIndex++)
     {
-        const uint64_t uSizeOfLevel = PL_DEVICE_ALLOCATION_BLOCK_SIZE / ((uint64_t)1 << (uint64_t)uLevelIndex);
+        const uint64_t uSizeOfLevel = PL_DEVICE_BUDDY_BLOCK_SIZE / ((uint64_t)1 << (uint64_t)uLevelIndex);
         const uint32_t uLevelBlockCount = (1 << uLevelIndex);
         uint64_t uCurrentOffset = 0;
         for(uint32_t i = 0; i < uLevelBlockCount; i++)
@@ -622,7 +622,7 @@ pl__get_device_node(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uLevel, ui
         plDeviceAllocationRange* ptParentNode = &ptData->sbtNodes[uParentNode];
         ptParentNode->ulUsedSize = UINT64_MAX; // ignore
 
-        const uint64_t uSizeOfLevel = PL_DEVICE_ALLOCATION_BLOCK_SIZE / ((uint64_t)1 << (uint64_t)(uLevel - 1));
+        const uint64_t uSizeOfLevel = PL_DEVICE_BUDDY_BLOCK_SIZE / ((uint64_t)1 << (uint64_t)(uLevel - 1));
         const uint32_t uLevelBlockCount = (1 << (uLevel - 1));
         uint32_t uIndexInLevel = (uint32_t)(ptParentNode->ulOffset / uSizeOfLevel);
 
@@ -654,7 +654,7 @@ pl__get_device_node(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uLevel, ui
             uint32_t uParentNode = pl__get_device_node(ptInst, uLevel - 1, uMemoryType);
             plDeviceAllocationRange* ptParentNode = &ptData->sbtNodes[uParentNode];
 
-            const uint64_t uSizeOfLevel = PL_DEVICE_ALLOCATION_BLOCK_SIZE / ((uint64_t)1 << (uint64_t)(uLevel - 1));
+            const uint64_t uSizeOfLevel = PL_DEVICE_BUDDY_BLOCK_SIZE / ((uint64_t)1 << (uint64_t)(uLevel - 1));
             const uint32_t uLevelBlockCount = (1 << (uLevel - 1));
             uint32_t uIndexInLevel = (uint32_t)(ptParentNode->ulOffset / uSizeOfLevel);
 
@@ -679,7 +679,7 @@ pl__is_node_free(plDeviceAllocatorData* ptData, uint32_t uNode)
     uint32_t uLevel = 0;
     for(; uLevel < PL_DEVICE_LOCAL_LEVELS; uLevel++)
     {
-        const uint64_t uLevelSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE / (1 << uLevel);
+        const uint64_t uLevelSize = PL_DEVICE_BUDDY_BLOCK_SIZE / (1 << uLevel);
         if(uLevelSize == ptData->sbtNodes[uNode].ulTotalSize)
         {
             break; 
@@ -776,7 +776,7 @@ pl__coalesce_nodes(plDeviceAllocatorData* ptData, uint32_t uLevel, uint32_t uNod
         if(uLevel > 1)
         {
             // find parent node
-            const uint64_t uSizeOfParentLevel = PL_DEVICE_ALLOCATION_BLOCK_SIZE / ((uint64_t)1 << (uint64_t)(uLevel - 1));
+            const uint64_t uSizeOfParentLevel = PL_DEVICE_BUDDY_BLOCK_SIZE / ((uint64_t)1 << (uint64_t)(uLevel - 1));
             const uint32_t uParentLevelBlockCount = (1 << (uLevel - 1));
             uint32_t uIndexInLevel = (uint32_t)(ptData->sbtNodes[uLeftNode].ulOffset / uSizeOfParentLevel);
             const uint32_t uParentNode = uLeftNode - uParentLevelBlockCount - uIndexInLevel;
@@ -803,7 +803,7 @@ pl__get_buddy_level(uint64_t ulSize)
     uint32_t uLevel = 0;
     for(uint32_t i = 0; i < PL_DEVICE_LOCAL_LEVELS; i++)
     {
-        const uint64_t uLevelSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE / (1 << i);
+        const uint64_t uLevelSize = PL_DEVICE_BUDDY_BLOCK_SIZE / (1 << i);
         if(uLevelSize <= ulSize)
         {
             break;
@@ -870,7 +870,7 @@ pl_free_buddy(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation*
     uint32_t uLevel = 0;
     for(; uLevel < PL_DEVICE_LOCAL_LEVELS; uLevel++)
     {
-        const uint64_t uLevelSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE / (1 << uLevel);
+        const uint64_t uLevelSize = PL_DEVICE_BUDDY_BLOCK_SIZE / (1 << uLevel);
         if(uLevelSize == ptNode->ulTotalSize)
         {
             break; 

@@ -20,6 +20,10 @@ Index of this file:
 #ifndef PL_GRAPHICS_EXT_H
 #define PL_GRAPHICS_EXT_H
 
+#ifndef PL_DEVICE_BUDDY_BLOCK_SIZE
+    #define PL_DEVICE_BUDDY_BLOCK_SIZE 268435456
+#endif
+
 #ifndef PL_DEVICE_ALLOCATION_BLOCK_SIZE
     #define PL_DEVICE_ALLOCATION_BLOCK_SIZE 134217728
 #endif
@@ -33,7 +37,7 @@ Index of this file:
 #endif
 
 #ifndef PL_MAX_BUFFERS_PER_BIND_GROUP
-    #define PL_MAX_BUFFERS_PER_BIND_GROUP 8
+    #define PL_MAX_BUFFERS_PER_BIND_GROUP 32
 #endif
 
 #ifndef PL_MAX_TEXTURES_PER_BIND_GROUP
@@ -49,6 +53,7 @@ Index of this file:
 #ifndef PL_DEFINE_HANDLE
     #define PL_DEFINE_HANDLE(x) typedef struct x { uint32_t uIndex; uint32_t uGeneration;} x;
 #endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
