@@ -74,6 +74,7 @@ typedef int plComponentType;
 typedef int plTextureSlot;
 typedef int plMaterialFlags;
 typedef int plMaterialBlendMode;
+typedef int plCameraType;
 
 typedef struct plEntity
 {
@@ -108,13 +109,14 @@ typedef struct _plEcsI
     size_t   (*get_index)      (plComponentManager* ptManager, plEntity tEntity);
     
     // entity helpers (creates entity and necessary components)
-    plEntity (*create_tag)      (plComponentLibrary* ptLibrary, const char* pcName);
-    plEntity (*create_mesh)     (plComponentLibrary* ptLibrary, const char* pcName);
-    plEntity (*create_object)   (plComponentLibrary* ptLibrary, const char* pcName);
-    plEntity (*create_transform)(plComponentLibrary* ptLibrary, const char* pcName);
-    plEntity (*create_material) (plComponentLibrary* ptLibrary, const char* pcName);
-    plEntity (*create_skin)     (plComponentLibrary* ptLibrary, const char* pcName);
-    plEntity (*create_camera)   (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
+    plEntity (*create_tag)                (plComponentLibrary* ptLibrary, const char* pcName);
+    plEntity (*create_mesh)               (plComponentLibrary* ptLibrary, const char* pcName);
+    plEntity (*create_object)             (plComponentLibrary* ptLibrary, const char* pcName);
+    plEntity (*create_transform)          (plComponentLibrary* ptLibrary, const char* pcName);
+    plEntity (*create_material)           (plComponentLibrary* ptLibrary, const char* pcName);
+    plEntity (*create_skin)               (plComponentLibrary* ptLibrary, const char* pcName);
+    plEntity (*create_perspective_camera) (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
+    plEntity (*create_orthographic_camera)(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ);
 
     // hierarchy
     void (*attach_component)   (plComponentLibrary* ptLibrary, plEntity tEntity, plEntity tParent);
@@ -205,6 +207,12 @@ enum _plMaterialBlendMode
     PL_MATERIAL_BLEND_MODE_ADDITIVE,
     PL_MATERIAL_BLEND_MODE_MULTIPLY,
     PL_MATERIAL_BLEND_MODE_COUNT
+};
+
+enum _plCameraType
+{
+    PL_CAMERA_TYPE_PERSPECTIVE,
+    PL_CAMERA_TYPE_ORTHOGRAPHIC
 };
 
 //-----------------------------------------------------------------------------
@@ -354,11 +362,14 @@ typedef struct _plSkinComponent
 
 typedef struct _plCameraComponent
 {
+    plCameraType tType;
     plVec3       tPos;
     float        fNearZ;
     float        fFarZ;
     float        fFieldOfView;
     float        fAspectRatio;  // width/height
+    float        fWidth;        // for orthographic
+    float        fHeight;       // for orthographic
     plMat4       tViewMat;      // cached
     plMat4       tProjMat;      // cached
     plMat4       tTransformMat; // cached

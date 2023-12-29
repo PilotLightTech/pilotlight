@@ -271,8 +271,8 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
 
     // create camera
     plIO* ptIO = pl_get_io();
-    ptAppData->tMainCamera = gptEcs->create_camera(&ptAppData->tComponentLibrary, "main camera", (plVec3){-6.211f, 3.647f, 0.827f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.01f, 400.0f);
-    ptAppData->tOffscreenCamera = gptEcs->create_camera(&ptAppData->tComponentLibrary, "offscreen camera", (plVec3){0.0f, 0.0f, 2.0f}, PL_PI_3, 1.0f, 0.01f, 400.0f);
+    ptAppData->tMainCamera = gptEcs->create_perspective_camera(&ptAppData->tComponentLibrary, "main camera", (plVec3){-6.211f, 3.647f, 0.827f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.01f, 400.0f);
+    ptAppData->tOffscreenCamera = gptEcs->create_perspective_camera(&ptAppData->tComponentLibrary, "offscreen camera", (plVec3){0.0f, 0.0f, 2.0f}, PL_PI_3, 1.0f, 0.01f, 400.0f);
     gptCamera->set_pitch_yaw(gptEcs->get_component(&ptAppData->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tOffscreenCamera), 0.0f, PL_PI);
     gptCamera->set_pitch_yaw(gptEcs->get_component(&ptAppData->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), -0.244f, 1.488f);
     gptCamera->update(gptEcs->get_component(&ptAppData->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera));

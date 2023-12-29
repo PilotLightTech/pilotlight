@@ -54,7 +54,8 @@ static plEntity pl_ecs_create_object          (plComponentLibrary* ptLibrary, co
 static plEntity pl_ecs_create_transform       (plComponentLibrary* ptLibrary, const char* pcName);
 static plEntity pl_ecs_create_material        (plComponentLibrary* ptLibrary, const char* pcName);
 static plEntity pl_ecs_create_skin            (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_camera          (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
+static plEntity pl_ecs_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
+static plEntity pl_ecs_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ);
 
 // heirarchy
 static void pl_ecs_attach_component (plComponentLibrary* ptLibrary, plEntity tEntity, plEntity tParent);
@@ -114,7 +115,8 @@ pl_load_ecs_api(void)
         .add_component               = pl_ecs_add_component,
         .create_tag                  = pl_ecs_create_tag,
         .create_mesh                 = pl_ecs_create_mesh,
-        .create_camera               = pl_ecs_create_camera,
+        .create_perspective_camera   = pl_ecs_create_perspective_camera,
+        .create_orthographic_camera  = pl_ecs_create_orthographic_camera,
         .create_object               = pl_ecs_create_object,
         .create_transform            = pl_ecs_create_transform,
         .create_material             = pl_ecs_create_material,
@@ -601,12 +603,13 @@ pl_ecs_create_skin(plComponentLibrary* ptLibrary, const char* pcName)
 }
 
 static plEntity
-pl_ecs_create_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ)
+pl_ecs_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ)
 {
     pl_log_debug_to_f(uLogChannel, "created camera: '%s'", pcName ? pcName : "unnamed");
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     const plCameraComponent tCamera = {
+        .tType        = PL_CAMERA_TYPE_PERSPECTIVE,
         .tPos         = tPos,
         .fNearZ       = fNearZ,
         .fFarZ        = fFarZ,
@@ -619,6 +622,28 @@ pl_ecs_create_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 t
     pl_camera_update(ptCamera);
 
     return tNewEntity; 
+}
+
+static plEntity
+pl_ecs_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ)
+{
+    pl_log_debug_to_f(uLogChannel, "created camera: '%s'", pcName ? pcName : "unnamed");
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+
+    const plCameraComponent tCamera = {
+        .tType   = PL_CAMERA_TYPE_ORTHOGRAPHIC,
+        .tPos    = tPos,
+        .fNearZ  = fNearZ,
+        .fFarZ   = fFarZ,
+        .fWidth   = fWidth,
+        .fHeight  = fHeight
+    };
+
+    plCameraComponent* ptCamera = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, tNewEntity);
+    *ptCamera = tCamera;
+    pl_camera_update(ptCamera);
+
+    return tNewEntity;    
 }
 
 
@@ -799,13 +824,23 @@ pl_camera_update(plCameraComponent* ptCamera)
     ptCamera->tViewMat   = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMat);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~update projection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);
-    ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
-    ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
-    ptCamera->tProjMat.col[2].z = ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
-    ptCamera->tProjMat.col[2].w = 1.0f;
-    ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
-    ptCamera->tProjMat.col[3].w = 0.0f;  
+    if(ptCamera->tType == PL_CAMERA_TYPE_PERSPECTIVE)
+    {
+        const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);
+        ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
+        ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
+        ptCamera->tProjMat.col[2].z = ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
+        ptCamera->tProjMat.col[2].w = 1.0f;
+        ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
+        ptCamera->tProjMat.col[3].w = 0.0f;  
+    }
+    else if(ptCamera->tType == PL_CAMERA_TYPE_ORTHOGRAPHIC)
+    {
+        ptCamera->tProjMat.col[0].x = 2.0f / ptCamera->fWidth;
+        ptCamera->tProjMat.col[1].y = 2.0f / ptCamera->fHeight;
+        ptCamera->tProjMat.col[2].z = 1 / (ptCamera->fFarZ - ptCamera->fNearZ);
+        ptCamera->tProjMat.col[3].w = 1.0f;
+    }
 
     pl_end_profile_sample();  
 }
