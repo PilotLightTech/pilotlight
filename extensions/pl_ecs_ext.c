@@ -204,14 +204,14 @@ pl_ecs_cleanup_component_library(plComponentLibrary* ptLibrary)
         pl_sb_free(sbtMeshes[i].sbtVertexPositions);
         pl_sb_free(sbtMeshes[i].sbtVertexNormals);
         pl_sb_free(sbtMeshes[i].sbtVertexTangents);
-        pl_sb_free(sbtMeshes[i].sbtVertexColors0);
-        pl_sb_free(sbtMeshes[i].sbtVertexColors1);
-        pl_sb_free(sbtMeshes[i].sbtVertexWeights0);
-        pl_sb_free(sbtMeshes[i].sbtVertexWeights1);
-        pl_sb_free(sbtMeshes[i].sbtVertexJoints0);
-        pl_sb_free(sbtMeshes[i].sbtVertexJoints1);
-        pl_sb_free(sbtMeshes[i].sbtVertexTextureCoordinates0);
-        pl_sb_free(sbtMeshes[i].sbtVertexTextureCoordinates1);
+        pl_sb_free(sbtMeshes[i].sbtVertexColors[0]);
+        pl_sb_free(sbtMeshes[i].sbtVertexColors[1]);
+        pl_sb_free(sbtMeshes[i].sbtVertexWeights[0]);
+        pl_sb_free(sbtMeshes[i].sbtVertexWeights[1]);
+        pl_sb_free(sbtMeshes[i].sbtVertexJoints[0]);
+        pl_sb_free(sbtMeshes[i].sbtVertexJoints[1]);
+        pl_sb_free(sbtMeshes[i].sbtVertexTextureCoordinates[0]);
+        pl_sb_free(sbtMeshes[i].sbtVertexTextureCoordinates[1]);
         pl_sb_free(sbtMeshes[i].sbuIndices);
     }
 
@@ -474,25 +474,6 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
             .tFlags                        = PL_MATERIAL_FLAG_NONE,
             .tShaderType                   = PL_SHADER_TYPE_PBR,
             .tBaseColor                    = {1.0f, 1.0f, 1.0f, 1.0f},
-            .tSpecularColor                = {1.0f, 1.0f, 1.0f, 1.0f},
-            .tEmissiveColor                = {0.0f, 0.0f, 0.0f, 0.0f},
-            .tSubsurfaceScattering         = {1.0f, 1.0f, 1.0f, 0.0f},
-            .tSheenColor                   = {1.0f, 1.0f, 1.0f, 0.0f},
-            .fRoughness                    = 1.0f,
-            .fReflectance                  = 0.04f,
-            .fMetalness                    = 1.0f,
-            .fNormalMapStrength            = 1.0f,
-            .fOcclusionMapStrength         = 1.0f,
-            .fParallaxOcclusionMapStrength = 1.0f,
-            .fDisplacementMapStrength      = 1.0f,
-            .fRefraction                   = 0.0f,
-            .fTransmission                 = 0.0f,
-            .fAnisotropyStrength           = 0.0f,
-            .fAnisotropyRotation           = 0.0f,
-            .fSheenRoughness               = 0.0f,
-            .fClearcoatFactor              = 0.0f,
-            .fClearcoatRoughness           = 0.0f,
-            .fThicknessFactor              = 0.0f,
             .fAlphaCutoff                  = 0.5f,
             .atTextureMaps                 = {0}
         };
@@ -510,7 +491,7 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         if(bAddSlot)
             pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
-        sbComponents[uComponentIndex] = (plSkinComponent){.tSkeleton = {UINT32_MAX, UINT32_MAX}};
+        sbComponents[uComponentIndex] = (plSkinComponent){.tMeshNode = {UINT32_MAX, UINT32_MAX}};
         return &sbComponents[uComponentIndex];
     }
 
@@ -690,15 +671,8 @@ pl_run_skin_update_system(plComponentLibrary* ptLibrary)
     for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
     {
         plSkinComponent* ptSkinComponent = &sbtComponents[i];
-        plMat4 tWorldTransform = pl_identity_mat4();
-        plMat4 tInverseWorldTransform = pl_identity_mat4();
-        if(ptSkinComponent->tSkeleton.uIndex != UINT32_MAX)
-        {
-            plTransformComponent* ptParentComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptSkinComponent->tSkeleton);
-            tWorldTransform = ptParentComponent->tFinalTransform;
-            tInverseWorldTransform = pl_mat4_invert(&ptParentComponent->tFinalTransform);
-
-        }
+        plTransformComponent* ptParent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptSkinComponent->tMeshNode);
+        plMat4 tInverseWorldTransform = pl_mat4_invert(&ptParent->tFinalTransform);
         for(uint32_t j = 0; j < pl_sb_size(ptSkinComponent->sbtJoints); j++)
         {
             plEntity tJointEntity = ptSkinComponent->sbtJoints[j];
@@ -887,7 +861,7 @@ pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
     {
         plMeshComponent* ptMesh = &atMeshes[uMeshIndex];
 
-        if(pl_sb_size(ptMesh->sbtVertexTangents) == 0 && pl_sb_size(ptMesh->sbtVertexTextureCoordinates0) > 0)
+        if(pl_sb_size(ptMesh->sbtVertexTangents) == 0 && pl_sb_size(ptMesh->sbtVertexTextureCoordinates[0]) > 0)
         {
             pl_sb_resize(ptMesh->sbtVertexTangents, pl_sb_size(ptMesh->sbtVertexPositions));
             memset(ptMesh->sbtVertexTangents, 0, pl_sb_size(ptMesh->sbtVertexPositions) * sizeof(plVec4));
@@ -901,9 +875,9 @@ pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
                 const plVec3 tP1 = ptMesh->sbtVertexPositions[uIndex1];
                 const plVec3 tP2 = ptMesh->sbtVertexPositions[uIndex2];
 
-                const plVec2 tTex0 = ptMesh->sbtVertexTextureCoordinates0[uIndex0];
-                const plVec2 tTex1 = ptMesh->sbtVertexTextureCoordinates0[uIndex1];
-                const plVec2 tTex2 = ptMesh->sbtVertexTextureCoordinates0[uIndex2];
+                const plVec2 tTex0 = ptMesh->sbtVertexTextureCoordinates[0][uIndex0];
+                const plVec2 tTex1 = ptMesh->sbtVertexTextureCoordinates[0][uIndex1];
+                const plVec2 tTex2 = ptMesh->sbtVertexTextureCoordinates[0][uIndex2];
 
                 const plVec3 atNormals[3] = { 
                     ptMesh->sbtVertexNormals[uIndex0],
