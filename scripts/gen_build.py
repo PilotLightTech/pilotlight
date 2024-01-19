@@ -122,6 +122,7 @@ with pl.project("pilotlight"):
     add_plugin_to_vulkan_app("pl_stats_ext",    False)
     add_plugin_to_vulkan_app("pl_ecs_ext",      False)
     add_plugin_to_vulkan_app("pl_resource_ext", False)
+    add_plugin_to_vulkan_app("pl_ref_renderer_ext", True)
 
     add_plugin_to_metal_app("pl_debug_ext",    False)
     add_plugin_to_metal_app("pl_image_ext",    False)
@@ -129,6 +130,7 @@ with pl.project("pilotlight"):
     add_plugin_to_metal_app("pl_ecs_ext",      False)
     add_plugin_to_metal_app("pl_resource_ext", False)
     add_plugin_to_metal_app("pl_metal_ext",    False, True, "pl_graphics_ext")
+    add_plugin_to_metal_app("pl_ref_renderer_ext", True)
 
     pl.pop_target_links()
 
@@ -144,11 +146,11 @@ with pl.project("pilotlight"):
         "draw_3d.vert",
         "draw_3d.frag",
         "draw_3d_line.vert",
-        "compute.comp",
+        "panorama_to_cubemap.comp",
     ]
 
     metal_shaders = [
-        "compute.metal",
+        "panorama_to_cubemap.metal",
         "draw_3d_line.metal",
         "draw_3d.metal",
         "primitive.metal",

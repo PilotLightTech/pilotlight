@@ -16,16 +16,19 @@ const int PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   = 1 << 8;
 const int PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  = 1 << 9;
 const int PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 10;
 
-const int PL_TEXTURE_HAS_BASE_COLOR   = 1 << 0;
-const int PL_TEXTURE_HAS_NORMAL       = 1 << 1;
-
 layout(constant_id = 0) const int MeshVariantFlags = PL_MESH_FORMAT_FLAG_NONE;
 layout(constant_id = 1) const int PL_DATA_STRIDE = 0;
-layout(constant_id = 2) const int ShaderTextureFlags = 0;
+layout(constant_id = 2) const int PL_HAS_BASE_COLOR_MAP = 0;
+layout(constant_id = 3) const int PL_HAS_NORMAL_MAP = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] global
 //-----------------------------------------------------------------------------
+
+struct tMaterial
+{
+    vec4 tColor;
+};
 
 layout(set = 0, binding = 0) uniform _plGlobalInfo
 {
@@ -40,18 +43,23 @@ layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
 	vec4 atVertexData[];
 } tVertexBuffer;
 
-layout(set = 1, binding = 0) uniform sampler2D tSampler0; // base color
-layout(set = 1, binding = 1) uniform sampler2D tSampler1; // normal
-layout(set = 1, binding = 2) uniform sampler2D tSampler2; // skinning
-
-layout(set = 2, binding = 0) uniform _plShaderInfo
+layout(set = 0, binding = 2) readonly buffer plMaterialInfo
 {
-    vec4 shaderSpecific;
-} tShaderInfo;
+    tMaterial atMaterials[];
+} tMaterialInfo;
+
+layout(set = 1, binding = 0)  uniform sampler2D tBaseColorSampler;
+layout(set = 1, binding = 1)  uniform sampler2D tNormalSampler;
+
+layout(set = 2, binding = 0) uniform _Shader
+{
+    vec4 unused;
+} Shader;
 
 layout(set = 3, binding = 0) uniform _plObjectInfo
 {
     int  iDataOffset;
     int  iVertexOffset;
+    int  iMaterialIndex;
     mat4 tModel;
 } tObjectInfo;

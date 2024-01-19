@@ -26,22 +26,26 @@ struct BindGroupData_0
     float4x4 tCameraViewProjection;   
 };
 
+struct tMaterial
+{
+    float4 tColor;
+};
+
 struct BindGroup_0
 {
     device BindGroupData_0 *data;  
 
-    device float4 *buffer_0;
+    device float4 *atVertexData;
+    device tMaterial *atMaterials;
 };
 
 struct BindGroup_1
 {
+    texture2d<float>  tBaseColorTexture;
+    sampler          tBaseColorSampler;
 
-    texture2d<half>  texture_0;
-    sampler          sampler_0;
-
-    texture2d<half>  texture_1;
-    sampler          sampler_1;
-
+    texture2d<float>  tNormalTexture;
+    sampler          tNormalSampler;
 };
 
 struct BindGroupData_2
@@ -59,34 +63,55 @@ struct VertexIn {
 };
 
 struct VertexOut {
-    float4 tPosition [[position]];
+    float4 tPositionOut [[position]];
+    float3 tPosition;
+    float4 tWorldPosition;
     float2 tUV;
     float4 tColor;
+    float3 tWorldNormal;
+    float3 tTBN0;
+    float3 tTBN1;
+    float3 tTBN2;
 };
 
 struct DynamicData
 {
     int      iDataOffset;
     int      iVertexOffset;
-    int      iPadding[2];
+    int      iMaterialIndex;
+    int      iPadding[1];
     float4x4 tModel;
 };
 
 constant int MeshVariantFlags [[ function_constant(0) ]];
 constant int PL_DATA_STRIDE [[ function_constant(1) ]];
-constant int ShaderTextureFlags [[ function_constant(2) ]];
+constant int PL_HAS_BASE_COLOR_MAP [[ function_constant(2) ]];
+constant int PL_HAS_NORMAL_MAP [[ function_constant(3) ]];
+
+
+float4 get_normal(float3 inNormal, float4 inJoints0, float4 inWeights0)
+{
+    float4 tNormal = float4(inNormal, 0.0);
+    return normalize(tNormal);
+}
+
+float4 get_tangent(float4 inTangent, float4 inJoints0, float4 inWeights0)
+{
+    float4 tTangent = float4(inTangent.xyz, 0.0);
+    return normalize(tTangent);
+}
 
 vertex VertexOut vertex_main(
     uint                vertexID [[ vertex_id ]],
     VertexIn            in [[stage_in]],
-    device BindGroup_0& bg0 [[ buffer(1) ]],
-    device BindGroup_1& bg1 [[ buffer(2) ]],
-    device BindGroup_2& bg2 [[ buffer(3) ]],
-    device DynamicData& bg3 [[ buffer(4) ]]
+    device const BindGroup_0& bg0 [[ buffer(1) ]],
+    device const BindGroup_1& bg1 [[ buffer(2) ]],
+    device const BindGroup_2& bg2 [[ buffer(3) ]],
+    device const DynamicData& tObjectInfo [[ buffer(4) ]]
     )
 {
 
-    VertexOut tOut;
+    VertexOut tShaderOut;
     float3 inPosition = in.tPosition;
     float3 inNormal = float3(0.0, 0.0, 0.0);
     float4 inTangent = float4(0.0, 0.0, 0.0, 0.0);
@@ -98,46 +123,159 @@ vertex VertexOut vertex_main(
     float4 inJoints1 = float4(0.0, 0.0, 0.0, 0.0);
     float4 inWeights0 = float4(0.0, 0.0, 0.0, 0.0);
     float4 inWeights1 = float4(0.0, 0.0, 0.0, 0.0);
-    const float4x4 tMvp = bg0.data->tCameraViewProjection * bg3.tModel;
-
-    tOut.tPosition = tMvp * float4(inPosition, 1);
-    tOut.tPosition.y = tOut.tPosition.y * -1;
-
-    const uint iVertexDataOffset = PL_DATA_STRIDE * (vertexID - bg3.iVertexOffset) + bg3.iDataOffset;
-
     int iCurrentAttribute = 0;
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { inPosition.xyz = bg0.buffer_0[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { inNormal       = bg0.buffer_0[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))   { inTangent      = bg0.buffer_0[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0)){ inTexCoord0    = bg0.buffer_0[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1)){ inTexCoord1    = bg0.buffer_0[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0))   { inColor0       = bg0.buffer_0[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_1))   { inColor1       = bg0.buffer_0[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0))  { inJoints0      = bg0.buffer_0[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1))  { inJoints1      = bg0.buffer_0[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0)) { inWeights0     = bg0.buffer_0[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1)) { inWeights1     = bg0.buffer_0[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
 
-    tOut.tUV = inTexCoord0;
-    tOut.tColor = inColor0;
+    const uint iVertexDataOffset = PL_DATA_STRIDE * (vertexID - tObjectInfo.iVertexOffset) + tObjectInfo.iDataOffset;
 
-    return tOut;
+    
+    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION)  { inPosition.xyz = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
+    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL)    { inNormal       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
+    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT)   { inTangent      = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0){ inTexCoord0    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
+    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1){ inTexCoord1    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
+    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0)   { inColor0       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_1)   { inColor1       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0)  { inJoints0      = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1)  { inJoints1      = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0) { inWeights0     = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1) { inWeights1     = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+
+    float4 tWorldNormal4 = tObjectInfo.tModel * get_normal(inNormal, inJoints0, inWeights0);
+    tShaderOut.tWorldNormal = tWorldNormal4.xyz;
+    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL)
+    {
+
+        if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT)
+        {
+            float4 tangent = get_tangent(inTangent, inJoints0, inWeights0);
+            float4 WorldTangent = tObjectInfo.tModel * tangent;
+            float4 WorldBitangent = float4(cross(get_normal(inNormal, inJoints0, inWeights0).xyz, tangent.xyz) * inTangent.w, 0.0);
+            WorldBitangent = tObjectInfo.tModel * WorldBitangent;
+            tShaderOut.tTBN0 = WorldTangent.xyz;
+            tShaderOut.tTBN1 = WorldBitangent.xyz;
+            tShaderOut.tTBN2 = tShaderOut.tWorldNormal.xyz;
+        }
+    }
+
+    float4 pos = tObjectInfo.tModel * float4(inPosition, 1.0);
+    tShaderOut.tPosition = pos.xyz / pos.w;
+    tShaderOut.tPositionOut = bg0.data->tCameraViewProjection * pos;
+    tShaderOut.tUV = inTexCoord0;
+    tShaderOut.tWorldPosition = tShaderOut.tPositionOut / tShaderOut.tPositionOut.w;
+    tShaderOut.tColor = inColor0;
+
+    tShaderOut.tPositionOut.y = tShaderOut.tPositionOut.y * -1.0;
+    return tShaderOut;
+}
+
+struct NormalInfo {
+    float3 ng;   // Geometry normal
+    float3 t;    // Geometry tangent
+    float3 b;    // Geometry bitangent
+    float3 n;    // Shading normal
+    float3 ntex; // Normal from texture, scaling is accounted for.
+};
+
+NormalInfo pl_get_normal_info(device const BindGroup_1& bg1, VertexOut tShaderIn, bool front_facing)
+{
+    float2 UV = tShaderIn.tUV;
+    float2 uv_dx = dfdx(UV);
+    float2 uv_dy = dfdy(UV);
+
+    if (length(uv_dx) <= 1e-2) {
+      uv_dx = float2(1.0, 0.0);
+    }
+
+    if (length(uv_dy) <= 1e-2) {
+      uv_dy = float2(0.0, 1.0);
+    }
+
+    float3 t_ = (uv_dy.y * dfdx(tShaderIn.tPosition) - uv_dx.y * dfdy(tShaderIn.tPosition)) /
+        (uv_dx.x * uv_dy.y - uv_dy.x * uv_dx.y);
+
+    float3 t, b, ng;
+
+    // Compute geometrical TBN:
+    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))
+    {
+
+        if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))
+        {
+            // Trivial TBN computation, present as vertex attribute.
+            // Normalize eigenvectors as matrix is linearly interpolated.
+            t = normalize(tShaderIn.tTBN0);
+            b = normalize(tShaderIn.tTBN1);
+            ng = normalize(tShaderIn.tTBN2);
+        }
+        else
+        {
+            // Normals are either present as vertex attributes or approximated.
+            ng = normalize(tShaderIn.tWorldNormal);
+            t = normalize(t_ - ng * dot(ng, t_));
+            b = cross(ng, t);
+        }
+    }
+    else
+    {
+        ng = normalize(cross(dfdx(tShaderIn.tPosition), dfdy(tShaderIn.tPosition)));
+        t = normalize(t_ - ng * dot(ng, t_));
+        b = cross(ng, t);
+    }
+
+
+    // For a back-facing surface, the tangential basis vectors are negated.
+    if (front_facing == false)
+    {
+        t *= -1.0;
+        b *= -1.0;
+        ng *= -1.0;
+    }
+
+    // Compute normals:
+    NormalInfo info;
+    info.ng = ng;
+    if(bool(PL_HAS_NORMAL_MAP)) 
+    {
+        info.ntex = bg1.tNormalTexture.sample(bg1.tNormalSampler, UV).rgb * 2.0 - float3(1.0);
+        // info.ntex *= vec3(0.2, 0.2, 1.0);
+        // info.ntex *= vec3(u_NormalScale, u_NormalScale, 1.0);
+        info.ntex = normalize(info.ntex);
+        info.n = normalize(float3x3(t, b, ng) * info.ntex);
+    }
+    else
+    {
+        info.n = ng;
+    }
+    info.t = t;
+    info.b = b;
+    return info;
+}
+
+float4 getBaseColor(device const BindGroup_1& bg1, float4 u_ColorFactor, VertexOut tShaderIn)
+{
+    float4 baseColor = u_ColorFactor;
+
+    if(bool(PL_HAS_BASE_COLOR_MAP))
+    {
+        baseColor *= bg1.tBaseColorTexture.sample(bg1.tBaseColorSampler, tShaderIn.tUV);
+    }
+    return baseColor;
 }
 
 fragment float4 fragment_main(
     VertexOut in [[stage_in]],
-    device BindGroup_0& bg0 [[ buffer(1) ]],
-    device BindGroup_1& bg1 [[ buffer(2) ]],
-    device BindGroup_2& bg2 [[ buffer(3) ]],
-    device DynamicData& bg3 [[ buffer(4) ]]
+    device const BindGroup_0& bg0 [[ buffer(1) ]],
+    device const BindGroup_1& bg1 [[ buffer(2) ]],
+    device const BindGroup_2& bg2 [[ buffer(3) ]],
+    device const DynamicData& tObjectInfo [[ buffer(4) ]],
+    bool front_facing [[front_facing]]
     )
 {
 
-    float4 tColor = in.tColor;
-    if(ShaderTextureFlags & PL_TEXTURE_HAS_BASE_COLOR)
-    {
-        half4 textureSample = bg1.texture_0.sample(bg1.sampler_0, in.tUV);
-        tColor = float4(textureSample);
-    }
-    return tColor;
+    float4 tBaseColor = getBaseColor(bg1, bg0.atMaterials[tObjectInfo.iMaterialIndex].tColor, in);
+    float3 tSunlightColor = float3(1.0, 1.0, 1.0);
+    NormalInfo tNormalInfo = pl_get_normal_info(bg1, in, front_facing);
+    float3 tSunLightDirection = float3(-1.0, -1.0, -1.0);
+    float fDiffuseIntensity = max(0.0, dot(tNormalInfo.n, -normalize(tSunLightDirection)));
+    return tBaseColor * float4(tSunlightColor * (0.1 + fDiffuseIntensity), 1.0);
 }

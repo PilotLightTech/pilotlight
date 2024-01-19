@@ -8,78 +8,29 @@ layout(location = 0) in vec3 inPos;
 
 // output
 layout(location = 0) out struct plShaderOut {
-    vec4 tPosition;
-    vec2 tUV;
+    vec3 tPosition;
+    vec4 tWorldPosition;
+    vec2 tUV[2];
     vec4 tColor;
-    vec3 tNormal;
+    vec3 tWorldNormal;
     mat3 tTBN;
 } tShaderOut;
-
-mat4 get_matrix_from_texture(sampler2D s, int index)
-{
-    mat4 result = mat4(1);
-    int texSize = textureSize(s, 0)[0];
-    int pixelIndex = index * 4;
-    for (int i = 0; i < 4; ++i)
-    {
-        int x = (pixelIndex + i) % texSize;
-        //Rounding mode of integers is undefined:
-        //https://www.khronos.org/registry/OpenGL/specs/es/3.0/GLSL_ES_Specification_3.00.pdf (section 12.33)
-        int y = (pixelIndex + i - x) / texSize; 
-        result[i] = texelFetch(s, ivec2(x,y), 0);
-    }
-    return result;
-}
-
-mat4 get_skinning_matrix(vec4 inJoints0, vec4 inWeights0)
-{
-    mat4 skin = mat4(0);
-
-    skin +=
-        inWeights0.x * get_matrix_from_texture(tSampler2, int(inJoints0.x) * 2) +
-        inWeights0.y * get_matrix_from_texture(tSampler2, int(inJoints0.y) * 2) +
-        inWeights0.z * get_matrix_from_texture(tSampler2, int(inJoints0.z) * 2) +
-        inWeights0.w * get_matrix_from_texture(tSampler2, int(inJoints0.w) * 2);
-
-    if (skin == mat4(0)) { 
-        return mat4(1); 
-    }
-    return skin;
-}
 
 vec4 get_position(vec4 inJoints0, vec4 inWeights0)
 {
     vec4 pos = vec4(inPos, 1.0);
-
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0))
-    {
-        pos = get_skinning_matrix(inJoints0, inWeights0) * pos;
-    }
-
     return pos;
 }
 
 vec3 get_normal(vec3 inNormal, vec4 inJoints0, vec4 inWeights0)
 {
     vec3 tNormal = inNormal;
-
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0))
-    {
-        tNormal = mat3(get_skinning_matrix(inJoints0, inWeights0)) * tNormal;
-    }
-
     return normalize(tNormal);
 }
 
 vec3 get_tangent(vec4 inTangent, vec4 inJoints0, vec4 inWeights0)
 {
     vec3 tTangent = inTangent.xyz;
-
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0))
-    {
-        tTangent = mat3(get_skinning_matrix(inJoints0, inWeights0)) * tTangent;
-    }
-
     return normalize(tTangent);
 }
 
@@ -114,26 +65,24 @@ void main()
     if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0)) { inWeights0     = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
     if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1)) { inWeights1     = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
 
-    tShaderOut.tNormal = inNormal;
+    tShaderOut.tWorldNormal = mat3(tObjectInfo.tModel) * get_normal(inNormal, inJoints0, inWeights0);
     if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))
     {
 
         if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))
         {
             vec3 tangent = get_tangent(inTangent, inJoints0, inWeights0);
-            vec3 normalW = normalize(vec3(tObjectInfo.tModel * vec4(get_normal(inNormal, inJoints0, inWeights0), 0.0)));
-            vec3 tangentW = normalize(vec3(tObjectInfo.tModel * vec4(tangent, 0.0)));
-            vec3 bitangentW = cross(normalW, tangentW) * inTangent.w;
-            tShaderOut.tTBN = mat3(tangentW, bitangentW, normalW);
-        }
-        else
-        {
-            tShaderOut.tNormal = normalize(vec3(tObjectInfo.tModel * vec4(get_normal(inNormal, inJoints0, inWeights0), 0.0)));
+            vec3 WorldTangent = mat3(tObjectInfo.tModel) * tangent;
+            vec3 WorldBitangent = cross(get_normal(inNormal, inJoints0, inWeights0), tangent) * inTangent.w;
+            WorldBitangent = mat3(tObjectInfo.tModel) * WorldBitangent;
+            tShaderOut.tTBN = mat3(WorldTangent, WorldBitangent, tShaderOut.tWorldNormal);
         }
     }
 
-    gl_Position = tGlobalInfo.tCameraViewProjection * tObjectInfo.tModel * get_position(inJoints0, inWeights0);
-    tShaderOut.tPosition = gl_Position;
-    tShaderOut.tUV = inTexCoord0;
+    vec4 pos = tObjectInfo.tModel * get_position(inJoints0, inWeights0);
+    tShaderOut.tPosition = pos.xyz / pos.w;
+    gl_Position = tGlobalInfo.tCameraViewProjection * pos;
+    tShaderOut.tUV[0] = inTexCoord0;
+    tShaderOut.tWorldPosition = gl_Position / gl_Position.w;
     tShaderOut.tColor = inColor0;
 }
