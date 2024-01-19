@@ -139,25 +139,6 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
                 if(ptMaterialComp && pl_collapsing_header("Material"))
                 {
                     pl_text("Base Color:            (%0.3f, %0.3f, %0.3f, %0.3f)", ptMaterialComp->tBaseColor.r, ptMaterialComp->tBaseColor.g, ptMaterialComp->tBaseColor.b, ptMaterialComp->tBaseColor.a);
-                    pl_text("Specular Color:        (%0.3f, %0.3f, %0.3f, %0.3f)", ptMaterialComp->tSpecularColor.r, ptMaterialComp->tSpecularColor.g, ptMaterialComp->tSpecularColor.b, ptMaterialComp->tSpecularColor.a);
-                    pl_text("Emissive Color:        (%0.3f, %0.3f, %0.3f, %0.3f)", ptMaterialComp->tEmissiveColor.r, ptMaterialComp->tEmissiveColor.g, ptMaterialComp->tEmissiveColor.b, ptMaterialComp->tEmissiveColor.a);
-                    pl_text("Sheen Color:           (%0.3f, %0.3f, %0.3f, %0.3f)", ptMaterialComp->tSheenColor.r, ptMaterialComp->tSheenColor.g, ptMaterialComp->tSheenColor.b, ptMaterialComp->tSheenColor.a);
-                    pl_text("Subsurface Scattering: (%0.3f, %0.3f, %0.3f, %0.3f)", ptMaterialComp->tSubsurfaceScattering.r, ptMaterialComp->tSubsurfaceScattering.g, ptMaterialComp->tSubsurfaceScattering.b, ptMaterialComp->tSubsurfaceScattering.a);
-                    pl_text("Roughness:                       %0.3f", ptMaterialComp->fRoughness);
-                    pl_text("Reflectance:                     %0.3f", ptMaterialComp->fReflectance);
-                    pl_text("Metalness:                       %0.3f", ptMaterialComp->fMetalness);
-                    pl_text("Normal Map Strength:             %0.3f", ptMaterialComp->fNormalMapStrength);
-                    pl_text("Occlusion Map Strength:          %0.3f", ptMaterialComp->fOcclusionMapStrength);
-                    pl_text("Parallax Occlusion Map Strength: %0.3f", ptMaterialComp->fParallaxOcclusionMapStrength);
-                    pl_text("Displacement Map Strength:       %0.3f", ptMaterialComp->fDisplacementMapStrength);
-                    pl_text("Refraction:                      %0.3f", ptMaterialComp->fRefraction);
-                    pl_text("Transmission:                    %0.3f", ptMaterialComp->fTransmission);
-                    pl_text("Anisotropy Strength:             %0.3f", ptMaterialComp->fAnisotropyStrength);
-                    pl_text("Anisotropy Rotation:             %0.3f", ptMaterialComp->fAnisotropyRotation);
-                    pl_text("Sheen Roughness:                 %0.3f", ptMaterialComp->fSheenRoughness);
-                    pl_text("Clearcoat Factor:                %0.3f", ptMaterialComp->fClearcoatFactor);
-                    pl_text("Clearcoat Roughness:             %0.3f", ptMaterialComp->fClearcoatRoughness);
-                    pl_text("Thickness Factor:                %0.3f", ptMaterialComp->fThicknessFactor);
                     pl_text("Alpha Cutoff:                    %0.3f", ptMaterialComp->fAlphaCutoff);
 
                     static const char* apcBlendModeNames[] = 
@@ -186,23 +167,7 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
                     static const char* apcTextureSlotNames[] = 
                     {
                         "PL_TEXTURE_SLOT_BASE_COLOR_MAP",
-                        "PL_TEXTURE_SLOT_NORMAL_MAP",
-                        "PL_TEXTURE_SLOT_EMISSIVE_MAP",
-                        "PL_TEXTURE_SLOT_OCCLUSSION_MAP",
-                        "PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP",
-                        "PL_TEXTURE_SLOT_CLEARCOAT_MAP",
-                        "PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP",
-                        "PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP",
-                        "PL_TEXTURE_SLOT_SHEEN_COLOR_MAP",
-                        "PL_TEXTURE_SLOT_SHEEN_ROUGHNESS_MAP",
-                        "PL_TEXTURE_SLOT_TRANSMISSION_MAP",
-                        "PL_TEXTURE_SLOT_DISPLACEMENT_MAP",
-                        "PL_TEXTURE_SLOT_SPECULAR_MAP",
-                        "PL_TEXTURE_SLOT_SPECULAR_COLOR_MAP",
-                        "PL_TEXTURE_SLOT_ANISOTROPY_MAP",
-                        "PL_TEXTURE_SLOT_SURFACE_MAP",
-                        "PL_TEXTURE_SLOT_IRIDESCENCE_MAP",
-                        "PL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS_MAP"
+                        "PL_TEXTURE_SLOT_NORMAL_MAP"
                     };
 
                     for(uint32_t i = 0; i < PL_TEXTURE_SLOT_COUNT; i++)
