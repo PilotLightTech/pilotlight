@@ -2642,10 +2642,12 @@ pl_begin_pass(plGraphics* ptGraphics, plRenderPassHandle tPass)
         { .depthStencil.depth = 1.0f}
     };
 
+    const uint32_t uFrameBufferIndex = pl_min(ptRenderPass->tDesc.uAttachmentSets - 1, ptGraphics->uCurrentFrameIndex);
+
     VkRenderPassBeginInfo tRenderPassInfo = {
         .sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         .renderPass        = ptVulkanRenderPass->tRenderPass,
-        .framebuffer       = ptVulkanRenderPass->sbtFrameBuffers[ptGraphics->uCurrentFrameIndex],
+        .framebuffer       = ptVulkanRenderPass->sbtFrameBuffers[uFrameBufferIndex],
         .renderArea.extent = {
             .width  = (uint32_t)ptRenderPass->tDesc.tDimensions.x,
             .height = (uint32_t)ptRenderPass->tDesc.tDimensions.y
@@ -2671,7 +2673,7 @@ pl_begin_pass(plGraphics* ptGraphics, plRenderPassHandle tPass)
     };
 
     vkCmdSetViewport(ptCurrentFrame->tCmdBuf, 0, 1, &tViewport);
-    vkCmdSetScissor(ptCurrentFrame->tCmdBuf, 0, 1, &tScissor);  
+    vkCmdSetScissor(ptCurrentFrame->tCmdBuf, 0, 1, &tScissor);
 }
 
 static void
@@ -3642,9 +3644,9 @@ pl_resize(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
     plIO* ptIOCtx = pl_get_io();
-    pl__create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1]);
+    ptGraphics->uCurrentFrameIndex = (ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;
     pl__garbage_collect(ptGraphics);
-    ptGraphics->uCurrentFrameIndex = 0;
+    pl__create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1]);
     pl_end_profile_sample();
 }
 
@@ -5024,7 +5026,7 @@ pl__transfer_data_to_image(plDevice* ptDevice, plTextureHandle* ptDest, size_t s
     }
 
     // copy data
-    memcpy(&ptBuffer->tMemoryAllocation.pHostMapped[szStagingOffset], pData, szDataSize);
+    memcpy(&ptBuffer->tMemoryAllocation.pHostMapped[szStagingOffset], pData, szOriginalDataSize);
 
     const VkImageSubresourceRange tSubResourceRange = {
         .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,

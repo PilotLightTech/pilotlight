@@ -814,7 +814,7 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
     MTLSamplerDescriptor *samplerDesc = [MTLSamplerDescriptor new];
     samplerDesc.minFilter = pl__metal_filter(ptSampler->tFilter);
     samplerDesc.magFilter = pl__metal_filter(ptSampler->tFilter);
-    samplerDesc.mipFilter = MTLSamplerMipFilterLinear;
+    samplerDesc.mipFilter = MTLSamplerMipFilterNearest;
     samplerDesc.normalizedCoordinates = YES;
     samplerDesc.supportArgumentBuffers = YES;
     samplerDesc.sAddressMode = pl__metal_wrap(ptSampler->tHorizontalWrap);
@@ -1735,8 +1735,10 @@ pl_resize(plGraphics* ptGraphics)
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
 
-    // recreate depth texture
+    ptGraphics->uCurrentFrameIndex = (ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;
+    pl__garbage_collect(ptGraphics);
 
+    // recreate depth texture
     pl_queue_texture_for_deletion(&ptGraphics->tDevice, ptGraphics->tSwapchain.tColorTexture);
     pl_queue_texture_for_deletion(&ptGraphics->tDevice, ptGraphics->tSwapchain.tDepthTexture);
     pl_queue_texture_view_for_deletion(&ptGraphics->tDevice, ptGraphics->tSwapchain.tColorTextureView);
@@ -1820,7 +1822,6 @@ pl_begin_frame(plGraphics* ptGraphics)
         return false;
     }
 
-    ptMetalGraphics->tCurrentCommandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
 
     // reset 3d drawlists
     for(uint32_t i = 0u; i < pl_sb_size(ptGraphics->sbt3DDrawlists); i++)
@@ -1841,8 +1842,25 @@ static bool
 pl_end_gfx_frame(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
+    ptGraphics->uCurrentFrameIndex = (ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;
+    pl_end_profile_sample();
+    return true;
+}
 
+static void
+pl_begin_recording(plGraphics* ptGraphics)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
+    ptMetalGraphics->tCurrentCommandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
+    pl_end_profile_sample();
+}
+
+static void
+pl_end_recording(plGraphics* ptGraphics)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     [ptMetalGraphics->tCurrentCommandBuffer presentDrawable:ptMetalGraphics->tCurrentDrawable];
 
     plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
@@ -1857,23 +1875,6 @@ pl_end_gfx_frame(plGraphics* ptGraphics)
 
     [ptMetalGraphics->tCurrentCommandBuffer commit];
 
-    ptGraphics->uCurrentFrameIndex = (ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;
-
-    pl_end_profile_sample();
-    return true;
-}
-
-static void
-pl_begin_recording(plGraphics* ptGraphics)
-{
-    pl_begin_profile_sample(__FUNCTION__);
-    pl_end_profile_sample();
-}
-
-static void
-pl_end_recording(plGraphics* ptGraphics)
-{
-    pl_begin_profile_sample(__FUNCTION__);
     pl_end_profile_sample();
 }
 
@@ -2024,7 +2025,9 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
             .originX = ptArea->tViewport.fX,
             .originY = ptArea->tViewport.fY,
             .width   = ptArea->tViewport.fWidth,
-            .height  = ptArea->tViewport.fHeight
+            .height  = ptArea->tViewport.fHeight,
+            .znear   = 0,
+            .zfar    = 1.0
         };
         [ptMetalGraphics->tCurrentRenderEncoder setViewport:tViewport];
 
@@ -2454,7 +2457,7 @@ pl__metal_wrap(plWrapMode tWrap)
     switch(tWrap)
     {
         case PL_WRAP_MODE_UNSPECIFIED:
-        case PL_WRAP_MODE_WRAP:   return MTLSamplerAddressModeMirrorRepeat;
+        case PL_WRAP_MODE_WRAP:   return MTLSamplerAddressModeRepeat;
         case PL_WRAP_MODE_CLAMP:  return MTLSamplerAddressModeClampToEdge;
         case PL_WRAP_MODE_MIRROR: return MTLSamplerAddressModeMirrorRepeat;
     }
