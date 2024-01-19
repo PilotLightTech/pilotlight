@@ -54,6 +54,8 @@ Index of this file:
     #define PL_DEFINE_HANDLE(x) typedef struct x { uint32_t uIndex; uint32_t uGeneration;} x;
 #endif
 
+#define PL_MAX_MIPS 64.0f
+
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------

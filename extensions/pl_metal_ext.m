@@ -825,6 +825,9 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
     samplerDesc.lodMaxClamp = ptSampler->fMaxMip;
     samplerDesc.label = [NSString stringWithUTF8String:pcName];
 
+    if(ptSampler->fMaxMip == PL_MAX_MIPS)
+        samplerDesc.lodMaxClamp = tTextureView.tTextureViewDesc.uMips;
+
     plMetalSampler tMetalSampler = {
         .tSampler = [ptMetalDevice->tDevice newSamplerStateWithDescriptor:samplerDesc]
     };
@@ -1689,7 +1692,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     plSampler tSampler = {
         .tFilter = PL_FILTER_NEAREST,
         .fMinMip = 0.0f,
-        .fMaxMip = 64.0f,
+        .fMaxMip = PL_MAX_MIPS,
         .tVerticalWrap = PL_WRAP_MODE_CLAMP,
         .tHorizontalWrap = PL_WRAP_MODE_CLAMP
     };
@@ -1765,7 +1768,7 @@ pl_resize(plGraphics* ptGraphics)
     plSampler tSampler = {
         .tFilter = PL_FILTER_NEAREST,
         .fMinMip = 0.0f,
-        .fMaxMip = 64.0f,
+        .fMaxMip = PL_MAX_MIPS,
         .tVerticalWrap = PL_WRAP_MODE_CLAMP,
         .tHorizontalWrap = PL_WRAP_MODE_CLAMP
     };

@@ -1119,7 +1119,7 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
         .maxLod                  = ptSampler->fMaxMip,
     };
 
-    if(ptSampler->fMaxMip == 64.0f)
+    if(ptSampler->fMaxMip == PL_MAX_MIPS)
         tSamplerInfo.maxLod = (float)tTextureView.tTextureViewDesc.uMips;
 
     tSamplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
@@ -4461,7 +4461,7 @@ pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight)
         plSampler tSampler = {
             .tFilter = PL_FILTER_NEAREST,
             .fMinMip = 0.0f,
-            .fMaxMip = 64.0f,
+            .fMaxMip = PL_MAX_MIPS,
             .tVerticalWrap = PL_WRAP_MODE_CLAMP,
             .tHorizontalWrap = PL_WRAP_MODE_CLAMP
         };
@@ -4494,7 +4494,7 @@ pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight)
     plSampler tSampler = {
         .tFilter = PL_FILTER_NEAREST,
         .fMinMip = 0.0f,
-        .fMaxMip = 64.0f,
+        .fMaxMip = PL_MAX_MIPS,
         .tVerticalWrap = PL_WRAP_MODE_CLAMP,
         .tHorizontalWrap = PL_WRAP_MODE_CLAMP
     };
