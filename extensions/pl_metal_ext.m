@@ -151,11 +151,6 @@ typedef struct _plGraphicsMetal
     id<MTLCommandQueue> tCmdQueue;
     CAMetalLayer*       pMetalLayer;
 
-    uint64_t                 uNextFenceValue;
-    id<MTLSharedEvent>       tStagingEvent;
-    MTLSharedEventListener*  ptSharedEventListener;
-    id<MTLBuffer>            tStagingBuffer;
-    plDeviceMemoryAllocation tStagingMemory;
     id<MTLFence>             atPassFences[64];
     uint32_t                 uCurrentPassFenceIndex;
     
@@ -378,7 +373,8 @@ pl_copy_buffer_to_texture(plDevice* ptDevice, plBufferHandle tBufferHandle, plTe
     plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
 
     id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
-    commandBuffer.label = @"Buffer to Texture Blit Encoder";
+    commandBuffer.label = @"Buffer to Texture Blit cmd";
+
 
     id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
     blitEncoder.label = @"Buffer to Texture Blit Encoder";
@@ -414,6 +410,7 @@ pl_copy_buffer_to_texture(plDevice* ptDevice, plBufferHandle tBufferHandle, plTe
 
     [blitEncoder endEncoding];
     [commandBuffer commit];
+    [commandBuffer waitUntilCompleted];
 }
 
 static void
@@ -427,17 +424,8 @@ pl_transfer_image_to_buffer(plDevice* ptDevice, plTextureHandle tTexture, plBuff
     const plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[tTexture.uIndex];
     const plMetalBuffer* ptMetalBuffer = &ptMetalGraphics->sbtBuffersHot[tBuffer.uIndex];
 
-    // copy from cpu to gpu once staging buffer is free
-    [ptMetalGraphics->tStagingEvent notifyListener:ptMetalGraphics->ptSharedEventListener
-                        atValue:ptMetalGraphics->uNextFenceValue + 2
-                        block:^(id<MTLSharedEvent> sharedEvent, uint64_t value) {
-        sharedEvent.signaledValue = ptMetalGraphics->uNextFenceValue;
-    }];
-
     id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
     commandBuffer.label = @"Heap Transfer Blit Encoder";
-
-    [commandBuffer encodeWaitForEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue++];
 
     id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
     blitEncoder.label = @"Heap Transfer Blit Encoder";
@@ -464,16 +452,28 @@ pl_transfer_image_to_buffer(plDevice* ptDevice, plTextureHandle tTexture, plBuff
         destinationBytesPerImage:0];
 
     [blitEncoder endEncoding];
-    [commandBuffer encodeSignalEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue];
     [commandBuffer commit];
+    [commandBuffer waitUntilCompleted];
+}
 
-    // wait for cpu to gpu copying to take place before continuing
-    while(true)
-    {
-        if(ptMetalGraphics->tStagingEvent.signaledValue == ptMetalGraphics->uNextFenceValue)
-            break;
-    }
+static void
+pl_copy_buffer(plDevice* ptDevice, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t szSize)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
 
+    id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
+    commandBuffer.label = @"Heap Transfer Blit Encoder";
+
+    id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
+    blitEncoder.label = @"Heap Transfer Blit Encoder";
+
+    [blitEncoder copyFromBuffer:ptMetalGraphics->sbtBuffersHot[tSource.uIndex].tBuffer sourceOffset:uSourceOffset toBuffer:ptMetalGraphics->sbtBuffersHot[tDestination.uIndex].tBuffer destinationOffset:uDestinationOffset size:szSize];
+
+    [blitEncoder endEncoding];
+    [commandBuffer commit];
+    [commandBuffer waitUntilCompleted];
 }
 
 static plBufferHandle
@@ -517,9 +517,6 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
         };
         tMetalBuffer.tBuffer.label = [NSString stringWithUTF8String:ptDesc->acDebugName];
         memset(tMetalBuffer.tBuffer.contents, 0, ptDesc->uByteSize);
-        
-        if(ptDesc->puInitialData)
-            memcpy(tMetalBuffer.tBuffer.contents, ptDesc->puInitialData, ptDesc->uInitialDataByteSize);
 
         tBuffer.tMemoryAllocation.pHostMapped = tMetalBuffer.tBuffer.contents;
         tBuffer.tMemoryAllocation.ulOffset = 0;
@@ -529,45 +526,14 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
     }
     else if(ptDesc->tMemory == PL_MEMORY_GPU)
     {
-        // copy from cpu to gpu once staging buffer is free
-        [ptMetalGraphics->tStagingEvent notifyListener:ptMetalGraphics->ptSharedEventListener
-                            atValue:ptMetalGraphics->uNextFenceValue++
-                            block:^(id<MTLSharedEvent> sharedEvent, uint64_t value) {
-            if(ptDesc->puInitialData)
-                memcpy(ptMetalGraphics->tStagingBuffer.contents, ptDesc->puInitialData, ptDesc->uInitialDataByteSize);
-            sharedEvent.signaledValue = ptMetalGraphics->uNextFenceValue;
-        }];
-
-        // wait for cpu to gpu copying to take place before continuing
-        while(true)
-        {
-            if(ptMetalGraphics->tStagingEvent.signaledValue == ptMetalGraphics->uNextFenceValue)
-                break;
-        }
 
         plDeviceMemoryAllocatorI* ptAllocator = ptDesc->uByteSize > PL_DEVICE_BUDDY_BLOCK_SIZE ? &ptDevice->tLocalDedicatedAllocator : &ptDevice->tLocalBuddyAllocator;
         tBuffer.tMemoryAllocation = ptAllocator->allocate(ptAllocator->ptInst, MTLStorageModePrivate, ptDesc->uByteSize, 0, pcName);
-
-        id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
-        commandBuffer.label = @"Heap Transfer Blit Encoder";
-
-        [commandBuffer encodeWaitForEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue++];
-
-        id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
-        blitEncoder.label = @"Heap Transfer Blit Encoder";
-
-        MTLSizeAndAlign tSizeAndAlign = [ptMetalDevice->tDevice heapBufferSizeAndAlignWithLength:ptDesc->uByteSize options:MTLResourceStorageModePrivate];
 
         plMetalBuffer tMetalBuffer = {
             .tBuffer = [(id<MTLHeap>)tBuffer.tMemoryAllocation.uHandle newBufferWithLength:ptDesc->uByteSize options:MTLResourceStorageModePrivate offset:tBuffer.tMemoryAllocation.ulOffset]
         };
         tMetalBuffer.tBuffer.label = [NSString stringWithUTF8String:ptDesc->acDebugName];
-
-        [blitEncoder copyFromBuffer:ptMetalGraphics->tStagingBuffer sourceOffset:0 toBuffer:tMetalBuffer.tBuffer destinationOffset:0 size:ptDesc->uByteSize];
-
-        [blitEncoder endEncoding];
-        [commandBuffer encodeSignalEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue];
-        [commandBuffer commit];
 
         tMetalBuffer.tHeap = (id<MTLHeap>)tBuffer.tMemoryAllocation.uHandle;
         ptMetalGraphics->sbtBuffersHot[uBufferIndex] = tMetalBuffer;
@@ -582,9 +548,6 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
         tMetalBuffer.tBuffer.label = [NSString stringWithUTF8String:ptDesc->acDebugName];
         memset(tMetalBuffer.tBuffer.contents, 0, ptDesc->uByteSize);
 
-        if(ptDesc->puInitialData)
-            memcpy(tMetalBuffer.tBuffer.contents, ptDesc->puInitialData, ptDesc->uInitialDataByteSize);
-
         tBuffer.tMemoryAllocation.pHostMapped = tMetalBuffer.tBuffer.contents;
         tBuffer.tMemoryAllocation.ulOffset = 0;
         tBuffer.tMemoryAllocation.ulSize = ptDesc->uByteSize;
@@ -597,62 +560,32 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
 }
 
 static void
-pl_update_texture(plDevice* ptDevice, plTextureHandle tHandle, size_t szSize, const void* pData)
+pl_generate_mipmaps(plDevice* ptDevice, plTextureHandle tTexture)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
     plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
 
-    // copy from cpu to gpu once staging buffer is free
-    [ptMetalGraphics->tStagingEvent notifyListener:ptMetalGraphics->ptSharedEventListener
-                        atValue:ptMetalGraphics->uNextFenceValue++
-                        block:^(id<MTLSharedEvent> sharedEvent, uint64_t value) {
-        if(pData)
-            memcpy(ptMetalGraphics->tStagingBuffer.contents, pData, szSize);
-        sharedEvent.signaledValue = ptMetalGraphics->uNextFenceValue;
-    }];
-
-    // wait for cpu to gpu copying to take place before continuing
-    while(true)
-    {
-        if(ptMetalGraphics->tStagingEvent.signaledValue == ptMetalGraphics->uNextFenceValue)
-            break;
-    }
+    plTexture* ptTexture = pl__get_texture(ptDevice, tTexture);
+    if(ptTexture->tDesc.uMips < 2)
+        return;
 
     id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
     commandBuffer.label = @"Heap Transfer Blit Encoder";
 
-    [commandBuffer encodeWaitForEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue++];
-
-    plMetalTexture tMetalTexture = ptMetalGraphics->sbtTexturesHot[tHandle.uIndex];
-    plTexture tTexture = ptGraphics->sbtTexturesCold[tHandle.uIndex];
-
     id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
     blitEncoder.label = @"Heap Transfer Blit Encoder";
 
-    NSUInteger uBytesPerRow = szSize / tTexture.tDesc.tDimensions.y;
-    uBytesPerRow = uBytesPerRow / tTexture.tDesc.uLayers;
-    MTLOrigin tOrigin;
-    tOrigin.x = 0;
-    tOrigin.y = 0;
-    tOrigin.z = 0;
-    MTLSize tSize;
-    tSize.width = tTexture.tDesc.tDimensions.x;
-    tSize.height = tTexture.tDesc.tDimensions.y;
-    tSize.depth = tTexture.tDesc.tDimensions.z;
-    for(uint32_t i = 0; i < tTexture.tDesc.uLayers; i++)
-        [blitEncoder copyFromBuffer:ptMetalGraphics->tStagingBuffer sourceOffset:uBytesPerRow * tTexture.tDesc.tDimensions.y * i sourceBytesPerRow:uBytesPerRow sourceBytesPerImage:0 sourceSize:tSize toTexture:tMetalTexture.tTexture destinationSlice:i destinationLevel:0 destinationOrigin:tOrigin];
-
-    if(tTexture.tDesc.uMips > 1)
-        [blitEncoder generateMipmapsForTexture:tMetalTexture.tTexture];
+    [blitEncoder generateMipmapsForTexture:ptMetalGraphics->sbtTexturesHot[tTexture.uIndex].tTexture];
 
     [blitEncoder endEncoding];
-    [commandBuffer encodeSignalEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue];
     [commandBuffer commit];
+
+    [commandBuffer waitUntilCompleted];
 }
 
 static plTextureHandle
-pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName)
+pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, const char* pcName)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
@@ -680,23 +613,6 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
     plTexture tTexture = {
         .tDesc = tDesc
     };
-
-    // copy from cpu to gpu once staging buffer is free
-    [ptMetalGraphics->tStagingEvent notifyListener:ptMetalGraphics->ptSharedEventListener
-                        atValue:ptMetalGraphics->uNextFenceValue++
-                        block:^(id<MTLSharedEvent> sharedEvent, uint64_t value) {
-        if(pData)
-            memcpy(ptMetalGraphics->tStagingBuffer.contents, pData, szSize);
-        sharedEvent.signaledValue = ptMetalGraphics->uNextFenceValue;
-    }];
-
-    // wait for cpu to gpu copying to take place before continuing
-    while(true)
-    {
-        if(ptMetalGraphics->tStagingEvent.signaledValue == ptMetalGraphics->uNextFenceValue)
-            break;
-    }
-
 
     MTLTextureDescriptor* ptTextureDescriptor = [[MTLTextureDescriptor alloc] init];
     ptTextureDescriptor.pixelFormat = pl__metal_format(tDesc.tFormat);
@@ -739,36 +655,6 @@ pl_create_texture(plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const 
     };
     tMetalTexture.tTexture.label = [NSString stringWithUTF8String:pcName];
 
-    if(pData)
-    {
-        id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
-        commandBuffer.label = @"Heap Transfer Blit Encoder";
-
-        [commandBuffer encodeWaitForEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue++];
-
-        id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
-        blitEncoder.label = @"Heap Transfer Blit Encoder";
-
-        NSUInteger uBytesPerRow = szSize / tDesc.tDimensions.y;
-        uBytesPerRow = uBytesPerRow / tDesc.uLayers;
-        MTLOrigin tOrigin;
-        tOrigin.x = 0;
-        tOrigin.y = 0;
-        tOrigin.z = 0;
-        MTLSize tSize;
-        tSize.width = tDesc.tDimensions.x;
-        tSize.height = tDesc.tDimensions.y;
-        tSize.depth = tDesc.tDimensions.z;
-        for(uint32_t i = 0; i < tDesc.uLayers; i++)
-            [blitEncoder copyFromBuffer:ptMetalGraphics->tStagingBuffer sourceOffset:uBytesPerRow * tDesc.tDimensions.y * i sourceBytesPerRow:uBytesPerRow sourceBytesPerImage:0 sourceSize:tSize toTexture:tMetalTexture.tTexture destinationSlice:i destinationLevel:0 destinationOrigin:tOrigin];
-
-        if(tDesc.uMips > 1)
-            [blitEncoder generateMipmapsForTexture:tMetalTexture.tTexture];
-
-        [blitEncoder endEncoding];
-        [commandBuffer encodeSignalEvent:ptMetalGraphics->tStagingEvent value:ptMetalGraphics->uNextFenceValue];
-        [commandBuffer commit];
-    }
     ptMetalGraphics->sbtTexturesHot[uTextureIndex] = tMetalTexture;
     ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
     [ptTextureDescriptor release];
@@ -1638,10 +1524,6 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     ptGraphics->tDevice.tStagingCachedAllocator.ranges = pl_get_allocator_ranges;
     ptGraphics->tDevice.tStagingCachedAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&tStagingCachedData;
 
-    ptMetalGraphics->tStagingEvent = [ptMetalDevice->tDevice newSharedEvent];
-    dispatch_queue_t tQueue = dispatch_queue_create("com.example.apple-samplecode.MyQueue", NULL);
-    ptMetalGraphics->ptSharedEventListener = [[MTLSharedEventListener alloc] initWithDispatchQueue:tQueue];
-
     pl_sb_resize(ptGraphics->sbtGarbage, ptGraphics->uFramesInFlight);
     for(uint32_t i = 0; i < ptGraphics->uFramesInFlight; i++)
     {
@@ -1662,10 +1544,6 @@ pl_initialize_graphics(plGraphics* ptGraphics)
         pl_sb_push(ptMetalGraphics->sbFrames, tFrame);
     }
 
-    ptMetalGraphics->tStagingMemory = ptGraphics->tDevice.tStagingUnCachedAllocator.allocate(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, 0, PL_DEVICE_ALLOCATION_BLOCK_SIZE, 0, "staging");
-    ptMetalGraphics->tStagingBuffer = [(id<MTLHeap>)ptMetalGraphics->tStagingMemory.uHandle newBufferWithLength:PL_DEVICE_ALLOCATION_BLOCK_SIZE options:MTLResourceStorageModeShared offset:0];
-    ptMetalGraphics->tStagingBuffer.label = [NSString stringWithUTF8String:"staging"];
-
     // color & depth
     const plTextureDesc tDepthTextureDesc = {
         .tDimensions = {ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], 1},
@@ -1676,7 +1554,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
         .tUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_TRANSIENT_ATTACHMENT,
         .tSamples = ptGraphics->tSwapchain.tMsaaSamples
     };
-    ptGraphics->tSwapchain.tDepthTexture = pl_create_texture(&ptGraphics->tDevice, tDepthTextureDesc, 0, NULL, "Swapchain depth");
+    ptGraphics->tSwapchain.tDepthTexture = pl_create_texture(&ptGraphics->tDevice, tDepthTextureDesc, "Swapchain depth");
 
     const plTextureDesc tColorTextureDesc = {
         .tDimensions = {ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], 1},
@@ -1687,7 +1565,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
         .tUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
         .tSamples = ptGraphics->tSwapchain.tMsaaSamples
     };
-    ptGraphics->tSwapchain.tColorTexture = pl_create_texture(&ptGraphics->tDevice, tColorTextureDesc, 0, NULL, "Swapchain color");
+    ptGraphics->tSwapchain.tColorTexture = pl_create_texture(&ptGraphics->tDevice, tColorTextureDesc, "Swapchain color");
 
     plSampler tSampler = {
         .tFilter = PL_FILTER_NEAREST,
@@ -1754,7 +1632,7 @@ pl_resize(plGraphics* ptGraphics)
         .tUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_TRANSIENT_ATTACHMENT,
         .tSamples = ptGraphics->tSwapchain.tMsaaSamples
     };
-    ptGraphics->tSwapchain.tDepthTexture = pl_create_texture(&ptGraphics->tDevice, tDepthTextureDesc, 0, NULL, "Swapchain depth");
+    ptGraphics->tSwapchain.tDepthTexture = pl_create_texture(&ptGraphics->tDevice, tDepthTextureDesc, "Swapchain depth");
 
     const plTextureDesc tColorTextureDesc = {
         .tDimensions = {ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], 1},
@@ -1765,7 +1643,7 @@ pl_resize(plGraphics* ptGraphics)
         .tUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
         .tSamples = ptGraphics->tSwapchain.tMsaaSamples
     };
-    ptGraphics->tSwapchain.tColorTexture = pl_create_texture(&ptGraphics->tDevice, tColorTextureDesc, 0, NULL, "Swapchain color");
+    ptGraphics->tSwapchain.tColorTexture = pl_create_texture(&ptGraphics->tDevice, tColorTextureDesc, "Swapchain color");
 
     plSampler tSampler = {
         .tFilter = PL_FILTER_NEAREST,
@@ -3217,8 +3095,6 @@ pl_load_graphics_api(void)
         .end_frame                        = pl_end_gfx_frame,
         .begin_recording                  = pl_begin_recording,
         .end_recording                    = pl_end_recording,
-        .start_transfers                  = pl_start_transfers,
-        .end_transfers                    = pl_end_transfers,
         .begin_main_pass                  = pl_begin_main_pass,
         .end_main_pass                    = pl_end_main_pass,
         .begin_pass                       = pl_begin_pass,
@@ -3258,7 +3134,6 @@ pl_load_device_api(void)
         .create_bind_group                      = pl_create_bind_group,
         .get_temporary_bind_group               = pl_get_temporary_bind_group,
         .update_bind_group                      = pl_update_bind_group,
-        .update_texture                         = pl_update_texture,
         .transfer_image_to_buffer               = pl_transfer_image_to_buffer,
         .allocate_dynamic_data                  = pl_allocate_dynamic_data,
         .queue_buffer_for_deletion              = pl_queue_buffer_for_deletion,
@@ -3285,7 +3160,9 @@ pl_load_device_api(void)
         .get_shader                             = pl__get_shader,
         .get_compute_shader_variant             = pl_get_compute_shader_variant,
         .get_shader_variant                     = pl_get_shader_variant,
-        .copy_buffer_to_texture                 = pl_copy_buffer_to_texture
+        .copy_buffer_to_texture                 = pl_copy_buffer_to_texture,
+        .copy_buffer                            = pl_copy_buffer,
+        .generate_mipmaps                       = pl_generate_mipmaps
     };
     return &tApi;
 }

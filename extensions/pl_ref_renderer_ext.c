@@ -404,9 +404,24 @@ pl_refr_initialize(void)
         .tSamples = PL_SAMPLE_COUNT_1
     };
 
-    gptGfx->start_transfers(ptGraphics);
-    gptData->tDummyTexture = gptDevice->create_texture(&ptGraphics->tDevice, tTextureDesc, sizeof(float) * 4 * 4, image, "dummy texture");
-    gptGfx->end_transfers(ptGraphics);
+    const plBufferDescription tStagingBufferDesc = {
+        .tMemory              = PL_MEMORY_GPU_CPU,
+        .tUsage               = PL_BUFFER_USAGE_UNSPECIFIED,
+        .uByteSize            = 268435456
+    };
+    plBufferHandle tStagingBufferHandle = gptDevice->create_buffer(&ptGraphics->tDevice, &tStagingBufferDesc, "staging buffer");
+    plBuffer* ptStagingBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, tStagingBufferHandle);
+    memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, image, sizeof(float) * 4 * 4);
+
+    gptData->tDummyTexture = gptDevice->create_texture(&ptGraphics->tDevice, tTextureDesc, "dummy texture");
+
+    plBufferImageCopy tBufferImageCopy = {
+        .tImageExtent = {2, 2, 1},
+        .uLayerCount = 1
+    };
+    gptDevice->copy_buffer_to_texture(&ptGraphics->tDevice, tStagingBufferHandle, gptData->tDummyTexture, 1, &tBufferImageCopy);
+
+    gptDevice->destroy_buffer(&ptGraphics->tDevice, tStagingBufferHandle);
 
     plTextureViewDesc tTextureViewDesc = {
         .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
@@ -537,25 +552,22 @@ pl_refr_load_skybox_from_panorama(const char* pcPath, int iResolution)
     tSkyboxComputeShaderDesc.pTempConstantData = aiSkyboxSpecializationData;
     gptData->tPanoramaShader = gptDevice->create_compute_shader(ptDevice, &tSkyboxComputeShaderDesc);
 
-    gptGfx->start_transfers(ptGraphics);
     plBufferHandle atComputeBuffers[7] = {0};
     const uint32_t uPanoramaSize = iPanoramaHeight * iPanoramaWidth * 4 * sizeof(float);
     const plBufferDescription tInputBufferDesc = {
         .tMemory              = PL_MEMORY_GPU_CPU,
         .tUsage               = PL_BUFFER_USAGE_STORAGE,
-        .uByteSize            = uPanoramaSize,
-        .uInitialDataByteSize = uPanoramaSize,
-        .puInitialData        = (const uint8_t*)pfPanoramaData
+        .uByteSize            = uPanoramaSize
     };
     atComputeBuffers[0] = gptDevice->create_buffer(ptDevice, &tInputBufferDesc, "panorama input");
+    plBuffer* ptComputeBuffer = gptDevice->get_buffer(ptDevice, atComputeBuffers[0]);
+    memcpy(ptComputeBuffer->tMemoryAllocation.pHostMapped, pfPanoramaData, iPanoramaWidth * iPanoramaHeight * 4 * sizeof(float));
 
     const size_t uFaceSize = ((size_t)iResolution * (size_t)iResolution) * 4 * sizeof(float);
     const plBufferDescription tOutputBufferDesc = {
         .tMemory              = PL_MEMORY_GPU_CPU,
         .tUsage               = PL_BUFFER_USAGE_STORAGE,
-        .uByteSize            = (uint32_t)uFaceSize,
-        .uInitialDataByteSize = 0,
-        .puInitialData        = NULL
+        .uByteSize            = (uint32_t)uFaceSize
     };
     
     for(uint32_t i = 0; i < 6; i++)
@@ -605,6 +617,15 @@ pl_refr_load_skybox_from_panorama(const char* pcPath, int iResolution)
         memcpy(&pcResultData[uFaceSize * i], ptBuffer->tMemoryAllocation.pHostMapped, uFaceSize);
     }
 
+    const plBufferDescription tStagingBufferDesc = {
+        .tMemory              = PL_MEMORY_GPU_CPU,
+        .tUsage               = PL_BUFFER_USAGE_UNSPECIFIED,
+        .uByteSize            = 268435456
+    };
+    plBufferHandle tStagingBufferHandle = gptDevice->create_buffer(&ptGraphics->tDevice, &tStagingBufferDesc, "staging buffer");
+    plBuffer* ptStagingBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, tStagingBufferHandle);
+    memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pcResultData, uFaceSize * 6);
+
     plTextureDesc tTextureDesc = {
         .tDimensions = {(float)iResolution, (float)iResolution, 1},
         .tFormat = PL_FORMAT_R32G32B32A32_FLOAT,
@@ -614,7 +635,19 @@ pl_refr_load_skybox_from_panorama(const char* pcPath, int iResolution)
         .tUsage = PL_TEXTURE_USAGE_SAMPLED,
         .tSamples = PL_SAMPLE_COUNT_1
     };
-    gptData->tSkyboxTexture = gptDevice->create_texture(ptDevice, tTextureDesc, uFaceSize * 6, pcResultData, "skybox texture");
+    gptData->tSkyboxTexture = gptDevice->create_texture(ptDevice, tTextureDesc, "skybox texture");
+
+    plBufferImageCopy atBufferImageCopy[6] = {0};
+    for(uint32_t i = 0; i < 6; i++)
+    {
+        atBufferImageCopy[i].tImageExtent = (plExtent){iResolution, iResolution, 1};
+        atBufferImageCopy[i].uLayerCount = 1;
+        atBufferImageCopy[i].szBufferOffset = i * uFaceSize;
+        atBufferImageCopy[i].uBaseArrayLayer = i;
+    }
+    gptDevice->copy_buffer_to_texture(&ptGraphics->tDevice, tStagingBufferHandle, gptData->tSkyboxTexture, 6, atBufferImageCopy);
+
+    gptDevice->destroy_buffer(&ptGraphics->tDevice, tStagingBufferHandle);
 
     plTextureViewDesc tTextureViewDesc = {
         .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
@@ -636,7 +669,6 @@ pl_refr_load_skybox_from_panorama(const char* pcPath, int iResolution)
     
     for(uint32_t i = 0; i < 7; i++)
         gptDevice->destroy_buffer(ptDevice, atComputeBuffers[i]);
-    gptGfx->end_transfers(ptGraphics); // flush required to make sure skybox sampler is ready
 
     gptImage->free(pfPanoramaData);
 
@@ -1233,6 +1265,15 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
     int texWidth, texHeight, texNumChannels;
     int texForceNumChannels = 4;
 
+    const plBufferDescription tStagingBufferDesc = {
+        .tMemory              = PL_MEMORY_GPU_CPU,
+        .tUsage               = PL_BUFFER_USAGE_UNSPECIFIED,
+        .uByteSize            = 268435456
+    };
+    plBufferHandle tStagingBufferHandle = gptDevice->create_buffer(ptDevice, &tStagingBufferDesc, "staging buffer");
+    plBuffer* ptStagingBuffer = gptDevice->get_buffer(ptDevice, tStagingBufferHandle);
+    
+
     plTextureHandle tTexture = {0};
 
     plSampler tSampler = {
@@ -1251,6 +1292,9 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
         float* rawBytes = gptImage->loadf_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
         PL_ASSERT(rawBytes);
 
+        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, rawBytes, sizeof(float) * texWidth * texHeight * 4);
+        gptImage->free(rawBytes);
+
         plTextureDesc tTextureDesc = {
             .tDimensions = {(float)texWidth, (float)texHeight, 1},
             .tFormat = PL_FORMAT_R32G32B32A32_FLOAT,
@@ -1260,8 +1304,14 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
             .tUsage = PL_TEXTURE_USAGE_SAMPLED,
             .tSamples = PL_SAMPLE_COUNT_1
         };
-        tTexture = gptDevice->create_texture(ptDevice, tTextureDesc, 4 * texWidth * texHeight * sizeof(float), rawBytes, ptMaterial->atTextureMaps[tSlot].acName);
-        gptImage->free(rawBytes);
+        tTexture = gptDevice->create_texture(ptDevice, tTextureDesc, ptMaterial->atTextureMaps[tSlot].acName);
+        plBufferImageCopy tBufferImageCopy = {
+            .tImageExtent = {texWidth, texHeight, 1},
+            .uLayerCount = 1
+        };
+        gptDevice->copy_buffer_to_texture(ptDevice, tStagingBufferHandle, tTexture, 1, &tBufferImageCopy);
+        gptDevice->generate_mipmaps(ptDevice, tTexture);
+        
 
         plTextureViewDesc tTextureViewDesc = {
             .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
@@ -1276,6 +1326,10 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
         unsigned char* rawBytes = gptImage->load_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
         PL_ASSERT(rawBytes);
 
+        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, rawBytes, texWidth * texHeight * 4);
+        gptImage->free(rawBytes);
+
+
         plTextureDesc tTextureDesc = {
             .tDimensions = {(float)texWidth, (float)texHeight, 1},
             .tFormat = PL_FORMAT_R8G8B8A8_UNORM,
@@ -1285,9 +1339,14 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
             .tUsage = PL_TEXTURE_USAGE_SAMPLED,
             .tSamples = PL_SAMPLE_COUNT_1
         };
-        tTexture = gptDevice->create_texture(ptDevice, tTextureDesc, 4 * texWidth * texHeight, rawBytes, ptMaterial->atTextureMaps[tSlot].acName);
-        gptImage->free(rawBytes);
-
+        tTexture = gptDevice->create_texture(ptDevice, tTextureDesc, ptMaterial->atTextureMaps[tSlot].acName);
+        plBufferImageCopy tBufferImageCopy = {
+            .tImageExtent = {texWidth, texHeight, 1},
+            .uLayerCount = 1
+        };
+        gptDevice->copy_buffer_to_texture(ptDevice, tStagingBufferHandle, tTexture, 1, &tBufferImageCopy);
+        gptDevice->generate_mipmaps(ptDevice, tTexture);
+        
         plTextureViewDesc tTextureViewDesc = {
             .tFormat     = PL_FORMAT_R8G8B8A8_UNORM,
             .uBaseLayer  = 0,
@@ -1395,8 +1454,6 @@ pl_refr_finalize_scene(void)
         gptData->tShader = gptDevice->create_shader(ptDevice, &tShaderDescription);
     }
 
-    gptGfx->start_transfers(ptGraphics);
-
     // update material bind groups
     const uint32_t uMaterialCount = pl_sb_size(gptData->sbtMaterialEntities);
     for(uint32_t i = 0; i < uMaterialCount; i++)
@@ -1405,8 +1462,8 @@ pl_refr_finalize_scene(void)
 
         plTextureViewHandle atMaterialTextureViews[2] = {0};
 
-        atMaterialTextureViews[0] = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_BASE_COLOR_MAP, true, 1);
-        atMaterialTextureViews[1] = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_NORMAL_MAP, false, 1);
+        atMaterialTextureViews[0] = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_BASE_COLOR_MAP, true, 0);
+        atMaterialTextureViews[1] = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_NORMAL_MAP, false, 0);
 
         plBindGroupLayout tMaterialBindGroupLayout = {
             .uTextureCount = 2,
@@ -1593,64 +1650,74 @@ pl_refr_finalize_scene(void)
         pl_sb_push(gptData->sbtDrawables, tDrawable);
     }
 
+    const plBufferDescription tStagingBufferDesc = {
+        .tMemory              = PL_MEMORY_GPU_CPU,
+        .tUsage               = PL_BUFFER_USAGE_UNSPECIFIED,
+        .uByteSize            = 268435456
+    };
+    plBufferHandle tStagingBufferHandle = gptDevice->create_buffer(ptDevice, &tStagingBufferDesc, "staging buffer");
+    plBuffer* tStagingBuffer = gptDevice->get_buffer(ptDevice, tStagingBufferHandle);
+
     // create buffers
     const plBufferDescription tShaderBufferDesc = {
         .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_STORAGE,
-        .uByteSize            = sizeof(plMaterial) * pl_sb_size(gptData->sbtMaterialBuffer),
-        .uInitialDataByteSize = sizeof(plMaterial) * pl_sb_size(gptData->sbtMaterialBuffer),
-        .puInitialData        = (uint8_t*)gptData->sbtMaterialBuffer
+        .uByteSize            = sizeof(plMaterial) * pl_sb_size(gptData->sbtMaterialBuffer)
     };
+    memcpy(tStagingBuffer->tMemoryAllocation.pHostMapped, gptData->sbtMaterialBuffer, sizeof(plMaterial) * pl_sb_size(gptData->sbtMaterialBuffer));
     gptData->tMaterialDataBuffer = gptDevice->create_buffer(ptDevice, &tShaderBufferDesc, "shader buffer");
+    gptDevice->copy_buffer(ptDevice, tStagingBufferHandle, gptData->tMaterialDataBuffer, 0, 0, tShaderBufferDesc.uByteSize);
+    tStagingBuffer = gptDevice->get_buffer(ptDevice, tStagingBufferHandle);
 
     const plBufferDescription tIndexBufferDesc = {
         .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_INDEX,
-        .uByteSize            = sizeof(uint32_t) * pl_sb_size(gptData->sbuIndexBuffer),
-        .uInitialDataByteSize = sizeof(uint32_t) * pl_sb_size(gptData->sbuIndexBuffer),
-        .puInitialData        = (uint8_t*)gptData->sbuIndexBuffer
+        .uByteSize            = sizeof(uint32_t) * pl_sb_size(gptData->sbuIndexBuffer)
     };
+    memcpy(tStagingBuffer->tMemoryAllocation.pHostMapped, gptData->sbuIndexBuffer, sizeof(uint32_t) * pl_sb_size(gptData->sbuIndexBuffer));
     gptData->tIndexBuffer = gptDevice->create_buffer(ptDevice, &tIndexBufferDesc, "index buffer");
+    gptDevice->copy_buffer(ptDevice, tStagingBufferHandle, gptData->tIndexBuffer, 0, 0, tIndexBufferDesc.uByteSize);
+    tStagingBuffer = gptDevice->get_buffer(ptDevice, tStagingBufferHandle);
 
     const plBufferDescription tVertexBufferDesc = {
         .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_VERTEX,
-        .uByteSize            = sizeof(plVec3) * pl_sb_size(gptData->sbtVertexPosBuffer),
-        .uInitialDataByteSize = sizeof(plVec3) * pl_sb_size(gptData->sbtVertexPosBuffer),
-        .puInitialData        = (uint8_t*)gptData->sbtVertexPosBuffer
+        .uByteSize            = sizeof(plVec3) * pl_sb_size(gptData->sbtVertexPosBuffer)
     };
+    memcpy(tStagingBuffer->tMemoryAllocation.pHostMapped, gptData->sbtVertexPosBuffer, sizeof(plVec3) * pl_sb_size(gptData->sbtVertexPosBuffer));
     gptData->tVertexBuffer = gptDevice->create_buffer(ptDevice, &tVertexBufferDesc, "vertex buffer");
+    gptDevice->copy_buffer(ptDevice, tStagingBufferHandle, gptData->tVertexBuffer, 0, 0, tVertexBufferDesc.uByteSize);
+    tStagingBuffer = gptDevice->get_buffer(ptDevice, tStagingBufferHandle);
 
     const plBufferDescription tStorageBufferDesc = {
         .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_STORAGE,
-        .uByteSize            = sizeof(plVec4) * pl_sb_size(gptData->sbtVertexDataBuffer),
-        .uInitialDataByteSize = sizeof(plVec4) * pl_sb_size(gptData->sbtVertexDataBuffer),
-        .puInitialData        = (uint8_t*)gptData->sbtVertexDataBuffer
+        .uByteSize            = sizeof(plVec4) * pl_sb_size(gptData->sbtVertexDataBuffer)
     };
+    memcpy(tStagingBuffer->tMemoryAllocation.pHostMapped, gptData->sbtVertexDataBuffer, sizeof(plVec4) * pl_sb_size(gptData->sbtVertexDataBuffer));
     gptData->tStorageBuffer = gptDevice->create_buffer(ptDevice, &tStorageBufferDesc, "storage buffer");
+    gptDevice->copy_buffer(ptDevice, tStagingBufferHandle, gptData->tStorageBuffer, 0, 0, tStorageBufferDesc.uByteSize);
+    tStagingBuffer = gptDevice->get_buffer(ptDevice, tStagingBufferHandle);
 
     plVec4 tUnused = {0};
     const plBufferDescription tUnusedBufferDesc = {
         .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_UNIFORM,
-        .uByteSize            = sizeof(plVec4),
-        .uInitialDataByteSize = sizeof(plVec4),
-        .puInitialData        = (uint8_t*)&tUnused
+        .uByteSize            = sizeof(plVec4)
     };
+    memcpy(tStagingBuffer->tMemoryAllocation.pHostMapped, &tUnused, sizeof(plVec4));
     gptData->tUnusedShaderBuffer = gptDevice->create_buffer(ptDevice, &tUnusedBufferDesc, "unused shader buffer");
+    gptDevice->copy_buffer(ptDevice, tStagingBufferHandle, gptData->tUnusedShaderBuffer, 0, 0, tUnusedBufferDesc.uByteSize);
 
     const plBufferDescription atGlobalBuffersDesc = {
         .tMemory              = PL_MEMORY_GPU_CPU,
         .tUsage               = PL_BUFFER_USAGE_UNIFORM,
-        .uByteSize            = sizeof(BindGroup_0),
-        .uInitialDataByteSize = 0,
-        .puInitialData        = NULL
+        .uByteSize            = sizeof(BindGroup_0)
     };
     gptData->atGlobalBuffers[0] = gptDevice->create_buffer(ptDevice, &atGlobalBuffersDesc, "global buffer 0");
     gptData->atGlobalBuffers[1] = gptDevice->create_buffer(ptDevice, &atGlobalBuffersDesc, "global buffer 1");
 
-    gptGfx->end_transfers(ptGraphics);
+    gptDevice->destroy_buffer(ptDevice, tStagingBufferHandle);
 }
 
 static void

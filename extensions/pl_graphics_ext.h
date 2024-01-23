@@ -198,7 +198,7 @@ typedef struct _plDeviceI
     plBuffer*      (*get_buffer)               (plDevice* ptDevice, plBufferHandle ptHandle); // do not store
 
     // textures (if manually handling mips/levels, don't use initial data, use "copy_buffer_to_texture" instead)
-    plTextureHandle     (*create_texture)                 (plDevice* ptDevice, plTextureDesc tDesc, size_t szSize, const void* pData, const char* pcName);
+    plTextureHandle     (*create_texture)                 (plDevice* ptDevice, plTextureDesc tDesc, const char* pcName);
     plTextureViewHandle (*create_texture_view)            (plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, plTextureHandle tTexture, const char* pcName);
     void                (*queue_texture_for_deletion)     (plDevice* ptDevice, plTextureHandle tHandle);
     void                (*queue_texture_view_for_deletion)(plDevice* ptDevice, plTextureViewHandle tHandle);
@@ -237,8 +237,9 @@ typedef struct _plDeviceI
     plShader*             (*get_shader)                       (plDevice* ptDevice, plShaderHandle ptHandle); // do not store
 
     // texture/buffer ops (blocking)
+    void (*generate_mipmaps)        (plDevice* ptDevice, plTextureHandle tTexture);
+    void (*copy_buffer)             (plDevice* ptDevice, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t szSize);
     void (*transfer_image_to_buffer)(plDevice* ptDevice, plTextureHandle tTexture, plBufferHandle tBuffer);          // from single layer & single mip textures
-    void (*update_texture)          (plDevice* ptDevice, plTextureHandle tHandle, size_t szSize, const void* pData); // updating single layer & single mip textures
     void (*copy_buffer_to_texture)  (plDevice* ptDevice, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions);
 
 } plDeviceI;
@@ -253,8 +254,6 @@ typedef struct _plGraphicsI
     // per frame
     bool (*begin_frame)    (plGraphics* ptGraphics);
     bool (*end_frame)      (plGraphics* ptGraphics);
-    void (*start_transfers)(plGraphics* ptGraphics);
-    void (*end_transfers)  (plGraphics* ptGraphics);
     void (*begin_recording)(plGraphics* ptGraphics);
     void (*end_recording)  (plGraphics* ptGraphics);
     void (*begin_main_pass)(plGraphics* ptGraphics, plRenderPassHandle tPass);
@@ -433,8 +432,6 @@ typedef struct _plBufferDescription
     plBufferUsage  tUsage;
     plMemoryMode   tMemory;
     uint32_t       uByteSize;
-    uint32_t       uInitialDataByteSize;
-    const uint8_t* puInitialData;
 } plBufferDescription;
 
 typedef struct _plBuffer
