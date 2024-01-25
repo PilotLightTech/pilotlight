@@ -57,6 +57,7 @@ typedef struct _plCameraI plCameraI;
 typedef struct _plComponentLibrary plComponentLibrary;
 typedef struct _plComponentManager plComponentManager;
 typedef struct _plTextureMap       plTextureMap;
+typedef struct _plAABB             plAABB;
 
 // ecs components
 typedef struct _plTagComponent       plTagComponent;
@@ -127,6 +128,8 @@ typedef struct _plEcsI
     void (*calculate_tangents)(plMeshComponent* atMeshes, uint32_t uComponentCount);
 
     // systems
+    void (*run_object_update_system)   (plComponentLibrary* ptLibrary);
+    void (*run_transform_update_system)(plComponentLibrary* ptLibrary);
     void (*run_skin_update_system)     (plComponentLibrary* ptLibrary);
     void (*run_hierarchy_update_system)(plComponentLibrary* ptLibrary);
 } plEcsI;
@@ -219,6 +222,12 @@ typedef struct _plTextureMap
     uint32_t         uUVSet;
 } plTextureMap;
 
+typedef struct _plAABB
+{
+    plVec3 tMin;
+    plVec3 tMax;
+} plAABB;
+
 typedef struct _plComponentManager
 {
     plComponentLibrary* ptParentLibrary;
@@ -306,6 +315,8 @@ typedef struct _plMeshComponent
     plVec4*      sbtVertexJoints[2];
     plVec2*      sbtVertexTextureCoordinates[2];
     uint32_t*    sbuIndices;
+    plAABB       tAABB;
+    plAABB       tAABBFinal;
 } plMeshComponent;
 
 typedef struct _plSkinComponent

@@ -16,6 +16,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include <float.h> // FLT_MAX
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pilotlight.h"
 #include "pl_ecs_ext.h"
@@ -62,6 +63,8 @@ static void pl_ecs_attach_component (plComponentLibrary* ptLibrary, plEntity tEn
 static void pl_ecs_deattach_component(plComponentLibrary* ptLibrary, plEntity tEntity);
 
 // update systems
+static void pl_run_object_update_system(plComponentLibrary* ptLibrary);
+static void pl_run_transform_update_system(plComponentLibrary* ptLibrary);
 static void pl_run_skin_update_system     (plComponentLibrary* ptLibrary);
 static void pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary);
 
@@ -125,6 +128,8 @@ pl_load_ecs_api(void)
         .deattach_component          = pl_ecs_deattach_component,
         .calculate_normals           = pl_calculate_normals,
         .calculate_tangents          = pl_calculate_tangents,
+        .run_object_update_system    = pl_run_object_update_system,
+        .run_transform_update_system = pl_run_transform_update_system,
         .run_hierarchy_update_system = pl_run_hierarchy_update_system,
         .run_skin_update_system      = pl_run_skin_update_system
     };
@@ -686,6 +691,62 @@ pl_run_skin_update_system(plComponentLibrary* ptLibrary)
             ptSkinComponent->sbtTextureData[j*2] = tJointMatrix;
             ptSkinComponent->sbtTextureData[j*2 + 1] = tNormalMatrix;
         }
+    }
+
+    pl_end_profile_sample();
+}
+
+static void
+pl_run_object_update_system(plComponentLibrary* ptLibrary)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+    plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
+
+    for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
+    {
+        plObjectComponent* ptObject = &sbtComponents[i];
+        plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+        plMeshComponent* ptMesh = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
+
+        const plVec3 tVerticies[] = {
+            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMin.z }),
+            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMin.z }),
+            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMin.z }),
+            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMin.z }),
+            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMax.z }),
+            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMax.z }),
+            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMax.z }),
+            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMax.z }),
+        };
+
+        // calculate AABB
+        ptMesh->tAABBFinal.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
+        ptMesh->tAABBFinal.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
+        
+        for(uint32_t j = 0; j < 8; j++)
+        {
+            if(tVerticies[j].x > ptMesh->tAABBFinal.tMax.x) ptMesh->tAABBFinal.tMax.x = tVerticies[j].x;
+            if(tVerticies[j].y > ptMesh->tAABBFinal.tMax.y) ptMesh->tAABBFinal.tMax.y = tVerticies[j].y;
+            if(tVerticies[j].z > ptMesh->tAABBFinal.tMax.z) ptMesh->tAABBFinal.tMax.z = tVerticies[j].z;
+            if(tVerticies[j].x < ptMesh->tAABBFinal.tMin.x) ptMesh->tAABBFinal.tMin.x = tVerticies[j].x;
+            if(tVerticies[j].y < ptMesh->tAABBFinal.tMin.y) ptMesh->tAABBFinal.tMin.y = tVerticies[j].y;
+            if(tVerticies[j].z < ptMesh->tAABBFinal.tMin.z) ptMesh->tAABBFinal.tMin.z = tVerticies[j].z;
+        }
+    }
+
+    pl_end_profile_sample();
+}
+
+static void
+pl_run_transform_update_system(plComponentLibrary* ptLibrary)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+    plTransformComponent* sbtComponents = ptLibrary->tTransformComponentManager.pComponents;
+
+    for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
+    {
+        plTransformComponent* ptTransform = &sbtComponents[i];
+        ptTransform->tFinalTransform = ptTransform->tWorld;
     }
 
     pl_end_profile_sample();
