@@ -385,6 +385,35 @@ pl__add_3d_centered_box(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, 
     pl__add_3d_line(ptDrawlist, tVerticies[7], tVerticies[4], tColor, fThickness);
 }
 
+static void
+pl__add_3d_aabb(plDrawList3D* ptDrawlist, plVec3 tMin, plVec3 tMax, plVec4 tColor, float fThickness)
+{
+
+    const plVec3 tVerticies[] = {
+        {  tMin.x, tMin.y, tMin.z },
+        {  tMax.x, tMin.y, tMin.z },
+        {  tMax.x, tMax.y, tMin.z },
+        {  tMin.x, tMax.y, tMin.z },
+        {  tMin.x, tMin.y, tMax.z },
+        {  tMax.x, tMin.y, tMax.z },
+        {  tMax.x, tMax.y, tMax.z },
+        {  tMin.x, tMax.y, tMax.z },
+    };
+
+    pl__add_3d_line(ptDrawlist, tVerticies[0], tVerticies[1], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[1], tVerticies[2], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[2], tVerticies[3], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[3], tVerticies[0], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[0], tVerticies[4], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[1], tVerticies[5], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[2], tVerticies[6], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[3], tVerticies[7], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[4], tVerticies[5], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[5], tVerticies[6], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[6], tVerticies[7], tColor, fThickness);
+    pl__add_3d_line(ptDrawlist, tVerticies[7], tVerticies[4], tColor, fThickness);
+}
+
 // order of the bezier curve inputs are 0=start, 1=control, 2=ending
 static void
 pl__add_3d_bezier_quad(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments)

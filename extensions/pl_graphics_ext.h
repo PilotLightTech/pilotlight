@@ -281,6 +281,7 @@ typedef struct _plGraphicsI
     void (*add_3d_transform)      (plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fLength, float fThickness);
     void (*add_3d_frustum)        (plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fYFov, float fAspect, float fNearZ, float fFarZ, plVec4 tColor, float fThickness);
     void (*add_3d_centered_box)   (plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor, float fThickness);
+    void (*add_3d_aabb)           (plDrawList3D* ptDrawlist, plVec3 tMin, plVec3 tMax, plVec4 tColor, float fThickness);
     void (*add_3d_bezier_quad)    (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
     void (*add_3d_bezier_cubic)   (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
 

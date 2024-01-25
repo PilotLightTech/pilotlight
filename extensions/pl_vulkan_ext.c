@@ -5913,6 +5913,7 @@ pl_load_graphics_api(void)
         .add_3d_centered_box              = pl__add_3d_centered_box,
         .add_3d_bezier_quad               = pl__add_3d_bezier_quad,
         .add_3d_bezier_cubic              = pl__add_3d_bezier_cubic,
+        .add_3d_aabb                      = pl__add_3d_aabb,
         .register_3d_drawlist             = pl__register_3d_drawlist,
         .submit_3d_drawlist               = pl__submit_3d_drawlist,
         .get_ui_texture_handle            = pl_get_ui_texture_handle
