@@ -306,7 +306,7 @@ pl_get_ui_texture_handle(plGraphics* ptGraphics, plTextureViewHandle tHandle)
 {
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanSampler* ptView = &ptVulkanGfx->sbtSamplersHot[tHandle.uIndex];
-    return pl_add_texture(ptView->tImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    return pl_add_texture(ptView->tImageView, ptView->tSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 static void
