@@ -156,8 +156,6 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptCamera->set_pitch_yaw(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), -0.244f, 1.488f);
     gptCamera->update(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera));
     
-
-    // gptRenderer->load_skybox_from_panorama("../data/field.jpg", 1024);
     const plMat4 tTransform0 = pl_mat4_translate_xyz(0.0f, 0.0f, -5.0f);
     const plMat4 tTransform1 = pl_mat4_translate_xyz(5.0f, 0.0f, 0.0f);
     gptRenderer->load_skybox_from_panorama("../data/glTF-Sample-Environments-master/ennis.jpg", 1024);
@@ -267,7 +265,9 @@ pl_app_update(plAppData* ptAppData)
 
     gptGfx->begin_main_pass(ptGraphics, gptRenderer->get_main_render_pass());
 
+    gptRenderer->run_ecs();
     gptRenderer->submit_draw_stream(ptCamera);
+    gptRenderer->draw_bound_boxes(&ptAppData->t3DDrawList);
 
     pl_set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
 

@@ -12,6 +12,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include <float.h> // FLT_MAX
 #include "pilotlight.h"
 #include "pl_ref_renderer_ext.h"
 #include "pl_os.h"
@@ -101,7 +102,7 @@ typedef struct _plRefRendererData
     // compute shaders
     plComputeShaderHandle tPanoramaShader;
 
-
+    // misc
     plEntity* sbtDrawableEntities;
     plBindGroupHandle* sbtDrawableMaterialBindGroups;
     plDrawable* sbtDrawables;
@@ -160,8 +161,10 @@ static void pl_refr_resize(void);
 static void pl_refr_cleanup(void);
 
 // per frame
+static void pl_refr_run_ecs(void);
 static void pl_refr_submit_ui(void);
 static void pl_refr_submit_draw_stream(plCameraComponent* ptCamera);
+static void pl_refr_draw_bound_boxes(plDrawList3D* ptDrawlist);
 
 // loading
 static void pl_refr_load_skybox_from_panorama(const char* pcModelPath, int iResolution);
@@ -191,12 +194,14 @@ pl_load_ref_renderer_api(void)
         .initialize                = pl_refr_initialize,
         .cleanup                   = pl_refr_cleanup,
         .resize                    = pl_refr_resize,
+        .run_ecs                   = pl_refr_run_ecs,
         .submit_ui                 = pl_refr_submit_ui,
         .get_component_library     = pl_refr_get_component_library,
         .get_main_render_pass      = pl_refr_get_main_render_pass,
         .get_graphics              = pl_refr_get_graphics,
         .load_skybox_from_panorama = pl_refr_load_skybox_from_panorama,
         .load_stl                  = pl_refr_load_stl,
+        .draw_bound_boxes          = pl_refr_draw_bound_boxes,
         .load_gltf                 = pl_refr_load_gltf,
         .submit_draw_stream        = pl_refr_submit_draw_stream,
         .finalize_scene            = pl_refr_finalize_scene,
@@ -775,6 +780,20 @@ pl_refr_load_stl(const char* pcModelPath, plVec4 tColor, const plMat4* ptTransfo
 
     pl_load_stl(pcBuffer, (size_t)uFileSize, (float*)ptMesh->sbtVertexPositions, (float*)ptMesh->sbtVertexNormals, (uint32_t*)ptMesh->sbuIndices, &tInfo);
 
+    // calculate AABB
+    ptMesh->tAABB.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
+    ptMesh->tAABB.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
+    
+    for(uint32_t i = 0; i < pl_sb_size(ptMesh->sbtVertexPositions); i++)
+    {
+        if(ptMesh->sbtVertexPositions[i].x > ptMesh->tAABB.tMax.x) ptMesh->tAABB.tMax.x = ptMesh->sbtVertexPositions[i].x;
+        if(ptMesh->sbtVertexPositions[i].y > ptMesh->tAABB.tMax.y) ptMesh->tAABB.tMax.y = ptMesh->sbtVertexPositions[i].y;
+        if(ptMesh->sbtVertexPositions[i].z > ptMesh->tAABB.tMax.z) ptMesh->tAABB.tMax.z = ptMesh->sbtVertexPositions[i].z;
+        if(ptMesh->sbtVertexPositions[i].x < ptMesh->tAABB.tMin.x) ptMesh->tAABB.tMin.x = ptMesh->sbtVertexPositions[i].x;
+        if(ptMesh->sbtVertexPositions[i].y < ptMesh->tAABB.tMin.y) ptMesh->tAABB.tMin.y = ptMesh->sbtVertexPositions[i].y;
+        if(ptMesh->sbtVertexPositions[i].z < ptMesh->tAABB.tMin.z) ptMesh->tAABB.tMin.z = ptMesh->sbtVertexPositions[i].z;
+    }
+
     PL_FREE(pcBuffer);
 
     plBindGroupLayout tMaterialBindGroupLayout = {
@@ -922,6 +941,8 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
         {
             case cgltf_attribute_type_position:
             {
+                ptMesh->tAABB.tMax = (plVec3){ptAttribute->data->max[0], ptAttribute->data->max[1], ptAttribute->data->max[2]};
+                ptMesh->tAABB.tMin = (plVec3){ptAttribute->data->min[0], ptAttribute->data->min[1], ptAttribute->data->min[2]};
                 pl_sb_resize(ptMesh->sbtVertexPositions, (uint32_t)szVertexCount);
                 for(size_t i = 0; i < szVertexCount; i++)
                 {
@@ -1190,6 +1211,9 @@ pl__refr_load_gltf_object(const char* pcDirectory, plEntity tParentEntity, const
         {
             // add mesh to our node
             plMeshComponent* ptMesh = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
+            plObjectComponent* ptObject = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewEntity);
+            ptObject->tMesh = tNewEntity;
+            ptObject->tTransform = tNewEntity;
 
             const cgltf_primitive* ptPrimitive = &ptNode->mesh->primitives[szPrimitiveIndex];
 
@@ -1721,6 +1745,17 @@ pl_refr_finalize_scene(void)
 }
 
 static void
+pl_refr_run_ecs(void)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+    gptECS->run_transform_update_system(&gptData->tComponentLibrary);
+    gptECS->run_hierarchy_update_system(&gptData->tComponentLibrary);
+    gptECS->run_skin_update_system(&gptData->tComponentLibrary);
+    gptECS->run_object_update_system(&gptData->tComponentLibrary);
+    pl_end_profile_sample();
+}
+
+static void
 pl_refr_submit_draw_stream(plCameraComponent* ptCamera)
 {
     pl_begin_profile_sample(__FUNCTION__);
@@ -1849,6 +1884,23 @@ pl_refr_submit_draw_stream(plCameraComponent* ptCamera)
        }
     };
     gptGfx->draw_areas(ptGraphics, 1, &tArea);
+
+    pl_end_profile_sample();
+}
+
+static void
+pl_refr_draw_bound_boxes(plDrawList3D* ptDrawlist)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+
+    for(uint32_t i = 0; i < pl_sb_size(gptData->sbtDrawables); i++)
+    {
+        const plDrawable tDrawable = gptData->sbtDrawables[i];
+        plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, gptData->sbtDrawableEntities[i]);
+        plTransformComponent* ptTransform = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, gptData->sbtDrawableEntities[i]);
+
+        gptGfx->add_3d_aabb(ptDrawlist, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+    }
 
     pl_end_profile_sample();
 }

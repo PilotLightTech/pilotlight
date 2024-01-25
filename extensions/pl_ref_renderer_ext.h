@@ -30,6 +30,7 @@ typedef struct _plRefRendererI plRefRendererI;
 
 // external 
 typedef struct _plGraphics         plGraphics;         // pl_graphics_ext.h
+typedef struct _plDrawList3D       plDrawList3D;       // pl_graphics_ext.h
 typedef struct plRenderPassHandle  plRenderPassHandle; // pl_ecs_ext.h
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef struct _plCameraComponent  plCameraComponent;  // pl_ecs_ext.h
@@ -60,9 +61,11 @@ typedef struct _plRefRendererI
     void (*finalize_scene)(void);
 
     // per frame
+    void (*run_ecs)(void);
     void (*submit_ui)(void);
-    void (*submit_draw_stream)(plCameraComponent* ptCamera);
-
+    void (*submit_draw_stream)(plCameraComponent*);
+    void (*draw_bound_boxes)(plDrawList3D*);
+    
     // misc
     plRenderPassHandle  (*get_main_render_pass)(void);
     plComponentLibrary* (*get_component_library)(void);
