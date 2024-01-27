@@ -55,6 +55,7 @@ pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
     {
         gptMemoryContext->szActiveAllocations++;
         pNewBuffer = malloc(szSize);
+        gptMemoryContext->szMemoryUsage += szSize;
         memset(pNewBuffer, 0, szSize);
 
         const uint64_t ulHash = pl_hm_hash(&pNewBuffer, sizeof(void*), 1);
@@ -88,6 +89,7 @@ pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
                 memcpy(pNewBuffer, pBuffer, gptMemoryContext->sbtAllocations[ulIndex].szSize);
             }
             gptMemoryContext->sbtAllocations[ulIndex].pAddress = NULL;
+            gptMemoryContext->szMemoryUsage -= gptMemoryContext->sbtAllocations[ulIndex].szSize;
             gptMemoryContext->sbtAllocations[ulIndex].szSize = 0;
             pl_hm_remove(gptMemoryContext->ptHashMap, ulHash);
             gptMemoryContext->szAllocationFrees++;
@@ -98,6 +100,7 @@ pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
             PL_ASSERT(false);
         }
         free(pBuffer);
+        
     }
     return pNewBuffer;
 }

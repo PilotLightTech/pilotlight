@@ -203,6 +203,7 @@ typedef struct _plMemoryContext
   size_t             szAllocationFrees;
   plHashMap*         ptHashMap;
   plAllocationEntry* sbtAllocations;
+  size_t             szMemoryUsage;
 } plMemoryContext;
 
 typedef struct _plHandle
