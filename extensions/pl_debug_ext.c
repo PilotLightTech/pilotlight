@@ -533,10 +533,13 @@ pl__show_statistics(bool* bValue)
             if(fCurrentWidth > fLegendWidth)
                 fLegendWidth = fCurrentWidth;
         }
+
+        fLegendWidth += 5.0f;
     }
 
     if(pl_begin_window("Statistics", bValue, false))
     {
+        static bool bAllowNegative = false;
         pl_text("Frame rate: %.0f FPS", ptIOCtx->fFrameRate);
         pl_text("Frame time: %.6f s", ptIOCtx->fDeltaTime);
         const plVec2 tCursor = pl_get_cursor_pos();
@@ -621,9 +624,7 @@ pl__show_statistics(bool* bValue)
                     tCursor0, 
                     pl_add_vec2(tCursor0, tPlotSize),
                     (plVec4){0.2f, 0.0f, 0.0f, 0.5f});
-                
-                // frame times
-
+       
                 static const plVec4 atColors[6] = {
                     {0.0f, 1.0f, 1.0f, 0.75f},
                     {1.0f, 0.5f, 0.0f, 0.75f},
@@ -633,10 +634,18 @@ pl__show_statistics(bool* bValue)
                     {1.0f, 0.0f, 1.0f, 0.75}
                 };
 
-                const double dYCenter = tCursor0.y + tPlotSize.y * 0.5f;            
-                pl_add_text(ptFgLayer, pl_get_default_font(), 13.0f, (plVec2){roundf(tCursor0.x), roundf((float)dYCenter)}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "0", 0.0f);
-                pl_add_line(ptFgLayer, (plVec2){tCursor0.x, (float)dYCenter}, (plVec2){tCursor0.x + tPlotSize.x, (float)dYCenter}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
+                const double dAxisMultiplier = bAllowNegative ? 2.0 : 1.0;
 
+                // const double dYCenter = tCursor0.y + tPlotSize.y * 0.5f;            
+                const double dYCenter = tCursor0.y + tPlotSize.y / dAxisMultiplier;    
+
+                if(bAllowNegative)
+                {
+                    pl_add_text(ptFgLayer, pl_get_default_font(), 13.0f, (plVec2){roundf(tCursor0.x), roundf((float)dYCenter)}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "0", 0.0f);
+                    pl_add_line(ptFgLayer, (plVec2){tCursor0.x, (float)dYCenter}, (plVec2){tCursor0.x + tPlotSize.x, (float)dYCenter}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
+                }
+
+                bAllowNegative = false;
                 for(uint32_t i = 0; i < uSelectedCount; i++)
                 {
                     const plVec4* ptColor = &atColors[i % 6];
@@ -648,17 +657,18 @@ pl__show_statistics(bool* bValue)
                     {
                         if(dValues[j] > dMaxValue) dMaxValue = dValues[j];
                         if(dValues[j] < dMinValue) dMinValue = dValues[j];
+                        if(dValues[j] < 0.0) bAllowNegative = true;
                     }
 
-                    double dYRange = 2.0f * pl_maxd(fabs(dMaxValue), fabs(dMinValue)) * 1.1f;
+                    double dYRange = dAxisMultiplier * pl_maxd(fabs(dMaxValue), fabs(dMinValue)) * (1.1f + (float)i * 0.1f);
 
                     const double dConversion = dYRange != 0.0 ? (tPlotSize.y - 15.0f) / dYRange : 0.0;
                     
-                    const double dXIncrement = tPlotSize.x / PL_STATS_MAX_FRAMES;
+                    const double dXIncrement = (tPlotSize.x - 50.0f) / PL_STATS_MAX_FRAMES;
 
                     uint32_t uIndexStart = (uint32_t)ptIOCtx->ulFrameCount;
 
-                    const plVec2 tTextPoint = {tCursor1.x, tCursor1.y + i * 15.0f};
+                    const plVec2 tTextPoint = {tCursor1.x + 5.0f, tCursor1.y + i * 15.0f};
                     pl_add_rect_filled(ptFgLayer, tTextPoint, (plVec2){tTextPoint.x + 13.0f, tTextPoint.y + 13.0f}, *ptColor);
                     pl_add_text(ptFgLayer, pl_get_default_font(), 13.0f, (plVec2){roundf(tTextPoint.x + 15.0f), roundf(tTextPoint.y)}, *ptColor, apcTempNames[i], 0.0f);
         
@@ -669,6 +679,13 @@ pl__show_statistics(bool* bValue)
                         const plVec2 tLineStart = {tCursor0.x + (float)(j * dXIncrement), (float)(dYCenter - dValues[uActualIndex0] * dConversion)};
                         const plVec2 tLineEnd = {tCursor0.x + (float)((j + 1) * dXIncrement), (float)(dYCenter - dValues[uActualIndex1] * dConversion)};
                         pl_add_line(ptFgLayer, tLineStart, tLineEnd, *ptColor, 1.0f);
+
+                        if(j == PL_STATS_MAX_FRAMES - 2)
+                        {
+                            char acTextBuffer[32] = {0};
+                            pl_sprintf(acTextBuffer, "%0.0f", dValues[uActualIndex1]);
+                            pl_add_text(ptFgLayer, pl_get_default_font(), 13.0f, (plVec2){roundf(tLineEnd.x), roundf(tLineEnd.y) - 6.0f}, *ptColor, acTextBuffer, 0.0f);
+                        }
                     }
                     
                 }
