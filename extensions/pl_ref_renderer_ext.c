@@ -30,6 +30,7 @@ Index of this file:
 #include "pl_ecs_ext.h"
 #include "pl_resource_ext.h"
 #include "pl_image_ext.h"
+#include "pl_stats_ext.h"
 
 // misc
 #include "cgltf.h"
@@ -40,6 +41,8 @@ Index of this file:
 
 typedef struct _plDrawable
 {
+    plEntity tEntity;
+    plBindGroupHandle tMaterialBindGroup;
     uint32_t uDataOffset;
     uint32_t uVertexOffset;
     uint32_t uVertexCount;
@@ -103,9 +106,8 @@ typedef struct _plRefRendererData
     plComputeShaderHandle tPanoramaShader;
 
     // misc
-    plEntity* sbtDrawableEntities;
-    plBindGroupHandle* sbtDrawableMaterialBindGroups;
     plDrawable* sbtDrawables;
+    plDrawable* sbtVisibleDrawables;
 
     // skybox
     plDrawable          tSkyboxDrawable;
@@ -150,6 +152,7 @@ static const plGraphicsI*        gptGfx      = NULL;
 static const plCameraI*          gptCamera   = NULL;
 static const plDrawStreamI*      gptStream   = NULL;
 static const plImageI*           gptImage    = NULL;
+static const plStatsApiI*        gptStats    = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -163,6 +166,7 @@ static void pl_refr_cleanup(void);
 // per frame
 static void pl_refr_run_ecs(void);
 static void pl_refr_submit_ui(void);
+static void pl_refr_cull_draw_stream(plCameraComponent* ptCamera);
 static void pl_refr_submit_draw_stream(plCameraComponent* ptCamera);
 static void pl_refr_draw_bound_boxes(plDrawList3D* ptDrawlist);
 
@@ -203,6 +207,7 @@ pl_load_ref_renderer_api(void)
         .load_stl                  = pl_refr_load_stl,
         .draw_bound_boxes          = pl_refr_draw_bound_boxes,
         .load_gltf                 = pl_refr_load_gltf,
+        .cull_draw_stream          = pl_refr_cull_draw_stream,
         .submit_draw_stream        = pl_refr_submit_draw_stream,
         .finalize_scene            = pl_refr_finalize_scene,
     };
@@ -769,6 +774,7 @@ pl_refr_load_stl(const char* pcModelPath, plVec4 tColor, const plMat4* ptTransfo
     ptMesh->tMaterial = gptECS->create_material(&gptData->tComponentLibrary, pcModelPath);
     plMaterialComponent* ptMaterial = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
     ptMaterial->tBaseColor = tColor;
+    ptMaterial->tBlendMode = PL_MATERIAL_BLEND_MODE_ALPHA;
     
     plStlInfo tInfo = {0};
     pl_load_stl(pcBuffer, (size_t)uFileSize, NULL, NULL, NULL, &tInfo);
@@ -805,10 +811,14 @@ pl_refr_load_stl(const char* pcModelPath, plVec4 tColor, const plMat4* ptTransfo
     };
     plBindGroupHandle tMaterialBindGroup = gptDevice->create_bind_group(&gptData->tGraphics.tDevice, &tMaterialBindGroupLayout);
 
-    pl_sb_push(gptData->sbtDrawableEntities, tEntity);
+    plDrawable tDrawable = {
+        .tEntity = tEntity,
+        .tMaterialBindGroup = tMaterialBindGroup
+    };
+
+    pl_sb_push(gptData->sbtDrawables, tDrawable);
     pl_sb_push(gptData->sbtMaterialEntities, ptMesh->tMaterial);
     pl_sb_push(gptData->sbtMaterialBindGroups, tMaterialBindGroup);
-    pl_sb_push(gptData->sbtDrawableMaterialBindGroups, tMaterialBindGroup);
 }
 
 static void
@@ -1265,8 +1275,8 @@ pl__refr_load_gltf_object(const char* pcDirectory, plEntity tParentEntity, const
                 }
 
                 // TODO: separate by opaque/transparent
-                pl_sb_push(gptData->sbtDrawableEntities, tNewEntity);
-                pl_sb_push(gptData->sbtDrawableMaterialBindGroups, tMaterialBindGroup);
+                plDrawable tDrawable = {.tEntity = tNewEntity, .tMaterialBindGroup = tMaterialBindGroup};
+                pl_sb_push(gptData->sbtDrawables, tDrawable);
             }
         }
     }
@@ -1500,10 +1510,10 @@ pl_refr_finalize_scene(void)
     }
 
     // fill CPU buffers & drawable list
-    const uint32_t uDrawableCount = pl_sb_size(gptData->sbtDrawableEntities);
+    const uint32_t uDrawableCount = pl_sb_size(gptData->sbtDrawables);
     for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
     {
-        plEntity tEntity = gptData->sbtDrawableEntities[uDrawableIndex];
+        plEntity tEntity = gptData->sbtDrawables[uDrawableIndex].tEntity;
         plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, tEntity);
         plTransformComponent* ptTransformComp = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
         plMaterialComponent* ptMaterial = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
@@ -1522,8 +1532,8 @@ pl_refr_finalize_scene(void)
         for(uint32_t j = 0; j < uIndexCount; j++)
             pl_sb_push(gptData->sbuIndexBuffer, uStartIndex + ptMesh->sbuIndices[j]);
 
-        for(uint32_t j = 0; j < uVertexCount; j++)
-            pl_sb_push(gptData->sbtVertexPosBuffer, ptMesh->sbtVertexPositions[j]);
+        pl_sb_add_n(gptData->sbtVertexPosBuffer, uVertexCount);
+        memcpy(&gptData->sbtVertexPosBuffer[uStartIndex], ptMesh->sbtVertexPositions, sizeof(plVec3) * uVertexCount);
 
         // stride within storage buffer
         uint32_t uStride = 0;
@@ -1662,16 +1672,13 @@ pl_refr_finalize_scene(void)
             }
         };
 
-        const plDrawable tDrawable = {
-            .uIndexCount    = uIndexCount,
-            .uVertexCount   = uVertexCount,
-            .uIndexOffset   = uIndexStart,
-            .uVertexOffset  = uStartIndex,
-            .uDataOffset    = uDataStartIndex,
-            .uMaterialIndex = pl_sb_size(gptData->sbtMaterialBuffer) - 1,
-            .uShader        = gptDevice->get_shader_variant(ptDevice, gptData->tShader, &tVariant).uIndex
-        };
-        pl_sb_push(gptData->sbtDrawables, tDrawable);
+        gptData->sbtDrawables[uDrawableIndex].uIndexCount    = uIndexCount;
+        gptData->sbtDrawables[uDrawableIndex].uVertexCount   = uVertexCount;
+        gptData->sbtDrawables[uDrawableIndex].uIndexOffset   = uIndexStart;
+        gptData->sbtDrawables[uDrawableIndex].uVertexOffset  = uStartIndex;
+        gptData->sbtDrawables[uDrawableIndex].uDataOffset    = uDataStartIndex;
+        gptData->sbtDrawables[uDrawableIndex].uMaterialIndex = pl_sb_size(gptData->sbtMaterialBuffer) - 1;
+        gptData->sbtDrawables[uDrawableIndex].uShader        = gptDevice->get_shader_variant(ptDevice, gptData->tShader, &tVariant).uIndex;
     }
 
     const plBufferDescription tStagingBufferDesc = {
@@ -1752,6 +1759,59 @@ pl_refr_run_ecs(void)
     gptECS->run_hierarchy_update_system(&gptData->tComponentLibrary);
     gptECS->run_skin_update_system(&gptData->tComponentLibrary);
     gptECS->run_object_update_system(&gptData->tComponentLibrary);
+    pl_end_profile_sample();
+}
+
+inline static bool pl__within(float fMin, float fValue, float fMax)
+{
+    return fValue >= fMin && fValue <= fMax;
+}
+
+static void
+pl_refr_cull_draw_stream(plCameraComponent* ptCamera)
+{
+    // TODO: use separate axis theorem to make this 100% accurate
+
+    pl_begin_profile_sample(__FUNCTION__);
+
+    pl_sb_reset(gptData->sbtVisibleDrawables);
+
+    const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
+
+    const uint32_t uDrawableCount = pl_sb_size(gptData->sbtDrawables);
+    for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
+    {
+        const plDrawable tDrawable = gptData->sbtDrawables[uDrawableIndex];
+        plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, tDrawable.tEntity);
+
+        const plVec4 tVerticies[] = {
+            {  ptMesh->tAABBFinal.tMin.x, ptMesh->tAABBFinal.tMin.y, ptMesh->tAABBFinal.tMin.z , 1.0f},
+            {  ptMesh->tAABBFinal.tMax.x, ptMesh->tAABBFinal.tMin.y, ptMesh->tAABBFinal.tMin.z , 1.0f},
+            {  ptMesh->tAABBFinal.tMax.x, ptMesh->tAABBFinal.tMax.y, ptMesh->tAABBFinal.tMin.z , 1.0f},
+            {  ptMesh->tAABBFinal.tMin.x, ptMesh->tAABBFinal.tMax.y, ptMesh->tAABBFinal.tMin.z , 1.0f},
+            {  ptMesh->tAABBFinal.tMin.x, ptMesh->tAABBFinal.tMin.y, ptMesh->tAABBFinal.tMax.z , 1.0f},
+            {  ptMesh->tAABBFinal.tMax.x, ptMesh->tAABBFinal.tMin.y, ptMesh->tAABBFinal.tMax.z , 1.0f},
+            {  ptMesh->tAABBFinal.tMax.x, ptMesh->tAABBFinal.tMax.y, ptMesh->tAABBFinal.tMax.z , 1.0f},
+            {  ptMesh->tAABBFinal.tMin.x, ptMesh->tAABBFinal.tMax.y, ptMesh->tAABBFinal.tMax.z , 1.0f},
+        };
+
+        bool bInside = false;
+
+        for(uint32_t i = 0; i < 8; i++)
+        {
+            const plVec4 tCorner = pl_mul_mat4_vec4(&tMVP, tVerticies[i]);
+
+            bInside = pl__within(-tCorner.w, tCorner.x, tCorner.w) && pl__within(-tCorner.w, tCorner.y, tCorner.w) && pl__within(0.0f, tCorner.z, tCorner.w);
+            if(bInside)
+                break;
+        }
+
+        if(bInside)
+        {
+            pl_sb_push(gptData->sbtVisibleDrawables, tDrawable);
+        }
+    }
+
     pl_end_profile_sample();
 }
 
@@ -1842,11 +1902,17 @@ pl_refr_submit_draw_stream(plCameraComponent* ptCamera)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~visible meshes~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    for(uint32_t i = 0; i < pl_sb_size(gptData->sbtDrawables); i++)
+    static double* pdVisibleObjects = NULL;
+    if(!pdVisibleObjects)
+        pdVisibleObjects = gptStats->get_counter("visible objects");
+    
+
+    const uint32_t uVisibleDrawCount = pl_sb_size(gptData->sbtVisibleDrawables);
+    *pdVisibleObjects = (double)uVisibleDrawCount;
+    for(uint32_t i = 0; i < uVisibleDrawCount; i++)
     {
-        const plDrawable tDrawable = gptData->sbtDrawables[i];
-        plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, gptData->sbtDrawableEntities[i]);
-        plTransformComponent* ptTransform = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, gptData->sbtDrawableEntities[i]);
+        const plDrawable tDrawable = gptData->sbtVisibleDrawables[i];
+        plTransformComponent* ptTransform = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tDrawable.tEntity);
         
         plDynamicBinding tDynamicBinding = gptDevice->allocate_dynamic_data(ptDevice, sizeof(DynamicData));
 
@@ -1865,7 +1931,7 @@ pl_refr_submit_draw_stream(plCameraComponent* ptCamera)
             .uIndexOffset         = tDrawable.uIndexOffset,
             .uTriangleCount       = tDrawable.uIndexCount / 3,
             .uBindGroup0          = tGlobalBG.uIndex,
-            .uBindGroup1          = gptData->sbtDrawableMaterialBindGroups[i].uIndex,
+            .uBindGroup1          = tDrawable.tMaterialBindGroup.uIndex,
             .uBindGroup2          = tBG2.uIndex,
             .uDynamicBufferOffset = tDynamicBinding.uByteOffset
         });
@@ -1893,11 +1959,10 @@ pl_refr_draw_bound_boxes(plDrawList3D* ptDrawlist)
 {
     pl_begin_profile_sample(__FUNCTION__);
 
-    for(uint32_t i = 0; i < pl_sb_size(gptData->sbtDrawables); i++)
+    const uint32_t uDrawableCount = pl_sb_size(gptData->sbtDrawables);
+    for(uint32_t i = 0; i < uDrawableCount; i++)
     {
-        const plDrawable tDrawable = gptData->sbtDrawables[i];
-        plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, gptData->sbtDrawableEntities[i]);
-        plTransformComponent* ptTransform = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, gptData->sbtDrawableEntities[i]);
+        plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, gptData->sbtDrawables[i].tEntity);
 
         gptGfx->add_3d_aabb(ptDrawlist, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
     }
@@ -1927,6 +1992,7 @@ pl_load_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
    gptCamera   = ptApiRegistry->first(PL_API_CAMERA);
    gptStream   = ptApiRegistry->first(PL_API_DRAW_STREAM);
    gptImage    = ptApiRegistry->first(PL_API_IMAGE);
+   gptStats    = ptApiRegistry->first(PL_API_STATS);
 
    if(bReload)
    {

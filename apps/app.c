@@ -52,6 +52,7 @@ typedef struct plAppData_t
     bool           bShowUiStyle;
     bool           bShowEntityWindow;
     bool           bReloadSwapchain;
+    bool           bFrustumCulling;
 
     // scene
     plEntity     tMainCamera;
@@ -116,6 +117,9 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     // add some context to data registry
     ptAppData = PL_ALLOC(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
+
+    ptAppData->bFrustumCulling = true;
+
     gptDataRegistry->set_data("profile", ptProfileCtx);
     gptDataRegistry->set_data("log", ptLogCtx);
 
@@ -155,14 +159,32 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptComponentLibrary, "main camera", (plVec3){-6.211f, 3.647f, 0.827f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.01f, 400.0f);
     gptCamera->set_pitch_yaw(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), -0.244f, 1.488f);
     gptCamera->update(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera));
-    
+
+    pl_begin_profile_frame();
+    pl_begin_profile_sample("load models");
     const plMat4 tTransform0 = pl_mat4_translate_xyz(0.0f, 0.0f, -5.0f);
     const plMat4 tTransform1 = pl_mat4_translate_xyz(5.0f, 0.0f, 0.0f);
     gptRenderer->load_skybox_from_panorama("../data/glTF-Sample-Environments-master/ennis.jpg", 1024);
     gptRenderer->load_gltf("../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf");
     gptRenderer->load_stl("../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, &tTransform0);
     gptRenderer->load_stl("../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){0.0f, 1.0f, 0.0f, 0.75f}, &tTransform1);
+    pl_end_profile_sample();
+    
+    pl_begin_profile_sample("finalize scene");
     gptRenderer->finalize_scene();
+    pl_end_profile_sample();
+
+    pl_end_profile_frame();
+
+    uint32_t uSampleSize = 0;
+    plProfileSample* ptSamples = pl_get_last_frame_samples(&uSampleSize);
+
+    const char* pcSpacing = "                    ";
+
+    for(uint32_t i = 0; i < uSampleSize; i++)
+    {
+        printf("%s %s : %0.6f\n", &pcSpacing[20 - ptSamples[i].uDepth * 2], ptSamples[i].pcName, ptSamples[i].dDuration);
+    }
 
     return ptAppData;
 }
@@ -228,9 +250,13 @@ pl_app_update(plAppData* ptAppData)
     gptStats->new_frame();
 
     static double* pdFrameTimeCounter = NULL;
+    static double* pdMemoryCounter = NULL;
     if(!pdFrameTimeCounter)
-        pdFrameTimeCounter = gptStats->get_counter("framerate");
-    *pdFrameTimeCounter = (double)ptIO->fFrameRate;
+        pdFrameTimeCounter = gptStats->get_counter("frametime (ms)");
+    if(!pdMemoryCounter)
+        pdMemoryCounter = gptStats->get_counter("CPU memory");
+    *pdFrameTimeCounter = (double)ptIO->fDeltaTime * 1000.0;
+    *pdMemoryCounter = (double)pl_get_memory_context()->szMemoryUsage;
 
     // handle input
     plComponentLibrary* ptComponentLibrary = gptRenderer->get_component_library();
@@ -247,8 +273,8 @@ pl_app_update(plAppData* ptAppData)
     if(pl_is_key_down(PL_KEY_D)) gptCamera->translate(ptCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
 
     // world space
-    if(pl_is_key_down(PL_KEY_F)) gptCamera->translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
-    if(pl_is_key_down(PL_KEY_R)) gptCamera->translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
+    if(pl_is_key_down(PL_KEY_F)) { gptCamera->translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
+    if(pl_is_key_down(PL_KEY_R)) { gptCamera->translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
 
     bool bOwnMouse = ptIO->bWantCaptureMouse;
     if(!bOwnMouse && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
@@ -257,7 +283,13 @@ pl_app_update(plAppData* ptAppData)
         gptCamera->rotate(ptCamera,  -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed);
         pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
     }
+
     gptCamera->update(ptCamera);
+
+    gptRenderer->run_ecs();
+
+    if(ptAppData->bFrustumCulling)
+        gptRenderer->cull_draw_stream(ptCamera);
 
     pl_new_frame();
 
@@ -265,7 +297,6 @@ pl_app_update(plAppData* ptAppData)
 
     gptGfx->begin_main_pass(ptGraphics, gptRenderer->get_main_render_pass());
 
-    gptRenderer->run_ecs();
     gptRenderer->submit_draw_stream(ptCamera);
     gptRenderer->draw_bound_boxes(&ptAppData->t3DDrawList);
 
@@ -281,8 +312,14 @@ pl_app_update(plAppData* ptAppData)
             pl_text("Pilot Light %s", PILOTLIGHT_VERSION);
             pl_text("Pilot Light UI %s", PL_UI_VERSION);
             pl_text("Pilot Light DS %s", PL_DS_VERSION);
+
+            pl_end_collapsing_header();
+        }
+        if(pl_collapsing_header("General Options"))
+        {
             if(pl_checkbox("VSync", &ptGraphics->tSwapchain.bVSync))
                 ptAppData->bReloadSwapchain = true;
+            pl_checkbox("Frustum Culling", &ptAppData->bFrustumCulling);
             pl_end_collapsing_header();
         }
         if(pl_collapsing_header("Tools"))
@@ -326,6 +363,7 @@ pl_app_update(plAppData* ptAppData)
 
     const plMat4 tTransform = pl_identity_mat4();
     gptGfx->add_3d_transform(&ptAppData->t3DDrawList, &tTransform, 10.0f, 0.02f);
+
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
     gptGfx->submit_3d_drawlist(&ptAppData->t3DDrawList, ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1], &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, gptRenderer->get_main_render_pass(), ptGraphics->tSwapchain.tMsaaSamples);

@@ -63,6 +63,7 @@ typedef struct _plRefRendererI
     // per frame
     void (*run_ecs)(void);
     void (*submit_ui)(void);
+    void (*cull_draw_stream)(plCameraComponent*);
     void (*submit_draw_stream)(plCameraComponent*);
     void (*draw_bound_boxes)(plDrawList3D*);
     
