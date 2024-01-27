@@ -1216,13 +1216,15 @@ pl__refr_load_gltf_object(const char* pcDirectory, plEntity tParentEntity, const
     // check if node has attached mesh
     if(ptNode->mesh)
     {
-        PL_ASSERT(ptNode->mesh->primitives_count == 1);
+        // PL_ASSERT(ptNode->mesh->primitives_count == 1);
         for(size_t szPrimitiveIndex = 0; szPrimitiveIndex < ptNode->mesh->primitives_count; szPrimitiveIndex++)
         {
             // add mesh to our node
-            plMeshComponent* ptMesh = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
-            plObjectComponent* ptObject = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewEntity);
-            ptObject->tMesh = tNewEntity;
+            plEntity tNewObject = gptECS->create_object(ptLibrary, ptNode->mesh->name);
+            plObjectComponent* ptObject = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewObject);
+            plMeshComponent* ptMesh = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewObject);
+            
+            ptObject->tMesh = tNewObject;
             ptObject->tTransform = tNewEntity;
 
             const cgltf_primitive* ptPrimitive = &ptNode->mesh->primitives[szPrimitiveIndex];
@@ -1275,7 +1277,7 @@ pl__refr_load_gltf_object(const char* pcDirectory, plEntity tParentEntity, const
                 }
 
                 // TODO: separate by opaque/transparent
-                plDrawable tDrawable = {.tEntity = tNewEntity, .tMaterialBindGroup = tMaterialBindGroup};
+                plDrawable tDrawable = {.tEntity = tNewObject, .tMaterialBindGroup = tMaterialBindGroup};
                 pl_sb_push(gptData->sbtDrawables, tDrawable);
             }
         }
@@ -1514,8 +1516,9 @@ pl_refr_finalize_scene(void)
     for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
     {
         plEntity tEntity = gptData->sbtDrawables[uDrawableIndex].tEntity;
-        plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, tEntity);
-        plTransformComponent* ptTransformComp = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
+        plObjectComponent* ptObject = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
+        plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
+        plTransformComponent* ptTransformComp = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
         plMaterialComponent* ptMaterial = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
 
         const uint32_t uStartIndex     = pl_sb_size(gptData->sbtVertexPosBuffer);
@@ -1529,8 +1532,9 @@ pl_refr_finalize_scene(void)
         };
         pl_sb_push(gptData->sbtMaterialBuffer, tMaterial);
 
+        pl_sb_add_n(gptData->sbuIndexBuffer, uIndexCount);
         for(uint32_t j = 0; j < uIndexCount; j++)
-            pl_sb_push(gptData->sbuIndexBuffer, uStartIndex + ptMesh->sbuIndices[j]);
+            gptData->sbuIndexBuffer[uIndexStart + j] = uStartIndex + ptMesh->sbuIndices[j];
 
         pl_sb_add_n(gptData->sbtVertexPosBuffer, uVertexCount);
         memcpy(&gptData->sbtVertexPosBuffer[uStartIndex], ptMesh->sbtVertexPositions, sizeof(plVec3) * uVertexCount);
@@ -1912,7 +1916,8 @@ pl_refr_submit_draw_stream(plCameraComponent* ptCamera)
     for(uint32_t i = 0; i < uVisibleDrawCount; i++)
     {
         const plDrawable tDrawable = gptData->sbtVisibleDrawables[i];
-        plTransformComponent* ptTransform = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tDrawable.tEntity);
+        plObjectComponent* ptObject = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
+        plTransformComponent* ptTransform = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
         
         plDynamicBinding tDynamicBinding = gptDevice->allocate_dynamic_data(ptDevice, sizeof(DynamicData));
 
