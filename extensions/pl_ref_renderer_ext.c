@@ -39,6 +39,13 @@ Index of this file:
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
+typedef struct _plOBB
+{
+    plVec3 tCenter;
+    plVec3 tExtents;
+    plVec3 atAxes[3]; // Orthonormal basis
+} plOBB;
+
 typedef struct _plDrawable
 {
     plEntity tEntity;
@@ -106,7 +113,9 @@ typedef struct _plRefRendererData
     plComputeShaderHandle tPanoramaShader;
 
     // misc
-    plDrawable* sbtDrawables;
+    plDrawable* sbtAllDrawables;
+    plDrawable* sbtOpaqueDrawables;
+    plDrawable* sbtTransparentDrawables;
     plDrawable* sbtVisibleDrawables;
 
     // skybox
@@ -166,9 +175,11 @@ static void pl_refr_cleanup(void);
 // per frame
 static void pl_refr_run_ecs(void);
 static void pl_refr_submit_ui(void);
-static void pl_refr_cull_draw_stream(plCameraComponent* ptCamera);
+static void pl_refr_uncull_objects(plCameraComponent* ptCamera);
+static void pl_refr_cull_objects(plCameraComponent* ptCamera);
 static void pl_refr_submit_draw_stream(plCameraComponent* ptCamera);
-static void pl_refr_draw_bound_boxes(plDrawList3D* ptDrawlist);
+static void pl_refr_draw_all_bound_boxes(plDrawList3D* ptDrawlist);
+static void pl_refr_draw_visible_bound_boxes(plDrawList3D* ptDrawlist);
 
 // loading
 static void pl_refr_load_skybox_from_panorama(const char* pcModelPath, int iResolution);
@@ -186,6 +197,7 @@ static void pl__load_gltf_texture(plTextureSlot tSlot, const cgltf_texture_view*
 static void pl__refr_load_material(const char* pcDirectory, plMaterialComponent* ptMaterial, const cgltf_material* ptGltfMaterial);
 static void pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimitive);
 static void pl__refr_load_gltf_object(const char* pcDirectory, plEntity tParentEntity, const cgltf_node* ptNode);
+static bool pl__sat_visibility_test(plCameraComponent* ptCamera, const plAABB* aabb);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -205,9 +217,11 @@ pl_load_ref_renderer_api(void)
         .get_graphics              = pl_refr_get_graphics,
         .load_skybox_from_panorama = pl_refr_load_skybox_from_panorama,
         .load_stl                  = pl_refr_load_stl,
-        .draw_bound_boxes          = pl_refr_draw_bound_boxes,
+        .draw_all_bound_boxes      = pl_refr_draw_all_bound_boxes,
+        .draw_visible_bound_boxes  = pl_refr_draw_visible_bound_boxes,
         .load_gltf                 = pl_refr_load_gltf,
-        .cull_draw_stream          = pl_refr_cull_draw_stream,
+        .cull_objects              = pl_refr_cull_objects,
+        .uncull_objects            = pl_refr_uncull_objects,
         .submit_draw_stream        = pl_refr_submit_draw_stream,
         .finalize_scene            = pl_refr_finalize_scene,
     };
@@ -816,7 +830,10 @@ pl_refr_load_stl(const char* pcModelPath, plVec4 tColor, const plMat4* ptTransfo
         .tMaterialBindGroup = tMaterialBindGroup
     };
 
-    pl_sb_push(gptData->sbtDrawables, tDrawable);
+    if(tColor.a == 1.0f)
+        pl_sb_push(gptData->sbtOpaqueDrawables, tDrawable);
+    else
+        pl_sb_push(gptData->sbtTransparentDrawables, tDrawable);
     pl_sb_push(gptData->sbtMaterialEntities, ptMesh->tMaterial);
     pl_sb_push(gptData->sbtMaterialBindGroups, tMaterialBindGroup);
 }
@@ -1238,6 +1255,7 @@ pl__refr_load_gltf_object(const char* pcDirectory, plEntity tParentEntity, const
             // load material
             if(ptPrimitive->material)
             {
+                bool bOpaque = true;
                 plBindGroupHandle tMaterialBindGroup = {UINT32_MAX, UINT32_MAX};
 
                 // check if the material already exists
@@ -1246,6 +1264,10 @@ pl__refr_load_gltf_object(const char* pcDirectory, plEntity tParentEntity, const
                     const uint64_t ulMaterialIndex = pl_hm_lookup(&gptData->tMaterialHashMap, (uint64_t)ptPrimitive->material);
                     ptMesh->tMaterial = gptData->sbtMaterialEntities[ulMaterialIndex];
                     tMaterialBindGroup = gptData->sbtMaterialBindGroups[ulMaterialIndex];
+
+                    plMaterialComponent* ptMaterial = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
+                    if(ptMaterial->tBlendMode != PL_MATERIAL_BLEND_MODE_OPAQUE)
+                        bOpaque = false;
                 }
                 else // create new material
                 {
@@ -1274,11 +1296,17 @@ pl__refr_load_gltf_object(const char* pcDirectory, plEntity tParentEntity, const
 
                     plMaterialComponent* ptMaterial = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
                     pl__refr_load_material(pcDirectory, ptMaterial, ptPrimitive->material);
+
+                    if(ptMaterial->tBlendMode != PL_MATERIAL_BLEND_MODE_OPAQUE)
+                        bOpaque = false;
                 }
 
                 // TODO: separate by opaque/transparent
                 plDrawable tDrawable = {.tEntity = tNewObject, .tMaterialBindGroup = tMaterialBindGroup};
-                pl_sb_push(gptData->sbtDrawables, tDrawable);
+                if(bOpaque)
+                    pl_sb_push(gptData->sbtOpaqueDrawables, tDrawable);
+                else
+                    pl_sb_push(gptData->sbtTransparentDrawables, tDrawable);
             }
         }
     }
@@ -1309,7 +1337,6 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
     plBufferHandle tStagingBufferHandle = gptDevice->create_buffer(ptDevice, &tStagingBufferDesc, "staging buffer");
     plBuffer* ptStagingBuffer = gptDevice->get_buffer(ptDevice, tStagingBufferHandle);
     
-
     plTextureHandle tTexture = {0};
 
     plSampler tSampler = {
@@ -1392,6 +1419,8 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
 
         tHandle = gptDevice->create_texture_view(ptDevice, &tTextureViewDesc, &tSampler, tTexture, ptMaterial->atTextureMaps[tSlot].acName);
     }
+
+    gptDevice->destroy_buffer(ptDevice, tStagingBufferHandle);
     return tHandle;
 }
 
@@ -1511,11 +1540,19 @@ pl_refr_finalize_scene(void)
         gptDevice->update_bind_group(ptDevice, &gptData->sbtMaterialBindGroups[i], 0, NULL, NULL, 2, atMaterialTextureViews);
     }
 
+    const uint32_t uOpaqueDrawableCount = pl_sb_size(gptData->sbtOpaqueDrawables);
+    for(uint32_t i = 0; i < uOpaqueDrawableCount; i++)
+        pl_sb_push(gptData->sbtAllDrawables, gptData->sbtOpaqueDrawables[i]);
+
+    const uint32_t uTransparentDrawableCount = pl_sb_size(gptData->sbtTransparentDrawables);
+    for(uint32_t i = 0; i < uTransparentDrawableCount; i++)
+        pl_sb_push(gptData->sbtAllDrawables, gptData->sbtTransparentDrawables[i]);
+
     // fill CPU buffers & drawable list
-    const uint32_t uDrawableCount = pl_sb_size(gptData->sbtDrawables);
+    const uint32_t uDrawableCount = pl_sb_size(gptData->sbtAllDrawables);
     for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
     {
-        plEntity tEntity = gptData->sbtDrawables[uDrawableIndex].tEntity;
+        plEntity tEntity = gptData->sbtAllDrawables[uDrawableIndex].tEntity;
         plObjectComponent* ptObject = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
         plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
         plTransformComponent* ptTransformComp = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
@@ -1676,13 +1713,13 @@ pl_refr_finalize_scene(void)
             }
         };
 
-        gptData->sbtDrawables[uDrawableIndex].uIndexCount    = uIndexCount;
-        gptData->sbtDrawables[uDrawableIndex].uVertexCount   = uVertexCount;
-        gptData->sbtDrawables[uDrawableIndex].uIndexOffset   = uIndexStart;
-        gptData->sbtDrawables[uDrawableIndex].uVertexOffset  = uStartIndex;
-        gptData->sbtDrawables[uDrawableIndex].uDataOffset    = uDataStartIndex;
-        gptData->sbtDrawables[uDrawableIndex].uMaterialIndex = pl_sb_size(gptData->sbtMaterialBuffer) - 1;
-        gptData->sbtDrawables[uDrawableIndex].uShader        = gptDevice->get_shader_variant(ptDevice, gptData->tShader, &tVariant).uIndex;
+        gptData->sbtAllDrawables[uDrawableIndex].uIndexCount    = uIndexCount;
+        gptData->sbtAllDrawables[uDrawableIndex].uVertexCount   = uVertexCount;
+        gptData->sbtAllDrawables[uDrawableIndex].uIndexOffset   = uIndexStart;
+        gptData->sbtAllDrawables[uDrawableIndex].uVertexOffset  = uStartIndex;
+        gptData->sbtAllDrawables[uDrawableIndex].uDataOffset    = uDataStartIndex;
+        gptData->sbtAllDrawables[uDrawableIndex].uMaterialIndex = pl_sb_size(gptData->sbtMaterialBuffer) - 1;
+        gptData->sbtAllDrawables[uDrawableIndex].uShader        = gptDevice->get_shader_variant(ptDevice, gptData->tShader, &tVariant).uIndex;
     }
 
     const plBufferDescription tStagingBufferDesc = {
@@ -1766,51 +1803,286 @@ pl_refr_run_ecs(void)
     pl_end_profile_sample();
 }
 
-inline static bool pl__within(float fMin, float fValue, float fMax)
+static bool
+pl__sat_visibility_test(plCameraComponent* ptCamera, const plAABB* ptAABB)
 {
-    return fValue >= fMin && fValue <= fMax;
+    const float fTanFov = tanf(0.5f * ptCamera->fFieldOfView);
+
+    const float fZNear = ptCamera->fNearZ;
+    const float fZFar = ptCamera->fFarZ;
+
+    // half width, half height
+    const float fXNear = ptCamera->fAspectRatio * ptCamera->fNearZ * fTanFov;
+    const float fYNear = ptCamera->fNearZ * fTanFov;
+
+    // consider four adjacent corners of the AABB
+    plVec3 atCorners[] = {
+        {ptAABB->tMin.x, ptAABB->tMin.y, ptAABB->tMin.z},
+        {ptAABB->tMax.x, ptAABB->tMin.y, ptAABB->tMin.z},
+        {ptAABB->tMin.x, ptAABB->tMax.y, ptAABB->tMin.z},
+        {ptAABB->tMin.x, ptAABB->tMin.y, ptAABB->tMax.z},
+    };
+
+    // transform corners
+    for (size_t i = 0; i < 4; i++)
+        atCorners[i] = pl_mul_mat4_vec3(&ptCamera->tViewMat, atCorners[i]);
+
+    // Use transformed atCorners to calculate center, axes and extents
+    plOBB tObb = {
+        .atAxes = {
+            pl_sub_vec3(atCorners[1], atCorners[0]),
+            pl_sub_vec3(atCorners[2], atCorners[0]),
+            pl_sub_vec3(atCorners[3], atCorners[0])
+        },
+    };
+
+
+    tObb.tCenter = pl_add_vec3(atCorners[0], pl_mul_vec3_scalarf((pl_add_vec3(tObb.atAxes[0], pl_add_vec3(tObb.atAxes[1], tObb.atAxes[2]))), 0.5f));
+    tObb.tExtents = (plVec3){ pl_length_vec3(tObb.atAxes[0]), pl_length_vec3(tObb.atAxes[1]), pl_length_vec3(tObb.atAxes[2]) };
+
+    // normalize
+    tObb.atAxes[0] = pl_div_vec3_scalarf(tObb.atAxes[0], tObb.tExtents.x);
+    tObb.atAxes[1] = pl_div_vec3_scalarf(tObb.atAxes[1], tObb.tExtents.y);
+    tObb.atAxes[2] = pl_div_vec3_scalarf(tObb.atAxes[2], tObb.tExtents.z);
+    tObb.tExtents = pl_mul_vec3_scalarf(tObb.tExtents, 0.5f);
+
+    // axis along frustum
+    {
+        // Projected center of our OBB
+        const float fMoC = tObb.tCenter.z;
+
+        // Projected size of OBB
+        float fRadius = 0.0f;
+        for (size_t i = 0; i < 3; i++)
+            fRadius += fabsf(tObb.atAxes[i].z) * tObb.tExtents.d[i];
+
+        const float fObbMin = fMoC - fRadius;
+        const float fObbMax = fMoC + fRadius;
+
+        if (fObbMin > fZFar || fObbMax < fZNear)
+            return false;
+    }
+
+
+    // other normals of frustum
+    {
+        const plVec3 atM[] = {
+            { fZNear, 0.0f, fXNear }, // Left Plane
+            { -fZNear, 0.0f, fXNear }, // Right plane
+            { 0.0, -fZNear, fYNear }, // Top plane
+            { 0.0, fZNear, fYNear }, // Bottom plane
+        };
+        for (size_t m = 0; m < 4; m++)
+        {
+            const float fMoX = fabsf(atM[m].x);
+            const float fMoY = fabsf(atM[m].y);
+            const float fMoZ = atM[m].z;
+            const float fMoC = pl_dot_vec3(atM[m], tObb.tCenter);
+
+            float fObbRadius = 0.0f;
+            for (size_t i = 0; i < 3; i++)
+                fObbRadius += fabsf(pl_dot_vec3(atM[m], tObb.atAxes[i])) * tObb.tExtents.d[i];
+
+            const float fObbMin = fMoC - fObbRadius;
+            const float fObbMax = fMoC + fObbRadius;
+
+            const float fP = fXNear * fMoX + fYNear * fMoY;
+
+            float fTau0 = fZNear * fMoZ - fP;
+            float fTau1 = fZNear * fMoZ + fP;
+
+            if (fTau0 < 0.0f)
+                fTau0 *= fZFar / fZNear;
+
+            if (fTau1 > 0.0f)
+                fTau1 *= fZFar / fZNear;
+
+            if (fObbMin > fTau1 || fObbMax < fTau0)
+                return false;
+        }
+    }
+
+    // OBB axes
+    {
+        for (size_t m = 0; m < 3; m++)
+        {
+            const plVec3* ptM = &tObb.atAxes[m];
+            const float fMoX = fabsf(ptM->x);
+            const float fMoY = fabsf(ptM->y);
+            const float fMoZ = ptM->z;
+            const float fMoC = pl_dot_vec3(*ptM, tObb.tCenter);
+
+            const float fObbRadius = tObb.tExtents.d[m];
+
+            const float fObbMin = fMoC - fObbRadius;
+            const float fObbMax = fMoC + fObbRadius;
+
+            // frustum projection
+            const float fP = fXNear * fMoX + fYNear * fMoY;
+            float fTau0 = fZNear * fMoZ - fP;
+            float fTau1 = fZNear * fMoZ + fP;
+
+            if (fTau0 < 0.0f)
+                fTau0 *= fZFar / fZNear;
+
+            if (fTau1 > 0.0f)
+                fTau1 *= fZFar / fZNear;
+
+            if (fObbMin > fTau1 || fObbMax < fTau0)
+                return false;
+        }
+    }
+
+    // cross products between the edges
+    // first R x A_i
+    {
+        for (size_t m = 0; m < 3; m++)
+        {
+            const plVec3 tM = { 0.0f, -tObb.atAxes[m].z, tObb.atAxes[m].y };
+            const float fMoX = 0.0f;
+            const float fMoY = fabsf(tM.y);
+            const float fMoZ = tM.z;
+            const float fMoC = tM.y * tObb.tCenter.y + tM.z * tObb.tCenter.z;
+
+            float fObbRadius = 0.0f;
+            for (size_t i = 0; i < 3; i++)
+                fObbRadius += fabsf(pl_dot_vec3(tM, tObb.atAxes[i])) * tObb.tExtents.d[i];
+
+            const float fObbMin = fMoC - fObbRadius;
+            const float fObbMax = fMoC + fObbRadius;
+
+            // frustum projection
+            const float fP = fXNear * fMoX + fYNear * fMoY;
+            float fTau0 = fZNear * fMoZ - fP;
+            float fTau1 = fZNear * fMoZ + fP;
+
+            if (fTau0 < 0.0f)
+                fTau0 *= fZFar / fZNear;
+
+            if (fTau1 > 0.0f)
+                fTau1 *= fZFar / fZNear;
+
+            if (fObbMin > fTau1 || fObbMax < fTau0)
+                return false;
+        }
+    }
+
+    // U x A_i
+    {
+        for (size_t m = 0; m < 3; m++)
+        {
+            const plVec3 tM = { tObb.atAxes[m].z, 0.0f, -tObb.atAxes[m].x };
+            const float fMoX = fabsf(tM.x);
+            const float fMoY = 0.0f;
+            const float fMoZ = tM.z;
+            const float fMoC = tM.x * tObb.tCenter.x + tM.z * tObb.tCenter.z;
+
+            float fObbRadius = 0.0f;
+            for (size_t i = 0; i < 3; i++)
+                fObbRadius += fabsf(pl_dot_vec3(tM, tObb.atAxes[i])) * tObb.tExtents.d[i];
+
+            const float fObbMin = fMoC - fObbRadius;
+            const float fObbMax = fMoC + fObbRadius;
+
+            // frustum projection
+            const float fP = fXNear * fMoX + fYNear * fMoY;
+            float fTau0 = fZNear * fMoZ - fP;
+            float fTau1 = fZNear * fMoZ + fP;
+
+            if (fTau0 < 0.0f)
+                fTau0 *= fZFar / fZNear;
+
+            if (fTau1 > 0.0f)
+                fTau1 *= fZFar / fZNear;
+
+            if (fObbMin > fTau1 || fObbMax < fTau0)
+                return false;
+        }
+    }
+
+    // frustum Edges X Ai
+    {
+        for (size_t obb_edge_idx = 0; obb_edge_idx < 3; obb_edge_idx++)
+        {
+            const plVec3 atM[] = {
+                pl_cross_vec3((plVec3){-fXNear, 0.0f, fZNear}, tObb.atAxes[obb_edge_idx]), // Left Plane
+                pl_cross_vec3((plVec3){ fXNear, 0.0f, fZNear }, tObb.atAxes[obb_edge_idx]), // Right plane
+                pl_cross_vec3((plVec3){ 0.0f, fYNear, fZNear }, tObb.atAxes[obb_edge_idx]), // Top plane
+                pl_cross_vec3((plVec3){ 0.0, -fYNear, fZNear }, tObb.atAxes[obb_edge_idx]) // Bottom plane
+            };
+
+            for (size_t m = 0; m < 4; m++)
+            {
+                const float fMoX = fabsf(atM[m].x);
+                const float fMoY = fabsf(atM[m].y);
+                const float fMoZ = atM[m].z;
+
+                const float fEpsilon = 1e-4f;
+                if (fMoX < fEpsilon && fMoY < fEpsilon && fabsf(fMoZ) < fEpsilon) continue;
+
+                const float fMoC = pl_dot_vec3(atM[m], tObb.tCenter);
+
+                float fObbRadius = 0.0f;
+                for (size_t i = 0; i < 3; i++)
+                    fObbRadius += fabsf(pl_dot_vec3(atM[m], tObb.atAxes[i])) * tObb.tExtents.d[i];
+
+                const float fObbMin = fMoC - fObbRadius;
+                const float fObbMax = fMoC + fObbRadius;
+
+                // frustum projection
+                const float fP = fXNear * fMoX + fYNear * fMoY;
+                float fTau0 = fZNear * fMoZ - fP;
+                float fTau1 = fZNear * fMoZ + fP;
+
+                if (fTau0 < 0.0f)
+                    fTau0 *= fZFar / fZNear;
+
+                if (fTau1 > 0.0f)
+                    fTau1 *= fZFar / fZNear;
+
+                if (fObbMin > fTau1 || fObbMax < fTau0)
+                    return false;
+            }
+        }
+    }
+
+    // no intersections detected
+    return true;
 }
 
 static void
-pl_refr_cull_draw_stream(plCameraComponent* ptCamera)
+pl_refr_uncull_objects(plCameraComponent* ptCamera)
 {
-    // TODO: use separate axis theorem to make this 100% accurate
-
     pl_begin_profile_sample(__FUNCTION__);
 
     pl_sb_reset(gptData->sbtVisibleDrawables);
 
-    const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-
-    const uint32_t uDrawableCount = pl_sb_size(gptData->sbtDrawables);
+    const uint32_t uDrawableCount = pl_sb_size(gptData->sbtAllDrawables);
     for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
     {
-        const plDrawable tDrawable = gptData->sbtDrawables[uDrawableIndex];
+        const plDrawable tDrawable = gptData->sbtAllDrawables[uDrawableIndex];
+        pl_sb_push(gptData->sbtVisibleDrawables, tDrawable);
+    }
+
+    pl_end_profile_sample();
+}
+
+static void
+pl_refr_cull_objects(plCameraComponent* ptCamera)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+
+    pl_sb_reset(gptData->sbtVisibleDrawables);
+
+    float tan_fov = tanf(0.5f * ptCamera->fFieldOfView);
+
+    const uint32_t uDrawableCount = pl_sb_size(gptData->sbtAllDrawables);
+    for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
+    {
+        const plDrawable tDrawable = gptData->sbtAllDrawables[uDrawableIndex];
         plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, tDrawable.tEntity);
 
-        const plVec4 tVerticies[] = {
-            {  ptMesh->tAABBFinal.tMin.x, ptMesh->tAABBFinal.tMin.y, ptMesh->tAABBFinal.tMin.z , 1.0f},
-            {  ptMesh->tAABBFinal.tMax.x, ptMesh->tAABBFinal.tMin.y, ptMesh->tAABBFinal.tMin.z , 1.0f},
-            {  ptMesh->tAABBFinal.tMax.x, ptMesh->tAABBFinal.tMax.y, ptMesh->tAABBFinal.tMin.z , 1.0f},
-            {  ptMesh->tAABBFinal.tMin.x, ptMesh->tAABBFinal.tMax.y, ptMesh->tAABBFinal.tMin.z , 1.0f},
-            {  ptMesh->tAABBFinal.tMin.x, ptMesh->tAABBFinal.tMin.y, ptMesh->tAABBFinal.tMax.z , 1.0f},
-            {  ptMesh->tAABBFinal.tMax.x, ptMesh->tAABBFinal.tMin.y, ptMesh->tAABBFinal.tMax.z , 1.0f},
-            {  ptMesh->tAABBFinal.tMax.x, ptMesh->tAABBFinal.tMax.y, ptMesh->tAABBFinal.tMax.z , 1.0f},
-            {  ptMesh->tAABBFinal.tMin.x, ptMesh->tAABBFinal.tMax.y, ptMesh->tAABBFinal.tMax.z , 1.0f},
-        };
-
-        bool bInside = false;
-
-        for(uint32_t i = 0; i < 8; i++)
-        {
-            const plVec4 tCorner = pl_mul_mat4_vec4(&tMVP, tVerticies[i]);
-
-            bInside = pl__within(-tCorner.w, tCorner.x, tCorner.w) && pl__within(-tCorner.w, tCorner.y, tCorner.w) && pl__within(0.0f, tCorner.z, tCorner.w);
-            if(bInside)
-                break;
-        }
-
-        if(bInside)
+        if(pl__sat_visibility_test(ptCamera, &ptMesh->tAABBFinal))
         {
             pl_sb_push(gptData->sbtVisibleDrawables, tDrawable);
         }
@@ -1960,14 +2232,30 @@ pl_refr_submit_draw_stream(plCameraComponent* ptCamera)
 }
 
 static void
-pl_refr_draw_bound_boxes(plDrawList3D* ptDrawlist)
+pl_refr_draw_all_bound_boxes(plDrawList3D* ptDrawlist)
 {
     pl_begin_profile_sample(__FUNCTION__);
 
-    const uint32_t uDrawableCount = pl_sb_size(gptData->sbtDrawables);
+    const uint32_t uDrawableCount = pl_sb_size(gptData->sbtAllDrawables);
     for(uint32_t i = 0; i < uDrawableCount; i++)
     {
-        plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, gptData->sbtDrawables[i].tEntity);
+        plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, gptData->sbtAllDrawables[i].tEntity);
+
+        gptGfx->add_3d_aabb(ptDrawlist, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+    }
+
+    pl_end_profile_sample();
+}
+
+static void
+pl_refr_draw_visible_bound_boxes(plDrawList3D* ptDrawlist)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+
+    const uint32_t uDrawableCount = pl_sb_size(gptData->sbtVisibleDrawables);
+    for(uint32_t i = 0; i < uDrawableCount; i++)
+    {
+        plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, gptData->sbtVisibleDrawables[i].tEntity);
 
         gptGfx->add_3d_aabb(ptDrawlist, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
     }
@@ -2024,7 +2312,6 @@ pl_load_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 PL_EXPORT void
 pl_unload_ext(plApiRegistryApiI* ptApiRegistry)
 {
-    PL_FREE(gptData);
 }
 
 //-----------------------------------------------------------------------------

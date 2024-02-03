@@ -55,6 +55,10 @@ typedef struct plAppData_t
     bool           bFrustumCulling;
 
     // scene
+    bool         bDrawAllBoundingBoxes;
+    bool         bDrawVisibleBoundingBoxes;
+    bool         bFreezeCullCamera;
+    plEntity     tCullCamera;
     plEntity     tMainCamera;
     plDrawList3D t3DDrawList;
 } plAppData;
@@ -156,20 +160,22 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     // create main camera
     plIO* ptIO = pl_get_io();
     plComponentLibrary* ptComponentLibrary = gptRenderer->get_component_library();
-    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptComponentLibrary, "main camera", (plVec3){-6.211f, 3.647f, 0.827f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.01f, 400.0f);
-    gptCamera->set_pitch_yaw(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), -0.244f, 1.488f);
+    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptComponentLibrary, "main camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.01f, 400.0f);
+    gptCamera->set_pitch_yaw(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), 0.0f, PL_PI);
     gptCamera->update(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera));
+
+    ptAppData->tCullCamera = gptEcs->create_perspective_camera(ptComponentLibrary, "cull camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.1f, 106.0f);
+    gptCamera->set_pitch_yaw(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera), 0.0f, PL_PI);
+    gptCamera->update(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera));
 
     pl_begin_profile_frame();
     pl_begin_profile_sample("load models");
-    const plMat4 tTransform0 = pl_mat4_translate_xyz(0.0f, 0.0f, -5.0f);
-    const plMat4 tTransform1 = pl_mat4_translate_xyz(5.0f, 0.0f, 0.0f);
-    gptRenderer->load_skybox_from_panorama("../data/glTF-Sample-Environments-master/ennis.jpg", 1024);
-    gptRenderer->load_gltf("../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf");
-    gptRenderer->load_stl("../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, &tTransform0);
-    gptRenderer->load_stl("../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){0.0f, 1.0f, 0.0f, 0.75f}, &tTransform1);
+    const plMat4 tTransform0 = pl_mat4_translate_xyz(0.0f, 1.0f, 0.0f);
+    gptRenderer->load_skybox_from_panorama("../data/glTF-Sample-Environments-main/ennis.jpg", 1024);
+    gptRenderer->load_gltf("../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf");
+    gptRenderer->load_stl("../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 0.0f, 0.0f, 0.80f}, &tTransform0);
     pl_end_profile_sample();
-    
+
     pl_begin_profile_sample("finalize scene");
     gptRenderer->finalize_scene();
     pl_end_profile_sample();
@@ -262,6 +268,7 @@ pl_app_update(plAppData* ptAppData)
     plComponentLibrary* ptComponentLibrary = gptRenderer->get_component_library();
 
     plCameraComponent* ptCamera = gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
+    plCameraComponent* ptCullCamera = gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
 
     static const float fCameraTravelSpeed = 4.0f;
     static const float fCameraRotationSpeed = 0.005f;
@@ -284,12 +291,32 @@ pl_app_update(plAppData* ptAppData)
         pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
     }
 
+    if(!ptAppData->bFreezeCullCamera)
+    {
+        ptCullCamera->tPos = ptCamera->tPos;
+        ptCullCamera->fYaw = ptCamera->fYaw;
+        ptCullCamera->fPitch = ptCamera->fPitch;
+    }
+
     gptCamera->update(ptCamera);
+    gptCamera->update(ptCullCamera);
 
     gptRenderer->run_ecs();
 
     if(ptAppData->bFrustumCulling)
-        gptRenderer->cull_draw_stream(ptCamera);
+    {
+        if(ptAppData->bFreezeCullCamera)
+        {
+            gptRenderer->cull_objects(ptCullCamera);
+            gptGfx->add_3d_frustum(&ptAppData->t3DDrawList, &ptCullCamera->tTransformMat, ptCullCamera->fFieldOfView, ptCullCamera->fAspectRatio, ptCullCamera->fNearZ, ptCullCamera->fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
+        }
+        else
+            gptRenderer->cull_objects(ptCamera);
+    }
+    else
+    {
+        gptRenderer->uncull_objects(ptCamera);
+    }
 
     pl_new_frame();
 
@@ -298,7 +325,11 @@ pl_app_update(plAppData* ptAppData)
     gptGfx->begin_main_pass(ptGraphics, gptRenderer->get_main_render_pass());
 
     gptRenderer->submit_draw_stream(ptCamera);
-    gptRenderer->draw_bound_boxes(&ptAppData->t3DDrawList);
+
+    if(ptAppData->bDrawAllBoundingBoxes)
+        gptRenderer->draw_all_bound_boxes(&ptAppData->t3DDrawList);
+    else if(ptAppData->bDrawVisibleBoundingBoxes)
+        gptRenderer->draw_visible_bound_boxes(&ptAppData->t3DDrawList);
 
     pl_set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
 
@@ -320,6 +351,9 @@ pl_app_update(plAppData* ptAppData)
             if(pl_checkbox("VSync", &ptGraphics->tSwapchain.bVSync))
                 ptAppData->bReloadSwapchain = true;
             pl_checkbox("Frustum Culling", &ptAppData->bFrustumCulling);
+            pl_checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera);
+            pl_checkbox("Draw All Bounding Boxes", &ptAppData->bDrawAllBoundingBoxes);
+            pl_checkbox("Draw Visible Bounding Boxes", &ptAppData->bDrawVisibleBoundingBoxes);
             pl_end_collapsing_header();
         }
         if(pl_collapsing_header("Tools"))
@@ -363,7 +397,6 @@ pl_app_update(plAppData* ptAppData)
 
     const plMat4 tTransform = pl_identity_mat4();
     gptGfx->add_3d_transform(&ptAppData->t3DDrawList, &tTransform, 10.0f, 0.02f);
-
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
     gptGfx->submit_3d_drawlist(&ptAppData->t3DDrawList, ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1], &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, gptRenderer->get_main_render_pass(), ptGraphics->tSwapchain.tMsaaSamples);

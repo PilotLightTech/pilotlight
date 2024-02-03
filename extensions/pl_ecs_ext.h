@@ -222,12 +222,6 @@ typedef struct _plTextureMap
     uint32_t         uUVSet;
 } plTextureMap;
 
-typedef struct _plAABB
-{
-    plVec3 tMin;
-    plVec3 tMax;
-} plAABB;
-
 typedef struct _plComponentManager
 {
     plComponentLibrary* ptParentLibrary;

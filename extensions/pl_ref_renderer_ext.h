@@ -63,9 +63,11 @@ typedef struct _plRefRendererI
     // per frame
     void (*run_ecs)(void);
     void (*submit_ui)(void);
-    void (*cull_draw_stream)(plCameraComponent*);
+    void (*cull_objects)(plCameraComponent*);
+    void (*uncull_objects)(plCameraComponent*);
     void (*submit_draw_stream)(plCameraComponent*);
-    void (*draw_bound_boxes)(plDrawList3D*);
+    void (*draw_all_bound_boxes)(plDrawList3D*);
+    void (*draw_visible_bound_boxes)(plDrawList3D*);
     
     // misc
     plRenderPassHandle  (*get_main_render_pass)(void);
