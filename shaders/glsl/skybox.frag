@@ -17,10 +17,7 @@ layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
 layout (set = 1, binding = 0) uniform samplerCube samplerCubeMap;
 
 
-layout(set = 2, binding = 0) uniform _plShaderInfo
-{
-    vec4 shaderSpecific;
-} tShaderInfo;
+layout(set = 2, binding = 0)  uniform sampler2D tSkinningSampler;
 
 layout(set = 3, binding = 0) uniform _plObjectInfo
 {

@@ -933,7 +933,7 @@ enum plDrawStreamBits
 static void
 pl_drawstream_cleanup(plDrawStream* ptStream)
 {
-    memset(&ptStream->tCurrentDraw, 255, sizeof(plDraw));
+    memset(&ptStream->tCurrentDraw, 255, sizeof(plDraw)); 
     pl_sb_free(ptStream->sbtStream);
 }
 
@@ -941,6 +941,7 @@ static void
 pl_drawstream_reset(plDrawStream* ptStream)
 {
     memset(&ptStream->tCurrentDraw, 255, sizeof(plDraw));
+    ptStream->tCurrentDraw.uIndexBuffer = UINT32_MAX - 1;
     pl_sb_reset(ptStream->sbtStream);
 }
 

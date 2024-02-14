@@ -22,14 +22,10 @@ struct BindGroup_1
     sampler            sampler_0;
 };
 
-struct BindGroupData_2
-{
-    float4 shaderSpecific;
-};
-
 struct BindGroup_2
 {
-    device BindGroupData_2 *data;  
+    texture2d<float> tSkinningTexture;
+    sampler          tSkinningSampler;
 };
 
 struct DynamicData

@@ -2066,8 +2066,10 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_BUFFER)
             {
-                [ptMetalGraphics->tCurrentRenderEncoder useHeap:ptMetalGraphics->sbtBuffersHot[ptStream->sbtStream[uCurrentStreamIndex]].tHeap stages:MTLRenderStageVertex];
                 uIndexBuffer = ptStream->sbtStream[uCurrentStreamIndex];
+                if(uIndexBuffer != UINT32_MAX)
+                    [ptMetalGraphics->tCurrentRenderEncoder useHeap:ptMetalGraphics->sbtBuffersHot[ptStream->sbtStream[uCurrentStreamIndex]].tHeap stages:MTLRenderStageVertex];
+                
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER)
@@ -2084,15 +2086,27 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
                 uCurrentStreamIndex++;
             }
 
-            [ptMetalGraphics->tCurrentRenderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle 
-                indexCount:uTriangleCount * 3
-                indexType:MTLIndexTypeUInt32
-                indexBuffer:ptMetalGraphics->sbtBuffersHot[uIndexBuffer].tBuffer
-                indexBufferOffset:uIndexBufferOffset * sizeof(uint32_t)
-                instanceCount:1
-                baseVertex:uVertexBufferOffset
-                baseInstance:0
-                ];
+            if(uIndexBuffer == UINT32_MAX)
+            {
+                [ptMetalGraphics->tCurrentRenderEncoder drawPrimitives:MTLPrimitiveTypeTriangle 
+                    vertexStart:uVertexBufferOffset
+                    vertexCount:uTriangleCount * 3
+                    instanceCount:1
+                    baseInstance:0
+                    ];
+            }
+            else
+            {
+                [ptMetalGraphics->tCurrentRenderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle 
+                    indexCount:uTriangleCount * 3
+                    indexType:MTLIndexTypeUInt32
+                    indexBuffer:ptMetalGraphics->sbtBuffersHot[uIndexBuffer].tBuffer
+                    indexBufferOffset:uIndexBufferOffset * sizeof(uint32_t)
+                    instanceCount:1
+                    baseVertex:uVertexBufferOffset
+                    baseInstance:0
+                    ];
+            }
         }
     }
     pl_end_profile_sample();

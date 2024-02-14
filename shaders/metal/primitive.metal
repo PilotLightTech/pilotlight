@@ -48,14 +48,10 @@ struct BindGroup_1
     sampler          tNormalSampler;
 };
 
-struct BindGroupData_2
-{
-    float4 shaderSpecific;
-};
-
 struct BindGroup_2
 {
-    device BindGroupData_2 *data;  
+    texture2d<float>  tSkinningTexture;
+    sampler            tSkinningSampler;
 };
 
 struct VertexIn {
@@ -87,17 +83,67 @@ constant int MeshVariantFlags [[ function_constant(0) ]];
 constant int PL_DATA_STRIDE [[ function_constant(1) ]];
 constant int PL_HAS_BASE_COLOR_MAP [[ function_constant(2) ]];
 constant int PL_HAS_NORMAL_MAP [[ function_constant(3) ]];
+constant int PL_USE_SKINNING [[ function_constant(4) ]];
 
+float4x4 get_matrix_from_texture(device const texture2d<float>& s, int index)
+{
+    float4x4 result = float4x4(1);
+    int texSize = s.get_width();
+    int pixelIndex = index * 4;
+    for (int i = 0; i < 4; ++i)
+    {
+        int x = (pixelIndex + i) % texSize;
+        //Rounding mode of integers is undefined:
+        //https://www.khronos.org/registry/OpenGL/specs/es/3.0/GLSL_ES_Specification_3.00.pdf (section 12.33)
+        int y = (pixelIndex + i - x) / texSize; 
+        result[i] = s.read(uint2(x,y));
+    }
+    return result;
+}
 
-float4 get_normal(float3 inNormal, float4 inJoints0, float4 inWeights0)
+float4x4 get_skinning_matrix(device const texture2d<float>& s, float4 inJoints0, float4 inWeights0)
+{
+    float4x4 skin = float4x4(0);
+
+    skin +=
+        inWeights0.x * get_matrix_from_texture(s, int(inJoints0.x) * 2) +
+        inWeights0.y * get_matrix_from_texture(s, int(inJoints0.y) * 2) +
+        inWeights0.z * get_matrix_from_texture(s, int(inJoints0.z) * 2) +
+        inWeights0.w * get_matrix_from_texture(s, int(inJoints0.w) * 2);
+
+    // if (skin == float4x4(0)) { 
+    //     return float4x4(1); 
+    // }
+    return skin;
+}
+
+float4 get_position(device const texture2d<float>& s, float3 inPos, float4 inJoints0, float4 inWeights0)
+{
+    float4 pos = float4(inPos, 1.0);
+    if(bool(PL_USE_SKINNING))
+    {
+        pos = get_skinning_matrix(s, inJoints0, inWeights0) * pos;
+    }
+    return pos;
+}
+
+float4 get_normal(device const texture2d<float>& s, float3 inNormal, float4 inJoints0, float4 inWeights0)
 {
     float4 tNormal = float4(inNormal, 0.0);
+    if(bool(PL_USE_SKINNING))
+    {
+        tNormal = get_skinning_matrix(s, inJoints0, inWeights0) * tNormal;
+    }
     return normalize(tNormal);
 }
 
-float4 get_tangent(float4 inTangent, float4 inJoints0, float4 inWeights0)
+float4 get_tangent(device const texture2d<float>& s, float4 inTangent, float4 inJoints0, float4 inWeights0)
 {
     float4 tTangent = float4(inTangent.xyz, 0.0);
+    if(bool(PL_USE_SKINNING))
+    {
+        tTangent = get_skinning_matrix(s, inJoints0, inWeights0) * tTangent;
+    }
     return normalize(tTangent);
 }
 
@@ -140,16 +186,16 @@ vertex VertexOut vertex_main(
     if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0) { inWeights0     = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
     if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1) { inWeights1     = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
 
-    float4 tWorldNormal4 = tObjectInfo.tModel * get_normal(inNormal, inJoints0, inWeights0);
+    float4 tWorldNormal4 = tObjectInfo.tModel * get_normal(bg2.tSkinningTexture, inNormal, inJoints0, inWeights0);
     tShaderOut.tWorldNormal = tWorldNormal4.xyz;
     if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL)
     {
 
         if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT)
         {
-            float4 tangent = get_tangent(inTangent, inJoints0, inWeights0);
+            float4 tangent = get_tangent(bg2.tSkinningTexture, inTangent, inJoints0, inWeights0);
             float4 WorldTangent = tObjectInfo.tModel * tangent;
-            float4 WorldBitangent = float4(cross(get_normal(inNormal, inJoints0, inWeights0).xyz, tangent.xyz) * inTangent.w, 0.0);
+            float4 WorldBitangent = float4(cross(get_normal(bg2.tSkinningTexture, inNormal, inJoints0, inWeights0).xyz, tangent.xyz) * inTangent.w, 0.0);
             WorldBitangent = tObjectInfo.tModel * WorldBitangent;
             tShaderOut.tTBN0 = WorldTangent.xyz;
             tShaderOut.tTBN1 = WorldBitangent.xyz;
@@ -157,7 +203,7 @@ vertex VertexOut vertex_main(
         }
     }
 
-    float4 pos = tObjectInfo.tModel * float4(inPosition, 1.0);
+    float4 pos = tObjectInfo.tModel * get_position(bg2.tSkinningTexture, inPosition, inJoints0, inWeights0);
     tShaderOut.tPosition = pos.xyz / pos.w;
     tShaderOut.tPositionOut = bg0.data->tCameraViewProjection * pos;
     tShaderOut.tUV = inTexCoord0;
@@ -262,6 +308,16 @@ float4 getBaseColor(device const BindGroup_1& bg1, float4 u_ColorFactor, VertexO
     return baseColor;
 }
 
+constant const float GAMMA = 2.2;
+constant const float INV_GAMMA = 1.0 / GAMMA;
+
+// linear to sRGB approximation
+// see http://chilliant.blogspot.com/2012/08/srgb-approximations-for-hlsl.html
+float3 linearTosRGB(float3 color)
+{
+    return pow(color, float3(INV_GAMMA));
+}
+
 fragment float4 fragment_main(
     VertexOut in [[stage_in]],
     device const BindGroup_0& bg0 [[ buffer(1) ]],
@@ -277,5 +333,7 @@ fragment float4 fragment_main(
     NormalInfo tNormalInfo = pl_get_normal_info(bg1, in, front_facing);
     float3 tSunLightDirection = float3(-1.0, -1.0, -1.0);
     float fDiffuseIntensity = max(0.0, dot(tNormalInfo.n, -normalize(tSunLightDirection)));
-    return tBaseColor * float4(tSunlightColor * (0.1 + fDiffuseIntensity), 1.0);
+    float4 outColor = tBaseColor * float4(tSunlightColor * (0.05 + fDiffuseIntensity), 1.0);
+    outColor = float4(linearTosRGB(outColor.rgb), tBaseColor.a);
+    return outColor;
 }

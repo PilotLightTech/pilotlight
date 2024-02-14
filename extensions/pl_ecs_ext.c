@@ -55,6 +55,8 @@ static plEntity pl_ecs_create_object          (plComponentLibrary* ptLibrary, co
 static plEntity pl_ecs_create_transform       (plComponentLibrary* ptLibrary, const char* pcName);
 static plEntity pl_ecs_create_material        (plComponentLibrary* ptLibrary, const char* pcName);
 static plEntity pl_ecs_create_skin            (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_animation       (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_animation_data  (plComponentLibrary* ptLibrary, const char* pcName);
 static plEntity pl_ecs_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
 static plEntity pl_ecs_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ);
 
@@ -63,10 +65,11 @@ static void pl_ecs_attach_component (plComponentLibrary* ptLibrary, plEntity tEn
 static void pl_ecs_deattach_component(plComponentLibrary* ptLibrary, plEntity tEntity);
 
 // update systems
-static void pl_run_object_update_system(plComponentLibrary* ptLibrary);
+static void pl_run_object_update_system   (plComponentLibrary* ptLibrary);
 static void pl_run_transform_update_system(plComponentLibrary* ptLibrary);
 static void pl_run_skin_update_system     (plComponentLibrary* ptLibrary);
 static void pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary);
+static void pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime);
 
 // misc.
 static void pl_calculate_normals (plMeshComponent* atMeshes, uint32_t uComponentCount);
@@ -124,6 +127,8 @@ pl_load_ecs_api(void)
         .create_transform            = pl_ecs_create_transform,
         .create_material             = pl_ecs_create_material,
         .create_skin                 = pl_ecs_create_skin,
+        .create_animation            = pl_ecs_create_animation,
+        .create_animation_data       = pl_ecs_create_animation_data,
         .attach_component            = pl_ecs_attach_component,
         .deattach_component          = pl_ecs_deattach_component,
         .calculate_normals           = pl_calculate_normals,
@@ -131,7 +136,8 @@ pl_load_ecs_api(void)
         .run_object_update_system    = pl_run_object_update_system,
         .run_transform_update_system = pl_run_transform_update_system,
         .run_hierarchy_update_system = pl_run_hierarchy_update_system,
-        .run_skin_update_system      = pl_run_skin_update_system
+        .run_skin_update_system      = pl_run_skin_update_system,
+        .run_animation_update_system = pl_run_animation_update_system
     };
     return &tApi;
 }
@@ -184,6 +190,12 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->tCameraComponentManager.tComponentType = PL_COMPONENT_TYPE_CAMERA;
     ptLibrary->tCameraComponentManager.szStride = sizeof(plCameraComponent);
 
+    ptLibrary->tAnimationComponentManager.tComponentType = PL_COMPONENT_TYPE_ANIMATION;
+    ptLibrary->tAnimationComponentManager.szStride = sizeof(plAnimationComponent);
+
+    ptLibrary->tAnimationDataComponentManager.tComponentType = PL_COMPONENT_TYPE_ANIMATION_DATA;
+    ptLibrary->tAnimationDataComponentManager.szStride = sizeof(plAnimationDataComponent);
+
     ptLibrary->_ptManagers[0] = &ptLibrary->tTagComponentManager;
     ptLibrary->_ptManagers[1] = &ptLibrary->tTransformComponentManager;
     ptLibrary->_ptManagers[2] = &ptLibrary->tMeshComponentManager;
@@ -192,6 +204,8 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->_ptManagers[5] = &ptLibrary->tMaterialComponentManager;
     ptLibrary->_ptManagers[6] = &ptLibrary->tSkinComponentManager;
     ptLibrary->_ptManagers[7] = &ptLibrary->tCameraComponentManager;
+    ptLibrary->_ptManagers[8] = &ptLibrary->tAnimationComponentManager;
+    ptLibrary->_ptManagers[9] = &ptLibrary->tAnimationDataComponentManager;
 
     for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
         ptLibrary->_ptManagers[i]->ptParentLibrary = ptLibrary;
@@ -203,6 +217,28 @@ static void
 pl_ecs_cleanup_component_library(plComponentLibrary* ptLibrary)
 {
     plMeshComponent* sbtMeshes = ptLibrary->tMeshComponentManager.pComponents;
+    plSkinComponent* sbtSkins = ptLibrary->tSkinComponentManager.pComponents;
+    plAnimationComponent* sbtAnimations = ptLibrary->tAnimationComponentManager.pComponents;
+    plAnimationDataComponent* sbtAnimationDatas = ptLibrary->tAnimationDataComponentManager.pComponents;
+
+    for(uint32_t i = 0; i < pl_sb_size(sbtAnimations); i++)
+    {
+        pl_sb_free(sbtAnimations[i].sbtChannels);
+        pl_sb_free(sbtAnimations[i].sbtSamplers);
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(sbtAnimationDatas); i++)
+    {
+        pl_sb_free(sbtAnimationDatas[i].sbfKeyFrameData);
+        pl_sb_free(sbtAnimationDatas[i].sbfKeyFrameTimes);
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(sbtSkins); i++)
+    {
+        pl_sb_free(sbtSkins[i].sbtTextureData);
+        pl_sb_free(sbtSkins[i].sbtJoints);
+        pl_sb_free(sbtSkins[i].sbtInverseBindMatrices);
+    }
 
     for(uint32_t i = 0; i < pl_sb_size(sbtMeshes); i++)
     {
@@ -510,6 +546,28 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         return &sbComponents[uComponentIndex];
     }
 
+    case PL_COMPONENT_TYPE_ANIMATION:
+    {
+        plAnimationComponent* sbComponents = ptManager->pComponents;
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
+        ptManager->pComponents = sbComponents;
+        sbComponents[uComponentIndex] = (plAnimationComponent){
+            .fSpeed = 1.0f
+        };
+        return &sbComponents[uComponentIndex];
+    }
+
+    case PL_COMPONENT_TYPE_ANIMATION_DATA:
+    {
+        plAnimationDataComponent* sbComponents = ptManager->pComponents;
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
+        ptManager->pComponents = sbComponents;
+        sbComponents[uComponentIndex] = (plAnimationDataComponent){0};
+        return &sbComponents[uComponentIndex];
+    }
+
     }
 
     return NULL;
@@ -534,7 +592,8 @@ pl_ecs_create_tag(plComponentLibrary* ptLibrary, const char* pcName)
 static plEntity
 pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName)
 {
-    pl_log_debug_to_f(uLogChannel, "created mesh: '%s'", pcName ? pcName : "unnamed");
+    pcName = pcName ? pcName : "unnamed mesh";
+    pl_log_debug_to_f(uLogChannel, "created mesh: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
     pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
     return tNewEntity;
@@ -543,7 +602,8 @@ pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName)
 static plEntity
 pl_ecs_create_object(plComponentLibrary* ptLibrary, const char* pcName)
 {
-    pl_log_debug_to_f(uLogChannel, "created object: '%s'", pcName ? pcName : "unnamed");
+    pcName = pcName ? pcName : "unnamed object";
+    pl_log_debug_to_f(uLogChannel, "created object: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     plObjectComponent* ptObject = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewEntity);
@@ -559,7 +619,8 @@ pl_ecs_create_object(plComponentLibrary* ptLibrary, const char* pcName)
 static plEntity
 pl_ecs_create_transform(plComponentLibrary* ptLibrary, const char* pcName)
 {
-    pl_log_debug_to_f(uLogChannel, "created transform: '%s'", pcName ? pcName : "unnamed");
+    pcName = pcName ? pcName : "unnamed transform";
+    pl_log_debug_to_f(uLogChannel, "created transform: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     plTransformComponent* ptTransform = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
@@ -571,7 +632,8 @@ pl_ecs_create_transform(plComponentLibrary* ptLibrary, const char* pcName)
 static plEntity
 pl_ecs_create_material(plComponentLibrary* ptLibrary, const char* pcName)
 {
-    pl_log_debug_to_f(uLogChannel, "created material: '%s'", pcName ? pcName : "unnamed");
+    pcName = pcName ? pcName : "unnamed material";
+    pl_log_debug_to_f(uLogChannel, "created material: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, tNewEntity);
@@ -581,7 +643,8 @@ pl_ecs_create_material(plComponentLibrary* ptLibrary, const char* pcName)
 static plEntity
 pl_ecs_create_skin(plComponentLibrary* ptLibrary, const char* pcName)
 {
-    pl_log_debug_to_f(uLogChannel, "created skin: '%s'", pcName ? pcName : "unnamed");
+    pcName = pcName ? pcName : "unnamed skin";
+    pl_log_debug_to_f(uLogChannel, "created skin: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     plSkinComponent* ptSkin = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, tNewEntity);
@@ -589,9 +652,32 @@ pl_ecs_create_skin(plComponentLibrary* ptLibrary, const char* pcName)
 }
 
 static plEntity
+pl_ecs_create_animation(plComponentLibrary* ptLibrary, const char* pcName)
+{
+    pcName = pcName ? pcName : "unnamed animation";
+    pl_log_debug_to_f(uLogChannel, "created animation: '%s'", pcName);
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+
+    pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, tNewEntity);
+    return tNewEntity;
+}
+
+static plEntity
+pl_ecs_create_animation_data(plComponentLibrary* ptLibrary, const char* pcName)
+{
+    pcName = pcName ? pcName : "unnamed animation data";
+    pl_log_debug_to_f(uLogChannel, "created animation data: '%s'", pcName);
+    plEntity tNewEntity = pl_ecs_create_entity(ptLibrary);
+
+    pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION_DATA, tNewEntity);
+    return tNewEntity;
+}
+
+static plEntity
 pl_ecs_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ)
 {
-    pl_log_debug_to_f(uLogChannel, "created camera: '%s'", pcName ? pcName : "unnamed");
+    pcName = pcName ? pcName : "unnamed camera";
+    pl_log_debug_to_f(uLogChannel, "created camera: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     const plCameraComponent tCamera = {
@@ -613,7 +699,8 @@ pl_ecs_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcNa
 static plEntity
 pl_ecs_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ)
 {
-    pl_log_debug_to_f(uLogChannel, "created camera: '%s'", pcName ? pcName : "unnamed");
+    pcName = pcName ? pcName : "unnamed camera";
+    pl_log_debug_to_f(uLogChannel, "created camera: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     const plCameraComponent tCamera = {
@@ -673,7 +760,8 @@ pl_run_skin_update_system(plComponentLibrary* ptLibrary)
     pl_begin_profile_sample(__FUNCTION__);
     plSkinComponent* sbtComponents = ptLibrary->tSkinComponentManager.pComponents;
 
-    for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
+    const uint32_t uComponentCount = pl_sb_size(sbtComponents);
+    for(uint32_t i = 0; i < uComponentCount; i++)
     {
         plSkinComponent* ptSkinComponent = &sbtComponents[i];
         plTransformComponent* ptParent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptSkinComponent->tMeshNode);
@@ -702,7 +790,8 @@ pl_run_object_update_system(plComponentLibrary* ptLibrary)
     pl_begin_profile_sample(__FUNCTION__);
     plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
 
-    for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
+    const uint32_t uComponentCount = pl_sb_size(sbtComponents);
+    for(uint32_t i = 0; i < uComponentCount; i++)
     {
         plObjectComponent* ptObject = &sbtComponents[i];
         plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
@@ -743,7 +832,8 @@ pl_run_transform_update_system(plComponentLibrary* ptLibrary)
     pl_begin_profile_sample(__FUNCTION__);
     plTransformComponent* sbtComponents = ptLibrary->tTransformComponentManager.pComponents;
 
-    for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
+    const uint32_t uComponentCount = pl_sb_size(sbtComponents);
+    for(uint32_t i = 0; i < uComponentCount; i++)
     {
         plTransformComponent* ptTransform = &sbtComponents[i];
         ptTransform->tFinalTransform = ptTransform->tWorld;
@@ -758,7 +848,8 @@ pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
     pl_begin_profile_sample(__FUNCTION__);
     plHierarchyComponent* sbtComponents = ptLibrary->tHierarchyComponentManager.pComponents;
 
-    for(uint32_t i = 0; i < pl_sb_size(sbtComponents); i++)
+    const uint32_t uComponentCount = pl_sb_size(sbtComponents);
+    for(uint32_t i = 0; i < uComponentCount; i++)
     {
         plHierarchyComponent* ptHierarchyComponent = &sbtComponents[i];
         plEntity tChildEntity = ptLibrary->tHierarchyComponentManager.sbtEntities[i];
@@ -768,6 +859,275 @@ pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
     }
 
     pl_end_profile_sample();
+}
+
+static plVec4
+slerpQuat(plVec4 q1, plVec4 q2, float t)
+{
+
+	// from https://glmatrix.net/docs/quat.js.html
+	plVec4 qn1 = pl_norm_vec4(q1);
+	plVec4 qn2 = pl_norm_vec4(q2);
+
+	plVec4 qresult = {0};
+
+	float ax = qn1.x;
+	float ay = qn1.y;
+	float az = qn1.z;
+	float aw = qn1.w;
+
+	float bx = qn2.x;
+	float by = qn2.y;
+	float bz = qn2.z;
+	float bw = qn2.w;
+
+	float omega = 0.0f;
+	float cosom = 0.0f;
+	float sinom = 0.0f;
+	float scale0 = 0.0f;
+	float scale1 = 0.0f;
+
+	// calc cosine
+	cosom = ax * bx + ay * by + az * bz + aw * bw;
+
+	// adjust signs (if necessary)
+	if (cosom < 0.0f) 
+	{
+		cosom = -cosom;
+		bx = -bx;
+		by = -by;
+		bz = -bz;
+		bw = -bw;
+	}
+
+	// calculate coefficients
+	if (1.0f - cosom > 0.000001f)
+	{
+		// standard case (slerp)
+		omega = acosf(cosom);
+		sinom = sinf(omega);
+		scale0 = sinf((1.0f - t) * omega) / sinom;
+		scale1 = sinf(t * omega) / sinom;
+	}
+	else 
+	{
+		// "from" and "to" quaternions are very close
+		//  ... so we can do a linear interpolation
+		scale0 = 1.0f - t;
+		scale1 = t;
+	}
+
+	// calculate final values
+	qresult.d[0] = scale0 * ax + scale1 * bx;
+	qresult.d[1] = scale0 * ay + scale1 * by;
+	qresult.d[2] = scale0 * az + scale1 * bz;
+	qresult.d[3] = scale0 * aw + scale1 * bw;
+
+	qresult = pl_norm_vec4(qresult);
+
+	return qresult;
+}
+
+static void
+pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+    plAnimationComponent* sbtComponents = ptLibrary->tAnimationComponentManager.pComponents;
+    
+    const uint32_t uComponentCount = pl_sb_size(sbtComponents);
+    for(uint32_t i = 0; i < uComponentCount; i++)
+    {
+        plAnimationComponent* ptAnimationComponent = &sbtComponents[i];
+
+        if(!(ptAnimationComponent->tFlags & PL_ANIMATION_FLAG_PLAYING))
+            continue;
+
+        ptAnimationComponent->fTimer += fDeltaTime;
+
+        if(ptAnimationComponent->tFlags & PL_ANIMATION_FLAG_LOOPED)
+        {
+            ptAnimationComponent->fTimer = fmodf(ptAnimationComponent->fTimer, ptAnimationComponent->fEnd);
+        }
+
+        if(ptAnimationComponent->fTimer > ptAnimationComponent->fEnd)
+        {
+            ptAnimationComponent->tFlags &= ~PL_ANIMATION_FLAG_PLAYING;
+            ptAnimationComponent->fTimer = 0.0f;
+            continue;
+        }
+
+        const uint32_t uChannelCount = pl_sb_size(ptAnimationComponent->sbtChannels);
+        for(uint32_t j = 0; j < uChannelCount; j++)
+        {
+            
+            const plAnimationChannel* ptChannel = &ptAnimationComponent->sbtChannels[j];
+            const plAnimationSampler* ptSampler = &ptAnimationComponent->sbtSamplers[ptChannel->uSamplerIndex];
+            const plAnimationDataComponent* ptData = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION_DATA, ptSampler->tData);
+            plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptChannel->tTarget);
+
+            // wrap t around, so the animation loops.
+            // make sure that t is never earlier than the first keyframe and never later then the last keyframe.
+            float fModTime = pl_clampf(ptData->sbfKeyFrameTimes[0], ptAnimationComponent->fTimer, pl_sb_top(ptData->sbfKeyFrameTimes));
+            int iNextKey = 0;
+
+            const uint32_t uInputDataCount = pl_sb_size(ptData->sbfKeyFrameTimes);
+
+            for(uint32_t k = 0; k < uInputDataCount; k++)
+            {
+                
+                if(fModTime <= ptData->sbfKeyFrameTimes[k])
+                {
+                    iNextKey = pl_clampi(1, k, uInputDataCount - 1);
+                    break;
+                }
+            }
+            int iPrevKey = pl_clampi(0, iNextKey - 1, uInputDataCount - 1);
+
+            float fKeyDelta = ptData->sbfKeyFrameTimes[iNextKey] - ptData->sbfKeyFrameTimes[iPrevKey];
+
+            // normalize t: [t0, t1] -> [0, 1]
+            float tn = (fModTime - ptData->sbfKeyFrameTimes[iPrevKey]) / fKeyDelta;
+
+            switch(ptChannel->tPath)
+            {
+                case PL_ANIMATION_PATH_TRANSLATION:
+                {
+
+                    if(ptSampler->tMode == PL_ANIMATION_MODE_LINEAR)
+                    {
+                        plVec3 prev = *(plVec3*)&ptData->sbfKeyFrameData[iPrevKey * 3];
+                        plVec3 next = *(plVec3*)&ptData->sbfKeyFrameData[iNextKey * 3];
+                        ptTransform->tTranslation = (plVec3){
+                            .x = prev.x * (1.0f - tn) + next.x * tn,
+                            .y = prev.y * (1.0f - tn) + next.y * tn,
+                            .z = prev.z * (1.0f - tn) + next.z * tn,
+                        };
+                        ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
+                    }
+
+                    else if(ptSampler->tMode == PL_ANIMATION_MODE_STEP)
+                    {
+                        ptTransform->tTranslation = *(plVec3*)&ptData->sbfKeyFrameData[iPrevKey * 3];
+                        ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
+                    }
+
+                    else if(ptSampler->tMode == PL_ANIMATION_MODE_CUBIC_SPLINE)
+                    {
+                        int prevIndex = iPrevKey * 3 * 3;
+                        int nextIndex = iNextKey * 3 * 3;
+                        int A = 0;
+                        int V = 1 * 3;
+                        int B = 2 * 3;
+
+                        float tSq = tn * tn;
+                        float tCub = tSq * tn;
+
+                        for(uint32_t k = 0; k < 3; k++)
+                        {
+                            float v0 = *(float*)&ptData->sbfKeyFrameData[prevIndex + k + V];
+                            float a = fKeyDelta * *(float*)&ptData->sbfKeyFrameData[nextIndex + k + A];
+                            float b = fKeyDelta * *(float*)&ptData->sbfKeyFrameData[prevIndex + k + B];
+                            float v1 = *(float*)&ptData->sbfKeyFrameData[nextIndex + k + V];
+                            ptTransform->tTranslation.d[k] = ((2 * tCub - 3 * tSq + 1) * v0) + ((tCub - 2 * tSq + tn) * b) + ((-2 * tCub + 3 * tSq) * v1) + ((tCub - tSq) * a);
+                        }
+                        ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
+                    }
+                    break;
+                }
+
+                case PL_ANIMATION_PATH_SCALE:
+                {
+
+                    if(ptSampler->tMode == PL_ANIMATION_MODE_LINEAR)
+                    {
+                        plVec3 prev = *(plVec3*)&ptData->sbfKeyFrameData[iPrevKey * 3];
+                        plVec3 next = *(plVec3*)&ptData->sbfKeyFrameData[iNextKey * 3];
+                        ptTransform->tScale = (plVec3){
+                            .x = prev.x * (1.0f - tn) + next.x * tn,
+                            .y = prev.y * (1.0f - tn) + next.y * tn,
+                            .z = prev.z * (1.0f - tn) + next.z * tn,
+                        };
+                        ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
+                    }
+
+                    else if(ptSampler->tMode == PL_ANIMATION_MODE_STEP)
+                    {
+                        ptTransform->tScale = *(plVec3*)&ptData->sbfKeyFrameData[iPrevKey * 3];
+                        ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
+                    }
+
+                    else if(ptSampler->tMode == PL_ANIMATION_MODE_CUBIC_SPLINE)
+                    {
+                        int prevIndex = iPrevKey * 3 * 3;
+                        int nextIndex = iNextKey * 3 * 3;
+                        int A = 0;
+                        int V = 1 * 3;
+                        int B = 2 * 3;
+
+                        float tSq = tn * tn;
+                        float tCub = tSq * tn;
+
+                        for(uint32_t k = 0; k < 3; k++)
+                        {
+                            float v0 = *(float*)&ptData->sbfKeyFrameData[prevIndex + k + V];
+                            float a = fKeyDelta * *(float*)&ptData->sbfKeyFrameData[nextIndex + k + A];
+                            float b = fKeyDelta * *(float*)&ptData->sbfKeyFrameData[prevIndex + k + B];
+                            float v1 = *(float*)&ptData->sbfKeyFrameData[nextIndex + k + V];
+                            ptTransform->tScale.d[k] = ((2 * tCub - 3 * tSq + 1) * v0) + ((tCub - 2 * tSq + tn) * b) + ((-2 * tCub + 3 * tSq) * v1) + ((tCub - tSq) * a);
+                        }
+                        ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
+                    }
+                    break;
+                }
+
+                case PL_ANIMATION_PATH_ROTATION:
+                {
+
+                    if(ptSampler->tMode == PL_ANIMATION_MODE_LINEAR)
+                    {
+                        plVec4 q0 = *(plVec4*)&ptData->sbfKeyFrameData[iPrevKey * 4];
+                        plVec4 q1 = *(plVec4*)&ptData->sbfKeyFrameData[iNextKey * 4];
+                        ptTransform->tRotation = slerpQuat(q0, q1, tn);
+                        ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
+                    }
+                    else if(ptSampler->tMode == PL_ANIMATION_MODE_STEP)
+                    {
+                        plVec4 q0 = *(plVec4*)&ptData->sbfKeyFrameData[iPrevKey * 4];
+                        ptTransform->tRotation = q0;
+                        ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
+                    }
+                    else if(ptSampler->tMode == PL_ANIMATION_MODE_CUBIC_SPLINE)
+                    {
+                        int prevIndex = iPrevKey * 4 * 3;
+                        int nextIndex = iNextKey * 4 * 3;
+                        int A = 0;
+                        int V = 1 * 4;
+                        int B = 2 * 4;
+
+                        float tSq = tn * tn;
+                        float tCub = tSq * tn;
+
+                        plVec4 result = {0};
+
+                        for(uint32_t k = 0; k < 4; k++)
+                        {
+                            float v0 = *(float*)&ptData->sbfKeyFrameData[prevIndex + k + V];
+                            float a = fKeyDelta * *(float*)&ptData->sbfKeyFrameData[nextIndex + k + A];
+                            float b = fKeyDelta * *(float*)&ptData->sbfKeyFrameData[prevIndex + k + B];
+                            float v1 = *(float*)&ptData->sbfKeyFrameData[nextIndex + k + V];
+
+                            result.d[k] = ((2 * tCub - 3 * tSq + 1) * v0) + ((tCub - 2 * tSq + tn) * b) + ((-2 * tCub + 3 * tSq) * v1) + ((tCub - tSq) * a);
+                            ptTransform->tRotation = pl_norm_vec4(result);
+                            ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    pl_end_profile_sample(); 
 }
 
 static void

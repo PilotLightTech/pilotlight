@@ -57,17 +57,20 @@ typedef struct _plCameraI plCameraI;
 typedef struct _plComponentLibrary plComponentLibrary;
 typedef struct _plComponentManager plComponentManager;
 typedef struct _plTextureMap       plTextureMap;
-typedef struct _plAABB             plAABB;
+typedef struct _plAnimationChannel plAnimationChannel;
+typedef struct _plAnimationSampler plAnimationSampler;
 
 // ecs components
-typedef struct _plTagComponent       plTagComponent;
-typedef struct _plMeshComponent      plMeshComponent;
-typedef struct _plTransformComponent plTransformComponent;
-typedef struct _plObjectComponent    plObjectComponent;
-typedef struct _plHierarchyComponent plHierarchyComponent;
-typedef struct _plMaterialComponent  plMaterialComponent;
-typedef struct _plSkinComponent      plSkinComponent;
-typedef struct _plCameraComponent    plCameraComponent;
+typedef struct _plTagComponent           plTagComponent;
+typedef struct _plMeshComponent          plMeshComponent;
+typedef struct _plTransformComponent     plTransformComponent;
+typedef struct _plObjectComponent        plObjectComponent;
+typedef struct _plHierarchyComponent     plHierarchyComponent;
+typedef struct _plMaterialComponent      plMaterialComponent;
+typedef struct _plSkinComponent          plSkinComponent;
+typedef struct _plCameraComponent        plCameraComponent;
+typedef struct _plAnimationComponent     plAnimationComponent;
+typedef struct _plAnimationDataComponent plAnimationDataComponent;
 
 // enums
 typedef int plShaderType;
@@ -76,11 +79,18 @@ typedef int plTextureSlot;
 typedef int plMaterialFlags;
 typedef int plMaterialBlendMode;
 typedef int plCameraType;
+typedef int plAnimationMode;
+typedef int plAnimationPath;
+typedef int plAnimationFlags;
 
-typedef struct plEntity
+typedef union plEntity
 {
-    uint32_t uIndex;
-    uint32_t uGeneration;
+    struct
+    {
+        uint32_t uIndex;
+        uint32_t uGeneration;
+    };
+    uint64_t ulData;
 } plEntity;
 
 //-----------------------------------------------------------------------------
@@ -116,6 +126,8 @@ typedef struct _plEcsI
     plEntity (*create_transform)          (plComponentLibrary* ptLibrary, const char* pcName);
     plEntity (*create_material)           (plComponentLibrary* ptLibrary, const char* pcName);
     plEntity (*create_skin)               (plComponentLibrary* ptLibrary, const char* pcName);
+    plEntity (*create_animation)          (plComponentLibrary* ptLibrary, const char* pcName);
+    plEntity (*create_animation_data)     (plComponentLibrary* ptLibrary, const char* pcName);
     plEntity (*create_perspective_camera) (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
     plEntity (*create_orthographic_camera)(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ);
 
@@ -132,6 +144,7 @@ typedef struct _plEcsI
     void (*run_transform_update_system)(plComponentLibrary* ptLibrary);
     void (*run_skin_update_system)     (plComponentLibrary* ptLibrary);
     void (*run_hierarchy_update_system)(plComponentLibrary* ptLibrary);
+    void (*run_animation_update_system)(plComponentLibrary* ptLibrary, float fDeltaTime);
 } plEcsI;
 
 typedef struct _plCameraI
@@ -160,6 +173,8 @@ enum _plComponentType
     PL_COMPONENT_TYPE_MATERIAL,
     PL_COMPONENT_TYPE_SKIN,
     PL_COMPONENT_TYPE_CAMERA,
+    PL_COMPONENT_TYPE_ANIMATION,
+    PL_COMPONENT_TYPE_ANIMATION_DATA,
     
     PL_COMPONENT_TYPE_COUNT
 };
@@ -202,6 +217,30 @@ enum _plCameraType
     PL_CAMERA_TYPE_ORTHOGRAPHIC
 };
 
+enum _plAnimationMode
+{
+    PL_ANIMATION_MODE_UNKNOWN,
+    PL_ANIMATION_MODE_LINEAR,
+    PL_ANIMATION_MODE_STEP,
+    PL_ANIMATION_MODE_CUBIC_SPLINE
+};
+
+enum _plAnimationPath
+{
+    PL_ANIMATION_PATH_UNKNOWN,
+    PL_ANIMATION_PATH_TRANSLATION,
+    PL_ANIMATION_PATH_ROTATION,
+    PL_ANIMATION_PATH_SCALE,
+    PL_ANIMATION_PATH_WEIGHTS
+};
+
+enum _plAnimationFlags
+{
+    PL_ANIMATION_FLAG_NONE    = 0,
+    PL_ANIMATION_FLAG_PLAYING = 1 << 0,
+    PL_ANIMATION_FLAG_LOOPED  = 1 << 1
+};
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -221,6 +260,19 @@ typedef struct _plTextureMap
     plResourceHandle tResource;
     uint32_t         uUVSet;
 } plTextureMap;
+
+typedef struct _plAnimationSampler
+{
+    plAnimationMode tMode;
+    plEntity        tData;
+} plAnimationSampler;
+
+typedef struct _plAnimationChannel
+{
+    plAnimationPath tPath;
+    plEntity        tTarget;
+    uint32_t        uSamplerIndex;
+} plAnimationChannel;
 
 typedef struct _plComponentManager
 {
@@ -247,6 +299,8 @@ typedef struct _plComponentLibrary
     plComponentManager tMaterialComponentManager;
     plComponentManager tSkinComponentManager;
     plComponentManager tCameraComponentManager;
+    plComponentManager tAnimationComponentManager;
+    plComponentManager tAnimationDataComponentManager;
 
     plComponentManager* _ptManagers[PL_COMPONENT_TYPE_COUNT]; // just for internal convenience
 } plComponentLibrary;
@@ -345,5 +399,22 @@ typedef struct _plCameraComponent
     plVec3       _tForwardVec;
     plVec3       _tRightVec;
 } plCameraComponent;
+
+typedef struct _plAnimationDataComponent
+{
+    float* sbfKeyFrameTimes;
+    float* sbfKeyFrameData;
+} plAnimationDataComponent;
+
+typedef struct _plAnimationComponent
+{
+    plAnimationFlags    tFlags;
+    float               fStart;
+    float               fEnd;
+    float               fTimer;
+    float               fSpeed;
+    plAnimationChannel* sbtChannels;
+    plAnimationSampler* sbtSamplers;
+} plAnimationComponent;
 
 #endif // PL_ECS_EXT_H

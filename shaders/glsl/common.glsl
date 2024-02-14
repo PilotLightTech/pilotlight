@@ -20,6 +20,7 @@ layout(constant_id = 0) const int MeshVariantFlags = PL_MESH_FORMAT_FLAG_NONE;
 layout(constant_id = 1) const int PL_DATA_STRIDE = 0;
 layout(constant_id = 2) const int PL_HAS_BASE_COLOR_MAP = 0;
 layout(constant_id = 3) const int PL_HAS_NORMAL_MAP = 0;
+layout(constant_id = 4) const int PL_USE_SKINNING = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] global
@@ -51,10 +52,7 @@ layout(set = 0, binding = 2) readonly buffer plMaterialInfo
 layout(set = 1, binding = 0)  uniform sampler2D tBaseColorSampler;
 layout(set = 1, binding = 1)  uniform sampler2D tNormalSampler;
 
-layout(set = 2, binding = 0) uniform _Shader
-{
-    vec4 unused;
-} Shader;
+layout(set = 2, binding = 0)  uniform sampler2D tSkinningSampler;
 
 layout(set = 3, binding = 0) uniform _plObjectInfo
 {

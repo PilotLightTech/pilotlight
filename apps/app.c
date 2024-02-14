@@ -173,6 +173,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     const plMat4 tTransform0 = pl_mat4_translate_xyz(0.0f, 1.0f, 0.0f);
     gptRenderer->load_skybox_from_panorama("../data/glTF-Sample-Environments-main/ennis.jpg", 1024);
     gptRenderer->load_gltf("../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf");
+    gptRenderer->load_gltf("../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf");
     gptRenderer->load_stl("../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 0.0f, 0.0f, 0.80f}, &tTransform0);
     pl_end_profile_sample();
 

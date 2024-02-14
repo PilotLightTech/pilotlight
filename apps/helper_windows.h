@@ -20,7 +20,7 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
         pl_text("Components");
         pl_layout_dynamic(0.0f, 1);
         pl_separator();
-        pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, tWindowSize.y - 30.0f, 2, pfRatios);
+        pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, tWindowSize.y - 75.0f, 2, pfRatios);
         static int iSelectedEntity = -1;
         static plEntity tSelectedEntity = {0};
 
@@ -31,7 +31,6 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
 
             const uint32_t uEntityCount = pl_sb_size(ptLibrary->tTagComponentManager.sbtEntities);
             plTagComponent* sbtTags = ptLibrary->tTagComponentManager.pComponents;
-
 
             plUiClipper tClipper = {(uint32_t)uEntityCount};
             while(pl_step_clipper(&tClipper))
@@ -64,14 +63,15 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
 
             if(iSelectedEntity != -1)
             {
-                plTagComponent*       ptTagComp       = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, tSelectedEntity);
-                plTransformComponent* ptTransformComp = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tSelectedEntity);
-                plMeshComponent*      ptMeshComp      = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tSelectedEntity);
-                plObjectComponent*    ptObjectComp    = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tSelectedEntity);
-                plHierarchyComponent* ptHierarchyComp = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tSelectedEntity);
-                plMaterialComponent*  ptMaterialComp  = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, tSelectedEntity);
-                plSkinComponent*      ptSkinComp      = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, tSelectedEntity);
-                plCameraComponent*    ptCameraComp    = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, tSelectedEntity);
+                plTagComponent*           ptTagComp           = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, tSelectedEntity);
+                plTransformComponent*     ptTransformComp     = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tSelectedEntity);
+                plMeshComponent*          ptMeshComp          = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tSelectedEntity);
+                plObjectComponent*        ptObjectComp        = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tSelectedEntity);
+                plHierarchyComponent*     ptHierarchyComp     = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tSelectedEntity);
+                plMaterialComponent*      ptMaterialComp      = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, tSelectedEntity);
+                plSkinComponent*          ptSkinComp          = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, tSelectedEntity);
+                plCameraComponent*        ptCameraComp        = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, tSelectedEntity);
+                plAnimationComponent*     ptAnimationComp     = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, tSelectedEntity);
 
                 pl_text("Entity: %u, %u", tSelectedEntity.uIndex, tSelectedEntity.uGeneration);
 
@@ -125,14 +125,14 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
                     plTagComponent* ptMeshTagComp = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptObjectComp->tMesh);
                     plTagComponent* ptTransformTagComp = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptObjectComp->tTransform);
                     pl_text("Mesh Entity:      %s", ptMeshTagComp->acName);
-                    pl_text("Transform Entity: %s", ptTransformTagComp->acName);
+                    pl_text("Transform Entity: %s, %u", ptTransformTagComp->acName, ptObjectComp->tTransform.uIndex);
                     pl_end_collapsing_header();
                 }
 
                 if(ptHierarchyComp && pl_collapsing_header("Hierarchy"))
                 {
                     plTagComponent* ptParentTagComp = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptHierarchyComp->tParent);
-                    pl_text("Parent Entity: %s", ptParentTagComp->acName);
+                    pl_text("Parent Entity: %s , %u", ptParentTagComp->acName, ptHierarchyComp->tParent.uIndex);
                     pl_end_collapsing_header();
                 }
 
@@ -205,6 +205,39 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
                     pl_text("Up:       (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tUpVec.x, ptCameraComp->_tUpVec.y, ptCameraComp->_tUpVec.z);
                     pl_text("Forward:  (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tForwardVec.x, ptCameraComp->_tForwardVec.y, ptCameraComp->_tForwardVec.z);
                     pl_text("Right:    (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tRightVec.x, ptCameraComp->_tRightVec.y, ptCameraComp->_tRightVec.z);
+                    pl_end_collapsing_header();
+                }
+
+                if(ptAnimationComp && pl_collapsing_header("Animation"))
+                { 
+                    bool bPlaying = ptAnimationComp->tFlags & PL_ANIMATION_FLAG_PLAYING;
+                    bool bLooped = ptAnimationComp->tFlags & PL_ANIMATION_FLAG_LOOPED;
+                    if(bLooped && bPlaying)
+                        pl_text("Status: playing & looped");
+                    else if(bPlaying)
+                        pl_text("Status: playing");
+                    else if(bLooped)
+                        pl_text("Status: looped");
+                    else
+                        pl_text("Status: not playing");
+                    if(pl_checkbox("Playing", &bPlaying))
+                    {
+                        if(bPlaying)
+                            ptAnimationComp->tFlags |= PL_ANIMATION_FLAG_PLAYING;
+                        else
+                            ptAnimationComp->tFlags &= ~PL_ANIMATION_FLAG_PLAYING;
+                    }
+                    if(pl_checkbox("Looped", &bLooped))
+                    {
+                        if(bLooped)
+                            ptAnimationComp->tFlags |= PL_ANIMATION_FLAG_LOOPED;
+                        else
+                            ptAnimationComp->tFlags &= ~PL_ANIMATION_FLAG_LOOPED;
+                    }
+                    pl_text("Start: %0.3f s", ptAnimationComp->fStart);
+                    pl_text("End:   %0.3f s", ptAnimationComp->fEnd);
+                    pl_progress_bar(ptAnimationComp->fTimer / (ptAnimationComp->fEnd - ptAnimationComp->fStart), (plVec2){-1.0f, 0.0f}, NULL);
+                    pl_text("Speed:   %0.3f s", ptAnimationComp->fSpeed);
                     pl_end_collapsing_header();
                 }
             }
