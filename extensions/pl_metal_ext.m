@@ -127,6 +127,7 @@ typedef struct _plMetalShader
     id<MTLDepthStencilState>   tDepthStencilState;
     id<MTLRenderPipelineState> tRenderPipelineState;
     MTLCullMode                tCullMode;
+    MTLTriangleFillMode        tFillMode;
     id<MTLLibrary>             library;
 } plMetalShader;
 
@@ -1213,7 +1214,8 @@ pl_get_shader_variant(plDevice* ptDevice, plShaderHandle tHandle, const plShader
     const plMetalShader tMetalShader = {
         .tDepthStencilState   = [ptMetalDevice->tDevice newDepthStencilStateWithDescriptor:depthDescriptor],
         .tRenderPipelineState = [ptMetalDevice->tDevice newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error],
-        .tCullMode            = pl__metal_cull(ptVariant->tGraphicsState.ulCullMode)
+        .tCullMode            = pl__metal_cull(ptVariant->tGraphicsState.ulCullMode),
+        .tFillMode            = ptVariant->tGraphicsState.ulWireframe ? MTLTriangleFillModeLines : MTLTriangleFillModeFill
     };
 
     if (error != nil)
@@ -1929,6 +1931,7 @@ pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
                 [ptMetalGraphics->tCurrentRenderEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
                 [ptMetalGraphics->tCurrentRenderEncoder setDepthStencilState:ptMetalShader->tDepthStencilState];
                 [ptMetalGraphics->tCurrentRenderEncoder setRenderPipelineState:ptMetalShader->tRenderPipelineState];
+                [ptMetalGraphics->tCurrentRenderEncoder setTriangleFillMode:ptMetalShader->tFillMode];
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
@@ -2183,6 +2186,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
 
     [ptMetalGraphics->tCurrentRenderEncoder setDepthStencilState:ptPipelineEntry->tDepthStencilState];
     [ptMetalGraphics->tCurrentRenderEncoder setCullMode:(tFlags & PL_PIPELINE_FLAG_FRONT_FACE_CW)];
+    [ptMetalGraphics->tCurrentRenderEncoder setTriangleFillMode:MTLTriangleFillModeFill];
     int iCullMode = MTLCullModeNone;
     if(tFlags & PL_PIPELINE_FLAG_CULL_FRONT) iCullMode = MTLCullModeFront;
     if(tFlags & PL_PIPELINE_FLAG_CULL_BACK) iCullMode |= MTLCullModeBack;

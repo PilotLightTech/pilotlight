@@ -301,6 +301,7 @@ typedef struct _plGraphicsState
         {
             uint64_t ulVertexStreamMask   : 11; // PL_MESH_FORMAT_FLAG_*
             uint64_t ulDepthMode          :  4; // PL_DEPTH_MODE_
+            uint64_t ulWireframe          :  1; // bool
             uint64_t ulDepthWriteEnabled  :  1; // bool
             uint64_t ulCullMode           :  2; // VK_CULL_MODE_*
             uint64_t ulBlendMode          :  3; // PL_BLEND_MODE_*
@@ -310,7 +311,7 @@ typedef struct _plGraphicsState
             uint64_t ulStencilOpFail      :  3;
             uint64_t ulStencilOpDepthFail :  3;
             uint64_t ulStencilOpPass      :  3;
-            uint64_t _ulUnused            : 14;
+            uint64_t _ulUnused            : 13;
         };
         uint64_t ulValue;
     };

@@ -341,9 +341,17 @@ pl_app_update(plAppData* ptAppData)
         pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
         if(pl_collapsing_header("Information"))
         {
+            
             pl_text("Pilot Light %s", PILOTLIGHT_VERSION);
             pl_text("Pilot Light UI %s", PL_UI_VERSION);
             pl_text("Pilot Light DS %s", PL_DS_VERSION);
+            #ifdef PL_METAL_BACKEND
+            pl_text("Graphics Backend: Metal");
+            #elif PL_VULKAN_BACKEND
+            pl_text("Graphics Backend: Vulkan");
+            #else
+            pl_text("Graphics Backend: Unknown");
+            #endif
 
             pl_end_collapsing_header();
         }
