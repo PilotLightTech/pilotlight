@@ -57,7 +57,7 @@ typedef struct _plRefRendererI
     // loading
     void (*load_skybox_from_panorama)(const char* pcPath, int iResolution);
     void (*load_stl)(const char* pcPath, plVec4 tColor, const plMat4* ptTransform);
-    void (*load_gltf)(const char* pcPath);
+    void (*load_gltf)(const char* pcPath, const plMat4* ptTransform);
     void (*finalize_scene)(void);
 
     // per frame

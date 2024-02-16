@@ -172,7 +172,7 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
 
                     for(uint32_t i = 0; i < PL_TEXTURE_SLOT_COUNT; i++)
                     {
-                        pl_text("%s: %s", apcTextureSlotNames[i], ptMaterialComp->atTextureMaps[i].acName[0] == 0 ? " " : ptMaterialComp->atTextureMaps[i].acName);
+                        pl_text("%s: %s", apcTextureSlotNames[i], ptMaterialComp->atTextureMaps[i].acName[0] == 0 ? " " : "present");
                     }
                     pl_unindent(15.0f);
                     pl_end_collapsing_header();

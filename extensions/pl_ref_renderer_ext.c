@@ -200,7 +200,7 @@ static void pl_refr_draw_visible_bound_boxes(plDrawList3D* ptDrawlist);
 // loading
 static void pl_refr_load_skybox_from_panorama(const char* pcModelPath, int iResolution);
 static void pl_refr_load_stl(const char* pcModelPath, plVec4 tColor, const plMat4* ptTransform);
-static void pl_refr_load_gltf(const char* pcPath);
+static void pl_refr_load_gltf(const char* pcPath, const plMat4* ptTransform);
 static void pl_refr_finalize_scene(void);
 
 // misc
@@ -884,7 +884,7 @@ pl_refr_load_stl(const char* pcModelPath, plVec4 tColor, const plMat4* ptTransfo
 }
 
 static void
-pl_refr_load_gltf(const char* pcPath)
+pl_refr_load_gltf(const char* pcPath, const plMat4* ptTransform)
 {
     cgltf_options tGltfOptions = {0};
     cgltf_data* ptGltfData = NULL;
@@ -931,6 +931,13 @@ pl_refr_load_gltf(const char* pcPath)
         {
             const cgltf_node* ptNode = ptScene->nodes[j];
             pl__refr_load_gltf_object(acDirectory, (plEntity){UINT32_MAX, UINT32_MAX}, ptNode);
+            if(ptTransform)
+            {
+                const plEntity tNodeEntity = {.ulData = pl_hm_lookup(&gptData->tNodeHashMap, (uint64_t)ptNode)};
+                plTransformComponent* ptTransformComponent = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNodeEntity);
+                ptTransformComponent->tWorld = pl_mul_mat4(ptTransform, &ptTransformComponent->tWorld);
+            }
+
         }
     }
 
@@ -948,9 +955,11 @@ pl__load_gltf_texture(plTextureSlot tSlot, const cgltf_texture_view* ptTexture, 
 
     if(ptTexture->texture->image->buffer_view)
     {
+        static int iSeed = 0;
+        iSeed++;
         char* pucBufferData = ptTexture->texture->image->buffer_view->buffer->data;
         char* pucActualBuffer = &pucBufferData[ptTexture->texture->image->buffer_view->offset];
-        ptMaterial->atTextureMaps[tSlot].acName[0] = (char)tSlot + 1;
+        ptMaterial->atTextureMaps[tSlot].acName[0] = (char)(tSlot + iSeed);
         strncpy(&ptMaterial->atTextureMaps[tSlot].acName[1], pucActualBuffer, 127);
         
         ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load_resource(ptMaterial->atTextureMaps[tSlot].acName, PL_RESOURCE_LOAD_FLAG_RETAIN_DATA, pucActualBuffer, ptTexture->texture->image->buffer_view->size);
@@ -1390,7 +1399,7 @@ pl__refr_load_gltf_object(const char* pcDirectory, plEntity tParentEntity, const
     const uint64_t ulObjectIndex = pl_hm_lookup(&gptData->tJointHashMap, (uint64_t)ptNode);
     if(ulObjectIndex != UINT64_MAX)
     {
-        tNewEntity = *(plEntity*)&ulObjectIndex;
+        tNewEntity.ulData = ulObjectIndex;
     }
     else
     {
