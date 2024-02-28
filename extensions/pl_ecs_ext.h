@@ -61,16 +61,17 @@ typedef struct _plAnimationChannel plAnimationChannel;
 typedef struct _plAnimationSampler plAnimationSampler;
 
 // ecs components
-typedef struct _plTagComponent           plTagComponent;
-typedef struct _plMeshComponent          plMeshComponent;
-typedef struct _plTransformComponent     plTransformComponent;
-typedef struct _plObjectComponent        plObjectComponent;
-typedef struct _plHierarchyComponent     plHierarchyComponent;
-typedef struct _plMaterialComponent      plMaterialComponent;
-typedef struct _plSkinComponent          plSkinComponent;
-typedef struct _plCameraComponent        plCameraComponent;
-typedef struct _plAnimationComponent     plAnimationComponent;
-typedef struct _plAnimationDataComponent plAnimationDataComponent;
+typedef struct _plTagComponent               plTagComponent;
+typedef struct _plMeshComponent              plMeshComponent;
+typedef struct _plTransformComponent         plTransformComponent;
+typedef struct _plObjectComponent            plObjectComponent;
+typedef struct _plHierarchyComponent         plHierarchyComponent;
+typedef struct _plMaterialComponent          plMaterialComponent;
+typedef struct _plSkinComponent              plSkinComponent;
+typedef struct _plCameraComponent            plCameraComponent;
+typedef struct _plAnimationComponent         plAnimationComponent;
+typedef struct _plAnimationDataComponent     plAnimationDataComponent;
+typedef struct _plInverseKinematicsComponent plInverseKinematicsComponent;
 
 // enums
 typedef int plShaderType;
@@ -140,11 +141,12 @@ typedef struct _plEcsI
     void (*calculate_tangents)(plMeshComponent* atMeshes, uint32_t uComponentCount);
 
     // systems
-    void (*run_object_update_system)   (plComponentLibrary* ptLibrary);
-    void (*run_transform_update_system)(plComponentLibrary* ptLibrary);
-    void (*run_skin_update_system)     (plComponentLibrary* ptLibrary);
-    void (*run_hierarchy_update_system)(plComponentLibrary* ptLibrary);
-    void (*run_animation_update_system)(plComponentLibrary* ptLibrary, float fDeltaTime);
+    void (*run_object_update_system)            (plComponentLibrary* ptLibrary);
+    void (*run_transform_update_system)         (plComponentLibrary* ptLibrary);
+    void (*run_skin_update_system)              (plComponentLibrary* ptLibrary);
+    void (*run_hierarchy_update_system)         (plComponentLibrary* ptLibrary);
+    void (*run_animation_update_system)         (plComponentLibrary* ptLibrary, float fDeltaTime);
+    void (*run_inverse_kinematics_update_system)(plComponentLibrary* ptLibrary);
 } plEcsI;
 
 typedef struct _plCameraI
@@ -175,6 +177,7 @@ enum _plComponentType
     PL_COMPONENT_TYPE_CAMERA,
     PL_COMPONENT_TYPE_ANIMATION,
     PL_COMPONENT_TYPE_ANIMATION_DATA,
+    PL_COMPONENT_TYPE_INVERSE_KINEMATICS,
     
     PL_COMPONENT_TYPE_COUNT
 };
@@ -301,6 +304,7 @@ typedef struct _plComponentLibrary
     plComponentManager tCameraComponentManager;
     plComponentManager tAnimationComponentManager;
     plComponentManager tAnimationDataComponentManager;
+    plComponentManager tInverseKinematicsComponentManager;
 
     plComponentManager* _ptManagers[PL_COMPONENT_TYPE_COUNT]; // just for internal convenience
 } plComponentLibrary;
@@ -336,7 +340,6 @@ typedef struct _plTransformComponent
     plVec3 tScale;
     plVec4 tRotation;
     plVec3 tTranslation;
-    plMat4 tFinalTransform;
     plMat4 tWorld;
 } plTransformComponent;
 
@@ -416,5 +419,13 @@ typedef struct _plAnimationComponent
     plAnimationChannel* sbtChannels;
     plAnimationSampler* sbtSamplers;
 } plAnimationComponent;
+
+typedef struct _plInverseKinematicsComponent
+{
+    bool     bEnabled;
+    plEntity tTarget;
+    uint32_t uChainLength;
+    uint32_t uIterationCount;
+} plInverseKinematicsComponent;
 
 #endif // PL_ECS_EXT_H

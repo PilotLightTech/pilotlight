@@ -65,11 +65,12 @@ static void pl_ecs_attach_component (plComponentLibrary* ptLibrary, plEntity tEn
 static void pl_ecs_deattach_component(plComponentLibrary* ptLibrary, plEntity tEntity);
 
 // update systems
-static void pl_run_object_update_system   (plComponentLibrary* ptLibrary);
-static void pl_run_transform_update_system(plComponentLibrary* ptLibrary);
-static void pl_run_skin_update_system     (plComponentLibrary* ptLibrary);
-static void pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary);
-static void pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime);
+static void pl_run_object_update_system            (plComponentLibrary* ptLibrary);
+static void pl_run_transform_update_system         (plComponentLibrary* ptLibrary);
+static void pl_run_skin_update_system              (plComponentLibrary* ptLibrary);
+static void pl_run_hierarchy_update_system         (plComponentLibrary* ptLibrary);
+static void pl_run_animation_update_system         (plComponentLibrary* ptLibrary, float fDeltaTime);
+static void pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary);
 
 // misc.
 static void pl_calculate_normals (plMeshComponent* atMeshes, uint32_t uComponentCount);
@@ -110,34 +111,35 @@ const plEcsI*
 pl_load_ecs_api(void)
 {
     static const plEcsI tApi = {
-        .init_component_library      = pl_ecs_init_component_library,
-        .cleanup_component_library   = pl_ecs_cleanup_component_library,
-        .create_entity               = pl_ecs_create_entity,
-        .remove_entity               = pl_ecs_remove_entity,
-        .get_entity                  = pl_ecs_get_entity,
-        .is_entity_valid             = pl_ecs_is_entity_valid,
-        .get_index                   = pl_ecs_get_index,
-        .get_component               = pl_ecs_get_component,
-        .add_component               = pl_ecs_add_component,
-        .create_tag                  = pl_ecs_create_tag,
-        .create_mesh                 = pl_ecs_create_mesh,
-        .create_perspective_camera   = pl_ecs_create_perspective_camera,
-        .create_orthographic_camera  = pl_ecs_create_orthographic_camera,
-        .create_object               = pl_ecs_create_object,
-        .create_transform            = pl_ecs_create_transform,
-        .create_material             = pl_ecs_create_material,
-        .create_skin                 = pl_ecs_create_skin,
-        .create_animation            = pl_ecs_create_animation,
-        .create_animation_data       = pl_ecs_create_animation_data,
-        .attach_component            = pl_ecs_attach_component,
-        .deattach_component          = pl_ecs_deattach_component,
-        .calculate_normals           = pl_calculate_normals,
-        .calculate_tangents          = pl_calculate_tangents,
-        .run_object_update_system    = pl_run_object_update_system,
-        .run_transform_update_system = pl_run_transform_update_system,
-        .run_hierarchy_update_system = pl_run_hierarchy_update_system,
-        .run_skin_update_system      = pl_run_skin_update_system,
-        .run_animation_update_system = pl_run_animation_update_system
+        .init_component_library               = pl_ecs_init_component_library,
+        .cleanup_component_library            = pl_ecs_cleanup_component_library,
+        .create_entity                        = pl_ecs_create_entity,
+        .remove_entity                        = pl_ecs_remove_entity,
+        .get_entity                           = pl_ecs_get_entity,
+        .is_entity_valid                      = pl_ecs_is_entity_valid,
+        .get_index                            = pl_ecs_get_index,
+        .get_component                        = pl_ecs_get_component,
+        .add_component                        = pl_ecs_add_component,
+        .create_tag                           = pl_ecs_create_tag,
+        .create_mesh                          = pl_ecs_create_mesh,
+        .create_perspective_camera            = pl_ecs_create_perspective_camera,
+        .create_orthographic_camera           = pl_ecs_create_orthographic_camera,
+        .create_object                        = pl_ecs_create_object,
+        .create_transform                     = pl_ecs_create_transform,
+        .create_material                      = pl_ecs_create_material,
+        .create_skin                          = pl_ecs_create_skin,
+        .create_animation                     = pl_ecs_create_animation,
+        .create_animation_data                = pl_ecs_create_animation_data,
+        .attach_component                     = pl_ecs_attach_component,
+        .deattach_component                   = pl_ecs_deattach_component,
+        .calculate_normals                    = pl_calculate_normals,
+        .calculate_tangents                   = pl_calculate_tangents,
+        .run_object_update_system             = pl_run_object_update_system,
+        .run_transform_update_system          = pl_run_transform_update_system,
+        .run_hierarchy_update_system          = pl_run_hierarchy_update_system,
+        .run_skin_update_system               = pl_run_skin_update_system,
+        .run_animation_update_system          = pl_run_animation_update_system,
+        .run_inverse_kinematics_update_system = pl_run_inverse_kinematics_update_system
     };
     return &tApi;
 }
@@ -196,16 +198,20 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->tAnimationDataComponentManager.tComponentType = PL_COMPONENT_TYPE_ANIMATION_DATA;
     ptLibrary->tAnimationDataComponentManager.szStride = sizeof(plAnimationDataComponent);
 
-    ptLibrary->_ptManagers[0] = &ptLibrary->tTagComponentManager;
-    ptLibrary->_ptManagers[1] = &ptLibrary->tTransformComponentManager;
-    ptLibrary->_ptManagers[2] = &ptLibrary->tMeshComponentManager;
-    ptLibrary->_ptManagers[3] = &ptLibrary->tObjectComponentManager;
-    ptLibrary->_ptManagers[4] = &ptLibrary->tHierarchyComponentManager;
-    ptLibrary->_ptManagers[5] = &ptLibrary->tMaterialComponentManager;
-    ptLibrary->_ptManagers[6] = &ptLibrary->tSkinComponentManager;
-    ptLibrary->_ptManagers[7] = &ptLibrary->tCameraComponentManager;
-    ptLibrary->_ptManagers[8] = &ptLibrary->tAnimationComponentManager;
-    ptLibrary->_ptManagers[9] = &ptLibrary->tAnimationDataComponentManager;
+    ptLibrary->tInverseKinematicsComponentManager.tComponentType = PL_COMPONENT_TYPE_INVERSE_KINEMATICS;
+    ptLibrary->tInverseKinematicsComponentManager.szStride = sizeof(plInverseKinematicsComponent);
+
+    ptLibrary->_ptManagers[0]  = &ptLibrary->tTagComponentManager;
+    ptLibrary->_ptManagers[1]  = &ptLibrary->tTransformComponentManager;
+    ptLibrary->_ptManagers[2]  = &ptLibrary->tMeshComponentManager;
+    ptLibrary->_ptManagers[3]  = &ptLibrary->tObjectComponentManager;
+    ptLibrary->_ptManagers[4]  = &ptLibrary->tHierarchyComponentManager;
+    ptLibrary->_ptManagers[5]  = &ptLibrary->tMaterialComponentManager;
+    ptLibrary->_ptManagers[6]  = &ptLibrary->tSkinComponentManager;
+    ptLibrary->_ptManagers[7]  = &ptLibrary->tCameraComponentManager;
+    ptLibrary->_ptManagers[8]  = &ptLibrary->tAnimationComponentManager;
+    ptLibrary->_ptManagers[9]  = &ptLibrary->tAnimationDataComponentManager;
+    ptLibrary->_ptManagers[10] = &ptLibrary->tInverseKinematicsComponentManager;
 
     for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
         ptLibrary->_ptManagers[i]->ptParentLibrary = ptLibrary;
@@ -329,16 +335,16 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
                     break;
                 }
 
-                case PL_COMPONENT_TYPE_MESH:
+                case PL_COMPONENT_TYPE_TRANSFORM:
                 {
-                    plMeshComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plTransformComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
-                case PL_COMPONENT_TYPE_TRANSFORM:
+                case PL_COMPONENT_TYPE_MESH:
                 {
-                    plTransformComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plMeshComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
@@ -374,6 +380,27 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
                 case PL_COMPONENT_TYPE_CAMERA:
                 {
                     plCameraComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_ANIMATION:
+                {
+                    plAnimationComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_ANIMATION_DATA:
+                {
+                    plAnimationDataComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_INVERSE_KINEMATICS:
+                {
+                    plInverseKinematicsComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
@@ -480,7 +507,7 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         if(bAddSlot)
             pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
-        sbComponents[uComponentIndex] = (plTransformComponent){.tWorld = pl_identity_mat4(), .tFinalTransform = pl_identity_mat4()};
+        sbComponents[uComponentIndex] = (plTransformComponent){.tWorld = pl_identity_mat4(), .tScale = {1.0f, 1.0f, 1.0f}, .tRotation = {0.0f, 0.0f, 0.0f, 1.0f}};
         return &sbComponents[uComponentIndex];
     }
 
@@ -568,6 +595,16 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         return &sbComponents[uComponentIndex];
     }
 
+    case PL_COMPONENT_TYPE_INVERSE_KINEMATICS:
+    {
+        plInverseKinematicsComponent* sbComponents = ptManager->pComponents;
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
+        ptManager->pComponents = sbComponents;
+        sbComponents[uComponentIndex] = (plInverseKinematicsComponent){.bEnabled = true, .tTarget = UINT32_MAX, .uIterationCount = 1};
+        return &sbComponents[uComponentIndex];
+    }
+
     }
 
     return NULL;
@@ -624,6 +661,8 @@ pl_ecs_create_transform(plComponentLibrary* ptLibrary, const char* pcName)
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     plTransformComponent* ptTransform = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
+    ptTransform->tScale = (plVec3){1.0f, 1.0f, 1.0f};
+    ptTransform->tRotation = (plVec4){0.0f, 0.0f, 0.0f, 1.0f};
     ptTransform->tWorld = pl_identity_mat4();
 
     return tNewEntity;  
@@ -765,14 +804,14 @@ pl_run_skin_update_system(plComponentLibrary* ptLibrary)
     {
         plSkinComponent* ptSkinComponent = &sbtComponents[i];
         plTransformComponent* ptParent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptSkinComponent->tMeshNode);
-        plMat4 tInverseWorldTransform = pl_mat4_invert(&ptParent->tFinalTransform);
+        plMat4 tInverseWorldTransform = pl_mat4_invert(&ptParent->tWorld);
         for(uint32_t j = 0; j < pl_sb_size(ptSkinComponent->sbtJoints); j++)
         {
             plEntity tJointEntity = ptSkinComponent->sbtJoints[j];
             plTransformComponent* ptJointComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tJointEntity);
 
             const plMat4* ptIBM = &ptSkinComponent->sbtInverseBindMatrices[j];
-            plMat4 tJointMatrix = pl_mul_mat4(&ptJointComponent->tFinalTransform, ptIBM);
+            plMat4 tJointMatrix = pl_mul_mat4(&ptJointComponent->tWorld, ptIBM);
             tJointMatrix = pl_mul_mat4(&tInverseWorldTransform, &tJointMatrix);
             plMat4 tInvertJoint = pl_mat4_invert(&tJointMatrix);
             plMat4 tNormalMatrix = pl_mat4_transpose(&tInvertJoint);
@@ -798,14 +837,14 @@ pl_run_object_update_system(plComponentLibrary* ptLibrary)
         plMeshComponent* ptMesh = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
 
         const plVec3 tVerticies[] = {
-            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMin.z }),
-            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMin.z }),
-            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMin.z }),
-            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMin.z }),
-            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMax.z }),
-            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMax.z }),
-            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMax.z }),
-            pl_mul_mat4_vec3(&ptTransform->tFinalTransform, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMax.z }),
+            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMin.z }),
+            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMin.z }),
+            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMin.z }),
+            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMin.z }),
+            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMax.z }),
+            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMax.z }),
+            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMax.z }),
+            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMax.z }),
         };
 
         // calculate AABB
@@ -836,7 +875,7 @@ pl_run_transform_update_system(plComponentLibrary* ptLibrary)
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
         plTransformComponent* ptTransform = &sbtComponents[i];
-        ptTransform->tFinalTransform = ptTransform->tWorld;
+        ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
     }
 
     pl_end_profile_sample();
@@ -855,77 +894,10 @@ pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
         plEntity tChildEntity = ptLibrary->tHierarchyComponentManager.sbtEntities[i];
         plTransformComponent* ptParentTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptHierarchyComponent->tParent);
         plTransformComponent* ptChildTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tChildEntity);
-        ptChildTransform->tFinalTransform = pl_mul_mat4(&ptParentTransform->tFinalTransform, &ptChildTransform->tWorld);
+        ptChildTransform->tWorld = pl_mul_mat4(&ptParentTransform->tWorld, &ptChildTransform->tWorld);
     }
 
     pl_end_profile_sample();
-}
-
-static plVec4
-slerpQuat(plVec4 q1, plVec4 q2, float t)
-{
-
-	// from https://glmatrix.net/docs/quat.js.html
-	plVec4 qn1 = pl_norm_vec4(q1);
-	plVec4 qn2 = pl_norm_vec4(q2);
-
-	plVec4 qresult = {0};
-
-	float ax = qn1.x;
-	float ay = qn1.y;
-	float az = qn1.z;
-	float aw = qn1.w;
-
-	float bx = qn2.x;
-	float by = qn2.y;
-	float bz = qn2.z;
-	float bw = qn2.w;
-
-	float omega = 0.0f;
-	float cosom = 0.0f;
-	float sinom = 0.0f;
-	float scale0 = 0.0f;
-	float scale1 = 0.0f;
-
-	// calc cosine
-	cosom = ax * bx + ay * by + az * bz + aw * bw;
-
-	// adjust signs (if necessary)
-	if (cosom < 0.0f) 
-	{
-		cosom = -cosom;
-		bx = -bx;
-		by = -by;
-		bz = -bz;
-		bw = -bw;
-	}
-
-	// calculate coefficients
-	if (1.0f - cosom > 0.000001f)
-	{
-		// standard case (slerp)
-		omega = acosf(cosom);
-		sinom = sinf(omega);
-		scale0 = sinf((1.0f - t) * omega) / sinom;
-		scale1 = sinf(t * omega) / sinom;
-	}
-	else 
-	{
-		// "from" and "to" quaternions are very close
-		//  ... so we can do a linear interpolation
-		scale0 = 1.0f - t;
-		scale1 = t;
-	}
-
-	// calculate final values
-	qresult.d[0] = scale0 * ax + scale1 * bx;
-	qresult.d[1] = scale0 * ay + scale1 * by;
-	qresult.d[2] = scale0 * az + scale1 * bz;
-	qresult.d[3] = scale0 * aw + scale1 * bw;
-
-	qresult = pl_norm_vec4(qresult);
-
-	return qresult;
 }
 
 static void
@@ -1078,7 +1050,7 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
                     {
                         const plVec4 tQ0 = *(plVec4*)&ptData->sbfKeyFrameData[iPrevKey * 4];
                         const plVec4 tQ1 = *(plVec4*)&ptData->sbfKeyFrameData[iNextKey * 4];
-                        ptTransform->tRotation = slerpQuat(tQ0, tQ1, fTn);
+                        ptTransform->tRotation = pl_quat_slerp(tQ0, tQ1, fTn);
                     }
                     else if(ptSampler->tMode == PL_ANIMATION_MODE_STEP)
                     {
@@ -1106,12 +1078,91 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
                     break;
                 }
             }
-
-            ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
         }
     }
 
-    pl_end_profile_sample(); 
+    pl_end_profile_sample();
+}
+
+static void
+pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+
+#if 0
+    plInverseKinematicsComponent* sbtComponents = ptLibrary->tInverseKinematicsComponentManager.pComponents;
+    
+    bool bRecomputeHierarchy = false;
+    const uint32_t uComponentCount = pl_sb_size(sbtComponents);
+    for(uint32_t i = 0; i < uComponentCount; i++)
+    {
+        const plInverseKinematicsComponent* ptInverseKinematicsComponent = &sbtComponents[i];
+        
+        if(!ptInverseKinematicsComponent->bEnabled)
+            continue;
+
+        plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptInverseKinematicsComponent->tTarget);
+        plHierarchyComponent* ptHierComp = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, ptInverseKinematicsComponent->tTarget);
+
+        PL_ASSERT(ptTransform);
+        PL_ASSERT(ptHierComp);
+
+        const plVec3 tTargetPos = ptTransform->tWorld.col[3].xyz;
+        for(uint32_t j = 0; j < ptInverseKinematicsComponent->uIterationCount; j++)
+        {
+            plTransformComponent* aptStack[32] = {0};
+            plEntity tParentEntity = ptHierComp->tParent;
+            plTransformComponent* ptChildTransform = ptTransform;
+            for(uint32_t uChain = 0; uChain < pl_min(ptInverseKinematicsComponent->uChainLength, 32); uChain++)
+            {
+                bRecomputeHierarchy = true;
+
+                // stack stores all traversed chain links so far
+                aptStack[uChain] = ptChildTransform;
+
+                // compute required parent rotation that moves ik transform closer to target transform
+                plTransformComponent* ptParentTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tParentEntity);
+                const plVec3 tParentPos = ptParentTransform->tWorld.col[3].xyz;
+                const plVec3 tDirParentToIk = pl_norm_vec3(pl_sub_vec3(ptTransform->tWorld.col[3].xyz, tParentPos));
+                const plVec3 tDirParentToTarget = pl_norm_vec3(pl_sub_vec3(tTargetPos, tParentPos));
+
+                // TODO: check if this transform is part of a humanoid and need some constraining
+
+                plVec4 tQ = {0};
+
+                // simple shortest rotation without constraint
+                const plVec3 tAxis = pl_norm_vec3(pl_cross_vec3(tDirParentToIk, tDirParentToTarget));
+                const float fAngle = acosf(pl_dot_vec3(tDirParentToIk, tDirParentToTarget));
+                tQ = pl_norm_quat(pl_quat_rotation_normal_vec3(fAngle, tAxis));
+
+                // rotate parent
+                // ptParentTransform->tFinalTransform = pl_rotation_translation_scale(tQ, )
+                ptParentTransform->tRotation = pl_mul_quat(ptParentTransform->tRotation, tQ);
+
+                plHierarchyComponent* ptHierParentComp = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tParentEntity);
+                if(ptHierParentComp)
+                {
+                    plEntity tParentOfParentEntity = ptHierParentComp->tParent;
+                    plTransformComponent* ptParentOfParentTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tParentOfParentEntity);
+                    plMat4 tParentOfParentInverse = pl_mat4_invert(&ptParentOfParentTransform->tWorld);
+                    plMat4 tNewMatrix = pl_mul_mat4(&ptParentTransform->tWorld, &tParentOfParentInverse);
+                    pl_decompose_matrix(&tNewMatrix, &ptParentTransform->tScale, &ptParentTransform->tRotation, &ptParentTransform->tTranslation);
+                    // keep parent world matrix in world space!
+                }
+
+                // update chain from parent to children
+                const plTransformComponent* ptRecurseParent = ptParentTransform;
+                for(int recurse_chain = (int)uChain; recurse_chain >=0; --recurse_chain)
+                {
+                    aptStack[recurse_chain]
+                }
+            }
+        }
+
+    }
+
+#endif
+    pl_end_profile_sample();
 }
 
 static void

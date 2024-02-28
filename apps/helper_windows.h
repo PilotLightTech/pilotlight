@@ -63,15 +63,16 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
 
             if(iSelectedEntity != -1)
             {
-                plTagComponent*           ptTagComp           = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, tSelectedEntity);
-                plTransformComponent*     ptTransformComp     = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tSelectedEntity);
-                plMeshComponent*          ptMeshComp          = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tSelectedEntity);
-                plObjectComponent*        ptObjectComp        = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tSelectedEntity);
-                plHierarchyComponent*     ptHierarchyComp     = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tSelectedEntity);
-                plMaterialComponent*      ptMaterialComp      = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, tSelectedEntity);
-                plSkinComponent*          ptSkinComp          = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, tSelectedEntity);
-                plCameraComponent*        ptCameraComp        = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, tSelectedEntity);
-                plAnimationComponent*     ptAnimationComp     = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, tSelectedEntity);
+                plTagComponent*               ptTagComp           = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, tSelectedEntity);
+                plTransformComponent*         ptTransformComp     = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tSelectedEntity);
+                plMeshComponent*              ptMeshComp          = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tSelectedEntity);
+                plObjectComponent*            ptObjectComp        = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tSelectedEntity);
+                plHierarchyComponent*         ptHierarchyComp     = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tSelectedEntity);
+                plMaterialComponent*          ptMaterialComp      = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, tSelectedEntity);
+                plSkinComponent*              ptSkinComp          = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, tSelectedEntity);
+                plCameraComponent*            ptCameraComp        = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, tSelectedEntity);
+                plAnimationComponent*         ptAnimationComp     = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, tSelectedEntity);
+                plInverseKinematicsComponent* ptIKComp            = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_INVERSE_KINEMATICS, tSelectedEntity);
 
                 pl_text("Entity: %u, %u", tSelectedEntity.uIndex, tSelectedEntity.uGeneration);
 
@@ -238,6 +239,16 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
                     pl_text("End:   %0.3f s", ptAnimationComp->fEnd);
                     pl_progress_bar(ptAnimationComp->fTimer / (ptAnimationComp->fEnd - ptAnimationComp->fStart), (plVec2){-1.0f, 0.0f}, NULL);
                     pl_text("Speed:   %0.3f s", ptAnimationComp->fSpeed);
+                    pl_end_collapsing_header();
+                }
+
+                if(ptIKComp && pl_collapsing_header("Inverse Kinematics"))
+                { 
+                    plTagComponent* ptTargetComp = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptIKComp->tTarget);
+                    pl_text("Target Entity: %s , %u", ptTargetComp->acName, ptIKComp->tTarget.uIndex);
+                    pl_text("Chain Length: %u", ptIKComp->uChainLength);
+                    pl_text("Iterations: %u", ptIKComp->uIterationCount);
+                    pl_checkbox("Enabled", &ptIKComp->bEnabled);
                     pl_end_collapsing_header();
                 }
             }

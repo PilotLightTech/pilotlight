@@ -829,6 +829,7 @@ pl_refr_load_stl(const char* pcModelPath, plVec4 tColor, const plMat4* ptTransfo
     plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, tEntity);
     plTransformComponent* ptTransformComp = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
     ptTransformComp->tWorld = *ptTransform;
+    pl_decompose_matrix(&ptTransformComp->tWorld, &ptTransformComp->tScale, &ptTransformComp->tRotation, &ptTransformComp->tTranslation);
 
     ptMesh->tMaterial = gptECS->create_material(&gptData->tComponentLibrary, pcModelPath);
     plMaterialComponent* ptMaterial = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
@@ -936,6 +937,7 @@ pl_refr_load_gltf(const char* pcPath, const plMat4* ptTransform)
                 const plEntity tNodeEntity = {.ulData = pl_hm_lookup(&gptData->tNodeHashMap, (uint64_t)ptNode)};
                 plTransformComponent* ptTransformComponent = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNodeEntity);
                 ptTransformComponent->tWorld = pl_mul_mat4(ptTransform, &ptTransformComponent->tWorld);
+                pl_decompose_matrix(&ptTransformComponent->tWorld, &ptTransformComponent->tScale, &ptTransformComponent->tRotation, &ptTransformComponent->tTranslation);
             }
 
         }
@@ -1421,11 +1423,13 @@ pl__refr_load_gltf_object(const char* pcDirectory, plEntity tParentEntity, const
 
     // must use provided matrix, otherwise calculate based on rot, scale, trans
     if(ptNode->has_matrix)
+    {
         memcpy(ptTransform->tWorld.d, ptNode->matrix, sizeof(plMat4));
+        pl_decompose_matrix(&ptTransform->tWorld, &ptTransform->tScale, &ptTransform->tRotation, &ptTransform->tTranslation);
+    }
     else
         ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
 
-    ptTransform->tFinalTransform = ptTransform->tWorld;
 
     // attach to parent if parent is valid
     if(tParentEntity.uIndex != UINT32_MAX)
@@ -2064,9 +2068,10 @@ static void
 pl_refr_run_ecs(void)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    gptECS->run_transform_update_system(&gptData->tComponentLibrary);
     gptECS->run_animation_update_system(&gptData->tComponentLibrary, pl_get_io()->fDeltaTime);
+    gptECS->run_transform_update_system(&gptData->tComponentLibrary);
     gptECS->run_hierarchy_update_system(&gptData->tComponentLibrary);
+    gptECS->run_inverse_kinematics_update_system(&gptData->tComponentLibrary);
     gptECS->run_skin_update_system(&gptData->tComponentLibrary);
     gptECS->run_object_update_system(&gptData->tComponentLibrary);
     pl_end_profile_sample();
@@ -2476,7 +2481,7 @@ pl_refr_submit_draw_stream(plCameraComponent* ptCamera)
         DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
         ptDynamicData->iDataOffset = tDrawable.uDataOffset;
         ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
-        ptDynamicData->tModel = ptTransform->tFinalTransform;
+        ptDynamicData->tModel = ptTransform->tWorld;
         ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
 
         gptStream->draw(ptStream, (plDraw)
