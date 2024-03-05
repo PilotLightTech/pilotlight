@@ -307,6 +307,7 @@ typedef struct _plComponentLibrary
     plComponentManager tInverseKinematicsComponentManager;
 
     plComponentManager* _ptManagers[PL_COMPONENT_TYPE_COUNT]; // just for internal convenience
+    void*               pInternal;
 } plComponentLibrary;
 
 //-----------------------------------------------------------------------------
