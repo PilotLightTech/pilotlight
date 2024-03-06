@@ -74,6 +74,11 @@ typedef struct _plRefRendererI
     plComponentLibrary* (*get_component_library)(void);
     plGraphics*         (*get_graphics)(void);
 
+    // temporary
+    void                (*show_offscreen)(bool* pbShow);
+    void                (*submit_offscreen_draw_stream)(plCameraComponent*);
+    plRenderPassHandle  (*get_pick_render_pass)(void);
+
 } plRefRendererI;
 
 #endif // PL_REF_RENDERER_EXT_H

@@ -61,6 +61,9 @@ typedef struct plAppData_t
     plEntity     tCullCamera;
     plEntity     tMainCamera;
     plDrawList3D t3DDrawList;
+
+    // temporary
+    bool bShowOffscreen;
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -323,6 +326,10 @@ pl_app_update(plAppData* ptAppData)
 
     gptGfx->begin_recording(ptGraphics);
 
+    gptGfx->begin_pass(ptGraphics, gptRenderer->get_pick_render_pass());
+    gptRenderer->submit_offscreen_draw_stream(ptCamera);
+    gptGfx->end_pass(ptGraphics);
+
     gptGfx->begin_main_pass(ptGraphics, gptRenderer->get_main_render_pass());
 
     gptRenderer->submit_draw_stream(ptCamera);
@@ -363,6 +370,7 @@ pl_app_update(plAppData* ptAppData)
             pl_checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera);
             pl_checkbox("Draw All Bounding Boxes", &ptAppData->bDrawAllBoundingBoxes);
             pl_checkbox("Draw Visible Bounding Boxes", &ptAppData->bDrawVisibleBoundingBoxes);
+            pl_checkbox("Show Offscreen", &ptAppData->bShowOffscreen);
             pl_end_collapsing_header();
         }
         if(pl_collapsing_header("Tools"))
@@ -385,6 +393,9 @@ pl_app_update(plAppData* ptAppData)
         }
         pl_end_window();
     }
+
+    if(ptAppData->bShowOffscreen)
+        gptRenderer->show_offscreen(&ptAppData->bShowOffscreen);
 
     gptDebug->show_windows(&ptAppData->tDebugInfo);
 
