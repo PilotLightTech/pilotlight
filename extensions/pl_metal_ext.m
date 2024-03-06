@@ -1813,7 +1813,9 @@ pl_begin_pass(plGraphics* ptGraphics, plRenderPassHandle tPass)
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[tPass.uIndex];
 
-    const plRenderPassAttachments* ptAttachment = &ptMetalRenderPass->sbtFrameBuffers[ptGraphics->uCurrentFrameIndex];
+    const uint32_t uFrameBufferIndex = pl_min(ptRenderPass->tDesc.uAttachmentSets - 1, ptGraphics->uCurrentFrameIndex);
+
+    const plRenderPassAttachments* ptAttachment = &ptMetalRenderPass->sbtFrameBuffers[uFrameBufferIndex];
     
     const uint32_t uColorIndex = ptGraphics->sbtTextureViewsCold[ptAttachment->atViewAttachments[0].uIndex].tTexture.uIndex;
     const uint32_t uDepthIndex = ptGraphics->sbtTextureViewsCold[ptAttachment->atViewAttachments[1].uIndex].tTexture.uIndex;
