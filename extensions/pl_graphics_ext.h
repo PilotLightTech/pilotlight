@@ -920,7 +920,7 @@ enum _plStencilOp
     PL_STENCIL_OP_DECREMENT_AND_WRAP
 };
 
-enum _plLoadOp
+enum _plStoreOp
 {
     PL_STORE_OP_STORE,
     PL_STORE_OP_DONT_CARE,
@@ -928,7 +928,7 @@ enum _plLoadOp
     PL_STORE_OP_NONE
 };
 
-enum _plStoreOp
+enum _plLoadOp
 {
     PL_LOAD_OP_LOAD,
     PL_LOAD_OP_CLEAR,
