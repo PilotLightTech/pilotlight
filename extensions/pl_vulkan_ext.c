@@ -266,6 +266,7 @@ static VkCullModeFlags                     pl__vulkan_cull      (plCullMode tFla
 static VkShaderStageFlagBits               pl__vulkan_stage_flags(plStageFlags tFlags);
 static plFormat                            pl__pilotlight_format(VkFormat tFormat);
 static VkPipelineColorBlendAttachmentState pl__get_blend_state(plBlendMode tBlendMode);
+static VkStencilOp                         pl__vulkan_stencil_op(plStencilOp tStencilOp);
 
 // 3D drawing helpers
 static pl3DVulkanPipelineEntry* pl__get_3d_pipelines(plGraphics* ptGfx, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount, pl3DDrawFlags tFlags);
@@ -1876,8 +1877,16 @@ pl_get_shader_variant(plDevice* ptDevice, plShaderHandle tHandle, const plShader
         .depthBoundsTestEnable = VK_FALSE,
         .minDepthBounds        = 0.0f, // Optional,
         .maxDepthBounds        = 1.0f, // Optional,
-        .stencilTestEnable     = VK_FALSE,
+        .stencilTestEnable     = ptVariant->tGraphicsState.ulStencilMode == PL_COMPARE_MODE_ALWAYS ? VK_FALSE : VK_TRUE,
+        .back.compareOp        = pl__vulkan_compare((plCompareMode)ptVariant->tGraphicsState.ulStencilMode),
+        .back.failOp           = pl__vulkan_stencil_op((plStencilOp)ptVariant->tGraphicsState.ulStencilOpFail),
+        .back.depthFailOp      = pl__vulkan_stencil_op((plStencilOp)ptVariant->tGraphicsState.ulStencilOpDepthFail),
+        .back.passOp           = pl__vulkan_stencil_op((plStencilOp)ptVariant->tGraphicsState.ulStencilOpPass),
+        .back.compareMask      = 0xff,
+        .back.writeMask        = (uint32_t)ptVariant->tGraphicsState.ulStencilMask,
+        .back.reference        = (uint32_t)ptVariant->tGraphicsState.ulStencilRef
     };
+    tDepthStencil.front = tDepthStencil.back;
 
     //---------------------------------------------------------------------
     // color blending stage
@@ -2221,8 +2230,16 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
             .depthBoundsTestEnable = VK_FALSE,
             .minDepthBounds        = 0.0f, // Optional,
             .maxDepthBounds        = 1.0f, // Optional,
-            .stencilTestEnable     = VK_FALSE,
+            .stencilTestEnable     = ptVariant->tGraphicsState.ulStencilMode == PL_COMPARE_MODE_ALWAYS ? VK_FALSE : VK_TRUE,
+            .back.compareOp        = pl__vulkan_compare((plCompareMode)ptVariant->tGraphicsState.ulStencilMode),
+            .back.failOp           = pl__vulkan_stencil_op((plStencilOp)ptVariant->tGraphicsState.ulStencilOpFail),
+            .back.depthFailOp      = pl__vulkan_stencil_op((plStencilOp)ptVariant->tGraphicsState.ulStencilOpDepthFail),
+            .back.passOp           = pl__vulkan_stencil_op((plStencilOp)ptVariant->tGraphicsState.ulStencilOpPass),
+            .back.compareMask      = 0xff,
+            .back.writeMask        = (uint32_t)ptVariant->tGraphicsState.ulStencilMask,
+            .back.reference        = (uint32_t)ptVariant->tGraphicsState.ulStencilRef
         };
+        tDepthStencil.front = tDepthStencil.back;
 
         //---------------------------------------------------------------------
         // color blending stage
@@ -2829,10 +2846,19 @@ pl_begin_pass(plGraphics* ptGraphics, plRenderPassHandle tPass)
 
     plRenderPass* ptRenderPass = &ptGraphics->sbtRenderPassesCold[tPass.uIndex];
     plVulkanRenderPass* ptVulkanRenderPass = &ptVulkanGfx->sbtRenderPassesHot[tPass.uIndex];
+    
 
     const VkClearValue atClearValues[2] = {
-        { .color.float32 = {0.0f, 0.0f, 0.0f, 1.0f}},
-        { .depthStencil.depth = 1.0f}
+        { .color.float32 = {
+            ptRenderPass->tDesc.atRenderTargets[0].tClearColor.r,
+            ptRenderPass->tDesc.atRenderTargets[0].tClearColor.g,
+            ptRenderPass->tDesc.atRenderTargets[0].tClearColor.b,
+            ptRenderPass->tDesc.atRenderTargets[0].tClearColor.a}},
+        { .depthStencil = {
+            .depth = ptRenderPass->tDesc.tDepthTarget.fClearZ,
+            .stencil = ptRenderPass->tDesc.tDepthTarget.uClearStencil
+            }
+        }
     };
 
     const uint32_t uFrameBufferIndex = pl_min(ptRenderPass->tDesc.uAttachmentSets - 1, ptGraphics->uCurrentFrameIndex);
@@ -5101,6 +5127,24 @@ pl__vulkan_store_op(plStoreOp tOp)
 
     PL_ASSERT(false && "Unsupported store op");
     return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+}
+
+static VkStencilOp
+pl__vulkan_stencil_op(plStencilOp tStencilOp)
+{
+    switch (tStencilOp)
+    {
+        case PL_STENCIL_OP_KEEP:                return VK_STENCIL_OP_KEEP;
+        case PL_STENCIL_OP_ZERO:                return VK_STENCIL_OP_ZERO;
+        case PL_STENCIL_OP_REPLACE:             return VK_STENCIL_OP_REPLACE;
+        case PL_STENCIL_OP_INCREMENT_AND_CLAMP: return VK_STENCIL_OP_INCREMENT_AND_CLAMP;
+        case PL_STENCIL_OP_DECREMENT_AND_CLAMP: return VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+        case PL_STENCIL_OP_INVERT:              return VK_STENCIL_OP_INVERT;
+        case PL_STENCIL_OP_INCREMENT_AND_WRAP:  return VK_STENCIL_OP_INCREMENT_AND_WRAP;
+        case PL_STENCIL_OP_DECREMENT_AND_WRAP:  return VK_STENCIL_OP_DECREMENT_AND_WRAP;
+    }
+    PL_ASSERT(false && "Unsupported stencil op");
+    return VK_STENCIL_OP_KEEP;
 }
 
 static VkCullModeFlags

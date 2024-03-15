@@ -307,7 +307,7 @@ pl_refr_initialize(void)
     plIO* ptIO = pl_get_io();
 
     const plRenderPassLayoutDescription tOffscreenRenderPassLayoutDesc = {
-        .tDepthTarget = { .tFormat = PL_FORMAT_D32_FLOAT},
+        .tDepthTarget = { .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT},
         .atRenderTargets = {
             { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT }
         },
@@ -513,7 +513,7 @@ pl_refr_initialize(void)
 
         plTextureDesc tOffscreenTextureDesc = {
             .tDimensions = {gptData->tOffscreenTargetSize.x, gptData->tOffscreenTargetSize.y, 1},
-            .tFormat = PL_FORMAT_D32_FLOAT,
+            .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT,
             .uLayers = 1,
             .uMips = 1,
             .tType = PL_TEXTURE_TYPE_2D,
@@ -522,7 +522,7 @@ pl_refr_initialize(void)
         gptData->tOffscreenDepthTexture = gptDevice->create_texture(&ptGraphics->tDevice, tOffscreenTextureDesc, "offscreen depth texture");
 
         plTextureViewDesc tOffscreenTextureViewDesc = {
-            .tFormat     = PL_FORMAT_D32_FLOAT,
+            .tFormat     = PL_FORMAT_D32_FLOAT_S8_UINT,
             .uBaseLayer  = 0,
             .uBaseMip    = 0,
             .uLayerCount = 1
@@ -601,7 +601,7 @@ pl_refr_resize(void)
 
         plTextureDesc tOffscreenTextureDesc = {
             .tDimensions = {gptData->tOffscreenTargetSize.x, gptData->tOffscreenTargetSize.y, 1},
-            .tFormat = PL_FORMAT_D32_FLOAT,
+            .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT,
             .uLayers = 1,
             .uMips = 1,
             .tType = PL_TEXTURE_TYPE_2D,
@@ -610,7 +610,7 @@ pl_refr_resize(void)
         gptData->tOffscreenDepthTexture = gptDevice->create_texture(&ptGraphics->tDevice, tOffscreenTextureDesc, "offscreen depth texture");
 
         plTextureViewDesc tOffscreenTextureViewDesc = {
-            .tFormat     = PL_FORMAT_D32_FLOAT,
+            .tFormat     = PL_FORMAT_D32_FLOAT_S8_UINT,
             .uBaseLayer  = 0,
             .uBaseMip    = 0,
             .uLayerCount = 1
@@ -1903,8 +1903,8 @@ pl_refr_finalize_scene(void)
         const uint32_t uStartIndex     = pl_sb_size(gptData->sbtVertexPosBuffer);
         const uint32_t uIndexStart     = pl_sb_size(gptData->sbuIndexBuffer);
         const uint32_t uDataStartIndex = pl_sb_size(gptData->sbtVertexDataBuffer);
-        const uint32_t uIndexCount    = pl_sb_size(ptMesh->sbuIndices);
-        const uint32_t uVertexCount   = pl_sb_size(ptMesh->sbtVertexPositions);
+        const uint32_t uIndexCount     = pl_sb_size(ptMesh->sbuIndices);
+        const uint32_t uVertexCount    = pl_sb_size(ptMesh->sbtVertexPositions);
 
         plMaterial tMaterial = {
             .tColor = ptMaterial->tBaseColor
@@ -2048,7 +2048,6 @@ pl_refr_finalize_scene(void)
                 .ulCullMode           = ptMaterial->tBlendMode == PL_MATERIAL_BLEND_MODE_OPAQUE ? PL_CULL_MODE_CULL_BACK : PL_CULL_MODE_NONE,
                 .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
                 .ulStencilRef         = 0xff,
-                .ulWireframe          = 0,
                 .ulStencilMask        = 0xff,
                 .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
@@ -2618,15 +2617,17 @@ pl_refr_submit_draw_stream(plCameraComponent* ptCamera)
         });
     }
 
+    const plVec2 tDimensions = ptGraphics->sbtRenderPassesCold[gptData->tOffscreenRenderPass.uIndex].tDesc.tDimensions;
+
     plDrawArea tArea = {
        .ptDrawStream = ptStream,
        .tScissor = {
-            .uWidth  = (uint32_t)pl_get_io()->afMainViewportSize[0],
-            .uHeight = (uint32_t)pl_get_io()->afMainViewportSize[1],
+            .uWidth  = (uint32_t)tDimensions.x,
+            .uHeight = (uint32_t)tDimensions.y,
        },
        .tViewport = {
-            .fWidth  = pl_get_io()->afMainViewportSize[0],
-            .fHeight = pl_get_io()->afMainViewportSize[1],
+            .fWidth  = tDimensions.x,
+            .fHeight = tDimensions.y,
             .fMaxDepth = 1.0f
        }
     };
@@ -2651,7 +2652,7 @@ pl_refr_draw_all_bound_boxes(plDrawList3D* ptDrawlist)
     {
         plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, gptData->sbtAllDrawables[i].tEntity);
 
-        gptGfx->add_3d_aabb(ptDrawlist, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+        gptGfx->add_3d_aabb(ptDrawlist, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.01f);
     }
 
     pl_end_profile_sample();
@@ -2667,7 +2668,7 @@ pl_refr_draw_visible_bound_boxes(plDrawList3D* ptDrawlist)
     {
         plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, gptData->sbtVisibleDrawables[i].tEntity);
 
-        gptGfx->add_3d_aabb(ptDrawlist, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+        gptGfx->add_3d_aabb(ptDrawlist, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.01f);
     }
 
     pl_end_profile_sample();
