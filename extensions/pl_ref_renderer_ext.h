@@ -36,6 +36,7 @@ typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef struct _plCameraComponent  plCameraComponent;  // pl_ecs_ext.h
 typedef union _plMat4              plMat4;             // pl_math.h
 typedef union _plVec4              plVec4;             // pl_math.h
+typedef void* plTextureId;                             // pl_ui.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -65,19 +66,17 @@ typedef struct _plRefRendererI
     void (*submit_ui)(void);
     void (*cull_objects)(plCameraComponent*);
     void (*uncull_objects)(plCameraComponent*);
-    void (*submit_draw_stream)(plCameraComponent*);
     void (*draw_all_bound_boxes)(plDrawList3D*);
     void (*draw_visible_bound_boxes)(plDrawList3D*);
+    void (*submit_draw_stream)(plCameraComponent*);
     
     // misc
-    plRenderPassHandle  (*get_main_render_pass)(void);
     plComponentLibrary* (*get_component_library)(void);
     plGraphics*         (*get_graphics)(void);
 
     // temporary
-    void                (*show_offscreen)(bool* pbShow);
-    void                (*submit_offscreen_draw_stream)(plCameraComponent*);
-    plRenderPassHandle  (*get_pick_render_pass)(void);
+    plTextureId         (*get_offscreen_texture_id)(void);
+    plRenderPassHandle  (*get_offscreen_render_pass)(void);
 
 } plRefRendererI;
 

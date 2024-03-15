@@ -62,8 +62,9 @@ typedef struct plAppData_t
     plEntity     tMainCamera;
     plDrawList3D t3DDrawList;
 
-    // temporary
-    bool bShowOffscreen;
+    // drawing
+    plDrawLayer* ptDrawLayer;
+
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -159,6 +160,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
 
     gptRenderer->initialize();
     gptGfx->register_3d_drawlist(gptRenderer->get_graphics(), &ptAppData->t3DDrawList);
+    ptAppData->ptDrawLayer = pl_request_layer(pl_get_draw_list(NULL), "draw layer");
 
     // create main camera
     plIO* ptIO = pl_get_io();
@@ -326,18 +328,24 @@ pl_app_update(plAppData* ptAppData)
 
     gptGfx->begin_recording(ptGraphics);
 
-    gptGfx->begin_pass(ptGraphics, gptRenderer->get_pick_render_pass());
-    gptRenderer->submit_offscreen_draw_stream(ptCamera);
-    gptGfx->end_pass(ptGraphics);
-
-    gptGfx->begin_main_pass(ptGraphics, gptRenderer->get_main_render_pass());
-
+    gptGfx->begin_pass(ptGraphics, gptRenderer->get_offscreen_render_pass());
     gptRenderer->submit_draw_stream(ptCamera);
 
     if(ptAppData->bDrawAllBoundingBoxes)
         gptRenderer->draw_all_bound_boxes(&ptAppData->t3DDrawList);
     else if(ptAppData->bDrawVisibleBoundingBoxes)
         gptRenderer->draw_visible_bound_boxes(&ptAppData->t3DDrawList);
+
+    const plMat4 tTransform = pl_identity_mat4();
+    gptGfx->add_3d_transform(&ptAppData->t3DDrawList, &tTransform, 10.0f, 0.02f);
+
+    const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
+    gptGfx->submit_3d_drawlist(&ptAppData->t3DDrawList, ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1], &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, gptRenderer->get_offscreen_render_pass(), 1);
+
+
+    gptGfx->end_pass(ptGraphics);
+
+    gptGfx->begin_main_pass(ptGraphics, ptGraphics->tMainRenderPass);
 
     pl_set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
 
@@ -370,7 +378,6 @@ pl_app_update(plAppData* ptAppData)
             pl_checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera);
             pl_checkbox("Draw All Bounding Boxes", &ptAppData->bDrawAllBoundingBoxes);
             pl_checkbox("Draw Visible Bounding Boxes", &ptAppData->bDrawVisibleBoundingBoxes);
-            pl_checkbox("Show Offscreen", &ptAppData->bShowOffscreen);
             pl_end_collapsing_header();
         }
         if(pl_collapsing_header("Tools"))
@@ -394,8 +401,7 @@ pl_app_update(plAppData* ptAppData)
         pl_end_window();
     }
 
-    if(ptAppData->bShowOffscreen)
-        gptRenderer->show_offscreen(&ptAppData->bShowOffscreen);
+    pl_add_image(ptAppData->ptDrawLayer, gptRenderer->get_offscreen_texture_id(), (plVec2){0}, (plVec2){ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1]});
 
     gptDebug->show_windows(&ptAppData->tDebugInfo);
 
@@ -415,12 +421,7 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowUiDebug)
         pl_show_debug_window(&ptAppData->bShowUiDebug);
 
-    const plMat4 tTransform = pl_identity_mat4();
-    gptGfx->add_3d_transform(&ptAppData->t3DDrawList, &tTransform, 10.0f, 0.02f);
-
-    const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-    gptGfx->submit_3d_drawlist(&ptAppData->t3DDrawList, ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1], &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, gptRenderer->get_main_render_pass(), ptGraphics->tSwapchain.tMsaaSamples);
-
+    pl_submit_layer(ptAppData->ptDrawLayer);
     gptRenderer->submit_ui();
 
     gptGfx->end_main_pass(ptGraphics);

@@ -169,7 +169,6 @@ typedef int plFormat;                 // -> enum _plFormat                 // En
 typedef int plStencilOp;              // -> enum _plStencilOp              // Enum:
 typedef int plMemoryMode;             // -> enum _plMemoryMode             // Enum:
 typedef int plLoadOperation;          // -> enum _plLoadOperation          // Enum:
-typedef int plSampleCount;            // -> enum _plSampleCount            // Enum:
 typedef int plLoadOp;                 // -> enum _plLoadOp                 // Enum:
 typedef int plStoreOp;                // -> enum _plStoreOp                // Enum:
 typedef int plTextureLayout;          // -> enum _plTextureLayout          // Enum:
@@ -419,7 +418,6 @@ typedef struct _plTextureDesc
     plFormat       tFormat;
     plTextureType  tType;
     plTextureUsage tUsage;
-    plSampleCount  tSamples;
 } plTextureDesc;
 
 typedef struct _plTexture
@@ -628,13 +626,11 @@ typedef struct _plSubpass
     uint32_t auRenderTargets[16];
     uint32_t auSubpassInputs[16];
     bool     bDepthTarget;
-    bool     bResolveTarget;
 } plSubpass;
 
 typedef struct _plDepthTarget
 {
     plFormat            tFormat;
-    plSampleCount       tSampleCount;
     plLoadOp            tLoadOp;
     plStoreOp           tStoreOp;
     plLoadOp            tStencilLoadOp;
@@ -647,7 +643,6 @@ typedef struct _plDepthTarget
 typedef struct _plRenderTarget
 {
     plFormat        tFormat;
-    plSampleCount   tSampleCount;
     plLoadOp        tLoadOp;
     plStoreOp       tStoreOp;
     plTextureLayout tNextUsage;
@@ -657,7 +652,6 @@ typedef struct _plRenderTarget
 typedef struct _plRenderPassLayoutDescription
 {
     plDepthTarget   tDepthTarget;
-    plRenderTarget  tResolveTarget;
     plRenderTarget  atRenderTargets[16];
     plSubpass       atSubpasses[16];
 } plRenderPassLayoutDescription;
@@ -665,7 +659,6 @@ typedef struct _plRenderPassLayoutDescription
 typedef struct _plRenderPassLayout
 {
     plRenderPassLayoutDescription tDesc;
-    plSampleCount                 tSampleCount;
 } plRenderPassLayout;
 
 typedef struct _plRenderPassAttachments
@@ -678,7 +671,6 @@ typedef struct _plRenderPassDescription
     plRenderPassLayoutHandle tLayout;
     plRenderTarget           atRenderTargets[16];
     plDepthTarget            tDepthTarget;
-    plRenderTarget           tResolveTarget;
     plVec2                   tDimensions;
     uint32_t                 uAttachmentCount;
     uint32_t                 uAttachmentSets;
@@ -703,16 +695,10 @@ typedef struct _plSwapchain
 {
     plExtent             tExtent;
     plFormat             tFormat;
-    plFormat             tDepthFormat;
     uint32_t             uImageCount;
     plTextureViewHandle* sbtSwapchainTextureViews;
-    plTextureHandle      tColorTexture;
-    plTextureViewHandle  tColorTextureView;
-    plTextureHandle      tDepthTexture;
-    plTextureViewHandle  tDepthTextureView;
     uint32_t             uCurrentImageIndex; // current image to use within the swap chain
     bool                 bVSync;
-    plSampleCount        tMsaaSamples;
 
     // platform specific
     void* _pInternalData;
@@ -736,6 +722,8 @@ typedef struct _plGraphics
     uint32_t*           sbtRenderPassLayoutFreeIndices;
 
     // render passes
+    plRenderPassLayoutHandle tMainRenderPassLayout;
+    plRenderPassHandle tMainRenderPass;
     plRenderPass* sbtRenderPassesCold;
     uint32_t*     sbtRenderPassGenerations;
     uint32_t*     sbtRenderPassFreeIndices;
@@ -924,7 +912,6 @@ enum _plStoreOp
 {
     PL_STORE_OP_STORE,
     PL_STORE_OP_DONT_CARE,
-    PL_STORE_OP_MULTISAMPLE_RESOLVE,
     PL_STORE_OP_NONE
 };
 
@@ -963,17 +950,6 @@ enum _plLoadOperation
     PL_LOAD_OPERATION_DONT_CARE,
     PL_LOAD_OPERATION_LOAD,
     PL_LOAD_OPERATION_CLEAR
-};
-
-enum _plSampleCount
-{
-    PL_SAMPLE_COUNT_1  = 1,
-    PL_SAMPLE_COUNT_2  = 2,
-    PL_SAMPLE_COUNT_4  = 4,
-    PL_SAMPLE_COUNT_8  = 8,
-    PL_SAMPLE_COUNT_16 = 16,
-    PL_SAMPLE_COUNT_32 = 32,
-    PL_SAMPLE_COUNT_64 = 64,
 };
 
 enum _plDataType

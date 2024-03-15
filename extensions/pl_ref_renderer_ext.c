@@ -65,7 +65,6 @@ typedef struct _plDrawable
     uint32_t uIndexCount;
     uint32_t uMaterialIndex;
     uint32_t uShader;
-    uint32_t uOffscreenShader; // temporary
     uint32_t uSkinIndex;
 } plDrawable;
 
@@ -116,7 +115,6 @@ typedef struct _plRefRendererData
 
     // shaders
     plShaderHandle tShader;
-    plShaderHandle tOffscreenShader;
     plShaderHandle tSkyboxShader;
 
     // compute shaders
@@ -136,10 +134,6 @@ typedef struct _plRefRendererData
 
     // drawing api
     plFontAtlas tFontAtlas;
-
-    // render passes
-    plRenderPassLayoutHandle tMainRenderPassLayout;
-    plRenderPassHandle       tMainRenderPass;
 
     // offscreen
     plRenderPassLayoutHandle tOffscreenRenderPassLayout;
@@ -205,9 +199,9 @@ static void pl_refr_run_ecs(void);
 static void pl_refr_submit_ui(void);
 static void pl_refr_uncull_objects(plCameraComponent* ptCamera);
 static void pl_refr_cull_objects(plCameraComponent* ptCamera);
-static void pl_refr_submit_draw_stream(plCameraComponent* ptCamera);
 static void pl_refr_draw_all_bound_boxes(plDrawList3D* ptDrawlist);
 static void pl_refr_draw_visible_bound_boxes(plDrawList3D* ptDrawlist);
+static void pl_refr_submit_draw_stream(plCameraComponent* ptCamera);
 
 // loading
 static void pl_refr_load_skybox_from_panorama(const char* pcModelPath, int iResolution);
@@ -216,14 +210,12 @@ static void pl_refr_load_gltf(const char* pcPath, const plMat4* ptTransform);
 static void pl_refr_finalize_scene(void);
 
 // misc
-static plRenderPassHandle  pl_refr_get_main_render_pass (void);
 static plComponentLibrary* pl_refr_get_component_library(void);
 static plGraphics*         pl_refr_get_graphics         (void);
 
 // temporary
-static plRenderPassHandle  pl_refr_get_pick_render_pass (void);
-static void pl_refr_submit_offscreen_draw_stream(plCameraComponent* ptCamera);
-static void pl_refr_show_offscreen(bool* pbShow);
+static plRenderPassHandle  pl_refr_get_offscreen_render_pass (void);
+static plTextureId pl_refr_get_offscreen_texture_id(void);
 
 // internal
 static void pl__load_gltf_texture(plTextureSlot tSlot, const cgltf_texture_view* ptTexture, const char* pcDirectory, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut);
@@ -247,7 +239,6 @@ pl_load_ref_renderer_api(void)
         .run_ecs                   = pl_refr_run_ecs,
         .submit_ui                 = pl_refr_submit_ui,
         .get_component_library     = pl_refr_get_component_library,
-        .get_main_render_pass      = pl_refr_get_main_render_pass,
         .get_graphics              = pl_refr_get_graphics,
         .load_skybox_from_panorama = pl_refr_load_skybox_from_panorama,
         .load_stl                  = pl_refr_load_stl,
@@ -256,13 +247,10 @@ pl_load_ref_renderer_api(void)
         .load_gltf                 = pl_refr_load_gltf,
         .cull_objects              = pl_refr_cull_objects,
         .uncull_objects            = pl_refr_uncull_objects,
-        .submit_draw_stream        = pl_refr_submit_draw_stream,
         .finalize_scene            = pl_refr_finalize_scene,
-
-        // temporary
-        .show_offscreen = pl_refr_show_offscreen,
-        .submit_offscreen_draw_stream = pl_refr_submit_offscreen_draw_stream,
-        .get_pick_render_pass = pl_refr_get_pick_render_pass,
+        .submit_draw_stream        = pl_refr_submit_draw_stream,
+        .get_offscreen_render_pass = pl_refr_get_offscreen_render_pass,
+        .get_offscreen_texture_id  = pl_refr_get_offscreen_texture_id,
     };
     return &tApi;
 }
@@ -288,7 +276,6 @@ pl_refr_initialize(void)
 
     // shader default values
     gptData->tShader          = (plShaderHandle){UINT32_MAX, UINT32_MAX};
-    gptData->tOffscreenShader = (plShaderHandle){UINT32_MAX, UINT32_MAX};
     gptData->tSkyboxShader    = (plShaderHandle){UINT32_MAX, UINT32_MAX};
 
     // compute shader default values
@@ -316,71 +303,13 @@ pl_refr_initialize(void)
     gptGfx->initialize(ptGraphics);
     gptDataRegistry->set_data("device", &ptGraphics->tDevice); // used by debug extension
 
-    // create main render pass layout
-    const plRenderPassLayoutDescription tMainRenderPassLayoutDesc = {
-        .tDepthTarget = {.tFormat = ptGraphics->tSwapchain.tDepthFormat, .tSampleCount = ptGraphics->tSwapchain.tMsaaSamples},
-        .tResolveTarget = { .tFormat = ptGraphics->tSwapchain.tFormat, .tSampleCount = PL_SAMPLE_COUNT_1 },
-        .atRenderTargets = {
-            { .tFormat = ptGraphics->tSwapchain.tFormat, .tSampleCount = ptGraphics->tSwapchain.tMsaaSamples}
-        },
-        .atSubpasses = {
-            {
-                .uRenderTargetCount = 1,
-                .auRenderTargets = {0},
-                .uSubpassInputCount = 0,
-                .bDepthTarget = true,
-                .bResolveTarget = true
-            }
-        }
-    };
-    gptData->tMainRenderPassLayout = gptDevice->create_render_pass_layout(&ptGraphics->tDevice, &tMainRenderPassLayoutDesc);
-
     // create main render pass
     plIO* ptIO = pl_get_io();
-    const plRenderPassDescription tMainRenderPassDesc = {
-        .tLayout = gptData->tMainRenderPassLayout,
-        .tDepthTarget = {
-            .tLoadOp         = PL_LOAD_OP_CLEAR,
-            .tStoreOp        = PL_STORE_OP_STORE,
-            .tStencilLoadOp  = PL_LOAD_OP_CLEAR,
-            .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
-            .tNextUsage      = PL_TEXTURE_LAYOUT_DEPTH_STENCIL,
-            .fClearZ         = 1.0f
-        },
-        .tResolveTarget = {
-                .tLoadOp         = PL_LOAD_OP_DONT_CARE,
-                .tStoreOp        = PL_STORE_OP_STORE,
-                .tNextUsage      = PL_TEXTURE_LAYOUT_PRESENT,
-                .tClearColor     = {0.0f, 0.0f, 0.0f, 1.0f}
-        },
-        .atRenderTargets = {
-            {
-                .tLoadOp         = PL_LOAD_OP_CLEAR,
-                .tStoreOp        = PL_STORE_OP_MULTISAMPLE_RESOLVE,
-                .tNextUsage      = PL_TEXTURE_LAYOUT_RENDER_TARGET,
-                .tClearColor     = {0.0f, 0.0f, 0.0f, 1.0f}
-            }
-        },
-        .tDimensions = {.x = ptIO->afMainViewportSize[0], .y = ptIO->afMainViewportSize[1]},
-        .uAttachmentCount = 3,
-        .uAttachmentSets = ptGraphics->tSwapchain.uImageCount,
-    };
-
-    plRenderPassAttachments atAttachmentSets[16] = {0};
-
-    for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
-    {
-        atAttachmentSets[i].atViewAttachments[0] = ptGraphics->tSwapchain.tColorTextureView;
-        atAttachmentSets[i].atViewAttachments[1] = ptGraphics->tSwapchain.tDepthTextureView;
-        atAttachmentSets[i].atViewAttachments[2] = ptGraphics->tSwapchain.sbtSwapchainTextureViews[i];
-    }
-    
-    gptData->tMainRenderPass = gptDevice->create_render_pass(&ptGraphics->tDevice, &tMainRenderPassDesc, atAttachmentSets);
 
     const plRenderPassLayoutDescription tOffscreenRenderPassLayoutDesc = {
-        .tDepthTarget = { .tFormat = PL_FORMAT_D32_FLOAT, .tSampleCount = PL_SAMPLE_COUNT_1 },
+        .tDepthTarget = { .tFormat = PL_FORMAT_D32_FLOAT},
         .atRenderTargets = {
-            { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT, .tSampleCount = PL_SAMPLE_COUNT_1 }
+            { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT }
         },
         .atSubpasses = {
             {
@@ -396,7 +325,7 @@ pl_refr_initialize(void)
     // setup ui
     pl_add_default_font(&gptData->tFontAtlas);
     pl_build_font_atlas(&gptData->tFontAtlas);
-    gptGfx->setup_ui(ptGraphics, gptData->tMainRenderPass);
+    gptGfx->setup_ui(ptGraphics, ptGraphics->tMainRenderPass);
     gptGfx->create_font_atlas(&gptData->tFontAtlas);
     pl_set_default_font(&gptData->tFontAtlas.sbtFonts[0]);
 
@@ -426,7 +355,7 @@ pl_refr_initialize(void)
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP
         },
-        .tRenderPassLayout = gptData->tMainRenderPassLayout,
+        .tRenderPassLayout = gptData->tOffscreenRenderPassLayout,
         .uBindGroupLayoutCount = 3,
         .atBindGroupLayouts = {
             {
@@ -484,8 +413,7 @@ pl_refr_initialize(void)
         .uLayers = 1,
         .uMips = 1,
         .tType = PL_TEXTURE_TYPE_2D,
-        .tUsage = PL_TEXTURE_USAGE_SAMPLED,
-        .tSamples = PL_SAMPLE_COUNT_1
+        .tUsage = PL_TEXTURE_USAGE_SAMPLED
     };
 
     const plBufferDescription tStagingBufferDesc = {
@@ -560,8 +488,7 @@ pl_refr_initialize(void)
             .uLayers = 1,
             .uMips = 1,
             .tType = PL_TEXTURE_TYPE_2D,
-            .tUsage = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-            .tSamples = PL_SAMPLE_COUNT_1
+            .tUsage = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT
         };
         gptData->tOffscreenTexture = gptDevice->create_texture(&ptGraphics->tDevice, tOffscreenTextureDesc, "offscreen texture");
 
@@ -590,8 +517,7 @@ pl_refr_initialize(void)
             .uLayers = 1,
             .uMips = 1,
             .tType = PL_TEXTURE_TYPE_2D,
-            .tUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-            .tSamples = PL_SAMPLE_COUNT_1
+            .tUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT
         };
         gptData->tOffscreenDepthTexture = gptDevice->create_texture(&ptGraphics->tDevice, tOffscreenTextureDesc, "offscreen depth texture");
 
@@ -634,18 +560,7 @@ pl_refr_resize(void)
 
     gptGfx->resize(ptGraphics);
 
-    // recreate main render pass
-    plRenderPassAttachments atAttachmentSets[16] = {0};
-
-    for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
-    {
-        atAttachmentSets[i].atViewAttachments[0] = ptGraphics->tSwapchain.tColorTextureView;
-        atAttachmentSets[i].atViewAttachments[1] = ptGraphics->tSwapchain.tDepthTextureView;
-        atAttachmentSets[i].atViewAttachments[2] = ptGraphics->tSwapchain.sbtSwapchainTextureViews[i];
-    }
     plVec2 tNewDimensions = {ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1]};
-    gptDevice->update_render_pass_attachments(ptDevice, gptData->tMainRenderPass, tNewDimensions, atAttachmentSets);
-    
 
     gptData->tOffscreenTargetSize = tNewDimensions;
 
@@ -661,8 +576,7 @@ pl_refr_resize(void)
             .uLayers = 1,
             .uMips = 1,
             .tType = PL_TEXTURE_TYPE_2D,
-            .tUsage = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-            .tSamples = PL_SAMPLE_COUNT_1
+            .tUsage = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT
         };
         gptData->tOffscreenTexture = gptDevice->create_texture(&ptGraphics->tDevice, tOffscreenTextureDesc, "offscreen texture");
 
@@ -691,8 +605,7 @@ pl_refr_resize(void)
             .uLayers = 1,
             .uMips = 1,
             .tType = PL_TEXTURE_TYPE_2D,
-            .tUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-            .tSamples = PL_SAMPLE_COUNT_1
+            .tUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT
         };
         gptData->tOffscreenDepthTexture = gptDevice->create_texture(&ptGraphics->tDevice, tOffscreenTextureDesc, "offscreen depth texture");
 
@@ -759,26 +672,19 @@ pl_refr_submit_ui(void)
 {
     pl_begin_profile_sample(__FUNCTION__);
 
-
     // render ui
     pl_render();
 
     // submit draw lists
     pl_begin_profile_sample("Submit draw lists");
-    gptGfx->draw_lists(&gptData->tGraphics, 1, pl_get_draw_list(NULL), gptData->tMainRenderPass);
-    gptGfx->draw_lists(&gptData->tGraphics, 1, pl_get_debug_draw_list(NULL), gptData->tMainRenderPass);
+    gptGfx->draw_lists(&gptData->tGraphics, 1, pl_get_draw_list(NULL), gptData->tGraphics.tMainRenderPass);
+    gptGfx->draw_lists(&gptData->tGraphics, 1, pl_get_debug_draw_list(NULL), gptData->tGraphics.tMainRenderPass);
     pl_end_profile_sample();
     pl_end_profile_sample();
 }
 
 static plRenderPassHandle
-pl_refr_get_main_render_pass(void)
-{
-    return gptData->tMainRenderPass;
-}
-
-static plRenderPassHandle
-pl_refr_get_pick_render_pass(void)
+pl_refr_get_offscreen_render_pass(void)
 {
     return gptData->tOffscreenRenderPass;
 }
@@ -918,8 +824,7 @@ pl_refr_load_skybox_from_panorama(const char* pcPath, int iResolution)
         .uLayers = 6,
         .uMips = 1,
         .tType = PL_TEXTURE_TYPE_CUBE,
-        .tUsage = PL_TEXTURE_USAGE_SAMPLED,
-        .tSamples = PL_SAMPLE_COUNT_1
+        .tUsage = PL_TEXTURE_USAGE_SAMPLED
     };
     gptData->tSkyboxTexture = gptDevice->create_texture(ptDevice, tTextureDesc, "skybox texture");
 
@@ -1804,8 +1709,7 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
             .uLayers = 1,
             .uMips = iMips,
             .tType = PL_TEXTURE_TYPE_2D,
-            .tUsage = PL_TEXTURE_USAGE_SAMPLED,
-            .tSamples = PL_SAMPLE_COUNT_1
+            .tUsage = PL_TEXTURE_USAGE_SAMPLED
         };
         tTexture = gptDevice->create_texture(ptDevice, tTextureDesc, ptMaterial->atTextureMaps[tSlot].acName);
         plBufferImageCopy tBufferImageCopy = {
@@ -1839,8 +1743,7 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
             .uLayers = 1,
             .uMips = iMips,
             .tType = PL_TEXTURE_TYPE_2D,
-            .tUsage = PL_TEXTURE_USAGE_SAMPLED,
-            .tSamples = PL_SAMPLE_COUNT_1
+            .tUsage = PL_TEXTURE_USAGE_SAMPLED
         };
         tTexture = gptDevice->create_texture(ptDevice, tTextureDesc, ptMaterial->atTextureMaps[tSlot].acName);
         plBufferImageCopy tBufferImageCopy = {
@@ -1896,7 +1799,7 @@ pl_refr_finalize_scene(void)
                 .ulStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .uConstantCount = 5,
-            .tRenderPassLayout = gptData->tMainRenderPassLayout,
+            .tRenderPassLayout = gptData->tOffscreenRenderPassLayout,
             .uBindGroupLayoutCount = 3,
             .atBindGroupLayouts = {
                 {
@@ -1955,9 +1858,6 @@ pl_refr_finalize_scene(void)
         }
         tShaderDescription.pTempConstantData = aiConstantData;
         gptData->tShader = gptDevice->create_shader(ptDevice, &tShaderDescription);
-
-        tShaderDescription.tRenderPassLayout = gptData->tOffscreenRenderPassLayout;
-        gptData->tOffscreenShader = gptDevice->create_shader(ptDevice, &tShaderDescription);
     }
 
     // update material bind groups
@@ -2163,7 +2063,6 @@ pl_refr_finalize_scene(void)
         gptData->sbtAllDrawables[uDrawableIndex].uDataOffset      = uDataStartIndex;
         gptData->sbtAllDrawables[uDrawableIndex].uMaterialIndex   = pl_sb_size(gptData->sbtMaterialBuffer) - 1;
         gptData->sbtAllDrawables[uDrawableIndex].uShader          = gptDevice->get_shader_variant(ptDevice, gptData->tShader, &tVariant).uIndex;
-        gptData->sbtAllDrawables[uDrawableIndex].uOffscreenShader = gptDevice->get_shader_variant(ptDevice, gptData->tOffscreenShader, &tVariant).uIndex;
 
         if(ptMesh->tSkinComponent.uIndex != UINT32_MAX)
         {
@@ -2179,8 +2078,7 @@ pl_refr_finalize_scene(void)
                 .uLayers = 1,
                 .uMips = 1,
                 .tType = PL_TEXTURE_TYPE_2D,
-                .tUsage = PL_TEXTURE_USAGE_SAMPLED,
-                .tSamples = PL_SAMPLE_COUNT_1
+                .tUsage = PL_TEXTURE_USAGE_SAMPLED
             };
 
             const plBufferDescription tStagingBufferDesc = {
@@ -2589,6 +2487,7 @@ pl_refr_cull_objects(plCameraComponent* ptCamera)
 static void
 pl_refr_submit_draw_stream(plCameraComponent* ptCamera)
 {
+
     pl_begin_profile_sample(__FUNCTION__);
 
     plGraphics* ptGraphics = &gptData->tGraphics;
@@ -2682,12 +2581,11 @@ pl_refr_submit_draw_stream(plCameraComponent* ptCamera)
         });
     }
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~visible meshes~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~visible meshes~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    
 
     static double* pdVisibleObjects = NULL;
     if(!pdVisibleObjects)
         pdVisibleObjects = gptStats->get_counter("visible objects");
-    
 
     const uint32_t uVisibleDrawCount = pl_sb_size(gptData->sbtVisibleDrawables);
     *pdVisibleObjects = (double)uVisibleDrawCount;
@@ -2737,144 +2635,10 @@ pl_refr_submit_draw_stream(plCameraComponent* ptCamera)
     pl_end_profile_sample();
 }
 
-static void
-pl_refr_submit_offscreen_draw_stream(plCameraComponent* ptCamera)
+static plTextureId
+pl_refr_get_offscreen_texture_id(void)
 {
-
-    pl_begin_profile_sample(__FUNCTION__);
-
-    plGraphics* ptGraphics = &gptData->tGraphics;
-    plDevice* ptDevice = &ptGraphics->tDevice;
-
-    plDrawStream* ptStream = &gptData->tDrawStream;
-
-    // update global buffers & bind groups
-    const BindGroup_0 tBindGroupBuffer = {
-        .tCameraPos            = ptCamera->tPos,
-        .tCameraProjection     = ptCamera->tProjMat,
-        .tCameraView           = ptCamera->tViewMat,
-        .tCameraViewProjection = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat)
-    };
-    memcpy(ptGraphics->sbtBuffersCold[gptData->atGlobalBuffers[ptGraphics->uCurrentFrameIndex].uIndex].tMemoryAllocation.pHostMapped, &tBindGroupBuffer, sizeof(BindGroup_0));
-
-    plBindGroupLayout tBindGroupLayout0 = {
-        .uBufferCount  = 3,
-        .aBuffers = {
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
-                .uSlot = 0,
-                .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-            },
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                .uSlot = 1,
-                .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-            },
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                .uSlot = 2,
-                .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-            },
-        }
-    };
-    plBindGroupHandle tGlobalBG = gptDevice->get_temporary_bind_group(ptDevice, &tBindGroupLayout0);
-    size_t szBufferRangeSize[] = {sizeof(BindGroup_0), sizeof(plVec4) * pl_sb_size(gptData->sbtVertexDataBuffer), sizeof(plMaterial) * pl_sb_size(gptData->sbtMaterialBuffer)};
-
-    plBufferHandle atBindGroup0_buffers0[] = {gptData->atGlobalBuffers[ptGraphics->uCurrentFrameIndex], gptData->tStorageBuffer, gptData->tMaterialDataBuffer};
-    gptDevice->update_bind_group(&ptGraphics->tDevice, &tGlobalBG, 3, atBindGroup0_buffers0, szBufferRangeSize, 0, NULL);
-
-    // update skin textures
-    const uint32_t uSkinCount = pl_sb_size(gptData->sbtSkinData);
-    for(uint32_t i = 0; i < uSkinCount; i++)
-    {
-        plBindGroupLayout tBindGroupLayout1 = {
-            .uTextureCount  = 1,
-            .aTextures = {
-                {.uSlot =  0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
-            }
-        };
-        gptData->sbtSkinData[i].tTempBindGroup = gptDevice->get_temporary_bind_group(ptDevice, &tBindGroupLayout1);
-        gptDevice->update_bind_group(&ptGraphics->tDevice, &gptData->sbtSkinData[i].tTempBindGroup, 0, NULL, NULL, 1, &gptData->sbtSkinData[i].tDynamicTextureView[ptGraphics->uCurrentFrameIndex]);
-
-        plBuffer* ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle);
-
-        plTexture* ptSkinTexture = gptDevice->get_texture(ptDevice, gptData->sbtSkinData[i].tDynamicTexture[0]);
-        plBufferImageCopy tBufferImageCopy = {
-            .tImageExtent = {(size_t)ptSkinTexture->tDesc.tDimensions.x, (size_t)ptSkinTexture->tDesc.tDimensions.y, 1},
-            .uLayerCount = 1
-        };
-        plSkinComponent* ptSkinComponent = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_SKIN, gptData->sbtSkinData[i].tEntity);
-        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptSkinComponent->sbtTextureData, sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y);
-        gptDevice->copy_buffer_to_texture(ptDevice, gptData->tStagingBufferHandle, gptData->sbtSkinData[i].tDynamicTexture[ptGraphics->uCurrentFrameIndex], 1, &tBufferImageCopy);
-    }
-
-    gptStream->reset(ptStream);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~visible meshes~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    
-
-    const uint32_t uVisibleDrawCount = pl_sb_size(gptData->sbtVisibleDrawables);
-    for(uint32_t i = 0; i < uVisibleDrawCount; i++)
-    {
-        const plDrawable tDrawable = gptData->sbtVisibleDrawables[i];
-        plObjectComponent* ptObject = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
-        plTransformComponent* ptTransform = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
-        
-        plDynamicBinding tDynamicBinding = gptDevice->allocate_dynamic_data(ptDevice, sizeof(DynamicData));
-
-        DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
-        ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-        ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
-        ptDynamicData->tModel = ptTransform->tWorld;
-        ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
-
-        gptStream->draw(ptStream, (plDraw)
-        {
-            .uShaderVariant       = tDrawable.uOffscreenShader,
-            .uDynamicBuffer       = tDynamicBinding.uBufferHandle,
-            .uVertexBuffer        = gptData->tVertexBuffer.uIndex,
-            .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : gptData->tIndexBuffer.uIndex,
-            .uIndexOffset         = tDrawable.uIndexOffset,
-            .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
-            .uBindGroup0          = tGlobalBG.uIndex,
-            .uBindGroup1          = tDrawable.tMaterialBindGroup.uIndex,
-            .uBindGroup2          = tDrawable.uSkinIndex == UINT32_MAX ? gptData->tNullSkinBindgroup.uIndex : gptData->sbtSkinData[tDrawable.uSkinIndex].tTempBindGroup.uIndex,
-            .uDynamicBufferOffset = tDynamicBinding.uByteOffset,
-        });
-    }
-
-    plDrawArea tArea = {
-       .ptDrawStream = ptStream,
-       .tScissor = {
-            .uWidth  = (uint32_t)pl_get_io()->afMainViewportSize[0],
-            .uHeight = (uint32_t)pl_get_io()->afMainViewportSize[1],
-       },
-       .tViewport = {
-            .fWidth  = pl_get_io()->afMainViewportSize[0],
-            .fHeight = pl_get_io()->afMainViewportSize[1],
-            .fMaxDepth = 1.0f
-       }
-    };
-    gptGfx->draw_areas(ptGraphics, 1, &tArea);
-
-    pl_end_profile_sample();
-
-}
-
-static void
-pl_refr_show_offscreen(bool* pbShow)
-{
-    if(pl_begin_window("Offscreen", pbShow, false))
-    {
-
-
-        const float pfRatios[] = {1.0f};
-        pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-        const plVec2 tCursorPos = pl_get_cursor_pos();
-        const plVec2 tWindowBRPos = pl_add_vec2(pl_get_window_size(), pl_get_window_pos());
-        const plVec2 tClientArea = {tWindowBRPos.x - tCursorPos.x - 25.0f, tWindowBRPos.y - tCursorPos.y - 25.0f};
-        pl_image(gptData->tOffscreenTextureID, tClientArea);
-        pl_end_window();
-    }  
+    return gptData->tOffscreenTextureID;
 }
 
 static void
