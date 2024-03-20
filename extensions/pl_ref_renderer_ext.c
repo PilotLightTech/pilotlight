@@ -2217,7 +2217,6 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtVertexDataBuffer, sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer));
     ptScene->tStorageBuffer = gptDevice->create_buffer(ptDevice, &tStorageBufferDesc, "storage buffer");
     gptDevice->copy_buffer(ptDevice, gptData->tStagingBufferHandle, ptScene->tStorageBuffer, 0, 0, tStorageBufferDesc.uByteSize);
-    ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle);
 }
 
 static void
@@ -2612,7 +2611,9 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
             .uBindGroup0          = tGlobalBG.uIndex,
             .uBindGroup1          = ptScene->tSkyboxBindGroup.uIndex,
             .uBindGroup2          = gptData->tNullSkinBindgroup.uIndex,
-            .uDynamicBufferOffset = tSkyboxDynamicData.uByteOffset
+            .uDynamicBufferOffset = tSkyboxDynamicData.uByteOffset,
+            .uInstanceStart       = 0,
+            .uInstanceCount       = 1
         });
     }
 
@@ -2653,6 +2654,8 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
             .uBindGroup1          = tDrawable.tMaterialBindGroup.uIndex,
             .uBindGroup2          = tDrawable.uSkinIndex == UINT32_MAX ? gptData->tNullSkinBindgroup.uIndex : ptScene->sbtSkinData[tDrawable.uSkinIndex].tTempBindGroup.uIndex,
             .uDynamicBufferOffset = tDynamicBinding.uByteOffset,
+            .uInstanceStart       = 0,
+            .uInstanceCount       = 1
         });
     }
 

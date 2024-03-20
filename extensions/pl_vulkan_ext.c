@@ -2992,6 +2992,8 @@ pl_draw_subpass(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plPassRe
         uint32_t uIndexBufferOffset = 0;
         uint32_t uVertexBufferOffset = 0;
         uint32_t uDynamicBufferOffset = 0;
+        uint32_t uInstanceStart = 0;
+        uint32_t uInstanceCount = 1;
         plVulkanShader* ptVulkanShader = NULL;
         plVulkanDynamicBuffer* ptVulkanDynamicBuffer = NULL;
 
@@ -3076,12 +3078,24 @@ pl_draw_subpass(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plPassRe
                 uCurrentStreamIndex++;
             }
 
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_START)
+            {
+                uInstanceStart = ptStream->sbtStream[uCurrentStreamIndex];
+                uCurrentStreamIndex++;
+            }
+
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_COUNT)
+            {
+                uInstanceCount = ptStream->sbtStream[uCurrentStreamIndex];
+                uCurrentStreamIndex++;
+            }
+
             vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, uDescriptorStart, 4 - uDescriptorStart, &atDescriptorSets[uDescriptorStart], 1, &uDynamicBufferOffset);
 
             if(uIndexBuffer == UINT32_MAX)
-                vkCmdDraw(tCmdBuffer, uTriangleCount * 3, 1, uVertexBufferOffset, 0);
+                vkCmdDraw(tCmdBuffer, uTriangleCount * 3, uInstanceCount, uVertexBufferOffset, uInstanceStart);
             else
-                vkCmdDrawIndexed(tCmdBuffer, uTriangleCount * 3, 1, uIndexBufferOffset, uVertexBufferOffset, 0);
+                vkCmdDrawIndexed(tCmdBuffer, uTriangleCount * 3, uInstanceCount, uIndexBufferOffset, uVertexBufferOffset, uInstanceStart);
         }
     }
     pl_end_profile_sample();

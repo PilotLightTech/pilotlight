@@ -1879,6 +1879,8 @@ pl_draw_subpass(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plPassRe
         uint32_t uIndexBufferOffset = 0;
         uint32_t uVertexBufferOffset = 0;
         uint32_t uDynamicBufferOffset = 0;
+        uint32_t uInstanceStart = 0;
+        uint32_t uInstanceCount = 1;
 
         while(uCurrentStreamIndex < uTokens)
         {
@@ -2050,13 +2052,25 @@ pl_draw_subpass(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plPassRe
                 uCurrentStreamIndex++;
             }
 
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_START)
+            {
+                uInstanceStart = ptStream->sbtStream[uCurrentStreamIndex];
+                uCurrentStreamIndex++;
+            }
+
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_COUNT)
+            {
+                uInstanceCount = ptStream->sbtStream[uCurrentStreamIndex];
+                uCurrentStreamIndex++;
+            }
+
             if(uIndexBuffer == UINT32_MAX)
             {
                 [tRenderEncoder drawPrimitives:MTLPrimitiveTypeTriangle 
                     vertexStart:uVertexBufferOffset
                     vertexCount:uTriangleCount * 3
-                    instanceCount:1
-                    baseInstance:0
+                    instanceCount:uInstanceCount
+                    baseInstance:uInstanceStart
                     ];
             }
             else
@@ -2066,9 +2080,9 @@ pl_draw_subpass(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plPassRe
                     indexType:MTLIndexTypeUInt32
                     indexBuffer:ptMetalGraphics->sbtBuffersHot[uIndexBuffer].tBuffer
                     indexBufferOffset:uIndexBufferOffset * sizeof(uint32_t)
-                    instanceCount:1
+                    instanceCount:uInstanceCount
                     baseVertex:uVertexBufferOffset
-                    baseInstance:0
+                    baseInstance:uInstanceStart
                     ];
             }
         }

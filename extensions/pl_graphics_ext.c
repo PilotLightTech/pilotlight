@@ -928,6 +928,8 @@ enum plDrawStreamBits
     PL_DRAW_STREAM_BIT_INDEX_BUFFER     = 1 << 8,
     PL_DRAW_STREAM_BIT_VERTEX_BUFFER    = 1 << 9,
     PL_DRAW_STREAM_BIT_TRIANGLES        = 1 << 10,
+    PL_DRAW_STREAM_BIT_INSTANCE_START   = 1 << 11,
+    PL_DRAW_STREAM_BIT_INSTANCE_COUNT   = 1 << 12
 };
 
 static void
@@ -1017,6 +1019,18 @@ pl_drawstream_draw(plDrawStream* ptStream, plDraw tDraw)
         uDirtyMask |= PL_DRAW_STREAM_BIT_TRIANGLES;
     }
 
+    if(ptStream->tCurrentDraw.uInstanceStart != tDraw.uInstanceStart)
+    {
+        ptStream->tCurrentDraw.uInstanceStart = tDraw.uInstanceStart;
+        uDirtyMask |= PL_DRAW_STREAM_BIT_INSTANCE_START;
+    }
+
+    if(ptStream->tCurrentDraw.uInstanceCount != tDraw.uInstanceCount)
+    {
+        ptStream->tCurrentDraw.uInstanceCount = tDraw.uInstanceCount;
+        uDirtyMask |= PL_DRAW_STREAM_BIT_INSTANCE_COUNT;
+    }
+
     pl_sb_push(ptStream->sbtStream, uDirtyMask);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
         pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uShaderVariant);
@@ -1040,6 +1054,10 @@ pl_drawstream_draw(plDrawStream* ptStream, plDraw tDraw)
         pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uVertexBuffer);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_TRIANGLES)
         pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uTriangleCount);
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_START)
+        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uInstanceStart);
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_COUNT)
+        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uInstanceCount);
 }
 
 static const plDrawStreamI*

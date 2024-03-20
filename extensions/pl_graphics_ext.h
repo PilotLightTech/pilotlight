@@ -565,6 +565,8 @@ typedef struct _plDraw
     uint32_t uBindGroup1;
     uint32_t uBindGroup2;
     uint32_t uDynamicBufferOffset;
+    uint32_t uInstanceStart;
+    uint32_t uInstanceCount;
 } plDraw;
 
 typedef struct _plDrawStream
