@@ -223,7 +223,7 @@ static void pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plV
 // per frame
 static void pl_refr_run_ecs(void);
 static void pl_refr_update_scene(uint32_t uSceneHandle);
-static void pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions);
+static void pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions);
 
 // loading
 static void pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcModelPath, int iResolution);
@@ -2516,7 +2516,7 @@ pl_refr_update_scene(uint32_t uSceneHandle)
 }
 
 static void
-pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions)
+pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions)
 {
     pl_begin_profile_sample(__FUNCTION__);
 
@@ -2671,8 +2671,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
        }
     };
 
-    gptGfx->begin_pass(ptGraphics, ptView->tRenderPass);
-    gptGfx->draw_areas(ptGraphics, 1, &tArea);
+    plPassRenderer tPassRenderer = gptGfx->begin_render_pass(ptGraphics, tCommandBuffer, ptView->tRenderPass);
+    gptGfx->draw_subpass(ptGraphics, tCommandBuffer, tPassRenderer, 1, &tArea);
 
     if(tOptions.bShowAllBoundingBoxes)
     {
@@ -2705,9 +2705,9 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
     }
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-    gptGfx->submit_3d_drawlist(&ptView->t3DDrawList, tDimensions.x, tDimensions.y, &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, ptView->tRenderPass, 1);
+    gptGfx->submit_3d_drawlist(&ptView->t3DDrawList, tPassRenderer, tCommandBuffer, tDimensions.x, tDimensions.y, &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, 1);
 
-    gptGfx->end_pass(ptGraphics);
+    gptGfx->end_render_pass(ptGraphics, tCommandBuffer, tPassRenderer);
     pl_end_profile_sample();
 }
 

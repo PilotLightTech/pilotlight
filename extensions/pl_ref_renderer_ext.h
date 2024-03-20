@@ -35,6 +35,8 @@ typedef struct _plViewOptions plViewOptions;
 // external 
 typedef struct _plGraphics         plGraphics;         // pl_graphics_ext.h
 typedef struct _plDrawList3D       plDrawList3D;       // pl_graphics_ext.h
+typedef struct _plCommandBuffer    plCommandBuffer;    // pl_graphics_ext.h
+typedef struct _plPassRenderer     plPassRenderer;     // pl_graphics_ext.h
 typedef struct plRenderPassHandle  plRenderPassHandle; // pl_ecs_ext.h
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef struct _plCameraComponent  plCameraComponent;  // pl_ecs_ext.h
@@ -77,7 +79,7 @@ typedef struct _plRefRendererI
     // per frame
     void (*run_ecs)(void);
     void (*update_scene)(uint32_t uSceneHandle);
-    void (*render_scene)(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions);
+    void (*render_scene)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions);
     
     // misc
     plComponentLibrary* (*get_component_library)(void);

@@ -164,7 +164,6 @@ typedef struct _plFrameContext
     VkSemaphore           tRenderFinish;
     VkFence               tInFlight;
     VkCommandPool         tCmdPool;
-    VkCommandBuffer       tCmdBuf;
     VkBuffer*             sbtRawBuffers;
     VkFramebuffer*        sbtRawFrameBuffers;
     VkDescriptorPool      tDynamicDescriptorPool;
@@ -311,13 +310,14 @@ pl_get_ui_texture_handle(plGraphics* ptGraphics, plTextureViewHandle tHandle)
 }
 
 static void
-pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags tFlags, plRenderPassHandle tPass, uint32_t uMSAASampleCount)
+pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plPassRenderer tPass, plCommandBuffer tCommandBuffer, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags tFlags, uint32_t uMSAASampleCount)
 {
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)tCommandBuffer._pInternal;
     plGraphics* ptGfx = ptDrawlist->ptGraphics;
     plVulkanGraphics* ptVulkanGfx = ptGfx->_pInternalData;
     plVulkanDevice* ptVulkanDevice = ptGfx->tDevice._pInternalData;
 
-    pl3DVulkanPipelineEntry* tPipelineEntry = pl__get_3d_pipelines(ptGfx, ptVulkanGfx->sbtRenderPassesHot[tPass.uIndex].tRenderPass, uMSAASampleCount, tFlags);
+    pl3DVulkanPipelineEntry* tPipelineEntry = pl__get_3d_pipelines(ptGfx, ptVulkanGfx->sbtRenderPassesHot[tPass.tRenderPassHandle.uIndex].tRenderPass, uMSAASampleCount, tFlags);
     const float fAspectRatio = fWidth / fHeight;
 
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGfx);
@@ -420,15 +420,15 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
         PL_VULKAN(vkFlushMappedMemoryRanges(ptVulkanDevice->tLogicalDevice, 2, aRange));
 
         static const VkDeviceSize tOffsets = { 0u };
-        vkCmdBindIndexBuffer(ptCurrentFrame->tCmdBuf, ptBufferInfo->tIndexBuffer, 0u, VK_INDEX_TYPE_UINT32);
-        vkCmdBindVertexBuffers(ptCurrentFrame->tCmdBuf, 0, 1, &ptBufferInfo->tVertexBuffer, &tOffsets);
+        vkCmdBindIndexBuffer(tCmdBuffer, ptBufferInfo->tIndexBuffer, 0u, VK_INDEX_TYPE_UINT32);
+        vkCmdBindVertexBuffers(tCmdBuffer, 0, 1, &ptBufferInfo->tVertexBuffer, &tOffsets);
 
         const int32_t iVertexOffset = ptBufferInfo->uVertexBufferOffset / sizeof(plDrawVertex3DSolid);
         const int32_t iIndexOffset = ptBufferInfo->uIndexBufferOffset / sizeof(uint32_t);
 
-        vkCmdBindPipeline(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, tPipelineEntry->tRegularPipeline); 
-        vkCmdPushConstants(ptCurrentFrame->tCmdBuf, ptVulkanGfx->t3DPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 16, ptMVP);
-        vkCmdDrawIndexed(ptCurrentFrame->tCmdBuf, pl_sb_size(ptDrawlist->sbtSolidIndexBuffer), 1, iIndexOffset, iVertexOffset, 0);
+        vkCmdBindPipeline(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, tPipelineEntry->tRegularPipeline); 
+        vkCmdPushConstants(tCmdBuffer, ptVulkanGfx->t3DPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 16, ptMVP);
+        vkCmdDrawIndexed(tCmdBuffer, pl_sb_size(ptDrawlist->sbtSolidIndexBuffer), 1, iIndexOffset, iVertexOffset, 0);
         
         // bump vertex & index buffer offset
         ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
@@ -533,16 +533,16 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, float fWidth, float fHeight, co
         PL_VULKAN(vkFlushMappedMemoryRanges(ptVulkanDevice->tLogicalDevice, 2, aRange));
 
         static const VkDeviceSize tOffsets = { 0u };
-        vkCmdBindIndexBuffer(ptCurrentFrame->tCmdBuf, ptBufferInfo->tIndexBuffer, 0u, VK_INDEX_TYPE_UINT32);
-        vkCmdBindVertexBuffers(ptCurrentFrame->tCmdBuf, 0, 1, &ptBufferInfo->tVertexBuffer, &tOffsets);
+        vkCmdBindIndexBuffer(tCmdBuffer, ptBufferInfo->tIndexBuffer, 0u, VK_INDEX_TYPE_UINT32);
+        vkCmdBindVertexBuffers(tCmdBuffer, 0, 1, &ptBufferInfo->tVertexBuffer, &tOffsets);
 
         const int32_t iVertexOffset = ptBufferInfo->uVertexBufferOffset / sizeof(plDrawVertex3DLine);
         const int32_t iIndexOffset = ptBufferInfo->uIndexBufferOffset / sizeof(uint32_t);
 
-        vkCmdBindPipeline(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, tPipelineEntry->tSecondaryPipeline); 
-        vkCmdPushConstants(ptCurrentFrame->tCmdBuf, ptVulkanGfx->t3DLinePipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 16, ptMVP);
-        vkCmdPushConstants(ptCurrentFrame->tCmdBuf, ptVulkanGfx->t3DLinePipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 16, sizeof(float), &fAspectRatio);
-        vkCmdDrawIndexed(ptCurrentFrame->tCmdBuf, pl_sb_size(ptDrawlist->sbtLineIndexBuffer), 1, iIndexOffset, iVertexOffset, 0);
+        vkCmdBindPipeline(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, tPipelineEntry->tSecondaryPipeline); 
+        vkCmdPushConstants(tCmdBuffer, ptVulkanGfx->t3DLinePipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 16, ptMVP);
+        vkCmdPushConstants(tCmdBuffer, ptVulkanGfx->t3DLinePipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 16, sizeof(float), &fAspectRatio);
+        vkCmdDrawIndexed(tCmdBuffer, pl_sb_size(ptDrawlist->sbtLineIndexBuffer), 1, iIndexOffset, iVertexOffset, 0);
         
         // bump vertex & index buffer offset
         ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
@@ -2420,7 +2420,8 @@ pl_create_main_render_pass(plDevice* ptDevice)
     plRenderPass tRenderPass = {
         .tDesc = {
             .tDimensions = {pl_get_io()->afMainViewportSize[0], pl_get_io()->afMainViewportSize[1]}
-        }
+        },
+        .bSwapchain = true
     };
 
     plRenderPassLayout* ptLayout = &ptGraphics->sbtRenderPassLayoutsCold[ptGraphics->tMainRenderPassLayout.uIndex];
@@ -2808,74 +2809,109 @@ pl_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle
     }
 }
 
-
-static void
-pl_begin_recording(plGraphics* ptGraphics)
+static plCommandBuffer
+pl_begin_command_recording(plGraphics* ptGraphics)
 {
+    pl_begin_profile_sample(__FUNCTION__);
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
+
+    const VkCommandBufferAllocateInfo tAllocInfo = {
+        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool        = ptCurrentFrame->tCmdPool,
+        .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1
+    };
+
+    VkCommandBuffer tCmdBuffer;
+    PL_VULKAN(vkAllocateCommandBuffers(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tCmdBuffer));  
 
     const VkCommandBufferBeginInfo tBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
     };
     PL_VULKAN(vkResetCommandPool(ptVulkanDevice->tLogicalDevice, ptCurrentFrame->tCmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT));
-    PL_VULKAN(vkBeginCommandBuffer(ptCurrentFrame->tCmdBuf, &tBeginInfo));
-
+    PL_VULKAN(vkBeginCommandBuffer(tCmdBuffer, &tBeginInfo));   
+    
     pl_new_draw_frame_vulkan();
+
+    plCommandBuffer tCommandBuffer = {
+        ._pInternal = tCmdBuffer
+    };
+    pl_end_profile_sample();
+    return tCommandBuffer;
 }
 
 static void
-pl_end_recording(plGraphics* ptGraphics)
+pl_submit_command(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer)
 {
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
-    PL_VULKAN(vkEndCommandBuffer(ptCurrentFrame->tCmdBuf));
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)tCommandBuffer._pInternal;
+    PL_VULKAN(vkEndCommandBuffer(tCmdBuffer));  
 }
 
-static void
-pl_begin_pass(plGraphics* ptGraphics, plRenderPassHandle tPass)
+static plPassRenderer
+pl_begin_render_pass(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plRenderPassHandle tPass)
 {
-
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)tCommandBuffer._pInternal;
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
 
     plRenderPass* ptRenderPass = &ptGraphics->sbtRenderPassesCold[tPass.uIndex];
     plVulkanRenderPass* ptVulkanRenderPass = &ptVulkanGfx->sbtRenderPassesHot[tPass.uIndex];
     
+    if(ptRenderPass->bSwapchain)
+    {
+        const VkClearValue atClearValues[2] = {
+            { .color.float32 = {0.0f, 0.0f, 0.0f, 1.0f}},
+            { .depthStencil.depth = 1.0f}
+        };
 
-    const VkClearValue atClearValues[2] = {
-        { .color.float32 = {
-            ptRenderPass->tDesc.atRenderTargets[0].tClearColor.r,
-            ptRenderPass->tDesc.atRenderTargets[0].tClearColor.g,
-            ptRenderPass->tDesc.atRenderTargets[0].tClearColor.b,
-            ptRenderPass->tDesc.atRenderTargets[0].tClearColor.a}},
-        { .depthStencil = {
-            .depth = ptRenderPass->tDesc.tDepthTarget.fClearZ,
-            .stencil = ptRenderPass->tDesc.tDepthTarget.uClearStencil
+        VkRenderPassBeginInfo tRenderPassInfo = {
+            .sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .renderPass        = ptVulkanRenderPass->tRenderPass,
+            .framebuffer       = ptVulkanRenderPass->sbtFrameBuffers[ptGraphics->tSwapchain.uCurrentImageIndex],
+            .renderArea.extent = {
+                .width  = (uint32_t)ptRenderPass->tDesc.tDimensions.x,
+                .height = (uint32_t)ptRenderPass->tDesc.tDimensions.y
+            },
+            .clearValueCount   = 2,
+            .pClearValues      = atClearValues
+        };
+
+        vkCmdBeginRenderPass(tCmdBuffer, &tRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    }
+    else
+    {
+        const VkClearValue atClearValues[2] = {
+            { .color.float32 = {
+                ptRenderPass->tDesc.atRenderTargets[0].tClearColor.r,
+                ptRenderPass->tDesc.atRenderTargets[0].tClearColor.g,
+                ptRenderPass->tDesc.atRenderTargets[0].tClearColor.b,
+                ptRenderPass->tDesc.atRenderTargets[0].tClearColor.a}},
+            { .depthStencil = {
+                .depth = ptRenderPass->tDesc.tDepthTarget.fClearZ,
+                .stencil = ptRenderPass->tDesc.tDepthTarget.uClearStencil
+                }
             }
-        }
-    };
+        };
 
-    const uint32_t uFrameBufferIndex = pl_min(ptRenderPass->tDesc.uAttachmentSets - 1, ptGraphics->uCurrentFrameIndex);
+        const uint32_t uFrameBufferIndex = pl_min(ptRenderPass->tDesc.uAttachmentSets - 1, ptGraphics->uCurrentFrameIndex);
 
-    VkRenderPassBeginInfo tRenderPassInfo = {
-        .sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass        = ptVulkanRenderPass->tRenderPass,
-        .framebuffer       = ptVulkanRenderPass->sbtFrameBuffers[uFrameBufferIndex],
-        .renderArea.extent = {
-            .width  = (uint32_t)ptRenderPass->tDesc.tDimensions.x,
-            .height = (uint32_t)ptRenderPass->tDesc.tDimensions.y
-        },
-        .clearValueCount   = 2,
-        .pClearValues      = atClearValues
-    };
+        VkRenderPassBeginInfo tRenderPassInfo = {
+            .sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .renderPass        = ptVulkanRenderPass->tRenderPass,
+            .framebuffer       = ptVulkanRenderPass->sbtFrameBuffers[uFrameBufferIndex],
+            .renderArea.extent = {
+                .width  = (uint32_t)ptRenderPass->tDesc.tDimensions.x,
+                .height = (uint32_t)ptRenderPass->tDesc.tDimensions.y
+            },
+            .clearValueCount   = 2,
+            .pClearValues      = atClearValues
+        };
 
-    vkCmdBeginRenderPass(ptCurrentFrame->tCmdBuf, &tRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(tCmdBuffer, &tRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    }
 
     const VkRect2D tScissor = {
         .extent = {
@@ -2891,76 +2927,170 @@ pl_begin_pass(plGraphics* ptGraphics, plRenderPassHandle tPass)
         .maxDepth = 1.0f
     };
 
-    vkCmdSetViewport(ptCurrentFrame->tCmdBuf, 0, 1, &tViewport);
-    vkCmdSetScissor(ptCurrentFrame->tCmdBuf, 0, 1, &tScissor);
+    vkCmdSetViewport(tCmdBuffer, 0, 1, &tViewport);
+    vkCmdSetScissor(tCmdBuffer, 0, 1, &tScissor);
+    
+    plPassRenderer tPassRenderer = {
+        .tRenderPassHandle = tPass
+    };
+    return tPassRenderer;
 }
 
 static void
-pl_end_pass(plGraphics* ptGraphics)
+pl_end_render_pass(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plPassRenderer tPass)
 {
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
-    vkCmdEndRenderPass(ptCurrentFrame->tCmdBuf);
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)tCommandBuffer._pInternal;
+    vkCmdEndRenderPass(tCmdBuffer);
 }
 
 static void
-pl_begin_main_pass(plGraphics* ptGraphics, plRenderPassHandle tPass)
+pl_draw_subpass(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plPassRenderer tPass, uint32_t uAreaCount, plDrawArea* atAreas)
 {
-
+    pl_begin_profile_sample(__FUNCTION__);
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)tCommandBuffer._pInternal;
 
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics); 
 
-    plRenderPass* ptRenderPass = &ptGraphics->sbtRenderPassesCold[tPass.uIndex];
-    plVulkanRenderPass* ptVulkanRenderPass = &ptVulkanGfx->sbtRenderPassesHot[tPass.uIndex];
+    static VkDeviceSize offsets = { 0 };
+    vkCmdSetDepthBias(tCmdBuffer, 0.0f, 0.0f, 0.0f);
 
-    const VkClearValue atClearValues[2] = {
-        { .color.float32 = {0.0f, 0.0f, 0.0f, 1.0f}},
-        { .depthStencil.depth = 1.0f}
-    };
+    for(uint32_t i = 0; i < uAreaCount; i++)
+    {
+        plDrawArea* ptArea = &atAreas[i];
 
-    VkRenderPassBeginInfo tRenderPassInfo = {
-        .sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass        = ptVulkanRenderPass->tRenderPass,
-        .framebuffer       = ptVulkanRenderPass->sbtFrameBuffers[ptGraphics->tSwapchain.uCurrentImageIndex],
-        .renderArea.extent = {
-            .width  = (uint32_t)ptRenderPass->tDesc.tDimensions.x,
-            .height = (uint32_t)ptRenderPass->tDesc.tDimensions.y
-        },
-        .clearValueCount   = 2,
-        .pClearValues      = atClearValues
-    };
+        const VkRect2D tScissor = {
+            .offset = {
+                .x = ptArea->tScissor.iOffsetX,
+                .y = ptArea->tScissor.iOffsetY
+            },
+            .extent = {
+                .width  = ptArea->tScissor.uWidth,
+                .height = ptArea->tScissor.uHeight
+            }
+        };
 
-    vkCmdBeginRenderPass(ptCurrentFrame->tCmdBuf, &tRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        const VkViewport tViewport = {
+            .x      = ptArea->tViewport.fX,
+            .y      = ptArea->tViewport.fY,
+            .width  = ptArea->tViewport.fWidth,
+            .height = ptArea->tViewport.fHeight,
+            .minDepth = ptArea->tViewport.fMinDepth,
+            .maxDepth = ptArea->tViewport.fMaxDepth
+        };
 
-    const VkRect2D tScissor = {
-        .extent = {
-            .width  = (uint32_t)ptRenderPass->tDesc.tDimensions.x,
-            .height = (uint32_t)ptRenderPass->tDesc.tDimensions.y
+        vkCmdSetViewport(tCmdBuffer, 0, 1, &tViewport);
+        vkCmdSetScissor(tCmdBuffer, 0, 1, &tScissor);  
+
+        plDrawStream* ptStream = ptArea->ptDrawStream;
+
+        const uint32_t uTokens = pl_sb_size(ptStream->sbtStream);
+        uint32_t uCurrentStreamIndex = 0;
+        uint32_t uTriangleCount = 0;
+        uint32_t uIndexBuffer = 0;
+        uint32_t uIndexBufferOffset = 0;
+        uint32_t uVertexBufferOffset = 0;
+        uint32_t uDynamicBufferOffset = 0;
+        plVulkanShader* ptVulkanShader = NULL;
+        plVulkanDynamicBuffer* ptVulkanDynamicBuffer = NULL;
+
+        VkDescriptorSet atDescriptorSets[4] = {VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE};
+
+        while(uCurrentStreamIndex < uTokens)
+        {
+
+            uint32_t uDescriptorStart = 3;
+
+            const uint32_t uDirtyMask = ptStream->sbtStream[uCurrentStreamIndex];
+            uCurrentStreamIndex++;
+
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
+            {
+                ptVulkanShader = &ptVulkanGfx->sbtShadersHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                vkCmdBindPipeline(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
+                uCurrentStreamIndex++;
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
+            {
+                uDynamicBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
+                uCurrentStreamIndex++;
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
+            {
+                // uDescriptorStart = 3;
+                ptVulkanDynamicBuffer = &ptCurrentFrame->sbtDynamicBuffers[ptStream->sbtStream[uCurrentStreamIndex]];
+                atDescriptorSets[3] = ptVulkanDynamicBuffer->tDescriptorSet;
+                uCurrentStreamIndex++;
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
+            {
+                uDescriptorStart = 2;
+                plVulkanBindGroup* ptBindGroup2 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                atDescriptorSets[2] = ptBindGroup2->tDescriptorSet;
+                uCurrentStreamIndex++;
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
+            {
+                uDescriptorStart = 1;
+                plVulkanBindGroup* ptBindGroup1 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                atDescriptorSets[1] = ptBindGroup1->tDescriptorSet;
+                uCurrentStreamIndex++;
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
+            {
+                uDescriptorStart = 0;
+                plVulkanBindGroup* ptBindGroup0 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                atDescriptorSets[0] = ptBindGroup0->tDescriptorSet;
+                uCurrentStreamIndex++;
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
+            {
+                uIndexBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
+                uCurrentStreamIndex++;
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_OFFSET)
+            {
+                uVertexBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
+                uCurrentStreamIndex++;
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_BUFFER)
+            {
+                uIndexBuffer = ptStream->sbtStream[uCurrentStreamIndex];
+                if(uIndexBuffer != UINT32_MAX)
+                {
+                    plVulkanBuffer* ptIndexBuffer = &ptVulkanGfx->sbtBuffersHot[uIndexBuffer];
+                    vkCmdBindIndexBuffer(tCmdBuffer, ptIndexBuffer->tBuffer, 0, VK_INDEX_TYPE_UINT32);
+                }
+                uCurrentStreamIndex++;
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER)
+            {
+                plVulkanBuffer* ptVertexBuffer = &ptVulkanGfx->sbtBuffersHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                vkCmdBindVertexBuffers(tCmdBuffer, 0, 1, &ptVertexBuffer->tBuffer, &offsets);
+                uCurrentStreamIndex++;
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_TRIANGLES)
+            {
+                uTriangleCount = ptStream->sbtStream[uCurrentStreamIndex];
+                uCurrentStreamIndex++;
+            }
+
+            vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, uDescriptorStart, 4 - uDescriptorStart, &atDescriptorSets[uDescriptorStart], 1, &uDynamicBufferOffset);
+
+            if(uIndexBuffer == UINT32_MAX)
+                vkCmdDraw(tCmdBuffer, uTriangleCount * 3, 1, uVertexBufferOffset, 0);
+            else
+                vkCmdDrawIndexed(tCmdBuffer, uTriangleCount * 3, 1, uIndexBufferOffset, uVertexBufferOffset, 0);
         }
-    };
-
-    const VkViewport tViewport = {
-        .width  = ptRenderPass->tDesc.tDimensions.x,
-        .height = ptRenderPass->tDesc.tDimensions.y,
-        .minDepth = 0.0f,
-        .maxDepth = 1.0f
-    };
-
-    vkCmdSetViewport(ptCurrentFrame->tCmdBuf, 0, 1, &tViewport);
-    vkCmdSetScissor(ptCurrentFrame->tCmdBuf, 0, 1, &tScissor);  
+    }
+    pl_end_profile_sample();
 }
 
 static void
-pl_end_main_pass(plGraphics* ptGraphics)
+pl_draw_list(plGraphics* ptGraphics, plPassRenderer tPass, plCommandBuffer tCommandBuffer, uint32_t uListCount, plDrawList* atLists)
 {
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
-    vkCmdEndRenderPass(ptCurrentFrame->tCmdBuf);
-}
-
-static void
-pl_draw_list(plGraphics* ptGraphics, uint32_t uListCount, plDrawList* atLists, plRenderPassHandle tPass)
-{
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)tCommandBuffer._pInternal;
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
@@ -2972,9 +3102,9 @@ pl_draw_list(plGraphics* ptGraphics, uint32_t uListCount, plDrawList* atLists, p
         pl_submit_vulkan_drawlist_ex(&atLists[i],
             ptIOCtx->afMainViewportSize[0],
             ptIOCtx->afMainViewportSize[1],
-            ptCurrentFrame->tCmdBuf,
+            tCmdBuffer,
             ptGraphics->uCurrentFrameIndex,
-            ptVulkanGfx->sbtRenderPassesHot[tPass.uIndex].tRenderPass,
+            ptVulkanGfx->sbtRenderPassesHot[tPass.tRenderPassHandle.uIndex].tRenderPass,
             VK_SAMPLE_COUNT_1_BIT);
     }
 }
@@ -3472,17 +3602,6 @@ pl_initialize_graphics(plGraphics* ptGraphics)
         PL_VULKAN(vkCreateFence(ptVulkanDevice->tLogicalDevice, &tFenceInfo, NULL, &tFrame.tInFlight));
         PL_VULKAN(vkCreateCommandPool(ptVulkanDevice->tLogicalDevice, &tFrameCommandPoolInfo, NULL, &tFrame.tCmdPool));
 
-        const VkCommandBufferAllocateInfo tAllocInfo = {
-            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .commandPool        = tFrame.tCmdPool,
-            .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-            .commandBufferCount = 1
-        };
-
-        VkCommandBuffer atCmdBuffers[1] = {0};
-        PL_VULKAN(vkAllocateCommandBuffers(ptVulkanDevice->tLogicalDevice, &tAllocInfo, atCmdBuffers));  
-        tFrame.tCmdBuf = atCmdBuffers[0];
-        
         // dynamic buffer stuff
         pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
         plBufferDescription tStagingBufferDescription0 = {
@@ -3740,10 +3859,11 @@ pl_begin_frame(plGraphics* ptGraphics)
     return true; 
 }
 
-static bool
-pl_end_gfx_frame(plGraphics* ptGraphics)
+static void
+pl_submit_commands(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer)
 {
     pl_begin_profile_sample(__FUNCTION__);
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)tCommandBuffer._pInternal;
     plIO* ptIOCtx = pl_get_io();
 
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
@@ -3755,7 +3875,7 @@ pl_end_gfx_frame(plGraphics* ptGraphics)
 
     // submit
     const VkPipelineStageFlags atWaitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    VkCommandBuffer atCmdBuffers[] = {ptCurrentFrame->tCmdBuf};
+    VkCommandBuffer atCmdBuffers[] = {tCmdBuffer};
     const VkSubmitInfo tSubmitInfo = {
         .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount   = 1,
@@ -3767,8 +3887,22 @@ pl_end_gfx_frame(plGraphics* ptGraphics)
         .pSignalSemaphores    = &ptCurrentFrame->tRenderFinish
     };
     PL_VULKAN(vkResetFences(ptVulkanDevice->tLogicalDevice, 1, &ptCurrentFrame->tInFlight));
+    PL_VULKAN(vkEndCommandBuffer(tCmdBuffer));  
     PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, ptCurrentFrame->tInFlight));          
-    
+}
+
+static bool
+pl_present(plGraphics* ptGraphics)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+    plIO* ptIOCtx = pl_get_io();
+
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
+
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
+    plVulkanSwapchain* ptVulkanSwapchain = ptGraphics->tSwapchain._pInternalData;
+
     // present                        
     const VkPresentInfoKHR tPresentInfo = {
         .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -4095,149 +4229,6 @@ pl_dispatch(plGraphics* ptGraphics, uint32_t uDispatchCount, plDispatch* atDispa
     PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
     PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
     vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
-}
-
-static void
-pl_draw_areas(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas)
-{
-    pl_begin_profile_sample(__FUNCTION__);
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics); 
-
-    static VkDeviceSize offsets = { 0 };
-    vkCmdSetDepthBias(ptCurrentFrame->tCmdBuf, 0.0f, 0.0f, 0.0f);
-
-    for(uint32_t i = 0; i < uAreaCount; i++)
-    {
-        plDrawArea* ptArea = &atAreas[i];
-
-        const VkRect2D tScissor = {
-            .offset = {
-                .x = ptArea->tScissor.iOffsetX,
-                .y = ptArea->tScissor.iOffsetY
-            },
-            .extent = {
-                .width  = ptArea->tScissor.uWidth,
-                .height = ptArea->tScissor.uHeight
-            }
-        };
-
-        const VkViewport tViewport = {
-            .x      = ptArea->tViewport.fX,
-            .y      = ptArea->tViewport.fY,
-            .width  = ptArea->tViewport.fWidth,
-            .height = ptArea->tViewport.fHeight,
-            .minDepth = ptArea->tViewport.fMinDepth,
-            .maxDepth = ptArea->tViewport.fMaxDepth
-        };
-
-        vkCmdSetViewport(ptCurrentFrame->tCmdBuf, 0, 1, &tViewport);
-        vkCmdSetScissor(ptCurrentFrame->tCmdBuf, 0, 1, &tScissor);  
-
-        plDrawStream* ptStream = ptArea->ptDrawStream;
-
-        const uint32_t uTokens = pl_sb_size(ptStream->sbtStream);
-        uint32_t uCurrentStreamIndex = 0;
-        uint32_t uTriangleCount = 0;
-        uint32_t uIndexBuffer = 0;
-        uint32_t uIndexBufferOffset = 0;
-        uint32_t uVertexBufferOffset = 0;
-        uint32_t uDynamicBufferOffset = 0;
-        plVulkanShader* ptVulkanShader = NULL;
-        plVulkanDynamicBuffer* ptVulkanDynamicBuffer = NULL;
-
-        VkDescriptorSet atDescriptorSets[4] = {VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE};
-
-        while(uCurrentStreamIndex < uTokens)
-        {
-
-            uint32_t uDescriptorStart = 3;
-
-            const uint32_t uDirtyMask = ptStream->sbtStream[uCurrentStreamIndex];
-            uCurrentStreamIndex++;
-
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
-            {
-                ptVulkanShader = &ptVulkanGfx->sbtShadersHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                vkCmdBindPipeline(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
-            {
-                uDynamicBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
-            {
-                // uDescriptorStart = 3;
-                ptVulkanDynamicBuffer = &ptCurrentFrame->sbtDynamicBuffers[ptStream->sbtStream[uCurrentStreamIndex]];
-                atDescriptorSets[3] = ptVulkanDynamicBuffer->tDescriptorSet;
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
-            {
-                uDescriptorStart = 2;
-                plVulkanBindGroup* ptBindGroup2 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                atDescriptorSets[2] = ptBindGroup2->tDescriptorSet;
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
-            {
-                uDescriptorStart = 1;
-                plVulkanBindGroup* ptBindGroup1 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                atDescriptorSets[1] = ptBindGroup1->tDescriptorSet;
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
-            {
-                uDescriptorStart = 0;
-                plVulkanBindGroup* ptBindGroup0 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                atDescriptorSets[0] = ptBindGroup0->tDescriptorSet;
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
-            {
-                uIndexBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_OFFSET)
-            {
-                uVertexBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_BUFFER)
-            {
-                uIndexBuffer = ptStream->sbtStream[uCurrentStreamIndex];
-                if(uIndexBuffer != UINT32_MAX)
-                {
-                    plVulkanBuffer* ptIndexBuffer = &ptVulkanGfx->sbtBuffersHot[uIndexBuffer];
-                    vkCmdBindIndexBuffer(ptCurrentFrame->tCmdBuf, ptIndexBuffer->tBuffer, 0, VK_INDEX_TYPE_UINT32);
-                }
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER)
-            {
-                plVulkanBuffer* ptVertexBuffer = &ptVulkanGfx->sbtBuffersHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                vkCmdBindVertexBuffers(ptCurrentFrame->tCmdBuf, 0, 1, &ptVertexBuffer->tBuffer, &offsets);
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_TRIANGLES)
-            {
-                uTriangleCount = ptStream->sbtStream[uCurrentStreamIndex];
-                uCurrentStreamIndex++;
-            }
-
-            vkCmdBindDescriptorSets(ptCurrentFrame->tCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, uDescriptorStart, 4 - uDescriptorStart, &atDescriptorSets[uDescriptorStart], 1, &uDynamicBufferOffset);
-
-            if(uIndexBuffer == UINT32_MAX)
-                vkCmdDraw(ptCurrentFrame->tCmdBuf, uTriangleCount * 3, 1, uVertexBufferOffset, 0);
-            else
-                vkCmdDrawIndexed(ptCurrentFrame->tCmdBuf, uTriangleCount * 3, 1, uIndexBufferOffset, uVertexBufferOffset, 0);
-        }
-    }
-    pl_end_profile_sample();
 }
 
 //-----------------------------------------------------------------------------
@@ -6024,15 +6015,7 @@ pl_load_graphics_api(void)
         .resize                           = pl_resize,
         .setup_ui                         = pl_setup_ui,
         .begin_frame                      = pl_begin_frame,
-        .end_frame                        = pl_end_gfx_frame,
-        .begin_recording                  = pl_begin_recording,
-        .end_recording                    = pl_end_recording,
-        .begin_main_pass                  = pl_begin_main_pass,
-        .end_main_pass                    = pl_end_main_pass,
-        .begin_pass                       = pl_begin_pass,
-        .end_pass                         = pl_end_pass,
         .dispatch                         = pl_dispatch,
-        .draw_areas                       = pl_draw_areas,
         .draw_lists                       = pl_draw_list,
         .cleanup                          = pl_shutdown,
         .create_font_atlas                = pl_create_vulkan_font_texture,
@@ -6048,7 +6031,14 @@ pl_load_graphics_api(void)
         .add_3d_aabb                      = pl__add_3d_aabb,
         .register_3d_drawlist             = pl__register_3d_drawlist,
         .submit_3d_drawlist               = pl__submit_3d_drawlist,
-        .get_ui_texture_handle            = pl_get_ui_texture_handle
+        .get_ui_texture_handle            = pl_get_ui_texture_handle,
+        .begin_command_recording          = pl_begin_command_recording,
+        .submit_command                   = pl_submit_command,
+        .submit_commands                  = pl_submit_commands,
+        .begin_render_pass                = pl_begin_render_pass,
+        .end_render_pass                  = pl_end_render_pass,
+        .draw_subpass                     = pl_draw_subpass,
+        .present                          = pl_present,
     };
     return &tApi;
 }

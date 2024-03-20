@@ -118,6 +118,8 @@ typedef struct _plScissor                  plScissor;
 typedef struct _plExtent                   plExtent;
 typedef struct _plFrameGarbage             plFrameGarbage;
 typedef struct _plBufferImageCopy          plBufferImageCopy;
+typedef struct _plCommandBuffer            plCommandBuffer;
+typedef struct _plPassRenderer             plPassRenderer;
 
 // render passes
 typedef struct _plRenderTarget                plRenderTarget;
@@ -251,28 +253,31 @@ typedef struct _plGraphicsI
     void (*setup_ui)  (plGraphics* ptGraphics, plRenderPassHandle tPass);
 
     // per frame
-    bool (*begin_frame)    (plGraphics* ptGraphics);
-    bool (*end_frame)      (plGraphics* ptGraphics);
-    void (*begin_recording)(plGraphics* ptGraphics);
-    void (*end_recording)  (plGraphics* ptGraphics);
-    void (*begin_main_pass)(plGraphics* ptGraphics, plRenderPassHandle tPass);
-    void (*end_main_pass)  (plGraphics* ptGraphics);
-    void (*begin_pass)     (plGraphics* ptGraphics, plRenderPassHandle tPass);
-    void (*end_pass)       (plGraphics* ptGraphics);
+    bool (*begin_frame) (plGraphics* ptGraphics);
+
+    // command buffers
+    plCommandBuffer (*begin_command_recording)(plGraphics* ptGraphics);
+    void            (*submit_command)(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer);
+
+    // command buffers (temporary)
+    void (*submit_commands)(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer);
+
+    // pass renderer
+    plPassRenderer (*begin_render_pass)(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plRenderPassHandle tPass);
+    void           (*end_render_pass)(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plPassRenderer tPass);
+    void           (*draw_subpass)(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plPassRenderer tPass, uint32_t uAreaCount, plDrawArea* atAreas);
+    bool           (*present)(plGraphics* ptGraphics);
 
     // compute
     void (*dispatch)(plGraphics* ptGraphics, uint32_t uDispatchCount, plDispatch* atDispatches);
 
-    // drawing
-    void (*draw_areas)(plGraphics* ptGraphics, uint32_t uAreaCount, plDrawArea* atAreas);
-
     // 2D drawing api
-    void (*draw_lists)(plGraphics* ptGraphics, uint32_t uListCount, plDrawList* atLists, plRenderPassHandle tPass);
+    void (*draw_lists)(plGraphics* ptGraphics, plPassRenderer tPass, plCommandBuffer tCommandBuffer, uint32_t uListCount, plDrawList* atLists);
     void (*create_font_atlas)(plFontAtlas* ptAtlas);
     void (*destroy_font_atlas)(plFontAtlas* ptAtlas);
 
     // 3D drawing api
-    void (*submit_3d_drawlist)    (plDrawList3D* ptDrawlist, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags tFlags, plRenderPassHandle tPass, uint32_t uMSAASampleCount);
+    void (*submit_3d_drawlist)    (plDrawList3D* ptDrawlist, plPassRenderer tPass, plCommandBuffer tCommandBuffer, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags tFlags, uint32_t uMSAASampleCount);
     void (*register_3d_drawlist)  (plGraphics* ptGraphics, plDrawList3D* ptDrawlist);
     void (*add_3d_triangle_filled)(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
     void (*add_3d_line)           (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness);
@@ -291,6 +296,17 @@ typedef struct _plGraphicsI
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plCommandBuffer
+{
+    void* _pInternal;
+} plCommandBuffer;
+
+typedef struct _plPassRenderer
+{
+    plRenderPassHandle tRenderPassHandle;
+    void*              _pInternal;
+} plPassRenderer;
 
 typedef struct _plGraphicsState
 {
@@ -679,6 +695,7 @@ typedef struct _plRenderPassDescription
 typedef struct _plRenderPass
 {
     plRenderPassDescription tDesc;
+    bool                    bSwapchain;
 } plRenderPass;
 
 typedef struct _plDevice

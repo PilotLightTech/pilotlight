@@ -342,7 +342,7 @@ pl_app_update(plAppData* ptAppData)
     // new ui frame
     pl_new_frame();
 
-    gptGfx->begin_recording(ptGraphics);
+    plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics);
 
     gptRenderer->update_scene(ptAppData->uSceneHandle0);
     gptRenderer->update_scene(ptAppData->uSceneHandle1);
@@ -359,21 +359,21 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bFrustumCulling && ptAppData->bFreezeCullCamera)
         tViewOptions.ptCullCamera = ptCullCamera;
 
-    gptRenderer->render_scene(ptAppData->uSceneHandle0, ptAppData->uViewHandle0, tViewOptions);
+    gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0, tViewOptions);
 
     plViewOptions tViewOptions2 = {
         .bShowOrigin               = true,
         .ptViewCamera              = ptCamera2,
         .ptCullCamera              = ptCamera2
     };
-    gptRenderer->render_scene(ptAppData->uSceneHandle0, ptAppData->uViewHandle1, tViewOptions2);
+    gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle1, tViewOptions2);
 
     plViewOptions tViewOptions3 = {
         .bShowOrigin               = true,
         .ptViewCamera              = ptCamera2,
         .ptCullCamera              = ptCamera2
     };
-    gptRenderer->render_scene(ptAppData->uSceneHandle1, ptAppData->uViewHandle2, tViewOptions3);
+    gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle1, ptAppData->uViewHandle2, tViewOptions3);
 
     pl_set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
 
@@ -456,18 +456,18 @@ pl_app_update(plAppData* ptAppData)
     pl_add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_texture_id(ptAppData->uSceneHandle1, ptAppData->uViewHandle2), (plVec2){0.0f, 500.0f}, (plVec2){500.0f, 1000.0f});
     pl_submit_layer(ptAppData->ptDrawLayer);
 
-    gptGfx->begin_main_pass(ptGraphics, ptGraphics->tMainRenderPass);
+    plPassRenderer tPassRenderer = gptGfx->begin_render_pass(ptGraphics, tCommandBuffer, ptGraphics->tMainRenderPass);
 
     // render ui
     pl_begin_profile_sample("render ui");
     pl_render();
-    gptGfx->draw_lists(ptGraphics, 1, pl_get_draw_list(NULL), ptGraphics->tMainRenderPass);
-    gptGfx->draw_lists(ptGraphics, 1, pl_get_debug_draw_list(NULL), ptGraphics->tMainRenderPass);
+    gptGfx->draw_lists(ptGraphics, tPassRenderer, tCommandBuffer, 1, pl_get_draw_list(NULL));
+    gptGfx->draw_lists(ptGraphics, tPassRenderer, tCommandBuffer, 1, pl_get_debug_draw_list(NULL));
     pl_end_profile_sample();
 
-    gptGfx->end_main_pass(ptGraphics);
-    gptGfx->end_recording(ptGraphics);
-    if(!gptGfx->end_frame(ptGraphics))
+    gptGfx->end_render_pass(ptGraphics, tCommandBuffer, tPassRenderer);
+    gptGfx->submit_commands(ptGraphics, tCommandBuffer);
+    if(!gptGfx->present(ptGraphics))
         gptRenderer->resize();
 
     pl_end_profile_sample();
