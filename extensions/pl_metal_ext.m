@@ -1726,20 +1726,6 @@ pl_end_recording(plGraphics* ptGraphics)
 }
 
 static void
-pl_start_transfers(plGraphics* ptGraphics)
-{
-    pl_begin_profile_sample(__FUNCTION__);
-    pl_end_profile_sample();
-}
-
-static void
-pl_end_transfers(plGraphics* ptGraphics)
-{
-    pl_begin_profile_sample(__FUNCTION__);
-    pl_end_profile_sample();
-}
-
-static void
 pl_begin_main_pass(plGraphics* ptGraphics, plRenderPassHandle tPass)
 {
     pl_begin_profile_sample(__FUNCTION__);
