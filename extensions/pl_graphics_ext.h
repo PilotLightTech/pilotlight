@@ -48,6 +48,22 @@ Index of this file:
     #define PL_MAX_SHADER_SPECIALIZATION_CONSTANTS 64
 #endif
 
+#ifndef PL_MAX_RENDER_TARGETS
+    #define PL_MAX_RENDER_TARGETS 16
+#endif
+
+#ifndef PL_FRAMES_IN_FLIGHT
+    #define PL_FRAMES_IN_FLIGHT 2
+#endif
+
+#ifndef PL_MAX_SUBPASSES
+    #define PL_MAX_SUBPASSES 8
+#endif
+
+#ifndef PL_MAX_SEMAPHORES
+    #define PL_MAX_SEMAPHORES 4
+#endif
+
 #define PL_ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
 
 #ifndef PL_DEFINE_HANDLE
@@ -119,7 +135,12 @@ typedef struct _plExtent                   plExtent;
 typedef struct _plFrameGarbage             plFrameGarbage;
 typedef struct _plBufferImageCopy          plBufferImageCopy;
 typedef struct _plCommandBuffer            plCommandBuffer;
-typedef struct _plPassRenderer             plPassRenderer;
+typedef struct _plRenderEncoder            plRenderEncoder;
+typedef struct _plComputeEncoder           plComputeEncoder;
+typedef struct _plBlitEncoder              plBlitEncoder;
+typedef struct _plTimelineSemaphore        plTimelineSemaphore;
+typedef struct _plBeginCommandInfo         plBeginCommandInfo;
+typedef struct _plSubmitInfo               plSubmitInfo;
 
 // render passes
 typedef struct _plRenderTarget                plRenderTarget;
@@ -140,6 +161,7 @@ PL_DEFINE_HANDLE(plShaderHandle);
 PL_DEFINE_HANDLE(plComputeShaderHandle);
 PL_DEFINE_HANDLE(plRenderPassHandle);
 PL_DEFINE_HANDLE(plRenderPassLayoutHandle);
+PL_DEFINE_HANDLE(plSemaphoreHandle);
 
 // device memory
 typedef struct _plDeviceAllocationRange  plDeviceAllocationRange;
@@ -237,12 +259,8 @@ typedef struct _plDeviceI
     void                  (*destroy_compute_shader)           (plDevice* ptDevice, plComputeShaderHandle tHandle);
     plShader*             (*get_shader)                       (plDevice* ptDevice, plShaderHandle ptHandle); // do not store
 
-    // texture/buffer ops (blocking)
-    void (*generate_mipmaps)        (plDevice* ptDevice, plTextureHandle tTexture);
-    void (*copy_buffer)             (plDevice* ptDevice, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t szSize);
-    void (*transfer_image_to_buffer)(plDevice* ptDevice, plTextureHandle tTexture, plBufferHandle tBuffer);          // from single layer & single mip textures
-    void (*copy_buffer_to_texture)  (plDevice* ptDevice, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions);
-
+    // syncronization
+    plSemaphoreHandle (*create_semaphore)(plDevice* ptDevice, bool bHostVisible);
 } plDeviceI;
 
 typedef struct _plGraphicsI
@@ -253,31 +271,46 @@ typedef struct _plGraphicsI
     void (*setup_ui)  (plGraphics* ptGraphics, plRenderPassHandle tPass);
 
     // per frame
-    bool (*begin_frame) (plGraphics* ptGraphics);
+    bool (*begin_frame)(plGraphics* ptGraphics);
+
+    // timeline semaphore ops
+    void     (*signal_semaphore)   (plGraphics* ptGraphics, plSemaphoreHandle tHandle, uint64_t ulValue);
+    void     (*wait_semaphore)     (plGraphics* ptGraphics, plSemaphoreHandle tHandle, uint64_t ulValue);
+    uint64_t (*get_semaphore_value)(plGraphics* ptGraphics, plSemaphoreHandle tHandle);
 
     // command buffers
-    plCommandBuffer (*begin_command_recording)(plGraphics* ptGraphics);
-    void            (*submit_command)(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer);
+    plCommandBuffer (*begin_command_recording)       (plGraphics* ptGraphics, const plBeginCommandInfo* ptBeginInfo);
+    void            (*end_command_recording)         (plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer);
+    void            (*submit_command_buffer)         (plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo);
+    void            (*submit_command_buffer_blocking)(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo);
+    bool            (*present)                       (plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo);
 
-    // command buffers (temporary)
-    void (*submit_commands)(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer);
+    // render encoder
+    plRenderEncoder (*begin_render_pass)(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass);
+    void            (*next_subpass)     (plRenderEncoder* ptEncoder);
+    void            (*end_render_pass)  (plRenderEncoder* ptEncoder);
+    void            (*draw_subpass)     (plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAreas);
+    
+    // compute encoder
+    plComputeEncoder (*begin_compute_pass)(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer);
+    void             (*end_compute_pass)  (plComputeEncoder* ptEncoder);
+    void             (*dispatch)          (plComputeEncoder* ptEncoder, uint32_t uDispatchCount, plDispatch* atDispatches);
 
-    // pass renderer
-    plPassRenderer (*begin_render_pass)(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plRenderPassHandle tPass);
-    void           (*end_render_pass)(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plPassRenderer tPass);
-    void           (*draw_subpass)(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plPassRenderer tPass, uint32_t uAreaCount, plDrawArea* atAreas);
-    bool           (*present)(plGraphics* ptGraphics);
-
-    // compute
-    void (*dispatch)(plGraphics* ptGraphics, uint32_t uDispatchCount, plDispatch* atDispatches);
+    // blit encoder
+    plBlitEncoder (*begin_blit_pass)         (plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer);
+    void          (*end_blit_pass)           (plBlitEncoder* ptEncoder);
+    void          (*copy_buffer_to_texture)  (plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions);
+    void          (*generate_mipmaps)        (plBlitEncoder* ptEncoder, plTextureHandle tTexture);
+    void          (*copy_buffer)             (plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t szSize);
+    void          (*transfer_image_to_buffer)(plBlitEncoder* ptEncoder, plTextureHandle tTexture, plBufferHandle tBuffer); // from single layer & single mip textures
 
     // 2D drawing api
-    void (*draw_lists)(plGraphics* ptGraphics, plPassRenderer tPass, plCommandBuffer tCommandBuffer, uint32_t uListCount, plDrawList* atLists);
-    void (*create_font_atlas)(plFontAtlas* ptAtlas);
+    void (*draw_lists)        (plGraphics* ptGraphics, plRenderEncoder tEncoder, uint32_t uListCount, plDrawList* atLists);
+    void (*create_font_atlas) (plFontAtlas* ptAtlas);
     void (*destroy_font_atlas)(plFontAtlas* ptAtlas);
 
     // 3D drawing api
-    void (*submit_3d_drawlist)    (plDrawList3D* ptDrawlist, plPassRenderer tPass, plCommandBuffer tCommandBuffer, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags tFlags, uint32_t uMSAASampleCount);
+    void (*submit_3d_drawlist)    (plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags tFlags, uint32_t uMSAASampleCount);
     void (*register_3d_drawlist)  (plGraphics* ptGraphics, plDrawList3D* ptDrawlist);
     void (*add_3d_triangle_filled)(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
     void (*add_3d_line)           (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness);
@@ -297,16 +330,47 @@ typedef struct _plGraphicsI
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+typedef struct _plBeginCommandInfo
+{
+    uint32_t          uWaitSemaphoreCount;
+    plSemaphoreHandle atWaitSempahores[PL_MAX_SEMAPHORES];
+    uint64_t          auWaitSemaphoreValues[PL_MAX_SEMAPHORES + 1];
+} plBeginCommandInfo;
+
+typedef struct _plSubmitInfo
+{
+    uint32_t          uSignalSemaphoreCount;
+    plSemaphoreHandle atSignalSempahores[PL_MAX_SEMAPHORES];
+    uint64_t          auSignalSemaphoreValues[PL_MAX_SEMAPHORES + 1];
+} plSubmitInfo;
+
 typedef struct _plCommandBuffer
 {
-    void* _pInternal;
+    plBeginCommandInfo tBeginInfo;
+    void*              _pInternal;
 } plCommandBuffer;
 
-typedef struct _plPassRenderer
+typedef struct _plRenderEncoder
 {
+    plGraphics*        ptGraphics;
+    plCommandBuffer    tCommandBuffer;
     plRenderPassHandle tRenderPassHandle;
     void*              _pInternal;
-} plPassRenderer;
+} plRenderEncoder;
+
+typedef struct _plComputeEncoder
+{
+    plGraphics*     ptGraphics;
+    plCommandBuffer tCommandBuffer;
+    void*           _pInternal;
+} plComputeEncoder;
+
+typedef struct _plBlitEncoder
+{
+    plGraphics*     ptGraphics;
+    plCommandBuffer tCommandBuffer;
+    void*           _pInternal;
+} plBlitEncoder;
 
 typedef struct _plGraphicsState
 {
@@ -597,6 +661,7 @@ typedef struct _plShaderDescription
 {
     plSpecializationConstant atConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
     uint32_t                 uConstantCount;
+    uint32_t                 uSubpassIndex;
     plGraphicsState          tGraphicsState;
     const void*              pTempConstantData;
     const char*              pcVertexShader;
@@ -641,8 +706,8 @@ typedef struct _plSubpass
 {
     uint32_t uRenderTargetCount;
     uint32_t uSubpassInputCount;
-    uint32_t auRenderTargets[16];
-    uint32_t auSubpassInputs[16];
+    uint32_t auRenderTargets[PL_MAX_RENDER_TARGETS];
+    uint32_t auSubpassInputs[PL_MAX_RENDER_TARGETS];
     bool     bDepthTarget;
 } plSubpass;
 
@@ -669,29 +734,33 @@ typedef struct _plRenderTarget
 
 typedef struct _plRenderPassLayoutDescription
 {
-    plDepthTarget   tDepthTarget;
-    plRenderTarget  atRenderTargets[16];
-    plSubpass       atSubpasses[16];
+    plFormat       tDepthTargetFormat;
+    uint32_t       uSubpassCount;
+    plRenderTarget atRenderTargets[PL_MAX_RENDER_TARGETS];
+    plSubpass      atSubpasses[PL_MAX_SUBPASSES];
+    
+
 } plRenderPassLayoutDescription;
 
 typedef struct _plRenderPassLayout
 {
     plRenderPassLayoutDescription tDesc;
+
+    // internal
+    uint32_t _uAttachmentCount;
 } plRenderPassLayout;
 
 typedef struct _plRenderPassAttachments
 {
-    plTextureViewHandle atViewAttachments[16];
+    plTextureViewHandle atViewAttachments[PL_MAX_RENDER_TARGETS];
 } plRenderPassAttachments;
 
 typedef struct _plRenderPassDescription
 {
     plRenderPassLayoutHandle tLayout;
-    plRenderTarget           atRenderTargets[16];
+    plRenderTarget           atRenderTargets[PL_MAX_RENDER_TARGETS];
     plDepthTarget            tDepthTarget;
     plVec2                   tDimensions;
-    uint32_t                 uAttachmentCount;
-    uint32_t                 uAttachmentSets;
 } plRenderPassDescription;
 
 typedef struct _plRenderPass
@@ -776,6 +845,10 @@ typedef struct _plGraphics
     plBindGroup* sbtBindGroupsCold;
     uint32_t*    sbtBindGroupGenerations;
     uint32_t*    sbtBindGroupFreeIndices;
+
+    // timeline semaphores
+    uint32_t* sbtSemaphoreGenerations;
+    uint32_t* sbtSemaphoreFreeIndices;
 
     // platform specific
     void* _pInternalData;

@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] defines
 // [SECTION] global data
 // [SECTION] internal structs & types
 // [SECTION] internal api
@@ -33,10 +34,23 @@ Index of this file:
 #import <QuartzCore/CAMetalLayer.h>
 
 //-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
+
+#ifndef PL_ARGUMENT_BUFFER_HEAP_SIZE
+    #define PL_ARGUMENT_BUFFER_HEAP_SIZE 134217728
+#endif
+
+#ifndef PL_DYNAMIC_ARGUMENT_BUFFER_SIZE
+    #define PL_DYNAMIC_ARGUMENT_BUFFER_SIZE 16777216
+#endif
+
+//-----------------------------------------------------------------------------
 // [SECTION] global data
 //-----------------------------------------------------------------------------
 
-const plFileApiI* gptFile = NULL;
+const plFileApiI*       gptFile = NULL;
+const plOsServicesApiI* gptOS   = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs & types
@@ -81,7 +95,7 @@ typedef struct _plMetalRenderPassLayout
 typedef struct _plMetalRenderPass
 {
     MTLRenderPassDescriptor* ptRenderPassDescriptor;
-    plRenderPassAttachments* sbtFrameBuffers;
+    plRenderPassAttachments  atFrameBuffers[6];
 } plMetalRenderPass;
 
 typedef struct _plMetalBuffer
@@ -102,6 +116,8 @@ typedef struct _plFrameContext
     // dynamic buffer stuff
     uint32_t              uCurrentBufferIndex;
     plMetalDynamicBuffer* sbtDynamicBuffers;
+
+    id<MTLFence> tFence;
 } plFrameContext;
 
 typedef struct _plMetalTexture
@@ -114,6 +130,12 @@ typedef struct _plMetalSampler
 {
     id<MTLSamplerState> tSampler;
 } plMetalSampler;
+
+typedef struct _plMetalTimelineSemaphore
+{
+    id<MTLEvent>       tEvent;
+    id<MTLSharedEvent> tSharedEvent;
+} plMetalTimelineSemaphore;
 
 typedef struct _plMetalBindGroup
 {
@@ -151,19 +173,17 @@ typedef struct _plGraphicsMetal
     plTempAllocator     tTempAllocator;
     id<MTLCommandQueue> tCmdQueue;
     CAMetalLayer*       pMetalLayer;
-
-    id<MTLFence>             atPassFences[64];
-    uint32_t                 uCurrentPassFenceIndex;
     
-    plFrameContext*          sbFrames;
-    plMetalTexture*          sbtTexturesHot;
-    plMetalSampler*          sbtSamplersHot;
-    plMetalBindGroup*        sbtBindGroupsHot;
-    plMetalBuffer*           sbtBuffersHot;
-    plMetalShader*           sbtShadersHot;
-    plMetalComputeShader*    sbtComputeShadersHot;
-    plMetalRenderPass*       sbtRenderPassesHot;
-    plMetalRenderPassLayout* sbtRenderPassLayoutsHot;
+    plFrameContext*           sbFrames;
+    plMetalTexture*           sbtTexturesHot;
+    plMetalSampler*           sbtSamplersHot;
+    plMetalBindGroup*         sbtBindGroupsHot;
+    plMetalBuffer*            sbtBuffersHot;
+    plMetalShader*            sbtShadersHot;
+    plMetalComputeShader*     sbtComputeShadersHot;
+    plMetalRenderPass*        sbtRenderPassesHot;
+    plMetalRenderPassLayout*  sbtRenderPassLayoutsHot;
+    plMetalTimelineSemaphore* sbtSemaphoresHot;
     
     // drawing
     plMetalPipelineEntry*           sbtPipelineEntries;
@@ -180,6 +200,8 @@ typedef struct _plGraphicsMetal
 typedef struct _plDeviceMetal
 {
     id<MTLDevice> tDevice;
+    id<MTLHeap> tDescriptorHeap;
+    uint64_t    ulDescriptorHeapOffset;
 } plDeviceMetal;
 
 //-----------------------------------------------------------------------------
@@ -297,6 +319,20 @@ pl_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDescrip
         .tDesc = *ptDesc
     };
 
+    // find attachment count & fill out references & descriptions
+    uint32_t uAttachmentCount = 0;
+
+    if(ptDesc->tDepthTargetFormat != PL_FORMAT_UNKNOWN)
+        uAttachmentCount = 1;
+
+    for(uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
+    {
+        if(ptDesc->atRenderTargets[i].tFormat == PL_FORMAT_UNKNOWN)
+            break;
+        uAttachmentCount++;
+    }
+    tLayout._uAttachmentCount = uAttachmentCount;
+
     ptMetalGraphics->sbtRenderPassLayoutsHot[uResourceIndex] = (plMetalRenderPassLayout){0};
     ptGraphics->sbtRenderPassLayoutsCold[uResourceIndex] = tLayout;
     return tHandle;
@@ -313,11 +349,7 @@ pl_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle
     plMetalRenderPass* ptMetalRenderPass = &ptMetalGfx->sbtRenderPassesHot[tHandle.uIndex];
     ptRenderPass->tDesc.tDimensions = tDimensions;
 
-    pl_sb_reset(ptMetalRenderPass->sbtFrameBuffers);
-    for(uint32_t i = 0; i < ptRenderPass->tDesc.uAttachmentSets; i++)
-    {
-        pl_sb_push(ptMetalRenderPass->sbtFrameBuffers, ptAttachments[i]);
-    }
+    ptMetalRenderPass->atFrameBuffers[0] = ptAttachments[0];
 }
 
 static void
@@ -394,12 +426,11 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
     plRenderPassLayout* ptLayout = &ptGraphics->sbtRenderPassLayoutsCold[ptDesc->tLayout.uIndex];
 
     plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[uResourceIndex];
-    pl_sb_reserve(ptMetalRenderPass->sbtFrameBuffers, ptDesc->uAttachmentSets);
 
     // render pass descriptor
     ptMetalRenderPass->ptRenderPassDescriptor = [MTLRenderPassDescriptor new];
 
-    if(ptLayout->tDesc.tDepthTarget.tFormat != PL_FORMAT_UNKNOWN)
+    if(ptLayout->tDesc.tDepthTargetFormat != PL_FORMAT_UNKNOWN)
     {
         ptMetalRenderPass->ptRenderPassDescriptor.depthAttachment.loadAction = pl__metal_load_op(ptDesc->tDepthTarget.tLoadOp);
         ptMetalRenderPass->ptRenderPassDescriptor.depthAttachment.storeAction = pl__metal_store_op(ptDesc->tDepthTarget.tStoreOp);
@@ -423,28 +454,21 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
             );
     }
 
-    for(uint32_t i = 0; i < ptDesc->uAttachmentSets; i++)
-    {
-        pl_sb_push(ptMetalRenderPass->sbtFrameBuffers, ptAttachments[i]);
-    }
+    ptMetalRenderPass->atFrameBuffers[0] = ptAttachments[0];
 
     ptGraphics->sbtRenderPassesCold[uResourceIndex] = tRenderPass;
     return tHandle;
 }
 
 static void
-pl_copy_buffer_to_texture(plDevice* ptDevice, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
-    plGraphics*      ptGraphics       = ptDevice->ptGraphics;
+    plDevice*        ptDevice       = &ptEncoder->ptGraphics->tDevice;
     plDeviceMetal*   ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
-    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    plGraphicsMetal* ptMetalGraphics = ptEncoder->ptGraphics->_pInternalData;
 
-    id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
-    commandBuffer.label = @"Buffer to Texture Blit cmd";
-
-
-    id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
-    blitEncoder.label = @"Buffer to Texture Blit Encoder";
+    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)ptEncoder->tCommandBuffer._pInternal;
+    id<MTLBlitCommandEncoder> blitEncoder = (id<MTLBlitCommandEncoder>)ptEncoder->_pInternal;
 
     plMetalBuffer* ptBuffer = &ptMetalGraphics->sbtBuffersHot[tBufferHandle.uIndex];
     plMetalTexture* ptTexture = &ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex];
@@ -474,28 +498,17 @@ pl_copy_buffer_to_texture(plDevice* ptDevice, plBufferHandle tBufferHandle, plTe
             destinationLevel:0 
             destinationOrigin:tOrigin];
     }
-
-    [blitEncoder endEncoding];
-    [commandBuffer commit];
-    [commandBuffer waitUntilCompleted];
 }
 
 static void
-pl_transfer_image_to_buffer(plDevice* ptDevice, plTextureHandle tTexture, plBufferHandle tBuffer)
+pl_transfer_image_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTexture, plBufferHandle tBuffer)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
-    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    plGraphicsMetal* ptMetalGraphics = ptEncoder->ptGraphics->_pInternalData;
+    id<MTLBlitCommandEncoder> blitEncoder = (id<MTLBlitCommandEncoder>)ptEncoder->_pInternal;
 
-    const plTexture* ptTexture = pl__get_texture(ptDevice, tTexture);
+    const plTexture* ptTexture = pl__get_texture(&ptEncoder->ptGraphics->tDevice, tTexture);
     const plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[tTexture.uIndex];
     const plMetalBuffer* ptMetalBuffer = &ptMetalGraphics->sbtBuffersHot[tBuffer.uIndex];
-
-    id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
-    commandBuffer.label = @"Heap Transfer Blit Encoder";
-
-    id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
-    blitEncoder.label = @"Heap Transfer Blit Encoder";
 
     MTLOrigin tOrigin;
     tOrigin.x = 0;
@@ -517,30 +530,87 @@ pl_transfer_image_to_buffer(plDevice* ptDevice, plTextureHandle tTexture, plBuff
         destinationOffset:0
         destinationBytesPerRow:ptTexture->tDesc.tDimensions.x * uFormatStride
         destinationBytesPerImage:0];
-
-    [blitEncoder endEncoding];
-    [commandBuffer commit];
-    [commandBuffer waitUntilCompleted];
 }
 
 static void
-pl_copy_buffer(plDevice* ptDevice, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t szSize)
+pl_copy_buffer(plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t szSize)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
-    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
-
-    id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
-    commandBuffer.label = @"Heap Transfer Blit Encoder";
-
-    id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
-    blitEncoder.label = @"Heap Transfer Blit Encoder";
-
+    plGraphicsMetal* ptMetalGraphics = ptEncoder->ptGraphics->_pInternalData;
+    id<MTLBlitCommandEncoder> blitEncoder = (id<MTLBlitCommandEncoder>)ptEncoder->_pInternal;
     [blitEncoder copyFromBuffer:ptMetalGraphics->sbtBuffersHot[tSource.uIndex].tBuffer sourceOffset:uSourceOffset toBuffer:ptMetalGraphics->sbtBuffersHot[tDestination.uIndex].tBuffer destinationOffset:uDestinationOffset size:szSize];
+}
 
-    [blitEncoder endEncoding];
-    [commandBuffer commit];
-    [commandBuffer waitUntilCompleted];
+static plSemaphoreHandle
+pl_create_semaphore(plDevice* ptDevice, bool bHostVisible)
+{   
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
+
+    uint32_t uIndex = UINT32_MAX;
+    if(pl_sb_size(ptGraphics->sbtSemaphoreFreeIndices) > 0)
+        uIndex = pl_sb_pop(ptGraphics->sbtSemaphoreFreeIndices);
+    else
+    {
+        uIndex = pl_sb_size(ptMetalGraphics->sbtSemaphoresHot);
+        pl_sb_push(ptGraphics->sbtSemaphoreGenerations, UINT32_MAX);
+        pl_sb_add(ptMetalGraphics->sbtSemaphoresHot);
+    }
+
+    plSemaphoreHandle tHandle = {
+        .uGeneration = ++ptGraphics->sbtSemaphoreGenerations[uIndex],
+        .uIndex = uIndex
+    };
+    
+    plMetalTimelineSemaphore tSemaphore = {0};
+    if(bHostVisible)
+    {
+        tSemaphore.tSharedEvent = [ptMetalDevice->tDevice newSharedEvent];
+    }
+    else
+    {
+        tSemaphore.tEvent = [ptMetalDevice->tDevice newEvent];
+    }
+    ptMetalGraphics->sbtSemaphoresHot[uIndex] = tSemaphore;
+    return tHandle;
+}
+
+static void
+pl_signal_semaphore(plGraphics* ptGraphics, plSemaphoreHandle tHandle, uint64_t ulValue)
+{
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    PL_ASSERT(ptMetalGraphics->sbtSemaphoresHot[tHandle.uIndex].tSharedEvent != nil);
+    if(ptMetalGraphics->sbtSemaphoresHot[tHandle.uIndex].tSharedEvent)
+    {
+        ptMetalGraphics->sbtSemaphoresHot[tHandle.uIndex].tSharedEvent.signaledValue = ulValue;
+    }
+}
+
+static void
+pl_wait_semaphore(plGraphics* ptGraphics, plSemaphoreHandle tHandle, uint64_t ulValue)
+{
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    PL_ASSERT(ptMetalGraphics->sbtSemaphoresHot[tHandle.uIndex].tSharedEvent != nil);
+    if(ptMetalGraphics->sbtSemaphoresHot[tHandle.uIndex].tSharedEvent)
+    {
+        while(ptMetalGraphics->sbtSemaphoresHot[tHandle.uIndex].tSharedEvent.signaledValue != ulValue)
+        {
+            gptOS->sleep(1);
+        }
+    }
+}
+
+static uint64_t
+pl_get_semaphore_value(plGraphics* ptGraphics, plSemaphoreHandle tHandle)
+{
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+    PL_ASSERT(ptMetalGraphics->sbtSemaphoresHot[tHandle.uIndex].tSharedEvent != nil);
+
+    if(ptMetalGraphics->sbtSemaphoresHot[tHandle.uIndex].tSharedEvent)
+    {
+        return ptMetalGraphics->sbtSemaphoresHot[tHandle.uIndex].tSharedEvent.signaledValue;
+    }
+    return 0;
 }
 
 static plBufferHandle
@@ -627,28 +697,16 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
 }
 
 static void
-pl_generate_mipmaps(plDevice* ptDevice, plTextureHandle tTexture)
+pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
-    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
-
-    plTexture* ptTexture = pl__get_texture(ptDevice, tTexture);
+    plGraphicsMetal* ptMetalGraphics = ptEncoder->ptGraphics->_pInternalData;
+    plTexture* ptTexture = pl__get_texture(&ptEncoder->ptGraphics->tDevice, tTexture);
     if(ptTexture->tDesc.uMips < 2)
         return;
 
-    id<MTLCommandBuffer> commandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
-    commandBuffer.label = @"Heap Transfer Blit Encoder";
-
-    id<MTLBlitCommandEncoder> blitEncoder = commandBuffer.blitCommandEncoder;
-    blitEncoder.label = @"Heap Transfer Blit Encoder";
-
+    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)ptEncoder->tCommandBuffer._pInternal;
+    id<MTLBlitCommandEncoder> blitEncoder = (id<MTLBlitCommandEncoder>)ptEncoder->_pInternal;
     [blitEncoder generateMipmapsForTexture:ptMetalGraphics->sbtTexturesHot[tTexture.uIndex].tTexture];
-
-    [blitEncoder endEncoding];
-    [commandBuffer commit];
-
-    [commandBuffer waitUntilCompleted];
 }
 
 static plTextureHandle
@@ -818,15 +876,17 @@ pl_get_temporary_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout)
 
     NSUInteger argumentBufferLength = sizeof(MTLResourceID) * ptLayout->uTextureCount * 2 + sizeof(void*) * ptLayout->uBufferCount;
 
-
-    if(argumentBufferLength + ptFrame->szCurrentArgumentOffset > PL_DEVICE_ALLOCATION_BLOCK_SIZE)
+    if(argumentBufferLength + ptFrame->szCurrentArgumentOffset > PL_DYNAMIC_ARGUMENT_BUFFER_SIZE)
     {
         ptFrame->uCurrentArgumentBuffer++;
         if(ptFrame->uCurrentArgumentBuffer >= pl_sb_size(ptFrame->sbtArgumentBuffers))
         {
             plMetalBuffer tArgumentBuffer = {
-                .tBuffer = [ptMetalDevice->tDevice newBufferWithLength:PL_DEVICE_ALLOCATION_BLOCK_SIZE options:0]
+                .tBuffer = [ptMetalDevice->tDescriptorHeap newBufferWithLength:PL_DYNAMIC_ARGUMENT_BUFFER_SIZE options:MTLResourceStorageModeShared offset:ptMetalDevice->ulDescriptorHeapOffset]
             };
+            ptMetalDevice->ulDescriptorHeapOffset += argumentBufferLength;
+            ptMetalDevice->ulDescriptorHeapOffset = PL__ALIGN_UP(ptMetalDevice->ulDescriptorHeapOffset, 256);
+
             pl_sb_push(ptFrame->sbtArgumentBuffers, tArgumentBuffer);
         }
          ptFrame->szCurrentArgumentOffset = 0;
@@ -877,9 +937,11 @@ pl_create_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout)
     NSUInteger argumentBufferLength = sizeof(MTLResourceID) * ptLayout->uTextureCount * 2 + sizeof(void*) * ptLayout->uBufferCount;
 
     plMetalBindGroup tMetalBindGroup = {
-        .tShaderArgumentBuffer = [ptMetalDevice->tDevice newBufferWithLength:argumentBufferLength options:0]
+        .tShaderArgumentBuffer = [ptMetalDevice->tDescriptorHeap newBufferWithLength:argumentBufferLength options:MTLResourceStorageModeShared offset:ptMetalDevice->ulDescriptorHeapOffset]
     };
     tMetalBindGroup.tShaderArgumentBuffer.label = [NSString stringWithUTF8String:"bind group"];
+    ptMetalDevice->ulDescriptorHeapOffset += argumentBufferLength;
+    ptMetalDevice->ulDescriptorHeapOffset = PL__ALIGN_UP(ptMetalDevice->ulDescriptorHeapOffset, 256);
 
     ptMetalGraphics->sbtBindGroupsHot[uBindGroupIndex] = tMetalBindGroup;
     ptGraphics->sbtBindGroupsCold[uBindGroupIndex] = tBindGroup;
@@ -898,7 +960,6 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle* ptGroup, uint32_t uB
 
     const char* pcDescriptorStart = ptMetalBindGroup->tShaderArgumentBuffer.contents;
     
-
     // start of buffers
     float** ptBufferResources = (float**)&pcDescriptorStart[ptMetalBindGroup->uOffset];
     for(uint32_t i = 0; i < uBufferCount; i++)
@@ -1265,16 +1326,31 @@ pl_get_shader_variant(plDevice* ptDevice, plShaderHandle tHandle, const plShader
     // renderpass stuff
     const plRenderPassLayout* ptLayout = &ptGraphics->sbtRenderPassLayoutsCold[ptShader->tDescription.tRenderPassLayout.uIndex];
 
-    pipelineDescriptor.colorAttachments[0].pixelFormat = pl__metal_format(ptLayout->tDesc.atRenderTargets[0].tFormat);
-    pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
-    pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
-    pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
-    pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-    pipelineDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
-    pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorSourceAlpha;
-    pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-    pipelineDescriptor.depthAttachmentPixelFormat = pl__metal_format(ptLayout->tDesc.tDepthTarget.tFormat);
-    // pipelineDescriptor.stencilAttachmentPixelFormat = ptMetalRenderPass->ptRenderPassDescriptor.stencilAttachment.texture.pixelFormat;
+    uint32_t uColorAttachmentCount = ptLayout->_uAttachmentCount;
+    if(ptLayout->tDesc.tDepthTargetFormat != PL_FORMAT_UNKNOWN)
+    {
+        pipelineDescriptor.depthAttachmentPixelFormat = pl__metal_format(ptLayout->tDesc.tDepthTargetFormat);
+        uColorAttachmentCount--;
+    }
+    for(uint32_t j = 0; j < uColorAttachmentCount; j++)
+    {
+        if(j == 0)
+        {
+            pipelineDescriptor.colorAttachments[j].pixelFormat = pl__metal_format(ptLayout->tDesc.atRenderTargets[j].tFormat);
+            pipelineDescriptor.colorAttachments[j].blendingEnabled = YES;
+            pipelineDescriptor.colorAttachments[j].rgbBlendOperation = MTLBlendOperationAdd;
+            pipelineDescriptor.colorAttachments[j].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+            pipelineDescriptor.colorAttachments[j].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+            pipelineDescriptor.colorAttachments[j].alphaBlendOperation = MTLBlendOperationAdd;
+            pipelineDescriptor.colorAttachments[j].sourceAlphaBlendFactor = MTLBlendFactorOne;
+            pipelineDescriptor.colorAttachments[j].destinationAlphaBlendFactor = MTLBlendFactorZero;
+        }
+        else
+        {
+            pipelineDescriptor.colorAttachments[j].pixelFormat = pl__metal_format(ptLayout->tDesc.atRenderTargets[j].tFormat);
+            pipelineDescriptor.colorAttachments[j].blendingEnabled = NO;
+        }
+    }
 
     const plMetalShader tMetalShader = {
         .tDepthStencilState   = [ptMetalDevice->tDevice newDepthStencilStateWithDescriptor:depthDescriptor],
@@ -1376,6 +1452,8 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         uTotalConstantSize += pl__get_data_type_size(ptConstant->tType);
     }
 
+    const plRenderPassLayout* ptRenderPassLayout = &ptGraphics->sbtRenderPassLayoutsCold[ptDescription->tRenderPassLayout.uIndex];
+
     const plShaderVariant tMainShaderVariant = {.pTempConstantData = tShader.tDescription.pTempConstantData, .tGraphicsState = tShader.tDescription.tGraphicsState};
     plShaderVariant *ptVariants = pl_temp_allocator_alloc(&ptMetalGraphics->tTempAllocator, sizeof(plShaderVariant) * (tShader.tDescription.uVariantCount + 1));
     ptVariants[0] = tMainShaderVariant;
@@ -1432,15 +1510,31 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         pipelineDescriptor.vertexDescriptor = vertexDescriptor;
         pipelineDescriptor.rasterSampleCount = 1;
 
-        pipelineDescriptor.colorAttachments[0].pixelFormat = pl__metal_format(ptLayout->tDesc.atRenderTargets[0].tFormat);
-        pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
-        pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
-        pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
-        pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-        pipelineDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
-        pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
-        pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorZero;
-        pipelineDescriptor.depthAttachmentPixelFormat = pl__metal_format(ptLayout->tDesc.tDepthTarget.tFormat);
+        uint32_t uColorAttachmentCount = ptRenderPassLayout->_uAttachmentCount;
+        if(ptRenderPassLayout->tDesc.tDepthTargetFormat != PL_FORMAT_UNKNOWN)
+        {
+            pipelineDescriptor.depthAttachmentPixelFormat = pl__metal_format(ptLayout->tDesc.tDepthTargetFormat);
+            uColorAttachmentCount--;
+        }
+        for(uint32_t j = 0; j < uColorAttachmentCount; j++)
+        {
+            if(j == 0)
+            {
+                pipelineDescriptor.colorAttachments[0].pixelFormat = pl__metal_format(ptLayout->tDesc.atRenderTargets[j].tFormat);
+                pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
+                pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
+                pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+                pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+                pipelineDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
+                pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
+                pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorZero;
+            }
+            else
+            {
+                pipelineDescriptor.colorAttachments[j].pixelFormat = pl__metal_format(ptLayout->tDesc.atRenderTargets[j].tFormat);
+                pipelineDescriptor.colorAttachments[j].blendingEnabled = NO;
+            }
+        }
         // pipelineDescriptor.stencilAttachmentPixelFormat = ptMetalRenderPass->ptRenderPassDescriptor.stencilAttachment.texture.pixelFormat;
 
         const plMetalShader tMetalShader = {
@@ -1591,11 +1685,19 @@ pl_initialize_graphics(plGraphics* ptGraphics)
     ptGraphics->tDevice.tStagingCachedAllocator.ranges = pl_get_allocator_ranges;
     ptGraphics->tDevice.tStagingCachedAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&tStagingCachedData;
 
+    MTLHeapDescriptor* ptHeapDescriptor = [MTLHeapDescriptor new];
+    ptHeapDescriptor.storageMode = MTLStorageModeShared;
+    ptHeapDescriptor.size        = PL_ARGUMENT_BUFFER_HEAP_SIZE;
+    ptHeapDescriptor.type        = MTLHeapTypePlacement;
+    ptHeapDescriptor.hazardTrackingMode = MTLHazardTrackingModeUntracked;
+    ptMetalDevice->tDescriptorHeap = [ptMetalDevice->tDevice newHeapWithDescriptor:ptHeapDescriptor];
+
     pl_sb_resize(ptGraphics->sbtGarbage, ptGraphics->uFramesInFlight);
     for(uint32_t i = 0; i < ptGraphics->uFramesInFlight; i++)
     {
         plFrameContext tFrame = {
-            .tFrameBoundarySemaphore = dispatch_semaphore_create(1)
+            .tFrameBoundarySemaphore = dispatch_semaphore_create(1),
+            .tFence = [ptMetalDevice->tDevice newFence]
         };
         pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
         static char atNameBuffer[PL_MAX_NAME_LENGTH] = {0};
@@ -1605,17 +1707,17 @@ pl_initialize_graphics(plGraphics* ptGraphics)
         tFrame.sbtDynamicBuffers[0].tBuffer.label = [NSString stringWithUTF8String:"dynamic"];
         
         plMetalBuffer tArgumentBuffer = {
-                .tBuffer = [ptMetalDevice->tDevice newBufferWithLength:PL_DEVICE_ALLOCATION_BLOCK_SIZE options:0]
-            };
+            .tBuffer = [ptMetalDevice->tDescriptorHeap newBufferWithLength:PL_DYNAMIC_ARGUMENT_BUFFER_SIZE options:MTLResourceStorageModeShared offset:ptMetalDevice->ulDescriptorHeapOffset]
+        };
+        ptMetalDevice->ulDescriptorHeapOffset += PL_DYNAMIC_ARGUMENT_BUFFER_SIZE;
+        ptMetalDevice->ulDescriptorHeapOffset = PL__ALIGN_UP(ptMetalDevice->ulDescriptorHeapOffset, 256);
+
         pl_sb_push(tFrame.sbtArgumentBuffers, tArgumentBuffer);
         pl_sb_push(ptMetalGraphics->sbFrames, tFrame);
     }
 
     pl_create_main_render_pass_layout(&ptGraphics->tDevice);
     pl_create_main_render_pass(&ptGraphics->tDevice);
-
-    for(uint32_t i = 0; i < 64; i++)
-        ptMetalGraphics->atPassFences[i] = [ptMetalDevice->tDevice newFence];
 }
 
 static void
@@ -1648,7 +1750,6 @@ pl_begin_frame(plGraphics* ptGraphics)
     pl_begin_profile_sample(__FUNCTION__);
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
-    ptMetalGraphics->uCurrentPassFenceIndex = 0;
 
     // Wait until the inflight command buffer has completed its work
     ptGraphics->tSwapchain.uCurrentImageIndex = ptGraphics->uCurrentFrameIndex;
@@ -1670,7 +1771,6 @@ pl_begin_frame(plGraphics* ptGraphics)
         return false;
     }
 
-
     // reset 3d drawlists
     for(uint32_t i = 0u; i < pl_sb_size(ptGraphics->sbt3DDrawlists); i++)
     {
@@ -1687,37 +1787,64 @@ pl_begin_frame(plGraphics* ptGraphics)
 }
 
 static plCommandBuffer
-pl_begin_command_recording(plGraphics* ptGraphics)
+pl_begin_command_recording(plGraphics* ptGraphics, const plBeginCommandInfo* ptBeginInfo)
 {
-    pl_begin_profile_sample(__FUNCTION__);
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     id<MTLCommandBuffer> tCmdBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
     plCommandBuffer tCommandBuffer = {
         ._pInternal = tCmdBuffer
     };
-    pl_end_profile_sample();
+
+    if(ptBeginInfo)
+    {
+        tCommandBuffer.tBeginInfo = *ptBeginInfo;
+        for(uint32_t i = 0; i < ptBeginInfo->uWaitSemaphoreCount; i++)
+        {
+            if(ptMetalGraphics->sbtSemaphoresHot[ptBeginInfo->atWaitSempahores[i].uIndex].tEvent)
+            {
+                [tCmdBuffer encodeWaitForEvent:ptMetalGraphics->sbtSemaphoresHot[ptBeginInfo->atWaitSempahores[i].uIndex].tEvent value:ptBeginInfo->auWaitSemaphoreValues[i]];
+            }
+            else
+            {
+                [tCmdBuffer encodeWaitForEvent:ptMetalGraphics->sbtSemaphoresHot[ptBeginInfo->atWaitSempahores[i].uIndex].tSharedEvent value:ptBeginInfo->auWaitSemaphoreValues[i]];
+            }
+        }
+    }
+
     return tCommandBuffer;
 }
 
 static void
-pl_submit_command(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer)
+pl_end_command_recording(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer)
 {
-    pl_begin_profile_sample(__FUNCTION__);
-    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)tCommandBuffer._pInternal;
-    [tCmdBuffer commit]; 
-    pl_end_profile_sample();
+    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)ptCmdBuffer->_pInternal;
+    [tCmdBuffer enqueue];
 }
 
-static void
-pl_submit_commands(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer)
+static bool
+pl_present(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
 {
-    pl_begin_profile_sample(__FUNCTION__);
-    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)tCommandBuffer._pInternal;
-
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
+    plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
+    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)ptCmdBuffer->_pInternal;
+
     [tCmdBuffer presentDrawable:ptMetalGraphics->tCurrentDrawable];
 
-    plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
+    if(ptSubmitInfo)
+    {
+        for(uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
+        {
+            if(ptMetalGraphics->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex].tEvent)
+            {
+                [tCmdBuffer encodeSignalEvent:ptMetalGraphics->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex].tEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
+            }
+            else
+            {
+                [tCmdBuffer encodeSignalEvent:ptMetalGraphics->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex].tSharedEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
+            }
+        }
+    }
+    
     ptFrame->uCurrentBufferIndex = UINT32_MAX;
 
     dispatch_semaphore_t semaphore = ptFrame->tFrameBoundarySemaphore;
@@ -1728,83 +1855,181 @@ pl_submit_commands(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer)
     }];
 
     [tCmdBuffer commit];
-    pl_end_profile_sample();
-}
 
-static bool
-pl_present(plGraphics* ptGraphics)
-{
-    pl_begin_profile_sample(__FUNCTION__);
     ptGraphics->uCurrentFrameIndex = (ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;
-    pl_end_profile_sample();
+    ptCmdBuffer->_pInternal = NULL;
     return true;
 }
 
-static plPassRenderer
-pl_begin_render_pass(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plRenderPassHandle tPass)
+static plRenderEncoder
+pl_begin_render_pass(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass)
 {
-    pl_begin_profile_sample(__FUNCTION__);
     plRenderPass* ptRenderPass = &ptGraphics->sbtRenderPassesCold[tPass.uIndex];
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[tPass.uIndex];
-    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)tCommandBuffer._pInternal;
+    plRenderPassLayout* ptLayout = &ptGraphics->sbtRenderPassLayoutsCold[ptRenderPass->tDesc.tLayout.uIndex];
+    
+    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)ptCmdBuffer->_pInternal;
     id<MTLRenderCommandEncoder> tRenderEncoder = nil;
 
     if(ptRenderPass->bSwapchain)
     {
         ptMetalRenderPass->ptRenderPassDescriptor.colorAttachments[0].texture = ptMetalGraphics->tCurrentDrawable.texture;
         tRenderEncoder = [tCmdBuffer renderCommandEncoderWithDescriptor:ptMetalRenderPass->ptRenderPassDescriptor];
-        for(uint32_t i = 0; i < ptMetalGraphics->uCurrentPassFenceIndex; i++)
-            [tRenderEncoder waitForFence:ptMetalGraphics->atPassFences[i] beforeStages:MTLRenderStageFragment];
-
         pl_new_draw_frame_metal(ptMetalRenderPass->ptRenderPassDescriptor);
     }
     else
     {
-        
-        const uint32_t uFrameBufferIndex = pl_min(ptRenderPass->tDesc.uAttachmentSets - 1, ptGraphics->uCurrentFrameIndex);
 
-        const plRenderPassAttachments* ptAttachment = &ptMetalRenderPass->sbtFrameBuffers[uFrameBufferIndex];
+        const plRenderPassAttachments* ptAttachment = &ptMetalRenderPass->atFrameBuffers[0];
+
+        uint32_t uColorAttachmentCount = ptLayout->_uAttachmentCount;
+
+        if(ptLayout->tDesc.tDepthTargetFormat != PL_FORMAT_UNKNOWN)
+        {
+            const uint32_t uDepthIndex = ptGraphics->sbtTextureViewsCold[ptAttachment->atViewAttachments[0].uIndex].tTexture.uIndex;
+            ptMetalRenderPass->ptRenderPassDescriptor.depthAttachment.texture = ptMetalGraphics->sbtTexturesHot[uDepthIndex].tTexture;
+            uColorAttachmentCount--;
+        }
         
-        const uint32_t uColorIndex = ptGraphics->sbtTextureViewsCold[ptAttachment->atViewAttachments[0].uIndex].tTexture.uIndex;
-        const uint32_t uDepthIndex = ptGraphics->sbtTextureViewsCold[ptAttachment->atViewAttachments[1].uIndex].tTexture.uIndex;
-        ptMetalRenderPass->ptRenderPassDescriptor.depthAttachment.texture = ptMetalGraphics->sbtTexturesHot[uDepthIndex].tTexture;
-        ptMetalRenderPass->ptRenderPassDescriptor.colorAttachments[0].texture = ptMetalGraphics->sbtTexturesHot[uColorIndex].tTexture;
+        for(uint32_t i = 0; i < uColorAttachmentCount; i++)
+        {
+            const uint32_t uColorIndex = ptGraphics->sbtTextureViewsCold[ptAttachment->atViewAttachments[i+1].uIndex].tTexture.uIndex;
+            ptMetalRenderPass->ptRenderPassDescriptor.colorAttachments[i].texture = ptMetalGraphics->sbtTexturesHot[uColorIndex].tTexture;
+        }
+
         tRenderEncoder = [tCmdBuffer renderCommandEncoderWithDescriptor:ptMetalRenderPass->ptRenderPassDescriptor];
     }
 
-    plPassRenderer tPassRenderer = {
+    plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
+    // [tRenderEncoder waitForFence:ptFrame->tFence beforeStages:MTLRenderStageFragment];
+
+    plRenderEncoder tEncoder = {
+        .ptGraphics        = ptGraphics,
+        .tCommandBuffer    = *ptCmdBuffer,
         ._pInternal        = tRenderEncoder,
         .tRenderPassHandle = tPass
     };
-    pl_end_profile_sample();
     
-    return tPassRenderer;
+    return tEncoder;
 }
 
 static void
-pl_end_render_pass(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plPassRenderer tPass)
+pl_end_render_pass(plRenderEncoder* ptEncoder)
 {
-    pl_begin_profile_sample(__FUNCTION__);
-    id<MTLRenderCommandEncoder> tRenderEncoder = (id<MTLRenderCommandEncoder>)tPass._pInternal;
-    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
-    [tRenderEncoder updateFence:ptMetalGraphics->atPassFences[ptMetalGraphics->uCurrentPassFenceIndex++] afterStages:MTLRenderStageFragment];
+    id<MTLRenderCommandEncoder> tRenderEncoder = (id<MTLRenderCommandEncoder>)ptEncoder->_pInternal;
     [tRenderEncoder endEncoding];
-    pl_end_profile_sample();
 }
 
 static void
-pl_dispatch(plGraphics* ptGraphics, uint32_t uDispatchCount, plDispatch* atDispatches)
+pl_submit_command_buffer(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
+{
+    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
+    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)ptCmdBuffer->_pInternal;
+
+    if(ptSubmitInfo)
+    {
+        for(uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
+        {
+
+            if(ptMetalGraphics->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex].tEvent)
+            {
+                [tCmdBuffer encodeSignalEvent:ptMetalGraphics->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex].tEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
+            }
+            else
+            {
+                [tCmdBuffer encodeSignalEvent:ptMetalGraphics->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex].tSharedEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
+            }
+        }
+    }
+
+    [tCmdBuffer commit];
+}
+
+static void
+pl_submit_command_buffer_blocking(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
+{
+    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
+    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)ptCmdBuffer->_pInternal;
+
+    if(ptSubmitInfo)
+    {
+        for(uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
+        {
+            if(ptMetalGraphics->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex].tEvent)
+            {
+                [tCmdBuffer encodeSignalEvent:ptMetalGraphics->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex].tEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
+            }
+            else
+            {
+                [tCmdBuffer encodeSignalEvent:ptMetalGraphics->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex].tSharedEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
+            }
+        }
+    }
+
+    [tCmdBuffer commit];
+    [tCmdBuffer waitUntilCompleted];
+    ptCmdBuffer->_pInternal = NULL;
+}
+
+static plBlitEncoder
+pl_begin_blit_pass(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer)
 {
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
-    id<MTLDevice> tDevice = ptMetalDevice->tDevice;
+    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)ptCmdBuffer->_pInternal;
 
-    id<MTLCommandBuffer> tCommandBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithUnretainedReferences];
-    tCommandBuffer.label = @"Compute command buffer";
+    id<MTLBlitCommandEncoder> tBlitEncoder = [tCmdBuffer blitCommandEncoder];
+    plBlitEncoder tEncoder = {
+        .ptGraphics     = ptGraphics,
+        .tCommandBuffer = *ptCmdBuffer,
+        ._pInternal     = tBlitEncoder
+    };
 
-    // Start a compute pass.
-    id<MTLComputeCommandEncoder> tComputeEncoder = [tCommandBuffer computeCommandEncoder];
+    plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
+    // [tBlitEncoder waitForFence:ptFrame->tFence];
+    
+    return tEncoder;
+}
+
+static void
+pl_end_blit_pass(plBlitEncoder* ptEncoder)
+{
+    id<MTLBlitCommandEncoder> tBlitEncoder = (id<MTLBlitCommandEncoder>)ptEncoder->_pInternal;
+    [tBlitEncoder endEncoding];
+}
+
+static plComputeEncoder
+pl_begin_compute_pass(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer)
+{
+    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
+    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
+    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)ptCmdBuffer->_pInternal;
+
+    id<MTLComputeCommandEncoder> tComputeEncoder = [tCmdBuffer computeCommandEncoder];
+    plComputeEncoder tEncoder = {
+        .ptGraphics     = ptGraphics,
+        .tCommandBuffer = *ptCmdBuffer,
+        ._pInternal     = tComputeEncoder
+    };
+    return tEncoder;
+}
+
+static void
+pl_end_compute_pass(plComputeEncoder* ptEncoder)
+{
+    id<MTLComputeCommandEncoder> tComputeEncoder = (id<MTLComputeCommandEncoder>)ptEncoder->_pInternal;
+    [tComputeEncoder endEncoding];
+}
+
+static void
+pl_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, plDispatch* atDispatches)
+{
+    plGraphics* ptGraphics = ptEncoder->ptGraphics;
+    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
+    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
+    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)ptEncoder->tCommandBuffer._pInternal;
+    id<MTLComputeCommandEncoder> tComputeEncoder = (id<MTLComputeCommandEncoder>)ptEncoder->_pInternal;
 
     for(uint32_t i = 0; i < uDispatchCount; i++)
     {
@@ -1828,22 +2053,15 @@ pl_dispatch(plGraphics* ptGraphics, uint32_t uDispatchCount, plDispatch* atDispa
         MTLSize tThreadsPerGroup = MTLSizeMake(ptDispatch->uThreadPerGroupX, ptDispatch->uThreadPerGroupY, ptDispatch->uThreadPerGroupZ);
         [tComputeEncoder dispatchThreadgroups:tGridSize threadsPerThreadgroup:tThreadsPerGroup];
     }
-
-    // End the compute pass.
-    [tComputeEncoder endEncoding];
-
-    // Execute the command.
-    [tCommandBuffer commit];
-
-    [tCommandBuffer waitUntilCompleted];
 }
 
 static void
-pl_draw_subpass(plGraphics* ptGraphics, plCommandBuffer tCommandBuffer, plPassRenderer tPass, uint32_t uAreaCount, plDrawArea* atAreas)
+pl_draw_subpass(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAreas)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    id<MTLRenderCommandEncoder> tRenderEncoder = (id<MTLRenderCommandEncoder>)tPass._pInternal;
-    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)tCommandBuffer._pInternal;
+    plGraphics* ptGraphics = ptEncoder->ptGraphics;
+    id<MTLRenderCommandEncoder> tRenderEncoder = (id<MTLRenderCommandEncoder>)ptEncoder->_pInternal;
+    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)ptEncoder->tCommandBuffer._pInternal;
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
     id<MTLDevice> tDevice = ptMetalDevice->tDevice;
@@ -2097,11 +2315,6 @@ pl_cleanup(plGraphics* ptGraphics)
 
     pl_cleanup_metal();
 
-    for(uint32_t i = 0; i < pl_sb_size(ptMetalGraphics->sbtRenderPassesHot); i++)
-    {
-        pl_sb_free(ptMetalGraphics->sbtRenderPassesHot[i].sbtFrameBuffers);
-    }
-
     for(uint32_t i = 0; i < pl_sb_size(ptMetalGraphics->sbFrames); i++)
     {
         plFrameContext* ptFrame = &ptMetalGraphics->sbFrames[i];
@@ -2120,18 +2333,19 @@ pl_cleanup(plGraphics* ptGraphics)
     pl_sb_free(ptMetalGraphics->sbtRenderPassesHot);
     pl_sb_free(ptMetalGraphics->sbtRenderPassLayoutsHot);
     pl_sb_free(ptMetalGraphics->sbtComputeShadersHot);
+    pl_sb_free(ptMetalGraphics->sbtSemaphoresHot);
     pl__cleanup_common_graphics(ptGraphics);
 }
 
 static void
-pl_draw_lists(plGraphics* ptGraphics, plPassRenderer tPass, plCommandBuffer tCommandBuffer, uint32_t uListCount, plDrawList* atLists)
+pl_draw_lists(plGraphics* ptGraphics, plRenderEncoder tEncoder, uint32_t uListCount, plDrawList* atLists)
 {
-    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)tCommandBuffer._pInternal;
+    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)tEncoder.tCommandBuffer._pInternal;
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
-    id<MTLRenderCommandEncoder> tRenderEncoder = (id<MTLRenderCommandEncoder>)tPass._pInternal;
+    id<MTLRenderCommandEncoder> tRenderEncoder = (id<MTLRenderCommandEncoder>)tEncoder._pInternal;
     id<MTLDevice> tDevice = ptMetalDevice->tDevice;
-    plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[tPass.tRenderPassHandle.uIndex];
+    plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[tEncoder.tRenderPassHandle.uIndex];
 
     plIO* ptIOCtx = pl_get_io();
     for(uint32_t i = 0; i < uListCount; i++)
@@ -2141,15 +2355,15 @@ pl_draw_lists(plGraphics* ptGraphics, plPassRenderer tPass, plCommandBuffer tCom
 }
 
 static void
-pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plPassRenderer tPass, plCommandBuffer tCommandBuffer, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags tFlags, uint32_t uMSAASampleCount)
+pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags tFlags, uint32_t uMSAASampleCount)
 {
-    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)tCommandBuffer._pInternal;
+    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)tEncoder.tCommandBuffer._pInternal;
     plGraphics* ptGfx = ptDrawlist->ptGraphics;
     plGraphicsMetal* ptMetalGraphics = ptGfx->_pInternalData;
     plDeviceMetal* ptMetalDevice = ptGfx->tDevice._pInternalData;
-    id<MTLRenderCommandEncoder> tRenderEncoder = (id<MTLRenderCommandEncoder>)tPass._pInternal;
+    id<MTLRenderCommandEncoder> tRenderEncoder = (id<MTLRenderCommandEncoder>)tEncoder._pInternal;
 
-    plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[tPass.tRenderPassHandle.uIndex];
+    plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[tEncoder.tRenderPassHandle.uIndex];
     plMetalPipelineEntry* ptPipelineEntry = pl__get_3d_pipelines(ptGfx, tFlags, ptMetalRenderPass->ptRenderPassDescriptor.colorAttachments[0].texture.sampleCount, ptMetalRenderPass->ptRenderPassDescriptor);
 
     const float fAspectRatio = fWidth / fHeight;
@@ -2583,7 +2797,6 @@ pl__garbage_collect(plGraphics* ptGraphics)
         [ptMetalResource->ptRenderPassDescriptor release];
         ptMetalResource->ptRenderPassDescriptor = nil;
         pl_sb_push(ptGraphics->sbtRenderPassFreeIndices, iResourceIndex);
-        pl_sb_reset(ptMetalResource->sbtFrameBuffers);
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtRenderPassLayouts); i++)
@@ -3108,14 +3321,25 @@ pl_load_graphics_api(void)
         .register_3d_drawlist             = pl__register_3d_drawlist,
         .submit_3d_drawlist               = pl__submit_3d_drawlist,
         .get_ui_texture_handle            = pl_get_ui_texture_handle,
-
         .begin_command_recording          = pl_begin_command_recording,
-        .submit_command                   = pl_submit_command,
-        .submit_commands                  = pl_submit_commands,
+        .end_command_recording            = pl_end_command_recording,
+        .submit_command_buffer            = pl_submit_command_buffer,
+        .submit_command_buffer_blocking   = pl_submit_command_buffer_blocking,
         .begin_render_pass                = pl_begin_render_pass,
         .end_render_pass                  = pl_end_render_pass,
+        .begin_compute_pass               = pl_begin_compute_pass,
+        .end_compute_pass                 = pl_end_compute_pass,
+        .begin_blit_pass                  = pl_begin_blit_pass,
+        .end_blit_pass                    = pl_end_blit_pass,
         .draw_subpass                     = pl_draw_subpass,
         .present                          = pl_present,
+        .copy_buffer_to_texture           = pl_copy_buffer_to_texture,
+        .transfer_image_to_buffer         = pl_transfer_image_to_buffer,
+        .generate_mipmaps                 = pl_generate_mipmaps,
+        .copy_buffer                      = pl_copy_buffer,
+        .signal_semaphore                 = pl_signal_semaphore,
+        .wait_semaphore                   = pl_wait_semaphore,
+        .get_semaphore_value              = pl_get_semaphore_value
     };
     return &tApi;
 }
@@ -3124,6 +3348,7 @@ static const plDeviceI*
 pl_load_device_api(void)
 {
     static const plDeviceI tApi = {
+        .create_semaphore                       = pl_create_semaphore,
         .create_buffer                          = pl_create_buffer,
         .create_shader                          = pl_create_shader,
         .create_compute_shader                  = pl_create_compute_shader,
@@ -3134,7 +3359,6 @@ pl_load_device_api(void)
         .create_bind_group                      = pl_create_bind_group,
         .get_temporary_bind_group               = pl_get_temporary_bind_group,
         .update_bind_group                      = pl_update_bind_group,
-        .transfer_image_to_buffer               = pl_transfer_image_to_buffer,
         .allocate_dynamic_data                  = pl_allocate_dynamic_data,
         .queue_buffer_for_deletion              = pl_queue_buffer_for_deletion,
         .queue_texture_for_deletion             = pl_queue_texture_for_deletion,
@@ -3159,10 +3383,7 @@ pl_load_device_api(void)
         .get_bind_group                         = pl__get_bind_group,
         .get_shader                             = pl__get_shader,
         .get_compute_shader_variant             = pl_get_compute_shader_variant,
-        .get_shader_variant                     = pl_get_shader_variant,
-        .copy_buffer_to_texture                 = pl_copy_buffer_to_texture,
-        .copy_buffer                            = pl_copy_buffer,
-        .generate_mipmaps                       = pl_generate_mipmaps
+        .get_shader_variant                     = pl_get_shader_variant
     };
     return &tApi;
 }
@@ -3175,6 +3396,7 @@ pl_load_graphics_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
     pl_set_context(ptDataRegistry->get_data("ui"));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     gptFile = ptApiRegistry->first(PL_API_FILE);
+    gptOS = ptApiRegistry->first(PL_API_OS_SERVICES);
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_GRAPHICS), pl_load_graphics_api());

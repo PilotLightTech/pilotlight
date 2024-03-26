@@ -1174,6 +1174,8 @@ pl__cleanup_common_graphics(plGraphics* ptGraphics)
     pl_sb_free(ptGraphics->sbtComputeShaderGenerations);
     pl_sb_free(ptGraphics->sbtRenderPassLayoutGenerations);
     pl_sb_free(ptGraphics->sbtBindGroupFreeIndices);
+    pl_sb_free(ptGraphics->sbtSemaphoreGenerations);
+    pl_sb_free(ptGraphics->sbtSemaphoreFreeIndices);
 
     PL_FREE(ptGraphics->_pInternalData);
     PL_FREE(ptGraphics->tDevice._pInternalData);

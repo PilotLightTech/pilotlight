@@ -182,7 +182,7 @@ typedef struct _plRefRendererData
     plHashMap tSkinHashMap;
 
     // temp
-    plBufferHandle tStagingBufferHandle;
+    plBufferHandle tStagingBufferHandle[2];
 } plRefRendererData;
 
 //-----------------------------------------------------------------------------
@@ -222,7 +222,7 @@ static void pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plV
 
 // per frame
 static void pl_refr_run_ecs(void);
-static void pl_refr_update_scene(uint32_t uSceneHandle);
+static void pl_refr_update_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle);
 static void pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions);
 
 // loading
@@ -317,8 +317,9 @@ pl_refr_initialize(void)
         .tUsage    = PL_BUFFER_USAGE_UNSPECIFIED,
         .uByteSize = 268435456
     };
-    gptData->tStagingBufferHandle = gptDevice->create_buffer(&ptGraphics->tDevice, &tStagingBufferDesc, "staging buffer");
-    plBuffer* ptStagingBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, gptData->tStagingBufferHandle);
+    gptData->tStagingBufferHandle[0] = gptDevice->create_buffer(&ptGraphics->tDevice, &tStagingBufferDesc, "staging buffer");
+    gptData->tStagingBufferHandle[1] = gptDevice->create_buffer(&ptGraphics->tDevice, &tStagingBufferDesc, "staging buffer");
+    plBuffer* ptStagingBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, gptData->tStagingBufferHandle[0]);
 
     // create dummy texture
     plTextureDesc tTextureDesc = {
@@ -344,7 +345,12 @@ pl_refr_initialize(void)
         .tImageExtent = {2, 2, 1},
         .uLayerCount  = 1
     };
-    gptDevice->copy_buffer_to_texture(&ptGraphics->tDevice, gptData->tStagingBufferHandle, gptData->tDummyTexture, 1, &tBufferImageCopy);
+    plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
+    plBlitEncoder tBlitEncoder = gptGfx->begin_blit_pass(ptGraphics, &tCommandBuffer);
+    gptGfx->copy_buffer_to_texture(&tBlitEncoder, gptData->tStagingBufferHandle[0], gptData->tDummyTexture, 1, &tBufferImageCopy);
+    gptGfx->end_blit_pass(&tBlitEncoder);
+    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
+    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, NULL);
 
     // create dummy texture view
     plTextureViewDesc tTextureViewDesc = {
@@ -395,10 +401,11 @@ pl_refr_create_scene(void)
 
     // create offscreen render pass layout
     const plRenderPassLayoutDescription tRenderPassLayoutDesc = {
-        .tDepthTarget = { .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT},
+        .tDepthTargetFormat = PL_FORMAT_D32_FLOAT_S8_UINT,
         .atRenderTargets = {
             { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT }
         },
+        .uSubpassCount = 1,
         .atSubpasses = {
             {
                 .uRenderTargetCount = 1,
@@ -640,8 +647,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     const plRenderPassAttachments atAttachmentSets[] = {
         {
             .atViewAttachments = {
-                ptView->tTextureView,
                 ptView->tDepthTextureView,
+                ptView->tTextureView
             }
         }
     };
@@ -664,9 +671,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
                 .tClearColor = {0.0f, 0.0f, 0.0f, 1.0f}
             }
         },
-        .tDimensions      = {.x = ptView->tTargetSize.x, .y = ptView->tTargetSize.y},
-        .uAttachmentCount = 2,
-        .uAttachmentSets  = 1,
+        .tDimensions = {.x = ptView->tTargetSize.x, .y = ptView->tTargetSize.y}
     };
     ptView->tRenderPass = gptDevice->create_render_pass(&ptGraphics->tDevice, &tRenderPassDesc, atAttachmentSets);
 
@@ -754,8 +759,9 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
     const plRenderPassAttachments atOffscreenAttachmentSets[] = {
         {
             .atViewAttachments = {
-                ptView->tTextureView,
                 ptView->tDepthTextureView,
+                ptView->tTextureView
+                
             }
         }
     };
@@ -920,7 +926,13 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         .uThreadPerGroupZ = 3,
         .uShaderVariant   = gptData->tPanoramaShader.uIndex
     };
-    gptGfx->dispatch(ptGraphics, 1, &tDispach);
+
+    plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
+    plComputeEncoder tComputeEncoder = gptGfx->begin_compute_pass(ptGraphics, &tCommandBuffer);
+    gptGfx->dispatch(&tComputeEncoder, 1, &tDispach);
+    gptGfx->end_compute_pass(&tComputeEncoder);
+    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
+    gptGfx->submit_command_buffer_blocking(ptGraphics, &tCommandBuffer, NULL);
 
     // get data
     char* pcResultData = PL_ALLOC(uFaceSize * 6);
@@ -938,7 +950,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         memcpy(&pcResultData[uFaceSize * i], ptBuffer->tMemoryAllocation.pHostMapped, uFaceSize);
     }
 
-    plBuffer* ptStagingBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, gptData->tStagingBufferHandle);
+    plBuffer* ptStagingBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, gptData->tStagingBufferHandle[0]);
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pcResultData, uFaceSize * 6);
 
     plTextureDesc tTextureDesc = {
@@ -959,7 +971,12 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         atBufferImageCopy[i].szBufferOffset = i * uFaceSize;
         atBufferImageCopy[i].uBaseArrayLayer = i;
     }
-    gptDevice->copy_buffer_to_texture(&ptGraphics->tDevice, gptData->tStagingBufferHandle, ptScene->tSkyboxTexture, 6, atBufferImageCopy);
+    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
+    plBlitEncoder tBlitEncoder = gptGfx->begin_blit_pass(ptGraphics, &tCommandBuffer);
+    gptGfx->copy_buffer_to_texture(&tBlitEncoder, gptData->tStagingBufferHandle[0], ptScene->tSkyboxTexture, 6, atBufferImageCopy);
+    gptGfx->end_blit_pass(&tBlitEncoder);
+    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
+    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, NULL);
 
     plTextureViewDesc tTextureViewDesc = {
         .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
@@ -1815,7 +1832,7 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
     int texWidth, texHeight, texNumChannels;
     int texForceNumChannels = 4;
 
-    plBuffer* ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle);
+    plBuffer* ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle[0]);
     
     plTextureHandle tTexture = {0};
 
@@ -1828,6 +1845,9 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
     };
 
     plTextureViewHandle tHandle = {UINT32_MAX, UINT32_MAX};
+
+    plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptDevice->ptGraphics, NULL);
+    plBlitEncoder tBlitEncoder = gptGfx->begin_blit_pass(ptDevice->ptGraphics, &tCommandBuffer);
 
     if(bHdr)
     {
@@ -1851,9 +1871,9 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
             .tImageExtent = {texWidth, texHeight, 1},
             .uLayerCount = 1
         };
-        gptDevice->copy_buffer_to_texture(ptDevice, gptData->tStagingBufferHandle, tTexture, 1, &tBufferImageCopy);
-        gptDevice->generate_mipmaps(ptDevice, tTexture);
-        
+
+        gptGfx->copy_buffer_to_texture(&tBlitEncoder, gptData->tStagingBufferHandle[0], tTexture, 1, &tBufferImageCopy);
+        gptGfx->generate_mipmaps(&tBlitEncoder, tTexture);
 
         plTextureViewDesc tTextureViewDesc = {
             .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
@@ -1885,8 +1905,9 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
             .tImageExtent = {texWidth, texHeight, 1},
             .uLayerCount = 1
         };
-        gptDevice->copy_buffer_to_texture(ptDevice, gptData->tStagingBufferHandle, tTexture, 1, &tBufferImageCopy);
-        gptDevice->generate_mipmaps(ptDevice, tTexture);
+
+        gptGfx->copy_buffer_to_texture(&tBlitEncoder, gptData->tStagingBufferHandle[0], tTexture, 1, &tBufferImageCopy);
+        gptGfx->generate_mipmaps(&tBlitEncoder, tTexture);
         
         plTextureViewDesc tTextureViewDesc = {
             .tFormat     = PL_FORMAT_R8G8B8A8_UNORM,
@@ -1897,6 +1918,10 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
 
         tHandle = gptDevice->create_texture_view(ptDevice, &tTextureViewDesc, &tSampler, tTexture, ptMaterial->atTextureMaps[tSlot].acName);
     }
+
+    gptGfx->end_blit_pass(&tBlitEncoder);
+    gptGfx->end_command_recording(ptDevice->ptGraphics, &tCommandBuffer);
+    gptGfx->submit_command_buffer_blocking(ptDevice->ptGraphics, &tCommandBuffer, NULL);
 
     return tHandle;
 }
@@ -2056,7 +2081,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     plGraphics* ptGraphics = &gptData->tGraphics;
     plDevice* ptDevice = &ptGraphics->tDevice;
 
-    plBuffer* ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle);
+    plBuffer* ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle[0]);
 
     // update material bind groups
     const uint32_t uMaterialCount = pl_sb_size(ptScene->sbtMaterialEntities);
@@ -2153,8 +2178,14 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                 .uLayerCount = 1
             };
             memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptSkinComponent->sbtTextureData, sizeof(float) * 4 * textureWidth * textureWidth);
-            gptDevice->copy_buffer_to_texture(ptDevice, gptData->tStagingBufferHandle, tSkinData.tDynamicTexture[0], 1, &tBufferImageCopy);
-            gptDevice->copy_buffer_to_texture(ptDevice, gptData->tStagingBufferHandle, tSkinData.tDynamicTexture[1], 1, &tBufferImageCopy);
+
+            plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptDevice->ptGraphics, NULL);
+            plBlitEncoder tBlitEncoder = gptGfx->begin_blit_pass(ptDevice->ptGraphics, &tCommandBuffer);
+            gptGfx->copy_buffer_to_texture(&tBlitEncoder, gptData->tStagingBufferHandle[0], tSkinData.tDynamicTexture[0], 1, &tBufferImageCopy);
+            gptGfx->copy_buffer_to_texture(&tBlitEncoder, gptData->tStagingBufferHandle[0], tSkinData.tDynamicTexture[1], 1, &tBufferImageCopy);
+            gptGfx->end_blit_pass(&tBlitEncoder);
+            gptGfx->end_command_recording(ptDevice->ptGraphics, &tCommandBuffer);
+            gptGfx->submit_command_buffer(ptDevice->ptGraphics, &tCommandBuffer, NULL);
 
             plTextureViewDesc tTextureViewDesc = {
                 .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
@@ -2179,6 +2210,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
 
     // create GPU buffers
 
+    plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
+
     const plBufferDescription tShaderBufferDesc = {
         .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_STORAGE,
@@ -2186,8 +2219,13 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     };
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtMaterialBuffer, sizeof(plMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer));
     ptScene->tMaterialDataBuffer = gptDevice->create_buffer(ptDevice, &tShaderBufferDesc, "shader buffer");
-    gptDevice->copy_buffer(ptDevice, gptData->tStagingBufferHandle, ptScene->tMaterialDataBuffer, 0, 0, tShaderBufferDesc.uByteSize);
-    ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle);
+
+    plBlitEncoder tEncoder = gptGfx->begin_blit_pass(ptGraphics, &tCommandBuffer);
+    gptGfx->copy_buffer(&tEncoder, gptData->tStagingBufferHandle[0], ptScene->tMaterialDataBuffer, 0, 0, tShaderBufferDesc.uByteSize);
+    gptGfx->end_blit_pass(&tEncoder);
+    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
+    gptGfx->submit_command_buffer_blocking(ptGraphics, &tCommandBuffer, NULL);
+    ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle[0]);
 
     const plBufferDescription tIndexBufferDesc = {
         .tMemory              = PL_MEMORY_GPU,
@@ -2196,8 +2234,14 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     };
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbuIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptScene->sbuIndexBuffer));
     ptScene->tIndexBuffer = gptDevice->create_buffer(ptDevice, &tIndexBufferDesc, "index buffer");
-    gptDevice->copy_buffer(ptDevice, gptData->tStagingBufferHandle, ptScene->tIndexBuffer, 0, 0, tIndexBufferDesc.uByteSize);
-    ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle);
+
+    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
+    tEncoder = gptGfx->begin_blit_pass(ptGraphics, &tCommandBuffer);
+    gptGfx->copy_buffer(&tEncoder, gptData->tStagingBufferHandle[0], ptScene->tIndexBuffer, 0, 0, tIndexBufferDesc.uByteSize);
+    gptGfx->end_blit_pass(&tEncoder);
+    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
+    gptGfx->submit_command_buffer_blocking(ptGraphics, &tCommandBuffer, NULL);
+    ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle[0]);
 
     const plBufferDescription tVertexBufferDesc = {
         .tMemory              = PL_MEMORY_GPU,
@@ -2206,8 +2250,14 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     };
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtVertexPosBuffer, sizeof(plVec3) * pl_sb_size(ptScene->sbtVertexPosBuffer));
     ptScene->tVertexBuffer = gptDevice->create_buffer(ptDevice, &tVertexBufferDesc, "vertex buffer");
-    gptDevice->copy_buffer(ptDevice, gptData->tStagingBufferHandle, ptScene->tVertexBuffer, 0, 0, tVertexBufferDesc.uByteSize);
-    ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle);
+    
+    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
+    tEncoder = gptGfx->begin_blit_pass(ptGraphics, &tCommandBuffer);
+    gptGfx->copy_buffer(&tEncoder, gptData->tStagingBufferHandle[0], ptScene->tVertexBuffer, 0, 0, tVertexBufferDesc.uByteSize);
+    gptGfx->end_blit_pass(&tEncoder);
+    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
+    gptGfx->submit_command_buffer_blocking(ptGraphics, &tCommandBuffer, NULL);
+    ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle[0]);
 
     const plBufferDescription tStorageBufferDesc = {
         .tMemory              = PL_MEMORY_GPU,
@@ -2216,7 +2266,13 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     };
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtVertexDataBuffer, sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer));
     ptScene->tStorageBuffer = gptDevice->create_buffer(ptDevice, &tStorageBufferDesc, "storage buffer");
-    gptDevice->copy_buffer(ptDevice, gptData->tStagingBufferHandle, ptScene->tStorageBuffer, 0, 0, tStorageBufferDesc.uByteSize);
+
+    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
+    tEncoder = gptGfx->begin_blit_pass(ptGraphics, &tCommandBuffer);
+    gptGfx->copy_buffer(&tEncoder, gptData->tStagingBufferHandle[0], ptScene->tStorageBuffer, 0, 0, tStorageBufferDesc.uByteSize);
+    gptGfx->end_blit_pass(&tEncoder);
+    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
+    gptGfx->submit_command_buffer_blocking(ptGraphics, &tCommandBuffer, NULL);
 }
 
 static void
@@ -2479,12 +2535,13 @@ pl__sat_visibility_test(plCameraComponent* ptCamera, const plAABB* ptAABB)
 }
 
 static void
-pl_refr_update_scene(uint32_t uSceneHandle)
+pl_refr_update_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle)
 {
     pl_begin_profile_sample(__FUNCTION__);
     plGraphics* ptGraphics = &gptData->tGraphics;
     plDevice* ptDevice = &ptGraphics->tDevice;
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+    plBlitEncoder tBlitEncoder = gptGfx->begin_blit_pass(ptDevice->ptGraphics, &tCommandBuffer);
 
     // update skin textures
     const uint32_t uSkinCount = pl_sb_size(ptScene->sbtSkinData);
@@ -2499,18 +2556,21 @@ pl_refr_update_scene(uint32_t uSceneHandle)
         ptScene->sbtSkinData[i].tTempBindGroup = gptDevice->get_temporary_bind_group(ptDevice, &tBindGroupLayout1);
         gptDevice->update_bind_group(&ptGraphics->tDevice, &ptScene->sbtSkinData[i].tTempBindGroup, 0, NULL, NULL, 1, &ptScene->sbtSkinData[i].tDynamicTextureView[ptGraphics->uCurrentFrameIndex]);
 
-        plBuffer* ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle);
+        plBuffer* ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle[ptGraphics->uCurrentFrameIndex]);
 
         plTexture* ptSkinTexture = gptDevice->get_texture(ptDevice, ptScene->sbtSkinData[i].tDynamicTexture[0]);
         plBufferImageCopy tBufferImageCopy = {
             .tImageExtent = {(size_t)ptSkinTexture->tDesc.tDimensions.x, (size_t)ptSkinTexture->tDesc.tDimensions.y, 1},
-            .uLayerCount = 1
+            .uLayerCount = 1,
+            .szBufferOffset = uSceneHandle * sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y
         };
         
         plSkinComponent* ptSkinComponent = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_SKIN, ptScene->sbtSkinData[i].tEntity);
-        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptSkinComponent->sbtTextureData, sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y);
-        gptDevice->copy_buffer_to_texture(ptDevice, gptData->tStagingBufferHandle, ptScene->sbtSkinData[i].tDynamicTexture[ptGraphics->uCurrentFrameIndex], 1, &tBufferImageCopy);
+        memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[uSceneHandle * sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y], ptSkinComponent->sbtTextureData, sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y);
+        // memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptSkinComponent->sbtTextureData, sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y);
+        gptGfx->copy_buffer_to_texture(&tBlitEncoder, gptData->tStagingBufferHandle[ptGraphics->uCurrentFrameIndex], ptScene->sbtSkinData[i].tDynamicTexture[ptGraphics->uCurrentFrameIndex], 1, &tBufferImageCopy);
     }
+    gptGfx->end_blit_pass(&tBlitEncoder);
     pl_end_profile_sample();
 }
 
@@ -2674,8 +2734,8 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
        }
     };
 
-    plPassRenderer tPassRenderer = gptGfx->begin_render_pass(ptGraphics, tCommandBuffer, ptView->tRenderPass);
-    gptGfx->draw_subpass(ptGraphics, tCommandBuffer, tPassRenderer, 1, &tArea);
+    plRenderEncoder tEncoder = gptGfx->begin_render_pass(ptGraphics, &tCommandBuffer, ptView->tRenderPass);
+    gptGfx->draw_subpass(&tEncoder, 1, &tArea);
 
     if(tOptions.bShowAllBoundingBoxes)
     {
@@ -2708,9 +2768,9 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     }
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-    gptGfx->submit_3d_drawlist(&ptView->t3DDrawList, tPassRenderer, tCommandBuffer, tDimensions.x, tDimensions.y, &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, 1);
+    gptGfx->submit_3d_drawlist(&ptView->t3DDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, 1);
 
-    gptGfx->end_render_pass(ptGraphics, tCommandBuffer, tPassRenderer);
+    gptGfx->end_render_pass(&tEncoder);
     pl_end_profile_sample();
 }
 

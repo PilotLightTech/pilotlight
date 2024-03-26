@@ -73,6 +73,10 @@ typedef struct plAppData_t
     plDrawLayer* ptDrawLayer;
     plFontAtlas  tFontAtlas;
 
+    // sync
+    plSemaphoreHandle tSempahore;
+    uint64_t ulNextTimelineValue;
+
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -178,6 +182,9 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptGfx->create_font_atlas(&ptAppData->tFontAtlas);
     pl_set_default_font(&ptAppData->tFontAtlas.sbtFonts[0]);
 
+    // sync
+    ptAppData->tSempahore = gptDevice->create_semaphore(&gptRenderer->get_graphics()->tDevice, false);
+
     // create offscreen view (temporary API)
     ptAppData->uSceneHandle0 = gptRenderer->create_scene();
     ptAppData->uSceneHandle1 = gptRenderer->create_scene();
@@ -210,7 +217,6 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/glTF-Sample-Environments-main/ennis.jpg", 1024);
     gptRenderer->load_gltf(ptAppData->uSceneHandle0, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL);
     gptRenderer->load_gltf(ptAppData->uSceneHandle0, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL);
-    // gptRenderer->load_stl(ptAppData->uSceneHandle0, "../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 0.0f, 0.0f, 0.80f}, &tTransform0);
 
     gptRenderer->load_gltf(ptAppData->uSceneHandle1, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL);
     gptRenderer->load_stl(ptAppData->uSceneHandle1, "../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 0.0f, 0.0f, 0.80f}, &tTransform0);
@@ -342,10 +348,33 @@ pl_app_update(plAppData* ptAppData)
     // new ui frame
     pl_new_frame();
 
-    plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics);
+    uint64_t ulValue0 = ptAppData->ulNextTimelineValue;
+    uint64_t ulValue1 = ulValue0 + 1;
+    uint64_t ulValue2 = ulValue0 + 2;
+    uint64_t ulValue3 = ulValue0 + 3;
+    ptAppData->ulNextTimelineValue = ulValue3;
 
-    gptRenderer->update_scene(ptAppData->uSceneHandle0);
-    gptRenderer->update_scene(ptAppData->uSceneHandle1);
+
+    // first set of work
+
+    const plBeginCommandInfo tBeginInfo0 = {
+        .uWaitSemaphoreCount   = 1,
+        .atWaitSempahores      = {ptAppData->tSempahore},
+        .auWaitSemaphoreValues = {ulValue0},
+    };
+
+    plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo0);
+
+    gptRenderer->update_scene(tCommandBuffer, ptAppData->uSceneHandle0);
+    gptRenderer->update_scene(tCommandBuffer, ptAppData->uSceneHandle1);
+    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
+
+    const plSubmitInfo tSubmitInfo0 = {
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSempahores      = {ptAppData->tSempahore},
+        .auSignalSemaphoreValues = {ulValue1}
+    };
+    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo0);
 
     plViewOptions tViewOptions = {
         .bShowAllBoundingBoxes     = ptAppData->bDrawAllBoundingBoxes,
@@ -359,6 +388,15 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bFrustumCulling && ptAppData->bFreezeCullCamera)
         tViewOptions.ptCullCamera = ptCullCamera;
 
+    
+    // second set of work
+
+    const plBeginCommandInfo tBeginInfo1 = {
+        .uWaitSemaphoreCount   = 1,
+        .atWaitSempahores      = {ptAppData->tSempahore},
+        .auWaitSemaphoreValues = {ulValue1}
+    };
+    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo1);
     gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0, tViewOptions);
 
     plViewOptions tViewOptions2 = {
@@ -374,6 +412,24 @@ pl_app_update(plAppData* ptAppData)
         .ptCullCamera              = ptCamera2
     };
     gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle1, ptAppData->uViewHandle2, tViewOptions3);
+
+    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
+
+    const plSubmitInfo tSubmitInfo1 = {
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSempahores      = {ptAppData->tSempahore},
+        .auSignalSemaphoreValues = {ulValue2}
+    };
+    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo1);
+
+    // final set of work
+
+    const plBeginCommandInfo tBeginInfo2 = {
+        .uWaitSemaphoreCount   = 1,
+        .atWaitSempahores      = {ptAppData->tSempahore},
+        .auWaitSemaphoreValues = {ulValue2},
+    };
+    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo2);
 
     pl_set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
 
@@ -456,18 +512,25 @@ pl_app_update(plAppData* ptAppData)
     pl_add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_texture_id(ptAppData->uSceneHandle1, ptAppData->uViewHandle2), (plVec2){0.0f, 500.0f}, (plVec2){500.0f, 1000.0f});
     pl_submit_layer(ptAppData->ptDrawLayer);
 
-    plPassRenderer tPassRenderer = gptGfx->begin_render_pass(ptGraphics, tCommandBuffer, ptGraphics->tMainRenderPass);
+    plRenderEncoder tEncoder = gptGfx->begin_render_pass(ptGraphics, &tCommandBuffer, ptGraphics->tMainRenderPass);
 
     // render ui
     pl_begin_profile_sample("render ui");
     pl_render();
-    gptGfx->draw_lists(ptGraphics, tPassRenderer, tCommandBuffer, 1, pl_get_draw_list(NULL));
-    gptGfx->draw_lists(ptGraphics, tPassRenderer, tCommandBuffer, 1, pl_get_debug_draw_list(NULL));
+    gptGfx->draw_lists(ptGraphics, tEncoder, 1, pl_get_draw_list(NULL));
+    gptGfx->draw_lists(ptGraphics, tEncoder, 1, pl_get_debug_draw_list(NULL));
     pl_end_profile_sample();
 
-    gptGfx->end_render_pass(ptGraphics, tCommandBuffer, tPassRenderer);
-    gptGfx->submit_commands(ptGraphics, tCommandBuffer);
-    if(!gptGfx->present(ptGraphics))
+    gptGfx->end_render_pass(&tEncoder);
+
+
+    const plSubmitInfo tSubmitInfo2 = {
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSempahores      = {ptAppData->tSempahore},
+        .auSignalSemaphoreValues = {ulValue3},
+    };
+    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
+    if(!gptGfx->present(ptGraphics, &tCommandBuffer, &tSubmitInfo2))
         gptRenderer->resize();
 
     pl_end_profile_sample();
