@@ -279,7 +279,7 @@ pl_create_main_render_pass_layout(plDevice* ptDevice)
 
     plRenderPassLayout tLayout = {
         .tDesc = {
-            .atRenderTargets = {
+            .atColorTargets = {
                 {
                     .tClearColor = {0.0f, 0.0f, 0.0f, 1.0f},
                     .tFormat = ptGraphics->tSwapchain.tFormat,
@@ -325,9 +325,9 @@ pl_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDescrip
     if(ptDesc->tDepthTargetFormat != PL_FORMAT_UNKNOWN)
         uAttachmentCount = 1;
 
-    for(uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
+    for(uint32_t i = 0; i < PL_MAX_COLOR_TARGETS; i++)
     {
-        if(ptDesc->atRenderTargets[i].tFormat == PL_FORMAT_UNKNOWN)
+        if(ptDesc->atColorTargets[i].tFormat == PL_FORMAT_UNKNOWN)
             break;
         uAttachmentCount++;
     }
@@ -439,18 +439,18 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
 
     for(uint32_t i = 0; i < 16; i++)
     {
-        if(ptLayout->tDesc.atRenderTargets[i].tFormat == PL_FORMAT_UNKNOWN)
+        if(ptLayout->tDesc.atColorTargets[i].tFormat == PL_FORMAT_UNKNOWN)
         {
             break;
         }
 
-        ptMetalRenderPass->ptRenderPassDescriptor.colorAttachments[i].loadAction = pl__metal_load_op(ptDesc->atRenderTargets[i].tLoadOp);
-        ptMetalRenderPass->ptRenderPassDescriptor.colorAttachments[i].storeAction = pl__metal_store_op(ptDesc->atRenderTargets[i].tStoreOp);
+        ptMetalRenderPass->ptRenderPassDescriptor.colorAttachments[i].loadAction = pl__metal_load_op(ptDesc->atColorTargets[i].tLoadOp);
+        ptMetalRenderPass->ptRenderPassDescriptor.colorAttachments[i].storeAction = pl__metal_store_op(ptDesc->atColorTargets[i].tStoreOp);
         ptMetalRenderPass->ptRenderPassDescriptor.colorAttachments[i].clearColor = MTLClearColorMake(
-            ptDesc->atRenderTargets[i].tClearColor.r,
-            ptDesc->atRenderTargets[i].tClearColor.g,
-            ptDesc->atRenderTargets[i].tClearColor.b,
-            ptDesc->atRenderTargets[i].tClearColor.a
+            ptDesc->atColorTargets[i].tClearColor.r,
+            ptDesc->atColorTargets[i].tClearColor.g,
+            ptDesc->atColorTargets[i].tClearColor.b,
+            ptDesc->atColorTargets[i].tClearColor.a
             );
     }
 
@@ -1336,7 +1336,7 @@ pl_get_shader_variant(plDevice* ptDevice, plShaderHandle tHandle, const plShader
     {
         if(j == 0)
         {
-            pipelineDescriptor.colorAttachments[j].pixelFormat = pl__metal_format(ptLayout->tDesc.atRenderTargets[j].tFormat);
+            pipelineDescriptor.colorAttachments[j].pixelFormat = pl__metal_format(ptLayout->tDesc.atColorTargets[j].tFormat);
             pipelineDescriptor.colorAttachments[j].blendingEnabled = YES;
             pipelineDescriptor.colorAttachments[j].rgbBlendOperation = MTLBlendOperationAdd;
             pipelineDescriptor.colorAttachments[j].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
@@ -1347,7 +1347,7 @@ pl_get_shader_variant(plDevice* ptDevice, plShaderHandle tHandle, const plShader
         }
         else
         {
-            pipelineDescriptor.colorAttachments[j].pixelFormat = pl__metal_format(ptLayout->tDesc.atRenderTargets[j].tFormat);
+            pipelineDescriptor.colorAttachments[j].pixelFormat = pl__metal_format(ptLayout->tDesc.atColorTargets[j].tFormat);
             pipelineDescriptor.colorAttachments[j].blendingEnabled = NO;
         }
     }
@@ -1520,7 +1520,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         {
             if(j == 0)
             {
-                pipelineDescriptor.colorAttachments[0].pixelFormat = pl__metal_format(ptLayout->tDesc.atRenderTargets[j].tFormat);
+                pipelineDescriptor.colorAttachments[0].pixelFormat = pl__metal_format(ptLayout->tDesc.atColorTargets[j].tFormat);
                 pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
                 pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
                 pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
@@ -1531,7 +1531,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
             }
             else
             {
-                pipelineDescriptor.colorAttachments[j].pixelFormat = pl__metal_format(ptLayout->tDesc.atRenderTargets[j].tFormat);
+                pipelineDescriptor.colorAttachments[j].pixelFormat = pl__metal_format(ptLayout->tDesc.atColorTargets[j].tFormat);
                 pipelineDescriptor.colorAttachments[j].blendingEnabled = NO;
             }
         }

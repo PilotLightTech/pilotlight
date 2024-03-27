@@ -48,8 +48,8 @@ Index of this file:
     #define PL_MAX_SHADER_SPECIALIZATION_CONSTANTS 64
 #endif
 
-#ifndef PL_MAX_RENDER_TARGETS
-    #define PL_MAX_RENDER_TARGETS 16
+#ifndef PL_MAX_COLOR_TARGETS
+    #define PL_MAX_COLOR_TARGETS 16
 #endif
 
 #ifndef PL_FRAMES_IN_FLIGHT
@@ -143,7 +143,7 @@ typedef struct _plBeginCommandInfo         plBeginCommandInfo;
 typedef struct _plSubmitInfo               plSubmitInfo;
 
 // render passes
-typedef struct _plRenderTarget                plRenderTarget;
+typedef struct _plColorTarget                plColorTarget;
 typedef struct _plDepthTarget                 plDepthTarget;
 typedef struct _plSubpass                     plSubpass;
 typedef struct _plRenderPassLayout            plRenderPassLayout;
@@ -702,15 +702,6 @@ typedef struct _plComputeShader
     plComputeShaderHandle*     _sbtVariantHandles; // needed for cleanup
 } plComputeShader;
 
-typedef struct _plSubpass
-{
-    uint32_t uRenderTargetCount;
-    uint32_t uSubpassInputCount;
-    uint32_t auRenderTargets[PL_MAX_RENDER_TARGETS];
-    uint32_t auSubpassInputs[PL_MAX_RENDER_TARGETS];
-    bool     bDepthTarget;
-} plSubpass;
-
 typedef struct _plDepthTarget
 {
     plFormat            tFormat;
@@ -723,23 +714,30 @@ typedef struct _plDepthTarget
     uint32_t            uClearStencil;
 } plDepthTarget;
 
-typedef struct _plRenderTarget
+typedef struct _plColorTarget
 {
     plFormat        tFormat;
     plLoadOp        tLoadOp;
     plStoreOp       tStoreOp;
     plTextureLayout tNextUsage;
     plVec4          tClearColor;
-} plRenderTarget;
+} plColorTarget;
+
+typedef struct _plSubpass
+{
+    uint32_t uRenderTargetCount;
+    uint32_t uSubpassInputCount;
+    uint32_t auRenderTargets[PL_MAX_COLOR_TARGETS];
+    uint32_t auSubpassInputs[PL_MAX_COLOR_TARGETS];
+    bool     bDepthTarget;
+} plSubpass;
 
 typedef struct _plRenderPassLayoutDescription
 {
-    plFormat       tDepthTargetFormat;
-    uint32_t       uSubpassCount;
-    plRenderTarget atRenderTargets[PL_MAX_RENDER_TARGETS];
-    plSubpass      atSubpasses[PL_MAX_SUBPASSES];
-    
-
+    plFormat      tDepthTargetFormat;
+    uint32_t      uSubpassCount;
+    plColorTarget atColorTargets[PL_MAX_COLOR_TARGETS];
+    plSubpass     atSubpasses[PL_MAX_SUBPASSES];
 } plRenderPassLayoutDescription;
 
 typedef struct _plRenderPassLayout
@@ -752,13 +750,13 @@ typedef struct _plRenderPassLayout
 
 typedef struct _plRenderPassAttachments
 {
-    plTextureViewHandle atViewAttachments[PL_MAX_RENDER_TARGETS];
+    plTextureViewHandle atViewAttachments[PL_MAX_COLOR_TARGETS];
 } plRenderPassAttachments;
 
 typedef struct _plRenderPassDescription
 {
     plRenderPassLayoutHandle tLayout;
-    plRenderTarget           atRenderTargets[PL_MAX_RENDER_TARGETS];
+    plColorTarget            atColorTargets[PL_MAX_COLOR_TARGETS];
     plDepthTarget            tDepthTarget;
     plVec2                   tDimensions;
 } plRenderPassDescription;

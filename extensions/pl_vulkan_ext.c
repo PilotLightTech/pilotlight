@@ -1922,7 +1922,7 @@ pl_get_shader_variant(plDevice* ptDevice, plShaderHandle tHandle, const plShader
     //---------------------------------------------------------------------
 
     const plRenderPassLayout* ptRenderPassLayout = &ptGraphics->sbtRenderPassLayoutsCold[ptShader->tDescription.tRenderPassLayout.uIndex];
-    VkPipelineColorBlendAttachmentState atColorBlendAttachment[PL_MAX_RENDER_TARGETS] = {0};
+    VkPipelineColorBlendAttachmentState atColorBlendAttachment[PL_MAX_COLOR_TARGETS] = {0};
 
     uint32_t uColorAttachmentCount = ptRenderPassLayout->_uAttachmentCount;
     if(ptRenderPassLayout->tDesc.tDepthTargetFormat != PL_FORMAT_UNKNOWN)
@@ -2288,7 +2288,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         // color blending stage
         //---------------------------------------------------------------------
 
-        VkPipelineColorBlendAttachmentState atColorBlendAttachment[PL_MAX_RENDER_TARGETS] = {0};
+        VkPipelineColorBlendAttachmentState atColorBlendAttachment[PL_MAX_COLOR_TARGETS] = {0};
         uint32_t uColorAttachmentCount = ptRenderPassLayout->_uAttachmentCount;
         if(ptRenderPassLayout->tDesc.tDepthTargetFormat != PL_FORMAT_UNKNOWN)
             uColorAttachmentCount--;
@@ -2401,7 +2401,7 @@ pl_create_main_render_pass_layout(plDevice* ptDevice)
 
     plRenderPassLayout tLayout = {
         .tDesc = {
-            .atRenderTargets = {
+            .atColorTargets = {
                 {
                     .tClearColor = {0.0f, 0.0f, 0.0f, 1.0f},
                     .tFormat = ptGraphics->tSwapchain.tFormat,
@@ -2579,10 +2579,11 @@ pl_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDescrip
         .uIndex = uResourceIndex
     };
 
-    VkAttachmentDescription atAttachments[PL_MAX_RENDER_TARGETS] = {0};
+    VkAttachmentDescription atAttachments[PL_MAX_COLOR_TARGETS] = {0};
     
     // find attachment count & fill out references & descriptions
-    uint32_t uAttachmentCount = 0;
+    const uint32_t uAttachmentOffset = ptDesc->tDepthTargetFormat == PL_FORMAT_UNKNOWN ? 0 : 1;
+    uint32_t uAttachmentCount = uAttachmentOffset;
 
     VkAttachmentReference tDepthAttachmentReference = {0};
     if(ptDesc->tDepthTargetFormat != PL_FORMAT_UNKNOWN)
@@ -2595,32 +2596,30 @@ pl_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDescrip
         
         tDepthAttachmentReference.attachment = 0;
         tDepthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-        uAttachmentCount = 1;
     }
 
     // find attachment count & fill out references & descriptions
-    VkAttachmentReference  atColorAttachmentReferences[PL_MAX_RENDER_TARGETS] = {0};
-    for(uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
+    for(uint32_t i = 0; i < PL_MAX_COLOR_TARGETS; i++)
     {
-        if(ptDesc->atRenderTargets[i].tFormat == PL_FORMAT_UNKNOWN)
+        if(ptDesc->atColorTargets[i].tFormat == PL_FORMAT_UNKNOWN)
             break;
         
         // from layout
-        atAttachments[uAttachmentCount].format = pl__vulkan_format(ptDesc->atRenderTargets[i].tFormat);
-        atAttachments[uAttachmentCount].samples = 1;
+        atAttachments[i + uAttachmentOffset].format = pl__vulkan_format(ptDesc->atColorTargets[i].tFormat);
+        atAttachments[i + uAttachmentOffset].samples = 1;
 
         // references
-        atColorAttachmentReferences[i].attachment     = uAttachmentCount;
-        atColorAttachmentReferences[i].layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        atAttachments[uAttachmentCount].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        atAttachments[uAttachmentCount].finalLayout   = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        atAttachments[i + uAttachmentOffset].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        atAttachments[i + uAttachmentOffset].finalLayout   = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
         uAttachmentCount++;
     }
 
     // fill out subpasses
+    uint32_t uSubpassDependencyCount = 2;
+    VkSubpassDependency atSubpassDependencies[PL_MAX_COLOR_TARGETS * PL_MAX_COLOR_TARGETS + 2] = {0};
     VkSubpassDescription  atSubpasses[PL_MAX_SUBPASSES] = {0};
-    VkAttachmentReference atSubpassColorAttachmentReferences[PL_MAX_RENDER_TARGETS][PL_MAX_SUBPASSES] = {0};
+    VkAttachmentReference atSubpassColorAttachmentReferences[PL_MAX_COLOR_TARGETS][PL_MAX_SUBPASSES] = {0};
     for(uint32_t i = 0; i < ptDesc->uSubpassCount; i++)
     {
         const plSubpass* ptSubpass = &ptDesc->atSubpasses[i];
@@ -2632,33 +2631,30 @@ pl_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDescrip
 
         for(uint32_t j = 0; j < ptSubpass->uRenderTargetCount; j++)
         {
-            atSubpassColorAttachmentReferences[j][i] = atColorAttachmentReferences[ptSubpass->auRenderTargets[j]];
+            atSubpassColorAttachmentReferences[j][i].attachment = ptSubpass->auRenderTargets[j] + uAttachmentOffset;
+            atSubpassColorAttachmentReferences[j][i].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         }
         atSubpasses[i].pColorAttachments = atSubpassColorAttachmentReferences[i];
     }
 
-    const VkSubpassDependency tSubpassDependencies[] = {
-        // color attachment
-        {
-            .srcSubpass      = VK_SUBPASS_EXTERNAL,
-            .dstSubpass      = 0,
-            .srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT,
-            .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dependencyFlags = 0
-        },
+    atSubpassDependencies[0] = (VkSubpassDependency){
+        .srcSubpass      = VK_SUBPASS_EXTERNAL,
+        .dstSubpass      = 0,
+        .srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT,
+        .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .dependencyFlags = 0
+    };
 
-        // color attachment out
-        {
-            .srcSubpass      = 0,
-            .dstSubpass      = VK_SUBPASS_EXTERNAL,
-            .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT,
-            .dependencyFlags = 0
-        }
+    atSubpassDependencies[1] = (VkSubpassDependency){
+        .srcSubpass      = ptDesc->uSubpassCount - 1,
+        .dstSubpass      = VK_SUBPASS_EXTERNAL,
+        .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT,
+        .dependencyFlags = 0
     };
 
     const VkRenderPassCreateInfo tRenderPassInfo = {
@@ -2667,8 +2663,8 @@ pl_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDescrip
         .pAttachments    = atAttachments,
         .subpassCount    = ptDesc->uSubpassCount,
         .pSubpasses      = atSubpasses,
-        .dependencyCount = 2,
-        .pDependencies   = tSubpassDependencies
+        .dependencyCount = uSubpassDependencyCount,
+        .pDependencies   = atSubpassDependencies
     };
 
     plRenderPassLayout tLayout = {
@@ -2715,10 +2711,11 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
 
     plVulkanRenderPass* ptVulkanRenderPass = &ptVulkanGfx->sbtRenderPassesHot[uResourceIndex];
 
-    VkAttachmentDescription atAttachments[PL_MAX_RENDER_TARGETS] = {0};
+    VkAttachmentDescription atAttachments[PL_MAX_COLOR_TARGETS] = {0};
     
     // find attachment count & fill out references & descriptions
-    uint32_t uAttachmentCount = 0;
+    const uint32_t uAttachmentOffset = ptLayout->tDesc.tDepthTargetFormat == PL_FORMAT_UNKNOWN ? 0 : 1;
+    uint32_t uAttachmentCount = uAttachmentOffset;
 
     VkAttachmentReference tDepthAttachmentReference = {0};
     if(ptLayout->tDesc.tDepthTargetFormat != PL_FORMAT_UNKNOWN)
@@ -2736,41 +2733,37 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
 
         tDepthAttachmentReference.attachment = 0;
         tDepthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-        uAttachmentCount = 1;
     }
 
     // find attachment count & fill out references & descriptions
-    VkAttachmentReference  atColorAttachmentReferences[PL_MAX_RENDER_TARGETS] = {0};
-    for(uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
+    VkAttachmentReference  atColorAttachmentReferences[PL_MAX_COLOR_TARGETS] = {0};
+    for(uint32_t i = 0; i < PL_MAX_COLOR_TARGETS; i++)
     {
-        if(ptLayout->tDesc.atRenderTargets[i].tFormat == PL_FORMAT_UNKNOWN)
+        if(ptLayout->tDesc.atColorTargets[i].tFormat == PL_FORMAT_UNKNOWN)
             break;
         
         // from layout
-        atAttachments[uAttachmentCount].format = pl__vulkan_format(ptLayout->tDesc.atRenderTargets[i].tFormat);
-        atAttachments[uAttachmentCount].samples = 1;
-
-        // references
-        atColorAttachmentReferences[i].attachment     = uAttachmentCount;
-        atColorAttachmentReferences[i].layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        atAttachments[i + uAttachmentOffset].format = pl__vulkan_format(ptLayout->tDesc.atColorTargets[i].tFormat);
+        atAttachments[i + uAttachmentOffset].samples = 1;
 
         // from description
-        atAttachments[uAttachmentCount].loadOp         = pl__vulkan_load_op(ptDesc->atRenderTargets[i].tLoadOp);
-        atAttachments[uAttachmentCount].storeOp        = pl__vulkan_store_op(ptDesc->atRenderTargets[i].tStoreOp);
-        atAttachments[uAttachmentCount].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        atAttachments[uAttachmentCount].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        atAttachments[i + uAttachmentOffset].loadOp         = pl__vulkan_load_op(ptDesc->atColorTargets[i].tLoadOp);
+        atAttachments[i + uAttachmentOffset].storeOp        = pl__vulkan_store_op(ptDesc->atColorTargets[i].tStoreOp);
+        atAttachments[i + uAttachmentOffset].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        atAttachments[i + uAttachmentOffset].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
         // layouts
-        atAttachments[uAttachmentCount].initialLayout = pl__vulkan_layout(ptDesc->atRenderTargets[i].tNextUsage);
-        atAttachments[uAttachmentCount].finalLayout   = pl__vulkan_layout(ptDesc->atRenderTargets[i].tNextUsage);
+        atAttachments[i + uAttachmentOffset].initialLayout = pl__vulkan_layout(ptDesc->atColorTargets[i].tNextUsage);
+        atAttachments[i + uAttachmentOffset].finalLayout   = pl__vulkan_layout(ptDesc->atColorTargets[i].tNextUsage);
 
         uAttachmentCount++;
     }
 
     // fill out subpasses
+    uint32_t uSubpassDependencyCount = 2;
+    VkSubpassDependency atSubpassDependencies[PL_MAX_COLOR_TARGETS * PL_MAX_COLOR_TARGETS + 2] = {0};
     VkSubpassDescription  atSubpasses[PL_MAX_SUBPASSES] = {0};
-    VkAttachmentReference atSubpassColorAttachmentReferences[PL_MAX_RENDER_TARGETS][PL_MAX_SUBPASSES] = {0};
+    VkAttachmentReference atSubpassColorAttachmentReferences[PL_MAX_COLOR_TARGETS][PL_MAX_SUBPASSES] = {0};
     for(uint32_t i = 0; i < ptLayout->tDesc.uSubpassCount; i++)
     {
         const plSubpass* ptSubpass = &ptLayout->tDesc.atSubpasses[i];
@@ -2782,34 +2775,30 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
 
         for(uint32_t j = 0; j < ptSubpass->uRenderTargetCount; j++)
         {
-            atSubpassColorAttachmentReferences[j][i] = atColorAttachmentReferences[ptSubpass->auRenderTargets[j]];
+            atSubpassColorAttachmentReferences[j][i].attachment = ptSubpass->auRenderTargets[j] + uAttachmentOffset;
+            atSubpassColorAttachmentReferences[j][i].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         }
         atSubpasses[i].pColorAttachments = atSubpassColorAttachmentReferences[i];
     }
 
+    atSubpassDependencies[0] = (VkSubpassDependency){
+        .srcSubpass      = VK_SUBPASS_EXTERNAL,
+        .dstSubpass      = 0,
+        .srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT,
+        .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .dependencyFlags = 0
+    };
 
-    const VkSubpassDependency tSubpassDependencies[] = {
-        // color attachment
-        {
-            .srcSubpass      = VK_SUBPASS_EXTERNAL,
-            .dstSubpass      = 0,
-            .srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT,
-            .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dependencyFlags = 0
-        },
-
-        // color attachment out
-        {
-            .srcSubpass      = 0,
-            .dstSubpass      = VK_SUBPASS_EXTERNAL,
-            .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT,
-            .dependencyFlags = 0
-        }
+    atSubpassDependencies[1] = (VkSubpassDependency){
+        .srcSubpass      = ptLayout->tDesc.uSubpassCount - 1,
+        .dstSubpass      = VK_SUBPASS_EXTERNAL,
+        .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT,
+        .dependencyFlags = 0
     };
 
     const VkRenderPassCreateInfo tRenderPassInfo = {
@@ -2818,13 +2807,13 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
         .pAttachments    = atAttachments,
         .subpassCount    = ptLayout->tDesc.uSubpassCount,
         .pSubpasses      = atSubpasses,
-        .dependencyCount = 2,
-        .pDependencies   = tSubpassDependencies
+        .dependencyCount = uSubpassDependencyCount,
+        .pDependencies   = atSubpassDependencies
     };
 
     PL_VULKAN(vkCreateRenderPass(ptVulkanDevice->tLogicalDevice, &tRenderPassInfo, NULL, &ptVulkanRenderPass->tRenderPass));
 
-    VkImageView atViewAttachments[PL_MAX_RENDER_TARGETS] = {0};
+    VkImageView atViewAttachments[PL_MAX_COLOR_TARGETS] = {0};
 
     for(uint32_t j = 0; j < uAttachmentCount; j++)
     {
@@ -2862,7 +2851,7 @@ pl_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle
 
     const plRenderPassDescription* ptDesc = &ptRenderPass->tDesc;
 
-    VkImageView atViewAttachments[PL_MAX_RENDER_TARGETS] = {0};
+    VkImageView atViewAttachments[PL_MAX_COLOR_TARGETS] = {0};
 
     for(uint32_t j = 0; j < ptLayout->_uAttachmentCount; j++)
     {
@@ -2959,7 +2948,7 @@ pl_begin_render_pass(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, plRen
     }
     else
     {
-        VkClearValue atClearValues[PL_MAX_RENDER_TARGETS + 1] = {0};
+        VkClearValue atClearValues[PL_MAX_COLOR_TARGETS + 1] = {0};
 
         uint32_t uCurrentAttachment = 0;
 
@@ -2972,11 +2961,11 @@ pl_begin_render_pass(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, plRen
 
         for(uint32_t i = 0; i < ptLayout->_uAttachmentCount; i++)
         {
-            // ptLayout->tDesc.atRenderTargets[i].tClearColor.
-            atClearValues[uCurrentAttachment].color.float32[0] = ptRenderPass->tDesc.atRenderTargets[i].tClearColor.r;
-            atClearValues[uCurrentAttachment].color.float32[1] = ptRenderPass->tDesc.atRenderTargets[i].tClearColor.g;
-            atClearValues[uCurrentAttachment].color.float32[2] = ptRenderPass->tDesc.atRenderTargets[i].tClearColor.b;
-            atClearValues[uCurrentAttachment].color.float32[3] = ptRenderPass->tDesc.atRenderTargets[i].tClearColor.a;
+            // ptLayout->tDesc.atColorTargets[i].tClearColor.
+            atClearValues[uCurrentAttachment].color.float32[0] = ptRenderPass->tDesc.atColorTargets[i].tClearColor.r;
+            atClearValues[uCurrentAttachment].color.float32[1] = ptRenderPass->tDesc.atColorTargets[i].tClearColor.g;
+            atClearValues[uCurrentAttachment].color.float32[2] = ptRenderPass->tDesc.atColorTargets[i].tClearColor.b;
+            atClearValues[uCurrentAttachment].color.float32[3] = ptRenderPass->tDesc.atColorTargets[i].tClearColor.a;
             uCurrentAttachment++;
         }
 

@@ -402,7 +402,7 @@ pl_refr_create_scene(void)
     // create offscreen render pass layout
     const plRenderPassLayoutDescription tRenderPassLayoutDesc = {
         .tDepthTargetFormat = PL_FORMAT_D32_FLOAT_S8_UINT,
-        .atRenderTargets = {
+        .atColorTargets = {
             { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT }
         },
         .uSubpassCount = 1,
@@ -663,7 +663,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
                 .tNextUsage      = PL_TEXTURE_LAYOUT_DEPTH_STENCIL,
                 .fClearZ         = 1.0f
         },
-        .atRenderTargets = {
+        .atColorTargets = {
             {
                 .tLoadOp     = PL_LOAD_OP_CLEAR,
                 .tStoreOp    = PL_STORE_OP_STORE,
