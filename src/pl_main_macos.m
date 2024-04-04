@@ -305,6 +305,7 @@ int main()
         [self initCommon];
     }
     [self addSubview:gKeyEventResponder];
+
     pl__add_osx_tracking_area(self);
     return self;
 }
@@ -349,7 +350,8 @@ int main()
 - (void)initCommon
 {
     self.wantsLayer = YES;
-    self.layerContentsRedrawPolicy = NSViewLayerContentsRedrawDuringViewResize;
+    // self.layerContentsRedrawPolicy = NSViewLayerContentsRedrawDuringViewResize;
+    self.layerContentsRedrawPolicy = NSViewLayerContentsRedrawBeforeViewResize;
     _metalLayer = (CAMetalLayer*) self.layer;
     self.layer.delegate = self;
 }
@@ -363,7 +365,8 @@ int main()
 {
     [super viewDidMoveToWindow];
     [self setupCVDisplayLinkForScreen:self.window.screen];
-    [self resizeDrawable:self.window.screen.backingScaleFactor];
+    gptIOCtx->afMainFramebufferScale[0] = self.window.screen.backingScaleFactor;
+    gptIOCtx->afMainFramebufferScale[1] = self.window.screen.backingScaleFactor;
 }
 
 - (BOOL)setupCVDisplayLinkForScreen:(NSScreen*)screen
@@ -484,7 +487,8 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 - (void)viewDidChangeBackingProperties
 {
     [super viewDidChangeBackingProperties];
-    [self resizeDrawable:self.window.screen.backingScaleFactor];
+    gptIOCtx->afMainFramebufferScale[0] = self.window.screen.backingScaleFactor;
+    gptIOCtx->afMainFramebufferScale[1] = self.window.screen.backingScaleFactor;
 }
 
 - (void)setFrameSize:(NSSize)size
@@ -496,7 +500,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 - (void)setBoundsSize:(NSSize)size
 {
     [super setBoundsSize:size];
-    [self resizeDrawable:self.window.screen.backingScaleFactor];
+    printf("set bounds size\n");
 }
 
 @end

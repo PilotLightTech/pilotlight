@@ -51,10 +51,12 @@ layout(set = 0, binding = 2) readonly buffer plMaterialInfo
     tMaterial atMaterials[];
 } tMaterialInfo;
 
-layout(set = 1, binding = 0)  uniform sampler2D tBaseColorSampler;
-layout(set = 1, binding = 1)  uniform sampler2D tNormalSampler;
+layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
 
-layout(set = 2, binding = 0)  uniform sampler2D tSkinningSampler;
+layout(set = 1, binding = 0)  uniform texture2D tBaseColorSampler;
+layout(set = 1, binding = 1)  uniform texture2D tNormalSampler;
+
+layout(set = 2, binding = 0)  uniform texture2D tSkinningSampler;
 
 layout(set = 3, binding = 0) uniform _plObjectInfo
 {
@@ -77,10 +79,10 @@ layout(location = 0) out struct plShaderOut {
     mat3 tTBN;
 } tShaderOut;
 
-mat4 get_matrix_from_texture(sampler2D s, int index)
+mat4 get_matrix_from_texture(texture2D s, int index)
 {
     mat4 result = mat4(1);
-    int texSize = textureSize(s, 0)[0];
+    int texSize = textureSize(sampler2D(s, tDefaultSampler), 0)[0];
     int pixelIndex = index * 4;
     for (int i = 0; i < 4; ++i)
     {
@@ -88,7 +90,7 @@ mat4 get_matrix_from_texture(sampler2D s, int index)
         //Rounding mode of integers is undefined:
         //https://www.khronos.org/registry/OpenGL/specs/es/3.0/GLSL_ES_Specification_3.00.pdf (section 12.33)
         int y = (pixelIndex + i - x) / texSize; 
-        result[i] = texelFetch(s, ivec2(x,y), 0);
+        result[i] = texelFetch(sampler2D(s, tDefaultSampler), ivec2(x,y), 0);
     }
     return result;
 }

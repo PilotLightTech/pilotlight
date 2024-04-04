@@ -14,10 +14,11 @@ layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
 	vec4 atVertexData[];
 } tVertexBuffer;
 
-layout (set = 1, binding = 0) uniform samplerCube samplerCubeMap;
+layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
 
+layout (set = 1, binding = 0) uniform textureCube samplerCubeMap;
 
-layout(set = 2, binding = 0)  uniform sampler2D tSkinningSampler;
+layout(set = 2, binding = 0)  uniform texture2D tSkinningSampler;
 
 layout(set = 3, binding = 0) uniform _plObjectInfo
 {
@@ -36,5 +37,5 @@ layout(location = 0) out vec4 outColor;
 void main() 
 {
     vec3 tVectorOut = normalize(tShaderIn.tWorldPosition);
-    outColor = texture(samplerCubeMap, tVectorOut);
+    outColor = texture(samplerCube(samplerCubeMap, tDefaultSampler), tVectorOut);
 }

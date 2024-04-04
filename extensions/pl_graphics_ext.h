@@ -48,8 +48,8 @@ Index of this file:
     #define PL_MAX_SHADER_SPECIALIZATION_CONSTANTS 64
 #endif
 
-#ifndef PL_MAX_COLOR_TARGETS
-    #define PL_MAX_COLOR_TARGETS 16
+#ifndef PL_MAX_RENDER_TARGETS
+    #define PL_MAX_RENDER_TARGETS 16
 #endif
 
 #ifndef PL_FRAMES_IN_FLIGHT
@@ -62,6 +62,10 @@ Index of this file:
 
 #ifndef PL_MAX_SEMAPHORES
     #define PL_MAX_SEMAPHORES 4
+#endif
+
+#ifndef PL_MAX_VERTEX_ATTRIBUTES
+    #define PL_MAX_VERTEX_ATTRIBUTES 8
 #endif
 
 #define PL_ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
@@ -109,16 +113,16 @@ typedef struct _plDispatch                 plDispatch;
 typedef struct _plDrawArea                 plDrawArea;
 typedef struct _plDrawStream               plDrawStream;
 typedef struct _plGraphicsState            plGraphicsState;
+typedef struct _plBlendState               plBlendState;
 typedef struct _plSpecializationConstant   plSpecializationConstant;
 typedef struct _plShaderDescription        plShaderDescription;
 typedef struct _plShader                   plShader;
 typedef struct _plComputeShaderDescription plComputeShaderDescription;
 typedef struct _plComputeShader            plComputeShader;
-typedef struct _plShaderVariant            plShaderVariant;
-typedef struct _plComputeShaderVariant     plComputeShaderVariant;
 typedef struct _plBuffer                   plBuffer;
 typedef struct _plBufferDescription        plBufferDescription;
 typedef struct _plDynamicBuffer            plDynamicBuffer;
+typedef struct _plSamplerDesc              plSamplerDesc;
 typedef struct _plSampler                  plSampler;
 typedef struct _plTextureViewDesc          plTextureViewDesc;
 typedef struct _plTexture                  plTexture;
@@ -126,8 +130,11 @@ typedef struct _plTextureView              plTextureView;
 typedef struct _plTextureDesc              plTextureDesc;
 typedef struct _plBindGroupLayout          plBindGroupLayout;
 typedef struct _plBindGroup                plBindGroup;
+typedef struct _plVertexAttributes         plVertexAttributes;
+typedef struct _plVertexBufferBinding      plVertexBufferBinding;
 typedef struct _plBufferBinding            plBufferBinding;
 typedef struct _plTextureBinding           plTextureBinding;
+typedef struct _plSamplerBinding           plSamplerBinding;
 typedef struct _plDynamicBinding           plDynamicBinding;
 typedef struct _plRenderViewport           plRenderViewport;
 typedef struct _plScissor                  plScissor;
@@ -141,9 +148,11 @@ typedef struct _plBlitEncoder              plBlitEncoder;
 typedef struct _plTimelineSemaphore        plTimelineSemaphore;
 typedef struct _plBeginCommandInfo         plBeginCommandInfo;
 typedef struct _plSubmitInfo               plSubmitInfo;
+typedef struct _plBindGroupUpdateData      plBindGroupUpdateData;
 
 // render passes
-typedef struct _plColorTarget                plColorTarget;
+typedef struct _plRenderTarget                plRenderTarget;
+typedef struct _plColorTarget                 plColorTarget;
 typedef struct _plDepthTarget                 plDepthTarget;
 typedef struct _plSubpass                     plSubpass;
 typedef struct _plRenderPassLayout            plRenderPassLayout;
@@ -156,6 +165,7 @@ typedef struct _plRenderPassAttachments       plRenderPassAttachments;
 PL_DEFINE_HANDLE(plBufferHandle);
 PL_DEFINE_HANDLE(plTextureHandle);
 PL_DEFINE_HANDLE(plTextureViewHandle);
+PL_DEFINE_HANDLE(plSamplerHandle);
 PL_DEFINE_HANDLE(plBindGroupHandle);
 PL_DEFINE_HANDLE(plShaderHandle);
 PL_DEFINE_HANDLE(plComputeShaderHandle);
@@ -184,7 +194,6 @@ typedef int plBufferUsage;            // -> enum _plBufferUsage            // En
 typedef int plTextureUsage;           // -> enum _plTextureUsage           // Enum:
 typedef int plMeshFormatFlags;        // -> enum _plMeshFormatFlags        // Flags:
 typedef int plStageFlags;             // -> enum _plStageFlags             // Flags:
-typedef int plBlendMode;              // -> enum _plBlendMode              // Enum:
 typedef int plCullMode;               // -> enum _plCullMode               // Enum:
 typedef int plFilter;                 // -> enum _plFilter                 // Enum:
 typedef int plWrapMode;               // -> enum _plWrapMode               // Enum:
@@ -195,7 +204,8 @@ typedef int plMemoryMode;             // -> enum _plMemoryMode             // En
 typedef int plLoadOperation;          // -> enum _plLoadOperation          // Enum:
 typedef int plLoadOp;                 // -> enum _plLoadOp                 // Enum:
 typedef int plStoreOp;                // -> enum _plStoreOp                // Enum:
-typedef int plTextureLayout;          // -> enum _plTextureLayout          // Enum:
+typedef int plBlendOp;                // -> enum _plBlendOp                // Enum:
+typedef int plBlendFactor;            // -> enum _plBlendFactor            // Enum:
 
 // external
 typedef struct _plDrawList plDrawList;
@@ -220,9 +230,14 @@ typedef struct _plDeviceI
     void           (*destroy_buffer)           (plDevice* ptDevice, plBufferHandle tHandle);
     plBuffer*      (*get_buffer)               (plDevice* ptDevice, plBufferHandle ptHandle); // do not store
 
+    // samplers
+    plSamplerHandle (*create_sampler)            (plDevice* ptDevice, const plSamplerDesc* ptDesc, const char* pcName);
+    void            (*destroy_sampler)           (plDevice* ptDevice, plSamplerHandle tHandle);
+    void            (*queue_sampler_for_deletion)(plDevice* ptDevice, plSamplerHandle tHandle);
+
     // textures (if manually handling mips/levels, don't use initial data, use "copy_buffer_to_texture" instead)
-    plTextureHandle     (*create_texture)                 (plDevice* ptDevice, plTextureDesc tDesc, const char* pcName);
-    plTextureViewHandle (*create_texture_view)            (plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const plSampler* ptSampler, plTextureHandle tTexture, const char* pcName);
+    plTextureHandle     (*create_texture)                 (plDevice* ptDevice, const plTextureDesc* ptDesc, const char* pcName);
+    plTextureViewHandle (*create_texture_view)            (plDevice* ptDevice, const plTextureViewDesc* ptDesc, plTextureHandle tTexture, const char* pcName);
     void                (*queue_texture_for_deletion)     (plDevice* ptDevice, plTextureHandle tHandle);
     void                (*queue_texture_view_for_deletion)(plDevice* ptDevice, plTextureViewHandle tHandle);
     void                (*destroy_texture)                (plDevice* ptDevice, plTextureHandle tHandle);
@@ -231,9 +246,9 @@ typedef struct _plDeviceI
     plTextureView*      (*get_texture_view)               (plDevice* ptDevice, plTextureViewHandle ptHandle); // do not store
 
     // bind groups
-    plBindGroupHandle (*create_bind_group)            (plDevice* ptDevice, plBindGroupLayout* ptLayout);
-    plBindGroupHandle (*get_temporary_bind_group)     (plDevice* ptDevice, plBindGroupLayout* ptLayout); // don't submit for deletion
-    void              (*update_bind_group)            (plDevice* ptDevice, plBindGroupHandle* ptGroup, uint32_t uBufferCount, plBufferHandle* atBuffers, size_t* aszBufferRanges, uint32_t uTextureViewCount, plTextureViewHandle* atTextureViews);
+    plBindGroupHandle (*create_bind_group)            (plDevice* ptDevice, plBindGroupLayout* ptLayout, const char* pcName);
+    plBindGroupHandle (*get_temporary_bind_group)     (plDevice* ptDevice, plBindGroupLayout* ptLayout, const char* pcName); // don't submit for deletion
+    void              (*update_bind_group)            (plDevice* ptDevice, plBindGroupHandle* ptGroup, const plBindGroupUpdateData* ptData);
     void              (*queue_bind_group_for_deletion)(plDevice* ptDevice, plBindGroupHandle tHandle);
     void              (*destroy_bind_group)           (plDevice* ptDevice, plBindGroupHandle tHandle);
     plBindGroup*      (*get_bind_group)               (plDevice* ptDevice, plBindGroupHandle ptHandle); // do not store
@@ -250,9 +265,7 @@ typedef struct _plDeviceI
 
     // shaders
     plShaderHandle        (*create_shader)                    (plDevice* ptDevice, const plShaderDescription* ptDescription);
-    plShaderHandle        (*get_shader_variant)               (plDevice* ptDevice, plShaderHandle tHandle, const plShaderVariant* ptVariant);
     plComputeShaderHandle (*create_compute_shader)            (plDevice* ptDevice, const plComputeShaderDescription* ptDescription);
-    plComputeShaderHandle (*get_compute_shader_variant)       (plDevice* ptDevice, plComputeShaderHandle tHandle, const plComputeShaderVariant* ptVariant);
     void                  (*queue_shader_for_deletion)        (plDevice* ptDevice, plShaderHandle tHandle);
     void                  (*queue_compute_shader_for_deletion)(plDevice* ptDevice, plComputeShaderHandle tHandle);
     void                  (*destroy_shader)                   (plDevice* ptDevice, plShaderHandle tHandle);
@@ -323,7 +336,7 @@ typedef struct _plGraphicsI
     void (*add_3d_bezier_cubic)   (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
 
     // misc
-    void* (*get_ui_texture_handle)(plGraphics* ptGraphics, plTextureViewHandle tHandle);
+    void* (*get_ui_texture_handle)(plGraphics* ptGraphics, plTextureViewHandle tHandle, plSamplerHandle tSamplerHandle);
 } plGraphicsI;
 
 //-----------------------------------------------------------------------------
@@ -344,6 +357,14 @@ typedef struct _plSubmitInfo
     uint64_t          auSignalSemaphoreValues[PL_MAX_SEMAPHORES + 1];
 } plSubmitInfo;
 
+typedef struct _plBindGroupUpdateData
+{
+    plBufferHandle*      atBuffers;
+    size_t*              aszBufferRanges;
+    plTextureViewHandle* atTextureViews;
+    plSamplerHandle*     atSamplers;
+} plBindGroupUpdateData;
+
 typedef struct _plCommandBuffer
 {
     plBeginCommandInfo tBeginInfo;
@@ -355,6 +376,7 @@ typedef struct _plRenderEncoder
     plGraphics*        ptGraphics;
     plCommandBuffer    tCommandBuffer;
     plRenderPassHandle tRenderPassHandle;
+    uint32_t           _uCurrentSubpass;
     void*              _pInternal;
 } plRenderEncoder;
 
@@ -378,24 +400,33 @@ typedef struct _plGraphicsState
     {
         struct
         {
-            uint64_t ulVertexStreamMask   : 11; // PL_MESH_FORMAT_FLAG_*
             uint64_t ulDepthMode          :  4; // PL_DEPTH_MODE_
             uint64_t ulWireframe          :  1; // bool
             uint64_t ulDepthWriteEnabled  :  1; // bool
-            uint64_t ulCullMode           :  2; // VK_CULL_MODE_*
-            uint64_t ulBlendMode          :  3; // PL_BLEND_MODE_*
+            uint64_t ulCullMode           :  2; // PL_CULL_MODE_*
             uint64_t ulStencilMode        :  4;
             uint64_t ulStencilRef         :  8;
             uint64_t ulStencilMask        :  8;
             uint64_t ulStencilOpFail      :  3;
             uint64_t ulStencilOpDepthFail :  3;
             uint64_t ulStencilOpPass      :  3;
-            uint64_t _ulUnused            : 13;
+            uint64_t _ulUnused            : 27;
         };
         uint64_t ulValue;
     };
     
 } plGraphicsState;
+
+typedef struct _plBlendState
+{
+    bool          bBlendEnabled;
+    plBlendOp     tColorOp;
+    plBlendOp     tAlphaOp;
+    plBlendFactor tSrcColorFactor;
+    plBlendFactor tDstColorFactor;
+    plBlendFactor tSrcAlphaFactor;
+    plBlendFactor tDstAlphaFactor;
+} plBlendState;
 
 typedef struct _plDrawVertex3DSolid
 {
@@ -472,7 +503,7 @@ typedef struct _plTextureViewDesc
     uint32_t uLayerCount;
 } plTextureViewDesc;
 
-typedef struct _plSampler
+typedef struct _plSamplerDesc
 {
     plFilter      tFilter;
     plCompareMode tCompare;
@@ -481,12 +512,16 @@ typedef struct _plSampler
     float         fMipBias;
     float         fMinMip;
     float         fMaxMip; 
+} plSamplerDesc;
+
+typedef struct _plSampler
+{
+    plSamplerDesc tDesc;
 } plSampler;
 
 typedef struct _plTextureView
 {
     plTextureHandle   tTexture;
-    plSampler         tSampler;
     plTextureViewDesc tTextureViewDesc;
 } plTextureView;
 
@@ -498,6 +533,7 @@ typedef struct _plTextureDesc
     plFormat       tFormat;
     plTextureType  tType;
     plTextureUsage tUsage;
+    plTextureUsage tInitialUsage;
 } plTextureDesc;
 
 typedef struct _plTexture
@@ -532,10 +568,18 @@ typedef struct _plBufferBinding
 
 typedef struct _plTextureBinding
 {
-    uint32_t            uSlot;
-    plTextureViewHandle tTextureView;
-    plStageFlags        tStages;
+    plTextureBindingType tType;
+    uint32_t             uSlot;
+    plTextureViewHandle  tTextureView;
+    plStageFlags         tStages;
 } plTextureBinding;
+
+typedef struct _plSamplerBinding
+{
+    uint32_t        uSlot;
+    plSamplerHandle tSampler;
+    plStageFlags    tStages;
+} plSamplerBinding;
 
 typedef struct _plDynamicBinding
 {
@@ -548,8 +592,10 @@ typedef struct _plBindGroupLayout
 {
     uint32_t         uTextureCount;
     uint32_t         uBufferCount;
+    uint32_t         uSamplerCount;
     plTextureBinding aTextures[PL_MAX_TEXTURES_PER_BIND_GROUP];
     plBufferBinding  aBuffers[PL_MAX_BUFFERS_PER_BIND_GROUP];
+    plSamplerBinding atSamplers[PL_MAX_TEXTURES_PER_BIND_GROUP];
     uint32_t         uHandle;
 } plBindGroupLayout;
 
@@ -646,16 +692,17 @@ typedef struct _plSpecializationConstant
     plDataType tType;
 } plSpecializationConstant;
 
-typedef struct _plShaderVariant
+typedef struct _plVertexAttributes
 {
-    plGraphicsState tGraphicsState;
-    const void*     pTempConstantData;
-} plShaderVariant;
+    uint32_t uByteOffset;
+    plFormat tFormat;
+} plVertexAttributes;
 
-typedef struct _plComputeShaderVariant
+typedef struct _plVertexBufferBinding
 {
-    const void* pTempConstantData;
-} plComputeShaderVariant;
+    uint32_t           uByteStride;
+    plVertexAttributes atAttributes[PL_MAX_VERTEX_ATTRIBUTES];
+} plVertexBufferBinding;
 
 typedef struct _plShaderDescription
 {
@@ -663,6 +710,9 @@ typedef struct _plShaderDescription
     uint32_t                 uConstantCount;
     uint32_t                 uSubpassIndex;
     plGraphicsState          tGraphicsState;
+    plBlendState             atBlendStates[PL_MAX_RENDER_TARGETS];
+    uint32_t                 uBlendStateCount;
+    plVertexBufferBinding    tVertexBufferBinding;
     const void*              pTempConstantData;
     const char*              pcVertexShader;
     const char*              pcPixelShader;
@@ -670,17 +720,12 @@ typedef struct _plShaderDescription
     const char*              pcPixelShaderEntryFunc;
     plBindGroupLayout        atBindGroupLayouts[3];
     uint32_t                 uBindGroupLayoutCount;
-    plRenderPassLayoutHandle tRenderPassLayout;
-    uint32_t                 uVariantCount;
-    const plShaderVariant*   ptVariants;
-    
+    plRenderPassLayoutHandle tRenderPassLayout;    
 } plShaderDescription;
 
 typedef struct _plShader
 {
     plShaderDescription tDescription;
-    plHashMap           tVariantHashmap;
-    plShaderHandle*     _sbtVariantHandles; // needed for cleanup
 } plShader;
 
 typedef struct _plComputeShaderDescription
@@ -691,53 +736,32 @@ typedef struct _plComputeShaderDescription
     plSpecializationConstant       atConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
     uint32_t                       uConstantCount;
     const void*                    pTempConstantData;
-    const plComputeShaderVariant*  ptVariants;
-    uint32_t                       uVariantCount;
 } plComputeShaderDescription;
 
 typedef struct _plComputeShader
 {
     plComputeShaderDescription tDescription;
-    plHashMap                  tVariantHashmap;
-    plComputeShaderHandle*     _sbtVariantHandles; // needed for cleanup
 } plComputeShader;
-
-typedef struct _plDepthTarget
-{
-    plFormat            tFormat;
-    plLoadOp            tLoadOp;
-    plStoreOp           tStoreOp;
-    plLoadOp            tStencilLoadOp;
-    plStoreOp           tStencilStoreOp;
-    plTextureLayout     tNextUsage;
-    float               fClearZ;
-    uint32_t            uClearStencil;
-} plDepthTarget;
-
-typedef struct _plColorTarget
-{
-    plFormat        tFormat;
-    plLoadOp        tLoadOp;
-    plStoreOp       tStoreOp;
-    plTextureLayout tNextUsage;
-    plVec4          tClearColor;
-} plColorTarget;
 
 typedef struct _plSubpass
 {
     uint32_t uRenderTargetCount;
     uint32_t uSubpassInputCount;
-    uint32_t auRenderTargets[PL_MAX_COLOR_TARGETS];
-    uint32_t auSubpassInputs[PL_MAX_COLOR_TARGETS];
-    bool     bDepthTarget;
+    uint32_t auRenderTargets[PL_MAX_RENDER_TARGETS];
+    uint32_t auSubpassInputs[PL_MAX_RENDER_TARGETS];
+    bool _bHasDepth;
 } plSubpass;
+
+typedef struct _plRenderTarget
+{
+    plFormat tFormat;
+} plRenderTarget;
 
 typedef struct _plRenderPassLayoutDescription
 {
-    plFormat      tDepthTargetFormat;
-    uint32_t      uSubpassCount;
-    plColorTarget atColorTargets[PL_MAX_COLOR_TARGETS];
-    plSubpass     atSubpasses[PL_MAX_SUBPASSES];
+    uint32_t       uSubpassCount;
+    plRenderTarget atRenderTargets[PL_MAX_RENDER_TARGETS];
+    plSubpass      atSubpasses[PL_MAX_SUBPASSES];
 } plRenderPassLayoutDescription;
 
 typedef struct _plRenderPassLayout
@@ -750,13 +774,34 @@ typedef struct _plRenderPassLayout
 
 typedef struct _plRenderPassAttachments
 {
-    plTextureViewHandle atViewAttachments[PL_MAX_COLOR_TARGETS];
+    plTextureViewHandle atViewAttachments[PL_MAX_RENDER_TARGETS];
 } plRenderPassAttachments;
+
+typedef struct _plDepthTarget
+{
+    plLoadOp            tLoadOp;
+    plStoreOp           tStoreOp;
+    plLoadOp            tStencilLoadOp;
+    plStoreOp           tStencilStoreOp;
+    plTextureUsage      tCurrentUsage;
+    plTextureUsage      tNextUsage;
+    float               fClearZ;
+    uint32_t            uClearStencil;
+} plDepthTarget;
+
+typedef struct _plColorTarget
+{
+    plLoadOp        tLoadOp;
+    plStoreOp       tStoreOp;
+    plTextureUsage  tCurrentUsage;
+    plTextureUsage  tNextUsage;
+    plVec4          tClearColor;
+} plColorTarget;
 
 typedef struct _plRenderPassDescription
 {
     plRenderPassLayoutHandle tLayout;
-    plColorTarget            atColorTargets[PL_MAX_COLOR_TARGETS];
+    plColorTarget            atColorTargets[PL_MAX_RENDER_TARGETS];
     plDepthTarget            tDepthTarget;
     plVec2                   tDimensions;
 } plRenderPassDescription;
@@ -838,6 +883,11 @@ typedef struct _plGraphics
     plTextureView* sbtTextureViewsCold;
     uint32_t*      sbtTextureViewGenerations;
     uint32_t*      sbtTextureViewFreeIndices;
+
+    // samplers
+    plSampler* sbtSamplersCold;
+    uint32_t*  sbtSamplerGenerations;
+    uint32_t*  sbtSamplerFreeIndices;
 
     // bind groups
     plBindGroup* sbtBindGroupsCold;
@@ -937,7 +987,7 @@ enum _plTextureBindingType
 {
     PL_TEXTURE_BINDING_TYPE_UNSPECIFIED,
     PL_TEXTURE_BINDING_TYPE_SAMPLED,
-    PL_TEXTURE_BINDING_TYPE_STORAGE
+    PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
 };
 
 enum _plTextureType
@@ -962,28 +1012,9 @@ enum _plTextureUsage
     PL_TEXTURE_USAGE_SAMPLED                  = 1 << 0,
     PL_TEXTURE_USAGE_COLOR_ATTACHMENT         = 1 << 1,
     PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT = 1 << 2,
-    PL_TEXTURE_USAGE_TRANSIENT_ATTACHMENT     = 1 << 3
-};
-
-enum _plTextureLayout
-{
-    PL_TEXTURE_LAYOUT_NONE,
-    PL_TEXTURE_LAYOUT_RENDER_TARGET,
-    PL_TEXTURE_LAYOUT_DEPTH_STENCIL,
-    PL_TEXTURE_LAYOUT_PRESENT,
-    PL_TEXTURE_LAYOUT_SHADER_READ,
-};
-
-enum _plBlendMode
-{
-    PL_BLEND_MODE_NONE,
-    PL_BLEND_MODE_ALPHA,
-    PL_BLEND_MODE_ADDITIVE,
-    PL_BLEND_MODE_PREMULTIPLY,
-    PL_BLEND_MODE_MULTIPLY,
-    PL_BLEND_MODE_CLIP_MASK,
-    
-    PL_BLEND_MODE_COUNT
+    PL_TEXTURE_USAGE_TRANSIENT_ATTACHMENT     = 1 << 3,
+    PL_TEXTURE_USAGE_PRESENT                  = 1 << 4,
+    PL_TEXTURE_USAGE_INPUT_ATTACHMENT         = 1 << 5
 };
 
 enum _plStencilOp
@@ -1003,6 +1034,38 @@ enum _plStoreOp
     PL_STORE_OP_STORE,
     PL_STORE_OP_DONT_CARE,
     PL_STORE_OP_NONE
+};
+
+enum _plBlendOp
+{
+    PL_BLEND_OP_ADD,
+    PL_BLEND_OP_SUBTRACT,
+    PL_BLEND_OP_REVERSE_SUBTRACT,
+    PL_BLEND_OP_MIN,
+    PL_BLEND_OP_MAX
+};
+
+enum _plBlendFactor
+{
+    PL_BLEND_FACTOR_ZERO,
+    PL_BLEND_FACTOR_ONE,
+    PL_BLEND_FACTOR_SRC_COLOR,
+    PL_BLEND_FACTOR_ONE_MINUS_SRC_COLOR,
+    PL_BLEND_FACTOR_DST_COLOR,
+    PL_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
+    PL_BLEND_FACTOR_SRC_ALPHA,
+    PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+    PL_BLEND_FACTOR_DST_ALPHA,
+    PL_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
+    PL_BLEND_FACTOR_CONSTANT_COLOR,
+    PL_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR,
+    PL_BLEND_FACTOR_CONSTANT_ALPHA,
+    PL_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
+    PL_BLEND_FACTOR_SRC_ALPHA_SATURATE,
+    PL_BLEND_FACTOR_SRC1_COLOR,
+    PL_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR,
+    PL_BLEND_FACTOR_SRC1_ALPHA,
+    PL_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA,
 };
 
 enum _plLoadOp

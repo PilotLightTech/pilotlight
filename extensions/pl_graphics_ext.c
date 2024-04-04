@@ -7,6 +7,7 @@ typedef struct _plFrameGarbage
 {
     plTextureHandle*          sbtTextures;
     plTextureViewHandle*      sbtTextureViews;
+    plSamplerHandle*          sbtSamplers;
     plBufferHandle*           sbtBuffers;
     plBindGroupHandle*        sbtBindGroups;
     plShaderHandle*           sbtShaders;
@@ -20,6 +21,7 @@ static plFrameGarbage*
 pl__get_frame_garbage(plGraphics* ptGraphics)
 {
     return &ptGraphics->sbtGarbage[ptGraphics->uCurrentFrameIndex];
+    
 }
 
 static size_t
@@ -207,6 +209,15 @@ pl_queue_texture_view_for_deletion(plDevice* ptDevice, plTextureViewHandle tHand
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
     pl_sb_push(ptGarbage->sbtTextureViews, tHandle);
     ptGraphics->sbtTextureViewGenerations[tHandle.uIndex]++;
+}
+
+static void
+pl_queue_sampler_for_deletion(plDevice* ptDevice, plSamplerHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
+    pl_sb_push(ptGarbage->sbtSamplers, tHandle);
+    ptGraphics->sbtSamplerGenerations[tHandle.uIndex]++;
 }
 
 static void
@@ -846,7 +857,7 @@ static plDeviceMemoryAllocation
 pl__allocate_buddy(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName, uint32_t uMemoryType)
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
-    
+
     if(ulAlignment > 0)
         ulSize = ulSize + (ulAlignment - 1);
 
@@ -944,6 +955,7 @@ pl_drawstream_reset(plDrawStream* ptStream)
 {
     memset(&ptStream->tCurrentDraw, 255, sizeof(plDraw));
     ptStream->tCurrentDraw.uIndexBuffer = UINT32_MAX - 1;
+    ptStream->tCurrentDraw.uDynamicBufferOffset = 0;
     pl_sb_reset(ptStream->sbtStream);
 }
 
@@ -1139,19 +1151,6 @@ pl__cleanup_common_graphics(plGraphics* ptGraphics)
     pl_sb_free(ptData2->sbtFreeBlockIndices);
     pl_sb_free(ptData3->sbtFreeBlockIndices);
 
-    for(uint32_t i = 0; i < pl_sb_size(ptGraphics->sbtShadersCold); i++)
-    {
-        plShader* ptResource = &ptGraphics->sbtShadersCold[i];
-        pl_sb_free(ptResource->_sbtVariantHandles);
-        pl_hm_free(&ptResource->tVariantHashmap);
-    }
-    for(uint32_t i = 0; i < pl_sb_size(ptGraphics->sbtComputeShadersCold); i++)
-    {
-        plComputeShader* ptResource = &ptGraphics->sbtComputeShadersCold[i];
-        pl_sb_free(ptResource->_sbtVariantHandles);
-        pl_hm_free(&ptResource->tVariantHashmap);
-    }
-
     pl_sb_free(ptGraphics->sbtGarbage);
     pl_sb_free(ptGraphics->tSwapchain.sbtSwapchainTextureViews);
     pl_sb_free(ptGraphics->sbtShadersCold);
@@ -1159,6 +1158,7 @@ pl__cleanup_common_graphics(plGraphics* ptGraphics)
     pl_sb_free(ptGraphics->sbtBufferFreeIndices);
     pl_sb_free(ptGraphics->sbtTexturesCold);
     pl_sb_free(ptGraphics->sbtTextureViewsCold);
+    pl_sb_free(ptGraphics->sbtSamplersCold);
     pl_sb_free(ptGraphics->sbtBindGroupsCold);
     pl_sb_free(ptGraphics->sbtShaderGenerations);
     pl_sb_free(ptGraphics->sbtBufferGenerations);
@@ -1173,9 +1173,11 @@ pl__cleanup_common_graphics(plGraphics* ptGraphics)
     pl_sb_free(ptGraphics->sbtComputeShadersCold);
     pl_sb_free(ptGraphics->sbtComputeShaderGenerations);
     pl_sb_free(ptGraphics->sbtRenderPassLayoutGenerations);
+    pl_sb_free(ptGraphics->sbtSamplerGenerations);
     pl_sb_free(ptGraphics->sbtBindGroupFreeIndices);
     pl_sb_free(ptGraphics->sbtSemaphoreGenerations);
     pl_sb_free(ptGraphics->sbtSemaphoreFreeIndices);
+    pl_sb_free(ptGraphics->sbtSamplerFreeIndices);
 
     PL_FREE(ptGraphics->_pInternalData);
     PL_FREE(ptGraphics->tDevice._pInternalData);

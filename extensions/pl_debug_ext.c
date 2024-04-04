@@ -821,7 +821,7 @@ pl__show_device_memory(bool* bValue)
                 float fHeight0 = -1.0f;
                 uint64_t ulHoveredBlock = UINT64_MAX;
 
-                static const uint64_t ulMaxBlockSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE;
+                static const uint64_t ulMaxBlockSize = PL_DEVICE_BUDDY_BLOCK_SIZE;
 
                 uint32_t iCurrentBlock = 0;
 

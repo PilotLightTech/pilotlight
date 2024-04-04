@@ -143,6 +143,8 @@ with pl.project("pilotlight"):
         "skybox.vert",
         "primitive.frag",
         "primitive.vert",
+        "lighting.vert",
+        "lighting.frag",
         "draw_3d.vert",
         "draw_3d.frag",
         "draw_3d_line.vert",
@@ -154,6 +156,7 @@ with pl.project("pilotlight"):
         "draw_3d_line.metal",
         "draw_3d.metal",
         "primitive.metal",
+        "lighting.metal",
         "skybox.metal"
     ]
 

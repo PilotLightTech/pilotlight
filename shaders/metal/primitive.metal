@@ -34,24 +34,20 @@ struct tMaterial
 struct BindGroup_0
 {
     device BindGroupData_0 *data;  
-
     device float4 *atVertexData;
     device tMaterial *atMaterials;
+    sampler          tDefaultSampler;
 };
 
 struct BindGroup_1
 {
     texture2d<float>  tBaseColorTexture;
-    sampler          tBaseColorSampler;
-
     texture2d<float>  tNormalTexture;
-    sampler          tNormalSampler;
 };
 
 struct BindGroup_2
 {
     texture2d<float>  tSkinningTexture;
-    sampler            tSkinningSampler;
 };
 
 struct VertexIn {
@@ -222,7 +218,7 @@ struct NormalInfo {
     float3 ntex; // Normal from texture, scaling is accounted for.
 };
 
-NormalInfo pl_get_normal_info(device const BindGroup_1& bg1, VertexOut tShaderIn, bool front_facing)
+NormalInfo pl_get_normal_info(device const BindGroup_0& bg0, device const BindGroup_1& bg1, VertexOut tShaderIn, bool front_facing)
 {
     float2 UV = tShaderIn.tUV;
     float2 uv_dx = dfdx(UV);
@@ -282,7 +278,7 @@ NormalInfo pl_get_normal_info(device const BindGroup_1& bg1, VertexOut tShaderIn
     info.ng = ng;
     if(bool(PL_HAS_NORMAL_MAP)) 
     {
-        info.ntex = bg1.tNormalTexture.sample(bg1.tNormalSampler, UV).rgb * 2.0 - float3(1.0);
+        info.ntex = bg1.tNormalTexture.sample(bg0.tDefaultSampler, UV).rgb * 2.0 - float3(1.0);
         // info.ntex *= vec3(0.2, 0.2, 1.0);
         // info.ntex *= vec3(u_NormalScale, u_NormalScale, 1.0);
         info.ntex = normalize(info.ntex);
@@ -297,13 +293,13 @@ NormalInfo pl_get_normal_info(device const BindGroup_1& bg1, VertexOut tShaderIn
     return info;
 }
 
-float4 getBaseColor(device const BindGroup_1& bg1, float4 u_ColorFactor, VertexOut tShaderIn)
+float4 getBaseColor(device const BindGroup_0& bg0, device const BindGroup_1& bg1, float4 u_ColorFactor, VertexOut tShaderIn)
 {
     float4 baseColor = u_ColorFactor;
 
     if(bool(PL_HAS_BASE_COLOR_MAP))
     {
-        baseColor *= bg1.tBaseColorTexture.sample(bg1.tBaseColorSampler, tShaderIn.tUV);
+        baseColor *= bg1.tBaseColorTexture.sample(bg0.tDefaultSampler, tShaderIn.tUV);
     }
     return baseColor;
 }
@@ -318,7 +314,14 @@ float3 linearTosRGB(float3 color)
     return pow(color, float3(INV_GAMMA));
 }
 
-fragment float4 fragment_main(
+struct plMultipleRenderTargets
+{   
+    float4 outAlbedo [[ color(0) ]];
+    float4 outNormal [[ color(1) ]];
+    float4 outPosition [[ color(2) ]];
+};
+
+fragment plMultipleRenderTargets fragment_main(
     VertexOut in [[stage_in]],
     device const BindGroup_0& bg0 [[ buffer(1) ]],
     device const BindGroup_1& bg1 [[ buffer(2) ]],
@@ -328,12 +331,11 @@ fragment float4 fragment_main(
     )
 {
 
-    float4 tBaseColor = getBaseColor(bg1, bg0.atMaterials[tObjectInfo.iMaterialIndex].tColor, in);
-    float3 tSunlightColor = float3(1.0, 1.0, 1.0);
-    NormalInfo tNormalInfo = pl_get_normal_info(bg1, in, front_facing);
-    float3 tSunLightDirection = float3(-1.0, -1.0, -1.0);
-    float fDiffuseIntensity = max(0.0, dot(tNormalInfo.n, -normalize(tSunLightDirection)));
-    float4 outColor = tBaseColor * float4(tSunlightColor * (0.05 + fDiffuseIntensity), 1.0);
-    outColor = float4(linearTosRGB(outColor.rgb), tBaseColor.a);
-    return outColor;
+    float4 tBaseColor = getBaseColor(bg0, bg1, bg0.atMaterials[tObjectInfo.iMaterialIndex].tColor, in);
+    NormalInfo tNormalInfo = pl_get_normal_info(bg0, bg1, in, front_facing);
+    plMultipleRenderTargets tMRT;
+    tMRT.outAlbedo = tBaseColor;
+    tMRT.outNormal = float4(tNormalInfo.n, 1.0);
+    tMRT.outPosition = float4(in.tPosition, 1.0);
+    return tMRT;
 }

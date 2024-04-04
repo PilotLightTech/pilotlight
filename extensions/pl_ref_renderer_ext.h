@@ -31,6 +31,8 @@ typedef struct _plRefRendererI plRefRendererI;
 
 // basic types
 typedef struct _plViewOptions plViewOptions;
+typedef struct _plShaderVariant plShaderVariant;
+typedef struct _plComputeShaderVariant plComputeShaderVariant;
 
 // external 
 typedef struct _plGraphics         plGraphics;         // pl_graphics_ext.h
@@ -57,10 +59,9 @@ const plRefRendererI* pl_load_ref_renderer_api(void);
 
 typedef struct _plRefRendererI
 {
-    // setup/shutdown/resize
+    // setup/shutdown
     void (*initialize)(void);
     void (*cleanup)   (void);
-    void (*resize)    (void);
 
     // scenes
     uint32_t (*create_scene)(void);

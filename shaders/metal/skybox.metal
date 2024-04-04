@@ -14,18 +14,19 @@ struct BindGroupData_0
 struct BindGroup_0
 {
     device BindGroupData_0 *data; 
+    device float4 *atUnused0;
+    device float4 *atUnused1;
+    sampler          tDefaultSampler;
 };
 
 struct BindGroup_1
 {
-    texturecube<half>  texture_0;
-    sampler            sampler_0;
+    texturecube<half> texture_0;
 };
 
 struct BindGroup_2
 {
     texture2d<float> tSkinningTexture;
-    sampler          tSkinningSampler;
 };
 
 struct DynamicData
@@ -67,6 +68,6 @@ fragment float4 fragment_main(
     device DynamicData& bg3 [[ buffer(4) ]])
 {
 
-    half4 textureSample = bg1.texture_0.sample(bg1.sampler_0, in.tWorldPosition.xyz);
+    half4 textureSample = bg1.texture_0.sample(bg0.tDefaultSampler, in.tWorldPosition.xyz);
     return float4(textureSample);
 }

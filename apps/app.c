@@ -52,7 +52,9 @@ typedef struct plAppData_t
     bool           bShowUiStyle;
     bool           bShowEntityWindow;
     bool           bReloadSwapchain;
+    bool           bResize;
     bool           bFrustumCulling;
+    bool           bAlwaysResize;
 
     // scene
     bool         bDrawAllBoundingBoxes;
@@ -74,8 +76,8 @@ typedef struct plAppData_t
     plFontAtlas  tFontAtlas;
 
     // sync
-    plSemaphoreHandle tSempahore;
-    uint64_t ulNextTimelineValue;
+    plSemaphoreHandle atSempahore[PL_FRAMES_IN_FLIGHT];
+    uint64_t aulNextTimelineValue[PL_FRAMES_IN_FLIGHT];
 
 } plAppData;
 
@@ -83,6 +85,7 @@ typedef struct plAppData_t
 // [SECTION] global apis
 //-----------------------------------------------------------------------------
 
+const plOsServicesApiI*        gptOS                = NULL;
 const plApiRegistryApiI*       gptApiRegistry       = NULL;
 const plDataRegistryApiI*      gptDataRegistry      = NULL;
 const plStatsApiI*             gptStats             = NULL;
@@ -127,6 +130,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         gptCamera   = ptApiRegistry->first(PL_API_CAMERA);
         gptResource = ptApiRegistry->first(PL_API_RESOURCE);
         gptRenderer = ptApiRegistry->first(PL_API_REF_RENDERER);
+        gptOS       = ptApiRegistry->first(PL_API_OS_SERVICES);
 
         return ptAppData;
     }
@@ -169,6 +173,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptCamera   = ptApiRegistry->first(PL_API_CAMERA);
     gptResource = ptApiRegistry->first(PL_API_RESOURCE);
     gptRenderer = ptApiRegistry->first(PL_API_REF_RENDERER);
+    gptOS       = ptApiRegistry->first(PL_API_OS_SERVICES);
 
     plIO* ptIO = pl_get_io();
 
@@ -183,7 +188,8 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     pl_set_default_font(&ptAppData->tFontAtlas.sbtFonts[0]);
 
     // sync
-    ptAppData->tSempahore = gptDevice->create_semaphore(&gptRenderer->get_graphics()->tDevice, false);
+    for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
+        ptAppData->atSempahore[i] = gptDevice->create_semaphore(&gptRenderer->get_graphics()->tDevice, false);
 
     // create offscreen view (temporary API)
     ptAppData->uSceneHandle0 = gptRenderer->create_scene();
@@ -201,22 +207,24 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptCamera->set_pitch_yaw(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), 0.0f, PL_PI);
     gptCamera->update(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera));
 
-    ptAppData->tMainCamera2 = gptEcs->create_perspective_camera(ptComponentLibrary, "secondary camera", (plVec3){-3.265f, 2.967f, 0.311f}, PL_PI_3, 1.0f, 0.01f, 400.0f);
-    gptCamera->set_pitch_yaw(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2), -0.535f, 1.737f);
-    gptCamera->update(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2));
-
     // create cull camera
     ptAppData->tCullCamera = gptEcs->create_perspective_camera(ptComponentLibrary, "cull camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.1f, 106.0f);
     gptCamera->set_pitch_yaw(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera), 0.0f, PL_PI);
     gptCamera->update(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera));
+
+    ptAppData->tMainCamera2 = gptEcs->create_perspective_camera(ptComponentLibrary, "secondary camera", (plVec3){-3.265f, 2.967f, 0.311f}, PL_PI_3, 1.0f, 0.01f, 400.0f);
+    gptCamera->set_pitch_yaw(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2), -0.535f, 1.737f);
+    gptCamera->update(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2));
 
     // load models
     pl_begin_profile_frame();
     pl_begin_profile_sample("load models");
     const plMat4 tTransform0 = pl_mat4_translate_xyz(2.0f, 1.0f, 0.0f);
     gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/glTF-Sample-Environments-main/ennis.jpg", 1024);
+    gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle1, "../data/glTF-Sample-Environments-main/ennis.jpg", 1024);
     gptRenderer->load_gltf(ptAppData->uSceneHandle0, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL);
     gptRenderer->load_gltf(ptAppData->uSceneHandle0, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL);
+    gptRenderer->load_stl(ptAppData->uSceneHandle0, "../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 1.0f, 0.0f, 0.80f}, &tTransform0);
 
     gptRenderer->load_gltf(ptAppData->uSceneHandle1, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL);
     gptRenderer->load_stl(ptAppData->uSceneHandle1, "../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 0.0f, 0.0f, 0.80f}, &tTransform0);
@@ -261,10 +269,10 @@ pl_app_shutdown(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_resize(plAppData* ptAppData)
 {
-    gptRenderer->resize(); // currently handles graphics backend specifics and view updates
+    gptGfx->resize(gptRenderer->get_graphics());
     plIO* ptIO = pl_get_io();
     gptCamera->set_aspect(gptEcs->get_component(gptRenderer->get_component_library(), PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1]);
-    gptRenderer->resize_view(ptAppData->uSceneHandle0, ptAppData->uViewHandle0, (plVec2){ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1]});
+    ptAppData->bResize = true;
 }
 
 //-----------------------------------------------------------------------------
@@ -285,15 +293,22 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bReloadSwapchain)
     {
         ptAppData->bReloadSwapchain = false;
-        gptRenderer->resize();
+        gptGfx->resize(ptGraphics);
         pl_end_profile_sample();
         pl_end_profile_frame();
         return;
     }
 
+    if(ptAppData->bResize || ptAppData->bAlwaysResize)
+    {
+        // gptOS->sleep(32);
+        gptRenderer->resize_view(ptAppData->uSceneHandle0, ptAppData->uViewHandle0, (plVec2){ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1]});
+        ptAppData->bResize = false;
+    }
+
     if(!gptGfx->begin_frame(ptGraphics))
     {
-        gptRenderer->resize();
+        gptGfx->resize(ptGraphics);
         pl_end_profile_sample();
         pl_end_profile_frame();
         return;
@@ -348,18 +363,18 @@ pl_app_update(plAppData* ptAppData)
     // new ui frame
     pl_new_frame();
 
-    uint64_t ulValue0 = ptAppData->ulNextTimelineValue;
+    uint64_t ulValue0 = ptAppData->aulNextTimelineValue[ptGraphics->uCurrentFrameIndex];
     uint64_t ulValue1 = ulValue0 + 1;
     uint64_t ulValue2 = ulValue0 + 2;
     uint64_t ulValue3 = ulValue0 + 3;
-    ptAppData->ulNextTimelineValue = ulValue3;
+    ptAppData->aulNextTimelineValue[ptGraphics->uCurrentFrameIndex] = ulValue3;
 
 
     // first set of work
 
     const plBeginCommandInfo tBeginInfo0 = {
         .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {ptAppData->tSempahore},
+        .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue0},
     };
 
@@ -371,7 +386,7 @@ pl_app_update(plAppData* ptAppData)
 
     const plSubmitInfo tSubmitInfo0 = {
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {ptAppData->tSempahore},
+        .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
         .auSignalSemaphoreValues = {ulValue1}
     };
     gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo0);
@@ -385,6 +400,15 @@ pl_app_update(plAppData* ptAppData)
         .ptCullCamera              = ptAppData->bFrustumCulling ? ptCamera : NULL
     };
 
+    plViewOptions tViewOptions2 = {
+        .bShowAllBoundingBoxes     = ptAppData->bDrawAllBoundingBoxes,
+        .bShowVisibleBoundingBoxes = ptAppData->bDrawVisibleBoundingBoxes,
+        .bShowOrigin               = false,
+        .bCullStats                = true,
+        .ptViewCamera              = ptCamera2,
+        .ptCullCamera              = ptCamera2
+    };
+
     if(ptAppData->bFrustumCulling && ptAppData->bFreezeCullCamera)
         tViewOptions.ptCullCamera = ptCullCamera;
 
@@ -393,31 +417,19 @@ pl_app_update(plAppData* ptAppData)
 
     const plBeginCommandInfo tBeginInfo1 = {
         .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {ptAppData->tSempahore},
+        .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue1}
     };
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo1);
     gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0, tViewOptions);
-
-    plViewOptions tViewOptions2 = {
-        .bShowOrigin               = true,
-        .ptViewCamera              = ptCamera2,
-        .ptCullCamera              = ptCamera2
-    };
     gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle1, tViewOptions2);
-
-    plViewOptions tViewOptions3 = {
-        .bShowOrigin               = true,
-        .ptViewCamera              = ptCamera2,
-        .ptCullCamera              = ptCamera2
-    };
-    gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle1, ptAppData->uViewHandle2, tViewOptions3);
+    gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle1, ptAppData->uViewHandle2, tViewOptions2);
 
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
 
     const plSubmitInfo tSubmitInfo1 = {
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {ptAppData->tSempahore},
+        .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
         .auSignalSemaphoreValues = {ulValue2}
     };
     gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo1);
@@ -426,7 +438,7 @@ pl_app_update(plAppData* ptAppData)
 
     const plBeginCommandInfo tBeginInfo2 = {
         .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {ptAppData->tSempahore},
+        .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue2},
     };
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo2);
@@ -469,6 +481,9 @@ pl_app_update(plAppData* ptAppData)
         }
         if(pl_collapsing_header("Tools"))
         {
+            if(pl_button("resize"))
+                ptAppData->bResize = true;
+            pl_checkbox("Always Resize", &ptAppData->bAlwaysResize);
             pl_checkbox("Device Memory Analyzer", &ptAppData->tDebugInfo.bShowDeviceMemoryAnalyzer);
             pl_checkbox("Memory Allocations", &ptAppData->tDebugInfo.bShowMemoryAllocations);
             pl_checkbox("Profiling", &ptAppData->tDebugInfo.bShowProfiling);
@@ -523,15 +538,14 @@ pl_app_update(plAppData* ptAppData)
 
     gptGfx->end_render_pass(&tEncoder);
 
-
     const plSubmitInfo tSubmitInfo2 = {
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {ptAppData->tSempahore},
+        .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
         .auSignalSemaphoreValues = {ulValue3},
     };
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
     if(!gptGfx->present(ptGraphics, &tCommandBuffer, &tSubmitInfo2))
-        gptRenderer->resize();
+        gptGfx->resize(ptGraphics);
 
     pl_end_profile_sample();
     pl_end_profile_frame();

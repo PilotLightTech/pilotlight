@@ -51,10 +51,12 @@ layout(set = 0, binding = 2) readonly buffer plMaterialInfo
     tMaterial atMaterials[];
 } tMaterialInfo;
 
-layout(set = 1, binding = 0)  uniform sampler2D tBaseColorSampler;
-layout(set = 1, binding = 1)  uniform sampler2D tNormalSampler;
+layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
 
-layout(set = 2, binding = 0)  uniform sampler2D tSkinningSampler;
+layout(set = 1, binding = 0)  uniform texture2D tBaseColorSampler;
+layout(set = 1, binding = 1)  uniform texture2D tNormalSampler;
+
+layout(set = 2, binding = 0)  uniform texture2D tSkinningSampler;
 
 layout(set = 3, binding = 0) uniform _plObjectInfo
 {
@@ -74,7 +76,9 @@ vec3 linearTosRGB(vec3 color)
     return pow(color, vec3(INV_GAMMA));
 }
 
-layout(location = 0) out vec4 outColor;
+layout(location = 0) out vec4 outAlbedo;
+layout(location = 1) out vec4 outNormal;
+layout(location = 2) out vec4 outPosition;
 
 // output
 layout(location = 0) in struct plShaderIn {
@@ -154,7 +158,7 @@ NormalInfo pl_get_normal_info()
     info.ng = ng;
     if(bool(PL_HAS_NORMAL_MAP)) 
     {
-        info.ntex = texture(tNormalSampler, UV).rgb * 2.0 - vec3(1.0);
+        info.ntex = texture(sampler2D(tNormalSampler, tDefaultSampler), UV).rgb * 2.0 - vec3(1.0);
         // info.ntex *= vec3(0.2, 0.2, 1.0);
         // info.ntex *= vec3(u_NormalScale, u_NormalScale, 1.0);
         info.ntex = normalize(info.ntex);
@@ -175,7 +179,7 @@ vec4 getBaseColor(vec4 u_ColorFactor)
 
     if(bool(PL_HAS_BASE_COLOR_MAP))
     {
-        baseColor *= texture(tBaseColorSampler, tShaderIn.tUV[0]);
+        baseColor *= texture(sampler2D(tBaseColorSampler, tDefaultSampler), tShaderIn.tUV[0]);
     }
     return baseColor;
 }
@@ -185,9 +189,7 @@ void main()
     vec4 tBaseColor = getBaseColor(tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex].tColor);
     vec3 tSunlightColor = vec3(1.0, 1.0, 1.0);
     NormalInfo tNormalInfo = pl_get_normal_info();
-    vec3 tSunLightDirection = vec3(-1.0, -1.0, -1.0);
-    float fDiffuseIntensity = max(0.0, dot(normalize(tNormalInfo.n), -normalize(tSunLightDirection)));
-    outColor = tBaseColor * vec4(tSunlightColor * (0.05 + fDiffuseIntensity), 1.0);
-
-    outColor = vec4(linearTosRGB(outColor.rgb), tBaseColor.a);
+    outAlbedo = tBaseColor;
+    outNormal = vec4(tNormalInfo.n, 1.0);
+    outPosition = vec4(tShaderIn.tPosition, 1.0);
 }
