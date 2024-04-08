@@ -6,7 +6,6 @@
 typedef struct _plFrameGarbage
 {
     plTextureHandle*          sbtTextures;
-    plTextureViewHandle*      sbtTextureViews;
     plSamplerHandle*          sbtSamplers;
     plBufferHandle*           sbtBuffers;
     plBindGroupHandle*        sbtBindGroups;
@@ -110,15 +109,6 @@ pl__get_texture(plDevice* ptDevice, plTextureHandle tHandle)
     return &ptGraphics->sbtTexturesCold[tHandle.uIndex];
 }
 
-static plTextureView*
-pl__get_texture_view(plDevice* ptDevice, plTextureViewHandle tHandle)
-{
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    if(tHandle.uGeneration != ptGraphics->sbtTextureViewGenerations[tHandle.uIndex])
-        return NULL;
-    return &ptGraphics->sbtTextureViewsCold[tHandle.uIndex];
-}
-
 static plBindGroup*
 pl__get_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
@@ -200,15 +190,6 @@ pl_queue_bind_group_for_deletion(plDevice* ptDevice, plBindGroupHandle tHandle)
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
     pl_sb_push(ptGarbage->sbtBindGroups, tHandle);
     ptGraphics->sbtBindGroupGenerations[tHandle.uIndex]++;
-}
-
-static void
-pl_queue_texture_view_for_deletion(plDevice* ptDevice, plTextureViewHandle tHandle)
-{
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
-    pl_sb_push(ptGarbage->sbtTextureViews, tHandle);
-    ptGraphics->sbtTextureViewGenerations[tHandle.uIndex]++;
 }
 
 static void
@@ -1123,7 +1104,6 @@ pl__cleanup_common_graphics(plGraphics* ptGraphics)
         plFrameGarbage* ptGarbage = &ptGraphics->sbtGarbage[i];
         pl_sb_free(ptGarbage->sbtMemory);
         pl_sb_free(ptGarbage->sbtTextures);
-        pl_sb_free(ptGarbage->sbtTextureViews);
         pl_sb_free(ptGarbage->sbtBuffers);
         pl_sb_free(ptGarbage->sbtComputeShaders);
         pl_sb_free(ptGarbage->sbtShaders);
@@ -1157,18 +1137,15 @@ pl__cleanup_common_graphics(plGraphics* ptGraphics)
     pl_sb_free(ptGraphics->sbtBuffersCold);
     pl_sb_free(ptGraphics->sbtBufferFreeIndices);
     pl_sb_free(ptGraphics->sbtTexturesCold);
-    pl_sb_free(ptGraphics->sbtTextureViewsCold);
     pl_sb_free(ptGraphics->sbtSamplersCold);
     pl_sb_free(ptGraphics->sbtBindGroupsCold);
     pl_sb_free(ptGraphics->sbtShaderGenerations);
     pl_sb_free(ptGraphics->sbtBufferGenerations);
     pl_sb_free(ptGraphics->sbtTextureGenerations);
-    pl_sb_free(ptGraphics->sbtTextureViewGenerations);
     pl_sb_free(ptGraphics->sbtBindGroupGenerations);
     pl_sb_free(ptGraphics->sbtRenderPassesCold);
     pl_sb_free(ptGraphics->sbtRenderPassGenerations);
     pl_sb_free(ptGraphics->sbtTextureFreeIndices);
-    pl_sb_free(ptGraphics->sbtTextureViewFreeIndices);
     pl_sb_free(ptGraphics->sbtRenderPassLayoutsCold);
     pl_sb_free(ptGraphics->sbtComputeShadersCold);
     pl_sb_free(ptGraphics->sbtComputeShaderGenerations);

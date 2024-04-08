@@ -260,12 +260,10 @@ pl__get_frame_resources(plGraphics* ptGraphics)
 }
 
 static void*
-pl_get_ui_texture_handle(plGraphics* ptGraphics, plTextureViewHandle tHandle, plSamplerHandle tSamplerHandle)
+pl_get_ui_texture_handle(plGraphics* ptGraphics, plTextureHandle tHandle, plSamplerHandle tSamplerHandle)
 {
     plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
-
-    plTextureView* ptView = pl__get_texture_view(&ptGraphics->tDevice, tHandle);
-    return ptMetalGraphics->sbtTexturesHot[ptView->tTexture.uIndex].tTexture;
+    return ptMetalGraphics->sbtTexturesHot[tHandle.uIndex].tTexture;
 }
 
 static void
@@ -360,7 +358,7 @@ pl_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle
             for(uint32_t j = 0; j < ptSubpass->uRenderTargetCount; j++)
             {
                 uint32_t uTargetIndex = ptSubpass->auRenderTargets[j];
-                const uint32_t uTextureIndex = ptGraphics->sbtTextureViewsCold[ptAttachments[uFrameIndex].atViewAttachments[uTargetIndex].uIndex].tTexture.uIndex;
+                const uint32_t uTextureIndex = ptAttachments[uFrameIndex].atViewAttachments[uTargetIndex].uIndex;
                 if(pl__is_depth_format(ptLayout->tDesc.atRenderTargets[uTargetIndex].tFormat))
                 {
                     ptRenderPassDescriptor.depthAttachment.texture = ptMetalGraphics->sbtTexturesHot[uTextureIndex].tTexture;
@@ -473,7 +471,7 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
             for(uint32_t j = 0; j < ptSubpass->uRenderTargetCount; j++)
             {
                 uint32_t uTargetIndex = ptSubpass->auRenderTargets[j];
-                const uint32_t uTextureIndex = ptGraphics->sbtTextureViewsCold[ptAttachments[uFrameIndex].atViewAttachments[uTargetIndex].uIndex].tTexture.uIndex;
+                const uint32_t uTextureIndex = ptAttachments[uFrameIndex].atViewAttachments[uTargetIndex].uIndex;
                 if(pl__is_depth_format(ptLayout->tDesc.atRenderTargets[uTargetIndex].tFormat))
                 {
                     if(i == 0)
@@ -820,7 +818,15 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
         tDesc.uMips = (uint32_t)floorf(log2f((float)pl_maxi((int)tDesc.tDimensions.x, (int)tDesc.tDimensions.y))) + 1u;
 
     plTexture tTexture = {
-        .tDesc = tDesc
+        .tDesc = tDesc,
+        .tView = {
+            .tFormat = tDesc.tFormat,
+            .uBaseMip = 0,
+            .uMips = tDesc.uMips,
+            .uBaseLayer = 0,
+            .uLayerCount = tDesc.uLayers,
+            .tTexture = tHandle
+        }
     };
 
     MTLTextureDescriptor* ptTextureDescriptor = [[MTLTextureDescriptor alloc] init];
@@ -869,42 +875,71 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
 }
 
 
-static plTextureViewHandle
-pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, plTextureHandle tTextureHandle, const char* pcName)
+static plTextureHandle
+pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const char* pcName)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
     plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
 
-    plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
-    plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex];
-
-    uint32_t uTextureViewIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtTextureViewFreeIndices) > 0)
-    {
-        uTextureViewIndex = pl_sb_pop(ptGraphics->sbtTextureViewFreeIndices);
-    }
+    uint32_t uTextureIndex = UINT32_MAX;
+    if(pl_sb_size(ptGraphics->sbtTextureFreeIndices) > 0)
+        uTextureIndex = pl_sb_pop(ptGraphics->sbtTextureFreeIndices);
     else
     {
-        uTextureViewIndex = pl_sb_size(ptGraphics->sbtTextureViewsCold);
-        pl_sb_add(ptGraphics->sbtTextureViewsCold);
-        pl_sb_push(ptGraphics->sbtTextureViewGenerations, UINT32_MAX);
+        uTextureIndex = pl_sb_size(ptGraphics->sbtTexturesCold);
+        pl_sb_add(ptGraphics->sbtTexturesCold);
+        pl_sb_push(ptGraphics->sbtTextureGenerations, UINT32_MAX);
+        pl_sb_add(ptMetalGraphics->sbtTexturesHot);
     }
 
-    plTextureViewHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtTextureViewGenerations[uTextureViewIndex],
-        .uIndex = uTextureViewIndex
+    plTextureHandle tHandle = {
+        .uGeneration = ++ptGraphics->sbtTextureGenerations[uTextureIndex],
+        .uIndex = uTextureIndex
     };
 
-    plTextureView tTextureView = {
-        .tTextureViewDesc = *ptViewDesc,
-        .tTexture         = tTextureHandle
+    plTexture tTexture = {
+        .tDesc = ptGraphics->sbtTexturesCold[ptViewDesc->tTexture.uIndex].tDesc,
+        .tView = *ptViewDesc
     };
 
-    if(ptViewDesc->uMips == 0)
-        tTextureView.tTextureViewDesc.uMips = ptTexture->tDesc.uMips;
+    plTexture* ptTexture = pl__get_texture(ptDevice, ptViewDesc->tTexture);
+    plMetalTexture* ptOldMetalTexture = &ptMetalGraphics->sbtTexturesHot[ptViewDesc->tTexture.uIndex];
 
-    ptGraphics->sbtTextureViewsCold[uTextureViewIndex] = tTextureView;
+    MTLTextureType tTextureType = MTLTextureType2D;
+
+    if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_2D)
+        tTextureType = MTLTextureType2D;
+    else if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_CUBE)
+        tTextureType = MTLTextureTypeCube;
+    else
+    {
+        PL_ASSERT(false && "unsupported texture type");
+    }
+
+    NSRange tLevelRange = {
+        .length = ptViewDesc->uMips == 0 ? ptTexture->tDesc.uMips - ptViewDesc->uBaseMip : ptViewDesc->uMips,
+        .location = ptViewDesc->uBaseMip
+    };
+
+    NSRange tSliceRange = {
+        .length = ptViewDesc->uLayerCount,
+        .location = ptViewDesc->uBaseLayer
+    };
+
+    plMetalTexture tMetalTexture = {
+        .tTexture = [ptOldMetalTexture->tTexture newTextureViewWithPixelFormat:pl__metal_format(ptViewDesc->tFormat) 
+            textureType:tTextureType
+            levels:tLevelRange
+            slices:tSliceRange],
+        .tHeap = ptOldMetalTexture->tHeap
+    };
+    if(pcName == NULL)
+        pcName = "unnamed texture";
+    tMetalTexture.tTexture.label = [NSString stringWithUTF8String:pcName];
+
+    ptMetalGraphics->sbtTexturesHot[uTextureIndex] = tMetalTexture;
+    ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
     return tHandle;
 }
 
@@ -1093,7 +1128,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle* ptGroup, const plBin
 
     for(uint32_t i = 0; i < ptBindGroup->tLayout.uTextureCount; i++)
     {
-        plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[ptGraphics->sbtTextureViewsCold[ptData->atTextureViews[i].uIndex].tTexture.uIndex];
+        plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[ptData->atTextureViews[i].uIndex];
         MTLResourceID* pptDestination = (MTLResourceID*)&pulDescriptorStart[ptBindGroup->tLayout.aTextures[i].uSlot];
         *pptDestination = ptMetalTexture->tTexture.gpuResourceID;
     }
@@ -2035,7 +2070,7 @@ pl_draw_subpass(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atA
                 
                 for(uint32_t k = 0; k < ptMetalBindGroup->tLayout.uTextureCount; k++)
                 {
-                    const plTextureHandle tTextureHandle = ptGraphics->sbtTextureViewsCold[ptMetalBindGroup->tLayout.aTextures[k].tTextureView.uIndex].tTexture;
+                    const plTextureHandle tTextureHandle = ptMetalBindGroup->tLayout.aTextures[k].tTextureView;
                     [tRenderEncoder useResource:ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment]; 
                 }
 
@@ -2050,7 +2085,7 @@ pl_draw_subpass(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atA
 
                 for(uint32_t k = 0; k < ptMetalBindGroup->tLayout.uTextureCount; k++)
                 {
-                    const plTextureHandle tTextureHandle = ptGraphics->sbtTextureViewsCold[ptMetalBindGroup->tLayout.aTextures[k].tTextureView.uIndex].tTexture;
+                    const plTextureHandle tTextureHandle = ptMetalBindGroup->tLayout.aTextures[k].tTextureView;
                     plTexture* ptTexture = pl__get_texture(&ptGraphics->tDevice, tTextureHandle);
                     [tRenderEncoder useResource:ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
                 }
@@ -2066,7 +2101,7 @@ pl_draw_subpass(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atA
                 for(uint32_t k = 0; k < ptMetalBindGroup->tLayout.uTextureCount; k++)
                 {
                     
-                    const plTextureHandle tTextureHandle = ptGraphics->sbtTextureViewsCold[ptMetalBindGroup->tLayout.aTextures[k].tTextureView.uIndex].tTexture;
+                    const plTextureHandle tTextureHandle = ptMetalBindGroup->tLayout.aTextures[k].tTextureView;
                     id<MTLHeap> tHeap = ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tHeap;
                     [tRenderEncoder useResource:ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tTexture
                         usage:MTLResourceUsageRead
@@ -2807,12 +2842,6 @@ pl__garbage_collect(plGraphics* ptGraphics)
         pl_sb_push(ptGraphics->sbtBindGroupFreeIndices, iBindGroupIndex);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtTextureViews); i++)
-    {
-        const uint32_t iResourceIndex = ptGarbage->sbtTextureViews[i].uIndex;
-        pl_sb_push(ptGraphics->sbtTextureViewFreeIndices, iResourceIndex);
-    }
-
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtSamplers); i++)
     {
         const uint32_t iResourceIndex = ptGarbage->sbtSamplers[i].uIndex;
@@ -2854,7 +2883,6 @@ pl__garbage_collect(plGraphics* ptGraphics)
     plDeviceAllocatorData* ptUnCachedAllocatorData = (plDeviceAllocatorData*)ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst;
 
     pl_sb_reset(ptGarbage->sbtTextures);
-    pl_sb_reset(ptGarbage->sbtTextureViews);
     pl_sb_reset(ptGarbage->sbtShaders);
     pl_sb_reset(ptGarbage->sbtComputeShaders);
     pl_sb_reset(ptGarbage->sbtRenderPasses);
@@ -3129,17 +3157,6 @@ pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
 }
 
 static void
-pl_destroy_texture_view(plDevice* ptDevice, plTextureViewHandle tHandle)
-{
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
-    plDeviceMetal* ptMetalDevice = ptDevice->_pInternalData;
-
-    ptGraphics->sbtTextureViewGenerations[tHandle.uIndex]++;
-    pl_sb_push(ptGraphics->sbtTextureViewFreeIndices, tHandle.uIndex);
-}
-
-static void
 pl_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
@@ -3293,13 +3310,11 @@ pl_load_device_api(void)
         .allocate_dynamic_data                  = pl_allocate_dynamic_data,
         .queue_buffer_for_deletion              = pl_queue_buffer_for_deletion,
         .queue_texture_for_deletion             = pl_queue_texture_for_deletion,
-        .queue_texture_view_for_deletion        = pl_queue_texture_view_for_deletion,
         .queue_bind_group_for_deletion          = pl_queue_bind_group_for_deletion,
         .queue_shader_for_deletion              = pl_queue_shader_for_deletion,
         .queue_compute_shader_for_deletion      = pl_queue_compute_shader_for_deletion,
         .queue_render_pass_for_deletion         = pl_queue_render_pass_for_deletion,
         .queue_render_pass_layout_for_deletion  = pl_queue_render_pass_layout_for_deletion,
-        .destroy_texture_view                   = pl_destroy_texture_view,
         .destroy_bind_group                     = pl_destroy_bind_group,
         .destroy_buffer                         = pl_destroy_buffer,
         .destroy_texture                        = pl_destroy_texture,
@@ -3310,7 +3325,6 @@ pl_load_device_api(void)
         .update_render_pass_attachments         = pl_update_render_pass_attachments,
         .get_buffer                             = pl__get_buffer,
         .get_texture                            = pl__get_texture,
-        .get_texture_view                       = pl__get_texture_view,
         .get_bind_group                         = pl__get_bind_group,
         .get_shader                             = pl__get_shader
     };

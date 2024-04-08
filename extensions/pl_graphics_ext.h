@@ -126,7 +126,6 @@ typedef struct _plSamplerDesc              plSamplerDesc;
 typedef struct _plSampler                  plSampler;
 typedef struct _plTextureViewDesc          plTextureViewDesc;
 typedef struct _plTexture                  plTexture;
-typedef struct _plTextureView              plTextureView;
 typedef struct _plTextureDesc              plTextureDesc;
 typedef struct _plBindGroupLayout          plBindGroupLayout;
 typedef struct _plBindGroup                plBindGroup;
@@ -164,7 +163,6 @@ typedef struct _plRenderPassAttachments       plRenderPassAttachments;
 // handles
 PL_DEFINE_HANDLE(plBufferHandle);
 PL_DEFINE_HANDLE(plTextureHandle);
-PL_DEFINE_HANDLE(plTextureViewHandle);
 PL_DEFINE_HANDLE(plSamplerHandle);
 PL_DEFINE_HANDLE(plBindGroupHandle);
 PL_DEFINE_HANDLE(plShaderHandle);
@@ -236,14 +234,11 @@ typedef struct _plDeviceI
     void            (*queue_sampler_for_deletion)(plDevice* ptDevice, plSamplerHandle tHandle);
 
     // textures (if manually handling mips/levels, don't use initial data, use "copy_buffer_to_texture" instead)
-    plTextureHandle     (*create_texture)                 (plDevice* ptDevice, const plTextureDesc* ptDesc, const char* pcName);
-    plTextureViewHandle (*create_texture_view)            (plDevice* ptDevice, const plTextureViewDesc* ptDesc, plTextureHandle tTexture, const char* pcName);
-    void                (*queue_texture_for_deletion)     (plDevice* ptDevice, plTextureHandle tHandle);
-    void                (*queue_texture_view_for_deletion)(plDevice* ptDevice, plTextureViewHandle tHandle);
-    void                (*destroy_texture)                (plDevice* ptDevice, plTextureHandle tHandle);
-    void                (*destroy_texture_view)           (plDevice* ptDevice, plTextureViewHandle tHandle);
-    plTexture*          (*get_texture)                    (plDevice* ptDevice, plTextureHandle ptHandle);     // do not store
-    plTextureView*      (*get_texture_view)               (plDevice* ptDevice, plTextureViewHandle ptHandle); // do not store
+    plTextureHandle (*create_texture)            (plDevice* ptDevice, const plTextureDesc* ptDesc, const char* pcName);
+    plTextureHandle (*create_texture_view)       (plDevice* ptDevice, const plTextureViewDesc* ptDesc, const char* pcName);
+    void            (*queue_texture_for_deletion)(plDevice* ptDevice, plTextureHandle tHandle);
+    void            (*destroy_texture)           (plDevice* ptDevice, plTextureHandle tHandle);
+    plTexture*      (*get_texture)               (plDevice* ptDevice, plTextureHandle ptHandle);     // do not store
 
     // bind groups
     plBindGroupHandle (*create_bind_group)            (plDevice* ptDevice, plBindGroupLayout* ptLayout, const char* pcName);
@@ -336,7 +331,7 @@ typedef struct _plGraphicsI
     void (*add_3d_bezier_cubic)   (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
 
     // misc
-    void* (*get_ui_texture_handle)(plGraphics* ptGraphics, plTextureViewHandle tHandle, plSamplerHandle tSamplerHandle);
+    void* (*get_ui_texture_handle)(plGraphics* ptGraphics, plTextureHandle tHandle, plSamplerHandle tSamplerHandle);
 } plGraphicsI;
 
 //-----------------------------------------------------------------------------
@@ -359,10 +354,10 @@ typedef struct _plSubmitInfo
 
 typedef struct _plBindGroupUpdateData
 {
-    plBufferHandle*      atBuffers;
-    size_t*              aszBufferRanges;
-    plTextureViewHandle* atTextureViews;
-    plSamplerHandle*     atSamplers;
+    plBufferHandle*  atBuffers;
+    size_t*          aszBufferRanges;
+    plTextureHandle* atTextureViews;
+    plSamplerHandle* atSamplers;
 } plBindGroupUpdateData;
 
 typedef struct _plCommandBuffer
@@ -496,11 +491,12 @@ typedef struct _plDeviceMemoryAllocatorI
 
 typedef struct _plTextureViewDesc
 {
-    plFormat tFormat; 
-    uint32_t uBaseMip;
-    uint32_t uMips;
-    uint32_t uBaseLayer;
-    uint32_t uLayerCount;
+    plFormat        tFormat; 
+    uint32_t        uBaseMip;
+    uint32_t        uMips;
+    uint32_t        uBaseLayer;
+    uint32_t        uLayerCount;
+    plTextureHandle tTexture;
 } plTextureViewDesc;
 
 typedef struct _plSamplerDesc
@@ -519,26 +515,21 @@ typedef struct _plSampler
     plSamplerDesc tDesc;
 } plSampler;
 
-typedef struct _plTextureView
-{
-    plTextureHandle   tTexture;
-    plTextureViewDesc tTextureViewDesc;
-} plTextureView;
-
 typedef struct _plTextureDesc
 {
-    plVec3         tDimensions;
-    uint32_t       uLayers;
-    uint32_t       uMips;
-    plFormat       tFormat;
-    plTextureType  tType;
-    plTextureUsage tUsage;
-    plTextureUsage tInitialUsage;
+    plVec3            tDimensions;
+    uint32_t          uLayers;
+    uint32_t          uMips;
+    plFormat          tFormat;
+    plTextureType     tType;
+    plTextureUsage    tUsage;
+    plTextureUsage    tInitialUsage;
 } plTextureDesc;
 
 typedef struct _plTexture
 {
     plTextureDesc            tDesc;
+    plTextureViewDesc        tView;
     plDeviceMemoryAllocation tMemoryAllocation;
 } plTexture;
 
@@ -570,7 +561,7 @@ typedef struct _plTextureBinding
 {
     plTextureBindingType tType;
     uint32_t             uSlot;
-    plTextureViewHandle  tTextureView;
+    plTextureHandle      tTextureView;
     plStageFlags         tStages;
 } plTextureBinding;
 
@@ -774,7 +765,7 @@ typedef struct _plRenderPassLayout
 
 typedef struct _plRenderPassAttachments
 {
-    plTextureViewHandle atViewAttachments[PL_MAX_RENDER_TARGETS];
+    plTextureHandle atViewAttachments[PL_MAX_RENDER_TARGETS];
 } plRenderPassAttachments;
 
 typedef struct _plDepthTarget
@@ -824,12 +815,12 @@ typedef struct _plDevice
 
 typedef struct _plSwapchain
 {
-    plExtent             tExtent;
-    plFormat             tFormat;
-    uint32_t             uImageCount;
-    plTextureViewHandle* sbtSwapchainTextureViews;
-    uint32_t             uCurrentImageIndex; // current image to use within the swap chain
-    bool                 bVSync;
+    plExtent         tExtent;
+    plFormat         tFormat;
+    uint32_t         uImageCount;
+    plTextureHandle* sbtSwapchainTextureViews;
+    uint32_t         uCurrentImageIndex; // current image to use within the swap chain
+    bool             bVSync;
 
     // platform specific
     void* _pInternalData;
@@ -878,11 +869,6 @@ typedef struct _plGraphics
     plTexture* sbtTexturesCold;
     uint32_t*  sbtTextureGenerations;
     uint32_t*  sbtTextureFreeIndices;
-
-    // texture views
-    plTextureView* sbtTextureViewsCold;
-    uint32_t*      sbtTextureViewGenerations;
-    uint32_t*      sbtTextureViewFreeIndices;
 
     // samplers
     plSampler* sbtSamplersCold;

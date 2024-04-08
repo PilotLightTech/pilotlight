@@ -76,7 +76,6 @@ typedef struct _plSkinData
 {
     plEntity            tEntity;
     plTextureHandle     atDynamicTexture[PL_FRAMES_IN_FLIGHT];
-    plTextureViewHandle atDynamicTextureView[PL_FRAMES_IN_FLIGHT];
     plBindGroupHandle   tTempBindGroup;
 } plSkinData;
 
@@ -122,15 +121,10 @@ typedef struct _plRefView
     plRenderPassHandle       tRenderPass;
     plVec2                   tTargetSize;
     plTextureHandle          tTexture[PL_FRAMES_IN_FLIGHT];
-    plTextureViewHandle      tTextureView[PL_FRAMES_IN_FLIGHT];
     plTextureHandle          tAlbedoTexture[PL_FRAMES_IN_FLIGHT];
-    plTextureViewHandle      tAlbedoTextureView[PL_FRAMES_IN_FLIGHT];
     plTextureHandle          tPositionTexture[PL_FRAMES_IN_FLIGHT];
-    plTextureViewHandle      tPositionTextureView[PL_FRAMES_IN_FLIGHT];
     plTextureHandle          tNormalTexture[PL_FRAMES_IN_FLIGHT];
-    plTextureViewHandle      tNormalTextureView[PL_FRAMES_IN_FLIGHT];
     plTextureHandle          tDepthTexture[PL_FRAMES_IN_FLIGHT];
-    plTextureViewHandle      tDepthTextureView[PL_FRAMES_IN_FLIGHT];
     plTextureId              tTextureID[PL_FRAMES_IN_FLIGHT];
 
     // lighting
@@ -165,7 +159,6 @@ typedef struct _plRefScene
     // skybox
     plDrawable          tSkyboxDrawable;
     plTextureHandle     tSkyboxTexture;
-    plTextureViewHandle tSkyboxTextureView;
     plBindGroupHandle   tSkyboxBindGroup;
 
     // CPU buffers
@@ -203,7 +196,6 @@ typedef struct _plRefRendererData
     // misc textures
     plSamplerHandle     tDefaultSampler;
     plTextureHandle     tDummyTexture;
-    plTextureViewHandle tDummyTextureView;
 
     // shaders
     plShaderHandle tSkyboxShader;
@@ -345,7 +337,6 @@ pl_refr_initialize(void)
 
     // misc textures
     gptData->tDummyTexture     = (plTextureHandle){UINT32_MAX, UINT32_MAX};
-    gptData->tDummyTextureView = (plTextureViewHandle){UINT32_MAX, UINT32_MAX};
     gptData->tDefaultSampler   = (plSamplerHandle){UINT32_MAX, UINT32_MAX};
 
     gptData->tNullSkinBindgroup = (plBindGroupHandle){UINT32_MAX, UINT32_MAX};
@@ -405,15 +396,6 @@ pl_refr_initialize(void)
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
     gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, NULL);
 
-    // create dummy texture view
-    plTextureViewDesc tTextureViewDesc = {
-        .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uBaseLayer  = 0,
-        .uBaseMip    = 0,
-        .uLayerCount = 1
-    };
-    gptData->tDummyTextureView = gptDevice->create_texture_view(&ptGraphics->tDevice, &tTextureViewDesc, gptData->tDummyTexture, "dummy texture view");
-
     plSamplerDesc tSamplerDesc = {
         .tFilter         = PL_FILTER_LINEAR,
         .fMinMip         = 0.0f,
@@ -430,7 +412,7 @@ pl_refr_initialize(void)
     };
     gptData->tNullSkinBindgroup = gptDevice->create_bind_group(&ptGraphics->tDevice, &tBindGroupLayout1, "null skin bind group");
     plBindGroupUpdateData tBGData = {
-        .atTextureViews = &gptData->tDummyTextureView
+        .atTextureViews = &gptData->tDummyTexture
     };
     gptDevice->update_bind_group(&ptGraphics->tDevice, &gptData->tNullSkinBindgroup, &tBGData);
 }
@@ -454,7 +436,6 @@ pl_refr_create_scene(void)
 
     // skybox resources default values
     ptScene->tSkyboxTexture     = (plTextureHandle){UINT32_MAX, UINT32_MAX};
-    ptScene->tSkyboxTextureView = (plTextureViewHandle){UINT32_MAX, UINT32_MAX};
     ptScene->tSkyboxBindGroup   = (plBindGroupHandle){UINT32_MAX, UINT32_MAX};
 
     // create offscreen render pass layout
@@ -822,12 +803,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {
-        ptView->tTextureView[i] = gptDevice->create_texture_view(&ptGraphics->tDevice, &tTextureViewDesc, ptView->tTexture[i], "offscreen texture view");
-        ptView->tAlbedoTextureView[i] = gptDevice->create_texture_view(&ptGraphics->tDevice, &tTextureViewDesc, ptView->tAlbedoTexture[i], "albedo texture view");
-        ptView->tNormalTextureView[i] = gptDevice->create_texture_view(&ptGraphics->tDevice, &tTextureViewDesc, ptView->tNormalTexture[i], "normal texture view");
-        ptView->tPositionTextureView[i] = gptDevice->create_texture_view(&ptGraphics->tDevice, &tTextureViewDesc, ptView->tPositionTexture[i], "position texture view");
-        ptView->tTextureID[i] = gptGfx->get_ui_texture_handle(ptGraphics, ptView->tTextureView[i], gptData->tDefaultSampler);
-        ptView->tDepthTextureView[i] = gptDevice->create_texture_view(&ptGraphics->tDevice, &tDepthTextureViewDesc, ptView->tDepthTexture[i], "offscreen depth texture view");
+        ptView->tTextureID[i] = gptGfx->get_ui_texture_handle(ptGraphics, ptView->tTexture[i], gptData->tDefaultSampler);
     }
 
     plBindGroupLayout tLightingBindGroupLayout = {
@@ -844,7 +820,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {
         ptView->tLightingBindGroup[i] = gptDevice->create_bind_group(&ptGraphics->tDevice, &tLightingBindGroupLayout, pl_temp_allocator_sprintf(&tTempAllocator, "lighting bind group%u", i));
-        plTextureViewHandle atLightingTextureViews[] = {ptView->tAlbedoTextureView[i], ptView->tNormalTextureView[i], ptView->tPositionTextureView[i], ptView->tDepthTextureView[i]};
+        plTextureHandle atLightingTextureViews[] = {ptView->tAlbedoTexture[i], ptView->tNormalTexture[i], ptView->tPositionTexture[i], ptView->tDepthTexture[i]};
         plBindGroupUpdateData tBGData = {
             .atTextureViews = atLightingTextureViews
         };
@@ -857,11 +833,11 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {
-        atAttachmentSets[i].atViewAttachments[0] = ptView->tDepthTextureView[i];
-        atAttachmentSets[i].atViewAttachments[1] = ptView->tTextureView[i];
-        atAttachmentSets[i].atViewAttachments[2] = ptView->tAlbedoTextureView[i];
-        atAttachmentSets[i].atViewAttachments[3] = ptView->tNormalTextureView[i];
-        atAttachmentSets[i].atViewAttachments[4] = ptView->tPositionTextureView[i];
+        atAttachmentSets[i].atViewAttachments[0] = ptView->tDepthTexture[i];
+        atAttachmentSets[i].atViewAttachments[1] = ptView->tTexture[i];
+        atAttachmentSets[i].atViewAttachments[2] = ptView->tAlbedoTexture[i];
+        atAttachmentSets[i].atViewAttachments[3] = ptView->tNormalTexture[i];
+        atAttachmentSets[i].atViewAttachments[4] = ptView->tPositionTexture[i];
     }
 
     const plRenderPassDescription tRenderPassDesc = {
@@ -968,11 +944,6 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
     // queue old textures & texture views for deletion
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {
-        gptDevice->queue_texture_view_for_deletion(ptDevice, ptView->tTextureView[i]);
-        gptDevice->queue_texture_view_for_deletion(ptDevice, ptView->tAlbedoTextureView[i]);
-        gptDevice->queue_texture_view_for_deletion(ptDevice, ptView->tNormalTextureView[i]);
-        gptDevice->queue_texture_view_for_deletion(ptDevice, ptView->tPositionTextureView[i]);
-        gptDevice->queue_texture_view_for_deletion(ptDevice, ptView->tDepthTextureView[i]);
         gptDevice->queue_texture_for_deletion(ptDevice, ptView->tTexture[i]);
         gptDevice->queue_texture_for_deletion(ptDevice, ptView->tAlbedoTexture[i]);
         gptDevice->queue_texture_for_deletion(ptDevice, ptView->tNormalTexture[i]);
@@ -1043,12 +1014,7 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
 
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {
-        ptView->tTextureView[i] = gptDevice->create_texture_view(&ptGraphics->tDevice, &tOffscreenTextureViewDesc, ptView->tTexture[i], "offscreen texture view");
-        ptView->tAlbedoTextureView[i] = gptDevice->create_texture_view(&ptGraphics->tDevice, &tOffscreenTextureViewDesc, ptView->tAlbedoTexture[i], "albedo texture view");
-        ptView->tNormalTextureView[i] = gptDevice->create_texture_view(&ptGraphics->tDevice, &tOffscreenTextureViewDesc, ptView->tNormalTexture[i], "normal texture view");
-        ptView->tPositionTextureView[i] = gptDevice->create_texture_view(&ptGraphics->tDevice, &tOffscreenTextureViewDesc, ptView->tPositionTexture[i], "position texture view");
-        ptView->tTextureID[i] = gptGfx->get_ui_texture_handle(ptGraphics, ptView->tTextureView[i], gptData->tDefaultSampler);
-        ptView->tDepthTextureView[i] = gptDevice->create_texture_view(&ptGraphics->tDevice, &tOffscreenDepthTextureViewDesc, ptView->tDepthTexture[i], "offscreen depth texture view");
+        ptView->tTextureID[i] = gptGfx->get_ui_texture_handle(ptGraphics, ptView->tTexture[i], gptData->tDefaultSampler);
     }
 
     plBindGroupLayout tLightingBindGroupLayout = {
@@ -1064,7 +1030,7 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {
         ptView->tLightingBindGroup[i] = gptDevice->create_bind_group(&ptGraphics->tDevice, &tLightingBindGroupLayout, pl_temp_allocator_sprintf(&tTempAllocator, "lighting bind group%u", i));
-        plTextureViewHandle atLightingTextureViews[] = {ptView->tAlbedoTextureView[i], ptView->tNormalTextureView[i], ptView->tPositionTextureView[i], ptView->tDepthTextureView[i]};
+        plTextureHandle atLightingTextureViews[] = {ptView->tAlbedoTexture[i], ptView->tNormalTexture[i], ptView->tPositionTexture[i], ptView->tDepthTexture[i]};
         plBindGroupUpdateData tBGData = {
             .atTextureViews = atLightingTextureViews
         };
@@ -1077,11 +1043,11 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
 
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {
-        atAttachmentSets[i].atViewAttachments[0] = ptView->tDepthTextureView[i];
-        atAttachmentSets[i].atViewAttachments[1] = ptView->tTextureView[i];
-        atAttachmentSets[i].atViewAttachments[2] = ptView->tAlbedoTextureView[i];
-        atAttachmentSets[i].atViewAttachments[3] = ptView->tNormalTextureView[i];
-        atAttachmentSets[i].atViewAttachments[4] = ptView->tPositionTextureView[i];
+        atAttachmentSets[i].atViewAttachments[0] = ptView->tDepthTexture[i];
+        atAttachmentSets[i].atViewAttachments[1] = ptView->tTexture[i];
+        atAttachmentSets[i].atViewAttachments[2] = ptView->tAlbedoTexture[i];
+        atAttachmentSets[i].atViewAttachments[3] = ptView->tNormalTexture[i];
+        atAttachmentSets[i].atViewAttachments[4] = ptView->tPositionTexture[i];
     }
     gptDevice->update_render_pass_attachments(ptDevice, ptView->tRenderPass, ptView->tTargetSize, atAttachmentSets);
 }
@@ -1286,14 +1252,6 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
     gptGfx->submit_command_buffer_blocking(ptGraphics, &tCommandBuffer, NULL);
 
-    plTextureViewDesc tTextureViewDesc = {
-        .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uBaseLayer  = 0,
-        .uBaseMip    = 0,
-        .uLayerCount = 6
-    };
-    ptScene->tSkyboxTextureView = gptDevice->create_texture_view(ptDevice, &tTextureViewDesc, ptScene->tSkyboxTexture, "skybox texture view"); 
-
     // cleanup
     PL_FREE(pcResultData);
     
@@ -1308,7 +1266,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     };
     ptScene->tSkyboxBindGroup = gptDevice->create_bind_group(ptDevice, &tSkyboxBindGroupLayout, "skybox bind group");
     plBindGroupUpdateData tBGData1 = {
-            .atTextureViews = &ptScene->tSkyboxTextureView
+            .atTextureViews = &ptScene->tSkyboxTexture
     };
     gptDevice->update_bind_group(ptDevice, &ptScene->tSkyboxBindGroup, &tBGData1);
 
@@ -2123,13 +2081,13 @@ pl__refr_load_gltf_object(plRefScene* ptScene, const char* pcDirectory, plEntity
         pl__refr_load_gltf_object(ptScene, pcDirectory, tNewEntity, ptNode->children[i]);
 }
 
-static plTextureViewHandle
+static plTextureHandle
 pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, bool bHdr, int iMips)
 {
     plDevice* ptDevice = &gptData->tGraphics.tDevice;
 
     if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[tSlot].tResource) == false)
-        return gptData->tDummyTextureView;
+        return gptData->tDummyTexture;
     
     size_t szResourceSize = 0;
     const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[tSlot].tResource, &szResourceSize);
@@ -2139,8 +2097,6 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
     plBuffer* ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle[0]);
     
     plTextureHandle tTexture = {0};
-
-    plTextureViewHandle tHandle = {UINT32_MAX, UINT32_MAX};
 
     plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptDevice->ptGraphics, NULL);
     plBlitEncoder tBlitEncoder = gptGfx->begin_blit_pass(ptDevice->ptGraphics, &tCommandBuffer);
@@ -2170,14 +2126,6 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
 
         gptGfx->copy_buffer_to_texture(&tBlitEncoder, gptData->tStagingBufferHandle[0], tTexture, 1, &tBufferImageCopy);
         gptGfx->generate_mipmaps(&tBlitEncoder, tTexture);
-
-        plTextureViewDesc tTextureViewDesc = {
-            .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
-            .uBaseLayer  = 0,
-            .uBaseMip    = 0,
-            .uLayerCount = 1
-        };
-        tHandle = gptDevice->create_texture_view(ptDevice, &tTextureViewDesc, tTexture, ptMaterial->atTextureMaps[tSlot].acName);
     }
     else
     {
@@ -2204,22 +2152,13 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
 
         gptGfx->copy_buffer_to_texture(&tBlitEncoder, gptData->tStagingBufferHandle[0], tTexture, 1, &tBufferImageCopy);
         gptGfx->generate_mipmaps(&tBlitEncoder, tTexture);
-        
-        plTextureViewDesc tTextureViewDesc = {
-            .tFormat     = PL_FORMAT_R8G8B8A8_UNORM,
-            .uBaseLayer  = 0,
-            .uBaseMip    = 0,
-            .uLayerCount = 1
-        };
-
-        tHandle = gptDevice->create_texture_view(ptDevice, &tTextureViewDesc, tTexture, ptMaterial->atTextureMaps[tSlot].acName);
     }
 
     gptGfx->end_blit_pass(&tBlitEncoder);
     gptGfx->end_command_recording(ptDevice->ptGraphics, &tCommandBuffer);
     gptGfx->submit_command_buffer_blocking(ptDevice->ptGraphics, &tCommandBuffer, NULL);
 
-    return tHandle;
+    return tTexture;
 }
 
 static void
@@ -2385,7 +2324,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     {
         plMaterialComponent* ptMaterial = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptScene->sbtMaterialEntities[i]);
 
-        plTextureViewHandle atMaterialTextureViews[] = {
+        plTextureHandle atMaterialTextureViews[] = {
             pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_BASE_COLOR_MAP, true, 0),
             pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_NORMAL_MAP, false, 0)
         };
@@ -2483,15 +2422,6 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
             gptGfx->end_blit_pass(&tBlitEncoder);
             gptGfx->end_command_recording(ptDevice->ptGraphics, &tCommandBuffer);
             gptGfx->submit_command_buffer(ptDevice->ptGraphics, &tCommandBuffer, NULL);
-
-            plTextureViewDesc tTextureViewDesc = {
-                .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
-                .uBaseLayer  = 0,
-                .uBaseMip    = 0,
-                .uLayerCount = 1
-            };
-            for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
-                tSkinData.atDynamicTextureView[i] = gptDevice->create_texture_view(ptDevice, &tTextureViewDesc, tSkinData.atDynamicTexture[i], "joint texture view 0");
 
             ptScene->sbtAllDrawables[uDrawableIndex].uSkinIndex = pl_sb_size(ptScene->sbtSkinData);
             pl_sb_push(ptScene->sbtSkinData, tSkinData);
@@ -2845,7 +2775,7 @@ pl_refr_update_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle)
         };
         ptScene->sbtSkinData[i].tTempBindGroup = gptDevice->get_temporary_bind_group(ptDevice, &tBindGroupLayout1, "skin temporary bind group");
         plBindGroupUpdateData tBGData0 = {
-            .atTextureViews = &ptScene->sbtSkinData[i].atDynamicTextureView[ptGraphics->uCurrentFrameIndex]
+            .atTextureViews = &ptScene->sbtSkinData[i].atDynamicTexture[ptGraphics->uCurrentFrameIndex]
         };
         gptDevice->update_bind_group(&ptGraphics->tDevice, &ptScene->sbtSkinData[i].tTempBindGroup, &tBGData0);
 
