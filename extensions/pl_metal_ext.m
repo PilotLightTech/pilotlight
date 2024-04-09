@@ -49,8 +49,8 @@ Index of this file:
 // [SECTION] global data
 //-----------------------------------------------------------------------------
 
-const plFileApiI*       gptFile = NULL;
-const plOsServicesApiI* gptOS   = NULL;
+const plFileApiI* gptFile    = NULL;
+const plThreadsI*  gptThread = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs & types
@@ -675,7 +675,7 @@ pl_wait_semaphore(plGraphics* ptGraphics, plSemaphoreHandle tHandle, uint64_t ul
     {
         while(ptMetalGraphics->sbtSemaphoresHot[tHandle.uIndex].tSharedEvent.signaledValue != ulValue)
         {
-            gptOS->sleep(1);
+            gptThread->sleep(1);
         }
     }
 }
@@ -3339,7 +3339,7 @@ pl_load_graphics_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
     pl_set_context(ptDataRegistry->get_data("ui"));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     gptFile = ptApiRegistry->first(PL_API_FILE);
-    gptOS = ptApiRegistry->first(PL_API_OS_SERVICES);
+    gptThread = ptApiRegistry->first(PL_API_THREADS);
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_GRAPHICS), pl_load_graphics_api());

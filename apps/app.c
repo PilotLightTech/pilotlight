@@ -85,7 +85,7 @@ typedef struct plAppData_t
 // [SECTION] global apis
 //-----------------------------------------------------------------------------
 
-const plOsServicesApiI*        gptOS                = NULL;
+const plThreadsI*              gptThreads           = NULL;
 const plApiRegistryApiI*       gptApiRegistry       = NULL;
 const plDataRegistryApiI*      gptDataRegistry      = NULL;
 const plStatsApiI*             gptStats             = NULL;
@@ -119,6 +119,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         pl_set_profile_context(gptDataRegistry->get_data("profile"));
 
         // reload global apis
+        gptThreads  = ptApiRegistry->first(PL_API_THREADS);
         gptStats    = ptApiRegistry->first(PL_API_STATS);
         gptFile     = ptApiRegistry->first(PL_API_FILE);
         gptGfx      = ptApiRegistry->first(PL_API_GRAPHICS);
@@ -130,7 +131,6 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         gptCamera   = ptApiRegistry->first(PL_API_CAMERA);
         gptResource = ptApiRegistry->first(PL_API_RESOURCE);
         gptRenderer = ptApiRegistry->first(PL_API_REF_RENDERER);
-        gptOS       = ptApiRegistry->first(PL_API_OS_SERVICES);
 
         return ptAppData;
     }
@@ -162,6 +162,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_ref_renderer_ext", "pl_load_ext", "pl_unload_ext", true);
 
     // load apis
+    gptThreads  = ptApiRegistry->first(PL_API_THREADS);
     gptStats    = ptApiRegistry->first(PL_API_STATS);
     gptFile     = ptApiRegistry->first(PL_API_FILE);
     gptGfx      = ptApiRegistry->first(PL_API_GRAPHICS);
@@ -173,7 +174,6 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptCamera   = ptApiRegistry->first(PL_API_CAMERA);
     gptResource = ptApiRegistry->first(PL_API_RESOURCE);
     gptRenderer = ptApiRegistry->first(PL_API_REF_RENDERER);
-    gptOS       = ptApiRegistry->first(PL_API_OS_SERVICES);
 
     plIO* ptIO = pl_get_io();
 

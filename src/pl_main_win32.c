@@ -87,8 +87,24 @@ bool  pl__load_library         (plSharedLibrary* ptLibrary, const char* pcName, 
 void  pl__reload_library       (plSharedLibrary* ptLibrary);
 void* pl__load_library_function(plSharedLibrary* ptLibrary, const char* pcName);
 
-// os services api
-int pl__sleep(uint32_t millisec);
+// thread api
+void        pl__sleep(uint32_t millisec);
+uint32_t    pl__get_hardware_thread_count(void);
+plThread    pl__create_thread(plThreadProcedure ptProcedure, void* pData);
+void        pl__join_thread(plThread* ptThread);
+void        pl__terminate_thread(plThread* ptThread);
+void        pl__yield_thread(void);
+plMutex     pl__create_mutex(void);
+void        pl__lock_mutex(plMutex* ptMutex);
+void        pl__unlock_mutex(plMutex* ptMutex);
+plSemaphore pl__create_semaphore(uint32_t uIntialCount);
+bool        pl__wait_on_semaphore(plSemaphore* ptSemaphore);
+void        pl__release_semaphore(plSemaphore* ptSemaphore);
+plThreadKey pl__allocate_thread_local_key(void);
+void        pl__free_thread_local_key(plThreadKey* puIndex);
+void*       pl__allocate_thread_local_data(plThreadKey* ptKey, size_t szSize);
+void*       pl__get_thread_local_data(plThreadKey* ptKey);
+void        pl__free_thread_local_data(plThreadKey* ptKey, void* pData);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -186,8 +202,24 @@ int main(int argc, char *argv[])
         .send_data     = pl__send_udp_data
     };
 
-    static const plOsServicesApiI tOsApi = {
-        .sleep = pl__sleep
+    static const plThreadsI tThreadApi = {
+        .get_hardware_thread_count   = pl__get_hardware_thread_count,
+        .create                      = pl__create_thread,
+        .join                        = pl__join_thread,
+        .terminate                   = pl__terminate_thread,
+        .yield                       = pl__yield_thread,
+        .sleep                       = pl__sleep,
+        .create_mutex                = pl__create_mutex,
+        .lock_mutex                  = pl__lock_mutex,
+        .unlock_mutex                = pl__unlock_mutex,
+        .create_semaphore            = pl__create_semaphore,
+        .wait_on_semaphore           = pl__wait_on_semaphore,
+        .release_semaphore           = pl__release_semaphore,
+        .allocate_thread_local_key   = pl__allocate_thread_local_key,
+        .allocate_thread_local_data  = pl__allocate_thread_local_data,
+        .free_thread_local_key       = pl__free_thread_local_key, 
+        .get_thread_local_data       = pl__get_thread_local_data, 
+        .free_thread_local_data      = pl__free_thread_local_data, 
     };
 
     uint32_t uFileSize = 0;
@@ -214,7 +246,7 @@ int main(int argc, char *argv[])
     gptApiRegistry->add(PL_API_LIBRARY, &tLibraryApi);
     gptApiRegistry->add(PL_API_FILE, &tFileApi);
     gptApiRegistry->add(PL_API_UDP, &tUdpApi);
-    gptApiRegistry->add(PL_API_OS_SERVICES, &tOsApi);
+    gptApiRegistry->add(PL_API_THREADS, &tThreadApi);
 
     // set clipboard functions (may need to move this to OS api)
     gptIOCtx->set_clipboard_text_fn = pl__set_clipboard_text;
@@ -1038,11 +1070,209 @@ pl__load_library_function(plSharedLibrary* ptLibrary, const char* name)
     return pLoadedFunction;
 }
 
-int
+void
 pl__sleep(uint32_t uMillisec)
 {
     Sleep((long)uMillisec);
-    return 0;
+}
+
+typedef struct _plThreadData
+{
+  plThreadProcedure ptProcedure;
+  void*             pData;
+} plThreadData;
+
+static DWORD 
+thread_procedure(void* lpParam)
+{
+    plThreadData* ptData = lpParam;
+    ptData->ptProcedure(ptData->pData);
+    return 1;
+}
+
+static void
+thread_yield(void)
+{
+    SwitchToThread();
+}
+
+plThread
+pl__create_thread(plThreadProcedure ptProcedure, void* pData)
+{
+    plThreadData* ptData = PL_ALLOC(sizeof(plThreadData));
+    ptData->ptProcedure = ptProcedure;
+    ptData->pData       = pData;
+
+    plThread tThread = {
+        ._pPlatformData = CreateThread(0, 1024, thread_procedure, ptData, 0, NULL)
+    };
+    return tThread;
+}
+
+void
+pl__join_thread(plThread* ptThread)
+{
+    HANDLE tThreadHandle = ptThread->_pPlatformData;
+    WaitForSingleObject(tThreadHandle, INFINITE);
+}
+
+void
+pl__terminate_thread(plThread* ptThread)
+{
+    HANDLE tThreadHandle = ptThread->_pPlatformData;
+    TerminateThread(tThreadHandle, 0);
+}
+
+void
+pl__yield_thread(void)
+{
+    thread_yield();
+}
+
+plMutex
+pl__create_mutex(void)
+{
+    plMutex tMutex = {
+        ._pPlatformData = CreateMutex(NULL, FALSE, NULL)
+    };
+    return tMutex;
+}
+
+void
+pl__lock_mutex(plMutex* ptMutex)
+{
+    HANDLE tMutexHandle = ptMutex->_pPlatformData;
+
+    DWORD dwWaitResult = WaitForSingleObject(tMutexHandle, INFINITE);
+    PL_ASSERT(dwWaitResult == WAIT_OBJECT_0);
+}
+
+void
+pl__unlock_mutex(plMutex* ptMutex)
+{
+    HANDLE tMutexHandle = ptMutex->_pPlatformData;
+    if(!ReleaseMutex(tMutexHandle))
+    {
+        printf("ReleaseMutex error: %d\n", GetLastError());
+        PL_ASSERT(false);
+    }
+}
+
+uint32_t
+pl__get_hardware_thread_count(void)
+{
+
+    static uint32_t uThreadCount = 0;
+
+    if(uThreadCount == 0)
+    {
+        DWORD dwLength = 0;
+        GetLogicalProcessorInformation(NULL, &dwLength);
+        PSYSTEM_LOGICAL_PROCESSOR_INFORMATION atInfo = PL_ALLOC(dwLength);
+        GetLogicalProcessorInformation(atInfo, &dwLength);
+        uint32_t uEntryCount = dwLength / sizeof(PSYSTEM_LOGICAL_PROCESSOR_INFORMATION);
+        for(uint32_t i = 0; i < uEntryCount; i++)
+        {
+            if(atInfo[i].Relationship == RelationProcessorCore)
+                uThreadCount++;
+        }
+        PL_FREE(atInfo);
+    }
+    return uThreadCount;
+}
+
+plSemaphore
+pl__create_semaphore(uint32_t uIntialCount)
+{
+    plSemaphore tSemaphore = {
+        ._pPlatformData = CreateSemaphore(NULL, uIntialCount, uIntialCount, NULL)
+    };
+    return tSemaphore;
+}
+
+bool
+pl__wait_on_semaphore(plSemaphore* ptSemaphore)
+{
+    HANDLE tSemaphoreHandle = ptSemaphore->_pPlatformData;
+    DWORD dwWaitResult = WaitForSingleObject(tSemaphoreHandle, 0);
+    switch (dwWaitResult)
+    {
+        case WAIT_OBJECT_0: return true;
+        case WAIT_TIMEOUT:  return false;
+    }
+    PL_ASSERT(false);
+    return false;
+}
+
+void
+pl__release_semaphore(plSemaphore* ptSemaphore)
+{
+    HANDLE tSemaphoreHandle = ptSemaphore->_pPlatformData;
+    if (!ReleaseSemaphore( 
+            tSemaphoreHandle,  // handle to semaphore
+            1,            // increase count by one
+            NULL) )       // not interested in previous count
+    {
+        printf("ReleaseSemaphore error: %d\n", GetLastError());
+        PL_ASSERT(false);
+    }
+}
+
+typedef struct _plWin32ThreadKey
+{
+    DWORD dwIndex;
+} plWin32ThreadKey;
+
+plThreadKey
+pl__allocate_thread_local_key(void)
+{
+    plWin32ThreadKey* ptKey = PL_ALLOC(sizeof(plWin32ThreadKey));
+    ptKey->dwIndex = TlsAlloc();
+    plThreadKey tKey = {
+        ._pPlatformData = ptKey
+    };
+    return tKey;
+}
+
+void
+pl__free_thread_local_key(plThreadKey* ptKey)
+{
+    plWin32ThreadKey* ptWin32Key = ptKey->_pPlatformData;
+    TlsFree(ptWin32Key->dwIndex);
+    PL_FREE(ptKey->_pPlatformData);
+    ptKey->_pPlatformData = NULL;
+}
+
+void*
+pl__allocate_thread_local_data(plThreadKey* ptKey, size_t szSize)
+{
+    plWin32ThreadKey* ptWin32Key = ptKey->_pPlatformData;
+    LPVOID lpvData = LocalAlloc(LPTR, szSize);
+    if (! TlsSetValue(ptWin32Key->dwIndex, lpvData)) 
+    {
+        PL_ASSERT(false);
+    }
+    return lpvData;
+}
+
+void*
+pl__get_thread_local_data(plThreadKey* ptKey)
+{
+    plWin32ThreadKey* ptWin32Key = ptKey->_pPlatformData;
+    LPVOID lpvData =  TlsGetValue(ptWin32Key->dwIndex);
+    if(lpvData == NULL)
+    {
+        PL_ASSERT(false);
+    }
+    return lpvData;
+}
+
+void
+pl__free_thread_local_data(plThreadKey* ptKey, void* pData)
+{
+    plWin32ThreadKey* ptWin32Key = ptKey->_pPlatformData;
+    LPVOID lpvData = TlsGetValue(ptWin32Key->dwIndex);
+    LocalFree(lpvData);
 }
 
 const char*

@@ -217,7 +217,7 @@ with pl.project("pilotlight"):
             with pl.platform(pl.PlatformType.LINUX):
                 with pl.compiler("gcc", pl.CompilerType.GCC):
                     pl.add_definition("PL_VULKAN_BACKEND")
-                    pl.add_source_file("pl_main_linux.c")
+                    pl.add_source_file("pl_main_x11.c")
             pl.pop_profile() 
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
