@@ -786,21 +786,6 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
         ptView->tDepthTexture[i] = gptDevice->create_texture(&ptGraphics->tDevice, &tDepthTextureDesc, "offscreen depth texture original");
 
-    // create offscreen color & depth texture views
-    const plTextureViewDesc tTextureViewDesc = {
-        .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uBaseLayer  = 0,
-        .uBaseMip    = 0,
-        .uLayerCount = 1
-    };
-
-    const plTextureViewDesc tDepthTextureViewDesc = {
-        .tFormat     = PL_FORMAT_D32_FLOAT_S8_UINT,
-        .uBaseLayer  = 0,
-        .uBaseMip    = 0,
-        .uLayerCount = 1
-    };
-
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {
         ptView->tTextureID[i] = gptGfx->get_ui_texture_handle(ptGraphics, ptView->tTexture[i], gptData->tDefaultSampler);
@@ -996,21 +981,6 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
     {
         ptView->tDepthTexture[i] = gptDevice->create_texture(&ptGraphics->tDevice, &tOffscreenDepthTextureDesc, "offscreen depth texture");
     }
-
-    // create offscreen color & depth texture views
-    const plTextureViewDesc tOffscreenTextureViewDesc = {
-        .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uBaseLayer  = 0,
-        .uBaseMip    = 0,
-        .uLayerCount = 1
-    };
-
-    const plTextureViewDesc tOffscreenDepthTextureViewDesc = {
-        .tFormat     = PL_FORMAT_D32_FLOAT_S8_UINT,
-        .uBaseLayer  = 0,
-        .uBaseMip    = 0,
-        .uLayerCount = 1
-    };
 
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {

@@ -998,7 +998,9 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
         }
     };
 
-    plVulkanTexture tVulkanTexture = {0};
+    plVulkanTexture tVulkanTexture = {
+        .bOriginalView = true
+    };
 
     VkImageViewType tImageViewType = 0;
     if(tDesc.tType == PL_TEXTURE_TYPE_CUBE)
@@ -1050,6 +1052,9 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
 
     VkImageAspectFlags tImageAspectFlags = tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
+    if(pl__format_has_stencil(pl__vulkan_format(tDesc.tFormat)))
+        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
+
     VkCommandBuffer tCommandBuffer = {0};
     
     const VkCommandBufferAllocateInfo tAllocInfo = {
@@ -1099,12 +1104,12 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
         .subresourceRange.levelCount     = tDesc.uMips,
         .subresourceRange.baseArrayLayer = tTexture.tView.uBaseLayer,
         .subresourceRange.layerCount     = tTexture.tView.uLayerCount,
-        .subresourceRange.aspectMask     = tImageAspectFlags,
+        .subresourceRange.aspectMask     = tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT,
     };
-    VkImageView tImageView = VK_NULL_HANDLE;
-    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tViewInfo, NULL, &tImageView));
-    tVulkanTexture.tImageView = tImageView;
-    tVulkanTexture.bOriginalView = true;
+    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tViewInfo, NULL, &tVulkanTexture.tImageView));
+
+    if(pcName)
+        pl_set_vulkan_object_name(ptDevice, (uint64_t)tVulkanTexture.tImage, VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, pcName);
 
     // upload data
     ptVulkanGraphics->sbtTexturesHot[uTextureIndex] = tVulkanTexture;
@@ -1199,9 +1204,6 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
     PL_ASSERT((ptViewDesc->uLayerCount == 1 || ptViewDesc->uLayerCount == 6) && "unsupported layer count");
 
     VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-
-    if(pl__format_has_stencil(ptViewDesc->tFormat))
-        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
 
     VkImageViewCreateInfo tViewInfo = {
         .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
