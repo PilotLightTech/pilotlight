@@ -66,14 +66,14 @@ jobs:
 
     - name: Upload Pilot Light
       if: ${{ always() }}
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: pilotlight_release
         path: D:\a\pilotlight\pilotlight\out\pilotlight_win32.zip
 
   MacOS:
     
-    runs-on: MacOS-latest
+    runs-on: macos-14
 
     steps:
 
@@ -114,7 +114,7 @@ jobs:
 
     - name: Upload Pilot Light
       if: ${{ always() }}
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: pilotlight_release
         path: /Users/runner/work/pilotlight/pilotlight/out/pilotlight_macos.zip
@@ -177,7 +177,7 @@ jobs:
 
     - name: Upload Pilot Light
       if: ${{ always() }}
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: pilotlight_release
         path: /home/runner/work/pilotlight/pilotlight/out/pilotlight_linux_amd64.zip

@@ -116,6 +116,9 @@ void                pl__destroy_condition_variable(plConditionVariable* ptCondit
 void                pl__wake_condition_variable(plConditionVariable* ptConditionVariable);
 void                pl__wake_all_condition_variable(plConditionVariable* ptConditionVariable);
 void                pl__sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection);
+plBarrier           pl__create_barrier(uint32_t uThreadCount);
+void                pl__destroy_barrier(plBarrier* ptBarrier);
+void                pl__wait_on_barrier(plBarrier* ptBarrier);
 
 // atomics
 void    pl__create_atomic_counter  (int64_t ilValue, plAtomicCounter** ptCounter);
@@ -255,7 +258,10 @@ int main(int argc, char *argv[])
         .destroy_condition_variable  = pl__destroy_condition_variable,
         .wake_condition_variable     = pl__wake_condition_variable,
         .wake_all_condition_variable = pl__wake_all_condition_variable,
-        .sleep_condition_variable    = pl__sleep_condition_variable
+        .sleep_condition_variable    = pl__sleep_condition_variable,
+        .create_barrier              = pl__create_barrier,
+        .destroy_barrier             = pl__destroy_barrier,
+        .wait_on_barrier             = pl__wait_on_barrier
     };
 
     static const plAtomicsI tAtomicsApi = {
@@ -1269,6 +1275,33 @@ pl__get_hardware_thread_count(void)
         PL_FREE(atInfo);
     }
     return uThreadCount;
+}
+
+plBarrier
+pl__create_barrier(uint32_t uThreadCount)
+{
+    SYNCHRONIZATION_BARRIER* ptSyncBarrier = PL_ALLOC(sizeof(SYNCHRONIZATION_BARRIER));
+    InitializeSynchronizationBarrier(ptSyncBarrier, uThreadCount, -1);
+    plBarrier tBarrier = {
+        ._pPlatformData = ptSyncBarrier
+    };
+    return tBarrier;
+}
+
+void
+pl__destroy_barrier(plBarrier* ptBarrier)
+{
+    SYNCHRONIZATION_BARRIER* ptSyncBarrier = ptBarrier->_pPlatformData;
+    DeleteSynchronizationBarrier(ptSyncBarrier);
+    PL_FREE(ptBarrier->_pPlatformData);
+    ptBarrier->_pPlatformData = NULL;
+}
+
+void
+pl__wait_on_barrier(plBarrier* ptBarrier)
+{
+    SYNCHRONIZATION_BARRIER* ptSyncBarrier = ptBarrier->_pPlatformData;
+    EnterSynchronizationBarrier(ptSyncBarrier, 0);
 }
 
 plSemaphore

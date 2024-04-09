@@ -18,6 +18,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#define _XOPEN_SOURCE 600
 #include "pilotlight.h" // data registry, api registry, extension registry
 #include "pl_ui.h"      // io context
 #include "pl_os.h"
@@ -160,6 +161,9 @@ void                pl__destroy_condition_variable(plConditionVariable* ptCondit
 void                pl__wake_condition_variable(plConditionVariable* ptConditionVariable);
 void                pl__wake_all_condition_variable(plConditionVariable* ptConditionVariable);
 void                pl__sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection);
+plBarrier           pl__create_barrier(uint32_t uThreadCount);
+void                pl__destroy_barrier(plBarrier* ptBarrier);
+void                pl__wait_on_barrier(plBarrier* ptBarrier);
 
 // atomics
 void    pl__create_atomic_counter  (int64_t ilValue, plAtomicCounter** ptCounter);
@@ -275,7 +279,10 @@ int main()
         .allocate_thread_local_data  = pl__allocate_thread_local_data,
         .free_thread_local_key       = pl__free_thread_local_key, 
         .get_thread_local_data       = pl__get_thread_local_data, 
-        .free_thread_local_data      = pl__free_thread_local_data, 
+        .free_thread_local_data      = pl__free_thread_local_data,
+        .create_barrier              = pl__create_barrier,
+        .destroy_barrier             = pl__destroy_barrier,
+        .wait_on_barrier             = pl__wait_on_barrier
     };
 
     static const plAtomicsI tAtomicsApi = {
@@ -1398,6 +1405,33 @@ void
 pl__free_thread_local_data(plThreadKey* ptKey, void* pData)
 {
     PL_FREE(ptKey->_pPlatformData);
+}
+
+plBarrier
+pl__create_barrier(uint32_t uThreadCount)
+{
+    pthread_barrier_t* ptSyncBarrier = PL_ALLOC(sizeof(pthread_barrier_t));
+    pthread_barrier_init(ptSyncBarrier, NULL, uThreadCount);
+    plBarrier tBarrier = {
+        ._pPlatformData = ptSyncBarrier
+    };
+    return tBarrier;
+}
+
+void
+pl__destroy_barrier(plBarrier* ptBarrier)
+{
+    pthread_barrier_t* ptSyncBarrier = ptBarrier->_pPlatformData;
+    pthread_barrier_destroy(ptSyncBarrier);
+    PL_FREE(ptBarrier->_pPlatformData);
+    ptBarrier->_pPlatformData = NULL;
+}
+
+void
+pl__wait_on_barrier(plBarrier* ptBarrier)
+{
+    pthread_barrier_t* ptSyncBarrier = ptBarrier->_pPlatformData;
+    pthread_barrier_wait(ptSyncBarrier);
 }
 
 plConditionVariable

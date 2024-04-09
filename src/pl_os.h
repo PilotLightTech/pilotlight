@@ -65,6 +65,7 @@ typedef struct _plThread            plThread;
 typedef struct _plMutex             plMutex;
 typedef struct _plCriticalSection   plCriticalSection;
 typedef struct _plSemaphore         plSemaphore;
+typedef struct _plBarrier           plBarrier;
 typedef struct _plConditionVariable plConditionVariable;
 typedef struct _plThreadKey         plThreadKey;
 typedef struct _plAtomicCounter     plAtomicCounter;
@@ -138,6 +139,11 @@ typedef struct _plThreadsI
   bool        (*wait_on_semaphore)(plSemaphore* ptSemaphore);
   void        (*release_semaphore)(plSemaphore* ptSemaphore);
 
+  // barriers
+  plBarrier (*create_barrier) (uint32_t uThreadCount);
+  void      (*destroy_barrier)(plBarrier* ptBarrier);
+  void      (*wait_on_barrier)(plBarrier* ptBarrier);
+
   // condition variables
   plConditionVariable (*create_condition_variable)  (void);
   void                (*destroy_condition_variable) (plConditionVariable* ptConditionVariable);
@@ -183,6 +189,11 @@ typedef struct _plSemaphore
 {
   void* _pPlatformData;
 } plSemaphore;
+
+typedef struct _plBarrier
+{
+  void* _pPlatformData;
+} plBarrier;
 
 typedef struct _plConditionVariable
 {

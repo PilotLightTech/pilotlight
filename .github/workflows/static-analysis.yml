@@ -69,7 +69,7 @@ jobs:
           plog-converter -a 'GA:1,2;OP:1' -d V595,V1004,V575 -t html -o ../pvs-studio.html -w ../pvs-studio.log
       - name: Archive Results
         if: ${{ always() }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: pvs-results
           path: /home/runner/work/pilotlight/pilotlight/pvs-studio.html
