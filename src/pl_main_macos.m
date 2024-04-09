@@ -18,7 +18,6 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#define _XOPEN_SOURCE 600
 #include "pilotlight.h" // data registry, api registry, extension registry
 #include "pl_ui.h"      // io context
 #include "pl_os.h"
@@ -88,6 +87,19 @@ typedef struct _plAtomicCounter
     atomic_int_fast64_t ilValue;
 } plAtomicCounter;
 
+typedef int pthread_barrierattr_t;
+typedef struct
+{
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    int count;
+    int tripCount;
+} pthread_barrier_t;
+
+
+int pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t *attr, unsigned int count);
+int pthread_barrier_destroy(pthread_barrier_t *barrier);
+int pthread_barrier_wait(pthread_barrier_t *barrier);
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -1539,6 +1551,57 @@ pl__get_clipboard_text(void* user_data_ctx)
     pl_sb_resize(gptIOCtx->sbcClipboardData, (int)string_len + 1);
     strcpy(gptIOCtx->sbcClipboardData, string_c);
     return gptIOCtx->sbcClipboardData;
+}
+
+int
+pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t *attr, unsigned int count)
+{
+    if(count == 0)
+    {
+        errno = EINVAL;
+        return -1;
+    }
+    if(pthread_mutex_init(&barrier->mutex, 0) < 0)
+    {
+        return -1;
+    }
+    if(pthread_cond_init(&barrier->cond, 0) < 0)
+    {
+        pthread_mutex_destroy(&barrier->mutex);
+        return -1;
+    }
+    barrier->tripCount = count;
+    barrier->count = 0;
+
+    return 0;
+}
+
+int
+pthread_barrier_destroy(pthread_barrier_t *barrier)
+{
+    pthread_cond_destroy(&barrier->cond);
+    pthread_mutex_destroy(&barrier->mutex);
+    return 0;
+}
+
+int
+pthread_barrier_wait(pthread_barrier_t *barrier)
+{
+    pthread_mutex_lock(&barrier->mutex);
+    ++(barrier->count);
+    if(barrier->count >= barrier->tripCount)
+    {
+        barrier->count = 0;
+        pthread_cond_broadcast(&barrier->cond);
+        pthread_mutex_unlock(&barrier->mutex);
+        return 1;
+    }
+    else
+    {
+        pthread_cond_wait(&barrier->cond, &(barrier->mutex));
+        pthread_mutex_unlock(&barrier->mutex);
+        return 0;
+    }
 }
 
 void
