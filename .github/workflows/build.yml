@@ -70,6 +70,7 @@ jobs:
       with:
         name: pilotlight_release
         path: D:\a\pilotlight\pilotlight\out\pilotlight_win32.zip
+        overwrite: true
 
   MacOS:
     
@@ -118,6 +119,7 @@ jobs:
       with:
         name: pilotlight_release
         path: /Users/runner/work/pilotlight/pilotlight/out/pilotlight_macos.zip
+        overwrite: true
 
   Ubuntu:
     
@@ -181,3 +183,4 @@ jobs:
       with:
         name: pilotlight_release
         path: /home/runner/work/pilotlight/pilotlight/out/pilotlight_linux_amd64.zip
+        overwrite: true

@@ -1266,7 +1266,7 @@ pl__get_hardware_thread_count(void)
         GetLogicalProcessorInformation(NULL, &dwLength);
         PSYSTEM_LOGICAL_PROCESSOR_INFORMATION atInfo = PL_ALLOC(dwLength);
         GetLogicalProcessorInformation(atInfo, &dwLength);
-        uint32_t uEntryCount = dwLength / sizeof(PSYSTEM_LOGICAL_PROCESSOR_INFORMATION);
+        uint32_t uEntryCount = dwLength / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
         for(uint32_t i = 0; i < uEntryCount; i++)
         {
             if(atInfo[i].Relationship == RelationProcessorCore)

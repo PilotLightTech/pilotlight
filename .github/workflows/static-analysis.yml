@@ -73,3 +73,4 @@ jobs:
         with:
           name: pvs-results
           path: /home/runner/work/pilotlight/pilotlight/pvs-studio.html
+          overwrite: true
