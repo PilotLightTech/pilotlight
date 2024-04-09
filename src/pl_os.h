@@ -44,6 +44,9 @@ typedef struct _plUdpApiI plUdpApiI;
 #define PL_API_THREADS "PL_API_THREADS"
 typedef struct _plThreadsI plThreadsI;
 
+#define PL_API_ATOMICS "PL_API_ATOMICS"
+typedef struct _plAtomicsI plAtomicsI;
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -56,12 +59,15 @@ typedef struct _plThreadsI plThreadsI;
 //-----------------------------------------------------------------------------
 
 // types
-typedef struct _plSharedLibrary plSharedLibrary;
-typedef struct _plSocket        plSocket;
-typedef struct _plThread        plThread;
-typedef struct _plMutex         plMutex;
-typedef struct _plSemaphore     plSemaphore;
-typedef struct _plThreadKey     plThreadKey;
+typedef struct _plSharedLibrary     plSharedLibrary;
+typedef struct _plSocket            plSocket;
+typedef struct _plThread            plThread;
+typedef struct _plMutex             plMutex;
+typedef struct _plCriticalSection   plCriticalSection;
+typedef struct _plSemaphore         plSemaphore;
+typedef struct _plConditionVariable plConditionVariable;
+typedef struct _plThreadKey         plThreadKey;
+typedef struct _plAtomicCounter     plAtomicCounter;
 
 // forward declarations
 typedef void* (*plThreadProcedure)(void*);
@@ -120,15 +126,39 @@ typedef struct _plThreadsI
   void    (*lock_mutex)   (plMutex* ptMutex);
   void    (*unlock_mutex) (plMutex* ptMutex);
 
+  // critical sections
+  plCriticalSection (*create_critical_section) (void);
+  void              (*destroy_critical_section)(plCriticalSection* ptCriticalSection);
+  void              (*enter_critical_section)  (plCriticalSection* ptCriticalSection);
+  void              (*leave_critical_section)  (plCriticalSection* ptCriticalSection);
+
   // semaphores
   plSemaphore (*create_semaphore) (uint32_t uIntialCount);
   void        (*destroy_semaphore)(plSemaphore* ptSemaphore);
   bool        (*wait_on_semaphore)(plSemaphore* ptSemaphore);
   void        (*release_semaphore)(plSemaphore* ptSemaphore);
 
+  // condition variables
+  plConditionVariable (*create_condition_variable)  (void);
+  void                (*destroy_condition_variable) (plConditionVariable* ptConditionVariable);
+  void                (*wake_condition_variable)    (plConditionVariable* ptConditionVariable);
+  void                (*wake_all_condition_variable)(plConditionVariable* ptConditionVariable);
+  void                (*sleep_condition_variable)   (plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection);
+
   // misc.
   uint32_t (*get_hardware_thread_count)(void);
 } plThreadsI;
+
+typedef struct _plAtomicsI
+{
+  void    (*create_atomic_counter)  (int64_t ilValue, plAtomicCounter** pptCounter);
+  void    (*destroy_atomic_counter) (plAtomicCounter** pptCounter);
+  void    (*atomic_store)           (plAtomicCounter* ptCounter, int64_t ilValue);
+  int64_t (*atomic_load)            (plAtomicCounter* ptCounter);
+  bool    (*atomic_compare_exchange)(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue);
+  void    (*atomic_increment)       (plAtomicCounter* ptCounter);
+  void    (*atomic_decrement)       (plAtomicCounter* ptCounter);
+} plAtomicsI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -144,10 +174,20 @@ typedef struct _plMutex
   void* _pPlatformData;
 } plMutex;
 
+typedef struct _plCriticalSection
+{
+  void* _pPlatformData;
+} plCriticalSection;
+
 typedef struct _plSemaphore
 {
   void* _pPlatformData;
 } plSemaphore;
+
+typedef struct _plConditionVariable
+{
+  void* _pPlatformData;
+} plConditionVariable;
 
 typedef struct _plThreadKey
 {

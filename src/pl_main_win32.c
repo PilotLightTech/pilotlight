@@ -88,23 +88,43 @@ void  pl__reload_library       (plSharedLibrary* ptLibrary);
 void* pl__load_library_function(plSharedLibrary* ptLibrary, const char* pcName);
 
 // thread api
-void        pl__sleep(uint32_t millisec);
-uint32_t    pl__get_hardware_thread_count(void);
-plThread    pl__create_thread(plThreadProcedure ptProcedure, void* pData);
-void        pl__join_thread(plThread* ptThread);
-void        pl__terminate_thread(plThread* ptThread);
-void        pl__yield_thread(void);
-plMutex     pl__create_mutex(void);
-void        pl__lock_mutex(plMutex* ptMutex);
-void        pl__unlock_mutex(plMutex* ptMutex);
-plSemaphore pl__create_semaphore(uint32_t uIntialCount);
-bool        pl__wait_on_semaphore(plSemaphore* ptSemaphore);
-void        pl__release_semaphore(plSemaphore* ptSemaphore);
-plThreadKey pl__allocate_thread_local_key(void);
-void        pl__free_thread_local_key(plThreadKey* puIndex);
-void*       pl__allocate_thread_local_data(plThreadKey* ptKey, size_t szSize);
-void*       pl__get_thread_local_data(plThreadKey* ptKey);
-void        pl__free_thread_local_data(plThreadKey* ptKey, void* pData);
+void                pl__sleep(uint32_t millisec);
+uint32_t            pl__get_hardware_thread_count(void);
+plThread            pl__create_thread(plThreadProcedure ptProcedure, void* pData);
+void                pl__join_thread(plThread* ptThread);
+void                pl__terminate_thread(plThread* ptThread);
+void                pl__yield_thread(void);
+plMutex             pl__create_mutex(void);
+void                pl__lock_mutex(plMutex* ptMutex);
+void                pl__unlock_mutex(plMutex* ptMutex);
+void                pl__destroy_mutex(plMutex* ptMutex);
+plCriticalSection   pl__create_critical_section (void);
+void                pl__destroy_critical_section(plCriticalSection* ptCriticalSection);
+void                pl__enter_critical_section  (plCriticalSection* ptCriticalSection);
+void                pl__leave_critical_section  (plCriticalSection* ptCriticalSection);
+plSemaphore         pl__create_semaphore(uint32_t uIntialCount);
+bool                pl__wait_on_semaphore(plSemaphore* ptSemaphore);
+void                pl__release_semaphore(plSemaphore* ptSemaphore);
+void                pl__destroy_semaphore(plSemaphore* ptSemaphore);
+plThreadKey         pl__allocate_thread_local_key(void);
+void                pl__free_thread_local_key(plThreadKey* puIndex);
+void*               pl__allocate_thread_local_data(plThreadKey* ptKey, size_t szSize);
+void*               pl__get_thread_local_data(plThreadKey* ptKey);
+void                pl__free_thread_local_data(plThreadKey* ptKey, void* pData);
+plConditionVariable pl__create_condition_variable(void);
+void                pl__destroy_condition_variable(plConditionVariable* ptConditionVariable);
+void                pl__wake_condition_variable(plConditionVariable* ptConditionVariable);
+void                pl__wake_all_condition_variable(plConditionVariable* ptConditionVariable);
+void                pl__sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection);
+
+// atomics
+void    pl__create_atomic_counter  (int64_t ilValue, plAtomicCounter** ptCounter);
+void    pl__destroy_atomic_counter (plAtomicCounter** ptCounter);
+void    pl__atomic_store           (plAtomicCounter* ptCounter, int64_t ilValue);
+int64_t pl__atomic_load            (plAtomicCounter* ptCounter);
+bool    pl__atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue);
+void    pl__atomic_increment       (plAtomicCounter* ptCounter);
+void    pl__atomic_decrement       (plAtomicCounter* ptCounter);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -115,6 +135,11 @@ typedef struct _plWin32SharedLibrary
     HMODULE   tHandle;
     FILETIME  tLastWriteTime;
 } plWin32SharedLibrary;
+
+typedef struct _plAtomicCounter
+{
+    int64_t ilValue;
+} plAtomicCounter;
 
 //-----------------------------------------------------------------------------
 // [SECTION] globals
@@ -210,9 +235,11 @@ int main(int argc, char *argv[])
         .yield                       = pl__yield_thread,
         .sleep                       = pl__sleep,
         .create_mutex                = pl__create_mutex,
+        .destroy_mutex               = pl__destroy_mutex,
         .lock_mutex                  = pl__lock_mutex,
         .unlock_mutex                = pl__unlock_mutex,
         .create_semaphore            = pl__create_semaphore,
+        .destroy_semaphore           = pl__destroy_semaphore,
         .wait_on_semaphore           = pl__wait_on_semaphore,
         .release_semaphore           = pl__release_semaphore,
         .allocate_thread_local_key   = pl__allocate_thread_local_key,
@@ -220,6 +247,25 @@ int main(int argc, char *argv[])
         .free_thread_local_key       = pl__free_thread_local_key, 
         .get_thread_local_data       = pl__get_thread_local_data, 
         .free_thread_local_data      = pl__free_thread_local_data, 
+        .create_critical_section     = pl__create_critical_section,
+        .destroy_critical_section    = pl__destroy_critical_section,
+        .enter_critical_section      = pl__enter_critical_section,
+        .leave_critical_section      = pl__leave_critical_section,
+        .create_condition_variable   = pl__create_condition_variable,
+        .destroy_condition_variable  = pl__destroy_condition_variable,
+        .wake_condition_variable     = pl__wake_condition_variable,
+        .wake_all_condition_variable = pl__wake_all_condition_variable,
+        .sleep_condition_variable    = pl__sleep_condition_variable
+    };
+
+    static const plAtomicsI tAtomicsApi = {
+        .create_atomic_counter   = pl__create_atomic_counter,
+        .destroy_atomic_counter  = pl__destroy_atomic_counter,
+        .atomic_store            = pl__atomic_store,
+        .atomic_load             = pl__atomic_load,
+        .atomic_compare_exchange = pl__atomic_compare_exchange,
+        .atomic_increment        = pl__atomic_increment,
+        .atomic_decrement        = pl__atomic_decrement
     };
 
     uint32_t uFileSize = 0;
@@ -247,6 +293,7 @@ int main(int argc, char *argv[])
     gptApiRegistry->add(PL_API_FILE, &tFileApi);
     gptApiRegistry->add(PL_API_UDP, &tUdpApi);
     gptApiRegistry->add(PL_API_THREADS, &tThreadApi);
+    gptApiRegistry->add(PL_API_ATOMICS, &tAtomicsApi);
 
     // set clipboard functions (may need to move this to OS api)
     gptIOCtx->set_clipboard_text_fn = pl__set_clipboard_text;
@@ -1139,6 +1186,15 @@ pl__create_mutex(void)
 }
 
 void
+pl__destroy_mutex(plMutex* ptMutex)
+{
+    HANDLE* ptMutexHandle = ptMutex->_pPlatformData;
+    CloseHandle(ptMutexHandle);
+    PL_FREE(ptMutex->_pPlatformData);
+    ptMutex->_pPlatformData = NULL;
+}
+
+void
 pl__lock_mutex(plMutex* ptMutex)
 {
     HANDLE tMutexHandle = ptMutex->_pPlatformData;
@@ -1156,6 +1212,40 @@ pl__unlock_mutex(plMutex* ptMutex)
         printf("ReleaseMutex error: %d\n", GetLastError());
         PL_ASSERT(false);
     }
+}
+
+plCriticalSection
+pl__create_critical_section(void)
+{
+    CRITICAL_SECTION* ptCriticalSection = PL_ALLOC(sizeof(CRITICAL_SECTION));
+    InitializeCriticalSection(ptCriticalSection);
+    plCriticalSection tCriticalSection = {
+        ._pPlatformData = ptCriticalSection
+    };
+    return tCriticalSection;
+}
+
+void
+pl__destroy_critical_section(plCriticalSection* ptCriticalSection)
+{
+    CRITICAL_SECTION* ptCritSection = ptCriticalSection->_pPlatformData;
+    DeleteCriticalSection(ptCritSection);
+    PL_FREE(ptCriticalSection->_pPlatformData);
+    ptCriticalSection->_pPlatformData = NULL;
+}
+
+void
+pl__enter_critical_section(plCriticalSection* ptCriticalSection)
+{
+    CRITICAL_SECTION* ptCritSection = ptCriticalSection->_pPlatformData;
+    EnterCriticalSection(ptCritSection);
+}
+
+void
+pl__leave_critical_section(plCriticalSection* ptCriticalSection)
+{
+    CRITICAL_SECTION* ptCritSection = ptCriticalSection->_pPlatformData;
+    LeaveCriticalSection(ptCritSection);
 }
 
 uint32_t
@@ -1188,6 +1278,15 @@ pl__create_semaphore(uint32_t uIntialCount)
         ._pPlatformData = CreateSemaphore(NULL, uIntialCount, uIntialCount, NULL)
     };
     return tSemaphore;
+}
+
+void
+pl__destroy_semaphore(plSemaphore* ptSemaphore)
+{
+    HANDLE* ptSemaphoreHandle = ptSemaphore->_pPlatformData;
+    CloseHandle(ptSemaphoreHandle);
+    PL_FREE(ptSemaphore->_pPlatformData);
+    ptSemaphore->_pPlatformData = NULL;
 }
 
 bool
@@ -1273,6 +1372,90 @@ pl__free_thread_local_data(plThreadKey* ptKey, void* pData)
     plWin32ThreadKey* ptWin32Key = ptKey->_pPlatformData;
     LPVOID lpvData = TlsGetValue(ptWin32Key->dwIndex);
     LocalFree(lpvData);
+}
+
+void
+pl__create_atomic_counter(int64_t ilValue, plAtomicCounter** ptCounter)
+{
+    *ptCounter = _aligned_malloc(sizeof(plAtomicCounter), 8);
+    (*ptCounter)->ilValue = ilValue;
+}
+
+void
+pl__destroy_atomic_counter(plAtomicCounter** ptCounter)
+{
+    _aligned_free((*ptCounter));
+    (*ptCounter) = NULL;
+}
+
+void
+pl__atomic_store(plAtomicCounter* ptCounter, int64_t ilValue)
+{
+    ptCounter->ilValue = ilValue;
+}
+
+int64_t
+pl__atomic_load(plAtomicCounter* ptCounter)
+{
+    return ptCounter->ilValue;
+}
+
+bool
+pl__atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue)
+{
+    return InterlockedCompareExchange64(&ptCounter->ilValue, ilDesiredValue, ilExpectedValue) == ilExpectedValue;
+}
+
+void
+pl__atomic_increment(plAtomicCounter* ptCounter)
+{
+    InterlockedIncrement64(&ptCounter->ilValue);
+}
+
+void
+pl__atomic_decrement(plAtomicCounter* ptCounter)
+{
+    InterlockedDecrement64(&ptCounter->ilValue);
+}
+
+plConditionVariable
+pl__create_condition_variable(void)
+{
+    CONDITION_VARIABLE* ptConditionVariable = PL_ALLOC(sizeof(CONDITION_VARIABLE ));
+    InitializeConditionVariable(ptConditionVariable);
+    plConditionVariable tConditionalVariable = {
+        ._pPlatformData = ptConditionVariable
+    };
+    return tConditionalVariable;
+}
+
+void               
+pl__destroy_condition_variable(plConditionVariable* ptConditionVariable)
+{
+    PL_FREE(ptConditionVariable->_pPlatformData);
+    ptConditionVariable->_pPlatformData = NULL;
+}
+
+void               
+pl__wake_condition_variable(plConditionVariable* ptConditionVariable)
+{
+    CONDITION_VARIABLE* ptCondVariable = ptConditionVariable->_pPlatformData;
+    WakeConditionVariable(ptCondVariable);
+}
+
+void               
+pl__wake_all_condition_variable(plConditionVariable* ptConditionVariable)
+{
+    CONDITION_VARIABLE* ptCondVariable = ptConditionVariable->_pPlatformData;
+    WakeAllConditionVariable(ptCondVariable);
+}
+
+void               
+pl__sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection)
+{
+    CRITICAL_SECTION* ptCritSection = ptCriticalSection->_pPlatformData;
+    CONDITION_VARIABLE* ptCondVariable = ptConditionVariable->_pPlatformData;
+    SleepConditionVariableCS(ptCondVariable, ptCritSection, INFINITE);
 }
 
 const char*
