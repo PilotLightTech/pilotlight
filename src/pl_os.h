@@ -79,7 +79,7 @@ typedef struct _plAtomicCounter     plAtomicCounter;
 typedef void* (*plThreadProcedure)(void*);
 
 // external
-typedef struct _plApiRegistryApiI plApiRegistryApiI;
+typedef struct _plApiRegistryI plApiRegistryI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] api structs

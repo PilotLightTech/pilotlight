@@ -89,29 +89,29 @@ typedef struct plAppData_t
 // [SECTION] global apis
 //-----------------------------------------------------------------------------
 
-const plWindowI*               gptWindows           = NULL;
-const plThreadsI*              gptThreads           = NULL;
-const plApiRegistryApiI*       gptApiRegistry       = NULL;
-const plDataRegistryApiI*      gptDataRegistry      = NULL;
-const plStatsApiI*             gptStats             = NULL;
-const plExtensionRegistryApiI* gptExtensionRegistry = NULL;
-const plFileApiI*              gptFile              = NULL;
-const plGraphicsI*             gptGfx               = NULL;
-const plDeviceI*               gptDevice            = NULL;
-const plDebugApiI*             gptDebug             = NULL;
-const plImageI*                gptImage             = NULL;
-const plDrawStreamI*           gptStream            = NULL;
-const plEcsI*                  gptEcs               = NULL;
-const plCameraI*               gptCamera            = NULL;
-const plResourceI*             gptResource          = NULL;
-const plRefRendererI*          gptRenderer          = NULL;
+const plWindowI*            gptWindows           = NULL;
+const plThreadsI*           gptThreads           = NULL;
+const plApiRegistryI*       gptApiRegistry       = NULL;
+const plDataRegistryI*      gptDataRegistry      = NULL;
+const plStatsApiI*          gptStats             = NULL;
+const plExtensionRegistryI* gptExtensionRegistry = NULL;
+const plFileApiI*           gptFile              = NULL;
+const plGraphicsI*          gptGfx               = NULL;
+const plDeviceI*            gptDevice            = NULL;
+const plDebugApiI*          gptDebug             = NULL;
+const plImageI*             gptImage             = NULL;
+const plDrawStreamI*        gptStream            = NULL;
+const plEcsI*               gptEcs               = NULL;
+const plCameraI*            gptCamera            = NULL;
+const plResourceI*          gptResource          = NULL;
+const plRefRendererI*       gptRenderer          = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void*
-pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
+pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 {
     gptApiRegistry  = ptApiRegistry;
     gptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
@@ -158,7 +158,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     pl_log_info("Setup logging");
 
     // load extensions
-    const plExtensionRegistryApiI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
     ptExtensionRegistry->load("pl_image_ext",    "pl_load_image_ext",    "pl_unload_image_ext",    false);
     ptExtensionRegistry->load("pl_stats_ext",    "pl_load_stats_ext",    "pl_unload_stats_ext",    false);
     ptExtensionRegistry->load("pl_graphics_ext", "pl_load_graphics_ext", "pl_unload_graphics_ext", false);

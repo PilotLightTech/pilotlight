@@ -36,8 +36,8 @@ typedef struct _plExtension
     char pcLoadFunc[128];
     char pcUnloadFunc[128];
 
-    void (*pl_load)   (const plApiRegistryApiI* ptApiRegistry, bool bReload);
-    void (*pl_unload) (const plApiRegistryApiI* ptApiRegistry);
+    void (*pl_load)   (const plApiRegistryI* ptApiRegistry, bool bReload);
+    void (*pl_unload) (const plApiRegistryI* ptApiRegistry);
 } plExtension;
 
 typedef struct _plDataEntry
@@ -71,8 +71,6 @@ static       void  pl__replace_api    (const void* pOldInterface, const void* pN
 static       void  pl__subscribe_api  (const void* pOldInterface, ptApiUpdateCallback ptCallback, void* pUserData);
 
 // extension registry functions
-static void pl__load_extensions_from_config(const plApiRegistryApiI* ptApiRegistry, const char* pcConfigFile);
-static void pl__load_extensions_from_file  (const plApiRegistryApiI* ptApiRegistry, const char* pcFile);
 static void pl__load_extension             (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
 static void pl__unload_extension           (const char* pcName);
 static void pl__unload_all_extensions      (void);
@@ -81,10 +79,10 @@ static void pl__handle_extension_reloads   (void);
 // extension registry helper functions
 static void pl__create_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, plExtension* ptExtensionOut);
 
-static const plApiRegistryApiI*
+static const plApiRegistryI*
 pl__load_api_registry(void)
 {
-    static const plApiRegistryApiI tApiRegistry = {
+    static const plApiRegistryI tApiRegistry = {
         .add         = pl__add_api,
         .remove      = pl__remove_api,
         .first       = pl__first_api,
@@ -116,24 +114,22 @@ uint32_t*         gsbtHotLibs     = NULL;
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-const plApiRegistryApiI*
+const plApiRegistryI*
 pl_load_core_apis(void)
 {
 
-    const plApiRegistryApiI* ptApiRegistry = pl__load_api_registry();
+    const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
 
-    static const plDataRegistryApiI tApi0 = {
+    static const plDataRegistryI tApi0 = {
         .set_data = pl__set_data,
         .get_data = pl__get_data
     };
 
-    static const plExtensionRegistryApiI tApi1 = {
-        .load             = pl__load_extension,
-        .unload           = pl__unload_extension,
-        .unload_all       = pl__unload_all_extensions,
-        .reload           = pl__handle_extension_reloads,
-        .load_from_config = pl__load_extensions_from_config,
-        .load_from_file   = pl__load_extensions_from_file
+    static const plExtensionRegistryI tApi1 = {
+        .load       = pl__load_extension,
+        .unload     = pl__unload_extension,
+        .unload_all = pl__unload_all_extensions,
+        .reload     = pl__handle_extension_reloads
     };
 
     // apis more likely to not be stored, should be first (api registry is not sorted)
@@ -310,119 +306,10 @@ pl__create_extension(const char* pcName, const char* pcLoadFunc, const char* pcU
 }
 
 static void
-pl__load_extensions_from_config(const plApiRegistryApiI* ptApiRegistry, const char* pcConfigFile)
-{
-
-    const plFileApiI* ptFileApi = ptApiRegistry->first(PL_API_FILE);
-
-    unsigned int uFileSize = 0;
-    ptFileApi->read(pcConfigFile, &uFileSize, NULL, "rb");
-    char* pcBuffer = PL_ALLOC(uFileSize + 1);
-    memset(pcBuffer, 0, uFileSize + 1);
-    ptFileApi->read(pcConfigFile, &uFileSize, pcBuffer, "rb");
-
-    plJsonObject tRootJsonObject = {0};
-    pl_load_json(pcBuffer, &tRootJsonObject);
-
-    if(!pl_json_member_exist(&tRootJsonObject, "extensions"))
-    {
-        pl_unload_json(&tRootJsonObject);
-        PL_FREE(pcBuffer);
-        return;
-    }
-
-    uint32_t uExtensionCount = 0;
-    plJsonObject* sbtExtensions = pl_json_array_member(&tRootJsonObject, "extensions", &uExtensionCount);
-
-    for(uint32_t uExtensionIndex = 0; uExtensionIndex < uExtensionCount; uExtensionIndex++)
-    {
-
-        plJsonObject* ptExtension = &sbtExtensions[uExtensionIndex];
-
-        plExtension tExtension = {0};
-
-        char acTextBuffer[512] = {0};
-
-        // read from file if file member exists
-        if(pl_json_member_exist(ptExtension, "file"))
-        {
-            pl_json_string_member(ptExtension, "file", acTextBuffer, 512);
-            pl__load_extensions_from_file(ptApiRegistry, acTextBuffer);
-        }
-        else
-        {
-            PL_ASSERT(pl_json_member_exist(ptExtension, "name") && "extension config must have 'name'");
-            PL_ASSERT(pl_json_member_exist(ptExtension, "load") && "extension config must have 'load'");
-            PL_ASSERT(pl_json_member_exist(ptExtension, "unload") && "extension config must have 'unload'");
-
-            pl_json_string_member(ptExtension, "name", acTextBuffer, 128);
-            pl_json_string_member(ptExtension, "load", tExtension.pcLoadFunc, 128);
-            pl_json_string_member(ptExtension, "unload", tExtension.pcUnloadFunc, 128);
-            bool bReloadable = pl_json_bool_member(ptExtension, "reloadable", false);
-
-            // check if extension exists already
-            bool bExists = false;
-            for(uint32_t i = 0; i < pl_sb_size(gsbtLibs); i++)
-            {
-                if(strcmp(tExtension.pcLibPath, gsbtLibs[i].acPath) == 0)
-                {
-                    bExists = true;
-                }
-            }
-
-            if(!bExists)
-                pl__load_extension(acTextBuffer, tExtension.pcLoadFunc, tExtension.pcUnloadFunc, bReloadable);
-        }
-    }
-
-    pl_unload_json(&tRootJsonObject);
-    PL_FREE(pcBuffer);
-}
-
-static void
-pl__load_extensions_from_file(const plApiRegistryApiI* ptApiRegistry, const char* pcFile)
-{
-    const plFileApiI* ptFileApi = ptApiRegistry->first(PL_API_FILE);
-
-    unsigned int uFileSize = 0;
-    ptFileApi->read(pcFile, &uFileSize, NULL, "rb");
-    char* pcBuffer = PL_ALLOC(uFileSize + 1);
-    memset(pcBuffer, 0, uFileSize + 1);
-    ptFileApi->read(pcFile, &uFileSize, pcBuffer, "rb");
-
-    plJsonObject tRootJsonObject = {0};
-    pl_load_json(pcBuffer, &tRootJsonObject);
-
-    plExtension tExtension = {0};
-
-    char acLibName[128] = {0};
-    pl_json_string_member(&tRootJsonObject, "name", acLibName, 128);
-    pl_json_string_member(&tRootJsonObject, "load", tExtension.pcLoadFunc, 128);
-    pl_json_string_member(&tRootJsonObject, "unload", tExtension.pcUnloadFunc, 128);
-    bool bReloadable = pl_json_bool_member(&tRootJsonObject, "reloadable", false);
-
-    // check if extension exists already
-    bool bExists = false;
-    for(uint32_t i = 0; i < pl_sb_size(gsbtLibs); i++)
-    {
-        if(strcmp(tExtension.pcLibPath, gsbtLibs[i].acPath) == 0)
-        {
-            bExists = true;
-        }
-    }
-
-    if(!bExists)
-        pl__load_extension(acLibName, tExtension.pcLoadFunc, tExtension.pcUnloadFunc, bReloadable);
-
-    pl_unload_json(&tRootJsonObject);
-    PL_FREE(pcBuffer);
-}
-
-static void
 pl__load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable)
 {
 
-    const plApiRegistryApiI* ptApiRegistry = pl__load_api_registry();
+    const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
 
     plExtension tExtension = {0};
     pl__create_extension(pcName, pcLoadFunc, pcUnloadFunc, &tExtension);
@@ -441,11 +328,11 @@ pl__load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnl
     if(ptLibraryApi->load(&tLibrary, tExtension.pcLibPath, tExtension.pcTransName, "./lock.tmp"))
     {
         #ifdef _WIN32
-            tExtension.pl_load   = (void (__cdecl *)(const plApiRegistryApiI*, bool))  ptLibraryApi->load_function(&tLibrary, tExtension.pcLoadFunc);
-            tExtension.pl_unload = (void (__cdecl *)(const plApiRegistryApiI*))        ptLibraryApi->load_function(&tLibrary, tExtension.pcUnloadFunc);
+            tExtension.pl_load   = (void (__cdecl *)(const plApiRegistryI*, bool))  ptLibraryApi->load_function(&tLibrary, tExtension.pcLoadFunc);
+            tExtension.pl_unload = (void (__cdecl *)(const plApiRegistryI*))        ptLibraryApi->load_function(&tLibrary, tExtension.pcUnloadFunc);
         #else // linux & apple
-            tExtension.pl_load   = (void (__attribute__(()) *)(const plApiRegistryApiI*, bool)) ptLibraryApi->load_function(&tLibrary, tExtension.pcLoadFunc);
-            tExtension.pl_unload = (void (__attribute__(()) *)(const plApiRegistryApiI*))       ptLibraryApi->load_function(&tLibrary, tExtension.pcUnloadFunc);
+            tExtension.pl_load   = (void (__attribute__(()) *)(const plApiRegistryI*, bool)) ptLibraryApi->load_function(&tLibrary, tExtension.pcLoadFunc);
+            tExtension.pl_unload = (void (__attribute__(()) *)(const plApiRegistryI*))       ptLibraryApi->load_function(&tLibrary, tExtension.pcUnloadFunc);
         #endif
 
         PL_ASSERT(tExtension.pl_load);
@@ -466,7 +353,7 @@ pl__load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnl
 static void
 pl__unload_extension(const char* pcName)
 {
-    const plApiRegistryApiI* ptApiRegistry = pl__load_api_registry();
+    const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
 
     for(uint32_t i = 0; i < pl_sb_size(gsbtExtensions); i++)
     {
@@ -486,7 +373,7 @@ pl__unload_extension(const char* pcName)
 static void
 pl__unload_all_extensions(void)
 {
-    const plApiRegistryApiI* ptApiRegistry = pl__load_api_registry();
+    const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
 
     for(uint32_t i = 0; i < pl_sb_size(gsbtExtensions); i++)
     {
@@ -498,7 +385,7 @@ pl__unload_all_extensions(void)
 static void
 pl__handle_extension_reloads(void)
 {
-    const plApiRegistryApiI* ptApiRegistry = pl__load_api_registry();
+    const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
 
     for(uint32_t i = 0; i < pl_sb_size(gsbtHotLibs); i++)
     {
@@ -509,11 +396,11 @@ pl__handle_extension_reloads(void)
             ptExtension->pl_unload(ptApiRegistry);
             pl__reload_library(ptLibrary); 
             #ifdef _WIN32
-                ptExtension->pl_load   = (void (__cdecl *)(const plApiRegistryApiI*, bool)) pl__load_library_function(ptLibrary, ptExtension->pcLoadFunc);
-                ptExtension->pl_unload = (void (__cdecl *)(const plApiRegistryApiI*))       pl__load_library_function(ptLibrary, ptExtension->pcUnloadFunc);
+                ptExtension->pl_load   = (void (__cdecl *)(const plApiRegistryI*, bool)) pl__load_library_function(ptLibrary, ptExtension->pcLoadFunc);
+                ptExtension->pl_unload = (void (__cdecl *)(const plApiRegistryI*))       pl__load_library_function(ptLibrary, ptExtension->pcUnloadFunc);
             #else // linux & apple
-                ptExtension->pl_load   = (void (__attribute__(()) *)(const plApiRegistryApiI*, bool)) pl__load_library_function(ptLibrary, ptExtension->pcLoadFunc);
-                ptExtension->pl_unload = (void (__attribute__(()) *)(const plApiRegistryApiI*))       pl__load_library_function(ptLibrary, ptExtension->pcUnloadFunc);
+                ptExtension->pl_load   = (void (__attribute__(()) *)(const plApiRegistryI*, bool)) pl__load_library_function(ptLibrary, ptExtension->pcLoadFunc);
+                ptExtension->pl_unload = (void (__attribute__(()) *)(const plApiRegistryI*))       pl__load_library_function(ptLibrary, ptExtension->pcUnloadFunc);
             #endif
             PL_ASSERT(ptExtension->pl_load);
             PL_ASSERT(ptExtension->pl_unload);
@@ -526,10 +413,6 @@ pl__handle_extension_reloads(void)
 #define STB_SPRINTF_IMPLEMENTATION
 #include "stb_sprintf.h"
 #undef STB_SPRINTF_IMPLEMENTATION
-
-#define PL_JSON_IMPLEMENTATION
-#include "pl_json.h"
-#undef PL_JSON_IMPLEMENTATION
 
 #define PL_MEMORY_IMPLEMENTATION
 #include "pl_memory.h"

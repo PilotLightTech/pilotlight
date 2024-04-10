@@ -41,9 +41,9 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // apis
-static const plApiRegistryApiI*   gptApiRegistry  = NULL;
+static const plApiRegistryI*   gptApiRegistry  = NULL;
 static const plStatsApiI*         ptStatsApi      = NULL;
-static const plDataRegistryApiI*  ptDataRegistry  = NULL;
+static const plDataRegistryI*  ptDataRegistry  = NULL;
 
 // contexts
 static plMemoryContext* ptMemoryCtx = NULL;
@@ -1041,7 +1041,7 @@ pl__show_logging(bool* bValue)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_load_debug_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
+pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     gptApiRegistry = ptApiRegistry;
     ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
@@ -1065,7 +1065,7 @@ pl_load_debug_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 }
 
 PL_EXPORT void
-pl_unload_debug_ext(plApiRegistryApiI* ptApiRegistry)
+pl_unload_debug_ext(plApiRegistryI* ptApiRegistry)
 {
     pl_sb_free(sbppdValues);
     pl_sb_free(sbppdFrameValues);

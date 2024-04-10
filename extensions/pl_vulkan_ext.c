@@ -5989,9 +5989,9 @@ pl_load_device_api(void)
 }
 
 PL_EXPORT void
-pl_load_graphics_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
+pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));
@@ -6025,7 +6025,7 @@ pl_load_graphics_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 }
 
 PL_EXPORT void
-pl_unload_graphics_ext(plApiRegistryApiI* ptApiRegistry)
+pl_unload_graphics_ext(plApiRegistryI* ptApiRegistry)
 {
     
 }

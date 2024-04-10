@@ -22,7 +22,6 @@ Index of this file:
 #include "pl_ui.h"      // io context
 #include "pl_os.h"
 #include "pl_ds.h"      // hashmap
-#include "pl_json.h"
 
 #import <Cocoa/Cocoa.h>
 #import <Carbon/Carbon.h>
@@ -203,9 +202,9 @@ void    pl__atomic_decrement       (plAtomicCounter* ptCounter);
 //-----------------------------------------------------------------------------
 
 // apis
-static const plDataRegistryApiI*      gptDataRegistry = NULL;
-static const plApiRegistryApiI*       gptApiRegistry = NULL;
-static const plExtensionRegistryApiI* gptExtensionRegistry = NULL;
+static const plDataRegistryI*      gptDataRegistry = NULL;
+static const plApiRegistryI*       gptApiRegistry = NULL;
+static const plExtensionRegistryI* gptExtensionRegistry = NULL;
 
 // OS apis
 static const plLibraryApiI* gptLibraryApi = NULL;
@@ -232,10 +231,9 @@ plWindow** gsbtWindows = NULL;
 
 // app config
 id gtAppDelegate;
-char acAppName[256] = {0};
 
 // app function pointers
-static void* (*pl_app_load)    (const plApiRegistryApiI* ptApiRegistry, void* ptAppData);
+static void* (*pl_app_load)    (const plApiRegistryI* ptApiRegistry, void* ptAppData);
 static void  (*pl_app_shutdown)(void* ptAppData);
 static void  (*pl_app_resize)  (void* ptAppData);
 static void  (*pl_app_update)  (void* ptAppData);
@@ -332,18 +330,6 @@ int main()
         .atomic_decrement        = pl__atomic_decrement
     };
 
-    uint32_t uFileSize = 0;
-    tApi4.read("pl_config.json", &uFileSize, NULL, "rb");
-    char* pcFileData = PL_ALLOC(uFileSize + 1);
-    memset(pcFileData, 0, uFileSize + 1);
-    tApi4.read("pl_config.json", &uFileSize, pcFileData, "rb");
-
-    plJsonObject tJsonRoot = {0};
-    pl_load_json(pcFileData, &tJsonRoot);
-    pl_json_string_member(&tJsonRoot, "app name", acAppName, 256);
-    pl_unload_json(&tJsonRoot);
-    PL_FREE(pcFileData);
-
     gptApiRegistry->add(PL_API_WINDOW, &tWindowApi);
     gptApiRegistry->add(PL_API_LIBRARY, &tApi3);
     gptApiRegistry->add(PL_API_FILE, &tApi4);
@@ -386,11 +372,11 @@ int main()
     // load library
     static char acLibraryName[256] = {0};
     static char acTransitionalName[256] = {0};
-    pl_sprintf(acLibraryName, "%s.dylib", acAppName);
-    pl_sprintf(acTransitionalName, "%s_", acAppName);
+    pl_sprintf(acLibraryName, "%s.dylib", "app");
+    pl_sprintf(acTransitionalName, "%s_", "app");
     if(gptLibraryApi->load(&gtAppLibrary, acLibraryName, acTransitionalName, "lock.tmp"))
     {
-        pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryApiI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
+        pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
         pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
         pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
         pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
@@ -673,7 +659,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
         if(gptLibraryApi->has_changed(&gtAppLibrary))
         {
             gptLibraryApi->reload(&gtAppLibrary);
-            pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryApiI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
+            pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
             pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
             pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
             pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");

@@ -241,6 +241,3 @@ with pl.project("pilotlight"):
     pl.pop_profile()
 
 pl.generate_build_script("build")
-if not os.path.isdir("../out"):
-    os.mkdir("../out")
-shutil.copy("../apps/pl_config.json", "../out/pl_config.json")

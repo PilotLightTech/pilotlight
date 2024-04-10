@@ -233,7 +233,7 @@ typedef struct _plRefRendererData
 static plRefRendererData* gptData = NULL;
 
 // apis
-static const plDataRegistryApiI* gptDataRegistry = NULL;
+static const plDataRegistryI* gptDataRegistry = NULL;
 static const plResourceI*        gptResource = NULL;
 static const plEcsI*             gptECS      = NULL;
 static const plFileApiI*         gptFile     = NULL;
@@ -3203,7 +3203,7 @@ pl__get_blend_state(plBlendMode tBlendMode)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_load_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
+pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
    gptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
    pl_set_memory_context(gptDataRegistry->get_data(PL_CONTEXT_MEMORY));
@@ -3245,7 +3245,7 @@ pl_load_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 }
 
 PL_EXPORT void
-pl_unload_ext(plApiRegistryApiI* ptApiRegistry)
+pl_unload_ext(plApiRegistryI* ptApiRegistry)
 {
 }
 

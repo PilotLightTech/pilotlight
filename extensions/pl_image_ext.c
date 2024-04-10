@@ -46,9 +46,9 @@ pl_load_image_api(void)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_load_image_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
+pl_load_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    const plDataRegistryApiI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     if(bReload)
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_IMAGE), pl_load_image_api());
@@ -57,7 +57,7 @@ pl_load_image_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 }
 
 PL_EXPORT void
-pl_unload_image_ext(plApiRegistryApiI* ptApiRegistry)
+pl_unload_image_ext(plApiRegistryI* ptApiRegistry)
 {
     
 }

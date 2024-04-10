@@ -19,8 +19,8 @@ Index of this file:
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_PILOTLIGHT_H
-#define PL_PILOTLIGHT_H
+#ifndef PILOTLIGHT_H
+#define PILOTLIGHT_H
 
 #define PILOTLIGHT_VERSION    "0.9.0"
 #define PILOTLIGHT_VERSION_NUM 000900
@@ -50,13 +50,13 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-typedef struct _plApiRegistryApiI plApiRegistryApiI;
+typedef struct _plApiRegistryI plApiRegistryI;
 
 #define PL_API_DATA_REGISTRY "PL_API_DATA_REGISTRY"
-typedef struct _plDataRegistryApiI plDataRegistryApiI;
+typedef struct _plDataRegistryI plDataRegistryI;
 
 #define PL_API_EXTENSION_REGISTRY "PL_API_EXTENSION_REGISTRY"
-typedef struct _plExtensionRegistryApiI plExtensionRegistryApiI;
+typedef struct _plExtensionRegistryI plExtensionRegistryI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] contexts
@@ -122,10 +122,6 @@ typedef struct _plExtensionRegistryApiI plExtensionRegistryApiI;
     #define PL_GLOBAL_LOG_LEVEL PL_LOG_LEVEL_ALL
 #endif
 
-#ifndef PL_DEFINE_HANDLE
-    #define PL_DEFINE_HANDLE(x) typedef struct x { uint32_t uIndex; uint32_t uGeneration;} x;
-#endif
-
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
@@ -138,7 +134,6 @@ typedef struct _plSharedLibrary   plSharedLibrary;
 typedef struct _plSocket          plSocket;
 typedef struct _plMemoryContext   plMemoryContext;
 typedef struct _plAllocationEntry plAllocationEntry;
-typedef struct _plHandle          plHandle;
 
 // external forward declarations
 typedef struct _plHashMap plHashMap; // pl_ds.h
@@ -147,18 +142,20 @@ typedef struct _plHashMap plHashMap; // pl_ds.h
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-const plApiRegistryApiI* pl_load_core_apis  (void);
-void                     pl_unload_core_apis(void);
+// API registry
+const plApiRegistryI* pl_load_core_apis  (void);
+void                  pl_unload_core_apis(void);
 
-void              pl_set_memory_context(plMemoryContext* ptMemoryContext);
-plMemoryContext*  pl_get_memory_context(void);
-void*             pl_realloc           (void* pBuffer, size_t szSize, const char* pcFile, int iLine);
+// memory
+void             pl_set_memory_context(plMemoryContext* ptMemoryContext);
+plMemoryContext* pl_get_memory_context(void);
+void*            pl_realloc           (void* pBuffer, size_t szSize, const char* pcFile, int iLine);
 
 //-----------------------------------------------------------------------------
 // [SECTION] api structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plApiRegistryApiI
+typedef struct _plApiRegistryI
 {
     const void* (*add)       (const char* pcName, const void* pInterface);
     void        (*remove)    (const void* pInterface);
@@ -166,23 +163,21 @@ typedef struct _plApiRegistryApiI
     void        (*subscribe) (const void* pInterface, ptApiUpdateCallback ptCallback, void* pUserData);
     const void* (*first)     (const char* pcName);
     const void* (*next)      (const void* pPrev);
-} plApiRegistryApiI;
+} plApiRegistryI;
 
-typedef struct _plDataRegistryApiI
+typedef struct _plDataRegistryI
 {
    void  (*set_data)(const char* pcName, void* pData);
    void* (*get_data)(const char* pcName);
-} plDataRegistryApiI;
+} plDataRegistryI;
 
-typedef struct _plExtensionRegistryApiI
+typedef struct _plExtensionRegistryI
 {
-    void (*reload)          (void);
-    void (*unload_all)      (void);
-    void (*load)            (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
-    void (*unload)          (const char* pcName); 
-    void (*load_from_config)(const plApiRegistryApiI* ptApiRegistry, const char* pcConfigFile);
-    void (*load_from_file)  (const plApiRegistryApiI* ptApiRegistry, const char* pcFile);
-} plExtensionRegistryApiI;
+    void (*reload)    (void);
+    void (*unload_all)(void);
+    void (*load)      (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
+    void (*unload)    (const char* pcName); 
+} plExtensionRegistryI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -206,10 +201,4 @@ typedef struct _plMemoryContext
   size_t             szMemoryUsage;
 } plMemoryContext;
 
-typedef struct _plHandle
-{
-    uint32_t uIndex;
-    uint32_t uGeneration;
-} plHandle;
-
-#endif // PL_PILOTLIGHT_H
+#endif // PILOTLIGHT_H

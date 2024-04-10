@@ -40,8 +40,8 @@ static void             pl_unload_resource         (plResourceHandle tResourceHa
 //-----------------------------------------------------------------------------
 
 // apis
-static const plApiRegistryApiI*   gptApiRegistry  = NULL;
-static const plDataRegistryApiI*  ptDataRegistry  = NULL;
+static const plApiRegistryI*   gptApiRegistry  = NULL;
+static const plDataRegistryI*  ptDataRegistry  = NULL;
 
 static plResourceManager* gptResourceManager = NULL;
 
@@ -171,7 +171,7 @@ pl_is_resource_valid(plResourceHandle tResourceHandle)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_load_resource_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
+pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     gptApiRegistry = ptApiRegistry;
     ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
@@ -193,7 +193,7 @@ pl_load_resource_ext(plApiRegistryApiI* ptApiRegistry, bool bReload)
 }
 
 PL_EXPORT void
-pl_unload_resource_ext(plApiRegistryApiI* ptApiRegistry)
+pl_unload_resource_ext(plApiRegistryI* ptApiRegistry)
 {
     for(uint32_t i = 0; i < pl_sb_size(gptResourceManager->sbtResources); i++)
     {
