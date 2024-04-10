@@ -675,7 +675,7 @@ pl_wait_semaphore(plGraphics* ptGraphics, plSemaphoreHandle tHandle, uint64_t ul
     {
         while(ptMetalGraphics->sbtSemaphoresHot[tHandle.uIndex].tSharedEvent.signaledValue != ulValue)
         {
-            gptThread->sleep(1);
+            gptThread->sleep_thread(1);
         }
     }
 }

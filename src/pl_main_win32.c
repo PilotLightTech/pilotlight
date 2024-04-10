@@ -92,7 +92,6 @@ void                pl__sleep(uint32_t millisec);
 uint32_t            pl__get_hardware_thread_count(void);
 plThread            pl__create_thread(plThreadProcedure ptProcedure, void* pData);
 void                pl__join_thread(plThread* ptThread);
-void                pl__terminate_thread(plThread* ptThread);
 void                pl__yield_thread(void);
 plMutex             pl__create_mutex(void);
 void                pl__lock_mutex(plMutex* ptMutex);
@@ -103,7 +102,8 @@ void                pl__destroy_critical_section(plCriticalSection* ptCriticalSe
 void                pl__enter_critical_section  (plCriticalSection* ptCriticalSection);
 void                pl__leave_critical_section  (plCriticalSection* ptCriticalSection);
 plSemaphore         pl__create_semaphore(uint32_t uIntialCount);
-bool                pl__wait_on_semaphore(plSemaphore* ptSemaphore);
+void                pl__wait_on_semaphore(plSemaphore* ptSemaphore);
+bool                pl__try_wait_on_semaphore(plSemaphore* ptSemaphore);
 void                pl__release_semaphore(plSemaphore* ptSemaphore);
 void                pl__destroy_semaphore(plSemaphore* ptSemaphore);
 plThreadKey         pl__allocate_thread_local_key(void);
@@ -232,11 +232,10 @@ int main(int argc, char *argv[])
 
     static const plThreadsI tThreadApi = {
         .get_hardware_thread_count   = pl__get_hardware_thread_count,
-        .create                      = pl__create_thread,
-        .join                        = pl__join_thread,
-        .terminate                   = pl__terminate_thread,
-        .yield                       = pl__yield_thread,
-        .sleep                       = pl__sleep,
+        .create_thread               = pl__create_thread,
+        .join_thread                 = pl__join_thread,
+        .yield_thread                = pl__yield_thread,
+        .sleep_thread                = pl__sleep,
         .create_mutex                = pl__create_mutex,
         .destroy_mutex               = pl__destroy_mutex,
         .lock_mutex                  = pl__lock_mutex,
@@ -244,6 +243,7 @@ int main(int argc, char *argv[])
         .create_semaphore            = pl__create_semaphore,
         .destroy_semaphore           = pl__destroy_semaphore,
         .wait_on_semaphore           = pl__wait_on_semaphore,
+        .try_wait_on_semaphore       = pl__try_wait_on_semaphore,
         .release_semaphore           = pl__release_semaphore,
         .allocate_thread_local_key   = pl__allocate_thread_local_key,
         .allocate_thread_local_data  = pl__allocate_thread_local_data,
@@ -1170,13 +1170,6 @@ pl__join_thread(plThread* ptThread)
 }
 
 void
-pl__terminate_thread(plThread* ptThread)
-{
-    HANDLE tThreadHandle = ptThread->_pPlatformData;
-    TerminateThread(tThreadHandle, 0);
-}
-
-void
 pl__yield_thread(void)
 {
     thread_yield();
@@ -1322,8 +1315,15 @@ pl__destroy_semaphore(plSemaphore* ptSemaphore)
     ptSemaphore->_pPlatformData = NULL;
 }
 
-bool
+void
 pl__wait_on_semaphore(plSemaphore* ptSemaphore)
+{
+    HANDLE tSemaphoreHandle = ptSemaphore->_pPlatformData;
+    WaitForSingleObject(tSemaphoreHandle, INFINITE);
+}
+
+bool
+pl__try_wait_on_semaphore(plSemaphore* ptSemaphore)
 {
     HANDLE tSemaphoreHandle = ptSemaphore->_pPlatformData;
     DWORD dwWaitResult = WaitForSingleObject(tSemaphoreHandle, 0);

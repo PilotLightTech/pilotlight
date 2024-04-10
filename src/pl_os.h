@@ -105,14 +105,11 @@ typedef struct _plUdpApiI
 typedef struct _plThreadsI
 {
 
-  // general ops
-  void     (*yield)(void);
-  void     (*sleep)(uint32_t millisec);
-
   // threads
-  plThread (*create)   (plThreadProcedure ptProcedure, void* pData);
-  void     (*join)     (plThread* ptThread);
-  void     (*terminate)(plThread* ptThread);
+  plThread (*create_thread)(plThreadProcedure ptProcedure, void* pData);
+  void     (*join_thread)  (plThread* ptThread);
+  void     (*yield_thread) (void);
+  void     (*sleep_thread) (uint32_t millisec);
 
   // thread local storage
   plThreadKey (*allocate_thread_local_key) (void);
@@ -134,10 +131,11 @@ typedef struct _plThreadsI
   void              (*leave_critical_section)  (plCriticalSection* ptCriticalSection);
 
   // semaphores
-  plSemaphore (*create_semaphore) (uint32_t uIntialCount);
-  void        (*destroy_semaphore)(plSemaphore* ptSemaphore);
-  bool        (*wait_on_semaphore)(plSemaphore* ptSemaphore);
-  void        (*release_semaphore)(plSemaphore* ptSemaphore);
+  plSemaphore (*create_semaphore)     (uint32_t uIntialCount);
+  void        (*destroy_semaphore)    (plSemaphore* ptSemaphore);
+  void        (*wait_on_semaphore)    (plSemaphore* ptSemaphore);
+  bool        (*try_wait_on_semaphore)(plSemaphore* ptSemaphore);
+  void        (*release_semaphore)    (plSemaphore* ptSemaphore);
 
   // barriers
   plBarrier (*create_barrier) (uint32_t uThreadCount);

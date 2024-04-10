@@ -73,7 +73,6 @@ void                pl__sleep(uint32_t millisec);
 uint32_t            pl__get_hardware_thread_count(void);
 plThread            pl__create_thread(plThreadProcedure ptProcedure, void* pData);
 void                pl__join_thread(plThread* ptThread);
-void                pl__terminate_thread(plThread* ptThread);
 void                pl__yield_thread(void);
 plMutex             pl__create_mutex(void);
 void                pl__lock_mutex(plMutex* ptMutex);
@@ -84,7 +83,8 @@ void                pl__destroy_critical_section(plCriticalSection* ptCriticalSe
 void                pl__enter_critical_section  (plCriticalSection* ptCriticalSection);
 void                pl__leave_critical_section  (plCriticalSection* ptCriticalSection);
 plSemaphore         pl__create_semaphore(uint32_t uIntialCount);
-bool                pl__wait_on_semaphore(plSemaphore* ptSemaphore);
+void                pl__wait_on_semaphore(plSemaphore* ptSemaphore);
+bool                pl__try_wait_on_semaphore(plSemaphore* ptSemaphore);
 void                pl__release_semaphore(plSemaphore* ptSemaphore);
 void                pl__destroy_semaphore(plSemaphore* ptSemaphore);
 plThreadKey         pl__allocate_thread_local_key(void);
@@ -217,11 +217,10 @@ int main()
 
     static const plThreadsI tThreadApi = {
         .get_hardware_thread_count   = pl__get_hardware_thread_count,
-        .create                      = pl__create_thread,
-        .join                        = pl__join_thread,
-        .terminate                   = pl__terminate_thread,
-        .yield                       = pl__yield_thread,
-        .sleep                       = pl__sleep,
+        .create_thread               = pl__create_thread,
+        .join_thread                 = pl__join_thread,
+        .yield_thread                = pl__yield_thread,
+        .sleep_thread                = pl__sleep,
         .create_mutex                = pl__create_mutex,
         .destroy_mutex               = pl__destroy_mutex,
         .lock_mutex                  = pl__lock_mutex,
@@ -229,12 +228,22 @@ int main()
         .create_semaphore            = pl__create_semaphore,
         .destroy_semaphore           = pl__destroy_semaphore,
         .wait_on_semaphore           = pl__wait_on_semaphore,
+        .try_wait_on_semaphore       = pl__try_wait_on_semaphore,
         .release_semaphore           = pl__release_semaphore,
         .allocate_thread_local_key   = pl__allocate_thread_local_key,
         .allocate_thread_local_data  = pl__allocate_thread_local_data,
         .free_thread_local_key       = pl__free_thread_local_key, 
         .get_thread_local_data       = pl__get_thread_local_data, 
-        .free_thread_local_data      = pl__free_thread_local_data,
+        .free_thread_local_data      = pl__free_thread_local_data, 
+        .create_critical_section     = pl__create_critical_section,
+        .destroy_critical_section    = pl__destroy_critical_section,
+        .enter_critical_section      = pl__enter_critical_section,
+        .leave_critical_section      = pl__leave_critical_section,
+        .create_condition_variable   = pl__create_condition_variable,
+        .destroy_condition_variable  = pl__destroy_condition_variable,
+        .wake_condition_variable     = pl__wake_condition_variable,
+        .wake_all_condition_variable = pl__wake_all_condition_variable,
+        .sleep_condition_variable    = pl__sleep_condition_variable,
         .create_barrier              = pl__create_barrier,
         .destroy_barrier             = pl__destroy_barrier,
         .wait_on_barrier             = pl__wait_on_barrier
@@ -910,13 +919,6 @@ pl__join_thread(plThread* ptThread)
 }
 
 void
-pl__terminate_thread(plThread* ptThread)
-{
-    pthread_t tThreadHandle = (pthread_t)ptThread->_pPlatformData;
-    pthread_cancel(tThreadHandle);
-}
-
-void
 pl__yield_thread(void)
 {
     sched_yield();
@@ -1028,12 +1030,18 @@ pl__destroy_semaphore(plSemaphore* ptSemaphore)
     ptSemaphore->_pPlatformData = NULL;
 }
 
-bool
+void
 pl__wait_on_semaphore(plSemaphore* ptSemaphore)
 {
     sem_t* ptSemaphoreHandle = (sem_t*)ptSemaphore->_pPlatformData;
     sem_wait(ptSemaphoreHandle);
-    return true;
+}
+
+bool
+pl__try_wait_on_semaphore(plSemaphore* ptSemaphore)
+{
+    sem_t* ptSemaphoreHandle = (sem_t*)ptSemaphore->_pPlatformData;
+    return sem_trywait(ptSemaphoreHandle) == 0;
 }
 
 void
