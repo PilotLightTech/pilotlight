@@ -93,72 +93,72 @@ typedef struct _plWindowI
 
 typedef struct _plLibraryApiI
 {
+    bool  (*load)         (const char* pcName, const char* pcTransitionalName, const char* pcLockFile, plSharedLibrary** pptLibraryOut);
     bool  (*has_changed)  (plSharedLibrary* ptLibrary);
-    bool  (*load)         (plSharedLibrary* ptLibrary, const char* pcName, const char* pcTransitionalName, const char* pcLockFile);
     void  (*reload)       (plSharedLibrary* ptLibrary);
     void* (*load_function)(plSharedLibrary* ptLibrary, const char* pcName);
 } plLibraryApiI;
 
 typedef struct _plFileApiI
 {
-    void (*read)(const char* pcFile, unsigned* puSize, char* pcBuffer, const char* pcMode);
-    void (*copy)(const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer);
+    void (*read)(const char* pcFile, uint32_t* puSize, char* pcBuffer, const char* pcMode);
+    void (*copy)(const char* pcSource, const char* pcDestination);
 } plFileApiI;
 
 typedef struct _plUdpApiI
 {
-    void (*create_socket) (plSocket* ptSocketOut, bool bNonBlocking);
-    void (*bind_socket)   (plSocket* ptSocket, int iPort);
-    bool (*send_data)     (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
-    bool (*get_data)      (plSocket* ptSocket, void* pData, size_t szSize);
+    void (*create_socket)(plSocket** pptSocketOut, bool bNonBlocking);
+    void (*bind_socket)  (plSocket* ptSocket, int iPort);
+    bool (*send_data)    (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
+    bool (*get_data)     (plSocket* ptSocket, void* pData, size_t szSize);
 } plUdpApiI;
 
 typedef struct _plThreadsI
 {
 
     // threads
-    plThread (*create_thread)(plThreadProcedure ptProcedure, void* pData);
-    void     (*join_thread)  (plThread* ptThread);
-    void     (*yield_thread) (void);
-    void     (*sleep_thread) (uint32_t millisec);
+    void (*create_thread)(plThreadProcedure ptProcedure, void* pData, plThread** ppThreadOut);
+    void (*join_thread)  (plThread* ptThread);
+    void (*yield_thread) (void);
+    void (*sleep_thread) (uint32_t millisec);
 
     // thread local storage
-    plThreadKey (*allocate_thread_local_key) (void);
-    void        (*free_thread_local_key)     (plThreadKey* ptKey);
-    void*       (*allocate_thread_local_data)(plThreadKey* ptKey, size_t szSize);
-    void        (*free_thread_local_data)    (plThreadKey* ptKey, void* pData);
-    void*       (*get_thread_local_data)     (plThreadKey* ptKey);
+    void  (*allocate_thread_local_key) (plThreadKey** pptKeyOut);
+    void  (*free_thread_local_key)     (plThreadKey** ptKey);
+    void* (*allocate_thread_local_data)(plThreadKey* ptKey, size_t szSize);
+    void  (*free_thread_local_data)    (plThreadKey* ptKey, void* pData);
+    void* (*get_thread_local_data)     (plThreadKey* ptKey);
 
     // mutexes
-    plMutex (*create_mutex) (void);
-    void    (*destroy_mutex)(plMutex* ptMutex);
-    void    (*lock_mutex)   (plMutex* ptMutex);
-    void    (*unlock_mutex) (plMutex* ptMutex);
+    void (*create_mutex) (plMutex** ppMutexOut);
+    void (*destroy_mutex)(plMutex** ptMutex);
+    void (*lock_mutex)   (plMutex* ptMutex);
+    void (*unlock_mutex) (plMutex* ptMutex);
 
     // critical sections
-    plCriticalSection (*create_critical_section) (void);
-    void              (*destroy_critical_section)(plCriticalSection* ptCriticalSection);
-    void              (*enter_critical_section)  (plCriticalSection* ptCriticalSection);
-    void              (*leave_critical_section)  (plCriticalSection* ptCriticalSection);
+    void (*create_critical_section) (plCriticalSection** pptCriticalSectionOut);
+    void (*destroy_critical_section)(plCriticalSection** pptCriticalSection);
+    void (*enter_critical_section)  (plCriticalSection* ptCriticalSection);
+    void (*leave_critical_section)  (plCriticalSection* ptCriticalSection);
 
     // semaphores
-    plSemaphore (*create_semaphore)     (uint32_t uIntialCount);
-    void        (*destroy_semaphore)    (plSemaphore* ptSemaphore);
-    void        (*wait_on_semaphore)    (plSemaphore* ptSemaphore);
-    bool        (*try_wait_on_semaphore)(plSemaphore* ptSemaphore);
-    void        (*release_semaphore)    (plSemaphore* ptSemaphore);
+    void (*create_semaphore)     (uint32_t uIntialCount, plSemaphore** pptSemaphoreOut);
+    void (*destroy_semaphore)    (plSemaphore** pptSemaphore);
+    void (*wait_on_semaphore)    (plSemaphore* ptSemaphore);
+    bool (*try_wait_on_semaphore)(plSemaphore* ptSemaphore);
+    void (*release_semaphore)    (plSemaphore* ptSemaphore);
 
     // barriers
-    plBarrier (*create_barrier) (uint32_t uThreadCount);
-    void      (*destroy_barrier)(plBarrier* ptBarrier);
-    void      (*wait_on_barrier)(plBarrier* ptBarrier);
+    void (*create_barrier) (uint32_t uThreadCount, plBarrier** pptBarrierOut);
+    void (*destroy_barrier)(plBarrier** pptBarrier);
+    void (*wait_on_barrier)(plBarrier* ptBarrier);
 
     // condition variables
-    plConditionVariable (*create_condition_variable)  (void);
-    void                (*destroy_condition_variable) (plConditionVariable* ptConditionVariable);
-    void                (*wake_condition_variable)    (plConditionVariable* ptConditionVariable);
-    void                (*wake_all_condition_variable)(plConditionVariable* ptConditionVariable);
-    void                (*sleep_condition_variable)   (plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection);
+    void (*create_condition_variable)  (plConditionVariable** pptConditionVariableOut);
+    void (*destroy_condition_variable) (plConditionVariable** pptConditionVariable);
+    void (*wake_condition_variable)    (plConditionVariable* ptConditionVariable);
+    void (*wake_all_condition_variable)(plConditionVariable* ptConditionVariable);
+    void (*sleep_condition_variable)   (plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection);
 
     // misc.
     uint32_t (*get_hardware_thread_count)(void);
@@ -193,56 +193,5 @@ typedef struct _plWindow
     plWindowDesc tDesc;
     void*        _pPlatformData;
 } plWindow;
-
-typedef struct _plThread
-{
-    void* _pPlatformData;
-} plThread;
-
-typedef struct _plMutex
-{
-    void* _pPlatformData;
-} plMutex;
-
-typedef struct _plCriticalSection
-{
-    void* _pPlatformData;
-} plCriticalSection;
-
-typedef struct _plSemaphore
-{
-    void* _pPlatformData;
-} plSemaphore;
-
-typedef struct _plBarrier
-{
-    void* _pPlatformData;
-} plBarrier;
-
-typedef struct _plConditionVariable
-{
-    void* _pPlatformData;
-} plConditionVariable;
-
-typedef struct _plThreadKey
-{
-    void* _pPlatformData;
-} plThreadKey;
-
-typedef struct _plSocket
-{
-    int   iPort;
-    void* _pPlatformData;
-} plSocket;
-
-typedef struct _plSharedLibrary
-{
-    bool     bValid;
-    uint32_t uTempIndex;
-    char     acPath[PL_MAX_PATH_LENGTH];
-    char     acTransitionalName[PL_MAX_PATH_LENGTH];
-    char     acLockFile[PL_MAX_PATH_LENGTH];
-    void*    _pPlatformData;
-} plSharedLibrary;
 
 #endif // PL_OS_H

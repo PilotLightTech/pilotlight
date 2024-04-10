@@ -70,7 +70,7 @@ typedef struct _plExtensionRegistryI plExtensionRegistryI;
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "stb_sprintf.h"
+
 
 #ifdef PL_USER_CONFIG
 #include PL_USER_CONFIG
@@ -82,6 +82,7 @@ typedef struct _plExtensionRegistryI plExtensionRegistryI;
 //-----------------------------------------------------------------------------
 
 #ifdef PL_USE_STB_SPRINTF
+#include "stb_sprintf.h"
 #define pl_sprintf stbsp_sprintf
 #define pl_vsprintf stbsp_vsprintf
 #define pl_vnsprintf stbsp_vsnprintf

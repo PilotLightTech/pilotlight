@@ -75,11 +75,16 @@ Index of this file:
 @interface plKeyEventResponder: NSView<NSTextInputClient>
 @end
 
-typedef struct _plAppleSharedLibrary
+typedef struct _plSharedLibrary
 {
+    bool     bValid;
+    uint32_t uTempIndex;
+    char     acPath[PL_MAX_PATH_LENGTH];
+    char     acTransitionalName[PL_MAX_PATH_LENGTH];
+    char     acLockFile[PL_MAX_PATH_LENGTH];
     void*           handle;
     struct timespec lastWriteTime;
-} plAppleSharedLibrary;
+} plSharedLibrary;
 
 typedef struct _plAtomicCounter
 {
@@ -101,6 +106,47 @@ typedef struct _plWindowData
     plNSViewController* ptViewController;
     CAMetalLayer*       ptLayer;
 } plWindowData;
+
+typedef struct _plSocket
+{
+    int iPort;
+    int iSocket;
+} plSocket;
+
+typedef struct _plThread
+{
+    pthread_t tHandle;
+} plThread;
+
+typedef struct _plMutex
+{
+    pthread_mutex_t tHandle;
+} plMutex;
+
+typedef struct _plCriticalSection
+{
+    pthread_mutex_t tHandle;
+} plCriticalSection;
+
+typedef struct _plSemaphore
+{
+    dispatch_semaphore_t tHandle;
+} plSemaphore;
+
+typedef struct _plBarrier
+{
+    pthread_barrier_t tHandle;
+} plBarrier;
+
+typedef struct _plConditionVariable
+{
+    pthread_cond_t tHandle;
+} plConditionVariable;
+
+typedef struct _plThreadKey
+{
+    pthread_key_t tKey;
+} plThreadKey;
 
 // barrier api emulation
 int pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t *attr, unsigned int count);
@@ -144,49 +190,49 @@ plWindow* pl__create_window(const plWindowDesc* ptDesc);
 void      pl__destroy_window(plWindow* ptWindow);
 
 // os services
-void  pl__read_file            (const char* pcFile, unsigned* puSize, char* pcBuffer, const char* pcMode);
-void  pl__copy_file            (const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer);
-void  pl__create_udp_socket    (plSocket* ptSocketOut, bool bNonBlocking);
+void  pl__read_file            (const char* pcFile, uint32_t* puSize, char* pcBuffer, const char* pcMode);
+void  pl__copy_file            (const char* pcSource, const char* pcDestination);
+void  pl__create_udp_socket    (plSocket** pptSocketOut, bool bNonBlocking);
 void  pl__bind_udp_socket      (plSocket* ptSocket, int iPort);
 bool  pl__send_udp_data        (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
 bool  pl__get_udp_data         (plSocket* ptSocket, void* pData, size_t szSize);
 bool  pl__has_library_changed  (plSharedLibrary* ptLibrary);
-bool  pl__load_library         (plSharedLibrary* ptLibrary, const char* pcName, const char* pcTransitionalName, const char* pcLockFile);
+bool  pl__load_library         (const char* pcName, const char* pcTransitionalName, const char* pcLockFile, plSharedLibrary** pptLibraryOut);
 void  pl__reload_library       (plSharedLibrary* ptLibrary);
 void* pl__load_library_function(plSharedLibrary* ptLibrary, const char* pcName);
 
 // thread api
-void                pl__sleep(uint32_t millisec);
-uint32_t            pl__get_hardware_thread_count(void);
-plThread            pl__create_thread(plThreadProcedure ptProcedure, void* pData);
-void                pl__join_thread(plThread* ptThread);
-void                pl__yield_thread(void);
-plMutex             pl__create_mutex(void);
-void                pl__lock_mutex(plMutex* ptMutex);
-void                pl__unlock_mutex(plMutex* ptMutex);
-void                pl__destroy_mutex(plMutex* ptMutex);
-plCriticalSection   pl__create_critical_section (void);
-void                pl__destroy_critical_section(plCriticalSection* ptCriticalSection);
-void                pl__enter_critical_section  (plCriticalSection* ptCriticalSection);
-void                pl__leave_critical_section  (plCriticalSection* ptCriticalSection);
-plSemaphore         pl__create_semaphore(uint32_t uIntialCount);
-void                pl__wait_on_semaphore(plSemaphore* ptSemaphore);
-bool                pl__try_wait_on_semaphore(plSemaphore* ptSemaphore);
-void                pl__release_semaphore(plSemaphore* ptSemaphore);
-void                pl__destroy_semaphore(plSemaphore* ptSemaphore);
-plThreadKey         pl__allocate_thread_local_key(void);
-void                pl__free_thread_local_key(plThreadKey* puIndex);
-void*               pl__allocate_thread_local_data(plThreadKey* ptKey, size_t szSize);
-void*               pl__get_thread_local_data(plThreadKey* ptKey);
-void                pl__free_thread_local_data(plThreadKey* ptKey, void* pData);
-plConditionVariable pl__create_condition_variable(void);
-void                pl__destroy_condition_variable(plConditionVariable* ptConditionVariable);
-void                pl__wake_condition_variable(plConditionVariable* ptConditionVariable);
-void                pl__wake_all_condition_variable(plConditionVariable* ptConditionVariable);
-void                pl__sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection);
-plBarrier           pl__create_barrier(uint32_t uThreadCount);
-void                pl__destroy_barrier(plBarrier* ptBarrier);
-void                pl__wait_on_barrier(plBarrier* ptBarrier);
+void     pl__sleep(uint32_t millisec);
+uint32_t pl__get_hardware_thread_count(void);
+void     pl__create_thread(plThreadProcedure ptProcedure, void* pData, plThread** ppThreadOut);
+void     pl__join_thread(plThread* ptThread);
+void     pl__yield_thread(void);
+void     pl__create_mutex(plMutex** ppMutexOut);
+void     pl__lock_mutex(plMutex* ptMutex);
+void     pl__unlock_mutex(plMutex* ptMutex);
+void     pl__destroy_mutex(plMutex** pptMutex);
+void     pl__create_critical_section(plCriticalSection** pptCriticalSectionOut);
+void     pl__destroy_critical_section(plCriticalSection** pptCriticalSection);
+void     pl__enter_critical_section  (plCriticalSection* ptCriticalSection);
+void     pl__leave_critical_section  (plCriticalSection* ptCriticalSection);
+void     pl__create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut);
+void     pl__wait_on_semaphore(plSemaphore* ptSemaphore);
+bool     pl__try_wait_on_semaphore(plSemaphore* ptSemaphore);
+void     pl__release_semaphore(plSemaphore* ptSemaphore);
+void     pl__destroy_semaphore(plSemaphore** pptSemaphore);
+void     pl__allocate_thread_local_key(plThreadKey** pptKeyOut);
+void     pl__free_thread_local_key(plThreadKey** ppuIndex);
+void*    pl__allocate_thread_local_data(plThreadKey* ptKey, size_t szSize);
+void*    pl__get_thread_local_data(plThreadKey* ptKey);
+void     pl__free_thread_local_data(plThreadKey* ptKey, void* pData);
+void     pl__create_condition_variable(plConditionVariable** pptConditionVariableOut);
+void     pl__destroy_condition_variable(plConditionVariable** pptConditionVariable);
+void     pl__wake_condition_variable(plConditionVariable* ptConditionVariable);
+void     pl__wake_all_condition_variable(plConditionVariable* ptConditionVariable);
+void     pl__sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection);
+void     pl__create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut);
+void     pl__destroy_barrier(plBarrier** pptBarrier);
+void     pl__wait_on_barrier(plBarrier* ptBarrier);
 
 // atomics
 void    pl__create_atomic_counter  (int64_t ilValue, plAtomicCounter** ptCounter);
@@ -209,7 +255,7 @@ static const plExtensionRegistryI* gptExtensionRegistry = NULL;
 // OS apis
 static const plLibraryApiI* gptLibraryApi = NULL;
 
-static plSharedLibrary      gtAppLibrary = {0};
+static plSharedLibrary*     gptAppLibrary = NULL;
 static void*                gUserData = NULL;
 static bool                 gRunning = true;
 static plKeyEventResponder* gKeyEventResponder = NULL;
@@ -374,12 +420,12 @@ int main()
     static char acTransitionalName[256] = {0};
     pl_sprintf(acLibraryName, "%s.dylib", "app");
     pl_sprintf(acTransitionalName, "%s_", "app");
-    if(gptLibraryApi->load(&gtAppLibrary, acLibraryName, acTransitionalName, "lock.tmp"))
+    if(gptLibraryApi->load(acLibraryName, acTransitionalName, "lock.tmp", &gptAppLibrary))
     {
-        pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
-        pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
+        pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
+        pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
         gUserData = pl_app_load(gptApiRegistry, NULL);
     }
 
@@ -656,13 +702,13 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
         gptIOCtx->bCursorChanged = false;
 
         // reload library
-        if(gptLibraryApi->has_changed(&gtAppLibrary))
+        if(gptLibraryApi->has_changed(gptAppLibrary))
         {
-            gptLibraryApi->reload(&gtAppLibrary);
-            pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
-            pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
-            pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
+            gptLibraryApi->reload(gptAppLibrary);
+            pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
+            pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
+            pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+            pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
             gUserData = pl_app_load(gptApiRegistry, gUserData);
         }
 
@@ -960,16 +1006,15 @@ pl__add_osx_tracking_area(NSView* _Nonnull view)
 }
 
 void
-pl__read_file(const char* file, unsigned* sizeIn, char* buffer, const char* mode)
+pl__read_file(const char* file, uint32_t* sizeIn, char* buffer, const char* mode)
 {
     PL_ASSERT(sizeIn);
 
     FILE* dataFile = fopen(file, mode);
-    unsigned size = 0u;
+    uint32_t size = 0u;
 
     if (dataFile == NULL)
     {
-        PL_ASSERT(false && "File not found.");
         *sizeIn = 0u;
         return;
     }
@@ -1002,7 +1047,7 @@ pl__read_file(const char* file, unsigned* sizeIn, char* buffer, const char* mode
 }
 
 void
-pl__copy_file(const char* source, const char* destination, unsigned* size, char* buffer)
+pl__copy_file(const char* source, const char* destination)
 {
     copyfile_state_t s;
     s = copyfile_state_alloc();
@@ -1011,13 +1056,12 @@ pl__copy_file(const char* source, const char* destination, unsigned* size, char*
 }
 
 void
-pl__create_udp_socket(plSocket* ptSocketOut, bool bNonBlocking)
+pl__create_udp_socket(plSocket** pptSocketOut, bool bNonBlocking)
 {
-
-    int iLinuxSocket = 0;
+    *pptSocketOut = PL_ALLOC(sizeof(plSocket));
 
     // create socket
-    if((iLinuxSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+    if(((*pptSocketOut)->iSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
     {
         printf("Could not create socket\n");
         PL_ASSERT(false && "Could not create socket");
@@ -1026,8 +1070,8 @@ pl__create_udp_socket(plSocket* ptSocketOut, bool bNonBlocking)
     // enable non-blocking
     if(bNonBlocking)
     {
-        int iFlags = fcntl(iLinuxSocket, F_GETFL);
-        fcntl(iLinuxSocket, F_SETFL, iFlags | O_NONBLOCK);
+        int iFlags = fcntl((*pptSocketOut)->iSocket, F_GETFL);
+        fcntl((*pptSocketOut)->iSocket, F_SETFL, iFlags | O_NONBLOCK);
     }
 }
 
@@ -1035,8 +1079,6 @@ void
 pl__bind_udp_socket(plSocket* ptSocket, int iPort)
 {
     ptSocket->iPort = iPort;
-    PL_ASSERT(ptSocket->_pPlatformData && "Socket not created yet");
-    int iLinuxSocket = (int)((intptr_t )ptSocket->_pPlatformData);
     
     // prepare sockaddr_in struct
     struct sockaddr_in tServer = {
@@ -1046,7 +1088,7 @@ pl__bind_udp_socket(plSocket* ptSocket, int iPort)
     };
 
     // bind socket
-    if(bind(iLinuxSocket, (struct sockaddr* )&tServer, sizeof(tServer)) < 0)
+    if(bind(ptSocket->iSocket, (struct sockaddr* )&tServer, sizeof(tServer)) < 0)
     {
         printf("Bind socket failed with error code : %d\n", errno);
         PL_ASSERT(false && "Socket error");
@@ -1056,9 +1098,6 @@ pl__bind_udp_socket(plSocket* ptSocket, int iPort)
 bool
 pl__send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize)
 {
-    PL_ASSERT(ptFromSocket->_pPlatformData && "Socket not created yet");
-    int iLinuxSocket = (int)((intptr_t )ptFromSocket->_pPlatformData);
-
     struct sockaddr_in tDestSocket = {
         .sin_family      = AF_INET,
         .sin_port        = htons((uint16_t)iDestPort),
@@ -1067,7 +1106,7 @@ pl__send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, v
     static const size_t szLen = sizeof(tDestSocket);
 
     // send
-    if(sendto(iLinuxSocket, (const char*)pData, (int)szSize, 0, (struct sockaddr*)&tDestSocket, (int)szLen) < 0)
+    if(sendto(ptFromSocket->iSocket, (const char*)pData, (int)szSize, 0, (struct sockaddr*)&tDestSocket, (int)szLen) < 0)
     {
         printf("sendto() failed with error code : %d\n", errno);
         PL_ASSERT(false && "Socket error");
@@ -1080,13 +1119,10 @@ pl__send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, v
 bool
 pl__get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
 {
-    PL_ASSERT(ptSocket->_pPlatformData && "Socket not created yet");
-    int iLinuxSocket = (int)((intptr_t )ptSocket->_pPlatformData);
-
     struct sockaddr_in tSiOther = {0};
     static socklen_t iSLen = (int)sizeof(tSiOther);
     memset(pData, 0, szSize);
-    int iRecvLen = recvfrom(iLinuxSocket, (char*)pData, (int)szSize, 0, (struct sockaddr*)&tSiOther, &iSLen);
+    int iRecvLen = recvfrom(ptSocket->iSocket, (char*)pData, (int)szSize, 0, (struct sockaddr*)&tSiOther, &iSLen);
 
     if(iRecvLen < 0)
     {
@@ -1104,38 +1140,42 @@ bool
 pl__has_library_changed(plSharedLibrary* library)
 {
     struct timespec newWriteTime = pl__get_last_write_time(library->acPath);
-    plAppleSharedLibrary* appleLibrary = library->_pPlatformData;
-    return newWriteTime.tv_sec != appleLibrary->lastWriteTime.tv_sec;
+    return newWriteTime.tv_sec != library->lastWriteTime.tv_sec;
 }
 
 bool
-pl__load_library(plSharedLibrary* library, const char* name, const char* transitionalName, const char* lockFile)
+pl__load_library(const char* name, const char* transitionalName, const char* lockFile, plSharedLibrary** pptLibraryOut)
 {
+
+    if(*pptLibraryOut == NULL)
+    {
+        *pptLibraryOut = PL_ALLOC(sizeof(plSharedLibrary));
+        memset((*pptLibraryOut), 0, sizeof(plSharedLibrary));
+        (*pptLibraryOut)->bValid = false;
+    }
+    plSharedLibrary* library = *pptLibraryOut;
+    
     if(library->acPath[0] == 0)             strncpy(library->acPath, name, PL_MAX_NAME_LENGTH);
     if(library->acTransitionalName[0] == 0) strncpy(library->acTransitionalName, transitionalName, PL_MAX_NAME_LENGTH);
     if(library->acLockFile[0] == 0)         strncpy(library->acLockFile, lockFile, PL_MAX_NAME_LENGTH);
     library->bValid = false;
 
-    if(library->_pPlatformData == NULL)
-        library->_pPlatformData = malloc(sizeof(plAppleSharedLibrary));
-    plAppleSharedLibrary* appleLibrary = library->_pPlatformData;
-
     struct stat attr2;
     if(stat(library->acLockFile, &attr2) == -1)  // lock file gone
     {
         char temporaryName[2024] = {0};
-        appleLibrary->lastWriteTime = pl__get_last_write_time(library->acPath);
+        library->lastWriteTime = pl__get_last_write_time(library->acPath);
         
         pl_sprintf(temporaryName, "%s%u%s", library->acTransitionalName, library->uTempIndex, ".dylib");
         if(++library->uTempIndex >= 1024)
         {
             library->uTempIndex = 0;
         }
-        pl__copy_file(library->acPath, temporaryName, NULL, NULL);
+        pl__copy_file(library->acPath, temporaryName);
 
-        appleLibrary->handle = NULL;
-        appleLibrary->handle = dlopen(temporaryName, RTLD_NOW);
-        if(appleLibrary->handle)
+        library->handle = NULL;
+        library->handle = dlopen(temporaryName, RTLD_NOW);
+        if(library->handle)
             library->bValid = true;
         else
         {
@@ -1152,7 +1192,7 @@ pl__reload_library(plSharedLibrary* library)
     library->bValid = false;
     for(uint32_t i = 0; i < 100; i++)
     {
-        if(pl__load_library(library, library->acPath, library->acTransitionalName, library->acLockFile))
+        if(pl__load_library(library->acPath, library->acTransitionalName, library->acLockFile, &library))
             break;
         pl__sleep(100);
     }
@@ -1165,8 +1205,7 @@ pl__load_library_function(plSharedLibrary* library, const char* name)
     void* loadedFunction = NULL;
     if(library->bValid)
     {
-        plAppleSharedLibrary* appleLibrary = library->_pPlatformData;
-        loadedFunction = dlsym(appleLibrary->handle, name);
+        loadedFunction = dlsym(library->handle, name);
     }
     return loadedFunction;
 }
@@ -1186,32 +1225,20 @@ pl__sleep(uint32_t millisec)
     while (res);
 }
 
-typedef struct _plThreadData
+void
+pl__create_thread(plThreadProcedure ptProcedure, void* pData, plThread** pptThreadOut)
 {
-  plThreadProcedure ptProcedure;
-  void*             pData;
-} plThreadData;
-
-plThread
-pl__create_thread(plThreadProcedure ptProcedure, void* pData)
-{
-    pthread_t tThreadHandle;
-    if(pthread_create(&tThreadHandle, NULL, ptProcedure, pData))
+    *pptThreadOut = PL_ALLOC(sizeof(plThread));
+    if(pthread_create(&(*pptThreadOut)->tHandle, NULL, ptProcedure, pData))
     {
         PL_ASSERT(false);
     }
-
-    plThread tThread = {
-        ._pPlatformData = (void*)tThreadHandle
-    };
-    return tThread;
 }
 
 void
 pl__join_thread(plThread* ptThread)
 {
-    pthread_t tThreadHandle = (pthread_t)ptThread->_pPlatformData;
-    pthread_join(tThreadHandle, NULL);
+    pthread_join(ptThread->tHandle, NULL);
 }
 
 void
@@ -1220,78 +1247,64 @@ pl__yield_thread(void)
     sched_yield();
 }
 
-plMutex
-pl__create_mutex(void)
+void
+pl__create_mutex(plMutex** pptMutexOut)
 {
-    pthread_mutex_t* ptMutexHandle = PL_ALLOC(sizeof(pthread_mutex_t));
-    if(pthread_mutex_init(ptMutexHandle, NULL))
+    *pptMutexOut = PL_ALLOC(sizeof(plMutex));
+    if(pthread_mutex_init(&(*pptMutexOut)->tHandle, NULL))
     {
         PL_ASSERT(false);
     }
-    plMutex tMutex = {
-        ._pPlatformData = (void*)ptMutexHandle
-    };
-    return tMutex;
 }
 
 void
 pl__lock_mutex(plMutex* ptMutex)
 {
-    pthread_mutex_t* ptMutexHandle = (pthread_mutex_t*)ptMutex->_pPlatformData;
-    pthread_mutex_lock(ptMutexHandle);
+    pthread_mutex_lock(&ptMutex->tHandle);
 }
 
 void
 pl__unlock_mutex(plMutex* ptMutex)
 {
-    pthread_mutex_t* ptMutexHandle = (pthread_mutex_t*)ptMutex->_pPlatformData;
-    pthread_mutex_unlock(ptMutexHandle);
+    pthread_mutex_unlock(&ptMutex->tHandle);
 }
 
 void
-pl__destroy_mutex(plMutex* ptMutex)
+pl__destroy_mutex(plMutex** pptMutex)
 {
-    pthread_mutex_t* ptMutexHandle = (pthread_mutex_t*)ptMutex->_pPlatformData;
-    pthread_mutex_destroy(ptMutexHandle);
-    PL_FREE(ptMutex->_pPlatformData);
-    ptMutex->_pPlatformData = NULL;
+    pthread_mutex_destroy(&(*pptMutex)->tHandle);
+    PL_FREE((*pptMutex));
+    *pptMutex = NULL;
 }
 
-plCriticalSection
-pl__create_critical_section(void)
+void
+pl__create_critical_section(plCriticalSection** pptCriticalSectionOut)
 {
-    pthread_mutex_t* ptMutexHandle = PL_ALLOC(sizeof(pthread_mutex_t));
-    if(pthread_mutex_init(ptMutexHandle, NULL))
+    *pptCriticalSectionOut = PL_ALLOC(sizeof(plCriticalSection));
+    if(pthread_mutex_init(&(*pptCriticalSectionOut)->tHandle, NULL))
     {
         PL_ASSERT(false);
     }
-    plCriticalSection tMutex = {
-        ._pPlatformData = (void*)ptMutexHandle
-    };
-    return tMutex;
 }
 
 void
-pl__destroy_critical_section(plCriticalSection* ptCriticalSection)
+pl__destroy_critical_section(plCriticalSection** pptCriticalSection)
 {
-    pthread_mutex_t* ptMutexHandle = (pthread_mutex_t*)ptCriticalSection->_pPlatformData;
-    pthread_mutex_destroy(ptMutexHandle);
-    PL_FREE(ptCriticalSection->_pPlatformData);
-    ptCriticalSection->_pPlatformData = NULL;
+    pthread_mutex_destroy(&(*pptCriticalSection)->tHandle);
+    PL_FREE((*pptCriticalSection));
+    *pptCriticalSection = NULL;
 }
 
 void
 pl__enter_critical_section(plCriticalSection* ptCriticalSection)
 {
-    pthread_mutex_t* ptMutexHandle = (pthread_mutex_t*)ptCriticalSection->_pPlatformData;
-    pthread_mutex_lock(ptMutexHandle);
+    pthread_mutex_lock(&ptCriticalSection->tHandle);
 }
 
 void
 pl__leave_critical_section(plCriticalSection* ptCriticalSection)
 {
-    pthread_mutex_t* ptMutexHandle = (pthread_mutex_t*)ptCriticalSection->_pPlatformData;
-    pthread_mutex_unlock(ptMutexHandle);
+    pthread_mutex_unlock(&ptCriticalSection->tHandle);
 }
 
 uint32_t
@@ -1302,171 +1315,134 @@ pl__get_hardware_thread_count(void)
     return (uint32_t)numCPU;
 }
 
-plSemaphore
-pl__create_semaphore(uint32_t uIntialCount)
+void
+pl__create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
 {
-    dispatch_semaphore_t tSemaphoreHandle = dispatch_semaphore_create(uIntialCount);
-    plSemaphore tSemaphore = {
-        ._pPlatformData = dispatch_semaphore_create(uIntialCount)
-    };
-    return tSemaphore;
+    *pptSemaphoreOut = PL_ALLOC(sizeof(plSemaphore));
+    memset((*pptSemaphoreOut), 0, sizeof(plSemaphore));
+    (*pptSemaphoreOut)->tHandle = dispatch_semaphore_create(uIntialCount);
 }
 
 void
-pl__destroy_semaphore(plSemaphore* ptSemaphore)
+pl__destroy_semaphore(plSemaphore** pptSemaphore)
 {
-
+    PL_FREE((*pptSemaphore));
+    *pptSemaphore = NULL;
 }
 
 void
 pl__wait_on_semaphore(plSemaphore* ptSemaphore)
 {
-    dispatch_semaphore_t tSemaphoreHandle = (dispatch_semaphore_t)ptSemaphore->_pPlatformData;
-    dispatch_semaphore_wait(tSemaphoreHandle, DISPATCH_TIME_FOREVER);
+    dispatch_semaphore_wait(ptSemaphore->tHandle, DISPATCH_TIME_FOREVER);
 }
 
 bool
 pl__try_wait_on_semaphore(plSemaphore* ptSemaphore)
 {
-    dispatch_semaphore_t tSemaphoreHandle = (dispatch_semaphore_t)ptSemaphore->_pPlatformData;
-    return dispatch_semaphore_wait(tSemaphoreHandle, DISPATCH_TIME_NOW) == 0;
+    return dispatch_semaphore_wait(ptSemaphore->tHandle, DISPATCH_TIME_NOW) == 0;
 }
 
 void
 pl__release_semaphore(plSemaphore* ptSemaphore)
 {
-    dispatch_semaphore_t tSemaphoreHandle = (dispatch_semaphore_t)ptSemaphore->_pPlatformData;
-    dispatch_semaphore_signal(tSemaphoreHandle);
+    dispatch_semaphore_signal(ptSemaphore->tHandle);
 }
 
-typedef struct _plLinuxThreadKey
-{
-    pthread_key_t tKey;
-} plLinuxThreadKey;
 
-plThreadKey
-pl__allocate_thread_local_key(void)
+void
+pl__allocate_thread_local_key(plThreadKey** pptKeyOut)
 {
-    plLinuxThreadKey* ptKey = PL_ALLOC(sizeof(plLinuxThreadKey));
-    int iStatus = pthread_key_create(&ptKey->tKey, NULL);
-    if(iStatus < 0)
+    *pptKeyOut = PL_ALLOC(sizeof(plThreadKey));
+    int iStatus = pthread_key_create(&(*pptKeyOut)->tKey, NULL);
+    if(iStatus != 0)
     {
         printf("pthread_key_create failed, errno=%d", errno);
         PL_ASSERT(false);
     }
-    plThreadKey tKey = {
-        ._pPlatformData = ptKey
-    };
-    return tKey;
 }
 
 void
-pl__free_thread_local_key(plThreadKey* ptKey)
+pl__free_thread_local_key(plThreadKey** pptKey)
 {
-    plLinuxThreadKey* ptLinuxKey = ptKey->_pPlatformData;
-    pthread_key_delete(ptLinuxKey->tKey);
-    PL_FREE(ptKey->_pPlatformData);
-    ptKey->_pPlatformData = NULL;
+    pthread_key_delete((*pptKey)->tKey);
+    PL_FREE((*pptKey));
+    *pptKey = NULL;
 }
 
 void*
 pl__allocate_thread_local_data(plThreadKey* ptKey, size_t szSize)
 {
-    plLinuxThreadKey* ptLinuxKey = ptKey->_pPlatformData;
     void* pData = PL_ALLOC(szSize);
     memset(pData, 0, szSize);
-
-    int iStatus = pthread_setspecific(ptLinuxKey->tKey, pData);
-    if (iStatus < 0) 
-    {
-        printf("pthread_setspecific failed, errno %d", errno);
-        pthread_exit((void *)12);
-        PL_ASSERT(false);
-    }
+    pthread_setspecific(ptKey->tKey, pData);
     return pData;
 }
 
 void*
 pl__get_thread_local_data(plThreadKey* ptKey)
 {
-    plLinuxThreadKey* ptLinuxKey = ptKey->_pPlatformData;
-    void* pData = pthread_getspecific(ptLinuxKey->tKey);
+    void* pData = pthread_getspecific(ptKey->tKey);
     return pData;
 }
 
 void
 pl__free_thread_local_data(plThreadKey* ptKey, void* pData)
 {
-    PL_FREE(ptKey->_pPlatformData);
-}
-
-plBarrier
-pl__create_barrier(uint32_t uThreadCount)
-{
-    pthread_barrier_t* ptSyncBarrier = PL_ALLOC(sizeof(pthread_barrier_t));
-    pthread_barrier_init(ptSyncBarrier, NULL, uThreadCount);
-    plBarrier tBarrier = {
-        ._pPlatformData = ptSyncBarrier
-    };
-    return tBarrier;
+    PL_FREE(pData);
 }
 
 void
-pl__destroy_barrier(plBarrier* ptBarrier)
+pl__create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut)
 {
-    pthread_barrier_t* ptSyncBarrier = ptBarrier->_pPlatformData;
-    pthread_barrier_destroy(ptSyncBarrier);
-    PL_FREE(ptBarrier->_pPlatformData);
-    ptBarrier->_pPlatformData = NULL;
+    *pptBarrierOut = PL_ALLOC(sizeof(plBarrier));
+    pthread_barrier_init(&(*pptBarrierOut)->tHandle, NULL, uThreadCount);
+}
+
+void
+pl__destroy_barrier(plBarrier** pptBarrier)
+{
+    pthread_barrier_destroy(&(*pptBarrier)->tHandle);
+    PL_FREE((*pptBarrier));
+    *pptBarrier = NULL;
 }
 
 void
 pl__wait_on_barrier(plBarrier* ptBarrier)
 {
-    pthread_barrier_t* ptSyncBarrier = ptBarrier->_pPlatformData;
-    pthread_barrier_wait(ptSyncBarrier);
+    pthread_barrier_wait(&ptBarrier->tHandle);
 }
 
-plConditionVariable
-pl__create_condition_variable(void)
+void
+pl__create_condition_variable(plConditionVariable** pptConditionVariableOut)
 {
-    pthread_cond_t* ptConditionVariable = PL_ALLOC(sizeof(pthread_cond_t));
-    pthread_cond_init(ptConditionVariable, NULL);
-    plConditionVariable tConditionalVariable = {
-        ._pPlatformData = ptConditionVariable
-    };
-    return tConditionalVariable;
+    *pptConditionVariableOut = PL_ALLOC(sizeof(plConditionVariable));
+    pthread_cond_init(&(*pptConditionVariableOut)->tHandle, NULL);
 }
 
 void               
-pl__destroy_condition_variable(plConditionVariable* ptConditionVariable)
+pl__destroy_condition_variable(plConditionVariable** pptConditionVariable)
 {
-    pthread_cond_t* ptCondVariable = ptConditionVariable->_pPlatformData;
-    pthread_cond_destroy(ptCondVariable);
-    PL_FREE(ptConditionVariable->_pPlatformData);
-    ptConditionVariable->_pPlatformData = NULL;
+    pthread_cond_destroy(&(*pptConditionVariable)->tHandle);
+    PL_FREE((*pptConditionVariable));
+    *pptConditionVariable = NULL;
 }
 
 void               
 pl__wake_condition_variable(plConditionVariable* ptConditionVariable)
 {
-    pthread_cond_t* ptCondVariable = ptConditionVariable->_pPlatformData;
-    pthread_cond_signal(ptCondVariable);
+    pthread_cond_signal(&ptConditionVariable->tHandle);
 }
 
 void               
 pl__wake_all_condition_variable(plConditionVariable* ptConditionVariable)
 {
-    pthread_cond_t* ptCondVariable = ptConditionVariable->_pPlatformData;
-    pthread_cond_broadcast(ptCondVariable);
+    pthread_cond_broadcast(&ptConditionVariable->tHandle);
 }
 
 void               
 pl__sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection)
 {
-    pthread_mutex_t* ptMutexHandle = (pthread_mutex_t*)ptCriticalSection->_pPlatformData;
-    pthread_cond_t* ptCondVariable = ptConditionVariable->_pPlatformData;
-    pthread_cond_wait(ptCondVariable, ptMutexHandle);
+    pthread_cond_wait(&ptConditionVariable->tHandle, &ptCriticalSection->tHandle);
 }
 
 void
