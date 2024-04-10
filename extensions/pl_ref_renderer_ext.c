@@ -249,7 +249,7 @@ static const plStatsApiI*        gptStats    = NULL;
 //-----------------------------------------------------------------------------
 
 // main
-static void pl_refr_initialize(void);
+static void pl_refr_initialize(plWindow* ptWindow);
 static void pl_refr_cleanup(void);
 
 // scenes
@@ -325,7 +325,7 @@ pl_load_ref_renderer_api(void)
 //-----------------------------------------------------------------------------
 
 static void
-pl_refr_initialize(void)
+pl_refr_initialize(plWindow* ptWindow)
 {
 
     // shader default values
@@ -349,7 +349,7 @@ pl_refr_initialize(void)
 
     // initialize graphics
     ptGraphics->bValidationActive = true;
-    gptGfx->initialize(ptGraphics);
+    gptGfx->initialize(ptWindow, ptGraphics);
     gptDataRegistry->set_data("device", &ptGraphics->tDevice); // used by debug extension
 
     // create main render pass

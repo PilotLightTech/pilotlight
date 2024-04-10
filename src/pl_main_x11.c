@@ -56,6 +56,10 @@ void pl_update_mouse_cursor_linux(void);
 void pl_linux_procedure          (xcb_generic_event_t* event);
 plKey pl__xcb_key_to_pl_key(uint32_t x_keycode);
 
+// window api
+plWindow* pl__create_window(const plWindowDesc* ptDesc);
+void      pl__destroy_window(plWindow* ptWindow);
+
 // os services
 void  pl__read_file            (const char* pcFile, unsigned* puSize, char* pcBuffer, const char* pcMode);
 void  pl__copy_file            (const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer);
@@ -129,6 +133,12 @@ typedef struct _plAtomicCounter
     atomic_int_fast64_t ilValue;
 } plAtomicCounter;
 
+typedef struct _plWindowData
+{
+    xcb_connection_t* ptConnection;
+    xcb_window_t      tWindow;
+} plWindowData;
+
 //-----------------------------------------------------------------------------
 // [SECTION] globals
 //-----------------------------------------------------------------------------
@@ -137,7 +147,6 @@ typedef struct _plAtomicCounter
 Display*              gDisplay       = NULL;
 xcb_connection_t*     gConnection    = NULL;
 xcb_key_symbols_t*    gKeySyms       = NULL;
-xcb_window_t          gWindow;
 xcb_screen_t*         gScreen        = NULL;
 bool                  gRunning       = true;
 xcb_atom_t            gWmProtocols;
@@ -161,11 +170,11 @@ const plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 plHashMap       gtMemoryHashMap = {0};
 plMemoryContext gtMemoryContext = {.ptHashMap = &gtMemoryHashMap};
 
+// windows
+plWindow** gsbtWindows = NULL;
+
 // app config
 char acAppName[256] = {0};
-char acWindowName[256] = {0};
-plVec2 tViewportSize = {500.0f, 500.0f};
-plVec2 tViewportPos  = {200.0f, 200.0f};
 
 // app function pointers
 void* (*pl_app_load)    (const plApiRegistryApiI* ptApiRegistry, void* ptAppData);
@@ -195,6 +204,11 @@ int main()
     gptIOCtx = pl_get_io();
 
     // os provided apis
+
+    static const plWindowI tWindowApi = {
+        .create_window  = pl__create_window,
+        .destroy_window = pl__destroy_window
+    };
 
     static const plLibraryApiI tLibraryApi = {
         .has_changed   = pl__has_library_changed,
@@ -268,9 +282,6 @@ int main()
     plJsonObject tJsonRoot = {0};
     pl_load_json(pcFileData, &tJsonRoot);
     pl_json_string_member(&tJsonRoot, "app name", acAppName, 256);
-    pl_json_string_member(&tJsonRoot, "viewport title", acWindowName, 256);
-    pl_json_float_array_member(&tJsonRoot, "viewport size", tViewportSize.d, NULL);
-    pl_json_float_array_member(&tJsonRoot, "viewport pos", tViewportPos.d, NULL);
     pl_unload_json(&tJsonRoot);
     PL_FREE(pcFileData);
 
@@ -280,6 +291,7 @@ int main()
     gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
 
     // add os specific apis
+    gptApiRegistry->add(PL_API_WINDOW, &tWindowApi);
     gptApiRegistry->add(PL_API_LIBRARY, &tLibraryApi);
     gptApiRegistry->add(PL_API_FILE, &tFileApi);
     gptApiRegistry->add(PL_API_UDP, &tUdpApi);
@@ -314,45 +326,8 @@ int main()
         xcb_screen_next(&it);
     }
 
-    // allocate a XID for the window to be created.
-    gWindow = xcb_generate_id(gConnection);
-
     // after screens have been looped through, assign it.
     gScreen = it.data;
-
-    // register event types.
-    // XCB_CW_BACK_PIXEL = filling then window bg with a single colour
-    // XCB_CW_EVENT_MASK is required.
-    unsigned int event_mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
-
-    // listen for keyboard and mouse buttons
-    unsigned int  event_values = 
-        XCB_EVENT_MASK_BUTTON_PRESS |
-        XCB_EVENT_MASK_BUTTON_RELEASE |
-        XCB_EVENT_MASK_KEY_PRESS |
-        XCB_EVENT_MASK_KEY_RELEASE |
-        XCB_EVENT_MASK_EXPOSURE |
-        XCB_EVENT_MASK_POINTER_MOTION |
-        XCB_EVENT_MASK_STRUCTURE_NOTIFY;
-
-    // values to be sent over XCB (bg colour, events)
-    unsigned int  value_list[] = {gScreen->black_pixel, event_values};
-
-    // Create the window
-    xcb_create_window(
-        gConnection,
-        XCB_COPY_FROM_PARENT,  // depth
-        gWindow,               // window
-        gScreen->root,         // parent
-        tViewportPos.x,        // x
-        tViewportPos.y,        // y
-        tViewportSize.x,       // width
-        tViewportSize.y,       // height
-        0,                     // No border
-        XCB_WINDOW_CLASS_INPUT_OUTPUT,  //class
-        gScreen->root_visual,
-        event_mask,
-        value_list);
 
     // setup timers
     static struct timespec ts;
@@ -368,64 +343,6 @@ int main()
 
     // Cursor context for looking up cursors for the current X cursor theme
     xcb_cursor_context_new(gConnection, gScreen, &ptCursorContext);
-
-    // Change the title
-    xcb_change_property(
-        gConnection,
-        XCB_PROP_MODE_REPLACE,
-        gWindow,
-        XCB_ATOM_WM_NAME,
-        XCB_ATOM_STRING,
-        8,  // data should be viewed 8 bits at a time
-        strlen(acWindowName),
-        acWindowName);
-
-    // Tell the server to notify when the window manager
-    // attempts to destroy the window.
-    xcb_intern_atom_cookie_t wm_delete_cookie = xcb_intern_atom(
-        gConnection,
-        0,
-        strlen("WM_DELETE_WINDOW"),
-        "WM_DELETE_WINDOW");
-    xcb_intern_atom_cookie_t wm_protocols_cookie = xcb_intern_atom(
-        gConnection,
-        0,
-        strlen("WM_PROTOCOLS"),
-        "WM_PROTOCOLS");
-    xcb_intern_atom_reply_t* wm_delete_reply = xcb_intern_atom_reply(
-        gConnection,
-        wm_delete_cookie,
-        NULL);
-    xcb_intern_atom_reply_t* wm_protocols_reply = xcb_intern_atom_reply(
-        gConnection,
-        wm_protocols_cookie,
-        NULL);
-    gWmDeleteWin = wm_delete_reply->atom;
-    gWmProtocols = wm_protocols_reply->atom;
-
-    xcb_change_property(
-        gConnection,
-        XCB_PROP_MODE_REPLACE,
-        gWindow,
-        wm_protocols_reply->atom,
-        4,
-        32,
-        1,
-        &wm_delete_reply->atom);
-
-    // Map the window to the screen
-    xcb_map_window(gConnection, gWindow);
-
-    // Flush the stream
-    int stream_result = xcb_flush(gConnection);
-
-    static struct {
-        xcb_connection_t* ptConnection;
-        xcb_window_t      tWindow;
-    } platformData;
-    platformData.ptConnection = gConnection;
-    platformData.tWindow = gWindow;
-    gptIOCtx->pBackendPlatformData = &platformData;
 
     // get the current key map
     gKeySyms = xcb_key_symbols_alloc(gConnection);
@@ -483,7 +400,6 @@ int main()
 
     // platform cleanup
     XAutoRepeatOn(gDisplay);
-    xcb_destroy_window(gConnection, gWindow);
     xcb_cursor_context_free(ptCursorContext);
     xcb_key_symbols_free(gKeySyms);
     
@@ -600,6 +516,9 @@ pl_linux_procedure(xcb_generic_event_t* event)
             // The application layer can decide what to do with this.
             xcb_configure_notify_event_t* configure_event = (xcb_configure_notify_event_t*)event;
 
+                gsbtWindows[0]->tDesc.iXPos = configure_event->x;
+                gsbtWindows[0]->tDesc.iYPos = configure_event->y;
+
             // Fire the event. The application layer should pick this up, but not handle it
             // as it shouldn be visible to other parts of the application.
             if(configure_event->width != gptIOCtx->afMainViewportSize[0] || configure_event->height != gptIOCtx->afMainViewportSize[1])
@@ -607,6 +526,9 @@ pl_linux_procedure(xcb_generic_event_t* event)
                 gptIOCtx->afMainViewportSize[0] = configure_event->width;
                 gptIOCtx->afMainViewportSize[1] = configure_event->height;
                 gptIOCtx->bViewportSizeChanged = true;
+                gsbtWindows[0]->tDesc.uWidth = configure_event->width;
+                gsbtWindows[0]->tDesc.uHeight = configure_event->height;
+
             }
             break;
         } 
@@ -646,7 +568,8 @@ pl_update_mouse_cursor_linux(void)
         // IM_ASSERT(cursor && "X cursor not found!");
 
         uint32_t value_list = cursor;
-        xcb_change_window_attributes(gConnection, gWindow, XCB_CW_CURSOR, &value_list);
+        plWindowData* ptData = gsbtWindows[0]->_pPlatformData;
+        xcb_change_window_attributes(gConnection, ptData->tWindow, XCB_CW_CURSOR, &value_list);
         xcb_free_cursor(gConnection, cursor);
         xcb_close_font_checked(gConnection, font);
     }
@@ -1216,6 +1139,114 @@ void
 pl__atomic_decrement(plAtomicCounter* ptCounter)
 {
     atomic_fetch_sub(&ptCounter->ilValue, 1);
+}
+
+plWindow*
+pl__create_window(const plWindowDesc* ptDesc)
+{
+    plWindow* ptWindow = malloc(sizeof(plWindow));
+    plWindowData* ptData = malloc(sizeof(plWindowData));
+    ptWindow->tDesc = *ptDesc; //-V522
+    ptWindow->_pPlatformData = ptData;
+
+    ptData->tWindow = xcb_generate_id(gConnection); //-V522
+    ptData->ptConnection = gConnection; //-V522
+
+    // register event types.
+    // XCB_CW_BACK_PIXEL = filling then window bg with a single colour
+    // XCB_CW_EVENT_MASK is required.
+    unsigned int event_mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
+
+    // listen for keyboard and mouse buttons
+    unsigned int  event_values = 
+        XCB_EVENT_MASK_BUTTON_PRESS |
+        XCB_EVENT_MASK_BUTTON_RELEASE |
+        XCB_EVENT_MASK_KEY_PRESS |
+        XCB_EVENT_MASK_KEY_RELEASE |
+        XCB_EVENT_MASK_EXPOSURE |
+        XCB_EVENT_MASK_POINTER_MOTION |
+        XCB_EVENT_MASK_STRUCTURE_NOTIFY;
+
+    // values to be sent over XCB (bg colour, events)
+    unsigned int  value_list[] = {gScreen->black_pixel, event_values};
+
+    // Create the window
+    xcb_create_window(
+        gConnection,
+        XCB_COPY_FROM_PARENT,  // depth
+        ptData->tWindow,
+        gScreen->root, // parent
+        ptDesc->iXPos,
+        ptDesc->iYPos,
+        ptDesc->uWidth,
+        ptDesc->uHeight,
+        0, // No border
+        XCB_WINDOW_CLASS_INPUT_OUTPUT, // class
+        gScreen->root_visual,
+        event_mask,
+        value_list);
+
+    // Change the title
+    xcb_change_property(
+        gConnection,
+        XCB_PROP_MODE_REPLACE,
+        ptData->tWindow,
+        XCB_ATOM_WM_NAME,
+        XCB_ATOM_STRING,
+        8,  // data should be viewed 8 bits at a time
+        strlen(ptDesc->pcName),
+        ptDesc->pcName);
+
+    // Tell the server to notify when the window manager
+    // attempts to destroy the window.
+    xcb_intern_atom_cookie_t wm_delete_cookie = xcb_intern_atom(
+        gConnection,
+        0,
+        strlen("WM_DELETE_WINDOW"),
+        "WM_DELETE_WINDOW");
+    xcb_intern_atom_cookie_t wm_protocols_cookie = xcb_intern_atom(
+        gConnection,
+        0,
+        strlen("WM_PROTOCOLS"),
+        "WM_PROTOCOLS");
+    xcb_intern_atom_reply_t* wm_delete_reply = xcb_intern_atom_reply(
+        gConnection,
+        wm_delete_cookie,
+        NULL);
+    xcb_intern_atom_reply_t* wm_protocols_reply = xcb_intern_atom_reply(
+        gConnection,
+        wm_protocols_cookie,
+        NULL);
+    gWmDeleteWin = wm_delete_reply->atom;
+    gWmProtocols = wm_protocols_reply->atom;
+
+    xcb_change_property(
+        gConnection,
+        XCB_PROP_MODE_REPLACE,
+        ptData->tWindow,
+        wm_protocols_reply->atom,
+        4,
+        32,
+        1,
+        &wm_delete_reply->atom);
+
+    // Map the window to the screen
+    xcb_map_window(gConnection, ptData->tWindow);
+
+    int stream_result = xcb_flush(gConnection);
+
+    pl_sb_push(gsbtWindows, ptWindow);
+
+    return ptWindow;
+}
+
+void
+pl__destroy_window(plWindow* ptWindow)
+{
+    plWindowData* ptData = ptWindow->_pPlatformData;
+    xcb_destroy_window(gConnection, ptData->tWindow);
+    free(ptData);
+    free(ptWindow);
 }
 
 plKey

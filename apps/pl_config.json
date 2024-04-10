@@ -1,6 +1,3 @@
 {
-    "viewport title" : "pilotlight example",
-    "app name" : "app",
-    "viewport size": [500, 500],
-    "viewport pos": [200, 200]
+    "app name" : "app"
 }

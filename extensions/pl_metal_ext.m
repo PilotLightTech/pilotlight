@@ -1440,7 +1440,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
 }
 
 static void
-pl_initialize_graphics(plGraphics* ptGraphics)
+pl_initialize_graphics(plWindow* ptWindow, plGraphics* ptGraphics)
 {
     plIO* ptIOCtx = pl_get_io();
 

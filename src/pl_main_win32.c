@@ -67,6 +67,10 @@ void             pl_update_mouse_cursor    (void);
 inline bool      pl__is_vk_down            (int iVk) { return (GetKeyState(iVk) & 0x8000) != 0;}
 plKey            pl__virtual_key_to_pl_key (WPARAM tWParam);
 
+// window api
+plWindow* pl__create_window(const plWindowDesc* ptDesc);
+void      pl__destroy_window(plWindow* ptWindow);
+
 // clip board
 static const char* pl__get_clipboard_text(void* user_data_ctx);
 static void        pl__set_clipboard_text(void* pUnused, const char* text);
@@ -149,7 +153,6 @@ typedef struct _plAtomicCounter
 //-----------------------------------------------------------------------------
 
 // win32 stuff
-HWND            gtHandle                          = NULL;
 plSharedLibrary gtAppLibrary                      = {0};
 void*           gpUserData                        = NULL;
 bool            gbRunning                         = true;
@@ -171,11 +174,12 @@ const plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 plHashMap       gtMemoryHashMap = {0};
 plMemoryContext gtMemoryContext = {.ptHashMap = &gtMemoryHashMap};
 
+// windows
+WNDCLASSEXW gtWc;
+plWindow** gsbtWindows = NULL;
+
 // app config
 char acAppName[256] = {0};
-char acWindowName[256] = {0};
-plVec2 tViewportSize = {500.0f, 500.0f};
-plVec2 tViewportPos  = {200.0f, 200.0f};
 
 // app function pointers
 void* (*pl_app_load)    (const plApiRegistryApiI* ptApiRegistry, void* userData);
@@ -210,6 +214,11 @@ int main(int argc, char *argv[])
     }
 
     // os provided apis
+
+    static const plWindowI tWindowApi = {
+        .create_window  = pl__create_window,
+        .destroy_window = pl__destroy_window
+    };
 
     static const plLibraryApiI tLibraryApi = {
         .has_changed   = pl__has_library_changed,
@@ -283,9 +292,6 @@ int main(int argc, char *argv[])
     plJsonObject tJsonRoot = {0};
     pl_load_json(pcFileData, &tJsonRoot);
     pl_json_string_member(&tJsonRoot, "app name", acAppName, 256);
-    pl_json_string_member(&tJsonRoot, "viewport title", acWindowName, 256);
-    pl_json_float_array_member(&tJsonRoot, "viewport size", tViewportSize.d, NULL);
-    pl_json_float_array_member(&tJsonRoot, "viewport pos", tViewportPos.d, NULL);
     pl_unload_json(&tJsonRoot);
     PL_FREE(pcFileData);
 
@@ -295,6 +301,7 @@ int main(int argc, char *argv[])
     gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
 
     // add os specific apis
+    gptApiRegistry->add(PL_API_WINDOW, &tWindowApi);
     gptApiRegistry->add(PL_API_LIBRARY, &tLibraryApi);
     gptApiRegistry->add(PL_API_FILE, &tFileApi);
     gptApiRegistry->add(PL_API_UDP, &tUdpApi);
@@ -310,49 +317,19 @@ int main(int argc, char *argv[])
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
     // register window class
-    const WNDCLASSEXW tWc = {
-        .cbSize        = sizeof(WNDCLASSEX),
-        .style         = CS_HREDRAW | CS_VREDRAW,
-        .lpfnWndProc   = pl__windows_procedure,
-        .cbClsExtra    = 0,
-        .cbWndExtra    = 0,
-        .hInstance     = GetModuleHandle(NULL),
-        .hIcon         = NULL,
-        .hCursor       = NULL,
-        .hbrBackground = NULL,
-        .lpszMenuName  = NULL,
-        .lpszClassName = L"Pilot Light (win32)",
-        .hIconSm       = NULL
-    };
-    RegisterClassExW(&tWc);
-
-    // calculate window size based on desired client region size
-    RECT tWr = 
-    {
-        .left = (LONG)tViewportPos.x,
-        .right = (LONG)(tViewportSize.x + tViewportPos.x),
-        .top = (LONG)tViewportPos.y,
-        .bottom = (LONG)(tViewportSize.y + tViewportPos.y)
-    };
-    AdjustWindowRect(&tWr, WS_OVERLAPPEDWINDOW, FALSE);
-
-    // convert title to wide chars
-    wchar_t awWideTitle[1024];
-    pl__convert_to_wide_string(acWindowName, awWideTitle);
-
-    // create window & get handle
-    gtHandle = CreateWindowExW(
-        0,
-        tWc.lpszClassName,
-        awWideTitle,
-        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_THICKFRAME,
-        0, 0, tWr.right - tWr.left, tWr.bottom - tWr.top,
-        NULL,
-        NULL,
-        GetModuleHandle(NULL),
-        NULL // user data
-    );
-    gptIOCtx->pBackendPlatformData = &gtHandle; // required to create surfaces for vulkan
+    gtWc.cbSize        = sizeof(WNDCLASSEX);
+    gtWc.style         = CS_HREDRAW | CS_VREDRAW;
+    gtWc.lpfnWndProc   = pl__windows_procedure;
+    gtWc.cbClsExtra    = 0;
+    gtWc.cbWndExtra    = 0;
+    gtWc.hInstance     = GetModuleHandle(NULL);
+    gtWc.hIcon         = NULL;
+    gtWc.hCursor       = NULL;
+    gtWc.hbrBackground = NULL;
+    gtWc.lpszMenuName  = NULL;
+    gtWc.lpszClassName = L"Pilot Light (win32)";
+    gtWc.hIconSm       = NULL;
+    RegisterClassExW(&gtWc);
 
     // setup info for clock
     QueryPerformanceFrequency((LARGE_INTEGER*)&ilTicksPerSecond);
@@ -390,9 +367,6 @@ int main(int argc, char *argv[])
         pl_app_update   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
         gpUserData = pl_app_load(gptApiRegistry, NULL);
     }
-
-    // show window
-    ShowWindow(gtHandle, SW_SHOWDEFAULT);
 
     // main loop
     while (gbRunning)
@@ -436,9 +410,9 @@ int main(int argc, char *argv[])
     pl_app_shutdown(gpUserData);
 
     // cleanup win32 stuff
-    UnregisterClassW(tWc.lpszClassName, GetModuleHandle(NULL));
-    DestroyWindow(gtHandle);
-    gtHandle = NULL;
+    UnregisterClassW(gtWc.lpszClassName, GetModuleHandle(NULL));
+    pl_sb_free(gsbtWindows);
+    // DestroyWindow(gtHandle);
 
     // cleanup io context
     gptExtensionRegistry->unload_all();
@@ -477,6 +451,19 @@ int main(int argc, char *argv[])
 LRESULT CALLBACK 
 pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 {
+    // find window
+    plWindow* ptWindow = NULL;
+    for(uint32_t i = 0; i < pl_sb_size(gsbtWindows); i++)
+    {
+        HWND tHandle = gsbtWindows[i]->_pPlatformData;
+        if(tHandle == tHwnd)
+        {
+            ptWindow = gsbtWindows[i];
+            break;
+        }
+    }
+    // PL_ASSERT(ptWindow);
+
     static UINT_PTR puIDEvent = 0;
     switch (tMsg)
     {
@@ -517,7 +504,13 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
                     gptIOCtx->bViewportSizeChanged = true;  
 
                 gptIOCtx->afMainViewportSize[0] = (float)iCWidth;
-                gptIOCtx->afMainViewportSize[1] = (float)iCHeight;    
+                gptIOCtx->afMainViewportSize[1] = (float)iCHeight;
+
+                if(ptWindow)
+                {
+                    ptWindow->tDesc.uWidth = (uint32_t)iCWidth;
+                    ptWindow->tDesc.uHeight = (uint32_t)iCHeight;
+                }
 
                 if(gptIOCtx->bViewportSizeChanged && !gptIOCtx->bViewportMinimized && !gbFirstRun)
                 {
@@ -720,6 +713,15 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
                 pl__render_frame();
             break;
         }
+    #else
+	case WM_MOVING:
+	{
+        // TODO: possibly handle horizontal shift? check dpg
+		RECT rect = *(RECT*)(tLParam);
+		ptWindow->tDesc.iXPos = rect.left;
+		ptWindow->tDesc.iYPos = rect.top;
+		break;
+	}
     #endif
     }
     return DefWindowProcW(tHwnd, tMsg, tWParam, tLParam);
@@ -780,6 +782,54 @@ pl_update_mouse_cursor(void)
     }
     gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
     gptIOCtx->bCursorChanged = false;
+}
+
+plWindow*
+pl__create_window(const plWindowDesc* ptDesc)
+{
+    plWindow* ptWindow = malloc(sizeof(plWindow));
+    ptWindow->tDesc = *ptDesc;
+
+    // calculate window size based on desired client region size
+    RECT tWr = 
+    {
+        .left = (LONG)ptDesc->iXPos,
+        .right = (LONG)(ptDesc->uWidth + ptDesc->iXPos),
+        .top = (LONG)ptDesc->iYPos,
+        .bottom = (LONG)(ptDesc->uHeight + ptDesc->iYPos)
+    };
+    AdjustWindowRect(&tWr, WS_OVERLAPPEDWINDOW, FALSE);
+
+    // convert title to wide chars
+    wchar_t awWideTitle[1024];
+    pl__convert_to_wide_string(ptDesc->pcName, awWideTitle);
+
+    // create window & get handle
+    HWND tHandle = CreateWindowExW(
+        0,
+        gtWc.lpszClassName,
+        awWideTitle,
+        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_THICKFRAME,
+        tWr.left, tWr.top, tWr.right - tWr.left, tWr.bottom - tWr.top,
+        NULL,
+        NULL,
+        GetModuleHandle(NULL),
+        NULL // user data
+    );
+
+    ptWindow->_pPlatformData = tHandle;
+    pl_sb_push(gsbtWindows, ptWindow);
+
+    // show window
+    ShowWindow(tHandle, SW_SHOWDEFAULT);
+    return ptWindow;
+}
+
+void
+pl__destroy_window(plWindow* ptWindow)
+{
+    DestroyWindow(ptWindow->_pPlatformData);
+    free(ptWindow);
 }
 
 plKey

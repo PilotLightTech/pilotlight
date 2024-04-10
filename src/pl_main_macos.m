@@ -96,7 +96,14 @@ typedef struct
     int tripCount;
 } pthread_barrier_t;
 
+typedef struct _plWindowData
+{
+    NSWindow*           ptWindow;
+    plNSViewController* ptViewController;
+    CAMetalLayer*       ptLayer;
+} plWindowData;
 
+// barrier api emulation
 int pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t *attr, unsigned int count);
 int pthread_barrier_destroy(pthread_barrier_t *barrier);
 int pthread_barrier_wait(pthread_barrier_t *barrier);
@@ -133,6 +140,11 @@ static plKey pl__osx_key_to_pl_key(int iKey);
 static void  pl__add_osx_tracking_area(NSView* _Nonnull view);
 static bool  pl__handle_osx_event(NSEvent* event, NSView* view);
 
+// window api
+plWindow* pl__create_window(const plWindowDesc* ptDesc);
+void      pl__destroy_window(plWindow* ptWindow);
+
+// os services
 void  pl__read_file            (const char* pcFile, unsigned* puSize, char* pcBuffer, const char* pcMode);
 void  pl__copy_file            (const char* pcSource, const char* pcDestination, unsigned* puSize, char* pcBuffer);
 void  pl__create_udp_socket    (plSocket* ptSocketOut, bool bNonBlocking);
@@ -198,8 +210,6 @@ static const plExtensionRegistryApiI* gptExtensionRegistry = NULL;
 // OS apis
 static const plLibraryApiI* gptLibraryApi = NULL;
 
-static NSWindow*            gWindow = NULL;
-static NSViewController*    gViewController = NULL;
 static plSharedLibrary      gtAppLibrary = {0};
 static void*                gUserData = NULL;
 static bool                 gRunning = true;
@@ -217,11 +227,12 @@ plUiContext* gptUiCtx = NULL;
 static plMemoryContext gtMemoryContext = {0};
 static plHashMap gtMemoryHashMap = {0};
 
+// windows
+plWindow** gsbtWindows = NULL;
+
 // app config
+id gtAppDelegate;
 char acAppName[256] = {0};
-char acWindowName[256] = {0};
-plVec2 tViewportSize = {500.0f, 500.0f};
-plVec2 tViewportPos  = {200.0f, 200.0f};
 
 // app function pointers
 static void* (*pl_app_load)    (const plApiRegistryApiI* ptApiRegistry, void* ptAppData);
@@ -252,6 +263,11 @@ int main()
     // load apis
     gtMemoryContext.ptHashMap = &gtMemoryHashMap;
     gptApiRegistry = pl_load_core_apis();
+
+    static const plWindowI tWindowApi = {
+        .create_window  = pl__create_window,
+        .destroy_window = pl__destroy_window
+    };
 
     static const plLibraryApiI tApi3 = {
         .has_changed   = pl__has_library_changed,
@@ -325,12 +341,10 @@ int main()
     plJsonObject tJsonRoot = {0};
     pl_load_json(pcFileData, &tJsonRoot);
     pl_json_string_member(&tJsonRoot, "app name", acAppName, 256);
-    pl_json_string_member(&tJsonRoot, "viewport title", acWindowName, 256);
-    pl_json_float_array_member(&tJsonRoot, "viewport size", tViewportSize.d, NULL);
-    pl_json_float_array_member(&tJsonRoot, "viewport pos", tViewportPos.d, NULL);
     pl_unload_json(&tJsonRoot);
     PL_FREE(pcFileData);
 
+    gptApiRegistry->add(PL_API_WINDOW, &tWindowApi);
     gptApiRegistry->add(PL_API_LIBRARY, &tApi3);
     gptApiRegistry->add(PL_API_FILE, &tApi4);
     gptApiRegistry->add(PL_API_UDP, &tApi5);
@@ -346,32 +360,17 @@ int main()
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
     // create view controller
-    gViewController = [[plNSViewController alloc] init];
     gKeyEventResponder = [[plKeyEventResponder alloc] initWithFrame:NSZeroRect];
 
     // set clipboard functions (may need to move this to OS api)
     gptIOCtx->set_clipboard_text_fn = pl__set_clipboard_text;
     gptIOCtx->get_clipboard_text_fn = pl__get_clipboard_text;
 
-    // create window
-    gWindow = [NSWindow windowWithContentViewController:gViewController];
-    [gWindow orderFront:nil];
-    [gWindow center];
-    [gWindow becomeKeyWindow];
-
-    NSString* tWindowTitle = [NSString stringWithUTF8String:acWindowName];
-    [gWindow setTitle:tWindowTitle];
-
-
-    NSPoint tOrigin = NSMakePoint(tViewportPos.x, gWindow.screen.frame.size.height - tViewportPos.y);
-    [gWindow setFrameTopLeftPoint:tOrigin];
-
     gInputContext = [[NSTextInputContext alloc] initWithClient:gKeyEventResponder];
 
     // create app delegate
-    id appDelegate = [[plNSAppDelegate alloc] init];
-    gWindow.delegate = appDelegate;
-    NSApplication.sharedApplication.delegate = appDelegate;
+    gtAppDelegate= [[plNSAppDelegate alloc] init];
+    NSApplication.sharedApplication.delegate = gtAppDelegate;
 
     // Load cursors. Some of them are undocumented.
     aptMouseCursors[PL_MOUSE_CURSOR_ARROW] = [NSCursor arrowCursor];
@@ -383,6 +382,20 @@ int main()
     aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_EW] = [NSCursor respondsToSelector:@selector(_windowResizeEastWestCursor)] ? [NSCursor _windowResizeEastWestCursor] : [NSCursor resizeLeftRightCursor];
     aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NESW] = [NSCursor respondsToSelector:@selector(_windowResizeNorthEastSouthWestCursor)] ? [NSCursor _windowResizeNorthEastSouthWestCursor] : [NSCursor closedHandCursor];
     aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NWSE] = [NSCursor respondsToSelector:@selector(_windowResizeNorthWestSouthEastCursor)] ? [NSCursor _windowResizeNorthWestSouthEastCursor] : [NSCursor closedHandCursor];
+
+    // load library
+    static char acLibraryName[256] = {0};
+    static char acTransitionalName[256] = {0};
+    pl_sprintf(acLibraryName, "%s.dylib", acAppName);
+    pl_sprintf(acTransitionalName, "%s_", acAppName);
+    if(gptLibraryApi->load(&gtAppLibrary, acLibraryName, acTransitionalName, "lock.tmp"))
+    {
+        pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryApiI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
+        pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
+        gUserData = pl_app_load(gptApiRegistry, NULL);
+    }
 
     // run app
     [NSApplication sharedApplication];
@@ -417,8 +430,8 @@ int main()
 - (void)dealloc
 {
     [self stopRenderLoop];
-    [gWindow.delegate release];
-    [gWindow release];
+    [gtAppDelegate release];
+    
     [_delegate shutdown];
     [super dealloc];
 }
@@ -617,43 +630,17 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 
 - (void)loadView
 {
-    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
 
-    NSRect frame = NSMakeRect(0, 0, tViewportSize.x, tViewportSize.y);
-    self.view = [[plNSView alloc] initWithFrame:frame];
-
-    plNSView *view = (plNSView *)self.view;
-    view.metalLayer.device = device;    
-    view.delegate = self;
-    view.metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    gptIOCtx->pBackendPlatformData = device;
-
-    #ifdef PL_VULKAN_BACKEND
-        gptIOCtx->pBackendPlatformData = view.metalLayer;
-    #endif
-    gptIOCtx->afMainViewportSize[0] = tViewportSize.x;
-    gptIOCtx->afMainViewportSize[1] = tViewportSize.y;
-
-    // load library
-    static char acLibraryName[256] = {0};
-    static char acTransitionalName[256] = {0};
-    pl_sprintf(acLibraryName, "%s.dylib", acAppName);
-    pl_sprintf(acTransitionalName, "%s_", acAppName);
-    if(gptLibraryApi->load(&gtAppLibrary, acLibraryName, acTransitionalName, "lock.tmp"))
-    {
-        pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryApiI*, void*)) gptLibraryApi->load_function(&gtAppLibrary, "pl_app_load");
-        pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(&gtAppLibrary, "pl_app_update");
-        gUserData = pl_app_load(gptApiRegistry, NULL);
-    }
 }
 
 - (void)drawableResize:(CGSize)size
 {
     gptIOCtx->afMainViewportSize[0] = size.width;
     gptIOCtx->afMainViewportSize[1] = size.height;
-    pl_app_resize(gUserData);
+    if(gUserData)
+    {
+        pl_app_resize(gUserData);
+    }
 }
 
 - (void)renderToMetalLayer:(nonnull CAMetalLayer *)layer
@@ -1538,6 +1525,62 @@ void
 pl__atomic_decrement(plAtomicCounter* ptCounter)
 {
     atomic_fetch_sub(&ptCounter->ilValue, 1);
+}
+
+plWindow*
+pl__create_window(const plWindowDesc* ptDesc)
+{
+    plWindow* ptWindow = malloc(sizeof(plWindow));
+    plWindowData* ptData = malloc(sizeof(plWindowData));
+    ptWindow->tDesc = *ptDesc;
+    ptWindow->_pPlatformData = ptData;
+
+    // create view
+    ptData->ptViewController = [[plNSViewController alloc] init];
+
+   id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+
+    NSRect frame = NSMakeRect(0, 0, ptDesc->uWidth, ptDesc->uHeight);
+    ptData->ptViewController.view = [[plNSView alloc] initWithFrame:frame];
+
+    plNSView *view = (plNSView *)ptData->ptViewController.view;
+    view.metalLayer.device = device;    
+    view.delegate = ptData->ptViewController;
+    view.metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+    gptIOCtx->pBackendPlatformData = device;
+    ptData->ptLayer = view.metalLayer;
+
+    // create window
+    ptData->ptWindow = [NSWindow windowWithContentViewController:ptData->ptViewController];
+    [ptData->ptWindow orderFront:nil];
+    [ptData->ptWindow center];
+    [ptData->ptWindow becomeKeyWindow];
+
+    NSString* tWindowTitle = [NSString stringWithUTF8String:ptDesc->pcName];
+    [ptData->ptWindow setTitle:tWindowTitle];
+
+
+    NSPoint tOrigin = NSMakePoint(ptDesc->iXPos, ptData->ptWindow.screen.frame.size.height - ptDesc->iYPos);
+    [ptData->ptWindow setFrameTopLeftPoint:tOrigin];
+
+    
+    ptData->ptWindow.delegate = gtAppDelegate;
+
+    gptIOCtx->afMainViewportSize[0] = ptDesc->uWidth;
+    gptIOCtx->afMainViewportSize[1] = ptDesc->uHeight;
+
+    pl_sb_push(gsbtWindows, ptWindow);
+
+    return ptWindow;
+}
+
+void
+pl__destroy_window(plWindow* ptWindow)
+{
+    plWindowData* ptData = ptWindow->_pPlatformData;
+    [ptData->ptWindow release];
+    free(ptData);
+    free(ptWindow);
 }
 
 const char*

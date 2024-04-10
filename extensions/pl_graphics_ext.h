@@ -206,8 +206,9 @@ typedef int plBlendOp;                // -> enum _plBlendOp                // En
 typedef int plBlendFactor;            // -> enum _plBlendFactor            // Enum:
 
 // external
-typedef struct _plDrawList plDrawList;
+typedef struct _plDrawList  plDrawList;
 typedef struct _plFontAtlas plFontAtlas;
+typedef struct _plWindow    plWindow;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
@@ -273,7 +274,7 @@ typedef struct _plDeviceI
 
 typedef struct _plGraphicsI
 {
-    void (*initialize)(plGraphics* ptGraphics);
+    void (*initialize)(plWindow* ptWindow, plGraphics* ptGraphics);
     void (*resize)    (plGraphics* ptGraphics);
     void (*cleanup)   (plGraphics* ptGraphics);
     void (*setup_ui)  (plGraphics* ptGraphics, plRenderPassHandle tPass);
@@ -829,6 +830,7 @@ typedef struct _plSwapchain
 typedef struct _plGraphics
 {
     plDevice        tDevice;
+    plWindow*       ptMainWindow;
     plSwapchain     tSwapchain;
     uint32_t        uCurrentFrameIndex;
     uint32_t        uFramesInFlight;

@@ -2890,8 +2890,10 @@ pl_draw_list(plGraphics* ptGraphics, plRenderEncoder tEncoder, uint32_t uListCou
 }
 
 static void
-pl_initialize_graphics(plGraphics* ptGraphics)
+pl_initialize_graphics(plWindow* ptWindow, plGraphics* ptGraphics)
 {
+
+    ptGraphics->ptMainWindow = ptWindow;
 
     plIO* ptIOCtx = pl_get_io();
 
@@ -3078,7 +3080,7 @@ pl_initialize_graphics(plGraphics* ptGraphics)
             .pNext = NULL,
             .flags = 0,
             .hinstance = GetModuleHandle(NULL),
-            .hwnd = *(HWND*)ptIOCtx->pBackendPlatformData
+            .hwnd = (HWND)ptWindow->_pPlatformData
         };
         PL_VULKAN(vkCreateWin32SurfaceKHR(ptVulkanGfx->tInstance, &tSurfaceCreateInfo, NULL, &ptVulkanGfx->tSurface));
     #elif defined(__ANDROID__)
@@ -3090,14 +3092,20 @@ pl_initialize_graphics(plGraphics* ptGraphics)
         };
         PL_VULKAN(vkCreateAndroidSurfaceKHR(ptVulkanGfx->tInstance, &tSurfaceCreateInfo, NULL, &ptVulkanGfx->tSurface));
     #elif defined(__APPLE__)
+        typedef struct _plWindowData
+        {
+            void*           ptWindow;
+            void* ptViewController;
+            CAMetalLayer*       ptLayer;
+        } plWindowData;
         const VkMetalSurfaceCreateInfoEXT tSurfaceCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT,
-            .pLayer = (CAMetalLayer*)ptIOCtx->pBackendPlatformData
+            .pLayer = ((plWindowData*)ptWindow->_pPlatformData)->ptLayer
         };
         PL_VULKAN(vkCreateMetalSurfaceEXT(ptVulkanGfx->tInstance, &tSurfaceCreateInfo, NULL, &ptVulkanGfx->tSurface));
     #else // linux
         struct tPlatformData { xcb_connection_t* ptConnection; xcb_window_t tWindow;};
-        struct tPlatformData* ptPlatformData = (struct tPlatformData*)ptIOCtx->pBackendPlatformData;
+        struct tPlatformData* ptPlatformData = (struct tPlatformData*)ptWindow->_pPlatformData;
         const VkXcbSurfaceCreateInfoKHR tSurfaceCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
             .pNext = NULL,
@@ -3562,6 +3570,8 @@ pl_setup_ui(plGraphics* ptGraphics, plRenderPassHandle tPass)
 {
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
+    plIO* ptIo = pl_get_io();
+    ptIo->pBackendPlatformData = ptGraphics->ptMainWindow->_pPlatformData;
 
     // setup drawing api
     const plVulkanInit tVulkanInit = {

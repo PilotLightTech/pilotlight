@@ -45,6 +45,10 @@ Index of this file:
 
 typedef struct plAppData_t
 {
+
+    // windows
+    plWindow* ptWindow;
+
     // ui options
     plDebugApiInfo tDebugInfo;
     bool           bShowUiDemo;
@@ -85,6 +89,7 @@ typedef struct plAppData_t
 // [SECTION] global apis
 //-----------------------------------------------------------------------------
 
+const plWindowI*               gptWindows           = NULL;
 const plThreadsI*              gptThreads           = NULL;
 const plApiRegistryApiI*       gptApiRegistry       = NULL;
 const plDataRegistryApiI*      gptDataRegistry      = NULL;
@@ -119,6 +124,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
         pl_set_profile_context(gptDataRegistry->get_data("profile"));
 
         // reload global apis
+        gptWindows  = ptApiRegistry->first(PL_API_WINDOW);
         gptThreads  = ptApiRegistry->first(PL_API_THREADS);
         gptStats    = ptApiRegistry->first(PL_API_STATS);
         gptFile     = ptApiRegistry->first(PL_API_FILE);
@@ -162,6 +168,7 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_ref_renderer_ext", "pl_load_ext", "pl_unload_ext", true);
 
     // load apis
+    gptWindows  = ptApiRegistry->first(PL_API_WINDOW);
     gptThreads  = ptApiRegistry->first(PL_API_THREADS);
     gptStats    = ptApiRegistry->first(PL_API_STATS);
     gptFile     = ptApiRegistry->first(PL_API_FILE);
@@ -175,10 +182,19 @@ pl_app_load(plApiRegistryApiI* ptApiRegistry, plAppData* ptAppData)
     gptResource = ptApiRegistry->first(PL_API_RESOURCE);
     gptRenderer = ptApiRegistry->first(PL_API_REF_RENDERER);
 
+    const plWindowDesc tWindowDesc = {
+        .pcName  = "Pilot Light Example",
+        .iXPos   = 200,
+        .iYPos   = 200,
+        .uWidth  = 600,
+        .uHeight = 600,
+    };
+    ptAppData->ptWindow = gptWindows->create_window(&tWindowDesc);
+
     plIO* ptIO = pl_get_io();
 
     // setup reference renderer
-    gptRenderer->initialize();
+    gptRenderer->initialize(ptAppData->ptWindow);
 
     // setup ui
     pl_add_default_font(&ptAppData->tFontAtlas);
@@ -257,6 +273,7 @@ pl_app_shutdown(plAppData* ptAppData)
     gptGfx->destroy_font_atlas(&ptAppData->tFontAtlas); // backend specific cleanup
     pl_cleanup_font_atlas(&ptAppData->tFontAtlas);
     gptRenderer->cleanup();
+    gptWindows->destroy_window(ptAppData->ptWindow);
     pl_cleanup_profile_context();
     pl_cleanup_log_context();
     PL_FREE(ptAppData);

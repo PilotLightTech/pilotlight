@@ -35,6 +35,7 @@ typedef struct _plShaderVariant plShaderVariant;
 typedef struct _plComputeShaderVariant plComputeShaderVariant;
 
 // external 
+typedef struct _plWindow           plWindow;         // pl_os.h
 typedef struct _plGraphics         plGraphics;         // pl_graphics_ext.h
 typedef struct _plDrawList3D       plDrawList3D;       // pl_graphics_ext.h
 typedef struct _plCommandBuffer    plCommandBuffer;    // pl_graphics_ext.h
@@ -60,7 +61,7 @@ const plRefRendererI* pl_load_ref_renderer_api(void);
 typedef struct _plRefRendererI
 {
     // setup/shutdown
-    void (*initialize)(void);
+    void (*initialize)(plWindow* ptWindow);
     void (*cleanup)   (void);
 
     // scenes
