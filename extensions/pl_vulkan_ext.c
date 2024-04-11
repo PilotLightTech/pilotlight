@@ -3405,6 +3405,7 @@ pl_initialize_graphics(plWindow* ptWindow, plGraphics* ptGraphics)
 
         plBufferHandle tStagingBuffer0 = pl_create_buffer(&ptGraphics->tDevice, &tStagingBufferDescription0, NULL);
 
+        tFrame.uCurrentBufferIndex = UINT32_MAX;
         tFrame.sbtDynamicBuffers[0].uHandle = tStagingBuffer0.uIndex;
         tFrame.sbtDynamicBuffers[0].tBuffer = ptVulkanGfx->sbtBuffersHot[tStagingBuffer0.uIndex].tBuffer;
         tFrame.sbtDynamicBuffers[0].tMemory = ptGraphics->sbtBuffersCold[tStagingBuffer0.uIndex].tMemoryAllocation;
@@ -3597,6 +3598,7 @@ pl_begin_frame(plGraphics* ptGraphics)
     ptVulkanGfx->bWithinFrameContext = true;
 
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
+    ptCurrentFrame->uCurrentBufferIndex = UINT32_MAX;
 
     PL_VULKAN(vkWaitForFences(ptVulkanDevice->tLogicalDevice, 1, &ptCurrentFrame->tInFlight, VK_TRUE, UINT64_MAX));
     
