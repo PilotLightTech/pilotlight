@@ -144,12 +144,32 @@ static void
 pl__show_memory_allocations(bool* bValue)
 {
 
+    if(!ptDevice)
+        ptDevice = ptDataRegistry->get_data("device");
+
     if(pl_begin_window("Memory Allocations", bValue, false))
     {
         pl_layout_dynamic(0.0f, 1);
+        if(ptMemoryCtx->szMemoryUsage > 1000000000)
+            pl_text("General Memory Usage:       %0.3f gb", (double)ptMemoryCtx->szMemoryUsage / 1000000000);
+        else if(ptMemoryCtx->szMemoryUsage > 1000000)
+            pl_text("General Memory Usage:       %0.3f mb", (double)ptMemoryCtx->szMemoryUsage / 1000000);
+        else if(ptMemoryCtx->szMemoryUsage > 1000)
+            pl_text("General Memory Usage:       %0.3f kb", (double)ptMemoryCtx->szMemoryUsage / 1000);
+        else
+            pl_text("General Memory Usage:       %llu bytes", (double)ptMemoryCtx->szMemoryUsage);
+    
+        if(ptDevice->ptGraphics->szHostMemoryInUse > 1000000000)
+            pl_text("Host Graphics Memory Usage: %0.3f gb", (double)ptDevice->ptGraphics->szHostMemoryInUse / 1000000000);
+        else if(ptDevice->ptGraphics->szHostMemoryInUse > 1000000)
+            pl_text("Host Graphics Memory Usage: %0.3f mb", (double)ptDevice->ptGraphics->szHostMemoryInUse / 1000000);
+        else if(ptDevice->ptGraphics->szHostMemoryInUse > 1000)
+            pl_text("Host Graphics Memory Usage: %0.3f kb", (double)ptDevice->ptGraphics->szHostMemoryInUse / 1000);
+        else
+            pl_text("Host Graphics Memory Usage: %llu bytes", (double)ptDevice->ptGraphics->szHostMemoryInUse);
 
-        pl_text("Active Allocations: %u", ptMemoryCtx->szActiveAllocations);
-        pl_text("Freed Allocations: %u", ptMemoryCtx->szAllocationFrees);
+        pl_text("Active Allocations:         %u", ptMemoryCtx->szActiveAllocations);
+        pl_text("Freed Allocations:          %u", ptMemoryCtx->szAllocationFrees);
 
         static char pcFile[1024] = {0};
 

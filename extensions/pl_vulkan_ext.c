@@ -3331,22 +3331,17 @@ pl_initialize_graphics(plWindow* ptWindow, plGraphics* ptGraphics)
     VkDescriptorPoolSize atPoolSizes[] =
     {
         { VK_DESCRIPTOR_TYPE_SAMPLER,                100000 },
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100000 },
         { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,          100000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          100000 },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER,   100000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,   100000 },
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         100000 },
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         100000 },
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 100000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 100000 },
         { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,       100000 }
     };
     VkDescriptorPoolCreateInfo tDescriptorPoolInfo = {
         .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-        .maxSets       = 100000 * 11,
-        .poolSizeCount = 11u,
+        .maxSets       = 100000 * 6,
+        .poolSizeCount = 6,
         .pPoolSizes    = atPoolSizes,
     };
     PL_VULKAN(vkCreateDescriptorPool(ptVulkanDevice->tLogicalDevice, &tDescriptorPoolInfo, NULL, &ptVulkanGfx->tDescriptorPool));
@@ -3441,22 +3436,17 @@ pl_initialize_graphics(plWindow* ptWindow, plGraphics* ptGraphics)
         VkDescriptorPoolSize atDynamicPoolSizes[] =
         {
             { VK_DESCRIPTOR_TYPE_SAMPLER,                100000 },
-            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100000 },
             { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,          100000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          100000 },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER,   100000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,   100000 },
             { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         100000 },
             { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         100000 },
             { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 100000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 100000 },
             { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,       100000 }
         };
         VkDescriptorPoolCreateInfo tDynamicDescriptorPoolInfo = {
             .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-            .maxSets       = 100000 * 11,
-            .poolSizeCount = 11u,
+            .maxSets       = 100000 * 6,
+            .poolSizeCount = 6,
             .pPoolSizes    = atDynamicPoolSizes,
         };
         PL_VULKAN(vkCreateDescriptorPool(ptVulkanDevice->tLogicalDevice, &tDynamicDescriptorPoolInfo, NULL, &tFrame.tDynamicDescriptorPool));
