@@ -40,12 +40,6 @@ typedef struct _plExtension
     void (*pl_unload) (const plApiRegistryI* ptApiRegistry);
 } plExtension;
 
-typedef struct _plDataEntry
-{
-    const char* pcName;
-    void*       pData;
-} plDataEntry;
-
 typedef struct _plApiEntry
 {
     const char*          pcName;
@@ -54,6 +48,29 @@ typedef struct _plApiEntry
     void**               sbUserData;
 } plApiEntry;
 
+typedef struct _plDataRegistryData
+{
+    plDataObject** sbtDataObjects;
+    plDataObject** sbtDataObjectsDeletionQueue;
+    plDataID*      sbtFreeDataIDs;
+    plDataObject*  aptObjects[1024];
+} plDataRegistryData;
+
+typedef union _plDataObjectProperty
+{
+    const char* pcValue;
+    void*       pValue;
+} plDataObjectProperty;
+
+typedef struct _plDataObject
+{
+    plDataID              tId;
+    uint32_t              uReferenceCount;
+    plDataObjectProperty  atDefaultProperties[2];
+    uint32_t              uPropertyCount;
+    plDataObjectProperty* ptProperties;
+} plDataObject;
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
@@ -61,6 +78,20 @@ typedef struct _plApiEntry
 // data registry functions
 void  pl__set_data(const char* pcName, void* pData);
 void* pl__get_data(const char* pcName);
+
+// new data registry functions
+
+void                pl__garbage_collect(void);
+plDataID            pl__create_object(void);
+plDataID            pl__get_object_by_name(const char* pcName);
+const plDataObject* pl__read      (plDataID);
+void                pl__end_read  (const plDataObject* ptReader);
+const char*         pl__get_string(const plDataObject*, uint32_t uProperty);
+void*               pl__get_buffer(const plDataObject*, uint32_t uProperty);
+plDataObject*       pl__write     (plDataID);
+void                pl__set_string(plDataObject*, uint32_t, const char*);
+void                pl__set_buffer(plDataObject*, uint32_t, void*);
+void                pl__commit    (plDataObject*);
 
 // api registry functions
 static const void* pl__add_api        (const char* pcName, const void* pInterface);
@@ -100,7 +131,8 @@ pl__load_api_registry(void)
 
 // data registry
 plHashMap    gtHashMap = {0};
-plDataEntry* gsbDataEntries = NULL;
+plDataRegistryData gtDataRegistryData = {0};
+plMutex*     gptDataMutex = NULL;
 
 // api registry
 plApiEntry* gsbApiEntries = NULL;
@@ -119,10 +151,28 @@ pl_load_core_apis(void)
 {
 
     const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
+    pl__create_mutex(&gptDataMutex);
+
+    pl_sb_resize(gtDataRegistryData.sbtFreeDataIDs, 1024);
+    for(uint32_t i = 0; i < 1024; i++)
+    {
+        gtDataRegistryData.sbtFreeDataIDs[i].uIndex = i;
+    }
 
     static const plDataRegistryI tApi0 = {
         .set_data = pl__set_data,
-        .get_data = pl__get_data
+        .get_data = pl__get_data,
+        .garbage_collect = pl__garbage_collect,
+        .create_object = pl__create_object,
+        .get_object_by_name = pl__get_object_by_name,
+        .read = pl__read,
+        .end_read = pl__end_read,
+        .get_string = pl__get_string,
+        .get_buffer = pl__get_buffer,
+        .write = pl__write,
+        .set_string = pl__set_string,
+        .set_buffer = pl__set_buffer,
+        .commit = pl__commit
     };
 
     static const plExtensionRegistryI tApi1 = {
@@ -149,7 +199,6 @@ pl_unload_core_apis(void)
         pl_sb_free(gsbApiEntries[i].sbUserData);
     }
 
-    pl_sb_free(gsbDataEntries);
     pl_sb_free(gsbtExtensions);
     pl_sb_free(gsbptLibs);
     pl_sb_free(gsbtHotLibs);
@@ -164,36 +213,174 @@ pl_unload_core_apis(void)
 void
 pl__set_data(const char* pcName, void* pData)
 {
-    const uint64_t ulHash = pl_hm_hash_str(pcName);
+    plDataID tData = {
+        .ulData = pl_hm_lookup_str(&gtHashMap, pcName)
+    };
 
-    const bool bDataExists = pl_hm_has_key(&gtHashMap, ulHash);
-
-    if(!bDataExists)
+    if(tData.ulData == UINT64_MAX)
     {
-        uint64_t ulFreeIndex = pl_hm_get_free_index(&gtHashMap);
-        if(ulFreeIndex == UINT64_MAX)
-        {
-            pl_sb_add(gsbDataEntries);
-            ulFreeIndex = pl_sb_size(gsbDataEntries) - 1;
-        }
-
-        pl_hm_insert(&gtHashMap, ulHash, ulFreeIndex);
-
-        gsbDataEntries[ulFreeIndex].pcName = pcName;
-        gsbDataEntries[ulFreeIndex].pData = pData;
-
+        tData = pl__create_object();
     }
+    plDataObject* ptWriter = pl__write(tData);
+    pl__set_string(ptWriter, 0, pcName);
+    pl__set_buffer(ptWriter, 1, pData);
+    pl__commit(ptWriter);
 }
 
 void*
 pl__get_data(const char* pcName)
 {
-    const uint64_t ulIndex = pl_hm_lookup_str(&gtHashMap, pcName);
+    plDataID tData = pl__get_object_by_name(pcName);
+    const plDataObject* ptReader = pl__read(tData);
+    void* pData = pl__get_buffer(ptReader, 1);
+    pl__end_read(ptReader);
+    return pData;
+}
 
-    if(ulIndex == UINT64_MAX)
-        return NULL;
+void
+pl__garbage_collect(void)
+{
+    pl__lock_mutex(gptDataMutex);
+    for(uint32_t i = 0; i < pl_sb_size(gtDataRegistryData.sbtDataObjectsDeletionQueue); i++)
+    {
+        if(gtDataRegistryData.sbtDataObjectsDeletionQueue[i]->uReferenceCount == 0)
+        {
+            pl_sb_push(gtDataRegistryData.sbtDataObjects, gtDataRegistryData.sbtDataObjectsDeletionQueue[i]);
+            pl_sb_del_swap(gtDataRegistryData.sbtDataObjectsDeletionQueue, i);
+            i--;
+        }
+    }
+    pl__unlock_mutex(gptDataMutex);
+}
 
-    return gsbDataEntries[ulIndex].pData;
+plDataID
+pl__create_object(void)
+{
+    plDataID tId = {.ulData = UINT64_MAX};
+
+    pl__lock_mutex(gptDataMutex);
+    if(pl_sb_size(gtDataRegistryData.sbtFreeDataIDs) > 0)
+    {
+        tId = pl_sb_pop(gtDataRegistryData.sbtFreeDataIDs);
+    }
+    else
+    {
+        PL_ASSERT(false);
+    }
+
+    plDataObject* ptObject = NULL;
+    if(pl_sb_size(gtDataRegistryData.sbtDataObjects) > 0)
+    {
+        ptObject = pl_sb_pop(gtDataRegistryData.sbtDataObjects);
+    }
+    else
+    {
+        ptObject = PL_ALLOC(sizeof(plDataObject));
+        memset(ptObject, 0, sizeof(plDataObject));
+    }
+    pl__unlock_mutex(gptDataMutex);
+    ptObject->tId = tId;
+
+    ptObject->uPropertyCount = 2;
+    ptObject->ptProperties = ptObject->atDefaultProperties;
+    ptObject->atDefaultProperties[0].pcValue = NULL;
+    ptObject->atDefaultProperties[1].pValue = NULL;
+
+    gtDataRegistryData.aptObjects[tId.uIndex] = ptObject;
+
+    return tId;
+}
+
+plDataID
+pl__get_object_by_name(const char* pcName)
+{
+    plDataID tID = {
+        .ulData = pl_hm_lookup_str(&gtHashMap, pcName)
+    };
+    return tID;
+}
+
+const plDataObject*
+pl__read(plDataID tId)
+{
+    gtDataRegistryData.aptObjects[tId.uIndex]->uReferenceCount++;
+    return gtDataRegistryData.aptObjects[tId.uIndex];
+}
+
+void
+pl__end_read(const plDataObject* ptReader)
+{
+    gtDataRegistryData.aptObjects[ptReader->tId.uIndex]->uReferenceCount--;
+}
+
+const char*
+pl__get_string(const plDataObject* ptReader, uint32_t uProperty)
+{
+    return ptReader->ptProperties[uProperty].pcValue;
+}
+
+void*
+pl__get_buffer(const plDataObject* ptReader, uint32_t uProperty)
+{
+    return ptReader->ptProperties[uProperty].pValue;
+}
+
+plDataObject*
+pl__write(plDataID tId)
+{
+    const plDataObject* ptOriginalObject = gtDataRegistryData.aptObjects[tId.uIndex];
+
+    pl__lock_mutex(gptDataMutex);
+    plDataObject* ptObject = NULL;
+    if(pl_sb_size(gtDataRegistryData.sbtDataObjects) > 0)
+    {
+        ptObject = pl_sb_pop(gtDataRegistryData.sbtDataObjects);
+    }
+    else
+    {
+        ptObject = PL_ALLOC(sizeof(plDataObject));
+        memset(ptObject, 0, sizeof(plDataObject));
+    }
+    pl__unlock_mutex(gptDataMutex);
+
+    memcpy(ptObject, ptOriginalObject, sizeof(plDataObject));
+    ptObject->uReferenceCount = 0;
+    ptObject->ptProperties = ptObject->atDefaultProperties;
+
+    return ptObject;
+}
+
+void
+pl__set_string(plDataObject* ptWriter, uint32_t uProperty, const char* pcValue)
+{
+    ptWriter->ptProperties[uProperty].pcValue = pcValue;
+    if(uProperty == 0)
+    {
+        if(pl_hm_has_key_str(&gtHashMap, pcValue))
+        {
+            pl_hm_remove_str(&gtHashMap, pcValue);
+        }
+        else
+        {
+            pl_hm_insert_str(&gtHashMap, pcValue, ptWriter->tId.ulData);
+        }
+    }
+}
+
+void
+pl__set_buffer(plDataObject* ptWriter, uint32_t uProperty, void* pData)
+{
+    ptWriter->ptProperties[uProperty].pValue = pData;
+}
+
+void
+pl__commit(plDataObject* ptWriter)
+{
+    plDataObject* ptOriginalObject = gtDataRegistryData.aptObjects[ptWriter->tId.uIndex];
+    pl__lock_mutex(gptDataMutex);
+    pl_sb_push(gtDataRegistryData.sbtDataObjectsDeletionQueue, ptOriginalObject);
+    pl__unlock_mutex(gptDataMutex);
+    gtDataRegistryData.aptObjects[ptWriter->tId.uIndex] = ptWriter;
 }
 
 static const void*
@@ -432,7 +619,8 @@ pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
     return realloc(pBuffer, szSize);
 }
 
-// ui
+#ifdef PL_USE_UI
 #include "pl_ui.c"
 #include "pl_ui_widgets.c"
 #include "pl_ui_draw.c"
+#endif

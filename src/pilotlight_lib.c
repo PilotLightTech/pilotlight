@@ -105,8 +105,9 @@ pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
     return pNewBuffer;
 }
 
-// ui
+#ifdef PL_USE_UI
 #include "pl_ui.c"
 #include "pl_ui_widgets.c"
 #include "pl_ui_demo.c"
 #include "pl_ui_draw.c"
+#endif

@@ -421,6 +421,8 @@ int main()
         const double dCurrentTime = pl__get_linux_absolute_time();
         gptIOCtx->fDeltaTime = (float)(dCurrentTime - dTime);
         dTime = dCurrentTime;
+
+        gptDataRegistry->garbage_collect();
         pl_app_update(gUserData);
         gptExtensionRegistry->reload();
     }

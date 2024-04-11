@@ -773,6 +773,8 @@ pl__convert_to_wide_string(const char* pcNarrowValue, wchar_t* pwWideValue)
 void
 pl__render_frame(void)
 {
+    gptDataRegistry->garbage_collect();
+
     // setup time step
     INT64 ilCurrentTime = 0;
     QueryPerformanceCounter((LARGE_INTEGER*)&ilCurrentTime);

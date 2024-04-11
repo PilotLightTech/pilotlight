@@ -729,6 +729,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
         gptIOCtx->fDeltaTime = (float)(dCurrentTime - tTime);
         tTime = dCurrentTime;
 
+        gptDataRegistry->garbage_collect();
         pl_app_update(gUserData);
         gptExtensionRegistry->reload();
     }
