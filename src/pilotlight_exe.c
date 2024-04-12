@@ -159,23 +159,23 @@ pl_load_core_apis(void)
         gtDataRegistryData.sbtFreeDataIDs[i].uIndex = i;
     }
 
-    static const plDataRegistryI tApi0 = {
-        .set_data = pl__set_data,
-        .get_data = pl__get_data,
-        .garbage_collect = pl__garbage_collect,
-        .create_object = pl__create_object,
+    static const plDataRegistryI tDataRegistryApi = {
+        .set_data           = pl__set_data,
+        .get_data           = pl__get_data,
+        .garbage_collect    = pl__garbage_collect,
+        .create_object      = pl__create_object,
         .get_object_by_name = pl__get_object_by_name,
-        .read = pl__read,
-        .end_read = pl__end_read,
-        .get_string = pl__get_string,
-        .get_buffer = pl__get_buffer,
-        .write = pl__write,
-        .set_string = pl__set_string,
-        .set_buffer = pl__set_buffer,
-        .commit = pl__commit
+        .read               = pl__read,
+        .end_read           = pl__end_read,
+        .get_string         = pl__get_string,
+        .get_buffer         = pl__get_buffer,
+        .write              = pl__write,
+        .set_string         = pl__set_string,
+        .set_buffer         = pl__set_buffer,
+        .commit             = pl__commit
     };
 
-    static const plExtensionRegistryI tApi1 = {
+    static const plExtensionRegistryI tExtensionRegistryApi = {
         .load       = pl__load_extension,
         .unload     = pl__unload_extension,
         .unload_all = pl__unload_all_extensions,
@@ -183,8 +183,8 @@ pl_load_core_apis(void)
     };
 
     // apis more likely to not be stored, should be first (api registry is not sorted)
-    ptApiRegistry->add(PL_API_DATA_REGISTRY, &tApi0);
-    ptApiRegistry->add(PL_API_EXTENSION_REGISTRY, &tApi1);
+    ptApiRegistry->add(PL_API_DATA_REGISTRY, &tDataRegistryApi);
+    ptApiRegistry->add(PL_API_EXTENSION_REGISTRY, &tExtensionRegistryApi);
 
     return ptApiRegistry;
 }
@@ -510,7 +510,7 @@ pl__load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnl
 
     plSharedLibrary* ptLibrary = NULL;
 
-    const plLibraryApiI* ptLibraryApi = ptApiRegistry->first(PL_API_LIBRARY);
+    const plLibraryI* ptLibraryApi = ptApiRegistry->first(PL_API_LIBRARY);
 
     if(ptLibraryApi->load(tExtension.pcLibPath, tExtension.pcTransName, "./lock.tmp", &ptLibrary))
     {

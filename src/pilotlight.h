@@ -22,8 +22,8 @@ Index of this file:
 #ifndef PILOTLIGHT_H
 #define PILOTLIGHT_H
 
-#define PILOTLIGHT_VERSION    "0.9.0"
-#define PILOTLIGHT_VERSION_NUM 000900
+#define PILOTLIGHT_VERSION    "1.0.0a"
+#define PILOTLIGHT_VERSION_NUM 100000
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis

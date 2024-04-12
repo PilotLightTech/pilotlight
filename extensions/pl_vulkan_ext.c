@@ -60,7 +60,7 @@ Index of this file:
 // [SECTION] global data
 //-----------------------------------------------------------------------------
 
-const plFileApiI* gptFile = NULL;
+const plFileI* gptFile = NULL;
 static uint32_t uLogChannel = UINT32_MAX;
 
 //-----------------------------------------------------------------------------

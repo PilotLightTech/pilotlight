@@ -252,19 +252,19 @@ int main()
         .destroy_window = pl__destroy_window
     };
 
-    static const plLibraryApiI tLibraryApi = {
+    static const plLibraryI tLibraryApi = {
         .has_changed   = pl__has_library_changed,
         .load          = pl__load_library,
         .load_function = pl__load_library_function,
         .reload        = pl__reload_library
     };
 
-    static const plFileApiI tFileApi = {
+    static const plFileI tFileApi = {
         .copy = pl__copy_file,
         .read = pl__read_file
     };
     
-    static const plUdpApiI tUdpApi = {
+    static const plUdpI tUdpApi = {
         .create_socket = pl__create_udp_socket,
         .bind_socket   = pl__bind_udp_socket,  
         .get_data      = pl__get_udp_data,
@@ -378,7 +378,7 @@ int main()
     gKeySyms = xcb_key_symbols_alloc(gConnection);
 
     // load library
-    const plLibraryApiI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
+    const plLibraryI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
     static char acLibraryName[256] = {0};
     static char acTransitionalName[256] = {0};
     pl_sprintf(acLibraryName, "./%s.so", "app");

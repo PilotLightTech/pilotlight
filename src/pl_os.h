@@ -36,13 +36,13 @@ Index of this file:
 typedef struct _plWindowI plWindowI;
 
 #define PL_API_LIBRARY "PL_API_LIBRARY"
-typedef struct _plLibraryApiI plLibraryApiI;
+typedef struct _plLibraryI plLibraryI;
 
 #define PL_API_FILE "FILE API"
-typedef struct _plFileApiI plFileApiI;
+typedef struct _plFileI plFileI;
 
 #define PL_API_UDP "UDP API"
-typedef struct _plUdpApiI plUdpApiI;
+typedef struct _plUdpI plUdpI;
 
 #define PL_API_THREADS "PL_API_THREADS"
 typedef struct _plThreadsI plThreadsI;
@@ -87,78 +87,78 @@ typedef struct _plApiRegistryI plApiRegistryI;
 
 typedef struct _plWindowI
 {
-    plWindow* (*create_window) (const plWindowDesc* ptDesc);
-    void      (*destroy_window)(plWindow* ptWindow);
+    plWindow* (*create_window) (const plWindowDesc*);
+    void      (*destroy_window)(plWindow*);
 } plWindowI;
 
-typedef struct _plLibraryApiI
+typedef struct _plLibraryI
 {
     bool  (*load)         (const char* pcName, const char* pcTransitionalName, const char* pcLockFile, plSharedLibrary** pptLibraryOut);
-    bool  (*has_changed)  (plSharedLibrary* ptLibrary);
-    void  (*reload)       (plSharedLibrary* ptLibrary);
-    void* (*load_function)(plSharedLibrary* ptLibrary, const char* pcName);
-} plLibraryApiI;
+    bool  (*has_changed)  (plSharedLibrary*);
+    void  (*reload)       (plSharedLibrary*);
+    void* (*load_function)(plSharedLibrary*, const char*);
+} plLibraryI;
 
-typedef struct _plFileApiI
+typedef struct _plFileI
 {
     void (*read)(const char* pcFile, uint32_t* puSize, char* pcBuffer, const char* pcMode);
     void (*copy)(const char* pcSource, const char* pcDestination);
-} plFileApiI;
+} plFileI;
 
-typedef struct _plUdpApiI
+typedef struct _plUdpI
 {
     void (*create_socket)(plSocket** pptSocketOut, bool bNonBlocking);
-    void (*bind_socket)  (plSocket* ptSocket, int iPort);
+    void (*bind_socket)  (plSocket*, int iPort);
     bool (*send_data)    (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
-    bool (*get_data)     (plSocket* ptSocket, void* pData, size_t szSize);
-} plUdpApiI;
+    bool (*get_data)     (plSocket*, void* pData, size_t szSize);
+} plUdpI;
 
 typedef struct _plThreadsI
 {
 
     // threads
     void (*create_thread)(plThreadProcedure ptProcedure, void* pData, plThread** ppThreadOut);
-    void (*join_thread)  (plThread* ptThread);
+    void (*join_thread)  (plThread*);
     void (*yield_thread) (void);
-    void (*sleep_thread) (uint32_t millisec);
+    void (*sleep_thread) (uint32_t uMilliSec);
 
     // thread local storage
     void  (*allocate_thread_local_key) (plThreadKey** pptKeyOut);
-    void  (*free_thread_local_key)     (plThreadKey** ptKey);
-    void* (*allocate_thread_local_data)(plThreadKey* ptKey, size_t szSize);
-    void  (*free_thread_local_data)    (plThreadKey* ptKey, void* pData);
-    void* (*get_thread_local_data)     (plThreadKey* ptKey);
+    void  (*free_thread_local_key)     (plThreadKey** pptKey);
+    void* (*allocate_thread_local_data)(plThreadKey*, size_t szSize);
+    void  (*free_thread_local_data)    (plThreadKey*, void* pData);
+    void* (*get_thread_local_data)     (plThreadKey*);
 
     // mutexes
     void (*create_mutex) (plMutex** ppMutexOut);
-    void (*destroy_mutex)(plMutex** ptMutex);
-    void (*lock_mutex)   (plMutex* ptMutex);
-    void (*unlock_mutex) (plMutex* ptMutex);
+    void (*destroy_mutex)(plMutex** pptMutex);
+    void (*lock_mutex)   (plMutex*);
+    void (*unlock_mutex) (plMutex*);
 
     // critical sections
     void (*create_critical_section) (plCriticalSection** pptCriticalSectionOut);
     void (*destroy_critical_section)(plCriticalSection** pptCriticalSection);
-    void (*enter_critical_section)  (plCriticalSection* ptCriticalSection);
-    void (*leave_critical_section)  (plCriticalSection* ptCriticalSection);
+    void (*enter_critical_section)  (plCriticalSection*);
+    void (*leave_critical_section)  (plCriticalSection*);
 
     // semaphores
     void (*create_semaphore)     (uint32_t uIntialCount, plSemaphore** pptSemaphoreOut);
     void (*destroy_semaphore)    (plSemaphore** pptSemaphore);
-    void (*wait_on_semaphore)    (plSemaphore* ptSemaphore);
-    bool (*try_wait_on_semaphore)(plSemaphore* ptSemaphore);
-    void (*release_semaphore)    (plSemaphore* ptSemaphore);
+    void (*wait_on_semaphore)    (plSemaphore*);
+    bool (*try_wait_on_semaphore)(plSemaphore*);
+    void (*release_semaphore)    (plSemaphore*);
 
     // barriers
     void (*create_barrier) (uint32_t uThreadCount, plBarrier** pptBarrierOut);
     void (*destroy_barrier)(plBarrier** pptBarrier);
-    void (*wait_on_barrier)(plBarrier* ptBarrier);
+    void (*wait_on_barrier)(plBarrier*);
 
     // condition variables
     void (*create_condition_variable)  (plConditionVariable** pptConditionVariableOut);
     void (*destroy_condition_variable) (plConditionVariable** pptConditionVariable);
-    void (*wake_condition_variable)    (plConditionVariable* ptConditionVariable);
-    void (*wake_all_condition_variable)(plConditionVariable* ptConditionVariable);
-    void (*sleep_condition_variable)   (plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection);
+    void (*wake_condition_variable)    (plConditionVariable*);
+    void (*wake_all_condition_variable)(plConditionVariable*);
+    void (*sleep_condition_variable)   (plConditionVariable*, plCriticalSection*);
 
     // misc.
     uint32_t (*get_hardware_thread_count)(void);
@@ -166,13 +166,13 @@ typedef struct _plThreadsI
 
 typedef struct _plAtomicsI
 {
-    void    (*create_atomic_counter)  (int64_t ilValue, plAtomicCounter** pptCounter);
+    void    (*create_atomic_counter)  (int64_t ilValue, plAtomicCounter** pptCounterOut);
     void    (*destroy_atomic_counter) (plAtomicCounter** pptCounter);
-    void    (*atomic_store)           (plAtomicCounter* ptCounter, int64_t ilValue);
-    int64_t (*atomic_load)            (plAtomicCounter* ptCounter);
-    bool    (*atomic_compare_exchange)(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue);
-    void    (*atomic_increment)       (plAtomicCounter* ptCounter);
-    void    (*atomic_decrement)       (plAtomicCounter* ptCounter);
+    void    (*atomic_store)           (plAtomicCounter*, int64_t ilValue);
+    int64_t (*atomic_load)            (plAtomicCounter*);
+    bool    (*atomic_compare_exchange)(plAtomicCounter*, int64_t ilExpectedValue, int64_t ilDesiredValue);
+    void    (*atomic_increment)       (plAtomicCounter*);
+    void    (*atomic_decrement)       (plAtomicCounter*);
 } plAtomicsI;
 
 //-----------------------------------------------------------------------------

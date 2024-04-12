@@ -49,7 +49,7 @@ Index of this file:
 // [SECTION] global data
 //-----------------------------------------------------------------------------
 
-const plFileApiI* gptFile    = NULL;
+const plFileI* gptFile    = NULL;
 const plThreadsI*  gptThread = NULL;
 
 //-----------------------------------------------------------------------------

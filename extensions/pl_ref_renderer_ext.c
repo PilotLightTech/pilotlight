@@ -234,15 +234,15 @@ static plRefRendererData* gptData = NULL;
 
 // apis
 static const plDataRegistryI* gptDataRegistry = NULL;
-static const plResourceI*        gptResource = NULL;
-static const plEcsI*             gptECS      = NULL;
-static const plFileApiI*         gptFile     = NULL;
-static const plDeviceI*          gptDevice   = NULL;
-static const plGraphicsI*        gptGfx      = NULL;
-static const plCameraI*          gptCamera   = NULL;
-static const plDrawStreamI*      gptStream   = NULL;
-static const plImageI*           gptImage    = NULL;
-static const plStatsI*           gptStats    = NULL;
+static const plResourceI*     gptResource = NULL;
+static const plEcsI*          gptECS      = NULL;
+static const plFileI*         gptFile     = NULL;
+static const plDeviceI*       gptDevice   = NULL;
+static const plGraphicsI*     gptGfx      = NULL;
+static const plCameraI*       gptCamera   = NULL;
+static const plDrawStreamI*   gptStream   = NULL;
+static const plImageI*        gptImage    = NULL;
+static const plStatsI*        gptStats    = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

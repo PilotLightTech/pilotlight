@@ -253,7 +253,7 @@ static const plApiRegistryI*       gptApiRegistry = NULL;
 static const plExtensionRegistryI* gptExtensionRegistry = NULL;
 
 // OS apis
-static const plLibraryApiI* gptLibraryApi = NULL;
+static const plLibraryI* gptLibraryApi = NULL;
 
 static plSharedLibrary*     gptAppLibrary = NULL;
 static void*                gUserData = NULL;
@@ -313,19 +313,19 @@ int main()
         .destroy_window = pl__destroy_window
     };
 
-    static const plLibraryApiI tApi3 = {
+    static const plLibraryI tApi3 = {
         .has_changed   = pl__has_library_changed,
         .load          = pl__load_library,
         .load_function = pl__load_library_function,
         .reload        = pl__reload_library
     };
 
-    static const plFileApiI tApi4 = {
+    static const plFileI tApi4 = {
         .copy = pl__copy_file,
         .read = pl__read_file
     };
     
-    static const plUdpApiI tApi5 = {
+    static const plUdpI tApi5 = {
         .create_socket = pl__create_udp_socket,
         .bind_socket   = pl__bind_udp_socket,  
         .get_data      = pl__get_udp_data,
