@@ -20,6 +20,9 @@ Index of this file:
 #ifndef PL_DEBUG_EXT_H
 #define PL_DEBUG_EXT_H
 
+#define PL_DEBUG_EXT_VERSION    "1.0.0"
+#define PL_DEBUG_EXT_VERSION_NUM 100000
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -51,7 +54,7 @@ const plDebugApiI* pl_load_debug_api(void);
 
 typedef struct _plDebugApiI
 {
-    void (*show_windows)(plDebugApiInfo* ptInfo);
+    void (*show_debug_windows)(plDebugApiInfo*);
 } plDebugApiI;
 
 //-----------------------------------------------------------------------------

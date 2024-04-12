@@ -520,7 +520,7 @@ pl_app_update(plAppData* ptAppData)
         pl_end_window();
     }
 
-    gptDebug->show_windows(&ptAppData->tDebugInfo);
+    gptDebug->show_debug_windows(&ptAppData->tDebugInfo);
 
     if(ptAppData->bShowEntityWindow)
         pl_show_ecs_window(gptEcs, gptRenderer->get_component_library(), &ptAppData->bShowEntityWindow);

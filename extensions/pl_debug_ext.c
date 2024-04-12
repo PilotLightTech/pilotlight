@@ -54,11 +54,11 @@ static plDevice*       ptDevice       = NULL;
 static plTempAllocator tTempAllocator = {0};
 
 // stat data
-static double**     sbppdValues = NULL;
-static const char** ppcNames = NULL;
+static double**     sbppdValues      = NULL;
+static const char** ppcNames         = NULL;
 static double***    sbppdFrameValues = NULL; // values to write to
-static double*      sbdRawValues = NULL; // raw values
-static bool*        sbbValues = NULL;
+static double*      sbdRawValues     = NULL; // raw values
+static bool*        sbbValues        = NULL;
 
 // profile data
 static plProfileSample* sbtSamples = NULL;
@@ -84,7 +84,7 @@ const plDebugApiI*
 pl_load_debug_api(void)
 {
     static const plDebugApiI tApi = {
-        .show_windows = pl_show_debug_windows
+        .show_debug_windows = pl_show_debug_windows
     };
     return &tApi;
 }
