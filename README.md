@@ -8,9 +8,9 @@
 <h1></h1>
 
 <p align="center">
-   <a href="https://github.com/PilotLightTech/pilotlight/actions?workflow=Build"><img src="https://github.com/PilotLightTech/pilotlight/workflows/Build/badge.svg?branch=master" alt="build"></a>
-   <a href="https://github.com/PilotLightTech/pilotlight/actions?workflow=Static%20Analysis"><img src="https://github.com/PilotLightTech/pilotlight/workflows/Static%20Analysis/badge.svg?branch=master" alt="static-analysis"></a>
-   <a href="https://github.com/PilotLightTech/pilotlight/actions?workflow=Tests"><img src="https://github.com/PilotLightTech/pilotlight/workflows/Tests/badge.svg?branch=master" alt="tests"></a>
+   <a href="https://github.com/PilotLightTech/pilotlight/actions?workflow=Build"><img src="https://github.com/PilotLightTech/pilotlight/actions/workflows/build.yml/badge.svg?branch=master" alt="build"></a>
+   <a href="https://github.com/PilotLightTech/pilotlight/actions?workflow=Static%20Analysis"><img src="https://github.com/PilotLightTech/pilotlight/actions/workflows/static-analysis.yml/badge.svg?branch=master" alt="static-analysis"></a>
+   <a href="https://github.com/PilotLightTech/pilotlight/actions?workflow=Tests"><img src="https://github.com/PilotLightTech/pilotlight/actions/workflows/tests.yml/badge.svg?branch=master" alt="tests"></a>
 </p>
 
 <p align="center">
