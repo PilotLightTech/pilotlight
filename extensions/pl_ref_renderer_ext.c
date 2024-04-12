@@ -242,7 +242,7 @@ static const plGraphicsI*        gptGfx      = NULL;
 static const plCameraI*          gptCamera   = NULL;
 static const plDrawStreamI*      gptStream   = NULL;
 static const plImageI*           gptImage    = NULL;
-static const plStatsApiI*        gptStats    = NULL;
+static const plStatsI*           gptStats    = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

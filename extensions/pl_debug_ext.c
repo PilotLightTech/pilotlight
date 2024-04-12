@@ -42,7 +42,7 @@ Index of this file:
 
 // apis
 static const plApiRegistryI*   gptApiRegistry  = NULL;
-static const plStatsApiI*         ptStatsApi      = NULL;
+static const plStatsI*         ptStatsApi      = NULL;
 static const plDataRegistryI*  ptDataRegistry  = NULL;
 
 // contexts

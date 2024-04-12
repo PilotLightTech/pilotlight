@@ -19,6 +19,9 @@ Index of this file:
 #ifndef PL_STATS_EXT_H
 #define PL_STATS_EXT_H
 
+#define PL_STATS_EXT_VERSION    "1.0.0"
+#define PL_STATS_EXT_VERSION_NUM 100000
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -38,24 +41,30 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #define PL_API_STATS "PL_API_STATS"
-typedef struct _plStatsApiI plStatsApiI;
+typedef struct _plStatsI plStatsI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-const plStatsApiI* pl_load_stats_api(void);
+const plStatsI* pl_load_stats_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plStatsApiI
+typedef struct _plStatsI
 {
+    // call once per frame
+    void (*new_frame)(void);
+
+    // provides a pointer to a value for the counter
+    // (user should store this pointer to prevent lookups every frame)
+    double* (*get_counter)(char const* pcName); 
+
+    // provides stat data back to user for analysis/display/etc.
     double**     (*get_counter_data)(char const* pcName);
-    double*      (*get_counter)     (char const* pcName); // provided a pointer to a value for the counter
-    void         (*new_frame)       (void);
     const char** (*get_names)       (uint32_t* puCount);
-} plStatsApiI;
+} plStatsI;
 
 #endif // PL_STATS_EXT_H

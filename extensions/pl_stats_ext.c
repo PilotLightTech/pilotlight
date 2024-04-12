@@ -40,7 +40,6 @@ Index of this file:
 #include "pilotlight.h"
 #include "pl_stats_ext.h"
 #include "pl_ds.h"
-#include "pl_memory.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -90,10 +89,10 @@ static const char** pl__get_names       (uint32_t* puCount);
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-const plStatsApiI*
+const plStatsI*
 pl_load_stats_api(void)
 {
-    static const plStatsApiI tApi = {
+    static const plStatsI tApi = {
         .get_counter      = pl__get_counter,
         .new_frame        = pl__new_frame,
         .get_counter_data = pl__get_counter_data,
