@@ -8,9 +8,9 @@
 <h1></h1>
 
 <p align="center">
-   <a href="https://github.com/hoffstadt/pilotlight/actions?workflow=Build"><img src="https://github.com/hoffstadt/pilotlight/workflows/Build/badge.svg?branch=master" alt="build"></a>
-   <a href="https://github.com/hoffstadt/pilotlight/actions?workflow=Static%20Analysis"><img src="https://github.com/hoffstadt/pilotlight/workflows/Static%20Analysis/badge.svg?branch=master" alt="static-analysis"></a>
-   <a href="https://github.com/hoffstadt/pilotlight/actions?workflow=Tests"><img src="https://github.com/hoffstadt/pilotlight/workflows/Tests/badge.svg?branch=master" alt="tests"></a>
+   <a href="https://github.com/PilotLightTech/pilotlight/actions?workflow=Build"><img src="https://github.com/PilotLightTech/pilotlight/workflows/Build/badge.svg?branch=master" alt="build"></a>
+   <a href="https://github.com/PilotLightTech/pilotlight/actions?workflow=Static%20Analysis"><img src="https://github.com/PilotLightTech/pilotlight/workflows/Static%20Analysis/badge.svg?branch=master" alt="static-analysis"></a>
+   <a href="https://github.com/PilotLightTech/pilotlight/actions?workflow=Tests"><img src="https://github.com/PilotLightTech/pilotlight/workflows/Tests/badge.svg?branch=master" alt="tests"></a>
 </p>
 
 <p align="center">
@@ -22,29 +22,29 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/hoffstadt/pilotlight-assets"><img src="https://github.com/hoffstadt/pilotlight-assets/blob/master/images/tooling1.PNG" alt="Tooling Image"></a>
+  <a href="https://github.com/PilotLightTech/pilotlight-assets"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/images/tooling1.PNG" alt="Tooling Image"></a>
 </p>
 
 ## Information
 Under construction.
 
 ## Developer Notes
-Information for developers can be found in the [wiki](https://github.com/hoffstadt/pilotlight/wiki). This includes:
-* [building](https://github.com/hoffstadt/pilotlight/wiki/Building)
-* [contributing](https://github.com/hoffstadt/pilotlight/wiki/Contributing)
-* [style guide](https://github.com/hoffstadt/pilotlight/wiki/Style-Guide)
+Information for developers can be found in the [wiki](https://github.com/PilotLightTech/pilotlight/wiki). This includes:
+* [building](https://github.com/PilotLightTech/pilotlight/wiki/Building)
+* [contributing](https://github.com/PilotLightTech/pilotlight/wiki/Contributing)
+* [style guide](https://github.com/PilotLightTech/pilotlight/wiki/Style-Guide)
 
 ## License
-Pilot Light is licensed under the [MIT License](https://github.com/hoffstadt/pilotlight/blob/master/LICENSE).
+Pilot Light is licensed under the [MIT License](https://github.com/PilotLightTech/pilotlight/blob/master/LICENSE).
 
 ## Gallery
 
 <p align="center">
-  <a href="https://github.com/hoffstadt/pilotlight-assets"><img src="https://github.com/hoffstadt/pilotlight-assets/blob/master/images/firstimage.PNG" alt="First Image"></a>
+  <a href="https://github.com/PilotLightTech/pilotlight-assets"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/images/firstimage.PNG" alt="First Image"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/hoffstadt/pilotlight"><img src="https://github.com/hoffstadt/pilotlight-assets/blob/master/gifs/sponza0.gif" alt="Sponza 0" width="2553"></a>
+  <a href="https://github.com/PilotLightTech/pilotlight"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/gifs/sponza0.gif" alt="Sponza 0" width="2553"></a>
 </p>
 
 ## Inspiration
