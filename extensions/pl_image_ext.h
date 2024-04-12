@@ -5,7 +5,8 @@
 /*
 Index of this file:
 // [SECTION] header mess
-// [SECTION] apis
+// [SECTION] includes
+// [SECTION] APIs
 // [SECTION] public api
 // [SECTION] public api structs
 */
@@ -17,8 +18,17 @@ Index of this file:
 #ifndef PL_IMAGE_EXT_H
 #define PL_IMAGE_EXT_H
 
+#define PL_IMAGE_EXT_VERSION    "1.0.0"
+#define PL_IMAGE_EXT_VERSION_NUM 100000
+
 //-----------------------------------------------------------------------------
-// [SECTION] apis
+// [SECTION] includes
+//-----------------------------------------------------------------------------
+
+#include <stdbool.h>
+
+//-----------------------------------------------------------------------------
+// [SECTION] APIs
 //-----------------------------------------------------------------------------
 
 #define PL_API_IMAGE "PL_API_IMAGE"
@@ -36,19 +46,31 @@ const plImageI* pl_load_image_api(void);
 
 typedef struct _plImageI
 {
-    // read
-    unsigned char* (*load_from_memory) (const unsigned char* pcBuffer, int iLength, int* piX, int* piY, int* piChannels, int iDesiredChannels);
-    float*         (*loadf_from_memory)(const unsigned char* pcBuffer, int iLength, int* piX, int* piY, int* piChannels, int iDesiredChannels);
-    unsigned char* (*load)             (char const* pcFilename, int* piX, int* piY, int* piChannels, int iDesiredChannels);
-    float*         (*loadf)            (char const* pcFilename, int* piX, int* piY, int* piChannels, int iDesiredChannels);
-    void           (*free)             (void* pRetValueFromLoad);
+    // query for which interface to use
+    bool (*is_hdr)            (const char* pcFileName);
+    bool (*is_hdr_from_memory)(const unsigned char* pcBuffer, int iLength);
 
-    // write
-     int (*write_png)(char const *pcFileName, int iW, int iH, int iComp, const void *pData, int iByteStride);
-     int (*write_bmp)(char const *pcFileName, int iW, int iH, int iComp, const void *pData);
-     int (*write_tga)(char const *pcFileName, int iW, int iH, int iComp, const void *pData);
-     int (*write_jpg)(char const *pcFileName, int iW, int iH, int iComp, const void *pData, int iQuality);
-     int (*write_hdr)(char const *pcFileName, int iW, int iH, int iComp, const float *pfData);
+    // reading LDR (HDR will be remapped through this interface)
+    unsigned char* (*load_from_memory) (const unsigned char* pcBuffer, int iLength, int* piX, int* piY, int* piChannels, int iDesiredChannels);
+    unsigned char* (*load)             (char const* pcFilename, int* piX, int* piY, int* piChannels, int iDesiredChannels);
+    void           (*hdr_to_ldr_gamma) (float fGamma); // default 2.2f
+    void           (*hdr_to_ldr_scale) (float fScale); // default 1.0f
+    
+    // reading HDR (LDR will be promoted to floating point values)
+    float* (*load_hdr_from_memory)(const unsigned char* pcBuffer, int iLength, int* piX, int* piY, int* piChannels, int iDesiredChannels);
+    float* (*load_hdr)            (char const* pcFilename, int* piX, int* piY, int* piChannels, int iDesiredChannels);
+    void   (*ldr_to_hdr_gamma)    (float fGamma); // default 2.2f
+    void   (*ldr_to_hdr_scale)    (float fScale); // default 1.0f
+    
+    // call when finished with memory
+    void (*free)(void* pRetValueFromLoad);
+
+    // writing to disk
+    bool (*write_png)(char const *pcFileName, int iW, int iH, int iComp, const void *pData, int iByteStride);
+    bool (*write_bmp)(char const *pcFileName, int iW, int iH, int iComp, const void *pData);
+    bool (*write_tga)(char const *pcFileName, int iW, int iH, int iComp, const void *pData);
+    bool (*write_jpg)(char const *pcFileName, int iW, int iH, int iComp, const void *pData, int iQuality);
+    bool (*write_hdr)(char const *pcFileName, int iW, int iH, int iComp, const float *pfData);
 } plImageI;
 
 #endif // PL_IMAGE_EXT_H

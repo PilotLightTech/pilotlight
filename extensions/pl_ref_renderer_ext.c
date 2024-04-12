@@ -1085,7 +1085,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     int iPanoramaWidth = 0;
     int iPanoramaHeight = 0;
     int iUnused = 0;
-    float* pfPanoramaData = gptImage->loadf(pcPath, &iPanoramaWidth, &iPanoramaHeight, &iUnused, 4);
+    float* pfPanoramaData = gptImage->load_hdr(pcPath, &iPanoramaWidth, &iPanoramaHeight, &iUnused, 4);
     PL_ASSERT(pfPanoramaData);
 
     plComputeShaderDescription tSkyboxComputeShaderDesc = {
@@ -2074,7 +2074,7 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
     if(bHdr)
     {
 
-        float* rawBytes = gptImage->loadf_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+        float* rawBytes = gptImage->load_hdr_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
         PL_ASSERT(rawBytes);
 
         memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, rawBytes, sizeof(float) * texWidth * texHeight * 4);
