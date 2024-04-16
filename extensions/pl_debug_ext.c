@@ -35,15 +35,17 @@ Index of this file:
 #include "pl_ui_internal.h"
 #include "pl_stats_ext.h"
 #include "pl_graphics_ext.h"
+#include "pl_gpu_allocators_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] global data
 //-----------------------------------------------------------------------------
 
 // apis
-static const plApiRegistryI*   gptApiRegistry  = NULL;
-static const plStatsI*         ptStatsApi      = NULL;
-static const plDataRegistryI*  ptDataRegistry  = NULL;
+static const plApiRegistryI*   gptApiRegistry   = NULL;
+static const plStatsI*         ptStatsApi       = NULL;
+static const plDataRegistryI*  ptDataRegistry   = NULL;
+static const plGPUAllocatorsI* gptGpuAllocators = NULL;
 
 // contexts
 static plMemoryContext* ptMemoryCtx = NULL;
@@ -803,10 +805,10 @@ pl__show_device_memory(bool* bValue)
             pl_text("Host Memory: %llu bytes", (double)ptDevice->ptGraphics->szHostMemoryInUse);
 
         const plDeviceMemoryAllocatorI atAllocators[] = {
-            ptDevice->tLocalBuddyAllocator,
-            ptDevice->tLocalDedicatedAllocator,
-            ptDevice->tStagingUnCachedAllocator,
-            ptDevice->tStagingCachedAllocator
+            *gptGpuAllocators->create_local_buddy_allocator(ptDevice),
+            *gptGpuAllocators->create_local_dedicated_allocator(ptDevice),
+            *gptGpuAllocators->create_staging_uncached_allocator(ptDevice),
+            *gptGpuAllocators->create_staging_uncached_allocator(ptDevice)
         };
 
         const char* apcAllocatorNames[] = {
@@ -1072,6 +1074,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_context(ptDataRegistry->get_data("ui"));
 
     ptStatsApi = ptApiRegistry->first(PL_API_STATS);
+    gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
     ptIOCtx = pl_get_io();
 
     if(bReload)

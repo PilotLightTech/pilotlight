@@ -20,6 +20,7 @@ extensions = [
     "pl_stats_ext",
     "pl_resource_ext",
     "pl_ref_renderer_ext",
+    "pl_gpu_allocators_ext",
 ]
 
 if os.path.isdir(target_directory):

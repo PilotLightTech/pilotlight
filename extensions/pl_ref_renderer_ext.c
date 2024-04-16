@@ -32,6 +32,7 @@ Index of this file:
 #include "pl_resource_ext.h"
 #include "pl_image_ext.h"
 #include "pl_stats_ext.h"
+#include "pl_gpu_allocators_ext.h"
 
 // misc
 #include "cgltf.h"
@@ -193,6 +194,11 @@ typedef struct _plRefRendererData
 
     plGraphics tGraphics;
 
+    // allocators
+    plDeviceMemoryAllocatorI* ptLocalDedicatedAllocator;
+    plDeviceMemoryAllocatorI* ptLocalBuddyAllocator;
+    plDeviceMemoryAllocatorI* ptStagingUnCachedAllocator;
+
     // misc textures
     plSamplerHandle     tDefaultSampler;
     plTextureHandle     tDummyTexture;
@@ -233,16 +239,18 @@ typedef struct _plRefRendererData
 static plRefRendererData* gptData = NULL;
 
 // apis
-static const plDataRegistryI* gptDataRegistry = NULL;
-static const plResourceI*     gptResource = NULL;
-static const plEcsI*          gptECS      = NULL;
-static const plFileI*         gptFile     = NULL;
-static const plDeviceI*       gptDevice   = NULL;
-static const plGraphicsI*     gptGfx      = NULL;
-static const plCameraI*       gptCamera   = NULL;
-static const plDrawStreamI*   gptStream   = NULL;
-static const plImageI*        gptImage    = NULL;
-static const plStatsI*        gptStats    = NULL;
+static const plDataRegistryI*  gptDataRegistry  = NULL;
+static const plResourceI*      gptResource      = NULL;
+static const plEcsI*           gptECS           = NULL;
+static const plFileI*          gptFile          = NULL;
+static const plDeviceI*        gptDevice        = NULL;
+static const plGraphicsI*      gptGfx           = NULL;
+static const plCameraI*        gptCamera        = NULL;
+static const plDrawStreamI*    gptStream        = NULL;
+static const plImageI*         gptImage         = NULL;
+static const plStatsI*         gptStats         = NULL;
+static const plGPUAllocatorsI* gptGpuAllocators = NULL;
+static const plThreadsI*       gptThreads       = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -347,22 +355,33 @@ pl_refr_initialize(plWindow* ptWindow)
     // initialize ecs
     gptECS->init_component_library(&gptData->tComponentLibrary);
 
+    // load allocators
+    gptData->ptLocalBuddyAllocator = gptGpuAllocators->create_local_buddy_allocator(&ptGraphics->tDevice);
+    gptData->ptLocalDedicatedAllocator = gptGpuAllocators->create_local_dedicated_allocator(&ptGraphics->tDevice);
+    gptData->ptStagingUnCachedAllocator = gptGpuAllocators->create_staging_uncached_allocator(&ptGraphics->tDevice);
+
     // initialize graphics
     ptGraphics->bValidationActive = true;
     gptGfx->initialize(ptWindow, ptGraphics);
     gptDataRegistry->set_data("device", &ptGraphics->tDevice); // used by debug extension
+
+
 
     // create main render pass
     plIO* ptIO = pl_get_io();
 
     // create staging buffer
     const plBufferDescription tStagingBufferDesc = {
-        .tMemory   = PL_MEMORY_GPU_CPU,
-        .tUsage    = PL_BUFFER_USAGE_UNSPECIFIED,
+        .tUsage    = PL_BUFFER_USAGE_STAGING,
         .uByteSize = 268435456
     };
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
+    {
         gptData->tStagingBufferHandle[i] = gptDevice->create_buffer(&ptGraphics->tDevice, &tStagingBufferDesc, "staging buffer");
+        plBuffer* ptBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, gptData->tStagingBufferHandle[i]);
+        plDeviceMemoryAllocation tAllocation = gptData->ptStagingUnCachedAllocator->allocate(gptData->ptStagingUnCachedAllocator->ptInst, ptBuffer->tMemoryRequirements.uMemoryTypeBits, ptBuffer->tMemoryRequirements.ulSize, ptBuffer->tMemoryRequirements.ulAlignment, "staging buffer");
+        gptDevice->bind_buffer_to_memory(&ptGraphics->tDevice, gptData->tStagingBufferHandle[i], &tAllocation);
+    }
     plBuffer* ptStagingBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, gptData->tStagingBufferHandle[0]);
 
     // create dummy texture
@@ -375,6 +394,11 @@ pl_refr_initialize(plWindow* ptWindow)
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED,
     };
     gptData->tDummyTexture = gptDevice->create_texture(&ptGraphics->tDevice, &tTextureDesc, "dummy texture");
+    {
+        plTexture* ptTexture = gptDevice->get_texture(&ptGraphics->tDevice, gptData->tDummyTexture);
+        plDeviceMemoryAllocation tAllocation = gptData->ptLocalBuddyAllocator->allocate(gptData->ptLocalBuddyAllocator->ptInst, ptTexture->tMemoryRequirements.uMemoryTypeBits, ptTexture->tMemoryRequirements.ulSize, ptTexture->tMemoryRequirements.ulAlignment, "dummy texture");
+        gptDevice->bind_texture_to_memory(&ptGraphics->tDevice, gptData->tDummyTexture, &tAllocation);
+    }
 
     // copy data to dummy texture
     static float image[] = {
@@ -772,6 +796,20 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         ptView->tAlbedoTexture[i] = gptDevice->create_texture(&ptGraphics->tDevice, &tTextureDesc2, "albedo texture original");
         ptView->tNormalTexture[i] = gptDevice->create_texture(&ptGraphics->tDevice, &tTextureDesc2, "normal texture original");
         ptView->tPositionTexture[i] = gptDevice->create_texture(&ptGraphics->tDevice, &tTextureDesc2, "position texture original");
+
+        plTexture* ptTexture0 = gptDevice->get_texture(&ptGraphics->tDevice, ptView->tTexture[i]);
+        plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
+        if(ptTexture0->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+            ptAllocator = gptData->ptLocalDedicatedAllocator;
+        plDeviceMemoryAllocation tAllocation0 = ptAllocator->allocate(ptAllocator->ptInst, ptTexture0->tMemoryRequirements.uMemoryTypeBits, ptTexture0->tMemoryRequirements.ulSize, ptTexture0->tMemoryRequirements.ulAlignment, "offscreen texture original");
+        plDeviceMemoryAllocation tAllocation1 = ptAllocator->allocate(ptAllocator->ptInst, ptTexture0->tMemoryRequirements.uMemoryTypeBits, ptTexture0->tMemoryRequirements.ulSize, ptTexture0->tMemoryRequirements.ulAlignment, "albedo texture original");
+        plDeviceMemoryAllocation tAllocation2 = ptAllocator->allocate(ptAllocator->ptInst, ptTexture0->tMemoryRequirements.uMemoryTypeBits, ptTexture0->tMemoryRequirements.ulSize, ptTexture0->tMemoryRequirements.ulAlignment, "normal texture original");
+        plDeviceMemoryAllocation tAllocation3 = ptAllocator->allocate(ptAllocator->ptInst, ptTexture0->tMemoryRequirements.uMemoryTypeBits, ptTexture0->tMemoryRequirements.ulSize, ptTexture0->tMemoryRequirements.ulAlignment, "position texture original");
+        gptDevice->bind_texture_to_memory(&ptGraphics->tDevice, ptView->tTexture[i], &tAllocation0);
+        gptDevice->bind_texture_to_memory(&ptGraphics->tDevice, ptView->tAlbedoTexture[i], &tAllocation1);
+        gptDevice->bind_texture_to_memory(&ptGraphics->tDevice, ptView->tNormalTexture[i], &tAllocation2);
+        gptDevice->bind_texture_to_memory(&ptGraphics->tDevice, ptView->tPositionTexture[i], &tAllocation3);
+
     }
 
     const plTextureDesc tDepthTextureDesc = {
@@ -784,7 +822,15 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .tInitialUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT
     };
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
+    {
         ptView->tDepthTexture[i] = gptDevice->create_texture(&ptGraphics->tDevice, &tDepthTextureDesc, "offscreen depth texture original");
+        plTexture* ptTexture0 = gptDevice->get_texture(&ptGraphics->tDevice, ptView->tDepthTexture[i]);
+        plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
+        if(ptTexture0->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+            ptAllocator = gptData->ptLocalDedicatedAllocator;
+        plDeviceMemoryAllocation tAllocation0 = ptAllocator->allocate(ptAllocator->ptInst, ptTexture0->tMemoryRequirements.uMemoryTypeBits, ptTexture0->tMemoryRequirements.ulSize, ptTexture0->tMemoryRequirements.ulAlignment, "offscreen depth texture original");
+        gptDevice->bind_texture_to_memory(&ptGraphics->tDevice, ptView->tDepthTexture[i], &tAllocation0);
+    }
 
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {
@@ -874,12 +920,16 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     gptGfx->register_3d_drawlist(ptGraphics, &ptView->t3DDrawList);
 
     const plBufferDescription atGlobalBuffersDesc = {
-        .tMemory              = PL_MEMORY_GPU_CPU,
-        .tUsage               = PL_BUFFER_USAGE_UNIFORM,
-        .uByteSize            = sizeof(BindGroup_0)
+        .tUsage               = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
+        .uByteSize            = PL_DEVICE_ALLOCATION_BLOCK_SIZE
     };
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
+    {
         ptView->atGlobalBuffers[i] = gptDevice->create_buffer(&ptGraphics->tDevice, &atGlobalBuffersDesc, "global buffer");
+        plBuffer* ptBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, ptView->atGlobalBuffers[i]);
+        plDeviceMemoryAllocation tAllocation = gptData->ptStagingUnCachedAllocator->allocate(gptData->ptStagingUnCachedAllocator->ptInst, ptBuffer->tMemoryRequirements.uMemoryTypeBits, ptBuffer->tMemoryRequirements.ulSize, ptBuffer->tMemoryRequirements.ulAlignment, "global buffer");
+        gptDevice->bind_buffer_to_memory(&ptGraphics->tDevice, ptView->atGlobalBuffers[i], &tAllocation);
+    }
 
     const uint32_t uStartIndex2     = pl_sb_size(ptScene->sbtVertexPosBuffer);
     const uint32_t uIndexStart2     = pl_sb_size(ptScene->sbuIndexBuffer);
@@ -965,6 +1015,19 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
         ptView->tAlbedoTexture[i] = gptDevice->create_texture(&ptGraphics->tDevice, &tOffscreenTextureDesc2, pl_temp_allocator_sprintf(&tTempAllocator, "albedo texture %u", i));
         ptView->tNormalTexture[i] = gptDevice->create_texture(&ptGraphics->tDevice, &tOffscreenTextureDesc2, pl_temp_allocator_sprintf(&tTempAllocator, "normal texture %u", i));
         ptView->tPositionTexture[i] = gptDevice->create_texture(&ptGraphics->tDevice, &tOffscreenTextureDesc2, pl_temp_allocator_sprintf(&tTempAllocator, "position texture %u", i));
+
+        plTexture* ptTexture0 = gptDevice->get_texture(&ptGraphics->tDevice, ptView->tTexture[i]);
+        plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
+        if(ptTexture0->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+            ptAllocator = gptData->ptLocalDedicatedAllocator;
+        plDeviceMemoryAllocation tAllocation0 = ptAllocator->allocate(ptAllocator->ptInst, ptTexture0->tMemoryRequirements.uMemoryTypeBits, ptTexture0->tMemoryRequirements.ulSize, ptTexture0->tMemoryRequirements.ulAlignment, "offscreen texture");
+        plDeviceMemoryAllocation tAllocation1 = ptAllocator->allocate(ptAllocator->ptInst, ptTexture0->tMemoryRequirements.uMemoryTypeBits, ptTexture0->tMemoryRequirements.ulSize, ptTexture0->tMemoryRequirements.ulAlignment, "albedo texture");
+        plDeviceMemoryAllocation tAllocation2 = ptAllocator->allocate(ptAllocator->ptInst, ptTexture0->tMemoryRequirements.uMemoryTypeBits, ptTexture0->tMemoryRequirements.ulSize, ptTexture0->tMemoryRequirements.ulAlignment, "normal texture");
+        plDeviceMemoryAllocation tAllocation3 = ptAllocator->allocate(ptAllocator->ptInst, ptTexture0->tMemoryRequirements.uMemoryTypeBits, ptTexture0->tMemoryRequirements.ulSize, ptTexture0->tMemoryRequirements.ulAlignment, "position texture");
+        gptDevice->bind_texture_to_memory(&ptGraphics->tDevice, ptView->tTexture[i], &tAllocation0);
+        gptDevice->bind_texture_to_memory(&ptGraphics->tDevice, ptView->tAlbedoTexture[i], &tAllocation1);
+        gptDevice->bind_texture_to_memory(&ptGraphics->tDevice, ptView->tNormalTexture[i], &tAllocation2);
+        gptDevice->bind_texture_to_memory(&ptGraphics->tDevice, ptView->tPositionTexture[i], &tAllocation3);
     }
     pl_temp_allocator_free(&tTempAllocator);
 
@@ -980,6 +1043,12 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {
         ptView->tDepthTexture[i] = gptDevice->create_texture(&ptGraphics->tDevice, &tOffscreenDepthTextureDesc, "offscreen depth texture");
+        plTexture* ptTexture0 = gptDevice->get_texture(&ptGraphics->tDevice, ptView->tDepthTexture[i]);
+        plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
+        if(ptTexture0->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+            ptAllocator = gptData->ptLocalDedicatedAllocator;
+        plDeviceMemoryAllocation tAllocation0 = ptAllocator->allocate(ptAllocator->ptInst, ptTexture0->tMemoryRequirements.uMemoryTypeBits, ptTexture0->tMemoryRequirements.ulSize, ptTexture0->tMemoryRequirements.ulAlignment, "offscreen depth texture");
+        gptDevice->bind_texture_to_memory(&ptGraphics->tDevice, ptView->tDepthTexture[i], &tAllocation0);
     }
 
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
@@ -1052,6 +1121,8 @@ pl_refr_cleanup(void)
         pl_sb_free(ptScene->sbtSkinData);
         pl_hm_free(&ptScene->tMaterialHashMap);
     }
+    gptDevice->flush_device(&gptData->tGraphics.tDevice);
+    gptGpuAllocators->cleanup_allocators(&gptData->tGraphics.tDevice);
     gptGfx->cleanup(&gptData->tGraphics);
 
     // must be cleaned up after graphics since 3D drawlist are registered as pointers
@@ -1122,23 +1193,30 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     plBufferHandle atComputeBuffers[7] = {0};
     const uint32_t uPanoramaSize = iPanoramaHeight * iPanoramaWidth * 4 * sizeof(float);
     const plBufferDescription tInputBufferDesc = {
-        .tMemory              = PL_MEMORY_GPU_CPU,
-        .tUsage               = PL_BUFFER_USAGE_STORAGE,
-        .uByteSize            = uPanoramaSize
+        .tUsage               = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .uByteSize            = PL_DEVICE_ALLOCATION_BLOCK_SIZE
     };
     atComputeBuffers[0] = gptDevice->create_buffer(ptDevice, &tInputBufferDesc, "panorama input");
-    plBuffer* ptComputeBuffer = gptDevice->get_buffer(ptDevice, atComputeBuffers[0]);
-    memcpy(ptComputeBuffer->tMemoryAllocation.pHostMapped, pfPanoramaData, iPanoramaWidth * iPanoramaHeight * 4 * sizeof(float));
+    {
+        plBuffer* ptComputeBuffer = gptDevice->get_buffer(ptDevice, atComputeBuffers[0]);
+        plDeviceMemoryAllocation tAllocation = gptData->ptStagingUnCachedAllocator->allocate(gptData->ptStagingUnCachedAllocator->ptInst, ptComputeBuffer->tMemoryRequirements.uMemoryTypeBits, ptComputeBuffer->tMemoryRequirements.ulSize, ptComputeBuffer->tMemoryRequirements.ulAlignment, "panorama input");
+        gptDevice->bind_buffer_to_memory(&ptGraphics->tDevice, atComputeBuffers[0], &tAllocation);
+        memcpy(ptComputeBuffer->tMemoryAllocation.pHostMapped, pfPanoramaData, iPanoramaWidth * iPanoramaHeight * 4 * sizeof(float));
+    }
 
     const size_t uFaceSize = ((size_t)iResolution * (size_t)iResolution) * 4 * sizeof(float);
     const plBufferDescription tOutputBufferDesc = {
-        .tMemory              = PL_MEMORY_GPU_CPU,
         .tUsage               = PL_BUFFER_USAGE_STORAGE,
-        .uByteSize            = (uint32_t)uFaceSize
+        .uByteSize            = PL_DEVICE_ALLOCATION_BLOCK_SIZE
     };
     
     for(uint32_t i = 0; i < 6; i++)
+    {
         atComputeBuffers[i + 1] = gptDevice->create_buffer(ptDevice, &tOutputBufferDesc, "panorama output");
+        plBuffer* ptBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, atComputeBuffers[i + 1]);
+        plDeviceMemoryAllocation tAllocation = gptData->ptStagingUnCachedAllocator->allocate(gptData->ptStagingUnCachedAllocator->ptInst, ptBuffer->tMemoryRequirements.uMemoryTypeBits, ptBuffer->tMemoryRequirements.ulSize, ptBuffer->tMemoryRequirements.ulAlignment, "panorama output");
+        gptDevice->bind_buffer_to_memory(&ptGraphics->tDevice, atComputeBuffers[i + 1], &tAllocation);
+    }
 
     plBindGroupLayout tComputeBindGroupLayout = {
         .uBufferCount = 7,
@@ -1206,6 +1284,12 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         .tUsage = PL_TEXTURE_USAGE_SAMPLED
     };
     ptScene->tSkyboxTexture = gptDevice->create_texture(ptDevice, &tTextureDesc, "skybox texture");
+    plTexture* ptTexture0 = gptDevice->get_texture(&ptGraphics->tDevice, ptScene->tSkyboxTexture);
+    plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
+    if(ptTexture0->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+        ptAllocator = gptData->ptLocalDedicatedAllocator;
+    plDeviceMemoryAllocation tAllocation0 = ptAllocator->allocate(ptAllocator->ptInst, ptTexture0->tMemoryRequirements.uMemoryTypeBits, ptTexture0->tMemoryRequirements.ulSize, ptTexture0->tMemoryRequirements.ulAlignment, "skybox texture");
+    gptDevice->bind_texture_to_memory(&ptGraphics->tDevice, ptScene->tSkyboxTexture, &tAllocation0);
 
     plBufferImageCopy atBufferImageCopy[6] = {0};
     for(uint32_t i = 0; i < 6; i++)
@@ -2089,6 +2173,13 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
             .tUsage = PL_TEXTURE_USAGE_SAMPLED
         };
         tTexture = gptDevice->create_texture(ptDevice, &tTextureDesc, ptMaterial->atTextureMaps[tSlot].acName);
+        plTexture* ptTexture0 = gptDevice->get_texture(ptDevice, tTexture);
+        plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
+        if(ptTexture0->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+            ptAllocator = gptData->ptLocalDedicatedAllocator;
+        plDeviceMemoryAllocation tAllocation0 = ptAllocator->allocate(ptAllocator->ptInst, ptTexture0->tMemoryRequirements.uMemoryTypeBits, ptTexture0->tMemoryRequirements.ulSize, ptTexture0->tMemoryRequirements.ulAlignment, ptMaterial->atTextureMaps[tSlot].acName);
+        gptDevice->bind_texture_to_memory(ptDevice, tTexture, &tAllocation0);
+
         plBufferImageCopy tBufferImageCopy = {
             .tImageExtent = {texWidth, texHeight, 1},
             .uLayerCount = 1
@@ -2115,6 +2206,13 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
             .tUsage = PL_TEXTURE_USAGE_SAMPLED
         };
         tTexture = gptDevice->create_texture(ptDevice, &tTextureDesc, ptMaterial->atTextureMaps[tSlot].acName);
+        plTexture* ptTexture0 = gptDevice->get_texture(ptDevice, tTexture);
+        plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
+        if(ptTexture0->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+            ptAllocator = gptData->ptLocalDedicatedAllocator;
+        plDeviceMemoryAllocation tAllocation0 = ptAllocator->allocate(ptAllocator->ptInst, ptTexture0->tMemoryRequirements.uMemoryTypeBits, ptTexture0->tMemoryRequirements.ulSize, ptTexture0->tMemoryRequirements.ulAlignment, ptMaterial->atTextureMaps[tSlot].acName);
+        gptDevice->bind_texture_to_memory(ptDevice, tTexture, &tAllocation0);
+
         plBufferImageCopy tBufferImageCopy = {
             .tImageExtent = {texWidth, texHeight, 1},
             .uLayerCount = 1
@@ -2377,7 +2475,15 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
             };
 
             for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
+            {
                 tSkinData.atDynamicTexture[i] = gptDevice->create_texture(ptDevice, &tTextureDesc, "joint texture");
+                plTexture* ptTexture0 = gptDevice->get_texture(ptDevice, tSkinData.atDynamicTexture[i]);
+                plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
+                if(ptTexture0->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+                    ptAllocator = gptData->ptLocalDedicatedAllocator;
+                plDeviceMemoryAllocation tAllocation0 = ptAllocator->allocate(ptAllocator->ptInst, ptTexture0->tMemoryRequirements.uMemoryTypeBits, ptTexture0->tMemoryRequirements.ulSize, ptTexture0->tMemoryRequirements.ulAlignment, "joint texture");
+                gptDevice->bind_texture_to_memory(ptDevice, tSkinData.atDynamicTexture[i], &tAllocation0);
+            }
 
             plBufferImageCopy tBufferImageCopy = {
                 .tImageExtent = {textureWidth, textureWidth, 1},
@@ -2403,12 +2509,19 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
 
     const plBufferDescription tShaderBufferDesc = {
-        .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_STORAGE,
         .uByteSize            = sizeof(plMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer)
     };
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtMaterialBuffer, sizeof(plMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer));
     ptScene->tMaterialDataBuffer = gptDevice->create_buffer(ptDevice, &tShaderBufferDesc, "shader buffer");
+    {
+        plBuffer* ptBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, ptScene->tMaterialDataBuffer);
+        plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
+        if(ptBuffer->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+            ptAllocator = gptData->ptLocalDedicatedAllocator;
+        plDeviceMemoryAllocation tAllocation = ptAllocator->allocate(ptAllocator->ptInst, ptBuffer->tMemoryRequirements.uMemoryTypeBits, ptBuffer->tMemoryRequirements.ulSize, ptBuffer->tMemoryRequirements.ulAlignment, "shader buffer");
+        gptDevice->bind_buffer_to_memory(&ptGraphics->tDevice, ptScene->tMaterialDataBuffer , &tAllocation);
+    }
 
     plBlitEncoder tEncoder = gptGfx->begin_blit_pass(ptGraphics, &tCommandBuffer);
     gptGfx->copy_buffer(&tEncoder, gptData->tStagingBufferHandle[0], ptScene->tMaterialDataBuffer, 0, 0, tShaderBufferDesc.uByteSize);
@@ -2418,12 +2531,19 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle[0]);
 
     const plBufferDescription tIndexBufferDesc = {
-        .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_INDEX,
         .uByteSize            = sizeof(uint32_t) * pl_sb_size(ptScene->sbuIndexBuffer)
     };
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbuIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptScene->sbuIndexBuffer));
     ptScene->tIndexBuffer = gptDevice->create_buffer(ptDevice, &tIndexBufferDesc, "index buffer");
+    {
+        plBuffer* ptBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, ptScene->tIndexBuffer);
+        plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
+        if(ptBuffer->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+            ptAllocator = gptData->ptLocalDedicatedAllocator;
+        plDeviceMemoryAllocation tAllocation = ptAllocator->allocate(ptAllocator->ptInst, ptBuffer->tMemoryRequirements.uMemoryTypeBits, ptBuffer->tMemoryRequirements.ulSize, ptBuffer->tMemoryRequirements.ulAlignment, "index buffer");
+        gptDevice->bind_buffer_to_memory(&ptGraphics->tDevice, ptScene->tIndexBuffer , &tAllocation);
+    }
 
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
     tEncoder = gptGfx->begin_blit_pass(ptGraphics, &tCommandBuffer);
@@ -2434,12 +2554,19 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle[0]);
 
     const plBufferDescription tVertexBufferDesc = {
-        .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_VERTEX,
         .uByteSize            = sizeof(plVec3) * pl_sb_size(ptScene->sbtVertexPosBuffer)
     };
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtVertexPosBuffer, sizeof(plVec3) * pl_sb_size(ptScene->sbtVertexPosBuffer));
     ptScene->tVertexBuffer = gptDevice->create_buffer(ptDevice, &tVertexBufferDesc, "vertex buffer");
+    {
+        plBuffer* ptBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, ptScene->tVertexBuffer);
+        plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
+        if(ptBuffer->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+            ptAllocator = gptData->ptLocalDedicatedAllocator;
+        plDeviceMemoryAllocation tAllocation = ptAllocator->allocate(ptAllocator->ptInst, ptBuffer->tMemoryRequirements.uMemoryTypeBits, ptBuffer->tMemoryRequirements.ulSize, ptBuffer->tMemoryRequirements.ulAlignment, "vertex buffer");
+        gptDevice->bind_buffer_to_memory(&ptGraphics->tDevice, ptScene->tVertexBuffer , &tAllocation);
+    }
     
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
     tEncoder = gptGfx->begin_blit_pass(ptGraphics, &tCommandBuffer);
@@ -2450,12 +2577,19 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle[0]);
 
     const plBufferDescription tStorageBufferDesc = {
-        .tMemory              = PL_MEMORY_GPU,
         .tUsage               = PL_BUFFER_USAGE_STORAGE,
         .uByteSize            = sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer)
     };
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtVertexDataBuffer, sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer));
     ptScene->tStorageBuffer = gptDevice->create_buffer(ptDevice, &tStorageBufferDesc, "storage buffer");
+    {
+        plBuffer* ptBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, ptScene->tStorageBuffer);
+        plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
+        if(ptBuffer->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+            ptAllocator = gptData->ptLocalDedicatedAllocator;
+        plDeviceMemoryAllocation tAllocation = ptAllocator->allocate(ptAllocator->ptInst, ptBuffer->tMemoryRequirements.uMemoryTypeBits, ptBuffer->tMemoryRequirements.ulSize, ptBuffer->tMemoryRequirements.ulAlignment, "storage buffer");
+        gptDevice->bind_buffer_to_memory(&ptGraphics->tDevice, ptScene->tStorageBuffer , &tAllocation);
+    }
 
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
     tEncoder = gptGfx->begin_blit_pass(ptGraphics, &tCommandBuffer);
@@ -3212,15 +3346,17 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
    pl_set_context(gptDataRegistry->get_data("ui"));
 
    // apis
-   gptResource = ptApiRegistry->first(PL_API_RESOURCE);
-   gptECS      = ptApiRegistry->first(PL_API_ECS);
-   gptFile     = ptApiRegistry->first(PL_API_FILE);
-   gptDevice   = ptApiRegistry->first(PL_API_DEVICE);
-   gptGfx      = ptApiRegistry->first(PL_API_GRAPHICS);
-   gptCamera   = ptApiRegistry->first(PL_API_CAMERA);
-   gptStream   = ptApiRegistry->first(PL_API_DRAW_STREAM);
-   gptImage    = ptApiRegistry->first(PL_API_IMAGE);
-   gptStats    = ptApiRegistry->first(PL_API_STATS);
+   gptResource      = ptApiRegistry->first(PL_API_RESOURCE);
+   gptECS           = ptApiRegistry->first(PL_API_ECS);
+   gptFile          = ptApiRegistry->first(PL_API_FILE);
+   gptDevice        = ptApiRegistry->first(PL_API_DEVICE);
+   gptGfx           = ptApiRegistry->first(PL_API_GRAPHICS);
+   gptCamera        = ptApiRegistry->first(PL_API_CAMERA);
+   gptStream        = ptApiRegistry->first(PL_API_DRAW_STREAM);
+   gptImage         = ptApiRegistry->first(PL_API_IMAGE);
+   gptStats         = ptApiRegistry->first(PL_API_STATS);
+   gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
+   gptThreads       = ptApiRegistry->first(PL_API_THREADS);
 
    if(bReload)
    {

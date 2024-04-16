@@ -20,12 +20,8 @@ Index of this file:
 #ifndef PL_GRAPHICS_EXT_H
 #define PL_GRAPHICS_EXT_H
 
-#define PL_GRAPHICS_EXT_VERSION    "0.9.0"
-#define PL_GRAPHICS_EXT_VERSION_NUM 000900
-
-#ifndef PL_DEVICE_BUDDY_BLOCK_SIZE
-    #define PL_DEVICE_BUDDY_BLOCK_SIZE 268435456
-#endif
+#define PL_GRAPHICS_EXT_VERSION    "0.10.0"
+#define PL_GRAPHICS_EXT_VERSION_NUM 001000
 
 #ifndef PL_DEVICE_ALLOCATION_BLOCK_SIZE
     #define PL_DEVICE_ALLOCATION_BLOCK_SIZE 134217728
@@ -33,10 +29,6 @@ Index of this file:
 
 #ifndef PL_MAX_DYNAMIC_DATA_SIZE
     #define PL_MAX_DYNAMIC_DATA_SIZE 512
-#endif
-
-#ifndef PL_DEVICE_LOCAL_LEVELS
-    #define PL_DEVICE_LOCAL_LEVELS 8
 #endif
 
 #ifndef PL_MAX_BUFFERS_PER_BIND_GROUP
@@ -175,10 +167,11 @@ PL_DEFINE_HANDLE(plRenderPassLayoutHandle);
 PL_DEFINE_HANDLE(plSemaphoreHandle);
 
 // device memory
-typedef struct _plDeviceAllocationRange  plDeviceAllocationRange;
-typedef struct _plDeviceAllocationBlock  plDeviceAllocationBlock;
-typedef struct _plDeviceMemoryAllocation plDeviceMemoryAllocation;
-typedef struct _plDeviceMemoryAllocatorI plDeviceMemoryAllocatorI;
+typedef struct _plDeviceMemoryRequirements plDeviceMemoryRequirements;
+typedef struct _plDeviceAllocationRange    plDeviceAllocationRange;
+typedef struct _plDeviceAllocationBlock    plDeviceAllocationBlock;
+typedef struct _plDeviceMemoryAllocation   plDeviceMemoryAllocation;
+typedef struct _plDeviceMemoryAllocatorI   plDeviceMemoryAllocatorI;
 
 // 3D drawing api
 typedef struct _plDrawList3D        plDrawList3D;
@@ -226,8 +219,10 @@ typedef struct _plDrawStreamI
 
 typedef struct _plDeviceI
 {
+
     // buffers
     plBufferHandle (*create_buffer)            (plDevice* ptDevice, const plBufferDescription* ptDesc, const char* pcName);
+    void           (*bind_buffer_to_memory)    (plDevice* ptDevice, plBufferHandle tHandle, const plDeviceMemoryAllocation* ptAllocation);
     void           (*queue_buffer_for_deletion)(plDevice* ptDevice, plBufferHandle tHandle);
     void           (*destroy_buffer)           (plDevice* ptDevice, plBufferHandle tHandle);
     plBuffer*      (*get_buffer)               (plDevice* ptDevice, plBufferHandle ptHandle); // do not store
@@ -240,6 +235,7 @@ typedef struct _plDeviceI
     // textures (if manually handling mips/levels, don't use initial data, use "copy_buffer_to_texture" instead)
     plTextureHandle (*create_texture)            (plDevice* ptDevice, const plTextureDesc* ptDesc, const char* pcName);
     plTextureHandle (*create_texture_view)       (plDevice* ptDevice, const plTextureViewDesc* ptDesc, const char* pcName);
+    void            (*bind_texture_to_memory)    (plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation);
     void            (*queue_texture_for_deletion)(plDevice* ptDevice, plTextureHandle tHandle);
     void            (*destroy_texture)           (plDevice* ptDevice, plTextureHandle tHandle);
     plTexture*      (*get_texture)               (plDevice* ptDevice, plTextureHandle ptHandle);     // do not store
@@ -251,7 +247,7 @@ typedef struct _plDeviceI
     void              (*queue_bind_group_for_deletion)(plDevice* ptDevice, plBindGroupHandle tHandle);
     void              (*destroy_bind_group)           (plDevice* ptDevice, plBindGroupHandle tHandle);
     plBindGroup*      (*get_bind_group)               (plDevice* ptDevice, plBindGroupHandle ptHandle); // do not store
-    plDynamicBinding  (*allocate_dynamic_data)        (plDevice* ptDevice, size_t szSize);
+    
 
     // render passes
     plRenderPassLayoutHandle (*create_render_pass_layout)            (plDevice* ptDevice, const plRenderPassLayoutDescription* ptDesc);
@@ -273,6 +269,15 @@ typedef struct _plDeviceI
 
     // syncronization
     plSemaphoreHandle (*create_semaphore)(plDevice* ptDevice, bool bHostVisible);
+
+    // memory
+    plDynamicBinding        (*allocate_dynamic_data)(plDevice* ptDevice, size_t szSize);
+    plDeviceAllocationBlock (*allocate_memory)(plDevice* ptDevice, uint64_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
+    void                    (*free_memory)(plDevice* ptDevice, plDeviceAllocationBlock* ptBlock);
+
+    // misc
+    void (*flush_device)(plDevice* ptDevice);
+
 } plDeviceI;
 
 typedef struct _plGraphicsI
@@ -454,11 +459,12 @@ typedef struct _plDrawList3D
 
 typedef struct _plDeviceMemoryAllocation
 {
-    uint64_t                         uHandle;
-    uint64_t                         ulOffset;
-    uint64_t                         ulSize;
-    char*                            pHostMapped;
-    struct plDeviceMemoryAllocatorO* ptInst;
+    plMemoryMode              tMemoryMode;
+    uint64_t                  uHandle;
+    uint64_t                  ulOffset;
+    uint64_t                  ulSize;
+    char*                     pHostMapped;
+    plDeviceMemoryAllocatorI* ptAllocator;
 } plDeviceMemoryAllocation;
 
 typedef struct _plDeviceAllocationRange
@@ -472,14 +478,23 @@ typedef struct _plDeviceAllocationRange
     uint32_t uNextNode;
 } plDeviceAllocationRange;
 
+typedef struct _plDeviceMemoryRequirements
+{
+    uint64_t ulSize;
+    uint64_t ulAlignment;
+    uint32_t uMemoryTypeBits;
+} plDeviceMemoryRequirements;
+
 typedef struct _plDeviceAllocationBlock
 {
-    uint64_t                 ulMemoryType;
-    uint64_t                 ulAddress;
-    uint64_t                 ulSize;
-    char*                    pHostMapped;
-    uint32_t                 uCurrentIndex; // used but debug tool
-    double                   dLastTimeUsed;
+    plMemoryMode tMemoryMode;
+    uint64_t     ulMemoryType;
+    uint64_t     ulAddress;
+    uint64_t     ulSize;
+    char*        pHostMapped;
+    uint32_t     uCurrentIndex; // used but debug tool
+    double       dLastTimeUsed;
+    plDeviceMemoryAllocatorI *ptAllocator;
 } plDeviceAllocationBlock;
 
 typedef struct _plDeviceMemoryAllocatorI
@@ -489,6 +504,8 @@ typedef struct _plDeviceMemoryAllocatorI
 
     plDeviceMemoryAllocation (*allocate)(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
     void                     (*free)    (struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation);
+
+    // for debug views
     plDeviceAllocationBlock* (*blocks)  (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
     plDeviceAllocationRange* (*ranges)  (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
 } plDeviceMemoryAllocatorI;
@@ -521,34 +538,36 @@ typedef struct _plSampler
 
 typedef struct _plTextureDesc
 {
-    plVec3            tDimensions;
-    uint32_t          uLayers;
-    uint32_t          uMips;
-    plFormat          tFormat;
-    plTextureType     tType;
-    plTextureUsage    tUsage;
-    plTextureUsage    tInitialUsage;
+    char           acDebugName[PL_MAX_NAME_LENGTH];
+    plVec3         tDimensions;
+    uint32_t       uLayers;
+    uint32_t       uMips;
+    plFormat       tFormat;
+    plTextureType  tType;
+    plTextureUsage tUsage;
+    plTextureUsage tInitialUsage;
 } plTextureDesc;
 
 typedef struct _plTexture
 {
-    plTextureDesc            tDesc;
-    plTextureViewDesc        tView;
-    plDeviceMemoryAllocation tMemoryAllocation;
+    plTextureDesc              tDesc;
+    plTextureViewDesc          tView;
+    plDeviceMemoryRequirements tMemoryRequirements;
+    plDeviceMemoryAllocation   tMemoryAllocation;
 } plTexture;
 
 typedef struct _plBufferDescription
 {
     char           acDebugName[PL_MAX_NAME_LENGTH];
     plBufferUsage  tUsage;
-    plMemoryMode   tMemory;
     uint32_t       uByteSize;
 } plBufferDescription;
 
 typedef struct _plBuffer
 {
-    plBufferDescription      tDescription;
-    plDeviceMemoryAllocation tMemoryAllocation;
+    plBufferDescription        tDescription;
+    plDeviceMemoryRequirements tMemoryRequirements;
+    plDeviceMemoryAllocation   tMemoryAllocation;
 } plBuffer;
 
 typedef struct _plBufferBinding
@@ -810,10 +829,7 @@ typedef struct _plRenderPass
 typedef struct _plDevice
 {
     plGraphics* ptGraphics;
-    plDeviceMemoryAllocatorI tLocalDedicatedAllocator;
-    plDeviceMemoryAllocatorI tLocalBuddyAllocator;
-    plDeviceMemoryAllocatorI tStagingUnCachedAllocator;
-    plDeviceMemoryAllocatorI tStagingCachedAllocator;
+    plDeviceMemoryAllocatorI* ptDynamicAllocator;
     void* _pInternalData;
 } plDevice;
 
@@ -994,7 +1010,8 @@ enum _plBufferUsage
     PL_BUFFER_USAGE_INDEX,
     PL_BUFFER_USAGE_VERTEX,
     PL_BUFFER_USAGE_UNIFORM,
-    PL_BUFFER_USAGE_STORAGE
+    PL_BUFFER_USAGE_STORAGE,
+    PL_BUFFER_USAGE_STAGING,
 };
 
 enum _plTextureUsage

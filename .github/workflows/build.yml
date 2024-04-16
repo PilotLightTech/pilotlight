@@ -52,6 +52,7 @@ jobs:
         if not exist ../out/pl_image_ext.dll exit 1
         if not exist ../out/pl_stats_ext.dll exit 1
         if not exist ../out/pl_debug_ext.dll exit 1
+        if not exist ../out/pl_gpu_allocators_ext.dll exit 1
         if not exist ../out/pl_resource_ext.dll exit 1
         if not exist ../out/pl_ecs_ext.dll exit 1
         if not exist ../out/pl_ref_renderer_ext.dll exit 1
@@ -102,6 +103,7 @@ jobs:
         test -f ./out/pl_image_ext.dylib || exit 1
         test -f ./out/pl_debug_ext.dylib || exit 1
         test -f ./out/pl_graphics_ext.dylib || exit 1
+        test -f ./out/pl_gpu_allocators_ext.dylib || exit 1
         test -f ./out/pl_resource_ext.dylib || exit 1
         test -f ./out/pl_ecs_ext.dylib || exit 1
         test -f ./out/pl_ref_renderer_ext.dylib || exit 1
@@ -165,6 +167,7 @@ jobs:
         test -f ./out/pl_image_ext.so || exit 1
         test -f ./out/pl_stats_ext.so || exit 1
         test -f ./out/pl_debug_ext.so || exit 1
+        test -f ./out/pl_gpu_allocators_ext.so || exit 1
         test -f ./out/pl_resource_ext.so || exit 1
         test -f ./out/pl_ecs_ext.so || exit 1
         test -f ./out/pl_ref_renderer_ext.so || exit 1

@@ -285,6 +285,9 @@ static VkStencilOp                         pl__vulkan_stencil_op(plStencilOp tSt
 static VkBlendFactor                       pl__vulkan_blend_factor(plBlendFactor tFactor);
 static VkBlendOp                           pl__vulkan_blend_op(plBlendOp tOp);
 
+static plDeviceAllocationBlock pl_allocate_memory(plDevice* ptDevice, uint64_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
+static void pl_free_memory(plDevice* ptDevice, plDeviceAllocationBlock* ptBlock);
+
 // 3D drawing helpers
 static pl3DVulkanPipelineEntry* pl__get_3d_pipelines(plGraphics* ptGfx, VkRenderPass tRenderPass, VkSampleCountFlagBits tMSAASampleCount, uint32_t uSubpassIndex, pl3DDrawFlags tFlags);
 
@@ -301,18 +304,6 @@ static void                  pl__create_swapchain(plGraphics* ptGraphics, uint32
 static uint32_t              pl__find_memory_type_(VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties);
 static void                  pl__garbage_collect(plGraphics* ptGraphics);
 static void                  pl__fill_common_render_pass_data(const plRenderPassLayoutDescription* ptDesc, plRenderPassLayout* ptLayout, plRenderPassCommonData* ptDataOut);
-
-// device memory allocators
-static plDeviceMemoryAllocation pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
-static void                     pl_free_dedicated    (struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation);
-
-static plDeviceMemoryAllocation pl_allocate_buddy(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
-
-static plDeviceMemoryAllocation pl_allocate_staging_uncached         (struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
-static void                     pl_free_staging_uncached             (struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation);
-
-static plDeviceMemoryAllocation pl_allocate_staging_cached         (struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
-static void                     pl_free_staging_cached             (struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation);
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT tMsgSeverity, VkDebugUtilsMessageTypeFlagsEXT tMsgType, const VkDebugUtilsMessengerCallbackDataEXT* ptCallbackData, void* pUserData);
 
@@ -358,7 +349,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float
         {
             if(ptBufferInfo->tVertexBuffer)
             {
-                ptGfx->tDevice.tStagingUnCachedAllocator.free(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, &ptBufferInfo->tVertexMemory);
+                ptGfx->tDevice.ptDynamicAllocator->free(ptGfx->tDevice.ptDynamicAllocator->ptInst, &ptBufferInfo->tVertexMemory);
                 pl_sb_push(ptCurrentFrame->sbtRawBuffers, ptBufferInfo->tVertexBuffer);
             }
 
@@ -377,7 +368,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float
             char acBuffer[256] = {0};
             pl_sprintf(acBuffer, "3D-SOLID_VTX-F%d", (int)ptGfx->uCurrentFrameIndex);
             pl_set_vulkan_object_name(&ptGfx->tDevice, (uint64_t)ptBufferInfo->tVertexBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, acBuffer);
-            ptBufferInfo->tVertexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
+            ptBufferInfo->tVertexMemory = ptGfx->tDevice.ptDynamicAllocator->allocate(ptGfx->tDevice.ptDynamicAllocator->ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
             PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexBuffer, (VkDeviceMemory)ptBufferInfo->tVertexMemory.uHandle, ptBufferInfo->tVertexMemory.ulOffset));
         }
 
@@ -397,7 +388,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float
         {
             if(ptBufferInfo->tIndexBuffer)
             {
-                ptGfx->tDevice.tStagingUnCachedAllocator.free(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, &ptBufferInfo->tIndexMemory);
+                ptGfx->tDevice.ptDynamicAllocator->free(ptGfx->tDevice.ptDynamicAllocator->ptInst, &ptBufferInfo->tIndexMemory);
                 pl_sb_push(ptCurrentFrame->sbtRawBuffers, ptBufferInfo->tIndexBuffer);
             }
 
@@ -415,7 +406,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float
             char acBuffer[256] = {0};
             pl_sprintf(acBuffer, "3D-SOLID_IDX-F%d", (int)ptGfx->uCurrentFrameIndex);
             pl_set_vulkan_object_name(&ptGfx->tDevice, (uint64_t)ptBufferInfo->tIndexBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, acBuffer);
-            ptBufferInfo->tIndexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
+            ptBufferInfo->tIndexMemory = ptGfx->tDevice.ptDynamicAllocator->allocate(ptGfx->tDevice.ptDynamicAllocator->ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
             PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexBuffer, (VkDeviceMemory)ptBufferInfo->tIndexMemory.uHandle, ptBufferInfo->tIndexMemory.ulOffset));
         }
 
@@ -471,7 +462,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float
         {
             if(ptBufferInfo->tVertexBuffer)
             {
-                ptGfx->tDevice.tStagingUnCachedAllocator.free(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, &ptBufferInfo->tVertexMemory);
+                ptGfx->tDevice.ptDynamicAllocator->free(ptGfx->tDevice.ptDynamicAllocator->ptInst, &ptBufferInfo->tVertexMemory);
                 pl_sb_push(ptCurrentFrame->sbtRawBuffers, ptBufferInfo->tVertexBuffer);
             }
 
@@ -490,7 +481,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float
             char acBuffer[256] = {0};
             pl_sprintf(acBuffer, "3D-LINE_VTX-F%d", (int)ptGfx->uCurrentFrameIndex);
             pl_set_vulkan_object_name(&ptGfx->tDevice, (uint64_t)ptBufferInfo->tVertexBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, acBuffer);
-            ptBufferInfo->tVertexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
+            ptBufferInfo->tVertexMemory = ptGfx->tDevice.ptDynamicAllocator->allocate(ptGfx->tDevice.ptDynamicAllocator->ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
             PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tVertexBuffer, (VkDeviceMemory)ptBufferInfo->tVertexMemory.uHandle, ptBufferInfo->tVertexMemory.ulOffset));
         }
 
@@ -510,7 +501,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float
         {
             if(ptBufferInfo->tIndexBuffer)
             {
-                ptGfx->tDevice.tStagingUnCachedAllocator.free(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, &ptBufferInfo->tIndexMemory);
+                ptGfx->tDevice.ptDynamicAllocator->free(ptGfx->tDevice.ptDynamicAllocator->ptInst, &ptBufferInfo->tIndexMemory);
                 pl_sb_push(ptCurrentFrame->sbtRawBuffers, ptBufferInfo->tIndexBuffer);
             }
 
@@ -528,7 +519,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float
             char acBuffer[256] = {0};
             pl_sprintf(acBuffer, "3D-LINE_IDX-F%d", (int)ptGfx->uCurrentFrameIndex);
             pl_set_vulkan_object_name(&ptGfx->tDevice, (uint64_t)ptBufferInfo->tIndexBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, acBuffer);
-            ptBufferInfo->tIndexMemory = ptGfx->tDevice.tStagingUnCachedAllocator.allocate(ptGfx->tDevice.tStagingUnCachedAllocator.ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
+            ptBufferInfo->tIndexMemory = ptGfx->tDevice.ptDynamicAllocator->allocate(ptGfx->tDevice.ptDynamicAllocator->ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, acBuffer);
             PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptBufferInfo->tIndexBuffer, (VkDeviceMemory)ptBufferInfo->tIndexMemory.uHandle, ptBufferInfo->tIndexMemory.ulOffset));
         }
 
@@ -691,45 +682,46 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
     };
 
     VkBufferUsageFlagBits tBufferUsageFlags = 0;
-    if(ptDesc->tUsage == PL_BUFFER_USAGE_VERTEX)
-        tBufferInfo.usage |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    if(ptDesc->tUsage == PL_BUFFER_USAGE_INDEX)
-        tBufferInfo.usage |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-    if(ptDesc->tUsage == PL_BUFFER_USAGE_STORAGE)
-        tBufferInfo.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    if(ptDesc->tUsage == PL_BUFFER_USAGE_UNIFORM)
-        tBufferInfo.usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    if(ptDesc->tUsage & PL_BUFFER_USAGE_VERTEX)
+        tBufferInfo.usage |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    if(ptDesc->tUsage & PL_BUFFER_USAGE_INDEX)
+        tBufferInfo.usage |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    if(ptDesc->tUsage & PL_BUFFER_USAGE_STORAGE)
+        tBufferInfo.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    if(ptDesc->tUsage & PL_BUFFER_USAGE_UNIFORM)
+        tBufferInfo.usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    if(ptDesc->tUsage & PL_BUFFER_USAGE_STAGING)
+        tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
     VkMemoryRequirements tMemRequirements = {0};
-
-    if(ptDesc->tMemory == PL_MEMORY_GPU_CPU)
-        tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    else if(ptDesc->tMemory == PL_MEMORY_GPU)
-        tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    else if(ptDesc->tMemory == PL_MEMORY_CPU)
-        tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
     PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &tBufferInfo, NULL, &tVulkanBuffer.tBuffer));
     if(pcName)
         pl_set_vulkan_object_name(ptDevice, (uint64_t)tVulkanBuffer.tBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, pcName);
     vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, tVulkanBuffer.tBuffer, &tMemRequirements);
 
-    if(ptDesc->tMemory == PL_MEMORY_GPU_CPU)
-        tBuffer.tMemoryAllocation = ptDevice->tStagingUnCachedAllocator.allocate(ptDevice->tStagingUnCachedAllocator.ptInst, tMemRequirements.memoryTypeBits, tMemRequirements.size, tMemRequirements.alignment, tBuffer.tDescription.acDebugName);
-    else if(ptDesc->tMemory == PL_MEMORY_CPU)
-        tBuffer.tMemoryAllocation = ptDevice->tStagingCachedAllocator.allocate(ptDevice->tStagingCachedAllocator.ptInst, tMemRequirements.memoryTypeBits, tMemRequirements.size, tMemRequirements.alignment, tBuffer.tDescription.acDebugName);
-    else
-    {
-        plDeviceMemoryAllocatorI* ptAllocator = tMemRequirements.size > PL_DEVICE_BUDDY_BLOCK_SIZE ? &ptDevice->tLocalDedicatedAllocator : &ptDevice->tLocalBuddyAllocator;
-        tBuffer.tMemoryAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemRequirements.memoryTypeBits, tMemRequirements.size, tMemRequirements.alignment, tBuffer.tDescription.acDebugName);
-    }
-
-    PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, tVulkanBuffer.tBuffer, (VkDeviceMemory)tBuffer.tMemoryAllocation.uHandle, tBuffer.tMemoryAllocation.ulOffset));
-    tVulkanBuffer.pcData = tBuffer.tMemoryAllocation.pHostMapped;
+    tBuffer.tMemoryRequirements.ulAlignment = tMemRequirements.alignment;
+    tBuffer.tMemoryRequirements.ulSize = tMemRequirements.size;
+    tBuffer.tMemoryRequirements.uMemoryTypeBits = tMemRequirements.memoryTypeBits;
 
     ptVulkanGraphics->sbtBuffersHot[uBufferIndex] = tVulkanBuffer;
     ptGraphics->sbtBuffersCold[uBufferIndex] = tBuffer;
     return tHandle;
+}
+
+static void
+pl_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptDevice->ptGraphics->_pInternalData;
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+
+    plBuffer* ptBuffer = &ptGraphics->sbtBuffersCold[tHandle.uIndex];
+    ptBuffer->tMemoryAllocation = *ptAllocation;
+    plVulkanBuffer* ptVulkanBuffer = &ptVulkanGraphics->sbtBuffersHot[tHandle.uIndex];
+
+    PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptVulkanBuffer->tBuffer, (VkDeviceMemory)ptAllocation->uHandle, ptAllocation->ulOffset));
+    ptVulkanBuffer->pcData = ptAllocation->pHostMapped;
 }
 
 static plDynamicBinding
@@ -766,13 +758,15 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
             ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
 
             plBufferDescription tStagingBufferDescription0 = {
-                .tMemory              = PL_MEMORY_GPU_CPU,
-                .tUsage               = PL_BUFFER_USAGE_UNIFORM,
+                .tUsage               = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
                 .uByteSize            = PL_DEVICE_ALLOCATION_BLOCK_SIZE
             };
             pl_sprintf(tStagingBufferDescription0.acDebugName, "D-BUF-F%d-%d", (int)ptGraphics->uCurrentFrameIndex, (int)ptFrame->uCurrentBufferIndex);
 
-            plBufferHandle tStagingBuffer0 = pl_create_buffer(&ptGraphics->tDevice, &tStagingBufferDescription0, NULL);
+            plBufferHandle tStagingBuffer0 = pl_create_buffer(&ptGraphics->tDevice, &tStagingBufferDescription0, "dynamic buffer");
+            plBuffer* ptBuffer = &ptGraphics->sbtBuffersCold[tStagingBuffer0.uIndex];
+            plDeviceMemoryAllocation tAllocation = ptDevice->ptDynamicAllocator->allocate(ptDevice->ptDynamicAllocator->ptInst, ptBuffer->tMemoryRequirements.uMemoryTypeBits, ptBuffer->tMemoryRequirements.ulSize, ptBuffer->tMemoryRequirements.ulAlignment, "dynamic buffer");
+            pl_bind_buffer_to_memory(ptDevice, tStagingBuffer0, &tAllocation);
 
             ptDynamicBuffer->uHandle = tStagingBuffer0.uIndex;
             ptDynamicBuffer->tBuffer = ptVulkanGraphics->sbtBuffersHot[tStagingBuffer0.uIndex].tBuffer;
@@ -962,7 +956,11 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
     plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
     plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
 
+    if(pcName == NULL)
+        pcName = "unnamed texture";
+
     plTextureDesc tDesc = *ptDesc;
+    strncpy(tDesc.acDebugName, pcName, PL_MAX_NAME_LENGTH);
 
     if(tDesc.tInitialUsage == PL_TEXTURE_USAGE_UNSPECIFIED)
         tDesc.tInitialUsage = PL_TEXTURE_USAGE_SAMPLED;
@@ -1043,16 +1041,32 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
     // get memory requirements
     VkMemoryRequirements tMemoryRequirements = {0};
     vkGetImageMemoryRequirements(ptVulkanDevice->tLogicalDevice, tVulkanTexture.tImage, &tMemoryRequirements);
+    tTexture.tMemoryRequirements.ulSize = tMemoryRequirements.size;
+    tTexture.tMemoryRequirements.ulAlignment = tMemoryRequirements.alignment;
+    tTexture.tMemoryRequirements.uMemoryTypeBits = tMemoryRequirements.memoryTypeBits;
 
-    // allocate memory
-    plDeviceMemoryAllocatorI* ptAllocator = tMemoryRequirements.size > PL_DEVICE_BUDDY_BLOCK_SIZE ? &ptDevice->tLocalDedicatedAllocator : &ptDevice->tLocalBuddyAllocator;
-    tTexture.tMemoryAllocation = ptAllocator->allocate(ptAllocator->ptInst, tMemoryRequirements.memoryTypeBits, tMemoryRequirements.size, tMemoryRequirements.alignment, pcName);
+    // upload data
+    ptVulkanGraphics->sbtTexturesHot[uTextureIndex] = tVulkanTexture;
+    ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
+    return tHandle;
+}
 
-    PL_VULKAN(vkBindImageMemory(ptVulkanDevice->tLogicalDevice, tVulkanTexture.tImage, (VkDeviceMemory)tTexture.tMemoryAllocation.uHandle, tTexture.tMemoryAllocation.ulOffset));
+static void
+pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptDevice->ptGraphics->_pInternalData;
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
 
-    VkImageAspectFlags tImageAspectFlags = tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    plTexture* ptTexture = &ptGraphics->sbtTexturesCold[tHandle.uIndex];
+    ptTexture->tMemoryAllocation = *ptAllocation;
+    plVulkanTexture* ptVulkanTexture = &ptVulkanGraphics->sbtTexturesHot[tHandle.uIndex];
 
-    if(pl__format_has_stencil(pl__vulkan_format(tDesc.tFormat)))
+    PL_VULKAN(vkBindImageMemory(ptVulkanDevice->tLogicalDevice, ptVulkanTexture->tImage, (VkDeviceMemory)ptAllocation->uHandle, ptAllocation->ulOffset));
+
+    VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+    if(pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.tFormat)))
         tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
 
     VkCommandBuffer tCommandBuffer = {0};
@@ -1074,13 +1088,13 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
 
     VkImageSubresourceRange tRange = {
         .baseMipLevel   = 0,
-        .levelCount     = tDesc.uMips,
+        .levelCount     = ptTexture->tDesc.uMips,
         .baseArrayLayer = 0,
-        .layerCount     = tDesc.uLayers,
+        .layerCount     = ptTexture->tDesc.uLayers,
         .aspectMask     = tImageAspectFlags
     };
 
-    pl__transition_image_layout(tCommandBuffer, tVulkanTexture.tImage, VK_IMAGE_LAYOUT_UNDEFINED, pl__vulkan_layout(tDesc.tInitialUsage), tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    pl__transition_image_layout(tCommandBuffer, ptVulkanTexture->tImage, VK_IMAGE_LAYOUT_UNDEFINED, pl__vulkan_layout(ptTexture->tDesc.tInitialUsage), tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 
     PL_VULKAN(vkEndCommandBuffer(tCommandBuffer));
     const VkSubmitInfo tSubmitInfo = {
@@ -1095,26 +1109,29 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    VkImageViewType tImageViewType = 0;
+    if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_CUBE)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
+    else if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
+    else
+    {
+        PL_ASSERT(false && "unsupported texture type");
+    }
+    PL_ASSERT((ptTexture->tDesc.uLayers == 1 || ptTexture->tDesc.uLayers == 6) && "unsupported layer count");
+
     VkImageViewCreateInfo tViewInfo = {
         .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image                           = tVulkanTexture.tImage,
+        .image                           = ptVulkanTexture->tImage,
         .viewType                        = tImageViewType,
-        .format                          = pl__vulkan_format(tDesc.tFormat),
-        .subresourceRange.baseMipLevel   = tTexture.tView.uBaseMip,
-        .subresourceRange.levelCount     = tDesc.uMips,
-        .subresourceRange.baseArrayLayer = tTexture.tView.uBaseLayer,
-        .subresourceRange.layerCount     = tTexture.tView.uLayerCount,
-        .subresourceRange.aspectMask     = tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT,
+        .format                          = pl__vulkan_format(ptTexture->tDesc.tFormat),
+        .subresourceRange.baseMipLevel   = ptTexture->tView.uBaseMip,
+        .subresourceRange.levelCount     = ptTexture->tDesc.uMips,
+        .subresourceRange.baseArrayLayer = ptTexture->tView.uBaseLayer,
+        .subresourceRange.layerCount     = ptTexture->tView.uLayerCount,
+        .subresourceRange.aspectMask     = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT,
     };
-    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tViewInfo, NULL, &tVulkanTexture.tImageView));
-
-    if(pcName)
-        pl_set_vulkan_object_name(ptDevice, (uint64_t)tVulkanTexture.tImage, VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, pcName);
-
-    // upload data
-    ptVulkanGraphics->sbtTexturesHot[uTextureIndex] = tVulkanTexture;
-    ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
-    return tHandle;
+    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tViewInfo, NULL, &ptVulkanTexture->tImageView));
 }
 
 static plTextureHandle
@@ -2889,6 +2906,46 @@ pl_draw_list(plGraphics* ptGraphics, plRenderEncoder tEncoder, uint32_t uListCou
     }
 }
 
+typedef struct _plInternalDeviceAllocatorData
+{
+    plDevice* ptDevice;
+    plDeviceMemoryAllocatorI* ptAllocator;
+} plInternalDeviceAllocatorData;
+
+static plDeviceMemoryAllocation
+pl_allocate_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
+{
+    plInternalDeviceAllocatorData* ptData = (plInternalDeviceAllocatorData*)ptInst;
+
+    plDeviceMemoryAllocation tAllocation = {
+        .pHostMapped = NULL,
+        .uHandle     = 0,
+        .ulOffset    = 0,
+        .ulSize      = ulSize,
+        .ptAllocator = ptData->ptAllocator,
+        .tMemoryMode = PL_MEMORY_GPU_CPU
+    };
+
+
+    plDeviceAllocationBlock tBlock = pl_allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_GPU_CPU, uTypeFilter, "Uncached Heap");
+    tAllocation.uHandle = tBlock.ulAddress;
+    tAllocation.pHostMapped = tBlock.pHostMapped;
+    ptData->ptDevice->ptGraphics->szHostMemoryInUse += ulSize;
+    return tAllocation;
+}
+
+static void
+pl_free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation)
+{
+    plInternalDeviceAllocatorData* ptData = (plInternalDeviceAllocatorData*)ptInst;
+    plDeviceAllocationBlock tBlock = {.ulAddress = ptAllocation->uHandle};
+    pl_free_memory(ptData->ptDevice, &tBlock);
+    ptData->ptDevice->ptGraphics->szHostMemoryInUse -= ptAllocation->ulSize;
+    ptAllocation->uHandle = 0;
+    ptAllocation->ulSize = 0;
+    ptAllocation->ulOffset = 0;
+}
+
 static void
 pl_initialize_graphics(plWindow* ptWindow, plGraphics* ptGraphics)
 {
@@ -3272,46 +3329,6 @@ pl_initialize_graphics(plWindow* ptWindow, plGraphics* ptGraphics)
         ptVulkanDevice->vkCmdDebugMarkerInsert     = (PFN_vkCmdDebugMarkerInsertEXT)vkGetDeviceProcAddr(ptVulkanDevice->tLogicalDevice, "vkCmdDebugMarkerInsertEXT");
     }
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~device memory allocators~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // local dedicated
-    static plDeviceAllocatorData tLocalDedicatedData = {0};
-    tLocalDedicatedData.ptDevice = &ptGraphics->tDevice;
-    ptGraphics->tDevice.tLocalDedicatedAllocator.allocate = pl_allocate_dedicated;
-    ptGraphics->tDevice.tLocalDedicatedAllocator.free = pl_free_dedicated;
-    ptGraphics->tDevice.tLocalDedicatedAllocator.blocks = pl_get_allocator_blocks;
-    ptGraphics->tDevice.tLocalDedicatedAllocator.ranges = pl_get_allocator_ranges;
-    ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&tLocalDedicatedData;
-
-    // local buddy
-    static plDeviceAllocatorData tLocalBuddyData = {0};
-    for(uint32_t i = 0; i < PL_DEVICE_LOCAL_LEVELS; i++)
-        tLocalBuddyData.auFreeList[i] = UINT32_MAX;
-    tLocalBuddyData.ptDevice = &ptGraphics->tDevice;
-    ptGraphics->tDevice.tLocalBuddyAllocator.allocate = pl_allocate_buddy;
-    ptGraphics->tDevice.tLocalBuddyAllocator.free = pl_free_buddy;
-    ptGraphics->tDevice.tLocalBuddyAllocator.blocks = pl_get_allocator_blocks;
-    ptGraphics->tDevice.tLocalBuddyAllocator.ranges = pl_get_allocator_ranges;
-    ptGraphics->tDevice.tLocalBuddyAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&tLocalBuddyData;
-
-    // staging uncached
-    static plDeviceAllocatorData tStagingUncachedData = {0};
-    tStagingUncachedData.ptDevice = &ptGraphics->tDevice;
-    ptGraphics->tDevice.tStagingUnCachedAllocator.allocate = pl_allocate_staging_uncached;
-    ptGraphics->tDevice.tStagingUnCachedAllocator.free = pl_free_staging_uncached;
-    ptGraphics->tDevice.tStagingUnCachedAllocator.blocks = pl_get_allocator_blocks;
-    ptGraphics->tDevice.tStagingUnCachedAllocator.ranges = pl_get_allocator_ranges;
-    ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&tStagingUncachedData;
-
-    // staging cached
-    static plDeviceAllocatorData tStagingCachedData = {0};
-    tStagingCachedData.ptDevice = &ptGraphics->tDevice;
-    ptGraphics->tDevice.tStagingCachedAllocator.allocate = pl_allocate_staging_cached;
-    ptGraphics->tDevice.tStagingCachedAllocator.free = pl_free_staging_cached;
-    ptGraphics->tDevice.tStagingCachedAllocator.blocks = pl_get_allocator_blocks;
-    ptGraphics->tDevice.tStagingCachedAllocator.ranges = pl_get_allocator_ranges;
-    ptGraphics->tDevice.tStagingCachedAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&tStagingCachedData;
-
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~command pool~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const VkCommandPoolCreateInfo tCommandPoolInfo = {
@@ -3347,6 +3364,16 @@ pl_initialize_graphics(plWindow* ptWindow, plGraphics* ptGraphics)
     PL_VULKAN(vkCreateDescriptorPool(ptVulkanDevice->tLogicalDevice, &tDescriptorPoolInfo, NULL, &ptVulkanGfx->tDescriptorPool));
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~frame resources~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    static plInternalDeviceAllocatorData tAllocatorData = {0};
+    static plDeviceMemoryAllocatorI tAllocator = {0};
+    tAllocatorData.ptAllocator = &tAllocator;
+    tAllocatorData.ptDevice = &ptGraphics->tDevice;
+    tAllocator.allocate = pl_allocate_staging_dynamic;
+    tAllocator.free = pl_free_staging_dynamic;
+    tAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&tAllocatorData;
+    ptGraphics->tDevice.ptDynamicAllocator = &tAllocator;
+    plDeviceMemoryAllocatorI* ptDynamicAllocator = &tAllocator;
 
     // dynamic buffer stuff
     VkDescriptorSetLayoutBinding tBinding =  {
@@ -3392,13 +3419,15 @@ pl_initialize_graphics(plWindow* ptWindow, plGraphics* ptGraphics)
         // dynamic buffer stuff
         pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
         plBufferDescription tStagingBufferDescription0 = {
-            .tMemory              = PL_MEMORY_GPU_CPU,
-            .tUsage               = PL_BUFFER_USAGE_UNIFORM,
+            .tUsage               = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
             .uByteSize            = PL_DEVICE_ALLOCATION_BLOCK_SIZE
         };
         pl_sprintf(tStagingBufferDescription0.acDebugName, "D-BUF-F%d-0", (int)i);
 
-        plBufferHandle tStagingBuffer0 = pl_create_buffer(&ptGraphics->tDevice, &tStagingBufferDescription0, NULL);
+        plBufferHandle tStagingBuffer0 = pl_create_buffer(&ptGraphics->tDevice, &tStagingBufferDescription0, "dynamic buffer 0");
+        plBuffer* ptBuffer = &ptGraphics->sbtBuffersCold[tStagingBuffer0.uIndex];
+        plDeviceMemoryAllocation tAllocation = ptDynamicAllocator->allocate(ptDynamicAllocator->ptInst, ptBuffer->tMemoryRequirements.uMemoryTypeBits, ptBuffer->tMemoryRequirements.ulSize, ptBuffer->tMemoryRequirements.ulAlignment, "dynamic buffer");
+        pl_bind_buffer_to_memory(&ptGraphics->tDevice, tStagingBuffer0, &tAllocation);
 
         tFrame.uCurrentBufferIndex = UINT32_MAX;
         tFrame.sbtDynamicBuffers[0].uHandle = tStagingBuffer0.uIndex;
@@ -3796,6 +3825,13 @@ pl_resize(plGraphics* ptGraphics)
 }
 
 static void
+pl_flush_device(plDevice* ptDevice)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice);
+}
+
+static void
 pl_shutdown(plGraphics* ptGraphics)
 {
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
@@ -3947,35 +3983,6 @@ pl_shutdown(plGraphics* ptGraphics)
         pl_sb_free(ptFrame->sbtDynamicBuffers);
         pl_sb_free(ptFrame->sbtPendingCommandBuffers);
         pl_sb_free(ptFrame->sbtReadyCommandBuffers);
-    }
-
-    plDeviceAllocatorData* ptData0 = (plDeviceAllocatorData*)ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst;
-
-    for(uint32_t i = 0; i < pl_sb_size(ptData0->sbtBlocks); i++)
-    {
-        if(ptData0->sbtBlocks[i].ulAddress)
-            vkFreeMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptData0->sbtBlocks[i].ulAddress, NULL);
-    }
-
-    plDeviceAllocatorData* ptData1 = (plDeviceAllocatorData*)ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst;
-    for(uint32_t i = 0; i < pl_sb_size(ptData1->sbtBlocks); i++)
-    {
-        if((VkDeviceMemory)ptData1->sbtBlocks[i].ulAddress)
-            vkFreeMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptData1->sbtBlocks[i].ulAddress, NULL);
-    }
-
-    plDeviceAllocatorData* ptData2 = (plDeviceAllocatorData*)ptGraphics->tDevice.tLocalBuddyAllocator.ptInst;
-    for(uint32_t i = 0; i < pl_sb_size(ptData2->sbtBlocks); i++)
-    {
-        if((VkDeviceMemory)ptData2->sbtBlocks[i].ulAddress)
-            vkFreeMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptData2->sbtBlocks[i].ulAddress, NULL);
-    }
-
-    plDeviceAllocatorData* ptData3 = (plDeviceAllocatorData*)ptGraphics->tDevice.tStagingCachedAllocator.ptInst;
-    for(uint32_t i = 0; i < pl_sb_size(ptData3->sbtBlocks); i++)
-    {
-        if((VkDeviceMemory)ptData3->sbtBlocks[i].ulAddress)
-            vkFreeMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptData3->sbtBlocks[i].ulAddress, NULL);
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtRenderPassesHot); i++)
@@ -5174,17 +5181,23 @@ pl__pilotlight_format(VkFormat tFormat)
 // [SECTION] device memory allocators
 //-----------------------------------------------------------------------------
 
-static plDeviceMemoryAllocation
-pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
+static plDeviceAllocationBlock
+pl_allocate_memory(plDevice* ptDevice, uint64_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName)
 {
-    plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
-    plVulkanDevice* ptVulkanDevice = ptData->ptDevice->_pInternalData;
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
 
     uint32_t uMemoryType = 0u;
     bool bFound = false;
+    VkMemoryPropertyFlags tProperties = 0;
+    if(tMemoryMode == PL_MEMORY_GPU_CPU)
+        tProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    else if(tMemoryMode == PL_MEMORY_GPU)
+        tProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    else if(tMemoryMode == PL_MEMORY_CPU)
+        tProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
     for (uint32_t i = 0; i < ptVulkanDevice->tMemProps.memoryTypeCount; i++) 
     {
-        if ((uTypeFilter & (1 << i)) && (ptVulkanDevice->tMemProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) 
+        if ((uTypeFilter & (1 << i)) && (ptVulkanDevice->tMemProps.memoryTypes[i].propertyFlags & tProperties) == tProperties) 
         {
             uMemoryType = i;
             bFound = true;
@@ -5192,349 +5205,64 @@ pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFil
         }
     }
     PL_ASSERT(bFound);
-    
+
+    if(pcName == NULL)
+    {
+        pcName = "unnamed memory block";
+    }
+
+    plDeviceAllocationBlock tBlock = {
+        .ulAddress = 0,
+        .ulSize    = ulSize,
+        .ulMemoryType = (uint64_t)uMemoryType
+    };
     const VkMemoryAllocateInfo tAllocInfo = {
         .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
         .allocationSize  = ulSize,
         .memoryTypeIndex = uMemoryType
     };
 
-    plDeviceMemoryAllocation tAllocation = {
-        .pHostMapped = NULL,
-        .uHandle     = 0,
-        .ulOffset    = 0,
-        .ulSize      = tAllocInfo.allocationSize,
-        .ptInst      = ptInst
-    };
-    VkResult tResult = vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, (VkDeviceMemory*)&tAllocation.uHandle);
+    VkDeviceMemory tMemory = VK_NULL_HANDLE;
+    VkResult tResult = vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, &tMemory);
     PL_VULKAN(tResult);
+    tBlock.ulAddress = (uint64_t)tMemory;
 
-    ptData->ptDevice->ptGraphics->szLocalMemoryInUse += tAllocInfo.allocationSize;
+    pl_set_vulkan_object_name(ptDevice, tBlock.ulAddress, VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT, pcName);
 
-    plDeviceAllocationBlock tBlock = {
-        .ulAddress    = tAllocation.uHandle,
-        .ulSize       = tAllocInfo.allocationSize,
-        .ulMemoryType = (uint64_t)uMemoryType
-    };
-
-    uint32_t uBlockIndex = pl_sb_size(ptData->sbtBlocks);
-    if(pl_sb_size(ptData->sbtFreeBlockIndices) > 0)
-        uBlockIndex = pl_sb_pop(ptData->sbtFreeBlockIndices);
-    else
-        pl_sb_add(ptData->sbtBlocks);
-
-    plDeviceAllocationRange tRange = {
-        .ulOffset     = 0,
-        .ulTotalSize  = tAllocInfo.allocationSize,
-        .ulUsedSize   = ulSize,
-        .ulBlockIndex = uBlockIndex
-    };
-    pl_sprintf(tRange.acName, "%s", pcName);
-
-    if(pcName)
-        pl_set_vulkan_object_name(ptData->ptDevice, tAllocation.uHandle, VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT, pcName);
-
-    pl_sb_push(ptData->sbtNodes, tRange);
-    ptData->sbtBlocks[uBlockIndex] = tBlock;
-    return tAllocation;
-}
-
-static void
-pl_free_dedicated(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation)
-{
-    plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
-    plVulkanDevice* ptVulkanDevice = ptData->ptDevice->_pInternalData;
-
-    uint32_t uBlockIndex = 0;
-    uint32_t uNodeIndex = 0;
-    for(uint32_t i = 0; i < pl_sb_size(ptData->sbtNodes); i++)
+    if(tMemoryMode == PL_MEMORY_GPU)
     {
-        plDeviceAllocationRange* ptNode = &ptData->sbtNodes[i];
-        plDeviceAllocationBlock* ptBlock = &ptData->sbtBlocks[ptNode->ulBlockIndex];
-
-        if(ptBlock->ulAddress == ptAllocation->uHandle)
-        {
-            uNodeIndex = i;
-            uBlockIndex = (uint32_t)ptNode->ulBlockIndex;
-            ptBlock->ulSize = 0;
-            ptBlock->ulAddress = 0;
-            ptData->ptDevice->ptGraphics->szLocalMemoryInUse -= ptBlock->ulSize;
-            break;
-        }
-    }
-    pl_sb_del_swap(ptData->sbtNodes, uNodeIndex);
-    pl_sb_push(ptData->sbtFreeBlockIndices, uBlockIndex);
-    // pl_sb_del_swap(ptData->sbtBlocks, uBlockIndex);
-
-    vkFreeMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptAllocation->uHandle, NULL);
-    ptAllocation->pHostMapped  = NULL;
-    ptAllocation->uHandle      = 0;
-    ptAllocation->ulOffset     = 0;
-    ptAllocation->ulSize       = 0;
-}
-
-static plDeviceMemoryAllocation
-pl_allocate_buddy(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
-{
-    plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
-    plVulkanDevice* ptVulkanDevice = ptData->ptDevice->_pInternalData;
-
-    // find what level we need
-    uint32_t uMemoryType = 0u;
-    bool bFound = false;
-    for (uint32_t i = 0; i < ptVulkanDevice->tMemProps.memoryTypeCount; i++) 
-    {
-        if ((uTypeFilter & (1 << i)) && (ptVulkanDevice->tMemProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) 
-        {
-            uMemoryType = i;
-            bFound = true;
-            break;
-        }
-    }
-    PL_ASSERT(bFound);
-
-    plDeviceMemoryAllocation tAllocation = pl__allocate_buddy(ptInst, uTypeFilter, ulSize, ulAlignment, pcName, uMemoryType);
-    
-    if(tAllocation.uHandle == 0)
-    {
-        plDeviceAllocationBlock* ptBlock = &pl_sb_top(ptData->sbtBlocks);
-
-        const VkMemoryAllocateInfo tAllocInfo = {
-            .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-            .allocationSize  = PL_DEVICE_BUDDY_BLOCK_SIZE,
-            .memoryTypeIndex = uMemoryType
-        };
-        VkResult tResult = vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, (VkDeviceMemory*)&ptBlock->ulAddress);
-        PL_VULKAN(tResult);
-        ptData->ptDevice->ptGraphics->szLocalMemoryInUse += PL_DEVICE_BUDDY_BLOCK_SIZE;
-        tAllocation.uHandle = (uint64_t)ptBlock->ulAddress;
-    }
-
-    return tAllocation;
-}
-
-static plDeviceMemoryAllocation
-pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
-{
-    plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
-    plVulkanDevice* ptVulkanDevice = ptData->ptDevice->_pInternalData;
-
-    uint32_t uMemoryType = 0u;
-    bool bFound = false;
-    const VkMemoryPropertyFlags tProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    for (uint32_t i = 0; i < ptVulkanDevice->tMemProps.memoryTypeCount; i++) 
-    {
-        if ((uTypeFilter & (1 << i)) && (ptVulkanDevice->tMemProps.memoryTypes[i].propertyFlags & tProperties) == tProperties) 
-        {
-            uMemoryType = i;
-            bFound = true;
-            break;
-        }
-    }
-    PL_ASSERT(bFound);
-
-    plDeviceMemoryAllocation tAllocation = {
-        .pHostMapped = NULL,
-        .uHandle     = 0,
-        .ulOffset    = 0,
-        .ulSize      = ulSize,
-        .ptInst      = ptInst
-    };
-
-    // check for existing block
-    for(uint32_t i = 0; i < pl_sb_size(ptData->sbtNodes); i++)
-    {
-        plDeviceAllocationRange* ptNode = &ptData->sbtNodes[i];
-        plDeviceAllocationBlock* ptBlock = &ptData->sbtBlocks[ptNode->ulBlockIndex];
-        if(ptNode->ulUsedSize == 0 && ptNode->ulTotalSize >= ulSize && ptBlock->ulMemoryType == (uint64_t)uMemoryType && ptBlock->ulAddress != 0)
-        {
-            ptNode->ulUsedSize = ulSize;
-            pl_sprintf(ptNode->acName, "%s", pcName);
-            tAllocation.pHostMapped = ptBlock->pHostMapped;
-            tAllocation.uHandle = ptBlock->ulAddress;
-            tAllocation.ulOffset = 0;
-            tAllocation.ulSize = ptBlock->ulSize;
-            if(pcName)
-                pl_set_vulkan_object_name(ptData->ptDevice, tAllocation.uHandle, VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT, pcName);
-            return tAllocation;
-        }
-    }
-
-    uint32_t uIndex = UINT32_MAX;
-    if(pl_sb_size(ptData->sbtFreeBlockIndices) > 0)
-    {
-        uIndex = pl_sb_pop(ptData->sbtFreeBlockIndices);
+        ptDevice->ptGraphics->szLocalMemoryInUse += tBlock.ulSize;
     }
     else
     {
-        uIndex = pl_sb_size(ptData->sbtBlocks);
-        pl_sb_add(ptData->sbtNodes);
-        pl_sb_add(ptData->sbtBlocks);
+        PL_VULKAN(vkMapMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)tBlock.ulAddress, 0, tBlock.ulSize, 0, (void**)&tBlock.pHostMapped));
+        ptDevice->ptGraphics->szHostMemoryInUse += tBlock.ulSize;
     }
 
-    // block not found, create new block
-    plDeviceAllocationBlock tBlock = {
-        .ulAddress    = 0,
-        .ulSize       = pl_maxu((uint32_t)ulSize, PL_DEVICE_ALLOCATION_BLOCK_SIZE),
-        .ulMemoryType = uMemoryType
-    };
-
-    plDeviceAllocationRange tRange = {
-        .ulOffset     = 0,
-        .ulUsedSize   = ulSize,
-        .ulTotalSize  = tBlock.ulSize,
-        .ulBlockIndex = uIndex
-    };
-    pl_sprintf(tRange.acName, "%s", pcName);
-
-    const VkMemoryAllocateInfo tAllocInfo = {
-        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize  = tBlock.ulSize,
-        .memoryTypeIndex = uMemoryType
-    };
-
-    PL_VULKAN(vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, (VkDeviceMemory*)&tBlock.ulAddress));
-    ptData->ptDevice->ptGraphics->szHostMemoryInUse += tBlock.ulSize;
-
-    PL_VULKAN(vkMapMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)tBlock.ulAddress, 0, tBlock.ulSize, 0, (void**)&tBlock.pHostMapped));
-
-    tAllocation.pHostMapped = tBlock.pHostMapped;
-    tAllocation.uHandle = tBlock.ulAddress;
-    tAllocation.ulOffset = 0;
-
-    if(pcName)
-        pl_set_vulkan_object_name(ptData->ptDevice, tAllocation.uHandle, VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT, pcName);
-
-    ptData->sbtNodes[uIndex] = tRange;
-    ptData->sbtBlocks[uIndex] = tBlock;
-    return tAllocation;
+    return tBlock;
 }
 
 static void
-pl_free_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation)
+pl_free_memory(plDevice* ptDevice, plDeviceAllocationBlock* ptBlock)
 {
-    plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
 
-    for(uint32_t i = 0; i < pl_sb_size(ptData->sbtNodes); i++)
+    if(ptBlock->tMemoryMode == PL_MEMORY_GPU)
     {
-        plDeviceAllocationRange* ptRange = &ptData->sbtNodes[i];
-        plDeviceAllocationBlock* ptBlock = &ptData->sbtBlocks[ptRange->ulBlockIndex];
-
-        // find block
-        if(ptBlock->ulAddress == ptAllocation->uHandle)
-        {
-            ptRange->ulUsedSize = 0;
-            memset(ptRange->acName, 0, PL_MAX_NAME_LENGTH);
-            strncpy(ptRange->acName, "not used", PL_MAX_NAME_LENGTH);
-            break;
-        }
+        ptDevice->ptGraphics->szLocalMemoryInUse -= ptBlock->ulSize;
     }
-}
-
-static plDeviceMemoryAllocation
-pl_allocate_staging_cached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
-{
-    plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
-    plVulkanDevice* ptVulkanDevice = ptData->ptDevice->_pInternalData;
-
-    uint32_t uMemoryType = 0u;
-    bool bFound = false;
-    const VkMemoryPropertyFlags tProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
-    for (uint32_t i = 0; i < ptVulkanDevice->tMemProps.memoryTypeCount; i++) 
+    else
     {
-        if ((uTypeFilter & (1 << i)) && (ptVulkanDevice->tMemProps.memoryTypes[i].propertyFlags & tProperties) == tProperties) 
-        {
-            uMemoryType = i;
-            bFound = true;
-            break;
-        }
-    }
-    PL_ASSERT(bFound);
-
-    plDeviceMemoryAllocation tAllocation = {
-        .pHostMapped = NULL,
-        .uHandle     = 0,
-        .ulOffset    = 0,
-        .ulSize      = ulSize,
-        .ptInst      = ptInst
-    };
-
-    // check for existing block
-    for(uint32_t i = 0; i < pl_sb_size(ptData->sbtNodes); i++)
-    {
-        plDeviceAllocationRange* ptNode = &ptData->sbtNodes[i];
-        plDeviceAllocationBlock* ptBlock = &ptData->sbtBlocks[ptNode->ulBlockIndex];
-        if(ptNode->ulUsedSize == 0 && ptNode->ulTotalSize >= ulSize && ptBlock->ulMemoryType == (uint64_t)uMemoryType)
-        {
-            ptNode->ulUsedSize = ulSize;
-            pl_sprintf(ptNode->acName, "%s", pcName);
-            tAllocation.pHostMapped = ptBlock->pHostMapped;
-            tAllocation.uHandle = ptBlock->ulAddress;
-            tAllocation.ulOffset = 0;
-            tAllocation.ulSize = ptBlock->ulSize;
-            if(pcName)
-                pl_set_vulkan_object_name(ptData->ptDevice, tAllocation.uHandle, VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT, pcName);
-            return tAllocation;
-        }
+        ptDevice->ptGraphics->szHostMemoryInUse -= ptBlock->ulSize;
     }
 
-    // block not found, create new block
-    plDeviceAllocationBlock tBlock = {
-        .ulAddress    = 0,
-        .ulSize       = pl_maxu((uint32_t)ulSize, PL_DEVICE_ALLOCATION_BLOCK_SIZE),
-        .ulMemoryType = uMemoryType
-    };
-
-    plDeviceAllocationRange tRange = {
-        .ulOffset     = 0,
-        .ulUsedSize   = ulSize,
-        .ulTotalSize  = tBlock.ulSize,
-        .ulBlockIndex = pl_sb_size(ptData->sbtBlocks)
-    };
-    pl_sprintf(tRange.acName, "%s", pcName);
-
-    const VkMemoryAllocateInfo tAllocInfo = {
-        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize  = tBlock.ulSize,
-        .memoryTypeIndex = uMemoryType
-    };
-
-    PL_VULKAN(vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, (VkDeviceMemory*)&tBlock.ulAddress));
-    ptData->ptDevice->ptGraphics->szHostMemoryInUse += tBlock.ulSize;
-
-    PL_VULKAN(vkMapMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)tBlock.ulAddress, 0, tBlock.ulSize, 0, (void**)&tBlock.pHostMapped));
-
-    tAllocation.pHostMapped = tBlock.pHostMapped;
-    tAllocation.uHandle = tBlock.ulAddress;
-    tAllocation.ulOffset = 0;
-
-    if(pcName)
-        pl_set_vulkan_object_name(ptData->ptDevice, tAllocation.uHandle, VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT, pcName);
-
-    pl_sb_push(ptData->sbtNodes, tRange);
-    pl_sb_push(ptData->sbtBlocks, tBlock);
-    return tAllocation;
-}
-
-static void
-pl_free_staging_cached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation)
-{
-    plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
-
-    for(uint32_t i = 0; i < pl_sb_size(ptData->sbtNodes); i++)
-    {
-        plDeviceAllocationRange* ptRange = &ptData->sbtNodes[i];
-        plDeviceAllocationBlock* ptBlock = &ptData->sbtBlocks[ptRange->ulBlockIndex];
-
-        // find block
-        if(ptBlock->ulAddress == ptAllocation->uHandle)
-        {
-            ptRange->ulUsedSize = 0;
-            memset(ptRange->acName, 0, PL_MAX_NAME_LENGTH);
-            strncpy(ptRange->acName, "not used", PL_MAX_NAME_LENGTH);
-            break;
-        }
-    }
+    vkFreeMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptBlock->ulAddress, NULL);
+    ptBlock->ulAddress = 0;
+    ptBlock->pHostMapped = NULL;
+    ptBlock->ulSize = 0;
+    ptBlock->tMemoryMode = 0;
+    ptBlock->ulMemoryType = 0;
+    ptBlock->dLastTimeUsed = 0;
 }
 
 static void
@@ -5679,38 +5407,10 @@ pl__garbage_collect(plGraphics* ptGraphics)
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtMemory); i++)
     {
-        if(ptGarbage->sbtMemory[i].ptInst == ptGraphics->tDevice.tLocalBuddyAllocator.ptInst)
-            ptGraphics->tDevice.tLocalBuddyAllocator.free(ptGraphics->tDevice.tLocalBuddyAllocator.ptInst, &ptGarbage->sbtMemory[i]);
-        else if(ptGarbage->sbtMemory[i].ptInst == ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst)
-            ptGraphics->tDevice.tLocalDedicatedAllocator.free(ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst, &ptGarbage->sbtMemory[i]);
-        else if(ptGarbage->sbtMemory[i].ptInst == ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst)
-            ptGraphics->tDevice.tStagingUnCachedAllocator.free(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, &ptGarbage->sbtMemory[i]);
-        else if(ptGarbage->sbtMemory[i].ptInst == ptGraphics->tDevice.tStagingCachedAllocator.ptInst)
-            ptGraphics->tDevice.tStagingCachedAllocator.free(ptGraphics->tDevice.tStagingCachedAllocator.ptInst, &ptGarbage->sbtMemory[i]);
-    }
-
-    plDeviceAllocatorData* ptUnCachedAllocatorData = (plDeviceAllocatorData*)ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst;
-
-    plIO* ptIO = pl_get_io();
-    for(uint32_t i = 0; i < pl_sb_size(ptUnCachedAllocatorData->sbtNodes); i++)
-    {
-        plDeviceAllocationRange* ptNode = &ptUnCachedAllocatorData->sbtNodes[i];
-        plDeviceAllocationBlock* ptBlock = &ptUnCachedAllocatorData->sbtBlocks[ptNode->ulBlockIndex];
-
-        if(ptBlock->ulAddress == 0)
-        {
-            continue;
-        }
-        if(ptNode->ulUsedSize == 0 && ptIO->dTime - ptBlock->dLastTimeUsed > 1.0)
-        {
-            ptGraphics->szHostMemoryInUse -= ptBlock->ulSize;
-            vkUnmapMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptBlock->ulAddress);
-            vkFreeMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptBlock->ulAddress, NULL);
-            ptBlock->ulAddress = 0;
-            pl_sb_push(ptUnCachedAllocatorData->sbtFreeBlockIndices, (uint32_t)ptNode->ulBlockIndex);
-        }
-        else if(ptNode->ulUsedSize != 0)
-            ptBlock->dLastTimeUsed = ptIO->dTime;
+        plDeviceMemoryAllocation tAllocation = ptGarbage->sbtMemory[i];
+        plDeviceMemoryAllocatorI* ptAllocator = tAllocation.ptAllocator;
+        if(ptAllocator) // swapchain doesn't have allocator since texture is provided
+            ptAllocator->free(ptAllocator->ptInst, &tAllocation);
     }
 
     pl_sb_reset(ptGarbage->sbtTextures);
@@ -5739,15 +5439,7 @@ pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
     pl_sb_push(ptGraphics->sbtBufferFreeIndices, tHandle.uIndex);
 
     plBuffer* ptBuffer = &ptGraphics->sbtBuffersCold[tHandle.uIndex];
-
-    if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalBuddyAllocator.ptInst)
-        ptGraphics->tDevice.tLocalBuddyAllocator.free(ptGraphics->tDevice.tLocalBuddyAllocator.ptInst, &ptBuffer->tMemoryAllocation);
-    else if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst)
-        ptGraphics->tDevice.tLocalDedicatedAllocator.free(ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst, &ptBuffer->tMemoryAllocation);
-    else if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst)
-        ptGraphics->tDevice.tStagingUnCachedAllocator.free(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, &ptBuffer->tMemoryAllocation);
-    else if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingCachedAllocator.ptInst)
-        ptGraphics->tDevice.tStagingCachedAllocator.free(ptGraphics->tDevice.tStagingCachedAllocator.ptInst, &ptBuffer->tMemoryAllocation);
+    ptBuffer->tMemoryAllocation.ptAllocator->free(ptBuffer->tMemoryAllocation.ptAllocator->ptInst, &ptBuffer->tMemoryAllocation);
 }
 
 static void
@@ -5764,15 +5456,7 @@ pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
     ptGraphics->sbtTextureGenerations[tHandle.uIndex]++;
 
     plTexture* ptTexture = &ptGraphics->sbtTexturesCold[tHandle.uIndex];
-
-    if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalBuddyAllocator.ptInst)
-        ptGraphics->tDevice.tLocalBuddyAllocator.free(ptGraphics->tDevice.tLocalBuddyAllocator.ptInst, &ptTexture->tMemoryAllocation);
-    else if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst)
-        ptGraphics->tDevice.tLocalDedicatedAllocator.free(ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst, &ptTexture->tMemoryAllocation);
-    else if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst)
-        ptGraphics->tDevice.tStagingUnCachedAllocator.free(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, &ptTexture->tMemoryAllocation);
-    else if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingCachedAllocator.ptInst)
-        ptGraphics->tDevice.tStagingCachedAllocator.free(ptGraphics->tDevice.tStagingCachedAllocator.ptInst, &ptTexture->tMemoryAllocation);
+    ptTexture->tMemoryAllocation.ptAllocator->free(ptTexture->tMemoryAllocation.ptAllocator->ptInst, &ptTexture->tMemoryAllocation);
 }
 
 static void
@@ -5975,7 +5659,12 @@ pl_load_device_api(void)
         .get_buffer                             = pl__get_buffer,
         .get_texture                            = pl__get_texture,
         .get_bind_group                         = pl__get_bind_group,
-        .get_shader                             = pl__get_shader
+        .get_shader                             = pl__get_shader,
+        .allocate_memory                        = pl_allocate_memory,
+        .free_memory                            = pl_free_memory,
+        .flush_device                           = pl_flush_device,
+        .bind_buffer_to_memory                  = pl_bind_buffer_to_memory,
+        .bind_texture_to_memory                 = pl_bind_texture_to_memory
     };
     return &tApi;
 }

@@ -122,6 +122,7 @@ with pl.project("pilotlight"):
     add_plugin_to_vulkan_app("pl_stats_ext",    False)
     add_plugin_to_vulkan_app("pl_ecs_ext",      False)
     add_plugin_to_vulkan_app("pl_resource_ext", False)
+    add_plugin_to_vulkan_app("pl_gpu_allocators_ext", False)
     add_plugin_to_vulkan_app("pl_ref_renderer_ext", True)
 
     add_plugin_to_metal_app("pl_debug_ext",    False)
@@ -130,6 +131,7 @@ with pl.project("pilotlight"):
     add_plugin_to_metal_app("pl_ecs_ext",      False)
     add_plugin_to_metal_app("pl_resource_ext", False)
     add_plugin_to_metal_app("pl_metal_ext",    False, True, "pl_graphics_ext")
+    add_plugin_to_metal_app("pl_gpu_allocators_ext", False)
     add_plugin_to_metal_app("pl_ref_renderer_ext", True)
 
     pl.pop_target_links()
