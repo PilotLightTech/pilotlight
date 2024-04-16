@@ -233,7 +233,7 @@ pl__get_counter_data(char const* pcName)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_load_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
@@ -245,7 +245,7 @@ pl_load_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 }
 
 PL_EXPORT void
-pl_unload_stats_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_ext(plApiRegistryI* ptApiRegistry)
 {
     pl_sb_free(gtStatsContext.sbtBlocks);
     pl_sb_free(gtStatsContext.sbtNames);

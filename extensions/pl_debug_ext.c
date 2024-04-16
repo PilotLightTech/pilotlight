@@ -1061,7 +1061,7 @@ pl__show_logging(bool* bValue)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     gptApiRegistry = ptApiRegistry;
     ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
@@ -1085,7 +1085,7 @@ pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 }
 
 PL_EXPORT void
-pl_unload_debug_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_ext(plApiRegistryI* ptApiRegistry)
 {
     pl_sb_free(sbppdValues);
     pl_sb_free(sbppdFrameValues);

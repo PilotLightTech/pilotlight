@@ -3332,7 +3332,7 @@ pl_load_device_api(void)
 }
 
 PL_EXPORT void
-pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
@@ -3355,7 +3355,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 }
 
 PL_EXPORT void
-pl_unload_graphics_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_ext(plApiRegistryI* ptApiRegistry)
 {
 
 }

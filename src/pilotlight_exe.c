@@ -496,6 +496,12 @@ static void
 pl__load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable)
 {
 
+    if(pcLoadFunc == NULL)
+        pcLoadFunc = "pl_load_ext";
+
+    if(pcUnloadFunc == NULL)
+        pcUnloadFunc = "pl_unload_ext";
+
     const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
 
     plExtension tExtension = {0};
