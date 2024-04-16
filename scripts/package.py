@@ -19,6 +19,7 @@ extensions = [
     "pl_ecs_ext",
     "pl_stats_ext",
     "pl_resource_ext",
+    "pl_job_ext",
     "pl_ref_renderer_ext",
     "pl_gpu_allocators_ext",
 ]

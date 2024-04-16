@@ -35,6 +35,7 @@ Index of this file:
 #include "pl_ecs_ext.h"
 #include "pl_resource_ext.h"
 #include "pl_ref_renderer_ext.h"
+#include "pl_job_ext.h"
 
 // misc
 #include "helper_windows.h"
@@ -105,6 +106,7 @@ const plEcsI*               gptEcs               = NULL;
 const plCameraI*            gptCamera            = NULL;
 const plResourceI*          gptResource          = NULL;
 const plRefRendererI*       gptRenderer          = NULL;
+const plJobI*               gptJobs              = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -137,6 +139,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptCamera   = ptApiRegistry->first(PL_API_CAMERA);
         gptResource = ptApiRegistry->first(PL_API_RESOURCE);
         gptRenderer = ptApiRegistry->first(PL_API_REF_RENDERER);
+        gptJobs     = ptApiRegistry->first(PL_API_JOB);
 
         return ptAppData;
     }
@@ -160,6 +163,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // load extensions
     const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
     ptExtensionRegistry->load("pl_image_ext",          NULL, NULL, false);
+    ptExtensionRegistry->load("pl_job_ext",            NULL, NULL, false);
     ptExtensionRegistry->load("pl_stats_ext",          NULL, NULL, false);
     ptExtensionRegistry->load("pl_graphics_ext",       NULL, NULL, false);
     ptExtensionRegistry->load("pl_gpu_allocators_ext", NULL, NULL, false);
@@ -167,7 +171,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_ecs_ext",            NULL, NULL, false);
     ptExtensionRegistry->load("pl_resource_ext",       NULL, NULL, false);
     ptExtensionRegistry->load("pl_ref_renderer_ext",   NULL, NULL, true);
-
+    
     // load apis
     gptWindows  = ptApiRegistry->first(PL_API_WINDOW);
     gptThreads  = ptApiRegistry->first(PL_API_THREADS);
@@ -182,6 +186,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptCamera   = ptApiRegistry->first(PL_API_CAMERA);
     gptResource = ptApiRegistry->first(PL_API_RESOURCE);
     gptRenderer = ptApiRegistry->first(PL_API_REF_RENDERER);
+    gptJobs     = ptApiRegistry->first(PL_API_JOB);
 
     const plWindowDesc tWindowDesc = {
         .pcName  = "Pilot Light Example",
@@ -422,7 +427,7 @@ pl_app_update(plAppData* ptAppData)
         .bShowAllBoundingBoxes     = ptAppData->bDrawAllBoundingBoxes,
         .bShowVisibleBoundingBoxes = ptAppData->bDrawVisibleBoundingBoxes,
         .bShowOrigin               = false,
-        .bCullStats                = true,
+        .bCullStats                = false,
         .ptViewCamera              = ptCamera2,
         .ptCullCamera              = ptCamera2
     };
