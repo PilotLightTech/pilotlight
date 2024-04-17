@@ -5,7 +5,12 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] internal structs
 // [SECTION] global data & apis
+// [SECTION] internal API
+// [SECTION] implementation
+// [SECTION] public API implementation
+// [SECTION] extension loading
 */
 
 //-----------------------------------------------------------------------------
@@ -24,7 +29,6 @@ Index of this file:
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 #include "pl_ui.h"
-#include "pl_stl.h"
 
 // extensions
 #include "pl_graphics_ext.h"
@@ -33,9 +37,9 @@ Index of this file:
 #include "pl_image_ext.h"
 #include "pl_stats_ext.h"
 #include "pl_gpu_allocators_ext.h"
+#include "pl_job_ext.h"
 
-// misc
-#include "cgltf.h"
+#define PL_MAX_VIEWS_PER_SCENE 4
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -141,6 +145,13 @@ typedef struct _plRefView
     plDrawList3D t3DDrawList;
 } plRefView;
 
+typedef struct _plSceneLoader
+{
+    plComponentLibrary tComponentLibrary;
+    plDrawable*        sbtOpaqueDrawables;
+    plDrawable*        sbtTransparentDrawables;
+} plSceneLoader;
+
 typedef struct _plRefScene
 {
 
@@ -175,17 +186,13 @@ typedef struct _plRefScene
     plBufferHandle tMaterialDataBuffer;
 
     // misc
-    plDrawable* sbtAllDrawables;
-    plDrawable* sbtOpaqueDrawables;
-    plDrawable* sbtTransparentDrawables;
+    plDrawable* sbtSubmittedDrawables;
 
-    plHashMap tMaterialHashMap;
-    plEntity* sbtMaterialEntities;
-    plBindGroupHandle* sbtMaterialBindGroups;
-
-    plRefView* sbtViews;
-
+    uint32_t  uViewCount;
+    plRefView atViews[PL_MAX_VIEWS_PER_SCENE];
     plSkinData* sbtSkinData;
+    plSceneLoader tLoaderData;
+
 } plRefScene;
 
 typedef struct _plRefRendererData
@@ -200,8 +207,8 @@ typedef struct _plRefRendererData
     plDeviceMemoryAllocatorI* ptStagingUnCachedAllocator;
 
     // misc textures
-    plSamplerHandle     tDefaultSampler;
-    plTextureHandle     tDummyTexture;
+    plSamplerHandle tDefaultSampler;
+    plTextureHandle tDummyTexture;
 
     // shaders
     plShaderHandle tSkyboxShader;
@@ -218,14 +225,8 @@ typedef struct _plRefRendererData
     // draw stream
     plDrawStream tDrawStream;
 
-    // ecs
-    plComponentLibrary tComponentLibrary;
-
     // gltf data
     plBindGroupHandle tNullSkinBindgroup;
-    plHashMap tNodeHashMap;
-    plHashMap tJointHashMap;
-    plHashMap tSkinHashMap;
 
     // temp
     plBufferHandle tStagingBufferHandle[PL_FRAMES_IN_FLIGHT];
@@ -251,82 +252,23 @@ static const plImageI*         gptImage         = NULL;
 static const plStatsI*         gptStats         = NULL;
 static const plGPUAllocatorsI* gptGpuAllocators = NULL;
 static const plThreadsI*       gptThreads       = NULL;
+static const plJobI*           gptJob           = NULL;
 
 //-----------------------------------------------------------------------------
-// [SECTION] forward declarations
+// [SECTION] internal API
 //-----------------------------------------------------------------------------
-
-// main
-static void pl_refr_initialize(plWindow* ptWindow);
-static void pl_refr_cleanup(void);
-
-// scenes
-static uint32_t pl_refr_create_scene(void);
-
-// views
-static uint32_t pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions);
-static void pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensions);
-
-// per frame
-static void pl_refr_run_ecs(void);
-static void pl_refr_update_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle);
-static void pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions);
-
-// loading
-static void pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcModelPath, int iResolution);
-static void pl_refr_load_stl(uint32_t uSceneHandle, const char* pcModelPath, plVec4 tColor, const plMat4* ptTransform);
-static void pl_refr_load_gltf(uint32_t uSceneHandle, const char* pcPath, const plMat4* ptTransform);
-static void pl_refr_finalize_scene(uint32_t uSceneHandle);
-
-// misc
-static plComponentLibrary* pl_refr_get_component_library(void);
-static plGraphics*         pl_refr_get_graphics         (void);
-
-// temporary
-static plTextureId pl_refr_get_view_texture_id(uint32_t uSceneHandle, uint32_t uViewHandle);
 
 // internal general helpers
 static void pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIndex);
 
 // internal gltf helpers
-static void pl__load_gltf_texture(plTextureSlot tSlot, const cgltf_texture_view* ptTexture, const char* pcDirectory, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut);
-static void pl__refr_load_material(const char* pcDirectory, plMaterialComponent* ptMaterial, const cgltf_material* ptGltfMaterial);
-static void pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimitive);
-static void pl__refr_load_gltf_object(plRefScene* ptScene, const char* pcDirectory, plEntity tParentEntity, const cgltf_node* ptNode);
-static void pl__refr_load_gltf_animation(plRefScene* ptScene, const cgltf_animation* ptAnimation);
+
 static bool pl__sat_visibility_test(plCameraComponent* ptCamera, const plAABB* aabb);
 
 // shader variants
 static plShaderHandle pl__get_shader_variant(uint32_t uSceneHandle, plShaderHandle tHandle, const plShaderVariant* ptVariant);
 static size_t pl__get_data_type_size(plDataType tType);
 static plBlendState pl__get_blend_state(plBlendMode tBlendMode);
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api implementation
-//-----------------------------------------------------------------------------
-
-const plRefRendererI*
-pl_load_ref_renderer_api(void)
-{
-    static const plRefRendererI tApi = {
-        .initialize                = pl_refr_initialize,
-        .cleanup                   = pl_refr_cleanup,
-        .create_scene              = pl_refr_create_scene,
-        .create_view               = pl_refr_create_view,
-        .run_ecs                   = pl_refr_run_ecs,
-        .get_component_library     = pl_refr_get_component_library,
-        .get_graphics              = pl_refr_get_graphics,
-        .load_skybox_from_panorama = pl_refr_load_skybox_from_panorama,
-        .load_stl                  = pl_refr_load_stl,
-        .load_gltf                 = pl_refr_load_gltf,
-        .finalize_scene            = pl_refr_finalize_scene,
-        .update_scene              = pl_refr_update_scene,
-        .render_scene              = pl_refr_render_scene,
-        .get_view_texture_id       = pl_refr_get_view_texture_id,
-        .resize_view               = pl_refr_resize_view,
-    };
-    return &tApi;
-}
 
 //-----------------------------------------------------------------------------
 // [SECTION] implementation
@@ -352,9 +294,6 @@ pl_refr_initialize(plWindow* ptWindow)
     // for convience
     plGraphics* ptGraphics = &gptData->tGraphics;
 
-    // initialize ecs
-    gptECS->init_component_library(&gptData->tComponentLibrary);
-
     // load allocators
     gptData->ptLocalBuddyAllocator = gptGpuAllocators->create_local_buddy_allocator(&ptGraphics->tDevice);
     gptData->ptLocalDedicatedAllocator = gptGpuAllocators->create_local_dedicated_allocator(&ptGraphics->tDevice);
@@ -364,8 +303,6 @@ pl_refr_initialize(plWindow* ptWindow)
     ptGraphics->bValidationActive = true;
     gptGfx->initialize(ptWindow, ptGraphics);
     gptDataRegistry->set_data("device", &ptGraphics->tDevice); // used by debug extension
-
-
 
     // create main render pass
     plIO* ptIO = pl_get_io();
@@ -449,6 +386,9 @@ pl_refr_create_scene(void)
     pl_sb_push(gptData->sbtScenes, tScene);
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
 
+    // initialize ecs
+    gptECS->init_component_library(&ptScene->tLoaderData.tComponentLibrary);
+
     // shaders default valies
     ptScene->tShader = (plShaderHandle){UINT32_MAX, UINT32_MAX};
 
@@ -473,16 +413,22 @@ pl_refr_create_scene(void)
         },
         .uSubpassCount = 3,
         .atSubpasses = {
+            
+            // G-buffer fill
             {
                 .uRenderTargetCount = 4,
                 .auRenderTargets = {0, 2, 3, 4}
             },
+
+            // lighting
             {
                 .uRenderTargetCount = 1,
                 .auRenderTargets = {1},
                 .uSubpassInputCount = 4,
                 .auSubpassInputs = {0, 2, 3, 4},
             },
+
+            // skybox
             {
                 .uRenderTargetCount = 2,
                 .auRenderTargets = {0, 1},
@@ -596,10 +542,9 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 {
 
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
-    const uint32_t uViewHandle = pl_sb_size(ptScene->sbtViews);
-    plRefView tView = {0};
-    pl_sb_push(ptScene->sbtViews, tView);
-    plRefView* ptView = &ptScene->sbtViews[uViewHandle];
+    const uint32_t uViewHandle = ptScene->uViewCount++;
+    PL_ASSERT(uViewHandle < PL_MAX_VIEWS_PER_SCENE);
+    plRefView* ptView = &ptScene->atViews[uViewHandle];
 
     ptView->tTargetSize = tDimensions;
 
@@ -971,7 +916,7 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
     plGraphics* ptGraphics = &gptData->tGraphics;
     plDevice* ptDevice = &ptGraphics->tDevice;
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
-    plRefView* ptView = &ptScene->sbtViews[uViewHandle];
+    plRefView* ptView = &ptScene->atViews[uViewHandle];
 
     // update offscreen size to match viewport
     ptView->tTargetSize = tDimensions;
@@ -1094,50 +1039,43 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
 static void
 pl_refr_cleanup(void)
 {
-    gptECS->cleanup_component_library(&gptData->tComponentLibrary);
+    
     gptStream->cleanup(&gptData->tDrawStream);
 
-    pl_hm_free(&gptData->tNodeHashMap);
-    pl_hm_free(&gptData->tSkinHashMap);
-    pl_hm_free(&gptData->tJointHashMap);
-    
     for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
     {
         plRefScene* ptScene = &gptData->sbtScenes[i];
-        for(uint32_t j = 0; j < pl_sb_size(ptScene->sbtViews); j++)
+        for(uint32_t j = 0; j < ptScene->uViewCount; j++)
         {
-            plRefView* ptView = &ptScene->sbtViews[j];
+            plRefView* ptView = &ptScene->atViews[j];
             pl_sb_free(ptView->sbtVisibleDrawables);
         }
         pl_sb_free(ptScene->sbtVertexPosBuffer);
         pl_sb_free(ptScene->sbtVertexDataBuffer);
         pl_sb_free(ptScene->sbuIndexBuffer);
         pl_sb_free(ptScene->sbtMaterialBuffer);
-        pl_sb_free(ptScene->sbtAllDrawables);
-        pl_sb_free(ptScene->sbtOpaqueDrawables);
-        pl_sb_free(ptScene->sbtTransparentDrawables);
-        pl_sb_free(ptScene->sbtMaterialEntities);
-        pl_sb_free(ptScene->sbtMaterialBindGroups);
+        pl_sb_free(ptScene->sbtSubmittedDrawables);
+        pl_sb_free(ptScene->tLoaderData.sbtOpaqueDrawables);
+        pl_sb_free(ptScene->tLoaderData.sbtTransparentDrawables);
         pl_sb_free(ptScene->sbtSkinData);
-        pl_hm_free(&ptScene->tMaterialHashMap);
+        pl_sb_free(ptScene->_sbtVariantHandles);
+        pl_hm_free(&ptScene->tVariantHashmap);
+        gptECS->cleanup_component_library(&ptScene->tLoaderData.tComponentLibrary);
     }
     gptDevice->flush_device(&gptData->tGraphics.tDevice);
     gptGpuAllocators->cleanup_allocators(&gptData->tGraphics.tDevice);
     gptGfx->cleanup(&gptData->tGraphics);
 
     // must be cleaned up after graphics since 3D drawlist are registered as pointers
-    for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
-    {
-        pl_sb_free(gptData->sbtScenes[i].sbtViews);
-    }
     pl_sb_free(gptData->sbtScenes);
     PL_FREE(gptData);
 }
 
 static plComponentLibrary*
-pl_refr_get_component_library(void)
+pl_refr_get_component_library(uint32_t uSceneHandle)
 {
-    return &gptData->tComponentLibrary;
+    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+    return &ptScene->tLoaderData.tComponentLibrary;
 }
 
 static plGraphics*
@@ -1392,749 +1330,6 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){ fCubeSide,  fCubeSide,  fCubeSide})); 
 }
 
-static void
-pl_refr_load_stl(uint32_t uSceneHandle, const char* pcModelPath, plVec4 tColor, const plMat4* ptTransform)
-{
-
-    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
-
-    // read in STL file
-    uint32_t uFileSize = 0;
-    gptFile->read(pcModelPath, &uFileSize, NULL, "rb");
-    char* pcBuffer = PL_ALLOC(uFileSize);
-    memset(pcBuffer, 0, uFileSize);
-    gptFile->read(pcModelPath, &uFileSize, pcBuffer, "rb");
-
-    // create ECS object component
-    plEntity tEntity = gptECS->create_object(&gptData->tComponentLibrary, pcModelPath);
-
-    // retrieve actual components
-    plMeshComponent*      ptMesh          = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, tEntity);
-    plTransformComponent* ptTransformComp = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
-    
-    // set transform if present
-    if(ptTransform)
-    {
-        ptTransformComp->tWorld = *ptTransform;
-        pl_decompose_matrix(&ptTransformComp->tWorld, &ptTransformComp->tScale, &ptTransformComp->tRotation, &ptTransformComp->tTranslation);
-    }
-
-    // create simple material
-    ptMesh->tMaterial = gptECS->create_material(&gptData->tComponentLibrary, pcModelPath);
-    plMaterialComponent* ptMaterial = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
-    ptMaterial->tBaseColor = tColor;
-    ptMaterial->tBlendMode = PL_MATERIAL_BLEND_MODE_ALPHA;
-    
-    // load STL model
-    plStlInfo tInfo = {0};
-    pl_load_stl(pcBuffer, (size_t)uFileSize, NULL, NULL, NULL, &tInfo);
-
-    ptMesh->ulVertexStreamMask = PL_MESH_FORMAT_FLAG_HAS_NORMAL;
-    pl_sb_resize(ptMesh->sbtVertexPositions, (uint32_t)(tInfo.szPositionStreamSize / 3));
-    pl_sb_resize(ptMesh->sbtVertexNormals, (uint32_t)(tInfo.szNormalStreamSize / 3));
-    pl_sb_resize(ptMesh->sbuIndices, (uint32_t)tInfo.szIndexBufferSize);
-
-    pl_load_stl(pcBuffer, (size_t)uFileSize, (float*)ptMesh->sbtVertexPositions, (float*)ptMesh->sbtVertexNormals, (uint32_t*)ptMesh->sbuIndices, &tInfo);
-    PL_FREE(pcBuffer);
-
-    // calculate AABB
-    ptMesh->tAABB.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
-    ptMesh->tAABB.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
-    
-    for(uint32_t i = 0; i < pl_sb_size(ptMesh->sbtVertexPositions); i++)
-    {
-        if(ptMesh->sbtVertexPositions[i].x > ptMesh->tAABB.tMax.x) ptMesh->tAABB.tMax.x = ptMesh->sbtVertexPositions[i].x;
-        if(ptMesh->sbtVertexPositions[i].y > ptMesh->tAABB.tMax.y) ptMesh->tAABB.tMax.y = ptMesh->sbtVertexPositions[i].y;
-        if(ptMesh->sbtVertexPositions[i].z > ptMesh->tAABB.tMax.z) ptMesh->tAABB.tMax.z = ptMesh->sbtVertexPositions[i].z;
-        if(ptMesh->sbtVertexPositions[i].x < ptMesh->tAABB.tMin.x) ptMesh->tAABB.tMin.x = ptMesh->sbtVertexPositions[i].x;
-        if(ptMesh->sbtVertexPositions[i].y < ptMesh->tAABB.tMin.y) ptMesh->tAABB.tMin.y = ptMesh->sbtVertexPositions[i].y;
-        if(ptMesh->sbtVertexPositions[i].z < ptMesh->tAABB.tMin.z) ptMesh->tAABB.tMin.z = ptMesh->sbtVertexPositions[i].z;
-    }
-
-    // create material bind group (set 1)
-    plBindGroupLayout tMaterialBindGroupLayout = {
-        .uTextureCount = 2,
-        .aTextures = {
-            {.uSlot = 0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-            {.uSlot = 1, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-        }
-    };
-    plBindGroupHandle tMaterialBindGroup = gptDevice->create_bind_group(&gptData->tGraphics.tDevice, &tMaterialBindGroupLayout, "STL material bind group");
-
-    const plDrawable tDrawable = {
-        .tEntity            = tEntity,
-        .tMaterialBindGroup = tMaterialBindGroup
-    };
-
-    if(tColor.a == 1.0f)
-        pl_sb_push(ptScene->sbtOpaqueDrawables, tDrawable);
-    else
-        pl_sb_push(ptScene->sbtTransparentDrawables, tDrawable);
-    pl_sb_push(ptScene->sbtMaterialEntities, ptMesh->tMaterial);
-    pl_sb_push(ptScene->sbtMaterialBindGroups, tMaterialBindGroup);
-}
-
-static void
-pl_refr_load_gltf(uint32_t uSceneHandle, const char* pcPath, const plMat4* ptTransform)
-{
-    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
-    cgltf_options tGltfOptions = {0};
-    cgltf_data* ptGltfData = NULL;
-
-    char acDirectory[1024] = {0};
-    pl_str_get_directory(pcPath, acDirectory);
-
-    cgltf_result tGltfResult = cgltf_parse_file(&tGltfOptions, pcPath, &ptGltfData);
-    PL_ASSERT(tGltfResult == cgltf_result_success);
-
-    tGltfResult = cgltf_load_buffers(&tGltfOptions, ptGltfData, pcPath);
-    PL_ASSERT(tGltfResult == cgltf_result_success);
-
-    for(size_t szSkinIndex = 0; szSkinIndex < ptGltfData->skins_count; szSkinIndex++)
-    {
-        const cgltf_skin* ptSkin = &ptGltfData->skins[szSkinIndex];
-
-
-        plEntity tSkinEntity = gptECS->create_skin(&gptData->tComponentLibrary, ptSkin->name);
-        plSkinComponent* ptSkinComponent = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_SKIN, tSkinEntity);
-
-        pl_sb_resize(ptSkinComponent->sbtJoints, (uint32_t)ptSkin->joints_count);
-        pl_sb_resize(ptSkinComponent->sbtInverseBindMatrices, (uint32_t)ptSkin->joints_count);
-        for(size_t szJointIndex = 0; szJointIndex < ptSkin->joints_count; szJointIndex++)
-        {
-            const cgltf_node* ptJointNode = ptSkin->joints[szJointIndex];
-            plEntity tTransformEntity = gptECS->create_transform(&gptData->tComponentLibrary, ptJointNode->name);
-            ptSkinComponent->sbtJoints[szJointIndex] = tTransformEntity;
-            pl_hm_insert(&gptData->tJointHashMap, (uint64_t)ptJointNode, tTransformEntity.ulData);
-        }
-        if(ptSkin->inverse_bind_matrices)
-        {
-            const cgltf_buffer_view* ptInverseBindMatrixView = ptSkin->inverse_bind_matrices->buffer_view;
-            const char* pcBufferData = ptInverseBindMatrixView->buffer->data;
-            memcpy(ptSkinComponent->sbtInverseBindMatrices, &pcBufferData[ptInverseBindMatrixView->offset], sizeof(plMat4) * ptSkin->joints_count);
-        }
-        pl_hm_insert(&gptData->tSkinHashMap, (uint64_t)ptSkin, tSkinEntity.ulData);
-    }
-
-    for(size_t i = 0; i < ptGltfData->scenes_count; i++)
-    {
-        const cgltf_scene* ptGScene = &ptGltfData->scenes[i];
-        for(size_t j = 0; j < ptGScene->nodes_count; j++)
-        {
-            const cgltf_node* ptNode = ptGScene->nodes[j];
-            pl__refr_load_gltf_object(ptScene, acDirectory, (plEntity){UINT32_MAX, UINT32_MAX}, ptNode);
-            if(ptTransform)
-            {
-                const plEntity tNodeEntity = {.ulData = pl_hm_lookup(&gptData->tNodeHashMap, (uint64_t)ptNode)};
-                plTransformComponent* ptTransformComponent = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNodeEntity);
-                ptTransformComponent->tWorld = pl_mul_mat4(ptTransform, &ptTransformComponent->tWorld);
-                pl_decompose_matrix(&ptTransformComponent->tWorld, &ptTransformComponent->tScale, &ptTransformComponent->tRotation, &ptTransformComponent->tTranslation);
-            }
-
-        }
-    }
-
-    for(size_t i = 0; i < ptGltfData->animations_count; i++)
-    {
-        const cgltf_animation* ptAnimation = &ptGltfData->animations[i];
-        pl__refr_load_gltf_animation(ptScene, ptAnimation);
-    }
-
-    pl_hm_free(&gptData->tNodeHashMap);
-    pl_hm_free(&gptData->tJointHashMap);
-    pl_hm_free(&gptData->tSkinHashMap);
-    pl_hm_free(&ptScene->tMaterialHashMap);
-}
-
-static void
-pl__load_gltf_texture(plTextureSlot tSlot, const cgltf_texture_view* ptTexture, const char* pcDirectory, const cgltf_material* ptGltfMaterial, plMaterialComponent* ptMaterial)
-{
-    ptMaterial->atTextureMaps[tSlot].uUVSet = ptTexture->texcoord;
-
-    if(ptTexture->texture->image->buffer_view)
-    {
-        static int iSeed = 0;
-        iSeed++;
-        char* pucBufferData = ptTexture->texture->image->buffer_view->buffer->data;
-        char* pucActualBuffer = &pucBufferData[ptTexture->texture->image->buffer_view->offset];
-        ptMaterial->atTextureMaps[tSlot].acName[0] = (char)(tSlot + iSeed);
-        strncpy(&ptMaterial->atTextureMaps[tSlot].acName[1], pucActualBuffer, 127);
-        
-        ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load_resource(ptMaterial->atTextureMaps[tSlot].acName, PL_RESOURCE_LOAD_FLAG_RETAIN_DATA, pucActualBuffer, ptTexture->texture->image->buffer_view->size);
-    }
-    else if(strncmp(ptTexture->texture->image->uri, "data:", 5) == 0)
-    {
-        const char* comma = strchr(ptTexture->texture->image->uri, ',');
-
-        if (comma && comma - ptTexture->texture->image->uri >= 7 && strncmp(comma - 7, ";base64", 7) == 0)
-        {
-            cgltf_options tOptions = {0};
-            ptMaterial->atTextureMaps[tSlot].acName[0] = (char)tSlot + 1;
-            strcpy(&ptMaterial->atTextureMaps[tSlot].acName[1], ptGltfMaterial->name);
-            
-            void* outData = NULL;
-            const char *base64 = comma + 1;
-            const size_t szBufferLength = strlen(base64);
-            size_t szSize = szBufferLength - szBufferLength / 4;
-            if(szBufferLength >= 2)
-            {
-                szSize -= base64[szBufferLength - 2] == '=';
-                szSize -= base64[szBufferLength - 1] == '=';
-            }
-            cgltf_result res = cgltf_load_buffer_base64(&tOptions, szSize, base64, &outData);
-            PL_ASSERT(res == cgltf_result_success);
-            ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load_resource(ptMaterial->atTextureMaps[tSlot].acName, PL_RESOURCE_LOAD_FLAG_RETAIN_DATA, outData, szSize);
-        }
-    }
-    else
-    {
-        strncpy(ptMaterial->atTextureMaps[tSlot].acName, ptTexture->texture->image->uri, PL_MAX_NAME_LENGTH);
-        char acFilepath[2048] = {0};
-        strcpy(acFilepath, pcDirectory);
-        pl_str_concatenate(acFilepath, ptMaterial->atTextureMaps[tSlot].acName, acFilepath, 2048);
-
-        uint32_t uFileSize = 0;
-        gptFile->read(acFilepath, &uFileSize, NULL, "rb");
-        char* pcBuffer = PL_ALLOC(uFileSize);
-        memset(pcBuffer, 0, uFileSize);
-        gptFile->read(acFilepath, &uFileSize, pcBuffer, "rb");
-        ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load_resource(ptTexture->texture->image->uri, PL_RESOURCE_LOAD_FLAG_RETAIN_DATA, pcBuffer, (size_t)uFileSize);
-        PL_FREE(pcBuffer);
-    }
-}
-
-static void
-pl__refr_load_material(const char* pcDirectory, plMaterialComponent* ptMaterial, const cgltf_material* ptGltfMaterial)
-{
-    ptMaterial->tShaderType = PL_SHADER_TYPE_PBR;
-    ptMaterial->tFlags = ptGltfMaterial->double_sided ? PL_MATERIAL_FLAG_DOUBLE_SIDED : PL_MATERIAL_FLAG_NONE;
-    ptMaterial->fAlphaCutoff = ptGltfMaterial->alpha_cutoff;
-
-    // blend mode
-    if(ptGltfMaterial->alpha_mode == cgltf_alpha_mode_opaque)
-        ptMaterial->tBlendMode = PL_MATERIAL_BLEND_MODE_OPAQUE;
-    else if(ptGltfMaterial->alpha_mode == cgltf_alpha_mode_mask)
-        ptMaterial->tBlendMode = PL_MATERIAL_BLEND_MODE_ALPHA;
-    else
-        ptMaterial->tBlendMode = PL_MATERIAL_BLEND_MODE_PREMULTIPLIED;
-
-	if(ptGltfMaterial->normal_texture.texture)
-		pl__load_gltf_texture(PL_TEXTURE_SLOT_NORMAL_MAP, &ptGltfMaterial->normal_texture, pcDirectory, ptGltfMaterial, ptMaterial);
-
-    if(ptGltfMaterial->has_pbr_metallic_roughness)
-    {
-        ptMaterial->tBaseColor.x = ptGltfMaterial->pbr_metallic_roughness.base_color_factor[0];
-        ptMaterial->tBaseColor.y = ptGltfMaterial->pbr_metallic_roughness.base_color_factor[1];
-        ptMaterial->tBaseColor.z = ptGltfMaterial->pbr_metallic_roughness.base_color_factor[2];
-        ptMaterial->tBaseColor.w = ptGltfMaterial->pbr_metallic_roughness.base_color_factor[3];
-
-        if(ptGltfMaterial->pbr_metallic_roughness.base_color_texture.texture)
-			pl__load_gltf_texture(PL_TEXTURE_SLOT_BASE_COLOR_MAP, &ptGltfMaterial->pbr_metallic_roughness.base_color_texture, pcDirectory, ptGltfMaterial, ptMaterial);
-    }
-}
-
-static void
-pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimitive)
-{
-    const size_t szVertexCount = ptPrimitive->attributes[0].data->count;
-    for(size_t szAttributeIndex = 0; szAttributeIndex < ptPrimitive->attributes_count; szAttributeIndex++)
-    {
-        const cgltf_attribute* ptAttribute = &ptPrimitive->attributes[szAttributeIndex];
-        const cgltf_buffer* ptBuffer = ptAttribute->data->buffer_view->buffer;
-        const size_t szStride = ptAttribute->data->stride;
-        PL_ASSERT(szStride > 0 && "attribute stride must node be zero");
-
-        unsigned char* pucBufferStart = &((unsigned char*)ptBuffer->data)[ptAttribute->data->buffer_view->offset + ptAttribute->data->offset];
-
-        switch(ptAttribute->type)
-        {
-            case cgltf_attribute_type_position:
-            {
-                ptMesh->tAABB.tMax = (plVec3){ptAttribute->data->max[0], ptAttribute->data->max[1], ptAttribute->data->max[2]};
-                ptMesh->tAABB.tMin = (plVec3){ptAttribute->data->min[0], ptAttribute->data->min[1], ptAttribute->data->min[2]};
-                pl_sb_resize(ptMesh->sbtVertexPositions, (uint32_t)szVertexCount);
-                for(size_t i = 0; i < szVertexCount; i++)
-                {
-                    plVec3* ptRawData = (plVec3*)&pucBufferStart[i * szStride];
-                    ptMesh->sbtVertexPositions[i] = *ptRawData;
-                }
-                break;
-            }
-
-            case cgltf_attribute_type_normal:
-            {
-                pl_sb_resize(ptMesh->sbtVertexNormals, (uint32_t)szVertexCount);
-                for(size_t i = 0; i < szVertexCount; i++)
-                {
-                    plVec3* ptRawData = (plVec3*)&pucBufferStart[i * szStride];
-                    ptMesh->sbtVertexNormals[i] = *ptRawData;
-                }
-                break;
-            }
-
-            case cgltf_attribute_type_tangent:
-            {
-                pl_sb_resize(ptMesh->sbtVertexTangents, (uint32_t)szVertexCount);
-                for(size_t i = 0; i < szVertexCount; i++)
-                {
-                    plVec4* ptRawData = (plVec4*)&pucBufferStart[i * szStride];
-                    ptMesh->sbtVertexTangents[i] = *ptRawData;
-                }
-                break;
-            }
-
-            case cgltf_attribute_type_texcoord:
-            {
-                pl_sb_resize(ptMesh->sbtVertexTextureCoordinates[ptAttribute->index], (uint32_t)szVertexCount);
-                
-                if(ptAttribute->data->component_type == cgltf_component_type_r_32f)
-                {
-                    for(size_t i = 0; i < szVertexCount; i++)
-                    {
-                        plVec2* ptRawData = (plVec2*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexTextureCoordinates[ptAttribute->index])[i] = *ptRawData;
-                    }
-                }
-                else if(ptAttribute->data->component_type == cgltf_component_type_r_16u)
-                {
-                    for(size_t i = 0; i < szVertexCount; i++)
-                    {
-                        uint16_t* puRawData = (uint16_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexTextureCoordinates[ptAttribute->index])[i].x = (float)puRawData[0];
-                        (ptMesh->sbtVertexTextureCoordinates[ptAttribute->index])[i].y = (float)puRawData[1];
-                    }
-                }
-                else if(ptAttribute->data->component_type == cgltf_component_type_r_8u)
-                {
-                    for(size_t i = 0; i < szVertexCount; i++)
-                    {
-                        uint8_t* puRawData = (uint8_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexTextureCoordinates[ptAttribute->index])[i].x = (float)puRawData[0];
-                        (ptMesh->sbtVertexTextureCoordinates[ptAttribute->index])[i].y = (float)puRawData[1];
-                    }
-                }
-                break;
-            }
-
-            case cgltf_attribute_type_color:
-            {
-                pl_sb_resize(ptMesh->sbtVertexColors[ptAttribute->index], (uint32_t)szVertexCount);
-                
-                if(ptAttribute->data->component_type == cgltf_component_type_r_32f)
-                {
-                    for(size_t i = 0; i < szVertexCount; i++)
-                    {
-                        plVec4* ptRawData = (plVec4*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexColors[ptAttribute->index])[i] = *ptRawData;
-                    }
-                }
-                else if(ptAttribute->data->component_type == cgltf_component_type_r_16u)
-                {
-                    const float fConversion = 1.0f / (256.0f * 256.0f);
-                    for(size_t i = 0; i < szVertexCount; i++)
-                    {
-                        uint16_t* puRawData = (uint16_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].r = (float)puRawData[0] * fConversion;
-                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].g = (float)puRawData[1] * fConversion;
-                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].b = (float)puRawData[2] * fConversion;
-                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].a = (float)puRawData[3] * fConversion;
-                    }
-                }
-                else
-                {
-                    PL_ASSERT(false);
-                }
-
-                break;
-            }
-
-            case cgltf_attribute_type_joints:
-            {
-                pl_sb_resize(ptMesh->sbtVertexJoints[ptAttribute->index], (uint32_t)szVertexCount);
-                
-                if(ptAttribute->data->component_type == cgltf_component_type_r_16u)
-                {
-                    for(size_t i = 0; i < szVertexCount; i++)
-                    {
-                        uint16_t* puRawData = (uint16_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].x = (float)puRawData[0];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].y = (float)puRawData[1];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].z = (float)puRawData[2];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].w = (float)puRawData[3];
-                    }
-                }
-                else if(ptAttribute->data->component_type == cgltf_component_type_r_8u)
-                {
-                    for(size_t i = 0; i < szVertexCount; i++)
-                    {
-                        uint8_t* puRawData = (uint8_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].x = (float)puRawData[0];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].y = (float)puRawData[1];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].z = (float)puRawData[2];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].w = (float)puRawData[3];
-                    }
-                }
-                break;
-            }
-
-            case cgltf_attribute_type_weights:
-            {
-                pl_sb_resize(ptMesh->sbtVertexWeights[ptAttribute->index], (uint32_t)szVertexCount);
-                
-                if(ptAttribute->data->component_type == cgltf_component_type_r_32f)
-                {
-                    for(size_t i = 0; i < szVertexCount; i++)
-                    {
-                        plVec4* ptRawData = (plVec4*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i] = *ptRawData;
-                    }
-                }
-                else if(ptAttribute->data->component_type == cgltf_component_type_r_16u)
-                {
-                    for(size_t i = 0; i < szVertexCount; i++)
-                    {
-                        uint16_t* puRawData = (uint16_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].x = (float)puRawData[0];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].y = (float)puRawData[1];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].z = (float)puRawData[2];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].w = (float)puRawData[3];
-                    }
-                }
-                else if(ptAttribute->data->component_type == cgltf_component_type_r_8u)
-                {
-                    for(size_t i = 0; i < szVertexCount; i++)
-                    {
-                        uint8_t* puRawData = (uint8_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].x = (float)puRawData[0];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].y = (float)puRawData[1];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].z = (float)puRawData[2];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].w = (float)puRawData[3];
-                    }
-                }
-                break;
-            }
-
-            default:
-            {
-                PL_ASSERT(false && "unknown attribute");
-            }
-        }
-    }
-
-    // index buffer
-    if(ptPrimitive->indices)
-    {
-        pl_sb_resize(ptMesh->sbuIndices, (uint32_t)ptPrimitive->indices->count);
-        unsigned char* pucIdexBufferStart = &((unsigned char*)ptPrimitive->indices->buffer_view->buffer->data)[ptPrimitive->indices->buffer_view->offset + ptPrimitive->indices->offset];
-        switch(ptPrimitive->indices->component_type)
-        {
-            case cgltf_component_type_r_32u:
-            {
-                
-                if(ptPrimitive->indices->buffer_view->stride == 0)
-                {
-                    for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        ptMesh->sbuIndices[i] = *(uint32_t*)&pucIdexBufferStart[i * sizeof(uint32_t)];
-                }
-                else
-                {
-                    for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        ptMesh->sbuIndices[i] = *(uint32_t*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
-                }
-                break;
-            }
-
-            case cgltf_component_type_r_16u:
-            {
-                if(ptPrimitive->indices->buffer_view->stride == 0)
-                {
-                    for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        ptMesh->sbuIndices[i] = (uint32_t)*(unsigned short*)&pucIdexBufferStart[i * sizeof(unsigned short)];
-                }
-                else
-                {
-                    for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        ptMesh->sbuIndices[i] = (uint32_t)*(unsigned short*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
-                }
-                break;
-            }
-            case cgltf_component_type_r_8u:
-            {
-                if(ptPrimitive->indices->buffer_view->stride == 0)
-                {
-                    for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        ptMesh->sbuIndices[i] = (uint32_t)*(uint8_t*)&pucIdexBufferStart[i * sizeof(uint8_t)];
-                }
-                else
-                {
-                    for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        ptMesh->sbuIndices[i] = (uint32_t)*(uint8_t*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
-                }
-                break;
-            }
-            default:
-            {
-                PL_ASSERT(false);
-            }
-        }
-    }
-
-
-}
-
-static void
-pl__refr_load_gltf_animation(plRefScene* ptScene, const cgltf_animation* ptAnimation)
-{
-    plComponentLibrary* ptLibrary = &gptData->tComponentLibrary;
-
-    plEntity tNewAnimationEntity = gptECS->create_animation(ptLibrary, ptAnimation->name);
-    plAnimationComponent* ptAnimationComp = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, tNewAnimationEntity);
-
-    // load channels
-    for(size_t i = 0; i < ptAnimation->channels_count; i++)
-    {
-        const cgltf_animation_channel* ptChannel = &ptAnimation->channels[i];
-        plAnimationChannel tChannel = {.uSamplerIndex = pl_sb_size(ptAnimationComp->sbtSamplers)};
-        switch(ptChannel->target_path)
-        {
-            case cgltf_animation_path_type_translation:
-                tChannel.tPath = PL_ANIMATION_PATH_TRANSLATION;
-                break;
-            case cgltf_animation_path_type_rotation:
-                tChannel.tPath = PL_ANIMATION_PATH_ROTATION;
-                break;
-            case cgltf_animation_path_type_scale:
-                tChannel.tPath = PL_ANIMATION_PATH_SCALE;
-                break;
-            case cgltf_animation_path_type_weights:
-                tChannel.tPath = PL_ANIMATION_PATH_WEIGHTS;
-                break;
-            default:
-                tChannel.tPath = PL_ANIMATION_PATH_UNKNOWN;
-
-        }
-
-        const cgltf_animation_sampler* ptSampler = ptChannel->sampler;
-        plAnimationSampler tSampler = {0};
-
-        switch(ptSampler->interpolation)
-        {
-            case cgltf_interpolation_type_linear:
-                tSampler.tMode = PL_ANIMATION_MODE_LINEAR;
-                break;
-            case cgltf_interpolation_type_step:
-                tSampler.tMode = PL_ANIMATION_MODE_STEP;
-                break;
-            case cgltf_interpolation_type_cubic_spline:
-                tSampler.tMode = PL_ANIMATION_MODE_CUBIC_SPLINE;
-                break;
-            default:
-                tSampler.tMode = PL_ANIMATION_MODE_UNKNOWN;
-        }
-
-        tSampler.tData = gptECS->create_animation_data(ptLibrary, ptSampler->input->name);
-        plAnimationDataComponent* ptAnimationDataComp = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION_DATA, tSampler.tData);
-
-        ptAnimationComp->fEnd = pl_maxf(ptAnimationComp->fEnd, ptSampler->input->max[0]);
-
-        const cgltf_buffer* ptInputBuffer = ptSampler->input->buffer_view->buffer;
-        const cgltf_buffer* ptOutputBuffer = ptSampler->output->buffer_view->buffer;
-        unsigned char* pucInputBufferStart = &((unsigned char*)ptInputBuffer->data)[ptSampler->input->buffer_view->offset + ptSampler->input->offset];
-        unsigned char* pucOutputBufferStart = &((unsigned char*)ptOutputBuffer->data)[ptSampler->output->buffer_view->offset + ptSampler->output->offset];
-
-
-        for(size_t j = 0; j < ptSampler->input->count; j++)
-        {
-            const float fValue = *(float*)&pucInputBufferStart[ptSampler->input->stride * j];
-            pl_sb_push(ptAnimationDataComp->sbfKeyFrameTimes, fValue);
-        }
-
-        for(size_t j = 0; j < ptSampler->output->count; j++)
-        {
-            if(ptSampler->output->type == cgltf_type_scalar)
-            {
-                const float fValue0 = *(float*)&pucOutputBufferStart[ptSampler->output->stride * j];
-                pl_sb_push(ptAnimationDataComp->sbfKeyFrameData, fValue0);
-            }
-            else if(ptSampler->output->type == cgltf_type_vec3)
-            {
-                float* fFloatData = (float*)&pucOutputBufferStart[ptSampler->output->stride * j];
-                const float fValue0 = fFloatData[0];
-                const float fValue1 = fFloatData[1];
-                const float fValue2 = fFloatData[2];
-                pl_sb_push(ptAnimationDataComp->sbfKeyFrameData, fValue0);
-                pl_sb_push(ptAnimationDataComp->sbfKeyFrameData, fValue1);
-                pl_sb_push(ptAnimationDataComp->sbfKeyFrameData, fValue2);
-            }
-            else if(ptSampler->output->type == cgltf_type_vec4)
-            {
-                float* fFloatData = (float*)&pucOutputBufferStart[ptSampler->output->stride * j];
-                const float fValue0 = fFloatData[0];
-                const float fValue1 = fFloatData[1];
-                const float fValue2 = fFloatData[2];
-                const float fValue3 = fFloatData[3];
-                pl_sb_push(ptAnimationDataComp->sbfKeyFrameData, fValue0);
-                pl_sb_push(ptAnimationDataComp->sbfKeyFrameData, fValue1);
-                pl_sb_push(ptAnimationDataComp->sbfKeyFrameData, fValue2);
-                pl_sb_push(ptAnimationDataComp->sbfKeyFrameData, fValue3);
-            }
-        }
-
-        const uint64_t ulTargetEntity = pl_hm_lookup(&gptData->tNodeHashMap, (uint64_t)ptChannel->target_node);
-        tChannel.tTarget = *(plEntity*)&ulTargetEntity;
-
-        pl_sb_push(ptAnimationComp->sbtSamplers, tSampler);
-        pl_sb_push(ptAnimationComp->sbtChannels, tChannel);
-    }
-}
-
-static void
-pl__refr_load_gltf_object(plRefScene* ptScene, const char* pcDirectory, plEntity tParentEntity, const cgltf_node* ptNode)
-{
-    plComponentLibrary* ptLibrary = &gptData->tComponentLibrary;
-
-    plEntity tNewEntity = {UINT32_MAX, UINT32_MAX};
-    const uint64_t ulObjectIndex = pl_hm_lookup(&gptData->tJointHashMap, (uint64_t)ptNode);
-    if(ulObjectIndex != UINT64_MAX)
-    {
-        tNewEntity.ulData = ulObjectIndex;
-    }
-    else
-    {
-        tNewEntity = gptECS->create_transform(ptLibrary, ptNode->name);
-    }
-
-    plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
-    pl_hm_insert(&gptData->tNodeHashMap, (uint64_t)ptNode, tNewEntity.ulData);
-
-    // transform defaults
-    ptTransform->tWorld       = pl_identity_mat4();
-    ptTransform->tRotation    = (plVec4){0.0f, 0.0f, 0.0f, 1.0f};
-    ptTransform->tScale       = (plVec3){1.0f, 1.0f, 1.0f};
-    ptTransform->tTranslation = (plVec3){0.0f, 0.0f, 0.0f};
-
-    if(ptNode->has_rotation)    memcpy(ptTransform->tRotation.d, ptNode->rotation, sizeof(plVec4));
-    if(ptNode->has_scale)       memcpy(ptTransform->tScale.d, ptNode->scale, sizeof(plVec3));
-    if(ptNode->has_translation) memcpy(ptTransform->tTranslation.d, ptNode->translation, sizeof(plVec3));
-
-    // must use provided matrix, otherwise calculate based on rot, scale, trans
-    if(ptNode->has_matrix)
-    {
-        memcpy(ptTransform->tWorld.d, ptNode->matrix, sizeof(plMat4));
-        pl_decompose_matrix(&ptTransform->tWorld, &ptTransform->tScale, &ptTransform->tRotation, &ptTransform->tTranslation);
-    }
-    else
-        ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
-
-
-    // attach to parent if parent is valid
-    if(tParentEntity.uIndex != UINT32_MAX)
-        gptECS->attach_component(ptLibrary, tNewEntity, tParentEntity);
-
-    // check if node has skin
-    plEntity tSkinEntity = {UINT32_MAX, UINT32_MAX};
-    if(ptNode->skin)
-    {
-        const uint64_t ulIndex = pl_hm_lookup(&gptData->tSkinHashMap, (uint64_t)ptNode->skin);
-
-        if(ulIndex != UINT64_MAX)
-        {
-            tSkinEntity = *(plEntity*)&ulIndex;
-            plSkinComponent* ptSkinComponent = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, tSkinEntity);
-            ptSkinComponent->tMeshNode = tNewEntity; 
-        }
-    }
-
-    // check if node has attached mesh
-    if(ptNode->mesh)
-    {
-        // PL_ASSERT(ptNode->mesh->primitives_count == 1);
-        for(size_t szPrimitiveIndex = 0; szPrimitiveIndex < ptNode->mesh->primitives_count; szPrimitiveIndex++)
-        {
-            // add mesh to our node
-            plEntity tNewObject = gptECS->create_object(ptLibrary, ptNode->mesh->name);
-            plObjectComponent* ptObject = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewObject);
-            plMeshComponent* ptMesh = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewObject);
-            ptMesh->tSkinComponent = tSkinEntity;
-            
-            ptObject->tMesh = tNewObject;
-            ptObject->tTransform = tNewEntity;
-
-            const cgltf_primitive* ptPrimitive = &ptNode->mesh->primitives[szPrimitiveIndex];
-
-            // load attributes
-            pl__refr_load_attributes(ptMesh, ptPrimitive);
-
-            ptMesh->tMaterial.uIndex      = UINT32_MAX;
-            ptMesh->tMaterial.uGeneration = UINT32_MAX;
-
-            // load material
-            if(ptPrimitive->material)
-            {
-                bool bOpaque = true;
-                plBindGroupHandle tMaterialBindGroup = {UINT32_MAX, UINT32_MAX};
-
-                // check if the material already exists
-                if(pl_hm_has_key(&ptScene->tMaterialHashMap, (uint64_t)ptPrimitive->material))
-                {
-                    const uint64_t ulMaterialIndex = pl_hm_lookup(&ptScene->tMaterialHashMap, (uint64_t)ptPrimitive->material);
-                    ptMesh->tMaterial = ptScene->sbtMaterialEntities[ulMaterialIndex];
-                    tMaterialBindGroup = ptScene->sbtMaterialBindGroups[ulMaterialIndex];
-
-                    plMaterialComponent* ptMaterial = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
-                    if(ptMaterial->tBlendMode != PL_MATERIAL_BLEND_MODE_OPAQUE)
-                        bOpaque = false;
-                }
-                else // create new material
-                {
-                    ptMesh->tMaterial = gptECS->create_material(&gptData->tComponentLibrary, ptPrimitive->material->name);
-                    
-                    uint64_t ulFreeIndex = pl_hm_get_free_index(&ptScene->tMaterialHashMap);
-                    if(ulFreeIndex == UINT64_MAX)
-                    {
-                        ulFreeIndex = pl_sb_size(ptScene->sbtMaterialEntities);
-                        pl_sb_add(ptScene->sbtMaterialEntities);
-                        pl_sb_add(ptScene->sbtMaterialBindGroups);
-                    }
-
-                    ptScene->sbtMaterialEntities[ulFreeIndex] = ptMesh->tMaterial;
-                    pl_hm_insert(&ptScene->tMaterialHashMap, (uint64_t)ptPrimitive->material, ulFreeIndex);
-
-                    plBindGroupLayout tMaterialBindGroupLayout = {
-                        .uTextureCount = 2,
-                        .aTextures = {
-                            {.uSlot = 0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-                            {.uSlot = 1, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-                        }
-                    };
-                    ptScene->sbtMaterialBindGroups[ulFreeIndex] = gptDevice->create_bind_group(&gptData->tGraphics.tDevice, &tMaterialBindGroupLayout, "material bind group");
-                    tMaterialBindGroup = ptScene->sbtMaterialBindGroups[ulFreeIndex];
-
-                    plMaterialComponent* ptMaterial = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
-                    pl__refr_load_material(pcDirectory, ptMaterial, ptPrimitive->material);
-
-                    if(ptMaterial->tBlendMode != PL_MATERIAL_BLEND_MODE_OPAQUE)
-                        bOpaque = false;
-                }
-
-                // TODO: separate by opaque/transparent
-                const plDrawable tDrawable = {
-                    .tEntity = tNewObject, 
-                    .tMaterialBindGroup = tMaterialBindGroup
-                };
-                if(bOpaque)
-                    pl_sb_push(ptScene->sbtOpaqueDrawables, tDrawable);
-                else
-                    pl_sb_push(ptScene->sbtTransparentDrawables, tDrawable);
-            }
-        }
-    }
-
-    // recurse through children
-    for(size_t i = 0; i < ptNode->children_count; i++)
-        pl__refr_load_gltf_object(ptScene, pcDirectory, tNewEntity, ptNode->children[i]);
-}
-
 static plTextureHandle
 pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, bool bHdr, int iMips)
 {
@@ -2232,12 +1427,12 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
 static void
 pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIndex)
 {
-    plEntity tEntity = ptScene->sbtAllDrawables[uDrawableIndex].tEntity;
+    plEntity tEntity = ptScene->sbtSubmittedDrawables[uDrawableIndex].tEntity;
 
     // get actual components
-    plObjectComponent*   ptObject   = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
-    plMeshComponent*     ptMesh     = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
-    plMaterialComponent* ptMaterial = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
+    plObjectComponent*   ptObject   = gptECS->get_component(&ptScene->tLoaderData.tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
+    plMeshComponent*     ptMesh     = gptECS->get_component(&ptScene->tLoaderData.tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
+    plMaterialComponent* ptMaterial = gptECS->get_component(&ptScene->tLoaderData.tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
 
     const uint32_t uVertexPosStartIndex  = pl_sb_size(ptScene->sbtVertexPosBuffer);
     const uint32_t uIndexBufferStart     = pl_sb_size(ptScene->sbuIndexBuffer);
@@ -2368,12 +1563,12 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
     };
     pl_sb_push(ptScene->sbtMaterialBuffer, tMaterial);
 
-    ptScene->sbtAllDrawables[uDrawableIndex].uIndexCount      = uIndexCount;
-    ptScene->sbtAllDrawables[uDrawableIndex].uVertexCount     = uVertexCount;
-    ptScene->sbtAllDrawables[uDrawableIndex].uIndexOffset     = uIndexBufferStart;
-    ptScene->sbtAllDrawables[uDrawableIndex].uVertexOffset    = uVertexPosStartIndex;
-    ptScene->sbtAllDrawables[uDrawableIndex].uDataOffset      = uVertexDataStartIndex;
-    ptScene->sbtAllDrawables[uDrawableIndex].uMaterialIndex   = uMaterialIndex;
+    ptScene->sbtSubmittedDrawables[uDrawableIndex].uIndexCount      = uIndexCount;
+    ptScene->sbtSubmittedDrawables[uDrawableIndex].uVertexCount     = uVertexCount;
+    ptScene->sbtSubmittedDrawables[uDrawableIndex].uIndexOffset     = uIndexBufferStart;
+    ptScene->sbtSubmittedDrawables[uDrawableIndex].uVertexOffset    = uVertexPosStartIndex;
+    ptScene->sbtSubmittedDrawables[uDrawableIndex].uDataOffset      = uVertexDataStartIndex;
+    ptScene->sbtSubmittedDrawables[uDrawableIndex].uMaterialIndex   = uMaterialIndex;
 }
 
 static void
@@ -2386,11 +1581,34 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
 
     plBuffer* ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle[0]);
 
-    // update material bind groups
-    const uint32_t uMaterialCount = pl_sb_size(ptScene->sbtMaterialEntities);
+    // add opaque items
+    const uint32_t uOpaqueDrawableCount = pl_sb_size(ptScene->tLoaderData.sbtOpaqueDrawables);
+    for(uint32_t i = 0; i < uOpaqueDrawableCount; i++)
+        pl_sb_push(ptScene->sbtSubmittedDrawables, ptScene->tLoaderData.sbtOpaqueDrawables[i]);
+
+    // add transparent items
+    const uint32_t uTransparentDrawableCount = pl_sb_size(ptScene->tLoaderData.sbtTransparentDrawables);
+    for(uint32_t i = 0; i < uTransparentDrawableCount; i++)
+        pl_sb_push(ptScene->sbtSubmittedDrawables, ptScene->tLoaderData.sbtTransparentDrawables[i]);
+
+    pl_begin_profile_sample("load materials");
+    plHashMap tMaterialBindGroupDict = {0};
+    plBindGroupHandle* sbtMaterialBindGroups = NULL;
+    plMaterialComponent* sbtMaterials = (plMaterialComponent*)ptScene->tLoaderData.tComponentLibrary.tMaterialComponentManager.pComponents;
+    const uint32_t uMaterialCount = pl_sb_size(sbtMaterials);
+    pl_sb_resize(sbtMaterialBindGroups, uMaterialCount);
     for(uint32_t i = 0; i < uMaterialCount; i++)
     {
-        plMaterialComponent* ptMaterial = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptScene->sbtMaterialEntities[i]);
+        plMaterialComponent* ptMaterial = &sbtMaterials[i];
+
+        plBindGroupLayout tMaterialBindGroupLayout = {
+            .uTextureCount = 2,
+            .aTextures = {
+                {.uSlot = 0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
+                {.uSlot = 1, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
+            }
+        };
+        sbtMaterialBindGroups[i] = gptDevice->create_bind_group(ptDevice, &tMaterialBindGroupLayout, "material bind group");
 
         plTextureHandle atMaterialTextureViews[] = {
             pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_BASE_COLOR_MAP, true, 0),
@@ -2399,30 +1617,34 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         plBindGroupUpdateData tBGData0 = {
             .atTextureViews = atMaterialTextureViews
         };
-        gptDevice->update_bind_group(ptDevice, &ptScene->sbtMaterialBindGroups[i], &tBGData0);
+        gptDevice->update_bind_group(ptDevice, &sbtMaterialBindGroups[i], &tBGData0);
+        pl_hm_insert(&tMaterialBindGroupDict, (uint64_t)ptMaterial, (uint64_t)i);
     }
-
-    // add opaque items
-    const uint32_t uOpaqueDrawableCount = pl_sb_size(ptScene->sbtOpaqueDrawables);
-    for(uint32_t i = 0; i < uOpaqueDrawableCount; i++)
-        pl_sb_push(ptScene->sbtAllDrawables, ptScene->sbtOpaqueDrawables[i]);
-
-    // add transparent items
-    const uint32_t uTransparentDrawableCount = pl_sb_size(ptScene->sbtTransparentDrawables);
-    for(uint32_t i = 0; i < uTransparentDrawableCount; i++)
-        pl_sb_push(ptScene->sbtAllDrawables, ptScene->sbtTransparentDrawables[i]);
+    pl_end_profile_sample();
 
     // fill CPU buffers & drawable list
-    const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtAllDrawables);
+    pl_begin_profile_sample("fill CPU buffers");
+    const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtSubmittedDrawables);
     for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
     {
-        ptScene->sbtAllDrawables[uDrawableIndex].uSkinIndex = UINT32_MAX;
-        plEntity tEntity = ptScene->sbtAllDrawables[uDrawableIndex].tEntity;
+
+        ptScene->sbtSubmittedDrawables[uDrawableIndex].uSkinIndex = UINT32_MAX;
+        plEntity tEntity = ptScene->sbtSubmittedDrawables[uDrawableIndex].tEntity;
 
         // get actual components
-        plObjectComponent*   ptObject   = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
-        plMeshComponent*     ptMesh     = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
-        plMaterialComponent* ptMaterial = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
+        plObjectComponent*   ptObject   = gptECS->get_component(&ptScene->tLoaderData.tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
+        plMeshComponent*     ptMesh     = gptECS->get_component(&ptScene->tLoaderData.tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
+        plMaterialComponent* ptMaterial = gptECS->get_component(&ptScene->tLoaderData.tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
+
+        plBindGroupLayout tMaterialBindGroupLayout = {
+            .uTextureCount = 2,
+            .aTextures = {
+                {.uSlot = 0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
+                {.uSlot = 1, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
+            }
+        };
+        const uint64_t ulMaterialIndex = pl_hm_lookup(&tMaterialBindGroupDict, (uint64_t)ptMaterial);
+        ptScene->sbtSubmittedDrawables[uDrawableIndex].tMaterialBindGroup = sbtMaterialBindGroups[ulMaterialIndex];
 
         // add data to global buffers
         pl__add_drawable_data_to_global_buffer(ptScene, uDrawableIndex);
@@ -2455,14 +1677,14 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
             }
         };
 
-        ptScene->sbtAllDrawables[uDrawableIndex].uShader = pl__get_shader_variant(uSceneHandle, ptScene->tShader, &tVariant).uIndex;
+        ptScene->sbtSubmittedDrawables[uDrawableIndex].uShader = pl__get_shader_variant(uSceneHandle, ptScene->tShader, &tVariant).uIndex;
 
         if(ptMesh->tSkinComponent.uIndex != UINT32_MAX)
         {
 
             plSkinData tSkinData = {.tEntity = ptMesh->tSkinComponent};
 
-            plSkinComponent* ptSkinComponent = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_SKIN, ptMesh->tSkinComponent);
+            plSkinComponent* ptSkinComponent = gptECS->get_component(&ptScene->tLoaderData.tComponentLibrary, PL_COMPONENT_TYPE_SKIN, ptMesh->tSkinComponent);
             unsigned int textureWidth = (unsigned int)ceilf(sqrtf((float)(pl_sb_size(ptSkinComponent->sbtJoints) * 8)));
             pl_sb_resize(ptSkinComponent->sbtTextureData, textureWidth * textureWidth);
             plTextureDesc tTextureDesc = {
@@ -2499,13 +1721,18 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
             gptGfx->end_command_recording(ptDevice->ptGraphics, &tCommandBuffer);
             gptGfx->submit_command_buffer(ptDevice->ptGraphics, &tCommandBuffer, NULL);
 
-            ptScene->sbtAllDrawables[uDrawableIndex].uSkinIndex = pl_sb_size(ptScene->sbtSkinData);
+            ptScene->sbtSubmittedDrawables[uDrawableIndex].uSkinIndex = pl_sb_size(ptScene->sbtSkinData);
             pl_sb_push(ptScene->sbtSkinData, tSkinData);
         }
     }
+    pl_end_profile_sample();
+
+    pl_hm_free(&tMaterialBindGroupDict);
+    pl_sb_free(sbtMaterialBindGroups);
 
     // create GPU buffers
 
+    pl_begin_profile_sample("fill GPU buffers");
     plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
 
     const plBufferDescription tShaderBufferDesc = {
@@ -2597,18 +1824,20 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     gptGfx->end_blit_pass(&tEncoder);
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
     gptGfx->submit_command_buffer_blocking(ptGraphics, &tCommandBuffer, NULL);
+    pl_end_profile_sample();
 }
 
 static void
-pl_refr_run_ecs(void)
+pl_refr_run_ecs(uint32_t uSceneHandle)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    gptECS->run_animation_update_system(&gptData->tComponentLibrary, pl_get_io()->fDeltaTime);
-    gptECS->run_transform_update_system(&gptData->tComponentLibrary);
-    gptECS->run_hierarchy_update_system(&gptData->tComponentLibrary);
-    gptECS->run_inverse_kinematics_update_system(&gptData->tComponentLibrary);
-    gptECS->run_skin_update_system(&gptData->tComponentLibrary);
-    gptECS->run_object_update_system(&gptData->tComponentLibrary);
+    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+    gptECS->run_animation_update_system(&ptScene->tLoaderData.tComponentLibrary, pl_get_io()->fDeltaTime);
+    gptECS->run_transform_update_system(&ptScene->tLoaderData.tComponentLibrary);
+    gptECS->run_hierarchy_update_system(&ptScene->tLoaderData.tComponentLibrary);
+    gptECS->run_inverse_kinematics_update_system(&ptScene->tLoaderData.tComponentLibrary);
+    gptECS->run_skin_update_system(&ptScene->tLoaderData.tComponentLibrary);
+    gptECS->run_object_update_system(&ptScene->tLoaderData.tComponentLibrary);
     pl_end_profile_sample();
 }
 
@@ -2892,7 +2121,7 @@ pl_refr_update_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle)
             .szBufferOffset = uSceneHandle * sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y
         };
         
-        plSkinComponent* ptSkinComponent = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_SKIN, ptScene->sbtSkinData[i].tEntity);
+        plSkinComponent* ptSkinComponent = gptECS->get_component(&ptScene->tLoaderData.tComponentLibrary, PL_COMPONENT_TYPE_SKIN, ptScene->sbtSkinData[i].tEntity);
         memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[uSceneHandle * sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y], ptSkinComponent->sbtTextureData, sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y);
         // memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptSkinComponent->sbtTextureData, sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y);
         gptGfx->copy_buffer_to_texture(&tBlitEncoder, gptData->tStagingBufferHandle[ptGraphics->uCurrentFrameIndex], ptScene->sbtSkinData[i].atDynamicTexture[ptGraphics->uCurrentFrameIndex], 1, &tBufferImageCopy);
@@ -2907,20 +2136,20 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     pl_begin_profile_sample(__FUNCTION__);
 
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
-    plRefView* ptView = &ptScene->sbtViews[uViewHandle];
+    plRefView* ptView = &ptScene->atViews[uViewHandle];
     plCameraComponent* ptCamera = tOptions.ptViewCamera;
 
     // handle culling
     
-    const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtAllDrawables);
+    const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtSubmittedDrawables);
     pl_begin_profile_sample("cull operations");
     if(tOptions.ptCullCamera)
     {
         pl_sb_reset(ptView->sbtVisibleDrawables);
         for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
         {
-            const plDrawable tDrawable = ptScene->sbtAllDrawables[uDrawableIndex];
-            plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, tDrawable.tEntity);
+            const plDrawable tDrawable = ptScene->sbtSubmittedDrawables[uDrawableIndex];
+            plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tLoaderData.tComponentLibrary, PL_COMPONENT_TYPE_MESH, tDrawable.tEntity);
 
             if(pl__sat_visibility_test(tOptions.ptCullCamera, &ptMesh->tAABBFinal))
             {
@@ -2932,7 +2161,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     else if(pl_sb_size(ptView->sbtVisibleDrawables) != uDrawableCount)
     {
         pl_sb_resize(ptView->sbtVisibleDrawables, uDrawableCount);
-        memcpy(ptView->sbtVisibleDrawables, ptScene->sbtAllDrawables, sizeof(plDrawable) * uDrawableCount);
+        memcpy(ptView->sbtVisibleDrawables, ptScene->sbtSubmittedDrawables, sizeof(plDrawable) * uDrawableCount);
     }
     pl_end_profile_sample();
 
@@ -3016,8 +2245,8 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     for(uint32_t i = 0; i < uVisibleDrawCount; i++)
     {
         const plDrawable tDrawable = ptView->sbtVisibleDrawables[i];
-        plObjectComponent* ptObject = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
-        plTransformComponent* ptTransform = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+        plObjectComponent* ptObject = gptECS->get_component(&ptScene->tLoaderData.tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
+        plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tLoaderData.tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
         
         plDynamicBinding tDynamicBinding = gptDevice->allocate_dynamic_data(ptDevice, sizeof(DynamicData));
 
@@ -3078,10 +2307,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     gptGfx->draw_subpass(&tEncoder, 1, &tArea);
     gptStream->reset(ptStream);
 
-
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~skybox~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    
 
     if(ptScene->tSkyboxTexture.uIndex != UINT32_MAX)
     {
@@ -3116,7 +2342,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     {
         for(uint32_t i = 0; i < uDrawableCount; i++)
         {
-            plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptScene->sbtAllDrawables[i].tEntity);
+            plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tLoaderData.tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptScene->sbtSubmittedDrawables[i].tEntity);
 
             gptGfx->add_3d_aabb(&ptView->t3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.01f);
         }
@@ -3125,7 +2351,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     {
         for(uint32_t i = 0; i < uVisibleDrawCount; i++)
         {
-            plMeshComponent* ptMesh = gptECS->get_component(&gptData->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptView->sbtVisibleDrawables[i].tEntity);
+            plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tLoaderData.tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptView->sbtVisibleDrawables[i].tEntity);
 
             gptGfx->add_3d_aabb(&ptView->t3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.01f);
         }
@@ -3146,9 +2372,6 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
 
     gptGfx->submit_3d_drawlist(&ptView->t3DDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, 1);
     gptGfx->end_render_pass(&tEncoder);
-    
-    
-    // gptGfx->end_render_pass(&tEncoder);
     pl_end_profile_sample();
 }
 
@@ -3156,7 +2379,7 @@ static plTextureId
 pl_refr_get_view_texture_id(uint32_t uSceneHandle, uint32_t uViewHandle)
 {
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
-    plRefView* ptView = &ptScene->sbtViews[uViewHandle];
+    plRefView* ptView = &ptScene->atViews[uViewHandle];
     return ptView->tTextureID[gptData->tGraphics.uCurrentFrameIndex];
 }
 
@@ -3332,6 +2555,50 @@ pl__get_blend_state(plBlendMode tBlendMode)
     return atStateMap[tBlendMode];
 }
 
+static void
+pl_add_drawable_objects_to_scene(uint32_t uSceneHandle, uint32_t uOpaqueCount, const plEntity* atOpaqueObjects, uint32_t uTransparentCount, const plEntity* atTransparentObjects)
+{
+    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+
+    const uint32_t uTransparentStart = pl_sb_size(ptScene->tLoaderData.sbtTransparentDrawables);
+    pl_sb_add_n(ptScene->tLoaderData.sbtTransparentDrawables, uTransparentCount);
+
+    const uint32_t uOpaqueStart = pl_sb_size(ptScene->tLoaderData.sbtOpaqueDrawables);
+    pl_sb_add_n(ptScene->tLoaderData.sbtOpaqueDrawables, uOpaqueCount);
+
+    for(uint32_t i = 0; i < uOpaqueCount; i++)
+        ptScene->tLoaderData.sbtOpaqueDrawables[uOpaqueStart + i].tEntity = atOpaqueObjects[i];
+
+    for(uint32_t i = 0; i < uTransparentCount; i++)
+        ptScene->tLoaderData.sbtTransparentDrawables[uTransparentStart + i].tEntity = atTransparentObjects[i];
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] public API implementation
+//-----------------------------------------------------------------------------
+
+const plRefRendererI*
+pl_load_ref_renderer_api(void)
+{
+    static const plRefRendererI tApi = {
+        .initialize                    = pl_refr_initialize,
+        .cleanup                       = pl_refr_cleanup,
+        .create_scene                  = pl_refr_create_scene,
+        .add_drawable_objects_to_scene = pl_add_drawable_objects_to_scene,
+        .create_view                   = pl_refr_create_view,
+        .run_ecs                       = pl_refr_run_ecs,
+        .get_component_library         = pl_refr_get_component_library,
+        .get_graphics                  = pl_refr_get_graphics,
+        .load_skybox_from_panorama     = pl_refr_load_skybox_from_panorama,
+        .finalize_scene                = pl_refr_finalize_scene,
+        .update_scene                  = pl_refr_update_scene,
+        .render_scene                  = pl_refr_render_scene,
+        .get_view_texture_id           = pl_refr_get_view_texture_id,
+        .resize_view                   = pl_refr_resize_view,
+    };
+    return &tApi;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -3357,6 +2624,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
    gptStats         = ptApiRegistry->first(PL_API_STATS);
    gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
    gptThreads       = ptApiRegistry->first(PL_API_THREADS);
+   gptJob           = ptApiRegistry->first(PL_API_JOB);
 
    if(bReload)
    {
@@ -3384,15 +2652,3 @@ PL_EXPORT void
 pl_unload_ext(plApiRegistryI* ptApiRegistry)
 {
 }
-
-//-----------------------------------------------------------------------------
-// [SECTION] unity build
-//-----------------------------------------------------------------------------
-
-#define PL_STL_IMPLEMENTATION
-#include "pl_stl.h"
-#undef PL_STL_IMPLEMENTATION
-
-#define CGLTF_IMPLEMENTATION
-#include "cgltf.h"
-#undef CGLTF_IMPLEMENTATION

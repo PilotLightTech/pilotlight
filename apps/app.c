@@ -34,6 +34,7 @@ Index of this file:
 #include "pl_debug_ext.h"
 #include "pl_ecs_ext.h"
 #include "pl_resource_ext.h"
+#include "pl_model_loader_ext.h"
 #include "pl_ref_renderer_ext.h"
 #include "pl_job_ext.h"
 
@@ -106,6 +107,7 @@ const plEcsI*               gptEcs               = NULL;
 const plCameraI*            gptCamera            = NULL;
 const plResourceI*          gptResource          = NULL;
 const plRefRendererI*       gptRenderer          = NULL;
+const plModelLoaderI*       gptModelLoader       = NULL;
 const plJobI*               gptJobs              = NULL;
 
 //-----------------------------------------------------------------------------
@@ -126,20 +128,21 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         pl_set_profile_context(gptDataRegistry->get_data("profile"));
 
         // reload global apis
-        gptWindows  = ptApiRegistry->first(PL_API_WINDOW);
-        gptThreads  = ptApiRegistry->first(PL_API_THREADS);
-        gptStats    = ptApiRegistry->first(PL_API_STATS);
-        gptFile     = ptApiRegistry->first(PL_API_FILE);
-        gptGfx      = ptApiRegistry->first(PL_API_GRAPHICS);
-        gptDevice   = ptApiRegistry->first(PL_API_DEVICE);
-        gptDebug    = ptApiRegistry->first(PL_API_DEBUG);
-        gptImage    = ptApiRegistry->first(PL_API_IMAGE);
-        gptStream   = ptApiRegistry->first(PL_API_DRAW_STREAM);
-        gptEcs      = ptApiRegistry->first(PL_API_ECS);
-        gptCamera   = ptApiRegistry->first(PL_API_CAMERA);
-        gptResource = ptApiRegistry->first(PL_API_RESOURCE);
-        gptRenderer = ptApiRegistry->first(PL_API_REF_RENDERER);
-        gptJobs     = ptApiRegistry->first(PL_API_JOB);
+        gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
+        gptThreads     = ptApiRegistry->first(PL_API_THREADS);
+        gptStats       = ptApiRegistry->first(PL_API_STATS);
+        gptFile        = ptApiRegistry->first(PL_API_FILE);
+        gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
+        gptDevice      = ptApiRegistry->first(PL_API_DEVICE);
+        gptDebug       = ptApiRegistry->first(PL_API_DEBUG);
+        gptImage       = ptApiRegistry->first(PL_API_IMAGE);
+        gptStream      = ptApiRegistry->first(PL_API_DRAW_STREAM);
+        gptEcs         = ptApiRegistry->first(PL_API_ECS);
+        gptCamera      = ptApiRegistry->first(PL_API_CAMERA);
+        gptResource    = ptApiRegistry->first(PL_API_RESOURCE);
+        gptRenderer    = ptApiRegistry->first(PL_API_REF_RENDERER);
+        gptJobs        = ptApiRegistry->first(PL_API_JOB);
+        gptModelLoader = ptApiRegistry->first(PL_API_MODEL_LOADER);
 
         return ptAppData;
     }
@@ -170,23 +173,28 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_debug_ext",          NULL, NULL, true);
     ptExtensionRegistry->load("pl_ecs_ext",            NULL, NULL, false);
     ptExtensionRegistry->load("pl_resource_ext",       NULL, NULL, false);
+    ptExtensionRegistry->load("pl_model_loader_ext",   NULL, NULL, false);
     ptExtensionRegistry->load("pl_ref_renderer_ext",   NULL, NULL, true);
     
     // load apis
-    gptWindows  = ptApiRegistry->first(PL_API_WINDOW);
-    gptThreads  = ptApiRegistry->first(PL_API_THREADS);
-    gptStats    = ptApiRegistry->first(PL_API_STATS);
-    gptFile     = ptApiRegistry->first(PL_API_FILE);
-    gptGfx      = ptApiRegistry->first(PL_API_GRAPHICS);
-    gptDevice   = ptApiRegistry->first(PL_API_DEVICE);
-    gptDebug    = ptApiRegistry->first(PL_API_DEBUG);
-    gptImage    = ptApiRegistry->first(PL_API_IMAGE);
-    gptStream   = ptApiRegistry->first(PL_API_DRAW_STREAM);
-    gptEcs      = ptApiRegistry->first(PL_API_ECS);
-    gptCamera   = ptApiRegistry->first(PL_API_CAMERA);
-    gptResource = ptApiRegistry->first(PL_API_RESOURCE);
-    gptRenderer = ptApiRegistry->first(PL_API_REF_RENDERER);
-    gptJobs     = ptApiRegistry->first(PL_API_JOB);
+    gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
+    gptThreads     = ptApiRegistry->first(PL_API_THREADS);
+    gptStats       = ptApiRegistry->first(PL_API_STATS);
+    gptFile        = ptApiRegistry->first(PL_API_FILE);
+    gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
+    gptDevice      = ptApiRegistry->first(PL_API_DEVICE);
+    gptDebug       = ptApiRegistry->first(PL_API_DEBUG);
+    gptImage       = ptApiRegistry->first(PL_API_IMAGE);
+    gptStream      = ptApiRegistry->first(PL_API_DRAW_STREAM);
+    gptEcs         = ptApiRegistry->first(PL_API_ECS);
+    gptCamera      = ptApiRegistry->first(PL_API_CAMERA);
+    gptResource    = ptApiRegistry->first(PL_API_RESOURCE);
+    gptRenderer    = ptApiRegistry->first(PL_API_REF_RENDERER);
+    gptJobs        = ptApiRegistry->first(PL_API_JOB);
+    gptModelLoader = ptApiRegistry->first(PL_API_MODEL_LOADER);
+
+    // initialize job system
+    gptJobs->initialize(0);
 
     const plWindowDesc tWindowDesc = {
         .pcName  = "Pilot Light Example",
@@ -224,36 +232,52 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->ptDrawLayer = pl_request_layer(pl_get_draw_list(NULL), "draw layer");
 
     // create main camera
-    plComponentLibrary* ptComponentLibrary = gptRenderer->get_component_library();
-    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptComponentLibrary, "main camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.01f, 400.0f);
-    gptCamera->set_pitch_yaw(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), 0.0f, PL_PI);
-    gptCamera->update(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera));
+    plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
+    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.01f, 400.0f);
+    gptCamera->set_pitch_yaw(gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), 0.0f, PL_PI);
+    gptCamera->update(gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera));
 
     // create cull camera
-    ptAppData->tCullCamera = gptEcs->create_perspective_camera(ptComponentLibrary, "cull camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.1f, 106.0f);
-    gptCamera->set_pitch_yaw(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera), 0.0f, PL_PI);
-    gptCamera->update(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera));
+    ptAppData->tCullCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "cull camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.1f, 106.0f);
+    gptCamera->set_pitch_yaw(gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera), 0.0f, PL_PI);
+    gptCamera->update(gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera));
 
-    ptAppData->tMainCamera2 = gptEcs->create_perspective_camera(ptComponentLibrary, "secondary camera", (plVec3){-3.265f, 2.967f, 0.311f}, PL_PI_3, 1.0f, 0.01f, 400.0f);
-    gptCamera->set_pitch_yaw(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2), -0.535f, 1.737f);
-    gptCamera->update(gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2));
+    plComponentLibrary* ptSecondaryComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle1);
+    ptAppData->tMainCamera2 = gptEcs->create_perspective_camera(ptSecondaryComponentLibrary, "secondary camera", (plVec3){-3.265f, 2.967f, 0.311f}, PL_PI_3, 1.0f, 0.01f, 400.0f);
+    gptCamera->set_pitch_yaw(gptEcs->get_component(ptSecondaryComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2), -0.535f, 1.737f);
+    gptCamera->update(gptEcs->get_component(ptSecondaryComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2));
 
     // load models
     pl_begin_profile_frame();
-    pl_begin_profile_sample("load models");
+
+    pl_begin_profile_sample("load skyboxes");
     const plMat4 tTransform0 = pl_mat4_translate_xyz(2.0f, 1.0f, 0.0f);
     gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/glTF-Sample-Environments-main/ennis.jpg", 1024);
     gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle1, "../data/glTF-Sample-Environments-main/ennis.jpg", 1024);
-    gptRenderer->load_gltf(ptAppData->uSceneHandle0, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL);
-    gptRenderer->load_gltf(ptAppData->uSceneHandle0, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL);
-    gptRenderer->load_stl(ptAppData->uSceneHandle0, "../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 1.0f, 0.0f, 0.80f}, &tTransform0);
-
-    gptRenderer->load_gltf(ptAppData->uSceneHandle1, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL);
-    gptRenderer->load_stl(ptAppData->uSceneHandle1, "../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 0.0f, 0.0f, 0.80f}, &tTransform0);
     pl_end_profile_sample();
 
-    pl_begin_profile_sample("finalize scene");
+    plModelLoaderData tLoaderData0 = {0};
+
+    pl_begin_profile_sample("load models 0");
+    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
+    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL, &tLoaderData0);
+    gptModelLoader->load_stl(ptMainComponentLibrary, "../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 1.0f, 0.0f, 0.80f}, &tTransform0, &tLoaderData0);
+    gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
+    gptModelLoader->free_data(&tLoaderData0);
+    pl_end_profile_sample();
+
+    pl_begin_profile_sample("load models 1");
+    gptModelLoader->load_gltf(ptSecondaryComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL, &tLoaderData0);
+    gptModelLoader->load_stl(ptSecondaryComponentLibrary, "../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 0.0f, 0.0f, 0.80f}, &tTransform0, &tLoaderData0);
+    gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle1, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
+    gptModelLoader->free_data(&tLoaderData0);
+    pl_end_profile_sample();
+
+    pl_begin_profile_sample("finalize scene 0");
     gptRenderer->finalize_scene(ptAppData->uSceneHandle0);
+    pl_end_profile_sample();
+
+    pl_begin_profile_sample("finalize scene 1");
     gptRenderer->finalize_scene(ptAppData->uSceneHandle1);
     pl_end_profile_sample();
 
@@ -276,6 +300,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
+    gptJobs->cleanup();
     gptGfx->destroy_font_atlas(&ptAppData->tFontAtlas); // backend specific cleanup
     pl_cleanup_font_atlas(&ptAppData->tFontAtlas);
     gptRenderer->cleanup();
@@ -294,7 +319,7 @@ pl_app_resize(plAppData* ptAppData)
 {
     gptGfx->resize(gptRenderer->get_graphics());
     plIO* ptIO = pl_get_io();
-    gptCamera->set_aspect(gptEcs->get_component(gptRenderer->get_component_library(), PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1]);
+    gptCamera->set_aspect(gptEcs->get_component(gptRenderer->get_component_library(ptAppData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1]);
     ptAppData->bResize = true;
 }
 
@@ -349,11 +374,12 @@ pl_app_update(plAppData* ptAppData)
     *pdMemoryCounter = (double)pl_get_memory_context()->szMemoryUsage;
 
     // handle input
-    plComponentLibrary* ptComponentLibrary = gptRenderer->get_component_library();
+    plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
+    plComponentLibrary* ptSecondaryComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle1);
 
-    plCameraComponent* ptCamera = gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
-    plCameraComponent* ptCamera2 = gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2);
-    plCameraComponent* ptCullCamera = gptEcs->get_component(ptComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
+    plCameraComponent* ptCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
+    plCameraComponent* ptCamera2 = gptEcs->get_component(ptSecondaryComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2);
+    plCameraComponent* ptCullCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
 
     static const float fCameraTravelSpeed = 4.0f;
     static const float fCameraRotationSpeed = 0.005f;
@@ -381,7 +407,8 @@ pl_app_update(plAppData* ptAppData)
     gptCamera->update(ptCullCamera);
 
     // run ecs system
-    gptRenderer->run_ecs();
+    gptRenderer->run_ecs(ptAppData->uSceneHandle0);
+    gptRenderer->run_ecs(ptAppData->uSceneHandle1);
 
     // new ui frame
     pl_new_frame();
@@ -529,7 +556,7 @@ pl_app_update(plAppData* ptAppData)
     gptDebug->show_debug_windows(&ptAppData->tDebugInfo);
 
     if(ptAppData->bShowEntityWindow)
-        pl_show_ecs_window(gptEcs, gptRenderer->get_component_library(), &ptAppData->bShowEntityWindow);
+        pl_show_ecs_window(gptEcs, gptRenderer->get_component_library(ptAppData->uSceneHandle0), &ptAppData->bShowEntityWindow);
 
     if(ptAppData->bShowUiDemo)
     {
