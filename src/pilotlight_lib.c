@@ -32,12 +32,16 @@
 #include "pl_memory.h"
 #undef PL_MEMORY_IMPLEMENTATION
 
+#include "pl_os.h"
+
 static plMemoryContext* gptMemoryContext = NULL;
+static plCriticalSection* gptCriticalSection = NULL;
 
 void
 pl_set_memory_context(plMemoryContext* ptMemoryContext)
 {
     gptMemoryContext = ptMemoryContext;
+    ptMemoryContext->plThreadsI->create_critical_section(&gptCriticalSection);
 }
 
 plMemoryContext*
@@ -49,17 +53,20 @@ pl_get_memory_context(void)
 void*
 pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
 {
+    
     void* pNewBuffer = NULL;
 
     if(szSize > 0)
     {
+        gptMemoryContext->plThreadsI->enter_critical_section(gptCriticalSection);
         gptMemoryContext->szActiveAllocations++;
-        pNewBuffer = malloc(szSize);
         gptMemoryContext->szMemoryUsage += szSize;
+        pNewBuffer = malloc(szSize);
         memset(pNewBuffer, 0, szSize);
 
         const uint64_t ulHash = pl_hm_hash(&pNewBuffer, sizeof(void*), 1);
 
+        
         uint64_t ulFreeIndex = pl_hm_get_free_index(gptMemoryContext->ptHashMap);
         if(ulFreeIndex == UINT64_MAX)
         {
@@ -67,21 +74,25 @@ pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
             ulFreeIndex = pl_sb_size(gptMemoryContext->sbtAllocations) - 1;
         }
         pl_hm_insert(gptMemoryContext->ptHashMap, ulHash, ulFreeIndex);
+        
         gptMemoryContext->sbtAllocations[ulFreeIndex].iLine = iLine;
         gptMemoryContext->sbtAllocations[ulFreeIndex].pcFile = pcFile;
         gptMemoryContext->sbtAllocations[ulFreeIndex].pAddress = pNewBuffer;
         gptMemoryContext->sbtAllocations[ulFreeIndex].szSize = szSize;
         gptMemoryContext->szAllocationCount++;
+        gptMemoryContext->plThreadsI->leave_critical_section(gptCriticalSection);
     }
 
 
     if(pBuffer) // free
     {
         const uint64_t ulHash = pl_hm_hash(&pBuffer, sizeof(void*), 1);
+        gptMemoryContext->plThreadsI->enter_critical_section(gptCriticalSection);
         const bool bDataExists = pl_hm_has_key(gptMemoryContext->ptHashMap, ulHash);
 
         if(bDataExists)
         {
+            
             const uint64_t ulIndex = pl_hm_lookup(gptMemoryContext->ptHashMap, ulHash);
 
             if(pNewBuffer)
@@ -99,8 +110,8 @@ pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
         {
             PL_ASSERT(false);
         }
+        gptMemoryContext->plThreadsI->leave_critical_section(gptCriticalSection);
         free(pBuffer);
-        
     }
     return pNewBuffer;
 }

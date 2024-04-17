@@ -156,12 +156,13 @@ typedef struct _plAllocationEntry
 
 typedef struct _plMemoryContext
 {
-  size_t             szActiveAllocations;
-  size_t             szAllocationCount;
-  size_t             szAllocationFrees;
-  plHashMap*         ptHashMap;
-  plAllocationEntry* sbtAllocations;
-  size_t             szMemoryUsage;
+  size_t                    szActiveAllocations;
+  size_t                    szAllocationCount;
+  size_t                    szAllocationFrees;
+  plHashMap*                ptHashMap;
+  plAllocationEntry*        sbtAllocations;
+  size_t                    szMemoryUsage;
+  const struct _plThreadsI* plThreadsI;
 } plMemoryContext;
 
 //-----------------------------------------------------------------------------

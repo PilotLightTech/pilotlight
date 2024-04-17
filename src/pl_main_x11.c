@@ -330,6 +330,7 @@ int main()
 
     // add contexts to data registry
     gptDataRegistry->set_data("ui", gptUiCtx);
+    gtMemoryContext.plThreadsI = &tThreadApi;
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
     // connect to x
