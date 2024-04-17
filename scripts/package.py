@@ -22,6 +22,7 @@ extensions = [
     "pl_job_ext",
     "pl_ref_renderer_ext",
     "pl_gpu_allocators_ext",
+    "pl_model_loader_ext"
 ]
 
 if os.path.isdir(target_directory):

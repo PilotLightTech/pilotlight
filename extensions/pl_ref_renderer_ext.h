@@ -38,14 +38,13 @@ typedef struct _plShaderVariant plShaderVariant;
 typedef struct _plComputeShaderVariant plComputeShaderVariant;
 
 // external 
-typedef struct _plWindow           plWindow;         // pl_os.h
+typedef struct _plWindow           plWindow;           // pl_os.h
 typedef struct _plGraphics         plGraphics;         // pl_graphics_ext.h
 typedef struct _plDrawList3D       plDrawList3D;       // pl_graphics_ext.h
 typedef struct _plCommandBuffer    plCommandBuffer;    // pl_graphics_ext.h
-typedef struct _plPassRenderer     plPassRenderer;     // pl_graphics_ext.h
-typedef struct plRenderPassHandle  plRenderPassHandle; // pl_ecs_ext.h
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef struct _plCameraComponent  plCameraComponent;  // pl_ecs_ext.h
+typedef union  _plEntity           plEntity;           // pl_ecs_ext.h
 typedef union _plMat4              plMat4;             // pl_math.h
 typedef union _plVec4              plVec4;             // pl_math.h
 typedef union _plVec2              plVec2;             // pl_math.h
@@ -69,6 +68,7 @@ typedef struct _plRefRendererI
 
     // scenes
     uint32_t (*create_scene)(void);
+    void     (*add_drawable_objects_to_scene)(uint32_t uSceneHandle, uint32_t uOpaqueCount, const plEntity* atOpaqueObjects, uint32_t uTransparentCount, const plEntity* atTransparentObjects);
 
     // views
     uint32_t    (*create_view)(uint32_t uSceneHandle, plVec2 tDimensions);
@@ -77,17 +77,15 @@ typedef struct _plRefRendererI
     
     // loading
     void (*load_skybox_from_panorama)(uint32_t uSceneHandle, const char* pcPath, int iResolution);
-    void (*load_stl)(uint32_t uSceneHandle, const char* pcPath, plVec4 tColor, const plMat4* ptTransform);
-    void (*load_gltf)(uint32_t uSceneHandle, const char* pcPath, const plMat4* ptTransform);
     void (*finalize_scene)(uint32_t uSceneHandle);
 
     // per frame
-    void (*run_ecs)(void);
+    void (*run_ecs)(uint32_t uSceneHandle);
     void (*update_scene)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle);
     void (*render_scene)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions);
     
     // misc
-    plComponentLibrary* (*get_component_library)(void);
+    plComponentLibrary* (*get_component_library)(uint32_t uSceneHandle);
     plGraphics*         (*get_graphics)(void);
 
 } plRefRendererI;
