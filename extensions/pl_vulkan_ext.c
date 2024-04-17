@@ -2927,7 +2927,7 @@ pl_allocate_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uT
     };
 
 
-    plDeviceAllocationBlock tBlock = pl_allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_GPU_CPU, uTypeFilter, "Uncached Heap");
+    plDeviceAllocationBlock tBlock = pl_allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_GPU_CPU, uTypeFilter, "dynamic uncached Heap");
     tAllocation.uHandle = tBlock.ulAddress;
     tAllocation.pHostMapped = tBlock.pHostMapped;
     ptData->ptDevice->ptGraphics->szHostMemoryInUse += ulSize;
@@ -3432,7 +3432,7 @@ pl_initialize_graphics(plWindow* ptWindow, plGraphics* ptGraphics)
         tFrame.uCurrentBufferIndex = UINT32_MAX;
         tFrame.sbtDynamicBuffers[0].uHandle = tStagingBuffer0.uIndex;
         tFrame.sbtDynamicBuffers[0].tBuffer = ptVulkanGfx->sbtBuffersHot[tStagingBuffer0.uIndex].tBuffer;
-        tFrame.sbtDynamicBuffers[0].tMemory = ptGraphics->sbtBuffersCold[tStagingBuffer0.uIndex].tMemoryAllocation;
+        tFrame.sbtDynamicBuffers[0].tMemory = tAllocation;
         tFrame.sbtDynamicBuffers[0].uByteOffset = 0;
 
           // allocate descriptor sets
@@ -3846,12 +3846,16 @@ pl_shutdown(plGraphics* ptGraphics)
     {
         vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbt3DBufferInfo[i].tVertexBuffer, NULL);
         vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbt3DBufferInfo[i].tIndexBuffer, NULL);
+        ptGraphics->tDevice.ptDynamicAllocator->free(ptGraphics->tDevice.ptDynamicAllocator->ptInst, &ptVulkanGfx->sbt3DBufferInfo[i].tVertexMemory);
+        ptGraphics->tDevice.ptDynamicAllocator->free(ptGraphics->tDevice.ptDynamicAllocator->ptInst, &ptVulkanGfx->sbt3DBufferInfo[i].tIndexMemory);
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtLineBufferInfo); i++)
     {
         vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtLineBufferInfo[i].tVertexBuffer, NULL);
         vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtLineBufferInfo[i].tIndexBuffer, NULL);
+        ptGraphics->tDevice.ptDynamicAllocator->free(ptGraphics->tDevice.ptDynamicAllocator->ptInst, &ptVulkanGfx->sbtLineBufferInfo[i].tVertexMemory);
+        ptGraphics->tDevice.ptDynamicAllocator->free(ptGraphics->tDevice.ptDynamicAllocator->ptInst, &ptVulkanGfx->sbtLineBufferInfo[i].tIndexMemory);
     }
 
 
@@ -3966,6 +3970,12 @@ pl_shutdown(plGraphics* ptGraphics)
         vkDestroyCommandPool(ptVulkanDevice->tLogicalDevice, ptFrame->tCmdPool, NULL);
         vkDestroyDescriptorPool(ptVulkanDevice->tLogicalDevice, ptFrame->tDynamicDescriptorPool, NULL);
 
+        for(uint32_t j = 0; j < pl_sb_size(ptFrame->sbtDynamicBuffers); j++)
+        {
+            if(ptFrame->sbtDynamicBuffers[j].tMemory.uHandle)
+                ptGraphics->tDevice.ptDynamicAllocator->free(ptGraphics->tDevice.ptDynamicAllocator->ptInst, &ptFrame->sbtDynamicBuffers[j].tMemory);
+        }
+        
         for(uint32_t j = 0; j < pl_sb_size(ptFrame->sbtRawBuffers); j++)
         {
             vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptFrame->sbtRawBuffers[j], NULL);
