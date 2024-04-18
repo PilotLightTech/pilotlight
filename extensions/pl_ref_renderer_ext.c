@@ -122,15 +122,14 @@ typedef struct _DynamicData
 
 typedef struct _plRefView
 {
-    // plRenderPassHandle       tDrawingRenderPass;
-    plRenderPassHandle       tRenderPass;
-    plVec2                   tTargetSize;
-    plTextureHandle          tTexture[PL_FRAMES_IN_FLIGHT];
-    plTextureHandle          tAlbedoTexture[PL_FRAMES_IN_FLIGHT];
-    plTextureHandle          tPositionTexture[PL_FRAMES_IN_FLIGHT];
-    plTextureHandle          tNormalTexture[PL_FRAMES_IN_FLIGHT];
-    plTextureHandle          tDepthTexture[PL_FRAMES_IN_FLIGHT];
-    plTextureId              tTextureID[PL_FRAMES_IN_FLIGHT];
+    plRenderPassHandle tRenderPass;
+    plVec2             tTargetSize;
+    plTextureHandle    tTexture[PL_FRAMES_IN_FLIGHT];
+    plTextureHandle    tAlbedoTexture[PL_FRAMES_IN_FLIGHT];
+    plTextureHandle    tPositionTexture[PL_FRAMES_IN_FLIGHT];
+    plTextureHandle    tNormalTexture[PL_FRAMES_IN_FLIGHT];
+    plTextureHandle    tDepthTexture[PL_FRAMES_IN_FLIGHT];
+    plTextureId        tTextureID[PL_FRAMES_IN_FLIGHT];
 
     // lighting
     plBindGroupHandle tLightingBindGroup[PL_FRAMES_IN_FLIGHT];
@@ -286,8 +285,8 @@ pl_refr_initialize(plWindow* ptWindow)
     gptData->tPanoramaShader = (plComputeShaderHandle){UINT32_MAX, UINT32_MAX};
 
     // misc textures
-    gptData->tDummyTexture     = (plTextureHandle){UINT32_MAX, UINT32_MAX};
-    gptData->tDefaultSampler   = (plSamplerHandle){UINT32_MAX, UINT32_MAX};
+    gptData->tDummyTexture   = (plTextureHandle){UINT32_MAX, UINT32_MAX};
+    gptData->tDefaultSampler = (plSamplerHandle){UINT32_MAX, UINT32_MAX};
 
     gptData->tNullSkinBindgroup = (plBindGroupHandle){UINT32_MAX, UINT32_MAX};
 
@@ -355,7 +354,7 @@ pl_refr_initialize(plWindow* ptWindow)
     gptGfx->copy_buffer_to_texture(&tBlitEncoder, gptData->tStagingBufferHandle[0], gptData->tDummyTexture, 1, &tBufferImageCopy);
     gptGfx->end_blit_pass(&tBlitEncoder);
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
-    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, NULL);
+    gptGfx->submit_command_buffer_blocking(ptGraphics, &tCommandBuffer, NULL);
 
     plSamplerDesc tSamplerDesc = {
         .tFilter         = PL_FILTER_LINEAR,
@@ -550,93 +549,10 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 
     // buffer default values
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
-        ptView->atGlobalBuffers[i]    = (plBufferHandle){UINT32_MAX, UINT32_MAX};
+        ptView->atGlobalBuffers[i] = (plBufferHandle){UINT32_MAX, UINT32_MAX};
 
     // for convience
     plGraphics* ptGraphics = &gptData->tGraphics;
-
-    // create skybox shader
-    plShaderDescription tSkyboxShaderDesc = {
-#ifdef PL_METAL_BACKEND
-        .pcVertexShader = "../shaders/metal/skybox.metal",
-        .pcPixelShader = "../shaders/metal/skybox.metal",
-        .pcVertexShaderEntryFunc = "vertex_main",
-        .pcPixelShaderEntryFunc = "fragment_main",
-#else
-        .pcVertexShader = "skybox.vert.spv",
-        .pcPixelShader = "skybox.frag.spv",
-        .pcVertexShaderEntryFunc = "main",
-        .pcPixelShaderEntryFunc = "main",
-#endif
-
-        .tGraphicsState = {
-            .ulDepthWriteEnabled  = 0,
-            .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
-            .ulCullMode           = PL_CULL_MODE_NONE,
-            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-            .ulStencilRef         = 0xff,
-            .ulStencilMask        = 0xff,
-            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-        },
-        .tVertexBufferBinding = {
-            .uByteStride = sizeof(float) * 3,
-            .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
-        },
-        .atBlendStates = {
-            pl__get_blend_state(PL_BLEND_MODE_ALPHA)
-        },
-        .uBlendStateCount = 1,
-        .tRenderPassLayout = ptScene->tRenderPassLayout,
-        .uSubpassIndex = 2,
-        .uBindGroupLayoutCount = 3,
-        .atBindGroupLayouts = {
-            {
-                .uBufferCount  = 3,
-                .aBuffers = {
-                    {
-                        .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
-                        .uSlot = 0,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-                    },
-                    {
-                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                        .uSlot = 1,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-                    },
-                    {
-                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                        .uSlot = 2,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-                    },
-                },
-                .uSamplerCount = 1,
-                .atSamplers = { {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}}
-            },
-            {
-                .uTextureCount = 1,
-                .aTextures = {
-                    {
-                        .uSlot = 0,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL,
-                        .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
-                    }
-                 },
-            },
-            {
-                .uTextureCount = 1,
-                .aTextures = {
-                    {
-                        .uSlot = 0,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL,
-                        .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
-                    }
-                 },
-            }
-        }
-    };
-    gptData->tSkyboxShader = gptDevice->create_shader(&ptGraphics->tDevice, &tSkyboxShaderDesc);
 
     // create lighting shader
     plShaderDescription tLightingShaderDesc = {
@@ -1091,6 +1007,93 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     plGraphics* ptGraphics = &gptData->tGraphics;
     plDevice* ptDevice = &ptGraphics->tDevice;
 
+    // create skybox shader if we haven't
+    if(gptData->tSkyboxShader.uIndex == UINT32_MAX)
+    {
+        // create skybox shader
+        plShaderDescription tSkyboxShaderDesc = {
+    #ifdef PL_METAL_BACKEND
+            .pcVertexShader = "../shaders/metal/skybox.metal",
+            .pcPixelShader = "../shaders/metal/skybox.metal",
+            .pcVertexShaderEntryFunc = "vertex_main",
+            .pcPixelShaderEntryFunc = "fragment_main",
+    #else
+            .pcVertexShader = "skybox.vert.spv",
+            .pcPixelShader = "skybox.frag.spv",
+            .pcVertexShaderEntryFunc = "main",
+            .pcPixelShaderEntryFunc = "main",
+    #endif
+
+            .tGraphicsState = {
+                .ulDepthWriteEnabled  = 0,
+                .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
+                .ulCullMode           = PL_CULL_MODE_NONE,
+                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .ulStencilRef         = 0xff,
+                .ulStencilMask        = 0xff,
+                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+            },
+            .tVertexBufferBinding = {
+                .uByteStride = sizeof(float) * 3,
+                .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
+            },
+            .atBlendStates = {
+                pl__get_blend_state(PL_BLEND_MODE_ALPHA)
+            },
+            .uBlendStateCount = 1,
+            .tRenderPassLayout = ptScene->tRenderPassLayout,
+            .uSubpassIndex = 2,
+            .uBindGroupLayoutCount = 3,
+            .atBindGroupLayouts = {
+                {
+                    .uBufferCount  = 3,
+                    .aBuffers = {
+                        {
+                            .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                            .uSlot = 0,
+                            .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                        },
+                        {
+                            .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                            .uSlot = 1,
+                            .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                        },
+                        {
+                            .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                            .uSlot = 2,
+                            .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                        },
+                    },
+                    .uSamplerCount = 1,
+                    .atSamplers = { {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}}
+                },
+                {
+                    .uTextureCount = 1,
+                    .aTextures = {
+                        {
+                            .uSlot = 0,
+                            .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL,
+                            .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
+                        }
+                    },
+                },
+                {
+                    .uTextureCount = 1,
+                    .aTextures = {
+                        {
+                            .uSlot = 0,
+                            .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL,
+                            .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
+                        }
+                    },
+                }
+            }
+        };
+        gptData->tSkyboxShader = gptDevice->create_shader(&ptGraphics->tDevice, &tSkyboxShaderDesc);
+    }
+
     int iPanoramaWidth = 0;
     int iPanoramaHeight = 0;
     int iUnused = 0;
@@ -1339,9 +1342,6 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
         return gptData->tDummyTexture;
     
     size_t szResourceSize = 0;
-    const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[tSlot].tResource, &szResourceSize);
-    int texWidth, texHeight, texNumChannels;
-    int texForceNumChannels = 4;
 
     plBuffer* ptStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tStagingBufferHandle[0]);
     
@@ -1353,14 +1353,11 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
     if(bHdr)
     {
 
-        float* rawBytes = gptImage->load_hdr_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-        PL_ASSERT(rawBytes);
-
-        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, rawBytes, sizeof(float) * texWidth * texHeight * 4);
-        gptImage->free(rawBytes);
+        const float* rawBytes = gptResource->get_buffer_data(ptMaterial->atTextureMaps[tSlot].tResource, &szResourceSize);
+        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, rawBytes, szResourceSize);
 
         plTextureDesc tTextureDesc = {
-            .tDimensions = {(float)texWidth, (float)texHeight, 1},
+            .tDimensions = {(float)ptMaterial->atTextureMaps[tSlot].uWidth, (float)ptMaterial->atTextureMaps[tSlot].uHeight, 1},
             .tFormat = PL_FORMAT_R32G32B32A32_FLOAT,
             .uLayers = 1,
             .uMips = iMips,
@@ -1376,7 +1373,7 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
         gptDevice->bind_texture_to_memory(ptDevice, tTexture, &tAllocation0);
 
         plBufferImageCopy tBufferImageCopy = {
-            .tImageExtent = {texWidth, texHeight, 1},
+            .tImageExtent = {ptMaterial->atTextureMaps[tSlot].uWidth, ptMaterial->atTextureMaps[tSlot].uHeight, 1},
             .uLayerCount = 1
         };
 
@@ -1385,15 +1382,12 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
     }
     else
     {
-        unsigned char* rawBytes = gptImage->load_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-        PL_ASSERT(rawBytes);
+        const unsigned char* rawBytes = gptResource->get_buffer_data(ptMaterial->atTextureMaps[tSlot].tResource, &szResourceSize);
 
-        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, rawBytes, texWidth * texHeight * 4);
-        gptImage->free(rawBytes);
-
+        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, rawBytes, szResourceSize);
 
         plTextureDesc tTextureDesc = {
-            .tDimensions = {(float)texWidth, (float)texHeight, 1},
+            .tDimensions = {(float)ptMaterial->atTextureMaps[tSlot].uWidth, (float)ptMaterial->atTextureMaps[tSlot].uHeight, 1},
             .tFormat = PL_FORMAT_R8G8B8A8_UNORM,
             .uLayers = 1,
             .uMips = iMips,
@@ -1409,7 +1403,7 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
         gptDevice->bind_texture_to_memory(ptDevice, tTexture, &tAllocation0);
 
         plBufferImageCopy tBufferImageCopy = {
-            .tImageExtent = {texWidth, texHeight, 1},
+            .tImageExtent = {ptMaterial->atTextureMaps[tSlot].uWidth, ptMaterial->atTextureMaps[tSlot].uHeight, 1},
             .uLayerCount = 1
         };
 
@@ -1572,6 +1566,35 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
 }
 
 static void
+pl__refr_job(void* pData)
+{
+    plMaterialComponent* ptMaterial = pData;
+    int texWidth, texHeight, texNumChannels;
+    int texForceNumChannels = 4;
+
+    if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[0].tResource))
+    {
+        size_t szResourceSize = 0;
+        const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[0].tResource, &szResourceSize);
+        float* rawBytes = gptImage->load_hdr_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+        gptResource->set_buffer_data(ptMaterial->atTextureMaps[0].tResource, sizeof(float) * texWidth * texHeight * 4, rawBytes);
+        ptMaterial->atTextureMaps[0].uWidth = texWidth;
+        ptMaterial->atTextureMaps[0].uHeight = texHeight;
+
+    }
+    if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[1].tResource))
+    {
+        size_t szResourceSize = 0;
+        const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[1].tResource, &szResourceSize);
+        unsigned char* rawBytes = gptImage->load_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+        PL_ASSERT(rawBytes);
+        ptMaterial->atTextureMaps[1].uWidth = texWidth;
+        ptMaterial->atTextureMaps[1].uHeight = texHeight;
+        gptResource->set_buffer_data(ptMaterial->atTextureMaps[1].tResource, texWidth * texHeight * 4, rawBytes);
+    }
+}
+
+static void
 pl_refr_finalize_scene(uint32_t uSceneHandle)
 {
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
@@ -1591,12 +1614,27 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     for(uint32_t i = 0; i < uTransparentDrawableCount; i++)
         pl_sb_push(ptScene->sbtSubmittedDrawables, ptScene->tLoaderData.sbtTransparentDrawables[i]);
 
-    pl_begin_profile_sample("load materials");
+    pl_begin_profile_sample("load textures");
     plHashMap tMaterialBindGroupDict = {0};
     plBindGroupHandle* sbtMaterialBindGroups = NULL;
     plMaterialComponent* sbtMaterials = (plMaterialComponent*)ptScene->tLoaderData.tComponentLibrary.tMaterialComponentManager.pComponents;
     const uint32_t uMaterialCount = pl_sb_size(sbtMaterials);
     pl_sb_resize(sbtMaterialBindGroups, uMaterialCount);
+
+    plJobDesc* sbtJobs = NULL;
+    pl_sb_resize(sbtJobs, uMaterialCount);
+    for(uint32_t i = 0; i < uMaterialCount; i++)
+    {
+        sbtJobs[i].pData = &sbtMaterials[i];
+        sbtJobs[i].task = pl__refr_job;
+    }
+    plAtomicCounter* ptCounter = NULL;
+    gptJob->run_jobs(sbtJobs, uMaterialCount, &ptCounter);
+    gptJob->wait_for_counter(ptCounter, 0);
+    pl_sb_free(sbtJobs);
+    pl_end_profile_sample();
+
+    pl_begin_profile_sample("load materials");
     for(uint32_t i = 0; i < uMaterialCount; i++)
     {
         plMaterialComponent* ptMaterial = &sbtMaterials[i];
@@ -1719,7 +1757,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                 gptGfx->copy_buffer_to_texture(&tBlitEncoder, gptData->tStagingBufferHandle[0], tSkinData.atDynamicTexture[i], 1, &tBufferImageCopy);
             gptGfx->end_blit_pass(&tBlitEncoder);
             gptGfx->end_command_recording(ptDevice->ptGraphics, &tCommandBuffer);
-            gptGfx->submit_command_buffer(ptDevice->ptGraphics, &tCommandBuffer, NULL);
+            gptGfx->submit_command_buffer_blocking(ptDevice->ptGraphics, &tCommandBuffer, NULL);
 
             ptScene->sbtSubmittedDrawables[uDrawableIndex].uSkinIndex = pl_sb_size(ptScene->sbtSkinData);
             pl_sb_push(ptScene->sbtSkinData, tSkinData);
@@ -2344,7 +2382,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         {
             plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tLoaderData.tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptScene->sbtSubmittedDrawables[i].tEntity);
 
-            gptGfx->add_3d_aabb(&ptView->t3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.01f);
+            gptGfx->add_3d_aabb(&ptView->t3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
         }
     }
     else if(tOptions.bShowVisibleBoundingBoxes)
@@ -2353,7 +2391,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         {
             plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tLoaderData.tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptView->sbtVisibleDrawables[i].tEntity);
 
-            gptGfx->add_3d_aabb(&ptView->t3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.01f);
+            gptGfx->add_3d_aabb(&ptView->t3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
         }
     }
 

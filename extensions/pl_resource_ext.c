@@ -17,6 +17,8 @@ typedef struct _plResource
     plResourceLoadFlags tFlags;
     char*               pcFileData;
     size_t              szFileDataSize;
+    void*               pBufferData;
+    size_t              szBufferDataSize;
 } plResource;
 
 typedef struct _plResourceManager
@@ -27,7 +29,10 @@ typedef struct _plResourceManager
 } plResourceManager;
 
 // resource retrieval
-static const char* pl_resource_get_file_data(plResourceHandle tResourceHandle, size_t* pszDataSize);
+static const void* pl_resource_get_file_data(plResourceHandle tResourceHandle, size_t* pszDataSize);
+static const void* pl_resource_get_buffer_data(plResourceHandle tResourceHandle, size_t* pszDataSize);
+
+static void pl_set_buffer_data(plResourceHandle tResourceHandle, size_t szDataSize, void* pData);
 
 //  resources
 static plResourceHandle pl_load_resource           (const char* pcName, plResourceLoadFlags tFlags, char* pcData, size_t szDataSize);
@@ -54,6 +59,8 @@ pl_load_resource_api(void)
 {
     static const plResourceI tApi = {
         .get_file_data      = pl_resource_get_file_data,
+        .get_buffer_data      = pl_resource_get_buffer_data,
+        .set_buffer_data    = pl_set_buffer_data,
         .load_resource      = pl_load_resource,
         .is_resource_loaded = pl_is_resource_loaded,
         .is_resource_valid  = pl_is_resource_valid,
@@ -66,7 +73,7 @@ pl_load_resource_api(void)
 // [SECTION] implementation
 //-----------------------------------------------------------------------------
 
-static const char*
+static const void*
 pl_resource_get_file_data(plResourceHandle tResourceHandle, size_t* pszDataSize)
 {
     if(pszDataSize)
@@ -81,6 +88,33 @@ pl_resource_get_file_data(plResourceHandle tResourceHandle, size_t* pszDataSize)
         *pszDataSize = ptResource->szFileDataSize;
 
     return ptResource->pcFileData;
+}
+
+static const void*
+pl_resource_get_buffer_data(plResourceHandle tResourceHandle, size_t* pszDataSize)
+{
+    if(pszDataSize)
+        *pszDataSize = 0;
+    
+    if(tResourceHandle.uGeneration != gptResourceManager->sbtResourceGenerations[tResourceHandle.uGeneration])
+        return NULL;
+
+    const plResource* ptResource = &gptResourceManager->sbtResources[tResourceHandle.uIndex];
+
+    if(pszDataSize)
+        *pszDataSize = ptResource->szBufferDataSize;
+
+    return ptResource->pBufferData;
+}
+
+static void
+pl_set_buffer_data(plResourceHandle tResourceHandle, size_t szDataSize, void* pData)
+{
+    plResource* ptResource = &gptResourceManager->sbtResources[tResourceHandle.uIndex];
+    if(ptResource->pBufferData)
+        PL_FREE(ptResource->pBufferData);
+    ptResource->pBufferData = pData;
+    ptResource->szBufferDataSize = szDataSize;
 }
 
 static plResourceHandle
@@ -200,6 +234,10 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry)
         if(gptResourceManager->sbtResources[i].tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_DATA)
         {
             PL_FREE(gptResourceManager->sbtResources[i].pcFileData);
+        }
+        if(gptResourceManager->sbtResources[i].pBufferData)
+        {
+            PL_FREE(gptResourceManager->sbtResources[i].pBufferData);
         }
     }
 

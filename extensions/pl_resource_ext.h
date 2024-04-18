@@ -58,7 +58,10 @@ const plResourceI* pl_load_resource_api(void);
 typedef struct _plResourceI
 {
     // resource retrieval
-    const char* (*get_file_data)(plResourceHandle tResourceHandle, size_t* pszDataSize);
+    const void* (*get_file_data)(plResourceHandle tResourceHandle, size_t* pszDataSize);
+    const void* (*get_buffer_data)(plResourceHandle tResourceHandle, size_t* pszDataSize);
+
+    void (*set_buffer_data)(plResourceHandle tResourceHandle, size_t szDataSize, void* pData);
     
     //  resources
     plResourceHandle (*load_resource)     (const char* pcName, plResourceLoadFlags tFlags, char* pcData, size_t szDataSize);

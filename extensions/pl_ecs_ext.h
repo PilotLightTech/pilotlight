@@ -282,6 +282,8 @@ typedef struct _plTextureMap
     char             acName[PL_MAX_NAME_LENGTH];
     plResourceHandle tResource;
     uint32_t         uUVSet;
+    uint32_t         uWidth;
+    uint32_t         uHeight;
 } plTextureMap;
 
 typedef struct _plAnimationSampler
