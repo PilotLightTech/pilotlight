@@ -736,12 +736,11 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
         {
             // add mesh to our node
             plEntity tNewObject = gptECS->create_object(ptLibrary, ptNode->mesh->name);
-            plObjectComponent* ptObject = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewObject);
-            plMeshComponent* ptMesh = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewObject);
+            plObjectComponent* ptObject = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewObject);
+            plMeshComponent* ptMesh = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewObject);
             ptMesh->tSkinComponent = tSkinEntity;
             
-            ptObject->tMesh = tNewObject;
-            ptObject->tTransform = tNewEntity;
+            ptObject->tTransform = tNewEntity; // TODO: delete unused entities (old transform)
 
             const cgltf_primitive* ptPrimitive = &ptNode->mesh->primitives[szPrimitiveIndex];
 
