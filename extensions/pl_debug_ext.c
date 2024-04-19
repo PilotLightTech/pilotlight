@@ -821,7 +821,7 @@ pl__show_device_memory(bool* bValue)
         pl_push_theme_color(PL_UI_COLOR_BUTTON, &tButtonColor);
         pl_push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, &tButtonColor);
         pl_push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, &tButtonColor);
-        for(uint32_t uAllocatorIndex = 0; uAllocatorIndex < 4; uAllocatorIndex++)
+        for(uint32_t uAllocatorIndex = 0; uAllocatorIndex < 3; uAllocatorIndex++)
         {
             uint32_t uBlockCount = 0;
             uint32_t uRangeCount = 0;
