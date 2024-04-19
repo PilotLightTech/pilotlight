@@ -235,7 +235,7 @@ static void                  pl__garbage_collect(plGraphics* ptGraphics);
 static plTrackedMetalBuffer* pl__dequeue_reusable_buffer(plGraphics* ptGraphics, NSUInteger length);
 static plMetalPipelineEntry* pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags, uint32_t uSampleCount, MTLRenderPassDescriptor* ptRenderPassDescriptor);
 
-static plDeviceAllocationBlock pl_allocate_memory(plDevice* ptDevice, uint64_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
+static plDeviceAllocationBlock pl_allocate_memory(plDevice* ptDevice, size_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
 static void pl_free_memory(plDevice* ptDevice, plDeviceAllocationBlock* ptBlock);
 
 
@@ -997,7 +997,7 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc, const char* p
 }
 
 static plBindGroupHandle
-pl_get_temporary_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout, const char* pcName)
+pl_get_temporary_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, const char* pcName)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
@@ -1060,7 +1060,7 @@ pl_get_temporary_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
 }
 
 static plBindGroupHandle
-pl_create_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout, const char* pcName)
+pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, const char* pcName)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
@@ -1109,14 +1109,14 @@ pl_create_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout, const char
 }
 
 static void
-pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle* ptGroup, const plBindGroupUpdateData* ptData)
+pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBindGroupUpdateData* ptData)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
     plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
 
-    plMetalBindGroup* ptMetalBindGroup = &ptMetalGraphics->sbtBindGroupsHot[ptGroup->uIndex];
-    plBindGroup* ptBindGroup = &ptGraphics->sbtBindGroupsCold[ptGroup->uIndex];
+    plMetalBindGroup* ptMetalBindGroup = &ptMetalGraphics->sbtBindGroupsHot[tHandle.uIndex];
+    plBindGroup* ptBindGroup = &ptGraphics->sbtBindGroupsCold[tHandle.uIndex];
 
     const char* pcDescriptorStart = ptMetalBindGroup->tShaderArgumentBuffer.contents;
 
@@ -2880,7 +2880,7 @@ pl__garbage_collect(plGraphics* ptGraphics)
 //-----------------------------------------------------------------------------
 
 static plDeviceAllocationBlock
-pl_allocate_memory(plDevice* ptDevice, uint64_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName)
+pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName)
 {
     plDeviceMetal* ptMetalDevice = ptDevice->_pInternalData;
 
@@ -2891,7 +2891,7 @@ pl_allocate_memory(plDevice* ptDevice, uint64_t ulSize, plMemoryMode tMemoryMode
 
     plDeviceAllocationBlock tBlock = {
         .ulAddress = 0,
-        .ulSize    = ulSize
+        .ulSize    = (uint64_t)szSize
     };
 
     MTLHeapDescriptor* ptHeapDescriptor = [MTLHeapDescriptor new];

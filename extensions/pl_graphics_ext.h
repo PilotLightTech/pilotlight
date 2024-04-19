@@ -20,8 +20,8 @@ Index of this file:
 #ifndef PL_GRAPHICS_EXT_H
 #define PL_GRAPHICS_EXT_H
 
-#define PL_GRAPHICS_EXT_VERSION    "0.10.0"
-#define PL_GRAPHICS_EXT_VERSION_NUM 001000
+#define PL_GRAPHICS_EXT_VERSION    "0.11.0"
+#define PL_GRAPHICS_EXT_VERSION_NUM 001100
 
 #ifndef PL_DEVICE_ALLOCATION_BLOCK_SIZE
     #define PL_DEVICE_ALLOCATION_BLOCK_SIZE 134217728
@@ -212,68 +212,68 @@ typedef struct _plWindow    plWindow;
 
 typedef struct _plDrawStreamI
 {
-    void (*reset)  (plDrawStream* ptStream);
-    void (*cleanup)(plDrawStream* ptStream);
-    void (*draw)   (plDrawStream* ptStream, plDraw tDraw);
+    void (*reset)  (plDrawStream*);
+    void (*cleanup)(plDrawStream*);
+    void (*draw)   (plDrawStream*, plDraw);
 } plDrawStreamI;
 
 typedef struct _plDeviceI
 {
 
     // buffers
-    plBufferHandle (*create_buffer)            (plDevice* ptDevice, const plBufferDescription* ptDesc, const char* pcName);
-    void           (*bind_buffer_to_memory)    (plDevice* ptDevice, plBufferHandle tHandle, const plDeviceMemoryAllocation* ptAllocation);
-    void           (*queue_buffer_for_deletion)(plDevice* ptDevice, plBufferHandle tHandle);
-    void           (*destroy_buffer)           (plDevice* ptDevice, plBufferHandle tHandle);
-    plBuffer*      (*get_buffer)               (plDevice* ptDevice, plBufferHandle ptHandle); // do not store
+    plBufferHandle (*create_buffer)            (plDevice*, const plBufferDescription*, const char* pcDebugName);
+    void           (*bind_buffer_to_memory)    (plDevice*, plBufferHandle, const plDeviceMemoryAllocation*);
+    void           (*queue_buffer_for_deletion)(plDevice*, plBufferHandle);
+    void           (*destroy_buffer)           (plDevice*, plBufferHandle);
+    plBuffer*      (*get_buffer)               (plDevice*, plBufferHandle); // do not store
 
     // samplers
-    plSamplerHandle (*create_sampler)            (plDevice* ptDevice, const plSamplerDesc* ptDesc, const char* pcName);
-    void            (*destroy_sampler)           (plDevice* ptDevice, plSamplerHandle tHandle);
-    void            (*queue_sampler_for_deletion)(plDevice* ptDevice, plSamplerHandle tHandle);
+    plSamplerHandle (*create_sampler)            (plDevice*, const plSamplerDesc*, const char* pcDebugName);
+    void            (*destroy_sampler)           (plDevice*, plSamplerHandle);
+    void            (*queue_sampler_for_deletion)(plDevice*, plSamplerHandle);
 
     // textures (if manually handling mips/levels, don't use initial data, use "copy_buffer_to_texture" instead)
-    plTextureHandle (*create_texture)            (plDevice* ptDevice, const plTextureDesc* ptDesc, const char* pcName);
-    plTextureHandle (*create_texture_view)       (plDevice* ptDevice, const plTextureViewDesc* ptDesc, const char* pcName);
-    void            (*bind_texture_to_memory)    (plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation);
-    void            (*queue_texture_for_deletion)(plDevice* ptDevice, plTextureHandle tHandle);
-    void            (*destroy_texture)           (plDevice* ptDevice, plTextureHandle tHandle);
-    plTexture*      (*get_texture)               (plDevice* ptDevice, plTextureHandle ptHandle);     // do not store
+    plTextureHandle (*create_texture)            (plDevice*, const plTextureDesc*, const char* pcDebugName);
+    plTextureHandle (*create_texture_view)       (plDevice*, const plTextureViewDesc*, const char* pcDebugName);
+    void            (*bind_texture_to_memory)    (plDevice*, plTextureHandle, const plDeviceMemoryAllocation*);
+    void            (*queue_texture_for_deletion)(plDevice*, plTextureHandle);
+    void            (*destroy_texture)           (plDevice*, plTextureHandle);
+    plTexture*      (*get_texture)               (plDevice*, plTextureHandle);     // do not store
 
     // bind groups
-    plBindGroupHandle (*create_bind_group)            (plDevice* ptDevice, plBindGroupLayout* ptLayout, const char* pcName);
-    plBindGroupHandle (*get_temporary_bind_group)     (plDevice* ptDevice, plBindGroupLayout* ptLayout, const char* pcName); // don't submit for deletion
-    void              (*update_bind_group)            (plDevice* ptDevice, plBindGroupHandle* ptGroup, const plBindGroupUpdateData* ptData);
-    void              (*queue_bind_group_for_deletion)(plDevice* ptDevice, plBindGroupHandle tHandle);
-    void              (*destroy_bind_group)           (plDevice* ptDevice, plBindGroupHandle tHandle);
-    plBindGroup*      (*get_bind_group)               (plDevice* ptDevice, plBindGroupHandle ptHandle); // do not store
+    plBindGroupHandle (*create_bind_group)            (plDevice*, const plBindGroupLayout*, const char* pcDebugName);
+    plBindGroupHandle (*get_temporary_bind_group)     (plDevice*, const plBindGroupLayout*, const char* pcDebugName); // don't submit for deletion
+    void              (*update_bind_group)            (plDevice*, plBindGroupHandle, const plBindGroupUpdateData*);
+    void              (*queue_bind_group_for_deletion)(plDevice*, plBindGroupHandle);
+    void              (*destroy_bind_group)           (plDevice*, plBindGroupHandle);
+    plBindGroup*      (*get_bind_group)               (plDevice*, plBindGroupHandle); // do not store
     
 
     // render passes
-    plRenderPassLayoutHandle (*create_render_pass_layout)            (plDevice* ptDevice, const plRenderPassLayoutDescription* ptDesc);
-    plRenderPassHandle       (*create_render_pass)                   (plDevice* ptDevice, const plRenderPassDescription* ptDesc, const plRenderPassAttachments* ptAttachments);
-    void                     (*update_render_pass_attachments)       (plDevice* ptDevice, plRenderPassHandle tHandle, plVec2 tDimensions, const plRenderPassAttachments* ptAttachments);
-    void                     (*queue_render_pass_for_deletion)       (plDevice* ptDevice, plRenderPassHandle       tHandle);
-    void                     (*queue_render_pass_layout_for_deletion)(plDevice* ptDevice, plRenderPassLayoutHandle tHandle);
-    void                     (*destroy_render_pass)                  (plDevice* ptDevice, plRenderPassHandle       tHandle);
-    void                     (*destroy_render_pass_layout)           (plDevice* ptDevice, plRenderPassLayoutHandle tHandle);
+    plRenderPassLayoutHandle (*create_render_pass_layout)            (plDevice*, const plRenderPassLayoutDescription*);
+    plRenderPassHandle       (*create_render_pass)                   (plDevice*, const plRenderPassDescription*, const plRenderPassAttachments*);
+    void                     (*update_render_pass_attachments)       (plDevice*, plRenderPassHandle, plVec2 tDimensions, const plRenderPassAttachments*);
+    void                     (*queue_render_pass_for_deletion)       (plDevice*, plRenderPassHandle);
+    void                     (*queue_render_pass_layout_for_deletion)(plDevice*, plRenderPassLayoutHandle);
+    void                     (*destroy_render_pass)                  (plDevice*, plRenderPassHandle);
+    void                     (*destroy_render_pass_layout)           (plDevice*, plRenderPassLayoutHandle);
 
     // shaders
-    plShaderHandle        (*create_shader)                    (plDevice* ptDevice, const plShaderDescription* ptDescription);
-    plComputeShaderHandle (*create_compute_shader)            (plDevice* ptDevice, const plComputeShaderDescription* ptDescription);
-    void                  (*queue_shader_for_deletion)        (plDevice* ptDevice, plShaderHandle tHandle);
-    void                  (*queue_compute_shader_for_deletion)(plDevice* ptDevice, plComputeShaderHandle tHandle);
-    void                  (*destroy_shader)                   (plDevice* ptDevice, plShaderHandle tHandle);
-    void                  (*destroy_compute_shader)           (plDevice* ptDevice, plComputeShaderHandle tHandle);
-    plShader*             (*get_shader)                       (plDevice* ptDevice, plShaderHandle ptHandle); // do not store
+    plShaderHandle        (*create_shader)                    (plDevice*, const plShaderDescription*);
+    plComputeShaderHandle (*create_compute_shader)            (plDevice*, const plComputeShaderDescription*);
+    void                  (*queue_shader_for_deletion)        (plDevice*, plShaderHandle);
+    void                  (*queue_compute_shader_for_deletion)(plDevice*, plComputeShaderHandle);
+    void                  (*destroy_shader)                   (plDevice*, plShaderHandle);
+    void                  (*destroy_compute_shader)           (plDevice*, plComputeShaderHandle);
+    plShader*             (*get_shader)                       (plDevice*, plShaderHandle); // do not store
 
     // syncronization
-    plSemaphoreHandle (*create_semaphore)(plDevice* ptDevice, bool bHostVisible);
+    plSemaphoreHandle (*create_semaphore)(plDevice*, bool bHostVisible);
 
     // memory
-    plDynamicBinding        (*allocate_dynamic_data)(plDevice* ptDevice, size_t szSize);
-    plDeviceAllocationBlock (*allocate_memory)(plDevice* ptDevice, uint64_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
-    void                    (*free_memory)(plDevice* ptDevice, plDeviceAllocationBlock* ptBlock);
+    plDynamicBinding        (*allocate_dynamic_data)(plDevice*, size_t);
+    plDeviceAllocationBlock (*allocate_memory)      (plDevice*, size_t, plMemoryMode, uint32_t uTypeFilter, const char* pcDebugName);
+    void                    (*free_memory)          (plDevice*, plDeviceAllocationBlock*);
 
     // misc
     void (*flush_device)(plDevice* ptDevice);
@@ -282,65 +282,65 @@ typedef struct _plDeviceI
 
 typedef struct _plGraphicsI
 {
-    void (*initialize)(plWindow* ptWindow, plGraphics* ptGraphics);
-    void (*resize)    (plGraphics* ptGraphics);
-    void (*cleanup)   (plGraphics* ptGraphics);
-    void (*setup_ui)  (plGraphics* ptGraphics, plRenderPassHandle tPass);
+    void (*initialize)(plWindow*, plGraphics*);
+    void (*resize)    (plGraphics*);
+    void (*cleanup)   (plGraphics*);
+    void (*setup_ui)  (plGraphics*, plRenderPassHandle);
 
     // per frame
-    bool (*begin_frame)(plGraphics* ptGraphics);
+    bool (*begin_frame)(plGraphics*);
 
     // timeline semaphore ops
-    void     (*signal_semaphore)   (plGraphics* ptGraphics, plSemaphoreHandle tHandle, uint64_t ulValue);
-    void     (*wait_semaphore)     (plGraphics* ptGraphics, plSemaphoreHandle tHandle, uint64_t ulValue);
-    uint64_t (*get_semaphore_value)(plGraphics* ptGraphics, plSemaphoreHandle tHandle);
+    void     (*signal_semaphore)   (plGraphics*, plSemaphoreHandle, uint64_t);
+    void     (*wait_semaphore)     (plGraphics*, plSemaphoreHandle, uint64_t);
+    uint64_t (*get_semaphore_value)(plGraphics*, plSemaphoreHandle);
 
     // command buffers
-    plCommandBuffer (*begin_command_recording)       (plGraphics* ptGraphics, const plBeginCommandInfo* ptBeginInfo);
-    void            (*end_command_recording)         (plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer);
-    void            (*submit_command_buffer)         (plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo);
-    void            (*submit_command_buffer_blocking)(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo);
-    bool            (*present)                       (plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo);
+    plCommandBuffer (*begin_command_recording)       (plGraphics*, const plBeginCommandInfo*);
+    void            (*end_command_recording)         (plGraphics*, plCommandBuffer*);
+    void            (*submit_command_buffer)         (plGraphics*, plCommandBuffer*, const plSubmitInfo*);
+    void            (*submit_command_buffer_blocking)(plGraphics*, plCommandBuffer*, const plSubmitInfo*);
+    bool            (*present)                       (plGraphics*, plCommandBuffer*, const plSubmitInfo*);
 
     // render encoder
-    plRenderEncoder (*begin_render_pass)(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass);
-    void            (*next_subpass)     (plRenderEncoder* ptEncoder);
-    void            (*end_render_pass)  (plRenderEncoder* ptEncoder);
-    void            (*draw_subpass)     (plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAreas);
+    plRenderEncoder (*begin_render_pass)(plGraphics*, plCommandBuffer*, plRenderPassHandle);
+    void            (*next_subpass)     (plRenderEncoder*);
+    void            (*end_render_pass)  (plRenderEncoder*);
+    void            (*draw_subpass)     (plRenderEncoder*, uint32_t uAreaCount, plDrawArea*);
     
     // compute encoder
-    plComputeEncoder (*begin_compute_pass)(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer);
-    void             (*end_compute_pass)  (plComputeEncoder* ptEncoder);
-    void             (*dispatch)          (plComputeEncoder* ptEncoder, uint32_t uDispatchCount, plDispatch* atDispatches);
+    plComputeEncoder (*begin_compute_pass)(plGraphics*, plCommandBuffer*);
+    void             (*end_compute_pass)  (plComputeEncoder*);
+    void             (*dispatch)          (plComputeEncoder*, uint32_t uDispatchCount, plDispatch*);
 
     // blit encoder
-    plBlitEncoder (*begin_blit_pass)         (plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer);
-    void          (*end_blit_pass)           (plBlitEncoder* ptEncoder);
-    void          (*copy_buffer_to_texture)  (plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions);
-    void          (*generate_mipmaps)        (plBlitEncoder* ptEncoder, plTextureHandle tTexture);
-    void          (*copy_buffer)             (plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t szSize);
-    void          (*transfer_image_to_buffer)(plBlitEncoder* ptEncoder, plTextureHandle tTexture, plBufferHandle tBuffer); // from single layer & single mip textures
+    plBlitEncoder (*begin_blit_pass)         (plGraphics*, plCommandBuffer*);
+    void          (*end_blit_pass)           (plBlitEncoder*);
+    void          (*copy_buffer_to_texture)  (plBlitEncoder*, plBufferHandle, plTextureHandle, uint32_t uRegionCount, const plBufferImageCopy*);
+    void          (*generate_mipmaps)        (plBlitEncoder*, plTextureHandle);
+    void          (*copy_buffer)             (plBlitEncoder*, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t);
+    void          (*transfer_image_to_buffer)(plBlitEncoder*, plTextureHandle tTexture, plBufferHandle tBuffer); // from single layer & single mip textures
 
     // 2D drawing api
-    void (*draw_lists)        (plGraphics* ptGraphics, plRenderEncoder tEncoder, uint32_t uListCount, plDrawList* atLists);
-    void (*create_font_atlas) (plFontAtlas* ptAtlas);
-    void (*destroy_font_atlas)(plFontAtlas* ptAtlas);
+    void (*draw_lists)        (plGraphics*, plRenderEncoder, uint32_t uListCount, plDrawList*);
+    void (*create_font_atlas) (plFontAtlas*);
+    void (*destroy_font_atlas)(plFontAtlas*);
 
     // 3D drawing api
-    void (*submit_3d_drawlist)    (plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags tFlags, uint32_t uMSAASampleCount);
-    void (*register_3d_drawlist)  (plGraphics* ptGraphics, plDrawList3D* ptDrawlist);
-    void (*add_3d_triangle_filled)(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
-    void (*add_3d_line)           (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness);
-    void (*add_3d_point)          (plDrawList3D* ptDrawlist, plVec3 tP0, plVec4 tColor, float fLength, float fThickness);
-    void (*add_3d_transform)      (plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fLength, float fThickness);
-    void (*add_3d_frustum)        (plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fYFov, float fAspect, float fNearZ, float fFarZ, plVec4 tColor, float fThickness);
-    void (*add_3d_centered_box)   (plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor, float fThickness);
-    void (*add_3d_aabb)           (plDrawList3D* ptDrawlist, plVec3 tMin, plVec3 tMax, plVec4 tColor, float fThickness);
-    void (*add_3d_bezier_quad)    (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
-    void (*add_3d_bezier_cubic)   (plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
+    void (*submit_3d_drawlist)    (plDrawList3D*, plRenderEncoder, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags, uint32_t uMSAASampleCount);
+    void (*register_3d_drawlist)  (plGraphics*, plDrawList3D*);
+    void (*add_3d_triangle_filled)(plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
+    void (*add_3d_line)           (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness);
+    void (*add_3d_point)          (plDrawList3D*, plVec3 tP0, plVec4 tColor, float fLength, float fThickness);
+    void (*add_3d_transform)      (plDrawList3D*, const plMat4* ptTransform, float fLength, float fThickness);
+    void (*add_3d_frustum)        (plDrawList3D*, const plMat4* ptTransform, float fYFov, float fAspect, float fNearZ, float fFarZ, plVec4 tColor, float fThickness);
+    void (*add_3d_centered_box)   (plDrawList3D*, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor, float fThickness);
+    void (*add_3d_aabb)           (plDrawList3D*, plVec3 tMin, plVec3 tMax, plVec4 tColor, float fThickness);
+    void (*add_3d_bezier_quad)    (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
+    void (*add_3d_bezier_cubic)   (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
 
     // misc
-    void* (*get_ui_texture_handle)(plGraphics* ptGraphics, plTextureHandle tHandle, plSamplerHandle tSamplerHandle);
+    void* (*get_ui_texture_handle)(plGraphics*, plTextureHandle, plSamplerHandle);
 } plGraphicsI;
 
 //-----------------------------------------------------------------------------

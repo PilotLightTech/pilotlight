@@ -285,7 +285,7 @@ static VkStencilOp                         pl__vulkan_stencil_op(plStencilOp tSt
 static VkBlendFactor                       pl__vulkan_blend_factor(plBlendFactor tFactor);
 static VkBlendOp                           pl__vulkan_blend_op(plBlendOp tOp);
 
-static plDeviceAllocationBlock pl_allocate_memory(plDevice* ptDevice, uint64_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
+static plDeviceAllocationBlock pl_allocate_memory(plDevice* ptDevice, size_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
 static void pl_free_memory(plDevice* ptDevice, plDeviceAllocationBlock* ptBlock);
 
 // 3D drawing helpers
@@ -1372,7 +1372,7 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
 }
 
 static plBindGroupHandle
-pl_create_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout, const char* pcName)
+pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, const char* pcName)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
@@ -1469,7 +1469,7 @@ pl_create_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout, const char
 }
 
 static plBindGroupHandle
-pl_get_temporary_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout, const char* pcName)
+pl_get_temporary_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, const char* pcName)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
@@ -1568,14 +1568,14 @@ pl_get_temporary_bind_group(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
 }
 
 static void
-pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle* ptGroup, const plBindGroupUpdateData* ptData)
+pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBindGroupUpdateData* ptData)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
     plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
     plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
 
-    plBindGroup* ptBindGroup = &ptGraphics->sbtBindGroupsCold[ptGroup->uIndex];
-    plVulkanBindGroup* ptVulkanBindGroup = &ptVulkanGraphics->sbtBindGroupsHot[ptGroup->uIndex];
+    plBindGroup* ptBindGroup = &ptGraphics->sbtBindGroupsCold[tHandle.uIndex];
+    plVulkanBindGroup* ptVulkanBindGroup = &ptVulkanGraphics->sbtBindGroupsHot[tHandle.uIndex];
 
     VkWriteDescriptorSet*   sbtWrites = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, (ptBindGroup->tLayout.uBufferCount + ptBindGroup->tLayout.uTextureCount + ptBindGroup->tLayout.uSamplerCount) * sizeof(VkWriteDescriptorSet));
     VkDescriptorBufferInfo* sbtBufferDescInfos = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, ptBindGroup->tLayout.uBufferCount * sizeof(VkDescriptorBufferInfo));
@@ -5192,7 +5192,7 @@ pl__pilotlight_format(VkFormat tFormat)
 //-----------------------------------------------------------------------------
 
 static plDeviceAllocationBlock
-pl_allocate_memory(plDevice* ptDevice, uint64_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName)
+pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName)
 {
     plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
 
@@ -5223,12 +5223,12 @@ pl_allocate_memory(plDevice* ptDevice, uint64_t ulSize, plMemoryMode tMemoryMode
 
     plDeviceAllocationBlock tBlock = {
         .ulAddress = 0,
-        .ulSize    = ulSize,
+        .ulSize    = (uint64_t)szSize,
         .ulMemoryType = (uint64_t)uMemoryType
     };
     const VkMemoryAllocateInfo tAllocInfo = {
         .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize  = ulSize,
+        .allocationSize  = szSize,
         .memoryTypeIndex = uMemoryType
     };
 
