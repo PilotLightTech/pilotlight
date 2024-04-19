@@ -263,7 +263,7 @@ static size_t         pl__get_data_type_size(plDataType tType);
 static plBlendState   pl__get_blend_state(plBlendMode tBlendMode);
 
 // tasks
-static void pl__refr_job(void* pData);
+static void pl__refr_job(uint32_t uJobIndex, void* pData);
 
 // resource creation helpers
 static plTextureHandle pl__refr_create_texture          (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
@@ -1293,17 +1293,13 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     const uint32_t uMaterialCount = pl_sb_size(sbtMaterials);
     pl_sb_resize(sbtMaterialBindGroups, uMaterialCount);
 
-    plJobDesc* sbtJobs = NULL;
-    pl_sb_resize(sbtJobs, uMaterialCount);
-    for(uint32_t i = 0; i < uMaterialCount; i++)
-    {
-        sbtJobs[i].pData = &sbtMaterials[i];
-        sbtJobs[i].task = pl__refr_job;
-    }
     plAtomicCounter* ptCounter = NULL;
-    gptJob->run_jobs(sbtJobs, uMaterialCount, &ptCounter);
-    gptJob->wait_for_counter(ptCounter, 0);
-    pl_sb_free(sbtJobs);
+    plJobDesc tJobDesc = {
+        .task = pl__refr_job,
+        .pData = sbtMaterials
+    };
+    gptJob->dispatch_batch(uMaterialCount, 1, tJobDesc, &ptCounter);
+    gptJob->wait_for_counter(ptCounter);
     pl_end_profile_sample();
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~materials~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2352,11 +2348,11 @@ pl__get_blend_state(plBlendMode tBlendMode)
     return atStateMap[tBlendMode];
 }
 
-
 static void
-pl__refr_job(void* pData)
+pl__refr_job(uint32_t uJobIndex, void* pData)
 {
-    plMaterialComponent* ptMaterial = pData;
+    plMaterialComponent* sbtMaterials = pData;
+    plMaterialComponent* ptMaterial = &sbtMaterials[uJobIndex];
     int texWidth, texHeight, texNumChannels;
     int texForceNumChannels = 4;
 
