@@ -26,6 +26,9 @@ Index of this file:
 #include "pl_profile.h"
 #include "pl_log.h"
 
+// extensions
+#include "pl_job_ext.h"
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -40,6 +43,8 @@ typedef struct _plComponentLibraryData
 //-----------------------------------------------------------------------------
 
 static uint32_t uLogChannel = UINT32_MAX;
+
+static const plJobI* gptJob = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -842,43 +847,55 @@ pl_run_skin_update_system(plComponentLibrary* ptLibrary)
 }
 
 static void
+pl__object_update_job(uint32_t uJobIndex, void* pData)
+{
+    plComponentLibrary* ptLibrary = pData;
+    plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
+    plObjectComponent* ptObject = &sbtComponents[uJobIndex];
+    plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+    plMeshComponent* ptMesh = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
+
+    const plVec3 tVerticies[] = {
+        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMin.z }),
+        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMin.z }),
+        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMin.z }),
+        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMin.z }),
+        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMax.z }),
+        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMax.z }),
+        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMax.z }),
+        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMax.z }),
+    };
+
+    // calculate AABB
+    ptMesh->tAABBFinal.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
+    ptMesh->tAABBFinal.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
+    
+    for(uint32_t i = 0; i < 8; i++)
+    {
+        if(tVerticies[i].x > ptMesh->tAABBFinal.tMax.x) ptMesh->tAABBFinal.tMax.x = tVerticies[i].x;
+        if(tVerticies[i].y > ptMesh->tAABBFinal.tMax.y) ptMesh->tAABBFinal.tMax.y = tVerticies[i].y;
+        if(tVerticies[i].z > ptMesh->tAABBFinal.tMax.z) ptMesh->tAABBFinal.tMax.z = tVerticies[i].z;
+        if(tVerticies[i].x < ptMesh->tAABBFinal.tMin.x) ptMesh->tAABBFinal.tMin.x = tVerticies[i].x;
+        if(tVerticies[i].y < ptMesh->tAABBFinal.tMin.y) ptMesh->tAABBFinal.tMin.y = tVerticies[i].y;
+        if(tVerticies[i].z < ptMesh->tAABBFinal.tMin.z) ptMesh->tAABBFinal.tMin.z = tVerticies[i].z;
+    }
+}
+
+static void
 pl_run_object_update_system(plComponentLibrary* ptLibrary)
 {
     pl_begin_profile_sample(__FUNCTION__);
+    
     plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
-
     const uint32_t uComponentCount = pl_sb_size(sbtComponents);
-    for(uint32_t i = 0; i < uComponentCount; i++)
-    {
-        plObjectComponent* ptObject = &sbtComponents[i];
-        plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
-        plMeshComponent* ptMesh = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
 
-        const plVec3 tVerticies[] = {
-            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMin.z }),
-            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMin.z }),
-            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMin.z }),
-            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMin.z }),
-            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMax.z }),
-            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMax.z }),
-            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMax.z }),
-            pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMax.z }),
-        };
-
-        // calculate AABB
-        ptMesh->tAABBFinal.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
-        ptMesh->tAABBFinal.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
-        
-        for(uint32_t j = 0; j < 8; j++)
-        {
-            if(tVerticies[j].x > ptMesh->tAABBFinal.tMax.x) ptMesh->tAABBFinal.tMax.x = tVerticies[j].x;
-            if(tVerticies[j].y > ptMesh->tAABBFinal.tMax.y) ptMesh->tAABBFinal.tMax.y = tVerticies[j].y;
-            if(tVerticies[j].z > ptMesh->tAABBFinal.tMax.z) ptMesh->tAABBFinal.tMax.z = tVerticies[j].z;
-            if(tVerticies[j].x < ptMesh->tAABBFinal.tMin.x) ptMesh->tAABBFinal.tMin.x = tVerticies[j].x;
-            if(tVerticies[j].y < ptMesh->tAABBFinal.tMin.y) ptMesh->tAABBFinal.tMin.y = tVerticies[j].y;
-            if(tVerticies[j].z < ptMesh->tAABBFinal.tMin.z) ptMesh->tAABBFinal.tMin.z = tVerticies[j].z;
-        }
-    }
+    plAtomicCounter* ptCounter = NULL;
+    plJobDesc tJobDesc = {
+        .task = pl__object_update_job,
+        .pData = ptLibrary
+    };
+    gptJob->dispatch_batch(uComponentCount, 0, tJobDesc, &ptCounter);
+    gptJob->wait_for_counter(ptCounter);
 
     pl_end_profile_sample();
 }
@@ -1484,6 +1501,8 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));
 
+    gptJob = ptApiRegistry->first(PL_API_JOB);
+
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_ECS), pl_load_ecs_api());
@@ -1506,7 +1525,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         ptApiRegistry->add(PL_API_ECS, pl_load_ecs_api());
         ptApiRegistry->add(PL_API_CAMERA, pl_load_camera_api());
         uLogChannel = pl_add_log_channel("ECS", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
-        // uLogChannel = pl_add_log_channel("ECS", PL_CHANNEL_TYPE_BUFFER | PL_CHANNEL_TYPE_CONSOLE);
     }
 }
 
