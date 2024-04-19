@@ -228,21 +228,38 @@ pl__show_profiling(bool* bValue)
         {1.0f, 0.0f, 1.0f, 0.75}
     };
 
+    static bool bFirstRun = true;
+
     if(pl_begin_window("Profiling (WIP)", bValue, false))
     {
         const plVec2 tWindowSize = pl_get_window_size();
         const plVec2 tWindowPos = pl_get_window_pos();
         const plVec2 tWindowEnd = pl_add_vec2(tWindowSize, tWindowPos);
 
-        plProfileSample* ptSamples = sbtSamples;
-        uint32_t uSampleSize = pl_sb_size(sbtSamples);
+        plProfileSample* ptSamples = NULL;
+        uint32_t uSampleSize = 0;
+        if(bFirstRun && ptIOCtx->ulFrameCount == 1)
+        {
+            ptSamples = pl_get_last_frame_samples(&uSampleSize);
+            pl_sb_resize(sbtSamples, uSampleSize);
+            memcpy(sbtSamples, ptSamples, sizeof(plProfileSample) * uSampleSize);
+            fDeltaTime = ptIOCtx->fDeltaTime;
+            bFirstRun = false;
+        }
+        else
+        {
+            ptSamples = sbtSamples;
+            uSampleSize = pl_sb_size(sbtSamples);
+            bFirstRun = false;
+        }
+
         if(uSampleSize == 0)
         {
             ptSamples = pl_get_last_frame_samples(&uSampleSize);
             fDeltaTime = ptIOCtx->fDeltaTime;
         }
 
-        pl_layout_static(0.0f, 100.0f, 1);
+        pl_layout_static(0.0f, 100.0f, 2);
         if(pl_sb_size(sbtSamples) == 0)
         {
             if(pl_button("Capture Frame"))
@@ -258,6 +275,7 @@ pl__show_profiling(bool* bValue)
                 pl_sb_reset(sbtSamples);
             }
         }
+        pl_text("Frame Time: %0.3f", fDeltaTime);
 
         pl_layout_dynamic(0.0f, 1);
 
