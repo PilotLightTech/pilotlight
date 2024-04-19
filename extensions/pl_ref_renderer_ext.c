@@ -97,6 +97,7 @@ typedef struct _plDrawable
     uint32_t uMaterialIndex;
     uint32_t uShader;
     uint32_t uSkinIndex;
+    bool     bCulled;
 } plDrawable;
 
 typedef struct _plMaterial
@@ -227,6 +228,13 @@ typedef struct _plRefRendererData
     plBufferHandle tStagingBufferHandle[PL_FRAMES_IN_FLIGHT];
 } plRefRendererData;
 
+typedef struct _plMemCpyJobData
+{
+    plBuffer* ptBuffer;
+    void*     pDestination;
+    size_t    szSize;
+} plMemCpyJobData;
+
 //-----------------------------------------------------------------------------
 // [SECTION] global data & apis
 //-----------------------------------------------------------------------------
@@ -264,6 +272,8 @@ static plBlendState   pl__get_blend_state(plBlendMode tBlendMode);
 
 // tasks
 static void pl__refr_job(uint32_t uJobIndex, void* pData);
+static void pl__refr_memcpy_job(uint32_t uJobIndex, void* pData);
+static void pl__refr_cull_job(uint32_t uJobIndex, void* pData);
 
 // resource creation helpers
 static plTextureHandle pl__refr_create_texture          (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
@@ -907,6 +917,7 @@ pl_refr_get_graphics(void)
 static void
 pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int iResolution)
 {
+    pl_begin_profile_sample(__FUNCTION__);
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     plGraphics* ptGraphics = &gptData->tGraphics;
     plDevice* ptDevice = &ptGraphics->tDevice;
@@ -1047,13 +1058,12 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
 
     const size_t uFaceSize = ((size_t)iResolution * (size_t)iResolution) * 4 * sizeof(float);
     const plBufferDescription tOutputBufferDesc = {
-        .tUsage               = PL_BUFFER_USAGE_STORAGE,
-        .uByteSize            = PL_DEVICE_ALLOCATION_BLOCK_SIZE
+        .tUsage    = PL_BUFFER_USAGE_STORAGE,
+        .uByteSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE
     };
     
     for(uint32_t i = 0; i < 6; i++)
         atComputeBuffers[i + 1] = pl__refr_create_staging_buffer(&tOutputBufferDesc, "panorama output", i);
-
 
     plBindGroupLayout tComputeBindGroupLayout = {
         .uBufferCount = 7,
@@ -1094,23 +1104,23 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     gptGfx->submit_command_buffer_blocking(ptGraphics, &tCommandBuffer, NULL);
 
     // get data
-    char* pcResultData = PL_ALLOC(uFaceSize * 6);
-    memset(pcResultData, 0, uFaceSize * 6);
-    float* pfBlah0 = (float*)&pcResultData[0];
-    float* pfBlah1 = (float*)&pcResultData[uFaceSize];
-    float* pfBlah2 = (float*)&pcResultData[uFaceSize * 2];
-    float* pfBlah3 = (float*)&pcResultData[uFaceSize * 3];
-    float* pfBlah4 = (float*)&pcResultData[uFaceSize * 4];
-    float* pfBlah5 = (float*)&pcResultData[uFaceSize * 5];
+
+    plMemCpyJobData atJobData[6] = {0};
+    plJobDesc atJobs[6] = {0};
+    plBuffer* ptStagingBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, gptData->tStagingBufferHandle[0]);
 
     for(uint32_t i = 0; i < 6; i++)
     {
-        plBuffer* ptBuffer = gptDevice->get_buffer(ptDevice, atComputeBuffers[i + 1]);
-        memcpy(&pcResultData[uFaceSize * i], ptBuffer->tMemoryAllocation.pHostMapped, uFaceSize);
+        atJobData[i].ptBuffer = gptDevice->get_buffer(ptDevice, atComputeBuffers[i + 1]);
+        atJobData[i].szSize = uFaceSize;
+        atJobData[i].pDestination = &ptStagingBuffer->tMemoryAllocation.pHostMapped[uFaceSize * i];
+        atJobs[i].pData = &atJobData[i];
+        atJobs[i].task = pl__refr_memcpy_job;
     }
 
-    plBuffer* ptStagingBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, gptData->tStagingBufferHandle[0]);
-    memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pcResultData, uFaceSize * 6);
+    plAtomicCounter* ptCounter = NULL;
+    gptJob->dispatch_jobs(6, atJobs, &ptCounter);
+    gptJob->wait_for_counter(ptCounter);
 
     const plTextureDesc tSkyboxTextureDesc = {
         .tDimensions = {(float)iResolution, (float)iResolution, 1},
@@ -1136,9 +1146,6 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     gptGfx->end_blit_pass(&tBlitEncoder);
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
     gptGfx->submit_command_buffer_blocking(ptGraphics, &tCommandBuffer, NULL);
-
-    // cleanup
-    PL_FREE(pcResultData);
     
     for(uint32_t i = 0; i < 7; i++)
         gptDevice->destroy_buffer(ptDevice, atComputeBuffers[i]);
@@ -1221,6 +1228,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){ fCubeSide, -fCubeSide,  fCubeSide}));
     pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){-fCubeSide,  fCubeSide,  fCubeSide}));
     pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){ fCubeSide,  fCubeSide,  fCubeSide})); 
+
+    pl_end_profile_sample();
 }
 
 static plTextureHandle
@@ -1508,6 +1517,26 @@ pl_refr_update_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle)
     pl_end_profile_sample();
 }
 
+typedef struct _plCullData
+{
+    plRefScene* ptScene;
+    plCameraComponent* ptCullCamera;
+} plCullData;
+
+static void
+pl__refr_cull_job(uint32_t uJobIndex, void* pData)
+{
+    plCullData* ptCullData = pData;
+    plRefScene* ptScene = ptCullData->ptScene;
+    plDrawable tDrawable = ptScene->sbtSubmittedDrawables[uJobIndex];
+    plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, tDrawable.tEntity);
+    ptScene->sbtSubmittedDrawables[uJobIndex].bCulled = true;
+    if(pl__sat_visibility_test(ptCullData->ptCullCamera, &ptMesh->tAABBFinal))
+    {
+        ptScene->sbtSubmittedDrawables[uJobIndex].bCulled = false;
+    }
+}
+
 static void
 pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions)
 {
@@ -1523,16 +1552,24 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     pl_begin_profile_sample("cull operations");
     if(tOptions.ptCullCamera)
     {
+        plCullData tCullData = {
+            .ptScene = ptScene,
+            .ptCullCamera = tOptions.ptCullCamera
+        };
+        plAtomicCounter* ptCounter = NULL;
+        plJobDesc tJobDesc = {
+            .task = pl__refr_cull_job,
+            .pData = &tCullData
+        };
+        gptJob->dispatch_batch(uDrawableCount, 0, tJobDesc, &ptCounter);
+        gptJob->wait_for_counter(ptCounter);
+
         pl_sb_reset(ptView->sbtVisibleDrawables);
         for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
         {
             const plDrawable tDrawable = ptScene->sbtSubmittedDrawables[uDrawableIndex];
-            plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, tDrawable.tEntity);
-
-            if(pl__sat_visibility_test(tOptions.ptCullCamera, &ptMesh->tAABBFinal))
-            {
+            if(!tDrawable.bCulled)
                 pl_sb_push(ptView->sbtVisibleDrawables, tDrawable);
-            }
         }
         
     }
@@ -1655,7 +1692,6 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
 
     gptStream->reset(ptStream);
     
-
     typedef struct _plLightingDynamicData{
         int iDataOffset;
         int iVertexOffset;
@@ -2346,6 +2382,13 @@ pl__get_blend_state(plBlendMode tBlendMode)
 
     PL_ASSERT(tBlendMode < PL_BLEND_MODE_COUNT && "blend mode out of range");
     return atStateMap[tBlendMode];
+}
+
+static void
+pl__refr_memcpy_job(uint32_t uJobIndex, void* pData)
+{
+    plMemCpyJobData* ptData = pData;
+    memcpy(ptData->pDestination, ptData->ptBuffer->tMemoryAllocation.pHostMapped, ptData->szSize);
 }
 
 static void
