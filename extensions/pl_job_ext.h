@@ -28,8 +28,8 @@ Index of this file:
 // [SECTION] defines
 //-----------------------------------------------------------------------------
 
-#ifndef PL_MAX_JOBS
-    #define PL_MAX_JOBS 64
+#ifndef PL_MAX_BATCHES
+    #define PL_MAX_BATCHES 256
 #endif
 
 #ifndef PL_MAX_JOB_THREADS
