@@ -1958,7 +1958,7 @@ pl_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, plDispatch* at
         [tComputeEncoder setComputePipelineState:ptComputeShader->tPipelineState];
 
         [tComputeEncoder setBuffer:ptBindGroup->tShaderArgumentBuffer
-            offset:0
+            offset:ptBindGroup->uOffset
             atIndex:0];
 
         MTLSize tGridSize = MTLSizeMake(ptDispatch->uGroupCountX, ptDispatch->uGroupCountY, ptDispatch->uGroupCountZ);
