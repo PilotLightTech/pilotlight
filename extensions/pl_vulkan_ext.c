@@ -1322,6 +1322,8 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
     uint32_t uCurrentBinding = 0;
     const uint32_t uDescriptorBindingCount = ptLayout->uTextureCount + ptLayout->uBufferCount + ptLayout->uSamplerCount;
     VkDescriptorSetLayoutBinding* atDescriptorSetLayoutBindings = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorSetLayoutBinding));
+    VkDescriptorBindingFlagsEXT* atDescriptorSetLayoutFlags = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorBindingFlagsEXT));
+
     for(uint32_t i = 0; i < ptLayout->uBufferCount; i++)
     {
         VkDescriptorSetLayoutBinding tBinding =  {
@@ -1331,6 +1333,7 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
             .stageFlags      = pl__vulkan_stage_flags(ptLayout->aBuffers[i].tStages),
             .pImmutableSamplers = NULL,
         };
+        atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
         atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
 
@@ -1339,10 +1342,13 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
         VkDescriptorSetLayoutBinding tBinding = {
             .binding            = ptLayout->aTextures[i].uSlot,
             .descriptorType     = ptLayout->aTextures[i].tType == PL_TEXTURE_BINDING_TYPE_SAMPLED ? VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-            .descriptorCount    = 1,
+            .descriptorCount    = ptLayout->aTextures[i].uDescriptorCount,
             .stageFlags         = pl__vulkan_stage_flags(ptLayout->aTextures[i].tStages),
             .pImmutableSamplers = NULL
         };
+        if(tBinding.descriptorCount == 0)
+            tBinding.descriptorCount = 1;
+        atDescriptorSetLayoutFlags[uCurrentBinding] = tBinding.descriptorCount > 1 ? VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT : 0;
         atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
 
@@ -1355,21 +1361,28 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
             .stageFlags         = pl__vulkan_stage_flags(ptLayout->atSamplers[i].tStages),
             .pImmutableSamplers = NULL
         };
+        atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
         atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
+
+    VkDescriptorSetLayoutBindingFlagsCreateInfoEXT setLayoutBindingFlags = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT,
+        .bindingCount = uDescriptorBindingCount,
+        .pBindingFlags = atDescriptorSetLayoutFlags,
+        .pNext = NULL
+    };
 
     // create descriptor set layout
     const VkDescriptorSetLayoutCreateInfo tDescriptorSetLayoutInfo = {
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = uDescriptorBindingCount,
         .pBindings    = atDescriptorSetLayoutBindings,
-        .flags        = ptDevice->bDescriptorIndexing ? VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT : 0
+        .pNext = &setLayoutBindingFlags
     };
     PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tVulkanBindGroupLayout.tDescriptorSetLayout));
 
-    pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
-
     ptVulkanGraphics->sbtBindGroupLayouts[uBindGroupLayoutIndex] = tVulkanBindGroupLayout;
+    pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
 }
 
 static plBindGroupHandle
@@ -1402,6 +1415,8 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
     uint32_t uCurrentBinding = 0;
     const uint32_t uDescriptorBindingCount = ptLayout->uTextureCount + ptLayout->uBufferCount + ptLayout->uSamplerCount;
     VkDescriptorSetLayoutBinding* atDescriptorSetLayoutBindings = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorSetLayoutBinding));
+    VkDescriptorBindingFlagsEXT* atDescriptorSetLayoutFlags = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorBindingFlagsEXT));
+    uint32_t tDescriptorCount = 1;
 
     for(uint32_t i = 0; i < ptLayout->uBufferCount; i++)
     {
@@ -1410,9 +1425,10 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
             .descriptorType  = ptLayout->aBuffers[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = 1,
             .stageFlags      = pl__vulkan_stage_flags(ptLayout->aBuffers[i].tStages),
-            .pImmutableSamplers = NULL
+            .pImmutableSamplers = NULL,
         };
-        atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
+        atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
+        atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;     
     }
 
     for(uint32_t i = 0 ; i < ptLayout->uTextureCount; i++)
@@ -1420,10 +1436,15 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
         VkDescriptorSetLayoutBinding tBinding = {
             .binding            = ptLayout->aTextures[i].uSlot,
             .descriptorType     = ptLayout->aTextures[i].tType == PL_TEXTURE_BINDING_TYPE_SAMPLED ? VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-            .descriptorCount    = 1,
+            .descriptorCount    = ptLayout->aTextures[i].uDescriptorCount,
             .stageFlags         = pl__vulkan_stage_flags(ptLayout->aTextures[i].tStages),
             .pImmutableSamplers = NULL
         };
+        if(tBinding.descriptorCount > 1)
+            tDescriptorCount = tBinding.descriptorCount;
+        else if(tBinding.descriptorCount == 0)
+            tBinding.descriptorCount = 1;
+        atDescriptorSetLayoutFlags[uCurrentBinding] = tBinding.descriptorCount > 1 ? VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT : 0;
         atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
 
@@ -1436,22 +1457,37 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
             .stageFlags         = pl__vulkan_stage_flags(ptLayout->atSamplers[i].tStages),
             .pImmutableSamplers = NULL
         };
+        atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
         atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
 
+
+    VkDescriptorSetLayoutBindingFlagsCreateInfoEXT setLayoutBindingFlags = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT,
+        .bindingCount = uDescriptorBindingCount,
+        .pBindingFlags = atDescriptorSetLayoutFlags,
+        .pNext = NULL
+    };
+
     // create descriptor set layout
-    VkDescriptorSetLayout tDescriptorSetLayout = VK_NULL_HANDLE;
+    
     const VkDescriptorSetLayoutCreateInfo tDescriptorSetLayoutInfo = {
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = uDescriptorBindingCount,
         .pBindings    = atDescriptorSetLayoutBindings,
+        .pNext = &setLayoutBindingFlags
     };
+    VkDescriptorSetLayout tDescriptorSetLayout = VK_NULL_HANDLE;
     PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tDescriptorSetLayout));
-
-    pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
 
     plVulkanBindGroup tVulkanBindGroup = {
         .tDescriptorSetLayout = tDescriptorSetLayout
+    };
+
+    VkDescriptorSetVariableDescriptorCountAllocateInfoEXT variableDescriptorCountAllocInfo = {
+        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO_EXT,
+        .descriptorSetCount = 1,
+        .pDescriptorCounts  = &tDescriptorCount,
     };
 
     // allocate descriptor sets
@@ -1459,10 +1495,13 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
         .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
         .descriptorPool     = ptVulkanGraphics->tDescriptorPool,
         .descriptorSetCount = 1,
-        .pSetLayouts        = &tDescriptorSetLayout
+        .pSetLayouts        = &tDescriptorSetLayout,
+        .pNext              = &variableDescriptorCountAllocInfo
     };
 
     PL_VULKAN(vkAllocateDescriptorSets(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tVulkanBindGroup.tDescriptorSet));
+
+    pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
 
     ptVulkanGraphics->sbtBindGroupsHot[uBindGroupIndex] = tVulkanBindGroup;
     ptGraphics->sbtBindGroupsCold[uBindGroupIndex] = tBindGroup;
@@ -3286,13 +3325,15 @@ pl_initialize_graphics(plWindow* ptWindow, plGraphics* ptGraphics)
     // binding flags for textures, uniforms, and buffers
     // are required for our extension
     if(tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing)
+    {
         ptGraphics->tDevice.bDescriptorIndexing = true;
-    // PL_ASSERT(tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing);
-    // PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind);
-    // PL_ASSERT(tDescriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing);
-    // PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind);
-    // PL_ASSERT(tDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing);
-    // PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind);
+        PL_ASSERT(tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing);
+        PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind);
+        PL_ASSERT(tDescriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing);
+        PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind);
+        PL_ASSERT(tDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing);
+        PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind);
+    }
 
     const float fQueuePriority = 1.0f;
     VkDeviceQueueCreateInfo atQueueCreateInfos[] = {
@@ -3381,6 +3422,10 @@ pl_initialize_graphics(plWindow* ptWindow, plGraphics* ptGraphics)
         .poolSizeCount = 6,
         .pPoolSizes    = atPoolSizes,
     };
+    if(ptGraphics->tDevice.bDescriptorIndexing)
+    {
+        tDescriptorPoolInfo.flags |= VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT;
+    }
     PL_VULKAN(vkCreateDescriptorPool(ptVulkanDevice->tLogicalDevice, &tDescriptorPoolInfo, NULL, &ptVulkanGfx->tDescriptorPool));
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~frame resources~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

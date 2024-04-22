@@ -583,6 +583,7 @@ typedef struct _plTextureBinding
 {
     plTextureBindingType tType;
     uint32_t             uSlot;
+    uint32_t             uDescriptorCount; // 0 - will become 1
     plStageFlags         tStages;
 } plTextureBinding;
 
