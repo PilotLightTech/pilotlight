@@ -1329,7 +1329,7 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
             .descriptorType  = ptLayout->aBuffers[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = 1,
             .stageFlags      = pl__vulkan_stage_flags(ptLayout->aBuffers[i].tStages),
-            .pImmutableSamplers = NULL
+            .pImmutableSamplers = NULL,
         };
         atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
@@ -1363,6 +1363,7 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = uDescriptorBindingCount,
         .pBindings    = atDescriptorSetLayoutBindings,
+        .flags        = ptDevice->bDescriptorIndexing ? VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT : 0
     };
     PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tVulkanBindGroupLayout.tDescriptorSetLayout));
 
@@ -3267,12 +3268,31 @@ pl_initialize_graphics(plWindow* ptWindow, plGraphics* ptGraphics)
         i++;
     }
 
+    VkPhysicalDeviceDescriptorIndexingFeatures tDescriptorIndexingFeatures = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
+        .pNext = &ptVulkanDevice->tDeviceFeatures12
+    };
+
     // create logical device
     ptVulkanDevice->tDeviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-    ptVulkanDevice->tDeviceFeatures2.pNext = &ptVulkanDevice->tDeviceFeatures12;
+    ptVulkanDevice->tDeviceFeatures2.pNext = &tDescriptorIndexingFeatures;
     ptVulkanDevice->tDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+
     vkGetPhysicalDeviceFeatures(ptVulkanDevice->tPhysicalDevice, &ptVulkanDevice->tDeviceFeatures);
     vkGetPhysicalDeviceFeatures2(ptVulkanDevice->tPhysicalDevice, &ptVulkanDevice->tDeviceFeatures2);
+
+
+    // Non-uniform indexing and update after bind
+    // binding flags for textures, uniforms, and buffers
+    // are required for our extension
+    if(tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing)
+        ptGraphics->tDevice.bDescriptorIndexing = true;
+    // PL_ASSERT(tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing);
+    // PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind);
+    // PL_ASSERT(tDescriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing);
+    // PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind);
+    // PL_ASSERT(tDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing);
+    // PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind);
 
     const float fQueuePriority = 1.0f;
     VkDeviceQueueCreateInfo atQueueCreateInfos[] = {

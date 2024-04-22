@@ -41,8 +41,7 @@ struct BindGroup_0
 
 struct BindGroup_1
 {
-    texture2d<float>  tBaseColorTexture;
-    texture2d<float>  tNormalTexture;
+    array<texture2d<float>, 2> tTexture;
 };
 
 struct BindGroup_2
@@ -278,7 +277,7 @@ NormalInfo pl_get_normal_info(device const BindGroup_0& bg0, device const BindGr
     info.ng = ng;
     if(bool(PL_HAS_NORMAL_MAP)) 
     {
-        info.ntex = bg1.tNormalTexture.sample(bg0.tDefaultSampler, UV).rgb * 2.0 - float3(1.0);
+        info.ntex = bg1.tTexture[1].sample(bg0.tDefaultSampler, UV).rgb * 2.0 - float3(1.0);
         // info.ntex *= vec3(0.2, 0.2, 1.0);
         // info.ntex *= vec3(u_NormalScale, u_NormalScale, 1.0);
         info.ntex = normalize(info.ntex);
@@ -299,7 +298,7 @@ float4 getBaseColor(device const BindGroup_0& bg0, device const BindGroup_1& bg1
 
     if(bool(PL_HAS_BASE_COLOR_MAP))
     {
-        baseColor *= bg1.tBaseColorTexture.sample(bg0.tDefaultSampler, tShaderIn.tUV);
+        baseColor *= bg1.tTexture[0].sample(bg0.tDefaultSampler, tShaderIn.tUV);
     }
     return baseColor;
 }

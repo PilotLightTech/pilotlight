@@ -344,7 +344,7 @@ pl_refr_initialize(plWindow* ptWindow)
     const plSamplerDesc tSamplerDesc = {
         .tFilter         = PL_FILTER_LINEAR,
         .fMinMip         = 0.0f,
-        .fMaxMip         = 1.0f,
+        .fMaxMip         = 64.0f,
         .tVerticalWrap   = PL_WRAP_MODE_WRAP,
         .tHorizontalWrap = PL_WRAP_MODE_WRAP
     };
@@ -1015,36 +1015,39 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     float* pfPanoramaData = gptImage->load_hdr(pcPath, &iPanoramaWidth, &iPanoramaHeight, &iUnused, 4);
     PL_ASSERT(pfPanoramaData);
 
-    plComputeShaderDescription tSkyboxComputeShaderDesc = {
-        #ifdef PL_METAL_BACKEND
-        .pcShader = "panorama_to_cubemap.metal",
-        .pcShaderEntryFunc = "kernel_main",
-        #else
-        .pcShader = "panorama_to_cubemap.comp.spv",
-        .pcShaderEntryFunc = "main",
-        #endif
-        .uConstantCount = 3,
-        .atConstants = {
-            { .uID = 0, .uOffset = 0,               .tType = PL_DATA_TYPE_INT},
-            { .uID = 1, .uOffset = sizeof(int),     .tType = PL_DATA_TYPE_INT},
-            { .uID = 2, .uOffset = 2 * sizeof(int), .tType = PL_DATA_TYPE_INT}
-        },
-        .tBindGroupLayout = {
-            .uBufferCount = 7,
-            .aBuffers = {
-                { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 0, .tStages = PL_STAGE_COMPUTE},
-                { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 1, .tStages = PL_STAGE_COMPUTE},
-                { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_STAGE_COMPUTE},
-                { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 3, .tStages = PL_STAGE_COMPUTE},
-                { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 4, .tStages = PL_STAGE_COMPUTE},
-                { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 5, .tStages = PL_STAGE_COMPUTE},
-                { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 6, .tStages = PL_STAGE_COMPUTE},
+    if(gptData->tPanoramaShader.uIndex == UINT32_MAX)
+    {
+        plComputeShaderDescription tSkyboxComputeShaderDesc = {
+            #ifdef PL_METAL_BACKEND
+            .pcShader = "panorama_to_cubemap.metal",
+            .pcShaderEntryFunc = "kernel_main",
+            #else
+            .pcShader = "panorama_to_cubemap.comp.spv",
+            .pcShaderEntryFunc = "main",
+            #endif
+            .uConstantCount = 3,
+            .atConstants = {
+                { .uID = 0, .uOffset = 0,               .tType = PL_DATA_TYPE_INT},
+                { .uID = 1, .uOffset = sizeof(int),     .tType = PL_DATA_TYPE_INT},
+                { .uID = 2, .uOffset = 2 * sizeof(int), .tType = PL_DATA_TYPE_INT}
             },
-        }
-    };
-    int aiSkyboxSpecializationData[] = {iResolution, iPanoramaWidth, iPanoramaHeight};
-    tSkyboxComputeShaderDesc.pTempConstantData = aiSkyboxSpecializationData;
-    gptData->tPanoramaShader = gptDevice->create_compute_shader(ptDevice, &tSkyboxComputeShaderDesc);
+            .tBindGroupLayout = {
+                .uBufferCount = 7,
+                .aBuffers = {
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 0, .tStages = PL_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 1, .tStages = PL_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 3, .tStages = PL_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 4, .tStages = PL_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 5, .tStages = PL_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 6, .tStages = PL_STAGE_COMPUTE},
+                },
+            }
+        };
+        int aiSkyboxSpecializationData[] = {iResolution, iPanoramaWidth, iPanoramaHeight};
+        tSkyboxComputeShaderDesc.pTempConstantData = aiSkyboxSpecializationData;
+        gptData->tPanoramaShader = gptDevice->create_compute_shader(ptDevice, &tSkyboxComputeShaderDesc);
+    }
 
     plBufferHandle atComputeBuffers[7] = {0};
     const uint32_t uPanoramaSize = iPanoramaHeight * iPanoramaWidth * 4 * sizeof(float);

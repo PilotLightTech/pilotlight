@@ -576,7 +576,6 @@ typedef struct _plBufferBinding
     uint32_t            uSlot;
     size_t              szSize;
     size_t              szOffset;
-    plBufferHandle      tBuffer;
     plStageFlags        tStages;
 } plBufferBinding;
 
@@ -584,15 +583,13 @@ typedef struct _plTextureBinding
 {
     plTextureBindingType tType;
     uint32_t             uSlot;
-    plTextureHandle      tTextureView;
     plStageFlags         tStages;
 } plTextureBinding;
 
 typedef struct _plSamplerBinding
 {
-    uint32_t        uSlot;
-    plSamplerHandle tSampler;
-    plStageFlags    tStages;
+    uint32_t     uSlot;
+    plStageFlags tStages;
 } plSamplerBinding;
 
 typedef struct _plDynamicBinding
@@ -829,6 +826,7 @@ typedef struct _plRenderPass
 typedef struct _plDevice
 {
     plGraphics* ptGraphics;
+    bool bDescriptorIndexing;
     plDeviceMemoryAllocatorI* ptDynamicAllocator;
     void* _pInternalData;
 } plDevice;
