@@ -357,8 +357,16 @@ pl_refr_initialize(plWindow* ptWindow)
     };
     gptData->tNullSkinBindgroup = gptDevice->create_bind_group(&ptGraphics->tDevice, &tBindGroupLayout1, "null skin bind group");
 
-    plBindGroupUpdateData tBGData = {
-        .atTextureViews = &gptData->tDummyTexture
+    const plBindGroupUpdateTextureData tBGTextureData = {
+        .tTexture = gptData->tDummyTexture,
+        .uSlot    = 0,
+        .uIndex   = 0,
+        .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
+    };
+
+    const plBindGroupUpdateData tBGData = {
+        .uTextureCount = 1,
+        .atTextures = &tBGTextureData
     };
     gptDevice->update_bind_group(&ptGraphics->tDevice, gptData->tNullSkinBindgroup, &tBGData);
 }
@@ -477,10 +485,9 @@ pl_refr_create_scene(void)
                 .atSamplers = { {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}}
             },
             {
-                .uTextureCount  = 2,
+                .uTextureCount  = 1,
                 .aTextures = {
-                    {.uSlot =  0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-                    {.uSlot =  1, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                    {.uSlot =  0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 2},
                 }
             },
             {
@@ -674,9 +681,32 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         // lighting bind group
         plTempAllocator tTempAllocator = {0};
         ptView->tLightingBindGroup[i] = gptDevice->create_bind_group(&ptGraphics->tDevice, &tLightingBindGroupLayout, pl_temp_allocator_sprintf(&tTempAllocator, "lighting bind group%u", i));
-        plTextureHandle atLightingTextureViews[] = {ptView->tAlbedoTexture[i], ptView->tNormalTexture[i], ptView->tPositionTexture[i], ptView->tDepthTexture[i]};
-        plBindGroupUpdateData tBGData = {
-            .atTextureViews = atLightingTextureViews
+
+        const plBindGroupUpdateTextureData atBGTextureData[] = {
+            {
+                .tTexture = ptView->tAlbedoTexture[i],
+                .uSlot    = 0,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+            {
+                .tTexture = ptView->tNormalTexture[i],
+                .uSlot    = 1,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+            {
+                .tTexture = ptView->tPositionTexture[i],
+                .uSlot    = 2,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+            {
+                .tTexture = ptView->tDepthTexture[i],
+                .uSlot    = 3,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+        };
+        const plBindGroupUpdateData tBGData = {
+            .uTextureCount = 4,
+            .atTextures = atBGTextureData
         };
         gptDevice->update_bind_group(&ptGraphics->tDevice, ptView->tLightingBindGroup[i], &tBGData);
         pl_temp_allocator_free(&tTempAllocator);
@@ -850,9 +880,31 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
         // lighting bind group
         plTempAllocator tTempAllocator = {0};
         ptView->tLightingBindGroup[i] = gptDevice->create_bind_group(&ptGraphics->tDevice, &tLightingBindGroupLayout, pl_temp_allocator_sprintf(&tTempAllocator, "lighting bind group%u", i));
-        plTextureHandle atLightingTextureViews[] = {ptView->tAlbedoTexture[i], ptView->tNormalTexture[i], ptView->tPositionTexture[i], ptView->tDepthTexture[i]};
-        plBindGroupUpdateData tBGData = {
-            .atTextureViews = atLightingTextureViews
+        const plBindGroupUpdateTextureData atBGTextureData[] = {
+            {
+                .tTexture = ptView->tAlbedoTexture[i],
+                .uSlot    = 0,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+            {
+                .tTexture = ptView->tNormalTexture[i],
+                .uSlot    = 1,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+            {
+                .tTexture = ptView->tPositionTexture[i],
+                .uSlot    = 2,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+            {
+                .tTexture = ptView->tDepthTexture[i],
+                .uSlot    = 3,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+        };
+        const plBindGroupUpdateData tBGData = {
+            .uTextureCount = 4,
+            .atTextures = atBGTextureData
         };
         gptDevice->update_bind_group(&ptGraphics->tDevice, ptView->tLightingBindGroup[i], &tBGData);
         pl_temp_allocator_free(&tTempAllocator);
@@ -1081,12 +1133,49 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         },
     };
     plBindGroupHandle tComputeBindGroup = gptDevice->get_temporary_bind_group(ptDevice, &tComputeBindGroupLayout, "compute bind group");
-    size_t szBufferRangeSize[] = {(size_t)uPanoramaSize, uFaceSize, uFaceSize, uFaceSize, uFaceSize, uFaceSize, uFaceSize};
-    plBindGroupUpdateData tBGData0 = {
-        .aszBufferRanges = szBufferRangeSize,
-        .atBuffers = atComputeBuffers
+    const plBindGroupUpdateBufferData atBGBufferData[] = {
+        {
+            .tBuffer       = atComputeBuffers[0],
+            .uSlot         = 0,
+            .szBufferRange = uPanoramaSize
+        },
+        {
+            .tBuffer       = atComputeBuffers[1],
+            .uSlot         = 1,
+            .szBufferRange = uFaceSize
+        },
+        {
+            .tBuffer       = atComputeBuffers[2],
+            .uSlot         = 2,
+            .szBufferRange = uFaceSize
+        },
+        {
+            .tBuffer       = atComputeBuffers[3],
+            .uSlot         = 3,
+            .szBufferRange = uFaceSize
+        },
+        {
+            .tBuffer       = atComputeBuffers[4],
+            .uSlot         = 4,
+            .szBufferRange = uFaceSize
+        },
+        {
+            .tBuffer       = atComputeBuffers[5],
+            .uSlot         = 5,
+            .szBufferRange = uFaceSize
+        },
+        {
+            .tBuffer       = atComputeBuffers[6],
+            .uSlot         = 6,
+            .szBufferRange = uFaceSize
+        },
+
     };
-    gptDevice->update_bind_group(ptDevice, tComputeBindGroup, &tBGData0);
+    const plBindGroupUpdateData tBGData = {
+        .uBufferCount = 7,
+        .atBuffers = atBGBufferData
+    };
+    gptDevice->update_bind_group(ptDevice, tComputeBindGroup, &tBGData);
 
     plDispatch tDispach = {
         .uBindGroup0      = tComputeBindGroup.uIndex,
@@ -1160,8 +1249,10 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         .aTextures = { {.uSlot = 0, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}}
     };
     ptScene->tSkyboxBindGroup = gptDevice->create_bind_group(ptDevice, &tSkyboxBindGroupLayout, "skybox bind group");
-    plBindGroupUpdateData tBGData1 = {
-            .atTextureViews = &ptScene->tSkyboxTexture
+    const plBindGroupUpdateTextureData tTextureData1 = {.tTexture = ptScene->tSkyboxTexture, .uSlot = 0, .uIndex = 0, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED};
+    const plBindGroupUpdateData tBGData1 = {
+        .uTextureCount = 1,
+        .atTextures = &tTextureData1
     };
     gptDevice->update_bind_group(ptDevice, ptScene->tSkyboxBindGroup, &tBGData1);
 
@@ -1322,22 +1413,23 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         plMaterialComponent* ptMaterial = &sbtMaterials[i];
 
         plBindGroupLayout tMaterialBindGroupLayout = {
-            .uTextureCount = 2,
+            .uTextureCount = 1,
             .aTextures = {
-                {.uSlot = 0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-                {.uSlot = 1, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
+                {.uSlot = 0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 2},
             }
         };
         sbtMaterialBindGroups[i] = gptDevice->create_bind_group(ptDevice, &tMaterialBindGroupLayout, "material bind group");
 
-        plTextureHandle atMaterialTextureViews[] = {
-            pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_BASE_COLOR_MAP, true, 0),
-            pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_NORMAL_MAP, false, 0)
+        const plBindGroupUpdateTextureData tTextureData[] = 
+        {
+            {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_BASE_COLOR_MAP, true, 0), .uSlot = 0, .uIndex = 0, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
+            {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_NORMAL_MAP, false, 0), .uSlot = 0, .uIndex = 1, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
         };
-        plBindGroupUpdateData tBGData0 = {
-            .atTextureViews = atMaterialTextureViews
+        const plBindGroupUpdateData tBGData1 = {
+            .uTextureCount = 2,
+            .atTextures = tTextureData
         };
-        gptDevice->update_bind_group(ptDevice, sbtMaterialBindGroups[i], &tBGData0);
+        gptDevice->update_bind_group(ptDevice, sbtMaterialBindGroups[i], &tBGData1);
         pl_hm_insert(&tMaterialBindGroupDict, (uint64_t)ptMaterial, (uint64_t)i);
     }
     pl_end_profile_sample();
@@ -1497,8 +1589,10 @@ pl_refr_update_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle)
             }
         };
         ptScene->sbtSkinData[i].tTempBindGroup = gptDevice->get_temporary_bind_group(ptDevice, &tBindGroupLayout1, "skin temporary bind group");
+        const plBindGroupUpdateTextureData tTextureData = {.tTexture = ptScene->sbtSkinData[i].atDynamicTexture[ptGraphics->uCurrentFrameIndex], .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED};
         plBindGroupUpdateData tBGData0 = {
-            .atTextureViews = &ptScene->sbtSkinData[i].atDynamicTexture[ptGraphics->uCurrentFrameIndex]
+            .uTextureCount = 1,
+            .atTextures = &tTextureData
         };
         gptDevice->update_bind_group(&ptGraphics->tDevice, ptScene->sbtSkinData[i].tTempBindGroup, &tBGData0);
 
@@ -1620,13 +1714,34 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         .atSamplers = { {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}}
     };
     plBindGroupHandle tGlobalBG = gptDevice->get_temporary_bind_group(ptDevice, &tBindGroupLayout0, "temporary global bind group");
-    size_t szBufferRangeSize[] = {sizeof(BindGroup_0), sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer), sizeof(plMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer)};
 
-    plBufferHandle atBindGroup0_buffers0[] = {ptView->atGlobalBuffers[ptGraphics->uCurrentFrameIndex], ptScene->tStorageBuffer, ptScene->tMaterialDataBuffer};
+    const plBindGroupUpdateSamplerData tSamplerData = {
+        .tSampler = gptData->tDefaultSampler,
+        .uSlot    = 3
+    };
+    const plBindGroupUpdateBufferData atBufferData[] = 
+    {
+        {
+            .tBuffer       = ptView->atGlobalBuffers[ptGraphics->uCurrentFrameIndex],
+            .uSlot         = 0,
+            .szBufferRange = sizeof(BindGroup_0)
+        },
+        {
+            .tBuffer       = ptScene->tStorageBuffer,
+            .uSlot         = 1,
+            .szBufferRange = sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer)
+        },
+        {
+            .tBuffer       = ptScene->tMaterialDataBuffer,
+            .uSlot         = 2,
+            .szBufferRange = sizeof(plMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer)
+        },
+    };
     plBindGroupUpdateData tBGData0 = {
-        .aszBufferRanges = szBufferRangeSize,
-        .atBuffers = atBindGroup0_buffers0,
-        .atSamplers = &gptData->tDefaultSampler
+        .uBufferCount = 3,
+        .atBuffers = atBufferData,
+        .uSamplerCount = 1,
+        .atSamplers = &tSamplerData
     };
     gptDevice->update_bind_group(&ptGraphics->tDevice, tGlobalBG, &tBGData0);
 
@@ -1644,7 +1759,8 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
             .fWidth  = tDimensions.x,
             .fHeight = tDimensions.y,
             .fMaxDepth = 1.0f
-       }
+       },
+       .uBindGroup0 = tGlobalBG.uIndex,
     };
 
     plRenderEncoder tEncoder = gptGfx->begin_render_pass(ptGraphics, &tCommandBuffer, ptView->tRenderPass);
@@ -1682,7 +1798,6 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
             .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
             .uIndexOffset         = tDrawable.uIndexOffset,
             .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
-            .uBindGroup0          = tGlobalBG.uIndex,
             .uBindGroup1          = tDrawable.tMaterialBindGroup.uIndex,
             .uBindGroup2          = tDrawable.uSkinIndex == UINT32_MAX ? gptData->tNullSkinBindgroup.uIndex : ptScene->sbtSkinData[tDrawable.uSkinIndex].tTempBindGroup.uIndex,
             .uDynamicBufferOffset = tDynamicBinding.uByteOffset,
@@ -1713,7 +1828,6 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         .uIndexBuffer         = ptScene->tIndexBuffer.uIndex,
         .uIndexOffset         = ptScene->tLightingDrawable.uIndexOffset,
         .uTriangleCount       = 2,
-        .uBindGroup0          = tGlobalBG.uIndex,
         .uBindGroup1          = ptView->tLightingBindGroup[ptGraphics->uCurrentFrameIndex].uIndex,
         .uBindGroup2          = gptData->tNullSkinBindgroup.uIndex,
         .uDynamicBufferOffset = tLightingDynamicData.uByteOffset,
@@ -1741,7 +1855,6 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
             .uIndexBuffer         = ptScene->tIndexBuffer.uIndex,
             .uIndexOffset         = ptScene->tSkyboxDrawable.uIndexOffset,
             .uTriangleCount       = ptScene->tSkyboxDrawable.uIndexCount / 3,
-            .uBindGroup0          = tGlobalBG.uIndex,
             .uBindGroup1          = ptScene->tSkyboxBindGroup.uIndex,
             .uBindGroup2          = gptData->tNullSkinBindgroup.uIndex,
             .uDynamicBufferOffset = tSkyboxDynamicData.uByteOffset,

@@ -99,50 +99,53 @@ typedef struct _plDrawStreamI plDrawStreamI;
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plDevice                   plDevice;
-typedef struct _plBuffer                   plBuffer;
-typedef struct _plSwapchain                plSwapchain;
-typedef struct _plGraphics                 plGraphics;
-typedef struct _plDraw                     plDraw;
-typedef struct _plDispatch                 plDispatch;
-typedef struct _plDrawArea                 plDrawArea;
-typedef struct _plDrawStream               plDrawStream;
-typedef struct _plGraphicsState            plGraphicsState;
-typedef struct _plBlendState               plBlendState;
-typedef struct _plSpecializationConstant   plSpecializationConstant;
-typedef struct _plShaderDescription        plShaderDescription;
-typedef struct _plShader                   plShader;
-typedef struct _plComputeShaderDescription plComputeShaderDescription;
-typedef struct _plComputeShader            plComputeShader;
-typedef struct _plBuffer                   plBuffer;
-typedef struct _plBufferDescription        plBufferDescription;
-typedef struct _plDynamicBuffer            plDynamicBuffer;
-typedef struct _plSamplerDesc              plSamplerDesc;
-typedef struct _plSampler                  plSampler;
-typedef struct _plTextureViewDesc          plTextureViewDesc;
-typedef struct _plTexture                  plTexture;
-typedef struct _plTextureDesc              plTextureDesc;
-typedef struct _plBindGroupLayout          plBindGroupLayout;
-typedef struct _plBindGroup                plBindGroup;
-typedef struct _plVertexAttributes         plVertexAttributes;
-typedef struct _plVertexBufferBinding      plVertexBufferBinding;
-typedef struct _plBufferBinding            plBufferBinding;
-typedef struct _plTextureBinding           plTextureBinding;
-typedef struct _plSamplerBinding           plSamplerBinding;
-typedef struct _plDynamicBinding           plDynamicBinding;
-typedef struct _plRenderViewport           plRenderViewport;
-typedef struct _plScissor                  plScissor;
-typedef struct _plExtent                   plExtent;
-typedef struct _plFrameGarbage             plFrameGarbage;
-typedef struct _plBufferImageCopy          plBufferImageCopy;
-typedef struct _plCommandBuffer            plCommandBuffer;
-typedef struct _plRenderEncoder            plRenderEncoder;
-typedef struct _plComputeEncoder           plComputeEncoder;
-typedef struct _plBlitEncoder              plBlitEncoder;
-typedef struct _plTimelineSemaphore        plTimelineSemaphore;
-typedef struct _plBeginCommandInfo         plBeginCommandInfo;
-typedef struct _plSubmitInfo               plSubmitInfo;
-typedef struct _plBindGroupUpdateData      plBindGroupUpdateData;
+typedef struct _plDevice                     plDevice;
+typedef struct _plBuffer                     plBuffer;
+typedef struct _plSwapchain                  plSwapchain;
+typedef struct _plGraphics                   plGraphics;
+typedef struct _plDraw                       plDraw;
+typedef struct _plDispatch                   plDispatch;
+typedef struct _plDrawArea                   plDrawArea;
+typedef struct _plDrawStream                 plDrawStream;
+typedef struct _plGraphicsState              plGraphicsState;
+typedef struct _plBlendState                 plBlendState;
+typedef struct _plSpecializationConstant     plSpecializationConstant;
+typedef struct _plShaderDescription          plShaderDescription;
+typedef struct _plShader                     plShader;
+typedef struct _plComputeShaderDescription   plComputeShaderDescription;
+typedef struct _plComputeShader              plComputeShader;
+typedef struct _plBuffer                     plBuffer;
+typedef struct _plBufferDescription          plBufferDescription;
+typedef struct _plDynamicBuffer              plDynamicBuffer;
+typedef struct _plSamplerDesc                plSamplerDesc;
+typedef struct _plSampler                    plSampler;
+typedef struct _plTextureViewDesc            plTextureViewDesc;
+typedef struct _plTexture                    plTexture;
+typedef struct _plTextureDesc                plTextureDesc;
+typedef struct _plBindGroupLayout            plBindGroupLayout;
+typedef struct _plBindGroup                  plBindGroup;
+typedef struct _plVertexAttributes           plVertexAttributes;
+typedef struct _plVertexBufferBinding        plVertexBufferBinding;
+typedef struct _plBufferBinding              plBufferBinding;
+typedef struct _plTextureBinding             plTextureBinding;
+typedef struct _plSamplerBinding             plSamplerBinding;
+typedef struct _plDynamicBinding             plDynamicBinding;
+typedef struct _plRenderViewport             plRenderViewport;
+typedef struct _plScissor                    plScissor;
+typedef struct _plExtent                     plExtent;
+typedef struct _plFrameGarbage               plFrameGarbage;
+typedef struct _plBufferImageCopy            plBufferImageCopy;
+typedef struct _plCommandBuffer              plCommandBuffer;
+typedef struct _plRenderEncoder              plRenderEncoder;
+typedef struct _plComputeEncoder             plComputeEncoder;
+typedef struct _plBlitEncoder                plBlitEncoder;
+typedef struct _plTimelineSemaphore          plTimelineSemaphore;
+typedef struct _plBeginCommandInfo           plBeginCommandInfo;
+typedef struct _plSubmitInfo                 plSubmitInfo;
+typedef struct _plBindGroupUpdateData        plBindGroupUpdateData;
+typedef struct _plBindGroupUpdateTextureData plBindGroupUpdateTextureData;
+typedef struct _plBindGroupUpdateBufferData  plBindGroupUpdateBufferData;
+typedef struct _plBindGroupUpdateSamplerData plBindGroupUpdateSamplerData;
 
 // render passes
 typedef struct _plRenderTarget                plRenderTarget;
@@ -361,12 +364,35 @@ typedef struct _plSubmitInfo
     uint64_t          auSignalSemaphoreValues[PL_MAX_SEMAPHORES + 1];
 } plSubmitInfo;
 
+typedef struct _plBindGroupUpdateTextureData
+{
+    plTextureHandle      tTexture;
+    plTextureBindingType tType;
+    uint32_t             uSlot;
+    uint32_t             uIndex;
+} plBindGroupUpdateTextureData;
+
+typedef struct _plBindGroupUpdateBufferData
+{
+    plBufferHandle tBuffer;
+    uint32_t       uSlot;
+    size_t         szBufferRange;
+} plBindGroupUpdateBufferData;
+
+typedef struct _plBindGroupUpdateSamplerData
+{
+    plSamplerHandle tSampler;
+    uint32_t        uSlot;
+} plBindGroupUpdateSamplerData;
+
 typedef struct _plBindGroupUpdateData
 {
-    plBufferHandle*  atBuffers;
-    size_t*          aszBufferRanges;
-    plTextureHandle* atTextureViews;
-    plSamplerHandle* atSamplers;
+    uint32_t uBufferCount;
+    uint32_t uTextureCount;
+    uint32_t uSamplerCount;
+    const plBindGroupUpdateBufferData*  atBuffers;
+    const plBindGroupUpdateTextureData* atTextures;
+    const plBindGroupUpdateSamplerData* atSamplers;
 } plBindGroupUpdateData;
 
 typedef struct _plCommandBuffer
@@ -659,6 +685,7 @@ typedef struct _plDrawArea
 {
     plRenderViewport tViewport;
     plScissor        tScissor;
+    uint32_t         uBindGroup0;
     plDrawStream*    ptDrawStream;
 } plDrawArea;
 
@@ -683,7 +710,6 @@ typedef struct _plDraw
     uint32_t uIndexOffset;
     uint32_t uTriangleCount;
     uint32_t uShaderVariant;
-    uint32_t uBindGroup0;
     uint32_t uBindGroup1;
     uint32_t uBindGroup2;
     uint32_t uDynamicBufferOffset;

@@ -41,7 +41,7 @@ struct BindGroup_0
 
 struct BindGroup_1
 {
-    array<texture2d<float>, 2> tTexture;
+    texture2d<float> tTexture;
 };
 
 struct BindGroup_2
@@ -146,7 +146,7 @@ vertex VertexOut vertex_main(
     uint                vertexID [[ vertex_id ]],
     VertexIn            in [[stage_in]],
     device const BindGroup_0& bg0 [[ buffer(1) ]],
-    device const BindGroup_1& bg1 [[ buffer(2) ]],
+    device const BindGroup_1* bg1 [[ buffer(2) ]],
     device const BindGroup_2& bg2 [[ buffer(3) ]],
     device const DynamicData& tObjectInfo [[ buffer(4) ]]
     )
@@ -217,7 +217,7 @@ struct NormalInfo {
     float3 ntex; // Normal from texture, scaling is accounted for.
 };
 
-NormalInfo pl_get_normal_info(device const BindGroup_0& bg0, device const BindGroup_1& bg1, VertexOut tShaderIn, bool front_facing)
+NormalInfo pl_get_normal_info(device const BindGroup_0& bg0, device const BindGroup_1* bg1, VertexOut tShaderIn, bool front_facing)
 {
     float2 UV = tShaderIn.tUV;
     float2 uv_dx = dfdx(UV);
@@ -277,7 +277,7 @@ NormalInfo pl_get_normal_info(device const BindGroup_0& bg0, device const BindGr
     info.ng = ng;
     if(bool(PL_HAS_NORMAL_MAP)) 
     {
-        info.ntex = bg1.tTexture[1].sample(bg0.tDefaultSampler, UV).rgb * 2.0 - float3(1.0);
+        info.ntex = bg1[1].tTexture.sample(bg0.tDefaultSampler, UV).rgb * 2.0 - float3(1.0);
         // info.ntex *= vec3(0.2, 0.2, 1.0);
         // info.ntex *= vec3(u_NormalScale, u_NormalScale, 1.0);
         info.ntex = normalize(info.ntex);
@@ -292,13 +292,13 @@ NormalInfo pl_get_normal_info(device const BindGroup_0& bg0, device const BindGr
     return info;
 }
 
-float4 getBaseColor(device const BindGroup_0& bg0, device const BindGroup_1& bg1, float4 u_ColorFactor, VertexOut tShaderIn)
+float4 getBaseColor(device const BindGroup_0& bg0, device const BindGroup_1* bg1, float4 u_ColorFactor, VertexOut tShaderIn)
 {
     float4 baseColor = u_ColorFactor;
 
     if(bool(PL_HAS_BASE_COLOR_MAP))
     {
-        baseColor *= bg1.tTexture[0].sample(bg0.tDefaultSampler, tShaderIn.tUV);
+        baseColor *= bg1[0].tTexture.sample(bg0.tDefaultSampler, tShaderIn.tUV);
     }
     return baseColor;
 }
@@ -323,7 +323,7 @@ struct plMultipleRenderTargets
 fragment plMultipleRenderTargets fragment_main(
     VertexOut in [[stage_in]],
     device const BindGroup_0& bg0 [[ buffer(1) ]],
-    device const BindGroup_1& bg1 [[ buffer(2) ]],
+    device const BindGroup_1* bg1 [[ buffer(2) ]],
     device const BindGroup_2& bg2 [[ buffer(3) ]],
     device const DynamicData& tObjectInfo [[ buffer(4) ]],
     bool front_facing [[front_facing]]

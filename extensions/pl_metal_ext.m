@@ -1093,7 +1093,18 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
         .tLayout = *ptLayout
     };
 
-    NSUInteger argumentBufferLength = sizeof(uint64_t) * (ptLayout->uTextureCount + ptLayout->uBufferCount + ptLayout->uSamplerCount);
+    uint32_t uDescriptorCount = ptLayout->uTextureCount + ptLayout->uBufferCount + ptLayout->uSamplerCount;
+
+    for(uint32_t i = 0; i < ptLayout->uTextureCount; i++)
+    {
+        uint32_t uCurrentDescriptorCount = ptLayout->aTextures[i].uDescriptorCount;
+        if(uCurrentDescriptorCount== 0)
+            uCurrentDescriptorCount = 1;
+        if(uCurrentDescriptorCount > 1)
+            uDescriptorCount += ptLayout->aTextures[i].uDescriptorCount - 1;
+    }
+
+    NSUInteger argumentBufferLength = sizeof(uint64_t) * uDescriptorCount;
     MTLSizeAndAlign tSizeAlign = [ptMetalDevice->tDevice heapBufferSizeAndAlignWithLength:argumentBufferLength options:MTLResourceStorageModeShared];
 
     PL_ASSERT(ptFrame->ulDescriptorHeapOffset + tSizeAlign.size < PL_DEVICE_ALLOCATION_BLOCK_SIZE);
@@ -1125,28 +1136,31 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
 
     uint64_t* pulDescriptorStart = (uint64_t*)&pcDescriptorStart[ptMetalBindGroup->uOffset];
 
-    for(uint32_t i = 0; i < ptBindGroup->tLayout.uBufferCount; i++)
+    for(uint32_t i = 0; i < ptData->uBufferCount; i++)
     {
-        plMetalBuffer* ptMetalBuffer = &ptMetalGraphics->sbtBuffersHot[ptData->atBuffers[i].uIndex];
-        uint64_t* ppfDestination = &pulDescriptorStart[ptBindGroup->tLayout.aBuffers[i].uSlot];
+        const plBindGroupUpdateBufferData* ptUpdate = &ptData->atBuffers[i];
+        plMetalBuffer* ptMetalBuffer = &ptMetalGraphics->sbtBuffersHot[ptUpdate->tBuffer.uIndex];
+        uint64_t* ppfDestination = &pulDescriptorStart[ptUpdate->uSlot];
         *ppfDestination = ptMetalBuffer->tBuffer.gpuAddress;
-        ptMetalBindGroup->aBuffers[i] = ptData->atBuffers[i];
+        ptMetalBindGroup->aBuffers[i] = ptUpdate->tBuffer;
     }
 
-    for(uint32_t i = 0; i < ptBindGroup->tLayout.uTextureCount; i++)
+    for(uint32_t i = 0; i < ptData->uTextureCount; i++)
     {
-        plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[ptData->atTextureViews[i].uIndex];
-        MTLResourceID* pptDestination = (MTLResourceID*)&pulDescriptorStart[ptBindGroup->tLayout.aTextures[i].uSlot];
+        const plBindGroupUpdateTextureData* ptUpdate = &ptData->atTextures[i];
+        plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[ptUpdate->tTexture.uIndex];
+        MTLResourceID* pptDestination = (MTLResourceID*)&pulDescriptorStart[ptUpdate->uSlot + ptUpdate->uIndex];
         *pptDestination = ptMetalTexture->tTexture.gpuResourceID;
-        ptMetalBindGroup->aTextures[i] = ptData->atTextureViews[i];
+        ptMetalBindGroup->aTextures[i] = ptUpdate->tTexture;
     }
 
-    for(uint32_t i = 0; i < ptBindGroup->tLayout.uSamplerCount; i++)
+    for(uint32_t i = 0; i < ptData->uSamplerCount; i++)
     {
-        plMetalSampler* ptMetalSampler = &ptMetalGraphics->sbtSamplersHot[ptData->atSamplers[i].uIndex];
-        MTLResourceID* pptDestination = (MTLResourceID*)&pulDescriptorStart[ptBindGroup->tLayout.atSamplers[i].uSlot];
+        const plBindGroupUpdateSamplerData* ptUpdate = &ptData->atSamplers[i];
+        plMetalSampler* ptMetalSampler = &ptMetalGraphics->sbtSamplersHot[ptUpdate->tSampler.uIndex];
+        MTLResourceID* pptDestination = (MTLResourceID*)&pulDescriptorStart[ptUpdate->uSlot];
         *pptDestination = ptMetalSampler->tSampler.gpuResourceID;
-        ptMetalBindGroup->atSamplers[i] = ptData->atSamplers[i];
+        ptMetalBindGroup->atSamplers[i] = ptUpdate->tSampler;
     }
 }
 
@@ -2029,25 +2043,33 @@ pl_draw_subpass(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atA
         uint32_t uInstanceCount = 1;
         id<MTLDepthStencilState> tCurrentDepthStencilState = nil;
 
+        {
+            plMetalBindGroup* ptMetalBindGroup = &ptMetalGraphics->sbtBindGroupsHot[ptArea->uBindGroup0];
+
+            for(uint32_t k = 0; k < ptMetalBindGroup->tLayout.uTextureCount; k++)
+            {
+                
+                const plTextureHandle tTextureHandle = ptMetalBindGroup->aTextures[k];
+                id<MTLHeap> tHeap = ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tHeap;
+                [tRenderEncoder useResource:ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tTexture
+                    usage:MTLResourceUsageRead
+                    stages:MTLRenderStageVertex | MTLRenderStageFragment];  
+            }
+            
+            [tRenderEncoder setVertexBuffer:ptMetalBindGroup->tShaderArgumentBuffer
+                offset:ptMetalBindGroup->uOffset
+                atIndex:1];
+
+            [tRenderEncoder setFragmentBuffer:ptMetalBindGroup->tShaderArgumentBuffer
+                offset:ptMetalBindGroup->uOffset
+                atIndex:1];
+        }
+
         while(uCurrentStreamIndex < uTokens)
         {
             const uint32_t uDirtyMask = ptStream->sbtStream[uCurrentStreamIndex];
             uCurrentStreamIndex++;
 
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
-            {
-                plMetalShader* ptMetalShader = &ptMetalGraphics->sbtShadersHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                [tRenderEncoder setCullMode:ptMetalShader->tCullMode];
-                [tRenderEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
-                if(tCurrentDepthStencilState != ptMetalShader->tDepthStencilState)
-                {
-                    [tRenderEncoder setDepthStencilState:ptMetalShader->tDepthStencilState];
-                }
-                tCurrentDepthStencilState = ptMetalShader->tDepthStencilState;
-                [tRenderEncoder setRenderPipelineState:ptMetalShader->tRenderPipelineState];
-                [tRenderEncoder setTriangleFillMode:ptMetalShader->tFillMode];
-                uCurrentStreamIndex++;
-            }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
             {
                 uDynamicBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
@@ -2095,30 +2117,22 @@ pl_draw_subpass(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atA
                 [tRenderEncoder setFragmentBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:2];
                 uCurrentStreamIndex++;
             }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
+
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
             {
-                plMetalBindGroup* ptMetalBindGroup = &ptMetalGraphics->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
-
-                for(uint32_t k = 0; k < ptMetalBindGroup->tLayout.uTextureCount; k++)
+                plMetalShader* ptMetalShader = &ptMetalGraphics->sbtShadersHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                [tRenderEncoder setCullMode:ptMetalShader->tCullMode];
+                [tRenderEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
+                if(tCurrentDepthStencilState != ptMetalShader->tDepthStencilState)
                 {
-                    
-                    const plTextureHandle tTextureHandle = ptMetalBindGroup->aTextures[k];
-                    id<MTLHeap> tHeap = ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tHeap;
-                    [tRenderEncoder useResource:ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tTexture
-                        usage:MTLResourceUsageRead
-                        stages:MTLRenderStageVertex | MTLRenderStageFragment];  
+                    [tRenderEncoder setDepthStencilState:ptMetalShader->tDepthStencilState];
                 }
-                
-                [tRenderEncoder setVertexBuffer:ptMetalBindGroup->tShaderArgumentBuffer
-                    offset:ptMetalBindGroup->uOffset
-                    atIndex:1];
-
-                [tRenderEncoder setFragmentBuffer:ptMetalBindGroup->tShaderArgumentBuffer
-                    offset:ptMetalBindGroup->uOffset
-                    atIndex:1];
-
+                tCurrentDepthStencilState = ptMetalShader->tDepthStencilState;
+                [tRenderEncoder setRenderPipelineState:ptMetalShader->tRenderPipelineState];
+                [tRenderEncoder setTriangleFillMode:ptMetalShader->tFillMode];
                 uCurrentStreamIndex++;
             }
+
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
             {
                 uIndexBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];

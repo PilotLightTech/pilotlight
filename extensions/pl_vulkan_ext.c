@@ -1377,7 +1377,8 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = uDescriptorBindingCount,
         .pBindings    = atDescriptorSetLayoutBindings,
-        .pNext = &setLayoutBindingFlags
+        .pNext = &setLayoutBindingFlags,
+        .flags = ptDevice->bDescriptorIndexing ?  VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
     };
     PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tVulkanBindGroupLayout.tDescriptorSetLayout));
 
@@ -1475,7 +1476,8 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = uDescriptorBindingCount,
         .pBindings    = atDescriptorSetLayoutBindings,
-        .pNext = &setLayoutBindingFlags
+        .pNext = &setLayoutBindingFlags,
+        .flags = ptDevice->bDescriptorIndexing ?  VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
     };
     VkDescriptorSetLayout tDescriptorSetLayout = VK_NULL_HANDLE;
     PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tDescriptorSetLayout));
@@ -1617,11 +1619,11 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
     plBindGroup* ptBindGroup = &ptGraphics->sbtBindGroupsCold[tHandle.uIndex];
     plVulkanBindGroup* ptVulkanBindGroup = &ptVulkanGraphics->sbtBindGroupsHot[tHandle.uIndex];
 
-    VkWriteDescriptorSet*   sbtWrites = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, (ptBindGroup->tLayout.uBufferCount + ptBindGroup->tLayout.uTextureCount + ptBindGroup->tLayout.uSamplerCount) * sizeof(VkWriteDescriptorSet));
-    VkDescriptorBufferInfo* sbtBufferDescInfos = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, ptBindGroup->tLayout.uBufferCount * sizeof(VkDescriptorBufferInfo));
-    VkDescriptorImageInfo*  sbtImageDescInfos = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, ptBindGroup->tLayout.uTextureCount * sizeof(VkDescriptorImageInfo));
-    VkDescriptorImageInfo*  sbtSamplerDescInfos = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, ptBindGroup->tLayout.uSamplerCount * sizeof(VkDescriptorImageInfo));
-
+    VkWriteDescriptorSet*   sbtWrites = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, (ptData->uBufferCount + ptData->uSamplerCount + ptData->uTextureCount) * sizeof(VkWriteDescriptorSet));
+    
+    VkDescriptorBufferInfo* sbtBufferDescInfos = ptData->uBufferCount > 0 ? pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, ptData->uBufferCount * sizeof(VkDescriptorBufferInfo)) : NULL;
+    VkDescriptorImageInfo*  sbtImageDescInfos = ptData->uTextureCount > 0 ? pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, ptData->uTextureCount * sizeof(VkDescriptorImageInfo)) : NULL;
+    VkDescriptorImageInfo*  sbtSamplerDescInfos = ptData->uSamplerCount > 0 ? pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, ptData->uSamplerCount  * sizeof(VkDescriptorImageInfo)) : NULL;
 
     static const VkDescriptorType atDescriptorTypeLUT[] =
     {
@@ -1629,24 +1631,18 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
     };
 
-    static const VkDescriptorType atTextureDescriptorTypeLUT[] =
-    {
-        VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-        VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-    };
-
     uint32_t uCurrentWrite = 0;
-    for(uint32_t i = 0 ; i < ptBindGroup->tLayout.uBufferCount; i++)
+    for(uint32_t i = 0 ; i < ptData->uBufferCount; i++)
     {
 
-        const plVulkanBuffer* ptVulkanBuffer = &ptVulkanGraphics->sbtBuffersHot[ptData->atBuffers[i].uIndex];
+        const plVulkanBuffer* ptVulkanBuffer = &ptVulkanGraphics->sbtBuffersHot[ptData->atBuffers[i].tBuffer.uIndex];
 
         sbtBufferDescInfos[i].buffer = ptVulkanBuffer->tBuffer;
         sbtBufferDescInfos[i].offset = 0;
-        sbtBufferDescInfos[i].range  = ptData->aszBufferRanges[i];
+        sbtBufferDescInfos[i].range  = ptData->atBuffers[i].szBufferRange;
 
         sbtWrites[uCurrentWrite].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        sbtWrites[uCurrentWrite].dstBinding      = ptBindGroup->tLayout.aBuffers[i].uSlot;
+        sbtWrites[uCurrentWrite].dstBinding      = ptData->atBuffers[i].uSlot;
         sbtWrites[uCurrentWrite].dstArrayElement = 0;
         sbtWrites[uCurrentWrite].descriptorType  = atDescriptorTypeLUT[ptBindGroup->tLayout.aBuffers[i].tType - 1];
         sbtWrites[uCurrentWrite].descriptorCount = 1;
@@ -1656,15 +1652,20 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         uCurrentWrite++;
     }
 
-    for(uint32_t i = 0 ; i < ptBindGroup->tLayout.uTextureCount; i++)
+    static const VkDescriptorType atTextureDescriptorTypeLUT[] =
+    {
+        VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+    };
+    for(uint32_t i = 0 ; i < ptData->uTextureCount; i++)
     {
 
         sbtImageDescInfos[i].imageLayout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        sbtImageDescInfos[i].imageView           = ptVulkanGraphics->sbtTexturesHot[ptData->atTextureViews[i].uIndex].tImageView;
+        sbtImageDescInfos[i].imageView           = ptVulkanGraphics->sbtTexturesHot[ptData->atTextures[i].tTexture.uIndex].tImageView;
         sbtWrites[uCurrentWrite].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        sbtWrites[uCurrentWrite].dstBinding      = ptBindGroup->tLayout.aTextures[i].uSlot;
-        sbtWrites[uCurrentWrite].dstArrayElement = 0;
-        sbtWrites[uCurrentWrite].descriptorType  = atTextureDescriptorTypeLUT[ptBindGroup->tLayout.aTextures[i].tType - 1];
+        sbtWrites[uCurrentWrite].dstBinding      = ptData->atTextures[i].uSlot;
+        sbtWrites[uCurrentWrite].dstArrayElement = ptData->atTextures[i].uIndex;
+        sbtWrites[uCurrentWrite].descriptorType  = atTextureDescriptorTypeLUT[ptData->atTextures[i].tType - 1];
         sbtWrites[uCurrentWrite].descriptorCount = 1;
         sbtWrites[uCurrentWrite].dstSet          = ptVulkanBindGroup->tDescriptorSet;
         sbtWrites[uCurrentWrite].pImageInfo      = &sbtImageDescInfos[i];
@@ -1672,12 +1673,12 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         uCurrentWrite++;
     }
 
-    for(uint32_t i = 0 ; i < ptBindGroup->tLayout.uSamplerCount; i++)
+    for(uint32_t i = 0 ; i < ptData->uSamplerCount; i++)
     {
 
-        sbtSamplerDescInfos[i].sampler           = ptVulkanGraphics->sbtSamplersHot[ptData->atSamplers[i].uIndex];
+        sbtSamplerDescInfos[i].sampler           = ptVulkanGraphics->sbtSamplersHot[ptData->atSamplers[i].tSampler.uIndex];
         sbtWrites[uCurrentWrite].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        sbtWrites[uCurrentWrite].dstBinding      = ptBindGroup->tLayout.atSamplers[i].uSlot;
+        sbtWrites[uCurrentWrite].dstBinding      = ptData->atSamplers[i].uSlot;
         sbtWrites[uCurrentWrite].dstArrayElement = 0;
         sbtWrites[uCurrentWrite].descriptorType  = VK_DESCRIPTOR_TYPE_SAMPLER;
         sbtWrites[uCurrentWrite].descriptorCount = 1;
@@ -2820,7 +2821,8 @@ pl_draw_subpass(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atA
         plVulkanShader* ptVulkanShader = NULL;
         plVulkanDynamicBuffer* ptVulkanDynamicBuffer = NULL;
 
-        VkDescriptorSet atDescriptorSets[4] = {VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE};
+        plVulkanBindGroup* ptBindGroup0 = &ptVulkanGfx->sbtBindGroupsHot[ptArea->uBindGroup0];
+        VkDescriptorSet atDescriptorSets[4] = {ptBindGroup0->tDescriptorSet, VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE};
 
         while(uCurrentStreamIndex < uTokens)
         {
@@ -2830,12 +2832,6 @@ pl_draw_subpass(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atA
             const uint32_t uDirtyMask = ptStream->sbtStream[uCurrentStreamIndex];
             uCurrentStreamIndex++;
 
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
-            {
-                ptVulkanShader = &ptVulkanGfx->sbtShadersHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                vkCmdBindPipeline(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
-                uCurrentStreamIndex++;
-            }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
             {
                 uDynamicBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
@@ -2862,12 +2858,12 @@ pl_draw_subpass(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atA
                 atDescriptorSets[1] = ptBindGroup1->tDescriptorSet;
                 uCurrentStreamIndex++;
             }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
             {
-                uDescriptorStart = 0;
-                plVulkanBindGroup* ptBindGroup0 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                atDescriptorSets[0] = ptBindGroup0->tDescriptorSet;
+                ptVulkanShader = &ptVulkanGfx->sbtShadersHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                vkCmdBindPipeline(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
                 uCurrentStreamIndex++;
+                uDescriptorStart = 0;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
             {
@@ -3329,10 +3325,10 @@ pl_initialize_graphics(plWindow* ptWindow, plGraphics* ptGraphics)
         ptGraphics->tDevice.bDescriptorIndexing = true;
         PL_ASSERT(tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing);
         PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind);
-        PL_ASSERT(tDescriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing);
-        PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind);
-        PL_ASSERT(tDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing);
-        PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind);
+//        PL_ASSERT(tDescriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing);
+//        PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind);
+//        PL_ASSERT(tDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing);
+//        PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind);
     }
 
     const float fQueuePriority = 1.0f;

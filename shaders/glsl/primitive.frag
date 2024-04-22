@@ -54,7 +54,7 @@ layout(set = 0, binding = 2) readonly buffer plMaterialInfo
 layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
 
 layout(set = 1, binding = 0)  uniform texture2D tBaseColorSampler[];
-layout(set = 1, binding = 1)  uniform texture2D tNormalSampler[];
+// layout(set = 1, binding = 1)  uniform texture2D tNormalSampler[];
 
 layout(set = 2, binding = 0)  uniform texture2D tSkinningSampler;
 
@@ -158,7 +158,7 @@ NormalInfo pl_get_normal_info()
     info.ng = ng;
     if(bool(PL_HAS_NORMAL_MAP)) 
     {
-        info.ntex = texture(sampler2D(tNormalSampler[0], tDefaultSampler), UV).rgb * 2.0 - vec3(1.0);
+        info.ntex = texture(sampler2D(tBaseColorSampler[1], tDefaultSampler), UV).rgb * 2.0 - vec3(1.0);
         // info.ntex *= vec3(0.2, 0.2, 1.0);
         // info.ntex *= vec3(u_NormalScale, u_NormalScale, 1.0);
         info.ntex = normalize(info.ntex);
