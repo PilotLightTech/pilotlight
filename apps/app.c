@@ -102,7 +102,6 @@ const plGraphicsI*          gptGfx               = NULL;
 const plDeviceI*            gptDevice            = NULL;
 const plDebugApiI*          gptDebug             = NULL;
 const plImageI*             gptImage             = NULL;
-const plDrawStreamI*        gptStream            = NULL;
 const plEcsI*               gptEcs               = NULL;
 const plCameraI*            gptCamera            = NULL;
 const plResourceI*          gptResource          = NULL;
@@ -136,7 +135,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptDevice      = ptApiRegistry->first(PL_API_DEVICE);
         gptDebug       = ptApiRegistry->first(PL_API_DEBUG);
         gptImage       = ptApiRegistry->first(PL_API_IMAGE);
-        gptStream      = ptApiRegistry->first(PL_API_DRAW_STREAM);
         gptEcs         = ptApiRegistry->first(PL_API_ECS);
         gptCamera      = ptApiRegistry->first(PL_API_CAMERA);
         gptResource    = ptApiRegistry->first(PL_API_RESOURCE);
@@ -185,7 +183,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptDevice      = ptApiRegistry->first(PL_API_DEVICE);
     gptDebug       = ptApiRegistry->first(PL_API_DEBUG);
     gptImage       = ptApiRegistry->first(PL_API_IMAGE);
-    gptStream      = ptApiRegistry->first(PL_API_DRAW_STREAM);
     gptEcs         = ptApiRegistry->first(PL_API_ECS);
     gptCamera      = ptApiRegistry->first(PL_API_CAMERA);
     gptResource    = ptApiRegistry->first(PL_API_RESOURCE);

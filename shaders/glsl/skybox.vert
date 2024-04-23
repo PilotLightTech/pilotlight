@@ -17,9 +17,7 @@ layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
 
 layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
 
-layout(set = 2, binding = 0)  uniform texture2D tSkinningSampler;
-
-layout(set = 3, binding = 0) uniform _plObjectInfo
+layout(set = 2, binding = 0) uniform _plObjectInfo
 {
     mat4 tModel;
 } tObjectInfo;

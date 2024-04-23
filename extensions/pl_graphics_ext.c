@@ -508,21 +508,21 @@ enum plDrawStreamBits
 static void
 pl_drawstream_cleanup(plDrawStream* ptStream)
 {
-    memset(&ptStream->tCurrentDraw, 255, sizeof(plDraw)); 
+    memset(&ptStream->tCurrentDraw, 255, sizeof(plStreamDraw)); 
     pl_sb_free(ptStream->sbtStream);
 }
 
 static void
 pl_drawstream_reset(plDrawStream* ptStream)
 {
-    memset(&ptStream->tCurrentDraw, 255, sizeof(plDraw));
+    memset(&ptStream->tCurrentDraw, 255, sizeof(plStreamDraw));
     ptStream->tCurrentDraw.uIndexBuffer = UINT32_MAX - 1;
     ptStream->tCurrentDraw.uDynamicBufferOffset = 0;
     pl_sb_reset(ptStream->sbtStream);
 }
 
 static void
-pl_drawstream_draw(plDrawStream* ptStream, plDraw tDraw)
+pl_drawstream_draw(plDrawStream* ptStream, plStreamDraw tDraw)
 {
 
     uint32_t uDirtyMask = PL_DRAW_STREAM_BIT_NONE;
@@ -539,10 +539,10 @@ pl_drawstream_draw(plDrawStream* ptStream, plDraw tDraw)
         uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET;
     }
 
-    if(ptStream->tCurrentDraw.uDynamicBuffer != tDraw.uDynamicBuffer)
+    if(ptStream->tCurrentDraw.uBindGroup1 != tDraw.uBindGroup1)
     {
-        ptStream->tCurrentDraw.uDynamicBuffer = tDraw.uDynamicBuffer;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER;
+        ptStream->tCurrentDraw.uBindGroup1 = tDraw.uBindGroup1;
+        uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_1;
     }
 
     if(ptStream->tCurrentDraw.uBindGroup2 != tDraw.uBindGroup2)
@@ -551,10 +551,10 @@ pl_drawstream_draw(plDrawStream* ptStream, plDraw tDraw)
         uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_2;
     }
 
-    if(ptStream->tCurrentDraw.uBindGroup1 != tDraw.uBindGroup1)
+    if(ptStream->tCurrentDraw.uDynamicBuffer != tDraw.uDynamicBuffer)
     {
-        ptStream->tCurrentDraw.uBindGroup1 = tDraw.uBindGroup1;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_1;
+        ptStream->tCurrentDraw.uDynamicBuffer = tDraw.uDynamicBuffer;
+        uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER;
     }
 
     if(ptStream->tCurrentDraw.uIndexOffset != tDraw.uIndexOffset)
@@ -600,16 +600,16 @@ pl_drawstream_draw(plDrawStream* ptStream, plDraw tDraw)
     }
 
     pl_sb_push(ptStream->sbtStream, uDirtyMask);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uDynamicBufferOffset);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uDynamicBuffer);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uBindGroup2);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uBindGroup1);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
         pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uShaderVariant);
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
+        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uDynamicBufferOffset);
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
+        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uBindGroup1);
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
+        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uBindGroup2);
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
+        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uDynamicBuffer);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
         pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uIndexOffset);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_OFFSET)
@@ -624,17 +624,6 @@ pl_drawstream_draw(plDrawStream* ptStream, plDraw tDraw)
         pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uInstanceStart);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_COUNT)
         pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uInstanceCount);
-}
-
-static const plDrawStreamI*
-pl_load_drawstream_api(void)
-{
-    static const plDrawStreamI tApi = {
-        .reset   = pl_drawstream_reset,
-        .draw    = pl_drawstream_draw,
-        .cleanup = pl_drawstream_cleanup
-    };
-    return &tApi;
 }
 
 static uint32_t

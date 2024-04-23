@@ -48,8 +48,7 @@ vertex VertexOut vertex_main(
     VertexIn            in [[stage_in]],
     device BindGroup_0& bg0 [[ buffer(1) ]],
     device BindGroup_1& bg1 [[ buffer(2) ]],
-    device BindGroup_2& bg2 [[ buffer(3) ]],
-    device DynamicData& bg3 [[ buffer(4) ]]
+    device DynamicData& bg3 [[ buffer(3) ]]
     )
 {
     VertexOut tOut;
@@ -64,8 +63,7 @@ fragment float4 fragment_main(
     VertexOut in [[stage_in]],
     device BindGroup_0& bg0 [[ buffer(1) ]],
     device BindGroup_1& bg1 [[ buffer(2) ]],
-    device BindGroup_2& bg2 [[ buffer(3) ]],
-    device DynamicData& bg3 [[ buffer(4) ]])
+    device DynamicData& bg3 [[ buffer(3) ]])
 {
 
     half4 textureSample = bg1.texture_0.sample(bg0.tDefaultSampler, in.tWorldPosition.xyz);

@@ -23,6 +23,10 @@ Index of this file:
 #define PL_GRAPHICS_EXT_VERSION    "0.11.0"
 #define PL_GRAPHICS_EXT_VERSION_NUM 001100
 
+#ifndef PL_MAX_NAME_LENGTH
+    #define PL_MAX_NAME_LENGTH 1024
+#endif
+
 #ifndef PL_DEVICE_ALLOCATION_BLOCK_SIZE
     #define PL_DEVICE_ALLOCATION_BLOCK_SIZE 134217728
 #endif
@@ -81,9 +85,6 @@ typedef struct _plGraphicsI plGraphicsI;
 #define PL_API_DEVICE "PL_API_DEVICE"
 typedef struct _plDeviceI plDeviceI;
 
-#define PL_API_DRAW_STREAM "PL_API_DRAW_STREAM"
-typedef struct _plDrawStreamI plDrawStreamI;
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -102,11 +103,14 @@ typedef struct _plDrawStreamI plDrawStreamI;
 typedef struct _plDevice                     plDevice;
 typedef struct _plBuffer                     plBuffer;
 typedef struct _plSwapchain                  plSwapchain;
+typedef struct _plGraphicsDesc               plGraphicsDesc;
 typedef struct _plGraphics                   plGraphics;
-typedef struct _plDraw                       plDraw;
+typedef struct _plStreamDraw                 plStreamDraw;
 typedef struct _plDispatch                   plDispatch;
 typedef struct _plDrawArea                   plDrawArea;
 typedef struct _plDrawStream                 plDrawStream;
+typedef struct _plDraw                       plDraw;
+typedef struct _plDrawIndex                  plDrawIndex;
 typedef struct _plGraphicsState              plGraphicsState;
 typedef struct _plBlendState                 plBlendState;
 typedef struct _plSpecializationConstant     plSpecializationConstant;
@@ -213,13 +217,6 @@ typedef struct _plWindow    plWindow;
 // [SECTION] public api structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plDrawStreamI
-{
-    void (*reset)  (plDrawStream*);
-    void (*cleanup)(plDrawStream*);
-    void (*draw)   (plDrawStream*, plDraw);
-} plDrawStreamI;
-
 typedef struct _plDeviceI
 {
 
@@ -251,7 +248,6 @@ typedef struct _plDeviceI
     void              (*destroy_bind_group)           (plDevice*, plBindGroupHandle);
     plBindGroup*      (*get_bind_group)               (plDevice*, plBindGroupHandle); // do not store
     
-
     // render passes
     plRenderPassLayoutHandle (*create_render_pass_layout)            (plDevice*, const plRenderPassLayoutDescription*);
     plRenderPassHandle       (*create_render_pass)                   (plDevice*, const plRenderPassDescription*, const plRenderPassAttachments*);
@@ -285,7 +281,7 @@ typedef struct _plDeviceI
 
 typedef struct _plGraphicsI
 {
-    void (*initialize)(plWindow*, plGraphics*);
+    void (*initialize)(plWindow*, const plGraphicsDesc*, plGraphics*);
     void (*resize)    (plGraphics*);
     void (*cleanup)   (plGraphics*);
     void (*setup_ui)  (plGraphics*, plRenderPassHandle);
@@ -306,16 +302,30 @@ typedef struct _plGraphicsI
     bool            (*present)                       (plGraphics*, plCommandBuffer*, const plSubmitInfo*);
 
     // render encoder
-    plRenderEncoder (*begin_render_pass)        (plGraphics*, plCommandBuffer*, plRenderPassHandle);
-    void            (*next_subpass)             (plRenderEncoder*);
-    void            (*end_render_pass)          (plRenderEncoder*);
-    void            (*draw_subpass)             (plRenderEncoder*, uint32_t uAreaCount, plDrawArea*);
-    void            (*bind_graphics_bind_groups)(plRenderEncoder*, plShaderHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle*);
-    
+    plRenderEncoder (*begin_render_pass)(plGraphics*, plCommandBuffer*, plRenderPassHandle);
+    void            (*next_subpass)     (plRenderEncoder*);
+    void            (*end_render_pass)  (plRenderEncoder*);
+
+    // render encoder: draw stream (preferred system)
+    void (*reset_draw_stream)  (plDrawStream*);
+    void (*cleanup_draw_stream)(plDrawStream*);
+    void (*add_to_stream)      (plDrawStream*, plStreamDraw);
+    void (*draw_stream)        (plRenderEncoder*, uint32_t uAreaCount, plDrawArea*);
+
+    // render encoder: direct (prefer draw stream, this should be used for bindless mostly)
+    void (*bind_graphics_bind_groups)(plRenderEncoder*, plShaderHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle*, plDynamicBinding*);
+    void (*set_viewport)             (plRenderEncoder*, plRenderViewport*);
+    void (*set_scissor_region)       (plRenderEncoder*, plScissor*);
+    void (*bind_vertex_buffer)       (plRenderEncoder*, plBufferHandle);
+    void (*draw)                     (plRenderEncoder*, uint32_t uCount, const plDraw*);
+    void (*draw_indexed)             (plRenderEncoder*, uint32_t uCount, const plDrawIndex*);
+    void (*bind_shader)              (plRenderEncoder*, plShaderHandle);
+
     // compute encoder
     plComputeEncoder (*begin_compute_pass)      (plGraphics*, plCommandBuffer*);
     void             (*end_compute_pass)        (plComputeEncoder*);
     void             (*dispatch)                (plComputeEncoder*, uint32_t uDispatchCount, plDispatch*);
+    void             (*bind_compute_shader)     (plComputeEncoder*, plComputeShaderHandle);
     void             (*bind_compute_bind_groups)(plComputeEncoder*, plComputeShaderHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle*);
 
     // blit encoder
@@ -699,10 +709,9 @@ typedef struct _plDispatch
     uint32_t              uGroupCountX;
     uint32_t              uGroupCountY;
     uint32_t              uGroupCountZ;
-    plComputeShaderHandle tShader;
 } plDispatch;
 
-typedef struct _plDraw
+typedef struct _plStreamDraw
 {
     uint32_t uDynamicBuffer;
     uint32_t uVertexBuffer;
@@ -716,13 +725,31 @@ typedef struct _plDraw
     uint32_t uDynamicBufferOffset;
     uint32_t uInstanceStart;
     uint32_t uInstanceCount;
-} plDraw;
+} plStreamDraw;
 
 typedef struct _plDrawStream
 {
-    plDraw    tCurrentDraw;
-    uint32_t* sbtStream;
+    plStreamDraw tCurrentDraw;
+    uint32_t*    sbtStream;
 } plDrawStream;
+
+typedef struct _plDraw
+{
+    uint32_t uVertexStart;
+    uint32_t uVertexCount;
+    uint32_t uInstance;
+    uint32_t uInstanceCount;
+} plDraw;
+
+typedef struct _plDrawIndex
+{
+    uint32_t       uIndexStart;
+    uint32_t       uIndexCount;
+    uint32_t       uVertexStart;
+    uint32_t       uInstance;
+    uint32_t       uInstanceCount;
+    plBufferHandle tIndexBuffer;
+} plDrawIndex;
 
 typedef struct _plSpecializationConstant
 {
@@ -871,6 +898,11 @@ typedef struct _plSwapchain
     // platform specific
     void* _pInternalData;
 } plSwapchain;
+
+typedef struct _plGraphicsDesc
+{
+    bool bEnableValidation;
+} plGraphicsDesc;
 
 typedef struct _plGraphics
 {

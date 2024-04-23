@@ -2767,7 +2767,103 @@ pl_end_render_pass(plRenderEncoder* ptEncoder)
 }
 
 static void
-pl_draw_subpass(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAreas)
+pl_bind_vertex_buffer(plRenderEncoder* ptEncoder, plBufferHandle tHandle)
+{
+    plGraphics* ptGraphics = ptEncoder->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    plVulkanBuffer* ptVertexBuffer = &ptVulkanGfx->sbtBuffersHot[tHandle.uIndex];
+    static VkDeviceSize offsets = { 0 };
+    vkCmdBindVertexBuffers(tCmdBuffer, 0, 1, &ptVertexBuffer->tBuffer, &offsets);
+}
+
+static void
+pl_draw(plRenderEncoder* ptEncoder, uint32_t uCount, const plDraw* atDraws)
+{
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    for(uint32_t i = 0; i < uCount; i++)
+        vkCmdDraw(tCmdBuffer, atDraws[i].uVertexCount, atDraws[i].uInstanceCount, atDraws[i].uVertexStart, atDraws[i].uInstance);
+}
+
+static void
+pl_draw_indexed(plRenderEncoder* ptEncoder, uint32_t uCount, const plDrawIndex* atDraws)
+{
+    plGraphics* ptGraphics = ptEncoder->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+
+    uint32_t uCurrentIndexBuffer = UINT32_MAX;
+
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        if(atDraws->tIndexBuffer.uIndex != uCurrentIndexBuffer)
+        {
+            uCurrentIndexBuffer = atDraws->tIndexBuffer.uIndex;
+            plVulkanBuffer* ptIndexBuffer = &ptVulkanGfx->sbtBuffersHot[uCurrentIndexBuffer];
+            vkCmdBindIndexBuffer(tCmdBuffer, ptIndexBuffer->tBuffer, 0, VK_INDEX_TYPE_UINT32);
+        }
+        vkCmdDrawIndexed(tCmdBuffer, atDraws[i].uIndexCount, atDraws[i].uInstanceCount, atDraws[i].uIndexStart, atDraws[i].uVertexStart, atDraws[i].uInstance);
+    }
+}
+
+static void
+pl_bind_shader(plRenderEncoder* ptEncoder, plShaderHandle tHandle)
+{
+    plGraphics* ptGraphics = ptEncoder->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanShader* ptVulkanShader = &ptVulkanGfx->sbtShadersHot[tHandle.uIndex];
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    vkCmdSetDepthBias(tCmdBuffer, 0.0f, 0.0f, 0.0f);
+    vkCmdBindPipeline(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
+}
+
+static void
+pl_bind_compute_shader(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle)
+{
+    plGraphics* ptGraphics = ptEncoder->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanComputeShader* ptVulkanShader = &ptVulkanGfx->sbtComputeShadersHot[tHandle.uIndex];
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    vkCmdBindPipeline(tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptVulkanShader->tPipeline);
+}
+
+typedef struct _plBindGroupManagerData
+{
+    uint32_t uFirstSlot;
+    uint32_t uCount;
+    VkDescriptorSet auSlots[3];
+    uint32_t auOffsets[2];
+} plBindGroupManagerData;
+
+static void pl__set_bind_group_count(plBindGroupManagerData* ptData, uint32_t uCount)
+{
+    ptData->uCount = uCount;
+    ptData->uFirstSlot = UINT32_MAX;
+}
+
+static void pl__set_bind_group(plBindGroupManagerData* ptData, uint32_t uIndex, VkDescriptorSet tSet)
+{
+    ptData->uFirstSlot = pl_min(ptData->uFirstSlot, uIndex);
+    ptData->auSlots[uIndex] = tSet;
+}
+
+static void pl__set_dynamic_bind_group(plBindGroupManagerData* ptData, VkDescriptorSet tSet, uint32_t uOffset)
+{
+    ptData->auOffsets[0] = uOffset;
+    ptData->uFirstSlot = pl_min(ptData->uFirstSlot, ptData->uCount - 1);
+    ptData->auSlots[ptData->uCount - 1] = tSet;
+}
+
+static void pl__update_bindings(plBindGroupManagerData* ptData, VkCommandBuffer tCmdBuffer, VkPipelineLayout tLayout)
+{
+    VkDescriptorSet atSets[3] = {VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE};
+    for(uint32_t i = 0; i < ptData->uCount; i++)
+        atSets[i] = ptData->auSlots[i];
+    vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, tLayout, ptData->uFirstSlot + 1, ptData->uCount - ptData->uFirstSlot, &atSets[ptData->uFirstSlot], 1, ptData->auOffsets);
+}
+
+static void
+pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAreas)
 {
     pl_begin_profile_sample(__FUNCTION__);
     plGraphics* ptGraphics = ptEncoder->ptGraphics;
@@ -2824,47 +2920,53 @@ pl_draw_subpass(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atA
         plVulkanBindGroup* ptBindGroup0 = &ptVulkanGfx->sbtBindGroupsHot[ptArea->uBindGroup0];
         VkDescriptorSet atDescriptorSets[4] = {ptBindGroup0->tDescriptorSet, VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE};
 
+        plBindGroupManagerData tBindGroupManagerData = {0};
+
         while(uCurrentStreamIndex < uTokens)
         {
-
-            uint32_t uDescriptorStart = 3;
 
             const uint32_t uDirtyMask = ptStream->sbtStream[uCurrentStreamIndex];
             uCurrentStreamIndex++;
 
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
+            {
+                const plShader* ptShader= &ptGraphics->sbtShadersCold[ptStream->sbtStream[uCurrentStreamIndex]];
+                ptVulkanShader = &ptVulkanGfx->sbtShadersHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                vkCmdBindPipeline(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
+                vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, 0, 1, &ptBindGroup0->tDescriptorSet, 0, NULL);
+                pl__set_bind_group_count(&tBindGroupManagerData, ptShader->tDescription.uBindGroupLayoutCount);
+                uCurrentStreamIndex++;
+            }
+
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
             {
                 uDynamicBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
+                tBindGroupManagerData.auOffsets[0] = uDynamicBufferOffset;
                 uCurrentStreamIndex++;
             }
+
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
+            {
+                plVulkanBindGroup* ptBindGroup1 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                pl__set_bind_group(&tBindGroupManagerData, 0, ptBindGroup1->tDescriptorSet);
+                uCurrentStreamIndex++;
+            }
+
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
+            {
+                plVulkanBindGroup* ptBindGroup2 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                pl__set_bind_group(&tBindGroupManagerData, 1, ptBindGroup2->tDescriptorSet);
+                uCurrentStreamIndex++;
+            }
+
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
             {
                 // uDescriptorStart = 3;
                 ptVulkanDynamicBuffer = &ptCurrentFrame->sbtDynamicBuffers[ptStream->sbtStream[uCurrentStreamIndex]];
-                atDescriptorSets[3] = ptVulkanDynamicBuffer->tDescriptorSet;
+                pl__set_dynamic_bind_group(&tBindGroupManagerData, ptVulkanDynamicBuffer->tDescriptorSet, uDynamicBufferOffset);
                 uCurrentStreamIndex++;
             }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
-            {
-                uDescriptorStart = 2;
-                plVulkanBindGroup* ptBindGroup2 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                atDescriptorSets[2] = ptBindGroup2->tDescriptorSet;
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
-            {
-                uDescriptorStart = 1;
-                plVulkanBindGroup* ptBindGroup1 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                atDescriptorSets[1] = ptBindGroup1->tDescriptorSet;
-                uCurrentStreamIndex++;
-            }
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
-            {
-                ptVulkanShader = &ptVulkanGfx->sbtShadersHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                vkCmdBindPipeline(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
-                uCurrentStreamIndex++;
-                uDescriptorStart = 0;
-            }
+
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
             {
                 uIndexBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
@@ -2909,7 +3011,8 @@ pl_draw_subpass(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atA
                 uCurrentStreamIndex++;
             }
 
-            vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, uDescriptorStart, 4 - uDescriptorStart, &atDescriptorSets[uDescriptorStart], 1, &uDynamicBufferOffset);
+            // vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, uDescriptorStart, 4 - uDescriptorStart, &atDescriptorSets[uDescriptorStart], 1, &uDynamicBufferOffset);
+            pl__update_bindings(&tBindGroupManagerData, tCmdBuffer, ptVulkanShader->tPipelineLayout);
 
             if(uIndexBuffer == UINT32_MAX)
                 vkCmdDraw(tCmdBuffer, uTriangleCount * 3, uInstanceCount, uVertexBufferOffset, uInstanceStart);
@@ -2918,6 +3021,42 @@ pl_draw_subpass(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atA
         }
     }
     pl_end_profile_sample();
+}
+
+static void
+pl_set_viewport(plRenderEncoder* ptEncoder, plRenderViewport* ptViewport)
+{
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+
+    const VkViewport tViewport = {
+        .x        = ptViewport->fX,
+        .y        = ptViewport->fY,
+        .width    = ptViewport->fWidth,
+        .height   = ptViewport->fHeight,
+        .minDepth = ptViewport->fMinDepth,
+        .maxDepth = ptViewport->fMaxDepth
+    };
+
+    vkCmdSetViewport(tCmdBuffer, 0, 1, &tViewport);
+}
+
+static void
+pl_set_scissor_region(plRenderEncoder* ptEncoder, plScissor* ptScissor)
+{
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+
+    const VkRect2D tScissor = {
+        .offset = {
+            .x = ptScissor->iOffsetX,
+            .y = ptScissor->iOffsetY
+        },
+        .extent = {
+            .width  = ptScissor->uWidth,
+            .height = ptScissor->uHeight
+        }
+    };
+
+    vkCmdSetScissor(tCmdBuffer, 0, 1, &tScissor);  
 }
 
 static void
@@ -2983,9 +3122,9 @@ pl_free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryA
 }
 
 static void
-pl_initialize_graphics(plWindow* ptWindow, plGraphics* ptGraphics)
+pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraphics* ptGraphics)
 {
-
+    ptGraphics->bValidationActive = ptDesc->bEnableValidation;
     ptGraphics->ptMainWindow = ptWindow;
 
     plIO* ptIOCtx = pl_get_io();
@@ -4166,16 +4305,11 @@ pl_end_blit_pass(plBlitEncoder* ptEncoder)
 static void
 pl_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, plDispatch* atDispatches)
 {
-    plGraphics* ptGraphics = ptEncoder->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
     VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
 
     for(uint32_t i = 0; i < uDispatchCount; i++)
     {
         const plDispatch* ptDispatch = &atDispatches[i];
-        plVulkanComputeShader* ptComputeShader = &ptVulkanGfx->sbtComputeShadersHot[ptDispatch->tShader.uIndex];
-        vkCmdBindPipeline(tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptComputeShader->tPipeline);
         vkCmdDispatch(tCmdBuffer, ptDispatch->uGroupCountX, ptDispatch->uGroupCountY, ptDispatch->uGroupCountZ);
     }
 }
@@ -4203,7 +4337,7 @@ pl_bind_compute_bind_groups(plComputeEncoder* ptEncoder, plComputeShaderHandle t
 }
 
 static void
-pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups)
+pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups, plDynamicBinding* ptDynamicBinding)
 {
     plGraphics* ptGraphics = ptEncoder->ptGraphics;
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
@@ -4212,7 +4346,15 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
 
     plVulkanShader* ptShader = &ptVulkanGfx->sbtShadersHot[tHandle.uIndex];
 
-    VkDescriptorSet* atDescriptorSets = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, sizeof(VkDescriptorSet) * uCount);
+    uint32_t uDynamicBindingCount = 0;
+    uint32_t* puOffsets = NULL;
+    if(ptDynamicBinding)
+    {
+        puOffsets = &ptDynamicBinding->uByteOffset;
+        uDynamicBindingCount++;
+    }
+
+    VkDescriptorSet* atDescriptorSets = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, sizeof(VkDescriptorSet) * (uCount + uDynamicBindingCount));
 
     for(uint32_t i = 0; i < uCount; i++)
     {
@@ -4220,7 +4362,7 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
         atDescriptorSets[i] = ptBindGroup->tDescriptorSet;
     }
 
-    vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptShader->tPipelineLayout, uFirst, uCount, atDescriptorSets, 0, 0);
+    vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptShader->tPipelineLayout, uFirst, uCount, atDescriptorSets, uDynamicBindingCount, puOffsets);
     pl_temp_allocator_reset(&ptVulkanGfx->tTempAllocator);
 }
 
@@ -5696,6 +5838,11 @@ pl_load_graphics_api(void)
         .dispatch                         = pl_dispatch,
         .bind_compute_bind_groups         = pl_bind_compute_bind_groups,
         .bind_graphics_bind_groups        = pl_bind_graphics_bind_groups,
+        .bind_shader                      = pl_bind_shader,
+        .bind_compute_shader              = pl_bind_compute_shader,
+        .set_scissor_region               = pl_set_scissor_region,
+        .set_viewport                     = pl_set_viewport,
+        .bind_vertex_buffer               = pl_bind_vertex_buffer,
         .draw_lists                       = pl_draw_list,
         .cleanup                          = pl_shutdown,
         .create_font_atlas                = pl_create_vulkan_font_texture,
@@ -5723,7 +5870,9 @@ pl_load_graphics_api(void)
         .end_render_pass                  = pl_end_render_pass,
         .end_compute_pass                 = pl_end_compute_pass,
         .end_blit_pass                    = pl_end_blit_pass,
-        .draw_subpass                     = pl_draw_subpass,
+        .draw_stream                      = pl_draw_stream,
+        .draw                             = pl_draw,
+        .draw_indexed                     = pl_draw_indexed,
         .present                          = pl_present,
         .copy_buffer_to_texture           = pl_copy_buffer_to_texture,
         .generate_mipmaps                 = pl_generate_mipmaps,
@@ -5731,7 +5880,10 @@ pl_load_graphics_api(void)
         .transfer_image_to_buffer         = pl_transfer_image_to_buffer,
         .signal_semaphore                 = pl_signal_semaphore,
         .wait_semaphore                   = pl_wait_semaphore,
-        .get_semaphore_value              = pl_get_semaphore_value
+        .get_semaphore_value              = pl_get_semaphore_value,
+        .reset_draw_stream                = pl_drawstream_reset,
+        .add_to_stream                    = pl_drawstream_draw,
+        .cleanup_draw_stream              = pl_drawstream_cleanup
     };
     return &tApi;
 }
@@ -5796,7 +5948,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_GRAPHICS), pl_load_graphics_api());
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_DEVICE), pl_load_device_api());
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_DRAW_STREAM), pl_load_drawstream_api());
 
         // find log channel
         uint32_t uChannelCount = 0;
@@ -5813,8 +5964,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     else
     {
         ptApiRegistry->add(PL_API_GRAPHICS, pl_load_graphics_api());
-        ptApiRegistry->add(PL_API_DEVICE, pl_load_device_api());      
-        ptApiRegistry->add(PL_API_DRAW_STREAM, pl_load_drawstream_api());      
+        ptApiRegistry->add(PL_API_DEVICE, pl_load_device_api());
         uLogChannel = pl_add_log_channel("Vulkan", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
     }
 }

@@ -250,7 +250,6 @@ static const plFileI*          gptFile          = NULL;
 static const plDeviceI*        gptDevice        = NULL;
 static const plGraphicsI*      gptGfx           = NULL;
 static const plCameraI*        gptCamera        = NULL;
-static const plDrawStreamI*    gptStream        = NULL;
 static const plImageI*         gptImage         = NULL;
 static const plStatsI*         gptStats         = NULL;
 static const plGPUAllocatorsI* gptGpuAllocators = NULL;
@@ -311,8 +310,10 @@ pl_refr_initialize(plWindow* ptWindow)
     gptData->ptStagingUnCachedAllocator = gptGpuAllocators->create_staging_uncached_allocator(&ptGraphics->tDevice);
 
     // initialize graphics
-    ptGraphics->bValidationActive = true;
-    gptGfx->initialize(ptWindow, ptGraphics);
+    const plGraphicsDesc tGraphicsDesc = {
+        .bEnableValidation = true
+    };
+    gptGfx->initialize(ptWindow, &tGraphicsDesc, ptGraphics);
     gptDataRegistry->set_data("device", &ptGraphics->tDevice); // used by debug extension
 
     // create staging buffer
@@ -922,7 +923,7 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
 static void
 pl_refr_cleanup(void)
 {
-    gptStream->cleanup(&gptData->tDrawStream);
+    gptGfx->cleanup_draw_stream(&gptData->tDrawStream);
 
     for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
     {
@@ -1012,7 +1013,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             .uBlendStateCount = 1,
             .tRenderPassLayout = ptScene->tRenderPassLayout,
             .uSubpassIndex = 2,
-            .uBindGroupLayoutCount = 3,
+            .uBindGroupLayoutCount = 2,
             .atBindGroupLayouts = {
                 {
                     .uBufferCount  = 3,
@@ -1035,16 +1036,6 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
                     },
                     .uSamplerCount = 1,
                     .atSamplers = { {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}}
-                },
-                {
-                    .uTextureCount = 1,
-                    .aTextures = {
-                        {
-                            .uSlot = 0,
-                            .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL,
-                            .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
-                        }
-                    },
                 },
                 {
                     .uTextureCount = 1,
@@ -1183,13 +1174,13 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         .uGroupCountZ     = 2,
         .uThreadPerGroupX = 16,
         .uThreadPerGroupY = 16,
-        .uThreadPerGroupZ = 3,
-        .tShader          = gptData->tPanoramaShader
+        .uThreadPerGroupZ = 3
     };
 
     plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
     plComputeEncoder tComputeEncoder = gptGfx->begin_compute_pass(ptGraphics, &tCommandBuffer);
     gptGfx->bind_compute_bind_groups(&tComputeEncoder, gptData->tPanoramaShader, 0, 1, &tComputeBindGroup);
+    gptGfx->bind_compute_shader(&tComputeEncoder, gptData->tPanoramaShader);
     gptGfx->dispatch(&tComputeEncoder, 1, &tDispach);
     gptGfx->end_compute_pass(&tComputeEncoder);
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
@@ -1745,7 +1736,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     };
     gptDevice->update_bind_group(&ptGraphics->tDevice, tGlobalBG, &tBGData0);
 
-    gptStream->reset(ptStream);
+    gptGfx->reset_draw_stream(ptStream);
 
     const plVec2 tDimensions = ptGraphics->sbtRenderPassesCold[ptView->tRenderPass.uIndex].tDesc.tDimensions;
 
@@ -1790,7 +1781,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         ptDynamicData->tModel = ptTransform->tWorld;
         ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
 
-        gptStream->draw(ptStream, (plDraw)
+        gptGfx->add_to_stream(ptStream, (plStreamDraw)
         {
             .uShaderVariant       = tDrawable.uShader,
             .uDynamicBuffer       = tDynamicBinding.uBufferHandle,
@@ -1806,9 +1797,9 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         });
     }
 
-    gptGfx->draw_subpass(&tEncoder, 1, &tArea);
+    gptGfx->draw_stream(&tEncoder, 1, &tArea);
 
-    gptStream->reset(ptStream);
+    gptGfx->reset_draw_stream(ptStream);
     
     typedef struct _plLightingDynamicData{
         int iDataOffset;
@@ -1820,7 +1811,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     ptLightingDynamicData->iDataOffset = ptScene->tLightingDrawable.uDataOffset;
     ptLightingDynamicData->iVertexOffset = ptScene->tLightingDrawable.uVertexOffset;
 
-    gptStream->draw(ptStream, (plDraw)
+    gptGfx->add_to_stream(ptStream, (plStreamDraw)
     {
         .uShaderVariant       = gptData->tLightingShader.uIndex,
         .uDynamicBuffer       = tLightingDynamicData.uBufferHandle,
@@ -1835,8 +1826,8 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         .uInstanceCount       = 1
     });
     gptGfx->next_subpass(&tEncoder);
-    gptGfx->draw_subpass(&tEncoder, 1, &tArea);
-    gptStream->reset(ptStream);
+    gptGfx->draw_stream(&tEncoder, 1, &tArea);
+    gptGfx->reset_draw_stream(ptStream);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~skybox~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1847,7 +1838,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         plMat4* ptSkyboxDynamicData = (plMat4*)tSkyboxDynamicData.pcData;
         *ptSkyboxDynamicData = pl_mat4_translate_vec3(ptCamera->tPos);
 
-        gptStream->draw(ptStream, (plDraw)
+        gptGfx->add_to_stream(ptStream, (plStreamDraw)
         {
             .uShaderVariant       = gptData->tSkyboxShader.uIndex,
             .uDynamicBuffer       = tSkyboxDynamicData.uBufferHandle,
@@ -1856,17 +1847,16 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
             .uIndexOffset         = ptScene->tSkyboxDrawable.uIndexOffset,
             .uTriangleCount       = ptScene->tSkyboxDrawable.uIndexCount / 3,
             .uBindGroup1          = ptScene->tSkyboxBindGroup.uIndex,
-            .uBindGroup2          = gptData->tNullSkinBindgroup.uIndex,
             .uDynamicBufferOffset = tSkyboxDynamicData.uByteOffset,
             .uInstanceStart       = 0,
             .uInstanceCount       = 1
         });
 
         gptGfx->next_subpass(&tEncoder);
-        gptGfx->draw_subpass(&tEncoder, 1, &tArea);
+        gptGfx->draw_stream(&tEncoder, 1, &tArea);
     }
 
-    gptStream->reset(ptStream);
+    gptGfx->reset_draw_stream(ptStream);
 
     if(tOptions.bShowAllBoundingBoxes)
     {
@@ -2763,7 +2753,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
    gptDevice        = ptApiRegistry->first(PL_API_DEVICE);
    gptGfx           = ptApiRegistry->first(PL_API_GRAPHICS);
    gptCamera        = ptApiRegistry->first(PL_API_CAMERA);
-   gptStream        = ptApiRegistry->first(PL_API_DRAW_STREAM);
    gptImage         = ptApiRegistry->first(PL_API_IMAGE);
    gptStats         = ptApiRegistry->first(PL_API_STATS);
    gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
