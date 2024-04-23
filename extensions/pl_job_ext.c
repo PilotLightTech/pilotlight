@@ -123,19 +123,26 @@ static void
 pl__dispatch_jobs(uint32_t uJobCount, plJobDesc* ptJobs, plAtomicCounter** pptCounter)
 {
 
+    plAtomicCounter* ptCounter = NULL;
+
     // try to unlock (spin lock)
     while(true)
     {
         if(gptAtomics->atomic_compare_exchange(gptData.ptQueueLatch, 0, 1))
         {
 
-            // get free atomic counter node
-            uint32_t uNode = gptData.uFreeList;
-            pl__remove_node_from_freelist(uNode);
-            *pptCounter = gptData.atNodes[uNode].ptCounter;
+            if(pptCounter)
+            {
+                // get free atomic counter node
+                uint32_t uNode = gptData.uFreeList;
+                pl__remove_node_from_freelist(uNode);
+                
+                ptCounter = gptData.atNodes[uNode].ptCounter;
+                *pptCounter = ptCounter;
 
-            // store job count into counter
-            gptAtomics->atomic_store(*pptCounter, (uint64_t)uJobCount);
+                // store job count into counter
+                gptAtomics->atomic_store(ptCounter, (uint64_t)uJobCount);
+            }
 
             // set total job count in queue
             gptData.uBatchCount += uJobCount;
@@ -146,7 +153,7 @@ pl__dispatch_jobs(uint32_t uJobCount, plJobDesc* ptJobs, plAtomicCounter** pptCo
             {
                 gptData.atBatches[gptData.uBackIndex].task = ptJobs[i].task;
                 gptData.atBatches[gptData.uBackIndex].pData = ptJobs[i].pData;
-                gptData.atBatches[gptData.uBackIndex].ptCounter = *pptCounter;
+                gptData.atBatches[gptData.uBackIndex].ptCounter = ptCounter;
                 gptData.atBatches[gptData.uBackIndex].uJobIndex = i;
                 gptData.atBatches[gptData.uBackIndex].uGroupSize = 1;
                 gptData.uBackIndex--;
@@ -204,6 +211,8 @@ static void
 pl__dispatch_batch(uint32_t uJobCount, uint32_t uGroupSize, plJobDesc tJobDesc, plAtomicCounter** pptCounter)
 {
 
+    plAtomicCounter* ptCounter = NULL;
+
     // find optimal group size
     if(uGroupSize == 0)
     {
@@ -222,13 +231,18 @@ pl__dispatch_batch(uint32_t uJobCount, uint32_t uGroupSize, plJobDesc tJobDesc, 
     {
         if(gptAtomics->atomic_compare_exchange(gptData.ptQueueLatch, 0, 1))
         {
+            
+            uint32_t uBatches = (uint32_t)floorf((float)uJobCount / (float)uGroupSize);
+            uint32_t uLeftOverJobs = uJobCount % uGroupSize;
 
-            // get free atomic counter node
-            uint32_t uNode = gptData.uFreeList;
-            pl__remove_node_from_freelist(uNode);
-            *pptCounter = gptData.atNodes[uNode].ptCounter;
-
-            const uint32_t uBatches = (uint32_t)floorf((float)uJobCount / (float)uGroupSize);
+            if(pptCounter)
+            {
+                uint32_t uNode = gptData.uFreeList;
+                pl__remove_node_from_freelist(uNode);
+                ptCounter = gptData.atNodes[uNode].ptCounter;
+                *pptCounter = ptCounter;
+                gptAtomics->atomic_store(ptCounter, (uint64_t)uBatches + (uLeftOverJobs > 0 ? 1 : 0));
+            }
 
             gptData.uBatchCount += uBatches;
             PL_ASSERT(gptData.uBatchCount < PL_MAX_BATCHES);
@@ -238,7 +252,7 @@ pl__dispatch_batch(uint32_t uJobCount, uint32_t uGroupSize, plJobDesc tJobDesc, 
             {
                 gptData.atBatches[gptData.uBackIndex].task = tJobDesc.task;
                 gptData.atBatches[gptData.uBackIndex].pData = tJobDesc.pData;
-                gptData.atBatches[gptData.uBackIndex].ptCounter = *pptCounter;
+                gptData.atBatches[gptData.uBackIndex].ptCounter = ptCounter;
                 gptData.atBatches[gptData.uBackIndex].uJobIndex = i * uGroupSize;
                 gptData.atBatches[gptData.uBackIndex].uGroupSize = uGroupSize;
                 gptData.uBackIndex--;
@@ -246,24 +260,18 @@ pl__dispatch_batch(uint32_t uJobCount, uint32_t uGroupSize, plJobDesc tJobDesc, 
                     gptData.uBackIndex = PL_MAX_BATCHES - 1;
             }
 
-            uint32_t uLeftOverJobs = uJobCount % uGroupSize;
             if(uLeftOverJobs > 0)
             {
-                gptAtomics->atomic_store(*pptCounter, (uint64_t)uBatches + 1);
                 gptData.uBatchCount++;
                 PL_ASSERT(gptData.uBatchCount < PL_MAX_BATCHES);
                 gptData.atBatches[gptData.uBackIndex].task = tJobDesc.task;
                 gptData.atBatches[gptData.uBackIndex].pData = tJobDesc.pData;
-                gptData.atBatches[gptData.uBackIndex].ptCounter = *pptCounter;
+                gptData.atBatches[gptData.uBackIndex].ptCounter = ptCounter;
                 gptData.atBatches[gptData.uBackIndex].uJobIndex = uBatches * uGroupSize;
                 gptData.atBatches[gptData.uBackIndex].uGroupSize = uLeftOverJobs;
                 gptData.uBackIndex--;
                 if(gptData.uBackIndex == UINT32_MAX) // wrap around
                     gptData.uBackIndex = PL_MAX_BATCHES - 1; 
-            }
-            else
-            {
-                gptAtomics->atomic_store(*pptCounter, (uint64_t)uBatches);
             }
 
             break;
@@ -330,7 +338,8 @@ pl__thread_procedure(void* pData)
                 tBatch.task(tBatch.uJobIndex + i, tBatch.pData);
 
             // decrement atomic counter
-            gptAtomics->atomic_decrement(tBatch.ptCounter);
+            if(tBatch.ptCounter)
+                gptAtomics->atomic_decrement(tBatch.ptCounter);
 
         }
         else // no jobs

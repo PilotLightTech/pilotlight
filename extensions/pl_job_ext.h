@@ -21,15 +21,15 @@ Index of this file:
 #ifndef PL_JOB_EXT_H
 #define PL_JOB_EXT_H
 
-#define PL_JOB_EXT_VERSION    "1.0.0"
-#define PL_JOB_EXT_VERSION_NUM 100000
+#define PL_JOB_EXT_VERSION    "1.1.0"
+#define PL_JOB_EXT_VERSION_NUM 10100
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------
 
 #ifndef PL_MAX_BATCHES
-    #define PL_MAX_BATCHES 256
+    #define PL_MAX_BATCHES 64
 #endif
 
 #ifndef PL_MAX_JOB_THREADS
@@ -77,7 +77,8 @@ typedef struct _plJobI
 
     // typical usage
     //   - submit an array of job descriptions and receive an atomic counter pointer
-    //   - use "wait_for_counter" to wait on jobs to complete and return counter
+    //   - pass NULL for the atomic counter pointer if you don't need to wait (fire & forget)
+    //   - use "wait_for_counter" to wait on jobs to complete and return counter for reuse
     void (*dispatch_jobs)(uint32_t uJobCount, plJobDesc*, plAtomicCounter**);
 
     // batch usage
@@ -85,6 +86,7 @@ typedef struct _plJobI
     //   using the job index. If the jobs are small, consider increasing the group size.
     //   - uJobCount  : how many jobs to generate
     //   - uGroupSize : how many jobs to execute per thread serially (set 0 for optimal group size)
+    //   - pass NULL for the atomic counter pointer if you don't need to wait (fire & forget)
     void (*dispatch_batch)(uint32_t uJobCount, uint32_t uGroupSize, plJobDesc, plAtomicCounter**);
     
     // waits for counter to reach 0 and returns the counter for reuse but subsequent dispatches

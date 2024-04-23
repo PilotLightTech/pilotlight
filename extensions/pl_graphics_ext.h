@@ -337,9 +337,10 @@ typedef struct _plGraphicsI
     void          (*transfer_image_to_buffer)(plBlitEncoder*, plTextureHandle tTexture, plBufferHandle tBuffer); // from single layer & single mip textures
 
     // 2D drawing api
-    void (*draw_lists)        (plGraphics*, plRenderEncoder, uint32_t uListCount, plDrawList*);
-    void (*create_font_atlas) (plFontAtlas*);
-    void (*destroy_font_atlas)(plFontAtlas*);
+    void  (*draw_lists)           (plGraphics*, plRenderEncoder, uint32_t uListCount, plDrawList*);
+    void  (*create_font_atlas)    (plFontAtlas*);
+    void  (*destroy_font_atlas)   (plFontAtlas*);
+    void* (*get_ui_texture_handle)(plGraphics*, plTextureHandle, plSamplerHandle);
 
     // 3D drawing api
     void (*submit_3d_drawlist)    (plDrawList3D*, plRenderEncoder, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags, uint32_t uMSAASampleCount);
@@ -353,9 +354,6 @@ typedef struct _plGraphicsI
     void (*add_3d_aabb)           (plDrawList3D*, plVec3 tMin, plVec3 tMax, plVec4 tColor, float fThickness);
     void (*add_3d_bezier_quad)    (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
     void (*add_3d_bezier_cubic)   (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
-
-    // misc
-    void* (*get_ui_texture_handle)(plGraphics*, plTextureHandle, plSamplerHandle);
 } plGraphicsI;
 
 //-----------------------------------------------------------------------------
