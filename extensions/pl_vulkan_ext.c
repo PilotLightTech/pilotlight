@@ -4174,13 +4174,54 @@ pl_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, plDispatch* at
     for(uint32_t i = 0; i < uDispatchCount; i++)
     {
         const plDispatch* ptDispatch = &atDispatches[i];
-        plVulkanComputeShader* ptComputeShader = &ptVulkanGfx->sbtComputeShadersHot[ptDispatch->uShaderVariant];
-        plVulkanBindGroup* ptBindGroup = &ptVulkanGfx->sbtBindGroupsHot[ptDispatch->uBindGroup0];
-
+        plVulkanComputeShader* ptComputeShader = &ptVulkanGfx->sbtComputeShadersHot[ptDispatch->tShader.uIndex];
         vkCmdBindPipeline(tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptComputeShader->tPipeline);
-        vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptComputeShader->tPipelineLayout, 0, 1, &ptBindGroup->tDescriptorSet, 0, 0);
         vkCmdDispatch(tCmdBuffer, ptDispatch->uGroupCountX, ptDispatch->uGroupCountY, ptDispatch->uGroupCountZ);
     }
+}
+
+static void
+pl_bind_compute_bind_groups(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups)
+{   
+    plGraphics* ptGraphics = ptEncoder->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+
+    plVulkanComputeShader* ptComputeShader = &ptVulkanGfx->sbtComputeShadersHot[tHandle.uIndex];
+
+    VkDescriptorSet* atDescriptorSets = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, sizeof(VkDescriptorSet) * uCount);
+
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        plVulkanBindGroup* ptBindGroup = &ptVulkanGfx->sbtBindGroupsHot[atBindGroups[i].uIndex];
+        atDescriptorSets[i] = ptBindGroup->tDescriptorSet;
+    }
+
+    vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptComputeShader->tPipelineLayout, uFirst, uCount, atDescriptorSets, 0, 0);
+    pl_temp_allocator_reset(&ptVulkanGfx->tTempAllocator);
+}
+
+static void
+pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups)
+{
+    plGraphics* ptGraphics = ptEncoder->ptGraphics;
+    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
+    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
+    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+
+    plVulkanShader* ptShader = &ptVulkanGfx->sbtShadersHot[tHandle.uIndex];
+
+    VkDescriptorSet* atDescriptorSets = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, sizeof(VkDescriptorSet) * uCount);
+
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        plVulkanBindGroup* ptBindGroup = &ptVulkanGfx->sbtBindGroupsHot[atBindGroups[i].uIndex];
+        atDescriptorSets[i] = ptBindGroup->tDescriptorSet;
+    }
+
+    vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptShader->tPipelineLayout, uFirst, uCount, atDescriptorSets, 0, 0);
+    pl_temp_allocator_reset(&ptVulkanGfx->tTempAllocator);
 }
 
 static void
@@ -5653,6 +5694,8 @@ pl_load_graphics_api(void)
         .setup_ui                         = pl_setup_ui,
         .begin_frame                      = pl_begin_frame,
         .dispatch                         = pl_dispatch,
+        .bind_compute_bind_groups         = pl_bind_compute_bind_groups,
+        .bind_graphics_bind_groups        = pl_bind_graphics_bind_groups,
         .draw_lists                       = pl_draw_list,
         .cleanup                          = pl_shutdown,
         .create_font_atlas                = pl_create_vulkan_font_texture,

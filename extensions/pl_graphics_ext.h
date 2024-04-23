@@ -306,15 +306,17 @@ typedef struct _plGraphicsI
     bool            (*present)                       (plGraphics*, plCommandBuffer*, const plSubmitInfo*);
 
     // render encoder
-    plRenderEncoder (*begin_render_pass)(plGraphics*, plCommandBuffer*, plRenderPassHandle);
-    void            (*next_subpass)     (plRenderEncoder*);
-    void            (*end_render_pass)  (plRenderEncoder*);
-    void            (*draw_subpass)     (plRenderEncoder*, uint32_t uAreaCount, plDrawArea*);
+    plRenderEncoder (*begin_render_pass)        (plGraphics*, plCommandBuffer*, plRenderPassHandle);
+    void            (*next_subpass)             (plRenderEncoder*);
+    void            (*end_render_pass)          (plRenderEncoder*);
+    void            (*draw_subpass)             (plRenderEncoder*, uint32_t uAreaCount, plDrawArea*);
+    void            (*bind_graphics_bind_groups)(plRenderEncoder*, plShaderHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle*);
     
     // compute encoder
-    plComputeEncoder (*begin_compute_pass)(plGraphics*, plCommandBuffer*);
-    void             (*end_compute_pass)  (plComputeEncoder*);
-    void             (*dispatch)          (plComputeEncoder*, uint32_t uDispatchCount, plDispatch*);
+    plComputeEncoder (*begin_compute_pass)      (plGraphics*, plCommandBuffer*);
+    void             (*end_compute_pass)        (plComputeEncoder*);
+    void             (*dispatch)                (plComputeEncoder*, uint32_t uDispatchCount, plDispatch*);
+    void             (*bind_compute_bind_groups)(plComputeEncoder*, plComputeShaderHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle*);
 
     // blit encoder
     plBlitEncoder (*begin_blit_pass)         (plGraphics*, plCommandBuffer*);
@@ -691,14 +693,13 @@ typedef struct _plDrawArea
 
 typedef struct _plDispatch
 {
-    uint32_t uThreadPerGroupX;
-    uint32_t uThreadPerGroupY;
-    uint32_t uThreadPerGroupZ;
-    uint32_t uGroupCountX;
-    uint32_t uGroupCountY;
-    uint32_t uGroupCountZ;
-    uint32_t uShaderVariant;
-    uint32_t uBindGroup0;
+    uint32_t              uThreadPerGroupX;
+    uint32_t              uThreadPerGroupY;
+    uint32_t              uThreadPerGroupZ;
+    uint32_t              uGroupCountX;
+    uint32_t              uGroupCountY;
+    uint32_t              uGroupCountZ;
+    plComputeShaderHandle tShader;
 } plDispatch;
 
 typedef struct _plDraw

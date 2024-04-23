@@ -1178,18 +1178,18 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     gptDevice->update_bind_group(ptDevice, tComputeBindGroup, &tBGData);
 
     plDispatch tDispach = {
-        .uBindGroup0      = tComputeBindGroup.uIndex,
         .uGroupCountX     = (uint32_t)iResolution / 16,
         .uGroupCountY     = (uint32_t)iResolution / 16,
         .uGroupCountZ     = 2,
         .uThreadPerGroupX = 16,
         .uThreadPerGroupY = 16,
         .uThreadPerGroupZ = 3,
-        .uShaderVariant   = gptData->tPanoramaShader.uIndex
+        .tShader          = gptData->tPanoramaShader
     };
 
     plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
     plComputeEncoder tComputeEncoder = gptGfx->begin_compute_pass(ptGraphics, &tCommandBuffer);
+    gptGfx->bind_compute_bind_groups(&tComputeEncoder, gptData->tPanoramaShader, 0, 1, &tComputeBindGroup);
     gptGfx->dispatch(&tComputeEncoder, 1, &tDispach);
     gptGfx->end_compute_pass(&tComputeEncoder);
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
