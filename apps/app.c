@@ -532,15 +532,20 @@ pl_app_update(plAppData* ptAppData)
         }
         if(pl_collapsing_header("Tools"))
         {
-            if(pl_button("resize"))
-                ptAppData->bResize = true;
-            pl_checkbox("Always Resize", &ptAppData->bAlwaysResize);
             pl_checkbox("Device Memory Analyzer", &ptAppData->tDebugInfo.bShowDeviceMemoryAnalyzer);
             pl_checkbox("Memory Allocations", &ptAppData->tDebugInfo.bShowMemoryAllocations);
             pl_checkbox("Profiling", &ptAppData->tDebugInfo.bShowProfiling);
             pl_checkbox("Statistics", &ptAppData->tDebugInfo.bShowStats);
             pl_checkbox("Logging", &ptAppData->tDebugInfo.bShowLogging);
             pl_checkbox("Entities", &ptAppData->bShowEntityWindow);
+            pl_end_collapsing_header();
+        }
+
+        if(pl_collapsing_header("Debug"))
+        {
+            if(pl_button("resize"))
+                ptAppData->bResize = true;
+            pl_checkbox("Always Resize", &ptAppData->bAlwaysResize);
             pl_end_collapsing_header();
         }
 

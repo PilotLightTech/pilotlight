@@ -179,7 +179,6 @@ PL_DEFINE_HANDLE(plSemaphoreHandle);
 
 // device memory
 typedef struct _plDeviceMemoryRequirements plDeviceMemoryRequirements;
-typedef struct _plDeviceAllocationRange    plDeviceAllocationRange;
 typedef struct _plDeviceAllocationBlock    plDeviceAllocationBlock;
 typedef struct _plDeviceMemoryAllocation   plDeviceMemoryAllocation;
 typedef struct _plDeviceMemoryAllocatorI   plDeviceMemoryAllocatorI;
@@ -191,26 +190,26 @@ typedef struct _plDrawVertex3DLine  plDrawVertex3DLine; // single vertex (pos + 
 
 // enums
 typedef int pl3DDrawFlags;
-typedef int plDataType;               // -> enum _plDataType               // Enum:
-typedef int plBufferBindingType;      // -> enum _plBufferBindingType      // Enum:
-typedef int plTextureBindingType;     // -> enum _plTextureBindingType     // Enum:
-typedef int plTextureType;            // -> enum _plTextureType            // Enum:
-typedef int plBufferUsage;            // -> enum _plBufferUsage            // Enum:
-typedef int plTextureUsage;           // -> enum _plTextureUsage           // Enum:
-typedef int plMeshFormatFlags;        // -> enum _plMeshFormatFlags        // Flags:
-typedef int plStageFlags;             // -> enum _plStageFlags             // Flags:
-typedef int plCullMode;               // -> enum _plCullMode               // Enum:
-typedef int plFilter;                 // -> enum _plFilter                 // Enum:
-typedef int plWrapMode;               // -> enum _plWrapMode               // Enum:
-typedef int plCompareMode;            // -> enum _plCompareMode            // Enum:
-typedef int plFormat;                 // -> enum _plFormat                 // Enum:
-typedef int plStencilOp;              // -> enum _plStencilOp              // Enum:
-typedef int plMemoryMode;             // -> enum _plMemoryMode             // Enum:
-typedef int plLoadOperation;          // -> enum _plLoadOperation          // Enum:
-typedef int plLoadOp;                 // -> enum _plLoadOp                 // Enum:
-typedef int plStoreOp;                // -> enum _plStoreOp                // Enum:
-typedef int plBlendOp;                // -> enum _plBlendOp                // Enum:
-typedef int plBlendFactor;            // -> enum _plBlendFactor            // Enum:
+typedef int plDataType;           // -> enum _plDataType               // Enum:
+typedef int plBufferBindingType;  // -> enum _plBufferBindingType      // Enum:
+typedef int plTextureBindingType; // -> enum _plTextureBindingType     // Enum:
+typedef int plTextureType;        // -> enum _plTextureType            // Enum:
+typedef int plBufferUsage;        // -> enum _plBufferUsage            // Enum:
+typedef int plTextureUsage;       // -> enum _plTextureUsage           // Enum:
+typedef int plMeshFormatFlags;    // -> enum _plMeshFormatFlags        // Flags:
+typedef int plStageFlags;         // -> enum _plStageFlags             // Flags:
+typedef int plCullMode;           // -> enum _plCullMode               // Enum:
+typedef int plFilter;             // -> enum _plFilter                 // Enum:
+typedef int plWrapMode;           // -> enum _plWrapMode               // Enum:
+typedef int plCompareMode;        // -> enum _plCompareMode            // Enum:
+typedef int plFormat;             // -> enum _plFormat                 // Enum:
+typedef int plStencilOp;          // -> enum _plStencilOp              // Enum:
+typedef int plMemoryMode;         // -> enum _plMemoryMode             // Enum:
+typedef int plLoadOperation;      // -> enum _plLoadOperation          // Enum:
+typedef int plLoadOp;             // -> enum _plLoadOp                 // Enum:
+typedef int plStoreOp;            // -> enum _plStoreOp                // Enum:
+typedef int plBlendOp;            // -> enum _plBlendOp                // Enum:
+typedef int plBlendFactor;        // -> enum _plBlendFactor            // Enum:
 
 // external
 typedef struct _plDrawList  plDrawList;
@@ -340,13 +339,13 @@ typedef struct _plGraphicsI
     void          (*copy_buffer)             (plBlitEncoder*, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t);
     void          (*transfer_image_to_buffer)(plBlitEncoder*, plTextureHandle tTexture, plBufferHandle tBuffer); // from single layer & single mip textures
 
-    // 2D drawing api
+    // 2D drawing api (will be moved to an extension)
     void  (*draw_lists)           (plGraphics*, plRenderEncoder, uint32_t uListCount, plDrawList*);
     void  (*create_font_atlas)    (plFontAtlas*);
     void  (*destroy_font_atlas)   (plFontAtlas*);
     void* (*get_ui_texture_handle)(plGraphics*, plTextureHandle, plSamplerHandle);
 
-    // 3D drawing api
+    // 3D drawing api (will be moved to an extension)
     void (*submit_3d_drawlist)    (plDrawList3D*, plRenderEncoder, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags, uint32_t uMSAASampleCount);
     void (*register_3d_drawlist)  (plGraphics*, plDrawList3D*);
     void (*add_3d_triangle_filled)(plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
@@ -401,9 +400,9 @@ typedef struct _plBindGroupUpdateSamplerData
 
 typedef struct _plBindGroupUpdateData
 {
-    uint32_t uBufferCount;
-    uint32_t uTextureCount;
-    uint32_t uSamplerCount;
+    uint32_t                            uBufferCount;
+    uint32_t                            uTextureCount;
+    uint32_t                            uSamplerCount;
     const plBindGroupUpdateBufferData*  atBuffers;
     const plBindGroupUpdateTextureData* atTextures;
     const plBindGroupUpdateSamplerData* atSamplerBindings;
@@ -497,6 +496,13 @@ typedef struct _plDrawList3D
     uint32_t*            sbtLineIndexBuffer;
 } plDrawList3D;
 
+typedef struct _plDeviceMemoryRequirements
+{
+    uint64_t ulSize;
+    uint64_t ulAlignment;
+    uint32_t uMemoryTypeBits;
+} plDeviceMemoryRequirements;
+
 typedef struct _plDeviceMemoryAllocation
 {
     plMemoryMode              tMemoryMode;
@@ -506,24 +512,6 @@ typedef struct _plDeviceMemoryAllocation
     char*                     pHostMapped;
     plDeviceMemoryAllocatorI* ptAllocator;
 } plDeviceMemoryAllocation;
-
-typedef struct _plDeviceAllocationRange
-{
-    char     acName[PL_MAX_NAME_LENGTH];
-    uint64_t ulOffset;
-    uint64_t ulUsedSize;
-    uint64_t ulTotalSize;
-    uint64_t ulBlockIndex;
-    uint32_t uNodeIndex;
-    uint32_t uNextNode;
-} plDeviceAllocationRange;
-
-typedef struct _plDeviceMemoryRequirements
-{
-    uint64_t ulSize;
-    uint64_t ulAlignment;
-    uint32_t uMemoryTypeBits;
-} plDeviceMemoryRequirements;
 
 typedef struct _plDeviceAllocationBlock
 {
@@ -539,15 +527,9 @@ typedef struct _plDeviceAllocationBlock
 
 typedef struct _plDeviceMemoryAllocatorI
 {
-
     struct plDeviceMemoryAllocatorO* ptInst; // opaque pointer
-
     plDeviceMemoryAllocation (*allocate)(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
     void                     (*free)    (struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation);
-
-    // for debug views
-    plDeviceAllocationBlock* (*blocks)  (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
-    plDeviceAllocationRange* (*ranges)  (struct plDeviceMemoryAllocatorO* ptInst, uint32_t* puSizeOut);
 } plDeviceMemoryAllocatorI;
 
 typedef struct _plTextureViewDesc
@@ -598,9 +580,9 @@ typedef struct _plTexture
 
 typedef struct _plBufferDescription
 {
-    char           acDebugName[PL_MAX_NAME_LENGTH];
-    plBufferUsage  tUsage;
-    uint32_t       uByteSize;
+    char          acDebugName[PL_MAX_NAME_LENGTH];
+    plBufferUsage tUsage;
+    uint32_t      uByteSize;
 } plBufferDescription;
 
 typedef struct _plBuffer
@@ -705,12 +687,12 @@ typedef struct _plDrawArea
 
 typedef struct _plDispatch
 {
-    uint32_t              uThreadPerGroupX;
-    uint32_t              uThreadPerGroupY;
-    uint32_t              uThreadPerGroupZ;
-    uint32_t              uGroupCountX;
-    uint32_t              uGroupCountY;
-    uint32_t              uGroupCountZ;
+    uint32_t uThreadPerGroupX;
+    uint32_t uThreadPerGroupY;
+    uint32_t uThreadPerGroupZ;
+    uint32_t uGroupCountX;
+    uint32_t uGroupCountY;
+    uint32_t uGroupCountZ;
 } plDispatch;
 
 typedef struct _plStreamDraw
@@ -798,12 +780,12 @@ typedef struct _plShader
 
 typedef struct _plComputeShaderDescription
 {
-    const char*                    pcShader;
-    const char*                    pcShaderEntryFunc;
-    plBindGroupLayout              tBindGroupLayout;
-    plSpecializationConstant       atConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
-    uint32_t                       uConstantCount;
-    const void*                    pTempConstantData;
+    const char*              pcShader;
+    const char*              pcShaderEntryFunc;
+    plBindGroupLayout        tBindGroupLayout;
+    plSpecializationConstant atConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
+    uint32_t                 uConstantCount;
+    const void*              pTempConstantData;
 } plComputeShaderDescription;
 
 typedef struct _plComputeShader
@@ -817,7 +799,7 @@ typedef struct _plSubpass
     uint32_t uSubpassInputCount;
     uint32_t auRenderTargets[PL_MAX_RENDER_TARGETS];
     uint32_t auSubpassInputs[PL_MAX_RENDER_TARGETS];
-    bool _bHasDepth;
+    bool     _bHasDepth;
 } plSubpass;
 
 typedef struct _plRenderTarget
@@ -847,23 +829,23 @@ typedef struct _plRenderPassAttachments
 
 typedef struct _plDepthTarget
 {
-    plLoadOp            tLoadOp;
-    plStoreOp           tStoreOp;
-    plLoadOp            tStencilLoadOp;
-    plStoreOp           tStencilStoreOp;
-    plTextureUsage      tCurrentUsage;
-    plTextureUsage      tNextUsage;
-    float               fClearZ;
-    uint32_t            uClearStencil;
+    plLoadOp       tLoadOp;
+    plStoreOp      tStoreOp;
+    plLoadOp       tStencilLoadOp;
+    plStoreOp      tStencilStoreOp;
+    plTextureUsage tCurrentUsage;
+    plTextureUsage tNextUsage;
+    float          fClearZ;
+    uint32_t       uClearStencil;
 } plDepthTarget;
 
 typedef struct _plColorTarget
 {
-    plLoadOp        tLoadOp;
-    plStoreOp       tStoreOp;
-    plTextureUsage  tCurrentUsage;
-    plTextureUsage  tNextUsage;
-    plVec4          tClearColor;
+    plLoadOp       tLoadOp;
+    plStoreOp      tStoreOp;
+    plTextureUsage tCurrentUsage;
+    plTextureUsage tNextUsage;
+    plVec4         tClearColor;
 } plColorTarget;
 
 typedef struct _plRenderPassDescription
@@ -882,10 +864,10 @@ typedef struct _plRenderPass
 
 typedef struct _plDevice
 {
-    plGraphics* ptGraphics;
-    bool bDescriptorIndexing;
+    plGraphics*               ptGraphics;
+    bool                      bDescriptorIndexing;
     plDeviceMemoryAllocatorI* ptDynamicAllocator;
-    void* _pInternalData;
+    void*                     _pInternalData;
 } plDevice;
 
 typedef struct _plSwapchain
@@ -926,10 +908,10 @@ typedef struct _plGraphics
 
     // render passes
     plRenderPassLayoutHandle tMainRenderPassLayout;
-    plRenderPassHandle tMainRenderPass;
-    plRenderPass* sbtRenderPassesCold;
-    uint32_t*     sbtRenderPassGenerations;
-    uint32_t*     sbtRenderPassFreeIndices;
+    plRenderPassHandle       tMainRenderPass;
+    plRenderPass*            sbtRenderPassesCold;
+    uint32_t*                sbtRenderPassGenerations;
+    uint32_t*                sbtRenderPassFreeIndices;
 
     // shaders
     plShader* sbtShadersCold;

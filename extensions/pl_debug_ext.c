@@ -823,10 +823,10 @@ pl__show_device_memory(bool* bValue)
             pl_text("Host Memory: %llu bytes", (double)ptDevice->ptGraphics->szHostMemoryInUse);
 
         const plDeviceMemoryAllocatorI atAllocators[] = {
-            *gptGpuAllocators->create_local_buddy_allocator(ptDevice),
-            *gptGpuAllocators->create_local_dedicated_allocator(ptDevice),
-            *gptGpuAllocators->create_staging_uncached_allocator(ptDevice),
-            *gptGpuAllocators->create_staging_uncached_allocator(ptDevice)
+            *gptGpuAllocators->get_local_buddy_allocator(ptDevice),
+            *gptGpuAllocators->get_local_dedicated_allocator(ptDevice),
+            *gptGpuAllocators->get_staging_uncached_allocator(ptDevice),
+            *gptGpuAllocators->get_staging_uncached_allocator(ptDevice)
         };
 
         const char* apcAllocatorNames[] = {
@@ -843,8 +843,8 @@ pl__show_device_memory(bool* bValue)
         {
             uint32_t uBlockCount = 0;
             uint32_t uRangeCount = 0;
-            plDeviceAllocationBlock* sbtBlocks = atAllocators[uAllocatorIndex].blocks(atAllocators[uAllocatorIndex].ptInst, &uBlockCount);
-            plDeviceAllocationRange* sbtRanges = atAllocators[uAllocatorIndex].ranges(atAllocators[uAllocatorIndex].ptInst, &uRangeCount);
+            plDeviceAllocationBlock* sbtBlocks = gptGpuAllocators->get_blocks(&atAllocators[uAllocatorIndex], &uBlockCount);
+            plDeviceAllocationRange* sbtRanges = gptGpuAllocators->get_ranges(&atAllocators[uAllocatorIndex], &uRangeCount);
             if(uBlockCount > 0)
             {
 

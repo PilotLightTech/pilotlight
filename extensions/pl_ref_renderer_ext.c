@@ -305,9 +305,9 @@ pl_refr_initialize(plWindow* ptWindow)
     plGraphics* ptGraphics = &gptData->tGraphics;
 
     // load allocators
-    gptData->ptLocalBuddyAllocator      = gptGpuAllocators->create_local_buddy_allocator(&ptGraphics->tDevice);
-    gptData->ptLocalDedicatedAllocator  = gptGpuAllocators->create_local_dedicated_allocator(&ptGraphics->tDevice);
-    gptData->ptStagingUnCachedAllocator = gptGpuAllocators->create_staging_uncached_allocator(&ptGraphics->tDevice);
+    gptData->ptLocalBuddyAllocator      = gptGpuAllocators->get_local_buddy_allocator(&ptGraphics->tDevice);
+    gptData->ptLocalDedicatedAllocator  = gptGpuAllocators->get_local_dedicated_allocator(&ptGraphics->tDevice);
+    gptData->ptStagingUnCachedAllocator = gptGpuAllocators->get_staging_uncached_allocator(&ptGraphics->tDevice);
 
     // initialize graphics
     const plGraphicsDesc tGraphicsDesc = {
