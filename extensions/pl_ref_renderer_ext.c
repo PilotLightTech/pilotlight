@@ -353,8 +353,8 @@ pl_refr_initialize(plWindow* ptWindow)
 
     // create null skin bind group (to be bound when skinning isn't enabled)
     plBindGroupLayout tBindGroupLayout1 = {
-        .uTextureCount  = 1,
-        .aTextures = {{.uSlot =  0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}}
+        .uTextureBindingCount  = 1,
+        .atTextureBindings = {{.uSlot =  0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}}
     };
     gptData->tNullSkinBindgroup = gptDevice->create_bind_group(&ptGraphics->tDevice, &tBindGroupLayout1, "null skin bind group");
 
@@ -464,8 +464,8 @@ pl_refr_create_scene(void)
         .uBindGroupLayoutCount = 3,
         .atBindGroupLayouts = {
             {
-                .uBufferCount  = 3,
-                .aBuffers = {
+                .uBufferBindingCount  = 3,
+                .aBufferBindings = {
                     {
                         .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
                         .uSlot = 0,
@@ -482,18 +482,18 @@ pl_refr_create_scene(void)
                         .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
                     }
                 },
-                .uSamplerCount = 1,
-                .atSamplers = { {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}}
+                .uSamplerBindingCount = 1,
+                .atSamplerBindings = { {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}}
             },
             {
-                .uTextureCount  = 1,
-                .aTextures = {
+                .uTextureBindingCount  = 1,
+                .atTextureBindings = {
                     {.uSlot =  0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 2},
                 }
             },
             {
-                .uTextureCount  = 1,
-                .aTextures = {
+                .uTextureBindingCount  = 1,
+                .atTextureBindings = {
                     {.uSlot =  0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 }
             }
@@ -575,8 +575,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .uBindGroupLayoutCount = 3,
         .atBindGroupLayouts = {
             {
-                .uBufferCount  = 3,
-                .aBuffers = {
+                .uBufferBindingCount  = 3,
+                .aBufferBindings = {
                     {
                         .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
                         .uSlot = 0,
@@ -593,12 +593,12 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
                         .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
                     },
                 },
-                .uSamplerCount = 1,
-                .atSamplers = { {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}}
+                .uSamplerBindingCount = 1,
+                .atSamplerBindings = { {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}}
             },
             {
-                .uTextureCount = 4,
-                .aTextures = {
+                .uTextureBindingCount = 4,
+                .atTextureBindings = {
                     { .uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
                     { .uSlot = 1, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
                     { .uSlot = 2, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
@@ -606,8 +606,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
                  },
             },
             {
-                .uTextureCount = 1,
-                .aTextures = {
+                .uTextureBindingCount = 1,
+                .atTextureBindings = {
                     { .uSlot = 0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                  },
             }
@@ -652,8 +652,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     };
 
     const plBindGroupLayout tLightingBindGroupLayout = {
-        .uTextureCount  = 4,
-        .aTextures = { 
+        .uTextureBindingCount  = 4,
+        .atTextureBindings = { 
             {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
             {.uSlot = 1, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
             {.uSlot = 2, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
@@ -845,8 +845,8 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
     };
 
     const plBindGroupLayout tLightingBindGroupLayout = {
-        .uTextureCount  = 4,
-        .aTextures = { 
+        .uTextureBindingCount  = 4,
+        .atTextureBindings = { 
             {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
             {.uSlot = 1, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
             {.uSlot = 2, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
@@ -1016,8 +1016,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             .uBindGroupLayoutCount = 2,
             .atBindGroupLayouts = {
                 {
-                    .uBufferCount  = 3,
-                    .aBuffers = {
+                    .uBufferBindingCount  = 3,
+                    .aBufferBindings = {
                         {
                             .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
                             .uSlot = 0,
@@ -1034,12 +1034,12 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
                             .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
                         },
                     },
-                    .uSamplerCount = 1,
-                    .atSamplers = { {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}}
+                    .uSamplerBindingCount = 1,
+                    .atSamplerBindings = { {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}}
                 },
                 {
-                    .uTextureCount = 1,
-                    .aTextures = {
+                    .uTextureBindingCount = 1,
+                    .atTextureBindings = {
                         {
                             .uSlot = 0,
                             .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL,
@@ -1075,8 +1075,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
                 { .uID = 2, .uOffset = 2 * sizeof(int), .tType = PL_DATA_TYPE_INT}
             },
             .tBindGroupLayout = {
-                .uBufferCount = 7,
-                .aBuffers = {
+                .uBufferBindingCount = 7,
+                .aBufferBindings = {
                     { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 0, .tStages = PL_STAGE_COMPUTE},
                     { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 1, .tStages = PL_STAGE_COMPUTE},
                     { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_STAGE_COMPUTE},
@@ -1112,8 +1112,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         atComputeBuffers[i + 1] = pl__refr_create_staging_buffer(&tOutputBufferDesc, "panorama output", i);
 
     plBindGroupLayout tComputeBindGroupLayout = {
-        .uBufferCount = 7,
-        .aBuffers = {
+        .uBufferBindingCount = 7,
+        .aBufferBindings = {
             { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 0, .tStages = PL_STAGE_COMPUTE},
             { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 1, .tStages = PL_STAGE_COMPUTE},
             { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_STAGE_COMPUTE},
@@ -1236,8 +1236,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     gptImage->free(pfPanoramaData);
 
     plBindGroupLayout tSkyboxBindGroupLayout = {
-        .uTextureCount  = 1,
-        .aTextures = { {.uSlot = 0, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}}
+        .uTextureBindingCount  = 1,
+        .atTextureBindings = { {.uSlot = 0, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}}
     };
     ptScene->tSkyboxBindGroup = gptDevice->create_bind_group(ptDevice, &tSkyboxBindGroupLayout, "skybox bind group");
     const plBindGroupUpdateTextureData tTextureData1 = {.tTexture = ptScene->tSkyboxTexture, .uSlot = 0, .uIndex = 0, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED};
@@ -1404,8 +1404,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         plMaterialComponent* ptMaterial = &sbtMaterials[i];
 
         plBindGroupLayout tMaterialBindGroupLayout = {
-            .uTextureCount = 1,
-            .aTextures = {
+            .uTextureBindingCount = 1,
+            .atTextureBindings = {
                 {.uSlot = 0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 2},
             }
         };
@@ -1442,8 +1442,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         plMaterialComponent* ptMaterial = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
 
         plBindGroupLayout tMaterialBindGroupLayout = {
-            .uTextureCount = 2,
-            .aTextures = {
+            .uTextureBindingCount = 2,
+            .atTextureBindings = {
                 {.uSlot = 0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
                 {.uSlot = 1, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
             }
@@ -1574,8 +1574,8 @@ pl_refr_update_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle)
     for(uint32_t i = 0; i < uSkinCount; i++)
     {
         plBindGroupLayout tBindGroupLayout1 = {
-            .uTextureCount  = 1,
-            .aTextures = {
+            .uTextureBindingCount  = 1,
+            .atTextureBindings = {
                 {.uSlot =  0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
             }
         };
@@ -1683,8 +1683,8 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     memcpy(ptGraphics->sbtBuffersCold[ptView->atGlobalBuffers[ptGraphics->uCurrentFrameIndex].uIndex].tMemoryAllocation.pHostMapped, &tBindGroupBuffer, sizeof(BindGroup_0));
 
     plBindGroupLayout tBindGroupLayout0 = {
-        .uBufferCount  = 3,
-        .aBuffers = {
+        .uBufferBindingCount  = 3,
+        .aBufferBindings = {
             {
                 .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
                 .uSlot = 0,
@@ -1701,8 +1701,8 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
                 .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
             },
         },
-        .uSamplerCount = 1,
-        .atSamplers = { {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}}
+        .uSamplerBindingCount = 1,
+        .atSamplerBindings = { {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}}
     };
     plBindGroupHandle tGlobalBG = gptDevice->get_temporary_bind_group(ptDevice, &tBindGroupLayout0, "temporary global bind group");
 
@@ -1732,7 +1732,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         .uBufferCount = 3,
         .atBuffers = atBufferData,
         .uSamplerCount = 1,
-        .atSamplers = &tSamplerData
+        .atSamplerBindings = &tSamplerData
     };
     gptDevice->update_bind_group(&ptGraphics->tDevice, tGlobalBG, &tBGData0);
 

@@ -43,6 +43,10 @@ Index of this file:
     #define PL_MAX_TEXTURES_PER_BIND_GROUP 32
 #endif
 
+#ifndef PL_MAX_SAMPLERS_PER_BIND_GROUP
+    #define PL_MAX_SAMPLERS_PER_BIND_GROUP 8
+#endif
+
 #ifndef PL_MAX_SHADER_SPECIALIZATION_CONSTANTS
     #define PL_MAX_SHADER_SPECIALIZATION_CONSTANTS 64
 #endif
@@ -402,7 +406,7 @@ typedef struct _plBindGroupUpdateData
     uint32_t uSamplerCount;
     const plBindGroupUpdateBufferData*  atBuffers;
     const plBindGroupUpdateTextureData* atTextures;
-    const plBindGroupUpdateSamplerData* atSamplers;
+    const plBindGroupUpdateSamplerData* atSamplerBindings;
 } plBindGroupUpdateData;
 
 typedef struct _plCommandBuffer
@@ -638,12 +642,12 @@ typedef struct _plDynamicBinding
 
 typedef struct _plBindGroupLayout
 {
-    uint32_t         uTextureCount;
-    uint32_t         uBufferCount;
-    uint32_t         uSamplerCount;
-    plTextureBinding aTextures[PL_MAX_TEXTURES_PER_BIND_GROUP];
-    plBufferBinding  aBuffers[PL_MAX_BUFFERS_PER_BIND_GROUP];
-    plSamplerBinding atSamplers[PL_MAX_TEXTURES_PER_BIND_GROUP];
+    uint32_t         uTextureBindingCount;
+    uint32_t         uBufferBindingCount;
+    uint32_t         uSamplerBindingCount;
+    plTextureBinding atTextureBindings[PL_MAX_TEXTURES_PER_BIND_GROUP];
+    plBufferBinding  aBufferBindings[PL_MAX_BUFFERS_PER_BIND_GROUP];
+    plSamplerBinding atSamplerBindings[PL_MAX_SAMPLERS_PER_BIND_GROUP];
     uint32_t         uHandle;
 } plBindGroupLayout;
 
