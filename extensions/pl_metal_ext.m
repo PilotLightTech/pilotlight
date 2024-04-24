@@ -3112,6 +3112,17 @@ static void
 pl_free_memory(plDevice* ptDevice, plDeviceAllocationBlock* ptBlock)
 {
     id<MTLHeap> tHeap = (id<MTLHeap>)ptBlock->ulAddress;
+
+    plDeviceMetal* ptMetalDevice = ptDevice->_pInternalData;
+    for(uint32_t i = 0; pl_sb_size(ptMetalDevice->sbtDedicatedHeaps); i++)
+    {
+        if(tHeap == ptMetalDevice->sbtDedicatedHeaps[i])
+        {
+            pl_sb_del_swap(ptMetalDevice->sbtDedicatedHeaps, i);
+            break;
+        }
+    }
+
     [tHeap setPurgeableState:MTLPurgeableStateEmpty];
     [tHeap release];
     tHeap = nil;
@@ -3146,15 +3157,7 @@ pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
     ptMetalGraphics->sbtBuffersHot[tHandle.uIndex].tBuffer = nil;
 
     plBuffer* ptBuffer = &ptGraphics->sbtBuffersCold[tHandle.uIndex];
-
-    // if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalBuddyAllocator.ptInst)
-    //     ptGraphics->tDevice.tLocalBuddyAllocator.free(ptGraphics->tDevice.tLocalBuddyAllocator.ptInst, &ptBuffer->tMemoryAllocation);
-    // else if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst)
-    //     ptGraphics->tDevice.tLocalDedicatedAllocator.free(ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst, &ptBuffer->tMemoryAllocation);
-    // else if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst)
-    //     ptGraphics->tDevice.tStagingUnCachedAllocator.free(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, &ptBuffer->tMemoryAllocation);
-    // else if(ptBuffer->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingCachedAllocator.ptInst)
-    //     ptGraphics->tDevice.tStagingCachedAllocator.free(ptGraphics->tDevice.tStagingCachedAllocator.ptInst, &ptBuffer->tMemoryAllocation);
+    ptBuffer->tMemoryAllocation.ptAllocator->free(ptBuffer->tMemoryAllocation.ptAllocator->ptInst, &ptBuffer->tMemoryAllocation);
 }
 
 static void
@@ -3172,15 +3175,7 @@ pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
     ptMetalTexture->tTexture = nil;
 
     plTexture* ptTexture = &ptGraphics->sbtTexturesCold[tHandle.uIndex];
-
-    // if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalBuddyAllocator.ptInst)
-    //     ptGraphics->tDevice.tLocalBuddyAllocator.free(ptGraphics->tDevice.tLocalBuddyAllocator.ptInst, &ptTexture->tMemoryAllocation);
-    // else if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst)
-    //     ptGraphics->tDevice.tLocalDedicatedAllocator.free(ptGraphics->tDevice.tLocalDedicatedAllocator.ptInst, &ptTexture->tMemoryAllocation);
-    // else if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst)
-    //     ptGraphics->tDevice.tStagingUnCachedAllocator.free(ptGraphics->tDevice.tStagingUnCachedAllocator.ptInst, &ptTexture->tMemoryAllocation);
-    // else if(ptTexture->tMemoryAllocation.ptInst == ptGraphics->tDevice.tStagingCachedAllocator.ptInst)
-    //     ptGraphics->tDevice.tStagingCachedAllocator.free(ptGraphics->tDevice.tStagingCachedAllocator.ptInst, &ptTexture->tMemoryAllocation);
+    ptTexture->tMemoryAllocation.ptAllocator->free(ptTexture->tMemoryAllocation.ptAllocator->ptInst, &ptTexture->tMemoryAllocation);
 }
 
 static void

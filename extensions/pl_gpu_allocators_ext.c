@@ -522,57 +522,33 @@ pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
+    plDeviceAllocationBlock tBlock = gptDevice->allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_GPU_CPU, uTypeFilter, pcName);
+
     plDeviceMemoryAllocation tAllocation = {
-        .pHostMapped = NULL,
-        .uHandle     = 0,
+        .pHostMapped = tBlock.pHostMapped,
+        .uHandle     = tBlock.ulAddress,
         .ulOffset    = 0,
         .ulSize      = ulSize,
         .ptAllocator = ptData->ptAllocator,
         .tMemoryMode = PL_MEMORY_GPU_CPU
     };
 
-    // check for existing block
-    for(uint32_t i = 0; i < pl_sb_size(ptData->sbtNodes); i++)
-    {
-        plDeviceAllocationRange* ptNode = &ptData->sbtNodes[i];
-        plDeviceAllocationBlock* ptBlock = &ptData->sbtBlocks[ptNode->ulBlockIndex];
-        if(ptNode->ulUsedSize == 0 && ptNode->ulTotalSize >= ulSize && ptBlock->ulAddress != 0)
-        {
-            ptNode->ulUsedSize = ulSize;
-            pl_sprintf(ptNode->acName, "%s", pcName);
-            tAllocation.pHostMapped = ptBlock->pHostMapped;
-            tAllocation.uHandle = ptBlock->ulAddress;
-            tAllocation.ulOffset = 0;
-            tAllocation.ulSize = ptBlock->ulSize;
-            return tAllocation;
-        }
-    }
-
-    uint32_t uIndex = UINT32_MAX;
+    uint32_t uBlockIndex = pl_sb_size(ptData->sbtBlocks);
     if(pl_sb_size(ptData->sbtFreeBlockIndices) > 0)
-    {
-        uIndex = pl_sb_pop(ptData->sbtFreeBlockIndices);
-    }
+        uBlockIndex = pl_sb_pop(ptData->sbtFreeBlockIndices);
     else
-    {
-        uIndex = pl_sb_size(ptData->sbtBlocks);
-        pl_sb_add(ptData->sbtNodes);
         pl_sb_add(ptData->sbtBlocks);
-    }
 
     plDeviceAllocationRange tRange = {
         .ulOffset     = 0,
-        .ulUsedSize   = ulSize,
         .ulTotalSize  = ulSize,
-        .ulBlockIndex = uIndex
+        .ulUsedSize   = ulSize,
+        .ulBlockIndex = uBlockIndex
     };
     pl_sprintf(tRange.acName, "%s", pcName);
 
-    plDeviceAllocationBlock tBlock = gptDevice->allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_GPU_CPU, uTypeFilter, "Uncached Heap");
-    tAllocation.uHandle = tBlock.ulAddress;
-    ptData->sbtNodes[uIndex] = tRange;
-    ptData->sbtBlocks[uIndex] = tBlock;
-    tAllocation.pHostMapped = tBlock.pHostMapped;
+    pl_sb_push(ptData->sbtNodes, tRange);
+    ptData->sbtBlocks[uBlockIndex] = tBlock;
     return tAllocation;
 }
 
@@ -581,20 +557,30 @@ pl_free_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemory
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
-    for(uint32_t i = 0; i < pl_sb_size(ptData->sbtBlocks); i++)
+    uint32_t uBlockIndex = 0;
+    uint32_t uNodeIndex = 0;
+    for(uint32_t i = 0; i < pl_sb_size(ptData->sbtNodes); i++)
     {
-        plDeviceAllocationRange* ptRange = &ptData->sbtNodes[i];
-        plDeviceAllocationBlock* ptBlock = &ptData->sbtBlocks[ptRange->ulBlockIndex];
+        plDeviceAllocationRange* ptNode = &ptData->sbtNodes[i];
+        plDeviceAllocationBlock* ptBlock = &ptData->sbtBlocks[ptNode->ulBlockIndex];
 
-        // find block
         if(ptBlock->ulAddress == ptAllocation->uHandle)
         {
-            ptRange->ulUsedSize = 0;
-            memset(ptRange->acName, 0, PL_MAX_NAME_LENGTH);
-            strncpy(ptRange->acName, "not used", PL_MAX_NAME_LENGTH);
+            uNodeIndex = i;
+            uBlockIndex = (uint32_t)ptNode->ulBlockIndex;
+            ptBlock->ulSize = 0;
             break;
         }
     }
+    pl_sb_del_swap(ptData->sbtNodes, uNodeIndex);
+    pl_sb_push(ptData->sbtFreeBlockIndices, uBlockIndex);
+
+    gptDevice->free_memory(ptData->ptDevice, &ptData->sbtBlocks[uBlockIndex]);
+
+    ptAllocation->pHostMapped  = NULL;
+    ptAllocation->uHandle      = 0;
+    ptAllocation->ulOffset     = 0;
+    ptAllocation->ulSize       = 0;
 }
 
 static plDeviceMemoryAllocatorI*
