@@ -160,7 +160,8 @@ typedef struct _plMetalShader
     id<MTLRenderPipelineState> tRenderPipelineState;
     MTLCullMode                tCullMode;
     MTLTriangleFillMode        tFillMode;
-    id<MTLLibrary>             library;
+    id<MTLLibrary>             tVertexLibrary;
+    id<MTLLibrary>             tFragmentLibrary;
 } plMetalShader;
 
 typedef struct _plMetalComputeShader
@@ -1338,6 +1339,9 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
     if(ptDescription->pcVertexShaderEntryFunc == NULL)
         tShader.tDescription.pcVertexShaderEntryFunc = "vertex_main";
 
+    NSString* vertexEntry = [NSString stringWithUTF8String:tShader.tDescription.pcVertexShaderEntryFunc];
+    NSString* fragmentEntry = [NSString stringWithUTF8String:tShader.tDescription.pcPixelShaderEntryFunc];
+
     // vertex layout
     MTLVertexDescriptor* vertexDescriptor = [MTLVertexDescriptor vertexDescriptor];
     vertexDescriptor.layouts[0].stepRate = 1;
@@ -1355,23 +1359,38 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         uCurrentAttributeCount++;
     }
 
-    // read in shader source code
-    unsigned uShaderFileSize = 0;
-    gptFile->read(tShader.tDescription.pcVertexShader, &uShaderFileSize, NULL, "rb");
-    char* pcFileData = pl_temp_allocator_alloc(&ptMetalGraphics->tTempAllocator, uShaderFileSize + 1);
-    memset(pcFileData, 0, uShaderFileSize + 1);
-    gptFile->read(tShader.tDescription.pcVertexShader, &uShaderFileSize, pcFileData, "rb");
+    uint32_t uVertShaderSize0 = 0u;
+    uint32_t uPixelShaderSize0 = 0u;
+
+    gptFile->read(tShader.tDescription.pcVertexShader, &uVertShaderSize0, NULL, "rb");
+    gptFile->read(tShader.tDescription.pcPixelShader, &uPixelShaderSize0, NULL, "rb");
+
+    char* vertexShaderCode = pl_temp_allocator_alloc(&ptMetalGraphics->tTempAllocator, uVertShaderSize0 + 1);
+    char* pixelShaderCode  = pl_temp_allocator_alloc(&ptMetalGraphics->tTempAllocator, uPixelShaderSize0 + 1);
+    memset(vertexShaderCode, 0, uVertShaderSize0 + 1);
+    memset(pixelShaderCode, 0, uPixelShaderSize0 + 1);
+
+
+    gptFile->read(tShader.tDescription.pcVertexShader, &uVertShaderSize0, vertexShaderCode, "rb");
+    gptFile->read(tShader.tDescription.pcPixelShader, &uPixelShaderSize0, pixelShaderCode, "rb");
 
     // prepare preprocessor defines
     MTLCompileOptions* ptCompileOptions = [MTLCompileOptions new];
 
     // compile shader source
     NSError* error = nil;
-    NSString* shaderSource = [NSString stringWithUTF8String:pcFileData];
-    ptMetalShader->library = [ptMetalDevice->tDevice  newLibraryWithSource:shaderSource options:ptCompileOptions error:&error];
-    if (ptMetalShader->library == nil)
+    NSString* vertexSource = [NSString stringWithUTF8String:vertexShaderCode];
+    ptMetalShader->tVertexLibrary = [ptMetalDevice->tDevice  newLibraryWithSource:vertexSource options:ptCompileOptions error:&error];
+    if (ptMetalShader->tVertexLibrary == nil)
     {
-        NSLog(@"Error: failed to create Metal library: %@", error);
+        NSLog(@"Error: failed to create Metal vertex library: %@", error);
+    }
+
+    NSString* fragmentSource = [NSString stringWithUTF8String:pixelShaderCode];
+    ptMetalShader->tFragmentLibrary = [ptMetalDevice->tDevice  newLibraryWithSource:fragmentSource options:ptCompileOptions error:&error];
+    if (ptMetalShader->tFragmentLibrary == nil)
+    {
+        NSLog(@"Error: failed to create Metal fragment library: %@", error);
     }
 
     pl_temp_allocator_reset(&ptMetalGraphics->tTempAllocator);
@@ -1399,8 +1418,8 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         [ptConstantValues setConstantValue:&pcConstantData[ptConstant->uOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:ptConstant->uID];
     }
 
-    id<MTLFunction> vertexFunction = [ptMetalShader->library newFunctionWithName:@"vertex_main" constantValues:ptConstantValues error:&error];
-    id<MTLFunction> fragmentFunction = [ptMetalShader->library newFunctionWithName:@"fragment_main" constantValues:ptConstantValues error:&error];
+    id<MTLFunction> vertexFunction = [ptMetalShader->tVertexLibrary newFunctionWithName:vertexEntry constantValues:ptConstantValues error:&error];
+    id<MTLFunction> fragmentFunction = [ptMetalShader->tFragmentLibrary newFunctionWithName:fragmentEntry constantValues:ptConstantValues error:&error];
 
     if (vertexFunction == nil || fragmentFunction == nil)
     {
@@ -2964,10 +2983,15 @@ pl__garbage_collect(plGraphics* ptGraphics)
         [ptVariantMetalResource->tRenderPipelineState release];
         ptVariantMetalResource->tDepthStencilState = nil;
         ptVariantMetalResource->tRenderPipelineState = nil;
-        if(ptVariantMetalResource->library)
+        if(ptVariantMetalResource->tVertexLibrary)
         {
-            [ptVariantMetalResource->library release];
-            ptVariantMetalResource->library = nil;
+            [ptVariantMetalResource->tVertexLibrary release];
+            ptVariantMetalResource->tVertexLibrary = nil;
+        }
+        if(ptVariantMetalResource->tFragmentLibrary)
+        {
+            [ptVariantMetalResource->tFragmentLibrary release];
+            ptVariantMetalResource->tFragmentLibrary = nil;
         }
         pl_sb_push(ptGraphics->sbtShaderFreeIndices, iResourceIndex);
     }
