@@ -76,9 +76,7 @@ vec3 linearTosRGB(vec3 color)
     return pow(color, vec3(INV_GAMMA));
 }
 
-layout(location = 0) out vec4 outAlbedo;
-layout(location = 1) out vec4 outNormal;
-layout(location = 2) out vec4 outPosition;
+layout(location = 0) out vec4 outColor;
 
 // output
 layout(location = 0) in struct plShaderIn {
@@ -187,8 +185,15 @@ vec4 getBaseColor(vec4 u_ColorFactor)
 void main() 
 {
     vec4 tBaseColor = getBaseColor(tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex].tColor);
+    if(tBaseColor.a < 0.1)
+    {
+        discard;
+    }
+    vec3 tSunlightColor = vec3(1.0, 1.0, 1.0);
     NormalInfo tNormalInfo = pl_get_normal_info();
-    outAlbedo = tBaseColor;
-    outNormal = vec4(tNormalInfo.n, 1.0);
-    outPosition = vec4(tShaderIn.tPosition, 1.0);
+    vec3 tSunLightDirection = vec3(-1.0, -1.0, -1.0);
+    float fDiffuseIntensity = max(0.0, dot(normalize(tNormalInfo.n), -normalize(tSunLightDirection)));
+    outColor = tBaseColor * vec4(tSunlightColor * (0.05 + fDiffuseIntensity), 1.0);
+
+    outColor = vec4(linearTosRGB(outColor.rgb), tBaseColor.a);
 }
