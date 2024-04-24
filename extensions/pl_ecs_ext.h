@@ -190,13 +190,28 @@ enum _plTextureSlot
 {
     PL_TEXTURE_SLOT_BASE_COLOR_MAP,
     PL_TEXTURE_SLOT_NORMAL_MAP,
+    PL_TEXTURE_SLOT_EMISSIVE_MAP,
+    PL_TEXTURE_SLOT_OCCLUSION_MAP,
+    PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP,
+    PL_TEXTURE_SLOT_CLEARCOAT_MAP,
+    PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP,
+    PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP,
+    PL_TEXTURE_SLOT_SHEEN_COLOR_MAP,
+    PL_TEXTURE_SLOT_SHEEN_ROUGHNESS_MAP,
+    PL_TEXTURE_SLOT_TRANSMISSION_MAP,
+    PL_TEXTURE_SLOT_SPECULAR_MAP,
+    PL_TEXTURE_SLOT_SPECULAR_COLOR_MAP,
+    PL_TEXTURE_SLOT_ANISOTROPY_MAP,
+    PL_TEXTURE_SLOT_SURFACE_MAP,
+    PL_TEXTURE_SLOT_IRIDESCENCE_MAP,
+    PL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS_MAP,
+
     PL_TEXTURE_SLOT_COUNT
 };
 
 enum _plShaderType
 {
     PL_SHADER_TYPE_PBR,
-    PL_SHADER_TYPE_UNLIT,
     PL_SHADER_TYPE_CUSTOM,
     
     PL_SHADER_TYPE_COUNT
@@ -374,7 +389,28 @@ typedef struct _plMaterialComponent
     plMaterialFlags tFlags;
     plShaderType    tShaderType;
     plVec4          tBaseColor;
+    plVec4          tSpecularColor;
+    plVec4          tEmissiveColor;
+    plVec4          tSheenColor;
     float           fAlphaCutoff;
+    float           fRoughness;
+    float           fReflectance;
+    float           fMetalness;
+    float           fNormalMapStrength;
+    float           fOcclusionMapStrength;
+    float           fRefraction;
+    float           fTransmission;
+    float           fAnisotropyStrength;
+    float           fAnisotropyRotation; // radians, counter-clockwise
+    float           fSheenRoughness;
+    float           fSpecularFactor;
+    float           fClearcoatFactor;
+    float           fClearcoatRoughness;
+    float           fThicknessFactor;
+    float           fIridescenceFactor;
+    float           fIridescenceIor;
+    float           fIridescenceThicknessMinimum;
+    float           fIridescenceThicknessMaximum;
     plTextureMap    atTextureMaps[PL_TEXTURE_SLOT_COUNT];
 } plMaterialComponent;
 
