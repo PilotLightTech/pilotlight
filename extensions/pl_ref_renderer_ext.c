@@ -46,20 +46,6 @@ Index of this file:
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
-typedef int plBlendMode;
-
-enum _plBlendMode
-{
-    PL_BLEND_MODE_NONE,
-    PL_BLEND_MODE_ALPHA,
-    PL_BLEND_MODE_ADDITIVE,
-    PL_BLEND_MODE_PREMULTIPLY,
-    PL_BLEND_MODE_MULTIPLY,
-    PL_BLEND_MODE_CLIP_MASK,
-    
-    PL_BLEND_MODE_COUNT
-};
-
 typedef struct _plShaderVariant
 {
     plGraphicsState tGraphicsState;
@@ -455,9 +441,9 @@ pl_refr_create_scene(void)
             },
             .uConstantCount = 5,
             .atBlendStates = {
-                pl__get_blend_state(PL_BLEND_MODE_NONE),
-                pl__get_blend_state(PL_BLEND_MODE_NONE),
-                pl__get_blend_state(PL_BLEND_MODE_NONE)
+                pl__get_blend_state(PL_BLEND_MODE_OPAQUE),
+                pl__get_blend_state(PL_BLEND_MODE_OPAQUE),
+                pl__get_blend_state(PL_BLEND_MODE_OPAQUE)
             },
             .uBlendStateCount = 3,
             .tRenderPassLayout = ptScene->tRenderPassLayout,
@@ -662,7 +648,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
             .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
         },
         .atBlendStates = {
-            pl__get_blend_state(PL_BLEND_MODE_NONE)
+            pl__get_blend_state(PL_BLEND_MODE_OPAQUE)
         },
         .uBlendStateCount = 1,
         .uSubpassIndex = 1,
@@ -2669,7 +2655,7 @@ pl__get_blend_state(plBlendMode tBlendMode)
 
     static const plBlendState atStateMap[PL_BLEND_MODE_COUNT] =
     {
-        // PL_BLEND_MODE_NONE
+        // PL_BLEND_MODE_OPAQUE
         { 
             .bBlendEnabled = false,
         },
@@ -2685,17 +2671,6 @@ pl__get_blend_state(plBlendMode tBlendMode)
             .tAlphaOp        = PL_BLEND_OP_ADD
         },
 
-        // PL_BLEND_MODE_ADDITIVE
-        {
-            .bBlendEnabled   = true,
-            .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-            .tDstColorFactor = PL_BLEND_FACTOR_ONE,
-            .tColorOp        = PL_BLEND_OP_ADD,
-            .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-            .tDstAlphaFactor = PL_BLEND_FACTOR_ONE,
-            .tAlphaOp        = PL_BLEND_OP_ADD
-        },
-
         // PL_BLEND_MODE_PREMULTIPLY
         {
             .bBlendEnabled   = true,
@@ -2704,6 +2679,17 @@ pl__get_blend_state(plBlendMode tBlendMode)
             .tColorOp        = PL_BLEND_OP_ADD,
             .tSrcAlphaFactor = PL_BLEND_FACTOR_ONE,
             .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .tAlphaOp        = PL_BLEND_OP_ADD
+        },
+
+        // PL_BLEND_MODE_ADDITIVE
+        {
+            .bBlendEnabled   = true,
+            .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+            .tDstColorFactor = PL_BLEND_FACTOR_ONE,
+            .tColorOp        = PL_BLEND_OP_ADD,
+            .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+            .tDstAlphaFactor = PL_BLEND_FACTOR_ONE,
             .tAlphaOp        = PL_BLEND_OP_ADD
         },
 

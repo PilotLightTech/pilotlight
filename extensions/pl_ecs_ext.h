@@ -81,7 +81,7 @@ typedef int plShaderType;
 typedef int plComponentType;
 typedef int plTextureSlot;
 typedef int plMaterialFlags;
-typedef int plMaterialBlendMode;
+typedef int plBlendMode;
 typedef int plCameraType;
 typedef int plAnimationMode;
 typedef int plAnimationPath;
@@ -208,14 +208,16 @@ enum _plMaterialFlags
     PL_MATERIAL_FLAG_DOUBLE_SIDED = 1 << 0,
 };
 
-enum _plMaterialBlendMode
+enum _plBlendMode
 {
-    PL_MATERIAL_BLEND_MODE_OPAQUE,
-    PL_MATERIAL_BLEND_MODE_ALPHA,
-    PL_MATERIAL_BLEND_MODE_PREMULTIPLIED,
-    PL_MATERIAL_BLEND_MODE_ADDITIVE,
-    PL_MATERIAL_BLEND_MODE_MULTIPLY,
-    PL_MATERIAL_BLEND_MODE_COUNT
+    PL_BLEND_MODE_OPAQUE,
+    PL_BLEND_MODE_ALPHA,
+    PL_BLEND_MODE_PREMULTIPLIED,
+    PL_BLEND_MODE_ADDITIVE,
+    PL_BLEND_MODE_MULTIPLY,
+    PL_BLEND_MODE_CLIP_MASK,
+
+    PL_BLEND_MODE_COUNT
 };
 
 enum _plCameraType
@@ -368,12 +370,12 @@ typedef struct _plTransformComponent
 
 typedef struct _plMaterialComponent
 {
-    plMaterialBlendMode tBlendMode;
-    plMaterialFlags     tFlags;
-    plShaderType        tShaderType;
-    plVec4              tBaseColor;
-    float               fAlphaCutoff;
-    plTextureMap        atTextureMaps[PL_TEXTURE_SLOT_COUNT];
+    plBlendMode     tBlendMode;
+    plMaterialFlags tFlags;
+    plShaderType    tShaderType;
+    plVec4          tBaseColor;
+    float           fAlphaCutoff;
+    plTextureMap    atTextureMaps[PL_TEXTURE_SLOT_COUNT];
 } plMaterialComponent;
 
 typedef struct _plMeshComponent
