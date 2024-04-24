@@ -561,12 +561,28 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
             pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
         sbComponents[uComponentIndex] = (plMaterialComponent){
-            .tBlendMode                    = PL_BLEND_MODE_OPAQUE,
-            .tFlags                        = PL_MATERIAL_FLAG_NONE,
-            .tShaderType                   = PL_SHADER_TYPE_PBR,
-            .tBaseColor                    = {1.0f, 1.0f, 1.0f, 1.0f},
-            .fAlphaCutoff                  = 0.5f,
-            .atTextureMaps                 = {0}
+            .tBlendMode            = PL_BLEND_MODE_OPAQUE,
+            .tFlags                = PL_MATERIAL_FLAG_NONE,
+            .tShaderType           = PL_SHADER_TYPE_PBR,
+            .tBaseColor            = {1.0f, 1.0f, 1.0f, 1.0f},
+            .tSpecularColor        = {1.0f, 1.0f, 1.0f, 1.0f},
+            .tEmissiveColor        = {0.0f, 0.0f, 0.0f, 0.0f},
+            .tSheenColor           = {1.0f, 1.0f, 1.0f, 0.0f},
+            .fRoughness            = 1.0f,
+            .fReflectance          = 0.04f,
+            .fMetalness            = 1.0f,
+            .fNormalMapStrength    = 1.0f,
+            .fOcclusionMapStrength = 1.0f,
+            .fRefraction           = 0.0f,
+            .fTransmission         = 0.0f,
+            .fAnisotropyStrength   = 0.0f,
+            .fAnisotropyRotation   = 0.0f,
+            .fSheenRoughness       = 0.0f,
+            .fClearcoatFactor      = 0.0f,
+            .fClearcoatRoughness   = 0.0f,
+            .fThicknessFactor      = 0.0f,
+            .fAlphaCutoff          = 0.5f,
+            .atTextureMaps         = {0}
         };
         for(uint32_t i = 0; i < PL_TEXTURE_SLOT_COUNT; i++)
         {
