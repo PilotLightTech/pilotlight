@@ -112,7 +112,7 @@ pl__load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, c
     ptMesh->tMaterial = gptECS->create_material(ptLibrary, pcPath);
     plMaterialComponent* ptMaterial = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
     ptMaterial->tBaseColor = tColor;
-    ptMaterial->tBlendMode = PL_MATERIAL_BLEND_MODE_ALPHA;
+    ptMaterial->tBlendMode = PL_BLEND_MODE_ALPHA;
     
     // load STL model
     plStlInfo tInfo = {0};
@@ -295,11 +295,11 @@ pl__refr_load_material(const char* pcDirectory, plMaterialComponent* ptMaterial,
 
     // blend mode
     if(ptGltfMaterial->alpha_mode == cgltf_alpha_mode_opaque)
-        ptMaterial->tBlendMode = PL_MATERIAL_BLEND_MODE_OPAQUE;
+        ptMaterial->tBlendMode = PL_BLEND_MODE_OPAQUE;
     else if(ptGltfMaterial->alpha_mode == cgltf_alpha_mode_mask)
-        ptMaterial->tBlendMode = PL_MATERIAL_BLEND_MODE_ALPHA;
+        ptMaterial->tBlendMode = PL_BLEND_MODE_ALPHA;
     else
-        ptMaterial->tBlendMode = PL_MATERIAL_BLEND_MODE_PREMULTIPLIED;
+        ptMaterial->tBlendMode = PL_BLEND_MODE_PREMULTIPLIED;
 
 	if(ptGltfMaterial->normal_texture.texture)
 		pl__load_gltf_texture(PL_TEXTURE_SLOT_NORMAL_MAP, &ptGltfMaterial->normal_texture, pcDirectory, ptGltfMaterial, ptMaterial);
@@ -762,7 +762,7 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
                     ptMesh->tMaterial = ptSceneData->sbtMaterialEntities[ulMaterialIndex];
 
                     plMaterialComponent* ptMaterial = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
-                    if(ptMaterial->tBlendMode != PL_MATERIAL_BLEND_MODE_OPAQUE)
+                    if(ptMaterial->tBlendMode != PL_BLEND_MODE_OPAQUE)
                         bOpaque = false;
                 }
                 else // create new material
@@ -775,7 +775,7 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
                     plMaterialComponent* ptMaterial = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
                     pl__refr_load_material(pcDirectory, ptMaterial, ptPrimitive->material);
 
-                    if(ptMaterial->tBlendMode != PL_MATERIAL_BLEND_MODE_OPAQUE)
+                    if(ptMaterial->tBlendMode != PL_BLEND_MODE_OPAQUE)
                         bOpaque = false;
                 }
                 if(bOpaque)
