@@ -149,6 +149,7 @@ with pl.project("pilotlight"):
         "skybox.vert",
         "primitive.frag",
         "primitive.vert",
+        "transparent.frag",
         "lighting.vert",
         "lighting.frag",
         "draw_3d.vert",
@@ -163,7 +164,8 @@ with pl.project("pilotlight"):
         "draw_3d.metal",
         "primitive.metal",
         "lighting.metal",
-        "skybox.metal"
+        "skybox.metal",
+        "transparent.metal"
     ]
 
     with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
