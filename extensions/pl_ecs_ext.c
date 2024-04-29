@@ -1347,8 +1347,6 @@ pl_camera_rotate(plCameraComponent* ptCamera, float fDPitch, float fDYaw)
 static void
 pl_camera_update(plCameraComponent* ptCamera)
 {
-    pl_begin_profile_sample(__FUNCTION__);
-
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // world space
@@ -1398,8 +1396,6 @@ pl_camera_update(plCameraComponent* ptCamera)
         ptCamera->tProjMat.col[2].z = 1 / (ptCamera->fFarZ - ptCamera->fNearZ);
         ptCamera->tProjMat.col[3].w = 1.0f;
     }
-
-    pl_end_profile_sample();  
 }
 
 static void

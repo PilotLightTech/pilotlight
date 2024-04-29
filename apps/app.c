@@ -147,6 +147,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     plProfileContext* ptProfileCtx = pl_create_profile_context();
     plLogContext*     ptLogCtx     = pl_create_log_context();
+
+    pl_begin_profile_frame();
     
     // add some context to data registry
     ptAppData = PL_ALLOC(sizeof(plAppData));
@@ -219,11 +221,23 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         ptAppData->atSempahore[i] = gptDevice->create_semaphore(&gptRenderer->get_graphics()->tDevice, false);
 
     // create offscreen view (temporary API)
+
+    
+
     ptAppData->uSceneHandle0 = gptRenderer->create_scene();
     ptAppData->uSceneHandle1 = gptRenderer->create_scene();
+
+    pl_begin_profile_sample("load environments");
+    const plMat4 tTransform0 = pl_mat4_translate_xyz(2.0f, 1.0f, 0.0f);
+    gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/glTF-Sample-Environments-main/field.jpg", 1024);
+    gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle1, "../data/glTF-Sample-Environments-main/field.jpg", 1024);
+    pl_end_profile_sample();
+
+    pl_begin_profile_sample("create scene views");
     ptAppData->uViewHandle0 = gptRenderer->create_view(ptAppData->uSceneHandle0, (plVec2){ptIO->afMainViewportSize[0] , ptIO->afMainViewportSize[1]});
     ptAppData->uViewHandle1 = gptRenderer->create_view(ptAppData->uSceneHandle0, (plVec2){500.0f, 500.0f});
     ptAppData->uViewHandle2 = gptRenderer->create_view(ptAppData->uSceneHandle1, (plVec2){500.0f, 500.0f});
+    pl_end_profile_sample();
 
     // temporary draw layer for submitting fullscreen quad of offscreen render
     ptAppData->ptDrawLayer = pl_request_layer(pl_get_draw_list(NULL), "draw layer");
@@ -245,19 +259,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptCamera->update(gptEcs->get_component(ptSecondaryComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2));
 
     // load models
-    pl_begin_profile_frame();
-
-    pl_begin_profile_sample("load skyboxes");
-    const plMat4 tTransform0 = pl_mat4_translate_xyz(2.0f, 1.0f, 0.0f);
-    gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/glTF-Sample-Environments-main/ennis.jpg", 1024);
-    gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle1, "../data/glTF-Sample-Environments-main/ennis.jpg", 1024);
-    pl_end_profile_sample();
-
+    
     plModelLoaderData tLoaderData0 = {0};
 
     pl_begin_profile_sample("load models 0");
-    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
-    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL, &tLoaderData0);
+    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf", NULL, &tLoaderData0);
     gptModelLoader->load_stl(ptMainComponentLibrary, "../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 1.0f, 0.0f, 0.80f}, &tTransform0, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
     gptModelLoader->free_data(&tLoaderData0);
