@@ -980,16 +980,18 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc, const char* p
     MTLSamplerDescriptor *samplerDesc = [MTLSamplerDescriptor new];
     samplerDesc.minFilter = pl__metal_filter(ptDesc->tFilter);
     samplerDesc.magFilter = pl__metal_filter(ptDesc->tFilter);
-    samplerDesc.mipFilter = MTLSamplerMipFilterNearest;
+    samplerDesc.mipFilter = ptDesc->tMipmapMode == PL_MIPMAP_MODE_LINEAR ? MTLSamplerMipFilterLinear : MTLSamplerMipFilterNearest;
     samplerDesc.normalizedCoordinates = YES;
     samplerDesc.supportArgumentBuffers = YES;
     samplerDesc.sAddressMode = pl__metal_wrap(ptDesc->tHorizontalWrap);
     samplerDesc.tAddressMode = pl__metal_wrap(ptDesc->tVerticalWrap);
+    samplerDesc.rAddressMode = samplerDesc.sAddressMode;
     samplerDesc.borderColor = MTLSamplerBorderColorTransparentBlack;
     samplerDesc.compareFunction = pl__metal_compare(ptDesc->tCompare);
     samplerDesc.lodMinClamp = ptDesc->fMinMip;
     samplerDesc.lodMaxClamp = ptDesc->fMaxMip;
     samplerDesc.label = [NSString stringWithUTF8String:pcName];
+    samplerDesc.compareFunction = MTLCompareFunctionNever;
 
     plMetalSampler tMetalSampler = {
         .tSampler = [ptMetalDevice->tDevice newSamplerStateWithDescriptor:samplerDesc]

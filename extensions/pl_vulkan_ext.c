@@ -1280,14 +1280,11 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc, const char* p
         .unnormalizedCoordinates = VK_FALSE,
         .compareEnable           = VK_FALSE,
         .compareOp               = pl__vulkan_compare(ptDesc->tCompare),
-        // .mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-        .mipmapMode              = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+        .mipmapMode              = ptDesc->tMipmapMode == PL_MIPMAP_MODE_LINEAR ? VK_SAMPLER_MIPMAP_MODE_LINEAR : VK_SAMPLER_MIPMAP_MODE_NEAREST,
         .mipLodBias              = ptDesc->fMipBias,
         .minLod                  = ptDesc->fMinMip,
         .maxLod                  = ptDesc->fMaxMip,
     };
-
-    tSamplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
     tSamplerInfo.minFilter    = tSamplerInfo.magFilter;
     tSamplerInfo.addressModeW = tSamplerInfo.addressModeU;
 
