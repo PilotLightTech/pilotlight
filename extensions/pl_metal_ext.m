@@ -452,9 +452,12 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
     plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[uResourceIndex];
     ptMetalRenderPass->tFence = [ptMetalDevice->tDevice newFence];
 
+    
+
     // subpasses
     for(uint32_t uFrameIndex = 0; uFrameIndex < PL_FRAMES_IN_FLIGHT; uFrameIndex++)
     {
+        bool abTargetSeen[PL_MAX_RENDER_TARGETS] = {0};
         for(uint32_t i = 0; i < ptLayout->tDesc.uSubpassCount; i++)
         {
             const plSubpass* ptSubpass = &ptLayout->tDesc.atSubpasses[i];
@@ -470,14 +473,15 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
                 const uint32_t uTextureIndex = ptAttachments[uFrameIndex].atViewAttachments[uTargetIndex].uIndex;
                 if(pl__is_depth_format(ptLayout->tDesc.atRenderTargets[uTargetIndex].tFormat))
                 {
-                    if(i == 0)
+                    if(abTargetSeen[uTargetIndex])
                     {
-                        ptRenderPassDescriptor.depthAttachment.loadAction = pl__metal_load_op(ptDesc->tDepthTarget.tLoadOp);
-                        
+                        ptRenderPassDescriptor.depthAttachment.loadAction = MTLLoadActionLoad;
                     }
                     else
                     {
-                        ptRenderPassDescriptor.depthAttachment.loadAction = MTLLoadActionLoad;
+                        
+                        ptRenderPassDescriptor.depthAttachment.loadAction = pl__metal_load_op(ptDesc->tDepthTarget.tLoadOp);
+                        abTargetSeen[uTargetIndex] = true;
                     }
 
 
@@ -496,17 +500,20 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
                 }
                 else
                 {
+                    const uint32_t uTargetIndexOriginal = uTargetIndex;
                     if(ptLayout->tDesc.atSubpasses[i]._bHasDepth)
                         uTargetIndex--;
                     ptRenderPassDescriptor.colorAttachments[uCurrentColorAttachment].texture = ptMetalGraphics->sbtTexturesHot[uTextureIndex].tTexture;
 
-                    if(i == 0)
+                    if(abTargetSeen[uTargetIndexOriginal])
                     {
-                        ptRenderPassDescriptor.colorAttachments[uCurrentColorAttachment].loadAction = pl__metal_load_op(ptDesc->atColorTargets[uTargetIndex].tLoadOp);
+                        ptRenderPassDescriptor.colorAttachments[uCurrentColorAttachment].loadAction = MTLLoadActionLoad;
                     }
                     else
                     {
-                        ptRenderPassDescriptor.colorAttachments[uCurrentColorAttachment].loadAction = MTLLoadActionLoad;
+                        ptRenderPassDescriptor.colorAttachments[uCurrentColorAttachment].loadAction = pl__metal_load_op(ptDesc->atColorTargets[uTargetIndex].tLoadOp);
+                        abTargetSeen[uTargetIndexOriginal] = true;
+                        
                     }
 
                     if(i == ptLayout->tDesc.uSubpassCount - 1)
