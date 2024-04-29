@@ -102,6 +102,10 @@ struct BindGroup_0
     device float4 *atVertexData;
     device tMaterial *atMaterials;
     sampler          tDefaultSampler;
+    sampler          tEnvSampler;
+    texturecube<float> u_LambertianEnvSampler;
+    texturecube<float> u_GGXEnvSampler;
+    texture2d<float> u_GGXLUT;
 };
 
 //-----------------------------------------------------------------------------
@@ -116,9 +120,6 @@ struct BindGroup_1
     texture2d<float> tEmissiveTexture;
     texture2d<float> tAOMetalRoughnessTexture;
     texture2d<float> tDepthTexture;
-    texturecube<float> u_LambertianEnvSampler;
-    texturecube<float> u_GGXEnvSampler;
-    texture2d<float> u_GGXLUT;
 };
 
 //-----------------------------------------------------------------------------
@@ -278,14 +279,14 @@ float3
 getDiffuseLight(device const BindGroup_0& bg0, device const BindGroup_1& bg1, float3 n)
 {
     n.z = -n.z;
-    return bg1.u_LambertianEnvSampler.sample(bg0.tDefaultSampler, n).rgb;
+    return bg0.u_LambertianEnvSampler.sample(bg0.tEnvSampler, n).rgb;
 }
 
 float4
 getSpecularSample(device const BindGroup_0& bg0, device const BindGroup_1& bg1, float3 reflection, float lod)
 {
     reflection.z = -reflection.z;
-    return bg1.u_GGXEnvSampler.sample(bg0.tDefaultSampler, reflection, level(lod));
+    return bg0.u_GGXEnvSampler.sample(bg0.tEnvSampler, reflection, level(lod));
 }
 
 float3
@@ -296,7 +297,7 @@ getIBLRadianceGGX(device const BindGroup_0& bg0, device const BindGroup_1& bg1, 
     float3 reflection = fast::normalize(reflect(-v, n));
 
     float2 brdfSamplePoint = fast::clamp(float2(NdotV, roughness), float2(0.0, 0.0), float2(1.0, 1.0));
-    float2 f_ab = bg1.u_GGXLUT.sample(bg0.tDefaultSampler, brdfSamplePoint).rg;
+    float2 f_ab = bg0.u_GGXLUT.sample(bg0.tEnvSampler, brdfSamplePoint).rg;
     float4 specularSample = getSpecularSample(bg0, bg1, reflection, lod);
 
     float3 specularLight = specularSample.rgb;
@@ -313,7 +314,7 @@ getIBLRadianceLambertian(device const BindGroup_0& bg0, device const BindGroup_1
 {
     float NdotV = clampedDot(n, v);
     float2 brdfSamplePoint = fast::clamp(float2(NdotV, roughness), float2(0.0, 0.0), float2(1.0, 1.0));
-    float2 f_ab = bg1.u_GGXLUT.sample(bg0.tDefaultSampler, brdfSamplePoint).rg;
+    float2 f_ab = bg0.u_GGXLUT.sample(bg0.tEnvSampler, brdfSamplePoint).rg;
 
     float3 irradiance = getDiffuseLight(bg0, bg1, n);
 
@@ -380,14 +381,14 @@ fragment float4 fragment_main(
     float3 tSunlightColor = float3(1.0, 1.0, 1.0);
     float lightIntensity = 1.0;
 
-    float4 tBaseColor = bg1.tAlbedoTexture.sample(bg0.tDefaultSampler, in.tUV);
-    float4 tPosition = bg1.tPositionTexture.sample(bg0.tDefaultSampler, in.tUV);
+    float4 tBaseColor = bg1.tAlbedoTexture.sample(bg0.tEnvSampler, in.tUV);
+    float4 tPosition = bg1.tPositionTexture.sample(bg0.tEnvSampler, in.tUV);
     float specularWeight = tPosition.a;
 
-    float3 n = bg1.tNormalTexture.sample(bg0.tDefaultSampler, in.tUV).xyz;
+    float3 n = bg1.tNormalTexture.sample(bg0.tEnvSampler, in.tUV).xyz;
     float3 tSunLightDirection = float3(-1.0, -1.0, -1.0);
 
-    float4 AORoughnessMetalnessData = bg1.tAOMetalRoughnessTexture.sample(bg0.tDefaultSampler, in.tUV);
+    float4 AORoughnessMetalnessData = bg1.tAOMetalRoughnessTexture.sample(bg0.tEnvSampler, in.tUV);
     const float fPerceptualRoughness = AORoughnessMetalnessData.b;
     const float fMetalness = AORoughnessMetalnessData.g;
     const float fAlphaRoughness = fPerceptualRoughness * fPerceptualRoughness;
@@ -403,7 +404,7 @@ fragment float4 fragment_main(
     // LIGHTING
     float3 f_specular = float3(0.0);
     float3 f_diffuse = float3(0.0);
-    float4 f_emissive = bg1.tEmissiveTexture.sample(bg0.tDefaultSampler, in.tUV);
+    float4 f_emissive = bg1.tEmissiveTexture.sample(bg0.tEnvSampler, in.tUV);
     int iMips = int(f_emissive.a);
     float3 f_clearcoat = float3(0.0);
     float3 f_sheen = float3(0.0);

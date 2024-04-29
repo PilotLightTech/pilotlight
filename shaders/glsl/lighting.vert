@@ -98,6 +98,10 @@ layout(set = 0, binding = 2) readonly buffer plMaterialInfo
 } tMaterialInfo;
 
 layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
+layout(set = 0, binding = 4)  uniform sampler tEnvSampler;
+layout (set = 0, binding = 5) uniform textureCube u_LambertianEnvSampler;
+layout (set = 0, binding = 6) uniform textureCube u_GGXEnvSampler;
+layout (set = 0, binding = 7) uniform texture2D u_GGXLUT;
 
 layout(set = 2, binding = 0)  uniform texture2D tSkinningSampler;
 

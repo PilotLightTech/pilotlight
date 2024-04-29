@@ -89,6 +89,10 @@ layout(set = 0, binding = 2) readonly buffer plMaterialInfo
 } tMaterialInfo;
 
 layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
+layout(set = 0, binding = 4)  uniform sampler tEnvSampler;
+layout (set = 0, binding = 5) uniform textureCube u_LambertianEnvSampler;
+layout (set = 0, binding = 6) uniform textureCube u_GGXEnvSampler;
+layout (set = 0, binding = 7) uniform texture2D u_GGXLUT;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 1
@@ -134,6 +138,7 @@ layout(constant_id = 1) const int iDataStride = 0;
 layout(constant_id = 2) const int iTextureMappingFlags = 0;
 layout(constant_id = 3) const int iMaterialFlags = 0;
 layout(constant_id = 4) const int iUseSkinning = 0;
+layout(constant_id = 5) const int iRenderingFlags = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines

@@ -181,6 +181,10 @@ struct BindGroup_0
     device float4 *atVertexData;
     device tMaterial *atMaterials;
     sampler          tDefaultSampler;
+    sampler          tEnvSampler;
+    texturecube<float> u_LambertianEnvSampler;
+    texturecube<float> u_GGXEnvSampler;
+    texture2d<float> u_GGXLUT;
 };
 
 //-----------------------------------------------------------------------------
