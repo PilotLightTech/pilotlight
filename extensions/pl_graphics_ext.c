@@ -19,8 +19,7 @@ typedef struct _plFrameGarbage
 static plFrameGarbage*
 pl__get_frame_garbage(plGraphics* ptGraphics)
 {
-    return &ptGraphics->sbtGarbage[ptGraphics->uCurrentFrameIndex];
-    
+    return &ptGraphics->sbtGarbage[ptGraphics->uCurrentFrameIndex]; 
 }
 
 static size_t
@@ -698,6 +697,7 @@ pl__cleanup_common_graphics(plGraphics* ptGraphics)
     pl_sb_free(ptGraphics->sbtSemaphoreGenerations);
     pl_sb_free(ptGraphics->sbtSemaphoreFreeIndices);
     pl_sb_free(ptGraphics->sbtSamplerFreeIndices);
+    pl_sb_free(ptGraphics->sbtComputeShaderFreeIndices);
 
     PL_FREE(ptGraphics->_pInternalData);
     PL_FREE(ptGraphics->tDevice._pInternalData);

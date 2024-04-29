@@ -210,6 +210,7 @@ typedef int plLoadOp;             // -> enum _plLoadOp                 // Enum:
 typedef int plStoreOp;            // -> enum _plStoreOp                // Enum:
 typedef int plBlendOp;            // -> enum _plBlendOp                // Enum:
 typedef int plBlendFactor;        // -> enum _plBlendFactor            // Enum:
+typedef int plMipmapMode;         // -> enum _plMipmapMode             // Enum:
 
 // external
 typedef struct _plDrawList  plDrawList;
@@ -545,6 +546,7 @@ typedef struct _plTextureViewDesc
 typedef struct _plSamplerDesc
 {
     plFilter      tFilter;
+    plMipmapMode  tMipmapMode;
     plCompareMode tCompare;
     plWrapMode    tHorizontalWrap;
     plWrapMode    tVerticalWrap;
@@ -1137,6 +1139,12 @@ enum _plLoadOperation
     PL_LOAD_OPERATION_DONT_CARE,
     PL_LOAD_OPERATION_LOAD,
     PL_LOAD_OPERATION_CLEAR
+};
+
+enum _plMipmapMode
+{
+    PL_MIPMAP_MODE_LINEAR,
+    PL_MIPMAP_MODE_NEAREST
 };
 
 enum _plDataType
