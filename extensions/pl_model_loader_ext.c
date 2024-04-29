@@ -822,6 +822,8 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
             if(ptPrimitive->material)
             {
                 bool bOpaque = true;
+
+                plMaterialComponent* ptMaterial = NULL;
       
                 // check if the material already exists
                 if(pl_hm_has_key(&ptSceneData->tMaterialHashMap, (uint64_t)ptPrimitive->material))
@@ -829,9 +831,7 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
                     const uint64_t ulMaterialIndex = pl_hm_lookup(&ptSceneData->tMaterialHashMap, (uint64_t)ptPrimitive->material);
                     ptMesh->tMaterial = ptSceneData->sbtMaterialEntities[ulMaterialIndex];
 
-                    plMaterialComponent* ptMaterial = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
-                    if(ptMaterial->tBlendMode != PL_BLEND_MODE_OPAQUE)
-                        bOpaque = false;
+                    ptMaterial = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
                 }
                 else // create new material
                 {
@@ -840,12 +840,16 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
                     ptMesh->tMaterial = gptECS->create_material(ptLibrary, ptPrimitive->material->name);
                     pl_sb_push(ptSceneData->sbtMaterialEntities, ptMesh->tMaterial);
                     
-                    plMaterialComponent* ptMaterial = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
+                    ptMaterial = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
                     pl__refr_load_material(pcDirectory, ptMaterial, ptPrimitive->material);
-
-                    if(ptMaterial->tBlendMode != PL_BLEND_MODE_OPAQUE)
-                        bOpaque = false;
                 }
+
+                if(ptPrimitive->material->has_transmission)
+                    ptMaterial->tBlendMode = PL_BLEND_MODE_ALPHA;
+
+                if(ptMaterial->tBlendMode != PL_BLEND_MODE_OPAQUE)
+                    bOpaque = false;
+
                 if(bOpaque)
                     pl_sb_push(ptData->atOpaqueObjects, tNewObject);
                 else
