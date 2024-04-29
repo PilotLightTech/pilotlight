@@ -156,6 +156,7 @@ with pl.project("pilotlight"):
         "draw_3d.frag",
         "draw_3d_line.vert",
         "panorama_to_cubemap.comp",
+        "filter_environment.comp",
     ]
 
     metal_shaders = [
@@ -165,6 +166,7 @@ with pl.project("pilotlight"):
         "primitive.metal",
         "lighting.metal",
         "skybox.metal",
+        "filter_environment.metal",
         "transparent.metal"
     ]
 

@@ -1,91 +1,89 @@
 #version 450
 
-#define M_PI 3.1415926535897932384626433832795
+#define PL_PI 3.1415926535897932384626433832795
 
 layout(std140, set = 0, binding = 0) readonly buffer _tBufferIn
 {
     vec4 atPixelData[];
 } tBufferIn;
 
-layout(std140, set = 0, binding = 1) buffer _tBufferOut0{ vec4 atPixelData[]; } FaceOut_0;
-layout(std140, set = 0, binding = 2) buffer _tBufferOut1{ vec4 atPixelData[]; } FaceOut_1;
-layout(std140, set = 0, binding = 3) buffer _tBufferOut2{ vec4 atPixelData[]; } FaceOut_2;
-layout(std140, set = 0, binding = 4) buffer _tBufferOut3{ vec4 atPixelData[]; } FaceOut_3;
-layout(std140, set = 0, binding = 5) buffer _tBufferOut4{ vec4 atPixelData[]; } FaceOut_4;
-layout(std140, set = 0, binding = 6) buffer _tBufferOut5{ vec4 atPixelData[]; } FaceOut_5;
+layout(std140, set = 0, binding = 1) buffer _tBufferOut0{ vec4 atPixelData[]; } tFaceOut0;
+layout(std140, set = 0, binding = 2) buffer _tBufferOut1{ vec4 atPixelData[]; } tFaceOut1;
+layout(std140, set = 0, binding = 3) buffer _tBufferOut2{ vec4 atPixelData[]; } tFaceOut2;
+layout(std140, set = 0, binding = 4) buffer _tBufferOut3{ vec4 atPixelData[]; } tFaceOut3;
+layout(std140, set = 0, binding = 5) buffer _tBufferOut4{ vec4 atPixelData[]; } tFaceOut4;
+layout(std140, set = 0, binding = 6) buffer _tBufferOut5{ vec4 atPixelData[]; } tFaceOut5;
 
 layout (local_size_x = 16, local_size_y = 16, local_size_z = 3) in;
 
-layout(constant_id = 0) const int resolution = 0;
-layout(constant_id = 1) const int width = 0;
-layout(constant_id = 2) const int height = 0;
+layout(constant_id = 0) const int iResolution = 0;
+layout(constant_id = 1) const int iWidth = 0;
+layout(constant_id = 2) const int iHeight = 0;
 
-vec3 uvToXYZ(int face, vec2 uv)
+vec3
+pl_uv_to_xyz(int iFace, vec2 tUv)
 {
-    if (face == 0) // right
-    return vec3(1.f, -uv.y, -uv.x);
-
-    else if (face == 1) // left
-    return vec3(-1.f, -uv.y, uv.x);
-
-    else if (face == 2) // top
-    return vec3(uv.x, 1.f, +uv.y);
-
-    else if (face == 3) // bottom
-    return vec3(uv.x, -1.f, -uv.y);
-
-    else if (face == 4) // front
-    return vec3(uv.x, -uv.y, 1.f);
-
-    else //if(face == 5)
-    return vec3(-uv.x, -uv.y, -1.f);
+    if (iFace == 0) // right
+        return vec3(1.0, -tUv.y, -tUv.x);
+    else if (iFace == 1) // left
+        return vec3(-1.0, -tUv.y, tUv.x);
+    else if (iFace == 2) // top
+        return vec3(tUv.x, 1.0, tUv.y);
+    else if (iFace == 3) // bottom
+        return vec3(tUv.x, -1.0, -tUv.y);
+    else if (iFace == 4) // front
+        return vec3(tUv.x, -tUv.y, 1.0);
+    else //if(iFace == 5)
+        return vec3(-tUv.x, -tUv.y, -1.0);
 }
 
-vec2 dirToUV(vec3 dir)
+vec2
+pl_dir_to_uv(vec3 tDir)
 {
-    return vec2(
-    0.5f + 0.5f * atan(dir.z, dir.x) / M_PI,
-    1.f - acos(dir.y) / M_PI);
+    return vec2(0.5 + 0.5 * atan(tDir.z, tDir.x) / PL_PI, 1.0 - acos(tDir.y) / PL_PI);
 }
 
-void writeFace(int pixel, int face, vec3 colorIn)
+void
+pl_write_face(int iPixel, int iFace, vec3 tColorIn)
 {
-    vec4 color = vec4(colorIn.rgb, 1.0f);
+    const vec4 tColor = vec4(tColorIn.rgb, 1.0);
 
-    if (face == 0)
-    FaceOut_0.atPixelData[pixel] = color;
-    else if (face == 1)
-    FaceOut_1.atPixelData[pixel] = color;
-    else if (face == 2)
-    FaceOut_2.atPixelData[pixel] = color;
-    else if (face == 3)
-    FaceOut_3.atPixelData[pixel] = color;
-    else if (face == 4)
-    FaceOut_4.atPixelData[pixel] = color;
-    else //if(face == 5)
-    FaceOut_5.atPixelData[pixel] = color;
+    if (iFace == 0)
+        tFaceOut0.atPixelData[iPixel] = tColor;
+    else if (iFace == 1)
+        tFaceOut1.atPixelData[iPixel] = tColor;
+    else if (iFace == 2)
+        tFaceOut2.atPixelData[iPixel] = tColor;
+    else if (iFace == 3)
+        tFaceOut3.atPixelData[iPixel] = tColor;
+    else if (iFace == 4)
+        tFaceOut4.atPixelData[iPixel] = tColor;
+    else //if(iFace == 5)
+        tFaceOut5.atPixelData[iPixel] = tColor;
 }
 
-void main()
+void
+main()
 {
-    const float xcoord = gl_WorkGroupID.x*16 + gl_LocalInvocationID.x;
-    const float ycoord = gl_WorkGroupID.y*16 + gl_LocalInvocationID.y;
-    const int face = int(gl_WorkGroupID.z * 3 + gl_LocalInvocationID.z);
-    const float xinc = 1.0 / resolution;
-    const float yinc = 1.0 / resolution;
-    const vec2 inUV = vec2(xcoord * xinc, ycoord * yinc);
-    const int currentPixel = int(xcoord + ycoord * resolution);
+    const float fXCoord = gl_WorkGroupID.x * 16 + gl_LocalInvocationID.x;
+    const float tYCoord = gl_WorkGroupID.y * 16 + gl_LocalInvocationID.y;
+    const int   iFace   = int(gl_WorkGroupID.z * 3 + gl_LocalInvocationID.z);
 
-    vec2 texCoordNew = inUV * 2.0 - 1.0;
-    vec3 scan = uvToXYZ(face, texCoordNew);
-    vec3 direction = normalize(scan);
-    vec2 src = dirToUV(direction);
+    const float fXInc = 1.0 / iResolution;
+    const float fYInc = 1.0 / iResolution;
+    const vec2 tInUV = vec2(fXCoord * fXInc, tYCoord * fYInc);
+    const int iCurrentPixel = int(fXCoord + tYCoord * iResolution);
 
-    int columnindex = int(width - floor(src.x * width));
-    int rowindex = int(height - floor(src.y * height));
+    const vec2 tTexCoordNew = tInUV * 2.0 - 1.0;
+    const vec3 tScan = pl_uv_to_xyz(iFace, tTexCoordNew);
+    const vec3 tDirection = normalize(tScan);
+    const vec2 tSrc = pl_dir_to_uv(tDirection);
 
-    int srcpixelIndex = columnindex + rowindex * width;
+    const int iColumnindex = int(iWidth - floor(tSrc.x * iWidth));
+    const int iRowindex = int(iHeight - floor(tSrc.y * iHeight));
 
-    vec3 color = vec3(tBufferIn.atPixelData[srcpixelIndex].r, tBufferIn.atPixelData[srcpixelIndex].g, tBufferIn.atPixelData[srcpixelIndex].b);
-    writeFace(currentPixel, face, color);
+    const int iSrcpixelIndex = iColumnindex + iRowindex * iWidth;
+
+    const vec3 tColor = vec3(tBufferIn.atPixelData[iSrcpixelIndex].r, tBufferIn.atPixelData[iSrcpixelIndex].g, tBufferIn.atPixelData[iSrcpixelIndex].b);
+    pl_write_face(iCurrentPixel, iFace, tColor);
 }

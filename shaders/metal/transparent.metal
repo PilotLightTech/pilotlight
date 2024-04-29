@@ -3,20 +3,92 @@
 
 using namespace metal;
 
-#define PL_MESH_FORMAT_FLAG_NONE            0
-#define PL_MESH_FORMAT_FLAG_HAS_POSITION    1 << 0
-#define PL_MESH_FORMAT_FLAG_HAS_NORMAL      1 << 1
-#define PL_MESH_FORMAT_FLAG_HAS_TANGENT     1 << 2
-#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0  1 << 3
-#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1  1 << 4
-#define PL_MESH_FORMAT_FLAG_HAS_COLOR_0     1 << 5
-#define PL_MESH_FORMAT_FLAG_HAS_COLOR_1     1 << 6
-#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_0    1 << 7
-#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_1    1 << 8
-#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0   1 << 9
-#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1   1 << 10
-#define PL_TEXTURE_HAS_BASE_COLOR           1 << 0
-#define PL_TEXTURE_HAS_NORMAL               1 << 1
+// iMeshVariantFlags
+#define PL_MESH_FORMAT_FLAG_NONE           0
+#define PL_MESH_FORMAT_FLAG_HAS_POSITION   1 << 0
+#define PL_MESH_FORMAT_FLAG_HAS_NORMAL     1 << 1
+#define PL_MESH_FORMAT_FLAG_HAS_TANGENT    1 << 2
+#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 1 << 3
+#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1 1 << 4
+#define PL_MESH_FORMAT_FLAG_HAS_COLOR_0    1 << 5
+#define PL_MESH_FORMAT_FLAG_HAS_COLOR_1    1 << 6
+#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   1 << 7
+#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   1 << 8
+#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  1 << 9
+#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  1 << 10
+
+// iTextureMappingFlags
+#define PL_HAS_BASE_COLOR_MAP            1 << 0
+#define PL_HAS_NORMAL_MAP                1 << 1
+#define PL_HAS_EMISSIVE_MAP              1 << 2
+#define PL_HAS_OCCLUSION_MAP             1 << 3
+#define PL_HAS_METALLIC_ROUGHNESS_MAP    1 << 4
+
+// iMaterialFlags
+#define MATERIAL_METALLICROUGHNESS  1 << 0
+
+struct tMaterial
+{
+    // Metallic Roughness
+    int   u_MipCount;
+    float u_MetallicFactor;
+    float u_RoughnessFactor;
+    //-------------------------- ( 16 bytes )
+
+    float4 u_BaseColorFactor;
+    //-------------------------- ( 16 bytes )
+
+    // Clearcoat
+    float u_ClearcoatFactor;
+    float u_ClearcoatRoughnessFactor;
+    int _unused2[2];
+    //-------------------------- ( 16 bytes )
+
+    // Specular
+    packed_float3 u_KHR_materials_specular_specularColorFactor;
+    float u_KHR_materials_specular_specularFactor;
+    //-------------------------- ( 16 bytes )
+
+    // Iridescence
+    float u_IridescenceFactor;
+    float u_IridescenceIor;
+    float u_IridescenceThicknessMinimum;
+    float u_IridescenceThicknessMaximum;
+    //-------------------------- ( 16 bytes )
+
+    // Emissive Strength
+    packed_float3 u_EmissiveFactor;
+    float u_EmissiveStrength;
+    //-------------------------- ( 16 bytes )
+    
+
+    // IOR
+    float u_Ior;
+
+    // Alpha mode
+    float u_AlphaCutoff;
+    float u_OcclusionStrength;
+    float u_Unuses;
+    //-------------------------- ( 16 bytes )
+
+    int BaseColorUVSet;
+    int NormalUVSet;
+    int EmissiveUVSet;
+    int OcclusionUVSet;
+    //-------------------------- ( 16 bytes )
+
+    int MetallicRoughnessUVSet;
+    int ClearcoatUVSet;
+    int ClearcoatRoughnessUVSet;
+    int ClearcoatNormalUVSet;
+    //-------------------------- ( 16 bytes )
+
+    int SpecularUVSet;
+    int SpecularColorUVSet;
+    int IridescenceUVSet;
+    int IridescenceThicknessUVSet;
+    //-------------------------- ( 16 bytes )
+};
 
 struct BindGroupData_0
 {
@@ -24,11 +96,6 @@ struct BindGroupData_0
     float4x4 tCameraView;
     float4x4 tCameraProjection;   
     float4x4 tCameraViewProjection;   
-};
-
-struct tMaterial
-{
-    float4 tColor;
 };
 
 struct BindGroup_0
@@ -41,7 +108,18 @@ struct BindGroup_0
 
 struct BindGroup_1
 {
-    texture2d<float> tTexture;
+    texture2d<float> tBaseColorTexture;
+    texture2d<float> tNormalTexture;
+    texture2d<float> tEmissiveTexture;
+    texture2d<float> tMetallicRoughnessTexture;
+    texture2d<float> tOcclusionTexture;
+    texture2d<float> tClearcoatTexture;
+    texture2d<float> tClearcoatRoughnessTexture;
+    texture2d<float> tClearcoatNormalTexture;
+    texture2d<float> tIridescenceTexture;
+    texture2d<float> tIridescenceThicknessTexture;
+    texture2d<float> tSpecularTexture;
+    texture2d<float> tSpecularColorTexture;
 };
 
 struct BindGroup_2
@@ -74,11 +152,11 @@ struct DynamicData
     float4x4 tModel;
 };
 
-constant int MeshVariantFlags [[ function_constant(0) ]];
-constant int PL_DATA_STRIDE [[ function_constant(1) ]];
-constant int PL_HAS_BASE_COLOR_MAP [[ function_constant(2) ]];
-constant int PL_HAS_NORMAL_MAP [[ function_constant(3) ]];
-constant int PL_USE_SKINNING [[ function_constant(4) ]];
+constant int iMeshVariantFlags [[ function_constant(0) ]];
+constant int iDataStride [[ function_constant(1) ]];
+constant int iTextureMappingFlags [[ function_constant(2) ]];
+constant int iMaterialFlags [[ function_constant(3) ]];
+constant int iUseSkinning [[ function_constant(4) ]];
 
 float4x4 get_matrix_from_texture(device const texture2d<float>& s, int index)
 {
@@ -115,7 +193,7 @@ float4x4 get_skinning_matrix(device const texture2d<float>& s, float4 inJoints0,
 float4 get_position(device const texture2d<float>& s, float3 inPos, float4 inJoints0, float4 inWeights0)
 {
     float4 pos = float4(inPos, 1.0);
-    if(bool(PL_USE_SKINNING))
+    if(bool(iUseSkinning))
     {
         pos = get_skinning_matrix(s, inJoints0, inWeights0) * pos;
     }
@@ -125,7 +203,7 @@ float4 get_position(device const texture2d<float>& s, float3 inPos, float4 inJoi
 float4 get_normal(device const texture2d<float>& s, float3 inNormal, float4 inJoints0, float4 inWeights0)
 {
     float4 tNormal = float4(inNormal, 0.0);
-    if(bool(PL_USE_SKINNING))
+    if(bool(iUseSkinning))
     {
         tNormal = get_skinning_matrix(s, inJoints0, inWeights0) * tNormal;
     }
@@ -135,7 +213,7 @@ float4 get_normal(device const texture2d<float>& s, float3 inNormal, float4 inJo
 float4 get_tangent(device const texture2d<float>& s, float4 inTangent, float4 inJoints0, float4 inWeights0)
 {
     float4 tTangent = float4(inTangent.xyz, 0.0);
-    if(bool(PL_USE_SKINNING))
+    if(bool(iUseSkinning))
     {
         tTangent = get_skinning_matrix(s, inJoints0, inWeights0) * tTangent;
     }
@@ -146,7 +224,7 @@ vertex VertexOut vertex_main(
     uint                vertexID [[ vertex_id ]],
     VertexIn            in [[stage_in]],
     device const BindGroup_0& bg0 [[ buffer(1) ]],
-    device const BindGroup_1* bg1 [[ buffer(2) ]],
+    device const BindGroup_1& bg1 [[ buffer(2) ]],
     device const BindGroup_2& bg2 [[ buffer(3) ]],
     device const DynamicData& tObjectInfo [[ buffer(4) ]]
     )
@@ -166,27 +244,27 @@ vertex VertexOut vertex_main(
     float4 inWeights1 = float4(0.0, 0.0, 0.0, 0.0);
     int iCurrentAttribute = 0;
 
-    const uint iVertexDataOffset = PL_DATA_STRIDE * (vertexID - tObjectInfo.iVertexOffset) + tObjectInfo.iDataOffset;
+    const uint iVertexDataOffset = iDataStride * (vertexID - tObjectInfo.iVertexOffset) + tObjectInfo.iDataOffset;
 
     
-    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION)  { inPosition.xyz = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
-    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL)    { inNormal       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
-    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT)   { inTangent      = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0){ inTexCoord0    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
-    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1){ inTexCoord1    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
-    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0)   { inColor0       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_1)   { inColor1       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0)  { inJoints0      = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1)  { inJoints1      = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0) { inWeights0     = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1) { inWeights1     = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION)  { inPosition.xyz = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL)    { inNormal       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT)   { inTangent      = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0){ inTexCoord0    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1){ inTexCoord1    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0)   { inColor0       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_1)   { inColor1       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0)  { inJoints0      = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1)  { inJoints1      = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0) { inWeights0     = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1) { inWeights1     = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
 
     float4 tWorldNormal4 = tObjectInfo.tModel * get_normal(bg2.tSkinningTexture, inNormal, inJoints0, inWeights0);
     tShaderOut.tWorldNormal = tWorldNormal4.xyz;
-    if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL)
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL)
     {
 
-        if(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT)
+        if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT)
         {
             float4 tangent = get_tangent(bg2.tSkinningTexture, inTangent, inJoints0, inWeights0);
             float4 WorldTangent = tObjectInfo.tModel * tangent;
@@ -217,7 +295,7 @@ struct NormalInfo {
     float3 ntex; // Normal from texture, scaling is accounted for.
 };
 
-NormalInfo pl_get_normal_info(device const BindGroup_0& bg0, device const BindGroup_1* bg1, VertexOut tShaderIn, bool front_facing)
+NormalInfo pl_get_normal_info(device const BindGroup_0& bg0, device const BindGroup_1& bg1, VertexOut tShaderIn, bool front_facing)
 {
     float2 UV = tShaderIn.tUV;
     float2 uv_dx = dfdx(UV);
@@ -237,10 +315,10 @@ NormalInfo pl_get_normal_info(device const BindGroup_0& bg0, device const BindGr
     float3 t, b, ng;
 
     // Compute geometrical TBN:
-    if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL)
     {
 
-        if(bool(MeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))
+        if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT)
         {
             // Trivial TBN computation, present as vertex attribute.
             // Normalize eigenvectors as matrix is linearly interpolated.
@@ -275,9 +353,9 @@ NormalInfo pl_get_normal_info(device const BindGroup_0& bg0, device const BindGr
     // Compute normals:
     NormalInfo info;
     info.ng = ng;
-    if(bool(PL_HAS_NORMAL_MAP)) 
+    if(iTextureMappingFlags & PL_HAS_NORMAL_MAP) 
     {
-        info.ntex = bg1[1].tTexture.sample(bg0.tDefaultSampler, UV).rgb * 2.0 - float3(1.0);
+        info.ntex = bg1.tNormalTexture.sample(bg0.tDefaultSampler, UV).rgb * 2.0 - float3(1.0);
         // info.ntex *= vec3(0.2, 0.2, 1.0);
         // info.ntex *= vec3(u_NormalScale, u_NormalScale, 1.0);
         info.ntex = normalize(info.ntex);
@@ -292,13 +370,13 @@ NormalInfo pl_get_normal_info(device const BindGroup_0& bg0, device const BindGr
     return info;
 }
 
-float4 getBaseColor(device const BindGroup_0& bg0, device const BindGroup_1* bg1, float4 u_ColorFactor, VertexOut tShaderIn)
+float4 getBaseColor(device const BindGroup_0& bg0, device const BindGroup_1& bg1, float4 u_ColorFactor, VertexOut tShaderIn)
 {
     float4 baseColor = u_ColorFactor;
 
-    if(bool(PL_HAS_BASE_COLOR_MAP))
+    if(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP)
     {
-        baseColor *= bg1[0].tTexture.sample(bg0.tDefaultSampler, tShaderIn.tUV);
+        baseColor *= bg1.tBaseColorTexture.sample(bg0.tDefaultSampler, tShaderIn.tUV);
     }
     return baseColor;
 }
@@ -321,14 +399,14 @@ struct plRenderTargets
 fragment plRenderTargets fragment_main(
     VertexOut in [[stage_in]],
     device const BindGroup_0& bg0 [[ buffer(1) ]],
-    device const BindGroup_1* bg1 [[ buffer(2) ]],
+    device const BindGroup_1& bg1 [[ buffer(2) ]],
     device const BindGroup_2& bg2 [[ buffer(3) ]],
     device const DynamicData& tObjectInfo [[ buffer(4) ]],
     bool front_facing [[front_facing]]
     )
 {
-
-    float4 tBaseColor = getBaseColor(bg0, bg1, bg0.atMaterials[tObjectInfo.iMaterialIndex].tColor, in);
+    device tMaterial* material = &bg0.atMaterials[tObjectInfo.iMaterialIndex];
+    float4 tBaseColor = getBaseColor(bg0, bg1, material->u_BaseColorFactor, in);
 
     if(tBaseColor.a < 0.1)
     {
