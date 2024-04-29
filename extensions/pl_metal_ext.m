@@ -1422,7 +1422,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
 
     // prepare preprocessor defines
     MTLCompileOptions* ptCompileOptions = [MTLCompileOptions new];
-    // ptCompileOptions.fastMathEnabled = false;
+    ptCompileOptions.fastMathEnabled = false;
 
     // compile shader source
     NSError* error = nil;

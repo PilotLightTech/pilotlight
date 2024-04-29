@@ -3,6 +3,10 @@
 
 using namespace metal;
 
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 0
+//-----------------------------------------------------------------------------
+
 struct BindGroupData_0
 {
     float4   tCameraPosition;
@@ -19,29 +23,57 @@ struct BindGroup_0
     sampler          tDefaultSampler;
 };
 
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 1
+//-----------------------------------------------------------------------------
+
 struct BindGroup_1
 {
-    texturecube<half> texture_0;
+    texturecube<float> texture_0;
 };
 
-struct BindGroup_2
-{
-    texture2d<float> tSkinningTexture;
-};
+//-----------------------------------------------------------------------------
+// [SECTION] dynamic bind group
+//-----------------------------------------------------------------------------
 
 struct DynamicData
 {
     float4x4 tModel;
 };
 
+//-----------------------------------------------------------------------------
+// [SECTION] input
+//-----------------------------------------------------------------------------
+
 struct VertexIn {
     float3 tPosition [[attribute(0)]];
 };
+
+//-----------------------------------------------------------------------------
+// [SECTION] output
+//-----------------------------------------------------------------------------
 
 struct VertexOut {
     float4 tPosition [[position]];
     float4 tWorldPosition;
 };
+
+//-----------------------------------------------------------------------------
+// [SECTION] helpers
+//-----------------------------------------------------------------------------
+
+constant const float GAMMA = 2.2;
+constant const float INV_GAMMA = 1.0 / GAMMA;
+
+float3
+pl_linear_to_srgb(float3 color)
+{
+    return pow(color, float3(INV_GAMMA));
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] entry
+//-----------------------------------------------------------------------------
 
 vertex VertexOut vertex_main(
     uint                vertexID [[ vertex_id ]],
@@ -55,7 +87,7 @@ vertex VertexOut vertex_main(
     tOut.tPosition = bg0.data->tCameraProjection * bg0.data->tCameraView * bg3.tModel * float4(in.tPosition, 1.0);
     tOut.tPosition.w = tOut.tPosition.z;
     tOut.tPosition.y = tOut.tPosition.y * -1;
-    tOut.tWorldPosition = float4(in.tPosition.xy, in.tPosition.z, 1.0);
+    tOut.tWorldPosition = float4(in.tPosition, 1.0);
     return tOut;
 }
 
@@ -66,6 +98,6 @@ fragment float4 fragment_main(
     device DynamicData& bg3 [[ buffer(3) ]])
 {
 
-    half4 textureSample = bg1.texture_0.sample(bg0.tDefaultSampler, in.tWorldPosition.xyz);
-    return float4(textureSample);
+    float3 textureSample = bg1.texture_0.sample(bg0.tDefaultSampler, in.tWorldPosition.xyz).rgb;
+    return float4(pl_linear_to_srgb(textureSample), 1.0);
 }
