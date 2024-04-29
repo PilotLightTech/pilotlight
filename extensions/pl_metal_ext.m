@@ -151,6 +151,8 @@ typedef struct _plMetalBindGroup
     plTextureHandle atTextureBindings[PL_MAX_TEXTURES_PER_BIND_GROUP];
     plBufferHandle  aBufferBindings[PL_MAX_BUFFERS_PER_BIND_GROUP];
     plSamplerHandle atSamplerBindings[PL_MAX_TEXTURES_PER_BIND_GROUP];
+    uint32_t uHeapCount;
+    id<MTLHeap> atRequiredHeaps[PL_MAX_TEXTURES_PER_BIND_GROUP * PL_MAX_BUFFERS_PER_BIND_GROUP];
     uint32_t uOffset;
 } plMetalBindGroup;
 
@@ -213,7 +215,6 @@ typedef struct _plGraphicsMetal
 typedef struct _plDeviceMetal
 {
     id<MTLDevice> tDevice;
-    id<MTLHeap>* sbtDedicatedHeaps;
 } plDeviceMetal;
 
 //-----------------------------------------------------------------------------
@@ -1135,6 +1136,8 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
     plMetalBindGroup* ptMetalBindGroup = &ptMetalGraphics->sbtBindGroupsHot[tHandle.uIndex];
     plBindGroup* ptBindGroup = &ptGraphics->sbtBindGroupsCold[tHandle.uIndex];
 
+
+    ptMetalBindGroup->uHeapCount = 0;
     const char* pcDescriptorStart = ptMetalBindGroup->tShaderArgumentBuffer.contents;
 
     uint64_t* pulDescriptorStart = (uint64_t*)&pcDescriptorStart[ptMetalBindGroup->uOffset];
@@ -1146,6 +1149,22 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         uint64_t* ppfDestination = &pulDescriptorStart[ptUpdate->uSlot];
         *ppfDestination = ptMetalBuffer->tBuffer.gpuAddress;
         ptMetalBindGroup->aBufferBindings[i] = ptUpdate->tBuffer;
+
+        bool bHeapFound = false;
+        for(uint32_t j = 0; j < ptMetalBindGroup->uHeapCount; j++)
+        {
+            if(ptMetalBindGroup->atRequiredHeaps[j] == ptMetalBuffer->tHeap)
+            {
+                bHeapFound = true;
+                break;
+            }
+        }
+
+        if(!bHeapFound)
+        {
+            ptMetalBindGroup->atRequiredHeaps[ptMetalBindGroup->uHeapCount] = ptMetalBuffer->tHeap;
+            ptMetalBindGroup->uHeapCount++;
+        }
     }
 
     for(uint32_t i = 0; i < ptData->uTextureCount; i++)
@@ -1155,6 +1174,22 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         MTLResourceID* pptDestination = (MTLResourceID*)&pulDescriptorStart[ptUpdate->uSlot + ptUpdate->uIndex];
         *pptDestination = ptMetalTexture->tTexture.gpuResourceID;
         ptMetalBindGroup->atTextureBindings[i] = ptUpdate->tTexture;
+
+        bool bHeapFound = false;
+        for(uint32_t j = 0; j < ptMetalBindGroup->uHeapCount; j++)
+        {
+            if(ptMetalBindGroup->atRequiredHeaps[j] == ptMetalTexture->tHeap)
+            {
+                bHeapFound = true;
+                break;
+            }
+        }
+
+        if(!bHeapFound)
+        {
+            ptMetalBindGroup->atRequiredHeaps[ptMetalBindGroup->uHeapCount] = ptMetalTexture->tHeap;
+            ptMetalBindGroup->uHeapCount++;
+        }
     }
 
     for(uint32_t i = 0; i < ptData->uSamplerCount; i++)
@@ -1708,10 +1743,10 @@ pl_begin_command_recording(plGraphics* ptGraphics, const plBeginCommandInfo* ptB
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
 
     MTLCommandBufferDescriptor* ptCmdBufferDescriptor = [MTLCommandBufferDescriptor new];
-    ptCmdBufferDescriptor.retainedReferences = false;
+    ptCmdBufferDescriptor.retainedReferences = NO;
     ptCmdBufferDescriptor.errorOptions = MTLCommandBufferErrorOptionEncoderExecutionStatus;
     id<MTLCommandBuffer> tCmdBuffer = [ptMetalGraphics->tCmdQueue commandBufferWithDescriptor:ptCmdBufferDescriptor];
-    [ptCmdBufferDescriptor release];
+    // [ptCmdBufferDescriptor release];
     char blah[32] = {0};
     pl_sprintf(blah, "%u", ptGraphics->uCurrentFrameIndex);
     tCmdBuffer.label = [NSString stringWithUTF8String:blah];
@@ -2000,11 +2035,6 @@ pl_bind_compute_bind_groups(plComputeEncoder* ptEncoder, plComputeShaderHandle t
     id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)ptEncoder->tCommandBuffer._pInternal;
     id<MTLComputeCommandEncoder> tComputeEncoder = (id<MTLComputeCommandEncoder>)ptEncoder->_pInternal;
 
-    for(uint32_t i = 0; i < pl_sb_size(ptMetalDevice->sbtDedicatedHeaps); i++)
-    {
-        [tComputeEncoder useHeap:ptMetalDevice->sbtDedicatedHeaps[i]];
-    }
-
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {
         [tComputeEncoder useHeap:ptMetalGraphics->sbFrames[i].tDescriptorHeap];
@@ -2013,6 +2043,12 @@ pl_bind_compute_bind_groups(plComputeEncoder* ptEncoder, plComputeShaderHandle t
     for(uint32_t i = 0; i < uCount; i++)
     {
         plMetalBindGroup* ptBindGroup = &ptMetalGraphics->sbtBindGroupsHot[atBindGroups[i].uIndex];
+        
+        for(uint32 j = 0; j < ptBindGroup->uHeapCount; j++)
+        {
+            [tComputeEncoder useHeap:ptBindGroup->atRequiredHeaps[j]];
+        }
+
         [tComputeEncoder setBuffer:ptBindGroup->tShaderArgumentBuffer
             offset:ptBindGroup->uOffset
             atIndex:uFirst + i];
@@ -2038,6 +2074,11 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
     for(uint32_t i = 0; i < uCount; i++)
     {
         plMetalBindGroup* ptBindGroup = &ptMetalGraphics->sbtBindGroupsHot[atBindGroups[i].uIndex];
+
+        for(uint32 j = 0; j < ptBindGroup->uHeapCount; j++)
+        {
+            [tEncoder useHeap:ptBindGroup->atRequiredHeaps[j] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+        }
 
         for(uint32_t k = 0; k < ptBindGroup->tLayout.uTextureBindingCount; k++)
         {
@@ -2171,11 +2212,6 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
     id<MTLDevice> tDevice = ptMetalDevice->tDevice;
     plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
 
-    for(uint32_t i = 0; i < pl_sb_size(ptMetalDevice->sbtDedicatedHeaps); i++)
-    {
-        [tRenderEncoder useHeap:ptMetalDevice->sbtDedicatedHeaps[i] stages:MTLRenderStageVertex | MTLRenderStageFragment];
-    }
-
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {
         [tRenderEncoder useHeap:ptMetalGraphics->sbFrames[i].tDescriptorHeap stages:MTLRenderStageVertex | MTLRenderStageFragment];
@@ -2217,6 +2253,11 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
 
         {
             plMetalBindGroup* ptMetalBindGroup = &ptMetalGraphics->sbtBindGroupsHot[ptArea->uBindGroup0];
+
+            for(uint32 j = 0; j < ptMetalBindGroup->uHeapCount; j++)
+            {
+                [tRenderEncoder useHeap:ptMetalBindGroup->atRequiredHeaps[j] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+            }
 
             for(uint32_t k = 0; k < ptMetalBindGroup->tLayout.uTextureBindingCount; k++)
             {
@@ -2270,6 +2311,11 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
             {
                 plMetalBindGroup* ptMetalBindGroup = &ptMetalGraphics->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
 
+                for(uint32 j = 0; j < ptMetalBindGroup->uHeapCount; j++)
+                {
+                    [tRenderEncoder useHeap:ptMetalBindGroup->atRequiredHeaps[j] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+                }
+
                 for(uint32_t k = 0; k < ptMetalBindGroup->tLayout.uTextureBindingCount; k++)
                 {
                     const plTextureHandle tTextureHandle = ptMetalBindGroup->atTextureBindings[k];
@@ -2286,6 +2332,11 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
             {
                 plMetalBindGroup* ptMetalBindGroup = &ptMetalGraphics->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
                 
+                for(uint32 j = 0; j < ptMetalBindGroup->uHeapCount; j++)
+                {
+                    [tRenderEncoder useHeap:ptMetalBindGroup->atRequiredHeaps[j] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+                }
+
                 for(uint32_t k = 0; k < ptMetalBindGroup->tLayout.uTextureBindingCount; k++)
                 {
                     const plTextureHandle tTextureHandle = ptMetalBindGroup->atTextureBindings[k];
@@ -2389,11 +2440,6 @@ pl_cleanup(plGraphics* ptGraphics)
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
 
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
-
-    for(uint32_t i = 0; i < pl_sb_size(ptMetalDevice->sbtDedicatedHeaps); i++)
-    {
-        pl_sb_free(ptMetalDevice->sbtDedicatedHeaps);
-    }
 
     pl_cleanup_metal();
 
@@ -3105,7 +3151,6 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
     tNewHeap.label = [NSString stringWithUTF8String:pcName];
     tBlock.ulAddress = (uint64_t)tNewHeap;
     
-    pl_sb_push(ptMetalDevice->sbtDedicatedHeaps, tNewHeap);
     [ptHeapDescriptor release];
     return tBlock;
 }
@@ -3116,14 +3161,6 @@ pl_free_memory(plDevice* ptDevice, plDeviceAllocationBlock* ptBlock)
     id<MTLHeap> tHeap = (id<MTLHeap>)ptBlock->ulAddress;
 
     plDeviceMetal* ptMetalDevice = ptDevice->_pInternalData;
-    for(uint32_t i = 0; pl_sb_size(ptMetalDevice->sbtDedicatedHeaps); i++)
-    {
-        if(tHeap == ptMetalDevice->sbtDedicatedHeaps[i])
-        {
-            pl_sb_del_swap(ptMetalDevice->sbtDedicatedHeaps, i);
-            break;
-        }
-    }
 
     [tHeap setPurgeableState:MTLPurgeableStateEmpty];
     [tHeap release];
