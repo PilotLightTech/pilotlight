@@ -1295,6 +1295,8 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
     if(ptDescription->pcShaderEntryFunc == NULL)
         tShader.tDescription.pcShaderEntryFunc = "kernel_main";
 
+    NSString* entryFunc = [NSString stringWithUTF8String:tShader.tDescription.pcShaderEntryFunc];
+
     // read in shader source code
     unsigned uShaderFileSize = 0;
     gptFile->read(tShader.tDescription.pcShader, &uShaderFileSize, NULL, "rb");
@@ -1329,7 +1331,7 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
         [ptConstantValues setConstantValue:&pcConstantData[ptConstant->uOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:ptConstant->uID];
     }
 
-    id<MTLFunction> computeFunction = [ptMetalShader->library newFunctionWithName:@"kernel_main" constantValues:ptConstantValues error:&error];
+    id<MTLFunction> computeFunction = [ptMetalShader->library newFunctionWithName:entryFunc constantValues:ptConstantValues error:&error];
 
     if (computeFunction == nil)
     {
@@ -1420,6 +1422,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
 
     // prepare preprocessor defines
     MTLCompileOptions* ptCompileOptions = [MTLCompileOptions new];
+    // ptCompileOptions.fastMathEnabled = false;
 
     // compile shader source
     NSError* error = nil;
