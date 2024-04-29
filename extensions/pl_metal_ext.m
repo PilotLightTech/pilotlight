@@ -578,7 +578,7 @@ pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle
             sourceSize:tSize 
             toTexture:ptTexture->tTexture
             destinationSlice:ptRegions[i].uBaseArrayLayer
-            destinationLevel:0 
+            destinationLevel:ptRegions[i].uMipLevel 
             destinationOrigin:tOrigin];
     }
 }
