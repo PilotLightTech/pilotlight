@@ -1313,17 +1313,20 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
                 { .uID = 1, .uOffset = sizeof(int),     .tType = PL_DATA_TYPE_INT},
                 { .uID = 2, .uOffset = 2 * sizeof(int), .tType = PL_DATA_TYPE_INT}
             },
-            .tBindGroupLayout = {
-                .uBufferBindingCount = 7,
-                .aBufferBindings = {
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 0, .tStages = PL_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 1, .tStages = PL_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 3, .tStages = PL_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 4, .tStages = PL_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 5, .tStages = PL_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 6, .tStages = PL_STAGE_COMPUTE},
-                },
+            .uBindGroupLayoutCount = 1,
+            .atBindGroupLayouts = {
+                {
+                    .uBufferBindingCount = 7,
+                    .aBufferBindings = {
+                        { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 0, .tStages = PL_STAGE_COMPUTE},
+                        { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 1, .tStages = PL_STAGE_COMPUTE},
+                        { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_STAGE_COMPUTE},
+                        { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 3, .tStages = PL_STAGE_COMPUTE},
+                        { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 4, .tStages = PL_STAGE_COMPUTE},
+                        { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 5, .tStages = PL_STAGE_COMPUTE},
+                        { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 6, .tStages = PL_STAGE_COMPUTE},
+                    }
+                }
             }
         };
         plComputeShaderHandle tPanoramaShader = gptDevice->create_compute_shader(ptDevice, &tSkyboxComputeShaderDesc);
@@ -1385,7 +1388,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         };
         plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
         plComputeEncoder tComputeEncoder = gptGfx->begin_compute_pass(ptGraphics, &tCommandBuffer);
-        gptGfx->bind_compute_bind_groups(&tComputeEncoder, tPanoramaShader, 0, 1, &tComputeBindGroup);
+        gptGfx->bind_compute_bind_groups(&tComputeEncoder, tPanoramaShader, 0, 1, &tComputeBindGroup, NULL);
         gptGfx->bind_compute_shader(&tComputeEncoder, tPanoramaShader);
         gptGfx->dispatch(&tComputeEncoder, 1, &tDispach);
         gptGfx->end_compute_pass(&tComputeEncoder);
@@ -1539,23 +1542,26 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             { .uID = 6, .uOffset = 24, .tType = PL_DATA_TYPE_INT},
             { .uID = 7, .uOffset = 28, .tType = PL_DATA_TYPE_INT}
         },
-        .tBindGroupLayout = {
-            .uTextureBindingCount = 1,
-            .atTextureBindings = {
-                {.uSlot = 1, .tStages = PL_STAGE_COMPUTE, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-            },
-            .uBufferBindingCount = 7,
-            .aBufferBindings = {
-                { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_STAGE_COMPUTE},
-                { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 3, .tStages = PL_STAGE_COMPUTE},
-                { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 4, .tStages = PL_STAGE_COMPUTE},
-                { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 5, .tStages = PL_STAGE_COMPUTE},
-                { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 6, .tStages = PL_STAGE_COMPUTE},
-                { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 7, .tStages = PL_STAGE_COMPUTE},
-                { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 8, .tStages = PL_STAGE_COMPUTE},
-            },
-            .uSamplerBindingCount = 1,
-            .atSamplerBindings = { {.uSlot = 0, .tStages = PL_STAGE_COMPUTE}}
+        .uBindGroupLayoutCount = 1,
+        .atBindGroupLayouts = {
+            {
+                .uTextureBindingCount = 1,
+                .atTextureBindings = {
+                    {.uSlot = 1, .tStages = PL_STAGE_COMPUTE, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                },
+                .uBufferBindingCount = 7,
+                .aBufferBindings = {
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 3, .tStages = PL_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 4, .tStages = PL_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 5, .tStages = PL_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 6, .tStages = PL_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 7, .tStages = PL_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 8, .tStages = PL_STAGE_COMPUTE},
+                },
+                .uSamplerBindingCount = 1,
+                .atSamplerBindings = { {.uSlot = 0, .tStages = PL_STAGE_COMPUTE}}
+            }
         }
     };
 
@@ -1631,7 +1637,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         for(uint32_t i = 0; i < 6; i++)
             atLutBuffers[i] = pl__refr_create_staging_buffer(&tInputBufferDesc, "lut output", 0);
 
-        plBindGroupHandle tLutBindGroup = gptDevice->get_temporary_bind_group(ptDevice, &tFilterComputeShaderDesc.tBindGroupLayout, "lut bindgroup");
+        plBindGroupHandle tLutBindGroup = gptDevice->get_temporary_bind_group(ptDevice, &tFilterComputeShaderDesc.atBindGroupLayouts[0], "lut bindgroup");
         const plBindGroupUpdateBufferData atBGBufferData[] = {
             { .uSlot = 2, .tBuffer = atLutBuffers[0], .szBufferRange = uFaceSize},
             { .uSlot = 3, .tBuffer = atLutBuffers[1], .szBufferRange = uFaceSize},
@@ -1672,7 +1678,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
 
         plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
         plComputeEncoder tComputeEncoder = gptGfx->begin_compute_pass(ptGraphics, &tCommandBuffer);
-        gptGfx->bind_compute_bind_groups(&tComputeEncoder, tLUTShader, 0, 1, &tLutBindGroup);
+        gptGfx->bind_compute_bind_groups(&tComputeEncoder, tLUTShader, 0, 1, &tLutBindGroup, NULL);
         gptGfx->bind_compute_shader(&tComputeEncoder, tLUTShader);
         gptGfx->dispatch(&tComputeEncoder, 1, &tDispach);
         gptGfx->end_compute_pass(&tComputeEncoder);
@@ -1694,7 +1700,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
 
         tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
         tComputeEncoder = gptGfx->begin_compute_pass(ptGraphics, &tCommandBuffer);
-        gptGfx->bind_compute_bind_groups(&tComputeEncoder, tIrradianceShader, 0, 1, &tLutBindGroup);
+        gptGfx->bind_compute_bind_groups(&tComputeEncoder, tIrradianceShader, 0, 1, &tLutBindGroup, NULL);
         gptGfx->bind_compute_shader(&tComputeEncoder, tIrradianceShader);
         gptGfx->dispatch(&tComputeEncoder, 1, &tDispach);
         gptGfx->end_compute_pass(&tComputeEncoder);
@@ -1778,7 +1784,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         for(uint32_t j = 0; j < 7; j++)
             atInnerComputeBuffers[j] = pl__refr_create_staging_buffer(&tOutputBufferDesc, "inner buffer", j);
 
-        plBindGroupHandle tLutBindGroup = gptDevice->get_temporary_bind_group(ptDevice, &tFilterComputeShaderDesc.tBindGroupLayout, "lut bindgroup");
+        plBindGroupHandle tLutBindGroup = gptDevice->get_temporary_bind_group(ptDevice, &tFilterComputeShaderDesc.atBindGroupLayouts[0], "lut bindgroup");
         const plBindGroupUpdateBufferData atBGBufferData[] = {
             { .uSlot = 2, .tBuffer = atInnerComputeBuffers[0], .szBufferRange = uMaxFaceSize},
             { .uSlot = 3, .tBuffer = atInnerComputeBuffers[1], .szBufferRange = uMaxFaceSize},
@@ -1823,7 +1829,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
 
             plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
             plComputeEncoder tComputeEncoder = gptGfx->begin_compute_pass(ptGraphics, &tCommandBuffer);
-            gptGfx->bind_compute_bind_groups(&tComputeEncoder, atSpecularComputeShaders[i], 0, 1, &tLutBindGroup);
+            gptGfx->bind_compute_bind_groups(&tComputeEncoder, atSpecularComputeShaders[i], 0, 1, &tLutBindGroup, NULL);
             gptGfx->bind_compute_shader(&tComputeEncoder, atSpecularComputeShaders[i]);
             gptGfx->dispatch(&tComputeEncoder, 1, &tDispach);
             gptGfx->end_compute_pass(&tComputeEncoder);

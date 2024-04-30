@@ -330,7 +330,7 @@ typedef struct _plGraphicsI
     void             (*end_compute_pass)        (plComputeEncoder*);
     void             (*dispatch)                (plComputeEncoder*, uint32_t uDispatchCount, const plDispatch*);
     void             (*bind_compute_shader)     (plComputeEncoder*, plComputeShaderHandle);
-    void             (*bind_compute_bind_groups)(plComputeEncoder*, plComputeShaderHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle*);
+    void             (*bind_compute_bind_groups)(plComputeEncoder*, plComputeShaderHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle*, plDynamicBinding*);
 
     // blit encoder
     plBlitEncoder (*begin_blit_pass)         (plGraphics*, plCommandBuffer*);
@@ -784,7 +784,8 @@ typedef struct _plComputeShaderDescription
 {
     const char*              pcShader;
     const char*              pcShaderEntryFunc;
-    plBindGroupLayout        tBindGroupLayout;
+    plBindGroupLayout        atBindGroupLayouts[3];
+    uint32_t                 uBindGroupLayoutCount;
     plSpecializationConstant atConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
     uint32_t                 uConstantCount;
     const void*              pTempConstantData;

@@ -2037,13 +2037,19 @@ pl_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, const plDispat
 }
 
 static void
-pl_bind_compute_bind_groups(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups)
+pl_bind_compute_bind_groups(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups, plDynamicBinding* ptDynamicBinding)
 {   
     plGraphics* ptGraphics = ptEncoder->ptGraphics;
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
     id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)ptEncoder->tCommandBuffer._pInternal;
     id<MTLComputeCommandEncoder> tComputeEncoder = (id<MTLComputeCommandEncoder>)ptEncoder->_pInternal;
+
+    if(ptDynamicBinding)
+    {
+        plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
+        [tComputeEncoder setBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uCount];
+    }
 
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {
