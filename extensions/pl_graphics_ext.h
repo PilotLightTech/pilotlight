@@ -328,7 +328,7 @@ typedef struct _plGraphicsI
     // compute encoder
     plComputeEncoder (*begin_compute_pass)      (plGraphics*, plCommandBuffer*);
     void             (*end_compute_pass)        (plComputeEncoder*);
-    void             (*dispatch)                (plComputeEncoder*, uint32_t uDispatchCount, plDispatch*);
+    void             (*dispatch)                (plComputeEncoder*, uint32_t uDispatchCount, const plDispatch*);
     void             (*bind_compute_shader)     (plComputeEncoder*, plComputeShaderHandle);
     void             (*bind_compute_bind_groups)(plComputeEncoder*, plComputeShaderHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle*);
 

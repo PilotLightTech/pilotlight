@@ -4300,7 +4300,7 @@ pl_end_blit_pass(plBlitEncoder* ptEncoder)
 }
 
 static void
-pl_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, plDispatch* atDispatches)
+pl_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, const plDispatch* atDispatches)
 {
     VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
 
