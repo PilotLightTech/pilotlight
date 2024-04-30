@@ -2019,7 +2019,7 @@ pl_end_compute_pass(plComputeEncoder* ptEncoder)
 }
 
 static void
-pl_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, plDispatch* atDispatches)
+pl_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, const plDispatch* atDispatches)
 {
     plGraphics* ptGraphics = ptEncoder->ptGraphics;
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;

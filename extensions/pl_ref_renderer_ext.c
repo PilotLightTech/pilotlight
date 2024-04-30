@@ -1259,21 +1259,9 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
                 {
                     .uBufferBindingCount  = 3,
                     .aBufferBindings = {
-                        {
-                            .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
-                            .uSlot = 0,
-                            .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-                        },
-                        {
-                            .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                            .uSlot = 1,
-                            .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-                        },
-                        {
-                            .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                            .uSlot = 2,
-                            .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-                        },
+                        { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,  .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                        { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE,  .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                        { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE,  .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                     },
                     .uSamplerBindingCount = 2,
                     .atSamplerBindings = {
@@ -1282,19 +1270,15 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
                     },
                     .uTextureBindingCount  = 3,
                     .atTextureBindings = {
-                        {.uSlot =   5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =   6, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =   7, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1}
+                        {.uSlot = 5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
+                        {.uSlot = 6, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
+                        {.uSlot = 7, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1}
                     }
                 },
                 {
                     .uTextureBindingCount = 1,
                     .atTextureBindings = {
-                        {
-                            .uSlot = 0,
-                            .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL,
-                            .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
-                        }
+                        { .uSlot = 0, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                     },
                 }
             }
@@ -1376,42 +1360,13 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         };
         plBindGroupHandle tComputeBindGroup = gptDevice->get_temporary_bind_group(ptDevice, &tComputeBindGroupLayout, "compute bind group");
         const plBindGroupUpdateBufferData atBGBufferData[] = {
-            {
-                .tBuffer       = atComputeBuffers[0],
-                .uSlot         = 0,
-                .szBufferRange = uPanoramaSize
-            },
-            {
-                .tBuffer       = atComputeBuffers[1],
-                .uSlot         = 1,
-                .szBufferRange = uFaceSize
-            },
-            {
-                .tBuffer       = atComputeBuffers[2],
-                .uSlot         = 2,
-                .szBufferRange = uFaceSize
-            },
-            {
-                .tBuffer       = atComputeBuffers[3],
-                .uSlot         = 3,
-                .szBufferRange = uFaceSize
-            },
-            {
-                .tBuffer       = atComputeBuffers[4],
-                .uSlot         = 4,
-                .szBufferRange = uFaceSize
-            },
-            {
-                .tBuffer       = atComputeBuffers[5],
-                .uSlot         = 5,
-                .szBufferRange = uFaceSize
-            },
-            {
-                .tBuffer       = atComputeBuffers[6],
-                .uSlot         = 6,
-                .szBufferRange = uFaceSize
-            },
-
+            { .uSlot = 0, .tBuffer = atComputeBuffers[0], .szBufferRange = uPanoramaSize},
+            { .uSlot = 1, .tBuffer = atComputeBuffers[1], .szBufferRange = uFaceSize},
+            { .uSlot = 2, .tBuffer = atComputeBuffers[2], .szBufferRange = uFaceSize},
+            { .uSlot = 3, .tBuffer = atComputeBuffers[3], .szBufferRange = uFaceSize},
+            { .uSlot = 4, .tBuffer = atComputeBuffers[4], .szBufferRange = uFaceSize},
+            { .uSlot = 5, .tBuffer = atComputeBuffers[5], .szBufferRange = uFaceSize},
+            { .uSlot = 6, .tBuffer = atComputeBuffers[6], .szBufferRange = uFaceSize}
         };
         const plBindGroupUpdateData tBGData = {
             .uBufferCount = 7,
@@ -1419,7 +1374,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         };
         gptDevice->update_bind_group(ptDevice, tComputeBindGroup, &tBGData);
 
-        plDispatch tDispach = {
+        // calculate cubemap data
+        const plDispatch tDispach = {
             .uGroupCountX     = (uint32_t)iResolution / 16,
             .uGroupCountY     = (uint32_t)iResolution / 16,
             .uGroupCountZ     = 2,
@@ -1427,7 +1383,6 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             .uThreadPerGroupY = 16,
             .uThreadPerGroupZ = 3
         };
-
         plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
         plComputeEncoder tComputeEncoder = gptGfx->begin_compute_pass(ptGraphics, &tCommandBuffer);
         gptGfx->bind_compute_bind_groups(&tComputeEncoder, tPanoramaShader, 0, 1, &tComputeBindGroup);
@@ -1438,8 +1393,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         gptGfx->submit_command_buffer_blocking(ptGraphics, &tCommandBuffer, NULL);
         gptDevice->queue_compute_shader_for_deletion(ptDevice, tPanoramaShader);
 
-        // get data
-
+        // create texture
         plMemCpyJobData atJobData[6] = {0};
         plJobDesc atJobs[6] = {0};
         plBuffer* ptStagingBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, gptData->tStagingBufferHandle[0]);
@@ -1451,10 +1405,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             atJobData[i].pDestination = &ptStagingBuffer->tMemoryAllocation.pHostMapped[uFaceSize * i];
             atJobs[i].pData = &atJobData[i];
             atJobs[i].task = pl__refr_memcpy_job;
-            // if(i == 5)
-            //     gptImage->write_hdr("lut.hdr", iResolution, iResolution, 4, (float*)atJobData[i].ptBuffer->tMemoryAllocation.pHostMapped);
         }
-
         plAtomicCounter* ptCounter = NULL;
         gptJob->dispatch_jobs(6, atJobs, &ptCounter);
         gptJob->wait_for_counter(ptCounter);
@@ -1630,7 +1581,6 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         .currentMipLevel = 0,
     };
 
-    
     FilterShaderSpecData tFilterDatas[16] = {0};
 
     tFilterDatas[0].resolution = iResolution;
@@ -1668,8 +1618,6 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         atSpecularComputeShaders[i] = gptDevice->create_compute_shader(ptDevice, &tFilterComputeShaderDesc);
     }
 
-
-
     // create lut
     {
 
@@ -1685,42 +1633,15 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
 
         plBindGroupHandle tLutBindGroup = gptDevice->get_temporary_bind_group(ptDevice, &tFilterComputeShaderDesc.tBindGroupLayout, "lut bindgroup");
         const plBindGroupUpdateBufferData atBGBufferData[] = {
-            {
-                .tBuffer       = atLutBuffers[0],
-                .uSlot         = 2,
-                .szBufferRange = uFaceSize
-            },
-            {
-                .tBuffer       = atLutBuffers[1],
-                .uSlot         = 3,
-                .szBufferRange = uFaceSize
-            },
-            {
-                .tBuffer       = atLutBuffers[2],
-                .uSlot         = 4,
-                .szBufferRange = uFaceSize
-            },
-            {
-                .tBuffer       = atLutBuffers[3],
-                .uSlot         = 5,
-                .szBufferRange = uFaceSize
-            },
-            {
-                .tBuffer       = atLutBuffers[4],
-                .uSlot         = 6,
-                .szBufferRange = uFaceSize
-            },
-            {
-                .tBuffer       = atLutBuffers[5],
-                .uSlot         = 7,
-                .szBufferRange = uFaceSize
-            },
-            {
-                .tBuffer       = atLutBuffers[6],
-                .uSlot         = 8,
-                .szBufferRange = uFaceSize
-            },
+            { .uSlot = 2, .tBuffer = atLutBuffers[0], .szBufferRange = uFaceSize},
+            { .uSlot = 3, .tBuffer = atLutBuffers[1], .szBufferRange = uFaceSize},
+            { .uSlot = 4, .tBuffer = atLutBuffers[2], .szBufferRange = uFaceSize},
+            { .uSlot = 5, .tBuffer = atLutBuffers[3], .szBufferRange = uFaceSize},
+            { .uSlot = 6, .tBuffer = atLutBuffers[4], .szBufferRange = uFaceSize},
+            { .uSlot = 7, .tBuffer = atLutBuffers[5], .szBufferRange = uFaceSize},
+            { .uSlot = 8, .tBuffer = atLutBuffers[6], .szBufferRange = uFaceSize},
         };
+
         const plBindGroupUpdateSamplerData tSamplerData = {
             .tSampler = gptData->tDefaultSampler,
             .uSlot = 0
@@ -1740,8 +1661,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         };
         gptDevice->update_bind_group(ptDevice, tLutBindGroup, &tBGData);
 
-
-        plDispatch tDispach = {
+        const plDispatch tDispach = {
             .uGroupCountX     = (uint32_t)iResolution / 16,
             .uGroupCountY     = (uint32_t)iResolution / 16,
             .uGroupCountZ     = 3,
@@ -1772,8 +1692,6 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         };
         ptScene->tGGXLUTTexture = pl__refr_create_texture_with_data(&tTextureDesc, "lut texture", 0, ptLutBuffer->tMemoryAllocation.pHostMapped, uFaceSize);
 
-
-
         tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
         tComputeEncoder = gptGfx->begin_compute_pass(ptGraphics, &tCommandBuffer);
         gptGfx->bind_compute_bind_groups(&tComputeEncoder, tIrradianceShader, 0, 1, &tLutBindGroup);
@@ -1784,24 +1702,21 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         gptGfx->submit_command_buffer_blocking(ptGraphics, &tCommandBuffer, NULL);
         gptDevice->queue_compute_shader_for_deletion(ptDevice, tIrradianceShader);
 
-        char* pcResultData = PL_ALLOC(uFaceSize * 6);
-        memset(pcResultData, 0, uFaceSize * 6);
-        float* pfBlah0 = (float*)&pcResultData[0];
-        float* pfBlah1 = (float*)&pcResultData[uFaceSize];
-        float* pfBlah2 = (float*)&pcResultData[uFaceSize * 2];
-        float* pfBlah3 = (float*)&pcResultData[uFaceSize * 3];
-        float* pfBlah4 = (float*)&pcResultData[uFaceSize * 4];
-        float* pfBlah5 = (float*)&pcResultData[uFaceSize * 5];
+        plMemCpyJobData atJobData[6] = {0};
+        plJobDesc atJobs[6] = {0};
+        plBuffer* ptStagingBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, gptData->tStagingBufferHandle[0]);
 
         for(uint32_t i = 0; i < 6; i++)
         {
-            plBuffer* ptBuffer = gptDevice->get_buffer(ptDevice, atLutBuffers[i]);
-            memcpy(&pcResultData[uFaceSize * i], ptBuffer->tMemoryAllocation.pHostMapped, uFaceSize);
+            atJobData[i].ptBuffer = gptDevice->get_buffer(ptDevice, atLutBuffers[i]);
+            atJobData[i].szSize = uFaceSize;
+            atJobData[i].pDestination = &ptStagingBuffer->tMemoryAllocation.pHostMapped[uFaceSize * i];
+            atJobs[i].pData = &atJobData[i];
+            atJobs[i].task = pl__refr_memcpy_job;
         }
-
-        // gptImage->write_hdr("lut.hdr", iResolution, iResolution, 4, pfBlah0);
-        plBuffer* ptStagingBuffer = gptDevice->get_buffer(&ptGraphics->tDevice, gptData->tStagingBufferHandle[0]);
-        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pcResultData, uFaceSize * 6);
+        plAtomicCounter* ptCounter = NULL;
+        gptJob->dispatch_jobs(6, atJobs, &ptCounter);
+        gptJob->wait_for_counter(ptCounter);
 
         const plTextureDesc tSpecularTextureDesc = {
             .tDimensions = {(float)iResolution, (float)iResolution, 1},
@@ -1843,79 +1758,61 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         };
         ptScene->tGGXEnvTexture = pl__refr_create_texture(&tTextureDesc, "tGGXEnvTexture", uSceneHandle);
 
+        const plBindGroupUpdateSamplerData tSamplerData = {
+            .tSampler = gptData->tDefaultSampler,
+            .uSlot = 0
+        };
+        const plBindGroupUpdateTextureData tTextureData = {
+            .tTexture = ptScene->tSkyboxTexture,
+            .uSlot    = 1,
+            .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
+        };
+
+        const size_t uMaxFaceSize = (size_t)iResolution * (size_t)iResolution * 4 * sizeof(float);
+        const plBufferDescription tOutputBufferDesc = {
+            .tUsage    = PL_BUFFER_USAGE_STORAGE,
+            .uByteSize = (uint32_t)uMaxFaceSize
+        };
+
+        plBufferHandle atInnerComputeBuffers[7] = {0};
+        for(uint32_t j = 0; j < 7; j++)
+            atInnerComputeBuffers[j] = pl__refr_create_staging_buffer(&tOutputBufferDesc, "inner buffer", j);
+
+        plBindGroupHandle tLutBindGroup = gptDevice->get_temporary_bind_group(ptDevice, &tFilterComputeShaderDesc.tBindGroupLayout, "lut bindgroup");
+        const plBindGroupUpdateBufferData atBGBufferData[] = {
+            { .uSlot = 2, .tBuffer = atInnerComputeBuffers[0], .szBufferRange = uMaxFaceSize},
+            { .uSlot = 3, .tBuffer = atInnerComputeBuffers[1], .szBufferRange = uMaxFaceSize},
+            { .uSlot = 4, .tBuffer = atInnerComputeBuffers[2], .szBufferRange = uMaxFaceSize},
+            { .uSlot = 5, .tBuffer = atInnerComputeBuffers[3], .szBufferRange = uMaxFaceSize},
+            { .uSlot = 6, .tBuffer = atInnerComputeBuffers[4], .szBufferRange = uMaxFaceSize},
+            { .uSlot = 7, .tBuffer = atInnerComputeBuffers[5], .szBufferRange = uMaxFaceSize},
+            { .uSlot = 8, .tBuffer = atInnerComputeBuffers[6], .szBufferRange = uMaxFaceSize}
+        };
+
+        const plBindGroupUpdateData tBGData = {
+            .uBufferCount = 7,
+            .atBuffers = atBGBufferData,
+            .uSamplerCount = 1,
+            .atSamplerBindings = &tSamplerData,
+            .uTextureCount = 1,
+            .atTextures = &tTextureData
+        };
+        gptDevice->update_bind_group(ptDevice, tLutBindGroup, &tBGData);
+
+        const plBufferDescription tInputBufferDesc = {
+            .tUsage    = PL_BUFFER_USAGE_STORAGE,
+            .uByteSize = (uint32_t)uMaxFaceSize * 6
+        };
+        plBufferHandle tTempBuff = pl__refr_create_staging_buffer(&tInputBufferDesc, "spec input", 0);
+        plBuffer* ptBuffer = gptDevice->get_buffer(ptDevice, tTempBuff);
+
         for (int i = ptScene->iEnvironmentMips - 1; i != -1; i--)
         {
             int currentWidth = iResolution >> i;
 
             const size_t uCurrentFaceSize = (size_t)currentWidth * (size_t)currentWidth * 4 * sizeof(float);
 
-            const plBufferDescription tOutputBufferDesc = {
-                .tUsage    = PL_BUFFER_USAGE_STORAGE,
-                .uByteSize = (uint32_t)uCurrentFaceSize
-            };
-
-            plBufferHandle atInnerComputeBuffers[7] = {0};
-            for(uint32_t j = 0; j < 7; j++)
-                atInnerComputeBuffers[j] = pl__refr_create_staging_buffer(&tOutputBufferDesc, "inner buffer", j);
-
-            plBindGroupHandle tLutBindGroup = gptDevice->get_temporary_bind_group(ptDevice, &tFilterComputeShaderDesc.tBindGroupLayout, "lut bindgroup");
-            const plBindGroupUpdateBufferData atBGBufferData[] = {
-                {
-                    .tBuffer       = atInnerComputeBuffers[0],
-                    .uSlot         = 2,
-                    .szBufferRange = uCurrentFaceSize
-                },
-                {
-                    .tBuffer       = atInnerComputeBuffers[1],
-                    .uSlot         = 3,
-                    .szBufferRange = uCurrentFaceSize
-                },
-                {
-                    .tBuffer       = atInnerComputeBuffers[2],
-                    .uSlot         = 4,
-                    .szBufferRange = uCurrentFaceSize
-                },
-                {
-                    .tBuffer       = atInnerComputeBuffers[3],
-                    .uSlot         = 5,
-                    .szBufferRange = uCurrentFaceSize
-                },
-                {
-                    .tBuffer       = atInnerComputeBuffers[4],
-                    .uSlot         = 6,
-                    .szBufferRange = uCurrentFaceSize
-                },
-                {
-                    .tBuffer       = atInnerComputeBuffers[5],
-                    .uSlot         = 7,
-                    .szBufferRange = uCurrentFaceSize
-                },
-                {
-                    .tBuffer       = atInnerComputeBuffers[6],
-                    .uSlot         = 8,
-                    .szBufferRange = uCurrentFaceSize
-                },
-            };
-            const plBindGroupUpdateSamplerData tSamplerData = {
-                .tSampler = gptData->tDefaultSampler,
-                .uSlot = 0
-            };
-            const plBindGroupUpdateTextureData tTextureData = {
-                .tTexture = ptScene->tSkyboxTexture,
-                .uSlot    = 1,
-                .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
-            };
-            const plBindGroupUpdateData tBGData = {
-                .uBufferCount = 7,
-                .atBuffers = atBGBufferData,
-                .uSamplerCount = 1,
-                .atSamplerBindings = &tSamplerData,
-                .uTextureCount = 1,
-                .atTextures = &tTextureData
-            };
-            gptDevice->update_bind_group(ptDevice, tLutBindGroup, &tBGData);
-
-            plDispatch tDispach = {
+            const plDispatch tDispach = {
                 .uGroupCountX     = (uint32_t)currentWidth / 16,
                 .uGroupCountY     = (uint32_t)currentWidth / 16,
                 .uGroupCountZ     = 2,
@@ -1934,24 +1831,20 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             gptGfx->submit_command_buffer_blocking(ptGraphics, &tCommandBuffer, NULL);
             gptDevice->queue_compute_shader_for_deletion(ptDevice, atSpecularComputeShaders[i]);
 
-            // get data
-            char* pcData = PL_ALLOC(uCurrentFaceSize * 6);
-            memset(pcData, 0, uCurrentFaceSize * 6);
-            float* pfBlah0 = (float*)&pcData[0];
-            float* pfBlah1 = (float*)&pcData[uCurrentFaceSize];
-            float* pfBlah2 = (float*)&pcData[uCurrentFaceSize * 2];
-            float* pfBlah3 = (float*)&pcData[uCurrentFaceSize * 3];
-            float* pfBlah4 = (float*)&pcData[uCurrentFaceSize * 4];
-            float* pfBlah5 = (float*)&pcData[uCurrentFaceSize * 5];
-
-            // gptImage->write_hdr("lut.hdr", iSkyboxResolution, iSkyboxResolution, 4, pfLut);
+            plMemCpyJobData atJobData[6] = {0};
+            plJobDesc atJobs[6] = {0};
 
             for(uint32_t j = 0; j < 6; j++)
             {
-                plBuffer* ptBuffer = gptDevice->get_buffer(ptDevice, atInnerComputeBuffers[j]);
-                memcpy(&pcData[uCurrentFaceSize * j], ptBuffer->tMemoryAllocation.pHostMapped, uCurrentFaceSize);
+                atJobData[j].ptBuffer = gptDevice->get_buffer(ptDevice, atInnerComputeBuffers[j]);
+                atJobData[j].szSize = uCurrentFaceSize;
+                atJobData[j].pDestination = &ptBuffer->tMemoryAllocation.pHostMapped[uCurrentFaceSize * j];
+                atJobs[j].pData = &atJobData[j];
+                atJobs[j].task = pl__refr_memcpy_job;
             }
-
+            plAtomicCounter* ptCounter = NULL;
+            gptJob->dispatch_jobs(6, atJobs, &ptCounter);
+            gptJob->wait_for_counter(ptCounter);    
 
             plBufferImageCopy tRegions[6] = {0};
             for(uint32_t j = 0; j < 6; j++)
@@ -1970,13 +1863,6 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
                 tRegions[j] = tRegion;
             }
 
-            const plBufferDescription tInputBufferDesc = {
-                .tUsage    = PL_BUFFER_USAGE_STORAGE,
-                .uByteSize = (uint32_t)uCurrentFaceSize * 6
-            };
-            plBufferHandle tTempBuff = pl__refr_create_staging_buffer(&tInputBufferDesc, "spec input", i);
-            plBuffer* ptBuffer = gptDevice->get_buffer(ptDevice, tTempBuff);
-            memcpy(ptBuffer->tMemoryAllocation.pHostMapped, pcData, uCurrentFaceSize * 6);
             tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, NULL);
             plBlitEncoder tBlitEncoder = gptGfx->begin_blit_pass(ptDevice->ptGraphics, &tCommandBuffer);
             gptGfx->copy_buffer_to_texture(&tBlitEncoder, tTempBuff, ptScene->tGGXEnvTexture, 6, tRegions);
@@ -1984,10 +1870,10 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
             gptGfx->submit_command_buffer_blocking(ptGraphics, &tCommandBuffer, NULL);
 
-            gptDevice->queue_buffer_for_deletion(ptDevice, tTempBuff);
-            // gptDevice->destroy_buffer(ptDevice, tTempBuff);
-            PL_FREE(pcData);
         }
+        for(uint32_t j = 0; j < 7; j++)
+            gptDevice->queue_buffer_for_deletion(ptDevice, atInnerComputeBuffers[j]);
+        gptDevice->queue_buffer_for_deletion(ptDevice, tTempBuff);
     }
 
     pl_end_profile_sample();
@@ -2058,7 +1944,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         .task  = pl__refr_job,
         .pData = sbtMaterials
     };
-    gptJob->dispatch_batch(uMaterialCount, 1, tJobDesc, &ptCounter);
+    gptJob->dispatch_batch(uMaterialCount * PL_TEXTURE_SLOT_COUNT, 0, tJobDesc, &ptCounter);
     gptJob->wait_for_counter(ptCounter);
     pl_end_profile_sample();
 
@@ -3436,34 +3322,34 @@ static void
 pl__refr_job(uint32_t uJobIndex, void* pData)
 {
     plMaterialComponent* sbtMaterials = pData;
-    plMaterialComponent* ptMaterial = &sbtMaterials[uJobIndex];
+
+    const uint32_t uMaterialIndex = uJobIndex / PL_TEXTURE_SLOT_COUNT;
+    const uint32_t uTextureIndex = uJobIndex % PL_TEXTURE_SLOT_COUNT;
+
+    plMaterialComponent* ptMaterial = &sbtMaterials[uMaterialIndex];
     int texWidth, texHeight, texNumChannels;
     int texForceNumChannels = 4;
 
-    for(uint32_t i = 0; i < PL_TEXTURE_SLOT_COUNT; i++)
+    if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[uTextureIndex].tResource))
     {
-        
-        if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[i].tResource))
+        if(uTextureIndex == PL_TEXTURE_SLOT_BASE_COLOR_MAP || uTextureIndex == PL_TEXTURE_SLOT_EMISSIVE_MAP || uTextureIndex == PL_TEXTURE_SLOT_SPECULAR_COLOR_MAP)
         {
-            if(i == PL_TEXTURE_SLOT_BASE_COLOR_MAP || i == PL_TEXTURE_SLOT_EMISSIVE_MAP || i == PL_TEXTURE_SLOT_SPECULAR_COLOR_MAP)
-            {
-                size_t szResourceSize = 0;
-                const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[i].tResource, &szResourceSize);
-                float* rawBytes = gptImage->load_hdr_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-                gptResource->set_buffer_data(ptMaterial->atTextureMaps[i].tResource, sizeof(float) * texWidth * texHeight * 4, rawBytes);
-                ptMaterial->atTextureMaps[i].uWidth = texWidth;
-                ptMaterial->atTextureMaps[i].uHeight = texHeight;
-            }
-            else
-            {
-                size_t szResourceSize = 0;
-                const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[i].tResource, &szResourceSize);
-                unsigned char* rawBytes = gptImage->load_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-                PL_ASSERT(rawBytes);
-                ptMaterial->atTextureMaps[i].uWidth = texWidth;
-                ptMaterial->atTextureMaps[i].uHeight = texHeight;
-                gptResource->set_buffer_data(ptMaterial->atTextureMaps[i].tResource, texWidth * texHeight * 4, rawBytes);
-            }
+            size_t szResourceSize = 0;
+            const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[uTextureIndex].tResource, &szResourceSize);
+            float* rawBytes = gptImage->load_hdr_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+            gptResource->set_buffer_data(ptMaterial->atTextureMaps[uTextureIndex].tResource, sizeof(float) * texWidth * texHeight * 4, rawBytes);
+            ptMaterial->atTextureMaps[uTextureIndex].uWidth = texWidth;
+            ptMaterial->atTextureMaps[uTextureIndex].uHeight = texHeight;
+        }
+        else
+        {
+            size_t szResourceSize = 0;
+            const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[uTextureIndex].tResource, &szResourceSize);
+            unsigned char* rawBytes = gptImage->load_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+            PL_ASSERT(rawBytes);
+            ptMaterial->atTextureMaps[uTextureIndex].uWidth = texWidth;
+            ptMaterial->atTextureMaps[uTextureIndex].uHeight = texHeight;
+            gptResource->set_buffer_data(ptMaterial->atTextureMaps[uTextureIndex].tResource, texWidth * texHeight * 4, rawBytes);
         }
     }
 }
