@@ -211,6 +211,9 @@ static void
 pl__dispatch_batch(uint32_t uJobCount, uint32_t uGroupSize, plJobDesc tJobDesc, plAtomicCounter** pptCounter)
 {
 
+    if(uJobCount == 0)
+        return;
+
     plAtomicCounter* ptCounter = NULL;
 
     // find optimal group size
@@ -288,6 +291,9 @@ pl__dispatch_batch(uint32_t uJobCount, uint32_t uGroupSize, plJobDesc tJobDesc, 
 static void
 pl__wait_for_counter(plAtomicCounter* ptCounter)
 {
+    if(ptCounter == NULL)
+        return;
+        
     const uint32_t uValue = 0;
 
     // wait for counter to reach value (or less)
