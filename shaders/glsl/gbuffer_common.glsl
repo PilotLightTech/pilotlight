@@ -112,16 +112,10 @@ layout(set = 1, binding = 10)  uniform texture2D tSpecularTexture;
 layout(set = 1, binding = 11)  uniform texture2D tSpecularColorTexture;
 
 //-----------------------------------------------------------------------------
-// [SECTION] bind group 2
-//-----------------------------------------------------------------------------
-
-layout(set = 2, binding = 0)  uniform texture2D tSkinningSampler;
-
-//-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(set = 3, binding = 0) uniform _plObjectInfo
+layout(set = 2, binding = 0) uniform _plObjectInfo
 {
     int  iDataOffset;
     int  iVertexOffset;
@@ -137,8 +131,7 @@ layout(constant_id = 0) const int iMeshVariantFlags = 0;
 layout(constant_id = 1) const int iDataStride = 0;
 layout(constant_id = 2) const int iTextureMappingFlags = 0;
 layout(constant_id = 3) const int iMaterialFlags = 0;
-layout(constant_id = 4) const int iUseSkinning = 0;
-layout(constant_id = 5) const int iRenderingFlags = 0;
+layout(constant_id = 4) const int iRenderingFlags = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines

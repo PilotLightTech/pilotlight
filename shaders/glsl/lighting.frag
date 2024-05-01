@@ -111,9 +111,7 @@ layout(input_attachment_index = 4, set = 1, binding = 3)  uniform subpassInput t
 layout(input_attachment_index = 5, set = 1, binding = 4)  uniform subpassInput tAOMetalRoughnessTexture;
 layout(input_attachment_index = 0, set = 1, binding = 5)  uniform subpassInput tDepthSampler;
 
-layout(set = 2, binding = 0)  uniform texture2D tSkinningSampler;
-
-layout(set = 3, binding = 0) uniform _plObjectInfo
+layout(set = 2, binding = 0) uniform _plObjectInfo
 {
     int iDataOffset;
     int iVertexOffset;

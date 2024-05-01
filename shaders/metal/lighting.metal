@@ -123,15 +123,6 @@ struct BindGroup_1
 };
 
 //-----------------------------------------------------------------------------
-// [SECTION] bind group 2
-//-----------------------------------------------------------------------------
-
-struct BindGroup_2
-{
-    texture2d<float> tSkinningTexture;
-};
-
-//-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
@@ -348,8 +339,7 @@ vertex VertexOut vertex_main(
     VertexIn            in [[stage_in]],
     device const BindGroup_0& bg0 [[ buffer(1) ]],
     device const BindGroup_1& bg1 [[ buffer(2) ]],
-    device const BindGroup_2& bg2 [[ buffer(3) ]],
-    device const DynamicData& tObjectInfo [[ buffer(4) ]]
+    device const DynamicData& tObjectInfo [[ buffer(3) ]]
     )
 {
 
@@ -370,8 +360,7 @@ fragment float4 fragment_main(
     VertexOut in [[stage_in]],
     device const BindGroup_0& bg0 [[ buffer(1) ]],
     device const BindGroup_1& bg1 [[ buffer(2) ]],
-    device const BindGroup_2& bg2 [[ buffer(3) ]],
-    device const DynamicData& tObjectInfo [[ buffer(4) ]],
+    device const DynamicData& tObjectInfo [[ buffer(3) ]],
     bool front_facing [[front_facing]]
     )
 {
