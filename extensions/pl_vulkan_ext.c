@@ -3583,7 +3583,7 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
         .binding         = 0,
         .descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
         .descriptorCount = 1,
-        .stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
+        .stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
         .pImmutableSamplers = NULL
     };
 
@@ -4343,7 +4343,13 @@ pl_bind_compute_bind_groups(plComputeEncoder* ptEncoder, plComputeShaderHandle t
         atDescriptorSets[i] = ptBindGroup->tDescriptorSet;
     }
 
-    vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptShader->tPipelineLayout, uFirst, uCount, atDescriptorSets, uDynamicBindingCount, puOffsets);
+    if(ptDynamicBinding)
+    {
+        plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics); 
+        atDescriptorSets[uCount] = ptCurrentFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tDescriptorSet;
+    }
+
+    vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptShader->tPipelineLayout, uFirst, uCount + uDynamicBindingCount, atDescriptorSets, uDynamicBindingCount, puOffsets);
     pl_temp_allocator_reset(&ptVulkanGfx->tTempAllocator);
 }
 
@@ -4373,7 +4379,13 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
         atDescriptorSets[i] = ptBindGroup->tDescriptorSet;
     }
 
-    vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptShader->tPipelineLayout, uFirst, uCount, atDescriptorSets, uDynamicBindingCount, puOffsets);
+    if(ptDynamicBinding)
+    {
+        plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics); 
+        atDescriptorSets[uCount] = ptCurrentFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tDescriptorSet;
+    }
+
+    vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptShader->tPipelineLayout, uFirst, uCount + uDynamicBindingCount, atDescriptorSets, uDynamicBindingCount, puOffsets);
     pl_temp_allocator_reset(&ptVulkanGfx->tTempAllocator);
 }
 
