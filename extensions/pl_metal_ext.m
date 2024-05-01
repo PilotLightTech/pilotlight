@@ -2048,7 +2048,7 @@ pl_bind_compute_bind_groups(plComputeEncoder* ptEncoder, plComputeShaderHandle t
     if(ptDynamicBinding)
     {
         plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
-        [tComputeEncoder setBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uCount];
+        [tComputeEncoder setBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uFirst + uCount];
     }
 
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
@@ -2083,8 +2083,8 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
     if(ptDynamicBinding)
     {
         plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
-        [tEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uCount];
-        [tEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uCount];
+        [tEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uFirst + uCount];
+        [tEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uFirst + uCount];
     }
 
     for(uint32_t i = 0; i < uCount; i++)
