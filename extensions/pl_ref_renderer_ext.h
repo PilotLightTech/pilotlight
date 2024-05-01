@@ -81,7 +81,8 @@ typedef struct _plRefRendererI
 
     // per frame
     void (*run_ecs)(uint32_t uSceneHandle);
-    void (*update_scene)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle);
+    void (*update_skin_textures)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle);
+    void (*perform_skinning)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle);
     void (*render_scene)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions);
     
     // misc

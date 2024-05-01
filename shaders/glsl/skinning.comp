@@ -1,0 +1,146 @@
+#version 450
+#extension GL_EXT_scalar_block_layout : enable
+
+//-----------------------------------------------------------------------------
+// [SECTION] specialication constants
+//-----------------------------------------------------------------------------
+
+layout(constant_id = 0) const int iSourceMeshVariantFlags = 0;
+layout(constant_id = 1) const int iSourceDataStride = 0;
+layout(constant_id = 2) const int iDestMeshVariantFlags = 0;
+layout(constant_id = 3) const int iDestDataStride = 0;
+
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 0
+//-----------------------------------------------------------------------------
+
+layout(std140, set = 0, binding = 0) readonly buffer _tInputDataBuffer
+{
+	vec4 atVertexData[];
+} tInputDataBuffer;
+
+layout(std140, set = 0, binding = 1, scalar) buffer _tOutputPosBuffer
+{
+	vec3 atVertexData[];
+} tOutputPosBuffer;
+
+layout(std140, set = 0, binding = 2) buffer _tOutputDataBuffer
+{
+	vec4 atVertexData[];
+} tOutputDataBuffer;
+
+
+layout(set = 0, binding = 3) uniform sampler tSampler;
+
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 1
+//-----------------------------------------------------------------------------
+
+layout(set = 1, binding = 0)  uniform texture2D tSkinningTexture;
+
+//-----------------------------------------------------------------------------
+// [SECTION] dynamic bind group
+//-----------------------------------------------------------------------------
+
+layout(set = 2, binding = 0) uniform _plObjectInfo
+{
+    int iSourceDataOffset;
+    int iDestDataOffset;
+    int iDestVertexOffset;
+    int iUnused;
+} tObjectInfo;
+
+//-----------------------------------------------------------------------------
+// [SECTION] helpers
+//-----------------------------------------------------------------------------
+
+// iMeshVariantFlags
+const int PL_MESH_FORMAT_FLAG_NONE           = 0;
+const int PL_MESH_FORMAT_FLAG_HAS_POSITION   = 1 << 0;
+const int PL_MESH_FORMAT_FLAG_HAS_NORMAL     = 1 << 1;
+const int PL_MESH_FORMAT_FLAG_HAS_TANGENT    = 1 << 2;
+const int PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 = 1 << 3;
+const int PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1 = 1 << 4;
+const int PL_MESH_FORMAT_FLAG_HAS_COLOR_0    = 1 << 5;
+const int PL_MESH_FORMAT_FLAG_HAS_COLOR_1    = 1 << 6;
+const int PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   = 1 << 7;
+const int PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   = 1 << 8;
+const int PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  = 1 << 9;
+const int PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 10;
+
+mat4
+get_matrix_from_texture(int index)
+{
+    mat4 result = mat4(1);
+    int texSize = textureSize(sampler2D(tSkinningTexture, tSampler), 0)[0];
+    int pixelIndex = index * 4;
+    for (int i = 0; i < 4; ++i)
+    {
+        int x = (pixelIndex + i) % texSize;
+        //Rounding mode of integers is undefined:
+        //https://www.khronos.org/registry/OpenGL/specs/es/3.0/GLSL_ES_Specification_3.00.pdf (section 12.33)
+        int y = (pixelIndex + i - x) / texSize; 
+        result[i] = texelFetch(sampler2D(tSkinningTexture, tSampler), ivec2(x,y), 0);
+    }
+    return result;
+}
+
+mat4
+get_skinning_matrix(vec4 inJoints0, vec4 inWeights0)
+{
+    mat4 skin = mat4(0);
+
+    skin +=
+        inWeights0.x * get_matrix_from_texture(int(inJoints0.x) * 2) +
+        inWeights0.y * get_matrix_from_texture(int(inJoints0.y) * 2) +
+        inWeights0.z * get_matrix_from_texture(int(inJoints0.z) * 2) +
+        inWeights0.w * get_matrix_from_texture(int(inJoints0.w) * 2);
+
+    if (skin == mat4(0)) { 
+        return mat4(1); 
+    }
+    return skin;
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] entry
+//-----------------------------------------------------------------------------
+
+layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+void
+main()
+{
+    // const float fXCoord = gl_WorkGroupID.x * 16 + gl_LocalInvocationID.x;
+    // const float tYCoord = gl_WorkGroupID.y * 16 + gl_LocalInvocationID.y;
+    // const int   iFace   = int(gl_WorkGroupID.z * 3 + gl_LocalInvocationID.z);
+
+    const uint iVertexIndex = gl_WorkGroupID.x;
+
+    vec4 inPosition  = vec4(0.0, 0.0, 0.0, 1.0);
+    vec3 inNormal    = vec3(0.0, 0.0, 0.0);
+    vec4 inTangent   = vec4(0.0, 0.0, 0.0, 0.0);
+    vec4 inJoints0   = vec4(0.0, 0.0, 0.0, 0.0);
+    vec4 inWeights0  = vec4(0.0, 0.0, 0.0, 0.0);
+
+    const uint iSourceVertexDataOffset = iSourceDataStride * iVertexIndex + tObjectInfo.iSourceDataOffset;
+    int iCurrentAttribute = 0;
+    if(bool(iSourceMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { inPosition.xyz = tInputDataBuffer.atVertexData[iSourceVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
+    if(bool(iSourceMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { inNormal       = tInputDataBuffer.atVertexData[iSourceVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
+    if(bool(iSourceMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))   { inTangent      = tInputDataBuffer.atVertexData[iSourceVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(bool(iSourceMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0))  { inJoints0      = tInputDataBuffer.atVertexData[iSourceVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(bool(iSourceMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0)) { inWeights0     = tInputDataBuffer.atVertexData[iSourceVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+
+    mat4 skin = get_skinning_matrix(inJoints0, inWeights0);
+
+    vec4 outPosition = skin * inPosition;
+    vec3 outNormal = normalize(mat3(skin) * inNormal);
+    vec3 outTangent = normalize(mat3(skin) * inTangent.xyz);
+
+    const uint iDestVertexDataOffset = iDestDataStride * iVertexIndex + tObjectInfo.iDestDataOffset;
+    iCurrentAttribute = 0;
+    tOutputPosBuffer.atVertexData[iVertexIndex + tObjectInfo.iDestVertexOffset] = outPosition.xyz;
+    if(bool(iDestMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION)){ iCurrentAttribute++;}
+    if(bool(iDestMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))  { tOutputDataBuffer.atVertexData[iDestVertexDataOffset + iCurrentAttribute].xyz = outNormal; iCurrentAttribute++;}
+    if(bool(iDestMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT)) { tOutputDataBuffer.atVertexData[iDestVertexDataOffset + iCurrentAttribute].xyz = outTangent; iCurrentAttribute++;}
+}

@@ -11,8 +11,7 @@ constant int iMeshVariantFlags [[ function_constant(0) ]];
 constant int iDataStride [[ function_constant(1) ]];
 constant int iTextureMappingFlags [[ function_constant(2) ]];
 constant int iMaterialFlags [[ function_constant(3) ]];
-constant int iUseSkinning [[ function_constant(4) ]];
-constant int iRenderingFlags [[ function_constant(5) ]];
+constant int iRenderingFlags [[ function_constant(4) ]];
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines & structs
@@ -208,15 +207,6 @@ struct BindGroup_1
 };
 
 //-----------------------------------------------------------------------------
-// [SECTION] bind group 2
-//-----------------------------------------------------------------------------
-
-struct BindGroup_2
-{
-    texture2d<float>  tSkinningTexture;
-};
-
-//-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
@@ -265,73 +255,6 @@ struct plMultipleRenderTargets
 //-----------------------------------------------------------------------------
 // [SECTION] helpers
 //-----------------------------------------------------------------------------
-
-float4x4
-get_matrix_from_texture(device const texture2d<float>& s, int index)
-{
-    float4x4 result = float4x4(1);
-    int texSize = s.get_width();
-    int pixelIndex = index * 4;
-    for (int i = 0; i < 4; ++i)
-    {
-        int x = (pixelIndex + i) % texSize;
-        //Rounding mode of integers is undefined:
-        //https://www.khronos.org/registry/OpenGL/specs/es/3.0/GLSL_ES_Specification_3.00.pdf (section 12.33)
-        int y = (pixelIndex + i - x) / texSize; 
-        result[i] = s.read(uint2(x,y));
-    }
-    return result;
-}
-
-float4x4
-get_skinning_matrix(device const texture2d<float>& s, float4 inJoints0, float4 inWeights0)
-{
-    float4x4 skin = float4x4(0);
-
-    skin +=
-        inWeights0.x * get_matrix_from_texture(s, int(inJoints0.x) * 2) +
-        inWeights0.y * get_matrix_from_texture(s, int(inJoints0.y) * 2) +
-        inWeights0.z * get_matrix_from_texture(s, int(inJoints0.z) * 2) +
-        inWeights0.w * get_matrix_from_texture(s, int(inJoints0.w) * 2);
-
-    // if (skin == float4x4(0)) { 
-    //     return float4x4(1); 
-    // }
-    return skin;
-}
-
-float4
-get_position(device const texture2d<float>& s, float3 inPos, float4 inJoints0, float4 inWeights0)
-{
-    float4 pos = float4(inPos, 1.0);
-    if(bool(iUseSkinning))
-    {
-        pos = get_skinning_matrix(s, inJoints0, inWeights0) * pos;
-    }
-    return pos;
-}
-
-float4
-get_normal(device const texture2d<float>& s, float3 inNormal, float4 inJoints0, float4 inWeights0)
-{
-    float4 tNormal = float4(inNormal, 0.0);
-    if(bool(iUseSkinning))
-    {
-        tNormal = get_skinning_matrix(s, inJoints0, inWeights0) * tNormal;
-    }
-    return fast::normalize(tNormal);
-}
-
-float4
-get_tangent(device const texture2d<float>& s, float4 inTangent, float4 inJoints0, float4 inWeights0)
-{
-    float4 tTangent = float4(inTangent.xyz, 0.0);
-    if(bool(iUseSkinning))
-    {
-        tTangent = get_skinning_matrix(s, inJoints0, inWeights0) * tTangent;
-    }
-    return fast::normalize(tTangent);
-}
 
 NormalInfo
 pl_get_normal_info(device const BindGroup_0& bg0, device const BindGroup_1& bg1, VertexOut tShaderIn, bool front_facing)
@@ -475,50 +398,41 @@ vertex VertexOut vertex_main(
     VertexIn            in [[stage_in]],
     device const BindGroup_0& bg0 [[ buffer(1) ]],
     device const BindGroup_1& bg1 [[ buffer(2) ]],
-    device const BindGroup_2& bg2 [[ buffer(3) ]],
-    device const DynamicData& tObjectInfo [[ buffer(4) ]]
+    device const DynamicData& tObjectInfo [[ buffer(3) ]]
     )
 {
 
     VertexOut tShaderOut;
-    float3 inPosition = in.tPosition;
-    float3 inNormal = float3(0.0, 0.0, 0.0);
+    float4 inPosition = float4(in.tPosition, 1.0);
+    float4 inNormal = float4(0.0, 0.0, 0.0, 0.0);
     float4 inTangent = float4(0.0, 0.0, 0.0, 0.0);
     float2 inTexCoord0 = float2(0.0, 0.0);
     float2 inTexCoord1 = float2(0.0, 0.0);
     float4 inColor0 = float4(1.0, 1.0, 1.0, 1.0);
     float4 inColor1 = float4(0.0, 0.0, 0.0, 0.0);
-    float4 inJoints0 = float4(0.0, 0.0, 0.0, 0.0);
-    float4 inJoints1 = float4(0.0, 0.0, 0.0, 0.0);
-    float4 inWeights0 = float4(0.0, 0.0, 0.0, 0.0);
-    float4 inWeights1 = float4(0.0, 0.0, 0.0, 0.0);
     int iCurrentAttribute = 0;
 
     const uint iVertexDataOffset = iDataStride * (vertexID - tObjectInfo.iVertexOffset) + tObjectInfo.iDataOffset;
 
     
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION)  { inPosition.xyz = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
-    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL)    { inNormal       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL)    { inNormal.xyz   = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT)   { inTangent      = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0){ inTexCoord0    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1){ inTexCoord1    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0)   { inColor0       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_1)   { inColor1       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0)  { inJoints0      = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1)  { inJoints1      = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0) { inWeights0     = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1) { inWeights1     = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
 
-    float4 tWorldNormal4 = tObjectInfo.tModel * get_normal(bg2.tSkinningTexture, inNormal, inJoints0, inWeights0);
+    float4 tWorldNormal4 = tObjectInfo.tModel * fast::normalize(inNormal);
     tShaderOut.tWorldNormal = tWorldNormal4.xyz;
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL)
     {
 
         if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT)
         {
-            float4 tangent = get_tangent(bg2.tSkinningTexture, inTangent, inJoints0, inWeights0);
+            float4 tangent = fast::normalize(inTangent);
             float4 WorldTangent = tObjectInfo.tModel * tangent;
-            float4 WorldBitangent = float4(cross(get_normal(bg2.tSkinningTexture, inNormal, inJoints0, inWeights0).xyz, tangent.xyz) * inTangent.w, 0.0);
+            float4 WorldBitangent = float4(cross(fast::normalize(inNormal).xyz, tangent.xyz) * inTangent.w, 0.0);
             WorldBitangent = tObjectInfo.tModel * WorldBitangent;
             tShaderOut.tTBN0 = WorldTangent.xyz;
             tShaderOut.tTBN1 = WorldBitangent.xyz;
@@ -526,7 +440,7 @@ vertex VertexOut vertex_main(
         }
     }
 
-    float4 pos = tObjectInfo.tModel * get_position(bg2.tSkinningTexture, inPosition, inJoints0, inWeights0);
+    float4 pos = tObjectInfo.tModel * inPosition;
     tShaderOut.tPosition = pos.xyz / pos.w;
     tShaderOut.tPositionOut = bg0.data->tCameraViewProjection * pos;
     tShaderOut.tUV = inTexCoord0;
@@ -541,8 +455,7 @@ fragment plMultipleRenderTargets fragment_main(
     VertexOut in [[stage_in]],
     device const BindGroup_0& bg0 [[ buffer(1) ]],
     device const BindGroup_1& bg1 [[ buffer(2) ]],
-    device const BindGroup_2& bg2 [[ buffer(3) ]],
-    device const DynamicData& tObjectInfo [[ buffer(4) ]],
+    device const DynamicData& tObjectInfo [[ buffer(3) ]],
     bool front_facing [[front_facing]]
     )
 {

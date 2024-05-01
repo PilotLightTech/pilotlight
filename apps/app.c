@@ -259,9 +259,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plModelLoaderData tLoaderData0 = {0};
 
     pl_begin_profile_sample("load models 0");
-    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/FlightHelmet/glTF/FlightHelmet.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/FlightHelmet/glTF/FlightHelmet.gltf", NULL, &tLoaderData0);
+    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL, &tLoaderData0);
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
+    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
     gptModelLoader->load_stl(ptMainComponentLibrary, "../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 1.0f, 0.0f, 0.80f}, &tTransform0, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
     gptModelLoader->free_data(&tLoaderData0);
@@ -422,7 +423,8 @@ pl_app_update(plAppData* ptAppData)
     uint64_t ulValue1 = ulValue0 + 1;
     uint64_t ulValue2 = ulValue0 + 2;
     uint64_t ulValue3 = ulValue0 + 3;
-    ptAppData->aulNextTimelineValue[ptGraphics->uCurrentFrameIndex] = ulValue3;
+    uint64_t ulValue4 = ulValue0 + 4;
+    ptAppData->aulNextTimelineValue[ptGraphics->uCurrentFrameIndex] = ulValue4;
 
 
     // first set of work
@@ -435,8 +437,8 @@ pl_app_update(plAppData* ptAppData)
 
     plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo0);
 
-    gptRenderer->update_scene(tCommandBuffer, ptAppData->uSceneHandle0);
-    gptRenderer->update_scene(tCommandBuffer, ptAppData->uSceneHandle1);
+    gptRenderer->update_skin_textures(tCommandBuffer, ptAppData->uSceneHandle0);
+    gptRenderer->update_skin_textures(tCommandBuffer, ptAppData->uSceneHandle1);
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
 
     const plSubmitInfo tSubmitInfo0 = {
@@ -445,6 +447,24 @@ pl_app_update(plAppData* ptAppData)
         .auSignalSemaphoreValues = {ulValue1}
     };
     gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo0);
+
+    const plBeginCommandInfo tBeginInfo00 = {
+        .uWaitSemaphoreCount   = 1,
+        .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
+        .auWaitSemaphoreValues = {ulValue1},
+    };
+    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo00);
+
+    gptRenderer->perform_skinning(tCommandBuffer, ptAppData->uSceneHandle0);
+    gptRenderer->perform_skinning(tCommandBuffer, ptAppData->uSceneHandle1);
+    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
+
+    const plSubmitInfo tSubmitInfo00 = {
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
+        .auSignalSemaphoreValues = {ulValue2}
+    };
+    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo00);
 
     plViewOptions tViewOptions = {
         .bShowAllBoundingBoxes     = ptAppData->bDrawAllBoundingBoxes,
@@ -473,7 +493,7 @@ pl_app_update(plAppData* ptAppData)
     const plBeginCommandInfo tBeginInfo1 = {
         .uWaitSemaphoreCount   = 1,
         .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auWaitSemaphoreValues = {ulValue1}
+        .auWaitSemaphoreValues = {ulValue2}
     };
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo1);
     gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0, tViewOptions);
@@ -485,7 +505,7 @@ pl_app_update(plAppData* ptAppData)
     const plSubmitInfo tSubmitInfo1 = {
         .uSignalSemaphoreCount   = 1,
         .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auSignalSemaphoreValues = {ulValue2}
+        .auSignalSemaphoreValues = {ulValue3}
     };
     gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo1);
 
@@ -494,7 +514,7 @@ pl_app_update(plAppData* ptAppData)
     const plBeginCommandInfo tBeginInfo2 = {
         .uWaitSemaphoreCount   = 1,
         .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auWaitSemaphoreValues = {ulValue2},
+        .auWaitSemaphoreValues = {ulValue3},
     };
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo2);
 
@@ -601,7 +621,7 @@ pl_app_update(plAppData* ptAppData)
     const plSubmitInfo tSubmitInfo2 = {
         .uSignalSemaphoreCount   = 1,
         .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auSignalSemaphoreValues = {ulValue3},
+        .auSignalSemaphoreValues = {ulValue4},
     };
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
     if(!gptGfx->present(ptGraphics, &tCommandBuffer, &tSubmitInfo2))

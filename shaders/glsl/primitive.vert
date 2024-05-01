@@ -16,70 +16,6 @@ layout(location = 0) out struct plShaderOut {
 
 #include "gbuffer_common.glsl"
 
-mat4 get_matrix_from_texture(texture2D s, int index)
-{
-    mat4 result = mat4(1);
-    int texSize = textureSize(sampler2D(s, tDefaultSampler), 0)[0];
-    int pixelIndex = index * 4;
-    for (int i = 0; i < 4; ++i)
-    {
-        int x = (pixelIndex + i) % texSize;
-        //Rounding mode of integers is undefined:
-        //https://www.khronos.org/registry/OpenGL/specs/es/3.0/GLSL_ES_Specification_3.00.pdf (section 12.33)
-        int y = (pixelIndex + i - x) / texSize; 
-        result[i] = texelFetch(sampler2D(s, tDefaultSampler), ivec2(x,y), 0);
-    }
-    return result;
-}
-
-mat4 get_skinning_matrix(vec4 inJoints0, vec4 inWeights0)
-{
-    mat4 skin = mat4(0);
-
-    skin +=
-        inWeights0.x * get_matrix_from_texture(tSkinningSampler, int(inJoints0.x) * 2) +
-        inWeights0.y * get_matrix_from_texture(tSkinningSampler, int(inJoints0.y) * 2) +
-        inWeights0.z * get_matrix_from_texture(tSkinningSampler, int(inJoints0.z) * 2) +
-        inWeights0.w * get_matrix_from_texture(tSkinningSampler, int(inJoints0.w) * 2);
-
-    if (skin == mat4(0)) { 
-        return mat4(1); 
-    }
-    return skin;
-}
-
-vec4 get_position(vec4 inJoints0, vec4 inWeights0)
-{
-    vec4 pos = vec4(inPos, 1.0);
-
-    if(bool(iUseSkinning))
-    {
-        pos = get_skinning_matrix(inJoints0, inWeights0) * pos;
-    }
-
-    return pos;
-}
-
-vec3 get_normal(vec3 inNormal, vec4 inJoints0, vec4 inWeights0)
-{
-    vec3 tNormal = inNormal;
-    if(bool(iUseSkinning))
-    {
-        tNormal = mat3(get_skinning_matrix(inJoints0, inWeights0)) * tNormal;
-    }
-    return normalize(tNormal);
-}
-
-vec3 get_tangent(vec4 inTangent, vec4 inJoints0, vec4 inWeights0)
-{
-    vec3 tTangent = inTangent.xyz;
-    if(bool(iUseSkinning))
-    {
-        tTangent = mat3(get_skinning_matrix(inJoints0, inWeights0)) * tTangent;
-    }
-    return normalize(tTangent);
-}
-
 void
 main() 
 {
@@ -91,10 +27,6 @@ main()
     vec2 inTexCoord1 = vec2(0.0, 0.0);
     vec4 inColor0    = vec4(1.0, 1.0, 1.0, 1.0);
     vec4 inColor1    = vec4(0.0, 0.0, 0.0, 0.0);
-    vec4 inJoints0   = vec4(0.0, 0.0, 0.0, 0.0);
-    vec4 inJoints1   = vec4(0.0, 0.0, 0.0, 0.0);
-    vec4 inWeights0  = vec4(0.0, 0.0, 0.0, 0.0);
-    vec4 inWeights1  = vec4(0.0, 0.0, 0.0, 0.0);
     int iCurrentAttribute = 0;
     
     // offset = offset into current mesh + offset into global buffer
@@ -107,26 +39,22 @@ main()
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1)){ inTexCoord1    = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0))   { inColor0       = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_1))   { inColor1       = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0))  { inJoints0      = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1))  { inJoints1      = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0)) { inWeights0     = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1)) { inWeights1     = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
 
-    tShaderIn.tWorldNormal = mat3(tObjectInfo.tModel) * get_normal(inNormal, inJoints0, inWeights0);
+    tShaderIn.tWorldNormal = mat3(tObjectInfo.tModel) * normalize(inNormal);
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))
     {
 
         if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))
         {
-            vec3 tangent = get_tangent(inTangent, inJoints0, inWeights0);
+            vec3 tangent = normalize(inTangent.xyz);
             vec3 WorldTangent = mat3(tObjectInfo.tModel) * tangent;
-            vec3 WorldBitangent = cross(get_normal(inNormal, inJoints0, inWeights0), tangent) * inTangent.w;
+            vec3 WorldBitangent = cross(normalize(inNormal), tangent) * inTangent.w;
             WorldBitangent = mat3(tObjectInfo.tModel) * WorldBitangent;
             tShaderIn.tTBN = mat3(WorldTangent, WorldBitangent, tShaderIn.tWorldNormal);
         }
     }
 
-    vec4 pos = tObjectInfo.tModel * get_position(inJoints0, inWeights0);
+    vec4 pos = tObjectInfo.tModel * inPosition;
     tShaderIn.tPosition = pos.xyz / pos.w;
     gl_Position = tGlobalInfo.tCameraViewProjection * pos;
     tShaderIn.tUV[0] = inTexCoord0;
