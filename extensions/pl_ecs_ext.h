@@ -216,6 +216,7 @@ enum _plMaterialFlags
 {
     PL_MATERIAL_FLAG_NONE         = 0,
     PL_MATERIAL_FLAG_DOUBLE_SIDED = 1 << 0,
+    PL_MATERIAL_FLAG_OUTLINE      = 1 << 1,
 };
 
 enum _plBlendMode
