@@ -448,13 +448,14 @@ typedef struct _plGraphicsState
             uint64_t ulWireframe          :  1; // bool
             uint64_t ulDepthWriteEnabled  :  1; // bool
             uint64_t ulCullMode           :  2; // PL_CULL_MODE_*
+            uint64_t ulStencilTestEnabled :  1; // bool
             uint64_t ulStencilMode        :  4;
             uint64_t ulStencilRef         :  8;
             uint64_t ulStencilMask        :  8;
             uint64_t ulStencilOpFail      :  3;
             uint64_t ulStencilOpDepthFail :  3;
             uint64_t ulStencilOpPass      :  3;
-            uint64_t _ulUnused            : 27;
+            uint64_t _ulUnused            : 26;
         };
         uint64_t ulValue;
     };

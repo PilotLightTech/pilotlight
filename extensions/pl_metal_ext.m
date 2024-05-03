@@ -100,7 +100,7 @@ typedef struct _plMetalFrameBuffer
 typedef struct _plMetalRenderPass
 {
     plMetalFrameBuffer atRenderPassDescriptors[PL_FRAMES_IN_FLIGHT];
-    id<MTLFence>        tFence;
+    id<MTLFence>       tFence;
 } plMetalRenderPass;
 
 typedef struct _plMetalBuffer
@@ -164,6 +164,7 @@ typedef struct _plMetalShader
     MTLTriangleFillMode        tFillMode;
     id<MTLLibrary>             tVertexLibrary;
     id<MTLLibrary>             tFragmentLibrary;
+    uint64_t                   ulStencilRef;
 } plMetalShader;
 
 typedef struct _plMetalComputeShader
@@ -225,6 +226,7 @@ typedef struct _plDeviceMetal
 static MTLSamplerMinMagFilter pl__metal_filter(plFilter tFilter);
 static MTLSamplerAddressMode  pl__metal_wrap(plWrapMode tWrap);
 static MTLCompareFunction     pl__metal_compare(plCompareMode tCompare);
+static MTLStencilOperation    pl__metal_stencil_op(plStencilOp tOp);
 static MTLPixelFormat         pl__metal_format(plFormat tFormat);
 static MTLVertexFormat        pl__metal_vertex_format(plFormat tFormat);
 static MTLCullMode            pl__metal_cull(plCullMode tCullMode);
@@ -358,6 +360,7 @@ pl_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle
                 if(pl__is_depth_format(ptLayout->tDesc.atRenderTargets[uTargetIndex].tFormat))
                 {
                     ptRenderPassDescriptor.depthAttachment.texture = ptMetalGraphics->sbtTexturesHot[uTextureIndex].tTexture;
+                    ptRenderPassDescriptor.stencilAttachment.texture = ptMetalGraphics->sbtTexturesHot[uTextureIndex].tTexture;
                 }
                 else
                 {
@@ -476,11 +479,13 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
                     if(abTargetSeen[uTargetIndex])
                     {
                         ptRenderPassDescriptor.depthAttachment.loadAction = MTLLoadActionLoad;
+                        ptRenderPassDescriptor.stencilAttachment.loadAction = MTLLoadActionLoad;
                     }
                     else
                     {
                         
                         ptRenderPassDescriptor.depthAttachment.loadAction = pl__metal_load_op(ptDesc->tDepthTarget.tLoadOp);
+                        ptRenderPassDescriptor.stencilAttachment.loadAction = pl__metal_load_op(ptDesc->tDepthTarget.tStencilLoadOp);
                         abTargetSeen[uTargetIndex] = true;
                     }
 
@@ -488,14 +493,19 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
                     if(i == ptLayout->tDesc.uSubpassCount - 1)
                     {
                         ptRenderPassDescriptor.depthAttachment.storeAction = pl__metal_store_op(ptDesc->tDepthTarget.tStoreOp);
+                        ptRenderPassDescriptor.stencilAttachment.storeAction = pl__metal_store_op(ptDesc->tDepthTarget.tStencilStoreOp);
                     }
                     else
                     {
                         ptRenderPassDescriptor.depthAttachment.storeAction = MTLStoreActionStore;
+                        ptRenderPassDescriptor.stencilAttachment.storeAction = MTLStoreActionStore;
                     }
                     
                     ptRenderPassDescriptor.depthAttachment.clearDepth = ptDesc->tDepthTarget.fClearZ;
+                    ptRenderPassDescriptor.stencilAttachment.clearStencil = ptDesc->tDepthTarget.uClearStencil;
                     ptRenderPassDescriptor.depthAttachment.texture = ptMetalGraphics->sbtTexturesHot[uTextureIndex].tTexture;
+                    ptRenderPassDescriptor.stencilAttachment.texture = ptMetalGraphics->sbtTexturesHot[uTextureIndex].tTexture;
+                    
                     ptLayout->tDesc.atSubpasses[i]._bHasDepth = true;
                 }
                 else
@@ -1477,6 +1487,20 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
     depthDescriptor.depthCompareFunction = pl__metal_compare((plCompareMode)ptDescription->tGraphicsState.ulDepthMode);
     depthDescriptor.depthWriteEnabled = ptDescription->tGraphicsState.ulDepthWriteEnabled ? YES : NO;
 
+    if(ptDescription->tGraphicsState.ulStencilTestEnabled)
+    {
+        MTLStencilDescriptor* ptStencilDescriptor = [MTLStencilDescriptor new];
+        ptStencilDescriptor.readMask = (uint32_t)ptDescription->tGraphicsState.ulStencilMask;
+        ptStencilDescriptor.writeMask = (uint32_t)ptDescription->tGraphicsState.ulStencilMask;
+        ptStencilDescriptor.stencilCompareFunction    = pl__metal_compare((plCompareMode)ptDescription->tGraphicsState.ulStencilMode);
+        ptStencilDescriptor.stencilFailureOperation   = pl__metal_stencil_op((plStencilOp)ptDescription->tGraphicsState.ulStencilOpFail),
+        ptStencilDescriptor.depthFailureOperation     = pl__metal_stencil_op((plStencilOp)ptDescription->tGraphicsState.ulStencilOpDepthFail),
+        ptStencilDescriptor.depthStencilPassOperation = pl__metal_stencil_op((plStencilOp)ptDescription->tGraphicsState.ulStencilOpPass),
+        depthDescriptor.backFaceStencil = ptStencilDescriptor;
+        depthDescriptor.frontFaceStencil = ptStencilDescriptor;
+    }
+    ptMetalShader->ulStencilRef = ptDescription->tGraphicsState.ulStencilRef;
+
     MTLRenderPipelineDescriptor* pipelineDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
     pipelineDescriptor.vertexFunction = vertexFunction;
     pipelineDescriptor.fragmentFunction = fragmentFunction;
@@ -1491,6 +1515,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         if(pl__is_depth_format(ptLayout->tDesc.atRenderTargets[uTargetIndex].tFormat))
         {
             pipelineDescriptor.depthAttachmentPixelFormat = pl__metal_format(ptLayout->tDesc.atRenderTargets[uTargetIndex].tFormat);
+            pipelineDescriptor.stencilAttachmentPixelFormat = pipelineDescriptor.depthAttachmentPixelFormat;
         }
         else
         {
@@ -2198,6 +2223,7 @@ pl_bind_shader(plRenderEncoder* ptEncoder, plShaderHandle tHandle)
     id<MTLRenderCommandEncoder> tEncoder = (id<MTLRenderCommandEncoder>)ptEncoder->_pInternal;
     plMetalShader* ptMetalShader = &ptMetalGraphics->sbtShadersHot[tHandle.uIndex];
 
+    [tEncoder setStencilReferenceValue:ptMetalShader->ulStencilRef];
     [tEncoder setCullMode:ptMetalShader->tCullMode];
     [tEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
     [tEncoder setDepthStencilState:ptMetalShader->tDepthStencilState];
@@ -2313,6 +2339,8 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                 tCurrentDepthStencilState = ptMetalShader->tDepthStencilState;
                 [tRenderEncoder setRenderPipelineState:ptMetalShader->tRenderPipelineState];
                 [tRenderEncoder setTriangleFillMode:ptMetalShader->tFillMode];
+                [tRenderEncoder setStencilReferenceValue:ptMetalShader->ulStencilRef];                
+
                 uCurrentStreamIndex++;
                 uDynamicSlot = ptShader->tDescription.uBindGroupLayoutCount + 1;
             }
@@ -2784,6 +2812,24 @@ pl__metal_compare(plCompareMode tCompare)
 
     PL_ASSERT(false && "Unsupported compare mode");
     return MTLCompareFunctionNever;
+}
+
+static MTLStencilOperation
+pl__metal_stencil_op(plStencilOp tOp)
+{
+    switch (tOp)
+    {
+        case PL_STENCIL_OP_KEEP:                return MTLStencilOperationKeep;
+        case PL_STENCIL_OP_ZERO:                return MTLStencilOperationZero;
+        case PL_STENCIL_OP_REPLACE:             return MTLStencilOperationReplace;
+        case PL_STENCIL_OP_INCREMENT_AND_CLAMP: return MTLStencilOperationIncrementClamp;
+        case PL_STENCIL_OP_DECREMENT_AND_CLAMP: return MTLStencilOperationDecrementClamp;
+        case PL_STENCIL_OP_INVERT:              return MTLStencilOperationInvert;
+        case PL_STENCIL_OP_INCREMENT_AND_WRAP:  return MTLStencilOperationIncrementWrap;
+        case PL_STENCIL_OP_DECREMENT_AND_WRAP:  return MTLStencilOperationDecrementWrap;
+    }
+    PL_ASSERT(false && "Unsupported stencil op");
+    return MTLStencilOperationKeep;
 }
 
 static MTLPixelFormat
