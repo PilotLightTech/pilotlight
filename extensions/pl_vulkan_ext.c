@@ -1931,11 +1931,6 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         .pSetLayouts    = ptVulkanShader->atDescriptorSetLayouts
     };
     PL_VULKAN(vkCreatePipelineLayout(ptVulkanDevice->tLogicalDevice, &tPipelineLayoutInfo, NULL, &tVulkanShader.tPipelineLayout));
-
-    plShaderHandle tVariantHandle = {
-        .uGeneration = ++ptGraphics->sbtShaderGenerations[uNewResourceIndex],
-        .uIndex = uNewResourceIndex
-    };
     
     //---------------------------------------------------------------------
     // vertex shader stage
@@ -2023,12 +2018,12 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         .depthBoundsTestEnable = VK_FALSE,
         .minDepthBounds        = 0.0f, // Optional,
         .maxDepthBounds        = 1.0f, // Optional,
-        .stencilTestEnable     = ptDescription->tGraphicsState.ulStencilMode == PL_COMPARE_MODE_ALWAYS ? VK_FALSE : VK_TRUE,
+        .stencilTestEnable     = ptDescription->tGraphicsState.ulStencilTestEnabled ? VK_TRUE : VK_FALSE,
         .back.compareOp        = pl__vulkan_compare((plCompareMode)ptDescription->tGraphicsState.ulStencilMode),
         .back.failOp           = pl__vulkan_stencil_op((plStencilOp)ptDescription->tGraphicsState.ulStencilOpFail),
         .back.depthFailOp      = pl__vulkan_stencil_op((plStencilOp)ptDescription->tGraphicsState.ulStencilOpDepthFail),
         .back.passOp           = pl__vulkan_stencil_op((plStencilOp)ptDescription->tGraphicsState.ulStencilOpPass),
-        .back.compareMask      = 0xff,
+        .back.compareMask      = (uint32_t)ptDescription->tGraphicsState.ulStencilMask,
         .back.writeMask        = (uint32_t)ptDescription->tGraphicsState.ulStencilMask,
         .back.reference        = (uint32_t)ptDescription->tGraphicsState.ulStencilRef
     };
@@ -2841,7 +2836,7 @@ typedef struct _plBindGroupManagerData
 static void pl__set_bind_group_count(plBindGroupManagerData* ptData, uint32_t uCount)
 {
     ptData->uCount = uCount;
-    ptData->uFirstSlot = UINT32_MAX;
+    ptData->uFirstSlot = 1;
 }
 
 static void pl__set_bind_group(plBindGroupManagerData* ptData, uint32_t uIndex, VkDescriptorSet tSet)

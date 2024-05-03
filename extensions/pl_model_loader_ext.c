@@ -113,6 +113,7 @@ pl__load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, c
     plMaterialComponent* ptMaterial = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
     ptMaterial->tBaseColor = tColor;
     ptMaterial->tBlendMode = PL_BLEND_MODE_ALPHA;
+    // ptMaterial->tFlags |= PL_MATERIAL_FLAG_OUTLINE;
     
     // load STL model
     plStlInfo tInfo = {0};
