@@ -79,7 +79,7 @@ typedef struct _plDrawable
     uint32_t          uIndexOffset;
     uint32_t          uIndexCount;
     uint32_t          uMaterialIndex;
-    uint32_t          uShader;
+    plShaderHandle    tShader;
     uint32_t          uSkinIndex;
     bool              bCulled;
 } plDrawable;
@@ -181,6 +181,7 @@ typedef struct _plRefView
 
     // drawing api
     plDrawList3D t3DDrawList;
+    plDrawList3D t3DSelectionDrawList;
 } plRefView;
 
 typedef struct _plRefScene
@@ -227,6 +228,12 @@ typedef struct _plRefScene
     // drawables (per scene, will be culled by views)
     plDrawable* sbtOpaqueDrawables;
     plDrawable* sbtTransparentDrawables;
+    plDrawable* sbtOutlineDrawables;
+    plShaderHandle* sbtOutlineDrawablesOldShaders;
+
+    // hashmaps
+    plHashMap tOpaqueHashmap;
+    plHashMap tTransparentHashmap;
 
 } plRefScene;
 
@@ -242,6 +249,7 @@ typedef struct _plRefRendererData
     plShaderHandle tOpaqueShader;
     plShaderHandle tTransparentShader;
     plShaderHandle tSkyboxShader;
+    plShaderHandle tOutlineShader;
 
     // graphics shader variant system
     uint32_t               uVariantCount;
@@ -652,6 +660,58 @@ pl_refr_initialize(plWindow* ptWindow)
         tTransparentShaderDescription.atConstants[i].tType = PL_DATA_TYPE_INT;
     }
     gptData->tTransparentShader = gptDevice->create_shader(&gptData->tGraphics.tDevice, &tTransparentShaderDescription);
+
+    plShaderDescription tOutlineShaderDescription = {
+
+        #ifdef PL_METAL_BACKEND
+        .pcVertexShader = "../shaders/metal/outline.metal",
+        .pcPixelShader = "../shaders/metal/outline.metal",
+        #else
+        .pcVertexShader = "outline.vert.spv",
+        .pcPixelShader = "outline.frag.spv",
+        #endif
+        .tGraphicsState = {
+            .ulDepthWriteEnabled  = 0,
+            .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
+            .ulCullMode           = PL_CULL_MODE_CULL_FRONT,
+            .ulWireframe          = 0,
+            .ulStencilMode        = PL_COMPARE_MODE_LESS_OR_EQUAL,
+            .ulStencilRef         = 128,
+            .ulStencilMask        = 0xff,
+            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+        },
+        .tVertexBufferBinding = {
+            .uByteStride = sizeof(float) * 3,
+            .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
+        },
+        .uConstantCount = 2,
+        .pTempConstantData = aiConstantData,
+        .atBlendStates = {
+            pl__get_blend_state(PL_BLEND_MODE_ALPHA)
+        },
+        .uBlendStateCount = 1,
+        .tRenderPassLayout = gptData->tRenderPassLayout,
+        .uSubpassIndex = 2,
+        .uBindGroupLayoutCount = 1,
+        .atBindGroupLayouts = {
+            {
+                .uBufferBindingCount  = 2,
+                .aBufferBindings = {
+                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                    { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                },
+            }
+        }
+    };
+    for(uint32_t i = 0; i < tOutlineShaderDescription.uConstantCount; i++)
+    {
+        tOutlineShaderDescription.atConstants[i].uID = i;
+        tOutlineShaderDescription.atConstants[i].uOffset = i * sizeof(int);
+        tOutlineShaderDescription.atConstants[i].tType = PL_DATA_TYPE_INT;
+    }
+    gptData->tOutlineShader = gptDevice->create_shader(&gptData->tGraphics.tDevice, &tOutlineShaderDescription);
 }
 
 static uint32_t
@@ -880,6 +940,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 
     // register debug 3D drawlist
     gptGfx->register_3d_drawlist(ptGraphics, &ptView->t3DDrawList);
+    gptGfx->register_3d_drawlist(ptGraphics, &ptView->t3DSelectionDrawList);
 
     // create lighting composition quad
     const uint32_t uVertexStartIndex = pl_sb_size(ptScene->sbtVertexPosBuffer);
@@ -1068,7 +1129,16 @@ pl_refr_cleanup(void)
         pl_sb_free(ptScene->sbtOpaqueDrawables);
         pl_sb_free(ptScene->sbtTransparentDrawables);
         pl_sb_free(ptScene->sbtSkinData);
+        pl_sb_free(ptScene->sbtSkinVertexDataBuffer);
+        pl_sb_free(ptScene->sbtOutlineDrawables);
+        pl_sb_free(ptScene->sbtOutlineDrawablesOldShaders);
+        pl_hm_free(&ptScene->tOpaqueHashmap);
+        pl_hm_free(&ptScene->tTransparentHashmap);
         gptECS->cleanup_component_library(&ptScene->tComponentLibrary);
+    }
+    for(uint32_t i = 0; i < pl_sb_size(gptData->_sbtVariantHandles); i++)
+    {
+        gptDevice->queue_shader_for_deletion(&gptData->tGraphics.tDevice, gptData->_sbtVariantHandles[i]);
     }
     pl_sb_free(gptData->_sbtVariantHandles);
     pl_hm_free(&gptData->tVariantHashmap);
@@ -1758,6 +1828,238 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
 }
 
 static void
+pl_refr_select_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEntities)
+{
+    // for convience
+    plRefScene* ptScene    = &gptData->sbtScenes[uSceneHandle];
+    plGraphics* ptGraphics = &gptData->tGraphics;
+    plDevice*   ptDevice   = &ptGraphics->tDevice;
+
+    int iSceneWideRenderingFlags = PL_RENDERING_FLAG_USE_PUNCTUAL;
+    if(ptScene->tGGXEnvTexture.uIndex != UINT32_MAX)
+        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
+
+    // reset old entities
+    const uint32_t uOldSelectedEntityCount = pl_sb_size(ptScene->sbtOutlineDrawables);
+    for(uint32_t i = 0; i < uOldSelectedEntityCount; i++)
+    {
+        plEntity tEntity = ptScene->sbtOutlineDrawables[i].tEntity;
+        plShader* ptOutlineShader = gptDevice->get_shader(ptDevice, ptScene->sbtOutlineDrawables[i].tShader);
+
+        plObjectComponent*   ptObject   = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
+        plMeshComponent*     ptMesh     = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
+        plMaterialComponent* ptMaterial = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
+
+        int iDataStride = 0;
+        int iFlagCopy0 = (int)ptMesh->ulVertexStreamMask;
+        while(iFlagCopy0)
+        {
+            iDataStride += iFlagCopy0 & 1;
+            iFlagCopy0 >>= 1;
+        }
+
+        int iTextureMappingFlags = 0;
+        for(uint32_t j = 0; j < PL_TEXTURE_SLOT_COUNT; j++)
+        {
+            if((ptMaterial->atTextureMaps[j].acName[0] != 0))
+                iTextureMappingFlags |= 1 << j; 
+        }
+
+        // choose shader variant
+        int aiConstantData0[5] = {
+            (int)ptMesh->ulVertexStreamMask,
+            iDataStride,
+            iTextureMappingFlags,
+            PL_INFO_MATERIAL_METALLICROUGHNESS,
+            iSceneWideRenderingFlags
+        };
+
+        // use stencil buffer
+        const plGraphicsState tOutlineVariantTemp = {
+            .ulDepthWriteEnabled  = 0,
+            .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
+            .ulCullMode           = PL_CULL_MODE_CULL_FRONT,
+            .ulWireframe          = 0,
+            .ulStencilTestEnabled = 1,
+            .ulStencilMode        = PL_COMPARE_MODE_GREATER,
+            .ulStencilRef         = 128,
+            .ulStencilMask        = 0xff,
+            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+        };
+
+        const plShaderVariant tOutlineVariant = {
+            .pTempConstantData = aiConstantData0,
+            .tGraphicsState    = tOutlineVariantTemp
+        };
+
+        size_t szSpecializationSize = 0;
+        for(uint32_t j = 0; j < ptOutlineShader->tDescription.uConstantCount; j++)
+        {
+            const plSpecializationConstant* ptConstant = &ptOutlineShader->tDescription.atConstants[j];
+            szSpecializationSize += pl__get_data_type_size(ptConstant->tType);
+        }
+
+        const uint64_t ulVariantHash = pl_hm_hash(tOutlineVariant.pTempConstantData, szSpecializationSize, tOutlineVariant.tGraphicsState.ulValue);
+        pl_hm_remove(&gptData->tVariantHashmap, ulVariantHash);
+
+        if(pl_hm_has_key(&ptScene->tOpaqueHashmap, tEntity.ulData))
+        {
+            uint64_t ulIndex = pl_hm_lookup(&ptScene->tOpaqueHashmap, tEntity.ulData);
+            plDrawable* ptDrawable = &ptScene->sbtOpaqueDrawables[ulIndex];
+            ptDrawable->tShader = ptScene->sbtOutlineDrawablesOldShaders[i];
+        }
+        else if(pl_hm_has_key(&ptScene->tTransparentHashmap, tEntity.ulData))
+        {
+            uint64_t ulIndex = pl_hm_lookup(&ptScene->tTransparentHashmap, tEntity.ulData);
+            plDrawable* ptDrawable = &ptScene->sbtTransparentDrawables[ulIndex];
+            ptDrawable->tShader = ptScene->sbtOutlineDrawablesOldShaders[i];
+        }
+
+        gptDevice->queue_shader_for_deletion(ptDevice, ptScene->sbtOutlineDrawables[i].tShader);
+    }
+    pl_sb_reset(ptScene->sbtOutlineDrawables)
+    pl_sb_reset(ptScene->sbtOutlineDrawablesOldShaders)
+
+
+
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        plEntity tEntity = atEntities[i];
+
+        plObjectComponent* ptObject   = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
+        if(ptObject == NULL)
+            continue;
+        plMeshComponent*     ptMesh     = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
+        plMaterialComponent* ptMaterial = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
+
+        ptMaterial->tFlags |= PL_MATERIAL_FLAG_OUTLINE;
+
+        int iDataStride = 0;
+        int iFlagCopy0 = (int)ptMesh->ulVertexStreamMask;
+        while(iFlagCopy0)
+        {
+            iDataStride += iFlagCopy0 & 1;
+            iFlagCopy0 >>= 1;
+        }
+
+        int iTextureMappingFlags = 0;
+        for(uint32_t j = 0; j < PL_TEXTURE_SLOT_COUNT; j++)
+        {
+            if((ptMaterial->atTextureMaps[j].acName[0] != 0))
+                iTextureMappingFlags |= 1 << j; 
+        }
+
+        // choose shader variant
+        int aiConstantData0[5] = {
+            (int)ptMesh->ulVertexStreamMask,
+            iDataStride,
+            iTextureMappingFlags,
+            PL_INFO_MATERIAL_METALLICROUGHNESS,
+            iSceneWideRenderingFlags
+        };
+
+        if(pl_hm_has_key(&ptScene->tOpaqueHashmap, tEntity.ulData))
+        {
+            uint64_t ulIndex = pl_hm_lookup(&ptScene->tOpaqueHashmap, tEntity.ulData);
+            plDrawable* ptDrawable = &ptScene->sbtOpaqueDrawables[ulIndex];
+            plShader* ptOldShader = gptDevice->get_shader(ptDevice, ptDrawable->tShader);
+            plGraphicsState tVariantTemp = ptOldShader->tDescription.tGraphicsState;
+
+            // write into stencil buffer
+            tVariantTemp.ulStencilTestEnabled = 1;
+            tVariantTemp.ulStencilMode        = PL_COMPARE_MODE_ALWAYS;
+            tVariantTemp.ulStencilRef         = 0xff;
+            tVariantTemp.ulStencilMask        = 0xff;
+            tVariantTemp.ulStencilOpFail      = PL_STENCIL_OP_REPLACE;
+            tVariantTemp.ulStencilOpDepthFail = PL_STENCIL_OP_REPLACE;
+            tVariantTemp.ulStencilOpPass      = PL_STENCIL_OP_REPLACE;
+
+            // use stencil buffer
+            const plGraphicsState tOutlineVariantTemp = {
+                .ulDepthWriteEnabled  = 0,
+                .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
+                .ulCullMode           = PL_CULL_MODE_CULL_FRONT,
+                .ulWireframe          = 0,
+                .ulStencilTestEnabled = 1,
+                .ulStencilMode        = PL_COMPARE_MODE_GREATER,
+                .ulStencilRef         = 128,
+                .ulStencilMask        = 0xff,
+                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+            };
+
+            const plShaderVariant tOutlineVariant = {
+                .pTempConstantData = aiConstantData0,
+                .tGraphicsState    = tOutlineVariantTemp
+            };
+
+            plShaderHandle tOutlineShader = pl__get_shader_variant(uSceneHandle, gptData->tOutlineShader, &tOutlineVariant);
+            pl_sb_push(ptScene->sbtOutlineDrawables, *ptDrawable);
+            ptScene->sbtOutlineDrawables[pl_sb_size(ptScene->sbtOutlineDrawables) - 1].tShader = tOutlineShader;
+
+            const plShaderVariant tVariant = {
+                .pTempConstantData = aiConstantData0,
+                .tGraphicsState    = tVariantTemp
+            };
+
+            pl_sb_push(ptScene->sbtOutlineDrawablesOldShaders, ptDrawable->tShader);
+            ptDrawable->tShader = pl__get_shader_variant(uSceneHandle, gptData->tOpaqueShader, &tVariant);
+        }
+        else if(pl_hm_has_key(&ptScene->tTransparentHashmap, tEntity.ulData))
+        {
+            uint64_t ulIndex = pl_hm_lookup(&ptScene->tTransparentHashmap, tEntity.ulData);
+            plDrawable* ptDrawable = &ptScene->sbtTransparentDrawables[ulIndex];
+            plShader* ptOldShader = gptDevice->get_shader(ptDevice, ptDrawable->tShader);
+            plGraphicsState tVariantTemp = ptOldShader->tDescription.tGraphicsState;
+
+            // write into stencil buffer
+            tVariantTemp.ulStencilTestEnabled = 1;
+            tVariantTemp.ulStencilMode        = PL_COMPARE_MODE_ALWAYS;
+            tVariantTemp.ulStencilRef         = 0xff;
+            tVariantTemp.ulStencilMask        = 0xff;
+            tVariantTemp.ulStencilOpFail      = PL_STENCIL_OP_REPLACE;
+            tVariantTemp.ulStencilOpDepthFail = PL_STENCIL_OP_REPLACE;
+            tVariantTemp.ulStencilOpPass      = PL_STENCIL_OP_REPLACE;
+
+            // use stencil buffer
+            const plGraphicsState tOutlineVariantTemp = {
+                .ulDepthWriteEnabled  = 0,
+                .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
+                .ulCullMode           = PL_CULL_MODE_CULL_FRONT,
+                .ulWireframe          = 0,
+                .ulStencilTestEnabled = 1,
+                .ulStencilMode        = PL_COMPARE_MODE_GREATER,
+                .ulStencilRef         = 128,
+                .ulStencilMask        = 0xff,
+                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+            };
+
+            const plShaderVariant tOutlineVariant = {
+                .pTempConstantData = aiConstantData0,
+                .tGraphicsState    = tOutlineVariantTemp
+            };
+
+            plShaderHandle tOutlineShader = pl__get_shader_variant(uSceneHandle, gptData->tOutlineShader, &tOutlineVariant);
+            pl_sb_push(ptScene->sbtOutlineDrawables, *ptDrawable);
+            ptScene->sbtOutlineDrawables[pl_sb_size(ptScene->sbtOutlineDrawables) - 1].tShader = tOutlineShader;
+
+            const plShaderVariant tVariant = {
+                .pTempConstantData = aiConstantData0,
+                .tGraphicsState    = tVariantTemp
+            };
+
+            pl_sb_push(ptScene->sbtOutlineDrawablesOldShaders, ptDrawable->tShader);
+            ptDrawable->tShader = pl__get_shader_variant(uSceneHandle, gptData->tTransparentShader, &tVariant);
+        }
+    }
+}
+
+static void
 pl_refr_finalize_scene(uint32_t uSceneHandle)
 {
     // for convience
@@ -1877,14 +2179,22 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         }
     };
 
+    plHashMap* atHashmaps[] = {
+        &ptScene->tOpaqueHashmap,
+        &ptScene->tTransparentHashmap
+    };
+
     for(uint32_t uDrawableBatchIndex = 0; uDrawableBatchIndex < 2; uDrawableBatchIndex++)
     {
+        plHashMap* ptHashmap = atHashmaps[uDrawableBatchIndex];
         const uint32_t uDrawableCount = pl_sb_size(sbtDrawables[uDrawableBatchIndex]);
+        pl_hm_resize(ptHashmap, uDrawableCount);
         for(uint32_t i = 0; i < uDrawableCount; i++)
         {
 
             (sbtDrawables[uDrawableBatchIndex])[i].uSkinIndex = UINT32_MAX;
             plEntity tEntity = (sbtDrawables[uDrawableBatchIndex])[i].tEntity;
+            pl_hm_insert(ptHashmap, tEntity.ulData, i);
 
             // get actual components
             plObjectComponent*   ptObject   = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
@@ -1922,13 +2232,15 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                 PL_INFO_MATERIAL_METALLICROUGHNESS,
                 iSceneWideRenderingFlags
             };
-            
+
+            plGraphicsState tVariantTemp = atTemplateVariants[uDrawableBatchIndex];
+
             const plShaderVariant tVariant = {
                 .pTempConstantData = aiConstantData0,
-                .tGraphicsState = atTemplateVariants[uDrawableBatchIndex]
+                .tGraphicsState    = tVariantTemp
             };
 
-            (sbtDrawables[uDrawableBatchIndex])[i].uShader = pl__get_shader_variant(uSceneHandle, atTemplateShaders[uDrawableBatchIndex], &tVariant).uIndex;
+            (sbtDrawables[uDrawableBatchIndex])[i].tShader = pl__get_shader_variant(uSceneHandle, atTemplateShaders[uDrawableBatchIndex], &tVariant);
         }
     }
 
@@ -2457,7 +2769,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
 
         gptGfx->add_to_stream(ptStream, (plStreamDraw)
         {
-            .uShaderVariant       = tDrawable.uShader,
+            .uShaderVariant       = tDrawable.tShader.uIndex,
             .uDynamicBuffer       = tDynamicBinding.uBufferHandle,
             .uVertexBuffer        = ptScene->tVertexBuffer.uIndex,
             .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
@@ -2550,7 +2862,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
 
         gptGfx->add_to_stream(ptStream, (plStreamDraw)
         {
-            .uShaderVariant       = tDrawable.uShader,
+            .uShaderVariant       = tDrawable.tShader.uIndex,
             .uDynamicBuffer       = tDynamicBinding.uBufferHandle,
             .uVertexBuffer        = ptScene->tVertexBuffer.uIndex,
             .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
@@ -2564,6 +2876,84 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         });
     }
     gptGfx->draw_stream(&tEncoder, 1, &tArea);
+
+    const uint32_t uOutlineDrawableCount = pl_sb_size(ptScene->sbtOutlineDrawables);
+    if(uOutlineDrawableCount > 0)
+    {
+
+        gptGfx->reset_draw_stream(ptStream);
+
+        typedef struct _plOutlineDynamicData
+        {
+            plVec4 tColor;
+            float  fThickness;
+            int    iDataOffset;
+            int    iVertexOffset;
+            int    iPadding[1];
+            plMat4 tModel;
+        } plOutlineDynamicData;
+
+        const plVec4 tOutlineColor = (plVec4){(float)sin(pl_get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 0.0f, 1.0f};
+        const plVec4 tOutlineColor2 = (plVec4){0.0f, tOutlineColor.r, 0.0f, 1.0f};
+        for(uint32_t i = 0; i < uOutlineDrawableCount; i++)
+        {
+            const plDrawable tDrawable = ptScene->sbtOutlineDrawables[i];
+            plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
+            plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+
+            plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
+            gptGfx->add_3d_aabb(&ptView->t3DSelectionDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, tOutlineColor2, 0.02f);
+            
+            plDynamicBinding tDynamicBinding = gptDevice->allocate_dynamic_data(ptDevice, sizeof(plOutlineDynamicData));
+
+            plOutlineDynamicData* ptDynamicData = (plOutlineDynamicData*)tDynamicBinding.pcData;
+            ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+            ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
+            ptDynamicData->tModel = ptTransform->tWorld;
+            ptDynamicData->fThickness = 0.02f;
+            ptDynamicData->tColor = tOutlineColor;
+
+            gptGfx->add_to_stream(ptStream, (plStreamDraw)
+            {
+                .uShaderVariant       = tDrawable.tShader.uIndex,
+                .uDynamicBuffer       = tDynamicBinding.uBufferHandle,
+                .uVertexBuffer        = ptScene->tVertexBuffer.uIndex,
+                .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
+                .uIndexOffset         = tDrawable.uIndexOffset,
+                .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                .uBindGroup1          = UINT32_MAX,
+                .uBindGroup2          = UINT32_MAX,
+                .uDynamicBufferOffset = tDynamicBinding.uByteOffset,
+                .uInstanceStart       = 0,
+                .uInstanceCount       = 1
+            });
+        }
+
+        plBindGroupLayout tOutlineBindGroupLayout0 = {
+            .uBufferBindingCount  = 2,
+            .aBufferBindings = {
+                { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+            },
+        };
+        plBindGroupHandle tOutlineGlobalBG = gptDevice->get_temporary_bind_group(ptDevice, &tOutlineBindGroupLayout0, "temporary outline global bind group");
+
+        const plBindGroupUpdateBufferData atOutlineBufferData[] = 
+        {
+            { .uSlot = 0, .tBuffer = ptView->atGlobalBuffers[ptGraphics->uCurrentFrameIndex], .szBufferRange = sizeof(BindGroup_0)},
+            { .uSlot = 1, .tBuffer = ptScene->tStorageBuffer, .szBufferRange = sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer)},
+
+        };
+
+        plBindGroupUpdateData tOutlineBGData0 = {
+            .uBufferCount = 2,
+            .atBuffers = atOutlineBufferData,
+        };
+        gptDevice->update_bind_group(&ptGraphics->tDevice, tOutlineGlobalBG, &tOutlineBGData0);
+
+        tArea.uBindGroup0 = tOutlineGlobalBG.uIndex;
+        gptGfx->draw_stream(&tEncoder, 1, &tArea);
+    }
 
     if(tOptions.bShowAllBoundingBoxes)
     {
@@ -2599,17 +2989,18 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     if(tOptions.bShowOrigin)
     {
         const plMat4 tTransform = pl_identity_mat4();
-        gptGfx->add_3d_transform(&ptView->t3DDrawList, &tTransform, 10.0f, 0.02f);
+        gptGfx->add_3d_transform(&ptView->t3DSelectionDrawList, &tTransform, 10.0f, 0.02f);
     }
 
     if(tOptions.ptCullCamera && tOptions.ptCullCamera != tOptions.ptViewCamera)
     {
-        gptGfx->add_3d_frustum(&ptView->t3DDrawList, &tOptions.ptCullCamera->tTransformMat, tOptions.ptCullCamera->fFieldOfView, tOptions.ptCullCamera->fAspectRatio, tOptions.ptCullCamera->fNearZ, tOptions.ptCullCamera->fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
+        gptGfx->add_3d_frustum(&ptView->t3DSelectionDrawList, &tOptions.ptCullCamera->tTransformMat, tOptions.ptCullCamera->fFieldOfView, tOptions.ptCullCamera->fAspectRatio, tOptions.ptCullCamera->fNearZ, tOptions.ptCullCamera->fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
     }
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
     gptGfx->submit_3d_drawlist(&ptView->t3DDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, 1);
+    gptGfx->submit_3d_drawlist(&ptView->t3DSelectionDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
     gptGfx->end_render_pass(&tEncoder);
     pl_end_profile_sample();
 }
@@ -3644,6 +4035,7 @@ pl_load_ref_renderer_api(void)
         .get_graphics                  = pl_refr_get_graphics,
         .load_skybox_from_panorama     = pl_refr_load_skybox_from_panorama,
         .finalize_scene                = pl_refr_finalize_scene,
+        .select_entities               = pl_refr_select_entities,
         .update_skin_textures          = pl_refr_update_skin_textures,
         .perform_skinning              = pl_refr_perform_skinning,
         .render_scene                  = pl_refr_render_scene,
