@@ -62,20 +62,21 @@ typedef struct plAppData_t
     bool           bFrustumCulling;
     bool           bAlwaysResize;
 
+    // selected entityes
+
+    bool bUpdateEntitySelection;
+    plEntity tSelectedEntity;
+
     // scene
     bool         bDrawAllBoundingBoxes;
     bool         bDrawVisibleBoundingBoxes;
     bool         bFreezeCullCamera;
     plEntity     tCullCamera;
     plEntity     tMainCamera;
-    plEntity     tMainCamera2;
 
     // views
     uint32_t uSceneHandle0;
-    uint32_t uSceneHandle1;
     uint32_t uViewHandle0;
-    uint32_t uViewHandle1;
-    uint32_t uViewHandle2;
 
     // drawing
     plDrawLayer* ptDrawLayer;
@@ -221,18 +222,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         ptAppData->atSempahore[i] = gptDevice->create_semaphore(&gptRenderer->get_graphics()->tDevice, false);
 
     ptAppData->uSceneHandle0 = gptRenderer->create_scene();
-    ptAppData->uSceneHandle1 = gptRenderer->create_scene();
 
     pl_begin_profile_sample("load environments");
-    const plMat4 tTransform0 = pl_mat4_translate_xyz(2.0f, 1.0f, 0.0f);
     gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/glTF-Sample-Environments-main/field.jpg", 1024);
-    gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle1, "../data/glTF-Sample-Environments-main/field.jpg", 1024);
     pl_end_profile_sample();
 
     pl_begin_profile_sample("create scene views");
     ptAppData->uViewHandle0 = gptRenderer->create_view(ptAppData->uSceneHandle0, (plVec2){ptIO->afMainViewportSize[0] , ptIO->afMainViewportSize[1]});
-    ptAppData->uViewHandle1 = gptRenderer->create_view(ptAppData->uSceneHandle0, (plVec2){500.0f, 500.0f});
-    ptAppData->uViewHandle2 = gptRenderer->create_view(ptAppData->uSceneHandle1, (plVec2){500.0f, 500.0f});
     pl_end_profile_sample();
 
     // temporary draw layer for submitting fullscreen quad of offscreen render
@@ -249,38 +245,23 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptCamera->set_pitch_yaw(gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera), 0.0f, PL_PI);
     gptCamera->update(gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera));
 
-    plComponentLibrary* ptSecondaryComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle1);
-    ptAppData->tMainCamera2 = gptEcs->create_perspective_camera(ptSecondaryComponentLibrary, "secondary camera", (plVec3){-3.265f, 2.967f, 0.311f}, PL_PI_3, 1.0f, 0.01f, 400.0f);
-    gptCamera->set_pitch_yaw(gptEcs->get_component(ptSecondaryComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2), -0.535f, 1.737f);
-    gptCamera->update(gptEcs->get_component(ptSecondaryComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2));
-
     // load models
     
     plModelLoaderData tLoaderData0 = {0};
 
     pl_begin_profile_sample("load models 0");
+    plMat4 tTransform0 = pl_mat4_translate_xyz(2, 2, 0);
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/FlightHelmet/glTF/FlightHelmet.gltf", NULL, &tLoaderData0);
     gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL, &tLoaderData0);
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf", NULL, &tLoaderData0);
     gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
-    gptModelLoader->load_stl(ptMainComponentLibrary, "../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 1.0f, 0.0f, 0.80f}, &tTransform0, &tLoaderData0);
+    gptModelLoader->load_stl(ptMainComponentLibrary, "../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 1.0f, 0.0f, 0.8f}, &tTransform0, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
-    gptModelLoader->free_data(&tLoaderData0);
-    pl_end_profile_sample();
-
-    pl_begin_profile_sample("load models 1");
-    gptModelLoader->load_gltf(ptSecondaryComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL, &tLoaderData0);
-    gptModelLoader->load_stl(ptSecondaryComponentLibrary, "../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 0.0f, 0.0f, 0.80f}, &tTransform0, &tLoaderData0);
-    gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle1, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
     gptModelLoader->free_data(&tLoaderData0);
     pl_end_profile_sample();
 
     pl_begin_profile_sample("finalize scene 0");
     gptRenderer->finalize_scene(ptAppData->uSceneHandle0);
-    pl_end_profile_sample();
-
-    pl_begin_profile_sample("finalize scene 1");
-    gptRenderer->finalize_scene(ptAppData->uSceneHandle1);
     pl_end_profile_sample();
 
     pl_end_profile_frame();
@@ -356,12 +337,23 @@ pl_app_update(plAppData* ptAppData)
         ptAppData->bResize = false;
     }
 
+
+
     if(!gptGfx->begin_frame(ptGraphics))
     {
         gptGfx->resize(ptGraphics);
         pl_end_profile_sample();
         pl_end_profile_frame();
         return;
+    }
+
+    if(ptAppData->bUpdateEntitySelection)
+    {
+        if(ptAppData->tSelectedEntity.uIndex == UINT32_MAX)
+            gptRenderer->select_entities(ptAppData->uSceneHandle0, 0, NULL);
+        else
+            gptRenderer->select_entities(ptAppData->uSceneHandle0, 1, &ptAppData->tSelectedEntity);
+        ptAppData->bUpdateEntitySelection = false;
     }
 
     // update statistics
@@ -377,10 +369,8 @@ pl_app_update(plAppData* ptAppData)
 
     // handle input
     plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
-    plComponentLibrary* ptSecondaryComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle1);
 
     plCameraComponent* ptCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
-    plCameraComponent* ptCamera2 = gptEcs->get_component(ptSecondaryComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2);
     plCameraComponent* ptCullCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
 
     static const float fCameraTravelSpeed = 4.0f;
@@ -409,12 +399,10 @@ pl_app_update(plAppData* ptAppData)
     }
 
     gptCamera->update(ptCamera);
-    gptCamera->update(ptCamera2);
     gptCamera->update(ptCullCamera);
 
     // run ecs system
     gptRenderer->run_ecs(ptAppData->uSceneHandle0);
-    gptRenderer->run_ecs(ptAppData->uSceneHandle1);
 
     // new ui frame
     pl_new_frame();
@@ -438,7 +426,6 @@ pl_app_update(plAppData* ptAppData)
     plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo0);
 
     gptRenderer->update_skin_textures(tCommandBuffer, ptAppData->uSceneHandle0);
-    gptRenderer->update_skin_textures(tCommandBuffer, ptAppData->uSceneHandle1);
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
 
     const plSubmitInfo tSubmitInfo0 = {
@@ -456,7 +443,6 @@ pl_app_update(plAppData* ptAppData)
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo00);
 
     gptRenderer->perform_skinning(tCommandBuffer, ptAppData->uSceneHandle0);
-    gptRenderer->perform_skinning(tCommandBuffer, ptAppData->uSceneHandle1);
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
 
     const plSubmitInfo tSubmitInfo00 = {
@@ -475,15 +461,6 @@ pl_app_update(plAppData* ptAppData)
         .ptCullCamera              = ptAppData->bFrustumCulling ? ptCamera : NULL
     };
 
-    plViewOptions tViewOptions2 = {
-        .bShowAllBoundingBoxes     = ptAppData->bDrawAllBoundingBoxes,
-        .bShowVisibleBoundingBoxes = ptAppData->bDrawVisibleBoundingBoxes,
-        .bShowOrigin               = false,
-        .bCullStats                = false,
-        .ptViewCamera              = ptCamera2,
-        .ptCullCamera              = ptCamera2
-    };
-
     if(ptAppData->bFrustumCulling && ptAppData->bFreezeCullCamera)
         tViewOptions.ptCullCamera = ptCullCamera;
 
@@ -497,8 +474,6 @@ pl_app_update(plAppData* ptAppData)
     };
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo1);
     gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0, tViewOptions);
-    gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle1, tViewOptions2);
-    gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle1, ptAppData->uViewHandle2, tViewOptions2);
 
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
 
@@ -586,7 +561,12 @@ pl_app_update(plAppData* ptAppData)
     gptDebug->show_debug_windows(&ptAppData->tDebugInfo);
 
     if(ptAppData->bShowEntityWindow)
-        pl_show_ecs_window(gptEcs, gptRenderer->get_component_library(ptAppData->uSceneHandle0), &ptAppData->bShowEntityWindow);
+    {
+        plEntity tNextSelectedEntity = pl_show_ecs_window(gptEcs, gptRenderer->get_component_library(ptAppData->uSceneHandle0), &ptAppData->bShowEntityWindow);
+        if(tNextSelectedEntity.ulData != ptAppData->tSelectedEntity.ulData)
+            ptAppData->bUpdateEntitySelection = true;
+        ptAppData->tSelectedEntity = tNextSelectedEntity;
+    }
 
     if(ptAppData->bShowUiDemo)
     {
@@ -603,8 +583,6 @@ pl_app_update(plAppData* ptAppData)
 
     // add full screen quad for offscreen render
     pl_add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_texture_id(ptAppData->uSceneHandle0, ptAppData->uViewHandle0), (plVec2){0}, (plVec2){ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1]});
-    pl_add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_texture_id(ptAppData->uSceneHandle0, ptAppData->uViewHandle1), (plVec2){0}, (plVec2){500.0f, 500.0f});
-    pl_add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_texture_id(ptAppData->uSceneHandle1, ptAppData->uViewHandle2), (plVec2){0.0f, 500.0f}, (plVec2){500.0f, 1000.0f});
     pl_submit_layer(ptAppData->ptDrawLayer);
 
     plRenderEncoder tEncoder = gptGfx->begin_render_pass(ptGraphics, &tCommandBuffer, ptGraphics->tMainRenderPass);

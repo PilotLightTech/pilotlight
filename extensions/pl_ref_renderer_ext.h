@@ -86,6 +86,7 @@ typedef struct _plRefRendererI
     void (*render_scene)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions);
     
     // misc
+    void                (*select_entities)(uint32_t uSceneHandle, uint32_t uCount, plEntity*);
     plComponentLibrary* (*get_component_library)(uint32_t uSceneHandle);
     plGraphics*         (*get_graphics)(void);
 

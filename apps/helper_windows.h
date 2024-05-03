@@ -8,9 +8,11 @@
 #include "pl_ds.h"
 #include "pl_string.h"
 
-static void
+static plEntity
 pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbShowWindow)
 {
+    static int iSelectedEntity = -1;
+    static plEntity tSelectedEntity = {UINT32_MAX, UINT32_MAX};
     if(pl_begin_window("Entities", pbShowWindow, false))
     {
         const plVec2 tWindowSize = pl_get_window_size();
@@ -21,8 +23,7 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
         pl_layout_dynamic(0.0f, 1);
         pl_separator();
         pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, tWindowSize.y - 75.0f, 2, pfRatios);
-        static int iSelectedEntity = -1;
-        static plEntity tSelectedEntity = {0};
+
 
         if(pl_begin_child("Entities"))
         {
@@ -48,7 +49,11 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
                             tSelectedEntity = ptLibrary->tTagComponentManager.sbtEntities[i];
                         }
                         else
+                        {
                             iSelectedEntity = -1;
+                            tSelectedEntity.uIndex = UINT32_MAX;
+                            tSelectedEntity.uGeneration = UINT32_MAX;
+                        }
                     }
                 }
             }
@@ -273,4 +278,6 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
 
         pl_end_window();
     }
+
+    return tSelectedEntity;
 }
