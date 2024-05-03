@@ -1380,6 +1380,9 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
     };
     PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tVulkanBindGroupLayout.tDescriptorSetLayout));
 
+    if(pcName)
+        pl_set_vulkan_object_name(ptDevice, (uint64_t)tVulkanBindGroupLayout.tDescriptorSetLayout, VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT, pcName);
+
     ptVulkanGraphics->sbtBindGroupLayouts[uBindGroupLayoutIndex] = tVulkanBindGroupLayout;
     pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
 }
@@ -5614,7 +5617,7 @@ pl__garbage_collect(plGraphics* ptGraphics)
         ptVariantVulkanResource->tPipelineLayout = VK_NULL_HANDLE;
         ptVariantVulkanResource->tPipeline = VK_NULL_HANDLE;
         pl_sb_push(ptGraphics->sbtShaderFreeIndices, iResourceIndex);
-        for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount + 1; k++)
+        for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount; k++)
         {
             plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptVulkanGfx->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
             vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
@@ -5640,7 +5643,7 @@ pl__garbage_collect(plGraphics* ptGraphics)
         ptVariantVulkanResource->tPipeline = VK_NULL_HANDLE;
         pl_sb_push(ptGraphics->sbtComputeShaderFreeIndices, iResourceIndex);
 
-        for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount + 1; k++)
+        for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount; k++)
         {
             plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptVulkanGfx->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
             vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   

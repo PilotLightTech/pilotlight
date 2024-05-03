@@ -157,7 +157,9 @@ with pl.project("pilotlight"):
         "draw_3d_line.vert",
         "panorama_to_cubemap.comp",
         "filter_environment.comp",
-        "skinning.comp"
+        "skinning.comp",
+        "outline.vert",
+        "outline.frag",
     ]
 
     metal_shaders = [
@@ -169,7 +171,8 @@ with pl.project("pilotlight"):
         "skybox.metal",
         "filter_environment.metal",
         "transparent.metal",
-        "skinning.metal"
+        "skinning.metal",
+        "outline.metal"
     ]
 
     with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
