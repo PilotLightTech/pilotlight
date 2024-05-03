@@ -677,6 +677,7 @@ pl__cleanup_common_graphics(plGraphics* ptGraphics)
     pl_sb_free(ptGraphics->tSwapchain.sbtSwapchainTextureViews);
     pl_sb_free(ptGraphics->sbtShadersCold);
     pl_sb_free(ptGraphics->sbtBuffersCold);
+    pl_sb_free(ptGraphics->sbtShaderFreeIndices);
     pl_sb_free(ptGraphics->sbtBufferFreeIndices);
     pl_sb_free(ptGraphics->sbtTexturesCold);
     pl_sb_free(ptGraphics->sbtSamplersCold);
