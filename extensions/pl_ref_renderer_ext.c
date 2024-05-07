@@ -3161,6 +3161,12 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
     if(pl_sb_size(ptMesh->sbtVertexColors[1]) > 0)             { uDestStride += 1; }
     if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[0]) > 0) { uDestStride += 1; }
     if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[1]) > 0) { uDestStride += 1; }
+    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[2]) > 0) { uDestStride += 1; }
+    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[3]) > 0) { uDestStride += 1; }
+    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[4]) > 0) { uDestStride += 1; }
+    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[5]) > 0) { uDestStride += 1; }
+    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[6]) > 0) { uDestStride += 1; }
+    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[7]) > 0) { uDestStride += 1; }
 
     plSkinData tSkinData = {
         .tEntity = ptMesh->tSkinComponent,
@@ -3268,6 +3274,12 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
     if(pl_sb_size(ptMesh->sbtVertexColors[1]) > 0)             { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_1; }
     if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[0]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0; }
     if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[1]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1; }
+    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[2]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2; }
+    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[3]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3; }
+    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[4]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_4; }
+    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[5]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_5; }
+    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[6]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_6; }
+    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[7]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_7; }
 
     pl_sb_add_n(ptScene->sbtVertexDataBuffer, uStride * uVertexCount);
 
@@ -3304,19 +3316,22 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
         uOffset += 1;
 
     // texture coordinates 0
-    const uint32_t uVertexTexCount = pl_sb_size(ptMesh->sbtVertexTextureCoordinates[0]);
-    for(uint32_t i = 0; i < uVertexTexCount; i++)
+    for(uint32_t i = 0; i < 8; i++)
     {
-        const plVec2* ptTextureCoordinates = &(ptMesh->sbtVertexTextureCoordinates[0])[i];
-        ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].x = ptTextureCoordinates->u;
-        ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].y = ptTextureCoordinates->v;
-        ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].z = 0.0f;
-        ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].w = 0.0f;
+        const uint32_t uVertexTexCount = pl_sb_size(ptMesh->sbtVertexTextureCoordinates[i]);
+        for(uint32_t j = 0; j < uVertexTexCount; j++)
+        {
+            const plVec2* ptTextureCoordinates = &(ptMesh->sbtVertexTextureCoordinates[i])[j];
+            ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].x = ptTextureCoordinates->u;
+            ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].y = ptTextureCoordinates->v;
+            ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].z = 0.0f;
+            ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].w = 0.0f;
 
+        }
+
+        if(uVertexTexCount > 0)
+            uOffset += 1;
     }
-
-    if(uVertexTexCount > 0)
-        uOffset += 1;
 
     // color 0
     const uint32_t uVertexColorCount = pl_sb_size(ptMesh->sbtVertexColors[0]);

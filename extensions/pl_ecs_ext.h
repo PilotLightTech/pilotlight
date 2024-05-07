@@ -269,12 +269,18 @@ enum _plMeshFormatFlags
     PL_MESH_FORMAT_FLAG_HAS_TANGENT    = 1 << 2,
     PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 = 1 << 3,
     PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1 = 1 << 4,
-    PL_MESH_FORMAT_FLAG_HAS_COLOR_0    = 1 << 5,
-    PL_MESH_FORMAT_FLAG_HAS_COLOR_1    = 1 << 6,
-    PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   = 1 << 7,
-    PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   = 1 << 8,
-    PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  = 1 << 9,
-    PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 10
+    PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2 = 1 << 5,
+    PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3 = 1 << 6,
+    PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_4 = 1 << 7,
+    PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_5 = 1 << 8,
+    PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_6 = 1 << 9,
+    PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_7 = 1 << 10,
+    PL_MESH_FORMAT_FLAG_HAS_COLOR_0    = 1 << 11,
+    PL_MESH_FORMAT_FLAG_HAS_COLOR_1    = 1 << 12,
+    PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   = 1 << 13,
+    PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   = 1 << 14,
+    PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  = 1 << 15,
+    PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 16
 };
 
 //-----------------------------------------------------------------------------
@@ -421,7 +427,7 @@ typedef struct _plMeshComponent
     plVec4*      sbtVertexColors[2];
     plVec4*      sbtVertexWeights[2];
     plVec4*      sbtVertexJoints[2];
-    plVec2*      sbtVertexTextureCoordinates[2];
+    plVec2*      sbtVertexTextureCoordinates[8];
     uint32_t*    sbuIndices;
     plAABB       tAABB;
     plAABB       tAABBFinal;

@@ -27,12 +27,18 @@ constant const float INV_GAMMA = 1.0 / GAMMA;
 #define PL_MESH_FORMAT_FLAG_HAS_TANGENT    1 << 2
 #define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 1 << 3
 #define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1 1 << 4
-#define PL_MESH_FORMAT_FLAG_HAS_COLOR_0    1 << 5
-#define PL_MESH_FORMAT_FLAG_HAS_COLOR_1    1 << 6
-#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   1 << 7
-#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   1 << 8
-#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  1 << 9
-#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  1 << 10
+#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2 1 << 5
+#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3 1 << 6
+#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_4 1 << 7
+#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_5 1 << 8
+#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_6 1 << 9
+#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_7 1 << 10
+#define PL_MESH_FORMAT_FLAG_HAS_COLOR_0    1 << 11
+#define PL_MESH_FORMAT_FLAG_HAS_COLOR_1    1 << 12
+#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   1 << 13
+#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   1 << 14
+#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  1 << 15
+#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  1 << 16
 
 // iTextureMappingFlags
 #define PL_HAS_BASE_COLOR_MAP            1 << 0
@@ -235,7 +241,14 @@ struct VertexOut {
     float4 tPositionOut [[position]];
     float3 tPosition;
     float4 tWorldPosition;
-    float2 tUV;
+    float2 tUV0;
+    float2 tUV1;
+    float2 tUV2;
+    float2 tUV3;
+    float2 tUV4;
+    float2 tUV5;
+    float2 tUV6;
+    float2 tUV7;
     float4 tColor;
     float3 tWorldNormal;
     float3 tTBN0;
@@ -257,9 +270,8 @@ struct plMultipleRenderTargets
 //-----------------------------------------------------------------------------
 
 NormalInfo
-pl_get_normal_info(device const BindGroup_0& bg0, device const BindGroup_1& bg1, VertexOut tShaderIn, bool front_facing)
+pl_get_normal_info(device const BindGroup_0& bg0, device const BindGroup_1& bg1, VertexOut tShaderIn, bool front_facing, float2 UV)
 {
-    float2 UV = tShaderIn.tUV;
     float2 uv_dx = dfdx(UV);
     float2 uv_dy = dfdy(UV);
 
@@ -333,7 +345,7 @@ pl_get_normal_info(device const BindGroup_0& bg0, device const BindGroup_1& bg1,
 }
 
 float4
-getBaseColor(device const BindGroup_0& bg0, device const BindGroup_1& bg1, float4 u_ColorFactor, VertexOut tShaderIn)
+getBaseColor(device const BindGroup_0& bg0, device const BindGroup_1& bg1, float4 u_ColorFactor, VertexOut tShaderIn, float2 UV)
 {
     float4 baseColor = float4(1);
 
@@ -357,7 +369,7 @@ getBaseColor(device const BindGroup_0& bg0, device const BindGroup_1& bg1, float
     if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
     {
         // baseColor *= texture(u_BaseColorSampler, getBaseColorUV());
-        baseColor *= bg1.tBaseColorTexture.sample(bg0.tDefaultSampler, tShaderIn.tUV);
+        baseColor *= bg1.tBaseColorTexture.sample(bg0.tDefaultSampler, UV);
     }
     return baseColor * tShaderIn.tColor;
 }
@@ -369,7 +381,7 @@ linearTosRGB(float3 color)
 }
 
 MaterialInfo
-getMetallicRoughnessInfo(VertexOut in, device const BindGroup_0& bg0, device const BindGroup_1& bg1, MaterialInfo info, float u_MetallicFactor, float u_RoughnessFactor, int UVSet)
+getMetallicRoughnessInfo(VertexOut in, device const BindGroup_0& bg0, device const BindGroup_1& bg1, MaterialInfo info, float u_MetallicFactor, float u_RoughnessFactor, float2 UV)
 {
     info.metallic = u_MetallicFactor;
     info.perceptualRoughness = u_RoughnessFactor;
@@ -378,7 +390,7 @@ getMetallicRoughnessInfo(VertexOut in, device const BindGroup_0& bg0, device con
     {
         // Roughness is stored in the 'g' channel, metallic is stored in the 'b' channel.
         // This layout intentionally reserves the 'r' channel for (optional) occlusion map data
-        float4 mrSample = float4(bg1.tMetallicRoughnessTexture.sample(bg0.tDefaultSampler, in.tUV).rgb, 1.0);
+        float4 mrSample = float4(bg1.tMetallicRoughnessTexture.sample(bg0.tDefaultSampler, UV).rgb, 1.0);
         info.perceptualRoughness *= mrSample.g;
         info.metallic *= mrSample.b;
     }
@@ -408,6 +420,12 @@ vertex VertexOut vertex_main(
     float4 inTangent = float4(0.0, 0.0, 0.0, 0.0);
     float2 inTexCoord0 = float2(0.0, 0.0);
     float2 inTexCoord1 = float2(0.0, 0.0);
+    float2 inTexCoord2 = float2(0.0, 0.0);
+    float2 inTexCoord3 = float2(0.0, 0.0);
+    float2 inTexCoord4 = float2(0.0, 0.0);
+    float2 inTexCoord5 = float2(0.0, 0.0);
+    float2 inTexCoord6 = float2(0.0, 0.0);
+    float2 inTexCoord7 = float2(0.0, 0.0);
     float4 inColor0 = float4(1.0, 1.0, 1.0, 1.0);
     float4 inColor1 = float4(0.0, 0.0, 0.0, 0.0);
     int iCurrentAttribute = 0;
@@ -420,6 +438,12 @@ vertex VertexOut vertex_main(
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT)   { inTangent      = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0){ inTexCoord0    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1){ inTexCoord1    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2){ inTexCoord2    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3){ inTexCoord3    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_4){ inTexCoord4    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_5){ inTexCoord5    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_6){ inTexCoord6    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_7){ inTexCoord7    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0)   { inColor0       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_1)   { inColor1       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
 
@@ -443,7 +467,14 @@ vertex VertexOut vertex_main(
     float4 pos = tObjectInfo.tModel * inPosition;
     tShaderOut.tPosition = pos.xyz / pos.w;
     tShaderOut.tPositionOut = bg0.data->tCameraViewProjection * pos;
-    tShaderOut.tUV = inTexCoord0;
+    tShaderOut.tUV0 = inTexCoord0;
+    tShaderOut.tUV1 = inTexCoord1;
+    tShaderOut.tUV2 = inTexCoord2;
+    tShaderOut.tUV3 = inTexCoord3;
+    tShaderOut.tUV4 = inTexCoord4;
+    tShaderOut.tUV5 = inTexCoord5;
+    tShaderOut.tUV6 = inTexCoord6;
+    tShaderOut.tUV7 = inTexCoord7;
     tShaderOut.tWorldPosition = tShaderOut.tPositionOut / tShaderOut.tPositionOut.w;
     tShaderOut.tColor = inColor0;
 
@@ -459,9 +490,19 @@ fragment plMultipleRenderTargets fragment_main(
     bool front_facing [[front_facing]]
     )
 {
+    const float2 tUV[8] = {
+        in.tUV0,
+        in.tUV1,
+        in.tUV2,
+        in.tUV3,
+        in.tUV4,
+        in.tUV5,
+        in.tUV6,
+        in.tUV7
+    };
     tMaterial material = bg0.atMaterials[tObjectInfo.iMaterialIndex];
-    float4 tBaseColor = getBaseColor(bg0, bg1, material.u_BaseColorFactor, in);
-    NormalInfo tNormalInfo = pl_get_normal_info(bg0, bg1, in, front_facing);
+    float4 tBaseColor = getBaseColor(bg0, bg1, material.u_BaseColorFactor, in, tUV[material.BaseColorUVSet]);
+    NormalInfo tNormalInfo = pl_get_normal_info(bg0, bg1, in, front_facing, tUV[material.NormalUVSet]);
     
     float3 n = tNormalInfo.n;
     float3 t = tNormalInfo.t;
@@ -477,7 +518,7 @@ fragment plMultipleRenderTargets fragment_main(
 
     if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS))
     {
-        materialInfo = getMetallicRoughnessInfo(in, bg0, bg1, materialInfo, material.u_MetallicFactor, material.u_RoughnessFactor, 0);
+        materialInfo = getMetallicRoughnessInfo(in, bg0, bg1, materialInfo, material.u_MetallicFactor, material.u_RoughnessFactor, tUV[material.MetallicRoughnessUVSet]);
     }
 
     materialInfo.perceptualRoughness = fast::clamp(materialInfo.perceptualRoughness, 0.0, 1.0);
@@ -497,14 +538,14 @@ fragment plMultipleRenderTargets fragment_main(
     float3 f_emissive = material.u_EmissiveFactor;
     if(bool(iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
     {
-        f_emissive *= bg1.tEmissiveTexture.sample(bg0.tDefaultSampler, in.tUV).rgb;
+        f_emissive *= bg1.tEmissiveTexture.sample(bg0.tDefaultSampler, tUV[material.EmissiveUVSet]).rgb;
     }
 
     // ambient occlusion
     float ao = 1.0;
     if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
     {
-        ao = bg1.tOcclusionTexture.sample(bg0.tDefaultSampler, in.tUV).r;
+        ao = bg1.tOcclusionTexture.sample(bg0.tDefaultSampler, tUV[material.OcclusionUVSet]).r;
     }
     
     plMultipleRenderTargets tMRT;

@@ -23,12 +23,18 @@ constant int iDestDataStride [[ function_constant(3) ]];
 #define PL_MESH_FORMAT_FLAG_HAS_TANGENT    1 << 2
 #define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 1 << 3
 #define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1 1 << 4
-#define PL_MESH_FORMAT_FLAG_HAS_COLOR_0    1 << 5
-#define PL_MESH_FORMAT_FLAG_HAS_COLOR_1    1 << 6
-#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   1 << 7
-#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   1 << 8
-#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  1 << 9
-#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  1 << 10
+#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2 1 << 5
+#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3 1 << 6
+#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_4 1 << 7
+#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_5 1 << 8
+#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_6 1 << 9
+#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_7 1 << 10
+#define PL_MESH_FORMAT_FLAG_HAS_COLOR_0    1 << 11
+#define PL_MESH_FORMAT_FLAG_HAS_COLOR_1    1 << 12
+#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   1 << 13
+#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   1 << 14
+#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  1 << 15
+#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  1 << 16
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0

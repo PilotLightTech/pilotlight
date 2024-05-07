@@ -144,12 +144,18 @@ const int PL_MESH_FORMAT_FLAG_HAS_NORMAL     = 1 << 1;
 const int PL_MESH_FORMAT_FLAG_HAS_TANGENT    = 1 << 2;
 const int PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 = 1 << 3;
 const int PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1 = 1 << 4;
-const int PL_MESH_FORMAT_FLAG_HAS_COLOR_0    = 1 << 5;
-const int PL_MESH_FORMAT_FLAG_HAS_COLOR_1    = 1 << 6;
-const int PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   = 1 << 7;
-const int PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   = 1 << 8;
-const int PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  = 1 << 9;
-const int PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 10;
+const int PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2 = 1 << 5;
+const int PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3 = 1 << 6;
+const int PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_4 = 1 << 7;
+const int PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_5 = 1 << 8;
+const int PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_6 = 1 << 9;
+const int PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_7 = 1 << 10;
+const int PL_MESH_FORMAT_FLAG_HAS_COLOR_0    = 1 << 11;
+const int PL_MESH_FORMAT_FLAG_HAS_COLOR_1    = 1 << 12;
+const int PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   = 1 << 13;
+const int PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   = 1 << 14;
+const int PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  = 1 << 15;
+const int PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 16;
 
 // iTextureMappingFlags
 const int PL_HAS_BASE_COLOR_MAP            = 1 << 0;
@@ -178,9 +184,9 @@ struct NormalInfo {
     vec3 ntex; // Normal from texture, scaling is accounted for.
 };
 
-NormalInfo pl_get_normal_info()
+NormalInfo pl_get_normal_info(int iUVSet)
 {
-    vec2 UV = tShaderIn.tUV[0];
+    vec2 UV = tShaderIn.tUV[iUVSet];
     vec2 uv_dx = dFdx(UV);
     vec2 uv_dy = dFdy(UV);
 
@@ -260,7 +266,7 @@ NormalInfo pl_get_normal_info()
 
 const float M_PI = 3.141592653589793;
 
-vec4 getBaseColor(vec4 u_ColorFactor)
+vec4 getBaseColor(vec4 u_ColorFactor, int iUVSet)
 {
     vec4 baseColor = vec4(1);
 
@@ -283,7 +289,7 @@ vec4 getBaseColor(vec4 u_ColorFactor)
     // else if(bool(MATERIAL_METALLICROUGHNESS) && bool(HAS_BASE_COLOR_MAP))
     if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
     {
-        baseColor *= texture(sampler2D(tBaseColorTexture, tDefaultSampler), tShaderIn.tUV[0]);
+        baseColor *= texture(sampler2D(tBaseColorTexture, tDefaultSampler), tShaderIn.tUV[iUVSet]);
     }
     return baseColor * tShaderIn.tColor;
 }
