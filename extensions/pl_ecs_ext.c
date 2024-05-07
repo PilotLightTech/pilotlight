@@ -277,6 +277,12 @@ pl_ecs_cleanup_component_library(plComponentLibrary* ptLibrary)
         pl_sb_free(sbtMeshes[i].sbtVertexJoints[1]);
         pl_sb_free(sbtMeshes[i].sbtVertexTextureCoordinates[0]);
         pl_sb_free(sbtMeshes[i].sbtVertexTextureCoordinates[1]);
+        pl_sb_free(sbtMeshes[i].sbtVertexTextureCoordinates[2]);
+        pl_sb_free(sbtMeshes[i].sbtVertexTextureCoordinates[3]);
+        pl_sb_free(sbtMeshes[i].sbtVertexTextureCoordinates[4]);
+        pl_sb_free(sbtMeshes[i].sbtVertexTextureCoordinates[5]);
+        pl_sb_free(sbtMeshes[i].sbtVertexTextureCoordinates[6]);
+        pl_sb_free(sbtMeshes[i].sbtVertexTextureCoordinates[7]);
         pl_sb_free(sbtMeshes[i].sbuIndices);
     }
 
@@ -540,7 +546,7 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         if(bAddSlot)
             pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
-        sbComponents[uComponentIndex] = (plObjectComponent){0};
+        sbComponents[uComponentIndex] = (plObjectComponent){.tMesh= {UINT32_MAX, UINT32_MAX}, .tTransform ={UINT32_MAX, UINT32_MAX}};
         return &sbComponents[uComponentIndex];
     }
 
@@ -870,16 +876,28 @@ pl__object_update_job(uint32_t uJobIndex, void* pData)
     plObjectComponent* ptObject = &sbtComponents[uJobIndex];
     plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
     plMeshComponent* ptMesh = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
+    plSkinComponent* ptSkinComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, ptMesh->tSkinComponent);
+
+    plMat4 tTransform = ptTransform->tWorld;
+
+    if(ptSkinComponent)
+    {
+        plEntity tJointEntity = ptSkinComponent->sbtJoints[0];
+        plTransformComponent* ptJointComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tJointEntity);
+
+        const plMat4* ptIBM = &ptSkinComponent->sbtInverseBindMatrices[0];
+        tTransform = pl_mul_mat4(&ptJointComponent->tWorld, ptIBM);
+    }
 
     const plVec3 tVerticies[] = {
-        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMin.z }),
-        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMin.z }),
-        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMin.z }),
-        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMin.z }),
-        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMax.z }),
-        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMax.z }),
-        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMax.z }),
-        pl_mul_mat4_vec3(&ptTransform->tWorld, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMax.z }),
+        pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMin.z }),
+        pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMin.z }),
+        pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMin.z }),
+        pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMin.z }),
+        pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMax.z }),
+        pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMax.z }),
+        pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->tAABB.tMax.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMax.z }),
+        pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMax.y, ptMesh->tAABB.tMax.z }),
     };
 
     // calculate AABB

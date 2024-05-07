@@ -19,7 +19,7 @@ layout(location = 0) out vec4 outColor;
 layout(location = 0) in struct plShaderIn {
     vec3 tPosition;
     vec4 tWorldPosition;
-    vec2 tUV[2];
+    vec2 tUV[8];
     vec4 tColor;
     vec3 tWorldNormal;
     mat3 tTBN;
@@ -237,14 +237,14 @@ main()
     vec3 tSunLightDirection = vec3(-1.0, -1.0, -1.0);
 
     tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
-    vec4 tBaseColor = getBaseColor(material.u_BaseColorFactor);
+    vec4 tBaseColor = getBaseColor(material.u_BaseColorFactor, material.BaseColorUVSet);
 
-    if(tBaseColor.a <  0.1)
+    if(tBaseColor.a <  0.01)
     {
         discard;
     }
 
-    NormalInfo tNormalInfo = pl_get_normal_info();
+    NormalInfo tNormalInfo = pl_get_normal_info(material.NormalUVSet);
 
     vec3 n = tNormalInfo.n;
     vec3 t = tNormalInfo.t;
@@ -260,7 +260,7 @@ main()
 
     if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS))
     {
-        materialInfo = getMetallicRoughnessInfo(materialInfo, material.u_MetallicFactor, material.u_RoughnessFactor, 0);
+        materialInfo = getMetallicRoughnessInfo(materialInfo, material.u_MetallicFactor, material.u_RoughnessFactor, material.MetallicRoughnessUVSet);
     }
 
     materialInfo.perceptualRoughness = clamp(materialInfo.perceptualRoughness, 0.0, 1.0);
@@ -280,14 +280,14 @@ main()
     vec3 f_emissive = material.u_EmissiveFactor;
     if(bool(iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
     {
-        f_emissive *= texture(sampler2D(tEmissiveTexture, tDefaultSampler), tShaderIn.tUV[0]).rgb;
+        f_emissive *= texture(sampler2D(tEmissiveTexture, tDefaultSampler), tShaderIn.tUV[material.EmissiveUVSet]).rgb;
     }
     
     // ambient occlusion
     float ao = 1.0;
     if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
     {
-        ao = texture(sampler2D(tOcclusionTexture, tDefaultSampler), tShaderIn.tUV[0]).r;
+        ao = texture(sampler2D(tOcclusionTexture, tDefaultSampler), tShaderIn.tUV[material.OcclusionUVSet]).r;
     }
 
     // fill g-buffer
