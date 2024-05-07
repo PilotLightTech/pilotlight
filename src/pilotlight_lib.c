@@ -35,13 +35,13 @@
 #include "pl_os.h"
 
 static plMemoryContext* gptMemoryContext = NULL;
-static plCriticalSection* gptCriticalSection = NULL;
+static plMutex* gptMutex = NULL;
 
 void
 pl_set_memory_context(plMemoryContext* ptMemoryContext)
 {
     gptMemoryContext = ptMemoryContext;
-    ptMemoryContext->plThreadsI->create_critical_section(&gptCriticalSection);
+    ptMemoryContext->plThreadsI->create_mutex(&gptMutex);
 }
 
 plMemoryContext*
@@ -53,12 +53,13 @@ pl_get_memory_context(void)
 void*
 pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
 {
-    
+    gptMemoryContext->plThreadsI->lock_mutex(gptMutex);
+
     void* pNewBuffer = NULL;
 
     if(szSize > 0)
     {
-        gptMemoryContext->plThreadsI->enter_critical_section(gptCriticalSection);
+        
         gptMemoryContext->szActiveAllocations++;
         gptMemoryContext->szMemoryUsage += szSize;
         pNewBuffer = malloc(szSize);
@@ -80,14 +81,13 @@ pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
         gptMemoryContext->sbtAllocations[ulFreeIndex].pAddress = pNewBuffer;
         gptMemoryContext->sbtAllocations[ulFreeIndex].szSize = szSize;
         gptMemoryContext->szAllocationCount++;
-        gptMemoryContext->plThreadsI->leave_critical_section(gptCriticalSection);
+        
     }
 
 
     if(pBuffer) // free
     {
         const uint64_t ulHash = pl_hm_hash(&pBuffer, sizeof(void*), 1);
-        gptMemoryContext->plThreadsI->enter_critical_section(gptCriticalSection);
         const bool bDataExists = pl_hm_has_key(gptMemoryContext->ptHashMap, ulHash);
 
         if(bDataExists)
@@ -110,9 +110,10 @@ pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
         {
             PL_ASSERT(false);
         }
-        gptMemoryContext->plThreadsI->leave_critical_section(gptCriticalSection);
         free(pBuffer);
     }
+
+    gptMemoryContext->plThreadsI->unlock_mutex(gptMutex);
     return pNewBuffer;
 }
 
