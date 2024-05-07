@@ -198,15 +198,15 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
         for(size_t j = 0; j < ptGScene->nodes_count; j++)
         {
             const cgltf_node* ptNode = ptGScene->nodes[j];
-            pl__refr_load_gltf_object(ptDataOut, &tLoadingData, acDirectory, (plEntity){UINT32_MAX, UINT32_MAX}, ptNode);
+            plEntity tRoot = {UINT32_MAX, UINT32_MAX};
             if(ptTransform)
             {
-                const plEntity tNodeEntity = {.ulData = pl_hm_lookup(&tLoadingData.tNodeHashMap, (uint64_t)ptNode)};
-                plTransformComponent* ptTransformComponent = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNodeEntity);
-                ptTransformComponent->tWorld = pl_mul_mat4(ptTransform, &ptTransformComponent->tWorld);
+                tRoot = gptECS->create_transform(ptLibrary, "load transform");
+                plTransformComponent* ptTransformComponent = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tRoot);
+                ptTransformComponent->tWorld = *ptTransform;
                 pl_decompose_matrix(&ptTransformComponent->tWorld, &ptTransformComponent->tScale, &ptTransformComponent->tRotation, &ptTransformComponent->tTranslation);
             }
-
+            pl__refr_load_gltf_object(ptDataOut, &tLoadingData, acDirectory, tRoot, ptNode);
         }
     }
 
@@ -291,7 +291,7 @@ static void
 pl__refr_load_material(const char* pcDirectory, plMaterialComponent* ptMaterial, const cgltf_material* ptGltfMaterial)
 {
     ptMaterial->tShaderType = PL_SHADER_TYPE_PBR;
-    ptMaterial->tFlags = ptGltfMaterial->double_sided ? PL_MATERIAL_FLAG_DOUBLE_SIDED : PL_MATERIAL_FLAG_NONE;
+    ptMaterial->tFlags |= ptGltfMaterial->double_sided ? PL_MATERIAL_FLAG_DOUBLE_SIDED : PL_MATERIAL_FLAG_NONE;
     ptMaterial->fAlphaCutoff = ptGltfMaterial->alpha_cutoff;
 
     // blend mode
@@ -416,10 +416,17 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
             case cgltf_attribute_type_normal:
             {
                 pl_sb_resize(ptMesh->sbtVertexNormals, (uint32_t)szVertexCount);
-                for(size_t i = 0; i < szVertexCount; i++)
+                if(ptAttribute->data->component_type == cgltf_component_type_r_32f && ptAttribute->data->type == cgltf_type_vec3)
                 {
-                    plVec3* ptRawData = (plVec3*)&pucBufferStart[i * szStride];
-                    ptMesh->sbtVertexNormals[i] = *ptRawData;
+                    for(size_t i = 0; i < szVertexCount; i++)
+                    {
+                        plVec3* ptRawData = (plVec3*)&pucBufferStart[i * szStride];
+                        ptMesh->sbtVertexNormals[i] = *ptRawData;
+                    }
+                }
+                else
+                {
+                    PL_ASSERT(false);
                 }
                 break;
             }
@@ -427,10 +434,17 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
             case cgltf_attribute_type_tangent:
             {
                 pl_sb_resize(ptMesh->sbtVertexTangents, (uint32_t)szVertexCount);
-                for(size_t i = 0; i < szVertexCount; i++)
+                if(ptAttribute->data->component_type == cgltf_component_type_r_32f && ptAttribute->data->type == cgltf_type_vec4)
                 {
-                    plVec4* ptRawData = (plVec4*)&pucBufferStart[i * szStride];
-                    ptMesh->sbtVertexTangents[i] = *ptRawData;
+                    for(size_t i = 0; i < szVertexCount; i++)
+                    {
+                        plVec4* ptRawData = (plVec4*)&pucBufferStart[i * szStride];
+                        ptMesh->sbtVertexTangents[i] = *ptRawData;
+                    }
+                }
+                else
+                {
+                    PL_ASSERT(false);
                 }
                 break;
             }
@@ -804,11 +818,12 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
         for(size_t szPrimitiveIndex = 0; szPrimitiveIndex < ptNode->mesh->primitives_count; szPrimitiveIndex++)
         {
             // add mesh to our node
-            plEntity tNewObject = gptECS->create_object(ptLibrary, ptNode->mesh->name);
-            plObjectComponent* ptObject = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewObject);
-            plMeshComponent* ptMesh = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewObject);
+            plEntity tNewObject = gptECS->create_tag(ptLibrary, ptNode->mesh->name);
+            plObjectComponent* ptObject = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewObject);
+            plMeshComponent* ptMesh = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewObject);
             ptMesh->tSkinComponent = tSkinEntity;
-            
+
+            ptObject->tMesh = tNewObject;
             ptObject->tTransform = tNewEntity; // TODO: delete unused entities (old transform)
 
             const cgltf_primitive* ptPrimitive = &ptNode->mesh->primitives[szPrimitiveIndex];
@@ -851,6 +866,9 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
                 if(ptMaterial->tBlendMode != PL_BLEND_MODE_OPAQUE)
                     bOpaque = false;
 
+                if(ptMaterial->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
+                    bOpaque = false;
+
                 if(bOpaque)
                     pl_sb_push(ptData->atOpaqueObjects, tNewObject);
                 else
@@ -861,7 +879,9 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
 
     // recurse through children
     for(size_t i = 0; i < ptNode->children_count; i++)
+    {
         pl__refr_load_gltf_object(ptData, ptSceneData, pcDirectory, tNewEntity, ptNode->children[i]);
+    }
 }
 
 //-----------------------------------------------------------------------------
