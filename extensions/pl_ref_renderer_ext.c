@@ -2081,7 +2081,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         .task  = pl__refr_job,
         .pData = sbtMaterials
     };
-    gptJob->dispatch_batch(uMaterialCount * PL_TEXTURE_SLOT_COUNT, 0, tJobDesc, &ptCounter);
+    gptJob->dispatch_batch(uMaterialCount, 0, tJobDesc, &ptCounter);
     gptJob->wait_for_counter(ptCounter);
     pl_end_profile_sample();
 
@@ -3821,33 +3821,34 @@ pl__refr_job(uint32_t uJobIndex, void* pData)
 {
     plMaterialComponent* sbtMaterials = pData;
 
-    const uint32_t uMaterialIndex = uJobIndex / PL_TEXTURE_SLOT_COUNT;
-    const uint32_t uTextureIndex = uJobIndex % PL_TEXTURE_SLOT_COUNT;
-
-    plMaterialComponent* ptMaterial = &sbtMaterials[uMaterialIndex];
+    plMaterialComponent* ptMaterial = &sbtMaterials[uJobIndex];
     int texWidth, texHeight, texNumChannels;
     int texForceNumChannels = 4;
 
-    if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[uTextureIndex].tResource))
+    for(uint32_t i = 0; i < PL_TEXTURE_SLOT_COUNT; i++)
     {
-        if(uTextureIndex == PL_TEXTURE_SLOT_BASE_COLOR_MAP || uTextureIndex == PL_TEXTURE_SLOT_EMISSIVE_MAP || uTextureIndex == PL_TEXTURE_SLOT_SPECULAR_COLOR_MAP)
+
+        if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[i].tResource))
         {
-            size_t szResourceSize = 0;
-            const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[uTextureIndex].tResource, &szResourceSize);
-            float* rawBytes = gptImage->load_hdr_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-            gptResource->set_buffer_data(ptMaterial->atTextureMaps[uTextureIndex].tResource, sizeof(float) * texWidth * texHeight * 4, rawBytes);
-            ptMaterial->atTextureMaps[uTextureIndex].uWidth = texWidth;
-            ptMaterial->atTextureMaps[uTextureIndex].uHeight = texHeight;
-        }
-        else
-        {
-            size_t szResourceSize = 0;
-            const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[uTextureIndex].tResource, &szResourceSize);
-            unsigned char* rawBytes = gptImage->load_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-            PL_ASSERT(rawBytes);
-            ptMaterial->atTextureMaps[uTextureIndex].uWidth = texWidth;
-            ptMaterial->atTextureMaps[uTextureIndex].uHeight = texHeight;
-            gptResource->set_buffer_data(ptMaterial->atTextureMaps[uTextureIndex].tResource, texWidth * texHeight * 4, rawBytes);
+            if(i == PL_TEXTURE_SLOT_BASE_COLOR_MAP || i == PL_TEXTURE_SLOT_EMISSIVE_MAP || i == PL_TEXTURE_SLOT_SPECULAR_COLOR_MAP)
+            {
+                size_t szResourceSize = 0;
+                const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[i].tResource, &szResourceSize);
+                float* rawBytes = gptImage->load_hdr_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+                gptResource->set_buffer_data(ptMaterial->atTextureMaps[i].tResource, sizeof(float) * texWidth * texHeight * 4, rawBytes);
+                ptMaterial->atTextureMaps[i].uWidth = texWidth;
+                ptMaterial->atTextureMaps[i].uHeight = texHeight;
+            }
+            else
+            {
+                size_t szResourceSize = 0;
+                const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[i].tResource, &szResourceSize);
+                unsigned char* rawBytes = gptImage->load_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+                PL_ASSERT(rawBytes);
+                ptMaterial->atTextureMaps[i].uWidth = texWidth;
+                ptMaterial->atTextureMaps[i].uHeight = texHeight;
+                gptResource->set_buffer_data(ptMaterial->atTextureMaps[i].tResource, texWidth * texHeight * 4, rawBytes);
+            }
         }
     }
 }
