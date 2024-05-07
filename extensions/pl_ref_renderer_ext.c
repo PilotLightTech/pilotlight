@@ -279,6 +279,8 @@ typedef struct _plRefRendererData
 
     // staging (more robust system should replace this)
     plBufferHandle tStagingBufferHandle[PL_FRAMES_IN_FLIGHT];
+    uint32_t uStagingOffset;
+    uint32_t uCurrentStagingFrameIndex;
 } plRefRendererData;
 
 typedef struct _plMemCpyJobData
@@ -2438,6 +2440,11 @@ pl_refr_update_skin_textures(plCommandBuffer tCommandBuffer, uint32_t uSceneHand
     plBlitEncoder tBlitEncoder = gptGfx->begin_blit_pass(ptDevice->ptGraphics, &tCommandBuffer);
 
     // update skin textures
+    if(gptData->uCurrentStagingFrameIndex != ptGraphics->uCurrentFrameIndex)
+    {
+        gptData->uStagingOffset = 0;
+        gptData->uCurrentStagingFrameIndex = ptGraphics->uCurrentFrameIndex;
+    }
     const uint32_t uSkinCount = pl_sb_size(ptScene->sbtSkinData);
     for(uint32_t i = 0; i < uSkinCount; i++)
     {
@@ -2461,11 +2468,12 @@ pl_refr_update_skin_textures(plCommandBuffer tCommandBuffer, uint32_t uSceneHand
         plBufferImageCopy tBufferImageCopy = {
             .tImageExtent = {(size_t)ptSkinTexture->tDesc.tDimensions.x, (size_t)ptSkinTexture->tDesc.tDimensions.y, 1},
             .uLayerCount = 1,
-            .szBufferOffset = uSceneHandle * sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y
+            .szBufferOffset = gptData->uStagingOffset
         };
+        gptData->uStagingOffset += sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y;
         
         plSkinComponent* ptSkinComponent = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_SKIN, ptScene->sbtSkinData[i].tEntity);
-        memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[uSceneHandle * sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y], ptSkinComponent->sbtTextureData, sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y);
+        memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[tBufferImageCopy.szBufferOffset], ptSkinComponent->sbtTextureData, sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y);
         // memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptSkinComponent->sbtTextureData, sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y);
         gptGfx->copy_buffer_to_texture(&tBlitEncoder, gptData->tStagingBufferHandle[ptGraphics->uCurrentFrameIndex], ptScene->sbtSkinData[i].atDynamicTexture[ptGraphics->uCurrentFrameIndex], 1, &tBufferImageCopy);
     }
