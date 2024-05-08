@@ -22,8 +22,8 @@ Index of this file:
 #ifndef PL_ECS_EXT_H
 #define PL_ECS_EXT_H
 
-#define PL_ECS_EXT_VERSION    "0.9.0"
-#define PL_ECS_EXT_VERSION_NUM 000900
+#define PL_ECS_EXT_VERSION    "0.10.0"
+#define PL_ECS_EXT_VERSION_NUM 001000
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
@@ -75,6 +75,7 @@ typedef struct _plCameraComponent            plCameraComponent;
 typedef struct _plAnimationComponent         plAnimationComponent;
 typedef struct _plAnimationDataComponent     plAnimationDataComponent;
 typedef struct _plInverseKinematicsComponent plInverseKinematicsComponent;
+typedef struct _plLightComponent             plLightComponent;
 
 // enums
 typedef int plShaderType;
@@ -87,6 +88,8 @@ typedef int plAnimationMode;
 typedef int plAnimationPath;
 typedef int plAnimationFlags;
 typedef int plMeshFormatFlags;
+typedef int plLightFlags;
+typedef int plLightType;
 
 typedef union _plEntity
 {
@@ -112,57 +115,59 @@ const plCameraI* pl_load_camera_api(void);
 typedef struct _plEcsI
 {
     // setup/shutdown
-    void     (*init_component_library)   (plComponentLibrary* ptLibrary);
-    void     (*cleanup_component_library)(plComponentLibrary* ptLibrary);
+    void     (*init_component_library)   (plComponentLibrary*);
+    void     (*cleanup_component_library)(plComponentLibrary*);
 
     // misc
-    plEntity (*create_entity)  (plComponentLibrary* ptLibrary); // prefer entity helpers below
-    void     (*remove_entity)  (plComponentLibrary* ptLibrary, plEntity tEntity);
-    bool     (*is_entity_valid)(plComponentLibrary* ptLibrary, plEntity tEntity);
-    plEntity (*get_entity)     (plComponentLibrary* ptLibrary, const char* pcName);
-    void*    (*get_component)  (plComponentLibrary* ptLibrary, plComponentType tType, plEntity tEntity);
-    void*    (*add_component)  (plComponentLibrary* ptLibrary, plComponentType tType, plEntity tEntity);
-    size_t   (*get_index)      (plComponentManager* ptManager, plEntity tEntity);
+    plEntity (*create_entity)  (plComponentLibrary*); // prefer entity helpers below
+    void     (*remove_entity)  (plComponentLibrary*, plEntity);
+    bool     (*is_entity_valid)(plComponentLibrary*, plEntity);
+    plEntity (*get_entity)     (plComponentLibrary*, const char* pcName);
+    void*    (*get_component)  (plComponentLibrary*, plComponentType, plEntity);
+    void*    (*add_component)  (plComponentLibrary*, plComponentType, plEntity);
+    size_t   (*get_index)      (plComponentManager*, plEntity);
     
     // entity helpers (creates entity and necessary components)
-    plEntity (*create_tag)                (plComponentLibrary* ptLibrary, const char* pcName);
-    plEntity (*create_mesh)               (plComponentLibrary* ptLibrary, const char* pcName);
-    plEntity (*create_object)             (plComponentLibrary* ptLibrary, const char* pcName);
-    plEntity (*create_transform)          (plComponentLibrary* ptLibrary, const char* pcName);
-    plEntity (*create_material)           (plComponentLibrary* ptLibrary, const char* pcName);
-    plEntity (*create_skin)               (plComponentLibrary* ptLibrary, const char* pcName);
-    plEntity (*create_animation)          (plComponentLibrary* ptLibrary, const char* pcName);
-    plEntity (*create_animation_data)     (plComponentLibrary* ptLibrary, const char* pcName);
-    plEntity (*create_perspective_camera) (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
-    plEntity (*create_orthographic_camera)(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ);
+    plEntity (*create_tag)                (plComponentLibrary*, const char* pcName);
+    plEntity (*create_mesh)               (plComponentLibrary*, const char* pcName);
+    plEntity (*create_object)             (plComponentLibrary*, const char* pcName);
+    plEntity (*create_transform)          (plComponentLibrary*, const char* pcName);
+    plEntity (*create_material)           (plComponentLibrary*, const char* pcName);
+    plEntity (*create_skin)               (plComponentLibrary*, const char* pcName);
+    plEntity (*create_animation)          (plComponentLibrary*, const char* pcName);
+    plEntity (*create_animation_data)     (plComponentLibrary*, const char* pcName);
+    plEntity (*create_perspective_camera) (plComponentLibrary*, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
+    plEntity (*create_orthographic_camera)(plComponentLibrary*, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ);
+    plEntity (*create_directional_light)  (plComponentLibrary*, const char* pcName, plVec3 tDirection);
+    plEntity (*create_point_light)        (plComponentLibrary*, const char* pcName, plVec3 tPosition);
 
     // hierarchy
-    void (*attach_component)   (plComponentLibrary* ptLibrary, plEntity tEntity, plEntity tParent);
-    void (*deattach_component) (plComponentLibrary* ptLibrary, plEntity tEntity);
+    void (*attach_component)   (plComponentLibrary*, plEntity tEntity, plEntity tParent);
+    void (*deattach_component) (plComponentLibrary*, plEntity);
 
     // meshes
-    void (*calculate_normals) (plMeshComponent* atMeshes, uint32_t uComponentCount);
-    void (*calculate_tangents)(plMeshComponent* atMeshes, uint32_t uComponentCount);
+    void (*calculate_normals) (plMeshComponent*, uint32_t uMeshCount);
+    void (*calculate_tangents)(plMeshComponent*, uint32_t uMeshCount);
 
     // systems
-    void (*run_object_update_system)            (plComponentLibrary* ptLibrary);
-    void (*run_transform_update_system)         (plComponentLibrary* ptLibrary);
-    void (*run_skin_update_system)              (plComponentLibrary* ptLibrary);
-    void (*run_hierarchy_update_system)         (plComponentLibrary* ptLibrary);
-    void (*run_animation_update_system)         (plComponentLibrary* ptLibrary, float fDeltaTime);
-    void (*run_inverse_kinematics_update_system)(plComponentLibrary* ptLibrary);
+    void (*run_object_update_system)            (plComponentLibrary*);
+    void (*run_transform_update_system)         (plComponentLibrary*);
+    void (*run_skin_update_system)              (plComponentLibrary*);
+    void (*run_hierarchy_update_system)         (plComponentLibrary*);
+    void (*run_animation_update_system)         (plComponentLibrary*, float fDeltaTime);
+    void (*run_inverse_kinematics_update_system)(plComponentLibrary*);
 } plEcsI;
 
 typedef struct _plCameraI
 {
-    void (*set_fov)        (plCameraComponent* ptCamera, float fYFov);
-    void (*set_clip_planes)(plCameraComponent* ptCamera, float fNearZ, float fFarZ);
-    void (*set_aspect)     (plCameraComponent* ptCamera, float fAspect);
-    void (*set_pos)        (plCameraComponent* ptCamera, float fX, float fY, float fZ);
-    void (*set_pitch_yaw)  (plCameraComponent* ptCamera, float fPitch, float fYaw);
-    void (*translate)      (plCameraComponent* ptCamera, float fDx, float fDy, float fDz);
-    void (*rotate)         (plCameraComponent* ptCamera, float fDPitch, float fDYaw);
-    void (*update)         (plCameraComponent* ptCamera);
+    void (*set_fov)        (plCameraComponent*, float fYFov);
+    void (*set_clip_planes)(plCameraComponent*, float fNearZ, float fFarZ);
+    void (*set_aspect)     (plCameraComponent*, float fAspect);
+    void (*set_pos)        (plCameraComponent*, float fX, float fY, float fZ);
+    void (*set_pitch_yaw)  (plCameraComponent*, float fPitch, float fYaw);
+    void (*translate)      (plCameraComponent*, float fDx, float fDy, float fDz);
+    void (*rotate)         (plCameraComponent*, float fDPitch, float fDYaw);
+    void (*update)         (plCameraComponent*);
 } plCameraI;
 
 //-----------------------------------------------------------------------------
@@ -182,6 +187,7 @@ enum _plComponentType
     PL_COMPONENT_TYPE_ANIMATION,
     PL_COMPONENT_TYPE_ANIMATION_DATA,
     PL_COMPONENT_TYPE_INVERSE_KINEMATICS,
+    PL_COMPONENT_TYPE_LIGHT,
     
     PL_COMPONENT_TYPE_COUNT
 };
@@ -283,6 +289,18 @@ enum _plMeshFormatFlags
     PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 16
 };
 
+enum _plLightFlags
+{
+    PL_LIGHT_FLAG_NONE            = 0,
+    PL_LIGHT_FLAG_HAS_CAST_SHADOW = 1 << 0,
+};
+
+enum _plLightType
+{
+    PL_LIGHT_TYPE_DIRECTIONAL,
+    PL_LIGHT_TYPE_POINT
+};
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -346,6 +364,7 @@ typedef struct _plComponentLibrary
     plComponentManager tAnimationComponentManager;
     plComponentManager tAnimationDataComponentManager;
     plComponentManager tInverseKinematicsComponentManager;
+    plComponentManager tLightComponentManager;
 
     plComponentManager* _ptManagers[PL_COMPONENT_TYPE_COUNT]; // just for internal convenience
     void*               pInternal;
@@ -354,6 +373,17 @@ typedef struct _plComponentLibrary
 //-----------------------------------------------------------------------------
 // [SECTION] components
 //-----------------------------------------------------------------------------
+
+typedef struct _plLightComponent
+{
+    plLightType  tType;
+    plLightFlags tFlags;
+    plVec3       tColor;
+    float        fIntensity;
+    float        fRange;
+    plVec3       tPosition;
+    plVec3       tDirection;
+} plLightComponent;
 
 typedef struct _plObjectComponent
 {
@@ -365,12 +395,6 @@ typedef struct _plHierarchyComponent
 {
     plEntity tParent;
 } plHierarchyComponent;
-
-typedef struct _plLightComponent
-{
-    plVec3 tPosition;
-    plVec3 tColor;
-} plLightComponent;
 
 typedef struct _plTagComponent
 {

@@ -78,6 +78,7 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
                 plCameraComponent*            ptCameraComp        = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, tSelectedEntity);
                 plAnimationComponent*         ptAnimationComp     = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, tSelectedEntity);
                 plInverseKinematicsComponent* ptIKComp            = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_INVERSE_KINEMATICS, tSelectedEntity);
+                plLightComponent*             ptLightComp         = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, tSelectedEntity);
 
                 pl_text("Entity: %u, %u", tSelectedEntity.uIndex, tSelectedEntity.uGeneration);
 
@@ -140,6 +141,20 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
                     plTagComponent* ptParentTagComp = ptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptHierarchyComp->tParent);
                     pl_text("Parent Entity: %s , %u", ptParentTagComp->acName, ptHierarchyComp->tParent.uIndex);
                     pl_end_collapsing_header();
+                }
+
+                if(ptLightComp && pl_collapsing_header("Light"))
+                {
+                    static const char* apcLightTypes[] = {
+                        "PL_LIGHT_TYPE_DIRECTIONAL",
+                        "PL_LIGHT_TYPE_POINT"
+                    };
+                    pl_text("Type:        %s", apcLightTypes[ptLightComp->tType]);
+                    pl_text("Position:    (%0.3f, %0.3f, %0.3f)", ptLightComp->tPosition.r, ptLightComp->tPosition.g, ptLightComp->tPosition.b);
+                    pl_text("Color:       (%0.3f, %0.3f, %0.3f)", ptLightComp->tColor.r, ptLightComp->tColor.g, ptLightComp->tColor.b);
+                    pl_text("Direction:   (%0.3f, %0.3f, %0.3f)", ptLightComp->tDirection.r, ptLightComp->tDirection.g, ptLightComp->tDirection.b);
+                    pl_text("Intensity:   %0.3f", ptLightComp->fIntensity);
+                    pl_text("Cast Shadow: %s", ptLightComp->tFlags & PL_LIGHT_FLAG_HAS_CAST_SHADOW ? "true" : "false");
                 }
 
                 if(ptMaterialComp && pl_collapsing_header("Material"))

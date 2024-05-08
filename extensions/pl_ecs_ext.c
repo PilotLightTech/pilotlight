@@ -64,16 +64,18 @@ static void*    pl_ecs_get_component         (plComponentLibrary* ptLibrary, plC
 static void*    pl_ecs_add_component         (plComponentLibrary* ptLibrary, plComponentType tType, plEntity tEntity);
 
 // components
-static plEntity pl_ecs_create_tag             (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_mesh            (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_object          (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_transform       (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_material        (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_skin            (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_animation       (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_animation_data  (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
+static plEntity pl_ecs_create_tag                (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_mesh               (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_object             (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_transform          (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_material           (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_skin               (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_animation          (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_animation_data     (plComponentLibrary* ptLibrary, const char* pcName);
+static plEntity pl_ecs_create_perspective_camera (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
 static plEntity pl_ecs_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ);
+static plEntity pl_ecs_create_directional_light  (plComponentLibrary*, const char* pcName, plVec3 tDirection);
+static plEntity pl_ecs_create_point_light        (plComponentLibrary*, const char* pcName, plVec3 tPosition);
 
 // heirarchy
 static void pl_ecs_attach_component (plComponentLibrary* ptLibrary, plEntity tEntity, plEntity tParent);
@@ -145,6 +147,8 @@ pl_load_ecs_api(void)
         .create_skin                          = pl_ecs_create_skin,
         .create_animation                     = pl_ecs_create_animation,
         .create_animation_data                = pl_ecs_create_animation_data,
+        .create_directional_light             = pl_ecs_create_directional_light,
+        .create_point_light                   = pl_ecs_create_point_light,
         .attach_component                     = pl_ecs_attach_component,
         .deattach_component                   = pl_ecs_deattach_component,
         .calculate_normals                    = pl_calculate_normals,
@@ -216,6 +220,9 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->tInverseKinematicsComponentManager.tComponentType = PL_COMPONENT_TYPE_INVERSE_KINEMATICS;
     ptLibrary->tInverseKinematicsComponentManager.szStride = sizeof(plInverseKinematicsComponent);
 
+    ptLibrary->tLightComponentManager.tComponentType = PL_COMPONENT_TYPE_LIGHT;
+    ptLibrary->tLightComponentManager.szStride = sizeof(plLightComponent);
+
     ptLibrary->_ptManagers[0]  = &ptLibrary->tTagComponentManager;
     ptLibrary->_ptManagers[1]  = &ptLibrary->tTransformComponentManager;
     ptLibrary->_ptManagers[2]  = &ptLibrary->tMeshComponentManager;
@@ -227,6 +234,7 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->_ptManagers[8]  = &ptLibrary->tAnimationComponentManager;
     ptLibrary->_ptManagers[9]  = &ptLibrary->tAnimationDataComponentManager;
     ptLibrary->_ptManagers[10] = &ptLibrary->tInverseKinematicsComponentManager;
+    ptLibrary->_ptManagers[11] = &ptLibrary->tLightComponentManager;
 
     for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
         ptLibrary->_ptManagers[i]->ptParentLibrary = ptLibrary;
@@ -430,6 +438,13 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
                 case PL_COMPONENT_TYPE_INVERSE_KINEMATICS:
                 {
                     plInverseKinematicsComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_LIGHT:
+                {
+                    plLightComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
@@ -650,6 +665,24 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         return &sbComponents[uComponentIndex];
     }
 
+    case PL_COMPONENT_TYPE_LIGHT:
+    {
+        plLightComponent* sbComponents = ptManager->pComponents;
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
+        ptManager->pComponents = sbComponents;
+        sbComponents[uComponentIndex] = (plLightComponent){
+            .tPosition  = {0.0f, 0.0f, 0.0f},
+            .tColor     = {1.0f, 1.0f, 1.0f},
+            .tDirection = {0.0f, -1.0f, 0.0f},
+            .fIntensity = 1.0f,
+            .fRange     = 10.0f,
+            .tType      = PL_LIGHT_TYPE_DIRECTIONAL,
+            .tFlags     = 0
+        };
+        return &sbComponents[uComponentIndex];
+    }
+
     }
 
     return NULL;
@@ -678,6 +711,30 @@ pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName)
     pl_log_debug_to_f(uLogChannel, "created mesh: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
     pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
+    return tNewEntity;
+}
+
+static plEntity
+pl_ecs_create_directional_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tDirection)
+{
+    pcName = pcName ? pcName : "unnamed directional light";
+    pl_log_debug_to_f(uLogChannel, "created directional light: '%s'", pcName);
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+    plLightComponent* ptLight =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, tNewEntity);
+    ptLight->tDirection = tDirection;
+    ptLight->tType = PL_LIGHT_TYPE_DIRECTIONAL;
+    return tNewEntity;
+}
+
+static plEntity
+pl_ecs_create_point_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPosition)
+{
+    pcName = pcName ? pcName : "unnamed point light";
+    pl_log_debug_to_f(uLogChannel, "created point light: '%s'", pcName);
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+    plLightComponent* ptLight =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, tNewEntity);
+    ptLight->tPosition = tPosition;
+    ptLight->tType = PL_LIGHT_TYPE_POINT;
     return tNewEntity;
 }
 
