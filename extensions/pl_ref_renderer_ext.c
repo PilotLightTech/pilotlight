@@ -41,6 +41,7 @@ Index of this file:
 #include "pl_job_ext.h"
 
 #define PL_MAX_VIEWS_PER_SCENE 4
+#define PL_MAX_LIGHTS 1000
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -134,6 +135,18 @@ typedef struct _plGPUMaterial
     int iIridescenceThicknessUVSet;
 } plGPUMaterial;
 
+typedef struct _plGPULight
+{
+    plVec3 tPosition;
+    float  fIntensity;
+
+    plVec3 tDirection;
+    int    iType;
+
+    plVec3 tColor;
+    float  fRange;
+} plGPULight;
+
 typedef struct _BindGroup_0
 {
     plVec4 tCameraPos;
@@ -200,7 +213,7 @@ typedef struct _plRefScene
     // lighting (final quad to use for composition)
     plDrawable tLightingDrawable;
 
-    // skins
+    // shared bind groups
     plBindGroupHandle tSkinBindGroup0;
 
     // CPU buffers
@@ -209,6 +222,7 @@ typedef struct _plRefScene
     uint32_t*      sbuIndexBuffer;
     plGPUMaterial* sbtMaterialBuffer;
     plVec4*        sbtSkinVertexDataBuffer;
+    plGPULight*    sbtLightData;
 
     // GPU buffers
     plBufferHandle tVertexBuffer;
@@ -216,6 +230,7 @@ typedef struct _plRefScene
     plBufferHandle tStorageBuffer;
     plBufferHandle tMaterialDataBuffer;
     plBufferHandle tSkinStorageBuffer;
+    plBufferHandle atLightBuffer[PL_MAX_VIEWS_PER_SCENE];
 
     // views
     uint32_t    uViewCount;
@@ -732,6 +747,7 @@ pl_refr_create_scene(void)
     ptScene->tIndexBuffer        = (plBufferHandle){UINT32_MAX, UINT32_MAX};
     ptScene->tStorageBuffer      = (plBufferHandle){UINT32_MAX, UINT32_MAX};
     ptScene->tMaterialDataBuffer = (plBufferHandle){UINT32_MAX, UINT32_MAX};
+    // ptScene->tLightBuffer        = (plBufferHandle){UINT32_MAX, UINT32_MAX};
 
     // skybox resources default values
     ptScene->tSkyboxTexture   = (plTextureHandle)  {UINT32_MAX, UINT32_MAX};
@@ -2280,6 +2296,14 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         .uByteSize = sizeof(plVec4) * pl_sb_size(ptScene->sbtSkinVertexDataBuffer)
     };
 
+    const plBufferDescription tLightBufferDesc = {
+        .tUsage    = PL_BUFFER_USAGE_UNIFORM,
+        .uByteSize = sizeof(plGPULight) * PL_MAX_LIGHTS
+    };
+
+    for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
+        ptScene->atLightBuffer[i] = pl__refr_create_staging_buffer(&tLightBufferDesc, "light", i);
+
     ptScene->tMaterialDataBuffer = pl__refr_create_local_buffer(&tShaderBufferDesc,            "shader", uSceneHandle, ptScene->sbtMaterialBuffer);
     ptScene->tIndexBuffer        = pl__refr_create_local_buffer(&tIndexBufferDesc,              "index", uSceneHandle, ptScene->sbuIndexBuffer);
     ptScene->tVertexBuffer       = pl__refr_create_local_buffer(&tVertexBufferDesc,            "vertex", uSceneHandle, ptScene->sbtVertexPosBuffer);
@@ -2323,7 +2347,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     }
 
     // create lighting shader
-    int aiLightingConstantData[1] = {iSceneWideRenderingFlags};
+    const plLightComponent* sbtLights = ptScene->tComponentLibrary.tLightComponentManager.pComponents;
+    int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_size(sbtLights)};
     plShaderDescription tLightingShaderDesc = {
         #ifdef PL_METAL_BACKEND
         .pcVertexShader = "../shaders/metal/lighting.metal",
@@ -2354,12 +2379,12 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         .atBlendStates = {
             pl__get_blend_state(PL_BLEND_MODE_OPAQUE)
         },
-        .uConstantCount = 1,
+        .uConstantCount = 2,
         .pTempConstantData = aiLightingConstantData,
         .uBlendStateCount = 1,
         .uSubpassIndex = 1,
         .tRenderPassLayout = gptData->tRenderPassLayout,
-        .uBindGroupLayoutCount = 2,
+        .uBindGroupLayoutCount = 3,
         .atBindGroupLayouts = {
             {
                 .uBufferBindingCount  = 3,
@@ -2402,7 +2427,17 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                     { .uSlot = 4, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
                     { .uSlot = 5, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
                  },
-            }
+            },
+            {
+                .uBufferBindingCount  = 1,
+                .aBufferBindings = {
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                        .uSlot = 0,
+                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                    }
+                },
+            },
         }
     };
     for(uint32_t i = 0; i < tLightingShaderDesc.uConstantCount; i++)
@@ -2565,7 +2600,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     plRefView*         ptView     = &ptScene->atViews[uViewHandle];
     plCameraComponent* ptCamera   = tOptions.ptViewCamera;
 
-    // handle culling
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~culling~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
     const uint32_t uOpaqueDrawableCount = pl_sb_size(ptScene->sbtOpaqueDrawables);
     const uint32_t uTransparentDrawableCount = pl_sb_size(ptScene->sbtTransparentDrawables);
@@ -2747,19 +2782,26 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
        .uBindGroup0 = tGlobalBG.uIndex,
     };
 
-    plRenderEncoder tEncoder = gptGfx->begin_render_pass(ptGraphics, &tCommandBuffer, ptView->tRenderPass);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~visible meshes~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    static double* pdVisibleObjects = NULL;
-    if(!pdVisibleObjects)
-        pdVisibleObjects = gptStats->get_counter("visible objects");
+    static double* pdVisibleOpaqueObjects = NULL;
+    static double* pdVisibleTransparentObjects = NULL;
+    if(!pdVisibleOpaqueObjects)
+    {
+        pdVisibleOpaqueObjects = gptStats->get_counter("visible opaque objects");
+        pdVisibleTransparentObjects = gptStats->get_counter("visible transparent objects");
+    }
 
     const uint32_t uVisibleOpaqueDrawCount = pl_sb_size(ptView->sbtVisibleOpaqueDrawables);
     const uint32_t uVisibleTransparentDrawCount = pl_sb_size(ptView->sbtVisibleTransparentDrawables);
 
     if(tOptions.bCullStats)
-        *pdVisibleObjects = (double)(uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
+    {
+        *pdVisibleOpaqueObjects = (double)(uVisibleOpaqueDrawCount);
+        *pdVisibleTransparentObjects = (double)(uVisibleTransparentDrawCount);
+    }
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 0 - g buffer fill~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    plRenderEncoder tEncoder = gptGfx->begin_render_pass(ptGraphics, &tCommandBuffer, ptView->tRenderPass);
 
     for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
     {
@@ -2792,8 +2834,51 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     }
 
     gptGfx->draw_stream(&tEncoder, 1, &tArea);
-
     gptGfx->reset_draw_stream(ptStream);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 1 - lighting~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    gptGfx->next_subpass(&tEncoder);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~lights~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    const plLightComponent* sbtLights = ptScene->tComponentLibrary.tLightComponentManager.pComponents;
+    pl_sb_reset(ptScene->sbtLightData);
+    pl_sb_resize(ptScene->sbtLightData, pl_sb_size(sbtLights));
+
+    for(uint32_t i = 0; i < pl_sb_size(sbtLights); i++)
+    {
+        const plLightComponent* ptLight = &sbtLights[i];
+
+        const plGPULight tLight = {
+            .fIntensity = ptLight->fIntensity,
+            .fRange     = ptLight->fRange,
+            .iType      = ptLight->tType,
+            .tPosition  = ptLight->tPosition,
+            .tDirection = ptLight->tDirection,
+            .tColor     = ptLight->tColor
+        };
+        ptScene->sbtLightData[i] = tLight;
+    }
+
+    const plBindGroupLayout tLightBindGroupLayout2 = {
+        .uBufferBindingCount = 1,
+        .aBufferBindings = {
+            { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX}
+        }
+    };
+    plBindGroupHandle tLightBindGroup2 = gptDevice->get_temporary_bind_group(ptDevice, &tLightBindGroupLayout2, "light bind group 2");
+
+    const plBindGroupUpdateBufferData atLightBufferData[] = 
+    {
+        { .uSlot = 0, .tBuffer = ptScene->atLightBuffer[ptGraphics->uCurrentFrameIndex], .szBufferRange = sizeof(plGPULight) * pl_sb_size(ptScene->sbtLightData)}
+    };
+    plBindGroupUpdateData tBGData2 = {
+        .uBufferCount = 1,
+        .atBuffers = atLightBufferData,
+    };
+    gptDevice->update_bind_group(&ptGraphics->tDevice, tLightBindGroup2, &tBGData2);
+    plBuffer* ptLightingBuffer = gptDevice->get_buffer(ptDevice, ptScene->atLightBuffer[ptGraphics->uCurrentFrameIndex]);
+    memcpy(ptLightingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtLightData, sizeof(plGPULight) * pl_sb_size(ptScene->sbtLightData));
 
     typedef struct _plLightingDynamicData{
         int iDataOffset;
@@ -2814,17 +2899,17 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         .uIndexOffset         = ptScene->tLightingDrawable.uIndexOffset,
         .uTriangleCount       = 2,
         .uBindGroup1          = ptView->tLightingBindGroup[ptGraphics->uCurrentFrameIndex].uIndex,
-        .uBindGroup2          = UINT32_MAX,
+        .uBindGroup2          = tLightBindGroup2.uIndex,
         .uDynamicBufferOffset = tLightingDynamicData.uByteOffset,
         .uInstanceStart       = 0,
         .uInstanceCount       = 1
     });
-    gptGfx->next_subpass(&tEncoder);
     gptGfx->draw_stream(&tEncoder, 1, &tArea);
     gptGfx->reset_draw_stream(ptStream);
 
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 2 - forward~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     gptGfx->next_subpass(&tEncoder);
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~skybox~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     if(ptScene->tSkyboxTexture.uIndex != UINT32_MAX)
     {
@@ -2851,9 +2936,9 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         tArea.uBindGroup0 = tGlobalBG.uIndex;
         gptGfx->draw_stream(&tEncoder, 1, &tArea);
     }
-
     gptGfx->reset_draw_stream(ptStream);
 
+    // forward rendering
     for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
     {
         const plDrawable tDrawable = ptView->sbtVisibleTransparentDrawables[i];
@@ -2885,6 +2970,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     }
     gptGfx->draw_stream(&tEncoder, 1, &tArea);
 
+    // outlines
     const uint32_t uOutlineDrawableCount = pl_sb_size(ptScene->sbtOutlineDrawables);
     if(uOutlineDrawableCount > 0)
     {
@@ -2963,6 +3049,17 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         gptGfx->draw_stream(&tEncoder, 1, &tArea);
     }
 
+    // light drawing
+    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtLightData); i++)
+    {
+        if(ptScene->sbtLightData[i].iType == PL_LIGHT_TYPE_POINT)
+        {
+            const plVec4 tColor = {.rgb = ptScene->sbtLightData[i].tColor, .a = 1.0f};
+            gptGfx->add_3d_point(&ptView->t3DDrawList, ptScene->sbtLightData[i].tPosition, tColor, 0.25f, 0.02f);
+        }
+    }
+
+    // debug drawing
     if(tOptions.bShowAllBoundingBoxes)
     {
         for(uint32_t i = 0; i < uOpaqueDrawableCount; i++)
@@ -3026,6 +3123,7 @@ pl_add_drawable_objects_to_scene(uint32_t uSceneHandle, uint32_t uOpaqueCount, c
 {
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
 
+    #if 1
     const uint32_t uTransparentStart = pl_sb_size(ptScene->sbtTransparentDrawables);
     pl_sb_add_n(ptScene->sbtTransparentDrawables, uTransparentCount);
 
@@ -3037,15 +3135,29 @@ pl_add_drawable_objects_to_scene(uint32_t uSceneHandle, uint32_t uOpaqueCount, c
 
     for(uint32_t i = 0; i < uTransparentCount; i++)
         ptScene->sbtTransparentDrawables[uTransparentStart + i].tEntity = atTransparentObjects[i];
+    #endif
 
-    // const uint32_t uTransparentStart = pl_sb_size(ptScene->sbtTransparentDrawables);
-    // pl_sb_add_n(ptScene->sbtTransparentDrawables, uTransparentCount + uOpaqueCount);
+    #if 0 // send through forward pass only
+    const uint32_t uTransparentStart = pl_sb_size(ptScene->sbtTransparentDrawables);
+    pl_sb_add_n(ptScene->sbtTransparentDrawables, uTransparentCount + uOpaqueCount);
 
-    // for(uint32_t i = 0; i < uOpaqueCount; i++)
-    //     ptScene->sbtTransparentDrawables[uTransparentStart + i].tEntity = atOpaqueObjects[i];
+    for(uint32_t i = 0; i < uOpaqueCount; i++)
+        ptScene->sbtTransparentDrawables[uTransparentStart + i].tEntity = atOpaqueObjects[i];
 
-    // for(uint32_t i = 0; i < uTransparentCount; i++)
-    //     ptScene->sbtTransparentDrawables[uOpaqueCount + uTransparentStart + i].tEntity = atTransparentObjects[i];
+    for(uint32_t i = 0; i < uTransparentCount; i++)
+        ptScene->sbtTransparentDrawables[uOpaqueCount + uTransparentStart + i].tEntity = atTransparentObjects[i];
+    #endif
+
+    #if 0 // send through deferred pass only
+    const uint32_t uTransparentStart = pl_sb_size(ptScene->sbtOpaqueDrawables);
+    pl_sb_add_n(ptScene->sbtOpaqueDrawables, uTransparentCount + uOpaqueCount);
+
+    for(uint32_t i = 0; i < uOpaqueCount; i++)
+        ptScene->sbtOpaqueDrawables[uTransparentStart + i].tEntity = atOpaqueObjects[i];
+
+    for(uint32_t i = 0; i < uTransparentCount; i++)
+        ptScene->sbtOpaqueDrawables[uOpaqueCount + uTransparentStart + i].tEntity = atTransparentObjects[i];
+    #endif
 }
 
 //-----------------------------------------------------------------------------

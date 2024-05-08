@@ -866,9 +866,6 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
                 if(ptMaterial->tBlendMode != PL_BLEND_MODE_OPAQUE)
                     bOpaque = false;
 
-                if(ptMaterial->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
-                    bOpaque = false;
-
                 if(bOpaque)
                     pl_sb_push(ptData->atOpaqueObjects, tNewObject);
                 else
