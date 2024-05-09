@@ -1,85 +1,21 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-const float M_PI = 3.141592653589793;
+#include "defines.glsl"
+#include "material.glsl"
+#include "lights.glsl"
+#include "math.glsl"
 
-struct tMaterial
-{
-    // Metallic Roughness
-    int   u_MipCount;
-    float u_MetallicFactor;
-    float u_RoughnessFactor;
-    //-------------------------- ( 16 bytes )
+//-----------------------------------------------------------------------------
+// [SECTION] specialication constants
+//-----------------------------------------------------------------------------
 
-    vec4 u_BaseColorFactor;
-    //-------------------------- ( 16 bytes )
+layout(constant_id = 0) const int iRenderingFlags = 0;
+layout(constant_id = 1) const int iLightCount = 1;
 
-    // // Specular Glossiness
-    // vec3 u_SpecularFactor;
-    // vec4 u_DiffuseFactor;
-    // float u_GlossinessFactor;
-
-    // // Sheen
-    // float u_SheenRoughnessFactor;
-    // vec3 u_SheenColorFactor;
-
-    // Clearcoat
-    float u_ClearcoatFactor;
-    float u_ClearcoatRoughnessFactor;
-    vec2 _unused1;
-    //-------------------------- ( 16 bytes )
-
-    // Specular
-    vec3 u_KHR_materials_specular_specularColorFactor;
-    float u_KHR_materials_specular_specularFactor;
-    //-------------------------- ( 16 bytes )
-
-    // // Transmission
-    // float u_TransmissionFactor;
-
-    // // Volume
-    // float u_ThicknessFactor;
-    // vec3 u_AttenuationColor;
-    // float u_AttenuationDistance;
-
-    // Iridescence
-    float u_IridescenceFactor;
-    float u_IridescenceIor;
-    float u_IridescenceThicknessMinimum;
-    float u_IridescenceThicknessMaximum;
-    //-------------------------- ( 16 bytes )
-
-    // Emissive Strength
-    vec3 u_EmissiveFactor;
-    float u_EmissiveStrength;
-    //-------------------------- ( 16 bytes )
-    
-
-    // // IOR
-    float u_Ior;
-
-    // // Anisotropy
-    // vec3 u_Anisotropy;
-
-    // Alpha mode
-    float u_AlphaCutoff;
-    float u_OcclusionStrength;
-    float u_Unuses;
-    //-------------------------- ( 16 bytes )
-
-    int BaseColorUVSet;
-    int NormalUVSet;
-    int EmissiveUVSet;
-    int OcclusionUVSet;
-    int MetallicRoughnessUVSet;
-    int ClearcoatUVSet;
-    int ClearcoatRoughnessUVSet;
-    int ClearcoatNormalUVSet;
-    int SpecularUVSet;
-    int SpecularColorUVSet;
-    int IridescenceUVSet;
-    int IridescenceThicknessUVSet;
-};
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 0
+//-----------------------------------------------------------------------------
 
 layout(set = 0, binding = 0) uniform _plGlobalInfo
 {
@@ -104,6 +40,10 @@ layout (set = 0, binding = 5) uniform textureCube u_LambertianEnvSampler;
 layout (set = 0, binding = 6) uniform textureCube u_GGXEnvSampler;
 layout (set = 0, binding = 7) uniform texture2D u_GGXLUT;
 
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 1
+//-----------------------------------------------------------------------------
+
 layout(input_attachment_index = 1, set = 1, binding = 0)  uniform subpassInput tAlbedoSampler;
 layout(input_attachment_index = 2, set = 1, binding = 1)  uniform subpassInput tNormalTexture;
 layout(input_attachment_index = 3, set = 1, binding = 2)  uniform subpassInput tPositionSampler;
@@ -111,26 +51,28 @@ layout(input_attachment_index = 4, set = 1, binding = 3)  uniform subpassInput t
 layout(input_attachment_index = 5, set = 1, binding = 4)  uniform subpassInput tAOMetalRoughnessTexture;
 layout(input_attachment_index = 0, set = 1, binding = 5)  uniform subpassInput tDepthSampler;
 
-layout(set = 2, binding = 0) uniform _plObjectInfo
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 2
+//-----------------------------------------------------------------------------
+
+layout(set = 2, binding = 0) uniform _plLightInfo
+{
+    plLightData atData[iLightCount];
+} tLightInfo;
+
+//-----------------------------------------------------------------------------
+// [SECTION] dynamic bind group
+//-----------------------------------------------------------------------------
+
+layout(set = 3, binding = 0) uniform _plObjectInfo
 {
     int iDataOffset;
     int iVertexOffset;
 } tObjectInfo;
 
-// iRenderingFlags
-const int PL_RENDERING_FLAG_USE_PUNCTUAL = 1 << 0;
-const int PL_RENDERING_FLAG_USE_IBL      = 1 << 1;
-layout(constant_id = 0) const int iRenderingFlags = 0;
-
-const float GAMMA = 2.2;
-const float INV_GAMMA = 1.0 / GAMMA;
-
-// linear to sRGB approximation
-// see http://chilliant.blogspot.com/2012/08/srgb-approximations-for-hlsl.html
-vec3 linearTosRGB(vec3 color)
-{
-    return pow(color, vec3(INV_GAMMA));
-}
+//-----------------------------------------------------------------------------
+// [SECTION] input & output
+//-----------------------------------------------------------------------------
 
 layout(location = 0) out vec4 outColor;
 
@@ -138,11 +80,6 @@ layout(location = 0) out vec4 outColor;
 layout(location = 0) in struct plShaderIn {
     vec2 tUV;
 } tShaderIn;
-
-float clampedDot(vec3 x, vec3 y)
-{
-    return clamp(dot(x, y), 0.0, 1.0);
-}
 
 //-----------------------------------------------------------------------------
 // [SECTION] BRDF
@@ -312,7 +249,6 @@ vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularW
     return specularWeight * specularLight * FssEss;
 }
 
-
 // specularWeight is introduced with KHR_materials_specular
 vec3 getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor, vec3 F0, float specularWeight)
 {
@@ -341,15 +277,11 @@ vec3 getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor
 
 void main() 
 {
-    vec3 tSunlightColor = vec3(1.0, 1.0, 1.0);
-    float lightIntensity = 1.0;
-
     vec4 tBaseColor = subpassLoad(tAlbedoSampler);
     vec4 tPosition = subpassLoad(tPositionSampler);
     float specularWeight = tPosition.a;
 
     vec3 n = subpassLoad(tNormalTexture).xyz;
-    vec3 tSunLightDirection = vec3(-1.0, -1.0, -1.0);
 
     vec4 AORoughnessMetalnessData = subpassLoad(tAOMetalRoughnessTexture);
     const float fPerceptualRoughness = AORoughnessMetalnessData.b;
@@ -392,25 +324,37 @@ void main()
 
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL))
     {
-        vec3 pointToLight = -tSunLightDirection;
 
-        // BSTF
-        vec3 l = normalize(pointToLight);   // Direction from surface point to light
-        vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
-        float NdotL = clampedDot(n, l);
-        float NdotV = clampedDot(n, v);
-        float NdotH = clampedDot(n, h);
-        float LdotH = clampedDot(l, h);
-        float VdotH = clampedDot(v, h);
-        if (NdotL > 0.0 || NdotV > 0.0)
+        for(int i = 0; i < iLightCount; i++)
         {
-            // Calculation of analytical light
-            // https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#acknowledgments AppendixB
-            // vec3 intensity = getLighIntensity(light, pointToLight);
-            
-            vec3 intensity = tSunlightColor * lightIntensity;
-            f_diffuse += intensity * NdotL *  BRDF_lambertian(f0, f90, c_diff, specularWeight, VdotH);
-            f_specular += intensity * NdotL * BRDF_specularGGX(f0, f90, fAlphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
+            plLightData tLightData = tLightInfo.atData[i];
+
+            vec3 pointToLight;
+
+            if(tLightData.iType != PL_LIGHT_TYPE_DIRECTIONAL)
+            {
+                pointToLight = tLightData.tPosition - tPosition.xyz;
+            }
+            else
+            {
+                pointToLight = -tLightData.tDirection;
+            }
+
+            // BSTF
+            vec3 l = normalize(pointToLight);   // Direction from surface point to light
+            vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
+            float NdotL = clampedDot(n, l);
+            float NdotV = clampedDot(n, v);
+            float NdotH = clampedDot(n, h);
+            float LdotH = clampedDot(l, h);
+            float VdotH = clampedDot(v, h);
+            if (NdotL > 0.0 || NdotV > 0.0)
+            {
+                vec3 intensity = getLighIntensity(tLightData, pointToLight);
+                f_diffuse += intensity * NdotL *  BRDF_lambertian(f0, f90, c_diff, specularWeight, VdotH);
+                f_specular += intensity * NdotL * BRDF_specularGGX(f0, f90, fAlphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
+            }
+
         }
 
     }
