@@ -2293,33 +2293,6 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
         uint32_t uInstanceCount = 1;
         id<MTLDepthStencilState> tCurrentDepthStencilState = nil;
 
-        {
-            plMetalBindGroup* ptMetalBindGroup = &ptMetalGraphics->sbtBindGroupsHot[ptArea->uBindGroup0];
-
-            for(uint32 j = 0; j < ptMetalBindGroup->uHeapCount; j++)
-            {
-                [tRenderEncoder useHeap:ptMetalBindGroup->atRequiredHeaps[j] stages:MTLRenderStageVertex | MTLRenderStageFragment];
-            }
-
-            for(uint32_t k = 0; k < ptMetalBindGroup->tLayout.uTextureBindingCount; k++)
-            {
-                
-                const plTextureHandle tTextureHandle = ptMetalBindGroup->atTextureBindings[k];
-                id<MTLHeap> tHeap = ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tHeap;
-                [tRenderEncoder useResource:ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tTexture
-                    usage:MTLResourceUsageRead
-                    stages:MTLRenderStageVertex | MTLRenderStageFragment];  
-            }
-            
-            [tRenderEncoder setVertexBuffer:ptMetalBindGroup->tShaderArgumentBuffer
-                offset:ptMetalBindGroup->uOffset
-                atIndex:1];
-
-            [tRenderEncoder setFragmentBuffer:ptMetalBindGroup->tShaderArgumentBuffer
-                offset:ptMetalBindGroup->uOffset
-                atIndex:1];
-        }
-
         uint32_t uDynamicSlot = UINT32_MAX;
         while(uCurrentStreamIndex < uTokens)
         {
@@ -2348,6 +2321,27 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
             {
                 uDynamicBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
+                uCurrentStreamIndex++;
+            }
+
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
+            {
+                plMetalBindGroup* ptMetalBindGroup = &ptMetalGraphics->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
+
+                for(uint32 j = 0; j < ptMetalBindGroup->uHeapCount; j++)
+                {
+                    [tRenderEncoder useHeap:ptMetalBindGroup->atRequiredHeaps[j] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+                }
+
+                for(uint32_t k = 0; k < ptMetalBindGroup->tLayout.uTextureBindingCount; k++)
+                {
+                    const plTextureHandle tTextureHandle = ptMetalBindGroup->atTextureBindings[k];
+                    plTexture* ptTexture = pl__get_texture(&ptGraphics->tDevice, tTextureHandle);
+                    [tRenderEncoder useResource:ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
+                }
+
+                [tRenderEncoder setVertexBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:1];
+                [tRenderEncoder setFragmentBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:1];
                 uCurrentStreamIndex++;
             }
 

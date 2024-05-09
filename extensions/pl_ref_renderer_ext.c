@@ -2778,8 +2778,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
             .fWidth  = tDimensions.x,
             .fHeight = tDimensions.y,
             .fMaxDepth = 1.0f
-       },
-       .uBindGroup0 = tGlobalBG.uIndex,
+       }
     };
 
     static double* pdVisibleOpaqueObjects = NULL;
@@ -2825,6 +2824,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
             .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
             .uIndexOffset         = tDrawable.uIndexOffset,
             .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+            .uBindGroup0          = tGlobalBG.uIndex,
             .uBindGroup1          = tDrawable.tMaterialBindGroup.uIndex,
             .uBindGroup2          = UINT32_MAX,
             .uDynamicBufferOffset = tDynamicBinding.uByteOffset,
@@ -2898,6 +2898,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         .uIndexBuffer         = ptScene->tIndexBuffer.uIndex,
         .uIndexOffset         = ptScene->tLightingDrawable.uIndexOffset,
         .uTriangleCount       = 2,
+        .uBindGroup0          = tGlobalBG.uIndex,
         .uBindGroup1          = ptView->tLightingBindGroup[ptGraphics->uCurrentFrameIndex].uIndex,
         .uBindGroup2          = tLightBindGroup2.uIndex,
         .uDynamicBufferOffset = tLightingDynamicData.uByteOffset,
@@ -2926,14 +2927,13 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
             .uIndexBuffer         = ptScene->tIndexBuffer.uIndex,
             .uIndexOffset         = ptScene->tSkyboxDrawable.uIndexOffset,
             .uTriangleCount       = ptScene->tSkyboxDrawable.uIndexCount / 3,
+            .uBindGroup0          = tGlobalBG.uIndex,
             .uBindGroup1          = ptScene->tSkyboxBindGroup.uIndex,
             .uBindGroup2          = UINT32_MAX,
             .uDynamicBufferOffset = tSkyboxDynamicData.uByteOffset,
             .uInstanceStart       = 0,
             .uInstanceCount       = 1
         });
-
-        tArea.uBindGroup0 = tGlobalBG.uIndex;
         gptGfx->draw_stream(&tEncoder, 1, &tArea);
     }
     gptGfx->reset_draw_stream(ptStream);
@@ -2961,8 +2961,9 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
             .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
             .uIndexOffset         = tDrawable.uIndexOffset,
             .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
-            .uBindGroup1          = tDrawable.tMaterialBindGroup.uIndex,
-            .uBindGroup2          = UINT32_MAX,
+            .uBindGroup0          = tGlobalBG.uIndex,
+            .uBindGroup1          = tLightBindGroup2.uIndex,
+            .uBindGroup2          = tDrawable.tMaterialBindGroup.uIndex,
             .uDynamicBufferOffset = tDynamicBinding.uByteOffset,
             .uInstanceStart       = 0,
             .uInstanceCount       = 1
