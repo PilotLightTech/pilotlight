@@ -684,7 +684,6 @@ typedef struct _plDrawArea
 {
     plRenderViewport tViewport;
     plScissor        tScissor;
-    uint32_t         uBindGroup0;
     plDrawStream*    ptDrawStream;
 } plDrawArea;
 
@@ -707,6 +706,7 @@ typedef struct _plStreamDraw
     uint32_t uIndexOffset;
     uint32_t uTriangleCount;
     uint32_t uShaderVariant;
+    uint32_t uBindGroup0;
     uint32_t uBindGroup1;
     uint32_t uBindGroup2;
     uint32_t uDynamicBufferOffset;
