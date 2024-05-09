@@ -41,6 +41,8 @@ Index of this file:
 // misc
 #include "helper_windows.h"
 
+#define LIGHT_COUNT 100
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -74,14 +76,12 @@ typedef struct plAppData_t
     bool         bFreezeCullCamera;
     plEntity     tCullCamera;
     plEntity     tMainCamera;
-    plEntity     tMainCamera2;
+    plEntity     tSunlight;
+    plEntity     atPointLight[LIGHT_COUNT];
 
     // views
     uint32_t uSceneHandle0;
-    uint32_t uSceneHandle1;
     uint32_t uViewHandle0;
-    uint32_t uViewHandle1;
-    uint32_t uViewHandle2;
 
     // drawing
     plDrawLayer* ptDrawLayer;
@@ -227,26 +227,39 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         ptAppData->atSempahore[i] = gptDevice->create_semaphore(&gptRenderer->get_graphics()->tDevice, false);
 
     ptAppData->uSceneHandle0 = gptRenderer->create_scene();
-    ptAppData->uSceneHandle1 = gptRenderer->create_scene();
 
-    pl_begin_profile_sample("load environments");
-    const plMat4 tTransform0 = pl_mat4_translate_xyz(2.0f, 1.0f, 0.0f);
-    gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/glTF-Sample-Environments-main/field.jpg", 1024);
-    gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle1, "../data/glTF-Sample-Environments-main/field.jpg", 1024);
-    pl_end_profile_sample();
+    // pl_begin_profile_sample("load environments");
+    // gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/glTF-Sample-Environments-main/field.jpg", 1024);
+    // pl_end_profile_sample();
 
     pl_begin_profile_sample("create scene views");
     ptAppData->uViewHandle0 = gptRenderer->create_view(ptAppData->uSceneHandle0, (plVec2){ptIO->afMainViewportSize[0] , ptIO->afMainViewportSize[1]});
-    ptAppData->uViewHandle1 = gptRenderer->create_view(ptAppData->uSceneHandle0, (plVec2){500.0f, 500.0f});
-    ptAppData->uViewHandle2 = gptRenderer->create_view(ptAppData->uSceneHandle1, (plVec2){500.0f, 500.0f});
     pl_end_profile_sample();
 
     // temporary draw layer for submitting fullscreen quad of offscreen render
     ptAppData->ptDrawLayer = pl_request_layer(pl_get_draw_list(NULL), "draw layer");
 
-    // create main camera
     plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
-    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.01f, 400.0f);
+
+    // create lights
+    // ptAppData->tSunlight = gptEcs->create_directional_light(ptMainComponentLibrary, "sunlight", (plVec3){-1.0f, -1.0f, -1.0f});
+    for(uint32_t i = 0; i < LIGHT_COUNT; i++)
+    {
+
+        ptAppData->atPointLight[i] = gptEcs->create_point_light(ptMainComponentLibrary, "point", (plVec3){0});
+
+        plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_LIGHT, ptAppData->atPointLight[i]);
+        int iR = rand() % 256;
+        int iG = rand() % 256;
+        int iB = rand() % 256;
+        ptLight->tColor.r = (float)iR / 256.0f;
+        ptLight->tColor.g = (float)iG / 256.0f;
+        ptLight->tColor.b = (float)iB / 256.0f;
+        ptLight->fRange = 8.0f;
+    }
+
+    // create main camera
+    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){0, 2.0f, 5.0f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.01f, 400.0f);
     gptCamera->set_pitch_yaw(gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), 0.0f, PL_PI);
     gptCamera->update(gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera));
 
@@ -255,38 +268,29 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptCamera->set_pitch_yaw(gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera), 0.0f, PL_PI);
     gptCamera->update(gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera));
 
-    plComponentLibrary* ptSecondaryComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle1);
-    ptAppData->tMainCamera2 = gptEcs->create_perspective_camera(ptSecondaryComponentLibrary, "secondary camera", (plVec3){-3.265f, 2.967f, 0.311f}, PL_PI_3, 1.0f, 0.01f, 400.0f);
-    gptCamera->set_pitch_yaw(gptEcs->get_component(ptSecondaryComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2), -0.535f, 1.737f);
-    gptCamera->update(gptEcs->get_component(ptSecondaryComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2));
-
     // load models
     
     plModelLoaderData tLoaderData0 = {0};
 
     pl_begin_profile_sample("load models 0");
-    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/FlightHelmet/glTF/FlightHelmet.gltf", NULL, &tLoaderData0);
-    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf", NULL, &tLoaderData0);
-    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
-    gptModelLoader->load_stl(ptMainComponentLibrary, "../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 1.0f, 0.0f, 0.80f}, &tTransform0, &tLoaderData0);
-    gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
-    gptModelLoader->free_data(&tLoaderData0);
-    pl_end_profile_sample();
+    // const plMat4 tTransform0 = pl_mat4_translate_xyz(2.0f, 1.0f, 0.0f);
+    // const plMat4 tTransform0 = pl_mat4_scale_xyz(2.0f, 2.0f, 2.0f);
 
-    pl_begin_profile_sample("load models 1");
-    gptModelLoader->load_gltf(ptSecondaryComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL, &tLoaderData0);
-    gptModelLoader->load_stl(ptSecondaryComponentLibrary, "../data/pilotlight-assets-master/meshes/monkey.stl", (plVec4){1.0f, 0.0f, 0.0f, 0.80f}, &tTransform0, &tLoaderData0);
-    gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle1, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
+    // const plMat4 atTransforms[] = {
+    //     pl_mat4_translate_xyz(0.0f, 0.0f, 0.0f),
+    // };
+    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/terrain_gridlines.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/town.gltf", &tTransform0, &tLoaderData0);
+    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
+
+    // for(uint32_t i = 0; i < 1; i++)
+    //     gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/oaktree.gltf", &atTransforms[i], &tLoaderData0);
+    gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
     gptModelLoader->free_data(&tLoaderData0);
     pl_end_profile_sample();
 
     pl_begin_profile_sample("finalize scene 0");
     gptRenderer->finalize_scene(ptAppData->uSceneHandle0);
-    pl_end_profile_sample();
-
-    pl_begin_profile_sample("finalize scene 1");
-    gptRenderer->finalize_scene(ptAppData->uSceneHandle1);
     pl_end_profile_sample();
 
     pl_end_profile_frame();
@@ -392,10 +396,29 @@ pl_app_update(plAppData* ptAppData)
 
     // handle input
     plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
-    plComponentLibrary* ptSecondaryComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle1);
+
+    // float fXSeed = sinf((float)ptIO->dTime);
+    // float fYSeed = cosf((float)ptIO->dTime);
+    // float fZSeed = sinf((float)ptIO->dTime + PL_PI_4);
+    for(uint32_t i = 0; i < LIGHT_COUNT; i++)
+    {
+        plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_LIGHT, ptAppData->atPointLight[i]);
+
+        // srand(i);
+        int iX = rand() % 101;
+
+        // ptLight->tPosition.x += (float)iX * 0.01f;
+        // ptLight->tPosition.y += (float)iY * 0.01f;
+        // ptLight->tPosition.z += (float)iZ * 0.01f;
+
+        // ptLight->tPosition = pl_clamp_vec3((plVec3){-10.0f, 0.0f, -5.0f}, ptLight->tPosition, (plVec3){10.0f, 20.0f, 5.0f});
+
+        ptLight->tPosition.x = (float)i * 0.025f * sinf((float)ptIO->dTime + i * 0.25f);
+        ptLight->tPosition.y = (float)(i % 5) + 0.25f + sinf((float)ptIO->dTime+ i * 0.25f);
+        ptLight->tPosition.z = (float)i * 0.025f * cosf((float)ptIO->dTime + i * 0.25f);
+    }
 
     plCameraComponent* ptCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
-    plCameraComponent* ptCamera2 = gptEcs->get_component(ptSecondaryComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera2);
     plCameraComponent* ptCullCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
 
     static const float fCameraTravelSpeed = 4.0f;
@@ -424,12 +447,10 @@ pl_app_update(plAppData* ptAppData)
     }
 
     gptCamera->update(ptCamera);
-    gptCamera->update(ptCamera2);
     gptCamera->update(ptCullCamera);
 
     // run ecs system
     gptRenderer->run_ecs(ptAppData->uSceneHandle0);
-    gptRenderer->run_ecs(ptAppData->uSceneHandle1);
 
     // new ui frame
     pl_new_frame();
@@ -453,7 +474,6 @@ pl_app_update(plAppData* ptAppData)
     plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo0);
 
     gptRenderer->update_skin_textures(tCommandBuffer, ptAppData->uSceneHandle0);
-    gptRenderer->update_skin_textures(tCommandBuffer, ptAppData->uSceneHandle1);
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
 
     const plSubmitInfo tSubmitInfo0 = {
@@ -471,7 +491,6 @@ pl_app_update(plAppData* ptAppData)
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo00);
 
     gptRenderer->perform_skinning(tCommandBuffer, ptAppData->uSceneHandle0);
-    gptRenderer->perform_skinning(tCommandBuffer, ptAppData->uSceneHandle1);
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
 
     const plSubmitInfo tSubmitInfo00 = {
@@ -490,15 +509,6 @@ pl_app_update(plAppData* ptAppData)
         .ptCullCamera              = ptAppData->bFrustumCulling ? ptCamera : NULL
     };
 
-    plViewOptions tViewOptions2 = {
-        .bShowAllBoundingBoxes     = ptAppData->bDrawAllBoundingBoxes,
-        .bShowVisibleBoundingBoxes = ptAppData->bDrawVisibleBoundingBoxes,
-        .bShowOrigin               = false,
-        .bCullStats                = false,
-        .ptViewCamera              = ptCamera2,
-        .ptCullCamera              = ptCamera2
-    };
-
     if(ptAppData->bFrustumCulling && ptAppData->bFreezeCullCamera)
         tViewOptions.ptCullCamera = ptCullCamera;
 
@@ -512,8 +522,6 @@ pl_app_update(plAppData* ptAppData)
     };
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo1);
     gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0, tViewOptions);
-    gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle1, tViewOptions2);
-    gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle1, ptAppData->uViewHandle2, tViewOptions2);
 
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
 
@@ -623,8 +631,6 @@ pl_app_update(plAppData* ptAppData)
 
     // add full screen quad for offscreen render
     pl_add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_texture_id(ptAppData->uSceneHandle0, ptAppData->uViewHandle0), (plVec2){0}, (plVec2){ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1]});
-    pl_add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_texture_id(ptAppData->uSceneHandle0, ptAppData->uViewHandle1), (plVec2){0}, (plVec2){500.0f, 500.0f});
-    pl_add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_texture_id(ptAppData->uSceneHandle1, ptAppData->uViewHandle2), (plVec2){0.0f, 500.0f}, (plVec2){500.0f, 1000.0f});
     pl_submit_layer(ptAppData->ptDrawLayer);
 
     plRenderEncoder tEncoder = gptGfx->begin_render_pass(ptGraphics, &tCommandBuffer, ptGraphics->tMainRenderPass);

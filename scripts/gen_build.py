@@ -149,6 +149,7 @@ with pl.project("pilotlight"):
         "skybox.vert",
         "primitive.frag",
         "primitive.vert",
+        "transparent.vert",
         "transparent.frag",
         "lighting.vert",
         "lighting.frag",

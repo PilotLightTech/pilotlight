@@ -12,6 +12,7 @@ constant int iDataStride [[ function_constant(1) ]];
 constant int iTextureMappingFlags [[ function_constant(2) ]];
 constant int iMaterialFlags [[ function_constant(3) ]];
 constant int iRenderingFlags [[ function_constant(4) ]];
+constant int iLightCount [[ function_constant(5) ]];
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines & structs
@@ -55,6 +56,9 @@ constant const float INV_GAMMA = 1.0 / GAMMA;
 // iRenderingFlags
 #define PL_RENDERING_FLAG_USE_PUNCTUAL 1 << 0
 #define PL_RENDERING_FLAG_USE_IBL      1 << 1
+
+#define PL_LIGHT_TYPE_DIRECTIONAL 0
+#define PL_LIGHT_TYPE_POINT 1
 
 struct tMaterial
 {
@@ -162,6 +166,10 @@ struct MaterialInfo
     float anisotropyStrength;
 };
 
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 0
+//-----------------------------------------------------------------------------
+
 struct BindGroupData_0
 {
     float4   tCameraPos;
@@ -182,7 +190,32 @@ struct BindGroup_0
     texture2d<float> u_GGXLUT;
 };
 
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 1
+//-----------------------------------------------------------------------------
+
+struct plLightData
+{
+    packed_float3 tPosition;
+    float         fIntensity;
+
+    packed_float3 tDirection;
+    int           iType;
+
+    packed_float3 tColor;
+    float         fRange;
+};
+
 struct BindGroup_1
+{
+    device plLightData* atData;  
+};
+
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 2
+//-----------------------------------------------------------------------------
+
+struct BindGroup_2
 {
     texture2d<float> tBaseColorTexture;
     texture2d<float> tNormalTexture;
@@ -235,7 +268,8 @@ vertex VertexOut vertex_main(
     VertexIn            in [[stage_in]],
     device const BindGroup_0& bg0 [[ buffer(1) ]],
     device const BindGroup_1& bg1 [[ buffer(2) ]],
-    device const DynamicData& tObjectInfo [[ buffer(3) ]]
+    device const BindGroup_2& bg2 [[ buffer(3) ]],
+    device const DynamicData& tObjectInfo [[ buffer(4) ]]
     )
 {
 
@@ -316,7 +350,7 @@ struct NormalInfo {
 };
 
 NormalInfo
-pl_get_normal_info(device const BindGroup_0& bg0, device const BindGroup_1& bg1, VertexOut tShaderIn, bool front_facing, float2 UV)
+pl_get_normal_info(device const BindGroup_0& bg0, device const BindGroup_2& bg2, VertexOut tShaderIn, bool front_facing, float2 UV)
 {
     float2 uv_dx = dfdx(UV);
     float2 uv_dy = dfdy(UV);
@@ -375,7 +409,7 @@ pl_get_normal_info(device const BindGroup_0& bg0, device const BindGroup_1& bg1,
     info.ng = ng;
     if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP)) 
     {
-        info.ntex = bg1.tNormalTexture.sample(bg0.tDefaultSampler, UV).rgb * 2.0 - float3(1.0);
+        info.ntex = bg2.tNormalTexture.sample(bg0.tDefaultSampler, UV).rgb * 2.0 - float3(1.0);
         // info.ntex *= vec3(0.2, 0.2, 1.0);
         // info.ntex *= vec3(u_NormalScale, u_NormalScale, 1.0);
         info.ntex = fast::normalize(info.ntex);
@@ -391,7 +425,7 @@ pl_get_normal_info(device const BindGroup_0& bg0, device const BindGroup_1& bg1,
 }
 
 float4
-getBaseColor(device const BindGroup_0& bg0, device const BindGroup_1& bg1, float4 u_ColorFactor, VertexOut tShaderIn, float2 UV)
+getBaseColor(device const BindGroup_0& bg0, device const BindGroup_2& bg2, float4 u_ColorFactor, VertexOut tShaderIn, float2 UV)
 {
     float4 baseColor = float4(1);
 
@@ -415,7 +449,7 @@ getBaseColor(device const BindGroup_0& bg0, device const BindGroup_1& bg1, float
     if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
     {
         // baseColor *= texture(u_BaseColorSampler, getBaseColorUV());
-        baseColor *= bg1.tBaseColorTexture.sample(bg0.tDefaultSampler, UV);
+        baseColor *= bg2.tBaseColorTexture.sample(bg0.tDefaultSampler, UV);
     }
     return baseColor * tShaderIn.tColor;
 }
@@ -427,7 +461,7 @@ linearTosRGB(float3 color)
 }
 
 MaterialInfo
-getMetallicRoughnessInfo(VertexOut in, device const BindGroup_0& bg0, device const BindGroup_1& bg1, MaterialInfo info, float u_MetallicFactor, float u_RoughnessFactor, float2 UV)
+getMetallicRoughnessInfo(VertexOut in, device const BindGroup_0& bg0, device const BindGroup_2& bg2, MaterialInfo info, float u_MetallicFactor, float u_RoughnessFactor, float2 UV)
 {
     info.metallic = u_MetallicFactor;
     info.perceptualRoughness = u_RoughnessFactor;
@@ -436,7 +470,7 @@ getMetallicRoughnessInfo(VertexOut in, device const BindGroup_0& bg0, device con
     {
         // Roughness is stored in the 'g' channel, metallic is stored in the 'b' channel.
         // This layout intentionally reserves the 'r' channel for (optional) occlusion map data
-        float4 mrSample = float4(bg1.tMetallicRoughnessTexture.sample(bg0.tDefaultSampler, UV).rgb, 1.0);
+        float4 mrSample = float4(bg2.tMetallicRoughnessTexture.sample(bg0.tDefaultSampler, UV).rgb, 1.0);
         info.perceptualRoughness *= mrSample.g;
         info.metallic *= mrSample.b;
     }
@@ -453,14 +487,14 @@ float clampedDot(thread const float3& x, thread const float3& y)
     return fast::clamp(dot(x, y), 0.0, 1.0);
 }
 
-float3
-F_Schlick(float3 f0, float3 f90, float VdotH)
+static inline __attribute__((always_inline))
+float3 F_Schlick(thread const float3& f0, thread const float3& f90, float VdotH)
 {
-    return f0 + (f90 - f0) * pow(fast::clamp(1.0 - VdotH, 0.0, 1.0), 5.0);
+    return f0 + (f90 - f0) * fast::pow(fast::clamp(1.0 - VdotH, 0.0, 1.0), 5.0);
 }
 
-float
-F_Schlick(float f0, float f90, float VdotH)
+static inline __attribute__((always_inline))
+float F_Schlick(float f0, float f90, float VdotH)
 {
     float x = fast::clamp(1.0 - VdotH, 0.0, 1.0);
     float x2 = x * x;
@@ -468,15 +502,15 @@ F_Schlick(float f0, float f90, float VdotH)
     return f0 + (f90 - f0) * x5;
 }
 
-float
-F_Schlick(float f0, float VdotH)
+static inline __attribute__((always_inline))
+float F_Schlick(float f0, float VdotH)
 {
     float f90 = 1.0; //fast::clamp(50.0 * f0, 0.0, 1.0);
     return F_Schlick(f0, f90, VdotH);
 }
 
-float3
-F_Schlick(float3 f0, float f90, float VdotH)
+static inline __attribute__((always_inline))
+float3 F_Schlick(thread const float3& f0, float f90, float VdotH)
 {
     float x = fast::clamp(1.0 - VdotH, 0.0, 1.0);
     float x2 = x * x;
@@ -484,15 +518,15 @@ F_Schlick(float3 f0, float f90, float VdotH)
     return f0 + (f90 - f0) * x5;
 }
 
-float3
-F_Schlick(float3 f0, float VdotH)
+static inline __attribute__((always_inline))
+float3 F_Schlick(thread const float3& f0, float VdotH)
 {
     float f90 = 1.0; //fast::clamp(dot(f0, float3(50.0 * 0.33)), 0.0, 1.0);
     return F_Schlick(f0, f90, VdotH);
 }
 
-float3
-Schlick_to_F0(float3 f, float3 f90, float VdotH)
+static inline __attribute__((always_inline))
+float3 Schlick_to_F0(thread const float3& f, thread const float3& f90, float VdotH)
 {
     float x = fast::clamp(1.0 - VdotH, 0.0, 1.0);
     float x2 = x * x;
@@ -501,8 +535,8 @@ Schlick_to_F0(float3 f, float3 f90, float VdotH)
     return (f - f90 * x5) / (1.0 - x5);
 }
 
-float
-Schlick_to_F0(float f, float f90, float VdotH)
+static inline __attribute__((always_inline))
+float Schlick_to_F0(float f, float f90, float VdotH)
 {
     float x = fast::clamp(1.0 - VdotH, 0.0, 1.0);
     float x2 = x * x;
@@ -511,25 +545,25 @@ Schlick_to_F0(float f, float f90, float VdotH)
     return (f - f90 * x5) / (1.0 - x5);
 }
 
-float3
-Schlick_to_F0(float3 f, float VdotH)
+static inline __attribute__((always_inline))
+float3 Schlick_to_F0(thread const float3& f, float VdotH)
 {
     return Schlick_to_F0(f, float3(1.0), VdotH);
 }
 
-float
-Schlick_to_F0(float f, float VdotH)
+static inline __attribute__((always_inline))
+float Schlick_to_F0(float f, float VdotH)
 {
     return Schlick_to_F0(f, 1.0, VdotH);
 }
 
-float
-V_GGX(float NdotL, float NdotV, float alphaRoughness)
+static inline __attribute__((always_inline))
+float V_GGX(float NdotL, float NdotV, float alphaRoughness)
 {
     float alphaRoughnessSq = alphaRoughness * alphaRoughness;
 
-    float GGXV = NdotL * sqrt(NdotV * NdotV * (1.0 - alphaRoughnessSq) + alphaRoughnessSq);
-    float GGXL = NdotV * sqrt(NdotL * NdotL * (1.0 - alphaRoughnessSq) + alphaRoughnessSq);
+    float GGXV = NdotL * fast::sqrt(NdotV * NdotV * (1.0 - alphaRoughnessSq) + alphaRoughnessSq);
+    float GGXL = NdotV * fast::sqrt(NdotL * NdotL * (1.0 - alphaRoughnessSq) + alphaRoughnessSq);
 
     float GGX = GGXV + GGXL;
     if (GGX > 0.0)
@@ -539,22 +573,22 @@ V_GGX(float NdotL, float NdotV, float alphaRoughness)
     return 0.0;
 }
 
-float
-D_GGX(float NdotH, float alphaRoughness)
+static inline __attribute__((always_inline))
+float D_GGX(float NdotH, float alphaRoughness)
 {
     float alphaRoughnessSq = alphaRoughness * alphaRoughness;
     float f = (NdotH * NdotH) * (alphaRoughnessSq - 1.0) + 1.0;
     return alphaRoughnessSq / (M_PI * f * f);
 }
 
-float3
-BRDF_lambertian(float3 f0, float3 f90, float3 diffuseColor, float specularWeight, float VdotH)
+static inline __attribute__((always_inline))
+float3 BRDF_lambertian(thread const float3& f0, thread const float3& f90, thread const float3& diffuseColor, float specularWeight, float VdotH)
 {
     return (1.0 - specularWeight * F_Schlick(f0, f90, VdotH)) * (diffuseColor / M_PI);
 }
 
-float3
-BRDF_specularGGX(float3 f0, float3 f90, float alphaRoughness, float specularWeight, float VdotH, float NdotL, float NdotV, float NdotH)
+static inline __attribute__((always_inline))
+float3 BRDF_specularGGX(thread const float3& f0, thread const float3& f90, float alphaRoughness, float specularWeight, float VdotH, float NdotL, float NdotV, float NdotH)
 {
     float3 F = F_Schlick(f0, f90, VdotH);
     float Vis = V_GGX(NdotL, NdotV, alphaRoughness);
@@ -562,22 +596,22 @@ BRDF_specularGGX(float3 f0, float3 f90, float alphaRoughness, float specularWeig
     return specularWeight * F * Vis * D;
 }
 
-float3
-getDiffuseLight(device const BindGroup_0& bg0, device const BindGroup_1& bg1, float3 n)
+static inline __attribute__((always_inline))
+float3 getDiffuseLight(device const BindGroup_0& bg0, float3  n)
 {
     n.z = -n.z;
     return bg0.u_LambertianEnvSampler.sample(bg0.tEnvSampler, n).rgb;
 }
 
-float4
-getSpecularSample(device const BindGroup_0& bg0, device const BindGroup_1& bg1, float3 reflection, float lod)
+static inline __attribute__((always_inline))
+float4 getSpecularSample(device const BindGroup_0& bg0, float3 reflection, float lod)
 {
     reflection.z = -reflection.z;
     return bg0.u_GGXEnvSampler.sample(bg0.tEnvSampler, reflection, level(lod));
 }
 
-float3
-getIBLRadianceGGX(device const BindGroup_0& bg0, device const BindGroup_1& bg1, float3 n, float3 v, float roughness, float3 F0, float specularWeight, int u_MipCount)
+static float3
+getIBLRadianceGGX(device const BindGroup_0& bg0, thread const float3& n, thread const float3& v, float roughness, thread const float3& F0, float specularWeight, int u_MipCount)
 {
     float NdotV = clampedDot(n, v);
     float lod = roughness * float(u_MipCount - 1);
@@ -585,28 +619,28 @@ getIBLRadianceGGX(device const BindGroup_0& bg0, device const BindGroup_1& bg1, 
 
     float2 brdfSamplePoint = fast::clamp(float2(NdotV, roughness), float2(0.0, 0.0), float2(1.0, 1.0));
     float2 f_ab = bg0.u_GGXLUT.sample(bg0.tEnvSampler, brdfSamplePoint).rg;
-    float4 specularSample = getSpecularSample(bg0, bg1, reflection, lod);
+    float4 specularSample = getSpecularSample(bg0, reflection, lod);
 
     float3 specularLight = specularSample.rgb;
 
     float3 Fr = fast::max(float3(1.0 - roughness), F0) - F0;
-    float3 k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);
+    float3 k_S = F0 + Fr * fast::pow(1.0 - NdotV, 5.0);
     float3 FssEss = (k_S * f_ab.x) + float3(f_ab.y);
 
     return (specularWeight * specularLight) * FssEss;
 }
 
-float3
-getIBLRadianceLambertian(device const BindGroup_0& bg0, device const BindGroup_1& bg1, float3 n, float3 v, float roughness, float3 diffuseColor, float3 F0, float specularWeight)
+static float3
+getIBLRadianceLambertian(device const BindGroup_0& bg0, thread const float3& n, thread const float3& v, float roughness, thread const float3& diffuseColor, thread const float3& F0, float specularWeight)
 {
     float NdotV = clampedDot(n, v);
     float2 brdfSamplePoint = fast::clamp(float2(NdotV, roughness), float2(0.0, 0.0), float2(1.0, 1.0));
     float2 f_ab = bg0.u_GGXLUT.sample(bg0.tEnvSampler, brdfSamplePoint).rg;
 
-    float3 irradiance = getDiffuseLight(bg0, bg1, n);
+    float3 irradiance = getDiffuseLight(bg0, n);
 
-    float3 Fr = max(float3(1.0 - roughness), F0) - F0;
-    float3 k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);
+    float3 Fr = fast::max(float3(1.0 - roughness), F0) - F0;
+    float3 k_S = F0 + Fr * fast::pow(1.0 - NdotV, 5.0);
     float3 FssEss = specularWeight * k_S * f_ab.x + f_ab.y;
 
     float Ems = (1.0 - (f_ab.x + f_ab.y));
@@ -615,6 +649,31 @@ getIBLRadianceLambertian(device const BindGroup_0& bg0, device const BindGroup_1
     float3 k_D = diffuseColor * (1.0 - FssEss + FmsEms);
 
     return (FmsEms + k_D) * irradiance;
+}
+
+static inline __attribute__((always_inline))
+float getRangeAttenuation(float range, float distance)
+{
+    if (range <= 0.0)
+    {
+        // negative range means unlimited
+        return 1.0 / fast::pow(distance, 2.0);
+    }
+    return fast::max(fast::min(1.0 - fast::pow(distance / range, 4.0), 1.0), 0.0) / fast::pow(distance, 2.0);
+}
+
+
+static float3 getLighIntensity(device const plLightData& light, thread const float3& pointToLight)
+{
+    float rangeAttenuation = 1.0;
+
+    if (light.iType != PL_LIGHT_TYPE_DIRECTIONAL)
+    {
+        rangeAttenuation = getRangeAttenuation(light.fRange, fast::length(pointToLight));
+    }
+
+
+    return rangeAttenuation * light.fIntensity * light.tColor;
 }
 
 struct plRenderTargets
@@ -626,7 +685,8 @@ fragment plRenderTargets fragment_main(
     VertexOut in [[stage_in]],
     device const BindGroup_0& bg0 [[ buffer(1) ]],
     device const BindGroup_1& bg1 [[ buffer(2) ]],
-    device const DynamicData& tObjectInfo [[ buffer(3) ]],
+    device const BindGroup_2& bg2 [[ buffer(3) ]],
+    device const DynamicData& tObjectInfo [[ buffer(4) ]],
     bool front_facing [[front_facing]]
     )
 {
@@ -642,20 +702,15 @@ fragment plRenderTargets fragment_main(
         in.tUV7
     };
 
-    // settings
-    float3 tSunlightColor = float3(1.0, 1.0, 1.0);
-    float lightIntensity = 1.0;
-    float3 tSunLightDirection = float3(-1.0, -1.0, -1.0);
-
     tMaterial material = bg0.atMaterials[tObjectInfo.iMaterialIndex];
-    float4 tBaseColor = getBaseColor(bg0, bg1, material.u_BaseColorFactor, in, tUV[material.BaseColorUVSet]);
+    float4 tBaseColor = getBaseColor(bg0, bg2, material.u_BaseColorFactor, in, tUV[material.BaseColorUVSet]);
 
     if(tBaseColor.a < 0.1)
     {
         discard_fragment();
     }
 
-    NormalInfo tNormalInfo = pl_get_normal_info(bg0, bg1, in, front_facing, tUV[material.NormalUVSet]);
+    NormalInfo tNormalInfo = pl_get_normal_info(bg0, bg2, in, front_facing, tUV[material.NormalUVSet]);
     
     float3 n = tNormalInfo.n;
 
@@ -669,7 +724,7 @@ fragment plRenderTargets fragment_main(
 
     if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS))
     {
-        materialInfo = getMetallicRoughnessInfo(in, bg0, bg1, materialInfo, material.u_MetallicFactor, material.u_RoughnessFactor, tUV[material.MetallicRoughnessUVSet]);
+        materialInfo = getMetallicRoughnessInfo(in, bg0, bg2, materialInfo, material.u_MetallicFactor, material.u_RoughnessFactor, tUV[material.MetallicRoughnessUVSet]);
     }
 
     materialInfo.perceptualRoughness = fast::clamp(materialInfo.perceptualRoughness, 0.0, 1.0);
@@ -689,14 +744,14 @@ fragment plRenderTargets fragment_main(
     float3 f_emissive = material.u_EmissiveFactor;
     if(bool(iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
     {
-        f_emissive *= bg1.tEmissiveTexture.sample(bg0.tDefaultSampler, tUV[material.EmissiveUVSet]).rgb;
+        f_emissive *= bg2.tEmissiveTexture.sample(bg0.tDefaultSampler, tUV[material.EmissiveUVSet]).rgb;
     }
 
     // ambient occlusion
     float ao = 1.0;
     if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
     {
-        ao = bg1.tOcclusionTexture.sample(bg0.tDefaultSampler, tUV[material.OcclusionUVSet]).r;
+        ao = bg2.tOcclusionTexture.sample(bg0.tDefaultSampler, tUV[material.OcclusionUVSet]).r;
     }
 
     float3 v = normalize(bg0.data->tCameraPos.xyz - in.tPosition.xyz);
@@ -706,13 +761,12 @@ fragment plRenderTargets fragment_main(
     float3 f_diffuse = float3(0.0);
     float3 f_clearcoat = float3(0.0);
     float3 f_sheen = float3(0.0);
-    float3 f_transmission = float3(0.0);
 
     // IBL STUFF
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL))
     {
-        f_specular +=  getIBLRadianceGGX(bg0, bg1, n, v, materialInfo.perceptualRoughness, materialInfo.f0, materialInfo.specularWeight, material.u_MipCount);
-        f_diffuse += getIBLRadianceLambertian(bg0, bg1, n, v, materialInfo.perceptualRoughness, materialInfo.c_diff, materialInfo.f0, materialInfo.specularWeight);
+        f_specular +=  getIBLRadianceGGX(bg0, n, v, materialInfo.perceptualRoughness, materialInfo.f0, materialInfo.specularWeight, material.u_MipCount);
+        f_diffuse += getIBLRadianceLambertian(bg0, n, v, materialInfo.perceptualRoughness, materialInfo.c_diff, materialInfo.f0, materialInfo.specularWeight);
     }
 
     // punctual stuff
@@ -727,26 +781,34 @@ fragment plRenderTargets fragment_main(
 
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL))
     {
-        float3 pointToLight = -tSunLightDirection;
-
-        // BSTF
-        float3 l = normalize(pointToLight);   // Direction from surface point to light
-        float3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
-        float NdotL = clampedDot(n, l);
-        float NdotV = clampedDot(n, v);
-        float NdotH = clampedDot(n, h);
-        float VdotH = clampedDot(v, h);
-        if (NdotL > 0.0 || NdotV > 0.0)
+        for(int i = 0; i < iLightCount; i++)
         {
-            // Calculation of analytical light
-            // https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#acknowledgments AppendixB
-            // float3 intensity = getLighIntensity(light, pointToLight);
-            
-            float3 intensity = tSunlightColor * lightIntensity;
-            f_diffuse += intensity * NdotL *  BRDF_lambertian(materialInfo.f0, materialInfo.f90, materialInfo.c_diff, materialInfo.specularWeight, VdotH);
-            f_specular += intensity * NdotL * BRDF_specularGGX(materialInfo.f0, materialInfo.f90, materialInfo.alphaRoughness, materialInfo.specularWeight, VdotH, NdotL, NdotV, NdotH);
-        }
+            device const plLightData& tLightData = bg1.atData[i];
+            float3 pointToLight;
 
+            if(tLightData.iType != PL_LIGHT_TYPE_DIRECTIONAL)
+            {
+                pointToLight = tLightData.tPosition - in.tPosition.xyz;
+            }
+            else
+            {
+                pointToLight = -tLightData.tDirection;
+            }
+
+            // BSTF
+            float3 l = fast::normalize(pointToLight);   // Direction from surface point to light
+            float3 h = fast::normalize(l + v);          // Direction of the vector between l and v, called halfway vector
+            float NdotL = clampedDot(n, l);
+            float NdotV = clampedDot(n, v);
+            float NdotH = clampedDot(n, h);
+            float VdotH = clampedDot(v, h);
+            if (NdotL > 0.0 || NdotV > 0.0)
+            {
+                float3 intensity = getLighIntensity(tLightData, pointToLight);
+                f_diffuse += intensity * NdotL *  BRDF_lambertian(materialInfo.f0, materialInfo.f90, materialInfo.c_diff, materialInfo.specularWeight, VdotH);
+                f_specular += intensity * NdotL * BRDF_specularGGX(materialInfo.f0, materialInfo.f90, materialInfo.alphaRoughness, materialInfo.specularWeight, VdotH, NdotL, NdotV, NdotH);
+            }
+        }
     }
 
     // Layer blending

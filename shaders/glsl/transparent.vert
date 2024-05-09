@@ -13,6 +13,7 @@ layout(constant_id = 1) const int iDataStride = 0;
 layout(constant_id = 2) const int iTextureMappingFlags = 0;
 layout(constant_id = 3) const int iMaterialFlags = 0;
 layout(constant_id = 4) const int iRenderingFlags = 0;
+layout(constant_id = 5) const int iLightCount = 1;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0
@@ -46,7 +47,7 @@ layout (set = 0, binding = 7) uniform texture2D u_GGXLUT;
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(set = 2, binding = 0) uniform _plObjectInfo
+layout(set = 3, binding = 0) uniform _plObjectInfo
 {
     int  iDataOffset;
     int  iVertexOffset;
@@ -75,7 +76,7 @@ layout(location = 0) out struct plShaderOut {
 // [SECTION] entry
 //-----------------------------------------------------------------------------
 
-void main() 
+void main()
 {
 
     vec4 inPosition  = vec4(inPos, 1.0);

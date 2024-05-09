@@ -486,7 +486,7 @@ pl_refr_initialize(plWindow* ptWindow)
 
     // create template shaders
 
-    int aiConstantData[5] = {0};
+    int aiConstantData[6] = {0, 0, 0, 0, 0, 1};
 
     plShaderDescription tOpaqueShaderDescription = {
 
@@ -591,7 +591,7 @@ pl_refr_initialize(plWindow* ptWindow)
         .pcVertexShader = "../shaders/metal/transparent.metal",
         .pcPixelShader = "../shaders/metal/transparent.metal",
         #else
-        .pcVertexShader = "primitive.vert.spv",
+        .pcVertexShader = "transparent.vert.spv",
         .pcPixelShader = "transparent.frag.spv",
         #endif
         .tGraphicsState = {
@@ -610,7 +610,7 @@ pl_refr_initialize(plWindow* ptWindow)
             .uByteStride = sizeof(float) * 3,
             .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
         },
-        .uConstantCount = 5,
+        .uConstantCount = 6,
         .pTempConstantData = aiConstantData,
         .atBlendStates = {
             pl__get_blend_state(PL_BLEND_MODE_ALPHA)
@@ -618,7 +618,7 @@ pl_refr_initialize(plWindow* ptWindow)
         .uBlendStateCount = 1,
         .tRenderPassLayout = gptData->tRenderPassLayout,
         .uSubpassIndex = 2,
-        .uBindGroupLayoutCount = 2,
+        .uBindGroupLayoutCount = 3,
         .atBindGroupLayouts = {
             {
                 .uBufferBindingCount  = 3,
@@ -650,6 +650,16 @@ pl_refr_initialize(plWindow* ptWindow)
                     {.uSlot =   6, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
                     {.uSlot =   7, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1}
                 }
+            },
+            {
+                .uBufferBindingCount  = 1,
+                .aBufferBindings = {
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                        .uSlot = 0,
+                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                    }
+                },
             },
             {
                 .uTextureBindingCount  = 12,
@@ -2201,6 +2211,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         &ptScene->tOpaqueHashmap,
         &ptScene->tTransparentHashmap
     };
+    
+    const plLightComponent* sbtLights = ptScene->tComponentLibrary.tLightComponentManager.pComponents;
 
     for(uint32_t uDrawableBatchIndex = 0; uDrawableBatchIndex < 2; uDrawableBatchIndex++)
     {
@@ -2243,15 +2255,19 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
             }
 
             // choose shader variant
-            int aiConstantData0[5] = {
+            int aiConstantData0[] = {
                 (int)ptMesh->ulVertexStreamMask,
                 iDataStride,
                 iTextureMappingFlags,
                 PL_INFO_MATERIAL_METALLICROUGHNESS,
-                iSceneWideRenderingFlags
+                iSceneWideRenderingFlags,
+                pl_sb_size(sbtLights)
             };
 
             plGraphicsState tVariantTemp = atTemplateVariants[uDrawableBatchIndex];
+
+            if(ptMaterial->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
+                tVariantTemp.ulCullMode = PL_CULL_MODE_NONE;
 
             const plShaderVariant tVariant = {
                 .pTempConstantData = aiConstantData0,
@@ -2347,7 +2363,6 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     }
 
     // create lighting shader
-    const plLightComponent* sbtLights = ptScene->tComponentLibrary.tLightComponentManager.pComponents;
     int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_size(sbtLights)};
     plShaderDescription tLightingShaderDesc = {
         #ifdef PL_METAL_BACKEND
@@ -2437,7 +2452,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                         .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
                     }
                 },
-            },
+            }
         }
     };
     for(uint32_t i = 0; i < tLightingShaderDesc.uConstantCount; i++)
@@ -2988,6 +3003,29 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
             plMat4 tModel;
         } plOutlineDynamicData;
 
+
+        plBindGroupLayout tOutlineBindGroupLayout0 = {
+            .uBufferBindingCount  = 2,
+            .aBufferBindings = {
+                { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+            },
+        };
+        plBindGroupHandle tOutlineGlobalBG = gptDevice->get_temporary_bind_group(ptDevice, &tOutlineBindGroupLayout0, "temporary outline global bind group");
+
+        const plBindGroupUpdateBufferData atOutlineBufferData[] = 
+        {
+            { .uSlot = 0, .tBuffer = ptView->atGlobalBuffers[ptGraphics->uCurrentFrameIndex], .szBufferRange = sizeof(BindGroup_0)},
+            { .uSlot = 1, .tBuffer = ptScene->tStorageBuffer, .szBufferRange = sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer)},
+
+        };
+
+        plBindGroupUpdateData tOutlineBGData0 = {
+            .uBufferCount = 2,
+            .atBuffers = atOutlineBufferData,
+        };
+        gptDevice->update_bind_group(&ptGraphics->tDevice, tOutlineGlobalBG, &tOutlineBGData0);
+
         const plVec4 tOutlineColor = (plVec4){(float)sin(pl_get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 0.0f, 1.0f};
         const plVec4 tOutlineColor2 = (plVec4){0.0f, tOutlineColor.r, 0.0f, 1.0f};
         for(uint32_t i = 0; i < uOutlineDrawableCount; i++)
@@ -3016,6 +3054,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
                 .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
                 .uIndexOffset         = tDrawable.uIndexOffset,
                 .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                .uBindGroup0          = tOutlineGlobalBG.uIndex,
                 .uBindGroup1          = UINT32_MAX,
                 .uBindGroup2          = UINT32_MAX,
                 .uDynamicBufferOffset = tDynamicBinding.uByteOffset,
@@ -3023,30 +3062,6 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
                 .uInstanceCount       = 1
             });
         }
-
-        plBindGroupLayout tOutlineBindGroupLayout0 = {
-            .uBufferBindingCount  = 2,
-            .aBufferBindings = {
-                { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
-            },
-        };
-        plBindGroupHandle tOutlineGlobalBG = gptDevice->get_temporary_bind_group(ptDevice, &tOutlineBindGroupLayout0, "temporary outline global bind group");
-
-        const plBindGroupUpdateBufferData atOutlineBufferData[] = 
-        {
-            { .uSlot = 0, .tBuffer = ptView->atGlobalBuffers[ptGraphics->uCurrentFrameIndex], .szBufferRange = sizeof(BindGroup_0)},
-            { .uSlot = 1, .tBuffer = ptScene->tStorageBuffer, .szBufferRange = sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer)},
-
-        };
-
-        plBindGroupUpdateData tOutlineBGData0 = {
-            .uBufferCount = 2,
-            .atBuffers = atOutlineBufferData,
-        };
-        gptDevice->update_bind_group(&ptGraphics->tDevice, tOutlineGlobalBG, &tOutlineBGData0);
-
-        tArea.uBindGroup0 = tOutlineGlobalBG.uIndex;
         gptGfx->draw_stream(&tEncoder, 1, &tArea);
     }
 
