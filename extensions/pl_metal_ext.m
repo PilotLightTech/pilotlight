@@ -131,6 +131,7 @@ typedef struct _plMetalTexture
     id<MTLTexture> tTexture;
     id<MTLHeap>    tHeap;
     MTLTextureDescriptor* ptTextureDescriptor;
+    bool        bOriginalView;
 } plMetalTexture;
 
 typedef struct _plMetalSampler
@@ -891,7 +892,8 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
     tTexture.tMemoryRequirements.ulSize = tSizeAndAlign.size;
     tTexture.tMemoryRequirements.uMemoryTypeBits = 0;
     plMetalTexture tMetalTexture = {
-        .ptTextureDescriptor = ptTextureDescriptor
+        .ptTextureDescriptor = ptTextureDescriptor,
+        .bOriginalView = true
     };
     ptMetalGraphics->sbtTexturesHot[uTextureIndex] = tMetalTexture;
     ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
@@ -953,40 +955,56 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
 
     plTexture* ptTexture = pl__get_texture(ptDevice, ptViewDesc->tTexture);
     plMetalTexture* ptOldMetalTexture = &ptMetalGraphics->sbtTexturesHot[ptViewDesc->tTexture.uIndex];
+    plMetalTexture* ptNewMetalTexture = &ptMetalGraphics->sbtTexturesHot[uTextureIndex];
+    ptNewMetalTexture->bOriginalView = false;
 
-    MTLTextureType tTextureType = MTLTextureType2D;
+    // MTLTextureType tTextureType = MTLTextureType2D;
 
-    if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_2D)
-        tTextureType = MTLTextureType2D;
-    else if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_CUBE)
-        tTextureType = MTLTextureTypeCube;
-    else
-    {
-        PL_ASSERT(false && "unsupported texture type");
-    }
+    // if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_2D)
+    //     tTextureType = MTLTextureType2D;
+    // else if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_CUBE)
+    //     tTextureType = MTLTextureTypeCube;
+    // else if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+    //     tTextureType = MTLTextureType2DArray;
+    //     // tTextureType = MTLTextureType2D;
+    // else
+    // {
+    //     PL_ASSERT(false && "unsupported texture type");
+    // }
 
-    NSRange tLevelRange = {
-        .length = ptViewDesc->uMips == 0 ? ptTexture->tDesc.uMips - ptViewDesc->uBaseMip : ptViewDesc->uMips,
-        .location = ptViewDesc->uBaseMip
-    };
+    // NSRange tLevelRange = {
+    //     .length = ptViewDesc->uMips == 0 ? ptTexture->tDesc.uMips - ptViewDesc->uBaseMip : ptViewDesc->uMips,
+    //     .location = ptViewDesc->uBaseMip
+    // };
 
-    NSRange tSliceRange = {
-        .length = ptViewDesc->uLayerCount,
-        .location = ptViewDesc->uBaseLayer
-    };
+    // NSRange tSliceRange = {
+    //     .length = ptViewDesc->uLayerCount,
+    //     .location = ptViewDesc->uBaseLayer
+    // };
 
-    plMetalTexture tMetalTexture = {
-        .tTexture = [ptOldMetalTexture->tTexture newTextureViewWithPixelFormat:pl__metal_format(ptViewDesc->tFormat) 
-            textureType:tTextureType
-            levels:tLevelRange
-            slices:tSliceRange],
-        .tHeap = ptOldMetalTexture->tHeap
-    };
-    if(pcName == NULL)
-        pcName = "unnamed texture";
-    tMetalTexture.tTexture.label = [NSString stringWithUTF8String:pcName];
+    // NSRange tLevelRange = {
+    //     .length = ptTexture->tView.uMips,
+    //     .location = ptTexture->tView.uBaseMip
+    // };
 
-    ptMetalGraphics->sbtTexturesHot[uTextureIndex] = tMetalTexture;
+    // NSRange tSliceRange = {
+    //     .length = ptTexture->tView.uLayerCount,
+    //     .location = ptTexture->tView.uBaseLayer
+    // };
+
+    // plMetalTexture tMetalTexture = {
+    //     .tTexture = [ptOldMetalTexture->tTexture newTextureViewWithPixelFormat:pl__metal_format(ptViewDesc->tFormat) 
+    //         textureType:tTextureType
+    //         levels:tLevelRange
+    //         slices:tSliceRange],
+    //     .tHeap = ptOldMetalTexture->tHeap
+    // };
+    // if(pcName == NULL)
+    //     pcName = "unnamed texture";
+    // tMetalTexture.tTexture.label = [NSString stringWithUTF8String:pcName];
+    ptNewMetalTexture->tTexture = ptOldMetalTexture->tTexture;
+    ptNewMetalTexture->tHeap = ptOldMetalTexture->tHeap;
+
     ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
     return tHandle;
 }
@@ -1213,6 +1231,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
     for(uint32_t i = 0; i < ptData->uTextureCount; i++)
     {
         const plBindGroupUpdateTextureData* ptUpdate = &ptData->atTextures[i];
+        plTexture* ptTexture = &ptGraphics->sbtTexturesCold[ptUpdate->tTexture.uIndex];
         plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[ptUpdate->tTexture.uIndex];
         MTLResourceID* pptDestination = (MTLResourceID*)&pulDescriptorStart[ptUpdate->uSlot + ptUpdate->uIndex];
         *pptDestination = ptMetalTexture->tTexture.gpuResourceID;
