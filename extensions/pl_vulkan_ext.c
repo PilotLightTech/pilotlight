@@ -2894,26 +2894,26 @@ typedef struct _plBindGroupManagerData
     uint32_t auOffsets[2];
 } plBindGroupManagerData;
 
-static void pl__set_bind_group_count(plBindGroupManagerData* ptData, uint32_t uCount)
+static inline void pl__set_bind_group_count(plBindGroupManagerData* ptData, uint32_t uCount)
 {
     ptData->uCount = uCount + 1;
     ptData->uFirstSlot = 0;
 }
 
-static void pl__set_bind_group(plBindGroupManagerData* ptData, uint32_t uIndex, VkDescriptorSet tSet)
+static inline void pl__set_bind_group(plBindGroupManagerData* ptData, uint32_t uIndex, VkDescriptorSet tSet)
 {
     ptData->uFirstSlot = pl_min(ptData->uFirstSlot, uIndex);
     ptData->auSlots[uIndex] = tSet;
 }
 
-static void pl__set_dynamic_bind_group(plBindGroupManagerData* ptData, VkDescriptorSet tSet, uint32_t uOffset)
+static inline void pl__set_dynamic_bind_group(plBindGroupManagerData* ptData, VkDescriptorSet tSet, uint32_t uOffset)
 {
     ptData->auOffsets[0] = uOffset;
     ptData->uFirstSlot = pl_min(ptData->uFirstSlot, ptData->uCount - 1);
     ptData->auSlots[ptData->uCount - 1] = tSet;
 }
 
-static void pl__update_bindings(plBindGroupManagerData* ptData, VkCommandBuffer tCmdBuffer, VkPipelineLayout tLayout)
+static inline void pl__update_bindings(plBindGroupManagerData* ptData, VkCommandBuffer tCmdBuffer, VkPipelineLayout tLayout)
 {
     VkDescriptorSet atSets[4] = {VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE};
     for(uint32_t i = 0; i < ptData->uCount; i++)
