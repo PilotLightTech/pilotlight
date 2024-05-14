@@ -1049,7 +1049,8 @@ enum _plTextureType
 {
     PL_TEXTURE_TYPE_UNSPECIFIED,
     PL_TEXTURE_TYPE_2D,
-    PL_TEXTURE_TYPE_CUBE
+    PL_TEXTURE_TYPE_CUBE,
+    PL_TEXTURE_TYPE_2D_ARRAY
 };
 
 enum _plBufferUsage
