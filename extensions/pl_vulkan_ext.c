@@ -1690,7 +1690,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         const plVulkanBuffer* ptVulkanBuffer = &ptVulkanGraphics->sbtBuffersHot[ptData->atBuffers[i].tBuffer.uIndex];
 
         sbtBufferDescInfos[i].buffer = ptVulkanBuffer->tBuffer;
-        sbtBufferDescInfos[i].offset = 0;
+        sbtBufferDescInfos[i].offset = ptData->atBuffers[i].szOffset;
         sbtBufferDescInfos[i].range  = ptData->atBuffers[i].szBufferRange;
 
         sbtWrites[uCurrentWrite].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
