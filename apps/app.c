@@ -41,8 +41,6 @@ Index of this file:
 // misc
 #include "helper_windows.h"
 
-#define LIGHT_COUNT 100
-
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -77,7 +75,9 @@ typedef struct plAppData_t
     plEntity     tCullCamera;
     plEntity     tMainCamera;
     plEntity     tSunlight;
-    plEntity     atPointLight[LIGHT_COUNT];
+
+    // shadows
+    float fCascadeSplitLambda;
 
     // views
     uint32_t uSceneHandle0;
@@ -161,6 +161,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     memset(ptAppData, 0, sizeof(plAppData));
 
     ptAppData->bFrustumCulling = true;
+    ptAppData->fCascadeSplitLambda = 0.95f;
 
     gptDataRegistry->set_data("profile", ptProfileCtx);
     gptDataRegistry->set_data("log", ptLogCtx);
@@ -229,7 +230,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->uSceneHandle0 = gptRenderer->create_scene();
 
     // pl_begin_profile_sample("load environments");
-    // gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/glTF-Sample-Environments-main/field.jpg", 1024);
+    // gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 1024);
     // pl_end_profile_sample();
 
     pl_begin_profile_sample("create scene views");
@@ -241,50 +242,32 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
 
-    // create lights
-    // ptAppData->tSunlight = gptEcs->create_directional_light(ptMainComponentLibrary, "sunlight", (plVec3){-1.0f, -1.0f, -1.0f});
-    for(uint32_t i = 0; i < LIGHT_COUNT; i++)
-    {
-
-        ptAppData->atPointLight[i] = gptEcs->create_point_light(ptMainComponentLibrary, "point", (plVec3){0});
-
-        plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_LIGHT, ptAppData->atPointLight[i]);
-        int iR = rand() % 256;
-        int iG = rand() % 256;
-        int iB = rand() % 256;
-        ptLight->tColor.r = (float)iR / 256.0f;
-        ptLight->tColor.g = (float)iG / 256.0f;
-        ptLight->tColor.b = (float)iB / 256.0f;
-        ptLight->fRange = 8.0f;
-    }
-
     // create main camera
-    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){0, 2.0f, 5.0f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.01f, 400.0f);
-    gptCamera->set_pitch_yaw(gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), 0.0f, PL_PI);
+    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-9.6f, 2.096f, 0.86f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.1f, 30.0f);
+    gptCamera->set_pitch_yaw(gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), -0.245f, 1.816f);
     gptCamera->update(gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera));
 
     // create cull camera
-    ptAppData->tCullCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "cull camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.1f, 106.0f);
+    ptAppData->tCullCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "cull camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.1f, 50.0f);
     gptCamera->set_pitch_yaw(gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera), 0.0f, PL_PI);
     gptCamera->update(gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera));
+
+    // create lights
+    gptEcs->create_point_light(ptMainComponentLibrary, "light", (plVec3){6.0f, 4.0f, -3.0f});
+    ptAppData->tSunlight = gptEcs->create_directional_light(ptMainComponentLibrary, "sunlight", (plVec3){-0.375f, -1.0f, -0.085f});
+    plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_LIGHT, ptAppData->tSunlight);
+    ptLight->uCascadeCount = 4;
+    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
 
     // load models
     
     plModelLoaderData tLoaderData0 = {0};
 
     pl_begin_profile_sample("load models 0");
-    // const plMat4 tTransform0 = pl_mat4_translate_xyz(2.0f, 1.0f, 0.0f);
-    // const plMat4 tTransform0 = pl_mat4_scale_xyz(2.0f, 2.0f, 2.0f);
-
-    // const plMat4 atTransforms[] = {
-    //     pl_mat4_translate_xyz(0.0f, 0.0f, 0.0f),
-    // };
-    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/terrain_gridlines.gltf", NULL, &tLoaderData0);
+    // const plMat4 tTransform0 = pl_mat4_translate_xyz(0.0f, 1.0f, 0.0f);
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/town.gltf", &tTransform0, &tLoaderData0);
     gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
-
-    // for(uint32_t i = 0; i < 1; i++)
-    //     gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/oaktree.gltf", &atTransforms[i], &tLoaderData0);
+    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
     gptModelLoader->free_data(&tLoaderData0);
     pl_end_profile_sample();
@@ -397,27 +380,6 @@ pl_app_update(plAppData* ptAppData)
     // handle input
     plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
 
-    // float fXSeed = sinf((float)ptIO->dTime);
-    // float fYSeed = cosf((float)ptIO->dTime);
-    // float fZSeed = sinf((float)ptIO->dTime + PL_PI_4);
-    for(uint32_t i = 0; i < LIGHT_COUNT; i++)
-    {
-        plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_LIGHT, ptAppData->atPointLight[i]);
-
-        // srand(i);
-        int iX = rand() % 101;
-
-        // ptLight->tPosition.x += (float)iX * 0.01f;
-        // ptLight->tPosition.y += (float)iY * 0.01f;
-        // ptLight->tPosition.z += (float)iZ * 0.01f;
-
-        // ptLight->tPosition = pl_clamp_vec3((plVec3){-10.0f, 0.0f, -5.0f}, ptLight->tPosition, (plVec3){10.0f, 20.0f, 5.0f});
-
-        ptLight->tPosition.x = (float)i * 0.025f * sinf((float)ptIO->dTime + i * 0.25f);
-        ptLight->tPosition.y = (float)(i % 5) + 0.25f + sinf((float)ptIO->dTime+ i * 0.25f);
-        ptLight->tPosition.z = (float)i * 0.025f * cosf((float)ptIO->dTime + i * 0.25f);
-    }
-
     plCameraComponent* ptCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
     plCameraComponent* ptCullCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
 
@@ -460,7 +422,8 @@ pl_app_update(plAppData* ptAppData)
     uint64_t ulValue2 = ulValue0 + 2;
     uint64_t ulValue3 = ulValue0 + 3;
     uint64_t ulValue4 = ulValue0 + 4;
-    ptAppData->aulNextTimelineValue[ptGraphics->uCurrentFrameIndex] = ulValue4;
+    uint64_t ulValue5 = ulValue0 + 5;
+    ptAppData->aulNextTimelineValue[ptGraphics->uCurrentFrameIndex] = ulValue5;
 
 
     // first set of work
@@ -500,10 +463,30 @@ pl_app_update(plAppData* ptAppData)
     };
     gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo00);
 
+
+
+    const plBeginCommandInfo tBeginInfo11 = {
+        .uWaitSemaphoreCount   = 1,
+        .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
+        .auWaitSemaphoreValues = {ulValue2}
+    };
+    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo11);
+
+    gptRenderer->generate_cascaded_shadow_map(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0, ptAppData->tMainCamera, ptAppData->tSunlight, ptAppData->fCascadeSplitLambda);
+
+    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
+
+    const plSubmitInfo tSubmitInfo11 = {
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
+        .auSignalSemaphoreValues = {ulValue3}
+    };
+    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo11);
+
     plViewOptions tViewOptions = {
         .bShowAllBoundingBoxes     = ptAppData->bDrawAllBoundingBoxes,
         .bShowVisibleBoundingBoxes = ptAppData->bDrawVisibleBoundingBoxes,
-        .bShowOrigin               = false,
+        .bShowOrigin               = true,
         .bCullStats                = true,
         .ptViewCamera              = ptCamera,
         .ptCullCamera              = ptAppData->bFrustumCulling ? ptCamera : NULL
@@ -512,13 +495,12 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bFrustumCulling && ptAppData->bFreezeCullCamera)
         tViewOptions.ptCullCamera = ptCullCamera;
 
-    
     // second set of work
 
     const plBeginCommandInfo tBeginInfo1 = {
         .uWaitSemaphoreCount   = 1,
         .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auWaitSemaphoreValues = {ulValue2}
+        .auWaitSemaphoreValues = {ulValue3}
     };
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo1);
     gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0, tViewOptions);
@@ -528,7 +510,7 @@ pl_app_update(plAppData* ptAppData)
     const plSubmitInfo tSubmitInfo1 = {
         .uSignalSemaphoreCount   = 1,
         .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auSignalSemaphoreValues = {ulValue3}
+        .auSignalSemaphoreValues = {ulValue4}
     };
     gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo1);
 
@@ -537,7 +519,7 @@ pl_app_update(plAppData* ptAppData)
     const plBeginCommandInfo tBeginInfo2 = {
         .uWaitSemaphoreCount   = 1,
         .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auWaitSemaphoreValues = {ulValue3},
+        .auWaitSemaphoreValues = {ulValue4},
     };
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo2);
 
@@ -593,6 +575,13 @@ pl_app_update(plAppData* ptAppData)
             if(pl_button("resize"))
                 ptAppData->bResize = true;
             pl_checkbox("Always Resize", &ptAppData->bAlwaysResize);
+
+            plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_LIGHT, ptAppData->tSunlight);
+            pl_slider_float("split", &ptAppData->fCascadeSplitLambda, 0.0f, 1.0f);
+            pl_slider_float("x", &ptLight->tDirection.x, -1.0f, 1.0f);
+            pl_slider_float("y", &ptLight->tDirection.y, -1.0f, 1.0f);
+            pl_slider_float("z", &ptLight->tDirection.z, -1.0f, 1.0f);
+
             pl_end_collapsing_header();
         }
 
@@ -647,7 +636,7 @@ pl_app_update(plAppData* ptAppData)
     const plSubmitInfo tSubmitInfo2 = {
         .uSignalSemaphoreCount   = 1,
         .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auSignalSemaphoreValues = {ulValue4},
+        .auSignalSemaphoreValues = {ulValue5},
     };
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
     if(!gptGfx->present(ptGraphics, &tCommandBuffer, &tSubmitInfo2))

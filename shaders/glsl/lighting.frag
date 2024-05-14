@@ -60,6 +60,14 @@ layout(set = 2, binding = 0) uniform _plLightInfo
     plLightData atData[iLightCount];
 } tLightInfo;
 
+layout(set = 2, binding = 1) readonly buffer plShadowData
+{
+    plLightShadowData atData[];
+} tShadowData;
+
+layout (set = 2, binding = 2) uniform texture2D shadowmap[4];
+layout(set = 2, binding = 3)  uniform sampler tShadowSampler;
+
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
@@ -274,6 +282,46 @@ vec3 getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor
     return (FmsEms + k_D) * irradiance;
 }
 
+const mat4 biasMat = mat4( 
+	0.5, 0.0, 0.0, 0.0,
+	0.0, 0.5, 0.0, 0.0,
+	0.0, 0.0, 1.0, 0.0,
+	0.5, 0.5, 0.0, 1.0 
+);
+
+float textureProj(vec4 shadowCoord, vec2 offset, uint cascadeIndex)
+{
+	float shadow = 1.0;
+	float bias = 0.0005;
+
+	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 ) {
+		float dist = texture(sampler2D(shadowmap[cascadeIndex], tShadowSampler), shadowCoord.st + offset).r;
+		if (shadowCoord.w > 0 && dist < shadowCoord.z - bias) {
+			shadow = 0.1; // ambient
+		}
+	}
+	return shadow;
+}
+
+float filterPCF(vec4 sc, uint cascadeIndex)
+{
+	ivec2 texDim = textureSize(sampler2D(shadowmap[cascadeIndex], tShadowSampler), 0).xy;
+	float scale = 0.75;
+	float dx = scale * 1.0 / float(texDim.x);
+	float dy = scale * 1.0 / float(texDim.y);
+
+	float shadowFactor = 0.0;
+	int count = 0;
+	int range = 1;
+	
+	for (int x = -range; x <= range; x++) {
+		for (int y = -range; y <= range; y++) {
+			shadowFactor += textureProj(sc, vec2(dx*x, dy*y), cascadeIndex);
+			count++;
+		}
+	}
+	return shadowFactor / count;
+}
 
 void main() 
 {
@@ -322,6 +370,7 @@ void main()
     f_sheen = vec3(0.0);
     f_clearcoat = vec3(0.0);
 
+    uint cascadeIndex = 0;
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL))
     {
 
@@ -330,6 +379,29 @@ void main()
             plLightData tLightData = tLightInfo.atData[i];
 
             vec3 pointToLight;
+            float shadow = 1.0;
+
+            if(tLightData.iCascadeCount > 0)
+            {
+                plLightShadowData tShadowData = tShadowData.atData[tLightData.iShadowIndex];
+
+                // Get cascade index for the current fragment's view position
+                
+                vec4 inViewPos = tGlobalInfo.tCameraView * vec4(tPosition.xyz, 1.0);
+                for(uint j = 0; j < tLightData.iCascadeCount - 1; ++j)
+                {
+                    if(inViewPos.z > tShadowData.cascadeSplits[j])
+                    {	
+                        cascadeIndex = j + 1;
+                    }
+                }  
+
+                // Depth compare for shadowing
+	            vec4 shadowCoord = (biasMat * tShadowData.cascadeViewProjMat[cascadeIndex]) * vec4(tPosition.xyz, 1.0);	
+                shadow = 0;
+                shadow = textureProj(shadowCoord / shadowCoord.w, vec2(0.0), cascadeIndex);
+                // shadow = filterPCF(shadowCoord / shadowCoord.w, cascadeIndex);
+            }
 
             if(tLightData.iType != PL_LIGHT_TYPE_DIRECTIONAL)
             {
@@ -351,8 +423,8 @@ void main()
             if (NdotL > 0.0 || NdotV > 0.0)
             {
                 vec3 intensity = getLighIntensity(tLightData, pointToLight);
-                f_diffuse += intensity * NdotL *  BRDF_lambertian(f0, f90, c_diff, specularWeight, VdotH);
-                f_specular += intensity * NdotL * BRDF_specularGGX(f0, f90, fAlphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
+                f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(f0, f90, c_diff, specularWeight, VdotH);
+                f_specular += shadow * intensity * NdotL * BRDF_specularGGX(f0, f90, fAlphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
             }
 
         }
@@ -391,4 +463,22 @@ void main()
     color = color * (1.0 - clearcoatFactor * clearcoatFresnel) + clearcoat;
 
     outColor = vec4(linearTosRGB(color.rgb), tBaseColor.a);
+
+    // if(gl_FragCoord.x < 600.0)
+    // {
+    //     switch(cascadeIndex) {
+    //         case 0 : 
+    //             outColor.rgb *= vec3(1.0f, 0.25f, 0.25f);
+    //             break;
+    //         case 1 : 
+    //             outColor.rgb *= vec3(0.25f, 1.0f, 0.25f);
+    //             break;
+    //         case 2 : 
+    //             outColor.rgb *= vec3(0.25f, 0.25f, 1.0f);
+    //             break;
+    //         case 3 : 
+    //             outColor.rgb *= vec3(1.0f, 1.0f, 0.25f);
+    //             break;
+    //     }
+    // }
 }

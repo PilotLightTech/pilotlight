@@ -19,7 +19,7 @@ layout(std140, set = 0, binding = 0) readonly buffer _tInputDataBuffer
 	vec4 atVertexData[];
 } tInputDataBuffer;
 
-layout(std140, set = 0, binding = 1, scalar) buffer _tOutputPosBuffer
+layout(scalar, set = 0, binding = 1) buffer _tOutputPosBuffer
 {
 	vec3 atVertexData[];
 } tOutputPosBuffer;

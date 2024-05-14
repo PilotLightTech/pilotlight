@@ -204,11 +204,24 @@ struct plLightData
 
     packed_float3 tColor;
     float         fRange;
+
+    int iShadowIndex;
+    int iCascadeCount;
+    int padding[2];
+};
+
+struct plLightShadowData
+{
+	float4 cascadeSplits;
+	float4x4 cascadeViewProjMat[4];
 };
 
 struct BindGroup_1
 {
     device plLightData* atData;  
+    device plLightShadowData* atShadowData;
+    texture2d_array<float> shadowmap;
+    sampler          tShadowSampler;
 };
 
 //-----------------------------------------------------------------------------
@@ -662,7 +675,6 @@ float getRangeAttenuation(float range, float distance)
     return fast::max(fast::min(1.0 - fast::pow(distance / range, 4.0), 1.0), 0.0) / fast::pow(distance, 2.0);
 }
 
-
 static float3 getLighIntensity(device const plLightData& light, thread const float3& pointToLight)
 {
     float rangeAttenuation = 1.0;
@@ -674,6 +686,56 @@ static float3 getLighIntensity(device const plLightData& light, thread const flo
 
 
     return rangeAttenuation * light.fIntensity * light.tColor;
+}
+
+constant const float4x4 biasMat = float4x4( 
+	0.5, 0.0, 0.0, 0.0,
+	0.0, 0.5, 0.0, 0.0,
+	0.0, 0.0, 1.0, 0.0,
+	0.5, 0.5, 0.0, 1.0 
+);
+
+float textureProj(device const BindGroup_1& bg2, float4 shadowCoord, float2 offset, uint cascadeIndex)
+{
+	float shadow = 1.0;
+	float bias = 0.0005;
+
+	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 )
+    {
+        // float dist = bg2.shadowmap[cascadeIndex].sample(bg2.tShadowSampler, shadowCoord.xy + offset).r;
+        float dist = bg2.shadowmap.sample(bg2.tShadowSampler, shadowCoord.xy + offset, cascadeIndex).r;
+		if (shadowCoord.w > 0 && dist < shadowCoord.z - bias)
+        {
+			shadow = 0.1; // ambient
+		}
+	}
+	return shadow;
+}
+
+float filterPCF(device const BindGroup_1& bg2, float4 sc, uint cascadeIndex)
+{
+	int2 texDim = int2(0, 0);
+	// texDim.x = bg2.shadowmap[cascadeIndex].get_width();
+	// texDim.y = bg2.shadowmap[cascadeIndex].get_height();
+	texDim.x = bg2.shadowmap.get_width();
+	texDim.y = bg2.shadowmap.get_height();
+	float scale = 0.75;
+	float dx = scale * 1.0 / float(texDim.x);
+	float dy = scale * 1.0 / float(texDim.y);
+
+	float shadowFactor = 0.0;
+	int count = 0;
+	int range = 1;
+	
+	for (int x = -range; x <= range; x++)
+    {
+		for (int y = -range; y <= range; y++)
+        {
+			shadowFactor += textureProj(bg2, sc, float2(dx*x, dy*y), cascadeIndex);
+			count++;
+		}
+	}
+	return shadowFactor / count;
 }
 
 struct plRenderTargets
@@ -779,12 +841,36 @@ fragment plRenderTargets fragment_main(
     f_sheen = float3(0.0);
     f_clearcoat = float3(0.0);
 
+    uint cascadeIndex = 0;
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL))
     {
         for(int i = 0; i < iLightCount; i++)
         {
             device const plLightData& tLightData = bg1.atData[i];
             float3 pointToLight;
+            float shadow = 1.0;
+
+            if(tLightData.iCascadeCount > 0)
+            {
+                plLightShadowData tShadowData = bg1.atShadowData[tLightData.iShadowIndex];
+
+                // Get cascade index for the current fragment's view position
+                
+                float4 inViewPos = bg0.data->tCameraView * float4(in.tPosition.xyz, 1.0);
+                for(uint j = 0; j < tLightData.iCascadeCount - 1; ++j)
+                {
+                    if(inViewPos.z > tShadowData.cascadeSplits[j])
+                    {	
+                        cascadeIndex = j + 1;
+                    }
+                }  
+
+                // Depth compare for shadowing
+	            float4 shadowCoord = (biasMat * tShadowData.cascadeViewProjMat[cascadeIndex]) * float4(in.tPosition.xyz, 1.0);	
+                shadow = 0;
+                shadow = textureProj(bg1, shadowCoord / shadowCoord.w, float2(0.0), cascadeIndex);
+                // shadow = filterPCF(shadowCoord / shadowCoord.w, cascadeIndex);
+            }
 
             if(tLightData.iType != PL_LIGHT_TYPE_DIRECTIONAL)
             {
@@ -805,8 +891,8 @@ fragment plRenderTargets fragment_main(
             if (NdotL > 0.0 || NdotV > 0.0)
             {
                 float3 intensity = getLighIntensity(tLightData, pointToLight);
-                f_diffuse += intensity * NdotL *  BRDF_lambertian(materialInfo.f0, materialInfo.f90, materialInfo.c_diff, materialInfo.specularWeight, VdotH);
-                f_specular += intensity * NdotL * BRDF_specularGGX(materialInfo.f0, materialInfo.f90, materialInfo.alphaRoughness, materialInfo.specularWeight, VdotH, NdotL, NdotV, NdotH);
+                f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(materialInfo.f0, materialInfo.f90, materialInfo.c_diff, materialInfo.specularWeight, VdotH);
+                f_specular += shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.f0, materialInfo.f90, materialInfo.alphaRoughness, materialInfo.specularWeight, VdotH, NdotL, NdotV, NdotH);
             }
         }
     }
@@ -846,6 +932,25 @@ fragment plRenderTargets fragment_main(
     plRenderTargets tMRT;
     tMRT.outColor.rgb = linearTosRGB(color);
     tMRT.outColor.a = tBaseColor.a;
+
+    // if(in.tPositionOut.x < 600.0)
+    // {
+    //     switch(cascadeIndex) {
+    //         case 0 : 
+    //             tMRT.outColor.rgb *= float3(1.0f, 0.25f, 0.25f);
+    //             break;
+    //         case 1 : 
+    //             tMRT.outColor.rgb *= float3(0.25f, 1.0f, 0.25f);
+    //             break;
+    //         case 2 : 
+    //             tMRT.outColor.rgb *= float3(0.25f, 0.25f, 1.0f);
+    //             break;
+    //         case 3 : 
+    //             tMRT.outColor.rgb *= float3(1.0f, 1.0f, 0.25f);
+    //             break;
+    //     }
+    // }
+
     return tMRT;
 
 }

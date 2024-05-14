@@ -16,10 +16,6 @@ layout(set = 0, binding = 0) uniform _plGlobalInfo
 layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer{ vec4 atVertexData[]; } tVertexBuffer;
 
 layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
-layout(set = 0, binding = 4)  uniform sampler tEnvSampler;
-layout (set = 0, binding = 5) uniform textureCube u_LambertianEnvSampler;
-layout (set = 0, binding = 6) uniform textureCube u_GGXEnvSampler;
-layout (set = 0, binding = 7) uniform texture2D u_GGXLUT;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 1
@@ -44,7 +40,6 @@ layout(location = 0) in vec3 inPos;
 //-----------------------------------------------------------------------------
 
 layout(location = 0) out struct plShaderOut {
-    vec3 tPosition;
     vec3 tWorldPosition;
 } tShaderOut;
 
@@ -57,6 +52,6 @@ main()
 {
     gl_Position = tGlobalInfo.tCameraProjection * tGlobalInfo.tCameraView * tObjectInfo.tModel * vec4(inPos, 1.0);
     gl_Position.w = gl_Position.z;
-    tShaderOut.tPosition = gl_Position.xyz;
     tShaderOut.tWorldPosition = inPos;
+    // tShaderOut.tWorldPosition.z = -inPos.z;
 }

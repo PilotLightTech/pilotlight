@@ -161,6 +161,8 @@ with pl.project("pilotlight"):
         "skinning.comp",
         "outline.vert",
         "outline.frag",
+        "shadow.vert",
+        "shadow.frag",
     ]
 
     metal_shaders = [
@@ -173,6 +175,7 @@ with pl.project("pilotlight"):
         "filter_environment.metal",
         "transparent.metal",
         "skinning.metal",
+        "shadow.metal",
         "outline.metal"
     ]
 
