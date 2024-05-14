@@ -553,7 +553,8 @@ typedef struct _plSamplerDesc
     plWrapMode    tVerticalWrap;
     float         fMipBias;
     float         fMinMip;
-    float         fMaxMip; 
+    float         fMaxMip;
+    float         fMaxAnisotropy;
 } plSamplerDesc;
 
 typedef struct _plSampler
