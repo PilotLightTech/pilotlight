@@ -167,6 +167,7 @@ typedef struct _plCameraI
     void (*set_pitch_yaw)  (plCameraComponent*, float fPitch, float fYaw);
     void (*translate)      (plCameraComponent*, float fDx, float fDy, float fDz);
     void (*rotate)         (plCameraComponent*, float fDPitch, float fDYaw);
+    void (*look_at)        (plCameraComponent*, plVec3 tEye, plVec3 tTarget);
     void (*update)         (plCameraComponent*);
 } plCameraI;
 

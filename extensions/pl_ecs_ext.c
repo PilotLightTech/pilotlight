@@ -102,6 +102,7 @@ static void pl_camera_set_pitch_yaw  (plCameraComponent* ptCamera, float fPitch,
 static void pl_camera_translate      (plCameraComponent* ptCamera, float fDx, float fDy, float fDz);
 static void pl_camera_rotate         (plCameraComponent* ptCamera, float fDPitch, float fDYaw);
 static void pl_camera_update         (plCameraComponent* ptCamera);
+static void pl_camera_look_at        (plCameraComponent* ptCamera, plVec3 tEye, plVec3 tTarget);
 
 static inline float
 pl__wrap_angle(float tTheta)
@@ -174,7 +175,8 @@ pl_load_camera_api(void)
         .set_pitch_yaw   = pl_camera_set_pitch_yaw,
         .translate       = pl_camera_translate,
         .rotate          = pl_camera_rotate,
-        .update          = pl_camera_update
+        .update          = pl_camera_update,
+        .look_at         = pl_camera_look_at,
     };
     return &tApi;   
 }
@@ -1417,6 +1419,15 @@ pl_camera_rotate(plCameraComponent* ptCamera, float fDPitch, float fDYaw)
 
     ptCamera->fYaw = pl__wrap_angle(ptCamera->fYaw);
     ptCamera->fPitch = pl_clampf(0.995f * -PL_PI_2, ptCamera->fPitch, 0.995f * PL_PI_2);
+}
+
+static void
+pl_camera_look_at(plCameraComponent* ptCamera, plVec3 tEye, plVec3 tTarget)
+{
+    const plVec3 tDirection = pl_norm_vec3(pl_sub_vec3(tTarget, tEye));
+    ptCamera->fYaw = atan2f(tDirection.x, tDirection.z);
+    ptCamera->fPitch = asinf(tDirection.y);
+    ptCamera->tPos = tEye;
 }
 
 static void
