@@ -390,6 +390,7 @@ typedef struct _plBindGroupUpdateBufferData
 {
     plBufferHandle tBuffer;
     uint32_t       uSlot;
+    size_t         szOffset;
     size_t         szBufferRange;
 } plBindGroupUpdateBufferData;
 
