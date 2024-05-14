@@ -1898,16 +1898,13 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
     ptVulkanShader->atDescriptorSetLayouts[tShader.tDescription.uBindGroupLayoutCount]  = ptVulkanGfx->tDynamicDescriptorSetLayout;
 
     uint32_t uVertShaderSize0 = 0u;
-    uint32_t uPixelShaderSize0 = 0u;
-
     gptFile->read(tShader.tDescription.pcVertexShader, &uVertShaderSize0, NULL, "rb");
-    gptFile->read(tShader.tDescription.pcPixelShader, &uPixelShaderSize0, NULL, "rb");
-
     char* vertexShaderCode = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, uVertShaderSize0);
-    char* pixelShaderCode  = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, uPixelShaderSize0);
-
     gptFile->read(tShader.tDescription.pcVertexShader, &uVertShaderSize0, vertexShaderCode, "rb");
-    gptFile->read(tShader.tDescription.pcPixelShader, &uPixelShaderSize0, pixelShaderCode, "rb");
+
+
+    
+    uint32_t uStageCount = 1;
 
     VkShaderModuleCreateInfo tVertexShaderCreateInfo = {
         .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -1916,13 +1913,23 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
     };
     PL_VULKAN(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &tVertexShaderCreateInfo, NULL, &ptVulkanShader->tVertexShaderModule));
 
-    VkShaderModuleCreateInfo tPixelShaderCreateInfo = {
-        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = uPixelShaderSize0,
-        .pCode    = (const uint32_t*)(pixelShaderCode),
-    };
 
-    PL_VULKAN(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &tPixelShaderCreateInfo, NULL, &ptVulkanShader->tPixelShaderModule));
+    if(tShader.tDescription.pcPixelShader)
+    {
+        uStageCount++;
+        uint32_t uPixelShaderSize0 = 0u;
+        gptFile->read(tShader.tDescription.pcPixelShader, &uPixelShaderSize0, NULL, "rb");
+        char* pixelShaderCode  = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, uPixelShaderSize0);
+        gptFile->read(tShader.tDescription.pcPixelShader, &uPixelShaderSize0, pixelShaderCode, "rb");
+
+        VkShaderModuleCreateInfo tPixelShaderCreateInfo = {
+            .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .codeSize = uPixelShaderSize0,
+            .pCode    = (const uint32_t*)(pixelShaderCode),
+        };
+
+        PL_VULKAN(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &tPixelShaderCreateInfo, NULL, &ptVulkanShader->tPixelShaderModule));
+    }
 
     pl_temp_allocator_reset(&ptVulkanGfx->tTempAllocator);
 
@@ -2137,7 +2144,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
 
     VkGraphicsPipelineCreateInfo tPipelineInfo = {
         .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .stageCount          = 2,
+        .stageCount          = uStageCount,
         .pStages             = shaderStages,
         .pVertexInputState   = &tVertexInputInfo,
         .pInputAssemblyState = &tInputAssembly,
