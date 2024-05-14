@@ -1006,11 +1006,12 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
         tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
     else if(tDesc.tType == PL_TEXTURE_TYPE_2D)
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
+    else if(tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     else
     {
         PL_ASSERT(false && "unsupported texture type");
     }
-    PL_ASSERT((tDesc.uLayers == 1 || tDesc.uLayers == 6) && "unsupported layer count");
 
     VkImageUsageFlags tUsageFlags = 0;
     if(tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)                  tUsageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
@@ -1115,11 +1116,12 @@ pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plD
         tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
     else if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D)
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
+    else if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     else
     {
         PL_ASSERT(false && "unsupported texture type");
     }
-    PL_ASSERT((ptTexture->tDesc.uLayers == 1 || ptTexture->tDesc.uLayers == 6) && "unsupported layer count");
 
     VkImageViewCreateInfo tViewInfo = {
         .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -1218,8 +1220,18 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    const VkImageViewType tImageViewType = ptViewDesc->uLayerCount == 6 ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D;    
-    PL_ASSERT((ptViewDesc->uLayerCount == 1 || ptViewDesc->uLayerCount == 6) && "unsupported layer count");
+    VkImageViewType tImageViewType = 0;
+    if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_CUBE)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
+    else if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
+    else if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
+        // tImageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    else
+    {
+        PL_ASSERT(false && "unsupported texture type");
+    }
 
     VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
@@ -3720,6 +3732,10 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
             .poolSizeCount = 6,
             .pPoolSizes    = atDynamicPoolSizes,
         };
+        if(ptGraphics->tDevice.bDescriptorIndexing)
+        {
+            tDynamicDescriptorPoolInfo.flags |= VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT;
+        }
         PL_VULKAN(vkCreateDescriptorPool(ptVulkanDevice->tLogicalDevice, &tDynamicDescriptorPoolInfo, NULL, &tFrame.tDynamicDescriptorPool));
 
         ptVulkanGfx->sbFrames[i] = tFrame;
@@ -3862,6 +3878,7 @@ pl_begin_frame(plGraphics* ptGraphics)
     ptCurrentFrame->uCurrentBufferIndex = UINT32_MAX;
 
     PL_VULKAN(vkWaitForFences(ptVulkanDevice->tLogicalDevice, 1, &ptCurrentFrame->tInFlight, VK_TRUE, UINT64_MAX));
+    pl__garbage_collect(ptGraphics);
     
     VkResult err = vkAcquireNextImageKHR(ptVulkanDevice->tLogicalDevice, ptVulkanSwapchain->tSwapChain, UINT64_MAX, ptCurrentFrame->tImageAvailable, VK_NULL_HANDLE, &ptGraphics->tSwapchain.uCurrentImageIndex);
     if(err == VK_SUBOPTIMAL_KHR || err == VK_ERROR_OUT_OF_DATE_KHR)
@@ -4022,9 +4039,7 @@ pl_present(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitI
     {
         PL_VULKAN(tResult);
     }
-
     ptGraphics->uCurrentFrameIndex = (ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;
-    pl__garbage_collect(ptGraphics);
     pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, tCmdBuffer);
     pl_end_profile_sample();
     return true;

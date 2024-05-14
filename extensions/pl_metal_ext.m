@@ -843,7 +843,7 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
     ptTextureDescriptor.width = tDesc.tDimensions.x;
     ptTextureDescriptor.height = tDesc.tDimensions.y;
     ptTextureDescriptor.mipmapLevelCount = tDesc.uMips;
-    ptTextureDescriptor.arrayLength = 1;
+    ptTextureDescriptor.arrayLength = tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY ? tDesc.uLayers : 1;
     ptTextureDescriptor.depth = tDesc.tDimensions.z;
     ptTextureDescriptor.sampleCount = 1;
 
@@ -858,6 +858,8 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
         ptTextureDescriptor.textureType = MTLTextureType2D;
     else if(tDesc.tType == PL_TEXTURE_TYPE_CUBE)
         ptTextureDescriptor.textureType = MTLTextureTypeCube;
+    else if(tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+        ptTextureDescriptor.textureType = MTLTextureType2DArray;
     else
     {
         PL_ASSERT(false && "unsupported texture type");
