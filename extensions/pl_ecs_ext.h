@@ -43,6 +43,8 @@ typedef struct _plCameraI plCameraI;
     #define PL_MAX_NAME_LENGTH 1024
 #endif
 
+#define PL_MAX_SHADOW_CASCADES 4
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -293,7 +295,7 @@ enum _plMeshFormatFlags
 enum _plLightFlags
 {
     PL_LIGHT_FLAG_NONE            = 0,
-    PL_LIGHT_FLAG_HAS_CAST_SHADOW = 1 << 0,
+    PL_LIGHT_FLAG_CAST_SHADOW = 1 << 0,
 };
 
 enum _plLightType
@@ -384,6 +386,8 @@ typedef struct _plLightComponent
     float        fRange;
     plVec3       tPosition;
     plVec3       tDirection;
+    float        afCascadeSplits[PL_MAX_SHADOW_CASCADES];
+    uint32_t     uCascadeCount;
 } plLightComponent;
 
 typedef struct _plObjectComponent

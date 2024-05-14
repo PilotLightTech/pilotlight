@@ -674,14 +674,18 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
             pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
         sbComponents[uComponentIndex] = (plLightComponent){
-            .tPosition  = {0.0f, 0.0f, 0.0f},
-            .tColor     = {1.0f, 1.0f, 1.0f},
-            .tDirection = {0.0f, -1.0f, 0.0f},
-            .fIntensity = 1.0f,
-            .fRange     = 10.0f,
-            .tType      = PL_LIGHT_TYPE_DIRECTIONAL,
-            .tFlags     = 0
+            .tPosition           = {0.0f, 0.0f, 0.0f},
+            .tColor              = {1.0f, 1.0f, 1.0f},
+            .tDirection          = {0.0f, -1.0f, 0.0f},
+            .fIntensity          = 1.0f,
+            .fRange              = 10.0f,
+            .tType               = PL_LIGHT_TYPE_DIRECTIONAL,
+            .uCascadeCount       = 0,
+            .tFlags              = 0,
+            .afCascadeSplits     = {0}
         };
+        for(uint32_t i = 0; i < PL_MAX_SHADOW_CASCADES; i++)
+            sbComponents[uComponentIndex].afCascadeSplits[i] = 8 * powf(10.0f, (float)i);
         return &sbComponents[uComponentIndex];
     }
 

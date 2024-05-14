@@ -154,7 +154,7 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
                     pl_text("Color:       (%0.3f, %0.3f, %0.3f)", ptLightComp->tColor.r, ptLightComp->tColor.g, ptLightComp->tColor.b);
                     pl_text("Direction:   (%0.3f, %0.3f, %0.3f)", ptLightComp->tDirection.r, ptLightComp->tDirection.g, ptLightComp->tDirection.b);
                     pl_text("Intensity:   %0.3f", ptLightComp->fIntensity);
-                    pl_text("Cast Shadow: %s", ptLightComp->tFlags & PL_LIGHT_FLAG_HAS_CAST_SHADOW ? "true" : "false");
+                    pl_text("Cast Shadow: %s", ptLightComp->tFlags & PL_LIGHT_FLAG_CAST_SHADOW ? "true" : "false");
                 }
 
                 if(ptMaterialComp && pl_collapsing_header("Material"))
