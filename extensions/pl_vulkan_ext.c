@@ -1276,7 +1276,7 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc, const char* p
         .addressModeU            = pl__vulkan_wrap(ptDesc->tHorizontalWrap),
         .addressModeV            = pl__vulkan_wrap(ptDesc->tVerticalWrap),
         .anisotropyEnable        = (bool)ptVulkanDevice->tDeviceFeatures.samplerAnisotropy,
-        .maxAnisotropy           = ptVulkanDevice->tDeviceProps.limits.maxSamplerAnisotropy,
+        .maxAnisotropy           = ptDesc->fMaxAnisotropy == 0 ? ptVulkanDevice->tDeviceProps.limits.maxSamplerAnisotropy : ptDesc->fMaxAnisotropy,
         .borderColor             = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
         .unnormalizedCoordinates = VK_FALSE,
         .compareEnable           = VK_FALSE,

@@ -1010,6 +1010,9 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc, const char* p
     samplerDesc.lodMaxClamp = ptDesc->fMaxMip;
     samplerDesc.label = [NSString stringWithUTF8String:pcName];
     samplerDesc.compareFunction = MTLCompareFunctionNever;
+    samplerDesc.maxAnisotropy = ptDesc->fMaxAnisotropy;
+    if(ptDesc->fMaxAnisotropy == 0.0f)
+        samplerDesc.maxAnisotropy = 16.0f;
 
     plMetalSampler tMetalSampler = {
         .tSampler = [ptMetalDevice->tDevice newSamplerStateWithDescriptor:samplerDesc]
