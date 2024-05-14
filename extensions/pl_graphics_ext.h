@@ -611,6 +611,7 @@ typedef struct _plTextureBinding
     uint32_t             uSlot;
     uint32_t             uDescriptorCount; // 0 - will become 1
     plStageFlags         tStages;
+    bool                 bVariableDescriptorCount;
 } plTextureBinding;
 
 typedef struct _plSamplerBinding
