@@ -235,6 +235,7 @@ static MTLStoreAction         pl__metal_store_op  (plStoreOp tOp);
 static MTLDataType            pl__metal_data_type  (plDataType tType);
 static MTLRenderStages        pl__metal_stage_flags(plStageFlags tFlags);
 static bool                   pl__is_depth_format  (plFormat tFormat);
+static bool                   pl__is_stencil_format  (plFormat tFormat);
 static MTLBlendFactor         pl__metal_blend_factor(plBlendFactor tFactor);
 static MTLBlendOperation      pl__metal_blend_op(plBlendOp tOp);
 
@@ -360,7 +361,11 @@ pl_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle
                 if(pl__is_depth_format(ptLayout->tDesc.atRenderTargets[uTargetIndex].tFormat))
                 {
                     ptRenderPassDescriptor.depthAttachment.texture = ptMetalGraphics->sbtTexturesHot[uTextureIndex].tTexture;
-                    ptRenderPassDescriptor.stencilAttachment.texture = ptMetalGraphics->sbtTexturesHot[uTextureIndex].tTexture;
+                    ptRenderPassDescriptor.depthAttachment.slice = ptGraphics->sbtTexturesCold[uTextureIndex].tView.uBaseLayer;
+                    if(pl__is_stencil_format(ptLayout->tDesc.atRenderTargets[uTargetIndex].tFormat))
+                    {
+                        ptRenderPassDescriptor.stencilAttachment.texture = ptMetalGraphics->sbtTexturesHot[uTextureIndex].tTexture;
+                    }
                 }
                 else
                 {
@@ -466,7 +471,6 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
             const plSubpass* ptSubpass = &ptLayout->tDesc.atSubpasses[i];
 
             MTLRenderPassDescriptor* ptRenderPassDescriptor = [MTLRenderPassDescriptor new];
-
             // uint32_t auLastFrames[PL_MAX_RENDER_TARGETS] = {0};
             
             uint32_t uCurrentColorAttachment = 0;
@@ -476,16 +480,23 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
                 const uint32_t uTextureIndex = ptAttachments[uFrameIndex].atViewAttachments[uTargetIndex].uIndex;
                 if(pl__is_depth_format(ptLayout->tDesc.atRenderTargets[uTargetIndex].tFormat))
                 {
+                    bool bStencilIncluded = pl__is_stencil_format(ptLayout->tDesc.atRenderTargets[uTargetIndex].tFormat);
                     if(abTargetSeen[uTargetIndex])
                     {
                         ptRenderPassDescriptor.depthAttachment.loadAction = MTLLoadActionLoad;
-                        ptRenderPassDescriptor.stencilAttachment.loadAction = MTLLoadActionLoad;
+                        if(bStencilIncluded)
+                        {
+                            ptRenderPassDescriptor.stencilAttachment.loadAction = MTLLoadActionLoad;
+                        }
                     }
                     else
                     {
                         
                         ptRenderPassDescriptor.depthAttachment.loadAction = pl__metal_load_op(ptDesc->tDepthTarget.tLoadOp);
-                        ptRenderPassDescriptor.stencilAttachment.loadAction = pl__metal_load_op(ptDesc->tDepthTarget.tStencilLoadOp);
+                        if(bStencilIncluded)
+                        {
+                            ptRenderPassDescriptor.stencilAttachment.loadAction = pl__metal_load_op(ptDesc->tDepthTarget.tStencilLoadOp);
+                        }
                         abTargetSeen[uTargetIndex] = true;
                     }
 
@@ -493,19 +504,29 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
                     if(i == ptLayout->tDesc.uSubpassCount - 1)
                     {
                         ptRenderPassDescriptor.depthAttachment.storeAction = pl__metal_store_op(ptDesc->tDepthTarget.tStoreOp);
-                        ptRenderPassDescriptor.stencilAttachment.storeAction = pl__metal_store_op(ptDesc->tDepthTarget.tStencilStoreOp);
+                        if(bStencilIncluded)
+                        {
+                            ptRenderPassDescriptor.stencilAttachment.storeAction = pl__metal_store_op(ptDesc->tDepthTarget.tStencilStoreOp);
+                        }
                     }
                     else
                     {
                         ptRenderPassDescriptor.depthAttachment.storeAction = MTLStoreActionStore;
-                        ptRenderPassDescriptor.stencilAttachment.storeAction = MTLStoreActionStore;
+                        if(bStencilIncluded)
+                        {
+                            ptRenderPassDescriptor.stencilAttachment.storeAction = MTLStoreActionStore;
+                        }
                     }
                     
                     ptRenderPassDescriptor.depthAttachment.clearDepth = ptDesc->tDepthTarget.fClearZ;
-                    ptRenderPassDescriptor.stencilAttachment.clearStencil = ptDesc->tDepthTarget.uClearStencil;
+
+                    if(bStencilIncluded)
+                    {
+                        ptRenderPassDescriptor.stencilAttachment.clearStencil = ptDesc->tDepthTarget.uClearStencil;
+                        ptRenderPassDescriptor.stencilAttachment.texture = ptMetalGraphics->sbtTexturesHot[uTextureIndex].tTexture;
+                    }
                     ptRenderPassDescriptor.depthAttachment.texture = ptMetalGraphics->sbtTexturesHot[uTextureIndex].tTexture;
-                    ptRenderPassDescriptor.stencilAttachment.texture = ptMetalGraphics->sbtTexturesHot[uTextureIndex].tTexture;
-                    
+                    ptRenderPassDescriptor.depthAttachment.slice = ptGraphics->sbtTexturesCold[uTextureIndex].tView.uBaseLayer;
                     ptLayout->tDesc.atSubpasses[i]._bHasDepth = true;
                 }
                 else
@@ -1520,7 +1541,10 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         if(pl__is_depth_format(ptLayout->tDesc.atRenderTargets[uTargetIndex].tFormat))
         {
             pipelineDescriptor.depthAttachmentPixelFormat = pl__metal_format(ptLayout->tDesc.atRenderTargets[uTargetIndex].tFormat);
-            pipelineDescriptor.stencilAttachmentPixelFormat = pipelineDescriptor.depthAttachmentPixelFormat;
+            if(pl__is_stencil_format(ptLayout->tDesc.atRenderTargets[uTargetIndex].tFormat))
+            {
+                pipelineDescriptor.stencilAttachmentPixelFormat = pipelineDescriptor.depthAttachmentPixelFormat;
+            }
         }
         else
         {
@@ -2644,6 +2668,18 @@ pl__is_depth_format(plFormat tFormat)
     switch(tFormat)
     {
         case PL_FORMAT_D32_FLOAT:
+        case PL_FORMAT_D32_FLOAT_S8_UINT:
+        case PL_FORMAT_D24_UNORM_S8_UINT:
+        case PL_FORMAT_D16_UNORM_S8_UINT: return true;
+    }
+    return false;
+}
+
+static bool
+pl__is_stencil_format(plFormat tFormat)
+{
+    switch(tFormat)
+    {
         case PL_FORMAT_D32_FLOAT_S8_UINT:
         case PL_FORMAT_D24_UNORM_S8_UINT:
         case PL_FORMAT_D16_UNORM_S8_UINT: return true;
