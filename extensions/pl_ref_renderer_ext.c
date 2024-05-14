@@ -1339,7 +1339,9 @@ pl_refr_cleanup(void)
             plRefView* ptView = &ptScene->atViews[j];
             pl_sb_free(ptView->sbtVisibleOpaqueDrawables);
             pl_sb_free(ptView->sbtVisibleTransparentDrawables);
+            pl_sb_free(ptView->sbtLightShadowData);
         }
+        pl_sb_free(ptScene->sbtLightData);
         pl_sb_free(ptScene->sbtVertexPosBuffer);
         pl_sb_free(ptScene->sbtVertexDataBuffer);
         pl_sb_free(ptScene->sbuIndexBuffer);
@@ -2510,6 +2512,40 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
 
     pl_hm_free(&tMaterialBindGroupDict);
     pl_sb_free(sbtMaterialBindGroups);
+
+    pl_begin_profile_sample("shader sort");
+
+    for(uint32_t uDrawableBatchIndex = 0; uDrawableBatchIndex < 2; uDrawableBatchIndex++)
+    {
+        const uint32_t uDrawableCount = pl_sb_size(sbtDrawables[uDrawableBatchIndex]);
+        uint32_t i = 0;
+        uint32_t j = 0;
+        bool bSwapped = false;
+        if(uDrawableCount == 0)
+            continue;
+        for(i = 0; i < uDrawableCount - 1; i++)
+        {
+            bSwapped = false;
+            for (j = 0; j < uDrawableCount - i - 1; j++)
+            {
+                if ((sbtDrawables[uDrawableBatchIndex])[j].tShader.uIndex > (sbtDrawables[uDrawableBatchIndex])[j + 1].tShader.uIndex)
+                {
+                    plDrawable tFirst = (sbtDrawables[uDrawableBatchIndex])[j];
+                    plDrawable tSecond = (sbtDrawables[uDrawableBatchIndex])[j + 1];
+                    (sbtDrawables[uDrawableBatchIndex])[j] = tSecond;
+                    (sbtDrawables[uDrawableBatchIndex])[j + 1] = tFirst;
+                    bSwapped = true;
+                }
+            }
+
+            // If no two elements were swapped
+            // by inner loop, then break
+            if (bSwapped == false)
+                break;
+        }
+    }
+
+    pl_end_profile_sample();
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~GPU Buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
