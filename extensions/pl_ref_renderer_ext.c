@@ -74,6 +74,7 @@ typedef struct _plDrawable
 {
     plEntity          tEntity;
     plBindGroupHandle tMaterialBindGroup;
+    plBindGroupHandle tShadowMaterialBindGroup;
     uint32_t          uDataOffset;
     uint32_t          uVertexOffset;
     uint32_t          uVertexCount;
@@ -81,6 +82,7 @@ typedef struct _plDrawable
     uint32_t          uIndexCount;
     uint32_t          uMaterialIndex;
     plShaderHandle    tShader;
+    plShaderHandle    tShadowShader;
     uint32_t          uSkinIndex;
     bool              bCulled;
 } plDrawable;
@@ -145,7 +147,17 @@ typedef struct _plGPULight
 
     plVec3 tColor;
     float  fRange;
+
+    int iShadowIndex;
+    int iCascadeCount;
+    int _unused[2];
 } plGPULight;
+
+typedef struct _plGPULightShadowData
+{
+	plVec4 cascadeSplits;
+	plMat4 cascadeViewProjMat[4];
+} plGPULightShadowData;
 
 typedef struct _BindGroup_0
 {
@@ -163,6 +175,17 @@ typedef struct _DynamicData
     int    iPadding[1];
     plMat4 tModel;
 } DynamicData;
+
+typedef struct _plShadowData
+{
+    plVec2             tResolution;
+    plTextureHandle    tDepthTexture[PL_FRAMES_IN_FLIGHT];
+    plTextureHandle    atDepthTextureViews[PL_MAX_SHADOW_CASCADES][PL_FRAMES_IN_FLIGHT];
+
+    plRenderPassHandle atOpaqueRenderPasses[PL_MAX_SHADOW_CASCADES];
+
+    plBufferHandle atCameraBuffers[PL_FRAMES_IN_FLIGHT];
+} plShadowData;
 
 typedef struct _plRefView
 {
@@ -195,6 +218,11 @@ typedef struct _plRefView
     // drawing api
     plDrawList3D t3DDrawList;
     plDrawList3D t3DSelectionDrawList;
+
+    // shadows
+    plShadowData tShadowData;
+    plBufferHandle atLightShadowDataBuffer[PL_FRAMES_IN_FLIGHT];
+    plGPULightShadowData* sbtLightShadowData;
 } plRefView;
 
 typedef struct _plRefScene
@@ -259,8 +287,10 @@ typedef struct _plRefRendererData
 
     // main renderpass layout (used as a template for views)
     plRenderPassLayoutHandle tRenderPassLayout;
+    plRenderPassLayoutHandle tDepthRenderPassLayout;
 
     // shader templates (variants are made from these)
+    plShaderHandle tShadowShader;
     plShaderHandle tOpaqueShader;
     plShaderHandle tTransparentShader;
     plShaderHandle tSkyboxShader;
@@ -282,6 +312,7 @@ typedef struct _plRefRendererData
 
     // default textures & samplers & bindgroups
     plSamplerHandle   tDefaultSampler;
+    plSamplerHandle   tShadowSampler;
     plSamplerHandle   tEnvSampler;
     plTextureHandle   tDummyTexture;
     plTextureHandle   tDummyTextureCube;
@@ -399,7 +430,7 @@ pl_refr_initialize(plWindow* ptWindow)
     // create staging buffer
     const plBufferDescription tStagingBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STAGING,
-        .uByteSize = 268435456
+        .uByteSize = 268435456 * 2
     };
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
         gptData->tStagingBufferHandle[i] = pl__refr_create_staging_buffer(&tStagingBufferDesc, "staging", i);
@@ -442,6 +473,17 @@ pl_refr_initialize(plWindow* ptWindow)
     };
     gptData->tDefaultSampler = gptDevice->create_sampler(&ptGraphics->tDevice, &tSamplerDesc, "default sampler");
 
+    const plSamplerDesc tShadowSamplerDesc = {
+        .tFilter         = PL_FILTER_LINEAR,
+        .fMinMip         = 0.0f,
+        .fMaxMip         = 1.0f,
+        .fMaxAnisotropy  = 1.0f,
+        .tVerticalWrap   = PL_WRAP_MODE_CLAMP,
+        .tHorizontalWrap = PL_WRAP_MODE_CLAMP,
+        .tMipmapMode = PL_MIPMAP_MODE_NEAREST
+    };
+    gptData->tShadowSampler = gptDevice->create_sampler(&ptGraphics->tDevice, &tShadowSamplerDesc, "shadow sampler");
+
     const plSamplerDesc tEnvSamplerDesc = {
         .tFilter         = PL_FILTER_NEAREST,
         .fMinMip         = 0.0f,
@@ -483,6 +525,21 @@ pl_refr_initialize(plWindow* ptWindow)
         }
     };
     gptData->tRenderPassLayout = gptDevice->create_render_pass_layout(&gptData->tGraphics.tDevice, &tRenderPassLayoutDesc);
+
+    // create main render pass layout
+    const plRenderPassLayoutDescription tDepthRenderPassLayoutDesc = {
+        .atRenderTargets = {
+            { .tFormat = PL_FORMAT_D32_FLOAT },  // depth buffer
+        },
+        .uSubpassCount = 1,
+        .atSubpasses = {
+            {
+                .uRenderTargetCount = 1,
+                .auRenderTargets = {0},
+            }
+        }
+    };
+    gptData->tDepthRenderPassLayout = gptDevice->create_render_pass_layout(&gptData->tGraphics.tDevice, &tDepthRenderPassLayoutDesc);
 
     // create template shaders
 
@@ -652,13 +709,18 @@ pl_refr_initialize(plWindow* ptWindow)
                 }
             },
             {
-                .uBufferBindingCount  = 1,
+                .uBufferBindingCount  = 2,
                 .aBufferBindings = {
-                    {
-                        .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
-                        .uSlot = 0,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-                    }
+                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                    { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                },
+                .uTextureBindingCount  = 1,
+                .atTextureBindings = {
+                    {.uSlot = 2, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4},
+                },
+                .uSamplerBindingCount = 1,
+                .atSamplerBindings = {
+                    {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                 },
             },
             {
@@ -739,6 +801,69 @@ pl_refr_initialize(plWindow* ptWindow)
         tOutlineShaderDescription.atConstants[i].tType = PL_DATA_TYPE_INT;
     }
     gptData->tOutlineShader = gptDevice->create_shader(&gptData->tGraphics.tDevice, &tOutlineShaderDescription);
+
+    plShaderDescription tShadowShaderDescription = {
+
+        #ifdef PL_METAL_BACKEND
+        .pcVertexShader = "../shaders/metal/shadow.metal",
+        .pcPixelShader = "../shaders/metal/shadow.metal",
+        #else
+        .pcVertexShader = "shadow.vert.spv",
+        .pcPixelShader = "shadow.frag.spv",
+        #endif
+        .tGraphicsState = {
+            .ulDepthWriteEnabled  = 1,
+            .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
+            .ulCullMode           = PL_CULL_MODE_NONE,
+            .ulWireframe          = 0,
+            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
+            .ulStencilRef         = 0xff,
+            .ulStencilMask        = 0xff,
+            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+        },
+        .tVertexBufferBinding = {
+            .uByteStride = sizeof(float) * 3,
+            .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
+        },
+        .uConstantCount = 4,
+        .pTempConstantData = aiConstantData,
+        .atBlendStates = {
+            pl__get_blend_state(PL_BLEND_MODE_ALPHA)
+        },
+        .uBlendStateCount = 1,
+        .tRenderPassLayout = gptData->tDepthRenderPassLayout,
+        .uSubpassIndex = 0,
+        .uBindGroupLayoutCount = 2,
+        .atBindGroupLayouts = {
+            {
+                .uBufferBindingCount  = 3,
+                .aBufferBindings = {
+                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                    { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                    { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                },
+                .uSamplerBindingCount = 1,
+                .atSamplerBindings = {
+                    {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                },
+            },
+            {
+                .uTextureBindingCount  = 1,
+                .atTextureBindings = {
+                    {.uSlot = 0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
+                }
+            }
+        }
+    };
+    for(uint32_t i = 0; i < tShadowShaderDescription.uConstantCount; i++)
+    {
+        tShadowShaderDescription.atConstants[i].uID = i;
+        tShadowShaderDescription.atConstants[i].uOffset = i * sizeof(int);
+        tShadowShaderDescription.atConstants[i].tType = PL_DATA_TYPE_INT;
+    }
+    gptData->tShadowShader = gptDevice->create_shader(&gptData->tGraphics.tDevice, &tShadowShaderDescription);
 }
 
 static uint32_t
@@ -785,6 +910,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     plRefView* ptView = &ptScene->atViews[uViewHandle];
 
     ptView->tTargetSize = tDimensions;
+    ptView->tShadowData.tResolution.x = 1024.0f * 4.0f;
+    ptView->tShadowData.tResolution.y = 1024.0f * 4.0f;
 
     // create offscreen per-frame resources
     const plTextureDesc tFinalTextureDesc = {
@@ -817,8 +944,28 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .tInitialUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT
     };
 
+    const plTextureDesc tShadowDepthTextureDesc = {
+        .tDimensions   = {ptView->tShadowData.tResolution.x, ptView->tShadowData.tResolution.y, 1},
+        .tFormat       = PL_FORMAT_D32_FLOAT,
+        .uLayers       = 4,
+        .uMips         = 1,
+        .tType         = PL_TEXTURE_TYPE_2D_ARRAY,
+        .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
+        .tInitialUsage = PL_TEXTURE_USAGE_SAMPLED
+    };
+
     const plBufferDescription atGlobalBuffersDesc = {
         .tUsage    = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
+        .uByteSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE
+    };
+
+    const plBufferDescription atCameraBuffersDesc = {
+        .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .uByteSize = 4096
+    };
+
+    const plBufferDescription atLightShadowDataBufferDesc = {
+        .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
         .uByteSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE
     };
 
@@ -836,6 +983,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 
     // create offscreen render pass
     plRenderPassAttachments atAttachmentSets[PL_FRAMES_IN_FLIGHT] = {0};
+    plRenderPassAttachments atShadowAttachmentSets[PL_MAX_SHADOW_CASCADES][PL_FRAMES_IN_FLIGHT] = {0};
 
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {
@@ -847,13 +995,13 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         ptView->tEmissiveTexture[i]         = pl__refr_create_texture(&tAttachmentTextureDesc, "emissive original",        i);
         ptView->tAOMetalRoughnessTexture[i] = pl__refr_create_texture(&tAttachmentTextureDesc, "metalroughness original",  i);
         ptView->tDepthTexture[i]            = pl__refr_create_texture(&tDepthTextureDesc,      "offscreen depth original", i);
-
+        
         // texture IDs
         ptView->tFinalTextureID[i] = gptGfx->get_ui_texture_handle(ptGraphics, ptView->tFinalTexture[i], gptData->tDefaultSampler);
 
         // buffers
         ptView->atGlobalBuffers[i] = pl__refr_create_staging_buffer(&atGlobalBuffersDesc, "global", i);
-
+        
         // lighting bind group
         plTempAllocator tTempAllocator = {0};
         ptView->tLightingBindGroup[i] = gptDevice->create_bind_group(&ptGraphics->tDevice, &tLightingBindGroupLayout, pl_temp_allocator_sprintf(&tTempAllocator, "lighting bind group%u", i));
@@ -905,6 +1053,27 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         atAttachmentSets[i].atViewAttachments[4] = ptView->tPositionTexture[i];
         atAttachmentSets[i].atViewAttachments[5] = ptView->tEmissiveTexture[i];
         atAttachmentSets[i].atViewAttachments[6] = ptView->tAOMetalRoughnessTexture[i];
+
+
+        ptView->atLightShadowDataBuffer[i] = pl__refr_create_staging_buffer(&atLightShadowDataBufferDesc, "shadow", i);
+        ptView->tShadowData.atCameraBuffers[i] = pl__refr_create_staging_buffer(&atCameraBuffersDesc, "shadow buffer", i);
+        ptView->tShadowData.tDepthTexture[i] = pl__refr_create_texture(&tShadowDepthTextureDesc, "shadow map", i);
+
+        plTextureViewDesc tShadowDepthView = {
+            .tFormat     = PL_FORMAT_D32_FLOAT,
+            .uBaseMip    = 0,
+            .uMips       = 1,
+            .uBaseLayer  = 0,
+            .uLayerCount = 1,
+            .tTexture   = ptView->tShadowData.tDepthTexture[i]
+        };
+        for(uint32_t j = 0; j < 4; j++)
+        {
+            // atDepthTextureViews
+            tShadowDepthView.uBaseLayer = j;
+            (ptView->tShadowData.atDepthTextureViews[j])[i] = gptDevice->create_texture_view(&ptGraphics->tDevice, &tShadowDepthView, "shadow view");
+            (atShadowAttachmentSets[j])[i].atViewAttachments[0] = (ptView->tShadowData.atDepthTextureViews[j])[i];
+        }
     }
 
     const plRenderPassDescription tRenderPassDesc = {
@@ -998,6 +1167,25 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     pl_sb_push(ptScene->sbtVertexDataBuffer, ((plVec4){ 1.0f, 1.0f})); 
     pl_sb_push(ptScene->sbtVertexDataBuffer, ((plVec4){ 1.0f, 0.0f})); 
 
+    const plRenderPassDescription tDepthRenderPassDesc = {
+        .tLayout = gptData->tDepthRenderPassLayout,
+        .tDepthTarget = {
+                .tLoadOp         = PL_LOAD_OP_CLEAR,
+                .tStoreOp        = PL_STORE_OP_STORE,
+                .tStencilLoadOp  = PL_LOAD_OP_CLEAR,
+                .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
+                .tCurrentUsage   = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage      = PL_TEXTURE_USAGE_SAMPLED,
+                .fClearZ         = 1.0f
+        },
+        .tDimensions = {.x = ptView->tShadowData.tResolution.x, .y = ptView->tShadowData.tResolution.y}
+    };
+
+    for(uint32_t i = 0; i < 4; i++)
+    {
+        ptView->tShadowData.atOpaqueRenderPasses[i] = gptDevice->create_render_pass(&ptGraphics->tDevice, &tDepthRenderPassDesc, atShadowAttachmentSets[i]);
+    }
+
     return uViewHandle;
 }
 
@@ -1067,6 +1255,8 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
         gptDevice->queue_texture_for_deletion(ptDevice, ptView->tAlbedoTexture[i]);
         gptDevice->queue_texture_for_deletion(ptDevice, ptView->tNormalTexture[i]);
         gptDevice->queue_texture_for_deletion(ptDevice, ptView->tPositionTexture[i]);
+        gptDevice->queue_texture_for_deletion(ptDevice, ptView->tEmissiveTexture[i]);
+        gptDevice->queue_texture_for_deletion(ptDevice, ptView->tAOMetalRoughnessTexture[i]);
         gptDevice->queue_texture_for_deletion(ptDevice, ptView->tDepthTexture[i]);
         gptDevice->queue_bind_group_for_deletion(ptDevice, ptView->tLightingBindGroup[i]);
 
@@ -1481,7 +1671,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 4);
 
         // vertices (position)
-        const float fCubeSide = 0.5f;
+        const float fCubeSide = 1.0f;
         pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){-fCubeSide, -fCubeSide, -fCubeSide}));
         pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){ fCubeSide, -fCubeSide, -fCubeSide}));
         pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){-fCubeSide,  fCubeSide, -fCubeSide}));
@@ -2275,6 +2465,44 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
             };
 
             (sbtDrawables[uDrawableBatchIndex])[i].tShader = pl__get_shader_variant(uSceneHandle, atTemplateShaders[uDrawableBatchIndex], &tVariant);
+
+            if(uDrawableBatchIndex > 0)
+            {
+                const plShaderVariant tShadowVariant = {
+                    .pTempConstantData = aiConstantData0,
+                    .tGraphicsState    = {
+                        .ulDepthWriteEnabled  = 1,
+                        .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
+                        .ulCullMode           = PL_CULL_MODE_NONE,
+                        .ulWireframe          = 0,
+                        .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                        .ulStencilRef         = 0xff,
+                        .ulStencilMask        = 0xff,
+                        .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+                        .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                        .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+                    }
+                };
+                (sbtDrawables[uDrawableBatchIndex])[i].tShadowShader = pl__get_shader_variant(uSceneHandle, gptData->tShadowShader, &tShadowVariant);
+
+                plBindGroupLayout tMaterialBindGroupLayout = {
+                    .uTextureBindingCount = 1,
+                    .atTextureBindings = {
+                        {.uSlot =  0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                    }
+                };
+                (sbtDrawables[uDrawableBatchIndex])[i].tShadowMaterialBindGroup = gptDevice->create_bind_group(ptDevice, &tMaterialBindGroupLayout, "material bind group");
+
+                const plBindGroupUpdateTextureData tTextureData[] = 
+                {
+                    {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_BASE_COLOR_MAP, true, 0), .uSlot =  0, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
+                };
+                const plBindGroupUpdateData tBGData1 = {
+                    .uTextureCount = 1,
+                    .atTextures = tTextureData
+                };
+                gptDevice->update_bind_group(ptDevice, (sbtDrawables[uDrawableBatchIndex])[i].tShadowMaterialBindGroup, &tBGData1);
+            }
         }
     }
 
@@ -2444,13 +2672,18 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                  },
             },
             {
-                .uBufferBindingCount  = 1,
+                .uBufferBindingCount  = 2,
                 .aBufferBindings = {
-                    {
-                        .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
-                        .uSlot = 0,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-                    }
+                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                    { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                },
+                .uTextureBindingCount  = 1,
+                .atTextureBindings = {
+                    {.uSlot = 2, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4},
+                },
+                .uSamplerBindingCount = 1,
+                .atSamplerBindings = {
+                    {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                 },
             }
         }
@@ -2600,6 +2833,316 @@ pl__refr_cull_job(uint32_t uJobIndex, void* pData)
     {
         ptCullData->atDrawables[uJobIndex].bCulled = false;
     }
+}
+
+static void
+pl_refr_generate_cascaded_shadow_map(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plEntity tCamera, plEntity tLight, float fCascadeSplitLambda)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+
+    // for convience
+    plGraphics*   ptGraphics = &gptData->tGraphics;
+    plDevice*     ptDevice   = &ptGraphics->tDevice;
+    plDrawStream* ptStream   = &gptData->tDrawStream;
+    plRefScene*   ptScene    = &gptData->sbtScenes[uSceneHandle];
+    plRefView*    ptView     = &ptScene->atViews[uViewHandle];
+
+    plCameraComponent* ptSceneCamera = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, tCamera);
+    plLightComponent* ptLight = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_LIGHT, tLight);
+
+
+    if(!(ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW))
+    {
+        pl_end_profile_sample();
+        return;
+    }
+    pl_sb_reset(ptView->sbtLightShadowData);
+    pl_sb_add(ptView->sbtLightShadowData);
+    plGPULightShadowData* ptShadowData = &ptView->sbtLightShadowData[pl_sb_size(ptView->sbtLightShadowData) - 1];
+
+    const float fNearClip = ptSceneCamera->fNearZ;
+    const float fFarClip = ptSceneCamera->fFarZ;
+    const float fClipRange = fFarClip - fNearClip;
+
+    const float fMinZ = fNearClip;
+    const float fMaxZ = fNearClip + fClipRange;
+
+    const float fRange = fMaxZ - fMinZ;
+    const float fRatio = fMaxZ / fMinZ;
+
+    BindGroup_0 atBindGroupBuffer[PL_MAX_SHADOW_CASCADES] = {0};
+    float fLastSplitDist = 0.0;
+    float afLambdaCascadeSplits[PL_MAX_SHADOW_CASCADES] = {0};
+    for(uint32_t uCascade = 0; uCascade < ptLight->uCascadeCount; uCascade++)
+    {
+        float fSplitDist = 0.0f;
+        if(fCascadeSplitLambda > 0.0f)
+        {
+            const float p = (uCascade + 1) / (float)ptLight->uCascadeCount;
+            const float fLog = fMinZ * powf(fRatio, p);
+            const float fUniform = fMinZ + fRange * p;
+            const float fD = fCascadeSplitLambda * (fLog - fUniform) + fUniform;
+            afLambdaCascadeSplits[uCascade] = (fD - fNearClip) / fClipRange;
+            fSplitDist = afLambdaCascadeSplits[uCascade];
+            ptShadowData->cascadeSplits.d[uCascade] = (fNearClip + fSplitDist * fClipRange);
+        }
+        else
+        {
+            fSplitDist = ptLight->afCascadeSplits[uCascade] / fClipRange;
+            ptShadowData->cascadeSplits.d[uCascade] = ptLight->afCascadeSplits[uCascade];
+        }
+
+        plVec3 atCameraCorners[] = {
+            { -1.0f,  1.0f, 0.0f },
+            { -1.0f, -1.0f, 0.0f },
+            {  1.0f, -1.0f, 0.0f },
+            {  1.0f,  1.0f, 0.0f },
+            { -1.0f,  1.0f, 1.0f },
+            { -1.0f, -1.0f, 1.0f },
+            {  1.0f, -1.0f, 1.0f },
+            {  1.0f,  1.0f, 1.0f },
+        };
+        plMat4 tCameraInversion = pl_mul_mat4(&ptSceneCamera->tProjMat, &ptSceneCamera->tViewMat);
+        tCameraInversion = pl_mat4_invert(&tCameraInversion);
+        for(uint32_t i = 0; i < 8; i++)
+        {
+            plVec4 tInvCorner = pl_mul_mat4_vec4(&tCameraInversion, (plVec4){.xyz = atCameraCorners[i], .w = 1.0f});
+            atCameraCorners[i] = pl_div_vec3_scalarf(tInvCorner.xyz, tInvCorner.w);
+        }
+
+        for(uint32_t i = 0; i < 4; i++)
+        {
+            const plVec3 tDist = pl_sub_vec3(atCameraCorners[i + 4], atCameraCorners[i]);
+            atCameraCorners[i + 4] = pl_add_vec3(atCameraCorners[i], pl_mul_vec3_scalarf(tDist, fSplitDist));
+            atCameraCorners[i] = pl_add_vec3(atCameraCorners[i], pl_mul_vec3_scalarf(tDist, fLastSplitDist));
+        }
+
+        // get frustum center
+        plVec3 tFrustumCenter = {0};
+        for(uint32_t i = 0; i < 8; i++)
+            tFrustumCenter = pl_add_vec3(tFrustumCenter, atCameraCorners[i]);
+        tFrustumCenter = pl_div_vec3_scalarf(tFrustumCenter, 8.0f);
+
+        float fRadius = 0.0f;
+        for (uint32_t i = 0; i < 8; i++)
+        {
+            float fDistance = pl_length_vec3(pl_sub_vec3(atCameraCorners[i], tFrustumCenter));
+            fRadius = pl_max(fRadius, fDistance);
+        }
+        fRadius = ceilf(fRadius * 16.0f) / 16.0f;
+
+        plVec3 tDirection = ptLight->tDirection;
+
+        tDirection = pl_norm_vec3(tDirection);
+        plVec3 tEye = pl_sub_vec3(tFrustumCenter, pl_mul_vec3_scalarf(tDirection, fRadius + 50.0f));
+
+        plCameraComponent tShadowCamera = {
+            .tType = PL_CAMERA_TYPE_ORTHOGRAPHIC
+        };
+        gptCamera->look_at(&tShadowCamera, tEye, tFrustumCenter);
+        tShadowCamera.fWidth = fRadius * 2.0f;
+        tShadowCamera.fHeight = fRadius * 2.0f;
+        tShadowCamera.fNearZ = 0;
+        tShadowCamera.fFarZ = fRadius * 2.0f + 50.0f;
+        gptCamera->update(&tShadowCamera);
+        fLastSplitDist = fSplitDist;
+
+        atBindGroupBuffer[uCascade].tCameraPos.xyz = tShadowCamera.tPos;
+        atBindGroupBuffer[uCascade].tCameraProjection = tShadowCamera.tProjMat;
+        atBindGroupBuffer[uCascade].tCameraView = tShadowCamera.tViewMat;
+        atBindGroupBuffer[uCascade].tCameraViewProjection = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
+        ptShadowData->cascadeViewProjMat[uCascade] = atBindGroupBuffer[uCascade].tCameraViewProjection;
+    }
+
+    char* pcBufferStart = ptGraphics->sbtBuffersCold[ptView->tShadowData.atCameraBuffers[ptGraphics->uCurrentFrameIndex].uIndex].tMemoryAllocation.pHostMapped;
+    memcpy(pcBufferStart, atBindGroupBuffer, sizeof(BindGroup_0) * ptLight->uCascadeCount);
+
+    plBindGroupLayout tBindGroupLayout0 = {
+        .uBufferBindingCount  = 3,
+        .aBufferBindings = {
+            {
+                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                .uSlot = 0,
+                .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+            },
+            {
+                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                .uSlot = 1,
+                .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+            },
+            {
+                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                .uSlot = 2,
+                .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+            },
+        },
+        .uSamplerBindingCount = 1,
+        .atSamplerBindings = {
+            {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+        },
+    };
+    plBindGroupHandle tGlobalBG = gptDevice->get_temporary_bind_group(ptDevice, &tBindGroupLayout0, "temporary global bind group");
+
+    const plBindGroupUpdateBufferData atBufferData[] = 
+    {
+        {
+            .tBuffer       = ptView->tShadowData.atCameraBuffers[ptGraphics->uCurrentFrameIndex],
+            .uSlot         = 0,
+            .szBufferRange = sizeof(BindGroup_0) * ptLight->uCascadeCount
+        },
+        {
+            .tBuffer       = ptScene->tStorageBuffer,
+            .uSlot         = 1,
+            .szBufferRange = sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer)
+        },
+        {
+            .tBuffer       = ptScene->tMaterialDataBuffer,
+            .uSlot         = 2,
+            .szBufferRange = sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer)
+        },
+    };
+
+    plBindGroupUpdateSamplerData tSamplerData[] = {
+        {
+            .tSampler = gptData->tDefaultSampler,
+            .uSlot    = 3
+        }
+    };
+
+    plBindGroupUpdateData tBGData0 = {
+        .uBufferCount = 3,
+        .atBuffers = atBufferData,
+        .uSamplerCount = 1,
+        .atSamplerBindings = tSamplerData
+    };
+    gptDevice->update_bind_group(&ptGraphics->tDevice, tGlobalBG, &tBGData0);
+
+
+    plBindGroupLayout tOpaqueBG1Layout = {
+        .uTextureBindingCount  = 1,
+        .atTextureBindings = {
+            {.uSlot = 0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
+        }
+    };
+    plBindGroupHandle tOpaqueBG1 = gptDevice->get_temporary_bind_group(ptDevice, &tOpaqueBG1Layout, "temporary opaque bind group");
+    const plBindGroupUpdateTextureData tTextureData[] = {
+        {
+            .tTexture = gptData->tDummyTexture,
+            .uSlot    = 0,
+            .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED,
+            .uIndex = 0
+        }
+    };
+
+    plBindGroupUpdateData tBGData1 = {
+        .uTextureCount = 1,
+        .atTextures = tTextureData
+    };
+    gptDevice->update_bind_group(&ptGraphics->tDevice, tOpaqueBG1, &tBGData1);
+
+    gptGfx->reset_draw_stream(ptStream);
+
+    const uint32_t uOpaqueDrawableCount = pl_sb_size(ptScene->sbtOpaqueDrawables);
+    const uint32_t uTransparentDrawableCount = pl_sb_size(ptScene->sbtTransparentDrawables);
+
+    const plVec2 tDimensions = ptGraphics->sbtRenderPassesCold[ptView->tShadowData.atOpaqueRenderPasses[0].uIndex].tDesc.tDimensions;
+
+    plDrawArea tArea = {
+       .ptDrawStream = ptStream,
+       .tScissor = {
+            .uWidth  = (uint32_t)tDimensions.x,
+            .uHeight = (uint32_t)tDimensions.y,
+       },
+       .tViewport = {
+            .fWidth  = tDimensions.x,
+            .fHeight = tDimensions.y,
+            .fMaxDepth = 1.0f
+       }
+    };
+
+    typedef struct _plShadowDynamicData
+    {
+        int    iIndex;
+        int    iDataOffset;
+        int    iVertexOffset;
+        int    iMaterialIndex;
+        plMat4 tModel;
+    } plShadowDynamicData;
+
+    for(uint32_t uCascade = 0; uCascade < ptLight->uCascadeCount; uCascade++)
+    {
+        plRenderEncoder tEncoder = gptGfx->begin_render_pass(ptGraphics, &tCommandBuffer, ptView->tShadowData.atOpaqueRenderPasses[uCascade]);
+
+        for(uint32_t i = 0; i < uOpaqueDrawableCount; i++)
+        {
+            const plDrawable tDrawable = ptScene->sbtOpaqueDrawables[i];
+            plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
+            plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+            
+            plDynamicBinding tDynamicBinding = gptDevice->allocate_dynamic_data(ptDevice, sizeof(plShadowDynamicData));
+
+            plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+            ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+            ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
+            ptDynamicData->tModel = ptTransform->tWorld;
+            ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+            ptDynamicData->iIndex = (int)uCascade;
+
+            gptGfx->add_to_stream(ptStream, (plStreamDraw)
+            {
+                .uShaderVariant       = gptData->tShadowShader.uIndex,
+                .uDynamicBuffer       = tDynamicBinding.uBufferHandle,
+                .uVertexBuffer        = ptScene->tVertexBuffer.uIndex,
+                .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
+                .uIndexOffset         = tDrawable.uIndexOffset,
+                .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                .uBindGroup0          = tGlobalBG.uIndex,
+                .uBindGroup1          = tOpaqueBG1.uIndex,
+                .uBindGroup2          = UINT32_MAX,
+                .uDynamicBufferOffset = tDynamicBinding.uByteOffset,
+                .uInstanceStart       = 0,
+                .uInstanceCount       = 1
+            });
+        }
+
+        for(uint32_t i = 0; i < uTransparentDrawableCount; i++)
+        {
+            const plDrawable tDrawable = ptScene->sbtTransparentDrawables[i];
+            plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
+            plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+            
+            plDynamicBinding tDynamicBinding = gptDevice->allocate_dynamic_data(ptDevice, sizeof(plShadowDynamicData));
+
+            plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+            ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+            ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
+            ptDynamicData->tModel = ptTransform->tWorld;
+            ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+            ptDynamicData->iIndex = (int)uCascade;
+
+            gptGfx->add_to_stream(ptStream, (plStreamDraw)
+            {
+                .uShaderVariant       = tDrawable.tShadowShader.uIndex,
+                .uDynamicBuffer       = tDynamicBinding.uBufferHandle,
+                .uVertexBuffer        = ptScene->tVertexBuffer.uIndex,
+                .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
+                .uIndexOffset         = tDrawable.uIndexOffset,
+                .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                .uBindGroup0          = tGlobalBG.uIndex,
+                .uBindGroup1          = tDrawable.tShadowMaterialBindGroup.uIndex,
+                .uBindGroup2          = UINT32_MAX,
+                .uDynamicBufferOffset = tDynamicBinding.uByteOffset,
+                .uInstanceStart       = 0,
+                .uInstanceCount       = 1
+            });
+        }
+
+        gptGfx->draw_stream(&tEncoder, 1, &tArea);
+        gptGfx->reset_draw_stream(ptStream);
+        gptGfx->end_render_pass(&tEncoder);
+    }
+
+    pl_end_profile_sample();
 }
 
 static void
@@ -2856,10 +3399,14 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     gptGfx->next_subpass(&tEncoder);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~lights~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    plBuffer* ptShadowDataBuffer = gptDevice->get_buffer(ptDevice, ptView->atLightShadowDataBuffer[ptGraphics->uCurrentFrameIndex]);
+    memcpy(ptShadowDataBuffer->tMemoryAllocation.pHostMapped, ptView->sbtLightShadowData, sizeof(plGPULightShadowData) * pl_sb_size(ptView->sbtLightShadowData));
+    
     const plLightComponent* sbtLights = ptScene->tComponentLibrary.tLightComponentManager.pComponents;
     pl_sb_reset(ptScene->sbtLightData);
     pl_sb_resize(ptScene->sbtLightData, pl_sb_size(sbtLights));
-
+    int iShadowIndex = 0;
     for(uint32_t i = 0; i < pl_sb_size(sbtLights); i++)
     {
         const plLightComponent* ptLight = &sbtLights[i];
@@ -2870,26 +3417,58 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
             .iType      = ptLight->tType,
             .tPosition  = ptLight->tPosition,
             .tDirection = ptLight->tDirection,
-            .tColor     = ptLight->tColor
+            .tColor     = ptLight->tColor,
+            .iShadowIndex = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW ? iShadowIndex++ : 0,
+            .iCascadeCount = (int)ptLight->uCascadeCount
         };
         ptScene->sbtLightData[i] = tLight;
     }
 
     const plBindGroupLayout tLightBindGroupLayout2 = {
-        .uBufferBindingCount = 1,
+        .uBufferBindingCount = 2,
         .aBufferBindings = {
-            { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX}
-        }
+            { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
+            { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX}
+        },
+        .uTextureBindingCount  = 1,
+        .atTextureBindings = {
+            {.uSlot = 2, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4},
+        },
+        .uSamplerBindingCount = 1,
+        .atSamplerBindings = {
+            {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+        },
     };
     plBindGroupHandle tLightBindGroup2 = gptDevice->get_temporary_bind_group(ptDevice, &tLightBindGroupLayout2, "light bind group 2");
 
     const plBindGroupUpdateBufferData atLightBufferData[] = 
     {
-        { .uSlot = 0, .tBuffer = ptScene->atLightBuffer[ptGraphics->uCurrentFrameIndex], .szBufferRange = sizeof(plGPULight) * pl_sb_size(ptScene->sbtLightData)}
+        { .uSlot = 0, .tBuffer = ptScene->atLightBuffer[ptGraphics->uCurrentFrameIndex], .szBufferRange = sizeof(plGPULight) * pl_sb_size(ptScene->sbtLightData)},
+        { .uSlot = 1, .tBuffer = ptView->atLightShadowDataBuffer[ptGraphics->uCurrentFrameIndex], .szBufferRange = sizeof(plGPULightShadowData) * pl_sb_size(ptView->sbtLightShadowData)}
     };
+    plBindGroupUpdateTextureData atBGTextureData[4] = {0};
+    for(uint32_t i = 0; i < 4; i++)
+    {
+        atBGTextureData[i].tTexture = (ptView->tShadowData.atDepthTextureViews[i])[ptGraphics->uCurrentFrameIndex];
+        atBGTextureData[i].uSlot = 2;
+        atBGTextureData[i].uIndex = i;
+        atBGTextureData[i].tType = PL_TEXTURE_BINDING_TYPE_SAMPLED;
+    }
+
+    plBindGroupUpdateSamplerData tShadowSamplerData[] = {
+        {
+            .tSampler = gptData->tShadowSampler,
+            .uSlot    = 3
+        }
+    };
+
     plBindGroupUpdateData tBGData2 = {
-        .uBufferCount = 1,
+        .uBufferCount = 2,
         .atBuffers = atLightBufferData,
+        .uTextureCount = 4,
+        .atTextures = atBGTextureData,
+        .uSamplerCount = 1,
+        .atSamplerBindings = tShadowSamplerData
     };
     gptDevice->update_bind_group(&ptGraphics->tDevice, tLightBindGroup2, &tBGData2);
     plBuffer* ptLightingBuffer = gptDevice->get_buffer(ptDevice, ptScene->atLightBuffer[ptGraphics->uCurrentFrameIndex]);
@@ -3124,6 +3703,14 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
     gptGfx->submit_3d_drawlist(&ptView->t3DSelectionDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
     gptGfx->end_render_pass(&tEncoder);
     pl_end_profile_sample();
+}
+
+static plDrawList3D*
+pl_refr_get_debug_drawlist(uint32_t uSceneHandle, uint32_t uViewHandle)
+{
+    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+    plRefView* ptView = &ptScene->atViews[uViewHandle];
+    return &ptView->t3DDrawList;
 }
 
 static plTextureId
@@ -4193,6 +4780,8 @@ pl_load_ref_renderer_api(void)
         .render_scene                  = pl_refr_render_scene,
         .get_view_texture_id           = pl_refr_get_view_texture_id,
         .resize_view                   = pl_refr_resize_view,
+        .get_debug_drawlist            = pl_refr_get_debug_drawlist,
+        .generate_cascaded_shadow_map  = pl_refr_generate_cascaded_shadow_map,
     };
     return &tApi;
 }

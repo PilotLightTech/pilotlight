@@ -9,6 +9,15 @@ struct plLightData
 
     vec3  tColor;
     float fRange;
+
+    int iShadowIndex;
+    int iCascadeCount;
+};
+
+struct plLightShadowData
+{
+	vec4 cascadeSplits;
+	mat4 cascadeViewProjMat[4];
 };
 
 float
