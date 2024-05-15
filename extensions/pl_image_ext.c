@@ -70,7 +70,7 @@ pl__write_hdr(char const *pcFileName, int iW, int iH, int iComp, const float *pf
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-const plImageI*
+static const plImageI*
 pl_load_image_api(void)
 {
     static const plImageI tApi = {

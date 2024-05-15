@@ -89,7 +89,7 @@ static const char** pl__get_names       (uint32_t* puCount);
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-const plStatsI*
+static const plStatsI*
 pl_load_stats_api(void)
 {
     static const plStatsI tApi = {

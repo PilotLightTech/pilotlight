@@ -9,7 +9,6 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] APIs
 // [SECTION] forward declarations
-// [SECTION] public api
 // [SECTION] public api structs
 // [SECTION] structs
 */
@@ -58,12 +57,6 @@ typedef struct _plJobDesc plJobDesc;
 
 // external
 typedef struct _plAtomicCounter plAtomicCounter; // pl_os.h
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api
-//-----------------------------------------------------------------------------
-
-const plJobI* pl_load_job_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs

@@ -8,7 +8,6 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] defines
 // [SECTION] apis
-// [SECTION] public api
 // [SECTION] public api structs
 */
 
@@ -42,12 +41,6 @@ Index of this file:
 
 #define PL_API_STATS "PL_API_STATS"
 typedef struct _plStatsI plStatsI;
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api
-//-----------------------------------------------------------------------------
-
-const plStatsI* pl_load_stats_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs

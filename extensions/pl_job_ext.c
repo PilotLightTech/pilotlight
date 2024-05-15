@@ -418,7 +418,7 @@ pl__cleanup(void)
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-const plJobI*
+static const plJobI*
 pl_load_job_api(void)
 {
     static const plJobI tApi = {

@@ -125,7 +125,7 @@ pl_ecs_has_entity(plComponentManager* ptManager, plEntity tEntity)
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-const plEcsI*
+static const plEcsI*
 pl_load_ecs_api(void)
 {
     static const plEcsI tApi = {
@@ -164,7 +164,7 @@ pl_load_ecs_api(void)
     return &tApi;
 }
 
-const plCameraI*
+static const plCameraI*
 pl_load_camera_api(void)
 {
     static const plCameraI tApi = {

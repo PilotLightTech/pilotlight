@@ -6,7 +6,6 @@
 Index of this file:
 // [SECTION] header mess
 // [SECTION] apis
-// [SECTION] public api
 // [SECTION] public api structs
 */
 
@@ -44,12 +43,6 @@ typedef struct _plResourceHandle plResourceHandle;
 
 // enums
 typedef int plResourceLoadFlags;
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api
-//-----------------------------------------------------------------------------
-
-const plResourceI* pl_load_resource_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct

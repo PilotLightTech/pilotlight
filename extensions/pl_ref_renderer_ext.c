@@ -4796,7 +4796,7 @@ pl__refr_create_local_buffer(const plBufferDescription* ptDesc, const char* pcNa
 // [SECTION] public API implementation
 //-----------------------------------------------------------------------------
 
-const plRefRendererI*
+static const plRefRendererI*
 pl_load_ref_renderer_api(void)
 {
     static const plRefRendererI tApi = {

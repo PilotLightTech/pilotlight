@@ -8,7 +8,6 @@ Index of this file:
 // [SECTION] apis
 // [SECTION] defines
 // [SECTION] forward declarations & basic types
-// [SECTION] public api
 // [SECTION] public api structs
 // [SECTION] enums
 // [SECTION] structs
@@ -102,13 +101,6 @@ typedef union _plEntity
     };
     uint64_t ulData;
 } plEntity;
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api
-//-----------------------------------------------------------------------------
-
-const plEcsI*    pl_load_ecs_api   (void);
-const plCameraI* pl_load_camera_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs

@@ -82,7 +82,7 @@ static void pl__show_logging           (bool* bValue);
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-const plDebugApiI*
+static const plDebugApiI*
 pl_load_debug_api(void)
 {
     static const plDebugApiI tApi = {

@@ -7,7 +7,6 @@ Index of this file:
 // [SECTION] header mess
 // [SECTION] includes
 // [SECTION] APIs
-// [SECTION] public api
 // [SECTION] public api structs
 */
 
@@ -33,12 +32,6 @@ Index of this file:
 
 #define PL_API_IMAGE "PL_API_IMAGE"
 typedef struct _plImageI plImageI;
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api
-//-----------------------------------------------------------------------------
-
-const plImageI* pl_load_image_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs

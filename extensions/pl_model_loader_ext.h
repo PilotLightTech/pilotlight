@@ -8,7 +8,6 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] APIs
 // [SECTION] forward declarations
-// [SECTION] public api
 // [SECTION] public api structs
 // [SECTION] structs
 */
@@ -48,12 +47,6 @@ typedef struct _plModelLoaderData plModelLoaderData;
 // external 
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef union  _plEntity           plEntity;           // pl_ecs_ext.h
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api
-//-----------------------------------------------------------------------------
-
-const plModelLoaderI* pl_load_model_loader_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs

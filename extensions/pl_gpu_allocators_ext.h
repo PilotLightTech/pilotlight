@@ -9,7 +9,6 @@ Index of this file:
 // [SECTION] defines
 // [SECTION] forward declarations
 // [SECTION] APIs
-// [SECTION] public api
 // [SECTION] public api structs
 */
 
@@ -63,12 +62,6 @@ typedef struct _plDevice plDevice;
 
 #define PL_API_GPU_ALLOCATORS "PL_API_GPU_ALLOCATORS"
 typedef struct _plGPUAllocatorsI plGPUAllocatorsI;
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api
-//-----------------------------------------------------------------------------
-
-const plGPUAllocatorsI* pl_load_gpu_allocators_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs

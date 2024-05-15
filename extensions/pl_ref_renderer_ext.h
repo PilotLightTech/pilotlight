@@ -6,7 +6,6 @@
 Index of this file:
 // [SECTION] header mess
 // [SECTION] apis
-// [SECTION] public api
 // [SECTION] public api structs
 // [SECTION] structs
 */
@@ -49,12 +48,6 @@ typedef union _plMat4              plMat4;             // pl_math.h
 typedef union _plVec4              plVec4;             // pl_math.h
 typedef union _plVec2              plVec2;             // pl_math.h
 typedef void* plTextureId;                             // pl_ui.h
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api
-//-----------------------------------------------------------------------------
-
-const plRefRendererI* pl_load_ref_renderer_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs

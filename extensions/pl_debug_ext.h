@@ -8,7 +8,6 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] apis
 // [SECTION] forward declarations
-// [SECTION] public api
 // [SECTION] public api structs
 // [SECTION] structs
 */
@@ -41,12 +40,6 @@ typedef struct _plDebugApiI plDebugApiI;
 //-----------------------------------------------------------------------------
 
 typedef struct _plDebugApiInfo plDebugApiInfo;
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api
-//-----------------------------------------------------------------------------
-
-const plDebugApiI* pl_load_debug_api(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs

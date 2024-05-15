@@ -671,7 +671,7 @@ pl_cleanup_allocators(plDevice* ptDevice)
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-const plGPUAllocatorsI*
+static const plGPUAllocatorsI*
 pl_load_gpu_allocators_api(void)
 {
     static const plGPUAllocatorsI tApi = {

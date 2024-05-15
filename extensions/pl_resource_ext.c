@@ -54,7 +54,7 @@ static plResourceManager* gptResourceManager = NULL;
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-const plResourceI*
+static const plResourceI*
 pl_load_resource_api(void)
 {
     static const plResourceI tApi = {

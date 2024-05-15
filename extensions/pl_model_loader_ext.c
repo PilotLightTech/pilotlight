@@ -885,7 +885,7 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
 // [SECTION] public API implementation
 //-----------------------------------------------------------------------------
 
-const plModelLoaderI*
+static const plModelLoaderI*
 pl_load_model_loader_api(void)
 {
     static const plModelLoaderI tApi = {
