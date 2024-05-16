@@ -56,24 +56,6 @@ const plThreadsI*  gptThread = NULL;
 // [SECTION] internal structs & types
 //-----------------------------------------------------------------------------
 
-@interface plTrackedMetalBuffer : NSObject
-@property (nonatomic, strong) id<MTLBuffer> buffer;
-@property (nonatomic, assign) double        lastReuseTime;
-- (instancetype)initWithBuffer:(id<MTLBuffer>)buffer;
-@end
-
-@implementation plTrackedMetalBuffer
-- (instancetype)initWithBuffer:(id<MTLBuffer>)buffer
-{
-    if ((self = [super init]))
-    {
-        _buffer = buffer;
-        _lastReuseTime = pl_get_io()->dTime;
-    }
-    return self;
-}
-@end
-
 typedef struct _plMetalDynamicBuffer
 {
     uint32_t                 uByteOffset;
@@ -174,22 +156,12 @@ typedef struct _plMetalComputeShader
     id<MTLLibrary> library;
 } plMetalComputeShader;
 
-typedef struct _plMetalPipelineEntry
-{
-    id<MTLDepthStencilState>   tDepthStencilState;
-    id<MTLRenderPipelineState> tSolidRenderPipelineState;
-    id<MTLRenderPipelineState> tLineRenderPipelineState;
-    pl3DDrawFlags              tFlags;
-    uint32_t                   uSampleCount;
-} plMetalPipelineEntry;
-
 typedef struct _plGraphicsMetal
 {
     plTempAllocator     tTempAllocator;
     id<MTLCommandQueue> tCmdQueue;
     CAMetalLayer*       pMetalLayer;
     id<MTLFence>        tFence;
-    
     
     plFrameContext*           sbFrames;
     plMetalTexture*           sbtTexturesHot;
@@ -202,14 +174,6 @@ typedef struct _plGraphicsMetal
     plMetalRenderPassLayout*  sbtRenderPassLayoutsHot;
     plMetalTimelineSemaphore* sbtSemaphoresHot;
     
-    // drawing
-    plMetalPipelineEntry*           sbtPipelineEntries;
-    id<MTLFunction>                 tSolidVertexFunction;
-    id<MTLFunction>                 tLineVertexFunction;
-    id<MTLFunction>                 tFragmentFunction;
-    NSMutableArray<plTrackedMetalBuffer*>* bufferCache;
-    double                          lastBufferCachePurge;
-
     // per frame
     id<CAMetalDrawable>         tCurrentDrawable;
 } plGraphicsMetal;
@@ -241,12 +205,9 @@ static MTLBlendFactor         pl__metal_blend_factor(plBlendFactor tFactor);
 static MTLBlendOperation      pl__metal_blend_op(plBlendOp tOp);
 
 static void                  pl__garbage_collect(plGraphics* ptGraphics);
-static plTrackedMetalBuffer* pl__dequeue_reusable_buffer(plGraphics* ptGraphics, NSUInteger length);
-static plMetalPipelineEntry* pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags, uint32_t uSampleCount, MTLRenderPassDescriptor* ptRenderPassDescriptor);
 
 static plDeviceAllocationBlock pl_allocate_memory(plDevice* ptDevice, size_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
 static void pl_free_memory(plDevice* ptDevice, plDeviceAllocationBlock* ptBlock);
-
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -1674,45 +1635,6 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
     // if([ptMetalDevice->tDevice supportsTextureSampleCount:8])
     //    ptGraphics->tSwapchain.tMsaaSamples = 8;
 
-    // line rendering
-    {
-        NSError* error = nil;
-
-        // read in shader source code
-        unsigned uShaderFileSize0 = 0;
-        gptFile->read("../shaders/metal/draw_3d_line.metal", &uShaderFileSize0, NULL, "r");
-        char* pcFileData0 = PL_ALLOC(uShaderFileSize0 + 1);
-        gptFile->read("../shaders/metal/draw_3d_line.metal", &uShaderFileSize0, pcFileData0, "r");
-        NSString* lineShaderSource = [NSString stringWithUTF8String:pcFileData0];
-
-
-        id<MTLLibrary> library = [ptMetalDevice->tDevice newLibraryWithSource:lineShaderSource options:nil error:&error];
-        if (library == nil)
-        {
-            NSLog(@"Error: failed to create Metal library: %@", error);
-        }
-
-        ptMetalGraphics->tLineVertexFunction = [library newFunctionWithName:@"vertex_main"];
-        ptMetalGraphics->tFragmentFunction = [library newFunctionWithName:@"fragment_main"];
-
-        unsigned uShaderFileSize1 = 0;
-        gptFile->read("../shaders/metal/draw_3d.metal", &uShaderFileSize1, NULL, "r");
-        char* pcFileData1 = PL_ALLOC(uShaderFileSize1 + 1);
-        gptFile->read("../shaders/metal/draw_3d.metal", &uShaderFileSize1, pcFileData1, "r");
-
-        NSString* solidShaderSource = [NSString stringWithUTF8String:pcFileData1];
-        id<MTLLibrary> library1 = [ptMetalDevice->tDevice newLibraryWithSource:solidShaderSource options:nil error:&error];
-        if (library1 == nil)
-        {
-            NSLog(@"Error: failed to create Metal library: %@", error);
-        }
-
-        ptMetalGraphics->tSolidVertexFunction = [library1 newFunctionWithName:@"vertex_main"];
-
-        PL_FREE(pcFileData0);
-        PL_FREE(pcFileData1);
-    }
-
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~device memory allocators~~~~~~~~~~~~~~~~~~~~~~~~~
 
     static plInternalDeviceAllocatorData tAllocatorData = {0};
@@ -1803,17 +1725,6 @@ pl_begin_frame(plGraphics* ptGraphics)
     {
         pl_end_profile_sample();
         return false;
-    }
-
-    // reset 3d drawlists
-    for(uint32_t i = 0u; i < pl_sb_size(ptGraphics->sbt3DDrawlists); i++)
-    {
-        plDrawList3D* drawlist = ptGraphics->sbt3DDrawlists[i];
-
-        pl_sb_reset(drawlist->sbtSolidVertexBuffer);
-        pl_sb_reset(drawlist->sbtLineVertexBuffer);
-        pl_sb_reset(drawlist->sbtSolidIndexBuffer);    
-        pl_sb_reset(drawlist->sbtLineIndexBuffer);    
     }
 
     pl_end_profile_sample();
@@ -2156,8 +2067,8 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
     if(ptDynamicBinding)
     {
         plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
-        [tEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uFirst + uCount];
-        [tEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uFirst + uCount];
+        [tEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uFirst + uCount + 1];
+        [tEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uFirst + uCount + 1];
     }
 
     for(uint32_t i = 0; i < uCount; i++)
@@ -2176,8 +2087,8 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
             [tEncoder useResource:ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
         }
 
-        [tEncoder setVertexBuffer:ptBindGroup->tShaderArgumentBuffer offset:ptBindGroup->uOffset atIndex:uFirst + i];
-        [tEncoder setFragmentBuffer:ptBindGroup->tShaderArgumentBuffer offset:ptBindGroup->uOffset atIndex:uFirst + i];
+        [tEncoder setVertexBuffer:ptBindGroup->tShaderArgumentBuffer offset:ptBindGroup->uOffset atIndex:uFirst + i + 1];
+        [tEncoder setFragmentBuffer:ptBindGroup->tShaderArgumentBuffer offset:ptBindGroup->uOffset atIndex:uFirst + i + 1];
     }
 }
 
@@ -2550,7 +2461,6 @@ pl_cleanup(plGraphics* ptGraphics)
     pl_sb_free(ptMetalGraphics->sbtBindGroupsHot);
     pl_sb_free(ptMetalGraphics->sbtBuffersHot);
     pl_sb_free(ptMetalGraphics->sbtShadersHot);
-    pl_sb_free(ptMetalGraphics->sbtPipelineEntries);
     pl_sb_free(ptMetalGraphics->sbFrames);
     pl_sb_free(ptMetalGraphics->sbtRenderPassesHot);
     pl_sb_free(ptMetalGraphics->sbtRenderPassLayoutsHot);
@@ -2574,93 +2484,6 @@ pl_draw_lists(plGraphics* ptGraphics, plRenderEncoder tEncoder, uint32_t uListCo
     {
         pl_submit_metal_drawlist(&atLists[i], ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], tRenderEncoder, tCmdBuffer, ptMetalRenderPass->atRenderPassDescriptors[0].sbptRenderPassDescriptor[tEncoder._uCurrentSubpass]);
     }
-}
-
-static void
-pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags tFlags, uint32_t uMSAASampleCount)
-{
-    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)tEncoder.tCommandBuffer._pInternal;
-    plGraphics* ptGfx = ptDrawlist->ptGraphics;
-    plGraphicsMetal* ptMetalGraphics = ptGfx->_pInternalData;
-    plDeviceMetal* ptMetalDevice = ptGfx->tDevice._pInternalData;
-    id<MTLRenderCommandEncoder> tRenderEncoder = (id<MTLRenderCommandEncoder>)tEncoder._pInternal;
-
-    plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[tEncoder.tRenderPassHandle.uIndex];
-    plMetalPipelineEntry* ptPipelineEntry = pl__get_3d_pipelines(ptGfx, tFlags, 1, ptMetalRenderPass->atRenderPassDescriptors[ptGfx->uCurrentFrameIndex].sbptRenderPassDescriptor[tEncoder._uCurrentSubpass]);
-
-    const float fAspectRatio = fWidth / fHeight;
-
-    const uint32_t uTotalIdxBufSzNeeded = sizeof(uint32_t) * (pl_sb_size(ptDrawlist->sbtSolidIndexBuffer) + pl_sb_size(ptDrawlist->sbtLineIndexBuffer));
-    const uint32_t uSolidVtxBufSzNeeded = sizeof(plDrawVertex3DSolid) * pl_sb_size(ptDrawlist->sbtSolidVertexBuffer);
-    const uint32_t uLineVtxBufSzNeeded = sizeof(plDrawVertex3DLine) * pl_sb_size(ptDrawlist->sbtLineVertexBuffer);
-
-    if(uTotalIdxBufSzNeeded == 0)
-        return;
-
-    plTrackedMetalBuffer* tIndexBuffer = pl__dequeue_reusable_buffer(ptGfx, uTotalIdxBufSzNeeded);
-    plTrackedMetalBuffer* tVertexBuffer = pl__dequeue_reusable_buffer(ptGfx, uLineVtxBufSzNeeded + uSolidVtxBufSzNeeded);
-    uint32_t uVertexOffset = 0;
-    uint32_t uIndexOffset = 0;
-
-    [tRenderEncoder setDepthStencilState:ptPipelineEntry->tDepthStencilState];
-    [tRenderEncoder setCullMode:(tFlags & PL_PIPELINE_FLAG_FRONT_FACE_CW)];
-    [tRenderEncoder setTriangleFillMode:MTLTriangleFillModeFill];
-    int iCullMode = MTLCullModeNone;
-    if(tFlags & PL_PIPELINE_FLAG_CULL_FRONT) iCullMode = MTLCullModeFront;
-    if(tFlags & PL_PIPELINE_FLAG_CULL_BACK) iCullMode |= MTLCullModeBack;
-    [tRenderEncoder setCullMode:iCullMode];
-    [tRenderEncoder setFrontFacingWinding:(tFlags & PL_PIPELINE_FLAG_FRONT_FACE_CW) ? MTLWindingClockwise : MTLWindingCounterClockwise];
-
-    if(pl_sb_size(ptDrawlist->sbtSolidVertexBuffer) > 0)
-    {
-        memcpy(tVertexBuffer.buffer.contents, ptDrawlist->sbtSolidVertexBuffer, uSolidVtxBufSzNeeded);
-        const uint32_t uIdxBufSzNeeded = sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbtSolidIndexBuffer);
-        memcpy(tIndexBuffer.buffer.contents, ptDrawlist->sbtSolidIndexBuffer, uIdxBufSzNeeded);
-
-        [tRenderEncoder setVertexBytes:ptMVP length:sizeof(plMat4) atIndex:1 ];
-        
-        [tRenderEncoder setVertexBuffer:tVertexBuffer.buffer offset:uVertexOffset atIndex:0];
-        [tRenderEncoder setRenderPipelineState:ptPipelineEntry->tSolidRenderPipelineState];
-        [tRenderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:pl_sb_size(ptDrawlist->sbtSolidIndexBuffer) indexType:MTLIndexTypeUInt32 indexBuffer:tIndexBuffer.buffer indexBufferOffset:uIndexOffset];
-
-        uVertexOffset = uSolidVtxBufSzNeeded;
-        uIndexOffset = uIdxBufSzNeeded;
-    }
-
-    if(pl_sb_size(ptDrawlist->sbtLineVertexBuffer) > 0)
-    {
-        memcpy(&((char*)tVertexBuffer.buffer.contents)[uVertexOffset], ptDrawlist->sbtLineVertexBuffer, uLineVtxBufSzNeeded);
-        const uint32_t uIdxBufSzNeeded = sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbtLineIndexBuffer);
-        memcpy(&((char*)tIndexBuffer.buffer.contents)[uIndexOffset], ptDrawlist->sbtLineIndexBuffer, uIdxBufSzNeeded);
-
-        struct UniformData {
-            plMat4 tMvp;
-            float  fAspect;
-            float  padding[3];
-        };
-
-        struct UniformData b = {
-            *ptMVP,
-            fAspectRatio
-        };
-
-        [tRenderEncoder setVertexBytes:&b length:sizeof(struct UniformData) atIndex:1 ];
-        [tRenderEncoder setVertexBuffer:tVertexBuffer.buffer offset:uVertexOffset atIndex:0];
-        [tRenderEncoder setRenderPipelineState:ptPipelineEntry->tLineRenderPipelineState];
-        [tRenderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:pl_sb_size(ptDrawlist->sbtLineIndexBuffer) indexType:MTLIndexTypeUInt32 indexBuffer:tIndexBuffer.buffer indexBufferOffset:uIndexOffset];
-    }
-
-    [tCmdBuffer addCompletedHandler:^(id<MTLCommandBuffer> tCmdBuffer2)
-    {
-        dispatch_async(dispatch_get_main_queue(), ^{
-
-            @synchronized(ptMetalGraphics->bufferCache)
-            {
-                [ptMetalGraphics->bufferCache addObject:tVertexBuffer];
-                [ptMetalGraphics->bufferCache addObject:tIndexBuffer];
-            }
-        });
-    }];
 }
 
 //-----------------------------------------------------------------------------
@@ -2946,163 +2769,6 @@ pl__metal_stage_flags(plStageFlags tFlags)
     // if(tFlags & PL_STAGE_COMPUTE)  tResult |= VK_SHADER_STAGE_COMPUTE_BIT; // not needed
 
     return tResult;
-}
-
-static plTrackedMetalBuffer*
-pl__dequeue_reusable_buffer(plGraphics* ptGraphics, NSUInteger length)
-{
-    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
-    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
-
-    double now = pl_get_io()->dTime;
-
-    @synchronized(ptMetalGraphics->bufferCache)
-    {
-        // Purge old buffers that haven't been useful for a while
-        if (now - ptMetalGraphics->lastBufferCachePurge > 1.0)
-        {
-            NSMutableArray* survivors = [NSMutableArray array];
-            for (plTrackedMetalBuffer* candidate in ptMetalGraphics->bufferCache)
-                if (candidate.lastReuseTime > ptMetalGraphics->lastBufferCachePurge)
-                    [survivors addObject:candidate];
-                else
-                {
-                    [candidate.buffer setPurgeableState:MTLPurgeableStateEmpty];
-                    [candidate.buffer release];
-                    [candidate release];
-                }
-            ptMetalGraphics->bufferCache = [survivors mutableCopy];
-            ptMetalGraphics->lastBufferCachePurge = now;
-        }
-
-        // see if we have a buffer we can reuse
-        plTrackedMetalBuffer* bestCandidate = nil;
-        for (plTrackedMetalBuffer* candidate in ptMetalGraphics->bufferCache)
-            if (candidate.buffer.length >= length && (bestCandidate == nil || bestCandidate.lastReuseTime > candidate.lastReuseTime))
-                bestCandidate = candidate;
-
-        if (bestCandidate != nil)
-        {
-            [ptMetalGraphics->bufferCache removeObject:bestCandidate];
-            bestCandidate.lastReuseTime = now;
-            return bestCandidate;
-        }
-    }
-
-    // make a new buffer
-    id<MTLBuffer> backing = [ptMetalDevice->tDevice newBufferWithLength:length options:MTLResourceStorageModeShared];
-    backing.label = [NSString stringWithUTF8String:"3d drawing"];
-    return [[plTrackedMetalBuffer alloc] initWithBuffer:backing];
-}
-
-static plMetalPipelineEntry*
-pl__get_3d_pipelines(plGraphics* ptGraphics, pl3DDrawFlags tFlags, uint32_t uSampleCount, MTLRenderPassDescriptor* ptRenderPassDescriptor)
-{
-    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
-    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
-
-    for(uint32_t i = 0; i < pl_sb_size(ptMetalGraphics->sbtPipelineEntries); i++)
-    {
-        if(ptMetalGraphics->sbtPipelineEntries[i].tFlags == tFlags && ptMetalGraphics->sbtPipelineEntries[i].uSampleCount == uSampleCount)
-            return &ptMetalGraphics->sbtPipelineEntries[i];
-    }
-
-    // pipeline not found, make new one
-
-    plMetalPipelineEntry tPipelineEntry = {
-        .tFlags = tFlags,
-        .uSampleCount = uSampleCount
-    };
-
-    NSError* error = nil;
-
-    // line rendering
-    {
-        MTLVertexDescriptor* vertexDescriptor = [MTLVertexDescriptor vertexDescriptor];
-        vertexDescriptor.attributes[0].offset = 0;
-        vertexDescriptor.attributes[0].format = MTLVertexFormatFloat3; // position
-        vertexDescriptor.attributes[0].bufferIndex = 0;
-
-        vertexDescriptor.attributes[1].offset = sizeof(float) * 3;
-        vertexDescriptor.attributes[1].format = MTLVertexFormatFloat3; // info
-        vertexDescriptor.attributes[1].bufferIndex = 0;
-
-        vertexDescriptor.attributes[2].offset = sizeof(float) * 6;
-        vertexDescriptor.attributes[2].format = MTLVertexFormatFloat3; // other position
-        vertexDescriptor.attributes[2].bufferIndex = 0;
-
-        vertexDescriptor.attributes[3].offset = sizeof(float) * 9;
-        vertexDescriptor.attributes[3].format = MTLVertexFormatUChar4; // color
-        vertexDescriptor.attributes[3].bufferIndex = 0;
-
-        vertexDescriptor.layouts[0].stepRate = 1;
-        vertexDescriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
-        vertexDescriptor.layouts[0].stride = sizeof(float) * 10;
-
-        MTLDepthStencilDescriptor *depthDescriptor = [MTLDepthStencilDescriptor new];
-        depthDescriptor.depthCompareFunction = (tFlags & PL_PIPELINE_FLAG_DEPTH_TEST) ? MTLCompareFunctionLessEqual : MTLCompareFunctionAlways;
-        depthDescriptor.depthWriteEnabled = (tFlags & PL_PIPELINE_FLAG_DEPTH_WRITE) ? YES : NO;
-        tPipelineEntry.tDepthStencilState = [ptMetalDevice->tDevice newDepthStencilStateWithDescriptor:depthDescriptor];
-
-        MTLRenderPipelineDescriptor* pipelineDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
-        pipelineDescriptor.vertexFunction = ptMetalGraphics->tLineVertexFunction;
-        pipelineDescriptor.fragmentFunction = ptMetalGraphics->tFragmentFunction;
-        pipelineDescriptor.vertexDescriptor = vertexDescriptor;
-        pipelineDescriptor.rasterSampleCount = uSampleCount;
-
-        pipelineDescriptor.colorAttachments[0].pixelFormat = ptRenderPassDescriptor.colorAttachments[0].texture.pixelFormat;
-        pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
-        pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
-        pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
-        pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-        pipelineDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
-        pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
-        pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorZero;
-        pipelineDescriptor.depthAttachmentPixelFormat = ptRenderPassDescriptor.depthAttachment.texture.pixelFormat;
-        pipelineDescriptor.stencilAttachmentPixelFormat = ptRenderPassDescriptor.stencilAttachment.texture.pixelFormat;
-
-        tPipelineEntry.tLineRenderPipelineState = [ptMetalDevice->tDevice newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
-
-        if (error != nil)
-            NSLog(@"Error: failed to create Metal pipeline state: %@", error);
-    }
-
-    // solid rendering
-    {
-        MTLVertexDescriptor* vertexDescriptor = [MTLVertexDescriptor vertexDescriptor];
-        vertexDescriptor.attributes[0].offset = 0;
-        vertexDescriptor.attributes[0].format = MTLVertexFormatFloat3; // position
-        vertexDescriptor.attributes[0].bufferIndex = 0;
-        vertexDescriptor.attributes[1].offset = sizeof(float) * 3;
-        vertexDescriptor.attributes[1].format = MTLVertexFormatUChar4; // color
-        vertexDescriptor.attributes[1].bufferIndex = 0;
-        vertexDescriptor.layouts[0].stepRate = 1;
-        vertexDescriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
-        vertexDescriptor.layouts[0].stride = sizeof(float) * 4;
-
-        MTLRenderPipelineDescriptor* pipelineDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
-        pipelineDescriptor.vertexFunction = ptMetalGraphics->tSolidVertexFunction;
-        pipelineDescriptor.fragmentFunction = ptMetalGraphics->tFragmentFunction;
-        pipelineDescriptor.vertexDescriptor = vertexDescriptor;
-        pipelineDescriptor.rasterSampleCount = uSampleCount;
-        pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
-        pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
-        pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
-        pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
-        pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-        pipelineDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
-        pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
-        pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorZero;
-        pipelineDescriptor.depthAttachmentPixelFormat = ptRenderPassDescriptor.depthAttachment.texture.pixelFormat;
-        pipelineDescriptor.stencilAttachmentPixelFormat = ptRenderPassDescriptor.stencilAttachment.texture.pixelFormat;
-
-        tPipelineEntry.tSolidRenderPipelineState = [ptMetalDevice->tDevice newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
-        if (error != nil)
-            NSLog(@"Error: failed to create Metal pipeline state: %@", error);
-    }
-
-    pl_sb_push(ptMetalGraphics->sbtPipelineEntries, tPipelineEntry);
-    return &ptMetalGraphics->sbtPipelineEntries[pl_sb_size(ptMetalGraphics->sbtPipelineEntries) - 1];
 }
 
 static void
@@ -3439,17 +3105,6 @@ pl_load_graphics_api(void)
         .cleanup                          = pl_cleanup,
         .create_font_atlas                = pl_create_metal_font_texture,
         .destroy_font_atlas               = pl_cleanup_metal_font_texture,
-        .add_3d_triangle_filled           = pl__add_3d_triangle_filled,
-        .add_3d_line                      = pl__add_3d_line,
-        .add_3d_point                     = pl__add_3d_point,
-        .add_3d_transform                 = pl__add_3d_transform,
-        .add_3d_frustum                   = pl__add_3d_frustum,
-        .add_3d_centered_box              = pl__add_3d_centered_box,
-        .add_3d_bezier_quad               = pl__add_3d_bezier_quad,
-        .add_3d_bezier_cubic              = pl__add_3d_bezier_cubic,
-        .add_3d_aabb                      = pl__add_3d_aabb,
-        .register_3d_drawlist             = pl__register_3d_drawlist,
-        .submit_3d_drawlist               = pl__submit_3d_drawlist,
         .get_ui_texture_handle            = pl_get_ui_texture_handle,
         .begin_command_recording          = pl_begin_command_recording,
         .end_command_recording            = pl_end_command_recording,

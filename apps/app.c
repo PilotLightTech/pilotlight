@@ -37,6 +37,7 @@ Index of this file:
 #include "pl_model_loader_ext.h"
 #include "pl_ref_renderer_ext.h"
 #include "pl_job_ext.h"
+#include "pl_draw_3d_ext.h"
 
 // misc
 #include "helper_windows.h"
@@ -114,6 +115,7 @@ const plResourceI*          gptResource          = NULL;
 const plRefRendererI*       gptRenderer          = NULL;
 const plModelLoaderI*       gptModelLoader       = NULL;
 const plJobI*               gptJobs              = NULL;
+const plDraw3dI*            gptDraw3d            = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -147,6 +149,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptRenderer    = ptApiRegistry->first(PL_API_REF_RENDERER);
         gptJobs        = ptApiRegistry->first(PL_API_JOB);
         gptModelLoader = ptApiRegistry->first(PL_API_MODEL_LOADER);
+        gptDraw3d      = ptApiRegistry->first(PL_API_DRAW_3D);
 
         return ptAppData;
     }
@@ -181,6 +184,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_ecs_ext",            NULL, NULL, false);
     ptExtensionRegistry->load("pl_resource_ext",       NULL, NULL, false);
     ptExtensionRegistry->load("pl_model_loader_ext",   NULL, NULL, false);
+    ptExtensionRegistry->load("pl_draw_3d_ext",        NULL, NULL, true);
     ptExtensionRegistry->load("pl_ref_renderer_ext",   NULL, NULL, true);
     
     // load apis
@@ -198,6 +202,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptRenderer    = ptApiRegistry->first(PL_API_REF_RENDERER);
     gptJobs        = ptApiRegistry->first(PL_API_JOB);
     gptModelLoader = ptApiRegistry->first(PL_API_MODEL_LOADER);
+    gptDraw3d      = ptApiRegistry->first(PL_API_DRAW_3D);
 
     // initialize job system
     gptJobs->initialize(0);
@@ -215,6 +220,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // setup reference renderer
     gptRenderer->initialize(ptAppData->ptWindow);
+    gptDraw3d->initialize(gptRenderer->get_graphics());
 
     // setup ui
     pl_add_default_font(&ptAppData->tFontAtlas);
@@ -298,6 +304,7 @@ pl_app_shutdown(plAppData* ptAppData)
     gptJobs->cleanup();
     gptGfx->destroy_font_atlas(&ptAppData->tFontAtlas); // backend specific cleanup
     pl_cleanup_font_atlas(&ptAppData->tFontAtlas);
+    gptDraw3d->cleanup();
     gptRenderer->cleanup();
     gptWindows->destroy_window(ptAppData->ptWindow);
     pl_cleanup_profile_context();
@@ -365,6 +372,8 @@ pl_app_update(plAppData* ptAppData)
             gptRenderer->select_entities(ptAppData->uSceneHandle0, 1, &ptAppData->tSelectedEntity);
         ptAppData->bUpdateEntitySelection = false;
     }
+
+    gptDraw3d->new_frame();
 
     // update statistics
     gptStats->new_frame();

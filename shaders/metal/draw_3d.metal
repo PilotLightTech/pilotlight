@@ -1,30 +1,50 @@
 #include <metal_stdlib>
 using namespace metal;
 
-struct Uniforms {
-    float4x4 projectionMatrix;
+//-----------------------------------------------------------------------------
+// [SECTION] dynamic bind group
+//-----------------------------------------------------------------------------
+
+struct DynamicData
+{
+    float4x4 tMVP;
 };
 
-struct VertexIn {
+//-----------------------------------------------------------------------------
+// [SECTION] input
+//-----------------------------------------------------------------------------
+
+struct VertexIn
+{
     float3 position  [[attribute(0)]];
-    uchar4 color     [[attribute(1)]];
+    float4 color     [[attribute(1)]];
 };
 
-struct VertexOut {
+//-----------------------------------------------------------------------------
+// [SECTION] output
+//-----------------------------------------------------------------------------
+
+struct VertexOut
+{
     float4 position [[position]];
-    float2 texCoords;
     float4 color;
 };
 
-vertex VertexOut vertex_main(VertexIn in                 [[stage_in]],
-                             constant Uniforms &uniforms [[buffer(1)]]) {
+
+vertex VertexOut
+vertex_main(VertexIn in [[stage_in]],
+            device DynamicData& bg0 [[ buffer(1)]])
+{
     VertexOut out;
-    out.position = uniforms.projectionMatrix * float4(in.position, 1);
+    out.position = bg0.tMVP * float4(in.position, 1);
     out.position.y *= -1;
-    out.color = float4(in.color) / float4(255.0);
+    out.color = in.color;
     return out;
 }
 
-fragment half4 fragment_main(VertexOut in [[stage_in]]) {
+fragment half4
+fragment_main(VertexOut in [[stage_in]],
+            device DynamicData& bg0 [[ buffer(1)]])
+{
     return half4(in.color);
 }

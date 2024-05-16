@@ -183,13 +183,7 @@ typedef struct _plDeviceAllocationBlock    plDeviceAllocationBlock;
 typedef struct _plDeviceMemoryAllocation   plDeviceMemoryAllocation;
 typedef struct _plDeviceMemoryAllocatorI   plDeviceMemoryAllocatorI;
 
-// 3D drawing api
-typedef struct _plDrawList3D        plDrawList3D;
-typedef struct _plDrawVertex3DSolid plDrawVertex3DSolid; // single vertex (3D pos + uv + color)
-typedef struct _plDrawVertex3DLine  plDrawVertex3DLine; // single vertex (pos + uv + color)
-
 // enums
-typedef int pl3DDrawFlags;
 typedef int plDataType;           // -> enum _plDataType               // Enum:
 typedef int plBufferBindingType;  // -> enum _plBufferBindingType      // Enum:
 typedef int plTextureBindingType; // -> enum _plTextureBindingType     // Enum:
@@ -345,19 +339,6 @@ typedef struct _plGraphicsI
     void  (*create_font_atlas)    (plFontAtlas*);
     void  (*destroy_font_atlas)   (plFontAtlas*);
     void* (*get_ui_texture_handle)(plGraphics*, plTextureHandle, plSamplerHandle);
-
-    // 3D drawing api (will be moved to an extension)
-    void (*submit_3d_drawlist)    (plDrawList3D*, plRenderEncoder, float fWidth, float fHeight, const plMat4* ptMVP, pl3DDrawFlags, uint32_t uMSAASampleCount);
-    void (*register_3d_drawlist)  (plGraphics*, plDrawList3D*);
-    void (*add_3d_triangle_filled)(plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
-    void (*add_3d_line)           (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness);
-    void (*add_3d_point)          (plDrawList3D*, plVec3 tP0, plVec4 tColor, float fLength, float fThickness);
-    void (*add_3d_transform)      (plDrawList3D*, const plMat4* ptTransform, float fLength, float fThickness);
-    void (*add_3d_frustum)        (plDrawList3D*, const plMat4* ptTransform, float fYFov, float fAspect, float fNearZ, float fFarZ, plVec4 tColor, float fThickness);
-    void (*add_3d_centered_box)   (plDrawList3D*, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor, float fThickness);
-    void (*add_3d_aabb)           (plDrawList3D*, plVec3 tMin, plVec3 tMax, plVec4 tColor, float fThickness);
-    void (*add_3d_bezier_quad)    (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
-    void (*add_3d_bezier_cubic)   (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
 } plGraphicsI;
 
 //-----------------------------------------------------------------------------
@@ -473,31 +454,6 @@ typedef struct _plBlendState
     plBlendFactor tSrcAlphaFactor;
     plBlendFactor tDstAlphaFactor;
 } plBlendState;
-
-typedef struct _plDrawVertex3DSolid
-{
-    float    pos[3];
-    uint32_t uColor;
-} plDrawVertex3DSolid;
-
-typedef struct _plDrawVertex3DLine
-{
-    float    pos[3];
-    float    fDirection;
-    float    fThickness;
-    float    fMultiply;
-    float    posother[3];
-    uint32_t uColor;
-} plDrawVertex3DLine;
-
-typedef struct _plDrawList3D
-{
-    plGraphics*          ptGraphics;
-    plDrawVertex3DSolid* sbtSolidVertexBuffer;
-    uint32_t*            sbtSolidIndexBuffer;
-    plDrawVertex3DLine*  sbtLineVertexBuffer;
-    uint32_t*            sbtLineIndexBuffer;
-} plDrawList3D;
 
 typedef struct _plDeviceMemoryRequirements
 {
@@ -902,7 +858,6 @@ typedef struct _plGraphics
     plSwapchain     tSwapchain;
     uint32_t        uCurrentFrameIndex;
     uint32_t        uFramesInFlight;
-    plDrawList3D**  sbt3DDrawlists;
     plFrameGarbage* sbtGarbage;
     size_t          szLocalMemoryInUse;
     size_t          szHostMemoryInUse;
@@ -961,16 +916,6 @@ typedef struct _plGraphics
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
-
-enum _pl3DDrawFlags
-{
-    PL_PIPELINE_FLAG_NONE          = 0,
-    PL_PIPELINE_FLAG_DEPTH_TEST    = 1 << 0,
-    PL_PIPELINE_FLAG_DEPTH_WRITE   = 1 << 1,
-    PL_PIPELINE_FLAG_CULL_FRONT    = 1 << 2,
-    PL_PIPELINE_FLAG_CULL_BACK     = 1 << 3,
-    PL_PIPELINE_FLAG_FRONT_FACE_CW = 1 << 4,
-};
 
 enum _plStageFlags
 {

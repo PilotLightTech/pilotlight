@@ -39,6 +39,7 @@ Index of this file:
 #include "pl_stats_ext.h"
 #include "pl_gpu_allocators_ext.h"
 #include "pl_job_ext.h"
+#include "pl_draw_3d_ext.h"
 
 #define PL_MAX_VIEWS_PER_SCENE 4
 #define PL_MAX_LIGHTS 1000
@@ -216,8 +217,8 @@ typedef struct _plRefView
     plDrawable* sbtVisibleTransparentDrawables;
 
     // drawing api
-    plDrawList3D t3DDrawList;
-    plDrawList3D t3DSelectionDrawList;
+    plDrawList3D* pt3DDrawList;
+    plDrawList3D* pt3DSelectionDrawList;
 
     // shadows
     plShadowData tShadowData;
@@ -376,6 +377,7 @@ static const plStatsI*         gptStats         = NULL;
 static const plGPUAllocatorsI* gptGpuAllocators = NULL;
 static const plThreadsI*       gptThreads       = NULL;
 static const plJobI*           gptJob           = NULL;
+static const plDraw3dI*        gptDraw3d        = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal API
@@ -1136,8 +1138,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     ptView->tRenderPass = gptDevice->create_render_pass(&ptGraphics->tDevice, &tRenderPassDesc, atAttachmentSets);
 
     // register debug 3D drawlist
-    gptGfx->register_3d_drawlist(ptGraphics, &ptView->t3DDrawList);
-    gptGfx->register_3d_drawlist(ptGraphics, &ptView->t3DSelectionDrawList);
+    ptView->pt3DDrawList = gptDraw3d->request_drawlist();
+    ptView->pt3DSelectionDrawList = gptDraw3d->request_drawlist();
 
     // create lighting composition quad
     const uint32_t uVertexStartIndex = pl_sb_size(ptScene->sbtVertexPosBuffer);
@@ -3650,7 +3652,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
             plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
 
             plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
-            gptGfx->add_3d_aabb(&ptView->t3DSelectionDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, tOutlineColor2, 0.02f);
+            gptDraw3d->add_aabb(ptView->pt3DSelectionDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, tOutlineColor2, 0.02f);
             
             plDynamicBinding tDynamicBinding = gptDevice->allocate_dynamic_data(ptDevice, sizeof(plOutlineDynamicData));
 
@@ -3686,7 +3688,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         if(ptScene->sbtLightData[i].iType == PL_LIGHT_TYPE_POINT)
         {
             const plVec4 tColor = {.rgb = ptScene->sbtLightData[i].tColor, .a = 1.0f};
-            gptGfx->add_3d_point(&ptView->t3DDrawList, ptScene->sbtLightData[i].tPosition, tColor, 0.25f, 0.02f);
+            gptDraw3d->add_point(ptView->pt3DDrawList, ptScene->sbtLightData[i].tPosition, tColor, 0.25f, 0.02f);
         }
     }
 
@@ -3697,13 +3699,13 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         {
             plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptScene->sbtOpaqueDrawables[i].tEntity);
 
-            gptGfx->add_3d_aabb(&ptView->t3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+            gptDraw3d->add_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
         }
         for(uint32_t i = 0; i < uTransparentDrawableCount; i++)
         {
             plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptScene->sbtTransparentDrawables[i].tEntity);
 
-            gptGfx->add_3d_aabb(&ptView->t3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+            gptDraw3d->add_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
         }
     }
     else if(tOptions.bShowVisibleBoundingBoxes)
@@ -3712,31 +3714,31 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         {
             plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptView->sbtVisibleOpaqueDrawables[i].tEntity);
 
-            gptGfx->add_3d_aabb(&ptView->t3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+            gptDraw3d->add_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
         }
         for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
         {
             plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptView->sbtVisibleTransparentDrawables[i].tEntity);
 
-            gptGfx->add_3d_aabb(&ptView->t3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+            gptDraw3d->add_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
         }
     }
 
     if(tOptions.bShowOrigin)
     {
         const plMat4 tTransform = pl_identity_mat4();
-        gptGfx->add_3d_transform(&ptView->t3DSelectionDrawList, &tTransform, 10.0f, 0.02f);
+        gptDraw3d->add_transform(ptView->pt3DDrawList, &tTransform, 10.0f, 0.02f);
     }
 
     if(tOptions.ptCullCamera && tOptions.ptCullCamera != tOptions.ptViewCamera)
     {
-        gptGfx->add_3d_frustum(&ptView->t3DSelectionDrawList, &tOptions.ptCullCamera->tTransformMat, tOptions.ptCullCamera->fFieldOfView, tOptions.ptCullCamera->fAspectRatio, tOptions.ptCullCamera->fNearZ, tOptions.ptCullCamera->fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
+        gptDraw3d->add_frustum(ptView->pt3DSelectionDrawList, &tOptions.ptCullCamera->tTransformMat, tOptions.ptCullCamera->fFieldOfView, tOptions.ptCullCamera->fAspectRatio, tOptions.ptCullCamera->fNearZ, tOptions.ptCullCamera->fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
     }
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
-    gptGfx->submit_3d_drawlist(&ptView->t3DDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, 1);
-    gptGfx->submit_3d_drawlist(&ptView->t3DSelectionDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
+    gptDraw3d->submit_drawlist(ptView->pt3DDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, 1);
+    gptDraw3d->submit_drawlist(ptView->pt3DSelectionDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
     gptGfx->end_render_pass(&tEncoder);
     pl_end_profile_sample();
 }
@@ -3746,7 +3748,7 @@ pl_refr_get_debug_drawlist(uint32_t uSceneHandle, uint32_t uViewHandle)
 {
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     plRefView* ptView = &ptScene->atViews[uViewHandle];
-    return &ptView->t3DDrawList;
+    return ptView->pt3DDrawList;
 }
 
 static plTextureId
@@ -4847,6 +4849,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
    gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
    gptThreads       = ptApiRegistry->first(PL_API_THREADS);
    gptJob           = ptApiRegistry->first(PL_API_JOB);
+   gptDraw3d        = ptApiRegistry->first(PL_API_DRAW_3D);
 
    if(bReload)
    {
