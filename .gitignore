@@ -8,11 +8,14 @@ out/
 
 # debug files
 src/*.pdb
+examples/*.pdb
 tests/*.pdb
 
 # build scripts
 src/*.bat
 src/*.sh
+examples/*.bat
+examples/*.sh
 tests/*.bat
 tests/*.sh
 

@@ -24,5 +24,4 @@
 *.lib binary
 
 # vendored code
-extensions/pl_gltf_extension.c linguist-vendored
-dependencies/*                 linguist-vendored
+dependencies/* linguist-vendored
