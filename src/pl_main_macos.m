@@ -257,7 +257,6 @@ static const plLibraryI* gptLibraryApi = NULL;
 
 static plSharedLibrary*     gptAppLibrary = NULL;
 static void*                gUserData = NULL;
-static bool                 gRunning = true;
 static plKeyEventResponder* gKeyEventResponder = NULL;
 static NSTextInputContext*  gInputContext = NULL;
 static id                   gMonitor;
@@ -288,8 +287,38 @@ static void  (*pl_app_update)  (void* ptAppData);
 // [SECTION] entry point
 //-----------------------------------------------------------------------------
 
-int main()
+int main(int argc, char *argv[])
 {
+
+    const char* pcAppName = "app";
+
+    for(int i = 1; i < argc; i++)
+    { 
+        if(strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--app") == 0)
+        {
+            pcAppName = argv[i + 1];
+            i++;
+        }
+        else if(strcmp(argv[i], "--version") == 0)
+        {
+            printf("\nPilot Light - light weight game engine\n\n");
+            printf("Version: %s\n", PILOTLIGHT_VERSION);
+            return 0;
+        }
+        else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
+        {
+            printf("\nPilot Light - light weight game engine\n");
+            printf("Version: %s\n\n", PILOTLIGHT_VERSION);
+            printf("Usage: pilot_light [options]\n\n");
+            printf("Options:\n");
+            printf("-h              %s\n", "Displays this information.");
+            printf("--help          %s\n", "Displays this information.");
+            printf("-version        %s\n", "Displays Pilot Light version information.");
+            printf("-a <app>        %s\n", "Sets app to load. Default is 'app'.");
+            printf("--app <app>     %s\n", "Sets app to load. Default is 'app'.");
+            return 0;
+        }
+    }
 
 #if __has_feature(objc_arc)
     // ARC is On
@@ -419,8 +448,8 @@ int main()
     // load library
     static char acLibraryName[256] = {0};
     static char acTransitionalName[256] = {0};
-    pl_sprintf(acLibraryName, "%s.dylib", "app");
-    pl_sprintf(acTransitionalName, "%s_", "app");
+    pl_sprintf(acLibraryName, "%s.dylib", pcAppName);
+    pl_sprintf(acTransitionalName, "%s_", pcAppName);
     if(gptLibraryApi->load(acLibraryName, acTransitionalName, "lock.tmp", &gptAppLibrary))
     {
         pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
@@ -707,9 +736,9 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
         {
             gptLibraryApi->reload(gptAppLibrary);
             pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
-            pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
-            pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+            pl_app_shutdown = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
+            pl_app_resize   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+            pl_app_update   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
             gUserData = pl_app_load(gptApiRegistry, gUserData);
         }
 
@@ -733,6 +762,11 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
         gptDataRegistry->garbage_collect();
         pl_app_update(gUserData);
         gptExtensionRegistry->reload();
+
+        if(gptIOCtx->bRunning == false)
+        {
+            [NSApp stop];
+        }
     }
 }
 

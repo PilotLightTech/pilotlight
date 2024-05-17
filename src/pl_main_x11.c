@@ -193,7 +193,6 @@ Display*              gDisplay       = NULL;
 xcb_connection_t*     gConnection    = NULL;
 xcb_key_symbols_t*    gKeySyms       = NULL;
 xcb_screen_t*         gScreen        = NULL;
-bool                  gRunning       = true;
 xcb_atom_t            gWmProtocols;
 xcb_atom_t            gWmDeleteWin;
 plSharedLibrary*      gptAppLibrary   = NULL;
@@ -240,8 +239,40 @@ pl__get_linux_absolute_time(void)
 // [SECTION] entry point
 //-----------------------------------------------------------------------------
 
-int main()
+int main(int argc, char *argv[])
 {
+    const char* pcAppName = "app";
+
+    for(int i = 1; i < argc; i++)
+    { 
+        if(strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--app") == 0)
+        {
+            pcAppName = argv[i + 1];
+            i++;
+        }
+        else if(strcmp(argv[i], "--version") == 0)
+        {
+            printf("\nPilot Light - light weight game engine\n\n");
+            printf("Version: %s\n", PILOTLIGHT_VERSION);
+            return 0;
+        }
+        else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
+        {
+            printf("\nPilot Light - light weight game engine\n");
+            printf("Version: %s\n\n", PILOTLIGHT_VERSION);
+            printf("Usage: pilot_light [options]\n\n");
+            printf("Options:\n");
+            printf("-h              %s\n", "Displays this information.");
+            printf("--help          %s\n", "Displays this information.");
+            printf("-version        %s\n", "Displays Pilot Light version information.");
+            printf("-a <app>        %s\n", "Sets app to load. Default is 'app'.");
+            printf("--app <app>     %s\n", "Sets app to load. Default is 'app'.");
+
+            return 0;
+        }
+
+    }
+
     gptUiCtx = pl_create_context();
     gptIOCtx = pl_get_io();
 
@@ -382,8 +413,8 @@ int main()
     const plLibraryI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
     static char acLibraryName[256] = {0};
     static char acTransitionalName[256] = {0};
-    pl_sprintf(acLibraryName, "./%s.so", "app");
-    pl_sprintf(acTransitionalName, "./%s_", "app");
+    pl_sprintf(acLibraryName, "./%s.so", pcAppName);
+    pl_sprintf(acTransitionalName, "./%s_", pcAppName);
     if(ptLibraryApi->load(acLibraryName, acTransitionalName, "./lock.tmp", &gptAppLibrary))
     {
         pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
@@ -394,7 +425,7 @@ int main()
     }
 
     // main loop
-    while (gRunning)
+    while (gptIOCtx->bRunning)
     {
         
         // Poll for events until null is returned.
@@ -469,7 +500,7 @@ pl_linux_procedure(xcb_generic_event_t* event)
             // Window close
             if (cm->data.data32[0] == gWmDeleteWin) 
             {
-                gRunning  = false;
+                gptIOCtx->bRunning  = false;
             }
             break;
         }

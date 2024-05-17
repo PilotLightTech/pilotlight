@@ -200,7 +200,6 @@ typedef struct _plSharedLibrary
 // win32 stuff
 plSharedLibrary* gptAppLibrary                     = NULL;
 void*            gpUserData                        = NULL;
-bool             gbRunning                         = true;
 bool             gbFirstRun                        = true;
 bool             gbEnableVirtualTerminalProcessing = true;
 INT64            ilTime                            = 0;
@@ -235,16 +234,43 @@ void  (*pl_app_update)  (void* userData);
 
 int main(int argc, char *argv[])
 {
-
+    const char* pcAppName = "app";
     gptUiCtx = pl_create_context();
     gptIOCtx = pl_get_io();
 
-    // check for disabling of escape characters.
-    // this is necessary for some vkconfig's "console"
     for(int i = 1; i < argc; i++)
     { 
         if(strcmp(argv[i], "--disable_vt") == 0)
+        {
             gbEnableVirtualTerminalProcessing = false;
+        }
+        else if(strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--app") == 0)
+        {
+            pcAppName = argv[i + 1];
+            i++;
+        }
+        else if(strcmp(argv[i], "--version") == 0)
+        {
+            printf("\nPilot Light - light weight game engine\n\n");
+            printf("Version: %s\n", PILOTLIGHT_VERSION);
+            return 0;
+        }
+        else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
+        {
+            printf("\nPilot Light - light weight game engine\n");
+            printf("Version: %s\n\n", PILOTLIGHT_VERSION);
+            printf("Usage: pilot_light.exe [options]\n\n");
+            printf("Options:\n");
+            printf("-h              %s\n", "Displays this information.");
+            printf("--help          %s\n", "Displays this information.");
+            printf("-version        %s\n", "Displays Pilot Light version information.");
+            printf("-a <app>        %s\n", "Sets app to load. Default is 'app'.");
+            printf("--app <app>     %s\n", "Sets app to load. Default is 'app'.");
+
+            printf("\nWin32 Only:\n");
+            printf("--disable_vt:   %s\n", "Disables escape characters.");
+            return 0;
+        }
     }
 
     // initialize winsock
@@ -388,8 +414,8 @@ int main(int argc, char *argv[])
     const plLibraryI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
     static char acLibraryName[256] = {0};
     static char acTransitionalName[256] = {0};
-    pl_sprintf(acLibraryName, "./%s.dll", "app");
-    pl_sprintf(acTransitionalName, "./%s_", "app");
+    pl_sprintf(acLibraryName, "./%s.dll", pcAppName);
+    pl_sprintf(acTransitionalName, "./%s_", pcAppName);
     if(ptLibraryApi->load(acLibraryName, acTransitionalName, "./lock.tmp", &gptAppLibrary))
     {
         pl_app_load     = (void* (__cdecl  *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
@@ -400,7 +426,7 @@ int main(int argc, char *argv[])
     }
 
     // main loop
-    while (gbRunning)
+    while (gptIOCtx->bRunning)
     {
 
         // while queue has messages, remove and dispatch them (but do not block on empty queue)
@@ -410,7 +436,7 @@ int main(int argc, char *argv[])
             // check for quit because peekmessage does not signal this via return val
             if (tMsg.message == WM_QUIT)
             {
-                gbRunning = false;
+                gptIOCtx->bRunning = false;
                 break;
             }
             // TranslateMessage will post auxilliary WM_CHAR messages from key msgs
@@ -433,7 +459,7 @@ int main(int argc, char *argv[])
         }
 
         // render frame
-        if(gbRunning)
+        if(gptIOCtx->bRunning)
             pl__render_frame();
     }
 
