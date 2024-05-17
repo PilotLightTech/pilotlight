@@ -3185,7 +3185,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-    pl_set_context(ptDataRegistry->get_data("ui"));
+    pl_set_context(ptDataRegistry->get_data("context"));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     gptFile = ptApiRegistry->first(PL_API_FILE);
     gptThread = ptApiRegistry->first(PL_API_THREADS);

@@ -4872,7 +4872,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
    pl_set_memory_context(gptDataRegistry->get_data(PL_CONTEXT_MEMORY));
    pl_set_profile_context(gptDataRegistry->get_data("profile"));
    pl_set_log_context(gptDataRegistry->get_data("log"));
-   pl_set_context(gptDataRegistry->get_data("ui"));
+   pl_set_context(gptDataRegistry->get_data("context"));
 
    // apis
    gptResource      = ptApiRegistry->first(PL_API_RESOURCE);

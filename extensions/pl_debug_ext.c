@@ -1089,7 +1089,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_memory_context(ptMemoryCtx);
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));
-    pl_set_context(ptDataRegistry->get_data("ui"));
+    pl_set_context(ptDataRegistry->get_data("context"));
 
     ptStatsApi = ptApiRegistry->first(PL_API_STATS);
     gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);

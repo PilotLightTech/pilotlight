@@ -388,7 +388,7 @@ int main()
     gptLibraryApi        = gptApiRegistry->first(PL_API_LIBRARY);
 
     // setup & retrieve io context 
-    gptDataRegistry->set_data("ui", gptUiCtx);
+    gptDataRegistry->set_data("context", gptUiCtx);
     gtMemoryContext.plThreadsI = &tThreadApi;
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 

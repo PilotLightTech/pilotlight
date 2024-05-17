@@ -343,7 +343,7 @@ int main(int argc, char *argv[])
     gptIOCtx->get_clipboard_text_fn = pl__get_clipboard_text;
 
     // add contexts to data registry
-    gptDataRegistry->set_data("ui", gptUiCtx);
+    gptDataRegistry->set_data("context", gptUiCtx);
     gtMemoryContext.plThreadsI = &tThreadApi;
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 

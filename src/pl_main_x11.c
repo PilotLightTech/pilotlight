@@ -329,7 +329,7 @@ int main()
     gptApiRegistry->add(PL_API_ATOMICS, &tAtomicsApi);
 
     // add contexts to data registry
-    gptDataRegistry->set_data("ui", gptUiCtx);
+    gptDataRegistry->set_data("context", gptUiCtx);
     gtMemoryContext.plThreadsI = &tThreadApi;
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 

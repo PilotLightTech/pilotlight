@@ -1389,7 +1389,7 @@ pl_camera_set_clip_planes(plCameraComponent* ptCamera, float fNearZ, float fFarZ
 static void
 pl_camera_set_aspect(plCameraComponent* ptCamera, float fAspect)
 {
-        ptCamera->fAspectRatio = fAspect;
+    ptCamera->fAspectRatio = fAspect;
 }
 
 static void
