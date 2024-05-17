@@ -235,9 +235,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     ptAppData->uSceneHandle0 = gptRenderer->create_scene();
 
-    // pl_begin_profile_sample("load environments");
-    // gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 1024);
-    // pl_end_profile_sample();
+    pl_begin_profile_sample("load environments");
+    gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 1024);
+    pl_end_profile_sample();
 
     pl_begin_profile_sample("create scene views");
     ptAppData->uViewHandle0 = gptRenderer->create_view(ptAppData->uSceneHandle0, (plVec2){ptIO->afMainViewportSize[0] , ptIO->afMainViewportSize[1]});
@@ -270,7 +270,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plModelLoaderData tLoaderData0 = {0};
 
     pl_begin_profile_sample("load models 0");
-    // const plMat4 tTransform0 = pl_mat4_translate_xyz(0.0f, 1.0f, 0.0f);
+    // const plMat4 tTransform0 = pl_mat4_scale_xyz(2.0f, 2.0f, 2.0f);
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/town.gltf", &tTransform0, &tLoaderData0);
     gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
     gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL, &tLoaderData0);

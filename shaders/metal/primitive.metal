@@ -29,16 +29,12 @@ constant const float INV_GAMMA = 1.0 / GAMMA;
 #define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1 1 << 4
 #define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2 1 << 5
 #define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3 1 << 6
-#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_4 1 << 7
-#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_5 1 << 8
-#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_6 1 << 9
-#define PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_7 1 << 10
-#define PL_MESH_FORMAT_FLAG_HAS_COLOR_0    1 << 11
-#define PL_MESH_FORMAT_FLAG_HAS_COLOR_1    1 << 12
-#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   1 << 13
-#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   1 << 14
-#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  1 << 15
-#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  1 << 16
+#define PL_MESH_FORMAT_FLAG_HAS_COLOR_0    1 << 7
+#define PL_MESH_FORMAT_FLAG_HAS_COLOR_1    1 << 8
+#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_0   1 << 9
+#define PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   1 << 10
+#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  1 << 11
+#define PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  1 << 12
 
 // iTextureMappingFlags
 #define PL_HAS_BASE_COLOR_MAP            1 << 0
@@ -436,14 +432,26 @@ vertex VertexOut vertex_main(
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION)  { inPosition.xyz = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL)    { inNormal.xyz   = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT)   { inTangent      = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0){ inTexCoord0    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
-    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1){ inTexCoord1    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
-    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2){ inTexCoord2    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
-    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3){ inTexCoord3    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
-    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_4){ inTexCoord4    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
-    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_5){ inTexCoord5    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
-    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_6){ inTexCoord6    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
-    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_7){ inTexCoord7    = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;}
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0){
+        inTexCoord0 = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy; 
+        inTexCoord1 = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].zw; 
+        iCurrentAttribute++;
+    }
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1){
+        inTexCoord2 = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy; 
+        inTexCoord3 = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].zw; 
+        iCurrentAttribute++;
+    }
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2){
+        inTexCoord4 = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy; 
+        inTexCoord5 = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].zw; 
+        iCurrentAttribute++;
+    }
+    if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3){
+        inTexCoord6 = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy; 
+        inTexCoord7 = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].zw; 
+        iCurrentAttribute++;
+    }
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0)   { inColor0       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
     if(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_1)   { inColor1       = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
 

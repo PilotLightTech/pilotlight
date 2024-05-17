@@ -275,9 +275,12 @@ typedef struct _plRefScene
     plDrawable* sbtOutlineDrawables;
     plShaderHandle* sbtOutlineDrawablesOldShaders;
 
-    // hashmaps
+    // entity to drawable hashmaps
     plHashMap tOpaqueHashmap;
     plHashMap tTransparentHashmap;
+
+    // material bindgroup reuse hashmaps
+    plHashMap tShadowBindgroupHashmap;
 
 } plRefScene;
 
@@ -394,8 +397,8 @@ static size_t         pl__get_data_type_size(plDataType tType);
 static plBlendState   pl__get_blend_state(plBlendMode tBlendMode);
 
 // job system tasks
-static void pl__refr_job       (uint32_t uJobIndex, void* pData);
-static void pl__refr_cull_job  (uint32_t uJobIndex, void* pData);
+static void pl__refr_job           (uint32_t uJobIndex, void* pData);
+static void pl__refr_cull_job      (uint32_t uJobIndex, void* pData);
 
 // resource creation helpers
 static plTextureHandle pl__refr_create_texture          (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
@@ -1356,6 +1359,7 @@ pl_refr_cleanup(void)
         pl_sb_free(ptScene->sbtOutlineDrawablesOldShaders);
         pl_hm_free(&ptScene->tOpaqueHashmap);
         pl_hm_free(&ptScene->tTransparentHashmap);
+        pl_hm_free(&ptScene->tShadowBindgroupHashmap);
         gptECS->cleanup_component_library(&ptScene->tComponentLibrary);
     }
     for(uint32_t i = 0; i < pl_sb_size(gptData->_sbtVariantHandles); i++)
@@ -2407,7 +2411,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     };
     
     const plLightComponent* sbtLights = ptScene->tComponentLibrary.tLightComponentManager.pComponents;
-
+    pl_sb_reserve(ptScene->sbtVertexDataBuffer, 40000000);
+    pl_sb_reserve(ptScene->sbtVertexPosBuffer, 15000000);
     for(uint32_t uDrawableBatchIndex = 0; uDrawableBatchIndex < 2; uDrawableBatchIndex++)
     {
         plHashMap* ptHashmap = atHashmaps[uDrawableBatchIndex];
@@ -2489,23 +2494,34 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                 };
                 (sbtDrawables[uDrawableBatchIndex])[i].tShadowShader = pl__get_shader_variant(uSceneHandle, gptData->tShadowShader, &tShadowVariant);
 
-                plBindGroupLayout tMaterialBindGroupLayout = {
-                    .uTextureBindingCount = 1,
-                    .atTextureBindings = {
-                        {.uSlot =  0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-                    }
-                };
-                (sbtDrawables[uDrawableBatchIndex])[i].tShadowMaterialBindGroup = gptDevice->create_bind_group(ptDevice, &tMaterialBindGroupLayout, "material bind group");
-
-                const plBindGroupUpdateTextureData tTextureData[] = 
+                plBindGroupHandle tShadowMaterialBindGroup = {.ulData = UINT64_MAX};
+                if(pl_hm_has_key(&ptScene->tShadowBindgroupHashmap, ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource.ulData))
                 {
-                    {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_BASE_COLOR_MAP, true, 0), .uSlot =  0, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-                };
-                const plBindGroupUpdateData tBGData1 = {
-                    .uTextureCount = 1,
-                    .atTextures = tTextureData
-                };
-                gptDevice->update_bind_group(ptDevice, (sbtDrawables[uDrawableBatchIndex])[i].tShadowMaterialBindGroup, &tBGData1);
+                    tShadowMaterialBindGroup.ulData = pl_hm_lookup(&ptScene->tShadowBindgroupHashmap, ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource.ulData);
+                }
+                else
+                {
+                    plBindGroupLayout tMaterialBindGroupLayout = {
+                        .uTextureBindingCount = 1,
+                        .atTextureBindings = {
+                            {.uSlot =  0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                        }
+                    };
+                    tShadowMaterialBindGroup = gptDevice->create_bind_group(ptDevice, &tMaterialBindGroupLayout, "shadow material bind group");
+
+                    const plBindGroupUpdateTextureData tTextureData[] = 
+                    {
+                        {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_BASE_COLOR_MAP, true, 0), .uSlot =  0, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
+                    };
+                    const plBindGroupUpdateData tBGData1 = {
+                        .uTextureCount = 1,
+                        .atTextures = tTextureData
+                    };
+                    gptDevice->update_bind_group(ptDevice, tShadowMaterialBindGroup, &tBGData1);
+
+                    pl_hm_insert(&ptScene->tShadowBindgroupHashmap, ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource.ulData, tShadowMaterialBindGroup.ulData);
+                }
+                (sbtDrawables[uDrawableBatchIndex])[i].tShadowMaterialBindGroup = tShadowMaterialBindGroup;
             }
         }
     }
@@ -2733,6 +2749,10 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         tLightingShaderDesc.atConstants[i].tType = PL_DATA_TYPE_INT;
     }
     ptScene->tLightingShader = gptDevice->create_shader(&ptGraphics->tDevice, &tLightingShaderDesc);
+
+    pl_sb_free(ptScene->sbtVertexPosBuffer);
+    pl_sb_free(ptScene->sbtVertexDataBuffer);
+    pl_sb_free(ptScene->sbuIndexBuffer);
 
     pl_end_profile_sample();
 }
@@ -2980,9 +3000,12 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer tCommandBuffer, uint32_t uS
         gptCamera->look_at(&tShadowCamera, tEye, tFrustumCenter);
         tShadowCamera.fWidth = fRadius * 2.0f;
         tShadowCamera.fHeight = fRadius * 2.0f;
-        tShadowCamera.fNearZ = 0;
+        tShadowCamera.fNearZ = 0.0f;
         tShadowCamera.fFarZ = fRadius * 2.0f + 50.0f;
         gptCamera->update(&tShadowCamera);
+        tShadowCamera.fAspectRatio = 1.0f;
+        tShadowCamera.fFieldOfView = atan2f(fRadius, (fRadius + 50.0f));
+        tShadowCamera.fNearZ = 0.01f;
         fLastSplitDist = fSplitDist;
 
         atBindGroupBuffer[uCascade].tCameraPos.xyz = tShadowCamera.tPos;
@@ -3021,6 +3044,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer tCommandBuffer, uint32_t uS
     };
     plBindGroupHandle tGlobalBG = gptDevice->get_temporary_bind_group(ptDevice, &tBindGroupLayout0, "temporary global bind group");
 
+    plBuffer* ptStorageBuffer = gptDevice->get_buffer(ptDevice, ptScene->tStorageBuffer);
     const plBindGroupUpdateBufferData atBufferData[] = 
     {
         {
@@ -3031,7 +3055,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer tCommandBuffer, uint32_t uS
         {
             .tBuffer       = ptScene->tStorageBuffer,
             .uSlot         = 1,
-            .szBufferRange = sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer)
+            .szBufferRange = ptStorageBuffer->tDescription.uByteSize
         },
         {
             .tBuffer       = ptScene->tMaterialDataBuffer,
@@ -3109,9 +3133,13 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer tCommandBuffer, uint32_t uS
 
     for(uint32_t uCascade = 0; uCascade < ptLight->uCascadeCount; uCascade++)
     {
+
+        const uint32_t uVisibleOpaqueDrawCount = pl_sb_size(ptScene->sbtOpaqueDrawables);
+        const uint32_t uVisibleTransparentDrawCount = pl_sb_size(ptScene->sbtTransparentDrawables);
+
         plRenderEncoder tEncoder = gptGfx->begin_render_pass(ptGraphics, &tCommandBuffer, ptView->tShadowData.atOpaqueRenderPasses[uCascade]);
 
-        for(uint32_t i = 0; i < uOpaqueDrawableCount; i++)
+        for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
         {
             const plDrawable tDrawable = ptScene->sbtOpaqueDrawables[i];
             plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
@@ -3143,7 +3171,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer tCommandBuffer, uint32_t uS
             });
         }
 
-        for(uint32_t i = 0; i < uTransparentDrawableCount; i++)
+        for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
         {
             const plDrawable tDrawable = ptScene->sbtTransparentDrawables[i];
             plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
@@ -3315,6 +3343,8 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
             .uSlot    = 4
         }
     };
+
+    plBuffer* ptStorageBuffer = gptDevice->get_buffer(ptDevice, ptScene->tStorageBuffer);
     const plBindGroupUpdateBufferData atBufferData[] = 
     {
         {
@@ -3325,7 +3355,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         {
             .tBuffer       = ptScene->tStorageBuffer,
             .uSlot         = 1,
-            .szBufferRange = sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer)
+            .szBufferRange = ptStorageBuffer->tDescription.uByteSize
         },
         {
             .tBuffer       = ptScene->tMaterialDataBuffer,
@@ -3630,10 +3660,11 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         };
         plBindGroupHandle tOutlineGlobalBG = gptDevice->get_temporary_bind_group(ptDevice, &tOutlineBindGroupLayout0, "temporary outline global bind group");
 
+        // plBuffer* ptStorageBuffer = gptDevice->get_buffer(ptDevice, ptScene->tStorageBuffer);
         const plBindGroupUpdateBufferData atOutlineBufferData[] = 
         {
             { .uSlot = 0, .tBuffer = ptView->atGlobalBuffers[ptGraphics->uCurrentFrameIndex], .szBufferRange = sizeof(BindGroup_0)},
-            { .uSlot = 1, .tBuffer = ptScene->tStorageBuffer, .szBufferRange = sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer)},
+            { .uSlot = 1, .tBuffer = ptScene->tStorageBuffer, .szBufferRange = ptStorageBuffer->tDescription.uByteSize},
 
         };
 
@@ -3921,13 +3952,9 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
     if(pl_sb_size(ptMesh->sbtVertexColors[0]) > 0)             { uDestStride += 1; }
     if(pl_sb_size(ptMesh->sbtVertexColors[1]) > 0)             { uDestStride += 1; }
     if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[0]) > 0) { uDestStride += 1; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[1]) > 0) { uDestStride += 1; }
     if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[2]) > 0) { uDestStride += 1; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[3]) > 0) { uDestStride += 1; }
     if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[4]) > 0) { uDestStride += 1; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[5]) > 0) { uDestStride += 1; }
     if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[6]) > 0) { uDestStride += 1; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[7]) > 0) { uDestStride += 1; }
 
     plSkinData tSkinData = {
         .tEntity = ptMesh->tSkinComponent,
@@ -3951,8 +3978,6 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
 
     for(uint32_t uFrameIndex = 0; uFrameIndex < PL_FRAMES_IN_FLIGHT; uFrameIndex++)
         tSkinData.atDynamicTexture[uFrameIndex] = pl__refr_create_texture_with_data(&tSkinTextureDesc, "joint texture", uFrameIndex, ptSkinComponent->sbtTextureData, sizeof(float) * 4 * textureWidth * textureWidth);
-
-
 
     int aiSpecializationData[] = {(int)ulVertexStreamMask, (int)uStride, (int)ptMesh->ulVertexStreamMask, (int)uDestStride};
     const plComputeShaderDescription tComputeShaderDesc = {
@@ -4034,13 +4059,9 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
     if(pl_sb_size(ptMesh->sbtVertexColors[0]) > 0)             { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_0; }
     if(pl_sb_size(ptMesh->sbtVertexColors[1]) > 0)             { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_1; }
     if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[0]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[1]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[2]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[3]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[4]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_4; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[5]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_5; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[6]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_6; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[7]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_7; }
+    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[2]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1; }
+    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[4]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2; }
+    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[6]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3; }
 
     pl_sb_add_n(ptScene->sbtVertexDataBuffer, uStride * uVertexCount);
 
@@ -4077,20 +4098,36 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
         uOffset += 1;
 
     // texture coordinates 0
-    for(uint32_t i = 0; i < 8; i++)
+    for(uint32_t i = 0; i < 8; i+=2)
     {
-        const uint32_t uVertexTexCount = pl_sb_size(ptMesh->sbtVertexTextureCoordinates[i]);
-        for(uint32_t j = 0; j < uVertexTexCount; j++)
-        {
-            const plVec2* ptTextureCoordinates = &(ptMesh->sbtVertexTextureCoordinates[i])[j];
-            ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].x = ptTextureCoordinates->u;
-            ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].y = ptTextureCoordinates->v;
-            ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].z = 0.0f;
-            ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].w = 0.0f;
+        const uint32_t uVertexTexCount0 = pl_sb_size(ptMesh->sbtVertexTextureCoordinates[i]);
+        const uint32_t uVertexTexCount1 = pl_sb_size(ptMesh->sbtVertexTextureCoordinates[i + 1]);
 
+        if(uVertexTexCount1 > 0)
+        {
+            for(uint32_t j = 0; j < uVertexTexCount0; j++)
+            {
+                const plVec2* ptTextureCoordinates0 = &(ptMesh->sbtVertexTextureCoordinates[i])[j];
+                const plVec2* ptTextureCoordinates1 = &(ptMesh->sbtVertexTextureCoordinates[i + 1])[j];
+                ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].x = ptTextureCoordinates0->u;
+                ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].y = ptTextureCoordinates0->v;
+                ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].z = ptTextureCoordinates1->u;
+                ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].w = ptTextureCoordinates1->v;
+            }
+        }
+        else
+        {
+            for(uint32_t j = 0; j < uVertexTexCount0; j++)
+            {
+                const plVec2* ptTextureCoordinates = &(ptMesh->sbtVertexTextureCoordinates[i])[j];
+                ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].x = ptTextureCoordinates->u;
+                ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].y = ptTextureCoordinates->v;
+                ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].z = 0.0f;
+                ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].w = 0.0f;
+            } 
         }
 
-        if(uVertexTexCount > 0)
+        if(uVertexTexCount0 > 0)
             uOffset += 1;
     }
 
