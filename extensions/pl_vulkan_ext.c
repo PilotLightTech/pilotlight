@@ -473,7 +473,7 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
             ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
 
             plBufferDescription tStagingBufferDescription0 = {
-                .tUsage               = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
+                .tUsage               = PL_BUFFER_USAGE_UNIFORM,
                 .uByteSize            = PL_DEVICE_ALLOCATION_BLOCK_SIZE
             };
             pl_sprintf(tStagingBufferDescription0.acDebugName, "D-BUF-F%d-%d", (int)ptGraphics->uCurrentFrameIndex, (int)ptFrame->uCurrentBufferIndex);
@@ -2633,6 +2633,7 @@ static inline void pl__update_bindings(plBindGroupManagerData* ptData, VkCommand
     for(uint32_t i = 0; i < ptData->uCount; i++)
         atSets[i] = ptData->auSlots[i];
     vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, tLayout, ptData->uFirstSlot, ptData->uCount - ptData->uFirstSlot, &atSets[ptData->uFirstSlot], 1, ptData->auOffsets);
+    ptData->uFirstSlot = ptData->uCount - ptData->uFirstSlot - 1;
 }
 
 static void
@@ -3054,7 +3055,7 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
         .pNext                   = ptGraphics->bValidationActive ? (VkDebugUtilsMessengerCreateInfoEXT*)&tDebugCreateInfo : VK_NULL_HANDLE,
         .enabledExtensionCount   = pl_sb_size(sbpcEnabledExtensions),
         .ppEnabledExtensionNames = sbpcEnabledExtensions,
-        .enabledLayerCount       = 1,
+        .enabledLayerCount       = ptDesc->bEnableValidation ? 1 : 0,
         .ppEnabledLayerNames     = &pcKhronosValidationLayer,
 
         #ifdef __APPLE__
