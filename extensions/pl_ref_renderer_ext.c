@@ -3768,7 +3768,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
-    gptDraw3d->submit_drawlist(ptView->pt3DDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_PIPELINE_FLAG_DEPTH_TEST | PL_PIPELINE_FLAG_DEPTH_WRITE, 1);
+    gptDraw3d->submit_drawlist(ptView->pt3DDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_3D_DRAW_FLAG_DEPTH_TEST | PL_3D_DRAW_FLAG_DEPTH_WRITE, 1);
     gptDraw3d->submit_drawlist(ptView->pt3DSelectionDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
     gptGfx->end_render_pass(&tEncoder);
     pl_end_profile_sample();

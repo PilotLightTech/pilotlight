@@ -403,7 +403,7 @@ pl__submit_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float fW
         const plDrawIndex tDrawIndex = {
             .tIndexBuffer = gptCtx->atIndexBuffer[ptGfx->uCurrentFrameIndex],
             .uIndexCount = pl_sb_size(ptDrawlist->sbtLineIndexBuffer),
-            .uIndexStart = iVertexOffset,
+            .uIndexStart = iIndexOffset,
             .uInstance = 0,
             .uInstanceCount = 1,
             .uVertexStart = iVertexOffset
@@ -745,9 +745,9 @@ pl__get_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, pl3D
     ptEntry->uSubpassIndex = uSubpassIndex;
 
     uint64_t ulCullMode = PL_CULL_MODE_NONE;
-    if(tFlags & PL_PIPELINE_FLAG_CULL_FRONT)
+    if(tFlags & PL_3D_DRAW_FLAG_CULL_FRONT)
         ulCullMode |= PL_CULL_MODE_CULL_FRONT;
-    if(tFlags & PL_PIPELINE_FLAG_CULL_BACK)
+    if(tFlags & PL_3D_DRAW_FLAG_CULL_BACK)
         ulCullMode |= PL_CULL_MODE_CULL_BACK;
 
     const plShaderDescription t3DShaderDesc = {
@@ -760,8 +760,8 @@ pl__get_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, pl3D
         .pcPixelShader = "draw_3d.frag.spv",
         #endif
         .tGraphicsState = {
-            .ulDepthWriteEnabled  = tFlags & PL_PIPELINE_FLAG_DEPTH_WRITE,
-            .ulDepthMode          = tFlags & PL_PIPELINE_FLAG_DEPTH_TEST ? PL_COMPARE_MODE_LESS : PL_COMPARE_MODE_ALWAYS,
+            .ulDepthWriteEnabled  = tFlags & PL_3D_DRAW_FLAG_DEPTH_WRITE,
+            .ulDepthMode          = tFlags & PL_3D_DRAW_FLAG_DEPTH_TEST ? PL_COMPARE_MODE_LESS : PL_COMPARE_MODE_ALWAYS,
             .ulCullMode           = ulCullMode,
             .ulWireframe          = 0,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
@@ -806,8 +806,8 @@ pl__get_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, pl3D
         .pcPixelShader = "draw_3d.frag.spv",
         #endif
         .tGraphicsState = {
-            .ulDepthWriteEnabled  = tFlags & PL_PIPELINE_FLAG_DEPTH_WRITE,
-            .ulDepthMode          = tFlags & PL_PIPELINE_FLAG_DEPTH_TEST ? PL_COMPARE_MODE_LESS : PL_COMPARE_MODE_ALWAYS,
+            .ulDepthWriteEnabled  = tFlags & PL_3D_DRAW_FLAG_DEPTH_WRITE,
+            .ulDepthMode          = tFlags & PL_3D_DRAW_FLAG_DEPTH_TEST ? PL_COMPARE_MODE_LESS : PL_COMPARE_MODE_ALWAYS,
             .ulCullMode           = ulCullMode,
             .ulWireframe          = 0,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,

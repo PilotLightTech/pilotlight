@@ -67,12 +67,12 @@ typedef struct _plRenderEncoder plRenderEncoder; // pl_graphics_ext.h
 
 enum _pl3DDrawFlags
 {
-    PL_PIPELINE_FLAG_NONE          = 0,
-    PL_PIPELINE_FLAG_DEPTH_TEST    = 1 << 0,
-    PL_PIPELINE_FLAG_DEPTH_WRITE   = 1 << 1,
-    PL_PIPELINE_FLAG_CULL_FRONT    = 1 << 2,
-    PL_PIPELINE_FLAG_CULL_BACK     = 1 << 3,
-    PL_PIPELINE_FLAG_FRONT_FACE_CW = 1 << 4,
+    PL_3D_DRAW_FLAG_NONE          = 0,
+    PL_3D_DRAW_FLAG_DEPTH_TEST    = 1 << 0,
+    PL_3D_DRAW_FLAG_DEPTH_WRITE   = 1 << 1,
+    PL_3D_DRAW_FLAG_CULL_FRONT    = 1 << 2,
+    PL_3D_DRAW_FLAG_CULL_BACK     = 1 << 3,
+    PL_3D_DRAW_FLAG_FRONT_FACE_CW = 1 << 4,
 };
 
 //-----------------------------------------------------------------------------
