@@ -32,7 +32,7 @@ Index of this file:
 #endif
 
 #ifndef PL_MAX_DYNAMIC_DATA_SIZE
-    #define PL_MAX_DYNAMIC_DATA_SIZE 512
+    #define PL_MAX_DYNAMIC_DATA_SIZE 256
 #endif
 
 #ifndef PL_MAX_BUFFERS_PER_BIND_GROUP
@@ -74,7 +74,7 @@ Index of this file:
 #define PL_ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
 
 #ifndef PL_DEFINE_HANDLE
-    #define PL_DEFINE_HANDLE(x) typedef struct x { uint32_t uIndex; uint32_t uGeneration;} x;
+    #define PL_DEFINE_HANDLE(x) typedef union x { struct {uint32_t uIndex; uint32_t uGeneration;}; uint64_t ulData; } x;
 #endif
 
 #define PL_MAX_MIPS 64.0f

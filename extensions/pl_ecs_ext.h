@@ -302,10 +302,14 @@ enum _plLightType
 
 #ifndef PL_RESOURCE_HANDLE_DEFINED
 #define PL_RESOURCE_HANDLE_DEFINED
-typedef struct _plResourceHandle
+typedef union _plResourceHandle
 {
-    uint32_t uIndex;
-    uint32_t uGeneration;
+    struct
+    {
+        uint32_t uIndex;
+        uint32_t uGeneration;
+    };
+    uint64_t ulData;
 } plResourceHandle;
 #endif // PL_RESOURCE_HANDLE_DEFINED
 

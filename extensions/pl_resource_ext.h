@@ -39,7 +39,7 @@ typedef struct _plResourceI plResourceI;
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plResourceHandle plResourceHandle;
+typedef union _plResourceHandle plResourceHandle;
 
 // enums
 typedef int plResourceLoadFlags;
@@ -79,10 +79,14 @@ enum _plResourceLoadFlags
 
 #ifndef PL_RESOURCE_HANDLE_DEFINED
 #define PL_RESOURCE_HANDLE_DEFINED
-typedef struct _plResourceHandle
+typedef union _plResourceHandle
 {
-    uint32_t uIndex;
-    uint32_t uGeneration;
+    struct
+    {
+        uint32_t uIndex;
+        uint32_t uGeneration;
+    };
+    uint64_t ulData;
 } plResourceHandle;
 #endif // PL_RESOURCE_HANDLE_DEFINED
 

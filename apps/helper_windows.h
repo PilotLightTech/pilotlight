@@ -241,6 +241,7 @@ pl_show_ecs_window(const plEcsI* ptECS, plComponentLibrary* ptLibrary, bool* pbS
                     pl_text("Up:       (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tUpVec.x, ptCameraComp->_tUpVec.y, ptCameraComp->_tUpVec.z);
                     pl_text("Forward:  (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tForwardVec.x, ptCameraComp->_tForwardVec.y, ptCameraComp->_tForwardVec.z);
                     pl_text("Right:    (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tRightVec.x, ptCameraComp->_tRightVec.y, ptCameraComp->_tRightVec.z);
+                    pl_slider_float("Far Z Plane", &ptCameraComp->fFarZ, 10.0f, 400.0f);
                     pl_end_collapsing_header();
                 }
 
