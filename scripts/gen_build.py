@@ -2,7 +2,7 @@ import os
 import sys
 import shutil
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../dependencies/pilotlight-build/pilotlight_build")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../build")
 
 import pl_build as pl
 

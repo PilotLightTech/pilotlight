@@ -6,6 +6,9 @@
 data/
 out/
 
+# python
+build/__pycache__/
+
 # debug files
 src/*.pdb
 examples/*.pdb

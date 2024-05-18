@@ -58,14 +58,14 @@ for extension in extensions:
     shutil.copy("../extensions/" + extension + ".h", target_directory + "/include/" + extension + ".h")
 
 # copy pilotlight-lib headers
-shutil.copy("../dependencies/pilotlight-libs/pl_ds.h", target_directory + "/include/pl_ds.h")
-shutil.copy("../dependencies/pilotlight-libs/pl_log.h", target_directory + "/include/pl_log.h")
-shutil.copy("../dependencies/pilotlight-libs/pl_profile.h", target_directory + "/include/pl_profile.h")
-shutil.copy("../dependencies/pilotlight-libs/pl_memory.h", target_directory + "/include/pl_memory.h")
-shutil.copy("../dependencies/pilotlight-libs/pl_math.h", target_directory + "/include/pl_math.h")
-shutil.copy("../dependencies/pilotlight-libs/pl_json.h", target_directory + "/include/pl_json.h")
-shutil.copy("../dependencies/pilotlight-libs/pl_stl.h", target_directory + "/include/pl_stl.h")
-shutil.copy("../dependencies/pilotlight-libs/pl_string.h", target_directory + "/include/pl_string.h")
+shutil.copy("../libs/pl_ds.h", target_directory + "/include/pl_ds.h")
+shutil.copy("../libs/pl_log.h", target_directory + "/include/pl_log.h")
+shutil.copy("../libs/pl_profile.h", target_directory + "/include/pl_profile.h")
+shutil.copy("../libs/pl_memory.h", target_directory + "/include/pl_memory.h")
+shutil.copy("../libs/pl_math.h", target_directory + "/include/pl_math.h")
+shutil.copy("../libs/pl_json.h", target_directory + "/include/pl_json.h")
+shutil.copy("../libs/pl_stl.h", target_directory + "/include/pl_stl.h")
+shutil.copy("../libs/pl_string.h", target_directory + "/include/pl_string.h")
 
 # copy pilotlight-ui headers
 shutil.copy("../dependencies/pilotlight-ui/pl_ui.h", target_directory + "/include/pl_ui.h")
