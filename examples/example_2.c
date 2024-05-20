@@ -159,7 +159,41 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // setup draw
     gptDraw->initialize(&ptAppData->tGraphics);
+
+    // builtin default font (proggy @ 13)
     gptDraw->add_default_font(&ptAppData->tFontAtlas);
+
+    // typical font range (you can also add individual characters)
+    const plFontRange tRange = {
+        .iFirstCodePoint = 0x0020,
+        .uCharCount = 0x00FF - 0x0020
+    };
+
+    // adding another font
+    plFontConfig tFontConfig0 = {
+        .bSdf = false,
+        .fFontSize = 18.0f,
+        .uHOverSampling = 1,
+        .uVOverSampling = 1,
+        .ucOnEdgeValue = 255,
+        .iSdfPadding = 1
+    };
+    pl_sb_push(tFontConfig0.sbtRanges, tRange);
+    gptDraw->add_font_from_file_ttf(&ptAppData->tFontAtlas, tFontConfig0, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
+
+    // adding previous font but as a signed distance field
+    plFontConfig tFontConfig1 = {
+        .bSdf = true,
+        .fFontSize = 18.0f,
+        .uHOverSampling = 1,
+        .uVOverSampling = 1,
+        .ucOnEdgeValue = 180,
+        .iSdfPadding = 1
+    };
+    pl_sb_push(tFontConfig1.sbtRanges, tRange);
+    gptDraw->add_font_from_file_ttf(&ptAppData->tFontAtlas, tFontConfig1, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
+
+    // build font atlass
     gptDraw->build_font_atlas(&ptAppData->tFontAtlas);
 
     // register our app drawlist
@@ -230,6 +264,14 @@ pl_app_update(plAppData* ptAppData)
     // drawing API usage
     gptDraw->add_circle(ptAppData->ptFGLayer, (plVec2){120.0f, 120.0f}, 50.0f, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0, 1.0f);
     gptDraw->add_circle_filled(ptAppData->ptBGLayer, (plVec2){100.0f, 100.0f}, 25.0f, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 24);
+    gptDraw->add_text(ptAppData->ptFGLayer, &ptAppData->tFontAtlas.sbtFonts[0], 13.0f, (plVec2){200.0f, 100.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Proggy @ 13 (loaded at 13)", 0.0f);
+    gptDraw->add_text(ptAppData->ptFGLayer, &ptAppData->tFontAtlas.sbtFonts[0], 45.0f, (plVec2){200.0f, 115.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Proggy @ 45 (loaded at 13)", 0.0f);
+
+    gptDraw->add_text(ptAppData->ptFGLayer, &ptAppData->tFontAtlas.sbtFonts[1], 18.0f, (plVec2){25.0f, 200.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 18, bitmap (loaded at 18)", 0.0f);
+    gptDraw->add_text(ptAppData->ptFGLayer, &ptAppData->tFontAtlas.sbtFonts[1], 100.0f, (plVec2){25.0f, 220.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 100, bitmap (loaded at 18)", 0.0f);
+
+    gptDraw->add_text(ptAppData->ptFGLayer, &ptAppData->tFontAtlas.sbtFonts[2], 18.0f, (plVec2){25.0f, 320.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 18, sdf (loaded at 18)", 0.0f);
+    gptDraw->add_text(ptAppData->ptFGLayer, &ptAppData->tFontAtlas.sbtFonts[2], 100.0f, (plVec2){25.0f, 340.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 100, sdf (loaded at 18)", 0.0f);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~drawing prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

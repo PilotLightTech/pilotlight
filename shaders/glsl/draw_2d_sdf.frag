@@ -27,9 +27,9 @@ layout(location = 0) out vec4 fColor;
 
 void main()
 {
-    float fDistance = texture(sampler2D(tFontAtlas, tFontSampler), In.UV.st).a;
+    float fDistance = texture(sampler2D(tFontAtlas, tFontSampler), In.UV).a;
     float fSmoothWidth = fwidth(fDistance);	
     float fAlpha = smoothstep(0.5 - fSmoothWidth, 0.5 + fSmoothWidth, fDistance);
-    vec3 fRgbVec = In.Color.rgb * texture(sampler2D(tFontAtlas, tFontSampler), In.UV.st).rgb;
-    fColor = vec4(fRgbVec, fAlpha);	
+    vec3 fRgbVec = In.Color.rgb * texture(sampler2D(tFontAtlas, tFontSampler), In.UV).rgb;
+    fColor = vec4(fRgbVec, In.Color.a * fAlpha);	
 }

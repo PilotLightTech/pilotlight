@@ -61,5 +61,5 @@ fragment float4 fragment_main(
     float smoothWidth = fwidth(distance);
     float alpha = smoothstep(0.5 - smoothWidth, 0.5 + smoothWidth, distance);
     float3 texColor = bg1.tFontAtlas.sample(bg0.tDefaultSampler, in.UV).rgb * float3(in.Color.rgb);
-    return float4(texColor, alpha);
+    return float4(texColor, in.Color.a * alpha);
 }

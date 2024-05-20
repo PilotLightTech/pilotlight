@@ -258,11 +258,11 @@ pl_initialize(plGraphics* ptGraphics)
     // 2d
     const plSamplerDesc tSamplerDesc = {
         .tFilter         = PL_FILTER_LINEAR,
-        .fMinMip         = 0.0f,
-        .fMaxMip         = 64.0f,
+        .fMinMip         = -1000.0f,
+        .fMaxMip         = 1000.0f,
         .fMaxAnisotropy  = 1.0f,
-        .tVerticalWrap   = PL_WRAP_MODE_CLAMP,
-        .tHorizontalWrap = PL_WRAP_MODE_CLAMP,
+        .tVerticalWrap   = PL_WRAP_MODE_WRAP,
+        .tHorizontalWrap = PL_WRAP_MODE_WRAP,
         .tMipmapMode     = PL_MIPMAP_MODE_LINEAR
     };
     gptCtx->tFontSampler = gptDevice->create_sampler(&ptGraphics->tDevice, &tSamplerDesc, "font sampler");
