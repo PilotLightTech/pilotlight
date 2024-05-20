@@ -180,6 +180,7 @@ static plDrawContext* gptCtx = NULL;
 
 static const plDeviceI*   gptDevice = NULL;
 static const plGraphicsI* gptGfx    = NULL;
+static const plIOI*       gptIO     = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -2045,7 +2046,7 @@ pl__submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder tEncoder, float
 
     const plPipelineEntry* ptEntry = pl__get_2d_pipeline(tEncoder.tRenderPassHandle, uMSAASampleCount, tEncoder._uCurrentSubpass);
 
-    const plVec2 tClipScale = {1.0f, 1.0f};
+    const plVec2 tClipScale = {gptIO->get_io()->afMainFramebufferScale[0], gptIO->get_io()->afMainFramebufferScale[0]};
     // const plVec2 tClipScale = ptCtx->tFrameBufferScale;
     const float fScale[] = { 2.0f / fWidth, 2.0f / fHeight};
     const float fTranslate[] = {-1.0f, -1.0f};
@@ -3268,6 +3269,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     gptDevice = ptApiRegistry->first(PL_API_DEVICE);
     gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
+    gptIO     = ptApiRegistry->first(PL_API_IO);
     if(bReload)
     {
         gptCtx = ptDataRegistry->get_data("plDrawContext");
