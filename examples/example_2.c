@@ -3,8 +3,8 @@
      - demonstrates loading APIs
      - demonstrates loading extensions
      - demonstrates hot reloading
-     - demonstrates UI library
      - demonstrates minimal use of graphics extension
+     - demonstrates drawing extension (2D)
 */
 
 /*
@@ -31,10 +31,10 @@ Index of this file:
 #include "pl_memory.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
-#include "pl_ui.h"
 
 // extensions
 #include "pl_graphics_ext.h"
+#include "pl_draw_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -49,10 +49,10 @@ typedef struct _plAppData
     bool bShowUiDemo;
 
     // drawing
-    plFontAtlas  tFontAtlas;
-    plDrawList   tAppDrawlist;
-    plDrawLayer* ptFGLayer;
-    plDrawLayer* ptBGLayer;
+    plFontAtlas    tFontAtlas;
+    plDrawList2D*  ptDrawlist;
+    plDrawLayer2D* ptFGLayer;
+    plDrawLayer2D* ptBGLayer;
 
     // graphics & sync objects
     plGraphics        tGraphics;
@@ -65,9 +65,11 @@ typedef struct _plAppData
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
+const plIOI*       gptIO      = NULL;
 const plWindowI*   gptWindows = NULL;
 const plGraphicsI* gptGfx     = NULL;
 const plDeviceI*   gptDevice  = NULL;
+const plDrawI*     gptDraw    = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -82,10 +84,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // retrieve the data registry API, this is the API used for sharing data
     // between extensions & the runtime
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-
-    // retrieve the UI context (provided by the runtime) and
-    // set it (required to use plIO for "talking" with runtime & keyboard/mouse input)
-    pl_set_context(ptDataRegistry->get_data("ui"));
 
     // retrieve the memory context (provided by the runtime) and
     // set it to allow for memory tracking when using PL_ALLOC/PL_FREE
@@ -102,9 +100,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
         // re-retrieve the apis since we are now in
         // a different dll/so
-        gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
-        gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
-        gptDevice      = ptApiRegistry->first(PL_API_DEVICE);
+        gptIO      = ptApiRegistry->first(PL_API_IO);
+        gptWindows = ptApiRegistry->first(PL_API_WINDOW);
+        gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
+        gptDevice  = ptApiRegistry->first(PL_API_DEVICE);
+        gptDraw    = ptApiRegistry->first(PL_API_DRAW);
 
         return ptAppData;
     }
@@ -132,11 +132,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // load graphics extension (provides graphics & device apis)
     ptExtensionRegistry->load("pl_graphics_ext", NULL, NULL, false);
+    ptExtensionRegistry->load("pl_draw_ext",     NULL, NULL, true);
     
     // load required apis (NULL if not available)
+    gptIO      = ptApiRegistry->first(PL_API_IO);
     gptWindows = ptApiRegistry->first(PL_API_WINDOW);
     gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
     gptDevice  = ptApiRegistry->first(PL_API_DEVICE);
+    gptDraw    = ptApiRegistry->first(PL_API_DRAW);
 
     // use window API to create a window
     const plWindowDesc tWindowDesc = {
@@ -154,17 +157,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
     gptGfx->initialize(ptAppData->ptWindow, &tGraphicsDesc, &ptAppData->tGraphics);
 
-    // setup ui
-    pl_add_default_font(&ptAppData->tFontAtlas); // Proggy.ttf w/ 13 pt
-    pl_build_font_atlas(&ptAppData->tFontAtlas); // generates font atlas data
-    gptGfx->setup_ui(&ptAppData->tGraphics, ptAppData->tGraphics.tMainRenderPass); // prepares any graphics backend specifics
-    gptGfx->create_font_atlas(&ptAppData->tFontAtlas); // creates font atlas texture
-    pl_set_default_font(&ptAppData->tFontAtlas.sbtFonts[0]); // sets default font to use for UI rendering
+    // setup draw
+    gptDraw->initialize(&ptAppData->tGraphics);
+    gptDraw->add_default_font(&ptAppData->tFontAtlas);
+    gptDraw->build_font_atlas(&ptAppData->tFontAtlas);
 
     // register our app drawlist
-    pl_register_drawlist(&ptAppData->tAppDrawlist);
-    ptAppData->ptFGLayer = pl_request_layer(&ptAppData->tAppDrawlist, "foreground layer");
-    ptAppData->ptBGLayer = pl_request_layer(&ptAppData->tAppDrawlist, "background layer");
+    ptAppData->ptDrawlist = gptDraw->request_2d_drawlist();
+    ptAppData->ptFGLayer = gptDraw->request_2d_layer(ptAppData->ptDrawlist, "foreground layer");
+    ptAppData->ptBGLayer = gptDraw->request_2d_layer(ptAppData->ptDrawlist, "background layer");
 
     // create timeline semaphores to syncronize GPU work submission
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
@@ -181,12 +182,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
-    // cleanup
-    gptGfx->destroy_font_atlas(&ptAppData->tFontAtlas); // backend specific cleanup
-    pl_cleanup_font_atlas(&ptAppData->tFontAtlas);
-
     // ensure GPU is finished before cleanup
     gptDevice->flush_device(&ptAppData->tGraphics.tDevice);
+    gptDraw->cleanup_font_atlas(&ptAppData->tFontAtlas);
+    gptDraw->cleanup();
     gptGfx->cleanup(&ptAppData->tGraphics);
     gptWindows->destroy_window(ptAppData->ptWindow);
     pl_cleanup_profile_context();
@@ -214,6 +213,9 @@ pl_app_update(plAppData* ptAppData)
 {
     pl_begin_profile_frame();
 
+    gptIO->new_frame();
+    gptDraw->new_frame();
+
     // for convience
     plGraphics* ptGraphics = &ptAppData->tGraphics;
 
@@ -225,45 +227,15 @@ pl_app_update(plAppData* ptAppData)
         return;
     }
 
-    pl_new_frame(); // must be called once at the beginning of a frame
-
-    // create a UI window
-    if(pl_begin_window("Pilot Light", NULL, false))
-    {
-
-        const float pfRatios[] = {1.0f};
-        pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-        if(pl_collapsing_header("Information"))
-        {
-            pl_text("Pilot Light %s", PILOTLIGHT_VERSION);
-            pl_text("Pilot Light UI %s", PL_UI_VERSION);
-            pl_text("Pilot Light DS %s", PL_DS_VERSION);
-            pl_end_collapsing_header();
-        }
-
-        if(pl_collapsing_header("User Interface"))
-        {
-            pl_checkbox("UI Demo", &ptAppData->bShowUiDemo);
-            pl_end_collapsing_header();
-        }
-        pl_end_window();
-    }
-
-    if(ptAppData->bShowUiDemo)
-        pl_show_demo_window(&ptAppData->bShowUiDemo);
-
     // drawing API usage
-    pl_add_circle(ptAppData->ptFGLayer, (plVec2){120.0f, 120.0f}, 50.0f, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0, 1.0f);
-    pl_add_circle_filled(ptAppData->ptBGLayer, (plVec2){100.0f, 100.0f}, 25.0f, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 24);
+    gptDraw->add_circle(ptAppData->ptFGLayer, (plVec2){120.0f, 120.0f}, 50.0f, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0, 1.0f);
+    gptDraw->add_circle_filled(ptAppData->ptBGLayer, (plVec2){100.0f, 100.0f}, 25.0f, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 24);
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~UI & drawing prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // build UI render data (and submits layers in correct order)
-    pl_render();
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~drawing prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // submit our draw layers
-    pl_submit_layer(ptAppData->ptBGLayer);
-    pl_submit_layer(ptAppData->ptFGLayer);
+    gptDraw->submit_2d_layer(ptAppData->ptBGLayer);
+    gptDraw->submit_2d_layer(ptAppData->ptFGLayer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~begin recording command buffer~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -283,9 +255,8 @@ pl_app_update(plAppData* ptAppData)
     plRenderEncoder tEncoder = gptGfx->begin_render_pass(ptGraphics, &tCommandBuffer, ptGraphics->tMainRenderPass);
 
     // submit drawlists
-    gptGfx->draw_lists(ptGraphics, tEncoder, 1, pl_get_draw_list(NULL));
-    gptGfx->draw_lists(ptGraphics, tEncoder, 1, pl_get_debug_draw_list(NULL));
-    gptGfx->draw_lists(ptGraphics, tEncoder, 1, &ptAppData->tAppDrawlist);
+    plIO* ptIO = gptIO->get_io();
+    gptDraw->submit_2d_drawlist(ptAppData->ptDrawlist, tEncoder, ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1], 1);
 
     // end render pass
     gptGfx->end_render_pass(&tEncoder);

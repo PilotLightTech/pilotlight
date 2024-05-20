@@ -23,7 +23,7 @@ extensions = [
     "pl_ref_renderer_ext",
     "pl_gpu_allocators_ext",
     "pl_model_loader_ext",
-    "pl_draw_3d_ext"
+    "pl_draw_ext"
 ]
 
 if os.path.isdir(target_directory):
@@ -56,6 +56,7 @@ shutil.copy("../src/pl_os.h", target_directory + "/include/pl_os.h")
 # copy extension headers
 for extension in extensions:
     shutil.copy("../extensions/" + extension + ".h", target_directory + "/include/" + extension + ".h")
+shutil.copy("../ui/pl_ui_ext.h", target_directory + "/include/pl_ui_ext.h")
 
 # copy pilotlight-lib headers
 shutil.copy("../libs/pl_ds.h", target_directory + "/include/pl_ds.h")
@@ -66,9 +67,6 @@ shutil.copy("../libs/pl_math.h", target_directory + "/include/pl_math.h")
 shutil.copy("../libs/pl_json.h", target_directory + "/include/pl_json.h")
 shutil.copy("../libs/pl_stl.h", target_directory + "/include/pl_stl.h")
 shutil.copy("../libs/pl_string.h", target_directory + "/include/pl_string.h")
-
-# copy pilotlight-ui headers
-shutil.copy("../dependencies/pilotlight-ui/pl_ui.h", target_directory + "/include/pl_ui.h")
 
 # copy stb libs
 shutil.copy("../dependencies/stb/stb_sprintf.h", target_directory + "/include/stb_sprintf.h")

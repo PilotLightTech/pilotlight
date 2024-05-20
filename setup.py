@@ -20,12 +20,11 @@ includes = [
     "${workspaceFolder}/**",
     "${workspaceFolder}/apps",
     "${workspaceFolder}/src",
+    "${workspaceFolder}/ui",
+    "${workspaceFolder}/libs",
     "${workspaceFolder}/extensions",
     "${workspaceFolder}/dependencies/stb",
     "${workspaceFolder}/dependencies/cgltf",
-    "${workspaceFolder}/dependencies/pilotlight-libs",
-    "${workspaceFolder}/dependencies/pilotlight-ui",
-    "${workspaceFolder}/dependencies/pilotlight-ui/backends",
     "${env:VK_SDK_PATH}/Include"
 ]
 
@@ -63,7 +62,7 @@ with open('.vscode/launch.json', 'w') as file:
         lines.append('      "program": "${workspaceFolder}/out/pilot_light",')
 
     lines.append('      "request": "launch",')
-    lines.append('      "args": [],')
+    lines.append('      "args": ["-a", "app"],')
     lines.append('      "stopAtEntry": false,')
     lines.append('      "cwd": "${workspaceFolder}/out/",')
     lines.append('      "environment": []')

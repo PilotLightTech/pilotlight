@@ -5,11 +5,13 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] helper functions
 // [SECTION] structs
 // [SECTION] pl_app_load
 // [SECTION] pl_app_shutdown
 // [SECTION] pl_app_resize
 // [SECTION] pl_app_update
+// [SECTION] helper function implementations
 */
 
 //-----------------------------------------------------------------------------
@@ -25,7 +27,6 @@ Index of this file:
 #include "pl_memory.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
-#include "pl_ui.h"
 
 // extensions
 #include "pl_image_ext.h"
@@ -37,10 +38,14 @@ Index of this file:
 #include "pl_model_loader_ext.h"
 #include "pl_ref_renderer_ext.h"
 #include "pl_job_ext.h"
-#include "pl_draw_3d_ext.h"
+#include "pl_draw_ext.h"
+#include "pl_ui_ext.h"
 
-// misc
-#include "helper_windows.h"
+//-----------------------------------------------------------------------------
+// [SECTION] helper functions
+//-----------------------------------------------------------------------------
+
+static plEntity pl_show_ecs_window(plComponentLibrary*, bool* pbShowWindow);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -85,8 +90,8 @@ typedef struct plAppData_t
     uint32_t uViewHandle0;
 
     // drawing
-    plDrawLayer* ptDrawLayer;
-    plFontAtlas  tFontAtlas;
+    plDrawLayer2D* ptDrawLayer;
+    plFontAtlas   tFontAtlas;
 
     // sync
     plSemaphoreHandle atSempahore[PL_FRAMES_IN_FLIGHT];
@@ -115,7 +120,9 @@ const plResourceI*          gptResource          = NULL;
 const plRefRendererI*       gptRenderer          = NULL;
 const plModelLoaderI*       gptModelLoader       = NULL;
 const plJobI*               gptJobs              = NULL;
-const plDraw3dI*            gptDraw3d            = NULL;
+const plDrawI*              gptDraw              = NULL;
+const plUiI*                gptUi                = NULL;
+const plIOI*                gptIO                = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -127,7 +134,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptApiRegistry  = ptApiRegistry;
     gptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(gptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-    pl_set_context(gptDataRegistry->get_data("ui"));
 
     if(ptAppData) // reload
     {
@@ -149,7 +155,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptRenderer    = ptApiRegistry->first(PL_API_REF_RENDERER);
         gptJobs        = ptApiRegistry->first(PL_API_JOB);
         gptModelLoader = ptApiRegistry->first(PL_API_MODEL_LOADER);
-        gptDraw3d      = ptApiRegistry->first(PL_API_DRAW_3D);
+        gptDraw        = ptApiRegistry->first(PL_API_DRAW);
+        gptUi          = ptApiRegistry->first(PL_API_UI);
+        gptIO          = ptApiRegistry->first(PL_API_IO);
 
         return ptAppData;
     }
@@ -180,12 +188,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_stats_ext",          NULL, NULL, false);
     ptExtensionRegistry->load("pl_graphics_ext",       NULL, NULL, false);
     ptExtensionRegistry->load("pl_gpu_allocators_ext", NULL, NULL, false);
-    ptExtensionRegistry->load("pl_debug_ext",          NULL, NULL, true);
     ptExtensionRegistry->load("pl_ecs_ext",            NULL, NULL, false);
     ptExtensionRegistry->load("pl_resource_ext",       NULL, NULL, false);
     ptExtensionRegistry->load("pl_model_loader_ext",   NULL, NULL, false);
-    ptExtensionRegistry->load("pl_draw_3d_ext",        NULL, NULL, true);
+    ptExtensionRegistry->load("pl_draw_ext",           NULL, NULL, true);
     ptExtensionRegistry->load("pl_ref_renderer_ext",   NULL, NULL, true);
+    ptExtensionRegistry->load("pl_ui_ext",             NULL, NULL, true);
+    ptExtensionRegistry->load("pl_debug_ext",          NULL, NULL, true);
     
     // load apis
     gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
@@ -202,7 +211,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptRenderer    = ptApiRegistry->first(PL_API_REF_RENDERER);
     gptJobs        = ptApiRegistry->first(PL_API_JOB);
     gptModelLoader = ptApiRegistry->first(PL_API_MODEL_LOADER);
-    gptDraw3d      = ptApiRegistry->first(PL_API_DRAW_3D);
+    gptDraw        = ptApiRegistry->first(PL_API_DRAW);
+    gptUi          = ptApiRegistry->first(PL_API_UI);
+    gptIO          = ptApiRegistry->first(PL_API_IO);
 
     // initialize job system
     gptJobs->initialize(0);
@@ -216,18 +227,19 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
     ptAppData->ptWindow = gptWindows->create_window(&tWindowDesc);
 
-    plIO* ptIO = pl_get_io();
+    plIO* ptIO = gptIO->get_io();
 
     // setup reference renderer
     gptRenderer->initialize(ptAppData->ptWindow);
-    gptDraw3d->initialize(gptRenderer->get_graphics());
+
+    // setup draw
+    gptDraw->initialize(gptRenderer->get_graphics());
+    gptDraw->add_default_font(&ptAppData->tFontAtlas);
+    gptDraw->build_font_atlas(&ptAppData->tFontAtlas);
 
     // setup ui
-    pl_add_default_font(&ptAppData->tFontAtlas);
-    pl_build_font_atlas(&ptAppData->tFontAtlas);
-    gptGfx->setup_ui(gptRenderer->get_graphics(), gptRenderer->get_graphics()->tMainRenderPass);
-    gptGfx->create_font_atlas(&ptAppData->tFontAtlas);
-    pl_set_default_font(&ptAppData->tFontAtlas.sbtFonts[0]);
+    gptUi->initialize();
+    gptUi->set_default_font(&ptAppData->tFontAtlas.sbtFonts[0]);
 
     // sync
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
@@ -235,16 +247,16 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     ptAppData->uSceneHandle0 = gptRenderer->create_scene();
 
-    pl_begin_profile_sample("load environments");
-    gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 1024);
-    pl_end_profile_sample();
+    // pl_begin_profile_sample("load environments");
+    // gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 1024);
+    // pl_end_profile_sample();
 
     pl_begin_profile_sample("create scene views");
     ptAppData->uViewHandle0 = gptRenderer->create_view(ptAppData->uSceneHandle0, (plVec2){ptIO->afMainViewportSize[0] , ptIO->afMainViewportSize[1]});
     pl_end_profile_sample();
 
     // temporary draw layer for submitting fullscreen quad of offscreen render
-    ptAppData->ptDrawLayer = pl_request_layer(pl_get_draw_list(NULL), "draw layer");
+    ptAppData->ptDrawLayer = gptDraw->request_2d_layer(gptUi->get_draw_list(), "draw layer");
 
     plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
 
@@ -272,7 +284,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     pl_begin_profile_sample("load models 0");
     // const plMat4 tTransform0 = pl_mat4_scale_xyz(2.0f, 2.0f, 2.0f);
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/town.gltf", &tTransform0, &tLoaderData0);
-    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
     gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
     gptModelLoader->free_data(&tLoaderData0);
@@ -302,9 +314,11 @@ PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
     gptJobs->cleanup();
-    gptGfx->destroy_font_atlas(&ptAppData->tFontAtlas); // backend specific cleanup
-    pl_cleanup_font_atlas(&ptAppData->tFontAtlas);
-    gptDraw3d->cleanup();
+    // ensure GPU is finished before cleanup
+    gptDevice->flush_device(&gptRenderer->get_graphics()->tDevice);
+    gptDraw->cleanup_font_atlas(&ptAppData->tFontAtlas);
+    gptUi->cleanup();
+    gptDraw->cleanup();
     gptRenderer->cleanup();
     gptWindows->destroy_window(ptAppData->ptWindow);
     pl_cleanup_profile_context();
@@ -320,7 +334,7 @@ PL_EXPORT void
 pl_app_resize(plAppData* ptAppData)
 {
     gptGfx->resize(gptRenderer->get_graphics());
-    plIO* ptIO = pl_get_io();
+    plIO* ptIO = gptIO->get_io();
     gptCamera->set_aspect(gptEcs->get_component(gptRenderer->get_component_library(ptAppData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1]);
     ptAppData->bResize = true;
 }
@@ -336,9 +350,11 @@ pl_app_update(plAppData* ptAppData)
     pl_begin_profile_frame();
     pl_begin_profile_sample(__FUNCTION__);
 
+    gptIO->new_frame();
+
     // for convience
     plGraphics* ptGraphics = gptRenderer->get_graphics();
-    plIO* ptIO = pl_get_io();
+    plIO* ptIO = gptIO->get_io();
 
     if(ptAppData->bReloadSwapchain)
     {
@@ -373,7 +389,8 @@ pl_app_update(plAppData* ptAppData)
         ptAppData->bUpdateEntitySelection = false;
     }
 
-    gptDraw3d->new_frame();
+    gptDraw->new_frame();
+    gptUi->new_frame();
 
     // update statistics
     gptStats->new_frame();
@@ -399,22 +416,22 @@ pl_app_update(plAppData* ptAppData)
     bool bOwnKeyboard = ptIO->bWantCaptureKeyboard;
     if(!bOwnKeyboard)
     {
-        if(pl_is_key_down(PL_KEY_W)) gptCamera->translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
-        if(pl_is_key_down(PL_KEY_S)) gptCamera->translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
-        if(pl_is_key_down(PL_KEY_A)) gptCamera->translate(ptCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
-        if(pl_is_key_down(PL_KEY_D)) gptCamera->translate(ptCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+        if(gptIO->is_key_down(PL_KEY_W)) gptCamera->translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
+        if(gptIO->is_key_down(PL_KEY_S)) gptCamera->translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
+        if(gptIO->is_key_down(PL_KEY_A)) gptCamera->translate(ptCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+        if(gptIO->is_key_down(PL_KEY_D)) gptCamera->translate(ptCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
 
         // world space
-        if(pl_is_key_down(PL_KEY_F)) { gptCamera->translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
-        if(pl_is_key_down(PL_KEY_R)) { gptCamera->translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
+        if(gptIO->is_key_down(PL_KEY_F)) { gptCamera->translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
+        if(gptIO->is_key_down(PL_KEY_R)) { gptCamera->translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
     }
 
     bool bOwnMouse = ptIO->bWantCaptureMouse;
-    if(!bOwnMouse && pl_is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+    if(!bOwnMouse && gptIO->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
     {
-        const plVec2 tMouseDelta = pl_get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
+        const plVec2 tMouseDelta = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
         gptCamera->rotate(ptCamera,  -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed);
-        pl_reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+        gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
     }
 
     gptCamera->update(ptCamera);
@@ -422,9 +439,6 @@ pl_app_update(plAppData* ptAppData)
 
     // run ecs system
     gptRenderer->run_ecs(ptAppData->uSceneHandle0);
-
-    // new ui frame
-    pl_new_frame();
 
     uint64_t ulValue0 = ptAppData->aulNextTimelineValue[ptGraphics->uCurrentFrameIndex];
     uint64_t ulValue1 = ulValue0 + 1;
@@ -532,83 +546,83 @@ pl_app_update(plAppData* ptAppData)
     };
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo2);
 
-    pl_set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
+    gptUi->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
 
-    if(pl_begin_window("Pilot Light", NULL, false))
+    if(gptUi->begin_window("Pilot Light", NULL, false))
     {
 
         const float pfRatios[] = {1.0f};
-        pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-        if(pl_collapsing_header("Information"))
+        gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+        if(gptUi->collapsing_header("Information"))
         {
             
-            pl_text("Pilot Light %s", PILOTLIGHT_VERSION);
-            pl_text("Pilot Light UI %s", PL_UI_VERSION);
-            pl_text("Pilot Light DS %s", PL_DS_VERSION);
+            gptUi->text("Pilot Light %s", PILOTLIGHT_VERSION);
+            gptUi->text("Pilot Light UI %s", PL_UI_EXT_VERSION);
+            gptUi->text("Pilot Light DS %s", PL_DS_VERSION);
             #ifdef PL_METAL_BACKEND
-            pl_text("Graphics Backend: Metal");
+            gptUi->text("Graphics Backend: Metal");
             #elif PL_VULKAN_BACKEND
-            pl_text("Graphics Backend: Vulkan");
+            gptUi->text("Graphics Backend: Vulkan");
             #else
-            pl_text("Graphics Backend: Unknown");
+            gptUi->text("Graphics Backend: Unknown");
             #endif
 
-            pl_end_collapsing_header();
+            gptUi->end_collapsing_header();
         }
-        if(pl_collapsing_header("General Options"))
+        if(gptUi->collapsing_header("General Options"))
         {
-            if(pl_checkbox("VSync", &ptGraphics->tSwapchain.bVSync))
+            if(gptUi->checkbox("VSync", &ptGraphics->tSwapchain.bVSync))
                 ptAppData->bReloadSwapchain = true;
-            pl_checkbox("Frustum Culling", &ptAppData->bFrustumCulling);
-            if(pl_checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))
+            gptUi->checkbox("Frustum Culling", &ptAppData->bFrustumCulling);
+            if(gptUi->checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))
             {
                 *ptCullCamera = *ptCamera;
             }
-            pl_checkbox("Draw All Bounding Boxes", &ptAppData->bDrawAllBoundingBoxes);
-            pl_checkbox("Draw Visible Bounding Boxes", &ptAppData->bDrawVisibleBoundingBoxes);
-            pl_end_collapsing_header();
+            gptUi->checkbox("Draw All Bounding Boxes", &ptAppData->bDrawAllBoundingBoxes);
+            gptUi->checkbox("Draw Visible Bounding Boxes", &ptAppData->bDrawVisibleBoundingBoxes);
+            gptUi->end_collapsing_header();
         }
-        if(pl_collapsing_header("Tools"))
+        if(gptUi->collapsing_header("Tools"))
         {
-            pl_checkbox("Device Memory Analyzer", &ptAppData->tDebugInfo.bShowDeviceMemoryAnalyzer);
-            pl_checkbox("Memory Allocations", &ptAppData->tDebugInfo.bShowMemoryAllocations);
-            pl_checkbox("Profiling", &ptAppData->tDebugInfo.bShowProfiling);
-            pl_checkbox("Statistics", &ptAppData->tDebugInfo.bShowStats);
-            pl_checkbox("Logging", &ptAppData->tDebugInfo.bShowLogging);
-            pl_checkbox("Entities", &ptAppData->bShowEntityWindow);
-            pl_end_collapsing_header();
+            gptUi->checkbox("Device Memory Analyzer", &ptAppData->tDebugInfo.bShowDeviceMemoryAnalyzer);
+            gptUi->checkbox("Memory Allocations", &ptAppData->tDebugInfo.bShowMemoryAllocations);
+            gptUi->checkbox("Profiling", &ptAppData->tDebugInfo.bShowProfiling);
+            gptUi->checkbox("Statistics", &ptAppData->tDebugInfo.bShowStats);
+            gptUi->checkbox("Logging", &ptAppData->tDebugInfo.bShowLogging);
+            gptUi->checkbox("Entities", &ptAppData->bShowEntityWindow);
+            gptUi->end_collapsing_header();
         }
 
-        if(pl_collapsing_header("Debug"))
+        if(gptUi->collapsing_header("Debug"))
         {
-            if(pl_button("resize"))
+            if(gptUi->button("resize"))
                 ptAppData->bResize = true;
-            pl_checkbox("Always Resize", &ptAppData->bAlwaysResize);
+            gptUi->checkbox("Always Resize", &ptAppData->bAlwaysResize);
 
             plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_LIGHT, ptAppData->tSunlight);
-            pl_slider_float("split", &ptAppData->fCascadeSplitLambda, 0.0f, 1.0f);
-            pl_slider_float("x", &ptLight->tDirection.x, -1.0f, 1.0f);
-            pl_slider_float("y", &ptLight->tDirection.y, -1.0f, 1.0f);
-            pl_slider_float("z", &ptLight->tDirection.z, -1.0f, 1.0f);
+            gptUi->slider_float("split", &ptAppData->fCascadeSplitLambda, 0.0f, 1.0f);
+            gptUi->slider_float("x", &ptLight->tDirection.x, -1.0f, 1.0f);
+            gptUi->slider_float("y", &ptLight->tDirection.y, -1.0f, 1.0f);
+            gptUi->slider_float("z", &ptLight->tDirection.z, -1.0f, 1.0f);
 
-            pl_end_collapsing_header();
+            gptUi->end_collapsing_header();
         }
 
-        if(pl_collapsing_header("User Interface"))
+        if(gptUi->collapsing_header("User Interface"))
         {
-            pl_checkbox("UI Debug", &ptAppData->bShowUiDebug);
-            pl_checkbox("UI Demo", &ptAppData->bShowUiDemo);
-            pl_checkbox("UI Style", &ptAppData->bShowUiStyle);
-            pl_end_collapsing_header();
+            gptUi->checkbox("UI Debug", &ptAppData->bShowUiDebug);
+            gptUi->checkbox("UI Demo", &ptAppData->bShowUiDemo);
+            gptUi->checkbox("UI Style", &ptAppData->bShowUiStyle);
+            gptUi->end_collapsing_header();
         }
-        pl_end_window();
+        gptUi->end_window();
     }
 
     gptDebug->show_debug_windows(&ptAppData->tDebugInfo);
 
     if(ptAppData->bShowEntityWindow)
     {
-        plEntity tNextSelectedEntity = pl_show_ecs_window(gptEcs, gptRenderer->get_component_library(ptAppData->uSceneHandle0), &ptAppData->bShowEntityWindow);
+        plEntity tNextSelectedEntity = pl_show_ecs_window(gptRenderer->get_component_library(ptAppData->uSceneHandle0), &ptAppData->bShowEntityWindow);
         if(tNextSelectedEntity.ulData != ptAppData->tSelectedEntity.ulData)
             ptAppData->bUpdateEntitySelection = true;
         ptAppData->tSelectedEntity = tNextSelectedEntity;
@@ -617,27 +631,25 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowUiDemo)
     {
         pl_begin_profile_sample("ui demo");
-        pl_show_demo_window(&ptAppData->bShowUiDemo);
+        gptUi->show_demo_window(&ptAppData->bShowUiDemo);
         pl_end_profile_sample();
     }
         
     if(ptAppData->bShowUiStyle)
-        pl_show_style_editor_window(&ptAppData->bShowUiStyle);
+        gptUi->show_style_editor_window(&ptAppData->bShowUiStyle);
 
     if(ptAppData->bShowUiDebug)
-        pl_show_debug_window(&ptAppData->bShowUiDebug);
+        gptUi->show_debug_window(&ptAppData->bShowUiDebug);
 
     // add full screen quad for offscreen render
-    pl_add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_texture_id(ptAppData->uSceneHandle0, ptAppData->uViewHandle0), (plVec2){0}, (plVec2){ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1]});
-    pl_submit_layer(ptAppData->ptDrawLayer);
+    gptDraw->add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_color_texture(ptAppData->uSceneHandle0, ptAppData->uViewHandle0), (plVec2){0}, (plVec2){ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1]});
+    gptDraw->submit_2d_layer(ptAppData->ptDrawLayer);
 
     plRenderEncoder tEncoder = gptGfx->begin_render_pass(ptGraphics, &tCommandBuffer, ptGraphics->tMainRenderPass);
 
     // render ui
     pl_begin_profile_sample("render ui");
-    pl_render();
-    gptGfx->draw_lists(ptGraphics, tEncoder, 1, pl_get_draw_list(NULL));
-    gptGfx->draw_lists(ptGraphics, tEncoder, 1, pl_get_debug_draw_list(NULL));
+    gptUi->render(tEncoder, ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1], 1);
     pl_end_profile_sample();
 
     gptGfx->end_render_pass(&tEncoder);
@@ -653,4 +665,298 @@ pl_app_update(plAppData* ptAppData)
 
     pl_end_profile_sample();
     pl_end_profile_frame();
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] helper function implementations
+//-----------------------------------------------------------------------------
+
+static plEntity
+pl_show_ecs_window(plComponentLibrary* ptLibrary, bool* pbShowWindow)
+{
+    static int iSelectedEntity = -1;
+    static plEntity tSelectedEntity = {UINT32_MAX, UINT32_MAX};
+    if(gptUi->begin_window("Entities", pbShowWindow, false))
+    {
+        const plVec2 tWindowSize = gptUi->get_window_size();
+        const float pfRatios[] = {0.5f, 0.5f};
+        gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios);
+        gptUi->text("Entities");
+        gptUi->text("Components");
+        gptUi->layout_dynamic(0.0f, 1);
+        gptUi->separator();
+        gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, tWindowSize.y - 75.0f, 2, pfRatios);
+
+
+        if(gptUi->begin_child("Entities"))
+        {
+            const float pfRatiosInner[] = {1.0f};
+            gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
+
+            const uint32_t uEntityCount = pl_sb_size(ptLibrary->tTagComponentManager.sbtEntities);
+            plTagComponent* sbtTags = ptLibrary->tTagComponentManager.pComponents;
+
+            plUiClipper tClipper = {(uint32_t)uEntityCount};
+            while(gptUi->step_clipper(&tClipper))
+            {
+                for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
+                {
+                    bool bSelected = (int)i == iSelectedEntity;
+                    char atBuffer[1024] = {0};
+                    pl_sprintf(atBuffer, "%s ##%u", sbtTags[i].acName, i);
+                    if(gptUi->selectable(atBuffer, &bSelected))
+                    {
+                        if(bSelected)
+                        {
+                            iSelectedEntity = (int)i;
+                            tSelectedEntity = ptLibrary->tTagComponentManager.sbtEntities[i];
+                        }
+                        else
+                        {
+                            iSelectedEntity = -1;
+                            tSelectedEntity.uIndex = UINT32_MAX;
+                            tSelectedEntity.uGeneration = UINT32_MAX;
+                        }
+                    }
+                }
+            }
+            
+            gptUi->end_child();
+        }
+
+        if(gptUi->begin_child("Components"))
+        {
+            const float pfRatiosInner[] = {1.0f};
+            gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
+
+            if(iSelectedEntity != -1)
+            {
+                plTagComponent*               ptTagComp           = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, tSelectedEntity);
+                plTransformComponent*         ptTransformComp     = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tSelectedEntity);
+                plMeshComponent*              ptMeshComp          = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tSelectedEntity);
+                plObjectComponent*            ptObjectComp        = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tSelectedEntity);
+                plHierarchyComponent*         ptHierarchyComp     = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tSelectedEntity);
+                plMaterialComponent*          ptMaterialComp      = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, tSelectedEntity);
+                plSkinComponent*              ptSkinComp          = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, tSelectedEntity);
+                plCameraComponent*            ptCameraComp        = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, tSelectedEntity);
+                plAnimationComponent*         ptAnimationComp     = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, tSelectedEntity);
+                plInverseKinematicsComponent* ptIKComp            = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_INVERSE_KINEMATICS, tSelectedEntity);
+                plLightComponent*             ptLightComp         = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, tSelectedEntity);
+
+                gptUi->text("Entity: %u, %u", tSelectedEntity.uIndex, tSelectedEntity.uGeneration);
+
+                if(ptTagComp && gptUi->collapsing_header("Tag"))
+                {
+                    gptUi->text("Name: %s", ptTagComp->acName);
+                    gptUi->end_collapsing_header();
+                }
+
+                if(ptTransformComp && gptUi->collapsing_header("Transform"))
+                {
+                    gptUi->text("Scale:       (%+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tScale.x, ptTransformComp->tScale.y, ptTransformComp->tScale.z);
+                    gptUi->text("Translation: (%+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tTranslation.x, ptTransformComp->tTranslation.y, ptTransformComp->tTranslation.z);
+                    gptUi->text("Rotation:    (%+0.3f, %+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tRotation.x, ptTransformComp->tRotation.y, ptTransformComp->tRotation.z, ptTransformComp->tRotation.w);
+                    gptUi->vertical_spacing();
+                    gptUi->text("Local World: |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].x, ptTransformComp->tWorld.col[1].x, ptTransformComp->tWorld.col[2].x, ptTransformComp->tWorld.col[3].x);
+                    gptUi->text("            |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].y, ptTransformComp->tWorld.col[1].y, ptTransformComp->tWorld.col[2].y, ptTransformComp->tWorld.col[3].y);
+                    gptUi->text("            |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].z, ptTransformComp->tWorld.col[1].z, ptTransformComp->tWorld.col[2].z, ptTransformComp->tWorld.col[3].z);
+                    gptUi->text("            |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].w, ptTransformComp->tWorld.col[1].w, ptTransformComp->tWorld.col[2].w, ptTransformComp->tWorld.col[3].w);
+                    gptUi->end_collapsing_header();
+                }
+
+                if(ptMeshComp && gptUi->collapsing_header("Mesh"))
+                {
+
+                    plTagComponent* ptMaterialTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptMeshComp->tMaterial);
+                    plTagComponent* ptSkinTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptMeshComp->tSkinComponent);
+                    gptUi->text("Material: %s", ptMaterialTagComp->acName);
+                    gptUi->text("Skin:     %s", ptSkinTagComp ? ptSkinTagComp->acName : " ");
+
+                    gptUi->vertical_spacing();
+                    gptUi->text("Vertex Data (%u verts, %u idx)", pl_sb_size(ptMeshComp->sbtVertexPositions), pl_sb_size(ptMeshComp->sbuIndices));
+                    gptUi->indent(15.0f);
+                    gptUi->text("%s Positions", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_POSITION ? "ACTIVE" : "     ");
+                    gptUi->text("%s Normals", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_NORMAL ? "ACTIVE" : "     ");
+                    gptUi->text("%s Tangents", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TANGENT ? "ACTIVE" : "     ");
+                    gptUi->text("%s Texture Coordinates 0", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0 ? "ACTIVE" : "     ");
+                    gptUi->text("%s Texture Coordinates 1", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1 ? "ACTIVE" : "     ");
+                    gptUi->text("%s Colors 0", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_0 ? "ACTIVE" : "     ");
+                    gptUi->text("%s Colors 1", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_1 ? "ACTIVE" : "     ");
+                    gptUi->text("%s Joints 0", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0 ? "ACTIVE" : "     ");
+                    gptUi->text("%s Joints 1", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_1 ? "ACTIVE" : "     ");
+                    gptUi->text("%s Weights 0", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0 ? "ACTIVE" : "     ");
+                    gptUi->text("%s Weights 1", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1 ? "ACTIVE" : "     ");
+                    gptUi->unindent(15.0f);
+                    gptUi->end_collapsing_header();
+                }
+
+                if(ptObjectComp && gptUi->collapsing_header("Object"))
+                {
+                    plTagComponent* ptMeshTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptObjectComp->tMesh);
+                    plTagComponent* ptTransformTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptObjectComp->tTransform);
+                    gptUi->text("Mesh Entity:      %s", ptMeshTagComp->acName);
+                    gptUi->text("Transform Entity: %s, %u", ptTransformTagComp->acName, ptObjectComp->tTransform.uIndex);
+                    gptUi->end_collapsing_header();
+                }
+
+                if(ptHierarchyComp && gptUi->collapsing_header("Hierarchy"))
+                {
+                    plTagComponent* ptParentTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptHierarchyComp->tParent);
+                    gptUi->text("Parent Entity: %s , %u", ptParentTagComp->acName, ptHierarchyComp->tParent.uIndex);
+                    gptUi->end_collapsing_header();
+                }
+
+                if(ptLightComp && gptUi->collapsing_header("Light"))
+                {
+                    static const char* apcLightTypes[] = {
+                        "PL_LIGHT_TYPE_DIRECTIONAL",
+                        "PL_LIGHT_TYPE_POINT"
+                    };
+                    gptUi->text("Type:        %s", apcLightTypes[ptLightComp->tType]);
+                    gptUi->text("Position:    (%0.3f, %0.3f, %0.3f)", ptLightComp->tPosition.r, ptLightComp->tPosition.g, ptLightComp->tPosition.b);
+                    gptUi->text("Color:       (%0.3f, %0.3f, %0.3f)", ptLightComp->tColor.r, ptLightComp->tColor.g, ptLightComp->tColor.b);
+                    gptUi->text("Direction:   (%0.3f, %0.3f, %0.3f)", ptLightComp->tDirection.r, ptLightComp->tDirection.g, ptLightComp->tDirection.b);
+                    gptUi->text("Intensity:   %0.3f", ptLightComp->fIntensity);
+                    gptUi->text("Cast Shadow: %s", ptLightComp->tFlags & PL_LIGHT_FLAG_CAST_SHADOW ? "true" : "false");
+                }
+
+                if(ptMaterialComp && gptUi->collapsing_header("Material"))
+                {
+                    gptUi->text("Base Color:            (%0.3f, %0.3f, %0.3f, %0.3f)", ptMaterialComp->tBaseColor.r, ptMaterialComp->tBaseColor.g, ptMaterialComp->tBaseColor.b, ptMaterialComp->tBaseColor.a);
+                    gptUi->text("Alpha Cutoff:                    %0.3f", ptMaterialComp->fAlphaCutoff);
+
+                    static const char* apcBlendModeNames[] = 
+                    {
+                        "PL_MATERIAL_BLEND_MODE_OPAQUE",
+                        "PL_MATERIAL_BLEND_MODE_ALPHA",
+                        "PL_MATERIAL_BLEND_MODE_PREMULTIPLIED",
+                        "PL_MATERIAL_BLEND_MODE_ADDITIVE",
+                        "PL_MATERIAL_BLEND_MODE_MULTIPLY"
+                    };
+                    gptUi->text("Blend Mode:                      %s", apcBlendModeNames[ptMaterialComp->tBlendMode]);
+
+                    static const char* apcShaderNames[] = 
+                    {
+                        "PL_SHADER_TYPE_PBR",
+                        "PL_SHADER_TYPE_UNLIT",
+                        "PL_SHADER_TYPE_CUSTOM"
+                    };
+                    gptUi->text("Shader Type:                     %s", apcShaderNames[ptMaterialComp->tShaderType]);
+                    gptUi->text("Double Sided:                    %s", ptMaterialComp->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED ? "true" : "false");
+  
+                    gptUi->vertical_spacing();
+                    gptUi->text("Texture Maps");
+                    gptUi->indent(15.0f);
+
+                    static const char* apcTextureSlotNames[] = 
+                    {
+                        "PL_TEXTURE_SLOT_BASE_COLOR_MAP",
+                        "PL_TEXTURE_SLOT_NORMAL_MAP",
+                        "PL_TEXTURE_SLOT_EMISSIVE_MAP",
+                        "PL_TEXTURE_SLOT_OCCLUSION_MAP",
+                        "PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP",
+                        "PL_TEXTURE_SLOT_CLEARCOAT_MAP",
+                        "PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP",
+                        "PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP",
+                        "PL_TEXTURE_SLOT_SHEEN_COLOR_MAP",
+                        "PL_TEXTURE_SLOT_SHEEN_ROUGHNESS_MAP",
+                        "PL_TEXTURE_SLOT_TRANSMISSION_MAP",
+                        "PL_TEXTURE_SLOT_SPECULAR_MAP",
+                        "PL_TEXTURE_SLOT_SPECULAR_COLOR_MAP",
+                        "PL_TEXTURE_SLOT_ANISOTROPY_MAP",
+                        "PL_TEXTURE_SLOT_SURFACE_MAP",
+                        "PL_TEXTURE_SLOT_IRIDESCENCE_MAP",
+                        "PL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS_MAP"
+                    };
+
+                    for(uint32_t i = 0; i < PL_TEXTURE_SLOT_COUNT; i++)
+                    {
+                        gptUi->text("%s: %s", apcTextureSlotNames[i], ptMaterialComp->atTextureMaps[i].acName[0] == 0 ? " " : "present");
+                    }
+                    gptUi->unindent(15.0f);
+                    gptUi->end_collapsing_header();
+                }
+
+                if(ptSkinComp && gptUi->collapsing_header("Skin"))
+                {
+                    if(gptUi->tree_node("Joints"))
+                    {
+                        for(uint32_t i = 0; i < pl_sb_size(ptSkinComp->sbtJoints); i++)
+                        {
+                            plTagComponent* ptJointTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptSkinComp->sbtJoints[i]);
+                            gptUi->text("%s", ptJointTagComp->acName);  
+                        }
+                        gptUi->tree_pop();
+                    }
+                    gptUi->end_collapsing_header();
+                }
+
+                if(ptCameraComp && gptUi->collapsing_header("Camera"))
+                { 
+                    gptUi->text("Near Z:                  %+0.3f", ptCameraComp->fNearZ);
+                    gptUi->text("Far Z:                   %+0.3f", ptCameraComp->fFarZ);
+                    gptUi->text("Vertical Field of View:  %+0.3f", ptCameraComp->fFieldOfView);
+                    gptUi->text("Aspect Ratio:            %+0.3f", ptCameraComp->fAspectRatio);
+                    gptUi->text("Pitch:                   %+0.3f", ptCameraComp->fPitch);
+                    gptUi->text("Yaw:                     %+0.3f", ptCameraComp->fYaw);
+                    gptUi->text("Roll:                    %+0.3f", ptCameraComp->fRoll);
+                    gptUi->text("Position: (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tPos.x, ptCameraComp->tPos.y, ptCameraComp->tPos.z);
+                    gptUi->text("Up:       (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tUpVec.x, ptCameraComp->_tUpVec.y, ptCameraComp->_tUpVec.z);
+                    gptUi->text("Forward:  (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tForwardVec.x, ptCameraComp->_tForwardVec.y, ptCameraComp->_tForwardVec.z);
+                    gptUi->text("Right:    (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tRightVec.x, ptCameraComp->_tRightVec.y, ptCameraComp->_tRightVec.z);
+                    gptUi->slider_float("Far Z Plane", &ptCameraComp->fFarZ, 10.0f, 400.0f);
+                    gptUi->end_collapsing_header();
+                }
+
+                if(ptAnimationComp && gptUi->collapsing_header("Animation"))
+                { 
+                    bool bPlaying = ptAnimationComp->tFlags & PL_ANIMATION_FLAG_PLAYING;
+                    bool bLooped = ptAnimationComp->tFlags & PL_ANIMATION_FLAG_LOOPED;
+                    if(bLooped && bPlaying)
+                        gptUi->text("Status: playing & looped");
+                    else if(bPlaying)
+                        gptUi->text("Status: playing");
+                    else if(bLooped)
+                        gptUi->text("Status: looped");
+                    else
+                        gptUi->text("Status: not playing");
+                    if(gptUi->checkbox("Playing", &bPlaying))
+                    {
+                        if(bPlaying)
+                            ptAnimationComp->tFlags |= PL_ANIMATION_FLAG_PLAYING;
+                        else
+                            ptAnimationComp->tFlags &= ~PL_ANIMATION_FLAG_PLAYING;
+                    }
+                    if(gptUi->checkbox("Looped", &bLooped))
+                    {
+                        if(bLooped)
+                            ptAnimationComp->tFlags |= PL_ANIMATION_FLAG_LOOPED;
+                        else
+                            ptAnimationComp->tFlags &= ~PL_ANIMATION_FLAG_LOOPED;
+                    }
+                    gptUi->text("Start: %0.3f s", ptAnimationComp->fStart);
+                    gptUi->text("End:   %0.3f s", ptAnimationComp->fEnd);
+                    gptUi->progress_bar(ptAnimationComp->fTimer / (ptAnimationComp->fEnd - ptAnimationComp->fStart), (plVec2){-1.0f, 0.0f}, NULL);
+                    gptUi->text("Speed:   %0.3f s", ptAnimationComp->fSpeed);
+                    gptUi->end_collapsing_header();
+                }
+
+                if(ptIKComp && gptUi->collapsing_header("Inverse Kinematics"))
+                { 
+                    plTagComponent* ptTargetComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptIKComp->tTarget);
+                    gptUi->text("Target Entity: %s , %u", ptTargetComp->acName, ptIKComp->tTarget.uIndex);
+                    gptUi->text("Chain Length: %u", ptIKComp->uChainLength);
+                    gptUi->text("Iterations: %u", ptIKComp->uIterationCount);
+                    gptUi->checkbox("Enabled", &ptIKComp->bEnabled);
+                    gptUi->end_collapsing_header();
+                }
+            }
+            
+            gptUi->end_child();
+        }
+
+        gptUi->end_window();
+    }
+
+    return tSelectedEntity;
 }

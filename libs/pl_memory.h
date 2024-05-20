@@ -683,7 +683,9 @@ pl_pool_allocator_init(plPoolAllocator* ptAllocator, size_t szItemCount, size_t 
     PL_ASSERT(pszBufferSize);
 
     if(szItemAlignment == 0)
-        szItemAlignment = szItemSize;
+    {
+        szItemAlignment = pl__get_next_power_of_2(szItemSize);
+    }
 
     if(pBuffer == NULL)
     {

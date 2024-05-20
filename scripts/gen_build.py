@@ -1,6 +1,5 @@
 import os
 import sys
-import shutil
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../build")
 
@@ -10,7 +9,7 @@ import pl_build as pl
 #                                helpers                                      #
 ###############################################################################
 
-def add_plugin_to_vulkan_app(name, reloadable, binary_name = None, *kwargs):
+def add_plugin_to_vulkan_app(name, reloadable, binary_name = None, directory = "../extensions/", *kwargs):
 
     pl.push_profile(pl.Profile.VULKAN)
     pl.push_definitions("PL_VULKAN_BACKEND")
@@ -19,9 +18,9 @@ def add_plugin_to_vulkan_app(name, reloadable, binary_name = None, *kwargs):
             pl.push_output_binary(name)
         else:
             pl.push_output_binary(binary_name)
-        source_files = ["../extensions/" + name + ".c"]
+        source_files = [directory + name + ".c"]
         for source in kwargs:
-            source_files.append("../extensions/" + source + ".c")
+            source_files.append(directory + source + ".c")
         pl.push_source_files(*source_files)
         with pl.configuration("debug"):
             with pl.platform(pl.PlatformType.WIN32):
@@ -39,7 +38,7 @@ def add_plugin_to_vulkan_app(name, reloadable, binary_name = None, *kwargs):
     pl.pop_profile()
     pl.pop_definitions()
 
-def add_plugin_to_metal_app(name, reloadable, objc = False, binary_name = None):
+def add_plugin_to_metal_app(name, reloadable, objc = False, binary_name = None, directory = "../extensions/"):
 
     pl.push_definitions("PL_METAL_BACKEND")
     with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, reloadable):
@@ -49,9 +48,9 @@ def add_plugin_to_metal_app(name, reloadable, objc = False, binary_name = None):
         else:
             pl.push_output_binary(binary_name)
         if objc:
-            pl.push_source_files("../extensions/" + name + ".m")
+            pl.push_source_files(directory + name + ".m")
         else:
-            pl.push_source_files("../extensions/" + name + ".c")
+            pl.push_source_files(directory + name + ".c")
         with pl.configuration("debug"):
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
@@ -77,7 +76,7 @@ with pl.project("pilotlight"):
     pl.push_profile(pl.Profile.PILOT_LIGHT_DEBUG_C)
 
     pl.push_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS")
-    pl.push_include_directories("../apps", "../src", "../libs", "../extensions", "../backends", "../out", "../dependencies/pilotlight-ui", "../dependencies/pilotlight-ui/backends", "../dependencies/stb", "../dependencies/cgltf")
+    pl.push_include_directories("../apps", "../src", "../ui", "../libs", "../extensions", "../out", "../dependencies/stb", "../dependencies/cgltf")
     pl.push_link_directories("../out")
     pl.push_output_directory("../out")
         
@@ -115,8 +114,8 @@ with pl.project("pilotlight"):
     #                                   plugins                                   #
     ###############################################################################
     pl.push_target_links("pilotlight_lib")
-    
-    add_plugin_to_vulkan_app("pl_draw_3d_ext",  True)
+
+    add_plugin_to_vulkan_app("pl_draw_ext",     True)
     add_plugin_to_vulkan_app("pl_debug_ext",    False)
     add_plugin_to_vulkan_app("pl_image_ext",    False)
     add_plugin_to_vulkan_app("pl_vulkan_ext",   False, "pl_graphics_ext")
@@ -127,8 +126,9 @@ with pl.project("pilotlight"):
     add_plugin_to_vulkan_app("pl_resource_ext", False)
     add_plugin_to_vulkan_app("pl_gpu_allocators_ext", False)
     add_plugin_to_vulkan_app("pl_ref_renderer_ext", True)
+    add_plugin_to_vulkan_app("pl_ui_ext", True, None, "../ui/")
 
-    add_plugin_to_metal_app("pl_draw_3d_ext",  True)
+    add_plugin_to_metal_app("pl_draw_ext",     True)
     add_plugin_to_metal_app("pl_debug_ext",    False)
     add_plugin_to_metal_app("pl_image_ext",    False)
     add_plugin_to_metal_app("pl_stats_ext",    False)
@@ -139,6 +139,7 @@ with pl.project("pilotlight"):
     add_plugin_to_metal_app("pl_metal_ext",    False, True, "pl_graphics_ext")
     add_plugin_to_metal_app("pl_gpu_allocators_ext", False)
     add_plugin_to_metal_app("pl_ref_renderer_ext", True)
+    add_plugin_to_metal_app("pl_ui_ext", True, False, None, "../ui/")
 
     pl.pop_target_links()
 
@@ -155,6 +156,9 @@ with pl.project("pilotlight"):
         "transparent.frag",
         "lighting.vert",
         "lighting.frag",
+        "draw_2d.vert",
+        "draw_2d.frag",
+        "draw_2d_sdf.frag",
         "draw_3d.vert",
         "draw_3d.frag",
         "draw_3d_line.vert",

@@ -19,7 +19,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pilotlight.h" // data registry, api registry, extension registry
-#include "pl_ui.h"      // io context
 #include "pl_os.h"
 #include "pl_ds.h"      // hashmap
 
@@ -251,6 +250,7 @@ void    pl__atomic_decrement       (plAtomicCounter* ptCounter);
 static const plDataRegistryI*      gptDataRegistry = NULL;
 static const plApiRegistryI*       gptApiRegistry = NULL;
 static const plExtensionRegistryI* gptExtensionRegistry = NULL;
+static const plIOI*                gptIOI               = NULL;
 
 // OS apis
 static const plLibraryI* gptLibraryApi = NULL;
@@ -265,7 +265,6 @@ static NSCursor*      aptMouseCursors[PL_MOUSE_CURSOR_COUNT];
 
 // ui
 plIO*        gptIOCtx = NULL;
-plUiContext* gptUiCtx = NULL;
 
 // memory tracking
 static plMemoryContext gtMemoryContext = {0};
@@ -329,9 +328,6 @@ int main(int argc, char *argv[])
     NSLog(@"ARC off");
 
 #endif
-
-    gptUiCtx = pl_create_context();
-    gptIOCtx = pl_get_io();
 
     // load apis
     gtMemoryContext.ptHashMap = &gtMemoryHashMap;
@@ -415,9 +411,10 @@ int main(int argc, char *argv[])
     gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
     gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
     gptLibraryApi        = gptApiRegistry->first(PL_API_LIBRARY);
+    gptIOI               = gptApiRegistry->first(PL_API_IO);
 
     // setup & retrieve io context 
-    gptDataRegistry->set_data("context", gptUiCtx);
+    gptIOCtx = gptIOI->get_io();
     gtMemoryContext.plThreadsI = &tThreadApi;
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
@@ -765,7 +762,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 
         if(gptIOCtx->bRunning == false)
         {
-            [NSApp stop];
+            [NSApp terminate:nil];
         }
     }
 }
@@ -842,7 +839,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
     else
         characters = (NSString*)aString;
 
-    pl_add_text_events_utf8(characters.UTF8String);
+    gptIOI->add_text_events_utf8(characters.UTF8String);
 }
 
 - (BOOL)acceptsFirstResponder
@@ -906,7 +903,7 @@ pl__handle_osx_event(NSEvent* event, NSView* view)
     {
         int button = (int)[event buttonNumber];
         if (button >= 0 && button < PL_MOUSE_BUTTON_COUNT)
-            pl_add_mouse_button_event(button, true);
+            gptIOI->add_mouse_button_event(button, true);
         return true;
     }
 
@@ -914,7 +911,7 @@ pl__handle_osx_event(NSEvent* event, NSView* view)
     {
         int button = (int)[event buttonNumber];
         if (button >= 0 && button < PL_MOUSE_BUTTON_COUNT)
-            pl_add_mouse_button_event(button, false);
+            gptIOI->add_mouse_button_event(button, false);
         return true;
     }
 
@@ -926,7 +923,7 @@ pl__handle_osx_event(NSEvent* event, NSView* view)
             mousePoint = NSMakePoint(mousePoint.x, mousePoint.y);
         else
             mousePoint = NSMakePoint(mousePoint.x, view.bounds.size.height - mousePoint.y);
-        pl_add_mouse_pos_event((float)mousePoint.x, (float)mousePoint.y);
+        gptIOI->add_mouse_pos_event((float)mousePoint.x, (float)mousePoint.y);
         return true;
     }
 
@@ -968,7 +965,7 @@ pl__handle_osx_event(NSEvent* event, NSView* view)
             wheel_dy = [event deltaY];
         }
         if (wheel_dx != 0.0 || wheel_dy != 0.0)
-            pl_add_mouse_wheel_event((float)wheel_dx * 0.1f, (float)wheel_dy * 0.1f);
+            gptIOI->add_mouse_wheel_event((float)wheel_dx * 0.1f, (float)wheel_dy * 0.1f);
 
         return true;
     }
@@ -979,7 +976,7 @@ pl__handle_osx_event(NSEvent* event, NSView* view)
             return true;
 
         int key_code = (int)[event keyCode];
-        pl_add_key_event(pl__osx_key_to_pl_key(key_code), event.type == NSEventTypeKeyDown);
+        gptIOI->add_key_event(pl__osx_key_to_pl_key(key_code), event.type == NSEventTypeKeyDown);
         return true;
     }
 
@@ -988,10 +985,10 @@ pl__handle_osx_event(NSEvent* event, NSView* view)
         unsigned short key_code = [event keyCode];
         NSEventModifierFlags modifier_flags = [event modifierFlags];
 
-        pl_add_key_event(PL_KEY_MOD_SHIFT, (modifier_flags & NSEventModifierFlagShift)   != 0);
-        pl_add_key_event(PL_KEY_MOD_CTRL,  (modifier_flags & NSEventModifierFlagControl) != 0);
-        pl_add_key_event(PL_KEY_MOD_ALT,   (modifier_flags & NSEventModifierFlagOption)  != 0);
-        pl_add_key_event(PL_KEY_MOD_SUPER, (modifier_flags & NSEventModifierFlagCommand) != 0);
+        gptIOI->add_key_event(PL_KEY_MOD_SHIFT, (modifier_flags & NSEventModifierFlagShift)   != 0);
+        gptIOI->add_key_event(PL_KEY_MOD_CTRL,  (modifier_flags & NSEventModifierFlagControl) != 0);
+        gptIOI->add_key_event(PL_KEY_MOD_ALT,   (modifier_flags & NSEventModifierFlagOption)  != 0);
+        gptIOI->add_key_event(PL_KEY_MOD_SUPER, (modifier_flags & NSEventModifierFlagCommand) != 0);
 
         plKey key = pl__osx_key_to_pl_key(key_code);
         if (key != PL_KEY_NONE)
@@ -1013,7 +1010,7 @@ pl__handle_osx_event(NSEvent* event, NSView* view)
             }
 
             NSEventModifierFlags modifier_flags = [event modifierFlags];
-            pl_add_key_event(key, (modifier_flags & mask) != 0);
+            gptIOI->add_key_event(key, (modifier_flags & mask) != 0);
             // io.SetKeyEventNativeData(key, key_code, -1); // To support legacy indexing (<1.87 user code)
         }
 

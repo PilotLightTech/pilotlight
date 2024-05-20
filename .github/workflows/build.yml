@@ -54,6 +54,7 @@ jobs:
         if not exist ../out/example_1.dll exit 1
         if not exist ../out/example_2.dll exit 1
         if not exist ../out/example_3.dll exit 1
+        if not exist ../out/example_4.dll exit 1
         if not exist ../out/pilot_light.exe exit 1
         if not exist ../out/pl_graphics_ext.dll exit 1
         if not exist ../out/pl_image_ext.dll exit 1
@@ -65,7 +66,8 @@ jobs:
         if not exist ../out/pl_model_loader_ext.dll exit 1
         if not exist ../out/pl_ecs_ext.dll exit 1
         if not exist ../out/pl_ref_renderer_ext.dll exit 1
-        if not exist ../out/pl_draw_3d_ext.dll exit 1
+        if not exist ../out/pl_draw_ext.dll exit 1
+        if not exist ../out/pl_ui_ext.dll exit 1
         if not exist ../out/pilotlight.lib exit 1
 
     - name: Package Pilot Light
@@ -117,6 +119,7 @@ jobs:
         test -f ./out/example_1.dylib || exit 1
         test -f ./out/example_2.dylib || exit 1
         test -f ./out/example_3.dylib || exit 1
+        test -f ./out/example_4.dylib || exit 1
         test -f ./out/pl_stats_ext.dylib || exit 1
         test -f ./out/pl_image_ext.dylib || exit 1
         test -f ./out/pl_debug_ext.dylib || exit 1
@@ -127,7 +130,8 @@ jobs:
         test -f ./out/pl_resource_ext.dylib || exit 1
         test -f ./out/pl_ecs_ext.dylib || exit 1
         test -f ./out/pl_ref_renderer_ext.dylib || exit 1
-        test -f ./out/pl_draw_3d_ext.dylib || exit 1
+        test -f ./out/pl_draw_ext.dylib || exit 1
+        test -f ./out/pl_ui_ext.dylib || exit 1
         test -f ./out/pilotlight.a || exit 1
 
     - name: Package Pilot Light
@@ -192,6 +196,7 @@ jobs:
         test -f ./out/example_1.so || exit 1
         test -f ./out/example_2.so || exit 1
         test -f ./out/example_3.so || exit 1
+        test -f ./out/example_4.so || exit 1
         test -f ./out/pl_graphics_ext.so || exit 1
         test -f ./out/pl_image_ext.so || exit 1
         test -f ./out/pl_stats_ext.so || exit 1
@@ -202,7 +207,8 @@ jobs:
         test -f ./out/pl_resource_ext.so || exit 1
         test -f ./out/pl_ecs_ext.so || exit 1
         test -f ./out/pl_ref_renderer_ext.so || exit 1
-        test -f ./out/pl_draw_3d_ext.so || exit 1
+        test -f ./out/pl_draw_ext.so || exit 1
+        test -f ./out/pl_ui_ext.so || exit 1
         test -f ./out/pilotlight.a || exit 1
 
     - name: Package Pilot Light

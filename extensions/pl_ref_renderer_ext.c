@@ -29,7 +29,6 @@ Index of this file:
 #include "pl_memory.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
-#include "pl_ui.h"
 
 // extensions
 #include "pl_graphics_ext.h"
@@ -39,7 +38,8 @@ Index of this file:
 #include "pl_stats_ext.h"
 #include "pl_gpu_allocators_ext.h"
 #include "pl_job_ext.h"
-#include "pl_draw_3d_ext.h"
+#include "pl_draw_ext.h"
+#include "pl_ui_ext.h"
 
 #define PL_MAX_VIEWS_PER_SCENE 4
 #define PL_MAX_LIGHTS 1000
@@ -204,7 +204,6 @@ typedef struct _plRefView
 
     // output texture
     plTextureHandle tFinalTexture[PL_FRAMES_IN_FLIGHT];
-    plTextureId     tFinalTextureID[PL_FRAMES_IN_FLIGHT]; // for showing in UI
 
     // lighting
     plBindGroupHandle tLightingBindGroup[PL_FRAMES_IN_FLIGHT];
@@ -380,7 +379,9 @@ static const plStatsI*         gptStats         = NULL;
 static const plGPUAllocatorsI* gptGpuAllocators = NULL;
 static const plThreadsI*       gptThreads       = NULL;
 static const plJobI*           gptJob           = NULL;
-static const plDraw3dI*        gptDraw3d        = NULL;
+static const plDrawI*          gptDraw          = NULL;
+static const plUiI*            gptUI            = NULL;
+static const plIOI*            gptIO            = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal API
@@ -1001,9 +1002,6 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         ptView->tAOMetalRoughnessTexture[i] = pl__refr_create_texture(&tAttachmentTextureDesc, "metalroughness original",  i);
         ptView->tDepthTexture[i]            = pl__refr_create_texture(&tDepthTextureDesc,      "offscreen depth original", i);
         
-        // texture IDs
-        ptView->tFinalTextureID[i] = gptGfx->get_ui_texture_handle(ptGraphics, ptView->tFinalTexture[i], gptData->tDefaultSampler);
-
         // buffers
         ptView->atGlobalBuffers[i] = pl__refr_create_staging_buffer(&atGlobalBuffersDesc, "global", i);
         
@@ -1141,8 +1139,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     ptView->tRenderPass = gptDevice->create_render_pass(&ptGraphics->tDevice, &tRenderPassDesc, atAttachmentSets);
 
     // register debug 3D drawlist
-    ptView->pt3DDrawList = gptDraw3d->request_drawlist();
-    ptView->pt3DSelectionDrawList = gptDraw3d->request_drawlist();
+    ptView->pt3DDrawList = gptDraw->request_3d_drawlist();
+    ptView->pt3DSelectionDrawList = gptDraw->request_3d_drawlist();
 
     // create lighting composition quad
     const uint32_t uVertexStartIndex = pl_sb_size(ptScene->sbtVertexPosBuffer);
@@ -1273,9 +1271,6 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
         ptView->tEmissiveTexture[i]         = pl__refr_create_texture(&tAttachmentTextureDesc, "emissive",        i);
         ptView->tAOMetalRoughnessTexture[i] = pl__refr_create_texture(&tAttachmentTextureDesc, "metalroughness",  i);
         ptView->tDepthTexture[i]            = pl__refr_create_texture(&tDepthTextureDesc,      "offscreen depth", i);
-
-        // texture IDs
-        ptView->tFinalTextureID[i] = gptGfx->get_ui_texture_handle(ptGraphics, ptView->tFinalTexture[i], gptData->tDefaultSampler);
 
         // lighting bind group
         plTempAllocator tTempAllocator = {0};
@@ -2762,7 +2757,7 @@ pl_refr_run_ecs(uint32_t uSceneHandle)
 {
     pl_begin_profile_sample(__FUNCTION__);
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
-    gptECS->run_animation_update_system(&ptScene->tComponentLibrary, pl_get_io()->fDeltaTime);
+    gptECS->run_animation_update_system(&ptScene->tComponentLibrary, gptIO->get_io()->fDeltaTime);
     gptECS->run_transform_update_system(&ptScene->tComponentLibrary);
     gptECS->run_hierarchy_update_system(&ptScene->tComponentLibrary);
     gptECS->run_inverse_kinematics_update_system(&ptScene->tComponentLibrary);
@@ -3674,7 +3669,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         };
         gptDevice->update_bind_group(&ptGraphics->tDevice, tOutlineGlobalBG, &tOutlineBGData0);
 
-        const plVec4 tOutlineColor = (plVec4){(float)sin(pl_get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 0.0f, 1.0f};
+        const plVec4 tOutlineColor = (plVec4){(float)sin(gptIO->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 0.0f, 1.0f};
         const plVec4 tOutlineColor2 = (plVec4){0.0f, tOutlineColor.r, 0.0f, 1.0f};
         for(uint32_t i = 0; i < uOutlineDrawableCount; i++)
         {
@@ -3683,7 +3678,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
             plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
 
             plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
-            gptDraw3d->add_aabb(ptView->pt3DSelectionDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, tOutlineColor2, 0.02f);
+            gptDraw->add_3d_aabb(ptView->pt3DSelectionDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, tOutlineColor2, 0.02f);
             
             plDynamicBinding tDynamicBinding = gptDevice->allocate_dynamic_data(ptDevice, sizeof(plOutlineDynamicData));
 
@@ -3719,7 +3714,7 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         if(ptScene->sbtLightData[i].iType == PL_LIGHT_TYPE_POINT)
         {
             const plVec4 tColor = {.rgb = ptScene->sbtLightData[i].tColor, .a = 1.0f};
-            gptDraw3d->add_point(ptView->pt3DDrawList, ptScene->sbtLightData[i].tPosition, tColor, 0.25f, 0.02f);
+            gptDraw->add_3d_point(ptView->pt3DDrawList, ptScene->sbtLightData[i].tPosition, tColor, 0.25f, 0.02f);
         }
     }
 
@@ -3730,13 +3725,13 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         {
             plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptScene->sbtOpaqueDrawables[i].tEntity);
 
-            gptDraw3d->add_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+            gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
         }
         for(uint32_t i = 0; i < uTransparentDrawableCount; i++)
         {
             plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptScene->sbtTransparentDrawables[i].tEntity);
 
-            gptDraw3d->add_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+            gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
         }
     }
     else if(tOptions.bShowVisibleBoundingBoxes)
@@ -3745,31 +3740,31 @@ pl_refr_render_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint
         {
             plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptView->sbtVisibleOpaqueDrawables[i].tEntity);
 
-            gptDraw3d->add_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+            gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
         }
         for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
         {
             plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptView->sbtVisibleTransparentDrawables[i].tEntity);
 
-            gptDraw3d->add_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+            gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
         }
     }
 
     if(tOptions.bShowOrigin)
     {
         const plMat4 tTransform = pl_identity_mat4();
-        gptDraw3d->add_transform(ptView->pt3DDrawList, &tTransform, 10.0f, 0.02f);
+        gptDraw->add_3d_transform(ptView->pt3DDrawList, &tTransform, 10.0f, 0.02f);
     }
 
     if(tOptions.ptCullCamera && tOptions.ptCullCamera != tOptions.ptViewCamera)
     {
-        gptDraw3d->add_frustum(ptView->pt3DSelectionDrawList, &tOptions.ptCullCamera->tTransformMat, tOptions.ptCullCamera->fFieldOfView, tOptions.ptCullCamera->fAspectRatio, tOptions.ptCullCamera->fNearZ, tOptions.ptCullCamera->fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
+        gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &tOptions.ptCullCamera->tTransformMat, tOptions.ptCullCamera->fFieldOfView, tOptions.ptCullCamera->fAspectRatio, tOptions.ptCullCamera->fNearZ, tOptions.ptCullCamera->fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
     }
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
-    gptDraw3d->submit_drawlist(ptView->pt3DDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_3D_DRAW_FLAG_DEPTH_TEST | PL_3D_DRAW_FLAG_DEPTH_WRITE, 1);
-    gptDraw3d->submit_drawlist(ptView->pt3DSelectionDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
+    gptDraw->submit_3d_drawlist(ptView->pt3DDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
+    gptDraw->submit_3d_drawlist(ptView->pt3DSelectionDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
     gptGfx->end_render_pass(&tEncoder);
     pl_end_profile_sample();
 }
@@ -3782,12 +3777,12 @@ pl_refr_get_debug_drawlist(uint32_t uSceneHandle, uint32_t uViewHandle)
     return ptView->pt3DDrawList;
 }
 
-static plTextureId
-pl_refr_get_view_texture_id(uint32_t uSceneHandle, uint32_t uViewHandle)
+static plTextureHandle
+pl_refr_get_view_color_texture(uint32_t uSceneHandle, uint32_t uViewHandle)
 {
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     plRefView* ptView = &ptScene->atViews[uViewHandle];
-    return ptView->tFinalTextureID[gptData->tGraphics.uCurrentFrameIndex];
+    return ptView->tFinalTexture[gptData->tGraphics.uCurrentFrameIndex];
 }
 
 static void
@@ -4853,7 +4848,7 @@ pl_load_ref_renderer_api(void)
         .update_skin_textures          = pl_refr_update_skin_textures,
         .perform_skinning              = pl_refr_perform_skinning,
         .render_scene                  = pl_refr_render_scene,
-        .get_view_texture_id           = pl_refr_get_view_texture_id,
+        .get_view_color_texture        = pl_refr_get_view_color_texture,
         .resize_view                   = pl_refr_resize_view,
         .get_debug_drawlist            = pl_refr_get_debug_drawlist,
         .generate_cascaded_shadow_map  = pl_refr_generate_cascaded_shadow_map,
@@ -4872,7 +4867,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
    pl_set_memory_context(gptDataRegistry->get_data(PL_CONTEXT_MEMORY));
    pl_set_profile_context(gptDataRegistry->get_data("profile"));
    pl_set_log_context(gptDataRegistry->get_data("log"));
-   pl_set_context(gptDataRegistry->get_data("context"));
 
    // apis
    gptResource      = ptApiRegistry->first(PL_API_RESOURCE);
@@ -4886,7 +4880,9 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
    gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
    gptThreads       = ptApiRegistry->first(PL_API_THREADS);
    gptJob           = ptApiRegistry->first(PL_API_JOB);
-   gptDraw3d        = ptApiRegistry->first(PL_API_DRAW_3D);
+   gptDraw          = ptApiRegistry->first(PL_API_DRAW);
+   gptUI            = ptApiRegistry->first(PL_API_UI);
+   gptIO            = ptApiRegistry->first(PL_API_IO);
 
    if(bReload)
    {

@@ -37,15 +37,27 @@ Demonstrates:
 * loading APIs
 * hot reloading
 
-## Example 2 - UI Library (example_2.c)
+## Example 2 - Drawing Extension 2D (example_2.c)
 Demonstrates:
 * loading APIs
 * hot reloading
 * loading extensions
-* UI library
+* minimal use of graphics extension
+* drawing extension (2D)
 
-## Example 3 - 3D Debug Drawing (example_3.c)
+## Example 3 - UI Extension (example_3.c)
+Demonstrates:
 * loading APIs
 * hot reloading
 * loading extensions
-* 3D debug drawing extension
+* minimal use of graphics extension
+* drawing extension (2D)
+* UI extension
+
+## Example 4 - Drawing Extension 3D (example_4.c)
+Demonstrates:
+* loading APIs
+* hot reloading
+* loading extensions
+* minimal use of graphics extension
+* drawing extension (3D)

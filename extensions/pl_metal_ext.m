@@ -25,10 +25,6 @@ Index of this file:
 #include "pl_memory.h"
 #include "pl_graphics_ext.c"
 
-// pilotlight ui
-#include "pl_ui.h"
-#include "pl_ui_metal.h"
-
 // metal stuff
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
@@ -50,6 +46,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 const plFileI* gptFile    = NULL;
+const plIOI*    gptIO = NULL;
 const plThreadsI*  gptThread = NULL;
 
 //-----------------------------------------------------------------------------
@@ -203,11 +200,10 @@ static bool                   pl__is_depth_format  (plFormat tFormat);
 static bool                   pl__is_stencil_format  (plFormat tFormat);
 static MTLBlendFactor         pl__metal_blend_factor(plBlendFactor tFactor);
 static MTLBlendOperation      pl__metal_blend_op(plBlendOp tOp);
-
 static void                  pl__garbage_collect(plGraphics* ptGraphics);
 
-static plDeviceAllocationBlock pl_allocate_memory(plDevice* ptDevice, size_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
-static void pl_free_memory(plDevice* ptDevice, plDeviceAllocationBlock* ptBlock);
+static plDeviceMemoryAllocation pl_allocate_memory(plDevice* ptDevice, size_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
+static void pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -218,13 +214,6 @@ pl__get_frame_resources(plGraphics* ptGraphics)
 {
     plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
     return &ptMetalGraphics->sbFrames[ptGraphics->uCurrentFrameIndex];
-}
-
-static void*
-pl_get_ui_texture_handle(plGraphics* ptGraphics, plTextureHandle tHandle, plSamplerHandle tSamplerHandle)
-{
-    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
-    return ptMetalGraphics->sbtTexturesHot[tHandle.uIndex].tTexture;
 }
 
 static void
@@ -255,6 +244,13 @@ pl_create_main_render_pass_layout(plDevice* ptDevice)
                 {
                     .tFormat = ptGraphics->tSwapchain.tFormat,
                 }
+            },
+            .uSubpassCount = 1,
+            .atSubpasses = {
+                {
+                    .uRenderTargetCount = 1,
+                    .auRenderTargets = {0}
+                },
             }
         }
     };
@@ -363,7 +359,8 @@ pl_create_main_render_pass(plDevice* ptDevice)
 
     plRenderPass tRenderPass = {
         .tDesc = {
-            .tDimensions = {pl_get_io()->afMainViewportSize[0], pl_get_io()->afMainViewportSize[1]}
+            .tDimensions = {gptIO->get_io()->afMainViewportSize[0], gptIO->get_io()->afMainViewportSize[1]},
+            .tLayout = ptGraphics->tMainRenderPassLayout
         },
         .bSwapchain = true
     };
@@ -373,7 +370,6 @@ pl_create_main_render_pass(plDevice* ptDevice)
     plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[uResourceIndex];
 
     // render pass descriptor
-
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
     {
         MTLRenderPassDescriptor* ptRenderPassDescriptor = [MTLRenderPassDescriptor new];
@@ -381,6 +377,7 @@ pl_create_main_render_pass(plDevice* ptDevice)
         ptRenderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
         ptRenderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
         ptRenderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
+        ptRenderPassDescriptor.colorAttachments[0].texture = ptMetalGraphics->tCurrentDrawable.texture;
         ptRenderPassDescriptor.depthAttachment.texture = nil;
 
         pl_sb_push(ptMetalRenderPass->atRenderPassDescriptors[i].sbptRenderPassDescriptor, ptRenderPassDescriptor);
@@ -861,115 +858,6 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
     return tHandle;
 }
 
-static void
-pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
-{
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
-    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
-
-    plTexture* ptTexture = &ptGraphics->sbtTexturesCold[tHandle.uIndex];
-    ptTexture->tMemoryAllocation = *ptAllocation;
-    plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[tHandle.uIndex];
-
-    MTLStorageMode tStorageMode = MTLStorageModeShared;
-    if(ptAllocation->tMemoryMode == PL_MEMORY_GPU)
-    {
-        tStorageMode = MTLStorageModePrivate;
-    }
-    ptMetalTexture->ptTextureDescriptor.storageMode = tStorageMode;
-
-    ptMetalTexture->tTexture = [(id<MTLHeap>)ptAllocation->uHandle newTextureWithDescriptor:ptMetalTexture->ptTextureDescriptor offset:ptAllocation->ulOffset];
-    ptMetalTexture->tHeap = (id<MTLHeap>)ptAllocation->uHandle;
-    ptMetalTexture->tTexture.label = [NSString stringWithUTF8String:ptTexture->tDesc.acDebugName];
-    [ptMetalTexture->ptTextureDescriptor release];
-    ptMetalTexture->ptTextureDescriptor = nil;
-}
-
-static plTextureHandle
-pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const char* pcName)
-{
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
-    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
-
-    uint32_t uTextureIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtTextureFreeIndices) > 0)
-        uTextureIndex = pl_sb_pop(ptGraphics->sbtTextureFreeIndices);
-    else
-    {
-        uTextureIndex = pl_sb_size(ptGraphics->sbtTexturesCold);
-        pl_sb_add(ptGraphics->sbtTexturesCold);
-        pl_sb_push(ptGraphics->sbtTextureGenerations, UINT32_MAX);
-        pl_sb_add(ptMetalGraphics->sbtTexturesHot);
-    }
-
-    plTextureHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtTextureGenerations[uTextureIndex],
-        .uIndex = uTextureIndex
-    };
-
-    plTexture tTexture = {
-        .tDesc = ptGraphics->sbtTexturesCold[ptViewDesc->tTexture.uIndex].tDesc,
-        .tView = *ptViewDesc
-    };
-
-    plTexture* ptTexture = pl__get_texture(ptDevice, ptViewDesc->tTexture);
-    plMetalTexture* ptOldMetalTexture = &ptMetalGraphics->sbtTexturesHot[ptViewDesc->tTexture.uIndex];
-    plMetalTexture* ptNewMetalTexture = &ptMetalGraphics->sbtTexturesHot[uTextureIndex];
-    ptNewMetalTexture->bOriginalView = false;
-
-    // MTLTextureType tTextureType = MTLTextureType2D;
-
-    // if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_2D)
-    //     tTextureType = MTLTextureType2D;
-    // else if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_CUBE)
-    //     tTextureType = MTLTextureTypeCube;
-    // else if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
-    //     tTextureType = MTLTextureType2DArray;
-    //     // tTextureType = MTLTextureType2D;
-    // else
-    // {
-    //     PL_ASSERT(false && "unsupported texture type");
-    // }
-
-    // NSRange tLevelRange = {
-    //     .length = ptViewDesc->uMips == 0 ? ptTexture->tDesc.uMips - ptViewDesc->uBaseMip : ptViewDesc->uMips,
-    //     .location = ptViewDesc->uBaseMip
-    // };
-
-    // NSRange tSliceRange = {
-    //     .length = ptViewDesc->uLayerCount,
-    //     .location = ptViewDesc->uBaseLayer
-    // };
-
-    // NSRange tLevelRange = {
-    //     .length = ptTexture->tView.uMips,
-    //     .location = ptTexture->tView.uBaseMip
-    // };
-
-    // NSRange tSliceRange = {
-    //     .length = ptTexture->tView.uLayerCount,
-    //     .location = ptTexture->tView.uBaseLayer
-    // };
-
-    // plMetalTexture tMetalTexture = {
-    //     .tTexture = [ptOldMetalTexture->tTexture newTextureViewWithPixelFormat:pl__metal_format(ptViewDesc->tFormat) 
-    //         textureType:tTextureType
-    //         levels:tLevelRange
-    //         slices:tSliceRange],
-    //     .tHeap = ptOldMetalTexture->tHeap
-    // };
-    // if(pcName == NULL)
-    //     pcName = "unnamed texture";
-    // tMetalTexture.tTexture.label = [NSString stringWithUTF8String:pcName];
-    ptNewMetalTexture->tTexture = ptOldMetalTexture->tTexture;
-    ptNewMetalTexture->tHeap = ptOldMetalTexture->tHeap;
-
-    ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
-    return tHandle;
-}
-
 static plSamplerHandle
 pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc, const char* pcName)
 {
@@ -1223,6 +1111,177 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         *pptDestination = ptMetalSampler->tSampler.gpuResourceID;
         ptMetalBindGroup->atSamplerBindings[i] = ptUpdate->tSampler;
     }
+}
+
+static void
+pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+
+    plTexture* ptTexture = &ptGraphics->sbtTexturesCold[tHandle.uIndex];
+    ptTexture->tMemoryAllocation = *ptAllocation;
+    plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[tHandle.uIndex];
+
+    MTLStorageMode tStorageMode = MTLStorageModeShared;
+    if(ptAllocation->tMemoryMode == PL_MEMORY_GPU)
+    {
+        tStorageMode = MTLStorageModePrivate;
+    }
+    ptMetalTexture->ptTextureDescriptor.storageMode = tStorageMode;
+
+    ptMetalTexture->tTexture = [(id<MTLHeap>)ptAllocation->uHandle newTextureWithDescriptor:ptMetalTexture->ptTextureDescriptor offset:ptAllocation->ulOffset];
+    ptMetalTexture->tHeap = (id<MTLHeap>)ptAllocation->uHandle;
+    ptMetalTexture->tTexture.label = [NSString stringWithUTF8String:ptTexture->tDesc.acDebugName];
+    [ptMetalTexture->ptTextureDescriptor release];
+    ptMetalTexture->ptTextureDescriptor = nil;
+
+    if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
+    {
+        if(pl_sb_size(ptGraphics->sbtFreeDrawBindGroups) == 0)
+        {
+            const plBindGroupLayout tDrawingBindGroup = {
+                .uTextureBindingCount  = 1,
+                .atTextureBindings = { 
+                    {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                }
+            };
+            ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
+        }
+        else
+        {
+            ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_sb_pop(ptGraphics->sbtFreeDrawBindGroups);
+        }
+
+        const plBindGroupUpdateTextureData atBGTextureData[] = {
+            {
+                .tTexture = tHandle,
+                .uSlot    = 0,
+                .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
+            }
+        };
+        const plBindGroupUpdateData tBGData = {
+            .uTextureCount = 1,
+            .atTextures = atBGTextureData
+        };
+        pl_update_bind_group(&ptGraphics->tDevice, ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup, &tBGData);
+    }
+}
+
+static plTextureHandle
+pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const char* pcName)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptDevice->_pInternalData;
+    plGraphicsMetal* ptMetalGraphics = ptGraphics->_pInternalData;
+
+    uint32_t uTextureIndex = UINT32_MAX;
+    if(pl_sb_size(ptGraphics->sbtTextureFreeIndices) > 0)
+        uTextureIndex = pl_sb_pop(ptGraphics->sbtTextureFreeIndices);
+    else
+    {
+        uTextureIndex = pl_sb_size(ptGraphics->sbtTexturesCold);
+        pl_sb_add(ptGraphics->sbtTexturesCold);
+        pl_sb_push(ptGraphics->sbtTextureGenerations, UINT32_MAX);
+        pl_sb_add(ptMetalGraphics->sbtTexturesHot);
+    }
+
+    plTextureHandle tHandle = {
+        .uGeneration = ++ptGraphics->sbtTextureGenerations[uTextureIndex],
+        .uIndex = uTextureIndex
+    };
+
+    plTexture tTexture = {
+        .tDesc = ptGraphics->sbtTexturesCold[ptViewDesc->tTexture.uIndex].tDesc,
+        .tView = *ptViewDesc
+    };
+
+    plTexture* ptTexture = pl__get_texture(ptDevice, ptViewDesc->tTexture);
+    plMetalTexture* ptOldMetalTexture = &ptMetalGraphics->sbtTexturesHot[ptViewDesc->tTexture.uIndex];
+    plMetalTexture* ptNewMetalTexture = &ptMetalGraphics->sbtTexturesHot[uTextureIndex];
+    ptNewMetalTexture->bOriginalView = false;
+
+    if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
+    {
+        if(pl_sb_size(ptGraphics->sbtFreeDrawBindGroups) == 0)
+        {
+            const plBindGroupLayout tDrawingBindGroup = {
+                .uTextureBindingCount  = 1,
+                .atTextureBindings = { 
+                    {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                }
+            };
+            ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
+        }
+        else
+        {
+            ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_sb_pop(ptGraphics->sbtFreeDrawBindGroups);
+        }
+
+        const plBindGroupUpdateTextureData atBGTextureData[] = {
+            {
+                .tTexture = tHandle,
+                .uSlot    = 0,
+                .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
+            }
+        };
+        const plBindGroupUpdateData tBGData = {
+            .uTextureCount = 1,
+            .atTextures = atBGTextureData
+        };
+        pl_update_bind_group(&ptGraphics->tDevice, ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup, &tBGData);
+    }
+
+    // MTLTextureType tTextureType = MTLTextureType2D;
+
+    // if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_2D)
+    //     tTextureType = MTLTextureType2D;
+    // else if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_CUBE)
+    //     tTextureType = MTLTextureTypeCube;
+    // else if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+    //     tTextureType = MTLTextureType2DArray;
+    //     // tTextureType = MTLTextureType2D;
+    // else
+    // {
+    //     PL_ASSERT(false && "unsupported texture type");
+    // }
+
+    // NSRange tLevelRange = {
+    //     .length = ptViewDesc->uMips == 0 ? ptTexture->tDesc.uMips - ptViewDesc->uBaseMip : ptViewDesc->uMips,
+    //     .location = ptViewDesc->uBaseMip
+    // };
+
+    // NSRange tSliceRange = {
+    //     .length = ptViewDesc->uLayerCount,
+    //     .location = ptViewDesc->uBaseLayer
+    // };
+
+    // NSRange tLevelRange = {
+    //     .length = ptTexture->tView.uMips,
+    //     .location = ptTexture->tView.uBaseMip
+    // };
+
+    // NSRange tSliceRange = {
+    //     .length = ptTexture->tView.uLayerCount,
+    //     .location = ptTexture->tView.uBaseLayer
+    // };
+
+    // plMetalTexture tMetalTexture = {
+    //     .tTexture = [ptOldMetalTexture->tTexture newTextureViewWithPixelFormat:pl__metal_format(ptViewDesc->tFormat) 
+    //         textureType:tTextureType
+    //         levels:tLevelRange
+    //         slices:tSliceRange],
+    //     .tHeap = ptOldMetalTexture->tHeap
+    // };
+    // if(pcName == NULL)
+    //     pcName = "unnamed texture";
+    // tMetalTexture.tTexture.label = [NSString stringWithUTF8String:pcName];
+    ptNewMetalTexture->tTexture = ptOldMetalTexture->tTexture;
+    ptNewMetalTexture->tHeap = ptOldMetalTexture->tHeap;
+
+    ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
+    return tHandle;
 }
 
 static plDynamicBinding
@@ -1583,8 +1642,8 @@ pl_allocate_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uT
     };
 
 
-    plDeviceAllocationBlock tBlock = pl_allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_GPU_CPU, uTypeFilter, "Uncached Heap");
-    tAllocation.uHandle = tBlock.ulAddress;
+    plDeviceMemoryAllocation tBlock = pl_allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_GPU_CPU, uTypeFilter, "Uncached Heap");
+    tAllocation.uHandle = tBlock.uHandle;
     tAllocation.pHostMapped = tBlock.pHostMapped;
     ptData->ptDevice->ptGraphics->szHostMemoryInUse += ulSize;
     return tAllocation;
@@ -1594,7 +1653,7 @@ static void
 pl_free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation)
 {
     plInternalDeviceAllocatorData* ptData = (plInternalDeviceAllocatorData*)ptInst;
-    plDeviceAllocationBlock tBlock = {.ulAddress = ptAllocation->uHandle};
+    plDeviceMemoryAllocation tBlock = {.uHandle = ptAllocation->uHandle};
     pl_free_memory(ptData->ptDevice, &tBlock);
     ptData->ptDevice->ptGraphics->szHostMemoryInUse -= ptAllocation->ulSize;
     ptAllocation->uHandle = 0;
@@ -1606,7 +1665,7 @@ static void
 pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraphics* ptGraphics)
 {
     ptGraphics->bValidationActive = ptDesc->bEnableValidation;
-    plIO* ptIOCtx = pl_get_io();
+    plIO* ptIOCtx = gptIO->get_io();
 
     ptGraphics->_pInternalData = PL_ALLOC(sizeof(plGraphicsMetal));
     memset(ptGraphics->_pInternalData, 0, sizeof(plGraphicsMetal));
@@ -1687,17 +1746,9 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
 }
 
 static void
-pl_setup_ui(plGraphics* ptGraphics, plRenderPassHandle tPass)
-{
-    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
-    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
-
-    pl_initialize_metal(ptMetalDevice->tDevice);
-}
-
-static void
 pl_resize(plGraphics* ptGraphics)
 {
+    ptGraphics->uCurrentFrameIndex = 0;
 }
 
 static bool
@@ -1715,8 +1766,18 @@ pl_begin_frame(plGraphics* ptGraphics)
 
     dispatch_semaphore_wait(ptFrame->tFrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
 
-    plIO* ptIOCtx = pl_get_io();
+    plIO* ptIOCtx = gptIO->get_io();
     ptMetalGraphics->pMetalLayer = ptIOCtx->pBackendPlatformData;
+
+    static bool bFirstRun = true;
+    if(bFirstRun == false)
+    {
+        pl__garbage_collect(ptGraphics);
+    }
+    else
+    {
+        bFirstRun = false;
+    }
     
     // get next drawable
     ptMetalGraphics->tCurrentDrawable = [ptMetalGraphics->pMetalLayer nextDrawable];
@@ -1816,7 +1877,6 @@ pl_present(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitI
     [tCmdBuffer commit];
 
     ptGraphics->uCurrentFrameIndex = (ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;
-    pl__garbage_collect(ptGraphics);
     return true;
 }
 
@@ -1858,7 +1918,6 @@ pl_begin_render_pass(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, plRen
         ptMetalRenderPass->atRenderPassDescriptors[ptGraphics->uCurrentFrameIndex].sbptRenderPassDescriptor[0].colorAttachments[0].texture = ptMetalGraphics->tCurrentDrawable.texture;
         tRenderEncoder = [tCmdBuffer renderCommandEncoderWithDescriptor:ptMetalRenderPass->atRenderPassDescriptors[ptGraphics->uCurrentFrameIndex].sbptRenderPassDescriptor[0]];
         tRenderEncoder.label = @"main encoder";
-        pl_new_draw_frame_metal(ptMetalRenderPass->atRenderPassDescriptors[0].sbptRenderPassDescriptor[0]);
     }
     else
     {
@@ -2093,7 +2152,7 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
 }
 
 static void
-pl_set_viewport(plRenderEncoder* ptEncoder, plRenderViewport* ptViewport)
+pl_set_viewport(plRenderEncoder* ptEncoder, const plRenderViewport* ptViewport)
 {
     plGraphics* ptGraphics = ptEncoder->ptGraphics;
     id<MTLRenderCommandEncoder> tEncoder = (id<MTLRenderCommandEncoder>)ptEncoder->_pInternal;
@@ -2110,7 +2169,7 @@ pl_set_viewport(plRenderEncoder* ptEncoder, plRenderViewport* ptViewport)
 }
 
 static void
-pl_set_scissor_region(plRenderEncoder* ptEncoder, plScissor* ptScissor)
+pl_set_scissor_region(plRenderEncoder* ptEncoder, const plScissor* ptScissor)
 {
     plGraphics* ptGraphics = ptEncoder->ptGraphics;
     id<MTLRenderCommandEncoder> tEncoder = (id<MTLRenderCommandEncoder>)ptEncoder->_pInternal;
@@ -2438,8 +2497,6 @@ pl_cleanup(plGraphics* ptGraphics)
 
     plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
 
-    pl_cleanup_metal();
-
     for(uint32_t i = 0; i < pl_sb_size(ptMetalGraphics->sbFrames); i++)
     {
         plFrameContext* ptFrame = &ptMetalGraphics->sbFrames[i];
@@ -2467,23 +2524,6 @@ pl_cleanup(plGraphics* ptGraphics)
     pl_sb_free(ptMetalGraphics->sbtComputeShadersHot);
     pl_sb_free(ptMetalGraphics->sbtSemaphoresHot);
     pl__cleanup_common_graphics(ptGraphics);
-}
-
-static void
-pl_draw_lists(plGraphics* ptGraphics, plRenderEncoder tEncoder, uint32_t uListCount, plDrawList* atLists)
-{
-    id<MTLCommandBuffer> tCmdBuffer = (id<MTLCommandBuffer>)tEncoder.tCommandBuffer._pInternal;
-    plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
-    plDeviceMetal* ptMetalDevice = (plDeviceMetal*)ptGraphics->tDevice._pInternalData;
-    id<MTLRenderCommandEncoder> tRenderEncoder = (id<MTLRenderCommandEncoder>)tEncoder._pInternal;
-    id<MTLDevice> tDevice = ptMetalDevice->tDevice;
-    plMetalRenderPass* ptMetalRenderPass = &ptMetalGraphics->sbtRenderPassesHot[tEncoder.tRenderPassHandle.uIndex];
-
-    plIO* ptIOCtx = pl_get_io();
-    for(uint32_t i = 0; i < uListCount; i++)
-    {
-        pl_submit_metal_drawlist(&atLists[i], ptIOCtx->afMainViewportSize[0], ptIOCtx->afMainViewportSize[1], tRenderEncoder, tCmdBuffer, ptMetalRenderPass->atRenderPassDescriptors[0].sbptRenderPassDescriptor[tEncoder._uCurrentSubpass]);
-    }
 }
 
 //-----------------------------------------------------------------------------
@@ -2739,7 +2779,7 @@ pl__metal_vertex_format(plFormat tFormat)
         case PL_FORMAT_R32G32_FLOAT:       return MTLVertexFormatFloat2;
 
         case PL_FORMAT_B8G8R8A8_UNORM:
-        case PL_FORMAT_R8G8B8A8_UNORM:     return MTLVertexFormatUChar3;
+        case PL_FORMAT_R8G8B8A8_UNORM:     return MTLVertexFormatUChar4;
     }
 
     PL_ASSERT(false && "Unsupported vertex format");
@@ -2880,7 +2920,14 @@ pl__garbage_collect(plGraphics* ptGraphics)
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtMemory); i++)
     {
-        ptGarbage->sbtMemory[i].ptAllocator->free(ptGarbage->sbtMemory[i].ptAllocator->ptInst, &ptGarbage->sbtMemory[i]);
+        if(ptGarbage->sbtMemory[i].ptAllocator)
+        {
+            ptGarbage->sbtMemory[i].ptAllocator->free(ptGarbage->sbtMemory[i].ptAllocator->ptInst, &ptGarbage->sbtMemory[i]);
+        }
+        else
+        {
+            pl_free_memory(&ptGraphics->tDevice, &ptGarbage->sbtMemory[i]);
+        }
     }
 
     pl_sb_reset(ptGarbage->sbtTextures);
@@ -2898,7 +2945,7 @@ pl__garbage_collect(plGraphics* ptGraphics)
 // [SECTION] device memory allocators
 //-----------------------------------------------------------------------------
 
-static plDeviceAllocationBlock
+static plDeviceMemoryAllocation
 pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName)
 {
     plDeviceMetal* ptMetalDevice = ptDevice->_pInternalData;
@@ -2908,9 +2955,10 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
         pcName = "unnamed memory block";
     }
 
-    plDeviceAllocationBlock tBlock = {
-        .ulAddress = 0,
-        .ulSize    = (uint64_t)szSize
+    plDeviceMemoryAllocation tBlock = {
+        .uHandle = 0,
+        .ulSize  = (uint64_t)szSize,
+        .tMemoryMode = tMemoryMode
     };
 
     MTLHeapDescriptor* ptHeapDescriptor = [MTLHeapDescriptor new];
@@ -2931,16 +2979,16 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
 
     id<MTLHeap> tNewHeap = [ptMetalDevice->tDevice newHeapWithDescriptor:ptHeapDescriptor];
     tNewHeap.label = [NSString stringWithUTF8String:pcName];
-    tBlock.ulAddress = (uint64_t)tNewHeap;
+    tBlock.uHandle = (uint64_t)tNewHeap;
     
     [ptHeapDescriptor release];
     return tBlock;
 }
 
 static void
-pl_free_memory(plDevice* ptDevice, plDeviceAllocationBlock* ptBlock)
+pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 {
-    id<MTLHeap> tHeap = (id<MTLHeap>)ptBlock->ulAddress;
+    id<MTLHeap> tHeap = (id<MTLHeap>)ptBlock->uHandle;
 
     plDeviceMetal* ptMetalDevice = ptDevice->_pInternalData;
 
@@ -2956,12 +3004,11 @@ pl_free_memory(plDevice* ptDevice, plDeviceAllocationBlock* ptBlock)
     {
         ptDevice->ptGraphics->szHostMemoryInUse -= ptBlock->ulSize;
     }
-    ptBlock->ulAddress = 0;
+    ptBlock->uHandle = 0;
     ptBlock->pHostMapped = NULL;
     ptBlock->ulSize = 0;
     ptBlock->tMemoryMode = 0;
     ptBlock->ulMemoryType = 0;
-    ptBlock->dLastTimeUsed = 0;
 }
 
 static void
@@ -2978,7 +3025,10 @@ pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
     ptMetalGraphics->sbtBuffersHot[tHandle.uIndex].tBuffer = nil;
 
     plBuffer* ptBuffer = &ptGraphics->sbtBuffersCold[tHandle.uIndex];
-    ptBuffer->tMemoryAllocation.ptAllocator->free(ptBuffer->tMemoryAllocation.ptAllocator->ptInst, &ptBuffer->tMemoryAllocation);
+    if(ptBuffer->tMemoryAllocation.ptAllocator)
+        ptBuffer->tMemoryAllocation.ptAllocator->free(ptBuffer->tMemoryAllocation.ptAllocator->ptInst, &ptBuffer->tMemoryAllocation);
+    else
+        pl_free_memory(ptDevice, &ptBuffer->tMemoryAllocation);
 }
 
 static void
@@ -2996,7 +3046,10 @@ pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
     ptMetalTexture->tTexture = nil;
 
     plTexture* ptTexture = &ptGraphics->sbtTexturesCold[tHandle.uIndex];
-    ptTexture->tMemoryAllocation.ptAllocator->free(ptTexture->tMemoryAllocation.ptAllocator->ptInst, &ptTexture->tMemoryAllocation);
+    if(ptTexture->tMemoryAllocation.ptAllocator)
+        ptTexture->tMemoryAllocation.ptAllocator->free(ptTexture->tMemoryAllocation.ptAllocator->ptInst, &ptTexture->tMemoryAllocation);
+    else
+        pl_free_memory(ptDevice, &ptTexture->tMemoryAllocation);
 }
 
 static void
@@ -3091,7 +3144,6 @@ pl_load_graphics_api(void)
     static const plGraphicsI tApi = {
         .initialize                       = pl_initialize_graphics,
         .resize                           = pl_resize,
-        .setup_ui                         = pl_setup_ui,
         .begin_frame                      = pl_begin_frame,
         .dispatch                         = pl_dispatch,
         .bind_compute_bind_groups         = pl_bind_compute_bind_groups,
@@ -3101,11 +3153,7 @@ pl_load_graphics_api(void)
         .bind_vertex_buffer               = pl_bind_vertex_buffer,
         .bind_shader                      = pl_bind_shader,
         .bind_compute_shader              = pl_bind_compute_shader,
-        .draw_lists                       = pl_draw_lists,
         .cleanup                          = pl_cleanup,
-        .create_font_atlas                = pl_create_metal_font_texture,
-        .destroy_font_atlas               = pl_cleanup_metal_font_texture,
-        .get_ui_texture_handle            = pl_get_ui_texture_handle,
         .begin_command_recording          = pl_begin_command_recording,
         .end_command_recording            = pl_end_command_recording,
         .submit_command_buffer            = pl_submit_command_buffer,
@@ -3185,10 +3233,10 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-    pl_set_context(ptDataRegistry->get_data("context"));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     gptFile = ptApiRegistry->first(PL_API_FILE);
     gptThread = ptApiRegistry->first(PL_API_THREADS);
+    gptIO = ptApiRegistry->first(PL_API_IO);
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_GRAPHICS), pl_load_graphics_api());
@@ -3207,8 +3255,3 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry)
 
 }
 
-//-----------------------------------------------------------------------------
-// [SECTION] unity build
-//-----------------------------------------------------------------------------
-
-#include "pl_ui_metal.m"

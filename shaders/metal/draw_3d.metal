@@ -17,7 +17,7 @@ struct DynamicData
 struct VertexIn
 {
     float3 position  [[attribute(0)]];
-    float4 color     [[attribute(1)]];
+    uchar4 color     [[attribute(1)]];
 };
 
 //-----------------------------------------------------------------------------
@@ -36,15 +36,15 @@ vertex_main(VertexIn in [[stage_in]],
             device DynamicData& bg0 [[ buffer(1)]])
 {
     VertexOut out;
+    out.color = float4(in.color) / float4(255.0);
     out.position = bg0.tMVP * float4(in.position, 1);
     out.position.y *= -1;
-    out.color = in.color;
     return out;
 }
 
-fragment half4
+fragment float4
 fragment_main(VertexOut in [[stage_in]],
             device DynamicData& bg0 [[ buffer(1)]])
 {
-    return half4(in.color);
+    return in.color;
 }

@@ -42,7 +42,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pilotlight.h" // data registry, api registry, extension registry
-#include "pl_ui.h"      // io context
 #include "pl_os.h"      // os apis
 #include "pl_ds.h"      // hashmap
 
@@ -207,12 +206,12 @@ INT64            ilTicksPerSecond                  = 0;
 HWND             tMouseHandle                      = NULL;
 bool             bMouseTracked                     = true;
 plIO*            gptIOCtx                          = NULL;
-plUiContext*     gptUiCtx                          = NULL;
 
 // apis
 const plDataRegistryI*      gptDataRegistry      = NULL;
 const plApiRegistryI*       gptApiRegistry       = NULL;
 const plExtensionRegistryI* gptExtensionRegistry = NULL;
+const plIOI*                gptIOI               = NULL;
 
 // memory tracking
 plHashMap       gtMemoryHashMap = {0};
@@ -235,8 +234,6 @@ void  (*pl_app_update)  (void* userData);
 int main(int argc, char *argv[])
 {
     const char* pcAppName = "app";
-    gptUiCtx = pl_create_context();
-    gptIOCtx = pl_get_io();
 
     for(int i = 1; i < argc; i++)
     { 
@@ -355,6 +352,7 @@ int main(int argc, char *argv[])
     gptApiRegistry       = pl_load_core_apis();
     gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
     gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    gptIOI               = gptApiRegistry->first(PL_API_IO);
 
     // add os specific apis
     gptApiRegistry->add(PL_API_WINDOW, &tWindowApi);
@@ -365,11 +363,11 @@ int main(int argc, char *argv[])
     gptApiRegistry->add(PL_API_ATOMICS, &tAtomicsApi);
 
     // set clipboard functions (may need to move this to OS api)
+    gptIOCtx = gptIOI->get_io();
     gptIOCtx->set_clipboard_text_fn = pl__set_clipboard_text;
     gptIOCtx->get_clipboard_text_fn = pl__get_clipboard_text;
 
     // add contexts to data registry
-    gptDataRegistry->set_data("context", gptUiCtx);
     gtMemoryContext.plThreadsI = &tThreadApi;
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
@@ -587,13 +585,13 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             {
                 // You can also use ToAscii()+GetKeyboardState() to retrieve characters.
                 if (tWParam > 0 && tWParam < 0x10000)
-                    pl_add_text_event_utf16((uint16_t)tWParam);
+                    gptIOI->add_text_event_utf16((uint16_t)tWParam);
             }
             else
             {
                 wchar_t wch = 0;
                 MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, (char*)&tWParam, 1, &wch, 1);
-                pl_add_text_event(wch);
+                gptIOI->add_text_event(wch);
             }
             break;
 
@@ -628,7 +626,7 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
                 bMouseTracked = true;        
             }
             POINT tMousePos = { (LONG)GET_X_LPARAM(tLParam), (LONG)GET_Y_LPARAM(tLParam) };
-            pl_add_mouse_pos_event((float)tMousePos.x, (float)tMousePos.y);
+            gptIOI->add_mouse_pos_event((float)tMousePos.x, (float)tMousePos.y);
             break;
         }
         case WM_MOUSELEAVE:
@@ -636,7 +634,7 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             if(tHwnd == tMouseHandle)
             {
                 tMouseHandle = NULL;
-                pl_add_mouse_pos_event(-FLT_MAX, -FLT_MAX);
+                gptIOI->add_mouse_pos_event(-FLT_MAX, -FLT_MAX);
             }
             bMouseTracked = false;
             break;
@@ -655,7 +653,7 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             if(gptIOCtx->_iMouseButtonsDown == 0 && GetCapture() == NULL)
                 SetCapture(tHwnd);
             gptIOCtx->_iMouseButtonsDown |= 1 << iButton;
-            pl_add_mouse_button_event(iButton, true);
+            gptIOI->add_mouse_button_event(iButton, true);
             break;
         }
         case WM_LBUTTONUP:
@@ -671,19 +669,19 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             gptIOCtx->_iMouseButtonsDown &= ~(1 << iButton);
             if(gptIOCtx->_iMouseButtonsDown == 0 && GetCapture() == tHwnd)
                 ReleaseCapture();
-            pl_add_mouse_button_event(iButton, false);
+            gptIOI->add_mouse_button_event(iButton, false);
             break;
         }
 
         case WM_MOUSEWHEEL:
         {
-            pl_add_mouse_wheel_event(0.0f, (float)GET_WHEEL_DELTA_WPARAM(tWParam) / (float)WHEEL_DELTA);
+            gptIOI->add_mouse_wheel_event(0.0f, (float)GET_WHEEL_DELTA_WPARAM(tWParam) / (float)WHEEL_DELTA);
             break;
         }
 
         case WM_MOUSEHWHEEL:
         {
-            pl_add_mouse_wheel_event((float)GET_WHEEL_DELTA_WPARAM(tWParam) / (float)WHEEL_DELTA, 0.0f);
+            gptIOI->add_mouse_wheel_event((float)GET_WHEEL_DELTA_WPARAM(tWParam) / (float)WHEEL_DELTA, 0.0f);
             break;
         }
 
@@ -697,10 +695,10 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             {
 
                 // Submit modifiers
-                pl_add_key_event(PL_KEY_MOD_CTRL,  pl__is_vk_down(VK_CONTROL));
-                pl_add_key_event(PL_KEY_MOD_SHIFT, pl__is_vk_down(VK_SHIFT));
-                pl_add_key_event(PL_KEY_MOD_ALT,   pl__is_vk_down(VK_MENU));
-                pl_add_key_event(PL_KEY_MOD_SUPER, pl__is_vk_down(VK_APPS));
+                gptIOI->add_key_event(PL_KEY_MOD_CTRL,  pl__is_vk_down(VK_CONTROL));
+                gptIOI->add_key_event(PL_KEY_MOD_SHIFT, pl__is_vk_down(VK_SHIFT));
+                gptIOI->add_key_event(PL_KEY_MOD_ALT,   pl__is_vk_down(VK_MENU));
+                gptIOI->add_key_event(PL_KEY_MOD_SUPER, pl__is_vk_down(VK_APPS));
 
                 // obtain virtual key code
                 int iVk = (int)tWParam;
@@ -711,23 +709,23 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
                 const plKey tKey = pl__virtual_key_to_pl_key(iVk);
 
                 if (tKey != PL_KEY_NONE)
-                    pl_add_key_event(tKey, bKeyDown);
+                    gptIOI->add_key_event(tKey, bKeyDown);
 
                 // Submit individual left/right modifier events
                 if (iVk == VK_SHIFT)
                 {
-                    if (pl__is_vk_down(VK_LSHIFT) == bKeyDown) pl_add_key_event(PL_KEY_LEFT_SHIFT, bKeyDown);
-                    if (pl__is_vk_down(VK_RSHIFT) == bKeyDown) pl_add_key_event(PL_KEY_RIGHT_SHIFT, bKeyDown);
+                    if (pl__is_vk_down(VK_LSHIFT) == bKeyDown) gptIOI->add_key_event(PL_KEY_LEFT_SHIFT, bKeyDown);
+                    if (pl__is_vk_down(VK_RSHIFT) == bKeyDown) gptIOI->add_key_event(PL_KEY_RIGHT_SHIFT, bKeyDown);
                 }
                 else if (iVk == VK_CONTROL)
                 {
-                    if (pl__is_vk_down(VK_LCONTROL) == bKeyDown) pl_add_key_event(PL_KEY_LEFT_CTRL, bKeyDown);
-                    if (pl__is_vk_down(VK_RCONTROL) == bKeyDown) pl_add_key_event(PL_KEY_RIGHT_CTRL, bKeyDown);
+                    if (pl__is_vk_down(VK_LCONTROL) == bKeyDown) gptIOI->add_key_event(PL_KEY_LEFT_CTRL, bKeyDown);
+                    if (pl__is_vk_down(VK_RCONTROL) == bKeyDown) gptIOI->add_key_event(PL_KEY_RIGHT_CTRL, bKeyDown);
                 }
                 else if (iVk == VK_MENU)
                 {
-                    if (pl__is_vk_down(VK_LMENU) == bKeyDown) pl_add_key_event(PL_KEY_LEFT_ALT, bKeyDown);
-                    if (pl__is_vk_down(VK_RMENU) == bKeyDown) pl_add_key_event(PL_KEY_RIGHT_ALT, bKeyDown);
+                    if (pl__is_vk_down(VK_LMENU) == bKeyDown) gptIOI->add_key_event(PL_KEY_LEFT_ALT, bKeyDown);
+                    if (pl__is_vk_down(VK_RMENU) == bKeyDown) gptIOI->add_key_event(PL_KEY_RIGHT_ALT, bKeyDown);
                 }
             }
             break;

@@ -179,7 +179,6 @@ PL_DEFINE_HANDLE(plSemaphoreHandle);
 
 // device memory
 typedef struct _plDeviceMemoryRequirements plDeviceMemoryRequirements;
-typedef struct _plDeviceAllocationBlock    plDeviceAllocationBlock;
 typedef struct _plDeviceMemoryAllocation   plDeviceMemoryAllocation;
 typedef struct _plDeviceMemoryAllocatorI   plDeviceMemoryAllocatorI;
 
@@ -207,9 +206,7 @@ typedef int plBlendFactor;        // -> enum _plBlendFactor            // Enum:
 typedef int plMipmapMode;         // -> enum _plMipmapMode             // Enum:
 
 // external
-typedef struct _plDrawList  plDrawList;
-typedef struct _plFontAtlas plFontAtlas;
-typedef struct _plWindow    plWindow;
+typedef struct _plWindow plWindow;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
@@ -269,8 +266,8 @@ typedef struct _plDeviceI
 
     // memory
     plDynamicBinding        (*allocate_dynamic_data)(plDevice*, size_t);
-    plDeviceAllocationBlock (*allocate_memory)      (plDevice*, size_t, plMemoryMode, uint32_t uTypeFilter, const char* pcDebugName);
-    void                    (*free_memory)          (plDevice*, plDeviceAllocationBlock*);
+    plDeviceMemoryAllocation(*allocate_memory)      (plDevice*, size_t, plMemoryMode, uint32_t uTypeFilter, const char* pcDebugName);
+    void                    (*free_memory)          (plDevice*, plDeviceMemoryAllocation*);
 
     // misc
     void (*flush_device)(plDevice* ptDevice);
@@ -282,7 +279,6 @@ typedef struct _plGraphicsI
     void (*initialize)(plWindow*, const plGraphicsDesc*, plGraphics*);
     void (*resize)    (plGraphics*);
     void (*cleanup)   (plGraphics*);
-    void (*setup_ui)  (plGraphics*, plRenderPassHandle);
 
     // per frame
     bool (*begin_frame)(plGraphics*);
@@ -312,8 +308,8 @@ typedef struct _plGraphicsI
 
     // render encoder: direct (prefer draw stream, this should be used for bindless mostly)
     void (*bind_graphics_bind_groups)(plRenderEncoder*, plShaderHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle*, plDynamicBinding*);
-    void (*set_viewport)             (plRenderEncoder*, plRenderViewport*);
-    void (*set_scissor_region)       (plRenderEncoder*, plScissor*);
+    void (*set_viewport)             (plRenderEncoder*, const plRenderViewport*);
+    void (*set_scissor_region)       (plRenderEncoder*, const plScissor*);
     void (*bind_vertex_buffer)       (plRenderEncoder*, plBufferHandle);
     void (*draw)                     (plRenderEncoder*, uint32_t uCount, const plDraw*);
     void (*draw_indexed)             (plRenderEncoder*, uint32_t uCount, const plDrawIndex*);
@@ -333,12 +329,6 @@ typedef struct _plGraphicsI
     void          (*generate_mipmaps)        (plBlitEncoder*, plTextureHandle);
     void          (*copy_buffer)             (plBlitEncoder*, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t);
     void          (*transfer_image_to_buffer)(plBlitEncoder*, plTextureHandle tTexture, plBufferHandle tBuffer); // from single layer & single mip textures
-
-    // 2D drawing api (will be moved to an extension)
-    void  (*draw_lists)           (plGraphics*, plRenderEncoder, uint32_t uListCount, plDrawList*);
-    void  (*create_font_atlas)    (plFontAtlas*);
-    void  (*destroy_font_atlas)   (plFontAtlas*);
-    void* (*get_ui_texture_handle)(plGraphics*, plTextureHandle, plSamplerHandle);
 } plGraphicsI;
 
 //-----------------------------------------------------------------------------
@@ -465,24 +455,14 @@ typedef struct _plDeviceMemoryRequirements
 typedef struct _plDeviceMemoryAllocation
 {
     plMemoryMode              tMemoryMode;
+    uint64_t                  ulMemoryType;
     uint64_t                  uHandle;
     uint64_t                  ulOffset;
     uint64_t                  ulSize;
     char*                     pHostMapped;
+    uint32_t                  uCurrentIndex; // used but debug tool
     plDeviceMemoryAllocatorI* ptAllocator;
 } plDeviceMemoryAllocation;
-
-typedef struct _plDeviceAllocationBlock
-{
-    plMemoryMode tMemoryMode;
-    uint64_t     ulMemoryType;
-    uint64_t     ulAddress;
-    uint64_t     ulSize;
-    char*        pHostMapped;
-    uint32_t     uCurrentIndex; // used but debug tool
-    double       dLastTimeUsed;
-    plDeviceMemoryAllocatorI *ptAllocator;
-} plDeviceAllocationBlock;
 
 typedef struct _plDeviceMemoryAllocatorI
 {
@@ -537,6 +517,7 @@ typedef struct _plTexture
     plTextureViewDesc          tView;
     plDeviceMemoryRequirements tMemoryRequirements;
     plDeviceMemoryAllocation   tMemoryAllocation;
+    plBindGroupHandle          _tDrawBindGroup;
 } plTexture;
 
 typedef struct _plBufferDescription
@@ -853,15 +834,16 @@ typedef struct _plGraphicsDesc
 
 typedef struct _plGraphics
 {
-    plDevice        tDevice;
-    plWindow*       ptMainWindow;
-    plSwapchain     tSwapchain;
-    uint32_t        uCurrentFrameIndex;
-    uint32_t        uFramesInFlight;
-    plFrameGarbage* sbtGarbage;
-    size_t          szLocalMemoryInUse;
-    size_t          szHostMemoryInUse;
-    bool            bValidationActive;
+    plDevice           tDevice;
+    plWindow*          ptMainWindow;
+    plSwapchain        tSwapchain;
+    uint32_t           uCurrentFrameIndex;
+    uint32_t           uFramesInFlight;
+    plFrameGarbage*    sbtGarbage;
+    size_t             szLocalMemoryInUse;
+    size_t             szHostMemoryInUse;
+    bool               bValidationActive;
+    plBindGroupHandle* sbtFreeDrawBindGroups;
 
     // render pass layouts
     plRenderPassLayout* sbtRenderPassLayoutsCold;

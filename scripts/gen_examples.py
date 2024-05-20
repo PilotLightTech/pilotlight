@@ -51,7 +51,7 @@ with pl.project("pilotlight"):
     pl.push_profile(pl.Profile.PILOT_LIGHT_DEBUG_C)
 
     pl.push_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS")
-    pl.push_include_directories("../apps", "../examples", "../src", "../libs", "../extensions", "../backends", "../out", "../dependencies/pilotlight-ui", "../dependencies/pilotlight-ui/backends", "../dependencies/stb", "../dependencies/cgltf")
+    pl.push_include_directories("../apps", "../examples", "../src", "../ui", "../libs", "../extensions", "../out", "../dependencies/stb", "../dependencies/cgltf")
     pl.push_link_directories("../out")
     pl.push_output_directory("../out")
         
@@ -87,6 +87,7 @@ with pl.project("pilotlight"):
     add_example_app("example_1")
     add_example_app("example_2")
     add_example_app("example_3")
+    add_example_app("example_4")
 
     ###############################################################################
     #                                 pilot_light                                 #

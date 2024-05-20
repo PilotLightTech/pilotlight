@@ -41,6 +41,7 @@ typedef struct _plWindow           plWindow;           // pl_os.h
 typedef struct _plGraphics         plGraphics;         // pl_graphics_ext.h
 typedef struct _plDrawList3D       plDrawList3D;       // pl_graphics_ext.h
 typedef struct _plCommandBuffer    plCommandBuffer;    // pl_graphics_ext.h
+typedef union  plTextureHandle     plTextureHandle;    // pl_graphics_ext.h
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef struct _plCameraComponent  plCameraComponent;  // pl_ecs_ext.h
 typedef union  _plEntity           plEntity;           // pl_ecs_ext.h
@@ -65,7 +66,7 @@ typedef struct _plRefRendererI
 
     // views
     uint32_t    (*create_view)(uint32_t uSceneHandle, plVec2 tDimensions);
-    plTextureId (*get_view_texture_id)(uint32_t uSceneHandle, uint32_t uViewHandle);
+    plTextureHandle (*get_view_color_texture)(uint32_t uSceneHandle, uint32_t uViewHandle);
     void        (*resize_view)(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensions);
     
     // loading

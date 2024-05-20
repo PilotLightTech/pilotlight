@@ -49,8 +49,8 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plDeviceAllocationRange plDeviceAllocationRange;
-typedef struct _plDeviceAllocationBlock plDeviceAllocationBlock;
+typedef struct _plDeviceAllocationRange  plDeviceAllocationRange;
+typedef struct _plDeviceMemoryAllocation plDeviceMemoryAllocation;
 
 // external (pl_graphics_ext.h)
 typedef struct _plDeviceMemoryAllocatorI plDeviceMemoryAllocatorI;
@@ -77,8 +77,8 @@ typedef struct _plGPUAllocatorsI
     void (*cleanup_allocators)(plDevice*);
 
     // for debug viewing
-    plDeviceAllocationBlock* (*get_blocks)(const plDeviceMemoryAllocatorI*, uint32_t* puSizeOut);
-    plDeviceAllocationRange* (*get_ranges)(const plDeviceMemoryAllocatorI*, uint32_t* puSizeOut);
+    plDeviceMemoryAllocation* (*get_blocks)(const plDeviceMemoryAllocatorI*, uint32_t* puSizeOut);
+    plDeviceAllocationRange*  (*get_ranges)(const plDeviceMemoryAllocatorI*, uint32_t* puSizeOut);
 
 } plGPUAllocatorsI;
 

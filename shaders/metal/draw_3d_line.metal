@@ -20,7 +20,7 @@ struct VertexIn
     float3 aPos      [[attribute(0)]];
     float4 aInfo     [[attribute(1)]];
     float3 aPosOther [[attribute(2)]];
-    float4 color     [[attribute(3)]];
+    uchar4 color     [[attribute(3)]];
 };
 
 //-----------------------------------------------------------------------------
@@ -59,9 +59,9 @@ vertex_main(VertexIn in [[stage_in]],
     // offset by the direction of this point in the pair (-1 or 1)
     float4 offset = float4(normal * in.aInfo.x, 0.0, 0.0);
     VertexOut out;
+    out.color = float4(in.color) / float4(255.0);
     out.position = tCurrentProj + offset;
     out.position.y *= -1;
-    out.color = in.color;
     return out;
 }
 

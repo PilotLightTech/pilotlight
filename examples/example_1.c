@@ -22,7 +22,6 @@ Index of this file:
 #include <stdio.h>
 #include <string.h> // memset
 #include "pilotlight.h"
-#include "pl_ui.h"
 #include "pl_os.h" // window api
 
 //-----------------------------------------------------------------------------
@@ -38,6 +37,7 @@ typedef struct _plAppData
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
+const plIOI*     gptIO      = NULL;
 const plWindowI* gptWindows = NULL;
 
 //-----------------------------------------------------------------------------
@@ -54,20 +54,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // between extensions & the runtime
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
 
-    // retrieve the UI context (provided by the runtime) and
-    // set it (required to use plIO for "talking" with runtime & keyboard/mouse input)
-    plUiContext* ptUIContext = ptDataRegistry->get_data("context");
-    pl_set_context(ptUIContext);
-
+    // load required apis (NULL if not available)
+    gptIO      = ptApiRegistry->first(PL_API_IO);
+    gptWindows = ptApiRegistry->first(PL_API_WINDOW);
+    
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
     if(ptAppData)
     {
         printf("Hot reload!\n");
-
-        // re-retrieve the windows API since we are now in
-        // a different dll/so
-        gptWindows = ptApiRegistry->first(PL_API_WINDOW);
 
         // return the same memory again
         return ptAppData;
@@ -77,9 +72,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // allocate app memory here
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
-
-    // load required apis (NULL if not available)
-    gptWindows = ptApiRegistry->first(PL_API_WINDOW);
 
     // use window API to create a window
     const plWindowDesc tWindowDesc = {
@@ -117,7 +109,7 @@ PL_EXPORT void
 pl_app_resize(plAppData* ptAppData)
 {
     // perform any operations required during a window resize
-    plIO* ptIO = pl_get_io();
+    plIO* ptIO = gptIO->get_io();
     printf("resize to %d, %d\n", (int)ptIO->afMainViewportSize[0], (int)ptIO->afMainViewportSize[1]);
 }
 
@@ -129,10 +121,10 @@ PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
 
-    pl_new_frame(); // must be called once at the beginning of a frame
+    gptIO->new_frame(); // must be called once at the beginning of a frame
 
     // check for key press
-    if(pl_is_key_pressed(PL_KEY_P, true))
+    if(gptIO->is_key_pressed(PL_KEY_P, true))
     {
         printf("P key pressed!\n");
     }

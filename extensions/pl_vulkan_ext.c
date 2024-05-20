@@ -13,7 +13,6 @@ Index of this file:
 // [SECTION] internal api implementation
 // [SECTION] device memory allocators
 // [SECTION] extension loading
-// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
@@ -43,8 +42,6 @@ Index of this file:
     #define PL_DEVICE_LOCAL_LEVELS 8
 #endif
 
-#include "pl_ui.h"
-#include "pl_ui_vulkan.h"
 #include "vulkan/vulkan.h"
 
 #ifdef _WIN32
@@ -60,7 +57,8 @@ Index of this file:
 // [SECTION] global data
 //-----------------------------------------------------------------------------
 
-const plFileI* gptFile = NULL;
+const plFileI*  gptFile = NULL;
+const plIOI*    gptIO = NULL;
 static uint32_t uLogChannel = UINT32_MAX;
 
 //-----------------------------------------------------------------------------
@@ -244,8 +242,8 @@ static VkStencilOp                         pl__vulkan_stencil_op(plStencilOp tSt
 static VkBlendFactor                       pl__vulkan_blend_factor(plBlendFactor tFactor);
 static VkBlendOp                           pl__vulkan_blend_op(plBlendOp tOp);
 
-static plDeviceAllocationBlock pl_allocate_memory(plDevice* ptDevice, size_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
-static void pl_free_memory(plDevice* ptDevice, plDeviceAllocationBlock* ptBlock);
+static plDeviceMemoryAllocation pl_allocate_memory(plDevice*, size_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
+static void pl_free_memory(plDevice*, plDeviceMemoryAllocation*);
 
 static void                  pl_set_vulkan_object_name(plDevice* ptDevice, uint64_t uObjectHandle, VkDebugReportObjectTypeEXT tObjectType, const char* pcName);
 static plFrameContext*       pl__get_frame_resources(plGraphics* ptGraphics);
@@ -266,13 +264,6 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL pl__debug_callback(VkDebugUtilsMessageSeve
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
-
-static void*
-pl_get_ui_texture_handle(plGraphics* ptGraphics, plTextureHandle tHandle, plSamplerHandle tSamplerHandle)
-{
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    return pl_add_texture(ptVulkanGfx->sbtTexturesHot[tHandle.uIndex].tImageView, ptVulkanGfx->sbtSamplersHot[tSamplerHandle.uIndex], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-}
 
 static plSemaphoreHandle
 pl_create_semaphore(plDevice* ptDevice, bool bHostVisible)
@@ -665,193 +656,6 @@ pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
 }
 
 static plTextureHandle
-pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* pcName)
-{
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
-
-    if(pcName == NULL)
-        pcName = "unnamed texture";
-
-    plTextureDesc tDesc = *ptDesc;
-    strncpy(tDesc.acDebugName, pcName, PL_MAX_NAME_LENGTH);
-
-    if(tDesc.tInitialUsage == PL_TEXTURE_USAGE_UNSPECIFIED)
-        tDesc.tInitialUsage = PL_TEXTURE_USAGE_SAMPLED;
-
-    if(tDesc.uMips == 0)
-        tDesc.uMips = (uint32_t)floorf(log2f((float)pl_maxi((int)tDesc.tDimensions.x, (int)tDesc.tDimensions.y))) + 1u;
-
-    uint32_t uTextureIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtTextureFreeIndices) > 0)
-        uTextureIndex = pl_sb_pop(ptGraphics->sbtTextureFreeIndices);
-    else
-    {
-        uTextureIndex = pl_sb_size(ptGraphics->sbtTexturesCold);
-        pl_sb_add(ptGraphics->sbtTexturesCold);
-        pl_sb_push(ptGraphics->sbtTextureGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGraphics->sbtTexturesHot);
-    }
-
-    plTextureHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtTextureGenerations[uTextureIndex],
-        .uIndex = uTextureIndex
-    };
-
-    plTexture tTexture = {
-        .tDesc = tDesc,
-        .tView = {
-            .tFormat = tDesc.tFormat,
-            .uBaseMip = 0,
-            .uMips = tDesc.uMips,
-            .uBaseLayer = 0,
-            .uLayerCount = tDesc.uLayers,
-            .tTexture = tHandle
-        }
-    };
-
-    plVulkanTexture tVulkanTexture = {
-        .bOriginalView = true
-    };
-
-    VkImageViewType tImageViewType = 0;
-    if(tDesc.tType == PL_TEXTURE_TYPE_CUBE)
-        tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
-    else if(tDesc.tType == PL_TEXTURE_TYPE_2D)
-        tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
-    else if(tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
-        tImageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-    else
-    {
-        PL_ASSERT(false && "unsupported texture type");
-    }
-
-    VkImageUsageFlags tUsageFlags = 0;
-    if(tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)                  tUsageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    if(tDesc.tUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)         tUsageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    if(tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT) tUsageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    if(tDesc.tUsage & PL_TEXTURE_USAGE_TRANSIENT_ATTACHMENT)     tUsageFlags |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
-    if(tDesc.tUsage & PL_TEXTURE_USAGE_INPUT_ATTACHMENT)         tUsageFlags |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-
-    // create vulkan image
-    VkImageCreateInfo tImageInfo = {
-        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType     = VK_IMAGE_TYPE_2D,
-        .extent.width  = (uint32_t)tDesc.tDimensions.x,
-        .extent.height = (uint32_t)tDesc.tDimensions.y,
-        .extent.depth  = (uint32_t)tDesc.tDimensions.z,
-        .mipLevels     = tDesc.uMips,
-        .arrayLayers   = tDesc.uLayers,
-        .format        = pl__vulkan_format(tDesc.tFormat),
-        .tiling        = VK_IMAGE_TILING_OPTIMAL,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .usage         = tUsageFlags,
-        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
-        .samples       = 1,
-        .flags         = tImageViewType == VK_IMAGE_VIEW_TYPE_CUBE ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0
-    };
-    
-    PL_VULKAN(vkCreateImage(ptVulkanDevice->tLogicalDevice, &tImageInfo, NULL, &tVulkanTexture.tImage));
-
-    // get memory requirements
-    VkMemoryRequirements tMemoryRequirements = {0};
-    vkGetImageMemoryRequirements(ptVulkanDevice->tLogicalDevice, tVulkanTexture.tImage, &tMemoryRequirements);
-    tTexture.tMemoryRequirements.ulSize = tMemoryRequirements.size;
-    tTexture.tMemoryRequirements.ulAlignment = tMemoryRequirements.alignment;
-    tTexture.tMemoryRequirements.uMemoryTypeBits = tMemoryRequirements.memoryTypeBits;
-
-    // upload data
-    ptVulkanGraphics->sbtTexturesHot[uTextureIndex] = tVulkanTexture;
-    ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
-    return tHandle;
-}
-
-static void
-pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
-{
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptDevice->ptGraphics->_pInternalData;
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-
-    plTexture* ptTexture = &ptGraphics->sbtTexturesCold[tHandle.uIndex];
-    ptTexture->tMemoryAllocation = *ptAllocation;
-    plVulkanTexture* ptVulkanTexture = &ptVulkanGraphics->sbtTexturesHot[tHandle.uIndex];
-
-    PL_VULKAN(vkBindImageMemory(ptVulkanDevice->tLogicalDevice, ptVulkanTexture->tImage, (VkDeviceMemory)ptAllocation->uHandle, ptAllocation->ulOffset));
-
-    VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-
-    if(pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.tFormat)))
-        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
-
-    VkCommandBuffer tCommandBuffer = {0};
-    
-    const VkCommandBufferAllocateInfo tAllocInfo = {
-        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandPool        = ptVulkanDevice->tCmdPool,
-        .commandBufferCount = 1u,
-    };
-    vkAllocateCommandBuffers(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tCommandBuffer);
-
-    const VkCommandBufferBeginInfo tBeginInfo = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-    };
-
-    vkBeginCommandBuffer(tCommandBuffer, &tBeginInfo);
-
-    VkImageSubresourceRange tRange = {
-        .baseMipLevel   = 0,
-        .levelCount     = ptTexture->tDesc.uMips,
-        .baseArrayLayer = 0,
-        .layerCount     = ptTexture->tDesc.uLayers,
-        .aspectMask     = tImageAspectFlags
-    };
-
-    pl__transition_image_layout(tCommandBuffer, ptVulkanTexture->tImage, VK_IMAGE_LAYOUT_UNDEFINED, pl__vulkan_layout(ptTexture->tDesc.tInitialUsage), tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-
-    PL_VULKAN(vkEndCommandBuffer(tCommandBuffer));
-    const VkSubmitInfo tSubmitInfo = {
-        .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .commandBufferCount = 1u,
-        .pCommandBuffers    = &tCommandBuffer,
-    };
-
-    PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
-    PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
-    vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    VkImageViewType tImageViewType = 0;
-    if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_CUBE)
-        tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
-    else if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D)
-        tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
-    else if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
-        tImageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-    else
-    {
-        PL_ASSERT(false && "unsupported texture type");
-    }
-
-    VkImageViewCreateInfo tViewInfo = {
-        .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image                           = ptVulkanTexture->tImage,
-        .viewType                        = tImageViewType,
-        .format                          = pl__vulkan_format(ptTexture->tDesc.tFormat),
-        .subresourceRange.baseMipLevel   = ptTexture->tView.uBaseMip,
-        .subresourceRange.levelCount     = ptTexture->tDesc.uMips,
-        .subresourceRange.baseArrayLayer = ptTexture->tView.uBaseLayer,
-        .subresourceRange.layerCount     = ptTexture->tView.uLayerCount,
-        .subresourceRange.aspectMask     = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT,
-    };
-    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tViewInfo, NULL, &ptVulkanTexture->tImageView));
-}
-
-static plTextureHandle
 pl_create_swapchain_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, VkImage tImage, const char* pcName)
 {
     plGraphics* ptGraphics = ptDevice->ptGraphics;
@@ -897,73 +701,6 @@ pl_create_swapchain_texture_view(plDevice* ptDevice, const plTextureViewDesc* pt
     ptVulkanGraphics->sbtTexturesHot[uTextureViewIndex].bOriginalView = true;
     ptVulkanGraphics->sbtTexturesHot[uTextureViewIndex].tImageView = tImageView;
     ptGraphics->sbtTexturesCold[uTextureViewIndex] = tTextureView;
-    return tHandle;
-}
-
-static plTextureHandle
-pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const char* pcName)
-{
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
-
-    uint32_t uTextureIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtTextureFreeIndices) > 0)
-        uTextureIndex = pl_sb_pop(ptGraphics->sbtTextureFreeIndices);
-    else
-    {
-        uTextureIndex = pl_sb_size(ptGraphics->sbtTexturesCold);
-        pl_sb_add(ptGraphics->sbtTexturesCold);
-        pl_sb_push(ptGraphics->sbtTextureGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGraphics->sbtTexturesHot);
-    }
-
-    plTextureHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtTextureGenerations[uTextureIndex],
-        .uIndex = uTextureIndex
-    };
-
-    plTexture tTexture = {
-        .tDesc = ptGraphics->sbtTexturesCold[ptViewDesc->tTexture.uIndex].tDesc,
-        .tView = *ptViewDesc
-    };
-
-    plTexture* ptTexture = pl__get_texture(ptDevice, ptViewDesc->tTexture);
-    plVulkanTexture* ptOldVulkanTexture = &ptVulkanGraphics->sbtTexturesHot[ptViewDesc->tTexture.uIndex];
-    plVulkanTexture* ptNewVulkanTexture = &ptVulkanGraphics->sbtTexturesHot[tHandle.uIndex];
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    VkImageViewType tImageViewType = 0;
-    if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_CUBE)
-        tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
-    else if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D)
-        tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
-    else if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
-        tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
-        // tImageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-    else
-    {
-        PL_ASSERT(false && "unsupported texture type");
-    }
-
-    VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-
-    VkImageViewCreateInfo tViewInfo = {
-        .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image                           = ptOldVulkanTexture->tImage,
-        .viewType                        = tImageViewType,
-        .format                          = pl__vulkan_format(ptViewDesc->tFormat),
-        .subresourceRange.baseMipLevel   = ptViewDesc->uBaseMip,
-        .subresourceRange.levelCount     = ptViewDesc->uMips == 0 ? ptTexture->tDesc.uMips - ptViewDesc->uBaseMip : ptViewDesc->uMips,
-        .subresourceRange.baseArrayLayer = ptViewDesc->uBaseLayer,
-        .subresourceRange.layerCount     = ptViewDesc->uLayerCount,
-        .subresourceRange.aspectMask     = tImageAspectFlags,
-    };
-    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tViewInfo, NULL, &ptNewVulkanTexture->tImageView));
-
-    ptNewVulkanTexture->bOriginalView = false;
-    ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
     return tHandle;
 }
 
@@ -1458,6 +1195,323 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
     pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
 }
 
+static plTextureHandle
+pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* pcName)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
+
+    if(pcName == NULL)
+        pcName = "unnamed texture";
+
+    plTextureDesc tDesc = *ptDesc;
+    strncpy(tDesc.acDebugName, pcName, PL_MAX_NAME_LENGTH);
+
+    if(tDesc.tInitialUsage == PL_TEXTURE_USAGE_UNSPECIFIED)
+        tDesc.tInitialUsage = PL_TEXTURE_USAGE_SAMPLED;
+
+    if(tDesc.uMips == 0)
+        tDesc.uMips = (uint32_t)floorf(log2f((float)pl_maxi((int)tDesc.tDimensions.x, (int)tDesc.tDimensions.y))) + 1u;
+
+    uint32_t uTextureIndex = UINT32_MAX;
+    if(pl_sb_size(ptGraphics->sbtTextureFreeIndices) > 0)
+        uTextureIndex = pl_sb_pop(ptGraphics->sbtTextureFreeIndices);
+    else
+    {
+        uTextureIndex = pl_sb_size(ptGraphics->sbtTexturesCold);
+        pl_sb_add(ptGraphics->sbtTexturesCold);
+        pl_sb_push(ptGraphics->sbtTextureGenerations, UINT32_MAX);
+        pl_sb_add(ptVulkanGraphics->sbtTexturesHot);
+    }
+
+    plTextureHandle tHandle = {
+        .uGeneration = ++ptGraphics->sbtTextureGenerations[uTextureIndex],
+        .uIndex = uTextureIndex
+    };
+
+    plTexture tTexture = {
+        .tDesc = tDesc,
+        .tView = {
+            .tFormat = tDesc.tFormat,
+            .uBaseMip = 0,
+            .uMips = tDesc.uMips,
+            .uBaseLayer = 0,
+            .uLayerCount = tDesc.uLayers,
+            .tTexture = tHandle
+        },
+        ._tDrawBindGroup = {.ulData = UINT64_MAX}
+    };
+
+    plVulkanTexture tVulkanTexture = {
+        .bOriginalView = true
+    };
+
+    VkImageViewType tImageViewType = 0;
+    if(tDesc.tType == PL_TEXTURE_TYPE_CUBE)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
+    else if(tDesc.tType == PL_TEXTURE_TYPE_2D)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
+    else if(tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    else
+    {
+        PL_ASSERT(false && "unsupported texture type");
+    }
+
+    VkImageUsageFlags tUsageFlags = 0;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)                  tUsageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)         tUsageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT) tUsageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_TRANSIENT_ATTACHMENT)     tUsageFlags |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_INPUT_ATTACHMENT)         tUsageFlags |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+
+    // create vulkan image
+    VkImageCreateInfo tImageInfo = {
+        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType     = VK_IMAGE_TYPE_2D,
+        .extent.width  = (uint32_t)tDesc.tDimensions.x,
+        .extent.height = (uint32_t)tDesc.tDimensions.y,
+        .extent.depth  = (uint32_t)tDesc.tDimensions.z,
+        .mipLevels     = tDesc.uMips,
+        .arrayLayers   = tDesc.uLayers,
+        .format        = pl__vulkan_format(tDesc.tFormat),
+        .tiling        = VK_IMAGE_TILING_OPTIMAL,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .usage         = tUsageFlags,
+        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
+        .samples       = 1,
+        .flags         = tImageViewType == VK_IMAGE_VIEW_TYPE_CUBE ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0
+    };
+    
+    PL_VULKAN(vkCreateImage(ptVulkanDevice->tLogicalDevice, &tImageInfo, NULL, &tVulkanTexture.tImage));
+
+    // get memory requirements
+    VkMemoryRequirements tMemoryRequirements = {0};
+    vkGetImageMemoryRequirements(ptVulkanDevice->tLogicalDevice, tVulkanTexture.tImage, &tMemoryRequirements);
+    tTexture.tMemoryRequirements.ulSize = tMemoryRequirements.size;
+    tTexture.tMemoryRequirements.ulAlignment = tMemoryRequirements.alignment;
+    tTexture.tMemoryRequirements.uMemoryTypeBits = tMemoryRequirements.memoryTypeBits;
+
+    ptVulkanGraphics->sbtTexturesHot[uTextureIndex] = tVulkanTexture;
+    ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
+    return tHandle;
+}
+
+static void
+pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
+{
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptDevice->ptGraphics->_pInternalData;
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+
+    plTexture* ptTexture = &ptGraphics->sbtTexturesCold[tHandle.uIndex];
+    ptTexture->tMemoryAllocation = *ptAllocation;
+    plVulkanTexture* ptVulkanTexture = &ptVulkanGraphics->sbtTexturesHot[tHandle.uIndex];
+
+    PL_VULKAN(vkBindImageMemory(ptVulkanDevice->tLogicalDevice, ptVulkanTexture->tImage, (VkDeviceMemory)ptAllocation->uHandle, ptAllocation->ulOffset));
+
+    VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+    if(pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.tFormat)))
+        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
+
+    VkCommandBuffer tCommandBuffer = {0};
+    
+    const VkCommandBufferAllocateInfo tAllocInfo = {
+        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandPool        = ptVulkanDevice->tCmdPool,
+        .commandBufferCount = 1u,
+    };
+    vkAllocateCommandBuffers(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tCommandBuffer);
+
+    const VkCommandBufferBeginInfo tBeginInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+    };
+
+    vkBeginCommandBuffer(tCommandBuffer, &tBeginInfo);
+
+    VkImageSubresourceRange tRange = {
+        .baseMipLevel   = 0,
+        .levelCount     = ptTexture->tDesc.uMips,
+        .baseArrayLayer = 0,
+        .layerCount     = ptTexture->tDesc.uLayers,
+        .aspectMask     = tImageAspectFlags
+    };
+
+    pl__transition_image_layout(tCommandBuffer, ptVulkanTexture->tImage, VK_IMAGE_LAYOUT_UNDEFINED, pl__vulkan_layout(ptTexture->tDesc.tInitialUsage), tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+
+    PL_VULKAN(vkEndCommandBuffer(tCommandBuffer));
+    const VkSubmitInfo tSubmitInfo = {
+        .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1u,
+        .pCommandBuffers    = &tCommandBuffer,
+    };
+
+    PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
+    PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
+    vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    VkImageViewType tImageViewType = 0;
+    if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_CUBE)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
+    else if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
+    else if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    else
+    {
+        PL_ASSERT(false && "unsupported texture type");
+    }
+
+    VkImageViewCreateInfo tViewInfo = {
+        .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image                           = ptVulkanTexture->tImage,
+        .viewType                        = tImageViewType,
+        .format                          = pl__vulkan_format(ptTexture->tDesc.tFormat),
+        .subresourceRange.baseMipLevel   = ptTexture->tView.uBaseMip,
+        .subresourceRange.levelCount     = ptTexture->tDesc.uMips,
+        .subresourceRange.baseArrayLayer = ptTexture->tView.uBaseLayer,
+        .subresourceRange.layerCount     = ptTexture->tView.uLayerCount,
+        .subresourceRange.aspectMask     = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT,
+    };
+    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tViewInfo, NULL, &ptVulkanTexture->tImageView));
+
+    if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
+    {
+        if(pl_sb_size(ptGraphics->sbtFreeDrawBindGroups) == 0)
+        {
+            const plBindGroupLayout tDrawingBindGroup = {
+                .uTextureBindingCount  = 1,
+                .atTextureBindings = { 
+                    {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                }
+            };
+            ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
+        }
+        else
+        {
+            ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_sb_pop(ptGraphics->sbtFreeDrawBindGroups);
+        }
+
+        const plBindGroupUpdateTextureData atBGTextureData[] = {
+            {
+                .tTexture = tHandle,
+                .uSlot    = 0,
+                .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
+            }
+        };
+        const plBindGroupUpdateData tBGData = {
+            .uTextureCount = 1,
+            .atTextures = atBGTextureData
+        };
+        pl_update_bind_group(&ptGraphics->tDevice, ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup, &tBGData);
+    }
+}
+
+static plTextureHandle
+pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const char* pcName)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
+
+    uint32_t uTextureIndex = UINT32_MAX;
+    if(pl_sb_size(ptGraphics->sbtTextureFreeIndices) > 0)
+        uTextureIndex = pl_sb_pop(ptGraphics->sbtTextureFreeIndices);
+    else
+    {
+        uTextureIndex = pl_sb_size(ptGraphics->sbtTexturesCold);
+        pl_sb_add(ptGraphics->sbtTexturesCold);
+        pl_sb_push(ptGraphics->sbtTextureGenerations, UINT32_MAX);
+        pl_sb_add(ptVulkanGraphics->sbtTexturesHot);
+    }
+
+    plTextureHandle tHandle = {
+        .uGeneration = ++ptGraphics->sbtTextureGenerations[uTextureIndex],
+        .uIndex = uTextureIndex
+    };
+
+    plTexture tTexture = {
+        .tDesc = ptGraphics->sbtTexturesCold[ptViewDesc->tTexture.uIndex].tDesc,
+        .tView = *ptViewDesc,
+        ._tDrawBindGroup = {.ulData = UINT64_MAX}
+    };
+
+    plTexture* ptTexture = pl__get_texture(ptDevice, ptViewDesc->tTexture);
+    plVulkanTexture* ptOldVulkanTexture = &ptVulkanGraphics->sbtTexturesHot[ptViewDesc->tTexture.uIndex];
+    plVulkanTexture* ptNewVulkanTexture = &ptVulkanGraphics->sbtTexturesHot[tHandle.uIndex];
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    VkImageViewType tImageViewType = 0;
+    if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_CUBE)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
+    else if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
+    else if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
+        // tImageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    else
+    {
+        PL_ASSERT(false && "unsupported texture type");
+    }
+
+    VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+    VkImageViewCreateInfo tViewInfo = {
+        .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image                           = ptOldVulkanTexture->tImage,
+        .viewType                        = tImageViewType,
+        .format                          = pl__vulkan_format(ptViewDesc->tFormat),
+        .subresourceRange.baseMipLevel   = ptViewDesc->uBaseMip,
+        .subresourceRange.levelCount     = ptViewDesc->uMips == 0 ? ptTexture->tDesc.uMips - ptViewDesc->uBaseMip : ptViewDesc->uMips,
+        .subresourceRange.baseArrayLayer = ptViewDesc->uBaseLayer,
+        .subresourceRange.layerCount     = ptViewDesc->uLayerCount,
+        .subresourceRange.aspectMask     = tImageAspectFlags,
+    };
+    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tViewInfo, NULL, &ptNewVulkanTexture->tImageView));
+
+    if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
+    {
+        if(pl_sb_size(ptGraphics->sbtFreeDrawBindGroups) == 0)
+        {
+            const plBindGroupLayout tDrawingBindGroup = {
+                .uTextureBindingCount  = 1,
+                .atTextureBindings = { 
+                    {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                }
+            };
+            ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
+        }
+        else
+        {
+            ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_sb_pop(ptGraphics->sbtFreeDrawBindGroups);
+        }
+
+        const plBindGroupUpdateTextureData atBGTextureData[] = {
+            {
+                .tTexture = tHandle,
+                .uSlot    = 0,
+                .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
+            }
+        };
+        const plBindGroupUpdateData tBGData = {
+            .uTextureCount = 1,
+            .atTextures = atBGTextureData
+        };
+        pl_update_bind_group(&ptGraphics->tDevice, ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup, &tBGData);
+    }
+
+    ptNewVulkanTexture->bOriginalView = false;
+    ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
+    return tHandle;
+}
+
 static plComputeShaderHandle
 pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* ptDescription)
 {
@@ -1944,12 +1998,37 @@ pl_create_main_render_pass_layout(plDevice* ptDevice)
         .pColorAttachments = &tColorReference
     };
 
+    const VkSubpassDependency tSubpassDependencies[] = {
+
+        {
+            .srcSubpass      = VK_SUBPASS_EXTERNAL,
+            .dstSubpass      = 0,
+            .srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT,
+            .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .dependencyFlags = 0
+        },
+
+        {
+            .srcSubpass      = 0,
+            .dstSubpass      = VK_SUBPASS_EXTERNAL,
+            .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT,
+            .dependencyFlags = 0
+        }
+    };
+
     const VkRenderPassCreateInfo tRenderPassInfo = {
         .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
         .attachmentCount = 1,
         .pAttachments    = &tAttachment,
         .subpassCount    = 1,
-        .pSubpasses      = &tSubpass
+        .pSubpasses      = &tSubpass,
+        .pDependencies   = tSubpassDependencies,
+        .dependencyCount = 2
     };
 
     PL_VULKAN(vkCreateRenderPass(ptVulkanDevice->tLogicalDevice, &tRenderPassInfo, NULL, &tVulkanRenderPassLayout.tRenderPass));
@@ -1984,7 +2063,8 @@ pl_create_main_render_pass(plDevice* ptDevice)
 
     plRenderPass tRenderPass = {
         .tDesc = {
-            .tDimensions = {pl_get_io()->afMainViewportSize[0], pl_get_io()->afMainViewportSize[1]}
+            .tDimensions = {gptIO->get_io()->afMainViewportSize[0], gptIO->get_io()->afMainViewportSize[1]},
+            .tLayout = ptGraphics->tMainRenderPassLayout
         },
         .bSwapchain = true
     };
@@ -2056,8 +2136,8 @@ pl_create_main_render_pass(plDevice* ptDevice)
             .renderPass      = ptVulkanRenderPass->tRenderPass,
             .attachmentCount = 1,
             .pAttachments    = &ptVulkanGfx->sbtTexturesHot[ptGraphics->tSwapchain.sbtSwapchainTextureViews[i].uIndex].tImageView,
-            .width           = (uint32_t)pl_get_io()->afMainViewportSize[0],
-            .height          = (uint32_t)pl_get_io()->afMainViewportSize[1],
+            .width           = (uint32_t)gptIO->get_io()->afMainViewportSize[0],
+            .height          = (uint32_t)gptIO->get_io()->afMainViewportSize[1],
             .layers          = 1u,
         };
         PL_VULKAN(vkCreateFramebuffer(ptVulkanDevice->tLogicalDevice, &tFrameBufferInfo, NULL, &ptVulkanRenderPass->atFrameBuffers[i]));
@@ -2800,7 +2880,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
 }
 
 static void
-pl_set_viewport(plRenderEncoder* ptEncoder, plRenderViewport* ptViewport)
+pl_set_viewport(plRenderEncoder* ptEncoder, const plRenderViewport* ptViewport)
 {
     VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
 
@@ -2817,7 +2897,7 @@ pl_set_viewport(plRenderEncoder* ptEncoder, plRenderViewport* ptViewport)
 }
 
 static void
-pl_set_scissor_region(plRenderEncoder* ptEncoder, plScissor* ptScissor)
+pl_set_scissor_region(plRenderEncoder* ptEncoder, const plScissor* ptScissor)
 {
     VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
 
@@ -2833,28 +2913,6 @@ pl_set_scissor_region(plRenderEncoder* ptEncoder, plScissor* ptScissor)
     };
 
     vkCmdSetScissor(tCmdBuffer, 0, 1, &tScissor);  
-}
-
-static void
-pl_draw_list(plGraphics* ptGraphics, plRenderEncoder tEncoder, uint32_t uListCount, plDrawList* atLists)
-{
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)tEncoder.tCommandBuffer._pInternal;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
-
-    plIO* ptIOCtx = pl_get_io();
-    for(uint32_t i = 0; i < uListCount; i++)
-    {
-        pl_submit_vulkan_drawlist_ex(&atLists[i],
-            ptIOCtx->afMainViewportSize[0],
-            ptIOCtx->afMainViewportSize[1],
-            tCmdBuffer,
-            ptGraphics->uCurrentFrameIndex,
-            ptVulkanGfx->sbtRenderPassesHot[tEncoder.tRenderPassHandle.uIndex].tRenderPass,
-            VK_SAMPLE_COUNT_1_BIT);
-    }
 }
 
 typedef struct _plInternalDeviceAllocatorData
@@ -2878,8 +2936,8 @@ pl_allocate_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uT
     };
 
 
-    plDeviceAllocationBlock tBlock = pl_allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_GPU_CPU, uTypeFilter, "dynamic uncached Heap");
-    tAllocation.uHandle = tBlock.ulAddress;
+    plDeviceMemoryAllocation tBlock = pl_allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_GPU_CPU, uTypeFilter, "dynamic uncached Heap");
+    tAllocation.uHandle = tBlock.uHandle;
     tAllocation.pHostMapped = tBlock.pHostMapped;
     ptData->ptDevice->ptGraphics->szHostMemoryInUse += ulSize;
     return tAllocation;
@@ -2889,7 +2947,7 @@ static void
 pl_free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation)
 {
     plInternalDeviceAllocatorData* ptData = (plInternalDeviceAllocatorData*)ptInst;
-    plDeviceAllocationBlock tBlock = {.ulAddress = ptAllocation->uHandle};
+    plDeviceMemoryAllocation tBlock = {.uHandle = ptAllocation->uHandle};
     pl_free_memory(ptData->ptDevice, &tBlock);
     ptData->ptDevice->ptGraphics->szHostMemoryInUse -= ptAllocation->ulSize;
     ptAllocation->uHandle = 0;
@@ -2903,7 +2961,7 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
     ptGraphics->bValidationActive = ptDesc->bEnableValidation;
     ptGraphics->ptMainWindow = ptWindow;
 
-    plIO* ptIOCtx = pl_get_io();
+    plIO* ptIOCtx = gptIO->get_io();
 
     ptGraphics->_pInternalData = PL_ALLOC(sizeof(plVulkanGraphics));
     memset(ptGraphics->_pInternalData, 0, sizeof(plVulkanGraphics));
@@ -3468,31 +3526,11 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
     pl_create_main_render_pass(&ptGraphics->tDevice);
 }
 
-static void
-pl_setup_ui(plGraphics* ptGraphics, plRenderPassHandle tPass)
-{
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    plIO* ptIo = pl_get_io();
-    ptIo->pBackendPlatformData = ptGraphics->ptMainWindow->_pPlatformData;
-
-    // setup drawing api
-    const plVulkanInit tVulkanInit = {
-        .tPhysicalDevice  = ptVulkanDevice->tPhysicalDevice,
-        .tLogicalDevice   = ptVulkanDevice->tLogicalDevice,
-        .uImageCount      = ptGraphics->tSwapchain.uImageCount,
-        .tRenderPass      = ptVulkanGfx->sbtRenderPassesHot[tPass.uIndex].tRenderPass,
-        .tMSAASampleCount = VK_SAMPLE_COUNT_1_BIT,
-        .uFramesInFlight  = ptGraphics->uFramesInFlight
-    };
-    pl_initialize_vulkan(&tVulkanInit);
-}
-
 static bool
 pl_begin_frame(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plIO* ptIOCtx = pl_get_io();
+    plIO* ptIOCtx = gptIO->get_io();
 
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
@@ -3530,8 +3568,6 @@ pl_begin_frame(plGraphics* ptGraphics)
     PL_VULKAN(vkResetCommandPool(ptVulkanDevice->tLogicalDevice, ptCurrentFrame->tCmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT));
     PL_VULKAN(vkResetCommandPool(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT));
     
-    pl_new_draw_frame_vulkan();
-
     pl_end_profile_sample();
     return true; 
 }
@@ -3547,7 +3583,7 @@ static bool
 pl_present(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plIO* ptIOCtx = pl_get_io();
+    plIO* ptIOCtx = gptIO->get_io();
 
     VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptCmdBuffer->_pInternal;
 
@@ -3648,7 +3684,7 @@ pl_resize(plGraphics* ptGraphics)
     pl_begin_profile_sample(__FUNCTION__);
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    plIO* ptIOCtx = pl_get_io();
+    plIO* ptIOCtx = gptIO->get_io();
 
     pl__create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1]);
 
@@ -3693,8 +3729,6 @@ pl_shutdown(plGraphics* ptGraphics)
     plVulkanSwapchain* ptVulkanSwapchain = ptGraphics->tSwapchain._pInternalData;
     
     vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice);
-
-    pl_cleanup_vulkan();
 
     for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtTexturesHot); i++)
     {
@@ -4880,7 +4914,7 @@ pl__pilotlight_format(VkFormat tFormat)
 // [SECTION] device memory allocators
 //-----------------------------------------------------------------------------
 
-static plDeviceAllocationBlock
+static plDeviceMemoryAllocation
 pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName)
 {
     plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
@@ -4910,10 +4944,11 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
         pcName = "unnamed memory block";
     }
 
-    plDeviceAllocationBlock tBlock = {
-        .ulAddress = 0,
+    plDeviceMemoryAllocation tBlock = {
+        .uHandle = 0,
         .ulSize    = (uint64_t)szSize,
-        .ulMemoryType = (uint64_t)uMemoryType
+        .ulMemoryType = (uint64_t)uMemoryType,
+        .tMemoryMode = tMemoryMode
     };
     const VkMemoryAllocateInfo tAllocInfo = {
         .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -4924,9 +4959,9 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
     VkDeviceMemory tMemory = VK_NULL_HANDLE;
     VkResult tResult = vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, &tMemory);
     PL_VULKAN(tResult);
-    tBlock.ulAddress = (uint64_t)tMemory;
+    tBlock.uHandle = (uint64_t)tMemory;
 
-    pl_set_vulkan_object_name(ptDevice, tBlock.ulAddress, VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT, pcName);
+    pl_set_vulkan_object_name(ptDevice, tBlock.uHandle, VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT, pcName);
 
     if(tMemoryMode == PL_MEMORY_GPU)
     {
@@ -4934,7 +4969,7 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
     }
     else
     {
-        PL_VULKAN(vkMapMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)tBlock.ulAddress, 0, tBlock.ulSize, 0, (void**)&tBlock.pHostMapped));
+        PL_VULKAN(vkMapMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)tBlock.uHandle, 0, tBlock.ulSize, 0, (void**)&tBlock.pHostMapped));
         ptDevice->ptGraphics->szHostMemoryInUse += tBlock.ulSize;
     }
 
@@ -4942,7 +4977,7 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
 }
 
 static void
-pl_free_memory(plDevice* ptDevice, plDeviceAllocationBlock* ptBlock)
+pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 {
     plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
 
@@ -4955,13 +4990,12 @@ pl_free_memory(plDevice* ptDevice, plDeviceAllocationBlock* ptBlock)
         ptDevice->ptGraphics->szHostMemoryInUse -= ptBlock->ulSize;
     }
 
-    vkFreeMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptBlock->ulAddress, NULL);
-    ptBlock->ulAddress = 0;
+    vkFreeMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptBlock->uHandle, NULL);
+    ptBlock->uHandle = 0;
     ptBlock->pHostMapped = NULL;
     ptBlock->ulSize = 0;
     ptBlock->tMemoryMode = 0;
     ptBlock->ulMemoryType = 0;
-    ptBlock->dLastTimeUsed = 0;
 }
 
 static void
@@ -5106,6 +5140,8 @@ pl__garbage_collect(plGraphics* ptGraphics)
         plDeviceMemoryAllocatorI* ptAllocator = tAllocation.ptAllocator;
         if(ptAllocator) // swapchain doesn't have allocator since texture is provided
             ptAllocator->free(ptAllocator->ptInst, &tAllocation);
+        else
+            pl_free_memory(&ptGraphics->tDevice, &tAllocation);
     }
 
     pl_sb_reset(ptGarbage->sbtTextures);
@@ -5133,7 +5169,10 @@ pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
     pl_sb_push(ptGraphics->sbtBufferFreeIndices, tHandle.uIndex);
 
     plBuffer* ptBuffer = &ptGraphics->sbtBuffersCold[tHandle.uIndex];
-    ptBuffer->tMemoryAllocation.ptAllocator->free(ptBuffer->tMemoryAllocation.ptAllocator->ptInst, &ptBuffer->tMemoryAllocation);
+    if(ptBuffer->tMemoryAllocation.ptAllocator)
+        ptBuffer->tMemoryAllocation.ptAllocator->free(ptBuffer->tMemoryAllocation.ptAllocator->ptInst, &ptBuffer->tMemoryAllocation);
+    else
+        pl_free_memory(ptDevice, &ptBuffer->tMemoryAllocation);
 }
 
 static void
@@ -5148,9 +5187,16 @@ pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
     ptVulkanResource->tImage = VK_NULL_HANDLE;
     pl_sb_push(ptGraphics->sbtTextureFreeIndices, tHandle.uIndex);
     ptGraphics->sbtTextureGenerations[tHandle.uIndex]++;
-
+    
     plTexture* ptTexture = &ptGraphics->sbtTexturesCold[tHandle.uIndex];
-    ptTexture->tMemoryAllocation.ptAllocator->free(ptTexture->tMemoryAllocation.ptAllocator->ptInst, &ptTexture->tMemoryAllocation);
+    if(ptTexture->_tDrawBindGroup.ulData != UINT64_MAX)
+    {
+        pl_sb_push(ptGraphics->sbtFreeDrawBindGroups, ptTexture->_tDrawBindGroup);
+    }
+    if(ptTexture->tMemoryAllocation.ptAllocator)
+        ptTexture->tMemoryAllocation.ptAllocator->free(ptTexture->tMemoryAllocation.ptAllocator->ptInst, &ptTexture->tMemoryAllocation);
+    else
+        pl_free_memory(ptDevice, &ptTexture->tMemoryAllocation);
 }
 
 static void
@@ -5276,7 +5322,6 @@ pl_load_graphics_api(void)
     static const plGraphicsI tApi = {
         .initialize                       = pl_initialize_graphics,
         .resize                           = pl_resize,
-        .setup_ui                         = pl_setup_ui,
         .begin_frame                      = pl_begin_frame,
         .dispatch                         = pl_dispatch,
         .bind_compute_bind_groups         = pl_bind_compute_bind_groups,
@@ -5286,11 +5331,7 @@ pl_load_graphics_api(void)
         .set_scissor_region               = pl_set_scissor_region,
         .set_viewport                     = pl_set_viewport,
         .bind_vertex_buffer               = pl_bind_vertex_buffer,
-        .draw_lists                       = pl_draw_list,
         .cleanup                          = pl_shutdown,
-        .create_font_atlas                = pl_create_vulkan_font_texture,
-        .destroy_font_atlas               = pl_cleanup_vulkan_font_texture,
-        .get_ui_texture_handle            = pl_get_ui_texture_handle,
         .begin_command_recording          = pl_begin_command_recording,
         .end_command_recording            = pl_end_command_recording,
         .submit_command_buffer            = pl_submit_command_buffer,
@@ -5374,8 +5415,8 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));
-    pl_set_context(ptDataRegistry->get_data("context"));
     gptFile = ptApiRegistry->first(PL_API_FILE);
+    gptIO   = ptApiRegistry->first(PL_API_IO);
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_GRAPHICS), pl_load_graphics_api());
@@ -5406,9 +5447,3 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry)
 {
     
 }
-
-//-----------------------------------------------------------------------------
-// [SECTION] unity build
-//-----------------------------------------------------------------------------
-
-#include "pl_ui_vulkan.c"

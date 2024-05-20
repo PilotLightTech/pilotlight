@@ -6,6 +6,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] apis
 // [SECTION] pl_app_load
 // [SECTION] pl_app_shutdown
 // [SECTION] pl_app_resize
@@ -18,7 +19,12 @@ Index of this file:
 
 #include <stdio.h>
 #include "pilotlight.h"
-#include "pl_ui.h"
+
+//-----------------------------------------------------------------------------
+// [SECTION] apis
+//-----------------------------------------------------------------------------
+
+const plIOI* gptIO = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -34,10 +40,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, void* pAppData)
     // between extensions & the runtime
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
 
-    // retrieve the UI context (provided by the runtime) and
-    // set it (required to use plIO for "talking" with runtime)
-    plUiContext* ptUIContext = ptDataRegistry->get_data("context");
-    pl_set_context(ptUIContext);
+    // retrieve the IO API required to use plIO for "talking" with runtime)
+    gptIO = ptApiRegistry->first(PL_API_IO);
 
     // return optional application memory
     return NULL;
@@ -71,7 +75,7 @@ PL_EXPORT void
 pl_app_update(void* pAppData)
 {
 
-    pl_new_frame(); // must be called once at the beginning of a frame
+    gptIO->new_frame(); // must be called once at the beginning of a frame
 
     static int iIteration = 0;
 
@@ -80,7 +84,7 @@ pl_app_update(void* pAppData)
     // shutdown main event loop after 50 iterations
     if(iIteration == 50)
     {
-        plIO* ptIO = pl_get_io();
+        plIO* ptIO = gptIO->get_io();
         ptIO->bRunning = false;
     }
 }

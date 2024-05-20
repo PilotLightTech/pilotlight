@@ -16,6 +16,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include <float.h>   // FLT_MAX
 #include <stdbool.h> // bool
 #include <string.h>  // strcmp
 #include "pilotlight.h"
@@ -23,6 +24,15 @@ Index of this file:
 #include "pl_ds.h"
 #include "pl_memory.h"
 #include "pl_os.h"
+#include "pl_string.h"
+#define PL_MATH_INCLUDE_FUNCTIONS
+#include "pl_math.h"
+
+//-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
+
+#define PL_VEC2_LENGTH_SQR(vec) (((vec).x * (vec).x) + ((vec).y * (vec).y))
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -71,6 +81,71 @@ typedef struct _plDataObject
     plDataObjectProperty* ptProperties;
 } plDataObject;
 
+typedef struct _plInputEvent
+{
+    plInputEventType   tType;
+    plInputEventSource tSource;
+
+    union
+    {
+        struct // mouse pos event
+        {
+            float fPosX;
+            float fPosY;
+        };
+
+        struct // mouse wheel event
+        {
+            float fWheelX;
+            float fWheelY;
+        };
+        
+        struct // mouse button event
+        {
+            int  iButton;
+            bool bMouseDown;
+        };
+
+        struct // key event
+        {
+            plKey tKey;
+            bool  bKeyDown;
+        };
+
+        struct // text event
+        {
+            uint32_t uChar;
+        };
+        
+    };
+
+} plInputEvent;
+
+//-----------------------------------------------------------------------------
+// [SECTION] enums
+//-----------------------------------------------------------------------------
+
+typedef enum
+{
+    PL_INPUT_EVENT_TYPE_NONE = 0,
+    PL_INPUT_EVENT_TYPE_MOUSE_POS,
+    PL_INPUT_EVENT_TYPE_MOUSE_WHEEL,
+    PL_INPUT_EVENT_TYPE_MOUSE_BUTTON,
+    PL_INPUT_EVENT_TYPE_KEY,
+    PL_INPUT_EVENT_TYPE_TEXT,
+    
+    PL_INPUT_EVENT_TYPE_COUNT
+} _plInputEventType;
+
+typedef enum
+{
+    PL_INPUT_EVENT_SOURCE_NONE = 0,
+    PL_INPUT_EVENT_SOURCE_MOUSE,
+    PL_INPUT_EVENT_SOURCE_KEYBOARD,
+    
+    PL_INPUT_EVENT_SOURCE_COUNT
+} _plInputEventSource;
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
@@ -110,6 +185,13 @@ static void pl__handle_extension_reloads   (void);
 // extension registry helper functions
 static void pl__create_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, plExtension* ptExtensionOut);
 
+// IO helper functions
+static void          pl__update_events(void);
+static void          pl__update_mouse_inputs(void);
+static void          pl__update_keyboard_inputs(void);
+static int           pl__calc_typematic_repeat_amount(float fT0, float fT1, float fRepeatDelay, float fRepeatRate);
+static plInputEvent* pl__get_last_event(plInputEventType tType, int iButtonOrKey);
+
 static const plApiRegistryI*
 pl__load_api_registry(void)
 {
@@ -142,69 +224,20 @@ plExtension*      gsbtExtensions  = NULL;
 plSharedLibrary** gsbptLibs        = NULL;
 uint32_t*         gsbtHotLibs     = NULL;
 
-//-----------------------------------------------------------------------------
-// [SECTION] public api implementation
-//-----------------------------------------------------------------------------
-
-const plApiRegistryI*
-pl_load_core_apis(void)
-{
-
-    const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
-    pl__create_mutex(&gptDataMutex);
-
-    pl_sb_resize(gtDataRegistryData.sbtFreeDataIDs, 1024);
-    for(uint32_t i = 0; i < 1024; i++)
-    {
-        gtDataRegistryData.sbtFreeDataIDs[i].uIndex = i;
-    }
-
-    static const plDataRegistryI tDataRegistryApi = {
-        .set_data           = pl__set_data,
-        .get_data           = pl__get_data,
-        .garbage_collect    = pl__garbage_collect,
-        .create_object      = pl__create_object,
-        .get_object_by_name = pl__get_object_by_name,
-        .read               = pl__read,
-        .end_read           = pl__end_read,
-        .get_string         = pl__get_string,
-        .get_buffer         = pl__get_buffer,
-        .write              = pl__write,
-        .set_string         = pl__set_string,
-        .set_buffer         = pl__set_buffer,
-        .commit             = pl__commit
-    };
-
-    static const plExtensionRegistryI tExtensionRegistryApi = {
-        .load       = pl__load_extension,
-        .unload     = pl__unload_extension,
-        .unload_all = pl__unload_all_extensions,
-        .reload     = pl__handle_extension_reloads
-    };
-
-    // apis more likely to not be stored, should be first (api registry is not sorted)
-    ptApiRegistry->add(PL_API_DATA_REGISTRY, &tDataRegistryApi);
-    ptApiRegistry->add(PL_API_EXTENSION_REGISTRY, &tExtensionRegistryApi);
-
-    return ptApiRegistry;
-}
-
-void
-pl_unload_core_apis(void)
-{
-    const uint32_t uApiCount = pl_sb_size(gsbApiEntries);
-    for(uint32_t i = 0; i < uApiCount; i++)
-    {
-        pl_sb_free(gsbApiEntries[i].sbSubscribers);
-        pl_sb_free(gsbApiEntries[i].sbUserData);
-    }
-
-    pl_sb_free(gsbtExtensions);
-    pl_sb_free(gsbptLibs);
-    pl_sb_free(gsbtHotLibs);
-    pl_sb_free(gsbApiEntries);
-    pl_hm_free(&gtHashMap);
-}
+// IO
+plIO gtIO = {
+    .fMouseDoubleClickTime    = 0.3f,
+    .fMouseDoubleClickMaxDist = 6.0f,
+    .fMouseDragThreshold      = 6.0f,
+    .fKeyRepeatDelay          = 0.275f,
+    .fKeyRepeatRate           = 0.050f,
+    .afMainFramebufferScale   = {1.0f, 1.0f},
+    .tCurrentCursor           = PL_MOUSE_CURSOR_ARROW,
+    .tNextCursor              = PL_MOUSE_CURSOR_ARROW,
+    .afMainViewportSize       = {500.0f, 500.0f},
+    .bViewportSizeChanged     = true,
+    .bRunning                 = true,
+};
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
@@ -605,6 +638,617 @@ pl__handle_extension_reloads(void)
     }
 }
 
+plKeyData*
+pl_get_key_data(plKey tKey)
+{
+    if(tKey & PL_KEY_MOD_MASK_)
+    {
+        if     (tKey == PL_KEY_MOD_CTRL)  tKey = PL_KEY_RESERVED_MOD_CTRL;
+        else if(tKey == PL_KEY_MOD_SHIFT) tKey = PL_KEY_RESERVED_MOD_SHIFT;
+        else if(tKey == PL_KEY_MOD_ALT)   tKey = PL_KEY_RESERVED_MOD_ALT;
+        else if(tKey == PL_KEY_MOD_SUPER) tKey = PL_RESERVED_KEY_MOD_SUPER;
+        else if(tKey == PL_KEY_MOD_SHORTCUT) tKey = (gtIO.bConfigMacOSXBehaviors ? PL_RESERVED_KEY_MOD_SUPER : PL_KEY_RESERVED_MOD_CTRL);
+    }
+    assert(tKey > PL_KEY_NONE && tKey < PL_KEY_COUNT && "Key not valid");
+    return &gtIO._tKeyData[tKey];
+}
+
+void
+pl_add_key_event(plKey tKey, bool bDown)
+{
+    // check for duplicate
+    const plInputEvent* ptLastEvent = pl__get_last_event(PL_INPUT_EVENT_TYPE_KEY, (int)tKey);
+    if(ptLastEvent && ptLastEvent->bKeyDown == bDown)
+        return;
+
+    const plInputEvent tEvent = {
+        .tType    = PL_INPUT_EVENT_TYPE_KEY,
+        .tSource  = PL_INPUT_EVENT_SOURCE_KEYBOARD,
+        .tKey     = tKey,
+        .bKeyDown = bDown
+    };
+    pl_sb_push(gtIO._sbtInputEvents, tEvent);
+}
+
+void
+pl_add_text_event(uint32_t uChar)
+{
+    const plInputEvent tEvent = {
+        .tType    = PL_INPUT_EVENT_TYPE_TEXT,
+        .tSource  = PL_INPUT_EVENT_SOURCE_KEYBOARD,
+        .uChar     = uChar
+    };
+    pl_sb_push(gtIO._sbtInputEvents, tEvent);
+}
+
+void
+pl_add_text_event_utf16(uint16_t uChar)
+{
+    if (uChar == 0 && gtIO._tInputQueueSurrogate == 0)
+        return;
+
+    if ((uChar & 0xFC00) == 0xD800) // High surrogate, must save
+    {
+        if (gtIO._tInputQueueSurrogate != 0)
+            pl_add_text_event(0xFFFD);
+        gtIO._tInputQueueSurrogate = uChar;
+        return;
+    }
+
+    plUiWChar cp = uChar;
+    if (gtIO._tInputQueueSurrogate != 0)
+    {
+        if ((uChar & 0xFC00) != 0xDC00) // Invalid low surrogate
+        {
+            pl_add_text_event(0xFFFD);
+        }
+        else
+        {
+            cp = 0xFFFD; // Codepoint will not fit in ImWchar
+        }
+
+        gtIO._tInputQueueSurrogate = 0;
+    }
+    pl_add_text_event((uint32_t)cp);
+}
+
+void
+pl_add_text_events_utf8(const char* pcText)
+{
+    while(*pcText != 0)
+    {
+        uint32_t uChar = 0;
+        pcText += pl_text_char_from_utf8(&uChar, pcText, NULL);
+        pl_add_text_event(uChar);
+    }
+}
+
+void
+pl_add_mouse_pos_event(float fX, float fY)
+{
+
+    // check for duplicate
+    const plInputEvent* ptLastEvent = pl__get_last_event(PL_INPUT_EVENT_TYPE_MOUSE_POS, (int)(fX + fY));
+    if(ptLastEvent && ptLastEvent->fPosX == fX && ptLastEvent->fPosY == fY)
+        return;
+
+    const plInputEvent tEvent = {
+        .tType    = PL_INPUT_EVENT_TYPE_MOUSE_POS,
+        .tSource  = PL_INPUT_EVENT_SOURCE_MOUSE,
+        .fPosX    = fX,
+        .fPosY    = fY
+    };
+    pl_sb_push(gtIO._sbtInputEvents, tEvent);
+}
+
+void
+pl_add_mouse_button_event(int iButton, bool bDown)
+{
+
+    // check for duplicate
+    const plInputEvent* ptLastEvent = pl__get_last_event(PL_INPUT_EVENT_TYPE_MOUSE_BUTTON, iButton);
+    if(ptLastEvent && ptLastEvent->bMouseDown == bDown)
+        return;
+
+    const plInputEvent tEvent = {
+        .tType      = PL_INPUT_EVENT_TYPE_MOUSE_BUTTON,
+        .tSource    = PL_INPUT_EVENT_SOURCE_MOUSE,
+        .iButton    = iButton,
+        .bMouseDown = bDown
+    };
+    pl_sb_push(gtIO._sbtInputEvents, tEvent);
+}
+
+void
+pl_add_mouse_wheel_event(float fX, float fY)
+{
+
+    const plInputEvent tEvent = {
+        .tType   = PL_INPUT_EVENT_TYPE_MOUSE_WHEEL,
+        .tSource = PL_INPUT_EVENT_SOURCE_MOUSE,
+        .fWheelX = fX,
+        .fWheelY = fY
+    };
+    pl_sb_push(gtIO._sbtInputEvents, tEvent);
+}
+
+void
+pl_clear_input_characters(void)
+{
+    pl_sb_reset(gtIO._sbInputQueueCharacters);
+}
+
+bool
+pl_is_key_down(plKey tKey)
+{
+    const plKeyData* ptData = pl_get_key_data(tKey);
+    return ptData->bDown;
+}
+
+int
+pl_get_key_pressed_amount(plKey tKey, float fRepeatDelay, float fRate)
+{
+    const plKeyData* ptData = pl_get_key_data(tKey);
+    if (!ptData->bDown) // In theory this should already be encoded as (DownDuration < 0.0f), but testing this facilitates eating mechanism (until we finish work on input ownership)
+        return 0;
+    const float fT = ptData->fDownDuration;
+    return pl__calc_typematic_repeat_amount(fT - gtIO.fDeltaTime, fT, fRepeatDelay, fRate);
+}
+
+bool
+pl_is_key_pressed(plKey tKey, bool bRepeat)
+{
+    const plKeyData* ptData = pl_get_key_data(tKey);
+    if (!ptData->bDown) // In theory this should already be encoded as (DownDuration < 0.0f), but testing this facilitates eating mechanism (until we finish work on input ownership)
+        return false;
+    const float fT = ptData->fDownDuration;
+    if (fT < 0.0f)
+        return false;
+
+    bool bPressed = (fT == 0.0f);
+    if (!bPressed && bRepeat)
+    {
+        const float fRepeatDelay = gtIO.fKeyRepeatDelay;
+        const float fRepeatRate = gtIO.fKeyRepeatRate;
+        bPressed = (fT > fRepeatDelay) && pl_get_key_pressed_amount(tKey, fRepeatDelay, fRepeatRate) > 0;
+    }
+
+    if (!bPressed)
+        return false;
+    return true;
+}
+
+bool
+pl_is_key_released(plKey tKey)
+{
+    const plKeyData* ptData = pl_get_key_data(tKey);
+    if (ptData->fDownDurationPrev < 0.0f || ptData->bDown)
+        return false;
+    return true;
+}
+
+bool
+pl_is_mouse_down(plMouseButton tButton)
+{
+    return gtIO._abMouseDown[tButton];
+}
+
+bool
+pl_is_mouse_clicked(plMouseButton tButton, bool bRepeat)
+{
+    if(!gtIO._abMouseDown[tButton])
+        return false;
+    const float fT = gtIO._afMouseDownDuration[tButton];
+    if(fT == 0.0f)
+        return true;
+    if(bRepeat && fT > gtIO.fKeyRepeatDelay)
+        return pl__calc_typematic_repeat_amount(fT - gtIO.fDeltaTime, fT, gtIO.fKeyRepeatDelay, gtIO.fKeyRepeatRate) > 0;
+    return false;
+}
+
+bool
+pl_is_mouse_released(plMouseButton tButton)
+{
+    return gtIO._abMouseReleased[tButton];
+}
+
+bool
+pl_is_mouse_double_clicked(plMouseButton tButton)
+{
+    return gtIO._auMouseClickedCount[tButton] == 2;
+}
+
+bool
+pl_is_mouse_dragging(plMouseButton tButton, float fThreshold)
+{
+    if(!gtIO._abMouseDown[tButton])
+        return false;
+    if(fThreshold < 0.0f)
+        fThreshold = gtIO.fMouseDragThreshold;
+    return gtIO._afMouseDragMaxDistSqr[tButton] >= fThreshold * fThreshold;
+}
+
+bool
+pl_is_mouse_hovering_rect(plVec2 minVec, plVec2 maxVec)
+{
+    const plVec2 tMousePos = gtIO._tMousePos;
+    return ( tMousePos.x >= minVec.x && tMousePos.y >= minVec.y && tMousePos.x <= maxVec.x && tMousePos.y <= maxVec.y);
+}
+
+void
+pl_reset_mouse_drag_delta(plMouseButton tButton)
+{
+    gtIO._atMouseClickedPos[tButton] = gtIO._tMousePos;
+}
+
+plVec2
+pl_get_mouse_pos(void)
+{
+    return gtIO._tMousePos;
+}
+
+float
+pl_get_mouse_wheel(void)
+{
+    return gtIO._fMouseWheel;
+}
+
+bool
+pl_is_mouse_pos_valid(plVec2 tPos)
+{
+    return tPos.x > -FLT_MAX && tPos.y > -FLT_MAX;
+}
+
+void
+pl_set_mouse_cursor(plMouseCursor tCursor)
+{
+    gtIO.tNextCursor = tCursor;
+    gtIO.bCursorChanged = true;
+}
+
+plVec2
+pl_get_mouse_drag_delta(plMouseButton tButton, float fThreshold)
+{
+    if(fThreshold < 0.0f)
+        fThreshold = gtIO.fMouseDragThreshold;
+    if(gtIO._abMouseDown[tButton] || gtIO._abMouseReleased[tButton])
+    {
+        if(gtIO._afMouseDragMaxDistSqr[tButton] >= fThreshold * fThreshold)
+        {
+            if(pl_is_mouse_pos_valid(gtIO._tMousePos) && pl_is_mouse_pos_valid(gtIO._atMouseClickedPos[tButton]))
+                return pl_sub_vec2(gtIO._tLastValidMousePos, gtIO._atMouseClickedPos[tButton]);
+        }
+    }
+    
+    return pl_create_vec2(0.0f, 0.0f);
+}
+
+plIO*
+pl_get_io(void)
+{
+    return &gtIO;
+}
+
+static void
+pl__update_events(void)
+{
+    const uint32_t uEventCount = pl_sb_size(gtIO._sbtInputEvents);
+    for(uint32_t i = 0; i < uEventCount; i++)
+    {
+        plInputEvent* ptEvent = &gtIO._sbtInputEvents[i];
+
+        switch(ptEvent->tType)
+        {
+            case PL_INPUT_EVENT_TYPE_MOUSE_POS:
+            {
+                // PL_UI_DEBUG_LOG_IO("[%Iu] IO Mouse Pos (%0.0f, %0.0f)", gptCtx->frameCount, ptEvent->fPosX, ptEvent->fPosY);
+
+                if(ptEvent->fPosX != -FLT_MAX && ptEvent->fPosY != -FLT_MAX)
+                {
+                    gtIO._tMousePos.x = ptEvent->fPosX;
+                    gtIO._tMousePos.y = ptEvent->fPosY;
+                }
+                break;
+            }
+
+            case PL_INPUT_EVENT_TYPE_MOUSE_WHEEL:
+            {
+                // PL_UI_DEBUG_LOG_IO("[%Iu] IO Mouse Wheel (%0.0f, %0.0f)", gptCtx->frameCount, ptEvent->fWheelX, ptEvent->fWheelY);
+                gtIO._fMouseWheelH += ptEvent->fWheelX;
+                gtIO._fMouseWheel += ptEvent->fWheelY;
+                break;
+            }
+
+            case PL_INPUT_EVENT_TYPE_MOUSE_BUTTON:
+            {
+                // PL_UI_DEBUG_LOG_IO(ptEvent->bMouseDown ? "[%Iu] IO Mouse Button %i down" : "[%Iu] IO Mouse Button %i up", gptCtx->frameCount, ptEvent->iButton);
+                assert(ptEvent->iButton >= 0 && ptEvent->iButton < PL_MOUSE_BUTTON_COUNT);
+                gtIO._abMouseDown[ptEvent->iButton] = ptEvent->bMouseDown;
+                break;
+            }
+
+            case PL_INPUT_EVENT_TYPE_KEY:
+            {
+                // if(ptEvent->tKey < PL_KEY_COUNT)
+                //     PL_UI_DEBUG_LOG_IO(ptEvent->bKeyDown ? "[%Iu] IO Key %i down" : "[%Iu] IO Key %i up", gptCtx->frameCount, ptEvent->tKey);
+                plKey tKey = ptEvent->tKey;
+                assert(tKey != PL_KEY_NONE);
+                plKeyData* ptKeyData = pl_get_key_data(tKey);
+                ptKeyData->bDown = ptEvent->bKeyDown;
+                break;
+            }
+
+            case PL_INPUT_EVENT_TYPE_TEXT:
+            {
+                // PL_UI_DEBUG_LOG_IO("[%Iu] IO Text (U+%08u)", gptCtx->frameCount, (uint32_t)ptEvent->uChar);
+                plUiWChar uChar = (plUiWChar)ptEvent->uChar;
+                pl_sb_push(gtIO._sbInputQueueCharacters, uChar);
+                break;
+            }
+
+            default:
+            {
+                assert(false && "unknown input event type");
+                break;
+            }
+        }
+    }
+    pl_sb_reset(gtIO._sbtInputEvents)
+}
+
+static void
+pl__update_keyboard_inputs(void)
+{
+    gtIO.tKeyMods = 0;
+    if (pl_is_key_down(PL_KEY_LEFT_CTRL)  || pl_is_key_down(PL_KEY_RIGHT_CTRL))     { gtIO.tKeyMods |= PL_KEY_MOD_CTRL; }
+    if (pl_is_key_down(PL_KEY_LEFT_SHIFT) || pl_is_key_down(PL_KEY_RIGHT_SHIFT))    { gtIO.tKeyMods |= PL_KEY_MOD_SHIFT; }
+    if (pl_is_key_down(PL_KEY_LEFT_ALT)   || pl_is_key_down(PL_KEY_RIGHT_ALT))      { gtIO.tKeyMods |= PL_KEY_MOD_ALT; }
+    if (pl_is_key_down(PL_KEY_LEFT_SUPER) || pl_is_key_down(PL_KEY_RIGHT_SUPER))    { gtIO.tKeyMods |= PL_KEY_MOD_SUPER; }
+
+    gtIO.bKeyCtrl  = (gtIO.tKeyMods & PL_KEY_MOD_CTRL) != 0;
+    gtIO.bKeyShift = (gtIO.tKeyMods & PL_KEY_MOD_SHIFT) != 0;
+    gtIO.bKeyAlt   = (gtIO.tKeyMods & PL_KEY_MOD_ALT) != 0;
+    gtIO.bKeySuper = (gtIO.tKeyMods & PL_KEY_MOD_SUPER) != 0;
+
+    // Update keys
+    for (uint32_t i = 0; i < PL_KEY_COUNT; i++)
+    {
+        plKeyData* ptKeyData = &gtIO._tKeyData[i];
+        ptKeyData->fDownDurationPrev = ptKeyData->fDownDuration;
+        ptKeyData->fDownDuration = ptKeyData->bDown ? (ptKeyData->fDownDuration < 0.0f ? 0.0f : ptKeyData->fDownDuration + gtIO.fDeltaTime) : -1.0f;
+    }
+}
+
+static void
+pl__update_mouse_inputs(void)
+{
+    if(pl_is_mouse_pos_valid(gtIO._tMousePos))
+    {
+        gtIO._tMousePos.x = floorf(gtIO._tMousePos.x);
+        gtIO._tMousePos.y = floorf(gtIO._tMousePos.y);
+        gtIO._tLastValidMousePos = gtIO._tMousePos;
+    }
+
+    // only calculate data if the current & previous mouse position are valid
+    if(pl_is_mouse_pos_valid(gtIO._tMousePos) && pl_is_mouse_pos_valid(gtIO._tMousePosPrev))
+        gtIO._tMouseDelta = pl_sub_vec2(gtIO._tMousePos, gtIO._tMousePosPrev);
+    else
+    {
+        gtIO._tMouseDelta.x = 0.0f;
+        gtIO._tMouseDelta.y = 0.0f;
+    }
+    gtIO._tMousePosPrev = gtIO._tMousePos;
+
+    for(uint32_t i = 0; i < PL_MOUSE_BUTTON_COUNT; i++)
+    {
+        gtIO._abMouseClicked[i] = gtIO._abMouseDown[i] && gtIO._afMouseDownDuration[i] < 0.0f;
+        gtIO._auMouseClickedCount[i] = 0;
+        gtIO._abMouseReleased[i] = !gtIO._abMouseDown[i] && gtIO._afMouseDownDuration[i] >= 0.0f;
+        gtIO._afMouseDownDurationPrev[i] = gtIO._afMouseDownDuration[i];
+        gtIO._afMouseDownDuration[i] = gtIO._abMouseDown[i] ? (gtIO._afMouseDownDuration[i] < 0.0f ? 0.0f : gtIO._afMouseDownDuration[i] + gtIO.fDeltaTime) : -1.0f;
+
+        if(gtIO._abMouseClicked[i])
+        {
+
+            bool bIsRepeatedClick = false;
+            if((float)(gtIO.dTime - gtIO._adMouseClickedTime[i]) < gtIO.fMouseDoubleClickTime)
+            {
+                plVec2 tDeltaFromClickPos = pl_create_vec2(0.0f, 0.0f);
+                if(pl_is_mouse_pos_valid(gtIO._tMousePos))
+                    tDeltaFromClickPos = pl_sub_vec2(gtIO._tMousePos, gtIO._atMouseClickedPos[i]);
+
+                if(PL_VEC2_LENGTH_SQR(tDeltaFromClickPos) < gtIO.fMouseDoubleClickMaxDist * gtIO.fMouseDoubleClickMaxDist)
+                    bIsRepeatedClick = true;
+            }
+
+            if(bIsRepeatedClick)
+                gtIO._auMouseClickedLastCount[i]++;
+            else
+                gtIO._auMouseClickedLastCount[i] = 1;
+
+            gtIO._adMouseClickedTime[i] = gtIO.dTime;
+            gtIO._atMouseClickedPos[i] = gtIO._tMousePos;
+            gtIO._afMouseDragMaxDistSqr[i] = 0.0f;
+            gtIO._auMouseClickedCount[i] = gtIO._auMouseClickedLastCount[i];
+        }
+        else if(gtIO._abMouseDown[i])
+        {
+            const plVec2 tClickPos = pl_sub_vec2(gtIO._tLastValidMousePos, gtIO._atMouseClickedPos[i]);
+            float fDeltaSqrClickPos = PL_VEC2_LENGTH_SQR(tClickPos);
+            gtIO._afMouseDragMaxDistSqr[i] = pl_max(fDeltaSqrClickPos, gtIO._afMouseDragMaxDistSqr[i]);
+        }
+    }
+}
+
+static int
+pl__calc_typematic_repeat_amount(float fT0, float fT1, float fRepeatDelay, float fRepeatRate)
+{
+    if(fT1 == 0.0f)
+        return 1;
+    if(fT0 >= fT1)
+        return 0;
+    if(fRepeatRate <= 0.0f)
+        return (fT0 < fRepeatDelay) && (fT1 >= fRepeatDelay);
+    
+    const int iCountT0 = (fT0 < fRepeatDelay) ? -1 : (int)((fT0 - fRepeatDelay) / fRepeatRate);
+    const int iCountT1 = (fT1 < fRepeatDelay) ? -1 : (int)((fT1 - fRepeatDelay) / fRepeatRate);
+    const int iCount = iCountT1 - iCountT0;
+    return iCount;
+}
+
+static plInputEvent*
+pl__get_last_event(plInputEventType tType, int iButtonOrKey)
+{
+    const uint32_t uEventCount = pl_sb_size(gtIO._sbtInputEvents);
+    for(uint32_t i = 0; i < uEventCount; i++)
+    {
+        plInputEvent* ptEvent = &gtIO._sbtInputEvents[uEventCount - i - 1];
+        if(ptEvent->tType != tType)
+            continue;
+        if(tType == PL_INPUT_EVENT_TYPE_KEY && (int)ptEvent->tKey != iButtonOrKey)
+            continue;
+        else if(tType == PL_INPUT_EVENT_TYPE_MOUSE_BUTTON && ptEvent->iButton != iButtonOrKey)
+            continue;
+        else if(tType == PL_INPUT_EVENT_TYPE_MOUSE_POS && (int)(ptEvent->fPosX + ptEvent->fPosY) != iButtonOrKey)
+            continue;
+        return ptEvent;
+    }
+    return NULL;
+}
+
+void
+pl_new_frame(void)
+{
+
+    // update IO structure
+    gtIO.dTime += (double)gtIO.fDeltaTime;
+    gtIO.ulFrameCount++;
+    gtIO.bViewportSizeChanged = false;
+
+    // calculate frame rate
+    gtIO._fFrameRateSecPerFrameAccum += gtIO.fDeltaTime - gtIO._afFrameRateSecPerFrame[gtIO._iFrameRateSecPerFrameIdx];
+    gtIO._afFrameRateSecPerFrame[gtIO._iFrameRateSecPerFrameIdx] = gtIO.fDeltaTime;
+    gtIO._iFrameRateSecPerFrameIdx = (gtIO._iFrameRateSecPerFrameIdx + 1) % 120;
+    gtIO._iFrameRateSecPerFrameCount = pl_max(gtIO._iFrameRateSecPerFrameCount, 120);
+    gtIO.fFrameRate = FLT_MAX;
+    if(gtIO._fFrameRateSecPerFrameAccum > 0)
+        gtIO.fFrameRate = ((float) gtIO._iFrameRateSecPerFrameCount) / gtIO._fFrameRateSecPerFrameAccum;
+
+    // handle events
+    pl__update_events();
+    pl__update_keyboard_inputs();
+    pl__update_mouse_inputs();
+
+    // update state id's from previous frame
+    // gtIO.bWantCaptureKeyboard = gptCtx->uActiveId != 0;
+    // gtIO.bWantCaptureMouse = gtIO._abMouseOwned[0] || gptCtx->uActiveId != 0 || gptCtx->ptMovingWindow != NULL;
+
+    // track click ownership
+    // for(uint32_t i = 0; i < 5; i++)
+    // {
+    //     if(gtIO._abMouseClicked[i])
+    //     {
+    //         gtIO._abMouseOwned[i] = (gptCtx->ptHoveredWindow != NULL);
+    //     }
+    // }
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api implementation
+//-----------------------------------------------------------------------------
+
+const plApiRegistryI*
+pl_load_core_apis(void)
+{
+
+    const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
+    pl__create_mutex(&gptDataMutex);
+
+    pl_sb_resize(gtDataRegistryData.sbtFreeDataIDs, 1024);
+    for(uint32_t i = 0; i < 1024; i++)
+    {
+        gtDataRegistryData.sbtFreeDataIDs[i].uIndex = i;
+    }
+
+    static const plIOI tIOApi = {
+        .new_frame               = pl_new_frame,
+        .get_io                  = pl_get_io,
+        .is_key_down             = pl_is_key_down,
+        .is_key_pressed          = pl_is_key_pressed,
+        .is_key_released         = pl_is_key_released,
+        .get_key_pressed_amount  = pl_get_key_pressed_amount,
+        .is_mouse_down           = pl_is_mouse_down,
+        .is_mouse_clicked        = pl_is_mouse_clicked,
+        .is_mouse_released       = pl_is_mouse_released,
+        .is_mouse_double_clicked = pl_is_mouse_double_clicked,
+        .is_mouse_dragging       = pl_is_mouse_dragging,
+        .is_mouse_hovering_rect  = pl_is_mouse_hovering_rect,
+        .reset_mouse_drag_delta  = pl_reset_mouse_drag_delta,
+        .get_mouse_drag_delta    = pl_get_mouse_drag_delta,
+        .get_mouse_pos           = pl_get_mouse_pos,
+        .get_mouse_wheel         = pl_get_mouse_wheel,
+        .is_mouse_pos_valid      = pl_is_mouse_pos_valid,
+        .set_mouse_cursor        = pl_set_mouse_cursor,
+        .get_key_data            = pl_get_key_data,
+        .add_key_event           = pl_add_key_event,
+        .add_text_event          = pl_add_text_event,
+        .add_text_event_utf16    = pl_add_text_event_utf16,
+        .add_text_events_utf8    = pl_add_text_events_utf8,
+        .add_mouse_pos_event     = pl_add_mouse_pos_event,
+        .add_mouse_button_event  = pl_add_mouse_button_event,
+        .add_mouse_wheel_event   = pl_add_mouse_wheel_event,
+        .clear_input_characters  = pl_clear_input_characters,
+    };
+
+    static const plDataRegistryI tDataRegistryApi = {
+        .set_data           = pl__set_data,
+        .get_data           = pl__get_data,
+        .garbage_collect    = pl__garbage_collect,
+        .create_object      = pl__create_object,
+        .get_object_by_name = pl__get_object_by_name,
+        .read               = pl__read,
+        .end_read           = pl__end_read,
+        .get_string         = pl__get_string,
+        .get_buffer         = pl__get_buffer,
+        .write              = pl__write,
+        .set_string         = pl__set_string,
+        .set_buffer         = pl__set_buffer,
+        .commit             = pl__commit
+    };
+
+    static const plExtensionRegistryI tExtensionRegistryApi = {
+        .load       = pl__load_extension,
+        .unload     = pl__unload_extension,
+        .unload_all = pl__unload_all_extensions,
+        .reload     = pl__handle_extension_reloads
+    };
+
+    // apis more likely to not be stored, should be first (api registry is not sorted)
+    ptApiRegistry->add(PL_API_IO, &tIOApi);
+    ptApiRegistry->add(PL_API_DATA_REGISTRY, &tDataRegistryApi);
+    ptApiRegistry->add(PL_API_EXTENSION_REGISTRY, &tExtensionRegistryApi);
+
+    return ptApiRegistry;
+}
+
+void
+pl_unload_core_apis(void)
+{
+    const uint32_t uApiCount = pl_sb_size(gsbApiEntries);
+    for(uint32_t i = 0; i < uApiCount; i++)
+    {
+        pl_sb_free(gsbApiEntries[i].sbSubscribers);
+        pl_sb_free(gsbApiEntries[i].sbUserData);
+    }
+
+    pl_sb_free(gsbtExtensions);
+    pl_sb_free(gsbptLibs);
+    pl_sb_free(gsbtHotLibs);
+    pl_sb_free(gsbApiEntries);
+    pl_hm_free(&gtHashMap);
+}
+
+
 #ifdef PL_USE_STB_SPRINTF
     #define STB_SPRINTF_IMPLEMENTATION
     #include "stb_sprintf.h"
@@ -624,9 +1268,3 @@ pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
 {
     return realloc(pBuffer, szSize);
 }
-
-#ifdef PL_USE_UI
-#include "pl_ui.c"
-#include "pl_ui_widgets.c"
-#include "pl_ui_draw.c"
-#endif

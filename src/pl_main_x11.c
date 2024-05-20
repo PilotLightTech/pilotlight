@@ -17,7 +17,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pilotlight.h" // data registry, api registry, extension registry
-#include "pl_ui.h"      // io context
 #include "pl_ds.h"      // hashmap
 #include "pl_os.h"      // os services
 
@@ -200,15 +199,13 @@ void*                 gUserData       = NULL;
 double                dTime           = 0.0;
 double                dFrequency      = 0.0;
 xcb_cursor_context_t* ptCursorContext = NULL;
-
-// ui
-plIO*           gptIOCtx = NULL;
-plUiContext*    gptUiCtx = NULL;
+plIO*                 gptIOCtx = NULL;
 
 // apis
 const plDataRegistryI*      gptDataRegistry      = NULL;
 const plApiRegistryI*       gptApiRegistry       = NULL;
 const plExtensionRegistryI* gptExtensionRegistry = NULL;
+const plIOI*                gptIOI               = NULL;
 
 // memory tracking
 plHashMap       gtMemoryHashMap = {0};
@@ -272,9 +269,6 @@ int main(int argc, char *argv[])
         }
 
     }
-
-    gptUiCtx = pl_create_context();
-    gptIOCtx = pl_get_io();
 
     // os provided apis
 
@@ -350,6 +344,7 @@ int main(int argc, char *argv[])
     gptApiRegistry       = pl_load_core_apis();
     gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
     gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    gptIOI               = gptApiRegistry->first(PL_API_IO);
 
     // add os specific apis
     gptApiRegistry->add(PL_API_WINDOW, &tWindowApi);
@@ -360,7 +355,7 @@ int main(int argc, char *argv[])
     gptApiRegistry->add(PL_API_ATOMICS, &tAtomicsApi);
 
     // add contexts to data registry
-    gptDataRegistry->set_data("context", gptUiCtx);
+    gptIOCtx = gptIOI->get_io();
     gtMemoryContext.plThreadsI = &tThreadApi;
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
@@ -508,7 +503,7 @@ pl_linux_procedure(xcb_generic_event_t* event)
         case XCB_MOTION_NOTIFY: 
         {
             xcb_motion_notify_event_t* motion = (xcb_motion_notify_event_t*)event;
-            pl_add_mouse_pos_event((float)motion->event_x, (float)motion->event_y);
+            gptIOI->add_mouse_pos_event((float)motion->event_x, (float)motion->event_y);
             break;
         }
 
@@ -517,12 +512,12 @@ pl_linux_procedure(xcb_generic_event_t* event)
             xcb_button_press_event_t* press = (xcb_button_press_event_t*)event;
             switch (press->detail)
             {
-                case XCB_BUTTON_INDEX_1: pl_add_mouse_button_event(PL_MOUSE_BUTTON_LEFT, true);   break;
-                case XCB_BUTTON_INDEX_2: pl_add_mouse_button_event(PL_MOUSE_BUTTON_MIDDLE, true); break;
-                case XCB_BUTTON_INDEX_3: pl_add_mouse_button_event(PL_MOUSE_BUTTON_RIGHT, true);  break;
-                case XCB_BUTTON_INDEX_4: pl_add_mouse_wheel_event (0.0f, 1.0f);                   break;
-                case XCB_BUTTON_INDEX_5: pl_add_mouse_wheel_event (0.0f, -1.0f);                  break;
-                default:                 pl_add_mouse_button_event(press->detail, true);          break;
+                case XCB_BUTTON_INDEX_1: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_LEFT, true);   break;
+                case XCB_BUTTON_INDEX_2: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_MIDDLE, true); break;
+                case XCB_BUTTON_INDEX_3: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_RIGHT, true);  break;
+                case XCB_BUTTON_INDEX_4: gptIOI->add_mouse_wheel_event (0.0f, 1.0f);                   break;
+                case XCB_BUTTON_INDEX_5: gptIOI->add_mouse_wheel_event (0.0f, -1.0f);                  break;
+                default:                 gptIOI->add_mouse_button_event(press->detail, true);          break;
             }
             break;
         }
@@ -532,12 +527,12 @@ pl_linux_procedure(xcb_generic_event_t* event)
             xcb_button_press_event_t* press = (xcb_button_press_event_t*)event;
             switch (press->detail)
             {
-                case XCB_BUTTON_INDEX_1: pl_add_mouse_button_event(PL_MOUSE_BUTTON_LEFT, false);   break;
-                case XCB_BUTTON_INDEX_2: pl_add_mouse_button_event(PL_MOUSE_BUTTON_MIDDLE, false); break;
-                case XCB_BUTTON_INDEX_3: pl_add_mouse_button_event(PL_MOUSE_BUTTON_RIGHT, false);  break;
-                case XCB_BUTTON_INDEX_4: pl_add_mouse_wheel_event (0.0f, 1.0f);                   break;
-                case XCB_BUTTON_INDEX_5: pl_add_mouse_wheel_event (0.0f, -1.0f);                  break;
-                default:                 pl_add_mouse_button_event(press->detail, false);          break;
+                case XCB_BUTTON_INDEX_1: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_LEFT, false);   break;
+                case XCB_BUTTON_INDEX_2: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_MIDDLE, false); break;
+                case XCB_BUTTON_INDEX_3: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_RIGHT, false);  break;
+                case XCB_BUTTON_INDEX_4: gptIOI->add_mouse_wheel_event (0.0f, 1.0f);                   break;
+                case XCB_BUTTON_INDEX_5: gptIOI->add_mouse_wheel_event (0.0f, -1.0f);                  break;
+                default:                 gptIOI->add_mouse_button_event(press->detail, false);          break;
             }
             break;
         }
@@ -554,11 +549,11 @@ pl_linux_procedure(xcb_generic_event_t* event)
                 0,
                 uCol);
             xcb_keysym_t k = xcb_key_press_lookup_keysym(gKeySyms, keyEvent, uCol);
-            pl_add_key_event(pl__xcb_key_to_pl_key(key_sym), true);
+            gptIOI->add_key_event(pl__xcb_key_to_pl_key(key_sym), true);
             if(k < 0xFF)
-                pl_add_text_event(k);
+                gptIOI->add_text_event(k);
             else if (k >= 0x1000100 && k <= 0x110ffff) // utf range
-                pl_add_text_event_utf16(k);
+                gptIOI->add_text_event_utf16(k);
             break;
         }
         case XCB_KEY_RELEASE:
@@ -570,7 +565,7 @@ pl_linux_procedure(xcb_generic_event_t* event)
                 (KeyCode)code,  // event.xkey.keycode,
                 0,
                 0 /*code & ShiftMask ? 1 : 0*/);
-            pl_add_key_event(pl__xcb_key_to_pl_key(key_sym), false);
+            gptIOI->add_key_event(pl__xcb_key_to_pl_key(key_sym), false);
             break;
         }
         case XCB_CONFIGURE_NOTIFY: 

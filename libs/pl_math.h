@@ -77,8 +77,6 @@ typedef struct _plAABB plAABB;
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-#ifndef PL_MATH_VEC2_DEFINED
-#define PL_MATH_VEC2_DEFINED
 typedef union _plVec2
 {
     struct { float x, y; };
@@ -86,7 +84,6 @@ typedef union _plVec2
     struct { float u, v; };
     float d[2];
 } plVec2;
-#endif // PL_MATH_VEC2_DEFINED
 
 typedef union _plVec3
 {
