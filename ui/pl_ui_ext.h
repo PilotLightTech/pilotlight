@@ -1,4 +1,18 @@
-// pilotlight ui
+/*
+   pl_ui_ext.h
+*/
+
+/*
+Index of this file:
+// [SECTION] header mess
+// [SECTION] includes
+// [SECTION] apis
+// [SECTION] forward declarations
+// [SECTION] public api struct
+// [SECTION] enums & flags
+// [SECTION] structs
+*/
+
 
 // library version
 #define PL_UI_EXT_VERSION    "0.1.0"
