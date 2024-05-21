@@ -141,6 +141,10 @@ with pl.project("pilotlight"):
     add_plugin_to_metal_app("pl_ref_renderer_ext", True)
     add_plugin_to_metal_app("pl_ui_ext", True, False, None, "../ui/")
 
+    # scripts
+    add_plugin_to_vulkan_app("pl_camera_script", False, None, "../scripts/")
+    add_plugin_to_metal_app("pl_camera_script", False, False, None, "../scripts/")
+
     pl.pop_target_links()
 
     ###############################################################################

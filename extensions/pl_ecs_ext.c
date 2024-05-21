@@ -28,6 +28,7 @@ Index of this file:
 
 // extensions
 #include "pl_job_ext.h"
+#include "pl_script_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -44,7 +45,10 @@ typedef struct _plComponentLibraryData
 
 static uint32_t uLogChannel = UINT32_MAX;
 
-static const plJobI* gptJob = NULL;
+// apis
+static const plJobI*               gptJob               = NULL;
+static const plApiRegistryI*       gptApiRegistry       = NULL;
+static const plExtensionRegistryI* gptExtensionRegistry = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -76,6 +80,8 @@ static plEntity pl_ecs_create_perspective_camera (plComponentLibrary*, const cha
 static plEntity pl_ecs_create_orthographic_camera(plComponentLibrary*, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCameraComponent**);
 static plEntity pl_ecs_create_directional_light  (plComponentLibrary*, const char* pcName, plVec3 tDirection, plLightComponent**);
 static plEntity pl_ecs_create_point_light        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plLightComponent**);
+static plEntity pl_ecs_create_script             (plComponentLibrary*, const char* pcFile, plScriptFlags, plScriptComponent**);
+static void     pl_ecs_attach_script             (plComponentLibrary*, const char* pcFile, plScriptFlags, plEntity, plScriptComponent**);
 
 
 // heirarchy
@@ -89,6 +95,7 @@ static void pl_run_skin_update_system              (plComponentLibrary* ptLibrar
 static void pl_run_hierarchy_update_system         (plComponentLibrary* ptLibrary);
 static void pl_run_animation_update_system         (plComponentLibrary* ptLibrary, float fDeltaTime);
 static void pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary);
+static void pl_run_script_update_system            (plComponentLibrary* ptLibrary);
 
 // misc.
 static void pl_calculate_normals (plMeshComponent* atMeshes, uint32_t uComponentCount);
@@ -125,62 +132,6 @@ pl_ecs_has_entity(plComponentManager* ptManager, plEntity tEntity)
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
-
-static const plEcsI*
-pl_load_ecs_api(void)
-{
-    static const plEcsI tApi = {
-        .init_component_library               = pl_ecs_init_component_library,
-        .cleanup_component_library            = pl_ecs_cleanup_component_library,
-        .create_entity                        = pl_ecs_create_entity,
-        .remove_entity                        = pl_ecs_remove_entity,
-        .get_entity                           = pl_ecs_get_entity,
-        .is_entity_valid                      = pl_ecs_is_entity_valid,
-        .get_index                            = pl_ecs_get_index,
-        .get_component                        = pl_ecs_get_component,
-        .add_component                        = pl_ecs_add_component,
-        .create_tag                           = pl_ecs_create_tag,
-        .create_mesh                          = pl_ecs_create_mesh,
-        .create_perspective_camera            = pl_ecs_create_perspective_camera,
-        .create_orthographic_camera           = pl_ecs_create_orthographic_camera,
-        .create_object                        = pl_ecs_create_object,
-        .create_transform                     = pl_ecs_create_transform,
-        .create_material                      = pl_ecs_create_material,
-        .create_skin                          = pl_ecs_create_skin,
-        .create_animation                     = pl_ecs_create_animation,
-        .create_animation_data                = pl_ecs_create_animation_data,
-        .create_directional_light             = pl_ecs_create_directional_light,
-        .create_point_light                   = pl_ecs_create_point_light,
-        .attach_component                     = pl_ecs_attach_component,
-        .deattach_component                   = pl_ecs_deattach_component,
-        .calculate_normals                    = pl_calculate_normals,
-        .calculate_tangents                   = pl_calculate_tangents,
-        .run_object_update_system             = pl_run_object_update_system,
-        .run_transform_update_system          = pl_run_transform_update_system,
-        .run_hierarchy_update_system          = pl_run_hierarchy_update_system,
-        .run_skin_update_system               = pl_run_skin_update_system,
-        .run_animation_update_system          = pl_run_animation_update_system,
-        .run_inverse_kinematics_update_system = pl_run_inverse_kinematics_update_system
-    };
-    return &tApi;
-}
-
-static const plCameraI*
-pl_load_camera_api(void)
-{
-    static const plCameraI tApi = {
-        .set_fov         = pl_camera_set_fov,
-        .set_clip_planes = pl_camera_set_clip_planes,
-        .set_aspect      = pl_camera_set_aspect,
-        .set_pos         = pl_camera_set_pos,
-        .set_pitch_yaw   = pl_camera_set_pitch_yaw,
-        .translate       = pl_camera_translate,
-        .rotate          = pl_camera_rotate,
-        .update          = pl_camera_update,
-        .look_at         = pl_camera_look_at,
-    };
-    return &tApi;   
-}
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
@@ -226,6 +177,9 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->tLightComponentManager.tComponentType = PL_COMPONENT_TYPE_LIGHT;
     ptLibrary->tLightComponentManager.szStride = sizeof(plLightComponent);
 
+    ptLibrary->tScriptComponentManager.tComponentType = PL_COMPONENT_TYPE_SCRIPT;
+    ptLibrary->tScriptComponentManager.szStride = sizeof(plScriptComponent);
+
     ptLibrary->_ptManagers[0]  = &ptLibrary->tTagComponentManager;
     ptLibrary->_ptManagers[1]  = &ptLibrary->tTransformComponentManager;
     ptLibrary->_ptManagers[2]  = &ptLibrary->tMeshComponentManager;
@@ -238,6 +192,7 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->_ptManagers[9]  = &ptLibrary->tAnimationDataComponentManager;
     ptLibrary->_ptManagers[10] = &ptLibrary->tInverseKinematicsComponentManager;
     ptLibrary->_ptManagers[11] = &ptLibrary->tLightComponentManager;
+    ptLibrary->_ptManagers[12] = &ptLibrary->tScriptComponentManager;
 
     for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
         ptLibrary->_ptManagers[i]->ptParentLibrary = ptLibrary;
@@ -448,6 +403,13 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
                 case PL_COMPONENT_TYPE_LIGHT:
                 {
                     plLightComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_SCRIPT:
+                {
+                    plScriptComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
@@ -691,6 +653,19 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         return &sbComponents[uComponentIndex];
     }
 
+    case PL_COMPONENT_TYPE_SCRIPT:
+    {
+        plScriptComponent* sbComponents = ptManager->pComponents;
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
+        ptManager->pComponents = sbComponents;
+        sbComponents[uComponentIndex] = (plScriptComponent){
+            .tFlags = PL_SCRIPT_FLAG_NONE,
+            .acFile = {0}
+        };
+        return &sbComponents[uComponentIndex];
+    }
+
     }
 
     return NULL;
@@ -755,6 +730,72 @@ pl_ecs_create_point_light(plComponentLibrary* ptLibrary, const char* pcName, plV
     if(pptCompOut)
         *pptCompOut = ptLight;
     return tNewEntity;
+}
+
+static plEntity
+pl_ecs_create_script(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlags tFlags, plScriptComponent** pptCompOut)
+{
+    pl_log_debug_to_f(uLogChannel, "created script: '%s'", pcFile);
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcFile);
+    plScriptComponent* ptScript =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_SCRIPT, tNewEntity);
+    ptScript->tFlags = tFlags;
+    strncpy(ptScript->acFile, pcFile, PL_MAX_NAME_LENGTH);
+
+    gptExtensionRegistry->load(pcFile, "pl_load_script", "pl_unload_script", tFlags & PL_SCRIPT_FLAG_RELOADABLE);
+
+    const plScriptI* ptScriptApi = gptApiRegistry->first(PL_API_SCRIPT);
+    if(strncmp(pcFile, ptScriptApi->name(), PL_MAX_NAME_LENGTH) != 0)
+    {
+        while(ptScriptApi)
+        {
+            ptScriptApi = gptApiRegistry->next(ptScriptApi);
+            if(strncmp(pcFile, ptScriptApi->name(), PL_MAX_NAME_LENGTH) == 0)
+            {
+                break;
+            }
+        }
+    }
+    ptScript->_ptApi = ptScriptApi;
+    PL_ASSERT(ptScriptApi);
+
+    if(ptScriptApi->setup)
+        ptScriptApi->setup(ptLibrary, tNewEntity);
+
+    if(pptCompOut)
+        *pptCompOut = ptScript;
+    return tNewEntity;
+}
+
+static void
+pl_ecs_attach_script(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlags tFlags, plEntity tEntity, plScriptComponent** pptCompOut)
+{
+    pl_log_debug_to_f(uLogChannel, "attach script: '%s'", pcFile);
+    plScriptComponent* ptScript =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_SCRIPT, tEntity);
+    ptScript->tFlags = tFlags;
+    strncpy(ptScript->acFile, pcFile, PL_MAX_NAME_LENGTH);
+
+    gptExtensionRegistry->load(pcFile, "pl_load_script", "pl_unload_script", tFlags & PL_SCRIPT_FLAG_RELOADABLE);
+
+    const plScriptI* ptScriptApi = gptApiRegistry->first(PL_API_SCRIPT);
+    if(strncmp(pcFile, ptScriptApi->name(), PL_MAX_NAME_LENGTH) != 0)
+    {
+        while(ptScriptApi)
+        {
+            ptScriptApi = gptApiRegistry->next(ptScriptApi);
+            if(strncmp(pcFile, ptScriptApi->name(), PL_MAX_NAME_LENGTH) == 0)
+            {
+                break;
+            }
+        }
+    }
+    ptScript->_ptApi = ptScriptApi;
+    PL_ASSERT(ptScriptApi);
+
+    if(ptScriptApi->setup)
+        ptScriptApi->setup(ptLibrary, tEntity);
+
+    if(pptCompOut)
+        *pptCompOut = ptScript;
 }
 
 static plEntity
@@ -1069,6 +1110,28 @@ pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
         ptChildTransform->tWorld = pl_mul_mat4(&ptParentTransform->tWorld, &ptChildTransform->tWorld);
     }
 
+    pl_end_profile_sample();
+}
+
+static void
+pl_run_script_update_system(plComponentLibrary* ptLibrary)
+{
+    pl_begin_profile_sample(__FUNCTION__);
+
+    plScriptComponent* sbtComponents = ptLibrary->tScriptComponentManager.pComponents;
+
+    const uint32_t uComponentCount = pl_sb_size(sbtComponents);
+    for(uint32_t i = 0; i < uComponentCount; i++)
+    {
+        const plEntity tEnitity = ptLibrary->tScriptComponentManager.sbtEntities[i];
+        if(sbtComponents[i].tFlags)
+            continue;
+
+        if(sbtComponents[i].tFlags & PL_SCRIPT_FLAG_PLAYING)
+            sbtComponents[i]._ptApi->run(ptLibrary, tEnitity);
+        if(sbtComponents[i].tFlags & PL_SCRIPT_FLAG_PLAY_ONCE)
+            sbtComponents[i].tFlags = PL_SCRIPT_FLAG_NONE;
+    }
     pl_end_profile_sample();
 }
 
@@ -1640,9 +1703,69 @@ pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
+static const plEcsI*
+pl_load_ecs_api(void)
+{
+    static const plEcsI tApi = {
+        .init_component_library               = pl_ecs_init_component_library,
+        .cleanup_component_library            = pl_ecs_cleanup_component_library,
+        .create_entity                        = pl_ecs_create_entity,
+        .remove_entity                        = pl_ecs_remove_entity,
+        .get_entity                           = pl_ecs_get_entity,
+        .is_entity_valid                      = pl_ecs_is_entity_valid,
+        .get_index                            = pl_ecs_get_index,
+        .get_component                        = pl_ecs_get_component,
+        .add_component                        = pl_ecs_add_component,
+        .create_tag                           = pl_ecs_create_tag,
+        .create_mesh                          = pl_ecs_create_mesh,
+        .create_perspective_camera            = pl_ecs_create_perspective_camera,
+        .create_orthographic_camera           = pl_ecs_create_orthographic_camera,
+        .create_object                        = pl_ecs_create_object,
+        .create_transform                     = pl_ecs_create_transform,
+        .create_material                      = pl_ecs_create_material,
+        .create_skin                          = pl_ecs_create_skin,
+        .create_animation                     = pl_ecs_create_animation,
+        .create_animation_data                = pl_ecs_create_animation_data,
+        .create_directional_light             = pl_ecs_create_directional_light,
+        .create_point_light                   = pl_ecs_create_point_light,
+        .create_script                        = pl_ecs_create_script,
+        .attach_script                        = pl_ecs_attach_script,
+        .attach_component                     = pl_ecs_attach_component,
+        .deattach_component                   = pl_ecs_deattach_component,
+        .calculate_normals                    = pl_calculate_normals,
+        .calculate_tangents                   = pl_calculate_tangents,
+        .run_object_update_system             = pl_run_object_update_system,
+        .run_transform_update_system          = pl_run_transform_update_system,
+        .run_hierarchy_update_system          = pl_run_hierarchy_update_system,
+        .run_skin_update_system               = pl_run_skin_update_system,
+        .run_animation_update_system          = pl_run_animation_update_system,
+        .run_inverse_kinematics_update_system = pl_run_inverse_kinematics_update_system,
+        .run_script_update_system             = pl_run_script_update_system
+    };
+    return &tApi;
+}
+
+static const plCameraI*
+pl_load_camera_api(void)
+{
+    static const plCameraI tApi = {
+        .set_fov         = pl_camera_set_fov,
+        .set_clip_planes = pl_camera_set_clip_planes,
+        .set_aspect      = pl_camera_set_aspect,
+        .set_pos         = pl_camera_set_pos,
+        .set_pitch_yaw   = pl_camera_set_pitch_yaw,
+        .translate       = pl_camera_translate,
+        .rotate          = pl_camera_rotate,
+        .update          = pl_camera_update,
+        .look_at         = pl_camera_look_at,
+    };
+    return &tApi;   
+}
+
 PL_EXPORT void
 pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    gptApiRegistry = ptApiRegistry;
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
@@ -1653,6 +1776,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     ptExtensionRegistry->load("pl_job_ext", NULL, NULL, false);
 
     // load required contexts
+    gptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
     gptJob = ptApiRegistry->first(PL_API_JOB);
 
     if(bReload)

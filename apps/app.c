@@ -240,6 +240,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-9.6f, 2.096f, 0.86f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.1f, 30.0f, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, -0.245f, 1.816f);
     gptCamera->update(ptMainCamera);
+    gptEcs->attach_script(ptMainComponentLibrary, "pl_camera_script", PL_SCRIPT_FLAG_PLAYING, ptAppData->tMainCamera, NULL);
 
     // create cull camera
     plCameraComponent* ptCullCamera = NULL;
@@ -386,33 +387,6 @@ pl_app_update(plAppData* ptAppData)
 
     plCameraComponent* ptCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
     plCameraComponent* ptCullCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
-
-    static const float fCameraTravelSpeed = 4.0f;
-    static const float fCameraRotationSpeed = 0.005f;
-
-    // camera space
-    bool bOwnKeyboard = ptIO->bWantCaptureKeyboard;
-    if(!bOwnKeyboard)
-    {
-        if(gptIO->is_key_down(PL_KEY_W)) gptCamera->translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
-        if(gptIO->is_key_down(PL_KEY_S)) gptCamera->translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
-        if(gptIO->is_key_down(PL_KEY_A)) gptCamera->translate(ptCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
-        if(gptIO->is_key_down(PL_KEY_D)) gptCamera->translate(ptCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
-
-        // world space
-        if(gptIO->is_key_down(PL_KEY_F)) { gptCamera->translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
-        if(gptIO->is_key_down(PL_KEY_R)) { gptCamera->translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
-    }
-
-    bool bOwnMouse = ptIO->bWantCaptureMouse;
-    if(!bOwnMouse && gptIO->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
-    {
-        const plVec2 tMouseDelta = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
-        gptCamera->rotate(ptCamera,  -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed);
-        gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
-    }
-
-    gptCamera->update(ptCamera);
     gptCamera->update(ptCullCamera);
 
     // run ecs system

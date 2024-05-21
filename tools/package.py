@@ -56,6 +56,7 @@ shutil.copy("../src/pl_os.h", target_directory + "/include/pl_os.h")
 # copy extension headers
 for extension in extensions:
     shutil.copy("../extensions/" + extension + ".h", target_directory + "/include/" + extension + ".h")
+shutil.copy("../extensions/pl_script_ext.h", target_directory + "/include/pl_script_ext.h")
 shutil.copy("../ui/pl_ui_ext.h", target_directory + "/include/pl_ui_ext.h")
 
 # copy pilotlight-lib headers

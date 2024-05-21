@@ -77,12 +77,14 @@ typedef struct _plAnimationComponent         plAnimationComponent;
 typedef struct _plAnimationDataComponent     plAnimationDataComponent;
 typedef struct _plInverseKinematicsComponent plInverseKinematicsComponent;
 typedef struct _plLightComponent             plLightComponent;
+typedef struct _plScriptComponent            plScriptComponent;
 
 // enums
 typedef int plShaderType;
 typedef int plComponentType;
 typedef int plTextureSlot;
 typedef int plMaterialFlags;
+typedef int plScriptFlags;
 typedef int plBlendMode;
 typedef int plCameraType;
 typedef int plAnimationMode;
@@ -136,6 +138,10 @@ typedef struct _plEcsI
     plEntity (*create_directional_light)  (plComponentLibrary*, const char* pcName, plVec3 tDirection, plLightComponent**);
     plEntity (*create_point_light)        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plLightComponent**);
 
+    // scripts
+    plEntity (*create_script)(plComponentLibrary*, const char* pcFile, plScriptFlags, plScriptComponent**);
+    void     (*attach_script)(plComponentLibrary*, const char* pcFile, plScriptFlags, plEntity tEntity, plScriptComponent**);
+
     // hierarchy
     void (*attach_component)   (plComponentLibrary*, plEntity tEntity, plEntity tParent);
     void (*deattach_component) (plComponentLibrary*, plEntity);
@@ -151,6 +157,7 @@ typedef struct _plEcsI
     void (*run_hierarchy_update_system)         (plComponentLibrary*);
     void (*run_animation_update_system)         (plComponentLibrary*, float fDeltaTime);
     void (*run_inverse_kinematics_update_system)(plComponentLibrary*);
+    void (*run_script_update_system)            (plComponentLibrary*);
 } plEcsI;
 
 typedef struct _plCameraI
@@ -184,6 +191,7 @@ enum _plComponentType
     PL_COMPONENT_TYPE_ANIMATION_DATA,
     PL_COMPONENT_TYPE_INVERSE_KINEMATICS,
     PL_COMPONENT_TYPE_LIGHT,
+    PL_COMPONENT_TYPE_SCRIPT,
     
     PL_COMPONENT_TYPE_COUNT
 };
@@ -261,6 +269,14 @@ enum _plAnimationFlags
     PL_ANIMATION_FLAG_NONE    = 0,
     PL_ANIMATION_FLAG_PLAYING = 1 << 0,
     PL_ANIMATION_FLAG_LOOPED  = 1 << 1
+};
+
+enum _plScriptFlags
+{
+    PL_SCRIPT_FLAG_NONE       = 0,
+    PL_SCRIPT_FLAG_PLAYING    = 1 << 0,
+    PL_SCRIPT_FLAG_PLAY_ONCE  = 1 << 1,
+    PL_SCRIPT_FLAG_RELOADABLE = 1 << 2
 };
 
 enum _plMeshFormatFlags
@@ -361,6 +377,7 @@ typedef struct _plComponentLibrary
     plComponentManager tAnimationDataComponentManager;
     plComponentManager tInverseKinematicsComponentManager;
     plComponentManager tLightComponentManager;
+    plComponentManager tScriptComponentManager;
 
     plComponentManager* _ptManagers[PL_COMPONENT_TYPE_COUNT]; // just for internal convenience
     void*               pInternal;
@@ -513,5 +530,12 @@ typedef struct _plInverseKinematicsComponent
     uint32_t uChainLength;
     uint32_t uIterationCount;
 } plInverseKinematicsComponent;
+
+typedef struct _plScriptComponent
+{
+    plScriptFlags tFlags;
+    char          acFile[PL_MAX_NAME_LENGTH];
+    const struct _plScriptI* _ptApi;
+} plScriptComponent;
 
 #endif // PL_ECS_EXT_H

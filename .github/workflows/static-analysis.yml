@@ -60,7 +60,7 @@ jobs:
             echo "You may use a free license. More information at https://www.viva64.com/en/b/0457/"
             exit 0
           fi
-          cd scripts
+          cd tools
           python3 gen_build.py
           cd ../src
           chmod +x build.sh

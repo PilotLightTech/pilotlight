@@ -8,7 +8,7 @@ Next:
 ### Windows
 Example for running example 0:
 ```bash
-cd pilotlight/scripts
+cd pilotlight/tools
 python gen_examples.py
 cd ../examples
 build.bat
@@ -19,7 +19,7 @@ pilot_light.exe -a example_0
 ### MacOS & Linux
 Example for running example 0:
 ```bash
-cd pilotlight/scripts
+cd pilotlight/tools
 python3 gen_examples.py
 cd ../examples
 chmod +x build.sh
