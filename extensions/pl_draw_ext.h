@@ -61,11 +61,10 @@ typedef struct _plDrawLayer2D plDrawLayer2D;
 typedef struct _plFontChar       plFontChar;       // internal for now (opaque structure)
 typedef struct _plFontGlyph      plFontGlyph;      // internal for now (opaque structure)
 typedef struct _plFontCustomRect plFontCustomRect; // internal for now (opaque structure)
-typedef struct _plFontPrepData   plFontPrepData;   // internal for now (opaque structure)
 typedef struct _plFontRange      plFontRange;      // a range of characters
 typedef struct _plFont           plFont;           // a single font with a specific size and config
 typedef struct _plFontConfig     plFontConfig;     // configuration for loading a single font
-typedef struct _plFontAtlas      plFontAtlas;      // atlas for multiple fonts
+typedef union  _plFontHandle     plFontHandle;
 
 // enums
 typedef int plDrawFlags;
@@ -73,7 +72,7 @@ typedef int plDrawFlags;
 // external
 typedef struct _plGraphics      plGraphics;      // pl_graphics_ext.h
 typedef struct _plRenderEncoder plRenderEncoder; // pl_graphics_ext.h
-typedef union plTextureHandle   plTextureHandle; // pl_graphics_ext.h
+typedef union  plTextureHandle  plTextureHandle; // pl_graphics_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -90,35 +89,36 @@ typedef struct _plDrawI
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~fonts~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    void   (*build_font_atlas)        (plFontAtlas*);
-    void   (*cleanup_font_atlas)      (plFontAtlas*);
-    void   (*add_default_font)        (plFontAtlas*);
-    void   (*add_font_from_file_ttf)  (plFontAtlas*, plFontConfig, const char* pcFile);
-    void   (*add_font_from_memory_ttf)(plFontAtlas*, plFontConfig, void* pData);
-    plVec2 (*calculate_text_size)     (plFont*, float fSize, const char* pcText, float fWrap);
-    plVec2 (*calculate_text_size_ex)  (plFont*, float fSize, const char* pcText, const char* pcTextEnd, float fWrap);
-    plRect (*calculate_text_bb)       (plFont*, float fSize, plVec2 tP, const char* pcText, float fWrap);
-    plRect (*calculate_text_bb_ex)    (plFont*, float fSize, plVec2 tP, const char* pcText, const char* pcTextEnd, float fWrap);
+    void         (*build_font_atlas)        (void);
+    void         (*cleanup_font_atlas)      (void);
+    plFontHandle (*add_default_font)        (void);
+    plFontHandle (*add_font_from_file_ttf)  (plFontConfig, const char* pcFile);
+    plFontHandle (*add_font_from_memory_ttf)(plFontConfig, void* pData);
+    plVec2       (*calculate_text_size)     (plFontHandle, float fSize, const char* pcText, float fWrap);
+    plVec2       (*calculate_text_size_ex)  (plFontHandle, float fSize, const char* pcText, const char* pcTextEnd, float fWrap);
+    plRect       (*calculate_text_bb)       (plFontHandle, float fSize, plVec2 tP, const char* pcText, float fWrap);
+    plRect       (*calculate_text_bb_ex)    (plFontHandle, float fSize, plVec2 tP, const char* pcText, const char* pcTextEnd, float fWrap);
+    plFont*      (*get_font)                (plFontHandle); // do not store
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~2D~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // drawlists
     plDrawList2D*  (*request_2d_drawlist)(void);
     void           (*return_2d_drawlist) (plDrawList2D*);
-    void           (*submit_2d_drawlist)(plDrawList2D*, plRenderEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount);
+    void           (*submit_2d_drawlist) (plDrawList2D*, plRenderEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount);
 
     // layers
-    plDrawLayer2D* (*request_2d_layer)   (plDrawList2D*, const char* pcName);
-    void           (*return_2d_layer)    (plDrawLayer2D*);
-    void           (*submit_2d_layer)    (plDrawLayer2D*);
+    plDrawLayer2D* (*request_2d_layer)(plDrawList2D*, const char* pcName);
+    void           (*return_2d_layer) (plDrawLayer2D*);
+    void           (*submit_2d_layer) (plDrawLayer2D*);
 
     // drawing
     void (*add_line)               (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec4 tColor, float fThickness);
     void (*add_lines)              (plDrawLayer2D*, plVec2* atPoints, uint32_t uCount, plVec4 tColor, float fThickness);
-    void (*add_text)               (plDrawLayer2D*, plFont*, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
-    void (*add_text_ex)            (plDrawLayer2D*, plFont*, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
-    void (*add_text_clipped)       (plDrawLayer2D*, plFont*, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
-    void (*add_text_clipped_ex)    (plDrawLayer2D*, plFont*, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
+    void (*add_text)               (plDrawLayer2D*, plFontHandle, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
+    void (*add_text_ex)            (plDrawLayer2D*, plFontHandle, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
+    void (*add_text_clipped)       (plDrawLayer2D*, plFontHandle, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
+    void (*add_text_clipped_ex)    (plDrawLayer2D*, plFontHandle, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
     void (*add_triangle)           (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness);
     void (*add_triangle_filled)    (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor);
     void (*add_rect)               (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness);
@@ -178,6 +178,16 @@ enum _plDrawFlags
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+typedef union _plFontHandle
+{ 
+    struct
+    {
+        uint32_t uIndex;
+        uint32_t uGeneration;
+    }; 
+    uint64_t ulData;
+} plFontHandle;
+
 typedef struct _plFontRange
 {
     int         iFirstCodePoint;
@@ -205,7 +215,6 @@ typedef struct _plFontConfig
 typedef struct _plFont
 {
     plFontConfig tConfig;
-    plFontAtlas* ptParentAtlas;
     float        fLineSpacing;
     float        fAscent;
     float        fDescent;
@@ -214,22 +223,6 @@ typedef struct _plFont
     plFontGlyph* sbtGlyphs;     // glyphs
     plFontChar*  sbtCharData;
 } plFont;
-
-typedef struct _plFontAtlas
-{
-    plFont*           sbtFonts;
-    plFontCustomRect* sbtCustomRects;
-    unsigned char*    pucPixelsAsAlpha8;
-    unsigned char*    pucPixelsAsRGBA32;
-    uint32_t          auAtlasSize[2];
-    float             afWhiteUv[2];
-    bool              bDirty;
-    int               iGlyphPadding;
-    size_t            szPixelDataSize;
-    plFontCustomRect* ptWhiteRect;
-    plTextureHandle    tTexture;
-    plFontPrepData*   _sbtPrepData;
-} plFontAtlas;
 
 typedef struct _plFontCustomRect
 {

@@ -70,7 +70,7 @@ typedef int plUiColor;            // -> enum plUiColor_            // Enum: An i
 // external
 typedef struct _plDrawList2D    plDrawList2D;    // pl_draw_ext.h
 typedef struct _plDrawLayer2D   plDrawLayer2D;   // pl_draw_ext.h
-typedef struct _plFont          plFont;          // pl_draw_ext.h
+typedef union  _plFontHandle    plFontHandle;    // pl_draw_ext.h
 typedef struct _plRenderEncoder plRenderEncoder; // pl_graphics_ext.h
 typedef union  plTextureHandle  plTextureHandle; // pl_graphics_ext.h
 
@@ -104,8 +104,8 @@ typedef struct _plUiI
     void (*pop_theme_color) (uint32_t uCount);
 
     // fonts
-    void    (*set_default_font)(plFont* ptFont);
-    plFont* (*get_default_font)(void);
+    void         (*set_default_font)(plFontHandle);
+    plFontHandle (*get_default_font)(void);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~windows~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

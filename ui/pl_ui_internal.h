@@ -447,14 +447,13 @@ typedef struct _plUiContext
     // drawing
     plDrawList2D*      ptDrawlist;             // main ui drawlist
     plDrawList2D*      ptDebugDrawlist;        // ui debug drawlist (i.e. overlays)
-    plFont*            ptFont;                 // current font
+    plFontHandle       tFont;                  // current font
     plDrawLayer2D*     ptBgLayer;              // submitted before window layers
     plDrawLayer2D*     ptFgLayer;              // submitted after window layers
     plDrawLayer2D*     ptDebugLayer;           // submitted last
 
     // drawing context
     plDrawList2D** sbDrawlists;
-    plFontAtlas*   fontAtlas;
     plVec2         tFrameBufferScale;
 } plUiContext;
 
@@ -463,9 +462,9 @@ typedef struct _plUiContext
 //-----------------------------------------------------------------------------
 
 const char*          pl_find_renderered_text_end(const char* pcText, const char* pcTextEnd);
-void                 pl_ui_add_text             (plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
-void                 pl_add_clipped_text        (plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
-plVec2               pl_ui_calculate_text_size     (plFont* font, float size, const char* text, float wrap);
+void                 pl_ui_add_text             (plDrawLayer2D* ptLayer, plFontHandle, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
+void                 pl_add_clipped_text        (plDrawLayer2D* ptLayer, plFontHandle, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
+plVec2               pl_ui_calculate_text_size  (plFontHandle, float size, const char* text, float wrap);
 static inline float  pl_get_frame_height        (void) { return gptCtx->tStyle.fFontSize + gptCtx->tStyle.tFramePadding.y * 2.0f; }
 
 // collision

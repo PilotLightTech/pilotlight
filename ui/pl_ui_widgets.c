@@ -10,7 +10,7 @@
 static plVec2
 pl__input_text_calc_text_size_w(const plUiWChar* text_begin, const plUiWChar* text_end, const plUiWChar** remaining, plVec2* out_offset, bool stop_on_new_line)
 {
-    plFont* font = gptCtx->ptFont;
+    plFont* font = gptDraw->get_font(gptCtx->tFont);
     const float line_height = gptCtx->tStyle.fFontSize;
     const float scale = line_height / font->tConfig.fFontSize;
 
@@ -55,7 +55,7 @@ pl__input_text_calc_text_size_w(const plUiWChar* text_begin, const plUiWChar* te
 
 static int     STB_TEXTEDIT_STRINGLEN(const plUiInputTextState* obj)                             { return obj->iCurrentLengthW; }
 static plUiWChar STB_TEXTEDIT_GETCHAR(const plUiInputTextState* obj, int idx)                      { return obj->sbTextW[idx]; }
-static float   STB_TEXTEDIT_GETWIDTH(plUiInputTextState* obj, int line_start_idx, int char_idx)  { plUiWChar c = obj->sbTextW[line_start_idx + char_idx]; if (c == '\n') return STB_TEXTEDIT_GETWIDTH_NEWLINE; return gptCtx->ptFont->sbtGlyphs[gptCtx->ptFont->sbuCodePoints[c]].xAdvance * (gptCtx->tStyle.fFontSize / gptCtx->ptFont->tConfig.fFontSize); }
+static float   STB_TEXTEDIT_GETWIDTH(plUiInputTextState* obj, int line_start_idx, int char_idx)  { plUiWChar c = obj->sbTextW[line_start_idx + char_idx]; if (c == '\n') return STB_TEXTEDIT_GETWIDTH_NEWLINE; plFont* font = gptDraw->get_font(gptCtx->tFont); return font->sbtGlyphs[font->sbuCodePoints[c]].xAdvance * (gptCtx->tStyle.fFontSize / font->tConfig.fFontSize); }
 static int     STB_TEXTEDIT_KEYTOTEXT(int key)                                                    { return key >= 0x200000 ? 0 : key; }
 static plUiWChar STB_TEXTEDIT_NEWLINE = '\n';
 static void    STB_TEXTEDIT_LAYOUTROW(StbTexteditRow* r, plUiInputTextState* obj, int line_start_idx)
@@ -414,8 +414,8 @@ pl_button(const char* pcText)
         else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonHoveredCol);
         else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonCol);
 
-        const plVec2 tTextSize = pl_ui_calculate_text_size(gptCtx->ptFont, gptCtx->tStyle.fFontSize, pcText, -1.0f);
-        const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
+        const plVec2 tTextSize = pl_ui_calculate_text_size(gptCtx->tFont, gptCtx->tStyle.fFontSize, pcText, -1.0f);
+        const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
 
         plVec2 tTextStartPos = {
@@ -428,7 +428,7 @@ pl_button(const char* pcText)
         else // not clipping, so center on widget
             tTextStartPos.x += tStartPos.x + tWidgetSize.x / 2.0f - tTextActualCenter.x;
 
-        pl_add_clipped_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, tBoundingBox.tMin, tBoundingBox.tMax, gptCtx->tColorScheme.tTextCol, pcText, 0.0f);
+        pl_add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, tBoundingBox.tMin, tBoundingBox.tMax, gptCtx->tColorScheme.tTextCol, pcText, 0.0f);
     }
     pl_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed;
@@ -452,7 +452,7 @@ pl_selectable(const char* pcText, bool* bpValue)
     {
         const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
 
-        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
+        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
 
         const plVec2 tTextStartPos = {
@@ -478,7 +478,7 @@ pl_selectable(const char* pcText, bool* bpValue)
         if(*bpValue)
             gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderCol);
 
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
     }
     pl_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed; 
@@ -501,7 +501,7 @@ pl_checkbox(const char* pcText, bool* bpValue)
     {
         const bool bOriginalValue = *bpValue;
         const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
-        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
+        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
 
 
@@ -528,7 +528,7 @@ pl_checkbox(const char* pcText, bool* bpValue)
             gptDraw->add_line(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tCheckmarkCol, 2.0f);
 
         // add label
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f); 
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f); 
     }
     pl_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed;
@@ -546,8 +546,8 @@ pl_radio_button(const char* pcText, int* piValue, int iButtonValue)
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
         const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
-        const plVec2 tTextSize = pl_ui_calculate_text_size(gptCtx->ptFont, gptCtx->tStyle.fFontSize, pcText, -1.0f);
-        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
+        const plVec2 tTextSize = pl_ui_calculate_text_size(gptCtx->tFont, gptCtx->tStyle.fFontSize, pcText, -1.0f);
+        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
 
         const plVec2 tSize = {tTextSize.x + 2.0f * gptCtx->tStyle.tFramePadding.x + gptCtx->tStyle.tInnerSpacing.x + tWidgetSize.y, tWidgetSize.y};
@@ -576,7 +576,7 @@ pl_radio_button(const char* pcText, int* piValue, int iButtonValue)
         if(*piValue == iButtonValue)
             gptDraw->add_circle_filled(ptWindow->ptFgLayer, (plVec2){tStartPos.x + tWidgetSize.y / 2.0f, tStartPos.y + tWidgetSize.y / 2.0f}, gptCtx->tStyle.fFontSize / 2.5f, gptCtx->tColorScheme.tCheckmarkCol, 12);
 
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
     }
     pl_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed;
@@ -593,7 +593,7 @@ pl_collapsing_header(const char* pcText)
     bool* pbOpenState = pl_get_bool_ptr(&ptWindow->tStorage, uHash, false);
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
-        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
+        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
 
         const plVec2 tTextStartPos = {
@@ -632,7 +632,7 @@ pl_collapsing_header(const char* pcText)
             gptDraw->add_triangle_filled(ptWindow->ptFgLayer, pointPos, rightPos, leftPos, (plVec4){1.0f, 1.0f, 1.0f, 1.0f});
         }
 
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
     }
     if(*pbOpenState)
         pl_sb_push(ptWindow->sbtRowStack, ptWindow->tTempData.tCurrentLayoutRow);
@@ -662,7 +662,7 @@ pl_tree_node(const char* pcText)
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
 
-        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
+        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
 
         plRect tBoundingBox = pl_calculate_rect(tStartPos, tWidgetSize);
@@ -699,7 +699,7 @@ pl_tree_node(const char* pcText)
             .x = tStartPos.x + tWidgetSize.y * 1.5f,
             .y = tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y
         };
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
     }
     pl_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 
@@ -825,10 +825,10 @@ pl_begin_tab(const char* pcText)
 
     if(ptTabBar->uValue == 0u) ptTabBar->uValue = uHash;
 
-    const plVec2 tTextSize = pl_ui_calculate_text_size(gptCtx->ptFont, gptCtx->tStyle.fFontSize, pcText, -1.0f);
+    const plVec2 tTextSize = pl_ui_calculate_text_size(gptCtx->tFont, gptCtx->tStyle.fFontSize, pcText, -1.0f);
     const plVec2 tStartPos = ptTabBar->tCursorPos;
 
-    plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
+    plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
     const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
 
     const plVec2 tFinalSize = {tTextSize.x + 2.0f * gptCtx->tStyle.tFramePadding.x, fFrameHeight};
@@ -853,7 +853,7 @@ pl_begin_tab(const char* pcText)
     else if(ptTabBar->uValue == uHash)   gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonActiveCol);
     else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonCol);
     
-    pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
+    pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
 
     ptTabBar->tCursorPos.x += gptCtx->tStyle.tInnerSpacing.x + tFinalSize.x;
     ptTabBar->uCurrentIndex++;
@@ -916,9 +916,9 @@ pl_text_v(const char* pcFmt, va_list args)
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
         pl_vsprintf(acTempBuffer, pcFmt, args);
-        const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tStartPos, acTempBuffer, pl_find_renderered_text_end(acTempBuffer, NULL), -1.0f);
+        const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, acTempBuffer, pl_find_renderered_text_end(acTempBuffer, NULL), -1.0f);
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, acTempBuffer, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, acTempBuffer, -1.0f);
     }
     pl_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 }
@@ -943,9 +943,9 @@ pl_color_text_v(plVec4 tColor, const char* pcFmt, va_list args)
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
         pl_vsprintf(acTempBuffer, pcFmt, args);
-        const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tStartPos, acTempBuffer, pl_find_renderered_text_end(acTempBuffer, NULL), -1.0f);
+        const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, acTempBuffer, pl_find_renderered_text_end(acTempBuffer, NULL), -1.0f);
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, tColor, acTempBuffer, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, tColor, acTempBuffer, -1.0f);
     }
     pl_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 }
@@ -969,12 +969,12 @@ pl_labeled_text_v(const char* pcLabel, const char* pcFmt, va_list args)
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
         pl_vsprintf(acTempBuffer, pcFmt, args);
-        const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tStartPos, acTempBuffer, pl_find_renderered_text_end(acTempBuffer, NULL), -1.0f);
+        const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, acTempBuffer, pl_find_renderered_text_end(acTempBuffer, NULL), -1.0f);
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
 
         const plVec2 tStartLocation = {tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y};
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, pl_add_vec2(tStartLocation, (plVec2){(tWidgetSize.x / 3.0f), 0.0f}), gptCtx->tColorScheme.tTextCol, acTempBuffer, -1.0f);
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tStartLocation, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_add_vec2(tStartLocation, (plVec2){(tWidgetSize.x / 3.0f), 0.0f}), gptCtx->tColorScheme.tTextCol, acTempBuffer, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartLocation, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
     }
     pl_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 }
@@ -1032,6 +1032,7 @@ pl_input_int(const char* pcLabel, int* piValue)
 bool
 pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t szBufferSize, plUiInputTextFlags tFlags)
 {
+    plFont* font = gptDraw->get_font(gptCtx->tFont);
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const plVec2 tMousePos = gptIOI->get_mouse_pos();
 
@@ -1048,7 +1049,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
     const plVec2 tFrameStartPos = {floorf(tStartPos.x + (tWidgetSize.x / 3.0f)), tStartPos.y };
     const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
 
-    const plRect tLabelTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tFrameStartPos, pcLabel, pl_find_renderered_text_end(pcLabel, NULL), -1.0f);
+    const plRect tLabelTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tFrameStartPos, pcLabel, pl_find_renderered_text_end(pcLabel, NULL), -1.0f);
     const plVec2 tLabelTextActualCenter = pl_rect_center(&tLabelTextBounding);
 
     const plVec2 tFrameSize = { 2.0f * (tWidgetSize.x / 3.0f), tWidgetSize.y};
@@ -1818,7 +1819,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
                 else
                 {
                     plVec2 rect_size = pl__input_text_calc_text_size_w(p, text_selected_end, &p, NULL, true);
-                    if (rect_size.x <= 0.0f) rect_size.x = floorf(gptCtx->ptFont->sbtGlyphs[gptCtx->ptFont->sbuCodePoints[(plUiWChar)' ']].xAdvance * 0.50f); // So we can see selected empty lines
+                    if (rect_size.x <= 0.0f) rect_size.x = floorf(font->sbtGlyphs[font->sbuCodePoints[(plUiWChar)' ']].xAdvance * 0.50f); // So we can see selected empty lines
                     plRect rect = {
                         pl_add_vec2(rect_pos, (plVec2){0.0f, bg_offy_up - gptCtx->tStyle.fFontSize}), 
                         pl_add_vec2(rect_pos, (plVec2){rect_size.x, bg_offy_dn})
@@ -1836,7 +1837,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
         if (bIsMultiLine || (pcBufferDisplayEnd - pcBufferDisplay) < iBufferDisplayMaxLength)
         {
             // ImU32 col = GetColorU32(bIsDisplayingHint ? ImGuiCol_TextDisabled : ImGuiCol_Text);
-            gptDraw->add_text_ex(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, pl_sub_vec2(draw_pos, draw_scroll), gptCtx->tColorScheme.tTextCol, 
+            gptDraw->add_text_ex(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_sub_vec2(draw_pos, draw_scroll), gptCtx->tColorScheme.tTextCol, 
                 pcBufferDisplay, pcBufferDisplayEnd, 0.0f);
             // draw_window->DrawList->AddText(g.Font, gptCtx->tStyle.fFontSize, draw_pos - draw_scroll, col, pcBufferDisplay, pcBufferDisplayEnd, 0.0f, bIsMultiLine ? NULL : &clip_rect);
         }
@@ -1876,7 +1877,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
 
         if (bIsMultiLine || (pcBufferDisplayEnd - pcBufferDisplay) < iBufferDisplayMaxLength)
         {
-            gptDraw->add_text_ex(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, draw_pos, gptCtx->tColorScheme.tTextCol, 
+            gptDraw->add_text_ex(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, draw_pos, gptCtx->tColorScheme.tTextCol, 
                 pcBufferDisplay, pcBufferDisplayEnd, 0.0f);
         }
     }
@@ -1908,7 +1909,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
     // if (pcLabel.x > 0)
     {
         // RenderText(ImVec2(frame_bb.Max.x + style.ItemInnerSpacing.x, frame_bb.Min.y + style.FramePadding.y), label);
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
     }
 
     // if (value_changed && !(flags & ImGuiInputTextFlags_NoMarkEdited))
@@ -1938,8 +1939,8 @@ pl_slider_float_f(const char* pcLabel, float* pfValue, float fMin, float fMax, c
 
         char acTextBuffer[64] = {0};
         pl_sprintf(acTextBuffer, pcFormat, *pfValue);
-        const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tFrameStartPos, acTextBuffer, pl_find_renderered_text_end(acTextBuffer, NULL), -1.0f);
-        const plRect tLabelTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tFrameStartPos, pcLabel, pl_find_renderered_text_end(pcLabel, NULL), -1.0f);
+        const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tFrameStartPos, acTextBuffer, pl_find_renderered_text_end(acTextBuffer, NULL), -1.0f);
+        const plRect tLabelTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tFrameStartPos, pcLabel, pl_find_renderered_text_end(pcLabel, NULL), -1.0f);
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
         const plVec2 tLabelTextActualCenter = pl_rect_center(&tLabelTextBounding);
 
@@ -1971,8 +1972,8 @@ pl_slider_float_f(const char* pcLabel, float* pfValue, float fMin, float fMax, c
         else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgCol);
 
         gptDraw->add_rect_filled(ptWindow->ptFgLayer, tGrabStartPos, tGrabBox.tMax, gptCtx->tColorScheme.tButtonCol);
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, acTextBuffer, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, acTextBuffer, -1.0f);
 
         bool bDragged = false;
         if(gptCtx->uActiveId == uHash && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
@@ -2014,8 +2015,8 @@ pl_slider_int_f(const char* pcLabel, int* piValue, int iMin, int iMax, const cha
 
         char acTextBuffer[64] = {0};
         pl_sprintf(acTextBuffer, pcFormat, *piValue);
-        const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tFrameStartPos, acTextBuffer, pl_find_renderered_text_end(acTextBuffer, NULL), -1.0f);
-        const plRect tLabelTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tFrameStartPos, pcLabel, pl_find_renderered_text_end(pcLabel, NULL), -1.0f);
+        const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tFrameStartPos, acTextBuffer, pl_find_renderered_text_end(acTextBuffer, NULL), -1.0f);
+        const plRect tLabelTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tFrameStartPos, pcLabel, pl_find_renderered_text_end(pcLabel, NULL), -1.0f);
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
         const plVec2 tLabelTextActualCenter = pl_rect_center(&tLabelTextBounding);
 
@@ -2045,8 +2046,8 @@ pl_slider_int_f(const char* pcLabel, int* piValue, int iMin, int iMax, const cha
         else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgCol);
 
         gptDraw->add_rect_filled(ptWindow->ptFgLayer, tGrabStartPos, tGrabBox.tMax, gptCtx->tColorScheme.tButtonCol);
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, acTextBuffer, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, acTextBuffer, -1.0f);
 
         bool bDragged = false;
         if(gptCtx->uActiveId == uHash && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
@@ -2089,8 +2090,8 @@ pl_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin, f
 
         char acTextBuffer[64] = {0};
         pl_sprintf(acTextBuffer, pcFormat, *pfValue);
-        const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tFrameStartPos, acTextBuffer, pl_find_renderered_text_end(acTextBuffer, NULL), -1.0f);
-        const plRect tLabelTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tFrameStartPos, pcLabel, pl_find_renderered_text_end(pcLabel, NULL), -1.0f);
+        const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tFrameStartPos, acTextBuffer, pl_find_renderered_text_end(acTextBuffer, NULL), -1.0f);
+        const plRect tLabelTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tFrameStartPos, pcLabel, pl_find_renderered_text_end(pcLabel, NULL), -1.0f);
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
         const plVec2 tLabelTextActualCenter = pl_rect_center(&tLabelTextBounding);
 
@@ -2111,8 +2112,8 @@ pl_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin, f
         else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgHoveredCol);
         else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgCol);
 
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, acTextBuffer, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, acTextBuffer, -1.0f);
 
         bool bDragged = false;
         if(gptCtx->uActiveId == uHash && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
@@ -2252,8 +2253,8 @@ pl_progress_bar(float fFraction, plVec2 tSize, const char* pcOverlay)
             pcTextPtr = acBuffer;
         }
 
-        const plVec2 tTextSize = pl_ui_calculate_text_size(gptCtx->ptFont, gptCtx->tStyle.fFontSize, pcTextPtr, -1.0f);
-        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->ptFont, gptCtx->tStyle.fFontSize, tStartPos, pcTextPtr, pl_find_renderered_text_end(pcTextPtr, NULL), -1.0f);
+        const plVec2 tTextSize = pl_ui_calculate_text_size(gptCtx->tFont, gptCtx->tStyle.fFontSize, pcTextPtr, -1.0f);
+        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, pcTextPtr, pl_find_renderered_text_end(pcTextPtr, NULL), -1.0f);
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
 
         plVec2 tTextStartPos = {
@@ -2264,7 +2265,7 @@ pl_progress_bar(float fFraction, plVec2 tSize, const char* pcOverlay)
         if(tTextStartPos.x + tTextSize.x > tStartPos.x + tSize.x)
             tTextStartPos.x = tStartPos.x + tSize.x - tTextSize.x - gptCtx->tStyle.tInnerSpacing.x;
 
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcTextPtr, -1.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcTextPtr, -1.0f);
 
         const bool bHovered = gptIOI->is_mouse_hovering_rect(tStartPos, pl_add_vec2(tStartPos, tWidgetSize)) && ptWindow == gptCtx->ptHoveredWindow;
         gptCtx->tPrevItemData.bHovered = bHovered;

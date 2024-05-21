@@ -91,7 +91,6 @@ typedef struct plAppData_t
 
     // drawing
     plDrawLayer2D* ptDrawLayer;
-    plFontAtlas   tFontAtlas;
 
     // sync
     plSemaphoreHandle atSempahore[PL_FRAMES_IN_FLIGHT];
@@ -210,12 +209,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // setup draw
     gptDraw->initialize(gptRenderer->get_graphics());
-    gptDraw->add_default_font(&ptAppData->tFontAtlas);
-    gptDraw->build_font_atlas(&ptAppData->tFontAtlas);
+    plFontHandle tDefaultFont = gptDraw->add_default_font();
+    gptDraw->build_font_atlas();
 
     // setup ui
     gptUi->initialize();
-    gptUi->set_default_font(&ptAppData->tFontAtlas.sbtFonts[0]);
+    gptUi->set_default_font(tDefaultFont);
 
     // sync
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
@@ -295,7 +294,7 @@ pl_app_shutdown(plAppData* ptAppData)
     gptJobs->cleanup();
     // ensure GPU is finished before cleanup
     gptDevice->flush_device(&gptRenderer->get_graphics()->tDevice);
-    gptDraw->cleanup_font_atlas(&ptAppData->tFontAtlas);
+    gptDraw->cleanup_font_atlas();
     gptUi->cleanup();
     gptDraw->cleanup();
     gptRenderer->cleanup();

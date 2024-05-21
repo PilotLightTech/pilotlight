@@ -78,7 +78,6 @@ typedef struct _plAppData
     bool bShowUiDemo;
 
     // drawing
-    plFontAtlas    tFontAtlas;
     plDrawList2D*  ptAppDrawlist;
     plDrawLayer2D* ptFGLayer;
 
@@ -212,8 +211,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // setup draw
     gptDraw->initialize(&ptAppData->tGraphics);
-    gptDraw->add_default_font(&ptAppData->tFontAtlas);
-    gptDraw->build_font_atlas(&ptAppData->tFontAtlas);
 
     // request drawlists
     ptAppData->ptAppDrawlist = gptDraw->request_2d_drawlist();
@@ -360,7 +357,6 @@ pl_app_shutdown(plAppData* ptAppData)
 {
     // ensure GPU is finished before cleanup
     gptDevice->flush_device(&ptAppData->tGraphics.tDevice);
-    gptDraw->cleanup_font_atlas(&ptAppData->tFontAtlas);
     gptDraw->cleanup();
 
     // cleanup textures

@@ -322,15 +322,15 @@ pl_pop_theme_color(uint32_t uCount)
 }
 
 void
-pl_set_default_font(plFont* ptFont)
+pl_set_default_font(plFontHandle tFont)
 {
-    gptCtx->ptFont = ptFont;
+    gptCtx->tFont = tFont;
 }
 
-plFont*
+plFontHandle
 pl_get_default_font(void)
 {
-    return gptCtx->ptFont;
+    return gptCtx->tFont;
 }
 
 void
@@ -1511,24 +1511,24 @@ pl_is_item_hoverable_circle(plVec2 tP, float fRadius, uint32_t uHash)
 }
 
 void
-pl_ui_add_text(plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap)
+pl_ui_add_text(plDrawLayer2D* ptLayer, plFontHandle tFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap)
 {
     const char* pcTextEnd = pcText + strlen(pcText);
-    gptDraw->add_text_ex(ptLayer, ptFont, fSize, (plVec2){roundf(tP.x), roundf(tP.y)}, tColor, pcText, pl_find_renderered_text_end(pcText, pcTextEnd), fWrap);
+    gptDraw->add_text_ex(ptLayer, tFont, fSize, (plVec2){roundf(tP.x), roundf(tP.y)}, tColor, pcText, pl_find_renderered_text_end(pcText, pcTextEnd), fWrap);
 }
 
 void
-pl_add_clipped_text(plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap)
+pl_add_clipped_text(plDrawLayer2D* ptLayer, plFontHandle tFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap)
 {
     const char* pcTextEnd = pcText + strlen(pcText);
-    gptDraw->add_text_clipped_ex(ptLayer, ptFont, fSize, (plVec2){roundf(tP.x + 0.5f), roundf(tP.y + 0.5f)}, tMin, tMax, tColor, pcText, pl_find_renderered_text_end(pcText, pcTextEnd), fWrap);   
+    gptDraw->add_text_clipped_ex(ptLayer, tFont, fSize, (plVec2){roundf(tP.x + 0.5f), roundf(tP.y + 0.5f)}, tMin, tMax, tColor, pcText, pl_find_renderered_text_end(pcText, pcTextEnd), fWrap);   
 }
 
 plVec2
-pl_ui_calculate_text_size(plFont* font, float size, const char* text, float wrap)
+pl_ui_calculate_text_size(plFontHandle tFont, float size, const char* text, float wrap)
 {
     const char* pcTextEnd = text + strlen(text);
-    return gptDraw->calculate_text_size_ex(font, size, text, pl_find_renderered_text_end(text, pcTextEnd), wrap);  
+    return gptDraw->calculate_text_size_ex(tFont, size, text, pl_find_renderered_text_end(text, pcTextEnd), wrap);  
 }
 
 bool
@@ -1572,7 +1572,7 @@ pl_begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     pl_sb_push(gptCtx->sbuIdStack, uWindowID);
 
     // title text & title bar sizes
-    const plVec2 tTextSize = pl_ui_calculate_text_size(gptCtx->ptFont, gptCtx->tStyle.fFontSize, pcName, 0.0f);
+    const plVec2 tTextSize = pl_ui_calculate_text_size(gptCtx->tFont, gptCtx->tStyle.fFontSize, pcName, 0.0f);
     float fTitleBarHeight = (tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW) ? 0.0f : gptCtx->tStyle.fFontSize + 2.0f * gptCtx->tStyle.fTitlePadding;
 
     // see if window already exist in storage
@@ -1713,7 +1713,7 @@ pl_begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
         // draw title text
         const plVec2 titlePos = pl_add_vec2(tStartPos, (plVec2){ptWindow->tSize.x / 2.0f - tTextSize.x / 2.0f, gptCtx->tStyle.fTitlePadding});
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->ptFont, gptCtx->tStyle.fFontSize, titlePos, gptCtx->tColorScheme.tTextCol, pcName, 0.0f);
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, titlePos, gptCtx->tColorScheme.tTextCol, pcName, 0.0f);
 
         // draw close button
         const float fTitleBarButtonRadius = 8.0f;
