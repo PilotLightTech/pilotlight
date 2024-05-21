@@ -1848,6 +1848,8 @@ pl_cleanup_font_atlas(void)
     }
     pl_sb_free(gptCtx->tFontAtlas.sbtCustomRects);
     pl_sb_free(gptCtx->tFontAtlas.sbtFonts);
+    pl_sb_free(gptCtx->tFontAtlas.sbtFontFreeIndices);
+    pl_sb_free(gptCtx->tFontAtlas.sbtFontGenerations);
     pl_sb_free(gptCtx->tFontAtlas._sbtPrepData);
     PL_FREE(gptCtx->tFontAtlas.pucPixelsAsAlpha8);
     PL_FREE(gptCtx->tFontAtlas.pucPixelsAsRGBA32);

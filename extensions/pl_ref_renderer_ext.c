@@ -2757,6 +2757,7 @@ pl_refr_run_ecs(uint32_t uSceneHandle)
 {
     pl_begin_profile_sample(__FUNCTION__);
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+    gptECS->run_script_update_system(&ptScene->tComponentLibrary);
     gptECS->run_animation_update_system(&ptScene->tComponentLibrary, gptIO->get_io()->fDeltaTime);
     gptECS->run_transform_update_system(&ptScene->tComponentLibrary);
     gptECS->run_hierarchy_update_system(&ptScene->tComponentLibrary);

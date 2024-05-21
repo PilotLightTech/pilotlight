@@ -42,7 +42,7 @@ jobs:
       run: |
         set VULKAN_SDK=C:\VulkanSDK\1.3.224.1
         cd $GITHUB_WORKSPACE
-        cd scripts
+        cd tools
         python gen_build.py
         python gen_examples.py
         cd ../src
@@ -68,13 +68,14 @@ jobs:
         if not exist ../out/pl_ref_renderer_ext.dll exit 1
         if not exist ../out/pl_draw_ext.dll exit 1
         if not exist ../out/pl_ui_ext.dll exit 1
+        if not exist ../out/pl_camera_script.dll exit 1
         if not exist ../out/pilotlight.lib exit 1
 
     - name: Package Pilot Light
       shell: cmd
       run: |
         cd $GITHUB_WORKSPACE
-        cd scripts
+        cd tools
         python package.py
 
     - name: Upload Pilot Light
@@ -100,7 +101,7 @@ jobs:
     - name: Build Pilot Light
       run: |
         cd $GITHUB_WORKSPACE
-        cd scripts
+        cd tools
         python3 gen_build.py
         python3 gen_examples.py
         cd ../src
@@ -132,12 +133,13 @@ jobs:
         test -f ./out/pl_ref_renderer_ext.dylib || exit 1
         test -f ./out/pl_draw_ext.dylib || exit 1
         test -f ./out/pl_ui_ext.dylib || exit 1
+        test -f ./out/pl_camera_script.dylib || exit 1
         test -f ./out/pilotlight.a || exit 1
 
     - name: Package Pilot Light
       run: |
         cd $GITHUB_WORKSPACE
-        cd scripts
+        cd tools
         python3 package.py
 
     - name: Upload Pilot Light
@@ -177,7 +179,7 @@ jobs:
     - name: Build Pilot Light
       run: |
         cd $GITHUB_WORKSPACE
-        cd scripts
+        cd tools
         python3 gen_build.py
         python3 gen_examples.py
         cd ../src
@@ -209,12 +211,13 @@ jobs:
         test -f ./out/pl_ref_renderer_ext.so || exit 1
         test -f ./out/pl_draw_ext.so || exit 1
         test -f ./out/pl_ui_ext.so || exit 1
+        test -f ./out/pl_camera_script.so || exit 1
         test -f ./out/pilotlight.a || exit 1
 
     - name: Package Pilot Light
       run: |
         cd $GITHUB_WORKSPACE
-        cd scripts
+        cd tools
         python3 package.py
         pwd
 
