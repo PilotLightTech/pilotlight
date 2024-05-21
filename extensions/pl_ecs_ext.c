@@ -643,7 +643,8 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
             pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
         sbComponents[uComponentIndex] = (plAnimationComponent){
-            .fSpeed = 1.0f
+            .fSpeed       = 1.0f,
+            .fBlendAmount = 1.0f
         };
         return &sbComponents[uComponentIndex];
     }
@@ -1145,16 +1146,18 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
                     {
                         const plVec3 tPrev = *(plVec3*)&ptData->sbfKeyFrameData[iPrevKey * 3];
                         const plVec3 tNext = *(plVec3*)&ptData->sbfKeyFrameData[iNextKey * 3];
-                        ptTransform->tTranslation = (plVec3){
+                        const plVec3 tTranslation = (plVec3){
                             .x = tPrev.x * (1.0f - fTn) + tNext.x * fTn,
                             .y = tPrev.y * (1.0f - fTn) + tNext.y * fTn,
                             .z = tPrev.z * (1.0f - fTn) + tNext.z * fTn,
-                        };    
+                        };
+                        ptTransform->tTranslation = pl_lerp_vec3(ptTransform->tTranslation, tTranslation, ptAnimationComponent->fBlendAmount);
                     }
 
                     else if(ptSampler->tMode == PL_ANIMATION_MODE_STEP)
                     {
-                        ptTransform->tTranslation = *(plVec3*)&ptData->sbfKeyFrameData[iPrevKey * 3];
+                        const plVec3 tTranslation = *(plVec3*)&ptData->sbfKeyFrameData[iPrevKey * 3];
+                        ptTransform->tTranslation = pl_lerp_vec3(ptTransform->tTranslation, tTranslation, ptAnimationComponent->fBlendAmount);
                     }
 
                     else if(ptSampler->tMode == PL_ANIMATION_MODE_CUBIC_SPLINE)
@@ -1164,14 +1167,16 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
                         const int iV = 1 * 3;
                         const int iB = 2 * 3;
 
+                        plVec3 tTranslation = {0};
                         for(uint32_t k = 0; k < 3; k++)
                         {
                             const float iV0 = *(float*)&ptData->sbfKeyFrameData[iPrevIndex + k + iV];
                             const float a = fKeyDelta * *(float*)&ptData->sbfKeyFrameData[iNextIndex + k + iA];
                             const float b = fKeyDelta * *(float*)&ptData->sbfKeyFrameData[iPrevIndex + k + iB];
                             const float v1 = *(float*)&ptData->sbfKeyFrameData[iNextIndex + k + iV];
-                            ptTransform->tTranslation.d[k] = ((2 * fTCub - 3 * fTSq + 1) * iV0) + ((fTCub - 2 * fTSq + fTn) * b) + ((-2 * fTCub + 3 * fTSq) * v1) + ((fTCub - fTSq) * a);
+                            tTranslation.d[k] = ((2 * fTCub - 3 * fTSq + 1) * iV0) + ((fTCub - 2 * fTSq + fTn) * b) + ((-2 * fTCub + 3 * fTSq) * v1) + ((fTCub - fTSq) * a);
                         }
+                        ptTransform->tTranslation = pl_lerp_vec3(ptTransform->tTranslation, tTranslation, ptAnimationComponent->fBlendAmount);
                     }
                     break;
                 }
@@ -1221,11 +1226,13 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
                     {
                         const plVec4 tQ0 = *(plVec4*)&ptData->sbfKeyFrameData[iPrevKey * 4];
                         const plVec4 tQ1 = *(plVec4*)&ptData->sbfKeyFrameData[iNextKey * 4];
-                        ptTransform->tRotation = pl_quat_slerp(tQ0, tQ1, fTn);
+                        const plVec4 tRotation = pl_quat_slerp(tQ0, tQ1, fTn);
+                        ptTransform->tRotation = pl_quat_slerp(ptTransform->tRotation, tRotation, ptAnimationComponent->fBlendAmount);
                     }
                     else if(ptSampler->tMode == PL_ANIMATION_MODE_STEP)
                     {
-                        ptTransform->tRotation = *(plVec4*)&ptData->sbfKeyFrameData[iPrevKey * 4];
+                        const plVec4 tRotation = *(plVec4*)&ptData->sbfKeyFrameData[iPrevKey * 4];
+                        ptTransform->tRotation = pl_quat_slerp(ptTransform->tRotation, tRotation, ptAnimationComponent->fBlendAmount);
                     }
                     else if(ptSampler->tMode == PL_ANIMATION_MODE_CUBIC_SPLINE)
                     {
@@ -1235,7 +1242,6 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
                         const int iB = 2 * 4;
 
                         plVec4 tResult = {0};
-
                         for(uint32_t k = 0; k < 4; k++)
                         {
                             const float iV0 = *(float*)&ptData->sbfKeyFrameData[iPrevIndex + k + iV];
@@ -1245,12 +1251,11 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
 
                             tResult.d[k] = ((2 * fTCub - 3 * fTSq + 1) * iV0) + ((fTCub - 2 * fTSq + fTn) * b) + ((-2 * fTCub + 3 * fTSq) * iV1) + ((fTCub - fTSq) * a);
                         }
+                        ptTransform->tRotation = pl_quat_slerp(ptTransform->tRotation, tResult, ptAnimationComponent->fBlendAmount);
                     }
                     break;
                 }
             }
-
-            ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
         }
     }
 

@@ -4875,7 +4875,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     ptExtensionRegistry->load("pl_stats_ext",          NULL, NULL, false);
     ptExtensionRegistry->load("pl_graphics_ext",       NULL, NULL, false);
     ptExtensionRegistry->load("pl_gpu_allocators_ext", NULL, NULL, false);
-    ptExtensionRegistry->load("pl_ecs_ext",            NULL, NULL, false);
+    ptExtensionRegistry->load("pl_ecs_ext",            NULL, NULL, true);
     ptExtensionRegistry->load("pl_resource_ext",       NULL, NULL, false);
     ptExtensionRegistry->load("pl_draw_ext",           NULL, NULL, true);
     ptExtensionRegistry->load("pl_ui_ext",             NULL, NULL, true);

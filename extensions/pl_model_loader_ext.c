@@ -906,7 +906,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     // load required extensions (may already be loaded)
     const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
     ptExtensionRegistry->load("pl_resource_ext", NULL, NULL, false);
-    ptExtensionRegistry->load("pl_ecs_ext", NULL, NULL, false);
+    ptExtensionRegistry->load("pl_ecs_ext", NULL, NULL, true);
 
     // load required APIs
     gptResource = ptApiRegistry->first(PL_API_RESOURCE);
