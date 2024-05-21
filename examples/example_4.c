@@ -42,7 +42,6 @@ Index of this file:
 // extensions
 #include "pl_graphics_ext.h"
 #include "pl_draw_ext.h"
-#include "pl_gpu_allocators_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -106,12 +105,11 @@ typedef struct _plAppData
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-const plIOI*            gptIO            = NULL;
-const plWindowI*        gptWindows       = NULL;
-const plGraphicsI*      gptGfx           = NULL;
-const plDeviceI*        gptDevice        = NULL;
-const plDrawI*          gptDraw          = NULL;
-const plGPUAllocatorsI* gptGpuAllocators = NULL;
+const plIOI*       gptIO      = NULL;
+const plWindowI*   gptWindows = NULL;
+const plGraphicsI* gptGfx     = NULL;
+const plDeviceI*   gptDevice  = NULL;
+const plDrawI*     gptDraw    = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper function declarations
@@ -154,12 +152,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
         // re-retrieve the apis since we are now in
         // a different dll/so
-        gptIO            = ptApiRegistry->first(PL_API_IO);
-        gptWindows       = ptApiRegistry->first(PL_API_WINDOW);
-        gptGfx           = ptApiRegistry->first(PL_API_GRAPHICS);
-        gptDevice        = ptApiRegistry->first(PL_API_DEVICE);
-        gptDraw          = ptApiRegistry->first(PL_API_DRAW);
-        gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
+        gptIO      = ptApiRegistry->first(PL_API_IO);
+        gptWindows = ptApiRegistry->first(PL_API_WINDOW);
+        gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
+        gptDevice  = ptApiRegistry->first(PL_API_DEVICE);
+        gptDraw    = ptApiRegistry->first(PL_API_DRAW);
 
         return ptAppData;
     }
@@ -187,7 +184,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // load extensions (makes their APIs available)
     ptExtensionRegistry->load("pl_graphics_ext",       NULL, NULL, false);
-    ptExtensionRegistry->load("pl_gpu_allocators_ext", NULL, NULL, false);
     ptExtensionRegistry->load("pl_draw_ext",           NULL, NULL, true);
     
     // load required apis (NULL if not available)
@@ -196,7 +192,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptGfx           = ptApiRegistry->first(PL_API_GRAPHICS);
     gptDevice        = ptApiRegistry->first(PL_API_DEVICE);
     gptDraw          = ptApiRegistry->first(PL_API_DRAW);
-    gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
 
     // use window API to create a window
     const plWindowDesc tWindowDesc = {
@@ -289,19 +284,18 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         plTexture* ptColorTexture = gptDevice->get_texture(ptDevice, ptAppData->atColorTexture[i]);
         plTexture* ptDepthTexture = gptDevice->get_texture(ptDevice, ptAppData->atDepthTexture[i]);
 
-        plDeviceMemoryAllocatorI* ptAllocator = gptGpuAllocators->get_local_dedicated_allocator(ptDevice);
-
         // allocate memory
-        const plDeviceMemoryAllocation tColorAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
-            ptColorTexture->tMemoryRequirements.uMemoryTypeBits,
+
+        const plDeviceMemoryAllocation tColorAllocation = gptDevice->allocate_memory(ptDevice, 
             ptColorTexture->tMemoryRequirements.ulSize,
-            ptColorTexture->tMemoryRequirements.ulAlignment,
+            PL_MEMORY_GPU,
+            ptColorTexture->tMemoryRequirements.uMemoryTypeBits,
             "color texture memory");
 
-        const plDeviceMemoryAllocation tDepthAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
-            ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
+        const plDeviceMemoryAllocation tDepthAllocation = gptDevice->allocate_memory(ptDevice, 
             ptDepthTexture->tMemoryRequirements.ulSize,
-            ptDepthTexture->tMemoryRequirements.ulAlignment,
+            PL_MEMORY_GPU,
+            ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
             "depth texture memory");
 
         // bind memory
@@ -368,7 +362,14 @@ pl_app_shutdown(plAppData* ptAppData)
     gptDevice->flush_device(&ptAppData->tGraphics.tDevice);
     gptDraw->cleanup_font_atlas(&ptAppData->tFontAtlas);
     gptDraw->cleanup();
-    gptGpuAllocators->cleanup_allocators(&ptAppData->tGraphics.tDevice);
+
+    // cleanup textures
+    for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
+    {
+        gptDevice->destroy_texture(&ptAppData->tGraphics.tDevice, ptAppData->atColorTexture[i]);
+        gptDevice->destroy_texture(&ptAppData->tGraphics.tDevice, ptAppData->atDepthTexture[i]);
+    }
+
     gptGfx->cleanup(&ptAppData->tGraphics);
     gptWindows->destroy_window(ptAppData->ptWindow);
     pl_cleanup_profile_context();
@@ -669,19 +670,16 @@ resize_offscreen_resources(plAppData* ptAppData)
         plTexture* ptColorTexture = gptDevice->get_texture(ptDevice, ptAppData->atColorTexture[i]);
         plTexture* ptDepthTexture = gptDevice->get_texture(ptDevice, ptAppData->atDepthTexture[i]);
 
-        plDeviceMemoryAllocatorI* ptAllocator = gptGpuAllocators->get_local_dedicated_allocator(ptDevice);
-
-        // allocate memory
-        const plDeviceMemoryAllocation tColorAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
-            ptColorTexture->tMemoryRequirements.uMemoryTypeBits,
+        const plDeviceMemoryAllocation tColorAllocation = gptDevice->allocate_memory(ptDevice, 
             ptColorTexture->tMemoryRequirements.ulSize,
-            ptColorTexture->tMemoryRequirements.ulAlignment,
+            PL_MEMORY_GPU,
+            ptColorTexture->tMemoryRequirements.uMemoryTypeBits,
             "color texture memory");
 
-        const plDeviceMemoryAllocation tDepthAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
-            ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
+        const plDeviceMemoryAllocation tDepthAllocation = gptDevice->allocate_memory(ptDevice, 
             ptDepthTexture->tMemoryRequirements.ulSize,
-            ptDepthTexture->tMemoryRequirements.ulAlignment,
+            PL_MEMORY_GPU,
+            ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
             "depth texture memory");
 
         // bind memory

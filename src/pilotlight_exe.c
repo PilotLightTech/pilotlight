@@ -529,6 +529,16 @@ static void
 pl__load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable)
 {
 
+    // check if extension is already loaded
+    const uint32_t uCurrentExtensionCount = pl_sb_size(gsbtExtensions);
+    for(uint32_t i = 0; i < uCurrentExtensionCount; i++)
+    {
+        if(strcmp(pcName, gsbtExtensions[i].pcLibName) == 0)
+        {
+            return;
+        }
+    }
+
     if(pcLoadFunc == NULL)
         pcLoadFunc = "pl_load_ext";
 

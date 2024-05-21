@@ -115,6 +115,9 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
 
+    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    ptExtensionRegistry->load("pl_draw_ext", NULL, NULL, true);
+
     gptIOI  = ptApiRegistry->first(PL_API_IO);
     gptDraw = ptApiRegistry->first(PL_API_DRAW);
 

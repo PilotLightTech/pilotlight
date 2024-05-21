@@ -1087,11 +1087,19 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));
 
-    ptStatsApi = ptApiRegistry->first(PL_API_STATS);
+    // load required extensions (may already be loaded)
+    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    ptExtensionRegistry->load("pl_gpu_allocators_ext", NULL, NULL, false);
+    ptExtensionRegistry->load("pl_ui_ext", NULL, NULL, true);
+
+    // load required APIs
+    ptStatsApi       = ptApiRegistry->first(PL_API_STATS);
     gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
-    gptDraw = ptApiRegistry->first(PL_API_DRAW);
-    gptUI   = ptApiRegistry->first(PL_API_UI);
-    gptIO   = ptApiRegistry->first(PL_API_IO);
+    gptDraw          = ptApiRegistry->first(PL_API_DRAW);
+    gptUI            = ptApiRegistry->first(PL_API_UI);
+    gptIO            = ptApiRegistry->first(PL_API_IO);
+
+    // load required contexts
     ptIOCtx = gptIO->get_io();
 
     if(bReload)

@@ -147,7 +147,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // use window API to create a window
     const plWindowDesc tWindowDesc = {
-        .pcName  = "Example 2",
+        .pcName  = "Example 3",
         .iXPos   = 200,
         .iYPos   = 200,
         .uWidth  = 600,

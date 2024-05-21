@@ -103,26 +103,19 @@ typedef struct plAppData_t
 // [SECTION] global apis
 //-----------------------------------------------------------------------------
 
-const plWindowI*            gptWindows           = NULL;
-const plThreadsI*           gptThreads           = NULL;
-const plApiRegistryI*       gptApiRegistry       = NULL;
-const plDataRegistryI*      gptDataRegistry      = NULL;
-const plStatsI*             gptStats             = NULL;
-const plExtensionRegistryI* gptExtensionRegistry = NULL;
-const plFileI*              gptFile              = NULL;
-const plGraphicsI*          gptGfx               = NULL;
-const plDeviceI*            gptDevice            = NULL;
-const plDebugApiI*          gptDebug             = NULL;
-const plImageI*             gptImage             = NULL;
-const plEcsI*               gptEcs               = NULL;
-const plCameraI*            gptCamera            = NULL;
-const plResourceI*          gptResource          = NULL;
-const plRefRendererI*       gptRenderer          = NULL;
-const plModelLoaderI*       gptModelLoader       = NULL;
-const plJobI*               gptJobs              = NULL;
-const plDrawI*              gptDraw              = NULL;
-const plUiI*                gptUi                = NULL;
-const plIOI*                gptIO                = NULL;
+const plWindowI*      gptWindows           = NULL;
+const plStatsI*       gptStats             = NULL;
+const plGraphicsI*    gptGfx               = NULL;
+const plDeviceI*      gptDevice            = NULL;
+const plDebugApiI*    gptDebug             = NULL;
+const plEcsI*         gptEcs               = NULL;
+const plCameraI*      gptCamera            = NULL;
+const plRefRendererI* gptRenderer          = NULL;
+const plModelLoaderI* gptModelLoader       = NULL;
+const plJobI*         gptJobs              = NULL;
+const plDrawI*        gptDraw              = NULL;
+const plUiI*          gptUi                = NULL;
+const plIOI*          gptIO                = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -131,27 +124,22 @@ const plIOI*                gptIO                = NULL;
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 {
-    gptApiRegistry  = ptApiRegistry;
-    gptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(gptDataRegistry->get_data(PL_CONTEXT_MEMORY));
+    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
 
     if(ptAppData) // reload
     {
-        pl_set_log_context(gptDataRegistry->get_data("log"));
-        pl_set_profile_context(gptDataRegistry->get_data("profile"));
+        pl_set_log_context(ptDataRegistry->get_data("log"));
+        pl_set_profile_context(ptDataRegistry->get_data("profile"));
 
         // reload global apis
         gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
-        gptThreads     = ptApiRegistry->first(PL_API_THREADS);
         gptStats       = ptApiRegistry->first(PL_API_STATS);
-        gptFile        = ptApiRegistry->first(PL_API_FILE);
         gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
         gptDevice      = ptApiRegistry->first(PL_API_DEVICE);
         gptDebug       = ptApiRegistry->first(PL_API_DEBUG);
-        gptImage       = ptApiRegistry->first(PL_API_IMAGE);
         gptEcs         = ptApiRegistry->first(PL_API_ECS);
         gptCamera      = ptApiRegistry->first(PL_API_CAMERA);
-        gptResource    = ptApiRegistry->first(PL_API_RESOURCE);
         gptRenderer    = ptApiRegistry->first(PL_API_REF_RENDERER);
         gptJobs        = ptApiRegistry->first(PL_API_JOB);
         gptModelLoader = ptApiRegistry->first(PL_API_MODEL_LOADER);
@@ -174,8 +162,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->bFrustumCulling = true;
     ptAppData->fCascadeSplitLambda = 0.95f;
 
-    gptDataRegistry->set_data("profile", ptProfileCtx);
-    gptDataRegistry->set_data("log", ptLogCtx);
+    ptDataRegistry->set_data("profile", ptProfileCtx);
+    ptDataRegistry->set_data("log", ptLogCtx);
 
     // create log context
     pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
@@ -183,31 +171,19 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // load extensions
     const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    ptExtensionRegistry->load("pl_image_ext",          NULL, NULL, false);
-    ptExtensionRegistry->load("pl_job_ext",            NULL, NULL, false);
-    ptExtensionRegistry->load("pl_stats_ext",          NULL, NULL, false);
-    ptExtensionRegistry->load("pl_graphics_ext",       NULL, NULL, false);
-    ptExtensionRegistry->load("pl_gpu_allocators_ext", NULL, NULL, false);
-    ptExtensionRegistry->load("pl_ecs_ext",            NULL, NULL, false);
-    ptExtensionRegistry->load("pl_resource_ext",       NULL, NULL, false);
-    ptExtensionRegistry->load("pl_model_loader_ext",   NULL, NULL, false);
-    ptExtensionRegistry->load("pl_draw_ext",           NULL, NULL, true);
-    ptExtensionRegistry->load("pl_ref_renderer_ext",   NULL, NULL, true);
-    ptExtensionRegistry->load("pl_ui_ext",             NULL, NULL, true);
-    ptExtensionRegistry->load("pl_debug_ext",          NULL, NULL, true);
+    ptExtensionRegistry->load("pl_model_loader_ext", NULL, NULL, false);
+    ptExtensionRegistry->load("pl_ref_renderer_ext", NULL, NULL, true);
+    ptExtensionRegistry->load("pl_ui_ext",           NULL, NULL, true);
+    ptExtensionRegistry->load("pl_debug_ext",        NULL, NULL, true);
     
     // load apis
     gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
-    gptThreads     = ptApiRegistry->first(PL_API_THREADS);
     gptStats       = ptApiRegistry->first(PL_API_STATS);
-    gptFile        = ptApiRegistry->first(PL_API_FILE);
     gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
     gptDevice      = ptApiRegistry->first(PL_API_DEVICE);
     gptDebug       = ptApiRegistry->first(PL_API_DEBUG);
-    gptImage       = ptApiRegistry->first(PL_API_IMAGE);
     gptEcs         = ptApiRegistry->first(PL_API_ECS);
     gptCamera      = ptApiRegistry->first(PL_API_CAMERA);
-    gptResource    = ptApiRegistry->first(PL_API_RESOURCE);
     gptRenderer    = ptApiRegistry->first(PL_API_REF_RENDERER);
     gptJobs        = ptApiRegistry->first(PL_API_JOB);
     gptModelLoader = ptApiRegistry->first(PL_API_MODEL_LOADER);

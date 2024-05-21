@@ -4868,7 +4868,19 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
    pl_set_profile_context(gptDataRegistry->get_data("profile"));
    pl_set_log_context(gptDataRegistry->get_data("log"));
 
-   // apis
+    // load required extensions (may already be loaded)
+    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    ptExtensionRegistry->load("pl_image_ext",          NULL, NULL, false);
+    ptExtensionRegistry->load("pl_job_ext",            NULL, NULL, false);
+    ptExtensionRegistry->load("pl_stats_ext",          NULL, NULL, false);
+    ptExtensionRegistry->load("pl_graphics_ext",       NULL, NULL, false);
+    ptExtensionRegistry->load("pl_gpu_allocators_ext", NULL, NULL, false);
+    ptExtensionRegistry->load("pl_ecs_ext",            NULL, NULL, false);
+    ptExtensionRegistry->load("pl_resource_ext",       NULL, NULL, false);
+    ptExtensionRegistry->load("pl_draw_ext",           NULL, NULL, true);
+    ptExtensionRegistry->load("pl_ui_ext",             NULL, NULL, true);
+
+   // load required APIs
    gptResource      = ptApiRegistry->first(PL_API_RESOURCE);
    gptECS           = ptApiRegistry->first(PL_API_ECS);
    gptFile          = ptApiRegistry->first(PL_API_FILE);

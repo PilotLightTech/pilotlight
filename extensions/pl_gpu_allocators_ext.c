@@ -695,8 +695,13 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
 
-   gptDevice = ptApiRegistry->first(PL_API_DEVICE);
-   gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
+    // load required extensions (may already be loaded)
+    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    ptExtensionRegistry->load("pl_graphics_ext", NULL, NULL, false);
+
+    // load required APIs
+    gptDevice = ptApiRegistry->first(PL_API_DEVICE);
+    gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
 
     if(bReload)
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_GPU_ALLOCATORS), pl_load_gpu_allocators_api());

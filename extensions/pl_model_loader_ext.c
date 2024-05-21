@@ -905,9 +905,17 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
+
+    // load required extensions (may already be loaded)
+    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    ptExtensionRegistry->load("pl_resource_ext", NULL, NULL, false);
+    ptExtensionRegistry->load("pl_ecs_ext", NULL, NULL, false);
+
+    // load required APIs
     gptResource = ptApiRegistry->first(PL_API_RESOURCE);
     gptECS      = ptApiRegistry->first(PL_API_ECS);
     gptFile     = ptApiRegistry->first(PL_API_FILE);
+    
     if(bReload)
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_MODEL_LOADER), pl_load_model_loader_api());
     else

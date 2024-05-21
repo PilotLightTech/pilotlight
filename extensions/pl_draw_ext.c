@@ -3267,9 +3267,16 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
 
+    // load required extensions (may already be loaded)
+    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    ptExtensionRegistry->load("pl_graphics_ext", NULL, NULL, false);
+    ptExtensionRegistry->load("pl_stats_ext", NULL, NULL, false);
+
+    // load required APIs
     gptDevice = ptApiRegistry->first(PL_API_DEVICE);
     gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
     gptIO     = ptApiRegistry->first(PL_API_IO);
+    
     if(bReload)
     {
         gptCtx = ptDataRegistry->get_data("plDrawContext");

@@ -1603,6 +1603,11 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
     pl_set_log_context(ptDataRegistry->get_data("log"));
 
+    // load required extensions (may already be loaded)
+    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    ptExtensionRegistry->load("pl_job_ext", NULL, NULL, false);
+
+    // load required contexts
     gptJob = ptApiRegistry->first(PL_API_JOB);
 
     if(bReload)
