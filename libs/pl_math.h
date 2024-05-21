@@ -13,8 +13,8 @@
 */
 
 // library version
-#define PL_MATH_VERSION    "0.6.4"
-#define PL_MATH_VERSION_NUM 00604
+#define PL_MATH_VERSION    "0.7.0"
+#define PL_MATH_VERSION_NUM 00700
 
 /*
 Index of this file:
@@ -255,17 +255,25 @@ static inline float  pl_length_vec4      (plVec4 tVec)                          
 static inline plVec2 pl_floor_vec2       (plVec2 tVec)                             { return pl_create_vec2(floorf(tVec.x), floorf(tVec.y));}
 static inline plVec3 pl_floor_vec3       (plVec3 tVec)                             { return pl_create_vec3(floorf(tVec.x), floorf(tVec.y), floorf(tVec.z));}
 static inline plVec4 pl_floor_vec4       (plVec4 tVec)                             { return pl_create_vec4(floorf(tVec.x), floorf(tVec.y), floorf(tVec.z), floorf(tVec.w));}
+
+// binary ops
+
+static inline plVec2 pl_lerp_vec2       (plVec2 t0, plVec2 t1, float fAmount) { return pl_create_vec2(t0.x + (t1.x - t0.x) * fAmount, t0.y + (t1.y - t0.y) * fAmount);}
+static inline plVec3 pl_lerp_vec3       (plVec3 t0, plVec3 t1, float fAmount) { return pl_create_vec3(t0.x + (t1.x - t0.x) * fAmount, t0.y + (t1.y - t0.y) * fAmount, t0.z + (t1.z - t0.z) * fAmount);}
+static inline plVec4 pl_lerp_vec4       (plVec4 t0, plVec4 t1, float fAmount) { return pl_create_vec4(t0.x + (t1.x - t0.x) * fAmount, t0.y + (t1.y - t0.y) * fAmount, t0.z + (t1.z - t0.z) * fAmount, t0.w + (t1.w - t0.w) * fAmount);}
+
+
 static inline plVec2 pl_clamp_vec2       (plVec2 tMin, plVec2 tValue, plVec2 tMax) { return pl_create_vec2(pl_clampf(tMin.x, tValue.x, tMax.x), pl_clampf(tMin.y, tValue.y, tMax.y));}
 static inline plVec3 pl_clamp_vec3       (plVec3 tMin, plVec3 tValue, plVec3 tMax) { return pl_create_vec3(pl_clampf(tMin.x, tValue.x, tMax.x), pl_clampf(tMin.y, tValue.y, tMax.y), pl_clampf(tMax.z, tValue.z, tMax.z));}
 static inline plVec4 pl_clamp_vec4       (plVec4 tMin, plVec4 tValue, plVec4 tMax) { return pl_create_vec4(pl_clampf(tMin.x, tValue.x, tMax.x), pl_clampf(tMin.y, tValue.y, tMax.y), pl_clampf(tMax.z, tValue.z, tMax.z), pl_clampf(tMax.w, tValue.w, tMax.w));}
-static inline plVec2 pl_min_vec2        (plVec2 tValue0, plVec2 tValue1)           { return pl_create_vec2(pl_minf(tValue0.x, tValue1.x), pl_minf(tValue0.y, tValue1.y));}
-static inline plVec3 pl_min_vec3        (plVec3 tValue0, plVec3 tValue1)           { return pl_create_vec3(pl_minf(tValue0.x, tValue1.x), pl_minf(tValue0.y, tValue1.y), pl_minf(tValue0.z, tValue1.z));}
-static inline plVec4 pl_min_vec4        (plVec4 tValue0, plVec4 tValue1)           { return pl_create_vec4(pl_minf(tValue0.x, tValue1.x), pl_minf(tValue0.y, tValue1.y), pl_minf(tValue0.z, tValue1.z), pl_minf(tValue0.w, tValue1.w));}
-static inline plVec2 pl_max_vec2        (plVec2 tValue0, plVec2 tValue1)           { return pl_create_vec2(pl_maxf(tValue0.x, tValue1.x), pl_maxf(tValue0.y, tValue1.y));}
-static inline plVec3 pl_max_vec3        (plVec3 tValue0, plVec3 tValue1)           { return pl_create_vec3(pl_maxf(tValue0.x, tValue1.x), pl_maxf(tValue0.y, tValue1.y), pl_maxf(tValue0.z, tValue1.z));}
-static inline plVec4 pl_max_vec4        (plVec4 tValue0, plVec4 tValue1)           { return pl_create_vec4(pl_maxf(tValue0.x, tValue1.x), pl_maxf(tValue0.y, tValue1.y), pl_maxf(tValue0.z, tValue1.z), pl_maxf(tValue0.w, tValue1.w));}
 
-// binary ops
+static inline plVec2 pl_min_vec2         (plVec2 tValue0, plVec2 tValue1)           { return pl_create_vec2(pl_minf(tValue0.x, tValue1.x), pl_minf(tValue0.y, tValue1.y));}
+static inline plVec3 pl_min_vec3         (plVec3 tValue0, plVec3 tValue1)           { return pl_create_vec3(pl_minf(tValue0.x, tValue1.x), pl_minf(tValue0.y, tValue1.y), pl_minf(tValue0.z, tValue1.z));}
+static inline plVec4 pl_min_vec4         (plVec4 tValue0, plVec4 tValue1)           { return pl_create_vec4(pl_minf(tValue0.x, tValue1.x), pl_minf(tValue0.y, tValue1.y), pl_minf(tValue0.z, tValue1.z), pl_minf(tValue0.w, tValue1.w));}
+static inline plVec2 pl_max_vec2         (plVec2 tValue0, plVec2 tValue1)           { return pl_create_vec2(pl_maxf(tValue0.x, tValue1.x), pl_maxf(tValue0.y, tValue1.y));}
+static inline plVec3 pl_max_vec3         (plVec3 tValue0, plVec3 tValue1)           { return pl_create_vec3(pl_maxf(tValue0.x, tValue1.x), pl_maxf(tValue0.y, tValue1.y), pl_maxf(tValue0.z, tValue1.z));}
+static inline plVec4 pl_max_vec4         (plVec4 tValue0, plVec4 tValue1)           { return pl_create_vec4(pl_maxf(tValue0.x, tValue1.x), pl_maxf(tValue0.y, tValue1.y), pl_maxf(tValue0.z, tValue1.z), pl_maxf(tValue0.w, tValue1.w));}
+
 static inline float  pl_dot_vec2        (plVec2 tVec1, plVec2 tVec2) { return tVec1.x * tVec2.x + tVec1.y * tVec2.y; }
 static inline float  pl_dot_vec3        (plVec3 tVec1, plVec3 tVec2) { return tVec1.x * tVec2.x + tVec1.y * tVec2.y + tVec1.z * tVec2.z; }
 static inline float  pl_dot_vec4        (plVec4 tVec1, plVec4 tVec2) { return tVec1.x * tVec2.x + tVec1.y * tVec2.y + tVec1.z * tVec2.z + tVec1.w * tVec2.w; }
