@@ -154,10 +154,10 @@ typedef struct _plUiI
     bool (*selectable)      (const char* pcText, bool* bpValue);
     bool (*checkbox)        (const char* pcText, bool* pbValue);
     bool (*radio_button)    (const char* pcText, int* piValue, int iButtonValue);
-    void (*image)           (plTextureHandle tTexture, plVec2 tSize);
-    void (*image_ex)        (plTextureHandle tTexture, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor);
-    bool (*image_button)    (const char* pcId, plTextureHandle tTexture, plVec2 tSize);
-    bool (*image_button_ex) (const char* pcId, plTextureHandle tTexture, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor);
+    void (*image)           (plTextureHandle, plVec2 tSize);
+    void (*image_ex)        (plTextureHandle, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor);
+    bool (*image_button)    (const char* pcId, plTextureHandle, plVec2 tSize);
+    bool (*image_button_ex) (const char* pcId, plTextureHandle, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor);
     bool (*invisible_button)(const char* pcText, plVec2 tSize);
     void (*dummy)           (plVec2 tSize);
 
@@ -209,8 +209,8 @@ typedef struct _plUiI
     // misc.
     void (*separator)       (void);
     void (*vertical_spacing)(void);
-    void (*indent)          (float fIndent);
-    void (*unindent)        (float fIndent);
+    void (*indent)          (float);
+    void (*unindent)        (float);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~clipper~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -224,7 +224,7 @@ typedef struct _plUiI
     //       while(ptUi->step_clipper(&tClipper))
     //           for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
     //               ptUi->text("%i", i);
-    bool (*step_clipper)(plUiClipper* ptClipper);
+    bool (*step_clipper)(plUiClipper*);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~layout systems~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -248,14 +248,14 @@ typedef struct _plUiI
     // - if tType=PL_UI_LAYOUT_ROW_TYPE_STATIC, then fWidth is pixel width
     // - if tType=PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, then fWidth is a ratio of the available width
     // - does not wrap
-    void (*layout_row_begin)(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount);
+    void (*layout_row_begin)(plUiLayoutRowType, float fHeight, uint32_t uWidgetCount);
     void (*layout_row_push) (float fWidth);
     void (*layout_row_end)  (void);
 
     // layout system 4
     // - same as layout system 3 but the "array" form
     // - wraps (i.e. setting uWidgetCount to 2 and adding 4 widgets will create 2 rows)
-    void (*layout_row)(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount, const float* pfSizesOrRatios);
+    void (*layout_row)(plUiLayoutRowType, float fHeight, uint32_t uWidgetCount, const float* pfSizesOrRatios);
 
     // layout system 5
     // - similar to a flexbox
@@ -271,7 +271,7 @@ typedef struct _plUiI
     // - if tType=PL_UI_LAYOUT_ROW_TYPE_STATIC, then fWidth/fHeight is pixel width/height
     // - if tType=PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, then fWidth/fHeight is a ratio of the available width/height (for pl_layout_space_begin())
     // - if tType=PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, then fWidth is a ratio of the available width & fHeight is a ratio of fHeight given to "pl_layout_space_begin()" (for pl_layout_space_push())
-    void (*layout_space_begin)(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount);
+    void (*layout_space_begin)(plUiLayoutRowType, float fHeight, uint32_t uWidgetCount);
     void (*layout_space_push) (float fX, float fY, float fWidth, float fHeight);
     void (*layout_space_end)  (void);
 

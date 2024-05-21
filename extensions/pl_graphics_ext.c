@@ -126,6 +126,33 @@ pl__get_shader(plDevice* ptDevice, plShaderHandle tHandle)
     return &ptGraphics->sbtShadersCold[tHandle.uIndex];
 }
 
+static plSampler*
+pl_get_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    if(tHandle.uGeneration != ptGraphics->sbtSamplerGenerations[tHandle.uIndex])
+        return NULL;
+    return &ptGraphics->sbtSamplersCold[tHandle.uIndex];
+}
+
+static plRenderPassLayout*
+pl_get_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    if(tHandle.uGeneration != ptGraphics->sbtRenderPassLayoutGenerations[tHandle.uIndex])
+        return NULL;
+    return &ptGraphics->sbtRenderPassLayoutsCold[tHandle.uIndex];
+}
+
+static plRenderPass*
+pl_get_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
+{
+    plGraphics* ptGraphics = ptDevice->ptGraphics;
+    if(tHandle.uGeneration != ptGraphics->sbtRenderPassGenerations[tHandle.uIndex])
+        return NULL;
+    return &ptGraphics->sbtRenderPassesCold[tHandle.uIndex];
+}
+
 static void
 pl_queue_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
 {

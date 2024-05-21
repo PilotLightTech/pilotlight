@@ -5403,7 +5403,10 @@ pl_load_device_api(void)
         .free_memory                            = pl_free_memory,
         .flush_device                           = pl_flush_device,
         .bind_buffer_to_memory                  = pl_bind_buffer_to_memory,
-        .bind_texture_to_memory                 = pl_bind_texture_to_memory
+        .bind_texture_to_memory                 = pl_bind_texture_to_memory,
+        .get_sampler                            = pl_get_sampler,
+        .get_render_pass                        = pl_get_render_pass,
+        .get_render_pass_layout                 = pl_get_render_pass_layout
     };
     return &tApi;
 }

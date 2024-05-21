@@ -226,6 +226,7 @@ typedef struct _plDeviceI
     plSamplerHandle (*create_sampler)            (plDevice*, const plSamplerDesc*, const char* pcDebugName);
     void            (*destroy_sampler)           (plDevice*, plSamplerHandle);
     void            (*queue_sampler_for_deletion)(plDevice*, plSamplerHandle);
+    plSampler*      (*get_sampler)               (plDevice*, plSamplerHandle); // do not store
 
     // textures (if manually handling mips/levels, don't use initial data, use "copy_buffer_to_texture" instead)
     plTextureHandle (*create_texture)            (plDevice*, const plTextureDesc*, const char* pcDebugName);
@@ -251,6 +252,8 @@ typedef struct _plDeviceI
     void                     (*queue_render_pass_layout_for_deletion)(plDevice*, plRenderPassLayoutHandle);
     void                     (*destroy_render_pass)                  (plDevice*, plRenderPassHandle);
     void                     (*destroy_render_pass_layout)           (plDevice*, plRenderPassLayoutHandle);
+    plRenderPassLayout*      (*get_render_pass_layout)               (plDevice*, plRenderPassLayoutHandle); // do not store
+    plRenderPass*            (*get_render_pass)                      (plDevice*, plRenderPassHandle); // do not store
 
     // shaders
     plShaderHandle        (*create_shader)                    (plDevice*, const plShaderDescription*);

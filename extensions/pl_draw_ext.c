@@ -37,6 +37,17 @@ Index of this file:
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
+typedef struct _plFontPrepData
+{
+    stbtt_fontinfo    fontInfo;
+    stbtt_pack_range* ranges;
+    stbrp_rect*       rects;
+    unsigned char*    ptrTtf;
+    uint32_t          uTotalCharCount;
+    float             scale;
+    uint32_t          area;
+} plFontPrepData;
+
 typedef struct _plFontAtlas
 {
     // fonts
@@ -57,17 +68,6 @@ typedef struct _plFontAtlas
     plTextureHandle    tTexture;
     
 } plFontAtlas;
-
-typedef struct _plFontPrepData
-{
-    stbtt_fontinfo    fontInfo;
-    stbtt_pack_range* ranges;
-    stbrp_rect*       rects;
-    unsigned char*    ptrTtf;
-    uint32_t          uTotalCharCount;
-    float             scale;
-    uint32_t          area;
-} plFontPrepData;
 
 typedef struct _plDrawVertex3DSolid
 {
