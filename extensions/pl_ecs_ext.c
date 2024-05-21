@@ -64,18 +64,19 @@ static void*    pl_ecs_get_component         (plComponentLibrary* ptLibrary, plC
 static void*    pl_ecs_add_component         (plComponentLibrary* ptLibrary, plComponentType tType, plEntity tEntity);
 
 // components
-static plEntity pl_ecs_create_tag                (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_mesh               (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_object             (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_transform          (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_material           (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_skin               (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_animation          (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_animation_data     (plComponentLibrary* ptLibrary, const char* pcName);
-static plEntity pl_ecs_create_perspective_camera (plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
-static plEntity pl_ecs_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ);
-static plEntity pl_ecs_create_directional_light  (plComponentLibrary*, const char* pcName, plVec3 tDirection);
-static plEntity pl_ecs_create_point_light        (plComponentLibrary*, const char* pcName, plVec3 tPosition);
+static plEntity pl_ecs_create_tag                (plComponentLibrary*, const char* pcName);
+static plEntity pl_ecs_create_mesh               (plComponentLibrary*, const char* pcName, plMeshComponent**);
+static plEntity pl_ecs_create_object             (plComponentLibrary*, const char* pcName, plObjectComponent**);
+static plEntity pl_ecs_create_transform          (plComponentLibrary*, const char* pcName, plTransformComponent**);
+static plEntity pl_ecs_create_material           (plComponentLibrary*, const char* pcName, plMaterialComponent**);
+static plEntity pl_ecs_create_skin               (plComponentLibrary*, const char* pcName, plSkinComponent**);
+static plEntity pl_ecs_create_animation          (plComponentLibrary*, const char* pcName, plAnimationComponent**);
+static plEntity pl_ecs_create_animation_data     (plComponentLibrary*, const char* pcName, plAnimationDataComponent**);
+static plEntity pl_ecs_create_perspective_camera (plComponentLibrary*, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, plCameraComponent**);
+static plEntity pl_ecs_create_orthographic_camera(plComponentLibrary*, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCameraComponent**);
+static plEntity pl_ecs_create_directional_light  (plComponentLibrary*, const char* pcName, plVec3 tDirection, plLightComponent**);
+static plEntity pl_ecs_create_point_light        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plLightComponent**);
+
 
 // heirarchy
 static void pl_ecs_attach_component (plComponentLibrary* ptLibrary, plEntity tEntity, plEntity tParent);
@@ -707,21 +708,26 @@ pl_ecs_create_tag(plComponentLibrary* ptLibrary, const char* pcName)
 
     if(pcName)
         pl_hm_insert_str(&ptLibrary->tTagHashMap, pcName, tNewEntity.uIndex);
+
+
     return tNewEntity;
 }
 
 static plEntity
-pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName)
+pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMeshComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed mesh";
     pl_log_debug_to_f(uLogChannel, "created mesh: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
-    pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
+    plMeshComponent* ptCompOut = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
+
+    if(pptCompOut)
+        *pptCompOut = ptCompOut;
     return tNewEntity;
 }
 
 static plEntity
-pl_ecs_create_directional_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tDirection)
+pl_ecs_create_directional_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tDirection, plLightComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed directional light";
     pl_log_debug_to_f(uLogChannel, "created directional light: '%s'", pcName);
@@ -729,11 +735,14 @@ pl_ecs_create_directional_light(plComponentLibrary* ptLibrary, const char* pcNam
     plLightComponent* ptLight =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, tNewEntity);
     ptLight->tDirection = tDirection;
     ptLight->tType = PL_LIGHT_TYPE_DIRECTIONAL;
+
+    if(pptCompOut)
+        *pptCompOut = ptLight;
     return tNewEntity;
 }
 
 static plEntity
-pl_ecs_create_point_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPosition)
+pl_ecs_create_point_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPosition, plLightComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed point light";
     pl_log_debug_to_f(uLogChannel, "created point light: '%s'", pcName);
@@ -741,11 +750,14 @@ pl_ecs_create_point_light(plComponentLibrary* ptLibrary, const char* pcName, plV
     plLightComponent* ptLight =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, tNewEntity);
     ptLight->tPosition = tPosition;
     ptLight->tType = PL_LIGHT_TYPE_POINT;
+
+    if(pptCompOut)
+        *pptCompOut = ptLight;
     return tNewEntity;
 }
 
 static plEntity
-pl_ecs_create_object(plComponentLibrary* ptLibrary, const char* pcName)
+pl_ecs_create_object(plComponentLibrary* ptLibrary, const char* pcName, plObjectComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed object";
     pl_log_debug_to_f(uLogChannel, "created object: '%s'", pcName);
@@ -758,11 +770,14 @@ pl_ecs_create_object(plComponentLibrary* ptLibrary, const char* pcName)
     ptObject->tTransform = tNewEntity;
     ptObject->tMesh = tNewEntity;
 
+    if(pptCompOut)
+        *pptCompOut = ptObject;
+
     return tNewEntity;    
 }
 
 static plEntity
-pl_ecs_create_transform(plComponentLibrary* ptLibrary, const char* pcName)
+pl_ecs_create_transform(plComponentLibrary* ptLibrary, const char* pcName, plTransformComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed transform";
     pl_log_debug_to_f(uLogChannel, "created transform: '%s'", pcName);
@@ -773,55 +788,74 @@ pl_ecs_create_transform(plComponentLibrary* ptLibrary, const char* pcName)
     ptTransform->tRotation = (plVec4){0.0f, 0.0f, 0.0f, 1.0f};
     ptTransform->tWorld = pl_identity_mat4();
 
+    if(pptCompOut)
+        *pptCompOut = ptTransform;
+
     return tNewEntity;  
 }
 
 static plEntity
-pl_ecs_create_material(plComponentLibrary* ptLibrary, const char* pcName)
+pl_ecs_create_material(plComponentLibrary* ptLibrary, const char* pcName, plMaterialComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed material";
     pl_log_debug_to_f(uLogChannel, "created material: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
-    pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, tNewEntity);
+    plMaterialComponent* ptCompOut = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, tNewEntity);
+
+    if(pptCompOut)
+        *pptCompOut = ptCompOut;
+
     return tNewEntity;    
 }
 
 static plEntity
-pl_ecs_create_skin(plComponentLibrary* ptLibrary, const char* pcName)
+pl_ecs_create_skin(plComponentLibrary* ptLibrary, const char* pcName, plSkinComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed skin";
     pl_log_debug_to_f(uLogChannel, "created skin: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     plSkinComponent* ptSkin = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, tNewEntity);
+
+    if(pptCompOut)
+        *pptCompOut = ptSkin;
+
     return tNewEntity;
 }
 
 static plEntity
-pl_ecs_create_animation(plComponentLibrary* ptLibrary, const char* pcName)
+pl_ecs_create_animation(plComponentLibrary* ptLibrary, const char* pcName, plAnimationComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed animation";
     pl_log_debug_to_f(uLogChannel, "created animation: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
-    pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, tNewEntity);
+    plAnimationComponent* ptCompOut = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, tNewEntity);
+
+    if(pptCompOut)
+        *pptCompOut = ptCompOut;
+
     return tNewEntity;
 }
 
 static plEntity
-pl_ecs_create_animation_data(plComponentLibrary* ptLibrary, const char* pcName)
+pl_ecs_create_animation_data(plComponentLibrary* ptLibrary, const char* pcName, plAnimationDataComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed animation data";
     pl_log_debug_to_f(uLogChannel, "created animation data: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_entity(ptLibrary);
 
-    pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION_DATA, tNewEntity);
+    plAnimationDataComponent* ptCompOut = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION_DATA, tNewEntity);
+
+    if(pptCompOut)
+        *pptCompOut = ptCompOut;
+
     return tNewEntity;
 }
 
 static plEntity
-pl_ecs_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ)
+pl_ecs_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, plCameraComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
     pl_log_debug_to_f(uLogChannel, "created camera: '%s'", pcName);
@@ -840,11 +874,14 @@ pl_ecs_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcNa
     *ptCamera = tCamera;
     pl_camera_update(ptCamera);
 
+    if(pptCompOut)
+        *pptCompOut = ptCamera;
+
     return tNewEntity; 
 }
 
 static plEntity
-pl_ecs_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ)
+pl_ecs_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCameraComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
     pl_log_debug_to_f(uLogChannel, "created camera: '%s'", pcName);
@@ -862,6 +899,9 @@ pl_ecs_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcN
     plCameraComponent* ptCamera = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, tNewEntity);
     *ptCamera = tCamera;
     pl_camera_update(ptCamera);
+
+    if(pptCompOut)
+        *pptCompOut = ptCamera;
 
     return tNewEntity;    
 }

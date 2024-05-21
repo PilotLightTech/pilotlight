@@ -95,7 +95,7 @@ pl__load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, c
     gptFile->read(pcPath, &uFileSize, pcBuffer, "rb");
 
     // create ECS object component
-    plEntity tEntity = gptECS->create_object(ptLibrary, pcPath);
+    plEntity tEntity = gptECS->create_object(ptLibrary, pcPath, NULL);
 
     // retrieve actual components
     plMeshComponent*      ptMesh          = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tEntity);
@@ -109,8 +109,8 @@ pl__load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, c
     }
 
     // create simple material
-    ptMesh->tMaterial = gptECS->create_material(ptLibrary, pcPath);
-    plMaterialComponent* ptMaterial = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
+    plMaterialComponent* ptMaterial = NULL;
+    ptMesh->tMaterial = gptECS->create_material(ptLibrary, pcPath, &ptMaterial);
     ptMaterial->tBaseColor = tColor;
     ptMaterial->tBlendMode = PL_BLEND_MODE_ALPHA;
     // ptMaterial->tFlags |= PL_MATERIAL_FLAG_OUTLINE;
@@ -170,16 +170,15 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
     {
         const cgltf_skin* ptSkin = &ptGltfData->skins[szSkinIndex];
 
-
-        plEntity tSkinEntity = gptECS->create_skin(ptLibrary, ptSkin->name);
-        plSkinComponent* ptSkinComponent = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, tSkinEntity);
+        plSkinComponent* ptSkinComponent = NULL;
+        plEntity tSkinEntity = gptECS->create_skin(ptLibrary, ptSkin->name, &ptSkinComponent);
 
         pl_sb_resize(ptSkinComponent->sbtJoints, (uint32_t)ptSkin->joints_count);
         pl_sb_resize(ptSkinComponent->sbtInverseBindMatrices, (uint32_t)ptSkin->joints_count);
         for(size_t szJointIndex = 0; szJointIndex < ptSkin->joints_count; szJointIndex++)
         {
             const cgltf_node* ptJointNode = ptSkin->joints[szJointIndex];
-            plEntity tTransformEntity = gptECS->create_transform(ptLibrary, ptJointNode->name);
+            plEntity tTransformEntity = gptECS->create_transform(ptLibrary, ptJointNode->name, NULL);
             ptSkinComponent->sbtJoints[szJointIndex] = tTransformEntity;
             pl_hm_insert(&tLoadingData.tJointHashMap, (uint64_t)ptJointNode, tTransformEntity.ulData);
         }
@@ -201,8 +200,8 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
             plEntity tRoot = {UINT32_MAX, UINT32_MAX};
             if(ptTransform)
             {
-                tRoot = gptECS->create_transform(ptLibrary, "load transform");
-                plTransformComponent* ptTransformComponent = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tRoot);
+                plTransformComponent* ptTransformComponent = NULL;
+                tRoot = gptECS->create_transform(ptLibrary, "load transform", &ptTransformComponent);
                 ptTransformComponent->tWorld = *ptTransform;
                 pl_decompose_matrix(&ptTransformComponent->tWorld, &ptTransformComponent->tScale, &ptTransformComponent->tRotation, &ptTransformComponent->tTranslation);
             }
@@ -653,8 +652,8 @@ pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const cgltf_animati
 {
     plComponentLibrary* ptLibrary = ptSceneData->ptLibrary;
 
-    plEntity tNewAnimationEntity = gptECS->create_animation(ptLibrary, ptAnimation->name);
-    plAnimationComponent* ptAnimationComp = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, tNewAnimationEntity);
+    plAnimationComponent* ptAnimationComp = NULL;
+    gptECS->create_animation(ptLibrary, ptAnimation->name, &ptAnimationComp);
 
     // load channels
     for(size_t i = 0; i < ptAnimation->channels_count; i++)
@@ -698,8 +697,8 @@ pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const cgltf_animati
                 tSampler.tMode = PL_ANIMATION_MODE_UNKNOWN;
         }
 
-        tSampler.tData = gptECS->create_animation_data(ptLibrary, ptSampler->input->name);
-        plAnimationDataComponent* ptAnimationDataComp = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION_DATA, tSampler.tData);
+        plAnimationDataComponent* ptAnimationDataComp = NULL;
+        tSampler.tData = gptECS->create_animation_data(ptLibrary, ptSampler->input->name, &ptAnimationDataComp);
 
         ptAnimationComp->fEnd = pl_maxf(ptAnimationComp->fEnd, ptSampler->input->max[0]);
 
@@ -760,17 +759,17 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
     plComponentLibrary* ptLibrary = ptSceneData->ptLibrary;
 
     plEntity tNewEntity = {UINT32_MAX, UINT32_MAX};
+    plTransformComponent* ptTransform = NULL;
     const uint64_t ulObjectIndex = pl_hm_lookup(&ptSceneData->tJointHashMap, (uint64_t)ptNode);
     if(ulObjectIndex != UINT64_MAX)
     {
         tNewEntity.ulData = ulObjectIndex;
+        ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
     }
     else
     {
-        tNewEntity = gptECS->create_transform(ptLibrary, ptNode->name);
+        tNewEntity = gptECS->create_transform(ptLibrary, ptNode->name, &ptTransform);
     }
-
-    plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
     pl_hm_insert(&ptSceneData->tNodeHashMap, (uint64_t)ptNode, tNewEntity.ulData);
 
     // transform defaults
@@ -853,10 +852,8 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
                 {
                     const uint64_t ulMaterialIndex = (uint64_t)pl_sb_size(ptSceneData->sbtMaterialEntities);
                     pl_hm_insert(&ptSceneData->tMaterialHashMap,(uint64_t)ptPrimitive->material, ulMaterialIndex);
-                    ptMesh->tMaterial = gptECS->create_material(ptLibrary, ptPrimitive->material->name);
+                    ptMesh->tMaterial = gptECS->create_material(ptLibrary, ptPrimitive->material->name, &ptMaterial);
                     pl_sb_push(ptSceneData->sbtMaterialEntities, ptMesh->tMaterial);
-                    
-                    ptMaterial = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
                     pl__refr_load_material(pcDirectory, ptMaterial, ptPrimitive->material);
                 }
 

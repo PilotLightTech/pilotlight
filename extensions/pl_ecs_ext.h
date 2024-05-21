@@ -122,18 +122,19 @@ typedef struct _plEcsI
     size_t   (*get_index)      (plComponentManager*, plEntity);
     
     // entity helpers (creates entity and necessary components)
+    //   - do NOT store out parameter; use it immediately
     plEntity (*create_tag)                (plComponentLibrary*, const char* pcName);
-    plEntity (*create_mesh)               (plComponentLibrary*, const char* pcName);
-    plEntity (*create_object)             (plComponentLibrary*, const char* pcName);
-    plEntity (*create_transform)          (plComponentLibrary*, const char* pcName);
-    plEntity (*create_material)           (plComponentLibrary*, const char* pcName);
-    plEntity (*create_skin)               (plComponentLibrary*, const char* pcName);
-    plEntity (*create_animation)          (plComponentLibrary*, const char* pcName);
-    plEntity (*create_animation_data)     (plComponentLibrary*, const char* pcName);
-    plEntity (*create_perspective_camera) (plComponentLibrary*, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ);
-    plEntity (*create_orthographic_camera)(plComponentLibrary*, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ);
-    plEntity (*create_directional_light)  (plComponentLibrary*, const char* pcName, plVec3 tDirection);
-    plEntity (*create_point_light)        (plComponentLibrary*, const char* pcName, plVec3 tPosition);
+    plEntity (*create_mesh)               (plComponentLibrary*, const char* pcName, plMeshComponent**);
+    plEntity (*create_object)             (plComponentLibrary*, const char* pcName, plObjectComponent**);
+    plEntity (*create_transform)          (plComponentLibrary*, const char* pcName, plTransformComponent**);
+    plEntity (*create_material)           (plComponentLibrary*, const char* pcName, plMaterialComponent**);
+    plEntity (*create_skin)               (plComponentLibrary*, const char* pcName, plSkinComponent**);
+    plEntity (*create_animation)          (plComponentLibrary*, const char* pcName, plAnimationComponent**);
+    plEntity (*create_animation_data)     (plComponentLibrary*, const char* pcName, plAnimationDataComponent**);
+    plEntity (*create_perspective_camera) (plComponentLibrary*, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, plCameraComponent**);
+    plEntity (*create_orthographic_camera)(plComponentLibrary*, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCameraComponent**);
+    plEntity (*create_directional_light)  (plComponentLibrary*, const char* pcName, plVec3 tDirection, plLightComponent**);
+    plEntity (*create_point_light)        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plLightComponent**);
 
     // hierarchy
     void (*attach_component)   (plComponentLibrary*, plEntity tEntity, plEntity tParent);
