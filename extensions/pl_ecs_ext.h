@@ -501,6 +501,7 @@ typedef struct _plAnimationComponent
     float               fEnd;
     float               fTimer;
     float               fSpeed;
+    float               fBlendAmount;
     plAnimationChannel* sbtChannels;
     plAnimationSampler* sbtSamplers;
 } plAnimationComponent;
