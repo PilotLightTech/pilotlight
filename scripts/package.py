@@ -12,9 +12,9 @@ if not os.path.isdir("../out/pilotlight"):
 
 target_directory = "../out/pilotlight"
 
+# extensions
 extensions = [
     "pl_debug_ext",
-    "pl_graphics_ext",
     "pl_image_ext",
     "pl_ecs_ext",
     "pl_stats_ext",
@@ -23,7 +23,14 @@ extensions = [
     "pl_ref_renderer_ext",
     "pl_gpu_allocators_ext",
     "pl_model_loader_ext",
-    "pl_draw_ext"
+    "pl_draw_ext",
+    "pl_graphics_ext",
+    "pl_ui_ext"
+]
+
+# scripts
+scripts = [
+    "pl_script_camera"
 ]
 
 if os.path.isdir(target_directory):
@@ -53,11 +60,12 @@ shutil.copy("../src/pilotlight.h", target_directory + "/include/pilotlight.h")
 shutil.copy("../src/pl_config.h", target_directory + "/include/pl_config.h")
 shutil.copy("../src/pl_os.h", target_directory + "/include/pl_os.h")
 
-# copy extension headers
+# copy simple extension headers
 for extension in extensions:
     shutil.copy("../extensions/" + extension + ".h", target_directory + "/include/" + extension + ".h")
+
+# special headers
 shutil.copy("../extensions/pl_script_ext.h", target_directory + "/include/pl_script_ext.h")
-shutil.copy("../ui/pl_ui_ext.h", target_directory + "/include/pl_ui_ext.h")
 
 # copy pilotlight-lib headers
 shutil.copy("../libs/pl_ds.h", target_directory + "/include/pl_ds.h")
@@ -81,6 +89,16 @@ for extension in extensions:
         shutil.copytree("../out/" + extension + ".dylib.dSYM", target_directory + "/bin/" + extension + ".dylib.dSYM")
     elif platform.system() == "Linux":
         shutil.copy("../out/" + extension + ".so", target_directory + "/bin/" + extension + ".so")
+
+# copy scripts
+for script in scripts:
+    if platform.system() == "Windows":
+        shutil.copy("../out/" + script + ".dll", target_directory + "/bin/" + script + ".dll")
+    elif platform.system() == "Darwin":
+        shutil.copy("../out/" + script + ".dylib", target_directory + "/bin/" + script + ".dylib")
+        shutil.copytree("../out/" + script + ".dylib.dSYM", target_directory + "/bin/" + script + ".dylib.dSYM")
+    elif platform.system() == "Linux":
+        shutil.copy("../out/" + script + ".so", target_directory + "/bin/" + script + ".so")
 
 # copy libs & executable
 if platform.system() == "Windows":

@@ -48,7 +48,7 @@ jobs:
       run: |
         cd %GITHUB_WORKSPACE%
         echo ${{ github.event.inputs.version }} > version_number.txt
-        ren build pilotlight_build
+        ren pl_build pilotlight_build
         cd pilotlight_build
         cd ..
         move pilotlight_build\deploy_setup.py deploy_setup.py

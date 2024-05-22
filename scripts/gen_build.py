@@ -1,7 +1,7 @@
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../build")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../pl_build")
 
 import pl_build as pl
 
@@ -76,7 +76,7 @@ with pl.project("pilotlight"):
     pl.push_profile(pl.Profile.PILOT_LIGHT_DEBUG_C)
 
     pl.push_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS")
-    pl.push_include_directories("../apps", "../src", "../ui", "../libs", "../extensions", "../out", "../dependencies/stb", "../dependencies/cgltf")
+    pl.push_include_directories("../apps", "../src", "../libs", "../extensions", "../out", "../dependencies/stb", "../dependencies/cgltf")
     pl.push_link_directories("../out")
     pl.push_output_directory("../out")
         
@@ -118,7 +118,7 @@ with pl.project("pilotlight"):
     add_plugin_to_vulkan_app("pl_draw_ext",     True)
     add_plugin_to_vulkan_app("pl_debug_ext",    False)
     add_plugin_to_vulkan_app("pl_image_ext",    False)
-    add_plugin_to_vulkan_app("pl_vulkan_ext",   False, "pl_graphics_ext")
+    add_plugin_to_vulkan_app("pl_graphics_vulkan",   False, "pl_graphics_ext")
     add_plugin_to_vulkan_app("pl_stats_ext",    False)
     add_plugin_to_vulkan_app("pl_job_ext",    False)
     add_plugin_to_vulkan_app("pl_model_loader_ext", False)
@@ -126,7 +126,7 @@ with pl.project("pilotlight"):
     add_plugin_to_vulkan_app("pl_resource_ext", False)
     add_plugin_to_vulkan_app("pl_gpu_allocators_ext", False)
     add_plugin_to_vulkan_app("pl_ref_renderer_ext", True)
-    add_plugin_to_vulkan_app("pl_ui_ext", True, None, "../ui/")
+    add_plugin_to_vulkan_app("pl_ui_ext", True, None)
 
     add_plugin_to_metal_app("pl_draw_ext",     True)
     add_plugin_to_metal_app("pl_debug_ext",    False)
@@ -136,14 +136,14 @@ with pl.project("pilotlight"):
     add_plugin_to_metal_app("pl_ecs_ext",      True)
     add_plugin_to_metal_app("pl_model_loader_ext",      False)
     add_plugin_to_metal_app("pl_resource_ext", False)
-    add_plugin_to_metal_app("pl_metal_ext",    False, True, "pl_graphics_ext")
+    add_plugin_to_metal_app("pl_graphics_metal",    False, True, "pl_graphics_ext")
     add_plugin_to_metal_app("pl_gpu_allocators_ext", False)
     add_plugin_to_metal_app("pl_ref_renderer_ext", True)
-    add_plugin_to_metal_app("pl_ui_ext", True, False, None, "../ui/")
+    add_plugin_to_metal_app("pl_ui_ext", True, False, None)
 
     # scripts
-    add_plugin_to_vulkan_app("pl_camera_script", False, None, "../scripts/")
-    add_plugin_to_metal_app("pl_camera_script", False, False, None, "../scripts/")
+    add_plugin_to_vulkan_app("pl_script_camera", False, None)
+    add_plugin_to_metal_app("pl_script_camera", False, False, None)
 
     pl.pop_target_links()
 

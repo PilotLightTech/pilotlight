@@ -33,7 +33,7 @@ jobs:
       shell: cmd
       run: |
         cd $GITHUB_WORKSPACE
-        cd tools
+        cd scripts
         python gen_tests.py
         cd ../tests
         call build.bat -c debug
@@ -58,7 +58,7 @@ jobs:
     - name: Run Tests
       run: |
         cd $GITHUB_WORKSPACE
-        cd tools
+        cd scripts
         python3 gen_tests.py
         cd ../tests
         chmod +x build.sh
@@ -94,7 +94,7 @@ jobs:
     - name: Run Tests
       run: |
         cd $GITHUB_WORKSPACE
-        cd tools
+        cd scripts
         python3 gen_tests.py
         cd ../tests
         chmod +x build.sh

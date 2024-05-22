@@ -33,7 +33,7 @@ setuptools.setup(
     description='Pilot Light Build',
     long_description=readme(),
     long_description_content_type="text/markdown",
-    url='https://github.com/hoffstadt/pilotlight-build', # Optional
+    url='https://github.com/PilotLightTech/pilotlight', # Optional
     packages=['pilotlight_build'],
     classifiers=[
         'Development Status :: 4 - Beta',

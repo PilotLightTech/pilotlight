@@ -77,7 +77,7 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
 static const char*
 pl_script_name(void)
 {
-    return "pl_camera_script";
+    return "pl_script_camera";
 }
 
 //-----------------------------------------------------------------------------

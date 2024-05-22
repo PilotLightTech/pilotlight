@@ -7,7 +7,7 @@ data/
 out/
 
 # python
-build/__pycache__/
+pl_build/__pycache__/
 
 # debug files
 src/*.pdb

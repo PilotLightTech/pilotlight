@@ -20,7 +20,6 @@ includes = [
     "${workspaceFolder}/**",
     "${workspaceFolder}/apps",
     "${workspaceFolder}/src",
-    "${workspaceFolder}/ui",
     "${workspaceFolder}/libs",
     "${workspaceFolder}/extensions",
     "${workspaceFolder}/dependencies/stb",

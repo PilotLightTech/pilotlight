@@ -1,7 +1,7 @@
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../build")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../pl_build")
 
 import pl_build as pl
 
@@ -21,7 +21,7 @@ with pl.project("pilotlight"):
     pl.push_profile(pl.Profile.PILOT_LIGHT_DEBUG_C)
 
     pl.push_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS")
-    pl.push_include_directories("../apps", "../src", "../libs", "../extensions", "../backends", "../out", "../dependencies/pilotlight-libs", "../dependencies/stb")
+    pl.push_include_directories("../apps", "../src", "../libs", "../extensions", "../out", "../dependencies/stb", "../dependencies/cgltf")
     pl.push_link_directories("../out")
     pl.push_output_directory("../out")
         

@@ -39,13 +39,19 @@ body:
       label: System
       options:
         - New 
+        - Core
+        - OS
         - Drawing
+        - User Interface
         - Logging
         - Profiling
         - Data structures
         - Memory
+        - ECS
+        - Job
+        - Stats
+        - Image
+        - Allocators
         - Testing
-        - Operating system services
-        - Input & Output
         - Build
         - Graphics
