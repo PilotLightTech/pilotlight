@@ -1124,7 +1124,7 @@ pl_run_script_update_system(plComponentLibrary* ptLibrary)
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
         const plEntity tEnitity = ptLibrary->tScriptComponentManager.sbtEntities[i];
-        if(sbtComponents[i].tFlags)
+        if(sbtComponents[i].tFlags == 0)
             continue;
 
         if(sbtComponents[i].tFlags & PL_SCRIPT_FLAG_PLAYING)
