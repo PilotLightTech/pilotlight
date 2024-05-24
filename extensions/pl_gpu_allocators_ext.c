@@ -583,6 +583,72 @@ pl_free_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemory
     ptAllocation->ulSize       = 0;
 }
 
+static plDeviceMemoryAllocation
+pl_allocate_staging_cached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
+{
+    plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
+
+    plDeviceMemoryAllocation tBlock = gptDevice->allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_CPU, uTypeFilter, pcName);
+
+    plDeviceMemoryAllocation tAllocation = {
+        .pHostMapped = tBlock.pHostMapped,
+        .uHandle     = tBlock.uHandle,
+        .ulOffset    = 0,
+        .ulSize      = ulSize,
+        .ptAllocator = ptData->ptAllocator,
+        .tMemoryMode = PL_MEMORY_CPU
+    };
+
+    uint32_t uBlockIndex = pl_sb_size(ptData->sbtBlocks);
+    if(pl_sb_size(ptData->sbtFreeBlockIndices) > 0)
+        uBlockIndex = pl_sb_pop(ptData->sbtFreeBlockIndices);
+    else
+        pl_sb_add(ptData->sbtBlocks);
+
+    plDeviceAllocationRange tRange = {
+        .ulOffset     = 0,
+        .ulTotalSize  = ulSize,
+        .ulUsedSize   = ulSize,
+        .ulBlockIndex = uBlockIndex
+    };
+    pl_sprintf(tRange.acName, "%s", pcName);
+
+    pl_sb_push(ptData->sbtNodes, tRange);
+    ptData->sbtBlocks[uBlockIndex] = tBlock;
+    return tAllocation;
+}
+
+static void
+pl_free_staging_cached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation)
+{
+    plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
+
+    uint32_t uBlockIndex = 0;
+    uint32_t uNodeIndex = 0;
+    for(uint32_t i = 0; i < pl_sb_size(ptData->sbtNodes); i++)
+    {
+        plDeviceAllocationRange* ptNode = &ptData->sbtNodes[i];
+        plDeviceMemoryAllocation* ptBlock = &ptData->sbtBlocks[ptNode->ulBlockIndex];
+
+        if(ptBlock->uHandle == ptAllocation->uHandle)
+        {
+            uNodeIndex = i;
+            uBlockIndex = (uint32_t)ptNode->ulBlockIndex;
+            ptBlock->ulSize = 0;
+            break;
+        }
+    }
+    pl_sb_del_swap(ptData->sbtNodes, uNodeIndex);
+    pl_sb_push(ptData->sbtFreeBlockIndices, uBlockIndex);
+
+    gptDevice->free_memory(ptData->ptDevice, &ptData->sbtBlocks[uBlockIndex]);
+
+    ptAllocation->pHostMapped  = NULL;
+    ptAllocation->uHandle      = 0;
+    ptAllocation->ulOffset     = 0;
+    ptAllocation->ulSize       = 0;
+}
+
 static plDeviceMemoryAllocatorI*
 pl_get_local_dedicated_allocator(plDevice* ptDevice)
 {
@@ -629,6 +695,19 @@ pl_get_staging_uncached_allocator(plDevice* ptDevice)
     return &tAllocator;
 }
 
+static plDeviceMemoryAllocatorI*
+pl_get_staging_cached_allocator(plDevice* ptDevice)
+{
+    static plDeviceAllocatorData tAllocatorData = {0};
+    static plDeviceMemoryAllocatorI tAllocator = {0};
+    tAllocatorData.ptDevice = ptDevice;
+    tAllocatorData.ptAllocator = &tAllocator;
+    tAllocator.allocate = pl_allocate_staging_cached;
+    tAllocator.free = pl_free_staging_cached;
+    tAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&tAllocatorData;
+    return &tAllocator;
+}
+
 static void
 pl_cleanup_allocators(plDevice* ptDevice)
 {
@@ -665,6 +744,17 @@ pl_cleanup_allocators(plDevice* ptDevice)
     pl_sb_free(ptAllocatorData->sbtBlocks);
     pl_sb_free(ptAllocatorData->sbtNodes);
     pl_sb_free(ptAllocatorData->sbtFreeBlockIndices);
+
+    ptAllocator = pl_get_staging_cached_allocator(ptDevice);
+    ptAllocatorData = (plDeviceAllocatorData*)ptAllocator->ptInst;
+    for(uint32_t i = 0; i < pl_sb_size(ptAllocatorData->sbtBlocks); i++)
+    {
+        if(ptAllocatorData->sbtBlocks[i].uHandle)
+            gptDevice->free_memory(ptDevice, &ptAllocatorData->sbtBlocks[i]);
+    }
+    pl_sb_free(ptAllocatorData->sbtBlocks);
+    pl_sb_free(ptAllocatorData->sbtNodes);
+    pl_sb_free(ptAllocatorData->sbtFreeBlockIndices);
 }
 
 //-----------------------------------------------------------------------------
@@ -678,6 +768,7 @@ pl_load_gpu_allocators_api(void)
         .get_local_dedicated_allocator  = pl_get_local_dedicated_allocator,
         .get_local_buddy_allocator      = pl_get_local_buddy_allocator,
         .get_staging_uncached_allocator = pl_get_staging_uncached_allocator,
+        .get_staging_cached_allocator   = pl_get_staging_cached_allocator,
         .get_blocks                     = pl_get_allocator_blocks,
         .get_ranges                     = pl_get_allocator_ranges,
         .cleanup_allocators             = pl_cleanup_allocators

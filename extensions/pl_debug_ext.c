@@ -823,7 +823,7 @@ pl__show_device_memory(bool* bValue)
             *gptGpuAllocators->get_local_buddy_allocator(ptDevice),
             *gptGpuAllocators->get_local_dedicated_allocator(ptDevice),
             *gptGpuAllocators->get_staging_uncached_allocator(ptDevice),
-            *gptGpuAllocators->get_staging_uncached_allocator(ptDevice)
+            *gptGpuAllocators->get_staging_cached_allocator(ptDevice)
         };
 
         const char* apcAllocatorNames[] = {
@@ -836,7 +836,7 @@ pl__show_device_memory(bool* bValue)
         gptUI->push_theme_color(PL_UI_COLOR_BUTTON, &tButtonColor);
         gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, &tButtonColor);
         gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, &tButtonColor);
-        for(uint32_t uAllocatorIndex = 0; uAllocatorIndex < 3; uAllocatorIndex++)
+        for(uint32_t uAllocatorIndex = 0; uAllocatorIndex < 4; uAllocatorIndex++)
         {
             uint32_t uBlockCount = 0;
             uint32_t uRangeCount = 0;

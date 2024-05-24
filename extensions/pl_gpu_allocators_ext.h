@@ -73,6 +73,7 @@ typedef struct _plGPUAllocatorsI
     plDeviceMemoryAllocatorI* (*get_local_dedicated_allocator) (plDevice*);
     plDeviceMemoryAllocatorI* (*get_local_buddy_allocator)     (plDevice*);
     plDeviceMemoryAllocatorI* (*get_staging_uncached_allocator)(plDevice*);
+    plDeviceMemoryAllocatorI* (*get_staging_cached_allocator)  (plDevice*);
 
     void (*cleanup_allocators)(plDevice*);
 
