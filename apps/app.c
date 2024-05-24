@@ -237,7 +237,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create main camera
     plCameraComponent* ptMainCamera = NULL;
-    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-9.6f, 2.096f, 0.86f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.1f, 30.0f, &ptMainCamera);
+    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-9.6f, 2.096f, 0.86f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.1f, 300.0f, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, -0.245f, 1.816f);
     gptCamera->update(ptMainCamera);
     gptEcs->attach_script(ptMainComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING, ptAppData->tMainCamera, NULL);
@@ -261,10 +261,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plModelLoaderData tLoaderData0 = {0};
 
     pl_begin_profile_sample("load models 0");
-    // const plMat4 tTransform0 = pl_mat4_scale_xyz(2.0f, 2.0f, 2.0f);
-    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/town.gltf", &tTransform0, &tLoaderData0);
-    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
+    // const plMat4 tTransform = pl_mat4_translate_xyz(0.0f, 15.0f, 0.0f);
+    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf", &tTransform, &tLoaderData0);
     gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL, &tLoaderData0);
+    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
     gptModelLoader->free_data(&tLoaderData0);
     pl_end_profile_sample();
@@ -438,17 +438,14 @@ pl_app_update(plAppData* ptAppData)
     };
     gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo00);
 
-
-
     const plBeginCommandInfo tBeginInfo11 = {
         .uWaitSemaphoreCount   = 1,
         .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue2}
     };
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo11);
-
     gptRenderer->generate_cascaded_shadow_map(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0, ptAppData->tMainCamera, ptAppData->tSunlight, ptAppData->fCascadeSplitLambda);
-
+    
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
 
     const plSubmitInfo tSubmitInfo11 = {
@@ -479,7 +476,6 @@ pl_app_update(plAppData* ptAppData)
     };
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo1);
     gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0, tViewOptions);
-
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
 
     const plSubmitInfo tSubmitInfo1 = {
@@ -497,6 +493,13 @@ pl_app_update(plAppData* ptAppData)
         .auWaitSemaphoreValues = {ulValue4},
     };
     tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo2);
+
+    plEntity tNextSelectedEntity = gptRenderer->get_picked_entity();
+    if(tNextSelectedEntity.uIndex != UINT32_MAX)
+    {
+        ptAppData->bUpdateEntitySelection = true;
+        ptAppData->tSelectedEntity = tNextSelectedEntity;
+    }
 
     gptUi->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
 
@@ -574,7 +577,7 @@ pl_app_update(plAppData* ptAppData)
 
     if(ptAppData->bShowEntityWindow)
     {
-        plEntity tNextSelectedEntity = pl_show_ecs_window(gptRenderer->get_component_library(ptAppData->uSceneHandle0), &ptAppData->bShowEntityWindow);
+        tNextSelectedEntity = pl_show_ecs_window(gptRenderer->get_component_library(ptAppData->uSceneHandle0), &ptAppData->bShowEntityWindow);
         if(tNextSelectedEntity.ulData != ptAppData->tSelectedEntity.ulData)
             ptAppData->bUpdateEntitySelection = true;
         ptAppData->tSelectedEntity = tNextSelectedEntity;
@@ -655,7 +658,7 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, bool* pbShowWindow)
                 {
                     bool bSelected = (int)i == iSelectedEntity;
                     char atBuffer[1024] = {0};
-                    pl_sprintf(atBuffer, "%s ##%u", sbtTags[i].acName, i);
+                    pl_sprintf(atBuffer, "%s, %u", sbtTags[i].acName, ptLibrary->tTagComponentManager.sbtEntities[i].uIndex);
                     if(gptUi->selectable(atBuffer, &bSelected))
                     {
                         if(bSelected)
@@ -746,7 +749,7 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, bool* pbShowWindow)
                 {
                     plTagComponent* ptMeshTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptObjectComp->tMesh);
                     plTagComponent* ptTransformTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptObjectComp->tTransform);
-                    gptUi->text("Mesh Entity:      %s", ptMeshTagComp->acName);
+                    gptUi->text("Mesh Entity:      %s, %u", ptMeshTagComp->acName, ptObjectComp->tMesh.uIndex);
                     gptUi->text("Transform Entity: %s, %u", ptTransformTagComp->acName, ptObjectComp->tTransform.uIndex);
                     gptUi->end_collapsing_header();
                 }
