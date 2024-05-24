@@ -177,8 +177,8 @@ static       void  pl__replace_api    (const void* pOldInterface, const void* pN
 static       void  pl__subscribe_api  (const void* pOldInterface, ptApiUpdateCallback ptCallback, void* pUserData);
 
 // extension registry functions
-static void pl__load_extension             (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
-static void pl__unload_extension           (const char* pcName);
+static bool pl__load_extension             (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
+static bool pl__unload_extension           (const char* pcName);
 static void pl__unload_all_extensions      (void);
 static void pl__handle_extension_reloads   (void);
 
@@ -525,7 +525,7 @@ pl__create_extension(const char* pcName, const char* pcLoadFunc, const char* pcU
     pl_sprintf(ptExtensionOut->pcTransName, "./%s_", pcName); 
 }
 
-static void
+static bool
 pl__load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable)
 {
 
@@ -535,7 +535,7 @@ pl__load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnl
     {
         if(strcmp(pcName, gsbtExtensions[i].pcLibName) == 0)
         {
-            return;
+            return true;
         }
     }
 
@@ -549,13 +549,6 @@ pl__load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnl
 
     plExtension tExtension = {0};
     pl__create_extension(pcName, pcLoadFunc, pcUnloadFunc, &tExtension);
-
-    // check if extension exists already
-    for(uint32_t i = 0; i < pl_sb_size(gsbptLibs); i++)
-    {
-        if(strcmp(tExtension.pcLibPath, gsbptLibs[i]->acPath) == 0)
-            return;
-    }
 
     plSharedLibrary* ptLibrary = NULL;
 
@@ -581,12 +574,13 @@ pl__load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnl
     }
     else
     {
-        printf("Extension: %s not loaded\n", tExtension.pcLibPath);
-        PL_ASSERT(false && "extension not loaded");
+        // printf("Extension: %s not loaded\n", tExtension.pcLibPath);
+        return false;
     }
+    return true;
 }
 
-static void
+static bool
 pl__unload_extension(const char* pcName)
 {
     const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
@@ -601,11 +595,11 @@ pl__unload_extension(const char* pcName)
             pl_sb_del_swap(gsbtExtensions, i);
             pl_sb_del_swap(gsbptLibs, i);
             pl_sb_del_swap(gsbtHotLibs, i);
-            return;
+            return true;
         }
     }
 
-    PL_ASSERT(false && "extension not found");
+    return false;
 }
 
 static void

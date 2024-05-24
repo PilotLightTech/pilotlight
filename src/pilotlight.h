@@ -147,8 +147,8 @@ typedef struct _plExtensionRegistryI
 {
     void (*reload)    (void);
     void (*unload_all)(void);
-    void (*load)      (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
-    void (*unload)    (const char* pcName); 
+    bool (*load)      (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
+    bool (*unload)    (const char* pcName); 
 } plExtensionRegistryI;
 
 typedef struct _plIOI
