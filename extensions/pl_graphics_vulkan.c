@@ -446,8 +446,7 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
     if(ptFrame->uCurrentBufferIndex == UINT32_MAX)
     {
         ptFrame->uCurrentBufferIndex = 0;
-        ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[0];
-        ptDynamicBuffer->uByteOffset = 0;
+        ptFrame->sbtDynamicBuffers[0].uByteOffset = 0;
     }
     ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
     
@@ -523,49 +522,47 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
 }
 
 static void
-pl_transfer_image_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTexture, plBufferHandle tBuffer)
+pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
-    plGraphics* ptGraphics = ptEncoder->ptGraphics;
-    plDevice* ptDevice = &ptGraphics->tDevice;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
-
-    const plTexture* ptTexture = pl__get_texture(ptDevice, tTexture);
-    const plVulkanTexture* ptVulkanTexture = &ptVulkanGraphics->sbtTexturesHot[tTexture.uIndex];
-    const plVulkanBuffer* ptVulkanBuffer = &ptVulkanGraphics->sbtBuffersHot[tBuffer.uIndex];
+    plDevice* ptDevice = &ptEncoder->ptGraphics->tDevice;
+    plVulkanDevice*   ptVulkanDevice   = ptDevice->_pInternalData;
+    plVulkanGraphics* ptVulkanGraphics = ptEncoder->ptGraphics->_pInternalData;
 
     VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
 
-    const VkImageSubresourceLayers tSubResource = {
-        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .mipLevel = 0,
-        .baseArrayLayer = 0,
-        .layerCount = 1
-    };
+    plTexture* ptColdTexture = pl__get_texture(ptDevice, tTextureHandle);
+    VkImageSubresourceRange* atSubResourceRanges = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, sizeof(VkImageSubresourceRange) * uRegionCount);
+    VkBufferImageCopy*       atCopyRegions       = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, sizeof(VkBufferImageCopy) * uRegionCount);
+    memset(atSubResourceRanges, 0, sizeof(VkImageSubresourceRange) * uRegionCount);
+    memset(atCopyRegions, 0, sizeof(VkBufferImageCopy) * uRegionCount);
 
-    const VkBufferImageCopy tCopyRegion = {
-        .bufferImageHeight = (uint32_t)ptTexture->tDesc.tDimensions.y,
-        .bufferOffset = 0,
-        .bufferRowLength = (uint32_t)ptTexture->tDesc.tDimensions.x,
-        .imageSubresource = tSubResource,
-        .imageExtent = {
-            .width  = (uint32_t)ptTexture->tDesc.tDimensions.x,
-            .height = (uint32_t)ptTexture->tDesc.tDimensions.y,
-            .depth  = (uint32_t)ptTexture->tDesc.tDimensions.z
-        }
-    };
+    for(uint32_t i = 0; i < uRegionCount; i++)
+    {
+        atSubResourceRanges[i].aspectMask     = ptColdTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        atSubResourceRanges[i].baseMipLevel   = ptRegions[i].uMipLevel;
+        atSubResourceRanges[i].levelCount     = 1;
+        atSubResourceRanges[i].baseArrayLayer = ptRegions[i].uBaseArrayLayer;
+        atSubResourceRanges[i].layerCount     = ptRegions[i].uLayerCount;
+        pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-    const VkImageSubresourceRange tSubResourceRange = {
-        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-        .baseMipLevel   = 0,
-        .levelCount     = 1,
-        .baseArrayLayer = 0,
-        .layerCount     = 1
-    };
+        atCopyRegions[i].bufferOffset                    = ptRegions[i].szBufferOffset;
+        atCopyRegions[i].bufferRowLength                 = ptRegions[i].uBufferRowLength;
+        atCopyRegions[i].bufferImageHeight               = ptRegions[i].uImageHeight;
+        atCopyRegions[i].imageSubresource.aspectMask     = atSubResourceRanges[i].aspectMask;
+        atCopyRegions[i].imageSubresource.mipLevel       = ptRegions[i].uMipLevel;
+        atCopyRegions[i].imageSubresource.baseArrayLayer = ptRegions[i].uBaseArrayLayer;
+        atCopyRegions[i].imageSubresource.layerCount     = ptRegions[i].uLayerCount;
+        atCopyRegions[i].imageExtent.width = ptRegions[i].tImageExtent.uWidth;
+        atCopyRegions[i].imageExtent.height = ptRegions[i].tImageExtent.uHeight;
+        atCopyRegions[i].imageExtent.depth = ptRegions[i].tImageExtent.uDepth;
+        
+    }
+    vkCmdCopyImageToBuffer(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, ptVulkanGraphics->sbtBuffersHot[tBufferHandle.uIndex].tBuffer, uRegionCount, atCopyRegions);
 
-    pl__transition_image_layout(tCmdBuffer, ptVulkanTexture->tImage, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-    vkCmdCopyImageToBuffer(tCmdBuffer, ptVulkanTexture->tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, ptVulkanBuffer->tBuffer, 1, &tCopyRegion);
-    pl__transition_image_layout(tCmdBuffer, ptVulkanTexture->tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    for(uint32_t i = 0; i < uRegionCount; i++)
+        pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+        
+    pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
 }
 
 static void
@@ -5348,9 +5345,9 @@ pl_load_graphics_api(void)
         .draw_indexed                     = pl_draw_indexed,
         .present                          = pl_present,
         .copy_buffer_to_texture           = pl_copy_buffer_to_texture,
+        .copy_texture_to_buffer           = pl_copy_texture_to_buffer,
         .generate_mipmaps                 = pl_generate_mipmaps,
         .copy_buffer                      = pl_copy_buffer,
-        .transfer_image_to_buffer         = pl_transfer_image_to_buffer,
         .signal_semaphore                 = pl_signal_semaphore,
         .wait_semaphore                   = pl_wait_semaphore,
         .get_semaphore_value              = pl_get_semaphore_value,

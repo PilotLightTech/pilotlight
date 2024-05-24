@@ -329,9 +329,9 @@ typedef struct _plGraphicsI
     plBlitEncoder (*begin_blit_pass)         (plGraphics*, plCommandBuffer*);
     void          (*end_blit_pass)           (plBlitEncoder*);
     void          (*copy_buffer_to_texture)  (plBlitEncoder*, plBufferHandle, plTextureHandle, uint32_t uRegionCount, const plBufferImageCopy*);
+    void          (*copy_texture_to_buffer)  (plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t uRegionCount, const plBufferImageCopy*);
     void          (*generate_mipmaps)        (plBlitEncoder*, plTextureHandle);
     void          (*copy_buffer)             (plBlitEncoder*, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t);
-    void          (*transfer_image_to_buffer)(plBlitEncoder*, plTextureHandle tTexture, plBufferHandle tBuffer); // from single layer & single mip textures
 } plGraphicsI;
 
 //-----------------------------------------------------------------------------

@@ -574,35 +574,40 @@ pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle
 }
 
 static void
-pl_transfer_image_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTexture, plBufferHandle tBuffer)
+pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
     plGraphicsMetal* ptMetalGraphics = ptEncoder->ptGraphics->_pInternalData;
     id<MTLBlitCommandEncoder> blitEncoder = (id<MTLBlitCommandEncoder>)ptEncoder->_pInternal;
 
-    const plTexture* ptTexture = pl__get_texture(&ptEncoder->ptGraphics->tDevice, tTexture);
-    const plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[tTexture.uIndex];
-    const plMetalBuffer* ptMetalBuffer = &ptMetalGraphics->sbtBuffersHot[tBuffer.uIndex];
+    const plTexture* ptTexture = pl__get_texture(&ptEncoder->ptGraphics->tDevice, tTextureHandle);
+    const plMetalTexture* ptMetalTexture = &ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex];
+    const plMetalBuffer* ptMetalBuffer = &ptMetalGraphics->sbtBuffersHot[tBufferHandle.uIndex];
 
-    MTLOrigin tOrigin;
-    tOrigin.x = 0;
-    tOrigin.y = 0;
-    tOrigin.z = 0;
-    MTLSize tSize;
-    tSize.width = ptTexture->tDesc.tDimensions.x;
-    tSize.height = ptTexture->tDesc.tDimensions.y;
-    tSize.depth = ptTexture->tDesc.tDimensions.z;
+    for(uint32_t i = 0; i < uRegionCount; i++)
+    {
 
-    const uint32_t uFormatStride = pl__format_stride(ptTexture->tDesc.tFormat);
+        MTLOrigin tOrigin;
+        tOrigin.x = ptRegions[i].iImageOffsetX;
+        tOrigin.y = ptRegions[i].iImageOffsetY;
+        tOrigin.z = ptRegions[i].iImageOffsetZ;
 
-    [blitEncoder copyFromTexture:ptMetalTexture->tTexture
-        sourceSlice:0
-        sourceLevel:0
-        sourceOrigin:tOrigin
-        sourceSize:tSize
-        toBuffer:ptMetalBuffer->tBuffer
-        destinationOffset:0
-        destinationBytesPerRow:ptTexture->tDesc.tDimensions.x * uFormatStride
-        destinationBytesPerImage:0];
+        MTLSize tSize;
+        tSize.width  = ptRegions[i].tImageExtent.uWidth;
+        tSize.height = ptRegions[i].tImageExtent.uHeight;
+        tSize.depth  = ptRegions[i].tImageExtent.uDepth;
+
+        const uint32_t uFormatStride = pl__format_stride(ptTexture->tDesc.tFormat);
+
+        [blitEncoder copyFromTexture:ptMetalTexture->tTexture
+            sourceSlice:ptRegions[i].uBaseArrayLayer
+            sourceLevel:ptRegions[i].uMipLevel
+            sourceOrigin:tOrigin
+            sourceSize:tSize
+            toBuffer:ptMetalBuffer->tBuffer
+            destinationOffset:ptRegions[i].szBufferOffset
+            destinationBytesPerRow:ptTexture->tDesc.tDimensions.x * uFormatStride
+            destinationBytesPerImage:0];
+    }
 }
 
 static void
@@ -3170,7 +3175,7 @@ pl_load_graphics_api(void)
         .draw_indexed                     = pl_draw_indexed,
         .present                          = pl_present,
         .copy_buffer_to_texture           = pl_copy_buffer_to_texture,
-        .transfer_image_to_buffer         = pl_transfer_image_to_buffer,
+        .copy_texture_to_buffer           = pl_copy_texture_to_buffer,
         .generate_mipmaps                 = pl_generate_mipmaps,
         .copy_buffer                      = pl_copy_buffer,
         .signal_semaphore                 = pl_signal_semaphore,
