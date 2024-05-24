@@ -181,7 +181,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .iSdfPadding = 1
     };
     pl_sb_push(tFontConfig0.sbtRanges, tRange);
-    gptDraw->add_font_from_file_ttf(tFontConfig0, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
+    ptAppData->tCousineBitmapFont = gptDraw->add_font_from_file_ttf(tFontConfig0, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
 
     // adding previous font but as a signed distance field
     plFontConfig tFontConfig1 = {
@@ -193,7 +193,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .iSdfPadding = 1
     };
     pl_sb_push(tFontConfig1.sbtRanges, tRange);
-    gptDraw->add_font_from_file_ttf(tFontConfig1, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
+    ptAppData->tCousineSDFFont = gptDraw->add_font_from_file_ttf(tFontConfig1, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
 
     // build font atlass
     gptDraw->build_font_atlas();
