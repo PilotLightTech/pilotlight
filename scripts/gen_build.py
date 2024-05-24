@@ -173,20 +173,25 @@ with pl.project("pilotlight"):
         "outline.frag",
         "shadow.vert",
         "shadow.frag",
+        "picking.frag",
+        "picking.vert",
     ]
 
     metal_shaders = [
-        "panorama_to_cubemap.metal",
+        "draw_2d_sdf.metal",
+        "draw_2d.metal",
         "draw_3d_line.metal",
         "draw_3d.metal",
-        "primitive.metal",
-        "lighting.metal",
-        "skybox.metal",
         "filter_environment.metal",
-        "transparent.metal",
-        "skinning.metal",
+        "lighting.metal",
+        "outline.metal",
+        "panorama_to_cubemap.metal",
+        "picking.metal",
+        "primitive.metal",
         "shadow.metal",
-        "outline.metal"
+        "skinning.metal",
+        "skybox.metal",
+        "transparent.metal"
     ]
 
     with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
