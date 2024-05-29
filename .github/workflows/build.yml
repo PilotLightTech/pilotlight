@@ -55,6 +55,8 @@ jobs:
         if not exist ../out/example_2.dll exit 1
         if not exist ../out/example_3.dll exit 1
         if not exist ../out/example_4.dll exit 1
+        if not exist ../out/example_5.dll exit 1
+        if not exist ../out/example_6.dll exit 1
         if not exist ../out/example_8.dll exit 1
         if not exist ../out/pilot_light.exe exit 1
         if not exist ../out/pl_graphics_ext.dll exit 1
@@ -122,6 +124,8 @@ jobs:
         test -f ./out/example_2.dylib || exit 1
         test -f ./out/example_3.dylib || exit 1
         test -f ./out/example_4.dylib || exit 1
+        test -f ./out/example_5.dylib || exit 1
+        test -f ./out/example_6.dylib || exit 1
         test -f ./out/example_8.dylib || exit 1
         test -f ./out/pl_stats_ext.dylib || exit 1
         test -f ./out/pl_image_ext.dylib || exit 1
@@ -201,6 +205,8 @@ jobs:
         test -f ./out/example_2.so || exit 1
         test -f ./out/example_3.so || exit 1
         test -f ./out/example_4.so || exit 1
+        test -f ./out/example_5.so || exit 1
+        test -f ./out/example_6.so || exit 1
         test -f ./out/example_8.so || exit 1
         test -f ./out/pl_graphics_ext.so || exit 1
         test -f ./out/pl_image_ext.so || exit 1

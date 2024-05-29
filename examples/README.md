@@ -59,7 +59,35 @@ Demonstrates:
 * loading APIs
 * hot reloading
 * loading extensions
-* basic graphics extension use
+* vertex buffers
+* graphics shaders
+* non-indexed drawing
+
+## Example 5 - Hello Quad (example_5.c)
+Demonstrates:
+* loading APIs
+* hot reloading
+* loading extensions
+* vertex buffers
+* index buffers
+* staging buffers
+* graphics shaders
+* indexed drawing
+
+## Example 6 - Textured Quad (example_6.c)
+Demonstrates:
+* loading APIs
+* hot reloading
+* loading extensions
+* vertex, index, staging buffers
+* samplers, textures, bindgroups
+* graphics shaders
+* indexed drawing
+* image extension
+
+## Example 7 - Compute (example_7.c)
+Demonstrates:
+* WIP
 
 ## Example 8 - Drawing Extension 3D (example_8.c)
 Demonstrates:

@@ -1,11 +1,13 @@
 /*
-   example_4.c
+   example_5.c
      - demonstrates loading APIs
      - demonstrates loading extensions
      - demonstrates hot reloading
      - demonstrates vertex buffers
+     - demonstrates index buffers
+     - demonstrates staging buffers
      - demonstrates graphics shaders
-     - demonstrates non-index drawing
+     - demonstrates indexed drawing
 */
 
 /*
@@ -49,6 +51,8 @@ typedef struct _plAppData
     plShaderHandle tShader;
 
     // buffers
+    plBufferHandle tStagingBuffer;
+    plBufferHandle tIndexBuffer;
     plBufferHandle tVertexBuffer;
 
     // graphics & sync objects
@@ -136,7 +140,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // use window API to create a window
     const plWindowDesc tWindowDesc = {
-        .pcName  = "Example 4",
+        .pcName  = "Example 5",
         .iXPos   = 200,
         .iYPos   = 200,
         .uWidth  = 600,
@@ -157,40 +161,106 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
         ptAppData->atSempahore[i] = gptDevice->create_semaphore(ptDevice, false);
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // vertex buffer data
     const float atVertexData[] = { // x, y, r, g, b, a
         -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 1.0f,
          0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f,
-         0.0f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f
+         0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f,
+        -0.5f, -0.5f, 1.0f, 0.0f, 1.0f, 1.0f
     };
 
     // create vertex buffer
-    const plBufferDescription tBufferDesc = {
+    const plBufferDescription tVertexBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_VERTEX,
-        .uByteSize = sizeof(float) * 18
+        .uByteSize = sizeof(float) * 24
     };
-    ptAppData->tVertexBuffer = gptDevice->create_buffer(ptDevice, &tBufferDesc, "vertex buffer");
+    ptAppData->tVertexBuffer = gptDevice->create_buffer(ptDevice, &tVertexBufferDesc, "vertex buffer");
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
     plBuffer* ptVertexBuffer = gptDevice->get_buffer(ptDevice, ptAppData->tVertexBuffer);
 
     // allocate memory for the vertex buffer
-    // NOTE: for this example we are using host visible memory for simplicity (PL_MEMORY_GPU_CPU)
-    //       which is persistently mapped. For rarely updated memory, device local memory should
-    //       be used, with uploads transfered from staging buffers (see example 5)
-    const plDeviceMemoryAllocation tAllocation = gptDevice->allocate_memory(ptDevice,
+    const plDeviceMemoryAllocation tVertexBufferAllocation = gptDevice->allocate_memory(ptDevice,
         ptVertexBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_GPU_CPU,
+        PL_MEMORY_GPU,
         ptVertexBuffer->tMemoryRequirements.uMemoryTypeBits,
         "vertex buffer memory");
 
     // bind the buffer to the new memory allocation
-    gptDevice->bind_buffer_to_memory(ptDevice, ptAppData->tVertexBuffer, &tAllocation);
+    gptDevice->bind_buffer_to_memory(ptDevice, ptAppData->tVertexBuffer, &tVertexBufferAllocation);
 
-    // copy vertex data to newly allocated memory
-    memcpy(ptVertexBuffer->tMemoryAllocation.pHostMapped, atVertexData, sizeof(float) * 18);
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
+    // index buffer data
+    const uint32_t atIndexData[] = {
+        0, 1, 3,
+        1, 2, 3
+    };
+
+    // create index buffer
+    const plBufferDescription tIndexBufferDesc = {
+        .tUsage    = PL_BUFFER_USAGE_INDEX,
+        .uByteSize = sizeof(uint32_t) * 6
+    };
+    ptAppData->tIndexBuffer = gptDevice->create_buffer(ptDevice, &tIndexBufferDesc, "index buffer");
+
+    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
+    plBuffer* ptIndexBuffer = gptDevice->get_buffer(ptDevice, ptAppData->tIndexBuffer);
+
+    // allocate memory for the index buffer
+    const plDeviceMemoryAllocation tIndexBufferAllocation = gptDevice->allocate_memory(ptDevice,
+        ptIndexBuffer->tMemoryRequirements.ulSize,
+        PL_MEMORY_GPU,
+        ptIndexBuffer->tMemoryRequirements.uMemoryTypeBits,
+        "index buffer memory");
+
+    // bind the buffer to the new memory allocation
+    gptDevice->bind_buffer_to_memory(ptDevice, ptAppData->tIndexBuffer, &tIndexBufferAllocation);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~staging buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // create vertex buffer
+    const plBufferDescription tStagingBufferDesc = {
+        .tUsage    = PL_BUFFER_USAGE_STAGING,
+        .uByteSize = 4096
+    };
+    ptAppData->tStagingBuffer = gptDevice->create_buffer(ptDevice, &tStagingBufferDesc, "staging buffer");
+
+    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
+    plBuffer* ptStagingBuffer = gptDevice->get_buffer(ptDevice, ptAppData->tStagingBuffer);
+
+    // allocate memory for the vertex buffer
+    const plDeviceMemoryAllocation tStagingBufferAllocation = gptDevice->allocate_memory(ptDevice,
+        ptStagingBuffer->tMemoryRequirements.ulSize,
+        PL_MEMORY_GPU_CPU,
+        ptStagingBuffer->tMemoryRequirements.uMemoryTypeBits,
+        "staging buffer memory");
+
+    // bind the buffer to the new memory allocation
+    gptDevice->bind_buffer_to_memory(ptDevice, ptAppData->tStagingBuffer, &tStagingBufferAllocation);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~transfers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // copy memory to mapped staging buffer
+    memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, atVertexData, sizeof(float) * 24);
+    memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[1024], atIndexData, sizeof(uint32_t) * 6);
+
+    // begin recording
+    plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(&ptAppData->tGraphics, NULL);
+
+    // begin blit pass, copy buffer, end pass
+    plBlitEncoder tEncoder = gptGfx->begin_blit_pass(&ptAppData->tGraphics, &tCommandBuffer);
+    gptGfx->copy_buffer(&tEncoder, ptAppData->tStagingBuffer, ptAppData->tVertexBuffer, 0, 0, sizeof(float) * 24);
+    gptGfx->copy_buffer(&tEncoder, ptAppData->tStagingBuffer, ptAppData->tIndexBuffer, 1024, 0, sizeof(uint32_t) * 6);
+    gptGfx->end_blit_pass(&tEncoder);
+
+    // finish recording
+    gptGfx->end_command_recording(&ptAppData->tGraphics, &tCommandBuffer);
+
+    // submit command buffer
+    gptGfx->submit_command_buffer_blocking(&ptAppData->tGraphics, &tCommandBuffer, NULL);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~shaders~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -246,6 +316,8 @@ pl_app_shutdown(plAppData* ptAppData)
     gptDevice->flush_device(&ptAppData->tGraphics.tDevice);
     gptDevice->destroy_shader(&ptAppData->tGraphics.tDevice, ptAppData->tShader);
     gptDevice->destroy_buffer(&ptAppData->tGraphics.tDevice, ptAppData->tVertexBuffer);
+    gptDevice->destroy_buffer(&ptAppData->tGraphics.tDevice, ptAppData->tIndexBuffer);
+    gptDevice->destroy_buffer(&ptAppData->tGraphics.tDevice, ptAppData->tStagingBuffer);
     gptGfx->cleanup(&ptAppData->tGraphics);
     gptWindows->destroy_window(ptAppData->ptWindow);
     pl_cleanup_profile_context();
@@ -307,11 +379,12 @@ pl_app_update(plAppData* ptAppData)
     gptGfx->bind_shader(&tEncoder, ptAppData->tShader);
     gptGfx->bind_vertex_buffer(&tEncoder, ptAppData->tVertexBuffer);
 
-    const plDraw tDraw = {
+    const plDrawIndex tDraw = {
         .uInstanceCount = 1,
-        .uVertexCount   = 3
+        .uIndexCount    = 6,
+        .tIndexBuffer   = ptAppData->tIndexBuffer
     };
-    gptGfx->draw(&tEncoder, 1, &tDraw);
+    gptGfx->draw_indexed(&tEncoder, 1, &tDraw);
 
     // end render pass
     gptGfx->end_render_pass(&tEncoder);
