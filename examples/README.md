@@ -54,7 +54,14 @@ Demonstrates:
 * drawing extension (2D)
 * UI extension
 
-## Example 4 - Drawing Extension 3D (example_4.c)
+## Example 4 - Hello Triangle (example_4.c)
+Demonstrates:
+* loading APIs
+* hot reloading
+* loading extensions
+* basic graphics extension use
+
+## Example 5 - Drawing Extension 3D (example_5.c)
 Demonstrates:
 * loading APIs
 * hot reloading

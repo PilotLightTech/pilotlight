@@ -45,9 +45,6 @@ typedef struct _plAppData
     // window
     plWindow* ptWindow;
 
-    // ui options
-    bool bShowUiDemo;
-
     // drawing
     plDrawList2D*  ptDrawlist;
     plDrawLayer2D* ptFGLayer;

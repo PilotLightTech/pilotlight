@@ -88,6 +88,13 @@ with pl.project("pilotlight"):
     add_example_app("example_2")
     add_example_app("example_3")
     add_example_app("example_4")
+    add_example_app("example_5")
+
+    vulkan_shaders = [
+        "example_4.frag",
+        "example_4.vert",
+
+    ]
 
     ###############################################################################
     #                                 pilot_light                                 #
@@ -98,6 +105,7 @@ with pl.project("pilotlight"):
                
         with pl.configuration("debug"):
             pl.push_profile(pl.Profile.VULKAN)
+            pl.push_vulkan_glsl_files("./shaders/", *vulkan_shaders)
             with pl.platform(pl.PlatformType.WIN32):
                 with pl.compiler("msvc", pl.CompilerType.MSVC):
                     pl.add_definition("PL_VULKAN_BACKEND")
@@ -108,6 +116,7 @@ with pl.project("pilotlight"):
                     pl.add_definition("PL_VULKAN_BACKEND")
                     pl.add_source_file("../src/pl_main_x11.c")
             pl.pop_profile() 
+            pl.pop_vulkan_glsl_files()
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
                     pl.add_definition("PL_METAL_BACKEND")
