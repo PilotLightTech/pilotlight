@@ -17,7 +17,7 @@ cd ../out
 pilot_light.exe -a example_0
 ```
 ### MacOS & Linux
-Example for running example 0:
+Example for running example 2:
 ```bash
 cd pilotlight/scripts
 python3 gen_examples.py
@@ -26,13 +26,14 @@ chmod +x build.sh
 ./build.sh
 
 cd ../out
-pilot_light -a example_0 
+pilot_light -a example_2
 ```
 
 ## Example 0 - Minimal App (example_0.c)
-Demonstrates the bare minimumal app. This app loads, runs 50 iterations of the update function (printing to console), then exits.
+Demonstrates the bare minimum app. This app loads, runs 50 iterations of the update function (printing to console), then exits. Note: this app is not really meant to run. It is for reference.
 
 ## Example 1 - API Loading (example_1.c)
+Note: this app is not really meant to run. It is for reference.
 Demonstrates:
 * loading APIs
 * hot reloading
