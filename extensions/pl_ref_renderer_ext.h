@@ -78,6 +78,7 @@ typedef struct _plRefRendererI
     void (*update_skin_textures)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle);
     void (*perform_skinning)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle);
     void (*render_scene)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions);
+    void (*post_process_scene)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle);
     plEntity (*get_picked_entity)(void);
 
     void (*generate_cascaded_shadow_map)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plEntity tCamera, plEntity tLight, float fCascadeSplitLambda);

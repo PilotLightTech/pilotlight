@@ -175,6 +175,8 @@ with pl.project("pilotlight"):
         "shadow.frag",
         "picking.frag",
         "picking.vert",
+        "tonemap.frag",
+        "full_quad.vert"
     ]
 
     metal_shaders = [
@@ -191,7 +193,8 @@ with pl.project("pilotlight"):
         "shadow.metal",
         "skinning.metal",
         "skybox.metal",
-        "transparent.metal"
+        "transparent.metal",
+        "tonemap.metal",
     ]
 
     with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):

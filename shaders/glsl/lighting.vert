@@ -110,7 +110,8 @@ layout(set = 3, binding = 0) uniform _plObjectInfo
 } tObjectInfo;
 
 // input
-layout(location = 0) in vec3 inPos;
+layout(location = 0) in vec2 inPos;
+layout(location = 1) in vec2 inUV;
 
 // output
 layout(location = 0) out struct plShaderOut {
@@ -120,12 +121,7 @@ layout(location = 0) out struct plShaderOut {
 void main() 
 {
 
-    vec4 inPosition  = vec4(inPos, 1.0);
-    vec2 inTexCoord0 = vec2(0.0, 0.0);
-    int iCurrentAttribute = 0;
-
-    const uint iVertexDataOffset = 1 * (gl_VertexIndex - tObjectInfo.iVertexOffset) + tObjectInfo.iDataOffset;
-    inTexCoord0 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;
+    vec4 inPosition  = vec4(inPos, 0.0, 1.0);
     gl_Position = inPosition;
-    tShaderOut.tUV = inTexCoord0;
+    tShaderOut.tUV = inUV;
 }

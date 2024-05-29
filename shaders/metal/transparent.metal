@@ -938,7 +938,7 @@ fragment plRenderTargets fragment_main(
     color = color * (1.0 - clearcoatFactor * clearcoatFresnel) + clearcoat;
 
     plRenderTargets tMRT;
-    tMRT.outColor.rgb = linearTosRGB(color);
+    tMRT.outColor.rgb = color;
     tMRT.outColor.a = tBaseColor.a;
 
     // if(in.tPositionOut.x < 600.0)

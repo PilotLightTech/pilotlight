@@ -63,19 +63,6 @@ struct VertexOut {
 };
 
 //-----------------------------------------------------------------------------
-// [SECTION] helpers
-//-----------------------------------------------------------------------------
-
-constant const float GAMMA = 2.2;
-constant const float INV_GAMMA = 1.0 / GAMMA;
-
-float3
-pl_linear_to_srgb(float3 color)
-{
-    return pow(color, float3(INV_GAMMA));
-}
-
-//-----------------------------------------------------------------------------
 // [SECTION] entry
 //-----------------------------------------------------------------------------
 
@@ -103,5 +90,5 @@ fragment float4 fragment_main(
 {
 
     float3 textureSample = bg1.texture_0.sample(bg0.tDefaultSampler, in.tWorldPosition.xyz).rgb;
-    return float4(pl_linear_to_srgb(textureSample), 1.0);
+    return float4(textureSample, 1.0);
 }

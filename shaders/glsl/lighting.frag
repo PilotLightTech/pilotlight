@@ -462,7 +462,8 @@ void main()
     color = sheen + color * albedoSheenScaling;
     color = color * (1.0 - clearcoatFactor * clearcoatFresnel) + clearcoat;
 
-    outColor = vec4(linearTosRGB(color.rgb), tBaseColor.a);
+    // outColor = vec4(linearTosRGB(color.rgb), tBaseColor.a);
+    outColor = vec4(color.rgb, tBaseColor.a);
 
     // if(gl_FragCoord.x < 600.0)
     // {

@@ -398,7 +398,8 @@ pl_app_update(plAppData* ptAppData)
     uint64_t ulValue3 = ulValue0 + 3;
     uint64_t ulValue4 = ulValue0 + 4;
     uint64_t ulValue5 = ulValue0 + 5;
-    ptAppData->aulNextTimelineValue[ptGraphics->uCurrentFrameIndex] = ulValue5;
+    uint64_t ulValue6 = ulValue0 + 6;
+    ptAppData->aulNextTimelineValue[ptGraphics->uCurrentFrameIndex] = ulValue6;
 
 
     // first set of work
@@ -421,39 +422,39 @@ pl_app_update(plAppData* ptAppData)
     };
     gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo0);
 
-    const plBeginCommandInfo tBeginInfo00 = {
+    const plBeginCommandInfo tBeginInfo1 = {
         .uWaitSemaphoreCount   = 1,
         .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue1},
     };
-    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo00);
+    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo1);
 
     gptRenderer->perform_skinning(tCommandBuffer, ptAppData->uSceneHandle0);
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
 
-    const plSubmitInfo tSubmitInfo00 = {
+    const plSubmitInfo tSubmitInfo1 = {
         .uSignalSemaphoreCount   = 1,
         .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
         .auSignalSemaphoreValues = {ulValue2}
     };
-    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo00);
+    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo1);
 
-    const plBeginCommandInfo tBeginInfo11 = {
+    const plBeginCommandInfo tBeginInfo2 = {
         .uWaitSemaphoreCount   = 1,
         .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue2}
     };
-    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo11);
+    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo2);
     gptRenderer->generate_cascaded_shadow_map(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0, ptAppData->tMainCamera, ptAppData->tSunlight, ptAppData->fCascadeSplitLambda);
     
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
 
-    const plSubmitInfo tSubmitInfo11 = {
+    const plSubmitInfo tSubmitInfo2 = {
         .uSignalSemaphoreCount   = 1,
         .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
         .auSignalSemaphoreValues = {ulValue3}
     };
-    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo11);
+    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo2);
 
     plViewOptions tViewOptions = {
         .bShowAllBoundingBoxes     = ptAppData->bDrawAllBoundingBoxes,
@@ -469,30 +470,46 @@ pl_app_update(plAppData* ptAppData)
 
     // second set of work
 
-    const plBeginCommandInfo tBeginInfo1 = {
+    const plBeginCommandInfo tBeginInfo3 = {
         .uWaitSemaphoreCount   = 1,
         .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue3}
     };
-    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo1);
+    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo3);
     gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0, tViewOptions);
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
 
-    const plSubmitInfo tSubmitInfo1 = {
+    const plSubmitInfo tSubmitInfo3 = {
         .uSignalSemaphoreCount   = 1,
         .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
         .auSignalSemaphoreValues = {ulValue4}
     };
-    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo1);
+    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo3);
+
+    const plBeginCommandInfo tBeginInfo4 = {
+        .uWaitSemaphoreCount   = 1,
+        .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
+        .auWaitSemaphoreValues = {ulValue4}
+    };
+    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo4);
+    gptRenderer->post_process_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0);
+    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
+
+    const plSubmitInfo tSubmitInfo4 = {
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
+        .auSignalSemaphoreValues = {ulValue5}
+    };
+    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo4);
 
     // final set of work
 
-    const plBeginCommandInfo tBeginInfo2 = {
+    const plBeginCommandInfo tBeginInfo5 = {
         .uWaitSemaphoreCount   = 1,
         .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auWaitSemaphoreValues = {ulValue4},
+        .auWaitSemaphoreValues = {ulValue5},
     };
-    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo2);
+    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo5);
 
     plEntity tNextSelectedEntity = gptRenderer->get_picked_entity();
     if(tNextSelectedEntity.uIndex != UINT32_MAX)
@@ -609,13 +626,13 @@ pl_app_update(plAppData* ptAppData)
 
     gptGfx->end_render_pass(&tEncoder);
 
-    const plSubmitInfo tSubmitInfo2 = {
+    const plSubmitInfo tSubmitInfo5 = {
         .uSignalSemaphoreCount   = 1,
         .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auSignalSemaphoreValues = {ulValue5},
+        .auSignalSemaphoreValues = {ulValue6},
     };
     gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
-    if(!gptGfx->present(ptGraphics, &tCommandBuffer, &tSubmitInfo2))
+    if(!gptGfx->present(ptGraphics, &tCommandBuffer, &tSubmitInfo5))
         gptGfx->resize(ptGraphics);
 
     pl_end_profile_sample();

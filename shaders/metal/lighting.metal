@@ -176,7 +176,8 @@ struct DynamicData
 //-----------------------------------------------------------------------------
 
 struct VertexIn {
-    float3 tPosition [[attribute(0)]];
+    float2 tPosition [[attribute(0)]];
+    float2 tUV [[attribute(1)]];
 };
 
 //-----------------------------------------------------------------------------
@@ -458,14 +459,9 @@ vertex VertexOut vertex_main(
 {
 
     VertexOut tShaderOut;
-    float3 inPosition = in.tPosition;
-    float2 inTexCoord0 = float2(0.0, 0.0);
-
-    int iCurrentAttribute = 0;
-    const uint iVertexDataOffset = 1 * (vertexID - tObjectInfo.iVertexOffset) + tObjectInfo.iDataOffset;
-    inTexCoord0 = bg0.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;  iCurrentAttribute++;
-    tShaderOut.tPositionOut = float4(inPosition, 1.0);
-    tShaderOut.tUV = inTexCoord0;
+    float2 inPosition = in.tPosition;
+    tShaderOut.tPositionOut = float4(inPosition, 0.0, 1.0);
+    tShaderOut.tUV = in.tUV;
     tShaderOut.tPositionOut.y = tShaderOut.tPositionOut.y * -1.0;
     return tShaderOut;
 }
@@ -613,7 +609,7 @@ fragment float4 fragment_main(
     color = sheen + color * albedoSheenScaling;
     color = color * (1.0 - clearcoatFactor * clearcoatFresnel) + clearcoat;
 
-    outColor = float4(linearTosRGB(color.rgb), tBaseColor.a);
+    outColor = float4(color.rgb, tBaseColor.a);
 
     // if(in.tPositionOut.x < 600.0)
     // {

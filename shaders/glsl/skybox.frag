@@ -64,5 +64,6 @@ void
 main() 
 {
     vec3 tVectorOut = normalize(tShaderIn.tWorldPosition);
-    outColor = vec4(pl_linear_to_srgb(texture(samplerCube(samplerCubeMap, tDefaultSampler), tVectorOut).rgb), 1.0);
+    // outColor = vec4(pl_linear_to_srgb(texture(samplerCube(samplerCubeMap, tDefaultSampler), tVectorOut).rgb), 1.0);
+    outColor = vec4(texture(samplerCube(samplerCubeMap, tDefaultSampler), tVectorOut).rgb, 1.0);
 }
