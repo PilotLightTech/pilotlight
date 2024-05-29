@@ -5278,7 +5278,7 @@ pl_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
     ptVariantVulkanResource->tPipelineLayout = VK_NULL_HANDLE;
     ptVariantVulkanResource->tPipeline = VK_NULL_HANDLE;
     pl_sb_push(ptGraphics->sbtShaderFreeIndices, tHandle.uIndex);
-    for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount + 1; k++)
+    for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount; k++)
     {
         plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptVulkanGfx->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
         vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   

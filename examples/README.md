@@ -61,7 +61,7 @@ Demonstrates:
 * loading extensions
 * basic graphics extension use
 
-## Example 5 - Drawing Extension 3D (example_5.c)
+## Example 8 - Drawing Extension 3D (example_8.c)
 Demonstrates:
 * loading APIs
 * hot reloading

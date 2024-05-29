@@ -88,7 +88,7 @@ with pl.project("pilotlight"):
     add_example_app("example_2")
     add_example_app("example_3")
     add_example_app("example_4")
-    add_example_app("example_5")
+    add_example_app("example_8")
 
     vulkan_shaders = [
         "example_4.frag",
