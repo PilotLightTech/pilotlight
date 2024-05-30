@@ -528,7 +528,7 @@ pl_refr_initialize(plWindow* ptWindow)
     gptData->tShadowSampler = gptDevice->create_sampler(&ptGraphics->tDevice, &tShadowSamplerDesc, "shadow sampler");
 
     const plSamplerDesc tEnvSamplerDesc = {
-        .tFilter         = PL_FILTER_NEAREST,
+        .tFilter         = PL_FILTER_LINEAR,
         .fMinMip         = 0.0f,
         .fMaxMip         = 64.0f,
         .tVerticalWrap   = PL_WRAP_MODE_CLAMP,
