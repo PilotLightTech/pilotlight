@@ -538,12 +538,13 @@ pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHand
 
     for(uint32_t i = 0; i < uRegionCount; i++)
     {
+        VkImageLayout tLayout = ptRegions[i].tCurrentImageUsage == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : pl__vulkan_layout(ptRegions[i].tCurrentImageUsage);
         atSubResourceRanges[i].aspectMask     = ptColdTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
         atSubResourceRanges[i].baseMipLevel   = ptRegions[i].uMipLevel;
         atSubResourceRanges[i].levelCount     = 1;
         atSubResourceRanges[i].baseArrayLayer = ptRegions[i].uBaseArrayLayer;
         atSubResourceRanges[i].layerCount     = ptRegions[i].uLayerCount;
-        pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, tLayout, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
         atCopyRegions[i].bufferOffset                    = ptRegions[i].szBufferOffset;
         atCopyRegions[i].bufferRowLength                 = ptRegions[i].uBufferRowLength;
@@ -560,7 +561,10 @@ pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHand
     vkCmdCopyImageToBuffer(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, ptVulkanGraphics->sbtBuffersHot[tBufferHandle.uIndex].tBuffer, uRegionCount, atCopyRegions);
 
     for(uint32_t i = 0; i < uRegionCount; i++)
-        pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    {
+        VkImageLayout tLayout = ptRegions[i].tCurrentImageUsage == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : pl__vulkan_layout(ptRegions[i].tCurrentImageUsage);
+        pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tLayout, atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    }
         
     pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
 }
@@ -795,15 +799,24 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
         atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
 
+
+
     for(uint32_t i = 0 ; i < ptLayout->uTextureBindingCount; i++)
     {
         VkDescriptorSetLayoutBinding tBinding = {
             .binding            = ptLayout->atTextureBindings[i].uSlot,
-            .descriptorType     = ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_SAMPLED ? VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
             .descriptorCount    = ptLayout->atTextureBindings[i].uDescriptorCount,
             .stageFlags         = pl__vulkan_stage_flags(ptLayout->atTextureBindings[i].tStages),
             .pImmutableSamplers = NULL
         };
+
+        if(ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_SAMPLED)
+            tBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        else if(ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT)
+            tBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+        else if(ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_STORAGE)
+            tBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+
         if(tBinding.descriptorCount == 0)
             tBinding.descriptorCount = 1;
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
@@ -900,11 +913,18 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
     {
         VkDescriptorSetLayoutBinding tBinding = {
             .binding            = ptLayout->atTextureBindings[i].uSlot,
-            .descriptorType     = ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_SAMPLED ? VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
             .descriptorCount    = ptLayout->atTextureBindings[i].uDescriptorCount,
             .stageFlags         = pl__vulkan_stage_flags(ptLayout->atTextureBindings[i].tStages),
             .pImmutableSamplers = NULL
         };
+
+        if(ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_SAMPLED)
+            tBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        else if(ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT)
+            tBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+        else if(ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_STORAGE)
+            tBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+
         if(tBinding.descriptorCount > 1)
             tDescriptorCount = tBinding.descriptorCount;
         else if(tBinding.descriptorCount == 0)
@@ -1031,11 +1051,18 @@ pl_get_temporary_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayou
     {
         VkDescriptorSetLayoutBinding tBinding = {
             .binding            = ptLayout->atTextureBindings[i].uSlot,
-            .descriptorType     = ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_SAMPLED ? VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
             .descriptorCount    = ptLayout->atTextureBindings[i].uDescriptorCount,
             .stageFlags         = pl__vulkan_stage_flags(ptLayout->atTextureBindings[i].tStages),
             .pImmutableSamplers = NULL
         };
+
+        if(ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_SAMPLED)
+            tBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        else if(ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT)
+            tBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+        else if(ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_STORAGE)
+            tBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+
         if(tBinding.descriptorCount > 1)
             tDescriptorCount = tBinding.descriptorCount;
         else if(tBinding.descriptorCount == 0)
@@ -1156,11 +1183,12 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
     {
         VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
         VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
     };
     for(uint32_t i = 0 ; i < ptData->uTextureCount; i++)
     {
 
-        sbtImageDescInfos[i].imageLayout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        sbtImageDescInfos[i].imageLayout         = ptData->atTextures[i].tCurrentUsage == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : pl__vulkan_layout(ptData->atTextures[i].tCurrentUsage);
         sbtImageDescInfos[i].imageView           = ptVulkanGraphics->sbtTexturesHot[ptData->atTextures[i].tTexture.uIndex].tImageView;
         sbtWrites[uCurrentWrite].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         sbtWrites[uCurrentWrite].dstBinding      = ptData->atTextures[i].uSlot;
@@ -1262,6 +1290,7 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
     if(tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT) tUsageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
     if(tDesc.tUsage & PL_TEXTURE_USAGE_TRANSIENT_ATTACHMENT)     tUsageFlags |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
     if(tDesc.tUsage & PL_TEXTURE_USAGE_INPUT_ATTACHMENT)         tUsageFlags |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_STORAGE)                  tUsageFlags |= VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
     // create vulkan image
     VkImageCreateInfo tImageInfo = {
@@ -3376,6 +3405,7 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
     {
         { VK_DESCRIPTOR_TYPE_SAMPLER,                100000 },
         { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,          100000 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          100000 },
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         100000 },
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         100000 },
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 100000 },
@@ -3384,8 +3414,8 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
     VkDescriptorPoolCreateInfo tDescriptorPoolInfo = {
         .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-        .maxSets       = 100000 * 6,
-        .poolSizeCount = 6,
+        .maxSets       = 100000 * 7,
+        .poolSizeCount = 7,
         .pPoolSizes    = atPoolSizes,
     };
     if(ptGraphics->tDevice.bDescriptorIndexing)
@@ -3497,6 +3527,7 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
         {
             { VK_DESCRIPTOR_TYPE_SAMPLER,                100000 },
             { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,          100000 },
+            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          100000 },
             { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         100000 },
             { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         100000 },
             { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 100000 },
@@ -3505,8 +3536,8 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
         VkDescriptorPoolCreateInfo tDynamicDescriptorPoolInfo = {
             .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-            .maxSets       = 100000 * 6,
-            .poolSizeCount = 6,
+            .maxSets       = 100000 * 7,
+            .poolSizeCount = 7,
             .pPoolSizes    = atDynamicPoolSizes,
         };
         if(ptGraphics->tDevice.bDescriptorIndexing)
@@ -4611,12 +4642,13 @@ pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle
 
     for(uint32_t i = 0; i < uRegionCount; i++)
     {
+        VkImageLayout tLayout = ptRegions[i].tCurrentImageUsage == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : pl__vulkan_layout(ptRegions[i].tCurrentImageUsage);
         atSubResourceRanges[i].aspectMask     = ptColdTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
         atSubResourceRanges[i].baseMipLevel   = ptRegions[i].uMipLevel;
         atSubResourceRanges[i].levelCount     = 1;
         atSubResourceRanges[i].baseArrayLayer = ptRegions[i].uBaseArrayLayer;
         atSubResourceRanges[i].layerCount     = ptRegions[i].uLayerCount;
-        pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, tLayout, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
         atCopyRegions[i].bufferOffset                    = ptRegions[i].szBufferOffset;
         atCopyRegions[i].bufferRowLength                 = ptRegions[i].uBufferRowLength;
@@ -4633,7 +4665,10 @@ pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle
     vkCmdCopyBufferToImage(tCmdBuffer, ptVulkanGraphics->sbtBuffersHot[tBufferHandle.uIndex].tBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, uRegionCount, atCopyRegions);
 
     for(uint32_t i = 0; i < uRegionCount; i++)
-        pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT);
+    {
+        VkImageLayout tLayout = ptRegions[i].tCurrentImageUsage == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : pl__vulkan_layout(ptRegions[i].tCurrentImageUsage);
+        pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, tLayout, atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    }
         
     pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
 }
@@ -4764,6 +4799,7 @@ pl__vulkan_layout(plTextureUsage tUsage)
         case PL_TEXTURE_USAGE_PRESENT:                  return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         case PL_TEXTURE_USAGE_INPUT_ATTACHMENT:
         case PL_TEXTURE_USAGE_SAMPLED:                  return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        case PL_TEXTURE_USAGE_STORAGE:                  return VK_IMAGE_LAYOUT_GENERAL;
     }
 
     PL_ASSERT(false && "Unsupported texture layout");

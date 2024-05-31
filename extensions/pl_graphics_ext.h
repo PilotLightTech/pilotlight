@@ -358,6 +358,7 @@ typedef struct _plBindGroupUpdateTextureData
     plTextureBindingType tType;
     uint32_t             uSlot;
     uint32_t             uIndex;
+    plTextureUsage       tCurrentUsage;
 } plBindGroupUpdateTextureData;
 
 typedef struct _plBindGroupUpdateBufferData
@@ -611,16 +612,17 @@ typedef struct _plExtent
 
 typedef struct _plBufferImageCopy
 {
-    size_t   szBufferOffset;
-    int      iImageOffsetX;
-    int      iImageOffsetY;
-    int      iImageOffsetZ;
-    plExtent tImageExtent;
-    uint32_t uMipLevel;
-    uint32_t uBaseArrayLayer;
-    uint32_t uLayerCount;
-    uint32_t uBufferRowLength;
-    uint32_t uImageHeight;
+    size_t         szBufferOffset;
+    int            iImageOffsetX;
+    int            iImageOffsetY;
+    int            iImageOffsetZ;
+    plExtent       tImageExtent;
+    uint32_t       uMipLevel;
+    uint32_t       uBaseArrayLayer;
+    uint32_t       uLayerCount;
+    uint32_t       uBufferRowLength;
+    uint32_t       uImageHeight;
+    plTextureUsage tCurrentImageUsage;
 } plBufferImageCopy;
 
 typedef struct _plDrawArea
@@ -975,7 +977,8 @@ enum _plTextureBindingType
 {
     PL_TEXTURE_BINDING_TYPE_UNSPECIFIED,
     PL_TEXTURE_BINDING_TYPE_SAMPLED,
-    PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+    PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT,
+    PL_TEXTURE_BINDING_TYPE_STORAGE
 };
 
 enum _plTextureType
@@ -1004,7 +1007,8 @@ enum _plTextureUsage
     PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT = 1 << 2,
     PL_TEXTURE_USAGE_TRANSIENT_ATTACHMENT     = 1 << 3,
     PL_TEXTURE_USAGE_PRESENT                  = 1 << 4,
-    PL_TEXTURE_USAGE_INPUT_ATTACHMENT         = 1 << 5
+    PL_TEXTURE_USAGE_INPUT_ATTACHMENT         = 1 << 5,
+    PL_TEXTURE_USAGE_STORAGE                  = 1 << 6
 };
 
 enum _plStencilOp
