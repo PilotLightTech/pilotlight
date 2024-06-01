@@ -176,7 +176,10 @@ with pl.project("pilotlight"):
         "picking.frag",
         "picking.vert",
         "tonemap.frag",
-        "full_quad.vert"
+        "full_quad.vert",
+        "jumpfloodalgo.comp",
+        "uvmap.frag",
+        "uvmap.vert",
     ]
 
     metal_shaders = [
@@ -195,6 +198,8 @@ with pl.project("pilotlight"):
         "skybox.metal",
         "transparent.metal",
         "tonemap.metal",
+        "jumpfloodalgo.metal",
+        "uvmap.metal",
     ]
 
     with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):

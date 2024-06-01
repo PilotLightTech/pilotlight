@@ -16,8 +16,9 @@ constant const float INV_GAMMA = 1.0 / GAMMA;
 
 struct BindGroup_0
 {
-    sampler          tDefaultSampler;
-    texture2d<float> tTexture;
+    sampler          tSampler;
+    texture2d<float> tColorTexture;
+    texture2d<float> tMaskTexture;
 };
 
 //-----------------------------------------------------------------------------
@@ -26,11 +27,9 @@ struct BindGroup_0
 
 struct DynamicData
 {
-    int      iIndex;
-    int      iDataOffset;
-    int      iVertexOffset;
-    int      iMaterialIndex;
-    float4x4 tModel;
+    float fTargetWidth;
+    int   iPadding[3];
+    float4 tOutlineColor;
 };
 
 //-----------------------------------------------------------------------------
@@ -80,10 +79,21 @@ vertex VertexOut vertex_main(
 
 fragment float4 fragment_main(
     VertexOut in [[stage_in]],
-    device const BindGroup_0& bg0 [[ buffer(1) ]]
+    device const BindGroup_0& bg0 [[ buffer(1) ]],
+    device const DynamicData& tObjectInfo [[ buffer(2) ]]
     )
 {
-
-    float4 tBaseColor = bg0.tTexture.sample(bg0.tDefaultSampler, in.tUV);
-    return float4(linearTosRGB(tBaseColor.rgb), tBaseColor.a);
+    float4 color = bg0.tColorTexture.sample(bg0.tSampler, in.tUV);
+    float2 closestSeed = bg0.tMaskTexture.sample(bg0.tSampler, in.tUV).xy;
+    float2 h = closestSeed - in.tUV;
+    float xdist = h.x * float(bg0.tColorTexture.get_width());
+    float ydist = h.y * float(bg0.tColorTexture.get_height());
+    float tdist2 = xdist * xdist + ydist * ydist;
+    float dist = distance(closestSeed, in.tUV);
+    if (closestSeed.x > 0 && closestSeed.y > 0 && dist > 0 && tdist2 < tObjectInfo.fTargetWidth * tObjectInfo.fTargetWidth)
+    {
+        color = tObjectInfo.tOutlineColor;
+    }
+    color.rgb = linearTosRGB(color.rgb);
+    return color;
 }

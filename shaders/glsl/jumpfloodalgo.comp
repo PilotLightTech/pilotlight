@@ -1,0 +1,78 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 0
+//-----------------------------------------------------------------------------
+
+layout (set = 0, binding = 0, rgba32f) uniform readonly image2D inputImage;
+layout (set = 0, binding = 1, rgba32f) uniform writeonly image2D outputImage;
+
+//-----------------------------------------------------------------------------
+// [SECTION] dynamic bind group
+//-----------------------------------------------------------------------------
+
+layout(set = 1, binding = 0) uniform _plDynamicData
+{
+    vec4 tJumpDistance;
+} tDynamicData;
+
+
+//-----------------------------------------------------------------------------
+// [SECTION] helpers
+//-----------------------------------------------------------------------------
+
+vec3
+jump(vec3 minSeed, ivec2 current, ivec2 offset)
+{
+    ivec2 samplePos = current + offset;
+    if (length(clamp(samplePos.x,0,imageSize(inputImage).x) - samplePos.x) > .0001f) // out of bounds check
+    { 
+        return minSeed;
+    } 
+    if (length(clamp(samplePos.y,0,imageSize(inputImage).y) - samplePos.y) > .0001f) // out of bounds check
+    { 
+        return minSeed;
+    } 
+
+    vec2 seed = imageLoad(inputImage, samplePos).rg;
+    vec2 cScaled = current;
+    vec2 sScaled = floor(seed * imageSize(inputImage));
+    float dist = distance(cScaled, sScaled);
+    if (dist < minSeed.z)
+    {
+        return vec3(seed.x, seed.y, dist);
+    }
+    return minSeed;
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] entry
+//-----------------------------------------------------------------------------
+
+layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+void main() 
+{
+    const int iXCoord = int(gl_WorkGroupID.x * 16 + gl_LocalInvocationID.x);
+    const int iYCoord = int(gl_WorkGroupID.y * 16 + gl_LocalInvocationID.y);
+
+    vec4 outColor = vec4(0.0, 0.0, 0.0, 0.0);
+
+    ivec2 jumpDist = ivec2(tDynamicData.tJumpDistance.x);
+    
+    vec3 curr = vec3(1,1,9999999);
+    const ivec2 tMin = ivec2(iXCoord, iYCoord);
+    curr = jump(curr, tMin, jumpDist * ivec2( 0,  0)); // cc
+    curr = jump(curr, tMin, jumpDist * ivec2( 0, +1)); // nn
+    curr = jump(curr, tMin, jumpDist * ivec2(+1, +1)); // ne
+    curr = jump(curr, tMin, jumpDist * ivec2(+1,  0)); // ee
+    curr = jump(curr, tMin, jumpDist * ivec2(+1, -1)); // se
+    curr = jump(curr, tMin, jumpDist * ivec2( 0, -1)); // ss
+    curr = jump(curr, tMin, jumpDist * ivec2(-1, -1)); // sw
+    curr = jump(curr, tMin, jumpDist * ivec2(-1,  0)); // ww
+    curr = jump(curr, tMin, jumpDist * ivec2(-1, +1)); // nw
+    outColor = vec4(curr.x, curr.y, 0, 1);
+
+    imageStore(outputImage, tMin, outColor);
+}

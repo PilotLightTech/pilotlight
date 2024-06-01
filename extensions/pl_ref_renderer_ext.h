@@ -75,14 +75,11 @@ typedef struct _plRefRendererI
 
     // per frame
     void (*run_ecs)(uint32_t uSceneHandle);
-    void (*update_skin_textures)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle);
-    void (*perform_skinning)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle);
-    void (*render_scene)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions);
-    void (*post_process_scene)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle);
+    void (*render_scene)(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions);
+    void (*end_frame)(void);
     plEntity (*get_picked_entity)(void);
 
-    void (*generate_cascaded_shadow_map)(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plEntity tCamera, plEntity tLight, float fCascadeSplitLambda);
-    
+
     // misc
     void                (*select_entities)(uint32_t uSceneHandle, uint32_t uCount, plEntity*);
     plComponentLibrary* (*get_component_library)(uint32_t uSceneHandle);
@@ -97,12 +94,13 @@ typedef struct _plRefRendererI
 
 typedef struct _plViewOptions
 {
-    bool               bShowVisibleBoundingBoxes;
-    bool               bShowAllBoundingBoxes;
-    bool               bShowOrigin;
-    bool               bCullStats;
-    plCameraComponent* ptViewCamera;
-    plCameraComponent* ptCullCamera;
+    bool      bShowVisibleBoundingBoxes;
+    bool      bShowAllBoundingBoxes;
+    bool      bShowOrigin;
+    bool      bCullStats;
+    plEntity* ptViewCamera;
+    plEntity* ptCullCamera;
+    plEntity* ptSunLight;
 } plViewOptions;
 
 #endif // PL_REF_RENDERER_EXT_H

@@ -1,13 +1,22 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-layout(set = 0, binding = 0)  uniform sampler tDefaultSampler;
-layout (set = 0, binding = 1) uniform texture2D tTexture;
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 0
+//-----------------------------------------------------------------------------
+
+layout(set = 0, binding = 0)  uniform sampler tSampler;
+layout(set = 0, binding = 1)  uniform texture2D tColorTexture;
+layout(set = 0, binding = 2)  uniform texture2D tMaskTexture;
+
+//-----------------------------------------------------------------------------
+// [SECTION] dynamic bind group
+//-----------------------------------------------------------------------------
 
 layout(set = 1, binding = 0) uniform _plObjectInfo
 {
-    int iDataOffset;
-    int iVertexOffset;
+    float fTargetWidth;
+    vec4 tOutlineColor;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -44,5 +53,18 @@ pl_linear_to_srgb(vec3 color)
 void
 main() 
 {
-    outColor = vec4(pl_linear_to_srgb(texture(sampler2D(tTexture, tDefaultSampler), tShaderIn.tUV).rgb), 1.0);
+
+    vec4 color = texture(sampler2D(tColorTexture, tSampler), tShaderIn.tUV);
+    vec2 closestSeed = texture(sampler2D(tMaskTexture, tSampler), tShaderIn.tUV).xy;
+    vec2 h = closestSeed - tShaderIn.tUV;
+    float xdist = h.x * float(textureSize(sampler2D(tColorTexture, tSampler),0).x);
+    float ydist = h.y * float(textureSize(sampler2D(tColorTexture, tSampler),0).y);
+    float tdist2 = xdist * xdist + ydist * ydist;
+    float dist = distance(closestSeed, tShaderIn.tUV);
+    if (closestSeed.x > 0 && closestSeed.y > 0 && dist > 0 && tdist2 < tObjectInfo.fTargetWidth * tObjectInfo.fTargetWidth)
+    {
+        color = tObjectInfo.tOutlineColor;
+    }
+    outColor = color;
+    outColor.rgb = pl_linear_to_srgb(outColor.rgb);
 }

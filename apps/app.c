@@ -82,19 +82,12 @@ typedef struct plAppData_t
     plEntity     tMainCamera;
     plEntity     tSunlight;
 
-    // shadows
-    float fCascadeSplitLambda;
-
     // views
     uint32_t uSceneHandle0;
     uint32_t uViewHandle0;
 
     // drawing
     plDrawLayer2D* ptDrawLayer;
-
-    // sync
-    plSemaphoreHandle atSempahore[PL_FRAMES_IN_FLIGHT];
-    uint64_t aulNextTimelineValue[PL_FRAMES_IN_FLIGHT];
 
 } plAppData;
 
@@ -159,7 +152,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     memset(ptAppData, 0, sizeof(plAppData));
 
     ptAppData->bFrustumCulling = true;
-    ptAppData->fCascadeSplitLambda = 0.95f;
 
     ptDataRegistry->set_data("profile", ptProfileCtx);
     ptDataRegistry->set_data("log", ptLogCtx);
@@ -207,24 +199,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // setup reference renderer
     gptRenderer->initialize(ptAppData->ptWindow);
 
-    // setup draw
-    gptDraw->initialize(gptRenderer->get_graphics());
-    plFontHandle tDefaultFont = gptDraw->add_default_font();
-    gptDraw->build_font_atlas();
-
-    // setup ui
-    gptUi->initialize();
-    gptUi->set_default_font(tDefaultFont);
-
-    // sync
-    for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
-        ptAppData->atSempahore[i] = gptDevice->create_semaphore(&gptRenderer->get_graphics()->tDevice, false);
-
     ptAppData->uSceneHandle0 = gptRenderer->create_scene();
 
-    // pl_begin_profile_sample("load environments");
-    // gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 1024);
-    // pl_end_profile_sample();
+    pl_begin_profile_sample("load environments");
+    gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 1024);
+    pl_end_profile_sample();
 
     pl_begin_profile_sample("create scene views");
     ptAppData->uViewHandle0 = gptRenderer->create_view(ptAppData->uSceneHandle0, (plVec2){ptIO->afMainViewportSize[0] , ptIO->afMainViewportSize[1]});
@@ -237,7 +216,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create main camera
     plCameraComponent* ptMainCamera = NULL;
-    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-9.6f, 2.096f, 0.86f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.1f, 300.0f, &ptMainCamera);
+    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-9.6f, 2.096f, 0.86f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.1f, 48.0f, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, -0.245f, 1.816f);
     gptCamera->update(ptMainCamera);
     gptEcs->attach_script(ptMainComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING, ptAppData->tMainCamera, NULL);
@@ -262,7 +241,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     pl_begin_profile_sample("load models 0");
     // const plMat4 tTransform = pl_mat4_translate_xyz(0.0f, 15.0f, 0.0f);
-    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf", &tTransform, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf", NULL, &tLoaderData0);
     gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL, &tLoaderData0);
     gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
@@ -392,131 +371,25 @@ pl_app_update(plAppData* ptAppData)
     // run ecs system
     gptRenderer->run_ecs(ptAppData->uSceneHandle0);
 
-    uint64_t ulValue0 = ptAppData->aulNextTimelineValue[ptGraphics->uCurrentFrameIndex];
-    uint64_t ulValue1 = ulValue0 + 1;
-    uint64_t ulValue2 = ulValue0 + 2;
-    uint64_t ulValue3 = ulValue0 + 3;
-    uint64_t ulValue4 = ulValue0 + 4;
-    uint64_t ulValue5 = ulValue0 + 5;
-    uint64_t ulValue6 = ulValue0 + 6;
-    ptAppData->aulNextTimelineValue[ptGraphics->uCurrentFrameIndex] = ulValue6;
-
-
-    // first set of work
-
-    const plBeginCommandInfo tBeginInfo0 = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auWaitSemaphoreValues = {ulValue0},
-    };
-
-    plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo0);
-
-    gptRenderer->update_skin_textures(tCommandBuffer, ptAppData->uSceneHandle0);
-    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
-
-    const plSubmitInfo tSubmitInfo0 = {
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auSignalSemaphoreValues = {ulValue1}
-    };
-    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo0);
-
-    const plBeginCommandInfo tBeginInfo1 = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auWaitSemaphoreValues = {ulValue1},
-    };
-    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo1);
-
-    gptRenderer->perform_skinning(tCommandBuffer, ptAppData->uSceneHandle0);
-    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
-
-    const plSubmitInfo tSubmitInfo1 = {
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auSignalSemaphoreValues = {ulValue2}
-    };
-    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo1);
-
-    const plBeginCommandInfo tBeginInfo2 = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auWaitSemaphoreValues = {ulValue2}
-    };
-    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo2);
-    gptRenderer->generate_cascaded_shadow_map(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0, ptAppData->tMainCamera, ptAppData->tSunlight, ptAppData->fCascadeSplitLambda);
-    
-    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
-
-    const plSubmitInfo tSubmitInfo2 = {
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auSignalSemaphoreValues = {ulValue3}
-    };
-    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo2);
-
-    plViewOptions tViewOptions = {
-        .bShowAllBoundingBoxes     = ptAppData->bDrawAllBoundingBoxes,
-        .bShowVisibleBoundingBoxes = ptAppData->bDrawVisibleBoundingBoxes,
-        .bShowOrigin               = true,
-        .bCullStats                = true,
-        .ptViewCamera              = ptCamera,
-        .ptCullCamera              = ptAppData->bFrustumCulling ? ptCamera : NULL
-    };
-
-    if(ptAppData->bFrustumCulling && ptAppData->bFreezeCullCamera)
-        tViewOptions.ptCullCamera = ptCullCamera;
-
-    // second set of work
-
-    const plBeginCommandInfo tBeginInfo3 = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auWaitSemaphoreValues = {ulValue3}
-    };
-    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo3);
-    gptRenderer->render_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0, tViewOptions);
-    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
-
-    const plSubmitInfo tSubmitInfo3 = {
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auSignalSemaphoreValues = {ulValue4}
-    };
-    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo3);
-
-    const plBeginCommandInfo tBeginInfo4 = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auWaitSemaphoreValues = {ulValue4}
-    };
-    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo4);
-    gptRenderer->post_process_scene(tCommandBuffer, ptAppData->uSceneHandle0, ptAppData->uViewHandle0);
-    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
-
-    const plSubmitInfo tSubmitInfo4 = {
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auSignalSemaphoreValues = {ulValue5}
-    };
-    gptGfx->submit_command_buffer(ptGraphics, &tCommandBuffer, &tSubmitInfo4);
-
-    // final set of work
-
-    const plBeginCommandInfo tBeginInfo5 = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auWaitSemaphoreValues = {ulValue5},
-    };
-    tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo5);
-
     plEntity tNextSelectedEntity = gptRenderer->get_picked_entity();
     if(tNextSelectedEntity.uIndex != UINT32_MAX)
     {
         ptAppData->bUpdateEntitySelection = true;
         ptAppData->tSelectedEntity = tNextSelectedEntity;
     }
+
+    plViewOptions tViewOptions = {
+        .bShowAllBoundingBoxes = ptAppData->bDrawAllBoundingBoxes,
+        .bShowVisibleBoundingBoxes = ptAppData->bDrawVisibleBoundingBoxes,
+        .bShowOrigin = true,
+        .bCullStats = true,
+        .ptViewCamera = &ptAppData->tMainCamera,
+        .ptCullCamera = ptAppData->bFrustumCulling ? &ptAppData->tMainCamera : NULL,
+        .ptSunLight = &ptAppData->tSunlight
+    };
+    gptRenderer->render_scene(ptAppData->uSceneHandle0, ptAppData->uViewHandle0, tViewOptions);
+
+
 
     gptUi->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
 
@@ -572,7 +445,6 @@ pl_app_update(plAppData* ptAppData)
             gptUi->checkbox("Always Resize", &ptAppData->bAlwaysResize);
 
             plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_LIGHT, ptAppData->tSunlight);
-            gptUi->slider_float("split", &ptAppData->fCascadeSplitLambda, 0.0f, 1.0f);
             gptUi->slider_float("x", &ptLight->tDirection.x, -1.0f, 1.0f);
             gptUi->slider_float("y", &ptLight->tDirection.y, -1.0f, 1.0f);
             gptUi->slider_float("z", &ptLight->tDirection.z, -1.0f, 1.0f);
@@ -617,23 +489,7 @@ pl_app_update(plAppData* ptAppData)
     gptDraw->add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_color_texture(ptAppData->uSceneHandle0, ptAppData->uViewHandle0), (plVec2){0}, (plVec2){ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1]});
     gptDraw->submit_2d_layer(ptAppData->ptDrawLayer);
 
-    plRenderEncoder tEncoder = gptGfx->begin_render_pass(ptGraphics, &tCommandBuffer, ptGraphics->tMainRenderPass);
-
-    // render ui
-    pl_begin_profile_sample("render ui");
-    gptUi->render(tEncoder, ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1], 1);
-    pl_end_profile_sample();
-
-    gptGfx->end_render_pass(&tEncoder);
-
-    const plSubmitInfo tSubmitInfo5 = {
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
-        .auSignalSemaphoreValues = {ulValue6},
-    };
-    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
-    if(!gptGfx->present(ptGraphics, &tCommandBuffer, &tSubmitInfo5))
-        gptGfx->resize(ptGraphics);
+    gptRenderer->end_frame();
 
     pl_end_profile_sample();
     pl_end_profile_frame();
