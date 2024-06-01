@@ -838,6 +838,8 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
         ptTextureDescriptor.usage |= MTLTextureUsageRenderTarget;
     if(tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
         ptTextureDescriptor.usage |= MTLTextureUsageRenderTarget;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_STORAGE)
+        ptTextureDescriptor.usage |= MTLTextureUsageShaderWrite;
 
     if(tDesc.tType == PL_TEXTURE_TYPE_2D)
         ptTextureDescriptor.textureType = MTLTextureType2D;
