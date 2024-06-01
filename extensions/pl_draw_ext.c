@@ -2098,7 +2098,9 @@ pl__submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder tEncoder, float
 
     const plPipelineEntry* ptEntry = pl__get_2d_pipeline(tEncoder.tRenderPassHandle, uMSAASampleCount, tEncoder._uCurrentSubpass);
 
-    const plVec2 tClipScale = {gptIO->get_io()->afMainFramebufferScale[0], gptIO->get_io()->afMainFramebufferScale[0]};
+   const plVec2 tClipScale = {gptIO->get_io()->afMainFramebufferScale[0], gptIO->get_io()->afMainFramebufferScale[0]};
+    
+    // const plVec2 tClipScale = {1.0f, 1.0f};
     // const plVec2 tClipScale = ptCtx->tFrameBufferScale;
     const float fScale[] = { 2.0f / fWidth, 2.0f / fHeight};
     const float fTranslate[] = {-1.0f, -1.0f};
@@ -2150,18 +2152,18 @@ pl__submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder tEncoder, float
         if(pl_rect_width(&cmd.tClip) == 0)
         {
             const plScissor tScissor = {
-                .uWidth = (uint32_t)(fWidth * tClipScale.x),
-                .uHeight = (uint32_t)(fHeight * tClipScale.y),
+                .uWidth = (uint32_t)(fWidth),
+                .uHeight = (uint32_t)(fHeight),
             };
             gptGfx->set_scissor_region(&tEncoder, &tScissor);
         }
         else
         {
 
-            // cmd.tClip.tMin.x = tFrameBufferScale.x * cmd.tClip.tMin.x;
-            // cmd.tClip.tMax.x = tFrameBufferScale.x * cmd.tClip.tMax.x;
-            // cmd.tClip.tMin.y = tFrameBufferScale.y * cmd.tClip.tMin.y;
-            // cmd.tClip.tMax.y = tFrameBufferScale.y * cmd.tClip.tMax.y;
+            // cmd.tClip.tMin.x = tClipScale.x * cmd.tClip.tMin.x;
+            // cmd.tClip.tMax.x = tClipScale.x * cmd.tClip.tMax.x;
+            // cmd.tClip.tMin.y = tClipScale.y * cmd.tClip.tMin.y;
+            // cmd.tClip.tMax.y = tClipScale.y * cmd.tClip.tMax.y;
 
             // clamp to viewport
             if (cmd.tClip.tMin.x < 0.0f)   { cmd.tClip.tMin.x = 0.0f; }
