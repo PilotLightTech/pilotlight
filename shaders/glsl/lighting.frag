@@ -47,9 +47,8 @@ layout (set = 0, binding = 7) uniform texture2D u_GGXLUT;
 layout(input_attachment_index = 1, set = 1, binding = 0)  uniform subpassInput tAlbedoSampler;
 layout(input_attachment_index = 2, set = 1, binding = 1)  uniform subpassInput tNormalTexture;
 layout(input_attachment_index = 3, set = 1, binding = 2)  uniform subpassInput tPositionSampler;
-layout(input_attachment_index = 4, set = 1, binding = 3)  uniform subpassInput tEmissiveTexture;
-layout(input_attachment_index = 5, set = 1, binding = 4)  uniform subpassInput tAOMetalRoughnessTexture;
-layout(input_attachment_index = 0, set = 1, binding = 5)  uniform subpassInput tDepthSampler;
+layout(input_attachment_index = 4, set = 1, binding = 3)  uniform subpassInput tAOMetalRoughnessTexture;
+layout(input_attachment_index = 0, set = 1, binding = 4)  uniform subpassInput tDepthSampler;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 2
@@ -232,24 +231,22 @@ vec3 getDiffuseLight(vec3 n)
 vec4 getSpecularSample(vec3 reflection, float lod)
 {
     reflection.z = -reflection.z;
-    // return textureLod(u_GGXEnvSampler, u_EnvRotation * reflection, lod) * u_EnvIntensity;
     return textureLod(samplerCube(u_GGXEnvSampler, tEnvSampler), reflection, lod);
 }
 
 vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight, int u_MipCount)
 {
-    float NdotV = clampedDot(n, v);
+    
     float lod = roughness * float(u_MipCount - 1);
     vec3 reflection = normalize(reflect(-v, n));
+    vec4 specularSample = getSpecularSample(reflection, lod);
 
+    float NdotV = clampedDot(n, v);
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
     vec2 f_ab = texture(sampler2D(u_GGXLUT, tEnvSampler), brdfSamplePoint).rg;
-    vec4 specularSample = getSpecularSample(reflection, lod);
 
     vec3 specularLight = specularSample.rgb;
 
-    // see https://bruop.github.io/ibl/#single_scattering_results at Single Scattering Results
-    // Roughness dependent fresnel, from Fdez-Aguera
     vec3 Fr = max(vec3(1.0 - roughness), F0) - F0;
     vec3 k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);
     vec3 FssEss = k_S * f_ab.x + f_ab.y;
@@ -260,11 +257,11 @@ vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularW
 // specularWeight is introduced with KHR_materials_specular
 vec3 getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor, vec3 F0, float specularWeight)
 {
+    vec3 irradiance = getDiffuseLight(n);
+
     float NdotV = clampedDot(n, v);
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
     vec2 f_ab = texture(sampler2D(u_GGXLUT, tEnvSampler), brdfSamplePoint).rg;
-
-    vec3 irradiance = getDiffuseLight(n);
 
     // see https://bruop.github.io/ibl/#single_scattering_results at Single Scattering Results
     // Roughness dependent fresnel, from Fdez-Aguera
@@ -293,10 +290,14 @@ float textureProj(vec4 shadowCoord, vec2 offset, uint cascadeIndex)
 {
 	float shadow = 1.0;
 	float bias = 0.0005;
+    float comp = shadowCoord.z - bias;
+    vec2 comp2 = shadowCoord.st + offset;
 
-	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 ) {
-		float dist = texture(sampler2D(shadowmap[cascadeIndex], tShadowSampler), shadowCoord.st + offset).r;
-		if (shadowCoord.w > 0 && dist < shadowCoord.z - bias) {
+	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 )
+    {
+		float dist = texture(sampler2D(shadowmap[cascadeIndex], tShadowSampler), comp2).r;
+		if (shadowCoord.w > 0 && dist < comp)
+        {
 			shadow = 0.1; // ambient
 		}
 	}
@@ -325,33 +326,30 @@ float filterPCF(vec4 sc, uint cascadeIndex)
 
 void main() 
 {
+    vec4 AORoughnessMetalnessData = subpassLoad(tAOMetalRoughnessTexture);
     vec4 tBaseColor = subpassLoad(tAlbedoSampler);
     vec4 tPosition = subpassLoad(tPositionSampler);
-    float specularWeight = tPosition.a;
-
     vec3 n = subpassLoad(tNormalTexture).xyz;
 
-    vec4 AORoughnessMetalnessData = subpassLoad(tAOMetalRoughnessTexture);
-    const float fPerceptualRoughness = AORoughnessMetalnessData.b;
-    const float fMetalness = AORoughnessMetalnessData.g;
-    const float fAlphaRoughness = fPerceptualRoughness * fPerceptualRoughness;
-    const float ao = AORoughnessMetalnessData.r;
     const vec3 f90 = vec3(1.0);
-
-    vec3 c_diff = mix(tBaseColor.rgb,  vec3(0), fMetalness);
-    vec3 f0 = mix(vec3(0.04), tBaseColor.rgb, fMetalness);
-
-    vec3 v = normalize(tGlobalInfo.tCameraPos.xyz - tPosition.xyz);
-    float NdotV = clampedDot(n, v);
+    
 
     // LIGHTING
     vec3 f_specular = vec3(0.0);
     vec3 f_diffuse = vec3(0.0);
-    vec4 f_emissive = subpassLoad(tEmissiveTexture);
-    int iMips = int(f_emissive.a);
+   
     vec3 f_clearcoat = vec3(0.0);
     vec3 f_sheen = vec3(0.0);
     vec3 f_transmission = vec3(0.0);
+
+    const float fMetalness = AORoughnessMetalnessData.g;
+    vec3 c_diff = mix(tBaseColor.rgb,  vec3(0), fMetalness);
+    vec3 f0 = mix(vec3(0.04), tBaseColor.rgb, fMetalness);
+
+    const float fPerceptualRoughness = AORoughnessMetalnessData.b;
+    float specularWeight = tPosition.a;
+    vec3 v = normalize(tGlobalInfo.tCameraPos.xyz - tPosition.xyz);
+    int iMips = int(AORoughnessMetalnessData.a);
 
     // Calculate lighting contribution from image based lighting source (IBL)
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL))
@@ -373,6 +371,7 @@ void main()
     uint cascadeIndex = 0;
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL))
     {
+        const float fAlphaRoughness = fPerceptualRoughness * fPerceptualRoughness;
 
         for(int i = 0; i < iLightCount; i++)
         {
@@ -441,6 +440,7 @@ void main()
     vec3 sheen;
     vec3 clearcoat;
 
+    const float ao = AORoughnessMetalnessData.r;
     if(ao != 1.0)
     {
         float u_OcclusionStrength = 1.0;
@@ -458,7 +458,7 @@ void main()
         clearcoat = f_clearcoat_ibl + f_clearcoat;
     }
 
-    vec3 color = f_emissive.rgb + diffuse + specular;
+    vec3 color = diffuse + specular;
     color = sheen + color * albedoSheenScaling;
     color = color * (1.0 - clearcoatFactor * clearcoatFresnel) + clearcoat;
 

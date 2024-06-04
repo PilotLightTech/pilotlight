@@ -78,8 +78,7 @@ layout(set = 2, binding = 0) uniform _plObjectInfo
 layout(location = 0) out vec4 outAlbedo;
 layout(location = 1) out vec4 outNormal;
 layout(location = 2) out vec4 outPosition;
-layout(location = 3) out vec4 outEmissive;
-layout(location = 4) out vec4 outAOMetalnessRoughness;
+layout(location = 3) out vec4 outAOMetalnessRoughness;
 
 // output
 layout(location = 0) in struct plShaderIn {
@@ -232,23 +231,19 @@ MaterialInfo getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor,
 
 void main() 
 {
+    
     tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
-    vec4 tBaseColor = getBaseColor(material.u_BaseColorFactor, material.BaseColorUVSet);
-
     NormalInfo tNormalInfo = pl_get_normal_info(material.NormalUVSet);
-
-    vec3 n = tNormalInfo.n;
-    vec3 t = tNormalInfo.t;
-    vec3 b = tNormalInfo.b;
-
+    vec4 tBaseColor = getBaseColor(material.u_BaseColorFactor, material.BaseColorUVSet);
+    
     MaterialInfo materialInfo;
-    materialInfo.baseColor = tBaseColor.rgb;
-
+    
     // The default index of refraction of 1.5 yields a dielectric normal incidence reflectance of 0.04.
     materialInfo.ior = 1.5;
     materialInfo.f0 = vec3(0.04);
     materialInfo.specularWeight = 1.0;
 
+    materialInfo.baseColor = tBaseColor.rgb;
     if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS))
     {
         materialInfo = getMetallicRoughnessInfo(materialInfo, material.u_MetallicFactor, material.u_RoughnessFactor, material.MetallicRoughnessUVSet);
@@ -267,13 +262,6 @@ void main()
     // Anything less than 2% is physically impossible and is instead considered to be shadowing. Compare to "Real-Time-Rendering" 4th editon on page 325.
     materialInfo.f90 = vec3(1.0);
 
-    // emissive
-    vec3 f_emissive = material.u_EmissiveFactor;
-    if(bool(iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
-    {
-        f_emissive *= texture(sampler2D(tEmissiveTexture, tDefaultSampler), tShaderIn.tUV[material.EmissiveUVSet]).rgb;
-    }
-    
     // ambient occlusion
     float ao = 1.0;
     if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
@@ -282,10 +270,9 @@ void main()
     }
 
     // fill g-buffer
-    outEmissive = vec4(f_emissive, material.u_MipCount);
     outAlbedo = tBaseColor;
     outNormal = vec4(tNormalInfo.n, 1.0);
     outPosition = vec4(tShaderIn.tPosition, materialInfo.specularWeight);
-    outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, 1.0);
+    outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, material.u_MipCount);
 }
 

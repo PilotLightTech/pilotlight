@@ -121,7 +121,6 @@ struct BindGroup_1
     texture2d<float> tAlbedoTexture;
     texture2d<float> tNormalTexture;
     texture2d<float> tPositionTexture;
-    texture2d<float> tEmissiveTexture;
     texture2d<float> tAOMetalRoughnessTexture;
     texture2d<float> tDepthTexture;
 };
@@ -486,6 +485,7 @@ fragment float4 fragment_main(
     float4 AORoughnessMetalnessData = bg1.tAOMetalRoughnessTexture.sample(bg0.tEnvSampler, in.tUV);
     const float fPerceptualRoughness = AORoughnessMetalnessData.b;
     const float fMetalness = AORoughnessMetalnessData.g;
+    int iMips = int(AORoughnessMetalnessData.a);
     const float fAlphaRoughness = fPerceptualRoughness * fPerceptualRoughness;
     const float ao = AORoughnessMetalnessData.r;
     const float3 f90 = float3(1.0);
@@ -498,8 +498,6 @@ fragment float4 fragment_main(
     // LIGHTING
     float3 f_specular = float3(0.0);
     float3 f_diffuse = float3(0.0);
-    float4 f_emissive = bg1.tEmissiveTexture.sample(bg0.tEnvSampler, in.tUV);
-    int iMips = int(f_emissive.a);
     float3 f_clearcoat = float3(0.0);
     float3 f_sheen = float3(0.0);
 
@@ -605,7 +603,7 @@ fragment float4 fragment_main(
     }
 
 
-    float3 color = f_emissive.rgb + diffuse + specular;
+    float3 color = diffuse + specular;
     color = sheen + color * albedoSheenScaling;
     color = color * (1.0 - clearcoatFactor * clearcoatFresnel) + clearcoat;
 

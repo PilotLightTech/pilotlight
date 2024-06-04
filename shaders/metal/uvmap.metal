@@ -36,8 +36,8 @@ vertex_main(VertexIn in [[stage_in]])
     return tShaderOut;
 }
 
-fragment float4
+fragment float2
 fragment_main(VertexOut in [[stage_in]])
 {
-    return float4(in.tUV, 0, 1);
+    return float2(in.tUV);
 }

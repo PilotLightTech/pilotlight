@@ -60,31 +60,24 @@ kernel_main(
     uint3 tWorkGroup [[threadgroup_position_in_grid]],
     uint3 tLocalIndex [[thread_position_in_threadgroup]])
 {
-    const int iXCoord = int((tWorkGroup.x * 16) + tLocalIndex.x);
-    const int iYCoord = int((tWorkGroup.y * 16) + tLocalIndex.y);
-
-    // const int iXCoord = int(tWorkGroup.x);
-    // const int iYCoord = int(tWorkGroup.y);
+    const int iXCoord = int((tWorkGroup.x * 8) + tLocalIndex.x);
+    const int iYCoord = int((tWorkGroup.y * 8) + tLocalIndex.y);
 
     float4 outColor = float4(0.0);
 
     int2 jumpDist = int2(int(tDynamicData.tJumpDistance.x));
     
     float3 curr = float3(1,1,9999999);
-    curr = jump(curr, int2(iXCoord, iYCoord), jumpDist * int2( 0,  0), bg0.inputImage); // cc
-    curr = jump(curr, int2(iXCoord, iYCoord), jumpDist * int2( 0, +1), bg0.inputImage); // nn
-    curr = jump(curr, int2(iXCoord, iYCoord), jumpDist * int2(+1, +1), bg0.inputImage); // ne
-    curr = jump(curr, int2(iXCoord, iYCoord), jumpDist * int2(+1,  0), bg0.inputImage); // ee
-    curr = jump(curr, int2(iXCoord, iYCoord), jumpDist * int2(+1, -1), bg0.inputImage); // se
-    curr = jump(curr, int2(iXCoord, iYCoord), jumpDist * int2( 0, -1), bg0.inputImage); // ss
-    curr = jump(curr, int2(iXCoord, iYCoord), jumpDist * int2(-1, -1), bg0.inputImage); // sw
-    curr = jump(curr, int2(iXCoord, iYCoord), jumpDist * int2(-1,  0), bg0.inputImage); // ww
-    curr = jump(curr, int2(iXCoord, iYCoord), jumpDist * int2(-1, +1), bg0.inputImage); // nw
+    const int2 tMin = int2(iXCoord, iYCoord);
+    curr = jump(curr, tMin, jumpDist * int2( 0,  0), bg0.inputImage); // cc
+    curr = jump(curr, tMin, jumpDist * int2( 0, +1), bg0.inputImage); // nn
+    curr = jump(curr, tMin, jumpDist * int2(+1, +1), bg0.inputImage); // ne
+    curr = jump(curr, tMin, jumpDist * int2(+1,  0), bg0.inputImage); // ee
+    curr = jump(curr, tMin, jumpDist * int2(+1, -1), bg0.inputImage); // se
+    curr = jump(curr, tMin, jumpDist * int2( 0, -1), bg0.inputImage); // ss
+    curr = jump(curr, tMin, jumpDist * int2(-1, -1), bg0.inputImage); // sw
+    curr = jump(curr, tMin, jumpDist * int2(-1,  0), bg0.inputImage); // ww
+    curr = jump(curr, tMin, jumpDist * int2(-1, +1), bg0.inputImage); // nw
     outColor = float4(curr.x, curr.y, 0, 1);
-    // float fWidth = float(bg0.inputImage.get_width());
-    // float fHeight = float(bg0.inputImage.get_height());
-    // outColor = float4(float(iXCoord)/float(bg0.inputImage.get_width()), float(iYCoord)/float(bg0.inputImage.get_height()), 0, 1);
-
     bg0.outputImage.write(outColor, uint2(int2(iXCoord, iYCoord)));
-    // bg0.outputImage.write(outColor, uint2(int2(iXCoord, iYCoord)));
 }

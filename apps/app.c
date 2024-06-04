@@ -202,7 +202,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->uSceneHandle0 = gptRenderer->create_scene();
 
     pl_begin_profile_sample("load environments");
-    gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 1024);
+    gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 256);
     pl_end_profile_sample();
 
     pl_begin_profile_sample("create scene views");

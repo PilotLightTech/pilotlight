@@ -257,8 +257,7 @@ struct plMultipleRenderTargets
     float4 outAlbedo [[ color(0) ]];
     float4 outNormal [[ color(1) ]];
     float4 outPosition [[ color(2) ]];
-    float4 outEmissive [[ color(3) ]];
-    float4 outAOMetalnessRoughness [[ color(4) ]];
+    float4 outAOMetalnessRoughness [[ color(3) ]];
 };
 
 //-----------------------------------------------------------------------------
@@ -512,10 +511,6 @@ fragment plMultipleRenderTargets fragment_main(
     float4 tBaseColor = getBaseColor(bg0, bg1, material.u_BaseColorFactor, in, tUV[material.BaseColorUVSet]);
     NormalInfo tNormalInfo = pl_get_normal_info(bg0, bg1, in, front_facing, tUV[material.NormalUVSet]);
     
-    float3 n = tNormalInfo.n;
-    float3 t = tNormalInfo.t;
-    float3 b = tNormalInfo.b;
-
     MaterialInfo materialInfo;
     materialInfo.baseColor = tBaseColor.rgb;
 
@@ -542,13 +537,6 @@ fragment plMultipleRenderTargets fragment_main(
     // Anything less than 2% is physically impossible and is instead considered to be shadowing. Compare to "Real-Time-Rendering" 4th editon on page 325.
     materialInfo.f90 = float3(1.0);
 
-    // LIGHTING
-    float3 f_emissive = material.u_EmissiveFactor;
-    if(bool(iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
-    {
-        f_emissive *= bg1.tEmissiveTexture.sample(bg0.tDefaultSampler, tUV[material.EmissiveUVSet]).rgb;
-    }
-
     // ambient occlusion
     float ao = 1.0;
     if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
@@ -560,8 +548,7 @@ fragment plMultipleRenderTargets fragment_main(
     tMRT.outAlbedo = tBaseColor;
     tMRT.outNormal = float4(tNormalInfo.n, 1.0);
     tMRT.outPosition = float4(in.tPosition, materialInfo.specularWeight);
-    tMRT.outEmissive = float4(f_emissive, material.u_MipCount);
-    tMRT.outAOMetalnessRoughness = float4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, 1.0);
+    tMRT.outAOMetalnessRoughness = float4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, material.u_MipCount);
 
     return tMRT;
 }

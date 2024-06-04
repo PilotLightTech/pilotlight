@@ -5,8 +5,8 @@
 // [SECTION] bind group 0
 //-----------------------------------------------------------------------------
 
-layout (set = 0, binding = 0, rgba32f) uniform readonly image2D inputImage;
-layout (set = 0, binding = 1, rgba32f) uniform writeonly image2D outputImage;
+layout (set = 0, binding = 0, rg32f) uniform readonly image2D inputImage;
+layout (set = 0, binding = 1, rg32f) uniform writeonly image2D outputImage;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -26,19 +26,20 @@ vec3
 jump(vec3 minSeed, ivec2 current, ivec2 offset)
 {
     ivec2 samplePos = current + offset;
-    if (length(clamp(samplePos.x,0,imageSize(inputImage).x) - samplePos.x) > .0001f) // out of bounds check
+    vec2 inputImageSize = imageSize(inputImage);
+    vec2 seed = imageLoad(inputImage, samplePos).rg;
+    
+    if (length(clamp(samplePos.x, 0, inputImageSize.x) - samplePos.x) > .0001f) // out of bounds check
     { 
         return minSeed;
     } 
-    if (length(clamp(samplePos.y,0,imageSize(inputImage).y) - samplePos.y) > .0001f) // out of bounds check
+    if (length(clamp(samplePos.y, 0,inputImageSize.y) - samplePos.y) > .0001f) // out of bounds check
     { 
         return minSeed;
     } 
 
-    vec2 seed = imageLoad(inputImage, samplePos).rg;
-    vec2 cScaled = current;
-    vec2 sScaled = floor(seed * imageSize(inputImage));
-    float dist = distance(cScaled, sScaled);
+    vec2 sScaled = floor(seed * inputImageSize);
+    float dist = distance(current, sScaled);
     if (dist < minSeed.z)
     {
         return vec3(seed.x, seed.y, dist);
@@ -50,14 +51,14 @@ jump(vec3 minSeed, ivec2 current, ivec2 offset)
 // [SECTION] entry
 //-----------------------------------------------------------------------------
 
-layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 void main() 
 {
-    const int iXCoord = int(gl_WorkGroupID.x * 16 + gl_LocalInvocationID.x);
-    const int iYCoord = int(gl_WorkGroupID.y * 16 + gl_LocalInvocationID.y);
+    const int iXCoord = int(gl_WorkGroupID.x * 8 + gl_LocalInvocationID.x);
+    const int iYCoord = int(gl_WorkGroupID.y * 8 + gl_LocalInvocationID.y);
 
-    vec4 outColor = vec4(0.0, 0.0, 0.0, 0.0);
+    vec2 outColor = vec2(0.0, 0.0);
 
     ivec2 jumpDist = ivec2(tDynamicData.tJumpDistance.x);
     
@@ -72,7 +73,7 @@ void main()
     curr = jump(curr, tMin, jumpDist * ivec2(-1, -1)); // sw
     curr = jump(curr, tMin, jumpDist * ivec2(-1,  0)); // ww
     curr = jump(curr, tMin, jumpDist * ivec2(-1, +1)); // nw
-    outColor = vec4(curr.x, curr.y, 0, 1);
+    outColor = vec2(curr.x, curr.y);
 
     imageStore(outputImage, tMin, outColor);
 }

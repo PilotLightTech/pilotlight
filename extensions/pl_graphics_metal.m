@@ -1491,16 +1491,9 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
     uint32_t uPixelShaderSize0 = 0u;
 
     gptFile->read(tShader.tDescription.pcVertexShader, &uVertShaderSize0, NULL, "rb");
-    gptFile->read(tShader.tDescription.pcPixelShader, &uPixelShaderSize0, NULL, "rb");
-
     char* vertexShaderCode = pl_temp_allocator_alloc(&ptMetalGraphics->tTempAllocator, uVertShaderSize0 + 1);
-    char* pixelShaderCode  = pl_temp_allocator_alloc(&ptMetalGraphics->tTempAllocator, uPixelShaderSize0 + 1);
     memset(vertexShaderCode, 0, uVertShaderSize0 + 1);
-    memset(pixelShaderCode, 0, uPixelShaderSize0 + 1);
-
-
     gptFile->read(tShader.tDescription.pcVertexShader, &uVertShaderSize0, vertexShaderCode, "rb");
-    gptFile->read(tShader.tDescription.pcPixelShader, &uPixelShaderSize0, pixelShaderCode, "rb");
 
     // prepare preprocessor defines
     MTLCompileOptions* ptCompileOptions = [MTLCompileOptions new];
@@ -1515,11 +1508,19 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         NSLog(@"Error: failed to create Metal vertex library: %@", error);
     }
 
-    NSString* fragmentSource = [NSString stringWithUTF8String:pixelShaderCode];
-    ptMetalShader->tFragmentLibrary = [ptMetalDevice->tDevice  newLibraryWithSource:fragmentSource options:ptCompileOptions error:&error];
-    if (ptMetalShader->tFragmentLibrary == nil)
+    if(tShader.tDescription.pcPixelShader)
     {
-        NSLog(@"Error: failed to create Metal fragment library: %@", error);
+        gptFile->read(tShader.tDescription.pcPixelShader, &uPixelShaderSize0, NULL, "rb");
+        char* pixelShaderCode  = pl_temp_allocator_alloc(&ptMetalGraphics->tTempAllocator, uPixelShaderSize0 + 1);
+        memset(pixelShaderCode, 0, uPixelShaderSize0 + 1);
+        gptFile->read(tShader.tDescription.pcPixelShader, &uPixelShaderSize0, pixelShaderCode, "rb");
+
+        NSString* fragmentSource = [NSString stringWithUTF8String:pixelShaderCode];
+        ptMetalShader->tFragmentLibrary = [ptMetalDevice->tDevice  newLibraryWithSource:fragmentSource options:ptCompileOptions error:&error];
+        if (ptMetalShader->tFragmentLibrary == nil)
+        {
+            NSLog(@"Error: failed to create Metal fragment library: %@", error);
+        }
     }
 
     pl_temp_allocator_reset(&ptMetalGraphics->tTempAllocator);
@@ -1548,11 +1549,20 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
     }
 
     id<MTLFunction> vertexFunction = [ptMetalShader->tVertexLibrary newFunctionWithName:vertexEntry constantValues:ptConstantValues error:&error];
-    id<MTLFunction> fragmentFunction = [ptMetalShader->tFragmentLibrary newFunctionWithName:fragmentEntry constantValues:ptConstantValues error:&error];
+    id<MTLFunction> fragmentFunction = nil;
 
-    if (vertexFunction == nil || fragmentFunction == nil)
+    if (vertexFunction == nil)
     {
         NSLog(@"Error: failed to find Metal shader functions in library: %@", error);
+    }
+
+    if(tShader.tDescription.pcPixelShader)
+    {
+        fragmentFunction = [ptMetalShader->tFragmentLibrary newFunctionWithName:fragmentEntry constantValues:ptConstantValues error:&error];
+        if (fragmentFunction == nil)
+        {
+            NSLog(@"Error: failed to find Metal shader functions in library: %@", error);
+        }
     }
 
     MTLDepthStencilDescriptor *depthDescriptor = [MTLDepthStencilDescriptor new];

@@ -863,6 +863,9 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
                 if(ptMaterial->tBlendMode != PL_BLEND_MODE_OPAQUE)
                     bOpaque = false;
 
+                if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource))
+                    bOpaque = false;
+
                 if(bOpaque)
                     pl_sb_push(ptData->atOpaqueObjects, tNewObject);
                 else
