@@ -75,5 +75,5 @@ void main()
     curr = jump(curr, tMin, jumpDist * ivec2(-1, +1)); // nw
     outColor = vec2(curr.x, curr.y);
 
-    imageStore(outputImage, tMin, outColor);
+    imageStore(outputImage, tMin, vec4(outColor, 0, 0));
 }
