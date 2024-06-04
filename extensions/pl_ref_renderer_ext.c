@@ -4391,17 +4391,17 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
     // work set
     {
         const uint32_t uOutlineDrawableCount = pl_sb_size(ptScene->sbtOutlineDrawables);
-        uint32_t uJumpSteps = 4;
-        float fJumpDistance = 8.0f;
+        uint32_t uJumpSteps = 2;
+        float fJumpDistance = 2.0f;
         if(uOutlineDrawableCount == 0)
-        uJumpSteps = 1;
+            uJumpSteps = 1;
 
         const plDispatch tDispach = {
-            .uGroupCountX     = (uint32_t)tDimensions.x / 16,
-            .uGroupCountY     = (uint32_t)tDimensions.y / 16,
+            .uGroupCountX     = (uint32_t)tDimensions.x / 8,
+            .uGroupCountY     = (uint32_t)tDimensions.y / 8,
             .uGroupCountZ     = 1,
-            .uThreadPerGroupX = 16,
-            .uThreadPerGroupY = 16,
+            .uThreadPerGroupX = 8,
+            .uThreadPerGroupY = 8,
             .uThreadPerGroupZ = 1
         };
 
