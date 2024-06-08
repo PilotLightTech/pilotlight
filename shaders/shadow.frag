@@ -52,7 +52,7 @@ layout(set = 1, binding = 0) uniform texture2D tBaseColorTexture;
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(std140, set = 2, binding = 0) uniform _plObjectInfo
+layout(std140, set = 2, binding = 0) uniform PL_DYNAMIC_DATA
 {
     int  iIndex;
     int  iDataOffset;

@@ -10,8 +10,12 @@
 // [SECTION] specialication constants
 //-----------------------------------------------------------------------------
 
-layout(constant_id = 0) const int iRenderingFlags = 0;
-layout(constant_id = 1) const int iLightCount = 1;
+layout(constant_id = 0) const int iMeshVariantFlags = 0;
+layout(constant_id = 1) const int iDataStride = 0;
+layout(constant_id = 2) const int iTextureMappingFlags = 0;
+layout(constant_id = 3) const int iMaterialFlags = 0;
+layout(constant_id = 4) const int iRenderingFlags = 0;
+layout(constant_id = 5) const int iLightCount = 1;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0
@@ -34,6 +38,7 @@ layout(set = 0, binding = 2) readonly buffer plMaterialInfo
 {
     tMaterial atMaterials[];
 } tMaterialInfo;
+
 layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
 layout(set = 0, binding = 4)  uniform sampler tEnvSampler;
 layout (set = 0, binding = 5) uniform textureCube u_LambertianEnvSampler;
@@ -44,37 +49,47 @@ layout (set = 0, binding = 7) uniform texture2D u_GGXLUT;
 // [SECTION] bind group 1
 //-----------------------------------------------------------------------------
 
-layout(input_attachment_index = 1, set = 1, binding = 0)  uniform subpassInput tAlbedoSampler;
-layout(input_attachment_index = 2, set = 1, binding = 1)  uniform subpassInput tNormalTexture;
-layout(input_attachment_index = 3, set = 1, binding = 2)  uniform subpassInput tPositionSampler;
-layout(input_attachment_index = 4, set = 1, binding = 3)  uniform subpassInput tAOMetalRoughnessTexture;
-layout(input_attachment_index = 0, set = 1, binding = 4)  uniform subpassInput tDepthSampler;
+layout(set = 1, binding = 0) uniform _plLightInfo
+{
+    plLightData atData[1000];
+} tLightInfo;
+
+layout(set = 1, binding = 1) readonly buffer plShadowData
+{
+    plLightShadowData atData[];
+} tShadowData;
+
+layout (set = 1, binding = 2) uniform texture2D shadowmap[4];
+layout(set = 1, binding = 6)  uniform sampler tShadowSampler;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 2
 //-----------------------------------------------------------------------------
 
-layout(set = 2, binding = 0) uniform _plLightInfo
-{
-    plLightData atData[iLightCount];
-} tLightInfo;
-
-layout(set = 2, binding = 1) readonly buffer plShadowData
-{
-    plLightShadowData atData[];
-} tShadowData;
-
-layout (set = 2, binding = 2) uniform texture2D shadowmap[4];
-layout(set = 2, binding = 3)  uniform sampler tShadowSampler;
+layout(set = 2, binding = 0)   uniform texture2D tBaseColorTexture;
+layout(set = 2, binding = 1)   uniform texture2D tNormalTexture;
+layout(set = 2, binding = 2)   uniform texture2D tEmissiveTexture;
+layout(set = 2, binding = 3)   uniform texture2D tMetallicRoughnessTexture;
+layout(set = 2, binding = 4)   uniform texture2D tOcclusionTexture;
+layout(set = 2, binding = 5)   uniform texture2D tClearcoatTexture;
+layout(set = 2, binding = 6)   uniform texture2D tClearcoatRoughnessTexture;
+layout(set = 2, binding = 7)   uniform texture2D tClearcoatNormalTexture;
+layout(set = 2, binding = 8)   uniform texture2D tIridescenceTexture;
+layout(set = 2, binding = 9)   uniform texture2D tIridescenceThicknessTexture;
+layout(set = 2, binding = 10)  uniform texture2D tSpecularTexture;
+layout(set = 2, binding = 11)  uniform texture2D tSpecularColorTexture;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(set = 3, binding = 0) uniform _plObjectInfo
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
-    int iDataOffset;
-    int iVertexOffset;
+    int  iDataOffset;
+    int  iVertexOffset;
+    int  iMaterialIndex;
+    int  iPadding;
+    mat4 tModel;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -85,8 +100,148 @@ layout(location = 0) out vec4 outColor;
 
 // output
 layout(location = 0) in struct plShaderIn {
-    vec2 tUV;
+    vec3 tPosition;
+    vec4 tWorldPosition;
+    vec2 tUV[8];
+    vec4 tColor;
+    vec3 tWorldNormal;
+    mat3 tTBN;
 } tShaderIn;
+
+//-----------------------------------------------------------------------------
+// [SECTION] helpers
+//-----------------------------------------------------------------------------
+
+struct NormalInfo {
+    vec3 ng;   // Geometry normal
+    vec3 t;    // Geometry tangent
+    vec3 b;    // Geometry bitangent
+    vec3 n;    // Shading normal
+    vec3 ntex; // Normal from texture, scaling is accounted for.
+};
+
+NormalInfo pl_get_normal_info(int iUVSet)
+{
+    vec2 UV = tShaderIn.tUV[iUVSet];
+    vec2 uv_dx = dFdx(UV);
+    vec2 uv_dy = dFdy(UV);
+
+    if (length(uv_dx) <= 1e-2) {
+      uv_dx = vec2(1.0, 0.0);
+    }
+
+    if (length(uv_dy) <= 1e-2) {
+      uv_dy = vec2(0.0, 1.0);
+    }
+
+    vec3 t_ = (uv_dy.t * dFdx(tShaderIn.tPosition) - uv_dx.t * dFdy(tShaderIn.tPosition)) /
+        (uv_dx.s * uv_dy.t - uv_dy.s * uv_dx.t);
+
+    vec3 n, t, b, ng;
+
+    // Compute geometrical TBN:
+    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))
+    {
+
+        if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))
+        {
+            // Trivial TBN computation, present as vertex attribute.
+            // Normalize eigenvectors as matrix is linearly interpolated.
+            t = normalize(tShaderIn.tTBN[0]);
+            b = normalize(tShaderIn.tTBN[1]);
+            ng = normalize(tShaderIn.tTBN[2]);
+        }
+        else
+        {
+            // Normals are either present as vertex attributes or approximated.
+            ng = normalize(tShaderIn.tWorldNormal);
+            t = normalize(t_ - ng * dot(ng, t_));
+            b = cross(ng, t);
+        }
+    }
+    else
+    {
+        ng = normalize(cross(dFdx(tShaderIn.tPosition), dFdy(tShaderIn.tPosition)));
+        t = normalize(t_ - ng * dot(ng, t_));
+        b = cross(ng, t);
+    }
+
+
+    // For a back-facing surface, the tangential basis vectors are negated.
+    if (gl_FrontFacing == false)
+    {
+        t *= -1.0;
+        b *= -1.0;
+        ng *= -1.0;
+    }
+
+    // Compute normals:
+    NormalInfo info;
+    info.ng = ng;
+    if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP)) 
+    {
+        info.ntex = texture(sampler2D(tNormalTexture, tDefaultSampler), UV).rgb * 2.0 - vec3(1.0);
+        // info.ntex *= vec3(0.2, 0.2, 1.0);
+        // info.ntex *= vec3(u_NormalScale, u_NormalScale, 1.0);
+        info.ntex = normalize(info.ntex);
+        info.n = normalize(mat3(t, b, ng) * info.ntex);
+    }
+    else
+    {
+        info.n = ng;
+    }
+    info.t = t;
+    info.b = b;
+    return info;
+}
+
+vec4 getBaseColor(vec4 u_ColorFactor, int iUVSet)
+{
+    vec4 baseColor = vec4(1);
+
+    // if(bool(MATERIAL_SPECULARGLOSSINESS))
+    // {
+    //     baseColor = u_DiffuseFactor;
+    // }
+    // else if(bool(MATERIAL_METALLICROUGHNESS))
+    if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS))
+    {
+        // baseColor = u_BaseColorFactor;
+        baseColor = u_ColorFactor;
+    }
+
+    // if(bool(MATERIAL_SPECULARGLOSSINESS) && bool(HAS_DIFFUSE_MAP))
+    // {
+    //     // baseColor *= texture(u_DiffuseSampler, getDiffuseUV());
+    //     baseColor *= texture(u_DiffuseSampler, tShaderIn.tUV);
+    // }
+    // else if(bool(MATERIAL_METALLICROUGHNESS) && bool(HAS_BASE_COLOR_MAP))
+    if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
+    {
+        baseColor *= texture(sampler2D(tBaseColorTexture, tDefaultSampler), tShaderIn.tUV[iUVSet]);
+    }
+    return baseColor * tShaderIn.tColor;
+}
+
+MaterialInfo getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor, float u_RoughnessFactor, int UVSet)
+{
+    info.metallic = u_MetallicFactor;
+    info.perceptualRoughness = u_RoughnessFactor;
+
+    if(bool(iTextureMappingFlags & PL_HAS_METALLIC_ROUGHNESS_MAP))
+    {
+        // Roughness is stored in the 'g' channel, metallic is stored in the 'b' channel.
+        // This layout intentionally reserves the 'r' channel for (optional) occlusion map data
+        vec4 mrSample = texture(sampler2D(tMetallicRoughnessTexture, tDefaultSampler), tShaderIn.tUV[UVSet]);
+        info.perceptualRoughness *= mrSample.g;
+        info.metallic *= mrSample.b;
+    }
+
+    // Achromatic f0 based on IOR.
+    info.c_diff = mix(info.baseColor.rgb,  vec3(0), info.metallic);
+    info.f0 = mix(info.f0, info.baseColor.rgb, info.metallic);
+    return info;
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] BRDF
@@ -231,22 +386,24 @@ vec3 getDiffuseLight(vec3 n)
 vec4 getSpecularSample(vec3 reflection, float lod)
 {
     reflection.z = -reflection.z;
+    // return textureLod(u_GGXEnvSampler, u_EnvRotation * reflection, lod) * u_EnvIntensity;
     return textureLod(samplerCube(u_GGXEnvSampler, tEnvSampler), reflection, lod);
 }
 
 vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight, int u_MipCount)
 {
-    
+    float NdotV = clampedDot(n, v);
     float lod = roughness * float(u_MipCount - 1);
     vec3 reflection = normalize(reflect(-v, n));
-    vec4 specularSample = getSpecularSample(reflection, lod);
 
-    float NdotV = clampedDot(n, v);
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
     vec2 f_ab = texture(sampler2D(u_GGXLUT, tEnvSampler), brdfSamplePoint).rg;
+    vec4 specularSample = getSpecularSample(reflection, lod);
 
     vec3 specularLight = specularSample.rgb;
 
+    // see https://bruop.github.io/ibl/#single_scattering_results at Single Scattering Results
+    // Roughness dependent fresnel, from Fdez-Aguera
     vec3 Fr = max(vec3(1.0 - roughness), F0) - F0;
     vec3 k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);
     vec3 FssEss = k_S * f_ab.x + f_ab.y;
@@ -254,14 +411,15 @@ vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularW
     return specularWeight * specularLight * FssEss;
 }
 
+
 // specularWeight is introduced with KHR_materials_specular
 vec3 getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor, vec3 F0, float specularWeight)
 {
-    vec3 irradiance = getDiffuseLight(n);
-
     float NdotV = clampedDot(n, v);
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
     vec2 f_ab = texture(sampler2D(u_GGXLUT, tEnvSampler), brdfSamplePoint).rg;
+
+    vec3 irradiance = getDiffuseLight(n);
 
     // see https://bruop.github.io/ibl/#single_scattering_results at Single Scattering Results
     // Roughness dependent fresnel, from Fdez-Aguera
@@ -290,14 +448,10 @@ float textureProj(vec4 shadowCoord, vec2 offset, uint cascadeIndex)
 {
 	float shadow = 1.0;
 	float bias = 0.0005;
-    float comp = shadowCoord.z - bias;
-    vec2 comp2 = shadowCoord.st + offset;
 
-	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 )
-    {
-		float dist = texture(sampler2D(shadowmap[cascadeIndex], tShadowSampler), comp2).r;
-		if (shadowCoord.w > 0 && dist < comp)
-        {
+	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 ) {
+		float dist = texture(sampler2D(shadowmap[cascadeIndex], tShadowSampler), shadowCoord.st + offset).r;
+		if (shadowCoord.w > 0 && dist < shadowCoord.z - bias) {
 			shadow = 0.1; // ambient
 		}
 	}
@@ -324,38 +478,88 @@ float filterPCF(vec4 sc, uint cascadeIndex)
 	return shadowFactor / count;
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] entry
+//-----------------------------------------------------------------------------
+
 void main() 
 {
-    vec4 AORoughnessMetalnessData = subpassLoad(tAOMetalRoughnessTexture);
-    vec4 tBaseColor = subpassLoad(tAlbedoSampler);
-    vec4 tPosition = subpassLoad(tPositionSampler);
-    vec3 n = subpassLoad(tNormalTexture).xyz;
 
-    const vec3 f90 = vec3(1.0);
+    tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
+    vec4 tBaseColor = getBaseColor(material.u_BaseColorFactor, material.BaseColorUVSet);
+
+    if(tBaseColor.a <  0.01)
+    {
+        discard;
+    }
+
+    NormalInfo tNormalInfo = pl_get_normal_info(material.NormalUVSet);
+
+    vec3 n = tNormalInfo.n;
+    vec3 t = tNormalInfo.t;
+    vec3 b = tNormalInfo.b;
+
+    MaterialInfo materialInfo;
+    materialInfo.baseColor = tBaseColor.rgb;
+
+    // The default index of refraction of 1.5 yields a dielectric normal incidence reflectance of 0.04.
+    materialInfo.ior = 1.5;
+    materialInfo.f0 = vec3(0.04);
+    materialInfo.specularWeight = 1.0;
+
+    if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS))
+    {
+        materialInfo = getMetallicRoughnessInfo(materialInfo, material.u_MetallicFactor, material.u_RoughnessFactor, material.MetallicRoughnessUVSet);
+    }
+
+    materialInfo.perceptualRoughness = clamp(materialInfo.perceptualRoughness, 0.0, 1.0);
+    materialInfo.metallic = clamp(materialInfo.metallic, 0.0, 1.0);
+
+    // Roughness is authored as perceptual roughness; as is convention,
+    // convert to material roughness by squaring the perceptual roughness.
+    materialInfo.alphaRoughness = materialInfo.perceptualRoughness * materialInfo.perceptualRoughness;
+
+    // Compute reflectance.
+    float reflectance = max(max(materialInfo.f0.r, materialInfo.f0.g), materialInfo.f0.b);
+
+    // Anything less than 2% is physically impossible and is instead considered to be shadowing. Compare to "Real-Time-Rendering" 4th editon on page 325.
+    materialInfo.f90 = vec3(1.0);
+
+    // emissive
+    vec3 f_emissive = material.u_EmissiveFactor;
+    if(bool(iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
+    {
+        f_emissive *= texture(sampler2D(tEmissiveTexture, tDefaultSampler), tShaderIn.tUV[material.EmissiveUVSet]).rgb;
+    }
     
+    // ambient occlusion
+    float ao = 1.0;
+    if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
+    {
+        ao = texture(sampler2D(tOcclusionTexture, tDefaultSampler), tShaderIn.tUV[material.OcclusionUVSet]).r;
+    }
+
+    // fill g-buffer
+    // outEmissive = vec4(f_emissive, material.u_MipCount);
+    // outAlbedo = tBaseColor;
+    // outNormal = vec4(tNormalInfo.n, 1.0);
+    // outPosition = vec4(tShaderIn.tPosition, materialInfo.specularWeight);
+    // outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, 1.0);
+
+    vec3 v = normalize(tGlobalInfo.tCameraPos.xyz - tShaderIn.tPosition.xyz);
 
     // LIGHTING
     vec3 f_specular = vec3(0.0);
     vec3 f_diffuse = vec3(0.0);
-   
     vec3 f_clearcoat = vec3(0.0);
     vec3 f_sheen = vec3(0.0);
     vec3 f_transmission = vec3(0.0);
 
-    const float fMetalness = AORoughnessMetalnessData.g;
-    vec3 c_diff = mix(tBaseColor.rgb,  vec3(0), fMetalness);
-    vec3 f0 = mix(vec3(0.04), tBaseColor.rgb, fMetalness);
-
-    const float fPerceptualRoughness = AORoughnessMetalnessData.b;
-    float specularWeight = tPosition.a;
-    vec3 v = normalize(tGlobalInfo.tCameraPos.xyz - tPosition.xyz);
-    int iMips = int(AORoughnessMetalnessData.a);
-
     // Calculate lighting contribution from image based lighting source (IBL)
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL))
     {
-        f_specular +=  getIBLRadianceGGX(n, v, fPerceptualRoughness, f0, specularWeight, iMips);
-        f_diffuse += getIBLRadianceLambertian(n, v, fPerceptualRoughness, c_diff, f0, specularWeight);
+        f_specular +=  getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, materialInfo.f0, materialInfo.specularWeight, material.u_MipCount);
+        f_diffuse += getIBLRadianceLambertian(n, v, materialInfo.perceptualRoughness, materialInfo.c_diff, materialInfo.f0, materialInfo.specularWeight);
     }
 
     // punctual stuff
@@ -371,8 +575,6 @@ void main()
     uint cascadeIndex = 0;
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL))
     {
-        const float fAlphaRoughness = fPerceptualRoughness * fPerceptualRoughness;
-
         for(int i = 0; i < iLightCount; i++)
         {
             plLightData tLightData = tLightInfo.atData[i];
@@ -386,7 +588,7 @@ void main()
 
                 // Get cascade index for the current fragment's view position
                 
-                vec4 inViewPos = tGlobalInfo.tCameraView * vec4(tPosition.xyz, 1.0);
+                vec4 inViewPos = tGlobalInfo.tCameraView * vec4(tShaderIn.tPosition.xyz, 1.0);
                 for(uint j = 0; j < tLightData.iCascadeCount - 1; ++j)
                 {
                     if(inViewPos.z > tShadowData.cascadeSplits[j])
@@ -396,7 +598,7 @@ void main()
                 }  
 
                 // Depth compare for shadowing
-	            vec4 shadowCoord = (biasMat * tShadowData.cascadeViewProjMat[cascadeIndex]) * vec4(tPosition.xyz, 1.0);	
+	            vec4 shadowCoord = (biasMat * tShadowData.cascadeViewProjMat[cascadeIndex]) * vec4(tShaderIn.tPosition.xyz, 1.0);	
                 shadow = 0;
                 shadow = textureProj(shadowCoord / shadowCoord.w, vec2(0.0), cascadeIndex);
                 // shadow = filterPCF(shadowCoord / shadowCoord.w, cascadeIndex);
@@ -404,7 +606,7 @@ void main()
 
             if(tLightData.iType != PL_LIGHT_TYPE_DIRECTIONAL)
             {
-                pointToLight = tLightData.tPosition - tPosition.xyz;
+                pointToLight = tLightData.tPosition - tShaderIn.tPosition.xyz;
             }
             else
             {
@@ -422,8 +624,8 @@ void main()
             if (NdotL > 0.0 || NdotV > 0.0)
             {
                 vec3 intensity = getLighIntensity(tLightData, pointToLight);
-                f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(f0, f90, c_diff, specularWeight, VdotH);
-                f_specular += shadow * intensity * NdotL * BRDF_specularGGX(f0, f90, fAlphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
+                f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(materialInfo.f0, materialInfo.f90, materialInfo.c_diff, materialInfo.specularWeight, VdotH);
+                f_specular += shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.f0, materialInfo.f90, materialInfo.alphaRoughness, materialInfo.specularWeight, VdotH, NdotL, NdotV, NdotH);
             }
 
         }
@@ -440,7 +642,6 @@ void main()
     vec3 sheen;
     vec3 clearcoat;
 
-    const float ao = AORoughnessMetalnessData.r;
     if(ao != 1.0)
     {
         float u_OcclusionStrength = 1.0;
@@ -458,7 +659,7 @@ void main()
         clearcoat = f_clearcoat_ibl + f_clearcoat;
     }
 
-    vec3 color = diffuse + specular;
+    vec3 color = f_emissive.rgb + diffuse + specular;
     color = sheen + color * albedoSheenScaling;
     color = color * (1.0 - clearcoatFactor * clearcoatFresnel) + clearcoat;
 

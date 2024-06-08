@@ -65,20 +65,23 @@ typedef struct _plRefRendererI
     void     (*add_drawable_objects_to_scene)(uint32_t uSceneHandle, uint32_t uOpaqueCount, const plEntity* atOpaqueObjects, uint32_t uTransparentCount, const plEntity* atTransparentObjects);
 
     // views
-    uint32_t    (*create_view)(uint32_t uSceneHandle, plVec2 tDimensions);
+    uint32_t        (*create_view)(uint32_t uSceneHandle, plVec2 tDimensions);
     plTextureHandle (*get_view_color_texture)(uint32_t uSceneHandle, uint32_t uViewHandle);
-    void        (*resize_view)(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensions);
+    void            (*resize_view)(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensions);
     
     // loading
     void (*load_skybox_from_panorama)(uint32_t uSceneHandle, const char* pcPath, int iResolution);
     void (*finalize_scene)(uint32_t uSceneHandle);
 
-    // per frame
-    void (*run_ecs)(uint32_t uSceneHandle);
-    void (*render_scene)(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions);
-    void (*end_frame)(void);
-    plEntity (*get_picked_entity)(void);
+    // ui
+    void (*show_graphics_options)(void);
 
+    // per frame
+    void (*run_ecs)     (uint32_t uSceneHandle);
+    void (*render_scene)(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions);
+    bool (*begin_frame) (void);
+    void (*end_frame)   (void);
+    plEntity (*get_picked_entity)(void);
 
     // misc
     void                (*select_entities)(uint32_t uSceneHandle, uint32_t uCount, plEntity*);
@@ -94,10 +97,6 @@ typedef struct _plRefRendererI
 
 typedef struct _plViewOptions
 {
-    bool      bShowVisibleBoundingBoxes;
-    bool      bShowAllBoundingBoxes;
-    bool      bShowOrigin;
-    bool      bCullStats;
     plEntity* ptViewCamera;
     plEntity* ptCullCamera;
     plEntity* ptSunLight;

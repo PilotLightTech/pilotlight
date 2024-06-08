@@ -2,6 +2,7 @@
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include <stdint.h>
 #include "pilotlight.h"
 #include "pl_resource_ext.h"
 #include "pl_ds.h"
@@ -15,7 +16,7 @@ typedef struct _plResource
 {
     char                acName[PL_MAX_NAME_LENGTH];
     plResourceLoadFlags tFlags;
-    char*               pcFileData;
+    uint8_t*            puFileData;
     size_t              szFileDataSize;
     void*               pBufferData;
     size_t              szBufferDataSize;
@@ -35,7 +36,7 @@ static const void* pl_resource_get_buffer_data(plResourceHandle tResourceHandle,
 static void pl_set_buffer_data(plResourceHandle tResourceHandle, size_t szDataSize, void* pData);
 
 //  resources
-static plResourceHandle pl_load_resource           (const char* pcName, plResourceLoadFlags tFlags, char* pcData, size_t szDataSize);
+static plResourceHandle pl_load_resource           (const char* pcName, plResourceLoadFlags tFlags, uint8_t* puData, size_t szDataSize);
 static bool             pl_is_resource_loaded      (const char* pcName);
 static bool             pl_is_resource_valid       (plResourceHandle tResourceHandle);
 static void             pl_unload_resource         (plResourceHandle tResourceHandle);
@@ -87,7 +88,7 @@ pl_resource_get_file_data(plResourceHandle tResourceHandle, size_t* pszDataSize)
     if(pszDataSize)
         *pszDataSize = ptResource->szFileDataSize;
 
-    return ptResource->pcFileData;
+    return ptResource->puFileData;
 }
 
 static const void*
@@ -118,7 +119,7 @@ pl_set_buffer_data(plResourceHandle tResourceHandle, size_t szDataSize, void* pD
 }
 
 static plResourceHandle
-pl_load_resource(const char* pcName, plResourceLoadFlags tFlags, char* pcData, size_t szDataSize)
+pl_load_resource(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puData, size_t szDataSize)
 {
     const uint64_t ulHash = pl_hm_hash_str(pcName);
     if(pl_hm_has_key(&gptResourceManager->tNameHashMap, ulHash))
@@ -135,7 +136,7 @@ pl_load_resource(const char* pcName, plResourceLoadFlags tFlags, char* pcData, s
     plResource tResource = {
         .tFlags         = tFlags,
         .szFileDataSize = szDataSize,
-        .pcFileData     = pcData
+        .puFileData     = puData
     };
 
     strncpy(tResource.acName, pcName, PL_MAX_NAME_LENGTH);
@@ -151,8 +152,8 @@ pl_load_resource(const char* pcName, plResourceLoadFlags tFlags, char* pcData, s
 
     if(tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_DATA)
     {
-        tResource.pcFileData = PL_ALLOC(szDataSize);
-        memcpy(tResource.pcFileData, pcData, szDataSize);
+        tResource.puFileData = PL_ALLOC(szDataSize);
+        memcpy(tResource.puFileData, puData, szDataSize);
     }  
     pl_hm_insert_str(&gptResourceManager->tNameHashMap, pcName, uIndex);
 
@@ -177,7 +178,7 @@ pl_unload_resource(plResourceHandle tResourceHandle)
 
         if(ptResource->tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_DATA)
         {
-            PL_FREE(ptResource->pcFileData);
+            PL_FREE(ptResource->puFileData);
         }
         memset(ptResource, 0, sizeof(plResource));
 
@@ -233,7 +234,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry)
     {
         if(gptResourceManager->sbtResources[i].tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_DATA)
         {
-            PL_FREE(gptResourceManager->sbtResources[i].pcFileData);
+            PL_FREE(gptResourceManager->sbtResources[i].puFileData);
         }
         if(gptResourceManager->sbtResources[i].pBufferData)
         {

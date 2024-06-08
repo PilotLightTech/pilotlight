@@ -59,7 +59,7 @@ plWindow* pl__create_window(const plWindowDesc* ptDesc);
 void      pl__destroy_window(plWindow* ptWindow);
 
 // os services
-void  pl__read_file            (const char* pcFile, uint32_t* puSize, char* pcBuffer, const char* pcMode);
+void  pl__read_file            (const char* pcFile, uint32_t* puSize, uint8_t* puBuffer, const char* pcMode);
 void  pl__copy_file            (const char* pcSource, const char* pcDestination);
 void  pl__create_udp_socket    (plSocket** pptSocketOut, bool bNonBlocking);
 void  pl__bind_udp_socket      (plSocket* ptSocket, int iPort);
@@ -637,7 +637,7 @@ pl_update_mouse_cursor_linux(void)
 }
 
 void
-pl__read_file(const char* file, uint32_t* sizeIn, char* buffer, const char* mode)
+pl__read_file(const char* file, uint32_t* sizeIn, uint8_t* buffer, const char* mode)
 {
     PL_ASSERT(sizeIn);
 

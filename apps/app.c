@@ -63,20 +63,14 @@ typedef struct plAppData_t
     bool           bShowUiDebug;
     bool           bShowUiStyle;
     bool           bShowEntityWindow;
-    bool           bReloadSwapchain;
     bool           bResize;
-    bool           bFrustumCulling;
     bool           bAlwaysResize;
-
 
     // selected entityes
     bool bUpdateEntitySelection;
     plEntity tSelectedEntity;
 
-
     // scene
-    bool         bDrawAllBoundingBoxes;
-    bool         bDrawVisibleBoundingBoxes;
     bool         bFreezeCullCamera;
     plEntity     tCullCamera;
     plEntity     tMainCamera;
@@ -150,8 +144,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // add some context to data registry
     ptAppData = PL_ALLOC(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
-
-    ptAppData->bFrustumCulling = true;
 
     ptDataRegistry->set_data("profile", ptProfileCtx);
     ptDataRegistry->set_data("log", ptLogCtx);
@@ -314,15 +306,6 @@ pl_app_update(plAppData* ptAppData)
     plGraphics* ptGraphics = gptRenderer->get_graphics();
     plIO* ptIO = gptIO->get_io();
 
-    if(ptAppData->bReloadSwapchain)
-    {
-        ptAppData->bReloadSwapchain = false;
-        gptGfx->resize(ptGraphics);
-        pl_end_profile_sample();
-        pl_end_profile_frame();
-        return;
-    }
-
     if(ptAppData->bResize || ptAppData->bAlwaysResize)
     {
         // gptOS->sleep(32);
@@ -330,9 +313,8 @@ pl_app_update(plAppData* ptAppData)
         ptAppData->bResize = false;
     }
 
-    if(!gptGfx->begin_frame(ptGraphics))
+    if(!gptRenderer->begin_frame())
     {
-        gptGfx->resize(ptGraphics);
         pl_end_profile_sample();
         pl_end_profile_frame();
         return;
@@ -378,18 +360,12 @@ pl_app_update(plAppData* ptAppData)
         ptAppData->tSelectedEntity = tNextSelectedEntity;
     }
 
-    plViewOptions tViewOptions = {
-        .bShowAllBoundingBoxes = ptAppData->bDrawAllBoundingBoxes,
-        .bShowVisibleBoundingBoxes = ptAppData->bDrawVisibleBoundingBoxes,
-        .bShowOrigin = true,
-        .bCullStats = true,
+    const plViewOptions tViewOptions = {
         .ptViewCamera = &ptAppData->tMainCamera,
-        .ptCullCamera = ptAppData->bFrustumCulling ? &ptAppData->tMainCamera : NULL,
+        .ptCullCamera = ptAppData->bFreezeCullCamera ? &ptAppData->tCullCamera : NULL,
         .ptSunLight = &ptAppData->tSunlight
     };
     gptRenderer->render_scene(ptAppData->uSceneHandle0, ptAppData->uViewHandle0, tViewOptions);
-
-
 
     gptUi->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
 
@@ -414,19 +390,25 @@ pl_app_update(plAppData* ptAppData)
 
             gptUi->end_collapsing_header();
         }
-        if(gptUi->collapsing_header("General Options"))
+        if(gptUi->collapsing_header("App Options"))
         {
-            if(gptUi->checkbox("VSync", &ptGraphics->tSwapchain.bVSync))
-                ptAppData->bReloadSwapchain = true;
-            gptUi->checkbox("Frustum Culling", &ptAppData->bFrustumCulling);
             if(gptUi->checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))
             {
                 *ptCullCamera = *ptCamera;
             }
-            gptUi->checkbox("Draw All Bounding Boxes", &ptAppData->bDrawAllBoundingBoxes);
-            gptUi->checkbox("Draw Visible Bounding Boxes", &ptAppData->bDrawVisibleBoundingBoxes);
+
+            plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary,  PL_COMPONENT_TYPE_LIGHT, ptAppData->tSunlight);
+            int iCascadeCount  = (int)ptLight->uCascadeCount;
+            if(gptUi->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4))
+            {
+                ptLight->uCascadeCount = (uint32_t)iCascadeCount;
+            }
+
             gptUi->end_collapsing_header();
         }
+
+        gptRenderer->show_graphics_options();
+
         if(gptUi->collapsing_header("Tools"))
         {
             gptUi->checkbox("Device Memory Analyzer", &ptAppData->tDebugInfo.bShowDeviceMemoryAnalyzer);

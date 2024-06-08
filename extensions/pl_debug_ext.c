@@ -588,7 +588,7 @@ pl__show_statistics(bool* bValue)
         const plVec2 tWindowEnd = pl_add_vec2(gptUI->get_window_size(), tWindowPos);
 
         gptUI->layout_template_begin(tWindowSize.y - 15.0f);
-        gptUI->layout_template_push_static(fLegendWidth * 2.0f);
+        gptUI->layout_template_push_static(fLegendWidth * 1.5f);
         gptUI->layout_template_push_dynamic();
         gptUI->layout_template_end();
       

@@ -12,7 +12,7 @@ layout (set = 0, binding = 1, rg32f) uniform writeonly image2D outputImage;
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(set = 1, binding = 0) uniform _plDynamicData
+layout(set = 1, binding = 0) uniform PL_DYNAMIC_DATA
 {
     vec4 tJumpDistance;
 } tDynamicData;

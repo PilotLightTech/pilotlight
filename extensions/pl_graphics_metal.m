@@ -172,7 +172,7 @@ typedef struct _plGraphicsMetal
     plMetalTimelineSemaphore* sbtSemaphoresHot;
     
     // per frame
-    id<CAMetalDrawable>         tCurrentDrawable;
+    id<CAMetalDrawable> tCurrentDrawable;
 } plGraphicsMetal;
 
 typedef struct _plDeviceMetal
@@ -200,7 +200,7 @@ static bool                   pl__is_depth_format  (plFormat tFormat);
 static bool                   pl__is_stencil_format  (plFormat tFormat);
 static MTLBlendFactor         pl__metal_blend_factor(plBlendFactor tFactor);
 static MTLBlendOperation      pl__metal_blend_op(plBlendOp tOp);
-static void                  pl__garbage_collect(plGraphics* ptGraphics);
+static void                   pl__garbage_collect(plGraphics* ptGraphics);
 
 static plDeviceMemoryAllocation pl_allocate_memory(plDevice* ptDevice, size_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
 static void pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock);
@@ -951,7 +951,18 @@ pl_get_temporary_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayou
         .tLayout = *ptLayout
     };
 
-    NSUInteger argumentBufferLength = sizeof(uint64_t) * (ptLayout->uTextureBindingCount + ptLayout->uBufferBindingCount + ptLayout->uSamplerBindingCount);
+    uint32_t uDescriptorCount = ptLayout->uTextureBindingCount + ptLayout->uBufferBindingCount + ptLayout->uSamplerBindingCount;
+
+    for(uint32_t i = 0; i < ptLayout->uTextureBindingCount; i++)
+    {
+        uint32_t uCurrentDescriptorCount = ptLayout->atTextureBindings[i].uDescriptorCount;
+        if(uCurrentDescriptorCount== 0)
+            uCurrentDescriptorCount = 1;
+        if(uCurrentDescriptorCount > 1)
+            uDescriptorCount += ptLayout->atTextureBindings[i].uDescriptorCount - 1;
+    }
+
+    NSUInteger argumentBufferLength = sizeof(uint64_t) * uDescriptorCount;
 
     if(argumentBufferLength + ptFrame->szCurrentArgumentOffset > PL_DYNAMIC_ARGUMENT_BUFFER_SIZE)
     {
@@ -1203,11 +1214,13 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
         .tDesc = ptGraphics->sbtTexturesCold[ptViewDesc->tTexture.uIndex].tDesc,
         .tView = *ptViewDesc
     };
+    tTexture.tDesc.uMips = ptViewDesc->uMips;
+    tTexture.tDesc.uLayers = ptViewDesc->uLayerCount;
+    tTexture.tView.uBaseMip = 0;
+    tTexture.tView.uBaseLayer = 0;
 
     plTexture* ptTexture = pl__get_texture(ptDevice, ptViewDesc->tTexture);
     plMetalTexture* ptOldMetalTexture = &ptMetalGraphics->sbtTexturesHot[ptViewDesc->tTexture.uIndex];
-    plMetalTexture* ptNewMetalTexture = &ptMetalGraphics->sbtTexturesHot[uTextureIndex];
-    ptNewMetalTexture->bOriginalView = false;
 
     if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
     {
@@ -1240,51 +1253,59 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
         pl_update_bind_group(&ptGraphics->tDevice, ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup, &tBGData);
     }
 
-    // MTLTextureType tTextureType = MTLTextureType2D;
+    plMetalTexture* ptNewMetalTexture = &ptMetalGraphics->sbtTexturesHot[uTextureIndex];
+    ptNewMetalTexture->bOriginalView = false;
 
-    // if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_2D)
-    //     tTextureType = MTLTextureType2D;
-    // else if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_CUBE)
-    //     tTextureType = MTLTextureTypeCube;
-    // else if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
-    //     tTextureType = MTLTextureType2DArray;
-    //     // tTextureType = MTLTextureType2D;
-    // else
-    // {
-    //     PL_ASSERT(false && "unsupported texture type");
-    // }
+    MTLTextureType tTextureType = MTLTextureType2D;
+
+    if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_2D)
+        tTextureType = MTLTextureType2D;
+    else if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_CUBE)
+        tTextureType = MTLTextureTypeCube;
+    else if(tTexture.tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+    {
+        if(ptViewDesc->uLayerCount == 1)
+        {
+            tTextureType = MTLTextureType2D;
+        }
+        else
+        {
+            tTextureType = MTLTextureType2DArray;
+        }
+        
+    }
+    else
+    {
+        PL_ASSERT(false && "unsupported texture type");
+    }
+
+    NSRange tLevelRange = {
+        .length = ptViewDesc->uMips == 0 ? ptTexture->tDesc.uMips - ptViewDesc->uBaseMip : ptViewDesc->uMips,
+        .location = ptViewDesc->uBaseMip
+    };
+
+    NSRange tSliceRange = {
+        .length = ptViewDesc->uLayerCount,
+        .location = ptViewDesc->uBaseLayer
+    };
 
     // NSRange tLevelRange = {
-    //     .length = ptViewDesc->uMips == 0 ? ptTexture->tDesc.uMips - ptViewDesc->uBaseMip : ptViewDesc->uMips,
+    //     .length = ptViewDesc->uMips,
     //     .location = ptViewDesc->uBaseMip
     // };
 
-    // NSRange tSliceRange = {
-    //     .length = ptViewDesc->uLayerCount,
-    //     .location = ptViewDesc->uBaseLayer
-    // };
 
-    // NSRange tLevelRange = {
-    //     .length = ptTexture->tView.uMips,
-    //     .location = ptTexture->tView.uBaseMip
-    // };
+    if(pcName == NULL)
+        pcName = "unnamed texture";
 
-    // NSRange tSliceRange = {
-    //     .length = ptTexture->tView.uLayerCount,
-    //     .location = ptTexture->tView.uBaseLayer
-    // };
+    ptNewMetalTexture->tTexture = [ptOldMetalTexture->tTexture newTextureViewWithPixelFormat:pl__metal_format(ptViewDesc->tFormat) 
+            textureType:tTextureType
+            levels:tLevelRange
+            slices:tSliceRange];
 
-    // plMetalTexture tMetalTexture = {
-    //     .tTexture = [ptOldMetalTexture->tTexture newTextureViewWithPixelFormat:pl__metal_format(ptViewDesc->tFormat) 
-    //         textureType:tTextureType
-    //         levels:tLevelRange
-    //         slices:tSliceRange],
-    //     .tHeap = ptOldMetalTexture->tHeap
-    // };
-    // if(pcName == NULL)
-    //     pcName = "unnamed texture";
-    // tMetalTexture.tTexture.label = [NSString stringWithUTF8String:pcName];
-    ptNewMetalTexture->tTexture = ptOldMetalTexture->tTexture;
+    ptNewMetalTexture->tTexture.label = [NSString stringWithUTF8String:pcName];
+
+    // ptNewMetalTexture->tTexture = ptOldMetalTexture->tTexture;
     ptNewMetalTexture->tHeap = ptOldMetalTexture->tHeap;
 
     ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
@@ -1374,21 +1395,14 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
 
     plMetalComputeShader* ptMetalShader = &ptMetalGraphics->sbtComputeShadersHot[uResourceIndex];
 
-    if(ptDescription->pcShaderEntryFunc == NULL)
-        tShader.tDescription.pcShaderEntryFunc = "kernel_main";
+    if(tShader.tDescription.tShader.pcEntryFunc == NULL)
+        tShader.tDescription.tShader.pcEntryFunc = "kernel_main";
 
-    NSString* entryFunc = [NSString stringWithUTF8String:tShader.tDescription.pcShaderEntryFunc];
-
-    // read in shader source code
-    unsigned uShaderFileSize = 0;
-    gptFile->read(tShader.tDescription.pcShader, &uShaderFileSize, NULL, "rb");
-    char* pcFileData = pl_temp_allocator_alloc(&ptMetalGraphics->tTempAllocator, uShaderFileSize + 1);
-    memset(pcFileData, 0, uShaderFileSize + 1);
-    gptFile->read(tShader.tDescription.pcShader, &uShaderFileSize, pcFileData, "rb");
+    NSString* entryFunc = [NSString stringWithUTF8String:"kernel_main"];
 
     // compile shader source
     NSError* error = nil;
-    NSString* shaderSource = [NSString stringWithUTF8String:pcFileData];
+    NSString* shaderSource = [NSString stringWithUTF8String:(const char*)tShader.tDescription.tShader.puCode];
     MTLCompileOptions* ptCompileOptions = [MTLCompileOptions new];
     ptMetalShader->library = [ptMetalDevice->tDevice  newLibraryWithSource:shaderSource options:ptCompileOptions error:&error];
     if (ptMetalShader->library == nil)
@@ -1461,39 +1475,31 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
 
     plMetalShader* ptMetalShader = &ptMetalGraphics->sbtShadersHot[uResourceIndex];
 
-    if(ptDescription->pcPixelShaderEntryFunc == NULL)
-        tShader.tDescription.pcPixelShaderEntryFunc = "fragment_main";
+    if(tShader.tDescription.tPixelShader.pcEntryFunc == NULL)
+        tShader.tDescription.tPixelShader.pcEntryFunc = "fragment_main";
 
-    if(ptDescription->pcVertexShaderEntryFunc == NULL)
-        tShader.tDescription.pcVertexShaderEntryFunc = "vertex_main";
+    if(tShader.tDescription.tVertexShader.pcEntryFunc == NULL)
+        tShader.tDescription.tVertexShader.pcEntryFunc = "vertex_main";
 
-    NSString* vertexEntry = [NSString stringWithUTF8String:tShader.tDescription.pcVertexShaderEntryFunc];
-    NSString* fragmentEntry = [NSString stringWithUTF8String:tShader.tDescription.pcPixelShaderEntryFunc];
+    NSString* vertexEntry = [NSString stringWithUTF8String:"vertex_main"];
+    NSString* fragmentEntry = [NSString stringWithUTF8String:"fragment_main"];
 
     // vertex layout
     MTLVertexDescriptor* vertexDescriptor = [MTLVertexDescriptor vertexDescriptor];
-    vertexDescriptor.layouts[0].stepRate = 1;
-    vertexDescriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
-    vertexDescriptor.layouts[0].stride = ptDescription->tVertexBufferBinding.uByteStride;
+    vertexDescriptor.layouts[4].stepRate = 1;
+    vertexDescriptor.layouts[4].stepFunction = MTLVertexStepFunctionPerVertex;
+    vertexDescriptor.layouts[4].stride = ptDescription->tVertexBufferBinding.uByteStride;
 
     uint32_t uCurrentAttributeCount = 0;
     for(uint32_t i = 0; i < PL_MAX_VERTEX_ATTRIBUTES; i++)
     {
         if(ptDescription->tVertexBufferBinding.atAttributes[i].tFormat == PL_FORMAT_UNKNOWN)
             break;
-        vertexDescriptor.attributes[i].bufferIndex = 0;
+        vertexDescriptor.attributes[i].bufferIndex = 4;
         vertexDescriptor.attributes[i].offset = ptDescription->tVertexBufferBinding.atAttributes[i].uByteOffset;
         vertexDescriptor.attributes[i].format = pl__metal_vertex_format(ptDescription->tVertexBufferBinding.atAttributes[i].tFormat);
         uCurrentAttributeCount++;
     }
-
-    uint32_t uVertShaderSize0 = 0u;
-    uint32_t uPixelShaderSize0 = 0u;
-
-    gptFile->read(tShader.tDescription.pcVertexShader, &uVertShaderSize0, NULL, "rb");
-    char* vertexShaderCode = pl_temp_allocator_alloc(&ptMetalGraphics->tTempAllocator, uVertShaderSize0 + 1);
-    memset(vertexShaderCode, 0, uVertShaderSize0 + 1);
-    gptFile->read(tShader.tDescription.pcVertexShader, &uVertShaderSize0, vertexShaderCode, "rb");
 
     // prepare preprocessor defines
     MTLCompileOptions* ptCompileOptions = [MTLCompileOptions new];
@@ -1501,21 +1507,16 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
 
     // compile shader source
     NSError* error = nil;
-    NSString* vertexSource = [NSString stringWithUTF8String:vertexShaderCode];
+    NSString* vertexSource = [NSString stringWithUTF8String:(const char*)tShader.tDescription.tVertexShader.puCode];
     ptMetalShader->tVertexLibrary = [ptMetalDevice->tDevice  newLibraryWithSource:vertexSource options:ptCompileOptions error:&error];
     if (ptMetalShader->tVertexLibrary == nil)
     {
         NSLog(@"Error: failed to create Metal vertex library: %@", error);
     }
 
-    if(tShader.tDescription.pcPixelShader)
+    if(tShader.tDescription.tPixelShader.puCode)
     {
-        gptFile->read(tShader.tDescription.pcPixelShader, &uPixelShaderSize0, NULL, "rb");
-        char* pixelShaderCode  = pl_temp_allocator_alloc(&ptMetalGraphics->tTempAllocator, uPixelShaderSize0 + 1);
-        memset(pixelShaderCode, 0, uPixelShaderSize0 + 1);
-        gptFile->read(tShader.tDescription.pcPixelShader, &uPixelShaderSize0, pixelShaderCode, "rb");
-
-        NSString* fragmentSource = [NSString stringWithUTF8String:pixelShaderCode];
+        NSString* fragmentSource = [NSString stringWithUTF8String:(const char*)tShader.tDescription.tPixelShader.puCode];
         ptMetalShader->tFragmentLibrary = [ptMetalDevice->tDevice  newLibraryWithSource:fragmentSource options:ptCompileOptions error:&error];
         if (ptMetalShader->tFragmentLibrary == nil)
         {
@@ -1556,7 +1557,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         NSLog(@"Error: failed to find Metal shader functions in library: %@", error);
     }
 
-    if(tShader.tDescription.pcPixelShader)
+    if(tShader.tDescription.tPixelShader.puCode)
     {
         fragmentFunction = [ptMetalShader->tFragmentLibrary newFunctionWithName:fragmentEntry constantValues:ptConstantValues error:&error];
         if (fragmentFunction == nil)
@@ -1676,6 +1677,11 @@ pl_free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryA
     ptAllocation->uHandle = 0;
     ptAllocation->ulSize = 0;
     ptAllocation->ulOffset = 0;
+}
+
+static void pl_spvc_error_callback(void* pUserData, const char* pcError)
+{
+    printf("SPIR-V Cross Error: %s\n", pcError);
 }
 
 static void
@@ -2143,8 +2149,8 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
     if(ptDynamicBinding)
     {
         plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
-        [tEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uFirst + uCount + 1];
-        [tEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uFirst + uCount + 1];
+        [tEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uFirst + uCount];
+        [tEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uFirst + uCount];
     }
 
     for(uint32_t i = 0; i < uCount; i++)
@@ -2163,8 +2169,8 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
             [tEncoder useResource:ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
         }
 
-        [tEncoder setVertexBuffer:ptBindGroup->tShaderArgumentBuffer offset:ptBindGroup->uOffset atIndex:uFirst + i + 1];
-        [tEncoder setFragmentBuffer:ptBindGroup->tShaderArgumentBuffer offset:ptBindGroup->uOffset atIndex:uFirst + i + 1];
+        [tEncoder setVertexBuffer:ptBindGroup->tShaderArgumentBuffer offset:ptBindGroup->uOffset atIndex:uFirst + i];
+        [tEncoder setFragmentBuffer:ptBindGroup->tShaderArgumentBuffer offset:ptBindGroup->uOffset atIndex:uFirst + i];
     }
 }
 
@@ -2209,7 +2215,7 @@ pl_bind_vertex_buffer(plRenderEncoder* ptEncoder, plBufferHandle tHandle)
 
     [tEncoder setVertexBuffer:ptMetalGraphics->sbtBuffersHot[tHandle.uIndex].tBuffer
         offset:0
-        atIndex:0];
+        atIndex:4];
 }
 
 static void
@@ -2350,7 +2356,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                 [tRenderEncoder setStencilReferenceValue:ptMetalShader->ulStencilRef];                
 
                 uCurrentStreamIndex++;
-                uDynamicSlot = ptShader->tDescription.uBindGroupLayoutCount + 1;
+                uDynamicSlot = ptShader->tDescription.uBindGroupLayoutCount;
             }
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
@@ -2375,8 +2381,8 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                     [tRenderEncoder useResource:ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
                 }
 
-                [tRenderEncoder setVertexBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:1];
-                [tRenderEncoder setFragmentBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:1];
+                [tRenderEncoder setVertexBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:0];
+                [tRenderEncoder setFragmentBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:0];
                 uCurrentStreamIndex++;
             }
 
@@ -2396,8 +2402,8 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                     [tRenderEncoder useResource:ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
                 }
 
-                [tRenderEncoder setVertexBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:2];
-                [tRenderEncoder setFragmentBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:2];
+                [tRenderEncoder setVertexBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:1];
+                [tRenderEncoder setFragmentBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:1];
                 uCurrentStreamIndex++;
             }
 
@@ -2416,8 +2422,8 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                     [tRenderEncoder useResource:ptMetalGraphics->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment]; 
                 }
 
-                [tRenderEncoder setVertexBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:3];
-                [tRenderEncoder setFragmentBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:3];
+                [tRenderEncoder setVertexBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:2];
+                [tRenderEncoder setFragmentBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:2];
                 uCurrentStreamIndex++;
             }
 
@@ -2454,7 +2460,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
             {
                 [tRenderEncoder setVertexBuffer:ptMetalGraphics->sbtBuffersHot[ptStream->sbtStream[uCurrentStreamIndex]].tBuffer
                     offset:0
-                    atIndex:0];
+                    atIndex:4];
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_TRIANGLES)
@@ -2799,6 +2805,8 @@ pl__metal_vertex_format(plFormat tFormat)
 
         case PL_FORMAT_B8G8R8A8_UNORM:
         case PL_FORMAT_R8G8B8A8_UNORM:     return MTLVertexFormatUChar4;
+
+        case PL_FORMAT_R32_UINT:           return MTLVertexFormatUInt;
     }
 
     PL_ASSERT(false && "Unsupported vertex format");

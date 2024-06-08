@@ -57,7 +57,7 @@ typedef struct _plResourceI
     void (*set_buffer_data)(plResourceHandle tResourceHandle, size_t szDataSize, void* pData);
     
     //  resources
-    plResourceHandle (*load_resource)     (const char* pcName, plResourceLoadFlags tFlags, char* pcData, size_t szDataSize);
+    plResourceHandle (*load_resource)     (const char* pcName, plResourceLoadFlags tFlags, uint8_t* puData, size_t szDataSize);
     bool             (*is_resource_loaded)(const char* pcName);
     bool             (*is_resource_valid) (plResourceHandle tResourceHandle);
     void             (*unload_resource)   (plResourceHandle tResourceHandle);

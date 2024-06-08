@@ -12,22 +12,18 @@ layout(constant_id = 0) const int iMeshVariantFlags = 0;
 layout(constant_id = 1) const int iDataStride = 0;
 layout(constant_id = 2) const int iTextureMappingFlags = 0;
 layout(constant_id = 3) const int iMaterialFlags = 0;
+layout(constant_id = 4) const int iRenderingFlags = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0
 //-----------------------------------------------------------------------------
 
-struct plCameraInfo
+layout(set = 0, binding = 0) uniform _plGlobalInfo
 {
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
-};
-
-layout(set = 0, binding = 0) readonly buffer _plGlobalInfo
-{
-    plCameraInfo atInfo[];
 } tGlobalInfo;
 
 layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
@@ -41,20 +37,17 @@ layout(set = 0, binding = 2) readonly buffer plMaterialInfo
 } tMaterialInfo;
 
 layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
-
-//-----------------------------------------------------------------------------
-// [SECTION] bind group 0
-//-----------------------------------------------------------------------------
-
-layout(set = 1, binding = 0) uniform texture2D tBaseColorTexture;
+layout(set = 0, binding = 4)  uniform sampler tEnvSampler;
+layout (set = 0, binding = 5) uniform textureCube u_LambertianEnvSampler;
+layout (set = 0, binding = 6) uniform textureCube u_GGXEnvSampler;
+layout (set = 0, binding = 7) uniform texture2D u_GGXLUT;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(std140, set = 2, binding = 0) uniform _plObjectInfo
+layout(set = 2, binding = 0) uniform PL_DYNAMIC_DATA
 {
-    int  iIndex;
     int  iDataOffset;
     int  iVertexOffset;
     int  iMaterialIndex;
@@ -70,17 +63,24 @@ layout(location = 0) in vec3 inPos;
 
 // output
 layout(location = 0) out struct plShaderOut {
+    vec3 tPosition;
+    vec4 tWorldPosition;
     vec2 tUV[8];
+    vec4 tColor;
+    vec3 tWorldNormal;
+    mat3 tTBN;
 } tShaderIn;
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry
 //-----------------------------------------------------------------------------
 
-void main()
+void main() 
 {
 
     vec4 inPosition  = vec4(inPos, 1.0);
+    vec3 inNormal    = vec3(0.0, 0.0, 0.0);
+    vec4 inTangent   = vec4(0.0, 0.0, 0.0, 0.0);
     vec2 inTexCoord0 = vec2(0.0, 0.0);
     vec2 inTexCoord1 = vec2(0.0, 0.0);
     vec2 inTexCoord2 = vec2(0.0, 0.0);
@@ -89,15 +89,16 @@ void main()
     vec2 inTexCoord5 = vec2(0.0, 0.0);
     vec2 inTexCoord6 = vec2(0.0, 0.0);
     vec2 inTexCoord7 = vec2(0.0, 0.0);
-
+    vec4 inColor0    = vec4(1.0, 1.0, 1.0, 1.0);
+    vec4 inColor1    = vec4(0.0, 0.0, 0.0, 0.0);
     int iCurrentAttribute = 0;
     
     // offset = offset into current mesh + offset into global buffer
     const uint iVertexDataOffset = iDataStride * (gl_VertexIndex - tObjectInfo.iVertexOffset) + tObjectInfo.iDataOffset;
 
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { iCurrentAttribute++;}
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { iCurrentAttribute++;}
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))   { iCurrentAttribute++;}
+    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { inPosition.xyz = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
+    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { inNormal       = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
+    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))   { inTangent      = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0)){
         inTexCoord0 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;
         inTexCoord1 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].zw;
@@ -118,9 +119,26 @@ void main()
         inTexCoord7 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].zw;
         iCurrentAttribute++;
     }
+    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0))   { inColor0       = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_1))   { inColor1       = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+
+    tShaderIn.tWorldNormal = mat3(tObjectInfo.tModel) * normalize(inNormal);
+    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))
+    {
+
+        if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))
+        {
+            vec3 tangent = normalize(inTangent.xyz);
+            vec3 WorldTangent = mat3(tObjectInfo.tModel) * tangent;
+            vec3 WorldBitangent = cross(normalize(inNormal), tangent) * inTangent.w;
+            WorldBitangent = mat3(tObjectInfo.tModel) * WorldBitangent;
+            tShaderIn.tTBN = mat3(WorldTangent, WorldBitangent, tShaderIn.tWorldNormal);
+        }
+    }
 
     vec4 pos = tObjectInfo.tModel * inPosition;
-    gl_Position = tGlobalInfo.atInfo[tObjectInfo.iIndex].tCameraViewProjection * pos;
+    tShaderIn.tPosition = pos.xyz / pos.w;
+    gl_Position = tGlobalInfo.tCameraViewProjection * pos;
     tShaderIn.tUV[0] = inTexCoord0;
     tShaderIn.tUV[1] = inTexCoord1;
     tShaderIn.tUV[2] = inTexCoord2;
@@ -129,4 +147,6 @@ void main()
     tShaderIn.tUV[5] = inTexCoord5;
     tShaderIn.tUV[6] = inTexCoord6;
     tShaderIn.tUV[7] = inTexCoord7;
+    tShaderIn.tWorldPosition = gl_Position / gl_Position.w;
+    tShaderIn.tColor = inColor0;
 }

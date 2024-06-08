@@ -63,7 +63,7 @@ layout(set = 1, binding = 11)  uniform texture2D tSpecularColorTexture;
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(set = 2, binding = 0) uniform _plObjectInfo
+layout(set = 2, binding = 0) uniform PL_DYNAMIC_DATA
 {
     int  iDataOffset;
     int  iVertexOffset;

@@ -189,7 +189,7 @@ plWindow* pl__create_window(const plWindowDesc* ptDesc);
 void      pl__destroy_window(plWindow* ptWindow);
 
 // os services
-void  pl__read_file            (const char* pcFile, uint32_t* puSize, char* pcBuffer, const char* pcMode);
+void  pl__read_file            (const char* pcFile, uint32_t* puSize, uint8_t* pcBuffer, const char* pcMode);
 void  pl__copy_file            (const char* pcSource, const char* pcDestination);
 void  pl__create_udp_socket    (plSocket** pptSocketOut, bool bNonBlocking);
 void  pl__bind_udp_socket      (plSocket* ptSocket, int iPort);
@@ -1039,7 +1039,7 @@ pl__add_osx_tracking_area(NSView* _Nonnull view)
 }
 
 void
-pl__read_file(const char* file, uint32_t* sizeIn, char* buffer, const char* mode)
+pl__read_file(const char* file, uint32_t* sizeIn, uint8_t* buffer, const char* mode)
 {
     PL_ASSERT(sizeIn);
 
@@ -1055,7 +1055,8 @@ pl__read_file(const char* file, uint32_t* sizeIn, char* buffer, const char* mode
     // obtain file size
     fseek(dataFile, 0, SEEK_END);
     size = ftell(dataFile);
-    fseek(dataFile, 0, SEEK_SET);
+    // fseek(dataFile, 0, SEEK_SET);
+    rewind(dataFile);
 
     if(buffer == NULL)
     {

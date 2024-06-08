@@ -74,7 +74,7 @@ static const char* pl__get_clipboard_text(void* user_data_ctx);
 static void        pl__set_clipboard_text(void* pUnused, const char* text);
 
 // file api
-void pl__read_file(const char* pcFile, uint32_t* puSize, char* pcBuffer, const char* pcMode);
+void pl__read_file(const char* pcFile, uint32_t* puSize, uint8_t* pcBuffer, const char* pcMode);
 void pl__copy_file(const char* pcSource, const char* pcDestination);
 
 // udp api
@@ -1003,7 +1003,7 @@ pl__virtual_key_to_pl_key(WPARAM tWParam)
 }
 
 void
-pl__read_file(const char* pcFile, uint32_t* puSizeIn, char* pcBuffer, const char* pcMode)
+pl__read_file(const char* pcFile, uint32_t* puSizeIn, uint8_t* pcBuffer, const char* pcMode)
 {
     PL_ASSERT(puSizeIn);
 

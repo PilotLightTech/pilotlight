@@ -1,48 +1,45 @@
-#version 450
+#version 450 core
 #extension GL_ARB_separate_shader_objects : enable
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0
 //-----------------------------------------------------------------------------
 
-layout(set = 0, binding = 0) uniform _plGlobalInfo
-{
-    vec4 tCameraPos;
-    mat4 tCameraView;
-    mat4 tCameraProjection;
-    mat4 tCameraViewProjection;
-} tGlobalInfo;
+layout(set = 0, binding = 0)  uniform sampler tFontSampler;
+
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 1
+//-----------------------------------------------------------------------------
+
+layout(set = 1, binding = 0)  uniform texture2D tFontAtlas;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(std140, set = 1, binding = 0) uniform _plObjectInfo
-{
-    vec4 tColor;
-    mat4 tModel;
+layout(set = 2, binding = 0) uniform PL_DYNAMIC_DATA {
+    vec2 uScale;
+    vec2 uTranslate;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
-// [SECTION] input & output
+// [SECTION] input
 //-----------------------------------------------------------------------------
 
-// input
-layout(location = 0) in vec3 inPos;
-
-// output
-layout(location = 0) out struct plShaderOut {
-    vec4 tColor;
-} tShaderIn;
+layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aUV;
+layout(location = 2) in uint aColor;
 
 //-----------------------------------------------------------------------------
-// [SECTION] entry
+// [SECTION] output
 //-----------------------------------------------------------------------------
+
+layout(location = 0) out struct { vec4 Color; vec2 UV; } Out;
+
 
 void main()
 {
-    vec4 inPosition  = vec4(inPos, 1.0);
-    vec4 pos = tObjectInfo.tModel * inPosition;
-    gl_Position = tGlobalInfo.tCameraViewProjection * pos;
-    tShaderIn.tColor = tObjectInfo.tColor;
+    Out.Color = unpackUnorm4x8(aColor);
+    Out.UV = aUV;
+    gl_Position = vec4(aPos * tObjectInfo.uScale + tObjectInfo.uTranslate, 0, 1);
 }

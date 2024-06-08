@@ -11,8 +11,6 @@ import pl_build as pl
 
 def add_plugin_to_vulkan_app(name, reloadable, binary_name = None, directory = "../extensions/", *kwargs):
 
-    pl.push_profile(pl.Profile.VULKAN)
-    pl.push_definitions("PL_VULKAN_BACKEND")
     with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, reloadable):
         if binary_name is None:
             pl.push_output_binary(name)
@@ -35,8 +33,6 @@ def add_plugin_to_vulkan_app(name, reloadable, binary_name = None, directory = "
                     pass
         pl.pop_output_binary()
         pl.pop_source_files()
-    pl.pop_profile()
-    pl.pop_definitions()
 
 def add_plugin_to_metal_app(name, reloadable, objc = False, binary_name = None, directory = "../extensions/"):
 
@@ -54,7 +50,7 @@ def add_plugin_to_metal_app(name, reloadable, objc = False, binary_name = None, 
         with pl.configuration("debug"):
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
-                    pl.add_definition("PL_METAL_BACKEND")
+                    pass
         pl.pop_output_binary()
         pl.pop_source_files()
     pl.pop_definitions()
@@ -118,15 +114,20 @@ with pl.project("pilotlight"):
     add_plugin_to_vulkan_app("pl_draw_ext",     True)
     add_plugin_to_vulkan_app("pl_debug_ext",    False)
     add_plugin_to_vulkan_app("pl_image_ext",    False)
-    add_plugin_to_vulkan_app("pl_graphics_vulkan",   False, "pl_graphics_ext")
     add_plugin_to_vulkan_app("pl_stats_ext",    False)
     add_plugin_to_vulkan_app("pl_job_ext",    False)
     add_plugin_to_vulkan_app("pl_model_loader_ext", False)
     add_plugin_to_vulkan_app("pl_ecs_ext",      True)
     add_plugin_to_vulkan_app("pl_resource_ext", False)
     add_plugin_to_vulkan_app("pl_gpu_allocators_ext", False)
-    add_plugin_to_vulkan_app("pl_ref_renderer_ext", True)
     add_plugin_to_vulkan_app("pl_ui_ext", True, None)
+
+    pl.push_profile(pl.Profile.VULKAN)
+    pl.push_definitions("PL_VULKAN_BACKEND")
+    add_plugin_to_vulkan_app("pl_ref_renderer_ext", True)
+    add_plugin_to_vulkan_app("pl_graphics_vulkan",   False, "pl_graphics_ext")
+    pl.pop_profile()
+    pl.pop_definitions()
 
     add_plugin_to_metal_app("pl_draw_ext",     True)
     add_plugin_to_metal_app("pl_debug_ext",    False)
@@ -141,6 +142,41 @@ with pl.project("pilotlight"):
     add_plugin_to_metal_app("pl_ref_renderer_ext", True)
     add_plugin_to_metal_app("pl_ui_ext", True, False, None)
 
+    ###############################################################################
+    #                                    app                                      #
+    ###############################################################################
+    pl.push_profile(pl.Profile.VULKAN)
+    with pl.target("pl_shader_ext", pl.TargetType.DYNAMIC_LIBRARY, False):
+        pl.push_output_binary("pl_shader_ext")
+        pl.push_source_files("../extensions/pl_shader_ext.c")
+        with pl.configuration("debug"):
+            with pl.platform(pl.PlatformType.WIN32):
+                with pl.compiler("msvc", pl.CompilerType.MSVC):
+                    pl.add_link_library("shaderc_combined.lib")
+            with pl.platform(pl.PlatformType.LINUX):
+                with pl.compiler("gcc", pl.CompilerType.GCC):
+                    pl.add_link_library("shaderc_shared")
+        with pl.configuration("vulkan"):
+            with pl.platform(pl.PlatformType.MACOS):
+                with pl.compiler("clang", pl.CompilerType.CLANG):
+                    pl.add_link_library("shaderc_shared")
+        pl.pop_output_binary()
+        pl.pop_source_files()
+    pl.pop_profile()
+
+    pl.push_definitions("PL_METAL_BACKEND")
+    with pl.target("pl_shader_ext", pl.TargetType.DYNAMIC_LIBRARY, False):
+        pl.push_output_binary("pl_shader_ext")
+        pl.push_source_files("../extensions/pl_shader_ext.c")
+        with pl.configuration("debug"):
+            with pl.platform(pl.PlatformType.MACOS):
+                with pl.compiler("clang", pl.CompilerType.CLANG):
+                    pl.add_link_library("spirv-cross-c-shared")
+                    pl.add_link_library("shaderc_shared")
+        pl.pop_output_binary()
+        pl.pop_source_files()
+    pl.pop_definitions()
+
     # scripts
     add_plugin_to_vulkan_app("pl_script_camera", False, None)
     add_plugin_to_metal_app("pl_script_camera", False, False, None)
@@ -150,57 +186,6 @@ with pl.project("pilotlight"):
     ###############################################################################
     #                                    app                                      #
     ###############################################################################
-
-    vulkan_shaders = [
-        "skybox.frag",
-        "skybox.vert",
-        "primitive.frag",
-        "primitive.vert",
-        "transparent.vert",
-        "transparent.frag",
-        "lighting.vert",
-        "lighting.frag",
-        "draw_2d.vert",
-        "draw_2d.frag",
-        "draw_2d_sdf.frag",
-        "draw_3d.vert",
-        "draw_3d.frag",
-        "draw_3d_line.vert",
-        "panorama_to_cubemap.comp",
-        "filter_environment.comp",
-        "skinning.comp",
-        "outline.vert",
-        "outline.frag",
-        "shadow.vert",
-        "shadow.frag",
-        "picking.frag",
-        "picking.vert",
-        "tonemap.frag",
-        "full_quad.vert",
-        "jumpfloodalgo.comp",
-        "uvmap.frag",
-        "uvmap.vert",
-    ]
-
-    metal_shaders = [
-        "draw_2d_sdf.metal",
-        "draw_2d.metal",
-        "draw_3d_line.metal",
-        "draw_3d.metal",
-        "filter_environment.metal",
-        "lighting.metal",
-        "outline.metal",
-        "panorama_to_cubemap.metal",
-        "picking.metal",
-        "primitive.metal",
-        "shadow.metal",
-        "skinning.metal",
-        "skybox.metal",
-        "transparent.metal",
-        "tonemap.metal",
-        "jumpfloodalgo.metal",
-        "uvmap.metal",
-    ]
 
     with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
 
@@ -214,29 +199,25 @@ with pl.project("pilotlight"):
         
         with pl.configuration("debug"):
             pl.push_profile(pl.Profile.VULKAN)
-            pl.push_vulkan_glsl_files("../shaders/glsl/", *vulkan_shaders)
             with pl.platform(pl.PlatformType.WIN32):
                 with pl.compiler("msvc", pl.CompilerType.MSVC):
                     pl.add_definition("PL_VULKAN_BACKEND")
+                    pl.add_link_library("shaderc_combined.lib")
             with pl.platform(pl.PlatformType.LINUX):
                 with pl.compiler("gcc", pl.CompilerType.GCC):
                     pl.add_definition("PL_VULKAN_BACKEND")
-            pl.pop_profile() 
-            pl.pop_vulkan_glsl_files()
+            pl.pop_profile()
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
                     pl.add_definition("PL_METAL_BACKEND")
-                    pl.add_metal_files("../shaders/metal/", *metal_shaders)
         
         
         pl.push_profile(pl.Profile.VULKAN)
-        pl.push_vulkan_glsl_files("../shaders/glsl/",  *vulkan_shaders)
         with pl.configuration("vulkan"):
             with pl.platform(pl.PlatformType.MACOS):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
                     pl.add_definition("PL_VULKAN_BACKEND")
-        pl.pop_profile() 
-        pl.pop_vulkan_glsl_files()
+        pl.pop_profile()
 
         pl.pop_source_files()
         pl.pop_output_binary()

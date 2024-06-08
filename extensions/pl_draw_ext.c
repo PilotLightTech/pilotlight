@@ -25,9 +25,11 @@ Index of this file:
 #include "pl_ds.h"
 #include "pl_memory.h"
 #include "pl_string.h"
+#include "pl_os.h"
 
 // extensions
 #include "pl_graphics_ext.h"
+#include "pl_shader_ext.h"
 
 // stb libs
 #include "stb_rect_pack.h"
@@ -187,6 +189,7 @@ typedef struct _plDrawContext
     // font
     plFontAtlas tFontAtlas;
 
+    plTempAllocator tTempAllocator;
 } plDrawContext;
 
 //-----------------------------------------------------------------------------
@@ -202,6 +205,8 @@ static plDrawContext* gptCtx = NULL;
 static const plDeviceI*   gptDevice = NULL;
 static const plGraphicsI* gptGfx    = NULL;
 static const plIOI*       gptIO     = NULL;
+static const plFileI*     gptFile   = NULL;
+static const plShaderI*   gptShader = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -348,6 +353,7 @@ pl_cleanup(void)
     }
     pl_sb_free(gptCtx->sbt3dPipelineEntries);
     pl_sb_free(gptCtx->sbt2dPipelineEntries);
+    pl_temp_allocator_free(&gptCtx->tTempAllocator);
 }
 
 static plDrawList3D*
@@ -2728,102 +2734,95 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
     if(tFlags & PL_DRAW_FLAG_CULL_BACK)
         ulCullMode |= PL_CULL_MODE_CULL_BACK;
 
-    const plShaderDescription t3DShaderDesc = {
+    {
+        const plShaderDescription t3DShaderDesc = {
+            .tPixelShader = gptShader->compile_glsl("../shaders/draw_3d.frag", "main"),
+            .tVertexShader = gptShader->compile_glsl("../shaders/draw_3d.vert", "main"),
+            .tGraphicsState = {
+                .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE,
+                .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? PL_COMPARE_MODE_LESS : PL_COMPARE_MODE_ALWAYS,
+                .ulCullMode           = ulCullMode,
+                .ulWireframe          = 0,
+                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .ulStencilRef         = 0xff,
+                .ulStencilMask        = 0xff,
+                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+            },
+            .tVertexBufferBinding = {
+                .uByteStride = sizeof(float) * 4,
+                .atAttributes = {
+                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32B32_FLOAT},
+                    {.uByteOffset = sizeof(float) * 3, .tFormat = PL_FORMAT_R32_UINT},
+                }
+            },
+            .uConstantCount = 0,
+            .atBlendStates = {
+                {
+                    .bBlendEnabled   = true,
+                    .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .tColorOp        = PL_BLEND_OP_ADD,
+                    .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .tAlphaOp        = PL_BLEND_OP_ADD
+                }
+            },
+            .uBlendStateCount = 1,
+            .tRenderPassLayout = gptCtx->ptGraphics->sbtRenderPassesCold[tRenderPass.uIndex].tDesc.tLayout,
+            .uSubpassIndex = uSubpassIndex,
+            .uBindGroupLayoutCount = 0,
+        };
+        ptEntry->tRegularPipeline = gptDevice->create_shader(&gptCtx->ptGraphics->tDevice, &t3DShaderDesc);
+        pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+    }
 
-        #ifdef PL_METAL_BACKEND
-        .pcVertexShader = "../shaders/metal/draw_3d.metal",
-        .pcPixelShader = "../shaders/metal/draw_3d.metal",
-        #else
-        .pcVertexShader = "draw_3d.vert.spv",
-        .pcPixelShader = "draw_3d.frag.spv",
-        #endif
-        .tGraphicsState = {
-            .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE,
-            .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? PL_COMPARE_MODE_LESS : PL_COMPARE_MODE_ALWAYS,
-            .ulCullMode           = ulCullMode,
-            .ulWireframe          = 0,
-            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-            .ulStencilRef         = 0xff,
-            .ulStencilMask        = 0xff,
-            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-        },
-        .tVertexBufferBinding = {
-            .uByteStride = sizeof(float) * 4,
-            .atAttributes = {
-                {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                {.uByteOffset = sizeof(float) * 3, .tFormat = PL_FORMAT_R8G8B8A8_UNORM},
-            }
-        },
-        .uConstantCount = 0,
-        .atBlendStates = {
-            {
-                .bBlendEnabled   = true,
-                .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .tColorOp        = PL_BLEND_OP_ADD,
-                .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .tAlphaOp        = PL_BLEND_OP_ADD
-            }
-        },
-        .uBlendStateCount = 1,
-        .tRenderPassLayout = gptCtx->ptGraphics->sbtRenderPassesCold[tRenderPass.uIndex].tDesc.tLayout,
-        .uSubpassIndex = uSubpassIndex,
-        .uBindGroupLayoutCount = 0,
-    };
-
-    const plShaderDescription t3DLineShaderDesc = {
-
-        #ifdef PL_METAL_BACKEND
-        .pcVertexShader = "../shaders/metal/draw_3d_line.metal",
-        .pcPixelShader = "../shaders/metal/draw_3d_line.metal",
-        #else
-        .pcVertexShader = "draw_3d_line.vert.spv",
-        .pcPixelShader = "draw_3d.frag.spv",
-        #endif
-        .tGraphicsState = {
-            .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE,
-            .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? PL_COMPARE_MODE_LESS : PL_COMPARE_MODE_ALWAYS,
-            .ulCullMode           = ulCullMode,
-            .ulWireframe          = 0,
-            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-            .ulStencilRef         = 0xff,
-            .ulStencilMask        = 0xff,
-            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-        },
-        .tVertexBufferBinding = {
-            .uByteStride = sizeof(float) * 10,
-            .atAttributes = {
-                {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                {.uByteOffset = sizeof(float) * 3, .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                {.uByteOffset = sizeof(float) * 6, .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                {.uByteOffset = sizeof(float) * 9, .tFormat = PL_FORMAT_R8G8B8A8_UNORM},
-            }
-        },
-        .uConstantCount = 0,
-        .atBlendStates = {
-            {
-                .bBlendEnabled   = true,
-                .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .tColorOp        = PL_BLEND_OP_ADD,
-                .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .tAlphaOp        = PL_BLEND_OP_ADD
-            }
-        },
-        .uBlendStateCount = 1,
-        .tRenderPassLayout = gptCtx->ptGraphics->sbtRenderPassesCold[tRenderPass.uIndex].tDesc.tLayout,
-        .uSubpassIndex = uSubpassIndex,
-        .uBindGroupLayoutCount = 0,
-    };
-
-    ptEntry->tRegularPipeline = gptDevice->create_shader(&gptCtx->ptGraphics->tDevice, &t3DShaderDesc);
-    ptEntry->tSecondaryPipeline = gptDevice->create_shader(&gptCtx->ptGraphics->tDevice, &t3DLineShaderDesc);
+    {
+        const plShaderDescription t3DLineShaderDesc = {
+            .tPixelShader = gptShader->compile_glsl("../shaders/draw_3d.frag", "main"),
+            .tVertexShader = gptShader->compile_glsl("../shaders/draw_3d_line.vert", "main"),
+            .tGraphicsState = {
+                .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE,
+                .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? PL_COMPARE_MODE_LESS : PL_COMPARE_MODE_ALWAYS,
+                .ulCullMode           = ulCullMode,
+                .ulWireframe          = 0,
+                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .ulStencilRef         = 0xff,
+                .ulStencilMask        = 0xff,
+                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+            },
+            .tVertexBufferBinding = {
+                .uByteStride = sizeof(float) * 10,
+                .atAttributes = {
+                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32B32_FLOAT},
+                    {.uByteOffset = sizeof(float) * 3, .tFormat = PL_FORMAT_R32G32B32_FLOAT},
+                    {.uByteOffset = sizeof(float) * 6, .tFormat = PL_FORMAT_R32G32B32_FLOAT},
+                    {.uByteOffset = sizeof(float) * 9, .tFormat = PL_FORMAT_R32_UINT},
+                }
+            },
+            .uConstantCount = 0,
+            .atBlendStates = {
+                {
+                    .bBlendEnabled   = true,
+                    .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .tColorOp        = PL_BLEND_OP_ADD,
+                    .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .tAlphaOp        = PL_BLEND_OP_ADD
+                }
+            },
+            .uBlendStateCount = 1,
+            .tRenderPassLayout = gptCtx->ptGraphics->sbtRenderPassesCold[tRenderPass.uIndex].tDesc.tLayout,
+            .uSubpassIndex = uSubpassIndex,
+            .uBindGroupLayoutCount = 0,
+        };
+        ptEntry->tSecondaryPipeline = gptDevice->create_shader(&gptCtx->ptGraphics->tDevice, &t3DLineShaderDesc);
+        pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+    }
     return ptEntry;
 }
 
@@ -2847,130 +2846,123 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
     ptEntry->uMSAASampleCount = uMSAASampleCount;
     ptEntry->uSubpassIndex = uSubpassIndex;
 
-    const plShaderDescription tRegularShaderDesc = {
-
-        #ifdef PL_METAL_BACKEND
-        .pcVertexShader = "../shaders/metal/draw_2d.metal",
-        .pcPixelShader = "../shaders/metal/draw_2d.metal",
-        #else
-        .pcVertexShader = "draw_2d.vert.spv",
-        .pcPixelShader = "draw_2d.frag.spv",
-        #endif
-        .tGraphicsState = {
-            .ulDepthWriteEnabled  = 0,
-            .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
-            .ulCullMode           = PL_CULL_MODE_NONE,
-            .ulWireframe          = 0,
-            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-            .ulStencilRef         = 0xff,
-            .ulStencilMask        = 0xff,
-            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-        },
-        .tVertexBufferBinding = {
-            .uByteStride = sizeof(float) * 5,
-            .atAttributes = {
-                {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
-                {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT},
-                {.uByteOffset = sizeof(float) * 4, .tFormat = PL_FORMAT_R8G8B8A8_UNORM},
-            }
-        },
-        .uConstantCount = 0,
-        .atBlendStates = {
-            {
-                .bBlendEnabled   = true,
-                .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .tColorOp        = PL_BLEND_OP_ADD,
-                .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .tAlphaOp        = PL_BLEND_OP_ADD
-            }
-        },
-        .uBlendStateCount = 1,
-        .tRenderPassLayout = gptCtx->ptGraphics->sbtRenderPassesCold[tRenderPass.uIndex].tDesc.tLayout,
-        .uSubpassIndex = uSubpassIndex,
-        .uBindGroupLayoutCount = 2,
-        .atBindGroupLayouts = {
-            {
-                .uSamplerBindingCount = 1,
-                .atSamplerBindings = {
-                    {.uSlot =  0, .tStages = PL_STAGE_PIXEL}
+    {
+        const plShaderDescription tRegularShaderDesc = {
+            .tPixelShader = gptShader->compile_glsl("../shaders/draw_2d.frag", "main"),
+            .tVertexShader = gptShader->compile_glsl("../shaders/draw_2d.vert", "main"),
+            .tGraphicsState = {
+                .ulDepthWriteEnabled  = 0,
+                .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
+                .ulCullMode           = PL_CULL_MODE_NONE,
+                .ulWireframe          = 0,
+                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .ulStencilRef         = 0xff,
+                .ulStencilMask        = 0xff,
+                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+            },
+            .tVertexBufferBinding = {
+                .uByteStride = sizeof(float) * 5,
+                .atAttributes = {
+                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
+                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT},
+                    {.uByteOffset = sizeof(float) * 4, .tFormat = PL_FORMAT_R32_UINT},
                 }
             },
-            {
-                .uTextureBindingCount  = 1,
-                .atTextureBindings = { 
-                    {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-                }
-            }
-        }
-    };
-
-    const plShaderDescription tSecondaryShaderDesc = {
-
-        #ifdef PL_METAL_BACKEND
-        .pcVertexShader = "../shaders/metal/draw_2d_sdf.metal",
-        .pcPixelShader = "../shaders/metal/draw_2d_sdf.metal",
-        #else
-        .pcVertexShader = "draw_2d.vert.spv",
-        .pcPixelShader = "draw_2d_sdf.frag.spv",
-        #endif
-        .tGraphicsState = {
-            .ulDepthWriteEnabled  = 0,
-            .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
-            .ulCullMode           = PL_CULL_MODE_NONE,
-            .ulWireframe          = 0,
-            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-            .ulStencilRef         = 0xff,
-            .ulStencilMask        = 0xff,
-            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-        },
-        .tVertexBufferBinding = {
-            .uByteStride = sizeof(float) * 5,
-            .atAttributes = {
-                {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
-                {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT},
-                {.uByteOffset = sizeof(float) * 4, .tFormat = PL_FORMAT_R8G8B8A8_UNORM},
-            }
-        },
-        .uConstantCount = 0,
-        .atBlendStates = {
-            {
-                .bBlendEnabled   = true,
-                .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .tColorOp        = PL_BLEND_OP_ADD,
-                .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .tAlphaOp        = PL_BLEND_OP_ADD
-            }
-        },
-        .uBlendStateCount = 1,
-        .tRenderPassLayout = gptCtx->ptGraphics->sbtRenderPassesCold[tRenderPass.uIndex].tDesc.tLayout,
-        .uSubpassIndex = uSubpassIndex,
-        .uBindGroupLayoutCount = 2,
-        .atBindGroupLayouts = {
-            {
-                .uSamplerBindingCount = 1,
-                .atSamplerBindings = {
-                    {.uSlot =  0, .tStages = PL_STAGE_PIXEL}
+            .uConstantCount = 0,
+            .atBlendStates = {
+                {
+                    .bBlendEnabled   = true,
+                    .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .tColorOp        = PL_BLEND_OP_ADD,
+                    .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .tAlphaOp        = PL_BLEND_OP_ADD
                 }
             },
-            {
-                .uTextureBindingCount  = 1,
-                .atTextureBindings = { 
-                    {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+            .uBlendStateCount = 1,
+            .tRenderPassLayout = gptCtx->ptGraphics->sbtRenderPassesCold[tRenderPass.uIndex].tDesc.tLayout,
+            .uSubpassIndex = uSubpassIndex,
+            .uBindGroupLayoutCount = 2,
+            .atBindGroupLayouts = {
+                {
+                    .uSamplerBindingCount = 1,
+                    .atSamplerBindings = {
+                        {.uSlot =  0, .tStages = PL_STAGE_PIXEL}
+                    }
+                },
+                {
+                    .uTextureBindingCount  = 1,
+                    .atTextureBindings = { 
+                        {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                    }
                 }
             }
-        }
-    };
+        };
+        ptEntry->tRegularPipeline = gptDevice->create_shader(&gptCtx->ptGraphics->tDevice, &tRegularShaderDesc);
+        pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+    }
 
-    ptEntry->tRegularPipeline = gptDevice->create_shader(&gptCtx->ptGraphics->tDevice, &tRegularShaderDesc);
-    ptEntry->tSecondaryPipeline = gptDevice->create_shader(&gptCtx->ptGraphics->tDevice, &tSecondaryShaderDesc);
+    {
+        const plShaderDescription tSecondaryShaderDesc = {
+            .tPixelShader = gptShader->compile_glsl("../shaders/draw_2d_sdf.frag", "main"),
+            .tVertexShader = gptShader->compile_glsl("../shaders/draw_2d.vert", "main"),
+            .tGraphicsState = {
+                .ulDepthWriteEnabled  = 0,
+                .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
+                .ulCullMode           = PL_CULL_MODE_NONE,
+                .ulWireframe          = 0,
+                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .ulStencilRef         = 0xff,
+                .ulStencilMask        = 0xff,
+                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+            },
+            .tVertexBufferBinding = {
+                .uByteStride = sizeof(float) * 5,
+                .atAttributes = {
+                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
+                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT},
+                    {.uByteOffset = sizeof(float) * 4, .tFormat = PL_FORMAT_R32_UINT},
+                }
+            },
+            .uConstantCount = 0,
+            .atBlendStates = {
+                {
+                    .bBlendEnabled   = true,
+                    .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .tColorOp        = PL_BLEND_OP_ADD,
+                    .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .tAlphaOp        = PL_BLEND_OP_ADD
+                }
+            },
+            .uBlendStateCount = 1,
+            .tRenderPassLayout = gptCtx->ptGraphics->sbtRenderPassesCold[tRenderPass.uIndex].tDesc.tLayout,
+            .uSubpassIndex = uSubpassIndex,
+            .uBindGroupLayoutCount = 2,
+            .atBindGroupLayouts = {
+                {
+                    .uSamplerBindingCount = 1,
+                    .atSamplerBindings = {
+                        {.uSlot =  0, .tStages = PL_STAGE_PIXEL}
+                    }
+                },
+                {
+                    .uTextureBindingCount  = 1,
+                    .atTextureBindings = { 
+                        {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                    }
+                }
+            }
+        }; 
+        ptEntry->tSecondaryPipeline = gptDevice->create_shader(&gptCtx->ptGraphics->tDevice, &tSecondaryShaderDesc);
+        pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+    }
     return ptEntry;
 }
 
@@ -3326,11 +3318,19 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
     ptExtensionRegistry->load("pl_graphics_ext", NULL, NULL, false);
     ptExtensionRegistry->load("pl_stats_ext", NULL, NULL, false);
+    ptExtensionRegistry->load("pl_shader_ext", NULL, NULL, false);
 
     // load required APIs
+    gptFile   = ptApiRegistry->first(PL_API_FILE);
     gptDevice = ptApiRegistry->first(PL_API_DEVICE);
     gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
     gptIO     = ptApiRegistry->first(PL_API_IO);
+    gptShader = ptApiRegistry->first(PL_API_SHADER);
+
+    const plShaderExtInit tShaderInit = {
+        .pcIncludeDirectory = "../shaders/"
+    };
+    gptShader->initialize(&tShaderInit);
     
     if(bReload)
     {

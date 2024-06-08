@@ -118,6 +118,7 @@ typedef struct _plDrawIndex                  plDrawIndex;
 typedef struct _plGraphicsState              plGraphicsState;
 typedef struct _plBlendState                 plBlendState;
 typedef struct _plSpecializationConstant     plSpecializationConstant;
+typedef struct _plShaderModule               plShaderModule;
 typedef struct _plShaderDescription          plShaderDescription;
 typedef struct _plShader                     plShader;
 typedef struct _plComputeShaderDescription   plComputeShaderDescription;
@@ -702,6 +703,13 @@ typedef struct _plVertexBufferBinding
     plVertexAttributes atAttributes[PL_MAX_VERTEX_ATTRIBUTES];
 } plVertexBufferBinding;
 
+typedef struct _plShaderModule
+{
+    size_t      szCodeSize;
+    uint8_t*    puCode;
+    const char* pcEntryFunc;
+} plShaderModule;
+
 typedef struct _plShaderDescription
 {
     plSpecializationConstant atConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
@@ -711,11 +719,9 @@ typedef struct _plShaderDescription
     plBlendState             atBlendStates[PL_MAX_RENDER_TARGETS];
     uint32_t                 uBlendStateCount;
     plVertexBufferBinding    tVertexBufferBinding;
+    plShaderModule           tVertexShader;
+    plShaderModule           tPixelShader;
     const void*              pTempConstantData;
-    const char*              pcVertexShader;
-    const char*              pcPixelShader;
-    const char*              pcVertexShaderEntryFunc;
-    const char*              pcPixelShaderEntryFunc;
     plBindGroupLayout        atBindGroupLayouts[3];
     uint32_t                 uBindGroupLayoutCount;
     plRenderPassLayoutHandle tRenderPassLayout;    
@@ -728,8 +734,7 @@ typedef struct _plShader
 
 typedef struct _plComputeShaderDescription
 {
-    const char*              pcShader;
-    const char*              pcShaderEntryFunc;
+    plShaderModule           tShader;
     plBindGroupLayout        atBindGroupLayouts[3];
     uint32_t                 uBindGroupLayoutCount;
     plSpecializationConstant atConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
@@ -906,10 +911,10 @@ typedef struct _plGraphics
 
 enum _plStageFlags
 {
-    PL_STAGE_NONE    = 1 << 0,
-    PL_STAGE_VERTEX  = 1 << 1,
-    PL_STAGE_PIXEL   = 1 << 2,
-    PL_STAGE_COMPUTE = 1 << 3,
+    PL_STAGE_NONE    = 0,
+    PL_STAGE_VERTEX  = 1 << 0,
+    PL_STAGE_PIXEL   = 1 << 1,
+    PL_STAGE_COMPUTE = 1 << 2,
     PL_STAGE_ALL     = PL_STAGE_VERTEX | PL_STAGE_PIXEL | PL_STAGE_COMPUTE
 };
 
@@ -927,6 +932,7 @@ enum _plFormat
     PL_FORMAT_R32G32B32A32_FLOAT,
     PL_FORMAT_R8G8B8A8_UNORM,
     PL_FORMAT_R32G32_FLOAT,
+    PL_FORMAT_R32_UINT,
     PL_FORMAT_R8_UNORM,
     PL_FORMAT_R8G8_UNORM,
     PL_FORMAT_R8G8B8A8_SRGB,

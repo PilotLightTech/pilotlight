@@ -103,7 +103,11 @@ layout (set = 0, binding = 5) uniform textureCube u_LambertianEnvSampler;
 layout (set = 0, binding = 6) uniform textureCube u_GGXEnvSampler;
 layout (set = 0, binding = 7) uniform texture2D u_GGXLUT;
 
-layout(set = 3, binding = 0) uniform _plObjectInfo
+//-----------------------------------------------------------------------------
+// [SECTION] dynamic bind group
+//-----------------------------------------------------------------------------
+
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
     int iDataOffset;
     int iVertexOffset;

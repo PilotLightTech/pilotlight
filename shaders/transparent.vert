@@ -3,6 +3,7 @@
 
 #include "defines.glsl"
 #include "material.glsl"
+#include "lights.glsl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants
@@ -13,6 +14,7 @@ layout(constant_id = 1) const int iDataStride = 0;
 layout(constant_id = 2) const int iTextureMappingFlags = 0;
 layout(constant_id = 3) const int iMaterialFlags = 0;
 layout(constant_id = 4) const int iRenderingFlags = 0;
+layout(constant_id = 5) const int iLightCount = 1;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0
@@ -43,14 +45,51 @@ layout (set = 0, binding = 6) uniform textureCube u_GGXEnvSampler;
 layout (set = 0, binding = 7) uniform texture2D u_GGXLUT;
 
 //-----------------------------------------------------------------------------
+// [SECTION] bind group 1
+//-----------------------------------------------------------------------------
+
+layout(set = 1, binding = 0) uniform _plLightInfo
+{
+    plLightData atData[iLightCount];
+} tLightInfo;
+
+layout(set = 1, binding = 1) readonly buffer plShadowData
+{
+    plLightShadowData atData[];
+} tShadowData;
+
+layout (set = 1, binding = 2) uniform texture2D shadowmap[4];
+layout(set = 1, binding = 6)  uniform sampler tShadowSampler;
+
+
+
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 2
+//-----------------------------------------------------------------------------
+
+layout(set = 2, binding = 0)   uniform texture2D tBaseColorTexture;
+layout(set = 2, binding = 1)   uniform texture2D tNormalTexture;
+layout(set = 2, binding = 2)   uniform texture2D tEmissiveTexture;
+layout(set = 2, binding = 3)   uniform texture2D tMetallicRoughnessTexture;
+layout(set = 2, binding = 4)   uniform texture2D tOcclusionTexture;
+layout(set = 2, binding = 5)   uniform texture2D tClearcoatTexture;
+layout(set = 2, binding = 6)   uniform texture2D tClearcoatRoughnessTexture;
+layout(set = 2, binding = 7)   uniform texture2D tClearcoatNormalTexture;
+layout(set = 2, binding = 8)   uniform texture2D tIridescenceTexture;
+layout(set = 2, binding = 9)   uniform texture2D tIridescenceThicknessTexture;
+layout(set = 2, binding = 10)  uniform texture2D tSpecularTexture;
+layout(set = 2, binding = 11)  uniform texture2D tSpecularColorTexture;
+
+//-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(set = 2, binding = 0) uniform _plObjectInfo
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
     int  iDataOffset;
     int  iVertexOffset;
     int  iMaterialIndex;
+    int  iPadding;
     mat4 tModel;
 } tObjectInfo;
 
@@ -75,7 +114,7 @@ layout(location = 0) out struct plShaderOut {
 // [SECTION] entry
 //-----------------------------------------------------------------------------
 
-void main() 
+void main()
 {
 
     vec4 inPosition  = vec4(inPos, 1.0);

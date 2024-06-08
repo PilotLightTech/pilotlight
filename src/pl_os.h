@@ -101,7 +101,7 @@ typedef struct _plLibraryI
 
 typedef struct _plFileI
 {
-    void (*read)(const char* pcFile, uint32_t* puSize, char* pcBuffer, const char* pcMode);
+    void (*read)(const char* pcFile, uint32_t* puSize, uint8_t* puBuffer, const char* pcMode);
     void (*copy)(const char* pcSource, const char* pcDestination);
 } plFileI;
 

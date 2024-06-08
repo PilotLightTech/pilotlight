@@ -38,6 +38,7 @@ Index of this file:
 // extensions
 #include "pl_graphics_ext.h"
 #include "pl_image_ext.h"
+#include "pl_shader_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -81,6 +82,7 @@ const plWindowI*   gptWindows = NULL;
 const plGraphicsI* gptGfx     = NULL;
 const plDeviceI*   gptDevice  = NULL;
 const plImageI*    gptImage   = NULL;
+const plShaderI*   gptShader  = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -116,6 +118,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
         gptDevice  = ptApiRegistry->first(PL_API_DEVICE);
         gptImage   = ptApiRegistry->first(PL_API_IMAGE);
+        gptShader  = ptApiRegistry->first(PL_API_SHADER);
 
         return ptAppData;
     }
@@ -144,6 +147,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // load extensions
     ptExtensionRegistry->load("pl_graphics_ext", NULL, NULL, false);
     ptExtensionRegistry->load("pl_image_ext",    NULL, NULL, false);
+    ptExtensionRegistry->load("pl_shader_ext",   NULL, NULL, false);
     
     // load required apis (NULL if not available)
     gptIO      = ptApiRegistry->first(PL_API_IO);
@@ -151,6 +155,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
     gptDevice  = ptApiRegistry->first(PL_API_DEVICE);
     gptImage   = ptApiRegistry->first(PL_API_IMAGE);
+    gptShader  = ptApiRegistry->first(PL_API_SHADER);
 
     // use window API to create a window
     const plWindowDesc tWindowDesc = {
@@ -167,6 +172,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .bEnableValidation = true
     };
     gptGfx->initialize(ptAppData->ptWindow, &tGraphicsDesc, &ptAppData->tGraphics);
+
+    // initialize shader extension
+    const plShaderExtInit tShaderInit = {
+        .pcIncludeDirectory = "../examples/shaders/"
+    };
+    gptShader->initialize(&tShaderInit);
 
     // for convience
     plDevice* ptDevice = &ptAppData->tGraphics.tDevice;
@@ -383,13 +394,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~shaders~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const plShaderDescription tShaderDesc = {
-        #ifdef PL_METAL_BACKEND
-        .pcVertexShader = "../examples/shaders/example_6.metal",
-        .pcPixelShader = "../examples/shaders/example_6.metal",
-        #else
-        .pcVertexShader = "example_6.vert.spv",
-        .pcPixelShader = "example_6.frag.spv",
-        #endif
+        .tVertexShader = gptShader->compile_glsl("../examples/shaders/example_6.vert", "main"),
+        .tPixelShader = gptShader->compile_glsl("../examples/shaders/example_6.frag", "main"),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,

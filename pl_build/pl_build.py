@@ -1,4 +1,4 @@
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 
 ###############################################################################
 #                                  Info                                       #
@@ -91,8 +91,6 @@ class CompilerSettings:
         self._include_directories = []
         self._link_directories = []
         self._source_files = []
-        self._vulkan_glsl_shader_files = []
-        self._metal_shader_files = []
         self._link_libraries = []
         self._link_frameworks = []
         self._target_links = []
@@ -282,34 +280,6 @@ def pop_source_files():
             for i in range(remove_count):
                 _compiler._source_files.pop()
 
-def push_vulkan_glsl_files(directory: str, *args):
-    for _platform in _context._profile_stack[0]._platforms:
-        for _compiler in _platform._compiler_settings:
-            for arg in args:
-                _compiler._vulkan_glsl_shader_files.append([directory, arg])
-    _context._profile_stack[0]._last_vulkan_glsl_push_count.append(len(args))
-
-def push_metal_files(directory: str, *args):
-    for _platform in _context._profile_stack[0]._platforms:
-        for _compiler in _platform._compiler_settings:
-            for arg in args:
-                _compiler._metal_shader_files.append([directory, arg])
-    _context._profile_stack[0]._last_metal_push_count.append(len(args))
-
-def pop_vulkan_glsl_files():
-    remove_count = _context._profile_stack[0]._last_vulkan_glsl_push_count.pop()
-    for _platform in _context._profile_stack[0]._platforms:
-        for _compiler in _platform._compiler_settings:
-            for i in range(remove_count):
-                _compiler._vulkan_glsl_shader_files.pop()
-
-def pop_metal_files():
-    remove_count = _context._profile_stack[0]._last_metal_push_count.pop()
-    for _platform in _context._profile_stack[0]._platforms:
-        for _compiler in _platform._compiler_settings:
-            for i in range(remove_count):
-                _compiler._metal_shader_files.pop()
-
 def push_definitions(*args):
     for _platform in _context._profile_stack[0]._platforms:
         for _compiler in _platform._compiler_settings:
@@ -442,7 +412,6 @@ def compiler(name: str, compiler_type: CompilerType):
                             _context._current_compiler_settings._link_frameworks.extend(_compiler._link_frameworks)
                             _context._current_compiler_settings._source_files.extend(_compiler._source_files)
                             _context._current_compiler_settings._target_links.extend(_compiler._target_links)
-                            _context._current_compiler_settings._vulkan_glsl_shader_files.extend(_compiler._vulkan_glsl_shader_files)
                             if _compiler._output_binary_extension is not None:
                                 _context._current_compiler_settings._output_binary_extension = _compiler._output_binary_extension
                             if _compiler._output_directory is not None:
@@ -451,20 +420,6 @@ def compiler(name: str, compiler_type: CompilerType):
                                 _context._current_compiler_settings._output_binary = _compiler._output_binary
         _context._current_platform._compiler_settings.append(_context._current_compiler_settings)
         _context._current_compiler_settings = None
-
-def add_vulkan_glsl_file(directory: str, file: str):
-    _context._current_compiler_settings._vulkan_glsl_shader_files.append([directory, file])
-
-def add_vulkan_glsl_files(directory: str, *args):
-    for arg in args:
-        add_vulkan_glsl_file(directory, arg)
-
-def add_metal_file(directory: str, file: str):
-    _context._current_compiler_settings._metal_shader_files.append([directory, file])
-
-def add_metal_files(directory: str, *args):
-    for arg in args:
-        add_metal_file(directory, arg)
 
 def add_source_file(file: str):
     _context._current_compiler_settings._source_files.append(file)
@@ -556,13 +511,13 @@ def register_standard_profiles():
                 add_include_directories("%VULKAN_SDK%\\Include")
                 add_link_directory('%VULKAN_SDK%\\Lib')
                 add_link_libraries("vulkan-1.lib")
+                add_linker_flag("-nodefaultlib:MSVCRT")
                 set_output_directory(None)
                 set_output_binary(None)
 
         with platform(PlatformType.LINUX):
             with compiler("gcc", CompilerType.GCC):
-                add_include_directory('$VULKAN_SDK/include')
-                add_include_directory('/usr/include/vulkan')
+                add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                 add_link_directories('$VULKAN_SDK/lib')
                 add_link_libraries("vulkan")
                 set_output_directory(None)
@@ -570,7 +525,7 @@ def register_standard_profiles():
 
         with platform(PlatformType.MACOS):
             with compiler("clang", CompilerType.CLANG):
-                add_link_library("vulkan")
+                add_link_libraries("vulkan")
                 set_output_directory(None)
                 set_output_binary(None)
 
@@ -1036,24 +991,6 @@ def generate_macos_build(name_override=None):
                                                 buffer += "echo ${CYAN}Results: ${NC} ${PL_RESULT}\n"
                                                 buffer += "echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}\n"
 
-                                                if settings._vulkan_glsl_shader_files:
-                                                    buffer += '\n\n# cleanup old glsl vulkan shaders\n'
-                                                    for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                        buffer += 'rm -f ./' + settings._output_directory + '/' + vulkan_glsl_shader[1] + '.spv\n'
-
-                                                    buffer += '\n# compile glsl vulkan shaders\n'
-                                                    for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                        buffer += 'glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader[1] + '.spv ' + vulkan_glsl_shader[0] + vulkan_glsl_shader[1] + '\n'
-
-                                                if settings._metal_shader_files:
-                                                    buffer += '\n\n# cleanup old metal shaders\n'
-                                                    for metal_shader in settings._metal_shader_files:
-                                                        buffer += 'rm -f ./' + settings._output_directory + '/' + metal_shader[1] + '\n'
-
-                                                    buffer += '\n# compile metal shaders\n'
-                                                    for metal_shader in settings._metal_shader_files:
-                                                        buffer += 'cp ' + metal_shader[0] + metal_shader[1] + ' ./' + settings._output_directory + '/' + metal_shader[1] + '\n'
-
                                                 buffer += '\n# remove lock file\n'
                                                 buffer += 'rm "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
 
@@ -1350,15 +1287,6 @@ def generate_linux_build(name_override=None):
                                                 buffer += "\n# print results\n"
                                                 buffer += "echo ${CYAN}Results: ${NC} ${PL_RESULT}\n"
                                                 buffer += "echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}\n"
-
-                                                if settings._vulkan_glsl_shader_files:
-                                                    buffer += '\n\n# cleanup old glsl vulkan shaders\n'
-                                                    for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                        buffer += 'rm -f ./' + settings._output_directory + '/' + vulkan_glsl_shader[1] + '.spv\n'
-
-                                                    buffer += '\n# compile glsl vulkan shaders\n'
-                                                    for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                        buffer += 'glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader[1] + '.spv ' + vulkan_glsl_shader[0] + vulkan_glsl_shader[1] + '\n'
 
                                                 buffer += '\n# remove lock file\n'
                                                 buffer += 'rm "./' + settings._output_directory + '/' + target._lock_file + '"\n\n'
@@ -1740,16 +1668,6 @@ def generate_win32_build(name_override=None):
                                                 buffer += ':Cleanup' + target._name
                                                 buffer += '\n    @echo [1m[36mCleaning...[0m\n'
                                                 buffer += '    @del "' + settings._output_directory + '/*.obj"  > nul 2> nul'
-
-                                                if settings._vulkan_glsl_shader_files:
-                                                    buffer += '\n\n@rem cleanup old glsl vulkan shaders\n'
-                                                    for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                        buffer += '@if exist "' + settings._output_directory + '/' + vulkan_glsl_shader[1] + '.spv"'
-                                                        buffer += ' del "' + settings._output_directory + '/' + vulkan_glsl_shader[1] + '.spv"\n'
-
-                                                    buffer += '\n@rem compile glsl vulkan shaders\n'
-                                                    for vulkan_glsl_shader in settings._vulkan_glsl_shader_files:
-                                                        buffer += '%VULKAN_SDK%/bin/glslc -o' + settings._output_directory + "/" + vulkan_glsl_shader[1] + '.spv ' + vulkan_glsl_shader[0] + vulkan_glsl_shader[1] + '\n'
 
                                                 buffer += "\n"
                                                 buffer += '@rem delete lock file\n'

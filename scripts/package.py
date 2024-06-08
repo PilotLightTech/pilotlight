@@ -25,7 +25,8 @@ extensions = [
     "pl_model_loader_ext",
     "pl_draw_ext",
     "pl_graphics_ext",
-    "pl_ui_ext"
+    "pl_ui_ext",
+    "pl_shader_ext"
 ]
 
 # scripts
