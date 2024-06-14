@@ -1128,7 +1128,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
                 bSelectAll = true;
             // if (input_requested_by_nav && (!bRecycleState || !(g.NavActivateFlags & ImGuiActivateFlags_TryToPreserveState)))
             //     bSelectAll = true;
-            // if (input_requested_by_tabbing || (bUserClicked &&gptCtx->tIO.bKeyCtrl))
+            // if (input_requested_by_tabbing || (bUserClicked &&gptIO->bKeyCtrl))
             //     bSelectAll = true;
         }
 
@@ -1137,7 +1137,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
 
     }
 
-    const bool bIsOsX = gptCtx->tIO.bConfigMacOSXBehaviors;
+    const bool bIsOsX = gptIO->bConfigMacOSXBehaviors;
     if (gptCtx->uActiveId != uHash && bInitMakeActive)
     {
         PL_ASSERT(ptState && ptState->uId == uHash);
@@ -1216,10 +1216,10 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
             pl__text_state_select_all(ptState);
             ptState->bSelectedAllMouseLock = true;
         }
-        else if (bHovered && gptCtx->tIO._auMouseClickedCount[0] >= 2 && !gptCtx->tIO.bKeyShift)
+        else if (bHovered && gptIO->_auMouseClickedCount[0] >= 2 && !gptIO->bKeyShift)
         {
             stb_textedit_click(ptState, &ptState->tStb, fMouseX, fMouseY);
-            const int iMultiClipCount = (gptCtx->tIO._auMouseClickedCount[0] - 2);
+            const int iMultiClipCount = (gptIO->_auMouseClickedCount[0] - 2);
             if ((iMultiClipCount % 2) == 0)
             {
                 // Double-click: Select word
@@ -1253,24 +1253,24 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
             }
             pl__text_state_cursor_anim_reset(ptState);
         }
-        else if (gptCtx->tIO._abMouseClicked[0] && !ptState->bSelectedAllMouseLock)
+        else if (gptIO->_abMouseClicked[0] && !ptState->bSelectedAllMouseLock)
         {
             if (bHovered)
             {
-                if (gptCtx->tIO.bKeyShift)
+                if (gptIO->bKeyShift)
                     stb_textedit_drag(ptState, &ptState->tStb, fMouseX, fMouseY);
                 else
                     stb_textedit_click(ptState, &ptState->tStb, fMouseX, fMouseY);
                 pl__text_state_cursor_anim_reset(ptState);
             }
         }
-        else if (gptCtx->tIO._abMouseDown[0] && !ptState->bSelectedAllMouseLock && (gptCtx->tIO._tMouseDelta.x != 0.0f || gptCtx->tIO._tMouseDelta.y != 0.0f))
+        else if (gptIO->_abMouseDown[0] && !ptState->bSelectedAllMouseLock && (gptIO->_tMouseDelta.x != 0.0f || gptIO->_tMouseDelta.y != 0.0f))
         {
             stb_textedit_drag(ptState, &ptState->tStb, fMouseX, fMouseY);
             pl__text_state_cursor_anim_reset(ptState);
             ptState->bCursorFollow = true;
         }
-        if (ptState->bSelectedAllMouseLock && !gptCtx->tIO._abMouseDown[0])
+        if (ptState->bSelectedAllMouseLock && !gptIO->_abMouseDown[0])
             ptState->bSelectedAllMouseLock = false;
 
         // We expect backends to emit a Tab key but some also emit a Tab character which we ignore (#2467, #1336)
@@ -1284,15 +1284,15 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
 
         // Process regular text input (before we check for Return because using some IME will effectively send a Return?)
         // We ignore CTRL inputs, but need to allow ALT+CTRL as some keyboards (e.g. German) use AltGR (which _is_ Alt+Ctrl) to input certain characters.
-        const bool bIgnoreCharInputs = (gptCtx->tIO.bKeyCtrl && !gptCtx->tIO.bKeyAlt) || (bIsOsX && gptCtx->tIO.bKeySuper);
+        const bool bIgnoreCharInputs = (gptIO->bKeyCtrl && !gptIO->bKeyAlt) || (bIsOsX && gptIO->bKeySuper);
 
-        if (pl_sb_size(gptCtx->tIO._sbInputQueueCharacters) > 0)
+        if (pl_sb_size(gptIO->_sbInputQueueCharacters) > 0)
         {
             if (!bIgnoreCharInputs && !bIsReadOnly) // && input_requested_by_nav
-                for (uint32_t n = 0; n < pl_sb_size(gptCtx->tIO._sbInputQueueCharacters); n++)
+                for (uint32_t n = 0; n < pl_sb_size(gptIO->_sbInputQueueCharacters); n++)
                 {
                     // Insert character if they pass filtering
-                    unsigned int c = (unsigned int)gptCtx->tIO._sbInputQueueCharacters[n];
+                    unsigned int c = (unsigned int)gptIO->_sbInputQueueCharacters[n];
                     if (c == '\t') // Skip Tab, see above.
                         continue;
                     if (pl__input_text_filter_character(&c, tFlags))
@@ -1300,7 +1300,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
                 }
 
             // consume characters
-            pl_sb_reset(gptCtx->tIO._sbInputQueueCharacters)
+            gptIOI->clear_input_characters();
         }
     }
 
@@ -1313,20 +1313,20 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
         const int iRowCountPerPage = pl_max((int)((tInnerSize.y - gptCtx->tStyle.tFramePadding.y) / gptCtx->tStyle.fFontSize), 1);
         ptState->tStb.row_count_per_page = iRowCountPerPage;
 
-        const int iKMask = (gptCtx->tIO.bKeyShift ? STB_TEXTEDIT_K_SHIFT : 0);
-        const bool bIsWordmoveKeyDown = bIsOsX ? gptCtx->tIO.bKeyAlt : gptCtx->tIO.bKeyCtrl;                     // OS X style: Text editing cursor movement using Alt instead of Ctrl
-        const bool bIsStartendKeyDown = bIsOsX && gptCtx->tIO.bKeySuper && !gptCtx->tIO.bKeyCtrl && !gptCtx->tIO.bKeyAlt;  // OS X style: Line/Text Start and End using Cmd+Arrows instead of Home/End
+        const int iKMask = (gptIO->bKeyShift ? STB_TEXTEDIT_K_SHIFT : 0);
+        const bool bIsWordmoveKeyDown = bIsOsX ? gptIO->bKeyAlt : gptIO->bKeyCtrl;                     // OS X style: Text editing cursor movement using Alt instead of Ctrl
+        const bool bIsStartendKeyDown = bIsOsX && gptIO->bKeySuper && !gptIO->bKeyCtrl && !gptIO->bKeyAlt;  // OS X style: Line/Text Start and End using Cmd+Arrows instead of Home/End
 
         // Using Shortcut() with ImGuiInputFlags_RouteFocused (default policy) to allow routing operations for other code (e.g. calling window trying to use CTRL+A and CTRL+B: formet would be handled by InputText)
         // Otherwise we could simply assume that we own the keys as we are active.
         // const ImGuiInputFlags bRepeat = ImGuiInputFlags_Repeat;
         const bool bRepeat = false;
-        const bool bIsCut   = (gptCtx->tIO.bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_X, bRepeat)) || (gptCtx->tIO.bKeyShift && gptIOI->is_key_pressed(PL_KEY_DELETE, bRepeat)) && !bIsReadOnly && !bIsPassword && (!bIsMultiLine || pl__text_state_has_selection(ptState));
-        const bool bIsCopy  = (gptCtx->tIO.bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_C, bRepeat)) || (gptCtx->tIO.bKeyCtrl  && gptIOI->is_key_pressed(PL_KEY_INSERT, bRepeat)) && !bIsPassword && (!bIsMultiLine || pl__text_state_has_selection(ptState));
-        const bool bIsPaste = (gptCtx->tIO.bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_V, bRepeat)) || ((gptCtx->tIO.bKeyShift && gptIOI->is_key_pressed(PL_KEY_INSERT, bRepeat)) && !bIsReadOnly);
-        const bool bIsUndo  = (gptCtx->tIO.bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_Z, bRepeat)) && !bIsReadOnly && bIsUndoable;
-        const bool bIsRedo =  (gptCtx->tIO.bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_Y, bRepeat)) || (bIsOsX && gptCtx->tIO.bKeyShift && gptCtx->tIO.bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_Z, bRepeat)) && !bIsReadOnly && bIsUndoable;
-        const bool bIsSelectAll = gptCtx->tIO.bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_A, bRepeat);
+        const bool bIsCut   = (gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_X, bRepeat)) || (gptIO->bKeyShift && gptIOI->is_key_pressed(PL_KEY_DELETE, bRepeat)) && !bIsReadOnly && !bIsPassword && (!bIsMultiLine || pl__text_state_has_selection(ptState));
+        const bool bIsCopy  = (gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_C, bRepeat)) || (gptIO->bKeyCtrl  && gptIOI->is_key_pressed(PL_KEY_INSERT, bRepeat)) && !bIsPassword && (!bIsMultiLine || pl__text_state_has_selection(ptState));
+        const bool bIsPaste = (gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_V, bRepeat)) || ((gptIO->bKeyShift && gptIOI->is_key_pressed(PL_KEY_INSERT, bRepeat)) && !bIsReadOnly);
+        const bool bIsUndo  = (gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_Z, bRepeat)) && !bIsReadOnly && bIsUndoable;
+        const bool bIsRedo =  (gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_Y, bRepeat)) || (bIsOsX && gptIO->bKeyShift && gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_Z, bRepeat)) && !bIsReadOnly && bIsUndoable;
+        const bool bIsSelectAll = gptIO->bKeyCtrl && gptIOI->is_key_pressed(PL_KEY_A, bRepeat);
 
         // We allow validate/cancel with Nav source (gamepad) to makes it easier to undo an accidental NavInput press with no keyboard wired, but otherwise it isn't very useful.
         const bool bNavGamepadActive = false; // (io.ConfigFlags & ImGuiConfigFlags_NavEnableGamepad) != 0 && (io.BackendFlags & ImGuiBackendFlags_HasGamepad) != 0;
@@ -1337,12 +1337,12 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
         // FIXME: Should use more Shortcut() and reduce gptIOI->is_key_pressed()+SetKeyOwner(), but requires modifiers combination to be taken account of.
         if (gptIOI->is_key_pressed(PL_KEY_LEFT_ARROW, true))                        { pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_LINESTART : bIsWordmoveKeyDown ? STB_TEXTEDIT_K_WORDLEFT : STB_TEXTEDIT_K_LEFT) | iKMask); }
         else if (gptIOI->is_key_pressed(PL_KEY_RIGHT_ARROW, true))                  { pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_LINEEND : bIsWordmoveKeyDown ? STB_TEXTEDIT_K_WORDRIGHT : STB_TEXTEDIT_K_RIGHT) | iKMask); }
-        // else if (gptIOI->is_key_pressed(PL_KEY_UP_ARROW, true) && bIsMultiLine)     { if (gptCtx->tIO.bKeyCtrl) SetScrollY(ptDrawWindow, pl_max(ptDrawWindow->tScroll.y - gptCtx->tStyle.fFontSize, 0.0f)); else pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_TEXTSTART : STB_TEXTEDIT_K_UP) | iKMask); }
-        // else if (gptIOI->is_key_pressed(PL_KEY_DOWN_ARROW, true) && bIsMultiLine)   { if (gptCtx->tIO.bKeyCtrl) SetScrollY(ptDrawWindow, pl_min(ptDrawWindow->tScroll.y + gptCtx->tStyle.fFontSize, GetScrollMaxY())); else pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_TEXTEND : STB_TEXTEDIT_K_DOWN) | iKMask); }
+        // else if (gptIOI->is_key_pressed(PL_KEY_UP_ARROW, true) && bIsMultiLine)     { if (gptIO->bKeyCtrl) SetScrollY(ptDrawWindow, pl_max(ptDrawWindow->tScroll.y - gptCtx->tStyle.fFontSize, 0.0f)); else pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_TEXTSTART : STB_TEXTEDIT_K_UP) | iKMask); }
+        // else if (gptIOI->is_key_pressed(PL_KEY_DOWN_ARROW, true) && bIsMultiLine)   { if (gptIO->bKeyCtrl) SetScrollY(ptDrawWindow, pl_min(ptDrawWindow->tScroll.y + gptCtx->tStyle.fFontSize, GetScrollMaxY())); else pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_TEXTEND : STB_TEXTEDIT_K_DOWN) | iKMask); }
         // else if (gptIOI->is_key_pressed(PL_KEY_PAGE_UP, true) && bIsMultiLine)      { pl__text_state_on_key_press(ptState, STB_TEXTEDIT_K_PGUP | iKMask); fScrollY -= iRowCountPerPage * gptCtx->tStyle.fFontSize; }
         // else if (gptIOI->is_key_pressed(PL_KEY_PAGE_DOWN, true) && bIsMultiLine)    { pl__text_state_on_key_press(ptState, STB_TEXTEDIT_K_PGDOWN | iKMask); fScrollY += iRowCountPerPage * gptCtx->tStyle.fFontSize; }
-        else if (gptIOI->is_key_pressed(PL_KEY_HOME, true))                        { pl__text_state_on_key_press(ptState,gptCtx->tIO.bKeyCtrl ? STB_TEXTEDIT_K_TEXTSTART | iKMask : STB_TEXTEDIT_K_LINESTART | iKMask); }
-        else if (gptIOI->is_key_pressed(PL_KEY_END, true))                         { pl__text_state_on_key_press(ptState,gptCtx->tIO.bKeyCtrl ? STB_TEXTEDIT_K_TEXTEND | iKMask : STB_TEXTEDIT_K_LINEEND | iKMask); }
+        else if (gptIOI->is_key_pressed(PL_KEY_HOME, true))                        { pl__text_state_on_key_press(ptState,gptIO->bKeyCtrl ? STB_TEXTEDIT_K_TEXTSTART | iKMask : STB_TEXTEDIT_K_LINESTART | iKMask); }
+        else if (gptIOI->is_key_pressed(PL_KEY_END, true))                         { pl__text_state_on_key_press(ptState,gptIO->bKeyCtrl ? STB_TEXTEDIT_K_TEXTEND | iKMask : STB_TEXTEDIT_K_LINEEND | iKMask); }
         else if (gptIOI->is_key_pressed(PL_KEY_DELETE, true) && !bIsReadOnly && !bIsCut)
         {
             if (!pl__text_state_has_selection(ptState))
@@ -1359,7 +1359,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
             {
                 if (bIsWordmoveKeyDown)
                     pl__text_state_on_key_press(ptState, STB_TEXTEDIT_K_WORDLEFT | STB_TEXTEDIT_K_SHIFT);
-                else if (bIsOsX && gptCtx->tIO.bKeySuper && !gptCtx->tIO.bKeyAlt && !gptCtx->tIO.bKeyCtrl)
+                else if (bIsOsX && gptIO->bKeySuper && !gptIO->bKeyAlt && !gptIO->bKeyCtrl)
                     pl__text_state_on_key_press(ptState, STB_TEXTEDIT_K_LINESTART | STB_TEXTEDIT_K_SHIFT);
             }
             pl__text_state_on_key_press(ptState, STB_TEXTEDIT_K_BACKSPACE | iKMask);
@@ -1368,7 +1368,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
         {
             // Determine if we turn Enter into a \n character
             bool bCtrlEnterForNewLine = (tFlags & PL_UI_INPUT_TEXT_FLAGS_CTRL_ENTER_FOR_NEW_LINE) != 0;
-            if (!bIsMultiLine || bIsGamepadValidate || (bCtrlEnterForNewLine && !gptCtx->tIO.bKeyCtrl) || (!bCtrlEnterForNewLine && gptCtx->tIO.bKeyCtrl))
+            if (!bIsMultiLine || bIsGamepadValidate || (bCtrlEnterForNewLine && !gptIO->bKeyCtrl) || (!bCtrlEnterForNewLine && gptIO->bKeyCtrl))
             {
                 bValidated = true;
                 // if (io.ConfigInputTextEnterKeepActive && !bIsMultiLine)
@@ -1416,14 +1416,14 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
         else if (bIsCut || bIsCopy)
         {
             // Cut, Copy
-            if (gptCtx->tIO.set_clipboard_text_fn)
+            if (gptIO->set_clipboard_text_fn)
             {
                 const int ib = pl__text_state_has_selection(ptState) ? pl_min(ptState->tStb.select_start, ptState->tStb.select_end) : 0;
                 const int ie = pl__text_state_has_selection(ptState) ? pl_max(ptState->tStb.select_start, ptState->tStb.select_end) : ptState->iCurrentLengthW;
                 const int clipboard_data_len = pl__text_count_utf8_bytes_from_str(ptState->sbTextW + ib, ptState->sbTextW + ie) + 1;
                 char* clipboard_data = (char*)PL_ALLOC(clipboard_data_len * sizeof(char));
                 pl__text_str_to_utf8(clipboard_data, clipboard_data_len, ptState->sbTextW + ib, ptState->sbTextW + ie);
-                gptCtx->tIO.set_clipboard_text_fn(gptCtx->tIO.pClipboardUserData, clipboard_data);
+                gptIO->set_clipboard_text_fn(gptIO->pClipboardUserData, clipboard_data);
                 PL_FREE(clipboard_data);
             }
             if (bIsCut)
@@ -1436,7 +1436,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
         }
         else if (bIsPaste)
         {
-            const char* clipboard = gptCtx->tIO.get_clipboard_text_fn(gptCtx->tIO.pClipboardUserData);
+            const char* clipboard = gptIO->get_clipboard_text_fn(gptIO->pClipboardUserData);
             if (clipboard)
             {
                 // Filter pasted buffer
@@ -1655,7 +1655,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
     else if (gptCtx->uActiveId == uHash)
     {
         pl__set_active_id(uHash, ptWindow);
-        gptCtx->tIO.bWantTextInput = true;
+        gptIO->bWantTextInput = true;
     }
 
     // Render frame
@@ -1845,7 +1845,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
         // Draw blinking cursor
         if (bRenderCursor)
         {
-            ptState->fCursorAnim += gptCtx->tIO.fDeltaTime;
+            ptState->fCursorAnim += gptIO->fDeltaTime;
             // bool cursor_is_visible = (!g.IO.ConfigInputTextCursorBlink) || (ptState->fCursorAnim <= 0.0f) || fmodf(ptState->fCursorAnim, 1.20f) <= 0.80f;
             bool bCursorIsVisible = (ptState->fCursorAnim <= 0.0f) || fmodf(ptState->fCursorAnim, 1.20f) <= 0.80f;
             plVec2 cursor_screen_pos = pl_floor_vec2(pl_sub_vec2(pl_add_vec2(draw_pos, cursor_offset), draw_scroll));

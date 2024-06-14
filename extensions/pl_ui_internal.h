@@ -407,7 +407,6 @@ typedef struct _plUiContext
 {
     plUiStyle       tStyle;
     plUiColorScheme tColorScheme;
-    plIO            tIO;
     
     // prev/next state
     plUiNextWindowData tNextWindowData;        // info based on pl_set_next_window_* functions
