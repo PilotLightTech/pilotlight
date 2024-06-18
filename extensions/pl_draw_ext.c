@@ -2044,6 +2044,7 @@ pl__submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder tEncoder, float
         gptCtx->auIndexBufferSize[ptGfx->uCurrentFrameIndex] = tBufferDesc.uByteSize;
 
         gptCtx->atIndexBuffer[ptGfx->uCurrentFrameIndex] = pl__create_staging_buffer(&tBufferDesc, "draw idx buffer", ptGfx->uCurrentFrameIndex);
+        gptCtx->auIndexBufferOffset[ptGfx->uCurrentFrameIndex] = 0;
     }
 
     plBuffer* ptIndexBuffer = gptDevice->get_buffer(&ptGfx->tDevice, gptCtx->atIndexBuffer[ptGfx->uCurrentFrameIndex]);
@@ -2221,7 +2222,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float
     const float fAspectRatio = fWidth / fHeight;
 
     // regular 3D
-    if(pl_sb_size(ptDrawlist->sbtSolidVertexBuffer) > 0u)
+    if(pl_sb_size(ptDrawlist->sbtSolidVertexBuffer) > 0)
     {
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2272,6 +2273,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float
             gptCtx->auIndexBufferSize[ptGfx->uCurrentFrameIndex] = tBufferDesc.uByteSize;
 
             gptCtx->atIndexBuffer[ptGfx->uCurrentFrameIndex] = pl__create_staging_buffer(&tBufferDesc, "3d draw idx buffer", ptGfx->uCurrentFrameIndex);
+            gptCtx->auIndexBufferOffset[ptGfx->uCurrentFrameIndex] = 0;
         }
 
         // index GPU data transfer
@@ -2358,6 +2360,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float
             gptCtx->auIndexBufferSize[ptGfx->uCurrentFrameIndex] = tBufferDesc.uByteSize;
 
             gptCtx->atIndexBuffer[ptGfx->uCurrentFrameIndex] = pl__create_staging_buffer(&tBufferDesc, "draw idx buffer", ptGfx->uCurrentFrameIndex);
+            gptCtx->auIndexBufferOffset[ptGfx->uCurrentFrameIndex] = 0;
         }
 
         // index GPU data transfer
@@ -2401,6 +2404,35 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float
     }
 }
 
+static inline void
+pl__add_3d_triangles(plDrawList3D* ptDrawlist, uint32_t uVertexCount, const plVec3* atPoints, uint32_t uTriangleCount, const uint32_t* auIndices, plVec4 tColor)
+{
+
+    const uint32_t uVertexStart = pl_sb_size(ptDrawlist->sbtSolidVertexBuffer);
+    const uint32_t uIndexStart = pl_sb_size(ptDrawlist->sbtSolidIndexBuffer);
+
+    pl_sb_resize(ptDrawlist->sbtSolidVertexBuffer, pl_sb_size(ptDrawlist->sbtSolidVertexBuffer) + uVertexCount);
+    pl_sb_resize(ptDrawlist->sbtSolidIndexBuffer, pl_sb_size(ptDrawlist->sbtSolidIndexBuffer) + 3 * uTriangleCount);
+
+    uint32_t tU32Color = 0;
+    tU32Color = (uint32_t)  (255.0f * tColor.r + 0.5f);
+    tU32Color |= (uint32_t) (255.0f * tColor.g + 0.5f) << 8;
+    tU32Color |= (uint32_t) (255.0f * tColor.b + 0.5f) << 16;
+    tU32Color |= (uint32_t) (255.0f * tColor.a + 0.5f) << 24;
+
+    for(uint32_t i = 0; i < uVertexCount; i++)
+    {
+        ptDrawlist->sbtSolidVertexBuffer[uVertexStart + i] = ((plDrawVertex3DSolid){ {atPoints[i].x, atPoints[i].y, atPoints[i].z}, tU32Color});
+    }
+
+    for(uint32_t i = 0; i < uTriangleCount; i++)
+    {
+        ptDrawlist->sbtSolidIndexBuffer[uIndexStart + i * 3]     = uVertexStart + auIndices[i * 3];
+        ptDrawlist->sbtSolidIndexBuffer[uIndexStart + i * 3 + 1] = uVertexStart + auIndices[i * 3 + 1];
+        ptDrawlist->sbtSolidIndexBuffer[uIndexStart + i * 3 + 2] = uVertexStart + auIndices[i * 3 + 2];
+    }
+}
+
 static void
 pl__add_3d_triangle_filled(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor)
 {
@@ -2423,6 +2455,284 @@ pl__add_3d_triangle_filled(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plV
     pl_sb_push(ptDrawlist->sbtSolidIndexBuffer, uVertexStart + 0);
     pl_sb_push(ptDrawlist->sbtSolidIndexBuffer, uVertexStart + 1);
     pl_sb_push(ptDrawlist->sbtSolidIndexBuffer, uVertexStart + 2);
+}
+
+static void
+pl__add_3d_sphere_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fRadius, plVec4 tColor, uint32_t uLatBands, uint32_t uLongBands)
+{
+    if(uLatBands == 0){ uLatBands = 16; }
+    if(uLongBands == 0){ uLongBands = 16; }
+
+    const uint32_t uVertexStart = pl_sb_size(ptDrawlist->sbtSolidVertexBuffer);
+    const uint32_t uIndexStart = pl_sb_size(ptDrawlist->sbtSolidIndexBuffer);
+
+    pl_sb_resize(ptDrawlist->sbtSolidVertexBuffer, pl_sb_size(ptDrawlist->sbtSolidVertexBuffer) + (uLatBands + 1) * (uLongBands + 1));
+    pl_sb_resize(ptDrawlist->sbtSolidIndexBuffer, pl_sb_size(ptDrawlist->sbtSolidIndexBuffer) + uLatBands * uLongBands * 6);
+
+    uint32_t tU32Color = 0;
+    tU32Color = (uint32_t)  (255.0f * tColor.r + 0.5f);
+    tU32Color |= (uint32_t) (255.0f * tColor.g + 0.5f) << 8;
+    tU32Color |= (uint32_t) (255.0f * tColor.b + 0.5f) << 16;
+    tU32Color |= (uint32_t) (255.0f * tColor.a + 0.5f) << 24;
+
+    uint32_t uCurrentPoint = 0;
+
+    for(uint32_t uLatNumber = 0; uLatNumber <= uLatBands; uLatNumber++)
+    {
+        const float fTheta = (float)uLatNumber * PL_PI / (float)uLatBands;
+        const float fSinTheta = sinf(fTheta);
+        const float fCosTheta = cosf(fTheta);
+        for(uint32_t uLongNumber = 0; uLongNumber <= uLongBands; uLongNumber++)
+        {
+            const float fPhi = (float)uLongNumber * 2 * PL_PI / (float)uLongBands;
+            const float fSinPhi = sinf(fPhi);
+            const float fCosPhi = cosf(fPhi);
+
+            ptDrawlist->sbtSolidVertexBuffer[uVertexStart + uCurrentPoint] = (plDrawVertex3DSolid){ 
+                {
+                    fCosPhi * fSinTheta * fRadius + tCenter.x,
+                    fCosTheta * fRadius + tCenter.y,
+                    fSinPhi * fSinTheta * fRadius + tCenter.z}, 
+                tU32Color};
+            uCurrentPoint++;
+        }
+    }
+
+    uCurrentPoint = 0;
+    for(uint32_t uLatNumber = 0; uLatNumber < uLatBands; uLatNumber++)
+    {
+
+        for(uint32_t uLongNumber = 0; uLongNumber < uLongBands; uLongNumber++)
+        {
+			const uint32_t uFirst = (uLatNumber * (uLongBands + 1)) + uLongNumber;
+			const uint32_t uSecond = uFirst + uLongBands + 1;
+
+            ptDrawlist->sbtSolidIndexBuffer[uIndexStart + uCurrentPoint + 0] = uVertexStart + uFirst;
+            ptDrawlist->sbtSolidIndexBuffer[uIndexStart + uCurrentPoint + 1] = uVertexStart + uSecond;
+            ptDrawlist->sbtSolidIndexBuffer[uIndexStart + uCurrentPoint + 2] = uVertexStart + uFirst + 1;
+
+            ptDrawlist->sbtSolidIndexBuffer[uIndexStart + uCurrentPoint + 3] = uVertexStart + uSecond;
+            ptDrawlist->sbtSolidIndexBuffer[uIndexStart + uCurrentPoint + 4] = uVertexStart + uSecond + 1;
+            ptDrawlist->sbtSolidIndexBuffer[uIndexStart + uCurrentPoint + 5] = uVertexStart + uFirst + 1;
+
+            uCurrentPoint += 6;
+        }
+    }
+}
+
+static void
+pl__add_3d_circle_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fRadius, plVec4 tColor, uint32_t uSegments)
+{
+    if(uSegments == 0){ uSegments = 12; }
+    const float fIncrement = PL_2PI / uSegments;
+    float fTheta = 0.0f;
+    plVec3* atPoints = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(plVec3) * (uSegments + 2));
+    uint32_t* auIndices = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(uint32_t) * (uSegments * 3 + 3));
+    atPoints[0] = tCenter;
+    for(uint32_t i = 0; i < uSegments; i++)
+    {
+        atPoints[i + 1] = (plVec3){tCenter.x + fRadius * sinf(fTheta + PL_PI_2), tCenter.y, tCenter.z + fRadius * sinf(fTheta)};
+        fTheta += fIncrement;
+    }
+    atPoints[uSegments + 1] = atPoints[1];
+
+    for(uint32_t i = 0; i < uSegments; i++)
+    {
+        auIndices[i * 3] = 0;
+        auIndices[i * 3 + 1] = i + 1;
+        auIndices[i * 3 + 2] = i;
+    }
+    auIndices[uSegments * 3] = 0;
+    auIndices[uSegments * 3 + 1] = 1;
+    auIndices[uSegments * 3 + 2] = uSegments;
+
+    pl__add_3d_triangles(ptDrawlist, uSegments + 2, atPoints, uSegments + 1, auIndices, tColor);
+
+    pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+}
+
+static inline void
+pl__add_3d_indexed_lines(plDrawList3D* ptDrawlist, uint32_t uIndexCount, const plVec3* atPoints, const uint32_t* auIndices, plVec4 tColor, float fThickness)
+{
+    uint32_t tU32Color = 0;
+    tU32Color = (uint32_t)  (255.0f * tColor.r + 0.5f);
+    tU32Color |= (uint32_t) (255.0f * tColor.g + 0.5f) << 8;
+    tU32Color |= (uint32_t) (255.0f * tColor.b + 0.5f) << 16;
+    tU32Color |= (uint32_t) (255.0f * tColor.a + 0.5f) << 24;
+
+    const uint32_t uVertexStart = pl_sb_size(ptDrawlist->sbtLineVertexBuffer);
+    const uint32_t uIndexStart = pl_sb_size(ptDrawlist->sbtLineIndexBuffer);
+    const uint32_t uLineCount = uIndexCount / 2;
+
+    pl_sb_resize(ptDrawlist->sbtLineVertexBuffer, uVertexStart + 4 * uLineCount);
+    pl_sb_resize(ptDrawlist->sbtLineIndexBuffer, uIndexStart + 6 * uLineCount);
+
+    uint32_t uCurrentVertex = uVertexStart;
+    uint32_t uCurrentIndex = uIndexStart;
+    for(uint32_t i = 0; i < uLineCount; i++)
+    {
+        const uint32_t uIndex0 = auIndices[i * 2];
+        const uint32_t uIndex1 = auIndices[i * 2 + 1];
+
+        const plVec3 tP0 = atPoints[uIndex0];
+        const plVec3 tP1 = atPoints[uIndex1];
+
+        plDrawVertex3DLine tNewVertex0 = {
+            {tP0.x, tP0.y, tP0.z},
+            -1.0f,
+            fThickness,
+            1.0f,
+            {tP1.x, tP1.y, tP1.z},
+            tU32Color
+        };
+
+        plDrawVertex3DLine tNewVertex1 = {
+            {tP1.x, tP1.y, tP1.z},
+            -1.0f,
+            fThickness,
+            -1.0f,
+            {tP0.x, tP0.y, tP0.z},
+            tU32Color
+        };
+
+        ptDrawlist->sbtLineVertexBuffer[uCurrentVertex] = tNewVertex0;
+        ptDrawlist->sbtLineVertexBuffer[uCurrentVertex + 1] = tNewVertex1;
+
+        tNewVertex0.fDirection = 1.0f;
+        tNewVertex1.fDirection = 1.0f;
+        ptDrawlist->sbtLineVertexBuffer[uCurrentVertex + 2] = tNewVertex1;
+        ptDrawlist->sbtLineVertexBuffer[uCurrentVertex + 3] = tNewVertex0;
+
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex] = uCurrentVertex + 0;
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex + 1] = uCurrentVertex + 1;
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex + 2] = uCurrentVertex + 2;
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex + 3] = uCurrentVertex + 0;
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex + 4] = uCurrentVertex + 2;
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex + 5] = uCurrentVertex + 3;
+
+        uCurrentVertex += 4;
+        uCurrentIndex += 6;
+    }
+}
+
+static inline void
+pl__add_3d_lines(plDrawList3D* ptDrawlist, uint32_t uCount, const plVec3* atPoints, plVec4 tColor, float fThickness)
+{
+    uint32_t tU32Color = 0;
+    tU32Color = (uint32_t)  (255.0f * tColor.r + 0.5f);
+    tU32Color |= (uint32_t) (255.0f * tColor.g + 0.5f) << 8;
+    tU32Color |= (uint32_t) (255.0f * tColor.b + 0.5f) << 16;
+    tU32Color |= (uint32_t) (255.0f * tColor.a + 0.5f) << 24;
+
+    const uint32_t uVertexStart = pl_sb_size(ptDrawlist->sbtLineVertexBuffer);
+    const uint32_t uIndexStart = pl_sb_size(ptDrawlist->sbtLineIndexBuffer);
+
+    pl_sb_resize(ptDrawlist->sbtLineVertexBuffer, uVertexStart + 4 * uCount);
+    pl_sb_resize(ptDrawlist->sbtLineIndexBuffer, uIndexStart + 6 * uCount);
+
+    uint32_t uCurrentVertex = uVertexStart;
+    uint32_t uCurrentIndex = uIndexStart;
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        const plVec3 tP0 = atPoints[i * 2];
+        const plVec3 tP1 = atPoints[i * 2 + 1];
+
+        plDrawVertex3DLine tNewVertex0 = {
+            {tP0.x, tP0.y, tP0.z},
+            -1.0f,
+            fThickness,
+            1.0f,
+            {tP1.x, tP1.y, tP1.z},
+            tU32Color
+        };
+
+        plDrawVertex3DLine tNewVertex1 = {
+            {tP1.x, tP1.y, tP1.z},
+            -1.0f,
+            fThickness,
+            -1.0f,
+            {tP0.x, tP0.y, tP0.z},
+            tU32Color
+        };
+
+        ptDrawlist->sbtLineVertexBuffer[uCurrentVertex] = tNewVertex0;
+        ptDrawlist->sbtLineVertexBuffer[uCurrentVertex + 1] = tNewVertex1;
+
+        tNewVertex0.fDirection = 1.0f;
+        tNewVertex1.fDirection = 1.0f;
+        ptDrawlist->sbtLineVertexBuffer[uCurrentVertex + 2] = tNewVertex1;
+        ptDrawlist->sbtLineVertexBuffer[uCurrentVertex + 3] = tNewVertex0;
+
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex] = uCurrentVertex + 0;
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex + 1] = uCurrentVertex + 1;
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex + 2] = uCurrentVertex + 2;
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex + 3] = uCurrentVertex + 0;
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex + 4] = uCurrentVertex + 2;
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex + 5] = uCurrentVertex + 3;
+
+        uCurrentVertex += 4;
+        uCurrentIndex += 6;
+    }
+}
+
+static inline void
+pl__add_3d_path(plDrawList3D* ptDrawlist, uint32_t uCount, const plVec3* atPoints, plVec4 tColor, float fThickness)
+{
+    uint32_t tU32Color = 0;
+    tU32Color = (uint32_t)  (255.0f * tColor.r + 0.5f);
+    tU32Color |= (uint32_t) (255.0f * tColor.g + 0.5f) << 8;
+    tU32Color |= (uint32_t) (255.0f * tColor.b + 0.5f) << 16;
+    tU32Color |= (uint32_t) (255.0f * tColor.a + 0.5f) << 24;
+
+    const uint32_t uVertexStart = pl_sb_size(ptDrawlist->sbtLineVertexBuffer);
+    const uint32_t uIndexStart = pl_sb_size(ptDrawlist->sbtLineIndexBuffer);
+
+    pl_sb_resize(ptDrawlist->sbtLineVertexBuffer, uVertexStart + 4 * (uCount - 1));
+    pl_sb_resize(ptDrawlist->sbtLineIndexBuffer, uIndexStart + 6 * (uCount - 1));
+
+    uint32_t uCurrentVertex = uVertexStart;
+    uint32_t uCurrentIndex = uIndexStart;
+    for(uint32_t i = 0; i < uCount - 1; i++)
+    {
+        const plVec3 tP0 = atPoints[i];
+        const plVec3 tP1 = atPoints[i + 1];
+
+        plDrawVertex3DLine tNewVertex0 = {
+            {tP0.x, tP0.y, tP0.z},
+            -1.0f,
+            fThickness,
+            1.0f,
+            {tP1.x, tP1.y, tP1.z},
+            tU32Color
+        };
+
+        plDrawVertex3DLine tNewVertex1 = {
+            {tP1.x, tP1.y, tP1.z},
+            -1.0f,
+            fThickness,
+            -1.0f,
+            {tP0.x, tP0.y, tP0.z},
+            tU32Color
+        };
+
+        ptDrawlist->sbtLineVertexBuffer[uCurrentVertex] = tNewVertex0;
+        ptDrawlist->sbtLineVertexBuffer[uCurrentVertex + 1] = tNewVertex1;
+
+        tNewVertex0.fDirection = 1.0f;
+        tNewVertex1.fDirection = 1.0f;
+        ptDrawlist->sbtLineVertexBuffer[uCurrentVertex + 2] = tNewVertex1;
+        ptDrawlist->sbtLineVertexBuffer[uCurrentVertex + 3] = tNewVertex0;
+
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex] = uCurrentVertex + 0;
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex + 1] = uCurrentVertex + 1;
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex + 2] = uCurrentVertex + 2;
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex + 3] = uCurrentVertex + 0;
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex + 4] = uCurrentVertex + 2;
+        ptDrawlist->sbtLineIndexBuffer[uCurrentIndex + 5] = uCurrentVertex + 3;
+
+        uCurrentVertex += 4;
+        uCurrentIndex += 6;
+    }
 }
 
 static void
@@ -2484,10 +2794,7 @@ pl__add_3d_point(plDrawList3D* ptDrawlist, plVec3 tP, plVec4 tColor, float fLeng
         {  tP.x,  tP.y, tP.z - fLength / 2.0f},
         {  tP.x,  tP.y, tP.z + fLength / 2.0f}
     };
-
-    pl__add_3d_line(ptDrawlist, aatVerticies[0], aatVerticies[1], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, aatVerticies[2], aatVerticies[3], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, aatVerticies[4], aatVerticies[5], tColor, fThickness);
+    pl__add_3d_lines(ptDrawlist, 3, aatVerticies, tColor, fThickness);
 }
 
 static void
@@ -2523,18 +2830,93 @@ pl__add_3d_frustum(plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fY
         pl_mul_mat4_vec3(ptTransform, (plVec3){ -fBigWidth,    fBigHeight,   fFarZ})
     };
 
-    pl__add_3d_line(ptDrawlist, atVerticies[0], atVerticies[1], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[1], atVerticies[2], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[2], atVerticies[3], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[3], atVerticies[0], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[0], atVerticies[4], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[1], atVerticies[5], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[2], atVerticies[6], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[3], atVerticies[7], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[4], atVerticies[5], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[5], atVerticies[6], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[6], atVerticies[7], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[7], atVerticies[4], tColor, fThickness);
+    const uint32_t auIndices[] = {
+        0, 1,
+        1, 2,
+        2, 3,
+        3, 0,
+        0, 4,
+        1, 5,
+        2, 6,
+        3, 7,
+        4, 5,
+        5, 6,
+        6, 7,
+        7, 4
+    };
+    pl__add_3d_indexed_lines(ptDrawlist, 24, atVerticies, auIndices, tColor, fThickness);
+
+}
+
+static void
+pl__add_3d_sphere(plDrawList3D* ptDrawlist, plVec3 tCenter, float fRadius, plVec4 tColor, uint32_t uLatBands, uint32_t uLongBands, float fThickness)
+{
+
+    if(uLatBands == 0){ uLatBands = 16; }
+    if(uLongBands == 0){ uLongBands = 16; }
+    
+    plVec3* atPoints = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(plVec3) * (uLatBands + 1) * (uLongBands + 1));
+    uint32_t* auIndices = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(uint32_t) * uLatBands * uLongBands * 4);
+    uint32_t uCurrentPoint = 0;
+
+    for(uint32_t uLatNumber = 0; uLatNumber <= uLatBands; uLatNumber++)
+    {
+        const float fTheta = (float)uLatNumber * PL_PI / (float)uLatBands;
+        const float fSinTheta = sinf(fTheta);
+        const float fCosTheta = cosf(fTheta);
+        for(uint32_t uLongNumber = 0; uLongNumber <= uLongBands; uLongNumber++)
+        {
+            const float fPhi = (float)uLongNumber * 2 * PL_PI / (float)uLongBands;
+            const float fSinPhi = sinf(fPhi);
+            const float fCosPhi = cosf(fPhi);
+            atPoints[uCurrentPoint] = (plVec3){fCosPhi * fSinTheta * fRadius + tCenter.x, fCosTheta * fRadius + tCenter.y, fSinPhi * fSinTheta * fRadius + tCenter.z};
+            uCurrentPoint++;
+        }
+    }
+
+    uCurrentPoint = 0;
+    for(uint32_t uLatNumber = 0; uLatNumber < uLatBands; uLatNumber++)
+    {
+
+        for(uint32_t uLongNumber = 0; uLongNumber < uLongBands; uLongNumber++)
+        {
+			const uint32_t uFirst = (uLatNumber * (uLongBands + 1)) + uLongNumber;
+			const uint32_t uSecond = uFirst + uLongBands + 1;
+            auIndices[uCurrentPoint] = uFirst;
+            auIndices[uCurrentPoint + 1] = uSecond;
+
+            auIndices[uCurrentPoint + 2] = uSecond;
+            auIndices[uCurrentPoint + 3] = uSecond + 1;
+
+            auIndices[uCurrentPoint + 4] = uSecond + 1;
+            auIndices[uCurrentPoint + 5] = uFirst + 1;
+
+            auIndices[uCurrentPoint + 6] = uFirst;
+            auIndices[uCurrentPoint + 7] = uFirst + 1;
+
+            uCurrentPoint += 8;
+        }
+    }
+    pl__add_3d_indexed_lines(ptDrawlist, uLatBands * uLongBands * 8, atPoints, auIndices, tColor, fThickness);
+
+    pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+}
+
+static void
+pl__add_3d_circle_xz(plDrawList3D* ptDrawlist, plVec3 tCenter, float fRadius, plVec4 tColor, uint32_t uSegments, float fThickness)
+{
+    if(uSegments == 0){ uSegments = 12; }
+    const float fIncrement = PL_2PI / uSegments;
+    float fTheta = 0.0f;
+    plVec3* atPoints = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(plVec3) * (uSegments + 1));
+    for(uint32_t i = 0; i < uSegments; i++)
+    {
+        atPoints[i] = (plVec3){tCenter.x + fRadius * sinf(fTheta + PL_PI_2), tCenter.y, tCenter.z + fRadius * sinf(fTheta)};
+        fTheta += fIncrement;
+    }
+    atPoints[uSegments] = atPoints[0];
+    pl__add_3d_path(ptDrawlist, uSegments + 1, atPoints, tColor, fThickness);
+    pl_temp_allocator_reset(&gptCtx->tTempAllocator);
 }
 
 static void
@@ -2555,18 +2937,21 @@ pl__add_3d_centered_box(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, 
         {  tCenter.x + fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z + fDepth / 2.0f}
     };
 
-    pl__add_3d_line(ptDrawlist, atVerticies[0], atVerticies[1], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[1], atVerticies[2], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[2], atVerticies[3], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[3], atVerticies[0], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[0], atVerticies[4], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[1], atVerticies[5], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[2], atVerticies[6], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[3], atVerticies[7], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[4], atVerticies[5], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[5], atVerticies[6], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[6], atVerticies[7], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[7], atVerticies[4], tColor, fThickness);
+    const uint32_t auIndices[] = {
+        0, 1,
+        1, 2,
+        2, 3,
+        3, 0,
+        0, 4,
+        1, 5,
+        2, 6,
+        3, 7,
+        4, 5,
+        5, 6,
+        6, 7,
+        7, 4
+    };
+    pl__add_3d_indexed_lines(ptDrawlist, 24, atVerticies, auIndices, tColor, fThickness);
 }
 
 static void
@@ -2584,18 +2969,21 @@ pl__add_3d_aabb(plDrawList3D* ptDrawlist, plVec3 tMin, plVec3 tMax, plVec4 tColo
         {  tMin.x, tMax.y, tMax.z },
     };
 
-    pl__add_3d_line(ptDrawlist, atVerticies[0], atVerticies[1], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[1], atVerticies[2], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[2], atVerticies[3], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[3], atVerticies[0], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[0], atVerticies[4], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[1], atVerticies[5], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[2], atVerticies[6], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[3], atVerticies[7], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[4], atVerticies[5], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[5], atVerticies[6], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[6], atVerticies[7], tColor, fThickness);
-    pl__add_3d_line(ptDrawlist, atVerticies[7], atVerticies[4], tColor, fThickness);
+    const uint32_t auIndices[] = {
+        0, 1,
+        1, 2,
+        2, 3,
+        3, 0,
+        0, 4,
+        1, 5,
+        2, 6,
+        3, 7,
+        4, 5,
+        5, 6,
+        6, 7,
+        7, 4
+    };
+    pl__add_3d_indexed_lines(ptDrawlist, 24, atVerticies, auIndices, tColor, fThickness);
 }
 
 static void
@@ -2688,9 +3076,8 @@ pl__create_staging_buffer(const plBufferDescription* ptDesc, const char* pcName,
     plDevice* ptDevice = &gptCtx->ptGraphics->tDevice;
 
     // create buffer
-    plTempAllocator tTempAllocator = {0};
-    const plBufferHandle tHandle = gptDevice->create_buffer(ptDevice, ptDesc, pl_temp_allocator_sprintf(&tTempAllocator, "%s: %u", pcName, uIdentifier));
-    pl_temp_allocator_reset(&tTempAllocator);
+    const plBufferHandle tHandle = gptDevice->create_buffer(ptDevice, ptDesc, pl_temp_allocator_sprintf(&gptCtx->tTempAllocator, "%s: %u", pcName, uIdentifier));
+    pl_temp_allocator_reset(&gptCtx->tTempAllocator);
 
     // retrieve new buffer
     plBuffer* ptBuffer = gptDevice->get_buffer(ptDevice, tHandle);
@@ -2700,11 +3087,10 @@ pl__create_staging_buffer(const plBufferDescription* ptDesc, const char* pcName,
         ptBuffer->tMemoryRequirements.ulSize,
         PL_MEMORY_GPU_CPU,
         ptBuffer->tMemoryRequirements.uMemoryTypeBits,
-        pl_temp_allocator_sprintf(&tTempAllocator, "%s: %u", pcName, uIdentifier));
+        pl_temp_allocator_sprintf(&gptCtx->tTempAllocator, "%s: %u", pcName, uIdentifier));
 
     // bind memory
     gptDevice->bind_buffer_to_memory(ptDevice, tHandle, &tAllocation);
-    pl_temp_allocator_free(&tTempAllocator);
     return tHandle;
 }
 
@@ -3256,14 +3642,18 @@ pl_load_draw_3d_api(void)
         .submit_3d_drawlist       = pl__submit_3d_drawlist,
         .new_frame                = pl_new_draw_3d_frame,
         .add_3d_triangle_filled   = pl__add_3d_triangle_filled,
+        .add_3d_circle_xz_filled  = pl__add_3d_circle_xz_filled,
+        .add_3d_sphere_filled     = pl__add_3d_sphere_filled,
         .add_3d_line              = pl__add_3d_line,
         .add_3d_point             = pl__add_3d_point,
         .add_3d_transform         = pl__add_3d_transform,
         .add_3d_frustum           = pl__add_3d_frustum,
+        .add_3d_sphere            = pl__add_3d_sphere,
         .add_3d_centered_box      = pl__add_3d_centered_box,
         .add_3d_bezier_quad       = pl__add_3d_bezier_quad,
         .add_3d_bezier_cubic      = pl__add_3d_bezier_cubic,
         .add_3d_aabb              = pl__add_3d_aabb,
+        .add_3d_circle_xz         = pl__add_3d_circle_xz,
         .request_2d_drawlist      = pl_request_2d_drawlist,
         .return_2d_drawlist       = pl_return_2d_drawlist,
         .request_2d_layer         = pl_request_2d_layer,

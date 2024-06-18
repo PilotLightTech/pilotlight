@@ -140,15 +140,19 @@ typedef struct _plDrawI
     void          (*pop_clip_rect)    (plDrawList2D*);
     const plRect* (*get_clip_rect)    (plDrawList2D*);
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~2D~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~3D~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // drawlists
     plDrawList3D* (*request_3d_drawlist)(void);
     void          (*return_3d_drawlist)(plDrawList3D*);
     void          (*submit_3d_drawlist)(plDrawList3D*, plRenderEncoder, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t uMSAASampleCount);
 
-    // drawing
+    // solid
     void (*add_3d_triangle_filled)(plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
+    void (*add_3d_sphere_filled)  (plDrawList3D*, plVec3 tCenter, float fRadius, plVec4 tColor, uint32_t uLatBands, uint32_t uLongBands);
+    void (*add_3d_circle_xz_filled)(plDrawList3D*, plVec3 tCenter, float fRadius, plVec4 tColor, uint32_t uSegments);
+
+    // wireframe
     void (*add_3d_line)           (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness);
     void (*add_3d_point)          (plDrawList3D*, plVec3 tP0, plVec4 tColor, float fLength, float fThickness);
     void (*add_3d_transform)      (plDrawList3D*, const plMat4* ptTransform, float fLength, float fThickness);
@@ -157,7 +161,8 @@ typedef struct _plDrawI
     void (*add_3d_aabb)           (plDrawList3D*, plVec3 tMin, plVec3 tMax, plVec4 tColor, float fThickness);
     void (*add_3d_bezier_quad)    (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
     void (*add_3d_bezier_cubic)   (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
-
+    void (*add_3d_sphere)         (plDrawList3D*, plVec3 tCenter, float fRadius, plVec4 tColor, uint32_t uLatBands, uint32_t uLongBands, float fThickness);
+    void (*add_3d_circle_xz)      (plDrawList3D*, plVec3 tCenter, float fRadius, plVec4 tColor, uint32_t uSegments, float fThickness);
 } plDrawI;
 
 //-----------------------------------------------------------------------------
