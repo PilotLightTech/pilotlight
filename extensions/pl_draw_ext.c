@@ -2679,7 +2679,7 @@ pl__add_3d_triangle_filled(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plV
 }
 
 static void
-pl__add_3d_sphere_ex_filled(plDrawList3D* ptDrawlist, const plDrawSphereDesc* ptDesc)
+pl__add_3d_sphere_filled_ex(plDrawList3D* ptDrawlist, const plDrawSphereDesc* ptDesc)
 {
     const uint32_t uVertexStart = pl_sb_size(ptDrawlist->sbtSolidVertexBuffer);
     const uint32_t uIndexStart = pl_sb_size(ptDrawlist->sbtSolidIndexBuffer);
@@ -2765,6 +2765,331 @@ pl__add_3d_circle_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fRad
     auIndices[uSegments * 3 + 2] = uSegments;
 
     pl__add_3d_triangles(ptDrawlist, uSegments + 2, atPoints, uSegments + 1, auIndices, tColor);
+
+    pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+}
+
+static void
+pl__add_3d_centered_box_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor)
+{
+
+    const plVec3 tWidthVec  = {fWidth / 2.0f, 0.0f, 0.0f};
+    const plVec3 tHeightVec = {0.0f, fHeight / 2.0f, 0.0f};
+    const plVec3 tDepthVec  = {0.0f, 0.0f, fDepth / 2.0f};
+
+    const plVec3 atVerticies[8] = {
+        {  tCenter.x - fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
+        {  tCenter.x - fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
+        {  tCenter.x + fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
+        {  tCenter.x + fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
+        {  tCenter.x - fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z + fDepth / 2.0f},
+        {  tCenter.x - fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z + fDepth / 2.0f},
+        {  tCenter.x + fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z + fDepth / 2.0f},
+        {  tCenter.x + fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z + fDepth / 2.0f}
+    };
+
+    const uint32_t auIndices[] = {
+        0, 3, 2,
+        0, 2, 1,
+        3, 7, 2,
+        7, 6, 2,
+        7, 4, 6,
+        4, 5, 6,
+        4, 0, 5,
+        0, 1, 5,
+        4, 7, 3,
+        0, 4, 3,
+        5, 1, 2,
+        5, 2, 6
+    };
+
+    pl__add_3d_triangles(ptDrawlist, 8, atVerticies, 12, auIndices, tColor);
+
+    pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+}
+
+static void
+pl__add_3d_plane_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, plVec4 tColor)
+{
+
+    const plVec3 tWidthVec  = {fWidth / 2.0f, 0.0f, 0.0f};
+    const plVec3 tHeightVec = {0.0f, fHeight / 2.0f, 0.0f};
+
+    const plVec3 atVerticies[] = {
+        {  tCenter.x - fWidth / 2.0f,  tCenter.y, tCenter.z - fHeight / 2.0f},
+        {  tCenter.x - fWidth / 2.0f,  tCenter.y, tCenter.z + fHeight / 2.0f},
+        {  tCenter.x + fWidth / 2.0f,  tCenter.y, tCenter.z + fHeight / 2.0f},
+        {  tCenter.x + fWidth / 2.0f,  tCenter.y, tCenter.z - fHeight / 2.0f}
+    };
+
+    const uint32_t auIndices[] = {
+        0, 1, 2,
+        0, 2, 3
+    };
+
+    pl__add_3d_triangles(ptDrawlist, 4, atVerticies, 2, auIndices, tColor);
+    pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+}
+
+static void
+pl__add_3d_plane_xy_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, plVec4 tColor)
+{
+
+    const plVec3 tWidthVec  = {fWidth / 2.0f, 0.0f, 0.0f};
+    const plVec3 tHeightVec = {0.0f, fHeight / 2.0f, 0.0f};
+
+    const plVec3 atVerticies[] = {
+        {  tCenter.x - fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z},
+        {  tCenter.x - fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z},
+        {  tCenter.x + fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z},
+        {  tCenter.x + fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z}
+    };
+
+    const uint32_t auIndices[] = {
+        0, 1, 2,
+        0, 2, 3
+    };
+
+    pl__add_3d_triangles(ptDrawlist, 4, atVerticies, 2, auIndices, tColor);
+    pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+}
+
+static void
+pl__add_3d_plane_yz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, plVec4 tColor)
+{
+
+    const plVec3 tWidthVec  = {fWidth / 2.0f, 0.0f, 0.0f};
+    const plVec3 tHeightVec = {0.0f, fHeight / 2.0f, 0.0f};
+
+    const plVec3 atVerticies[] = {
+        {  tCenter.x, tCenter.y - fWidth / 2.0f,  tCenter.z - fHeight / 2.0f},
+        {  tCenter.x, tCenter.y - fWidth / 2.0f,  tCenter.z + fHeight / 2.0f},
+        {  tCenter.x, tCenter.y + fWidth / 2.0f,  tCenter.z + fHeight / 2.0f},
+        {  tCenter.x, tCenter.y + fWidth / 2.0f,  tCenter.z - fHeight / 2.0f}
+    };
+
+    const uint32_t auIndices[] = {
+        0, 1, 2,
+        0, 2, 3
+    };
+
+    pl__add_3d_triangles(ptDrawlist, 4, atVerticies, 2, auIndices, tColor);
+    pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+}
+
+static void
+pl__add_3d_band_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fInnerRadius, float fOuterRadius, plVec4 tColor, uint32_t uSegments)
+{
+    if(uSegments == 0){ uSegments = 12; }
+    const float fIncrement = PL_2PI / uSegments;
+    float fTheta = 0.0f;
+    plVec3* atPoints = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(plVec3) * uSegments * 2);
+    uint32_t* auIndices = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(uint32_t) * uSegments * 2 * 3);
+    for(uint32_t i = 0; i < uSegments; i++)
+    {
+        atPoints[i] = (plVec3){tCenter.x + fOuterRadius * sinf(fTheta + PL_PI_2), tCenter.y, tCenter.z + fOuterRadius * sinf(fTheta)};
+        atPoints[i + uSegments] = (plVec3){tCenter.x + fInnerRadius * sinf(fTheta + PL_PI_2), tCenter.y, tCenter.z + fInnerRadius * sinf(fTheta)};
+        fTheta += fIncrement;
+    }
+
+    for(uint32_t i = 0; i < uSegments; i++)
+    {
+        auIndices[i * 6] = i;
+        auIndices[i * 6 + 1] = i + uSegments;
+        auIndices[i * 6 + 2] = i + uSegments + 1;
+
+        auIndices[i * 6 + 3] = i;
+        auIndices[i * 6 + 4] = i + uSegments + 1;
+        auIndices[i * 6 + 5] = i + 1;
+    }
+    auIndices[(uSegments - 1) * 6 + 2] = uSegments;
+    auIndices[(uSegments - 1) * 6 + 4] = uSegments;
+    auIndices[(uSegments - 1) * 6 + 5] = 0;
+
+    pl__add_3d_triangles(ptDrawlist, uSegments * 2, atPoints, uSegments * 2, auIndices, tColor);
+
+    pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+}
+
+static void
+pl__add_3d_band_xy_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fInnerRadius, float fOuterRadius, plVec4 tColor, uint32_t uSegments)
+{
+    if(uSegments == 0){ uSegments = 12; }
+    const float fIncrement = PL_2PI / uSegments;
+    float fTheta = 0.0f;
+    plVec3* atPoints = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(plVec3) * uSegments * 2);
+    uint32_t* auIndices = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(uint32_t) * uSegments * 2 * 3);
+    for(uint32_t i = 0; i < uSegments; i++)
+    {
+        atPoints[i] = (plVec3){tCenter.x + fOuterRadius * sinf(fTheta + PL_PI_2), tCenter.y + fOuterRadius * sinf(fTheta), tCenter.z};
+        atPoints[i + uSegments] = (plVec3){tCenter.x + fInnerRadius * sinf(fTheta + PL_PI_2), tCenter.y + fInnerRadius * sinf(fTheta), tCenter.z};
+        fTheta += fIncrement;
+    }
+
+    for(uint32_t i = 0; i < uSegments; i++)
+    {
+        auIndices[i * 6] = i;
+        auIndices[i * 6 + 1] = i + uSegments;
+        auIndices[i * 6 + 2] = i + uSegments + 1;
+
+        auIndices[i * 6 + 3] = i;
+        auIndices[i * 6 + 4] = i + uSegments + 1;
+        auIndices[i * 6 + 5] = i + 1;
+    }
+    auIndices[(uSegments - 1) * 6 + 2] = uSegments;
+    auIndices[(uSegments - 1) * 6 + 4] = uSegments;
+    auIndices[(uSegments - 1) * 6 + 5] = 0;
+
+    pl__add_3d_triangles(ptDrawlist, uSegments * 2, atPoints, uSegments * 2, auIndices, tColor);
+
+    pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+}
+
+static void
+pl__add_3d_band_yz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fInnerRadius, float fOuterRadius, plVec4 tColor, uint32_t uSegments)
+{
+    if(uSegments == 0){ uSegments = 12; }
+    const float fIncrement = PL_2PI / uSegments;
+    float fTheta = 0.0f;
+    plVec3* atPoints = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(plVec3) * uSegments * 2);
+    uint32_t* auIndices = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(uint32_t) * uSegments * 2 * 3);
+    for(uint32_t i = 0; i < uSegments; i++)
+    {
+        atPoints[i] = (plVec3){tCenter.x, tCenter.y + fOuterRadius * sinf(fTheta + PL_PI_2), tCenter.z + fOuterRadius * sinf(fTheta)};
+        atPoints[i + uSegments] = (plVec3){tCenter.x, tCenter.y + fInnerRadius * sinf(fTheta + PL_PI_2), tCenter.z + fInnerRadius * sinf(fTheta)};
+        fTheta += fIncrement;
+    }
+
+    for(uint32_t i = 0; i < uSegments; i++)
+    {
+        auIndices[i * 6] = i;
+        auIndices[i * 6 + 1] = i + uSegments;
+        auIndices[i * 6 + 2] = i + uSegments + 1;
+
+        auIndices[i * 6 + 3] = i;
+        auIndices[i * 6 + 4] = i + uSegments + 1;
+        auIndices[i * 6 + 5] = i + 1;
+    }
+    auIndices[(uSegments - 1) * 6 + 2] = uSegments;
+    auIndices[(uSegments - 1) * 6 + 4] = uSegments;
+    auIndices[(uSegments - 1) * 6 + 5] = 0;
+
+    pl__add_3d_triangles(ptDrawlist, uSegments * 2, atPoints, uSegments * 2, auIndices, tColor);
+
+    pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+}
+
+static void
+pl__add_3d_cylinder_filled_ex(plDrawList3D* ptDrawlist, const plDrawCylinderDesc* ptDesc)
+{
+
+    plVec3 tDirection = pl_sub_vec3(ptDesc->tTipPos, ptDesc->tBasePos);
+    const float fDistance = pl_length_vec3(tDirection);
+    tDirection = pl_norm_vec3(tDirection);
+    const float fAngleBetweenVecs = acosf(pl_dot_vec3(tDirection, (plVec3){0.0f, 1.0f, 0.0f}));
+    const plVec3 tRotAxis = pl_cross_vec3((plVec3){0.0f, 1.0f, 0.0f}, tDirection);
+    const plMat4 tRot = pl_mat4_rotate_vec3(fAngleBetweenVecs, tRotAxis);
+    
+    const uint32_t uPointCount = ptDesc->uSegments * 2 + 2;
+    const uint32_t uIndexCount = (ptDesc->uSegments * 2 * 3) + (2 * 3 * ptDesc->uSegments);
+    plVec3* atPoints = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(plVec3) * uPointCount);
+    uint32_t* auIndices = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(uint32_t) * uIndexCount);
+
+    const float fIncrement = PL_2PI / ptDesc->uSegments;
+    float fTheta = 0.0f;
+    for(uint32_t i = 0; i < ptDesc->uSegments; i++)
+    {
+        atPoints[i] = (plVec3){ptDesc->fRadius * sinf(fTheta + PL_PI_2), 0.0f, ptDesc->fRadius * sinf(fTheta)};
+        atPoints[i + ptDesc->uSegments] = (plVec3){atPoints[i].x, atPoints[i].y + fDistance, atPoints[i].z};
+        atPoints[i] = pl_mul_mat4_vec4(&tRot, (plVec4){.xyz = atPoints[i]}).xyz;
+        atPoints[i + ptDesc->uSegments] = pl_mul_mat4_vec4(&tRot, (plVec4){.xyz = atPoints[i + ptDesc->uSegments]}).xyz;
+        atPoints[i] = pl_add_vec3(atPoints[i], ptDesc->tBasePos);
+        atPoints[i + ptDesc->uSegments] = pl_add_vec3(atPoints[i + ptDesc->uSegments], ptDesc->tBasePos);
+        fTheta += fIncrement;
+    }
+    atPoints[uPointCount - 2] = ptDesc->tBasePos;
+    atPoints[uPointCount - 1] = ptDesc->tTipPos;
+
+    uint32_t uCurrentIndex = 0;
+    for(uint32_t i = 0; i < ptDesc->uSegments; i++)
+    {
+        auIndices[i * 6] = i;
+        auIndices[i * 6 + 1] = i + ptDesc->uSegments;
+        auIndices[i * 6 + 2] = i + ptDesc->uSegments + 1;
+
+        auIndices[i * 6 + 3] = i;
+        auIndices[i * 6 + 4] = i + ptDesc->uSegments + 1;
+        auIndices[i * 6 + 5] = i + 1;
+        uCurrentIndex += 6;
+    }
+    auIndices[(ptDesc->uSegments - 1) * 6 + 2] = ptDesc->uSegments;
+    auIndices[(ptDesc->uSegments - 1) * 6 + 4] = ptDesc->uSegments;
+    auIndices[(ptDesc->uSegments - 1) * 6 + 5] = 0;
+
+    for(uint32_t i = 0; i < ptDesc->uSegments; i++)
+    {
+        auIndices[uCurrentIndex + i * 6] = uPointCount - 2;
+        auIndices[uCurrentIndex + i * 6 + 1] = i + 1;
+        auIndices[uCurrentIndex + i * 6 + 2] = i;
+
+        auIndices[uCurrentIndex + i * 6 + 3] = uPointCount - 1;
+        auIndices[uCurrentIndex + i * 6 + 4] = i + 1 + ptDesc->uSegments;
+        auIndices[uCurrentIndex + i * 6 + 5] = i + ptDesc->uSegments;
+    }
+    auIndices[uCurrentIndex + (ptDesc->uSegments - 1) * 6 + 1] = 0;
+    auIndices[uCurrentIndex + (ptDesc->uSegments - 1) * 6 + 4] = ptDesc->uSegments;
+
+    pl__add_3d_triangles(ptDrawlist, uPointCount, atPoints, uIndexCount / 3, auIndices, ptDesc->tColor);
+
+    pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+}
+
+static void
+pl__add_3d_cone_filled_ex(plDrawList3D* ptDrawlist, const plDrawConeDesc* ptDesc)
+{
+
+    plVec3 tDirection = pl_sub_vec3(ptDesc->tTipPos, ptDesc->tBasePos);
+    const float fDistance = pl_length_vec3(tDirection);
+    tDirection = pl_norm_vec3(tDirection);
+    const float fAngleBetweenVecs = acosf(pl_dot_vec3(tDirection, (plVec3){0.0f, 1.0f, 0.0f}));
+    const plVec3 tRotAxis = pl_cross_vec3((plVec3){0.0f, 1.0f, 0.0f}, tDirection);
+    const plMat4 tRot = pl_mat4_rotate_vec3(fAngleBetweenVecs, tRotAxis);
+    
+    const uint32_t uPointCount = ptDesc->uSegments + 2;
+    const uint32_t uIndexCount = ptDesc->uSegments * 2 * 3;
+    plVec3* atPoints = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(plVec3) * uPointCount);
+    uint32_t* auIndices = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(uint32_t) * uIndexCount);
+
+    const float fIncrement = PL_2PI / ptDesc->uSegments;
+    float fTheta = 0.0f;
+    for(uint32_t i = 0; i < ptDesc->uSegments; i++)
+    {
+        atPoints[i] = (plVec3){ptDesc->fRadius * sinf(fTheta + PL_PI_2), 0.0f, ptDesc->fRadius * sinf(fTheta)};
+        atPoints[i] = pl_mul_mat4_vec4(&tRot, (plVec4){.xyz = atPoints[i]}).xyz;
+        atPoints[i] = pl_add_vec3(atPoints[i], ptDesc->tBasePos);
+        fTheta += fIncrement;
+    }
+    atPoints[uPointCount - 2] = ptDesc->tBasePos;
+    atPoints[uPointCount - 1] = ptDesc->tTipPos;
+
+    uint32_t uCurrentIndex = 0;
+    for(uint32_t i = 0; i < ptDesc->uSegments; i++)
+    {
+        auIndices[i * 6]     = i;
+        auIndices[i * 6 + 1] = i + 1;
+        auIndices[i * 6 + 2] = uPointCount - 2;
+
+        auIndices[i * 6 + 3] = i;
+        auIndices[i * 6 + 4] = uPointCount - 1;
+        auIndices[i * 6 + 5] = i + 1;
+
+        uCurrentIndex+=6;
+    }
+    uCurrentIndex-=6;
+    auIndices[uCurrentIndex + 1] = 0;
+    auIndices[uCurrentIndex + 5] = 0;
+
+    pl__add_3d_triangles(ptDrawlist, uPointCount, atPoints, uIndexCount / 3, auIndices, ptDesc->tColor);
 
     pl_temp_allocator_reset(&gptCtx->tTempAllocator);
 }
@@ -3043,8 +3368,8 @@ pl__fill_capsule_desc_default(plDrawCapsuleDesc* ptDesc)
         return;
     
     ptDesc->fThickness = 0.02f;
-    ptDesc->fBaseRadius = 0.1f;
-    ptDesc->fTipRadius = -1.0f;
+    ptDesc->fBaseRadius = 0.5f;
+    ptDesc->fTipRadius = 0.5f;
     ptDesc->fEndOffsetRatio = 0.0f;
     ptDesc->uLatBands = 16;
     ptDesc->uLongBands = 16;
@@ -3060,7 +3385,7 @@ pl__fill_sphere_desc_default(plDrawSphereDesc* ptDesc)
         return;
     
     ptDesc->fThickness = 0.02f;
-    ptDesc->fRadius = 1.0f;
+    ptDesc->fRadius = 0.5f;
     ptDesc->uLatBands = 16;
     ptDesc->uLongBands = 16;
     ptDesc->tColor = (plVec4){1.0f, 1.0f, 1.0f, 1.0f};
@@ -3073,7 +3398,19 @@ pl__fill_cylinder_desc_default(plDrawCylinderDesc* ptDesc)
         return;
     
     ptDesc->fThickness = 0.02f;
-    ptDesc->fRadius = 1.0f;
+    ptDesc->fRadius = 0.5f;
+    ptDesc->uSegments = 12;
+    ptDesc->tColor = (plVec4){1.0f, 1.0f, 1.0f, 1.0f};
+}
+
+static void
+pl__fill_cone_desc_default(plDrawConeDesc* ptDesc)
+{
+    if(ptDesc == NULL)
+        return;
+    
+    ptDesc->fThickness = 0.02f;
+    ptDesc->fRadius = 0.5f;
     ptDesc->uSegments = 12;
     ptDesc->tColor = (plVec4){1.0f, 1.0f, 1.0f, 1.0f};
 }
@@ -3098,7 +3435,7 @@ pl__add_3d_sphere_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fRadius
     tDesc.tCenter = tCenter;
     tDesc.fRadius = fRadius;
     tDesc.tColor = tColor;
-    pl__add_3d_sphere_ex_filled(ptDrawlist, &tDesc);
+    pl__add_3d_sphere_filled_ex(ptDrawlist, &tDesc);
 }
 
 static void
@@ -3119,53 +3456,100 @@ static void
 pl__add_3d_cylinder_ex(plDrawList3D* ptDrawlist, const plDrawCylinderDesc* ptDesc)
 {
 
-    plDrawCylinderDesc tDesc = *ptDesc;
-
-    plVec3 tDirection = pl_sub_vec3(tDesc.tTipPos, tDesc.tBasePos);
+    plVec3 tDirection = pl_sub_vec3(ptDesc->tTipPos, ptDesc->tBasePos);
     const float fDistance = pl_length_vec3(tDirection);
     tDirection = pl_norm_vec3(tDirection);
     const float fAngleBetweenVecs = acosf(pl_dot_vec3(tDirection, (plVec3){0.0f, 1.0f, 0.0f}));
     const plVec3 tRotAxis = pl_cross_vec3((plVec3){0.0f, 1.0f, 0.0f}, tDirection);
     const plMat4 tRot = pl_mat4_rotate_vec3(fAngleBetweenVecs, tRotAxis);
     
-    const uint32_t uPointCount = tDesc.uSegments * 2;
-    const uint32_t uIndexCount = tDesc.uSegments * 8 - 2;
+    const uint32_t uPointCount = ptDesc->uSegments * 2;
+    const uint32_t uIndexCount = ptDesc->uSegments * 8 - 2;
     plVec3* atPoints = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(plVec3) * uPointCount);
     uint32_t* auIndices = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(uint32_t) * uIndexCount);
 
-    const float fIncrement = PL_2PI / tDesc.uSegments;
+    const float fIncrement = PL_2PI / ptDesc->uSegments;
     float fTheta = 0.0f;
-    for(uint32_t i = 0; i < tDesc.uSegments; i++)
+    for(uint32_t i = 0; i < ptDesc->uSegments; i++)
     {
-        atPoints[i] = (plVec3){tDesc.fRadius * sinf(fTheta + PL_PI_2), 0.0f, tDesc.fRadius * sinf(fTheta)};
-        atPoints[i + tDesc.uSegments] = (plVec3){atPoints[i].x, atPoints[i].y + fDistance, atPoints[i].z};
+        atPoints[i] = (plVec3){ptDesc->fRadius * sinf(fTheta + PL_PI_2), 0.0f, ptDesc->fRadius * sinf(fTheta)};
+        atPoints[i + ptDesc->uSegments] = (plVec3){atPoints[i].x, atPoints[i].y + fDistance, atPoints[i].z};
         atPoints[i] = pl_mul_mat4_vec4(&tRot, (plVec4){.xyz = atPoints[i]}).xyz;
-        atPoints[i + tDesc.uSegments] = pl_mul_mat4_vec4(&tRot, (plVec4){.xyz = atPoints[i + tDesc.uSegments]}).xyz;
-        atPoints[i] = pl_add_vec3(atPoints[i], tDesc.tBasePos);
-        atPoints[i + tDesc.uSegments] = pl_add_vec3(atPoints[i + tDesc.uSegments], tDesc.tBasePos);
+        atPoints[i + ptDesc->uSegments] = pl_mul_mat4_vec4(&tRot, (plVec4){.xyz = atPoints[i + ptDesc->uSegments]}).xyz;
+        atPoints[i] = pl_add_vec3(atPoints[i], ptDesc->tBasePos);
+        atPoints[i + ptDesc->uSegments] = pl_add_vec3(atPoints[i + ptDesc->uSegments], ptDesc->tBasePos);
         fTheta += fIncrement;
     }
 
     uint32_t uCurrentIndex = 0;
-    for(uint32_t i = 0; i < tDesc.uSegments; i++)
+    for(uint32_t i = 0; i < ptDesc->uSegments; i++)
     {
         auIndices[uCurrentIndex] = i;
         auIndices[uCurrentIndex + 1] = i + 1;
-        auIndices[uCurrentIndex + 2] = i + tDesc.uSegments;
-        auIndices[uCurrentIndex + 3] = i + tDesc.uSegments + 1;
+        auIndices[uCurrentIndex + 2] = i + ptDesc->uSegments;
+        auIndices[uCurrentIndex + 3] = i + ptDesc->uSegments + 1;
 
         auIndices[uCurrentIndex + 4] = i;
-        auIndices[uCurrentIndex + 5] = i + tDesc.uSegments;
+        auIndices[uCurrentIndex + 5] = i + ptDesc->uSegments;
 
         auIndices[uCurrentIndex + 6] = i + 1;
-        auIndices[uCurrentIndex + 7] = i + 1 + tDesc.uSegments;
+        auIndices[uCurrentIndex + 7] = i + 1 + ptDesc->uSegments;
         uCurrentIndex += 8;
     }
     uCurrentIndex -= 8;
     auIndices[uCurrentIndex + 1] = 0;
-    auIndices[uCurrentIndex + 3] = tDesc.uSegments;
+    auIndices[uCurrentIndex + 3] = ptDesc->uSegments;
 
-    pl__add_3d_indexed_lines(ptDrawlist, uIndexCount, atPoints, auIndices, tDesc.tColor, tDesc.fThickness);
+    pl__add_3d_indexed_lines(ptDrawlist, uIndexCount, atPoints, auIndices, ptDesc->tColor, ptDesc->fThickness);
+
+    pl_temp_allocator_reset(&gptCtx->tTempAllocator);
+}
+
+static void
+pl__add_3d_cone_ex(plDrawList3D* ptDrawlist, const plDrawConeDesc* ptDesc)
+{
+
+    plVec3 tDirection = pl_sub_vec3(ptDesc->tTipPos, ptDesc->tBasePos);
+    const float fDistance = pl_length_vec3(tDirection);
+    tDirection = pl_norm_vec3(tDirection);
+    const float fAngleBetweenVecs = acosf(pl_dot_vec3(tDirection, (plVec3){0.0f, 1.0f, 0.0f}));
+    const plVec3 tRotAxis = pl_cross_vec3((plVec3){0.0f, 1.0f, 0.0f}, tDirection);
+    const plMat4 tRot = pl_mat4_rotate_vec3(fAngleBetweenVecs, tRotAxis);
+    
+    const uint32_t uPointCount = ptDesc->uSegments + 1;
+    const uint32_t uIndexCount = ptDesc->uSegments * 2 * 2;
+    plVec3* atPoints = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(plVec3) * uPointCount);
+    uint32_t* auIndices = pl_temp_allocator_alloc(&gptCtx->tTempAllocator, sizeof(uint32_t) * uIndexCount);
+
+    const float fIncrement = PL_2PI / ptDesc->uSegments;
+    float fTheta = 0.0f;
+    for(uint32_t i = 0; i < ptDesc->uSegments; i++)
+    {
+        atPoints[i] = (plVec3){ptDesc->fRadius * sinf(fTheta + PL_PI_2), 0.0f, ptDesc->fRadius * sinf(fTheta)};
+        atPoints[i] = pl_mul_mat4_vec4(&tRot, (plVec4){.xyz = atPoints[i]}).xyz;
+        atPoints[i] = pl_add_vec3(atPoints[i], ptDesc->tBasePos);
+        fTheta += fIncrement;
+    }
+    atPoints[uPointCount - 1] = ptDesc->tTipPos;
+
+    uint32_t uCurrentIndex = 0;
+    for(uint32_t i = 0; i < ptDesc->uSegments; i++)
+    {
+        auIndices[i * 2]     = i;
+        auIndices[i * 2 + 1] = i + 1;
+        uCurrentIndex+=2;
+    }
+    uCurrentIndex-=2;
+    auIndices[uCurrentIndex + 1] = 0;
+    uCurrentIndex+=2;
+
+    for(uint32_t i = 0; i < ptDesc->uSegments; i++)
+    {
+        auIndices[uCurrentIndex + i * 2]     = i;
+        auIndices[uCurrentIndex + i * 2 + 1] = uPointCount - 1;
+    }
+
+    pl__add_3d_indexed_lines(ptDrawlist, uIndexCount, atPoints, auIndices, ptDesc->tColor, ptDesc->fThickness);
 
     pl_temp_allocator_reset(&gptCtx->tTempAllocator);
 }
@@ -3393,7 +3777,7 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
             .tPixelShader = gptShader->compile_glsl("../shaders/draw_3d.frag", "main"),
             .tVertexShader = gptShader->compile_glsl("../shaders/draw_3d.vert", "main"),
             .tGraphicsState = {
-                .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE,
+                .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE ? 1 : 0,
                 .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? PL_COMPARE_MODE_LESS : PL_COMPARE_MODE_ALWAYS,
                 .ulCullMode           = ulCullMode,
                 .ulWireframe          = 0,
@@ -3911,8 +4295,17 @@ pl_load_draw_3d_api(void)
         .new_frame                  = pl_new_draw_3d_frame,
         .add_3d_triangle_filled     = pl__add_3d_triangle_filled,
         .add_3d_circle_xz_filled    = pl__add_3d_circle_xz_filled,
-        .add_3d_sphere_ex_filled    = pl__add_3d_sphere_ex_filled,
+        .add_3d_sphere_filled_ex    = pl__add_3d_sphere_filled_ex,
+        .add_3d_band_xz_filled      = pl__add_3d_band_xz_filled,
+        .add_3d_band_xy_filled      = pl__add_3d_band_xy_filled,
+        .add_3d_band_yz_filled      = pl__add_3d_band_yz_filled,
         .add_3d_sphere_filled       = pl__add_3d_sphere_filled,
+        .add_3d_cylinder_filled_ex  = pl__add_3d_cylinder_filled_ex,
+        .add_3d_cone_filled_ex      = pl__add_3d_cone_filled_ex,
+        .add_3d_centered_box_filled = pl__add_3d_centered_box_filled,
+        .add_3d_plane_xz_filled     = pl__add_3d_plane_xz_filled,
+        .add_3d_plane_xy_filled     = pl__add_3d_plane_xy_filled,
+        .add_3d_plane_yz_filled     = pl__add_3d_plane_yz_filled,
         .add_3d_line                = pl__add_3d_line,
         .add_3d_cross               = pl__add_3d_cross,
         .add_3d_transform           = pl__add_3d_transform,
@@ -3922,6 +4315,7 @@ pl_load_draw_3d_api(void)
         .add_3d_capsule             = pl__add_3d_capsule,
         .add_3d_capsule_ex          = pl__add_3d_capsule_ex,
         .add_3d_cylinder_ex         = pl__add_3d_cylinder_ex,
+        .add_3d_cone_ex             = pl__add_3d_cone_ex,
         .add_3d_centered_box        = pl__add_3d_centered_box,
         .add_3d_bezier_quad         = pl__add_3d_bezier_quad,
         .add_3d_bezier_cubic        = pl__add_3d_bezier_cubic,
@@ -3931,6 +4325,7 @@ pl_load_draw_3d_api(void)
         .fill_capsule_desc_default  = pl__fill_capsule_desc_default,
         .fill_sphere_desc_default   = pl__fill_sphere_desc_default,
         .fill_cylinder_desc_default = pl__fill_cylinder_desc_default,
+        .fill_cone_desc_default     = pl__fill_cone_desc_default,
         .request_2d_drawlist        = pl_request_2d_drawlist,
         .return_2d_drawlist         = pl_return_2d_drawlist,
         .request_2d_layer           = pl_request_2d_layer,

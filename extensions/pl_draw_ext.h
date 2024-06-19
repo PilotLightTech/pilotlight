@@ -61,6 +61,7 @@ typedef struct _plDrawLayer2D plDrawLayer2D;
 typedef struct _plDrawCapsuleDesc  plDrawCapsuleDesc;
 typedef struct _plDrawSphereDesc   plDrawSphereDesc;
 typedef struct _plDrawCylinderDesc plDrawCylinderDesc;
+typedef struct _plDrawConeDesc     plDrawConeDesc;
 
 // font types
 typedef struct _plFontChar       plFontChar;       // internal for now (opaque structure)
@@ -153,10 +154,19 @@ typedef struct _plDrawI
     void          (*submit_3d_drawlist)(plDrawList3D*, plRenderEncoder, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t uMSAASampleCount);
 
     // solid
-    void (*add_3d_triangle_filled) (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
-    void (*add_3d_sphere_filled)   (plDrawList3D*, plVec3 tCenter, float fRadius, plVec4 tColor);
-    void (*add_3d_sphere_ex_filled)(plDrawList3D*, const plDrawSphereDesc*);
-    void (*add_3d_circle_xz_filled)(plDrawList3D*, plVec3 tCenter, float fRadius, plVec4 tColor, uint32_t uSegments);
+    void (*add_3d_triangle_filled)    (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
+    void (*add_3d_sphere_filled)      (plDrawList3D*, plVec3 tCenter, float fRadius, plVec4 tColor);
+    void (*add_3d_sphere_filled_ex)   (plDrawList3D*, const plDrawSphereDesc*);
+    void (*add_3d_circle_xz_filled)   (plDrawList3D*, plVec3 tCenter, float fRadius, plVec4 tColor, uint32_t uSegments);
+    void (*add_3d_band_xz_filled)     (plDrawList3D*, plVec3 tCenter, float fInnerRadius, float fOuterRadius, plVec4 tColor, uint32_t uSegments);
+    void (*add_3d_band_xy_filled)     (plDrawList3D*, plVec3 tCenter, float fInnerRadius, float fOuterRadius, plVec4 tColor, uint32_t uSegments);
+    void (*add_3d_band_yz_filled)     (plDrawList3D*, plVec3 tCenter, float fInnerRadius, float fOuterRadius, plVec4 tColor, uint32_t uSegments);
+    void (*add_3d_cylinder_filled_ex) (plDrawList3D*, const plDrawCylinderDesc*);
+    void (*add_3d_cone_filled_ex)     (plDrawList3D*, const plDrawConeDesc*);
+    void (*add_3d_centered_box_filled)(plDrawList3D*, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor);
+    void (*add_3d_plane_xz_filled)    (plDrawList3D*, plVec3 tCenter, float fWidth, float fHeight, plVec4 tColor);
+    void (*add_3d_plane_xy_filled)    (plDrawList3D*, plVec3 tCenter, float fWidth, float fHeight, plVec4 tColor);
+    void (*add_3d_plane_yz_filled)    (plDrawList3D*, plVec3 tCenter, float fWidth, float fHeight, plVec4 tColor);
 
     // wireframe
     void (*add_3d_line)        (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness);
@@ -173,6 +183,7 @@ typedef struct _plDrawI
     void (*add_3d_sphere_ex)   (plDrawList3D*, const plDrawSphereDesc*);
     void (*add_3d_capsule_ex)  (plDrawList3D*, const plDrawCapsuleDesc*);
     void (*add_3d_cylinder_ex) (plDrawList3D*, const plDrawCylinderDesc*);
+    void (*add_3d_cone_ex)     (plDrawList3D*, const plDrawConeDesc*);
 
     // text
     void (*add_3d_text)(plDrawList3D*, plFontHandle, float fSize, plVec3 tP, plVec4 tColor, const char* pcText, float fWrap);
@@ -181,6 +192,7 @@ typedef struct _plDrawI
     void (*fill_capsule_desc_default) (plDrawCapsuleDesc*);
     void (*fill_sphere_desc_default)  (plDrawSphereDesc*);
     void (*fill_cylinder_desc_default)(plDrawCylinderDesc*);
+    void (*fill_cone_desc_default)    (plDrawConeDesc*);
 
 } plDrawI;
 
@@ -234,6 +246,16 @@ typedef struct _plDrawCylinderDesc
     float    fThickness;
     uint32_t uSegments;
 } plDrawCylinderDesc;
+
+typedef struct _plDrawConeDesc
+{
+    plVec3   tBasePos;
+    plVec3   tTipPos;
+    float    fRadius;
+    plVec4   tColor;
+    float    fThickness;
+    uint32_t uSegments;
+} plDrawConeDesc;
 
 typedef union _plFontHandle
 { 
