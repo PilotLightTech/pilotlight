@@ -78,6 +78,7 @@ typedef struct _plAnimationDataComponent     plAnimationDataComponent;
 typedef struct _plInverseKinematicsComponent plInverseKinematicsComponent;
 typedef struct _plLightComponent             plLightComponent;
 typedef struct _plScriptComponent            plScriptComponent;
+typedef struct _plHumanoidComponent          plHumanoidComponent;
 
 // enums
 typedef int plShaderType;
@@ -93,6 +94,7 @@ typedef int plAnimationFlags;
 typedef int plMeshFormatFlags;
 typedef int plLightFlags;
 typedef int plLightType;
+typedef int plHumanoidBone;
 
 typedef union _plEntity
 {
@@ -192,6 +194,7 @@ enum _plComponentType
     PL_COMPONENT_TYPE_INVERSE_KINEMATICS,
     PL_COMPONENT_TYPE_LIGHT,
     PL_COMPONENT_TYPE_SCRIPT,
+    PL_COMPONENT_TYPE_HUMANOID,
     
     PL_COMPONENT_TYPE_COUNT
 };
@@ -309,6 +312,76 @@ enum _plLightType
     PL_LIGHT_TYPE_POINT
 };
 
+enum _plHumanoidBone
+{
+    // torso
+    PL_HUMANOID_BONE_HIPS,  // required
+    PL_HUMANOID_BONE_SPINE, // required
+    PL_HUMANOID_BONE_CHEST,
+    PL_HUMANOID_BONE_UPPER_CHEST,
+    PL_HUMANOID_BONE_NECK,
+
+    // head
+    PL_HUMANOID_BONE_HEAD, // required
+    PL_HUMANOID_BONE_LEFT_EYE,
+    PL_HUMANOID_BONE_RIGHT_EYE,
+    PL_HUMANOID_BONE_JAW,
+
+    // leg
+    PL_HUMANOID_BONE_LEFT_UPPER_LEG, // required
+    PL_HUMANOID_BONE_LEFT_LOWER_LEG, // required
+    PL_HUMANOID_BONE_LEFT_FOOT,      // required
+    PL_HUMANOID_BONE_LEFT_TOES,
+    PL_HUMANOID_BONE_RIGHT_UPPER_LEG, // required
+    PL_HUMANOID_BONE_RIGHT_LOWER_LEG, // required
+    PL_HUMANOID_BONE_RIGHT_FOOT,	  // required
+    PL_HUMANOID_BONE_RIGHT_TOES,
+
+    // arm
+    PL_HUMANOID_BONE_LEFT_SHOULDER,
+    PL_HUMANOID_BONE_LEFT_UPPER_ARM, // required
+    PL_HUMANOID_BONE_LEFT_LOWER_ARM, // required
+    PL_HUMANOID_BONE_LEFT_HAND,      // required
+    PL_HUMANOID_BONE_RIGHT_SHOULDER,
+    PL_HUMANOID_BONE_RIGHT_UPPER_ARM, // required
+    PL_HUMANOID_BONE_RIGHT_LOWER_ARM, // required
+    PL_HUMANOID_BONE_RIGHT_HAND,      // required
+
+    // finger
+    PL_HUMANOID_BONE_LEFT_THUMB_METACARPAL,
+    PL_HUMANOID_BONE_LEFT_THUMB_PROXIMAL,
+    PL_HUMANOID_BONE_LEFT_THUMB_DISTAL,
+    PL_HUMANOID_BONE_LEFT_INDEX_PROXIMAL,
+    PL_HUMANOID_BONE_LEFT_INDEX_INTERMEDIATE,
+    PL_HUMANOID_BONE_LEFT_INDEX_DISTAL,
+    PL_HUMANOID_BONE_LEFT_MIDDLE_PROXIMAL,
+    PL_HUMANOID_BONE_LEFT_MIDDLE_INTERMEDIATE,
+    PL_HUMANOID_BONE_LEFT_MIDDLE_DISTAL,
+    PL_HUMANOID_BONE_LEFT_RING_PROXIMAL,
+    PL_HUMANOID_BONE_LEFT_RING_INTERMEDIATE,
+    PL_HUMANOID_BONE_LEFT_RING_DISTAL,
+    PL_HUMANOID_BONE_LEFT_LITTLE_PROXIMAL,
+    PL_HUMANOID_BONE_LEFT_LITTLE_INTERMEDIATE,
+    PL_HUMANOID_BONE_LEFT_LITTLE_DISTAL,
+    PL_HUMANOID_BONE_RIGHT_THUMB_METACARPAL,
+    PL_HUMANOID_BONE_RIGHT_THUMB_PROXIMAL,
+    PL_HUMANOID_BONE_RIGHT_THUMB_DISTAL,
+    PL_HUMANOID_BONE_RIGHT_INDEX_INTERMEDIATE,
+    PL_HUMANOID_BONE_RIGHT_INDEX_DISTAL,
+    PL_HUMANOID_BONE_RIGHT_INDEX_PROXIMAL,
+    PL_HUMANOID_BONE_RIGHT_MIDDLE_PROXIMAL,
+    PL_HUMANOID_BONE_RIGHT_MIDDLE_INTERMEDIATE,
+    PL_HUMANOID_BONE_RIGHT_MIDDLE_DISTAL,
+    PL_HUMANOID_BONE_RIGHT_RING_PROXIMAL,
+    PL_HUMANOID_BONE_RIGHT_RING_INTERMEDIATE,
+    PL_HUMANOID_BONE_RIGHT_RING_DISTAL,
+    PL_HUMANOID_BONE_RIGHT_LITTLE_PROXIMAL,
+    PL_HUMANOID_BONE_RIGHT_LITTLE_INTERMEDIATE,
+    PL_HUMANOID_BONE_RIGHT_LITTLE_DISTAL,
+
+    PL_HUMANOID_BONE_COUNT
+};
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -378,6 +451,7 @@ typedef struct _plComponentLibrary
     plComponentManager tInverseKinematicsComponentManager;
     plComponentManager tLightComponentManager;
     plComponentManager tScriptComponentManager;
+    plComponentManager tHumanoidComponentManager;
 
     plComponentManager* _ptManagers[PL_COMPONENT_TYPE_COUNT]; // just for internal convenience
     void*               pInternal;
@@ -386,6 +460,11 @@ typedef struct _plComponentLibrary
 //-----------------------------------------------------------------------------
 // [SECTION] components
 //-----------------------------------------------------------------------------
+
+typedef struct _plHumanoidComponent
+{
+    plEntity atBones[PL_HUMANOID_BONE_COUNT];
+} plHumanoidComponent;
 
 typedef struct _plLightComponent
 {

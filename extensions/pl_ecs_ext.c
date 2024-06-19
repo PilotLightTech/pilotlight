@@ -180,6 +180,9 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->tScriptComponentManager.tComponentType = PL_COMPONENT_TYPE_SCRIPT;
     ptLibrary->tScriptComponentManager.szStride = sizeof(plScriptComponent);
 
+    ptLibrary->tHumanoidComponentManager.tComponentType = PL_COMPONENT_TYPE_HUMANOID;
+    ptLibrary->tHumanoidComponentManager.szStride = sizeof(plHumanoidComponent);
+
     ptLibrary->_ptManagers[0]  = &ptLibrary->tTagComponentManager;
     ptLibrary->_ptManagers[1]  = &ptLibrary->tTransformComponentManager;
     ptLibrary->_ptManagers[2]  = &ptLibrary->tMeshComponentManager;
@@ -193,6 +196,7 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->_ptManagers[10] = &ptLibrary->tInverseKinematicsComponentManager;
     ptLibrary->_ptManagers[11] = &ptLibrary->tLightComponentManager;
     ptLibrary->_ptManagers[12] = &ptLibrary->tScriptComponentManager;
+    ptLibrary->_ptManagers[13] = &ptLibrary->tHumanoidComponentManager;
 
     for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
         ptLibrary->_ptManagers[i]->ptParentLibrary = ptLibrary;
@@ -410,6 +414,13 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
                 case PL_COMPONENT_TYPE_SCRIPT:
                 {
                     plScriptComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_HUMANOID:
+                {
+                    plHumanoidComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
@@ -663,6 +674,22 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
             .tFlags = PL_SCRIPT_FLAG_NONE,
             .acFile = {0}
         };
+        return &sbComponents[uComponentIndex];
+    }
+
+    case PL_COMPONENT_TYPE_HUMANOID:
+    {
+        plHumanoidComponent* sbComponents = ptManager->pComponents;
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
+        ptManager->pComponents = sbComponents;
+        sbComponents[uComponentIndex] = (plHumanoidComponent){
+            .atBones = {0}
+        };
+        for(uint32_t i = 0; i < PL_HUMANOID_BONE_COUNT; i++)
+        {
+            sbComponents[uComponentIndex].atBones[i].ulData = UINT64_MAX;
+        }
         return &sbComponents[uComponentIndex];
     }
 

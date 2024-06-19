@@ -150,6 +150,115 @@ pl__load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, c
     return true;
 }
 
+static void
+pl__load_mixamorig(const cgltf_node* ptJointNode, plHumanoidComponent* ptHumanoid, plEntity tTransformEntity)
+{
+    if (pl_str_equal(ptJointNode->name, "mixamorig:Hips"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_HIPS] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:Spine"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_SPINE] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:Spine1"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_CHEST] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:Spine2"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_UPPER_CHEST] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:Neck"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_NECK] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:Head"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_HEAD] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftShoulder"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_SHOULDER] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightShoulder"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_SHOULDER] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftArm"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_UPPER_ARM] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightArm"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_UPPER_ARM] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftForeArm"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_LOWER_ARM] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightForeArm"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_LOWER_ARM] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHand"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_HAND] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHand"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_HAND] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHandThumb1"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_THUMB_METACARPAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHandThumb1"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_THUMB_METACARPAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHandThumb2"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_THUMB_PROXIMAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHandThumb2"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_THUMB_PROXIMAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHandThumb3"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_THUMB_DISTAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHandThumb3"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_THUMB_DISTAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHandIndex1"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_INDEX_PROXIMAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHandIndex1"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_INDEX_PROXIMAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHandIndex2"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_INDEX_INTERMEDIATE] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHandIndex2"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_INDEX_INTERMEDIATE] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHandIndex3"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_INDEX_DISTAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHandIndex3"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_INDEX_DISTAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHandMiddle1"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_MIDDLE_PROXIMAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHandMiddle1"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_MIDDLE_PROXIMAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHandMiddle2"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_MIDDLE_INTERMEDIATE] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHandMiddle2"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_MIDDLE_INTERMEDIATE] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHandMiddle3"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_MIDDLE_DISTAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHandMiddle3"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_MIDDLE_DISTAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHandRing1"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_RING_PROXIMAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHandRing1"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_RING_PROXIMAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHandRing2"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_RING_INTERMEDIATE] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHandRing2"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_RING_INTERMEDIATE] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHandRing3"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_RING_DISTAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHandRing3"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_RING_DISTAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHandPinky1"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_LITTLE_PROXIMAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHandPinky1"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_LITTLE_PROXIMAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHandPinky2"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_LITTLE_INTERMEDIATE] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHandPinky2"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_LITTLE_INTERMEDIATE] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftHandPinky3"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_LITTLE_DISTAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightHandPinky3"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_LITTLE_DISTAL] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftUpLeg"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_UPPER_LEG] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightUpLeg"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_UPPER_LEG] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftLeg"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_UPPER_LEG] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightLeg"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_LOWER_LEG] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftFoot"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_FOOT] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightFoot"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_FOOT] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftToeBase"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_TOES] = tTransformEntity;
+    else if (pl_str_equal(ptJointNode->name, "mixamorig:RightToeBase"))
+        ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_TOES] = tTransformEntity;
+}
+
 static bool
 pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* ptTransform, plModelLoaderData* ptDataOut)
 {
@@ -172,15 +281,31 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
 
         plSkinComponent* ptSkinComponent = NULL;
         plEntity tSkinEntity = gptECS->create_skin(ptLibrary, ptSkin->name, &ptSkinComponent);
-
         pl_sb_resize(ptSkinComponent->sbtJoints, (uint32_t)ptSkin->joints_count);
         pl_sb_resize(ptSkinComponent->sbtInverseBindMatrices, (uint32_t)ptSkin->joints_count);
-        for(size_t szJointIndex = 0; szJointIndex < ptSkin->joints_count; szJointIndex++)
+
+        if(pl_str_contains(ptSkin->joints[0]->name, "mixamorig"))
         {
-            const cgltf_node* ptJointNode = ptSkin->joints[szJointIndex];
-            plEntity tTransformEntity = gptECS->create_transform(ptLibrary, ptJointNode->name, NULL);
-            ptSkinComponent->sbtJoints[szJointIndex] = tTransformEntity;
-            pl_hm_insert(&tLoadingData.tJointHashMap, (uint64_t)ptJointNode, tTransformEntity.ulData);
+            plHumanoidComponent* ptHumanoid = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_HUMANOID, tSkinEntity);
+            for(size_t szJointIndex = 0; szJointIndex < ptSkin->joints_count; szJointIndex++)
+            {
+                const cgltf_node* ptJointNode = ptSkin->joints[szJointIndex];
+
+                plEntity tTransformEntity = gptECS->create_transform(ptLibrary, ptJointNode->name, NULL);
+                ptSkinComponent->sbtJoints[szJointIndex] = tTransformEntity;
+                pl_hm_insert(&tLoadingData.tJointHashMap, (uint64_t)ptJointNode, tTransformEntity.ulData);
+                pl__load_mixamorig(ptJointNode, ptHumanoid, tTransformEntity);
+            }
+        }
+        else
+        {
+            for(size_t szJointIndex = 0; szJointIndex < ptSkin->joints_count; szJointIndex++)
+            {
+                const cgltf_node* ptJointNode = ptSkin->joints[szJointIndex];
+                plEntity tTransformEntity = gptECS->create_transform(ptLibrary, ptJointNode->name, NULL);
+                ptSkinComponent->sbtJoints[szJointIndex] = tTransformEntity;
+                pl_hm_insert(&tLoadingData.tJointHashMap, (uint64_t)ptJointNode, tTransformEntity.ulData);
+            }
         }
         if(ptSkin->inverse_bind_matrices)
         {
