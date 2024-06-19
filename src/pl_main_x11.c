@@ -441,6 +441,8 @@ int main(int argc, char *argv[])
             pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
             pl_app_resize   = (void  (__attribute__(()) *)(void*))                     ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
             pl_app_update   = (void  (__attribute__(()) *)(void*))                     ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+
+            gptExtensionRegistry->reload();
             gUserData = pl_app_load(gptApiRegistry, gUserData);
         }
 
