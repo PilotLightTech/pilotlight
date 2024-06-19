@@ -57,6 +57,11 @@ typedef struct _plDrawList2D  plDrawList2D;
 typedef struct _plDrawList3D  plDrawList3D;
 typedef struct _plDrawLayer2D plDrawLayer2D;
 
+// primitive options
+typedef struct _plDrawCapsuleDesc  plDrawCapsuleDesc;
+typedef struct _plDrawSphereDesc   plDrawSphereDesc;
+typedef struct _plDrawCylinderDesc plDrawCylinderDesc;
+
 // font types
 typedef struct _plFontChar       plFontChar;       // internal for now (opaque structure)
 typedef struct _plFontGlyph      plFontGlyph;      // internal for now (opaque structure)
@@ -148,21 +153,35 @@ typedef struct _plDrawI
     void          (*submit_3d_drawlist)(plDrawList3D*, plRenderEncoder, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t uMSAASampleCount);
 
     // solid
-    void (*add_3d_triangle_filled)(plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
-    void (*add_3d_sphere_filled)  (plDrawList3D*, plVec3 tCenter, float fRadius, plVec4 tColor, uint32_t uLatBands, uint32_t uLongBands);
+    void (*add_3d_triangle_filled) (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
+    void (*add_3d_sphere_filled)   (plDrawList3D*, plVec3 tCenter, float fRadius, plVec4 tColor);
+    void (*add_3d_sphere_ex_filled)(plDrawList3D*, const plDrawSphereDesc*);
     void (*add_3d_circle_xz_filled)(plDrawList3D*, plVec3 tCenter, float fRadius, plVec4 tColor, uint32_t uSegments);
 
     // wireframe
-    void (*add_3d_line)           (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness);
-    void (*add_3d_point)          (plDrawList3D*, plVec3 tP0, plVec4 tColor, float fLength, float fThickness);
-    void (*add_3d_transform)      (plDrawList3D*, const plMat4* ptTransform, float fLength, float fThickness);
-    void (*add_3d_frustum)        (plDrawList3D*, const plMat4* ptTransform, float fYFov, float fAspect, float fNearZ, float fFarZ, plVec4 tColor, float fThickness);
-    void (*add_3d_centered_box)   (plDrawList3D*, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor, float fThickness);
-    void (*add_3d_aabb)           (plDrawList3D*, plVec3 tMin, plVec3 tMax, plVec4 tColor, float fThickness);
-    void (*add_3d_bezier_quad)    (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
-    void (*add_3d_bezier_cubic)   (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
-    void (*add_3d_sphere)         (plDrawList3D*, plVec3 tCenter, float fRadius, plVec4 tColor, uint32_t uLatBands, uint32_t uLongBands, float fThickness);
-    void (*add_3d_circle_xz)      (plDrawList3D*, plVec3 tCenter, float fRadius, plVec4 tColor, uint32_t uSegments, float fThickness);
+    void (*add_3d_line)        (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec4 tColor, float fThickness);
+    void (*add_3d_cross)       (plDrawList3D*, plVec3 tP0, plVec4 tColor, float fLength, float fThickness);
+    void (*add_3d_transform)   (plDrawList3D*, const plMat4* ptTransform, float fLength, float fThickness);
+    void (*add_3d_frustum)     (plDrawList3D*, const plMat4* ptTransform, float fYFov, float fAspect, float fNearZ, float fFarZ, plVec4 tColor, float fThickness);
+    void (*add_3d_centered_box)(plDrawList3D*, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plVec4 tColor, float fThickness);
+    void (*add_3d_aabb)        (plDrawList3D*, plVec3 tMin, plVec3 tMax, plVec4 tColor, float fThickness);
+    void (*add_3d_bezier_quad) (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
+    void (*add_3d_bezier_cubic)(plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
+    void (*add_3d_circle_xz)   (plDrawList3D*, plVec3 tCenter, float fRadius, plVec4 tColor, uint32_t uSegments, float fThickness);
+    void (*add_3d_capsule)     (plDrawList3D*, plVec3 tBasePos, plVec3 tTipPos, float fRadius, plVec4 tColor, float fThickness);
+    void (*add_3d_sphere)      (plDrawList3D*, plVec3 tCenter, float fRadius, plVec4 tColor, float fThickness);
+    void (*add_3d_sphere_ex)   (plDrawList3D*, const plDrawSphereDesc*);
+    void (*add_3d_capsule_ex)  (plDrawList3D*, const plDrawCapsuleDesc*);
+    void (*add_3d_cylinder_ex) (plDrawList3D*, const plDrawCylinderDesc*);
+
+    // text
+    void (*add_3d_text)(plDrawList3D*, plFontHandle, float fSize, plVec3 tP, plVec4 tColor, const char* pcText, float fWrap);
+
+    // primitive option helpers (fills defaults)
+    void (*fill_capsule_desc_default) (plDrawCapsuleDesc*);
+    void (*fill_sphere_desc_default)  (plDrawSphereDesc*);
+    void (*fill_cylinder_desc_default)(plDrawCylinderDesc*);
+
 } plDrawI;
 
 //-----------------------------------------------------------------------------
@@ -182,6 +201,39 @@ enum _plDrawFlags
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plDrawCapsuleDesc
+{
+    plVec3   tBasePos;
+    float    fBaseRadius;
+    plVec3   tTipPos;
+    float    fTipRadius;
+    plVec4   tColor;
+    float    fThickness;
+    uint32_t uLatBands;
+    uint32_t uLongBands;
+    float    fEndOffsetRatio;
+} plDrawCapsuleDesc;
+
+typedef struct _plDrawSphereDesc
+{
+    plVec3   tCenter;
+    float    fRadius;
+    plVec4   tColor;
+    uint32_t uLatBands;
+    uint32_t uLongBands;
+    float    fThickness;
+} plDrawSphereDesc;
+
+typedef struct _plDrawCylinderDesc
+{
+    plVec3   tBasePos;
+    plVec3   tTipPos;
+    float    fRadius;
+    plVec4   tColor;
+    float    fThickness;
+    uint32_t uSegments;
+} plDrawCylinderDesc;
 
 typedef union _plFontHandle
 { 

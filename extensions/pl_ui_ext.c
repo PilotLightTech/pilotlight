@@ -1,4 +1,3 @@
-#include "pilotlight.h"
 #include "pl_ui_ext.h"
 #include "pl_ui_internal.h"
 

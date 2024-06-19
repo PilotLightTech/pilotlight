@@ -4161,7 +4161,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             if(ptScene->sbtLightData[i].iType == PL_LIGHT_TYPE_POINT)
             {
                 const plVec4 tColor = {.rgb = ptScene->sbtLightData[i].tColor, .a = 1.0f};
-                gptDraw->add_3d_point(ptView->pt3DDrawList, ptScene->sbtLightData[i].tPosition, tColor, 0.25f, 0.02f);
+                gptDraw->add_3d_cross(ptView->pt3DDrawList, ptScene->sbtLightData[i].tPosition, tColor, 0.25f, 0.02f);
             }
         }
 

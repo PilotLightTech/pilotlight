@@ -302,6 +302,7 @@ pl__wait_for_counter(plAtomicCounter* ptCounter)
         const int64_t ilLoadedValue = gptAtomics->atomic_load(ptCounter);
         if(ilLoadedValue <= (int64_t)uValue)
             break;
+        gptThreads->wake_condition_variable(gptData.ptConditionVariable);
     }
 
     // try to unlock (spin lock)
