@@ -49,7 +49,7 @@ jobs:
         call build.bat
         cd ../examples
         call build.bat
-        if not exist ../out/app.dll exit 1
+        if not exist ../out/editor.dll exit 1
         if not exist ../out/example_0.dll exit 1
         if not exist ../out/example_1.dll exit 1
         if not exist ../out/example_2.dll exit 1
@@ -124,7 +124,7 @@ jobs:
         chmod +x pilot_light
         cd ..
         test -f ./out/pilot_light || exit 1
-        test -f ./out/app.dylib || exit 1
+        test -f ./out/editor.dylib || exit 1
         test -f ./out/example_0.dylib || exit 1
         test -f ./out/example_1.dylib || exit 1
         test -f ./out/example_2.dylib || exit 1
@@ -206,7 +206,7 @@ jobs:
         chmod +x pilot_light
         cd ..
         test -f ./out/pilot_light || exit 1
-        test -f ./out/app.so || exit 1
+        test -f ./out/editor.so || exit 1
         test -f ./out/example_0.so || exit 1
         test -f ./out/example_1.so || exit 1
         test -f ./out/example_2.so || exit 1

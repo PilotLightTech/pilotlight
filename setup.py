@@ -18,7 +18,7 @@ defines = [
 
 includes = [
     "${workspaceFolder}/**",
-    "${workspaceFolder}/apps",
+    "${workspaceFolder}/editor",
     "${workspaceFolder}/src",
     "${workspaceFolder}/libs",
     "${workspaceFolder}/extensions",
@@ -61,7 +61,7 @@ with open('.vscode/launch.json', 'w') as file:
         lines.append('      "program": "${workspaceFolder}/out/pilot_light",')
 
     lines.append('      "request": "launch",')
-    lines.append('      "args": ["-a", "app"],')
+    lines.append('      "args": ["-a", "editor"],')
     lines.append('      "stopAtEntry": false,')
     lines.append('      "cwd": "${workspaceFolder}/out/",')
     lines.append('      "environment": []')

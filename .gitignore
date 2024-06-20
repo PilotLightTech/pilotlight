@@ -22,8 +22,5 @@ examples/*.sh
 tests/*.bat
 tests/*.sh
 
-# apps
-apps/*_user.*
-
 # misc
 .DS_Store

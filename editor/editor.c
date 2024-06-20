@@ -1,5 +1,10 @@
 /*
-   app.c (just experimental & absolute mess)
+   editor.c
+
+   Notes:
+     * absolute mess
+     * mostly a sandbox for now & testing experimental stuff
+     * look at examples for more stable APIs
 */
 
 /*

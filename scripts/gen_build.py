@@ -72,7 +72,7 @@ with pl.project("pilotlight"):
     pl.push_profile(pl.Profile.PILOT_LIGHT_DEBUG_C)
 
     pl.push_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS")
-    pl.push_include_directories("../apps", "../src", "../libs", "../extensions", "../out", "../dependencies/stb", "../dependencies/cgltf")
+    pl.push_include_directories("../editor", "../src", "../libs", "../extensions", "../out", "../dependencies/stb", "../dependencies/cgltf")
     pl.push_link_directories("../out")
     pl.push_output_directory("../out")
         
@@ -143,7 +143,7 @@ with pl.project("pilotlight"):
     add_plugin_to_metal_app("pl_ui_ext", True, False, None)
 
     ###############################################################################
-    #                                    app                                      #
+    #                                 shader ext                                  #
     ###############################################################################
     pl.push_profile(pl.Profile.VULKAN)
     with pl.target("pl_shader_ext", pl.TargetType.DYNAMIC_LIBRARY, False):
@@ -184,18 +184,14 @@ with pl.project("pilotlight"):
     pl.pop_target_links()
 
     ###############################################################################
-    #                                    app                                      #
+    #                                 editor                                      #
     ###############################################################################
 
-    with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("editor", pl.TargetType.DYNAMIC_LIBRARY, True):
 
-        pl.push_output_binary("app")
+        pl.push_output_binary("editor")
         pl.push_target_links("pilotlight_lib")
-
-        if os.path.isfile('../apps/app_user.c'):
-            pl.push_source_files("../apps/app_user.c")
-        else:
-            pl.push_source_files("../apps/app.c")
+        pl.push_source_files("../editor/editor.c")
         
         with pl.configuration("debug"):
             pl.push_profile(pl.Profile.VULKAN)
