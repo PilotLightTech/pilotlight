@@ -95,8 +95,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plLogContext*     ptLogCtx     = pl_create_log_context();
 
     // add some context to data registry
-    ptAppData = PL_ALLOC(sizeof(plAppData));
-    memset(ptAppData, 0, sizeof(plAppData));
+    if(ptAppData == NULL)
+    {
+        ptAppData = PL_ALLOC(sizeof(plAppData));
+        memset(ptAppData, 0, sizeof(plAppData));
+    }
 
     ptDataRegistry->set_data("profile", ptProfileCtx);
     ptDataRegistry->set_data("log", ptLogCtx);

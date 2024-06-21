@@ -281,6 +281,7 @@ static void* (*pl_app_load)    (const plApiRegistryI* ptApiRegistry, void* ptApp
 static void  (*pl_app_shutdown)(void* ptAppData);
 static void  (*pl_app_resize)  (void* ptAppData);
 static void  (*pl_app_update)  (void* ptAppData);
+static bool  (*pl_app_info)    (const plApiRegistryI*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -453,7 +454,14 @@ int main(int argc, char *argv[])
         pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
         pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
         pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
-        gptExtensionRegistry->reload();
+        pl_app_info     = (bool  (__attribute__(()) *)(const plApiRegistryI*))     gptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
+        
+        if(pl_app_info)
+        {
+            if(!pl_app_info(gptApiRegistry))
+                return 0;
+        }
+        
         gUserData = pl_app_load(gptApiRegistry, NULL);
     }
 
@@ -737,6 +745,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
             pl_app_shutdown = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
             pl_app_resize   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
             pl_app_update   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+            gptExtensionRegistry->reload();
             gUserData = pl_app_load(gptApiRegistry, gUserData);
         }
 

@@ -219,6 +219,7 @@ void* (*pl_app_load)    (const plApiRegistryI* ptApiRegistry, void* ptAppData);
 void  (*pl_app_shutdown)(void* ptAppData);
 void  (*pl_app_resize)  (void* ptAppData);
 void  (*pl_app_update)  (void* ptAppData);
+bool  (*pl_app_info)    (const plApiRegistryI*);
 
 static inline double
 pl__get_linux_absolute_time(void)
@@ -416,6 +417,14 @@ int main(int argc, char *argv[])
         pl_app_shutdown = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
         pl_app_resize   = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
         pl_app_update   = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+        pl_app_info     = (bool  (__attribute__(()) *)(const plApiRegistryI*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
+
+        if(pl_app_info)
+        {
+            if(!pl_app_info(gptApiRegistry))
+                return 0;
+        }
+
         gUserData = pl_app_load(gptApiRegistry, NULL);
     }
 

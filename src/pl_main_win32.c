@@ -222,10 +222,11 @@ WNDCLASSEXW gtWc;
 plWindow** gsbtWindows = NULL;
 
 // app function pointers
-void* (*pl_app_load)    (const plApiRegistryI* ptApiRegistry, void* userData);
+void* (*pl_app_load)    (const plApiRegistryI*, void* userData);
 void  (*pl_app_shutdown)(void* userData);
 void  (*pl_app_resize)  (void* userData);
 void  (*pl_app_update)  (void* userData);
+bool  (*pl_app_info)    (const plApiRegistryI*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -420,6 +421,14 @@ int main(int argc, char *argv[])
         pl_app_shutdown = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
         pl_app_resize   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
         pl_app_update   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+        pl_app_info     = (bool  (__cdecl  *)(const plApiRegistryI*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
+
+        if(pl_app_info)
+        {
+            if(!pl_app_info(gptApiRegistry))
+                return 0;
+        }
+
         gpUserData = pl_app_load(gptApiRegistry, NULL);
     }
 
