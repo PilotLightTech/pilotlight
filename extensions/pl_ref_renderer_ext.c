@@ -229,6 +229,7 @@ typedef struct _plRefView
     plDrawable* sbtVisibleTransparentDrawables;
 
     // drawing api
+    plDrawList3D* pt3DGizmoDrawList;
     plDrawList3D* pt3DDrawList;
     plDrawList3D* pt3DSelectionDrawList;
 
@@ -1406,6 +1407,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 
     // register debug 3D drawlist
     ptView->pt3DDrawList = gptDraw->request_3d_drawlist();
+    ptView->pt3DGizmoDrawList = gptDraw->request_3d_drawlist();
     ptView->pt3DSelectionDrawList = gptDraw->request_3d_drawlist();
 
     const plRenderPassDescription tDepthRenderPassDesc = {
@@ -2387,6 +2389,9 @@ pl_refr_select_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnti
     plGraphics* ptGraphics = &gptData->tGraphics;
     plDevice*   ptDevice   = &ptGraphics->tDevice;
 
+    if(uCount == 0)
+        gptData->tPickedEntity = (plEntity){.ulData = UINT64_MAX};
+
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_USE_PUNCTUAL;
     if(ptScene->tGGXEnvTexture.uIndex != UINT32_MAX)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
@@ -2479,6 +2484,8 @@ pl_refr_select_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnti
     for(uint32_t i = 0; i < uCount; i++)
     {
         plEntity tEntity = atEntities[i];
+
+        gptData->tPickedEntity = tEntity;
 
         plObjectComponent* ptObject   = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
         if(ptObject == NULL)
@@ -3557,7 +3564,7 @@ pl_refr_get_picked_entity(void)
 }
 
 static void
-pl_refr_post_process_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle)
+pl_refr_post_process_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, const plMat4* ptMVP)
 {
     pl_begin_profile_sample(__FUNCTION__);
 
@@ -3567,6 +3574,8 @@ pl_refr_post_process_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle
     plDrawStream* ptStream   = &gptData->tDrawStream;
     plRefScene*   ptScene    = &gptData->sbtScenes[uSceneHandle];
     plRefView*    ptView     = &ptScene->atViews[uViewHandle];
+
+    const plVec2 tDimensions = ptGraphics->sbtRenderPassesCold[ptView->tPostProcessRenderPass.uIndex].tDesc.tDimensions;
 
     plRenderEncoder tEncoder = gptGfx->begin_render_pass(ptGraphics, &tCommandBuffer, ptView->tPostProcessRenderPass);
 
@@ -3620,26 +3629,27 @@ pl_refr_post_process_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle
     };
     gptDevice->update_bind_group(&ptGraphics->tDevice, tJFABindGroup0, &tJFABGData);
 
-        typedef struct _plPostProcessOptions
-        {
-            float fTargetWidth;
-            int   _padding[3];
-            plVec4 tOutlineColor;
-        } plPostProcessOptions;
+    typedef struct _plPostProcessOptions
+    {
+        float fTargetWidth;
+        int   _padding[3];
+        plVec4 tOutlineColor;
+    } plPostProcessOptions;
 
 
-        plDynamicBinding tDynamicBinding = gptDevice->allocate_dynamic_data(ptDevice, sizeof(plPostProcessOptions));
+    plDynamicBinding tDynamicBinding = gptDevice->allocate_dynamic_data(ptDevice, sizeof(plPostProcessOptions));
 
-        plPostProcessOptions* ptDynamicData = (plPostProcessOptions*)tDynamicBinding.pcData;
-        const plVec4 tOutlineColor = (plVec4){(float)sin(gptIO->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 0.0f, 1.0f};
-        ptDynamicData->fTargetWidth = (float)gptData->uOutlineWidth * tOutlineColor.r + 1.0f;
-        ptDynamicData->tOutlineColor = tOutlineColor;
+    plPostProcessOptions* ptDynamicData = (plPostProcessOptions*)tDynamicBinding.pcData;
+    const plVec4 tOutlineColor = (plVec4){(float)sin(gptIO->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 0.0f, 1.0f};
+    ptDynamicData->fTargetWidth = (float)gptData->uOutlineWidth * tOutlineColor.r + 1.0f;
+    ptDynamicData->tOutlineColor = tOutlineColor;
 
     gptGfx->bind_shader(&tEncoder, ptScene->tTonemapShader);
     gptGfx->bind_vertex_buffer(&tEncoder, gptData->tFullQuadVertexBuffer);
     gptGfx->bind_graphics_bind_groups(&tEncoder, ptScene->tTonemapShader, 0, 1, &tJFABindGroup0, &tDynamicBinding);
     gptGfx->draw_indexed(&tEncoder, 1, &tDraw);
 
+    gptDraw->submit_3d_drawlist(ptView->pt3DGizmoDrawList, tEncoder, tDimensions.x, tDimensions.y, ptMVP, PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
 
     gptGfx->end_render_pass(&tEncoder);
     pl_end_profile_sample();
@@ -3658,6 +3668,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
     plRefView*         ptView       = &ptScene->atViews[uViewHandle];
     plCameraComponent* ptCamera     = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, *tOptions.ptViewCamera);
     plCameraComponent* ptCullCamera = tOptions.ptCullCamera ? gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, *tOptions.ptCullCamera) : ptCamera;
+
+    const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
     if(!gptData->bFrustumCulling)
         ptCullCamera = NULL;
@@ -4208,7 +4220,6 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &ptCullCamera->tTransformMat, ptCullCamera->fFieldOfView, ptCullCamera->fAspectRatio, ptCullCamera->fNearZ, ptCullCamera->fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
         }
 
-        const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
         gptDraw->submit_3d_drawlist(ptView->pt3DDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
         gptDraw->submit_3d_drawlist(ptView->pt3DSelectionDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
         gptGfx->end_render_pass(&tEncoder);
@@ -4534,7 +4545,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
 
         plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo);
 
-        pl_refr_post_process_scene(tCommandBuffer, uSceneHandle, uViewHandle);
+        pl_refr_post_process_scene(tCommandBuffer, uSceneHandle, uViewHandle, &tMVP);
         gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
 
         const plSubmitInfo tSubmitInfo = {
@@ -4640,6 +4651,14 @@ pl_refr_get_debug_drawlist(uint32_t uSceneHandle, uint32_t uViewHandle)
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     plRefView* ptView = &ptScene->atViews[uViewHandle];
     return ptView->pt3DDrawList;
+}
+
+static plDrawList3D*
+pl_refr_get_gizmo_drawlist(uint32_t uSceneHandle, uint32_t uViewHandle)
+{
+    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+    plRefView* ptView = &ptScene->atViews[uViewHandle];
+    return ptView->pt3DGizmoDrawList;
 }
 
 static plTextureHandle
@@ -5761,6 +5780,7 @@ pl_load_ref_renderer_api(void)
         .get_view_color_texture        = pl_refr_get_view_color_texture,
         .resize_view                   = pl_refr_resize_view,
         .get_debug_drawlist            = pl_refr_get_debug_drawlist,
+        .get_gizmo_drawlist            = pl_refr_get_gizmo_drawlist,
         .get_picked_entity             = pl_refr_get_picked_entity,
         .show_graphics_options         = pl_show_graphics_options,
     };

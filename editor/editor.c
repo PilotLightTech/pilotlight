@@ -11,7 +11,7 @@
 Index of this file:
 // [SECTION] includes
 // [SECTION] helper functions
-// [SECTION] structs
+// [SECTION] structs & enums
 // [SECTION] pl_app_load
 // [SECTION] pl_app_shutdown
 // [SECTION] pl_app_resize
@@ -50,13 +50,27 @@ Index of this file:
 // [SECTION] helper functions
 //-----------------------------------------------------------------------------
 
-static plEntity pl_show_ecs_window(plComponentLibrary*, bool* pbShowWindow);
+typedef struct _plAppData plAppData;
+static void pl_show_ecs_window(plAppData*, bool* pbShowWindow);
+static void pl_render_translation_gizmo(plDrawList3D*, const plVec3* ptCenter, const plVec3* ptCameraPos);
+static void pl_render_rotation_gizmo(plDrawList3D*, const plVec3* ptCenter, const plVec3* ptCameraPos);
+static void pl_render_scale_gizmo(plDrawList3D*, const plVec3* ptCenter, const plVec3* ptCameraPos);
 
 //-----------------------------------------------------------------------------
-// [SECTION] structs
+// [SECTION] structs & enums
 //-----------------------------------------------------------------------------
 
-typedef struct plAppData_t
+typedef enum _plSelectionMode
+{
+    PL_SELECTION_MODE_NONE,
+    PL_SELECTION_MODE_TRANSLATION,
+    PL_SELECTION_MODE_ROTATION,
+    PL_SELECTION_MODE_SCALE,
+
+    PL_SELECTION_MODE_COUNT,
+} plSelectionMode;
+
+typedef struct _plAppData
 {
 
     // windows
@@ -71,10 +85,6 @@ typedef struct plAppData_t
     bool           bResize;
     bool           bAlwaysResize;
 
-    // selected entityes
-    bool bUpdateEntitySelection;
-    plEntity tSelectedEntity;
-
     // scene
     bool         bFreezeCullCamera;
     plEntity     tCullCamera;
@@ -87,6 +97,10 @@ typedef struct plAppData_t
 
     // drawing
     plDrawLayer2D* ptDrawLayer;
+
+    // selection stuff
+    plEntity tSelectedEntity;
+    plSelectionMode tSelectionMode; 
 
 } plAppData;
 
@@ -149,6 +163,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // add some context to data registry
     ptAppData = PL_ALLOC(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
+    ptAppData->tSelectedEntity.ulData = UINT64_MAX;
+    ptAppData->tSelectionMode = PL_SELECTION_MODE_TRANSLATION;
 
     ptDataRegistry->set_data("profile", ptProfileCtx);
     ptDataRegistry->set_data("log", ptLogCtx);
@@ -237,9 +253,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plModelLoaderData tLoaderData0 = {0};
 
     pl_begin_profile_sample("load models 0");
-    // const plMat4 tTransform = pl_mat4_translate_xyz(0.0f, 15.0f, 0.0f);
+    const plMat4 tTransform = pl_mat4_translate_xyz(5.0f, 0.0F, 0.0f);
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf", NULL, &tLoaderData0);
-    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", NULL, &tLoaderData0);
+    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", &tTransform, &tLoaderData0);
     gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
     gptModelLoader->free_data(&tLoaderData0);
@@ -325,15 +341,6 @@ pl_app_update(plAppData* ptAppData)
         return;
     }
 
-    if(ptAppData->bUpdateEntitySelection)
-    {
-        if(ptAppData->tSelectedEntity.uIndex == UINT32_MAX)
-            gptRenderer->select_entities(ptAppData->uSceneHandle0, 0, NULL);
-        else
-            gptRenderer->select_entities(ptAppData->uSceneHandle0, 1, &ptAppData->tSelectedEntity);
-        ptAppData->bUpdateEntitySelection = false;
-    }
-
     gptDraw->new_frame();
     gptUi->new_frame();
 
@@ -358,11 +365,45 @@ pl_app_update(plAppData* ptAppData)
     // run ecs system
     gptRenderer->run_ecs(ptAppData->uSceneHandle0);
 
-    plEntity tNextSelectedEntity = gptRenderer->get_picked_entity();
-    if(tNextSelectedEntity.uIndex != UINT32_MAX)
+    plEntity tNextEntity = gptRenderer->get_picked_entity();
+    if(tNextEntity.ulData == 0)
     {
-        ptAppData->bUpdateEntitySelection = true;
-        ptAppData->tSelectedEntity = tNextSelectedEntity;
+        ptAppData->tSelectedEntity.ulData = UINT64_MAX;
+        gptRenderer->select_entities(ptAppData->uSceneHandle0, 0, NULL);
+    }
+    else if(tNextEntity.ulData != UINT64_MAX && ptAppData->tSelectedEntity.ulData != tNextEntity.ulData)
+    {
+        ptAppData->tSelectedEntity = tNextEntity;
+        gptRenderer->select_entities(ptAppData->uSceneHandle0, 1, &ptAppData->tSelectedEntity);
+    }
+
+    if(gptIO->is_key_pressed(PL_KEY_M, true))
+    {
+        ptAppData->tSelectionMode = (ptAppData->tSelectionMode + 1) % PL_SELECTION_MODE_COUNT;
+    }
+
+    if(ptAppData->bShowEntityWindow)
+    {
+        pl_show_ecs_window(ptAppData, &ptAppData->bShowEntityWindow);
+    }
+
+    if(ptAppData->tSelectedEntity.uIndex != UINT32_MAX)
+    {
+        plObjectComponent* ptSelectedObject = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_OBJECT, ptAppData->tSelectedEntity);
+        plTransformComponent* ptSelectedTransform = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptAppData->tSelectedEntity);
+        if(ptSelectedObject)
+            ptSelectedTransform = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptSelectedObject->tTransform);
+        if(ptSelectedTransform)
+        {
+            plDrawList3D* ptGizmoDrawlist = gptRenderer->get_gizmo_drawlist(ptAppData->uSceneHandle0, ptAppData->uViewHandle0);
+            if(ptAppData->tSelectionMode == PL_SELECTION_MODE_TRANSLATION)
+                pl_render_translation_gizmo(ptGizmoDrawlist, &ptSelectedTransform->tWorld.col[3].xyz, &ptCamera->tPos);
+            else if(ptAppData->tSelectionMode == PL_SELECTION_MODE_ROTATION)
+                pl_render_rotation_gizmo(ptGizmoDrawlist, &ptSelectedTransform->tWorld.col[3].xyz, &ptCamera->tPos);
+            else if(ptAppData->tSelectionMode == PL_SELECTION_MODE_SCALE)
+                pl_render_scale_gizmo(ptGizmoDrawlist, &ptSelectedTransform->tWorld.col[3].xyz, &ptCamera->tPos);
+        }
+        
     }
 
     const plViewOptions tViewOptions = {
@@ -451,14 +492,6 @@ pl_app_update(plAppData* ptAppData)
 
     gptDebug->show_debug_windows(&ptAppData->tDebugInfo);
 
-    if(ptAppData->bShowEntityWindow)
-    {
-        tNextSelectedEntity = pl_show_ecs_window(gptRenderer->get_component_library(ptAppData->uSceneHandle0), &ptAppData->bShowEntityWindow);
-        if(tNextSelectedEntity.ulData != ptAppData->tSelectedEntity.ulData)
-            ptAppData->bUpdateEntitySelection = true;
-        ptAppData->tSelectedEntity = tNextSelectedEntity;
-    }
-
     if(ptAppData->bShowUiDemo)
     {
         pl_begin_profile_sample("ui demo");
@@ -486,11 +519,168 @@ pl_app_update(plAppData* ptAppData)
 // [SECTION] helper function implementations
 //-----------------------------------------------------------------------------
 
-static plEntity
-pl_show_ecs_window(plComponentLibrary* ptLibrary, bool* pbShowWindow)
+static void
+pl_render_translation_gizmo(plDrawList3D* ptDrawlist, const plVec3* ptCenter, const plVec3* ptCameraPos)
 {
-    static int iSelectedEntity = -1;
-    static plEntity tSelectedEntity = {UINT32_MAX, UINT32_MAX};
+    const float fScale = pl_length_vec3(pl_sub_vec3(*ptCenter, *ptCameraPos));
+    const float fAxisRadius  = 0.0035f * fScale;
+    const float fArrowRadius = 0.0075f * fScale;
+    const float fArrowLength = 0.03f * fScale;
+    const float fLength = 0.15f * fScale;
+
+    // x arrow head
+    plDrawConeDesc tDrawDesc0 = {0};
+    gptDraw->fill_cone_desc_default(&tDrawDesc0);
+    tDrawDesc0.tColor = (plVec4){1.0f, 0.0f, 0.0f, 1.0f};
+    tDrawDesc0.tBasePos = (plVec3){ptCenter->x + fLength - fArrowLength, ptCenter->y, ptCenter->z};
+    tDrawDesc0.tTipPos = (plVec3){ptCenter->x + fLength, ptCenter->y, ptCenter->z};
+    tDrawDesc0.fRadius = fArrowRadius;
+    gptDraw->add_3d_cone_filled_ex(ptDrawlist, &tDrawDesc0);
+
+    // y arrow head
+    plDrawConeDesc tDrawDesc1 = {0};
+    gptDraw->fill_cone_desc_default(&tDrawDesc1);
+    tDrawDesc1.tColor = (plVec4){0.0f, 1.0f, 0.0f, 1.0f};
+    tDrawDesc1.tBasePos = (plVec3){ptCenter->x, ptCenter->y + fLength - fArrowLength, ptCenter->z};
+    tDrawDesc1.tTipPos = (plVec3){ptCenter->x, ptCenter->y + fLength, ptCenter->z};
+    tDrawDesc1.fRadius = fArrowRadius;
+    gptDraw->add_3d_cone_filled_ex(ptDrawlist, &tDrawDesc1);
+
+    // z arrow head
+    plDrawConeDesc tDrawDesc2 = {0};
+    gptDraw->fill_cone_desc_default(&tDrawDesc2);
+    tDrawDesc2.tColor = (plVec4){0.0f, 0.0f, 1.0f, 1.0f};
+    tDrawDesc2.tBasePos = (plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fLength - fArrowLength};
+    tDrawDesc2.tTipPos = (plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fLength};
+    tDrawDesc2.fRadius = fArrowRadius;
+    gptDraw->add_3d_cone_filled_ex(ptDrawlist, &tDrawDesc2);
+
+    // x axis
+    plDrawCylinderDesc tDrawDesc3 = {0};
+    gptDraw->fill_cylinder_desc_default(&tDrawDesc3);
+    tDrawDesc3.tColor = (plVec4){1.0f, 0.0f, 0.0f, 1.0f};
+    tDrawDesc3.tBasePos = *ptCenter;
+    tDrawDesc3.tTipPos = (plVec3){ptCenter->x + fLength - fArrowLength, ptCenter->y, ptCenter->z};
+    tDrawDesc3.fRadius = fAxisRadius;
+    gptDraw->add_3d_cylinder_filled_ex(ptDrawlist, &tDrawDesc3);
+
+    // y axis
+    plDrawCylinderDesc tDrawDesc4 = {0};
+    gptDraw->fill_cylinder_desc_default(&tDrawDesc4);
+    tDrawDesc4.tColor = (plVec4){0.0f, 1.0f, 0.0f, 1.0f};
+    tDrawDesc4.tBasePos = *ptCenter;
+    tDrawDesc4.tTipPos = (plVec3){ptCenter->x, ptCenter->y + fLength - fArrowLength, ptCenter->z};
+    tDrawDesc4.fRadius = fAxisRadius;
+    gptDraw->add_3d_cylinder_filled_ex(ptDrawlist, &tDrawDesc4);
+
+    // z axis
+    plDrawCylinderDesc tDrawDesc5 = {0};
+    gptDraw->fill_cylinder_desc_default(&tDrawDesc5);
+    tDrawDesc5.tColor = (plVec4){0.0f, 0.0f, 1.0f, 1.0f};
+    tDrawDesc5.tBasePos = *ptCenter;
+    tDrawDesc5.tTipPos = (plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fLength - fArrowLength};
+    tDrawDesc5.fRadius = fAxisRadius;
+    gptDraw->add_3d_cylinder_filled_ex(ptDrawlist, &tDrawDesc5);
+
+    // origin
+    gptDraw->add_3d_centered_box_filled(ptDrawlist,
+        *ptCenter,
+        fAxisRadius * 4,
+        fAxisRadius * 4,
+        fAxisRadius * 4,
+        (plVec4){0.5f, 0.5f, 0.5f, 1.0f});
+
+    // PLANES
+    gptDraw->add_3d_plane_xy_filled(ptDrawlist, (plVec3){ptCenter->x + fLength * 0.25f, ptCenter->y + fLength * 0.25f, ptCenter->z}, fLength * 0.25f, fLength * 0.25f, (plVec4){0.0f, 0.0f, 1.0f, 0.5f});
+    gptDraw->add_3d_plane_yz_filled(ptDrawlist, (plVec3){ptCenter->x, ptCenter->y + fLength * 0.25f, ptCenter->z + fLength * 0.25f}, fLength * 0.25f, fLength * 0.25f, (plVec4){1.0f, 0.0f, 0.0f, 0.5f});
+    gptDraw->add_3d_plane_xz_filled(ptDrawlist, (plVec3){ptCenter->x + fLength * 0.25f, ptCenter->y, ptCenter->z + fLength * 0.25f}, fLength * 0.25f, fLength * 0.25f, (plVec4){0.0f, 1.0f, 0.0f, 0.5f});
+}
+
+static void
+pl_render_rotation_gizmo(plDrawList3D* ptDrawlist, const plVec3* ptCenter, const plVec3* ptCameraPos)
+{
+    const float fScale = pl_length_vec3(pl_sub_vec3(*ptCenter, *ptCameraPos));
+    
+    const float fOuterRadius = 0.15f * fScale;
+    const float fInnerRadius = fOuterRadius - 0.03f * fScale;
+    gptDraw->add_3d_band_xz_filled(ptDrawlist, *ptCenter, fInnerRadius, fOuterRadius, (plVec4){0.0f, 1.0f, 0.0f, 1.0f}, 36);
+    gptDraw->add_3d_band_xy_filled(ptDrawlist, *ptCenter, fInnerRadius, fOuterRadius, (plVec4){0.0f, 0.0f, 1.0f, 1.0f}, 36);
+    gptDraw->add_3d_band_yz_filled(ptDrawlist, *ptCenter, fInnerRadius, fOuterRadius, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 36);
+}
+
+static void
+pl_render_scale_gizmo(plDrawList3D* ptDrawlist, const plVec3* ptCenter, const plVec3* ptCameraPos)
+{
+    const float fScale = pl_length_vec3(pl_sub_vec3(*ptCenter, *ptCameraPos));
+    const float fAxisRadius  = 0.0035f * fScale;
+    const float fArrowRadius = 0.0075f * fScale;
+    const float fLength = 0.15f * fScale;
+
+    // x axis
+    plDrawCylinderDesc tDrawDesc3 = {0};
+    gptDraw->fill_cylinder_desc_default(&tDrawDesc3);
+    tDrawDesc3.tColor = (plVec4){1.0f, 0.0f, 0.0f, 1.0f};
+    tDrawDesc3.tBasePos = *ptCenter;
+    tDrawDesc3.tTipPos = (plVec3){ptCenter->x + fLength, ptCenter->y, ptCenter->z};
+    tDrawDesc3.fRadius = fAxisRadius;
+    gptDraw->add_3d_cylinder_filled_ex(ptDrawlist, &tDrawDesc3);
+
+    // y axis
+    plDrawCylinderDesc tDrawDesc4 = {0};
+    gptDraw->fill_cylinder_desc_default(&tDrawDesc4);
+    tDrawDesc4.tColor = (plVec4){0.0f, 1.0f, 0.0f, 1.0f};
+    tDrawDesc4.tBasePos = *ptCenter;
+    tDrawDesc4.tTipPos = (plVec3){ptCenter->x, ptCenter->y + fLength, ptCenter->z};
+    tDrawDesc4.fRadius = fAxisRadius;
+    gptDraw->add_3d_cylinder_filled_ex(ptDrawlist, &tDrawDesc4);
+
+    // z axis
+    plDrawCylinderDesc tDrawDesc5 = {0};
+    gptDraw->fill_cylinder_desc_default(&tDrawDesc5);
+    tDrawDesc5.tColor = (plVec4){0.0f, 0.0f, 1.0f, 1.0f};
+    tDrawDesc5.tBasePos = *ptCenter;
+    tDrawDesc5.tTipPos = (plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fLength};
+    tDrawDesc5.fRadius = fAxisRadius;
+    gptDraw->add_3d_cylinder_filled_ex(ptDrawlist, &tDrawDesc5);
+
+    // x end
+    gptDraw->add_3d_centered_box_filled(ptDrawlist,
+        (plVec3){ptCenter->x + fLength, ptCenter->y, ptCenter->z},
+        fAxisRadius * 4,
+        fAxisRadius * 4,
+        fAxisRadius * 4,
+        (plVec4){1.0f, 0.0f, 0.0f, 1.0f});
+
+    // y end
+    gptDraw->add_3d_centered_box_filled(ptDrawlist,
+        (plVec3){ptCenter->x, ptCenter->y + fLength, ptCenter->z},
+        fAxisRadius * 4,
+        fAxisRadius * 4,
+        fAxisRadius * 4,
+        (plVec4){0.0f, 1.0f, 0.0f, 1.0f});
+
+    // z end
+    gptDraw->add_3d_centered_box_filled(ptDrawlist,
+        (plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fLength},
+        fAxisRadius * 4,
+        fAxisRadius * 4,
+        fAxisRadius * 4,
+        (plVec4){0.0f, 0.0f, 1.0f, 1.0f});
+
+    // origin
+    gptDraw->add_3d_centered_box_filled(ptDrawlist,
+        *ptCenter,
+        fAxisRadius * 4,
+        fAxisRadius * 4,
+        fAxisRadius * 4,
+        (plVec4){0.5f, 0.5f, 0.5f, 1.0f});
+}
+
+static void
+pl_show_ecs_window(plAppData* ptAppData, bool* pbShowWindow)
+{
+    plComponentLibrary* ptLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
+
     if(gptUi->begin_window("Entities", pbShowWindow, false))
     {
         const plVec2 tWindowSize = gptUi->get_window_size();
@@ -516,21 +706,22 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, bool* pbShowWindow)
             {
                 for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
                 {
-                    bool bSelected = (int)i == iSelectedEntity;
+                    bool bSelected = ptAppData->tSelectedEntity.ulData == ptLibrary->tTagComponentManager.sbtEntities[i].ulData;
                     char atBuffer[1024] = {0};
                     pl_sprintf(atBuffer, "%s, %u", sbtTags[i].acName, ptLibrary->tTagComponentManager.sbtEntities[i].uIndex);
                     if(gptUi->selectable(atBuffer, &bSelected))
                     {
                         if(bSelected)
                         {
-                            iSelectedEntity = (int)i;
-                            tSelectedEntity = ptLibrary->tTagComponentManager.sbtEntities[i];
+                            ptAppData->tSelectedEntity = ptLibrary->tTagComponentManager.sbtEntities[i];
+                            if(ptAppData->tSelectedEntity.uIndex != UINT32_MAX)
+                                gptRenderer->select_entities(ptAppData->uSceneHandle0, 1, &ptAppData->tSelectedEntity);
                         }
                         else
                         {
-                            iSelectedEntity = -1;
-                            tSelectedEntity.uIndex = UINT32_MAX;
-                            tSelectedEntity.uGeneration = UINT32_MAX;
+                            ptAppData->tSelectedEntity.uIndex = UINT32_MAX;
+                            ptAppData->tSelectedEntity.uGeneration = UINT32_MAX;
+                            gptRenderer->select_entities(ptAppData->uSceneHandle0, 0, NULL);
                         }
                     }
                 }
@@ -544,21 +735,21 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, bool* pbShowWindow)
             const float pfRatiosInner[] = {1.0f};
             gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
 
-            if(iSelectedEntity != -1)
+            if(ptAppData->tSelectedEntity.ulData != UINT64_MAX)
             {
-                plTagComponent*               ptTagComp           = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, tSelectedEntity);
-                plTransformComponent*         ptTransformComp     = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tSelectedEntity);
-                plMeshComponent*              ptMeshComp          = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tSelectedEntity);
-                plObjectComponent*            ptObjectComp        = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tSelectedEntity);
-                plHierarchyComponent*         ptHierarchyComp     = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tSelectedEntity);
-                plMaterialComponent*          ptMaterialComp      = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, tSelectedEntity);
-                plSkinComponent*              ptSkinComp          = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, tSelectedEntity);
-                plCameraComponent*            ptCameraComp        = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, tSelectedEntity);
-                plAnimationComponent*         ptAnimationComp     = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, tSelectedEntity);
-                plInverseKinematicsComponent* ptIKComp            = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_INVERSE_KINEMATICS, tSelectedEntity);
-                plLightComponent*             ptLightComp         = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, tSelectedEntity);
+                plTagComponent*               ptTagComp           = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptAppData->tSelectedEntity);
+                plTransformComponent*         ptTransformComp     = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptAppData->tSelectedEntity);
+                plMeshComponent*              ptMeshComp          = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, ptAppData->tSelectedEntity);
+                plObjectComponent*            ptObjectComp        = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, ptAppData->tSelectedEntity);
+                plHierarchyComponent*         ptHierarchyComp     = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, ptAppData->tSelectedEntity);
+                plMaterialComponent*          ptMaterialComp      = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, ptAppData->tSelectedEntity);
+                plSkinComponent*              ptSkinComp          = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, ptAppData->tSelectedEntity);
+                plCameraComponent*            ptCameraComp        = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tSelectedEntity);
+                plAnimationComponent*         ptAnimationComp     = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, ptAppData->tSelectedEntity);
+                plInverseKinematicsComponent* ptIKComp            = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_INVERSE_KINEMATICS, ptAppData->tSelectedEntity);
+                plLightComponent*             ptLightComp         = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, ptAppData->tSelectedEntity);
 
-                gptUi->text("Entity: %u, %u", tSelectedEntity.uIndex, tSelectedEntity.uGeneration);
+                gptUi->text("Entity: %u, %u", ptAppData->tSelectedEntity.uIndex, ptAppData->tSelectedEntity.uGeneration);
 
                 if(ptTagComp && gptUi->collapsing_header("Tag"))
                 {
@@ -772,6 +963,4 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, bool* pbShowWindow)
 
         gptUi->end_window();
     }
-
-    return tSelectedEntity;
 }

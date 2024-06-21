@@ -63,12 +63,11 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
         if(gptIO->is_key_down(PL_KEY_R)) { gptCamera->translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
     }
 
-    bool bOwnMouse = ptIO->bWantCaptureMouse;
-    if(!bOwnMouse && gptIO->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+    if(gptIO->is_mouse_dragging(PL_MOUSE_BUTTON_MIDDLE, 1.0f))
     {
-        const plVec2 tMouseDelta = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
+        const plVec2 tMouseDelta = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_MIDDLE, 1.0f);
         gptCamera->rotate(ptCamera,  -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed);
-        gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+        gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_MIDDLE);
     }
 
     gptCamera->update(ptCamera);

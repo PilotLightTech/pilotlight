@@ -39,7 +39,7 @@ typedef struct _plComputeShaderVariant plComputeShaderVariant;
 // external 
 typedef struct _plWindow           plWindow;           // pl_os.h
 typedef struct _plGraphics         plGraphics;         // pl_graphics_ext.h
-typedef struct _plDrawList3D       plDrawList3D;       // pl_graphics_ext.h
+typedef struct _plDrawList3D       plDrawList3D;       // pl_draw_ext.h
 typedef struct _plCommandBuffer    plCommandBuffer;    // pl_graphics_ext.h
 typedef union  plTextureHandle     plTextureHandle;    // pl_graphics_ext.h
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
@@ -49,6 +49,7 @@ typedef union _plMat4              plMat4;             // pl_math.h
 typedef union _plVec4              plVec4;             // pl_math.h
 typedef union _plVec2              plVec2;             // pl_math.h
 typedef void* plTextureId;                             // pl_ui.h
+typedef int plDrawFlags;                               // pl_draw_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
@@ -88,6 +89,7 @@ typedef struct _plRefRendererI
     plComponentLibrary* (*get_component_library)(uint32_t uSceneHandle);
     plGraphics*         (*get_graphics)(void);
     plDrawList3D*       (*get_debug_drawlist)(uint32_t uSceneHandle, uint32_t uViewHandle);
+    plDrawList3D*       (*get_gizmo_drawlist)(uint32_t uSceneHandle, uint32_t uViewHandle);
 
 } plRefRendererI;
 
