@@ -198,7 +198,6 @@ with pl.project("pilotlight"):
             with pl.platform(pl.PlatformType.WIN32):
                 with pl.compiler("msvc", pl.CompilerType.MSVC):
                     pl.add_definition("PL_VULKAN_BACKEND")
-                    pl.add_link_library("shaderc_combined.lib")
             with pl.platform(pl.PlatformType.LINUX):
                 with pl.compiler("gcc", pl.CompilerType.GCC):
                     pl.add_definition("PL_VULKAN_BACKEND")
@@ -207,7 +206,6 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang", pl.CompilerType.CLANG):
                     pl.add_definition("PL_METAL_BACKEND")
         
-        
         pl.push_profile(pl.Profile.VULKAN)
         with pl.configuration("vulkan"):
             with pl.platform(pl.PlatformType.MACOS):
@@ -215,6 +213,33 @@ with pl.project("pilotlight"):
                     pl.add_definition("PL_VULKAN_BACKEND")
         pl.pop_profile()
 
+        pl.pop_source_files()
+        pl.pop_output_binary()
+        pl.pop_target_links()
+
+    ###############################################################################
+    #                                  app                                        #
+    ###############################################################################
+
+    with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, False):
+
+        pl.push_output_binary("app")
+        pl.push_target_links("pilotlight_lib")
+        pl.push_source_files("../editor/app.c")
+        
+        with pl.configuration("debug"):
+            pl.push_profile(pl.Profile.VULKAN)
+            with pl.platform(pl.PlatformType.WIN32):
+                with pl.compiler("msvc", pl.CompilerType.MSVC):
+                    pl.add_definition("PL_VULKAN_BACKEND")
+            with pl.platform(pl.PlatformType.LINUX):
+                with pl.compiler("gcc", pl.CompilerType.GCC):
+                    pl.add_definition("PL_VULKAN_BACKEND")
+            pl.pop_profile()
+            with pl.platform(pl.PlatformType.MACOS):
+                with pl.compiler("clang", pl.CompilerType.CLANG):
+                    pl.add_definition("PL_METAL_BACKEND")
+        
         pl.pop_source_files()
         pl.pop_output_binary()
         pl.pop_target_links()

@@ -183,7 +183,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptJobs->initialize(0);
 
     const plWindowDesc tWindowDesc = {
-        .pcName  = "Pilot Light Example",
+        .pcName  = "Pilot Light Editor",
         .iXPos   = 200,
         .iYPos   = 200,
         .uWidth  = 600,
