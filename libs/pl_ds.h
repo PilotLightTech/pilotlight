@@ -4,8 +4,8 @@
 */
 
 // library version
-#define PL_DS_VERSION    "0.5.0"
-#define PL_DS_VERSION_NUM 00500
+#define PL_DS_VERSION    "0.5.1"
+#define PL_DS_VERSION_NUM 00501
 
 /*
 Index of this file:
@@ -423,7 +423,7 @@ pl__hm_resize(plHashMap* ptHashMap, uint32_t uBucketCount, const char* pcFile, i
     uint64_t* sbulOldValueIndices = ptHashMap->_aulValueIndices;
     uint64_t* aulOldKeys = ptHashMap->_aulKeys;
 
-    ptHashMap->_uBucketCount = uBucketCount;
+    ptHashMap->_uBucketCount = uBucketCount < PL_DS_HASHMAP_INITIAL_SIZE ? PL_DS_HASHMAP_INITIAL_SIZE : uBucketCount;
     if(uBucketCount > 0)
     {
         
@@ -476,7 +476,7 @@ pl__hm_insert(plHashMap* ptHashMap, uint64_t ulKey, uint64_t ulValue, const char
 
     while(ptHashMap->_aulKeys[ulModKey] != ulKey && ptHashMap->_aulKeys[ulModKey] != UINT64_MAX)
     {
-        ulModKey = (ulModKey + 1)  % ptHashMap->_uBucketCount;
+        ulModKey = (ulModKey + 1) % ptHashMap->_uBucketCount;
         if(ptHashMap->_aulKeys[ulModKey] == UINT64_MAX - 1)
             break;
     }
