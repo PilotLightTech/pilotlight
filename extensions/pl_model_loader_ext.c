@@ -246,7 +246,7 @@ pl__load_mixamorig(const cgltf_node* ptJointNode, plHumanoidComponent* ptHumanoi
     else if (pl_str_equal(ptJointNode->name, "mixamorig:RightUpLeg"))
         ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_UPPER_LEG] = tTransformEntity;
     else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftLeg"))
-        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_UPPER_LEG] = tTransformEntity;
+        ptHumanoid->atBones[PL_HUMANOID_BONE_LEFT_LOWER_LEG] = tTransformEntity;
     else if (pl_str_equal(ptJointNode->name, "mixamorig:RightLeg"))
         ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_LOWER_LEG] = tTransformEntity;
     else if (pl_str_equal(ptJointNode->name, "mixamorig:LeftFoot"))
@@ -942,13 +942,35 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
         for(size_t szPrimitiveIndex = 0; szPrimitiveIndex < ptNode->mesh->primitives_count; szPrimitiveIndex++)
         {
             // add mesh to our node
-            plEntity tNewObject = gptECS->create_tag(ptLibrary, ptNode->mesh->name);
-            plObjectComponent* ptObject = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewObject);
-            plMeshComponent* ptMesh = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewObject);
-            ptMesh->tSkinComponent = tSkinEntity;
+            plObjectComponent* ptObject = NULL;
+            plMeshComponent* ptMesh = NULL;
+            plEntity tNewObject = tNewEntity;
+            if(szPrimitiveIndex == 0)
+            {
+                ptObject = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewEntity);
+                ptMesh = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
+                ptObject->tMesh = tNewEntity;
+                ptObject->tTransform = tNewEntity; // TODO: delete unused entities (old transform)
+            }
+            else
+            {
 
-            ptObject->tMesh = tNewObject;
-            ptObject->tTransform = tNewEntity; // TODO: delete unused entities (old transform)
+                tNewObject = gptECS->create_tag(ptLibrary, ptNode->mesh->name);
+                ptObject = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewObject);
+                ptMesh = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewObject);
+
+                ptObject->tMesh = tNewObject;
+
+                plTransformComponent* ptSubTransform = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewObject);
+                ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
+                *ptSubTransform = *ptTransform;
+
+                if(tParentEntity.uIndex != UINT32_MAX)
+                    gptECS->attach_component(ptLibrary, tNewObject, tParentEntity);
+
+                ptObject->tTransform = tNewObject;
+            }
+            ptMesh->tSkinComponent = tSkinEntity;
 
             const cgltf_primitive* ptPrimitive = &ptNode->mesh->primitives[szPrimitiveIndex];
 
