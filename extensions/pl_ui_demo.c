@@ -29,16 +29,16 @@ pl_show_debug_window(bool* pbOpen)
             if(ptWindow->bActive)
             {
                 if(bShowWindowInnerRect)
-                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tInnerRect.tMin, ptWindow->tInnerRect.tMax, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 1.0f);
+                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tInnerRect.tMin, ptWindow->tInnerRect.tMax, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 1.0f, 0.0f, 0);
 
                 if(bShowWindowInnerClipRect)
-                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tInnerClipRect.tMin, ptWindow->tInnerClipRect.tMax, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 1.0f);
+                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tInnerClipRect.tMin, ptWindow->tInnerClipRect.tMax, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 1.0f, 0.0f, 0);
 
                 if(bShowWindowOuterRect)
-                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 1.0f);
+                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 1.0f, 0.0f, 0);
 
                 if(bShowWindowOuterClippedRect)
-                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tOuterRectClipped.tMin, ptWindow->tOuterRectClipped.tMax, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 1.0f);
+                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tOuterRectClipped.tMin, ptWindow->tOuterRectClipped.tMax, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 1.0f, 0.0f, 0);
             }
         }
         
@@ -126,6 +126,15 @@ pl_show_style_editor_window(bool* pbOpen)
                 pl_vertical_spacing();
                 pl_text("Scrollbar");
                 pl_slider_float("Size##scrollbar", &ptStyle->fScrollbarSize, 0.0f, 32.0f);
+
+                pl_vertical_spacing();
+                pl_text("Rounding");
+                pl_slider_float("Window Rounding", &ptStyle->fWindowRounding, 0.0f, 12.0f);
+                pl_slider_float("Child Rounding", &ptStyle->fChildRounding, 0.0f, 12.0f);
+                pl_slider_float("Frame Rounding", &ptStyle->fFrameRounding, 0.0f, 12.0f);
+                pl_slider_float("Scrollbar Rounding", &ptStyle->fScrollbarRounding, 0.0f, 12.0f);
+                pl_slider_float("Grab Rounding", &ptStyle->fGrabRounding, 0.0f, 12.0f);
+                pl_slider_float("Tab Rounding", &ptStyle->fTabRounding, 0.0f, 12.0f);
                 
                 pl_vertical_spacing();
                 pl_text("Misc");

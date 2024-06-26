@@ -1226,8 +1226,6 @@ pl__load_library_function(plSharedLibrary* ptLibrary, const char* name)
     if(ptLibrary->bValid)
     {
         pLoadedFunction = (void*)GetProcAddress(ptLibrary->tHandle, name);
-        if(pLoadedFunction == NULL)
-            printf("Failed to load function with error code: %d\n", WSAGetLastError());
     }
     return pLoadedFunction;
 }

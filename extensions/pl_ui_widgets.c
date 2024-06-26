@@ -410,9 +410,9 @@ pl_button(const char* pcText)
         bool bHeld = false;
         bPressed = pl_button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
 
-        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonActiveCol);
-        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonHoveredCol);
-        else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonCol);
+        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonActiveCol, gptCtx->tStyle.fFrameRounding, 0);
+        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonHoveredCol, gptCtx->tStyle.fFrameRounding, 0);
+        else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonCol, gptCtx->tStyle.fFrameRounding, 0);
 
         const plVec2 tTextSize = pl_ui_calculate_text_size(gptCtx->tFont, gptCtx->tStyle.fFontSize, pcText, -1.0f);
         const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
@@ -472,11 +472,11 @@ pl_selectable(const char* pcText, bool* bpValue)
         if(bPressed)
             *bpValue = !*bpValue;
 
-        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderActiveCol);
-        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderHoveredCol);
+        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderActiveCol, 0.0f, 0);
+        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderHoveredCol, 0.0f, 0);
 
         if(*bpValue)
-            gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderCol);
+            gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderCol, 0.0f, 0);
 
         pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
     }
@@ -520,9 +520,9 @@ pl_checkbox(const char* pcText, bool* bpValue)
         if(bPressed)
             *bpValue = !bOriginalValue;
 
-        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgActiveCol);
-        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgHoveredCol);
-        else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgCol);
+        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgActiveCol, gptCtx->tStyle.fFrameRounding, 0);
+        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgHoveredCol, gptCtx->tStyle.fFrameRounding, 0);
+        else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgCol, gptCtx->tStyle.fFrameRounding, 0);
 
         if(*bpValue)
             gptDraw->add_line(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tCheckmarkCol, 2.0f);
@@ -611,9 +611,9 @@ pl_collapsing_header(const char* pcText)
         if(bPressed)
             *pbOpenState = !*pbOpenState;
 
-        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tHeaderActiveCol);
-        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tHeaderHoveredCol);
-        else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tHeaderCol);
+        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tHeaderActiveCol, gptCtx->tStyle.fFrameRounding, 0);
+        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tHeaderHoveredCol, gptCtx->tStyle.fFrameRounding, 0);
+        else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tHeaderCol, gptCtx->tStyle.fFrameRounding, 0);
 
         if(*pbOpenState)
         {
@@ -675,8 +675,8 @@ pl_tree_node(const char* pcText)
         if(bPressed)
             *pbOpenState = !*pbOpenState;
 
-        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tHeaderActiveCol);
-        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tHeaderHoveredCol);
+        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tHeaderActiveCol, 0.0f, 0);
+        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tHeaderHoveredCol, 0.0f, 0);
 
         if(*pbOpenState)
         {
@@ -848,10 +848,10 @@ pl_begin_tab(const char* pcText)
         ptTabBar->uNextValue = uHash;
     }
 
-    if(gptCtx->uActiveId == uHash)        gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonActiveCol);
-    else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonHoveredCol);
-    else if(ptTabBar->uValue == uHash)   gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonActiveCol);
-    else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonCol);
+    if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled_ex(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonActiveCol, gptCtx->tStyle.fTabRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP);
+    else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled_ex(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonHoveredCol, gptCtx->tStyle.fTabRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP);
+    else if(ptTabBar->uValue == uHash)   gptDraw->add_rect_filled_ex(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonActiveCol, gptCtx->tStyle.fTabRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP);
+    else                                 gptDraw->add_rect_filled_ex(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonCol, gptCtx->tStyle.fTabRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP);
     
     pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
 
@@ -1662,7 +1662,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
     if (!bIsMultiLine)
     {
         // RenderNavHighlight(frame_bb, id);
-        gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgCol);
+        gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgCol, gptCtx->tStyle.fFrameRounding, 0);
     }
 
 
@@ -1826,7 +1826,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
                     };
                     rect = pl_rect_clip(&rect, &clip_rect);
                     if (pl_rect_overlaps_rect(&rect, &clip_rect))
-                        gptDraw->add_rect_filled(ptWindow->ptFgLayer, rect.tMin, rect.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f});
+                        gptDraw->add_rect_filled(ptWindow->ptFgLayer, rect.tMin, rect.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.0f, 0);
                 }
                 rect_pos.x = draw_pos.x - draw_scroll.x;
                 rect_pos.y += gptCtx->tStyle.fFontSize;
@@ -1967,11 +1967,11 @@ pl_slider_float_f(const char* pcLabel, float* pfValue, float fMin, float fMax, c
         const bool bPressed = pl_button_behavior(&tGrabBox, uHash, &bHovered, &bHeld);
 
         const plRect tBoundingBox = pl_calculate_rect(tFrameStartPos, tSize);
-        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgActiveCol);
-        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgHoveredCol);
-        else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgCol);
+        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgActiveCol, gptCtx->tStyle.fFrameRounding, 0);
+        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgHoveredCol, gptCtx->tStyle.fFrameRounding, 0);
+        else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgCol, gptCtx->tStyle.fFrameRounding, 0);
 
-        gptDraw->add_rect_filled(ptWindow->ptFgLayer, tGrabStartPos, tGrabBox.tMax, gptCtx->tColorScheme.tButtonCol);
+        gptDraw->add_rect_filled(ptWindow->ptFgLayer, tGrabStartPos, tGrabBox.tMax, gptCtx->tColorScheme.tButtonCol, gptCtx->tStyle.fGrabRounding, 0);
         pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
         pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, acTextBuffer, -1.0f);
 
@@ -2041,11 +2041,11 @@ pl_slider_int_f(const char* pcLabel, int* piValue, int iMin, int iMax, const cha
         const bool bPressed = pl_button_behavior(&tGrabBox, uHash, &bHovered, &bHeld);
 
         const plRect tBoundingBox = pl_calculate_rect(tFrameStartPos, tSize);
-        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgActiveCol);
-        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgHoveredCol);
-        else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgCol);
+        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgActiveCol, gptCtx->tStyle.fFrameRounding, 0);
+        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgHoveredCol, gptCtx->tStyle.fFrameRounding, 0);
+        else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgCol, gptCtx->tStyle.fFrameRounding, 0);
 
-        gptDraw->add_rect_filled(ptWindow->ptFgLayer, tGrabStartPos, tGrabBox.tMax, gptCtx->tColorScheme.tButtonCol);
+        gptDraw->add_rect_filled(ptWindow->ptFgLayer, tGrabStartPos, tGrabBox.tMax, gptCtx->tColorScheme.tButtonCol, gptCtx->tStyle.fGrabRounding, 0);
         pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
         pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, acTextBuffer, -1.0f);
 
@@ -2108,9 +2108,9 @@ pl_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin, f
         bool bHeld = false;
         const bool bPressed = pl_button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
 
-        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgActiveCol);
-        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgHoveredCol);
-        else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgCol);
+        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgActiveCol, gptCtx->tStyle.fFrameRounding, 0);
+        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgHoveredCol, gptCtx->tStyle.fFrameRounding, 0);
+        else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgCol, gptCtx->tStyle.fFrameRounding, 0);
 
         pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
         pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, acTextBuffer, -1.0f);
@@ -2147,7 +2147,7 @@ pl_image_ex(plTextureHandle tTexture, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, pl
         gptDraw->add_image_ex(ptWindow->ptFgLayer, tTexture, tStartPos, tFinalPos, tUv0, tUv1, tTintColor);
 
         if(tBorderColor.a > 0.0f)
-            gptDraw->add_rect(ptWindow->ptFgLayer, tStartPos, tFinalPos, tBorderColor, 1.0f);
+            gptDraw->add_rect(ptWindow->ptFgLayer, tStartPos, tFinalPos, tBorderColor, 1.0f, 0.0f, 0);
 
     }
     pl_advance_cursor(tSize.x, tSize.y);
@@ -2183,7 +2183,7 @@ pl_image_button_ex(const char* pcId, plTextureHandle tTexture, plVec2 tSize, plV
         gptDraw->add_image_ex(ptWindow->ptFgLayer, tTexture, tStartPos, tFinalPos, tUv0, tUv1, tTintColor);
 
         if(tBorderColor.a > 0.0f)
-            gptDraw->add_rect(ptWindow->ptFgLayer, tStartPos, tFinalPos, tBorderColor, 1.0f);
+            gptDraw->add_rect(ptWindow->ptFgLayer, tStartPos, tFinalPos, tBorderColor, 1.0f, 0.0f, 0);
 
     }
     pl_advance_cursor(tSize.x, tSize.y);
@@ -2241,8 +2241,8 @@ pl_progress_bar(float fFraction, plVec2 tSize, const char* pcOverlay)
     if(!(tStartPos.y + tSize.y < ptWindow->tPos.y || tStartPos.y > ptWindow->tPos.y + ptWindow->tFullSize.y))
     {
 
-        gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, pl_add_vec2(tStartPos, tSize), gptCtx->tColorScheme.tFrameBgCol);
-        gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, pl_add_vec2(tStartPos, (plVec2){tSize.x * fFraction, tSize.y}), gptCtx->tColorScheme.tProgressBarCol);
+        gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, pl_add_vec2(tStartPos, tSize), gptCtx->tColorScheme.tFrameBgCol, gptCtx->tStyle.fFrameRounding, 0);
+        gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, pl_add_vec2(tStartPos, (plVec2){tSize.x * fFraction, tSize.y}), gptCtx->tColorScheme.tProgressBarCol, gptCtx->tStyle.fFrameRounding, 0);
 
         const char* pcTextPtr = pcOverlay;
         

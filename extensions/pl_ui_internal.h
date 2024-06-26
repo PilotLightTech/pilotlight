@@ -47,6 +47,7 @@ Index of this file:
 #include "pl_draw_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper macros
@@ -237,6 +238,14 @@ typedef struct _plUiStyle
     plVec2 tItemSpacing;
     plVec2 tInnerSpacing;
     plVec2 tFramePadding;
+
+    // rounding
+    float fWindowRounding;
+    float fChildRounding;
+    float fFrameRounding;
+    float fScrollbarRounding;
+    float fGrabRounding;
+    float fTabRounding;
 } plUiStyle;
 
 typedef struct _plUiTabBar

@@ -995,11 +995,17 @@ pl_add_rect_filled(plDrawLayer2D* ptLayer, plVec2 minP, plVec2 maxP, plVec4 colo
 }
 
 static void
-pl_add_rect_rounded(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments)
+pl_add_rect_rounded_ex(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments, plDrawRectFlags tFlags)
 {
     // segments is the number of segments used to approximate one corner
 
-    if(uSegments == 0){ uSegments = 3; }
+    if(fRadius <= 0.0f)
+    {
+        pl_add_rect(ptLayer, tMinP, tMaxP, tColor, fThickness);
+        return;
+    }
+
+    if(uSegments == 0){ uSegments = 4; }
     const float fIncrement = PL_PI_2 / uSegments;
     float fTheta = 0.0f;
 
@@ -1062,77 +1068,157 @@ pl_add_rect_rounded(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 t
 }
 
 static void
-pl_add_rect_rounded_filled(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments)
+pl_add_rect_rounded(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments)
 {
-    if(uSegments == 0){ uSegments = 3; }
-    const uint32_t numTriangles = (uSegments * 4 + 4); //number segments in midpoint circle, plus square
-    pl__prepare_draw_command(ptLayer, gptCtx->tFontAtlas.tTexture, false);
-    pl__reserve_triangles(ptLayer, numTriangles, numTriangles + 1);
+    pl_add_rect_rounded_ex(ptLayer, tMinP, tMaxP, tColor, fThickness, fRadius, uSegments, PL_DRAW_RECT_FLAG_ROUND_CORNERS_All);
+}
 
+static void
+pl_add_rect_rounded_filled_ex(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments, plDrawRectFlags tFlags)
+{
+    if(fRadius <= 0.0f)
+    {
+        pl_add_rect_filled(ptLayer, tMinP, tMaxP, tColor);
+        return;
+    }
+
+    if(uSegments == 0){ uSegments = 4; }
+
+    pl__prepare_draw_command(ptLayer, gptCtx->tFontAtlas.tTexture, false);
+    pl__reserve_triangles(ptLayer, 30, 12);
+
+    const plVec2 tInnerTopLeft = {tMinP.x + fRadius, tMinP.y + fRadius};
+    const plVec2 tInnerBottomLeft = {tMinP.x + fRadius, tMaxP.y - fRadius};
+    const plVec2 tInnerBottomRight = {tMaxP.x - fRadius, tMaxP.y - fRadius};
+    const plVec2 tInnerTopRight = {tMaxP.x - fRadius, tMinP.y + fRadius};
+
+    const plVec2 tOuterTopLeft0 = {tMinP.x + fRadius, tMinP.y};
+    const plVec2 tOuterTopLeft1 = {tMinP.x, tMinP.y + fRadius};
+    const plVec2 tOuterBottomLeft0 = {tMinP.x, tMaxP.y - fRadius};
+    const plVec2 tOuterBottomLeft1 = {tMinP.x + fRadius, tMaxP.y};
+    const plVec2 tOuterBottomRight0 = {tMaxP.x - fRadius, tMaxP.y};
+    const plVec2 tOuterBottomRight1 = {tMaxP.x, tMaxP.y - fRadius};
+    const plVec2 tOuterTopRight0 = {tMaxP.x, tMinP.y + fRadius};
+    const plVec2 tOuterTopRight1 = {tMaxP.x - fRadius, tMinP.y};
+    
     const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+    pl__add_vertex(ptLayer, tInnerTopLeft, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tInnerBottomLeft, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tInnerBottomRight, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tInnerTopRight, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
+
+    pl__add_vertex(ptLayer, tOuterTopLeft1, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tOuterBottomLeft0, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tOuterBottomLeft1, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tOuterBottomRight0, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tOuterBottomRight1, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tOuterTopRight0, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tOuterTopRight1, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tOuterTopLeft0, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
+    
+    // center
+    pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
+    pl__add_index(ptLayer, uVertexStart, 0, 2, 3);
+
+    // left
+    pl__add_index(ptLayer, uVertexStart, 4, 5, 1);
+    pl__add_index(ptLayer, uVertexStart, 4, 1, 0);
+
+    // bottom
+    pl__add_index(ptLayer, uVertexStart, 6, 7, 2);
+    pl__add_index(ptLayer, uVertexStart, 6, 2, 1);
+
+    // right
+    pl__add_index(ptLayer, uVertexStart, 3, 2, 8);
+    pl__add_index(ptLayer, uVertexStart, 3, 8, 9);
+
+    // top
+    pl__add_index(ptLayer, uVertexStart, 0, 3, 10);
+    pl__add_index(ptLayer, uVertexStart, 0, 10, 11);
 
     const float fIncrement = PL_PI_2 / uSegments;
-    float fTheta = 0.0f;
+    float fTheta = PL_PI_2 + fIncrement;
+    plVec2 tLastPoint = tOuterTopLeft0;
 
-    const plVec2 bottomRightStart = { tMaxP.x, tMaxP.y - fRadius };
-    const plVec2 bottomRightInner = { tMaxP.x - fRadius, tMaxP.y - fRadius };
-    const plVec2 bottomRightEnd   = { tMaxP.x - fRadius, tMaxP.y };
-
-    const plVec2 bottomLeftStart  = { tMinP.x + fRadius, tMaxP.y };
-    const plVec2 bottomLeftInner  = { tMinP.x + fRadius, tMaxP.y - fRadius };
-    const plVec2 bottomLeftEnd    = { tMinP.x , tMaxP.y - fRadius};
- 
-    const plVec2 topLeftStart     = { tMinP.x, tMinP.y + fRadius };
-    const plVec2 topLeftInner     = { tMinP.x + fRadius, tMinP.y + fRadius };
-    const plVec2 topLeftEnd       = { tMinP.x + fRadius, tMinP.y };
-
-    const plVec2 topRightStart    = { tMaxP.x - fRadius, tMinP.y };
-    const plVec2 topRightInner    = { tMaxP.x - fRadius, tMinP.y + fRadius };
-    const plVec2 topRightEnd      = { tMaxP.x, tMinP.y + fRadius };
-
-    const plVec2 midPoint = {(tMaxP.x-tMinP.x)/2 + tMinP.x, (tMaxP.y-tMinP.y)/2 + tMinP.y};
-    pl__add_vertex(ptLayer, midPoint, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
-
-    pl__add_vertex(ptLayer, bottomRightStart, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
-    fTheta += fIncrement;
-    for(uint32_t i = 1; i < uSegments; i++)
+    if(tFlags & PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT)
     {
-        pl__add_vertex(ptLayer, ((plVec2){bottomRightInner.x + fRadius * sinf(fTheta + PL_PI_2), bottomRightInner.y + fRadius * sinf(fTheta)}), tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
-        fTheta += fIncrement;
+        for(uint32_t i = 0; i < uSegments - 1; i++)
+        {
+            plVec2 tPoint = {tInnerTopLeft.x + fRadius * cosf(fTheta), tInnerTopLeft.y - fRadius * sinf(fTheta)};
+            pl_add_triangle_filled(ptLayer, tInnerTopLeft, tLastPoint, tPoint, tColor);
+            tLastPoint = tPoint;
+            fTheta += fIncrement;
+        }
+        pl_add_triangle_filled(ptLayer, tInnerTopLeft, tLastPoint, tOuterTopLeft1, tColor);
     }
-    pl__add_vertex(ptLayer, bottomRightEnd, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
-
-    pl__add_vertex(ptLayer, bottomLeftStart, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
-    fTheta += fIncrement;
-    for(uint32_t i = 1; i < uSegments; i++)
+    else
     {
-        pl__add_vertex(ptLayer, ((plVec2){bottomLeftInner.x + fRadius * sinf(fTheta + PL_PI_2), bottomLeftInner.y + fRadius * sinf(fTheta)}), tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
-        fTheta += fIncrement;
+        pl_add_triangle_filled(ptLayer, tInnerTopLeft, tOuterTopLeft0, tMinP, tColor);
+        pl_add_triangle_filled(ptLayer, tInnerTopLeft, tMinP, tOuterTopLeft1, tColor);
     }
-    pl__add_vertex(ptLayer, bottomLeftEnd, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
 
-    pl__add_vertex(ptLayer, topLeftStart, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
-    fTheta += fIncrement;
-    for(uint32_t i = 1; i < uSegments; i++)
+    if(tFlags & PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_LEFT)
     {
-        pl__add_vertex(ptLayer, ((plVec2){topLeftInner.x + fRadius * sinf(fTheta + PL_PI_2), topLeftInner.y + fRadius * sinf(fTheta)}), tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
-        fTheta += fIncrement;
+        fTheta = PL_PI + fIncrement;
+        tLastPoint = tOuterBottomLeft0;
+        for(uint32_t i = 0; i < uSegments - 1; i++)
+        {
+            plVec2 tPoint = {tInnerBottomLeft.x + fRadius * cosf(fTheta), tInnerBottomLeft.y - fRadius * sinf(fTheta)};
+            pl_add_triangle_filled(ptLayer, tInnerBottomLeft, tLastPoint, tPoint, tColor);
+            tLastPoint = tPoint;
+            fTheta += fIncrement;
+        }
+        pl_add_triangle_filled(ptLayer, tInnerBottomLeft, tLastPoint, tOuterBottomLeft1, tColor);
     }
-    pl__add_vertex(ptLayer, topLeftEnd, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
-
-    pl__add_vertex(ptLayer, topRightStart, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
-    fTheta += fIncrement;
-    for(uint32_t i = 1; i < uSegments; i++)
+    else
     {
-        pl__add_vertex(ptLayer, ((plVec2){topRightInner.x + fRadius * sinf(fTheta + PL_PI_2), topRightInner.y + fRadius * sinf(fTheta)}), tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
-        fTheta += fIncrement;
+        pl_add_triangle_filled(ptLayer, tInnerBottomLeft, tOuterBottomLeft0, (plVec2){tMinP.x, tMaxP.y}, tColor);
+        pl_add_triangle_filled(ptLayer, tInnerBottomLeft, (plVec2){tMinP.x, tMaxP.y}, tOuterBottomLeft1, tColor);
     }
-    pl__add_vertex(ptLayer, topRightEnd, tColor, (plVec2){gptCtx->tFontAtlas.afWhiteUv[0], gptCtx->tFontAtlas.afWhiteUv[1]});
 
-    for(uint32_t i = 0; i < numTriangles - 1; i++)
-        pl__add_index(ptLayer, uVertexStart, i + 1, 0, i + 2);
-    pl__add_index(ptLayer, uVertexStart, numTriangles, 0, 1);
+    if(tFlags & PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_RIGHT)
+    {
+        fTheta = PL_PI + PL_PI_2 + fIncrement;
+        tLastPoint = tOuterBottomRight0;
+        for(uint32_t i = 0; i < uSegments - 1; i++)
+        {
+            plVec2 tPoint = {tInnerBottomRight.x + fRadius * cosf(fTheta), tInnerBottomRight.y - fRadius * sinf(fTheta)};
+            pl_add_triangle_filled(ptLayer, tInnerBottomRight, tLastPoint, tPoint, tColor);
+            tLastPoint = tPoint;
+            fTheta += fIncrement;
+        }
+        pl_add_triangle_filled(ptLayer, tInnerBottomRight, tLastPoint, tOuterBottomRight1, tColor);
+    }
+    else
+    {
+        pl_add_triangle_filled(ptLayer, tInnerBottomRight, tOuterBottomRight0, tMaxP, tColor);
+        pl_add_triangle_filled(ptLayer, tInnerBottomRight, tMaxP, tOuterBottomRight1, tColor);
+    }
 
+    if(tFlags & PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_RIGHT)
+    {
+        fTheta = fIncrement;
+        tLastPoint = tOuterTopRight0;
+        for(uint32_t i = 0; i < uSegments - 1; i++)
+        {
+            plVec2 tPoint = {tInnerTopRight.x + fRadius * cosf(fTheta), tInnerTopRight.y - fRadius * sinf(fTheta)};
+            pl_add_triangle_filled(ptLayer, tInnerTopRight, tLastPoint, tPoint, tColor);
+            tLastPoint = tPoint;
+            fTheta += fIncrement;
+        }
+        pl_add_triangle_filled(ptLayer, tInnerTopRight, tLastPoint, tOuterTopRight1, tColor);
+    }
+    else
+    {
+        pl_add_triangle_filled(ptLayer, tInnerTopRight, tOuterTopRight0, (plVec2){tMaxP.x, tMinP.y}, tColor);
+        pl_add_triangle_filled(ptLayer, tInnerTopRight, (plVec2){tMaxP.x, tMinP.y}, tOuterTopRight1, tColor);
+    }
+}
+
+static void
+pl_add_rect_rounded_filled(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments)
+{
+    pl_add_rect_rounded_filled_ex(ptLayer, tMinP, tMaxP, tColor, fRadius, uSegments, PL_DRAW_RECT_FLAG_ROUND_CORNERS_All);
 }
 
 static  void
@@ -2617,7 +2703,7 @@ pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder tEncoder, float
         {
             tPos.x = fWidth * 0.5f * (1.0f + tPos.x);
             tPos.y = fHeight * 0.5f * (1.0f + tPos.y);
-            pl_add_text(ptDrawlist->ptLayer, ptText->tFontHandle, ptText->fSize, tPos.xy, ptText->tColor, ptText->acText, ptText->fWrap);
+            pl_add_text(ptDrawlist->ptLayer, ptText->tFontHandle, ptText->fSize, (plVec2){roundf(tPos.x + 0.5f), roundf(tPos.y + 0.5f)}, ptText->tColor, ptText->acText, ptText->fWrap);
         }
     }
 
@@ -4353,10 +4439,10 @@ pl_load_draw_3d_api(void)
         .add_text_clipped_ex        = pl_add_text_clipped_ex,
         .add_triangle               = pl_add_triangle,
         .add_triangle_filled        = pl_add_triangle_filled,
-        .add_rect                   = pl_add_rect,
-        .add_rect_filled            = pl_add_rect_filled,
-        .add_rect_rounded           = pl_add_rect_rounded,
-        .add_rect_rounded_filled    = pl_add_rect_rounded_filled,
+        .add_rect                   = pl_add_rect_rounded,
+        .add_rect_filled            = pl_add_rect_rounded_filled,
+        .add_rect_ex                = pl_add_rect_rounded_ex,
+        .add_rect_filled_ex         = pl_add_rect_rounded_filled_ex,
         .add_quad                   = pl_add_quad,
         .add_quad_filled            = pl_add_quad_filled,
         .add_circle                 = pl_add_circle,

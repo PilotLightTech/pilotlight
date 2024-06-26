@@ -402,7 +402,7 @@ pl__show_profiling(bool* bValue)
                         }
                     }
                     
-                    gptDraw->add_rect_filled(ptFgLayer, tCursorPos, pl_add_vec2(tCursorPos, tTimelineBarSize), (plVec4){0.5f, 0.0f, 0.0f, 0.7f});
+                    gptDraw->add_rect_filled(ptFgLayer, tCursorPos, pl_add_vec2(tCursorPos, tTimelineBarSize), (plVec4){0.5f, 0.0f, 0.0f, 0.7f}, 0.0f, 0);
 
                     const double dUnitMultiplier = 1000.0;
                     uint32_t uDecimalPlaces = 0;
@@ -660,7 +660,7 @@ pl__show_statistics(bool* bValue)
                 gptDraw->add_rect_filled(ptFgLayer, 
                     tCursor0, 
                     pl_add_vec2(tCursor0, tPlotSize),
-                    (plVec4){0.2f, 0.0f, 0.0f, 0.5f});
+                    (plVec4){0.2f, 0.0f, 0.0f, 0.5f}, 0.0f, 0);
        
                 static const plVec4 atColors[6] = {
                     {0.0f, 1.0f, 1.0f, 0.75f},
@@ -706,7 +706,7 @@ pl__show_statistics(bool* bValue)
                     uint32_t uIndexStart = (uint32_t)ptIOCtx->ulFrameCount;
 
                     const plVec2 tTextPoint = {tCursor1.x + 5.0f, tCursor1.y + i * 15.0f};
-                    gptDraw->add_rect_filled(ptFgLayer, tTextPoint, (plVec2){tTextPoint.x + 13.0f, tTextPoint.y + 13.0f}, *ptColor);
+                    gptDraw->add_rect_filled(ptFgLayer, tTextPoint, (plVec2){tTextPoint.x + 13.0f, tTextPoint.y + 13.0f}, *ptColor, 0.0f, 0);
                     gptDraw->add_text(ptFgLayer, gptUI->get_default_font(), 13.0f, (plVec2){roundf(tTextPoint.x + 15.0f), roundf(tTextPoint.y)}, *ptColor, apcTempNames[i], 0.0f);
         
                     for(uint32_t j = 0; j < PL_STATS_MAX_FRAMES - 1; j++)
@@ -885,9 +885,9 @@ pl__show_device_memory(bool* bValue)
                     const float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)ulMaxBlockSize;
 
                     if(ptBlock->uHandle == 0)
-                        gptDraw->add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth - 6.0f, 30.0f + tCursor0.y}, tAvailableColor, 1.0f);
+                        gptDraw->add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth - 6.0f, 30.0f + tCursor0.y}, tAvailableColor, 1.0f, 0.0f, 0);
                     else
-                        gptDraw->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, tAvailableColor);
+                        gptDraw->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, tAvailableColor, 0.0f, 0);
                     gptUI->invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
                     if(gptUI->was_last_item_hovered())
                     {
@@ -914,15 +914,15 @@ pl__show_device_memory(bool* bValue)
                     const float fAvailableWidth = fWidthAvailable * ((float)ptRange->ulTotalSize) / (float)ulMaxBlockSize;
 
                     const float fYPos = fHeight0 + 34.0f * (float)ptBlock->uCurrentIndex;
-                    gptDraw->add_rect_filled(ptFgLayer, (plVec2){fStartPos, fYPos}, (plVec2){fStartPos + fAvailableWidth, 30.0f + fYPos}, tWastedColor);
-                    gptDraw->add_rect_filled(ptFgLayer, (plVec2){fStartPos, fYPos}, (plVec2){fStartPos + fUsedWidth, 30.0f + fYPos}, tUsedColor);
+                    gptDraw->add_rect_filled(ptFgLayer, (plVec2){fStartPos, fYPos}, (plVec2){fStartPos + fAvailableWidth, 30.0f + fYPos}, tWastedColor, 0.0f, 0);
+                    gptDraw->add_rect_filled(ptFgLayer, (plVec2){fStartPos, fYPos}, (plVec2){fStartPos + fUsedWidth, 30.0f + fYPos}, tUsedColor, 0.0f, 0);
 
                     if(ptRange->ulBlockIndex == ulHoveredBlock)
                     {
                         const plRect tHitBox = pl_calculate_rect((plVec2){fStartPos, fYPos}, (plVec2){fAvailableWidth, 30});
                         if(pl_rect_contains_point(&tHitBox, tMousePos))
                         {
-                            gptDraw->add_rect(ptFgLayer, tHitBox.tMin, tHitBox.tMax, tWhiteColor, 1.0f);
+                            gptDraw->add_rect(ptFgLayer, tHitBox.tMin, tHitBox.tMax, tWhiteColor, 1.0f, 0.0f, 0);
                             gptUI->begin_tooltip();
                             gptUI->text(ptRange->acName);
                             gptUI->text("Offset:          %lu", ptRange->ulOffset);

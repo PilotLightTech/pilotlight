@@ -21,8 +21,8 @@ Index of this file:
 #ifndef PL_DRAW_EXT_H
 #define PL_DRAW_EXT_H
 
-#define PL_DRAW_EXT_VERSION    "0.1.0"
-#define PL_DRAW_EXT_VERSION_NUM 000100
+#define PL_DRAW_EXT_VERSION    "0.2.0"
+#define PL_DRAW_EXT_VERSION_NUM 000200
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
@@ -45,8 +45,6 @@ typedef struct _plDrawI plDrawI;
 
 #include <stdint.h>
 #include "pl_math.h"
-
-#include "pl_graphics_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -74,6 +72,7 @@ typedef union  _plFontHandle     plFontHandle;
 
 // enums
 typedef int plDrawFlags;
+typedef int plDrawRectFlags;
 
 // external
 typedef struct _plGraphics      plGraphics;      // pl_graphics_ext.h
@@ -127,10 +126,10 @@ typedef struct _plDrawI
     void (*add_text_clipped_ex)    (plDrawLayer2D*, plFontHandle, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
     void (*add_triangle)           (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness);
     void (*add_triangle_filled)    (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor);
-    void (*add_rect)               (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness);
-    void (*add_rect_filled)        (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor);
-    void (*add_rect_rounded)       (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments);
-    void (*add_rect_rounded_filled)(plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments);
+    void (*add_rect)               (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments);
+    void (*add_rect_filled)        (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments);
+    void (*add_rect_ex)            (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments, plDrawRectFlags);
+    void (*add_rect_filled_ex)     (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments, plDrawRectFlags);
     void (*add_quad)               (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness);
     void (*add_quad_filled)        (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor);
     void (*add_circle)             (plDrawLayer2D*, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments, float fThickness);
@@ -208,6 +207,21 @@ enum _plDrawFlags
     PL_DRAW_FLAG_CULL_FRONT    = 1 << 2,
     PL_DRAW_FLAG_CULL_BACK     = 1 << 3,
     PL_DRAW_FLAG_FRONT_FACE_CW = 1 << 4,
+};
+
+enum _plDrawRectFlags
+{
+    PL_DRAW_RECT_FLAG_NONE                        = 0,
+    PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT      = 1 << 0,
+    PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_RIGHT     = 1 << 1,
+    PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_LEFT   = 1 << 2,
+    PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_RIGHT  = 1 << 4,
+    PL_DRAW_RECT_FLAG_ROUND_CORNERS_NONE          = 1 << 5,
+    PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP           = PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_RIGHT,
+    PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM        = PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_LEFT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_RIGHT,
+    PL_DRAW_RECT_FLAG_ROUND_CORNERS_LEFT          = PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_LEFT,
+    PL_DRAW_RECT_FLAG_ROUND_CORNERS_RIGHT         = PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_RIGHT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_RIGHT,
+    PL_DRAW_RECT_FLAG_ROUND_CORNERS_All           = PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_RIGHT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_LEFT | PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_RIGHT,
 };
 
 //-----------------------------------------------------------------------------
