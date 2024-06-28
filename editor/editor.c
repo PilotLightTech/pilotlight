@@ -184,10 +184,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     gptCamera->update(ptCullCamera);
 
     // create lights
-    // gptEcs->create_point_light(ptMainComponentLibrary, "light", (plVec3){6.0f, 4.0f, -3.0f}, NULL);
+    gptEcs->create_point_light(ptMainComponentLibrary, "light", (plVec3){6.0f, 4.0f, -3.0f}, NULL);
 
     plLightComponent* ptLight = NULL;
-    ptEditorData->tSunlight = gptEcs->create_directional_light(ptMainComponentLibrary, "sunlight", (plVec3){0.227f, -0.46f, 0.613f}, &ptLight);
+    ptEditorData->tSunlight = gptEcs->create_directional_light(ptMainComponentLibrary, "sunlight", (plVec3){-0.375f, -1.0f, -0.085f}, &ptLight);
     ptLight->uCascadeCount = 4;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
 
@@ -198,10 +198,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     pl_begin_profile_sample("load models 0");
     // const plMat4 tTransform = pl_mat4_translate_xyz(5.0f, 0.0F, 0.0f);
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/CesiumMan/glTF/CesiumMan.gltf", &tTransform, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
-    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf", NULL, &tLoaderData0);
-    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
+    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptEditorData->uSceneHandle0, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
     gptModelLoader->free_data(&tLoaderData0);
     pl_end_profile_sample();
@@ -212,17 +211,17 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     pl_end_profile_frame();
 
-    plTransformComponent* ptTargetTransform = NULL;
-    ptEditorData->tTrackPoint = gptEcs->create_transform(ptMainComponentLibrary, "track 0", &ptTargetTransform);
-    ptTargetTransform->tTranslation = (plVec3){0.1f, 0.017f};
+    // plTransformComponent* ptTargetTransform = NULL;
+    // ptEditorData->tTrackPoint = gptEcs->create_transform(ptMainComponentLibrary, "track 0", &ptTargetTransform);
+    // ptTargetTransform->tTranslation = (plVec3){0.1f, 0.017f};
 
-    plHumanoidComponent* ptHuman =  gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_HUMANOID, (plEntity){.uIndex = 5});
+    // plHumanoidComponent* ptHuman =  gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_HUMANOID, (plEntity){.uIndex = 5});
 
-    plInverseKinematicsComponent* ptIK = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_INVERSE_KINEMATICS, ptHuman->atBones[PL_HUMANOID_BONE_LEFT_FOOT]);
-    ptIK->bEnabled = true;
-    ptIK->tTarget = ptEditorData->tTrackPoint;
-    ptIK->uChainLength = 2;
-    ptIK->uIterationCount = 5;
+    // plInverseKinematicsComponent* ptIK = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_INVERSE_KINEMATICS, ptHuman->atBones[PL_HUMANOID_BONE_LEFT_FOOT]);
+    // ptIK->bEnabled = true;
+    // ptIK->tTarget = ptEditorData->tTrackPoint;
+    // ptIK->uChainLength = 2;
+    // ptIK->uIterationCount = 5;
 
     // temporary for profiling loading procedures
     uint32_t uSampleSize = 0;

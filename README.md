@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/PilotLightTech/pilotlight-assets"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/images/tooling1.PNG" alt="Tooling Image"></a>
+  <a href="https://github.com/PilotLightTech/pilotlight-assets"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/images/tooling2.png" alt="Tooling Image"></a>
 </p>
 
 ## Information
@@ -40,10 +40,6 @@ Pilot Light is licensed under the [MIT License](https://github.com/PilotLightTec
 ## Gallery
 
 <p align="center">
-  <a href="https://github.com/PilotLightTech/pilotlight-assets"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/images/firstimage.PNG" alt="First Image"></a>
-</p>
-
-<p align="center">
   <a href="https://github.com/PilotLightTech/pilotlight"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/gifs/sponza0.gif" alt="Sponza 0" width="2553"></a>
 </p>
 
@@ -51,5 +47,6 @@ Pilot Light is licensed under the [MIT License](https://github.com/PilotLightTec
 This project is inspired by:
 * [Omar Cornut](http://www.miracleworld.net/) & [Dear ImGui](https://github.com/ocornut/imgui).
 * Casey Muratori & [Handmade Hero](https://handmadehero.org/)
+* Turánszki János & [Wicked Engine](https://wickedengine.net/)
 * [Sean Barrett](https://nothings.org/) & his [stb](https://github.com/nothings/stb) libraries
 * _The Machinery_ before they were abducted
