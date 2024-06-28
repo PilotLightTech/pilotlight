@@ -44,10 +44,11 @@ typedef struct _plFontPrepData
     stbtt_fontinfo    fontInfo;
     stbtt_pack_range* ranges;
     stbrp_rect*       rects;
-    unsigned char*    ptrTtf;
     uint32_t          uTotalCharCount;
     float             scale;
-    uint32_t          area;
+    bool              bPrepped;
+    float             fAscent;
+    float             fDescent;
 } plFontPrepData;
 
 typedef struct _plFontAtlas
@@ -56,7 +57,6 @@ typedef struct _plFontAtlas
     plFont*           sbtFonts;
     uint32_t*         sbtFontGenerations;
     uint32_t*         sbtFontFreeIndices;
-    plFontPrepData*   _sbtPrepData;
 
     plFontCustomRect* sbtCustomRects;
     unsigned char*    pucPixelsAsAlpha8;
@@ -67,7 +67,8 @@ typedef struct _plFontAtlas
     int               iGlyphPadding;
     size_t            szPixelDataSize;
     plFontCustomRect* ptWhiteRect;
-    plTextureHandle    tTexture;
+    plTextureHandle   tTexture;
+    float             fTotalArea;
     
 } plFontAtlas;
 
@@ -727,7 +728,7 @@ pl_add_text_ex(plDrawLayer2D* ptLayer, plFontHandle tFontHandle, float size, plV
 {
     plFont* font = &gptCtx->tFontAtlas.sbtFonts[tFontHandle.uIndex];
 
-    float scale = size > 0.0f ? size / font->tConfig.fFontSize : 1.0f;
+    float scale = size > 0.0f ? size / font->fSize : 1.0f;
 
     float fLineSpacing = scale * font->fLineSpacing;
     const plVec2 originalPosition = p;
@@ -758,16 +759,18 @@ pl_add_text_ex(plDrawLayer2D* ptLayer, plFontHandle tFontHandle, float size, plV
         {
 
             bool glyphFound = false;
-            for(uint32_t i = 0u; i < pl_sb_size(font->tConfig.sbtRanges); i++)
+            const uint32_t uRangeCount = pl_sb_size(font->sbtRanges);
+            for(uint32_t i = 0u; i < uRangeCount; i++)
             {
-                if (c >= (uint32_t)font->tConfig.sbtRanges[i].iFirstCodePoint && c < (uint32_t)font->tConfig.sbtRanges[i].iFirstCodePoint + (uint32_t)font->tConfig.sbtRanges[i].uCharCount) 
+                const plFontRange* ptRange = &font->sbtRanges[i];
+                if (c >= (uint32_t)ptRange->iFirstCodePoint && c < (uint32_t)ptRange->iFirstCodePoint + (uint32_t)ptRange->uCharCount) 
                 {
 
                     
                     float x0,y0,s0,t0; // top-left
                     float x1,y1,s1,t1; // bottom-right
 
-                    const plFontGlyph* glyph = &font->sbtGlyphs[font->sbuCodePoints[c]];
+                    const plFontGlyph* glyph = &font->sbtGlyphs[font->_auCodePoints[c]];
 
                     // adjust for left side bearing if first char
                     if(firstCharacter)
@@ -799,7 +802,7 @@ pl_add_text_ex(plDrawLayer2D* ptLayer, plFontHandle tFontHandle, float size, plV
                     p.x += glyph->xAdvance * scale;
                     if(c != ' ')
                     {
-                        pl__prepare_draw_command(ptLayer, gptCtx->tFontAtlas.tTexture, font->tConfig.bSdf);
+                        pl__prepare_draw_command(ptLayer, gptCtx->tFontAtlas.tTexture, font->_sbtConfigs[ptRange->_uConfigIndex].bSdf);
                         pl__reserve_triangles(ptLayer, 6, 4);
                         uint32_t uVtxStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
                         pl__add_vertex(ptLayer, (plVec2){x0, y0}, color, (plVec2){s0, t0});
@@ -836,7 +839,7 @@ pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plFontHandle tFontHandle, float s
 
     plFont* font = &gptCtx->tFontAtlas.sbtFonts[tFontHandle.uIndex];
 
-    float scale = size > 0.0f ? size / font->tConfig.fFontSize : 1.0f;
+    float scale = size > 0.0f ? size / font->fSize : 1.0f;
 
     float fLineSpacing = scale * font->fLineSpacing;
     const plVec2 originalPosition = p;
@@ -867,16 +870,18 @@ pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plFontHandle tFontHandle, float s
         {
 
             bool glyphFound = false;
-            for(uint32_t i = 0u; i < pl_sb_size(font->tConfig.sbtRanges); i++)
+            const uint32_t uRangeCount = pl_sb_size(font->sbtRanges);
+            for(uint32_t i = 0u; i < uRangeCount; i++)
             {
-                if (c >= (uint32_t)font->tConfig.sbtRanges[i].iFirstCodePoint && c < (uint32_t)font->tConfig.sbtRanges[i].iFirstCodePoint + (uint32_t)font->tConfig.sbtRanges[i].uCharCount) 
+                const plFontRange* ptRange = &font->sbtRanges[i];
+                if (c >= (uint32_t)ptRange->iFirstCodePoint && c < (uint32_t)ptRange->iFirstCodePoint + (uint32_t)ptRange->uCharCount) 
                 {
 
                     
                     float x0,y0,s0,t0; // top-left
                     float x1,y1,s1,t1; // bottom-right
 
-                    const plFontGlyph* glyph = &font->sbtGlyphs[font->sbuCodePoints[c]];
+                    const plFontGlyph* glyph = &font->sbtGlyphs[font->_auCodePoints[c]];
 
                     // adjust for left side bearing if first char
                     if(firstCharacter)
@@ -908,7 +913,7 @@ pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plFontHandle tFontHandle, float s
                     p.x += glyph->xAdvance * scale;
                     if(c != ' ' && pl_rect_contains_point(&tClipRect, p))
                     {
-                        pl__prepare_draw_command(ptLayer, gptCtx->tFontAtlas.tTexture, font->tConfig.bSdf);
+                        pl__prepare_draw_command(ptLayer, gptCtx->tFontAtlas.tTexture, font->_sbtConfigs[ptRange->_uConfigIndex].bSdf);
                         pl__reserve_triangles(ptLayer, 6, 4);
                         uint32_t uVtxStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
                         pl__add_vertex(ptLayer, (plVec2){x0, y0}, color, (plVec2){s0, t0});
@@ -1436,58 +1441,89 @@ pl_add_font_from_memory_ttf(plFontConfig config, void* data)
     gptCtx->tFontAtlas.bDirty = true;
     gptCtx->tFontAtlas.iGlyphPadding = 1;
 
-    plFont font = 
+    plFont* ptFont = NULL;
+    plFontHandle tHandle = {.ulData = UINT64_MAX};
+    if(config.bMergeFont)
     {
-        .tConfig = config
-    };
+        ptFont = &gptCtx->tFontAtlas.sbtFonts[config.tMergeFont.uIndex];
+    }
+    else
+    {
+        uint32_t uFontIndex = UINT32_MAX;
+        if(pl_sb_size(gptCtx->tFontAtlas.sbtFontFreeIndices) > 0)
+            uFontIndex = pl_sb_pop(gptCtx->tFontAtlas.sbtFontFreeIndices);
+        else
+        {
+            uFontIndex = pl_sb_size(gptCtx->tFontAtlas.sbtFonts);
+            pl_sb_add(gptCtx->tFontAtlas.sbtFonts);
+            pl_sb_push(gptCtx->tFontAtlas.sbtFontGenerations, UINT32_MAX);
+        }
+
+        tHandle.uGeneration = ++gptCtx->tFontAtlas.sbtFontGenerations[uFontIndex];
+        tHandle.uIndex = uFontIndex;
+
+        ptFont = &gptCtx->tFontAtlas.sbtFonts[uFontIndex];
+        ptFont->fLineSpacing = 0.0f;
+        ptFont->fSize = config.fFontSize;
+    }
+    const uint32_t uConfigIndex = pl_sb_size(ptFont->_sbtConfigs);
+    const uint32_t uPrepIndex = uConfigIndex;
+    pl_sb_add(ptFont->_sbtConfigs);
+    pl_sb_push(ptFont->_sbtPreps, (plFontPrepData){0});
+
+    plFontPrepData* ptPrep = &ptFont->_sbtPreps[uPrepIndex];
+    stbtt_InitFont(&ptPrep->fontInfo, (unsigned char*)data, 0);
 
     // prepare stb
-    plFontPrepData prep = {0};
-    stbtt_InitFont(&prep.fontInfo, (unsigned char*)data, 0);
-
+    
     // get vertical font metrics
     int ascent, descent, lineGap;
-    stbtt_GetFontVMetrics(&prep.fontInfo, &ascent, &descent, &lineGap);
+    stbtt_GetFontVMetrics(&ptPrep->fontInfo, &ascent, &descent, &lineGap);
 
     // calculate scaling factor
-    prep.scale = 1.0f;
-    if(font.tConfig.fFontSize > 0) prep.scale = stbtt_ScaleForPixelHeight(&prep.fontInfo, font.tConfig.fFontSize);
-    else                         prep.scale = stbtt_ScaleForMappingEmToPixels(&prep.fontInfo, -font.tConfig.fFontSize);
+    ptPrep->scale = 1.0f;
+    if(ptFont->fSize > 0)  ptPrep->scale = stbtt_ScaleForPixelHeight(&ptPrep->fontInfo, ptFont->fSize);
+    else                   ptPrep->scale = stbtt_ScaleForMappingEmToPixels(&ptPrep->fontInfo, -ptFont->fSize);
 
     // calculate SDF pixel increment
-    if(font.tConfig.bSdf) font.tConfig.fSdfPixelDistScale = (float)font.tConfig.ucOnEdgeValue / (float) font.tConfig.iSdfPadding;
+    if(config.bSdf)
+        config._fSdfPixelDistScale = (float)config.ucOnEdgeValue / (float) config.iSdfPadding;
 
     // calculate base line spacing
-    font.fAscent = ceilf(ascent * prep.scale);
-    font.fDescent = floorf(descent * prep.scale);
-    font.fLineSpacing = (font.fAscent - font.fDescent + prep.scale * (float)lineGap);
+    ptPrep->fAscent = ceilf(ascent * ptPrep->scale);
+    ptPrep->fDescent = floorf(descent * ptPrep->scale);
+    ptFont->fLineSpacing = pl_max(ptFont->fLineSpacing, (ptPrep->fAscent - ptPrep->fDescent + ptPrep->scale * (float)lineGap));
 
     // convert individual chars to ranges
-    for(uint32_t i = 0; i < pl_sb_size(font.tConfig.sbiIndividualChars); i++)
+    for(uint32_t i = 0; i < pl_sb_size(config.sbiIndividualChars); i++)
     {
         plFontRange range = {
             .uCharCount = 1,
-            .iFirstCodePoint = font.tConfig.sbiIndividualChars[i],
-            .ptFontChar = NULL
+            .iFirstCodePoint = config.sbiIndividualChars[i],
+            ._uConfigIndex = uConfigIndex
         };
-        pl_sb_push(font.tConfig.sbtRanges, range);
+        pl_sb_push(config.sbtRanges, range);
     }
 
     // find total number of glyphs/chars required
+    // const uint32_t uGlyphOffset = pl_sb_size(ptFont->sbtGlyphs);
     uint32_t totalCharCount = 0u;
-    for(uint32_t i = 0; i < pl_sb_size(font.tConfig.sbtRanges); i++)
-        totalCharCount += font.tConfig.sbtRanges[i].uCharCount;
+    for(uint32_t i = 0; i < pl_sb_size(config.sbtRanges); i++)
+    {
+        totalCharCount += config.sbtRanges[i].uCharCount;
+        totalCharCount += config.sbtRanges[i]._uConfigIndex = uConfigIndex;
+    }
     
-    pl_sb_reserve(font.sbtGlyphs, totalCharCount);
-    pl_sb_resize(font.sbtCharData, totalCharCount);
+    pl_sb_reserve(ptFont->sbtGlyphs, pl_sb_size(ptFont->sbtGlyphs) + totalCharCount);
+    pl_sb_resize(config._sbtCharData, totalCharCount);
 
-    if(font.tConfig.bSdf)
+    if(config.bSdf)
     {
         pl_sb_reserve(gptCtx->tFontAtlas.sbtCustomRects, pl_sb_size(gptCtx->tFontAtlas.sbtCustomRects) + totalCharCount); // is this correct
     }
 
-    prep.ranges = PL_ALLOC(sizeof(stbtt_pack_range) * pl_sb_size(font.tConfig.sbtRanges));
-    memset(prep.ranges, 0, sizeof(stbtt_pack_range) * pl_sb_size(font.tConfig.sbtRanges));
+    ptPrep->ranges = PL_ALLOC(sizeof(stbtt_pack_range) * pl_sb_size(config.sbtRanges));
+    memset(ptPrep->ranges, 0, sizeof(stbtt_pack_range) * pl_sb_size(config.sbtRanges));
 
     // find max codepoint & set range pointers into font char data
     int k = 0;
@@ -1495,60 +1531,66 @@ pl_add_font_from_memory_ttf(plFontConfig config, void* data)
     totalCharCount = 0u;
     bool missingGlyphAdded = false;
 
-    for(uint32_t i = 0; i < pl_sb_size(font.tConfig.sbtRanges); i++)
+    for(uint32_t i = 0; i < pl_sb_size(config.sbtRanges); i++)
     {
-        plFontRange* range = &font.tConfig.sbtRanges[i];
-        prep.uTotalCharCount += range->uCharCount;
+        plFontRange* range = &config.sbtRanges[i];
+        range->_uConfigIndex = uConfigIndex;
+        ptPrep->uTotalCharCount += range->uCharCount;
+        pl_sb_push(ptFont->sbtRanges, *range);
     }
 
-    if(!font.tConfig.bSdf)
+    if(!config.bSdf)
     {
-        prep.rects = PL_ALLOC(sizeof(stbrp_rect) * prep.uTotalCharCount);
+        ptPrep->rects = PL_ALLOC(sizeof(stbrp_rect) * ptPrep->uTotalCharCount);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(font.tConfig.sbtRanges); i++)
+    for(uint32_t i = 0; i < pl_sb_size(config.sbtRanges); i++)
     {
-        plFontRange* range = &font.tConfig.sbtRanges[i];
+        plFontRange* range = &config.sbtRanges[i];
 
         if(range->iFirstCodePoint + (int)range->uCharCount > maxCodePoint)
             maxCodePoint = range->iFirstCodePoint + (int)range->uCharCount;
 
-        range->ptFontChar = &font.sbtCharData[totalCharCount];
-
         // prepare stb stuff
-        prep.ranges[i].font_size = font.tConfig.fFontSize;
-        prep.ranges[i].first_unicode_codepoint_in_range = range->iFirstCodePoint;
-        prep.ranges[i].chardata_for_range = (stbtt_packedchar*)range->ptFontChar;
-        prep.ranges[i].num_chars = range->uCharCount;
-        prep.ranges[i].h_oversample = (unsigned char) font.tConfig.uHOverSampling;
-        prep.ranges[i].v_oversample = (unsigned char) font.tConfig.uVOverSampling;
+        ptPrep->ranges[i].font_size = config.fFontSize;
+        ptPrep->ranges[i].first_unicode_codepoint_in_range = range->iFirstCodePoint;
+        ptPrep->ranges[i].chardata_for_range = (stbtt_packedchar*)&config._sbtCharData[totalCharCount];
+        ptPrep->ranges[i].num_chars = range->uCharCount;
+        ptPrep->ranges[i].h_oversample = (unsigned char) config.uHOverSampling;
+        ptPrep->ranges[i].v_oversample = (unsigned char) config.uVOverSampling;
 
         // flag all characters as NOT packed
-        memset(prep.ranges[i].chardata_for_range, 0, sizeof(stbtt_packedchar) * range->uCharCount);
+        memset(ptPrep->ranges[i].chardata_for_range, 0, sizeof(stbtt_packedchar) * range->uCharCount);
 
-        if(font.tConfig.bSdf)
+        if(config.bSdf)
         {
-            for (uint32_t j = 0; j < (uint32_t)prep.ranges[i].num_chars; j++) 
+            for (uint32_t j = 0; j < (uint32_t)ptPrep->ranges[i].num_chars; j++) 
             {
                 int codePoint = 0;
-                if(prep.ranges[i].array_of_unicode_codepoints) codePoint = prep.ranges[i].array_of_unicode_codepoints[j];
-                else                                           codePoint = prep.ranges[i].first_unicode_codepoint_in_range + j;
+                if(ptPrep->ranges[i].array_of_unicode_codepoints) codePoint = ptPrep->ranges[i].array_of_unicode_codepoints[j];
+                else                                           codePoint = ptPrep->ranges[i].first_unicode_codepoint_in_range + j;
 
 
                 int width = 0u;
                 int height = 0u;
                 int xOff = 0u;
                 int yOff = 0u;
-                unsigned char* bytes = stbtt_GetCodepointSDF(&prep.fontInfo, stbtt_ScaleForPixelHeight(&prep.fontInfo, font.tConfig.fFontSize), codePoint, font.tConfig.iSdfPadding, font.tConfig.ucOnEdgeValue, font.tConfig.fSdfPixelDistScale, &width, &height, &xOff, &yOff);
+                unsigned char* bytes = stbtt_GetCodepointSDF(&ptPrep->fontInfo,
+                    stbtt_ScaleForPixelHeight(&ptPrep->fontInfo, config.fFontSize),
+                    codePoint,
+                    config.iSdfPadding,
+                    config.ucOnEdgeValue,
+                    config._fSdfPixelDistScale,
+                    &width, &height, &xOff, &yOff);
 
                 int xAdvance = 0u;
-                stbtt_GetCodepointHMetrics(&prep.fontInfo, codePoint, &xAdvance, NULL);
+                stbtt_GetCodepointHMetrics(&ptPrep->fontInfo, codePoint, &xAdvance, NULL);
 
-                range->ptFontChar[j].xOff = (float)(xOff);
-                range->ptFontChar[j].yOff = (float)(yOff);
-                range->ptFontChar[j].xOff2 = (float)(xOff + width);
-                range->ptFontChar[j].yOff2 = (float)(yOff + height);
-                range->ptFontChar[j].xAdv = prep.scale * (float)xAdvance;
+                config._sbtCharData[totalCharCount + j].xOff = (float)(xOff);
+                config._sbtCharData[totalCharCount + j].yOff = (float)(yOff);
+                config._sbtCharData[totalCharCount + j].xOff2 = (float)(xOff + width);
+                config._sbtCharData[totalCharCount + j].yOff2 = (float)(yOff + height);
+                config._sbtCharData[totalCharCount + j].xAdv = ptPrep->scale * (float)xAdvance;
 
                 plFontCustomRect customRect = {
                     .uWidth = (uint32_t)width,
@@ -1556,36 +1598,36 @@ pl_add_font_from_memory_ttf(plFontConfig config, void* data)
                     .pucBytes = bytes
                 };
                 pl_sb_push(gptCtx->tFontAtlas.sbtCustomRects, customRect);
-                prep.area += width * height;
+                gptCtx->tFontAtlas.fTotalArea += width * height;
                 
             }
-            k += prep.ranges[i].num_chars;
+            k += ptPrep->ranges[i].num_chars;
         }
         else // regular font
         {
             for(uint32_t j = 0; j < range->uCharCount; j++)
             {
                 int codepoint = 0;
-                if(prep.ranges[i].array_of_unicode_codepoints) codepoint = prep.ranges[i].array_of_unicode_codepoints[j];
-                else                                           codepoint = prep.ranges[i].first_unicode_codepoint_in_range + j;
+                if(ptPrep->ranges[i].array_of_unicode_codepoints) codepoint = ptPrep->ranges[i].array_of_unicode_codepoints[j];
+                else                                              codepoint = ptPrep->ranges[i].first_unicode_codepoint_in_range + j;
 
                 // bitmap
-                int glyphIndex = stbtt_FindGlyphIndex(&prep.fontInfo, codepoint);
+                int glyphIndex = stbtt_FindGlyphIndex(&ptPrep->fontInfo, codepoint);
                 if(glyphIndex == 0 && missingGlyphAdded)
-                    prep.rects[k].w = prep.rects[k].h = 0;
+                    ptPrep->rects[k].w = ptPrep->rects[k].h = 0;
                 else
                 {
                     int x0 = 0;
                     int y0 = 0;
                     int x1 = 0;
                     int y1 = 0;
-                    stbtt_GetGlyphBitmapBoxSubpixel(&prep.fontInfo, glyphIndex,
-                                                    prep.scale * font.tConfig.uHOverSampling,
-                                                    prep.scale * font.tConfig.uVOverSampling,
+                    stbtt_GetGlyphBitmapBoxSubpixel(&ptPrep->fontInfo, glyphIndex,
+                                                    ptPrep->scale * config.uHOverSampling,
+                                                    ptPrep->scale * config.uVOverSampling,
                                                     0, 0, &x0, &y0, &x1, &y1);
-                    prep.rects[k].w = (stbrp_coord)(x1 - x0 + gptCtx->tFontAtlas.iGlyphPadding + font.tConfig.uHOverSampling - 1);
-                    prep.rects[k].h = (stbrp_coord)(y1 - y0 + gptCtx->tFontAtlas.iGlyphPadding + font.tConfig.uVOverSampling - 1);
-                    prep.area += prep.rects[k].w * prep.rects[k].h;
+                    ptPrep->rects[k].w = (stbrp_coord)(x1 - x0 + gptCtx->tFontAtlas.iGlyphPadding + config.uHOverSampling - 1);
+                    ptPrep->rects[k].h = (stbrp_coord)(y1 - y0 + gptCtx->tFontAtlas.iGlyphPadding + config.uVOverSampling - 1);
+                    gptCtx->tFontAtlas.fTotalArea += ptPrep->rects[k].w * ptPrep->rects[k].h;
                     if (glyphIndex == 0) missingGlyphAdded = true; 
                 }
                 k++;
@@ -1593,26 +1635,20 @@ pl_add_font_from_memory_ttf(plFontConfig config, void* data)
         }
         totalCharCount += range->uCharCount;
     }
-    pl_sb_resize(font.sbuCodePoints, (uint32_t)maxCodePoint);
-
-    uint32_t uFontIndex = UINT32_MAX;
-    if(pl_sb_size(gptCtx->tFontAtlas.sbtFontFreeIndices) > 0)
-        uFontIndex = pl_sb_pop(gptCtx->tFontAtlas.sbtFontFreeIndices);
+    if(ptFont->_uCodePointCount == 0)
+    {
+        ptFont->_auCodePoints = PL_ALLOC(sizeof(uint32_t) * (uint32_t)maxCodePoint);
+        ptFont->_uCodePointCount = (uint32_t)maxCodePoint;
+    }
     else
     {
-        uFontIndex = pl_sb_size(gptCtx->tFontAtlas.sbtFonts);
-        pl_sb_add(gptCtx->tFontAtlas.sbtFonts);
-        pl_sb_push(gptCtx->tFontAtlas.sbtFontGenerations, UINT32_MAX);
-        pl_sb_add(gptCtx->tFontAtlas._sbtPrepData);
+        uint32_t* puOldCodePoints = ptFont->_auCodePoints;
+        ptFont->_auCodePoints = PL_ALLOC(sizeof(uint32_t) * ((uint32_t)maxCodePoint + ptFont->_uCodePointCount));
+        memcpy(ptFont->_auCodePoints, puOldCodePoints, ptFont->_uCodePointCount * sizeof(uint32_t));
+        ptFont->_uCodePointCount += (uint32_t)maxCodePoint;
+        PL_FREE(puOldCodePoints);
     }
-
-    plFontHandle tHandle = {
-        .uGeneration = ++gptCtx->tFontAtlas.sbtFontGenerations[uFontIndex],
-        .uIndex = uFontIndex
-    };
-
-    gptCtx->tFontAtlas.sbtFonts[uFontIndex] = font;
-    gptCtx->tFontAtlas._sbtPrepData[uFontIndex] = prep;
+    ptFont->_sbtConfigs[uConfigIndex] = config;
     return tHandle;
 }
 
@@ -1631,7 +1667,7 @@ pl_calculate_text_size_ex(plFontHandle tFontHandle, float size, const char* text
 
     plFont* font = &gptCtx->tFontAtlas.sbtFonts[tFontHandle.uIndex];
 
-    float scale = size > 0.0f ? size / font->tConfig.fFontSize : 1.0f;
+    float scale = size > 0.0f ? size / font->fSize : 1.0f;
 
     float fLineSpacing = scale * font->fLineSpacing;
     plVec2 originalPosition = {FLT_MAX, FLT_MAX};
@@ -1662,16 +1698,17 @@ pl_calculate_text_size_ex(plFontHandle tFontHandle, float size, const char* text
         {
 
             bool glyphFound = false;
-            for(uint32_t i = 0u; i < pl_sb_size(font->tConfig.sbtRanges); i++)
+            for(uint32_t i = 0u; i < pl_sb_size(font->sbtRanges); i++)
             {
-                if (c >= (uint32_t)font->tConfig.sbtRanges[i].iFirstCodePoint && c < (uint32_t)font->tConfig.sbtRanges[i].iFirstCodePoint + (uint32_t)font->tConfig.sbtRanges[i].uCharCount) 
+                plFontRange* ptRange = &font->sbtRanges[i];
+                if (c >= (uint32_t)ptRange->iFirstCodePoint && c < (uint32_t)ptRange->iFirstCodePoint + (uint32_t)ptRange->uCharCount) 
                 {
 
                     
                     float x0,y0,s0,t0; // top-left
                     float x1,y1,s1,t1; // bottom-right
 
-                    const plFontGlyph* glyph = &font->sbtGlyphs[font->sbuCodePoints[c]];
+                    const plFontGlyph* glyph = &font->sbtGlyphs[font->_auCodePoints[c]];
 
                     // adjust for left side bearing if first char
                     if(firstCharacter)
@@ -1737,7 +1774,7 @@ pl_calculate_text_bb_ex(plFontHandle tFontHandle, float size, plVec2 tP, const c
 
     plFont* font = &gptCtx->tFontAtlas.sbtFonts[tFontHandle.uIndex];
 
-    float scale = size > 0.0f ? size / font->tConfig.fFontSize : 1.0f;
+    float scale = size > 0.0f ? size / font->fSize : 1.0f;
 
     float fLineSpacing = scale * font->fLineSpacing;
     plVec2 originalPosition = {FLT_MAX, FLT_MAX};
@@ -1768,15 +1805,16 @@ pl_calculate_text_bb_ex(plFontHandle tFontHandle, float size, plVec2 tP, const c
         {
 
             bool glyphFound = false;
-            for(uint32_t i = 0u; i < pl_sb_size(font->tConfig.sbtRanges); i++)
+            for(uint32_t i = 0u; i < pl_sb_size(font->sbtRanges); i++)
             {
-                if (c >= (uint32_t)font->tConfig.sbtRanges[i].iFirstCodePoint && c < (uint32_t)font->tConfig.sbtRanges[i].iFirstCodePoint + (uint32_t)font->tConfig.sbtRanges[i].uCharCount) 
+                plFontRange* ptRange = &font->sbtRanges[i];
+                if (c >= (uint32_t)ptRange->iFirstCodePoint && c < (uint32_t)ptRange->iFirstCodePoint + (uint32_t)ptRange->uCharCount) 
                 {
 
                     float x0,y0,s0,t0; // top-left
                     float x1,y1,s1,t1; // bottom-right
 
-                    const plFontGlyph* glyph = &font->sbtGlyphs[font->sbuCodePoints[c]];
+                    const plFontGlyph* glyph = &font->sbtGlyphs[font->_auCodePoints[c]];
 
                     // adjust for left side bearing if first char
                     if(firstCharacter)
@@ -1874,11 +1912,6 @@ static void
 pl_build_font_atlas(void)
 {
 
-    // calculate texture total area needed
-    uint32_t totalAtlasArea = 0u;
-    for(uint32_t i = 0u; i < pl_sb_size(gptCtx->tFontAtlas._sbtPrepData); i++)
-        totalAtlasArea += gptCtx->tFontAtlas._sbtPrepData[i].area;
-
     // create our white location
     plFontCustomRect ptWhiteRect = {
         .uWidth = 8u,
@@ -1890,10 +1923,10 @@ pl_build_font_atlas(void)
     memset(ptWhiteRect.pucBytes, 255, 64);
     pl_sb_push(gptCtx->tFontAtlas.sbtCustomRects, ptWhiteRect);
     gptCtx->tFontAtlas.ptWhiteRect = &pl_sb_back(gptCtx->tFontAtlas.sbtCustomRects);
-    totalAtlasArea += 64;
+    gptCtx->tFontAtlas.fTotalArea += 64;
 
     // calculate final texture area required
-    const float totalAtlasAreaSqrt = (float)sqrt((float)totalAtlasArea) + 1.0f;
+    const float totalAtlasAreaSqrt = (float)sqrt((float)gptCtx->tFontAtlas.fTotalArea) + 1.0f;
     gptCtx->tFontAtlas.auAtlasSize[0] = 512;
     gptCtx->tFontAtlas.auAtlasSize[1] = 0;
     if     (totalAtlasAreaSqrt >= 4096 * 0.7f) gptCtx->tFontAtlas.auAtlasSize[0] = 4096;
@@ -1916,20 +1949,29 @@ pl_build_font_atlas(void)
     }
     
     // pack bitmap fonts
-    for(uint32_t i = 0u; i < pl_sb_size(gptCtx->tFontAtlas._sbtPrepData); i++)
+    for(uint32_t i = 0u; i < pl_sb_size(gptCtx->tFontAtlas.sbtFonts); i++)
     {
         plFont* font = &gptCtx->tFontAtlas.sbtFonts[i];
-        if(!font->tConfig.bSdf)
+        for(uint32_t j = 0; j < pl_sb_size(font->sbtRanges); j++)
         {
-            plFontPrepData* prep = &gptCtx->tFontAtlas._sbtPrepData[i];
-            stbtt_PackSetOversampling(&spc, font->tConfig.uHOverSampling, font->tConfig.uVOverSampling);
-            stbrp_pack_rects((stbrp_context*)spc.pack_info, prep->rects, prep->uTotalCharCount);
-            for(uint32_t j = 0u; j < prep->uTotalCharCount; j++)
+            plFontRange* ptRange = &font->sbtRanges[j];
+            if(!font->_sbtConfigs[ptRange->_uConfigIndex].bSdf)
             {
-                if(prep->rects[j].was_packed)
-                    gptCtx->tFontAtlas.auAtlasSize[1] = (uint32_t)pl__get_max((float)gptCtx->tFontAtlas.auAtlasSize[1], (float)(prep->rects[j].y + prep->rects[j].h));
+                plFontPrepData* prep = &font->_sbtPreps[ptRange->_uConfigIndex];
+                if(!prep->bPrepped)
+                {
+                    stbtt_PackSetOversampling(&spc, font->_sbtConfigs[ptRange->_uConfigIndex].uHOverSampling, font->_sbtConfigs[ptRange->_uConfigIndex].uVOverSampling);
+                    stbrp_pack_rects((stbrp_context*)spc.pack_info, prep->rects, prep->uTotalCharCount);
+                    for(uint32_t k = 0u; k < prep->uTotalCharCount; k++)
+                    {
+                        if(prep->rects[k].was_packed)
+                            gptCtx->tFontAtlas.auAtlasSize[1] = (uint32_t)pl__get_max((float)gptCtx->tFontAtlas.auAtlasSize[1], (float)(prep->rects[k].y + prep->rects[k].h));
+                    }
+                    prep->bPrepped = true;
+                }
             }
         }
+
     }
 
     // pack SDF fonts
@@ -1958,12 +2000,15 @@ pl_build_font_atlas(void)
     gptCtx->tFontAtlas.szPixelDataSize = gptCtx->tFontAtlas.auAtlasSize[0] * gptCtx->tFontAtlas.auAtlasSize[1];
 
     // rasterize bitmap fonts
-    for(uint32_t i = 0u; i < pl_sb_size(gptCtx->tFontAtlas._sbtPrepData); i++)
+    for(uint32_t i = 0u; i < pl_sb_size(gptCtx->tFontAtlas.sbtFonts); i++)
     {
         plFont* font = &gptCtx->tFontAtlas.sbtFonts[i];
-        plFontPrepData* prep = &gptCtx->tFontAtlas._sbtPrepData[i];
-        if(!gptCtx->tFontAtlas.sbtFonts[i].tConfig.bSdf)
-            stbtt_PackFontRangesRenderIntoRects(&spc, &prep->fontInfo, prep->ranges, pl_sb_size(font->tConfig.sbtRanges), prep->rects);
+        for(uint32_t j = 0; j < pl_sb_size(font->_sbtConfigs); j++)
+        {
+            plFontPrepData* prep = &font->_sbtPreps[j];
+            if(!font->_sbtConfigs[j].bSdf)
+                stbtt_PackFontRangesRenderIntoRects(&spc, &prep->fontInfo, prep->ranges, pl_sb_size(font->_sbtConfigs[j].sbtRanges), prep->rects);
+        }
     }
 
     // update SDF/custom data
@@ -1973,22 +2018,26 @@ pl_build_font_atlas(void)
         gptCtx->tFontAtlas.sbtCustomRects[i].uY = (uint32_t)rects[i].y;
     }
 
-    uint32_t charDataOffset = 0u;
     for(uint32_t fontIndex = 0u; fontIndex < pl_sb_size(gptCtx->tFontAtlas.sbtFonts); fontIndex++)
     {
         plFont* font = &gptCtx->tFontAtlas.sbtFonts[fontIndex];
-        if(font->tConfig.bSdf)
+        uint32_t charDataOffset = 0u;
+        for(uint32_t j = 0; j < pl_sb_size(font->_sbtConfigs); j++)
         {
-            for(uint32_t i = 0u; i < pl_sb_size(font->sbtCharData); i++)
+            plFontConfig* ptConfig = &font->_sbtConfigs[j];
+            if(ptConfig->bSdf)
             {
-                font->sbtCharData[i].x0 = (uint16_t)rects[charDataOffset + i].x;
-                font->sbtCharData[i].y0 = (uint16_t)rects[charDataOffset + i].y;
-                font->sbtCharData[i].x1 = (uint16_t)(rects[charDataOffset + i].x + gptCtx->tFontAtlas.sbtCustomRects[charDataOffset + i].uWidth);
-                font->sbtCharData[i].y1 = (uint16_t)(rects[charDataOffset + i].y + gptCtx->tFontAtlas.sbtCustomRects[charDataOffset + i].uHeight);
-                
+                for(uint32_t i = 0u; i < pl_sb_size(ptConfig->_sbtCharData); i++)
+                {
+                    ptConfig->_sbtCharData[i].x0 = (uint16_t)rects[charDataOffset + i].x;
+                    ptConfig->_sbtCharData[i].y0 = (uint16_t)rects[charDataOffset + i].y;
+                    ptConfig->_sbtCharData[i].x1 = (uint16_t)(rects[charDataOffset + i].x + gptCtx->tFontAtlas.sbtCustomRects[charDataOffset + i].uWidth);
+                    ptConfig->_sbtCharData[i].y1 = (uint16_t)(rects[charDataOffset + i].y + gptCtx->tFontAtlas.sbtCustomRects[charDataOffset + i].uHeight);
+                }
+                charDataOffset += pl_sb_size(ptConfig->_sbtCharData);  
             }
-            charDataOffset += pl_sb_size(font->sbtCharData);  
         }
+
     }
 
     // end packing
@@ -2016,42 +2065,65 @@ pl_build_font_atlas(void)
     {
         plFont* font = &gptCtx->tFontAtlas.sbtFonts[fontIndex];
 
+        uint32_t uConfigIndex = 0u;
         uint32_t charIndex = 0u;
         float pixelHeight = 0.0f;
-        if(font->tConfig.bSdf) pixelHeight = 0.5f * 1.0f / (float)gptCtx->tFontAtlas.auAtlasSize[1]; // is this correct?
         
-        for(uint32_t i = 0u; i < pl_sb_size(font->tConfig.sbtRanges); i++)
+        for(uint32_t i = 0u; i < pl_sb_size(font->sbtRanges); i++)
         {
-            plFontRange* range = &font->tConfig.sbtRanges[i];
+            plFontRange* range = &font->sbtRanges[i];
+            if(uConfigIndex != range->_uConfigIndex)
+            {
+                charIndex = 0;
+                uConfigIndex = range->_uConfigIndex;
+            }
+            if(font->_sbtConfigs[range->_uConfigIndex].bSdf)
+                pixelHeight = 0.5f * 1.0f / (float)gptCtx->tFontAtlas.auAtlasSize[1]; // is this correct?
+            else
+                pixelHeight = 0.0f;
             for(uint32_t j = 0u; j < range->uCharCount; j++)
             {
+
                 const int codePoint = range->iFirstCodePoint + j;
                 stbtt_aligned_quad q;
                 float unused_x = 0.0f, unused_y = 0.0f;
-                stbtt_GetPackedQuad((stbtt_packedchar*)font->sbtCharData, gptCtx->tFontAtlas.auAtlasSize[0], gptCtx->tFontAtlas.auAtlasSize[1], charIndex, &unused_x, &unused_y, &q, 0);
+                stbtt_GetPackedQuad((stbtt_packedchar*)font->_sbtConfigs[range->_uConfigIndex]._sbtCharData, gptCtx->tFontAtlas.auAtlasSize[0], gptCtx->tFontAtlas.auAtlasSize[1], charIndex, &unused_x, &unused_y, &q, 0);
 
                 int unusedAdvanced, leftSideBearing;
-                stbtt_GetCodepointHMetrics(&gptCtx->tFontAtlas._sbtPrepData[fontIndex].fontInfo, codePoint, &unusedAdvanced, &leftSideBearing);
+                stbtt_GetCodepointHMetrics(&font->_sbtPreps[range->_uConfigIndex].fontInfo, codePoint, &unusedAdvanced, &leftSideBearing);
 
                 plFontGlyph glyph = {
                     .x0 = q.x0,
-                    .y0 = q.y0 + font->fAscent,
+                    .y0 = q.y0 + font->_sbtPreps[range->_uConfigIndex].fAscent,
                     .x1 = q.x1,
-                    .y1 = q.y1 + font->fAscent,
+                    .y1 = q.y1 + font->_sbtPreps[range->_uConfigIndex].fAscent,
                     .u0 = q.s0,
                     .v0 = q.t0 + pixelHeight,
                     .u1 = q.s1,
                     .v1 = q.t1 - pixelHeight,
-                    .xAdvance = font->sbtCharData[charIndex].xAdv,
-                    .leftBearing = (float)leftSideBearing * gptCtx->tFontAtlas._sbtPrepData[fontIndex].scale
+                    .xAdvance = font->_sbtConfigs[range->_uConfigIndex]._sbtCharData[charIndex].xAdv,
+                    .leftBearing = (float)leftSideBearing * font->_sbtPreps[range->_uConfigIndex].scale
                 };
                 pl_sb_push(font->sbtGlyphs, glyph);
-                font->sbuCodePoints[codePoint] = pl_sb_size(font->sbtGlyphs) - 1;
+                font->_auCodePoints[codePoint] = pl_sb_size(font->sbtGlyphs) - 1;
                 charIndex++;
             }
         }
 
-        PL_FREE(gptCtx->tFontAtlas._sbtPrepData[fontIndex].fontInfo.data);
+        for(uint32_t i = 0; i < pl_sb_size(font->_sbtPreps); i++)
+        {
+            PL_FREE(font->_sbtPreps[i].ranges);
+            PL_FREE(font->_sbtPreps[i].rects);
+            PL_FREE(font->_sbtPreps[i].fontInfo.data);
+            font->_sbtPreps[i].fontInfo.data = NULL;
+        }
+        pl_sb_free(font->_sbtPreps);
+
+        for(uint32_t i = 0; i < pl_sb_size(font->_sbtConfigs); i++)
+        {
+            pl_sb_free(font->_sbtConfigs[i]._sbtCharData);
+        }
+    
     }
 
     // convert to 4 color channels
@@ -2126,17 +2198,18 @@ pl_cleanup_font_atlas(void)
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->tFontAtlas.sbtFonts); i++)
     {
         plFont* font = &gptCtx->tFontAtlas.sbtFonts[i];
-        pl_sb_free(font->tConfig.sbtRanges);
-        pl_sb_free(font->tConfig.sbiIndividualChars);
-        pl_sb_free(font->sbuCodePoints);
+
+        for(uint32_t j = 0; j < pl_sb_size(font->_sbtConfigs); j++)
+        {
+            pl_sb_free(font->_sbtConfigs[j].sbtRanges);
+            pl_sb_free(font->_sbtConfigs[j].sbiIndividualChars);
+        }
+        PL_FREE(font->_auCodePoints);
         pl_sb_free(font->sbtGlyphs);
-        pl_sb_free(font->sbtCharData);
+        pl_sb_free(font->sbtRanges);
+        pl_sb_free(font->_sbtConfigs);
     }
-    for(uint32_t i = 0; i < pl_sb_size(gptCtx->tFontAtlas._sbtPrepData); i++)
-    {
-        PL_FREE(gptCtx->tFontAtlas._sbtPrepData[i].ranges);
-        PL_FREE(gptCtx->tFontAtlas._sbtPrepData[i].rects);
-    }
+
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->tFontAtlas.sbtCustomRects); i++)
     {
         PL_FREE(gptCtx->tFontAtlas.sbtCustomRects[i].pucBytes);
@@ -2145,7 +2218,6 @@ pl_cleanup_font_atlas(void)
     pl_sb_free(gptCtx->tFontAtlas.sbtFonts);
     pl_sb_free(gptCtx->tFontAtlas.sbtFontFreeIndices);
     pl_sb_free(gptCtx->tFontAtlas.sbtFontGenerations);
-    pl_sb_free(gptCtx->tFontAtlas._sbtPrepData);
     PL_FREE(gptCtx->tFontAtlas.pucPixelsAsAlpha8);
     PL_FREE(gptCtx->tFontAtlas.pucPixelsAsRGBA32);
     gptDevice->destroy_texture(&gptCtx->ptGraphics->tDevice, gptCtx->tFontAtlas.tTexture);

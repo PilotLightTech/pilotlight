@@ -1027,15 +1027,6 @@ pl_refr_initialize(plWindow* ptWindow)
     };
     gptData->tFullQuadVertexBuffer = pl__refr_create_local_buffer(&tFullQuadVertexBufferDesc, "full quad vertex buffer", 0, afFullQuadVertexBuffer);
 
-    // setup draw
-    gptDraw->initialize(ptGraphics);
-    plFontHandle tDefaultFont = gptDraw->add_default_font();
-    gptDraw->build_font_atlas();
-
-    // setup ui
-    gptUI->initialize();
-    gptUI->set_default_font(tDefaultFont);
-
     // sync
     for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
         gptData->atSempahore[i] = gptDevice->create_semaphore(&ptGraphics->tDevice, false);
@@ -4712,9 +4703,9 @@ pl_add_drawable_objects_to_scene(uint32_t uSceneHandle, uint32_t uOpaqueCount, c
 }
 
 static void
-pl_show_graphics_options(void)
+pl_show_graphics_options(const char* pcTitle)
 {
-    if(gptUI->collapsing_header("Graphics"))
+    if(gptUI->collapsing_header(pcTitle))
     {
         if(gptUI->checkbox("VSync", &gptData->tGraphics.tSwapchain.bVSync))
             gptData->bReloadSwapchain = true;

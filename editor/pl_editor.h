@@ -37,6 +37,7 @@
 // editor
 #include "pl_gizmo.h"
 #include "pl_ecs_tools.h"
+#include "pl_icons.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] global apis
@@ -94,6 +95,9 @@ typedef struct _plEditorData
     
     // gizmo data
     plGizmoData* ptGizmoData;
+
+    // fonts
+    plFontHandle tDefaultFont;
 
     // experiment
     plEntity tTrackPoint;

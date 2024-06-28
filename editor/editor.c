@@ -115,6 +115,46 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     // setup reference renderer
     gptRenderer->initialize(ptEditorData->ptWindow);
 
+    // setup draw
+    gptDraw->initialize(gptRenderer->get_graphics());
+
+    plFontRange tFontRange = {
+        .iFirstCodePoint = 0x0020,
+        .uCharCount = 0x00FF - 0x0020
+    };
+
+    plFontConfig tFontConfig0 = {
+        .bSdf = false,
+        .fFontSize = 16.0f,
+        .uHOverSampling = 1,
+        .uVOverSampling = 1
+    };
+    pl_sb_push(tFontConfig0.sbtRanges, tFontRange);
+    // ptEditorData->tDefaultFont = gptDraw->add_default_font();
+    ptEditorData->tDefaultFont = gptDraw->add_font_from_file_ttf(tFontConfig0, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
+
+    const plFontRange tIconRange = {
+        .iFirstCodePoint = ICON_MIN_FA,
+        .uCharCount = ICON_MAX_16_FA - ICON_MIN_FA
+    };
+
+    plFontConfig tFontConfig1 = {
+        .bSdf           = false,
+        .fFontSize      = 16.0f,
+        .uHOverSampling = 1,
+        .uVOverSampling = 1,
+        .bMergeFont     = true,
+        .tMergeFont     = ptEditorData->tDefaultFont
+    };
+    pl_sb_push(tFontConfig1.sbtRanges, tIconRange);
+    gptDraw->add_font_from_file_ttf(tFontConfig1, "../data/pilotlight-assets-master/fonts/fa-solid-900.otf");
+
+    gptDraw->build_font_atlas();
+
+    // setup ui
+    gptUi->initialize();
+    gptUi->set_default_font(ptEditorData->tDefaultFont);
+
     ptEditorData->uSceneHandle0 = gptRenderer->create_scene();
 
     pl_begin_profile_sample("load environments");
@@ -174,7 +214,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     plTransformComponent* ptTargetTransform = NULL;
     ptEditorData->tTrackPoint = gptEcs->create_transform(ptMainComponentLibrary, "track 0", &ptTargetTransform);
-    ptTargetTransform->tTranslation = (plVec3){1.0f};
+    ptTargetTransform->tTranslation = (plVec3){0.1f, 0.017f};
 
     plHumanoidComponent* ptHuman =  gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_HUMANOID, (plEntity){.uIndex = 5});
 
@@ -328,7 +368,7 @@ pl_app_update(plEditorData* ptEditorData)
 
         const float pfRatios[] = {1.0f};
         gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-        if(gptUi->collapsing_header("Information"))
+        if(gptUi->collapsing_header(ICON_FA_CIRCLE_INFO " Information"))
         {
             
             gptUi->text("Pilot Light %s", PILOTLIGHT_VERSION);
@@ -344,7 +384,7 @@ pl_app_update(plEditorData* ptEditorData)
 
             gptUi->end_collapsing_header();
         }
-        if(gptUi->collapsing_header("App Options"))
+        if(gptUi->collapsing_header(ICON_FA_SLIDERS " App Options"))
         {
             if(gptUi->checkbox("Freeze Culling Camera", &ptEditorData->bFreezeCullCamera))
             {
@@ -361,9 +401,9 @@ pl_app_update(plEditorData* ptEditorData)
             gptUi->end_collapsing_header();
         }
 
-        gptRenderer->show_graphics_options();
+        gptRenderer->show_graphics_options(ICON_FA_DICE_D6 " Graphics");
 
-        if(gptUi->collapsing_header("Tools"))
+        if(gptUi->collapsing_header(ICON_FA_SCREWDRIVER_WRENCH " Tools"))
         {
             gptUi->checkbox("Device Memory Analyzer", &ptEditorData->tDebugInfo.bShowDeviceMemoryAnalyzer);
             gptUi->checkbox("Memory Allocations", &ptEditorData->tDebugInfo.bShowMemoryAllocations);
@@ -374,7 +414,7 @@ pl_app_update(plEditorData* ptEditorData)
             gptUi->end_collapsing_header();
         }
 
-        if(gptUi->collapsing_header("Debug"))
+        if(gptUi->collapsing_header(ICON_FA_BUG " Debug"))
         {
             if(gptUi->button("resize"))
                 ptEditorData->bResize = true;
@@ -388,7 +428,7 @@ pl_app_update(plEditorData* ptEditorData)
             gptUi->end_collapsing_header();
         }
 
-        if(gptUi->collapsing_header("User Interface"))
+        if(gptUi->collapsing_header(ICON_FA_USER_GEAR " User Interface"))
         {
             gptUi->checkbox("UI Debug", &ptEditorData->bShowUiDebug);
             gptUi->checkbox("UI Demo", &ptEditorData->bShowUiDemo);

@@ -110,7 +110,7 @@ pl_gizmo(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plComponentLib
         plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
         if(ptGizmoData->tState == PL_GIZMO_STATE_DEFAULT)
         {
-            ptGizmoData->fCaptureScale = pl_length_vec3(pl_sub_vec3(*ptCenter, ptCamera->tPos));
+            ptGizmoData->fCaptureScale = pl_length_vec3(pl_sub_vec3(*ptCenter, ptCamera->tPos)) * 0.75f;
         }
 
         switch(ptGizmoData->tSelectionMode)
@@ -231,7 +231,7 @@ pl__gizmo_translation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, p
         gptDraw->add_3d_line(ptGizmoDrawlist, ptGizmoData->tBeginPos, *ptCenter, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, fAxisRadius);
         char acTextBuffer[256] = {0};
         pl_sprintf(acTextBuffer, "offset: %0.3f, %0.3f, %0.3f", ptCenter->x - ptGizmoData->tBeginPos.x, ptCenter->y - ptGizmoData->tBeginPos.y, ptCenter->z - ptGizmoData->tBeginPos.z);
-        gptDraw->add_3d_text(ptGizmoDrawlist, (plFontHandle){0}, 13.0f, (plVec3){ptCenter->x, ptCenter->y + fLength * 1.1f, ptCenter->z}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, acTextBuffer, 0.0f);
+        gptDraw->add_3d_text(ptGizmoDrawlist, (plFontHandle){0}, 0.0f, (plVec3){ptCenter->x, ptCenter->y + fLength * 1.1f, ptCenter->z}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, acTextBuffer, 0.0f);
     }
 
     float fXDistanceAlong = 0.0f;
@@ -719,7 +719,7 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
 
         char acTextBuffer[256] = {0};
         pl_sprintf(acTextBuffer, "x-axis rotation: %0.0f degrees", fAngleBetweenVecs * 180.0f / PL_PI);
-        gptDraw->add_3d_text(ptGizmoDrawlist, (plFontHandle){0}, 13.0f, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, acTextBuffer, 0.0f);
+        gptDraw->add_3d_text(ptGizmoDrawlist, (plFontHandle){0}, 0.0f, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, acTextBuffer, 0.0f);
         gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir0, fInnerRadius)), (plVec4){0.7f, 0.7f, 0.7f, 1.0f}, 0.0035f * ptGizmoData->fCaptureScale);
         gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir1, fInnerRadius)), (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.0035f * ptGizmoData->fCaptureScale);
 
@@ -763,7 +763,7 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
 
         char acTextBuffer[256] = {0};
         pl_sprintf(acTextBuffer, "y-axis rotation: %0.0f degrees", fAngleBetweenVecs * 180.0f / PL_PI);
-        gptDraw->add_3d_text(ptGizmoDrawlist, (plFontHandle){0}, 13.0f, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, acTextBuffer, 0.0f);
+        gptDraw->add_3d_text(ptGizmoDrawlist, (plFontHandle){0}, 0.0f, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, acTextBuffer, 0.0f);
         gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir0, fInnerRadius)), (plVec4){0.7f, 0.7f, 0.7f, 1.0f}, 0.0035f * ptGizmoData->fCaptureScale);
         gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir1, fInnerRadius)), (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.0035f * ptGizmoData->fCaptureScale);
 
@@ -807,7 +807,7 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
 
         char acTextBuffer[256] = {0};
         pl_sprintf(acTextBuffer, "z-axis rotation: %0.0f degrees", fAngleBetweenVecs * 180.0f / PL_PI);
-        gptDraw->add_3d_text(ptGizmoDrawlist, (plFontHandle){0}, 13.0f, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, acTextBuffer, 0.0f);
+        gptDraw->add_3d_text(ptGizmoDrawlist, (plFontHandle){0}, 0.0f, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, acTextBuffer, 0.0f);
         gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir0, fInnerRadius)), (plVec4){0.7f, 0.7f, 0.7f, 1.0f}, 0.0035f * ptGizmoData->fCaptureScale);
         gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir1, fInnerRadius)), (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.0035f * ptGizmoData->fCaptureScale);
 
@@ -917,7 +917,7 @@ pl__gizmo_scale(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCamer
         {
             char acTextBuffer[256] = {0};
             pl_sprintf(acTextBuffer, "scaling: %0.3f, %0.3f, %0.3f", tCurrentScale.x, tCurrentScale.y, tCurrentScale.z);
-            gptDraw->add_3d_text(ptGizmoDrawlist, (plFontHandle){0}, 13.0f, (plVec3){ptCenter->x, ptCenter->y + fLength * 1.2f, ptCenter->z}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, acTextBuffer, 0.0f);
+            gptDraw->add_3d_text(ptGizmoDrawlist, (plFontHandle){0}, 0.0f, (plVec3){ptCenter->x, ptCenter->y + fLength * 1.2f, ptCenter->z}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, acTextBuffer, 0.0f);
         }
 
         float fXDistanceAlong = 0.0f;

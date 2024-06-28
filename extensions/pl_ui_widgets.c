@@ -12,7 +12,7 @@ pl__input_text_calc_text_size_w(const plUiWChar* text_begin, const plUiWChar* te
 {
     plFont* font = gptDraw->get_font(gptCtx->tFont);
     const float line_height = gptCtx->tStyle.fFontSize;
-    const float scale = line_height / font->tConfig.fFontSize;
+    const float scale = line_height / font->fSize;
 
     plVec2 text_size = {0};
     float line_width = 0.0f;
@@ -33,7 +33,7 @@ pl__input_text_calc_text_size_w(const plUiWChar* text_begin, const plUiWChar* te
         if (c == '\r')
             continue;
 
-        const float char_width = font->sbtGlyphs[font->sbuCodePoints[(plUiWChar)c]].xAdvance * scale;
+        const float char_width = font->sbtGlyphs[font->_auCodePoints[(plUiWChar)c]].xAdvance * scale;
         line_width += char_width;
     }
 
@@ -55,7 +55,7 @@ pl__input_text_calc_text_size_w(const plUiWChar* text_begin, const plUiWChar* te
 
 static int     STB_TEXTEDIT_STRINGLEN(const plUiInputTextState* obj)                             { return obj->iCurrentLengthW; }
 static plUiWChar STB_TEXTEDIT_GETCHAR(const plUiInputTextState* obj, int idx)                      { return obj->sbTextW[idx]; }
-static float   STB_TEXTEDIT_GETWIDTH(plUiInputTextState* obj, int line_start_idx, int char_idx)  { plUiWChar c = obj->sbTextW[line_start_idx + char_idx]; if (c == '\n') return STB_TEXTEDIT_GETWIDTH_NEWLINE; plFont* font = gptDraw->get_font(gptCtx->tFont); return font->sbtGlyphs[font->sbuCodePoints[c]].xAdvance * (gptCtx->tStyle.fFontSize / font->tConfig.fFontSize); }
+static float   STB_TEXTEDIT_GETWIDTH(plUiInputTextState* obj, int line_start_idx, int char_idx)  { plUiWChar c = obj->sbTextW[line_start_idx + char_idx]; if (c == '\n') return STB_TEXTEDIT_GETWIDTH_NEWLINE; plFont* font = gptDraw->get_font(gptCtx->tFont); return font->sbtGlyphs[font->_auCodePoints[c]].xAdvance * (gptCtx->tStyle.fFontSize / font->fSize); }
 static int     STB_TEXTEDIT_KEYTOTEXT(int key)                                                    { return key >= 0x200000 ? 0 : key; }
 static plUiWChar STB_TEXTEDIT_NEWLINE = '\n';
 static void    STB_TEXTEDIT_LAYOUTROW(StbTexteditRow* r, plUiInputTextState* obj, int line_start_idx)
@@ -1819,7 +1819,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
                 else
                 {
                     plVec2 rect_size = pl__input_text_calc_text_size_w(p, text_selected_end, &p, NULL, true);
-                    if (rect_size.x <= 0.0f) rect_size.x = floorf(font->sbtGlyphs[font->sbuCodePoints[(plUiWChar)' ']].xAdvance * 0.50f); // So we can see selected empty lines
+                    if (rect_size.x <= 0.0f) rect_size.x = floorf(font->sbtGlyphs[font->_auCodePoints[(plUiWChar)' ']].xAdvance * 0.50f); // So we can see selected empty lines
                     plRect rect = {
                         pl_add_vec2(rect_pos, (plVec2){0.0f, bg_offy_up - gptCtx->tStyle.fFontSize}), 
                         pl_add_vec2(rect_pos, (plVec2){rect_size.x, bg_offy_dn})

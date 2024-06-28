@@ -38,12 +38,12 @@ void
 pl_set_dark_theme(void)
 {
     // styles
-    gptCtx->tStyle.fTitlePadding            = 10.0f;
+    gptCtx->tStyle.fTitlePadding            = 5.0f;
     gptCtx->tStyle.fFontSize                = 13.0f;
     gptCtx->tStyle.fWindowHorizontalPadding = 5.0f;
     gptCtx->tStyle.fWindowVerticalPadding   = 5.0f;
     gptCtx->tStyle.fIndentSize              = 15.0f;
-    gptCtx->tStyle.fScrollbarSize           = 7.0f;
+    gptCtx->tStyle.fScrollbarSize           = 10.0f;
     gptCtx->tStyle.fSliderSize              = 12.0f;
     gptCtx->tStyle.fWindowRounding          = 0.0f;
     gptCtx->tStyle.fChildRounding           = 0.0f;
@@ -333,6 +333,7 @@ void
 pl_set_default_font(plFontHandle tFont)
 {
     gptCtx->tFont = tFont;
+    gptCtx->tStyle.fFontSize = gptDraw->get_font(tFont)->fSize;
 }
 
 plFontHandle

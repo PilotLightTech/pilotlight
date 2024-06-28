@@ -145,6 +145,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // setup reference renderer
     gptRenderer->initialize(ptAppData->ptWindow);
 
+    // setup draw
+    gptDraw->initialize(gptRenderer->get_graphics());
+    plFontHandle tDefaultFont = gptDraw->add_default_font();
+    gptDraw->build_font_atlas();
+
+    // setup ui
+    gptUi->initialize();
+    gptUi->set_default_font(tDefaultFont);
+
     ptAppData->uSceneHandle0 = gptRenderer->create_scene();
     gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, "../data/pilotlight-assets-master/environments/field.hdr", 256);
     ptAppData->uViewHandle0 = gptRenderer->create_view(ptAppData->uSceneHandle0, (plVec2){ptIO->afMainViewportSize[0] , ptIO->afMainViewportSize[1]});

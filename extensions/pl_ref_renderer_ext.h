@@ -75,7 +75,7 @@ typedef struct _plRefRendererI
     void (*finalize_scene)(uint32_t uSceneHandle);
 
     // ui
-    void (*show_graphics_options)(void);
+    void (*show_graphics_options)(const char* pcTitle);
 
     // per frame
     void (*run_ecs)     (uint32_t uSceneHandle);

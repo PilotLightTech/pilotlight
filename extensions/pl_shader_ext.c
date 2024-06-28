@@ -112,6 +112,7 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc)
     shaderc_compiler_t tCompiler = shaderc_compiler_initialize();
     shaderc_compile_options_t tOptions = shaderc_compile_options_initialize();
     shaderc_compile_options_set_include_callbacks(tOptions, pl_shaderc_include_resolve_fn, pl_shaderc_include_result_release_fn, NULL);
+    // shaderc_compile_options_set_optimization_level(tOptions, shaderc_optimization_level_performance);
         
     uint32_t uShaderSize = 0;
     gptFile->read(pcShader, &uShaderSize, NULL, "rb");
