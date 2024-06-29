@@ -84,6 +84,7 @@ pl_load_ui_api(void)
         .begin_tab                     = pl_begin_tab,
         .end_tab                       = pl_end_tab,
         .separator                     = pl_separator,
+        .separator_text                = pl_separator_text,
         .vertical_spacing              = pl_vertical_spacing,
         .indent                        = pl_indent,
         .unindent                      = pl_unindent,

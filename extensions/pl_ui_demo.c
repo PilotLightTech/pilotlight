@@ -115,20 +115,20 @@ pl_show_style_editor_window(bool* pbOpen)
             if(pl_begin_tab("Sizes"))
             {
                 pl_vertical_spacing();
-                pl_text("Title");
+                pl_separator_text("Title");
                 pl_slider_float("Title Padding", &ptStyle->fTitlePadding, 0.0f, 32.0f);
 
                 pl_vertical_spacing();
-                pl_text("Window");
+                pl_separator_text("Window");
                 pl_slider_float("Horizontal Padding## window", &ptStyle->fWindowHorizontalPadding, 0.0f, 32.0f);
                 pl_slider_float("Vertical Padding## window", &ptStyle->fWindowVerticalPadding, 0.0f, 32.0f);
 
                 pl_vertical_spacing();
-                pl_text("Scrollbar");
+                pl_separator_text("Scrollbar");
                 pl_slider_float("Size##scrollbar", &ptStyle->fScrollbarSize, 0.0f, 32.0f);
 
                 pl_vertical_spacing();
-                pl_text("Rounding");
+                pl_separator_text("Rounding");
                 pl_slider_float("Window Rounding", &ptStyle->fWindowRounding, 0.0f, 12.0f);
                 pl_slider_float("Child Rounding", &ptStyle->fChildRounding, 0.0f, 12.0f);
                 pl_slider_float("Frame Rounding", &ptStyle->fFrameRounding, 0.0f, 12.0f);
@@ -137,10 +137,18 @@ pl_show_style_editor_window(bool* pbOpen)
                 pl_slider_float("Tab Rounding", &ptStyle->fTabRounding, 0.0f, 12.0f);
                 
                 pl_vertical_spacing();
-                pl_text("Misc");
+                pl_separator_text("Misc");
                 pl_slider_float("Indent", &ptStyle->fIndentSize, 0.0f, 32.0f); 
                 pl_slider_float("Slider Size", &ptStyle->fSliderSize, 3.0f, 32.0f); 
                 pl_slider_float("Font Size", &ptStyle->fFontSize, 13.0f, 48.0f); 
+
+                pl_vertical_spacing();
+                pl_separator_text("Widgets");
+                pl_slider_float("Separator Text Size", &ptStyle->fSeparatorTextLineSize, 0.0f, 10.0f); 
+                pl_slider_float("Separator Text Alignment x", &ptStyle->tSeparatorTextAlignment.x, 0.0f, 1.0f); 
+                pl_slider_float("Separator Text Alignment y", &ptStyle->tSeparatorTextAlignment.y, 0.0f, 1.0f); 
+                pl_slider_float("Separator Text Pad x", &ptStyle->tSeparatorTextPadding.x, 0.0f, 40.0f); 
+                pl_slider_float("Separator Text Pad y", &ptStyle->tSeparatorTextPadding.y, 0.0f, 40.0f); 
                 pl_end_tab();
             }
             pl_end_tab_bar();

@@ -51,9 +51,12 @@ pl_set_dark_theme(void)
     gptCtx->tStyle.fScrollbarRounding       = 3.5f;
     gptCtx->tStyle.fGrabRounding            = 3.0f;
     gptCtx->tStyle.fTabRounding             = 4.0f;
-    gptCtx->tStyle.tItemSpacing  = (plVec2){8.0f, 4.0f};
-    gptCtx->tStyle.tInnerSpacing = (plVec2){4.0f, 4.0f};
-    gptCtx->tStyle.tFramePadding = (plVec2){4.0f, 4.0f};
+    gptCtx->tStyle.tItemSpacing             = (plVec2){8.0f, 4.0f};
+    gptCtx->tStyle.tInnerSpacing            = (plVec2){4.0f, 4.0f};
+    gptCtx->tStyle.tFramePadding            = (plVec2){4.0f, 4.0f};
+    gptCtx->tStyle.tSeparatorTextPadding    = (plVec2){20.0f, 3.0f};
+    gptCtx->tStyle.tSeparatorTextAlignment  = (plVec2){0.0f, 0.5f};
+    gptCtx->tStyle.fSeparatorTextLineSize   = 3.0f;
 
 
     // colors
@@ -80,6 +83,7 @@ pl_set_dark_theme(void)
     gptCtx->tColorScheme.tScrollbarFrameCol   = (plVec4){0.00f, 0.00f, 0.00f, 0.00f};
     gptCtx->tColorScheme.tScrollbarActiveCol  = gptCtx->tColorScheme.tButtonActiveCol;
     gptCtx->tColorScheme.tScrollbarHoveredCol = gptCtx->tColorScheme.tButtonHoveredCol;
+    gptCtx->tColorScheme.tSeparatorCol        = gptCtx->tColorScheme.tScrollbarHandleCol;
 }
 
 plDrawList2D*

@@ -525,7 +525,10 @@ pl_checkbox(const char* pcText, bool* bpValue)
         else                                 gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tFrameBgCol, gptCtx->tStyle.fFrameRounding, 0);
 
         if(*bpValue)
-            gptDraw->add_line(ptWindow->ptFgLayer, tStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tCheckmarkCol, 2.0f);
+        {
+            tBoundingBox = pl_rect_expand_vec2(&tBoundingBox, (plVec2){-5.0f, -5.0f});
+            gptDraw->add_rect_filled(ptWindow->ptFgLayer, tBoundingBox.tMin, tBoundingBox.tMax, gptCtx->tColorScheme.tCheckmarkCol, gptCtx->tStyle.fFrameRounding, 0);
+        }
 
         // add label
         pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f); 
@@ -873,7 +876,39 @@ pl_separator(void)
     const plVec2 tStartPos   = pl__ui_get_cursor_pos();
     const plVec2 tWidgetSize = pl_calculate_item_size(gptCtx->tStyle.tItemSpacing.y * 2.0f);
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
-        gptDraw->add_line(ptWindow->ptFgLayer, tStartPos, (plVec2){tStartPos.x + tWidgetSize.x, tStartPos.y}, gptCtx->tColorScheme.tCheckmarkCol, 1.0f);
+        gptDraw->add_line(ptWindow->ptFgLayer, tStartPos, (plVec2){tStartPos.x + tWidgetSize.x, tStartPos.y}, gptCtx->tColorScheme.tSeparatorCol, 1.0f);
+
+    pl_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+}
+
+void
+pl_separator_text(const char* pcText)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+
+    const plVec2 tStartPos   = pl__ui_get_cursor_pos();
+    const plVec2 tWidgetSize = pl_calculate_item_size(gptCtx->tStyle.fFontSize + gptCtx->tStyle.tSeparatorTextPadding.y * 2.0f);
+    if(pl__ui_should_render(&tStartPos, &tWidgetSize))
+    {
+        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, pcText, pl_find_renderered_text_end(pcText, NULL), -1.0f);
+        const float fTextWidth = pl_rect_width(&tTextBounding);
+        const float fTextHeight = pl_rect_height(&tTextBounding);
+        // const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+
+        const float fEffectiveWidth = tWidgetSize.x - fTextWidth - 2.0f * gptCtx->tStyle.tSeparatorTextPadding.x;
+        const float fEffectiveHeight = tWidgetSize.y - fTextHeight - 2.0f * gptCtx->tStyle.tSeparatorTextPadding.y;
+        
+        tTextBounding = pl_rect_translate_vec2(&tTextBounding,
+            (plVec2){gptCtx->tStyle.tSeparatorTextPadding.x + fEffectiveWidth * gptCtx->tStyle.tSeparatorTextAlignment.x,
+            gptCtx->tStyle.tSeparatorTextPadding.y + fEffectiveHeight * gptCtx->tStyle.tSeparatorTextAlignment.y});
+        
+        const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+
+        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tTextBounding.tMin.x, tTextBounding.tMin.y}, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
+        gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tStartPos.x, tTextActualCenter.y}, (plVec2){tTextBounding.tMin.x - gptCtx->tStyle.tItemSpacing.x + 1.0f, tTextActualCenter.y}, gptCtx->tColorScheme.tSeparatorCol, gptCtx->tStyle.fSeparatorTextLineSize);
+        gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTextBounding.tMax.x + gptCtx->tStyle.tItemSpacing.x, tTextActualCenter.y}, (plVec2){tStartPos.x + tWidgetSize.x, tTextActualCenter.y}, gptCtx->tColorScheme.tSeparatorCol, gptCtx->tStyle.fSeparatorTextLineSize);
+    }
 
     pl_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 }

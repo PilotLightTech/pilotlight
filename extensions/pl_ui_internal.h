@@ -221,13 +221,14 @@ typedef union _plUiColorScheme
         plVec4 tScrollbarFrameCol;
         plVec4 tScrollbarActiveCol;
         plVec4 tScrollbarHoveredCol;
+        plVec4 tSeparatorCol;
     };
-    plVec4 atColors[23];
+    plVec4 atColors[PL_UI_COLOR_COUNT];
 } plUiColorScheme;
 
 typedef struct _plUiStyle
 {
-    // style
+    // main
     float  fTitlePadding;
     float  fFontSize;
     float  fIndentSize;
@@ -238,6 +239,11 @@ typedef struct _plUiStyle
     plVec2 tItemSpacing;
     plVec2 tInnerSpacing;
     plVec2 tFramePadding;
+
+    // widgets
+    float  fSeparatorTextLineSize;
+    plVec2 tSeparatorTextAlignment;
+    plVec2 tSeparatorTextPadding;
 
     // rounding
     float fWindowRounding;

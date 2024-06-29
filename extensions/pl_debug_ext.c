@@ -846,8 +846,7 @@ pl__show_device_memory(bool* bValue)
             {
 
                 gptUI->layout_dynamic(0.0f, 1);
-                gptUI->separator();
-                gptUI->text(apcAllocatorNames[uAllocatorIndex]);
+                gptUI->separator_text(apcAllocatorNames[uAllocatorIndex]);
 
                 gptUI->layout_template_begin(30.0f);
                 gptUI->layout_template_push_static(150.0f);

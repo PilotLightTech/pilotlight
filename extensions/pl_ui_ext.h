@@ -207,6 +207,7 @@ typedef struct _plUiI
     void (*end_tab)      (void);
 
     // misc.
+    void (*separator_text)  (const char* pcText);
     void (*separator)       (void);
     void (*vertical_spacing)(void);
     void (*indent)          (float);
@@ -311,7 +312,10 @@ enum plUiColor_
     PL_UI_COLOR_SCROLLBAR_HANDLE,
     PL_UI_COLOR_SCROLLBAR_FRAME,
     PL_UI_COLOR_SCROLLBAR_ACTIVE,
-    PL_UI_COLOR_SCROLLBAR_HOVERED
+    PL_UI_COLOR_SCROLLBAR_HOVERED,
+    PL_UI_COLOR_SEPARATOR,
+    
+    PL_UI_COLOR_COUNT
 };
 
 enum plUiWindowFlags_
