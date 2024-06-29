@@ -4,8 +4,8 @@
 */
 
 // library version
-#define PL_DS_VERSION    "0.5.1"
-#define PL_DS_VERSION_NUM 00501
+#define PL_DS_VERSION    "0.5.2"
+#define PL_DS_VERSION_NUM 00502
 
 /*
 Index of this file:
@@ -616,7 +616,7 @@ pl_hm_lookup_str(plHashMap* ptHashMap, const char* pcKey)
 static inline bool
 pl_hm_has_key(plHashMap* ptHashMap, uint64_t ulKey)
 {
-    if(ptHashMap->_uBucketCount == 0)
+    if(ptHashMap->_uItemCount == 0)
         return false;
 
     uint64_t ulModKey = ulKey % ptHashMap->_uBucketCount;
