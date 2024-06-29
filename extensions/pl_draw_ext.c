@@ -1087,6 +1087,16 @@ pl_add_rect_rounded_filled_ex(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP
         return;
     }
 
+    if(tMaxP.x - tMinP.x < fRadius * 2.0f)
+    {
+        return;
+    }
+
+    if(tMaxP.y - tMinP.y < fRadius * 2.0f)
+    {
+        return;
+    }
+
     if(uSegments == 0){ uSegments = 4; }
 
     pl__prepare_draw_command(ptLayer, gptCtx->tFontAtlas.tTexture, false);
