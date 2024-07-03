@@ -9,7 +9,6 @@
 #include "pl_ui_widgets.c"
 #include "pl_ui_demo.c"
 
-
 static const plUiI*
 pl_load_ui_api(void)
 {

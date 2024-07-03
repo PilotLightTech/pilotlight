@@ -173,7 +173,7 @@ pl_end_frame(void)
         plUiWindow* ptRootWindow = gptCtx->sbptFocusedWindows[i];
 
         if(ptRootWindow->bActive)
-            pl_submit_window(ptRootWindow);
+            pl__submit_window(ptRootWindow);
 
         // adjust window size if outside viewport
         if(ptRootWindow->tPos.x > gptIO->afMainViewportSize[0])
@@ -462,11 +462,11 @@ pl_end_window(void)
 
         // vertical scroll bar
         if(ptWindow->bScrollbarY)
-            pl_render_scrollbar(ptWindow, uVerticalScrollHash, PL_UI_AXIS_Y);
+            pl__render_scrollbar(ptWindow, uVerticalScrollHash, PL_UI_AXIS_Y);
 
         // horizontal scroll bar
         if(ptWindow->bScrollbarX)
-            pl_render_scrollbar(ptWindow, uHorizonatalScrollHash, PL_UI_AXIS_X);
+            pl__render_scrollbar(ptWindow, uHorizonatalScrollHash, PL_UI_AXIS_X);
 
         const plVec2 tTopLeft = pl_rect_top_left(&ptWindow->tOuterRect);
         const plVec2 tBottomLeft = pl_rect_bottom_left(&ptWindow->tOuterRect);
@@ -484,7 +484,7 @@ pl_end_window(void)
                 const plRect tBoundingBox = pl_calculate_rect(tCornerTopLeftPos, (plVec2){15.0f, 15.0f});
                 bool bHovered = false;
                 bool bHeld = false;
-                const bool bPressed = pl_button_behavior(&tBoundingBox, uResizeHash, &bHovered, &bHeld);
+                const bool bPressed = pl__button_behavior(&tBoundingBox, uResizeHash, &bHovered, &bHeld);
 
                 if(gptCtx->uActiveId == uResizeHash)
                 {
@@ -510,7 +510,7 @@ pl_end_window(void)
 
                 bool bHovered = false;
                 bool bHeld = false;
-                const bool bPressed = pl_button_behavior(&tBoundingBox, uEastResizeHash, &bHovered, &bHeld);
+                const bool bPressed = pl__button_behavior(&tBoundingBox, uEastResizeHash, &bHovered, &bHeld);
 
                 if(gptCtx->uActiveId == uEastResizeHash)
                 {
@@ -531,7 +531,7 @@ pl_end_window(void)
 
                 bool bHovered = false;
                 bool bHeld = false;
-                const bool bPressed = pl_button_behavior(&tBoundingBox, uWestResizeHash, &bHovered, &bHeld);
+                const bool bPressed = pl__button_behavior(&tBoundingBox, uWestResizeHash, &bHovered, &bHeld);
 
                 if(gptCtx->uActiveId == uWestResizeHash)
                 {
@@ -552,7 +552,7 @@ pl_end_window(void)
 
                 bool bHovered = false;
                 bool bHeld = false;
-                const bool bPressed = pl_button_behavior(&tBoundingBox, uNorthResizeHash, &bHovered, &bHeld);
+                const bool bPressed = pl__button_behavior(&tBoundingBox, uNorthResizeHash, &bHovered, &bHeld);
 
                 if(gptCtx->uActiveId == uNorthResizeHash)
                 {
@@ -573,7 +573,7 @@ pl_end_window(void)
 
                 bool bHovered = false;
                 bool bHeld = false;
-                const bool bPressed = pl_button_behavior(&tBoundingBox, uSouthResizeHash, &bHovered, &bHeld);
+                const bool bPressed = pl__button_behavior(&tBoundingBox, uSouthResizeHash, &bHovered, &bHeld);
 
                 if(gptCtx->uActiveId == uSouthResizeHash)
                 {
@@ -683,7 +683,7 @@ pl_end_window(void)
 bool
 pl_begin_window(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 {
-    bool bResult = pl_begin_window_ex(pcName, pbOpen, tFlags);
+    bool bResult = pl__begin_window_ex(pcName, pbOpen, tFlags);
 
     static const float pfRatios[] = {300.0f};
     if(bResult)
@@ -714,7 +714,7 @@ pl_get_window_bg_drawlayer(void)
 plVec2
 pl_get_cursor_pos(void)
 {
-    return pl__ui_get_cursor_pos();
+    return pl__get_cursor_pos();
 }
 
 void
@@ -769,11 +769,11 @@ pl_end_child(void)
 
     // vertical scroll bar
     if(ptWindow->bScrollbarY)
-        pl_render_scrollbar(ptWindow, uVerticalScrollHash, PL_UI_AXIS_Y);
+        pl__render_scrollbar(ptWindow, uVerticalScrollHash, PL_UI_AXIS_Y);
 
     // horizontal scroll bar
     if(ptWindow->bScrollbarX)
-        pl_render_scrollbar(ptWindow, uHorizonatalScrollHash, PL_UI_AXIS_X);
+        pl__render_scrollbar(ptWindow, uHorizonatalScrollHash, PL_UI_AXIS_X);
 
     // handle vertical scrolling with scroll bar
     if(gptCtx->uActiveId == uVerticalScrollHash && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f))
@@ -804,7 +804,7 @@ pl_end_child(void)
     pl_sb_pop(gptCtx->sbuIdStack);
     gptCtx->ptCurrentWindow = ptParentWindow;
 
-    pl_advance_cursor(ptWindow->tSize.x, ptWindow->tSize.y);
+    pl__advance_cursor(ptWindow->tSize.x, ptWindow->tSize.y);
 }
 
 bool
@@ -812,7 +812,7 @@ pl_begin_child(const char* pcName)
 {
     plUiWindow* ptParentWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptParentWindow->tTempData.tCurrentLayoutRow;
-    const plVec2 tWidgetSize = pl_calculate_item_size(200.0f);
+    const plVec2 tWidgetSize = pl__calculate_item_size(200.0f);
 
     const plUiWindowFlags tFlags = 
         PL_UI_WINDOW_FLAGS_CHILD_WINDOW |
@@ -822,7 +822,7 @@ pl_begin_child(const char* pcName)
         PL_UI_WINDOW_FLAGS_NO_MOVE;
 
     pl_set_next_window_size(tWidgetSize, PL_UI_COND_ALWAYS);
-    bool bValue =  pl_begin_window_ex(pcName, NULL, tFlags);
+    bool bValue =  pl__begin_window_ex(pcName, NULL, tFlags);
 
     static const float pfRatios[] = {300.0f};
     if(bValue)
@@ -960,12 +960,12 @@ pl_step_clipper(plUiClipper* ptClipper)
         ptClipper->uDisplayStart = 0;
         ptClipper->uDisplayEnd = 1;
         ptClipper->_fItemHeight = 0.0f;
-        ptClipper->_fStartPosY = pl__ui_get_cursor_pos().y;
+        ptClipper->_fStartPosY = pl__get_cursor_pos().y;
         return true;
     }
     else if (ptClipper->_fItemHeight == 0.0f)
     {
-        ptClipper->_fItemHeight = pl__ui_get_cursor_pos().y - ptClipper->_fStartPosY;
+        ptClipper->_fItemHeight = pl__get_cursor_pos().y - ptClipper->_fStartPosY;
         if(ptClipper->_fStartPosY < pl_get_window_pos().y)
             ptClipper->uDisplayStart = (uint32_t)((pl_get_window_pos().y - ptClipper->_fStartPosY) / ptClipper->_fItemHeight);
         ptClipper->uDisplayEnd = ptClipper->uDisplayStart + (uint32_t)(pl_get_window_size().y / ptClipper->_fItemHeight) + 1;
@@ -979,7 +979,7 @@ pl_step_clipper(plUiClipper* ptClipper)
         if(ptClipper->uDisplayStart > 0)
         {
             for(uint32_t i = 0; i < gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.uColumns; i++)
-                pl_advance_cursor(0.0f, (float)ptClipper->uDisplayStart * ptClipper->_fItemHeight);
+                pl__advance_cursor(0.0f, (float)ptClipper->uDisplayStart * ptClipper->_fItemHeight);
         }
         ptClipper->uDisplayStart++;
         return true;
@@ -989,7 +989,7 @@ pl_step_clipper(plUiClipper* ptClipper)
         if(ptClipper->uDisplayEnd < ptClipper->uItemCount)
         {
             for(uint32_t i = 0; i < gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.uColumns; i++)
-                pl_advance_cursor(0.0f, (float)(ptClipper->uItemCount - ptClipper->uDisplayEnd) * ptClipper->_fItemHeight);
+                pl__advance_cursor(0.0f, (float)(ptClipper->uItemCount - ptClipper->uDisplayEnd) * ptClipper->_fItemHeight);
         }
 
         ptClipper->uDisplayStart = 0;
@@ -1347,43 +1347,43 @@ pl_was_last_item_active(void)
     return gptCtx->tPrevItemData.bActive;
 }
 
-int
-pl_get_int(plUiStorage* ptStorage, uint32_t uKey, int iDefaultValue)
+static int
+pl__get_int(plUiStorage* ptStorage, uint32_t uKey, int iDefaultValue)
 {
-    plUiStorageEntry* ptIterator = pl_lower_bound(ptStorage->sbtData, uKey);
+    plUiStorageEntry* ptIterator = pl__lower_bound(ptStorage->sbtData, uKey);
     if((ptIterator == pl_sb_end(ptStorage->sbtData)) || (ptIterator->uKey != uKey))
         return iDefaultValue;
     return ptIterator->iValue;
 }
 
-float
-pl_get_float(plUiStorage* ptStorage, uint32_t uKey, float fDefaultValue)
+static float
+pl__get_float(plUiStorage* ptStorage, uint32_t uKey, float fDefaultValue)
 {
-    plUiStorageEntry* ptIterator = pl_lower_bound(ptStorage->sbtData, uKey);
+    plUiStorageEntry* ptIterator = pl__lower_bound(ptStorage->sbtData, uKey);
     if((ptIterator == pl_sb_end(ptStorage->sbtData)) || (ptIterator->uKey != uKey))
         return fDefaultValue;
     return ptIterator->fValue;
 }
 
-bool
-pl_get_bool(plUiStorage* ptStorage, uint32_t uKey, bool bDefaultValue)
+static bool
+pl__get_bool(plUiStorage* ptStorage, uint32_t uKey, bool bDefaultValue)
 {
-    return pl_get_int(ptStorage, uKey, bDefaultValue ? 1 : 0) != 0;
+    return pl__get_int(ptStorage, uKey, bDefaultValue ? 1 : 0) != 0;
 }
 
-void*
-pl_get_ptr(plUiStorage* ptStorage, uint32_t uKey)
+static void*
+pl__get_ptr(plUiStorage* ptStorage, uint32_t uKey)
 {
-    plUiStorageEntry* ptIterator = pl_lower_bound(ptStorage->sbtData, uKey);
+    plUiStorageEntry* ptIterator = pl__lower_bound(ptStorage->sbtData, uKey);
     if((ptIterator == pl_sb_end(ptStorage->sbtData)) || (ptIterator->uKey != uKey))
         return NULL;
     return ptIterator->pValue;    
 }
 
-int*
-pl_get_int_ptr(plUiStorage* ptStorage, uint32_t uKey, int iDefaultValue)
+static int*
+pl__get_int_ptr(plUiStorage* ptStorage, uint32_t uKey, int iDefaultValue)
 {
-    plUiStorageEntry* ptIterator = pl_lower_bound(ptStorage->sbtData, uKey);
+    plUiStorageEntry* ptIterator = pl__lower_bound(ptStorage->sbtData, uKey);
     if(ptIterator == pl_sb_end(ptStorage->sbtData) || (ptIterator->uKey != uKey))
     {
         uint32_t uIndex = (uint32_t)((uintptr_t)ptIterator - (uintptr_t)ptStorage->sbtData) / (uint32_t)sizeof(plUiStorageEntry);
@@ -1393,10 +1393,10 @@ pl_get_int_ptr(plUiStorage* ptStorage, uint32_t uKey, int iDefaultValue)
     return &ptIterator->iValue;
 }
 
-float*
-pl_get_float_ptr(plUiStorage* ptStorage, uint32_t uKey, float fDefaultValue)
+static float*
+pl__get_float_ptr(plUiStorage* ptStorage, uint32_t uKey, float fDefaultValue)
 {
-    plUiStorageEntry* ptIterator = pl_lower_bound(ptStorage->sbtData, uKey);
+    plUiStorageEntry* ptIterator = pl__lower_bound(ptStorage->sbtData, uKey);
     if(ptIterator == pl_sb_end(ptStorage->sbtData) || (ptIterator->uKey != uKey))
     {
         uint32_t uIndex = (uint32_t)((uintptr_t)ptIterator - (uintptr_t)ptStorage->sbtData) / (uint32_t)sizeof(plUiStorageEntry);
@@ -1406,16 +1406,16 @@ pl_get_float_ptr(plUiStorage* ptStorage, uint32_t uKey, float fDefaultValue)
     return &ptIterator->fValue;
 }
 
-bool*
-pl_get_bool_ptr(plUiStorage* ptStorage, uint32_t uKey, bool bDefaultValue)
+static bool*
+pl__get_bool_ptr(plUiStorage* ptStorage, uint32_t uKey, bool bDefaultValue)
 {
-    return (bool*)pl_get_int_ptr(ptStorage, uKey, bDefaultValue ? 1 : 0);
+    return (bool*)pl__get_int_ptr(ptStorage, uKey, bDefaultValue ? 1 : 0);
 }
 
-void**
-pl_get_ptr_ptr(plUiStorage* ptStorage, uint32_t uKey, void* pDefaultValue)
+static void**
+pl__get_ptr_ptr(plUiStorage* ptStorage, uint32_t uKey, void* pDefaultValue)
 {
-    plUiStorageEntry* ptIterator = pl_lower_bound(ptStorage->sbtData, uKey);
+    plUiStorageEntry* ptIterator = pl__lower_bound(ptStorage->sbtData, uKey);
     if(ptIterator == pl_sb_end(ptStorage->sbtData) || (ptIterator->uKey != uKey))
     {
         uint32_t uIndex = (uint32_t)((uintptr_t)ptIterator - (uintptr_t)ptStorage->sbtData) / (uint32_t)sizeof(plUiStorageEntry);
@@ -1425,10 +1425,10 @@ pl_get_ptr_ptr(plUiStorage* ptStorage, uint32_t uKey, void* pDefaultValue)
     return &ptIterator->pValue;
 }
 
-void
-pl_set_int(plUiStorage* ptStorage, uint32_t uKey, int iValue)
+static void
+pl__set_int(plUiStorage* ptStorage, uint32_t uKey, int iValue)
 {
-    plUiStorageEntry* ptIterator = pl_lower_bound(ptStorage->sbtData, uKey);
+    plUiStorageEntry* ptIterator = pl__lower_bound(ptStorage->sbtData, uKey);
     if(ptIterator == pl_sb_end(ptStorage->sbtData) || (ptIterator->uKey != uKey))
     {
         uint32_t uIndex = (uint32_t)((uintptr_t)ptIterator - (uintptr_t)ptStorage->sbtData) / (uint32_t)sizeof(plUiStorageEntry);
@@ -1438,10 +1438,10 @@ pl_set_int(plUiStorage* ptStorage, uint32_t uKey, int iValue)
     ptIterator->iValue = iValue;
 }
 
-void
-pl_set_float(plUiStorage* ptStorage, uint32_t uKey, float fValue)
+static void
+pl__set_float(plUiStorage* ptStorage, uint32_t uKey, float fValue)
 {
-    plUiStorageEntry* ptIterator = pl_lower_bound(ptStorage->sbtData, uKey);
+    plUiStorageEntry* ptIterator = pl__lower_bound(ptStorage->sbtData, uKey);
     if(ptIterator == pl_sb_end(ptStorage->sbtData) || (ptIterator->uKey != uKey))
     {
         uint32_t uIndex = (uint32_t)((uintptr_t)ptIterator - (uintptr_t)ptStorage->sbtData) / (uint32_t)sizeof(plUiStorageEntry);
@@ -1451,16 +1451,16 @@ pl_set_float(plUiStorage* ptStorage, uint32_t uKey, float fValue)
     ptIterator->fValue = fValue;
 }
 
-void
-pl_set_bool(plUiStorage* ptStorage, uint32_t uKey, bool bValue)
+static void
+pl__set_bool(plUiStorage* ptStorage, uint32_t uKey, bool bValue)
 {
-    pl_set_int(ptStorage, uKey, bValue ? 1 : 0);
+    pl__set_int(ptStorage, uKey, bValue ? 1 : 0);
 }
 
-void
-pl_set_ptr(plUiStorage* ptStorage, uint32_t uKey, void* pValue)
+static void
+pl__set_ptr(plUiStorage* ptStorage, uint32_t uKey, void* pValue)
 {
-    plUiStorageEntry* ptIterator = pl_lower_bound(ptStorage->sbtData, uKey);
+    plUiStorageEntry* ptIterator = pl__lower_bound(ptStorage->sbtData, uKey);
     if(ptIterator == pl_sb_end(ptStorage->sbtData) || (ptIterator->uKey != uKey))
     {
         uint32_t uIndex = (uint32_t)((uintptr_t)ptIterator - (uintptr_t)ptStorage->sbtData) / (uint32_t)sizeof(plUiStorageEntry);
@@ -1470,8 +1470,8 @@ pl_set_ptr(plUiStorage* ptStorage, uint32_t uKey, void* pValue)
     ptIterator->pValue = pValue;    
 }
 
-const char*
-pl_find_renderered_text_end(const char* pcText, const char* pcTextEnd)
+static const char*
+pl__find_renderered_text_end(const char* pcText, const char* pcTextEnd)
 {
     const char* pcTextDisplayEnd = pcText;
     if (!pcTextEnd)
@@ -1482,8 +1482,8 @@ pl_find_renderered_text_end(const char* pcText, const char* pcTextEnd)
     return pcTextDisplayEnd;
 }
 
-bool
-pl_is_item_hoverable(const plRect* ptBox, uint32_t uHash)
+static bool
+pl__is_item_hoverable(const plRect* ptBox, uint32_t uHash)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
@@ -1520,41 +1520,32 @@ pl_is_item_hoverable_circle(plVec2 tP, float fRadius, uint32_t uHash)
     if(!(gptCtx->uActiveId == uHash || gptCtx->uActiveId == 0))
         return false;
         
-    return pl_does_circle_contain_point(tP, fRadius, gptIOI->get_mouse_pos());
+    return pl__does_circle_contain_point(tP, fRadius, gptIOI->get_mouse_pos());
 }
 
-void
-pl_ui_add_text(plDrawLayer2D* ptLayer, plFontHandle tFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap)
+static void
+pl__add_text(plDrawLayer2D* ptLayer, plFontHandle tFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap)
 {
     const char* pcTextEnd = pcText + strlen(pcText);
-    gptDraw->add_text_ex(ptLayer, tFont, fSize, (plVec2){roundf(tP.x), roundf(tP.y)}, tColor, pcText, pl_find_renderered_text_end(pcText, pcTextEnd), fWrap);
+    gptDraw->add_text_ex(ptLayer, tFont, fSize, (plVec2){roundf(tP.x), roundf(tP.y)}, tColor, pcText, pl__find_renderered_text_end(pcText, pcTextEnd), fWrap);
 }
 
-void
-pl_add_clipped_text(plDrawLayer2D* ptLayer, plFontHandle tFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap)
+static void
+pl__add_clipped_text(plDrawLayer2D* ptLayer, plFontHandle tFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap)
 {
     const char* pcTextEnd = pcText + strlen(pcText);
-    gptDraw->add_text_clipped_ex(ptLayer, tFont, fSize, (plVec2){roundf(tP.x + 0.5f), roundf(tP.y + 0.5f)}, tMin, tMax, tColor, pcText, pl_find_renderered_text_end(pcText, pcTextEnd), fWrap);   
+    gptDraw->add_text_clipped_ex(ptLayer, tFont, fSize, (plVec2){roundf(tP.x + 0.5f), roundf(tP.y + 0.5f)}, tMin, tMax, tColor, pcText, pl__find_renderered_text_end(pcText, pcTextEnd), fWrap);   
 }
 
-plVec2
-pl_ui_calculate_text_size(plFontHandle tFont, float size, const char* text, float wrap)
+static plVec2
+pl__calculate_text_size(plFontHandle tFont, float size, const char* text, float wrap)
 {
     const char* pcTextEnd = text + strlen(text);
-    return gptDraw->calculate_text_size_ex(tFont, size, text, pl_find_renderered_text_end(text, pcTextEnd), wrap);  
+    return gptDraw->calculate_text_size_ex(tFont, size, text, pl__find_renderered_text_end(text, pcTextEnd), wrap);  
 }
 
-bool
-pl_does_triangle_contain_point(plVec2 p0, plVec2 p1, plVec2 p2, plVec2 point)
-{
-    bool b1 = ((point.x - p1.x) * (p0.y - p1.y) - (point.y - p1.y) * (p0.x - p1.x)) < 0.0f;
-    bool b2 = ((point.x - p2.x) * (p1.y - p2.y) - (point.y - p2.y) * (p1.x - p2.x)) < 0.0f;
-    bool b3 = ((point.x - p0.x) * (p2.y - p0.y) - (point.y - p0.y) * (p2.x - p0.x)) < 0.0f;
-    return ((b1 == b2) && (b2 == b3));
-}
-
-plUiStorageEntry*
-pl_lower_bound(plUiStorageEntry* sbtData, uint32_t uKey)
+static plUiStorageEntry*
+pl__lower_bound(plUiStorageEntry* sbtData, uint32_t uKey)
 {
     plUiStorageEntry* ptFirstEntry = sbtData;
     uint32_t uCount = pl_sb_size(sbtData);
@@ -1574,8 +1565,8 @@ pl_lower_bound(plUiStorageEntry* sbtData, uint32_t uKey)
     return ptFirstEntry;
 }
 
-bool
-pl_begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
+static bool
+pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 {
     plUiWindow* ptWindow = NULL;                          // window we are working on
     plUiWindow* ptParentWindow = gptCtx->ptCurrentWindow; // parent window if there any
@@ -1585,11 +1576,11 @@ pl_begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     pl_sb_push(gptCtx->sbuIdStack, uWindowID);
 
     // title text & title bar sizes
-    const plVec2 tTextSize = pl_ui_calculate_text_size(gptCtx->tFont, gptCtx->tStyle.fFontSize, pcName, 0.0f);
+    const plVec2 tTextSize = pl__calculate_text_size(gptCtx->tFont, gptCtx->tStyle.fFontSize, pcName, 0.0f);
     float fTitleBarHeight = (tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW) ? 0.0f : gptCtx->tStyle.fFontSize + 2.0f * gptCtx->tStyle.fTitlePadding;
 
     // see if window already exist in storage
-    ptWindow = pl_get_ptr(&gptCtx->tWindows, uWindowID);
+    ptWindow = pl__get_ptr(&gptCtx->tWindows, uWindowID);
 
     // new window needs to be created
     if(ptWindow == NULL)
@@ -1622,7 +1613,7 @@ pl_begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             ptWindow->ptRootWindow = ptParentWindow->ptRootWindow;
 
         // add window to storage
-        pl_set_ptr(&gptCtx->tWindows, uWindowID, ptWindow);
+        pl__set_ptr(&gptCtx->tWindows, uWindowID, ptWindow);
     }
 
     // seen this frame (obviously)
@@ -1634,7 +1625,7 @@ pl_begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     {
 
         plUiLayoutRow* ptCurrentRow = &ptParentWindow->tTempData.tCurrentLayoutRow;
-        const plVec2 tStartPos   = pl__ui_get_cursor_pos();
+        const plVec2 tStartPos   = pl__get_cursor_pos();
 
         // set window position to parent window current cursor
         ptWindow->tPos = tStartPos;
@@ -1726,7 +1717,7 @@ pl_begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
         // draw title text
         const plVec2 titlePos = pl_add_vec2(tStartPos, (plVec2){ptWindow->tSize.x / 2.0f - tTextSize.x / 2.0f, gptCtx->tStyle.fTitlePadding});
-        pl_ui_add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, titlePos, gptCtx->tColorScheme.tTextCol, pcName, 0.0f);
+        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, titlePos, gptCtx->tColorScheme.tTextCol, pcName, 0.0f);
 
         // draw close button
         const float fTitleBarButtonRadius = 8.0f;
@@ -1741,7 +1732,7 @@ pl_begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             plRect tBoundingBox = pl_calculate_rect(tCloseTLPos, (plVec2){fTitleBarButtonRadius * 2.0f, fTitleBarButtonRadius * 2.0f});
             bool bHovered = false;
             bool bHeld = false;
-            bool bPressed = pl_button_behavior(&tBoundingBox, uCloseHash, &bHovered, &bHeld);
+            bool bPressed = pl__button_behavior(&tBoundingBox, uCloseHash, &bHovered, &bHeld);
 
             if(gptCtx->uActiveId == uCloseHash)       gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 12);
             else if(gptCtx->uHoveredId == uCloseHash) gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 12);
@@ -1761,7 +1752,7 @@ pl_begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             plRect tBoundingBox = pl_calculate_rect(tCloseTLPos, (plVec2){fTitleBarButtonRadius * 2.0f, fTitleBarButtonRadius * 2.0f});
             bool bHovered = false;
             bool bHeld = false;
-            bool bPressed = pl_button_behavior(&tBoundingBox, uCollapseHash, &bHovered, &bHeld);
+            bool bPressed = pl__button_behavior(&tBoundingBox, uCollapseHash, &bHovered, &bHeld);
 
             if(gptCtx->uActiveId == uCollapseHash)       gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 12);
             else if(gptCtx->uHoveredId == uCollapseHash) gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 12);
@@ -1826,8 +1817,8 @@ pl_begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     return !ptWindow->bCollapsed;
 }
 
-void
-pl_render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis)
+static void
+pl__render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis)
 {
     const plRect tParentBgRect = ptWindow->ptParentWindow->tOuterRect;
     if(tAxis == PL_UI_AXIS_X)
@@ -1858,7 +1849,7 @@ pl_render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis)
 
             bool bHovered = false;
             bool bHeld = false;
-            const bool bPressed = pl_button_behavior(&tHandleBox, uHash, &bHovered, &bHeld);   
+            const bool bPressed = pl__button_behavior(&tHandleBox, uHash, &bHovered, &bHeld);   
             if(gptCtx->uActiveId == uHash)
                 gptDraw->add_rect_filled(ptWindow->ptBgLayer, tStartPos, pl_add_vec2(tStartPos, tFinalSize), gptCtx->tColorScheme.tScrollbarActiveCol, gptCtx->tStyle.fScrollbarRounding, 0);
             else if(gptCtx->uHoveredId == uHash)
@@ -1898,7 +1889,7 @@ pl_render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis)
 
             bool bHovered = false;
             bool bHeld = false;
-            const bool bPressed = pl_button_behavior(&tHandleBox, uHash, &bHovered, &bHeld);
+            const bool bPressed = pl__button_behavior(&tHandleBox, uHash, &bHovered, &bHeld);
 
             // scrollbar handle
             if(gptCtx->uActiveId == uHash) 
@@ -1915,8 +1906,8 @@ pl_render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis)
         pl__set_active_id(uHash, ptWindow);
 }
 
-plVec2
-pl_calculate_item_size(float fDefaultHeight)
+static plVec2
+pl__calculate_item_size(float fDefaultHeight)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
@@ -1953,8 +1944,8 @@ pl_calculate_item_size(float fDefaultHeight)
     }
 }
 
-void
-pl_advance_cursor(float fWidth, float fHeight)
+static void
+pl__advance_cursor(float fWidth, float fHeight)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
@@ -1991,16 +1982,16 @@ pl_advance_cursor(float fWidth, float fHeight)
     }
 }
 
-void
-pl_submit_window(plUiWindow* ptWindow)
+static void
+pl__submit_window(plUiWindow* ptWindow)
 {
     ptWindow->bActive = false; // no longer active (for next frame)
     pl_sb_push(gptCtx->sbptWindows, ptWindow);
     for(uint32_t j = 0; j < pl_sb_size(ptWindow->sbtChildWindows); j++)
-        pl_submit_window(ptWindow->sbtChildWindows[j]);
+        pl__submit_window(ptWindow->sbtChildWindows[j]);
 }
 
-void
+static void
 pl__set_active_id(uint32_t uHash, plUiWindow* ptWindow)
 {
     gptCtx->bActiveIdJustActivated = gptCtx->uActiveId != uHash;

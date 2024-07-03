@@ -10,11 +10,8 @@ Index of this file:
 // [SECTION] helper macros
 // [SECTION] defines
 // [SECTION] forward declarations
-// [SECTION] context
+// [SECTION] context & apis
 // [SECTION] enums
-// [SECTION] math
-// [SECTION] stretchy buffer internal
-// [SECTION] stretchy buffer
 // [SECTION] internal structs
 // [SECTION] plUiStorage
 // [SECTION] plUiWindow
@@ -99,24 +96,17 @@ typedef int plUiLayoutSystemType;
 typedef int plDebugLogFlags;
 
 //-----------------------------------------------------------------------------
-// [SECTION] context
+// [SECTION] context & apis
 //-----------------------------------------------------------------------------
 
-plUiContext* gptCtx = NULL;
-const plIOI* gptIOI = NULL;
-const plDrawI* gptDraw = NULL;
-plIO* gptIO = NULL;
+static plUiContext*   gptCtx = NULL;
+static const plIOI*   gptIOI = NULL;
+static const plDrawI* gptDraw = NULL;
+static plIO*          gptIO = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
-
-enum plDebugLogFlags_
-{
-    PL_UI_DEBUG_LOG_FLAGS_NONE            = 0,
-    PL_UI_DEBUG_LOG_FLAGS_EVENT_IO        = 1 << 0,
-    PL_UI_DEBUG_LOG_FLAGS_EVENT_ACTIVE_ID = 1 << 1,
-};
 
 enum plUiAxis_
 {
@@ -287,7 +277,6 @@ typedef struct _plUiLayoutRow
 {
     plUiLayoutRowType    tType;                // determines if width/height is relative or absolute (PL_UI_LAYOUT_ROW_TYPE_*)
     plUiLayoutSystemType tSystemType;          // this rows layout strategy
-
     float                fWidth;               // widget width (could be relative or absolute)
     float                fHeight;              // widget height (could be relative or absolute)
     float                fSpecifiedHeight;     // height user passed in
@@ -310,7 +299,7 @@ typedef struct _plUiInputTextState
     uint32_t           uId;
     int                iCurrentLengthW;        // widget id owning the text state
     int                iCurrentLengthA;        // we need to maintain our buffer length in both UTF-8 and wchar format. UTF-8 length is valid even if TextA is not.
-    plUiWChar*           sbTextW;                // edit buffer, we need to persist but can't guarantee the persistence of the user-provided buffer. so we copy into own buffer.
+    plUiWChar*         sbTextW;                // edit buffer, we need to persist but can't guarantee the persistence of the user-provided buffer. so we copy into own buffer.
     char*              sbTextA;                // temporary UTF8 buffer for callbacks and other operations. this is not updated in every code-path! size=capacity.
     char*              sbInitialTextA;         // backup of end-user buffer at the time of focus (in UTF-8, unaltered)
     bool               bTextAIsValid;          // temporary UTF8 buffer is not initially valid before we make the widget active (until then we pull the data from user argument)
@@ -321,7 +310,7 @@ typedef struct _plUiInputTextState
     bool               bCursorFollow;          // set when we want scrolling to follow the current cursor position (not always!)
     bool               bSelectedAllMouseLock;  // after a double-click to select all, we ignore further mouse drags to update selection
     bool               bEdited;                // edited this frame
-    plUiInputTextFlags tFlags;    // copy of InputText() flags. may be used to check if e.g. ImGuiInputTextFlags_Password is set.
+    plUiInputTextFlags tFlags;                 // copy of InputText() flags. may be used to check if e.g. ImGuiInputTextFlags_Password is set.
 } plUiInputTextState;
 
 //-----------------------------------------------------------------------------
@@ -350,14 +339,14 @@ typedef struct _plUiStorage
 
 typedef struct _plUiTempWindowData
 {
-    plVec2               tCursorStartPos;   // position where widgets begin drawing (could be outside window if scrolling)
-    plVec2               tCursorMaxPos;     // maximum cursor position (could be outside window if scrolling)
-    uint32_t             uTreeDepth;        // current level inside trees
-    float                fExtraIndent;      // extra indent added by pl_indent
-    plUiLayoutRow        tCurrentLayoutRow; // current layout row to use
-    plVec2               tRowPos;           // current row starting position
-    float                fAccumRowX;        // additional indent due to a parent (like tab bar) not being the first item in a row
-    float                fTitleBarHeight;   // titlebar height
+    plVec2        tCursorStartPos;   // position where widgets begin drawing (could be outside window if scrolling)
+    plVec2        tCursorMaxPos;     // maximum cursor position (could be outside window if scrolling)
+    uint32_t      uTreeDepth;        // current level inside trees
+    float         fExtraIndent;      // extra indent added by pl_indent
+    plUiLayoutRow tCurrentLayoutRow; // current layout row to use
+    plVec2        tRowPos;           // current row starting position
+    float         fAccumRowX;        // additional indent due to a parent (like tab bar) not being the first item in a row
+    float         fTitleBarHeight;   // titlebar height
 
     // template layout system
     float fTempMinWidth;
@@ -476,31 +465,28 @@ typedef struct _plUiContext
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-const char*          pl_find_renderered_text_end(const char* pcText, const char* pcTextEnd);
-void                 pl_ui_add_text             (plDrawLayer2D* ptLayer, plFontHandle, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
-void                 pl_add_clipped_text        (plDrawLayer2D* ptLayer, plFontHandle, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
-plVec2               pl_ui_calculate_text_size  (plFontHandle, float size, const char* text, float wrap);
-static inline float  pl_get_frame_height        (void) { return gptCtx->tStyle.fFontSize + gptCtx->tStyle.tFramePadding.y * 2.0f; }
+static const char*   pl__find_renderered_text_end(const char* pcText, const char* pcTextEnd);
+static void          pl__add_text                (plDrawLayer2D*, plFontHandle, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
+static void          pl__add_clipped_text        (plDrawLayer2D*, plFontHandle, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
+static plVec2        pl__calculate_text_size     (plFontHandle, float size, const char* text, float wrap);
+static inline float  pl__get_frame_height        (void) { return gptCtx->tStyle.fFontSize + gptCtx->tStyle.tFramePadding.y * 2.0f; }
 
 // collision
-static inline bool   pl_does_circle_contain_point  (plVec2 cen, float radius, plVec2 point) { const float fDistanceSquared = powf(point.x - cen.x, 2) + powf(point.y - cen.y, 2); return fDistanceSquared <= radius * radius; }
-bool                 pl_does_triangle_contain_point(plVec2 p0, plVec2 p1, plVec2 p2, plVec2 point);
-bool                 pl_is_item_hoverable          (const plRect* ptBox, uint32_t uHash);
+static inline bool   pl__does_circle_contain_point  (plVec2 cen, float radius, plVec2 point) { const float fDistanceSquared = powf(point.x - cen.x, 2) + powf(point.y - cen.y, 2); return fDistanceSquared <= radius * radius; }
+static bool          pl__is_item_hoverable          (const plRect* ptBox, uint32_t uHash);
 
 // layouts
-static inline plVec2 pl__ui_get_cursor_pos    (void) { return (plVec2){gptCtx->ptCurrentWindow->tTempData.tRowPos.x + gptCtx->ptCurrentWindow->tTempData.fAccumRowX + gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.fHorizontalOffset + (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize, gptCtx->ptCurrentWindow->tTempData.tRowPos.y + gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.fVerticalOffset};}
-plVec2               pl_calculate_item_size(float fDefaultHeight);
-void                 pl_advance_cursor     (float fWidth, float fHeight);
+static inline plVec2 pl__get_cursor_pos    (void) { return (plVec2){gptCtx->ptCurrentWindow->tTempData.tRowPos.x + gptCtx->ptCurrentWindow->tTempData.fAccumRowX + gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.fHorizontalOffset + (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize, gptCtx->ptCurrentWindow->tTempData.tRowPos.y + gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.fVerticalOffset};}
+static plVec2        pl__calculate_item_size(float fDefaultHeight);
+static void          pl__advance_cursor     (float fWidth, float fHeight);
 
 // misc
-bool pl_begin_window_ex (const char* pcName, bool* pbOpen, plUiWindowFlags tFlags);
-void pl_render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis);
-void pl_submit_window   (plUiWindow* ptWindow);
-void pl__focus_window   (plUiWindow* ptWindow);
-
-static inline bool   pl__ui_should_render(const plVec2* ptStartPos, const plVec2* ptWidgetSize) { return !(ptStartPos->y + ptWidgetSize->y < gptCtx->ptCurrentWindow->tPos.y || ptStartPos->y > gptCtx->ptCurrentWindow->tPos.y + gptCtx->ptCurrentWindow->tSize.y); }
-
-void pl__set_active_id(uint32_t uHash, plUiWindow* ptWindow);
+static bool        pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags);
+static void        pl__render_scrollbar(plUiWindow*, uint32_t uHash, plUiAxis);
+static void        pl__submit_window   (plUiWindow*);
+static void        pl__focus_window    (plUiWindow*);
+static inline bool pl__ui_should_render(const plVec2* ptStartPos, const plVec2* ptWidgetSize) { return !(ptStartPos->y + ptWidgetSize->y < gptCtx->ptCurrentWindow->tPos.y || ptStartPos->y > gptCtx->ptCurrentWindow->tPos.y + gptCtx->ptCurrentWindow->tSize.y); }
+static void        pl__set_active_id(uint32_t uHash, plUiWindow*);
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~text state system~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -522,25 +508,25 @@ static void        pl__text_state_on_key_press    (plUiInputTextState* ptState, 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~widget behavior~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-bool pl_button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, bool* pbOutHeld);
+static bool pl__button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, bool* pbOutHeld);
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~storage system~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-plUiStorageEntry*    pl_lower_bound(plUiStorageEntry* sbtData, uint32_t uKey);
+static plUiStorageEntry* pl__lower_bound(plUiStorageEntry* sbtData, uint32_t uKey);
 
-int                  pl_get_int      (plUiStorage* ptStorage, uint32_t uKey, int iDefaultValue);
-float                pl_get_float    (plUiStorage* ptStorage, uint32_t uKey, float fDefaultValue);
-bool                 pl_get_bool     (plUiStorage* ptStorage, uint32_t uKey, bool bDefaultValue);
-void*                pl_get_ptr      (plUiStorage* ptStorage, uint32_t uKey);
+static int   pl__get_int  (plUiStorage*, uint32_t uKey, int iDefaultValue);
+static float pl__get_float(plUiStorage*, uint32_t uKey, float fDefaultValue);
+static bool  pl__get_bool (plUiStorage*, uint32_t uKey, bool bDefaultValue);
+static void* pl__get_ptr  (plUiStorage*, uint32_t uKey);
 
-int*                 pl_get_int_ptr  (plUiStorage* ptStorage, uint32_t uKey, int iDefaultValue);
-float*               pl_get_float_ptr(plUiStorage* ptStorage, uint32_t uKey, float fDefaultValue);
-bool*                pl_get_bool_ptr (plUiStorage* ptStorage, uint32_t uKey, bool bDefaultValue);
-void**               pl_get_ptr_ptr  (plUiStorage* ptStorage, uint32_t uKey, void* pDefaultValue);
+static int*   pl__get_int_ptr  (plUiStorage*, uint32_t uKey, int iDefaultValue);
+static float* pl__get_float_ptr(plUiStorage*, uint32_t uKey, float fDefaultValue);
+static bool*  pl__get_bool_ptr (plUiStorage*, uint32_t uKey, bool bDefaultValue);
+static void** pl__get_ptr_ptr  (plUiStorage*, uint32_t uKey, void* pDefaultValue);
 
-void                 pl_set_int      (plUiStorage* ptStorage, uint32_t uKey, int iValue);
-void                 pl_set_float    (plUiStorage* ptStorage, uint32_t uKey, float fValue);
-void                 pl_set_bool     (plUiStorage* ptStorage, uint32_t uKey, bool bValue);
-void                 pl_set_ptr      (plUiStorage* ptStorage, uint32_t uKey, void* pValue);
+static void pl__set_int  (plUiStorage*, uint32_t uKey, int iValue);
+static void pl__set_float(plUiStorage*, uint32_t uKey, float fValue);
+static void pl__set_bool (plUiStorage*, uint32_t uKey, bool bValue);
+static void pl__set_ptr  (plUiStorage*, uint32_t uKey, void* pValue);
 
 #endif // PL_UI_INTERNAL_H
