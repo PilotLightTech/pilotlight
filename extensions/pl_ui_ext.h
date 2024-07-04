@@ -175,8 +175,14 @@ typedef struct _plUiI
     // input
     bool (*input_text)     (const char* pcLabel, char* pcBuffer, size_t szBufferSize);
     bool (*input_text_hint)(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t szBufferSize);
-    bool (*input_float)    (const char* pcLabel, float* fValue, const char* pcFormat);
+    bool (*input_float)    (const char* pcLabel, float* pfValue, const char* pcFormat);
+    bool (*input_float2)   (const char* pcLabel, float* afValue, const char* pcFormat);
+    bool (*input_float3)   (const char* pcLabel, float* afValue, const char* pcFormat);
+    bool (*input_float4)   (const char* pcLabel, float* afValue, const char* pcFormat);
     bool (*input_int)      (const char* pcLabel, int* iValue);
+    bool (*input_int2)     (const char* pcLabel, int* aiValue);
+    bool (*input_int3)     (const char* pcLabel, int* aiValue);
+    bool (*input_int4)     (const char* pcLabel, int* aiValue);
 
     // sliders
     bool (*slider_float)  (const char* pcLabel, float* pfValue, float fMin, float fMax);
@@ -275,6 +281,13 @@ typedef struct _plUiI
     void (*layout_space_begin)(plUiLayoutRowType, float fHeight, uint32_t uWidgetCount);
     void (*layout_space_push) (float fX, float fY, float fWidth, float fHeight);
     void (*layout_space_end)  (void);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ID stack~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    void (*push_id_string) (const char*);
+    void (*push_id_pointer)(const void*);
+    void (*push_id_uint)   (uint32_t);
+    void (*pop_id)         (void);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~state query~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

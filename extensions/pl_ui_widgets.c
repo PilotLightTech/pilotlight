@@ -467,6 +467,34 @@ pl__button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, boo
     return bPressed;
 }
 
+
+void
+pl_push_id_string(const char* pcText)
+{
+    const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
+    pl_sb_push(gptCtx->sbuIdStack, uHash);
+}
+
+void
+pl_push_id_pointer(const void* ptr)
+{
+    const uint32_t uHash = pl_str_hash_data(&ptr, sizeof(void*), pl_sb_top(gptCtx->sbuIdStack));
+    pl_sb_push(gptCtx->sbuIdStack, uHash);
+}
+
+void
+pl_push_id_uint(uint32_t uInt)
+{
+    const uint32_t uHash = pl_str_hash_data(&uInt, sizeof(uint32_t), pl_sb_top(gptCtx->sbuIdStack));
+    pl_sb_push(gptCtx->sbuIdStack, uHash);
+}
+
+void
+pl_pop_id(void)
+{
+    pl_sb_pop(gptCtx->sbuIdStack);
+}
+
 bool
 pl_button(const char* pcText)
 {
@@ -1100,18 +1128,23 @@ pl_labeled_text(const char* pcLabel, const char* pcFmt, ...)
 }
 
 bool
-pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t szBufferSize, plUiInputTextFlags tFlags);
-
-bool
 pl_input_text(const char* pcLabel, char* pcBuffer, size_t szBufferSize)
 {
-    return pl_input_text_ex(pcLabel, NULL, pcBuffer, szBufferSize, 0);
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+    bool bResult = pl__input_text_ex(pcLabel, NULL, pcBuffer, szBufferSize, 0, &tWidgetSize, &tStartPos);
+    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    return bResult;
 }
 
 bool
 pl_input_text_hint(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t szBufferSize)
 {
-    return pl_input_text_ex(pcLabel, pcHint, pcBuffer, szBufferSize, 0);
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+    bool bResult = pl__input_text_ex(pcLabel, pcHint, pcBuffer, szBufferSize, 0, &tWidgetSize, &tStartPos);
+    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    return bResult;
 }
 
 bool
@@ -1119,29 +1152,244 @@ pl_input_float(const char* pcLabel, float* pfValue, const char* pcFormat)
 {
     char acBuffer[64] = {0};
     pl_sprintf(acBuffer, pcFormat, *pfValue);
-    const bool bChanged = pl_input_text_ex(pcLabel, NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC);
+
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+
+    const bool bChanged = pl__input_text_ex(pcLabel, NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tWidgetSize, &tStartPos);
 
     if(bChanged)
         *pfValue = (float)atof(acBuffer);
 
+    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+
+    return bChanged;
+}
+
+bool
+pl_input_float2(const char* pcLabel, float* afValue, const char* pcFormat)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+    pl_push_id_string(pcLabel);
+
+    bool bChanged = false;
+    plVec2 tSubStartPos = {tStartPos.x, tStartPos.y};
+    const float fActualSubWidth = 2.0f * tWidgetSize.x / 6.0f;
+    for(uint32_t i = 0; i < 2; i++)
+    {
+        pl_push_id_uint(i);
+        
+        plVec2 tSubWidgetSize = {1.5f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        
+        char acBuffer[64] = {0};
+        pl_sprintf(acBuffer, pcFormat, afValue[i]);
+        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tSubWidgetSize, &tSubStartPos);
+        if(bSubChanged)
+            afValue[i] = (float)atof(acBuffer);
+        pl_pop_id();
+        tSubStartPos.x += fActualSubWidth;
+    }
+
+    const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tSubStartPos, pcLabel, pl__find_renderered_text_end(pcLabel, NULL), -1.0f);
+    const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+    pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl_pop_id();
+    return bChanged;
+}
+
+bool
+pl_input_float3(const char* pcLabel, float* afValue, const char* pcFormat)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+    pl_push_id_string(pcLabel);
+
+    bool bChanged = false;
+    plVec2 tSubStartPos = {tStartPos.x, tStartPos.y};
+    const float fActualSubWidth = 2.0f * tWidgetSize.x / 9.0f;
+    for(uint32_t i = 0; i < 3; i++)
+    {
+        pl_push_id_uint(i);
+        
+        plVec2 tSubWidgetSize = {1.5f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        
+        char acBuffer[64] = {0};
+        pl_sprintf(acBuffer, pcFormat, afValue[i]);
+        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tSubWidgetSize, &tSubStartPos);
+        if(bSubChanged)
+            afValue[i] = (float)atof(acBuffer);
+        pl_pop_id();
+        tSubStartPos.x += fActualSubWidth;
+    }
+
+    const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tSubStartPos, pcLabel, pl__find_renderered_text_end(pcLabel, NULL), -1.0f);
+    const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+    pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl_pop_id();
+    return bChanged;
+}
+
+bool
+pl_input_float4(const char* pcLabel, float* afValue, const char* pcFormat)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+    pl_push_id_string(pcLabel);
+
+    bool bChanged = false;
+    plVec2 tSubStartPos = {tStartPos.x, tStartPos.y};
+    const float fActualSubWidth = 2.0f * tWidgetSize.x / 12.0f;
+    for(uint32_t i = 0; i < 4; i++)
+    {
+        pl_push_id_uint(i);
+        
+        plVec2 tSubWidgetSize = {1.5f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        
+        char acBuffer[64] = {0};
+        pl_sprintf(acBuffer, pcFormat, afValue[i]);
+        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tSubWidgetSize, &tSubStartPos);
+        if(bSubChanged)
+            afValue[i] = (float)atof(acBuffer);
+        pl_pop_id();
+        tSubStartPos.x += fActualSubWidth;
+    }
+
+    const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tSubStartPos, pcLabel, pl__find_renderered_text_end(pcLabel, NULL), -1.0f);
+    const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+    pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl_pop_id();
     return bChanged;
 }
 
 bool
 pl_input_int(const char* pcLabel, int* piValue)
 {
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+
     char acBuffer[64] = {0};
     pl_sprintf(acBuffer, "%d", *piValue);
-    const bool bChanged = pl_input_text_ex(pcLabel, NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL);
+    const bool bChanged = pl__input_text_ex(pcLabel, NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tWidgetSize, &tStartPos);
 
     if(bChanged)
         *piValue = atoi(acBuffer);
+
+    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
 
     return bChanged;
 }
 
 bool
-pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t szBufferSize, plUiInputTextFlags tFlags)
+pl_input_int2(const char* pcLabel, int* aiValue)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+    pl_push_id_string(pcLabel);
+
+    bool bChanged = false;
+    plVec2 tSubStartPos = {tStartPos.x, tStartPos.y};
+    const float fActualSubWidth = 2.0f * tWidgetSize.x / 6.0f;
+    for(uint32_t i = 0; i < 2; i++)
+    {
+        pl_push_id_uint(i);
+        
+        plVec2 tSubWidgetSize = {1.5f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        
+        char acBuffer[64] = {0};
+        pl_sprintf(acBuffer, "%d", aiValue[i]);
+        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tSubWidgetSize, &tSubStartPos);
+        if(bSubChanged)
+            aiValue[i] = atoi(acBuffer);
+        pl_pop_id();
+        tSubStartPos.x += fActualSubWidth;
+    }
+
+    const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tSubStartPos, pcLabel, pl__find_renderered_text_end(pcLabel, NULL), -1.0f);
+    const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+    pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl_pop_id();
+    return bChanged;
+}
+
+bool
+pl_input_int3(const char* pcLabel, int* aiValue)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+    pl_push_id_string(pcLabel);
+
+    bool bChanged = false;
+    plVec2 tSubStartPos = {tStartPos.x, tStartPos.y};
+    const float fActualSubWidth = 2.0f * tWidgetSize.x / 9.0f;
+    for(uint32_t i = 0; i < 3; i++)
+    {
+        pl_push_id_uint(i);
+        
+        plVec2 tSubWidgetSize = {1.5f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        
+        char acBuffer[64] = {0};
+        pl_sprintf(acBuffer, "%d", aiValue[i]);
+        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tSubWidgetSize, &tSubStartPos);
+        if(bSubChanged)
+            aiValue[i] = atoi(acBuffer);
+        pl_pop_id();
+        tSubStartPos.x += fActualSubWidth;
+    }
+
+    const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tSubStartPos, pcLabel, pl__find_renderered_text_end(pcLabel, NULL), -1.0f);
+    const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+    pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl_pop_id();
+    return bChanged;
+}
+
+bool
+pl_input_int4(const char* pcLabel, int* aiValue)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+    pl_push_id_string(pcLabel);
+
+    bool bChanged = false;
+    plVec2 tSubStartPos = {tStartPos.x, tStartPos.y};
+    const float fActualSubWidth = 2.0f * tWidgetSize.x / 12.0f;
+    for(uint32_t i = 0; i < 4; i++)
+    {
+        pl_push_id_uint(i);
+        
+        plVec2 tSubWidgetSize = {1.5f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        
+        char acBuffer[64] = {0};
+        pl_sprintf(acBuffer, "%d", aiValue[i]);
+        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tSubWidgetSize, &tSubStartPos);
+        if(bSubChanged)
+            aiValue[i] = atoi(acBuffer);
+        pl_pop_id();
+        tSubStartPos.x += fActualSubWidth;
+    }
+
+    const plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tSubStartPos, pcLabel, pl__find_renderered_text_end(pcLabel, NULL), -1.0f);
+    const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+    pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl_pop_id();
+    return bChanged;
+}
+
+static bool
+pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t szBufferSize, plUiInputTextFlags tFlags, const plVec2* ptWidgetSize, const plVec2* ptStartPos)
 {
     plFont* font = gptDraw->get_font(gptCtx->tFont);
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
@@ -1154,16 +1402,13 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
     const bool bIsUndoable  = (tFlags & PL_UI_INPUT_TEXT_FLAGS_NO_UNDO_REDO) != 0;
     const bool bIsResizable = (tFlags & PL_UI_INPUT_TEXT_FLAGS_CALLBACK_RESIZE) != 0;
 
-    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
-    const plVec2 tStartPos   = pl__get_cursor_pos();
-
-    const plVec2 tFrameStartPos = {tStartPos.x, tStartPos.y };
+    const plVec2 tFrameStartPos = *ptStartPos;
     const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
 
     const plRect tLabelTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tFrameStartPos, pcLabel, pl__find_renderered_text_end(pcLabel, NULL), -1.0f);
     const plVec2 tLabelTextActualCenter = pl_rect_center(&tLabelTextBounding);
 
-    const plVec2 tFrameSize = { 2.0f * (tWidgetSize.x / 3.0f), tWidgetSize.y};
+    const plVec2 tFrameSize = { 2.0f * (ptWidgetSize->x / 3.0f), ptWidgetSize->y};
     plRect tBoundingBox = pl_calculate_rect(tFrameStartPos, tFrameSize);
     const plRect* ptClipRect = gptDraw->get_clip_rect(gptCtx->ptDrawlist);
     tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
@@ -1785,7 +2030,7 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
             .y = tBoundingBox.tMin.y + tInnerSize.y
         }
     };
-    plVec2 draw_pos = bIsMultiLine ? tStartPos : pl_add_vec2(tFrameStartPos, gptCtx->tStyle.tFramePadding);
+    plVec2 draw_pos = bIsMultiLine ? *ptStartPos : pl_add_vec2(tFrameStartPos, gptCtx->tStyle.tFramePadding);
     plVec2 text_size = {0};
 
     // Set upper limit of single-line InputTextEx() at 2 million characters strings. The current pathological worst case is a long line
@@ -2020,13 +2265,11 @@ pl_input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t
     // if (pcLabel.x > 0)
     {
         // RenderText(ImVec2(frame_bb.Max.x + style.ItemInnerSpacing.x, frame_bb.Min.y + style.FramePadding.y), label);
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){ptStartPos->x + (2.0f * ptWidgetSize->x / 3.0f), ptStartPos->y + ptStartPos->y + ptWidgetSize->y / 2.0f - tLabelTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
     }
 
     // if (value_changed && !(flags & ImGuiInputTextFlags_NoMarkEdited))
     //     MarkItemEdited(id);
-
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
 
     if ((tFlags & PL_UI_INPUT_TEXT_FLAGS_ENTER_RETURNS_TRUE) != 0)
         return bValidated;

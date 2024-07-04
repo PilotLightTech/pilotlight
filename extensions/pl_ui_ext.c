@@ -65,7 +65,13 @@ pl_load_ui_api(void)
         .input_text                    = pl_input_text,
         .input_text_hint               = pl_input_text_hint,
         .input_float                   = pl_input_float,
+        .input_float2                  = pl_input_float2,
+        .input_float3                  = pl_input_float3,
+        .input_float4                  = pl_input_float4,
         .input_int                     = pl_input_int,
+        .input_int2                    = pl_input_int2,
+        .input_int3                    = pl_input_int3,
+        .input_int4                    = pl_input_int4,
         .slider_float                  = pl_slider_float,
         .slider_float_f                = pl_slider_float_f,
         .slider_int                    = pl_slider_int,
@@ -104,6 +110,10 @@ pl_load_ui_api(void)
         .layout_space_end              = pl_layout_space_end,
         .was_last_item_hovered         = pl_was_last_item_hovered,
         .was_last_item_active          = pl_was_last_item_active,
+        .push_id_string                = pl_push_id_string,
+        .push_id_pointer               = pl_push_id_pointer,
+        .push_id_uint                  = pl_push_id_uint,
+        .pop_id                        = pl_pop_id,
     };
     return &tApi;
 }

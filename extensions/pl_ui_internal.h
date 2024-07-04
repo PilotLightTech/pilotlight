@@ -487,6 +487,7 @@ static void        pl__submit_window   (plUiWindow*);
 static void        pl__focus_window    (plUiWindow*);
 static inline bool pl__ui_should_render(const plVec2* ptStartPos, const plVec2* ptWidgetSize) { return !(ptStartPos->y + ptWidgetSize->y < gptCtx->ptCurrentWindow->tPos.y || ptStartPos->y > gptCtx->ptCurrentWindow->tPos.y + gptCtx->ptCurrentWindow->tSize.y); }
 static void        pl__set_active_id(uint32_t uHash, plUiWindow*);
+static bool        pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t szBufferSize, plUiInputTextFlags, const plVec2* ptWidgetSize, const plVec2* ptStartPos);
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~text state system~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

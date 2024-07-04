@@ -85,6 +85,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
 
             if(ptSelectedEntity->ulData != UINT64_MAX)
             {
+                gptUi->push_id_uint(ptSelectedEntity->uIndex);
                 plTagComponent*               ptTagComp           = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, *ptSelectedEntity);
                 plTransformComponent*         ptTransformComp     = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, *ptSelectedEntity);
                 plMeshComponent*              ptMeshComp          = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, *ptSelectedEntity);
@@ -311,6 +312,8 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->checkbox("Enabled", &ptIKComp->bEnabled);
                     gptUi->end_collapsing_header();
                 }
+
+                gptUi->pop_id();
             }
             
             gptUi->end_child();

@@ -232,6 +232,15 @@ pl_show_demo_window(bool* pbOpen)
                 pl_slider_int("int slider 1", &iValue1, 0, 10);
                 pl_slider_int("int slider 2", &iValue2, -5, 10);
                 pl_drag_float("float drag", &fValue2, 1.0f, -100.0f, 100.0f);
+                static int aiIntArray[4] = {0};
+                pl_input_int2("input int 2", aiIntArray);
+                pl_input_int3("input int 3", aiIntArray);
+                pl_input_int4("input int 4", aiIntArray);
+
+                static float afFloatArray[4] = {0};
+                pl_input_float2("input float 2", afFloatArray, "%0.3f");
+                pl_input_float3("input float 3", afFloatArray, "%0.3f");
+                pl_input_float4("input float 4", afFloatArray, "%0.3f");
 
                 const float pfRatios22[] = {100.0f, 120.0f};
                 pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2, pfRatios22);
