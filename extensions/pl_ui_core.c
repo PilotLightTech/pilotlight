@@ -48,7 +48,7 @@ pl_set_dark_theme(void)
     gptCtx->tStyle.fWindowRounding          = 0.0f;
     gptCtx->tStyle.fChildRounding           = 0.0f;
     gptCtx->tStyle.fFrameRounding           = 3.0f;
-    gptCtx->tStyle.fScrollbarRounding       = 3.5f;
+    gptCtx->tStyle.fScrollbarRounding       = 0.0f;
     gptCtx->tStyle.fGrabRounding            = 3.0f;
     gptCtx->tStyle.fTabRounding             = 4.0f;
     gptCtx->tStyle.tItemSpacing             = (plVec2){8.0f, 4.0f};
@@ -102,6 +102,8 @@ void
 pl_new_frame(void)
 {
 
+    pl_sb_reset(gptCtx->sbtBeginPopupStack);
+
     gptIO->bWantTextInput = false;
     gptIO->bWantCaptureMouse = false;
 
@@ -124,8 +126,16 @@ pl_new_frame(void)
     gptCtx->tNextWindowData.tSizeCondition = PL_UI_COND_NONE;
 
     // reset active window
-    if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false) && gptCtx->ptHoveredWindow == NULL)
+    if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+    {
         gptCtx->uActiveWindowId = 0;
+    }
+
+    if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false) && gptCtx->uHoveredId == 0)
+    {
+        gptCtx->uActiveWindowId = 0;
+        pl_sb_reset(gptCtx->sbtOpenPopupStack);
+    }
 
     // reset active id if no longer alive
     if(gptCtx->uActiveId != 0 && gptCtx->uActiveIdIsAlive != gptCtx->uActiveId)
@@ -726,6 +736,14 @@ pl_set_next_window_size(plVec2 tSize, plUiConditionFlags tCondition)
 }
 
 void
+pl_set_next_window_pos(plVec2 tPos, plUiConditionFlags tCondition)
+{
+    gptCtx->tNextWindowData.tPos = tPos;
+    gptCtx->tNextWindowData.tFlags |= PL_NEXT_WINDOW_DATA_FLAGS_HAS_POS;
+    gptCtx->tNextWindowData.tPosCondition = tCondition;
+}
+
+void
 pl_end_child(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
@@ -812,6 +830,7 @@ pl_begin_child(const char* pcName)
 {
     plUiWindow* ptParentWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptParentWindow->tTempData.tCurrentLayoutRow;
+    const plVec2 tStartPos   = pl__get_cursor_pos();
     const plVec2 tWidgetSize = pl__calculate_item_size(200.0f);
 
     const plUiWindowFlags tFlags = 
@@ -821,6 +840,7 @@ pl_begin_child(const char* pcName)
         PL_UI_WINDOW_FLAGS_NO_COLLAPSE | 
         PL_UI_WINDOW_FLAGS_NO_MOVE;
 
+    pl_set_next_window_pos(tStartPos, PL_UI_COND_ALWAYS);
     pl_set_next_window_size(tWidgetSize, PL_UI_COND_ALWAYS);
     bool bValue =  pl__begin_window_ex(pcName, NULL, tFlags);
 
@@ -839,6 +859,110 @@ pl_begin_child(const char* pcName)
 }
 
 void
+pl_open_popup(const char* pcName)
+{
+    const uint32_t uHash = pl_str_hash(pcName, 0, pl_sb_top(gptCtx->sbuIdStack));
+    plUiPopupData tPopupData = {
+        .uId = uHash,
+        .ulOpenFrameCount = gptIO->ulFrameCount
+    };
+    pl_sb_push(gptCtx->sbtOpenPopupStack, tPopupData);
+}
+
+void
+pl_close_current_popup(void)
+{
+    if(pl_sb_size(gptCtx->sbtBeginPopupStack) == 0)
+        return;
+
+    uint32_t uCurrentPopupIndex = pl_sb_size(gptCtx->sbtBeginPopupStack) - 1;
+
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtOpenPopupStack); i++)
+    {
+        if(gptCtx->sbtOpenPopupStack[i].uId == gptCtx->sbtBeginPopupStack[uCurrentPopupIndex].uId)
+        {
+            pl__focus_window(gptCtx->ptCurrentWindow->ptRestoreWindow);
+            pl_sb_del(gptCtx->sbtOpenPopupStack, i);
+            break;
+        }
+    }
+}
+
+void
+pl_end_popup(void)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    plUiWindow* ptParentWindow = ptWindow->ptRestoreWindow;
+    pl_end_window();
+    gptCtx->ptCurrentWindow = ptParentWindow;
+    if(!ptParentWindow->bCollapsed)
+        gptDraw->push_clip_rect(gptCtx->ptDrawlist, ptParentWindow->tInnerClipRect, false);
+}
+
+bool
+pl_is_popup_open(const char* pcName)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const uint32_t uHash = pl_str_hash(pcName, 0, pl_sb_top(gptCtx->sbuIdStack));
+
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtOpenPopupStack); i++)
+    {
+        if(gptCtx->sbtOpenPopupStack[i].uId == uHash)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool
+pl_begin_popup(const char* pcName, plUiWindowFlags tFlags)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    const uint32_t uHash = pl_str_hash(pcName, 0, pl_sb_top(gptCtx->sbuIdStack));
+
+    bool bIsOpen = false;
+    bool bNewOpen = false;
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtOpenPopupStack); i++)
+    {
+        if(gptCtx->sbtOpenPopupStack[i].uId == uHash)
+        {
+            bNewOpen = gptCtx->sbtOpenPopupStack[i].ulOpenFrameCount <= gptIO->ulFrameCount + 1;
+            bIsOpen = true;
+            break;
+        }
+    }
+
+    plUiPopupData tPopupData = {
+        .uId = uHash,
+        .ulOpenFrameCount = gptIO->ulFrameCount + 1
+    };
+    pl_sb_push(gptCtx->sbtBeginPopupStack, tPopupData);
+
+    if(bIsOpen)
+    {
+        gptDraw->pop_clip_rect(gptCtx->ptDrawlist);
+        bool bResult = pl__begin_window_ex(pcName, NULL, tFlags | PL_UI_WINDOW_FLAGS_POPUP_WINDOW);
+
+        static const float pfRatios[] = {300.0f};
+        if(bResult)
+        {
+            pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios);
+            if(bNewOpen)
+            {
+                pl__focus_window(gptCtx->ptCurrentWindow);
+                gptCtx->ptActiveWindow = gptCtx->ptCurrentWindow;
+            }
+        }
+        else
+            pl_end_popup();
+        return bResult;
+    }
+
+    return false;
+}
+
+void
 pl_begin_tooltip(void)
 {
     plUiWindow* ptWindow = &gptCtx->tTooltipWindow;
@@ -853,7 +977,6 @@ pl_begin_tooltip(void)
     memset(&ptWindow->tTempData, 0, sizeof(plUiTempWindowData));
 
     ptWindow->tFlags |= 
-        PL_UI_WINDOW_FLAGS_TOOLTIP |
         PL_UI_WINDOW_FLAGS_NO_TITLE_BAR | 
         PL_UI_WINDOW_FLAGS_NO_RESIZE | 
         PL_UI_WINDOW_FLAGS_NO_COLLAPSE | 
@@ -931,14 +1054,6 @@ pl_set_window_scroll(plVec2 tScroll)
 
     if(ptWindow->tScrollMax.y >= tScroll.y)
         ptWindow->tScroll.y = tScroll.y;
-}
-
-void
-pl_set_next_window_pos(plVec2 tPos, plUiConditionFlags tCondition)
-{
-    gptCtx->tNextWindowData.tPos = tPos;
-    gptCtx->tNextWindowData.tFlags |= PL_NEXT_WINDOW_DATA_FLAGS_HAS_POS;
-    gptCtx->tNextWindowData.tPosCondition = tCondition;
 }
 
 void
@@ -1577,7 +1692,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
     // title text & title bar sizes
     const plVec2 tTextSize = pl__calculate_text_size(gptCtx->tFont, gptCtx->tStyle.fFontSize, pcName, 0.0f);
-    float fTitleBarHeight = (tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW) ? 0.0f : gptCtx->tStyle.fFontSize + 2.0f * gptCtx->tStyle.fTitlePadding;
+    float fTitleBarHeight = (tFlags & PL_UI_WINDOW_FLAGS_NO_TITLE_BAR) ? 0.0f : gptCtx->tStyle.fFontSize + 2.0f * gptCtx->tStyle.fTitlePadding;
 
     // see if window already exist in storage
     ptWindow = pl__get_ptr(&gptCtx->tWindows, uWindowID);
@@ -1604,32 +1719,33 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         ptWindow->tFlags                  = PL_UI_WINDOW_FLAGS_NONE;
 
         // add to focused windows if not a child
-        if(!(tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW))
+        if(tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
         {
+            ptWindow->ptRootWindow = ptParentWindow->ptRootWindow;
+        }
+        else if(tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW)
+        {
+            ptWindow->ptRestoreWindow = ptParentWindow;
             pl_sb_push(gptCtx->sbptFocusedWindows, ptWindow);
             ptWindow->ptRootWindow = ptWindow;
         }
         else
-            ptWindow->ptRootWindow = ptParentWindow->ptRootWindow;
+        {
+            ptWindow->ptRestoreWindow = ptWindow;
+            pl_sb_push(gptCtx->sbptFocusedWindows, ptWindow);
+            ptWindow->ptRootWindow = ptWindow;
+        }
 
         // add window to storage
         pl__set_ptr(&gptCtx->tWindows, uWindowID, ptWindow);
     }
 
     // seen this frame (obviously)
-    
     ptWindow->bActive = true;
     ptWindow->tFlags = tFlags;
 
     if(tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
     {
-
-        plUiLayoutRow* ptCurrentRow = &ptParentWindow->tTempData.tCurrentLayoutRow;
-        const plVec2 tStartPos   = pl__get_cursor_pos();
-
-        // set window position to parent window current cursor
-        ptWindow->tPos = tStartPos;
-
         pl_sb_push(ptParentWindow->sbtChildWindows, ptWindow);
     }
     gptCtx->ptCurrentWindow = ptWindow;
@@ -1682,6 +1798,8 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
                 ptWindow->tSize.y = -(ptWindow->tPos.y - ptParentWindow->tPos.y) + ptParentWindow->tSize.y - ptWindow->tSize.y - (ptParentWindow->bScrollbarX ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f) - (ptWindow->bScrollbarX ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f);
             
             ptWindow->tSizeAllowableFlags &= ~PL_UI_COND_ONCE;
+
+            ptWindow->tMinSize = pl_min_vec2(ptWindow->tSize, ptWindow->tMinSize);
         }   
     }
 
@@ -1796,7 +1914,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         gptDraw->push_clip_rect(gptCtx->ptDrawlist, ptWindow->tInnerClipRect, false);
     }
 
-    // update cursors
+    // update layout cursors
     ptWindow->tTempData.tCursorStartPos.x = gptCtx->tStyle.fWindowHorizontalPadding + tStartPos.x - ptWindow->tScroll.x;
     ptWindow->tTempData.tCursorStartPos.y = gptCtx->tStyle.fWindowVerticalPadding + tStartPos.y + fTitleBarHeight - ptWindow->tScroll.y;
     ptWindow->tTempData.tRowPos = ptWindow->tTempData.tCursorStartPos;
@@ -1862,7 +1980,7 @@ pl__render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis)
     {
           
         const float fBottomPadding = ptWindow->bScrollbarX ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f;
-        const float fTopPadding = (ptWindow->tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW) ? 0.0f : gptCtx->tStyle.fFontSize + 2.0f * gptCtx->tStyle.fTitlePadding;
+        const float fTopPadding = (ptWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_TITLE_BAR) ? 0.0f : gptCtx->tStyle.fFontSize + 2.0f * gptCtx->tStyle.fTitlePadding;
 
         // this is needed if autosizing and parent changes sizes
         ptWindow->tScroll.y = pl_clampf(0.0f, ptWindow->tScroll.y, ptWindow->tScrollMax.y);
@@ -1995,14 +2113,21 @@ static void
 pl__set_active_id(uint32_t uHash, plUiWindow* ptWindow)
 {
     gptCtx->bActiveIdJustActivated = gptCtx->uActiveId != uHash;
-    gptCtx->uActiveId = uHash;    
+    gptCtx->uActiveId = uHash;
+    if(ptWindow != NULL && gptCtx->ptActiveWindow != ptWindow) 
+    {
+        pl_sb_reset(gptCtx->sbtOpenPopupStack);
+    }
     gptCtx->ptActiveWindow = ptWindow;
 
     if(uHash)
         gptCtx->uActiveIdIsAlive = uHash;
 
     if(gptCtx->bActiveIdJustActivated && uHash)
-        pl__focus_window(ptWindow);
+    {
+        pl__focus_window(ptWindow->ptRestoreWindow);
+        // pl_sb_reset(gptCtx->sbtOpenPopupStack);
+    }
 }
 
 void

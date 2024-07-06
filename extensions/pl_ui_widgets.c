@@ -451,6 +451,7 @@ pl__button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, boo
     {
         if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
         {
+            bPressed = ptWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW;
             pl__set_active_id(uHash, ptWindow);
             gptCtx->tPrevItemData.bActive = true;
         }
@@ -571,6 +572,7 @@ pl_selectable(const char* pcText, bool* bpValue)
         tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
         bool bHovered = false;
         bool bHeld = false;
+
         bPressed = pl__button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
 
         if(bPressed)
@@ -687,6 +689,123 @@ pl_radio_button(const char* pcText, int* piValue, int iButtonValue)
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed;
+}
+
+bool
+pl_begin_combo(const char* pcLabel, const char* pcPreview, plUiComboFlags tFlags)
+{
+
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+
+    const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+    
+    bool bResult = false;
+
+    if(pl__ui_should_render(&tStartPos, &tWidgetSize))
+    {
+        const plVec2 tFrameStartPos = {tStartPos.x, tStartPos.y };
+
+        const plRect tPreviewTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tFrameStartPos, pcPreview, pl__find_renderered_text_end(pcPreview, NULL), -1.0f);
+        const plRect tLabelTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tFrameStartPos, pcLabel, pl__find_renderered_text_end(pcLabel, NULL), -1.0f);
+        const plVec2 tTextActualCenter = pl_rect_center(&tPreviewTextBounding);
+        const plVec2 tLabelTextActualCenter = pl_rect_center(&tLabelTextBounding);
+
+        const plVec2 tSize = { 2.0f * (tWidgetSize.x / 3.0f), tWidgetSize.y};
+        const plVec2 tTextStartPos = { 
+            tFrameStartPos.x + gptCtx->tStyle.tFramePadding.x, 
+            tFrameStartPos.y + tFrameStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y
+        };
+        plRect tBoundingBox = pl_calculate_rect(tFrameStartPos, tSize);
+        const plRect* ptClipRect = gptDraw->get_clip_rect(gptCtx->ptDrawlist);
+        tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
+
+        bool bHovered = false;
+        bool bHeld = false;
+        const bool bPressed = pl__button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
+
+        if(bPressed)
+        {
+            pl_open_popup("combo");
+        }
+
+        const bool bPopupOpen = pl_is_popup_open("combo");
+
+        const plVec2 centerPoint = {tBoundingBox.tMax.x - 8.0f * 1.5f, tStartPos.y + tWidgetSize.y / 2.0f};
+        const plVec2 pointPos = pl_add_vec2(centerPoint, (plVec2){ 0.0f,  4.0f});
+        const plVec2 rightPos = pl_add_vec2(centerPoint, (plVec2){ 4.0f, -4.0f});
+        const plVec2 leftPos  = pl_add_vec2(centerPoint,  (plVec2){-4.0f, -4.0f});
+
+        plVec4 tFrameColor = gptCtx->tColorScheme.tFrameBgCol;
+        plVec4 tButtonColor = gptCtx->tColorScheme.tButtonCol;
+
+        if(gptCtx->uActiveId == uHash)
+        {
+            tFrameColor = gptCtx->tColorScheme.tFrameBgActiveCol;
+            tButtonColor = gptCtx->tColorScheme.tButtonActiveCol;
+        }
+        else if(bPopupOpen)
+        {
+            tFrameColor = gptCtx->tColorScheme.tFrameBgCol;
+            tButtonColor = gptCtx->tColorScheme.tButtonActiveCol;
+        }
+        else if(gptCtx->uHoveredId == uHash)
+        {
+            tFrameColor = gptCtx->tColorScheme.tFrameBgHoveredCol;
+            tButtonColor = gptCtx->tColorScheme.tButtonHoveredCol;
+        }
+
+        gptDraw->add_rect_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, tFrameColor, gptCtx->tStyle.fFrameRounding, 0);
+
+        if(!(tFlags & PL_UI_COMBO_FLAGS_NO_ARROW_BUTTON))
+        {
+            gptDraw->add_rect_filled(ptWindow->ptFgLayer, (plVec2){tBoundingBox.tMax.x - 8.0f * 3.0f, tBoundingBox.tMin.y}, tBoundingBox.tMax, tButtonColor, gptCtx->tStyle.fFrameRounding, 0); 
+            gptDraw->add_triangle_filled(ptWindow->ptFgLayer, pointPos, rightPos, leftPos, (plVec4){1.0f, 1.0f, 1.0f, 1.0f});
+        }
+
+        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcPreview, -1.0f);
+
+        pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+
+        if(bPopupOpen)
+        {
+            gptDraw->add_rect_filled(ptWindow->ptFgLayer, (plVec2){tBoundingBox.tMax.x - 8.0f * 3.0f, tBoundingBox.tMin.y}, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonActiveCol, gptCtx->tStyle.fFrameRounding, 0);
+            gptDraw->add_triangle_filled(ptWindow->ptFgLayer, pointPos, rightPos, leftPos, (plVec4){1.0f, 1.0f, 1.0f, 1.0f});
+            const plUiWindowFlags tWindowFlags = 
+                PL_UI_WINDOW_FLAGS_NO_TITLE_BAR | 
+                PL_UI_WINDOW_FLAGS_NO_RESIZE | 
+                PL_UI_WINDOW_FLAGS_NO_COLLAPSE | 
+                PL_UI_WINDOW_FLAGS_NO_MOVE;
+
+            pl_set_next_window_pos((plVec2){ tStartPos.x,  tStartPos.y + tWidgetSize.y}, PL_UI_COND_ALWAYS);
+
+            float fSizeMultiplier = 8.0f;
+            if(tFlags & PL_UI_COMBO_FLAGS_HEIGHT_LARGE)
+                fSizeMultiplier = 20.0f;
+            else if(tFlags & PL_UI_COMBO_FLAGS_HEIGHT_SMALL)
+                fSizeMultiplier = 4.0f;
+
+            pl_set_next_window_size((plVec2){ tSize.x,  tWidgetSize.y * fSizeMultiplier}, PL_UI_COND_ALWAYS);
+            bResult = pl_begin_popup("combo", tWindowFlags);
+            static const float pfRatios[] = {1.0f};
+            pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+            
+        }
+    }
+    else
+    {
+        pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    }
+    return bResult;  
+}
+
+void
+pl_end_combo(void)
+{
+    pl_end_popup();
 }
 
 bool
@@ -2193,8 +2312,10 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         if (bIsMultiLine || (pcBufferDisplayEnd - pcBufferDisplay) < iBufferDisplayMaxLength)
         {
             // ImU32 col = GetColorU32(bIsDisplayingHint ? ImGuiCol_TextDisabled : ImGuiCol_Text);
-            gptDraw->add_text_ex(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_sub_vec2(draw_pos, draw_scroll), gptCtx->tColorScheme.tTextCol, 
-                pcBufferDisplay, pcBufferDisplayEnd, 0.0f);
+            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_sub_vec2(draw_pos, draw_scroll), tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tTextCol, 
+                pcBufferDisplay, 0.0f);
+            // gptDraw->add_text_ex(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_sub_vec2(draw_pos, draw_scroll), gptCtx->tColorScheme.tTextCol, 
+            //     pcBufferDisplay, pcBufferDisplayEnd, 0.0f);
             // draw_window->DrawList->AddText(g.Font, gptCtx->tStyle.fFontSize, draw_pos - draw_scroll, col, pcBufferDisplay, pcBufferDisplayEnd, 0.0f, bIsMultiLine ? NULL : &clip_rect);
         }
 
@@ -2233,8 +2354,10 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
 
         if (bIsMultiLine || (pcBufferDisplayEnd - pcBufferDisplay) < iBufferDisplayMaxLength)
         {
-            gptDraw->add_text_ex(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, draw_pos, gptCtx->tColorScheme.tTextCol, 
-                pcBufferDisplay, pcBufferDisplayEnd, 0.0f);
+            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, draw_pos, tFrameStartPos, tBoundingBox.tMax, gptCtx->tColorScheme.tTextCol, 
+                pcBufferDisplay, 0.0f);
+            // gptDraw->add_text_ex(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, draw_pos, gptCtx->tColorScheme.tTextCol, 
+            //     pcBufferDisplay, pcBufferDisplayEnd, 0.0f);
         }
     }
 

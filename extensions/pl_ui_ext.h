@@ -65,6 +65,7 @@ typedef int plUiConditionFlags;   // -> enum plUiConditionFlags_   // Enum: A co
 typedef int plUiLayoutRowType;    // -> enum plUiLayoutRowType_    // Enum: A row type for the layout system (PL_UI_LAYOUT_ROW_TYPE_XXX)
 typedef int plUiInputTextFlags;   // -> enum plUiInputTextFlags_   // Enum: Internal flags for input text (PL_UI_INPUT_TEXT_FLAGS_XXX)
 typedef int plUiWindowFlags;      // -> enum plUiWindowFlags_      // Enum: An input event source (PL_UI_WINDOW_FLAGS_XXXX)
+typedef int plUiComboFlags;       // -> enum plUiComboFlags_       // Enum: An input event source (PL_UI_WINDOW_FLAGS_XXXX)
 typedef int plUiColor;            // -> enum plUiColor_            // Enum: An input event source (PL_UI_COLOR_XXXX)
 
 // external
@@ -110,20 +111,31 @@ typedef struct _plUiI
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~windows~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // windows
-    // - only call "pl_end_window()" if "pl_begin_window()" returns true (its call automatically if false)
+    // - only call "end_window()" if "begin_window()" returns true (its call automatically if false)
     // - passing a valid pointer to pbOpen will show a red circle that will turn pbOpen false when clicked
-    // - "pl_end_window()" will return false if collapsed or clipped
+    // - "begin_window()" will return false if collapsed or clipped
     // - if you use autosize, make sure at least 1 row has a static component (or the window will grow unbounded)
     bool (*begin_window)(const char* pcName, bool* pbOpen, plUiWindowFlags);
     void (*end_window)  (void);
 
+    // popups
+    // - only call "end_popup()" if "begin_popup()" returns true (its call automatically if false)
+    // - passing a valid pointer to pbOpen will show a red circle that will turn pbOpen false when clicked
+    // - "begin_popup()" will return false if collapsed or clipped
+    // - if you use autosize, make sure at least 1 row has a static component (or the window will grow unbounded)
+    void (*open_popup)         (const char* pcName);
+    void (*close_current_popup)(void);
+    bool (*is_popup_open)      (const char* pcName);
+    bool (*begin_popup)        (const char* pcName, plUiWindowFlags);
+    void (*end_popup)          (void);
+
     // window utilities
-    plDrawLayer2D* (*get_window_fg_drawlayer)(void); // returns current window foreground drawlist (call between pl_begin_window(...) & pl_end_window(...))
-    plDrawLayer2D* (*get_window_bg_drawlayer)(void); // returns current window background drawlist (call between pl_begin_window(...) & pl_end_window(...))
-    plVec2 (*get_cursor_pos)(void); // returns current cursor position (where the next widget will start drawing)
+    plDrawLayer2D* (*get_window_fg_drawlayer)(void); // returns current window foreground drawlist (call between begin_window(...) & end_window(...))
+    plDrawLayer2D* (*get_window_bg_drawlayer)(void); // returns current window background drawlist (call between begin_window(...) & end_window(...))
+    plVec2         (*get_cursor_pos)         (void); // returns current cursor position (where the next widget will start drawing)
 
     // child windows
-    // - only call "pl_end_child()" if "pl_begin_child()" returns true (its call automatically if false)
+    // - only call "end_child()" if "begin_child()" returns true (its call automatically if false)
     // - self-contained window with scrolling & clipping
     bool (*begin_child)(const char* pcName);
     void (*end_child)  (void);
@@ -193,6 +205,10 @@ typedef struct _plUiI
     // drag sliders
     bool (*drag_float)  (const char* pcLabel, float* pfValue, float fSpeed, float fMin, float fMax);
     bool (*drag_float_f)(const char* pcLabel, float* pfValue, float fSpeed, float fMin, float fMax, const char* pcFormat);
+
+    // combo
+    bool (*begin_combo)(const char* pcLabel, const char* pcPreview, plUiComboFlags);
+    void (*end_combo)  (void);
 
     // trees
     // - only call "pl_tree_pop()" if "pl_tree_node()" returns true (its call automatically if false)
@@ -342,7 +358,16 @@ enum plUiWindowFlags_
 
     // internal
     PL_UI_WINDOW_FLAGS_CHILD_WINDOW = 1 << 5,
-    PL_UI_WINDOW_FLAGS_TOOLTIP      = 1 << 6,
+    PL_UI_WINDOW_FLAGS_POPUP_WINDOW = 1 << 6,
+};
+
+enum plUiComboFlags_
+{
+    PL_UI_COMBO_FLAGS_NONE            = 0,
+    PL_UI_COMBO_FLAGS_HEIGHT_SMALL    = 1 << 0, // max ~4 items visible
+    PL_UI_COMBO_FLAGS_HEIGHT_REGULAR  = 1 << 1, // max ~8 items visible (default)
+    PL_UI_COMBO_FLAGS_HEIGHT_LARGE    = 1 << 2, // max ~20 items visible
+    PL_UI_COMBO_FLAGS_NO_ARROW_BUTTON = 1 << 3, // hide arrow button
 };
 
 enum plUiConditionFlags_

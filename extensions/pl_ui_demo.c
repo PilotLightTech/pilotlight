@@ -242,7 +242,36 @@ pl_show_demo_window(bool* pbOpen)
                 pl_input_float3("input float 3", afFloatArray, "%0.3f");
                 pl_input_float4("input float 4", afFloatArray, "%0.3f");
 
-                const float pfRatios22[] = {100.0f, 120.0f};
+
+                static uint32_t uComboSelect = 0;
+                static const char* apcCombo[] = {
+                    "Tomato",
+                    "Onion",
+                    "Carrot",
+                    "Lettuce",
+                    "Fish",
+                    "Beef",
+                    "Chicken",
+                    "Cereal",
+                    "Wheat",
+                    "Cane",
+                };
+                bool abCombo[10] = {0};
+                abCombo[uComboSelect] = true;
+                if(pl_begin_combo("Combo", apcCombo[uComboSelect], PL_UI_COMBO_FLAGS_NONE))
+                {
+                    for(uint32_t i = 0; i < 10; i++)
+                    {
+                        if(pl_selectable(apcCombo[i], &abCombo[i]))
+                        {
+                            uComboSelect = i;
+                            pl_close_current_popup();
+                        }
+                    }
+                    pl_end_combo();
+                }
+
+                const float pfRatios22[] = {200.0f, 120.0f};
                 pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2, pfRatios22);
                 pl_button("Hover me!");
                 if(pl_was_last_item_hovered())

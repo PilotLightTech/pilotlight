@@ -87,6 +87,7 @@ typedef struct _plUiTempWindowData plUiTempWindowData;
 typedef struct _plUiStorage        plUiStorage;
 typedef struct _plUiStorageEntry   plUiStorageEntry;
 typedef struct _plUiInputTextState plUiInputTextState;
+typedef struct _plUiPopupData      plUiPopupData;
 
 // enums
 typedef int plUiNextWindowFlags;
@@ -313,6 +314,12 @@ typedef struct _plUiInputTextState
     plUiInputTextFlags tFlags;                 // copy of InputText() flags. may be used to check if e.g. ImGuiInputTextFlags_Password is set.
 } plUiInputTextState;
 
+typedef struct _plUiPopupData
+{
+    uint32_t uId;
+    uint64_t ulOpenFrameCount;
+}plUiPopupData;
+
 //-----------------------------------------------------------------------------
 // [SECTION] plUiStorage
 //-----------------------------------------------------------------------------
@@ -356,7 +363,7 @@ typedef struct _plUiTempWindowData
 typedef struct _plUiWindow
 {
     const char*          pcName;
-    uint32_t             uId;                     // window Id (=plu_str_hash(pcName))
+    uint32_t             uId;                     // window Id (=pl_str_hash(pcName))
     plUiWindowFlags      tFlags;                  // plUiWindowFlags, not all honored at the moment
     plVec2               tPos;                    // position of window in viewport
     plVec2               tContentSize;            // size of contents/scrollable client area
@@ -370,6 +377,7 @@ typedef struct _plUiWindow
     plRect               tOuterRect;              // outer rect (includes everything)
     plRect               tOuterRectClipped;       // outer rect clipped by parent window & viewport
     plRect               tInnerClipRect;          // inner rect clipped by parent window & viewport (includes horizontal padding on each side)
+    plUiWindow*          ptRestoreWindow;         // restor window if popup
     plUiWindow*          ptParentWindow;          // parent window if child
     plUiWindow*          ptRootWindow;            // root window or self if this is the root window
     bool                 bVisible;                // true if visible (only for child windows at the moment)
@@ -440,6 +448,10 @@ typedef struct _plUiContext
     plUiWindow**       sbptWindows;            // windows stored in display order (reset every frame and non root windows)
     plUiWindow**       sbptFocusedWindows;     // root windows stored in display order
     plUiStorage        tWindows;               // windows by ID for quick retrieval
+
+    // popups
+    plUiPopupData*     sbtBeginPopupStack;
+    plUiPopupData*     sbtOpenPopupStack;
 
     // tabs
     plUiTabBar*        sbtTabBars;             // stretchy-buffer for persistent tab bar data
