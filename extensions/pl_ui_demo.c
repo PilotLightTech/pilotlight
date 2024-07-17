@@ -242,6 +242,56 @@ pl_show_demo_window(bool* pbOpen)
                 pl_input_float3("input float 3", afFloatArray, "%0.3f");
                 pl_input_float4("input float 4", afFloatArray, "%0.3f");
 
+                if(pl_menu_item("Menu item 0", NULL, false, true))
+                {
+                    printf("menu item 0\n");
+                }
+
+                if(pl_menu_item("Menu item selected", "CTRL+M", true, true))
+                {
+                    printf("menu item selected\n");
+                }
+
+                if(pl_menu_item("Menu item disabled", NULL, false, false))
+                {
+                    printf("menu item disabled\n");
+                }
+
+                static bool bMenuSelection = false;
+                if(pl_menu_item_toggle("Menu item toggle", NULL, &bMenuSelection, true))
+                {
+                    printf("menu item toggle\n");
+                }
+
+                if(pl_begin_menu("menu (not ready)", true))
+                {
+
+                    if(pl_menu_item("Menu item 0", NULL, false, true))
+                    {
+                        printf("menu item 0\n");
+                    }
+
+                    if(pl_menu_item("Menu item selected", "CTRL+M", true, true))
+                    {
+                        printf("menu item selected\n");
+                    }
+
+                    if(pl_menu_item("Menu item disabled", NULL, false, false))
+                    {
+                        printf("menu item disabled\n");
+                    }
+                    if(pl_begin_menu("sub menu", true))
+                    {
+
+                        if(pl_menu_item("Menu item 0", NULL, false, true))
+                        {
+                            printf("menu item 0\n");
+                        }
+                        pl_end_menu();
+                    }
+                    pl_end_menu();
+                }
+
 
                 static uint32_t uComboSelect = 0;
                 static const char* apcCombo[] = {

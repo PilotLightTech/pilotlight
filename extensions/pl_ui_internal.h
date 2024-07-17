@@ -199,6 +199,7 @@ typedef union _plUiColorScheme
         plVec4 tButtonHoveredCol;
         plVec4 tButtonActiveCol;
         plVec4 tTextCol;
+        plVec4 tTextDisabledCol;
         plVec4 tProgressBarCol;
         plVec4 tCheckmarkCol;
         plVec4 tFrameBgCol;
@@ -380,6 +381,7 @@ typedef struct _plUiWindow
     plUiWindow*          ptRestoreWindow;         // restor window if popup
     plUiWindow*          ptParentWindow;          // parent window if child
     plUiWindow*          ptRootWindow;            // root window or self if this is the root window
+    bool                 bAppearing;
     bool                 bVisible;                // true if visible (only for child windows at the moment)
     bool                 bActive;                 // window has been "seen" this frame
     bool                 bCollapsed;              // window is currently collapsed
@@ -429,8 +431,8 @@ typedef struct _plUiContext
     // widget state
     plUiInputTextState tInputTextState;
     uint32_t           uHoveredId;             // set at the end of the previous frame from uNextHoveredId
-    uint32_t           uActiveId;              // set at the end of the previous frame from uNextActiveId
-    uint32_t           uActiveIdIsAlive;
+    uint32_t           uActiveId;              // set by pl__set_active_id(...) function
+    uint32_t           uActiveIdIsAlive;       // id of active item if seen this frame
     uint32_t           uNextHoveredId;         // set during current frame (by end of frame, should be last item hovered)
 
     uint32_t           uActiveWindowId;               // current active window id
@@ -445,7 +447,7 @@ typedef struct _plUiContext
     plUiWindow*        ptScrollingWindow;      // window being scrolled with mouse
     plUiWindow*        ptWheelingWindow;       // window being scrolled with mouse wheel
     plUiWindow*        ptActiveWindow;         // selected/active window
-    plUiWindow**       sbptWindows;            // windows stored in display order (reset every frame and non root windows)
+    plUiWindow**       sbptWindows;            // windows stored in display order
     plUiWindow**       sbptFocusedWindows;     // root windows stored in display order
     plUiStorage        tWindows;               // windows by ID for quick retrieval
 

@@ -444,7 +444,7 @@ pl__button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, boo
         gptCtx->tPrevItemData.bActive = true;
 
         if(bHeld)
-            pl__set_active_id(uHash, ptWindow);
+            pl__set_active_id(uHash, ptWindow->ptParentWindow);
     }
 
     if(bHovered)
@@ -452,13 +452,13 @@ pl__button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, boo
         if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
         {
             bPressed = ptWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW;
-            pl__set_active_id(uHash, ptWindow);
+            pl__set_active_id(uHash, ptWindow->ptParentWindow);
             gptCtx->tPrevItemData.bActive = true;
         }
         else if(gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
         {
             bPressed = uHash == gptCtx->uActiveId;
-            pl__set_active_id(0, ptWindow);
+            pl__set_active_id(0, ptWindow->ptParentWindow);
         }
     }
 
@@ -588,6 +588,148 @@ pl_selectable(const char* pcText, bool* bpValue)
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed; 
+}
+
+bool
+pl_menu_item(const char* pcLabel, const char* pcShortcut, bool bSelected, bool bEnabled)
+{
+
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+
+    bool bPressed = false;
+    if(pl__ui_should_render(&tStartPos, &tWidgetSize))
+    {
+        const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+
+        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, pcLabel, pl__find_renderered_text_end(pcLabel, NULL), -1.0f);
+        const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+
+        const plVec2 tTextStartPos = {
+            .x = tStartPos.x + gptCtx->tStyle.tFramePadding.x,
+            .y = tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y
+        };
+
+        if(bEnabled)
+        {
+            const plVec2 tEndPos = pl_add_vec2(tStartPos, tWidgetSize);
+
+            plRect tBoundingBox = pl_calculate_rect(tStartPos, tWidgetSize);
+            const plRect* ptClipRect = gptDraw->get_clip_rect(gptCtx->ptDrawlist);
+            tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
+            bool bHovered = false;
+            bool bHeld = false;
+
+            bPressed = pl__button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
+            if(bPressed)
+            {
+                pl_sb_reset(gptCtx->sbtOpenPopupStack);
+            }
+
+            if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderActiveCol, 0.0f, 0);
+            else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderHoveredCol, 0.0f, 0);
+
+            if(bSelected)
+            {
+                gptDraw->add_line(ptWindow->ptFgLayer,
+                    (plVec2){tEndPos.x - 0.333f * tWidgetSize.y, tStartPos.y + 0.25f * tWidgetSize.y},
+                    (plVec2){tEndPos.x - 0.5f * tWidgetSize.y, tStartPos.y + 0.75f * tWidgetSize.y},
+                    gptCtx->tColorScheme.tCheckmarkCol, 3.0f);
+                gptDraw->add_line(ptWindow->ptFgLayer,
+                    (plVec2){tEndPos.x - 0.5f * tWidgetSize.y, tStartPos.y + 0.75f * tWidgetSize.y},
+                    (plVec2){tEndPos.x - 0.666f * tWidgetSize.y, tStartPos.y + 0.5f * tWidgetSize.y},
+                    gptCtx->tColorScheme.tCheckmarkCol, 3.0f);
+            }
+
+            pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+
+            if(pcShortcut)
+            {
+                pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tTextStartPos.x + 0.666f * tWidgetSize.x, tTextStartPos.y}, gptCtx->tColorScheme.tTextDisabledCol, pcShortcut, -1.0f);
+            }
+        }
+        else
+        {
+            pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextDisabledCol, pcLabel, -1.0f);
+        }
+    }
+    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    return bPressed; 
+}
+
+bool
+pl_menu_item_toggle(const char* pcLabel, const char* pcShortcut, bool* pbSelected, bool bEnabled)
+{
+
+    // temporary hack
+    static bool bDummyState = true;
+    if(pbSelected == NULL) pbSelected = &bDummyState;
+
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+
+    bool bPressed = false;
+    if(pl__ui_should_render(&tStartPos, &tWidgetSize))
+    {
+        const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+
+        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, pcLabel, pl__find_renderered_text_end(pcLabel, NULL), -1.0f);
+        const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+
+        const plVec2 tTextStartPos = {
+            .x = tStartPos.x + gptCtx->tStyle.tFramePadding.x,
+            .y = tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y
+        };
+
+        if(bEnabled)
+        {
+            const plVec2 tEndPos = pl_add_vec2(tStartPos, tWidgetSize);
+
+            plRect tBoundingBox = pl_calculate_rect(tStartPos, tWidgetSize);
+            const plRect* ptClipRect = gptDraw->get_clip_rect(gptCtx->ptDrawlist);
+            tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
+            bool bHovered = false;
+            bool bHeld = false;
+
+            bPressed = pl__button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
+            if(bPressed)
+            {
+                *pbSelected = !*pbSelected;
+            }
+
+            if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderActiveCol, 0.0f, 0);
+            else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderHoveredCol, 0.0f, 0);
+
+            if(*pbSelected)
+            {
+                gptDraw->add_line(ptWindow->ptFgLayer,
+                    (plVec2){tEndPos.x - 0.333f * tWidgetSize.y, tStartPos.y + 0.25f * tWidgetSize.y},
+                    (plVec2){tEndPos.x - 0.5f * tWidgetSize.y, tStartPos.y + 0.75f * tWidgetSize.y},
+                    gptCtx->tColorScheme.tCheckmarkCol, 3.0f);
+                gptDraw->add_line(ptWindow->ptFgLayer,
+                    (plVec2){tEndPos.x - 0.5f * tWidgetSize.y, tStartPos.y + 0.75f * tWidgetSize.y},
+                    (plVec2){tEndPos.x - 0.666f * tWidgetSize.y, tStartPos.y + 0.5f * tWidgetSize.y},
+                    gptCtx->tColorScheme.tCheckmarkCol, 3.0f);
+            }
+
+            pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+
+            if(pcShortcut)
+            {
+                pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tTextStartPos.x + 0.666f * tWidgetSize.x, tTextStartPos.y}, gptCtx->tColorScheme.tTextDisabledCol, pcShortcut, -1.0f);
+            }
+        }
+        else
+        {
+            pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextDisabledCol, pcLabel, -1.0f);
+        }
+    }
+    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    return bPressed && *pbSelected; 
 }
 
 bool
@@ -804,6 +946,96 @@ pl_begin_combo(const char* pcLabel, const char* pcPreview, plUiComboFlags tFlags
 
 void
 pl_end_combo(void)
+{
+    pl_end_popup();
+}
+
+bool
+pl_begin_menu(const char* pcLabel, bool bEnabled)
+{
+
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    const plVec2 tStartPos   = pl__get_cursor_pos();
+
+    bool bResult = false;
+    if(pl__ui_should_render(&tStartPos, &tWidgetSize))
+    {
+        const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+        
+
+        plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, pcLabel, pl__find_renderered_text_end(pcLabel, NULL), -1.0f);
+        const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
+
+        const plVec2 tTextStartPos = {
+            .x = tStartPos.x + gptCtx->tStyle.tFramePadding.x,
+            .y = tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y
+        };
+
+        const plVec2 tEndPos = pl_add_vec2(tStartPos, tWidgetSize);
+
+        plRect tBoundingBox = pl_calculate_rect(tStartPos, tWidgetSize);
+        const plRect* ptClipRect = gptDraw->get_clip_rect(gptCtx->ptDrawlist);
+        tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
+        bool bHovered = false;
+        bool bHeld = false;
+
+        const bool bPressed = pl__button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
+
+        if(bHovered)
+        {
+            pl_open_popup("#-menu");
+        }
+
+        const bool bPopupOpen = pl_is_popup_open("#-menu");
+
+        if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderActiveCol, 0.0f, 0);
+        else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderHoveredCol, 0.0f, 0);
+
+        // if(*bpValue)
+        //     gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderCol, 0.0f, 0);
+
+        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
+
+        const plVec2 centerPoint = {tBoundingBox.tMax.x - 8.0f * 1.5f, tStartPos.y + tWidgetSize.y / 2.0f};
+        const plVec2 pointPos = pl_add_vec2(centerPoint, (plVec2){ 4.0f,  0.0f});
+        const plVec2 rightPos = pl_add_vec2(centerPoint, (plVec2){ -4.0f, -4.0f});
+        const plVec2 leftPos  = pl_add_vec2(centerPoint,  (plVec2){-4.0f, 4.0f});
+        gptDraw->add_triangle_filled(ptWindow->ptFgLayer, pointPos, rightPos, leftPos, (plVec4){1.0f, 1.0f, 1.0f, 1.0f});
+
+        pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+
+        if(bPopupOpen)
+        {
+            gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderHoveredCol, 0.0f, 0);
+            // gptDraw->add_rect_filled(ptWindow->ptFgLayer, (plVec2){tBoundingBox.tMax.x - 8.0f * 3.0f, tBoundingBox.tMin.y}, tBoundingBox.tMax, gptCtx->tColorScheme.tButtonActiveCol, gptCtx->tStyle.fFrameRounding, 0);
+            // gptDraw->add_triangle_filled(ptWindow->ptFgLayer, pointPos, rightPos, leftPos, (plVec4){1.0f, 1.0f, 1.0f, 1.0f});
+            const plUiWindowFlags tWindowFlags = 
+                PL_UI_WINDOW_FLAGS_NO_TITLE_BAR | 
+                PL_UI_WINDOW_FLAGS_NO_RESIZE | 
+                PL_UI_WINDOW_FLAGS_AUTO_SIZE | 
+                PL_UI_WINDOW_FLAGS_NO_COLLAPSE | 
+                PL_UI_WINDOW_FLAGS_NO_MOVE;
+
+            pl_set_next_window_pos((plVec2){ tEndPos.x,  tStartPos.y}, PL_UI_COND_ALWAYS);
+
+            float fSizeMultiplier = 8.0f;
+
+            // pl_set_next_window_size((plVec2){ tWidgetSize.x,  tWidgetSize.y * fSizeMultiplier}, PL_UI_COND_ALWAYS);
+            bResult = pl_begin_popup("#-menu", tWindowFlags);
+            
+        }
+    }
+    else
+    {
+        pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    }
+    return bResult;  
+}
+
+void
+pl_end_menu(void)
 {
     pl_end_popup();
 }

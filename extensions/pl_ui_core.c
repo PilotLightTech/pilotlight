@@ -70,6 +70,7 @@ pl_set_dark_theme(void)
     gptCtx->tColorScheme.tButtonHoveredCol    = (plVec4){0.61f, 0.02f, 0.10f, 1.00f};
     gptCtx->tColorScheme.tButtonActiveCol     = (plVec4){0.87f, 0.02f, 0.10f, 1.00f};
     gptCtx->tColorScheme.tTextCol             = (plVec4){1.00f, 1.00f, 1.00f, 1.00f};
+    gptCtx->tColorScheme.tTextDisabledCol     = (plVec4){0.50f, 0.50f, 0.50f, 1.00f};
     gptCtx->tColorScheme.tProgressBarCol      = (plVec4){0.90f, 0.70f, 0.00f, 1.00f};
     gptCtx->tColorScheme.tCheckmarkCol        = (plVec4){0.87f, 0.02f, 0.10f, 1.00f};
     gptCtx->tColorScheme.tFrameBgCol          = (plVec4){0.23f, 0.02f, 0.10f, 1.00f};
@@ -377,314 +378,8 @@ pl_end_window(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
-    float fTitleBarHeight = ptWindow->tTempData.fTitleBarHeight;
-
-    // set content sized based on last frames maximum cursor position
-    if(ptWindow->bVisible)
-    {
-        // cursor max pos - start pos + padding
-        ptWindow->tContentSize = pl_add_vec2(
-            (plVec2){gptCtx->tStyle.fWindowHorizontalPadding, gptCtx->tStyle.fWindowVerticalPadding}, 
-            pl_sub_vec2(ptWindow->tTempData.tCursorMaxPos, ptWindow->tTempData.tCursorStartPos)
-        
-        );
-    }
-    ptWindow->tScrollMax = pl_sub_vec2(ptWindow->tContentSize, (plVec2){ptWindow->tSize.x, ptWindow->tSize.y - fTitleBarHeight});
-    
-    // clamp scrolling max
-    ptWindow->tScrollMax = pl_max_vec2(ptWindow->tScrollMax, (plVec2){0});
-    ptWindow->bScrollbarX = ptWindow->tScrollMax.x > 0.0f;
-    ptWindow->bScrollbarY = ptWindow->tScrollMax.y > 0.0f;
-
-    if(ptWindow->bScrollbarX && ptWindow->bScrollbarY)
-    {
-        ptWindow->tScrollMax.y += gptCtx->tStyle.fScrollbarSize + 2.0f;
-        ptWindow->tScrollMax.x += gptCtx->tStyle.fScrollbarSize + 2.0f;
-    }
-    else if(!ptWindow->bScrollbarY)
-        ptWindow->tScroll.y = 0;
-    else if(!ptWindow->bScrollbarX)
-        ptWindow->tScroll.x = 0;
-
-    const bool bScrollBarsPresent = ptWindow->bScrollbarX || ptWindow->bScrollbarY;
-
-    // clamp window size to min/max
-    ptWindow->tSize = pl_clamp_vec2(ptWindow->tMinSize, ptWindow->tSize, ptWindow->tMaxSize);
-
-    // autosized non collapsed
-    if(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_AUTO_SIZE && !ptWindow->bCollapsed)
-    {
-
-        const plRect tBgRect = pl_calculate_rect(
-            (plVec2){ptWindow->tPos.x, ptWindow->tPos.y + fTitleBarHeight},
-            (plVec2){ptWindow->tSize.x, ptWindow->tSize.y - fTitleBarHeight});
-
-        // ensure window doesn't get too small
-        ptWindow->tSize.x = ptWindow->tContentSize.x + gptCtx->tStyle.fWindowHorizontalPadding * 2.0f;
-        ptWindow->tSize.y = fTitleBarHeight + ptWindow->tContentSize.y + gptCtx->tStyle.fWindowVerticalPadding;
-        
-        // clamp window size to min/max
-        ptWindow->tSize = pl_clamp_vec2(ptWindow->tMinSize, ptWindow->tSize, ptWindow->tMaxSize);
-
-        ptWindow->tOuterRect = pl_calculate_rect(ptWindow->tPos, ptWindow->tSize);
-        ptWindow->tOuterRectClipped = ptWindow->tOuterRect;
-        
-        // remove scissor rect
+    if(!ptWindow->bCollapsed)
         gptDraw->pop_clip_rect(gptCtx->ptDrawlist);
-
-        // draw background
-        gptDraw->add_rect_filled_ex(ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tColorScheme.tWindowBgColor, gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM);
-
-        ptWindow->tFullSize = ptWindow->tSize;
-    }
-
-    // regular window non collapsed
-    else if(!ptWindow->bCollapsed)
-    {
-        plUiWindow* ptParentWindow = ptWindow->ptParentWindow;
-
-        plRect tBgRect = pl_calculate_rect(
-            (plVec2){ptWindow->tPos.x, ptWindow->tPos.y + fTitleBarHeight},
-            (plVec2){ptWindow->tSize.x, ptWindow->tSize.y - fTitleBarHeight});
-
-        plRect tParentBgRect = ptParentWindow->tOuterRect;
-
-        if(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
-        {
-            tBgRect = pl_rect_clip(&tBgRect, &tParentBgRect);
-        }
-
-        gptDraw->pop_clip_rect(gptCtx->ptDrawlist);
-
-        const uint32_t uResizeHash = ptWindow->uId + 1;
-        const uint32_t uWestResizeHash = uResizeHash + 1;
-        const uint32_t uEastResizeHash = uResizeHash + 2;
-        const uint32_t uNorthResizeHash = uResizeHash + 3;
-        const uint32_t uSouthResizeHash = uResizeHash + 4;
-        const uint32_t uVerticalScrollHash = uResizeHash + 5;
-        const uint32_t uHorizonatalScrollHash = uResizeHash + 6;
-        const float fRightSidePadding = ptWindow->bScrollbarY ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f;
-        const float fBottomPadding = ptWindow->bScrollbarX ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f;
-        const float fHoverPadding = 4.0f;
-
-        // draw background
-        gptDraw->add_rect_filled_ex(ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tColorScheme.tWindowBgColor, gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM);
-
-        // vertical scroll bar
-        if(ptWindow->bScrollbarY)
-            pl__render_scrollbar(ptWindow, uVerticalScrollHash, PL_UI_AXIS_Y);
-
-        // horizontal scroll bar
-        if(ptWindow->bScrollbarX)
-            pl__render_scrollbar(ptWindow, uHorizonatalScrollHash, PL_UI_AXIS_X);
-
-        const plVec2 tTopLeft = pl_rect_top_left(&ptWindow->tOuterRect);
-        const plVec2 tBottomLeft = pl_rect_bottom_left(&ptWindow->tOuterRect);
-        const plVec2 tTopRight = pl_rect_top_right(&ptWindow->tOuterRect);
-        const plVec2 tBottomRight = pl_rect_bottom_right(&ptWindow->tOuterRect);
-
-        // resizing grip
-        if (!(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_RESIZE))
-        {
-            {
-                const plVec2 tCornerTopLeftPos = pl_add_vec2(tBottomRight, (plVec2){-15.0f, -15.0f});
-                const plVec2 tCornerTopPos = pl_add_vec2(tBottomRight, (plVec2){0.0f, -15.0f});
-                const plVec2 tCornerLeftPos = pl_add_vec2(tBottomRight, (plVec2){-15.0f, 0.0f});
-
-                const plRect tBoundingBox = pl_calculate_rect(tCornerTopLeftPos, (plVec2){15.0f, 15.0f});
-                bool bHovered = false;
-                bool bHeld = false;
-                const bool bPressed = pl__button_behavior(&tBoundingBox, uResizeHash, &bHovered, &bHeld);
-
-                if(gptCtx->uActiveId == uResizeHash)
-                {
-                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plVec4){0.99f, 0.02f, 0.10f, 1.0f});
-                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NWSE);
-                }
-                else if(gptCtx->uHoveredId == uResizeHash)
-                {
-                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plVec4){0.66f, 0.02f, 0.10f, 1.0f});
-                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NWSE);
-                }
-                else
-                {
-                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plVec4){0.33f, 0.02f, 0.10f, 1.0f});   
-                }
-            }
-
-            // east border
-            {
-
-                plRect tBoundingBox = pl_calculate_rect(tTopRight, (plVec2){0.0f, ptWindow->tSize.y - 15.0f});
-                tBoundingBox = pl_rect_expand_vec2(&tBoundingBox, (plVec2){fHoverPadding / 2.0f, -gptCtx->tStyle.fWindowRounding});
-
-                bool bHovered = false;
-                bool bHeld = false;
-                const bool bPressed = pl__button_behavior(&tBoundingBox, uEastResizeHash, &bHovered, &bHeld);
-
-                if(gptCtx->uActiveId == uEastResizeHash)
-                {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopRight.x, tTopRight.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomRight.x, tBottomRight.y - gptCtx->tStyle.fWindowRounding}, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
-                }
-                else if(gptCtx->uHoveredId == uEastResizeHash)
-                {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopRight.x, tTopRight.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomRight.x, tBottomRight.y - gptCtx->tStyle.fWindowRounding}, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
-                }
-            }
-
-            // west border
-            {
-                plRect tBoundingBox = pl_calculate_rect(tTopLeft, (plVec2){0.0f, ptWindow->tSize.y - 15.0f});
-                tBoundingBox = pl_rect_expand_vec2(&tBoundingBox, (plVec2){fHoverPadding / 2.0f, -gptCtx->tStyle.fWindowRounding});
-
-                bool bHovered = false;
-                bool bHeld = false;
-                const bool bPressed = pl__button_behavior(&tBoundingBox, uWestResizeHash, &bHovered, &bHeld);
-
-                if(gptCtx->uActiveId == uWestResizeHash)
-                {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x, tTopLeft.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomLeft.x, tBottomLeft.y - gptCtx->tStyle.fWindowRounding}, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
-                }
-                else if(gptCtx->uHoveredId == uWestResizeHash)
-                {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x, tTopLeft.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomLeft.x, tBottomLeft.y - gptCtx->tStyle.fWindowRounding}, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
-                }
-            }
-
-            // north border
-            {
-                plRect tBoundingBox = {tTopLeft, (plVec2){tTopRight.x - 15.0f, tTopRight.y}};
-                tBoundingBox = pl_rect_expand_vec2(&tBoundingBox, (plVec2){-gptCtx->tStyle.fWindowRounding, fHoverPadding / 2.0f});
-
-                bool bHovered = false;
-                bool bHeld = false;
-                const bool bPressed = pl__button_behavior(&tBoundingBox, uNorthResizeHash, &bHovered, &bHeld);
-
-                if(gptCtx->uActiveId == uNorthResizeHash)
-                {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x + gptCtx->tStyle.fWindowRounding, tTopLeft.y}, (plVec2){tTopRight.x - gptCtx->tStyle.fWindowRounding, tTopRight.y}, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
-                }
-                else if(gptCtx->uHoveredId == uNorthResizeHash)
-                {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x + gptCtx->tStyle.fWindowRounding, tTopLeft.y}, (plVec2){tTopRight.x - gptCtx->tStyle.fWindowRounding, tTopRight.y}, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
-                }
-            }
-
-            // south border
-            {
-                plRect tBoundingBox = {tBottomLeft, (plVec2){tBottomRight.x - 15.0f, tBottomRight.y}};
-                tBoundingBox = pl_rect_expand_vec2(&tBoundingBox, (plVec2){-gptCtx->tStyle.fWindowRounding, fHoverPadding / 2.0f});
-
-                bool bHovered = false;
-                bool bHeld = false;
-                const bool bPressed = pl__button_behavior(&tBoundingBox, uSouthResizeHash, &bHovered, &bHeld);
-
-                if(gptCtx->uActiveId == uSouthResizeHash)
-                {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tBottomLeft.x + gptCtx->tStyle.fWindowRounding, tBottomLeft.y}, (plVec2){tBottomRight.x - gptCtx->tStyle.fWindowRounding, tBottomRight.y}, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
-                }
-                else if(gptCtx->uHoveredId == uSouthResizeHash)
-                {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tBottomLeft.x + gptCtx->tStyle.fWindowRounding, tBottomLeft.y}, (plVec2){tBottomRight.x - gptCtx->tStyle.fWindowRounding, tBottomRight.y}, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
-                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
-                }
-            }
-        }
-
-        // draw border
-        gptDraw->add_rect(ptWindow->ptFgLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax, gptCtx->tColorScheme.tWindowBorderColor, 1.0f, gptCtx->tStyle.fWindowRounding, 0);
-
-        // handle corner resizing
-        if(gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f))
-        {
-            const plVec2 tMousePos = gptIOI->get_mouse_pos();
-
-            if(gptCtx->uActiveId == uResizeHash)
-            {  
-                gptCtx->ptSizingWindow = ptWindow;
-                ptWindow->tSize = pl_sub_vec2(tMousePos, ptWindow->tPos);
-                ptWindow->tSize = pl_max_vec2(ptWindow->tSize, ptWindow->tMinSize);
-                ptWindow->tScroll = pl_clamp_vec2((plVec2){0}, ptWindow->tScroll, ptWindow->tScrollMax);
-            }
-
-            // handle east resizing
-            else if(gptCtx->uActiveId == uEastResizeHash)
-            {
-                gptCtx->ptSizingWindow = ptWindow;
-                ptWindow->tSize.x = tMousePos.x - ptWindow->tPos.x;
-                ptWindow->tSize = pl_max_vec2(ptWindow->tSize, ptWindow->tMinSize);
-                ptWindow->tScroll = pl_clamp_vec2((plVec2){0}, ptWindow->tScroll, ptWindow->tScrollMax);
-            }
-
-            // handle west resizing
-            else if(gptCtx->uActiveId == uWestResizeHash)
-            {
-                gptCtx->ptSizingWindow = ptWindow;
-                ptWindow->tSize.x = tTopRight.x - tMousePos.x;  
-                ptWindow->tSize = pl_max_vec2(ptWindow->tSize, ptWindow->tMinSize);
-                ptWindow->tPos.x = tTopRight.x - ptWindow->tSize.x;
-                ptWindow->tScroll = pl_clamp_vec2((plVec2){0}, ptWindow->tScroll, ptWindow->tScrollMax);
-            }
-
-            // handle north resizing
-            else if(gptCtx->uActiveId == uNorthResizeHash)
-            {
-                gptCtx->ptSizingWindow = ptWindow;
-                ptWindow->tSize.y = tBottomRight.y - tMousePos.y;  
-                ptWindow->tSize = pl_max_vec2(ptWindow->tSize, ptWindow->tMinSize);
-                ptWindow->tPos.y = tBottomRight.y - ptWindow->tSize.y;
-                ptWindow->tScroll = pl_clamp_vec2((plVec2){0}, ptWindow->tScroll, ptWindow->tScrollMax);
-            }
-
-            // handle south resizing
-            else if(gptCtx->uActiveId == uSouthResizeHash)
-            {
-                gptCtx->ptSizingWindow = ptWindow;
-                ptWindow->tSize.y = tMousePos.y - ptWindow->tPos.y;
-                ptWindow->tSize = pl_max_vec2(ptWindow->tSize, ptWindow->tMinSize);
-                ptWindow->tScroll = pl_clamp_vec2((plVec2){0}, ptWindow->tScroll, ptWindow->tScrollMax);
-            }
-
-            // handle vertical scrolling with scroll bar
-            else if(gptCtx->uActiveId == uVerticalScrollHash)
-            {
-                gptCtx->ptScrollingWindow = ptWindow;
-
-                if(tMousePos.y > ptWindow->tPos.y && tMousePos.y < ptWindow->tPos.y + ptWindow->tSize.y)
-                {
-                    const float fScrollConversion = roundf(ptWindow->tContentSize.y / ptWindow->tSize.y);
-                    ptWindow->tScroll.y += gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).y * fScrollConversion;
-                    ptWindow->tScroll.y = pl_clampf(0.0f, ptWindow->tScroll.y, ptWindow->tScrollMax.y);
-                    gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
-                }
-            }
-
-            // handle horizontal scrolling with scroll bar
-            else if(gptCtx->uActiveId == uHorizonatalScrollHash)
-            {
-                gptCtx->ptScrollingWindow = ptWindow;
-
-                if(tMousePos.x > ptWindow->tPos.x && tMousePos.x < ptWindow->tPos.x + ptWindow->tSize.x)
-                {
-                    const float fScrollConversion = roundf(ptWindow->tContentSize.x / ptWindow->tSize.x);
-                    ptWindow->tScroll.x += gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fScrollConversion;
-                    ptWindow->tScroll.x = pl_clampf(0.0f, ptWindow->tScroll.x, ptWindow->tScrollMax.x);
-                    gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
-                }
-            }
-        }
-        gptCtx->ptCurrentWindow->tFullSize = ptWindow->tSize;
-
-        if(gptCtx->uActiveId >= uResizeHash && gptCtx->uActiveId < uResizeHash + 7 && gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT))
-            pl__set_active_id(gptCtx->uActiveId, ptWindow);
-    }
 
     gptCtx->ptCurrentWindow = NULL;
     pl_sb_pop(gptCtx->sbuIdStack);
@@ -749,77 +444,7 @@ pl_end_child(void)
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     plUiWindow* ptParentWindow = ptWindow->ptParentWindow;
 
-    // set content sized based on last frames maximum cursor position
-    if(ptWindow->bVisible)
-    {
-        ptWindow->tContentSize = pl_add_vec2(
-            (plVec2){gptCtx->tStyle.fWindowHorizontalPadding, gptCtx->tStyle.fWindowVerticalPadding}, 
-            pl_sub_vec2(ptWindow->tTempData.tCursorMaxPos, ptWindow->tTempData.tCursorStartPos)
-        
-        );
-    }
-    ptWindow->tScrollMax = pl_sub_vec2(ptWindow->tContentSize, ptWindow->tSize);
-    
-    // clamp scrolling max
-    ptWindow->tScrollMax = pl_max_vec2(ptWindow->tScrollMax, (plVec2){0});
-    ptWindow->bScrollbarX = ptWindow->tScrollMax.x > 0.0f;
-    ptWindow->bScrollbarY = ptWindow->tScrollMax.y > 0.0f;
-
-    if(ptWindow->bScrollbarX && ptWindow->bScrollbarY)
-    {
-        ptWindow->tScrollMax.y += gptCtx->tStyle.fScrollbarSize + 2.0f;
-        ptWindow->tScrollMax.x += gptCtx->tStyle.fScrollbarSize + 2.0f;
-    }
-
-    // clamp window size to min/max
-    ptWindow->tSize = pl_clamp_vec2(ptWindow->tMinSize, ptWindow->tSize, ptWindow->tMaxSize);
-
-    plRect tParentBgRect = ptParentWindow->tOuterRect;
-    const plRect tBgRect = pl_rect_clip(&ptWindow->tOuterRect, &tParentBgRect);
-
-    gptDraw->pop_clip_rect(gptCtx->ptDrawlist);
-
-    const uint32_t uVerticalScrollHash = pl_str_hash("##scrollright", 0, pl_sb_top(gptCtx->sbuIdStack));
-    const uint32_t uHorizonatalScrollHash = pl_str_hash("##scrollbottom", 0, pl_sb_top(gptCtx->sbuIdStack));
-
-    // draw background
-    gptDraw->add_rect_filled(ptParentWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tColorScheme.tWindowBgColor, gptCtx->tStyle.fChildRounding, 0);
-
-    // vertical scroll bar
-    if(ptWindow->bScrollbarY)
-        pl__render_scrollbar(ptWindow, uVerticalScrollHash, PL_UI_AXIS_Y);
-
-    // horizontal scroll bar
-    if(ptWindow->bScrollbarX)
-        pl__render_scrollbar(ptWindow, uHorizonatalScrollHash, PL_UI_AXIS_X);
-
-    // handle vertical scrolling with scroll bar
-    if(gptCtx->uActiveId == uVerticalScrollHash && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f))
-    {
-        const float fScrollConversion = roundf(ptWindow->tContentSize.y / ptWindow->tSize.y);
-        gptCtx->ptScrollingWindow = ptWindow;
-        gptCtx->uNextHoveredId = uVerticalScrollHash;
-        ptWindow->tScroll.y += gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).y * fScrollConversion;
-        ptWindow->tScroll.y = pl_clampf(0.0f, ptWindow->tScroll.y, ptWindow->tScrollMax.y);
-        gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
-    }
-
-    // handle horizontal scrolling with scroll bar
-    else if(gptCtx->uActiveId == uHorizonatalScrollHash && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f))
-    {
-        const float fScrollConversion = roundf(ptWindow->tContentSize.x / ptWindow->tSize.x);
-        gptCtx->ptScrollingWindow = ptWindow;
-        gptCtx->uNextHoveredId = uHorizonatalScrollHash;
-        ptWindow->tScroll.x += gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fScrollConversion;
-        ptWindow->tScroll.x = pl_clampf(0.0f, ptWindow->tScroll.x, ptWindow->tScrollMax.x);
-        gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
-    }
-
-    if((gptCtx->uActiveId == uHorizonatalScrollHash || gptCtx->uActiveId == uVerticalScrollHash) && gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT))
-        pl__set_active_id(gptCtx->uActiveId, ptWindow);
-
-    ptWindow->tFullSize = ptWindow->tSize;
-    pl_sb_pop(gptCtx->sbuIdStack);
+    pl_end_window();
     gptCtx->ptCurrentWindow = ptParentWindow;
 
     pl__advance_cursor(ptWindow->tSize.x, ptWindow->tSize.y);
@@ -1714,14 +1339,16 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         ptWindow->tPosAllowableFlags      = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
         ptWindow->tSizeAllowableFlags     = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
         ptWindow->tCollapseAllowableFlags = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
-        ptWindow->ptParentWindow          = (tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW) ? ptParentWindow : ptWindow;
+        ptWindow->ptParentWindow          = ptWindow;
         ptWindow->uFocusOrder             = pl_sb_size(gptCtx->sbptFocusedWindows);
         ptWindow->tFlags                  = PL_UI_WINDOW_FLAGS_NONE;
+        ptWindow->bAppearing              = true;
 
         // add to focused windows if not a child
         if(tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
         {
             ptWindow->ptRootWindow = ptParentWindow->ptRootWindow;
+            ptWindow->ptParentWindow = ptParentWindow;
         }
         else if(tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW)
         {
@@ -1739,6 +1366,11 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         // add window to storage
         pl__set_ptr(&gptCtx->tWindows, uWindowID, ptWindow);
     }
+    else
+    {
+        ptWindow->bAppearing = false;
+    }
+    ptParentWindow = ptWindow->ptParentWindow;
 
     // seen this frame (obviously)
     ptWindow->bActive = true;
@@ -1749,6 +1381,10 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         pl_sb_push(ptParentWindow->sbtChildWindows, ptWindow);
     }
     gptCtx->ptCurrentWindow = ptWindow;
+
+    // use last frame cursors for sizing
+    ptWindow->tContentSize = pl_add_vec2((plVec2){gptCtx->tStyle.fWindowHorizontalPadding, gptCtx->tStyle.fWindowVerticalPadding}, 
+        pl_sub_vec2(ptWindow->tTempData.tCursorMaxPos, ptWindow->tTempData.tCursorStartPos));
 
     // reset per frame window temporary data
     memset(&ptWindow->tTempData, 0, sizeof(plUiTempWindowData));
@@ -1810,6 +1446,23 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     ptWindow->tOuterRect = pl_calculate_rect(ptWindow->tPos, ptWindow->tSize);
     ptWindow->tOuterRectClipped = ptWindow->tOuterRect;
     ptWindow->tInnerRect = ptWindow->tOuterRect;
+
+    ptWindow->tScrollMax = pl_sub_vec2(ptWindow->tContentSize, (plVec2){ptWindow->tSize.x, ptWindow->tSize.y - fTitleBarHeight});
+    
+    // clamp scrolling max
+    ptWindow->tScrollMax = pl_max_vec2(ptWindow->tScrollMax, (plVec2){0});
+    ptWindow->bScrollbarX = ptWindow->tScrollMax.x > 0.0f;
+    ptWindow->bScrollbarY = ptWindow->tScrollMax.y > 0.0f;
+
+    if(ptWindow->bScrollbarX && ptWindow->bScrollbarY)
+    {
+        ptWindow->tScrollMax.y += gptCtx->tStyle.fScrollbarSize + 2.0f;
+        ptWindow->tScrollMax.x += gptCtx->tStyle.fScrollbarSize + 2.0f;
+    }
+    else if(!ptWindow->bScrollbarY)
+        ptWindow->tScroll.y = 0;
+    else if(!ptWindow->bScrollbarX)
+        ptWindow->tScroll.x = 0;
 
     // remove scrollbars from inner rect
     if(ptWindow->bScrollbarX)
@@ -1883,7 +1536,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
                 {
                     ptWindow->tSize = ptWindow->tFullSize;
                     if(tFlags & PL_UI_WINDOW_FLAGS_AUTO_SIZE)
-                        ptWindow->uHideFrames = 2;
+                        ptWindow->bAppearing = true;
                 }
             }
         }
@@ -1892,8 +1545,294 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     else
         fTitleBarHeight = 0.0f;
 
+    if(ptWindow->bAppearing)
+        ptWindow->uHideFrames = 2;
+
     // remove padding for inner clip rect
     ptWindow->tInnerClipRect = pl_rect_expand_vec2(&ptWindow->tInnerRect, (plVec2){-gptCtx->tStyle.fWindowHorizontalPadding, 0.0f});
+
+    // update layout cursors
+    ptWindow->tTempData.tCursorStartPos.x = gptCtx->tStyle.fWindowHorizontalPadding + tStartPos.x - ptWindow->tScroll.x;
+    ptWindow->tTempData.tCursorStartPos.y = gptCtx->tStyle.fWindowVerticalPadding + tStartPos.y + fTitleBarHeight - ptWindow->tScroll.y;
+    ptWindow->tTempData.tRowPos = ptWindow->tTempData.tCursorStartPos;
+    ptWindow->tTempData.tCursorStartPos = pl_floor_vec2(ptWindow->tTempData.tCursorStartPos);
+    ptWindow->tTempData.fTitleBarHeight = fTitleBarHeight;
+
+    // reset next window flags
+    gptCtx->tNextWindowData.tFlags = PL_NEXT_WINDOW_DATA_FLAGS_NONE;
+
+    ptWindow->bVisible = true;
+
+    const bool bScrollBarsPresent = ptWindow->bScrollbarX || ptWindow->bScrollbarY;
+
+    // autosized non collapsed
+    if(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_AUTO_SIZE && !ptWindow->bCollapsed)
+    {
+
+        const plRect tBgRect = pl_calculate_rect(
+            (plVec2){ptWindow->tPos.x, ptWindow->tPos.y + fTitleBarHeight},
+            (plVec2){ptWindow->tSize.x, ptWindow->tSize.y - fTitleBarHeight});
+
+        // ensure window doesn't get too small
+        ptWindow->tSize.x = ptWindow->tContentSize.x + gptCtx->tStyle.fWindowHorizontalPadding * 2.0f;
+        ptWindow->tSize.y = fTitleBarHeight + ptWindow->tContentSize.y + gptCtx->tStyle.fWindowVerticalPadding;
+        
+        // clamp window size to min/max
+        ptWindow->tSize = pl_clamp_vec2(ptWindow->tMinSize, ptWindow->tSize, ptWindow->tMaxSize);
+
+        ptWindow->tOuterRect = pl_calculate_rect(ptWindow->tPos, ptWindow->tSize);
+        ptWindow->tOuterRectClipped = ptWindow->tOuterRect;
+        
+        // draw background
+        gptDraw->add_rect_filled_ex(ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tColorScheme.tWindowBgColor, gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM);
+
+        ptWindow->tFullSize = ptWindow->tSize;
+    }
+
+    // regular window non collapsed
+    else if(!ptWindow->bCollapsed)
+    {
+        plRect tBgRect = pl_calculate_rect(
+            (plVec2){ptWindow->tPos.x, ptWindow->tPos.y + fTitleBarHeight},
+            (plVec2){ptWindow->tSize.x, ptWindow->tSize.y - fTitleBarHeight});
+
+        plRect tParentBgRect = ptParentWindow->tOuterRect;
+
+        if(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
+        {
+            tBgRect = pl_rect_clip(&tBgRect, &tParentBgRect);
+        }
+
+        const uint32_t uResizeHash = ptWindow->uId + 1;
+        const uint32_t uWestResizeHash = uResizeHash + 1;
+        const uint32_t uEastResizeHash = uResizeHash + 2;
+        const uint32_t uNorthResizeHash = uResizeHash + 3;
+        const uint32_t uSouthResizeHash = uResizeHash + 4;
+        const uint32_t uVerticalScrollHash = uResizeHash + 5;
+        const uint32_t uHorizonatalScrollHash = uResizeHash + 6;
+        const float fRightSidePadding = ptWindow->bScrollbarY ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f;
+        const float fBottomPadding = ptWindow->bScrollbarX ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f;
+        const float fHoverPadding = 4.0f;
+
+        // draw background
+        gptDraw->add_rect_filled_ex(ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tColorScheme.tWindowBgColor, gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM);
+
+        // vertical scroll bar
+        if(ptWindow->bScrollbarY)
+            pl__render_scrollbar(ptWindow, uVerticalScrollHash, PL_UI_AXIS_Y);
+
+        // horizontal scroll bar
+        if(ptWindow->bScrollbarX)
+            pl__render_scrollbar(ptWindow, uHorizonatalScrollHash, PL_UI_AXIS_X);
+
+        const plVec2 tTopLeft = pl_rect_top_left(&ptWindow->tOuterRect);
+        const plVec2 tBottomLeft = pl_rect_bottom_left(&ptWindow->tOuterRect);
+        const plVec2 tTopRight = pl_rect_top_right(&ptWindow->tOuterRect);
+        const plVec2 tBottomRight = pl_rect_bottom_right(&ptWindow->tOuterRect);
+
+        // resizing grip
+        if (!(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_RESIZE))
+        {
+            {
+                const plVec2 tCornerTopLeftPos = pl_add_vec2(tBottomRight, (plVec2){-15.0f, -15.0f});
+                const plVec2 tCornerTopPos = pl_add_vec2(tBottomRight, (plVec2){0.0f, -15.0f});
+                const plVec2 tCornerLeftPos = pl_add_vec2(tBottomRight, (plVec2){-15.0f, 0.0f});
+
+                const plRect tBoundingBox = pl_calculate_rect(tCornerTopLeftPos, (plVec2){15.0f, 15.0f});
+                bool bHovered = false;
+                bool bHeld = false;
+                const bool bPressed = pl__button_behavior(&tBoundingBox, uResizeHash, &bHovered, &bHeld);
+
+                if(gptCtx->uActiveId == uResizeHash)
+                {
+                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plVec4){0.99f, 0.02f, 0.10f, 1.0f});
+                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NWSE);
+                }
+                else if(gptCtx->uHoveredId == uResizeHash)
+                {
+                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plVec4){0.66f, 0.02f, 0.10f, 1.0f});
+                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NWSE);
+                }
+                else
+                {
+                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plVec4){0.33f, 0.02f, 0.10f, 1.0f});   
+                }
+            }
+
+            // east border
+            {
+
+                plRect tBoundingBox = pl_calculate_rect(tTopRight, (plVec2){0.0f, ptWindow->tSize.y - 15.0f});
+                tBoundingBox = pl_rect_expand_vec2(&tBoundingBox, (plVec2){fHoverPadding / 2.0f, -gptCtx->tStyle.fWindowRounding});
+
+                bool bHovered = false;
+                bool bHeld = false;
+                const bool bPressed = pl__button_behavior(&tBoundingBox, uEastResizeHash, &bHovered, &bHeld);
+
+                if(gptCtx->uActiveId == uEastResizeHash)
+                {
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopRight.x, tTopRight.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomRight.x, tBottomRight.y - gptCtx->tStyle.fWindowRounding}, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
+                }
+                else if(gptCtx->uHoveredId == uEastResizeHash)
+                {
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopRight.x, tTopRight.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomRight.x, tBottomRight.y - gptCtx->tStyle.fWindowRounding}, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
+                }
+            }
+
+            // west border
+            {
+                plRect tBoundingBox = pl_calculate_rect(tTopLeft, (plVec2){0.0f, ptWindow->tSize.y - 15.0f});
+                tBoundingBox = pl_rect_expand_vec2(&tBoundingBox, (plVec2){fHoverPadding / 2.0f, -gptCtx->tStyle.fWindowRounding});
+
+                bool bHovered = false;
+                bool bHeld = false;
+                const bool bPressed = pl__button_behavior(&tBoundingBox, uWestResizeHash, &bHovered, &bHeld);
+
+                if(gptCtx->uActiveId == uWestResizeHash)
+                {
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x, tTopLeft.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomLeft.x, tBottomLeft.y - gptCtx->tStyle.fWindowRounding}, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
+                }
+                else if(gptCtx->uHoveredId == uWestResizeHash)
+                {
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x, tTopLeft.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomLeft.x, tBottomLeft.y - gptCtx->tStyle.fWindowRounding}, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
+                }
+            }
+
+            // north border
+            {
+                plRect tBoundingBox = {tTopLeft, (plVec2){tTopRight.x - 15.0f, tTopRight.y}};
+                tBoundingBox = pl_rect_expand_vec2(&tBoundingBox, (plVec2){-gptCtx->tStyle.fWindowRounding, fHoverPadding / 2.0f});
+
+                bool bHovered = false;
+                bool bHeld = false;
+                const bool bPressed = pl__button_behavior(&tBoundingBox, uNorthResizeHash, &bHovered, &bHeld);
+
+                if(gptCtx->uActiveId == uNorthResizeHash)
+                {
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x + gptCtx->tStyle.fWindowRounding, tTopLeft.y}, (plVec2){tTopRight.x - gptCtx->tStyle.fWindowRounding, tTopRight.y}, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
+                }
+                else if(gptCtx->uHoveredId == uNorthResizeHash)
+                {
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x + gptCtx->tStyle.fWindowRounding, tTopLeft.y}, (plVec2){tTopRight.x - gptCtx->tStyle.fWindowRounding, tTopRight.y}, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
+                }
+            }
+
+            // south border
+            {
+                plRect tBoundingBox = {tBottomLeft, (plVec2){tBottomRight.x - 15.0f, tBottomRight.y}};
+                tBoundingBox = pl_rect_expand_vec2(&tBoundingBox, (plVec2){-gptCtx->tStyle.fWindowRounding, fHoverPadding / 2.0f});
+
+                bool bHovered = false;
+                bool bHeld = false;
+                const bool bPressed = pl__button_behavior(&tBoundingBox, uSouthResizeHash, &bHovered, &bHeld);
+
+                if(gptCtx->uActiveId == uSouthResizeHash)
+                {
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tBottomLeft.x + gptCtx->tStyle.fWindowRounding, tBottomLeft.y}, (plVec2){tBottomRight.x - gptCtx->tStyle.fWindowRounding, tBottomRight.y}, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
+                }
+                else if(gptCtx->uHoveredId == uSouthResizeHash)
+                {
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tBottomLeft.x + gptCtx->tStyle.fWindowRounding, tBottomLeft.y}, (plVec2){tBottomRight.x - gptCtx->tStyle.fWindowRounding, tBottomRight.y}, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
+                }
+            }
+        }
+
+        // draw border
+        if(!(tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW))
+            gptDraw->add_rect(ptWindow->ptFgLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax, gptCtx->tColorScheme.tWindowBorderColor, 1.0f, gptCtx->tStyle.fWindowRounding, 0);
+
+        // handle corner resizing
+        if(gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f))
+        {
+            const plVec2 tMousePos = gptIOI->get_mouse_pos();
+
+            if(gptCtx->uActiveId == uResizeHash)
+            {  
+                gptCtx->ptSizingWindow = ptWindow;
+                ptWindow->tSize = pl_sub_vec2(tMousePos, ptWindow->tPos);
+                ptWindow->tSize = pl_max_vec2(ptWindow->tSize, ptWindow->tMinSize);
+                ptWindow->tScroll = pl_clamp_vec2((plVec2){0}, ptWindow->tScroll, ptWindow->tScrollMax);
+            }
+
+            // handle east resizing
+            else if(gptCtx->uActiveId == uEastResizeHash)
+            {
+                gptCtx->ptSizingWindow = ptWindow;
+                ptWindow->tSize.x = tMousePos.x - ptWindow->tPos.x;
+                ptWindow->tSize = pl_max_vec2(ptWindow->tSize, ptWindow->tMinSize);
+                ptWindow->tScroll = pl_clamp_vec2((plVec2){0}, ptWindow->tScroll, ptWindow->tScrollMax);
+            }
+
+            // handle west resizing
+            else if(gptCtx->uActiveId == uWestResizeHash)
+            {
+                gptCtx->ptSizingWindow = ptWindow;
+                ptWindow->tSize.x = tTopRight.x - tMousePos.x;  
+                ptWindow->tSize = pl_max_vec2(ptWindow->tSize, ptWindow->tMinSize);
+                ptWindow->tPos.x = tTopRight.x - ptWindow->tSize.x;
+                ptWindow->tScroll = pl_clamp_vec2((plVec2){0}, ptWindow->tScroll, ptWindow->tScrollMax);
+            }
+
+            // handle north resizing
+            else if(gptCtx->uActiveId == uNorthResizeHash)
+            {
+                gptCtx->ptSizingWindow = ptWindow;
+                ptWindow->tSize.y = tBottomRight.y - tMousePos.y;  
+                ptWindow->tSize = pl_max_vec2(ptWindow->tSize, ptWindow->tMinSize);
+                ptWindow->tPos.y = tBottomRight.y - ptWindow->tSize.y;
+                ptWindow->tScroll = pl_clamp_vec2((plVec2){0}, ptWindow->tScroll, ptWindow->tScrollMax);
+            }
+
+            // handle south resizing
+            else if(gptCtx->uActiveId == uSouthResizeHash)
+            {
+                gptCtx->ptSizingWindow = ptWindow;
+                ptWindow->tSize.y = tMousePos.y - ptWindow->tPos.y;
+                ptWindow->tSize = pl_max_vec2(ptWindow->tSize, ptWindow->tMinSize);
+                ptWindow->tScroll = pl_clamp_vec2((plVec2){0}, ptWindow->tScroll, ptWindow->tScrollMax);
+            }
+
+            // handle vertical scrolling with scroll bar
+            else if(gptCtx->uActiveId == uVerticalScrollHash)
+            {
+                gptCtx->ptScrollingWindow = ptWindow;
+
+                if(tMousePos.y > ptWindow->tPos.y && tMousePos.y < ptWindow->tPos.y + ptWindow->tSize.y)
+                {
+                    const float fScrollConversion = roundf(ptWindow->tContentSize.y / ptWindow->tSize.y);
+                    ptWindow->tScroll.y += gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).y * fScrollConversion;
+                    ptWindow->tScroll.y = pl_clampf(0.0f, ptWindow->tScroll.y, ptWindow->tScrollMax.y);
+                    gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+                }
+            }
+
+            // handle horizontal scrolling with scroll bar
+            else if(gptCtx->uActiveId == uHorizonatalScrollHash)
+            {
+                gptCtx->ptScrollingWindow = ptWindow;
+
+                if(tMousePos.x > ptWindow->tPos.x && tMousePos.x < ptWindow->tPos.x + ptWindow->tSize.x)
+                {
+                    const float fScrollConversion = roundf(ptWindow->tContentSize.x / ptWindow->tSize.x);
+                    ptWindow->tScroll.x += gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fScrollConversion;
+                    ptWindow->tScroll.x = pl_clampf(0.0f, ptWindow->tScroll.x, ptWindow->tScrollMax.x);
+                    gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+                }
+            }
+        }
+        gptCtx->ptCurrentWindow->tFullSize = ptWindow->tSize;
+
+        if(gptCtx->uActiveId >= uResizeHash && gptCtx->uActiveId < uResizeHash + 7 && gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT))
+            pl__set_active_id(gptCtx->uActiveId, ptWindow);
+    }
 
     if(!ptWindow->bCollapsed)
     {
@@ -1911,27 +1850,16 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             ptWindow->tInnerClipRect = pl_rect_clip_full(&ptWindow->tInnerClipRect, ptClipRect);
             ptWindow->tOuterRectClipped = pl_rect_clip_full(&ptWindow->tOuterRectClipped, ptClipRect);
         }
+
         gptDraw->push_clip_rect(gptCtx->ptDrawlist, ptWindow->tInnerClipRect, false);
     }
 
-    // update layout cursors
-    ptWindow->tTempData.tCursorStartPos.x = gptCtx->tStyle.fWindowHorizontalPadding + tStartPos.x - ptWindow->tScroll.x;
-    ptWindow->tTempData.tCursorStartPos.y = gptCtx->tStyle.fWindowVerticalPadding + tStartPos.y + fTitleBarHeight - ptWindow->tScroll.y;
-    ptWindow->tTempData.tRowPos = ptWindow->tTempData.tCursorStartPos;
-    ptWindow->tTempData.tCursorStartPos = pl_floor_vec2(ptWindow->tTempData.tCursorStartPos);
-    ptWindow->tTempData.fTitleBarHeight = fTitleBarHeight;
-
-    // reset next window flags
-    gptCtx->tNextWindowData.tFlags = PL_NEXT_WINDOW_DATA_FLAGS_NONE;
-
-    
     if(tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
     {
         ptWindow->bVisible = pl_rect_overlaps_rect(&ptWindow->tInnerClipRect, &ptParentWindow->tInnerClipRect);
         return ptWindow->bVisible && !pl_rect_is_inverted(&ptWindow->tInnerClipRect);
     }
 
-    ptWindow->bVisible = true;
     return !ptWindow->bCollapsed;
 }
 
@@ -2114,6 +2042,9 @@ pl__set_active_id(uint32_t uHash, plUiWindow* ptWindow)
 {
     gptCtx->bActiveIdJustActivated = gptCtx->uActiveId != uHash;
     gptCtx->uActiveId = uHash;
+
+    // temporary hack, not going to be correct for a "chain" of
+    // popups (e.g. menus)
     if(ptWindow != NULL && gptCtx->ptActiveWindow != ptWindow) 
     {
         pl_sb_reset(gptCtx->sbtOpenPopupStack);
@@ -2177,6 +2108,8 @@ pl_ui_cleanup(void)
     pl_sb_free(gptCtx->sbtColorStack);
     pl_sb_free(gptCtx->sbtTabBars);
     pl_sb_free(gptCtx->sbuIdStack);
+    pl_sb_free(gptCtx->sbtBeginPopupStack);
+    pl_sb_free(gptCtx->sbtOpenPopupStack);
     pl_sb_free(gptCtx->tWindows.sbtData);
 }
 

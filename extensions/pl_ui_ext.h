@@ -228,6 +228,12 @@ typedef struct _plUiI
     bool (*begin_tab)    (const char* pcText);
     void (*end_tab)      (void);
 
+    // menus
+    bool (*begin_menu)      (const char* pcLabel, bool bEnabled);
+    void (*end_menu)        (void);
+    bool (*menu_item)       (const char* pcLabel, const char* pcShortcut, bool bSelected, bool bEnabled);
+    bool (*menu_item_toggle)(const char* pcLabel, const char* pcShortcut, bool* pbSelected, bool bEnabled);
+
     // misc.
     void (*separator_text)  (const char* pcText);
     void (*separator)       (void);
@@ -329,6 +335,7 @@ enum plUiColor_
     PL_UI_COLOR_BUTTON_HOVERED,
     PL_UI_COLOR_BUTTON_ACTIVE,
     PL_UI_COLOR_TEXT,
+    PL_UI_COLOR_TEXT_DISABLED,
     PL_UI_COLOR_PROGRESS_BAR,
     PL_UI_COLOR_CHECKMARK,
     PL_UI_COLOR_FRAME_BG,
