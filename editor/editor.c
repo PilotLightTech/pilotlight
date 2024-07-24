@@ -363,7 +363,7 @@ pl_app_update(plEditorData* ptEditorData)
 
     gptUi->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
 
-    if(gptUi->begin_window("Pilot Light", NULL, false))
+    if(gptUi->begin_window("Pilot Light", NULL, PL_UI_WINDOW_FLAGS_NONE))
     {
 
         const float pfRatios[] = {1.0f};

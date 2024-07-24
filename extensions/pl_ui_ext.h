@@ -94,6 +94,10 @@ typedef struct _plUiI
     void (*end_frame)(void); // ends pilotlight ui frame, automatically called by pl_render()
     void (*render)(plRenderEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount); // submits draw layers, you can then submit the ptDrawlist & ptDebugDrawlist from context
 
+    // mouse/keyboard ownership
+    bool (*wants_mouse_capture)   (void);
+    bool (*wants_keyboard_capture)(void);
+
     // tools
     void (*show_debug_window)       (bool* pbOpen);
     void (*show_style_editor_window)(bool* pbOpen);
@@ -356,16 +360,19 @@ enum plUiColor_
 
 enum plUiWindowFlags_
 {
-    PL_UI_WINDOW_FLAGS_NONE         = 0,
-    PL_UI_WINDOW_FLAGS_NO_TITLE_BAR = 1 << 0,
-    PL_UI_WINDOW_FLAGS_NO_RESIZE    = 1 << 1,
-    PL_UI_WINDOW_FLAGS_NO_MOVE      = 1 << 2,
-    PL_UI_WINDOW_FLAGS_NO_COLLAPSE  = 1 << 3,
-    PL_UI_WINDOW_FLAGS_AUTO_SIZE    = 1 << 4,
+    PL_UI_WINDOW_FLAGS_NONE                 = 0,
+    PL_UI_WINDOW_FLAGS_NO_TITLE_BAR         = 1 << 0,
+    PL_UI_WINDOW_FLAGS_NO_RESIZE            = 1 << 1,
+    PL_UI_WINDOW_FLAGS_NO_MOVE              = 1 << 2,
+    PL_UI_WINDOW_FLAGS_NO_COLLAPSE          = 1 << 3,
+    PL_UI_WINDOW_FLAGS_AUTO_SIZE            = 1 << 4,
+    PL_UI_WINDOW_FLAGS_NO_BACKGROUND        = 1 << 5,
+    PL_UI_WINDOW_FLAGS_NO_SCROLLBAR         = 1 << 6,
+    PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR = 1 << 7,
 
     // internal
-    PL_UI_WINDOW_FLAGS_CHILD_WINDOW = 1 << 5,
-    PL_UI_WINDOW_FLAGS_POPUP_WINDOW = 1 << 6,
+    PL_UI_WINDOW_FLAGS_CHILD_WINDOW = 1 << 8,
+    PL_UI_WINDOW_FLAGS_POPUP_WINDOW = 1 << 9,
 };
 
 enum plUiComboFlags_

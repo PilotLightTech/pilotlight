@@ -4233,7 +4233,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             gptData->tPickedEntity.uGeneration = ptScene->tComponentLibrary.sbtEntityGenerations[gptData->tPickedEntity.uIndex];
         }
 
-        bool bOwnMouse = gptIO->get_io()->bWantCaptureMouse;
+        bool bOwnMouse = gptUI->wants_mouse_capture();
         if(!bOwnMouse && gptIO->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false))
         {
             gptData->uClickedFrame = ptGraphics->uCurrentFrameIndex;

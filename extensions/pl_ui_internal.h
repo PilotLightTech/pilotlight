@@ -422,6 +422,11 @@ typedef struct _plUiContext
 {
     plUiStyle       tStyle;
     plUiColorScheme tColorScheme;
+
+    // keyboard/mouse
+    bool bWantCaptureMouse;
+    bool bWantCaptureKeyboard;
+    bool abMouseOwned[5];
     
     // prev/next state
     plUiNextWindowData tNextWindowData;        // info based on pl_set_next_window_* functions
@@ -434,9 +439,7 @@ typedef struct _plUiContext
     uint32_t           uActiveId;              // set by pl__set_active_id(...) function
     uint32_t           uActiveIdIsAlive;       // id of active item if seen this frame
     uint32_t           uNextHoveredId;         // set during current frame (by end of frame, should be last item hovered)
-
-    uint32_t           uActiveWindowId;               // current active window id
-    bool               bActiveIdJustActivated;        // window was just activated, so bring it to the front
+    bool               bActiveIdJustActivated; // window was just activated, so bring it to the front
 
     // windows
     plUiWindow         tTooltipWindow;         // persistent tooltip window (since there can only ever be 1 at a time)
@@ -446,10 +449,13 @@ typedef struct _plUiContext
     plUiWindow*        ptSizingWindow;         // window being resized
     plUiWindow*        ptScrollingWindow;      // window being scrolled with mouse
     plUiWindow*        ptWheelingWindow;       // window being scrolled with mouse wheel
-    plUiWindow*        ptActiveWindow;         // selected/active window
+    plUiWindow*        ptActiveWindow;         // active window
     plUiWindow**       sbptWindows;            // windows stored in display order
     plUiWindow**       sbptFocusedWindows;     // root windows stored in display order
     plUiStorage        tWindows;               // windows by ID for quick retrieval
+
+    // navigation
+    plUiWindow* ptNavWindow; // focused window
 
     // popups
     plUiPopupData*     sbtBeginPopupStack;

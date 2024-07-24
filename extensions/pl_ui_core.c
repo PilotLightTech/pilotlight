@@ -47,9 +47,9 @@ pl_set_dark_theme(void)
     gptCtx->tStyle.fSliderSize              = 12.0f;
     gptCtx->tStyle.fWindowRounding          = 0.0f;
     gptCtx->tStyle.fChildRounding           = 0.0f;
-    gptCtx->tStyle.fFrameRounding           = 3.0f;
+    gptCtx->tStyle.fFrameRounding           = 0.0f;
     gptCtx->tStyle.fScrollbarRounding       = 0.0f;
-    gptCtx->tStyle.fGrabRounding            = 3.0f;
+    gptCtx->tStyle.fGrabRounding            = 0.0f;
     gptCtx->tStyle.fTabRounding             = 4.0f;
     gptCtx->tStyle.tItemSpacing             = (plVec2){8.0f, 4.0f};
     gptCtx->tStyle.tInnerSpacing            = (plVec2){4.0f, 4.0f};
@@ -57,7 +57,6 @@ pl_set_dark_theme(void)
     gptCtx->tStyle.tSeparatorTextPadding    = (plVec2){20.0f, 3.0f};
     gptCtx->tStyle.tSeparatorTextAlignment  = (plVec2){0.0f, 0.5f};
     gptCtx->tStyle.fSeparatorTextLineSize   = 3.0f;
-
 
     // colors
     gptCtx->tColorScheme.tTitleActiveCol      = (plVec4){0.33f, 0.02f, 0.10f, 1.00f};
@@ -99,6 +98,18 @@ pl_get_debug_draw_list(void)
     return gptCtx->ptDebugDrawlist;
 }
 
+bool
+pl_wants_mouse_capture(void)
+{
+    return gptCtx->bWantCaptureMouse;
+}
+
+bool
+pl_wants_keyboard_capture(void)
+{
+    return gptCtx->bWantCaptureKeyboard;
+}
+
 void
 pl_new_frame(void)
 {
@@ -106,13 +117,20 @@ pl_new_frame(void)
     pl_sb_reset(gptCtx->sbtBeginPopupStack);
 
     gptIO->bWantTextInput = false;
-    gptIO->bWantCaptureMouse = false;
+    gptCtx->bWantCaptureMouse = gptCtx->uActiveId != 0 || gptCtx->ptMovingWindow != NULL || gptCtx->ptActiveWindow != NULL;
+    gptCtx->bWantCaptureKeyboard = gptCtx->uActiveId != 0;
+
+    for(uint32_t i = 0; i < 5; i++)
+    {
+        if(gptCtx->abMouseOwned[i])
+        {
+            gptCtx->bWantCaptureMouse = true;
+        }
+    }
 
     // update state id's from previous frame
     gptCtx->uHoveredId = gptCtx->uNextHoveredId;
     gptCtx->uNextHoveredId = 0;
-    gptIO->bWantCaptureKeyboard = gptCtx->uActiveId != 0;
-    gptIO->bWantCaptureMouse = gptIO->_abMouseOwned[0] || gptCtx->uActiveId != 0 || gptCtx->ptMovingWindow != NULL;
 
     // null starting state
     gptCtx->bActiveIdJustActivated = false;
@@ -129,12 +147,12 @@ pl_new_frame(void)
     // reset active window
     if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
-        gptCtx->uActiveWindowId = 0;
+        gptCtx->ptNavWindow = NULL;
     }
 
     if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false) && gptCtx->uHoveredId == 0)
     {
-        gptCtx->uActiveWindowId = 0;
+        // gptCtx->uActiveWindowId = 0;
         pl_sb_reset(gptCtx->sbtOpenPopupStack);
     }
 
@@ -145,17 +163,8 @@ pl_new_frame(void)
     }
     gptCtx->uActiveIdIsAlive = 0;
 
-    if(gptCtx->uActiveWindowId == 0)
+    if(gptCtx->uActiveId == 0)
         gptCtx->ptActiveWindow = NULL;
-
-    // track click ownership
-    for(uint32_t i = 0; i < 5; i++)
-    {
-        if(gptIO->_abMouseClicked[i])
-        {
-            gptIO->_abMouseOwned[i] = (gptCtx->ptHoveredWindow != NULL);
-        }
-    }
 }
 
 void
@@ -243,10 +252,7 @@ pl_end_frame(void)
             if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false) && gptCtx->ptHoveredWindow == ptWindow)
             {
                 gptCtx->ptMovingWindow = NULL;
-                gptCtx->uActiveWindowId = ptWindow->ptRootWindow->uId;
-                gptCtx->ptActiveWindow = ptWindow;
-
-                gptIO->_abMouseOwned[PL_MOUSE_BUTTON_LEFT] = true;
+                gptCtx->ptNavWindow = ptWindow->ptRootWindow;
 
                 const plRect tTitleBarHitRegion = {
                     .tMin = {ptWindow->tPos.x + 2.0f, ptWindow->tPos.y + 2.0f},
@@ -293,6 +299,23 @@ pl_end_frame(void)
     gptIO->_fMouseWheel = 0.0f;
     gptIO->_fMouseWheelH = 0.0f;
     pl_sb_reset(gptIO->_sbInputQueueCharacters);
+
+
+    for(uint32_t i = 0; i < 5; i++)
+    {
+        if(gptIO->_abMouseClicked[i])
+        {
+            gptCtx->abMouseOwned[i] = gptCtx->ptHoveredWindow != NULL;
+        }
+        else if(!gptIO->_abMouseDown[i])
+        {
+            gptCtx->abMouseOwned[i] = gptCtx->ptHoveredWindow != NULL;
+        }
+        else if(gptIO->_abMouseReleased[i])
+        {
+            gptCtx->abMouseOwned[i] = false;
+        }
+    }
 }
 
 void
@@ -463,6 +486,7 @@ pl_begin_child(const char* pcName)
         PL_UI_WINDOW_FLAGS_NO_TITLE_BAR | 
         PL_UI_WINDOW_FLAGS_NO_RESIZE | 
         PL_UI_WINDOW_FLAGS_NO_COLLAPSE | 
+        PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR | 
         PL_UI_WINDOW_FLAGS_NO_MOVE;
 
     pl_set_next_window_pos(tStartPos, PL_UI_COND_ALWAYS);
@@ -576,7 +600,7 @@ pl_begin_popup(const char* pcName, plUiWindowFlags tFlags)
             if(bNewOpen)
             {
                 pl__focus_window(gptCtx->ptCurrentWindow);
-                gptCtx->ptActiveWindow = gptCtx->ptCurrentWindow;
+                gptCtx->ptNavWindow = gptCtx->ptCurrentWindow;
             }
         }
         else
@@ -1356,7 +1380,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             pl_sb_push(gptCtx->sbptFocusedWindows, ptWindow);
             ptWindow->ptRootWindow = ptWindow;
         }
-        else
+        else // normal window
         {
             ptWindow->ptRestoreWindow = ptWindow;
             pl_sb_push(gptCtx->sbptFocusedWindows, ptWindow);
@@ -1451,8 +1475,14 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     
     // clamp scrolling max
     ptWindow->tScrollMax = pl_max_vec2(ptWindow->tScrollMax, (plVec2){0});
-    ptWindow->bScrollbarX = ptWindow->tScrollMax.x > 0.0f;
+    ptWindow->bScrollbarX = (ptWindow->tScrollMax.x > 0.0f) && (ptWindow->tFlags & PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR);
     ptWindow->bScrollbarY = ptWindow->tScrollMax.y > 0.0f;
+
+    if(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_SCROLLBAR)
+    {
+        ptWindow->bScrollbarX = false;
+        ptWindow->bScrollbarY = false;
+    }
 
     if(ptWindow->bScrollbarX && ptWindow->bScrollbarY)
     {
@@ -1465,10 +1495,11 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         ptWindow->tScroll.x = 0;
 
     // remove scrollbars from inner rect
-    if(ptWindow->bScrollbarX)
-        ptWindow->tInnerRect.tMax.y -= gptCtx->tStyle.fScrollbarSize + 2.0f;
     if(ptWindow->bScrollbarY)
         ptWindow->tInnerRect.tMax.x -= gptCtx->tStyle.fScrollbarSize + 2.0f;
+
+    if(ptWindow->bScrollbarX)
+        ptWindow->tInnerRect.tMax.y -= gptCtx->tStyle.fScrollbarSize + 2.0f;
 
     // decorations
     if(!(tFlags & PL_UI_WINDOW_FLAGS_NO_TITLE_BAR)) // has title bar
@@ -1478,7 +1509,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
         // draw title bar
         plVec4 tTitleColor;
-        if(ptWindow->uId == gptCtx->uActiveWindowId)
+        if(ptWindow == gptCtx->ptNavWindow)
             tTitleColor = gptCtx->tColorScheme.tTitleActiveCol;
         else if(ptWindow->bCollapsed)
             tTitleColor = gptCtx->tColorScheme.tTitleBgCollapsedCol;
@@ -1614,14 +1645,17 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         const float fBottomPadding = ptWindow->bScrollbarX ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f;
         const float fHoverPadding = 4.0f;
 
-        // draw background
-        gptDraw->add_rect_filled_ex(ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tColorScheme.tWindowBgColor, gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM);
+        // draw border
+        if(!(tFlags & PL_UI_WINDOW_FLAGS_NO_BACKGROUND))
+        {
+            gptDraw->add_rect(ptWindow->ptFgLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax, gptCtx->tColorScheme.tWindowBorderColor, 1.0f, gptCtx->tStyle.fWindowRounding, 0);
+            gptDraw->add_rect_filled_ex(ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tColorScheme.tWindowBgColor, gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM);
+        }
 
         // vertical scroll bar
         if(ptWindow->bScrollbarY)
             pl__render_scrollbar(ptWindow, uVerticalScrollHash, PL_UI_AXIS_Y);
 
-        // horizontal scroll bar
         if(ptWindow->bScrollbarX)
             pl__render_scrollbar(ptWindow, uHorizonatalScrollHash, PL_UI_AXIS_X);
 
@@ -1744,10 +1778,6 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
                 }
             }
         }
-
-        // draw border
-        if(!(tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW))
-            gptDraw->add_rect(ptWindow->ptFgLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax, gptCtx->tColorScheme.tWindowBorderColor, 1.0f, gptCtx->tStyle.fWindowRounding, 0);
 
         // handle corner resizing
         if(gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f))
@@ -1907,7 +1937,7 @@ pl__render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis)
     else if(tAxis == PL_UI_AXIS_Y)
     {
           
-        const float fBottomPadding = ptWindow->bScrollbarX ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f;
+        const float fBottomPadding = ptWindow->bScrollbarX && (ptWindow->tFlags & PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR) ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f;
         const float fTopPadding = (ptWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_TITLE_BAR) ? 0.0f : gptCtx->tStyle.fFontSize + 2.0f * gptCtx->tStyle.fTitlePadding;
 
         // this is needed if autosizing and parent changes sizes
@@ -2045,11 +2075,12 @@ pl__set_active_id(uint32_t uHash, plUiWindow* ptWindow)
 
     // temporary hack, not going to be correct for a "chain" of
     // popups (e.g. menus)
-    if(ptWindow != NULL && gptCtx->ptActiveWindow != ptWindow) 
+    if(ptWindow != NULL && gptCtx->ptNavWindow != ptWindow) 
     {
         pl_sb_reset(gptCtx->sbtOpenPopupStack);
     }
     gptCtx->ptActiveWindow = ptWindow;
+    gptCtx->ptNavWindow = ptWindow;
 
     if(uHash)
         gptCtx->uActiveIdIsAlive = uHash;

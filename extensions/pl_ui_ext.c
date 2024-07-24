@@ -19,6 +19,8 @@ pl_load_ui_api(void)
         .get_debug_draw_list           = pl_get_debug_draw_list,
         .new_frame                     = pl_new_frame,
         .end_frame                     = pl_end_frame,
+        .wants_keyboard_capture        = pl_wants_keyboard_capture,
+        .wants_mouse_capture           = pl_wants_mouse_capture,
         .render                        = pl_render,
         .show_debug_window             = pl_show_debug_window,
         .show_style_editor_window      = pl_show_style_editor_window,

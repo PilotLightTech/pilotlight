@@ -214,6 +214,12 @@ pl__gizmo_translation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, p
 
     plVec2 tMousePos = gptIO->get_mouse_pos();
 
+    if(gptUi->wants_mouse_capture())
+    {
+        tMousePos.x = -1.0f;
+        tMousePos.y = -1.0f;
+    }
+
     plMat4 tTransform = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
     tTransform = pl_mat4_invert(&tTransform);
 
@@ -626,6 +632,12 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
 
     plVec2 tMousePos = gptIO->get_mouse_pos();
 
+    if(gptUi->wants_mouse_capture())
+    {
+        tMousePos.x = -1.0f;
+        tMousePos.y = -1.0f;
+    }
+
     plMat4 tTransform = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
     tTransform = pl_mat4_invert(&tTransform);
 
@@ -882,7 +894,6 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
     {
         ptGizmoData->tOriginalPos = *ptCenter;
         ptGizmoData->tState = PL_GIZMO_STATE_DEFAULT;
-
     }
 
     gptDraw->add_3d_band_yz_filled(ptGizmoDrawlist, *ptCenter, fInnerRadius, fOuterRadius, tXColor, 36);
@@ -897,6 +908,12 @@ pl__gizmo_scale(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCamer
     plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
 
     plVec2 tMousePos = gptIO->get_mouse_pos();
+
+    if(gptUi->wants_mouse_capture())
+    {
+        tMousePos.x = -1.0f;
+        tMousePos.y = -1.0f;
+    }
 
     plMat4 tTransform = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
     tTransform = pl_mat4_invert(&tTransform);

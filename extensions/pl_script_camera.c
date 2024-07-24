@@ -19,6 +19,7 @@ Index of this file:
 
 // extensions
 #include "pl_ecs_ext.h"
+#include "pl_ui_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] global data & APIs
@@ -28,6 +29,7 @@ Index of this file:
 const plIOI*     gptIO     = NULL;
 const plCameraI* gptCamera = NULL;
 const plEcsI*    gptEcs    = NULL;
+const plUiI*     gptUi     = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] implementation
@@ -50,7 +52,7 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
     static const float fCameraRotationSpeed = 0.005f;
 
     // camera space
-    bool bOwnKeyboard = ptIO->bWantCaptureKeyboard;
+    bool bOwnKeyboard = gptUi->wants_keyboard_capture();
     if(!bOwnKeyboard)
     {
         if(gptIO->is_key_down(PL_KEY_W)) gptCamera->translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
@@ -104,6 +106,7 @@ pl_load_script(plApiRegistryI* ptApiRegistry, bool bReload)
     gptEcs    = ptApiRegistry->first(PL_API_ECS);
     gptCamera = ptApiRegistry->first(PL_API_CAMERA);
     gptIO     = ptApiRegistry->first(PL_API_IO);
+    gptUi     = ptApiRegistry->first(PL_API_UI);
 
     if(bReload)
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_SCRIPT), pl_load_script_api());

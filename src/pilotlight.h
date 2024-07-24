@@ -351,8 +351,6 @@ typedef struct _plIO
     uint64_t ulFrameCount;
     
     plKeyChord tKeyMods;
-    bool       bWantCaptureMouse;
-    bool       bWantCaptureKeyboard;
     bool       bWantTextInput;
     bool       bKeyCtrl;  // Keyboard modifier down: Control
     bool       bKeyShift; // Keyboard modifier down: Shift
@@ -374,7 +372,7 @@ typedef struct _plIO
     // mouse cursor
     plMouseCursor tCurrentCursor;
     plMouseCursor tNextCursor;
-    bool     bCursorChanged;
+    bool          bCursorChanged;
 
     // other state
     plKeyData _tKeyData[PL_KEY_COUNT];
@@ -384,7 +382,6 @@ typedef struct _plIO
     plVec2    _atMouseClickedPos[5];       // position when clicked
     double    _adMouseClickedTime[5];      // time of last click
     bool      _abMouseClicked[5];          // mouse went from !down to down
-    bool      _abMouseOwned[5];
     uint32_t  _auMouseClickedCount[5];     // 
     uint32_t  _auMouseClickedLastCount[5]; // 
     bool      _abMouseReleased[5];         // mouse went from down to !down

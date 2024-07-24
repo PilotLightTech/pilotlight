@@ -57,7 +57,8 @@ pl_show_debug_window(bool* pbOpen)
                     pl_text(" - Content Size: (%0.1f, %0.1f)", ptWindow->tContentSize.x, ptWindow->tContentSize.y);
                     pl_text(" - Min Size:     (%0.1f, %0.1f)", ptWindow->tMinSize.x, ptWindow->tMinSize.y);
                     pl_text(" - Scroll:       (%0.1f/%0.1f, %0.1f/%0.1f)", ptWindow->tScroll.x, ptWindow->tScrollMax.x, ptWindow->tScroll.y, ptWindow->tScrollMax.y);
-                    pl_text(" - Active:       %s", ptWindow->uId == gptCtx->uActiveWindowId ? "1" : "0");
+                    pl_text(" - Focused:      %s", ptWindow == gptCtx->ptNavWindow ? "1" : "0");
+                    pl_text(" - Active:       %s", ptWindow == gptCtx->ptActiveWindow ? "1" : "0");
                     pl_text(" - Hovered:      %s", ptWindow == gptCtx->ptHoveredWindow ? "1" : "0");
                     pl_text(" - Dragging:     %s", ptWindow == gptCtx->ptMovingWindow ? "1" : "0");
                     pl_text(" - Scrolling:    %s", ptWindow == gptCtx->ptWheelingWindow ? "1" : "0");
@@ -74,6 +75,7 @@ pl_show_debug_window(bool* pbOpen)
         {
             pl_text("Windows");
             pl_indent(0.0f);
+            pl_text("Nav Window: %s", gptCtx->ptNavWindow ? gptCtx->ptNavWindow->pcName : "NULL");
             pl_text("Active Window: %s", gptCtx->ptActiveWindow ? gptCtx->ptActiveWindow->pcName : "NULL");
             pl_text("Hovered Window: %s", gptCtx->ptHoveredWindow ? gptCtx->ptHoveredWindow->pcName : "NULL");
             pl_text("Moving Window:  %s", gptCtx->ptMovingWindow ? gptCtx->ptMovingWindow->pcName : "NULL");
@@ -83,7 +85,6 @@ pl_show_debug_window(bool* pbOpen)
             pl_unindent(0.0f);
             pl_text("Items");
             pl_indent(0.0f);
-            pl_text("Active Window ID: %u", gptCtx->uActiveWindowId);
             pl_text("Active ID:        %u", gptCtx->uActiveId);
             pl_text("Hovered ID:       %u", gptCtx->uHoveredId);
             pl_unindent(0.0f);

@@ -1142,19 +1142,6 @@ pl_new_frame(void)
     pl__update_events();
     pl__update_keyboard_inputs();
     pl__update_mouse_inputs();
-
-    // update state id's from previous frame
-    // gtIO.bWantCaptureKeyboard = gptCtx->uActiveId != 0;
-    // gtIO.bWantCaptureMouse = gtIO._abMouseOwned[0] || gptCtx->uActiveId != 0 || gptCtx->ptMovingWindow != NULL;
-
-    // track click ownership
-    // for(uint32_t i = 0; i < 5; i++)
-    // {
-    //     if(gtIO._abMouseClicked[i])
-    //     {
-    //         gtIO._abMouseOwned[i] = (gptCtx->ptHoveredWindow != NULL);
-    //     }
-    // }
 }
 
 //-----------------------------------------------------------------------------
