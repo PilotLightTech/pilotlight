@@ -261,7 +261,7 @@ pl__show_profiling(bool* bValue)
             fDeltaTime = ptIOCtx->fDeltaTime;
         }
 
-        gptUI->layout_static(0.0f, 100.0f, 2);
+        gptUI->layout_static(0.0f, 150.0f, 2);
         if(pl_sb_size(sbtSamples) == 0)
         {
             if(gptUI->button("Capture Frame"))
@@ -439,12 +439,12 @@ pl__show_profiling(bool* bValue)
                         const double dLineX0 = (double)(dTime0 * dConvertToPixel) + tCursorPos.x;
                         char* pcDecimals = pl_temp_allocator_sprintf(&tTempAllocator, " %%0.%uf ms ", uDecimalPlaces);
                         char* pcText0 = pl_temp_allocator_sprintf(&tTempAllocator, pcDecimals, (double)dTime0 * dUnitMultiplier);
-                        const plRect tBB0 = gptDraw->calculate_text_bb(gptUI->get_default_font(), 13.0f, (plVec2){roundf((float)dLineX0), tCursorPos.y + 20.0f}, pcText0, 0.0f);
+                        const plRect tBB0 = gptDraw->calculate_text_bb(gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, (plVec2){roundf((float)dLineX0), tCursorPos.y + 20.0f}, pcText0, 0.0f);
 
                         const double dTime1 = dTime0 + dIncrement;
                         const float dLineX1 = (float)(dTime1 * dConvertToPixel) + tCursorPos.x;
                         char* pcText1 = pl_temp_allocator_sprintf(&tTempAllocator, pcDecimals, (double)dTime1 * dUnitMultiplier);
-                        const plRect tBB1 = gptDraw->calculate_text_bb(gptUI->get_default_font(), 13.0f, (plVec2){roundf((float)dLineX1), tCursorPos.y + 20.0f}, pcText1, 0.0f);
+                        const plRect tBB1 = gptDraw->calculate_text_bb(gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, (plVec2){roundf((float)dLineX1), tCursorPos.y + 20.0f}, pcText1, 0.0f);
                         pl_temp_allocator_reset(&tTempAllocator);
 
                         if(!pl_rect_overlaps_rect(&tBB0, &tBB1))
@@ -483,9 +483,9 @@ pl__show_profiling(bool* bValue)
                         const float fLineX = (float)((dCurrentTime * dConvertToPixel)) + tCursorPos.x;
                         char* pcDecimals = pl_temp_allocator_sprintf(&tTempAllocator, "%%0.%uf ms", uDecimalPlaces);
                         char* pcText = pl_temp_allocator_sprintf(&tTempAllocator, pcDecimals, (double)dCurrentTime * dUnitMultiplier);
-                        const float fTextWidth = gptDraw->calculate_text_size(gptUI->get_default_font(), 13.0f, pcText, 0.0f).x;
+                        const float fTextWidth = gptDraw->calculate_text_size(gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, pcText, 0.0f).x;
                         gptDraw->add_line(ptFgLayer, (plVec2){fLineX, tCursorPos.y}, (plVec2){fLineX, tCursorPos.y + 20.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
-                        gptDraw->add_text(ptFgLayer, gptUI->get_default_font(), 13.0f, (plVec2){roundf(fLineX - fTextWidth / 2.0f), tCursorPos.y + 20.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, pcText, 0.0f);
+                        gptDraw->add_text(ptFgLayer, gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, (plVec2){roundf(fLineX - fTextWidth / 2.0f), tCursorPos.y + 20.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, pcText, 0.0f);
                         pl_temp_allocator_reset(&tTempAllocator);  
                         dCurrentTime += dIncrement;
                     }
@@ -523,7 +523,7 @@ pl__show_profiling(bool* bValue)
                     {
                         gptDraw->add_line(ptFgLayer, (plVec2){tMousePos.x, tCursorPos.y}, (plVec2){tMousePos.x, tWindowEnd.y}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
                         char* pcText = pl_temp_allocator_sprintf(&tTempAllocator, "%0.6f", (double)dConvertToTime * (double)(tMousePos.x - tParentCursorPos.x + gptUI->get_window_scroll().x));
-                        gptDraw->add_text(ptFgLayer, gptUI->get_default_font(), 13.0f, tMousePos, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, pcText, 0.0f);
+                        gptDraw->add_text(ptFgLayer, gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, tMousePos, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, pcText, 0.0f);
                         pl_temp_allocator_reset(&tTempAllocator);
                     }
 
@@ -566,7 +566,7 @@ pl__show_statistics(bool* bValue)
         for(uint32_t i = 0; i < uNameCount; i++)
         {
             sbppdFrameValues[i] = ptStatsApi->get_counter_data(ppcNames[i]);
-            float fCurrentWidth = gptDraw->calculate_text_size(gptUI->get_default_font(), 13.0f, ppcNames[i], 0.0f).x;
+            float fCurrentWidth = gptDraw->calculate_text_size(gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, ppcNames[i], 0.0f).x;
             if(fCurrentWidth > fLegendWidth)
                 fLegendWidth = fCurrentWidth;
         }
@@ -574,6 +574,7 @@ pl__show_statistics(bool* bValue)
         fLegendWidth += 5.0f;
     }
 
+    gptUI->set_next_window_size((plVec2){900.0f, 450.0f}, PL_UI_COND_ONCE);
     if(gptUI->begin_window("Statistics", bValue, false))
     {
         static bool bAllowNegative = false;
@@ -588,7 +589,7 @@ pl__show_statistics(bool* bValue)
         const plVec2 tWindowEnd = pl_add_vec2(gptUI->get_window_size(), tWindowPos);
 
         gptUI->layout_template_begin(tWindowSize.y - 15.0f);
-        gptUI->layout_template_push_static(fLegendWidth * 1.5f);
+        gptUI->layout_template_push_static(fLegendWidth * 1.0f);
         gptUI->layout_template_push_dynamic();
         gptUI->layout_template_end();
       
@@ -678,7 +679,7 @@ pl__show_statistics(bool* bValue)
 
                 if(bAllowNegative)
                 {
-                    gptDraw->add_text(ptFgLayer, gptUI->get_default_font(), 13.0f, (plVec2){roundf(tCursor0.x), roundf((float)dYCenter)}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "0", 0.0f);
+                    gptDraw->add_text(ptFgLayer, gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, (plVec2){roundf(tCursor0.x), roundf((float)dYCenter)}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "0", 0.0f);
                     gptDraw->add_line(ptFgLayer, (plVec2){tCursor0.x, (float)dYCenter}, (plVec2){tCursor0.x + tPlotSize.x, (float)dYCenter}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
                 }
 
@@ -705,9 +706,9 @@ pl__show_statistics(bool* bValue)
 
                     uint32_t uIndexStart = (uint32_t)ptIOCtx->ulFrameCount;
 
-                    const plVec2 tTextPoint = {tCursor1.x + 5.0f, tCursor1.y + i * 15.0f};
-                    gptDraw->add_rect_filled(ptFgLayer, tTextPoint, (plVec2){tTextPoint.x + 13.0f, tTextPoint.y + 13.0f}, *ptColor, 0.0f, 0);
-                    gptDraw->add_text(ptFgLayer, gptUI->get_default_font(), 13.0f, (plVec2){roundf(tTextPoint.x + 15.0f), roundf(tTextPoint.y)}, *ptColor, apcTempNames[i], 0.0f);
+                    const plVec2 tTextPoint = {tCursor1.x + 5.0f, tCursor1.y + i * 20.0f};
+                    gptDraw->add_rect_filled(ptFgLayer, tTextPoint, (plVec2){tTextPoint.x + gptDraw->get_font(gptUI->get_default_font())->fSize, tTextPoint.y + gptDraw->get_font(gptUI->get_default_font())->fSize}, *ptColor, 0.0f, 0);
+                    gptDraw->add_text(ptFgLayer, gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, (plVec2){roundf(tTextPoint.x + 20.0f), roundf(tTextPoint.y)}, *ptColor, apcTempNames[i], 0.0f);
         
                     for(uint32_t j = 0; j < PL_STATS_MAX_FRAMES - 1; j++)
                     {
@@ -721,7 +722,7 @@ pl__show_statistics(bool* bValue)
                         {
                             char acTextBuffer[32] = {0};
                             pl_sprintf(acTextBuffer, "%0.0f", dValues[uActualIndex1]);
-                            gptDraw->add_text(ptFgLayer, gptUI->get_default_font(), 13.0f, (plVec2){roundf(tLineEnd.x), roundf(tLineEnd.y) - 6.0f}, *ptColor, acTextBuffer, 0.0f);
+                            gptDraw->add_text(ptFgLayer, gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, (plVec2){roundf(tLineEnd.x), roundf(tLineEnd.y) - 6.0f}, *ptColor, acTextBuffer, 0.0f);
                         }
                     }
                     
