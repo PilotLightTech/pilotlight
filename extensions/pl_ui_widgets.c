@@ -444,7 +444,7 @@ pl__button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, boo
         gptCtx->tPrevItemData.bActive = true;
 
         if(bHeld)
-            pl__set_active_id(uHash, ptWindow->ptParentWindow);
+            pl__set_active_id(uHash, ptWindow->ptRootWindow);
     }
 
     if(bHovered)
@@ -452,13 +452,13 @@ pl__button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, boo
         if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
         {
             bPressed = ptWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW;
-            pl__set_active_id(uHash, ptWindow->ptParentWindow);
+            pl__set_active_id(uHash, ptWindow->ptRootWindow);
             gptCtx->tPrevItemData.bActive = true;
         }
         else if(gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
         {
             bPressed = uHash == gptCtx->uActiveId;
-            pl__set_active_id(0, ptWindow->ptParentWindow);
+            pl__set_active_id(0, ptWindow->ptRootWindow);
         }
     }
 

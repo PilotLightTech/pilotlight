@@ -192,18 +192,9 @@ pl_end_frame(void)
     {
         plUiWindow* ptRootWindow = gptCtx->sbptFocusedWindows[i];
 
+        // recursively submits child windows
         if(ptRootWindow->bActive)
             pl__submit_window(ptRootWindow);
-
-        // adjust window size if outside viewport
-        if(ptRootWindow->tPos.x > gptIO->afMainViewportSize[0])
-            ptRootWindow->tPos.x = gptIO->afMainViewportSize[0] - ptRootWindow->tSize.x / 2.0f;
-
-        if(ptRootWindow->tPos.y > gptIO->afMainViewportSize[1])
-        {
-            ptRootWindow->tPos.y = gptIO->afMainViewportSize[1] - ptRootWindow->tSize.y / 2.0f;
-            ptRootWindow->tPos.y = pl_maxf(ptRootWindow->tPos.y, 0.0f);
-        }
     }
 
     // find windows
@@ -216,6 +207,8 @@ pl_end_frame(void)
         gptCtx->ptScrollingWindow = NULL;  
     }
 
+    // find hovered & wheeling windows
+    //   - we are assuming it will be the last window hovered
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptWindows); i++)
     {
         plUiWindow* ptWindow = gptCtx->sbptWindows[i];
@@ -236,7 +229,7 @@ pl_end_frame(void)
 
         float fTitleBarHeight = 0.0f;
 
-        if(ptWindow->ptRootWindow == ptWindow)
+        if(ptWindow->ptParentWindow == NULL)
         {
             fTitleBarHeight = ptWindow->tTempData.fTitleBarHeight;
 
@@ -1363,7 +1356,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         ptWindow->tPosAllowableFlags      = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
         ptWindow->tSizeAllowableFlags     = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
         ptWindow->tCollapseAllowableFlags = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
-        ptWindow->ptParentWindow          = ptWindow;
+        ptWindow->ptParentWindow          = NULL;
         ptWindow->uFocusOrder             = pl_sb_size(gptCtx->sbptFocusedWindows);
         ptWindow->tFlags                  = PL_UI_WINDOW_FLAGS_NONE;
         ptWindow->bAppearing              = true;
@@ -1394,7 +1387,6 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     {
         ptWindow->bAppearing = false;
     }
-    ptParentWindow = ptWindow->ptParentWindow;
 
     // seen this frame (obviously)
     ptWindow->bActive = true;
@@ -1465,6 +1457,19 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
     if(ptWindow->bCollapsed)
         ptWindow->tSize = (plVec2){ptWindow->tSize.x, fTitleBarHeight};
+
+    // adjust window position if outside viewport (and is a root)
+    if(ptParentWindow == NULL)
+    {
+        if(ptWindow->tPos.x > gptIO->afMainViewportSize[0])
+            ptWindow->tPos.x = gptIO->afMainViewportSize[0] - ptWindow->tSize.x / 2.0f;
+
+        if(ptWindow->tPos.y > gptIO->afMainViewportSize[1])
+        {
+            ptWindow->tPos.y = gptIO->afMainViewportSize[1] - ptWindow->tSize.y / 2.0f;
+            ptWindow->tPos.y = pl_maxf(ptWindow->tPos.y, 0.0f);
+        }
+    }
 
     // updating outer rect here but autosized windows do so again in pl_end_window(..)
     ptWindow->tOuterRect = pl_calculate_rect(ptWindow->tPos, ptWindow->tSize);
@@ -1627,10 +1632,9 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             (plVec2){ptWindow->tPos.x, ptWindow->tPos.y + fTitleBarHeight},
             (plVec2){ptWindow->tSize.x, ptWindow->tSize.y - fTitleBarHeight});
 
-        plRect tParentBgRect = ptParentWindow->tOuterRect;
-
         if(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
         {
+            plRect tParentBgRect = ptParentWindow->tOuterRect;
             tBgRect = pl_rect_clip(&tBgRect, &tParentBgRect);
         }
 
@@ -1896,7 +1900,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 static void
 pl__render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis)
 {
-    const plRect tParentBgRect = ptWindow->ptParentWindow->tOuterRect;
+    const plRect tParentBgRect = ptWindow->ptParentWindow ? ptWindow->ptParentWindow->tOuterRect : ptWindow->tOuterRect;
     if(tAxis == PL_UI_AXIS_X)
     {
         const float fRightSidePadding = ptWindow->bScrollbarY ? gptCtx->tStyle.fScrollbarSize + 2.0f : 0.0f;
