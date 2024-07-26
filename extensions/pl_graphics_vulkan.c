@@ -850,7 +850,7 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = uDescriptorBindingCount,
         .pBindings    = atDescriptorSetLayoutBindings,
-        .pNext = &setLayoutBindingFlags,
+        .pNext = ptDevice->bDescriptorIndexing ? &setLayoutBindingFlags : NULL,
         .flags = ptDevice->bDescriptorIndexing ?  VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
     };
     PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tVulkanBindGroupLayout.tDescriptorSetLayout));
@@ -965,7 +965,7 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = uDescriptorBindingCount,
         .pBindings    = atDescriptorSetLayoutBindings,
-        .pNext = &setLayoutBindingFlags,
+        .pNext = ptDevice->bDescriptorIndexing ? &setLayoutBindingFlags : NULL,
         .flags = ptDevice->bDescriptorIndexing ?  VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
     };
     VkDescriptorSetLayout tDescriptorSetLayout = VK_NULL_HANDLE;
@@ -1101,7 +1101,7 @@ pl_get_temporary_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayou
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = uDescriptorBindingCount,
         .pBindings    = atDescriptorSetLayoutBindings,
-        .pNext = &setLayoutBindingFlags,
+        .pNext = ptDevice->bDescriptorIndexing ? &setLayoutBindingFlags : NULL,
         .flags = ptDevice->bDescriptorIndexing ?  VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
     };
     VkDescriptorSetLayout tDescriptorSetLayout = VK_NULL_HANDLE;
