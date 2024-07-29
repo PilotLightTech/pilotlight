@@ -363,24 +363,25 @@ typedef struct _plUiTempWindowData
 
 typedef struct _plUiWindow
 {
-    const char*          pcName;
-    uint32_t             uId;                     // window Id (=pl_str_hash(pcName))
-    plUiWindowFlags      tFlags;                  // plUiWindowFlags, not all honored at the moment
-    plVec2               tPos;                    // position of window in viewport
-    plVec2               tContentSize;            // size of contents/scrollable client area
-    plVec2               tMinSize;                // minimum size of window (default 200,200)
-    plVec2               tMaxSize;                // maximum size of window (default 10000,10000)
-    plVec2               tSize;                   // full size or title bar size if collapsed
-    plVec2               tFullSize;               // used to restore size after uncollapsing
-    plVec2               tScroll;                 // current scroll amount (0 < tScroll < tScrollMax)
-    plVec2               tScrollMax;              // maximum scroll amount based on last frame content size & adjusted for scroll bars
-    plRect               tInnerRect;              // inner rect (excludes titlebar & scrollbars)
-    plRect               tOuterRect;              // outer rect (includes everything)
-    plRect               tOuterRectClipped;       // outer rect clipped by parent window & viewport
-    plRect               tInnerClipRect;          // inner rect clipped by parent window & viewport (includes horizontal padding on each side)
-    plUiWindow*          ptRestoreWindow;         // restor window if popup
-    plUiWindow*          ptParentWindow;          // parent window if child
-    plUiWindow*          ptRootWindow;            // root window or self if this is the root window
+    char*                pcName;
+    size_t               szNameBufferLength;
+    uint32_t             uId;                           // window Id (=pl_str_hash(pcName))
+    plUiWindowFlags      tFlags;                        // plUiWindowFlags, not all honored at the moment
+    plVec2               tPos;                          // position of window in viewport
+    plVec2               tContentSize;                  // size of contents/scrollable client area
+    plVec2               tMinSize;                      // minimum size of window (default 200,200)
+    plVec2               tMaxSize;                      // maximum size of window (default 10000,10000)
+    plVec2               tSize;                         // full size or title bar size if collapsed
+    plVec2               tFullSize;                     // used to restore size after uncollapsing
+    plVec2               tScroll;                       // current scroll amount (0 < tScroll < tScrollMax)
+    plVec2               tScrollMax;                    // maximum scroll amount based on last frame content size & adjusted for scroll bars
+    plRect               tInnerRect;                    // inner rect (excludes titlebar & scrollbars)
+    plRect               tOuterRect;                    // outer rect (includes everything)
+    plRect               tOuterRectClipped;             // outer rect clipped by parent window & viewport
+    plRect               tInnerClipRect;                // inner rect clipped by parent window & viewport (includes horizontal padding on each side)
+    plUiWindow*          ptParentWindow;                // parent window if child
+    plUiWindow*          ptRootWindow;                  // root window or self if this is the root window
+    plUiWindow*          ptRootWindowTitleBarHighlight; // root window or self if this is the root window
     bool                 bAppearing;
     bool                 bVisible;                // true if visible (only for child windows at the moment)
     bool                 bActive;                 // window has been "seen" this frame
@@ -420,6 +421,7 @@ typedef struct _plUiNextWindowData
 
 typedef struct _plUiContext
 {
+    // cosmetics
     plUiStyle       tStyle;
     plUiColorScheme tColorScheme;
 
@@ -440,45 +442,51 @@ typedef struct _plUiContext
     uint32_t           uActiveIdIsAlive;       // id of active item if seen this frame
     uint32_t           uNextHoveredId;         // set during current frame (by end of frame, should be last item hovered)
     bool               bActiveIdJustActivated; // window was just activated, so bring it to the front
+    uint32_t           uMenuDepth;
+    uint32_t           uComboDepth;
 
-    // windows
-    plUiWindow         tTooltipWindow;         // persistent tooltip window (since there can only ever be 1 at a time)
-    plUiWindow*        ptCurrentWindow;        // current window we are appending into
-    plUiWindow*        ptHoveredWindow;        // window being hovered
-    plUiWindow*        ptMovingWindow;         // window being moved
-    plUiWindow*        ptSizingWindow;         // window being resized
-    plUiWindow*        ptScrollingWindow;      // window being scrolled with mouse
-    plUiWindow*        ptWheelingWindow;       // window being scrolled with mouse wheel
-    plUiWindow*        ptActiveWindow;         // active window
-    plUiWindow**       sbptWindows;            // windows stored in display order
-    plUiWindow**       sbptFocusedWindows;     // root windows stored in display order
-    plUiStorage        tWindows;               // windows by ID for quick retrieval
+    // window state
+    plUiWindow** sbptWindows;            // windows stored in display order
+    plUiWindow** sbptFocusedWindows;     // root windows stored in display order
+    plUiWindow** sbptWindowStack;
+    plUiStorage  tWindows;               // windows by ID for quick retrieval
+    plUiWindow   tTooltipWindow;         // persistent tooltip window (since there can only ever be 1 at a time)
+    plUiWindow*  ptCurrentWindow;        // current window we are appending into
+    plUiWindow*  ptHoveredWindow;        // window being hovered
+    plUiWindow*  ptMovingWindow;         // window being moved
+    plUiWindow*  ptSizingWindow;         // window being resized
+    plUiWindow*  ptScrollingWindow;      // window being scrolled with mouse
+    plUiWindow*  ptWheelingWindow;       // window being scrolled with mouse wheel
+    plUiWindow*  ptActiveWindow;         // active window
 
     // navigation
     plUiWindow* ptNavWindow; // focused window
 
-    // popups
-    plUiPopupData*     sbtBeginPopupStack;
-    plUiPopupData*     sbtOpenPopupStack;
+    // shared stacks
+    plUiPopupData* sbtBeginPopupStack;
+    plUiPopupData* sbtOpenPopupStack;
 
-    // tabs
-    plUiTabBar*        sbtTabBars;             // stretchy-buffer for persistent tab bar data
-    plUiTabBar*        ptCurrentTabBar;        // current tab bar being appended to
+    // tab bars
+    plUiTabBar* sbtTabBars;             // stretchy-buffer for persistent tab bar data
+    plUiTabBar* ptCurrentTabBar;        // current tab bar being appended to
 
     // theme stacks
     plUiColorStackItem* sbtColorStack;
 
     // drawing
-    plDrawList2D*      ptDrawlist;             // main ui drawlist
-    plDrawList2D*      ptDebugDrawlist;        // ui debug drawlist (i.e. overlays)
-    plFontHandle       tFont;                  // current font
-    plDrawLayer2D*     ptBgLayer;              // submitted before window layers
-    plDrawLayer2D*     ptFgLayer;              // submitted after window layers
-    plDrawLayer2D*     ptDebugLayer;           // submitted last
+    plDrawList2D*  ptDrawlist;             // main ui drawlist
+    plDrawList2D*  ptDebugDrawlist;        // ui debug drawlist (i.e. overlays)
+    plFontHandle   tFont;                  // current font
+    plDrawLayer2D* ptBgLayer;              // submitted before window layers
+    plDrawLayer2D* ptFgLayer;              // submitted after window layers
+    plDrawLayer2D* ptDebugLayer;           // submitted last
 
     // drawing context
     plDrawList2D** sbDrawlists;
     plVec2         tFrameBufferScale;
+
+    // misc
+    char* sbcTempBuffer;
 } plUiContext;
 
 //-----------------------------------------------------------------------------

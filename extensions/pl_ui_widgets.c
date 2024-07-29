@@ -444,7 +444,7 @@ pl__button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, boo
         gptCtx->tPrevItemData.bActive = true;
 
         if(bHeld)
-            pl__set_active_id(uHash, ptWindow->ptRootWindow);
+            pl__set_active_id(uHash, ptWindow);
     }
 
     if(bHovered)
@@ -452,13 +452,13 @@ pl__button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, boo
         if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
         {
             bPressed = ptWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW;
-            pl__set_active_id(uHash, ptWindow->ptRootWindow);
+            pl__set_active_id(uHash, ptWindow);
             gptCtx->tPrevItemData.bActive = true;
         }
         else if(gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
         {
             bPressed = uHash == gptCtx->uActiveId;
-            pl__set_active_id(0, ptWindow->ptRootWindow);
+            pl__set_active_id(0, ptWindow);
         }
     }
 
@@ -779,7 +779,7 @@ pl_checkbox(const char* pcText, bool* bpValue)
         }
 
         // add label
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f); 
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, tStartPos, pl_add_vec2(tStartPos, tWidgetSize), gptCtx->tColorScheme.tTextCol, pcText, -1.0f); 
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed;
@@ -827,7 +827,7 @@ pl_radio_button(const char* pcText, int* piValue, int iButtonValue)
         if(*piValue == iButtonValue)
             gptDraw->add_circle_filled(ptWindow->ptFgLayer, (plVec2){tStartPos.x + tWidgetSize.y / 2.0f, tStartPos.y + tWidgetSize.y / 2.0f}, gptCtx->tStyle.fFontSize / 2.5f, gptCtx->tColorScheme.tCheckmarkCol, 12);
 
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, tStartPos, pl_add_vec2(tStartPos, tWidgetSize), gptCtx->tColorScheme.tTextCol, pcText, -1.0f); 
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed;
@@ -868,12 +868,14 @@ pl_begin_combo(const char* pcLabel, const char* pcPreview, plUiComboFlags tFlags
         bool bHeld = false;
         const bool bPressed = pl__button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
 
+        pl_sb_sprintf(gptCtx->sbcTempBuffer, "~~PL_COMBO%lu###%lu", gptCtx->uComboDepth, uHash);
+
         if(bPressed)
         {
-            pl_open_popup("combo");
+            pl_open_popup(gptCtx->sbcTempBuffer);
         }
 
-        const bool bPopupOpen = pl_is_popup_open("combo");
+        const bool bPopupOpen = pl_is_popup_open(gptCtx->sbcTempBuffer);
 
         const plVec2 centerPoint = {tBoundingBox.tMax.x - 8.0f * 1.5f, tStartPos.y + tWidgetSize.y / 2.0f};
         const plVec2 pointPos = pl_add_vec2(centerPoint, (plVec2){ 0.0f,  4.0f});
@@ -931,7 +933,7 @@ pl_begin_combo(const char* pcLabel, const char* pcPreview, plUiComboFlags tFlags
                 fSizeMultiplier = 4.0f;
 
             pl_set_next_window_size((plVec2){ tSize.x,  tWidgetSize.y * fSizeMultiplier}, PL_UI_COND_ALWAYS);
-            bResult = pl_begin_popup("combo", tWindowFlags);
+            bResult = pl_begin_popup(gptCtx->sbcTempBuffer, tWindowFlags);
             static const float pfRatios[] = {1.0f};
             pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
             
@@ -941,6 +943,10 @@ pl_begin_combo(const char* pcLabel, const char* pcPreview, plUiComboFlags tFlags
     {
         pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     }
+
+    if(bResult)
+        gptCtx->uComboDepth++;
+    pl_sb_reset(gptCtx->sbcTempBuffer);
     return bResult;  
 }
 
@@ -948,6 +954,7 @@ void
 pl_end_combo(void)
 {
     pl_end_popup();
+    gptCtx->uComboDepth--;
 }
 
 bool
@@ -983,12 +990,14 @@ pl_begin_menu(const char* pcLabel, bool bEnabled)
 
         const bool bPressed = pl__button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
 
+        pl_sb_sprintf(gptCtx->sbcTempBuffer, "~~PL_MENU%lu###%lu", gptCtx->uMenuDepth, uHash);
+
         if(bHovered)
         {
-            pl_open_popup("#-menu");
+            pl_open_popup(gptCtx->sbcTempBuffer);
         }
 
-        const bool bPopupOpen = pl_is_popup_open("#-menu");
+        const bool bPopupOpen = pl_is_popup_open(gptCtx->sbcTempBuffer);
 
         if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderActiveCol, 0.0f, 0);
         else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderHoveredCol, 0.0f, 0);
@@ -1016,6 +1025,7 @@ pl_begin_menu(const char* pcLabel, bool bEnabled)
                 PL_UI_WINDOW_FLAGS_NO_RESIZE | 
                 PL_UI_WINDOW_FLAGS_AUTO_SIZE | 
                 PL_UI_WINDOW_FLAGS_NO_COLLAPSE | 
+                PL_UI_WINDOW_FLAGS_MENU | 
                 PL_UI_WINDOW_FLAGS_NO_MOVE;
 
             pl_set_next_window_pos((plVec2){ tEndPos.x,  tStartPos.y}, PL_UI_COND_ALWAYS);
@@ -1023,7 +1033,7 @@ pl_begin_menu(const char* pcLabel, bool bEnabled)
             float fSizeMultiplier = 8.0f;
 
             // pl_set_next_window_size((plVec2){ tWidgetSize.x,  tWidgetSize.y * fSizeMultiplier}, PL_UI_COND_ALWAYS);
-            bResult = pl_begin_popup("#-menu", tWindowFlags);
+            bResult = pl_begin_popup(gptCtx->sbcTempBuffer, tWindowFlags);
             
         }
     }
@@ -1031,6 +1041,7 @@ pl_begin_menu(const char* pcLabel, bool bEnabled)
     {
         pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     }
+    pl_sb_reset(gptCtx->sbcTempBuffer);
     return bResult;  
 }
 
@@ -1195,6 +1206,24 @@ pl_tree_pop(void)
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     ptWindow->tTempData.uTreeDepth--;
     pl_sb_pop(gptCtx->sbuIdStack);
+
+    // performs cursor increase if previous system didn't get a chance to wrap
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
+    {
+        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
+
+        // reset
+        ptCurrentRow->uCurrentColumn = 0;
+        ptCurrentRow->fMaxWidth = 0.0f;
+        ptCurrentRow->fMaxHeight = 0.0f;
+        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
+        ptCurrentRow->fVerticalOffset = 0.0f;
+    }
+
     ptWindow->tTempData.tCurrentLayoutRow = pl_sb_pop(ptWindow->sbtRowStack);
 }
 
@@ -1258,6 +1287,24 @@ pl_end_tab_bar(void)
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     gptCtx->ptCurrentTabBar->uValue = gptCtx->ptCurrentTabBar->uNextValue;
     pl_sb_pop(gptCtx->sbuIdStack);
+
+    // performs cursor increase if previous system didn't get a chance to wrap
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
+    {
+        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
+
+        // reset
+        ptCurrentRow->uCurrentColumn = 0;
+        ptCurrentRow->fMaxWidth = 0.0f;
+        ptCurrentRow->fMaxHeight = 0.0f;
+        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
+        ptCurrentRow->fVerticalOffset = 0.0f;
+    }
+
     ptWindow->tTempData.tCurrentLayoutRow = pl_sb_pop(ptWindow->sbtRowStack);
     ptWindow->tTempData.fAccumRowX -= ptWindow->tTempData.tCurrentLayoutRow.fRowStartX;
 }
@@ -1266,7 +1313,25 @@ void
 pl_end_tab(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    pl_sb_pop(gptCtx->sbuIdStack);
+    pl_sb_pop(gptCtx->sbuIdStack);    
+
+    // performs cursor increase if previous system didn't get a chance to wrap
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
+    {
+        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
+
+        // reset
+        ptCurrentRow->uCurrentColumn = 0;
+        ptCurrentRow->fMaxWidth = 0.0f;
+        ptCurrentRow->fMaxHeight = 0.0f;
+        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
+        ptCurrentRow->fVerticalOffset = 0.0f;
+    }
+
     ptWindow->tTempData.tCurrentLayoutRow = pl_sb_pop(ptWindow->sbtRowStack);
 }
 

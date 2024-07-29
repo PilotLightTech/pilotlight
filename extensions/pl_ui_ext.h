@@ -264,7 +264,7 @@ typedef struct _plUiI
     // - layout systems are based on "Nuklear" (https://github.com/Immediate-Mode-UI/Nuklear)
     // - 6 different layout strategies
     // - default layout strategy is system 2 with uWidgetCount=1 & fWidth=300 & fHeight=0
-    // - setting fHeight=0 will cause the row height to be equal to the minimal height of the maximum height widget
+    // - setting fHeight=0 will cause the row height to be equal to the minimum height of the maximum height widget
 
     // layout system 1
     // - provides each widget with the same horizontal space and grows dynamically with the parent window
@@ -373,6 +373,7 @@ enum plUiWindowFlags_
     // internal
     PL_UI_WINDOW_FLAGS_CHILD_WINDOW = 1 << 8,
     PL_UI_WINDOW_FLAGS_POPUP_WINDOW = 1 << 9,
+    PL_UI_WINDOW_FLAGS_MENU         = 1 << 10,
 };
 
 enum plUiComboFlags_

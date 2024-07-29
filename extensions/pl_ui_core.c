@@ -144,16 +144,11 @@ pl_new_frame(void)
     gptCtx->tNextWindowData.tPosCondition = PL_UI_COND_NONE;
     gptCtx->tNextWindowData.tSizeCondition = PL_UI_COND_NONE;
 
-    // reset active window
-    if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
-    {
-        gptCtx->ptNavWindow = NULL;
-    }
-
     if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false) && gptCtx->uHoveredId == 0)
     {
         // gptCtx->uActiveWindowId = 0;
         pl_sb_reset(gptCtx->sbtOpenPopupStack);
+        gptCtx->ptNavWindow = NULL;
     }
 
     // reset active id if no longer alive
@@ -204,11 +199,12 @@ pl_end_frame(void)
     {
         gptCtx->ptMovingWindow = NULL;
         gptCtx->ptSizingWindow = NULL;
-        gptCtx->ptScrollingWindow = NULL;  
+        gptCtx->ptScrollingWindow = NULL;
     }
 
-    // find hovered & wheeling windows
-    //   - we are assuming it will be the last window hovered
+    // find windows
+    //   - we are assuming they will be the last window hovered
+    bool bRequestFocus = false;
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptWindows); i++)
     {
         plUiWindow* ptWindow = gptCtx->sbptWindows[i];
@@ -219,47 +215,31 @@ pl_end_frame(void)
             // scrolling
             if(!(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_AUTO_SIZE) && gptIOI->get_mouse_wheel() != 0.0f)
                 gptCtx->ptWheelingWindow = ptWindow;
-        }
-    }
 
-    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptWindows); i++)
-    {
-        plUiWindow* ptWindow = gptCtx->sbptWindows[i];
-        plRect tBoundBox = ptWindow->tOuterRectClipped;
-
-        float fTitleBarHeight = 0.0f;
-
-        if(ptWindow->ptParentWindow == NULL)
-        {
-            fTitleBarHeight = ptWindow->tTempData.fTitleBarHeight;
-
-            // add padding for resizing from borders
-            if(!(ptWindow->tFlags & (PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_AUTO_SIZE)))
-                tBoundBox = pl_rect_expand(&tBoundBox, 2.0f);
-        }
-
-        if(gptIOI->is_mouse_hovering_rect(tBoundBox.tMin, tBoundBox.tMax))
-        {
+            float fTitleBarHeight = ptWindow->tTempData.fTitleBarHeight;
+            const plRect tTitleBarHitRegion = {
+                .tMin = {ptWindow->tPos.x + 2.0f, ptWindow->tPos.y + 2.0f},
+                .tMax = {ptWindow->tPos.x + ptWindow->tSize.x - 2.0f, ptWindow->tPos.y + fTitleBarHeight}
+            };
 
             // check if window is activated
-            if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false) && gptCtx->ptHoveredWindow == ptWindow)
+            if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
             {
-                gptCtx->ptMovingWindow = NULL;
-                gptCtx->ptNavWindow = ptWindow->ptRootWindow;
 
-                const plRect tTitleBarHitRegion = {
-                    .tMin = {ptWindow->tPos.x + 2.0f, ptWindow->tPos.y + 2.0f},
-                    .tMax = {ptWindow->tPos.x + ptWindow->tSize.x - 2.0f, ptWindow->tPos.y + fTitleBarHeight}
-                };
+                bRequestFocus = true;
+                gptCtx->ptMovingWindow = NULL;
+                gptCtx->ptNavWindow = ptWindow;
 
                 // check if window titlebar is clicked
                 if(!(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_TITLE_BAR) && gptIOI->is_mouse_hovering_rect(tTitleBarHitRegion.tMin, tTitleBarHitRegion.tMax))
                     gptCtx->ptMovingWindow = ptWindow;
 
-                pl__focus_window(ptWindow);
             }
         }
     }
+
+    if(bRequestFocus)
+        pl__focus_window(gptCtx->ptHoveredWindow->ptRootWindow);
 
     // scroll window
     if(gptCtx->ptWheelingWindow)
@@ -292,7 +272,6 @@ pl_end_frame(void)
     gptIO->_fMouseWheel = 0.0f;
     gptIO->_fMouseWheelH = 0.0f;
     pl_sb_reset(gptIO->_sbInputQueueCharacters);
-
 
     for(uint32_t i = 0; i < 5; i++)
     {
@@ -377,6 +356,23 @@ void
 pl_layout_row(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount, const float* pfSizesOrRatios)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+
+    // perform cursor increase if previous system didn't get a chance to wrap
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
+    {
+        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
+
+        // reset
+        ptCurrentRow->uCurrentColumn = 0;
+        ptCurrentRow->fMaxWidth = 0.0f;
+        ptCurrentRow->fMaxHeight = 0.0f;
+        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
+        ptCurrentRow->fVerticalOffset = 0.0f;
+    }
     
     plUiLayoutRow tNewRow = {
         .fHeight          = fHeight,
@@ -394,11 +390,29 @@ pl_end_window(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
+    if(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_MENU)
+    {
+        gptCtx->uMenuDepth--;
+    }
+
     if(!ptWindow->bCollapsed)
         gptDraw->pop_clip_rect(gptCtx->ptDrawlist);
 
-    gptCtx->ptCurrentWindow = NULL;
+    if(pl_sb_size(gptCtx->sbptWindowStack) == 0)
+    {
+        gptCtx->ptCurrentWindow = NULL;
+    }
+    else
+    {
+        gptCtx->ptCurrentWindow = pl_sb_pop(gptCtx->sbptWindowStack);
+    }
     pl_sb_pop(gptCtx->sbuIdStack);
+
+    if(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW)
+    {
+        if(gptCtx->ptCurrentWindow && !gptCtx->ptCurrentWindow->bCollapsed)
+            gptDraw->push_clip_rect(gptCtx->ptDrawlist, gptCtx->ptCurrentWindow->tInnerClipRect, false);
+    }
 }
 
 bool
@@ -458,11 +472,7 @@ void
 pl_end_child(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiWindow* ptParentWindow = ptWindow->ptParentWindow;
-
     pl_end_window();
-    gptCtx->ptCurrentWindow = ptParentWindow;
-
     pl__advance_cursor(ptWindow->tSize.x, ptWindow->tSize.y);
 }
 
@@ -523,7 +533,7 @@ pl_close_current_popup(void)
     {
         if(gptCtx->sbtOpenPopupStack[i].uId == gptCtx->sbtBeginPopupStack[uCurrentPopupIndex].uId)
         {
-            pl__focus_window(gptCtx->ptCurrentWindow->ptRestoreWindow);
+            // pl__focus_window(gptCtx->ptCurrentWindow->ptRestoreWindow);
             pl_sb_del(gptCtx->sbtOpenPopupStack, i);
             break;
         }
@@ -533,12 +543,7 @@ pl_close_current_popup(void)
 void
 pl_end_popup(void)
 {
-    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiWindow* ptParentWindow = ptWindow->ptRestoreWindow;
     pl_end_window();
-    gptCtx->ptCurrentWindow = ptParentWindow;
-    if(!ptParentWindow->bCollapsed)
-        gptDraw->push_clip_rect(gptCtx->ptDrawlist, ptParentWindow->tInnerClipRect, false);
 }
 
 bool
@@ -593,8 +598,8 @@ pl_begin_popup(const char* pcName, plUiWindowFlags tFlags)
             if(bNewOpen)
             {
                 pl__focus_window(gptCtx->ptCurrentWindow);
-                gptCtx->ptNavWindow = gptCtx->ptCurrentWindow;
             }
+            gptCtx->ptNavWindow = gptCtx->ptCurrentWindow;
         }
         else
             pl_end_popup();
@@ -762,6 +767,24 @@ void
 pl_layout_dynamic(float fHeight, uint32_t uWidgetCount)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+
+    // perform cursor increase if previous system didn't get a chance to wrap
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
+    {
+        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
+
+        // reset
+        ptCurrentRow->uCurrentColumn = 0;
+        ptCurrentRow->fMaxWidth = 0.0f;
+        ptCurrentRow->fMaxHeight = 0.0f;
+        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
+        ptCurrentRow->fVerticalOffset = 0.0f;
+    }
+
     plUiLayoutRow tNewRow = {
         .fHeight          = fHeight,
         .fSpecifiedHeight = fHeight,
@@ -777,6 +800,24 @@ void
 pl_layout_static(float fHeight, float fWidth, uint32_t uWidgetCount)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+
+    // perform cursor increase if previous system didn't get a chance to wrap
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
+    {
+        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
+
+        // reset
+        ptCurrentRow->uCurrentColumn = 0;
+        ptCurrentRow->fMaxWidth = 0.0f;
+        ptCurrentRow->fMaxHeight = 0.0f;
+        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
+        ptCurrentRow->fVerticalOffset = 0.0f;
+    }
+
     plUiLayoutRow tNewRow = {
         .fHeight          = fHeight,
         .fSpecifiedHeight = fHeight,
@@ -792,6 +833,24 @@ void
 pl_layout_row_begin(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+
+    // perform cursor increase if previous system didn't get a chance to wrap
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
+    {
+        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
+
+        // reset
+        ptCurrentRow->uCurrentColumn = 0;
+        ptCurrentRow->fMaxWidth = 0.0f;
+        ptCurrentRow->fMaxHeight = 0.0f;
+        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
+        ptCurrentRow->fVerticalOffset = 0.0f;
+    }
+
     plUiLayoutRow tNewRow = {
         .fHeight          = fHeight,
         .fSpecifiedHeight = fHeight,
@@ -830,6 +889,24 @@ void
 pl_layout_template_begin(float fHeight)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+
+    // perform cursor increase if previous system didn't get a chance to wrap
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
+    {
+        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
+
+        // reset
+        ptCurrentRow->uCurrentColumn = 0;
+        ptCurrentRow->fMaxWidth = 0.0f;
+        ptCurrentRow->fMaxHeight = 0.0f;
+        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
+        ptCurrentRow->fVerticalOffset = 0.0f;
+    }
+
     plUiLayoutRow tNewRow = {
         .fHeight          = fHeight,
         .fSpecifiedHeight = fHeight,
@@ -1054,6 +1131,24 @@ void
 pl_layout_space_begin(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+
+    // performs cursor increase if previous system didn't get a chance to wrap
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
+    {
+        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
+
+        // reset
+        ptCurrentRow->uCurrentColumn = 0;
+        ptCurrentRow->fMaxWidth = 0.0f;
+        ptCurrentRow->fMaxHeight = 0.0f;
+        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
+        ptCurrentRow->fVerticalOffset = 0.0f;
+    }
+
     plUiLayoutRow tNewRow = {
         .fHeight          = fHeight,
         .fSpecifiedHeight = tType == PL_UI_LAYOUT_ROW_TYPE_DYNAMIC ? fHeight : 1.0f,
@@ -1328,6 +1423,16 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     plUiWindow* ptWindow = NULL;                          // window we are working on
     plUiWindow* ptParentWindow = gptCtx->ptCurrentWindow; // parent window if there any
 
+    if(tFlags & PL_UI_WINDOW_FLAGS_MENU)
+    {
+        gptCtx->uMenuDepth++;
+    }
+
+    if(ptParentWindow)
+    {
+        pl_sb_push(gptCtx->sbptWindowStack, ptParentWindow);
+    }
+
     // generate hashed ID
     const uint32_t uWindowID = pl_str_hash(pcName, 0, ptParentWindow ? pl_sb_top(gptCtx->sbuIdStack) : 0);
     pl_sb_push(gptCtx->sbuIdStack, uWindowID);
@@ -1345,39 +1450,46 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         // allocate new window
         ptWindow = PL_ALLOC(sizeof(plUiWindow));
         memset(ptWindow, 0, sizeof(plUiWindow));
-        ptWindow->uId                     = uWindowID;
-        ptWindow->pcName                  = pcName;
-        ptWindow->tPos                    = (plVec2){ 200.0f, 200.0f};
-        ptWindow->tMinSize                = (plVec2){ 200.0f, 200.0f};
-        ptWindow->tMaxSize                = (plVec2){ 10000.0f, 10000.0f};
-        ptWindow->tSize                   = (plVec2){ 500.0f, 500.0f};
-        ptWindow->ptBgLayer               = gptDraw->request_2d_layer(gptCtx->ptDrawlist, pcName);
-        ptWindow->ptFgLayer               = gptDraw->request_2d_layer(gptCtx->ptDrawlist, pcName);
-        ptWindow->tPosAllowableFlags      = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
-        ptWindow->tSizeAllowableFlags     = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
-        ptWindow->tCollapseAllowableFlags = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
-        ptWindow->ptParentWindow          = NULL;
-        ptWindow->uFocusOrder             = pl_sb_size(gptCtx->sbptFocusedWindows);
-        ptWindow->tFlags                  = PL_UI_WINDOW_FLAGS_NONE;
-        ptWindow->bAppearing              = true;
+        ptWindow->uId                           = uWindowID;
+        ptWindow->szNameBufferLength            = strlen(pcName) + 1;
+        ptWindow->pcName                        = PL_ALLOC(ptWindow->szNameBufferLength);
+        ptWindow->tPos                          = (plVec2){ 200.0f, 200.0f};
+        ptWindow->tMinSize                      = (plVec2){ 200.0f, 200.0f};
+        ptWindow->tMaxSize                      = (plVec2){ 10000.0f, 10000.0f};
+        ptWindow->tSize                         = (plVec2){ 500.0f, 500.0f};
+        ptWindow->ptBgLayer                     = gptDraw->request_2d_layer(gptCtx->ptDrawlist, pcName);
+        ptWindow->ptFgLayer                     = gptDraw->request_2d_layer(gptCtx->ptDrawlist, pcName);
+        ptWindow->tPosAllowableFlags            = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
+        ptWindow->tSizeAllowableFlags           = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
+        ptWindow->tCollapseAllowableFlags       = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
+        ptWindow->ptParentWindow                = NULL;
+        ptWindow->ptRootWindow                  = NULL;
+        ptWindow->ptRootWindowTitleBarHighlight = NULL;
+        ptWindow->uFocusOrder                   = pl_sb_size(gptCtx->sbptFocusedWindows);
+        ptWindow->tFlags                        = PL_UI_WINDOW_FLAGS_NONE;
+        ptWindow->bAppearing                    = true;
+
+        memset(ptWindow->pcName, 0, ptWindow->szNameBufferLength);
+        strcpy(ptWindow->pcName, pcName);
 
         // add to focused windows if not a child
         if(tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
         {
             ptWindow->ptRootWindow = ptParentWindow->ptRootWindow;
             ptWindow->ptParentWindow = ptParentWindow;
+            ptWindow->ptRootWindowTitleBarHighlight = ptWindow->ptRootWindow;
         }
         else if(tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW)
         {
-            ptWindow->ptRestoreWindow = ptParentWindow;
             pl_sb_push(gptCtx->sbptFocusedWindows, ptWindow);
             ptWindow->ptRootWindow = ptWindow;
+            ptWindow->ptRootWindowTitleBarHighlight = ptParentWindow->ptRootWindow;
         }
         else // normal window
         {
-            ptWindow->ptRestoreWindow = ptWindow;
             pl_sb_push(gptCtx->sbptFocusedWindows, ptWindow);
             ptWindow->ptRootWindow = ptWindow;
+            ptWindow->ptRootWindowTitleBarHighlight = ptWindow;
         }
 
         // add window to storage
@@ -1512,9 +1624,11 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
         ptWindow->tInnerRect.tMin.y += fTitleBarHeight;
 
+        const bool bHighlightWindow = (gptCtx->ptNavWindow && ptWindow->ptRootWindowTitleBarHighlight == gptCtx->ptNavWindow->ptRootWindowTitleBarHighlight);
+
         // draw title bar
         plVec4 tTitleColor;
-        if(ptWindow == gptCtx->ptNavWindow)
+        if(bHighlightWindow)
             tTitleColor = gptCtx->tColorScheme.tTitleActiveCol;
         else if(ptWindow->bCollapsed)
             tTitleColor = gptCtx->tColorScheme.tTitleBgCollapsedCol;
@@ -1893,7 +2007,6 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         ptWindow->bVisible = pl_rect_overlaps_rect(&ptWindow->tInnerClipRect, &ptParentWindow->tInnerClipRect);
         return ptWindow->bVisible && !pl_rect_is_inverted(&ptWindow->tInnerClipRect);
     }
-
     return !ptWindow->bCollapsed;
 }
 
@@ -2077,12 +2190,11 @@ pl__set_active_id(uint32_t uHash, plUiWindow* ptWindow)
     gptCtx->bActiveIdJustActivated = gptCtx->uActiveId != uHash;
     gptCtx->uActiveId = uHash;
 
-    // temporary hack, not going to be correct for a "chain" of
-    // popups (e.g. menus)
-    if(ptWindow != NULL && gptCtx->ptNavWindow != ptWindow) 
+    if(gptCtx->ptNavWindow != ptWindow)
     {
         pl_sb_reset(gptCtx->sbtOpenPopupStack);
     }
+
     gptCtx->ptActiveWindow = ptWindow;
     gptCtx->ptNavWindow = ptWindow;
 
@@ -2091,8 +2203,7 @@ pl__set_active_id(uint32_t uHash, plUiWindow* ptWindow)
 
     if(gptCtx->bActiveIdJustActivated && uHash)
     {
-        pl__focus_window(ptWindow->ptRestoreWindow);
-        // pl_sb_reset(gptCtx->sbtOpenPopupStack);
+        pl__focus_window(ptWindow);
     }
 }
 
@@ -2134,8 +2245,11 @@ pl_ui_cleanup(void)
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtRowTemplateEntries);
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtTempLayoutSort);
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbuTempLayoutIndexSort);
+        PL_FREE(gptCtx->sbptFocusedWindows[i]->pcName);
         PL_FREE(gptCtx->sbptFocusedWindows[i]);
     }
+    pl_sb_free(gptCtx->sbptWindowStack);
+    pl_sb_free(gptCtx->sbcTempBuffer);
     pl_sb_free(gptCtx->sbptWindows);
     pl_sb_free(gptCtx->sbDrawlists);
     pl_sb_free(gptCtx->sbptFocusedWindows);
