@@ -356,23 +356,6 @@ void
 pl_layout_row(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount, const float* pfSizesOrRatios)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-
-    // perform cursor increase if previous system didn't get a chance to wrap
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
-    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
-    {
-        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
-
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
-
-        // reset
-        ptCurrentRow->uCurrentColumn = 0;
-        ptCurrentRow->fMaxWidth = 0.0f;
-        ptCurrentRow->fMaxHeight = 0.0f;
-        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
-        ptCurrentRow->fVerticalOffset = 0.0f;
-    }
     
     plUiLayoutRow tNewRow = {
         .fHeight          = fHeight,
@@ -768,23 +751,6 @@ pl_layout_dynamic(float fHeight, uint32_t uWidgetCount)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
-    // perform cursor increase if previous system didn't get a chance to wrap
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
-    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
-    {
-        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
-
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
-
-        // reset
-        ptCurrentRow->uCurrentColumn = 0;
-        ptCurrentRow->fMaxWidth = 0.0f;
-        ptCurrentRow->fMaxHeight = 0.0f;
-        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
-        ptCurrentRow->fVerticalOffset = 0.0f;
-    }
-
     plUiLayoutRow tNewRow = {
         .fHeight          = fHeight,
         .fSpecifiedHeight = fHeight,
@@ -801,23 +767,6 @@ pl_layout_static(float fHeight, float fWidth, uint32_t uWidgetCount)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
-    // perform cursor increase if previous system didn't get a chance to wrap
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
-    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
-    {
-        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
-
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
-
-        // reset
-        ptCurrentRow->uCurrentColumn = 0;
-        ptCurrentRow->fMaxWidth = 0.0f;
-        ptCurrentRow->fMaxHeight = 0.0f;
-        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
-        ptCurrentRow->fVerticalOffset = 0.0f;
-    }
-
     plUiLayoutRow tNewRow = {
         .fHeight          = fHeight,
         .fSpecifiedHeight = fHeight,
@@ -833,23 +782,6 @@ void
 pl_layout_row_begin(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-
-    // perform cursor increase if previous system didn't get a chance to wrap
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
-    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
-    {
-        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
-
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
-
-        // reset
-        ptCurrentRow->uCurrentColumn = 0;
-        ptCurrentRow->fMaxWidth = 0.0f;
-        ptCurrentRow->fMaxHeight = 0.0f;
-        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
-        ptCurrentRow->fVerticalOffset = 0.0f;
-    }
 
     plUiLayoutRow tNewRow = {
         .fHeight          = fHeight,
@@ -889,23 +821,6 @@ void
 pl_layout_template_begin(float fHeight)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-
-    // perform cursor increase if previous system didn't get a chance to wrap
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
-    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
-    {
-        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
-
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
-
-        // reset
-        ptCurrentRow->uCurrentColumn = 0;
-        ptCurrentRow->fMaxWidth = 0.0f;
-        ptCurrentRow->fMaxHeight = 0.0f;
-        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
-        ptCurrentRow->fVerticalOffset = 0.0f;
-    }
 
     plUiLayoutRow tNewRow = {
         .fHeight          = fHeight,
@@ -1131,23 +1046,6 @@ void
 pl_layout_space_begin(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-
-    // performs cursor increase if previous system didn't get a chance to wrap
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
-    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
-    {
-        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
-
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
-
-        // reset
-        ptCurrentRow->uCurrentColumn = 0;
-        ptCurrentRow->fMaxWidth = 0.0f;
-        ptCurrentRow->fMaxHeight = 0.0f;
-        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
-        ptCurrentRow->fVerticalOffset = 0.0f;
-    }
 
     plUiLayoutRow tNewRow = {
         .fHeight          = fHeight,

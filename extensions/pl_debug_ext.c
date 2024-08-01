@@ -735,7 +735,7 @@ pl__show_statistics(bool* bValue)
                 gptUI->layout_template_begin(0.0f);
                 gptUI->layout_template_push_static(35.0f);
                 for(uint32_t i = 0; i < uSelectedCount; i++)
-                    gptUI->layout_template_push_static(100.0f);
+                    gptUI->layout_template_push_static(150.0f);
                 gptUI->layout_template_end();
 
                 gptUI->text("Stat");
@@ -753,7 +753,7 @@ pl__show_statistics(bool* bValue)
                 gptUI->layout_template_begin(0.0f);
                 gptUI->layout_template_push_static(35.0f);
                 for(uint32_t i = 0; i < uSelectedCount; i++)
-                    gptUI->layout_template_push_static(100.0f);
+                    gptUI->layout_template_push_static(150.0f);
                 gptUI->layout_template_end();
 
                 uint32_t uIndexStart = (uint32_t)ptIOCtx->ulFrameCount;
