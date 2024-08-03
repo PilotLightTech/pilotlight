@@ -434,9 +434,6 @@ pl__button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, boo
     bool bPressed = false;
     bool bHovered = pl__is_item_hoverable(ptBox, uHash);
 
-    if(bHovered)
-        gptCtx->uNextHoveredId = uHash;
-
     bool bHeld = bHovered && gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT);
 
     if(uHash == gptCtx->uActiveId)
@@ -449,10 +446,12 @@ pl__button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, boo
 
     if(bHovered)
     {
+        gptCtx->uNextHoveredId = uHash;
         if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
         {
             bPressed = ptWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW;
             pl__set_active_id(uHash, ptWindow);
+            pl__focus_window(ptWindow);
             gptCtx->tPrevItemData.bActive = true;
         }
         else if(gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
@@ -1915,6 +1914,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         PL_ASSERT(ptState && ptState->uId == uHash);
         gptCtx->tPrevItemData.bActive = true;
         pl__set_active_id(uHash, ptWindow);
+        pl__focus_window(ptWindow);
         // SetFocusID(id, window);
         // FocusWindow(window);
     }
@@ -2427,6 +2427,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
     else if (gptCtx->uActiveId == uHash)
     {
         pl__set_active_id(uHash, ptWindow);
+        pl__focus_window(ptWindow);
         gptIO->bWantTextInput = true;
     }
 
@@ -2758,6 +2759,10 @@ pl_slider_float_f(const char* pcLabel, float* pfValue, float fMin, float fMax, c
             if(gptIOI->get_mouse_pos().x > tBoundingBox.tMax.x) *pfValue = fMax;
             gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
             pl__set_active_id(uHash, ptWindow);
+            if(gptCtx->bActiveIdJustActivated)
+            {
+                pl__focus_window(ptWindow);
+            }
         }
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
@@ -2835,6 +2840,10 @@ pl_slider_int_f(const char* pcLabel, int* piValue, int iMin, int iMax, const cha
 
             *piValue = pl_clampi(iMin, *piValue, iMax);
             pl__set_active_id(uHash, ptWindow);
+            if(gptCtx->bActiveIdJustActivated)
+            {
+                pl__focus_window(ptWindow);
+            }
         }
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
@@ -2895,6 +2904,10 @@ pl_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin, f
             *pfValue = gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fSpeed;
             *pfValue = pl_clampf(fMin, *pfValue, fMax);
             pl__set_active_id(uHash, ptWindow);
+            if(gptCtx->bActiveIdJustActivated)
+            {
+                pl__focus_window(ptWindow);
+            }
         }
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);

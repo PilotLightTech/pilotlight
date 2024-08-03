@@ -1360,8 +1360,9 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         ptWindow->tPosAllowableFlags            = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
         ptWindow->tSizeAllowableFlags           = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
         ptWindow->tCollapseAllowableFlags       = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
-        ptWindow->ptParentWindow                = NULL;
+        ptWindow->ptParentWindow                = ptParentWindow;
         ptWindow->ptRootWindow                  = NULL;
+        ptWindow->ptRootWindowPopupTree         = NULL;
         ptWindow->ptRootWindowTitleBarHighlight = NULL;
         ptWindow->uFocusOrder                   = pl_sb_size(gptCtx->sbptFocusedWindows);
         ptWindow->tFlags                        = PL_UI_WINDOW_FLAGS_NONE;
@@ -1374,19 +1375,21 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         if(tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
         {
             ptWindow->ptRootWindow = ptParentWindow->ptRootWindow;
-            ptWindow->ptParentWindow = ptParentWindow;
+            ptWindow->ptRootWindowPopupTree = ptWindow->ptRootWindow;
             ptWindow->ptRootWindowTitleBarHighlight = ptWindow->ptRootWindow;
         }
         else if(tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW)
         {
             pl_sb_push(gptCtx->sbptFocusedWindows, ptWindow);
             ptWindow->ptRootWindow = ptWindow;
+            ptWindow->ptRootWindowPopupTree = ptParentWindow;
             ptWindow->ptRootWindowTitleBarHighlight = ptParentWindow->ptRootWindow;
         }
         else // normal window
         {
             pl_sb_push(gptCtx->sbptFocusedWindows, ptWindow);
             ptWindow->ptRootWindow = ptWindow;
+            ptWindow->ptRootWindowPopupTree = ptWindow;
             ptWindow->ptRootWindowTitleBarHighlight = ptWindow;
         }
 
@@ -1468,8 +1471,8 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     if(ptWindow->bCollapsed)
         ptWindow->tSize = (plVec2){ptWindow->tSize.x, fTitleBarHeight};
 
-    // adjust window position if outside viewport (and is a root)
-    if(ptParentWindow == NULL)
+    // adjust window position if outside viewport
+    if((ptWindow->tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW) == 0)
     {
         if(ptWindow->tPos.x > gptIO->afMainViewportSize[0])
             ptWindow->tPos.x = gptIO->afMainViewportSize[0] - ptWindow->tSize.x / 2.0f;
@@ -1594,7 +1597,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         fTitleBarHeight = 0.0f;
 
     if(ptWindow->bAppearing)
-        ptWindow->uHideFrames = 2;
+        ptWindow->uHideFrames = 1;
 
     // remove padding for inner clip rect
     ptWindow->tInnerClipRect = pl_rect_expand_vec2(&ptWindow->tInnerRect, (plVec2){-gptCtx->tStyle.fWindowHorizontalPadding, 0.0f});
@@ -2087,21 +2090,15 @@ pl__set_active_id(uint32_t uHash, plUiWindow* ptWindow)
 {
     gptCtx->bActiveIdJustActivated = gptCtx->uActiveId != uHash;
     gptCtx->uActiveId = uHash;
-
-    if(gptCtx->ptNavWindow != ptWindow)
-    {
-        pl_sb_reset(gptCtx->sbtOpenPopupStack);
-    }
-
     gptCtx->ptActiveWindow = ptWindow;
     gptCtx->ptNavWindow = ptWindow;
 
     if(uHash)
         gptCtx->uActiveIdIsAlive = uHash;
 
-    if(gptCtx->bActiveIdJustActivated && uHash)
+    if(gptCtx->ptNavWindow != ptWindow)
     {
-        pl__focus_window(ptWindow);
+        pl_sb_reset(gptCtx->sbtOpenPopupStack);
     }
 }
 
@@ -2135,6 +2132,7 @@ pl_ui_cleanup(void)
             pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbtTempLayoutSort);
             pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbuTempLayoutIndexSort);
             pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->tStorage.sbtData);
+            PL_FREE(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->pcName);
             PL_FREE(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]);
         }
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->tStorage.sbtData);

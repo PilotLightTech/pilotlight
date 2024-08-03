@@ -381,6 +381,7 @@ typedef struct _plUiWindow
     plRect               tInnerClipRect;                // inner rect clipped by parent window & viewport (includes horizontal padding on each side)
     plUiWindow*          ptParentWindow;                // parent window if child
     plUiWindow*          ptRootWindow;                  // root window or self if this is the root window
+    plUiWindow*          ptRootWindowPopupTree;         // root window or self if this is the root window
     plUiWindow*          ptRootWindowTitleBarHighlight; // root window or self if this is the root window
     bool                 bAppearing;
     bool                 bVisible;                // true if visible (only for child windows at the moment)
