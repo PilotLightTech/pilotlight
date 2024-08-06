@@ -157,9 +157,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     ptEditorData->uSceneHandle0 = gptRenderer->create_scene();
 
-    pl_begin_profile_sample("load environments");
-    gptRenderer->load_skybox_from_panorama(ptEditorData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 256);
-    pl_end_profile_sample();
+    // pl_begin_profile_sample("load environments");
+    // gptRenderer->load_skybox_from_panorama(ptEditorData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 256);
+    // pl_end_profile_sample();
 
     pl_begin_profile_sample("create scene views");
     ptEditorData->uViewHandle0 = gptRenderer->create_view(ptEditorData->uSceneHandle0, (plVec2){ptIO->afMainViewportSize[0] , ptIO->afMainViewportSize[1]});
@@ -184,10 +184,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     gptCamera->update(ptCullCamera);
 
     // create lights
-    gptEcs->create_point_light(ptMainComponentLibrary, "light", (plVec3){6.0f, 4.0f, -3.0f}, NULL);
+    // gptEcs->create_point_light(ptMainComponentLibrary, "light", (plVec3){6.0f, 4.0f, -3.0f}, NULL);
 
     plLightComponent* ptLight = NULL;
-    ptEditorData->tSunlight = gptEcs->create_directional_light(ptMainComponentLibrary, "sunlight", (plVec3){-0.375f, -1.0f, -0.085f}, &ptLight);
+    ptEditorData->tSunlight = gptEcs->create_directional_light(ptMainComponentLibrary, "sunlight", (plVec3){0.102f, -0.123f, -0.371f}, &ptLight);
     ptLight->uCascadeCount = 4;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
 
@@ -196,9 +196,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     plModelLoaderData tLoaderData0 = {0};
 
     pl_begin_profile_sample("load models 0");
-    // const plMat4 tTransform = pl_mat4_translate_xyz(0.0f, 0.0F, 0.0f);
+    const plMat4 tTransform = pl_mat4_scale_xyz(200.0f, 200.0f, 200.0f);
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf", &tTransform, &tLoaderData0);
-    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
+    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/MetalRoughSpheresNoTextures/glTF/MetalRoughSpheresNoTextures.gltf", &tTransform, &tLoaderData0);
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf", NULL, &tLoaderData0);
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/kenny.glb", NULL, &tLoaderData0);
