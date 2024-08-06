@@ -73,9 +73,8 @@ pl_show_debug_window(bool* pbOpen)
         }
         if(pl_tree_node("Internal State"))
         {
-            pl_text("Windows");
+            pl_separator_text("Windowing");
             pl_indent(0.0f);
-            pl_text("Nav Window: %s", gptCtx->ptNavWindow ? gptCtx->ptNavWindow->pcName : "NULL");
             
             pl_text("Hovered Window: %s", gptCtx->ptHoveredWindow ? gptCtx->ptHoveredWindow->pcName : "NULL");
             pl_text("Moving Window:  %s", gptCtx->ptMovingWindow ? gptCtx->ptMovingWindow->pcName : "NULL");
@@ -83,11 +82,18 @@ pl_show_debug_window(bool* pbOpen)
             pl_text("Scrolling Window:  %s", gptCtx->ptScrollingWindow ? gptCtx->ptScrollingWindow->pcName : "NULL");
             pl_text("Wheeling Window:  %s", gptCtx->ptWheelingWindow ? gptCtx->ptWheelingWindow->pcName : "NULL");
             pl_unindent(0.0f);
-            pl_text("Items");
+            
+            pl_separator_text("Items");
             pl_indent(0.0f);
             pl_text("Active Window: %s", gptCtx->ptActiveWindow ? gptCtx->ptActiveWindow->pcName : "NULL");
             pl_text("Active ID:        %u", gptCtx->uActiveId);
             pl_text("Hovered ID:       %u", gptCtx->uHoveredId);
+            pl_unindent(0.0f);
+
+            pl_separator_text("Navigation");
+            pl_indent(0.0f);
+            pl_text("Nav Window: %s", gptCtx->ptNavWindow ? gptCtx->ptNavWindow->pcName : "NULL"); 
+            pl_text("Nav ID:     %u", gptCtx->uNavId);
             pl_unindent(0.0f);
             pl_tree_pop();
         }

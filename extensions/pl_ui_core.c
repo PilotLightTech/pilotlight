@@ -157,6 +157,9 @@ pl_new_frame(void)
         pl__set_active_id(0, NULL);
     }
     gptCtx->uActiveIdIsAlive = 0;
+    if(!gptCtx->bNavIdIsAlive)
+        gptCtx->uNavId = 0;
+    gptCtx->bNavIdIsAlive = false;
 
     if(gptCtx->uActiveId == 0)
         gptCtx->ptActiveWindow = NULL;
@@ -2091,14 +2094,38 @@ pl__set_active_id(uint32_t uHash, plUiWindow* ptWindow)
     gptCtx->bActiveIdJustActivated = gptCtx->uActiveId != uHash;
     gptCtx->uActiveId = uHash;
     gptCtx->ptActiveWindow = ptWindow;
-    gptCtx->ptNavWindow = ptWindow;
-
     if(uHash)
         gptCtx->uActiveIdIsAlive = uHash;
+}
+
+static void
+pl__set_nav_id(uint32_t uHash, plUiWindow* ptWindow)
+{
+    gptCtx->uNavId = uHash;
+    
+    if(uHash)
+        gptCtx->bNavIdIsAlive = true;
 
     if(gptCtx->ptNavWindow != ptWindow)
     {
         pl_sb_reset(gptCtx->sbtOpenPopupStack);
+    }
+
+    gptCtx->ptNavWindow = ptWindow;
+}
+
+static void
+pl__add_widget(uint32_t uHash)
+{
+    if(uHash != 0)
+    {
+        if(gptCtx->uNavId == uHash)
+        {
+            if(gptCtx->ptCurrentWindow == gptCtx->ptNavWindow)
+            {
+                gptCtx->bNavIdIsAlive = true;
+            }
+        }
     }
 }
 
@@ -2157,5 +2184,3 @@ pl_ui_cleanup(void)
     pl_sb_free(gptCtx->sbtOpenPopupStack);
     pl_sb_free(gptCtx->tWindows.sbtData);
 }
-
-

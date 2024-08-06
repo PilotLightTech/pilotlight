@@ -451,6 +451,7 @@ pl__button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, boo
         {
             bPressed = ptWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW;
             pl__set_active_id(uHash, ptWindow);
+            pl__set_nav_id(uHash, ptWindow);
             pl__focus_window(ptWindow);
             gptCtx->tPrevItemData.bActive = true;
         }
@@ -533,6 +534,7 @@ pl_button(const char* pcText)
             tTextStartPos.x += tStartPos.x + tWidgetSize.x / 2.0f - tTextActualCenter.x;
 
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, tBoundingBox.tMin, tBoundingBox.tMax, gptCtx->tColorScheme.tTextCol, pcText, 0.0f);
+        pl__add_widget(uHash);
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed;
@@ -584,6 +586,7 @@ pl_selectable(const char* pcText, bool* bpValue)
             gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderCol, 0.0f, 0);
 
         pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
+        pl__add_widget(uHash);
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed; 
@@ -653,6 +656,7 @@ pl_menu_item(const char* pcLabel, const char* pcShortcut, bool bSelected, bool b
         {
             pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextDisabledCol, pcLabel, -1.0f);
         }
+        pl__add_widget(uHash);
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed; 
@@ -726,6 +730,7 @@ pl_menu_item_toggle(const char* pcLabel, const char* pcShortcut, bool* pbSelecte
         {
             pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextDisabledCol, pcLabel, -1.0f);
         }
+        pl__add_widget(uHash);
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed && *pbSelected; 
@@ -779,6 +784,7 @@ pl_checkbox(const char* pcText, bool* bpValue)
 
         // add label
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, tStartPos, pl_add_vec2(tStartPos, tWidgetSize), gptCtx->tColorScheme.tTextCol, pcText, -1.0f); 
+        pl__add_widget(uHash);
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed;
@@ -827,6 +833,7 @@ pl_radio_button(const char* pcText, int* piValue, int iButtonValue)
             gptDraw->add_circle_filled(ptWindow->ptFgLayer, (plVec2){tStartPos.x + tWidgetSize.y / 2.0f, tStartPos.y + tWidgetSize.y / 2.0f}, gptCtx->tStyle.fFontSize / 2.5f, gptCtx->tColorScheme.tCheckmarkCol, 12);
 
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, tStartPos, pl_add_vec2(tStartPos, tWidgetSize), gptCtx->tColorScheme.tTextCol, pcText, -1.0f); 
+        pl__add_widget(uHash);
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed;
@@ -911,6 +918,7 @@ pl_begin_combo(const char* pcLabel, const char* pcPreview, plUiComboFlags tFlags
         pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
         pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcPreview, -1.0f);
 
+        pl__add_widget(uHash);
         pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
 
         if(bPopupOpen)
@@ -970,7 +978,6 @@ pl_begin_menu(const char* pcLabel, bool bEnabled)
     {
         const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
         
-
         plRect tTextBounding = gptDraw->calculate_text_bb_ex(gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartPos, pcLabel, pl__find_renderered_text_end(pcLabel, NULL), -1.0f);
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
 
@@ -1001,9 +1008,6 @@ pl_begin_menu(const char* pcLabel, bool bEnabled)
         if(gptCtx->uActiveId == uHash)       gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderActiveCol, 0.0f, 0);
         else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderHoveredCol, 0.0f, 0);
 
-        // if(*bpValue)
-        //     gptDraw->add_rect_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, gptCtx->tColorScheme.tHeaderCol, 0.0f, 0);
-
         pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcLabel, -1.0f);
 
         const plVec2 centerPoint = {tBoundingBox.tMax.x - 8.0f * 1.5f, tStartPos.y + tWidgetSize.y / 2.0f};
@@ -1012,6 +1016,7 @@ pl_begin_menu(const char* pcLabel, bool bEnabled)
         const plVec2 leftPos  = pl_add_vec2(centerPoint,  (plVec2){-4.0f, 4.0f});
         gptDraw->add_triangle_filled(ptWindow->ptFgLayer, pointPos, rightPos, leftPos, (plVec4){1.0f, 1.0f, 1.0f, 1.0f});
 
+        pl__add_widget(uHash);
         pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
 
         if(bPopupOpen)
@@ -1032,8 +1037,7 @@ pl_begin_menu(const char* pcLabel, bool bEnabled)
             float fSizeMultiplier = 8.0f;
 
             // pl_set_next_window_size((plVec2){ tWidgetSize.x,  tWidgetSize.y * fSizeMultiplier}, PL_UI_COND_ALWAYS);
-            bResult = pl_begin_popup(gptCtx->sbcTempBuffer, tWindowFlags);
-            
+            bResult = pl_begin_popup(gptCtx->sbcTempBuffer, tWindowFlags);  
         }
     }
     else
@@ -1104,6 +1108,8 @@ pl_collapsing_header(const char* pcText)
     }
     if(*pbOpenState)
         pl_sb_push(ptWindow->sbtRowStack, ptWindow->tTempData.tCurrentLayoutRow);
+
+    pl__add_widget(uHash);
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return *pbOpenState; 
 }
@@ -1169,6 +1175,7 @@ pl_tree_node(const char* pcText)
         };
         pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, gptCtx->tColorScheme.tTextCol, pcText, -1.0f);
     }
+    pl__add_widget(uHash);
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
 
     if(*pbOpenState)
@@ -1276,6 +1283,7 @@ pl_begin_tab_bar(const char* pcText)
         (plVec2){gptCtx->ptCurrentTabBar->tStartPos.x + tWidgetSize.x, gptCtx->ptCurrentTabBar->tStartPos.y + fFrameHeight},
         gptCtx->tColorScheme.tButtonActiveCol, 1.0f);
 
+    pl__add_widget(uHash);
     pl__advance_cursor(tWidgetSize.x, fFrameHeight);
     return true;
 }
@@ -1914,9 +1922,8 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         PL_ASSERT(ptState && ptState->uId == uHash);
         gptCtx->tPrevItemData.bActive = true;
         pl__set_active_id(uHash, ptWindow);
+        pl__set_nav_id(uHash, ptWindow);
         pl__focus_window(ptWindow);
-        // SetFocusID(id, window);
-        // FocusWindow(window);
     }
 
     // We have an edge case if ActiveId was set through another widget (e.g. widget being swapped), clear id immediately (don't wait until the end of the function)
@@ -2759,11 +2766,13 @@ pl_slider_float_f(const char* pcLabel, float* pfValue, float fMin, float fMax, c
             if(gptIOI->get_mouse_pos().x > tBoundingBox.tMax.x) *pfValue = fMax;
             gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
             pl__set_active_id(uHash, ptWindow);
+            pl__set_nav_id(uHash, ptWindow);
             if(gptCtx->bActiveIdJustActivated)
             {
                 pl__focus_window(ptWindow);
             }
         }
+        pl__add_widget(uHash);
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return fOriginalValue != *pfValue;
@@ -2840,11 +2849,13 @@ pl_slider_int_f(const char* pcLabel, int* piValue, int iMin, int iMax, const cha
 
             *piValue = pl_clampi(iMin, *piValue, iMax);
             pl__set_active_id(uHash, ptWindow);
+            pl__set_nav_id(uHash, ptWindow);
             if(gptCtx->bActiveIdJustActivated)
             {
                 pl__focus_window(ptWindow);
             }
         }
+        pl__add_widget(uHash);
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return iOriginalValue != *piValue;
@@ -2904,11 +2915,13 @@ pl_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin, f
             *pfValue = gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fSpeed;
             *pfValue = pl_clampf(fMin, *pfValue, fMax);
             pl__set_active_id(uHash, ptWindow);
+            pl__set_nav_id(uHash, ptWindow);
             if(gptCtx->bActiveIdJustActivated)
             {
                 pl__focus_window(ptWindow);
             }
         }
+        pl__add_widget(uHash);
     }
     pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return fOriginalValue != *pfValue;    
@@ -2972,6 +2985,7 @@ pl_image_button_ex(const char* pcId, plTextureHandle tTexture, plVec2 tSize, plV
         if(tBorderColor.a > 0.0f)
             gptDraw->add_rect(ptWindow->ptFgLayer, tStartPos, tFinalPos, tBorderColor, 1.0f, 0.0f, 0);
 
+        pl__add_widget(uHash);
     }
     pl__advance_cursor(tSize.x, tSize.y);
     return bPressed;
@@ -3001,6 +3015,7 @@ pl_invisible_button(const char* pcText, plVec2 tSize)
         bool bHovered = false;
         bool bHeld = false;
         bPressed = pl__button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
+        pl__add_widget(uHash);
     }
     pl__advance_cursor(tSize.x, tSize.y);
     return bPressed;  
