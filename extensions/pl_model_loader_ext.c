@@ -459,54 +459,6 @@ pl__refr_load_material(const char* pcDirectory, plMaterialComponent* ptMaterial,
             pl__load_gltf_texture(PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP, &ptGltfMaterial->pbr_metallic_roughness.metallic_roughness_texture, pcDirectory, ptGltfMaterial, ptMaterial);
         
     }
-
-    if(ptGltfMaterial->has_clearcoat)
-    {
-        ptMaterial->fClearcoatFactor = ptGltfMaterial->clearcoat.clearcoat_factor;
-        ptMaterial->fClearcoatRoughness = ptGltfMaterial->clearcoat.clearcoat_roughness_factor;
-
-        if(ptGltfMaterial->clearcoat.clearcoat_texture.texture)
-        	pl__load_gltf_texture(PL_TEXTURE_SLOT_CLEARCOAT_MAP, &ptGltfMaterial->clearcoat.clearcoat_texture, pcDirectory, ptGltfMaterial, ptMaterial);
-        
-        if(ptGltfMaterial->clearcoat.clearcoat_roughness_texture.texture)
-        	pl__load_gltf_texture(PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP, &ptGltfMaterial->clearcoat.clearcoat_roughness_texture, pcDirectory, ptGltfMaterial, ptMaterial);
-
-        if(ptGltfMaterial->clearcoat.clearcoat_normal_texture.texture)
-        	pl__load_gltf_texture(PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP, &ptGltfMaterial->clearcoat.clearcoat_normal_texture, pcDirectory, ptGltfMaterial, ptMaterial);
-    }
-
-    if(ptGltfMaterial->has_iridescence)
-    {
-        ptMaterial->fIridescenceFactor = ptGltfMaterial->iridescence.iridescence_factor;
-        ptMaterial->fIridescenceIor = ptGltfMaterial->iridescence.iridescence_ior;
-        ptMaterial->fIridescenceThicknessMaximum = ptGltfMaterial->iridescence.iridescence_thickness_max;
-        ptMaterial->fIridescenceThicknessMinimum = ptGltfMaterial->iridescence.iridescence_thickness_min;
-
-        if(ptGltfMaterial->iridescence.iridescence_texture.texture)
-        	pl__load_gltf_texture(PL_TEXTURE_SLOT_IRIDESCENCE_MAP, &ptGltfMaterial->iridescence.iridescence_texture, pcDirectory, ptGltfMaterial, ptMaterial);
-        
-        if(ptGltfMaterial->iridescence.iridescence_thickness_texture.texture)
-        	pl__load_gltf_texture(PL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS_MAP, &ptGltfMaterial->iridescence.iridescence_thickness_texture, pcDirectory, ptGltfMaterial, ptMaterial);
-    }
-
-    if(ptGltfMaterial->has_ior)
-    {
-        ptMaterial->fRefraction = ptGltfMaterial->ior.ior;
-    }
-
-    if(ptGltfMaterial->has_specular)
-    {
-        ptMaterial->tSpecularColor.r = ptGltfMaterial->specular.specular_color_factor[0];
-        ptMaterial->tSpecularColor.g = ptGltfMaterial->specular.specular_color_factor[1];
-        ptMaterial->tSpecularColor.b = ptGltfMaterial->specular.specular_color_factor[2];
-        ptMaterial->fSpecularFactor = ptGltfMaterial->specular.specular_factor;
-        if(ptGltfMaterial->specular.specular_texture.texture)
-            pl__load_gltf_texture(PL_TEXTURE_SLOT_SPECULAR_MAP, &ptGltfMaterial->specular.specular_texture, pcDirectory, ptGltfMaterial, ptMaterial);
-        
-        if(ptGltfMaterial->specular.specular_color_texture.texture)
-            pl__load_gltf_texture(PL_TEXTURE_SLOT_SPECULAR_COLOR_MAP, &ptGltfMaterial->specular.specular_color_texture, pcDirectory, ptGltfMaterial, ptMaterial);
-    }
-
 }
 
 static void

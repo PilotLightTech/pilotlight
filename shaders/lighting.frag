@@ -107,59 +107,6 @@ vec3 F_Schlick(vec3 f0, vec3 f90, float VdotH)
     return f0 + (f90 - f0) * pow(clamp(1.0 - VdotH, 0.0, 1.0), 5.0);
 }
 
-float F_Schlick(float f0, float f90, float VdotH)
-{
-    float x = clamp(1.0 - VdotH, 0.0, 1.0);
-    float x2 = x * x;
-    float x5 = x * x2 * x2;
-    return f0 + (f90 - f0) * x5;
-}
-
-float F_Schlick(float f0, float VdotH)
-{
-    float f90 = 1.0; //clamp(50.0 * f0, 0.0, 1.0);
-    return F_Schlick(f0, f90, VdotH);
-}
-
-vec3 F_Schlick(vec3 f0, float f90, float VdotH)
-{
-    float x = clamp(1.0 - VdotH, 0.0, 1.0);
-    float x2 = x * x;
-    float x5 = x * x2 * x2;
-    return f0 + (f90 - f0) * x5;
-}
-
-vec3 F_Schlick(vec3 f0, float VdotH)
-{
-    float f90 = 1.0; //clamp(dot(f0, vec3(50.0 * 0.33)), 0.0, 1.0);
-    return F_Schlick(f0, f90, VdotH);
-}
-
-vec3 Schlick_to_F0(vec3 f, vec3 f90, float VdotH) {
-    float x = clamp(1.0 - VdotH, 0.0, 1.0);
-    float x2 = x * x;
-    float x5 = clamp(x * x2 * x2, 0.0, 0.9999);
-
-    return (f - f90 * x5) / (1.0 - x5);
-}
-
-float Schlick_to_F0(float f, float f90, float VdotH) {
-    float x = clamp(1.0 - VdotH, 0.0, 1.0);
-    float x2 = x * x;
-    float x5 = clamp(x * x2 * x2, 0.0, 0.9999);
-
-    return (f - f90 * x5) / (1.0 - x5);
-}
-
-vec3 Schlick_to_F0(vec3 f, float VdotH) {
-    return Schlick_to_F0(f, vec3(1.0), VdotH);
-}
-
-float Schlick_to_F0(float f, float VdotH) {
-    return Schlick_to_F0(f, 1.0, VdotH);
-}
-
-
 // Smith Joint GGX
 // Note: Vis = G / (4 * NdotL * NdotV)
 // see Eric Heitz. 2014. Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs. Journal of Computer Graphics Techniques, 3
@@ -191,17 +138,6 @@ float D_GGX(float NdotH, float alphaRoughness)
     return alphaRoughnessSq / (M_PI * f * f);
 }
 
-// Estevez and Kulla http://www.aconty.com/pdf/s2017_pbs_imageworks_sheen.pdf
-float D_Charlie(float sheenRoughness, float NdotH)
-{
-    sheenRoughness = max(sheenRoughness, 0.000001); //clamp (0,1]
-    float alphaG = sheenRoughness * sheenRoughness;
-    float invR = 1.0 / alphaG;
-    float cos2h = NdotH * NdotH;
-    float sin2h = 1.0 - cos2h;
-    return (2.0 + invR) * pow(sin2h, invR * 0.5) / (2.0 * M_PI);
-}
-
 
 //https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#acknowledgments AppendixB
 vec3 BRDF_lambertian(vec3 f0, vec3 f90, vec3 diffuseColor, float specularWeight, float VdotH)
@@ -209,7 +145,6 @@ vec3 BRDF_lambertian(vec3 f0, vec3 f90, vec3 diffuseColor, float specularWeight,
     // see https://seblagarde.wordpress.com/2012/01/08/pi-or-not-to-pi-in-game-lighting-equation/
     return (1.0 - specularWeight * F_Schlick(f0, f90, VdotH)) * (diffuseColor / M_PI);
 }
-
 
 //  https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#acknowledgments AppendixB
 vec3 BRDF_specularGGX(vec3 f0, vec3 f90, float alphaRoughness, float specularWeight, float VdotH, float NdotL, float NdotV, float NdotH)
@@ -338,10 +273,6 @@ void main()
     vec3 f_specular = vec3(0.0);
     vec3 f_diffuse = vec3(0.0);
    
-    vec3 f_clearcoat = vec3(0.0);
-    vec3 f_sheen = vec3(0.0);
-    vec3 f_transmission = vec3(0.0);
-
     const float fMetalness = AORoughnessMetalnessData.g;
     vec3 c_diff = mix(tBaseColor.rgb,  vec3(0), fMetalness);
     vec3 f0 = mix(vec3(0.04), tBaseColor.rgb, fMetalness);
@@ -361,12 +292,8 @@ void main()
     // punctual stuff
     vec3 f_diffuse_ibl = f_diffuse;
     vec3 f_specular_ibl = f_specular;
-    vec3 f_sheen_ibl = f_sheen;
-    vec3 f_clearcoat_ibl = f_clearcoat;
     f_diffuse = vec3(0.0);
     f_specular = vec3(0.0);
-    f_sheen = vec3(0.0);
-    f_clearcoat = vec3(0.0);
 
     uint cascadeIndex = 0;
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL))
@@ -431,14 +358,8 @@ void main()
     }
 
     // Layer blending
-
-    float albedoSheenScaling = 1.0;
-    float clearcoatFactor = 0.0;
-    vec3 clearcoatFresnel = vec3(0);
     vec3 diffuse;
     vec3 specular;
-    vec3 sheen;
-    vec3 clearcoat;
 
     const float ao = AORoughnessMetalnessData.r;
     if(ao != 1.0)
@@ -447,20 +368,14 @@ void main()
         diffuse = f_diffuse + mix(f_diffuse_ibl, f_diffuse_ibl * ao, u_OcclusionStrength);
         // apply ambient occlusion to all lighting that is not punctual
         specular = f_specular + mix(f_specular_ibl, f_specular_ibl * ao, u_OcclusionStrength);
-        sheen = f_sheen + mix(f_sheen_ibl, f_sheen_ibl * ao, u_OcclusionStrength);
-        clearcoat = f_clearcoat + mix(f_clearcoat_ibl, f_clearcoat_ibl * ao, u_OcclusionStrength);
     }
     else
     {
         diffuse = f_diffuse_ibl + f_diffuse;
         specular = f_specular_ibl + f_specular;
-        sheen = f_sheen_ibl + f_sheen;
-        clearcoat = f_clearcoat_ibl + f_clearcoat;
     }
 
     vec3 color = diffuse + specular;
-    color = sheen + color * albedoSheenScaling;
-    color = color * (1.0 - clearcoatFactor * clearcoatFresnel) + clearcoat;
 
     // outColor = vec4(linearTosRGB(color.rgb), tBaseColor.a);
     outColor = vec4(color.rgb, tBaseColor.a);

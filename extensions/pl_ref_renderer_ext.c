@@ -98,45 +98,22 @@ typedef struct _plGPUMaterial
     int _unused0[1];
     plVec4 tBaseColorFactor;
 
-    // // Clearcoat
-    float fClearcoatFactor;
-    float fClearcoatRoughnessFactor;
-    int _unused1[2];
-
-    // Specular
-    plVec3 tKHR_materials_specular_specularColorFactor;
-    float fKHR_materials_specular_specularFactor;
-
-    // // Iridescence
-    float fIridescenceFactor;
-    float fIridescenceIor;
-    float fIridescenceThicknessMinimum;
-    float fIridescenceThicknessMaximum;
-
     // Emissive Strength
     plVec3 tEmissiveFactor;
     float  fEmissiveStrength;
     
-    // IOR
-    float fIor;
-
     // Alpha mode
     float fAlphaCutoff;
     float fOcclusionStrength;
-    int _unused2[1];
+    int _unused1[2];
 
     int iBaseColorUVSet;
     int iNormalUVSet;
     int iEmissiveUVSet;
     int iOcclusionUVSet;
+
     int iMetallicRoughnessUVSet;
-    int iClearcoatUVSet;
-    int iClearcoatRoughnessUVSet;
-    int iClearcoatNormalUVSet;
-    int iSpecularUVSet;
-    int iSpecularColorUVSet;
-    int iIridescenceUVSet;
-    int iIridescenceThicknessUVSet;
+    int _unused2[3];
 } plGPUMaterial;
 
 typedef struct _plGPULight
@@ -723,20 +700,13 @@ pl_refr_initialize(plWindow* ptWindow)
                     }
                 },
                 {
-                    .uTextureBindingCount  = 12,
+                    .uTextureBindingCount  = 5,
                     .atTextureBindings = {
                         {.uSlot =   0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
                         {.uSlot =   1, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
                         {.uSlot =   2, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
                         {.uSlot =   3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
                         {.uSlot =   4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =   5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =   6, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =   7, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =   8, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =   9, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =  10, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =  11, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
                     }
                 }
             }
@@ -827,20 +797,13 @@ pl_refr_initialize(plWindow* ptWindow)
                     },
                 },
                 {
-                    .uTextureBindingCount  = 12,
+                    .uTextureBindingCount  = 5,
                     .atTextureBindings = {
                         {.uSlot =   0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
                         {.uSlot =   1, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
                         {.uSlot =   2, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
                         {.uSlot =   3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =   4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =   5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =   6, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =   7, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =   8, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =   9, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =  10, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot =  11, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
+                        {.uSlot =   4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1}
                     }
                 }
             }
@@ -2645,20 +2608,13 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         plMaterialComponent* ptMaterial = &sbtMaterials[i];
 
         plBindGroupLayout tMaterialBindGroupLayout = {
-            .uTextureBindingCount = 12,
+            .uTextureBindingCount = 5,
             .atTextureBindings = {
                 {.uSlot =  0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
                 {.uSlot =  1, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
                 {.uSlot =  2, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
                 {.uSlot =  3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-                {.uSlot =  4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-                {.uSlot =  5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-                {.uSlot =  6, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-                {.uSlot =  7, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-                {.uSlot =  8, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-                {.uSlot =  9, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-                {.uSlot = 10, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-                {.uSlot = 11, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
+                {.uSlot =  4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
             }
         };
         sbtMaterialBindGroups[i] = gptDevice->create_bind_group(ptDevice, &tMaterialBindGroupLayout, "material bind group");
@@ -2669,17 +2625,10 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
             {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_NORMAL_MAP, false, 0),                 .uSlot =  1, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
             {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_EMISSIVE_MAP, true, 0),                .uSlot =  2, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
             {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP, false, 0),        .uSlot =  3, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-            {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_OCCLUSION_MAP, false, 1),              .uSlot =  4, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-            {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_CLEARCOAT_MAP, false, 1),              .uSlot =  5, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-            {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP, false, 1),    .uSlot =  6, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-            {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP, false, 1),       .uSlot =  7, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-            {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_IRIDESCENCE_MAP, false, 1),            .uSlot =  8, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-            {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS_MAP, false, 1),  .uSlot =  9, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-            {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_SPECULAR_MAP, false, 1),               .uSlot = 10, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-            {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_SPECULAR_COLOR_MAP, false, 1),         .uSlot = 11, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
+            {.tTexture = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_OCCLUSION_MAP, false, 1),              .uSlot =  4, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
         };
         const plBindGroupUpdateData tBGData1 = {
-            .uTextureCount = 12,
+            .uTextureCount = 5,
             .atTextures = tTextureData
         };
         gptDevice->update_bind_group(ptDevice, sbtMaterialBindGroups[i], &tBGData1);
@@ -5042,29 +4991,13 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
         .tBaseColorFactor = ptMaterial->tBaseColor,
         .tEmissiveFactor = ptMaterial->tEmissiveColor.rgb,
         .fAlphaCutoff = ptMaterial->fAlphaCutoff,
-        .fClearcoatFactor = ptMaterial->fClearcoatFactor,
-        .fClearcoatRoughnessFactor = ptMaterial->fClearcoatRoughness,
         .fOcclusionStrength = 1.0f,
         .fEmissiveStrength = 1.0f,
-        .fIor = ptMaterial->fRefraction,
-        .fIridescenceFactor = ptMaterial->fIridescenceFactor,
-        .fIridescenceIor = ptMaterial->fIridescenceIor,
-        .fIridescenceThicknessMaximum = ptMaterial->fIridescenceThicknessMaximum,
-        .fIridescenceThicknessMinimum = ptMaterial->fIridescenceThicknessMinimum,
-        .tKHR_materials_specular_specularColorFactor = ptMaterial->tSpecularColor.rgb,
-        .fKHR_materials_specular_specularFactor = ptMaterial->fSpecularFactor,
         .iBaseColorUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].uUVSet,
         .iNormalUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].uUVSet,
         .iEmissiveUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].uUVSet,
         .iOcclusionUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].uUVSet,
         .iMetallicRoughnessUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].uUVSet,
-        .iClearcoatUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_MAP].uUVSet,
-        .iClearcoatRoughnessUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP].uUVSet,
-        .iClearcoatNormalUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP].uUVSet,
-        .iSpecularUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_SPECULAR_MAP].uUVSet,
-        .iSpecularColorUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_SPECULAR_COLOR_MAP].uUVSet,
-        .iIridescenceUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_IRIDESCENCE_MAP].uUVSet,
-        .iIridescenceThicknessUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS_MAP].uUVSet,
     };
     pl_sb_push(ptScene->sbtMaterialBuffer, tMaterial);
 
@@ -5516,7 +5449,7 @@ pl__refr_job(uint32_t uJobIndex, void* pData)
 
         if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[i].tResource))
         {
-            if(i == PL_TEXTURE_SLOT_BASE_COLOR_MAP || i == PL_TEXTURE_SLOT_EMISSIVE_MAP || i == PL_TEXTURE_SLOT_SPECULAR_COLOR_MAP)
+            if(i == PL_TEXTURE_SLOT_BASE_COLOR_MAP || i == PL_TEXTURE_SLOT_EMISSIVE_MAP)
             {
                 size_t szResourceSize = 0;
                 const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[i].tResource, &szResourceSize);

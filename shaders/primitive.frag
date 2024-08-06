@@ -237,13 +237,9 @@ void main()
     vec4 tBaseColor = getBaseColor(material.u_BaseColorFactor, material.BaseColorUVSet);
     
     MaterialInfo materialInfo;
-    
-    // The default index of refraction of 1.5 yields a dielectric normal incidence reflectance of 0.04.
-    materialInfo.ior = 1.5;
     materialInfo.f0 = vec3(0.04);
-    materialInfo.specularWeight = 1.0;
-
     materialInfo.baseColor = tBaseColor.rgb;
+    
     if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS))
     {
         materialInfo = getMetallicRoughnessInfo(materialInfo, material.u_MetallicFactor, material.u_RoughnessFactor, material.MetallicRoughnessUVSet);
@@ -255,10 +251,7 @@ void main()
     // Roughness is authored as perceptual roughness; as is convention,
     // convert to material roughness by squaring the perceptual roughness.
     materialInfo.alphaRoughness = materialInfo.perceptualRoughness * materialInfo.perceptualRoughness;
-
-    // Compute reflectance.
-    float reflectance = max(max(materialInfo.f0.r, materialInfo.f0.g), materialInfo.f0.b);
-
+    
     // Anything less than 2% is physically impossible and is instead considered to be shadowing. Compare to "Real-Time-Rendering" 4th editon on page 325.
     materialInfo.f90 = vec3(1.0);
 
@@ -272,7 +265,7 @@ void main()
     // fill g-buffer
     outAlbedo = tBaseColor;
     outNormal = vec4(tNormalInfo.n, 1.0);
-    outPosition = vec4(tShaderIn.tPosition, materialInfo.specularWeight);
+    outPosition = vec4(tShaderIn.tPosition, 1.0);
     outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, material.u_MipCount);
 }
 
