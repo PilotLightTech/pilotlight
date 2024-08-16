@@ -26,6 +26,7 @@ extensions = [
     "pl_draw_ext",
     "pl_graphics_ext",
     "pl_ui_ext",
+    "pl_rect_pack_ext",
     "pl_shader_ext"
 ]
 

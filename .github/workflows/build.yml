@@ -65,6 +65,7 @@ jobs:
         if not exist ../out/pl_stats_ext.dll exit 1
         if not exist ../out/pl_debug_ext.dll exit 1
         if not exist ../out/pl_job_ext.dll exit 1
+        if not exist ../out/pl_rect_pack_ext.dll exit 1
         if not exist ../out/pl_gpu_allocators_ext.dll exit 1
         if not exist ../out/pl_resource_ext.dll exit 1
         if not exist ../out/pl_model_loader_ext.dll exit 1
@@ -140,6 +141,7 @@ jobs:
         test -f ./out/pl_debug_ext.dylib || exit 1
         test -f ./out/pl_graphics_ext.dylib || exit 1
         test -f ./out/pl_job_ext.dylib || exit 1
+        test -f ./out/pl_rect_pack_ext.dylib || exit 1
         test -f ./out/pl_gpu_allocators_ext.dylib || exit 1
         test -f ./out/pl_model_loader_ext.dylib || exit 1
         test -f ./out/pl_resource_ext.dylib || exit 1
@@ -223,6 +225,7 @@ jobs:
         test -f ./out/pl_stats_ext.so || exit 1
         test -f ./out/pl_debug_ext.so || exit 1
         test -f ./out/pl_job_ext.so || exit 1
+        test -f ./out/pl_rect_pack_ext.so || exit 1
         test -f ./out/pl_gpu_allocators_ext.so || exit 1
         test -f ./out/pl_model_loader_ext.so || exit 1
         test -f ./out/pl_resource_ext.so || exit 1
