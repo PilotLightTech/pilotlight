@@ -160,10 +160,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptGfx->initialize(ptAppData->ptWindow, &tGraphicsDesc, &ptAppData->tGraphics);
 
     // initialize shader extension
-    const plShaderExtInit tShaderInit = {
-        .pcIncludeDirectory = "../examples/shaders/"
+    static const plShaderOptions tDefaultShaderOptions = {
+        .uIncludeDirectoriesCount = 1,
+        .apcIncludeDirectories = {
+            "../examples/shaders/"
+        }
     };
-    gptShader->initialize(&tShaderInit);
+    gptShader->initialize(&tDefaultShaderOptions);
 
     // for convience
     plDevice* ptDevice = &ptAppData->tGraphics.tDevice;
@@ -276,8 +279,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~shaders~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const plShaderDescription tShaderDesc = {
-        .tVertexShader = gptShader->compile_glsl("../examples/shaders/example_4.vert", "main"),
-        .tPixelShader = gptShader->compile_glsl("../examples/shaders/example_4.frag", "main"),
+        .tVertexShader = gptShader->compile_glsl("../examples/shaders/example_4.vert", "main", NULL),
+        .tPixelShader = gptShader->compile_glsl("../examples/shaders/example_4.frag", "main", NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,

@@ -637,8 +637,8 @@ pl_refr_initialize(plWindow* ptWindow)
     int aiConstantData[6] = {0, 0, 0, 0, 0, 1};
 
     plShaderDescription tOpaqueShaderDescription = {
-        .tPixelShader  = gptShader->compile_glsl("../shaders/primitive.frag", "main"),
-        .tVertexShader = gptShader->compile_glsl("../shaders/primitive.vert", "main"),
+        .tPixelShader  = gptShader->load_glsl("../shaders/primitive.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("../shaders/primitive.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
             .ulDepthMode          = PL_COMPARE_MODE_LESS,
@@ -720,8 +720,8 @@ pl_refr_initialize(plWindow* ptWindow)
     gptData->tOpaqueShader = gptDevice->create_shader(&gptData->tGraphics.tDevice, &tOpaqueShaderDescription);
 
     plShaderDescription tTransparentShaderDescription = {
-        .tPixelShader = gptShader->compile_glsl("../shaders/transparent.frag", "main"),
-        .tVertexShader = gptShader->compile_glsl("../shaders/transparent.vert", "main"),
+        .tPixelShader = gptShader->load_glsl("../shaders/transparent.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("../shaders/transparent.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
@@ -815,8 +815,8 @@ pl_refr_initialize(plWindow* ptWindow)
     gptData->tTransparentShader = gptDevice->create_shader(&gptData->tGraphics.tDevice, &tTransparentShaderDescription);
 
     plShaderDescription tShadowShaderDescription = {
-        .tPixelShader = gptShader->compile_glsl("../shaders/shadow.frag", "main"),
-        .tVertexShader = gptShader->compile_glsl("../shaders/shadow.vert", "main"),
+        .tPixelShader = gptShader->load_glsl("../shaders/shadow.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("../shaders/shadow.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
             .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
@@ -876,8 +876,8 @@ pl_refr_initialize(plWindow* ptWindow)
     gptData->tShadowShader = gptDevice->create_shader(&gptData->tGraphics.tDevice, &tShadowShaderDescription);
         
     const plShaderDescription tPickShaderDescription = {
-        .tPixelShader = gptShader->compile_glsl("../shaders/picking.frag", "main"),
-        .tVertexShader = gptShader->compile_glsl("../shaders/picking.vert", "main"),
+        .tPixelShader = gptShader->load_glsl("../shaders/picking.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("../shaders/picking.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
             .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
@@ -914,8 +914,8 @@ pl_refr_initialize(plWindow* ptWindow)
     gptData->tPickShader = gptDevice->create_shader(&gptData->tGraphics.tDevice, &tPickShaderDescription);
 
     const plShaderDescription tUVShaderDesc = {
-        .tPixelShader = gptShader->compile_glsl("../shaders/uvmap.frag", "main"),
-        .tVertexShader = gptShader->compile_glsl("../shaders/uvmap.vert", "main"),
+        .tPixelShader = gptShader->load_glsl("../shaders/uvmap.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("../shaders/uvmap.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
@@ -947,7 +947,7 @@ pl_refr_initialize(plWindow* ptWindow)
     gptData->tUVShader = gptDevice->create_shader(&gptData->tGraphics.tDevice, &tUVShaderDesc);
 
     const plComputeShaderDescription tComputeShaderDesc = {
-        .tShader = gptShader->compile_glsl("../shaders/jumpfloodalgo.comp", "main"),
+        .tShader = gptShader->load_glsl("../shaders/jumpfloodalgo.comp", "main", NULL, NULL),
         .uBindGroupLayoutCount = 1,
         .atBindGroupLayouts = {
             {
@@ -1680,8 +1680,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     {
         // create skybox shader
         plShaderDescription tSkyboxShaderDesc = {
-            .tPixelShader = gptShader->compile_glsl("../shaders/skybox.frag", "main"),
-            .tVertexShader = gptShader->compile_glsl("../shaders/skybox.vert", "main"),
+            .tPixelShader = gptShader->load_glsl("../shaders/skybox.frag", "main", NULL, NULL),
+            .tVertexShader = gptShader->load_glsl("../shaders/skybox.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = 0,
                 .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
@@ -1751,7 +1751,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     {
         int aiSkyboxSpecializationData[] = {iResolution, iPanoramaWidth, iPanoramaHeight};
         const plComputeShaderDescription tSkyboxComputeShaderDesc = {
-            .tShader = gptShader->compile_glsl("../shaders/panorama_to_cubemap.comp", "main"),
+            .tShader = gptShader->load_glsl("../shaders/panorama_to_cubemap.comp", "main", NULL, NULL),
             .uConstantCount = 3,
             .pTempConstantData = aiSkyboxSpecializationData,
             .atConstants = {
@@ -1959,7 +1959,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     pl_begin_profile_sample("step 1");
 
     plComputeShaderDescription tFilterComputeShaderDesc = {
-        .tShader = gptShader->compile_glsl("../shaders/filter_environment.comp", "main"),
+        .tShader = gptShader->load_glsl("../shaders/filter_environment.comp", "main", NULL, NULL),
         .uConstantCount = 8,
         .atConstants = {
             { .uID = 0, .uOffset = 0,  .tType = PL_DATA_TYPE_INT},
@@ -2886,8 +2886,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     {
         int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_size(sbtLights)};
         plShaderDescription tLightingShaderDesc = {
-            .tPixelShader = gptShader->compile_glsl("../shaders/lighting.frag", "main"),
-            .tVertexShader = gptShader->compile_glsl("../shaders/lighting.vert", "main"),
+            .tPixelShader = gptShader->load_glsl("../shaders/lighting.frag", "main", NULL, NULL),
+            .tVertexShader = gptShader->load_glsl("../shaders/lighting.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = 0,
                 .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
@@ -2984,8 +2984,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     }
 
     const plShaderDescription tTonemapShaderDesc = {
-        .tPixelShader = gptShader->compile_glsl("../shaders/tonemap.frag", "main"),
-        .tVertexShader = gptShader->compile_glsl("../shaders/full_quad.vert", "main"),
+        .tPixelShader = gptShader->load_glsl("../shaders/tonemap.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("../shaders/full_quad.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
@@ -4816,7 +4816,7 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
 
     int aiSpecializationData[] = {(int)ulVertexStreamMask, (int)uStride, (int)ptMesh->ulVertexStreamMask, (int)uDestStride};
     const plComputeShaderDescription tComputeShaderDesc = {
-        .tShader = gptShader->compile_glsl("../shaders/skinning.comp", "main"),
+        .tShader = gptShader->load_glsl("../shaders/skinning.comp", "main", NULL, NULL),
         .uConstantCount = 4,
         .pTempConstantData = aiSpecializationData,
         .atConstants = {
@@ -5746,10 +5746,13 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
    gptIO            = ptApiRegistry->first(PL_API_IO);
    gptShader        = ptApiRegistry->first(PL_API_SHADER);
 
-    const plShaderExtInit tShaderInit = {
-        .pcIncludeDirectory = "../shaders/"
+    static const plShaderOptions tDefaultShaderOptions = {
+        .uIncludeDirectoriesCount = 1,
+        .apcIncludeDirectories = {
+            "../shaders/"
+        }
     };
-    gptShader->initialize(&tShaderInit);
+    gptShader->initialize(&tDefaultShaderOptions);
 
    if(bReload)
    {

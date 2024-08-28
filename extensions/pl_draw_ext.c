@@ -3942,8 +3942,8 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
 
     {
         const plShaderDescription t3DShaderDesc = {
-            .tPixelShader = gptShader->compile_glsl("../shaders/draw_3d.frag", "main"),
-            .tVertexShader = gptShader->compile_glsl("../shaders/draw_3d.vert", "main"),
+            .tPixelShader = gptShader->load_glsl("../shaders/draw_3d.frag", "main", NULL, NULL),
+            .tVertexShader = gptShader->load_glsl("../shaders/draw_3d.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE ? 1 : 0,
                 .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? PL_COMPARE_MODE_LESS : PL_COMPARE_MODE_ALWAYS,
@@ -3986,8 +3986,8 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
 
     {
         const plShaderDescription t3DLineShaderDesc = {
-            .tPixelShader = gptShader->compile_glsl("../shaders/draw_3d.frag", "main"),
-            .tVertexShader = gptShader->compile_glsl("../shaders/draw_3d_line.vert", "main"),
+            .tPixelShader = gptShader->load_glsl("../shaders/draw_3d.frag", "main", NULL, NULL),
+            .tVertexShader = gptShader->load_glsl("../shaders/draw_3d_line.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE,
                 .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? PL_COMPARE_MODE_LESS : PL_COMPARE_MODE_ALWAYS,
@@ -4054,8 +4054,8 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
 
     {
         const plShaderDescription tRegularShaderDesc = {
-            .tPixelShader = gptShader->compile_glsl("../shaders/draw_2d.frag", "main"),
-            .tVertexShader = gptShader->compile_glsl("../shaders/draw_2d.vert", "main"),
+            .tPixelShader = gptShader->load_glsl("../shaders/draw_2d.frag", "main", NULL, NULL),
+            .tVertexShader = gptShader->load_glsl("../shaders/draw_2d.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = 0,
                 .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
@@ -4113,8 +4113,8 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
 
     {
         const plShaderDescription tSecondaryShaderDesc = {
-            .tPixelShader = gptShader->compile_glsl("../shaders/draw_2d_sdf.frag", "main"),
-            .tVertexShader = gptShader->compile_glsl("../shaders/draw_2d.vert", "main"),
+            .tPixelShader = gptShader->load_glsl("../shaders/draw_2d_sdf.frag", "main", NULL, NULL),
+            .tVertexShader = gptShader->load_glsl("../shaders/draw_2d.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = 0,
                 .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
@@ -4557,10 +4557,13 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptIO     = ptApiRegistry->first(PL_API_IO);
     gptShader = ptApiRegistry->first(PL_API_SHADER);
 
-    const plShaderExtInit tShaderInit = {
-        .pcIncludeDirectory = "../shaders/"
+    static const plShaderOptions tDefaultShaderOptions = {
+        .uIncludeDirectoriesCount = 1,
+        .apcIncludeDirectories = {
+            "../shaders/"
+        }
     };
-    gptShader->initialize(&tShaderInit);
+    gptShader->initialize(&tDefaultShaderOptions);
     
     if(bReload)
     {
