@@ -88,11 +88,11 @@ pl__load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, c
 {
 
     // read in STL file
-    uint32_t uFileSize = 0;
-    gptFile->read(pcPath, &uFileSize, NULL, "rb");
-    uint8_t* pcBuffer = PL_ALLOC(uFileSize);
-    memset(pcBuffer, 0, uFileSize);
-    gptFile->read(pcPath, &uFileSize, pcBuffer, "rb");
+    size_t szFileSize = 0;
+    gptFile->binary_read(pcPath, &szFileSize, NULL);
+    uint8_t* pcBuffer = PL_ALLOC(szFileSize);
+    memset(pcBuffer, 0, szFileSize);
+    gptFile->binary_read(pcPath, &szFileSize, pcBuffer);
 
     // create ECS object component
     plEntity tEntity = gptECS->create_object(ptLibrary, pcPath, NULL);
@@ -117,14 +117,14 @@ pl__load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, c
     
     // load STL model
     plStlInfo tInfo = {0};
-    pl_load_stl((const char*)pcBuffer, (size_t)uFileSize, NULL, NULL, NULL, &tInfo);
+    pl_load_stl((const char*)pcBuffer, szFileSize, NULL, NULL, NULL, &tInfo);
 
     ptMesh->ulVertexStreamMask = PL_MESH_FORMAT_FLAG_HAS_NORMAL;
     pl_sb_resize(ptMesh->sbtVertexPositions, (uint32_t)(tInfo.szPositionStreamSize / 3));
     pl_sb_resize(ptMesh->sbtVertexNormals, (uint32_t)(tInfo.szNormalStreamSize / 3));
     pl_sb_resize(ptMesh->sbuIndices, (uint32_t)tInfo.szIndexBufferSize);
 
-    pl_load_stl((const char*)pcBuffer, (size_t)uFileSize, (float*)ptMesh->sbtVertexPositions, (float*)ptMesh->sbtVertexNormals, (uint32_t*)ptMesh->sbuIndices, &tInfo);
+    pl_load_stl((const char*)pcBuffer, szFileSize, (float*)ptMesh->sbtVertexPositions, (float*)ptMesh->sbtVertexNormals, (uint32_t*)ptMesh->sbuIndices, &tInfo);
     PL_FREE(pcBuffer);
 
     // calculate AABB
@@ -401,12 +401,12 @@ pl__load_gltf_texture(plTextureSlot tSlot, const cgltf_texture_view* ptTexture, 
         strcpy(acFilepath, pcDirectory);
         pl_str_concatenate(acFilepath, ptMaterial->atTextureMaps[tSlot].acName, acFilepath, 2048);
 
-        uint32_t uFileSize = 0;
-        gptFile->read(acFilepath, &uFileSize, NULL, "rb");
-        uint8_t* pcBuffer = PL_ALLOC(uFileSize);
-        memset(pcBuffer, 0, uFileSize);
-        gptFile->read(acFilepath, &uFileSize, pcBuffer, "rb");
-        ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load_resource(ptTexture->texture->image->uri, PL_RESOURCE_LOAD_FLAG_RETAIN_DATA, pcBuffer, (size_t)uFileSize);
+        size_t szFileSize = 0;
+        gptFile->binary_read(acFilepath, &szFileSize, NULL);
+        uint8_t* pcBuffer = PL_ALLOC(szFileSize);
+        memset(pcBuffer, 0, szFileSize);
+        gptFile->binary_read(acFilepath, &szFileSize, pcBuffer);
+        ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load_resource(ptTexture->texture->image->uri, PL_RESOURCE_LOAD_FLAG_RETAIN_DATA, pcBuffer, szFileSize);
         PL_FREE(pcBuffer);
     }
 }

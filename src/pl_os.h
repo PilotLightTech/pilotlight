@@ -101,8 +101,18 @@ typedef struct _plLibraryI
 
 typedef struct _plFileI
 {
-    void (*read)(const char* pcFile, uint32_t* puSize, uint8_t* puBuffer, const char* pcMode);
-    void (*copy)(const char* pcSource, const char* pcDestination);
+    // simple file ops
+    bool     (*exists)(const char* pcPath);
+    void     (*delete)(const char* pcPath);
+    void     (*copy)  (const char* pcSource, const char* pcDestination);
+
+    // reading
+    void (*text_read)  (const char* pcFile, size_t* pszSize, uint8_t* puBuffer);
+    void (*binary_read)(const char* pcFile, size_t* pszSize, uint8_t* puBuffer);
+
+    // writing
+    void (*text_write)  (const char* pcFile, size_t szSize, uint8_t* puBuffer);
+    void (*binary_write)(const char* pcFile, size_t szSize, uint8_t* puBuffer);
 } plFileI;
 
 typedef struct _plUdpI

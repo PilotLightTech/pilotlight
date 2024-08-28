@@ -188,9 +188,16 @@ static bool  pl__handle_osx_event(NSEvent* event, NSView* view);
 plWindow* pl__create_window(const plWindowDesc* ptDesc);
 void      pl__destroy_window(plWindow* ptWindow);
 
+// file api
+bool pl__file_exists(const char* pcFile);
+void pl__file_delete(const char* pcFile);
+void pl__text_read_file(const char* pcFile, size_t* pszSize, uint8_t* pcBuffer);
+void pl__binary_read_file(const char* pcFile, size_t* pszSize, uint8_t* pcBuffer);
+void pl__copy_file(const char* pcSource, const char* pcDestination);
+void pl__text_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer);
+void pl__binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer);
+
 // os services
-void  pl__read_file            (const char* pcFile, uint32_t* puSize, uint8_t* pcBuffer, const char* pcMode);
-void  pl__copy_file            (const char* pcSource, const char* pcDestination);
 void  pl__create_udp_socket    (plSocket** pptSocketOut, bool bNonBlocking);
 void  pl__bind_udp_socket      (plSocket* ptSocket, int iPort);
 bool  pl__send_udp_data        (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
@@ -347,8 +354,13 @@ int main(int argc, char *argv[])
     };
 
     static const plFileI tApi4 = {
-        .copy = pl__copy_file,
-        .read = pl__read_file
+        .copy         = pl__copy_file,
+        .exists       = pl__file_exists,
+        .delete       = pl__file_delete,
+        .text_read    = pl__text_read_file,
+        .binary_read  = pl__binary_read_file,
+        .text_write   = pl__text_write_file,
+        .binary_write = pl__binary_write_file
     };
     
     static const plUdpI tApi5 = {
@@ -1049,45 +1061,107 @@ pl__add_osx_tracking_area(NSView* _Nonnull view)
 }
 
 void
-pl__read_file(const char* file, uint32_t* sizeIn, uint8_t* buffer, const char* mode)
+pl__text_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
 {
-    PL_ASSERT(sizeIn);
+    PL_ASSERT(pszSizeIn);
 
-    FILE* dataFile = fopen(file, mode);
-    uint32_t size = 0u;
+    FILE* ptDataFile = fopen(pcFile, "r");
+    size_t uSize = 0u;
 
-    if (dataFile == NULL)
+    if (ptDataFile == NULL)
     {
-        *sizeIn = 0u;
+        *pszSizeIn = 0u;
         return;
     }
 
     // obtain file size
-    fseek(dataFile, 0, SEEK_END);
-    size = ftell(dataFile);
-    // fseek(dataFile, 0, SEEK_SET);
-    rewind(dataFile);
+    fseek(ptDataFile, 0, SEEK_END);
+    uSize = ftell(ptDataFile);
+    fseek(ptDataFile, 0, SEEK_SET);
 
-    if(buffer == NULL)
+    if(pcBuffer == NULL)
     {
-        *sizeIn = size;
-        fclose(dataFile);
+        *pszSizeIn = uSize;
+        fclose(ptDataFile);
         return;
     }
 
     // copy the file into the buffer:
-    size_t result = fread(buffer, sizeof(char), size, dataFile);
-    if (result != size)
+    size_t szResult = fread(pcBuffer, sizeof(char), uSize, ptDataFile);
+    if (szResult != uSize)
     {
-        if (feof(dataFile))
+        if (feof(ptDataFile))
             printf("Error reading test.bin: unexpected end of file\n");
-        else if (ferror(dataFile)) {
+        else if (ferror(ptDataFile)) {
             perror("Error reading test.bin");
         }
         PL_ASSERT(false && "File not read.");
     }
 
-    fclose(dataFile);
+    fclose(ptDataFile);
+}
+
+void
+pl__binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
+{
+    PL_ASSERT(pszSizeIn);
+
+    FILE* ptDataFile = fopen(pcFile, "rb");
+    size_t uSize = 0u;
+
+    if (ptDataFile == NULL)
+    {
+        *pszSizeIn = 0u;
+        return;
+    }
+
+    // obtain file size
+    fseek(ptDataFile, 0, SEEK_END);
+    uSize = ftell(ptDataFile);
+    fseek(ptDataFile, 0, SEEK_SET);
+
+    if(pcBuffer == NULL)
+    {
+        *pszSizeIn = uSize;
+        fclose(ptDataFile);
+        return;
+    }
+
+    // copy the file into the buffer:
+    size_t szResult = fread(pcBuffer, sizeof(char), uSize, ptDataFile);
+    if (szResult != uSize)
+    {
+        if (feof(ptDataFile))
+            printf("Error reading test.bin: unexpected end of file\n");
+        else if (ferror(ptDataFile)) {
+            perror("Error reading test.bin");
+        }
+        PL_ASSERT(false && "File not read.");
+    }
+
+    fclose(ptDataFile);
+}
+
+void
+pl__text_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
+{
+    FILE* ptDataFile = fopen(pcFile, "w");
+    if (ptDataFile)
+    {
+        fwrite(pcBuffer, 1, szSize, ptDataFile);
+        fclose(ptDataFile);
+    }
+}
+
+void
+pl__binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
+{
+    FILE* ptDataFile = fopen(pcFile, "wb");
+    if (ptDataFile)
+    {
+        fwrite(pcBuffer, 1, szSize, ptDataFile);
+        fclose(ptDataFile);
+    }
 }
 
 void
@@ -1097,6 +1171,25 @@ pl__copy_file(const char* source, const char* destination)
     s = copyfile_state_alloc();
     copyfile(source, destination, s, COPYFILE_XATTR | COPYFILE_DATA);
     copyfile_state_free(s);
+}
+
+void
+pl__file_delete(const char* pcFile)
+{
+    remove(pcFile);
+}
+
+bool
+pl__file_exists(const char* pcFile)
+{
+    FILE* ptDataFile = fopen(pcFile, "r");
+    
+    if(ptDataFile)
+    {
+        fclose(ptDataFile);
+        return true;
+    }
+    return false;
 }
 
 void
