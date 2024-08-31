@@ -15,12 +15,12 @@ examples/*.pdb
 tests/*.pdb
 
 # build scripts
-src/*.bat
-src/*.sh
-examples/*.bat
-examples/*.sh
-tests/*.bat
-tests/*.sh
+src/build.bat
+src/build.sh
+examples/build.bat
+examples/build.sh
+tests/build.bat
+tests/build.sh
 
 # misc
 .DS_Store

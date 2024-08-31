@@ -8,22 +8,37 @@ Next:
 ### Windows
 Example for running example 0:
 ```bash
-cd pilotlight/scripts
-python gen_examples.py
+cd src
+build_win32.bat
 cd ../examples
-build.bat
+build_win32.bat
 
 cd ../out
 pilot_light.exe -a example_0
 ```
-### MacOS & Linux
+### Linux
 Example for running example 2:
 ```bash
-cd pilotlight/scripts
-python3 gen_examples.py
+cd src
+chmod +x build_linux.sh
+./build_linux.sh
 cd ../examples
-chmod +x build.sh
-./build.sh
+chmod +x build_linux.sh
+./build_linux.sh
+
+cd ../out
+pilot_light -a example_2
+```
+
+### MacOS
+Example for running example 2:
+```bash
+cd src
+chmod +x build_macos.sh
+./build_macos.sh
+cd ../examples
+chmod +x build_macos.sh
+./build_macos.sh
 
 cd ../out
 pilot_light -a example_2
