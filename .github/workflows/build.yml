@@ -42,13 +42,10 @@ jobs:
       shell: cmd
       run: |
         set VULKAN_SDK=D:/a/VulkanSDK
-        cd scripts
-        python gen_build.py
-        python gen_examples.py
-        cd ../src
-        call build.bat
+        cd src
+        call build_win32.bat
         cd ../examples
-        call build.bat
+        call build_win32.bat
         if not exist ../out/editor.dll exit 1
         if not exist ../out/app.dll exit 1
         if not exist ../out/example_0.dll exit 1
@@ -112,15 +109,12 @@ jobs:
     - name: Build Pilot Light
       run: |
         cd $GITHUB_WORKSPACE
-        cd scripts
-        python3 gen_build.py
-        python3 gen_examples.py
-        cd ../src
-        chmod +x build.sh
-        ./build.sh
+        cd src
+        chmod +x build_macos.sh
+        ./build_macos.sh
         cd ../examples
-        chmod +x build.sh
-        ./build.sh
+        chmod +x build_macos.sh
+        ./build_macos.sh
         cd ..
         cd out
         chmod +x pilot_light
@@ -196,15 +190,12 @@ jobs:
     - name: Build Pilot Light
       run: |
         cd $GITHUB_WORKSPACE
-        cd scripts
-        python3 gen_build.py
-        python3 gen_examples.py
-        cd ../src
-        chmod +x build.sh
-        ./build.sh
+        cd src
+        chmod +x build_linux.sh
+        ./build_linux.sh
         cd ../examples
-        chmod +x build.sh
-        ./build.sh
+        chmod +x build_linux.sh
+        ./build_linux.sh
         cd ..
         cd out
         chmod +x pilot_light
