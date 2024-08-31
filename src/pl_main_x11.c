@@ -25,12 +25,6 @@ Index of this file:
 #include <stdlib.h>   // free
 #include <assert.h>
 #include <semaphore.h>
-#include <xcb/xcb.h>
-#include <xcb/xfixes.h> //xcb_xfixes_query_version, apt install libxcb-xfixes0-dev
-#include <xkbcommon/xkbcommon-keysyms.h>
-#include <xcb/xcb_cursor.h> // apt install libxcb-cursor-dev, libxcb-cursor0
-#include <xcb/xcb_keysyms.h>
-#include <X11/XKBlib.h>
 #include <sys/stat.h>     // stat, timespec
 #include <stdio.h>        // file api
 #include <dlfcn.h>        // dlopen, dlsym, dlclose
@@ -45,18 +39,30 @@ Index of this file:
 #include <unistd.h>
 #include <stdatomic.h>
 
+#ifndef PL_HEADLESS_APP
+#include <xcb/xcb.h>
+#include <xcb/xfixes.h> //xcb_xfixes_query_version, apt install libxcb-xfixes0-dev
+#include <xkbcommon/xkbcommon-keysyms.h>
+#include <xcb/xcb_cursor.h> // apt install libxcb-cursor-dev, libxcb-cursor0
+#include <xcb/xcb_keysyms.h>
+#include <X11/XKBlib.h>
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
 // internal
 void pl_update_mouse_cursor_linux(void);
+
+#ifndef PL_HEADLESS_APP
 void pl_linux_procedure          (xcb_generic_event_t* event);
 plKey pl__xcb_key_to_pl_key(uint32_t x_keycode);
 
 // window api
 plWindow* pl__create_window(const plWindowDesc* ptDesc);
 void      pl__destroy_window(plWindow* ptWindow);
+#endif
 
 // file api
 bool pl__file_exists(const char* pcFile);
@@ -143,11 +149,13 @@ typedef struct _plAtomicCounter
     atomic_int_fast64_t ilValue;
 } plAtomicCounter;
 
+#ifndef PL_HEADLESS_APP
 typedef struct _plWindowData
 {
     xcb_connection_t* ptConnection;
     xcb_window_t      tWindow;
 } plWindowData;
+#endif
 
 typedef struct _plSocket
 {
@@ -195,17 +203,24 @@ typedef struct _plThreadKey
 //-----------------------------------------------------------------------------
 
 // x11 & xcb stuff
+#ifndef PL_HEADLESS_APP
 Display*              gDisplay       = NULL;
 xcb_connection_t*     gConnection    = NULL;
 xcb_key_symbols_t*    gKeySyms       = NULL;
 xcb_screen_t*         gScreen        = NULL;
 xcb_atom_t            gWmProtocols;
 xcb_atom_t            gWmDeleteWin;
+xcb_cursor_context_t* ptCursorContext = NULL;
+
+// windows
+plWindow** gsbtWindows = NULL;
+#endif
+
 plSharedLibrary*      gptAppLibrary   = NULL;
 void*                 gUserData       = NULL;
 double                dTime           = 0.0;
 double                dFrequency      = 0.0;
-xcb_cursor_context_t* ptCursorContext = NULL;
+
 plIO*                 gptIOCtx = NULL;
 
 // apis
@@ -218,8 +233,7 @@ const plIOI*                gptIOI               = NULL;
 plHashMap       gtMemoryHashMap = {0};
 plMemoryContext gtMemoryContext = {.ptHashMap = &gtMemoryHashMap};
 
-// windows
-plWindow** gsbtWindows = NULL;
+
 
 // app function pointers
 void* (*pl_app_load)    (const plApiRegistryI* ptApiRegistry, void* ptAppData);
@@ -280,10 +294,12 @@ int main(int argc, char *argv[])
 
     // os provided apis
 
+    #ifndef PL_HEADLESS_APP
     static const plWindowI tWindowApi = {
         .create_window  = pl__create_window,
         .destroy_window = pl__destroy_window
     };
+    #endif
 
     static const plLibraryI tLibraryApi = {
         .has_changed   = pl__has_library_changed,
@@ -360,7 +376,11 @@ int main(int argc, char *argv[])
     gptIOI               = gptApiRegistry->first(PL_API_IO);
 
     // add os specific apis
+
+    #ifndef PL_HEADLESS_APP
     gptApiRegistry->add(PL_API_WINDOW, &tWindowApi);
+    #endif
+
     gptApiRegistry->add(PL_API_LIBRARY, &tLibraryApi);
     gptApiRegistry->add(PL_API_FILE, &tFileApi);
     gptApiRegistry->add(PL_API_UDP, &tUdpApi);
@@ -371,6 +391,8 @@ int main(int argc, char *argv[])
     gptIOCtx = gptIOI->get_io();
     gtMemoryContext.plThreadsI = &tThreadApi;
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
+
+    #ifndef PL_HEADLESS_APP
 
     // connect to x
     gDisplay = XOpenDisplay(NULL);
@@ -399,6 +421,8 @@ int main(int argc, char *argv[])
     // after screens have been looped through, assign it.
     gScreen = it.data;
 
+    #endif
+
     // setup timers
     static struct timespec ts;
     if (clock_getres(CLOCK_MONOTONIC, &ts) != 0) 
@@ -408,6 +432,8 @@ int main(int argc, char *argv[])
     dFrequency = 1e9/((double)ts.tv_nsec + (double)ts.tv_sec * (double)1e9);
     dTime = pl__get_linux_absolute_time();
 
+    #ifndef PL_HEADLESS_APP
+
     // Notify X for mouse cursor handling
     xcb_discard_reply(gConnection, xcb_xfixes_query_version(gConnection, 4, 0).sequence);
 
@@ -416,6 +442,8 @@ int main(int argc, char *argv[])
 
     // get the current key map
     gKeySyms = xcb_key_symbols_alloc(gConnection);
+
+    #endif
 
     // load library
     const plLibraryI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
@@ -443,16 +471,24 @@ int main(int argc, char *argv[])
     // main loop
     while (gptIOCtx->bRunning)
     {
+
+        #ifdef PL_HEADLESS_APP
+        pl__sleep((uint32_t)(1000.0f / gptIOCtx->fHeadlessUpdateRate));
+        #endif
         
+        #ifndef PL_HEADLESS_APP
         // Poll for events until null is returned.
         xcb_generic_event_t* event;
         while (event = xcb_poll_for_event(gConnection)) 
             pl_linux_procedure(event);
+        #endif
 
         if(gptIOCtx->bViewportSizeChanged) //-V547
             pl_app_resize(gUserData);
 
+        #ifndef PL_HEADLESS_APP
         pl_update_mouse_cursor_linux();
+        #endif
 
         // reload library
         if(ptLibraryApi->has_changed(gptAppLibrary))
@@ -480,10 +516,14 @@ int main(int argc, char *argv[])
     // app cleanup
     pl_app_shutdown(gUserData);
 
+    #ifndef PL_HEADLESS_APP
+
     // platform cleanup
     XAutoRepeatOn(gDisplay);
     xcb_cursor_context_free(ptCursorContext);
     xcb_key_symbols_free(gKeySyms);
+
+    #endif
     
     gptExtensionRegistry->unload_all();
     pl_unload_core_apis();
@@ -503,6 +543,7 @@ int main(int argc, char *argv[])
         printf("%u unfreed allocations.\n", uMemoryLeakCount);
 }
 
+#ifndef PL_HEADLESS_APP
 void
 pl_linux_procedure(xcb_generic_event_t* event)
 {
@@ -658,6 +699,8 @@ pl_update_mouse_cursor_linux(void)
     gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
     gptIOCtx->bCursorChanged = false;
 }
+
+#endif
 
 bool
 pl__file_exists(const char* pcFile)
@@ -1236,6 +1279,8 @@ pl__atomic_decrement(plAtomicCounter* ptCounter)
     atomic_fetch_sub(&ptCounter->ilValue, 1);
 }
 
+#ifndef PL_HEADLESS_APP
+
 plWindow*
 pl__create_window(const plWindowDesc* ptDesc)
 {
@@ -1491,6 +1536,8 @@ pl__xcb_key_to_pl_key(uint32_t x_keycode)
         return PL_KEY_NONE;
     }            
 }
+
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] unity build

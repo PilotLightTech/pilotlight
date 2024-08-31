@@ -334,11 +334,16 @@ typedef struct _plIO
     void*       pClipboardUserData;
     char*       sbcClipboardData;
 
+    // command line args
+    int    iArgc;
+    char** apArgv;
+
     //------------------------------------------------------------------
     // Input/Output
     //------------------------------------------------------------------
 
     bool bRunning;
+    float fHeadlessUpdateRate; // frame rate when in headless (FPS)
 
     //------------------------------------------------------------------
     // Output

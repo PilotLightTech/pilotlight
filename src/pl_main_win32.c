@@ -57,10 +57,11 @@ Index of this file:
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
-// internal helpers
+void pl__render_frame (void);
+
 LRESULT CALLBACK pl__windows_procedure     (HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam);
 void             pl__convert_to_wide_string(const char* narrowValue, wchar_t* wideValue);
-void             pl__render_frame          (void);
+
 void             pl_update_mouse_cursor    (void);
 inline bool      pl__is_vk_down            (int iVk) { return (GetKeyState(iVk) & 0x8000) != 0;}
 plKey            pl__virtual_key_to_pl_key (WPARAM tWParam);
@@ -286,10 +287,12 @@ int main(int argc, char *argv[])
 
     // os provided apis
 
+    #ifndef PL_HEADLESS_APP
     static const plWindowI tWindowApi = {
         .create_window  = pl__create_window,
         .destroy_window = pl__destroy_window
     };
+    #endif
 
     static const plLibraryI tLibraryApi = {
         .has_changed   = pl__has_library_changed,
@@ -366,7 +369,9 @@ int main(int argc, char *argv[])
     gptIOI               = gptApiRegistry->first(PL_API_IO);
 
     // add os specific apis
+    #ifndef PL_HEADLESS_APP
     gptApiRegistry->add(PL_API_WINDOW, &tWindowApi);
+    #endif
     gptApiRegistry->add(PL_API_LIBRARY, &tLibraryApi);
     gptApiRegistry->add(PL_API_FILE, &tFileApi);
     gptApiRegistry->add(PL_API_UDP, &tUdpApi);
@@ -375,14 +380,22 @@ int main(int argc, char *argv[])
 
     // set clipboard functions (may need to move this to OS api)
     gptIOCtx = gptIOI->get_io();
+
+    #ifndef PL_HEADLESS_APP
     gptIOCtx->set_clipboard_text_fn = pl__set_clipboard_text;
     gptIOCtx->get_clipboard_text_fn = pl__get_clipboard_text;
+    #endif
+    
+    // command line args
+    gptIOCtx->iArgc = argc;
+    gptIOCtx->apArgv = argv;
 
     // add contexts to data registry
     gtMemoryContext.plThreadsI = &tThreadApi;
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
     // register window class
+    #ifndef PL_HEADLESS_APP
     gtWc.cbSize        = sizeof(WNDCLASSEX);
     gtWc.style         = CS_HREDRAW | CS_VREDRAW;
     gtWc.lpfnWndProc   = pl__windows_procedure;
@@ -396,6 +409,7 @@ int main(int argc, char *argv[])
     gtWc.lpszClassName = L"Pilot Light (win32)";
     gtWc.hIconSm       = NULL;
     RegisterClassExW(&gtWc);
+    #endif
 
     // setup info for clock
     QueryPerformanceFrequency((LARGE_INTEGER*)&ilTicksPerSecond);
@@ -445,6 +459,11 @@ int main(int argc, char *argv[])
     // main loop
     while (gptIOCtx->bRunning)
     {
+        #ifdef PL_HEADLESS_APP
+        pl__sleep((uint32_t)(1000.0f / gptIOCtx->fHeadlessUpdateRate));
+        #endif
+
+        #ifndef PL_HEADLESS_APP
 
         // while queue has messages, remove and dispatch them (but do not block on empty queue)
         MSG tMsg = {0};
@@ -463,6 +482,8 @@ int main(int argc, char *argv[])
 
         // update mouse cursor icon if changed
         pl_update_mouse_cursor();
+
+        #endif
 
         // reload library
         if(ptLibraryApi->has_changed(gptAppLibrary))
@@ -485,10 +506,12 @@ int main(int argc, char *argv[])
     // app cleanup
     pl_app_shutdown(gpUserData);
 
+    #ifndef PL_HEADLESS_APP
     // cleanup win32 stuff
     UnregisterClassW(gtWc.lpszClassName, GetModuleHandle(NULL));
     pl_sb_free(gsbtWindows);
     // DestroyWindow(gtHandle);
+    #endif
 
     // cleanup io context
     gptExtensionRegistry->unload_all();

@@ -226,6 +226,7 @@ uint32_t*         gsbtHotLibs     = NULL;
 
 // IO
 plIO gtIO = {
+    .fHeadlessUpdateRate      = 30.0f,
     .fMouseDoubleClickTime    = 0.3f,
     .fMouseDoubleClickMaxDist = 6.0f,
     .fMouseDragThreshold      = 6.0f,

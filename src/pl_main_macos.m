@@ -21,11 +21,14 @@ Index of this file:
 #include "pilotlight.h" // data registry, api registry, extension registry
 #include "pl_os.h"
 #include "pl_ds.h"      // hashmap
-
 #import <Cocoa/Cocoa.h>
+#ifndef PL_HEADLESS_APP
+
 #import <Carbon/Carbon.h>
 #import <QuartzCore/CAMetalLayer.h>
 #import <Metal/Metal.h>
+#endif
+
 #import <time.h>
 #include <stdlib.h>   // malloc
 #include <string.h>   // strncpy
@@ -46,6 +49,7 @@ Index of this file:
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
+#ifndef PL_HEADLESS_APP
 @protocol plNSViewDelegate <NSObject>
 - (void)drawableResize:(CGSize)size;
 - (void)renderToMetalLayer:(nonnull CAMetalLayer *)metalLayer;
@@ -74,6 +78,8 @@ Index of this file:
 @interface plKeyEventResponder: NSView<NSTextInputClient>
 @end
 
+#endif
+
 typedef struct _plSharedLibrary
 {
     bool     bValid;
@@ -99,12 +105,14 @@ typedef struct
     int tripCount;
 } pthread_barrier_t;
 
+#ifndef PL_HEADLESS_APP
 typedef struct _plWindowData
 {
     NSWindow*           ptWindow;
     plNSViewController* ptViewController;
     CAMetalLayer*       ptLayer;
 } plWindowData;
+#endif
 
 typedef struct _plSocket
 {
@@ -156,11 +164,13 @@ int pthread_barrier_wait(pthread_barrier_t *barrier);
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
+#ifndef PL_HEADLESS_APP
 static plKey pl__osx_key_to_pl_key(int iKey);
 
 // clip board
 static const char* pl__get_clipboard_text(void* user_data_ctx);
 static void        pl__set_clipboard_text(void* pUnused, const char* text);
+#endif
 
 static struct timespec
 pl__get_last_write_time(const char* filename)
@@ -172,6 +182,7 @@ pl__get_last_write_time(const char* filename)
 
 static inline CFTimeInterval pl__get_absolute_time(void) { return (CFTimeInterval)((double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9); }
 
+#ifndef PL_HEADLESS_APP
 // Undocumented methods for creating cursors. (from Dear ImGui)
 @interface NSCursor()
 + (id)_windowResizeNorthWestSouthEastCursor;
@@ -187,6 +198,8 @@ static bool  pl__handle_osx_event(NSEvent* event, NSView* view);
 // window api
 plWindow* pl__create_window(const plWindowDesc* ptDesc);
 void      pl__destroy_window(plWindow* ptWindow);
+
+#endif
 
 // file api
 bool pl__file_exists(const char* pcFile);
@@ -264,11 +277,19 @@ static const plLibraryI* gptLibraryApi = NULL;
 
 static plSharedLibrary*     gptAppLibrary = NULL;
 static void*                gUserData = NULL;
+
+#ifndef PL_HEADLESS_APP
 static plKeyEventResponder* gKeyEventResponder = NULL;
 static NSTextInputContext*  gInputContext = NULL;
 static id                   gMonitor;
-static CFTimeInterval tTime;
+
 static NSCursor*      aptMouseCursors[PL_MOUSE_CURSOR_COUNT];
+
+// windows
+plWindow** gsbtWindows = NULL;
+#endif
+
+static CFTimeInterval tTime;
 
 // ui
 plIO*        gptIOCtx = NULL;
@@ -276,9 +297,6 @@ plIO*        gptIOCtx = NULL;
 // memory tracking
 static plMemoryContext gtMemoryContext = {0};
 static plHashMap gtMemoryHashMap = {0};
-
-// windows
-plWindow** gsbtWindows = NULL;
 
 // app config
 id gtAppDelegate;
@@ -341,10 +359,12 @@ int main(int argc, char *argv[])
     gtMemoryContext.ptHashMap = &gtMemoryHashMap;
     gptApiRegistry = pl_load_core_apis();
 
+    #ifndef PL_HEADLESS_APP
     static const plWindowI tWindowApi = {
         .create_window  = pl__create_window,
         .destroy_window = pl__destroy_window
     };
+    #endif
 
     static const plLibraryI tApi3 = {
         .has_changed   = pl__has_library_changed,
@@ -414,7 +434,9 @@ int main(int argc, char *argv[])
         .atomic_decrement        = pl__atomic_decrement
     };
 
+    #ifndef PL_HEADLESS_APP
     gptApiRegistry->add(PL_API_WINDOW, &tWindowApi);
+    #endif
     gptApiRegistry->add(PL_API_LIBRARY, &tApi3);
     gptApiRegistry->add(PL_API_FILE, &tApi4);
     gptApiRegistry->add(PL_API_UDP, &tApi5);
@@ -431,12 +453,20 @@ int main(int argc, char *argv[])
     gtMemoryContext.plThreadsI = &tThreadApi;
     gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
+    #ifndef PL_HEADLESS_APP
     // create view controller
     gKeyEventResponder = [[plKeyEventResponder alloc] initWithFrame:NSZeroRect];
 
     // set clipboard functions (may need to move this to OS api)
     gptIOCtx->set_clipboard_text_fn = pl__set_clipboard_text;
     gptIOCtx->get_clipboard_text_fn = pl__get_clipboard_text;
+    #endif
+
+    // command line args
+    gptIOCtx->iArgc = argc;
+    gptIOCtx->apArgv = argv;
+
+    #ifndef PL_HEADLESS_APP
 
     gInputContext = [[NSTextInputContext alloc] initWithClient:gKeyEventResponder];
 
@@ -454,6 +484,8 @@ int main(int argc, char *argv[])
     aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_EW] = [NSCursor respondsToSelector:@selector(_windowResizeEastWestCursor)] ? [NSCursor _windowResizeEastWestCursor] : [NSCursor resizeLeftRightCursor];
     aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NESW] = [NSCursor respondsToSelector:@selector(_windowResizeNorthEastSouthWestCursor)] ? [NSCursor _windowResizeNorthEastSouthWestCursor] : [NSCursor closedHandCursor];
     aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NWSE] = [NSCursor respondsToSelector:@selector(_windowResizeNorthWestSouthEastCursor)] ? [NSCursor _windowResizeNorthWestSouthEastCursor] : [NSCursor closedHandCursor];
+
+    #endif
 
     // load library
     static char acLibraryName[256] = {0};
@@ -477,17 +509,50 @@ int main(int argc, char *argv[])
         gUserData = pl_app_load(gptApiRegistry, NULL);
     }
 
+    #ifdef PL_HEADLESS_APP
+
+    // main loop
+    while (gptIOCtx->bRunning)
+    {
+        pl__sleep((uint32_t)(1000.0f / gptIOCtx->fHeadlessUpdateRate));
+
+        // reload library
+        if(gptLibraryApi->has_changed(gptAppLibrary))
+        {
+            gptLibraryApi->reload(gptAppLibrary);
+            pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
+            pl_app_shutdown = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
+            pl_app_resize   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+            pl_app_update   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+            gptExtensionRegistry->reload();
+            gUserData = pl_app_load(gptApiRegistry, gUserData);
+        }
+
+        if(tTime == 0.0)
+            tTime = pl__get_absolute_time();
+
+        double dCurrentTime = pl__get_absolute_time();
+        gptIOCtx->fDeltaTime = (float)(dCurrentTime - tTime);
+        tTime = dCurrentTime;
+
+        gptDataRegistry->garbage_collect();
+        pl_app_update(gUserData);
+        gptExtensionRegistry->reload();
+    }
+    #else
     // run app
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
     [NSApp activateIgnoringOtherApps:YES];
     [NSApp run];
+    #endif
 }
 
 //-----------------------------------------------------------------------------
 // [SECTION] plNSView
 //-----------------------------------------------------------------------------
 
+#ifndef PL_HEADLESS_APP
 @implementation plNSView
 {
     CVDisplayLinkRef _displayLink;
@@ -1060,6 +1125,8 @@ pl__add_osx_tracking_area(NSView* _Nonnull view)
     }]; 
 }
 
+#endif
+
 void
 pl__text_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
 {
@@ -1626,6 +1693,8 @@ pl__atomic_decrement(plAtomicCounter* ptCounter)
     atomic_fetch_sub(&ptCounter->ilValue, 1);
 }
 
+#ifndef PL_HEADLESS_APP
+
 plWindow*
 pl__create_window(const plWindowDesc* ptDesc)
 {
@@ -1703,6 +1772,8 @@ pl__get_clipboard_text(void* user_data_ctx)
     return gptIOCtx->sbcClipboardData;
 }
 
+#endif
+
 int
 pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t *attr, unsigned int count)
 {
@@ -1754,6 +1825,7 @@ pthread_barrier_wait(pthread_barrier_t *barrier)
     }
 }
 
+#ifndef PL_HEADLESS_APP
 void
 pl__set_clipboard_text(void* pUnused, const char* text)
 {
@@ -1873,5 +1945,7 @@ pl__osx_key_to_pl_key(int iKey)
         default:                      return PL_KEY_NONE;
     }
 }
+
+#endif
 
 #include "pilotlight_exe.c"

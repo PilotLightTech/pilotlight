@@ -44,4 +44,7 @@
 // shaders
 // #define PL_OFFLINE_SHADERS_ONLY
 
+// runtime options
+// #define PL_HEADLESS_APP
+
 #endif // PL_CONFIG_H
