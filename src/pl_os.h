@@ -107,11 +107,9 @@ typedef struct _plFileI
     void     (*copy)  (const char* pcSource, const char* pcDestination);
 
     // reading
-    void (*text_read)  (const char* pcFile, size_t* pszSize, uint8_t* puBuffer);
     void (*binary_read)(const char* pcFile, size_t* pszSize, uint8_t* puBuffer);
 
     // writing
-    void (*text_write)  (const char* pcFile, size_t szSize, uint8_t* puBuffer);
     void (*binary_write)(const char* pcFile, size_t szSize, uint8_t* puBuffer);
 } plFileI;
 
