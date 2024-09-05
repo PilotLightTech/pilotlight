@@ -16,7 +16,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_editor.h"
+#include "app.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs & enums

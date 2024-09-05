@@ -3,8 +3,8 @@
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_EDITOR_H
-#define PL_EDITOR_H
+#ifndef PL_APP_H
+#define PL_APP_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -33,6 +33,7 @@
 #include "pl_job_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_ui_ext.h"
+#include "pl_shader_ext.h"
 
 // editor
 #include "pl_gizmo.h"
@@ -56,6 +57,7 @@ static const plJobI*         gptJobs              = NULL;
 static const plDrawI*        gptDraw              = NULL;
 static const plUiI*          gptUi                = NULL;
 static const plIOI*          gptIO                = NULL;
+static const plShaderI*      gptShader            = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs & enums
@@ -104,4 +106,4 @@ typedef struct _plEditorData
 
 } plEditorData;
 
-#endif // PL_EDITOR_H
+#endif // PL_APP_H

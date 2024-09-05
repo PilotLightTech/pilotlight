@@ -21,7 +21,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_editor.h"
+#include "app.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -52,6 +52,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
         gptDraw        = ptApiRegistry->first(PL_API_DRAW);
         gptUi          = ptApiRegistry->first(PL_API_UI);
         gptIO          = ptApiRegistry->first(PL_API_IO);
+        gptShader      = ptApiRegistry->first(PL_API_SHADER);
 
         return ptEditorData;
     }
@@ -75,10 +76,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     // load extensions
     const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    ptExtensionRegistry->load("pl_model_loader_ext", NULL, NULL, false);
-    ptExtensionRegistry->load("pl_ref_renderer_ext", NULL, NULL, true);
-    ptExtensionRegistry->load("pl_ui_ext",           NULL, NULL, true);
-    ptExtensionRegistry->load("pl_debug_ext",        NULL, NULL, true);
+    ptExtensionRegistry->load("pl_extensions", NULL, NULL, true);
     
     // load apis
     gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
@@ -94,6 +92,16 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     gptDraw        = ptApiRegistry->first(PL_API_DRAW);
     gptUi          = ptApiRegistry->first(PL_API_UI);
     gptIO          = ptApiRegistry->first(PL_API_IO);
+    gptShader      = ptApiRegistry->first(PL_API_SHADER);
+
+    // initialize shader extension
+    static const plShaderOptions tDefaultShaderOptions = {
+        .uIncludeDirectoriesCount = 1,
+        .apcIncludeDirectories = {
+            "../shaders/"
+        }
+    };
+    gptShader->initialize(&tDefaultShaderOptions);
 
     // initialize gizmo stuff
     ptEditorData->ptGizmoData = pl_initialize_gizmo_data();
@@ -102,7 +110,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     gptJobs->initialize(0);
 
     const plWindowDesc tWindowDesc = {
-        .pcName  = "Pilot Light Editor",
+        .pcName  = "Pilot Light Sandbox",
         .iXPos   = 200,
         .iYPos   = 200,
         .uWidth  = 600,
