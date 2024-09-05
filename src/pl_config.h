@@ -47,4 +47,7 @@
 // runtime options
 // #define PL_HEADLESS_APP
 
+// extension options
+// #define PL_STABLE_APIS_ONLY
+
 #endif // PL_CONFIG_H

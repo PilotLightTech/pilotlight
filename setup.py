@@ -18,7 +18,7 @@ defines = [
 
 includes = [
     "${workspaceFolder}/**",
-    "${workspaceFolder}/editor",
+    "${workspaceFolder}/sandbox",
     "${workspaceFolder}/src",
     "${workspaceFolder}/libs",
     "${workspaceFolder}/extensions",
@@ -61,7 +61,7 @@ with open('.vscode/launch.json', 'w') as file:
         lines.append('      "program": "${workspaceFolder}/out/pilot_light",')
 
     lines.append('      "request": "launch",')
-    lines.append('      "args": ["-a", "editor"],')
+    lines.append('      "args": ["-a", "app"],')
     lines.append('      "stopAtEntry": false,')
     lines.append('      "cwd": "${workspaceFolder}/out/",')
     lines.append('      "environment": []')
@@ -122,7 +122,8 @@ with open('.vscode/settings.json', 'w') as file:
     lines.append('    "pl_*.h": "c",')
     lines.append('    "pl_*.m": "objective-c",')
     lines.append('    "pl_*.inc": "c"')
-    lines.append('   }')
+    lines.append('   },')
+    lines.append('  "python.analysis.extraPaths": ["./pl_build"]')
     lines.append('}')
     
     for i in range(len(lines)):

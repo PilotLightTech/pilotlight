@@ -265,6 +265,8 @@ void*
 pl__get_data(const char* pcName)
 {
     plDataID tData = pl__get_object_by_name(pcName);
+    if(tData.ulData == UINT64_MAX)
+        return NULL;
     const plDataObject* ptReader = pl__read(tData);
     void* pData = pl__get_buffer(ptReader, 1);
     pl__end_read(ptReader);
@@ -626,7 +628,7 @@ pl__handle_extension_reloads(void)
         {
             plSharedLibrary* ptLibrary = gsbptLibs[gsbtHotLibs[i]];
             plExtension* ptExtension = &gsbtExtensions[gsbtHotLibs[i]];
-            ptExtension->pl_unload(ptApiRegistry);
+            // ptExtension->pl_unload(ptApiRegistry);
             pl__reload_library(ptLibrary); 
             #ifdef _WIN32
                 ptExtension->pl_load   = (void (__cdecl *)(const plApiRegistryI*, bool)) pl__load_library_function(ptLibrary, ptExtension->pcLoadFunc);
@@ -636,7 +638,7 @@ pl__handle_extension_reloads(void)
                 ptExtension->pl_unload = (void (__attribute__(()) *)(const plApiRegistryI*))       pl__load_library_function(ptLibrary, ptExtension->pcUnloadFunc);
             #endif
             PL_ASSERT(ptExtension->pl_load);
-            PL_ASSERT(ptExtension->pl_unload);
+            // PL_ASSERT(ptExtension->pl_unload);
             ptExtension->pl_load(ptApiRegistry, true);
         }
             
