@@ -1,43 +1,38 @@
-###############################################################################
-#                              file index                                     #
-###############################################################################
-#                               imports                                       #
-#                               project                                       #
-#                            pilotlight_lib                                   #
-#                              extensions                                     #
-#                               scripts                                       #
-#                                 app                                         #
-#                             pilot_light                                     #
-#                           generate scripts                                  #
-###############################################################################
+# gen_core.py
 
-###############################################################################
-#                               imports                                       #
-###############################################################################
+# Index of this file:
+# [SECTION] imports
+# [SECTION] project
+# [SECTION] pilotlight_lib
+# [SECTION] extensions
+# [SECTION] scripts
+# [SECTION] app
+# [SECTION] pilot_light
+# [SECTION] generate_scripts
+
+#-----------------------------------------------------------------------------
+# [SECTION] imports
+#-----------------------------------------------------------------------------
 
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../pl_build")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
-import pl_build as pl
-import pl_build_win32 as win32
-import pl_build_linux as linux
-import pl_build_macos as apple
+import pl_build.core as pl
+import pl_build.backend_win32 as win32
+import pl_build.backend_linux as linux
+import pl_build.backend_macos as apple
 
-###############################################################################
-#                               project                                       #
-###############################################################################
+#-----------------------------------------------------------------------------
+# [SECTION] project
+#-----------------------------------------------------------------------------
+
+# where to output build scripts
+working_directory = os.path.dirname(os.path.abspath(__file__)) + "/../src"
 
 with pl.project("pilotlight"):
     
-    # configurations
-    pl.add_configuration("debug")
-    pl.add_configuration("vulkan") # only used on macos for vulkan
-
-    # where to output build scripts
-    pl.set_working_directory(os.path.dirname(os.path.abspath(__file__)) + "/../src")
-
     # used to decide hot reloading
     pl.set_hot_reload_target("../out/pilot_light")
 
@@ -48,27 +43,27 @@ with pl.project("pilotlight"):
     pl.add_include_directories("../sandbox", "../src", "../libs", "../extensions", "../out", "../dependencies/stb", "../dependencies/cgltf")
 
     # profiles - backend defines
-    pl.add_definitions_profile(None, ["vulkan"], None, None, "PL_VULKAN_BACKEND")
-    pl.add_definitions_profile(None, ["debug"], None, ["gcc", "msvc"], "PL_VULKAN_BACKEND")
-    pl.add_definitions_profile(None, ["debug"], ["Darwin"], None, "PL_METAL_BACKEND")
+    pl.add_definitions_profile("PL_VULKAN_BACKEND", configurations=["vulkan"])
+    pl.add_definitions_profile("PL_VULKAN_BACKEND", configurations=["debug"], compilers=["gcc", "msvc"])
+    pl.add_definitions_profile("PL_METAL_BACKEND", configurations=["debug"], platforms=["Darwin"])
 
     # profiles - directories
-    pl.add_include_directories_profile(None, None, ["Windows"], None,'%WindowsSdkDir%Include\\um', '%WindowsSdkDir%Include\\shared')
-    pl.add_link_directories_profile(None, None, ["Linux"], None, "/usr/lib/x86_64-linux-gnu")
-    pl.add_link_frameworks_profile(None, None, ["Darwin"], None, "Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
+    pl.add_include_directories_profile('%WindowsSdkDir%Include\\um', '%WindowsSdkDir%Include\\shared', platforms=["Windows"])
+    pl.add_link_directories_profile("/usr/lib/x86_64-linux-gnu", platforms=["Linux"])
+    pl.add_link_frameworks_profile("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore", platforms=["Darwin"])
 
     # profiles - flags
-    pl.add_linker_flags_profile(None, None, ["Darwin"], None, "-Wl,-rpath,/usr/local/lib")
-    pl.add_linker_flags_profile(None, None, ["Linux"], None, "-ldl", "-lm")
-    pl.add_compiler_flags_profile(None, None, None, ["gcc"], "-std=gnu11", "-fPIC", "--debug", "-g")
-    pl.add_compiler_flags_profile(None, None, None, ["clang"], "-std=c99", "--debug", "-g", "-fmodules", "-ObjC", "-fPIC")
-    pl.add_compiler_flags_profile(None, None, None, ["msvc"], "-Zc:preprocessor", "-nologo", "-std:c11", "-W4", "-WX", "-wd4201",
+    pl.add_linker_flags_profile("-Wl,-rpath,/usr/local/lib", platforms=["Darwin"])
+    pl.add_linker_flags_profile("-ldl", "-lm", platforms=["Linux"])
+    pl.add_compiler_flags_profile("-std=gnu11", "-fPIC", "--debug", "-g", compilers=["gcc"])
+    pl.add_compiler_flags_profile("-std=c99", "--debug", "-g", "-fmodules", "-ObjC", "-fPIC", compilers=["clang"])
+    pl.add_compiler_flags_profile("-Zc:preprocessor", "-nologo", "-std:c11", "-W4", "-WX", "-wd4201",
                               "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
-                              "-permissive-", "-Od", "-MDd", "-Zi")
+                              "-permissive-", "-Od", "-MDd", "-Zi", compilers=["msvc"])
 
-    ###############################################################################
-    #                            pilotlight_lib                                   #
-    ###############################################################################
+    #-----------------------------------------------------------------------------
+    # [SECTION] pilotlight_lib
+    #-----------------------------------------------------------------------------
 
     with pl.target("pilotlight_lib", pl.TargetType.STATIC_LIBRARY):
 
@@ -99,9 +94,9 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang"):
                     pl.set_output_binary("pilotlight")
                     
-    ###############################################################################
-    #                                 extensions                                  #
-    ###############################################################################
+    #-----------------------------------------------------------------------------
+    # [SECTION] extensions
+    #-----------------------------------------------------------------------------
 
     # vulkan backend extensions
     with pl.target("pl_extensions", pl.TargetType.DYNAMIC_LIBRARY, True):
@@ -158,9 +153,9 @@ with pl.project("pilotlight"):
                     pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared")
                     
 
-    ###############################################################################
-    #                                 scripts                                     #
-    ###############################################################################
+    #-----------------------------------------------------------------------------
+    # [SECTION] scripts
+    #-----------------------------------------------------------------------------
 
     # vulkan backend
     with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY, True):
@@ -196,9 +191,9 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang"):
                     pl.add_dynamic_link_libraries("shaderc_shared")
 
-    ###############################################################################
-    #                                   app                                       #
-    ###############################################################################
+    #-----------------------------------------------------------------------------
+    # [SECTION] app
+    #-----------------------------------------------------------------------------
 
     with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
 
@@ -230,9 +225,9 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang"):
                     pass
 
-    ###############################################################################
-    #                                 pilot_light                                 #
-    ###############################################################################
+    #-----------------------------------------------------------------------------
+    # [SECTION] pilot_light
+    #-----------------------------------------------------------------------------
 
     with pl.target("pilot_light", pl.TargetType.EXECUTABLE):
     
@@ -265,10 +260,10 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang"):
                     pl.add_source_files("pl_main_macos.m")
 
-###############################################################################
-#                           generate scripts                                  #
-###############################################################################
+#-----------------------------------------------------------------------------
+# [SECTION] generate scripts
+#-----------------------------------------------------------------------------
 
-win32.generate_build("build_win32.bat", "Windows", "msvc", {"dev env setup" : True})
-linux.generate_build("build_linux.sh", "Linux", "gcc", None)
-apple.generate_build("build_macos.sh", "Darwin", "clang", None)
+win32.generate_build(working_directory + '/' + "build_win32.bat", {"dev env setup" : True})
+linux.generate_build(working_directory + '/' + "build_linux.sh")
+apple.generate_build(working_directory + '/' + "build_macos.sh")

@@ -1,37 +1,33 @@
-###############################################################################
-#                              file index                                     #
-###############################################################################
-#                               imports                                       #
-#                               project                                       #
-#                               examples                                      #
-#                           generate scripts                                  #
-###############################################################################
+# gen_examples.py
 
-###############################################################################
-#                               imports                                       #
-###############################################################################
+# Index of this file:
+# [SECTION] imports
+# [SECTION] project
+# [SECTION] examples
+# [SECTION] generate_scripts
+
+#-----------------------------------------------------------------------------
+# [SECTION] imports
+#-----------------------------------------------------------------------------
 
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../pl_build")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
-import pl_build as pl
-import pl_build_win32 as win32
-import pl_build_linux as linux
-import pl_build_macos as apple
+import pl_build.core as pl
+import pl_build.backend_win32 as win32
+import pl_build.backend_linux as linux
+import pl_build.backend_macos as apple
 
-###############################################################################
-#                               project                                       #
-###############################################################################
+#-----------------------------------------------------------------------------
+# [SECTION] project
+#-----------------------------------------------------------------------------
+
+# where to output build scripts
+working_directory = os.path.dirname(os.path.abspath(__file__)) + "/../examples"
 
 with pl.project("pilotlight"):
-    
-    # configurations
-    pl.add_configuration("debug")
-
-    # where to output build scripts
-    pl.set_working_directory(os.path.dirname(os.path.abspath(__file__)) + "/../examples")
 
     # used to decide hot reloading
     pl.set_hot_reload_target("pilot_light")
@@ -42,9 +38,9 @@ with pl.project("pilotlight"):
     pl.add_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS")
     pl.add_include_directories("../examples", "../src", "../libs", "../extensions", "../out", "../dependencies/stb")
         
-    ###############################################################################
-    #                                  examples                                   #
-    ###############################################################################
+    #-----------------------------------------------------------------------------
+    # [SECTION] examples
+    #-----------------------------------------------------------------------------
 
     examples = [
         'example_0',
@@ -90,10 +86,10 @@ with pl.project("pilotlight"):
                         pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
                         pl.add_linker_flags("-Wl,-rpath,/usr/local/lib")
 
-###############################################################################
-#                           generate scripts                                  #
-###############################################################################
+#-----------------------------------------------------------------------------
+# [SECTION] generate scripts
+#-----------------------------------------------------------------------------
 
-win32.generate_build("build_win32.bat", "Windows", "msvc", {"dev env setup" : True})
-linux.generate_build("build_linux.sh", "Linux", "gcc", None)
-apple.generate_build("build_macos.sh", "Darwin", "clang", None)
+win32.generate_build(working_directory + '/' + "build_win32.bat", {"dev env setup" : True})
+linux.generate_build(working_directory + '/' + "build_linux.sh")
+apple.generate_build(working_directory + '/' + "build_macos.sh")

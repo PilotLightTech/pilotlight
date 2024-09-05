@@ -2,7 +2,7 @@ import setuptools
 from codecs import open
 import os
 
-wip_version = "1.0.0"
+wip_version = "1.0.1"
 
 def version_number():
     """This function reads the version number which is populated by github actions"""
@@ -36,18 +36,16 @@ setuptools.setup(
     url='https://github.com/PilotLightTech/pilotlight', # Optional
     packages=['pl_build'],
     classifiers=[
-        'Development Status :: 4 - Beta',
-        'Intended Audience :: Education',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
-        'Intended Audience :: Science/Research',
         'License :: OSI Approved :: MIT License',
         'Operating System :: MacOS :: MacOS X',
         'Operating System :: Microsoft :: Windows :: Windows 10',
         'Operating System :: POSIX :: Linux',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
     package_data={  # Optional

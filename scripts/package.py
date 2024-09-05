@@ -40,9 +40,9 @@ if os.path.isdir(target_directory):
 
 os.mkdir(target_directory)
 
-###############################################################################
-#                                 structure                                   #
-###############################################################################
+#-----------------------------------------------------------------------------
+# [SECTION] structure
+#-----------------------------------------------------------------------------
 
 if not os.path.isdir(target_directory + "/include"):
     os.mkdir(target_directory + "/include")
@@ -53,9 +53,9 @@ if not os.path.isdir(target_directory + "/bin"):
 if not os.path.isdir(target_directory + "/lib"):
     os.mkdir(target_directory + "/lib")
 
-###############################################################################
-#                                   files                                     #
-###############################################################################
+#-----------------------------------------------------------------------------
+# [SECTION] files
+#-----------------------------------------------------------------------------
 
 # copy core headers
 shutil.copy("../src/pilotlight.h", target_directory + "/include/pilotlight.h")
@@ -114,9 +114,9 @@ elif platform.system() == "Linux":
     shutil.copy("../out/pilot_light", target_directory + "/bin/pilot_light")
     shutil.copy("../out/pilotlight.a", target_directory + "/lib/pilotlight.a")
 
-###############################################################################
-#                                     zip                                     #
-###############################################################################
+#-----------------------------------------------------------------------------
+# [SECTION] zip
+#-----------------------------------------------------------------------------
 
 if platform.system() == "Windows":
     shutil.make_archive("../out/pilotlight_win32", "zip", "../out/pilotlight")

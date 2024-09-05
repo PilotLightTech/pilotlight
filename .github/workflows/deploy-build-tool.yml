@@ -47,8 +47,11 @@ jobs:
       shell: cmd
       run: |
         cd %GITHUB_WORKSPACE%
+        del README.md
         echo ${{ github.event.inputs.version }} > version_number.txt
         move pl_build\deploy_setup.py deploy_setup.py
+        move pl_build\README.md README.md
+        
         del setup.py
         move deploy_setup.py setup.py
         echo [build-system] >> pyproject.toml
