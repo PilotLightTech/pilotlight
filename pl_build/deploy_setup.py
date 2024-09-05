@@ -2,7 +2,7 @@ import setuptools
 from codecs import open
 import os
 
-wip_version = "0.11.0"
+wip_version = "1.0.0"
 
 def version_number():
     """This function reads the version number which is populated by github actions"""
@@ -24,7 +24,7 @@ def readme():
         return 'Not Found'
 
 setuptools.setup(
-    name="pilotlight_build",
+    name="pl_build",
     version=version_number(),
     license='MIT',
     python_requires='>=3.6',
@@ -34,7 +34,7 @@ setuptools.setup(
     long_description=readme(),
     long_description_content_type="text/markdown",
     url='https://github.com/PilotLightTech/pilotlight', # Optional
-    packages=['pilotlight_build'],
+    packages=['pl_build'],
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Education',
@@ -51,6 +51,6 @@ setuptools.setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
     package_data={  # Optional
-        'pilotlight_build': ['README.md']
+        'pl_build': ['README.md']
     }
 )
