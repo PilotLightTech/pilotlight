@@ -26,6 +26,7 @@ Index of this file:
 #include "pl_string.h"
 #include "pl_memory.h"
 #include "pl_graphics_ext.c"
+#include "pl_ext.inc"
 
 // vulkan stuff
 #if defined(_WIN32)
@@ -57,9 +58,7 @@ Index of this file:
 // [SECTION] global data
 //-----------------------------------------------------------------------------
 
-const plFileI*  gptFile = NULL;
-const plIOI*    gptIO = NULL;
-static uint32_t uLogChannel = UINT32_MAX;
+static uint32_t uLogChannelGraphics = UINT32_MAX;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -2069,7 +2068,7 @@ pl_create_main_render_pass(plDevice* ptDevice)
 
     plRenderPass tRenderPass = {
         .tDesc = {
-            .tDimensions = {gptIO->get_io()->afMainViewportSize[0], gptIO->get_io()->afMainViewportSize[1]},
+            .tDimensions = {gptIOI->get_io()->afMainViewportSize[0], gptIOI->get_io()->afMainViewportSize[1]},
             .tLayout = ptGraphics->tMainRenderPassLayout
         },
         .bSwapchain = true
@@ -2142,8 +2141,8 @@ pl_create_main_render_pass(plDevice* ptDevice)
             .renderPass      = ptVulkanRenderPass->tRenderPass,
             .attachmentCount = 1,
             .pAttachments    = &ptVulkanGfx->sbtTexturesHot[ptGraphics->tSwapchain.sbtSwapchainTextureViews[i].uIndex].tImageView,
-            .width           = (uint32_t)gptIO->get_io()->afMainViewportSize[0],
-            .height          = (uint32_t)gptIO->get_io()->afMainViewportSize[1],
+            .width           = (uint32_t)gptIOI->get_io()->afMainViewportSize[0],
+            .height          = (uint32_t)gptIOI->get_io()->afMainViewportSize[1],
             .layers          = 1u,
         };
         PL_VULKAN(vkCreateFramebuffer(ptVulkanDevice->tLogicalDevice, &tFrameBufferInfo, NULL, &ptVulkanRenderPass->atFrameBuffers[i]));
@@ -2967,7 +2966,7 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
     ptGraphics->bValidationActive = ptDesc->bEnableValidation;
     ptGraphics->ptMainWindow = ptWindow;
 
-    plIO* ptIOCtx = gptIO->get_io();
+    plIO* ptIOCtx = gptIOI->get_io();
 
     ptGraphics->_pInternalData = PL_ALLOC(sizeof(plVulkanGraphics));
     memset(ptGraphics->_pInternalData, 0, sizeof(plVulkanGraphics));
@@ -3039,7 +3038,7 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
         {
             if(strcmp(requestedExtension, ptAvailableExtensions[j].extensionName) == 0)
             {
-                pl_log_trace_to_f(uLogChannel, "extension %s found", ptAvailableExtensions[j].extensionName);
+                pl_log_trace_to_f(uLogChannelGraphics, "extension %s found", ptAvailableExtensions[j].extensionName);
                 extensionFound = true;
                 break;
             }
@@ -3054,10 +3053,10 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
     // report if all requested extensions aren't found
     if(pl_sb_size(sbpcMissingExtensions) > 0)
     {
-        // pl_log_error_to_f(uLogChannel, "%d %s", pl_sb_size(sbpcMissingExtensions), "Missing Extensions:");
+        // pl_log_error_to_f(uLogChannelGraphics, "%d %s", pl_sb_size(sbpcMissingExtensions), "Missing Extensions:");
         for(uint32_t i = 0; i < pl_sb_size(sbpcMissingExtensions); i++)
         {
-            pl_log_error_to_f(uLogChannel, "  * %s", sbpcMissingExtensions[i]);
+            pl_log_error_to_f(uLogChannelGraphics, "  * %s", sbpcMissingExtensions[i]);
         }
 
         PL_ASSERT(false && "Can't find all requested extensions");
@@ -3074,7 +3073,7 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
         {
             if(strcmp(pcRequestedLayer, ptAvailableLayers[j].layerName) == 0)
             {
-                pl_log_trace_to_f(uLogChannel, "layer %s found", ptAvailableLayers[j].layerName);
+                pl_log_trace_to_f(uLogChannelGraphics, "layer %s found", ptAvailableLayers[j].layerName);
                 bLayerFound = true;
                 break;
             }
@@ -3089,10 +3088,10 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
     // report if all requested layers aren't found
     if(pl_sb_size(sbpcMissingLayers) > 0)
     {
-        pl_log_error_to_f(uLogChannel, "%d %s", pl_sb_size(sbpcMissingLayers), "Missing Layers:");
+        pl_log_error_to_f(uLogChannelGraphics, "%d %s", pl_sb_size(sbpcMissingLayers), "Missing Layers:");
         for(uint32_t i = 0; i < pl_sb_size(sbpcMissingLayers); i++)
         {
-            pl_log_error_to_f(uLogChannel, "  * %s", sbpcMissingLayers[i]);
+            pl_log_error_to_f(uLogChannelGraphics, "  * %s", sbpcMissingLayers[i]);
         }
         PL_ASSERT(false && "Can't find all requested layers");
     }
@@ -3128,7 +3127,7 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
     };
 
     PL_VULKAN(vkCreateInstance(&tCreateInfo, NULL, &ptVulkanGfx->tInstance));
-    pl_log_trace_to_f(uLogChannel, "created vulkan instance");
+    pl_log_trace_to_f(uLogChannelGraphics, "created vulkan instance");
 
     // cleanup
     if(ptAvailableLayers)     PL_FREE(ptAvailableLayers);
@@ -3139,7 +3138,7 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
         PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(ptVulkanGfx->tInstance, "vkCreateDebugUtilsMessengerEXT");
         PL_ASSERT(func != NULL && "failed to set up debug messenger!");
         PL_VULKAN(func(ptVulkanGfx->tInstance, &tDebugCreateInfo, NULL, &ptVulkanGfx->tDbgMessenger));     
-        pl_log_trace_to_f(uLogChannel, "enabled Vulkan validation layers");
+        pl_log_trace_to_f(uLogChannelGraphics, "enabled Vulkan validation layers");
     }
 
     pl_sb_free(sbpcEnabledExtensions);
@@ -3239,12 +3238,12 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
     static const char* pacDeviceTypeName[] = {"Other", "Integrated", "Discrete", "Virtual", "CPU"};
 
     // print info on chosen device
-    pl_log_info_to_f(uLogChannel, "Device ID: %u", ptVulkanDevice->tDeviceProps.deviceID);
-    pl_log_info_to_f(uLogChannel, "Vendor ID: %u", ptVulkanDevice->tDeviceProps.vendorID);
-    pl_log_info_to_f(uLogChannel, "API Version: %u", ptVulkanDevice->tDeviceProps.apiVersion);
-    pl_log_info_to_f(uLogChannel, "Driver Version: %u", ptVulkanDevice->tDeviceProps.driverVersion);
-    pl_log_info_to_f(uLogChannel, "Device Type: %s", pacDeviceTypeName[ptVulkanDevice->tDeviceProps.deviceType]);
-    pl_log_info_to_f(uLogChannel, "Device Name: %s", ptVulkanDevice->tDeviceProps.deviceName);
+    pl_log_info_to_f(uLogChannelGraphics, "Device ID: %u", ptVulkanDevice->tDeviceProps.deviceID);
+    pl_log_info_to_f(uLogChannelGraphics, "Vendor ID: %u", ptVulkanDevice->tDeviceProps.vendorID);
+    pl_log_info_to_f(uLogChannelGraphics, "API Version: %u", ptVulkanDevice->tDeviceProps.apiVersion);
+    pl_log_info_to_f(uLogChannelGraphics, "Driver Version: %u", ptVulkanDevice->tDeviceProps.driverVersion);
+    pl_log_info_to_f(uLogChannelGraphics, "Device Type: %s", pacDeviceTypeName[ptVulkanDevice->tDeviceProps.deviceType]);
+    pl_log_info_to_f(uLogChannelGraphics, "Device Name: %s", ptVulkanDevice->tDeviceProps.deviceName);
 
     uint32_t uExtensionCount = 0;
     vkEnumerateDeviceExtensionProperties(ptVulkanDevice->tPhysicalDevice, NULL, &uExtensionCount, NULL);
@@ -3538,7 +3537,7 @@ static bool
 pl_begin_frame(plGraphics* ptGraphics)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plIO* ptIOCtx = gptIO->get_io();
+    plIO* ptIOCtx = gptIOI->get_io();
 
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
@@ -3591,7 +3590,7 @@ static bool
 pl_present(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plIO* ptIOCtx = gptIO->get_io();
+    plIO* ptIOCtx = gptIOI->get_io();
 
     VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptCmdBuffer->_pInternal;
 
@@ -3692,7 +3691,7 @@ pl_resize(plGraphics* ptGraphics)
     pl_begin_profile_sample(__FUNCTION__);
     plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
     plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    plIO* ptIOCtx = gptIO->get_io();
+    plIO* ptIOCtx = gptIOI->get_io();
 
     pl__create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1]);
 
@@ -4353,22 +4352,22 @@ pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT tMsgSeverity, VkDebugU
     if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
     {
         printf("error validation layer: %s\n", ptCallbackData->pMessage);
-        pl_log_error_to_f(uLogChannel, "error validation layer: %s\n", ptCallbackData->pMessage);
+        pl_log_error_to_f(uLogChannelGraphics, "error validation layer: %s\n", ptCallbackData->pMessage);
     }
 
     else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
     {
         printf("warn validation layer: %s\n", ptCallbackData->pMessage);
-        pl_log_warn_to_f(uLogChannel, "warn validation layer: %s\n", ptCallbackData->pMessage);
+        pl_log_warn_to_f(uLogChannelGraphics, "warn validation layer: %s\n", ptCallbackData->pMessage);
     }
 
     else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
     {
-        // pl_log_trace_to_f(uLogChannel, "info validation layer: %s\n", ptCallbackData->pMessage);
+        // pl_log_trace_to_f(uLogChannelGraphics, "info validation layer: %s\n", ptCallbackData->pMessage);
     }
     else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
     {
-        // pl_log_trace_to_f(uLogChannel, "trace validation layer: %s\n", ptCallbackData->pMessage);
+        // pl_log_trace_to_f(uLogChannelGraphics, "trace validation layer: %s\n", ptCallbackData->pMessage);
     }
     
     return VK_FALSE;
@@ -5430,15 +5429,9 @@ pl_load_device_api(void)
     return &tApi;
 }
 
-PL_EXPORT void
-pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+static void
+pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-    pl_set_profile_context(ptDataRegistry->get_data("profile"));
-    pl_set_log_context(ptDataRegistry->get_data("log"));
-    gptFile = ptApiRegistry->first(PL_API_FILE);
-    gptIO   = ptApiRegistry->first(PL_API_IO);
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_GRAPHICS), pl_load_graphics_api());
@@ -5451,7 +5444,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         {
             if(strcmp(ptChannels[i].pcName, "Vulkan") == 0)
             {
-                uLogChannel = i;
+                uLogChannelGraphics = i;
                 break;
             }
         }
@@ -5460,12 +5453,12 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     {
         ptApiRegistry->add(PL_API_GRAPHICS, pl_load_graphics_api());
         ptApiRegistry->add(PL_API_DEVICE, pl_load_device_api());
-        uLogChannel = pl_add_log_channel("Vulkan", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
+        uLogChannelGraphics = pl_add_log_channel("Vulkan", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
     }
 }
 
-PL_EXPORT void
-pl_unload_ext(plApiRegistryI* ptApiRegistry)
+static void
+pl_unload_graphics_ext(plApiRegistryI* ptApiRegistry)
 {
     
 }

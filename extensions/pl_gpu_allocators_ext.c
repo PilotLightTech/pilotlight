@@ -20,9 +20,7 @@ Index of this file:
 #include "pl_graphics_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
-
-static const plDeviceI*   gptDevice   = NULL;
-static const plGraphicsI* gptGfx      = NULL;
+#include "pl_ext.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -652,60 +650,132 @@ pl_free_staging_cached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAl
 static plDeviceMemoryAllocatorI*
 pl_get_local_dedicated_allocator(plDevice* ptDevice)
 {
-    static plDeviceAllocatorData tAllocatorData = {0};
-    static plDeviceMemoryAllocatorI tAllocator = {0};
-    tAllocatorData.ptDevice = ptDevice;
-    tAllocatorData.ptAllocator = &tAllocator;
-    tAllocator.allocate = pl_allocate_dedicated;
-    tAllocator.free = pl_free_dedicated;
-    tAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&tAllocatorData;
-    return &tAllocator;
+
+    static plDeviceAllocatorData* ptAllocatorData = NULL;
+    static plDeviceMemoryAllocatorI* ptAllocator = NULL;
+
+    if(ptAllocator == NULL)
+    {
+        ptAllocator = gptDataRegistry->get_data("LocalDedicatedAllocator");
+
+        if(ptAllocator)
+            ptAllocatorData = gptDataRegistry->get_data("LocalDedicatedAllocatorData");
+        
+        else
+        {
+            ptAllocator = PL_ALLOC(sizeof(plDeviceMemoryAllocatorI));
+            ptAllocatorData = PL_ALLOC(sizeof(plDeviceAllocatorData));
+            memset(ptAllocator, 0, sizeof(plDeviceMemoryAllocatorI));
+            memset(ptAllocatorData, 0, sizeof(plDeviceAllocatorData));
+            gptDataRegistry->set_data("LocalDedicatedAllocator", ptAllocator);
+            gptDataRegistry->set_data("LocalDedicatedAllocatorData", ptAllocatorData);
+            ptAllocatorData->ptDevice = ptDevice;
+            ptAllocatorData->ptAllocator = ptAllocator;
+
+            ptAllocator->ptInst = (struct plDeviceMemoryAllocatorO*)ptAllocatorData;
+        }
+    }
+    ptAllocator->allocate = pl_allocate_dedicated;
+    ptAllocator->free = pl_free_dedicated;
+    return ptAllocator;
 }
 
 static plDeviceMemoryAllocatorI*
 pl_get_local_buddy_allocator(plDevice* ptDevice)
 {
-    static plDeviceAllocatorData tAllocatorData = {0};
-    static plDeviceMemoryAllocatorI tAllocator = {0};
 
-    // first run
-    if(tAllocatorData.auFreeList[0] == 0)
+    static plDeviceAllocatorData* ptAllocatorData = NULL;
+    static plDeviceMemoryAllocatorI* ptAllocator = NULL;
+
+    if(ptAllocator == NULL)
     {
-        for(uint32_t i = 0; i < PL_DEVICE_LOCAL_LEVELS; i++)
-            tAllocatorData.auFreeList[i] = UINT32_MAX;
+        ptAllocator = gptDataRegistry->get_data("LocalBuddyAllocator");
+
+        if(ptAllocator)
+            ptAllocatorData = gptDataRegistry->get_data("LocalBuddyAllocatorData");
+        else
+        {
+            ptAllocator = PL_ALLOC(sizeof(plDeviceMemoryAllocatorI));
+            ptAllocatorData = PL_ALLOC(sizeof(plDeviceAllocatorData));
+            memset(ptAllocator, 0, sizeof(plDeviceMemoryAllocatorI));
+            memset(ptAllocatorData, 0, sizeof(plDeviceAllocatorData));
+            gptDataRegistry->set_data("LocalBuddyAllocator", ptAllocator);
+            gptDataRegistry->set_data("LocalBuddyAllocatorData", ptAllocatorData);
+            ptAllocatorData->ptDevice = ptDevice;
+            ptAllocatorData->ptAllocator = ptAllocator;
+            ptAllocator->ptInst = (struct plDeviceMemoryAllocatorO*)ptAllocatorData;
+            if(ptAllocatorData->auFreeList[0] == 0)
+            {
+                for(uint32_t i = 0; i < PL_DEVICE_LOCAL_LEVELS; i++)
+                    ptAllocatorData->auFreeList[i] = UINT32_MAX;
+            }
+        }
     }
-    tAllocatorData.ptDevice = ptDevice;
-    tAllocatorData.ptAllocator = &tAllocator;
-    tAllocator.allocate = pl_allocate_buddy;
-    tAllocator.free = pl_free_buddy;
-    tAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&tAllocatorData;
-    return &tAllocator;
+    ptAllocator->allocate = pl_allocate_buddy;
+    ptAllocator->free = pl_free_buddy;
+    return ptAllocator;
 }
 
 static plDeviceMemoryAllocatorI*
 pl_get_staging_uncached_allocator(plDevice* ptDevice)
 {
-    static plDeviceAllocatorData tAllocatorData = {0};
-    static plDeviceMemoryAllocatorI tAllocator = {0};
-    tAllocatorData.ptDevice = ptDevice;
-    tAllocatorData.ptAllocator = &tAllocator;
-    tAllocator.allocate = pl_allocate_staging_uncached;
-    tAllocator.free = pl_free_staging_uncached;
-    tAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&tAllocatorData;
-    return &tAllocator;
+    static plDeviceAllocatorData* ptAllocatorData = NULL;
+    static plDeviceMemoryAllocatorI* ptAllocator = NULL;
+
+    if(ptAllocator == NULL)
+    {
+        ptAllocator = gptDataRegistry->get_data("StagingUncachedAllocator");
+
+        if(ptAllocator)
+            ptAllocatorData = gptDataRegistry->get_data("StagingUncachedAllocatorData");
+        
+        else
+        {
+            ptAllocator = PL_ALLOC(sizeof(plDeviceMemoryAllocatorI));
+            ptAllocatorData = PL_ALLOC(sizeof(plDeviceAllocatorData));
+            memset(ptAllocator, 0, sizeof(plDeviceMemoryAllocatorI));
+            memset(ptAllocatorData, 0, sizeof(plDeviceAllocatorData));
+            gptDataRegistry->set_data("StagingUncachedAllocator", ptAllocator);
+            gptDataRegistry->set_data("StagingUncachedAllocatorData", ptAllocatorData);
+            ptAllocatorData->ptDevice = ptDevice;
+            ptAllocatorData->ptAllocator = ptAllocator;
+            ptAllocator->ptInst = (struct plDeviceMemoryAllocatorO*)ptAllocatorData;
+        }
+    }
+    ptAllocator->allocate = pl_allocate_staging_uncached;
+    ptAllocator->free = pl_free_staging_uncached;
+    return ptAllocator;
 }
 
 static plDeviceMemoryAllocatorI*
 pl_get_staging_cached_allocator(plDevice* ptDevice)
 {
-    static plDeviceAllocatorData tAllocatorData = {0};
-    static plDeviceMemoryAllocatorI tAllocator = {0};
-    tAllocatorData.ptDevice = ptDevice;
-    tAllocatorData.ptAllocator = &tAllocator;
-    tAllocator.allocate = pl_allocate_staging_cached;
-    tAllocator.free = pl_free_staging_cached;
-    tAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&tAllocatorData;
-    return &tAllocator;
+    static plDeviceAllocatorData* ptAllocatorData = NULL;
+    static plDeviceMemoryAllocatorI* ptAllocator = NULL;
+
+    if(ptAllocator == NULL)
+    {
+        ptAllocator = gptDataRegistry->get_data("StagingCachedAllocator");
+
+        if(ptAllocator)
+            ptAllocatorData = gptDataRegistry->get_data("StagingCachedAllocatorData");
+        
+        else
+        {
+            ptAllocator = PL_ALLOC(sizeof(plDeviceMemoryAllocatorI));
+            ptAllocatorData = PL_ALLOC(sizeof(plDeviceAllocatorData));
+            memset(ptAllocator, 0, sizeof(plDeviceMemoryAllocatorI));
+            memset(ptAllocatorData, 0, sizeof(plDeviceAllocatorData));
+            gptDataRegistry->set_data("StagingCachedAllocator", ptAllocator);
+            gptDataRegistry->set_data("StagingCachedAllocatorData", ptAllocatorData);
+            ptAllocatorData->ptDevice = ptDevice;
+            ptAllocatorData->ptAllocator = ptAllocator;
+            ptAllocator->ptInst = (struct plDeviceMemoryAllocatorO*)ptAllocatorData;
+        }
+    }
+    ptAllocator->allocate = pl_allocate_staging_cached;
+    ptAllocator->free = pl_free_staging_cached;
+    return ptAllocator;
 }
 
 static void
@@ -780,28 +850,24 @@ pl_load_gpu_allocators_api(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
-pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+static void
+pl_load_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-
-    // load required extensions (may already be loaded)
-    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    ptExtensionRegistry->load("pl_graphics_ext", NULL, NULL, false);
-
-    // load required APIs
-    gptDevice = ptApiRegistry->first(PL_API_DEVICE);
-    gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
-
     if(bReload)
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_GPU_ALLOCATORS), pl_load_gpu_allocators_api());
     else
         ptApiRegistry->add(PL_API_GPU_ALLOCATORS, pl_load_gpu_allocators_api());
 }
 
-PL_EXPORT void
-pl_unload_ext(plApiRegistryI* ptApiRegistry)
+static void
+pl_unload_gpu_allocators_ext(plApiRegistryI* ptApiRegistry)
 {
-    
+    PL_FREE(gptDataRegistry->get_data("StagingUncachedAllocator"));
+    PL_FREE(gptDataRegistry->get_data("StagingUncachedAllocatorData"));
+    PL_FREE(gptDataRegistry->get_data("StagingCachedAllocatorData"));
+    PL_FREE(gptDataRegistry->get_data("StagingCachedAllocator"));
+    PL_FREE(gptDataRegistry->get_data("LocalDedicatedAllocatorData"));
+    PL_FREE(gptDataRegistry->get_data("LocalDedicatedAllocator"));
+    PL_FREE(gptDataRegistry->get_data("LocalBuddyAllocatorData"));
+    PL_FREE(gptDataRegistry->get_data("LocalBuddyAllocator"));
 }

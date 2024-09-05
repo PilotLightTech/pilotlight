@@ -13,21 +13,21 @@ if not os.path.isdir("../out/pilotlight"):
 target_directory = "../out/pilotlight"
 
 # extensions
-extensions = [
+extension_headers = [
     "pl_debug_ext",
-    "pl_image_ext",
-    "pl_ecs_ext",
-    "pl_stats_ext",
-    "pl_resource_ext",
-    "pl_job_ext",
-    "pl_ref_renderer_ext",
-    "pl_gpu_allocators_ext",
-    "pl_model_loader_ext",
     "pl_draw_ext",
+    "pl_ecs_ext",
+    "pl_gpu_allocators_ext",
     "pl_graphics_ext",
-    "pl_ui_ext",
+    "pl_image_ext",
+    "pl_job_ext",
+    "pl_model_loader_ext",
     "pl_rect_pack_ext",
-    "pl_shader_ext"
+    "pl_ref_renderer_ext",
+    "pl_resource_ext",
+    "pl_shader_ext",
+    "pl_stats_ext",
+    "pl_ui_ext",
 ]
 
 # scripts
@@ -63,7 +63,7 @@ shutil.copy("../src/pl_config.h", target_directory + "/include/pl_config.h")
 shutil.copy("../src/pl_os.h", target_directory + "/include/pl_os.h")
 
 # copy simple extension headers
-for extension in extensions:
+for extension in extension_headers:
     shutil.copy("../extensions/" + extension + ".h", target_directory + "/include/" + extension + ".h")
 
 # special headers
@@ -82,15 +82,14 @@ shutil.copy("../libs/pl_string.h", target_directory + "/include/pl_string.h")
 # copy stb libs
 shutil.copy("../dependencies/stb/stb_sprintf.h", target_directory + "/include/stb_sprintf.h")
 
-# copy extensions
-for extension in extensions:
-    if platform.system() == "Windows":
-        shutil.copy("../out/" + extension + ".dll", target_directory + "/bin/" + extension + ".dll")
-    elif platform.system() == "Darwin":
-        shutil.copy("../out/" + extension + ".dylib", target_directory + "/bin/" + extension + ".dylib")
-        shutil.copytree("../out/" + extension + ".dylib.dSYM", target_directory + "/bin/" + extension + ".dylib.dSYM")
-    elif platform.system() == "Linux":
-        shutil.copy("../out/" + extension + ".so", target_directory + "/bin/" + extension + ".so")
+# copy extension binary
+if platform.system() == "Windows":
+    shutil.copy("../out/pl_extensions.dll", target_directory + "/bin/pl_extensions.dll")
+elif platform.system() == "Darwin":
+    shutil.copy("../out/pl_extensions.dylib", target_directory + "/bin/pl_extensions.dylib")
+    shutil.copytree("../out/pl_extensions.dylib.dSYM", target_directory + "/bin/pl_extensions.dylib.dSYM")
+elif platform.system() == "Linux":
+    shutil.copy("../out/pl_extensions.so", target_directory + "/bin/pl_extensions.so")
 
 # copy scripts
 for script in scripts:
@@ -109,7 +108,7 @@ if platform.system() == "Windows":
     shutil.copy("../src/vc140.pdb", target_directory + "/bin/vc140.pdb")
 elif platform.system() == "Darwin":
     shutil.copy("../out/pilot_light", target_directory + "/bin/pilot_light")
-    shutil.copy("../out/pilotlight.a", target_directory + "/lib/pilotlight.a")
+    shutil.copy("../out/libpilotlight.a", target_directory + "/lib/libpilotlight.a")
     shutil.copytree("../out/pilot_light.dSYM", target_directory + "/bin/pilot_light.dSYM")
 elif platform.system() == "Linux":
     shutil.copy("../out/pilot_light", target_directory + "/bin/pilot_light")
@@ -119,14 +118,13 @@ elif platform.system() == "Linux":
 #                                     zip                                     #
 ###############################################################################
 
-for extension in extensions:
-    if platform.system() == "Windows":
-        shutil.make_archive("../out/pilotlight_win32", "zip", "../out/pilotlight")
-    elif platform.system() == "Darwin" and os.uname().machine == "arm64":
-        shutil.make_archive("../out/pilotlight_macos_arm64", "zip", "../out/pilotlight")
-    elif platform.system() == "Darwin":
-        shutil.make_archive("../out/pilotlight_macos", "zip", "../out/pilotlight")
-    elif platform.system() == "Linux":
-        shutil.make_archive("../out/pilotlight_linux_amd64", "zip", "../out/pilotlight")
+if platform.system() == "Windows":
+    shutil.make_archive("../out/pilotlight_win32", "zip", "../out/pilotlight")
+elif platform.system() == "Darwin" and os.uname().machine == "arm64":
+    shutil.make_archive("../out/pilotlight_macos_arm64", "zip", "../out/pilotlight")
+elif platform.system() == "Darwin":
+    shutil.make_archive("../out/pilotlight_macos", "zip", "../out/pilotlight")
+elif platform.system() == "Linux":
+    shutil.make_archive("../out/pilotlight_linux_amd64", "zip", "../out/pilotlight")
 
 shutil.rmtree("../out/pilotlight")

@@ -5,14 +5,12 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] APIs
 // [SECTION] internal structs
 // [SECTION] internal API
 // [SECTION] implementation
 // [SECTION] internal API implementation
 // [SECTION] public API implementation
 // [SECTION] extension loading
-// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
@@ -31,17 +29,10 @@ Index of this file:
 // extensions
 #include "pl_resource_ext.h"
 #include "pl_ecs_ext.h"
+#include "pl_ext.inc"
 
 // misc
 #include "cgltf.h"
-
-//-----------------------------------------------------------------------------
-// [SECTION] APIs
-//-----------------------------------------------------------------------------
-
-static const plEcsI*      gptECS      = NULL;
-static const plFileI*     gptFile     = NULL;
-static const plResourceI* gptResource = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -999,42 +990,17 @@ pl_load_model_loader_api(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
-pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+static void
+pl_load_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-
-    // load required extensions (may already be loaded)
-    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    ptExtensionRegistry->load("pl_resource_ext", NULL, NULL, false);
-    ptExtensionRegistry->load("pl_ecs_ext", NULL, NULL, true);
-
-    // load required APIs
-    gptResource = ptApiRegistry->first(PL_API_RESOURCE);
-    gptECS      = ptApiRegistry->first(PL_API_ECS);
-    gptFile     = ptApiRegistry->first(PL_API_FILE);
-    
     if(bReload)
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_MODEL_LOADER), pl_load_model_loader_api());
     else
         ptApiRegistry->add(PL_API_MODEL_LOADER, pl_load_model_loader_api());
 }
 
-PL_EXPORT void
-pl_unload_ext(plApiRegistryI* ptApiRegistry)
+static void
+pl_unload_model_loader_ext(plApiRegistryI* ptApiRegistry)
 {
     
 }
-
-//-----------------------------------------------------------------------------
-// [SECTION] unity build
-//-----------------------------------------------------------------------------
-
-#define PL_STL_IMPLEMENTATION
-#include "pl_stl.h"
-#undef PL_STL_IMPLEMENTATION
-
-#define CGLTF_IMPLEMENTATION
-#include "cgltf.h"
-#undef CGLTF_IMPLEMENTATION

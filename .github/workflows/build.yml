@@ -46,7 +46,6 @@ jobs:
         call build_win32.bat
         cd ../examples
         call build_win32.bat
-        if not exist ../out/editor.dll exit 1
         if not exist ../out/app.dll exit 1
         if not exist ../out/example_0.dll exit 1
         if not exist ../out/example_1.dll exit 1
@@ -57,20 +56,7 @@ jobs:
         if not exist ../out/example_6.dll exit 1
         if not exist ../out/example_8.dll exit 1
         if not exist ../out/pilot_light.exe exit 1
-        if not exist ../out/pl_graphics_ext.dll exit 1
-        if not exist ../out/pl_image_ext.dll exit 1
-        if not exist ../out/pl_stats_ext.dll exit 1
-        if not exist ../out/pl_debug_ext.dll exit 1
-        if not exist ../out/pl_job_ext.dll exit 1
-        if not exist ../out/pl_rect_pack_ext.dll exit 1
-        if not exist ../out/pl_gpu_allocators_ext.dll exit 1
-        if not exist ../out/pl_resource_ext.dll exit 1
-        if not exist ../out/pl_model_loader_ext.dll exit 1
-        if not exist ../out/pl_ecs_ext.dll exit 1
-        if not exist ../out/pl_ref_renderer_ext.dll exit 1
-        if not exist ../out/pl_draw_ext.dll exit 1
-        if not exist ../out/pl_ui_ext.dll exit 1
-        if not exist ../out/pl_shader_ext.dll exit 1
+        if not exist ../out/pl_extensions.dll exit 1
         if not exist ../out/pl_script_camera.dll exit 1
         if not exist ../out/pilotlight.lib exit 1
 
@@ -120,7 +106,6 @@ jobs:
         chmod +x pilot_light
         cd ..
         test -f ./out/pilot_light || exit 1
-        test -f ./out/editor.dylib || exit 1
         test -f ./out/app.dylib || exit 1
         test -f ./out/example_0.dylib || exit 1
         test -f ./out/example_1.dylib || exit 1
@@ -130,22 +115,9 @@ jobs:
         test -f ./out/example_5.dylib || exit 1
         test -f ./out/example_6.dylib || exit 1
         test -f ./out/example_8.dylib || exit 1
-        test -f ./out/pl_stats_ext.dylib || exit 1
-        test -f ./out/pl_image_ext.dylib || exit 1
-        test -f ./out/pl_debug_ext.dylib || exit 1
-        test -f ./out/pl_graphics_ext.dylib || exit 1
-        test -f ./out/pl_job_ext.dylib || exit 1
-        test -f ./out/pl_rect_pack_ext.dylib || exit 1
-        test -f ./out/pl_gpu_allocators_ext.dylib || exit 1
-        test -f ./out/pl_model_loader_ext.dylib || exit 1
-        test -f ./out/pl_resource_ext.dylib || exit 1
-        test -f ./out/pl_ecs_ext.dylib || exit 1
-        test -f ./out/pl_ref_renderer_ext.dylib || exit 1
-        test -f ./out/pl_draw_ext.dylib || exit 1
-        test -f ./out/pl_ui_ext.dylib || exit 1
-        test -f ./out/pl_shader_ext.dylib || exit 1
+        test -f ./out/pl_extensions.dylib || exit 1
         test -f ./out/pl_script_camera.dylib || exit 1
-        test -f ./out/pilotlight.a || exit 1
+        test -f ./out/libpilotlight.a || exit 1
 
     - name: Package Pilot Light
       run: |
@@ -201,7 +173,6 @@ jobs:
         chmod +x pilot_light
         cd ..
         test -f ./out/pilot_light || exit 1
-        test -f ./out/editor.so || exit 1
         test -f ./out/app.so || exit 1
         test -f ./out/example_0.so || exit 1
         test -f ./out/example_1.so || exit 1
@@ -211,20 +182,7 @@ jobs:
         test -f ./out/example_5.so || exit 1
         test -f ./out/example_6.so || exit 1
         test -f ./out/example_8.so || exit 1
-        test -f ./out/pl_graphics_ext.so || exit 1
-        test -f ./out/pl_image_ext.so || exit 1
-        test -f ./out/pl_stats_ext.so || exit 1
-        test -f ./out/pl_debug_ext.so || exit 1
-        test -f ./out/pl_job_ext.so || exit 1
-        test -f ./out/pl_rect_pack_ext.so || exit 1
-        test -f ./out/pl_gpu_allocators_ext.so || exit 1
-        test -f ./out/pl_model_loader_ext.so || exit 1
-        test -f ./out/pl_resource_ext.so || exit 1
-        test -f ./out/pl_ecs_ext.so || exit 1
-        test -f ./out/pl_ref_renderer_ext.so || exit 1
-        test -f ./out/pl_draw_ext.so || exit 1
-        test -f ./out/pl_ui_ext.so || exit 1
-        test -f ./out/pl_shader_ext.so || exit 1
+        test -f ./out/pl_extensions.so || exit 1
         test -f ./out/pl_script_camera.so || exit 1
         test -f ./out/pilotlight.a || exit 1
 

@@ -7,6 +7,7 @@
 #include "pl_resource_ext.h"
 #include "pl_ds.h"
 #include "pl_log.h"
+#include "pl_ext.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -44,10 +45,6 @@ static void             pl_unload_resource         (plResourceHandle tResourceHa
 //-----------------------------------------------------------------------------
 // [SECTION] global data
 //-----------------------------------------------------------------------------
-
-// apis
-static const plApiRegistryI*   gptApiRegistry  = NULL;
-static const plDataRegistryI*  ptDataRegistry  = NULL;
 
 static plResourceManager* gptResourceManager = NULL;
 
@@ -205,30 +202,25 @@ pl_is_resource_valid(plResourceHandle tResourceHandle)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
-pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+static void
+pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    gptApiRegistry = ptApiRegistry;
-    ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-    pl_set_log_context(ptDataRegistry->get_data("log"));
-
     if(bReload)
     {
-        gptResourceManager = ptDataRegistry->get_data("resource manager");
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_RESOURCE), pl_load_resource_api());
+        gptResourceManager = gptDataRegistry->get_data("plResourceManager");
+        ptApiRegistry->replace(gptApiRegistry->first(PL_API_RESOURCE), pl_load_resource_api());
     }
     else
     {
         gptResourceManager = PL_ALLOC(sizeof(plResourceManager));
         memset(gptResourceManager, 0, sizeof(plResourceManager));
-        ptDataRegistry->set_data("resource manager", gptResourceManager);
-        ptApiRegistry->add(PL_API_RESOURCE, pl_load_resource_api());
+        gptDataRegistry->set_data("plResourceManager", gptResourceManager);
+        gptApiRegistry->add(PL_API_RESOURCE, pl_load_resource_api());
     }
 }
 
-PL_EXPORT void
-pl_unload_ext(plApiRegistryI* ptApiRegistry)
+static void
+pl_unload_resource_ext(plApiRegistryI* ptApiRegistry)
 {
     for(uint32_t i = 0; i < pl_sb_size(gptResourceManager->sbtResources); i++)
     {
@@ -247,6 +239,5 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry)
     pl_hm_free(&gptResourceManager->tNameHashMap);
 
     PL_FREE(gptResourceManager);
-
-    ptDataRegistry->set_data("resource manager", NULL);
+    gptDataRegistry->set_data("resource manager", NULL);
 }

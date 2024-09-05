@@ -182,8 +182,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
 
     // load extensions (makes their APIs available)
-    ptExtensionRegistry->load("pl_graphics_ext",       NULL, NULL, false);
-    ptExtensionRegistry->load("pl_draw_ext",           NULL, NULL, true);
+    ptExtensionRegistry->load("pl_extensions", NULL, NULL, true);
     
     // load required apis (NULL if not available)
     gptIO            = ptApiRegistry->first(PL_API_IO);

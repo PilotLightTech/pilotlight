@@ -46,6 +46,8 @@ Index of this file:
 #include "pl_math.h"
 #include "pl_ds.h"
 
+#include "pl_ext.inc"
+
 //-----------------------------------------------------------------------------
 // [SECTION] helper macros
 //-----------------------------------------------------------------------------
@@ -101,9 +103,6 @@ typedef int plDebugLogFlags;
 //-----------------------------------------------------------------------------
 
 static plUiContext*   gptCtx = NULL;
-static const plIOI*   gptIOI = NULL;
-static const plDrawI* gptDraw = NULL;
-static plIO*          gptIO = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums

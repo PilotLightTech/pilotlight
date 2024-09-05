@@ -131,22 +131,12 @@ pl_load_ui_api(void)
     return &tApi;
 }
 
-PL_EXPORT void
-pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+static void
+pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-
-    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    ptExtensionRegistry->load("pl_draw_ext", NULL, NULL, true);
-
-    gptIOI  = ptApiRegistry->first(PL_API_IO);
-    gptDraw = ptApiRegistry->first(PL_API_DRAW);
-
-    gptIO = gptIOI->get_io();
     if(bReload)
     {
-        gptCtx = ptDataRegistry->get_data("plUiContext");
+        gptCtx = gptDataRegistry->get_data("plUiContext");
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_UI), pl_load_ui_api());
     }
     else
@@ -157,11 +147,11 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptCtx = &tContext;
         memset(gptCtx, 0, sizeof(plUiContext));
 
-        ptDataRegistry->set_data("plUiContext", gptCtx);
+        gptDataRegistry->set_data("plUiContext", gptCtx);
     }
 }
 
-PL_EXPORT void
-pl_unload_ext(plApiRegistryI* ptApiRegistry)
+static void
+pl_unload_ui_ext(plApiRegistryI* ptApiRegistry)
 {
 }

@@ -41,6 +41,7 @@ Index of this file:
 #include "pl_draw_ext.h"
 #include "pl_ui_ext.h"
 #include "pl_shader_ext.h"
+#include "pl_ext.inc"
 
 #define PL_MAX_VIEWS_PER_SCENE 4
 #define PL_MAX_LIGHTS 1000
@@ -385,24 +386,6 @@ enum _plRenderingFlags
 
 // context data
 static plRefRendererData* gptData = NULL;
-
-// apis
-static const plDataRegistryI*  gptDataRegistry  = NULL;
-static const plResourceI*      gptResource      = NULL;
-static const plEcsI*           gptECS           = NULL;
-static const plFileI*          gptFile          = NULL;
-static const plDeviceI*        gptDevice        = NULL;
-static const plGraphicsI*      gptGfx           = NULL;
-static const plCameraI*        gptCamera        = NULL;
-static const plImageI*         gptImage         = NULL;
-static const plStatsI*         gptStats         = NULL;
-static const plGPUAllocatorsI* gptGpuAllocators = NULL;
-static const plThreadsI*       gptThreads       = NULL;
-static const plJobI*           gptJob           = NULL;
-static const plDrawI*          gptDraw          = NULL;
-static const plUiI*            gptUI            = NULL;
-static const plIOI*            gptIO            = NULL;
-static const plShaderI*        gptShader        = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal API
@@ -3039,7 +3022,7 @@ pl_refr_run_ecs(uint32_t uSceneHandle)
     pl_begin_profile_sample(__FUNCTION__);
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     gptECS->run_script_update_system(&ptScene->tComponentLibrary);
-    gptECS->run_animation_update_system(&ptScene->tComponentLibrary, gptIO->get_io()->fDeltaTime);
+    gptECS->run_animation_update_system(&ptScene->tComponentLibrary, gptIOI->get_io()->fDeltaTime);
     gptECS->run_transform_update_system(&ptScene->tComponentLibrary);
     gptECS->run_hierarchy_update_system(&ptScene->tComponentLibrary);
     gptECS->run_inverse_kinematics_update_system(&ptScene->tComponentLibrary);
@@ -3573,7 +3556,7 @@ pl_refr_post_process_scene(plCommandBuffer tCommandBuffer, uint32_t uSceneHandle
     plDynamicBinding tDynamicBinding = gptDevice->allocate_dynamic_data(ptDevice, sizeof(plPostProcessOptions));
 
     plPostProcessOptions* ptDynamicData = (plPostProcessOptions*)tDynamicBinding.pcData;
-    const plVec4 tOutlineColor = (plVec4){(float)sin(gptIO->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 0.0f, 1.0f};
+    const plVec4 tOutlineColor = (plVec4){(float)sin(gptIOI->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 0.0f, 1.0f};
     ptDynamicData->fTargetWidth = (float)gptData->uOutlineWidth * tOutlineColor.r + 1.0f;
     ptDynamicData->tOutlineColor = tOutlineColor;
 
@@ -4089,7 +4072,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
         const uint32_t uOutlineDrawableCount = pl_sb_size(ptScene->sbtOutlineDrawables);
         if(uOutlineDrawableCount > 0 && gptData->bShowSelectedBoundingBox)
         {
-            const plVec4 tOutlineColor = (plVec4){0.0f, (float)sin(gptIO->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 1.0f};
+            const plVec4 tOutlineColor = (plVec4){0.0f, (float)sin(gptIOI->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 1.0f};
             for(uint32_t i = 0; i < uOutlineDrawableCount; i++)
             {
                 const plDrawable tDrawable = ptScene->sbtOutlineDrawables[i];
@@ -4164,7 +4147,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             gptData->uClickedFrame = UINT32_MAX;
             plTexture* ptTexture = gptDevice->get_texture(ptDevice, ptView->tPickTexture);
             plBuffer* ptCachedStagingBuffer = gptDevice->get_buffer(ptDevice, gptData->tCachedStagingBuffer);
-            const plVec2 tMousePos = gptIO->get_mouse_pos();
+            const plVec2 tMousePos = gptIOI->get_mouse_pos();
 
             uint32_t uRowWidth = (uint32_t)ptTexture->tDesc.tDimensions.x * 4;
             uint32_t uPos = uRowWidth * (uint32_t)tMousePos.y + (uint32_t)tMousePos.x * 4;
@@ -4176,7 +4159,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
         }
 
         bool bOwnMouse = gptUI->wants_mouse_capture();
-        if(!bOwnMouse && gptIO->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false))
+        if(!bOwnMouse && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false))
         {
             gptData->uClickedFrame = ptGraphics->uCurrentFrameIndex;
 
@@ -4558,7 +4541,7 @@ pl_refr_end_frame(void)
 
     // render ui
     pl_begin_profile_sample("render ui");
-    plIO* ptIO = gptIO->get_io();
+    plIO* ptIO = gptIOI->get_io();
     gptUI->render(tEncoder, ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1], 1);
     pl_end_profile_sample();
 
@@ -5289,74 +5272,6 @@ pl__get_shader_variant(uint32_t uSceneHandle, plShaderHandle tHandle, const plSh
     return tShader;
 }
 
-static size_t
-pl__get_data_type_size(plDataType tType)
-{
-    switch(tType)
-    {
-        case PL_DATA_TYPE_BOOL:   return sizeof(int);
-        case PL_DATA_TYPE_BOOL2:  return 2 * sizeof(int);
-        case PL_DATA_TYPE_BOOL3:  return 3 * sizeof(int);
-        case PL_DATA_TYPE_BOOL4:  return 4 * sizeof(int);
-        
-        case PL_DATA_TYPE_FLOAT:  return sizeof(float);
-        case PL_DATA_TYPE_FLOAT2: return 2 * sizeof(float);
-        case PL_DATA_TYPE_FLOAT3: return 3 * sizeof(float);
-        case PL_DATA_TYPE_FLOAT4: return 4 * sizeof(float);
-
-        case PL_DATA_TYPE_UNSIGNED_BYTE:
-        case PL_DATA_TYPE_BYTE:  return sizeof(uint8_t);
-
-        case PL_DATA_TYPE_UNSIGNED_SHORT:
-        case PL_DATA_TYPE_SHORT: return sizeof(uint16_t);
-
-        case PL_DATA_TYPE_UNSIGNED_INT:
-        case PL_DATA_TYPE_INT:   return sizeof(uint32_t);
-
-        case PL_DATA_TYPE_UNSIGNED_LONG:
-        case PL_DATA_TYPE_LONG:  return sizeof(uint64_t);
-
-        case PL_DATA_TYPE_UNSIGNED_BYTE2:
-        case PL_DATA_TYPE_BYTE2:  return 2 * sizeof(uint8_t);
-
-        case PL_DATA_TYPE_UNSIGNED_SHORT2:
-        case PL_DATA_TYPE_SHORT2: return 2 * sizeof(uint16_t);
-
-        case PL_DATA_TYPE_UNSIGNED_INT2:
-        case PL_DATA_TYPE_INT2:   return 2 * sizeof(uint32_t);
-
-        case PL_DATA_TYPE_UNSIGNED_LONG2:
-        case PL_DATA_TYPE_LONG2:  return 2 * sizeof(uint64_t);
-
-        case PL_DATA_TYPE_UNSIGNED_BYTE3:
-        case PL_DATA_TYPE_BYTE3:  return 3 * sizeof(uint8_t);
-
-        case PL_DATA_TYPE_UNSIGNED_SHORT3:
-        case PL_DATA_TYPE_SHORT3: return 3 * sizeof(uint16_t);
-
-        case PL_DATA_TYPE_UNSIGNED_INT3:
-        case PL_DATA_TYPE_INT3:   return 3 * sizeof(uint32_t);
-
-        case PL_DATA_TYPE_UNSIGNED_LONG3:
-        case PL_DATA_TYPE_LONG3:  return 3 * sizeof(uint64_t);
-
-        case PL_DATA_TYPE_UNSIGNED_BYTE4:
-        case PL_DATA_TYPE_BYTE4:  return 4 * sizeof(uint8_t);
-
-        case PL_DATA_TYPE_UNSIGNED_SHORT4:
-        case PL_DATA_TYPE_SHORT4: return 4 * sizeof(uint16_t);
-
-        case PL_DATA_TYPE_UNSIGNED_INT4:
-        case PL_DATA_TYPE_INT4:   return 4 * sizeof(uint32_t);
-
-        case PL_DATA_TYPE_UNSIGNED_LONG4:
-        case PL_DATA_TYPE_LONG4:  return 4 * sizeof(uint64_t);
-    }
-
-    PL_ASSERT(false && "Unsupported data type");
-    return 0;
-}
-
 static plBlendState
 pl__get_blend_state(plBlendMode tBlendMode)
 {
@@ -5708,52 +5623,9 @@ pl_load_ref_renderer_api(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
-pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+static void
+pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-   gptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-   pl_set_memory_context(gptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-   pl_set_profile_context(gptDataRegistry->get_data("profile"));
-   pl_set_log_context(gptDataRegistry->get_data("log"));
-
-    // load required extensions (may already be loaded)
-    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    ptExtensionRegistry->load("pl_image_ext",          NULL, NULL, false);
-    ptExtensionRegistry->load("pl_job_ext",            NULL, NULL, false);
-    ptExtensionRegistry->load("pl_stats_ext",          NULL, NULL, false);
-    ptExtensionRegistry->load("pl_graphics_ext",       NULL, NULL, false);
-    ptExtensionRegistry->load("pl_gpu_allocators_ext", NULL, NULL, false);
-    ptExtensionRegistry->load("pl_ecs_ext",            NULL, NULL, true);
-    ptExtensionRegistry->load("pl_resource_ext",       NULL, NULL, false);
-    ptExtensionRegistry->load("pl_draw_ext",           NULL, NULL, true);
-    ptExtensionRegistry->load("pl_ui_ext",             NULL, NULL, true);
-    ptExtensionRegistry->load("pl_shader_ext",         NULL, NULL, false);
-
-   // load required APIs
-   gptResource      = ptApiRegistry->first(PL_API_RESOURCE);
-   gptECS           = ptApiRegistry->first(PL_API_ECS);
-   gptFile          = ptApiRegistry->first(PL_API_FILE);
-   gptDevice        = ptApiRegistry->first(PL_API_DEVICE);
-   gptGfx           = ptApiRegistry->first(PL_API_GRAPHICS);
-   gptCamera        = ptApiRegistry->first(PL_API_CAMERA);
-   gptImage         = ptApiRegistry->first(PL_API_IMAGE);
-   gptStats         = ptApiRegistry->first(PL_API_STATS);
-   gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
-   gptThreads       = ptApiRegistry->first(PL_API_THREADS);
-   gptJob           = ptApiRegistry->first(PL_API_JOB);
-   gptDraw          = ptApiRegistry->first(PL_API_DRAW);
-   gptUI            = ptApiRegistry->first(PL_API_UI);
-   gptIO            = ptApiRegistry->first(PL_API_IO);
-   gptShader        = ptApiRegistry->first(PL_API_SHADER);
-
-    static const plShaderOptions tDefaultShaderOptions = {
-        .uIncludeDirectoriesCount = 1,
-        .apcIncludeDirectories = {
-            "../shaders/"
-        }
-    };
-    gptShader->initialize(&tDefaultShaderOptions);
-
    if(bReload)
    {
       gptData = gptDataRegistry->get_data("ref renderer data");
@@ -5776,7 +5648,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
    }
 }
 
-PL_EXPORT void
-pl_unload_ext(plApiRegistryI* ptApiRegistry)
+static void
+pl_unload_renderer_ext(plApiRegistryI* ptApiRegistry)
 {
 }

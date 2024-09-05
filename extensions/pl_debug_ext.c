@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] internal structs
 // [SECTION] global data
 // [SECTION] internal api
 // [SECTION] public api implementation
@@ -35,38 +36,42 @@ Index of this file:
 #include "pl_stats_ext.h"
 #include "pl_graphics_ext.h"
 #include "pl_gpu_allocators_ext.h"
+#include "pl_ext.inc"
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal structs
+//-----------------------------------------------------------------------------
+
+typedef struct _plDebugContext
+{
+    // contexts
+    plMemoryContext* ptMemoryCtx;
+
+    // other
+    plDevice*       ptDevice;
+    plTempAllocator tTempAllocator;
+
+    // stat data
+    double**     sbppdValues;
+    const char** ppcNames;
+    double***    sbppdFrameValues; // values to write to
+    double*      sbdRawValues; // raw values
+    bool*        sbbValues;
+    uint32_t     uSelectedCount;
+    uint32_t     uMaxSelectedCount;
+    float        fLegendWidth;
+
+    // profile data
+    plProfileSample* sbtSamples;
+    float fDeltaTime;
+    bool bProfileFirstRun;
+} plDebugContext;
 
 //-----------------------------------------------------------------------------
 // [SECTION] global data
 //-----------------------------------------------------------------------------
 
-// apis
-static const plApiRegistryI*   gptApiRegistry   = NULL;
-static const plStatsI*         ptStatsApi       = NULL;
-static const plDataRegistryI*  ptDataRegistry   = NULL;
-static const plGPUAllocatorsI* gptGpuAllocators = NULL;
-static const plUiI*            gptUI            = NULL;
-static const plIOI*            gptIO            = NULL;
-static const plDrawI*          gptDraw          = NULL;
-
-// contexts
-static plMemoryContext* ptMemoryCtx = NULL;
-static plIO*            ptIOCtx     = NULL;
-
-// other
-static plDevice*       ptDevice       = NULL;
-static plTempAllocator tTempAllocator = {0};
-
-// stat data
-static double**     sbppdValues      = NULL;
-static const char** ppcNames         = NULL;
-static double***    sbppdFrameValues = NULL; // values to write to
-static double*      sbdRawValues     = NULL; // raw values
-static bool*        sbbValues        = NULL;
-
-// profile data
-static plProfileSample* sbtSamples = NULL;
-static float fDeltaTime = 0.0f;
+static plDebugContext* gptDebugCtx = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -148,32 +153,32 @@ static void
 pl__show_memory_allocations(bool* bValue)
 {
 
-    if(!ptDevice)
-        ptDevice = ptDataRegistry->get_data("device");
+    if(!gptDebugCtx->ptDevice)
+        gptDebugCtx->ptDevice = gptDataRegistry->get_data("device");
 
     if(gptUI->begin_window("Memory Allocations", bValue, false))
     {
         gptUI->layout_dynamic(0.0f, 1);
-        if(ptMemoryCtx->szMemoryUsage > 1000000000)
-            gptUI->text("General Memory Usage:       %0.3f gb", (double)ptMemoryCtx->szMemoryUsage / 1000000000);
-        else if(ptMemoryCtx->szMemoryUsage > 1000000)
-            gptUI->text("General Memory Usage:       %0.3f mb", (double)ptMemoryCtx->szMemoryUsage / 1000000);
-        else if(ptMemoryCtx->szMemoryUsage > 1000)
-            gptUI->text("General Memory Usage:       %0.3f kb", (double)ptMemoryCtx->szMemoryUsage / 1000);
+        if(gptDebugCtx->ptMemoryCtx->szMemoryUsage > 1000000000)
+            gptUI->text("General Memory Usage:       %0.3f gb", (double)gptDebugCtx->ptMemoryCtx->szMemoryUsage / 1000000000);
+        else if(gptDebugCtx->ptMemoryCtx->szMemoryUsage > 1000000)
+            gptUI->text("General Memory Usage:       %0.3f mb", (double)gptDebugCtx->ptMemoryCtx->szMemoryUsage / 1000000);
+        else if(gptDebugCtx->ptMemoryCtx->szMemoryUsage > 1000)
+            gptUI->text("General Memory Usage:       %0.3f kb", (double)gptDebugCtx->ptMemoryCtx->szMemoryUsage / 1000);
         else
-            gptUI->text("General Memory Usage:       %llu bytes", (double)ptMemoryCtx->szMemoryUsage);
+            gptUI->text("General Memory Usage:       %llu bytes", (double)gptDebugCtx->ptMemoryCtx->szMemoryUsage);
     
-        if(ptDevice->ptGraphics->szHostMemoryInUse > 1000000000)
-            gptUI->text("Host Graphics Memory Usage: %0.3f gb", (double)ptDevice->ptGraphics->szHostMemoryInUse / 1000000000);
-        else if(ptDevice->ptGraphics->szHostMemoryInUse > 1000000)
-            gptUI->text("Host Graphics Memory Usage: %0.3f mb", (double)ptDevice->ptGraphics->szHostMemoryInUse / 1000000);
-        else if(ptDevice->ptGraphics->szHostMemoryInUse > 1000)
-            gptUI->text("Host Graphics Memory Usage: %0.3f kb", (double)ptDevice->ptGraphics->szHostMemoryInUse / 1000);
+        if(gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse > 1000000000)
+            gptUI->text("Host Graphics Memory Usage: %0.3f gb", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse / 1000000000);
+        else if(gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse > 1000000)
+            gptUI->text("Host Graphics Memory Usage: %0.3f mb", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse / 1000000);
+        else if(gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse > 1000)
+            gptUI->text("Host Graphics Memory Usage: %0.3f kb", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse / 1000);
         else
-            gptUI->text("Host Graphics Memory Usage: %llu bytes", (double)ptDevice->ptGraphics->szHostMemoryInUse);
+            gptUI->text("Host Graphics Memory Usage: %llu bytes", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse);
 
-        gptUI->text("Active Allocations:         %u", ptMemoryCtx->szActiveAllocations);
-        gptUI->text("Freed Allocations:          %u", ptMemoryCtx->szAllocationFrees);
+        gptUI->text("Active Allocations:         %u", gptDebugCtx->ptMemoryCtx->szActiveAllocations);
+        gptUI->text("Freed Allocations:          %u", gptDebugCtx->ptMemoryCtx->szAllocationFrees);
 
         static char pcFile[1024] = {0};
 
@@ -199,14 +204,14 @@ pl__show_memory_allocations(bool* bValue)
         gptUI->layout_template_push_variable(50.0f);
         gptUI->layout_template_end();
 
-        const uint32_t uOriginalAllocationCount = pl_sb_size(ptMemoryCtx->sbtAllocations);
+        const uint32_t uOriginalAllocationCount = pl_sb_size(gptDebugCtx->ptMemoryCtx->sbtAllocations);
         
         plUiClipper tClipper = {uOriginalAllocationCount};
         while(gptUI->step_clipper(&tClipper))
         {
             for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
             {
-                plAllocationEntry tEntry = ptMemoryCtx->sbtAllocations[i];
+                plAllocationEntry tEntry = gptDebugCtx->ptMemoryCtx->sbtAllocations[i];
                 strncpy(pcFile, tEntry.pcFile, 1024);
                 gptUI->text("%i", i);
                 gptUI->text("%s", pcFile);
@@ -230,8 +235,6 @@ pl__show_profiling(bool* bValue)
         {1.0f, 0.0f, 1.0f, 0.75}
     };
 
-    static bool bFirstRun = true;
-
     if(gptUI->begin_window("Profiling (WIP)", bValue, false))
     {
         const plVec2 tWindowSize = gptUI->get_window_size();
@@ -240,44 +243,44 @@ pl__show_profiling(bool* bValue)
 
         plProfileSample* ptSamples = NULL;
         uint32_t uSampleSize = 0;
-        if(bFirstRun && ptIOCtx->ulFrameCount == 1)
+        if(gptDebugCtx->bProfileFirstRun && gptIO->ulFrameCount == 1)
         {
             ptSamples = pl_get_last_frame_samples(&uSampleSize);
-            pl_sb_resize(sbtSamples, uSampleSize);
-            memcpy(sbtSamples, ptSamples, sizeof(plProfileSample) * uSampleSize);
-            fDeltaTime = ptIOCtx->fDeltaTime;
-            bFirstRun = false;
+            pl_sb_resize(gptDebugCtx->sbtSamples, uSampleSize);
+            memcpy(gptDebugCtx->sbtSamples, ptSamples, sizeof(plProfileSample) * uSampleSize);
+            gptDebugCtx->fDeltaTime = gptIO->fDeltaTime;
+            gptDebugCtx->bProfileFirstRun = false;
         }
         else
         {
-            ptSamples = sbtSamples;
-            uSampleSize = pl_sb_size(sbtSamples);
-            bFirstRun = false;
+            ptSamples = gptDebugCtx->sbtSamples;
+            uSampleSize = pl_sb_size(gptDebugCtx->sbtSamples);
+            gptDebugCtx->bProfileFirstRun = false;
         }
 
         if(uSampleSize == 0)
         {
             ptSamples = pl_get_last_frame_samples(&uSampleSize);
-            fDeltaTime = ptIOCtx->fDeltaTime;
+            gptDebugCtx->fDeltaTime = gptIO->fDeltaTime;
         }
 
         gptUI->layout_static(0.0f, 150.0f, 2);
-        if(pl_sb_size(sbtSamples) == 0)
+        if(pl_sb_size(gptDebugCtx->sbtSamples) == 0)
         {
             if(gptUI->button("Capture Frame"))
             {
-                pl_sb_resize(sbtSamples, uSampleSize);
-                memcpy(sbtSamples, ptSamples, sizeof(plProfileSample) * uSampleSize);
+                pl_sb_resize(gptDebugCtx->sbtSamples, uSampleSize);
+                memcpy(gptDebugCtx->sbtSamples, ptSamples, sizeof(plProfileSample) * uSampleSize);
             }
         }
         else
         {
             if(gptUI->button("Release Frame"))
             {
-                pl_sb_reset(sbtSamples);
+                pl_sb_reset(gptDebugCtx->sbtSamples);
             }
         }
-        gptUI->text("Frame Time: %0.3f", fDeltaTime);
+        gptUI->text("Frame Time: %0.3f", gptDebugCtx->fDeltaTime);
 
         gptUI->layout_dynamic(0.0f, 1);
 
@@ -321,7 +324,7 @@ pl__show_profiling(bool* bValue)
                         gptUI->text("%7.3f", ptSamples[i].dDuration * 1000.0);
                         gptUI->text("%7.3f", ptSamples[i].dStartTime * 1000.0);
                         gptUI->push_theme_color(PL_UI_COLOR_PROGRESS_BAR, &atColors[ptSamples[i].uDepth % 6]);
-                        gptUI->progress_bar((float)(ptSamples[i].dDuration / (double)fDeltaTime), (plVec2){-1.0f, 0.0f}, NULL);
+                        gptUI->progress_bar((float)(ptSamples[i].dDuration / (double)gptDebugCtx->fDeltaTime), (plVec2){-1.0f, 0.0f}, NULL);
                         gptUI->pop_theme_color(1);
                     } 
                 }
@@ -345,7 +348,7 @@ pl__show_profiling(bool* bValue)
                     static double dIncrement = 0.001;
 
                     const double dVisibleTime = dInitialVisibleTime;
-                    const double dMaxTime = pl_maxd(fDeltaTime, dVisibleTime);
+                    const double dMaxTime = pl_maxd(gptDebugCtx->fDeltaTime, dVisibleTime);
 
                     while(dVisibleTime/dIncrement < 20.0)
                     {
@@ -369,17 +372,17 @@ pl__show_profiling(bool* bValue)
                     // pl_invisible_button("hitregion", tTimelineSize);
 
                     // bool bHovered = pl_was_last_item_hovered();
-                    const plVec2 tMousePos = gptIO->get_mouse_pos();
+                    const plVec2 tMousePos = gptIOI->get_mouse_pos();
                     const plRect tWidgetRect = pl_calculate_rect(tCursorPos, tTimelineSize);
                     bool bHovered = pl_rect_contains_point(&tWidgetRect, tMousePos);
                     if(bHovered)
                     {
                         
                         const double dStartVisibleTime = dInitialVisibleTime;
-                        float fWheel = gptIO->get_mouse_wheel();
+                        float fWheel = gptIOI->get_mouse_wheel();
                         if(fWheel < 0)      dInitialVisibleTime += dInitialVisibleTime * 0.2;
                         else if(fWheel > 0) dInitialVisibleTime -= dInitialVisibleTime * 0.2;
-                        dInitialVisibleTime = pl_clampd(0.0001, dInitialVisibleTime, fDeltaTime);
+                        dInitialVisibleTime = pl_clampd(0.0001, dInitialVisibleTime, gptDebugCtx->fDeltaTime);
 
                         if(fWheel != 0)
                         {
@@ -393,12 +396,12 @@ pl__show_profiling(bool* bValue)
                             gptUI->set_window_scroll((plVec2){(float)dNewPixelStart, 0.0f});
                         }
 
-                        if(gptIO->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 5.0f))
+                        if(gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 5.0f))
                         {
                             const plVec2 tWindowScroll = gptUI->get_window_scroll();
-                            const plVec2 tMouseDrag = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 5.0f);
+                            const plVec2 tMouseDrag = gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 5.0f);
                             gptUI->set_window_scroll((plVec2){tWindowScroll.x - tMouseDrag.x, tWindowScroll.y});
-                            gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+                            gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
                         }
                     }
                     
@@ -418,12 +421,12 @@ pl__show_profiling(bool* bValue)
                     while(true)
                     {
                         const double dTime0 = (double)uScrollStartPosNearestUnit * dIncrement;
-                        char* pcDecimals = pl_temp_allocator_sprintf(&tTempAllocator, "%%0.%uf", uDecimalPlaces);
-                        char* pcText0 = pl_temp_allocator_sprintf(&tTempAllocator, pcDecimals, (double)dTime0 * dUnitMultiplier);
+                        char* pcDecimals = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%%0.%uf", uDecimalPlaces);
+                        char* pcText0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, pcDecimals, (double)dTime0 * dUnitMultiplier);
   
                         const double dTime1 = dTime0 + dIncrement * 0.5;
-                        char* pcText1 = pl_temp_allocator_sprintf(&tTempAllocator, pcDecimals, (double)dTime1 * dUnitMultiplier);
-                        pl_temp_allocator_reset(&tTempAllocator);
+                        char* pcText1 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, pcDecimals, (double)dTime1 * dUnitMultiplier);
+                        pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
 
                         if(strcmp(pcText0, pcText1) != 0)
                             break;
@@ -437,15 +440,15 @@ pl__show_profiling(bool* bValue)
                     {
                         const double dTime0 = (double)uScrollEndPosNearestUnit * dIncrement;
                         const double dLineX0 = (double)(dTime0 * dConvertToPixel) + tCursorPos.x;
-                        char* pcDecimals = pl_temp_allocator_sprintf(&tTempAllocator, " %%0.%uf ms ", uDecimalPlaces);
-                        char* pcText0 = pl_temp_allocator_sprintf(&tTempAllocator, pcDecimals, (double)dTime0 * dUnitMultiplier);
+                        char* pcDecimals = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, " %%0.%uf ms ", uDecimalPlaces);
+                        char* pcText0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, pcDecimals, (double)dTime0 * dUnitMultiplier);
                         const plRect tBB0 = gptDraw->calculate_text_bb(gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, (plVec2){roundf((float)dLineX0), tCursorPos.y + 20.0f}, pcText0, 0.0f);
 
                         const double dTime1 = dTime0 + dIncrement;
                         const float dLineX1 = (float)(dTime1 * dConvertToPixel) + tCursorPos.x;
-                        char* pcText1 = pl_temp_allocator_sprintf(&tTempAllocator, pcDecimals, (double)dTime1 * dUnitMultiplier);
+                        char* pcText1 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, pcDecimals, (double)dTime1 * dUnitMultiplier);
                         const plRect tBB1 = gptDraw->calculate_text_bb(gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, (plVec2){roundf((float)dLineX1), tCursorPos.y + 20.0f}, pcText1, 0.0f);
-                        pl_temp_allocator_reset(&tTempAllocator);
+                        pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
 
                         if(!pl_rect_overlaps_rect(&tBB0, &tBB1))
                             break;
@@ -481,12 +484,12 @@ pl__show_profiling(bool* bValue)
                     while(dCurrentTime < dEndTime)
                     {
                         const float fLineX = (float)((dCurrentTime * dConvertToPixel)) + tCursorPos.x;
-                        char* pcDecimals = pl_temp_allocator_sprintf(&tTempAllocator, "%%0.%uf ms", uDecimalPlaces);
-                        char* pcText = pl_temp_allocator_sprintf(&tTempAllocator, pcDecimals, (double)dCurrentTime * dUnitMultiplier);
+                        char* pcDecimals = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%%0.%uf ms", uDecimalPlaces);
+                        char* pcText = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, pcDecimals, (double)dCurrentTime * dUnitMultiplier);
                         const float fTextWidth = gptDraw->calculate_text_size(gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, pcText, 0.0f).x;
                         gptDraw->add_line(ptFgLayer, (plVec2){fLineX, tCursorPos.y}, (plVec2){fLineX, tCursorPos.y + 20.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
                         gptDraw->add_text(ptFgLayer, gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, (plVec2){roundf(fLineX - fTextWidth / 2.0f), tCursorPos.y + 20.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, pcText, 0.0f);
-                        pl_temp_allocator_reset(&tTempAllocator);  
+                        pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);  
                         dCurrentTime += dIncrement;
                     }
 
@@ -495,17 +498,17 @@ pl__show_profiling(bool* bValue)
                         const float fPixelWidth = (float)(dConvertToPixel * ptSamples[i].dDuration);
                         const float fPixelStart = (float)(dConvertToPixel * ptSamples[i].dStartTime);
                         gptUI->layout_space_push(fPixelStart, (float)ptSamples[i].uDepth * 25.0f + 55.0f, fPixelWidth, 20.0f);
-                        char* pcTempBuffer = pl_temp_allocator_sprintf(&tTempAllocator, "%s##pro%u", ptSamples[i].pcName, i);
+                        char* pcTempBuffer = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%s##pro%u", ptSamples[i].pcName, i);
                         gptUI->push_theme_color(PL_UI_COLOR_BUTTON, &atColors[ptSamples[i].uDepth % 6]);
                         if(gptUI->button(pcTempBuffer))
                         {
-                            dInitialVisibleTime = pl_clampd(0.0001, ptSamples[i].dDuration, (double)fDeltaTime);
+                            dInitialVisibleTime = pl_clampd(0.0001, ptSamples[i].dDuration, (double)gptDebugCtx->fDeltaTime);
                             const double dNewConvertToPixel = tChildWindowSize.x / dInitialVisibleTime;
                             const double dNewPixelStart = dNewConvertToPixel * (ptSamples[i].dStartTime + 0.5 * ptSamples[i].dDuration);
                             const double dNewScrollX = dNewPixelStart - dNewConvertToPixel * dInitialVisibleTime * 0.5;
                             gptUI->set_window_scroll((plVec2){(float)dNewScrollX, 0.0f});
                         }
-                        pl_temp_allocator_reset(&tTempAllocator);
+                        pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
                         if(gptUI->was_last_item_hovered())
                         {
                             // bHovered = false;
@@ -513,7 +516,7 @@ pl__show_profiling(bool* bValue)
                             gptUI->color_text(atColors[ptSamples[i].uDepth % 6], "%s", ptSamples[i].pcName);
                             gptUI->text("Duration:   %0.7f seconds", ptSamples[i].dDuration);
                             gptUI->text("Start Time: %0.7f seconds", ptSamples[i].dStartTime);
-                            gptUI->color_text(atColors[ptSamples[i].uDepth % 6], "Frame Time: %0.2f %%", 100.0 * ptSamples[i].dDuration / (double)fDeltaTime);
+                            gptUI->color_text(atColors[ptSamples[i].uDepth % 6], "Frame Time: %0.2f %%", 100.0 * ptSamples[i].dDuration / (double)gptDebugCtx->fDeltaTime);
                             gptUI->end_tooltip(); 
                         }
                         gptUI->pop_theme_color(1);
@@ -522,9 +525,9 @@ pl__show_profiling(bool* bValue)
                     if(bHovered)
                     {
                         gptDraw->add_line(ptFgLayer, (plVec2){tMousePos.x, tCursorPos.y}, (plVec2){tMousePos.x, tWindowEnd.y}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
-                        char* pcText = pl_temp_allocator_sprintf(&tTempAllocator, "%0.6f", (double)dConvertToTime * (double)(tMousePos.x - tParentCursorPos.x + gptUI->get_window_scroll().x));
+                        char* pcText = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%0.6f", (double)dConvertToTime * (double)(tMousePos.x - tParentCursorPos.x + gptUI->get_window_scroll().x));
                         gptDraw->add_text(ptFgLayer, gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, tMousePos, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, pcText, 0.0f);
-                        pl_temp_allocator_reset(&tTempAllocator);
+                        pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
                     }
 
                     gptUI->layout_space_end();
@@ -543,43 +546,39 @@ static void
 pl__show_statistics(bool* bValue)
 {
 
-    static uint32_t uSelectedCount = 0;
-    static uint32_t uMaxSelectedCount = 0;
-
     const char** apcTempNames = NULL;
-    static float fLegendWidth = 0.0f;
 
     // selectable values
     
-    if(sbbValues == NULL) // first run
+    if(gptDebugCtx->sbbValues == NULL) // first run
     {
         uint32_t uNameCount = 0;
-        ppcNames = ptStatsApi->get_names(&uNameCount);
-        pl_sb_resize(sbbValues, uNameCount);
-        pl_sb_resize(sbppdValues, uNameCount);
-        pl_sb_resize(sbppdFrameValues, uNameCount);
-        sbbValues[0] = true;
-        uSelectedCount++;
-        uMaxSelectedCount = uSelectedCount;
-        pl_sb_resize(sbdRawValues, PL_STATS_MAX_FRAMES *  uMaxSelectedCount);
-        *ptStatsApi->get_counter_data(ppcNames[0]) = sbppdValues[0];
+        gptDebugCtx->ppcNames = gptStats->get_names(&uNameCount);
+        pl_sb_resize(gptDebugCtx->sbbValues, uNameCount);
+        pl_sb_resize(gptDebugCtx->sbppdValues, uNameCount);
+        pl_sb_resize(gptDebugCtx->sbppdFrameValues, uNameCount);
+        gptDebugCtx->sbbValues[0] = true;
+        gptDebugCtx->uSelectedCount++;
+        gptDebugCtx->uMaxSelectedCount = gptDebugCtx->uSelectedCount;
+        pl_sb_resize(gptDebugCtx->sbdRawValues, PL_STATS_MAX_FRAMES *  gptDebugCtx->uMaxSelectedCount);
+        *gptStats->get_counter_data(gptDebugCtx->ppcNames[0]) = gptDebugCtx->sbppdValues[0];
         for(uint32_t i = 0; i < uNameCount; i++)
         {
-            sbppdFrameValues[i] = ptStatsApi->get_counter_data(ppcNames[i]);
-            float fCurrentWidth = gptDraw->calculate_text_size(gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, ppcNames[i], 0.0f).x;
-            if(fCurrentWidth > fLegendWidth)
-                fLegendWidth = fCurrentWidth;
+            gptDebugCtx->sbppdFrameValues[i] = gptStats->get_counter_data(gptDebugCtx->ppcNames[i]);
+            float fCurrentWidth = gptDraw->calculate_text_size(gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, gptDebugCtx->ppcNames[i], 0.0f).x;
+            if(fCurrentWidth > gptDebugCtx->fLegendWidth)
+                gptDebugCtx->fLegendWidth = fCurrentWidth;
         }
 
-        fLegendWidth += 5.0f;
+        gptDebugCtx->fLegendWidth += 5.0f;
     }
 
     gptUI->set_next_window_size((plVec2){900.0f, 450.0f}, PL_UI_COND_ONCE);
     if(gptUI->begin_window("Statistics", bValue, false))
     {
         static bool bAllowNegative = false;
-        gptUI->text("Frame rate: %.0f FPS", ptIOCtx->fFrameRate);
-        gptUI->text("Frame time: %.6f s", ptIOCtx->fDeltaTime);
+        gptUI->text("Frame rate: %.0f FPS", gptIO->fFrameRate);
+        gptUI->text("Frame time: %.6f s", gptIO->fDeltaTime);
         const plVec2 tCursor = gptUI->get_cursor_pos();
 
         plDrawLayer2D* ptFgLayer = gptUI->get_window_fg_drawlayer();
@@ -589,7 +588,7 @@ pl__show_statistics(bool* bValue)
         const plVec2 tWindowEnd = pl_add_vec2(gptUI->get_window_size(), tWindowPos);
 
         gptUI->layout_template_begin(tWindowSize.y - 15.0f);
-        gptUI->layout_template_push_static(fLegendWidth * 1.0f);
+        gptUI->layout_template_push_static(gptDebugCtx->fLegendWidth * 1.0f);
         gptUI->layout_template_push_dynamic();
         gptUI->layout_template_end();
       
@@ -599,24 +598,24 @@ pl__show_statistics(bool* bValue)
  
             const plVec4 tNewHeaderColor = (plVec4){0.0f, 0.5f, 0.0f, 0.75f};
             gptUI->push_theme_color(PL_UI_COLOR_HEADER, &tNewHeaderColor);
-            for(uint32_t i = 0; i < pl_sb_size(sbppdValues); i++)
+            for(uint32_t i = 0; i < pl_sb_size(gptDebugCtx->sbppdValues); i++)
             {
-                if(gptUI->selectable(ppcNames[i], &sbbValues[i]))
+                if(gptUI->selectable(gptDebugCtx->ppcNames[i], &gptDebugCtx->sbbValues[i]))
                 {
-                    if(sbbValues[i])
+                    if(gptDebugCtx->sbbValues[i])
                     {
-                        uSelectedCount++;
-                        if(uSelectedCount > uMaxSelectedCount)
+                        gptDebugCtx->uSelectedCount++;
+                        if(gptDebugCtx->uSelectedCount > gptDebugCtx->uMaxSelectedCount)
                         {
-                            uMaxSelectedCount = uSelectedCount;
-                            pl_sb_resize(sbdRawValues, PL_STATS_MAX_FRAMES *  uMaxSelectedCount);
+                            gptDebugCtx->uMaxSelectedCount = gptDebugCtx->uSelectedCount;
+                            pl_sb_resize(gptDebugCtx->sbdRawValues, PL_STATS_MAX_FRAMES *  gptDebugCtx->uMaxSelectedCount);
                         }
-                        *ptStatsApi->get_counter_data(ppcNames[i]) = sbppdValues[i];
+                        *gptStats->get_counter_data(gptDebugCtx->ppcNames[i]) = gptDebugCtx->sbppdValues[i];
                     }
                     else
                     {
-                        uSelectedCount--;
-                        *ptStatsApi->get_counter_data(ppcNames[i]) = NULL;
+                        gptDebugCtx->uSelectedCount--;
+                        *gptStats->get_counter_data(gptDebugCtx->ppcNames[i]) = NULL;
                     }
                 }
             }
@@ -625,18 +624,18 @@ pl__show_statistics(bool* bValue)
         }
 
         uint32_t uSelectionSlot = 0;
-        apcTempNames = pl_temp_allocator_alloc(&tTempAllocator, sizeof(const char*) * uSelectedCount);
-        for(uint32_t i = 0; i < pl_sb_size(sbbValues); i++)
+        apcTempNames = pl_temp_allocator_alloc(&gptDebugCtx->tTempAllocator, sizeof(const char*) * gptDebugCtx->uSelectedCount);
+        for(uint32_t i = 0; i < pl_sb_size(gptDebugCtx->sbbValues); i++)
         {
-            if(sbbValues[i])
+            if(gptDebugCtx->sbbValues[i])
             {
-                apcTempNames[uSelectionSlot] = ppcNames[i];
-                *sbppdFrameValues[i] = &sbdRawValues[uSelectionSlot * PL_STATS_MAX_FRAMES];
+                apcTempNames[uSelectionSlot] = gptDebugCtx->ppcNames[i];
+                *gptDebugCtx->sbppdFrameValues[i] = &gptDebugCtx->sbdRawValues[uSelectionSlot * PL_STATS_MAX_FRAMES];
                 uSelectionSlot++;
             }
             else
             {
-                *sbppdFrameValues[i] = NULL;
+                *gptDebugCtx->sbppdFrameValues[i] = NULL;
             }
         }
 
@@ -648,12 +647,12 @@ pl__show_statistics(bool* bValue)
                 
                 gptUI->layout_template_begin(tWindowSize.y - 30.0f);
                 gptUI->layout_template_push_variable(300.0f);
-                gptUI->layout_template_push_static(fLegendWidth * 2.0f + 10.0f);
+                gptUI->layout_template_push_static(gptDebugCtx->fLegendWidth * 2.0f + 10.0f);
                 gptUI->layout_template_end();
                 
                 const plVec2 tCursor0 = gptUI->get_cursor_pos();
-                const plVec2 tPlotSize = {tWindowEnd.x - tCursor0.x - 10.0f - fLegendWidth - 20.0f, tWindowSize.y - 40.0f};
-                const plVec2 tLegendSize = {fLegendWidth + 20.0f, tWindowSize.y - 40.0f};
+                const plVec2 tPlotSize = {tWindowEnd.x - tCursor0.x - 10.0f - gptDebugCtx->fLegendWidth - 20.0f, tWindowSize.y - 40.0f};
+                const plVec2 tLegendSize = {gptDebugCtx->fLegendWidth + 20.0f, tWindowSize.y - 40.0f};
                 gptUI->invisible_button("plot", tPlotSize);
 
                 const plVec2 tCursor1 = gptUI->get_cursor_pos();
@@ -684,10 +683,10 @@ pl__show_statistics(bool* bValue)
                 }
 
                 bAllowNegative = false;
-                for(uint32_t i = 0; i < uSelectedCount; i++)
+                for(uint32_t i = 0; i < gptDebugCtx->uSelectedCount; i++)
                 {
                     const plVec4* ptColor = &atColors[i % 6];
-                    double* dValues = &sbdRawValues[i * PL_STATS_MAX_FRAMES];
+                    double* dValues = &gptDebugCtx->sbdRawValues[i * PL_STATS_MAX_FRAMES];
                     double dMaxValue = -DBL_MAX;
                     double dMinValue = DBL_MAX;
 
@@ -704,7 +703,7 @@ pl__show_statistics(bool* bValue)
                     
                     const double dXIncrement = (tPlotSize.x - 50.0f) / PL_STATS_MAX_FRAMES;
 
-                    uint32_t uIndexStart = (uint32_t)ptIOCtx->ulFrameCount;
+                    uint32_t uIndexStart = (uint32_t)gptIO->ulFrameCount;
 
                     const plVec2 tTextPoint = {tCursor1.x + 5.0f, tCursor1.y + i * 20.0f};
                     gptDraw->add_rect_filled(ptFgLayer, tTextPoint, (plVec2){tTextPoint.x + gptDraw->get_font(gptUI->get_default_font())->fSize, tTextPoint.y + gptDraw->get_font(gptUI->get_default_font())->fSize}, *ptColor, 0.0f, 0);
@@ -734,12 +733,12 @@ pl__show_statistics(bool* bValue)
             {
                 gptUI->layout_template_begin(0.0f);
                 gptUI->layout_template_push_static(35.0f);
-                for(uint32_t i = 0; i < uSelectedCount; i++)
+                for(uint32_t i = 0; i < gptDebugCtx->uSelectedCount; i++)
                     gptUI->layout_template_push_static(150.0f);
                 gptUI->layout_template_end();
 
                 gptUI->text("Stat");
-                for(uint32_t i = 0; i < uSelectedCount; i++)
+                for(uint32_t i = 0; i < gptDebugCtx->uSelectedCount; i++)
                 {
                     const float fXPos = gptUI->get_cursor_pos().x - 5.0f;
                     const float fYPos = gptUI->get_cursor_pos().y;
@@ -752,11 +751,11 @@ pl__show_statistics(bool* bValue)
 
                 gptUI->layout_template_begin(0.0f);
                 gptUI->layout_template_push_static(35.0f);
-                for(uint32_t i = 0; i < uSelectedCount; i++)
+                for(uint32_t i = 0; i < gptDebugCtx->uSelectedCount; i++)
                     gptUI->layout_template_push_static(150.0f);
                 gptUI->layout_template_end();
 
-                uint32_t uIndexStart = (uint32_t)ptIOCtx->ulFrameCount;
+                uint32_t uIndexStart = (uint32_t)gptIO->ulFrameCount;
 
                 plUiClipper tClipper = {PL_STATS_MAX_FRAMES};
                 while(gptUI->step_clipper(&tClipper))
@@ -764,9 +763,9 @@ pl__show_statistics(bool* bValue)
                     for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
                     {
                         gptUI->text("%u", i);
-                        for(uint32_t j = 0; j < uSelectedCount; j++)
+                        for(uint32_t j = 0; j < gptDebugCtx->uSelectedCount; j++)
                         {
-                            double* dValues = &sbdRawValues[j * PL_STATS_MAX_FRAMES];
+                            double* dValues = &gptDebugCtx->sbdRawValues[j * PL_STATS_MAX_FRAMES];
                             uint32_t uActualIndex0 = (uIndexStart + j) % PL_STATS_MAX_FRAMES;
                             gptUI->text("%13.6f", dValues[uActualIndex0]);
                         }
@@ -777,7 +776,7 @@ pl__show_statistics(bool* bValue)
             }
             gptUI->end_tab_bar();
         }
-        pl_temp_allocator_reset(&tTempAllocator);
+        pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
         gptUI->end_window();
     } 
 }
@@ -791,8 +790,8 @@ pl__show_device_memory(bool* bValue)
     static const plVec4 tWhiteColor     = {1.0f, 1.0f, 1.0f, 1.0f};
     static const plVec4 tButtonColor    = {0.05f, 0.05f, 0.05f, 1.0f};
 
-    if(!ptDevice)
-        ptDevice = ptDataRegistry->get_data("device");
+    if(!gptDebugCtx->ptDevice)
+        gptDebugCtx->ptDevice = gptDataRegistry->get_data("device");
         
     if(gptUI->begin_window("Device Memory Analyzer", bValue, false))
     {
@@ -800,31 +799,31 @@ pl__show_device_memory(bool* bValue)
         const plVec2 tWindowSize = gptUI->get_window_size();
         const plVec2 tWindowPos = gptUI->get_window_pos();
         const plVec2 tWindowEnd = pl_add_vec2(tWindowSize, tWindowPos);
-        const plVec2 tMousePos = gptIO->get_mouse_pos();
+        const plVec2 tMousePos = gptIOI->get_mouse_pos();
 
-        if(ptDevice->ptGraphics->szLocalMemoryInUse > 1000000000)
-            gptUI->text("Device Local Memory: %0.3f gb", (double)ptDevice->ptGraphics->szLocalMemoryInUse / 1000000000);
-        else if(ptDevice->ptGraphics->szLocalMemoryInUse > 1000000)
-            gptUI->text("Device Local Memory: %0.3f mb", (double)ptDevice->ptGraphics->szLocalMemoryInUse / 1000000);
-        else if(ptDevice->ptGraphics->szLocalMemoryInUse > 1000)
-            gptUI->text("Device Local Memory: %0.3f kb", (double)ptDevice->ptGraphics->szLocalMemoryInUse / 1000);
+        if(gptDebugCtx->ptDevice->ptGraphics->szLocalMemoryInUse > 1000000000)
+            gptUI->text("Device Local Memory: %0.3f gb", (double)gptDebugCtx->ptDevice->ptGraphics->szLocalMemoryInUse / 1000000000);
+        else if(gptDebugCtx->ptDevice->ptGraphics->szLocalMemoryInUse > 1000000)
+            gptUI->text("Device Local Memory: %0.3f mb", (double)gptDebugCtx->ptDevice->ptGraphics->szLocalMemoryInUse / 1000000);
+        else if(gptDebugCtx->ptDevice->ptGraphics->szLocalMemoryInUse > 1000)
+            gptUI->text("Device Local Memory: %0.3f kb", (double)gptDebugCtx->ptDevice->ptGraphics->szLocalMemoryInUse / 1000);
         else
-            gptUI->text("Device Local Memory: %llu bytes", (double)ptDevice->ptGraphics->szLocalMemoryInUse);
+            gptUI->text("Device Local Memory: %llu bytes", (double)gptDebugCtx->ptDevice->ptGraphics->szLocalMemoryInUse);
 
-        if(ptDevice->ptGraphics->szHostMemoryInUse > 1000000000)
-            gptUI->text("Host Memory: %0.3f gb", (double)ptDevice->ptGraphics->szHostMemoryInUse / 1000000000);
-        else if(ptDevice->ptGraphics->szHostMemoryInUse > 1000000)
-            gptUI->text("Host Memory: %0.3f mb", (double)ptDevice->ptGraphics->szHostMemoryInUse / 1000000);
-        else if(ptDevice->ptGraphics->szHostMemoryInUse > 1000)
-            gptUI->text("Host Memory: %0.3f kb", (double)ptDevice->ptGraphics->szHostMemoryInUse / 1000);
+        if(gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse > 1000000000)
+            gptUI->text("Host Memory: %0.3f gb", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse / 1000000000);
+        else if(gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse > 1000000)
+            gptUI->text("Host Memory: %0.3f mb", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse / 1000000);
+        else if(gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse > 1000)
+            gptUI->text("Host Memory: %0.3f kb", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse / 1000);
         else
-            gptUI->text("Host Memory: %llu bytes", (double)ptDevice->ptGraphics->szHostMemoryInUse);
+            gptUI->text("Host Memory: %llu bytes", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse);
 
         const plDeviceMemoryAllocatorI atAllocators[] = {
-            *gptGpuAllocators->get_local_buddy_allocator(ptDevice),
-            *gptGpuAllocators->get_local_dedicated_allocator(ptDevice),
-            *gptGpuAllocators->get_staging_uncached_allocator(ptDevice),
-            *gptGpuAllocators->get_staging_cached_allocator(ptDevice)
+            *gptGpuAllocators->get_local_buddy_allocator(gptDebugCtx->ptDevice),
+            *gptGpuAllocators->get_local_dedicated_allocator(gptDebugCtx->ptDevice),
+            *gptGpuAllocators->get_staging_uncached_allocator(gptDebugCtx->ptDevice),
+            *gptGpuAllocators->get_staging_cached_allocator(gptDebugCtx->ptDevice)
         };
 
         const char* apcAllocatorNames[] = {
@@ -868,8 +867,8 @@ pl__show_device_memory(bool* bValue)
                     if(ptBlock->ulSize == 0)
                         continue;
 
-                    char* pcTempBuffer0 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u: %0.1fMB##%u", iCurrentBlock, ((double)ptBlock->ulSize)/1000000.0, uAllocatorIndex);
-                    char* pcTempBuffer1 = pl_temp_allocator_sprintf(&tTempAllocator, "Block %u##%u", iCurrentBlock, uAllocatorIndex);
+                    char* pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "Block %u: %0.1fMB##%u", iCurrentBlock, ((double)ptBlock->ulSize)/1000000.0, uAllocatorIndex);
+                    char* pcTempBuffer1 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "Block %u##%u", iCurrentBlock, uAllocatorIndex);
 
                     gptUI->button(pcTempBuffer0);
                     
@@ -893,7 +892,7 @@ pl__show_device_memory(bool* bValue)
                     {
                         ulHoveredBlock = (uint64_t)i;
                     }
-                    pl_temp_allocator_reset(&tTempAllocator);
+                    pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
                     ptBlock->uCurrentIndex = iCurrentBlock;
                     iCurrentBlock++;
                 }
@@ -1077,48 +1076,39 @@ pl__show_logging(bool* bValue)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
-pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+static void
+pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    gptApiRegistry = ptApiRegistry;
-    ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    ptMemoryCtx = ptDataRegistry->get_data(PL_CONTEXT_MEMORY);
-    pl_set_memory_context(ptMemoryCtx);
-    pl_set_profile_context(ptDataRegistry->get_data("profile"));
-    pl_set_log_context(ptDataRegistry->get_data("log"));
-
-    // load required extensions (may already be loaded)
-    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    ptExtensionRegistry->load("pl_gpu_allocators_ext", NULL, NULL, false);
-    ptExtensionRegistry->load("pl_ui_ext", NULL, NULL, true);
-
-    // load required APIs
-    ptStatsApi       = ptApiRegistry->first(PL_API_STATS);
-    gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
-    gptDraw          = ptApiRegistry->first(PL_API_DRAW);
-    gptUI            = ptApiRegistry->first(PL_API_UI);
-    gptIO            = ptApiRegistry->first(PL_API_IO);
-
-    // load required contexts
-    ptIOCtx = gptIO->get_io();
-
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_DEBUG), pl_load_debug_api());
+
+        gptDebugCtx = gptDataRegistry->get_data("plDebugContext");
     }
     else
     {
         ptApiRegistry->add(PL_API_DEBUG, pl_load_debug_api());
+
+        // allocate & store context
+        gptDebugCtx = PL_ALLOC(sizeof(plDebugContext));
+        memset(gptDebugCtx, 0, sizeof(plDebugContext));
+
+        gptDebugCtx->ptMemoryCtx = gptDataRegistry->get_data(PL_CONTEXT_MEMORY);
+        gptDebugCtx->bProfileFirstRun = true;
+
+        gptDataRegistry->set_data("plDebugContext", gptDebugCtx);
     }
 }
 
-PL_EXPORT void
-pl_unload_ext(plApiRegistryI* ptApiRegistry)
+static void
+pl_unload_debug_ext(plApiRegistryI* ptApiRegistry)
 {
-    pl_sb_free(sbppdValues);
-    pl_sb_free(sbppdFrameValues);
-    pl_sb_free(sbdRawValues);
-    pl_sb_free(sbbValues);
-    pl_sb_free(sbtSamples);
-    pl_temp_allocator_free(&tTempAllocator);
+    pl_sb_free(gptDebugCtx->sbppdValues);
+    pl_sb_free(gptDebugCtx->sbppdFrameValues);
+    pl_sb_free(gptDebugCtx->sbdRawValues);
+    pl_sb_free(gptDebugCtx->sbbValues);
+    pl_sb_free(gptDebugCtx->sbtSamples);
+    pl_temp_allocator_free(&gptDebugCtx->tTempAllocator);
+    PL_FREE(gptDebugCtx);
+    gptDebugCtx = NULL;
 }

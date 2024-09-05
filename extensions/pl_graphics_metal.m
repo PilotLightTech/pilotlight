@@ -6,7 +6,6 @@
 Index of this file:
 // [SECTION] includes
 // [SECTION] defines
-// [SECTION] global data
 // [SECTION] internal structs & types
 // [SECTION] internal api
 // [SECTION] public api implementation
@@ -24,6 +23,7 @@ Index of this file:
 #include "pl_profile.h"
 #include "pl_memory.h"
 #include "pl_graphics_ext.c"
+#include "pl_ext.inc"
 
 // metal stuff
 #import <Metal/Metal.h>
@@ -40,14 +40,6 @@ Index of this file:
 #ifndef PL_DYNAMIC_ARGUMENT_BUFFER_SIZE
     #define PL_DYNAMIC_ARGUMENT_BUFFER_SIZE 16777216
 #endif
-
-//-----------------------------------------------------------------------------
-// [SECTION] global data
-//-----------------------------------------------------------------------------
-
-const plFileI* gptFile    = NULL;
-const plIOI*    gptIO = NULL;
-const plThreadsI*  gptThread = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs & types
@@ -359,7 +351,7 @@ pl_create_main_render_pass(plDevice* ptDevice)
 
     plRenderPass tRenderPass = {
         .tDesc = {
-            .tDimensions = {gptIO->get_io()->afMainViewportSize[0], gptIO->get_io()->afMainViewportSize[1]},
+            .tDimensions = {gptIOI->get_io()->afMainViewportSize[0], gptIOI->get_io()->afMainViewportSize[1]},
             .tLayout = ptGraphics->tMainRenderPassLayout
         },
         .bSwapchain = true
@@ -673,7 +665,7 @@ pl_wait_semaphore(plGraphics* ptGraphics, plSemaphoreHandle tHandle, uint64_t ul
     {
         while(ptMetalGraphics->sbtSemaphoresHot[tHandle.uIndex].tSharedEvent.signaledValue != ulValue)
         {
-            gptThread->sleep_thread(1);
+            gptThreads->sleep_thread(1);
         }
     }
 }
@@ -1679,16 +1671,11 @@ pl_free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryA
     ptAllocation->ulOffset = 0;
 }
 
-static void pl_spvc_error_callback(void* pUserData, const char* pcError)
-{
-    printf("SPIR-V Cross Error: %s\n", pcError);
-}
-
 static void
 pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraphics* ptGraphics)
 {
     ptGraphics->bValidationActive = ptDesc->bEnableValidation;
-    plIO* ptIOCtx = gptIO->get_io();
+    plIO* ptIOCtx = gptIOI->get_io();
 
     ptGraphics->_pInternalData = PL_ALLOC(sizeof(plGraphicsMetal));
     memset(ptGraphics->_pInternalData, 0, sizeof(plGraphicsMetal));
@@ -1789,7 +1776,7 @@ pl_begin_frame(plGraphics* ptGraphics)
 
     dispatch_semaphore_wait(ptFrame->tFrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
 
-    plIO* ptIOCtx = gptIO->get_io();
+    plIO* ptIOCtx = gptIOI->get_io();
     ptMetalGraphics->pMetalLayer = ptIOCtx->pBackendPlatformData;
 
     static bool bFirstRun = true;
@@ -2510,11 +2497,11 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
 static void
 pl_flush_device(plDevice* ptDevice)
 {
-    gptThread->sleep_thread(500);
+    gptThreads->sleep_thread(500);
 }
 
 static void
-pl_cleanup(plGraphics* ptGraphics)
+pl_cleanup_metal(plGraphics* ptGraphics)
 {
     plGraphicsMetal* ptMetalGraphics = (plGraphicsMetal*)ptGraphics->_pInternalData;
 
@@ -3180,7 +3167,7 @@ pl_load_graphics_api(void)
         .bind_vertex_buffer               = pl_bind_vertex_buffer,
         .bind_shader                      = pl_bind_shader,
         .bind_compute_shader              = pl_bind_compute_shader,
-        .cleanup                          = pl_cleanup,
+        .cleanup                          = pl_cleanup_metal,
         .begin_command_recording          = pl_begin_command_recording,
         .end_command_recording            = pl_end_command_recording,
         .submit_command_buffer            = pl_submit_command_buffer,
@@ -3258,15 +3245,9 @@ pl_load_device_api(void)
     return &tApi;
 }
 
-PL_EXPORT void
-pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+static void
+pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-    pl_set_profile_context(ptDataRegistry->get_data("profile"));
-    gptFile = ptApiRegistry->first(PL_API_FILE);
-    gptThread = ptApiRegistry->first(PL_API_THREADS);
-    gptIO = ptApiRegistry->first(PL_API_IO);
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_GRAPHICS), pl_load_graphics_api());
@@ -3279,8 +3260,8 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
-pl_unload_ext(plApiRegistryI* ptApiRegistry)
+static void
+pl_unload_graphics_ext(plApiRegistryI* ptApiRegistry)
 {
 
 }

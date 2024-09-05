@@ -25,6 +25,7 @@ Index of this file:
 // extensions
 #include "pl_shader_ext.h"
 #include "pl_graphics_ext.h"
+#include "pl_ext.inc"
 
 // external
 #ifndef PL_OFFLINE_SHADERS_ONLY
@@ -46,15 +47,16 @@ static spvc_context tSpirvCtx;
 #endif
 #endif
 
-// data
-static plTempAllocator tTempAllocator = {0};
-static plTempAllocator tTempAllocator2 = {0};
-static uint8_t**       sbptShaderBytecodeCache = NULL;
-static plShaderOptions gtDefaultShaderOptions = {0};
-static bool            gbInitialized = false;
+typedef struct _plShaderContext
+{
+    plTempAllocator tTempAllocator;
+    plTempAllocator tTempAllocator2;
+    uint8_t**       sbptShaderBytecodeCache;
+    plShaderOptions tDefaultShaderOptions;
+    bool            bInitialized;
+} plShaderContext;
 
-// apis
-static const plFileI* gptFile = NULL;
+static plShaderContext* gptShaderCtx = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] implementation
@@ -66,10 +68,10 @@ static shaderc_include_result*
 pl_shaderc_include_resolve_fn(void* pUserData, const char* pcRequestedSource, int iType, const char* pcRequestingSource, size_t szIncludeDepth)
 {
     plShaderOptions* ptOptions = pUserData;
-    const char** apcIncludeDirectories = ptOptions ? ptOptions->apcIncludeDirectories : gtDefaultShaderOptions.apcIncludeDirectories;
-    const uint32_t uIncludeDirectoriesCount = ptOptions ? ptOptions->uIncludeDirectoriesCount : gtDefaultShaderOptions.uIncludeDirectoriesCount;
+    const char** apcIncludeDirectories = ptOptions ? ptOptions->apcIncludeDirectories : gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories;
+    const uint32_t uIncludeDirectoriesCount = ptOptions ? ptOptions->uIncludeDirectoriesCount : gptShaderCtx->tDefaultShaderOptions.uIncludeDirectoriesCount;
 
-    shaderc_include_result* ptResult = pl_temp_allocator_alloc(&tTempAllocator, sizeof(shaderc_include_result));
+    shaderc_include_result* ptResult = pl_temp_allocator_alloc(&gptShaderCtx->tTempAllocator, sizeof(shaderc_include_result));
     ptResult->user_data = ptOptions;
     ptResult->source_name = pcRequestedSource;
     ptResult->source_name_length = strlen(pcRequestedSource);
@@ -77,13 +79,13 @@ pl_shaderc_include_resolve_fn(void* pUserData, const char* pcRequestedSource, in
     bool bFound = false;
     for(uint32_t i = 0; i < uIncludeDirectoriesCount; i++)
     {
-        char* pcFullSourcePath = pl_temp_allocator_sprintf(&tTempAllocator, "%s%s", apcIncludeDirectories[i], pcRequestedSource);
+        char* pcFullSourcePath = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator, "%s%s", apcIncludeDirectories[i], pcRequestedSource);
 
         if(gptFile->exists(pcFullSourcePath))
         {
             size_t szShaderSize = 0;
             gptFile->binary_read(pcFullSourcePath, &szShaderSize, NULL);
-            uint8_t* puVertexShaderCode = pl_temp_allocator_alloc(&tTempAllocator, szShaderSize);
+            uint8_t* puVertexShaderCode = pl_temp_allocator_alloc(&gptShaderCtx->tTempAllocator, szShaderSize);
             gptFile->binary_read(pcFullSourcePath, &szShaderSize, puVertexShaderCode);
             
 
@@ -101,7 +103,7 @@ pl_shaderc_include_resolve_fn(void* pUserData, const char* pcRequestedSource, in
 static void
 pl_shaderc_include_result_release_fn(void* pUserData, shaderc_include_result* ptIncludeResult)
 {
-    pl_temp_allocator_reset(&tTempAllocator);
+    pl_temp_allocator_reset(&gptShaderCtx->tTempAllocator);
 }
 
 static void
@@ -116,20 +118,20 @@ static void
 pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
 {
 
-    if(gbInitialized)
+    if(gptShaderCtx->bInitialized)
         return;
-    gbInitialized = true;
+    gptShaderCtx->bInitialized = true;
 
-    gtDefaultShaderOptions.apcIncludeDirectories[0] = "./";
-    gtDefaultShaderOptions.uIncludeDirectoriesCount = 1;
+    gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[0] = "./";
+    gptShaderCtx->tDefaultShaderOptions.uIncludeDirectoriesCount = 1;
 
     if(ptShaderOptions)
     {
         for(uint32_t i = 0; i < ptShaderOptions->uIncludeDirectoriesCount; i++)
         {
-            gtDefaultShaderOptions.apcIncludeDirectories[i + 1] = ptShaderOptions->apcIncludeDirectories[i];
+            gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[i + 1] = ptShaderOptions->apcIncludeDirectories[i];
         }
-        gtDefaultShaderOptions.uIncludeDirectoriesCount = ptShaderOptions->uIncludeDirectoriesCount + 1;
+        gptShaderCtx->tDefaultShaderOptions.uIncludeDirectoriesCount = ptShaderOptions->uIncludeDirectoriesCount + 1;
     }
     
     #ifndef PL_OFFLINE_SHADERS_ONLY
@@ -156,7 +158,7 @@ pl_read_from_disk(const char* pcShader, const char* pcEntryFunc)
         tModule.puCode = PL_ALLOC(tModule.szCodeSize);
         memset(tModule.puCode, 0, tModule.szCodeSize);
         gptFile->binary_read(pcShader, &tModule.szCodeSize, tModule.puCode);
-        pl_sb_push(sbptShaderBytecodeCache, tModule.puCode);
+        pl_sb_push(gptShaderCtx->sbptShaderBytecodeCache, tModule.puCode);
         tModule.pcEntryFunc = pcEntryFunc;
     }
     return tModule;
@@ -174,7 +176,7 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
     shaderc_compile_options_set_include_callbacks(tOptions, pl_shaderc_include_resolve_fn, pl_shaderc_include_result_release_fn, ptOptions);
 
     if(ptOptions == NULL)
-        ptOptions = &gtDefaultShaderOptions;
+        ptOptions = &gptShaderCtx->tDefaultShaderOptions;
         
     switch(ptOptions->tOptimizationLevel)
     {
@@ -211,7 +213,7 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
     uint8_t* puShaderCode = PL_ALLOC(szShaderSize);
     memset(puShaderCode, 0, szShaderSize);
     gptFile->binary_read(pcShader, &szShaderSize, puShaderCode);
-    pl_sb_push(sbptShaderBytecodeCache, puShaderCode);
+    pl_sb_push(gptShaderCtx->sbptShaderBytecodeCache, puShaderCode);
 
     char acExtension[64] = {0};
     pl_str_get_file_extension(pcShader, acExtension);
@@ -371,7 +373,7 @@ static plShaderModule
 pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, plShaderOptions* ptOptions)
 {
     if(ptOptions == NULL)
-        ptOptions = &gtDefaultShaderOptions;
+        ptOptions = &gptShaderCtx->tDefaultShaderOptions;
 
     const char* pcCacheFile = pcFile;
     if(pcCacheFile == NULL)
@@ -379,9 +381,9 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
         // char acTempBuffer[1024] = {0};
         const char* pcFileNameOnly = pl_str_get_file_name(pcShader, NULL);
         #ifdef PL_METAL_BACKEND
-        pcCacheFile = pl_temp_allocator_sprintf(&tTempAllocator2, "%s.metal", pcFileNameOnly);
+        pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.metal", pcFileNameOnly);
         #else
-        pcCacheFile = pl_temp_allocator_sprintf(&tTempAllocator2, "%s.spv", pcFileNameOnly);
+        pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.spv", pcFileNameOnly);
         #endif
     }
 
@@ -398,7 +400,7 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
         if(!(ptOptions->tFlags & PL_SHADER_FLAGS_NEVER_CACHE) && tModule.szCodeSize > 0)
             pl_write_to_disk(pcCacheFile, &tModule);
     }
-    pl_temp_allocator_reset(&tTempAllocator2);
+    pl_temp_allocator_reset(&gptShaderCtx->tTempAllocator2);
     return tModule;
 }
 
@@ -423,31 +425,39 @@ pl_load_shader_api(void)
     return &tApi;
 }
 
-PL_EXPORT void
-pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+static void
+pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-
-    gptFile = ptApiRegistry->first(PL_API_FILE);
-
     if(bReload)
+    {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_SHADER), pl_load_shader_api());
+        gptShaderCtx = gptDataRegistry->get_data("plShaderContext");
+    }
     else
+    {
         ptApiRegistry->add(PL_API_SHADER, pl_load_shader_api());
+        
+        gptShaderCtx = PL_ALLOC(sizeof(plShaderContext));
+        memset(gptShaderCtx, 0, sizeof(plShaderContext));
+
+        gptDataRegistry->set_data("plShaderContext", gptShaderCtx);
+    }
 }
 
-PL_EXPORT void
-pl_unload_ext(plApiRegistryI* ptApiRegistry)
+static void
+pl_unload_shader_ext(plApiRegistryI* ptApiRegistry)
 {
     #ifndef PL_OFFLINE_SHADERS_ONLY
     #ifdef PL_METAL_BACKEND
     spvc_context_destroy(tSpirvCtx);
     #endif
     #endif
-    for(uint32_t i = 0; i < pl_sb_size(sbptShaderBytecodeCache); i++)
+    for(uint32_t i = 0; i < pl_sb_size(gptShaderCtx->sbptShaderBytecodeCache); i++)
     {
-        PL_FREE(sbptShaderBytecodeCache[i]);
+        PL_FREE(gptShaderCtx->sbptShaderBytecodeCache[i]);
     }
-    pl_sb_free(sbptShaderBytecodeCache);
+    pl_sb_free(gptShaderCtx->sbptShaderBytecodeCache);
+
+    PL_FREE(gptShaderCtx);
+    gptShaderCtx = NULL;
 }

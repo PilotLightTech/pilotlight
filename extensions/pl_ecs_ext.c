@@ -29,6 +29,7 @@ Index of this file:
 // extensions
 #include "pl_job_ext.h"
 #include "pl_script_ext.h"
+#include "pl_ext.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -43,12 +44,7 @@ typedef struct _plComponentLibraryData
 // [SECTION] global data
 //-----------------------------------------------------------------------------
 
-static uint32_t uLogChannel = UINT32_MAX;
-
-// apis
-static const plJobI*               gptJob               = NULL;
-static const plApiRegistryI*       gptApiRegistry       = NULL;
-static const plExtensionRegistryI* gptExtensionRegistry = NULL;
+static uint32_t uLogChannelEcs = UINT32_MAX;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -130,10 +126,6 @@ pl_ecs_has_entity(plComponentManager* ptManager, plEntity tEntity)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api implementation
-//-----------------------------------------------------------------------------
-
-//-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
 
@@ -204,7 +196,7 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->pInternal = PL_ALLOC(sizeof(plComponentLibraryData));
     memset(ptLibrary->pInternal, 0, sizeof(plComponentLibraryData));
 
-    pl_log_info_to(uLogChannel, "initialized component library");
+    pl_log_info_to(uLogChannelEcs, "initialized component library");
 }
 
 static void
@@ -709,7 +701,7 @@ static plEntity
 pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMeshComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed mesh";
-    pl_log_debug_to_f(uLogChannel, "created mesh: '%s'", pcName);
+    pl_log_debug_to_f(uLogChannelEcs, "created mesh: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
     plMeshComponent* ptCompOut = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
 
@@ -722,7 +714,7 @@ static plEntity
 pl_ecs_create_directional_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tDirection, plLightComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed directional light";
-    pl_log_debug_to_f(uLogChannel, "created directional light: '%s'", pcName);
+    pl_log_debug_to_f(uLogChannelEcs, "created directional light: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
     plLightComponent* ptLight =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, tNewEntity);
     ptLight->tDirection = tDirection;
@@ -737,7 +729,7 @@ static plEntity
 pl_ecs_create_point_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPosition, plLightComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed point light";
-    pl_log_debug_to_f(uLogChannel, "created point light: '%s'", pcName);
+    pl_log_debug_to_f(uLogChannelEcs, "created point light: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
     plLightComponent* ptLight =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, tNewEntity);
     ptLight->tPosition = tPosition;
@@ -751,7 +743,7 @@ pl_ecs_create_point_light(plComponentLibrary* ptLibrary, const char* pcName, plV
 static plEntity
 pl_ecs_create_script(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlags tFlags, plScriptComponent** pptCompOut)
 {
-    pl_log_debug_to_f(uLogChannel, "created script: '%s'", pcFile);
+    pl_log_debug_to_f(uLogChannelEcs, "created script: '%s'", pcFile);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcFile);
     plScriptComponent* ptScript =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_SCRIPT, tNewEntity);
     ptScript->tFlags = tFlags;
@@ -785,7 +777,7 @@ pl_ecs_create_script(plComponentLibrary* ptLibrary, const char* pcFile, plScript
 static void
 pl_ecs_attach_script(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlags tFlags, plEntity tEntity, plScriptComponent** pptCompOut)
 {
-    pl_log_debug_to_f(uLogChannel, "attach script: '%s'", pcFile);
+    pl_log_debug_to_f(uLogChannelEcs, "attach script: '%s'", pcFile);
     plScriptComponent* ptScript =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_SCRIPT, tEntity);
     ptScript->tFlags = tFlags;
     strncpy(ptScript->acFile, pcFile, PL_MAX_NAME_LENGTH);
@@ -818,7 +810,7 @@ static plEntity
 pl_ecs_create_object(plComponentLibrary* ptLibrary, const char* pcName, plObjectComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed object";
-    pl_log_debug_to_f(uLogChannel, "created object: '%s'", pcName);
+    pl_log_debug_to_f(uLogChannelEcs, "created object: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     plObjectComponent* ptObject = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewEntity);
@@ -838,7 +830,7 @@ static plEntity
 pl_ecs_create_transform(plComponentLibrary* ptLibrary, const char* pcName, plTransformComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed transform";
-    pl_log_debug_to_f(uLogChannel, "created transform: '%s'", pcName);
+    pl_log_debug_to_f(uLogChannelEcs, "created transform: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     plTransformComponent* ptTransform = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
@@ -856,7 +848,7 @@ static plEntity
 pl_ecs_create_material(plComponentLibrary* ptLibrary, const char* pcName, plMaterialComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed material";
-    pl_log_debug_to_f(uLogChannel, "created material: '%s'", pcName);
+    pl_log_debug_to_f(uLogChannelEcs, "created material: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     plMaterialComponent* ptCompOut = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, tNewEntity);
@@ -871,7 +863,7 @@ static plEntity
 pl_ecs_create_skin(plComponentLibrary* ptLibrary, const char* pcName, plSkinComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed skin";
-    pl_log_debug_to_f(uLogChannel, "created skin: '%s'", pcName);
+    pl_log_debug_to_f(uLogChannelEcs, "created skin: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     plSkinComponent* ptSkin = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, tNewEntity);
@@ -886,7 +878,7 @@ static plEntity
 pl_ecs_create_animation(plComponentLibrary* ptLibrary, const char* pcName, plAnimationComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed animation";
-    pl_log_debug_to_f(uLogChannel, "created animation: '%s'", pcName);
+    pl_log_debug_to_f(uLogChannelEcs, "created animation: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     plAnimationComponent* ptCompOut = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, tNewEntity);
@@ -901,7 +893,7 @@ static plEntity
 pl_ecs_create_animation_data(plComponentLibrary* ptLibrary, const char* pcName, plAnimationDataComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed animation data";
-    pl_log_debug_to_f(uLogChannel, "created animation data: '%s'", pcName);
+    pl_log_debug_to_f(uLogChannelEcs, "created animation data: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_entity(ptLibrary);
 
     plAnimationDataComponent* ptCompOut = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION_DATA, tNewEntity);
@@ -916,7 +908,7 @@ static plEntity
 pl_ecs_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, plCameraComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
-    pl_log_debug_to_f(uLogChannel, "created camera: '%s'", pcName);
+    pl_log_debug_to_f(uLogChannelEcs, "created camera: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     const plCameraComponent tCamera = {
@@ -942,7 +934,7 @@ static plEntity
 pl_ecs_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCameraComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
-    pl_log_debug_to_f(uLogChannel, "created camera: '%s'", pcName);
+    pl_log_debug_to_f(uLogChannelEcs, "created camera: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     const plCameraComponent tCamera = {
@@ -1779,22 +1771,9 @@ pl_load_camera_api(void)
     return &tApi;   
 }
 
-PL_EXPORT void
-pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+static void
+pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    gptApiRegistry = ptApiRegistry;
-    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-    pl_set_profile_context(ptDataRegistry->get_data("profile"));
-    pl_set_log_context(ptDataRegistry->get_data("log"));
-
-    // load required extensions (may already be loaded)
-    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    ptExtensionRegistry->load("pl_job_ext", NULL, NULL, false);
-
-    // load required contexts
-    gptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    gptJob = ptApiRegistry->first(PL_API_JOB);
 
     if(bReload)
     {
@@ -1808,7 +1787,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         {
             if(strcmp(ptChannels[i].pcName, "ECS") == 0)
             {
-                uLogChannel = i;
+                uLogChannelEcs = i;
                 break;
             }
         }
@@ -1817,12 +1796,12 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     {
         ptApiRegistry->add(PL_API_ECS, pl_load_ecs_api());
         ptApiRegistry->add(PL_API_CAMERA, pl_load_camera_api());
-        uLogChannel = pl_add_log_channel("ECS", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
+        uLogChannelEcs = pl_add_log_channel("ECS", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
     }
 }
 
-PL_EXPORT void
-pl_unload_ext(plApiRegistryI* ptApiRegistry)
+static void
+pl_unload_ecs_ext(plApiRegistryI* ptApiRegistry)
 {
     
 }

@@ -35,6 +35,7 @@ Index of this file:
 // extensions
 #include "pl_graphics_ext.h"
 #include "pl_draw_ext.h"
+#include "pl_shader_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -69,6 +70,7 @@ const plWindowI*   gptWindows = NULL;
 const plGraphicsI* gptGfx     = NULL;
 const plDeviceI*   gptDevice  = NULL;
 const plDrawI*     gptDraw    = NULL;
+const plShaderI*   gptShader  = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -104,6 +106,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
         gptDevice  = ptApiRegistry->first(PL_API_DEVICE);
         gptDraw    = ptApiRegistry->first(PL_API_DRAW);
+        gptShader  = ptApiRegistry->first(PL_API_SHADER);
 
         return ptAppData;
     }
@@ -129,9 +132,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // retrieve extension registry
     const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
 
-    // load graphics extension (provides graphics & device apis)
-    ptExtensionRegistry->load("pl_graphics_ext", NULL, NULL, false);
-    ptExtensionRegistry->load("pl_draw_ext",     NULL, NULL, true);
+    // load extensions
+    ptExtensionRegistry->load("pl_extensions", NULL, NULL, true);
     
     // load required apis (NULL if not available)
     gptIO      = ptApiRegistry->first(PL_API_IO);
@@ -139,6 +141,16 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
     gptDevice  = ptApiRegistry->first(PL_API_DEVICE);
     gptDraw    = ptApiRegistry->first(PL_API_DRAW);
+    gptShader  = ptApiRegistry->first(PL_API_SHADER);
+
+    // initialize shader compiler
+    static const plShaderOptions tDefaultShaderOptions = {
+        .uIncludeDirectoriesCount = 1,
+        .apcIncludeDirectories = {
+            "../shaders/"
+        }
+    };
+    gptShader->initialize(&tDefaultShaderOptions);
 
     // use window API to create a window
     const plWindowDesc tWindowDesc = {

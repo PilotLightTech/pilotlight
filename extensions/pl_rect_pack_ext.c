@@ -18,6 +18,8 @@ Index of this file:
 #include "pilotlight.h"
 #include "pl_rect_pack_ext.h"
 #include "stb_rect_pack.h"
+#include "pl_ext.inc"
+#include <string.h>
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -34,7 +36,7 @@ typedef struct _plRectPackContext
 // [SECTION] global data
 //-----------------------------------------------------------------------------
 
-static plRectPackContext gtCtx = {0};
+static plRectPackContext* gptRectPackCtx = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -43,19 +45,19 @@ static plRectPackContext gtCtx = {0};
 static void
 pl_pack_rects(int iWidth, int iHeight, plPackRect* ptRects, uint32_t uRectCount)
 {
-    if(gtCtx.ptNodes == NULL)
+    if(gptRectPackCtx->ptNodes == NULL)
     {
-        gtCtx.iNodeCount = iWidth;
-        gtCtx.ptNodes = PL_ALLOC(sizeof(stbrp_node) * iWidth);
+        gptRectPackCtx->iNodeCount = iWidth;
+        gptRectPackCtx->ptNodes = PL_ALLOC(sizeof(stbrp_node) * iWidth);
     }
-    else if(iWidth > gtCtx.iNodeCount)
+    else if(iWidth > gptRectPackCtx->iNodeCount)
     {
-        PL_FREE(gtCtx.ptNodes);
-        gtCtx.iNodeCount = iWidth;
-        gtCtx.ptNodes = PL_ALLOC(sizeof(stbrp_node) * iWidth);
+        PL_FREE(gptRectPackCtx->ptNodes);
+        gptRectPackCtx->iNodeCount = iWidth;
+        gptRectPackCtx->ptNodes = PL_ALLOC(sizeof(stbrp_node) * iWidth);
     }
-    stbrp_init_target(&gtCtx.tStbContext, iWidth, iHeight, gtCtx.ptNodes, gtCtx.iNodeCount);
-    stbrp_pack_rects(&gtCtx.tStbContext, (stbrp_rect*)ptRects, (int)uRectCount);
+    stbrp_init_target(&gptRectPackCtx->tStbContext, iWidth, iHeight, gptRectPackCtx->ptNodes, gptRectPackCtx->iNodeCount);
+    stbrp_pack_rects(&gptRectPackCtx->tStbContext, (stbrp_rect*)ptRects, (int)uRectCount);
 }
 
 //-----------------------------------------------------------------------------
@@ -75,28 +77,32 @@ pl_load_rect_pack_api(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
-pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+static void
+pl_load_rect_pack_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     if(bReload)
+    {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_RECT_PACK), pl_load_rect_pack_api());
+
+        gptRectPackCtx = gptDataRegistry->get_data("plRectPackContext");
+    }
     else
+    {
         ptApiRegistry->add(PL_API_RECT_PACK, pl_load_rect_pack_api());
+
+        // allocate & store context
+        gptRectPackCtx = PL_ALLOC(sizeof(plRectPackContext));
+        memset(gptRectPackCtx, 0, sizeof(plRectPackContext));
+
+        gptDataRegistry->set_data("plRectPackContext", gptRectPackCtx);
+    }
 }
 
-PL_EXPORT void
-pl_unload_ext(plApiRegistryI* ptApiRegistry)
+static void
+pl_unload_rect_pack_ext(plApiRegistryI* ptApiRegistry)
 {
-    if(gtCtx.ptNodes)
-        PL_FREE(gtCtx.ptNodes);
+    if(gptRectPackCtx->ptNodes)
+        PL_FREE(gptRectPackCtx->ptNodes);
+
+    PL_FREE(gptRectPackCtx);
 }
-
-//-----------------------------------------------------------------------------
-// [SECTION] unity build
-//-----------------------------------------------------------------------------
-
-#define STB_RECT_PACK_IMPLEMENTATION
-#include "stb_rect_pack.h"
-#undef STB_RECT_PACK_IMPLEMENTATION

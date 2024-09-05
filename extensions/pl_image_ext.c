@@ -8,7 +8,6 @@ Index of this file:
 // [SECTION] internal api implementation
 // [SECTION] public api implementation
 // [SECTION] extension loading
-// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
@@ -98,37 +97,17 @@ pl_load_image_api(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
-pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+static void
+pl_load_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     if(bReload)
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_IMAGE), pl_load_image_api());
     else
         ptApiRegistry->add(PL_API_IMAGE, pl_load_image_api());
 }
 
-PL_EXPORT void
-pl_unload_ext(plApiRegistryI* ptApiRegistry)
+static void
+pl_unload_image_ext(plApiRegistryI* ptApiRegistry)
 {
     
 }
-
-//-----------------------------------------------------------------------------
-// [SECTION] unity build
-//-----------------------------------------------------------------------------
-
-#define STB_IMAGE_IMPLEMENTATION
-#define STBI_MALLOC(x) PL_ALLOC(x)
-#define STBI_FREE(x) PL_FREE(x)
-#define STBI_REALLOC(x, y) PL_REALLOC(x, y)
-#include "stb_image.h"
-#undef STB_IMAGE_IMPLEMENTATION
-
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define STBIW_MALLOC(x) PL_ALLOC(x)
-#define STBIW_FREE(x) PL_FREE(x)
-#define STBIW_REALLOC(x, y) PL_REALLOC(x, y)
-#include "stb_image_write.h"
-#undef STB_IMAGE_WRITE_IMPLEMENTATION

@@ -37,9 +37,11 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <math.h>
+#include <string.h>
 #include "pilotlight.h"
 #include "pl_stats_ext.h"
 #include "pl_ds.h"
+#include "pl_ext.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -74,7 +76,7 @@ typedef struct _plStatsContext
 // [SECTION] global context
 //-----------------------------------------------------------------------------
 
-static plStatsContext gtStatsContext = {1, 0};
+static plStatsContext* gptStatsCtx = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -110,50 +112,50 @@ pl__get_counter(char const* pcName)
 {
     const uint64_t ulHash = pl_hm_hash_str(pcName);
 
-    const bool bDataExists = pl_hm_has_key(&gtStatsContext.tHashmap, ulHash);
+    const bool bDataExists = pl_hm_has_key(&gptStatsCtx->tHashmap, ulHash);
 
     uint64_t ulIndex = UINT64_MAX;
 
     if(bDataExists)
-        ulIndex = pl_hm_lookup(&gtStatsContext.tHashmap, ulHash);
+        ulIndex = pl_hm_lookup(&gptStatsCtx->tHashmap, ulHash);
     else
     {
-        pl_sb_push(gtStatsContext.sbtNames, pcName);
-        ulIndex = pl_hm_get_free_index(&gtStatsContext.tHashmap);
+        pl_sb_push(gptStatsCtx->sbtNames, pcName);
+        ulIndex = pl_hm_get_free_index(&gptStatsCtx->tHashmap);
         if(ulIndex == UINT64_MAX)
         {
-            ulIndex = gtStatsContext.uNextSource++;
+            ulIndex = gptStatsCtx->uNextSource++;
             
             // check if need to add another block
-            if(gtStatsContext.uNextSource >= PL_STATS_BLOCK_COUNT * gtStatsContext.uBlockCount)
+            if(gptStatsCtx->uNextSource >= PL_STATS_BLOCK_COUNT * gptStatsCtx->uBlockCount)
             {
-                plStatsSourceBlock* ptLastBlock = &gtStatsContext.tInitialBlock;
+                plStatsSourceBlock* ptLastBlock = &gptStatsCtx->tInitialBlock;
                 while(ptLastBlock->ptNextBlock)
                     ptLastBlock = ptLastBlock->ptNextBlock;
                 ptLastBlock->ptNextBlock = PL_ALLOC(sizeof(plStatsSourceBlock));
                 memset(ptLastBlock->ptNextBlock, 0, sizeof(plStatsSourceBlock));
-                gtStatsContext.uBlockCount++;
-                pl_sb_push(gtStatsContext.sbtBlocks, ptLastBlock->ptNextBlock);
+                gptStatsCtx->uBlockCount++;
+                pl_sb_push(gptStatsCtx->sbtBlocks, ptLastBlock->ptNextBlock);
             }
         }
 
-        if(pl_sb_size(gtStatsContext.sbtBlocks) == 0)
-            pl_sb_push(gtStatsContext.sbtBlocks, &gtStatsContext.tInitialBlock);
+        if(pl_sb_size(gptStatsCtx->sbtBlocks) == 0)
+            pl_sb_push(gptStatsCtx->sbtBlocks, &gptStatsCtx->tInitialBlock);
 
-        pl_hm_insert(&gtStatsContext.tHashmap, ulHash, ulIndex);
+        pl_hm_insert(&gptStatsCtx->tHashmap, ulHash, ulIndex);
     }
     const uint64_t ulBlockIndex = (uint64_t)floor((double)ulIndex / (double)PL_STATS_BLOCK_COUNT);
-    gtStatsContext.sbtBlocks[ulBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].pcName = pcName;
-    return &gtStatsContext.sbtBlocks[ulBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].dFrameValue;
+    gptStatsCtx->sbtBlocks[ulBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].pcName = pcName;
+    return &gptStatsCtx->sbtBlocks[ulBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].dFrameValue;
 }
 
 static void
 pl__new_frame(void)
 {
-    const uint64_t ulFrameIndex = gtStatsContext.uCurrentFrame % PL_STATS_MAX_FRAMES;
-    gtStatsContext.uCurrentFrame++;
-    plStatsSourceBlock* ptLastBlock = &gtStatsContext.tInitialBlock;
-    uint32_t uSourcesRemaining = gtStatsContext.uNextSource;
+    const uint64_t ulFrameIndex = gptStatsCtx->uCurrentFrame % PL_STATS_MAX_FRAMES;
+    gptStatsCtx->uCurrentFrame++;
+    plStatsSourceBlock* ptLastBlock = &gptStatsCtx->tInitialBlock;
+    uint32_t uSourcesRemaining = gptStatsCtx->uNextSource;
     while(ptLastBlock)
     {
         if(ptLastBlock->ptNextBlock)
@@ -167,7 +169,7 @@ pl__new_frame(void)
         }
         else
         {
-            for(uint32_t i = 0; i < gtStatsContext.uNextSource % PL_STATS_BLOCK_COUNT; i++)
+            for(uint32_t i = 0; i < gptStatsCtx->uNextSource % PL_STATS_BLOCK_COUNT; i++)
             {
                 if(ptLastBlock->atSources[i].dFrameValues)
                     ptLastBlock->atSources[i].dFrameValues[ulFrameIndex] = ptLastBlock->atSources[i].dFrameValue;
@@ -182,8 +184,8 @@ static const char**
 pl__get_names(uint32_t* puCount)
 {
     if(puCount)
-        *puCount = pl_sb_size(gtStatsContext.sbtNames);
-    return gtStatsContext.sbtNames;
+        *puCount = pl_sb_size(gptStatsCtx->sbtNames);
+    return gptStatsCtx->sbtNames;
 }
 
 static double**
@@ -191,63 +193,75 @@ pl__get_counter_data(char const* pcName)
 {
     const uint64_t ulHash = pl_hm_hash_str(pcName);
 
-    const bool bDataExists = pl_hm_has_key(&gtStatsContext.tHashmap, ulHash);
+    const bool bDataExists = pl_hm_has_key(&gptStatsCtx->tHashmap, ulHash);
 
     uint64_t ulIndex = UINT64_MAX;
 
     if(bDataExists)
-        ulIndex = pl_hm_lookup(&gtStatsContext.tHashmap, ulHash);
+        ulIndex = pl_hm_lookup(&gptStatsCtx->tHashmap, ulHash);
     else
     {
-        pl_sb_push(gtStatsContext.sbtNames, pcName);
-        ulIndex = pl_hm_get_free_index(&gtStatsContext.tHashmap);
+        pl_sb_push(gptStatsCtx->sbtNames, pcName);
+        ulIndex = pl_hm_get_free_index(&gptStatsCtx->tHashmap);
         if(ulIndex == UINT64_MAX)
         {
-            ulIndex = gtStatsContext.uNextSource++;
+            ulIndex = gptStatsCtx->uNextSource++;
             
             // check if we need to add another block
-            if(gtStatsContext.uNextSource >= PL_STATS_BLOCK_COUNT * gtStatsContext.uBlockCount)
+            if(gptStatsCtx->uNextSource >= PL_STATS_BLOCK_COUNT * gptStatsCtx->uBlockCount)
             {
-                plStatsSourceBlock* ptLastBlock = &gtStatsContext.tInitialBlock;
+                plStatsSourceBlock* ptLastBlock = &gptStatsCtx->tInitialBlock;
                 while(ptLastBlock->ptNextBlock)
                     ptLastBlock = ptLastBlock->ptNextBlock;
                 ptLastBlock->ptNextBlock = PL_ALLOC(sizeof(plStatsSourceBlock));
                 memset(ptLastBlock->ptNextBlock, 0, sizeof(plStatsSourceBlock));
-                gtStatsContext.uBlockCount++;
-                pl_sb_push(gtStatsContext.sbtBlocks, ptLastBlock->ptNextBlock);
+                gptStatsCtx->uBlockCount++;
+                pl_sb_push(gptStatsCtx->sbtBlocks, ptLastBlock->ptNextBlock);
             }
         }
 
-        if(pl_sb_size(gtStatsContext.sbtBlocks) == 0)
-            pl_sb_push(gtStatsContext.sbtBlocks, &gtStatsContext.tInitialBlock);
+        if(pl_sb_size(gptStatsCtx->sbtBlocks) == 0)
+            pl_sb_push(gptStatsCtx->sbtBlocks, &gptStatsCtx->tInitialBlock);
 
-        pl_hm_insert(&gtStatsContext.tHashmap, ulHash, ulIndex);
+        pl_hm_insert(&gptStatsCtx->tHashmap, ulHash, ulIndex);
     }
     const uint64_t ulBlockIndex = (uint64_t)floor((double)ulIndex / (double)PL_STATS_BLOCK_COUNT);
-    gtStatsContext.sbtBlocks[ulBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].pcName = pcName;
-    return &gtStatsContext.sbtBlocks[ulBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].dFrameValues;
+    gptStatsCtx->sbtBlocks[ulBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].pcName = pcName;
+    return &gptStatsCtx->sbtBlocks[ulBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].dFrameValues;
 }
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
-pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+static void
+pl_load_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-
     if(bReload)
+    {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_STATS), pl_load_stats_api());
+
+        gptStatsCtx = gptDataRegistry->get_data("plStatsContext");
+    }
     else
+    {
         ptApiRegistry->add(PL_API_STATS, pl_load_stats_api());
+
+        // allocate & store context
+        gptStatsCtx = PL_ALLOC(sizeof(plStatsContext));
+        memset(gptStatsCtx, 0, sizeof(plStatsContext));
+        gptStatsCtx->uBlockCount = 1;
+
+        gptDataRegistry->set_data("plStatsContext", gptStatsCtx);
+    }
 }
 
-PL_EXPORT void
-pl_unload_ext(plApiRegistryI* ptApiRegistry)
+static void
+pl_unload_stats_ext(plApiRegistryI* ptApiRegistry)
 {
-    pl_sb_free(gtStatsContext.sbtBlocks);
-    pl_sb_free(gtStatsContext.sbtNames);
-    pl_hm_free(&gtStatsContext.tHashmap);
+    pl_sb_free(gptStatsCtx->sbtBlocks);
+    pl_sb_free(gptStatsCtx->sbtNames);
+    pl_hm_free(&gptStatsCtx->tHashmap);
+
+    PL_FREE(gptStatsCtx);
 }
