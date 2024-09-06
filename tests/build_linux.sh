@@ -63,7 +63,7 @@ echo LOCKING > "../out/lock.tmp"
 PL_HOT_RELOAD_STATUS=0
 
 # # let user know if hot reloading
-if pidof -x "pilot_light_test" -o $$ >/dev/null;then
+if pidof -x "pilot_light_tests" -o $$ >/dev/null;then
     PL_HOT_RELOAD_STATUS=1
     echo
     echo echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}

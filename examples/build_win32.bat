@@ -52,9 +52,9 @@
 :: check if this is a hot reload
 @set PL_HOT_RELOAD_STATUS=0
 
-:: hack to see if pilot_light exe is running
+:: hack to see if ../out/pilot_light exe is running
 @echo off
-2>nul (>>"pilot_light.exe" echo off) && (@set PL_HOT_RELOAD_STATUS=0) || (@set PL_HOT_RELOAD_STATUS=1)
+2>nul (>>"../out/pilot_light.exe" echo off) && (@set PL_HOT_RELOAD_STATUS=0) || (@set PL_HOT_RELOAD_STATUS=1)
 
 :: let user know if hot reloading
 @if %PL_HOT_RELOAD_STATUS% equ 1 (

@@ -65,7 +65,7 @@ echo LOCKING > "../out/lock.tmp"
 PL_HOT_RELOAD_STATUS=0
 
 # # let user know if hot reloading
-running_count=$(ps aux | grep -v grep | grep -ci "pilot_light_test")
+running_count=$(ps aux | grep -v grep | grep -ci "pilot_light_tests")
 if [ $running_count -gt 0 ]
 then
     PL_HOT_RELOAD_STATUS=1

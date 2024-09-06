@@ -30,7 +30,7 @@ working_directory = os.path.dirname(os.path.abspath(__file__)) + "/../examples"
 with pl.project("pilotlight_examples"):
 
     # used to decide hot reloading
-    pl.set_hot_reload_target("pilot_light")
+    pl.set_hot_reload_target("../out/pilot_light")
 
     # project wide settings
     pl.set_output_directory("../out")
