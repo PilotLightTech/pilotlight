@@ -14,7 +14,7 @@
 # [SECTION] version
 #-----------------------------------------------------------------------------
 
-__version__ = "1.0.4"
+__version__ = "1.0.5"
 
 #-----------------------------------------------------------------------------
 # [SECTION] imports
@@ -156,6 +156,7 @@ class _CompilerProfile:
         self.platform_filter = None
         self.configuration_filter = None
         self.target_filter = None
+        self.target_type_filter = None
 
         self.output_directory = None
         self.definitions = []
@@ -170,6 +171,16 @@ class _CompilerProfile:
         self.output_binary_extension = None
 
     def is_active(self):
+
+        if self.target_type_filter is not None:
+
+            found = False
+            for target in self.target_type_filter:
+                if target == _context._target_type:
+                    found = True
+                    break
+            if not found:
+                return False
 
         if self.target_filter is not None:
 
@@ -587,7 +598,7 @@ def set_pre_target_build_step(code: str):
 def set_post_target_build_step(code: str):
     _context._working_settings.post_build_step = code
 
-def add_profile(*, compiler_filter=None, platform_filter=None, configuration_filter=None, target_filter=None, definitions=[], include_directories=[],
+def add_profile(*, compiler_filter=None, platform_filter=None, configuration_filter=None, target_filter=None, target_type_filter=None, definitions=[], include_directories=[],
                 link_directories=[], static_link_libraries=[], dynamic_link_libraries=[], link_frameworks=[], source_files=[],
                 compiler_flags=[], linker_flags=[], output_directory: str = None, output_binary_extension: str = None):
 
@@ -596,6 +607,7 @@ def add_profile(*, compiler_filter=None, platform_filter=None, configuration_fil
     profile.platform_filter = platform_filter
     profile.configuration_filter = configuration_filter
     profile.target_filter = target_filter
+    profile.target_type_filter = target_type_filter
     profile.definitions = definitions
     profile.include_directories = include_directories
     profile.output_directory = output_directory

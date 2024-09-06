@@ -51,9 +51,13 @@ with pl.project("pilotlight"):
     pl.add_profile(platform_filter=["Windows"],
                     include_directories=['%WindowsSdkDir%Include\\um', '%WindowsSdkDir%Include\\shared'])
     pl.add_profile(compiler_filter=["msvc"],
+                    linker_flags=["-incremental:no"],
                     compiler_flags=["-Zc:preprocessor", "-nologo", "-std:c11", "-W4", "-WX", "-wd4201",
                                 "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
                                 "-permissive-", "-Od", "-MDd", "-Zi"])
+    pl.add_profile(compiler_filter=["msvc"],
+                    target_type_filter=[pl.TargetType.DYNAMIC_LIBRARY],
+                    linker_flags=["-noimplib", "-noexp"])
 
     # linux or gcc only
     pl.add_profile(platform_filter=["Linux"],

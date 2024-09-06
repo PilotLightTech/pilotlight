@@ -1,4 +1,5 @@
 import pl_build.core as pl
+import pathlib
 
 class plWin32Helper:
 
@@ -50,8 +51,9 @@ class plWin32Helper:
         self.buffer += ' ' * self.indent + '@if not exist "' + directory + '" @mkdir "' + directory + '"\n\n'
 
     def delete_file(self, file):
+        p = pathlib.PureWindowsPath(file)
         self.buffer += ' ' * self.indent + '@if exist "' + file +  '"'
-        self.buffer += ' del "' + file + '"\n'
+        self.buffer += ' del "' + str(p) + '"\n'
 
 def generate_build(name, user_options = None):
 
@@ -257,10 +259,6 @@ def generate_build(name, user_options = None):
                     helper.add_raw(flag + " ")
                 helper.add_spacing()
 
-            settings.linker_flags.extend(["-incremental:no"])
-            if settings.target_type == pl.TargetType.DYNAMIC_LIBRARY:
-                settings.linker_flags.extend(["-noimplib", "-noexp"])
-
             if settings.linker_flags:
                 helper.add_raw('@set PL_LINKER_FLAGS=')
                 for flag in settings.linker_flags:
@@ -431,7 +429,8 @@ def generate_build(name, user_options = None):
         helper.add_spacing()
         helper.add_comment("delete obj files(s)")
         for dir in output_dirs:
-            helper.add_line('@del "' + dir + '/*.obj"  > nul 2> nul')
+            p = pathlib.PureWindowsPath(dir + '/*.obj')
+            helper.add_line('@del "' + str(p) + '"  > nul 2> nul')
 
         helper.add_spacing()
         helper.add_comment("delete lock file(s)")
