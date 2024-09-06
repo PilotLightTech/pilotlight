@@ -26,7 +26,7 @@ import pl_build.backend_macos as apple
 # where to output build scripts
 working_directory = os.path.dirname(os.path.abspath(__file__)) + "/../tests"
 
-with pl.project("pilotlight"):
+with pl.project("pilotlight_tests"):
     
     # used to decide hot reloading
     pl.set_hot_reload_target("pilot_light_test")

@@ -56,9 +56,9 @@ jobs:
         if not exist ../out/example_6.dll exit 1
         if not exist ../out/example_8.dll exit 1
         if not exist ../out/pilot_light.exe exit 1
-        if not exist ../out/pl_extensions.dll exit 1
+        if not exist ../out/pilot_light.dll exit 1
         if not exist ../out/pl_script_camera.dll exit 1
-        if not exist ../out/pilotlight.lib exit 1
+        if not exist ../out/pilot_light.lib exit 1
 
     - name: Package Pilot Light
       shell: cmd
@@ -115,9 +115,9 @@ jobs:
         test -f ./out/example_5.dylib || exit 1
         test -f ./out/example_6.dylib || exit 1
         test -f ./out/example_8.dylib || exit 1
-        test -f ./out/pl_extensions.dylib || exit 1
+        test -f ./out/pilot_light.dylib || exit 1
         test -f ./out/pl_script_camera.dylib || exit 1
-        test -f ./out/libpilotlight.a || exit 1
+        test -f ./out/libpilot_light.a || exit 1
 
     - name: Package Pilot Light
       run: |
@@ -182,9 +182,9 @@ jobs:
         test -f ./out/example_5.so || exit 1
         test -f ./out/example_6.so || exit 1
         test -f ./out/example_8.so || exit 1
-        test -f ./out/pl_extensions.so || exit 1
+        test -f ./out/pilot_light.so || exit 1
         test -f ./out/pl_script_camera.so || exit 1
-        test -f ./out/pilotlight.a || exit 1
+        test -f ./out/pilot_light.a || exit 1
 
     - name: Package Pilot Light
       run: |

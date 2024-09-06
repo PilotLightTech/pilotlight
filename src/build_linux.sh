@@ -71,9 +71,9 @@ if pidof -x "pilot_light" -o $$ >/dev/null;then
 else
     # cleanup binaries if not hot reloading
     echo PL_HOT_RELOAD_STATUS=0
-    rm -f "../out/pilotlight.a"
-    rm -f "../out/pl_extensions.so"
-    rm -f "../out/pl_extensions_*.so"
+    rm -f "../out/pilot_light.a"
+    rm -f "../out/pilot_light.so"
+    rm -f "../out/pilot_light_*.so"
     rm -f "../out/pl_script_camera.so"
     rm -f "../out/pl_script_camera_*.so"
     rm -f "../out/app.so"
@@ -82,7 +82,7 @@ else
 
 
 fi
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pilotlight_lib | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_lib | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
@@ -97,15 +97,15 @@ PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
 # # run compiler only
 echo
-echo ${YELLOW}Step: pilotlight_lib${NC}
+echo ${YELLOW}Step: pl_lib${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling...${NC}
 
 # each file must be compiled separately
-gcc -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS pilotlight_lib.c -o "./../out/pilotlight_lib.o"
+gcc -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS pl_lib.c -o "./../out/pl_lib.o"
 
 # combine object files into a static lib
-ar rcs ./../out/pilotlight.a ./../out/*.o
+ar rcs ./../out/pilot_light.a ./../out/*.o
 rm ./../out/*.o
 
 # check build status
@@ -121,7 +121,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_extensions | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -D_DEBUG -DPL_VULKAN_BACKEND "
@@ -129,16 +129,16 @@ PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
-PL_STATIC_LINK_LIBRARIES="-l:pilotlight.a "
+PL_STATIC_LINK_LIBRARIES="-l:pilot_light.a "
 PL_DYNAMIC_LINK_LIBRARIES="-lshaderc_shared -lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread -lvulkan "
-PL_SOURCES="pl_extensions.c "
+PL_SOURCES="pl_ext.c "
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: pl_extensions${NC}
+echo ${YELLOW}Step: pl_ext${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/pl_extensions.so"
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/pilot_light.so"
 
 # check build status
 if [ $? -ne 0 ]
@@ -158,7 +158,7 @@ PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
-PL_STATIC_LINK_LIBRARIES="-l:pilotlight.a "
+PL_STATIC_LINK_LIBRARIES="-l:pilot_light.a "
 PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../extensions/pl_script_camera.c "
 
@@ -187,7 +187,7 @@ PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
-PL_STATIC_LINK_LIBRARIES="-l:pilotlight.a "
+PL_STATIC_LINK_LIBRARIES="-l:pilot_light.a "
 PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
 PL_SOURCES="../sandbox/app.c "
 

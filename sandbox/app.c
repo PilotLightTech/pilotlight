@@ -76,7 +76,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     // load extensions
     const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    ptExtensionRegistry->load("pl_extensions", NULL, NULL, true);
+    ptExtensionRegistry->load("pilot_light", NULL, NULL, true);
     
     // load apis
     gptWindows     = ptApiRegistry->first(PL_API_WINDOW);

@@ -65,10 +65,10 @@
 :: cleanup binaries if not hot reloading
 @if %PL_HOT_RELOAD_STATUS% equ 0 (
 
-    @if exist "../out/pilotlight.lib" del "../out/pilotlight.lib"
-    @if exist "../out/pl_extensions.dll" del "../out/pl_extensions.dll"
-    @if exist "../out/pl_extensions_*.dll" del "../out/pl_extensions_*.dll"
-    @if exist "../out/pl_extensions_*.pdb" del "../out/pl_extensions_*.pdb"
+    @if exist "../out/pilot_light.lib" del "../out/pilot_light.lib"
+    @if exist "../out/pilot_light.dll" del "../out/pilot_light.dll"
+    @if exist "../out/pilot_light_*.dll" del "../out/pilot_light_*.dll"
+    @if exist "../out/pilot_light_*.pdb" del "../out/pilot_light_*.pdb"
     @if exist "../out/pl_script_camera.dll" del "../out/pl_script_camera.dll"
     @if exist "../out/pl_script_camera_*.dll" del "../out/pl_script_camera_*.dll"
     @if exist "../out/pl_script_camera_*.pdb" del "../out/pl_script_camera_*.pdb"
@@ -80,10 +80,10 @@
 
 )
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pilotlight_lib | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_lib | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :: skip during hot reload
-@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilotlight_lib
+@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_lib
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -D_DEBUG -DPL_VULKAN_BACKEND 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
@@ -93,12 +93,12 @@
 
 :: run compiler only
 @echo.
-@echo [1m[93mStep: pilotlight_lib[0m
+@echo [1m[93mStep: pl_lib[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling...[0m
 
 :: each file must be compiled separately
-cl -c %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% pilotlight_lib.c -Fo"../out/"
+cl -c %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% pl_lib.c -Fo"../out/"
 
 
 :: check build status
@@ -113,30 +113,30 @@ cl -c %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% pilotlight_lib.c
 
 :: link object files into a shared lib
 @echo [1m[36mLinking...[0m
-lib -nologo -OUT:"../out/pilotlight.lib" "../out/*.obj"
+lib -nologo -OUT:"../out/pilot_light.lib" "../out/*.obj"
 
 :: print results
 @echo [36mResult: [0m %PL_RESULT%
 @echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
 
-:Exit_pilotlight_lib
+:Exit_pl_lib
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_extensions | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -D_DEBUG -DPL_VULKAN_BACKEND 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-nodefaultlib:MSVCRT -incremental:no -noimplib -noexp 
-@set PL_STATIC_LINK_LIBRARIES=pilotlight.lib shaderc_combined.lib vulkan-1.lib 
-@set PL_SOURCES="pl_extensions.c" 
+@set PL_STATIC_LINK_LIBRARIES=pilot_light.lib shaderc_combined.lib vulkan-1.lib 
+@set PL_SOURCES="pl_ext.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: pl_extensions[0m
+@echo [1m[93mStep: pl_ext[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_extensions.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_extensions_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pilot_light.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pilot_light_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -159,7 +159,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
-@set PL_STATIC_LINK_LIBRARIES=pilotlight.lib 
+@set PL_STATIC_LINK_LIBRARIES=pilot_light.lib 
 @set PL_SOURCES="../extensions/pl_script_camera.c" 
 
 :: run compiler (and linker)
@@ -190,7 +190,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
-@set PL_STATIC_LINK_LIBRARIES=pilotlight.lib 
+@set PL_STATIC_LINK_LIBRARIES=pilot_light.lib 
 @set PL_SOURCES="../sandbox/app.c" 
 
 :: run compiler (and linker)

@@ -84,12 +84,12 @@ shutil.copy("../dependencies/stb/stb_sprintf.h", target_directory + "/include/st
 
 # copy extension binary
 if platform.system() == "Windows":
-    shutil.copy("../out/pl_extensions.dll", target_directory + "/bin/pl_extensions.dll")
+    shutil.copy("../out/pilot_light.dll", target_directory + "/bin/pilot_light.dll")
 elif platform.system() == "Darwin":
-    shutil.copy("../out/pl_extensions.dylib", target_directory + "/bin/pl_extensions.dylib")
-    shutil.copytree("../out/pl_extensions.dylib.dSYM", target_directory + "/bin/pl_extensions.dylib.dSYM")
+    shutil.copy("../out/pilot_light.dylib", target_directory + "/bin/pilot_light.dylib")
+    shutil.copytree("../out/pilot_light.dylib.dSYM", target_directory + "/bin/pilot_light.dylib.dSYM")
 elif platform.system() == "Linux":
-    shutil.copy("../out/pl_extensions.so", target_directory + "/bin/pl_extensions.so")
+    shutil.copy("../out/pilot_light.so", target_directory + "/bin/pilot_light.so")
 
 # copy scripts
 for script in scripts:
@@ -104,15 +104,15 @@ for script in scripts:
 # copy libs & executable
 if platform.system() == "Windows":
     shutil.copy("../out/pilot_light.exe", target_directory + "/bin/pilot_light.exe")
-    shutil.copy("../out/pilotlight.lib", target_directory + "/lib/pilotlight.lib")
+    shutil.copy("../out/pilot_light.lib", target_directory + "/lib/pilot_light.lib")
     shutil.copy("../src/vc140.pdb", target_directory + "/bin/vc140.pdb")
 elif platform.system() == "Darwin":
     shutil.copy("../out/pilot_light", target_directory + "/bin/pilot_light")
-    shutil.copy("../out/libpilotlight.a", target_directory + "/lib/libpilotlight.a")
+    shutil.copy("../out/libpilot_light.a", target_directory + "/lib/libpilot_light.a")
     shutil.copytree("../out/pilot_light.dSYM", target_directory + "/bin/pilot_light.dSYM")
 elif platform.system() == "Linux":
     shutil.copy("../out/pilot_light", target_directory + "/bin/pilot_light")
-    shutil.copy("../out/pilotlight.a", target_directory + "/lib/pilotlight.a")
+    shutil.copy("../out/pilot_light.a", target_directory + "/lib/pilot_light.a")
 
 #-----------------------------------------------------------------------------
 # [SECTION] zip

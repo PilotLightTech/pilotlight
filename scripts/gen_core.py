@@ -3,7 +3,8 @@
 # Index of this file:
 # [SECTION] imports
 # [SECTION] project
-# [SECTION] pilotlight_lib
+# [SECTION] profiles
+# [SECTION] pl_lib
 # [SECTION] extensions
 # [SECTION] scripts
 # [SECTION] app
@@ -62,12 +63,13 @@ with pl.project("pilotlight"):
                               "-permissive-", "-Od", "-MDd", "-Zi", compilers=["msvc"])
 
     #-----------------------------------------------------------------------------
-    # [SECTION] pilotlight_lib
+    # [SECTION] pl_lib
     #-----------------------------------------------------------------------------
 
-    with pl.target("pilotlight_lib", pl.TargetType.STATIC_LIBRARY):
+    with pl.target("pl_lib", pl.TargetType.STATIC_LIBRARY):
 
-        pl.add_source_files("pilotlight_lib.c")
+        pl.add_source_files("pl_lib.c")
+        pl.set_output_binary("pilot_light")
 
         # default config
         with pl.configuration("debug"):
@@ -75,35 +77,34 @@ with pl.project("pilotlight"):
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
-                    pl.set_output_binary("pilotlight")
+                    pass
 
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
-                    pl.set_output_binary("pilotlight")
                     pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
    
             # mac os
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
-                    pl.set_output_binary("pilotlight")
+                    pass
                     
         # vulkan on macos
         with pl.configuration("vulkan"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
-                    pl.set_output_binary("pilotlight")
+                    pass
                     
     #-----------------------------------------------------------------------------
     # [SECTION] extensions
     #-----------------------------------------------------------------------------
 
     # vulkan backend extensions
-    with pl.target("pl_extensions", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("pl_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
 
-        pl.add_static_link_libraries("pilotlight")
-        pl.add_source_files("pl_extensions.c")
-        pl.set_output_binary("pl_extensions")
+        pl.add_static_link_libraries("pilot_light")
+        pl.add_source_files("pl_ext.c")
+        pl.set_output_binary("pilot_light")
 
         # default config
         with pl.configuration("debug"):
@@ -113,8 +114,6 @@ with pl.project("pilotlight"):
 
                 with pl.compiler("msvc"):
                     pl.add_static_link_libraries("shaderc_combined")
-  
-                    # vulkan stuff
                     pl.add_include_directories("%VULKAN_SDK%\\Include")
                     pl.add_link_directories('%VULKAN_SDK%\\Lib')
                     pl.add_static_link_libraries("vulkan-1")
@@ -124,8 +123,6 @@ with pl.project("pilotlight"):
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
                     pl.add_dynamic_link_libraries("shaderc_shared", "xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
-
-                    # vulkan stuff
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                     pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_dynamic_link_libraries("vulkan")
@@ -141,18 +138,17 @@ with pl.project("pilotlight"):
                     pl.add_dynamic_link_libraries("vulkan")
 
     # metal backend extensions
-    with pl.target("pl_extensions", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("pl_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
 
         # default config
         with pl.configuration("debug"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
-                    pl.add_static_link_libraries("pilotlight")
-                    pl.add_source_files("pl_extensions.c")
-                    pl.set_output_binary("pl_extensions")
+                    pl.add_static_link_libraries("pilot_light")
+                    pl.add_source_files("pl_ext.c")
+                    pl.set_output_binary("pilot_light")
                     pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared")
                     
-
     #-----------------------------------------------------------------------------
     # [SECTION] scripts
     #-----------------------------------------------------------------------------
@@ -161,7 +157,7 @@ with pl.project("pilotlight"):
     with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY, True):
 
 
-        pl.add_static_link_libraries("pilotlight")
+        pl.add_static_link_libraries("pilot_light")
         pl.add_source_files("../extensions/pl_script_camera.c")
         pl.set_output_binary("pl_script_camera")
 
@@ -197,7 +193,7 @@ with pl.project("pilotlight"):
 
     with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
 
-        pl.add_static_link_libraries("pilotlight")
+        pl.add_static_link_libraries("pilot_light")
         pl.add_source_files("../sandbox/app.c")
         pl.set_output_binary("app")
 
@@ -217,7 +213,7 @@ with pl.project("pilotlight"):
             # mac os
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
-                    pl.set_output_binary("app")
+                    pass
 
         # vulkan on macos
         with pl.configuration("vulkan"):
@@ -241,13 +237,11 @@ with pl.project("pilotlight"):
                 with pl.compiler("msvc"):
                     pl.add_source_files("pl_main_win32.c")
                     
-
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
                     pl.add_source_files("pl_main_x11.c")
                     pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
-
 
             # mac os
             with pl.platform("Darwin"):

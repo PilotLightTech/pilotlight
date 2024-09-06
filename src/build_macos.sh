@@ -75,9 +75,9 @@ then
 else
     # cleanup binaries if not hot reloading
     echo PL_HOT_RELOAD_STATUS=0
-    rm -f "../out/pilotlight.a"
-    rm -f "../out/pl_extensions.dylib"
-    rm -f "../out/pl_extensions_*.dylib"
+    rm -f "../out/pilot_light.a"
+    rm -f "../out/pilot_light.dylib"
+    rm -f "../out/pilot_light_*.dylib"
     rm -f "../out/pl_script_camera.dylib"
     rm -f "../out/pl_script_camera_*.dylib"
     rm -f "../out/app.dylib"
@@ -85,7 +85,7 @@ else
     rm -f "../out/pilot_light"
 
 fi
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pilotlight_lib | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_lib | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
@@ -98,7 +98,7 @@ PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="pilotlight_lib.c "
+PL_SOURCES="pl_lib.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
 # add flags for specific hardware
@@ -110,15 +110,15 @@ fi
 
 # # run compiler only
 echo
-echo ${YELLOW}Step: pilotlight_lib${NC}
+echo ${YELLOW}Step: pl_lib${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling...${NC}
 
 # each file must be compiled separately
-clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS pilotlight_lib.c -o "./../out/pilotlight_lib.o"
+clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS pl_lib.c -o "./../out/pl_lib.o"
 
 # combine object files into a static lib
-ar rcs ./../out/libpilotlight.a ./../out/*.o
+ar rcs ./../out/libpilot_light.a ./../out/*.o
 rm ./../out/*.o
 
 # check build status
@@ -134,7 +134,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_extensions | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -D_DEBUG -DPL_METAL_BACKEND "
@@ -142,9 +142,9 @@ PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
-PL_STATIC_LINK_LIBRARIES="-lpilotlight "
+PL_STATIC_LINK_LIBRARIES="-lpilot_light "
 PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared "
-PL_SOURCES="pl_extensions.c "
+PL_SOURCES="pl_ext.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
 # add flags for specific hardware
@@ -156,10 +156,10 @@ fi
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: pl_extensions${NC}
+echo ${YELLOW}Step: pl_ext${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pl_extensions.dylib"
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pilot_light.dylib"
 
 # check build status
 if [ $? -ne 0 ]
@@ -179,7 +179,7 @@ PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
-PL_STATIC_LINK_LIBRARIES="-lpilotlight "
+PL_STATIC_LINK_LIBRARIES="-lpilot_light "
 PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../extensions/pl_script_camera.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
@@ -216,7 +216,7 @@ PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
-PL_STATIC_LINK_LIBRARIES="-lpilotlight "
+PL_STATIC_LINK_LIBRARIES="-lpilot_light "
 PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../sandbox/app.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
@@ -321,9 +321,9 @@ then
 else
     # cleanup binaries if not hot reloading
     echo PL_HOT_RELOAD_STATUS=0
-    rm -f "../out/pilotlight.a"
-    rm -f "../out/pl_extensions.dylib"
-    rm -f "../out/pl_extensions_*.dylib"
+    rm -f "../out/pilot_light.a"
+    rm -f "../out/pilot_light.dylib"
+    rm -f "../out/pilot_light_*.dylib"
     rm -f "../out/pl_script_camera.dylib"
     rm -f "../out/pl_script_camera_*.dylib"
     rm -f "../out/app.dylib"
@@ -331,7 +331,7 @@ else
     rm -f "../out/pilot_light"
 
 fi
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~ pilotlight_lib | vulkan ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_lib | vulkan ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
@@ -344,7 +344,7 @@ PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="pilotlight_lib.c "
+PL_SOURCES="pl_lib.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
 # add flags for specific hardware
@@ -356,15 +356,15 @@ fi
 
 # # run compiler only
 echo
-echo ${YELLOW}Step: pilotlight_lib${NC}
+echo ${YELLOW}Step: pl_lib${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling...${NC}
 
 # each file must be compiled separately
-clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS pilotlight_lib.c -o "./../out/pilotlight_lib.o"
+clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS pl_lib.c -o "./../out/pl_lib.o"
 
 # combine object files into a static lib
-ar rcs ./../out/libpilotlight.a ./../out/*.o
+ar rcs ./../out/libpilot_light.a ./../out/*.o
 rm ./../out/*.o
 
 # check build status
@@ -380,7 +380,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_extensions | vulkan ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext | vulkan ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -D_DEBUG -DPL_VULKAN_BACKEND "
@@ -388,9 +388,9 @@ PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
-PL_STATIC_LINK_LIBRARIES="-lpilotlight "
+PL_STATIC_LINK_LIBRARIES="-lpilot_light "
 PL_DYNAMIC_LINK_LIBRARIES="-lshaderc_shared -lpthread -lvulkan "
-PL_SOURCES="pl_extensions.c "
+PL_SOURCES="pl_ext.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
 # add flags for specific hardware
@@ -402,10 +402,10 @@ fi
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: pl_extensions${NC}
+echo ${YELLOW}Step: pl_ext${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pl_extensions.dylib"
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pilot_light.dylib"
 
 # check build status
 if [ $? -ne 0 ]
@@ -425,7 +425,7 @@ PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
-PL_STATIC_LINK_LIBRARIES="-lpilotlight "
+PL_STATIC_LINK_LIBRARIES="-lpilot_light "
 PL_DYNAMIC_LINK_LIBRARIES="-lshaderc_shared "
 PL_SOURCES="../extensions/pl_script_camera.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
@@ -462,7 +462,7 @@ PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
-PL_STATIC_LINK_LIBRARIES="-lpilotlight "
+PL_STATIC_LINK_LIBRARIES="-lpilot_light "
 PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../sandbox/app.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "

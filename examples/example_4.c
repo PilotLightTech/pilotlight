@@ -129,7 +129,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
 
     // load extensions
-    ptExtensionRegistry->load("pl_extensions", NULL, NULL, true);
+    ptExtensionRegistry->load("pilot_light", NULL, NULL, true);
     
     // load required apis (NULL if not available)
     gptIO      = ptApiRegistry->first(PL_API_IO);
