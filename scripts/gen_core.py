@@ -43,24 +43,39 @@ with pl.project("pilotlight"):
     pl.add_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS", "_DEBUG")
     pl.add_include_directories("../sandbox", "../src", "../libs", "../extensions", "../out", "../dependencies/stb", "../dependencies/cgltf")
 
-    # profiles - backend defines
-    pl.add_definitions_profile("PL_VULKAN_BACKEND", configurations=["vulkan"])
-    pl.add_definitions_profile("PL_VULKAN_BACKEND", configurations=["debug"], compilers=["gcc", "msvc"])
-    pl.add_definitions_profile("PL_METAL_BACKEND", configurations=["debug"], platforms=["Darwin"])
+    #-----------------------------------------------------------------------------
+    # [SECTION] profiles
+    #-----------------------------------------------------------------------------
 
-    # profiles - directories
-    pl.add_include_directories_profile('%WindowsSdkDir%Include\\um', '%WindowsSdkDir%Include\\shared', platforms=["Windows"])
-    pl.add_link_directories_profile("/usr/lib/x86_64-linux-gnu", platforms=["Linux"])
-    pl.add_link_frameworks_profile("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore", platforms=["Darwin"])
+    # win32 or msvc only
+    pl.add_profile(platform_filter=["Windows"],
+                    include_directories=['%WindowsSdkDir%Include\\um', '%WindowsSdkDir%Include\\shared'])
+    pl.add_profile(compiler_filter=["msvc"],
+                    compiler_flags=["-Zc:preprocessor", "-nologo", "-std:c11", "-W4", "-WX", "-wd4201",
+                                "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
+                                "-permissive-", "-Od", "-MDd", "-Zi"])
 
-    # profiles - flags
-    pl.add_linker_flags_profile("-Wl,-rpath,/usr/local/lib", platforms=["Darwin"])
-    pl.add_linker_flags_profile("-ldl", "-lm", platforms=["Linux"])
-    pl.add_compiler_flags_profile("-std=gnu11", "-fPIC", "--debug", "-g", compilers=["gcc"])
-    pl.add_compiler_flags_profile("-std=c99", "--debug", "-g", "-fmodules", "-ObjC", "-fPIC", compilers=["clang"])
-    pl.add_compiler_flags_profile("-Zc:preprocessor", "-nologo", "-std:c11", "-W4", "-WX", "-wd4201",
-                              "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
-                              "-permissive-", "-Od", "-MDd", "-Zi", compilers=["msvc"])
+    # linux or gcc only
+    pl.add_profile(platform_filter=["Linux"],
+                    link_directories=["/usr/lib/x86_64-linux-gnu"])
+    pl.add_profile(compiler_filter=["gcc"],
+                    linker_flags=["-ldl", "-lm"],
+                    compiler_flags=["-std=gnu11", "-fPIC", "--debug", "-g"])
+
+    # macos or clang only
+    pl.add_profile(platform_filter=["Darwin"],
+                    link_frameworks=["Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore"])
+    pl.add_profile(compiler_filter=["clang"],
+                    linker_flags=["-Wl,-rpath,/usr/local/lib"],
+                    compiler_flags=["-std=c99", "--debug", "-g", "-fmodules", "-ObjC", "-fPIC"])
+
+    # backends
+    pl.add_profile(configuration_filter=["vulkan"],
+                    definitions=["PL_VULKAN_BACKEND"])
+    pl.add_profile(configuration_filter=["debug"], compiler_filter=["gcc", "msvc"],
+                    definitions=["PL_VULKAN_BACKEND"])
+    pl.add_profile(configuration_filter=["debug"], platform_filter=["Darwin"],
+                    definitions=["PL_METAL_BACKEND"])
 
     #-----------------------------------------------------------------------------
     # [SECTION] pl_lib

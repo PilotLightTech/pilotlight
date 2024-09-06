@@ -1,8 +1,7 @@
 ## Pilot Light Build
 
 ### Background
-The **pl-build** project is a child of the larger [Pilot Light](https://github.com/PilotLightTech/pilotlight) project. In this larger project, we do not have a "build system" per se. Instead we prefer to write batch/bash scripts that directly call the compiler. If the project was an end user product, this would be the end of it. However, this is not the case. It is meant to be easily be extended through adding additional extensions and being used as a "pilot light" to start new projects. With this comes a couple issues. Extensions are meant to be cross platform so users need the ability to easily add new binaries for all target platforms with minimal duplication. Users shouldn't need to be bash or batch scripting experts to build new targets for all platforms and shouldn't need to test the build scripts continuously on each platform. 
-
+The **pl-build** project is a child of the larger [Pilot Light](https://github.com/PilotLightTech/pilotlight) project. In this larger project, we do not have a "build system" per se. Instead we prefer to write batch/bash scripts that directly call the compiler. If the project was an end user product, this would be the end of it. However, this is not the case. It is meant to be easily extended through adding additional extensions and being used as a "pilot light" to start new projects. With this comes a couple issues. Extensions are meant to be cross platform so users need the ability to easily add new binaries for all target platforms with minimal duplication. Users shouldn't need to be bash or batch scripting experts to build new targets for all platforms and shouldn't need to test the build scripts continuously on each platform. 
 
 ### Requirements
 * minimize duplicated information
@@ -33,5 +32,4 @@ What about other CMake (and others)? They are bloated over complicated messes. T
 
 
 ## Documentation
-Under construction.
-
+Documentation can be found [here](https://github.com/PilotLightTech/pilotlight/wiki/Build-System).

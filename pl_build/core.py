@@ -14,7 +14,7 @@
 # [SECTION] version
 #-----------------------------------------------------------------------------
 
-__version__ = "1.0.1"
+__version__ = "1.0.4"
 
 #-----------------------------------------------------------------------------
 # [SECTION] imports
@@ -152,10 +152,10 @@ class _CompilerProfile:
 
     def __init__(self):
 
-        self.compilers = None
-        self.platforms = None
-        self.configurations = None
-        self.targets = None
+        self.compiler_filter = None
+        self.platform_filter = None
+        self.configuration_filter = None
+        self.target_filter = None
 
         self.output_directory = None
         self.definitions = []
@@ -171,40 +171,40 @@ class _CompilerProfile:
 
     def is_active(self):
 
-        if self.targets is not None:
+        if self.target_filter is not None:
 
             found = False
-            for target in self.targets:
+            for target in self.target_filter:
                 if target == _context._target_name:
                     found = True
                     break
             if not found:
                 return False
             
-        if self.configurations is not None:
+        if self.configuration_filter is not None:
 
             found = False
-            for config_name in self.configurations:
+            for config_name in self.configuration_filter:
                 if config_name == _context._config_name:
                     found = True
                     break
             if not found:
                 return False
             
-        if self.platforms is not None:
+        if self.platform_filter is not None:
 
             found = False
-            for platform_name in self.platforms:
+            for platform_name in self.platform_filter:
                 if platform_name == _context._platform_name:
                     found = True
                     break
             if not found:
                 return False
             
-        if self.compilers is not None:
+        if self.compiler_filter is not None:
 
             found = False
-            for name in self.compilers:
+            for name in self.compiler_filter:
                 if name == _context._working_settings.name:
                     found = True
                     break
@@ -587,213 +587,27 @@ def set_pre_target_build_step(code: str):
 def set_post_target_build_step(code: str):
     _context._working_settings.post_build_step = code
 
-def add_compiler_flags_profile(*args, **kwargs):
+def add_profile(*, compiler_filter=None, platform_filter=None, configuration_filter=None, target_filter=None, definitions=[], include_directories=[],
+                link_directories=[], static_link_libraries=[], dynamic_link_libraries=[], link_frameworks=[], source_files=[],
+                compiler_flags=[], linker_flags=[], output_directory: str = None, output_binary_extension: str = None):
 
     profile = _CompilerProfile()
-    
-    if "targets" in kwargs:
-        profile.targets = kwargs["targets"]
+    profile.compiler_filter = compiler_filter
+    profile.platform_filter = platform_filter
+    profile.configuration_filter = configuration_filter
+    profile.target_filter = target_filter
+    profile.definitions = definitions
+    profile.include_directories = include_directories
+    profile.output_directory = output_directory
+    profile.link_directories = link_directories
+    profile.static_link_libraries = static_link_libraries
+    profile.dynamic_link_libraries = dynamic_link_libraries
+    profile.link_frameworks = link_frameworks
+    profile.source_files = source_files
+    profile.compiler_flags = compiler_flags
+    profile.linker_flags = linker_flags
+    profile.output_binary_extension = output_binary_extension
 
-    if "configurations" in kwargs:
-        profile.configurations = kwargs["configurations"]
-
-    if "compilers" in kwargs:
-        profile.compilers = kwargs["compilers"] 
-
-    if "platforms" in kwargs:
-        profile.platforms = kwargs["platforms"] 
-
-    profile.compiler_flags = args
-    _context._profiles.append(profile)
-
-def add_include_directories_profile(*args, **kwargs):
-
-    profile = _CompilerProfile()
-
-    if "targets" in kwargs:
-        profile.targets = kwargs["targets"]
-
-    if "configurations" in kwargs:
-        profile.configurations = kwargs["configurations"]
-
-    if "compilers" in kwargs:
-        profile.compilers = kwargs["compilers"] 
-
-    if "platforms" in kwargs:
-        profile.platforms = kwargs["platforms"] 
-
-    profile.include_directories = args
-    _context._profiles.append(profile)
-
-def add_definitions_profile(*args, **kwargs):
-
-    profile = _CompilerProfile()
-    
-    if "targets" in kwargs:
-        profile.targets = kwargs["targets"]
-
-    if "configurations" in kwargs:
-        profile.configurations = kwargs["configurations"]
-
-    if "compilers" in kwargs:
-        profile.compilers = kwargs["compilers"]
-
-    if "platforms" in kwargs:
-        profile.platforms = kwargs["platforms"]
-
-    profile.definitions = args
-    _context._profiles.append(profile)
-
-def add_link_directories_profile(*args, **kwargs):
-
-    profile = _CompilerProfile()
-    
-    if "targets" in kwargs:
-        profile.targets = kwargs["targets"]
-
-    if "configurations" in kwargs:
-        profile.configurations = kwargs["configurations"]
-
-    if "compilers" in kwargs:
-        profile.compilers = kwargs["compilers"]
-
-    if "platforms" in kwargs:
-        profile.platforms = kwargs["platforms"]
-
-    profile.link_directories = args
-    _context._profiles.append(profile)
-
-def add_static_link_libraries_profile(*args, **kwargs):
-
-    profile = _CompilerProfile()
-    
-    if "targets" in kwargs:
-        profile.targets = kwargs["targets"]
-
-    if "configurations" in kwargs:
-        profile.configurations = kwargs["configurations"]
-
-    if "compilers" in kwargs:
-        profile.compilers = kwargs["compilers"]
-
-    if "platforms" in kwargs:
-        profile.platforms = kwargs["platforms"]
-
-    profile.static_link_libraries = args
-    _context._profiles.append(profile)
-
-def add_dynamic_link_libraries_profile(*args, **kwargs):
-
-    profile = _CompilerProfile()
-    
-    if "targets" in kwargs:
-        profile.targets = kwargs["targets"]
-
-    if "configurations" in kwargs:
-        profile.configurations = kwargs["configurations"]
-
-    if "compilers" in kwargs:
-        profile.compilers = kwargs["compilers"]
-
-    if "platforms" in kwargs:
-        profile.platforms = kwargs["platforms"]
-
-    profile.dynamic_link_libraries = args
-    _context._profiles.append(profile)
-
-def add_link_frameworks_profile(*args, **kwargs):
-
-    profile = _CompilerProfile()
-    
-    if "targets" in kwargs:
-        profile.targets = kwargs["targets"]
-
-    if "configurations" in kwargs:
-        profile.configurations = kwargs["configurations"]
-
-    if "compilers" in kwargs:
-        profile.compilers = kwargs["compilers"]
-
-    if "platforms" in kwargs:
-        profile.platforms = kwargs["platforms"]
-
-    profile.link_frameworks = args
-    _context._profiles.append(profile)
-
-def add_source_files_profile(*args, **kwargs):
-
-    profile = _CompilerProfile()
-    
-    if "targets" in kwargs:
-        profile.targets = kwargs["targets"]
-
-    if "configurations" in kwargs:
-        profile.configurations = kwargs["configurations"]
-
-    if "compilers" in kwargs:
-        profile.compilers = kwargs["compilers"]
-
-    if "platforms" in kwargs:
-        profile.platforms = kwargs["platforms"]
-
-    profile.source_files = args
-    _context._profiles.append(profile)
-
-def add_linker_flags_profile(*args, **kwargs):
-
-    profile = _CompilerProfile()
-    
-    if "targets" in kwargs:
-        profile.targets = kwargs["targets"]
-
-    if "configurations" in kwargs:
-        profile.configurations = kwargs["configurations"]
-
-    if "compilers" in kwargs:
-        profile.compilers = kwargs["compilers"]
-
-    if "platforms" in kwargs:
-        profile.platforms = kwargs["platforms"]
-
-    profile.linker_flags = args
-    _context._profiles.append(profile)
-
-def set_output_binary_extension_profile(extension: str, **kwargs):
-
-    profile = _CompilerProfile()
-    
-    if "targets" in kwargs:
-        profile.targets = kwargs["targets"]
-
-    if "configurations" in kwargs:
-        profile.configurations = kwargs["configurations"]
-
-    if "compilers" in kwargs:
-        profile.compilers = kwargs["compilers"]
-
-    if "platforms" in kwargs:
-        profile.platforms = kwargs["platforms"]
-
-    profile.output_binary_extension = extension
-    _context._profiles.append(profile)
-
-def set_output_directory_profile(directory: str, **kwargs):
-
-    profile = _CompilerProfile()
-    
-    if "targets" in kwargs:
-        profile.targets = kwargs["targets"]
-
-    if "configurations" in kwargs:
-        profile.configurations = kwargs["configurations"]
-
-    if "compilers" in kwargs:
-        profile.compilers = kwargs["compilers"]
-
-    if "platforms" in kwargs:
-        profile.platforms = kwargs["platforms"]
-
-    profile.output_directory = directory
     _context._profiles.append(profile)
 
 def get_script_data() -> ScriptData:
