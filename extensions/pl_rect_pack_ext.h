@@ -17,14 +17,10 @@ Index of this file:
 #ifndef PL_RECT_PACK_EXT_H
 #define PL_RECT_PACK_EXT_H
 
-#define PL_RECT_PACK_EXT_VERSION    "0.1.0"
-#define PL_RECT_PACK_EXT_VERSION_NUM 000100
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdbool.h>
 #include <stdint.h>
 
 //-----------------------------------------------------------------------------

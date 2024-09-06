@@ -18,7 +18,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pilotlight.h" // data registry, api registry, extension registry
+#include "pilot_light.h" // data registry, api registry, extension registry
 #include "pl_os.h"
 #include "pl_ds.h"      // hashmap
 #import <Cocoa/Cocoa.h>
@@ -325,13 +325,13 @@ int main(int argc, char *argv[])
         else if(strcmp(argv[i], "--version") == 0)
         {
             printf("\nPilot Light - light weight game engine\n\n");
-            printf("Version: %s\n", PILOTLIGHT_VERSION);
+            printf("Version: %s\n", PILOT_LIGHT_VERSION);
             return 0;
         }
         else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("\nPilot Light - light weight game engine\n");
-            printf("Version: %s\n\n", PILOTLIGHT_VERSION);
+            printf("Version: %s\n\n", PILOT_LIGHT_VERSION);
             printf("Usage: pilot_light [options]\n\n");
             printf("Options:\n");
             printf("-h              %s\n", "Displays this information.");

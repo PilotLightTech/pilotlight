@@ -12,7 +12,7 @@
 
 #include <stdio.h>
 #include <float.h>
-#include "pilotlight.h"
+#include "pilot_light.h"
 #include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_ds.h"

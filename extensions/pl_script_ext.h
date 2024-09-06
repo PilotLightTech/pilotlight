@@ -18,9 +18,6 @@ Index of this file:
 #ifndef PL_SCRIPT_EXT_H
 #define PL_SCRIPT_EXT_H
 
-#define PL_SCRIPT_EXT_VERSION    "1.0.0"
-#define PL_SCRIPT_EXT_VERSION_NUM 100000
-
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------

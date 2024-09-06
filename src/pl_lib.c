@@ -1,4 +1,4 @@
-#include "pilotlight.h"
+#include "pilot_light.h"
 
 #include <stdlib.h>
 #undef PL_DS_ALLOC

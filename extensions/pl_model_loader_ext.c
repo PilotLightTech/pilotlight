@@ -18,7 +18,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <float.h> // FLT_MAX
-#include "pilotlight.h"
+#include "pilot_light.h"
 #include "pl_model_loader_ext.h"
 #include "pl_os.h"
 #include "pl_stl.h"

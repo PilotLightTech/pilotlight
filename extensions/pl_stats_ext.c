@@ -38,7 +38,7 @@ Index of this file:
 
 #include <math.h>
 #include <string.h>
-#include "pilotlight.h"
+#include "pilot_light.h"
 #include "pl_stats_ext.h"
 #include "pl_ds.h"
 #include "pl_ext.inc"

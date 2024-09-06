@@ -1,5 +1,5 @@
 /*
-   pilotlight.h
+   pilot_light.h
 */
 
 /*
@@ -19,11 +19,11 @@ Index of this file:
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PILOTLIGHT_H
-#define PILOTLIGHT_H
+#ifndef PILOT_LIGHT_H
+#define PILOT_LIGHT_H
 
-#define PILOTLIGHT_VERSION    "1.0.0a"
-#define PILOTLIGHT_VERSION_NUM 100000
+#define PILOT_LIGHT_VERSION    "0.1.0"
+#define PILOT_LIGHT_VERSION_NUM 001000
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
@@ -508,4 +508,4 @@ typedef struct _plMemoryContext
     #define PL_GLOBAL_LOG_LEVEL PL_LOG_LEVEL_ALL
 #endif
 
-#endif // PILOTLIGHT_H
+#endif // PILOT_LIGHT_H

@@ -23,7 +23,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <stdio.h>
-#include "pilotlight.h"
+#include "pilot_light.h"
 #include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_ds.h"
@@ -253,8 +253,7 @@ pl_app_update(plAppData* ptAppData)
         if(gptUi->collapsing_header("Information"))
         {
             
-            gptUi->text("Pilot Light %s", PILOTLIGHT_VERSION);
-            gptUi->text("Pilot Light UI %s", PL_UI_EXT_VERSION);
+            gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION);
             gptUi->text("Pilot Light DS %s", PL_DS_VERSION);
             #ifdef PL_METAL_BACKEND
             gptUi->text("Graphics Backend: Metal");

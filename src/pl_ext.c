@@ -1,24 +1,57 @@
+/*
+    pl_ext.c
+      * unity build for activated extensions
+      * absolute mess and needs to be cleaned up
+*/
+
+#define PL_CORE_EXTENSION_VERSION    "0.1.0"
+#define PL_CORE_EXTENSION_VERSION_NUM 001000
+
+#include "pl_info_ext.h"
 #include "pl_image_ext.c"
 #include "pl_rect_pack_ext.c"
 #include "pl_stats_ext.c"
 #include "pl_job_ext.c"
 #include "pl_ecs_ext.c"
-#include "pl_draw_ext.c"
-#include "pl_resource_ext.c"
-#include "pl_gpu_allocators_ext.c"
-#include "pl_shader_ext.c"
-#include "pl_model_loader_ext.c"
-#include "pl_ui_ext.c"
 
-#ifdef PL_VULKAN_BACKEND
-#include "pl_graphics_vulkan.c"
-#elif PL_METAL_BACKEND
-#include "pl_graphics_metal.m"
-#else
+#ifdef PL_CORE_EXTENSION_INCLUDE_SHADER
+    #include "pl_shader_ext.c"
 #endif
 
-#include "pl_ref_renderer_ext.c"
-#include "pl_debug_ext.c"
+#ifdef PL_CORE_EXTENSION_INCLUDE_GRAPHICS
+    #include "pl_draw_ext.c"
+    #include "pl_resource_ext.c"
+    #include "pl_gpu_allocators_ext.c"
+    #include "pl_model_loader_ext.c"
+    #include "pl_ui_ext.c"
+
+    #ifdef PL_VULKAN_BACKEND
+    #include "pl_graphics_vulkan.c"
+    #elif PL_METAL_BACKEND
+    #include "pl_graphics_metal.m"
+    #else
+    #endif
+
+    #include "pl_ref_renderer_ext.c"
+    #include "pl_debug_ext.c"
+#endif
+
+static int
+pl__version(void)
+{
+    return PL_CORE_EXTENSION_VERSION_NUM;
+}
+static const char*
+pl__version_string(void)
+{
+    return PL_CORE_EXTENSION_VERSION;
+}
+
+static const char*
+pl__parent_extension(void)
+{
+    return "pilot_light";
+}
 
 PL_EXPORT void
 pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
@@ -32,6 +65,21 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_profile_context(gptDataRegistry->get_data("profile"));
     pl_set_log_context(gptDataRegistry->get_data("log"));
 
+    static const plInfoI tInfoApi = {
+        .version          = pl__version,
+        .version_string   = pl__version_string,
+        .parent_extension = pl__parent_extension
+    };
+
+    if(bReload)
+    {
+        ptApiRegistry->replace(ptApiRegistry->first(PL_API_INFO), &tInfoApi);
+    }
+    else
+    {
+        ptApiRegistry->add(PL_API_INFO, &tInfoApi);
+    }
+
     // load os APIs
     gptIOI     = ptApiRegistry->first(PL_API_IO);
     gptFile    = ptApiRegistry->first(PL_API_FILE);
@@ -44,59 +92,72 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_rect_pack_ext(ptApiRegistry, bReload);
     pl_load_stats_ext(ptApiRegistry, bReload);
     pl_load_job_ext(ptApiRegistry, bReload);
-    pl_load_graphics_ext(ptApiRegistry, bReload);
+
+    #ifdef PL_CORE_EXTENSION_INCLUDE_SHADER
+        pl_load_shader_ext(ptApiRegistry, bReload);
+        gptShader = ptApiRegistry->first(PL_API_SHADER);
+    #endif
 
     gptStats  = ptApiRegistry->first(PL_API_STATS);
     gptImage  = ptApiRegistry->first(PL_API_IMAGE);
     gptJob    = ptApiRegistry->first(PL_API_JOB);
     gptRect   = ptApiRegistry->first(PL_API_RECT_PACK);
-    gptDevice = ptApiRegistry->first(PL_API_DEVICE);
-    gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
-
+    
     // second batch (dependent APIs)
-    pl_load_gpu_allocators_ext(ptApiRegistry, bReload);
-    pl_load_shader_ext(ptApiRegistry, bReload);
     pl_load_ecs_ext(ptApiRegistry, bReload);
-    pl_load_resource_ext(ptApiRegistry, bReload);
+    gptECS    = ptApiRegistry->first(PL_API_ECS);
+    gptCamera = ptApiRegistry->first(PL_API_CAMERA);
 
-    gptResource      = ptApiRegistry->first(PL_API_RESOURCE);
-    gptECS           = ptApiRegistry->first(PL_API_ECS);
-    gptCamera        = ptApiRegistry->first(PL_API_CAMERA);
-    gptShader        = ptApiRegistry->first(PL_API_SHADER);
-    gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
+    #ifdef PL_CORE_EXTENSION_INCLUDE_GRAPHICS
+        
+        pl_load_graphics_ext(ptApiRegistry, bReload);
 
-    // third batch
-    pl_load_model_loader_ext(ptApiRegistry, bReload);
-    pl_load_draw_ext(ptApiRegistry, bReload);
+        gptDevice = ptApiRegistry->first(PL_API_DEVICE);
+        gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
 
-    gptDraw = ptApiRegistry->first(PL_API_DRAW);
+        pl_load_gpu_allocators_ext(ptApiRegistry, bReload);
+        pl_load_resource_ext(ptApiRegistry, bReload);
 
-    // fourth batch
-    pl_load_ui_ext(ptApiRegistry, bReload);
-    gptUI = ptApiRegistry->first(PL_API_UI);
+        gptResource      = ptApiRegistry->first(PL_API_RESOURCE);        
+        gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
+    
+        // third batch
+        pl_load_model_loader_ext(ptApiRegistry, bReload);
+        pl_load_draw_ext(ptApiRegistry, bReload);
 
-    // final batch
-    pl_load_renderer_ext(ptApiRegistry, bReload);
-    pl_load_debug_ext(ptApiRegistry, bReload);
+        gptDraw = ptApiRegistry->first(PL_API_DRAW);
+
+        // fourth batch
+        pl_load_ui_ext(ptApiRegistry, bReload);
+        gptUI = ptApiRegistry->first(PL_API_UI);
+
+        // final batch
+        pl_load_renderer_ext(ptApiRegistry, bReload);
+        pl_load_debug_ext(ptApiRegistry, bReload);
+    #endif
 }
 
 PL_EXPORT void
 pl_unload_ext(plApiRegistryI* ptApiRegistry)
 {
-    pl_unload_shader_ext(ptApiRegistry);
+    #ifdef PL_CORE_EXTENSION_INCLUDE_SHADER
+        pl_unload_shader_ext(ptApiRegistry);
+    #endif
     pl_unload_image_ext(ptApiRegistry);
     pl_unload_rect_pack_ext(ptApiRegistry);
     pl_unload_stats_ext(ptApiRegistry);
     pl_unload_job_ext(ptApiRegistry);
     pl_unload_ecs_ext(ptApiRegistry);
-    pl_unload_graphics_ext(ptApiRegistry);
-    pl_unload_gpu_allocators_ext(ptApiRegistry);
-    pl_unload_resource_ext(ptApiRegistry);
-    pl_unload_model_loader_ext(ptApiRegistry);
-    pl_unload_draw_ext(ptApiRegistry);
-    pl_unload_ui_ext(ptApiRegistry);
-    pl_unload_renderer_ext(ptApiRegistry);
-    pl_unload_debug_ext(ptApiRegistry);
+    #ifdef PL_CORE_EXTENSION_INCLUDE_GRAPHICS
+        pl_unload_graphics_ext(ptApiRegistry);
+        pl_unload_gpu_allocators_ext(ptApiRegistry);
+        pl_unload_resource_ext(ptApiRegistry);
+        pl_unload_model_loader_ext(ptApiRegistry);
+        pl_unload_draw_ext(ptApiRegistry);
+        pl_unload_ui_ext(ptApiRegistry);
+        pl_unload_renderer_ext(ptApiRegistry);
+        pl_unload_debug_ext(ptApiRegistry);
+    #endif
 }
 
 //-----------------------------------------------------------------------------
@@ -121,14 +182,16 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry)
 #include "stb_rect_pack.h"
 #undef STB_RECT_PACK_IMPLEMENTATION
 
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "stb_truetype.h"
-#undef STB_TRUETYPE_IMPLEMENTATION
+#ifdef PL_CORE_EXTENSION_INCLUDE_GRAPHICS
+    #define STB_TRUETYPE_IMPLEMENTATION
+    #include "stb_truetype.h"
+    #undef STB_TRUETYPE_IMPLEMENTATION
 
-#define PL_STL_IMPLEMENTATION
-#include "pl_stl.h"
-#undef PL_STL_IMPLEMENTATION
+    #define PL_STL_IMPLEMENTATION
+    #include "pl_stl.h"
+    #undef PL_STL_IMPLEMENTATION
 
-#define CGLTF_IMPLEMENTATION
-#include "cgltf.h"
-#undef CGLTF_IMPLEMENTATION
+    #define CGLTF_IMPLEMENTATION
+    #include "cgltf.h"
+    #undef CGLTF_IMPLEMENTATION
+#endif

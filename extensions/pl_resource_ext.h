@@ -16,9 +16,6 @@ Index of this file:
 #ifndef PL_RESOURCE_EXT_H
 #define PL_RESOURCE_EXT_H
 
-#define PL_RESOURCE_EXT_VERSION    "0.9.0"
-#define PL_RESOURCE_EXT_VERSION_NUM 000900
-
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------

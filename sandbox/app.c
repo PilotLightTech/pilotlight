@@ -379,8 +379,7 @@ pl_app_update(plEditorData* ptEditorData)
         if(gptUi->collapsing_header(ICON_FA_CIRCLE_INFO " Information"))
         {
             
-            gptUi->text("Pilot Light %s", PILOTLIGHT_VERSION);
-            gptUi->text("Pilot Light UI %s", PL_UI_EXT_VERSION);
+            gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION);
             gptUi->text("Pilot Light DS %s", PL_DS_VERSION);
             #ifdef PL_METAL_BACKEND
             gptUi->text("Graphics Backend: Metal");

@@ -47,7 +47,8 @@
 // runtime options
 // #define PL_HEADLESS_APP
 
-// extension options
-// #define PL_STABLE_APIS_ONLY
+// core extension options
+#define PL_CORE_EXTENSION_INCLUDE_GRAPHICS
+#define PL_CORE_EXTENSION_INCLUDE_SHADER
 
 #endif // PL_CONFIG_H

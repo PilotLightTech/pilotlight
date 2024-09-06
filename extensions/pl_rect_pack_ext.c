@@ -15,7 +15,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pilotlight.h"
+#include "pilot_light.h"
 #include "pl_rect_pack_ext.h"
 #include "stb_rect_pack.h"
 #include "pl_ext.inc"

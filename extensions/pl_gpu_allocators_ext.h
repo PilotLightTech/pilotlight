@@ -19,9 +19,6 @@ Index of this file:
 #ifndef PL_GPU_ALLOCATORS_EXT_H
 #define PL_GPU_ALLOCATORS_EXT_H
 
-#define PL_GPU_ALLOCATORS_EXT_VERSION    "0.10.0"
-#define PL_GPU_ALLOCATORS_EXT_VERSION_NUM 010000
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------

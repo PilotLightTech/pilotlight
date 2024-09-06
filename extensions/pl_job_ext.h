@@ -20,9 +20,6 @@ Index of this file:
 #ifndef PL_JOB_EXT_H
 #define PL_JOB_EXT_H
 
-#define PL_JOB_EXT_VERSION    "1.1.0"
-#define PL_JOB_EXT_VERSION_NUM 10100
-
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------

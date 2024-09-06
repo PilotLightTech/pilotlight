@@ -20,9 +20,6 @@ Index of this file:
 #ifndef PL_SHADER_EXT_H
 #define PL_SHADER_EXT_H
 
-#define PL_SHADER_EXT_VERSION    "1.0.0"
-#define PL_SHADER_EXT_VERSION_NUM 010000
-
 // compile-time options
 // #define PL_OFFLINE_SHADERS_ONLY
 #define PL_MAX_SHADER_INCLUDE_DIRECTORIES 64

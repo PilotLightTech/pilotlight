@@ -19,9 +19,6 @@ Index of this file:
 #ifndef PL_DEBUG_EXT_H
 #define PL_DEBUG_EXT_H
 
-#define PL_DEBUG_EXT_VERSION    "1.0.0"
-#define PL_DEBUG_EXT_VERSION_NUM 100000
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------

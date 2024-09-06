@@ -38,7 +38,7 @@ Index of this file:
 #include <stdio.h>   // vsprintf
 #include <assert.h>
 #include <math.h>
-#include "pilotlight.h"
+#include "pilot_light.h"
 #include "pl_string.h"
 #include "pl_ui_ext.h"
 #include "pl_draw_ext.h"

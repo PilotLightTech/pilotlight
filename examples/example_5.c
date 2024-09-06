@@ -26,7 +26,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <stdio.h>
-#include "pilotlight.h"
+#include "pilot_light.h"
 #include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_ds.h"

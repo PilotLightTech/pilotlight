@@ -14,7 +14,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pilotlight.h"
+#include "pilot_light.h"
 #include "pl_os.h"
 #include "pl_ds.h"
 

@@ -21,7 +21,7 @@ Index of this file:
 
 #include <stdio.h>
 #include <string.h> // memset
-#include "pilotlight.h"
+#include "pilot_light.h"
 #include "pl_os.h" // window api
 
 //-----------------------------------------------------------------------------

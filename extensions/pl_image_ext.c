@@ -14,7 +14,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pilotlight.h"
+#include "pilot_light.h"
 #include "pl_image_ext.h"
 #include "stb_image.h"
 #include "stb_image_write.h"

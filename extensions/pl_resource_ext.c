@@ -3,7 +3,7 @@
 //-----------------------------------------------------------------------------
 
 #include <stdint.h>
-#include "pilotlight.h"
+#include "pilot_light.h"
 #include "pl_resource_ext.h"
 #include "pl_ds.h"
 #include "pl_log.h"

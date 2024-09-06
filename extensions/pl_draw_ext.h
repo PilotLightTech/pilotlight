@@ -21,9 +21,6 @@ Index of this file:
 #ifndef PL_DRAW_EXT_H
 #define PL_DRAW_EXT_H
 
-#define PL_DRAW_EXT_VERSION    "0.2.0"
-#define PL_DRAW_EXT_VERSION_NUM 000200
-
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------

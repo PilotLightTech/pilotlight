@@ -20,9 +20,6 @@ Index of this file:
 #ifndef PL_GRAPHICS_EXT_H
 #define PL_GRAPHICS_EXT_H
 
-#define PL_GRAPHICS_EXT_VERSION    "0.11.0"
-#define PL_GRAPHICS_EXT_VERSION_NUM 001100
-
 #ifndef PL_MAX_NAME_LENGTH
     #define PL_MAX_NAME_LENGTH 1024
 #endif

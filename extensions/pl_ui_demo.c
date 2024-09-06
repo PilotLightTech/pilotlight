@@ -174,8 +174,6 @@ pl_show_demo_window(bool* pbOpen)
         static const float pfRatios0[] = {1.0f};
         pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios0);
 
-        pl_text("Pilot Light UI v%s", PL_UI_EXT_VERSION);
-
         if(pl_collapsing_header("Help"))
         {
             pl_text("Under construction");

@@ -13,21 +13,6 @@ Index of this file:
 // [SECTION] structs
 */
 
-
-// library version
-#define PL_UI_EXT_VERSION    "0.1.0"
-#define PL_UI_EXT_VERSION_NUM 000100
-
-/*
-Index of this file:
-// [SECTION] header mess
-// [SECTION] includes
-// [SECTION] forward declarations
-// [SECTION] public api
-// [SECTION] enums & flags
-// [SECTION] structs
-*/
-
 //-----------------------------------------------------------------------------
 // [SECTION] header mess
 //-----------------------------------------------------------------------------

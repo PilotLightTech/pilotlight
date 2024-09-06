@@ -21,9 +21,6 @@ Index of this file:
 #ifndef PL_ECS_EXT_H
 #define PL_ECS_EXT_H
 
-#define PL_ECS_EXT_VERSION    "0.10.0"
-#define PL_ECS_EXT_VERSION_NUM 001000
-
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------

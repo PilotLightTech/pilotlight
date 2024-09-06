@@ -19,9 +19,6 @@ Index of this file:
 #ifndef PL_MODEL_LOADER_EXT_H
 #define PL_MODEL_LOADER_EXT_H
 
-#define PL_MODEL_LOADER_EXT_VERSION     "0.9.0"
-#define PL_MODEL_LOADER_EXT_VERSION_NUM 009000
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
