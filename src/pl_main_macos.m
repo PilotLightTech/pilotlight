@@ -1656,7 +1656,7 @@ pl__create_window(const plWindowDesc* ptDesc)
     ptData->ptViewController.view = [[plNSView alloc] initWithFrame:frame];
 
     plNSView *view = (plNSView *)ptData->ptViewController.view;
-    view.metalLayer.device = device;    
+    view.metalLayer.device = device;
     view.delegate = ptData->ptViewController;
     view.metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
     gptIOCtx->pBackendPlatformData = device;

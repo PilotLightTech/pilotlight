@@ -125,6 +125,9 @@ pl_gizmo(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plComponentLib
             case PL_SELECTION_MODE_SCALE:
                 pl__gizmo_scale(ptGizmoData, ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
                 break;
+            case PL_SELECTION_MODE_NONE:
+            default:
+                break;
 
         }
     }

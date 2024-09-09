@@ -31,10 +31,10 @@ includes = [
 # setup vs code
 ########################################################################################################################
 
-if not os.path.isdir('.vscode'):
-    os.mkdir('.vscode')
+if not os.path.isdir('../.vscode'):
+    os.mkdir('../.vscode')
 
-with open('.vscode/launch.json', 'w') as file:
+with open('../.vscode/launch.json', 'w') as file:
 
     lines = []
     lines.append('{')
@@ -73,7 +73,7 @@ with open('.vscode/launch.json', 'w') as file:
         lines[i] = lines[i] + "\n"
     file.writelines(lines)
 
-with open('.vscode/c_cpp_properties.json', 'w') as file:
+with open('../.vscode/c_cpp_properties.json', 'w') as file:
     lines = []
     lines.append('{')
     lines.append('  "version" : 4,')
@@ -115,7 +115,7 @@ with open('.vscode/c_cpp_properties.json', 'w') as file:
         lines[i] = lines[i] + "\n"
     file.writelines(lines)
 
-with open('.vscode/settings.json', 'w') as file:
+with open('../.vscode/settings.json', 'w') as file:
     lines = []
     lines.append('{')
     lines.append('  "files.associations": {')

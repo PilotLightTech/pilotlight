@@ -71,13 +71,6 @@ layout(set = 2, binding = 1)   uniform texture2D tNormalTexture;
 layout(set = 2, binding = 2)   uniform texture2D tEmissiveTexture;
 layout(set = 2, binding = 3)   uniform texture2D tMetallicRoughnessTexture;
 layout(set = 2, binding = 4)   uniform texture2D tOcclusionTexture;
-layout(set = 2, binding = 5)   uniform texture2D tClearcoatTexture;
-layout(set = 2, binding = 6)   uniform texture2D tClearcoatRoughnessTexture;
-layout(set = 2, binding = 7)   uniform texture2D tClearcoatNormalTexture;
-layout(set = 2, binding = 8)   uniform texture2D tIridescenceTexture;
-layout(set = 2, binding = 9)   uniform texture2D tIridescenceThicknessTexture;
-layout(set = 2, binding = 10)  uniform texture2D tSpecularTexture;
-layout(set = 2, binding = 11)  uniform texture2D tSpecularColorTexture;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
