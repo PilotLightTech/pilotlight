@@ -155,8 +155,8 @@ pl_read_from_disk(const char* pcShader, const char* pcEntryFunc)
     if(pcShader && gptFile->exists(pcShader))
     {
         gptFile->binary_read(pcShader, &tModule.szCodeSize, NULL);
-        tModule.puCode = PL_ALLOC(tModule.szCodeSize);
-        memset(tModule.puCode, 0, tModule.szCodeSize);
+        tModule.puCode = PL_ALLOC(tModule.szCodeSize + 1);
+        memset(tModule.puCode, 0, tModule.szCodeSize + 1);
         gptFile->binary_read(pcShader, &tModule.szCodeSize, tModule.puCode);
         pl_sb_push(gptShaderCtx->sbptShaderBytecodeCache, tModule.puCode);
         tModule.pcEntryFunc = pcEntryFunc;
@@ -365,6 +365,8 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
         spvc_compiler_compile(tMslCompiler, (const char**)&tModule.puCode);
     }
     #endif
+    if(tModule.puCode)
+        tModule.szCodeSize = strlen((const char*)tModule.puCode);
     #endif
     return tModule;
 }
