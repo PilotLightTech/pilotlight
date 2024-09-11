@@ -1,7 +1,7 @@
 name: Bug Report
 description: File a bug report
 title: "[BUG]: "
-labels: ["type: bug", "state: pending"]
+labels: ["type: Bug", "state: Pending"]
 assignees:
   - hoffstadt
 body:
@@ -41,6 +41,7 @@ body:
       description: What platform are you running?
       multiple: true
       options:
+        - All
         - Windows
         - Linux
         - MacOS
@@ -52,6 +53,8 @@ body:
       label: Graphics Backend
       multiple: true
       options:
+        - All
+        - NA
         - Vulkan
         - Metal
         - Directx 11
@@ -62,3 +65,30 @@ body:
       label: Relevant log output
       description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
       render: shell
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options:
+        - Core
+        - OS
+        - Drawing
+        - User Interface
+        - Logging
+        - Profiling
+        - Data structures
+        - Memory
+        - ECS
+        - Job
+        - Stats
+        - Image
+        - Allocators
+        - Testing
+        - Build
+        - Graphics
+        - Model Loader
+        - Renderer
+        - Shader
+        - Resource
+        - GPU Allocators
+        - Libs

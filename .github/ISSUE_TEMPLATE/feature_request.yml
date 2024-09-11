@@ -1,7 +1,7 @@
 name: Feature Request
 description: File a feature request
 title: "[FEATURE]: "
-labels: ["type: feature", "state: pending"]
+labels: ["type: Feature", "state: Pending"]
 assignees:
   - hoffstadt
 body:
@@ -55,3 +55,9 @@ body:
         - Testing
         - Build
         - Graphics
+        - Model Loader
+        - Renderer
+        - Shader
+        - Resource
+        - GPU Allocators
+        - Libs
