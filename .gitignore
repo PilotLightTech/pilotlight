@@ -16,12 +16,12 @@ examples/*.pdb
 tests/*.pdb
 
 # build scripts
-src/build.bat
-src/build.sh
-examples/build.bat
-examples/build.sh
-tests/build.bat
-tests/build.sh
+src/*.bat
+src/*.sh
+examples/*.bat
+examples/*.sh
+tests/*.bat
+tests/*.sh
 
 # misc
 .DS_Store

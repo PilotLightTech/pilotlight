@@ -33,8 +33,10 @@ jobs:
       shell: cmd
       run: |
         cd $GITHUB_WORKSPACE
-        cd tests
-        call build_win32.bat -c debug
+        cd scripts
+        python gen_build.py
+        cd ../tests
+        call build.bat -c debug
         cd ..
         cd out
         pilot_light_test.exe
@@ -56,9 +58,11 @@ jobs:
     - name: Run Tests
       run: |
         cd $GITHUB_WORKSPACE
-        cd tests
-        chmod +x build_macos.sh
-        ./build_macos.sh -c debug
+        cd scripts
+        python3 gen_build.py
+        cd ../tests
+        chmod +x build.sh
+        ./build.sh -c debug
         cd ..
         cd out
         ./pilot_light_test
@@ -90,9 +94,11 @@ jobs:
     - name: Run Tests
       run: |
         cd $GITHUB_WORKSPACE
-        cd tests
-        chmod +x build_linux.sh
-        ./build_linux.sh
+        cd scripts
+        python3 gen_build.py
+        cd ../tests
+        chmod +x build.sh
+        ./build.sh
         cd ..
         cd out
         ./pilot_light_test

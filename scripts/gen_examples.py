@@ -12,6 +12,7 @@
 
 import os
 import sys
+import platform as plat
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
@@ -91,6 +92,9 @@ with pl.project("pilotlight_examples"):
 # [SECTION] generate scripts
 #-----------------------------------------------------------------------------
 
-win32.generate_build(working_directory + '/' + "build_win32.bat", {"dev env setup" : True})
-linux.generate_build(working_directory + '/' + "build_linux.sh")
-apple.generate_build(working_directory + '/' + "build_macos.sh")
+if plat.system() == "Windows":
+    win32.generate_build(working_directory + '/' + "build.bat", {"dev env setup" : True})
+elif plat.system() == "Darwin":
+    apple.generate_build(working_directory + '/' + "build.sh")
+elif plat.system() == "Linux":
+    linux.generate_build(working_directory + '/' + "build.sh")

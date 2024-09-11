@@ -8,37 +8,27 @@ Next:
 ### Windows
 Example for running example 0:
 ```bash
-cd src
-build_win32.bat
+cd scripts
+python gen_build.py
+cd ../src
+build.bat
 cd ../examples
-build_win32.bat
+build.bat
 
 cd ../out
 pilot_light.exe -a example_0
 ```
-### Linux
+### Linux & MacOS
 Example for running example 2:
 ```bash
-cd src
-chmod +x build_linux.sh
-./build_linux.sh
+cd scripts
+python3 gen_build.py
+cd ../src
+chmod +x build.sh
+./build.sh
 cd ../examples
-chmod +x build_linux.sh
-./build_linux.sh
-
-cd ../out
-pilot_light -a example_2
-```
-
-### MacOS
-Example for running example 2:
-```bash
-cd src
-chmod +x build_macos.sh
-./build_macos.sh
-cd ../examples
-chmod +x build_macos.sh
-./build_macos.sh
+chmod +x build.sh
+./build.sh
 
 cd ../out
 pilot_light -a example_2
