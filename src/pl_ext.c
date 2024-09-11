@@ -7,7 +7,6 @@
 #define PL_CORE_EXTENSION_VERSION    "0.1.0"
 #define PL_CORE_EXTENSION_VERSION_NUM 001000
 
-#include "pl_info_ext.h"
 #include "pl_image_ext.c"
 #include "pl_rect_pack_ext.c"
 #include "pl_stats_ext.c"
@@ -36,23 +35,6 @@
     #include "pl_debug_ext.c"
 #endif
 
-static int
-pl__version(void)
-{
-    return PL_CORE_EXTENSION_VERSION_NUM;
-}
-static const char*
-pl__version_string(void)
-{
-    return PL_CORE_EXTENSION_VERSION;
-}
-
-static const char*
-pl__parent_extension(void)
-{
-    return "pilot_light";
-}
-
 PL_EXPORT void
 pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
@@ -64,21 +46,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_memory_context(gptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     pl_set_profile_context(gptDataRegistry->get_data("profile"));
     pl_set_log_context(gptDataRegistry->get_data("log"));
-
-    static const plInfoI tInfoApi = {
-        .version          = pl__version,
-        .version_string   = pl__version_string,
-        .parent_extension = pl__parent_extension
-    };
-
-    if(bReload)
-    {
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_INFO), &tInfoApi);
-    }
-    else
-    {
-        ptApiRegistry->add(PL_API_INFO, &tInfoApi);
-    }
 
     // load os APIs
     gptIOI     = ptApiRegistry->first(PL_API_IO);
