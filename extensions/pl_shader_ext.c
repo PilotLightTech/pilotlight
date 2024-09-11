@@ -364,10 +364,10 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
         spvc_compiler_install_compiler_options(tMslCompiler, tOptions);
         spvc_compiler_compile(tMslCompiler, (const char**)&tModule.puCode);
     }
-    #endif
     if(tModule.puCode)
         tModule.szCodeSize = strlen((const char*)tModule.puCode);
-    #endif
+    #endif // PL_METAL_BACKEND
+    #endif // PL_OFFLINE_SHADERS_ONLY
     return tModule;
 }
 
