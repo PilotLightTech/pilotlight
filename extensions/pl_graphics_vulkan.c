@@ -25,8 +25,8 @@ Index of this file:
 #include "pl_log.h"
 #include "pl_string.h"
 #include "pl_memory.h"
-#include "pl_graphics_ext.c"
 #include "pl_ext.inc"
+#include "pl_graphics_internal.h"
 
 // vulkan stuff
 #if defined(_WIN32)
@@ -55,12 +55,6 @@ Index of this file:
 #endif
 
 //-----------------------------------------------------------------------------
-// [SECTION] global data
-//-----------------------------------------------------------------------------
-
-static uint32_t uLogChannelGraphics = UINT32_MAX;
-
-//-----------------------------------------------------------------------------
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
@@ -75,6 +69,30 @@ typedef struct _plRenderPassCommonData
     VkAttachmentReference   atSubpassInputAttachmentReferences[PL_MAX_RENDER_TARGETS][PL_MAX_SUBPASSES];
     VkAttachmentReference   tDepthAttachmentReference;
 } plRenderPassCommonData;
+
+typedef struct _plCommandBuffer
+{
+    plBeginCommandInfo tBeginInfo;
+    plDevice*          ptDevice;
+    VkCommandBuffer    tCmdBuffer;
+} plCommandBuffer;
+
+typedef struct _plRenderEncoder
+{
+    plCommandBufferHandle tCommandBuffer;
+    plRenderPassHandle    tRenderPassHandle;
+    uint32_t              _uCurrentSubpass;
+} plRenderEncoder;
+
+typedef struct _plComputeEncoder
+{
+    plCommandBufferHandle tCommandBuffer;
+} plComputeEncoder;
+
+typedef struct _plBlitEncoder
+{
+    plCommandBufferHandle tCommandBuffer;
+} plBlitEncoder;
 
 typedef struct _plVulkanDynamicBuffer
 {
@@ -159,15 +177,76 @@ typedef struct _plFrameContext
     VkCommandBuffer* sbtPendingCommandBuffers;
 } plFrameContext;
 
-typedef struct _plVulkanSwapchain
+typedef struct _plDevice
 {
-    VkSwapchainKHR           tSwapChain;
-    VkImage*                 sbtImages;
-    VkSurfaceFormatKHR*      sbtSurfaceFormats;
-} plVulkanSwapchain;
+    bool                      bDescriptorIndexing;
+    plDeviceMemoryAllocatorI* ptDynamicAllocator;
+    void*                     _pInternalData;
+    plFrameGarbage*           sbtGarbage;
 
-typedef struct _plVulkanDevice
-{
+    // render pass layouts
+    plRenderPassLayoutHandle  tMainRenderPassLayout;
+    plVulkanRenderPassLayout* sbtRenderPassLayoutsHot;
+    plRenderPassLayout*       sbtRenderPassLayoutsCold;
+    uint32_t*                 sbtRenderPassLayoutGenerations;
+    uint32_t*                 sbtRenderPassLayoutFreeIndices;
+
+    // render passes
+    plRenderPassHandle  tMainRenderPass;
+    plVulkanRenderPass* sbtRenderPassesHot;
+    plRenderPass*       sbtRenderPassesCold;
+    uint32_t*           sbtRenderPassGenerations;
+    uint32_t*           sbtRenderPassFreeIndices;
+
+    // shaders
+    plVulkanShader* sbtShadersHot;
+    plShader*       sbtShadersCold;
+    uint32_t*       sbtShaderGenerations;
+    uint32_t*       sbtShaderFreeIndices;
+
+    // compute shaders
+    plVulkanComputeShader* sbtComputeShadersHot;
+    plComputeShader*       sbtComputeShadersCold;
+    uint32_t*              sbtComputeShaderGenerations;
+    uint32_t*              sbtComputeShaderFreeIndices;
+
+    // buffers
+    plVulkanBuffer* sbtBuffersHot;
+    plBuffer*       sbtBuffersCold;
+    uint32_t*       sbtBufferGenerations;
+    uint32_t*       sbtBufferFreeIndices;
+
+    // textures
+    VkImageView*     sbtTextureViewsHot;
+    plVulkanTexture* sbtTexturesHot;
+    plTexture*       sbtTexturesCold;
+    uint32_t*        sbtTextureGenerations;
+    uint32_t*        sbtTextureFreeIndices;
+
+    // samplers
+    VkSampler* sbtSamplersHot;
+    plSampler* sbtSamplersCold;
+    uint32_t*  sbtSamplerGenerations;
+    uint32_t*  sbtSamplerFreeIndices;
+
+    // bind groups
+    plVulkanBindGroup* sbtBindGroupsHot;
+    plBindGroup*       sbtBindGroupsCold;
+    uint32_t*          sbtBindGroupGenerations;
+    uint32_t*          sbtBindGroupFreeIndices;
+    plBindGroupHandle* sbtFreeDrawBindGroups;
+
+    // bind group layouts
+    plVulkanBindGroupLayout*  sbtBindGroupLayouts;
+    uint32_t*                 sbtBindGroupLayoutFreeIndices;
+    VkDescriptorSetLayout     tDynamicDescriptorSetLayout;
+
+    // timeline semaphores
+    VkSemaphore* sbtSemaphoresHot;
+    uint32_t*    sbtSemaphoreGenerations;
+    uint32_t*    sbtSemaphoreFreeIndices;
+
+    // vulkan specifics
     VkDevice                                  tLogicalDevice;
     VkPhysicalDevice                          tPhysicalDevice;
     int                                       iGraphicsQueueFamily;
@@ -187,39 +266,68 @@ typedef struct _plVulkanDevice
     VkCommandPool                             tCmdPool;
     uint32_t                                  uUniformBufferBlockSize;
     uint32_t                                  uCurrentFrame;
+    plFrameContext*                           sbFrames;
+    VkDescriptorPool                          tDescriptorPool;
 
 	PFN_vkDebugMarkerSetObjectTagEXT  vkDebugMarkerSetObjectTag;
 	PFN_vkDebugMarkerSetObjectNameEXT vkDebugMarkerSetObjectName;
 	PFN_vkCmdDebugMarkerBeginEXT      vkCmdDebugMarkerBegin;
 	PFN_vkCmdDebugMarkerEndEXT        vkCmdDebugMarkerEnd;
 	PFN_vkCmdDebugMarkerInsertEXT     vkCmdDebugMarkerInsert;
+} plDevice;
 
-} plVulkanDevice;
-
-typedef struct _plVulkanGraphics
+typedef struct _plGraphics
 {
+    uint32_t uCurrentFrameIndex;
+    uint32_t uFramesInFlight;
+    size_t   szLocalMemoryInUse;
+    size_t   szHostMemoryInUse;
+    bool     bValidationActive;
+
+    // command buffers
+    plCommandBuffer* sbtCommandBuffers;
+    uint32_t*        sbuCommandBuffersFreeIndices;
+
+    // render encoders
+    plRenderEncoder* sbtRenderEncoders;
+    uint32_t*        sbuRenderEncodersFreeIndices;
+
+    // blit encoders
+    plBlitEncoder* sbtBlitEncoders;
+    uint32_t*      sbuBlitEncodersFreeIndices;
+
+    // compute encoders
+    plComputeEncoder* sbtComputeEncoders;
+    uint32_t*         sbuComputeEncodersFreeIndices;
+    
+    // vulkan specifics
     plTempAllocator          tTempAllocator;
     VkInstance               tInstance;
     VkDebugUtilsMessengerEXT tDbgMessenger;
-    VkSurfaceKHR             tSurface;
-    plFrameContext*          sbFrames;
-    VkDescriptorPool         tDescriptorPool;
+    bool                     bWithinFrameContext;
+} plGraphics;
 
-    VkSemaphore*              sbtSemaphoresHot;
-    plVulkanTexture*          sbtTexturesHot;
-    VkImageView*              sbtTextureViewsHot;
-    VkSampler*                sbtSamplersHot;
-    plVulkanBindGroup*        sbtBindGroupsHot;
-    plVulkanBuffer*           sbtBuffersHot;
-    plVulkanShader*           sbtShadersHot;
-    plVulkanComputeShader*    sbtComputeShadersHot;
-    plVulkanRenderPass*       sbtRenderPassesHot;
-    plVulkanRenderPassLayout* sbtRenderPassLayoutsHot;
-    plVulkanBindGroupLayout*  sbtBindGroupLayouts;
-    uint32_t*                 sbtBindGroupLayoutFreeIndices;
-    VkDescriptorSetLayout     tDynamicDescriptorSetLayout;
-    bool                      bWithinFrameContext;
-} plVulkanGraphics;
+typedef struct _plSurface
+{
+    VkSurfaceKHR tSurface;
+} plSurface;
+
+typedef struct _plSwapchain
+{
+    plDevice*        ptDevice;
+    plExtent         tExtent;
+    plFormat         tFormat;
+    uint32_t         uImageCount;
+    plTextureHandle* sbtSwapchainTextureViews;
+    uint32_t         uCurrentImageIndex; // current image to use within the swap chain
+    bool             bVSync;
+
+    // platform specific
+    plSurface*          ptSurface;
+    VkSwapchainKHR      tSwapChain;
+    VkImage*            sbtImages;
+    VkSurfaceFormatKHR* sbtSurfaceFormats;
+} plSwapchain;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -245,17 +353,16 @@ static plDeviceMemoryAllocation pl_allocate_memory(plDevice*, size_t ulSize, plM
 static void pl_free_memory(plDevice*, plDeviceMemoryAllocation*);
 
 static void                  pl_set_vulkan_object_name(plDevice* ptDevice, uint64_t uObjectHandle, VkDebugReportObjectTypeEXT tObjectType, const char* pcName);
-static plFrameContext*       pl__get_frame_resources(plGraphics* ptGraphics);
-static plFrameContext*       pl__get_next_frame_resources(plGraphics* ptGraphics);
+static plFrameContext*       pl__get_next_frame_resources(plDevice* ptDevice);
 static VkSampleCountFlagBits pl__get_max_sample_count(plDevice* ptDevice);
 static VkFormat              pl__find_supported_format(plDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount);
 static VkFormat              pl__find_depth_format(plDevice* ptDevice);
 static VkFormat              pl__find_depth_stencil_format(plDevice* ptDevice);
 static bool                  pl__format_has_stencil(VkFormat tFormat);
 static void                  pl__transition_image_layout(VkCommandBuffer tCommandBuffer, VkImage tImage, VkImageLayout tOldLayout, VkImageLayout tNewLayout, VkImageSubresourceRange tSubresourceRange, VkPipelineStageFlags tSrcStageMask, VkPipelineStageFlags tDstStageMask);
-static void                  pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight);
+static void                  pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain*);
 static uint32_t              pl__find_memory_type_(VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uTypeFilter, VkMemoryPropertyFlags tProperties);
-static void                  pl__garbage_collect(plGraphics* ptGraphics);
+static void                  pl__garbage_collect(plDevice* ptDevice);
 static void                  pl__fill_common_render_pass_data(const plRenderPassLayoutDescription* ptDesc, plRenderPassLayout* ptLayout, plRenderPassCommonData* ptDataOut);
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT tMsgSeverity, VkDebugUtilsMessageTypeFlagsEXT tMsgType, const VkDebugUtilsMessengerCallbackDataEXT* ptCallbackData, void* pUserData);
@@ -267,24 +374,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL pl__debug_callback(VkDebugUtilsMessageSeve
 static plSemaphoreHandle
 pl_create_semaphore(plDevice* ptDevice, bool bHostVisible)
 {
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptDevice->ptGraphics->_pInternalData;
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-
-    uint32_t uIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtSemaphoreFreeIndices) > 0)
-        uIndex = pl_sb_pop(ptGraphics->sbtSemaphoreFreeIndices);
-    else
-    {
-        uIndex = pl_sb_size(ptVulkanGraphics->sbtSemaphoresHot);
-        pl_sb_push(ptGraphics->sbtSemaphoreGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGraphics->sbtSemaphoresHot);
-    }
-
-    plSemaphoreHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtSemaphoreGenerations[uIndex],
-        .uIndex = uIndex
-    };
+    plSemaphoreHandle tHandle = pl__get_new_semaphore_handle(ptDevice);
 
     VkSemaphoreTypeCreateInfo tTimelineCreateInfo = {
         .sType         = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
@@ -300,74 +390,50 @@ pl_create_semaphore(plDevice* ptDevice, bool bHostVisible)
     };
 
     VkSemaphore tTimelineSemaphore = VK_NULL_HANDLE;
-    PL_VULKAN(vkCreateSemaphore(ptVulkanDevice->tLogicalDevice, &tCreateInfo, NULL, &tTimelineSemaphore));
+    PL_VULKAN(vkCreateSemaphore(ptDevice->tLogicalDevice, &tCreateInfo, NULL, &tTimelineSemaphore));
     
-    ptVulkanGraphics->sbtSemaphoresHot[uIndex] = tTimelineSemaphore;
+    ptDevice->sbtSemaphoresHot[tHandle.uIndex] = tTimelineSemaphore;
     return tHandle;
 }
 
 static void
-pl_signal_semaphore(plGraphics* ptGraphics, plSemaphoreHandle tHandle, uint64_t ulValue)
+pl_signal_semaphore(plDevice* ptDevice, plSemaphoreHandle tHandle, uint64_t ulValue)
 {
-    plVulkanDevice* ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
     const VkSemaphoreSignalInfo tSignalInfo = {
         .sType     = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO,
         .pNext     = NULL,
-        .semaphore = ptVulkanGraphics->sbtSemaphoresHot[tHandle.uIndex],
+        .semaphore = ptDevice->sbtSemaphoresHot[tHandle.uIndex],
         .value     = ulValue,
     };
-    vkSignalSemaphore(ptVulkanDevice->tLogicalDevice, &tSignalInfo);
+    vkSignalSemaphore(ptDevice->tLogicalDevice, &tSignalInfo);
 }
 
 static void
-pl_wait_semaphore(plGraphics* ptGraphics, plSemaphoreHandle tHandle, uint64_t ulValue)
+pl_wait_semaphore(plDevice* ptDevice, plSemaphoreHandle tHandle, uint64_t ulValue)
 {
-    plVulkanDevice* ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
     const VkSemaphoreWaitInfo tWaitInfo = {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
         .pNext = NULL,
         .flags = 0,
         .semaphoreCount = 1,
-        .pSemaphores = &ptVulkanGraphics->sbtSemaphoresHot[tHandle.uIndex],
+        .pSemaphores = &ptDevice->sbtSemaphoresHot[tHandle.uIndex],
         .pValues = &ulValue,
     };
-    vkWaitSemaphores(ptVulkanDevice->tLogicalDevice, &tWaitInfo, UINT64_MAX);
+    vkWaitSemaphores(ptDevice->tLogicalDevice, &tWaitInfo, UINT64_MAX);
 }
 
 static uint64_t
-pl_get_semaphore_value(plGraphics* ptGraphics, plSemaphoreHandle tHandle)
+pl_get_semaphore_value(plDevice* ptDevice, plSemaphoreHandle tHandle)
 {
-    plVulkanDevice* ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
     uint64_t ulValue = 0;
-    vkGetSemaphoreCounterValue(ptVulkanDevice->tLogicalDevice, ptVulkanGraphics->sbtSemaphoresHot[tHandle.uIndex], &ulValue);
+    vkGetSemaphoreCounterValue(ptDevice->tLogicalDevice, ptDevice->sbtSemaphoresHot[tHandle.uIndex], &ulValue);
     return ulValue;
 }
 
 static plBufferHandle
 pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const char* pcName)
 {
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptDevice->ptGraphics->_pInternalData;
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-
-    uint32_t uBufferIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtBufferFreeIndices) > 0)
-        uBufferIndex = pl_sb_pop(ptGraphics->sbtBufferFreeIndices);
-    else
-    {
-        uBufferIndex = pl_sb_size(ptGraphics->sbtBuffersCold);
-        pl_sb_add(ptGraphics->sbtBuffersCold);
-        pl_sb_push(ptGraphics->sbtBufferGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGraphics->sbtBuffersHot);
-    }
-
-    plBufferHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtBufferGenerations[uBufferIndex],
-        .uIndex = uBufferIndex
-    };
+    plBufferHandle tHandle = pl__get_new_buffer_handle(ptDevice);
 
     plBuffer tBuffer = {
         .tDescription = *ptDesc
@@ -400,42 +466,35 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
 
     VkMemoryRequirements tMemRequirements = {0};
 
-    PL_VULKAN(vkCreateBuffer(ptVulkanDevice->tLogicalDevice, &tBufferInfo, NULL, &tVulkanBuffer.tBuffer));
+    PL_VULKAN(vkCreateBuffer(ptDevice->tLogicalDevice, &tBufferInfo, NULL, &tVulkanBuffer.tBuffer));
     if(pcName)
         pl_set_vulkan_object_name(ptDevice, (uint64_t)tVulkanBuffer.tBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, pcName);
-    vkGetBufferMemoryRequirements(ptVulkanDevice->tLogicalDevice, tVulkanBuffer.tBuffer, &tMemRequirements);
+    vkGetBufferMemoryRequirements(ptDevice->tLogicalDevice, tVulkanBuffer.tBuffer, &tMemRequirements);
 
     tBuffer.tMemoryRequirements.ulAlignment = tMemRequirements.alignment;
     tBuffer.tMemoryRequirements.ulSize = tMemRequirements.size;
     tBuffer.tMemoryRequirements.uMemoryTypeBits = tMemRequirements.memoryTypeBits;
 
-    ptVulkanGraphics->sbtBuffersHot[uBufferIndex] = tVulkanBuffer;
-    ptGraphics->sbtBuffersCold[uBufferIndex] = tBuffer;
+    ptDevice->sbtBuffersHot[tHandle.uIndex] = tVulkanBuffer;
+    ptDevice->sbtBuffersCold[tHandle.uIndex] = tBuffer;
     return tHandle;
 }
 
 static void
 pl_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
 {
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptDevice->ptGraphics->_pInternalData;
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-
-    plBuffer* ptBuffer = &ptGraphics->sbtBuffersCold[tHandle.uIndex];
+    plBuffer* ptBuffer = &ptDevice->sbtBuffersCold[tHandle.uIndex];
     ptBuffer->tMemoryAllocation = *ptAllocation;
-    plVulkanBuffer* ptVulkanBuffer = &ptVulkanGraphics->sbtBuffersHot[tHandle.uIndex];
+    plVulkanBuffer* ptVulkanBuffer = &ptDevice->sbtBuffersHot[tHandle.uIndex];
 
-    PL_VULKAN(vkBindBufferMemory(ptVulkanDevice->tLogicalDevice, ptVulkanBuffer->tBuffer, (VkDeviceMemory)ptAllocation->uHandle, ptAllocation->ulOffset));
+    PL_VULKAN(vkBindBufferMemory(ptDevice->tLogicalDevice, ptVulkanBuffer->tBuffer, (VkDeviceMemory)ptAllocation->uHandle, ptAllocation->ulOffset));
     ptVulkanBuffer->pcData = ptAllocation->pHostMapped;
 }
 
 static plDynamicBinding
 pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
-    plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
+    plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
 
     PL_ASSERT(szSize <= PL_MAX_DYNAMIC_DATA_SIZE && "Dynamic data size too large");
 
@@ -465,26 +524,26 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
                 .tUsage               = PL_BUFFER_USAGE_UNIFORM,
                 .uByteSize            = PL_DEVICE_ALLOCATION_BLOCK_SIZE
             };
-            pl_sprintf(tStagingBufferDescription0.acDebugName, "D-BUF-F%d-%d", (int)ptGraphics->uCurrentFrameIndex, (int)ptFrame->uCurrentBufferIndex);
+            pl_sprintf(tStagingBufferDescription0.acDebugName, "D-BUF-F%d-%d", (int)gptGraphics->uCurrentFrameIndex, (int)ptFrame->uCurrentBufferIndex);
 
-            plBufferHandle tStagingBuffer0 = pl_create_buffer(&ptGraphics->tDevice, &tStagingBufferDescription0, "dynamic buffer");
-            plBuffer* ptBuffer = &ptGraphics->sbtBuffersCold[tStagingBuffer0.uIndex];
+            plBufferHandle tStagingBuffer0 = pl_create_buffer(ptDevice, &tStagingBufferDescription0, "dynamic buffer");
+            plBuffer* ptBuffer = &ptDevice->sbtBuffersCold[tStagingBuffer0.uIndex];
             plDeviceMemoryAllocation tAllocation = ptDevice->ptDynamicAllocator->allocate(ptDevice->ptDynamicAllocator->ptInst, ptBuffer->tMemoryRequirements.uMemoryTypeBits, ptBuffer->tMemoryRequirements.ulSize, ptBuffer->tMemoryRequirements.ulAlignment, "dynamic buffer");
             pl_bind_buffer_to_memory(ptDevice, tStagingBuffer0, &tAllocation);
 
             ptDynamicBuffer->uHandle = tStagingBuffer0.uIndex;
-            ptDynamicBuffer->tBuffer = ptVulkanGraphics->sbtBuffersHot[tStagingBuffer0.uIndex].tBuffer;
-            ptDynamicBuffer->tMemory = ptGraphics->sbtBuffersCold[tStagingBuffer0.uIndex].tMemoryAllocation;
+            ptDynamicBuffer->tBuffer = ptDevice->sbtBuffersHot[tStagingBuffer0.uIndex].tBuffer;
+            ptDynamicBuffer->tMemory = ptDevice->sbtBuffersCold[tStagingBuffer0.uIndex].tMemoryAllocation;
             ptDynamicBuffer->uByteOffset = 0;
 
             // allocate descriptor sets
             const VkDescriptorSetAllocateInfo tDynamicAllocInfo = {
                 .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                .descriptorPool     = ptVulkanGraphics->tDescriptorPool,
+                .descriptorPool     = ptDevice->tDescriptorPool,
                 .descriptorSetCount = 1,
-                .pSetLayouts        = &ptVulkanGraphics->tDynamicDescriptorSetLayout
+                .pSetLayouts        = &ptDevice->tDynamicDescriptorSetLayout
             };
-            PL_VULKAN(vkAllocateDescriptorSets(ptVulkanDevice->tLogicalDevice, &tDynamicAllocInfo, &ptDynamicBuffer->tDescriptorSet));
+            PL_VULKAN(vkAllocateDescriptorSets(ptDevice->tLogicalDevice, &tDynamicAllocInfo, &ptDynamicBuffer->tDescriptorSet));
 
             VkDescriptorBufferInfo tDescriptorInfo0 = {
                 .buffer = ptDynamicBuffer->tBuffer,
@@ -502,36 +561,34 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
                 .pBufferInfo     = &tDescriptorInfo0,
                 .pNext           = NULL,
             };
-            vkUpdateDescriptorSets(ptVulkanDevice->tLogicalDevice, 1, &tWrite0, 0, NULL);
+            vkUpdateDescriptorSets(ptDevice->tLogicalDevice, 1, &tWrite0, 0, NULL);
         }
 
         ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
         ptDynamicBuffer->uByteOffset = 0;
     }
 
-    plVulkanBuffer* ptBuffer = &ptVulkanGraphics->sbtBuffersHot[ptDynamicBuffer->uHandle];
+    plVulkanBuffer* ptBuffer = &ptDevice->sbtBuffersHot[ptDynamicBuffer->uHandle];
 
     plDynamicBinding tDynamicBinding = {
         .uBufferHandle = ptFrame->uCurrentBufferIndex,
         .uByteOffset   = ptDynamicBuffer->uByteOffset,
         .pcData        = &ptBuffer->pcData[ptDynamicBuffer->uByteOffset]
     };
-    ptDynamicBuffer->uByteOffset = (uint32_t)pl_align_up((size_t)ptDynamicBuffer->uByteOffset + PL_MAX_DYNAMIC_DATA_SIZE, ptVulkanDevice->tDeviceProps.limits.minUniformBufferOffsetAlignment);
+    ptDynamicBuffer->uByteOffset = (uint32_t)pl_align_up((size_t)ptDynamicBuffer->uByteOffset + PL_MAX_DYNAMIC_DATA_SIZE, ptDevice->tDeviceProps.limits.minUniformBufferOffsetAlignment);
     return tDynamicBinding;
 }
 
 static void
-pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+pl_copy_texture_to_buffer(plBlitEncoderHandle tEncoder, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
-    plDevice* ptDevice = &ptEncoder->ptGraphics->tDevice;
-    plVulkanDevice*   ptVulkanDevice   = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptEncoder->ptGraphics->_pInternalData;
-
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    plBlitEncoder* ptEncoder = pl__get_blit_encoder(tEncoder);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plTexture* ptColdTexture = pl__get_texture(ptDevice, tTextureHandle);
-    VkImageSubresourceRange* atSubResourceRanges = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, sizeof(VkImageSubresourceRange) * uRegionCount);
-    VkBufferImageCopy*       atCopyRegions       = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, sizeof(VkBufferImageCopy) * uRegionCount);
+    VkImageSubresourceRange* atSubResourceRanges = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkImageSubresourceRange) * uRegionCount);
+    VkBufferImageCopy*       atCopyRegions       = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkBufferImageCopy) * uRegionCount);
     memset(atSubResourceRanges, 0, sizeof(VkImageSubresourceRange) * uRegionCount);
     memset(atCopyRegions, 0, sizeof(VkBufferImageCopy) * uRegionCount);
 
@@ -543,7 +600,7 @@ pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHand
         atSubResourceRanges[i].levelCount     = 1;
         atSubResourceRanges[i].baseArrayLayer = ptRegions[i].uBaseArrayLayer;
         atSubResourceRanges[i].layerCount     = ptRegions[i].uLayerCount;
-        pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, tLayout, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tImage, tLayout, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
         atCopyRegions[i].bufferOffset                    = ptRegions[i].szBufferOffset;
         atCopyRegions[i].bufferRowLength                 = ptRegions[i].uBufferRowLength;
@@ -557,27 +614,25 @@ pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHand
         atCopyRegions[i].imageExtent.depth = ptRegions[i].tImageExtent.uDepth;
         
     }
-    vkCmdCopyImageToBuffer(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, ptVulkanGraphics->sbtBuffersHot[tBufferHandle.uIndex].tBuffer, uRegionCount, atCopyRegions);
+    vkCmdCopyImageToBuffer(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, ptDevice->sbtBuffersHot[tBufferHandle.uIndex].tBuffer, uRegionCount, atCopyRegions);
 
     for(uint32_t i = 0; i < uRegionCount; i++)
     {
         VkImageLayout tLayout = ptRegions[i].tCurrentImageUsage == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : pl__vulkan_layout(ptRegions[i].tCurrentImageUsage);
-        pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tLayout, atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+        pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tLayout, atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
     }
         
-    pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
 }
 
 static void
-pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
+pl_generate_mipmaps(plBlitEncoderHandle tEncoder, plTextureHandle tTexture)
 {
-    plDevice* ptDevice = &ptEncoder->ptGraphics->tDevice;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptEncoder->ptGraphics->_pInternalData;
+    plBlitEncoder* ptEncoder = pl__get_blit_encoder(tEncoder);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
-    plTexture* ptTexture = &ptEncoder->ptGraphics->sbtTexturesCold[tTexture.uIndex];
-
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    plTexture* ptTexture = &ptDevice->sbtTexturesCold[tTexture.uIndex];
 
     // generate mips
     if(ptTexture->tDesc.uMips > 1)
@@ -585,9 +640,9 @@ pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
 
         // check if format supports linear blitting
         VkFormatProperties tFormatProperties = {0};
-        vkGetPhysicalDeviceFormatProperties(ptVulkanDevice->tPhysicalDevice, pl__vulkan_format(ptTexture->tDesc.tFormat), &tFormatProperties);
+        vkGetPhysicalDeviceFormatProperties(ptDevice->tPhysicalDevice, pl__vulkan_format(ptTexture->tDesc.tFormat), &tFormatProperties);
 
-        plTexture* ptDestTexture = &ptEncoder->ptGraphics->sbtTexturesCold[tTexture.uIndex];
+        plTexture* ptDestTexture = &ptDevice->sbtTexturesCold[tTexture.uIndex];
         const VkImageSubresourceRange tSubResourceRange = {
             .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
             .baseMipLevel   = 0,
@@ -596,7 +651,7 @@ pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
             .layerCount     = ptDestTexture->tDesc.uLayers
         };
 
-        pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+        pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 
 
         if(tFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)
@@ -615,7 +670,7 @@ pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
             {
                 tMipSubResourceRange.baseMipLevel = i - 1;
 
-                pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+                pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
                 VkImageBlit tBlit = {
                     .srcOffsets[1].x               = iMipWidth,
@@ -637,16 +692,16 @@ pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
                 if(iMipWidth > 1)  tBlit.dstOffsets[1].x = iMipWidth / 2;
                 if(iMipHeight > 1) tBlit.dstOffsets[1].y = iMipHeight / 2;
 
-                vkCmdBlitImage(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, ptVulkanGraphics->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &tBlit, VK_FILTER_LINEAR);
+                vkCmdBlitImage(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, ptDevice->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &tBlit, VK_FILTER_LINEAR);
 
-                pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+                pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
                 if(iMipWidth > 1)  iMipWidth /= 2;
                 if(iMipHeight > 1) iMipHeight /= 2;
             }
 
             tMipSubResourceRange.baseMipLevel = ptTexture->tDesc.uMips - 1;
-            pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+            pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
         }
         else
         {
@@ -658,23 +713,19 @@ pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
 static plTextureHandle
 pl_create_swapchain_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, VkImage tImage, const char* pcName)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
-
     uint32_t uTextureViewIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtTextureFreeIndices) > 0)
-        uTextureViewIndex = pl_sb_pop(ptGraphics->sbtTextureFreeIndices);
+    if(pl_sb_size(ptDevice->sbtTextureFreeIndices) > 0)
+        uTextureViewIndex = pl_sb_pop(ptDevice->sbtTextureFreeIndices);
     else
     {
-        uTextureViewIndex = pl_sb_size(ptGraphics->sbtTexturesCold);
-        pl_sb_add(ptGraphics->sbtTexturesCold);
-        pl_sb_push(ptGraphics->sbtTextureGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGraphics->sbtTexturesHot);
+        uTextureViewIndex = pl_sb_size(ptDevice->sbtTexturesCold);
+        pl_sb_add(ptDevice->sbtTexturesCold);
+        pl_sb_push(ptDevice->sbtTextureGenerations, UINT32_MAX);
+        pl_sb_add(ptDevice->sbtTexturesHot);
     }
 
     plTextureHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtTextureGenerations[uTextureViewIndex],
+        .uGeneration = ++ptDevice->sbtTextureGenerations[uTextureViewIndex],
         .uIndex = uTextureViewIndex
     };
 
@@ -696,36 +747,18 @@ pl_create_swapchain_texture_view(plDevice* ptDevice, const plTextureViewDesc* pt
         .subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
     };
     VkImageView tImageView = VK_NULL_HANDLE;
-    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tViewInfo, NULL, &tImageView));
+    PL_VULKAN(vkCreateImageView(ptDevice->tLogicalDevice, &tViewInfo, NULL, &tImageView));
 
-    ptVulkanGraphics->sbtTexturesHot[uTextureViewIndex].bOriginalView = true;
-    ptVulkanGraphics->sbtTexturesHot[uTextureViewIndex].tImageView = tImageView;
-    ptGraphics->sbtTexturesCold[uTextureViewIndex] = tTextureView;
+    ptDevice->sbtTexturesHot[uTextureViewIndex].bOriginalView = true;
+    ptDevice->sbtTexturesHot[uTextureViewIndex].tImageView = tImageView;
+    ptDevice->sbtTexturesCold[uTextureViewIndex] = tTextureView;
     return tHandle;
 }
 
 static plSamplerHandle
 pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc, const char* pcName)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
-
-    uint32_t uResourceIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtSamplerFreeIndices) > 0)
-        uResourceIndex = pl_sb_pop(ptGraphics->sbtSamplerFreeIndices);
-    else
-    {
-        uResourceIndex = pl_sb_size(ptGraphics->sbtSamplersCold);
-        pl_sb_add(ptGraphics->sbtSamplersCold);
-        pl_sb_push(ptGraphics->sbtSamplerGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGraphics->sbtSamplersHot);
-    }
-
-    plSamplerHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtSamplerGenerations[uResourceIndex],
-        .uIndex = uResourceIndex
-    };
+    plSamplerHandle tHandle = pl__get_new_sampler_handle(ptDevice);
 
     plSampler tSampler = {
         .tDesc = *ptDesc,
@@ -738,8 +771,8 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc, const char* p
         .magFilter               = pl__vulkan_filter(ptDesc->tFilter),
         .addressModeU            = pl__vulkan_wrap(ptDesc->tHorizontalWrap),
         .addressModeV            = pl__vulkan_wrap(ptDesc->tVerticalWrap),
-        .anisotropyEnable        = (bool)ptVulkanDevice->tDeviceFeatures.samplerAnisotropy,
-        .maxAnisotropy           = ptDesc->fMaxAnisotropy == 0 ? ptVulkanDevice->tDeviceProps.limits.maxSamplerAnisotropy : ptDesc->fMaxAnisotropy,
+        .anisotropyEnable        = (bool)ptDevice->tDeviceFeatures.samplerAnisotropy,
+        .maxAnisotropy           = ptDesc->fMaxAnisotropy == 0 ? ptDevice->tDeviceProps.limits.maxSamplerAnisotropy : ptDesc->fMaxAnisotropy,
         .borderColor             = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
         .unnormalizedCoordinates = VK_FALSE,
         .compareEnable           = VK_FALSE,
@@ -753,37 +786,33 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc, const char* p
     tSamplerInfo.addressModeW = tSamplerInfo.addressModeU;
 
     VkSampler tVkSampler = VK_NULL_HANDLE;
-    PL_VULKAN(vkCreateSampler(ptVulkanDevice->tLogicalDevice, &tSamplerInfo, NULL, &tVkSampler));
+    PL_VULKAN(vkCreateSampler(ptDevice->tLogicalDevice, &tSamplerInfo, NULL, &tVkSampler));
 
-    ptVulkanGraphics->sbtSamplersHot[uResourceIndex] = tVkSampler;
-    ptGraphics->sbtSamplersCold[uResourceIndex] = tSampler;
+    ptDevice->sbtSamplersHot[tHandle.uIndex] = tVkSampler;
+    ptDevice->sbtSamplersCold[tHandle.uIndex] = tSampler;
     return tHandle;
 }
 
 static void
 pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, const char* pcName)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
-
     plVulkanBindGroupLayout tVulkanBindGroupLayout = {0};
 
     uint32_t uBindGroupLayoutIndex = UINT32_MAX;
-    if(pl_sb_size(ptVulkanGraphics->sbtBindGroupLayoutFreeIndices) > 0)
-        uBindGroupLayoutIndex = pl_sb_pop(ptVulkanGraphics->sbtBindGroupLayoutFreeIndices);
+    if(pl_sb_size(ptDevice->sbtBindGroupLayoutFreeIndices) > 0)
+        uBindGroupLayoutIndex = pl_sb_pop(ptDevice->sbtBindGroupLayoutFreeIndices);
     else
     {
-        uBindGroupLayoutIndex = pl_sb_size(ptVulkanGraphics->sbtBindGroupLayouts);
-        pl_sb_add(ptVulkanGraphics->sbtBindGroupLayouts);
+        uBindGroupLayoutIndex = pl_sb_size(ptDevice->sbtBindGroupLayouts);
+        pl_sb_add(ptDevice->sbtBindGroupLayouts);
     }
 
     ptLayout->uHandle = uBindGroupLayoutIndex;
 
     uint32_t uCurrentBinding = 0;
     const uint32_t uDescriptorBindingCount = ptLayout->uTextureBindingCount + ptLayout->uBufferBindingCount + ptLayout->uSamplerBindingCount;
-    VkDescriptorSetLayoutBinding* atDescriptorSetLayoutBindings = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorSetLayoutBinding));
-    VkDescriptorBindingFlagsEXT* atDescriptorSetLayoutFlags = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorBindingFlagsEXT));
+    VkDescriptorSetLayoutBinding* atDescriptorSetLayoutBindings = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorSetLayoutBinding));
+    VkDescriptorBindingFlagsEXT* atDescriptorSetLayoutFlags = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorBindingFlagsEXT));
 
     for(uint32_t i = 0; i < ptLayout->uBufferBindingCount; i++)
     {
@@ -852,37 +881,19 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
         .pNext = ptDevice->bDescriptorIndexing ? &setLayoutBindingFlags : NULL,
         .flags = ptDevice->bDescriptorIndexing ?  VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
     };
-    PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tVulkanBindGroupLayout.tDescriptorSetLayout));
+    PL_VULKAN(vkCreateDescriptorSetLayout(ptDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tVulkanBindGroupLayout.tDescriptorSetLayout));
 
     if(pcName)
         pl_set_vulkan_object_name(ptDevice, (uint64_t)tVulkanBindGroupLayout.tDescriptorSetLayout, VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT, pcName);
 
-    ptVulkanGraphics->sbtBindGroupLayouts[uBindGroupLayoutIndex] = tVulkanBindGroupLayout;
-    pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
+    ptDevice->sbtBindGroupLayouts[uBindGroupLayoutIndex] = tVulkanBindGroupLayout;
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
 }
 
 static plBindGroupHandle
 pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, const char* pcName)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
-
-    uint32_t uBindGroupIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtBindGroupFreeIndices) > 0)
-        uBindGroupIndex = pl_sb_pop(ptGraphics->sbtBindGroupFreeIndices);
-    else
-    {
-        uBindGroupIndex = pl_sb_size(ptGraphics->sbtBindGroupsCold);
-        pl_sb_add(ptGraphics->sbtBindGroupsCold);
-        pl_sb_push(ptGraphics->sbtBindGroupGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGraphics->sbtBindGroupsHot);
-    }
-
-    plBindGroupHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtBindGroupGenerations[uBindGroupIndex],
-        .uIndex = uBindGroupIndex
-    };
+    plBindGroupHandle tHandle = pl__get_new_bind_group_handle(ptDevice);
 
     plBindGroup tBindGroup = {
         .tLayout = *ptLayout
@@ -890,8 +901,8 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
 
     uint32_t uCurrentBinding = 0;
     const uint32_t uDescriptorBindingCount = ptLayout->uTextureBindingCount + ptLayout->uBufferBindingCount + ptLayout->uSamplerBindingCount;
-    VkDescriptorSetLayoutBinding* atDescriptorSetLayoutBindings = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorSetLayoutBinding));
-    VkDescriptorBindingFlagsEXT* atDescriptorSetLayoutFlags = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorBindingFlagsEXT));
+    VkDescriptorSetLayoutBinding* atDescriptorSetLayoutBindings = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorSetLayoutBinding));
+    VkDescriptorBindingFlagsEXT* atDescriptorSetLayoutFlags = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorBindingFlagsEXT));
     uint32_t tDescriptorCount = 1;
     bool bHasVariableDescriptors = false;
 
@@ -968,7 +979,7 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
         .flags = ptDevice->bDescriptorIndexing ?  VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
     };
     VkDescriptorSetLayout tDescriptorSetLayout = VK_NULL_HANDLE;
-    PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tDescriptorSetLayout));
+    PL_VULKAN(vkCreateDescriptorSetLayout(ptDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tDescriptorSetLayout));
 
     plVulkanBindGroup tVulkanBindGroup = {
         .tDescriptorSetLayout = tDescriptorSetLayout
@@ -983,44 +994,27 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
     // allocate descriptor sets
     const VkDescriptorSetAllocateInfo tAllocInfo = {
         .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool     = ptVulkanGraphics->tDescriptorPool,
+        .descriptorPool     = ptDevice->tDescriptorPool,
         .descriptorSetCount = 1,
         .pSetLayouts        = &tDescriptorSetLayout,
         .pNext              = bHasVariableDescriptors ? &variableDescriptorCountAllocInfo : NULL
     };
 
-    PL_VULKAN(vkAllocateDescriptorSets(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tVulkanBindGroup.tDescriptorSet));
+    PL_VULKAN(vkAllocateDescriptorSets(ptDevice->tLogicalDevice, &tAllocInfo, &tVulkanBindGroup.tDescriptorSet));
 
-    pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
 
-    ptVulkanGraphics->sbtBindGroupsHot[uBindGroupIndex] = tVulkanBindGroup;
-    ptGraphics->sbtBindGroupsCold[uBindGroupIndex] = tBindGroup;
+    ptDevice->sbtBindGroupsHot[tHandle.uIndex] = tVulkanBindGroup;
+    ptDevice->sbtBindGroupsCold[tHandle.uIndex] = tBindGroup;
     return tHandle;
 }
 
 static plBindGroupHandle
 pl_get_temporary_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, const char* pcName)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
 
-    uint32_t uBindGroupIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtBindGroupFreeIndices) > 0)
-        uBindGroupIndex = pl_sb_pop(ptGraphics->sbtBindGroupFreeIndices);
-    else
-    {
-        uBindGroupIndex = pl_sb_size(ptGraphics->sbtBindGroupsCold);
-        pl_sb_add(ptGraphics->sbtBindGroupsCold);
-        pl_sb_push(ptGraphics->sbtBindGroupGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGraphics->sbtBindGroupsHot);
-    }
-
-    plBindGroupHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtBindGroupGenerations[uBindGroupIndex],
-        .uIndex = uBindGroupIndex
-    };
+    plBindGroupHandle tHandle = pl__get_new_bind_group_handle(ptDevice);
 
     plBindGroup tBindGroup = {
         .tLayout = *ptLayout
@@ -1028,8 +1022,8 @@ pl_get_temporary_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayou
 
     uint32_t uCurrentBinding = 0;
     const uint32_t uDescriptorBindingCount = ptLayout->uTextureBindingCount + ptLayout->uBufferBindingCount + ptLayout->uSamplerBindingCount;
-    VkDescriptorSetLayoutBinding* atDescriptorSetLayoutBindings = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorSetLayoutBinding));
-    VkDescriptorBindingFlagsEXT* atDescriptorSetLayoutFlags = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorBindingFlagsEXT));
+    VkDescriptorSetLayoutBinding* atDescriptorSetLayoutBindings = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorSetLayoutBinding));
+    VkDescriptorBindingFlagsEXT* atDescriptorSetLayoutFlags = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorBindingFlagsEXT));
     uint32_t tDescriptorCount = 1;
     bool bHasVariableDescriptors = false;
 
@@ -1104,9 +1098,9 @@ pl_get_temporary_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayou
         .flags = ptDevice->bDescriptorIndexing ?  VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
     };
     VkDescriptorSetLayout tDescriptorSetLayout = VK_NULL_HANDLE;
-    PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tDescriptorSetLayout));
+    PL_VULKAN(vkCreateDescriptorSetLayout(ptDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tDescriptorSetLayout));
 
-    pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
 
     plVulkanBindGroup tVulkanBindGroup = {
         .tDescriptorSetLayout = tDescriptorSetLayout
@@ -1127,10 +1121,10 @@ pl_get_temporary_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayou
         .pNext              = bHasVariableDescriptors ? &variableDescriptorCountAllocInfo : NULL
     };
 
-    PL_VULKAN(vkAllocateDescriptorSets(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tVulkanBindGroup.tDescriptorSet));
+    PL_VULKAN(vkAllocateDescriptorSets(ptDevice->tLogicalDevice, &tAllocInfo, &tVulkanBindGroup.tDescriptorSet));
 
-    ptVulkanGraphics->sbtBindGroupsHot[uBindGroupIndex] = tVulkanBindGroup;
-    ptGraphics->sbtBindGroupsCold[uBindGroupIndex] = tBindGroup;
+    ptDevice->sbtBindGroupsHot[tHandle.uIndex] = tVulkanBindGroup;
+    ptDevice->sbtBindGroupsCold[tHandle.uIndex] = tBindGroup;
     pl_queue_bind_group_for_deletion(ptDevice, tHandle);
     return tHandle;
 }
@@ -1138,18 +1132,14 @@ pl_get_temporary_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayou
 static void
 pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBindGroupUpdateData* ptData)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
+    plBindGroup* ptBindGroup = &ptDevice->sbtBindGroupsCold[tHandle.uIndex];
+    plVulkanBindGroup* ptVulkanBindGroup = &ptDevice->sbtBindGroupsHot[tHandle.uIndex];
 
-    plBindGroup* ptBindGroup = &ptGraphics->sbtBindGroupsCold[tHandle.uIndex];
-    plVulkanBindGroup* ptVulkanBindGroup = &ptVulkanGraphics->sbtBindGroupsHot[tHandle.uIndex];
-
-    VkWriteDescriptorSet*   sbtWrites = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, (ptData->uBufferCount + ptData->uSamplerCount + ptData->uTextureCount) * sizeof(VkWriteDescriptorSet));
+    VkWriteDescriptorSet*   sbtWrites = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, (ptData->uBufferCount + ptData->uSamplerCount + ptData->uTextureCount) * sizeof(VkWriteDescriptorSet));
     
-    VkDescriptorBufferInfo* sbtBufferDescInfos = ptData->uBufferCount > 0 ? pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, ptData->uBufferCount * sizeof(VkDescriptorBufferInfo)) : NULL;
-    VkDescriptorImageInfo*  sbtImageDescInfos = ptData->uTextureCount > 0 ? pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, ptData->uTextureCount * sizeof(VkDescriptorImageInfo)) : NULL;
-    VkDescriptorImageInfo*  sbtSamplerDescInfos = ptData->uSamplerCount > 0 ? pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, ptData->uSamplerCount  * sizeof(VkDescriptorImageInfo)) : NULL;
+    VkDescriptorBufferInfo* sbtBufferDescInfos = ptData->uBufferCount > 0 ? pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, ptData->uBufferCount * sizeof(VkDescriptorBufferInfo)) : NULL;
+    VkDescriptorImageInfo*  sbtImageDescInfos = ptData->uTextureCount > 0 ? pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, ptData->uTextureCount * sizeof(VkDescriptorImageInfo)) : NULL;
+    VkDescriptorImageInfo*  sbtSamplerDescInfos = ptData->uSamplerCount > 0 ? pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, ptData->uSamplerCount  * sizeof(VkDescriptorImageInfo)) : NULL;
 
     static const VkDescriptorType atDescriptorTypeLUT[] =
     {
@@ -1161,7 +1151,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
     for(uint32_t i = 0 ; i < ptData->uBufferCount; i++)
     {
 
-        const plVulkanBuffer* ptVulkanBuffer = &ptVulkanGraphics->sbtBuffersHot[ptData->atBuffers[i].tBuffer.uIndex];
+        const plVulkanBuffer* ptVulkanBuffer = &ptDevice->sbtBuffersHot[ptData->atBuffers[i].tBuffer.uIndex];
 
         sbtBufferDescInfos[i].buffer = ptVulkanBuffer->tBuffer;
         sbtBufferDescInfos[i].offset = ptData->atBuffers[i].szOffset;
@@ -1188,7 +1178,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
     {
 
         sbtImageDescInfos[i].imageLayout         = ptData->atTextures[i].tCurrentUsage == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : pl__vulkan_layout(ptData->atTextures[i].tCurrentUsage);
-        sbtImageDescInfos[i].imageView           = ptVulkanGraphics->sbtTexturesHot[ptData->atTextures[i].tTexture.uIndex].tImageView;
+        sbtImageDescInfos[i].imageView           = ptDevice->sbtTexturesHot[ptData->atTextures[i].tTexture.uIndex].tImageView;
         sbtWrites[uCurrentWrite].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         sbtWrites[uCurrentWrite].dstBinding      = ptData->atTextures[i].uSlot;
         sbtWrites[uCurrentWrite].dstArrayElement = ptData->atTextures[i].uIndex;
@@ -1203,7 +1193,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
     for(uint32_t i = 0 ; i < ptData->uSamplerCount; i++)
     {
 
-        sbtSamplerDescInfos[i].sampler           = ptVulkanGraphics->sbtSamplersHot[ptData->atSamplerBindings[i].tSampler.uIndex];
+        sbtSamplerDescInfos[i].sampler           = ptDevice->sbtSamplersHot[ptData->atSamplerBindings[i].tSampler.uIndex];
         sbtWrites[uCurrentWrite].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         sbtWrites[uCurrentWrite].dstBinding      = ptData->atSamplerBindings[i].uSlot;
         sbtWrites[uCurrentWrite].dstArrayElement = 0;
@@ -1215,17 +1205,13 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         uCurrentWrite++;
     }
 
-    vkUpdateDescriptorSets(ptVulkanDevice->tLogicalDevice, uCurrentWrite, sbtWrites, 0, NULL);
-    pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
+    vkUpdateDescriptorSets(ptDevice->tLogicalDevice, uCurrentWrite, sbtWrites, 0, NULL);
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
 }
 
 static plTextureHandle
 pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* pcName)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
-
     if(pcName == NULL)
         pcName = "unnamed texture";
 
@@ -1238,21 +1224,7 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
     if(tDesc.uMips == 0)
         tDesc.uMips = (uint32_t)floorf(log2f((float)pl_maxi((int)tDesc.tDimensions.x, (int)tDesc.tDimensions.y))) + 1u;
 
-    uint32_t uTextureIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtTextureFreeIndices) > 0)
-        uTextureIndex = pl_sb_pop(ptGraphics->sbtTextureFreeIndices);
-    else
-    {
-        uTextureIndex = pl_sb_size(ptGraphics->sbtTexturesCold);
-        pl_sb_add(ptGraphics->sbtTexturesCold);
-        pl_sb_push(ptGraphics->sbtTextureGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGraphics->sbtTexturesHot);
-    }
-
-    plTextureHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtTextureGenerations[uTextureIndex],
-        .uIndex = uTextureIndex
-    };
+    plTextureHandle tHandle = pl__get_new_texture_handle(ptDevice);
 
     plTexture tTexture = {
         .tDesc = tDesc,
@@ -1309,32 +1281,28 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
         .flags         = tImageViewType == VK_IMAGE_VIEW_TYPE_CUBE ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0
     };
     
-    PL_VULKAN(vkCreateImage(ptVulkanDevice->tLogicalDevice, &tImageInfo, NULL, &tVulkanTexture.tImage));
+    PL_VULKAN(vkCreateImage(ptDevice->tLogicalDevice, &tImageInfo, NULL, &tVulkanTexture.tImage));
 
     // get memory requirements
     VkMemoryRequirements tMemoryRequirements = {0};
-    vkGetImageMemoryRequirements(ptVulkanDevice->tLogicalDevice, tVulkanTexture.tImage, &tMemoryRequirements);
+    vkGetImageMemoryRequirements(ptDevice->tLogicalDevice, tVulkanTexture.tImage, &tMemoryRequirements);
     tTexture.tMemoryRequirements.ulSize = tMemoryRequirements.size;
     tTexture.tMemoryRequirements.ulAlignment = tMemoryRequirements.alignment;
     tTexture.tMemoryRequirements.uMemoryTypeBits = tMemoryRequirements.memoryTypeBits;
 
-    ptVulkanGraphics->sbtTexturesHot[uTextureIndex] = tVulkanTexture;
-    ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
+    ptDevice->sbtTexturesHot[tHandle.uIndex] = tVulkanTexture;
+    ptDevice->sbtTexturesCold[tHandle.uIndex] = tTexture;
     return tHandle;
 }
 
 static void
 pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
 {
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptDevice->ptGraphics->_pInternalData;
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-
-    plTexture* ptTexture = &ptGraphics->sbtTexturesCold[tHandle.uIndex];
+    plTexture* ptTexture = &ptDevice->sbtTexturesCold[tHandle.uIndex];
     ptTexture->tMemoryAllocation = *ptAllocation;
-    plVulkanTexture* ptVulkanTexture = &ptVulkanGraphics->sbtTexturesHot[tHandle.uIndex];
+    plVulkanTexture* ptVulkanTexture = &ptDevice->sbtTexturesHot[tHandle.uIndex];
 
-    PL_VULKAN(vkBindImageMemory(ptVulkanDevice->tLogicalDevice, ptVulkanTexture->tImage, (VkDeviceMemory)ptAllocation->uHandle, ptAllocation->ulOffset));
+    PL_VULKAN(vkBindImageMemory(ptDevice->tLogicalDevice, ptVulkanTexture->tImage, (VkDeviceMemory)ptAllocation->uHandle, ptAllocation->ulOffset));
 
     VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
@@ -1346,10 +1314,10 @@ pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plD
     const VkCommandBufferAllocateInfo tAllocInfo = {
         .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandPool        = ptVulkanDevice->tCmdPool,
+        .commandPool        = ptDevice->tCmdPool,
         .commandBufferCount = 1u,
     };
-    vkAllocateCommandBuffers(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tCommandBuffer);
+    vkAllocateCommandBuffers(ptDevice->tLogicalDevice, &tAllocInfo, &tCommandBuffer);
 
     const VkCommandBufferBeginInfo tBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -1375,9 +1343,9 @@ pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plD
         .pCommandBuffers    = &tCommandBuffer,
     };
 
-    PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
-    PL_VULKAN(vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice));
-    vkFreeCommandBuffers(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, 1, &tCommandBuffer);
+    PL_VULKAN(vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
+    PL_VULKAN(vkDeviceWaitIdle(ptDevice->tLogicalDevice));
+    vkFreeCommandBuffers(ptDevice->tLogicalDevice, ptDevice->tCmdPool, 1, &tCommandBuffer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1404,11 +1372,11 @@ pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plD
         .subresourceRange.layerCount     = ptTexture->tView.uLayerCount,
         .subresourceRange.aspectMask     = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT,
     };
-    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tViewInfo, NULL, &ptVulkanTexture->tImageView));
+    PL_VULKAN(vkCreateImageView(ptDevice->tLogicalDevice, &tViewInfo, NULL, &ptVulkanTexture->tImageView));
 
     if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
     {
-        if(pl_sb_size(ptGraphics->sbtFreeDrawBindGroups) == 0)
+        if(pl_sb_size(ptDevice->sbtFreeDrawBindGroups) == 0)
         {
             const plBindGroupLayout tDrawingBindGroup = {
                 .uTextureBindingCount  = 1,
@@ -1416,11 +1384,11 @@ pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plD
                     {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 }
             };
-            ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
+            ptDevice->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
         }
         else
         {
-            ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_sb_pop(ptGraphics->sbtFreeDrawBindGroups);
+            ptDevice->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_sb_pop(ptDevice->sbtFreeDrawBindGroups);
         }
 
         const plBindGroupUpdateTextureData atBGTextureData[] = {
@@ -1434,42 +1402,38 @@ pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plD
             .uTextureCount = 1,
             .atTextures = atBGTextureData
         };
-        pl_update_bind_group(&ptGraphics->tDevice, ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup, &tBGData);
+        pl_update_bind_group(ptDevice, ptDevice->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup, &tBGData);
     }
 }
 
 static plTextureHandle
 pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const char* pcName)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptGraphics->_pInternalData;
-
     uint32_t uTextureIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtTextureFreeIndices) > 0)
-        uTextureIndex = pl_sb_pop(ptGraphics->sbtTextureFreeIndices);
+    if(pl_sb_size(ptDevice->sbtTextureFreeIndices) > 0)
+        uTextureIndex = pl_sb_pop(ptDevice->sbtTextureFreeIndices);
     else
     {
-        uTextureIndex = pl_sb_size(ptGraphics->sbtTexturesCold);
-        pl_sb_add(ptGraphics->sbtTexturesCold);
-        pl_sb_push(ptGraphics->sbtTextureGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGraphics->sbtTexturesHot);
+        uTextureIndex = pl_sb_size(ptDevice->sbtTexturesCold);
+        pl_sb_add(ptDevice->sbtTexturesCold);
+        pl_sb_push(ptDevice->sbtTextureGenerations, UINT32_MAX);
+        pl_sb_add(ptDevice->sbtTexturesHot);
     }
 
     plTextureHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtTextureGenerations[uTextureIndex],
+        .uGeneration = ++ptDevice->sbtTextureGenerations[uTextureIndex],
         .uIndex = uTextureIndex
     };
 
     plTexture tTexture = {
-        .tDesc = ptGraphics->sbtTexturesCold[ptViewDesc->tTexture.uIndex].tDesc,
+        .tDesc = ptDevice->sbtTexturesCold[ptViewDesc->tTexture.uIndex].tDesc,
         .tView = *ptViewDesc,
         ._tDrawBindGroup = {.ulData = UINT64_MAX}
     };
 
     plTexture* ptTexture = pl__get_texture(ptDevice, ptViewDesc->tTexture);
-    plVulkanTexture* ptOldVulkanTexture = &ptVulkanGraphics->sbtTexturesHot[ptViewDesc->tTexture.uIndex];
-    plVulkanTexture* ptNewVulkanTexture = &ptVulkanGraphics->sbtTexturesHot[tHandle.uIndex];
+    plVulkanTexture* ptOldVulkanTexture = &ptDevice->sbtTexturesHot[ptViewDesc->tTexture.uIndex];
+    plVulkanTexture* ptNewVulkanTexture = &ptDevice->sbtTexturesHot[tHandle.uIndex];
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1499,11 +1463,11 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
         .subresourceRange.layerCount     = ptViewDesc->uLayerCount,
         .subresourceRange.aspectMask     = tImageAspectFlags,
     };
-    PL_VULKAN(vkCreateImageView(ptVulkanDevice->tLogicalDevice, &tViewInfo, NULL, &ptNewVulkanTexture->tImageView));
+    PL_VULKAN(vkCreateImageView(ptDevice->tLogicalDevice, &tViewInfo, NULL, &ptNewVulkanTexture->tImageView));
 
     if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
     {
-        if(pl_sb_size(ptGraphics->sbtFreeDrawBindGroups) == 0)
+        if(pl_sb_size(ptDevice->sbtFreeDrawBindGroups) == 0)
         {
             const plBindGroupLayout tDrawingBindGroup = {
                 .uTextureBindingCount  = 1,
@@ -1511,11 +1475,11 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
                     {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 }
             };
-            ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
+            ptDevice->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
         }
         else
         {
-            ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_sb_pop(ptGraphics->sbtFreeDrawBindGroups);
+            ptDevice->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_sb_pop(ptDevice->sbtFreeDrawBindGroups);
         }
 
         const plBindGroupUpdateTextureData atBGTextureData[] = {
@@ -1529,42 +1493,24 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
             .uTextureCount = 1,
             .atTextures = atBGTextureData
         };
-        pl_update_bind_group(&ptGraphics->tDevice, ptGraphics->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup, &tBGData);
+        pl_update_bind_group(ptDevice, ptDevice->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup, &tBGData);
     }
 
     ptNewVulkanTexture->bOriginalView = false;
-    ptGraphics->sbtTexturesCold[uTextureIndex] = tTexture;
+    ptDevice->sbtTexturesCold[uTextureIndex] = tTexture;
     return tHandle;
 }
 
 static plComputeShaderHandle
 pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* ptDescription)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
-    uint32_t uResourceIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtComputeShaderFreeIndices) > 0)
-        uResourceIndex = pl_sb_pop(ptGraphics->sbtComputeShaderFreeIndices);
-    else
-    {
-        uResourceIndex = pl_sb_size(ptGraphics->sbtComputeShadersCold);
-        pl_sb_add(ptGraphics->sbtComputeShadersCold);
-        pl_sb_push(ptGraphics->sbtComputeShaderGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGfx->sbtComputeShadersHot);
-    }
-
-    plComputeShaderHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtComputeShaderGenerations[uResourceIndex],
-        .uIndex = uResourceIndex
-    };
-
+    plComputeShaderHandle tHandle = pl__get_new_compute_shader_handle(ptDevice);
     plComputeShader tShader = {
         .tDescription = *ptDescription
     };
 
-    plVulkanComputeShader* ptVulkanShader = &ptVulkanGfx->sbtComputeShadersHot[uResourceIndex];
+    plVulkanComputeShader* ptVulkanShader = &ptDevice->sbtComputeShadersHot[tHandle.uIndex];
 
     // if(ptDescription->pcShaderEntryFunc == NULL)
         tShader.tDescription.tShader.pcEntryFunc = "main";
@@ -1581,10 +1527,10 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
 
     for(uint32_t i = 0; i < tShader.tDescription.uBindGroupLayoutCount; i++)
     {
-        pl_create_bind_group_layout(&ptGraphics->tDevice, &tShader.tDescription.atBindGroupLayouts[i], "compute shader template bind group layout");
-        ptVulkanShader->atDescriptorSetLayouts[i] = ptVulkanGfx->sbtBindGroupLayouts[tShader.tDescription.atBindGroupLayouts[i].uHandle].tDescriptorSetLayout;
+        pl_create_bind_group_layout(ptDevice, &tShader.tDescription.atBindGroupLayouts[i], "compute shader template bind group layout");
+        ptVulkanShader->atDescriptorSetLayouts[i] = ptDevice->sbtBindGroupLayouts[tShader.tDescription.atBindGroupLayouts[i].uHandle].tDescriptorSetLayout;
     }
-    ptVulkanShader->atDescriptorSetLayouts[tShader.tDescription.uBindGroupLayoutCount]  = ptVulkanGfx->tDynamicDescriptorSetLayout;
+    ptVulkanShader->atDescriptorSetLayouts[tShader.tDescription.uBindGroupLayoutCount]  = ptDevice->tDynamicDescriptorSetLayout;
 
     VkShaderModuleCreateInfo tShaderCreateInfo = {
         .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -1592,7 +1538,7 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
         .pCode    = (const uint32_t*)tShader.tDescription.tShader.puCode
     };
 
-    PL_VULKAN(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &tShaderCreateInfo, NULL, &ptVulkanShader->tShaderModule));
+    PL_VULKAN(vkCreateShaderModule(ptDevice->tLogicalDevice, &tShaderCreateInfo, NULL, &ptVulkanShader->tShaderModule));
 
     VkPipelineLayoutCreateInfo tPipelineLayoutInfo = {
         .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -1602,10 +1548,10 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
 
     plVulkanComputeShader tVulkanShader = {0};
 
-    const uint32_t uNewResourceIndex = uResourceIndex;
+    const uint32_t uNewResourceIndex = tHandle.uIndex;
 
     plComputeShaderHandle tVariantHandle = {
-        .uGeneration = ++ptGraphics->sbtComputeShaderGenerations[uNewResourceIndex],
+        .uGeneration = ++ptDevice->sbtComputeShaderGenerations[uNewResourceIndex],
         .uIndex = uNewResourceIndex
     };
 
@@ -1624,52 +1570,34 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
         .pSpecializationInfo = tShader.tDescription.uConstantCount > 0 ? &tSpecializationInfo : NULL
     };
 
-    PL_VULKAN(vkCreatePipelineLayout(ptVulkanDevice->tLogicalDevice, &tPipelineLayoutInfo, NULL, &tVulkanShader.tPipelineLayout));
+    PL_VULKAN(vkCreatePipelineLayout(ptDevice->tLogicalDevice, &tPipelineLayoutInfo, NULL, &tVulkanShader.tPipelineLayout));
 
     VkComputePipelineCreateInfo tPipelineCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
         .layout = tVulkanShader.tPipelineLayout,
         .stage  = tShaderStage
     };
-    PL_VULKAN(vkCreateComputePipelines(ptVulkanDevice->tLogicalDevice, VK_NULL_HANDLE, 1, &tPipelineCreateInfo, NULL, &tVulkanShader.tPipeline));
+    PL_VULKAN(vkCreateComputePipelines(ptDevice->tLogicalDevice, VK_NULL_HANDLE, 1, &tPipelineCreateInfo, NULL, &tVulkanShader.tPipeline));
 
-    ptGraphics->sbtComputeShadersCold[uNewResourceIndex] = tShader;
+    ptDevice->sbtComputeShadersCold[uNewResourceIndex] = tShader;
 
     ptVulkanShader->tPipeline = tVulkanShader.tPipeline;
     ptVulkanShader->tPipelineLayout = tVulkanShader.tPipelineLayout;
 
-    ptGraphics->sbtComputeShadersCold[uResourceIndex] = tShader;
+    ptDevice->sbtComputeShadersCold[tHandle.uIndex] = tShader;
     return tHandle;
 }
 
 static plShaderHandle
 pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
 {
-    plGraphics*       ptGraphics = ptDevice->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-
-    uint32_t uResourceIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtShaderFreeIndices) > 0)
-        uResourceIndex = pl_sb_pop(ptGraphics->sbtShaderFreeIndices);
-    else
-    {
-        uResourceIndex = pl_sb_size(ptGraphics->sbtShadersCold);
-        pl_sb_add(ptGraphics->sbtShadersCold);
-        pl_sb_push(ptGraphics->sbtShaderGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGfx->sbtShadersHot);
-    }
-
-    plShaderHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtShaderGenerations[uResourceIndex],
-        .uIndex = uResourceIndex
-    };
+    plShaderHandle tHandle = pl__get_new_shader_handle(ptDevice);
 
     plShader tShader = {
         .tDescription = *ptDescription
     };
 
-    plVulkanShader* ptVulkanShader = &ptVulkanGfx->sbtShadersHot[uResourceIndex];
+    plVulkanShader* ptVulkanShader = &ptDevice->sbtShadersHot[tHandle.uIndex];
 
     // if(ptDescription->pcPixelShaderEntryFunc == NULL)
         tShader.tDescription.tPixelShader.pcEntryFunc = "main";
@@ -1679,10 +1607,10 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
 
     for(uint32_t i = 0; i < tShader.tDescription.uBindGroupLayoutCount; i++)
     {
-        pl_create_bind_group_layout(&ptGraphics->tDevice, &tShader.tDescription.atBindGroupLayouts[i], "shader template bind group layout");
-        ptVulkanShader->atDescriptorSetLayouts[i] = ptVulkanGfx->sbtBindGroupLayouts[tShader.tDescription.atBindGroupLayouts[i].uHandle].tDescriptorSetLayout;
+        pl_create_bind_group_layout(ptDevice, &tShader.tDescription.atBindGroupLayouts[i], "shader template bind group layout");
+        ptVulkanShader->atDescriptorSetLayouts[i] = ptDevice->sbtBindGroupLayouts[tShader.tDescription.atBindGroupLayouts[i].uHandle].tDescriptorSetLayout;
     }
-    ptVulkanShader->atDescriptorSetLayouts[tShader.tDescription.uBindGroupLayoutCount]  = ptVulkanGfx->tDynamicDescriptorSetLayout;
+    ptVulkanShader->atDescriptorSetLayouts[tShader.tDescription.uBindGroupLayoutCount]  = ptDevice->tDynamicDescriptorSetLayout;
 
     uint32_t uStageCount = 1;
 
@@ -1691,7 +1619,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         .codeSize = tShader.tDescription.tVertexShader.szCodeSize,
         .pCode    = (const uint32_t*)(tShader.tDescription.tVertexShader.puCode)
     };
-    PL_VULKAN(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &tVertexShaderCreateInfo, NULL, &ptVulkanShader->tVertexShaderModule));
+    PL_VULKAN(vkCreateShaderModule(ptDevice->tLogicalDevice, &tVertexShaderCreateInfo, NULL, &ptVulkanShader->tVertexShaderModule));
 
 
     if(tShader.tDescription.tPixelShader.puCode)
@@ -1703,7 +1631,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
             .pCode    = (const uint32_t*)(tShader.tDescription.tPixelShader.puCode),
         };
 
-        PL_VULKAN(vkCreateShaderModule(ptVulkanDevice->tLogicalDevice, &tPixelShaderCreateInfo, NULL, &ptVulkanShader->tPixelShaderModule));
+        PL_VULKAN(vkCreateShaderModule(ptDevice->tLogicalDevice, &tPixelShaderCreateInfo, NULL, &ptVulkanShader->tPixelShaderModule));
     }
 
     //---------------------------------------------------------------------
@@ -1754,17 +1682,17 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         ptVulkanShader->szSpecializationSize += ptVulkanShader->atSpecializationEntries[i].size;
     }
 
-    const plRenderPassLayout* ptRenderPassLayout = &ptGraphics->sbtRenderPassLayoutsCold[ptDescription->tRenderPassLayout.uIndex];
+    const plRenderPassLayout* ptRenderPassLayout = &ptDevice->sbtRenderPassLayoutsCold[ptDescription->tRenderPassLayout.uIndex];
 
     plVulkanShader tVulkanShader = {0};
-    const uint32_t uNewResourceIndex = uResourceIndex;
+    const uint32_t uNewResourceIndex = tHandle.uIndex;
 
     VkPipelineLayoutCreateInfo tPipelineLayoutInfo = {
         .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = tShader.tDescription.uBindGroupLayoutCount + 1,
         .pSetLayouts    = ptVulkanShader->atDescriptorSetLayouts
     };
-    PL_VULKAN(vkCreatePipelineLayout(ptVulkanDevice->tLogicalDevice, &tPipelineLayoutInfo, NULL, &tVulkanShader.tPipelineLayout));
+    PL_VULKAN(vkCreatePipelineLayout(ptDevice->tLogicalDevice, &tPipelineLayoutInfo, NULL, &tVulkanShader.tPipelineLayout));
     
     //---------------------------------------------------------------------
     // vertex shader stage
@@ -1895,7 +1823,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
 
     VkPipelineMultisampleStateCreateInfo tMultisampling = {
         .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .sampleShadingEnable  = (bool)ptVulkanDevice->tDeviceFeatures.sampleRateShading,
+        .sampleShadingEnable  = (bool)ptDevice->tDeviceFeatures.sampleRateShading,
         .minSampleShading     = 0.2f,
         .rasterizationSamples = 1
     };
@@ -1927,46 +1855,43 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
         .pColorBlendState    = &tColorBlending,
         .pDynamicState       = &tDynamicState,
         .layout              = tVulkanShader.tPipelineLayout,
-        .renderPass          = ptVulkanGfx->sbtRenderPassLayoutsHot[tShader.tDescription.tRenderPassLayout.uIndex].tRenderPass,
+        .renderPass          = ptDevice->sbtRenderPassLayoutsHot[tShader.tDescription.tRenderPassLayout.uIndex].tRenderPass,
         .subpass             = tShader.tDescription.uSubpassIndex,
         .basePipelineHandle  = VK_NULL_HANDLE,
         .pDepthStencilState  = &tDepthStencil
     };
 
-    PL_VULKAN(vkCreateGraphicsPipelines(ptVulkanDevice->tLogicalDevice, VK_NULL_HANDLE, 1, &tPipelineInfo, NULL, &tVulkanShader.tPipeline));
-    ptGraphics->sbtShadersCold[uNewResourceIndex] = tShader;
+    PL_VULKAN(vkCreateGraphicsPipelines(ptDevice->tLogicalDevice, VK_NULL_HANDLE, 1, &tPipelineInfo, NULL, &tVulkanShader.tPipeline));
+    ptDevice->sbtShadersCold[uNewResourceIndex] = tShader;
     ptVulkanShader->tPipeline = tVulkanShader.tPipeline;
     ptVulkanShader->tPipelineLayout = tVulkanShader.tPipelineLayout;
 
     // no longer need these
-    // vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, tVertexShaderModule, NULL);
-    // vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, tPixelShaderModule, NULL);
+    // vkDestroyShaderModule(ptDevice->tLogicalDevice, tVertexShaderModule, NULL);
+    // vkDestroyShaderModule(ptDevice->tLogicalDevice, tPixelShaderModule, NULL);
     // tVertexShaderModule = VK_NULL_HANDLE;
     // tPixelShaderModule = VK_NULL_HANDLE;
-    ptGraphics->sbtShadersCold[uResourceIndex] = tShader;
+    ptDevice->sbtShadersCold[tHandle.uIndex] = tShader;
     return tHandle;
 }
 
 static void
-pl_create_main_render_pass_layout(plDevice* ptDevice)
+pl_create_main_render_pass_layout(plSwapchain* ptSwap)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-
+    plDevice* ptDevice = ptSwap->ptDevice;
     uint32_t uResourceIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtRenderPassLayoutFreeIndices) > 0)
-        uResourceIndex = pl_sb_pop(ptGraphics->sbtRenderPassLayoutFreeIndices);
+    if(pl_sb_size(ptDevice->sbtRenderPassLayoutFreeIndices) > 0)
+        uResourceIndex = pl_sb_pop(ptDevice->sbtRenderPassLayoutFreeIndices);
     else
     {
-        uResourceIndex = pl_sb_size(ptGraphics->sbtRenderPassLayoutsCold);
-        pl_sb_add(ptGraphics->sbtRenderPassLayoutsCold);
-        pl_sb_push(ptGraphics->sbtRenderPassLayoutGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGfx->sbtRenderPassLayoutsHot);
+        uResourceIndex = pl_sb_size(ptDevice->sbtRenderPassLayoutsCold);
+        pl_sb_add(ptDevice->sbtRenderPassLayoutsCold);
+        pl_sb_push(ptDevice->sbtRenderPassLayoutGenerations, UINT32_MAX);
+        pl_sb_add(ptDevice->sbtRenderPassLayoutsHot);
     }
 
     plRenderPassLayoutHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtRenderPassLayoutGenerations[uResourceIndex],
+        .uGeneration = ++ptDevice->sbtRenderPassLayoutGenerations[uResourceIndex],
         .uIndex = uResourceIndex
     };
 
@@ -1974,7 +1899,7 @@ pl_create_main_render_pass_layout(plDevice* ptDevice)
         .tDesc = {
             .atRenderTargets = {
                 {
-                    .tFormat = ptGraphics->tSwapchain.tFormat,
+                    .tFormat = ptSwap->tFormat,
                 }
             },
             .uSubpassCount = 1
@@ -1985,7 +1910,7 @@ pl_create_main_render_pass_layout(plDevice* ptDevice)
 
     const VkAttachmentDescription tAttachment = {
         .flags          = 0,
-        .format         = pl__vulkan_format(ptGraphics->tSwapchain.tFormat),
+        .format         = pl__vulkan_format(ptSwap->tFormat),
         .samples        = VK_SAMPLE_COUNT_1_BIT,
         .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
@@ -2036,51 +1961,48 @@ pl_create_main_render_pass_layout(plDevice* ptDevice)
         .dependencyCount = 2
     };
 
-    PL_VULKAN(vkCreateRenderPass(ptVulkanDevice->tLogicalDevice, &tRenderPassInfo, NULL, &tVulkanRenderPassLayout.tRenderPass));
+    PL_VULKAN(vkCreateRenderPass(ptDevice->tLogicalDevice, &tRenderPassInfo, NULL, &tVulkanRenderPassLayout.tRenderPass));
 
-    ptVulkanGfx->sbtRenderPassLayoutsHot[uResourceIndex] = tVulkanRenderPassLayout;
-    ptGraphics->sbtRenderPassLayoutsCold[uResourceIndex] = tLayout;
-    ptGraphics->tMainRenderPassLayout = tHandle;
+    ptDevice->sbtRenderPassLayoutsHot[uResourceIndex] = tVulkanRenderPassLayout;
+    ptDevice->sbtRenderPassLayoutsCold[uResourceIndex] = tLayout;
+    ptDevice->tMainRenderPassLayout = tHandle;
 }
 
 static void
-pl_create_main_render_pass(plDevice* ptDevice)
+pl_create_main_render_pass(plSwapchain* ptSwap)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-
+    plDevice* ptDevice = ptSwap->ptDevice;
     uint32_t uResourceIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtRenderPassFreeIndices) > 0)
-        uResourceIndex = pl_sb_pop(ptGraphics->sbtRenderPassFreeIndices);
+    if(pl_sb_size(ptDevice->sbtRenderPassFreeIndices) > 0)
+        uResourceIndex = pl_sb_pop(ptDevice->sbtRenderPassFreeIndices);
     else
     {
-        uResourceIndex = pl_sb_size(ptGraphics->sbtRenderPassesCold);
-        pl_sb_add(ptGraphics->sbtRenderPassesCold);
-        pl_sb_push(ptGraphics->sbtRenderPassGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGfx->sbtRenderPassesHot);
+        uResourceIndex = pl_sb_size(ptDevice->sbtRenderPassesCold);
+        pl_sb_add(ptDevice->sbtRenderPassesCold);
+        pl_sb_push(ptDevice->sbtRenderPassGenerations, UINT32_MAX);
+        pl_sb_add(ptDevice->sbtRenderPassesHot);
     }
 
     plRenderPassHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtRenderPassGenerations[uResourceIndex],
+        .uGeneration = ++ptDevice->sbtRenderPassGenerations[uResourceIndex],
         .uIndex = uResourceIndex
     };
 
     plRenderPass tRenderPass = {
         .tDesc = {
             .tDimensions = {gptIOI->get_io()->afMainViewportSize[0], gptIOI->get_io()->afMainViewportSize[1]},
-            .tLayout = ptGraphics->tMainRenderPassLayout
+            .tLayout = ptDevice->tMainRenderPassLayout,
+            .ptSwapchain = ptSwap
         },
-        .bSwapchain = true
     };
 
-    plRenderPassLayout* ptLayout = &ptGraphics->sbtRenderPassLayoutsCold[ptGraphics->tMainRenderPassLayout.uIndex];
+    plRenderPassLayout* ptLayout = &ptDevice->sbtRenderPassLayoutsCold[ptDevice->tMainRenderPassLayout.uIndex];
 
-    plVulkanRenderPass* ptVulkanRenderPass = &ptVulkanGfx->sbtRenderPassesHot[uResourceIndex];
+    plVulkanRenderPass* ptVulkanRenderPass = &ptDevice->sbtRenderPassesHot[uResourceIndex];
 
     const VkAttachmentDescription tAttachment = {
         .flags          = 0,
-        .format         = pl__vulkan_format(ptGraphics->tSwapchain.tFormat),
+        .format         = pl__vulkan_format(ptSwap->tFormat),
         .samples        = VK_SAMPLE_COUNT_1_BIT,
         .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
@@ -2131,25 +2053,25 @@ pl_create_main_render_pass(plDevice* ptDevice)
         .dependencyCount = 2
     };
 
-    PL_VULKAN(vkCreateRenderPass(ptVulkanDevice->tLogicalDevice, &tRenderPassInfo, NULL, &ptVulkanRenderPass->tRenderPass));
+    PL_VULKAN(vkCreateRenderPass(ptDevice->tLogicalDevice, &tRenderPassInfo, NULL, &ptVulkanRenderPass->tRenderPass));
 
-    for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
+    for(uint32_t i = 0; i < ptSwap->uImageCount; i++)
     {
 
         VkFramebufferCreateInfo tFrameBufferInfo = {
             .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
             .renderPass      = ptVulkanRenderPass->tRenderPass,
             .attachmentCount = 1,
-            .pAttachments    = &ptVulkanGfx->sbtTexturesHot[ptGraphics->tSwapchain.sbtSwapchainTextureViews[i].uIndex].tImageView,
+            .pAttachments    = &ptDevice->sbtTexturesHot[ptSwap->sbtSwapchainTextureViews[i].uIndex].tImageView,
             .width           = (uint32_t)gptIOI->get_io()->afMainViewportSize[0],
             .height          = (uint32_t)gptIOI->get_io()->afMainViewportSize[1],
             .layers          = 1u,
         };
-        PL_VULKAN(vkCreateFramebuffer(ptVulkanDevice->tLogicalDevice, &tFrameBufferInfo, NULL, &ptVulkanRenderPass->atFrameBuffers[i]));
+        PL_VULKAN(vkCreateFramebuffer(ptDevice->tLogicalDevice, &tFrameBufferInfo, NULL, &ptVulkanRenderPass->atFrameBuffers[i]));
     }
 
-    ptGraphics->sbtRenderPassesCold[uResourceIndex] = tRenderPass;
-    ptGraphics->tMainRenderPass = tHandle;
+    ptDevice->sbtRenderPassesCold[uResourceIndex] = tRenderPass;
+    ptDevice->tMainRenderPass = tHandle;
 }
 
 static void
@@ -2264,26 +2186,7 @@ pl__fill_common_render_pass_data(const plRenderPassLayoutDescription* ptDesc, pl
 static plRenderPassLayoutHandle
 pl_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDescription* ptDesc)
 {
-    plGraphics*       ptGraphics     = ptDevice->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx    = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-
-    // get available index
-    uint32_t uResourceIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtRenderPassLayoutFreeIndices) > 0)
-        uResourceIndex = pl_sb_pop(ptGraphics->sbtRenderPassLayoutFreeIndices);
-    else
-    {
-        uResourceIndex = pl_sb_size(ptGraphics->sbtRenderPassLayoutsCold);
-        pl_sb_add(ptGraphics->sbtRenderPassLayoutsCold);
-        pl_sb_push(ptGraphics->sbtRenderPassLayoutGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGfx->sbtRenderPassLayoutsHot);
-    }
-
-    const plRenderPassLayoutHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtRenderPassLayoutGenerations[uResourceIndex],
-        .uIndex = uResourceIndex
-    };
+    const plRenderPassLayoutHandle tHandle = pl__get_new_render_pass_layout_handle(ptDevice);
 
     plRenderPassLayout tLayout = {
         .tDesc = *ptDesc
@@ -2304,46 +2207,29 @@ pl_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDescrip
         .pDependencies   = tCommonData.atSubpassDependencies
     };
 
-    PL_VULKAN(vkCreateRenderPass(ptVulkanDevice->tLogicalDevice, &tRenderPassInfo, NULL, &tVulkanRenderPassLayout.tRenderPass));
+    PL_VULKAN(vkCreateRenderPass(ptDevice->tLogicalDevice, &tRenderPassInfo, NULL, &tVulkanRenderPassLayout.tRenderPass));
 
-    ptVulkanGfx->sbtRenderPassLayoutsHot[uResourceIndex] = tVulkanRenderPassLayout;
-    ptGraphics->sbtRenderPassLayoutsCold[uResourceIndex] = tLayout;
+    ptDevice->sbtRenderPassLayoutsHot[tHandle.uIndex] = tVulkanRenderPassLayout;
+    ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex] = tLayout;
     return tHandle;
 }
 
 static plRenderPassHandle
 pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc, const plRenderPassAttachments* ptAttachments)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
 
-    uint32_t uResourceIndex = UINT32_MAX;
-    if(pl_sb_size(ptGraphics->sbtRenderPassFreeIndices) > 0)
-        uResourceIndex = pl_sb_pop(ptGraphics->sbtRenderPassFreeIndices);
-    else
-    {
-        uResourceIndex = pl_sb_size(ptGraphics->sbtRenderPassesCold);
-        pl_sb_add(ptGraphics->sbtRenderPassesCold);
-        pl_sb_push(ptGraphics->sbtRenderPassGenerations, UINT32_MAX);
-        pl_sb_add(ptVulkanGfx->sbtRenderPassesHot);
-    }
-
-    plRenderPassHandle tHandle = {
-        .uGeneration = ++ptGraphics->sbtRenderPassGenerations[uResourceIndex],
-        .uIndex = uResourceIndex
-    };
+    plRenderPassHandle tHandle = pl__get_new_render_pass_handle(ptDevice);
 
     plRenderPass tRenderPass = {
         .tDesc = *ptDesc
     };
 
-    plRenderPassLayout* ptLayout = &ptGraphics->sbtRenderPassLayoutsCold[ptDesc->tLayout.uIndex];
+    plRenderPassLayout* ptLayout = &ptDevice->sbtRenderPassLayoutsCold[ptDesc->tLayout.uIndex];
 
     plRenderPassCommonData tCommonData = {0};
     pl__fill_common_render_pass_data(&ptLayout->tDesc, ptLayout, &tCommonData);
 
-    plVulkanRenderPass* ptVulkanRenderPass = &ptVulkanGfx->sbtRenderPassesHot[uResourceIndex];
+    plVulkanRenderPass* ptVulkanRenderPass = &ptDevice->sbtRenderPassesHot[tHandle.uIndex];
 
     // find attachment count & fill out descriptions
     uint32_t uColorAttachmentCount = 0;
@@ -2386,16 +2272,16 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
         .pDependencies   = tCommonData.atSubpassDependencies
     };
 
-    PL_VULKAN(vkCreateRenderPass(ptVulkanDevice->tLogicalDevice, &tRenderPassInfo, NULL, &ptVulkanRenderPass->tRenderPass));
+    PL_VULKAN(vkCreateRenderPass(ptDevice->tLogicalDevice, &tRenderPassInfo, NULL, &ptVulkanRenderPass->tRenderPass));
 
 
-    for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
+    for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
     {
         VkImageView atViewAttachments[PL_MAX_RENDER_TARGETS] = {0};
 
         for(uint32_t j = 0; j < ptLayout->_uAttachmentCount; j++)
         {
-            atViewAttachments[j] = ptVulkanGfx->sbtTexturesHot[ptAttachments[i].atViewAttachments[j].uIndex].tImageView;
+            atViewAttachments[j] = ptDevice->sbtTexturesHot[ptAttachments[i].atViewAttachments[j].uIndex].tImageView;
         }
 
         VkFramebufferCreateInfo tFrameBufferInfo = {
@@ -2407,37 +2293,33 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDescription* ptDesc,
             .height          = (uint32_t)ptDesc->tDimensions.y,
             .layers          = 1u,
         };
-        PL_VULKAN(vkCreateFramebuffer(ptVulkanDevice->tLogicalDevice, &tFrameBufferInfo, NULL, &ptVulkanRenderPass->atFrameBuffers[i]));
+        PL_VULKAN(vkCreateFramebuffer(ptDevice->tLogicalDevice, &tFrameBufferInfo, NULL, &ptVulkanRenderPass->atFrameBuffers[i]));
     }
 
-    ptGraphics->sbtRenderPassesCold[uResourceIndex] = tRenderPass;
+    ptDevice->sbtRenderPassesCold[tHandle.uIndex] = tRenderPass;
     return tHandle;
 }
 
 static void
 pl_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle, plVec2 tDimensions, const plRenderPassAttachments* ptAttachments)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-
-    plRenderPass* ptRenderPass = &ptGraphics->sbtRenderPassesCold[tHandle.uIndex];
+    plRenderPass* ptRenderPass = &ptDevice->sbtRenderPassesCold[tHandle.uIndex];
     
-    plVulkanRenderPass* ptVulkanRenderPass = &ptVulkanGfx->sbtRenderPassesHot[tHandle.uIndex];
-    plRenderPassLayout* ptLayout = &ptGraphics->sbtRenderPassLayoutsCold[ptRenderPass->tDesc.tLayout.uIndex];
-    plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
+    plVulkanRenderPass* ptVulkanRenderPass = &ptDevice->sbtRenderPassesHot[tHandle.uIndex];
+    plRenderPassLayout* ptLayout = &ptDevice->sbtRenderPassLayoutsCold[ptRenderPass->tDesc.tLayout.uIndex];
+    plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
     ptRenderPass->tDesc.tDimensions = tDimensions;
 
     const plRenderPassDescription* ptDesc = &ptRenderPass->tDesc;
 
-    for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
+    for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
     {
 
         VkImageView atViewAttachments[PL_MAX_RENDER_TARGETS] = {0};
 
         for(uint32_t j = 0; j < ptLayout->_uAttachmentCount; j++)
         {
-            atViewAttachments[j] = ptVulkanGfx->sbtTexturesHot[ptAttachments[i].atViewAttachments[j].uIndex].tImageView;
+            atViewAttachments[j] = ptDevice->sbtTexturesHot[ptAttachments[i].atViewAttachments[j].uIndex].tImageView;
         }
 
         VkFramebufferCreateInfo tFrameBufferInfo = {
@@ -2451,17 +2333,15 @@ pl_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle
         };
         pl_sb_push(ptFrame->sbtRawFrameBuffers, ptVulkanRenderPass->atFrameBuffers[i]);
         ptVulkanRenderPass->atFrameBuffers[i] = VK_NULL_HANDLE;
-        PL_VULKAN(vkCreateFramebuffer(ptVulkanDevice->tLogicalDevice, &tFrameBufferInfo, NULL, &ptVulkanRenderPass->atFrameBuffers[i]));
+        PL_VULKAN(vkCreateFramebuffer(ptDevice->tLogicalDevice, &tFrameBufferInfo, NULL, &ptVulkanRenderPass->atFrameBuffers[i]));
     }
 }
 
-static plCommandBuffer
-pl_begin_command_recording(plGraphics* ptGraphics, const plBeginCommandInfo* ptBeginInfo)
+static plCommandBufferHandle
+pl_begin_command_recording(plDevice* ptDevice, const plBeginCommandInfo* ptBeginInfo)
 {
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
+    plCommandBufferHandle tHandle = pl__get_new_command_buffer_handle();
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
 
     VkCommandBuffer tCmdBuffer = VK_NULL_HANDLE;
     if(pl_sb_size(ptCurrentFrame->sbtReadyCommandBuffers) > 0)
@@ -2476,39 +2356,39 @@ pl_begin_command_recording(plGraphics* ptGraphics, const plBeginCommandInfo* ptB
             .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
             .commandBufferCount = 1
         };
-        PL_VULKAN(vkAllocateCommandBuffers(ptVulkanDevice->tLogicalDevice, &tAllocInfo, &tCmdBuffer));  
+        PL_VULKAN(vkAllocateCommandBuffers(ptDevice->tLogicalDevice, &tAllocInfo, &tCmdBuffer));  
     }
 
     const VkCommandBufferBeginInfo tBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = ptVulkanGfx->bWithinFrameContext ? 0 : VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+        .flags = gptGraphics->bWithinFrameContext ? 0 : VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
     };
     PL_VULKAN(vkBeginCommandBuffer(tCmdBuffer, &tBeginInfo));   
     
-    plCommandBuffer tCommandBuffer = {
-        ._pInternal = tCmdBuffer
-    };
+    gptGraphics->sbtCommandBuffers[tHandle.uIndex].tCmdBuffer = tCmdBuffer;
+    gptGraphics->sbtCommandBuffers[tHandle.uIndex].ptDevice = ptDevice;
 
     if(ptBeginInfo)
-        tCommandBuffer.tBeginInfo = *ptBeginInfo;
+        gptGraphics->sbtCommandBuffers[tHandle.uIndex].tBeginInfo = *ptBeginInfo;
     else
-        tCommandBuffer.tBeginInfo.uWaitSemaphoreCount = UINT32_MAX;
+        gptGraphics->sbtCommandBuffers[tHandle.uIndex].tBeginInfo.uWaitSemaphoreCount = UINT32_MAX;
 
-    return tCommandBuffer;
+    return tHandle;
 }
 
-static plRenderEncoder
-pl_begin_render_pass(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass)
+static plRenderEncoderHandle
+pl_begin_render_pass(plCommandBufferHandle tCmdBuffer, plRenderPassHandle tPass)
 {
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptCmdBuffer->_pInternal;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(tCmdBuffer);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
-    plRenderPass* ptRenderPass = &ptGraphics->sbtRenderPassesCold[tPass.uIndex];
-    plVulkanRenderPass* ptVulkanRenderPass = &ptVulkanGfx->sbtRenderPassesHot[tPass.uIndex];
-    plRenderPassLayout* ptLayout = &ptGraphics->sbtRenderPassLayoutsCold[ptRenderPass->tDesc.tLayout.uIndex];
+    plRenderEncoderHandle tHandle = pl__get_new_render_encoder_handle();
+
+    plRenderPass* ptRenderPass = &ptDevice->sbtRenderPassesCold[tPass.uIndex];
+    plVulkanRenderPass* ptVulkanRenderPass = &ptDevice->sbtRenderPassesHot[tPass.uIndex];
+    plRenderPassLayout* ptLayout = &ptDevice->sbtRenderPassLayoutsCold[ptRenderPass->tDesc.tLayout.uIndex];
     
-    if(ptRenderPass->bSwapchain)
+    if(ptRenderPass->tDesc.ptSwapchain)
     {
         const VkClearValue atClearValues[2] = {
             { .color.float32 = {0.0f, 0.0f, 0.0f, 1.0f}},
@@ -2518,7 +2398,7 @@ pl_begin_render_pass(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, plRen
         VkRenderPassBeginInfo tRenderPassInfo = {
             .sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
             .renderPass        = ptVulkanRenderPass->tRenderPass,
-            .framebuffer       = ptVulkanRenderPass->atFrameBuffers[ptGraphics->tSwapchain.uCurrentImageIndex],
+            .framebuffer       = ptVulkanRenderPass->atFrameBuffers[ptRenderPass->tDesc.ptSwapchain->uCurrentImageIndex],
             .renderArea.extent = {
                 .width  = (uint32_t)ptRenderPass->tDesc.tDimensions.x,
                 .height = (uint32_t)ptRenderPass->tDesc.tDimensions.y
@@ -2527,7 +2407,7 @@ pl_begin_render_pass(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, plRen
             .pClearValues      = atClearValues
         };
 
-        vkCmdBeginRenderPass(tCmdBuffer, &tRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(gptGraphics->sbtCommandBuffers[tCmdBuffer.uIndex].tCmdBuffer, &tRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     }
     else
     {
@@ -2559,7 +2439,7 @@ pl_begin_render_pass(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, plRen
         VkRenderPassBeginInfo tRenderPassInfo = {
             .sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
             .renderPass        = ptVulkanRenderPass->tRenderPass,
-            .framebuffer       = ptVulkanRenderPass->atFrameBuffers[ptGraphics->uCurrentFrameIndex],
+            .framebuffer       = ptVulkanRenderPass->atFrameBuffers[gptGraphics->uCurrentFrameIndex],
             .renderArea.extent = {
                 .width  = (uint32_t)ptRenderPass->tDesc.tDimensions.x,
                 .height = (uint32_t)ptRenderPass->tDesc.tDimensions.y
@@ -2568,7 +2448,7 @@ pl_begin_render_pass(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, plRen
             .pClearValues      = atClearValues
         };
 
-        vkCmdBeginRenderPass(tCmdBuffer, &tRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(gptGraphics->sbtCommandBuffers[tCmdBuffer.uIndex].tCmdBuffer, &tRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     }
 
     const VkRect2D tScissor = {
@@ -2585,70 +2465,68 @@ pl_begin_render_pass(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, plRen
         .maxDepth = 1.0f
     };
 
-    vkCmdSetViewport(tCmdBuffer, 0, 1, &tViewport);
-    vkCmdSetScissor(tCmdBuffer, 0, 1, &tScissor);
+    vkCmdSetViewport(gptGraphics->sbtCommandBuffers[tCmdBuffer.uIndex].tCmdBuffer, 0, 1, &tViewport);
+    vkCmdSetScissor(gptGraphics->sbtCommandBuffers[tCmdBuffer.uIndex].tCmdBuffer, 0, 1, &tScissor);
     
-    plRenderEncoder tEncoder = {
-        .ptGraphics        = ptGraphics,
-        .tCommandBuffer    = *ptCmdBuffer,
-        .tRenderPassHandle = tPass,
-        ._uCurrentSubpass  = 0,
-    };
-    return tEncoder;
+    gptGraphics->sbtRenderEncoders[tHandle.uIndex].tCommandBuffer = tCmdBuffer;
+    gptGraphics->sbtRenderEncoders[tHandle.uIndex].tRenderPassHandle = tPass;
+    gptGraphics->sbtRenderEncoders[tHandle.uIndex]._uCurrentSubpass = 0;
+    return tHandle;
 }
 
 static void
-pl_next_subpass(plRenderEncoder* ptEncoder)
+pl_next_subpass(plRenderEncoderHandle tHandle)
 {
+    plRenderEncoder* ptEncoder = pl__get_render_encoder(tHandle);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
     ptEncoder->_uCurrentSubpass++;
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
-    vkCmdNextSubpass(tCmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdNextSubpass(ptCmdBuffer->tCmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
 }
 
 static void
-pl_end_render_pass(plRenderEncoder* ptEncoder)
+pl_end_render_pass(plRenderEncoderHandle tHandle)
 {
-    plGraphics* ptGraphics = ptEncoder->ptGraphics;
-    plRenderPass* ptRenderPass = &ptGraphics->sbtRenderPassesCold[ptEncoder->tRenderPassHandle.uIndex];
-    plRenderPassLayout* ptLayout = &ptGraphics->sbtRenderPassLayoutsCold[ptRenderPass->tDesc.tLayout.uIndex];
+    plRenderEncoder* ptEncoder = pl__get_render_encoder(tHandle);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+    plRenderPass* ptRenderPass = &ptDevice->sbtRenderPassesCold[gptGraphics->sbtRenderEncoders[tHandle.uIndex].tRenderPassHandle.uIndex];
+    plRenderPassLayout* ptLayout = &ptDevice->sbtRenderPassLayoutsCold[ptRenderPass->tDesc.tLayout.uIndex];
     
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
-
-    while(ptEncoder->_uCurrentSubpass < ptLayout->tDesc.uSubpassCount - 1)
+    while(gptGraphics->sbtRenderEncoders[tHandle.uIndex]._uCurrentSubpass < ptLayout->tDesc.uSubpassCount - 1)
     {
-        vkCmdNextSubpass(tCmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
-        ptEncoder->_uCurrentSubpass++;
+        vkCmdNextSubpass(ptCmdBuffer->tCmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
+        gptGraphics->sbtRenderEncoders[tHandle.uIndex]._uCurrentSubpass++;
     }
-    
-    
-    vkCmdEndRenderPass(tCmdBuffer);
+    vkCmdEndRenderPass(ptCmdBuffer->tCmdBuffer);
+    pl__return_render_encoder_handle(tHandle);
 }
 
 static void
-pl_bind_vertex_buffer(plRenderEncoder* ptEncoder, plBufferHandle tHandle)
+pl_bind_vertex_buffer(plRenderEncoderHandle tEncoder, plBufferHandle tHandle)
 {
-    plGraphics* ptGraphics = ptEncoder->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
-    plVulkanBuffer* ptVertexBuffer = &ptVulkanGfx->sbtBuffersHot[tHandle.uIndex];
+    plRenderEncoder* ptEncoder = pl__get_render_encoder(tEncoder);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+    plVulkanBuffer* ptVertexBuffer = &ptDevice->sbtBuffersHot[tHandle.uIndex];
     static VkDeviceSize offsets = { 0 };
-    vkCmdBindVertexBuffers(tCmdBuffer, 0, 1, &ptVertexBuffer->tBuffer, &offsets);
+    vkCmdBindVertexBuffers(ptCmdBuffer->tCmdBuffer, 0, 1, &ptVertexBuffer->tBuffer, &offsets);
 }
 
 static void
-pl_draw(plRenderEncoder* ptEncoder, uint32_t uCount, const plDraw* atDraws)
+pl_draw(plRenderEncoderHandle tHandle, uint32_t uCount, const plDraw* atDraws)
 {
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    plRenderEncoder* ptEncoder = pl__get_render_encoder(tHandle);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
     for(uint32_t i = 0; i < uCount; i++)
-        vkCmdDraw(tCmdBuffer, atDraws[i].uVertexCount, atDraws[i].uInstanceCount, atDraws[i].uVertexStart, atDraws[i].uInstance);
+        vkCmdDraw(ptCmdBuffer->tCmdBuffer, atDraws[i].uVertexCount, atDraws[i].uInstanceCount, atDraws[i].uVertexStart, atDraws[i].uInstance);
 }
 
 static void
-pl_draw_indexed(plRenderEncoder* ptEncoder, uint32_t uCount, const plDrawIndex* atDraws)
+pl_draw_indexed(plRenderEncoderHandle tHandle, uint32_t uCount, const plDrawIndex* atDraws)
 {
-    plGraphics* ptGraphics = ptEncoder->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    plRenderEncoder* ptEncoder = pl__get_render_encoder(tHandle);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     uint32_t uCurrentIndexBuffer = UINT32_MAX;
 
@@ -2657,32 +2535,32 @@ pl_draw_indexed(plRenderEncoder* ptEncoder, uint32_t uCount, const plDrawIndex* 
         if(atDraws->tIndexBuffer.uIndex != uCurrentIndexBuffer)
         {
             uCurrentIndexBuffer = atDraws->tIndexBuffer.uIndex;
-            plVulkanBuffer* ptIndexBuffer = &ptVulkanGfx->sbtBuffersHot[uCurrentIndexBuffer];
-            vkCmdBindIndexBuffer(tCmdBuffer, ptIndexBuffer->tBuffer, 0, VK_INDEX_TYPE_UINT32);
+            plVulkanBuffer* ptIndexBuffer = &ptDevice->sbtBuffersHot[uCurrentIndexBuffer];
+            vkCmdBindIndexBuffer(ptCmdBuffer->tCmdBuffer, ptIndexBuffer->tBuffer, 0, VK_INDEX_TYPE_UINT32);
         }
-        vkCmdDrawIndexed(tCmdBuffer, atDraws[i].uIndexCount, atDraws[i].uInstanceCount, atDraws[i].uIndexStart, atDraws[i].uVertexStart, atDraws[i].uInstance);
+        vkCmdDrawIndexed(ptCmdBuffer->tCmdBuffer, atDraws[i].uIndexCount, atDraws[i].uInstanceCount, atDraws[i].uIndexStart, atDraws[i].uVertexStart, atDraws[i].uInstance);
     }
 }
 
 static void
-pl_bind_shader(plRenderEncoder* ptEncoder, plShaderHandle tHandle)
+pl_bind_shader(plRenderEncoderHandle tEncoder, plShaderHandle tHandle)
 {
-    plGraphics* ptGraphics = ptEncoder->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanShader* ptVulkanShader = &ptVulkanGfx->sbtShadersHot[tHandle.uIndex];
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
-    vkCmdSetDepthBias(tCmdBuffer, 0.0f, 0.0f, 0.0f);
-    vkCmdBindPipeline(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
+    plRenderEncoder* ptEncoder = pl__get_render_encoder(tEncoder);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+    plVulkanShader* ptVulkanShader = &ptDevice->sbtShadersHot[tHandle.uIndex];
+    vkCmdSetDepthBias(ptCmdBuffer->tCmdBuffer, 0.0f, 0.0f, 0.0f);
+    vkCmdBindPipeline(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
 }
 
 static void
-pl_bind_compute_shader(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle)
+pl_bind_compute_shader(plComputeEncoderHandle tEncoder, plComputeShaderHandle tHandle)
 {
-    plGraphics* ptGraphics = ptEncoder->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanComputeShader* ptVulkanShader = &ptVulkanGfx->sbtComputeShadersHot[tHandle.uIndex];
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
-    vkCmdBindPipeline(tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptVulkanShader->tPipeline);
+    plComputeEncoder* ptEncoder = pl__get_compute_encoder(tEncoder);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+    plVulkanComputeShader* ptVulkanShader = &ptDevice->sbtComputeShadersHot[tHandle.uIndex];
+    vkCmdBindPipeline(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptVulkanShader->tPipeline);
 }
 
 typedef struct _plBindGroupManagerData
@@ -2722,18 +2600,17 @@ static inline void pl__update_bindings(plBindGroupManagerData* ptData, VkCommand
 }
 
 static void
-pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAreas)
+pl_draw_stream(plRenderEncoderHandle tEncoder, uint32_t uAreaCount, plDrawArea* atAreas)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plGraphics* ptGraphics = ptEncoder->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    plRenderEncoder* ptEncoder = pl__get_render_encoder(tEncoder);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics); 
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice); 
 
     static VkDeviceSize offsets = { 0 };
-    vkCmdSetDepthBias(tCmdBuffer, 0.0f, 0.0f, 0.0f);
+    vkCmdSetDepthBias(ptCmdBuffer->tCmdBuffer, 0.0f, 0.0f, 0.0f);
 
     for(uint32_t i = 0; i < uAreaCount; i++)
     {
@@ -2759,8 +2636,8 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
             .maxDepth = ptArea->tViewport.fMaxDepth
         };
 
-        vkCmdSetViewport(tCmdBuffer, 0, 1, &tViewport);
-        vkCmdSetScissor(tCmdBuffer, 0, 1, &tScissor);  
+        vkCmdSetViewport(ptCmdBuffer->tCmdBuffer, 0, 1, &tViewport);
+        vkCmdSetScissor(ptCmdBuffer->tCmdBuffer, 0, 1, &tScissor);  
 
         plDrawStream* ptStream = ptArea->ptDrawStream;
 
@@ -2786,9 +2663,9 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
             {
-                const plShader* ptShader= &ptGraphics->sbtShadersCold[ptStream->sbtStream[uCurrentStreamIndex]];
-                ptVulkanShader = &ptVulkanGfx->sbtShadersHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                vkCmdBindPipeline(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
+                const plShader* ptShader= &ptDevice->sbtShadersCold[ptStream->sbtStream[uCurrentStreamIndex]];
+                ptVulkanShader = &ptDevice->sbtShadersHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                vkCmdBindPipeline(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
                 pl__set_bind_group_count(&tBindGroupManagerData, ptShader->tDescription.uBindGroupLayoutCount);
                 uCurrentStreamIndex++;
             }
@@ -2802,21 +2679,21 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
             {
-                plVulkanBindGroup* ptBindGroup0 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                plVulkanBindGroup* ptBindGroup0 = &ptDevice->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
                 pl__set_bind_group(&tBindGroupManagerData, 0, ptBindGroup0->tDescriptorSet);
                 uCurrentStreamIndex++;
             }
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
             {
-                plVulkanBindGroup* ptBindGroup1 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                plVulkanBindGroup* ptBindGroup1 = &ptDevice->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
                 pl__set_bind_group(&tBindGroupManagerData, 1, ptBindGroup1->tDescriptorSet);
                 uCurrentStreamIndex++;
             }
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
             {
-                plVulkanBindGroup* ptBindGroup2 = &ptVulkanGfx->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                plVulkanBindGroup* ptBindGroup2 = &ptDevice->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
                 pl__set_bind_group(&tBindGroupManagerData, 2, ptBindGroup2->tDescriptorSet);
                 uCurrentStreamIndex++;
             }
@@ -2843,15 +2720,15 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                 uIndexBuffer = ptStream->sbtStream[uCurrentStreamIndex];
                 if(uIndexBuffer != UINT32_MAX)
                 {
-                    plVulkanBuffer* ptIndexBuffer = &ptVulkanGfx->sbtBuffersHot[uIndexBuffer];
-                    vkCmdBindIndexBuffer(tCmdBuffer, ptIndexBuffer->tBuffer, 0, VK_INDEX_TYPE_UINT32);
+                    plVulkanBuffer* ptIndexBuffer = &ptDevice->sbtBuffersHot[uIndexBuffer];
+                    vkCmdBindIndexBuffer(ptCmdBuffer->tCmdBuffer, ptIndexBuffer->tBuffer, 0, VK_INDEX_TYPE_UINT32);
                 }
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER)
             {
-                plVulkanBuffer* ptVertexBuffer = &ptVulkanGfx->sbtBuffersHot[ptStream->sbtStream[uCurrentStreamIndex]];
-                vkCmdBindVertexBuffers(tCmdBuffer, 0, 1, &ptVertexBuffer->tBuffer, &offsets);
+                plVulkanBuffer* ptVertexBuffer = &ptDevice->sbtBuffersHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                vkCmdBindVertexBuffers(ptCmdBuffer->tCmdBuffer, 0, 1, &ptVertexBuffer->tBuffer, &offsets);
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_TRIANGLES)
@@ -2873,21 +2750,22 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
             }
 
             // vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, uDescriptorStart, 4 - uDescriptorStart, &atDescriptorSets[uDescriptorStart], 1, &uDynamicBufferOffset);
-            pl__update_bindings(&tBindGroupManagerData, tCmdBuffer, ptVulkanShader->tPipelineLayout);
+            pl__update_bindings(&tBindGroupManagerData, ptCmdBuffer->tCmdBuffer, ptVulkanShader->tPipelineLayout);
 
             if(uIndexBuffer == UINT32_MAX)
-                vkCmdDraw(tCmdBuffer, uTriangleCount * 3, uInstanceCount, uVertexBufferOffset, uInstanceStart);
+                vkCmdDraw(ptCmdBuffer->tCmdBuffer, uTriangleCount * 3, uInstanceCount, uVertexBufferOffset, uInstanceStart);
             else
-                vkCmdDrawIndexed(tCmdBuffer, uTriangleCount * 3, uInstanceCount, uIndexBufferOffset, uVertexBufferOffset, uInstanceStart);
+                vkCmdDrawIndexed(ptCmdBuffer->tCmdBuffer, uTriangleCount * 3, uInstanceCount, uIndexBufferOffset, uVertexBufferOffset, uInstanceStart);
         }
     }
     pl_end_profile_sample();
 }
 
 static void
-pl_set_viewport(plRenderEncoder* ptEncoder, const plRenderViewport* ptViewport)
+pl_set_viewport(plRenderEncoderHandle tEncoder, const plRenderViewport* ptViewport)
 {
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    plRenderEncoder* ptEncoder = pl__get_render_encoder(tEncoder);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
 
     const VkViewport tViewport = {
         .x        = ptViewport->fX,
@@ -2898,13 +2776,14 @@ pl_set_viewport(plRenderEncoder* ptEncoder, const plRenderViewport* ptViewport)
         .maxDepth = ptViewport->fMaxDepth
     };
 
-    vkCmdSetViewport(tCmdBuffer, 0, 1, &tViewport);
+    vkCmdSetViewport(ptCmdBuffer->tCmdBuffer, 0, 1, &tViewport);
 }
 
 static void
-pl_set_scissor_region(plRenderEncoder* ptEncoder, const plScissor* ptScissor)
+pl_set_scissor_region(plRenderEncoderHandle tEncoder, const plScissor* ptScissor)
 {
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    plRenderEncoder* ptEncoder = pl__get_render_encoder(tEncoder);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
 
     const VkRect2D tScissor = {
         .offset = {
@@ -2917,7 +2796,7 @@ pl_set_scissor_region(plRenderEncoder* ptEncoder, const plScissor* ptScissor)
         }
     };
 
-    vkCmdSetScissor(tCmdBuffer, 0, 1, &tScissor);  
+    vkCmdSetScissor(ptCmdBuffer->tCmdBuffer, 0, 1, &tScissor);  
 }
 
 typedef struct _plInternalDeviceAllocatorData
@@ -2944,7 +2823,7 @@ pl_allocate_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uT
     plDeviceMemoryAllocation tBlock = pl_allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_GPU_CPU, uTypeFilter, "dynamic uncached Heap");
     tAllocation.uHandle = tBlock.uHandle;
     tAllocation.pHostMapped = tBlock.pHostMapped;
-    ptData->ptDevice->ptGraphics->szHostMemoryInUse += ulSize;
+    gptGraphics->szHostMemoryInUse += ulSize;
     return tAllocation;
 }
 
@@ -2954,35 +2833,21 @@ pl_free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryA
     plInternalDeviceAllocatorData* ptData = (plInternalDeviceAllocatorData*)ptInst;
     plDeviceMemoryAllocation tBlock = {.uHandle = ptAllocation->uHandle};
     pl_free_memory(ptData->ptDevice, &tBlock);
-    ptData->ptDevice->ptGraphics->szHostMemoryInUse -= ptAllocation->ulSize;
+    gptGraphics->szHostMemoryInUse -= ptAllocation->ulSize;
     ptAllocation->uHandle = 0;
     ptAllocation->ulSize = 0;
     ptAllocation->ulOffset = 0;
 }
 
 static void
-pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraphics* ptGraphics)
+pl_initialize_graphics(const plGraphicsInit* ptDesc)
 {
-    ptGraphics->bValidationActive = ptDesc->bEnableValidation;
-    ptGraphics->ptMainWindow = ptWindow;
-
-    plIO* ptIOCtx = gptIOI->get_io();
-
-    ptGraphics->_pInternalData = PL_ALLOC(sizeof(plVulkanGraphics));
-    memset(ptGraphics->_pInternalData, 0, sizeof(plVulkanGraphics));
-
-    ptGraphics->tDevice._pInternalData = PL_ALLOC(sizeof(plVulkanDevice));
-    memset(ptGraphics->tDevice._pInternalData, 0, sizeof(plVulkanDevice));
-
-    ptGraphics->tSwapchain._pInternalData = PL_ALLOC(sizeof(plVulkanSwapchain));
-    memset(ptGraphics->tSwapchain._pInternalData, 0, sizeof(plVulkanSwapchain));
-
-    ptGraphics->tDevice.ptGraphics = ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    plVulkanSwapchain* ptVulkanSwapchain = ptGraphics->tSwapchain._pInternalData;
+    gptGraphics = PL_ALLOC(sizeof(plGraphics));
+    memset(gptGraphics, 0, sizeof(plGraphics));
+    gptDataRegistry->set_data("plGraphics", gptGraphics);
     
-    ptGraphics->uFramesInFlight = PL_FRAMES_IN_FLIGHT;
+    gptGraphics->bValidationActive = ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED;
+    gptGraphics->uFramesInFlight = pl_min(pl_max(ptDesc->uFramesInFlight, 2), PL_MAX_FRAMES_IN_FLIGHT);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create instance~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -3002,7 +2867,7 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
         pl_sb_push(sbpcEnabledExtensions, VK_KHR_XCB_SURFACE_EXTENSION_NAME);
     #endif
 
-    if(ptGraphics->bValidationActive)
+    if(gptGraphics->bValidationActive)
     {
         pl_sb_push(sbpcEnabledExtensions, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         pl_sb_push(sbpcEnabledExtensions, VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
@@ -3115,10 +2980,10 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
     VkInstanceCreateInfo tCreateInfo = {
         .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .pApplicationInfo        = &tAppInfo,
-        .pNext                   = ptGraphics->bValidationActive ? (VkDebugUtilsMessengerCreateInfoEXT*)&tDebugCreateInfo : VK_NULL_HANDLE,
+        .pNext                   = gptGraphics->bValidationActive ? (VkDebugUtilsMessengerCreateInfoEXT*)&tDebugCreateInfo : VK_NULL_HANDLE,
         .enabledExtensionCount   = pl_sb_size(sbpcEnabledExtensions),
         .ppEnabledExtensionNames = sbpcEnabledExtensions,
-        .enabledLayerCount       = ptDesc->bEnableValidation ? 1 : 0,
+        .enabledLayerCount       = gptGraphics->bValidationActive ? 1 : 0,
         .ppEnabledLayerNames     = &pcKhronosValidationLayer,
 
         #ifdef __APPLE__
@@ -3126,75 +2991,40 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
         #endif
     };
 
-    PL_VULKAN(vkCreateInstance(&tCreateInfo, NULL, &ptVulkanGfx->tInstance));
+    PL_VULKAN(vkCreateInstance(&tCreateInfo, NULL, &gptGraphics->tInstance));
     pl_log_trace_to_f(uLogChannelGraphics, "created vulkan instance");
 
     // cleanup
     if(ptAvailableLayers)     PL_FREE(ptAvailableLayers);
     if(ptAvailableExtensions) PL_FREE(ptAvailableExtensions);
     
-    if(ptGraphics->bValidationActive)
+    if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_DEBUG_ENABLED)
     {
-        PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(ptVulkanGfx->tInstance, "vkCreateDebugUtilsMessengerEXT");
+        PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(gptGraphics->tInstance, "vkCreateDebugUtilsMessengerEXT");
         PL_ASSERT(func != NULL && "failed to set up debug messenger!");
-        PL_VULKAN(func(ptVulkanGfx->tInstance, &tDebugCreateInfo, NULL, &ptVulkanGfx->tDbgMessenger));     
+        PL_VULKAN(func(gptGraphics->tInstance, &tDebugCreateInfo, NULL, &gptGraphics->tDbgMessenger));     
         pl_log_trace_to_f(uLogChannelGraphics, "enabled Vulkan validation layers");
     }
 
     pl_sb_free(sbpcEnabledExtensions);
+}
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create surface~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+static plDevice*
+pl__create_device(const plDeviceInit* ptInit)
+{
+    plIO* ptIOCtx = gptIOI->get_io();
 
-    #ifdef _WIN32
-        const VkWin32SurfaceCreateInfoKHR tSurfaceCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-            .pNext = NULL,
-            .flags = 0,
-            .hinstance = GetModuleHandle(NULL),
-            .hwnd = (HWND)ptWindow->_pPlatformData
-        };
-        PL_VULKAN(vkCreateWin32SurfaceKHR(ptVulkanGfx->tInstance, &tSurfaceCreateInfo, NULL, &ptVulkanGfx->tSurface));
-    #elif defined(__ANDROID__)
-        const VkAndroidSurfaceCreateInfoKHR tSurfaceCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
-            .pNext = NULL,
-            .flags = 0,
-            .window =
-        };
-        PL_VULKAN(vkCreateAndroidSurfaceKHR(ptVulkanGfx->tInstance, &tSurfaceCreateInfo, NULL, &ptVulkanGfx->tSurface));
-    #elif defined(__APPLE__)
-        typedef struct _plWindowData
-        {
-            void*           ptWindow;
-            void* ptViewController;
-            CAMetalLayer*       ptLayer;
-        } plWindowData;
-        const VkMetalSurfaceCreateInfoEXT tSurfaceCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT,
-            .pLayer = ((plWindowData*)ptWindow->_pPlatformData)->ptLayer
-        };
-        PL_VULKAN(vkCreateMetalSurfaceEXT(ptVulkanGfx->tInstance, &tSurfaceCreateInfo, NULL, &ptVulkanGfx->tSurface));
-    #else // linux
-        struct tPlatformData { xcb_connection_t* ptConnection; xcb_window_t tWindow;};
-        struct tPlatformData* ptPlatformData = (struct tPlatformData*)ptWindow->_pPlatformData;
-        const VkXcbSurfaceCreateInfoKHR tSurfaceCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
-            .pNext = NULL,
-            .flags = 0,
-            .window = ptPlatformData->tWindow,
-            .connection = ptPlatformData->ptConnection
-        };
-        PL_VULKAN(vkCreateXcbSurfaceKHR(ptVulkanGfx->tInstance, &tSurfaceCreateInfo, NULL, &ptVulkanGfx->tSurface));
-    #endif   
+    plDevice* ptDevice = PL_ALLOC(sizeof(plDevice));
+    memset(ptDevice, 0, sizeof(plDevice));
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create device~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    ptVulkanDevice->iGraphicsQueueFamily = -1;
-    ptVulkanDevice->iPresentQueueFamily = -1;
-    ptVulkanDevice->tMemProps2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
-    ptVulkanDevice->tMemBudgetInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
-    ptVulkanDevice->tMemProps2.pNext = &ptVulkanDevice->tMemBudgetInfo;
-    // int iDeviceIndex = pl__select_physical_device(ptVulkanGfx->tInstance, ptVulkanDevice);
+    ptDevice->iGraphicsQueueFamily = -1;
+    ptDevice->iPresentQueueFamily = -1;
+    ptDevice->tMemProps2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+    ptDevice->tMemBudgetInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+    ptDevice->tMemProps2.pNext = &ptDevice->tMemBudgetInfo;
+    // int iDeviceIndex = pl__select_physical_device(gptGraphics->tInstance, ptDevice);
 
     uint32_t uDeviceCount = 0u;
     int iBestDvcIdx = 0;
@@ -3202,24 +3032,24 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
     int iIntegratedGPUIdx = -1;
     VkDeviceSize tMaxLocalMemorySize = 0u;
 
-    PL_VULKAN(vkEnumeratePhysicalDevices(ptVulkanGfx->tInstance, &uDeviceCount, NULL));
+    PL_VULKAN(vkEnumeratePhysicalDevices(gptGraphics->tInstance, &uDeviceCount, NULL));
     PL_ASSERT(uDeviceCount > 0 && "failed to find GPUs with Vulkan support!");
 
     // check if device is suitable
     VkPhysicalDevice atDevices[16] = {0};
-    PL_VULKAN(vkEnumeratePhysicalDevices(ptVulkanGfx->tInstance, &uDeviceCount, atDevices));
+    PL_VULKAN(vkEnumeratePhysicalDevices(gptGraphics->tInstance, &uDeviceCount, atDevices));
 
     // prefer discrete, then memory size
     for(uint32_t i = 0; i < uDeviceCount; i++)
     {
-        vkGetPhysicalDeviceProperties(atDevices[i], &ptVulkanDevice->tDeviceProps);
-        vkGetPhysicalDeviceMemoryProperties(atDevices[i], &ptVulkanDevice->tMemProps);
+        vkGetPhysicalDeviceProperties(atDevices[i], &ptDevice->tDeviceProps);
+        vkGetPhysicalDeviceMemoryProperties(atDevices[i], &ptDevice->tMemProps);
 
-        if(ptVulkanDevice->tDeviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+        if(ptDevice->tDeviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
         {
             iDiscreteGPUIdx = i;
         }
-        if(ptVulkanDevice->tDeviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
+        if(ptDevice->tDeviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
         {
             iIntegratedGPUIdx = i;
         }
@@ -3230,69 +3060,69 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
     else if(iIntegratedGPUIdx > -1)
         iBestDvcIdx = iIntegratedGPUIdx;
 
-    ptVulkanDevice->tPhysicalDevice = atDevices[iBestDvcIdx];
+    ptDevice->tPhysicalDevice = atDevices[iBestDvcIdx];
 
-    PL_ASSERT(ptVulkanDevice->tPhysicalDevice != VK_NULL_HANDLE && "failed to find a suitable GPU!");
-    vkGetPhysicalDeviceProperties(atDevices[iBestDvcIdx], &ptVulkanDevice->tDeviceProps);
-    vkGetPhysicalDeviceMemoryProperties(atDevices[iBestDvcIdx], &ptVulkanDevice->tMemProps);
+    PL_ASSERT(ptDevice->tPhysicalDevice != VK_NULL_HANDLE && "failed to find a suitable GPU!");
+    vkGetPhysicalDeviceProperties(atDevices[iBestDvcIdx], &ptDevice->tDeviceProps);
+    vkGetPhysicalDeviceMemoryProperties(atDevices[iBestDvcIdx], &ptDevice->tMemProps);
     static const char* pacDeviceTypeName[] = {"Other", "Integrated", "Discrete", "Virtual", "CPU"};
 
     // print info on chosen device
-    pl_log_info_to_f(uLogChannelGraphics, "Device ID: %u", ptVulkanDevice->tDeviceProps.deviceID);
-    pl_log_info_to_f(uLogChannelGraphics, "Vendor ID: %u", ptVulkanDevice->tDeviceProps.vendorID);
-    pl_log_info_to_f(uLogChannelGraphics, "API Version: %u", ptVulkanDevice->tDeviceProps.apiVersion);
-    pl_log_info_to_f(uLogChannelGraphics, "Driver Version: %u", ptVulkanDevice->tDeviceProps.driverVersion);
-    pl_log_info_to_f(uLogChannelGraphics, "Device Type: %s", pacDeviceTypeName[ptVulkanDevice->tDeviceProps.deviceType]);
-    pl_log_info_to_f(uLogChannelGraphics, "Device Name: %s", ptVulkanDevice->tDeviceProps.deviceName);
+    pl_log_info_to_f(uLogChannelGraphics, "Device ID: %u", ptDevice->tDeviceProps.deviceID);
+    pl_log_info_to_f(uLogChannelGraphics, "Vendor ID: %u", ptDevice->tDeviceProps.vendorID);
+    pl_log_info_to_f(uLogChannelGraphics, "API Version: %u", ptDevice->tDeviceProps.apiVersion);
+    pl_log_info_to_f(uLogChannelGraphics, "Driver Version: %u", ptDevice->tDeviceProps.driverVersion);
+    pl_log_info_to_f(uLogChannelGraphics, "Device Type: %s", pacDeviceTypeName[ptDevice->tDeviceProps.deviceType]);
+    pl_log_info_to_f(uLogChannelGraphics, "Device Name: %s", ptDevice->tDeviceProps.deviceName);
 
     uint32_t uExtensionCount = 0;
-    vkEnumerateDeviceExtensionProperties(ptVulkanDevice->tPhysicalDevice, NULL, &uExtensionCount, NULL);
-    VkExtensionProperties* ptExtensions = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, uExtensionCount * sizeof(VkExtensionProperties));
-    vkEnumerateDeviceExtensionProperties(ptVulkanDevice->tPhysicalDevice, NULL, &uExtensionCount, ptExtensions);
+    vkEnumerateDeviceExtensionProperties(ptDevice->tPhysicalDevice, NULL, &uExtensionCount, NULL);
+    VkExtensionProperties* ptExtensions = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uExtensionCount * sizeof(VkExtensionProperties));
+    vkEnumerateDeviceExtensionProperties(ptDevice->tPhysicalDevice, NULL, &uExtensionCount, ptExtensions);
 
     for(uint32_t i = 0; i < uExtensionCount; i++)
     {
-        if(pl_str_equal(ptExtensions[i].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME)) ptVulkanDevice->bSwapchainExtPresent = true; //-V522
-        if(pl_str_equal(ptExtensions[i].extensionName, "VK_KHR_portability_subset"))     ptVulkanDevice->bPortabilitySubsetPresent = true; //-V522
+        if(pl_str_equal(ptExtensions[i].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME)) ptDevice->bSwapchainExtPresent = true; //-V522
+        if(pl_str_equal(ptExtensions[i].extensionName, "VK_KHR_portability_subset"))     ptDevice->bPortabilitySubsetPresent = true; //-V522
     }
-    pl_temp_allocator_reset(&ptVulkanGfx->tTempAllocator);
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
 
-    ptVulkanDevice->tMaxLocalMemSize = ptVulkanDevice->tMemProps.memoryHeaps[iBestDvcIdx].size;
-    ptVulkanDevice->uUniformBufferBlockSize = pl_minu(PL_DEVICE_ALLOCATION_BLOCK_SIZE, ptVulkanDevice->tDeviceProps.limits.maxUniformBufferRange);
+    ptDevice->tMaxLocalMemSize = ptDevice->tMemProps.memoryHeaps[iBestDvcIdx].size;
+    ptDevice->uUniformBufferBlockSize = pl_minu(PL_DEVICE_ALLOCATION_BLOCK_SIZE, ptDevice->tDeviceProps.limits.maxUniformBufferRange);
 
     // find queue families
     uint32_t uQueueFamCnt = 0u;
-    vkGetPhysicalDeviceQueueFamilyProperties(ptVulkanDevice->tPhysicalDevice, &uQueueFamCnt, NULL);
+    vkGetPhysicalDeviceQueueFamilyProperties(ptDevice->tPhysicalDevice, &uQueueFamCnt, NULL);
 
     VkQueueFamilyProperties auQueueFamilies[64] = {0};
-    vkGetPhysicalDeviceQueueFamilyProperties(ptVulkanDevice->tPhysicalDevice, &uQueueFamCnt, auQueueFamilies);
+    vkGetPhysicalDeviceQueueFamilyProperties(ptDevice->tPhysicalDevice, &uQueueFamCnt, auQueueFamilies);
 
     for(uint32_t i = 0; i < uQueueFamCnt; i++)
     {
-        if (auQueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) ptVulkanDevice->iGraphicsQueueFamily = i;
+        if (auQueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) ptDevice->iGraphicsQueueFamily = i;
 
         VkBool32 tPresentSupport = false;
-        PL_VULKAN(vkGetPhysicalDeviceSurfaceSupportKHR(ptVulkanDevice->tPhysicalDevice, i, ptVulkanGfx->tSurface, &tPresentSupport));
+        PL_VULKAN(vkGetPhysicalDeviceSurfaceSupportKHR(ptDevice->tPhysicalDevice, i, ptInit->ptSurface->tSurface, &tPresentSupport));
 
-        if (tPresentSupport) ptVulkanDevice->iPresentQueueFamily  = i;
+        if (tPresentSupport) ptDevice->iPresentQueueFamily  = i;
 
-        if (ptVulkanDevice->iGraphicsQueueFamily > -1 && ptVulkanDevice->iPresentQueueFamily > -1) // complete
+        if (ptDevice->iGraphicsQueueFamily > -1 && ptDevice->iPresentQueueFamily > -1) // complete
             break;
         i++;
     }
 
     VkPhysicalDeviceDescriptorIndexingFeatures tDescriptorIndexingFeatures = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
-        .pNext = &ptVulkanDevice->tDeviceFeatures12
+        .pNext = &ptDevice->tDeviceFeatures12
     };
 
     // create logical device
-    ptVulkanDevice->tDeviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-    ptVulkanDevice->tDeviceFeatures2.pNext = &tDescriptorIndexingFeatures;
-    ptVulkanDevice->tDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    ptDevice->tDeviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    ptDevice->tDeviceFeatures2.pNext = &tDescriptorIndexingFeatures;
+    ptDevice->tDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 
-    vkGetPhysicalDeviceFeatures(ptVulkanDevice->tPhysicalDevice, &ptVulkanDevice->tDeviceFeatures);
-    vkGetPhysicalDeviceFeatures2(ptVulkanDevice->tPhysicalDevice, &ptVulkanDevice->tDeviceFeatures2);
+    vkGetPhysicalDeviceFeatures(ptDevice->tPhysicalDevice, &ptDevice->tDeviceFeatures);
+    vkGetPhysicalDeviceFeatures2(ptDevice->tPhysicalDevice, &ptDevice->tDeviceFeatures2);
 
 
     // Non-uniform indexing and update after bind
@@ -3300,26 +3130,26 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
     // are required for our extension
     if(tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing)
     {
-        ptGraphics->tDevice.bDescriptorIndexing = true;
+        ptDevice->bDescriptorIndexing = true;
         PL_ASSERT(tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing);
         PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind);
-//        PL_ASSERT(tDescriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing);
-//        PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind);
-//        PL_ASSERT(tDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing);
-//        PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind);
+        // PL_ASSERT(tDescriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing);
+        // PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind);
+        // PL_ASSERT(tDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing);
+        // PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind);
     }
 
     const float fQueuePriority = 1.0f;
     VkDeviceQueueCreateInfo atQueueCreateInfos[] = {
         {
             .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-            .queueFamilyIndex = ptVulkanDevice->iGraphicsQueueFamily,
+            .queueFamilyIndex = ptDevice->iGraphicsQueueFamily,
             .queueCount = 1,
             .pQueuePriorities = &fQueuePriority
         },
         {
             .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-            .queueFamilyIndex = ptVulkanDevice->iPresentQueueFamily,
+            .queueFamilyIndex = ptDevice->iPresentQueueFamily,
             .queueCount = 1,
             .pQueuePriorities = &fQueuePriority   
         }
@@ -3329,54 +3159,49 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
 
     uint32_t uDeviceExtensionCount = 0;
     const char* apcDeviceExts[16] = {0};
-    if(ptGraphics->bValidationActive)
+    if(gptGraphics->bValidationActive)
     {
         apcDeviceExts[0] = VK_EXT_DEBUG_MARKER_EXTENSION_NAME;
         uDeviceExtensionCount++;
     }
-    if(ptVulkanDevice->bSwapchainExtPresent)      apcDeviceExts[uDeviceExtensionCount++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
-    if(ptVulkanDevice->bPortabilitySubsetPresent) apcDeviceExts[uDeviceExtensionCount++] = "VK_KHR_portability_subset";
+    if(ptDevice->bSwapchainExtPresent)      apcDeviceExts[uDeviceExtensionCount++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+    if(ptDevice->bPortabilitySubsetPresent) apcDeviceExts[uDeviceExtensionCount++] = "VK_KHR_portability_subset";
     VkDeviceCreateInfo tCreateDeviceInfo = {
         .sType                    = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .queueCreateInfoCount     = atQueueCreateInfos[0].queueFamilyIndex == atQueueCreateInfos[1].queueFamilyIndex ? 1 : 2,
         .pQueueCreateInfos        = atQueueCreateInfos,
-        .pEnabledFeatures         = &ptVulkanDevice->tDeviceFeatures,
+        .pEnabledFeatures         = &ptDevice->tDeviceFeatures,
         .ppEnabledExtensionNames  = apcDeviceExts,
-        .enabledLayerCount        = ptGraphics->bValidationActive ? 1 : 0,
-        .ppEnabledLayerNames      = ptGraphics->bValidationActive ? &pcValidationLayers : NULL,
+        .enabledLayerCount        = gptGraphics->bValidationActive ? 1 : 0,
+        .ppEnabledLayerNames      = gptGraphics->bValidationActive ? &pcValidationLayers : NULL,
         .enabledExtensionCount    = uDeviceExtensionCount,
-        .pNext                    = &ptVulkanDevice->tDeviceFeatures12
+        .pNext                    = &ptDevice->tDeviceFeatures12
     };
-    PL_VULKAN(vkCreateDevice(ptVulkanDevice->tPhysicalDevice, &tCreateDeviceInfo, NULL, &ptVulkanDevice->tLogicalDevice));
+    PL_VULKAN(vkCreateDevice(ptDevice->tPhysicalDevice, &tCreateDeviceInfo, NULL, &ptDevice->tLogicalDevice));
 
     // get device queues
-    vkGetDeviceQueue(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->iGraphicsQueueFamily, 0, &ptVulkanDevice->tGraphicsQueue);
-    vkGetDeviceQueue(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->iPresentQueueFamily, 0, &ptVulkanDevice->tPresentQueue);
+    vkGetDeviceQueue(ptDevice->tLogicalDevice, ptDevice->iGraphicsQueueFamily, 0, &ptDevice->tGraphicsQueue);
+    vkGetDeviceQueue(ptDevice->tLogicalDevice, ptDevice->iPresentQueueFamily, 0, &ptDevice->tPresentQueue);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~debug markers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    if(ptGraphics->bValidationActive)
+    if(gptGraphics->bValidationActive)
     {
-        ptVulkanDevice->vkDebugMarkerSetObjectTag  = (PFN_vkDebugMarkerSetObjectTagEXT)vkGetDeviceProcAddr(ptVulkanDevice->tLogicalDevice, "vkDebugMarkerSetObjectTagEXT");
-        ptVulkanDevice->vkDebugMarkerSetObjectName = (PFN_vkDebugMarkerSetObjectNameEXT)vkGetDeviceProcAddr(ptVulkanDevice->tLogicalDevice, "vkDebugMarkerSetObjectNameEXT");
-        ptVulkanDevice->vkCmdDebugMarkerBegin      = (PFN_vkCmdDebugMarkerBeginEXT)vkGetDeviceProcAddr(ptVulkanDevice->tLogicalDevice, "vkCmdDebugMarkerBeginEXT");
-        ptVulkanDevice->vkCmdDebugMarkerEnd        = (PFN_vkCmdDebugMarkerEndEXT)vkGetDeviceProcAddr(ptVulkanDevice->tLogicalDevice, "vkCmdDebugMarkerEndEXT");
-        ptVulkanDevice->vkCmdDebugMarkerInsert     = (PFN_vkCmdDebugMarkerInsertEXT)vkGetDeviceProcAddr(ptVulkanDevice->tLogicalDevice, "vkCmdDebugMarkerInsertEXT");
+        ptDevice->vkDebugMarkerSetObjectTag  = (PFN_vkDebugMarkerSetObjectTagEXT)vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkDebugMarkerSetObjectTagEXT");
+        ptDevice->vkDebugMarkerSetObjectName = (PFN_vkDebugMarkerSetObjectNameEXT)vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkDebugMarkerSetObjectNameEXT");
+        ptDevice->vkCmdDebugMarkerBegin      = (PFN_vkCmdDebugMarkerBeginEXT)vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkCmdDebugMarkerBeginEXT");
+        ptDevice->vkCmdDebugMarkerEnd        = (PFN_vkCmdDebugMarkerEndEXT)vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkCmdDebugMarkerEndEXT");
+        ptDevice->vkCmdDebugMarkerInsert     = (PFN_vkCmdDebugMarkerInsertEXT)vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkCmdDebugMarkerInsertEXT");
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~command pool~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const VkCommandPoolCreateInfo tCommandPoolInfo = {
         .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .queueFamilyIndex = ptVulkanDevice->iGraphicsQueueFamily,
+        .queueFamilyIndex = ptDevice->iGraphicsQueueFamily,
         .flags            = 0
     };
-    PL_VULKAN(vkCreateCommandPool(ptVulkanDevice->tLogicalDevice, &tCommandPoolInfo, NULL, &ptVulkanDevice->tCmdPool));
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~swapchain~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    ptGraphics->tSwapchain.bVSync = true;
-    pl__create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1]);
+    PL_VULKAN(vkCreateCommandPool(ptDevice->tLogicalDevice, &tCommandPoolInfo, NULL, &ptDevice->tCmdPool));
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~main descriptor pool~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -3397,22 +3222,22 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
         .poolSizeCount = 7,
         .pPoolSizes    = atPoolSizes,
     };
-    if(ptGraphics->tDevice.bDescriptorIndexing)
+    if(ptDevice->bDescriptorIndexing)
     {
         tDescriptorPoolInfo.flags |= VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT;
     }
-    PL_VULKAN(vkCreateDescriptorPool(ptVulkanDevice->tLogicalDevice, &tDescriptorPoolInfo, NULL, &ptVulkanGfx->tDescriptorPool));
+    PL_VULKAN(vkCreateDescriptorPool(ptDevice->tLogicalDevice, &tDescriptorPoolInfo, NULL, &ptDevice->tDescriptorPool));
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~frame resources~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     static plInternalDeviceAllocatorData tAllocatorData = {0};
     static plDeviceMemoryAllocatorI tAllocator = {0};
     tAllocatorData.ptAllocator = &tAllocator;
-    tAllocatorData.ptDevice = &ptGraphics->tDevice;
+    tAllocatorData.ptDevice = ptDevice;
     tAllocator.allocate = pl_allocate_staging_dynamic;
     tAllocator.free = pl_free_staging_dynamic;
     tAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&tAllocatorData;
-    ptGraphics->tDevice.ptDynamicAllocator = &tAllocator;
+    ptDevice->ptDynamicAllocator = &tAllocator;
     plDeviceMemoryAllocatorI* ptDynamicAllocator = &tAllocator;
 
     // dynamic buffer stuff
@@ -3429,11 +3254,11 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
         .bindingCount = 1,
         .pBindings    = &tBinding,
     };
-    PL_VULKAN(vkCreateDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &ptVulkanGfx->tDynamicDescriptorSetLayout));
+    PL_VULKAN(vkCreateDescriptorSetLayout(ptDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &ptDevice->tDynamicDescriptorSetLayout));
 
     const VkCommandPoolCreateInfo tFrameCommandPoolInfo = {
         .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .queueFamilyIndex = ptVulkanDevice->iGraphicsQueueFamily,
+        .queueFamilyIndex = ptDevice->iGraphicsQueueFamily,
         .flags            = 0
     };
     
@@ -3446,15 +3271,15 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
         .flags = VK_FENCE_CREATE_SIGNALED_BIT
     };
 
-    pl_sb_resize(ptVulkanGfx->sbFrames, ptGraphics->uFramesInFlight);
-    pl_sb_resize(ptGraphics->sbtGarbage, ptGraphics->uFramesInFlight);
-    for(uint32_t i = 0; i < ptGraphics->uFramesInFlight; i++)
+    pl_sb_resize(ptDevice->sbFrames, gptGraphics->uFramesInFlight);
+    pl_sb_resize(ptDevice->sbtGarbage, gptGraphics->uFramesInFlight);
+    for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
     {
         plFrameContext tFrame = {0};
-        PL_VULKAN(vkCreateSemaphore(ptVulkanDevice->tLogicalDevice, &tSemaphoreInfo, NULL, &tFrame.tImageAvailable));
-        PL_VULKAN(vkCreateSemaphore(ptVulkanDevice->tLogicalDevice, &tSemaphoreInfo, NULL, &tFrame.tRenderFinish));
-        PL_VULKAN(vkCreateFence(ptVulkanDevice->tLogicalDevice, &tFenceInfo, NULL, &tFrame.tInFlight));
-        PL_VULKAN(vkCreateCommandPool(ptVulkanDevice->tLogicalDevice, &tFrameCommandPoolInfo, NULL, &tFrame.tCmdPool));
+        PL_VULKAN(vkCreateSemaphore(ptDevice->tLogicalDevice, &tSemaphoreInfo, NULL, &tFrame.tImageAvailable));
+        PL_VULKAN(vkCreateSemaphore(ptDevice->tLogicalDevice, &tSemaphoreInfo, NULL, &tFrame.tRenderFinish));
+        PL_VULKAN(vkCreateFence(ptDevice->tLogicalDevice, &tFenceInfo, NULL, &tFrame.tInFlight));
+        PL_VULKAN(vkCreateCommandPool(ptDevice->tLogicalDevice, &tFrameCommandPoolInfo, NULL, &tFrame.tCmdPool));
 
         // dynamic buffer stuff
         pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
@@ -3464,25 +3289,25 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
         };
         pl_sprintf(tStagingBufferDescription0.acDebugName, "D-BUF-F%d-0", (int)i);
 
-        plBufferHandle tStagingBuffer0 = pl_create_buffer(&ptGraphics->tDevice, &tStagingBufferDescription0, "dynamic buffer 0");
-        plBuffer* ptBuffer = &ptGraphics->sbtBuffersCold[tStagingBuffer0.uIndex];
+        plBufferHandle tStagingBuffer0 = pl_create_buffer(ptDevice, &tStagingBufferDescription0, "dynamic buffer 0");
+        plBuffer* ptBuffer = &ptDevice->sbtBuffersCold[tStagingBuffer0.uIndex];
         plDeviceMemoryAllocation tAllocation = ptDynamicAllocator->allocate(ptDynamicAllocator->ptInst, ptBuffer->tMemoryRequirements.uMemoryTypeBits, ptBuffer->tMemoryRequirements.ulSize, ptBuffer->tMemoryRequirements.ulAlignment, "dynamic buffer");
-        pl_bind_buffer_to_memory(&ptGraphics->tDevice, tStagingBuffer0, &tAllocation);
+        pl_bind_buffer_to_memory(ptDevice, tStagingBuffer0, &tAllocation);
 
         tFrame.uCurrentBufferIndex = UINT32_MAX;
         tFrame.sbtDynamicBuffers[0].uHandle = tStagingBuffer0.uIndex;
-        tFrame.sbtDynamicBuffers[0].tBuffer = ptVulkanGfx->sbtBuffersHot[tStagingBuffer0.uIndex].tBuffer;
+        tFrame.sbtDynamicBuffers[0].tBuffer = ptDevice->sbtBuffersHot[tStagingBuffer0.uIndex].tBuffer;
         tFrame.sbtDynamicBuffers[0].tMemory = tAllocation;
         tFrame.sbtDynamicBuffers[0].uByteOffset = 0;
 
           // allocate descriptor sets
         const VkDescriptorSetAllocateInfo tDynamicAllocInfo = {
             .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool     = ptVulkanGfx->tDescriptorPool,
+            .descriptorPool     = ptDevice->tDescriptorPool,
             .descriptorSetCount = 1,
-            .pSetLayouts        = &ptVulkanGfx->tDynamicDescriptorSetLayout
+            .pSetLayouts        = &ptDevice->tDynamicDescriptorSetLayout
         };
-        PL_VULKAN(vkAllocateDescriptorSets(ptVulkanDevice->tLogicalDevice, &tDynamicAllocInfo, &tFrame.sbtDynamicBuffers[0].tDescriptorSet));
+        PL_VULKAN(vkAllocateDescriptorSets(ptDevice->tLogicalDevice, &tDynamicAllocInfo, &tFrame.sbtDynamicBuffers[0].tDescriptorSet));
 
         VkDescriptorBufferInfo tDescriptorInfo0 = {
             .buffer = tFrame.sbtDynamicBuffers[0].tBuffer,
@@ -3500,7 +3325,7 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
             .pBufferInfo     = &tDescriptorInfo0,
             .pNext           = NULL,
         };
-        vkUpdateDescriptorSets(ptVulkanDevice->tLogicalDevice, 1, &tWrite0, 0, NULL);
+        vkUpdateDescriptorSets(ptDevice->tLogicalDevice, 1, &tWrite0, 0, NULL);
 
         VkDescriptorPoolSize atDynamicPoolSizes[] =
         {
@@ -3519,43 +3344,115 @@ pl_initialize_graphics(plWindow* ptWindow, const plGraphicsDesc* ptDesc, plGraph
             .poolSizeCount = 7,
             .pPoolSizes    = atDynamicPoolSizes,
         };
-        if(ptGraphics->tDevice.bDescriptorIndexing)
+        if(ptDevice->bDescriptorIndexing)
         {
             tDynamicDescriptorPoolInfo.flags |= VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT;
         }
-        PL_VULKAN(vkCreateDescriptorPool(ptVulkanDevice->tLogicalDevice, &tDynamicDescriptorPoolInfo, NULL, &tFrame.tDynamicDescriptorPool));
+        PL_VULKAN(vkCreateDescriptorPool(ptDevice->tLogicalDevice, &tDynamicDescriptorPoolInfo, NULL, &tFrame.tDynamicDescriptorPool));
 
-        ptVulkanGfx->sbFrames[i] = tFrame;
+        ptDevice->sbFrames[i] = tFrame;
     }
-    pl_temp_allocator_reset(&ptVulkanGfx->tTempAllocator);
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
 
-    pl_create_main_render_pass_layout(&ptGraphics->tDevice);
-    pl_create_main_render_pass(&ptGraphics->tDevice);
+    return ptDevice;
+}
+
+static plSurface*
+pl_create_surface(plWindow* ptWindow)
+{
+    plSurface* ptSurface = PL_ALLOC(sizeof(plSurface));
+    memset(ptSurface, 0, sizeof(plSurface));
+
+    #ifdef _WIN32
+        const VkWin32SurfaceCreateInfoKHR tSurfaceCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+            .pNext = NULL,
+            .flags = 0,
+            .hinstance = GetModuleHandle(NULL),
+            .hwnd = (HWND)ptWindow->_pPlatformData
+        };
+        PL_VULKAN(vkCreateWin32SurfaceKHR(gptGraphics->tInstance, &tSurfaceCreateInfo, NULL, &ptSurface->tSurface));
+    #elif defined(__ANDROID__)
+        const VkAndroidSurfaceCreateInfoKHR tSurfaceCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
+            .pNext = NULL,
+            .flags = 0,
+            .window =
+        };
+        PL_VULKAN(vkCreateAndroidSurfaceKHR(gptGraphics->tInstance, &tSurfaceCreateInfo, NULL, &ptSurface->tSurface));
+    #elif defined(__APPLE__)
+        typedef struct _plWindowData
+        {
+            void* ptWindow;
+            void* ptViewController;
+            CAMetalLayer* ptLayer;
+        } plWindowData;
+        const VkMetalSurfaceCreateInfoEXT tSurfaceCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT,
+            .pLayer = ((plWindowData*)ptWindow->_pPlatformData)->ptLayer
+        };
+        PL_VULKAN(vkCreateMetalSurfaceEXT(gptGraphics->tInstance, &tSurfaceCreateInfo, NULL, &ptSurface->tSurface));
+    #else // linux
+        struct tPlatformData { xcb_connection_t* ptConnection; xcb_window_t tWindow;};
+        struct tPlatformData* ptPlatformData = (struct tPlatformData*)ptWindow->_pPlatformData;
+        const VkXcbSurfaceCreateInfoKHR tSurfaceCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
+            .pNext = NULL,
+            .flags = 0,
+            .window = ptPlatformData->tWindow,
+            .connection = ptPlatformData->ptConnection
+        };
+        PL_VULKAN(vkCreateXcbSurfaceKHR(gptGraphics->tInstance, &tSurfaceCreateInfo, NULL, &ptSurface->tSurface));
+    #endif
+    return ptSurface;
+}
+
+static plSwapchain*
+pl_create_swapchain(plDevice* ptDevice, const plSwapchainInit* ptInit)
+{
+
+    plSwapchain* ptSwap = PL_ALLOC(sizeof(plSwapchain));
+    memset(ptSwap, 0, sizeof(plSwapchain));
+
+    ptSwap->ptSurface = ptInit->ptSurface;
+    ptSwap->ptDevice = ptDevice;
+    ptSwap->uImageCount = gptGraphics->uFramesInFlight;
+    ptSwap->tFormat = PL_FORMAT_B8G8R8A8_UNORM;
+    ptSwap->bVSync = true;
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~swapchain~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    plIO* ptIOCtx = gptIOI->get_io();
+    pl__create_swapchain((uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], ptSwap);
+
+    pl_create_main_render_pass_layout(ptSwap);
+    pl_create_main_render_pass(ptSwap);
+
+    return ptSwap;
 }
 
 static bool
-pl_begin_frame(plGraphics* ptGraphics)
+pl_begin_frame(plSwapchain* ptSwap)
 {
     pl_begin_profile_sample(__FUNCTION__);
+
+    plDevice* ptDevice = ptSwap->ptDevice;
     plIO* ptIOCtx = gptIOI->get_io();
 
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    plVulkanSwapchain* ptVulkanSwapchain = ptGraphics->tSwapchain._pInternalData;
-    ptVulkanGfx->bWithinFrameContext = true;
+    gptGraphics->bWithinFrameContext = true;
 
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
     ptCurrentFrame->uCurrentBufferIndex = UINT32_MAX;
 
-    PL_VULKAN(vkWaitForFences(ptVulkanDevice->tLogicalDevice, 1, &ptCurrentFrame->tInFlight, VK_TRUE, UINT64_MAX));
-    pl__garbage_collect(ptGraphics);
+    PL_VULKAN(vkWaitForFences(ptDevice->tLogicalDevice, 1, &ptCurrentFrame->tInFlight, VK_TRUE, UINT64_MAX));
+    pl__garbage_collect(ptDevice);
     
-    VkResult err = vkAcquireNextImageKHR(ptVulkanDevice->tLogicalDevice, ptVulkanSwapchain->tSwapChain, UINT64_MAX, ptCurrentFrame->tImageAvailable, VK_NULL_HANDLE, &ptGraphics->tSwapchain.uCurrentImageIndex);
+    VkResult err = vkAcquireNextImageKHR(ptDevice->tLogicalDevice, ptSwap->tSwapChain, UINT64_MAX, ptCurrentFrame->tImageAvailable, VK_NULL_HANDLE, &ptSwap->uCurrentImageIndex);
     if(err == VK_SUBOPTIMAL_KHR || err == VK_ERROR_OUT_OF_DATE_KHR)
     {
         if(err == VK_ERROR_OUT_OF_DATE_KHR)
         {
-            pl__create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1]);
+            pl__create_swapchain((uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], ptSwap);
             pl_end_profile_sample();
             return false;
         }
@@ -3571,39 +3468,37 @@ pl_begin_frame(plGraphics* ptGraphics)
     }
     pl_sb_reset(ptCurrentFrame->sbtPendingCommandBuffers);
 
-    PL_VULKAN(vkResetDescriptorPool(ptVulkanDevice->tLogicalDevice, ptCurrentFrame->tDynamicDescriptorPool, 0));
-    PL_VULKAN(vkResetCommandPool(ptVulkanDevice->tLogicalDevice, ptCurrentFrame->tCmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT));
-    PL_VULKAN(vkResetCommandPool(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT));
+    PL_VULKAN(vkResetDescriptorPool(ptDevice->tLogicalDevice, ptCurrentFrame->tDynamicDescriptorPool, 0));
+    PL_VULKAN(vkResetCommandPool(ptDevice->tLogicalDevice, ptCurrentFrame->tCmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT));
+    PL_VULKAN(vkResetCommandPool(ptDevice->tLogicalDevice, ptDevice->tCmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT));
     
     pl_end_profile_sample();
     return true; 
 }
 
 static void
-pl_end_command_recording(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer)
+pl_end_command_recording(plCommandBufferHandle tHandle)
 {
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptCmdBuffer->_pInternal;
-    PL_VULKAN(vkEndCommandBuffer(tCmdBuffer));  
+    PL_VULKAN(vkEndCommandBuffer(pl__get_command_buffer(tHandle)->tCmdBuffer));  
 }
 
 static bool
-pl_present(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
+pl_present(plCommandBufferHandle tHandle, const plSubmitInfo* ptSubmitInfo, plSwapchain* ptSwap)
 {
     pl_begin_profile_sample(__FUNCTION__);
     plIO* ptIOCtx = gptIOI->get_io();
 
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptCmdBuffer->_pInternal;
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(tHandle);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    plVulkanSwapchain* ptVulkanSwapchain = ptGraphics->tSwapchain._pInternalData;
-    ptVulkanGfx->bWithinFrameContext = false;
+
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
+    gptGraphics->bWithinFrameContext = false;
 
     // submit
     VkPipelineStageFlags atWaitStages[PL_MAX_SEMAPHORES + 1] = { 0 };
     atWaitStages[0] = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
-    VkCommandBuffer atCmdBuffers[] = {tCmdBuffer};
+    VkCommandBuffer atCmdBuffers[] = {ptCmdBuffer->tCmdBuffer};
     VkSubmitInfo tSubmitInfo = {
         .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount   = 1,
@@ -3627,7 +3522,7 @@ pl_present(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitI
     {
         for(uint32_t i = 0; i < ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount; i++)
         {
-            atWaitSemaphores[i]  = ptVulkanGfx->sbtSemaphoresHot[ptCmdBuffer->tBeginInfo.atWaitSempahores[i].uIndex];
+            atWaitSemaphores[i]  = ptDevice->sbtSemaphoresHot[ptCmdBuffer->tBeginInfo.atWaitSempahores[i].uIndex];
             atWaitStages[i] = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
         }
         atWaitSemaphores[ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount] = ptCurrentFrame->tImageAvailable;
@@ -3645,7 +3540,7 @@ pl_present(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitI
     {
         for(uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
         {
-            atSignalSemaphores[i]  = ptVulkanGfx->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex];
+            atSignalSemaphores[i]  = ptDevice->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex];
         }
         atSignalSemaphores[ptSubmitInfo->uSignalSemaphoreCount] = ptCurrentFrame->tRenderFinish;
 
@@ -3657,21 +3552,23 @@ pl_present(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitI
         tSubmitInfo.signalSemaphoreCount = ptSubmitInfo->uSignalSemaphoreCount + 1;
     }
 
-    PL_VULKAN(vkResetFences(ptVulkanDevice->tLogicalDevice, 1, &ptCurrentFrame->tInFlight));
-    PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, ptCurrentFrame->tInFlight)); 
+    PL_VULKAN(vkResetFences(ptDevice->tLogicalDevice, 1, &ptCurrentFrame->tInFlight));
+    PL_VULKAN(vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, ptCurrentFrame->tInFlight)); 
                        
     const VkPresentInfoKHR tPresentInfo = {
         .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
         .pWaitSemaphores    = &ptCurrentFrame->tRenderFinish,
         .swapchainCount     = 1,
-        .pSwapchains        = &ptVulkanSwapchain->tSwapChain,
-        .pImageIndices      = &ptGraphics->tSwapchain.uCurrentImageIndex,
+        .pSwapchains        = &ptSwap->tSwapChain,
+        .pImageIndices      = &ptSwap->uCurrentImageIndex,
     };
-    const VkResult tResult = vkQueuePresentKHR(ptVulkanDevice->tPresentQueue, &tPresentInfo);
+    const VkResult tResult = vkQueuePresentKHR(ptDevice->tPresentQueue, &tPresentInfo);
     if(tResult == VK_SUBOPTIMAL_KHR || tResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        pl__create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1]);
+        pl__create_swapchain((uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], ptSwap);
+        pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
+        pl__return_command_buffer_handle(tHandle);
         pl_end_profile_sample();
         return false;
     }
@@ -3679,43 +3576,43 @@ pl_present(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitI
     {
         PL_VULKAN(tResult);
     }
-    ptGraphics->uCurrentFrameIndex = (ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight;
-    pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, tCmdBuffer);
+    gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
+    pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
+    pl__return_command_buffer_handle(tHandle);
     pl_end_profile_sample();
     return true;
 }
 
 static void
-pl_resize(plGraphics* ptGraphics)
+pl_resize(plSwapchain* ptSwap)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
     plIO* ptIOCtx = gptIOI->get_io();
+    plDevice* ptDevice = ptSwap->ptDevice;
 
-    pl__create_swapchain(ptGraphics, (uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1]);
+    pl__create_swapchain((uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], ptSwap);
 
-    plRenderPass* ptRenderPass = &ptGraphics->sbtRenderPassesCold[ptGraphics->tMainRenderPass.uIndex];
-    plVulkanRenderPass* ptVulkanRenderPass = &ptVulkanGfx->sbtRenderPassesHot[ptGraphics->tMainRenderPass.uIndex];
-    plFrameContext* ptFrame = pl__get_frame_resources(ptGraphics);
+    plRenderPass* ptRenderPass = &ptDevice->sbtRenderPassesCold[ptDevice->tMainRenderPass.uIndex];
+    plVulkanRenderPass* ptVulkanRenderPass = &ptDevice->sbtRenderPassesHot[ptDevice->tMainRenderPass.uIndex];
+    plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
     ptRenderPass->tDesc.tDimensions.x = ptIOCtx->afMainViewportSize[0];
     ptRenderPass->tDesc.tDimensions.y = ptIOCtx->afMainViewportSize[1];
 
-    for(uint32_t i = 0; i < ptGraphics->tSwapchain.uImageCount; i++)
+    for(uint32_t i = 0; i < ptSwap->uImageCount; i++)
     {
 
         VkFramebufferCreateInfo tFrameBufferInfo = {
             .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
             .renderPass      = ptVulkanRenderPass->tRenderPass,
             .attachmentCount = 1,
-            .pAttachments    = &ptVulkanGfx->sbtTexturesHot[ptGraphics->tSwapchain.sbtSwapchainTextureViews[i].uIndex].tImageView,
+            .pAttachments    = &ptDevice->sbtTexturesHot[ptSwap->sbtSwapchainTextureViews[i].uIndex].tImageView,
             .width           = (uint32_t)ptIOCtx->afMainViewportSize[0],
             .height          = (uint32_t)ptIOCtx->afMainViewportSize[1],
             .layers          = 1u,
         };
         pl_sb_push(ptFrame->sbtRawFrameBuffers, ptVulkanRenderPass->atFrameBuffers[i]);
         ptVulkanRenderPass->atFrameBuffers[i] = VK_NULL_HANDLE;
-        PL_VULKAN(vkCreateFramebuffer(ptVulkanDevice->tLogicalDevice, &tFrameBufferInfo, NULL, &ptVulkanRenderPass->atFrameBuffers[i]));
+        PL_VULKAN(vkCreateFramebuffer(ptDevice->tLogicalDevice, &tFrameBufferInfo, NULL, &ptVulkanRenderPass->atFrameBuffers[i]));
     }
 
     pl_end_profile_sample();
@@ -3724,123 +3621,147 @@ pl_resize(plGraphics* ptGraphics)
 static void
 pl_flush_device(plDevice* ptDevice)
 {
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice);
+    vkDeviceWaitIdle(ptDevice->tLogicalDevice);
 }
 
 static void
-pl_shutdown(plGraphics* ptGraphics)
+pl_cleanup_graphics(void)
 {
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    plVulkanSwapchain* ptVulkanSwapchain = ptGraphics->tSwapchain._pInternalData;
-    
-    vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice);
+    // destroy tInstance
+    vkDestroyInstance(gptGraphics->tInstance, NULL);
 
-    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtTexturesHot); i++)
+    pl_temp_allocator_free(&gptGraphics->tTempAllocator);
+    
+
+    pl__cleanup_common_graphics();
+}
+
+static void
+pl_cleanup_surface(plSurface* ptSurface)
+{
+    vkDestroySurfaceKHR(gptGraphics->tInstance, ptSurface->tSurface, NULL);
+    PL_FREE(ptSurface);
+}
+
+static void
+pl_cleanup_swapchain(plSwapchain* ptSwap)
+{
+    pl_sb_free(ptSwap->sbtSurfaceFormats);
+    pl_sb_free(ptSwap->sbtImages);
+    vkDestroySwapchainKHR(ptSwap->ptDevice->tLogicalDevice, ptSwap->tSwapChain, NULL);
+    pl__cleanup_common_swapchain(ptSwap);
+}
+
+static void
+pl_cleanup_device(plDevice* ptDevice)
+{
+
+    vkDeviceWaitIdle(ptDevice->tLogicalDevice);
+
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtTexturesHot); i++)
     {
-        if(ptVulkanGfx->sbtTexturesHot[i].tImage && ptVulkanGfx->sbtTexturesHot[i].bOriginalView)
+        if(ptDevice->sbtTexturesHot[i].tImage && ptDevice->sbtTexturesHot[i].bOriginalView)
         {
-            vkDestroyImage(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtTexturesHot[i].tImage, NULL);
+            vkDestroyImage(ptDevice->tLogicalDevice, ptDevice->sbtTexturesHot[i].tImage, NULL);
             
         }
-        ptVulkanGfx->sbtTexturesHot[i].tImage = VK_NULL_HANDLE;
+        ptDevice->sbtTexturesHot[i].tImage = VK_NULL_HANDLE;
 
-        if(ptVulkanGfx->sbtTexturesHot[i].tImageView)
+        if(ptDevice->sbtTexturesHot[i].tImageView)
         {
-            vkDestroyImageView(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtTexturesHot[i].tImageView, NULL);
-            ptVulkanGfx->sbtTexturesHot[i].tImageView = VK_NULL_HANDLE;
+            vkDestroyImageView(ptDevice->tLogicalDevice, ptDevice->sbtTexturesHot[i].tImageView, NULL);
+            ptDevice->sbtTexturesHot[i].tImageView = VK_NULL_HANDLE;
         }
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtSamplersHot); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtSamplersHot); i++)
     {
-        if(ptVulkanGfx->sbtSamplersHot[i])
-            vkDestroySampler(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtSamplersHot[i], NULL);
+        if(ptDevice->sbtSamplersHot[i])
+            vkDestroySampler(ptDevice->tLogicalDevice, ptDevice->sbtSamplersHot[i], NULL);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtBindGroupsHot); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtBindGroupsHot); i++)
     {
-        vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtBindGroupsHot[i].tDescriptorSetLayout, NULL);
+        vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptDevice->sbtBindGroupsHot[i].tDescriptorSetLayout, NULL);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtBuffersHot); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtBuffersHot); i++)
     {
-        if(ptVulkanGfx->sbtBuffersHot[i].tBuffer)
-            vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtBuffersHot[i].tBuffer, NULL);
+        if(ptDevice->sbtBuffersHot[i].tBuffer)
+            vkDestroyBuffer(ptDevice->tLogicalDevice, ptDevice->sbtBuffersHot[i].tBuffer, NULL);
     }
-    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtShadersHot); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtShadersHot); i++)
     {
-        plVulkanShader* ptVulkanShader = &ptVulkanGfx->sbtShadersHot[i];
+        plVulkanShader* ptVulkanShader = &ptDevice->sbtShadersHot[i];
         if(ptVulkanShader->tPipeline)
-            vkDestroyPipeline(ptVulkanDevice->tLogicalDevice, ptVulkanShader->tPipeline, NULL);
+            vkDestroyPipeline(ptDevice->tLogicalDevice, ptVulkanShader->tPipeline, NULL);
         if(ptVulkanShader->tPipelineLayout)
-            vkDestroyPipelineLayout(ptVulkanDevice->tLogicalDevice, ptVulkanShader->tPipelineLayout, NULL);
+            vkDestroyPipelineLayout(ptDevice->tLogicalDevice, ptVulkanShader->tPipelineLayout, NULL);
         if(ptVulkanShader->tVertexShaderModule)
-            vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, ptVulkanShader->tVertexShaderModule, NULL);
+            vkDestroyShaderModule(ptDevice->tLogicalDevice, ptVulkanShader->tVertexShaderModule, NULL);
         if(ptVulkanShader->tPixelShaderModule)
-            vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, ptVulkanShader->tPixelShaderModule, NULL);
+            vkDestroyShaderModule(ptDevice->tLogicalDevice, ptVulkanShader->tPixelShaderModule, NULL);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtComputeShadersHot); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtComputeShadersHot); i++)
     {
-        plVulkanComputeShader* ptVulkanShader = &ptVulkanGfx->sbtComputeShadersHot[i];
+        plVulkanComputeShader* ptVulkanShader = &ptDevice->sbtComputeShadersHot[i];
         if(ptVulkanShader->tPipeline)
-            vkDestroyPipeline(ptVulkanDevice->tLogicalDevice, ptVulkanShader->tPipeline, NULL);
+            vkDestroyPipeline(ptDevice->tLogicalDevice, ptVulkanShader->tPipeline, NULL);
         if(ptVulkanShader->tPipelineLayout)
-            vkDestroyPipelineLayout(ptVulkanDevice->tLogicalDevice, ptVulkanShader->tPipelineLayout, NULL);
+            vkDestroyPipelineLayout(ptDevice->tLogicalDevice, ptVulkanShader->tPipelineLayout, NULL);
         if(ptVulkanShader->tShaderModule)
-            vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, ptVulkanShader->tShaderModule, NULL);
+            vkDestroyShaderModule(ptDevice->tLogicalDevice, ptVulkanShader->tShaderModule, NULL);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtBindGroupLayouts); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtBindGroupLayouts); i++)
     {
-        if(ptVulkanGfx->sbtBindGroupLayouts[i].tDescriptorSetLayout)
-            vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtBindGroupLayouts[i].tDescriptorSetLayout, NULL);    
+        if(ptDevice->sbtBindGroupLayouts[i].tDescriptorSetLayout)
+            vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptDevice->sbtBindGroupLayouts[i].tDescriptorSetLayout, NULL);    
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtRenderPassLayoutsHot); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtRenderPassLayoutsHot); i++)
     {
-        if(ptVulkanGfx->sbtRenderPassLayoutsHot[i].tRenderPass)
-            vkDestroyRenderPass(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtRenderPassLayoutsHot[i].tRenderPass, NULL);
+        if(ptDevice->sbtRenderPassLayoutsHot[i].tRenderPass)
+            vkDestroyRenderPass(ptDevice->tLogicalDevice, ptDevice->sbtRenderPassLayoutsHot[i].tRenderPass, NULL);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtSemaphoresHot); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtSemaphoresHot); i++)
     {
-        if(ptVulkanGfx->sbtSemaphoresHot[i])
-            vkDestroySemaphore(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtSemaphoresHot[i], NULL);
-        ptVulkanGfx->sbtSemaphoresHot[i] = VK_NULL_HANDLE;
+        if(ptDevice->sbtSemaphoresHot[i])
+            vkDestroySemaphore(ptDevice->tLogicalDevice, ptDevice->sbtSemaphoresHot[i], NULL);
+        ptDevice->sbtSemaphoresHot[i] = VK_NULL_HANDLE;
     }
 
-    vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tDynamicDescriptorSetLayout, NULL);
-    pl_sb_free(ptVulkanGfx->sbtTexturesHot);
-    pl_sb_free(ptVulkanGfx->sbtSamplersHot);
-    pl_sb_free(ptVulkanGfx->sbtBindGroupsHot);
-    pl_sb_free(ptVulkanGfx->sbtBuffersHot);
-    pl_sb_free(ptVulkanGfx->sbtShadersHot);
-    pl_sb_free(ptVulkanGfx->sbtComputeShadersHot);
-    pl_sb_free(ptVulkanGfx->sbtBindGroupLayouts);
-    pl_sb_free(ptVulkanGfx->sbtSemaphoresHot);
+    vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptDevice->tDynamicDescriptorSetLayout, NULL);
+    pl_sb_free(ptDevice->sbtTexturesHot);
+    pl_sb_free(ptDevice->sbtSamplersHot);
+    pl_sb_free(ptDevice->sbtBindGroupsHot);
+    pl_sb_free(ptDevice->sbtBuffersHot);
+    pl_sb_free(ptDevice->sbtShadersHot);
+    pl_sb_free(ptDevice->sbtComputeShadersHot);
+    pl_sb_free(ptDevice->sbtBindGroupLayouts);
+    pl_sb_free(ptDevice->sbtSemaphoresHot);
 
     // cleanup per frame resources
-    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbFrames); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbFrames); i++)
     {
-        plFrameContext* ptFrame = &ptVulkanGfx->sbFrames[i];
-        vkDestroySemaphore(ptVulkanDevice->tLogicalDevice, ptFrame->tImageAvailable, NULL);
-        vkDestroySemaphore(ptVulkanDevice->tLogicalDevice, ptFrame->tRenderFinish, NULL);
-        vkDestroyFence(ptVulkanDevice->tLogicalDevice, ptFrame->tInFlight, NULL);
-        vkDestroyCommandPool(ptVulkanDevice->tLogicalDevice, ptFrame->tCmdPool, NULL);
-        vkDestroyDescriptorPool(ptVulkanDevice->tLogicalDevice, ptFrame->tDynamicDescriptorPool, NULL);
+        plFrameContext* ptFrame = &ptDevice->sbFrames[i];
+        vkDestroySemaphore(ptDevice->tLogicalDevice, ptFrame->tImageAvailable, NULL);
+        vkDestroySemaphore(ptDevice->tLogicalDevice, ptFrame->tRenderFinish, NULL);
+        vkDestroyFence(ptDevice->tLogicalDevice, ptFrame->tInFlight, NULL);
+        vkDestroyCommandPool(ptDevice->tLogicalDevice, ptFrame->tCmdPool, NULL);
+        vkDestroyDescriptorPool(ptDevice->tLogicalDevice, ptFrame->tDynamicDescriptorPool, NULL);
 
         for(uint32_t j = 0; j < pl_sb_size(ptFrame->sbtDynamicBuffers); j++)
         {
             if(ptFrame->sbtDynamicBuffers[j].tMemory.uHandle)
-                ptGraphics->tDevice.ptDynamicAllocator->free(ptGraphics->tDevice.ptDynamicAllocator->ptInst, &ptFrame->sbtDynamicBuffers[j].tMemory);
+                ptDevice->ptDynamicAllocator->free(ptDevice->ptDynamicAllocator->ptInst, &ptFrame->sbtDynamicBuffers[j].tMemory);
         }
         
         for(uint32_t j = 0; j < pl_sb_size(ptFrame->sbtRawFrameBuffers); j++)
         {
-            vkDestroyFramebuffer(ptVulkanDevice->tLogicalDevice, ptFrame->sbtRawFrameBuffers[j], NULL);
+            vkDestroyFramebuffer(ptDevice->tLogicalDevice, ptFrame->sbtRawFrameBuffers[j], NULL);
             ptFrame->sbtRawFrameBuffers[j] = VK_NULL_HANDLE;
         }
 
@@ -3849,171 +3770,124 @@ pl_shutdown(plGraphics* ptGraphics)
         pl_sb_free(ptFrame->sbtPendingCommandBuffers);
         pl_sb_free(ptFrame->sbtReadyCommandBuffers);
     }
+    pl_sb_free(ptDevice->sbFrames);
 
-    for(uint32_t i = 0; i < pl_sb_size(ptVulkanGfx->sbtRenderPassesHot); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtRenderPassesHot); i++)
     {
-        if(ptVulkanGfx->sbtRenderPassesHot[i].tRenderPass)
-            vkDestroyRenderPass(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtRenderPassesHot[i].tRenderPass, NULL);
+        if(ptDevice->sbtRenderPassesHot[i].tRenderPass)
+            vkDestroyRenderPass(ptDevice->tLogicalDevice, ptDevice->sbtRenderPassesHot[i].tRenderPass, NULL);
 
         for(uint32_t j = 0; j < 3; j++)
         {
-            if(ptVulkanGfx->sbtRenderPassesHot[i].atFrameBuffers[j])
-                vkDestroyFramebuffer(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtRenderPassesHot[i].atFrameBuffers[j], NULL);
-            ptVulkanGfx->sbtRenderPassesHot[i].atFrameBuffers[j] = VK_NULL_HANDLE;
+            if(ptDevice->sbtRenderPassesHot[i].atFrameBuffers[j])
+                vkDestroyFramebuffer(ptDevice->tLogicalDevice, ptDevice->sbtRenderPassesHot[i].atFrameBuffers[j], NULL);
+            ptDevice->sbtRenderPassesHot[i].atFrameBuffers[j] = VK_NULL_HANDLE;
         }
     }
 
-    vkDestroyDescriptorPool(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->tDescriptorPool, NULL);
+    vkDestroyDescriptorPool(ptDevice->tLogicalDevice, ptDevice->tDescriptorPool, NULL);
 
     // destroy command pool
-    vkDestroyCommandPool(ptVulkanDevice->tLogicalDevice, ptVulkanDevice->tCmdPool, NULL);
-
-    vkDestroySwapchainKHR(ptVulkanDevice->tLogicalDevice, ptVulkanSwapchain->tSwapChain, NULL);
+    vkDestroyCommandPool(ptDevice->tLogicalDevice, ptDevice->tCmdPool, NULL);
 
     // destroy device
-    vkDestroyDevice(ptVulkanDevice->tLogicalDevice, NULL);
+    vkDestroyDevice(ptDevice->tLogicalDevice, NULL);
 
-    if(ptVulkanGfx->tDbgMessenger)
+    if(gptGraphics->tDbgMessenger)
     {
-        PFN_vkDestroyDebugUtilsMessengerEXT tFunc = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(ptVulkanGfx->tInstance, "vkDestroyDebugUtilsMessengerEXT");
+        PFN_vkDestroyDebugUtilsMessengerEXT tFunc = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(gptGraphics->tInstance, "vkDestroyDebugUtilsMessengerEXT");
         if (tFunc != NULL)
-            tFunc(ptVulkanGfx->tInstance, ptVulkanGfx->tDbgMessenger, NULL);
+            tFunc(gptGraphics->tInstance, gptGraphics->tDbgMessenger, NULL);
     }
+    pl_sb_free(ptDevice->sbtRenderPassesHot);
+    pl_sb_free(ptDevice->sbtBindGroupLayoutFreeIndices);
+    pl_sb_free(ptDevice->sbtRenderPassLayoutsHot);
 
-    // destroy tSurface
-    vkDestroySurfaceKHR(ptVulkanGfx->tInstance, ptVulkanGfx->tSurface, NULL);
-
-
-    // destroy tInstance
-    vkDestroyInstance(ptVulkanGfx->tInstance, NULL);
-
-    pl_temp_allocator_free(&ptVulkanGfx->tTempAllocator);
-    pl_sb_free(ptVulkanGfx->sbFrames);
-    pl_sb_free(ptVulkanGfx->sbtRenderPassesHot);
-    pl_sb_free(ptVulkanGfx->sbtBindGroupLayoutFreeIndices);
-    pl_sb_free(ptVulkanSwapchain->sbtSurfaceFormats);
-    pl_sb_free(ptVulkanSwapchain->sbtImages);
-    pl_sb_free(ptVulkanGfx->sbtRenderPassLayoutsHot);
-    pl__cleanup_common_graphics(ptGraphics);
+    pl__cleanup_common_device(ptDevice);
 }
 
-static plComputeEncoder
-pl_begin_compute_pass(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer)
+static plComputeEncoderHandle
+pl_begin_compute_pass(plCommandBufferHandle tCmdBuffer)
 {
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptCmdBuffer->_pInternal;
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(tCmdBuffer);
     VkMemoryBarrier tMemoryBarrier = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
         .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
         .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT
     };
-    vkCmdPipelineBarrier(tCmdBuffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
     
-    plComputeEncoder tEncoder = {
-        .ptGraphics     = ptGraphics,
-        .tCommandBuffer = *ptCmdBuffer
-    };
-    return tEncoder;
+    plComputeEncoderHandle tHandle = pl__get_new_compute_encoder_handle();
+    gptGraphics->sbtComputeEncoders[tHandle.uIndex].tCommandBuffer = tCmdBuffer;
+
+    return tHandle;
 }
 
 static void
-pl_end_compute_pass(plComputeEncoder* ptEncoder)
+pl_end_compute_pass(plComputeEncoderHandle tHandle)
 {
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    plComputeEncoder* ptEncoder = pl__get_compute_encoder(tHandle);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
     VkMemoryBarrier tMemoryBarrier = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
         .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
         .dstAccessMask = VK_ACCESS_SHADER_READ_BIT
     };
-    vkCmdPipelineBarrier(tCmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    pl__return_compute_encoder_handle(tHandle);
 }
 
-static plBlitEncoder
-pl_begin_blit_pass(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer)
+static plBlitEncoderHandle
+pl_begin_blit_pass(plCommandBufferHandle tCmdBuffer)
 {
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptCmdBuffer->_pInternal;
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(tCmdBuffer);
     VkMemoryBarrier tMemoryBarrier = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
         .srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT,
         .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT
     };
-    vkCmdPipelineBarrier(tCmdBuffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
     
-    plBlitEncoder tEncoder = {
-        .ptGraphics     = ptGraphics,
-        .tCommandBuffer = *ptCmdBuffer
-    };
-    return tEncoder;
+    plBlitEncoderHandle tHandle = pl__get_new_blit_encoder_handle();
+    gptGraphics->sbtBlitEncoders[tHandle.uIndex].tCommandBuffer = tCmdBuffer;
+    return tHandle;
 }
 
 static void
-pl_end_blit_pass(plBlitEncoder* ptEncoder)
+pl_end_blit_pass(plBlitEncoderHandle tHandle)
 {
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    plBlitEncoder* ptEncoder = pl__get_blit_encoder(tHandle);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
     VkMemoryBarrier tMemoryBarrier = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
         .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
         .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT
     };
-    vkCmdPipelineBarrier(tCmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    pl__return_blit_encoder_handle(tHandle);
 }
 
 static void
-pl_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, const plDispatch* atDispatches)
+pl_dispatch(plComputeEncoderHandle tHandle, uint32_t uDispatchCount, const plDispatch* atDispatches)
 {
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    plComputeEncoder* ptEncoder = pl__get_compute_encoder(tHandle);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
 
     for(uint32_t i = 0; i < uDispatchCount; i++)
     {
         const plDispatch* ptDispatch = &atDispatches[i];
-        vkCmdDispatch(tCmdBuffer, ptDispatch->uGroupCountX, ptDispatch->uGroupCountY, ptDispatch->uGroupCountZ);
+        vkCmdDispatch(ptCmdBuffer->tCmdBuffer, ptDispatch->uGroupCountX, ptDispatch->uGroupCountY, ptDispatch->uGroupCountZ);
     }
 }
 
 static void
-pl_bind_compute_bind_groups(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups, plDynamicBinding* ptDynamicBinding)
+pl_bind_compute_bind_groups(plComputeEncoderHandle tEncoder, plComputeShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups, plDynamicBinding* ptDynamicBinding)
 {   
-    plGraphics* ptGraphics = ptEncoder->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    plComputeEncoder* ptEncoder = pl__get_compute_encoder(tEncoder);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
-    plVulkanComputeShader* ptShader = &ptVulkanGfx->sbtComputeShadersHot[tHandle.uIndex];
-
-    uint32_t uDynamicBindingCount = 0;
-    uint32_t* puOffsets = NULL;
-    if(ptDynamicBinding)
-    {
-        puOffsets = &ptDynamicBinding->uByteOffset;
-        uDynamicBindingCount++;
-    }
-
-    VkDescriptorSet* atDescriptorSets = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, sizeof(VkDescriptorSet) * (uCount + uDynamicBindingCount));
-
-    for(uint32_t i = 0; i < uCount; i++)
-    {
-        plVulkanBindGroup* ptBindGroup = &ptVulkanGfx->sbtBindGroupsHot[atBindGroups[i].uIndex];
-        atDescriptorSets[i] = ptBindGroup->tDescriptorSet;
-    }
-
-    if(ptDynamicBinding)
-    {
-        plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics); 
-        atDescriptorSets[uCount] = ptCurrentFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tDescriptorSet;
-    }
-
-    vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptShader->tPipelineLayout, uFirst, uCount + uDynamicBindingCount, atDescriptorSets, uDynamicBindingCount, puOffsets);
-    pl_temp_allocator_reset(&ptVulkanGfx->tTempAllocator);
-}
-
-static void
-pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups, plDynamicBinding* ptDynamicBinding)
-{
-    plGraphics* ptGraphics = ptEncoder->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
-
-    plVulkanShader* ptShader = &ptVulkanGfx->sbtShadersHot[tHandle.uIndex];
+    plVulkanComputeShader* ptShader = &ptDevice->sbtComputeShadersHot[tHandle.uIndex];
 
     uint32_t uDynamicBindingCount = 0;
     uint32_t* puOffsets = NULL;
@@ -4023,31 +3897,66 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
         uDynamicBindingCount++;
     }
 
-    VkDescriptorSet* atDescriptorSets = pl_temp_allocator_alloc(&ptVulkanGfx->tTempAllocator, sizeof(VkDescriptorSet) * (uCount + uDynamicBindingCount));
+    VkDescriptorSet* atDescriptorSets = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkDescriptorSet) * (uCount + uDynamicBindingCount));
 
     for(uint32_t i = 0; i < uCount; i++)
     {
-        plVulkanBindGroup* ptBindGroup = &ptVulkanGfx->sbtBindGroupsHot[atBindGroups[i].uIndex];
+        plVulkanBindGroup* ptBindGroup = &ptDevice->sbtBindGroupsHot[atBindGroups[i].uIndex];
         atDescriptorSets[i] = ptBindGroup->tDescriptorSet;
     }
 
     if(ptDynamicBinding)
     {
-        plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics); 
+        plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice); 
         atDescriptorSets[uCount] = ptCurrentFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tDescriptorSet;
     }
 
-    vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptShader->tPipelineLayout, uFirst, uCount + uDynamicBindingCount, atDescriptorSets, uDynamicBindingCount, puOffsets);
-    pl_temp_allocator_reset(&ptVulkanGfx->tTempAllocator);
+    vkCmdBindDescriptorSets(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptShader->tPipelineLayout, uFirst, uCount + uDynamicBindingCount, atDescriptorSets, uDynamicBindingCount, puOffsets);
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
 }
 
 static void
-pl_submit_command_buffer(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
+pl_bind_graphics_bind_groups(plRenderEncoderHandle tEncoder, plShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups, plDynamicBinding* ptDynamicBinding)
 {
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptCmdBuffer->_pInternal;
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
+    plRenderEncoder* ptEncoder = pl__get_render_encoder(tEncoder);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+
+    plVulkanShader* ptShader = &ptDevice->sbtShadersHot[tHandle.uIndex];
+
+    uint32_t uDynamicBindingCount = 0;
+    uint32_t* puOffsets = NULL;
+    if(ptDynamicBinding)
+    {
+        puOffsets = &ptDynamicBinding->uByteOffset;
+        uDynamicBindingCount++;
+    }
+
+    VkDescriptorSet* atDescriptorSets = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkDescriptorSet) * (uCount + uDynamicBindingCount));
+
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        plVulkanBindGroup* ptBindGroup = &ptDevice->sbtBindGroupsHot[atBindGroups[i].uIndex];
+        atDescriptorSets[i] = ptBindGroup->tDescriptorSet;
+    }
+
+    if(ptDynamicBinding)
+    {
+        plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice); 
+        atDescriptorSets[uCount] = ptCurrentFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tDescriptorSet;
+    }
+
+    vkCmdBindDescriptorSets(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptShader->tPipelineLayout, uFirst, uCount + uDynamicBindingCount, atDescriptorSets, uDynamicBindingCount, puOffsets);
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
+}
+
+static void
+pl_submit_command_buffer(plCommandBufferHandle tHandle, const plSubmitInfo* ptSubmitInfo)
+{
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(tHandle);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
 
     VkSemaphore atWaitSemaphores[PL_MAX_SEMAPHORES] = {0};
     VkSemaphore atSignalSemaphores[PL_MAX_SEMAPHORES] = {0};
@@ -4057,7 +3966,7 @@ pl_submit_command_buffer(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, c
     VkSubmitInfo tSubmitInfo = {
         .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .commandBufferCount = 1u,
-        .pCommandBuffers    = &tCmdBuffer,
+        .pCommandBuffers    = &ptCmdBuffer->tCmdBuffer,
     };
 
     VkTimelineSemaphoreSubmitInfo tTimelineInfo = {
@@ -4069,7 +3978,7 @@ pl_submit_command_buffer(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, c
     {
         for(uint32_t i = 0; i < ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount; i++)
         {
-            atWaitSemaphores[i]  = ptVulkanGfx->sbtSemaphoresHot[ptCmdBuffer->tBeginInfo.atWaitSempahores[i].uIndex];
+            atWaitSemaphores[i]  = ptDevice->sbtSemaphoresHot[ptCmdBuffer->tBeginInfo.atWaitSempahores[i].uIndex];
             atWaitStages[i]  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
         }
         
@@ -4087,7 +3996,7 @@ pl_submit_command_buffer(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, c
 
         for(uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
         {
-            atSignalSemaphores[i]  = ptVulkanGfx->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex];
+            atSignalSemaphores[i]  = ptDevice->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex];
         }
 
         tTimelineInfo.signalSemaphoreValueCount = ptSubmitInfo->uSignalSemaphoreCount;
@@ -4098,17 +4007,17 @@ pl_submit_command_buffer(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, c
         tSubmitInfo.signalSemaphoreCount = ptSubmitInfo->uSignalSemaphoreCount;
     }
 
-    PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
-    pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, tCmdBuffer);
+    PL_VULKAN(vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
+    pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
+    pl__return_command_buffer_handle(tHandle);
 }
 
 static void
-pl_submit_command_buffer_blocking(plGraphics* ptGraphics, plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
+pl_submit_command_buffer_blocking(plCommandBufferHandle tHandle, const plSubmitInfo* ptSubmitInfo)
 {
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptCmdBuffer->_pInternal;
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(tHandle);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
 
     VkSemaphore atWaitSemaphores[PL_MAX_SEMAPHORES] = {0};
     VkSemaphore atSignalSemaphores[PL_MAX_SEMAPHORES] = {0};
@@ -4118,7 +4027,7 @@ pl_submit_command_buffer_blocking(plGraphics* ptGraphics, plCommandBuffer* ptCmd
     VkSubmitInfo tSubmitInfo = {
         .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .commandBufferCount = 1u,
-        .pCommandBuffers    = &tCmdBuffer,
+        .pCommandBuffers    = &ptCmdBuffer->tCmdBuffer,
     };
 
     VkTimelineSemaphoreSubmitInfo tTimelineInfo = {
@@ -4130,7 +4039,7 @@ pl_submit_command_buffer_blocking(plGraphics* ptGraphics, plCommandBuffer* ptCmd
     {
         for(uint32_t i = 0; i < ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount; i++)
         {
-            atWaitSemaphores[i]  = ptVulkanGfx->sbtSemaphoresHot[ptCmdBuffer->tBeginInfo.atWaitSempahores[i].uIndex];
+            atWaitSemaphores[i]  = ptDevice->sbtSemaphoresHot[ptCmdBuffer->tBeginInfo.atWaitSempahores[i].uIndex];
             atWaitStages[i]  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
         }
         
@@ -4148,7 +4057,7 @@ pl_submit_command_buffer_blocking(plGraphics* ptGraphics, plCommandBuffer* ptCmd
 
         for(uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
         {
-            atSignalSemaphores[i]  = ptVulkanGfx->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex];
+            atSignalSemaphores[i]  = ptDevice->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex];
         }
 
         tTimelineInfo.signalSemaphoreValueCount = ptSubmitInfo->uSignalSemaphoreCount;
@@ -4159,9 +4068,10 @@ pl_submit_command_buffer_blocking(plGraphics* ptGraphics, plCommandBuffer* ptCmd
         tSubmitInfo.signalSemaphoreCount = ptSubmitInfo->uSignalSemaphoreCount;
     }
 
-    PL_VULKAN(vkQueueSubmit(ptVulkanDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
-    PL_VULKAN(vkQueueWaitIdle(ptVulkanDevice->tGraphicsQueue));
-    pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, tCmdBuffer);
+    PL_VULKAN(vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
+    PL_VULKAN(vkQueueWaitIdle(ptDevice->tGraphicsQueue));
+    pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
+    pl__return_command_buffer_handle(tHandle);
 }
 
 //-----------------------------------------------------------------------------
@@ -4171,10 +4081,8 @@ pl_submit_command_buffer_blocking(plGraphics* ptGraphics, plCommandBuffer* ptCmd
 static VkSampleCountFlagBits
 pl__get_max_sample_count(plDevice* ptDevice)
 {
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-
     VkPhysicalDeviceProperties tPhysicalDeviceProperties = {0};
-    vkGetPhysicalDeviceProperties(ptVulkanDevice->tPhysicalDevice, &tPhysicalDeviceProperties);
+    vkGetPhysicalDeviceProperties(ptDevice->tPhysicalDevice, &tPhysicalDeviceProperties);
 
     VkSampleCountFlags tCounts = tPhysicalDeviceProperties.limits.framebufferColorSampleCounts & tPhysicalDeviceProperties.limits.framebufferDepthSampleCounts;
     if (tCounts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT; }
@@ -4189,12 +4097,10 @@ pl__get_max_sample_count(plDevice* ptDevice)
 static VkFormat
 pl__find_supported_format(plDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount)
 {
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-
     for(uint32_t i = 0u; i < uFormatCount; i++)
     {
         VkFormatProperties tProps = {0};
-        vkGetPhysicalDeviceFormatProperties(ptVulkanDevice->tPhysicalDevice, ptFormats[i], &tProps);
+        vkGetPhysicalDeviceFormatProperties(ptDevice->tPhysicalDevice, ptFormats[i], &tProps);
         if(tProps.optimalTilingFeatures & tFlags)
             return ptFormats[i];
     }
@@ -4374,38 +4280,34 @@ pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT tMsgSeverity, VkDebugU
 }
 
 static void
-pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight)
+pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
 {
-    plVulkanGraphics* ptVulkanGfx    = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    plSwapchain* ptSwapchain = &ptGraphics->tSwapchain;
-    plVulkanSwapchain* ptVulkanSwapchain = ptGraphics->tSwapchain._pInternalData;
+    plDevice* ptDevice = ptSwap->ptDevice;
+    vkDeviceWaitIdle(ptDevice->tLogicalDevice);
 
-    vkDeviceWaitIdle(ptVulkanDevice->tLogicalDevice);
-
-    // ptSwapchain->tMsaaSamples = (plSampleCount)pl__get_max_sample_count(&ptGraphics->tDevice);
+    // ptSwapchain->tMsaaSamples = (plSampleCount)pl__get_max_sample_count(ptDevice);
 
     // query swapchain support
 
     VkSurfaceCapabilitiesKHR tCapabilities = {0};
-    PL_VULKAN(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ptVulkanDevice->tPhysicalDevice, ptVulkanGfx->tSurface, &tCapabilities));
+    PL_VULKAN(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ptDevice->tPhysicalDevice, ptSwap->ptSurface->tSurface, &tCapabilities));
 
     uint32_t uFormatCount = 0u;
-    PL_VULKAN(vkGetPhysicalDeviceSurfaceFormatsKHR(ptVulkanDevice->tPhysicalDevice, ptVulkanGfx->tSurface, &uFormatCount, NULL));
+    PL_VULKAN(vkGetPhysicalDeviceSurfaceFormatsKHR(ptDevice->tPhysicalDevice, ptSwap->ptSurface->tSurface, &uFormatCount, NULL));
     
-    pl_sb_resize(ptVulkanSwapchain->sbtSurfaceFormats, uFormatCount);
+    pl_sb_resize(ptSwap->sbtSurfaceFormats, uFormatCount);
 
     VkBool32 tPresentSupport = false;
-    PL_VULKAN(vkGetPhysicalDeviceSurfaceSupportKHR(ptVulkanDevice->tPhysicalDevice, 0, ptVulkanGfx->tSurface, &tPresentSupport));
+    PL_VULKAN(vkGetPhysicalDeviceSurfaceSupportKHR(ptDevice->tPhysicalDevice, 0, ptSwap->ptSurface->tSurface, &tPresentSupport));
     PL_ASSERT(uFormatCount > 0);
-    PL_VULKAN(vkGetPhysicalDeviceSurfaceFormatsKHR(ptVulkanDevice->tPhysicalDevice, ptVulkanGfx->tSurface, &uFormatCount, ptVulkanSwapchain->sbtSurfaceFormats));
+    PL_VULKAN(vkGetPhysicalDeviceSurfaceFormatsKHR(ptDevice->tPhysicalDevice, ptSwap->ptSurface->tSurface, &uFormatCount, ptSwap->sbtSurfaceFormats));
 
     uint32_t uPresentModeCount = 0u;
-    PL_VULKAN(vkGetPhysicalDeviceSurfacePresentModesKHR(ptVulkanDevice->tPhysicalDevice, ptVulkanGfx->tSurface, &uPresentModeCount, NULL));
+    PL_VULKAN(vkGetPhysicalDeviceSurfacePresentModesKHR(ptDevice->tPhysicalDevice, ptSwap->ptSurface->tSurface, &uPresentModeCount, NULL));
     PL_ASSERT(uPresentModeCount > 0 && uPresentModeCount < 16);
 
     VkPresentModeKHR atPresentModes[16] = {0};
-    PL_VULKAN(vkGetPhysicalDeviceSurfacePresentModesKHR(ptVulkanDevice->tPhysicalDevice, ptVulkanGfx->tSurface, &uPresentModeCount, atPresentModes));
+    PL_VULKAN(vkGetPhysicalDeviceSurfacePresentModesKHR(ptDevice->tPhysicalDevice, ptSwap->ptSurface->tSurface, &uPresentModeCount, atPresentModes));
 
     // choose swap tSurface Format
     static VkFormat atSurfaceFormatPreference[4] = 
@@ -4417,8 +4319,8 @@ pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight)
     };
 
     bool bPreferenceFound = false;
-    VkSurfaceFormatKHR tSurfaceFormat = ptVulkanSwapchain->sbtSurfaceFormats[0];
-    ptSwapchain->tFormat = pl__pilotlight_format(tSurfaceFormat.format);
+    VkSurfaceFormatKHR tSurfaceFormat = ptSwap->sbtSurfaceFormats[0];
+    ptSwap->tFormat = pl__pilotlight_format(tSurfaceFormat.format);
 
     for(uint32_t i = 0u; i < 4; i++)
     {
@@ -4426,10 +4328,10 @@ pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight)
         
         for(uint32_t j = 0u; j < uFormatCount; j++)
         {
-            if(ptVulkanSwapchain->sbtSurfaceFormats[j].format == atSurfaceFormatPreference[i] && ptVulkanSwapchain->sbtSurfaceFormats[j].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+            if(ptSwap->sbtSurfaceFormats[j].format == atSurfaceFormatPreference[i] && ptSwap->sbtSurfaceFormats[j].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
             {
-                tSurfaceFormat = ptVulkanSwapchain->sbtSurfaceFormats[j];
-                ptSwapchain->tFormat = pl__pilotlight_format(tSurfaceFormat.format);
+                tSurfaceFormat = ptSwap->sbtSurfaceFormats[j];
+                ptSwap->tFormat = pl__pilotlight_format(tSurfaceFormat.format);
                 bPreferenceFound = true;
                 break;
             }
@@ -4439,7 +4341,7 @@ pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight)
 
     // chose swap present mode
     VkPresentModeKHR tPresentMode = VK_PRESENT_MODE_FIFO_KHR;
-    if(!ptSwapchain->bVSync)
+    if(!ptSwap->bVSync)
     {
         for(uint32_t i = 0 ; i < uPresentModeCount; i++)
         {
@@ -4462,11 +4364,11 @@ pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight)
         tExtent.width = pl_max(tCapabilities.minImageExtent.width, pl_min(tCapabilities.maxImageExtent.width, uWidth));
         tExtent.height = pl_max(tCapabilities.minImageExtent.height, pl_min(tCapabilities.maxImageExtent.height, uHeight));
     }
-    ptSwapchain->tExtent.uWidth = tExtent.width;
-    ptSwapchain->tExtent.uHeight = tExtent.height;
+    ptSwap->tExtent.uWidth = tExtent.width;
+    ptSwap->tExtent.uHeight = tExtent.height;
 
     // decide image count
-    const uint32_t uOldImageCount = ptSwapchain->uImageCount;
+    const uint32_t uOldImageCount = ptSwap->uImageCount;
     uint32_t uDesiredMinImageCount = tCapabilities.minImageCount + 1;
     if(tCapabilities.maxImageCount > 0 && uDesiredMinImageCount > tCapabilities.maxImageCount) 
         uDesiredMinImageCount = tCapabilities.maxImageCount;
@@ -4505,7 +4407,7 @@ pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight)
 
     VkSwapchainCreateInfoKHR tCreateSwapchainInfo = {
         .sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-        .surface          = ptVulkanGfx->tSurface,
+        .surface          = ptSwap->ptSurface->tSurface,
         .minImageCount    = uDesiredMinImageCount,
         .imageFormat      = tSurfaceFormat.format,
         .imageColorSpace  = tSurfaceFormat.colorSpace,
@@ -4516,7 +4418,7 @@ pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight)
         .compositeAlpha   = tCompositeAlpha,
         .presentMode      = tPresentMode,
         .clipped          = VK_TRUE, // setting clipped to VK_TRUE allows the implementation to discard rendering outside of the surface area
-        .oldSwapchain     = ptVulkanSwapchain->tSwapChain, // setting oldSwapChain to the saved handle of the previous swapchain aids in resource reuse and makes sure that we can still present already acquired images
+        .oldSwapchain     = ptSwap->tSwapChain, // setting oldSwapChain to the saved handle of the previous swapchain aids in resource reuse and makes sure that we can still present already acquired images
         .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
 
@@ -4528,48 +4430,48 @@ pl__create_swapchain(plGraphics* ptGraphics, uint32_t uWidth, uint32_t uHeight)
 	if (tCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT)
 		tCreateSwapchainInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
-    uint32_t auQueueFamilyIndices[] = { (uint32_t)ptVulkanDevice->iGraphicsQueueFamily, (uint32_t)ptVulkanDevice->iPresentQueueFamily};
-    if (ptVulkanDevice->iGraphicsQueueFamily != ptVulkanDevice->iPresentQueueFamily)
+    uint32_t auQueueFamilyIndices[] = { (uint32_t)ptDevice->iGraphicsQueueFamily, (uint32_t)ptDevice->iPresentQueueFamily};
+    if (ptDevice->iGraphicsQueueFamily != ptDevice->iPresentQueueFamily)
     {
         tCreateSwapchainInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
         tCreateSwapchainInfo.queueFamilyIndexCount = 2;
         tCreateSwapchainInfo.pQueueFamilyIndices = auQueueFamilyIndices;
     }
 
-    VkSwapchainKHR tOldSwapChain = ptVulkanSwapchain->tSwapChain;
+    VkSwapchainKHR tOldSwapChain = ptSwap->tSwapChain;
 
-    PL_VULKAN(vkCreateSwapchainKHR(ptVulkanDevice->tLogicalDevice, &tCreateSwapchainInfo, NULL, &ptVulkanSwapchain->tSwapChain));
+    PL_VULKAN(vkCreateSwapchainKHR(ptDevice->tLogicalDevice, &tCreateSwapchainInfo, NULL, &ptSwap->tSwapChain));
 
-    // plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
-    plFrameContext* ptNextFrame = pl__get_next_frame_resources(ptGraphics);
+    // plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
+    plFrameContext* ptNextFrame = pl__get_next_frame_resources(ptDevice);
     if(tOldSwapChain)
     {
         
         for (uint32_t i = 0u; i < uOldImageCount; i++)
         {
-            pl_queue_texture_for_deletion(&ptGraphics->tDevice, ptSwapchain->sbtSwapchainTextureViews[i]);
+            pl_queue_texture_for_deletion(ptDevice, ptSwap->sbtSwapchainTextureViews[i]);
         }
-        vkDestroySwapchainKHR(ptVulkanDevice->tLogicalDevice, tOldSwapChain, NULL);
+        vkDestroySwapchainKHR(ptDevice->tLogicalDevice, tOldSwapChain, NULL);
     }
 
     // get swapchain images
 
-    PL_VULKAN(vkGetSwapchainImagesKHR(ptVulkanDevice->tLogicalDevice, ptVulkanSwapchain->tSwapChain, &ptSwapchain->uImageCount, NULL));
-    pl_sb_resize(ptVulkanSwapchain->sbtImages, ptSwapchain->uImageCount);
-    pl_sb_resize(ptSwapchain->sbtSwapchainTextureViews, ptSwapchain->uImageCount);
+    PL_VULKAN(vkGetSwapchainImagesKHR(ptDevice->tLogicalDevice, ptSwap->tSwapChain, &ptSwap->uImageCount, NULL));
+    pl_sb_resize(ptSwap->sbtImages, ptSwap->uImageCount);
+    pl_sb_resize(ptSwap->sbtSwapchainTextureViews, ptSwap->uImageCount);
 
-    PL_VULKAN(vkGetSwapchainImagesKHR(ptVulkanDevice->tLogicalDevice, ptVulkanSwapchain->tSwapChain, &ptSwapchain->uImageCount, ptVulkanSwapchain->sbtImages));
+    PL_VULKAN(vkGetSwapchainImagesKHR(ptDevice->tLogicalDevice, ptSwap->tSwapChain, &ptSwap->uImageCount, ptSwap->sbtImages));
 
-    for(uint32_t i = 0; i < ptSwapchain->uImageCount; i++)
+    for(uint32_t i = 0; i < ptSwap->uImageCount; i++)
     {
         plTextureViewDesc tTextureViewDesc = {
-            .tFormat     = ptSwapchain->tFormat,
+            .tFormat     = ptSwap->tFormat,
             .uBaseLayer  = 0,
             .uBaseMip    = 0,
             .uLayerCount = 1,
             .uMips       = 1
         };
-        ptSwapchain->sbtSwapchainTextureViews[i] = pl_create_swapchain_texture_view(&ptGraphics->tDevice, &tTextureViewDesc, ptVulkanSwapchain->sbtImages[i], "swapchain texture view");
+        ptSwap->sbtSwapchainTextureViews[i] = pl_create_swapchain_texture_view(ptDevice, &tTextureViewDesc, ptSwap->sbtImages[i], "swapchain texture view");
     }
 }
 
@@ -4589,33 +4491,31 @@ pl__find_memory_type_(VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uType
 }
 
 static void
-pl_copy_buffer(plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t szSize)
+pl_copy_buffer(plBlitEncoderHandle tEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t szSize)
 {
-
-    plVulkanGraphics* ptVulkanGraphics = ptEncoder->ptGraphics->_pInternalData;
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    plBlitEncoder* ptEncoder = pl__get_blit_encoder(tEncoder);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     const VkBufferCopy tCopyRegion = {
         .size = szSize,
         .srcOffset = uSourceOffset
     };
 
-    vkCmdCopyBuffer(tCmdBuffer, ptVulkanGraphics->sbtBuffersHot[tSource.uIndex].tBuffer, ptVulkanGraphics->sbtBuffersHot[tDestination.uIndex].tBuffer, 1, &tCopyRegion);
+    vkCmdCopyBuffer(ptCmdBuffer->tCmdBuffer, ptDevice->sbtBuffersHot[tSource.uIndex].tBuffer, ptDevice->sbtBuffersHot[tDestination.uIndex].tBuffer, 1, &tCopyRegion);
 
 }
 
 static void
-pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+pl_copy_buffer_to_texture(plBlitEncoderHandle tEncoder, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
-    plDevice* ptDevice = &ptEncoder->ptGraphics->tDevice;
-    plVulkanDevice*   ptVulkanDevice   = ptDevice->_pInternalData;
-    plVulkanGraphics* ptVulkanGraphics = ptEncoder->ptGraphics->_pInternalData;
-
-    VkCommandBuffer tCmdBuffer = (VkCommandBuffer)ptEncoder->tCommandBuffer._pInternal;
+    plBlitEncoder* ptEncoder = pl__get_blit_encoder(tEncoder);
+    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plTexture* ptColdTexture = pl__get_texture(ptDevice, tTextureHandle);
-    VkImageSubresourceRange* atSubResourceRanges = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, sizeof(VkImageSubresourceRange) * uRegionCount);
-    VkBufferImageCopy*       atCopyRegions       = pl_temp_allocator_alloc(&ptVulkanGraphics->tTempAllocator, sizeof(VkBufferImageCopy) * uRegionCount);
+    VkImageSubresourceRange* atSubResourceRanges = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkImageSubresourceRange) * uRegionCount);
+    VkBufferImageCopy*       atCopyRegions       = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkBufferImageCopy) * uRegionCount);
     memset(atSubResourceRanges, 0, sizeof(VkImageSubresourceRange) * uRegionCount);
     memset(atCopyRegions, 0, sizeof(VkBufferImageCopy) * uRegionCount);
 
@@ -4627,7 +4527,7 @@ pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle
         atSubResourceRanges[i].levelCount     = 1;
         atSubResourceRanges[i].baseArrayLayer = ptRegions[i].uBaseArrayLayer;
         atSubResourceRanges[i].layerCount     = ptRegions[i].uLayerCount;
-        pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, tLayout, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tImage, tLayout, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
         atCopyRegions[i].bufferOffset                    = ptRegions[i].szBufferOffset;
         atCopyRegions[i].bufferRowLength                 = ptRegions[i].uBufferRowLength;
@@ -4641,35 +4541,26 @@ pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle
         atCopyRegions[i].imageExtent.depth = ptRegions[i].tImageExtent.uDepth;
         
     }
-    vkCmdCopyBufferToImage(tCmdBuffer, ptVulkanGraphics->sbtBuffersHot[tBufferHandle.uIndex].tBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, uRegionCount, atCopyRegions);
+    vkCmdCopyBufferToImage(ptCmdBuffer->tCmdBuffer, ptDevice->sbtBuffersHot[tBufferHandle.uIndex].tBuffer, ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, uRegionCount, atCopyRegions);
 
     for(uint32_t i = 0; i < uRegionCount; i++)
     {
         VkImageLayout tLayout = ptRegions[i].tCurrentImageUsage == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : pl__vulkan_layout(ptRegions[i].tCurrentImageUsage);
-        pl__transition_image_layout(tCmdBuffer, ptVulkanGraphics->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, tLayout, atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+        pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, tLayout, atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
     }
         
-    pl_temp_allocator_reset(&ptVulkanGraphics->tTempAllocator);
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
 }
 
 static plFrameContext*
-pl__get_frame_resources(plGraphics* ptGraphics)
+pl__get_next_frame_resources(plDevice* ptDevice)
 {
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    return &ptVulkanGfx->sbFrames[ptGraphics->uCurrentFrameIndex];
-}
-
-static plFrameContext*
-pl__get_next_frame_resources(plGraphics* ptGraphics)
-{
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    return &ptVulkanGfx->sbFrames[(ptGraphics->uCurrentFrameIndex + 1) % ptGraphics->uFramesInFlight];
+    return &ptDevice->sbFrames[(gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight];
 }
 
 static void
 pl_set_vulkan_object_name(plDevice* ptDevice, uint64_t uObjectHandle, VkDebugReportObjectTypeEXT tObjectType, const char* pcName)
 {
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
     const VkDebugMarkerObjectNameInfoEXT tNameInfo = 
     {
         .sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
@@ -4678,8 +4569,8 @@ pl_set_vulkan_object_name(plDevice* ptDevice, uint64_t uObjectHandle, VkDebugRep
         .pObjectName = pcName
     };
 
-    if(ptVulkanDevice->vkDebugMarkerSetObjectName)
-        ptVulkanDevice->vkDebugMarkerSetObjectName(ptVulkanDevice->tLogicalDevice, &tNameInfo);
+    if(ptDevice->vkDebugMarkerSetObjectName)
+        ptDevice->vkDebugMarkerSetObjectName(ptDevice->tLogicalDevice, &tNameInfo);
 }
 
 static VkFilter
@@ -4935,8 +4826,6 @@ pl__pilotlight_format(VkFormat tFormat)
 static plDeviceMemoryAllocation
 pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName)
 {
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-
     uint32_t uMemoryType = 0u;
     bool bFound = false;
     VkMemoryPropertyFlags tProperties = 0;
@@ -4946,9 +4835,9 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
         tProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     else if(tMemoryMode == PL_MEMORY_CPU)
         tProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
-    for (uint32_t i = 0; i < ptVulkanDevice->tMemProps.memoryTypeCount; i++) 
+    for (uint32_t i = 0; i < ptDevice->tMemProps.memoryTypeCount; i++) 
     {
-        if ((uTypeFilter & (1 << i)) && (ptVulkanDevice->tMemProps.memoryTypes[i].propertyFlags & tProperties) == tProperties) 
+        if ((uTypeFilter & (1 << i)) && (ptDevice->tMemProps.memoryTypes[i].propertyFlags & tProperties) == tProperties) 
         {
             uMemoryType = i;
             bFound = true;
@@ -4975,7 +4864,7 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
     };
 
     VkDeviceMemory tMemory = VK_NULL_HANDLE;
-    VkResult tResult = vkAllocateMemory(ptVulkanDevice->tLogicalDevice, &tAllocInfo, NULL, &tMemory);
+    VkResult tResult = vkAllocateMemory(ptDevice->tLogicalDevice, &tAllocInfo, NULL, &tMemory);
     PL_VULKAN(tResult);
     tBlock.uHandle = (uint64_t)tMemory;
 
@@ -4983,12 +4872,12 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
 
     if(tMemoryMode == PL_MEMORY_GPU)
     {
-        ptDevice->ptGraphics->szLocalMemoryInUse += tBlock.ulSize;
+        gptGraphics->szLocalMemoryInUse += tBlock.ulSize;
     }
     else
     {
-        PL_VULKAN(vkMapMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)tBlock.uHandle, 0, tBlock.ulSize, 0, (void**)&tBlock.pHostMapped));
-        ptDevice->ptGraphics->szHostMemoryInUse += tBlock.ulSize;
+        PL_VULKAN(vkMapMemory(ptDevice->tLogicalDevice, (VkDeviceMemory)tBlock.uHandle, 0, tBlock.ulSize, 0, (void**)&tBlock.pHostMapped));
+        gptGraphics->szHostMemoryInUse += tBlock.ulSize;
     }
 
     return tBlock;
@@ -4997,18 +4886,16 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
 static void
 pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 {
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-
     if(ptBlock->tMemoryMode == PL_MEMORY_GPU)
     {
-        ptDevice->ptGraphics->szLocalMemoryInUse -= ptBlock->ulSize;
+        gptGraphics->szLocalMemoryInUse -= ptBlock->ulSize;
     }
     else
     {
-        ptDevice->ptGraphics->szHostMemoryInUse -= ptBlock->ulSize;
+        gptGraphics->szHostMemoryInUse -= ptBlock->ulSize;
     }
 
-    vkFreeMemory(ptVulkanDevice->tLogicalDevice, (VkDeviceMemory)ptBlock->uHandle, NULL);
+    vkFreeMemory(ptDevice->tLogicalDevice, (VkDeviceMemory)ptBlock->uHandle, NULL);
     ptBlock->uHandle = 0;
     ptBlock->pHostMapped = NULL;
     ptBlock->ulSize = 0;
@@ -5017,139 +4904,137 @@ pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 }
 
 static void
-pl__garbage_collect(plGraphics* ptGraphics)
+pl__garbage_collect(plDevice* ptDevice)
 {
     pl_begin_profile_sample(__FUNCTION__);
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice*   ptVulkanDevice = ptGraphics->tDevice._pInternalData;
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptGraphics);
+    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
 
-    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptGraphics);
+    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtTextures); i++)
     {
         const uint32_t iResourceIndex = ptGarbage->sbtTextures[i].uIndex;
-        plVulkanTexture* ptVulkanResource = &ptVulkanGfx->sbtTexturesHot[iResourceIndex];
-        vkDestroyImageView(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtTexturesHot[iResourceIndex].tImageView, NULL);
-        ptVulkanGfx->sbtTexturesHot[iResourceIndex].tImageView = VK_NULL_HANDLE;
-        if(ptVulkanGfx->sbtTexturesHot[iResourceIndex].bOriginalView)
+        plVulkanTexture* ptVulkanResource = &ptDevice->sbtTexturesHot[iResourceIndex];
+        vkDestroyImageView(ptDevice->tLogicalDevice, ptDevice->sbtTexturesHot[iResourceIndex].tImageView, NULL);
+        ptDevice->sbtTexturesHot[iResourceIndex].tImageView = VK_NULL_HANDLE;
+        if(ptDevice->sbtTexturesHot[iResourceIndex].bOriginalView)
         {
-            vkDestroyImage(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tImage, NULL);
+            vkDestroyImage(ptDevice->tLogicalDevice, ptVulkanResource->tImage, NULL);
             ptVulkanResource->tImage = VK_NULL_HANDLE;   
         }
-        ptVulkanGfx->sbtTexturesHot[iResourceIndex].bOriginalView = false;
-        pl_sb_push(ptGraphics->sbtTextureFreeIndices, iResourceIndex);
+        ptDevice->sbtTexturesHot[iResourceIndex].bOriginalView = false;
+        pl_sb_push(ptDevice->sbtTextureFreeIndices, iResourceIndex);
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtSamplers); i++)
     {
         const uint32_t iResourceIndex = ptGarbage->sbtSamplers[i].uIndex;
-        vkDestroySampler(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtSamplersHot[iResourceIndex], NULL);
-        ptVulkanGfx->sbtSamplersHot[iResourceIndex] = VK_NULL_HANDLE;
-        pl_sb_push(ptGraphics->sbtSamplerFreeIndices, iResourceIndex);
+        vkDestroySampler(ptDevice->tLogicalDevice, ptDevice->sbtSamplersHot[iResourceIndex], NULL);
+        ptDevice->sbtSamplersHot[iResourceIndex] = VK_NULL_HANDLE;
+        pl_sb_push(ptDevice->sbtSamplerFreeIndices, iResourceIndex);
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtRenderPasses); i++)
     {
         const uint32_t iResourceIndex = ptGarbage->sbtRenderPasses[i].uIndex;
-        plVulkanRenderPass* ptVulkanResource = &ptVulkanGfx->sbtRenderPassesHot[iResourceIndex];
+        plVulkanRenderPass* ptVulkanResource = &ptDevice->sbtRenderPassesHot[iResourceIndex];
         for(uint32_t j = 0; j < 3; j++)
         {
             if(ptVulkanResource->atFrameBuffers[j])
-                vkDestroyFramebuffer(ptVulkanDevice->tLogicalDevice, ptVulkanResource->atFrameBuffers[j], NULL);
+                vkDestroyFramebuffer(ptDevice->tLogicalDevice, ptVulkanResource->atFrameBuffers[j], NULL);
             ptVulkanResource->atFrameBuffers[j] = VK_NULL_HANDLE;
         }
         if(ptVulkanResource->tRenderPass)
-            vkDestroyRenderPass(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tRenderPass, NULL);
+            vkDestroyRenderPass(ptDevice->tLogicalDevice, ptVulkanResource->tRenderPass, NULL);
         ptVulkanResource->tRenderPass = VK_NULL_HANDLE;
-        pl_sb_push(ptGraphics->sbtRenderPassFreeIndices, iResourceIndex);
+        pl_sb_push(ptDevice->sbtRenderPassFreeIndices, iResourceIndex);
         // ptVulkanResource->sbtFrameBuffers = NULL;
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtRenderPassLayouts); i++)
     {
         const uint32_t iResourceIndex = ptGarbage->sbtRenderPassLayouts[i].uIndex;
-        plVulkanRenderPassLayout* ptVulkanResource = &ptVulkanGfx->sbtRenderPassLayoutsHot[iResourceIndex];
-        vkDestroyRenderPass(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tRenderPass, NULL);
-        pl_sb_push(ptGraphics->sbtRenderPassLayoutFreeIndices, iResourceIndex);
+        plVulkanRenderPassLayout* ptVulkanResource = &ptDevice->sbtRenderPassLayoutsHot[iResourceIndex];
+        vkDestroyRenderPass(ptDevice->tLogicalDevice, ptVulkanResource->tRenderPass, NULL);
+        pl_sb_push(ptDevice->sbtRenderPassLayoutFreeIndices, iResourceIndex);
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtShaders); i++)
     {
         const uint32_t iResourceIndex = ptGarbage->sbtShaders[i].uIndex;
-        plShader* ptResource = &ptGraphics->sbtShadersCold[iResourceIndex];
-        plVulkanShader* ptVulkanResource = &ptVulkanGfx->sbtShadersHot[iResourceIndex];
+        plShader* ptResource = &ptDevice->sbtShadersCold[iResourceIndex];
+        plVulkanShader* ptVulkanResource = &ptDevice->sbtShadersHot[iResourceIndex];
         if(ptVulkanResource->tVertexShaderModule)
-            vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tVertexShaderModule, NULL);
+            vkDestroyShaderModule(ptDevice->tLogicalDevice, ptVulkanResource->tVertexShaderModule, NULL);
         if(ptVulkanResource->tPixelShaderModule)
-            vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tPixelShaderModule, NULL);
+            vkDestroyShaderModule(ptDevice->tLogicalDevice, ptVulkanResource->tPixelShaderModule, NULL);
 
         ptVulkanResource->tVertexShaderModule = VK_NULL_HANDLE;
         ptVulkanResource->tPixelShaderModule = VK_NULL_HANDLE;
 
-        plVulkanShader* ptVariantVulkanResource = &ptVulkanGfx->sbtShadersHot[iResourceIndex];
-        vkDestroyPipelineLayout(ptVulkanDevice->tLogicalDevice, ptVariantVulkanResource->tPipelineLayout, NULL);
-        vkDestroyPipeline(ptVulkanDevice->tLogicalDevice, ptVariantVulkanResource->tPipeline, NULL);
+        plVulkanShader* ptVariantVulkanResource = &ptDevice->sbtShadersHot[iResourceIndex];
+        vkDestroyPipelineLayout(ptDevice->tLogicalDevice, ptVariantVulkanResource->tPipelineLayout, NULL);
+        vkDestroyPipeline(ptDevice->tLogicalDevice, ptVariantVulkanResource->tPipeline, NULL);
         ptVariantVulkanResource->tPipelineLayout = VK_NULL_HANDLE;
         ptVariantVulkanResource->tPipeline = VK_NULL_HANDLE;
-        pl_sb_push(ptGraphics->sbtShaderFreeIndices, iResourceIndex);
+        pl_sb_push(ptDevice->sbtShaderFreeIndices, iResourceIndex);
         for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount; k++)
         {
-            plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptVulkanGfx->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
-            vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
+            plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
+            vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
             ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
-            pl_sb_push(ptVulkanGfx->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k].uHandle);
+            pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k].uHandle);
         }
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtComputeShaders); i++)
     {
         const uint32_t iResourceIndex = ptGarbage->sbtComputeShaders[i].uIndex;
-        plComputeShader* ptResource = &ptGraphics->sbtComputeShadersCold[iResourceIndex];
-        plVulkanComputeShader* ptVulkanResource = &ptVulkanGfx->sbtComputeShadersHot[iResourceIndex];
+        plComputeShader* ptResource = &ptDevice->sbtComputeShadersCold[iResourceIndex];
+        plVulkanComputeShader* ptVulkanResource = &ptDevice->sbtComputeShadersHot[iResourceIndex];
         if(ptVulkanResource->tShaderModule)
-            vkDestroyShaderModule(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tShaderModule, NULL);
+            vkDestroyShaderModule(ptDevice->tLogicalDevice, ptVulkanResource->tShaderModule, NULL);
 
         ptVulkanResource->tShaderModule = VK_NULL_HANDLE;
 
-        plVulkanComputeShader* ptVariantVulkanResource = &ptVulkanGfx->sbtComputeShadersHot[iResourceIndex];
-        vkDestroyPipelineLayout(ptVulkanDevice->tLogicalDevice, ptVariantVulkanResource->tPipelineLayout, NULL);
-        vkDestroyPipeline(ptVulkanDevice->tLogicalDevice, ptVariantVulkanResource->tPipeline, NULL);
+        plVulkanComputeShader* ptVariantVulkanResource = &ptDevice->sbtComputeShadersHot[iResourceIndex];
+        vkDestroyPipelineLayout(ptDevice->tLogicalDevice, ptVariantVulkanResource->tPipelineLayout, NULL);
+        vkDestroyPipeline(ptDevice->tLogicalDevice, ptVariantVulkanResource->tPipeline, NULL);
         ptVariantVulkanResource->tPipelineLayout = VK_NULL_HANDLE;
         ptVariantVulkanResource->tPipeline = VK_NULL_HANDLE;
-        pl_sb_push(ptGraphics->sbtComputeShaderFreeIndices, iResourceIndex);
+        pl_sb_push(ptDevice->sbtComputeShaderFreeIndices, iResourceIndex);
 
         for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount; k++)
         {
-            plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptVulkanGfx->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
-            vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
+            plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
+            vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
             ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
-            pl_sb_push(ptVulkanGfx->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k].uHandle);
+            pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k].uHandle);
         }
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBindGroups); i++)
     {
         const uint32_t iBindGroupIndex = ptGarbage->sbtBindGroups[i].uIndex;
-        plVulkanBindGroup* ptVulkanResource = &ptVulkanGfx->sbtBindGroupsHot[iBindGroupIndex];
+        plVulkanBindGroup* ptVulkanResource = &ptDevice->sbtBindGroupsHot[iBindGroupIndex];
         ptVulkanResource->tDescriptorSet = VK_NULL_HANDLE;
-        vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tDescriptorSetLayout, NULL);
+        vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanResource->tDescriptorSetLayout, NULL);
         ptVulkanResource->tDescriptorSetLayout = VK_NULL_HANDLE;
-        pl_sb_push(ptGraphics->sbtBindGroupFreeIndices, iBindGroupIndex);
+        pl_sb_push(ptDevice->sbtBindGroupFreeIndices, iBindGroupIndex);
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptCurrentFrame->sbtRawFrameBuffers); i++)
     {
-        vkDestroyFramebuffer(ptVulkanDevice->tLogicalDevice, ptCurrentFrame->sbtRawFrameBuffers[i], NULL);
+        vkDestroyFramebuffer(ptDevice->tLogicalDevice, ptCurrentFrame->sbtRawFrameBuffers[i], NULL);
         ptCurrentFrame->sbtRawFrameBuffers[i] = VK_NULL_HANDLE;
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBuffers); i++)
     {
         const uint32_t iResourceIndex = ptGarbage->sbtBuffers[i].uIndex;
-        vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtBuffersHot[iResourceIndex].tBuffer, NULL);
-        ptVulkanGfx->sbtBuffersHot[iResourceIndex].tBuffer = VK_NULL_HANDLE;
-        pl_sb_push(ptGraphics->sbtBufferFreeIndices, iResourceIndex);
+        vkDestroyBuffer(ptDevice->tLogicalDevice, ptDevice->sbtBuffersHot[iResourceIndex].tBuffer, NULL);
+        ptDevice->sbtBuffersHot[iResourceIndex].tBuffer = VK_NULL_HANDLE;
+        pl_sb_push(ptDevice->sbtBufferFreeIndices, iResourceIndex);
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtMemory); i++)
@@ -5159,7 +5044,7 @@ pl__garbage_collect(plGraphics* ptGraphics)
         if(ptAllocator) // swapchain doesn't have allocator since texture is provided
             ptAllocator->free(ptAllocator->ptInst, &tAllocation);
         else
-            pl_free_memory(&ptGraphics->tDevice, &tAllocation);
+            pl_free_memory(ptDevice, &tAllocation);
     }
 
     pl_sb_reset(ptGarbage->sbtTextures);
@@ -5177,16 +5062,12 @@ pl__garbage_collect(plGraphics* ptGraphics)
 static void
 pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
+    vkDestroyBuffer(ptDevice->tLogicalDevice, ptDevice->sbtBuffersHot[tHandle.uIndex].tBuffer, NULL);
+    ptDevice->sbtBuffersHot[tHandle.uIndex].tBuffer = VK_NULL_HANDLE;
+    ptDevice->sbtBufferGenerations[tHandle.uIndex]++;
+    pl_sb_push(ptDevice->sbtBufferFreeIndices, tHandle.uIndex);
 
-    vkDestroyBuffer(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtBuffersHot[tHandle.uIndex].tBuffer, NULL);
-    ptVulkanGfx->sbtBuffersHot[tHandle.uIndex].tBuffer = VK_NULL_HANDLE;
-    ptGraphics->sbtBufferGenerations[tHandle.uIndex]++;
-    pl_sb_push(ptGraphics->sbtBufferFreeIndices, tHandle.uIndex);
-
-    plBuffer* ptBuffer = &ptGraphics->sbtBuffersCold[tHandle.uIndex];
+    plBuffer* ptBuffer = &ptDevice->sbtBuffersCold[tHandle.uIndex];
     if(ptBuffer->tMemoryAllocation.ptAllocator)
         ptBuffer->tMemoryAllocation.ptAllocator->free(ptBuffer->tMemoryAllocation.ptAllocator->ptInst, &ptBuffer->tMemoryAllocation);
     else
@@ -5196,20 +5077,16 @@ pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 static void
 pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-
-    plVulkanTexture* ptVulkanResource = &ptVulkanGfx->sbtTexturesHot[tHandle.uIndex];
-    vkDestroyImage(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tImage, NULL);
+    plVulkanTexture* ptVulkanResource = &ptDevice->sbtTexturesHot[tHandle.uIndex];
+    vkDestroyImage(ptDevice->tLogicalDevice, ptVulkanResource->tImage, NULL);
     ptVulkanResource->tImage = VK_NULL_HANDLE;
-    pl_sb_push(ptGraphics->sbtTextureFreeIndices, tHandle.uIndex);
-    ptGraphics->sbtTextureGenerations[tHandle.uIndex]++;
+    pl_sb_push(ptDevice->sbtTextureFreeIndices, tHandle.uIndex);
+    ptDevice->sbtTextureGenerations[tHandle.uIndex]++;
     
-    plTexture* ptTexture = &ptGraphics->sbtTexturesCold[tHandle.uIndex];
+    plTexture* ptTexture = &ptDevice->sbtTexturesCold[tHandle.uIndex];
     if(ptTexture->_tDrawBindGroup.ulData != UINT64_MAX)
     {
-        pl_sb_push(ptGraphics->sbtFreeDrawBindGroups, ptTexture->_tDrawBindGroup);
+        pl_sb_push(ptDevice->sbtFreeDrawBindGroups, ptTexture->_tDrawBindGroup);
     }
     if(ptTexture->tMemoryAllocation.ptAllocator)
         ptTexture->tMemoryAllocation.ptAllocator->free(ptTexture->tMemoryAllocation.ptAllocator->ptInst, &ptTexture->tMemoryAllocation);
@@ -5220,245 +5097,93 @@ pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
 static void
 pl_destroy_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-
-    vkDestroySampler(ptVulkanDevice->tLogicalDevice, ptVulkanGfx->sbtSamplersHot[tHandle.uIndex], NULL);
-    ptVulkanGfx->sbtSamplersHot[tHandle.uIndex] = VK_NULL_HANDLE;
-    ptGraphics->sbtSamplerGenerations[tHandle.uIndex]++;
-    pl_sb_push(ptGraphics->sbtSamplerFreeIndices, tHandle.uIndex);
+    vkDestroySampler(ptDevice->tLogicalDevice, ptDevice->sbtSamplersHot[tHandle.uIndex], NULL);
+    ptDevice->sbtSamplersHot[tHandle.uIndex] = VK_NULL_HANDLE;
+    ptDevice->sbtSamplerGenerations[tHandle.uIndex]++;
+    pl_sb_push(ptDevice->sbtSamplerFreeIndices, tHandle.uIndex);
 }
 
 static void
 pl_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    ptGraphics->sbtBindGroupGenerations[tHandle.uIndex]++;
+    ptDevice->sbtBindGroupGenerations[tHandle.uIndex]++;
 
-    plVulkanBindGroup* ptVulkanResource = &ptVulkanGfx->sbtBindGroupsHot[tHandle.uIndex];
+    plVulkanBindGroup* ptVulkanResource = &ptDevice->sbtBindGroupsHot[tHandle.uIndex];
     ptVulkanResource->tDescriptorSet = VK_NULL_HANDLE;
-    vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tDescriptorSetLayout, NULL);
+    vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanResource->tDescriptorSetLayout, NULL);
     ptVulkanResource->tDescriptorSetLayout = VK_NULL_HANDLE;
-    pl_sb_push(ptGraphics->sbtBindGroupFreeIndices, tHandle.uIndex);
+    pl_sb_push(ptDevice->sbtBindGroupFreeIndices, tHandle.uIndex);
 }
 
 static void
 pl_destroy_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    ptGraphics->sbtRenderPassGenerations[tHandle.uIndex]++;
+    ptDevice->sbtRenderPassGenerations[tHandle.uIndex]++;
 
-    plVulkanRenderPass* ptVulkanResource = &ptVulkanGfx->sbtRenderPassesHot[tHandle.uIndex];
-    for(uint32_t j = 0; j < PL_FRAMES_IN_FLIGHT; j++)
+    plVulkanRenderPass* ptVulkanResource = &ptDevice->sbtRenderPassesHot[tHandle.uIndex];
+    for(uint32_t j = 0; j < gptGraphics->uFramesInFlight; j++)
     {
         if(ptVulkanResource->atFrameBuffers[j])
-            vkDestroyFramebuffer(ptVulkanDevice->tLogicalDevice, ptVulkanResource->atFrameBuffers[j], NULL);
+            vkDestroyFramebuffer(ptDevice->tLogicalDevice, ptVulkanResource->atFrameBuffers[j], NULL);
         ptVulkanResource->atFrameBuffers[j] = VK_NULL_HANDLE;
     }
     if(ptVulkanResource->tRenderPass)
-        vkDestroyRenderPass(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tRenderPass, NULL);
+        vkDestroyRenderPass(ptDevice->tLogicalDevice, ptVulkanResource->tRenderPass, NULL);
     ptVulkanResource->tRenderPass = VK_NULL_HANDLE;
-    pl_sb_push(ptGraphics->sbtRenderPassFreeIndices, tHandle.uIndex);
+    pl_sb_push(ptDevice->sbtRenderPassFreeIndices, tHandle.uIndex);
 }
 
 static void
 pl_destroy_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    ptGraphics->sbtRenderPassLayoutGenerations[tHandle.uIndex]++;
+    ptDevice->sbtRenderPassLayoutGenerations[tHandle.uIndex]++;
 
-    plVulkanRenderPassLayout* ptVulkanResource = &ptVulkanGfx->sbtRenderPassLayoutsHot[tHandle.uIndex];
-    vkDestroyRenderPass(ptVulkanDevice->tLogicalDevice, ptVulkanResource->tRenderPass, NULL);
-    pl_sb_push(ptGraphics->sbtRenderPassLayoutFreeIndices, tHandle.uIndex);
+    plVulkanRenderPassLayout* ptVulkanResource = &ptDevice->sbtRenderPassLayoutsHot[tHandle.uIndex];
+    vkDestroyRenderPass(ptDevice->tLogicalDevice, ptVulkanResource->tRenderPass, NULL);
+    pl_sb_push(ptDevice->sbtRenderPassLayoutFreeIndices, tHandle.uIndex);
 }
 
 static void
 pl_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    ptGraphics->sbtShaderGenerations[tHandle.uIndex]++;
+    ptDevice->sbtShaderGenerations[tHandle.uIndex]++;
 
-    plShader* ptResource = &ptGraphics->sbtShadersCold[tHandle.uIndex];
+    plShader* ptResource = &ptDevice->sbtShadersCold[tHandle.uIndex];
 
-    plVulkanShader* ptVariantVulkanResource = &ptVulkanGfx->sbtShadersHot[tHandle.uIndex];
-    vkDestroyPipelineLayout(ptVulkanDevice->tLogicalDevice, ptVariantVulkanResource->tPipelineLayout, NULL);
-    vkDestroyPipeline(ptVulkanDevice->tLogicalDevice, ptVariantVulkanResource->tPipeline, NULL);
+    plVulkanShader* ptVariantVulkanResource = &ptDevice->sbtShadersHot[tHandle.uIndex];
+    vkDestroyPipelineLayout(ptDevice->tLogicalDevice, ptVariantVulkanResource->tPipelineLayout, NULL);
+    vkDestroyPipeline(ptDevice->tLogicalDevice, ptVariantVulkanResource->tPipeline, NULL);
     ptVariantVulkanResource->tPipelineLayout = VK_NULL_HANDLE;
     ptVariantVulkanResource->tPipeline = VK_NULL_HANDLE;
-    pl_sb_push(ptGraphics->sbtShaderFreeIndices, tHandle.uIndex);
+    pl_sb_push(ptDevice->sbtShaderFreeIndices, tHandle.uIndex);
     for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount; k++)
     {
-        plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptVulkanGfx->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
-        vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
+        plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
+        vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
         ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
-        pl_sb_push(ptVulkanGfx->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k].uHandle);
+        pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k].uHandle);
     }
 }
 
 static void
 pl_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
 {
-    plGraphics* ptGraphics = ptDevice->ptGraphics;
-    plVulkanGraphics* ptVulkanGfx = ptGraphics->_pInternalData;
-    plVulkanDevice* ptVulkanDevice = ptDevice->_pInternalData;
-    ptGraphics->sbtComputeShaderGenerations[tHandle.uIndex]++;
+    ptDevice->sbtComputeShaderGenerations[tHandle.uIndex]++;
 
-    plComputeShader* ptResource = &ptGraphics->sbtComputeShadersCold[tHandle.uIndex];
+    plComputeShader* ptResource = &ptDevice->sbtComputeShadersCold[tHandle.uIndex];
 
-    plVulkanComputeShader* ptVariantVulkanResource = &ptVulkanGfx->sbtComputeShadersHot[tHandle.uIndex];
-    vkDestroyPipelineLayout(ptVulkanDevice->tLogicalDevice, ptVariantVulkanResource->tPipelineLayout, NULL);
-    vkDestroyPipeline(ptVulkanDevice->tLogicalDevice, ptVariantVulkanResource->tPipeline, NULL);
+    plVulkanComputeShader* ptVariantVulkanResource = &ptDevice->sbtComputeShadersHot[tHandle.uIndex];
+    vkDestroyPipelineLayout(ptDevice->tLogicalDevice, ptVariantVulkanResource->tPipelineLayout, NULL);
+    vkDestroyPipeline(ptDevice->tLogicalDevice, ptVariantVulkanResource->tPipeline, NULL);
     ptVariantVulkanResource->tPipelineLayout = VK_NULL_HANDLE;
     ptVariantVulkanResource->tPipeline = VK_NULL_HANDLE;
-    pl_sb_push(ptGraphics->sbtComputeShaderFreeIndices, tHandle.uIndex);
+    pl_sb_push(ptDevice->sbtComputeShaderFreeIndices, tHandle.uIndex);
 
     for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount + 1; k++)
     {
-        plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptVulkanGfx->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
-        vkDestroyDescriptorSetLayout(ptVulkanDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
+        plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
+        vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
         ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
-        pl_sb_push(ptVulkanGfx->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k].uHandle);
+        pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k].uHandle);
     }
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] extension loading
-//-----------------------------------------------------------------------------
-
-static const plGraphicsI*
-pl_load_graphics_api(void)
-{
-    static const plGraphicsI tApi = {
-        .initialize                       = pl_initialize_graphics,
-        .resize                           = pl_resize,
-        .begin_frame                      = pl_begin_frame,
-        .dispatch                         = pl_dispatch,
-        .bind_compute_bind_groups         = pl_bind_compute_bind_groups,
-        .bind_graphics_bind_groups        = pl_bind_graphics_bind_groups,
-        .bind_shader                      = pl_bind_shader,
-        .bind_compute_shader              = pl_bind_compute_shader,
-        .set_scissor_region               = pl_set_scissor_region,
-        .set_viewport                     = pl_set_viewport,
-        .bind_vertex_buffer               = pl_bind_vertex_buffer,
-        .cleanup                          = pl_shutdown,
-        .begin_command_recording          = pl_begin_command_recording,
-        .end_command_recording            = pl_end_command_recording,
-        .submit_command_buffer            = pl_submit_command_buffer,
-        .submit_command_buffer_blocking   = pl_submit_command_buffer_blocking,
-        .begin_render_pass                = pl_begin_render_pass,
-        .begin_compute_pass               = pl_begin_compute_pass,
-        .begin_blit_pass                  = pl_begin_blit_pass,
-        .next_subpass                     = pl_next_subpass,
-        .end_render_pass                  = pl_end_render_pass,
-        .end_compute_pass                 = pl_end_compute_pass,
-        .end_blit_pass                    = pl_end_blit_pass,
-        .draw_stream                      = pl_draw_stream,
-        .draw                             = pl_draw,
-        .draw_indexed                     = pl_draw_indexed,
-        .present                          = pl_present,
-        .copy_buffer_to_texture           = pl_copy_buffer_to_texture,
-        .copy_texture_to_buffer           = pl_copy_texture_to_buffer,
-        .generate_mipmaps                 = pl_generate_mipmaps,
-        .copy_buffer                      = pl_copy_buffer,
-        .signal_semaphore                 = pl_signal_semaphore,
-        .wait_semaphore                   = pl_wait_semaphore,
-        .get_semaphore_value              = pl_get_semaphore_value,
-        .reset_draw_stream                = pl_drawstream_reset,
-        .add_to_stream                    = pl_drawstream_draw,
-        .cleanup_draw_stream              = pl_drawstream_cleanup
-    };
-    return &tApi;
-}
-
-static const plDeviceI*
-pl_load_device_api(void)
-{
-    static const plDeviceI tApi = {
-        .create_semaphore                       = pl_create_semaphore,
-        .create_buffer                          = pl_create_buffer,
-        .create_shader                          = pl_create_shader,
-        .create_compute_shader                  = pl_create_compute_shader,
-        .create_render_pass_layout              = pl_create_render_pass_layout,
-        .create_render_pass                     = pl_create_render_pass,
-        .create_texture                         = pl_create_texture,
-        .create_texture_view                    = pl_create_texture_view,
-        .create_bind_group                      = pl_create_bind_group,
-        .create_sampler                         = pl_create_sampler,
-        .get_temporary_bind_group               = pl_get_temporary_bind_group,
-        .update_bind_group                      = pl_update_bind_group,
-        .allocate_dynamic_data                  = pl_allocate_dynamic_data,
-        .queue_buffer_for_deletion              = pl_queue_buffer_for_deletion,
-        .queue_texture_for_deletion             = pl_queue_texture_for_deletion,
-        .queue_bind_group_for_deletion          = pl_queue_bind_group_for_deletion,
-        .queue_shader_for_deletion              = pl_queue_shader_for_deletion,
-        .queue_compute_shader_for_deletion      = pl_queue_compute_shader_for_deletion,
-        .queue_render_pass_for_deletion         = pl_queue_render_pass_for_deletion,
-        .queue_render_pass_layout_for_deletion  = pl_queue_render_pass_layout_for_deletion,
-        .queue_sampler_for_deletion             = pl_queue_sampler_for_deletion,
-        .destroy_buffer                         = pl_destroy_buffer,
-        .destroy_texture                        = pl_destroy_texture,
-        .destroy_bind_group                     = pl_destroy_bind_group,
-        .destroy_shader                         = pl_destroy_shader,
-        .destroy_sampler                        = pl_destroy_sampler,
-        .destroy_compute_shader                 = pl_destroy_compute_shader,
-        .destroy_render_pass                    = pl_destroy_render_pass,
-        .destroy_render_pass_layout             = pl_destroy_render_pass_layout,
-        .update_render_pass_attachments         = pl_update_render_pass_attachments,
-        .get_buffer                             = pl__get_buffer,
-        .get_texture                            = pl__get_texture,
-        .get_bind_group                         = pl__get_bind_group,
-        .get_shader                             = pl__get_shader,
-        .allocate_memory                        = pl_allocate_memory,
-        .free_memory                            = pl_free_memory,
-        .flush_device                           = pl_flush_device,
-        .bind_buffer_to_memory                  = pl_bind_buffer_to_memory,
-        .bind_texture_to_memory                 = pl_bind_texture_to_memory,
-        .get_sampler                            = pl_get_sampler,
-        .get_render_pass                        = pl_get_render_pass,
-        .get_render_pass_layout                 = pl_get_render_pass_layout
-    };
-    return &tApi;
-}
-
-static void
-pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-    if(bReload)
-    {
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_GRAPHICS), pl_load_graphics_api());
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_DEVICE), pl_load_device_api());
-
-        // find log channel
-        uint32_t uChannelCount = 0;
-        plLogChannel* ptChannels = pl_get_log_channels(&uChannelCount);
-        for(uint32_t i = 0; i < uChannelCount; i++)
-        {
-            if(strcmp(ptChannels[i].pcName, "Vulkan") == 0)
-            {
-                uLogChannelGraphics = i;
-                break;
-            }
-        }
-    }
-    else
-    {
-        ptApiRegistry->add(PL_API_GRAPHICS, pl_load_graphics_api());
-        ptApiRegistry->add(PL_API_DEVICE, pl_load_device_api());
-        uLogChannelGraphics = pl_add_log_channel("Vulkan", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
-    }
-}
-
-static void
-pl_unload_graphics_ext(plApiRegistryI* ptApiRegistry)
-{
-    
 }

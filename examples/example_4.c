@@ -53,9 +53,11 @@ typedef struct _plAppData
     plBufferHandle tVertexBuffer;
 
     // graphics & sync objects
-    plGraphics        tGraphics;
-    plSemaphoreHandle atSempahore[PL_FRAMES_IN_FLIGHT];
-    uint64_t          aulNextTimelineValue[PL_FRAMES_IN_FLIGHT];
+    plDevice*         ptDevice;
+    plSurface*        ptSurface;
+    plSwapchain*      ptSwapchain;
+    plSemaphoreHandle atSempahore[PL_MAX_FRAMES_IN_FLIGHT];
+    uint64_t          aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
 
 } plAppData;
 
@@ -66,7 +68,6 @@ typedef struct _plAppData
 const plIOI*       gptIO      = NULL;
 const plWindowI*   gptWindows = NULL;
 const plGraphicsI* gptGfx     = NULL;
-const plDeviceI*   gptDevice  = NULL;
 const plShaderI*   gptShader  = NULL;
 
 //-----------------------------------------------------------------------------
@@ -101,7 +102,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptIO      = ptApiRegistry->first(PL_API_IO);
         gptWindows = ptApiRegistry->first(PL_API_WINDOW);
         gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
-        gptDevice  = ptApiRegistry->first(PL_API_DEVICE);
         gptShader  = ptApiRegistry->first(PL_API_SHADER);
 
         return ptAppData;
@@ -135,7 +135,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptIO      = ptApiRegistry->first(PL_API_IO);
     gptWindows = ptApiRegistry->first(PL_API_WINDOW);
     gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
-    gptDevice  = ptApiRegistry->first(PL_API_DEVICE);
     gptShader  = ptApiRegistry->first(PL_API_SHADER);
 
     // use window API to create a window
@@ -149,10 +148,23 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->ptWindow = gptWindows->create_window(&tWindowDesc);
 
     // initialize graphics system
-    const plGraphicsDesc tGraphicsDesc = {
-        .bEnableValidation = true
+    const plGraphicsInit tGraphicsInit = {
+        .tFlags = PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED | PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED | PL_GRAPHICS_INIT_FLAGS_DEBUG_ENABLED 
     };
-    gptGfx->initialize(ptAppData->ptWindow, &tGraphicsDesc, &ptAppData->tGraphics);
+    gptGfx->initialize(&tGraphicsInit);
+    ptAppData->ptSurface = gptGfx->create_surface(ptAppData->ptWindow);
+
+    // create device
+    const plDeviceInit tDeviceInit = {
+        .ptSurface = ptAppData->ptSurface
+    };
+    ptAppData->ptDevice = gptGfx->create_device(&tDeviceInit);
+
+    // create swapchain
+    const plSwapchainInit tSwapInit = {
+        .ptSurface = ptAppData->ptSurface
+    };
+    ptAppData->ptSwapchain = gptGfx->create_swapchain(ptAppData->ptDevice, &tSwapInit);
 
     // initialize shader extension
     static const plShaderOptions tDefaultShaderOptions = {
@@ -164,11 +176,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptShader->initialize(&tDefaultShaderOptions);
 
     // for convience
-    plDevice* ptDevice = &ptAppData->tGraphics.tDevice;
+    plDevice* ptDevice = ptAppData->ptDevice;
 
     // create timeline semaphores to syncronize GPU work submission
-    for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
-        ptAppData->atSempahore[i] = gptDevice->create_semaphore(ptDevice, false);
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        ptAppData->atSempahore[i] = gptGfx->create_semaphore(ptDevice, false);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -184,23 +196,23 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .tUsage    = PL_BUFFER_USAGE_VERTEX,
         .uByteSize = sizeof(float) * 18
     };
-    ptAppData->tVertexBuffer = gptDevice->create_buffer(ptDevice, &tBufferDesc, "vertex buffer");
+    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tBufferDesc, "vertex buffer");
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptVertexBuffer = gptDevice->get_buffer(ptDevice, ptAppData->tVertexBuffer);
+    plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tVertexBuffer);
 
     // allocate memory for the vertex buffer
     // NOTE: for this example we are using host visible memory for simplicity (PL_MEMORY_GPU_CPU)
     //       which is persistently mapped. For rarely updated memory, device local memory should
     //       be used, with uploads transfered from staging buffers (see example 5)
-    const plDeviceMemoryAllocation tAllocation = gptDevice->allocate_memory(ptDevice,
+    const plDeviceMemoryAllocation tAllocation = gptGfx->allocate_memory(ptDevice,
         ptVertexBuffer->tMemoryRequirements.ulSize,
         PL_MEMORY_GPU_CPU,
         ptVertexBuffer->tMemoryRequirements.uMemoryTypeBits,
         "vertex buffer memory");
 
     // bind the buffer to the new memory allocation
-    gptDevice->bind_buffer_to_memory(ptDevice, ptAppData->tVertexBuffer, &tAllocation);
+    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tVertexBuffer, &tAllocation);
 
     // copy vertex data to newly allocated memory
     memcpy(ptVertexBuffer->tMemoryAllocation.pHostMapped, atVertexData, sizeof(float) * 18);
@@ -235,9 +247,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             }
         },
         .uBlendStateCount = 1,
-        .tRenderPassLayout = ptAppData->tGraphics.tMainRenderPassLayout,
+        .tRenderPassLayout = gptGfx->get_render_pass(ptDevice, gptGfx->get_main_render_pass(ptDevice))->tDesc.tLayout,
     };
-    ptAppData->tShader = gptDevice->create_shader(ptDevice, &tShaderDesc);
+    ptAppData->tShader = gptGfx->create_shader(ptDevice, &tShaderDesc);
 
     // return app memory
     return ptAppData;
@@ -251,10 +263,12 @@ PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
     // ensure GPU is finished before cleanup
-    gptDevice->flush_device(&ptAppData->tGraphics.tDevice);
-    gptDevice->destroy_shader(&ptAppData->tGraphics.tDevice, ptAppData->tShader);
-    gptDevice->destroy_buffer(&ptAppData->tGraphics.tDevice, ptAppData->tVertexBuffer);
-    gptGfx->cleanup(&ptAppData->tGraphics);
+    gptGfx->flush_device(ptAppData->ptDevice);
+    gptGfx->destroy_shader(ptAppData->ptDevice, ptAppData->tShader);
+    gptGfx->destroy_buffer(ptAppData->ptDevice, ptAppData->tVertexBuffer);
+    gptGfx->cleanup_swapchain(ptAppData->ptSwapchain);
+    gptGfx->cleanup_surface(ptAppData->ptSurface);
+    gptGfx->cleanup_device(ptAppData->ptDevice);
     gptWindows->destroy_window(ptAppData->ptWindow);
     pl_cleanup_profile_context();
     pl_cleanup_log_context();
@@ -269,7 +283,7 @@ PL_EXPORT void
 pl_app_resize(plAppData* ptAppData)
 {
     // perform any operations required during a window resize
-    gptGfx->resize(&ptAppData->tGraphics); // recreates swapchain
+    gptGfx->resize(ptAppData->ptSwapchain); // recreates swapchain
 }
 
 //-----------------------------------------------------------------------------
@@ -283,60 +297,59 @@ pl_app_update(plAppData* ptAppData)
 
     gptIO->new_frame();
 
-    // for convience
-    plGraphics* ptGraphics = &ptAppData->tGraphics;
-
     // begin new frame
-    if(!gptGfx->begin_frame(ptGraphics))
+    if(!gptGfx->begin_frame(ptAppData->ptSwapchain))
     {
-        gptGfx->resize(ptGraphics);
+        gptGfx->resize(ptAppData->ptSwapchain);
         pl_end_profile_frame();
         return;
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~begin recording command buffer~~~~~~~~~~~~~~~~~~~~~~~
 
+    const uint32_t uCurrentFrameIndex = gptGfx->get_current_frame_index();
+
     // expected timeline semaphore values
-    uint64_t ulValue0 = ptAppData->aulNextTimelineValue[ptGraphics->uCurrentFrameIndex];
+    uint64_t ulValue0 = ptAppData->aulNextTimelineValue[uCurrentFrameIndex];
     uint64_t ulValue1 = ulValue0 + 1;
-    ptAppData->aulNextTimelineValue[ptGraphics->uCurrentFrameIndex] = ulValue1;
+    ptAppData->aulNextTimelineValue[uCurrentFrameIndex] = ulValue1;
 
     const plBeginCommandInfo tBeginInfo = {
         .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
+        .atWaitSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue0},
     };
-    plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo);
+    plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptAppData->ptDevice, &tBeginInfo);
 
     // begin main renderpass (directly to swapchain)
-    plRenderEncoder tEncoder = gptGfx->begin_render_pass(ptGraphics, &tCommandBuffer, ptGraphics->tMainRenderPass);
+    plRenderEncoderHandle tEncoder = gptGfx->begin_render_pass(tCommandBuffer, gptGfx->get_main_render_pass(ptAppData->ptDevice));
 
     // submit nonindexed draw using basic API
-    gptGfx->bind_shader(&tEncoder, ptAppData->tShader);
-    gptGfx->bind_vertex_buffer(&tEncoder, ptAppData->tVertexBuffer);
+    gptGfx->bind_shader(tEncoder, ptAppData->tShader);
+    gptGfx->bind_vertex_buffer(tEncoder, ptAppData->tVertexBuffer);
 
     const plDraw tDraw = {
         .uInstanceCount = 1,
         .uVertexCount   = 3
     };
-    gptGfx->draw(&tEncoder, 1, &tDraw);
+    gptGfx->draw(tEncoder, 1, &tDraw);
 
     // end render pass
-    gptGfx->end_render_pass(&tEncoder);
+    gptGfx->end_render_pass(tEncoder);
 
     // end recording
-    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
+    gptGfx->end_command_recording(tCommandBuffer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~submit work to GPU & present~~~~~~~~~~~~~~~~~~~~~~~
 
     const plSubmitInfo tSubmitInfo = {
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
+        .atSignalSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
         .auSignalSemaphoreValues = {ulValue1},
     };
 
-    if(!gptGfx->present(ptGraphics, &tCommandBuffer, &tSubmitInfo))
-        gptGfx->resize(ptGraphics);
+    if(!gptGfx->present(tCommandBuffer, &tSubmitInfo, ptAppData->ptSwapchain))
+        gptGfx->resize(ptAppData->ptSwapchain);
 
     pl_end_profile_frame();
 }

@@ -294,7 +294,7 @@ pl_end_frame(void)
 }
 
 void
-pl_render(plRenderEncoder tEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount)
+pl_render(plRenderEncoderHandle tEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount)
 {
     gptDraw->submit_2d_layer(gptCtx->ptBgLayer);
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptWindows); i++)

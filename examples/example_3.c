@@ -55,9 +55,11 @@ typedef struct _plAppData
     // drawing
 
     // graphics & sync objects
-    plGraphics        tGraphics;
-    plSemaphoreHandle atSempahore[PL_FRAMES_IN_FLIGHT];
-    uint64_t          aulNextTimelineValue[PL_FRAMES_IN_FLIGHT];
+    plDevice*         ptDevice;
+    plSurface*        ptSurface;
+    plSwapchain*      ptSwapchain;
+    plSemaphoreHandle atSempahore[PL_MAX_FRAMES_IN_FLIGHT];
+    uint64_t          aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
 
 } plAppData;
 
@@ -68,7 +70,6 @@ typedef struct _plAppData
 const plIOI*       gptIO      = NULL;
 const plWindowI*   gptWindows = NULL;
 const plGraphicsI* gptGfx     = NULL;
-const plDeviceI*   gptDevice  = NULL;
 const plDrawI*     gptDraw    = NULL;
 const plUiI*       gptUi      = NULL;
 const plShaderI*   gptShader  = NULL;
@@ -105,7 +106,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptIO      = ptApiRegistry->first(PL_API_IO);
         gptWindows = ptApiRegistry->first(PL_API_WINDOW);
         gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
-        gptDevice  = ptApiRegistry->first(PL_API_DEVICE);
         gptDraw    = ptApiRegistry->first(PL_API_DRAW);
         gptUi      = ptApiRegistry->first(PL_API_UI);
         gptShader  = ptApiRegistry->first(PL_API_SHADER);
@@ -141,7 +141,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptIO      = ptApiRegistry->first(PL_API_IO);
     gptWindows = ptApiRegistry->first(PL_API_WINDOW);
     gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
-    gptDevice  = ptApiRegistry->first(PL_API_DEVICE);
     gptDraw    = ptApiRegistry->first(PL_API_DRAW);
     gptUi      = ptApiRegistry->first(PL_API_UI);
     gptShader  = ptApiRegistry->first(PL_API_SHADER);
@@ -166,13 +165,26 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->ptWindow = gptWindows->create_window(&tWindowDesc);
 
     // initialize graphics system
-    const plGraphicsDesc tGraphicsDesc = {
-        .bEnableValidation = true
+    const plGraphicsInit tGraphicsInit = {
+        .tFlags = PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED | PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED | PL_GRAPHICS_INIT_FLAGS_DEBUG_ENABLED 
     };
-    gptGfx->initialize(ptAppData->ptWindow, &tGraphicsDesc, &ptAppData->tGraphics);
+    gptGfx->initialize(&tGraphicsInit);
+    ptAppData->ptSurface = gptGfx->create_surface(ptAppData->ptWindow);
+
+    // create device
+    const plDeviceInit tDeviceInit = {
+        .ptSurface = ptAppData->ptSurface
+    };
+    ptAppData->ptDevice = gptGfx->create_device(&tDeviceInit);
+
+    // create swapchain
+    const plSwapchainInit tSwapInit = {
+        .ptSurface = ptAppData->ptSurface
+    };
+    ptAppData->ptSwapchain = gptGfx->create_swapchain(ptAppData->ptDevice, &tSwapInit);
 
     // setup draw
-    gptDraw->initialize(&ptAppData->tGraphics);
+    gptDraw->initialize(ptAppData->ptDevice);
     plFontHandle tDefaultFont = gptDraw->add_default_font();
     gptDraw->build_font_atlas();
 
@@ -181,8 +193,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptUi->set_default_font(tDefaultFont);
 
     // create timeline semaphores to syncronize GPU work submission
-    for(uint32_t i = 0; i < PL_FRAMES_IN_FLIGHT; i++)
-        ptAppData->atSempahore[i] = gptDevice->create_semaphore(&ptAppData->tGraphics.tDevice, false);
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        ptAppData->atSempahore[i] = gptGfx->create_semaphore(ptAppData->ptDevice, false);
 
     // return app memory
     return ptAppData;
@@ -196,11 +208,13 @@ PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
     // ensure GPU is finished before cleanup
-    gptDevice->flush_device(&ptAppData->tGraphics.tDevice);
+    gptGfx->flush_device(ptAppData->ptDevice);
     gptDraw->cleanup_font_atlas();
     gptUi->cleanup();
     gptDraw->cleanup();
-    gptGfx->cleanup(&ptAppData->tGraphics);
+    gptGfx->cleanup_swapchain(ptAppData->ptSwapchain);
+    gptGfx->cleanup_surface(ptAppData->ptSurface);
+    gptGfx->cleanup_device(ptAppData->ptDevice);
     gptWindows->destroy_window(ptAppData->ptWindow);
     pl_cleanup_profile_context();
     pl_cleanup_log_context();
@@ -215,7 +229,7 @@ PL_EXPORT void
 pl_app_resize(plAppData* ptAppData)
 {
     // perform any operations required during a window resize
-    gptGfx->resize(&ptAppData->tGraphics); // recreates swapchain
+    gptGfx->resize(ptAppData->ptSwapchain); // recreates swapchain
 }
 
 //-----------------------------------------------------------------------------
@@ -231,13 +245,10 @@ pl_app_update(plAppData* ptAppData)
     gptDraw->new_frame();
     gptUi->new_frame();
 
-    // for convience
-    plGraphics* ptGraphics = &ptAppData->tGraphics;
-
     // begin new frame
-    if(!gptGfx->begin_frame(ptGraphics))
+    if(!gptGfx->begin_frame(ptAppData->ptSwapchain))
     {
-        gptGfx->resize(ptGraphics);
+        gptGfx->resize(ptAppData->ptSwapchain);
         pl_end_profile_frame();
         return;
     }
@@ -287,40 +298,41 @@ pl_app_update(plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~begin recording command buffer~~~~~~~~~~~~~~~~~~~~~~~
 
     // expected timeline semaphore values
-    uint64_t ulValue0 = ptAppData->aulNextTimelineValue[ptGraphics->uCurrentFrameIndex];
+    const uint32_t uCurrentFrameIndex = gptGfx->get_current_frame_index();
+    uint64_t ulValue0 = ptAppData->aulNextTimelineValue[uCurrentFrameIndex];
     uint64_t ulValue1 = ulValue0 + 1;
-    ptAppData->aulNextTimelineValue[ptGraphics->uCurrentFrameIndex] = ulValue1;
+    ptAppData->aulNextTimelineValue[uCurrentFrameIndex] = ulValue1;
 
     const plBeginCommandInfo tBeginInfo = {
         .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
+        .atWaitSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue0},
     };
-    plCommandBuffer tCommandBuffer = gptGfx->begin_command_recording(ptGraphics, &tBeginInfo);
+    plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptAppData->ptDevice, &tBeginInfo);
 
     // begin main renderpass (directly to swapchain)
-    plRenderEncoder tEncoder = gptGfx->begin_render_pass(ptGraphics, &tCommandBuffer, ptGraphics->tMainRenderPass);
+    plRenderEncoderHandle tEncoder = gptGfx->begin_render_pass(tCommandBuffer, gptGfx->get_main_render_pass(ptAppData->ptDevice));
 
     // submits UI drawlist/layers
     plIO* ptIO = gptIO->get_io();
     gptUi->render(tEncoder, ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1], 1);
 
     // end render pass
-    gptGfx->end_render_pass(&tEncoder);
+    gptGfx->end_render_pass(tEncoder);
 
     // end recording
-    gptGfx->end_command_recording(ptGraphics, &tCommandBuffer);
+    gptGfx->end_command_recording(tCommandBuffer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~submit work to GPU & present~~~~~~~~~~~~~~~~~~~~~~~
 
     const plSubmitInfo tSubmitInfo = {
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {ptAppData->atSempahore[ptGraphics->uCurrentFrameIndex]},
+        .atSignalSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
         .auSignalSemaphoreValues = {ulValue1},
     };
 
-    if(!gptGfx->present(ptGraphics, &tCommandBuffer, &tSubmitInfo))
-        gptGfx->resize(ptGraphics);
+    if(!gptGfx->present(tCommandBuffer, &tSubmitInfo, ptAppData->ptSwapchain))
+        gptGfx->resize(ptAppData->ptSwapchain);
 
     pl_end_profile_frame();
 }

@@ -52,8 +52,8 @@ Index of this file:
     #define PL_MAX_RENDER_TARGETS 16
 #endif
 
-#ifndef PL_FRAMES_IN_FLIGHT
-    #define PL_FRAMES_IN_FLIGHT 2
+#ifndef PL_MAX_FRAMES_IN_FLIGHT
+    #define PL_MAX_FRAMES_IN_FLIGHT 2
 #endif
 
 #ifndef PL_MAX_SUBPASSES
@@ -83,9 +83,6 @@ Index of this file:
 #define PL_API_GRAPHICS "PL_API_GRAPHICS"
 typedef struct _plGraphicsI plGraphicsI;
 
-#define PL_API_DEVICE "PL_API_DEVICE"
-typedef struct _plDeviceI plDeviceI;
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -104,8 +101,10 @@ typedef struct _plDeviceI plDeviceI;
 typedef struct _plDevice                     plDevice;
 typedef struct _plBuffer                     plBuffer;
 typedef struct _plSwapchain                  plSwapchain;
-typedef struct _plGraphicsDesc               plGraphicsDesc;
-typedef struct _plGraphics                   plGraphics;
+typedef struct _plSurface                    plSurface;
+typedef struct _plGraphicsInit               plGraphicsInit;
+typedef struct _plDeviceInit                 plDeviceInit;
+typedef struct _plSwapchainInit              plSwapchainInit;
 typedef struct _plStreamDraw                 plStreamDraw;
 typedef struct _plDispatch                   plDispatch;
 typedef struct _plDrawArea                   plDrawArea;
@@ -145,7 +144,6 @@ typedef struct _plCommandBuffer              plCommandBuffer;
 typedef struct _plRenderEncoder              plRenderEncoder;
 typedef struct _plComputeEncoder             plComputeEncoder;
 typedef struct _plBlitEncoder                plBlitEncoder;
-typedef struct _plTimelineSemaphore          plTimelineSemaphore;
 typedef struct _plBeginCommandInfo           plBeginCommandInfo;
 typedef struct _plSubmitInfo                 plSubmitInfo;
 typedef struct _plBindGroupUpdateData        plBindGroupUpdateData;
@@ -175,12 +173,20 @@ PL_DEFINE_HANDLE(plRenderPassHandle);
 PL_DEFINE_HANDLE(plRenderPassLayoutHandle);
 PL_DEFINE_HANDLE(plSemaphoreHandle);
 
+PL_DEFINE_HANDLE(plCommandBufferHandle);
+PL_DEFINE_HANDLE(plRenderEncoderHandle);
+PL_DEFINE_HANDLE(plComputeEncoderHandle);
+PL_DEFINE_HANDLE(plBlitEncoderHandle);
+
 // device memory
 typedef struct _plDeviceMemoryRequirements plDeviceMemoryRequirements;
 typedef struct _plDeviceMemoryAllocation   plDeviceMemoryAllocation;
 typedef struct _plDeviceMemoryAllocatorI   plDeviceMemoryAllocatorI;
 
 // enums
+typedef int plGraphicsInitFlags;  // -> enum _plGraphicsInitFlags      // Flags:
+typedef int plDeviceInitFlags;    // -> enum _plDeviceInitFlags        // Flags:
+typedef int plSwapchainInitFlags; // -> enum _plSwapchainInitFlags     // Flags:
 typedef int plDataType;           // -> enum _plDataType               // Enum:
 typedef int plBufferBindingType;  // -> enum _plBufferBindingType      // Enum:
 typedef int plTextureBindingType; // -> enum _plTextureBindingType     // Enum:
@@ -210,8 +216,84 @@ typedef struct _plWindow plWindow;
 // [SECTION] public api structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plDeviceI
+typedef struct _plGraphicsI
 {
+    // context
+    void (*initialize)(const plGraphicsInit*);
+    void (*resize)    (plSwapchain*);
+    void (*cleanup)   (void);
+
+    // devices
+    plDevice* (*create_device)(const plDeviceInit*);
+    void      (*cleanup_device)(plDevice*);
+
+    // surface
+    plSurface* (*create_surface)(plWindow*);
+    void       (*cleanup_surface)(plSurface*);
+
+    // swapchain
+    plSwapchain* (*create_swapchain)(plDevice*, const plSwapchainInit*);
+    void         (*cleanup_swapchain)(plSwapchain*);
+
+    // query
+    uint32_t (*get_frames_in_flight)(void);
+    uint32_t (*get_current_frame_index)(void);
+    size_t   (*get_host_memory_in_use)(void);
+    size_t   (*get_local_memory_in_use)(void);
+
+    // per frame
+    bool (*begin_frame)(plSwapchain*);
+
+    // timeline semaphore ops
+    void     (*signal_semaphore)   (plDevice*, plSemaphoreHandle, uint64_t);
+    void     (*wait_semaphore)     (plDevice*, plSemaphoreHandle, uint64_t);
+    uint64_t (*get_semaphore_value)(plDevice*, plSemaphoreHandle);
+
+    // command buffers
+    plCommandBufferHandle (*begin_command_recording)       (plDevice*, const plBeginCommandInfo*);
+    void                  (*end_command_recording)         (plCommandBufferHandle);
+    void                  (*submit_command_buffer)         (plCommandBufferHandle, const plSubmitInfo*);
+    void                  (*submit_command_buffer_blocking)(plCommandBufferHandle, const plSubmitInfo*);
+    bool                  (*present)                       (plCommandBufferHandle, const plSubmitInfo*, plSwapchain*);
+
+    // render encoder
+    plRenderEncoderHandle (*begin_render_pass)         (plCommandBufferHandle, plRenderPassHandle);
+    void                  (*next_subpass)              (plRenderEncoderHandle);
+    void                  (*end_render_pass)           (plRenderEncoderHandle);
+    plRenderPassHandle    (*get_encoder_render_pass)   (plRenderEncoderHandle);
+    uint32_t              (*get_render_encoder_subpass)(plRenderEncoderHandle);
+
+    // render encoder: draw stream (preferred system)
+    void (*reset_draw_stream)  (plDrawStream*);
+    void (*cleanup_draw_stream)(plDrawStream*);
+    void (*add_to_stream)      (plDrawStream*, plStreamDraw);
+    void (*draw_stream)        (plRenderEncoderHandle, uint32_t uAreaCount, plDrawArea*);
+
+    // render encoder: direct (prefer draw stream, this should be used for bindless mostly)
+    void (*bind_graphics_bind_groups)(plRenderEncoderHandle, plShaderHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle*, plDynamicBinding*);
+    void (*set_viewport)             (plRenderEncoderHandle, const plRenderViewport*);
+    void (*set_scissor_region)       (plRenderEncoderHandle, const plScissor*);
+    void (*bind_vertex_buffer)       (plRenderEncoderHandle, plBufferHandle);
+    void (*draw)                     (plRenderEncoderHandle, uint32_t uCount, const plDraw*);
+    void (*draw_indexed)             (plRenderEncoderHandle, uint32_t uCount, const plDrawIndex*);
+    void (*bind_shader)              (plRenderEncoderHandle, plShaderHandle);
+
+    // compute encoder
+    plComputeEncoderHandle (*begin_compute_pass)      (plCommandBufferHandle);
+    void                   (*end_compute_pass)        (plComputeEncoderHandle);
+    void                   (*dispatch)                (plComputeEncoderHandle, uint32_t uDispatchCount, const plDispatch*);
+    void                   (*bind_compute_shader)     (plComputeEncoderHandle, plComputeShaderHandle);
+    void                   (*bind_compute_bind_groups)(plComputeEncoderHandle, plComputeShaderHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle*, plDynamicBinding*);
+
+    // blit encoder
+    plBlitEncoderHandle (*begin_blit_pass)         (plCommandBufferHandle);
+    void                (*end_blit_pass)           (plBlitEncoderHandle);
+    void                (*copy_buffer_to_texture)  (plBlitEncoderHandle, plBufferHandle, plTextureHandle, uint32_t uRegionCount, const plBufferImageCopy*);
+    void                (*copy_texture_to_buffer)  (plBlitEncoderHandle, plTextureHandle, plBufferHandle, uint32_t uRegionCount, const plBufferImageCopy*);
+    void                (*generate_mipmaps)        (plBlitEncoderHandle, plTextureHandle);
+    void                (*copy_buffer)             (plBlitEncoderHandle, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t);
+
+    //-----------------------------------------------------------------------------
 
     // buffers
     plBufferHandle (*create_buffer)            (plDevice*, const plBufferDescription*, const char* pcDebugName);
@@ -253,6 +335,9 @@ typedef struct _plDeviceI
     plRenderPassLayout*      (*get_render_pass_layout)               (plDevice*, plRenderPassLayoutHandle); // do not store
     plRenderPass*            (*get_render_pass)                      (plDevice*, plRenderPassHandle); // do not store
 
+    // render passes (temporary)
+    plRenderPassHandle (*get_main_render_pass)(plDevice*);
+
     // shaders
     plShaderHandle        (*create_shader)                    (plDevice*, const plShaderDescription*);
     plComputeShaderHandle (*create_compute_shader)            (plDevice*, const plComputeShaderDescription*);
@@ -271,65 +356,8 @@ typedef struct _plDeviceI
     void                    (*free_memory)          (plDevice*, plDeviceMemoryAllocation*);
 
     // misc
-    void (*flush_device)(plDevice* ptDevice);
+    void (*flush_device)(plDevice*);
 
-} plDeviceI;
-
-typedef struct _plGraphicsI
-{
-    void (*initialize)(plWindow*, const plGraphicsDesc*, plGraphics*);
-    void (*resize)    (plGraphics*);
-    void (*cleanup)   (plGraphics*);
-
-    // per frame
-    bool (*begin_frame)(plGraphics*);
-
-    // timeline semaphore ops
-    void     (*signal_semaphore)   (plGraphics*, plSemaphoreHandle, uint64_t);
-    void     (*wait_semaphore)     (plGraphics*, plSemaphoreHandle, uint64_t);
-    uint64_t (*get_semaphore_value)(plGraphics*, plSemaphoreHandle);
-
-    // command buffers
-    plCommandBuffer (*begin_command_recording)       (plGraphics*, const plBeginCommandInfo*);
-    void            (*end_command_recording)         (plGraphics*, plCommandBuffer*);
-    void            (*submit_command_buffer)         (plGraphics*, plCommandBuffer*, const plSubmitInfo*);
-    void            (*submit_command_buffer_blocking)(plGraphics*, plCommandBuffer*, const plSubmitInfo*);
-    bool            (*present)                       (plGraphics*, plCommandBuffer*, const plSubmitInfo*);
-
-    // render encoder
-    plRenderEncoder (*begin_render_pass)(plGraphics*, plCommandBuffer*, plRenderPassHandle);
-    void            (*next_subpass)     (plRenderEncoder*);
-    void            (*end_render_pass)  (plRenderEncoder*);
-
-    // render encoder: draw stream (preferred system)
-    void (*reset_draw_stream)  (plDrawStream*);
-    void (*cleanup_draw_stream)(plDrawStream*);
-    void (*add_to_stream)      (plDrawStream*, plStreamDraw);
-    void (*draw_stream)        (plRenderEncoder*, uint32_t uAreaCount, plDrawArea*);
-
-    // render encoder: direct (prefer draw stream, this should be used for bindless mostly)
-    void (*bind_graphics_bind_groups)(plRenderEncoder*, plShaderHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle*, plDynamicBinding*);
-    void (*set_viewport)             (plRenderEncoder*, const plRenderViewport*);
-    void (*set_scissor_region)       (plRenderEncoder*, const plScissor*);
-    void (*bind_vertex_buffer)       (plRenderEncoder*, plBufferHandle);
-    void (*draw)                     (plRenderEncoder*, uint32_t uCount, const plDraw*);
-    void (*draw_indexed)             (plRenderEncoder*, uint32_t uCount, const plDrawIndex*);
-    void (*bind_shader)              (plRenderEncoder*, plShaderHandle);
-
-    // compute encoder
-    plComputeEncoder (*begin_compute_pass)      (plGraphics*, plCommandBuffer*);
-    void             (*end_compute_pass)        (plComputeEncoder*);
-    void             (*dispatch)                (plComputeEncoder*, uint32_t uDispatchCount, const plDispatch*);
-    void             (*bind_compute_shader)     (plComputeEncoder*, plComputeShaderHandle);
-    void             (*bind_compute_bind_groups)(plComputeEncoder*, plComputeShaderHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle*, plDynamicBinding*);
-
-    // blit encoder
-    plBlitEncoder (*begin_blit_pass)         (plGraphics*, plCommandBuffer*);
-    void          (*end_blit_pass)           (plBlitEncoder*);
-    void          (*copy_buffer_to_texture)  (plBlitEncoder*, plBufferHandle, plTextureHandle, uint32_t uRegionCount, const plBufferImageCopy*);
-    void          (*copy_texture_to_buffer)  (plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t uRegionCount, const plBufferImageCopy*);
-    void          (*generate_mipmaps)        (plBlitEncoder*, plTextureHandle);
-    void          (*copy_buffer)             (plBlitEncoder*, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t);
 } plGraphicsI;
 
 //-----------------------------------------------------------------------------
@@ -382,35 +410,6 @@ typedef struct _plBindGroupUpdateData
     const plBindGroupUpdateTextureData* atTextures;
     const plBindGroupUpdateSamplerData* atSamplerBindings;
 } plBindGroupUpdateData;
-
-typedef struct _plCommandBuffer
-{
-    plBeginCommandInfo tBeginInfo;
-    void*              _pInternal;
-} plCommandBuffer;
-
-typedef struct _plRenderEncoder
-{
-    plGraphics*        ptGraphics;
-    plCommandBuffer    tCommandBuffer;
-    plRenderPassHandle tRenderPassHandle;
-    uint32_t           _uCurrentSubpass;
-    void*              _pInternal;
-} plRenderEncoder;
-
-typedef struct _plComputeEncoder
-{
-    plGraphics*     ptGraphics;
-    plCommandBuffer tCommandBuffer;
-    void*           _pInternal;
-} plComputeEncoder;
-
-typedef struct _plBlitEncoder
-{
-    plGraphics*     ptGraphics;
-    plCommandBuffer tCommandBuffer;
-    void*           _pInternal;
-} plBlitEncoder;
 
 typedef struct _plGraphicsState
 {
@@ -805,106 +804,53 @@ typedef struct _plRenderPassDescription
     plColorTarget            atColorTargets[PL_MAX_RENDER_TARGETS];
     plDepthTarget            tDepthTarget;
     plVec2                   tDimensions;
+    plSwapchain*             ptSwapchain;
 } plRenderPassDescription;
 
 typedef struct _plRenderPass
 {
     plRenderPassDescription tDesc;
-    bool                    bSwapchain;
 } plRenderPass;
 
-typedef struct _plDevice
+typedef struct _plGraphicsInit
 {
-    plGraphics*               ptGraphics;
-    bool                      bDescriptorIndexing;
-    plDeviceMemoryAllocatorI* ptDynamicAllocator;
-    void*                     _pInternalData;
-} plDevice;
+    uint32_t            uFramesInFlight;
+    plGraphicsInitFlags tFlags;
+} plGraphicsInit;
 
-typedef struct _plSwapchain
+typedef struct _plDeviceInit
 {
-    plExtent         tExtent;
-    plFormat         tFormat;
-    uint32_t         uImageCount;
-    plTextureHandle* sbtSwapchainTextureViews;
-    uint32_t         uCurrentImageIndex; // current image to use within the swap chain
-    bool             bVSync;
+    plDeviceInitFlags tFlags;
+    plSurface*        ptSurface;
+} plDeviceInit;
 
-    // platform specific
-    void* _pInternalData;
-} plSwapchain;
-
-typedef struct _plGraphicsDesc
+typedef struct _plSwapchainInit
 {
-    bool bEnableValidation;
-} plGraphicsDesc;
-
-typedef struct _plGraphics
-{
-    plDevice           tDevice;
-    plWindow*          ptMainWindow;
-    plSwapchain        tSwapchain;
-    uint32_t           uCurrentFrameIndex;
-    uint32_t           uFramesInFlight;
-    plFrameGarbage*    sbtGarbage;
-    size_t             szLocalMemoryInUse;
-    size_t             szHostMemoryInUse;
-    bool               bValidationActive;
-    plBindGroupHandle* sbtFreeDrawBindGroups;
-
-    // render pass layouts
-    plRenderPassLayout* sbtRenderPassLayoutsCold;
-    uint32_t*           sbtRenderPassLayoutGenerations;
-    uint32_t*           sbtRenderPassLayoutFreeIndices;
-
-    // render passes
-    plRenderPassLayoutHandle tMainRenderPassLayout;
-    plRenderPassHandle       tMainRenderPass;
-    plRenderPass*            sbtRenderPassesCold;
-    uint32_t*                sbtRenderPassGenerations;
-    uint32_t*                sbtRenderPassFreeIndices;
-
-    // shaders
-    plShader* sbtShadersCold;
-    uint32_t* sbtShaderGenerations;
-    uint32_t* sbtShaderFreeIndices;
-
-    // compute shaders
-    plComputeShader* sbtComputeShadersCold;
-    uint32_t*        sbtComputeShaderGenerations;
-    uint32_t*        sbtComputeShaderFreeIndices;
-
-    // buffers
-    plBuffer* sbtBuffersCold;
-    uint32_t* sbtBufferGenerations;
-    uint32_t* sbtBufferFreeIndices;
-
-    // textures
-    plTexture* sbtTexturesCold;
-    uint32_t*  sbtTextureGenerations;
-    uint32_t*  sbtTextureFreeIndices;
-
-    // samplers
-    plSampler* sbtSamplersCold;
-    uint32_t*  sbtSamplerGenerations;
-    uint32_t*  sbtSamplerFreeIndices;
-
-    // bind groups
-    plBindGroup* sbtBindGroupsCold;
-    uint32_t*    sbtBindGroupGenerations;
-    uint32_t*    sbtBindGroupFreeIndices;
-
-    // timeline semaphores
-    uint32_t* sbtSemaphoreGenerations;
-    uint32_t* sbtSemaphoreFreeIndices;
-
-    // platform specific
-    void* _pInternalData;
-} plGraphics;
+    plSwapchainInitFlags tFlags;
+    plSurface*           ptSurface;
+} plSwapchainInit;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
+
+enum _plDeviceInitFlags
+{
+    PL_DEVICE_INIT_FLAGS_NONE = 0
+};
+
+enum _plSwapchainInitFlags
+{
+    PL_SWAPCHAIN_INIT_FLAGS_NONE = 0
+};
+
+enum _plGraphicsInitFlags
+{
+    PL_GRAPHICS_INIT_FLAGS_NONE                = 0,
+    PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED  = 1 << 0,
+    PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED   = 1 << 1,
+    PL_GRAPHICS_INIT_FLAGS_DEBUG_ENABLED       = 1 << 2,
+};
 
 enum _plStageFlags
 {

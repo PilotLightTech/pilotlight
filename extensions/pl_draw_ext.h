@@ -72,9 +72,9 @@ typedef int plDrawFlags;
 typedef int plDrawRectFlags;
 
 // external
-typedef struct _plGraphics      plGraphics;      // pl_graphics_ext.h
-typedef struct _plRenderEncoder plRenderEncoder; // pl_graphics_ext.h
-typedef union  plTextureHandle  plTextureHandle; // pl_graphics_ext.h
+typedef struct _plDevice             plDevice;              // pl_graphics_ext.h
+typedef union  plRenderEncoderHandle plRenderEncoderHandle; // pl_graphics_ext.h
+typedef union  plTextureHandle       plTextureHandle;       // pl_graphics_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -83,7 +83,7 @@ typedef union  plTextureHandle  plTextureHandle; // pl_graphics_ext.h
 typedef struct _plDrawI
 {
     // init/cleanup
-    void (*initialize)(plGraphics*);
+    void (*initialize)(plDevice*);
     void (*cleanup)   (void);
 
     // per frame
@@ -107,7 +107,7 @@ typedef struct _plDrawI
     // drawlists
     plDrawList2D*  (*request_2d_drawlist)(void);
     void           (*return_2d_drawlist) (plDrawList2D*);
-    void           (*submit_2d_drawlist) (plDrawList2D*, plRenderEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount);
+    void           (*submit_2d_drawlist) (plDrawList2D*, plRenderEncoderHandle, float fWidth, float fHeight, uint32_t uMSAASampleCount);
 
     // layers
     plDrawLayer2D* (*request_2d_layer)(plDrawList2D*, const char* pcName);
@@ -147,7 +147,7 @@ typedef struct _plDrawI
     // drawlists
     plDrawList3D* (*request_3d_drawlist)(void);
     void          (*return_3d_drawlist)(plDrawList3D*);
-    void          (*submit_3d_drawlist)(plDrawList3D*, plRenderEncoder, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t uMSAASampleCount);
+    void          (*submit_3d_drawlist)(plDrawList3D*, plRenderEncoderHandle, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t uMSAASampleCount);
 
     // solid
     void (*add_3d_triangle_filled)    (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);

@@ -29,7 +29,7 @@
 #include "pl_ecs_ext.h"
 #include "pl_resource_ext.h"
 #include "pl_model_loader_ext.h"
-#include "pl_ref_renderer_ext.h"
+#include "pl_renderer_ext.h"
 #include "pl_job_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_ui_ext.h"
@@ -47,11 +47,10 @@
 static const plWindowI*      gptWindows           = NULL;
 static const plStatsI*       gptStats             = NULL;
 static const plGraphicsI*    gptGfx               = NULL;
-static const plDeviceI*      gptDevice            = NULL;
 static const plDebugApiI*    gptDebug             = NULL;
 static const plEcsI*         gptEcs               = NULL;
 static const plCameraI*      gptCamera            = NULL;
-static const plRefRendererI* gptRenderer          = NULL;
+static const plRendererI*    gptRenderer          = NULL;
 static const plModelLoaderI* gptModelLoader       = NULL;
 static const plJobI*         gptJobs              = NULL;
 static const plDrawI*        gptDraw              = NULL;
@@ -69,6 +68,9 @@ typedef struct _plEditorData
 
     // windows
     plWindow* ptWindow;
+
+    // swapchains
+    plSwapchain* ptSwap;
 
     // ui options
     plDebugApiInfo tDebugInfo;

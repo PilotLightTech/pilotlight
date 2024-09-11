@@ -16,7 +16,6 @@ static const struct _plExtensionRegistryI* gptExtensionRegistry = NULL;
 static const struct _plDataRegistryI*      gptDataRegistry      = NULL;
 static const struct _plResourceI*          gptResource          = NULL;
 static const struct _plEcsI*               gptECS               = NULL;
-static const struct _plDeviceI*            gptDevice            = NULL;
 static const struct _plGraphicsI*          gptGfx               = NULL;
 static const struct _plCameraI*            gptCamera            = NULL;
 static const struct _plImageI*             gptImage             = NULL;

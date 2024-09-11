@@ -42,11 +42,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
         gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
         gptStats       = ptApiRegistry->first(PL_API_STATS);
         gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
-        gptDevice      = ptApiRegistry->first(PL_API_DEVICE);
         gptDebug       = ptApiRegistry->first(PL_API_DEBUG);
         gptEcs         = ptApiRegistry->first(PL_API_ECS);
         gptCamera      = ptApiRegistry->first(PL_API_CAMERA);
-        gptRenderer    = ptApiRegistry->first(PL_API_REF_RENDERER);
+        gptRenderer    = ptApiRegistry->first(PL_API_RENDERER);
         gptJobs        = ptApiRegistry->first(PL_API_JOB);
         gptModelLoader = ptApiRegistry->first(PL_API_MODEL_LOADER);
         gptDraw        = ptApiRegistry->first(PL_API_DRAW);
@@ -82,11 +81,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
     gptStats       = ptApiRegistry->first(PL_API_STATS);
     gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
-    gptDevice      = ptApiRegistry->first(PL_API_DEVICE);
     gptDebug       = ptApiRegistry->first(PL_API_DEBUG);
     gptEcs         = ptApiRegistry->first(PL_API_ECS);
     gptCamera      = ptApiRegistry->first(PL_API_CAMERA);
-    gptRenderer    = ptApiRegistry->first(PL_API_REF_RENDERER);
+    gptRenderer    = ptApiRegistry->first(PL_API_RENDERER);
     gptJobs        = ptApiRegistry->first(PL_API_JOB);
     gptModelLoader = ptApiRegistry->first(PL_API_MODEL_LOADER);
     gptDraw        = ptApiRegistry->first(PL_API_DRAW);
@@ -122,9 +120,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     // setup reference renderer
     gptRenderer->initialize(ptEditorData->ptWindow);
+    ptEditorData->ptSwap = gptRenderer->get_swapchain();
 
     // setup draw
-    gptDraw->initialize(gptRenderer->get_graphics());
+    gptDraw->initialize(gptRenderer->get_device());
 
     plFontRange tFontRange = {
         .iFirstCodePoint = 0x0020,
@@ -251,7 +250,7 @@ pl_app_shutdown(plEditorData* ptEditorData)
 {
     gptJobs->cleanup();
     // ensure GPU is finished before cleanup
-    gptDevice->flush_device(&gptRenderer->get_graphics()->tDevice);
+    gptGfx->flush_device(gptRenderer->get_device());
     gptDraw->cleanup_font_atlas();
     gptUi->cleanup();
     gptDraw->cleanup();
@@ -269,7 +268,7 @@ pl_app_shutdown(plEditorData* ptEditorData)
 PL_EXPORT void
 pl_app_resize(plEditorData* ptEditorData)
 {
-    gptGfx->resize(gptRenderer->get_graphics());
+    gptGfx->resize(ptEditorData->ptSwap);
     plIO* ptIO = gptIO->get_io();
     gptCamera->set_aspect(gptEcs->get_component(gptRenderer->get_component_library(ptEditorData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptEditorData->tMainCamera), ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1]);
     ptEditorData->bResize = true;
@@ -289,7 +288,6 @@ pl_app_update(plEditorData* ptEditorData)
     gptIO->new_frame();
 
     // for convience
-    plGraphics* ptGraphics = gptRenderer->get_graphics();
     plIO* ptIO = gptIO->get_io();
 
     if(ptEditorData->bResize || ptEditorData->bAlwaysResize)

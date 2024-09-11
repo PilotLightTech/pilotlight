@@ -14,15 +14,15 @@ Index of this file:
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_REF_RENDERER_EXT_H
-#define PL_REF_RENDERER_EXT_H
+#ifndef PL_RENDERER_EXT_H
+#define PL_RENDERER_EXT_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define PL_API_REF_RENDERER "PL_API_REF_RENDERER"
-typedef struct _plRefRendererI plRefRendererI;
+#define PL_API_RENDERER "PL_API_RENDERER"
+typedef struct _plRendererI plRendererI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -36,6 +36,7 @@ typedef struct _plComputeShaderVariant plComputeShaderVariant;
 // external 
 typedef struct _plWindow           plWindow;           // pl_os.h
 typedef struct _plGraphics         plGraphics;         // pl_graphics_ext.h
+typedef struct _plDevice           plDevice;           // pl_graphics_ext.h
 typedef struct _plDrawList3D       plDrawList3D;       // pl_draw_ext.h
 typedef struct _plCommandBuffer    plCommandBuffer;    // pl_graphics_ext.h
 typedef union  plTextureHandle     plTextureHandle;    // pl_graphics_ext.h
@@ -52,7 +53,7 @@ typedef int plDrawFlags;                               // pl_draw_ext.h
 // [SECTION] public api structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plRefRendererI
+typedef struct _plRendererI
 {
     // setup/shutdown
     void (*initialize)(plWindow* ptWindow);
@@ -84,11 +85,12 @@ typedef struct _plRefRendererI
     // misc
     void                (*select_entities)(uint32_t uSceneHandle, uint32_t uCount, plEntity*);
     plComponentLibrary* (*get_component_library)(uint32_t uSceneHandle);
-    plGraphics*         (*get_graphics)(void);
+    plDevice*           (*get_device)(void);
+    plSwapchain*        (*get_swapchain)(void);
     plDrawList3D*       (*get_debug_drawlist)(uint32_t uSceneHandle, uint32_t uViewHandle);
     plDrawList3D*       (*get_gizmo_drawlist)(uint32_t uSceneHandle, uint32_t uViewHandle);
 
-} plRefRendererI;
+} plRendererI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -101,4 +103,4 @@ typedef struct _plViewOptions
     plEntity* ptSunLight;
 } plViewOptions;
 
-#endif // PL_REF_RENDERER_EXT_H
+#endif // PL_RENDERER_EXT_H

@@ -54,11 +54,11 @@ typedef int plUiComboFlags;       // -> enum plUiComboFlags_       // Enum: An i
 typedef int plUiColor;            // -> enum plUiColor_            // Enum: An input event source (PL_UI_COLOR_XXXX)
 
 // external
-typedef struct _plDrawList2D    plDrawList2D;    // pl_draw_ext.h
-typedef struct _plDrawLayer2D   plDrawLayer2D;   // pl_draw_ext.h
-typedef union  _plFontHandle    plFontHandle;    // pl_draw_ext.h
-typedef struct _plRenderEncoder plRenderEncoder; // pl_graphics_ext.h
-typedef union  plTextureHandle  plTextureHandle; // pl_graphics_ext.h
+typedef struct _plDrawList2D         plDrawList2D;          // pl_draw_ext.h
+typedef struct _plDrawLayer2D        plDrawLayer2D;         // pl_draw_ext.h
+typedef union  _plFontHandle         plFontHandle;          // pl_draw_ext.h
+typedef union  plRenderEncoderHandle plRenderEncoderHandle; // pl_graphics_ext.h
+typedef union  plTextureHandle       plTextureHandle;       // pl_graphics_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -77,7 +77,7 @@ typedef struct _plUiI
     // main
     void (*new_frame)(void); // start a new pilotlight ui frame, this should be the first command before calling any commands below
     void (*end_frame)(void); // ends pilotlight ui frame, automatically called by pl_render()
-    void (*render)(plRenderEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount); // submits draw layers, you can then submit the ptDrawlist & ptDebugDrawlist from context
+    void (*render)(plRenderEncoderHandle, float fWidth, float fHeight, uint32_t uMSAASampleCount); // submits draw layers, you can then submit the ptDrawlist & ptDebugDrawlist from context
 
     // mouse/keyboard ownership
     bool (*wants_mouse_capture)   (void);

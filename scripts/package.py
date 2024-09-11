@@ -23,7 +23,7 @@ extension_headers = [
     "pl_job_ext",
     "pl_model_loader_ext",
     "pl_rect_pack_ext",
-    "pl_ref_renderer_ext",
+    "pl_renderer_ext",
     "pl_resource_ext",
     "pl_shader_ext",
     "pl_stats_ext",

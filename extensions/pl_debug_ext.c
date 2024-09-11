@@ -155,6 +155,9 @@ pl__show_memory_allocations(bool* bValue)
 
     if(!gptDebugCtx->ptDevice)
         gptDebugCtx->ptDevice = gptDataRegistry->get_data("device");
+    
+    const size_t szHostMemoryInUse = gptGfx->get_host_memory_in_use();
+    const size_t szLocalMemoryInUse = gptGfx->get_local_memory_in_use();
 
     if(gptUI->begin_window("Memory Allocations", bValue, false))
     {
@@ -168,14 +171,14 @@ pl__show_memory_allocations(bool* bValue)
         else
             gptUI->text("General Memory Usage:       %llu bytes", (double)gptDebugCtx->ptMemoryCtx->szMemoryUsage);
     
-        if(gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse > 1000000000)
-            gptUI->text("Host Graphics Memory Usage: %0.3f gb", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse / 1000000000);
-        else if(gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse > 1000000)
-            gptUI->text("Host Graphics Memory Usage: %0.3f mb", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse / 1000000);
-        else if(gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse > 1000)
-            gptUI->text("Host Graphics Memory Usage: %0.3f kb", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse / 1000);
+        if(szHostMemoryInUse > 1000000000)
+            gptUI->text("Host Graphics Memory Usage: %0.3f gb", (double)szHostMemoryInUse / 1000000000);
+        else if(szHostMemoryInUse > 1000000)
+            gptUI->text("Host Graphics Memory Usage: %0.3f mb", (double)szHostMemoryInUse / 1000000);
+        else if(szHostMemoryInUse > 1000)
+            gptUI->text("Host Graphics Memory Usage: %0.3f kb", (double)szHostMemoryInUse / 1000);
         else
-            gptUI->text("Host Graphics Memory Usage: %llu bytes", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse);
+            gptUI->text("Host Graphics Memory Usage: %llu bytes", (double)szHostMemoryInUse);
 
         gptUI->text("Active Allocations:         %u", gptDebugCtx->ptMemoryCtx->szActiveAllocations);
         gptUI->text("Freed Allocations:          %u", gptDebugCtx->ptMemoryCtx->szAllocationFrees);
@@ -790,6 +793,9 @@ pl__show_device_memory(bool* bValue)
     static const plVec4 tWhiteColor     = {1.0f, 1.0f, 1.0f, 1.0f};
     static const plVec4 tButtonColor    = {0.05f, 0.05f, 0.05f, 1.0f};
 
+    const size_t szHostMemoryInUse = gptGfx->get_host_memory_in_use();
+    const size_t szLocalMemoryInUse = gptGfx->get_local_memory_in_use();
+
     if(!gptDebugCtx->ptDevice)
         gptDebugCtx->ptDevice = gptDataRegistry->get_data("device");
         
@@ -801,23 +807,23 @@ pl__show_device_memory(bool* bValue)
         const plVec2 tWindowEnd = pl_add_vec2(tWindowSize, tWindowPos);
         const plVec2 tMousePos = gptIOI->get_mouse_pos();
 
-        if(gptDebugCtx->ptDevice->ptGraphics->szLocalMemoryInUse > 1000000000)
-            gptUI->text("Device Local Memory: %0.3f gb", (double)gptDebugCtx->ptDevice->ptGraphics->szLocalMemoryInUse / 1000000000);
-        else if(gptDebugCtx->ptDevice->ptGraphics->szLocalMemoryInUse > 1000000)
-            gptUI->text("Device Local Memory: %0.3f mb", (double)gptDebugCtx->ptDevice->ptGraphics->szLocalMemoryInUse / 1000000);
-        else if(gptDebugCtx->ptDevice->ptGraphics->szLocalMemoryInUse > 1000)
-            gptUI->text("Device Local Memory: %0.3f kb", (double)gptDebugCtx->ptDevice->ptGraphics->szLocalMemoryInUse / 1000);
+        if(szLocalMemoryInUse > 1000000000)
+            gptUI->text("Device Local Memory: %0.3f gb", (double)szLocalMemoryInUse / 1000000000);
+        else if(szLocalMemoryInUse > 1000000)
+            gptUI->text("Device Local Memory: %0.3f mb", (double)szLocalMemoryInUse / 1000000);
+        else if(szLocalMemoryInUse > 1000)
+            gptUI->text("Device Local Memory: %0.3f kb", (double)szLocalMemoryInUse / 1000);
         else
-            gptUI->text("Device Local Memory: %llu bytes", (double)gptDebugCtx->ptDevice->ptGraphics->szLocalMemoryInUse);
+            gptUI->text("Device Local Memory: %llu bytes", (double)szLocalMemoryInUse);
 
-        if(gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse > 1000000000)
-            gptUI->text("Host Memory: %0.3f gb", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse / 1000000000);
-        else if(gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse > 1000000)
-            gptUI->text("Host Memory: %0.3f mb", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse / 1000000);
-        else if(gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse > 1000)
-            gptUI->text("Host Memory: %0.3f kb", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse / 1000);
+        if(szHostMemoryInUse > 1000000000)
+            gptUI->text("Host Memory: %0.3f gb", (double)szHostMemoryInUse / 1000000000);
+        else if(szHostMemoryInUse > 1000000)
+            gptUI->text("Host Memory: %0.3f mb", (double)szHostMemoryInUse / 1000000);
+        else if(szHostMemoryInUse > 1000)
+            gptUI->text("Host Memory: %0.3f kb", (double)szHostMemoryInUse / 1000);
         else
-            gptUI->text("Host Memory: %llu bytes", (double)gptDebugCtx->ptDevice->ptGraphics->szHostMemoryInUse);
+            gptUI->text("Host Memory: %llu bytes", (double)szHostMemoryInUse);
 
         const plDeviceMemoryAllocatorI atAllocators[] = {
             *gptGpuAllocators->get_local_buddy_allocator(gptDebugCtx->ptDevice),

@@ -23,15 +23,9 @@
     #include "pl_gpu_allocators_ext.c"
     #include "pl_model_loader_ext.c"
     #include "pl_ui_ext.c"
+    #include "pl_graphics_ext.c"
 
-    #ifdef PL_VULKAN_BACKEND
-    #include "pl_graphics_vulkan.c"
-    #elif PL_METAL_BACKEND
-    #include "pl_graphics_metal.m"
-    #else
-    #endif
-
-    #include "pl_ref_renderer_ext.c"
+    #include "pl_renderer_ext.c"
     #include "pl_debug_ext.c"
 #endif
 
@@ -79,7 +73,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         
         pl_load_graphics_ext(ptApiRegistry, bReload);
 
-        gptDevice = ptApiRegistry->first(PL_API_DEVICE);
         gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
 
         pl_load_gpu_allocators_ext(ptApiRegistry, bReload);
