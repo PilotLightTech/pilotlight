@@ -11,6 +11,7 @@
    <a href="https://github.com/PilotLightTech/pilotlight/actions?workflow=Build"><img src="https://github.com/PilotLightTech/pilotlight/actions/workflows/build.yml/badge.svg?branch=master" alt="build"></a>
    <a href="https://github.com/PilotLightTech/pilotlight/actions?workflow=Static%20Analysis"><img src="https://github.com/PilotLightTech/pilotlight/actions/workflows/static-analysis.yml/badge.svg?branch=master" alt="static-analysis"></a>
    <a href="https://github.com/PilotLightTech/pilotlight/actions?workflow=Tests"><img src="https://github.com/PilotLightTech/pilotlight/actions/workflows/tests.yml/badge.svg?branch=master" alt="tests"></a>
+   <a href="https://pypi.org/project/pl-build/"><img src="https://img.shields.io/pypi/v/pl-build?label=pl-build" alt="PYPI"></a>
 </p>
 
 <p align="center">
