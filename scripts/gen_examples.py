@@ -66,6 +66,7 @@ with pl.project("pilotlight_examples"):
                 with pl.platform("Windows"):
                     with pl.compiler("msvc"):
                         pl.add_static_link_libraries("pilot_light")
+                        pl.add_linker_flags("-noimplib", "-noexp", "-incremental:no")
                         pl.add_compiler_flags("-Zc:preprocessor", "-nologo", "-std:c11", "-W4", "-WX", "-wd4201",
                                               "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
                                               "-permissive-", "-Od", "-MDd", "-Zi")

@@ -48,7 +48,7 @@ class plAppleHelper:
         self.buffer += ' ' * self.indent + 'mkdir -p "' + directory + '"\n'
 
     def delete_file(self, file):
-        self.buffer += ' ' * self.indent + 'rm -f "' + file + '"\n'
+        self.buffer += ' ' * self.indent + 'rm -f ' + file + '\n'
 
 def generate_build(name, user_options = None):
 
@@ -200,7 +200,7 @@ def generate_build(name, user_options = None):
             helper.add_line('else')
             helper.set_indent(4)
             helper.add_comment('cleanup binaries if not hot reloading')
-            helper.print_line('PL_HOT_RELOAD_STATUS=0')
+            helper.add_line('PL_HOT_RELOAD_STATUS=0')
 
         # delete old binaries & files
         for settings in config_only_settings:
