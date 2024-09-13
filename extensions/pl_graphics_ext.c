@@ -797,6 +797,7 @@ pl_load_graphics_api(void)
         .get_frames_in_flight                   = pl_get_frames_in_flight,
         .begin_frame                            = pl_begin_frame,
         .create_device                          = pl__create_device,
+        .enumerate_devices                      = pl_enumerate_devices,
         .cleanup_device                         = pl_cleanup_device,
         .create_swapchain                       = pl_create_swapchain,
         .create_surface                         = pl_create_surface,

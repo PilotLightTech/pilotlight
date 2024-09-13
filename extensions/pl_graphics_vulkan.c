@@ -179,10 +179,11 @@ typedef struct _plFrameContext
 
 typedef struct _plDevice
 {
-    bool                      bDescriptorIndexing;
+    plDeviceInfo              tInfo;
     plDeviceMemoryAllocatorI* ptDynamicAllocator;
     void*                     _pInternalData;
     plFrameGarbage*           sbtGarbage;
+    VkPhysicalDeviceMemoryProperties tMemProps;
 
     // render pass layouts
     plRenderPassLayoutHandle  tMainRenderPassLayout;
@@ -253,18 +254,7 @@ typedef struct _plDevice
     int                                       iPresentQueueFamily;
     VkQueue                                   tGraphicsQueue;
     VkQueue                                   tPresentQueue;
-    VkPhysicalDeviceProperties                tDeviceProps;
-    VkPhysicalDeviceMemoryProperties          tMemProps;
-    VkPhysicalDeviceMemoryProperties2         tMemProps2;
-    VkPhysicalDeviceMemoryBudgetPropertiesEXT tMemBudgetInfo;
-    VkDeviceSize                              tMaxLocalMemSize;
-    VkPhysicalDeviceFeatures                  tDeviceFeatures;
-    VkPhysicalDeviceFeatures2                 tDeviceFeatures2;
-    VkPhysicalDeviceVulkan12Features          tDeviceFeatures12;
-    bool                                      bSwapchainExtPresent;
-    bool                                      bPortabilitySubsetPresent;
     VkCommandPool                             tCmdPool;
-    uint32_t                                  uUniformBufferBlockSize;
     uint32_t                                  uCurrentFrame;
     plFrameContext*                           sbFrames;
     VkDescriptorPool                          tDescriptorPool;
@@ -576,7 +566,7 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
         .uByteOffset   = ptDynamicBuffer->uByteOffset,
         .pcData        = &ptBuffer->pcData[ptDynamicBuffer->uByteOffset]
     };
-    ptDynamicBuffer->uByteOffset = (uint32_t)pl_align_up((size_t)ptDynamicBuffer->uByteOffset + PL_MAX_DYNAMIC_DATA_SIZE, ptDevice->tDeviceProps.limits.minUniformBufferOffsetAlignment);
+    ptDynamicBuffer->uByteOffset = (uint32_t)pl_align_up((size_t)ptDynamicBuffer->uByteOffset + PL_MAX_DYNAMIC_DATA_SIZE, ptDevice->tInfo.tLimits.uMinUniformBufferOffsetAlignment);
     return tDynamicBinding;
 }
 
@@ -772,8 +762,8 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc, const char* p
         .magFilter               = pl__vulkan_filter(ptDesc->tFilter),
         .addressModeU            = pl__vulkan_wrap(ptDesc->tHorizontalWrap),
         .addressModeV            = pl__vulkan_wrap(ptDesc->tVerticalWrap),
-        .anisotropyEnable        = (bool)ptDevice->tDeviceFeatures.samplerAnisotropy,
-        .maxAnisotropy           = ptDesc->fMaxAnisotropy == 0 ? ptDevice->tDeviceProps.limits.maxSamplerAnisotropy : ptDesc->fMaxAnisotropy,
+        .anisotropyEnable        = (bool)(ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY),
+        .maxAnisotropy           = ptDesc->fMaxAnisotropy == 0 ? (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY) : ptDesc->fMaxAnisotropy,
         .borderColor             = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
         .unnormalizedCoordinates = VK_FALSE,
         .compareEnable           = VK_FALSE,
@@ -879,8 +869,8 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = uDescriptorBindingCount,
         .pBindings    = atDescriptorSetLayoutBindings,
-        .pNext = ptDevice->bDescriptorIndexing ? &setLayoutBindingFlags : NULL,
-        .flags = ptDevice->bDescriptorIndexing ?  VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
+        .pNext = (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING) ? &setLayoutBindingFlags : NULL,
+        .flags = (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING) ?  VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
     };
     PL_VULKAN(vkCreateDescriptorSetLayout(ptDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tVulkanBindGroupLayout.tDescriptorSetLayout));
 
@@ -976,8 +966,8 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = uDescriptorBindingCount,
         .pBindings    = atDescriptorSetLayoutBindings,
-        .pNext = ptDevice->bDescriptorIndexing ? &setLayoutBindingFlags : NULL,
-        .flags = ptDevice->bDescriptorIndexing ?  VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
+        .pNext = (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING) ? &setLayoutBindingFlags : NULL,
+        .flags = (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING) ?  VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
     };
     VkDescriptorSetLayout tDescriptorSetLayout = VK_NULL_HANDLE;
     PL_VULKAN(vkCreateDescriptorSetLayout(ptDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tDescriptorSetLayout));
@@ -1095,8 +1085,8 @@ pl_get_temporary_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayou
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = uDescriptorBindingCount,
         .pBindings    = atDescriptorSetLayoutBindings,
-        .pNext = ptDevice->bDescriptorIndexing ? &setLayoutBindingFlags : NULL,
-        .flags = ptDevice->bDescriptorIndexing ?  VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
+        .pNext = (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING) ? &setLayoutBindingFlags : NULL,
+        .flags = (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING) ?  VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
     };
     VkDescriptorSetLayout tDescriptorSetLayout = VK_NULL_HANDLE;
     PL_VULKAN(vkCreateDescriptorSetLayout(ptDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tDescriptorSetLayout));
@@ -1824,7 +1814,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
 
     VkPipelineMultisampleStateCreateInfo tMultisampling = {
         .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .sampleShadingEnable  = (bool)ptDevice->tDeviceFeatures.sampleRateShading,
+        .sampleShadingEnable  = false,
         .minSampleShading     = 0.2f,
         .rasterizationSamples = 1
     };
@@ -3032,93 +3022,159 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     }
 }
 
+static void
+pl_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCount)
+{
+    VkPhysicalDevice atDevices[16] = {0};
+    PL_VULKAN(vkEnumeratePhysicalDevices(gptGraphics->tInstance, puDeviceCount, atDevices));
+
+    if(atDeviceInfo == NULL)
+        return;
+
+    memset(atDeviceInfo, 0, (*puDeviceCount) * sizeof(plDeviceInfo));
+    for(uint32_t i = 0; i < *puDeviceCount; i++)
+    {
+        atDeviceInfo[i].uDeviceIdx = i;
+
+        VkPhysicalDeviceProperties tProps = {0};
+        vkGetPhysicalDeviceProperties(atDevices[i], &tProps);
+
+        VkPhysicalDeviceMemoryProperties tMemProps = {0};
+        vkGetPhysicalDeviceMemoryProperties(atDevices[i], &tMemProps);
+
+        strncpy(atDeviceInfo[i].acName, tProps.deviceName, 256);
+        atDeviceInfo[i].tLimits.uMaxTextureSize = tProps.limits.maxImageDimension2D;
+        atDeviceInfo[i].tLimits.uMinUniformBufferOffsetAlignment = (uint32_t)tProps.limits.minUniformBufferOffsetAlignment;
+
+        switch(tProps.deviceType)
+        {
+            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:   atDeviceInfo[i].tType = PL_DEVICE_TYPE_DISCRETE; break;
+            case VK_PHYSICAL_DEVICE_TYPE_CPU:            atDeviceInfo[i].tType = PL_DEVICE_TYPE_CPU; break;
+            case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: atDeviceInfo[i].tType = PL_DEVICE_TYPE_INTEGRATED; break;
+            default:                                     atDeviceInfo[i].tType = PL_DEVICE_TYPE_NONE;
+        }
+
+        switch(tProps.vendorID)
+        {
+            case 0x1002: atDeviceInfo[i].tVendorId = PL_VENDOR_ID_AMD; break;
+            case 0x10DE: atDeviceInfo[i].tVendorId = PL_VENDOR_ID_NVIDIA; break;
+            case 0x8086: atDeviceInfo[i].tVendorId = PL_VENDOR_ID_INTEL; break;
+            default:     atDeviceInfo[i].tVendorId = PL_VENDOR_ID_NONE;
+        }
+
+        for(uint32_t j = 0; j < tMemProps.memoryHeapCount; j++)
+        {
+            if(tMemProps.memoryHeaps[j].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
+                atDeviceInfo[i].szDeviceMemory += tMemProps.memoryHeaps[j].size;
+            else
+                atDeviceInfo[i].szHostMemory += tMemProps.memoryHeaps[j].size;
+        }
+
+        uint32_t uExtensionCount = 0;
+        vkEnumerateDeviceExtensionProperties(atDevices[i], NULL, &uExtensionCount, NULL);
+        VkExtensionProperties* ptExtensions = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uExtensionCount * sizeof(VkExtensionProperties));
+        vkEnumerateDeviceExtensionProperties(atDevices[i], NULL, &uExtensionCount, ptExtensions);
+
+        for(uint32_t j = 0; j < uExtensionCount; j++)
+        {
+            if(pl_str_equal(ptExtensions[j].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME))
+                atDeviceInfo[i].tCapabilities |= PL_DEVICE_CAPABILITY_SWAPCHAIN;
+        }
+        pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
+
+        // get device features
+        VkPhysicalDeviceFeatures tDeviceFeatures = {0};
+        VkPhysicalDeviceFeatures2 tDeviceFeatures2 = {0};
+        VkPhysicalDeviceVulkan12Features tDeviceFeatures12 = {0};
+        VkPhysicalDeviceDescriptorIndexingFeatures tDescriptorIndexingFeatures = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
+            .pNext = &tDeviceFeatures12
+        };
+
+        // create logical device
+        tDeviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+        tDeviceFeatures2.pNext = &tDescriptorIndexingFeatures;
+        tDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+
+        vkGetPhysicalDeviceFeatures(atDevices[i], &tDeviceFeatures);
+        vkGetPhysicalDeviceFeatures2(atDevices[i], &tDeviceFeatures2);
+
+        // Non-uniform indexing and update after bind
+        // binding flags for textures, uniforms, and buffers
+        // are required for our extension
+        if(tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing && 
+            tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing && 
+            tDescriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind)
+        {
+            atDeviceInfo[i].tCapabilities |= PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING;
+            // PL_ASSERT(tDescriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing);
+            // PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind);
+            // PL_ASSERT(tDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing);
+            // PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind);
+        }
+
+        if(tDeviceFeatures.samplerAnisotropy)
+            atDeviceInfo[i].tCapabilities |= PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY;
+
+    }
+}
+
 static plDevice*
 pl__create_device(const plDeviceInit* ptInit)
 {
-    plIO* ptIOCtx = gptIOI->get_io();
 
     plDevice* ptDevice = PL_ALLOC(sizeof(plDevice));
     memset(ptDevice, 0, sizeof(plDevice));
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create device~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    ptDevice->iGraphicsQueueFamily = -1;
-    ptDevice->iPresentQueueFamily = -1;
-    ptDevice->tMemProps2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
-    ptDevice->tMemBudgetInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
-    ptDevice->tMemProps2.pNext = &ptDevice->tMemBudgetInfo;
-    // int iDeviceIndex = pl__select_physical_device(gptGraphics->tInstance, ptDevice);
-
-    uint32_t uDeviceCount = 0u;
-    int iBestDvcIdx = 0;
-    int iDiscreteGPUIdx   = -1;
-    int iIntegratedGPUIdx = -1;
-    VkDeviceSize tMaxLocalMemorySize = 0u;
-
-    PL_VULKAN(vkEnumeratePhysicalDevices(gptGraphics->tInstance, &uDeviceCount, NULL));
-    PL_ASSERT(uDeviceCount > 0 && "failed to find GPUs with Vulkan support!");
-
-    // check if device is suitable
+    uint32_t uDeviceCount = 16;
     VkPhysicalDevice atDevices[16] = {0};
     PL_VULKAN(vkEnumeratePhysicalDevices(gptGraphics->tInstance, &uDeviceCount, atDevices));
 
-    // prefer discrete, then memory size
-    for(uint32_t i = 0; i < uDeviceCount; i++)
+    // user decided on device
+    if(ptInit->ptInfo)
     {
-        vkGetPhysicalDeviceProperties(atDevices[i], &ptDevice->tDeviceProps);
-        vkGetPhysicalDeviceMemoryProperties(atDevices[i], &ptDevice->tMemProps);
-
-        if(ptDevice->tDeviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
-        {
-            iDiscreteGPUIdx = i;
-        }
-        if(ptDevice->tDeviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
-        {
-            iIntegratedGPUIdx = i;
-        }
+        ptDevice->tPhysicalDevice = atDevices[ptInit->ptInfo->uDeviceIdx];
+        memcpy(&ptDevice->tInfo, ptInit->ptInfo, sizeof(plDeviceInfo));
     }
-
-    if(iDiscreteGPUIdx > -1)
-        iBestDvcIdx = iDiscreteGPUIdx;
-    else if(iIntegratedGPUIdx > -1)
-        iBestDvcIdx = iIntegratedGPUIdx;
-
-    ptDevice->tPhysicalDevice = atDevices[iBestDvcIdx];
-
-    PL_ASSERT(ptDevice->tPhysicalDevice != VK_NULL_HANDLE && "failed to find a suitable GPU!");
-    vkGetPhysicalDeviceProperties(atDevices[iBestDvcIdx], &ptDevice->tDeviceProps);
-    vkGetPhysicalDeviceMemoryProperties(atDevices[iBestDvcIdx], &ptDevice->tMemProps);
-    static const char* pacDeviceTypeName[] = {"Other", "Integrated", "Discrete", "Virtual", "CPU"};
-
-    // print info on chosen device
-    pl_log_info_to_f(uLogChannelGraphics, "Device ID: %u", ptDevice->tDeviceProps.deviceID);
-    pl_log_info_to_f(uLogChannelGraphics, "Vendor ID: %u", ptDevice->tDeviceProps.vendorID);
-    pl_log_info_to_f(uLogChannelGraphics, "API Version: %u", ptDevice->tDeviceProps.apiVersion);
-    pl_log_info_to_f(uLogChannelGraphics, "Driver Version: %u", ptDevice->tDeviceProps.driverVersion);
-    pl_log_info_to_f(uLogChannelGraphics, "Device Type: %s", pacDeviceTypeName[ptDevice->tDeviceProps.deviceType]);
-    pl_log_info_to_f(uLogChannelGraphics, "Device Name: %s", ptDevice->tDeviceProps.deviceName);
-
-    uint32_t uExtensionCount = 0;
-    vkEnumerateDeviceExtensionProperties(ptDevice->tPhysicalDevice, NULL, &uExtensionCount, NULL);
-    VkExtensionProperties* ptExtensions = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uExtensionCount * sizeof(VkExtensionProperties));
-    vkEnumerateDeviceExtensionProperties(ptDevice->tPhysicalDevice, NULL, &uExtensionCount, ptExtensions);
-
-    for(uint32_t i = 0; i < uExtensionCount; i++)
+    else // we pick a device
     {
-        if(pl_str_equal(ptExtensions[i].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME)) ptDevice->bSwapchainExtPresent = true; //-V522
-        if(pl_str_equal(ptExtensions[i].extensionName, "VK_KHR_portability_subset"))     ptDevice->bPortabilitySubsetPresent = true; //-V522
-    }
-    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
+        plDeviceInfo* atInfos = PL_ALLOC(sizeof(plDeviceInfo) * uDeviceCount);
+        memset(atInfos, 0, sizeof(plDeviceInfo) * uDeviceCount);
+        pl_enumerate_devices(atInfos, &uDeviceCount);
 
-    ptDevice->tMaxLocalMemSize = ptDevice->tMemProps.memoryHeaps[iBestDvcIdx].size;
-    ptDevice->uUniformBufferBlockSize = pl_minu(PL_DEVICE_ALLOCATION_BLOCK_SIZE, ptDevice->tDeviceProps.limits.maxUniformBufferRange);
+        // we will prefer discrete, then integrated
+        int iBestDvcIdx = 0;
+        int iDiscreteGPUIdx   = -1;
+        int iIntegratedGPUIdx = -1;
+        for(uint32_t i = 0; i < uDeviceCount; i++)
+        {
+            
+            if(atInfos[i].tType == PL_DEVICE_TYPE_DISCRETE)
+                iDiscreteGPUIdx = i;
+            else if(atInfos[i].tType == PL_DEVICE_TYPE_INTEGRATED)
+                iIntegratedGPUIdx = i;
+        }
+
+        if(iDiscreteGPUIdx > -1)
+            iBestDvcIdx = iDiscreteGPUIdx;
+        else if(iIntegratedGPUIdx > -1)
+            iBestDvcIdx = iIntegratedGPUIdx;
+
+        ptDevice->tPhysicalDevice = atDevices[iBestDvcIdx];
+        memcpy(&ptDevice->tInfo, &atInfos[iBestDvcIdx], sizeof(plDeviceInfo));
+        PL_FREE(atInfos);
+    }
 
     // find queue families
+    ptDevice->iGraphicsQueueFamily = -1;
+    ptDevice->iPresentQueueFamily = -1;
     uint32_t uQueueFamCnt = 0u;
     vkGetPhysicalDeviceQueueFamilyProperties(ptDevice->tPhysicalDevice, &uQueueFamCnt, NULL);
 
     VkQueueFamilyProperties auQueueFamilies[64] = {0};
     vkGetPhysicalDeviceQueueFamilyProperties(ptDevice->tPhysicalDevice, &uQueueFamCnt, auQueueFamilies);
+
+    vkGetPhysicalDeviceMemoryProperties(ptDevice->tPhysicalDevice, &ptDevice->tMemProps);
 
     for(uint32_t i = 0; i < uQueueFamCnt; i++)
     {
@@ -3132,34 +3188,6 @@ pl__create_device(const plDeviceInit* ptInit)
         if (ptDevice->iGraphicsQueueFamily > -1 && ptDevice->iPresentQueueFamily > -1) // complete
             break;
         i++;
-    }
-
-    VkPhysicalDeviceDescriptorIndexingFeatures tDescriptorIndexingFeatures = {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
-        .pNext = &ptDevice->tDeviceFeatures12
-    };
-
-    // create logical device
-    ptDevice->tDeviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-    ptDevice->tDeviceFeatures2.pNext = &tDescriptorIndexingFeatures;
-    ptDevice->tDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-
-    vkGetPhysicalDeviceFeatures(ptDevice->tPhysicalDevice, &ptDevice->tDeviceFeatures);
-    vkGetPhysicalDeviceFeatures2(ptDevice->tPhysicalDevice, &ptDevice->tDeviceFeatures2);
-
-
-    // Non-uniform indexing and update after bind
-    // binding flags for textures, uniforms, and buffers
-    // are required for our extension
-    if(tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing)
-    {
-        ptDevice->bDescriptorIndexing = true;
-        PL_ASSERT(tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing);
-        PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind);
-        // PL_ASSERT(tDescriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing);
-        // PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind);
-        // PL_ASSERT(tDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing);
-        // PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind);
     }
 
     const float fQueuePriority = 1.0f;
@@ -3187,18 +3215,39 @@ pl__create_device(const plDeviceInit* ptInit)
         apcDeviceExts[0] = VK_EXT_DEBUG_MARKER_EXTENSION_NAME;
         uDeviceExtensionCount++;
     }
-    if(ptDevice->bSwapchainExtPresent)      apcDeviceExts[uDeviceExtensionCount++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
-    if(ptDevice->bPortabilitySubsetPresent) apcDeviceExts[uDeviceExtensionCount++] = "VK_KHR_portability_subset";
-    VkDeviceCreateInfo tCreateDeviceInfo = {
+    if(ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_SWAPCHAIN)
+        apcDeviceExts[uDeviceExtensionCount++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+    #if defined(__APPLE__)
+    apcDeviceExts[uDeviceExtensionCount++] = "VK_KHR_portability_subset";
+    #endif
+
+    // get device features
+    VkPhysicalDeviceFeatures tDeviceFeatures = {0};
+    VkPhysicalDeviceFeatures2 tDeviceFeatures2 = {0};
+    VkPhysicalDeviceVulkan12Features tDeviceFeatures12 = {0};
+    VkPhysicalDeviceDescriptorIndexingFeatures tDescriptorIndexingFeatures = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
+        .pNext = &tDeviceFeatures12
+    };
+
+    // create logical device
+    tDeviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    tDeviceFeatures2.pNext = &tDescriptorIndexingFeatures;
+    tDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+
+    vkGetPhysicalDeviceFeatures(ptDevice->tPhysicalDevice, &tDeviceFeatures);
+    vkGetPhysicalDeviceFeatures2(ptDevice->tPhysicalDevice, &tDeviceFeatures2);
+
+    const VkDeviceCreateInfo tCreateDeviceInfo = {
         .sType                    = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .queueCreateInfoCount     = atQueueCreateInfos[0].queueFamilyIndex == atQueueCreateInfos[1].queueFamilyIndex ? 1 : 2,
         .pQueueCreateInfos        = atQueueCreateInfos,
-        .pEnabledFeatures         = &ptDevice->tDeviceFeatures,
+        .pEnabledFeatures         = &tDeviceFeatures,
         .ppEnabledExtensionNames  = apcDeviceExts,
         .enabledLayerCount        = gptGraphics->bValidationActive ? 1 : 0,
         .ppEnabledLayerNames      = gptGraphics->bValidationActive ? &pcValidationLayers : NULL,
         .enabledExtensionCount    = uDeviceExtensionCount,
-        .pNext                    = &ptDevice->tDeviceFeatures12
+        .pNext                    = &tDeviceFeatures12
     };
     PL_VULKAN(vkCreateDevice(ptDevice->tPhysicalDevice, &tCreateDeviceInfo, NULL, &ptDevice->tLogicalDevice));
 
@@ -3245,7 +3294,7 @@ pl__create_device(const plDeviceInit* ptInit)
         .poolSizeCount = 7,
         .pPoolSizes    = atPoolSizes,
     };
-    if(ptDevice->bDescriptorIndexing)
+    if(ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING)
     {
         tDescriptorPoolInfo.flags |= VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT;
     }
@@ -3367,7 +3416,7 @@ pl__create_device(const plDeviceInit* ptInit)
             .poolSizeCount = 7,
             .pPoolSizes    = atDynamicPoolSizes,
         };
-        if(ptDevice->bDescriptorIndexing)
+        if(ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING)
         {
             tDynamicDescriptorPoolInfo.flags |= VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT;
         }

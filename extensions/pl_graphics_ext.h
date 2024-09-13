@@ -1,5 +1,6 @@
 /*
    pl_graphics_ext.h
+    * currently under very active development trying to finalize for 1.0
 */
 
 /*
@@ -99,6 +100,7 @@ typedef struct _plGraphicsI plGraphicsI;
 
 // basic types
 typedef struct _plDevice                     plDevice;
+typedef struct _plDeviceInfo                 plDeviceInfo;
 typedef struct _plBuffer                     plBuffer;
 typedef struct _plSwapchain                  plSwapchain;
 typedef struct _plSurface                    plSurface;
@@ -208,6 +210,9 @@ typedef int plStoreOp;            // -> enum _plStoreOp                // Enum:
 typedef int plBlendOp;            // -> enum _plBlendOp                // Enum:
 typedef int plBlendFactor;        // -> enum _plBlendFactor            // Enum:
 typedef int plMipmapMode;         // -> enum _plMipmapMode             // Enum:
+typedef int plVendorId;           // -> enum _plVendorId               // Enum:
+typedef int plDeviceType;         // -> enum _plDeviceType             // Enum:
+typedef int plDeviceCapability;   // -> enum _plDeviceCapability       // Flags:
 
 // external
 typedef struct _plWindow plWindow;
@@ -224,6 +229,7 @@ typedef struct _plGraphicsI
     void (*cleanup)   (void);
 
     // devices
+    void      (*enumerate_devices)(plDeviceInfo*, uint32_t* puDeviceCount);
     plDevice* (*create_device)(const plDeviceInit*);
     void      (*cleanup_device)(plDevice*);
 
@@ -822,6 +828,7 @@ typedef struct _plDeviceInit
 {
     plDeviceInitFlags tFlags;
     plSurface*        ptSurface;
+    plDeviceInfo*     ptInfo; // pick default device if NULL
 } plDeviceInit;
 
 typedef struct _plSwapchainInit
@@ -830,9 +837,56 @@ typedef struct _plSwapchainInit
     plSurface*           ptSurface;
 } plSwapchainInit;
 
+typedef struct _plDeviceLimits
+{
+    uint32_t uMaxTextureSize; // width or height
+    uint32_t uMinUniformBufferOffsetAlignment;
+} plDeviceLimits;
+
+typedef struct _plDeviceInfo
+{
+    char               acName[256];
+    uint32_t           uDeviceIdx;
+    plVendorId         tVendorId;
+    plDeviceType       tType;
+    plDeviceLimits     tLimits;
+    size_t             szDeviceMemory;
+    size_t             szHostMemory;
+    plDeviceCapability tCapabilities;
+
+    // TODO:
+    //   * formats
+} plDeviceInfo;
+
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
+
+enum _plVendorId
+{
+    PL_VENDOR_ID_NONE = 0,
+    PL_VENDOR_ID_SOFTWARE_RASTERIZER,
+    PL_VENDOR_ID_AMD,
+    PL_VENDOR_ID_APPLE,
+    PL_VENDOR_ID_INTEL,
+    PL_VENDOR_ID_NVIDIA
+};
+
+enum _plDeviceType
+{
+    PL_DEVICE_TYPE_NONE = 0,
+    PL_DEVICE_TYPE_INTEGRATED,
+    PL_DEVICE_TYPE_DISCRETE,
+    PL_DEVICE_TYPE_CPU
+};
+
+enum _plDeviceCapability
+{
+    PL_DEVICE_CAPABILITY_NONE                = 0,
+    PL_DEVICE_CAPABILITY_SWAPCHAIN           = 1 << 0,
+    PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING = 1 << 1,
+    PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY  = 1 << 2
+};
 
 enum _plDeviceInitFlags
 {
@@ -874,7 +928,7 @@ enum _plCullMode
 
 enum _plFormat
 {
-    PL_FORMAT_UNKNOWN,
+    PL_FORMAT_UNKNOWN = 0,
     PL_FORMAT_R32G32B32_FLOAT,
     PL_FORMAT_R32G32B32A32_FLOAT,
     PL_FORMAT_R8G8B8A8_UNORM,
@@ -888,7 +942,8 @@ enum _plFormat
     PL_FORMAT_D32_FLOAT,
     PL_FORMAT_D32_FLOAT_S8_UINT,
     PL_FORMAT_D24_UNORM_S8_UINT,
-    PL_FORMAT_D16_UNORM_S8_UINT
+    PL_FORMAT_D16_UNORM_S8_UINT,
+    PL_FORMAT_COUNT
 };
 
 enum _plCompareMode

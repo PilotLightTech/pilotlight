@@ -147,6 +147,11 @@ with pl.project("pilotlight"):
                     pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_dynamic_link_libraries("vulkan")
 
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared")
+
         # vulkan on macos
         with pl.configuration("vulkan"):
 
@@ -156,18 +161,6 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang"):
                     pl.add_dynamic_link_libraries("shaderc_shared", "pthread")
                     pl.add_dynamic_link_libraries("vulkan")
-
-    # metal backend extensions
-    with pl.target("pl_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
-
-        # default config
-        with pl.configuration("debug"):
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_static_link_libraries("pilot_light")
-                    pl.add_source_files("pl_ext.c")
-                    pl.set_output_binary("pilot_light")
-                    pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared")
                     
     #-----------------------------------------------------------------------------
     # [SECTION] scripts

@@ -1525,6 +1525,36 @@ pl_create_surface(plWindow* ptWindow)
     return ptSurface;
 }
 
+static void
+pl_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCount)
+{
+    *puDeviceCount = 1;
+
+    if(atDeviceInfo == NULL)
+        return;
+
+    plIO* ptIOCtx = gptIOI->get_io();
+    id<MTLDevice> tDevice = (__bridge id)ptIOCtx->pBackendPlatformData;
+
+    strncpy(atDeviceInfo[0].acName, [tDevice.name UTF8String], 256);
+    atDeviceInfo[0].uDeviceIdx = 0;
+    atDeviceInfo[0].tVendorId = PL_VENDOR_ID_APPLE;
+
+    // printf("%s\n", [tDevice.architecture.name UTF8String]);
+    atDeviceInfo[0].tType = PL_DEVICE_TYPE_INTEGRATED;
+    atDeviceInfo[0].tCapabilities = PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING | PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY | PL_DEVICE_CAPABILITY_SWAPCHAIN;
+
+    if(tDevice.hasUnifiedMemory)
+    {
+        atDeviceInfo[0].szHostMemory = tDevice.recommendedMaxWorkingSetSize;
+    }
+    else
+    {
+        atDeviceInfo[0].szDeviceMemory = tDevice.recommendedMaxWorkingSetSize;
+    }
+    
+}
+
 static plDevice*
 pl__create_device(const plDeviceInit* ptInit)
 {
