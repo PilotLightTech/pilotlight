@@ -283,6 +283,7 @@ typedef struct _plGraphics
     size_t   szLocalMemoryInUse;
     size_t   szHostMemoryInUse;
     bool     bValidationActive;
+    bool     bDebugMessengerActive;
 
     // command buffers
     plCommandBuffer* sbtCommandBuffers;
@@ -2842,35 +2843,60 @@ pl_free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryA
 static void
 pl_initialize_graphics(const plGraphicsInit* ptDesc)
 {
-    gptGraphics = PL_ALLOC(sizeof(plGraphics));
-    memset(gptGraphics, 0, sizeof(plGraphics));
+    static plGraphics gtGraphics = {0};
+    gptGraphics = &gtGraphics;
+
+    uLogChannelGraphics = pl_add_log_channel("Graphics", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
+    uint32_t uLogLevel = PL_LOG_LEVEL_FATAL;
+
+    if     (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_TRACE)   uLogLevel = PL_LOG_LEVEL_TRACE;
+    else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_DEBUG)   uLogLevel = PL_LOG_LEVEL_DEBUG;
+    else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_INFO)    uLogLevel = PL_LOG_LEVEL_INFO;
+    else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_WARNING) uLogLevel = PL_LOG_LEVEL_WARN;
+    else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_ERROR)   uLogLevel = PL_LOG_LEVEL_ERROR;
+
+    pl_set_log_level(uLogChannelGraphics, uLogLevel);
+
+    // save context for hot-reloads
     gptDataRegistry->set_data("plGraphics", gptGraphics);
     
     gptGraphics->bValidationActive = ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED;
+
+    gptGraphics->bDebugMessengerActive = gptGraphics->bDebugMessengerActive || (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_TRACE);
+    gptGraphics->bDebugMessengerActive = gptGraphics->bDebugMessengerActive || (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_DEBUG);
+    gptGraphics->bDebugMessengerActive = gptGraphics->bDebugMessengerActive || (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_INFO);
+    gptGraphics->bDebugMessengerActive = gptGraphics->bDebugMessengerActive || (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_WARNING);
+    gptGraphics->bDebugMessengerActive = gptGraphics->bDebugMessengerActive || (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_ERROR);
+
+    // set frames in flight (if zero, use a default of 2)
     gptGraphics->uFramesInFlight = pl_min(pl_max(ptDesc->uFramesInFlight, 2), PL_MAX_FRAMES_IN_FLIGHT);
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create instance~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    static const char* pcKhronosValidationLayer = "VK_LAYER_KHRONOS_validation";
-
-    const char** sbpcEnabledExtensions = NULL;
-    pl_sb_push(sbpcEnabledExtensions, VK_KHR_SURFACE_EXTENSION_NAME);
-
-    #ifdef _WIN32
-        pl_sb_push(sbpcEnabledExtensions, VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-    #elif defined(__ANDROID__)
-        pl_sb_push(sbpcEnabledExtensions, VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
-    #elif defined(__APPLE__)
-        pl_sb_push(sbpcEnabledExtensions, "VK_EXT_metal_surface");
-        pl_sb_push(sbpcEnabledExtensions, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-    #else // linux
-        pl_sb_push(sbpcEnabledExtensions, VK_KHR_XCB_SURFACE_EXTENSION_NAME);
-    #endif
-
-    if(gptGraphics->bValidationActive)
+    // required extensions
+    uint32_t uExtensionCount = 0;
+    const char* apcExtensions[64] = {0};
+    
+    // if swapchain option is enabled, add required extensions
+    if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED)
     {
-        pl_sb_push(sbpcEnabledExtensions, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-        pl_sb_push(sbpcEnabledExtensions, VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+        apcExtensions[uExtensionCount++] = VK_KHR_SURFACE_EXTENSION_NAME;
+
+        #ifdef _WIN32
+            apcExtensions[uExtensionCount++] = VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
+        #elif defined(__ANDROID__)
+            apcExtensions[uExtensionCount++] = VK_KHR_ANDROID_SURFACE_EXTENSION_NAME;
+        #elif defined(__APPLE__)
+            apcExtensions[uExtensionCount++] = "VK_EXT_metal_surface";
+            apcExtensions[uExtensionCount++] = VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
+        #else // linux
+            apcExtensions[uExtensionCount++] = VK_KHR_XCB_SURFACE_EXTENSION_NAME;
+        #endif
+    }
+
+    // if debug messenger options is enabled, add required extensions
+    if(gptGraphics->bDebugMessengerActive)
+    {
+        apcExtensions[uExtensionCount++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+        apcExtensions[uExtensionCount++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
     }
 
     // retrieve supported layers
@@ -2894,14 +2920,14 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     }
 
     // ensure extensions are supported
-    const char** sbpcMissingExtensions = NULL;
-    for(uint32_t i = 0; i < pl_sb_size(sbpcEnabledExtensions); i++)
+    uint32_t uMissingExtensionCount = 0;
+    const char* apcMissingExtensions[64] = {0};
+    for(uint32_t i = 0; i < uExtensionCount; i++)
     {
-        const char* requestedExtension = sbpcEnabledExtensions[i];
         bool extensionFound = false;
         for(uint32_t j = 0; j < uInstanceExtensionsFound; j++)
         {
-            if(strcmp(requestedExtension, ptAvailableExtensions[j].extensionName) == 0)
+            if(strcmp(apcExtensions[i], ptAvailableExtensions[j].extensionName) == 0)
             {
                 pl_log_trace_to_f(uLogChannelGraphics, "extension %s found", ptAvailableExtensions[j].extensionName);
                 extensionFound = true;
@@ -2911,80 +2937,79 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
 
         if(!extensionFound)
         {
-            pl_sb_push(sbpcMissingExtensions, requestedExtension);
+            apcMissingExtensions[uMissingExtensionCount++] = apcExtensions[i];
         }
     }
 
     // report if all requested extensions aren't found
-    if(pl_sb_size(sbpcMissingExtensions) > 0)
+    if(uMissingExtensionCount > 0)
     {
-        // pl_log_error_to_f(uLogChannelGraphics, "%d %s", pl_sb_size(sbpcMissingExtensions), "Missing Extensions:");
-        for(uint32_t i = 0; i < pl_sb_size(sbpcMissingExtensions); i++)
+        for(uint32_t i = 0; i < uMissingExtensionCount; i++)
         {
-            pl_log_error_to_f(uLogChannelGraphics, "  * %s", sbpcMissingExtensions[i]);
+            pl_log_error_to_f(uLogChannelGraphics, "  * %s", apcMissingExtensions[i]);
         }
 
         PL_ASSERT(false && "Can't find all requested extensions");
     }
-    pl_sb_free(sbpcMissingExtensions);
 
     // ensure layers are supported
-    const char** sbpcMissingLayers = NULL;
-    for(uint32_t i = 0; i < 1; i++)
+    static const char* pcValidationLayer = "VK_LAYER_KHRONOS_validation";
+    bool bLayerFound = false;
+    if(gptGraphics->bValidationActive)
     {
-        const char* pcRequestedLayer = (&pcKhronosValidationLayer)[i];
-        bool bLayerFound = false;
-        for(uint32_t j = 0; j < uInstanceLayersFound; j++)
+        for(uint32_t i = 0; i < uInstanceLayersFound; i++)
         {
-            if(strcmp(pcRequestedLayer, ptAvailableLayers[j].layerName) == 0)
+            if(strcmp(pcValidationLayer, ptAvailableLayers[i].layerName) == 0)
             {
-                pl_log_trace_to_f(uLogChannelGraphics, "layer %s found", ptAvailableLayers[j].layerName);
+                pl_log_trace_to_f(uLogChannelGraphics, "layer %s found", ptAvailableLayers[i].layerName);
                 bLayerFound = true;
                 break;
             }
         }
-
-        if(!bLayerFound)
-        {
-            pl_sb_push(sbpcMissingLayers, pcRequestedLayer);
-        }
     }
+    PL_ASSERT(bLayerFound && "Can't find validation layers");
 
-    // report if all requested layers aren't found
-    if(pl_sb_size(sbpcMissingLayers) > 0)
-    {
-        pl_log_error_to_f(uLogChannelGraphics, "%d %s", pl_sb_size(sbpcMissingLayers), "Missing Layers:");
-        for(uint32_t i = 0; i < pl_sb_size(sbpcMissingLayers); i++)
-        {
-            pl_log_error_to_f(uLogChannelGraphics, "  * %s", sbpcMissingLayers[i]);
-        }
-        PL_ASSERT(false && "Can't find all requested layers");
-    }
-    pl_sb_free(sbpcMissingLayers);
+    VkDebugUtilsMessageSeverityFlagBitsEXT tMessageSeverityFlags = 0;
 
-    // Setup debug messenger for vulkan tInstance
-    VkDebugUtilsMessengerCreateInfoEXT tDebugCreateInfo = {
+    if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_TRACE)
+        tMessageSeverityFlags = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+    else if((ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_DEBUG) || (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_INFO))
+        tMessageSeverityFlags = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT;
+    else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_WARNING)
+        tMessageSeverityFlags = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
+    else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_ERROR)
+        tMessageSeverityFlags = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+
+    // Setup debug messenger for vulkan instance
+    const VkDebugUtilsMessengerCreateInfoEXT tDebugCreateInfo = {
         .sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-        .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+        .messageSeverity = tMessageSeverityFlags,
         .messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
         .pfnUserCallback = pl__debug_callback,
         .pNext           = VK_NULL_HANDLE
     };
 
     // create vulkan tInstance
-    VkApplicationInfo tAppInfo = {
+    const VkApplicationInfo tAppInfo = {
         .sType      = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .apiVersion = VK_API_VERSION_1_2
     };
 
-    VkInstanceCreateInfo tCreateInfo = {
+    const void* pCreateInfoNext = VK_NULL_HANDLE;
+
+    if(gptGraphics->bDebugMessengerActive)
+    {
+        pCreateInfoNext = &tDebugCreateInfo;
+    }
+
+    const VkInstanceCreateInfo tCreateInfo = {
         .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .pApplicationInfo        = &tAppInfo,
-        .pNext                   = gptGraphics->bValidationActive ? (VkDebugUtilsMessengerCreateInfoEXT*)&tDebugCreateInfo : VK_NULL_HANDLE,
-        .enabledExtensionCount   = pl_sb_size(sbpcEnabledExtensions),
-        .ppEnabledExtensionNames = sbpcEnabledExtensions,
+        .pNext                   = pCreateInfoNext,
+        .enabledExtensionCount   = uExtensionCount,
+        .ppEnabledExtensionNames = apcExtensions,
         .enabledLayerCount       = gptGraphics->bValidationActive ? 1 : 0,
-        .ppEnabledLayerNames     = &pcKhronosValidationLayer,
+        .ppEnabledLayerNames     = &pcValidationLayer,
 
         #ifdef __APPLE__
         .flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR
@@ -2998,15 +3023,13 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     if(ptAvailableLayers)     PL_FREE(ptAvailableLayers);
     if(ptAvailableExtensions) PL_FREE(ptAvailableExtensions);
     
-    if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_DEBUG_ENABLED)
+    if(gptGraphics->bDebugMessengerActive)
     {
         PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(gptGraphics->tInstance, "vkCreateDebugUtilsMessengerEXT");
         PL_ASSERT(func != NULL && "failed to set up debug messenger!");
         PL_VULKAN(func(gptGraphics->tInstance, &tDebugCreateInfo, NULL, &gptGraphics->tDbgMessenger));     
         pl_log_trace_to_f(uLogChannelGraphics, "enabled Vulkan validation layers");
     }
-
-    pl_sb_free(sbpcEnabledExtensions);
 }
 
 static plDevice*
@@ -3159,7 +3182,7 @@ pl__create_device(const plDeviceInit* ptInit)
 
     uint32_t uDeviceExtensionCount = 0;
     const char* apcDeviceExts[16] = {0};
-    if(gptGraphics->bValidationActive)
+    if(gptGraphics->bDebugMessengerActive)
     {
         apcDeviceExts[0] = VK_EXT_DEBUG_MARKER_EXTENSION_NAME;
         uDeviceExtensionCount++;
@@ -4263,17 +4286,16 @@ pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT tMsgSeverity, VkDebugU
 
     else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
     {
-        printf("warn validation layer: %s\n", ptCallbackData->pMessage);
         pl_log_warn_to_f(uLogChannelGraphics, "warn validation layer: %s\n", ptCallbackData->pMessage);
     }
 
     else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
     {
-        // pl_log_trace_to_f(uLogChannelGraphics, "info validation layer: %s\n", ptCallbackData->pMessage);
+        pl_log_info_to_f(uLogChannelGraphics, "info validation layer: %s\n", ptCallbackData->pMessage);
     }
     else if(tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
     {
-        // pl_log_trace_to_f(uLogChannelGraphics, "trace validation layer: %s\n", ptCallbackData->pMessage);
+        pl_log_trace_to_f(uLogChannelGraphics, "trace validation layer: %s\n", ptCallbackData->pMessage);
     }
     
     return VK_FALSE;

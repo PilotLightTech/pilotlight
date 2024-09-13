@@ -153,7 +153,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // initialize graphics system
     const plGraphicsInit tGraphicsInit = {
-        .tFlags = PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED | PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED | PL_GRAPHICS_INIT_FLAGS_DEBUG_ENABLED 
+        .tFlags = PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED | PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED | PL_GRAPHICS_INIT_FLAGS_LOGGING_WARNING 
     };
     gptGfx->initialize(&tGraphicsInit);
     ptAppData->ptSurface = gptGfx->create_surface(ptAppData->ptWindow);

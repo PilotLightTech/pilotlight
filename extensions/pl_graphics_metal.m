@@ -1499,11 +1499,22 @@ pl_free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryA
 static void
 pl_initialize_graphics(const plGraphicsInit* ptDesc)
 {
-    gptGraphics = PL_ALLOC(sizeof(plGraphics));
-    memset(gptGraphics, 0, sizeof(plGraphics));
+    static plGraphics gtGraphics = {0};
+    gptGraphics = &gtGraphics;
     gptDataRegistry->set_data("plGraphics", gptGraphics);
     gptGraphics->bValidationActive = ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED;
     gptGraphics->uFramesInFlight = pl_min(pl_max(ptDesc->uFramesInFlight, 2), PL_MAX_FRAMES_IN_FLIGHT);
+
+    uLogChannelGraphics = pl_add_log_channel("Graphics", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
+    uint32_t uLogLevel = PL_LOG_LEVEL_FATAL;
+
+    if     (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_TRACE)   uLogLevel = PL_LOG_LEVEL_TRACE;
+    else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_DEBUG)   uLogLevel = PL_LOG_LEVEL_DEBUG;
+    else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_INFO)    uLogLevel = PL_LOG_LEVEL_INFO;
+    else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_WARNING) uLogLevel = PL_LOG_LEVEL_WARN;
+    else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_ERROR)   uLogLevel = PL_LOG_LEVEL_ERROR;
+
+    pl_set_log_level(uLogChannelGraphics, uLogLevel);
 }
 
 static plSurface*

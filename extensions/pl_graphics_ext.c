@@ -429,7 +429,7 @@ pl__cleanup_common_graphics(void)
     pl_sb_free(gptGraphics->sbuBlitEncodersFreeIndices)
     pl_sb_free(gptGraphics->sbtComputeEncoders)
     pl_sb_free(gptGraphics->sbuComputeEncodersFreeIndices)
-    PL_FREE(gptGraphics);
+    gptGraphics = NULL;
 }
 
 static void
@@ -906,7 +906,6 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     else
     {
         ptApiRegistry->add(PL_API_GRAPHICS, pl_load_graphics_api());
-        uLogChannelGraphics = pl_add_log_channel("Graphics", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
     }
 }
 

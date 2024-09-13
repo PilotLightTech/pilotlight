@@ -814,7 +814,7 @@ typedef struct _plRenderPass
 
 typedef struct _plGraphicsInit
 {
-    uint32_t            uFramesInFlight;
+    uint32_t            uFramesInFlight; // default: 2
     plGraphicsInitFlags tFlags;
 } plGraphicsInit;
 
@@ -849,7 +849,11 @@ enum _plGraphicsInitFlags
     PL_GRAPHICS_INIT_FLAGS_NONE                = 0,
     PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED  = 1 << 0,
     PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED   = 1 << 1,
-    PL_GRAPHICS_INIT_FLAGS_DEBUG_ENABLED       = 1 << 2,
+    PL_GRAPHICS_INIT_FLAGS_LOGGING_TRACE       = 1 << 2,
+    PL_GRAPHICS_INIT_FLAGS_LOGGING_DEBUG       = 1 << 3,
+    PL_GRAPHICS_INIT_FLAGS_LOGGING_INFO        = 1 << 4,
+    PL_GRAPHICS_INIT_FLAGS_LOGGING_WARNING     = 1 << 5,
+    PL_GRAPHICS_INIT_FLAGS_LOGGING_ERROR       = 1 << 6
 };
 
 enum _plStageFlags

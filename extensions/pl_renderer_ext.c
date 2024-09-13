@@ -435,7 +435,7 @@ pl_refr_initialize(plWindow* ptWindow)
 
     // initialize graphics
     const plGraphicsInit tGraphicsDesc = {
-        .tFlags = PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED | PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED | PL_GRAPHICS_INIT_FLAGS_DEBUG_ENABLED 
+        .tFlags = PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED | PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED | PL_GRAPHICS_INIT_FLAGS_LOGGING_WARNING
     };
     gptGfx->initialize(&tGraphicsDesc);
     gptData->ptSurface = gptGfx->create_surface(ptWindow);
