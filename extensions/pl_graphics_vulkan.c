@@ -3102,8 +3102,7 @@ pl_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCount)
         // Non-uniform indexing and update after bind
         // binding flags for textures, uniforms, and buffers
         // are required for our extension
-        if(tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing && 
-            tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing && 
+        if(tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing &&
             tDescriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind)
         {
             atDeviceInfo[i].tCapabilities |= PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING;
