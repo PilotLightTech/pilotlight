@@ -1152,12 +1152,6 @@ pl_new_frame(void)
     pl__update_mouse_inputs();
 }
 
-void*
-pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
-{
-    return realloc(pBuffer, szSize);
-}
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
@@ -1270,3 +1264,9 @@ pl_unload_core_apis(void)
 #define PL_STRING_IMPLEMENTATION
 #include "pl_string.h"
 #undef PL_STRING_IMPLEMENTATION
+
+void*
+pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
+{
+    return realloc(pBuffer, szSize);
+}
