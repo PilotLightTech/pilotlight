@@ -1,6 +1,27 @@
-#include "pl.h"
+/*
+   pl_lib.h
+     - static library to be included in apps & extensions
+*/
 
+/*
+Index of this file:
+// [SECTION] includes
+// [SECTION] unity build
+// [SECTION] contexts
+// [SECTION] public api implementations
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] includes
+//-----------------------------------------------------------------------------
+
+#include "pl.h"
 #include <stdlib.h>
+
+//-----------------------------------------------------------------------------
+// [SECTION] unity build
+//-----------------------------------------------------------------------------
+
 #undef PL_DS_ALLOC
 #undef PL_DS_ALLOC_INDIRECT
 #undef PL_DS_FREE
@@ -34,8 +55,16 @@
 
 #include "pl_os.h"
 
+//-----------------------------------------------------------------------------
+// [SECTION] contexts
+//-----------------------------------------------------------------------------
+
 static plMemoryContext* gptMemoryContext = NULL;
-static plMutex* gptMutex = NULL;
+static plMutex*         gptMutex         = NULL;
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api implementations
+//-----------------------------------------------------------------------------
 
 void
 pl_set_memory_context(plMemoryContext* ptMemoryContext)

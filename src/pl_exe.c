@@ -1,15 +1,20 @@
 /*
-    pilotlight_exe.c
+    pl_exe.c
+      - common definitions needed by platform backends
+      - should be included near the end of a platform backend file
 */
 
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] defines
 // [SECTION] internal structs
+// [SECTION] enums
 // [SECTION] internal api
 // [SECTION] global data
-// [SECTION] public api implementation
 // [SECTION] internal api implementation
+// [SECTION] public api implementation
+// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
@@ -212,9 +217,9 @@ pl__load_api_registry(void)
 //-----------------------------------------------------------------------------
 
 // data registry
-plHashMap    gtHashMap = {0};
+plHashMap          gtHashMap = {0};
 plDataRegistryData gtDataRegistryData = {0};
-plMutex*     gptDataMutex = NULL;
+plMutex*           gptDataMutex = NULL;
 
 // api registry
 plApiEntry* gsbApiEntries = NULL;
@@ -1147,6 +1152,12 @@ pl_new_frame(void)
     pl__update_mouse_inputs();
 }
 
+void*
+pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
+{
+    return realloc(pBuffer, szSize);
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
@@ -1242,6 +1253,9 @@ pl_unload_core_apis(void)
     pl_hm_free(&gtHashMap);
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] unity build
+//-----------------------------------------------------------------------------
 
 #ifdef PL_USE_STB_SPRINTF
     #define STB_SPRINTF_IMPLEMENTATION
@@ -1256,9 +1270,3 @@ pl_unload_core_apis(void)
 #define PL_STRING_IMPLEMENTATION
 #include "pl_string.h"
 #undef PL_STRING_IMPLEMENTATION
-
-void*
-pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
-{
-    return realloc(pBuffer, szSize);
-}

@@ -5,8 +5,8 @@
 /*
 Index of this file:
 // [SECTION] header mess
-// [SECTION] defines
 // [SECTION] apis
+// [SECTION] defines
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] public api struct

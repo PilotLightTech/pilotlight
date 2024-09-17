@@ -1,11 +1,11 @@
 /*
    pl_os.h
+     - optional OS provided APIs
 */
 
 /*
 Index of this file:
 // [SECTION] header mess
-// [SECTION] defines
 // [SECTION] apis
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
@@ -19,14 +19,6 @@ Index of this file:
 
 #ifndef PL_OS_H
 #define PL_OS_H
-
-//-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
-
-#ifndef PL_MAX_PATH_LENGTH
-#define PL_MAX_PATH_LENGTH 1024
-#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
@@ -64,22 +56,19 @@ typedef struct _plAtomicsI plAtomicsI;
 // types
 typedef struct _plWindow            plWindow;
 typedef struct _plWindowDesc        plWindowDesc;
-typedef struct _plSharedLibrary     plSharedLibrary;
-typedef struct _plSocket            plSocket;
-typedef struct _plThread            plThread;
-typedef struct _plMutex             plMutex;
-typedef struct _plCriticalSection   plCriticalSection;
-typedef struct _plSemaphore         plSemaphore;
-typedef struct _plBarrier           plBarrier;
-typedef struct _plConditionVariable plConditionVariable;
-typedef struct _plThreadKey         plThreadKey;
-typedef struct _plAtomicCounter     plAtomicCounter;
+typedef struct _plSharedLibrary     plSharedLibrary;     // opaque type (used by platform backends)
+typedef struct _plSocket            plSocket;            // opaque type (used by platform backends)
+typedef struct _plThread            plThread;            // opaque type (used by platform backends)
+typedef struct _plMutex             plMutex;             // opaque type (used by platform backends)
+typedef struct _plCriticalSection   plCriticalSection;   // opaque type (used by platform backends)
+typedef struct _plSemaphore         plSemaphore;         // opaque type (used by platform backends)
+typedef struct _plBarrier           plBarrier;           // opaque type (used by platform backends)
+typedef struct _plConditionVariable plConditionVariable; // opaque type (used by platform backends)
+typedef struct _plThreadKey         plThreadKey;         // opaque type (used by platform backends)
+typedef struct _plAtomicCounter     plAtomicCounter;     // opaque type (used by platform backends)
 
 // forward declarations
 typedef void* (*plThreadProcedure)(void*);
-
-// external
-typedef struct _plApiRegistryI plApiRegistryI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] api structs

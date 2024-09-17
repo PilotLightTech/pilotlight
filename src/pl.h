@@ -1,5 +1,6 @@
 /*
    pl.h
+     - Pilot Light core APIs
 */
 
 /*
@@ -8,11 +9,13 @@ Index of this file:
 // [SECTION] apis
 // [SECTION] contexts
 // [SECTION] includes
-// [SECTION] defines
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
 // [SECTION] api structs
+// [SECTION] enums
+// [SECTION] IO struct
 // [SECTION] structs
+// [SECTION] defines
 */
 
 //-----------------------------------------------------------------------------
@@ -116,12 +119,22 @@ typedef struct _plApiRegistryI
 
 typedef struct _plDataRegistryI
 {
-    // object creation & retrieval
-    plDataID (*create_object)     (void);
-    plDataID (*get_object_by_name)(const char* pcName); // assumes property 0 is name
+
+    // for convience, only use for infrequent operations (i.e. global extension data)
+    void  (*set_data)(const char* pcName, void* pData);
+    void* (*get_data)(const char* pcName);
+
+    // called by backend
+    void (*garbage_collect)(void);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~do not use below here yet~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // future type system, current default type property 0 is a string (name) and property 1 is buffer (pointer)
     // plDataID (*create_object_of_type)(type));
+
+    // object creation & retrieval
+    plDataID (*create_object)     (void);
+    plDataID (*get_object_by_name)(const char* pcName); // assumes property 0 is name
 
     // reading (no locking or waiting)
     const plDataObject* (*read)      (plDataID);
@@ -134,13 +147,6 @@ typedef struct _plDataRegistryI
     void          (*set_string)(plDataObject*, uint32_t uProperty, const char*);
     void          (*set_buffer)(plDataObject*, uint32_t uProperty, void*);
     void          (*commit)    (plDataObject*);
-
-    // for convience, only use for infrequent operations (i.e. global extension data)
-    void  (*set_data)(const char* pcName, void* pData);
-    void* (*get_data)(const char* pcName);
-
-    // called by backend
-    void (*garbage_collect)(void);
 } plDataRegistryI;
 
 typedef struct _plExtensionRegistryI

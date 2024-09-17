@@ -4,8 +4,24 @@
       * absolute mess and needs to be cleaned up
 */
 
+/*
+Index of this file:
+// [SECTION] version
+// [SECTION] unity build #1
+// [SECTION] extension loading
+// [SECTION] unity build #2
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] version
+//-----------------------------------------------------------------------------
+
 #define PL_CORE_EXTENSION_VERSION    "0.1.0"
 #define PL_CORE_EXTENSION_VERSION_NUM 001000
+
+//-----------------------------------------------------------------------------
+// [SECTION] unity build #1
+//-----------------------------------------------------------------------------
 
 #include "pl_image_ext.c"
 #include "pl_rect_pack_ext.c"
@@ -28,6 +44,10 @@
     #include "pl_renderer_ext.c"
     #include "pl_debug_ext.c"
 #endif
+
+//-----------------------------------------------------------------------------
+// [SECTION] extension loading
+//-----------------------------------------------------------------------------
 
 PL_EXPORT void
 pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
@@ -121,7 +141,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] unity build
+// [SECTION] unity build #2
 //-----------------------------------------------------------------------------
 
 #define STB_IMAGE_IMPLEMENTATION
