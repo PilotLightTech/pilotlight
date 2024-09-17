@@ -29,7 +29,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // external
-typedef struct _plApiRegistryI     plApiRegistryI;     // pilot_light.h
+typedef struct _plApiRegistryI     plApiRegistryI;     // pl.h
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef union  _plEntity           plEntity;
 

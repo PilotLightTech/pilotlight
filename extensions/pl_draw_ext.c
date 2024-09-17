@@ -18,7 +18,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <float.h>
-#include "pilot_light.h"
+#include "pl.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_draw_ext.h"
 #include "pl_ds.h"

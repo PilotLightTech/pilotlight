@@ -41,7 +41,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pilot_light.h" // data registry, api registry, extension registry
+#include "pl.h" // data registry, api registry, extension registry
 #include "pl_os.h"      // os apis
 #include "pl_ds.h"      // hashmap
 

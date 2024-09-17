@@ -19,7 +19,7 @@ Index of this file:
 
 #include <float.h> // FLT_MAX
 #define PL_MATH_INCLUDE_FUNCTIONS
-#include "pilot_light.h"
+#include "pl.h"
 #include "pl_ecs_ext.h"
 #include "pl_ds.h"
 #include "pl_math.h"

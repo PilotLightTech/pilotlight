@@ -19,7 +19,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pilot_light.h"
+#include "pl.h"
 #include "pl_os.h"
 #include "pl_profile.h"
 #include "pl_memory.h"

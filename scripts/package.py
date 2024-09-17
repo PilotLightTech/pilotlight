@@ -58,7 +58,7 @@ if not os.path.isdir(target_directory + "/lib"):
 #-----------------------------------------------------------------------------
 
 # copy core headers
-shutil.copy("../src/pilot_light.h", target_directory + "/include/pilot_light.h")
+shutil.copy("../src/pl.h", target_directory + "/include/pl.h")
 shutil.copy("../src/pl_config.h", target_directory + "/include/pl_config.h")
 shutil.copy("../src/pl_os.h", target_directory + "/include/pl_os.h")
 

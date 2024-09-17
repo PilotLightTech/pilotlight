@@ -17,7 +17,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pilot_light.h"
+#include "pl.h"
 #include "pl_ui_internal.h"
 #include <float.h> // FLT_MAX
 #include <stdio.h>
