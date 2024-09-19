@@ -2830,21 +2830,20 @@ pl_free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryA
     ptAllocation->ulOffset = 0;
 }
 
-static void
+static bool
 pl_initialize_graphics(const plGraphicsInit* ptDesc)
 {
     static plGraphics gtGraphics = {0};
     gptGraphics = &gtGraphics;
 
+    // setup logging
     uLogChannelGraphics = pl_add_log_channel("Graphics", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
     uint32_t uLogLevel = PL_LOG_LEVEL_FATAL;
-
     if     (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_TRACE)   uLogLevel = PL_LOG_LEVEL_TRACE;
     else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_DEBUG)   uLogLevel = PL_LOG_LEVEL_DEBUG;
     else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_INFO)    uLogLevel = PL_LOG_LEVEL_INFO;
     else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_WARNING) uLogLevel = PL_LOG_LEVEL_WARN;
     else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_ERROR)   uLogLevel = PL_LOG_LEVEL_ERROR;
-
     pl_set_log_level(uLogChannelGraphics, uLogLevel);
 
     // save context for hot-reloads
@@ -2860,6 +2859,8 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
 
     // set frames in flight (if zero, use a default of 2)
     gptGraphics->uFramesInFlight = pl_min(pl_max(ptDesc->uFramesInFlight, 2), PL_MAX_FRAMES_IN_FLIGHT);
+
+    //-------------------------------extensions------------------------------------
 
     // required extensions
     uint32_t uExtensionCount = 0;
@@ -2887,16 +2888,6 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     {
         apcExtensions[uExtensionCount++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
         apcExtensions[uExtensionCount++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
-    }
-
-    // retrieve supported layers
-    uint32_t uInstanceLayersFound = 0u;
-    VkLayerProperties* ptAvailableLayers = NULL;
-    PL_VULKAN(vkEnumerateInstanceLayerProperties(&uInstanceLayersFound, NULL));
-    if(uInstanceLayersFound > 0)
-    {
-        ptAvailableLayers = (VkLayerProperties*)PL_ALLOC(sizeof(VkLayerProperties) * uInstanceLayersFound);
-        PL_VULKAN(vkEnumerateInstanceLayerProperties(&uInstanceLayersFound, ptAvailableLayers));
     }
 
     // retrieve supported extensions
@@ -2940,13 +2931,31 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
         }
 
         PL_ASSERT(false && "Can't find all requested extensions");
+        
+        if(ptAvailableExtensions)
+            PL_FREE(ptAvailableExtensions);
+
+        return false;
+    }
+
+    //---------------------------------layers--------------------------------------
+
+    // retrieve supported layers
+    uint32_t uInstanceLayersFound = 0u;
+    VkLayerProperties* ptAvailableLayers = NULL;
+    PL_VULKAN(vkEnumerateInstanceLayerProperties(&uInstanceLayersFound, NULL));
+    if(uInstanceLayersFound > 0)
+    {
+        ptAvailableLayers = (VkLayerProperties*)PL_ALLOC(sizeof(VkLayerProperties) * uInstanceLayersFound);
+        PL_VULKAN(vkEnumerateInstanceLayerProperties(&uInstanceLayersFound, ptAvailableLayers));
     }
 
     // ensure layers are supported
     static const char* pcValidationLayer = "VK_LAYER_KHRONOS_validation";
-    bool bLayerFound = false;
+    bool bLayerFound = true;
     if(gptGraphics->bValidationActive)
     {
+        bLayerFound = false;
         for(uint32_t i = 0; i < uInstanceLayersFound; i++)
         {
             if(strcmp(pcValidationLayer, ptAvailableLayers[i].layerName) == 0)
@@ -2957,27 +2966,14 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
             }
         }
     }
-    PL_ASSERT(bLayerFound && "Can't find validation layers");
-
-    VkDebugUtilsMessageSeverityFlagBitsEXT tMessageSeverityFlags = 0;
-
-    if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_TRACE)
-        tMessageSeverityFlags = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
-    else if((ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_DEBUG) || (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_INFO))
-        tMessageSeverityFlags = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT;
-    else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_WARNING)
-        tMessageSeverityFlags = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
-    else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_ERROR)
-        tMessageSeverityFlags = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-
-    // Setup debug messenger for vulkan instance
-    const VkDebugUtilsMessengerCreateInfoEXT tDebugCreateInfo = {
-        .sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-        .messageSeverity = tMessageSeverityFlags,
-        .messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-        .pfnUserCallback = pl__debug_callback,
-        .pNext           = VK_NULL_HANDLE
-    };
+    
+    if(!bLayerFound)
+    {
+        PL_ASSERT("Can't find requested layers");
+        if(ptAvailableLayers)
+            PL_FREE(ptAvailableLayers);
+        return false;
+    }
 
     // create vulkan tInstance
     const VkApplicationInfo tAppInfo = {
@@ -2989,8 +2985,28 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
 
     if(gptGraphics->bDebugMessengerActive)
     {
+
+        // Setup debug messenger for vulkan instance
+        static VkDebugUtilsMessengerCreateInfoEXT tDebugCreateInfo = {
+            .sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+            .messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+            .pfnUserCallback = pl__debug_callback,
+            .pNext           = VK_NULL_HANDLE
+        };
+
+        if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_TRACE)
+            tDebugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+        else if((ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_DEBUG) || (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_INFO))
+            tDebugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT;
+        else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_WARNING)
+            tDebugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
+        else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_ERROR)
+            tDebugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+
         pCreateInfoNext = &tDebugCreateInfo;
     }
+
+    //--------------------------------instance-------------------------------------
 
     const VkInstanceCreateInfo tCreateInfo = {
         .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
@@ -3010,16 +3026,21 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     pl_log_trace_to_f(uLogChannelGraphics, "created vulkan instance");
 
     // cleanup
-    if(ptAvailableLayers)     PL_FREE(ptAvailableLayers);
-    if(ptAvailableExtensions) PL_FREE(ptAvailableExtensions);
+    if(ptAvailableLayers)
+        PL_FREE(ptAvailableLayers);
+
+    if(ptAvailableExtensions)
+        PL_FREE(ptAvailableExtensions);
     
     if(gptGraphics->bDebugMessengerActive)
     {
         PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(gptGraphics->tInstance, "vkCreateDebugUtilsMessengerEXT");
         PL_ASSERT(func != NULL && "failed to set up debug messenger!");
-        PL_VULKAN(func(gptGraphics->tInstance, &tDebugCreateInfo, NULL, &gptGraphics->tDbgMessenger));     
+        PL_VULKAN(func(gptGraphics->tInstance, pCreateInfoNext, NULL, &gptGraphics->tDbgMessenger));     
         pl_log_trace_to_f(uLogChannelGraphics, "enabled Vulkan validation layers");
     }
+
+    return true;
 }
 
 static void

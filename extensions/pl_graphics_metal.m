@@ -1496,7 +1496,7 @@ pl_free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryA
     ptAllocation->ulOffset = 0;
 }
 
-static void
+static bool
 pl_initialize_graphics(const plGraphicsInit* ptDesc)
 {
     static plGraphics gtGraphics = {0};
@@ -1515,6 +1515,8 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     else if(ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_ERROR)   uLogLevel = PL_LOG_LEVEL_ERROR;
 
     pl_set_log_level(uLogChannelGraphics, uLogLevel);
+
+    return true;
 }
 
 static plSurface*
@@ -1585,7 +1587,7 @@ pl__create_device(const plDeviceInit* ptInit)
     ptHeapDescriptor.size        = PL_ARGUMENT_BUFFER_HEAP_SIZE;
     ptHeapDescriptor.type        = MTLHeapTypePlacement;
     ptHeapDescriptor.hazardTrackingMode = MTLHazardTrackingModeUntracked;
-    ptHeapDescriptor.sparsePageSize = MTLSparsePageSize256;
+    // ptHeapDescriptor.sparsePageSize = MTLSparsePageSize256;
 
     pl_sb_resize(ptDevice->sbtGarbage, gptGraphics->uFramesInFlight + 1);
     gptGraphics->tFence = [ptDevice->tDevice newFence];

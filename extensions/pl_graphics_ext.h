@@ -69,8 +69,6 @@ Index of this file:
     #define PL_MAX_VERTEX_ATTRIBUTES 8
 #endif
 
-#define PL_ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
-
 #ifndef PL_DEFINE_HANDLE
     #define PL_DEFINE_HANDLE(x) typedef union x { struct {uint32_t uIndex; uint32_t uGeneration;}; uint64_t ulData; } x;
 #endif
@@ -224,7 +222,7 @@ typedef struct _plWindow plWindow;
 typedef struct _plGraphicsI
 {
     // context
-    void (*initialize)(const plGraphicsInit*);
+    bool (*initialize)(const plGraphicsInit*);
     void (*resize)    (plSwapchain*);
     void (*cleanup)   (void);
 

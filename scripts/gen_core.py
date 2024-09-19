@@ -151,6 +151,7 @@ with pl.project("pilotlight"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
                     pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared")
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
 
         # vulkan on macos
         with pl.configuration("vulkan"):
@@ -260,12 +261,14 @@ with pl.project("pilotlight"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
                     pl.add_source_files("pl_main_macos.m")
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
         
         # vulkan on macos
         with pl.configuration("vulkan"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
                     pl.add_source_files("pl_main_macos.m")
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
 
 #-----------------------------------------------------------------------------
 # [SECTION] generate scripts
