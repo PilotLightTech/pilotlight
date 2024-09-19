@@ -52,6 +52,7 @@ Index of this file:
 #include <winsock2.h>   // sockets
 #include <windows.h>
 #include <windowsx.h>   // GET_X_LPARAM(), GET_Y_LPARAM()
+#include <sysinfoapi.h> // page size
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -134,6 +135,14 @@ int64_t pl__atomic_load            (plAtomicCounter* ptCounter);
 bool    pl__atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue);
 void    pl__atomic_increment       (plAtomicCounter* ptCounter);
 void    pl__atomic_decrement       (plAtomicCounter* ptCounter);
+
+// virtual memory
+size_t pl__get_page_size   (void);
+void*  pl__virtual_alloc   (void* pAddress, size_t szSize);
+void*  pl__virtual_reserve (void* pAddress, size_t szSize);
+void*  pl__virtual_commit  (void* pAddress, size_t szSize); 
+void   pl__virtual_uncommit(void* pAddress, size_t szSize);
+void   pl__virtual_free    (void* pAddress, size_t szSize); 
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -358,6 +367,15 @@ int main(int argc, char *argv[])
         .atomic_decrement        = pl__atomic_decrement
     };
 
+    static const plVirtualMemoryI tVirtualMemoryApi = {
+        .get_page_size = pl__get_page_size,
+        .alloc         = pl__virtual_alloc,
+        .reserve       = pl__virtual_reserve,
+        .commit        = pl__virtual_commit,
+        .uncommit      = pl__virtual_uncommit,
+        .free          = pl__virtual_free,
+    };
+
     // load core apis
     gptApiRegistry       = pl_load_core_apis();
     gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
@@ -373,6 +391,7 @@ int main(int argc, char *argv[])
     gptApiRegistry->add(PL_API_UDP, &tUdpApi);
     gptApiRegistry->add(PL_API_THREADS, &tThreadApi);
     gptApiRegistry->add(PL_API_ATOMICS, &tAtomicsApi);
+    gptApiRegistry->add(PL_API_VIRTUAL_MEMORY, &tVirtualMemoryApi);
 
     // set clipboard functions (may need to move this to OS api)
     gptIOCtx = gptIOI->get_io();
@@ -1606,6 +1625,44 @@ void
 pl__sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection)
 {
     SleepConditionVariableCS(&ptConditionVariable->tHandle, &ptCriticalSection->tHandle, INFINITE);
+}
+
+size_t
+pl__get_page_size(void)
+{
+    SYSTEM_INFO tInfo = {0};
+    GetSystemInfo(&tInfo);
+    return (size_t)tInfo.dwPageSize;
+}
+
+void*
+pl__virtual_alloc(void* pAddress, size_t szSize)
+{
+    return VirtualAlloc(pAddress, szSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+}
+
+void*
+pl__virtual_reserve(void* pAddress, size_t szSize)
+{
+    return VirtualAlloc(pAddress, szSize, MEM_RESERVE, PAGE_READWRITE);
+}
+
+void*
+pl__virtual_commit(void* pAddress, size_t szSize)
+{
+    return VirtualAlloc(pAddress, szSize, MEM_COMMIT, PAGE_READWRITE);
+}
+
+void
+pl__virtual_free(void* pAddress, size_t szSize)
+{
+    PL_ASSERT(VirtualFree(pAddress, szSize, MEM_RELEASE));
+}
+
+void
+pl__virtual_uncommit(void* pAddress, size_t szSize)
+{
+    PL_ASSERT(VirtualFree(pAddress, szSize, MEM_DECOMMIT));
 }
 
 const char*

@@ -44,6 +44,7 @@ Index of this file:
 #include <pthread.h>
 #include <unistd.h>
 #include <stdatomic.h>
+#include <sys/mman.h> // virtual memory
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -260,6 +261,14 @@ bool    pl__atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpect
 void    pl__atomic_increment       (plAtomicCounter* ptCounter);
 void    pl__atomic_decrement       (plAtomicCounter* ptCounter);
 
+// virtual memory
+size_t pl__get_page_size   (void);
+void*  pl__virtual_alloc   (void* pAddress, size_t szSize);
+void*  pl__virtual_reserve (void* pAddress, size_t szSize);
+void*  pl__virtual_commit  (void* pAddress, size_t szSize); 
+void   pl__virtual_uncommit(void* pAddress, size_t szSize);
+void   pl__virtual_free    (void* pAddress, size_t szSize); 
+
 //-----------------------------------------------------------------------------
 // [SECTION] globals
 //-----------------------------------------------------------------------------
@@ -364,14 +373,14 @@ int main(int argc, char *argv[])
     };
     #endif
 
-    static const plLibraryI tApi3 = {
+    static const plLibraryI tLibraryApi = {
         .has_changed   = pl__has_library_changed,
         .load          = pl__load_library,
         .load_function = pl__load_library_function,
         .reload        = pl__reload_library
     };
 
-    static const plFileI tApi4 = {
+    static const plFileI tFileApi = {
         .copy         = pl__copy_file,
         .exists       = pl__file_exists,
         .delete       = pl__file_delete,
@@ -379,7 +388,7 @@ int main(int argc, char *argv[])
         .binary_write = pl__binary_write_file
     };
     
-    static const plUdpI tApi5 = {
+    static const plUdpI tUdpApi = {
         .create_socket = pl__create_udp_socket,
         .bind_socket   = pl__bind_udp_socket,  
         .get_data      = pl__get_udp_data,
@@ -430,14 +439,24 @@ int main(int argc, char *argv[])
         .atomic_decrement        = pl__atomic_decrement
     };
 
+    static const plVirtualMemoryI tVirtualMemoryApi = {
+        .get_page_size = pl__get_page_size,
+        .alloc         = pl__virtual_alloc,
+        .reserve       = pl__virtual_reserve,
+        .commit        = pl__virtual_commit,
+        .uncommit      = pl__virtual_uncommit,
+        .free          = pl__virtual_free,
+    };
+
     #ifndef PL_HEADLESS_APP
     gptApiRegistry->add(PL_API_WINDOW, &tWindowApi);
     #endif
-    gptApiRegistry->add(PL_API_LIBRARY, &tApi3);
-    gptApiRegistry->add(PL_API_FILE, &tApi4);
-    gptApiRegistry->add(PL_API_UDP, &tApi5);
+    gptApiRegistry->add(PL_API_LIBRARY, &tLibraryApi);
+    gptApiRegistry->add(PL_API_FILE, &tFileApi);
+    gptApiRegistry->add(PL_API_UDP, &tUdpApi);
     gptApiRegistry->add(PL_API_THREADS, &tThreadApi);
     gptApiRegistry->add(PL_API_ATOMICS, &tAtomicsApi);
+    gptApiRegistry->add(PL_API_VIRTUAL_MEMORY, &tVirtualMemoryApi);
 
     gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
     gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
@@ -1767,6 +1786,45 @@ pthread_barrier_wait(pthread_barrier_t *barrier)
         pthread_mutex_unlock(&barrier->mutex);
         return 0;
     }
+}
+
+size_t
+pl__get_page_size(void)
+{
+    return (size_t)getpagesize();
+}
+
+void*
+pl__virtual_alloc(void* pAddress, size_t szSize)
+{
+    void* pResult = mmap(pAddress, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    return pResult;
+}
+
+void*
+pl__virtual_reserve(void* pAddress, size_t szSize)
+{
+    void* pResult = mmap(pAddress, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    return pResult;
+}
+
+void*
+pl__virtual_commit(void* pAddress, size_t szSize)
+{
+    mprotect(pAddress, szSize, PROT_READ | PROT_WRITE);
+    return pAddress;
+}
+
+void
+pl__virtual_free(void* pAddress, size_t szSize)
+{
+    munmap(pAddress, szSize);
+}
+
+void
+pl__virtual_uncommit(void* pAddress, size_t szSize)
+{
+    mprotect(pAddress, szSize, PROT_NONE);
 }
 
 #ifndef PL_HEADLESS_APP

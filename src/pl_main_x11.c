@@ -38,6 +38,7 @@ Index of this file:
 #include <pthread.h>
 #include <unistd.h>
 #include <stdatomic.h>
+#include <sys/mman.h> // virtual memory
 
 #ifndef PL_HEADLESS_APP
 #include <xcb/xcb.h>
@@ -122,6 +123,14 @@ int64_t pl__atomic_load            (plAtomicCounter* ptCounter);
 bool    pl__atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue);
 void    pl__atomic_increment       (plAtomicCounter* ptCounter);
 void    pl__atomic_decrement       (plAtomicCounter* ptCounter);
+
+// virtual memory
+size_t pl__get_page_size   (void);
+void*  pl__virtual_alloc   (void* pAddress, size_t szSize);
+void*  pl__virtual_reserve (void* pAddress, size_t szSize);
+void*  pl__virtual_commit  (void* pAddress, size_t szSize); 
+void   pl__virtual_uncommit(void* pAddress, size_t szSize);
+void   pl__virtual_free    (void* pAddress, size_t szSize); 
 
 static inline time_t
 pl__get_last_write_time(const char* filename)
@@ -365,6 +374,15 @@ int main(int argc, char *argv[])
         .atomic_decrement        = pl__atomic_decrement
     };
 
+    static const plVirtualMemoryI tVirtualMemoryApi = {
+        .get_page_size = pl__get_page_size,
+        .alloc         = pl__virtual_alloc,
+        .reserve       = pl__virtual_reserve,
+        .commit        = pl__virtual_commit,
+        .uncommit      = pl__virtual_uncommit,
+        .free          = pl__virtual_free,
+    };
+
     // load CORE apis
     gptApiRegistry       = pl_load_core_apis();
     gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
@@ -382,6 +400,7 @@ int main(int argc, char *argv[])
     gptApiRegistry->add(PL_API_UDP, &tUdpApi);
     gptApiRegistry->add(PL_API_THREADS, &tThreadApi);
     gptApiRegistry->add(PL_API_ATOMICS, &tAtomicsApi);
+    gptApiRegistry->add(PL_API_VIRTUAL_MEMORY, &tVirtualMemoryApi);
 
     // add contexts to data registry
     gptIOCtx = gptIOI->get_io();
@@ -1221,6 +1240,45 @@ void
 pl__atomic_decrement(plAtomicCounter* ptCounter)
 {
     atomic_fetch_sub(&ptCounter->ilValue, 1);
+}
+
+size_t
+pl__get_page_size(void)
+{
+    return (size_t)getpagesize();
+}
+
+void*
+pl__virtual_alloc(void* pAddress, size_t szSize)
+{
+    void* pResult = mmap(pAddress, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    return pResult;
+}
+
+void*
+pl__virtual_reserve(void* pAddress, size_t szSize)
+{
+    void* pResult = mmap(pAddress, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    return pResult;
+}
+
+void*
+pl__virtual_commit(void* pAddress, size_t szSize)
+{
+    mprotect(pAddress, szSize, PROT_READ | PROT_WRITE);
+    return pAddress;
+}
+
+void
+pl__virtual_free(void* pAddress, size_t szSize)
+{
+    munmap(pAddress, szSize);
+}
+
+void
+pl__virtual_uncommit(void* pAddress, size_t szSize)
+{
+    mprotect(pAddress, szSize, PROT_NONE);
 }
 
 #ifndef PL_HEADLESS_APP

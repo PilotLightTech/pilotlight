@@ -42,12 +42,16 @@ typedef struct _plThreadsI plThreadsI;
 #define PL_API_ATOMICS "PL_API_ATOMICS"
 typedef struct _plAtomicsI plAtomicsI;
 
+#define PL_API_VIRTUAL_MEMORY "PL_API_VIRTUAL_MEMORY"
+typedef struct _plVirtualMemoryI plVirtualMemoryI;
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>  // size_t
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -171,6 +175,26 @@ typedef struct _plAtomicsI
     void    (*atomic_increment)       (plAtomicCounter*);
     void    (*atomic_decrement)       (plAtomicCounter*);
 } plAtomicsI;
+
+typedef struct _plVirtualMemoryI
+{
+
+    // Notes
+    //   - API subject to change slightly
+    //   - additional error checks needs to be added
+    //   - committed memory does not necessarily mean the memory has been mapped to physical
+    //     memory. This is happens when the memory is actually touched. Even so, on Windows
+    //     you can not commit more memmory then you have in your page file.
+    //   - uncommitted memory does not necessarily mean the memory will be immediately
+    //     evicted. It is up to the OS.
+
+    size_t (*get_page_size)(void);                   // returns memory page size
+    void*  (*alloc)        (void* pAddress, size_t); // reserves & commits a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
+    void*  (*reserve)      (void* pAddress, size_t); // reserves a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
+    void*  (*commit)       (void* pAddress, size_t); // commits a block of reserved memory. szSize must be a multiple of memory page size.
+    void   (*uncommit)     (void* pAddress, size_t); // uncommits a block of committed memory.
+    void   (*free)         (void* pAddress, size_t); // frees a block of previously reserved/committed memory. Must be the starting address returned from "reserve()" or "alloc()"
+} plVirtualMemoryI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
