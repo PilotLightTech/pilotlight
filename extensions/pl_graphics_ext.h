@@ -25,14 +25,6 @@ Index of this file:
     #define PL_MAX_NAME_LENGTH 1024
 #endif
 
-#ifndef PL_DEVICE_ALLOCATION_BLOCK_SIZE
-    #define PL_DEVICE_ALLOCATION_BLOCK_SIZE 134217728
-#endif
-
-#ifndef PL_MAX_DYNAMIC_DATA_SIZE
-    #define PL_MAX_DYNAMIC_DATA_SIZE 256
-#endif
-
 #ifndef PL_MAX_BUFFERS_PER_BIND_GROUP
     #define PL_MAX_BUFFERS_PER_BIND_GROUP 32
 #endif
@@ -103,7 +95,6 @@ typedef struct _plBuffer                     plBuffer;
 typedef struct _plSwapchain                  plSwapchain;
 typedef struct _plSurface                    plSurface;
 typedef struct _plGraphicsInit               plGraphicsInit;
-typedef struct _plDeviceInit                 plDeviceInit;
 typedef struct _plSwapchainInit              plSwapchainInit;
 typedef struct _plStreamDraw                 plStreamDraw;
 typedef struct _plDispatch                   plDispatch;
@@ -228,7 +219,7 @@ typedef struct _plGraphicsI
 
     // devices
     void      (*enumerate_devices)(plDeviceInfo*, uint32_t* puDeviceCount);
-    plDevice* (*create_device)(const plDeviceInit*);
+    plDevice* (*create_device)(const plDeviceInfo*);
     void      (*cleanup_device)(plDevice*);
 
     // surface
@@ -822,13 +813,6 @@ typedef struct _plGraphicsInit
     plGraphicsInitFlags tFlags;
 } plGraphicsInit;
 
-typedef struct _plDeviceInit
-{
-    plDeviceInitFlags tFlags;
-    plSurface*        ptSurface;
-    plDeviceInfo*     ptInfo; // pick default device if NULL
-} plDeviceInit;
-
 typedef struct _plSwapchainInit
 {
     plSwapchainInitFlags tFlags;
@@ -852,8 +836,28 @@ typedef struct _plDeviceInfo
     size_t             szHostMemory;
     plDeviceCapability tCapabilities;
 
-    // TODO:
-    //   * formats
+    //--------------------------------init options---------------------------------
+    
+    plDeviceInitFlags tFlags;
+    plSurface*        ptSurface;
+
+    size_t szDynamicBufferBlockSize;
+    size_t szDynamicDataMaxSize;
+
+    size_t szInitSamplerBindings;
+    size_t szInitUniformBufferBindings;
+    size_t szInitStorageBufferBindings;
+    size_t szInitSampledTextureBindings;
+    size_t szInitStorageTextureBindings;
+    size_t szInitAttachmentTextureBindings;
+
+    size_t szInitDynamicSamplerBindings;
+    size_t szInitDynamicUniformBufferBindings;
+    size_t szInitDynamicStorageBufferBindings;
+    size_t szInitDynamicSampledTextureBindings;
+    size_t szInitDynamicStorageTextureBindings;
+    size_t szInitDynamicAttachmentTextureBindings;
+
 } plDeviceInfo;
 
 //-----------------------------------------------------------------------------

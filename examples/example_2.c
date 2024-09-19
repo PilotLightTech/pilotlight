@@ -168,11 +168,32 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptGfx->initialize(&tGraphicsInit);
     ptAppData->ptSurface = gptGfx->create_surface(ptAppData->ptWindow);
 
+    // find suitable device
+    uint32_t uDeviceCount = 16;
+    plDeviceInfo atDeviceInfos[16] = {0};
+    gptGfx->enumerate_devices(atDeviceInfos, &uDeviceCount);
+
+    // we will prefer discrete, then integrated
+    int iBestDvcIdx = 0;
+    int iDiscreteGPUIdx   = -1;
+    int iIntegratedGPUIdx = -1;
+    for(uint32_t i = 0; i < uDeviceCount; i++)
+    {
+        
+        if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_DISCRETE)
+            iDiscreteGPUIdx = i;
+        else if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_INTEGRATED)
+            iIntegratedGPUIdx = i;
+    }
+
+    if(iDiscreteGPUIdx > -1)
+        iBestDvcIdx = iDiscreteGPUIdx;
+    else if(iIntegratedGPUIdx > -1)
+        iBestDvcIdx = iIntegratedGPUIdx;
+
     // create device
-    const plDeviceInit tDeviceInit = {
-        .ptSurface = ptAppData->ptSurface
-    };
-    ptAppData->ptDevice = gptGfx->create_device(&tDeviceInit);
+    atDeviceInfos[iBestDvcIdx].ptSurface = ptAppData->ptSurface;
+    ptAppData->ptDevice = gptGfx->create_device(&atDeviceInfos[iBestDvcIdx]);
 
     // create swapchain
     const plSwapchainInit tSwapInit = {

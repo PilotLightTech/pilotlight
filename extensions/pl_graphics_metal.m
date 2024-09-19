@@ -5,7 +5,6 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] defines
 // [SECTION] internal structs & types
 // [SECTION] global data
 // [SECTION] internal api
@@ -29,18 +28,6 @@ Index of this file:
 // metal stuff
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
-
-//-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
-
-#ifndef PL_ARGUMENT_BUFFER_HEAP_SIZE
-    #define PL_ARGUMENT_BUFFER_HEAP_SIZE 134217728
-#endif
-
-#ifndef PL_DYNAMIC_ARGUMENT_BUFFER_SIZE
-    #define PL_DYNAMIC_ARGUMENT_BUFFER_SIZE 16777216
-#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs & types
@@ -205,11 +192,15 @@ typedef struct _plGraphics
 
 typedef struct _plDevice
 {
+    plDeviceInfo              tInfo;
     plFrameGarbage*           sbtGarbage;
     plFrameContext*           sbFrames;
     bool                      bDescriptorIndexing;
     plDeviceMemoryAllocatorI* ptDynamicAllocator;
     void*                     _pInternalData;
+
+    size_t szArgumentBufferHeapSize;
+    size_t szDynamicArgumentBufferSize;
 
     // render pass layouts
     plRenderPassLayoutHandle tMainRenderPassLayout;
@@ -835,15 +826,15 @@ pl_get_temporary_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayou
 
     NSUInteger argumentBufferLength = sizeof(uint64_t) * uDescriptorCount;
 
-    if(argumentBufferLength + ptFrame->szCurrentArgumentOffset > PL_DYNAMIC_ARGUMENT_BUFFER_SIZE)
+    if(argumentBufferLength + ptFrame->szCurrentArgumentOffset > ptDevice->szDynamicArgumentBufferSize)
     {
         ptFrame->uCurrentArgumentBuffer++;
         if(ptFrame->uCurrentArgumentBuffer >= pl_sb_size(ptFrame->sbtArgumentBuffers))
         {
             plMetalBuffer tArgumentBuffer = {
-                .tBuffer = [ptFrame->tDescriptorHeap newBufferWithLength:PL_DYNAMIC_ARGUMENT_BUFFER_SIZE options:MTLResourceStorageModeShared offset:ptFrame->ulDescriptorHeapOffset]
+                .tBuffer = [ptFrame->tDescriptorHeap newBufferWithLength:ptDevice->szDynamicArgumentBufferSize options:MTLResourceStorageModeShared offset:ptFrame->ulDescriptorHeapOffset]
             };
-            ptFrame->ulDescriptorHeapOffset += PL_DYNAMIC_ARGUMENT_BUFFER_SIZE;
+            ptFrame->ulDescriptorHeapOffset += ptDevice->szDynamicArgumentBufferSize;
             ptFrame->ulDescriptorHeapOffset = PL__ALIGN_UP(ptFrame->ulDescriptorHeapOffset, 256);
 
             pl_sb_push(ptFrame->sbtArgumentBuffers, tArgumentBuffer);
@@ -907,7 +898,7 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
     NSUInteger argumentBufferLength = sizeof(uint64_t) * uDescriptorCount;
     MTLSizeAndAlign tSizeAlign = [ptDevice->tDevice heapBufferSizeAndAlignWithLength:argumentBufferLength options:MTLResourceStorageModeShared];
 
-    PL_ASSERT(ptFrame->ulDescriptorHeapOffset + tSizeAlign.size < PL_DEVICE_ALLOCATION_BLOCK_SIZE);
+    PL_ASSERT(ptFrame->ulDescriptorHeapOffset + tSizeAlign.size < ptDevice->szArgumentBufferHeapSize);
 
     plMetalBindGroup tMetalBindGroup = {
         .tShaderArgumentBuffer = [ptFrame->tDescriptorHeap newBufferWithLength:tSizeAlign.size options:MTLResourceStorageModeShared offset:ptFrame->ulDescriptorHeapOffset]
@@ -1174,7 +1165,7 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
 {
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
 
-    PL_ASSERT(szSize <= PL_MAX_DYNAMIC_DATA_SIZE && "Dynamic data size too large");
+    PL_ASSERT(szSize <= ptDevice->tInfo.szDynamicDataMaxSize && "Dynamic data size too large");
 
     plMetalDynamicBuffer* ptDynamicBuffer = NULL;
 
@@ -1188,7 +1179,7 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
     ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
 
     // check if current block has room
-    if(ptDynamicBuffer->uByteOffset + szSize > PL_DEVICE_ALLOCATION_BLOCK_SIZE)
+    if(ptDynamicBuffer->uByteOffset + szSize > ptDevice->tInfo.szDynamicBufferBlockSize)
     {
         ptFrame->uCurrentBufferIndex++;
         
@@ -1202,8 +1193,8 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
             static char atNameBuffer[PL_MAX_NAME_LENGTH] = {0};
             pl_sprintf(atNameBuffer, "D-BUF-F%d-%d", (int)gptGraphics->uCurrentFrameIndex, (int)ptFrame->uCurrentBufferIndex);
 
-            ptDynamicBuffer->tMemory = ptDevice->ptDynamicAllocator->allocate(ptDevice->ptDynamicAllocator->ptInst, 0, PL_DEVICE_ALLOCATION_BLOCK_SIZE, 0, atNameBuffer);
-            ptDynamicBuffer->tBuffer = [(id<MTLHeap>)ptDynamicBuffer->tMemory.uHandle newBufferWithLength:PL_DEVICE_ALLOCATION_BLOCK_SIZE options:MTLResourceStorageModeShared offset:0];
+            ptDynamicBuffer->tMemory = ptDevice->ptDynamicAllocator->allocate(ptDevice->ptDynamicAllocator->ptInst, 0, ptDevice->tInfo.szDynamicBufferBlockSize, 0, atNameBuffer);
+            ptDynamicBuffer->tBuffer = [(id<MTLHeap>)ptDynamicBuffer->tMemory.uHandle newBufferWithLength:ptDevice->tInfo.szDynamicBufferBlockSize options:MTLResourceStorageModeShared offset:0];
             ptDynamicBuffer->tBuffer.label = [NSString stringWithUTF8String:"buddy allocator"];
         }
 
@@ -1216,7 +1207,7 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
         .uByteOffset   = ptDynamicBuffer->uByteOffset,
         .pcData        = &ptDynamicBuffer->tBuffer.contents[ptDynamicBuffer->uByteOffset]
     };
-    ptDynamicBuffer->uByteOffset = pl_align_up((size_t)ptDynamicBuffer->uByteOffset + PL_MAX_DYNAMIC_DATA_SIZE, 256);
+    ptDynamicBuffer->uByteOffset = pl_align_up((size_t)ptDynamicBuffer->uByteOffset + ptDevice->tInfo.szDynamicDataMaxSize, 256);
     return tDynamicBinding;
 }
 
@@ -1558,7 +1549,7 @@ pl_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCount)
 }
 
 static plDevice*
-pl__create_device(const plDeviceInit* ptInit)
+pl__create_device(const plDeviceInfo* ptInfo)
 {
     plIO* ptIOCtx = gptIOI->get_io();
 
@@ -1566,6 +1557,46 @@ pl__create_device(const plDeviceInit* ptInit)
     memset(ptDevice, 0, sizeof(plDevice));
 
     ptDevice->tDevice = (__bridge id)ptIOCtx->pBackendPlatformData;
+
+    memcpy(&ptDevice->tInfo, ptInfo, sizeof(plDeviceInfo));
+
+    if(ptDevice->tInfo.szDynamicBufferBlockSize == 0)        ptDevice->tInfo.szDynamicBufferBlockSize = 134217728;
+    if(ptDevice->tInfo.szDynamicDataMaxSize == 0)            ptDevice->tInfo.szDynamicDataMaxSize = 256;
+
+    if(ptDevice->tInfo.szInitSamplerBindings == 0)           ptDevice->tInfo.szInitSamplerBindings = 100000;
+    if(ptDevice->tInfo.szInitUniformBufferBindings == 0)     ptDevice->tInfo.szInitUniformBufferBindings = 100000;
+    if(ptDevice->tInfo.szInitStorageBufferBindings == 0)     ptDevice->tInfo.szInitStorageBufferBindings = 100000;
+    if(ptDevice->tInfo.szInitSampledTextureBindings == 0)    ptDevice->tInfo.szInitSampledTextureBindings = 100000;
+    if(ptDevice->tInfo.szInitStorageTextureBindings == 0)    ptDevice->tInfo.szInitStorageTextureBindings = 100000;
+    if(ptDevice->tInfo.szInitAttachmentTextureBindings == 0) ptDevice->tInfo.szInitAttachmentTextureBindings = 100000;
+
+    if(ptDevice->tInfo.szInitDynamicSamplerBindings == 0)           ptDevice->tInfo.szInitDynamicSamplerBindings = 10000;
+    if(ptDevice->tInfo.szInitDynamicUniformBufferBindings == 0)     ptDevice->tInfo.szInitDynamicUniformBufferBindings = 10000;
+    if(ptDevice->tInfo.szInitDynamicStorageBufferBindings == 0)     ptDevice->tInfo.szInitDynamicStorageBufferBindings = 10000;
+    if(ptDevice->tInfo.szInitDynamicSampledTextureBindings == 0)    ptDevice->tInfo.szInitDynamicSampledTextureBindings = 10000;
+    if(ptDevice->tInfo.szInitDynamicStorageTextureBindings == 0)    ptDevice->tInfo.szInitDynamicStorageTextureBindings = 10000;
+    if(ptDevice->tInfo.szInitDynamicAttachmentTextureBindings == 0) ptDevice->tInfo.szInitDynamicAttachmentTextureBindings = 10000;
+
+    const size_t szMaxDynamicBufferDescriptors = ptDevice->tInfo.szDynamicBufferBlockSize / ptDevice->tInfo.szDynamicDataMaxSize;
+
+    const size_t szMaxSets = szMaxDynamicBufferDescriptors + 
+        ptDevice->tInfo.szInitSamplerBindings + 
+        ptDevice->tInfo.szInitUniformBufferBindings +
+        ptDevice->tInfo.szInitStorageBufferBindings +
+        ptDevice->tInfo.szInitSampledTextureBindings +
+        ptDevice->tInfo.szInitStorageTextureBindings +
+        ptDevice->tInfo.szInitAttachmentTextureBindings;
+
+    const size_t szMaxDynamicSets =
+        ptDevice->tInfo.szInitDynamicSamplerBindings + 
+        ptDevice->tInfo.szInitDynamicUniformBufferBindings +
+        ptDevice->tInfo.szInitDynamicStorageBufferBindings +
+        ptDevice->tInfo.szInitDynamicSampledTextureBindings +
+        ptDevice->tInfo.szInitDynamicStorageTextureBindings +
+        ptDevice->tInfo.szInitDynamicAttachmentTextureBindings;
+
+    ptDevice->szArgumentBufferHeapSize = sizeof(uint64_t) * szMaxSets;
+    ptDevice->szDynamicArgumentBufferSize = sizeof(uint64_t) * szMaxDynamicSets;
 
     // create command queue
     gptGraphics->tCmdQueue = [ptDevice->tDevice newCommandQueue];
@@ -1584,7 +1615,7 @@ pl__create_device(const plDeviceInit* ptInit)
 
     MTLHeapDescriptor* ptHeapDescriptor = [MTLHeapDescriptor new];
     ptHeapDescriptor.storageMode = MTLStorageModeShared;
-    ptHeapDescriptor.size        = PL_ARGUMENT_BUFFER_HEAP_SIZE;
+    ptHeapDescriptor.size        = ptDevice->szArgumentBufferHeapSize;
     ptHeapDescriptor.type        = MTLHeapTypePlacement;
     ptHeapDescriptor.hazardTrackingMode = MTLHazardTrackingModeUntracked;
     // ptHeapDescriptor.sparsePageSize = MTLSparsePageSize256;
@@ -1602,14 +1633,14 @@ pl__create_device(const plDeviceInit* ptInit)
         pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
         static char atNameBuffer[PL_MAX_NAME_LENGTH] = {0};
         pl_sprintf(atNameBuffer, "D-BUF-F%d-0", (int)i);
-        tFrame.sbtDynamicBuffers[0].tMemory = ptDevice->ptDynamicAllocator->allocate(ptDevice->ptDynamicAllocator->ptInst, 0, PL_DEVICE_ALLOCATION_BLOCK_SIZE, 0,atNameBuffer);
-        tFrame.sbtDynamicBuffers[0].tBuffer = [(id<MTLHeap>)tFrame.sbtDynamicBuffers[0].tMemory.uHandle newBufferWithLength:PL_DEVICE_ALLOCATION_BLOCK_SIZE options:MTLResourceStorageModeShared offset:0];
+        tFrame.sbtDynamicBuffers[0].tMemory = ptDevice->ptDynamicAllocator->allocate(ptDevice->ptDynamicAllocator->ptInst, 0, ptDevice->tInfo.szDynamicBufferBlockSize, 0,atNameBuffer);
+        tFrame.sbtDynamicBuffers[0].tBuffer = [(id<MTLHeap>)tFrame.sbtDynamicBuffers[0].tMemory.uHandle newBufferWithLength:ptDevice->tInfo.szDynamicBufferBlockSize options:MTLResourceStorageModeShared offset:0];
         tFrame.sbtDynamicBuffers[0].tBuffer.label = [NSString stringWithUTF8String:pl_temp_allocator_sprintf(&tTempAllocator, "Dynamic Buffer: %u, 0", i)];
         
         plMetalBuffer tArgumentBuffer = {
-            .tBuffer = [tFrame.tDescriptorHeap newBufferWithLength:PL_DYNAMIC_ARGUMENT_BUFFER_SIZE options:MTLResourceStorageModeShared offset:tFrame.ulDescriptorHeapOffset]
+            .tBuffer = [tFrame.tDescriptorHeap newBufferWithLength:ptDevice->szDynamicArgumentBufferSize options:MTLResourceStorageModeShared offset:tFrame.ulDescriptorHeapOffset]
         };
-        tFrame.ulDescriptorHeapOffset += PL_DYNAMIC_ARGUMENT_BUFFER_SIZE;
+        tFrame.ulDescriptorHeapOffset += ptDevice->szDynamicArgumentBufferSize;
         tFrame.ulDescriptorHeapOffset = PL__ALIGN_UP(tFrame.ulDescriptorHeapOffset, 256);
 
         pl_sb_push(tFrame.sbtArgumentBuffers, tArgumentBuffer);

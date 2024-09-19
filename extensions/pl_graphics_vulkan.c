@@ -487,7 +487,7 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
 {
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
 
-    PL_ASSERT(szSize <= PL_MAX_DYNAMIC_DATA_SIZE && "Dynamic data size too large");
+    PL_ASSERT(szSize <= ptDevice->tInfo.szDynamicDataMaxSize && "Dynamic data size too large");
 
     plVulkanDynamicBuffer* ptDynamicBuffer = NULL;
 
@@ -500,7 +500,7 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
     ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
     
     // check if current block has room
-    if(ptDynamicBuffer->uByteOffset + szSize > PL_DEVICE_ALLOCATION_BLOCK_SIZE)
+    if(ptDynamicBuffer->uByteOffset + szSize > ptDevice->tInfo.szDynamicBufferBlockSize)
     {
         ptFrame->uCurrentBufferIndex++;
         
@@ -513,7 +513,7 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
 
             plBufferDescription tStagingBufferDescription0 = {
                 .tUsage               = PL_BUFFER_USAGE_UNIFORM,
-                .uByteSize            = PL_DEVICE_ALLOCATION_BLOCK_SIZE
+                .uByteSize            = (uint32_t)ptDevice->tInfo.szDynamicBufferBlockSize
             };
             pl_sprintf(tStagingBufferDescription0.acDebugName, "D-BUF-F%d-%d", (int)gptGraphics->uCurrentFrameIndex, (int)ptFrame->uCurrentBufferIndex);
 
@@ -539,7 +539,7 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
             VkDescriptorBufferInfo tDescriptorInfo0 = {
                 .buffer = ptDynamicBuffer->tBuffer,
                 .offset = 0,
-                .range  = PL_MAX_DYNAMIC_DATA_SIZE
+                .range  = ptDevice->tInfo.szDynamicDataMaxSize
             };
 
             VkWriteDescriptorSet tWrite0 = {
@@ -566,7 +566,7 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
         .uByteOffset   = ptDynamicBuffer->uByteOffset,
         .pcData        = &ptBuffer->pcData[ptDynamicBuffer->uByteOffset]
     };
-    ptDynamicBuffer->uByteOffset = (uint32_t)pl_align_up((size_t)ptDynamicBuffer->uByteOffset + PL_MAX_DYNAMIC_DATA_SIZE, ptDevice->tInfo.tLimits.uMinUniformBufferOffsetAlignment);
+    ptDynamicBuffer->uByteOffset = (uint32_t)pl_align_up((size_t)ptDynamicBuffer->uByteOffset + ptDevice->tInfo.szDynamicDataMaxSize, ptDevice->tInfo.tLimits.uMinUniformBufferOffsetAlignment);
     return tDynamicBinding;
 }
 
@@ -3140,7 +3140,7 @@ pl_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCount)
 }
 
 static plDevice*
-pl__create_device(const plDeviceInit* ptInit)
+pl__create_device(const plDeviceInfo* ptInfo)
 {
 
     plDevice* ptDevice = PL_ALLOC(sizeof(plDevice));
@@ -3151,39 +3151,43 @@ pl__create_device(const plDeviceInit* ptInit)
     PL_VULKAN(vkEnumeratePhysicalDevices(gptGraphics->tInstance, &uDeviceCount, atDevices));
 
     // user decided on device
-    if(ptInit->ptInfo)
-    {
-        ptDevice->tPhysicalDevice = atDevices[ptInit->ptInfo->uDeviceIdx];
-        memcpy(&ptDevice->tInfo, ptInit->ptInfo, sizeof(plDeviceInfo));
-    }
-    else // we pick a device
-    {
-        plDeviceInfo* atInfos = PL_ALLOC(sizeof(plDeviceInfo) * uDeviceCount);
-        memset(atInfos, 0, sizeof(plDeviceInfo) * uDeviceCount);
-        pl_enumerate_devices(atInfos, &uDeviceCount);
+    ptDevice->tPhysicalDevice = atDevices[ptInfo->uDeviceIdx];
+    memcpy(&ptDevice->tInfo, ptInfo, sizeof(plDeviceInfo));
 
-        // we will prefer discrete, then integrated
-        int iBestDvcIdx = 0;
-        int iDiscreteGPUIdx   = -1;
-        int iIntegratedGPUIdx = -1;
-        for(uint32_t i = 0; i < uDeviceCount; i++)
-        {
-            
-            if(atInfos[i].tType == PL_DEVICE_TYPE_DISCRETE)
-                iDiscreteGPUIdx = i;
-            else if(atInfos[i].tType == PL_DEVICE_TYPE_INTEGRATED)
-                iIntegratedGPUIdx = i;
-        }
+    if(ptDevice->tInfo.szDynamicBufferBlockSize == 0)        ptDevice->tInfo.szDynamicBufferBlockSize = 134217728;
+    if(ptDevice->tInfo.szDynamicDataMaxSize == 0)            ptDevice->tInfo.szDynamicDataMaxSize = 256;
 
-        if(iDiscreteGPUIdx > -1)
-            iBestDvcIdx = iDiscreteGPUIdx;
-        else if(iIntegratedGPUIdx > -1)
-            iBestDvcIdx = iIntegratedGPUIdx;
+    if(ptDevice->tInfo.szInitSamplerBindings == 0)           ptDevice->tInfo.szInitSamplerBindings = 100000;
+    if(ptDevice->tInfo.szInitUniformBufferBindings == 0)     ptDevice->tInfo.szInitUniformBufferBindings = 100000;
+    if(ptDevice->tInfo.szInitStorageBufferBindings == 0)     ptDevice->tInfo.szInitStorageBufferBindings = 100000;
+    if(ptDevice->tInfo.szInitSampledTextureBindings == 0)    ptDevice->tInfo.szInitSampledTextureBindings = 100000;
+    if(ptDevice->tInfo.szInitStorageTextureBindings == 0)    ptDevice->tInfo.szInitStorageTextureBindings = 100000;
+    if(ptDevice->tInfo.szInitAttachmentTextureBindings == 0) ptDevice->tInfo.szInitAttachmentTextureBindings = 100000;
 
-        ptDevice->tPhysicalDevice = atDevices[iBestDvcIdx];
-        memcpy(&ptDevice->tInfo, &atInfos[iBestDvcIdx], sizeof(plDeviceInfo));
-        PL_FREE(atInfos);
-    }
+    if(ptDevice->tInfo.szInitDynamicSamplerBindings == 0)           ptDevice->tInfo.szInitDynamicSamplerBindings = 10000;
+    if(ptDevice->tInfo.szInitDynamicUniformBufferBindings == 0)     ptDevice->tInfo.szInitDynamicUniformBufferBindings = 10000;
+    if(ptDevice->tInfo.szInitDynamicStorageBufferBindings == 0)     ptDevice->tInfo.szInitDynamicStorageBufferBindings = 10000;
+    if(ptDevice->tInfo.szInitDynamicSampledTextureBindings == 0)    ptDevice->tInfo.szInitDynamicSampledTextureBindings = 10000;
+    if(ptDevice->tInfo.szInitDynamicStorageTextureBindings == 0)    ptDevice->tInfo.szInitDynamicStorageTextureBindings = 10000;
+    if(ptDevice->tInfo.szInitDynamicAttachmentTextureBindings == 0) ptDevice->tInfo.szInitDynamicAttachmentTextureBindings = 10000;
+
+    const size_t szMaxDynamicBufferDescriptors = ptDevice->tInfo.szDynamicBufferBlockSize / ptDevice->tInfo.szDynamicDataMaxSize;
+
+    const size_t szMaxSets = szMaxDynamicBufferDescriptors + 
+        ptDevice->tInfo.szInitSamplerBindings + 
+        ptDevice->tInfo.szInitUniformBufferBindings +
+        ptDevice->tInfo.szInitStorageBufferBindings +
+        ptDevice->tInfo.szInitSampledTextureBindings +
+        ptDevice->tInfo.szInitStorageTextureBindings +
+        ptDevice->tInfo.szInitAttachmentTextureBindings;
+
+    const size_t szMaxDynamicSets =
+        ptDevice->tInfo.szInitDynamicSamplerBindings + 
+        ptDevice->tInfo.szInitDynamicUniformBufferBindings +
+        ptDevice->tInfo.szInitDynamicStorageBufferBindings +
+        ptDevice->tInfo.szInitDynamicSampledTextureBindings +
+        ptDevice->tInfo.szInitDynamicStorageTextureBindings +
+        ptDevice->tInfo.szInitDynamicAttachmentTextureBindings;
 
     // find queue families
     ptDevice->iGraphicsQueueFamily = -1;
@@ -3201,7 +3205,7 @@ pl__create_device(const plDeviceInit* ptInit)
         if (auQueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) ptDevice->iGraphicsQueueFamily = i;
 
         VkBool32 tPresentSupport = false;
-        PL_VULKAN(vkGetPhysicalDeviceSurfaceSupportKHR(ptDevice->tPhysicalDevice, i, ptInit->ptSurface->tSurface, &tPresentSupport));
+        PL_VULKAN(vkGetPhysicalDeviceSurfaceSupportKHR(ptDevice->tPhysicalDevice, i, ptInfo->ptSurface->tSurface, &tPresentSupport));
 
         if (tPresentSupport) ptDevice->iPresentQueueFamily  = i;
 
@@ -3299,18 +3303,18 @@ pl__create_device(const plDeviceInit* ptInit)
 
     VkDescriptorPoolSize atPoolSizes[] =
     {
-        { VK_DESCRIPTOR_TYPE_SAMPLER,                100000 },
-        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,          100000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          100000 },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         100000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         100000 },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 100000 },
-        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,       100000 }
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, (uint32_t)szMaxDynamicBufferDescriptors },
+        { VK_DESCRIPTOR_TYPE_SAMPLER,          (uint32_t)ptDevice->tInfo.szInitSamplerBindings },
+        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,    (uint32_t)ptDevice->tInfo.szInitSampledTextureBindings },
+        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,    (uint32_t)ptDevice->tInfo.szInitStorageTextureBindings },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,   (uint32_t)ptDevice->tInfo.szInitUniformBufferBindings },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,   (uint32_t)ptDevice->tInfo.szInitStorageBufferBindings },
+        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, (uint32_t)ptDevice->tInfo.szInitAttachmentTextureBindings }
     };
     VkDescriptorPoolCreateInfo tDescriptorPoolInfo = {
         .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-        .maxSets       = 100000 * 7,
+        .maxSets       = (uint32_t)szMaxSets,
         .poolSizeCount = 7,
         .pPoolSizes    = atPoolSizes,
     };
@@ -3377,7 +3381,7 @@ pl__create_device(const plDeviceInit* ptInit)
         pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
         plBufferDescription tStagingBufferDescription0 = {
             .tUsage               = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
-            .uByteSize            = PL_DEVICE_ALLOCATION_BLOCK_SIZE
+            .uByteSize            = (uint32_t)ptDevice->tInfo.szDynamicBufferBlockSize
         };
         pl_sprintf(tStagingBufferDescription0.acDebugName, "D-BUF-F%d-0", (int)i);
 
@@ -3404,7 +3408,7 @@ pl__create_device(const plDeviceInit* ptInit)
         VkDescriptorBufferInfo tDescriptorInfo0 = {
             .buffer = tFrame.sbtDynamicBuffers[0].tBuffer,
             .offset = 0,
-            .range  = PL_MAX_DYNAMIC_DATA_SIZE
+            .range  = ptDevice->tInfo.szDynamicDataMaxSize
         };
 
         VkWriteDescriptorSet tWrite0 = {
@@ -3421,19 +3425,18 @@ pl__create_device(const plDeviceInit* ptInit)
 
         VkDescriptorPoolSize atDynamicPoolSizes[] =
         {
-            { VK_DESCRIPTOR_TYPE_SAMPLER,                100000 },
-            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,          100000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          100000 },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         100000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         100000 },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 100000 },
-            { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,       100000 }
+            { VK_DESCRIPTOR_TYPE_SAMPLER,          (uint32_t)ptDevice->tInfo.szInitDynamicSamplerBindings },
+            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,    (uint32_t)ptDevice->tInfo.szInitDynamicSampledTextureBindings },
+            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,    (uint32_t)ptDevice->tInfo.szInitDynamicStorageTextureBindings },
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,   (uint32_t)ptDevice->tInfo.szInitDynamicUniformBufferBindings },
+            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,   (uint32_t)ptDevice->tInfo.szInitDynamicStorageBufferBindings },
+            { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, (uint32_t)ptDevice->tInfo.szInitDynamicAttachmentTextureBindings }
         };
         VkDescriptorPoolCreateInfo tDynamicDescriptorPoolInfo = {
             .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-            .maxSets       = 100000 * 7,
-            .poolSizeCount = 7,
+            .maxSets       = (uint32_t)szMaxDynamicSets,
+            .poolSizeCount = 6,
             .pPoolSizes    = atDynamicPoolSizes,
         };
         if(ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING)

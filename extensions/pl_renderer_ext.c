@@ -440,11 +440,32 @@ pl_refr_initialize(plWindow* ptWindow)
     gptGfx->initialize(&tGraphicsDesc);
     gptData->ptSurface = gptGfx->create_surface(ptWindow);
 
+    uint32_t uDeviceCount = 16;
+    plDeviceInfo atDeviceInfos[16] = {0};
+    gptGfx->enumerate_devices(atDeviceInfos, &uDeviceCount);
+
+    // we will prefer discrete, then integrated
+    int iBestDvcIdx = 0;
+    int iDiscreteGPUIdx   = -1;
+    int iIntegratedGPUIdx = -1;
+    for(uint32_t i = 0; i < uDeviceCount; i++)
+    {
+        
+        if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_DISCRETE)
+            iDiscreteGPUIdx = i;
+        else if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_INTEGRATED)
+            iIntegratedGPUIdx = i;
+    }
+
+    if(iDiscreteGPUIdx > -1)
+        iBestDvcIdx = iDiscreteGPUIdx;
+    else if(iIntegratedGPUIdx > -1)
+        iBestDvcIdx = iIntegratedGPUIdx;
+
     // create device
-    const plDeviceInit tDeviceInit = {
-        .ptSurface = gptData->ptSurface
-    };
-    gptData->ptDevice = gptGfx->create_device(&tDeviceInit);
+    atDeviceInfos[iBestDvcIdx].ptSurface = gptData->ptSurface;
+    atDeviceInfos[iBestDvcIdx].szDynamicBufferBlockSize = 134217728;
+    gptData->ptDevice = gptGfx->create_device(&atDeviceInfos[iBestDvcIdx]);
 
     // create swapchain
     const plSwapchainInit tSwapInit = {
@@ -1120,7 +1141,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 
     const plBufferDescription atGlobalBuffersDesc = {
         .tUsage    = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
-        .uByteSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE
+        .uByteSize = 134217728
     };
 
     const plBufferDescription atCameraBuffersDesc = {
@@ -1130,7 +1151,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 
     const plBufferDescription atLightShadowDataBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
-        .uByteSize = PL_DEVICE_ALLOCATION_BLOCK_SIZE
+        .uByteSize = 134217728
     };
 
     const plBindGroupLayout tLightingBindGroupLayout = {
