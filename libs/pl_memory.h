@@ -20,8 +20,8 @@
 */
 
 // library version
-#define PL_MEMORY_VERSION    "0.5.0"
-#define PL_MEMORY_VERSION_NUM 00500
+#define PL_MEMORY_VERSION    "0.6.0"
+#define PL_MEMORY_VERSION_NUM 00600
 
 /*
 Index of this file:
@@ -53,9 +53,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdint.h>  // uint*_t
 #include <stddef.h>  // size_t
-#include <stdbool.h> // bool
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -74,60 +72,42 @@ typedef size_t plStackAllocatorMarker;
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~general purpose allocation~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-void* pl_aligned_alloc(size_t szAlignment, size_t szSize);
-void  pl_aligned_free (void* pBuffer);
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~virtual memory system~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-// Notes
-//   - API subject to change slightly
-//   - additional error checks needs to be added
-//   - committed memory does not necessarily mean the memory has been mapped to physical
-//     memory. This is happens when the memory is actually touched. Even so, on Windows
-//     you can not commit more memmory then you have in your page file.
-//   - uncommitted memory does not necessarily mean the memory will be immediately
-//     evicted. It is up to the OS.
-
-size_t pl_get_page_size   (void);                          // returns memory page size
-void*  pl_virtual_alloc   (void* pAddress, size_t szSize); // reserves & commits a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
-void*  pl_virtual_reserve (void* pAddress, size_t szSize); // reserves a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
-void*  pl_virtual_commit  (void* pAddress, size_t szSize); // commits a block of reserved memory. szSize must be a multiple of memory page size.
-void   pl_virtual_uncommit(void* pAddress, size_t szSize); // uncommits a block of committed memory.
-void   pl_virtual_free    (void* pAddress, size_t szSize); // frees a block of previously reserved/committed memory. Must be the starting address returned from "pl_virtual_reserve()" or "pl_virtual_alloc()"
+void* pl_aligned_alloc(size_t szAlignment, size_t);
+void  pl_aligned_free (void*);
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~temporary allocator~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-void* pl_temp_allocator_alloc  (plTempAllocator* ptAllocator, size_t szSize);
-void  pl_temp_allocator_reset  (plTempAllocator* ptAllocator);
-void  pl_temp_allocator_free   (plTempAllocator* ptAllocator);
-char* pl_temp_allocator_sprintf(plTempAllocator* ptAllocator, const char* cPFormat, ...);
+void* pl_temp_allocator_alloc  (plTempAllocator*, size_t);
+void  pl_temp_allocator_reset  (plTempAllocator*);
+void  pl_temp_allocator_free   (plTempAllocator*);
+char* pl_temp_allocator_sprintf(plTempAllocator*, const char* cPFormat, ...);
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~stack allocators~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 // common
-void                   pl_stack_allocator_init          (plStackAllocator* ptAllocator, size_t szSize, void* pBuffer);
+void pl_stack_allocator_init(plStackAllocator*, size_t, void*);
 
 // single stack
-void*                  pl_stack_allocator_alloc         (plStackAllocator* ptAllocator, size_t szSize);
-void*                  pl_stack_allocator_aligned_alloc (plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment);
-plStackAllocatorMarker pl_stack_allocator_marker        (plStackAllocator* ptAllocator);
-void                   pl_stack_allocator_free_to_marker(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker);
-void                   pl_stack_allocator_reset         (plStackAllocator* ptAllocator);
+void*                  pl_stack_allocator_alloc         (plStackAllocator*, size_t);
+void*                  pl_stack_allocator_aligned_alloc (plStackAllocator*, size_t, size_t szAlignment);
+plStackAllocatorMarker pl_stack_allocator_marker        (plStackAllocator*);
+void                   pl_stack_allocator_free_to_marker(plStackAllocator*, plStackAllocatorMarker);
+void                   pl_stack_allocator_reset         (plStackAllocator*);
 
 // double sided stack
-void*                  pl_stack_allocator_aligned_alloc_bottom (plStackAllocator* ptAllocator, size_t szSize, size_t szAlignment);
-plStackAllocatorMarker pl_stack_allocator_top_marker           (plStackAllocator* ptAllocator);
-plStackAllocatorMarker pl_stack_allocator_bottom_marker        (plStackAllocator* ptAllocator);
-void*                  pl_stack_allocator_alloc_bottom         (plStackAllocator* ptAllocator, size_t szSize);
-void*                  pl_stack_allocator_alloc_top            (plStackAllocator* ptAllocator, size_t szSize);
-void                   pl_stack_allocator_free_top_to_marker   (plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker);
-void                   pl_stack_allocator_free_bottom_to_marker(plStackAllocator* ptAllocator, plStackAllocatorMarker tMarker);
+void*                  pl_stack_allocator_aligned_alloc_bottom (plStackAllocator*, size_t, size_t szAlignment);
+plStackAllocatorMarker pl_stack_allocator_top_marker           (plStackAllocator*);
+plStackAllocatorMarker pl_stack_allocator_bottom_marker        (plStackAllocator*);
+void*                  pl_stack_allocator_alloc_bottom         (plStackAllocator*, size_t);
+void*                  pl_stack_allocator_alloc_top            (plStackAllocator*, size_t);
+void                   pl_stack_allocator_free_top_to_marker   (plStackAllocator*, plStackAllocatorMarker);
+void                   pl_stack_allocator_free_bottom_to_marker(plStackAllocator*, plStackAllocatorMarker);
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~pool allocator~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-void  pl_pool_allocator_init (plPoolAllocator* ptAllocator, size_t szItemCount, size_t szItemSize, size_t szItemAlignment, size_t* pszBufferSize, void* pBuffer);
-void* pl_pool_allocator_alloc(plPoolAllocator* ptAllocator);
-void  pl_pool_allocator_free (plPoolAllocator* ptAllocator, void* pItem);
+void  pl_pool_allocator_init (plPoolAllocator*, size_t szItemCount, size_t szItemSize, size_t szItemAlignment, size_t* pszBufferSize, void*);
+void* pl_pool_allocator_alloc(plPoolAllocator*);
+void  pl_pool_allocator_free (plPoolAllocator*, void* pItem);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -212,18 +192,6 @@ Index of this file:
     #define PL_MEMORY_TEMP_BLOCK_SIZE 4194304
 #endif
 
-#ifdef _WIN32
-    #define WIN32_LEAN_AND_MEAN
-    #include <windows.h>  // VirtualAlloc, VirtualFree
-    #include <sysinfoapi.h> // page size
-#elif defined(__APPLE__)
-    #include <unistd.h>
-    #include <sys/mman.h>
-#else // linux
-    #include <unistd.h>
-    #include <sys/mman.h>
-#endif
-
 #define PL__ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
 
 #ifndef pl_vnsprintf
@@ -274,86 +242,6 @@ pl__align_forward_size(size_t szPtr, size_t szAlign)
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
-
-size_t
-pl_get_page_size(void)
-{
-    #ifdef _WIN32
-        SYSTEM_INFO tInfo = {0};
-        GetSystemInfo(&tInfo);
-        return (size_t)tInfo.dwPageSize;
-    #elif defined(__APPLE__)
-        return (size_t)getpagesize();
-    #else // linux
-        return (size_t)getpagesize();
-    #endif
-}
-
-void*
-pl_virtual_alloc(void* pAddress, size_t szSize)
-{
-    #ifdef _WIN32
-        return VirtualAlloc(pAddress, szSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    #elif defined(__APPLE__)
-        void* pResult = mmap(pAddress, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        return pResult;
-    #else // linux
-        void* pResult = mmap(pAddress, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        return pResult;
-    #endif
-}
-
-void*
-pl_virtual_reserve(void* pAddress, size_t szSize)
-{
-    #ifdef _WIN32
-        return VirtualAlloc(pAddress, szSize, MEM_RESERVE, PAGE_READWRITE);
-    #elif defined(__APPLE__)
-        void* pResult = mmap(pAddress, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        return pResult;
-    #else // linux
-        void* pResult = mmap(pAddress, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        return pResult;
-    #endif
-}
-
-void*
-pl_virtual_commit(void* pAddress, size_t szSize)
-{
-    #ifdef _WIN32
-        return VirtualAlloc(pAddress, szSize, MEM_COMMIT, PAGE_READWRITE);
-    #elif defined(__APPLE__)
-        mprotect(pAddress, szSize, PROT_READ | PROT_WRITE);
-        return pAddress;
-    #else // linux
-        mprotect(pAddress, szSize, PROT_READ | PROT_WRITE);
-        return pAddress;
-    #endif
-}
-
-void
-pl_virtual_free(void* pAddress, size_t szSize)
-{
-    #ifdef _WIN32
-        PL_ASSERT(VirtualFree(pAddress, szSize, MEM_RELEASE));
-    #elif defined(__APPLE__)
-        PL_ASSERT(munmap(pAddress, szSize) == 0);
-    #else // linux
-        PL_ASSERT(munmap(pAddress, szSize) == 0); //-V586
-    #endif
-}
-
-void
-pl_virtual_uncommit(void* pAddress, size_t szSize)
-{
-    #ifdef _WIN32
-        PL_ASSERT(VirtualFree(pAddress, szSize, MEM_DECOMMIT));
-    #elif defined(__APPLE__)
-        mprotect(pAddress, szSize, PROT_NONE);
-    #else // linux
-        mprotect(pAddress, szSize, PROT_NONE);
-    #endif
-}
 
 void*
 pl_aligned_alloc(size_t szAlignment, size_t szSize)
