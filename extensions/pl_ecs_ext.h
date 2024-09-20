@@ -48,7 +48,6 @@ typedef struct _plCameraI plCameraI;
 #include <stdint.h>  // uint*_t
 #include <stdbool.h> // bool
 #include "pl_math.h"
-#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -414,7 +413,7 @@ typedef struct _plComponentManager
 {
     plComponentLibrary* ptParentLibrary;
     plComponentType     tComponentType;
-    plHashMap           tHashMap; // map entity -> index in sbtEntities/pComponents
+    struct plHashMap*   ptHashmap; // map entity -> index in sbtEntities/pComponents
     plEntity*           sbtEntities;
     void*               pComponents;
     size_t              szStride;
@@ -422,9 +421,9 @@ typedef struct _plComponentManager
 
 typedef struct _plComponentLibrary
 {
-    uint32_t* sbtEntityGenerations;
-    uint32_t* sbtEntityFreeIndices;
-    plHashMap tTagHashMap;
+    uint32_t*  sbtEntityGenerations;
+    uint32_t*  sbtEntityFreeIndices;
+    plHashMap* ptTagHashmap;
 
     // managers
     plComponentManager tTagComponentManager;

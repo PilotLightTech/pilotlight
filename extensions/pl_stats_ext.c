@@ -67,7 +67,7 @@ typedef struct _plStatsContext
     uint32_t             uNextSource;
     plStatsSourceBlock   tInitialBlock;
     plStatsSourceBlock** sbtBlocks;
-    plHashMap            tHashmap;
+    plHashMap*           ptHashmap;
     uint64_t             uCurrentFrame;
     const char**         sbtNames;
 } plStatsContext;
@@ -112,16 +112,16 @@ pl__get_counter(char const* pcName)
 {
     const uint64_t ulHash = pl_hm_hash_str(pcName);
 
-    const bool bDataExists = pl_hm_has_key(&gptStatsCtx->tHashmap, ulHash);
+    const bool bDataExists = pl_hm_has_key(gptStatsCtx->ptHashmap, ulHash);
 
     uint64_t ulIndex = UINT64_MAX;
 
     if(bDataExists)
-        ulIndex = pl_hm_lookup(&gptStatsCtx->tHashmap, ulHash);
+        ulIndex = pl_hm_lookup(gptStatsCtx->ptHashmap, ulHash);
     else
     {
         pl_sb_push(gptStatsCtx->sbtNames, pcName);
-        ulIndex = pl_hm_get_free_index(&gptStatsCtx->tHashmap);
+        ulIndex = pl_hm_get_free_index(gptStatsCtx->ptHashmap);
         if(ulIndex == UINT64_MAX)
         {
             ulIndex = gptStatsCtx->uNextSource++;
@@ -142,7 +142,7 @@ pl__get_counter(char const* pcName)
         if(pl_sb_size(gptStatsCtx->sbtBlocks) == 0)
             pl_sb_push(gptStatsCtx->sbtBlocks, &gptStatsCtx->tInitialBlock);
 
-        pl_hm_insert(&gptStatsCtx->tHashmap, ulHash, ulIndex);
+        pl_hm_insert(gptStatsCtx->ptHashmap, ulHash, ulIndex);
     }
     const uint64_t ulBlockIndex = (uint64_t)floor((double)ulIndex / (double)PL_STATS_BLOCK_COUNT);
     gptStatsCtx->sbtBlocks[ulBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].pcName = pcName;
@@ -193,16 +193,16 @@ pl__get_counter_data(char const* pcName)
 {
     const uint64_t ulHash = pl_hm_hash_str(pcName);
 
-    const bool bDataExists = pl_hm_has_key(&gptStatsCtx->tHashmap, ulHash);
+    const bool bDataExists = pl_hm_has_key(gptStatsCtx->ptHashmap, ulHash);
 
     uint64_t ulIndex = UINT64_MAX;
 
     if(bDataExists)
-        ulIndex = pl_hm_lookup(&gptStatsCtx->tHashmap, ulHash);
+        ulIndex = pl_hm_lookup(gptStatsCtx->ptHashmap, ulHash);
     else
     {
         pl_sb_push(gptStatsCtx->sbtNames, pcName);
-        ulIndex = pl_hm_get_free_index(&gptStatsCtx->tHashmap);
+        ulIndex = pl_hm_get_free_index(gptStatsCtx->ptHashmap);
         if(ulIndex == UINT64_MAX)
         {
             ulIndex = gptStatsCtx->uNextSource++;
@@ -223,7 +223,7 @@ pl__get_counter_data(char const* pcName)
         if(pl_sb_size(gptStatsCtx->sbtBlocks) == 0)
             pl_sb_push(gptStatsCtx->sbtBlocks, &gptStatsCtx->tInitialBlock);
 
-        pl_hm_insert(&gptStatsCtx->tHashmap, ulHash, ulIndex);
+        pl_hm_insert(gptStatsCtx->ptHashmap, ulHash, ulIndex);
     }
     const uint64_t ulBlockIndex = (uint64_t)floor((double)ulIndex / (double)PL_STATS_BLOCK_COUNT);
     gptStatsCtx->sbtBlocks[ulBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].pcName = pcName;
@@ -261,7 +261,7 @@ pl_unload_stats_ext(plApiRegistryI* ptApiRegistry)
 {
     pl_sb_free(gptStatsCtx->sbtBlocks);
     pl_sb_free(gptStatsCtx->sbtNames);
-    pl_hm_free(&gptStatsCtx->tHashmap);
+    pl_hm_free(gptStatsCtx->ptHashmap);
 
     PL_FREE(gptStatsCtx);
 }

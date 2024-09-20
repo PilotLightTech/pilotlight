@@ -217,7 +217,7 @@ pl__load_api_registry(void)
 //-----------------------------------------------------------------------------
 
 // data registry
-plHashMap          gtHashMap = {0};
+plHashMap*         gptHashmap = NULL;
 plDataRegistryData gtDataRegistryData = {0};
 plMutex*           gptDataMutex = NULL;
 
@@ -392,40 +392,40 @@ pl__write(plDataID tId)
 }
 
 void
-pl__set_string(plDataObject* ptWriter, uint32_t uProperty, const char* pcValue)
+pl_set_string(plDataObject* ptWriter, uint32_t uProperty, const char* pcValue)
 {
     ptWriter->ptProperties[uProperty].pcValue = pcValue;
     if(uProperty == 0)
     {
-        if(pl_hm_has_key_str(&gtHashMap, pcValue))
+        if(pl_hm_has_key_str(gptHashmap, pcValue))
         {
-            pl_hm_remove_str(&gtHashMap, pcValue);
+            pl_hm_remove_str(gptHashmap, pcValue);
         }
         else
         {
-            pl_hm_insert_str(&gtHashMap, pcValue, ptWriter->tId.ulData);
+            pl_hm_insert_str(gptHashmap, pcValue, ptWriter->tId.ulData);
         }
     }
 }
 
 void
-pl__set_buffer(plDataObject* ptWriter, uint32_t uProperty, void* pData)
+pl_set_buffer(plDataObject* ptWriter, uint32_t uProperty, void* pData)
 {
     ptWriter->ptProperties[uProperty].pValue = pData;
 }
 
 void
-pl__commit(plDataObject* ptWriter)
+pl_commit(plDataObject* ptWriter)
 {
     plDataObject* ptOriginalObject = gtDataRegistryData.aptObjects[ptWriter->tId.uIndex];
-    pl__lock_mutex(gptDataMutex);
+    pl_lock_mutex(gptDataMutex);
     pl_sb_push(gtDataRegistryData.sbtDataObjectsDeletionQueue, ptOriginalObject);
-    pl__unlock_mutex(gptDataMutex);
+    pl_unlock_mutex(gptDataMutex);
     gtDataRegistryData.aptObjects[ptWriter->tId.uIndex] = ptWriter;
 }
 
-static const void*
-pl__add_api(const char* pcName, const void* pInterface)
+const void*
+pl_add_api(const char* pcName, const void* pInterface)
 {
     plApiEntry tNewApiEntry = {
         .pcName = pcName,

@@ -27,7 +27,7 @@ typedef struct _plResourceManager
 {
     plResource* sbtResources;
     uint32_t*   sbtResourceGenerations;
-    plHashMap   tNameHashMap;
+    plHashMap*  ptNameHashmap;
 } plResourceManager;
 
 // resource retrieval
@@ -119,9 +119,9 @@ static plResourceHandle
 pl_load_resource(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puData, size_t szDataSize)
 {
     const uint64_t ulHash = pl_hm_hash_str(pcName);
-    if(pl_hm_has_key(&gptResourceManager->tNameHashMap, ulHash))
+    if(pl_hm_has_key(gptResourceManager->ptNameHashmap, ulHash))
     {
-        uint64_t ulExistingSlot = pl_hm_lookup(&gptResourceManager->tNameHashMap, ulHash);
+        uint64_t ulExistingSlot = pl_hm_lookup(gptResourceManager->ptNameHashmap, ulHash);
 
         plResourceHandle tResource = {
             .uIndex      = (uint32_t)ulExistingSlot,
@@ -138,7 +138,7 @@ pl_load_resource(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puData
 
     strncpy(tResource.acName, pcName, PL_MAX_NAME_LENGTH);
 
-    uint64_t uIndex = pl_hm_get_free_index(&gptResourceManager->tNameHashMap);
+    uint64_t uIndex = pl_hm_get_free_index(gptResourceManager->ptNameHashmap);
     if(uIndex == UINT64_MAX)
     {
         uIndex = pl_sb_size(gptResourceManager->sbtResourceGenerations);
@@ -152,7 +152,7 @@ pl_load_resource(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puData
         tResource.puFileData = PL_ALLOC(szDataSize);
         memcpy(tResource.puFileData, puData, szDataSize);
     }  
-    pl_hm_insert_str(&gptResourceManager->tNameHashMap, pcName, uIndex);
+    pl_hm_insert_str(gptResourceManager->ptNameHashmap, pcName, uIndex);
 
     plResourceHandle tNewResource = {
         .uIndex      = (uint32_t)uIndex,
@@ -180,14 +180,14 @@ pl_unload_resource(plResourceHandle tResourceHandle)
         memset(ptResource, 0, sizeof(plResource));
 
         gptResourceManager->sbtResourceGenerations[tResourceHandle.uIndex]++;
-        pl_hm_remove_str(&gptResourceManager->tNameHashMap, ptResource->acName);
+        pl_hm_remove_str(gptResourceManager->ptNameHashmap, ptResource->acName);
     }
 }
 
 static bool
 pl_is_resource_loaded(const char* pcName)
 {
-    return pl_hm_has_key_str(&gptResourceManager->tNameHashMap, pcName);    
+    return pl_hm_has_key_str(gptResourceManager->ptNameHashmap, pcName);    
 }
 
 static bool
@@ -236,8 +236,7 @@ pl_unload_resource_ext(plApiRegistryI* ptApiRegistry)
 
     pl_sb_free(gptResourceManager->sbtResourceGenerations);
     pl_sb_free(gptResourceManager->sbtResources);
-    pl_hm_free(&gptResourceManager->tNameHashMap);
+    pl_hm_free(gptResourceManager->ptNameHashmap);
 
     PL_FREE(gptResourceManager);
-    gptDataRegistry->set_data("resource manager", NULL);
 }

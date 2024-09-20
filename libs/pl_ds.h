@@ -4,8 +4,8 @@
 */
 
 // library version
-#define PL_DS_VERSION    "0.5.2"
-#define PL_DS_VERSION_NUM 00502
+#define PL_DS_VERSION    "1.0.0"
+#define PL_DS_VERSION_NUM 10000
 
 /*
 Index of this file:
@@ -15,8 +15,8 @@ Index of this file:
 // [SECTION] forward declarations
 // [SECTION] public api (stretchy buffer)
 // [SECTION] public api (hashmap)
-// [SECTION] internal
-// [SECTION] public api implementation (hashmap)
+// [SECTION] internal (stretchy buffer)
+// [SECTION] internal (hashmap)
 */
 
 //-----------------------------------------------------------------------------
@@ -173,10 +173,12 @@ HASHMAPS
 COMPILE TIME OPTIONS
 
     * Change allocators by defining both:
-        PL_LOG_ALLOC(x)
-        PL_LOG_FREE(x)
+        PL_DS_ALLOC(x)
+        PL_DS_FREE(x)
     * Change initial hashmap size:
         PL_DS_HASHMAP_INITIAL_SIZE (default is 256)
+    * Change assert by defining:
+        PL_DS_ASSERT(x)
 */
 
 //-----------------------------------------------------------------------------
@@ -215,24 +217,10 @@ COMPILE TIME OPTIONS
 //-----------------------------------------------------------------------------
 
 #include <stdint.h>  // uint32_t
-#include <stdlib.h>  // malloc, free
 #include <string.h>  // memset, memmove
 #include <stdbool.h> // bool
 #include <stdarg.h>  // arg vars
 #include <stdio.h>   // vsprintf
-
-//-----------------------------------------------------------------------------
-// [SECTION] documentation
-//-----------------------------------------------------------------------------
-
-typedef struct _plHashMap
-{
-    uint32_t  _uItemCount;
-    uint32_t  _uBucketCount;
-    uint64_t* _aulKeys;         // stored keys used for rehashing during growth
-    uint64_t* _aulValueIndices; // indices into value array (user held)
-    uint64_t* _sbulFreeIndices; // free list of available indices
-} plHashMap;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api (stretchy buffer)
@@ -312,30 +300,43 @@ typedef struct _plHashMap
 //-----------------------------------------------------------------------------
 
 #define pl_hm_resize(ptHashMap, uBucketCount) \
-    pl__hm_resize(ptHashMap, uBucketCount, __FILE__, __LINE__)
+    pl__hm_resize(&ptHashMap, uBucketCount, __FILE__, __LINE__)
 
 #define pl_hm_insert(ptHashMap, ulKey, ulValue) \
-    pl__hm_insert(ptHashMap, ulKey, ulValue, __FILE__, __LINE__)
+    pl__hm_insert(&ptHashMap, ulKey, ulValue, __FILE__, __LINE__)
+
+#define pl_hm_free(ptHashMap) \
+    pl__hm_free(&ptHashMap)
+
+#define pl_hm_remove(ptHashMap, ulKey) \
+    pl__hm_remove(&ptHashMap, ulKey)
+
+#define pl_hm_remove_str(ptHashMap, pcKey) \
+    pl_hm_remove(ptHashMap, pl_hm_hash_str(pcKey))
+
+#define pl_hm_lookup(ptHashMap, ulKey) \
+    pl__hm_lookup(&ptHashMap, ulKey)
+
+#define pl_hm_get_free_index(ptHashMap) \
+    pl__hm_get_free_index(&ptHashMap)
+
+#define pl_hm_has_key(ptHashMap, ulKey) \
+    pl__hm_has_key(&ptHashMap, ulKey)
+
+#define pl_hm_has_key_str(ptHashMap, pcKey) \
+    pl_hm_has_key(ptHashMap, pl_hm_hash_str(pcKey))
+
+#define pl_hm_lookup_str(ptHashMap, pcKey) \
+    pl_hm_lookup(ptHashMap, pl_hm_hash_str(pcKey))
 
 #define pl_hm_insert_str(ptHashMap, pcKey, ulValue) \
-    pl__hm_insert_str(ptHashMap, pcKey, ulValue, __FILE__, __LINE__)
+    pl_hm_insert(ptHashMap, pl_hm_hash_str(pcKey), ulValue)
 
-static inline void     pl__hm_resize       (plHashMap* ptHashMap, uint32_t uBucketCount, const char* pcFile, int iLine);
-static inline void     pl_hm_free          (plHashMap* ptHashMap) { pl__hm_resize(ptHashMap, 0, "", 0);}
-static inline void     pl__hm_insert       (plHashMap* ptHashMap, uint64_t ulKey, uint64_t ulValue, const char* pcFile, int iLine);
-static inline void     pl_hm_remove        (plHashMap* ptHashMap, uint64_t ulKey);
-static inline uint64_t pl_hm_lookup        (plHashMap* ptHashMap, uint64_t ulKey);
-static inline uint64_t pl_hm_get_free_index(plHashMap* ptHashMap);
-static inline bool     pl_hm_has_key       (plHashMap* ptHashMap, uint64_t ulKey);
-static inline uint64_t pl_hm_hash_str      (const char* pcKey);
-static inline uint64_t pl_hm_hash          (const void* pData, size_t szDataSize, uint64_t uSeed);
-static inline void     pl__hm_insert_str   (plHashMap* ptHashMap, const char* pcKey, uint64_t ulValue, const char* pcFile, int iLine);
-static inline void     pl_hm_remove_str    (plHashMap* ptHashMap, const char* pcKey);
-static inline uint64_t pl_hm_lookup_str    (plHashMap* ptHashMap, const char* pcKey);
-static inline bool     pl_hm_has_key_str   (plHashMap* ptHashMap, const char* pcKey);
+static inline uint64_t pl_hm_hash_str(const char* pcKey);
+static inline uint64_t pl_hm_hash    (const void* pData, size_t szDataSize, uint64_t uSeed);
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal
+// [SECTION] internal (stretchy buffer)
 //-----------------------------------------------------------------------------
 
 #define pl__sb_header(buf) ((plSbHeader_*)(((char*)(buf)) - sizeof(plSbHeader_)))
@@ -413,12 +414,42 @@ pl__sb_sprintf(char** ppcBuffer, const char* pcFormat, ...)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api implementation (hashmap)
+// [SECTION] internal (hashmap)
 //-----------------------------------------------------------------------------
 
-static inline void
-pl__hm_resize(plHashMap* ptHashMap, uint32_t uBucketCount, const char* pcFile, int iLine)
+typedef struct plHashMap
 {
+    int       _iMemoryOwned; // did we allocate this
+    uint32_t  _uItemCount;
+    uint32_t  _uBucketCount;
+    uint64_t* _aulKeys;         // stored keys used for rehashing during growth
+    uint64_t* _aulValueIndices; // indices into value array (user held)
+    uint64_t* _sbulFreeIndices; // free list of available indices
+} plHashMap;
+
+static inline uint64_t pl__hm_lookup        (plHashMap** ptHashMap, uint64_t ulKey);
+static inline uint64_t pl__hm_get_free_index(plHashMap** ptHashMap);
+static inline bool     pl__hm_has_key       (plHashMap** pptHashMap, uint64_t ulKey);
+static inline void     pl__hm_resize       (plHashMap** pptHashMap, uint32_t uBucketCount, const char* pcFile, int iLine);
+static inline void     pl__hm_free         (plHashMap** pptHashMap) { pl__hm_resize(pptHashMap, 0, "", 0);}
+static inline void     pl__hm_insert       (plHashMap** pptHashMap, uint64_t ulKey, uint64_t ulValue, const char* pcFile, int iLine);
+static inline void     pl__hm_remove       (plHashMap** pptHashMap, uint64_t ulKey);
+
+static inline void
+pl__hm_resize(plHashMap** pptHashMap, uint32_t uBucketCount, const char* pcFile, int iLine)
+{
+    plHashMap* ptHashMap = *pptHashMap;
+
+    if(ptHashMap == NULL && uBucketCount == 0)
+        return;
+
+    if(ptHashMap == NULL)
+    {
+        ptHashMap = PL_DS_ALLOC(sizeof(plHashMap));
+        memset(ptHashMap, 0, sizeof(plHashMap));
+        ptHashMap->_iMemoryOwned = 1;
+        *pptHashMap = ptHashMap;
+    }
     const uint32_t uOldBucketCount = ptHashMap->_uBucketCount;
     uint64_t* sbulOldValueIndices = ptHashMap->_aulValueIndices;
     uint64_t* aulOldKeys = ptHashMap->_aulKeys;
@@ -443,7 +474,7 @@ pl__hm_resize(plHashMap* ptHashMap, uint32_t uBucketCount, const char* pcFile, i
 
             const uint64_t ulValue = sbulOldValueIndices[ulOldModKey];
             ptHashMap->_uItemCount--;
-            pl__hm_insert(ptHashMap, ulKey, ulValue, pcFile, iLine);
+            pl__hm_insert(pptHashMap, ulKey, ulValue, pcFile, iLine);
         }
     }
     else
@@ -452,6 +483,11 @@ pl__hm_resize(plHashMap* ptHashMap, uint32_t uBucketCount, const char* pcFile, i
         ptHashMap->_aulKeys = NULL;
         pl_sb_free(ptHashMap->_sbulFreeIndices);
         ptHashMap->_uItemCount = 0;
+        if(ptHashMap->_iMemoryOwned)
+        {
+            PL_DS_FREE(ptHashMap);
+            *pptHashMap = NULL;
+        }
     }
 
     if(sbulOldValueIndices)
@@ -465,12 +501,22 @@ pl__hm_resize(plHashMap* ptHashMap, uint32_t uBucketCount, const char* pcFile, i
 }
 
 static inline void
-pl__hm_insert(plHashMap* ptHashMap, uint64_t ulKey, uint64_t ulValue, const char* pcFile, int iLine)
+pl__hm_insert(plHashMap** pptHashMap, uint64_t ulKey, uint64_t ulValue, const char* pcFile, int iLine)
 {
+    plHashMap* ptHashMap = *pptHashMap;
+
+    if(ptHashMap == NULL)
+    {
+        ptHashMap = PL_DS_ALLOC_INDIRECT(sizeof(plHashMap), pcFile, iLine);
+        memset(ptHashMap, 0, sizeof(plHashMap));
+        ptHashMap->_iMemoryOwned = 1;
+        *pptHashMap = ptHashMap;
+    }
+
     if(ptHashMap->_uBucketCount == 0)
-        pl__hm_resize(ptHashMap, PL_DS_HASHMAP_INITIAL_SIZE, pcFile, iLine);
+        pl__hm_resize(pptHashMap, PL_DS_HASHMAP_INITIAL_SIZE, pcFile, iLine);
     else if(((float)ptHashMap->_uItemCount / (float)ptHashMap->_uBucketCount) > 0.60f)
-        pl__hm_resize(ptHashMap, ptHashMap->_uBucketCount * 2, pcFile, iLine);
+        pl__hm_resize(pptHashMap, ptHashMap->_uBucketCount * 2, pcFile, iLine);
 
     uint64_t ulModKey = ulKey % ptHashMap->_uBucketCount;
 
@@ -487,8 +533,9 @@ pl__hm_insert(plHashMap* ptHashMap, uint64_t ulKey, uint64_t ulValue, const char
 }
 
 static inline void
-pl_hm_remove(plHashMap* ptHashMap, uint64_t ulKey)
+pl__hm_remove(plHashMap** pptHashMap, uint64_t ulKey)
 {
+    plHashMap* ptHashMap = *pptHashMap;
     PL_DS_ASSERT(ptHashMap->_uBucketCount > 0 && "hashmap has no items");
 
     uint64_t ulModKey = ulKey % ptHashMap->_uBucketCount;
@@ -568,8 +615,12 @@ pl_hm_hash(const void* pData, size_t szDataSize, uint64_t uSeed)
 }
 
 static inline uint64_t
-pl_hm_lookup(plHashMap* ptHashMap, uint64_t ulKey)
+pl__hm_lookup(plHashMap** pptHashMap, uint64_t ulKey)
 {
+    plHashMap* ptHashMap = *pptHashMap;
+
+    if(ptHashMap == NULL)
+        return UINT64_MAX;
     if(ptHashMap->_uBucketCount == 0)
         return UINT64_MAX;
 
@@ -585,8 +636,12 @@ pl_hm_lookup(plHashMap* ptHashMap, uint64_t ulKey)
 }
 
 static inline uint64_t
-pl_hm_get_free_index(plHashMap* ptHashMap)
+pl__hm_get_free_index(plHashMap** pptHashMap)
 {
+    plHashMap* ptHashMap = *pptHashMap;
+
+    if(ptHashMap == NULL)
+        return UINT64_MAX;
     uint64_t ulResult = UINT64_MAX;
     if(pl_sb_size(ptHashMap->_sbulFreeIndices) > 0)
     {
@@ -595,27 +650,14 @@ pl_hm_get_free_index(plHashMap* ptHashMap)
     return ulResult;
 }
 
-static inline void
-pl__hm_insert_str(plHashMap* ptHashMap, const char* pcKey, uint64_t ulValue, const char* pcFile, int iLine)
-{
-    pl__hm_insert(ptHashMap, pl_hm_hash_str(pcKey), ulValue, pcFile, iLine);
-}
-
-static inline void
-pl_hm_remove_str(plHashMap* ptHashMap, const char* pcKey)
-{
-    pl_hm_remove(ptHashMap, pl_hm_hash_str(pcKey));
-}
-
-static inline uint64_t
-pl_hm_lookup_str(plHashMap* ptHashMap, const char* pcKey)
-{
-    return pl_hm_lookup(ptHashMap, pl_hm_hash_str(pcKey));
-}
-
 static inline bool
-pl_hm_has_key(plHashMap* ptHashMap, uint64_t ulKey)
+pl__hm_has_key(plHashMap** pptHashMap, uint64_t ulKey)
 {
+    plHashMap* ptHashMap = *pptHashMap;
+
+    if(ptHashMap == NULL)
+        return false;
+
     if(ptHashMap->_uItemCount == 0)
         return false;
 
@@ -627,11 +669,4 @@ pl_hm_has_key(plHashMap* ptHashMap, uint64_t ulKey)
     return ptHashMap->_aulKeys[ulModKey] != UINT64_MAX;
 }
 
-static inline bool
-pl_hm_has_key_str(plHashMap* ptHashMap, const char* pcKey)
-{
-    return pl_hm_has_key(ptHashMap, pl_hm_hash_str(pcKey));
-}
-
 #endif // PL_DS_H
-

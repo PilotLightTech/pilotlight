@@ -41,10 +41,10 @@ Index of this file:
 typedef struct _plGltfLoadingData
 {
     plComponentLibrary* ptLibrary;
-    plHashMap           tNodeHashMap;
-    plHashMap           tJointHashMap;
-    plHashMap           tSkinHashMap;
-    plHashMap           tMaterialHashMap;
+    plHashMap*          ptNodeHashmap;
+    plHashMap*          ptJointHashmap;
+    plHashMap*          ptSkinHashmap;
+    plHashMap*          ptMaterialHashMap;
     plEntity*           sbtMaterialEntities;
 } plGltfLoadingData;
 
@@ -284,7 +284,7 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
 
                 plEntity tTransformEntity = gptECS->create_transform(ptLibrary, ptJointNode->name, NULL);
                 ptSkinComponent->sbtJoints[szJointIndex] = tTransformEntity;
-                pl_hm_insert(&tLoadingData.tJointHashMap, (uint64_t)ptJointNode, tTransformEntity.ulData);
+                pl_hm_insert(tLoadingData.ptJointHashmap, (uint64_t)ptJointNode, tTransformEntity.ulData);
                 pl__load_mixamorig(ptJointNode, ptHumanoid, tTransformEntity);
             }
         }
@@ -295,7 +295,7 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
                 const cgltf_node* ptJointNode = ptSkin->joints[szJointIndex];
                 plEntity tTransformEntity = gptECS->create_transform(ptLibrary, ptJointNode->name, NULL);
                 ptSkinComponent->sbtJoints[szJointIndex] = tTransformEntity;
-                pl_hm_insert(&tLoadingData.tJointHashMap, (uint64_t)ptJointNode, tTransformEntity.ulData);
+                pl_hm_insert(tLoadingData.ptJointHashmap, (uint64_t)ptJointNode, tTransformEntity.ulData);
             }
         }
         if(ptSkin->inverse_bind_matrices)
@@ -304,7 +304,7 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
             const char* pcBufferData = ptInverseBindMatrixView->buffer->data;
             memcpy(ptSkinComponent->sbtInverseBindMatrices, &pcBufferData[ptInverseBindMatrixView->offset], sizeof(plMat4) * ptSkin->joints_count);
         }
-        pl_hm_insert(&tLoadingData.tSkinHashMap, (uint64_t)ptSkin, tSkinEntity.ulData);
+        pl_hm_insert(tLoadingData.ptSkinHashmap, (uint64_t)ptSkin, tSkinEntity.ulData);
     }
 
     for(size_t i = 0; i < ptGltfData->scenes_count; i++)
@@ -331,10 +331,10 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
         pl__refr_load_gltf_animation(&tLoadingData, ptAnimation);
     }
 
-    pl_hm_free(&tLoadingData.tNodeHashMap);
-    pl_hm_free(&tLoadingData.tJointHashMap);
-    pl_hm_free(&tLoadingData.tSkinHashMap);
-    pl_hm_free(&tLoadingData.tMaterialHashMap);
+    pl_hm_free(tLoadingData.ptNodeHashmap);
+    pl_hm_free(tLoadingData.ptJointHashmap);
+    pl_hm_free(tLoadingData.ptSkinHashmap);
+    pl_hm_free(tLoadingData.ptMaterialHashMap);
     pl_sb_free(tLoadingData.sbtMaterialEntities);
     ptDataOut->uOpaqueCount = pl_sb_size(ptDataOut->atOpaqueObjects);
     ptDataOut->uTransparentCount = pl_sb_size(ptDataOut->atTransparentObjects);
@@ -813,7 +813,7 @@ pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const cgltf_animati
             }
         }
 
-        const uint64_t ulTargetEntity = pl_hm_lookup(&ptSceneData->tNodeHashMap, (uint64_t)ptChannel->target_node);
+        const uint64_t ulTargetEntity = pl_hm_lookup(ptSceneData->ptNodeHashmap, (uint64_t)ptChannel->target_node);
         tChannel.tTarget = *(plEntity*)&ulTargetEntity;
 
         pl_sb_push(ptAnimationComp->sbtSamplers, tSampler);
@@ -828,7 +828,7 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
 
     plEntity tNewEntity = {UINT32_MAX, UINT32_MAX};
     plTransformComponent* ptTransform = NULL;
-    const uint64_t ulObjectIndex = pl_hm_lookup(&ptSceneData->tJointHashMap, (uint64_t)ptNode);
+    const uint64_t ulObjectIndex = pl_hm_lookup(ptSceneData->ptJointHashmap, (uint64_t)ptNode);
     if(ulObjectIndex != UINT64_MAX)
     {
         tNewEntity.ulData = ulObjectIndex;
@@ -838,7 +838,7 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
     {
         tNewEntity = gptECS->create_transform(ptLibrary, ptNode->name, &ptTransform);
     }
-    pl_hm_insert(&ptSceneData->tNodeHashMap, (uint64_t)ptNode, tNewEntity.ulData);
+    pl_hm_insert(ptSceneData->ptNodeHashmap, (uint64_t)ptNode, tNewEntity.ulData);
 
     // transform defaults
     ptTransform->tWorld       = pl_identity_mat4();
@@ -868,7 +868,7 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
     plEntity tSkinEntity = {UINT32_MAX, UINT32_MAX};
     if(ptNode->skin)
     {
-        const uint64_t ulIndex = pl_hm_lookup(&ptSceneData->tSkinHashMap, (uint64_t)ptNode->skin);
+        const uint64_t ulIndex = pl_hm_lookup(ptSceneData->ptSkinHashmap, (uint64_t)ptNode->skin);
 
         if(ulIndex != UINT64_MAX)
         {
@@ -931,9 +931,9 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
                 plMaterialComponent* ptMaterial = NULL;
       
                 // check if the material already exists
-                if(pl_hm_has_key(&ptSceneData->tMaterialHashMap, (uint64_t)ptPrimitive->material))
+                if(pl_hm_has_key(ptSceneData->ptMaterialHashMap, (uint64_t)ptPrimitive->material))
                 {
-                    const uint64_t ulMaterialIndex = pl_hm_lookup(&ptSceneData->tMaterialHashMap, (uint64_t)ptPrimitive->material);
+                    const uint64_t ulMaterialIndex = pl_hm_lookup(ptSceneData->ptMaterialHashMap, (uint64_t)ptPrimitive->material);
                     ptMesh->tMaterial = ptSceneData->sbtMaterialEntities[ulMaterialIndex];
 
                     ptMaterial = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
@@ -941,7 +941,7 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
                 else // create new material
                 {
                     const uint64_t ulMaterialIndex = (uint64_t)pl_sb_size(ptSceneData->sbtMaterialEntities);
-                    pl_hm_insert(&ptSceneData->tMaterialHashMap,(uint64_t)ptPrimitive->material, ulMaterialIndex);
+                    pl_hm_insert(ptSceneData->ptMaterialHashMap,(uint64_t)ptPrimitive->material, ulMaterialIndex);
                     ptMesh->tMaterial = gptECS->create_material(ptLibrary, ptPrimitive->material->name, &ptMaterial);
                     pl_sb_push(ptSceneData->sbtMaterialEntities, ptMesh->tMaterial);
                     pl__refr_load_material(pcDirectory, ptMaterial, ptPrimitive->material);

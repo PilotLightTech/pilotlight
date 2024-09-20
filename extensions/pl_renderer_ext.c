@@ -265,11 +265,11 @@ typedef struct _plRefScene
     plShaderHandle* sbtOutlineDrawablesOldShaders;
 
     // entity to drawable hashmaps
-    plHashMap tOpaqueHashmap;
-    plHashMap tTransparentHashmap;
+    plHashMap* ptOpaqueHashmap;
+    plHashMap* ptTransparentHashmap;
 
     // material bindgroup reuse hashmaps
-    plHashMap tShadowBindgroupHashmap;
+    plHashMap* ptShadowBindgroupHashmap;
 
 } plRefScene;
 
@@ -308,7 +308,7 @@ typedef struct _plRefRendererData
     plComputeShaderHandle tJFAShader;
 
     // graphics shader variant system
-    plHashMap       tVariantHashmap;
+    plHashMap*      ptVariantHashmap;
     plShaderHandle* _sbtVariantHandles; // needed for cleanup
 
     // renderer specific log channel
@@ -1645,9 +1645,9 @@ pl_refr_cleanup(void)
         pl_sb_free(ptScene->sbtSkinVertexDataBuffer);
         pl_sb_free(ptScene->sbtOutlineDrawables);
         pl_sb_free(ptScene->sbtOutlineDrawablesOldShaders);
-        pl_hm_free(&ptScene->tOpaqueHashmap);
-        pl_hm_free(&ptScene->tTransparentHashmap);
-        pl_hm_free(&ptScene->tShadowBindgroupHashmap);
+        pl_hm_free(ptScene->ptOpaqueHashmap);
+        pl_hm_free(ptScene->ptTransparentHashmap);
+        pl_hm_free(ptScene->ptShadowBindgroupHashmap);
         gptECS->cleanup_component_library(&ptScene->tComponentLibrary);
     }
     for(uint32_t i = 0; i < pl_sb_size(gptData->_sbtVariantHandles); i++)
@@ -1656,7 +1656,7 @@ pl_refr_cleanup(void)
         gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->_sbtVariantHandles[i]);
     }
     pl_sb_free(gptData->_sbtVariantHandles);
-    pl_hm_free(&gptData->tVariantHashmap);
+    pl_hm_free(gptData->ptVariantHashmap);
     gptGfx->flush_device(gptData->ptDevice);
     gptGpuAllocators->cleanup_allocators(gptData->ptDevice);
     gptGfx->cleanup_swapchain(gptData->ptSwap);
@@ -2425,17 +2425,17 @@ pl_refr_select_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnti
         }
 
         // const uint64_t ulVariantHash = pl_hm_hash(tOutlineVariant.pTempConstantData, szSpecializationSize, tOutlineVariant.tGraphicsState.ulValue);
-        // pl_hm_remove(&gptData->tVariantHashmap, ulVariantHash);
+        // pl_hm_remove(&gptData->ptVariantHashmap, ulVariantHash);
 
-        if(pl_hm_has_key(&ptScene->tOpaqueHashmap, tEntity.ulData))
+        if(pl_hm_has_key(ptScene->ptOpaqueHashmap, tEntity.ulData))
         {
-            uint64_t ulIndex = pl_hm_lookup(&ptScene->tOpaqueHashmap, tEntity.ulData);
+            uint64_t ulIndex = pl_hm_lookup(ptScene->ptOpaqueHashmap, tEntity.ulData);
             plDrawable* ptDrawable = &ptScene->sbtOpaqueDrawables[ulIndex];
             ptDrawable->tShader = ptScene->sbtOutlineDrawablesOldShaders[i];
         }
-        else if(pl_hm_has_key(&ptScene->tTransparentHashmap, tEntity.ulData))
+        else if(pl_hm_has_key(ptScene->ptTransparentHashmap, tEntity.ulData))
         {
-            uint64_t ulIndex = pl_hm_lookup(&ptScene->tTransparentHashmap, tEntity.ulData);
+            uint64_t ulIndex = pl_hm_lookup(ptScene->ptTransparentHashmap, tEntity.ulData);
             plDrawable* ptDrawable = &ptScene->sbtTransparentDrawables[ulIndex];
             ptDrawable->tShader = ptScene->sbtOutlineDrawablesOldShaders[i];
         }
@@ -2487,9 +2487,9 @@ pl_refr_select_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnti
             pl_sb_size(sbtLights)
         };
 
-        if(pl_hm_has_key(&ptScene->tOpaqueHashmap, tEntity.ulData))
+        if(pl_hm_has_key(ptScene->ptOpaqueHashmap, tEntity.ulData))
         {
-            uint64_t ulIndex = pl_hm_lookup(&ptScene->tOpaqueHashmap, tEntity.ulData);
+            uint64_t ulIndex = pl_hm_lookup(ptScene->ptOpaqueHashmap, tEntity.ulData);
             plDrawable* ptDrawable = &ptScene->sbtOpaqueDrawables[ulIndex];
             plShader* ptOldShader = gptGfx->get_shader(ptDevice, ptDrawable->tShader);
             plGraphicsState tVariantTemp = ptOldShader->tDescription.tGraphicsState;
@@ -2535,9 +2535,9 @@ pl_refr_select_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnti
             pl_sb_push(ptScene->sbtOutlineDrawablesOldShaders, ptDrawable->tShader);
             ptDrawable->tShader = pl__get_shader_variant(uSceneHandle, gptData->tOpaqueShader, &tVariant);
         }
-        else if(pl_hm_has_key(&ptScene->tTransparentHashmap, tEntity.ulData))
+        else if(pl_hm_has_key(ptScene->ptTransparentHashmap, tEntity.ulData))
         {
-            uint64_t ulIndex = pl_hm_lookup(&ptScene->tTransparentHashmap, tEntity.ulData);
+            uint64_t ulIndex = pl_hm_lookup(ptScene->ptTransparentHashmap, tEntity.ulData);
             plDrawable* ptDrawable = &ptScene->sbtTransparentDrawables[ulIndex];
             plShader* ptOldShader = gptGfx->get_shader(ptDevice, ptDrawable->tShader);
             plGraphicsState tVariantTemp = ptOldShader->tDescription.tGraphicsState;
@@ -2596,7 +2596,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     pl_begin_profile_sample("load textures");
-    plHashMap tMaterialBindGroupDict = {0};
+    plHashMap* ptMaterialBindGroupDict = {0};
     plBindGroupHandle* sbtMaterialBindGroups = NULL;
     plMaterialComponent* sbtMaterials = ptScene->tComponentLibrary.tMaterialComponentManager.pComponents;
     const uint32_t uMaterialCount = pl_sb_size(sbtMaterials);
@@ -2643,7 +2643,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
             .atTextures = tTextureData
         };
         gptGfx->update_bind_group(ptDevice, sbtMaterialBindGroups[i], &tBGData1);
-        pl_hm_insert(&tMaterialBindGroupDict, (uint64_t)ptMaterial, (uint64_t)i);
+        pl_hm_insert(ptMaterialBindGroupDict, (uint64_t)ptMaterial, (uint64_t)i);
     }
     pl_end_profile_sample();
 
@@ -2697,8 +2697,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     };
 
     plHashMap* atHashmaps[] = {
-        &ptScene->tOpaqueHashmap,
-        &ptScene->tTransparentHashmap
+        ptScene->ptOpaqueHashmap,
+        ptScene->ptTransparentHashmap
     };
     
     const plLightComponent* sbtLights = ptScene->tComponentLibrary.tLightComponentManager.pComponents;
@@ -2722,7 +2722,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
             plMaterialComponent* ptMaterial = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
 
 
-            const uint64_t ulMaterialIndex = pl_hm_lookup(&tMaterialBindGroupDict, (uint64_t)ptMaterial);
+            const uint64_t ulMaterialIndex = pl_hm_lookup(ptMaterialBindGroupDict, (uint64_t)ptMaterial);
             (sbtDrawables[uDrawableBatchIndex])[i].tMaterialBindGroup = sbtMaterialBindGroups[ulMaterialIndex];
 
             // add data to global buffers
@@ -2786,9 +2786,9 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                 (sbtDrawables[uDrawableBatchIndex])[i].tShadowShader = pl__get_shader_variant(uSceneHandle, atTemplateShadowShaders[uDrawableBatchIndex], &tShadowVariant);
 
                 plBindGroupHandle tShadowMaterialBindGroup = {.ulData = UINT64_MAX};
-                if(pl_hm_has_key(&ptScene->tShadowBindgroupHashmap, ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource.ulData))
+                if(pl_hm_has_key(ptScene->ptShadowBindgroupHashmap, ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource.ulData))
                 {
-                    tShadowMaterialBindGroup.ulData = pl_hm_lookup(&ptScene->tShadowBindgroupHashmap, ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource.ulData);
+                    tShadowMaterialBindGroup.ulData = pl_hm_lookup(ptScene->ptShadowBindgroupHashmap, ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource.ulData);
                 }
                 else
                 {
@@ -2810,16 +2810,20 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                     };
                     gptGfx->update_bind_group(ptDevice, tShadowMaterialBindGroup, &tBGData1);
 
-                    pl_hm_insert(&ptScene->tShadowBindgroupHashmap, ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource.ulData, tShadowMaterialBindGroup.ulData);
+                    pl_hm_insert(ptScene->ptShadowBindgroupHashmap, ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource.ulData, tShadowMaterialBindGroup.ulData);
                 }
                 (sbtDrawables[uDrawableBatchIndex])[i].tShadowMaterialBindGroup = tShadowMaterialBindGroup;
             }
         }
+        atHashmaps[uDrawableBatchIndex] = ptHashmap;
     }
+
+    ptScene->ptOpaqueHashmap = atHashmaps[0];
+    ptScene->ptTransparentHashmap = atHashmaps[1];
 
     pl_end_profile_sample();
 
-    pl_hm_free(&tMaterialBindGroupDict);
+    pl_hm_free(ptMaterialBindGroupDict);
     pl_sb_free(sbtMaterialBindGroups);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~GPU Buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -5289,7 +5293,7 @@ pl__get_shader_variant(uint32_t uSceneHandle, plShaderHandle tHandle, const plSh
     }
 
     const uint64_t ulVariantHash = pl_hm_hash(ptVariant->pTempConstantData, szSpecializationSize, ptVariant->tGraphicsState.ulValue);
-    const uint64_t ulIndex = pl_hm_lookup(&gptData->tVariantHashmap, ulVariantHash);
+    const uint64_t ulIndex = pl_hm_lookup(gptData->ptVariantHashmap, ulVariantHash);
 
     if(ulIndex != UINT64_MAX)
         return gptData->_sbtVariantHandles[ulIndex];
@@ -5300,7 +5304,7 @@ pl__get_shader_variant(uint32_t uSceneHandle, plShaderHandle tHandle, const plSh
 
     plShaderHandle tShader = gptGfx->create_shader(ptDevice, &tDesc);
 
-    pl_hm_insert(&gptData->tVariantHashmap, ulVariantHash, pl_sb_size(gptData->_sbtVariantHandles));
+    pl_hm_insert(gptData->ptVariantHashmap, ulVariantHash, pl_sb_size(gptData->_sbtVariantHandles));
     pl_sb_push(gptData->_sbtVariantHandles, tShader);
     return tShader;
 }

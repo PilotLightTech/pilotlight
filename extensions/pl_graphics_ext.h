@@ -82,7 +82,6 @@ typedef struct _plGraphicsI plGraphicsI;
 #include <stdint.h>
 #include <stdbool.h>
 #include "pl_math.h"
-#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types

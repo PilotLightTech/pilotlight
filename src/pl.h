@@ -75,7 +75,7 @@ typedef struct _plKeyData         plKeyData;    // individual key status (down, 
 typedef struct _plInputEvent      plInputEvent; // holds data for input events (opaque structure)
 
 // external forward declarations
-typedef struct _plHashMap plHashMap; // pl_ds.h
+typedef struct plHashMap plHashMap; // pl_ds.h
 
 // enums
 typedef int plKey;                // -> enum plKey_                // Enum: A key identifier (PL_KEY_XXX or PL_KEY_MOD_XXX value)
