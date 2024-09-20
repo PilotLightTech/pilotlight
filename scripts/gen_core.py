@@ -249,6 +249,7 @@ with pl.project("pilotlight"):
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
+                    pl.add_static_link_libraries("ucrtd", "user32", "Ole32", "ws2_32")
                     pl.add_source_files("pl_main_win32.c")
                     
             # linux

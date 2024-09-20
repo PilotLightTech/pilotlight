@@ -118,7 +118,8 @@ typedef struct _plThreadsI
 {
 
     // threads
-    void (*create_thread)(plThreadProcedure ptProcedure, void* pData, plThread** ppThreadOut);
+    void (*create_thread)(plThreadProcedure, void* pData, plThread** ppThreadOut);
+    void (*destroy_thread)(plThread** ppThread);
     void (*join_thread)  (plThread*);
     void (*yield_thread) (void);
     void (*sleep_thread) (uint32_t uMilliSec);
@@ -138,13 +139,13 @@ typedef struct _plThreadsI
 
     // critical sections
     void (*create_critical_section) (plCriticalSection** pptCriticalSectionOut);
-    void (*destroy_critical_section)(plCriticalSection** pptCriticalSection);
+    void (*destroy_critical_section)(plCriticalSection**);
     void (*enter_critical_section)  (plCriticalSection*);
     void (*leave_critical_section)  (plCriticalSection*);
 
     // semaphores
     void (*create_semaphore)     (uint32_t uIntialCount, plSemaphore** pptSemaphoreOut);
-    void (*destroy_semaphore)    (plSemaphore** pptSemaphore);
+    void (*destroy_semaphore)    (plSemaphore**);
     void (*wait_on_semaphore)    (plSemaphore*);
     bool (*try_wait_on_semaphore)(plSemaphore*);
     void (*release_semaphore)    (plSemaphore*);
@@ -156,7 +157,7 @@ typedef struct _plThreadsI
 
     // condition variables
     void (*create_condition_variable)  (plConditionVariable** pptConditionVariableOut);
-    void (*destroy_condition_variable) (plConditionVariable** pptConditionVariable);
+    void (*destroy_condition_variable) (plConditionVariable**);
     void (*wake_condition_variable)    (plConditionVariable*);
     void (*wake_all_condition_variable)(plConditionVariable*);
     void (*sleep_condition_variable)   (plConditionVariable*, plCriticalSection*);
@@ -168,7 +169,7 @@ typedef struct _plThreadsI
 typedef struct _plAtomicsI
 {
     void    (*create_atomic_counter)  (int64_t ilValue, plAtomicCounter** pptCounterOut);
-    void    (*destroy_atomic_counter) (plAtomicCounter** pptCounter);
+    void    (*destroy_atomic_counter) (plAtomicCounter**);
     void    (*atomic_store)           (plAtomicCounter*, int64_t ilValue);
     int64_t (*atomic_load)            (plAtomicCounter*);
     bool    (*atomic_compare_exchange)(plAtomicCounter*, int64_t ilExpectedValue, int64_t ilDesiredValue);

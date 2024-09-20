@@ -51,6 +51,7 @@ with pl.project("pilotlight_tests"):
                     pl.add_compiler_flags("-Zc:preprocessor", "-nologo", "-std:c11", "-W4", "-WX", "-wd4201")
                     pl.add_compiler_flags("-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115", "-permissive-")
                     pl.add_compiler_flags("-Od", "-MDd", "-Zi")
+                    pl.add_linker_flags("-incremental:no")
 
             # linux
             with pl.platform("Linux"):

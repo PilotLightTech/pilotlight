@@ -1,34 +1,51 @@
 /*
-   apple_pl.m
+   pl_main_macos.c
+     * MacOS platform backend
+
+   Implemented APIs:
+     [X] Windows
+     [X] Libraries
+     [X] UDP
+     [X] Threads
+     [X] Atomics
+     [X] Virtual Memory
+     [X] Clipboard
 */
 
 /*
 Index of this file:
 // [SECTION] includes
 // [SECTION] forward declarations
-// [SECTION] internal api
+// [SECTION] structs & interfaces
 // [SECTION] globals
 // [SECTION] entry point
 // [SECTION] plNSView
 // [SECTION] plNSViewController
-// [SECTION] internal implementation
+// [SECTION] file api
+// [SECTION] udp api
+// [SECTION] library api
+// [SECTION] thread api
+// [SECTION] atomic api
+// [SECTION] virtual memory api
+// [SECTION] window api
+// [SECTION] clipboard
+// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl.h" // data registry, api registry, extension registry
+#include "pl.h"
 #include "pl_os.h"
-#include "pl_ds.h"      // hashmap
+#include "pl_ds.h"
 #import <Cocoa/Cocoa.h>
-#ifndef PL_HEADLESS_APP
 
+#ifndef PL_HEADLESS_APP
 #import <Carbon/Carbon.h>
 #import <QuartzCore/CAMetalLayer.h>
 #import <Metal/Metal.h>
 #endif
-
 #import <time.h>
 #include <stdlib.h>   // malloc
 #include <string.h>   // strncpy
@@ -36,7 +53,7 @@ Index of this file:
 #include <stdio.h>    // file api
 #include <copyfile.h> // copyfile
 #include <dlfcn.h>    // dlopen, dlsym, dlclose
-#include <sys/socket.h>   // sockets
+#include <sys/socket.h> // sockets
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <errno.h>
@@ -48,6 +65,119 @@ Index of this file:
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
+//-----------------------------------------------------------------------------
+
+// window api
+
+#ifndef PL_HEADLESS_APP
+plWindow* pl_create_window(const plWindowDesc*);
+void      pl_destroy_window(plWindow*);
+#endif
+
+// clip board
+const char* pl_get_clipboard_text(void* user_data_ctx);
+void        pl_set_clipboard_text(void* pUnused, const char* text);
+
+// file api
+bool pl_file_exists      (const char* pcFile);
+void pl_file_delete      (const char* pcFile);
+void pl_binary_read_file (const char* pcFile, size_t* pszSize, uint8_t* pcBuffer);
+void pl_copy_file        (const char* pcSource, const char* pcDestination);
+void pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer);
+
+// udp api
+void pl_create_udp_socket(plSocket** pptSocketOut, bool bNonBlocking);
+void pl_bind_udp_socket  (plSocket*, int iPort);
+bool pl_send_udp_data    (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
+bool pl_get_udp_data     (plSocket*, void* pData, size_t);
+
+// library api
+bool  pl_has_library_changed  (plSharedLibrary*);
+bool  pl_load_library         (const char* pcName, const char* pcTransitionalName, const char* pcLockFile, plSharedLibrary** pptLibraryOut);
+void  pl_reload_library       (plSharedLibrary*);
+void* pl_load_library_function(plSharedLibrary*, const char* pcName);
+
+// thread api: misc
+void     pl_sleep(uint32_t millisec);
+uint32_t pl_get_hardware_thread_count(void);
+
+// thread api: thread
+void pl_create_thread (plThreadProcedure, void* pData, plThread** ppThreadOut);
+void pl_destroy_thread(plThread**);
+void pl_join_thread   (plThread*);
+void pl_yield_thread  (void);
+
+// thread api: mutex
+void pl_create_mutex (plMutex** ppMutexOut);
+void pl_lock_mutex   (plMutex*);
+void pl_unlock_mutex (plMutex*);
+void pl_destroy_mutex(plMutex**);
+
+// thread api: critical section
+void pl_create_critical_section (plCriticalSection** pptCriticalSectionOut);
+void pl_destroy_critical_section(plCriticalSection**);
+void pl_enter_critical_section  (plCriticalSection*);
+void pl_leave_critical_section  (plCriticalSection*);
+
+// thread api: semaphore
+void pl_create_semaphore     (uint32_t uIntialCount, plSemaphore** pptSemaphoreOut);
+void pl_wait_on_semaphore    (plSemaphore*);
+bool pl_try_wait_on_semaphore(plSemaphore*);
+void pl_release_semaphore    (plSemaphore*);
+void pl_destroy_semaphore    (plSemaphore**);
+
+// thread api: thread local storage
+void  pl_allocate_thread_local_key (plThreadKey** pptKeyOut);
+void  pl_free_thread_local_key     (plThreadKey**);
+void* pl_allocate_thread_local_data(plThreadKey*, size_t szSize);
+void* pl_get_thread_local_data     (plThreadKey*);
+void  pl_free_thread_local_data    (plThreadKey*, void* pData);
+
+// thread api: conditional variable
+void pl_create_condition_variable  (plConditionVariable** pptConditionVariableOut);
+void pl_destroy_condition_variable (plConditionVariable**);
+void pl_wake_condition_variable    (plConditionVariable*);
+void pl_wake_all_condition_variable(plConditionVariable*);
+void pl_sleep_condition_variable   (plConditionVariable*, plCriticalSection*);
+
+// thread api: barrier
+void pl_create_barrier (uint32_t uThreadCount, plBarrier** pptBarrierOut);
+void pl_destroy_barrier(plBarrier**);
+void pl_wait_on_barrier(plBarrier*);
+
+// atomics
+void    pl_create_atomic_counter  (int64_t ilValue, plAtomicCounter** ptCounter);
+void    pl_destroy_atomic_counter (plAtomicCounter**);
+void    pl_atomic_store           (plAtomicCounter*, int64_t ilValue);
+int64_t pl_atomic_load            (plAtomicCounter*);
+bool    pl_atomic_compare_exchange(plAtomicCounter*, int64_t ilExpectedValue, int64_t ilDesiredValue);
+void    pl_atomic_increment       (plAtomicCounter*);
+void    pl_atomic_decrement       (plAtomicCounter*);
+
+// virtual memory
+size_t pl_get_page_size   (void);
+void*  pl_virtual_alloc   (void* pAddress, size_t);
+void*  pl_virtual_reserve (void* pAddress, size_t);
+void*  pl_virtual_commit  (void* pAddress, size_t); 
+void   pl_virtual_uncommit(void* pAddress, size_t);
+void   pl_virtual_free    (void* pAddress, size_t); 
+
+// memory
+#define PL_ALLOC(x) gptMemory->realloc(NULL, x, __FILE__, __LINE__)
+#define PL_FREE(x)  gptMemory->realloc(x, 0, __FILE__, __LINE__)
+
+struct timespec
+pl__get_last_write_time(const char* filename)
+{
+    struct stat attr;
+    stat(filename, &attr);
+    return attr.st_mtimespec;
+}
+
+static inline CFTimeInterval pl__get_absolute_time(void) { return (CFTimeInterval)((double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9); }
+
+//-----------------------------------------------------------------------------
+// [SECTION] structs & interfaces
 //-----------------------------------------------------------------------------
 
 #ifndef PL_HEADLESS_APP
@@ -161,28 +291,6 @@ int pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t
 int pthread_barrier_destroy(pthread_barrier_t *barrier);
 int pthread_barrier_wait(pthread_barrier_t *barrier);
 
-//-----------------------------------------------------------------------------
-// [SECTION] internal api
-//-----------------------------------------------------------------------------
-
-#ifndef PL_HEADLESS_APP
-static plKey pl__osx_key_to_pl_key(int iKey);
-
-// clip board
-static const char* pl__get_clipboard_text(void* user_data_ctx);
-static void        pl__set_clipboard_text(void* pUnused, const char* text);
-#endif
-
-static struct timespec
-pl__get_last_write_time(const char* filename)
-{
-    struct stat attr;
-    stat(filename, &attr);
-    return attr.st_mtimespec;
-}
-
-static inline CFTimeInterval pl__get_absolute_time(void) { return (CFTimeInterval)((double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9); }
-
 #ifndef PL_HEADLESS_APP
 // Undocumented methods for creating cursors. (from Dear ImGui)
 @interface NSCursor()
@@ -192,128 +300,53 @@ static inline CFTimeInterval pl__get_absolute_time(void) { return (CFTimeInterva
 + (id)_windowResizeEastWestCursor;
 @end
 
-static plKey pl__osx_key_to_pl_key(int iKey);
-static void  pl__add_osx_tracking_area(NSView* _Nonnull view);
-static bool  pl__handle_osx_event(NSEvent* event, NSView* view);
+plKey pl__osx_key_to_pl_key(int iKey);
+void  pl__add_osx_tracking_area(NSView* _Nonnull view);
+bool  pl__handle_osx_event(NSEvent* event, NSView* view);
 
-// window api
-plWindow* pl__create_window(const plWindowDesc* ptDesc);
-void      pl__destroy_window(plWindow* ptWindow);
+// clip board
+const char* pl_get_clipboard_text(void* user_data_ctx);
+void        pl_set_clipboard_text(void* pUnused, const char* text);
 
 #endif
-
-// file api
-bool pl__file_exists(const char* pcFile);
-void pl__file_delete(const char* pcFile);
-void pl__binary_read_file(const char* pcFile, size_t* pszSize, uint8_t* pcBuffer);
-void pl__copy_file(const char* pcSource, const char* pcDestination);
-void pl__binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer);
-
-// os services
-void  pl__create_udp_socket    (plSocket** pptSocketOut, bool bNonBlocking);
-void  pl__bind_udp_socket      (plSocket* ptSocket, int iPort);
-bool  pl__send_udp_data        (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
-bool  pl__get_udp_data         (plSocket* ptSocket, void* pData, size_t szSize);
-bool  pl__has_library_changed  (plSharedLibrary* ptLibrary);
-bool  pl__load_library         (const char* pcName, const char* pcTransitionalName, const char* pcLockFile, plSharedLibrary** pptLibraryOut);
-void  pl__reload_library       (plSharedLibrary* ptLibrary);
-void* pl__load_library_function(plSharedLibrary* ptLibrary, const char* pcName);
-
-// thread api
-void     pl__sleep(uint32_t millisec);
-uint32_t pl__get_hardware_thread_count(void);
-void     pl__create_thread(plThreadProcedure ptProcedure, void* pData, plThread** ppThreadOut);
-void     pl__join_thread(plThread* ptThread);
-void     pl__yield_thread(void);
-void     pl__create_mutex(plMutex** ppMutexOut);
-void     pl__lock_mutex(plMutex* ptMutex);
-void     pl__unlock_mutex(plMutex* ptMutex);
-void     pl__destroy_mutex(plMutex** pptMutex);
-void     pl__create_critical_section(plCriticalSection** pptCriticalSectionOut);
-void     pl__destroy_critical_section(plCriticalSection** pptCriticalSection);
-void     pl__enter_critical_section  (plCriticalSection* ptCriticalSection);
-void     pl__leave_critical_section  (plCriticalSection* ptCriticalSection);
-void     pl__create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut);
-void     pl__wait_on_semaphore(plSemaphore* ptSemaphore);
-bool     pl__try_wait_on_semaphore(plSemaphore* ptSemaphore);
-void     pl__release_semaphore(plSemaphore* ptSemaphore);
-void     pl__destroy_semaphore(plSemaphore** pptSemaphore);
-void     pl__allocate_thread_local_key(plThreadKey** pptKeyOut);
-void     pl__free_thread_local_key(plThreadKey** ppuIndex);
-void*    pl__allocate_thread_local_data(plThreadKey* ptKey, size_t szSize);
-void*    pl__get_thread_local_data(plThreadKey* ptKey);
-void     pl__free_thread_local_data(plThreadKey* ptKey, void* pData);
-void     pl__create_condition_variable(plConditionVariable** pptConditionVariableOut);
-void     pl__destroy_condition_variable(plConditionVariable** pptConditionVariable);
-void     pl__wake_condition_variable(plConditionVariable* ptConditionVariable);
-void     pl__wake_all_condition_variable(plConditionVariable* ptConditionVariable);
-void     pl__sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection);
-void     pl__create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut);
-void     pl__destroy_barrier(plBarrier** pptBarrier);
-void     pl__wait_on_barrier(plBarrier* ptBarrier);
-
-// atomics
-void    pl__create_atomic_counter  (int64_t ilValue, plAtomicCounter** ptCounter);
-void    pl__destroy_atomic_counter (plAtomicCounter** ptCounter);
-void    pl__atomic_store           (plAtomicCounter* ptCounter, int64_t ilValue);
-int64_t pl__atomic_load            (plAtomicCounter* ptCounter);
-bool    pl__atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue);
-void    pl__atomic_increment       (plAtomicCounter* ptCounter);
-void    pl__atomic_decrement       (plAtomicCounter* ptCounter);
-
-// virtual memory
-size_t pl__get_page_size   (void);
-void*  pl__virtual_alloc   (void* pAddress, size_t szSize);
-void*  pl__virtual_reserve (void* pAddress, size_t szSize);
-void*  pl__virtual_commit  (void* pAddress, size_t szSize); 
-void   pl__virtual_uncommit(void* pAddress, size_t szSize);
-void   pl__virtual_free    (void* pAddress, size_t szSize); 
-
+ 
 //-----------------------------------------------------------------------------
 // [SECTION] globals
 //-----------------------------------------------------------------------------
 
-// apis
-static const plDataRegistryI*      gptDataRegistry = NULL;
-static const plApiRegistryI*       gptApiRegistry = NULL;
-static const plExtensionRegistryI* gptExtensionRegistry = NULL;
-static const plIOI*                gptIOI               = NULL;
-
-// OS apis
-static const plLibraryI* gptLibraryApi = NULL;
-
-static plSharedLibrary*     gptAppLibrary = NULL;
-static void*                gUserData = NULL;
-
+// general
+plSharedLibrary* gptAppLibrary = NULL;
+void*            gpUserData    = NULL;
+plIO*            gptIOCtx      = NULL;
 #ifndef PL_HEADLESS_APP
-static plKeyEventResponder* gKeyEventResponder = NULL;
-static NSTextInputContext*  gInputContext = NULL;
-static id                   gMonitor;
-
-static NSCursor*      aptMouseCursors[PL_MOUSE_CURSOR_COUNT];
-
-// windows
 plWindow** gsbtWindows = NULL;
 #endif
 
-static CFTimeInterval tTime;
-
-// ui
-plIO*        gptIOCtx = NULL;
-
-// memory tracking
-static plMemoryContext gtMemoryContext = {0};
-static plHashMap gtMemoryHashMap = {0};
-
-// app config
+// MacOS stuff
+CFTimeInterval gtTime;
 id gtAppDelegate;
 
+#ifndef PL_HEADLESS_APP
+plKeyEventResponder* gKeyEventResponder = NULL;
+NSTextInputContext*  gInputContext = NULL;
+id                   gMonitor;
+NSCursor* aptMouseCursors[PL_MOUSE_CURSOR_COUNT];
+#endif
+
+// apis
+const plDataRegistryI*      gptDataRegistry      = NULL;
+const plApiRegistryI*       gptApiRegistry       = NULL;
+const plExtensionRegistryI* gptExtensionRegistry = NULL;
+const plIOI*                gptIOI               = NULL;
+const plMemoryI*            gptMemory            = NULL;
+const plLibraryI*           gptLibraryApi        = NULL;
+
 // app function pointers
-static void* (*pl_app_load)    (const plApiRegistryI* ptApiRegistry, void* ptAppData);
-static void  (*pl_app_shutdown)(void* ptAppData);
-static void  (*pl_app_resize)  (void* ptAppData);
-static void  (*pl_app_update)  (void* ptAppData);
-static bool  (*pl_app_info)    (const plApiRegistryI*);
+void* (*pl_app_load)    (const plApiRegistryI*, void*);
+void  (*pl_app_shutdown)(void*);
+void  (*pl_app_resize)  (void*);
+void  (*pl_app_update)  (void*);
+bool  (*pl_app_info)    (const plApiRegistryI*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -362,92 +395,94 @@ int main(int argc, char *argv[])
 
 #endif
 
-    // load apis
-    gtMemoryContext.ptHashMap = &gtMemoryHashMap;
+    // load core apis
     gptApiRegistry = pl_load_core_apis();
 
+    // os provided apis
     #ifndef PL_HEADLESS_APP
     static const plWindowI tWindowApi = {
-        .create_window  = pl__create_window,
-        .destroy_window = pl__destroy_window
+        .create_window  = pl_create_window,
+        .destroy_window = pl_destroy_window
     };
     #endif
 
     static const plLibraryI tLibraryApi = {
-        .has_changed   = pl__has_library_changed,
-        .load          = pl__load_library,
-        .load_function = pl__load_library_function,
-        .reload        = pl__reload_library
+        .has_changed   = pl_has_library_changed,
+        .load          = pl_load_library,
+        .load_function = pl_load_library_function,
+        .reload        = pl_reload_library
     };
 
     static const plFileI tFileApi = {
-        .copy         = pl__copy_file,
-        .exists       = pl__file_exists,
-        .delete       = pl__file_delete,
-        .binary_read  = pl__binary_read_file,
-        .binary_write = pl__binary_write_file
+        .copy         = pl_copy_file,
+        .exists       = pl_file_exists,
+        .delete       = pl_file_delete,
+        .binary_read  = pl_binary_read_file,
+        .binary_write = pl_binary_write_file
     };
     
     static const plUdpI tUdpApi = {
-        .create_socket = pl__create_udp_socket,
-        .bind_socket   = pl__bind_udp_socket,  
-        .get_data      = pl__get_udp_data,
-        .send_data     = pl__send_udp_data
+        .create_socket = pl_create_udp_socket,
+        .bind_socket   = pl_bind_udp_socket,  
+        .get_data      = pl_get_udp_data,
+        .send_data     = pl_send_udp_data
     };
 
     static const plThreadsI tThreadApi = {
-        .get_hardware_thread_count   = pl__get_hardware_thread_count,
-        .create_thread               = pl__create_thread,
-        .join_thread                 = pl__join_thread,
-        .yield_thread                = pl__yield_thread,
-        .sleep_thread                = pl__sleep,
-        .create_mutex                = pl__create_mutex,
-        .destroy_mutex               = pl__destroy_mutex,
-        .lock_mutex                  = pl__lock_mutex,
-        .unlock_mutex                = pl__unlock_mutex,
-        .create_semaphore            = pl__create_semaphore,
-        .destroy_semaphore           = pl__destroy_semaphore,
-        .wait_on_semaphore           = pl__wait_on_semaphore,
-        .try_wait_on_semaphore       = pl__try_wait_on_semaphore,
-        .release_semaphore           = pl__release_semaphore,
-        .allocate_thread_local_key   = pl__allocate_thread_local_key,
-        .allocate_thread_local_data  = pl__allocate_thread_local_data,
-        .free_thread_local_key       = pl__free_thread_local_key, 
-        .get_thread_local_data       = pl__get_thread_local_data, 
-        .free_thread_local_data      = pl__free_thread_local_data, 
-        .create_critical_section     = pl__create_critical_section,
-        .destroy_critical_section    = pl__destroy_critical_section,
-        .enter_critical_section      = pl__enter_critical_section,
-        .leave_critical_section      = pl__leave_critical_section,
-        .create_condition_variable   = pl__create_condition_variable,
-        .destroy_condition_variable  = pl__destroy_condition_variable,
-        .wake_condition_variable     = pl__wake_condition_variable,
-        .wake_all_condition_variable = pl__wake_all_condition_variable,
-        .sleep_condition_variable    = pl__sleep_condition_variable,
-        .create_barrier              = pl__create_barrier,
-        .destroy_barrier             = pl__destroy_barrier,
-        .wait_on_barrier             = pl__wait_on_barrier
+        .get_hardware_thread_count   = pl_get_hardware_thread_count,
+        .create_thread               = pl_create_thread,
+        .destroy_thread              = pl_destroy_thread,
+        .join_thread                 = pl_join_thread,
+        .yield_thread                = pl_yield_thread,
+        .sleep_thread                = pl_sleep,
+        .create_mutex                = pl_create_mutex,
+        .destroy_mutex               = pl_destroy_mutex,
+        .lock_mutex                  = pl_lock_mutex,
+        .unlock_mutex                = pl_unlock_mutex,
+        .create_semaphore            = pl_create_semaphore,
+        .destroy_semaphore           = pl_destroy_semaphore,
+        .wait_on_semaphore           = pl_wait_on_semaphore,
+        .try_wait_on_semaphore       = pl_try_wait_on_semaphore,
+        .release_semaphore           = pl_release_semaphore,
+        .allocate_thread_local_key   = pl_allocate_thread_local_key,
+        .allocate_thread_local_data  = pl_allocate_thread_local_data,
+        .free_thread_local_key       = pl_free_thread_local_key, 
+        .get_thread_local_data       = pl_get_thread_local_data, 
+        .free_thread_local_data      = pl_free_thread_local_data, 
+        .create_critical_section     = pl_create_critical_section,
+        .destroy_critical_section    = pl_destroy_critical_section,
+        .enter_critical_section      = pl_enter_critical_section,
+        .leave_critical_section      = pl_leave_critical_section,
+        .create_condition_variable   = pl_create_condition_variable,
+        .destroy_condition_variable  = pl_destroy_condition_variable,
+        .wake_condition_variable     = pl_wake_condition_variable,
+        .wake_all_condition_variable = pl_wake_all_condition_variable,
+        .sleep_condition_variable    = pl_sleep_condition_variable,
+        .create_barrier              = pl_create_barrier,
+        .destroy_barrier             = pl_destroy_barrier,
+        .wait_on_barrier             = pl_wait_on_barrier
     };
 
     static const plAtomicsI tAtomicsApi = {
-        .create_atomic_counter   = pl__create_atomic_counter,
-        .destroy_atomic_counter  = pl__destroy_atomic_counter,
-        .atomic_store            = pl__atomic_store,
-        .atomic_load             = pl__atomic_load,
-        .atomic_compare_exchange = pl__atomic_compare_exchange,
-        .atomic_increment        = pl__atomic_increment,
-        .atomic_decrement        = pl__atomic_decrement
+        .create_atomic_counter   = pl_create_atomic_counter,
+        .destroy_atomic_counter  = pl_destroy_atomic_counter,
+        .atomic_store            = pl_atomic_store,
+        .atomic_load             = pl_atomic_load,
+        .atomic_compare_exchange = pl_atomic_compare_exchange,
+        .atomic_increment        = pl_atomic_increment,
+        .atomic_decrement        = pl_atomic_decrement
     };
 
     static const plVirtualMemoryI tVirtualMemoryApi = {
-        .get_page_size = pl__get_page_size,
-        .alloc         = pl__virtual_alloc,
-        .reserve       = pl__virtual_reserve,
-        .commit        = pl__virtual_commit,
-        .uncommit      = pl__virtual_uncommit,
-        .free          = pl__virtual_free,
+        .get_page_size = pl_get_page_size,
+        .alloc         = pl_virtual_alloc,
+        .reserve       = pl_virtual_reserve,
+        .commit        = pl_virtual_commit,
+        .uncommit      = pl_virtual_uncommit,
+        .free          = pl_virtual_free,
     };
 
+    // add os specific apis
     #ifndef PL_HEADLESS_APP
     gptApiRegistry->add(PL_API_WINDOW, &tWindowApi);
     #endif
@@ -462,24 +497,23 @@ int main(int argc, char *argv[])
     gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
     gptLibraryApi        = gptApiRegistry->first(PL_API_LIBRARY);
     gptIOI               = gptApiRegistry->first(PL_API_IO);
+    gptMemory            = gptApiRegistry->first(PL_API_MEMORY);
 
     // setup & retrieve io context 
     gptIOCtx = gptIOI->get_io();
-    gtMemoryContext.plThreadsI = &tThreadApi;
-    gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
+
+    // command line args
+    gptIOCtx->iArgc = argc;
+    gptIOCtx->apArgv = argv;
 
     #ifndef PL_HEADLESS_APP
     // create view controller
     gKeyEventResponder = [[plKeyEventResponder alloc] initWithFrame:NSZeroRect];
 
     // set clipboard functions (may need to move this to OS api)
-    gptIOCtx->set_clipboard_text_fn = pl__set_clipboard_text;
-    gptIOCtx->get_clipboard_text_fn = pl__get_clipboard_text;
+    gptIOCtx->set_clipboard_text_fn = pl_set_clipboard_text;
+    gptIOCtx->get_clipboard_text_fn = pl_get_clipboard_text;
     #endif
-
-    // command line args
-    gptIOCtx->iArgc = argc;
-    gptIOCtx->apArgv = argv;
 
     #ifndef PL_HEADLESS_APP
 
@@ -521,7 +555,7 @@ int main(int argc, char *argv[])
                 return 0;
         }
         
-        gUserData = pl_app_load(gptApiRegistry, NULL);
+        gpUserData = pl_app_load(gptApiRegistry, NULL);
     }
 
     #ifdef PL_HEADLESS_APP
@@ -529,7 +563,7 @@ int main(int argc, char *argv[])
     // main loop
     while (gptIOCtx->bRunning)
     {
-        pl__sleep((uint32_t)(1000.0f / gptIOCtx->fHeadlessUpdateRate));
+        pl_sleep((uint32_t)(1000.0f / gptIOCtx->fHeadlessUpdateRate));
 
         // reload library
         if(gptLibraryApi->has_changed(gptAppLibrary))
@@ -540,18 +574,18 @@ int main(int argc, char *argv[])
             pl_app_resize   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
             pl_app_update   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
             gptExtensionRegistry->reload();
-            gUserData = pl_app_load(gptApiRegistry, gUserData);
+            gpUserData = pl_app_load(gptApiRegistry, gpUserData);
         }
 
-        if(tTime == 0.0)
-            tTime = pl__get_absolute_time();
+        if(gtTime == 0.0)
+            gtTime = pl__get_absolute_time();
 
         double dCurrentTime = pl__get_absolute_time();
-        gptIOCtx->fDeltaTime = (float)(dCurrentTime - tTime);
-        tTime = dCurrentTime;
+        gptIOCtx->fDeltaTime = (float)(dCurrentTime - gtTime);
+        gtTime = dCurrentTime;
 
         gptDataRegistry->garbage_collect();
-        pl_app_update(gUserData);
+        pl_app_update(gpUserData);
         gptExtensionRegistry->reload();
     }
     #else
@@ -718,26 +752,16 @@ int main(int argc, char *argv[])
         dispatch_source_cancel(_displaySource);
     }
 
-    pl_app_shutdown(gUserData);
+    pl_app_shutdown(gpUserData);
     gptExtensionRegistry->unload_all();
 
-    uint32_t uMemoryLeakCount = 0;
-    for(uint32_t i = 0; i < pl_sb_size(gtMemoryContext.sbtAllocations); i++)
-    {
-        if(gtMemoryContext.sbtAllocations[i].pAddress != NULL)
-        {
-            printf("Unfreed memory from line %i in file '%s'.\n", gtMemoryContext.sbtAllocations[i].iLine, gtMemoryContext.sbtAllocations[i].pcFile);
-            uMemoryLeakCount++;
-        }
-    }
-        
-    assert(uMemoryLeakCount == gtMemoryContext.szActiveAllocations);
-    if(uMemoryLeakCount > 0)
-        printf("%u unfreed allocations.\n", uMemoryLeakCount);
+    pl_sb_free(gsbtWindows);
+
+    gptMemory->check_for_leaks();
 }
 
 // This is the renderer output callback function
-static CVReturn
+CVReturn
 DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const CVTimeStamp* outputTime, CVOptionFlags flagsIn, CVOptionFlags* flagsOut, void* displayLinkContext)
 {
 
@@ -797,9 +821,9 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 {
     gptIOCtx->afMainViewportSize[0] = size.width;
     gptIOCtx->afMainViewportSize[1] = size.height;
-    if(gUserData)
+    if(gpUserData)
     {
-        pl_app_resize(gUserData);
+        pl_app_resize(gpUserData);
     }
 }
 
@@ -838,7 +862,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
             pl_app_resize   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
             pl_app_update   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
             gptExtensionRegistry->reload();
-            gUserData = pl_app_load(gptApiRegistry, gUserData);
+            gpUserData = pl_app_load(gptApiRegistry, gpUserData);
         }
 
 
@@ -851,15 +875,15 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
             gptIOCtx->afMainFramebufferScale[1] = fDpi;
         }
 
-        if(tTime == 0.0)
-            tTime = pl__get_absolute_time();
+        if(gtTime == 0.0)
+            gtTime = pl__get_absolute_time();
 
         double dCurrentTime = pl__get_absolute_time();
-        gptIOCtx->fDeltaTime = (float)(dCurrentTime - tTime);
-        tTime = dCurrentTime;
+        gptIOCtx->fDeltaTime = (float)(dCurrentTime - gtTime);
+        gtTime = dCurrentTime;
 
         gptDataRegistry->garbage_collect();
-        pl_app_update(gUserData);
+        pl_app_update(gpUserData);
         gptExtensionRegistry->reload();
 
         if(gptIOCtx->bRunning == false)
@@ -871,18 +895,14 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 
 - (void)shutdown
 {
-    pl_app_shutdown(gUserData);
+    pl_app_shutdown(gpUserData);
     if(gMonitor != NULL)
     {
         [NSEvent removeMonitor:gMonitor];
         gMonitor = NULL;
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(gtMemoryContext.sbtAllocations); i++)
-        printf("Unfreed memory from line %i in file '%s'.\n", gtMemoryContext.sbtAllocations[i].iLine, gtMemoryContext.sbtAllocations[i].pcFile);
-
-    if(pl_sb_size(gtMemoryContext.sbtAllocations) > 0)
-        printf("%u unfreed allocations.\n", pl_sb_size(gtMemoryContext.sbtAllocations));
+    gptMemory->check_for_leaks();
 }
 
 @end
@@ -998,7 +1018,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 
 @end
 
-static bool
+bool
 pl__handle_osx_event(NSEvent* event, NSView* view)
 {
     if (event.type == NSEventTypeLeftMouseDown || event.type == NSEventTypeRightMouseDown || event.type == NSEventTypeOtherMouseDown)
@@ -1122,7 +1142,7 @@ pl__handle_osx_event(NSEvent* event, NSView* view)
     return false;
 }
 
-static void 
+void 
 pl__add_osx_tracking_area(NSView* _Nonnull view)
 {
     if(gMonitor) return;
@@ -1142,8 +1162,12 @@ pl__add_osx_tracking_area(NSView* _Nonnull view)
 
 #endif
 
+//-----------------------------------------------------------------------------
+// [SECTION] file api
+//-----------------------------------------------------------------------------
+
 void
-pl__binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
+pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
 {
     PL_ASSERT(pszSizeIn);
 
@@ -1184,7 +1208,7 @@ pl__binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
 }
 
 void
-pl__binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
+pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
 {
     FILE* ptDataFile = fopen(pcFile, "wb");
     if (ptDataFile)
@@ -1195,7 +1219,7 @@ pl__binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
 }
 
 void
-pl__copy_file(const char* source, const char* destination)
+pl_copy_file(const char* source, const char* destination)
 {
     copyfile_state_t s;
     s = copyfile_state_alloc();
@@ -1204,13 +1228,13 @@ pl__copy_file(const char* source, const char* destination)
 }
 
 void
-pl__file_delete(const char* pcFile)
+pl_file_delete(const char* pcFile)
 {
     remove(pcFile);
 }
 
 bool
-pl__file_exists(const char* pcFile)
+pl_file_exists(const char* pcFile)
 {
     FILE* ptDataFile = fopen(pcFile, "r");
     
@@ -1222,8 +1246,12 @@ pl__file_exists(const char* pcFile)
     return false;
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] udp api
+//-----------------------------------------------------------------------------
+
 void
-pl__create_udp_socket(plSocket** pptSocketOut, bool bNonBlocking)
+pl_create_udp_socket(plSocket** pptSocketOut, bool bNonBlocking)
 {
     *pptSocketOut = PL_ALLOC(sizeof(plSocket));
 
@@ -1243,7 +1271,7 @@ pl__create_udp_socket(plSocket** pptSocketOut, bool bNonBlocking)
 }
 
 void
-pl__bind_udp_socket(plSocket* ptSocket, int iPort)
+pl_bind_udp_socket(plSocket* ptSocket, int iPort)
 {
     ptSocket->iPort = iPort;
     
@@ -1263,7 +1291,7 @@ pl__bind_udp_socket(plSocket* ptSocket, int iPort)
 }
 
 bool
-pl__send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize)
+pl_send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize)
 {
     struct sockaddr_in tDestSocket = {
         .sin_family      = AF_INET,
@@ -1284,7 +1312,7 @@ pl__send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, v
 }
 
 bool
-pl__get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
+pl_get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
 {
     struct sockaddr_in tSiOther = {0};
     static socklen_t iSLen = (int)sizeof(tSiOther);
@@ -1303,15 +1331,19 @@ pl__get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
     return iRecvLen > 0;
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] library api
+//-----------------------------------------------------------------------------
+
 bool
-pl__has_library_changed(plSharedLibrary* library)
+pl_has_library_changed(plSharedLibrary* library)
 {
     struct timespec newWriteTime = pl__get_last_write_time(library->acPath);
     return newWriteTime.tv_sec != library->lastWriteTime.tv_sec;
 }
 
 bool
-pl__load_library(const char* name, const char* transitionalName, const char* lockFile, plSharedLibrary** pptLibraryOut)
+pl_load_library(const char* name, const char* transitionalName, const char* lockFile, plSharedLibrary** pptLibraryOut)
 {
 
     if(*pptLibraryOut == NULL)
@@ -1338,7 +1370,7 @@ pl__load_library(const char* name, const char* transitionalName, const char* loc
         {
             library->uTempIndex = 0;
         }
-        pl__copy_file(library->acPath, temporaryName);
+        pl_copy_file(library->acPath, temporaryName);
 
         library->handle = NULL;
         library->handle = dlopen(temporaryName, RTLD_NOW);
@@ -1354,19 +1386,19 @@ pl__load_library(const char* name, const char* transitionalName, const char* loc
 }
 
 void
-pl__reload_library(plSharedLibrary* library)
+pl_reload_library(plSharedLibrary* library)
 {
     library->bValid = false;
     for(uint32_t i = 0; i < 100; i++)
     {
-        if(pl__load_library(library->acPath, library->acTransitionalName, library->acLockFile, &library))
+        if(pl_load_library(library->acPath, library->acTransitionalName, library->acLockFile, &library))
             break;
-        pl__sleep(100);
+        pl_sleep(100);
     }
 }
 
 void*
-pl__load_library_function(plSharedLibrary* library, const char* name)
+pl_load_library_function(plSharedLibrary* library, const char* name)
 {
     PL_ASSERT(library->bValid && "Library not valid");
     void* loadedFunction = NULL;
@@ -1377,8 +1409,12 @@ pl__load_library_function(plSharedLibrary* library, const char* name)
     return loadedFunction;
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] thread api
+//-----------------------------------------------------------------------------
+
 void
-pl__sleep(uint32_t millisec)
+pl_sleep(uint32_t millisec)
 {
     struct timespec ts;
     int res;
@@ -1393,7 +1429,7 @@ pl__sleep(uint32_t millisec)
 }
 
 void
-pl__create_thread(plThreadProcedure ptProcedure, void* pData, plThread** pptThreadOut)
+pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** pptThreadOut)
 {
     *pptThreadOut = PL_ALLOC(sizeof(plThread));
     if(pthread_create(&(*pptThreadOut)->tHandle, NULL, ptProcedure, pData))
@@ -1403,21 +1439,29 @@ pl__create_thread(plThreadProcedure ptProcedure, void* pData, plThread** pptThre
 }
 
 void
-pl__join_thread(plThread* ptThread)
+pl_destroy_thread(plThread** ppThread)
+{
+    pl_join_thread(*ppThread);
+    PL_FREE(*ppThread);
+    *ppThread = NULL;
+}
+
+void
+pl_join_thread(plThread* ptThread)
 {
     pthread_join(ptThread->tHandle, NULL);
 }
 
 void
-pl__yield_thread(void)
+pl_yield_thread(void)
 {
     sched_yield();
 }
 
 void
-pl__create_mutex(plMutex** pptMutexOut)
+pl_create_mutex(plMutex** pptMutexOut)
 {
-    *pptMutexOut = PL_ALLOC(sizeof(plMutex));
+    *pptMutexOut = malloc(sizeof(plMutex));
     if(pthread_mutex_init(&(*pptMutexOut)->tHandle, NULL))
     {
         PL_ASSERT(false);
@@ -1425,27 +1469,27 @@ pl__create_mutex(plMutex** pptMutexOut)
 }
 
 void
-pl__lock_mutex(plMutex* ptMutex)
+pl_lock_mutex(plMutex* ptMutex)
 {
     pthread_mutex_lock(&ptMutex->tHandle);
 }
 
 void
-pl__unlock_mutex(plMutex* ptMutex)
+pl_unlock_mutex(plMutex* ptMutex)
 {
     pthread_mutex_unlock(&ptMutex->tHandle);
 }
 
 void
-pl__destroy_mutex(plMutex** pptMutex)
+pl_destroy_mutex(plMutex** pptMutex)
 {
     pthread_mutex_destroy(&(*pptMutex)->tHandle);
-    PL_FREE((*pptMutex));
+    free(*pptMutex);
     *pptMutex = NULL;
 }
 
 void
-pl__create_critical_section(plCriticalSection** pptCriticalSectionOut)
+pl_create_critical_section(plCriticalSection** pptCriticalSectionOut)
 {
     *pptCriticalSectionOut = PL_ALLOC(sizeof(plCriticalSection));
     if(pthread_mutex_init(&(*pptCriticalSectionOut)->tHandle, NULL))
@@ -1455,7 +1499,7 @@ pl__create_critical_section(plCriticalSection** pptCriticalSectionOut)
 }
 
 void
-pl__destroy_critical_section(plCriticalSection** pptCriticalSection)
+pl_destroy_critical_section(plCriticalSection** pptCriticalSection)
 {
     pthread_mutex_destroy(&(*pptCriticalSection)->tHandle);
     PL_FREE((*pptCriticalSection));
@@ -1463,19 +1507,19 @@ pl__destroy_critical_section(plCriticalSection** pptCriticalSection)
 }
 
 void
-pl__enter_critical_section(plCriticalSection* ptCriticalSection)
+pl_enter_critical_section(plCriticalSection* ptCriticalSection)
 {
     pthread_mutex_lock(&ptCriticalSection->tHandle);
 }
 
 void
-pl__leave_critical_section(plCriticalSection* ptCriticalSection)
+pl_leave_critical_section(plCriticalSection* ptCriticalSection)
 {
     pthread_mutex_unlock(&ptCriticalSection->tHandle);
 }
 
 uint32_t
-pl__get_hardware_thread_count(void)
+pl_get_hardware_thread_count(void)
 {
 
     int numCPU = sysconf(_SC_NPROCESSORS_ONLN);
@@ -1483,7 +1527,7 @@ pl__get_hardware_thread_count(void)
 }
 
 void
-pl__create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
+pl_create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
 {
     *pptSemaphoreOut = PL_ALLOC(sizeof(plSemaphore));
     memset((*pptSemaphoreOut), 0, sizeof(plSemaphore));
@@ -1491,33 +1535,32 @@ pl__create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
 }
 
 void
-pl__destroy_semaphore(plSemaphore** pptSemaphore)
+pl_destroy_semaphore(plSemaphore** pptSemaphore)
 {
     PL_FREE((*pptSemaphore));
     *pptSemaphore = NULL;
 }
 
 void
-pl__wait_on_semaphore(plSemaphore* ptSemaphore)
+pl_wait_on_semaphore(plSemaphore* ptSemaphore)
 {
     dispatch_semaphore_wait(ptSemaphore->tHandle, DISPATCH_TIME_FOREVER);
 }
 
 bool
-pl__try_wait_on_semaphore(plSemaphore* ptSemaphore)
+pl_try_wait_on_semaphore(plSemaphore* ptSemaphore)
 {
     return dispatch_semaphore_wait(ptSemaphore->tHandle, DISPATCH_TIME_NOW) == 0;
 }
 
 void
-pl__release_semaphore(plSemaphore* ptSemaphore)
+pl_release_semaphore(plSemaphore* ptSemaphore)
 {
     dispatch_semaphore_signal(ptSemaphore->tHandle);
 }
 
-
 void
-pl__allocate_thread_local_key(plThreadKey** pptKeyOut)
+pl_allocate_thread_local_key(plThreadKey** pptKeyOut)
 {
     *pptKeyOut = PL_ALLOC(sizeof(plThreadKey));
     int iStatus = pthread_key_create(&(*pptKeyOut)->tKey, NULL);
@@ -1529,7 +1572,7 @@ pl__allocate_thread_local_key(plThreadKey** pptKeyOut)
 }
 
 void
-pl__free_thread_local_key(plThreadKey** pptKey)
+pl_free_thread_local_key(plThreadKey** pptKey)
 {
     pthread_key_delete((*pptKey)->tKey);
     PL_FREE((*pptKey));
@@ -1537,7 +1580,7 @@ pl__free_thread_local_key(plThreadKey** pptKey)
 }
 
 void*
-pl__allocate_thread_local_data(plThreadKey* ptKey, size_t szSize)
+pl_allocate_thread_local_data(plThreadKey* ptKey, size_t szSize)
 {
     void* pData = PL_ALLOC(szSize);
     memset(pData, 0, szSize);
@@ -1546,27 +1589,27 @@ pl__allocate_thread_local_data(plThreadKey* ptKey, size_t szSize)
 }
 
 void*
-pl__get_thread_local_data(plThreadKey* ptKey)
+pl_get_thread_local_data(plThreadKey* ptKey)
 {
     void* pData = pthread_getspecific(ptKey->tKey);
     return pData;
 }
 
 void
-pl__free_thread_local_data(plThreadKey* ptKey, void* pData)
+pl_free_thread_local_data(plThreadKey* ptKey, void* pData)
 {
     PL_FREE(pData);
 }
 
 void
-pl__create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut)
+pl_create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut)
 {
     *pptBarrierOut = PL_ALLOC(sizeof(plBarrier));
     pthread_barrier_init(&(*pptBarrierOut)->tHandle, NULL, uThreadCount);
 }
 
 void
-pl__destroy_barrier(plBarrier** pptBarrier)
+pl_destroy_barrier(plBarrier** pptBarrier)
 {
     pthread_barrier_destroy(&(*pptBarrier)->tHandle);
     PL_FREE((*pptBarrier));
@@ -1574,20 +1617,20 @@ pl__destroy_barrier(plBarrier** pptBarrier)
 }
 
 void
-pl__wait_on_barrier(plBarrier* ptBarrier)
+pl_wait_on_barrier(plBarrier* ptBarrier)
 {
     pthread_barrier_wait(&ptBarrier->tHandle);
 }
 
 void
-pl__create_condition_variable(plConditionVariable** pptConditionVariableOut)
+pl_create_condition_variable(plConditionVariable** pptConditionVariableOut)
 {
     *pptConditionVariableOut = PL_ALLOC(sizeof(plConditionVariable));
     pthread_cond_init(&(*pptConditionVariableOut)->tHandle, NULL);
 }
 
 void               
-pl__destroy_condition_variable(plConditionVariable** pptConditionVariable)
+pl_destroy_condition_variable(plConditionVariable** pptConditionVariable)
 {
     pthread_cond_destroy(&(*pptConditionVariable)->tHandle);
     PL_FREE((*pptConditionVariable));
@@ -1595,147 +1638,22 @@ pl__destroy_condition_variable(plConditionVariable** pptConditionVariable)
 }
 
 void               
-pl__wake_condition_variable(plConditionVariable* ptConditionVariable)
+pl_wake_condition_variable(plConditionVariable* ptConditionVariable)
 {
     pthread_cond_signal(&ptConditionVariable->tHandle);
 }
 
 void               
-pl__wake_all_condition_variable(plConditionVariable* ptConditionVariable)
+pl_wake_all_condition_variable(plConditionVariable* ptConditionVariable)
 {
     pthread_cond_broadcast(&ptConditionVariable->tHandle);
 }
 
 void               
-pl__sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection)
+pl_sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection)
 {
     pthread_cond_wait(&ptConditionVariable->tHandle, &ptCriticalSection->tHandle);
 }
-
-void
-pl__create_atomic_counter(int64_t ilValue, plAtomicCounter** ptCounter)
-{
-    *ptCounter = malloc(sizeof(plAtomicCounter));
-    atomic_init(&(*ptCounter)->ilValue, ilValue);
-}
-
-void
-pl__destroy_atomic_counter(plAtomicCounter** ptCounter)
-{
-    free((*ptCounter));
-    (*ptCounter) = NULL;
-}
-
-void
-pl__atomic_store(plAtomicCounter* ptCounter, int64_t ilValue)
-{
-    atomic_store(&ptCounter->ilValue, ilValue);
-}
-
-int64_t
-pl__atomic_load(plAtomicCounter* ptCounter)
-{
-    return atomic_load(&ptCounter->ilValue);
-}
-
-bool
-pl__atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue)
-{
-    return atomic_compare_exchange_strong(&ptCounter->ilValue, &ilExpectedValue, ilDesiredValue);
-}
-
-void
-pl__atomic_increment(plAtomicCounter* ptCounter)
-{
-    atomic_fetch_add(&ptCounter->ilValue, 1);
-}
-
-void
-pl__atomic_decrement(plAtomicCounter* ptCounter)
-{
-    atomic_fetch_sub(&ptCounter->ilValue, 1);
-}
-
-#ifndef PL_HEADLESS_APP
-
-plWindow*
-pl__create_window(const plWindowDesc* ptDesc)
-{
-    plWindow* ptWindow = malloc(sizeof(plWindow));
-    plWindowData* ptData = malloc(sizeof(plWindowData));
-    ptWindow->tDesc = *ptDesc;
-    ptWindow->_pPlatformData = ptData;
-
-    // create view
-    ptData->ptViewController = [[plNSViewController alloc] init];
-
-   id<MTLDevice> device = MTLCreateSystemDefaultDevice();
-
-    NSRect frame = NSMakeRect(0, 0, ptDesc->uWidth, ptDesc->uHeight);
-    ptData->ptViewController.view = [[plNSView alloc] initWithFrame:frame];
-
-    plNSView *view = (plNSView *)ptData->ptViewController.view;
-    view.metalLayer.device = device;
-    view.delegate = ptData->ptViewController;
-    view.metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    gptIOCtx->pBackendPlatformData = device;
-    ptData->ptLayer = view.metalLayer;
-
-    // create window
-    ptData->ptWindow = [NSWindow windowWithContentViewController:ptData->ptViewController];
-    [ptData->ptWindow orderFront:nil];
-    [ptData->ptWindow center];
-    [ptData->ptWindow becomeKeyWindow];
-
-    NSString* tWindowTitle = [NSString stringWithUTF8String:ptDesc->pcName];
-    [ptData->ptWindow setTitle:tWindowTitle];
-
-
-    NSPoint tOrigin = NSMakePoint(ptDesc->iXPos, ptData->ptWindow.screen.frame.size.height - ptDesc->iYPos);
-    [ptData->ptWindow setFrameTopLeftPoint:tOrigin];
-
-    
-    ptData->ptWindow.delegate = gtAppDelegate;
-
-    gptIOCtx->afMainViewportSize[0] = ptDesc->uWidth;
-    gptIOCtx->afMainViewportSize[1] = ptDesc->uHeight;
-
-    pl_sb_push(gsbtWindows, ptWindow);
-
-    return ptWindow;
-}
-
-void
-pl__destroy_window(plWindow* ptWindow)
-{
-    plWindowData* ptData = ptWindow->_pPlatformData;
-    [ptData->ptWindow release];
-    free(ptData);
-    free(ptWindow);
-}
-
-const char*
-pl__get_clipboard_text(void* user_data_ctx)
-{
-    pl_sb_reset(gptIOCtx->sbcClipboardData);
-
-    NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
-    NSString* available = [pasteboard availableTypeFromArray: [NSArray arrayWithObject:NSPasteboardTypeString]];
-    if (![available isEqualToString:NSPasteboardTypeString])
-        return NULL;
-
-    NSString* string = [pasteboard stringForType:NSPasteboardTypeString];
-    if (string == nil)
-        return NULL;
-
-    const char* string_c = (const char*)[string UTF8String];
-    size_t string_len = strlen(string_c);
-    pl_sb_resize(gptIOCtx->sbcClipboardData, (int)string_len + 1);
-    strcpy(gptIOCtx->sbcClipboardData, string_c);
-    return gptIOCtx->sbcClipboardData;
-}
-
-#endif
 
 int
 pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t *attr, unsigned int count)
@@ -1788,52 +1706,157 @@ pthread_barrier_wait(pthread_barrier_t *barrier)
     }
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] atomic api
+//-----------------------------------------------------------------------------
+
+void
+pl_create_atomic_counter(int64_t ilValue, plAtomicCounter** ptCounter)
+{
+    *ptCounter = malloc(sizeof(plAtomicCounter));
+    atomic_init(&(*ptCounter)->ilValue, ilValue);
+}
+
+void
+pl_destroy_atomic_counter(plAtomicCounter** ptCounter)
+{
+    free((*ptCounter));
+    (*ptCounter) = NULL;
+}
+
+void
+pl_atomic_store(plAtomicCounter* ptCounter, int64_t ilValue)
+{
+    atomic_store(&ptCounter->ilValue, ilValue);
+}
+
+int64_t
+pl_atomic_load(plAtomicCounter* ptCounter)
+{
+    return atomic_load(&ptCounter->ilValue);
+}
+
+bool
+pl_atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue)
+{
+    return atomic_compare_exchange_strong(&ptCounter->ilValue, &ilExpectedValue, ilDesiredValue);
+}
+
+void
+pl_atomic_increment(plAtomicCounter* ptCounter)
+{
+    atomic_fetch_add(&ptCounter->ilValue, 1);
+}
+
+void
+pl_atomic_decrement(plAtomicCounter* ptCounter)
+{
+    atomic_fetch_sub(&ptCounter->ilValue, 1);
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] virtual memory api
+//-----------------------------------------------------------------------------
+
 size_t
-pl__get_page_size(void)
+pl_get_page_size(void)
 {
     return (size_t)getpagesize();
 }
 
 void*
-pl__virtual_alloc(void* pAddress, size_t szSize)
+pl_virtual_alloc(void* pAddress, size_t szSize)
 {
     void* pResult = mmap(pAddress, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     return pResult;
 }
 
 void*
-pl__virtual_reserve(void* pAddress, size_t szSize)
+pl_virtual_reserve(void* pAddress, size_t szSize)
 {
     void* pResult = mmap(pAddress, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     return pResult;
 }
 
 void*
-pl__virtual_commit(void* pAddress, size_t szSize)
+pl_virtual_commit(void* pAddress, size_t szSize)
 {
     mprotect(pAddress, szSize, PROT_READ | PROT_WRITE);
     return pAddress;
 }
 
 void
-pl__virtual_free(void* pAddress, size_t szSize)
+pl_virtual_free(void* pAddress, size_t szSize)
 {
     munmap(pAddress, szSize);
 }
 
 void
-pl__virtual_uncommit(void* pAddress, size_t szSize)
+pl_virtual_uncommit(void* pAddress, size_t szSize)
 {
     mprotect(pAddress, szSize, PROT_NONE);
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] window api
+//-----------------------------------------------------------------------------
+
 #ifndef PL_HEADLESS_APP
-void
-pl__set_clipboard_text(void* pUnused, const char* text)
+
+plWindow*
+pl_create_window(const plWindowDesc* ptDesc)
 {
-    NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
-    [pasteboard declareTypes:[NSArray arrayWithObject:NSPasteboardTypeString] owner:nil];
-    [pasteboard setString:[NSString stringWithUTF8String:text] forType:NSPasteboardTypeString];
+    plWindow* ptWindow = malloc(sizeof(plWindow));
+    plWindowData* ptData = malloc(sizeof(plWindowData));
+    ptWindow->tDesc = *ptDesc;
+    ptWindow->_pPlatformData = ptData;
+
+    // create view
+    ptData->ptViewController = [[plNSViewController alloc] init];
+
+   id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+
+    NSRect frame = NSMakeRect(0, 0, ptDesc->uWidth, ptDesc->uHeight);
+    ptData->ptViewController.view = [[plNSView alloc] initWithFrame:frame];
+
+    plNSView *view = (plNSView *)ptData->ptViewController.view;
+    view.metalLayer.device = device;
+    view.delegate = ptData->ptViewController;
+    view.metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+    gptIOCtx->pBackendPlatformData = device;
+    ptData->ptLayer = view.metalLayer;
+
+    // create window
+    ptData->ptWindow = [NSWindow windowWithContentViewController:ptData->ptViewController];
+    [ptData->ptWindow orderFront:nil];
+    [ptData->ptWindow center];
+    [ptData->ptWindow becomeKeyWindow];
+
+    NSString* tWindowTitle = [NSString stringWithUTF8String:ptDesc->pcName];
+    [ptData->ptWindow setTitle:tWindowTitle];
+
+
+    NSPoint tOrigin = NSMakePoint(ptDesc->iXPos, ptData->ptWindow.screen.frame.size.height - ptDesc->iYPos);
+    [ptData->ptWindow setFrameTopLeftPoint:tOrigin];
+
+    
+    ptData->ptWindow.delegate = gtAppDelegate;
+
+    gptIOCtx->afMainViewportSize[0] = ptDesc->uWidth;
+    gptIOCtx->afMainViewportSize[1] = ptDesc->uHeight;
+
+    pl_sb_push(gsbtWindows, ptWindow);
+
+    return ptWindow;
+}
+
+void
+pl_destroy_window(plWindow* ptWindow)
+{
+    plWindowData* ptData = ptWindow->_pPlatformData;
+    [ptData->ptWindow release];
+    free(ptData);
+    free(ptWindow);
 }
 
 plKey
@@ -1948,6 +1971,43 @@ pl__osx_key_to_pl_key(int iKey)
     }
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] clipboard
+//-----------------------------------------------------------------------------
+
+const char*
+pl_get_clipboard_text(void* user_data_ctx)
+{
+    pl_sb_reset(gptIOCtx->sbcClipboardData);
+
+    NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
+    NSString* available = [pasteboard availableTypeFromArray: [NSArray arrayWithObject:NSPasteboardTypeString]];
+    if (![available isEqualToString:NSPasteboardTypeString])
+        return NULL;
+
+    NSString* string = [pasteboard stringForType:NSPasteboardTypeString];
+    if (string == nil)
+        return NULL;
+
+    const char* string_c = (const char*)[string UTF8String];
+    size_t string_len = strlen(string_c);
+    pl_sb_resize(gptIOCtx->sbcClipboardData, (int)string_len + 1);
+    strcpy(gptIOCtx->sbcClipboardData, string_c);
+    return gptIOCtx->sbcClipboardData;
+}
+
+void
+pl_set_clipboard_text(void* pUnused, const char* text)
+{
+    NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
+    [pasteboard declareTypes:[NSArray arrayWithObject:NSPasteboardTypeString] owner:nil];
+    [pasteboard setString:[NSString stringWithUTF8String:text] forType:NSPasteboardTypeString];
+}
+
 #endif
+
+//-----------------------------------------------------------------------------
+// [SECTION] unity build
+//-----------------------------------------------------------------------------
 
 #include "pl_exe.c"

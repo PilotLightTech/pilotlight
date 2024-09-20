@@ -1,25 +1,42 @@
 /*
-   linux_pl.c
+   pl_main_x11.c
+     * x11 platform backend
+
+   Implemented APIs:
+     [X] Windows
+     [X] Libraries
+     [X] UDP
+     [X] Threads
+     [X] Atomics
+     [X] Virtual Memory
+     [ ] Clipboard
 */
 
 /*
 Index of this file:
 // [SECTION] includes
 // [SECTION] forward declarations
+// [SECTION] structs
 // [SECTION] globals
-// [SECTION] internal api
 // [SECTION] entry point
-// [SECTION] internal implementation
+// [SECTION] linux procedure
+// [SECTION] file api
+// [SECTION] udp api
+// [SECTION] library api
+// [SECTION] thread api
+// [SECTION] atomic api
+// [SECTION] virtual memory api
+// [SECTION] window api
+// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl.h" // data registry, api registry, extension registry
-#include "pl_ds.h"      // hashmap
-#include "pl_os.h"      // os services
-
+#include "pl.h"
+#include "pl_ds.h"
+#include "pl_os.h"
 #include <time.h>     // clock_gettime, clock_getres
 #include <string.h>   // strlen
 #include <stdlib.h>   // free
@@ -53,84 +70,111 @@ Index of this file:
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
-// internal
-void pl_update_mouse_cursor_linux(void);
+// window api
 
 #ifndef PL_HEADLESS_APP
-void pl_linux_procedure          (xcb_generic_event_t* event);
-plKey pl__xcb_key_to_pl_key(uint32_t x_keycode);
-
-// window api
-plWindow* pl__create_window(const plWindowDesc* ptDesc);
-void      pl__destroy_window(plWindow* ptWindow);
+plWindow* pl_create_window(const plWindowDesc*);
+void      pl_destroy_window(plWindow*);
 #endif
 
+// clip board
+const char* pl_get_clipboard_text(void* user_data_ctx);
+void        pl_set_clipboard_text(void* pUnused, const char* text);
+
 // file api
-bool pl__file_exists(const char* pcFile);
-void pl__file_delete(const char* pcFile);
-void pl__binary_read_file(const char* pcFile, size_t* pszSize, uint8_t* pcBuffer);
-void pl__copy_file(const char* pcSource, const char* pcDestination);
-void pl__binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer);
+bool pl_file_exists      (const char* pcFile);
+void pl_file_delete      (const char* pcFile);
+void pl_binary_read_file (const char* pcFile, size_t* pszSize, uint8_t* pcBuffer);
+void pl_copy_file        (const char* pcSource, const char* pcDestination);
+void pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer);
 
-// os services
-void  pl__create_udp_socket    (plSocket** pptSocketOut, bool bNonBlocking);
-void  pl__bind_udp_socket      (plSocket* ptSocket, int iPort);
-bool  pl__send_udp_data        (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
-bool  pl__get_udp_data         (plSocket* ptSocket, void* pData, size_t szSize);
-bool  pl__has_library_changed  (plSharedLibrary* ptLibrary);
-bool  pl__load_library         (const char* pcName, const char* pcTransitionalName, const char* pcLockFile, plSharedLibrary** pptLibraryOut);
-void  pl__reload_library       (plSharedLibrary* ptLibrary);
-void* pl__load_library_function(plSharedLibrary* ptLibrary, const char* pcName);
+// udp api
+void pl_create_udp_socket(plSocket** pptSocketOut, bool bNonBlocking);
+void pl_bind_udp_socket  (plSocket*, int iPort);
+bool pl_send_udp_data    (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
+bool pl_get_udp_data     (plSocket*, void* pData, size_t);
 
-// thread api
-void     pl__sleep(uint32_t millisec);
-uint32_t pl__get_hardware_thread_count(void);
-void     pl__create_thread(plThreadProcedure ptProcedure, void* pData, plThread** ppThreadOut);
-void     pl__join_thread(plThread* ptThread);
-void     pl__yield_thread(void);
-void     pl__create_mutex(plMutex** ppMutexOut);
-void     pl__lock_mutex(plMutex* ptMutex);
-void     pl__unlock_mutex(plMutex* ptMutex);
-void     pl__destroy_mutex(plMutex** pptMutex);
-void     pl__create_critical_section(plCriticalSection** pptCriticalSectionOut);
-void     pl__destroy_critical_section(plCriticalSection** pptCriticalSection);
-void     pl__enter_critical_section  (plCriticalSection* ptCriticalSection);
-void     pl__leave_critical_section  (plCriticalSection* ptCriticalSection);
-void     pl__create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut);
-void     pl__wait_on_semaphore(plSemaphore* ptSemaphore);
-bool     pl__try_wait_on_semaphore(plSemaphore* ptSemaphore);
-void     pl__release_semaphore(plSemaphore* ptSemaphore);
-void     pl__destroy_semaphore(plSemaphore** pptSemaphore);
-void     pl__allocate_thread_local_key(plThreadKey** pptKeyOut);
-void     pl__free_thread_local_key(plThreadKey** ppuIndex);
-void*    pl__allocate_thread_local_data(plThreadKey* ptKey, size_t szSize);
-void*    pl__get_thread_local_data(plThreadKey* ptKey);
-void     pl__free_thread_local_data(plThreadKey* ptKey, void* pData);
-void     pl__create_condition_variable(plConditionVariable** pptConditionVariableOut);
-void     pl__destroy_condition_variable(plConditionVariable** pptConditionVariable);
-void     pl__wake_condition_variable(plConditionVariable* ptConditionVariable);
-void     pl__wake_all_condition_variable(plConditionVariable* ptConditionVariable);
-void     pl__sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection);
-void     pl__create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut);
-void     pl__destroy_barrier(plBarrier** pptBarrier);
-void     pl__wait_on_barrier(plBarrier* ptBarrier);
+// library api
+bool  pl_has_library_changed  (plSharedLibrary*);
+bool  pl_load_library         (const char* pcName, const char* pcTransitionalName, const char* pcLockFile, plSharedLibrary** pptLibraryOut);
+void  pl_reload_library       (plSharedLibrary*);
+void* pl_load_library_function(plSharedLibrary*, const char* pcName);
+
+// thread api: misc
+void     pl_sleep(uint32_t millisec);
+uint32_t pl_get_hardware_thread_count(void);
+
+// thread api: thread
+void pl_create_thread (plThreadProcedure, void* pData, plThread** ppThreadOut);
+void pl_destroy_thread(plThread**);
+void pl_join_thread   (plThread*);
+void pl_yield_thread  (void);
+
+// thread api: mutex
+void pl_create_mutex (plMutex** ppMutexOut);
+void pl_lock_mutex   (plMutex*);
+void pl_unlock_mutex (plMutex*);
+void pl_destroy_mutex(plMutex**);
+
+// thread api: critical section
+void pl_create_critical_section (plCriticalSection** pptCriticalSectionOut);
+void pl_destroy_critical_section(plCriticalSection**);
+void pl_enter_critical_section  (plCriticalSection*);
+void pl_leave_critical_section  (plCriticalSection*);
+
+// thread api: semaphore
+void pl_create_semaphore     (uint32_t uIntialCount, plSemaphore** pptSemaphoreOut);
+void pl_wait_on_semaphore    (plSemaphore*);
+bool pl_try_wait_on_semaphore(plSemaphore*);
+void pl_release_semaphore    (plSemaphore*);
+void pl_destroy_semaphore    (plSemaphore**);
+
+// thread api: thread local storage
+void  pl_allocate_thread_local_key (plThreadKey** pptKeyOut);
+void  pl_free_thread_local_key     (plThreadKey**);
+void* pl_allocate_thread_local_data(plThreadKey*, size_t szSize);
+void* pl_get_thread_local_data     (plThreadKey*);
+void  pl_free_thread_local_data    (plThreadKey*, void* pData);
+
+// thread api: conditional variable
+void pl_create_condition_variable  (plConditionVariable** pptConditionVariableOut);
+void pl_destroy_condition_variable (plConditionVariable**);
+void pl_wake_condition_variable    (plConditionVariable*);
+void pl_wake_all_condition_variable(plConditionVariable*);
+void pl_sleep_condition_variable   (plConditionVariable*, plCriticalSection*);
+
+// thread api: barrier
+void pl_create_barrier (uint32_t uThreadCount, plBarrier** pptBarrierOut);
+void pl_destroy_barrier(plBarrier**);
+void pl_wait_on_barrier(plBarrier*);
 
 // atomics
-void    pl__create_atomic_counter  (int64_t ilValue, plAtomicCounter** ptCounter);
-void    pl__destroy_atomic_counter (plAtomicCounter** ptCounter);
-void    pl__atomic_store           (plAtomicCounter* ptCounter, int64_t ilValue);
-int64_t pl__atomic_load            (plAtomicCounter* ptCounter);
-bool    pl__atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue);
-void    pl__atomic_increment       (plAtomicCounter* ptCounter);
-void    pl__atomic_decrement       (plAtomicCounter* ptCounter);
+void    pl_create_atomic_counter  (int64_t ilValue, plAtomicCounter** ptCounter);
+void    pl_destroy_atomic_counter (plAtomicCounter**);
+void    pl_atomic_store           (plAtomicCounter*, int64_t ilValue);
+int64_t pl_atomic_load            (plAtomicCounter*);
+bool    pl_atomic_compare_exchange(plAtomicCounter*, int64_t ilExpectedValue, int64_t ilDesiredValue);
+void    pl_atomic_increment       (plAtomicCounter*);
+void    pl_atomic_decrement       (plAtomicCounter*);
 
 // virtual memory
-size_t pl__get_page_size   (void);
-void*  pl__virtual_alloc   (void* pAddress, size_t szSize);
-void*  pl__virtual_reserve (void* pAddress, size_t szSize);
-void*  pl__virtual_commit  (void* pAddress, size_t szSize); 
-void   pl__virtual_uncommit(void* pAddress, size_t szSize);
-void   pl__virtual_free    (void* pAddress, size_t szSize); 
+size_t pl_get_page_size   (void);
+void*  pl_virtual_alloc   (void* pAddress, size_t);
+void*  pl_virtual_reserve (void* pAddress, size_t);
+void*  pl_virtual_commit  (void* pAddress, size_t); 
+void   pl_virtual_uncommit(void* pAddress, size_t);
+void   pl_virtual_free    (void* pAddress, size_t); 
+
+// memory
+#define PL_ALLOC(x) gptMemory->realloc(NULL, x, __FILE__, __LINE__)
+#define PL_FREE(x)  gptMemory->realloc(x, 0, __FILE__, __LINE__)
+
+// helpers
+#ifndef PL_HEADLESS_APP
+void pl__update_mouse_cursor(void);
+void pl__linux_procedure (xcb_generic_event_t*);
+plKey pl__xcb_key_to_pl_key(uint32_t x_keycode);
+#endif
 
 static inline time_t
 pl__get_last_write_time(const char* filename)
@@ -139,6 +183,10 @@ pl__get_last_write_time(const char* filename)
     stat(filename, &attr);
     return attr.st_mtime;
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] structs
+//-----------------------------------------------------------------------------
 
 typedef struct _plSharedLibrary
 {
@@ -209,44 +257,41 @@ typedef struct _plThreadKey
 // [SECTION] globals
 //-----------------------------------------------------------------------------
 
-// x11 & xcb stuff
+// general
+plSharedLibrary* gptAppLibrary = NULL;
+void*            gpUserData    = NULL;
+plIO*            gptIOCtx      = NULL;
 #ifndef PL_HEADLESS_APP
-Display*              gDisplay       = NULL;
-xcb_connection_t*     gConnection    = NULL;
-xcb_key_symbols_t*    gKeySyms       = NULL;
-xcb_screen_t*         gScreen        = NULL;
-xcb_atom_t            gWmProtocols;
-xcb_atom_t            gWmDeleteWin;
-xcb_cursor_context_t* ptCursorContext = NULL;
-
-// windows
 plWindow** gsbtWindows = NULL;
 #endif
 
-plSharedLibrary*      gptAppLibrary   = NULL;
-void*                 gUserData       = NULL;
-double                dTime           = 0.0;
-double                dFrequency      = 0.0;
+// x11 & xcb stuff
+#ifndef PL_HEADLESS_APP
+Display*              gptDisplay    = NULL;
+xcb_connection_t*     gptConnection = NULL;
+xcb_key_symbols_t*    gptKeySyms    = NULL;
+xcb_screen_t*         gptScreen     = NULL;
+xcb_atom_t            gtWmProtocols;
+xcb_atom_t            gtWmDeleteWin;
+xcb_cursor_context_t* gptCursorContext = NULL;
+#endif
 
-plIO*                 gptIOCtx = NULL;
+// linux stuff
+double gdTime      = 0.0;
+double gdFrequency = 0.0;
 
 // apis
 const plDataRegistryI*      gptDataRegistry      = NULL;
 const plApiRegistryI*       gptApiRegistry       = NULL;
 const plExtensionRegistryI* gptExtensionRegistry = NULL;
 const plIOI*                gptIOI               = NULL;
-
-// memory tracking
-plHashMap       gtMemoryHashMap = {0};
-plMemoryContext gtMemoryContext = {.ptHashMap = &gtMemoryHashMap};
-
-
+const plMemoryI*            gptMemory            = NULL;
 
 // app function pointers
-void* (*pl_app_load)    (const plApiRegistryI* ptApiRegistry, void* ptAppData);
-void  (*pl_app_shutdown)(void* ptAppData);
-void  (*pl_app_resize)  (void* ptAppData);
-void  (*pl_app_update)  (void* ptAppData);
+void* (*pl_app_load)    (const plApiRegistryI*, void*);
+void  (*pl_app_shutdown)(void*);
+void  (*pl_app_resize)  (void*);
+void  (*pl_app_update)  (void*);
 bool  (*pl_app_info)    (const plApiRegistryI*);
 
 static inline double
@@ -258,7 +303,7 @@ pl__get_linux_absolute_time(void)
         assert(false && "clock_gettime() failed");
     }
     uint64_t nsec_count = ts.tv_nsec + ts.tv_sec * 1e9;
-    return (double)nsec_count / dFrequency;    
+    return (double)nsec_count / gdFrequency;    
 }
 
 //-----------------------------------------------------------------------------
@@ -300,97 +345,97 @@ int main(int argc, char *argv[])
     }
 
     // os provided apis
-
     #ifndef PL_HEADLESS_APP
     static const plWindowI tWindowApi = {
-        .create_window  = pl__create_window,
-        .destroy_window = pl__destroy_window
+        .create_window  = pl_create_window,
+        .destroy_window = pl_destroy_window
     };
     #endif
 
     static const plLibraryI tLibraryApi = {
-        .has_changed   = pl__has_library_changed,
-        .load          = pl__load_library,
-        .load_function = pl__load_library_function,
-        .reload        = pl__reload_library
+        .has_changed   = pl_has_library_changed,
+        .load          = pl_load_library,
+        .load_function = pl_load_library_function,
+        .reload        = pl_reload_library
     };
 
     static const plFileI tFileApi = {
-        .copy         = pl__copy_file,
-        .exists       = pl__file_exists,
-        .delete       = pl__file_delete,
-        .binary_read  = pl__binary_read_file,
-        .binary_write = pl__binary_write_file
+        .copy         = pl_copy_file,
+        .exists       = pl_file_exists,
+        .delete       = pl_file_delete,
+        .binary_read  = pl_binary_read_file,
+        .binary_write = pl_binary_write_file
     };
     
     static const plUdpI tUdpApi = {
-        .create_socket = pl__create_udp_socket,
-        .bind_socket   = pl__bind_udp_socket,  
-        .get_data      = pl__get_udp_data,
-        .send_data     = pl__send_udp_data
+        .create_socket = pl_create_udp_socket,
+        .bind_socket   = pl_bind_udp_socket,  
+        .get_data      = pl_get_udp_data,
+        .send_data     = pl_send_udp_data
     };
 
     static const plThreadsI tThreadApi = {
-        .get_hardware_thread_count   = pl__get_hardware_thread_count,
-        .create_thread               = pl__create_thread,
-        .join_thread                 = pl__join_thread,
-        .yield_thread                = pl__yield_thread,
-        .sleep_thread                = pl__sleep,
-        .create_mutex                = pl__create_mutex,
-        .destroy_mutex               = pl__destroy_mutex,
-        .lock_mutex                  = pl__lock_mutex,
-        .unlock_mutex                = pl__unlock_mutex,
-        .create_semaphore            = pl__create_semaphore,
-        .destroy_semaphore           = pl__destroy_semaphore,
-        .wait_on_semaphore           = pl__wait_on_semaphore,
-        .try_wait_on_semaphore       = pl__try_wait_on_semaphore,
-        .release_semaphore           = pl__release_semaphore,
-        .allocate_thread_local_key   = pl__allocate_thread_local_key,
-        .allocate_thread_local_data  = pl__allocate_thread_local_data,
-        .free_thread_local_key       = pl__free_thread_local_key, 
-        .get_thread_local_data       = pl__get_thread_local_data, 
-        .free_thread_local_data      = pl__free_thread_local_data, 
-        .create_critical_section     = pl__create_critical_section,
-        .destroy_critical_section    = pl__destroy_critical_section,
-        .enter_critical_section      = pl__enter_critical_section,
-        .leave_critical_section      = pl__leave_critical_section,
-        .create_condition_variable   = pl__create_condition_variable,
-        .destroy_condition_variable  = pl__destroy_condition_variable,
-        .wake_condition_variable     = pl__wake_condition_variable,
-        .wake_all_condition_variable = pl__wake_all_condition_variable,
-        .sleep_condition_variable    = pl__sleep_condition_variable,
-        .create_barrier              = pl__create_barrier,
-        .destroy_barrier             = pl__destroy_barrier,
-        .wait_on_barrier             = pl__wait_on_barrier
+        .get_hardware_thread_count   = pl_get_hardware_thread_count,
+        .create_thread               = pl_create_thread,
+        .destroy_thread              = pl_destroy_thread,
+        .join_thread                 = pl_join_thread,
+        .yield_thread                = pl_yield_thread,
+        .sleep_thread                = pl_sleep,
+        .create_mutex                = pl_create_mutex,
+        .destroy_mutex               = pl_destroy_mutex,
+        .lock_mutex                  = pl_lock_mutex,
+        .unlock_mutex                = pl_unlock_mutex,
+        .create_semaphore            = pl_create_semaphore,
+        .destroy_semaphore           = pl_destroy_semaphore,
+        .wait_on_semaphore           = pl_wait_on_semaphore,
+        .try_wait_on_semaphore       = pl_try_wait_on_semaphore,
+        .release_semaphore           = pl_release_semaphore,
+        .allocate_thread_local_key   = pl_allocate_thread_local_key,
+        .allocate_thread_local_data  = pl_allocate_thread_local_data,
+        .free_thread_local_key       = pl_free_thread_local_key, 
+        .get_thread_local_data       = pl_get_thread_local_data, 
+        .free_thread_local_data      = pl_free_thread_local_data, 
+        .create_critical_section     = pl_create_critical_section,
+        .destroy_critical_section    = pl_destroy_critical_section,
+        .enter_critical_section      = pl_enter_critical_section,
+        .leave_critical_section      = pl_leave_critical_section,
+        .create_condition_variable   = pl_create_condition_variable,
+        .destroy_condition_variable  = pl_destroy_condition_variable,
+        .wake_condition_variable     = pl_wake_condition_variable,
+        .wake_all_condition_variable = pl_wake_all_condition_variable,
+        .sleep_condition_variable    = pl_sleep_condition_variable,
+        .create_barrier              = pl_create_barrier,
+        .destroy_barrier             = pl_destroy_barrier,
+        .wait_on_barrier             = pl_wait_on_barrier
     };
 
     static const plAtomicsI tAtomicsApi = {
-        .create_atomic_counter   = pl__create_atomic_counter,
-        .destroy_atomic_counter  = pl__destroy_atomic_counter,
-        .atomic_store            = pl__atomic_store,
-        .atomic_load             = pl__atomic_load,
-        .atomic_compare_exchange = pl__atomic_compare_exchange,
-        .atomic_increment        = pl__atomic_increment,
-        .atomic_decrement        = pl__atomic_decrement
+        .create_atomic_counter   = pl_create_atomic_counter,
+        .destroy_atomic_counter  = pl_destroy_atomic_counter,
+        .atomic_store            = pl_atomic_store,
+        .atomic_load             = pl_atomic_load,
+        .atomic_compare_exchange = pl_atomic_compare_exchange,
+        .atomic_increment        = pl_atomic_increment,
+        .atomic_decrement        = pl_atomic_decrement
     };
 
     static const plVirtualMemoryI tVirtualMemoryApi = {
-        .get_page_size = pl__get_page_size,
-        .alloc         = pl__virtual_alloc,
-        .reserve       = pl__virtual_reserve,
-        .commit        = pl__virtual_commit,
-        .uncommit      = pl__virtual_uncommit,
-        .free          = pl__virtual_free,
+        .get_page_size = pl_get_page_size,
+        .alloc         = pl_virtual_alloc,
+        .reserve       = pl_virtual_reserve,
+        .commit        = pl_virtual_commit,
+        .uncommit      = pl_virtual_uncommit,
+        .free          = pl_virtual_free,
     };
 
-    // load CORE apis
+    // load core apis
     gptApiRegistry       = pl_load_core_apis();
     gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
     gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
     gptIOI               = gptApiRegistry->first(PL_API_IO);
+    gptMemory            = gptApiRegistry->first(PL_API_MEMORY);
 
     // add os specific apis
-
     #ifndef PL_HEADLESS_APP
     gptApiRegistry->add(PL_API_WINDOW, &tWindowApi);
     #endif
@@ -404,26 +449,24 @@ int main(int argc, char *argv[])
 
     // add contexts to data registry
     gptIOCtx = gptIOI->get_io();
-    gtMemoryContext.plThreadsI = &tThreadApi;
-    gptDataRegistry->set_data(PL_CONTEXT_MEMORY, &gtMemoryContext);
 
     #ifndef PL_HEADLESS_APP
 
     // connect to x
-    gDisplay = XOpenDisplay(NULL);
+    gptDisplay = XOpenDisplay(NULL);
 
     // turn off auto repeat (we handle this internally)
-    XAutoRepeatOff(gDisplay);
+    XAutoRepeatOff(gptDisplay);
 
     int screen_p = 0;
-    gConnection = xcb_connect(NULL, &screen_p);
-    if(xcb_connection_has_error(gConnection))
+    gptConnection = xcb_connect(NULL, &screen_p);
+    if(xcb_connection_has_error(gptConnection))
     {
         assert(false && "Failed to connect to X server via XCB.");
     }
 
     // get data from x server
-    const xcb_setup_t* setup = xcb_get_setup(gConnection);
+    const xcb_setup_t* setup = xcb_get_setup(gptConnection);
 
     // loop through screens using iterator
     xcb_screen_iterator_t it = xcb_setup_roots_iterator(setup);
@@ -434,7 +477,7 @@ int main(int argc, char *argv[])
     }
 
     // after screens have been looped through, assign it.
-    gScreen = it.data;
+    gptScreen = it.data;
 
     #endif
 
@@ -444,19 +487,19 @@ int main(int argc, char *argv[])
     {
         assert(false && "clock_getres() failed");
     }
-    dFrequency = 1e9/((double)ts.tv_nsec + (double)ts.tv_sec * (double)1e9);
-    dTime = pl__get_linux_absolute_time();
+    gdFrequency = 1e9/((double)ts.tv_nsec + (double)ts.tv_sec * (double)1e9);
+    gdTime = pl__get_linux_absolute_time();
 
     #ifndef PL_HEADLESS_APP
 
     // Notify X for mouse cursor handling
-    xcb_discard_reply(gConnection, xcb_xfixes_query_version(gConnection, 4, 0).sequence);
+    xcb_discard_reply(gptConnection, xcb_xfixes_query_version(gptConnection, 4, 0).sequence);
 
     // Cursor context for looking up cursors for the current X cursor theme
-    xcb_cursor_context_new(gConnection, gScreen, &ptCursorContext);
+    xcb_cursor_context_new(gptConnection, gptScreen, &gptCursorContext);
 
     // get the current key map
-    gKeySyms = xcb_key_symbols_alloc(gConnection);
+    gptKeySyms = xcb_key_symbols_alloc(gptConnection);
 
     #endif
 
@@ -479,8 +522,7 @@ int main(int argc, char *argv[])
             if(!pl_app_info(gptApiRegistry))
                 return 0;
         }
-
-        gUserData = pl_app_load(gptApiRegistry, NULL);
+        gpUserData = pl_app_load(gptApiRegistry, NULL);
     }
 
     // main loop
@@ -488,21 +530,21 @@ int main(int argc, char *argv[])
     {
 
         #ifdef PL_HEADLESS_APP
-        pl__sleep((uint32_t)(1000.0f / gptIOCtx->fHeadlessUpdateRate));
+        pl_sleep((uint32_t)(1000.0f / gptIOCtx->fHeadlessUpdateRate));
         #endif
         
         #ifndef PL_HEADLESS_APP
         // Poll for events until null is returned.
         xcb_generic_event_t* event;
-        while (event = xcb_poll_for_event(gConnection)) 
-            pl_linux_procedure(event);
+        while (event = xcb_poll_for_event(gptConnection)) 
+            pl__linux_procedure(event);
         #endif
 
         if(gptIOCtx->bViewportSizeChanged) //-V547
-            pl_app_resize(gUserData);
+            pl_app_resize(gpUserData);
 
         #ifndef PL_HEADLESS_APP
-        pl_update_mouse_cursor_linux();
+        pl__update_mouse_cursor();
         #endif
 
         // reload library
@@ -515,881 +557,47 @@ int main(int argc, char *argv[])
             pl_app_update   = (void  (__attribute__(()) *)(void*))                     ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
 
             gptExtensionRegistry->reload();
-            gUserData = pl_app_load(gptApiRegistry, gUserData);
+            gpUserData = pl_app_load(gptApiRegistry, gpUserData);
         }
 
         // render a frame
         const double dCurrentTime = pl__get_linux_absolute_time();
-        gptIOCtx->fDeltaTime = (float)(dCurrentTime - dTime);
-        dTime = dCurrentTime;
+        gptIOCtx->fDeltaTime = (float)(dCurrentTime - gdTime);
+        gdTime = dCurrentTime;
 
         gptDataRegistry->garbage_collect();
-        pl_app_update(gUserData);
+        pl_app_update(gpUserData);
         gptExtensionRegistry->reload();
     }
 
     // app cleanup
-    pl_app_shutdown(gUserData);
+    pl_app_shutdown(gpUserData);
 
     #ifndef PL_HEADLESS_APP
 
     // platform cleanup
-    XAutoRepeatOn(gDisplay);
-    xcb_cursor_context_free(ptCursorContext);
-    xcb_key_symbols_free(gKeySyms);
+    XAutoRepeatOn(gptDisplay);
+    xcb_cursor_context_free(gptCursorContext);
+    xcb_key_symbols_free(gptKeySyms);
 
     #endif
     
     gptExtensionRegistry->unload_all();
     pl_unload_core_apis();
 
-    uint32_t uMemoryLeakCount = 0;
-    for(uint32_t i = 0; i < pl_sb_size(gtMemoryContext.sbtAllocations); i++)
+    if(gptAppLibrary)
     {
-        if(gtMemoryContext.sbtAllocations[i].pAddress != NULL)
-        {
-            printf("Unfreed memory from line %i in file '%s'.\n", gtMemoryContext.sbtAllocations[i].iLine, gtMemoryContext.sbtAllocations[i].pcFile);
-            uMemoryLeakCount++;
-        }
+        PL_FREE(gptAppLibrary);
     }
-        
-    assert(uMemoryLeakCount == gtMemoryContext.szActiveAllocations);
-    if(uMemoryLeakCount > 0)
-        printf("%u unfreed allocations.\n", uMemoryLeakCount);
+
+    gptMemory->check_for_leaks();
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] linux procedure
+//-----------------------------------------------------------------------------
 
 #ifndef PL_HEADLESS_APP
-void
-pl_linux_procedure(xcb_generic_event_t* event)
-{
-    xcb_client_message_event_t* cm;
-
-    switch (event->response_type & ~0x80) 
-    {
-
-        case XCB_CLIENT_MESSAGE: 
-        {
-            cm = (xcb_client_message_event_t*)event;
-
-            // Window close
-            if (cm->data.data32[0] == gWmDeleteWin) 
-            {
-                gptIOCtx->bRunning  = false;
-            }
-            break;
-        }
-
-        case XCB_MOTION_NOTIFY: 
-        {
-            xcb_motion_notify_event_t* motion = (xcb_motion_notify_event_t*)event;
-            gptIOI->add_mouse_pos_event((float)motion->event_x, (float)motion->event_y);
-            break;
-        }
-
-        case XCB_BUTTON_PRESS:
-        {
-            xcb_button_press_event_t* press = (xcb_button_press_event_t*)event;
-            switch (press->detail)
-            {
-                case XCB_BUTTON_INDEX_1: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_LEFT, true);   break;
-                case XCB_BUTTON_INDEX_2: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_MIDDLE, true); break;
-                case XCB_BUTTON_INDEX_3: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_RIGHT, true);  break;
-                case XCB_BUTTON_INDEX_4: gptIOI->add_mouse_wheel_event (0.0f, 1.0f);                   break;
-                case XCB_BUTTON_INDEX_5: gptIOI->add_mouse_wheel_event (0.0f, -1.0f);                  break;
-                default:                 gptIOI->add_mouse_button_event(press->detail, true);          break;
-            }
-            break;
-        }
-        
-        case XCB_BUTTON_RELEASE:
-        {
-            xcb_button_press_event_t* press = (xcb_button_press_event_t*)event;
-            switch (press->detail)
-            {
-                case XCB_BUTTON_INDEX_1: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_LEFT, false);   break;
-                case XCB_BUTTON_INDEX_2: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_MIDDLE, false); break;
-                case XCB_BUTTON_INDEX_3: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_RIGHT, false);  break;
-                case XCB_BUTTON_INDEX_4: gptIOI->add_mouse_wheel_event (0.0f, 1.0f);                   break;
-                case XCB_BUTTON_INDEX_5: gptIOI->add_mouse_wheel_event (0.0f, -1.0f);                  break;
-                default:                 gptIOI->add_mouse_button_event(press->detail, false);          break;
-            }
-            break;
-        }
-
-        case XCB_KEY_PRESS:
-        {
-            xcb_key_release_event_t *keyEvent = (xcb_key_release_event_t *)event;
-
-            xcb_keycode_t code = keyEvent->detail;
-            uint32_t uCol = gptIOCtx->bKeyShift ? 1 : 0;
-            KeySym key_sym = XkbKeycodeToKeysym(
-                gDisplay, 
-                (KeyCode)code,  // event.xkey.keycode,
-                0,
-                uCol);
-            xcb_keysym_t k = xcb_key_press_lookup_keysym(gKeySyms, keyEvent, uCol);
-            gptIOI->add_key_event(pl__xcb_key_to_pl_key(key_sym), true);
-            if(k < 0xFF)
-                gptIOI->add_text_event(k);
-            else if (k >= 0x1000100 && k <= 0x110ffff) // utf range
-                gptIOI->add_text_event_utf16(k);
-            break;
-        }
-        case XCB_KEY_RELEASE:
-        {
-            const xcb_key_release_event_t *keyEvent = (const xcb_key_release_event_t *)event;
-            xcb_keycode_t code = keyEvent->detail;
-            KeySym key_sym = XkbKeycodeToKeysym(
-                gDisplay, 
-                (KeyCode)code,  // event.xkey.keycode,
-                0,
-                0 /*code & ShiftMask ? 1 : 0*/);
-            gptIOI->add_key_event(pl__xcb_key_to_pl_key(key_sym), false);
-            break;
-        }
-        case XCB_CONFIGURE_NOTIFY: 
-        {
-            // Resizing - note that this is also triggered by moving the window, but should be
-            // passed anyway since a change in the x/y could mean an upper-left resize.
-            // The application layer can decide what to do with this.
-            xcb_configure_notify_event_t* configure_event = (xcb_configure_notify_event_t*)event;
-
-                gsbtWindows[0]->tDesc.iXPos = configure_event->x;
-                gsbtWindows[0]->tDesc.iYPos = configure_event->y;
-
-            // Fire the event. The application layer should pick this up, but not handle it
-            // as it shouldn be visible to other parts of the application.
-            if(configure_event->width != gptIOCtx->afMainViewportSize[0] || configure_event->height != gptIOCtx->afMainViewportSize[1])
-            {
-                gptIOCtx->afMainViewportSize[0] = configure_event->width;
-                gptIOCtx->afMainViewportSize[1] = configure_event->height;
-                gptIOCtx->bViewportSizeChanged = true;
-                gsbtWindows[0]->tDesc.uWidth = configure_event->width;
-                gsbtWindows[0]->tDesc.uHeight = configure_event->height;
-
-            }
-            break;
-        } 
-        default: break;
-    }
-    free(event);
-}
-
-void
-pl_update_mouse_cursor_linux(void)
-{
-    // updating mouse cursor
-    if(gptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
-        gptIOCtx->bCursorChanged = true;
-
-    if(gptIOCtx->bCursorChanged && gptIOCtx->tNextCursor != gptIOCtx->tCurrentCursor)
-    {
-        gptIOCtx->tCurrentCursor = gptIOCtx->tNextCursor;
-        const char* tX11Cursor = NULL;
-        switch (gptIOCtx->tNextCursor)
-        {
-            case PL_MOUSE_CURSOR_ARROW:       tX11Cursor = "left_ptr"; break;
-            case PL_MOUSE_CURSOR_TEXT_INPUT:  tX11Cursor = "xterm"; break;
-            case PL_MOUSE_CURSOR_RESIZE_ALL:  tX11Cursor = "fleur"; break;
-            case PL_MOUSE_CURSOR_RESIZE_EW:   tX11Cursor = "sb_h_double_arrow"; break;
-            case PL_MOUSE_CURSOR_RESIZE_NS:   tX11Cursor = "sb_v_double_arrow"; break;
-            case PL_MOUSE_CURSOR_RESIZE_NESW: tX11Cursor = "bottom_left_corner"; break;
-            case PL_MOUSE_CURSOR_RESIZE_NWSE: tX11Cursor = "bottom_right_corner"; break;
-            case PL_MOUSE_CURSOR_HAND:        tX11Cursor = "hand1"; break;
-            case PL_MOUSE_CURSOR_NOT_ALLOWED: tX11Cursor = "circle"; break;
-        }  
-
-        xcb_font_t font = xcb_generate_id(gConnection);
-        // There is xcb_xfixes_cursor_change_cursor_by_name. However xcb_cursor_load_cursor guarantees
-        // finding the cursor for the current X theme.
-        xcb_cursor_t cursor = xcb_cursor_load_cursor(ptCursorContext, tX11Cursor);
-        // IM_ASSERT(cursor && "X cursor not found!");
-
-        uint32_t value_list = cursor;
-        plWindowData* ptData = gsbtWindows[0]->_pPlatformData;
-        xcb_change_window_attributes(gConnection, ptData->tWindow, XCB_CW_CURSOR, &value_list);
-        xcb_free_cursor(gConnection, cursor);
-        xcb_close_font_checked(gConnection, font);
-    }
-    gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
-    gptIOCtx->bCursorChanged = false;
-}
-
-#endif
-
-bool
-pl__file_exists(const char* pcFile)
-{
-    FILE* ptDataFile = fopen(pcFile, "r");
-    
-    if(ptDataFile)
-    {
-        fclose(ptDataFile);
-        return true;
-    }
-    return false;
-}
-
-void
-pl__file_delete(const char* pcFile)
-{
-    remove(pcFile);
-}
-
-void
-pl__binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
-{
-    PL_ASSERT(pszSizeIn);
-
-    FILE* ptDataFile = fopen(pcFile, "rb");
-    size_t uSize = 0u;
-
-    if (ptDataFile == NULL)
-    {
-        *pszSizeIn = 0u;
-        return;
-    }
-
-    // obtain file size
-    fseek(ptDataFile, 0, SEEK_END);
-    uSize = ftell(ptDataFile);
-    fseek(ptDataFile, 0, SEEK_SET);
-
-    if(pcBuffer == NULL)
-    {
-        *pszSizeIn = uSize;
-        fclose(ptDataFile);
-        return;
-    }
-
-    // copy the file into the buffer:
-    size_t szResult = fread(pcBuffer, sizeof(char), uSize, ptDataFile);
-    if (szResult != uSize)
-    {
-        if (feof(ptDataFile))
-            printf("Error reading test.bin: unexpected end of file\n");
-        else if (ferror(ptDataFile)) {
-            perror("Error reading test.bin");
-        }
-        PL_ASSERT(false && "File not read.");
-    }
-
-    fclose(ptDataFile);
-}
-
-void
-pl__binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
-{
-    FILE* ptDataFile = fopen(pcFile, "wb");
-    if (ptDataFile)
-    {
-        fwrite(pcBuffer, 1, szSize, ptDataFile);
-        fclose(ptDataFile);
-    }
-}
-
-void
-pl__copy_file(const char* source, const char* destination)
-{
-    size_t bufferSize = 0u;
-    pl__binary_read_file(source, &bufferSize, NULL);
-
-    struct stat stat_buf;
-    int fromfd = open(source, O_RDONLY);
-    fstat(fromfd, &stat_buf);
-    int tofd = open(destination, O_WRONLY | O_CREAT, stat_buf.st_mode);
-    int n = 1;
-    while (n > 0)
-        n = sendfile(tofd, fromfd, 0, bufferSize * 2);
-}
-
-void
-pl__create_udp_socket(plSocket** pptSocketOut, bool bNonBlocking)
-{
-    *pptSocketOut = PL_ALLOC(sizeof(plSocket));
-
-    // create socket
-    if(((*pptSocketOut)->iSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-    {
-        printf("Could not create socket\n");
-        PL_ASSERT(false && "Could not create socket");
-    }
-
-    // enable non-blocking
-    if(bNonBlocking)
-    {
-        int iFlags = fcntl((*pptSocketOut)->iSocket, F_GETFL);
-        fcntl((*pptSocketOut)->iSocket, F_SETFL, iFlags | O_NONBLOCK);
-    }
-}
-
-void
-pl__bind_udp_socket(plSocket* ptSocket, int iPort)
-{
-    ptSocket->iPort = iPort;
-    
-    // prepare sockaddr_in struct
-    struct sockaddr_in tServer = {
-        .sin_family      = AF_INET,
-        .sin_port        = htons((uint16_t)iPort),
-        .sin_addr.s_addr = INADDR_ANY
-    };
-
-    // bind socket
-    if(bind(ptSocket->iSocket, (struct sockaddr* )&tServer, sizeof(tServer)) < 0)
-    {
-        printf("Bind socket failed with error code : %d\n", errno);
-        PL_ASSERT(false && "Socket error");
-    }
-}
-
-bool
-pl__send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize)
-{
-    struct sockaddr_in tDestSocket = {
-        .sin_family      = AF_INET,
-        .sin_port        = htons((uint16_t)iDestPort),
-        .sin_addr.s_addr = inet_addr(pcDestIP)
-    };
-    static const size_t szLen = sizeof(tDestSocket);
-
-    // send
-    if(sendto(ptFromSocket->iSocket, (const char*)pData, (int)szSize, 0, (struct sockaddr*)&tDestSocket, (int)szLen) < 0)
-    {
-        printf("sendto() failed with error code : %d\n", errno);
-        PL_ASSERT(false && "Socket error");
-        return false;
-    }
-
-    return true;
-}
-
-bool
-pl__get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
-{
-    struct sockaddr_in tSiOther = {0};
-    static int iSLen = (int)sizeof(tSiOther);
-    memset(pData, 0, szSize);
-    int iRecvLen = recvfrom(ptSocket->iSocket, (char*)pData, (int)szSize, 0, (struct sockaddr*)&tSiOther, &iSLen);
-
-    if(iRecvLen < 0)
-    {
-        if(errno != EWOULDBLOCK)
-        {
-            printf("recvfrom() failed with error code : %d\n", errno);
-            PL_ASSERT(false && "Socket error");
-            return false;
-        }
-    }
-    return iRecvLen > 0;
-}
-
-bool
-pl__has_library_changed(plSharedLibrary* library)
-{
-    time_t newWriteTime = pl__get_last_write_time(library->acPath);
-    return newWriteTime != library->lastWriteTime;
-}
-
-bool
-pl__load_library(const char* name, const char* transitionalName, const char* lockFile, plSharedLibrary** pptLibraryOut)
-{
-    if(*pptLibraryOut == NULL)
-    {
-        *pptLibraryOut = PL_ALLOC(sizeof(plSharedLibrary));
-        memset((*pptLibraryOut), 0, sizeof(plSharedLibrary));
-        (*pptLibraryOut)->bValid = false;
-    }
-    plSharedLibrary* library = *pptLibraryOut;
-
-    if(library->acPath[0] == 0)             strncpy(library->acPath, name, PL_MAX_NAME_LENGTH);
-    if(library->acTransitionalName[0] == 0) strncpy(library->acTransitionalName, transitionalName, PL_MAX_NAME_LENGTH);
-    if(library->acLockFile[0] == 0)         strncpy(library->acLockFile, lockFile, PL_MAX_NAME_LENGTH);
-    library->bValid = false;
-
-    if(library)
-    {
-        struct stat attr2;
-        if(stat(library->acLockFile, &attr2) == -1)  // lock file gone
-        {
-            char temporaryName[2024] = {0};
-            library->lastWriteTime = pl__get_last_write_time(library->acPath);
-            
-            pl_sprintf(temporaryName, "%s%u%s", library->acTransitionalName, library->uTempIndex, ".so");
-            if(++library->uTempIndex >= 1024)
-            {
-                library->uTempIndex = 0;
-            }
-            pl__copy_file(library->acPath, temporaryName);
-
-            library->handle = NULL;
-            library->handle = dlopen(temporaryName, RTLD_NOW);
-            if(library->handle)
-                library->bValid = true;
-            else
-            {
-                printf("\n\n%s\n\n", dlerror());
-            }
-        }
-    }
-    return library->bValid;
-}
-
-void
-pl__reload_library(plSharedLibrary* library)
-{
-    library->bValid = false;
-    for(uint32_t i = 0; i < 100; i++)
-    {
-        if(pl__load_library(library->acPath, library->acTransitionalName, library->acLockFile, &library))
-            break;
-        pl__sleep(100);
-    }
-}
-
-void*
-pl__load_library_function(plSharedLibrary* library, const char* name)
-{
-    PL_ASSERT(library->bValid && "Library not valid");
-    void* loadedFunction = NULL;
-    if(library->bValid)
-    {
-        loadedFunction = dlsym(library->handle, name);
-    }
-    return loadedFunction;
-}
-
-void
-pl__sleep(uint32_t millisec)
-{
-    struct timespec ts = {0};
-    int res;
-
-    ts.tv_sec = millisec / 1000;
-    ts.tv_nsec = (millisec % 1000) * 1000000;
-
-    do 
-    {
-        res = nanosleep(&ts, &ts);
-    } 
-    while (res);
-}
-
-void
-pl__create_thread(plThreadProcedure ptProcedure, void* pData, plThread** pptThreadOut)
-{
-    *pptThreadOut = PL_ALLOC(sizeof(plThread));
-    if(pthread_create(&(*pptThreadOut)->tHandle, NULL, ptProcedure, pData))
-    {
-        PL_ASSERT(false);
-    }
-}
-
-void
-pl__join_thread(plThread* ptThread)
-{
-    pthread_join(ptThread->tHandle, NULL);
-}
-
-void
-pl__yield_thread(void)
-{
-    sched_yield();
-}
-
-void
-pl__create_mutex(plMutex** pptMutexOut)
-{
-    *pptMutexOut = PL_ALLOC(sizeof(plMutex));
-    if(pthread_mutex_init(&(*pptMutexOut)->tHandle, NULL))
-    {
-        PL_ASSERT(false);
-    }
-}
-
-void
-pl__lock_mutex(plMutex* ptMutex)
-{
-    pthread_mutex_lock(&ptMutex->tHandle);
-}
-
-void
-pl__unlock_mutex(plMutex* ptMutex)
-{
-    pthread_mutex_unlock(&ptMutex->tHandle);
-}
-
-void
-pl__destroy_mutex(plMutex** pptMutex)
-{
-    pthread_mutex_destroy(&(*pptMutex)->tHandle);
-    PL_FREE((*pptMutex));
-    *pptMutex = NULL;
-}
-
-void
-pl__create_critical_section(plCriticalSection** pptCriticalSectionOut)
-{
-    *pptCriticalSectionOut = PL_ALLOC(sizeof(plCriticalSection));
-    if(pthread_mutex_init(&(*pptCriticalSectionOut)->tHandle, NULL))
-    {
-        PL_ASSERT(false);
-    }
-}
-
-void
-pl__destroy_critical_section(plCriticalSection** pptCriticalSection)
-{
-    pthread_mutex_destroy(&(*pptCriticalSection)->tHandle);
-    PL_FREE((*pptCriticalSection));
-    *pptCriticalSection = NULL;
-}
-
-void
-pl__enter_critical_section(plCriticalSection* ptCriticalSection)
-{
-    pthread_mutex_lock(&ptCriticalSection->tHandle);
-}
-
-void
-pl__leave_critical_section(plCriticalSection* ptCriticalSection)
-{
-    pthread_mutex_unlock(&ptCriticalSection->tHandle);
-}
-
-uint32_t
-pl__get_hardware_thread_count(void)
-{
-
-    int numCPU = sysconf(_SC_NPROCESSORS_ONLN);
-    return (uint32_t)numCPU;
-}
-
-void
-pl__create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
-{
-    *pptSemaphoreOut = PL_ALLOC(sizeof(plSemaphore));
-    memset((*pptSemaphoreOut), 0, sizeof(plSemaphore));
-    if(sem_init(&(*pptSemaphoreOut)->tHandle, 0, uIntialCount))
-    {
-        PL_ASSERT(false);
-    }
-}
-
-void
-pl__destroy_semaphore(plSemaphore** pptSemaphore)
-{
-    sem_destroy(&(*pptSemaphore)->tHandle);
-    PL_FREE((*pptSemaphore));
-    *pptSemaphore = NULL;
-}
-
-void
-pl__wait_on_semaphore(plSemaphore* ptSemaphore)
-{
-    sem_wait(&ptSemaphore->tHandle);
-}
-
-bool
-pl__try_wait_on_semaphore(plSemaphore* ptSemaphore)
-{
-    return sem_trywait(&ptSemaphore->tHandle) == 0;
-}
-
-void
-pl__release_semaphore(plSemaphore* ptSemaphore)
-{
-    sem_post(&ptSemaphore->tHandle);
-}
-
-void
-pl__allocate_thread_local_key(plThreadKey** pptKeyOut)
-{
-    *pptKeyOut = PL_ALLOC(sizeof(plThreadKey));
-    int iStatus = pthread_key_create(&(*pptKeyOut)->tKey, NULL);
-    if(iStatus != 0)
-    {
-        printf("pthread_key_create failed, errno=%d", errno);
-        PL_ASSERT(false);
-    }
-}
-
-void
-pl__free_thread_local_key(plThreadKey** pptKey)
-{
-    pthread_key_delete((*pptKey)->tKey);
-    PL_FREE((*pptKey));
-    *pptKey = NULL;
-}
-
-void*
-pl__allocate_thread_local_data(plThreadKey* ptKey, size_t szSize)
-{
-    void* pData = PL_ALLOC(szSize);
-    memset(pData, 0, szSize);
-    pthread_setspecific(ptKey->tKey, pData);
-    return pData;
-}
-
-void*
-pl__get_thread_local_data(plThreadKey* ptKey)
-{
-    void* pData = pthread_getspecific(ptKey->tKey);
-    return pData;
-}
-
-void
-pl__free_thread_local_data(plThreadKey* ptKey, void* pData)
-{
-    PL_FREE(pData);
-}
-
-void
-pl__create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut)
-{
-    *pptBarrierOut = PL_ALLOC(sizeof(plBarrier));
-    pthread_barrier_init(&(*pptBarrierOut)->tHandle, NULL, uThreadCount);
-}
-
-void
-pl__destroy_barrier(plBarrier** pptBarrier)
-{
-    pthread_barrier_destroy(&(*pptBarrier)->tHandle);
-    PL_FREE((*pptBarrier));
-    *pptBarrier = NULL;
-}
-
-void
-pl__wait_on_barrier(plBarrier* ptBarrier)
-{
-    pthread_barrier_wait(&ptBarrier->tHandle);
-}
-
-void
-pl__create_condition_variable(plConditionVariable** pptConditionVariableOut)
-{
-    *pptConditionVariableOut = PL_ALLOC(sizeof(plConditionVariable));
-    pthread_cond_init(&(*pptConditionVariableOut)->tHandle, NULL);
-}
-
-void               
-pl__destroy_condition_variable(plConditionVariable** pptConditionVariable)
-{
-    pthread_cond_destroy(&(*pptConditionVariable)->tHandle);
-    PL_FREE((*pptConditionVariable));
-    *pptConditionVariable = NULL;
-}
-
-void               
-pl__wake_condition_variable(plConditionVariable* ptConditionVariable)
-{
-    pthread_cond_signal(&ptConditionVariable->tHandle);
-}
-
-void               
-pl__wake_all_condition_variable(plConditionVariable* ptConditionVariable)
-{
-    pthread_cond_broadcast(&ptConditionVariable->tHandle);
-}
-
-void               
-pl__sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection)
-{
-    pthread_cond_wait(&ptConditionVariable->tHandle, &ptCriticalSection->tHandle);
-}
-
-void
-pl__create_atomic_counter(int64_t ilValue, plAtomicCounter** ptCounter)
-{
-    *ptCounter = malloc(sizeof(plAtomicCounter));
-    atomic_init(&(*ptCounter)->ilValue, ilValue); //-V522
-}
-
-void
-pl__destroy_atomic_counter(plAtomicCounter** ptCounter)
-{
-    free((*ptCounter));
-    (*ptCounter) = NULL;
-}
-
-void
-pl__atomic_store(plAtomicCounter* ptCounter, int64_t ilValue)
-{
-    atomic_store(&ptCounter->ilValue, ilValue);
-}
-
-int64_t
-pl__atomic_load(plAtomicCounter* ptCounter)
-{
-    return atomic_load(&ptCounter->ilValue);
-}
-
-bool
-pl__atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue)
-{
-    return atomic_compare_exchange_strong(&ptCounter->ilValue, &ilExpectedValue, ilDesiredValue);
-}
-
-void
-pl__atomic_increment(plAtomicCounter* ptCounter)
-{
-    atomic_fetch_add(&ptCounter->ilValue, 1);
-}
-
-void
-pl__atomic_decrement(plAtomicCounter* ptCounter)
-{
-    atomic_fetch_sub(&ptCounter->ilValue, 1);
-}
-
-size_t
-pl__get_page_size(void)
-{
-    return (size_t)getpagesize();
-}
-
-void*
-pl__virtual_alloc(void* pAddress, size_t szSize)
-{
-    void* pResult = mmap(pAddress, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    return pResult;
-}
-
-void*
-pl__virtual_reserve(void* pAddress, size_t szSize)
-{
-    void* pResult = mmap(pAddress, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    return pResult;
-}
-
-void*
-pl__virtual_commit(void* pAddress, size_t szSize)
-{
-    mprotect(pAddress, szSize, PROT_READ | PROT_WRITE);
-    return pAddress;
-}
-
-void
-pl__virtual_free(void* pAddress, size_t szSize)
-{
-    munmap(pAddress, szSize);
-}
-
-void
-pl__virtual_uncommit(void* pAddress, size_t szSize)
-{
-    mprotect(pAddress, szSize, PROT_NONE);
-}
-
-#ifndef PL_HEADLESS_APP
-
-plWindow*
-pl__create_window(const plWindowDesc* ptDesc)
-{
-    plWindow* ptWindow = malloc(sizeof(plWindow));
-    plWindowData* ptData = malloc(sizeof(plWindowData));
-    ptWindow->tDesc = *ptDesc; //-V522
-    ptWindow->_pPlatformData = ptData;
-
-    ptData->tWindow = xcb_generate_id(gConnection); //-V522
-    ptData->ptConnection = gConnection; //-V522
-
-    // register event types.
-    // XCB_CW_BACK_PIXEL = filling then window bg with a single colour
-    // XCB_CW_EVENT_MASK is required.
-    unsigned int event_mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
-
-    // listen for keyboard and mouse buttons
-    unsigned int  event_values = 
-        XCB_EVENT_MASK_BUTTON_PRESS |
-        XCB_EVENT_MASK_BUTTON_RELEASE |
-        XCB_EVENT_MASK_KEY_PRESS |
-        XCB_EVENT_MASK_KEY_RELEASE |
-        XCB_EVENT_MASK_EXPOSURE |
-        XCB_EVENT_MASK_POINTER_MOTION |
-        XCB_EVENT_MASK_STRUCTURE_NOTIFY;
-
-    // values to be sent over XCB (bg colour, events)
-    unsigned int  value_list[] = {gScreen->black_pixel, event_values};
-
-    // Create the window
-    xcb_create_window(
-        gConnection,
-        XCB_COPY_FROM_PARENT,  // depth
-        ptData->tWindow,
-        gScreen->root, // parent
-        ptDesc->iXPos,
-        ptDesc->iYPos,
-        ptDesc->uWidth,
-        ptDesc->uHeight,
-        0, // No border
-        XCB_WINDOW_CLASS_INPUT_OUTPUT, // class
-        gScreen->root_visual,
-        event_mask,
-        value_list);
-
-    // Change the title
-    xcb_change_property(
-        gConnection,
-        XCB_PROP_MODE_REPLACE,
-        ptData->tWindow,
-        XCB_ATOM_WM_NAME,
-        XCB_ATOM_STRING,
-        8,  // data should be viewed 8 bits at a time
-        strlen(ptDesc->pcName),
-        ptDesc->pcName);
-
-    // Tell the server to notify when the window manager
-    // attempts to destroy the window.
-    xcb_intern_atom_cookie_t wm_delete_cookie = xcb_intern_atom(
-        gConnection,
-        0,
-        strlen("WM_DELETE_WINDOW"),
-        "WM_DELETE_WINDOW");
-    xcb_intern_atom_cookie_t wm_protocols_cookie = xcb_intern_atom(
-        gConnection,
-        0,
-        strlen("WM_PROTOCOLS"),
-        "WM_PROTOCOLS");
-    xcb_intern_atom_reply_t* wm_delete_reply = xcb_intern_atom_reply(
-        gConnection,
-        wm_delete_cookie,
-        NULL);
-    xcb_intern_atom_reply_t* wm_protocols_reply = xcb_intern_atom_reply(
-        gConnection,
-        wm_protocols_cookie,
-        NULL);
-    gWmDeleteWin = wm_delete_reply->atom;
-    gWmProtocols = wm_protocols_reply->atom;
-
-    xcb_change_property(
-        gConnection,
-        XCB_PROP_MODE_REPLACE,
-        ptData->tWindow,
-        wm_protocols_reply->atom,
-        4,
-        32,
-        1,
-        &wm_delete_reply->atom);
-
-    // Map the window to the screen
-    xcb_map_window(gConnection, ptData->tWindow);
-
-    int stream_result = xcb_flush(gConnection);
-
-    pl_sb_push(gsbtWindows, ptWindow);
-
-    return ptWindow;
-}
-
-void
-pl__destroy_window(plWindow* ptWindow)
-{
-    plWindowData* ptData = ptWindow->_pPlatformData;
-    xcb_destroy_window(gConnection, ptData->tWindow);
-    free(ptData);
-    free(ptWindow);
-}
 
 plKey
 pl__xcb_key_to_pl_key(uint32_t x_keycode)
@@ -1537,6 +745,874 @@ pl__xcb_key_to_pl_key(uint32_t x_keycode)
         default:
         return PL_KEY_NONE;
     }            
+}
+
+void
+pl__linux_procedure(xcb_generic_event_t* event)
+{
+    xcb_client_message_event_t* cm;
+
+    switch (event->response_type & ~0x80) 
+    {
+
+        case XCB_CLIENT_MESSAGE: 
+        {
+            cm = (xcb_client_message_event_t*)event;
+
+            // Window close
+            if (cm->data.data32[0] == gtWmDeleteWin) 
+            {
+                gptIOCtx->bRunning  = false;
+            }
+            break;
+        }
+
+        case XCB_MOTION_NOTIFY: 
+        {
+            xcb_motion_notify_event_t* motion = (xcb_motion_notify_event_t*)event;
+            gptIOI->add_mouse_pos_event((float)motion->event_x, (float)motion->event_y);
+            break;
+        }
+
+        case XCB_BUTTON_PRESS:
+        {
+            xcb_button_press_event_t* press = (xcb_button_press_event_t*)event;
+            switch (press->detail)
+            {
+                case XCB_BUTTON_INDEX_1: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_LEFT, true);   break;
+                case XCB_BUTTON_INDEX_2: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_MIDDLE, true); break;
+                case XCB_BUTTON_INDEX_3: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_RIGHT, true);  break;
+                case XCB_BUTTON_INDEX_4: gptIOI->add_mouse_wheel_event (0.0f, 1.0f);                   break;
+                case XCB_BUTTON_INDEX_5: gptIOI->add_mouse_wheel_event (0.0f, -1.0f);                  break;
+                default:                 gptIOI->add_mouse_button_event(press->detail, true);          break;
+            }
+            break;
+        }
+        
+        case XCB_BUTTON_RELEASE:
+        {
+            xcb_button_press_event_t* press = (xcb_button_press_event_t*)event;
+            switch (press->detail)
+            {
+                case XCB_BUTTON_INDEX_1: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_LEFT, false);   break;
+                case XCB_BUTTON_INDEX_2: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_MIDDLE, false); break;
+                case XCB_BUTTON_INDEX_3: gptIOI->add_mouse_button_event(PL_MOUSE_BUTTON_RIGHT, false);  break;
+                case XCB_BUTTON_INDEX_4: gptIOI->add_mouse_wheel_event (0.0f, 1.0f);                   break;
+                case XCB_BUTTON_INDEX_5: gptIOI->add_mouse_wheel_event (0.0f, -1.0f);                  break;
+                default:                 gptIOI->add_mouse_button_event(press->detail, false);          break;
+            }
+            break;
+        }
+
+        case XCB_KEY_PRESS:
+        {
+            xcb_key_release_event_t *keyEvent = (xcb_key_release_event_t *)event;
+
+            xcb_keycode_t code = keyEvent->detail;
+            uint32_t uCol = gptIOCtx->bKeyShift ? 1 : 0;
+            KeySym key_sym = XkbKeycodeToKeysym(
+                gptDisplay, 
+                (KeyCode)code,  // event.xkey.keycode,
+                0,
+                uCol);
+            xcb_keysym_t k = xcb_key_press_lookup_keysym(gptKeySyms, keyEvent, uCol);
+            gptIOI->add_key_event(pl__xcb_key_to_pl_key(key_sym), true);
+            if(k < 0xFF)
+                gptIOI->add_text_event(k);
+            else if (k >= 0x1000100 && k <= 0x110ffff) // utf range
+                gptIOI->add_text_event_utf16(k);
+            break;
+        }
+        case XCB_KEY_RELEASE:
+        {
+            const xcb_key_release_event_t *keyEvent = (const xcb_key_release_event_t *)event;
+            xcb_keycode_t code = keyEvent->detail;
+            KeySym key_sym = XkbKeycodeToKeysym(
+                gptDisplay, 
+                (KeyCode)code,  // event.xkey.keycode,
+                0,
+                0 /*code & ShiftMask ? 1 : 0*/);
+            gptIOI->add_key_event(pl__xcb_key_to_pl_key(key_sym), false);
+            break;
+        }
+        case XCB_CONFIGURE_NOTIFY: 
+        {
+            // Resizing - note that this is also triggered by moving the window, but should be
+            // passed anyway since a change in the x/y could mean an upper-left resize.
+            // The application layer can decide what to do with this.
+            xcb_configure_notify_event_t* configure_event = (xcb_configure_notify_event_t*)event;
+
+                gsbtWindows[0]->tDesc.iXPos = configure_event->x;
+                gsbtWindows[0]->tDesc.iYPos = configure_event->y;
+
+            // Fire the event. The application layer should pick this up, but not handle it
+            // as it shouldn be visible to other parts of the application.
+            if(configure_event->width != gptIOCtx->afMainViewportSize[0] || configure_event->height != gptIOCtx->afMainViewportSize[1])
+            {
+                gptIOCtx->afMainViewportSize[0] = configure_event->width;
+                gptIOCtx->afMainViewportSize[1] = configure_event->height;
+                gptIOCtx->bViewportSizeChanged = true;
+                gsbtWindows[0]->tDesc.uWidth = configure_event->width;
+                gsbtWindows[0]->tDesc.uHeight = configure_event->height;
+
+            }
+            break;
+        } 
+        default: break;
+    }
+    free(event);
+}
+
+void
+pl__update_mouse_cursor(void)
+{
+    // updating mouse cursor
+    if(gptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
+        gptIOCtx->bCursorChanged = true;
+
+    if(gptIOCtx->bCursorChanged && gptIOCtx->tNextCursor != gptIOCtx->tCurrentCursor)
+    {
+        gptIOCtx->tCurrentCursor = gptIOCtx->tNextCursor;
+        const char* tX11Cursor = NULL;
+        switch (gptIOCtx->tNextCursor)
+        {
+            case PL_MOUSE_CURSOR_ARROW:       tX11Cursor = "left_ptr"; break;
+            case PL_MOUSE_CURSOR_TEXT_INPUT:  tX11Cursor = "xterm"; break;
+            case PL_MOUSE_CURSOR_RESIZE_ALL:  tX11Cursor = "fleur"; break;
+            case PL_MOUSE_CURSOR_RESIZE_EW:   tX11Cursor = "sb_h_double_arrow"; break;
+            case PL_MOUSE_CURSOR_RESIZE_NS:   tX11Cursor = "sb_v_double_arrow"; break;
+            case PL_MOUSE_CURSOR_RESIZE_NESW: tX11Cursor = "bottom_left_corner"; break;
+            case PL_MOUSE_CURSOR_RESIZE_NWSE: tX11Cursor = "bottom_right_corner"; break;
+            case PL_MOUSE_CURSOR_HAND:        tX11Cursor = "hand1"; break;
+            case PL_MOUSE_CURSOR_NOT_ALLOWED: tX11Cursor = "circle"; break;
+        }  
+
+        xcb_font_t font = xcb_generate_id(gptConnection);
+        // There is xcb_xfixes_cursor_change_cursor_by_name. However xcb_cursor_load_cursor guarantees
+        // finding the cursor for the current X theme.
+        xcb_cursor_t cursor = xcb_cursor_load_cursor(gptCursorContext, tX11Cursor);
+        // IM_ASSERT(cursor && "X cursor not found!");
+
+        uint32_t value_list = cursor;
+        plWindowData* ptData = gsbtWindows[0]->_pPlatformData;
+        xcb_change_window_attributes(gptConnection, ptData->tWindow, XCB_CW_CURSOR, &value_list);
+        xcb_free_cursor(gptConnection, cursor);
+        xcb_close_font_checked(gptConnection, font);
+    }
+    gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
+    gptIOCtx->bCursorChanged = false;
+}
+
+#endif
+
+//-----------------------------------------------------------------------------
+// [SECTION] file api
+//-----------------------------------------------------------------------------
+
+bool
+pl_file_exists(const char* pcFile)
+{
+    FILE* ptDataFile = fopen(pcFile, "r");
+    
+    if(ptDataFile)
+    {
+        fclose(ptDataFile);
+        return true;
+    }
+    return false;
+}
+
+void
+pl_file_delete(const char* pcFile)
+{
+    remove(pcFile);
+}
+
+void
+pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
+{
+    PL_ASSERT(pszSizeIn);
+
+    FILE* ptDataFile = fopen(pcFile, "rb");
+    size_t uSize = 0u;
+
+    if (ptDataFile == NULL)
+    {
+        *pszSizeIn = 0u;
+        return;
+    }
+
+    // obtain file size
+    fseek(ptDataFile, 0, SEEK_END);
+    uSize = ftell(ptDataFile);
+    fseek(ptDataFile, 0, SEEK_SET);
+
+    if(pcBuffer == NULL)
+    {
+        *pszSizeIn = uSize;
+        fclose(ptDataFile);
+        return;
+    }
+
+    // copy the file into the buffer:
+    size_t szResult = fread(pcBuffer, sizeof(char), uSize, ptDataFile);
+    if (szResult != uSize)
+    {
+        if (feof(ptDataFile))
+            printf("Error reading test.bin: unexpected end of file\n");
+        else if (ferror(ptDataFile)) {
+            perror("Error reading test.bin");
+        }
+        PL_ASSERT(false && "File not read.");
+    }
+
+    fclose(ptDataFile);
+}
+
+void
+pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
+{
+    FILE* ptDataFile = fopen(pcFile, "wb");
+    if (ptDataFile)
+    {
+        fwrite(pcBuffer, 1, szSize, ptDataFile);
+        fclose(ptDataFile);
+    }
+}
+
+void
+pl_copy_file(const char* source, const char* destination)
+{
+    size_t bufferSize = 0u;
+    pl_binary_read_file(source, &bufferSize, NULL);
+
+    struct stat stat_buf;
+    int fromfd = open(source, O_RDONLY);
+    fstat(fromfd, &stat_buf);
+    int tofd = open(destination, O_WRONLY | O_CREAT, stat_buf.st_mode);
+    int n = 1;
+    while (n > 0)
+        n = sendfile(tofd, fromfd, 0, bufferSize * 2);
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] udp api
+//-----------------------------------------------------------------------------
+
+void
+pl_create_udp_socket(plSocket** pptSocketOut, bool bNonBlocking)
+{
+    *pptSocketOut = PL_ALLOC(sizeof(plSocket));
+
+    // create socket
+    if(((*pptSocketOut)->iSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+    {
+        printf("Could not create socket\n");
+        PL_ASSERT(false && "Could not create socket");
+    }
+
+    // enable non-blocking
+    if(bNonBlocking)
+    {
+        int iFlags = fcntl((*pptSocketOut)->iSocket, F_GETFL);
+        fcntl((*pptSocketOut)->iSocket, F_SETFL, iFlags | O_NONBLOCK);
+    }
+}
+
+void
+pl_bind_udp_socket(plSocket* ptSocket, int iPort)
+{
+    ptSocket->iPort = iPort;
+    
+    // prepare sockaddr_in struct
+    struct sockaddr_in tServer = {
+        .sin_family      = AF_INET,
+        .sin_port        = htons((uint16_t)iPort),
+        .sin_addr.s_addr = INADDR_ANY
+    };
+
+    // bind socket
+    if(bind(ptSocket->iSocket, (struct sockaddr* )&tServer, sizeof(tServer)) < 0)
+    {
+        printf("Bind socket failed with error code : %d\n", errno);
+        PL_ASSERT(false && "Socket error");
+    }
+}
+
+bool
+pl_send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize)
+{
+    struct sockaddr_in tDestSocket = {
+        .sin_family      = AF_INET,
+        .sin_port        = htons((uint16_t)iDestPort),
+        .sin_addr.s_addr = inet_addr(pcDestIP)
+    };
+    static const size_t szLen = sizeof(tDestSocket);
+
+    // send
+    if(sendto(ptFromSocket->iSocket, (const char*)pData, (int)szSize, 0, (struct sockaddr*)&tDestSocket, (int)szLen) < 0)
+    {
+        printf("sendto() failed with error code : %d\n", errno);
+        PL_ASSERT(false && "Socket error");
+        return false;
+    }
+
+    return true;
+}
+
+bool
+pl_get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
+{
+    struct sockaddr_in tSiOther = {0};
+    static int iSLen = (int)sizeof(tSiOther);
+    memset(pData, 0, szSize);
+    int iRecvLen = recvfrom(ptSocket->iSocket, (char*)pData, (int)szSize, 0, (struct sockaddr*)&tSiOther, &iSLen);
+
+    if(iRecvLen < 0)
+    {
+        if(errno != EWOULDBLOCK)
+        {
+            printf("recvfrom() failed with error code : %d\n", errno);
+            PL_ASSERT(false && "Socket error");
+            return false;
+        }
+    }
+    return iRecvLen > 0;
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] library api
+//-----------------------------------------------------------------------------
+
+bool
+pl_has_library_changed(plSharedLibrary* library)
+{
+    time_t newWriteTime = pl__get_last_write_time(library->acPath);
+    return newWriteTime != library->lastWriteTime;
+}
+
+bool
+pl_load_library(const char* name, const char* transitionalName, const char* lockFile, plSharedLibrary** pptLibraryOut)
+{
+    if(*pptLibraryOut == NULL)
+    {
+        *pptLibraryOut = PL_ALLOC(sizeof(plSharedLibrary));
+        memset((*pptLibraryOut), 0, sizeof(plSharedLibrary));
+        (*pptLibraryOut)->bValid = false;
+    }
+    plSharedLibrary* library = *pptLibraryOut;
+
+    if(library->acPath[0] == 0)             strncpy(library->acPath, name, PL_MAX_NAME_LENGTH);
+    if(library->acTransitionalName[0] == 0) strncpy(library->acTransitionalName, transitionalName, PL_MAX_NAME_LENGTH);
+    if(library->acLockFile[0] == 0)         strncpy(library->acLockFile, lockFile, PL_MAX_NAME_LENGTH);
+    library->bValid = false;
+
+    if(library)
+    {
+        struct stat attr2;
+        if(stat(library->acLockFile, &attr2) == -1)  // lock file gone
+        {
+            char temporaryName[2024] = {0};
+            library->lastWriteTime = pl__get_last_write_time(library->acPath);
+            
+            pl_sprintf(temporaryName, "%s%u%s", library->acTransitionalName, library->uTempIndex, ".so");
+            if(++library->uTempIndex >= 1024)
+            {
+                library->uTempIndex = 0;
+            }
+            pl_copy_file(library->acPath, temporaryName);
+
+            library->handle = NULL;
+            library->handle = dlopen(temporaryName, RTLD_NOW);
+            if(library->handle)
+                library->bValid = true;
+            else
+            {
+                printf("\n\n%s\n\n", dlerror());
+            }
+        }
+    }
+    return library->bValid;
+}
+
+void
+pl_reload_library(plSharedLibrary* library)
+{
+    library->bValid = false;
+    for(uint32_t i = 0; i < 100; i++)
+    {
+        if(pl_load_library(library->acPath, library->acTransitionalName, library->acLockFile, &library))
+            break;
+        pl_sleep(100);
+    }
+}
+
+void*
+pl_load_library_function(plSharedLibrary* library, const char* name)
+{
+    PL_ASSERT(library->bValid && "Library not valid");
+    void* loadedFunction = NULL;
+    if(library->bValid)
+    {
+        loadedFunction = dlsym(library->handle, name);
+    }
+    return loadedFunction;
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] thread api
+//-----------------------------------------------------------------------------
+
+void
+pl_sleep(uint32_t millisec)
+{
+    struct timespec ts = {0};
+    int res;
+
+    ts.tv_sec = millisec / 1000;
+    ts.tv_nsec = (millisec % 1000) * 1000000;
+
+    do 
+    {
+        res = nanosleep(&ts, &ts);
+    } 
+    while (res);
+}
+
+void
+pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** pptThreadOut)
+{
+    *pptThreadOut = PL_ALLOC(sizeof(plThread));
+    if(pthread_create(&(*pptThreadOut)->tHandle, NULL, ptProcedure, pData))
+    {
+        PL_ASSERT(false);
+    }
+}
+
+void
+pl_destroy_thread(plThread** ppThread)
+{
+    pl_join_thread(*ppThread);
+    PL_FREE(*ppThread);
+    *ppThread = NULL;
+}
+
+void
+pl_join_thread(plThread* ptThread)
+{
+    pthread_join(ptThread->tHandle, NULL);
+}
+
+void
+pl_yield_thread(void)
+{
+    sched_yield();
+}
+
+void
+pl_create_mutex(plMutex** pptMutexOut)
+{
+    *pptMutexOut = malloc(sizeof(plMutex));
+    if(pthread_mutex_init(&(*pptMutexOut)->tHandle, NULL)) //-V522
+    {
+        PL_ASSERT(false);
+    }
+}
+
+void
+pl_lock_mutex(plMutex* ptMutex)
+{
+    pthread_mutex_lock(&ptMutex->tHandle);
+}
+
+void
+pl_unlock_mutex(plMutex* ptMutex)
+{
+    pthread_mutex_unlock(&ptMutex->tHandle);
+}
+
+void
+pl_destroy_mutex(plMutex** pptMutex)
+{
+    pthread_mutex_destroy(&(*pptMutex)->tHandle);
+    PL_FREE((*pptMutex));
+    *pptMutex = NULL;
+}
+
+void
+pl_create_critical_section(plCriticalSection** pptCriticalSectionOut)
+{
+    *pptCriticalSectionOut = PL_ALLOC(sizeof(plCriticalSection));
+    if(pthread_mutex_init(&(*pptCriticalSectionOut)->tHandle, NULL))
+    {
+        PL_ASSERT(false);
+    }
+}
+
+void
+pl_destroy_critical_section(plCriticalSection** pptCriticalSection)
+{
+    pthread_mutex_destroy(&(*pptCriticalSection)->tHandle);
+    PL_FREE((*pptCriticalSection));
+    *pptCriticalSection = NULL;
+}
+
+void
+pl_enter_critical_section(plCriticalSection* ptCriticalSection)
+{
+    pthread_mutex_lock(&ptCriticalSection->tHandle);
+}
+
+void
+pl_leave_critical_section(plCriticalSection* ptCriticalSection)
+{
+    pthread_mutex_unlock(&ptCriticalSection->tHandle);
+}
+
+uint32_t
+pl_get_hardware_thread_count(void)
+{
+
+    int numCPU = sysconf(_SC_NPROCESSORS_ONLN);
+    return (uint32_t)numCPU;
+}
+
+void
+pl_create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
+{
+    *pptSemaphoreOut = PL_ALLOC(sizeof(plSemaphore));
+    memset((*pptSemaphoreOut), 0, sizeof(plSemaphore));
+    if(sem_init(&(*pptSemaphoreOut)->tHandle, 0, uIntialCount))
+    {
+        PL_ASSERT(false);
+    }
+}
+
+void
+pl_destroy_semaphore(plSemaphore** pptSemaphore)
+{
+    sem_destroy(&(*pptSemaphore)->tHandle);
+    PL_FREE((*pptSemaphore));
+    *pptSemaphore = NULL;
+}
+
+void
+pl_wait_on_semaphore(plSemaphore* ptSemaphore)
+{
+    sem_wait(&ptSemaphore->tHandle);
+}
+
+bool
+pl_try_wait_on_semaphore(plSemaphore* ptSemaphore)
+{
+    return sem_trywait(&ptSemaphore->tHandle) == 0;
+}
+
+void
+pl_release_semaphore(plSemaphore* ptSemaphore)
+{
+    sem_post(&ptSemaphore->tHandle);
+}
+
+void
+pl_allocate_thread_local_key(plThreadKey** pptKeyOut)
+{
+    *pptKeyOut = PL_ALLOC(sizeof(plThreadKey));
+    int iStatus = pthread_key_create(&(*pptKeyOut)->tKey, NULL);
+    if(iStatus != 0)
+    {
+        printf("pthread_key_create failed, errno=%d", errno);
+        PL_ASSERT(false);
+    }
+}
+
+void
+pl_free_thread_local_key(plThreadKey** pptKey)
+{
+    pthread_key_delete((*pptKey)->tKey);
+    PL_FREE((*pptKey));
+    *pptKey = NULL;
+}
+
+void*
+pl_allocate_thread_local_data(plThreadKey* ptKey, size_t szSize)
+{
+    void* pData = PL_ALLOC(szSize);
+    memset(pData, 0, szSize);
+    pthread_setspecific(ptKey->tKey, pData);
+    return pData;
+}
+
+void*
+pl_get_thread_local_data(plThreadKey* ptKey)
+{
+    void* pData = pthread_getspecific(ptKey->tKey);
+    return pData;
+}
+
+void
+pl_free_thread_local_data(plThreadKey* ptKey, void* pData)
+{
+    PL_FREE(pData);
+}
+
+void
+pl_create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut)
+{
+    *pptBarrierOut = PL_ALLOC(sizeof(plBarrier));
+    pthread_barrier_init(&(*pptBarrierOut)->tHandle, NULL, uThreadCount);
+}
+
+void
+pl_destroy_barrier(plBarrier** pptBarrier)
+{
+    pthread_barrier_destroy(&(*pptBarrier)->tHandle);
+    PL_FREE((*pptBarrier));
+    *pptBarrier = NULL;
+}
+
+void
+pl_wait_on_barrier(plBarrier* ptBarrier)
+{
+    pthread_barrier_wait(&ptBarrier->tHandle);
+}
+
+void
+pl_create_condition_variable(plConditionVariable** pptConditionVariableOut)
+{
+    *pptConditionVariableOut = PL_ALLOC(sizeof(plConditionVariable));
+    pthread_cond_init(&(*pptConditionVariableOut)->tHandle, NULL);
+}
+
+void               
+pl_destroy_condition_variable(plConditionVariable** pptConditionVariable)
+{
+    pthread_cond_destroy(&(*pptConditionVariable)->tHandle);
+    PL_FREE((*pptConditionVariable));
+    *pptConditionVariable = NULL;
+}
+
+void               
+pl_wake_condition_variable(plConditionVariable* ptConditionVariable)
+{
+    pthread_cond_signal(&ptConditionVariable->tHandle);
+}
+
+void               
+pl_wake_all_condition_variable(plConditionVariable* ptConditionVariable)
+{
+    pthread_cond_broadcast(&ptConditionVariable->tHandle);
+}
+
+void               
+pl_sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection)
+{
+    pthread_cond_wait(&ptConditionVariable->tHandle, &ptCriticalSection->tHandle);
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] atomic api
+//-----------------------------------------------------------------------------
+
+void
+pl_create_atomic_counter(int64_t ilValue, plAtomicCounter** ptCounter)
+{
+    *ptCounter = PL_ALLOC(sizeof(plAtomicCounter));
+    atomic_init(&(*ptCounter)->ilValue, ilValue); //-V522
+}
+
+void
+pl_destroy_atomic_counter(plAtomicCounter** ptCounter)
+{
+    PL_FREE((*ptCounter));
+    (*ptCounter) = NULL;
+}
+
+void
+pl_atomic_store(plAtomicCounter* ptCounter, int64_t ilValue)
+{
+    atomic_store(&ptCounter->ilValue, ilValue);
+}
+
+int64_t
+pl_atomic_load(plAtomicCounter* ptCounter)
+{
+    return atomic_load(&ptCounter->ilValue);
+}
+
+bool
+pl_atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue)
+{
+    return atomic_compare_exchange_strong(&ptCounter->ilValue, &ilExpectedValue, ilDesiredValue);
+}
+
+void
+pl_atomic_increment(plAtomicCounter* ptCounter)
+{
+    atomic_fetch_add(&ptCounter->ilValue, 1);
+}
+
+void
+pl_atomic_decrement(plAtomicCounter* ptCounter)
+{
+    atomic_fetch_sub(&ptCounter->ilValue, 1);
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] virtual memory api
+//-----------------------------------------------------------------------------
+
+size_t
+pl_get_page_size(void)
+{
+    return (size_t)getpagesize();
+}
+
+void*
+pl_virtual_alloc(void* pAddress, size_t szSize)
+{
+    void* pResult = mmap(pAddress, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    return pResult;
+}
+
+void*
+pl_virtual_reserve(void* pAddress, size_t szSize)
+{
+    void* pResult = mmap(pAddress, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    return pResult;
+}
+
+void*
+pl_virtual_commit(void* pAddress, size_t szSize)
+{
+    mprotect(pAddress, szSize, PROT_READ | PROT_WRITE);
+    return pAddress;
+}
+
+void
+pl_virtual_free(void* pAddress, size_t szSize)
+{
+    munmap(pAddress, szSize);
+}
+
+void
+pl_virtual_uncommit(void* pAddress, size_t szSize)
+{
+    mprotect(pAddress, szSize, PROT_NONE);
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] window api
+//-----------------------------------------------------------------------------
+
+#ifndef PL_HEADLESS_APP
+
+plWindow*
+pl_create_window(const plWindowDesc* ptDesc)
+{
+    plWindow* ptWindow = malloc(sizeof(plWindow));
+    plWindowData* ptData = malloc(sizeof(plWindowData));
+    ptWindow->tDesc = *ptDesc; //-V522
+    ptWindow->_pPlatformData = ptData;
+
+    ptData->tWindow = xcb_generate_id(gptConnection); //-V522
+    ptData->ptConnection = gptConnection; //-V522
+
+    // register event types.
+    // XCB_CW_BACK_PIXEL = filling then window bg with a single colour
+    // XCB_CW_EVENT_MASK is required.
+    unsigned int event_mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
+
+    // listen for keyboard and mouse buttons
+    unsigned int  event_values = 
+        XCB_EVENT_MASK_BUTTON_PRESS |
+        XCB_EVENT_MASK_BUTTON_RELEASE |
+        XCB_EVENT_MASK_KEY_PRESS |
+        XCB_EVENT_MASK_KEY_RELEASE |
+        XCB_EVENT_MASK_EXPOSURE |
+        XCB_EVENT_MASK_POINTER_MOTION |
+        XCB_EVENT_MASK_STRUCTURE_NOTIFY;
+
+    // values to be sent over XCB (bg colour, events)
+    unsigned int  value_list[] = {gptScreen->black_pixel, event_values};
+
+    // Create the window
+    xcb_create_window(
+        gptConnection,
+        XCB_COPY_FROM_PARENT,  // depth
+        ptData->tWindow,
+        gptScreen->root, // parent
+        ptDesc->iXPos,
+        ptDesc->iYPos,
+        ptDesc->uWidth,
+        ptDesc->uHeight,
+        0, // No border
+        XCB_WINDOW_CLASS_INPUT_OUTPUT, // class
+        gptScreen->root_visual,
+        event_mask,
+        value_list);
+
+    // Change the title
+    xcb_change_property(
+        gptConnection,
+        XCB_PROP_MODE_REPLACE,
+        ptData->tWindow,
+        XCB_ATOM_WM_NAME,
+        XCB_ATOM_STRING,
+        8,  // data should be viewed 8 bits at a time
+        strlen(ptDesc->pcName),
+        ptDesc->pcName);
+
+    // Tell the server to notify when the window manager
+    // attempts to destroy the window.
+    xcb_intern_atom_cookie_t wm_delete_cookie = xcb_intern_atom(
+        gptConnection,
+        0,
+        strlen("WM_DELETE_WINDOW"),
+        "WM_DELETE_WINDOW");
+    xcb_intern_atom_cookie_t wm_protocols_cookie = xcb_intern_atom(
+        gptConnection,
+        0,
+        strlen("WM_PROTOCOLS"),
+        "WM_PROTOCOLS");
+    xcb_intern_atom_reply_t* wm_delete_reply = xcb_intern_atom_reply(
+        gptConnection,
+        wm_delete_cookie,
+        NULL);
+    xcb_intern_atom_reply_t* wm_protocols_reply = xcb_intern_atom_reply(
+        gptConnection,
+        wm_protocols_cookie,
+        NULL);
+    gtWmDeleteWin = wm_delete_reply->atom;
+    gtWmProtocols = wm_protocols_reply->atom;
+
+    xcb_change_property(
+        gptConnection,
+        XCB_PROP_MODE_REPLACE,
+        ptData->tWindow,
+        wm_protocols_reply->atom,
+        4,
+        32,
+        1,
+        &wm_delete_reply->atom);
+
+    // Map the window to the screen
+    xcb_map_window(gptConnection, ptData->tWindow);
+
+    int stream_result = xcb_flush(gptConnection);
+
+    pl_sb_push(gsbtWindows, ptWindow);
+
+    return ptWindow;
+}
+
+void
+pl_destroy_window(plWindow* ptWindow)
+{
+    plWindowData* ptData = ptWindow->_pPlatformData;
+    xcb_destroy_window(gptConnection, ptData->tWindow);
+    free(ptData);
+    free(ptWindow);
 }
 
 #endif

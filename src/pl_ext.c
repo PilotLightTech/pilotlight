@@ -80,10 +80,10 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptShader = ptApiRegistry->first(PL_API_SHADER);
     #endif
 
-    gptStats  = ptApiRegistry->first(PL_API_STATS);
-    gptImage  = ptApiRegistry->first(PL_API_IMAGE);
-    gptJob    = ptApiRegistry->first(PL_API_JOB);
-    gptRect   = ptApiRegistry->first(PL_API_RECT_PACK);
+    gptStats = ptApiRegistry->first(PL_API_STATS);
+    gptImage = ptApiRegistry->first(PL_API_IMAGE);
+    gptJob   = ptApiRegistry->first(PL_API_JOB);
+    gptRect  = ptApiRegistry->first(PL_API_RECT_PACK);
     
     // second batch (dependent APIs)
     pl_load_ecs_ext(ptApiRegistry, bReload);
@@ -94,7 +94,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         
         pl_load_graphics_ext(ptApiRegistry, bReload);
 
-        gptGfx    = ptApiRegistry->first(PL_API_GRAPHICS);
+        gptGfx = ptApiRegistry->first(PL_API_GRAPHICS);
 
         pl_load_gpu_allocators_ext(ptApiRegistry, bReload);
         pl_load_resource_ext(ptApiRegistry, bReload);
