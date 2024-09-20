@@ -19,6 +19,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include <stdlib.h> // malloc, free
 #include <stdio.h>
 #include <string.h> // memset
 #include "pl.h"

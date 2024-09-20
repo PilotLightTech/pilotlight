@@ -7,7 +7,6 @@
 Index of this file:
 // [SECTION] header mess
 // [SECTION] apis
-// [SECTION] contexts
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
@@ -22,8 +21,8 @@ Index of this file:
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PILOT_LIGHT_H
-#define PILOT_LIGHT_H
+#ifndef PL_H
+#define PL_H
 
 #define PILOT_LIGHT_VERSION    "0.1.0"
 #define PILOT_LIGHT_VERSION_NUM 001000
@@ -40,14 +39,11 @@ typedef struct _plDataRegistryI plDataRegistryI;
 #define PL_API_EXTENSION_REGISTRY "PL_API_EXTENSION_REGISTRY"
 typedef struct _plExtensionRegistryI plExtensionRegistryI;
 
+#define PL_API_MEMORY "PL_API_MEMORY"
+typedef struct _plMemoryI plMemoryI;
+
 #define PL_API_IO "PL_API_IO"
 typedef struct _plIOI plIOI;
-
-//-----------------------------------------------------------------------------
-// [SECTION] contexts
-//-----------------------------------------------------------------------------
-
-#define PL_CONTEXT_MEMORY "PL_CONTEXT_MEMORY"
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -66,7 +62,6 @@ typedef struct _plIOI plIOI;
 typedef void (*ptApiUpdateCallback)(const void*, const void*, void*);
 
 // types
-typedef struct _plMemoryContext   plMemoryContext;
 typedef struct _plAllocationEntry plAllocationEntry;
 typedef struct _plDataObject      plDataObject;
 typedef union  _plDataID          plDataID;
@@ -98,11 +93,6 @@ typedef uint16_t plUiWChar;
 const plApiRegistryI* pl_load_core_apis  (void); // only called once by backend
 void                  pl_unload_core_apis(void); // only called once by backend
 
-// memory
-void             pl_set_memory_context(plMemoryContext* ptMemoryContext);
-plMemoryContext* pl_get_memory_context(void);
-void*            pl_realloc           (void* pBuffer, size_t szSize, const char* pcFile, int iLine);
-
 //-----------------------------------------------------------------------------
 // [SECTION] api structs
 //-----------------------------------------------------------------------------
@@ -112,7 +102,7 @@ typedef struct _plApiRegistryI
     const void* (*add)       (const char* pcName, const void* pInterface);
     void        (*remove)    (const void* pInterface);
     void        (*replace)   (const void* pOldInterface, const void* pNewInterface);
-    void        (*subscribe) (const void* pInterface, ptApiUpdateCallback ptCallback, void* pUserData);
+    void        (*subscribe) (const void* pInterface, ptApiUpdateCallback, void* pUserData);
     const void* (*first)     (const char* pcName);
     const void* (*next)      (const void* pPrev);
 } plApiRegistryI;
@@ -156,6 +146,18 @@ typedef struct _plExtensionRegistryI
     bool (*load)      (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
     bool (*unload)    (const char* pcName); 
 } plExtensionRegistryI;
+
+typedef struct _plMemoryI
+{
+    void* (*realloc)(void*, size_t, const char* pcFile, int iLine);
+
+    // stats
+    size_t             (*get_memory_usage)(void);
+    size_t             (*get_allocation_count)(void);
+    size_t             (*get_free_count)(void);
+    plAllocationEntry* (*get_allocations)(size_t* pszCount);
+    void               (*check_for_leaks)(void);
+} plMemoryI;
 
 typedef struct _plIOI
 {
@@ -431,17 +433,6 @@ typedef struct _plAllocationEntry
     const char* pcFile; 
 } plAllocationEntry;
 
-typedef struct _plMemoryContext
-{
-  size_t                    szActiveAllocations;
-  size_t                    szAllocationCount;
-  size_t                    szAllocationFrees;
-  plHashMap*                ptHashMap;
-  plAllocationEntry*        sbtAllocations;
-  size_t                    szMemoryUsage;
-  const struct _plThreadsI* plThreadsI;
-} plMemoryContext;
-
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------
@@ -488,18 +479,6 @@ typedef struct _plMemoryContext
     #define PL_ASSERT(x) assert((x))
 #endif
 
-#ifndef PL_ALLOC
-    #include <stdlib.h>
-    #define PL_ALLOC(x)      pl_realloc(NULL, x, __FILE__, __LINE__)
-    #define PL_REALLOC(x, y) pl_realloc(x, y, __FILE__, __LINE__)
-    #define PL_FREE(x)       pl_realloc(x, 0, __FILE__, __LINE__)
-#endif
-
-// pl_ds.h allocators (so they can be tracked)
-#define PL_DS_ALLOC(x)                      pl_realloc(NULL, (x), __FILE__, __LINE__)
-#define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) pl_realloc(NULL, (x), FILE, LINE)
-#define PL_DS_FREE(x)                       pl_realloc((x), 0, __FILE__, __LINE__)
-
 // settings
 #ifndef PL_MAX_NAME_LENGTH
     #define PL_MAX_NAME_LENGTH 1024
@@ -514,4 +493,4 @@ typedef struct _plMemoryContext
     #define PL_GLOBAL_LOG_LEVEL PL_LOG_LEVEL_ALL
 #endif
 
-#endif // PILOT_LIGHT_H
+#endif // PL_H

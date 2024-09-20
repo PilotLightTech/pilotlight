@@ -421,6 +421,16 @@ static void
 pl_refr_initialize(plWindow* ptWindow)
 {
 
+    // allocate renderer data
+    gptData = PL_ALLOC(sizeof(plRefRendererData));
+    memset(gptData, 0, sizeof(plRefRendererData));
+
+    // register data with registry (for reloads)
+    gptDataRegistry->set_data("ref renderer data", gptData);
+
+    // add specific log channel for renderer
+    gptData->uLogChannel = pl_add_log_channel("Renderer", PL_CHANNEL_TYPE_BUFFER);
+
     // default options
     gptData->uOutlineWidth = 4;
     gptData->fLambdaSplit = 0.95f;
@@ -5668,20 +5678,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
       ptApiRegistry->replace(ptApiRegistry->first(PL_API_RENDERER), pl_load_renderer_api());
    }
    else
-   {
-      // allocate renderer data
-      gptData = PL_ALLOC(sizeof(plRefRendererData));
-      memset(gptData, 0, sizeof(plRefRendererData));
-
-      // register data with registry (for reloads)
-      gptDataRegistry->set_data("ref renderer data", gptData);
-
-      // add specific log channel for renderer
-      gptData->uLogChannel = pl_add_log_channel("Renderer", PL_CHANNEL_TYPE_BUFFER);
-
-      // register API
       ptApiRegistry->add(PL_API_RENDERER, pl_load_renderer_api());
-   }
 }
 
 static void

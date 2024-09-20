@@ -363,6 +363,12 @@ static void
 pl__initialize(uint32_t uThreadCount)
 {
 
+    // allocate & store context
+    gptJobCtx = PL_ALLOC(sizeof(plJobContext));
+    memset(gptJobCtx, 0, sizeof(plJobContext));
+
+    gptDataRegistry->set_data("plJobContext", gptJobCtx);
+
     const uint32_t uHardwareThreadCount = gptThreads->get_hardware_thread_count();
 
     if(uThreadCount == 0)
@@ -400,7 +406,7 @@ pl__cleanup(void)
     gptJobCtx->bRunning = false;
     gptThreads->wake_all_condition_variable(gptJobCtx->ptConditionVariable);
     for(uint32_t i = 0; i < gptJobCtx->uThreadCount; i++)
-        gptThreads->join_thread(gptJobCtx->aptThreads[i]);
+        gptThreads->destroy_thread(&gptJobCtx->aptThreads[i]);
 
     gptAtomics->destroy_atomic_counter(&gptJobCtx->ptQueueLatch);
     gptThreads->destroy_condition_variable(&gptJobCtx->ptConditionVariable);
@@ -413,6 +419,8 @@ pl__cleanup(void)
         gptJobCtx->atBatches[i].uJobIndex = UINT32_MAX;
         gptAtomics->destroy_atomic_counter(&gptJobCtx->atNodes[i].ptCounter);
     }
+
+    PL_FREE(gptJobCtx);
 }
 
 //-----------------------------------------------------------------------------
@@ -442,23 +450,8 @@ pl_load_job_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
     {
         ptApiRegistry->replace(ptApiRegistry->first(PL_API_JOB), pl_load_job_api());
-
         gptJobCtx = gptDataRegistry->get_data("plJobContext");
     }
     else
-    {
         ptApiRegistry->add(PL_API_JOB, pl_load_job_api());
-
-        // allocate & store context
-        gptJobCtx = PL_ALLOC(sizeof(plJobContext));
-        memset(gptJobCtx, 0, sizeof(plJobContext));
-
-        gptDataRegistry->set_data("plJobContext", gptJobCtx);
-    }
-}
-
-static  void
-pl_unload_job_ext(plApiRegistryI* ptApiRegistry)
-{
-    PL_FREE(gptJobCtx);
 }

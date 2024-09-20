@@ -44,9 +44,6 @@ Index of this file:
 
 typedef struct _plDebugContext
 {
-    // contexts
-    plMemoryContext* ptMemoryCtx;
-
     // other
     plDevice*       ptDevice;
     plTempAllocator tTempAllocator;
@@ -158,18 +155,21 @@ pl__show_memory_allocations(bool* bValue)
     
     const size_t szHostMemoryInUse = gptGfx->get_host_memory_in_use();
     const size_t szLocalMemoryInUse = gptGfx->get_local_memory_in_use();
+    const size_t szMemoryUsage = gptMemory->get_memory_usage();
+    const size_t szActiveAllocations = gptMemory->get_allocation_count();
+    const size_t szAllocationFrees = gptMemory->get_free_count();
 
     if(gptUI->begin_window("Memory Allocations", bValue, false))
     {
         gptUI->layout_dynamic(0.0f, 1);
-        if(gptDebugCtx->ptMemoryCtx->szMemoryUsage > 1000000000)
-            gptUI->text("General Memory Usage:       %0.3f gb", (double)gptDebugCtx->ptMemoryCtx->szMemoryUsage / 1000000000);
-        else if(gptDebugCtx->ptMemoryCtx->szMemoryUsage > 1000000)
-            gptUI->text("General Memory Usage:       %0.3f mb", (double)gptDebugCtx->ptMemoryCtx->szMemoryUsage / 1000000);
-        else if(gptDebugCtx->ptMemoryCtx->szMemoryUsage > 1000)
-            gptUI->text("General Memory Usage:       %0.3f kb", (double)gptDebugCtx->ptMemoryCtx->szMemoryUsage / 1000);
+        if(szMemoryUsage > 1000000000)
+            gptUI->text("General Memory Usage:       %0.3f gb", (double)szMemoryUsage / 1000000000);
+        else if(szMemoryUsage > 1000000)
+            gptUI->text("General Memory Usage:       %0.3f mb", (double)szMemoryUsage / 1000000);
+        else if(szMemoryUsage > 1000)
+            gptUI->text("General Memory Usage:       %0.3f kb", (double)szMemoryUsage / 1000);
         else
-            gptUI->text("General Memory Usage:       %llu bytes", (double)gptDebugCtx->ptMemoryCtx->szMemoryUsage);
+            gptUI->text("General Memory Usage:       %llu bytes", (double)szMemoryUsage);
     
         if(szHostMemoryInUse > 1000000000)
             gptUI->text("Host Graphics Memory Usage: %0.3f gb", (double)szHostMemoryInUse / 1000000000);
@@ -180,8 +180,8 @@ pl__show_memory_allocations(bool* bValue)
         else
             gptUI->text("Host Graphics Memory Usage: %llu bytes", (double)szHostMemoryInUse);
 
-        gptUI->text("Active Allocations:         %u", gptDebugCtx->ptMemoryCtx->szActiveAllocations);
-        gptUI->text("Freed Allocations:          %u", gptDebugCtx->ptMemoryCtx->szAllocationFrees);
+        gptUI->text("Active Allocations:         %u", szActiveAllocations);
+        gptUI->text("Freed Allocations:          %u", szAllocationFrees);
 
         static char pcFile[1024] = {0};
 
@@ -207,14 +207,15 @@ pl__show_memory_allocations(bool* bValue)
         gptUI->layout_template_push_variable(50.0f);
         gptUI->layout_template_end();
 
-        const uint32_t uOriginalAllocationCount = pl_sb_size(gptDebugCtx->ptMemoryCtx->sbtAllocations);
+        size_t szOriginalAllocationCount = 0;
+        plAllocationEntry* atAllocations = gptMemory->get_allocations(&szOriginalAllocationCount);
         
-        plUiClipper tClipper = {uOriginalAllocationCount};
+        plUiClipper tClipper = {(uint32_t)szOriginalAllocationCount};
         while(gptUI->step_clipper(&tClipper))
         {
             for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
             {
-                plAllocationEntry tEntry = gptDebugCtx->ptMemoryCtx->sbtAllocations[i];
+                plAllocationEntry tEntry = atAllocations[i];
                 strncpy(pcFile, tEntry.pcFile, 1024);
                 gptUI->text("%i", i);
                 gptUI->text("%s", pcFile);
@@ -1099,7 +1100,6 @@ pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptDebugCtx = PL_ALLOC(sizeof(plDebugContext));
         memset(gptDebugCtx, 0, sizeof(plDebugContext));
 
-        gptDebugCtx->ptMemoryCtx = gptDataRegistry->get_data(PL_CONTEXT_MEMORY);
         gptDebugCtx->bProfileFirstRun = true;
 
         gptDataRegistry->set_data("plDebugContext", gptDebugCtx);

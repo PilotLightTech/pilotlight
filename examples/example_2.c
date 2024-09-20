@@ -22,12 +22,14 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include <stdlib.h> // malloc, free
 #include <stdio.h>
+#include <string.h> // memset
 #include "pl.h"
 #include "pl_profile.h"
 #include "pl_log.h"
-#include "pl_ds.h"
 #include "pl_os.h"
+#include "pl_ds.h"
 #include "pl_memory.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -87,10 +89,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // between extensions & the runtime
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
 
-    // retrieve the memory context (provided by the runtime) and
-    // set it to allow for memory tracking when using PL_ALLOC/PL_FREE
-    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
-
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
     if(ptAppData)
@@ -112,8 +110,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     }
 
     // this path is taken only during first load, so we
-    // allocate app memory here (using PL_ALLOC for memory tracking)
-    ptAppData = PL_ALLOC(sizeof(plAppData));
+    // allocate app memory here
+    ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
 
     // create profiling & logging contexts (used by extension here)
@@ -219,8 +217,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .fFontSize = 18.0f,
         .uHOverSampling = 1,
         .uVOverSampling = 1,
+        .uRangeCount = 1,
+        .ptRanges = &tRange
     };
-    pl_sb_push(tFontConfig0.sbtRanges, tRange);
     ptAppData->tCousineBitmapFont = gptDraw->add_font_from_file_ttf(tFontConfig0, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
 
     // adding previous font but as a signed distance field
@@ -230,9 +229,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .uHOverSampling = 1,
         .uVOverSampling = 1,
         .ucOnEdgeValue = 180,
-        .iSdfPadding = 1
+        .iSdfPadding = 1,
+        .uRangeCount = 1,
+        .ptRanges = &tRange
     };
-    pl_sb_push(tFontConfig1.sbtRanges, tRange);
     ptAppData->tCousineSDFFont = gptDraw->add_font_from_file_ttf(tFontConfig1, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
 
     // build font atlass
@@ -265,10 +265,11 @@ pl_app_shutdown(plAppData* ptAppData)
     gptGfx->cleanup_swapchain(ptAppData->ptSwapchain);
     gptGfx->cleanup_surface(ptAppData->ptSurface);
     gptGfx->cleanup_device(ptAppData->ptDevice);
+    gptGfx->cleanup();
     gptWindows->destroy_window(ptAppData->ptWindow);
     pl_cleanup_profile_context();
     pl_cleanup_log_context();
-    PL_FREE(ptAppData);
+    free(ptAppData);
 }
 
 //-----------------------------------------------------------------------------

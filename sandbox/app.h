@@ -10,12 +10,12 @@
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <float.h>
 #include "pl.h"
 #include "pl_profile.h"
 #include "pl_log.h"
-#include "pl_ds.h"
 #include "pl_os.h"
 #include "pl_memory.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -24,9 +24,9 @@
 // extensions
 #include "pl_image_ext.h"
 #include "pl_stats_ext.h"
+#include "pl_ecs_ext.h"
 #include "pl_graphics_ext.h"
 #include "pl_debug_ext.h"
-#include "pl_ecs_ext.h"
 #include "pl_resource_ext.h"
 #include "pl_model_loader_ext.h"
 #include "pl_renderer_ext.h"
@@ -57,6 +57,16 @@ static const plDrawI*        gptDraw              = NULL;
 static const plUiI*          gptUi                = NULL;
 static const plIOI*          gptIO                = NULL;
 static const plShaderI*      gptShader            = NULL;
+static const plMemoryI*      gptMemory            = NULL;
+
+#define PL_ALLOC(x)      gptMemory->realloc(NULL, (x), __FILE__, __LINE__)
+#define PL_REALLOC(x, y) gptMemory->realloc((x), (y), __FILE__, __LINE__)
+#define PL_FREE(x)       gptMemory->realloc((x), 0, __FILE__, __LINE__)
+
+#define PL_DS_ALLOC(x)                      gptMemory->realloc(NULL, (x), __FILE__, __LINE__)
+#define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->realloc(NULL, (x), FILE, LINE)
+#define PL_DS_FREE(x)                       gptMemory->realloc((x), 0, __FILE__, __LINE__)
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs & enums

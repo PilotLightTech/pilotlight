@@ -31,7 +31,6 @@ PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 {
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    pl_set_memory_context(ptDataRegistry->get_data(PL_CONTEXT_MEMORY));
 
     if(ptEditorData) // reload
     {
@@ -52,6 +51,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
         gptUi          = ptApiRegistry->first(PL_API_UI);
         gptIO          = ptApiRegistry->first(PL_API_IO);
         gptShader      = ptApiRegistry->first(PL_API_SHADER);
+        gptMemory      = ptApiRegistry->first(PL_API_MEMORY);
 
         return ptEditorData;
     }
@@ -59,19 +59,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     plProfileContext* ptProfileCtx = pl_create_profile_context();
     plLogContext*     ptLogCtx     = pl_create_log_context();
 
-    pl_begin_profile_frame();
-    
-    // add some context to data registry
-    ptEditorData = PL_ALLOC(sizeof(plEditorData));
-    memset(ptEditorData, 0, sizeof(plEditorData));
-    ptEditorData->tSelectedEntity.ulData = UINT64_MAX;
-
     ptDataRegistry->set_data("profile", ptProfileCtx);
     ptDataRegistry->set_data("log", ptLogCtx);
 
-    // create log context
-    pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
-    pl_log_info("Setup logging");
+    pl_begin_profile_frame();
 
     // load extensions
     const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
@@ -91,6 +82,16 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     gptUi          = ptApiRegistry->first(PL_API_UI);
     gptIO          = ptApiRegistry->first(PL_API_IO);
     gptShader      = ptApiRegistry->first(PL_API_SHADER);
+    gptMemory      = ptApiRegistry->first(PL_API_MEMORY);
+    
+    // add some context to data registry
+    ptEditorData = PL_ALLOC(sizeof(plEditorData));
+    memset(ptEditorData, 0, sizeof(plEditorData));
+    ptEditorData->tSelectedEntity.ulData = UINT64_MAX;
+
+    // create log context
+    pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
+    pl_log_info("Setup logging");
 
     // initialize shader extension
     static const plShaderOptions tDefaultShaderOptions = {
@@ -316,7 +317,7 @@ pl_app_update(plEditorData* ptEditorData)
     if(!pdMemoryCounter)
         pdMemoryCounter = gptStats->get_counter("CPU memory");
     *pdFrameTimeCounter = (double)ptIO->fDeltaTime * 1000.0;
-    *pdMemoryCounter = (double)pl_get_memory_context()->szMemoryUsage;
+    *pdMemoryCounter = (double)gptMemory->get_memory_usage();
 
     // handle input
     plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptEditorData->uSceneHandle0);
@@ -378,7 +379,6 @@ pl_app_update(plEditorData* ptEditorData)
         {
             
             gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION);
-            gptUi->text("Pilot Light DS %s", PL_DS_VERSION);
             #ifdef PL_METAL_BACKEND
             gptUi->text("Graphics Backend: Metal");
             #elif PL_VULKAN_BACKEND

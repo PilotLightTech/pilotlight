@@ -52,16 +52,17 @@ Index of this file:
 PL_EXPORT void
 pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    gptApiRegistry = ptApiRegistry;
-    gptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    // core apis
+    gptApiRegistry        = ptApiRegistry;
+    gptDataRegistry      = ptApiRegistry->first(PL_API_DATA_REGISTRY);
     gptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    gptMemory            = ptApiRegistry->first(PL_API_MEMORY);
 
     // set contexts
-    pl_set_memory_context(gptDataRegistry->get_data(PL_CONTEXT_MEMORY));
     pl_set_profile_context(gptDataRegistry->get_data("profile"));
     pl_set_log_context(gptDataRegistry->get_data("log"));
 
-    // load os APIs
+    // load os apis
     gptIOI     = ptApiRegistry->first(PL_API_IO);
     gptFile    = ptApiRegistry->first(PL_API_FILE);
     gptThreads = ptApiRegistry->first(PL_API_THREADS);
@@ -126,7 +127,6 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry)
     pl_unload_image_ext(ptApiRegistry);
     pl_unload_rect_pack_ext(ptApiRegistry);
     pl_unload_stats_ext(ptApiRegistry);
-    pl_unload_job_ext(ptApiRegistry);
     pl_unload_ecs_ext(ptApiRegistry);
     #ifdef PL_CORE_EXTENSION_INCLUDE_GRAPHICS
         pl_unload_graphics_ext(ptApiRegistry);

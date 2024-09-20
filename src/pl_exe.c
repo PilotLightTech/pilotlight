@@ -245,61 +245,71 @@ plIO gtIO = {
     .bRunning                 = true,
 };
 
+// memory tracking
+size_t             gszActiveAllocations = 0;
+size_t             gszAllocationCount   = 0;
+size_t             gszAllocationFrees   = 0;
+size_t             gszMemoryUsage       = 0;
+plAllocationEntry* gsbtAllocations      = NULL;
+plHashMap*         gptMemoryHashMap     = NULL;
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
 
 void
-pl__set_data(const char* pcName, void* pData)
+pl_set_data(const char* pcName, void* pData)
 {
     plDataID tData = {
-        .ulData = pl_hm_lookup_str(&gtHashMap, pcName)
+        .ulData = pl_hm_lookup_str(gptHashmap, pcName)
     };
 
     if(tData.ulData == UINT64_MAX)
     {
-        tData = pl__create_object();
+        tData = pl_create_object();
     }
-    plDataObject* ptWriter = pl__write(tData);
-    pl__set_string(ptWriter, 0, pcName);
-    pl__set_buffer(ptWriter, 1, pData);
-    pl__commit(ptWriter);
+    plDataObject* ptWriter = pl_write(tData);
+    pl_set_string(ptWriter, 0, pcName);
+    pl_set_buffer(ptWriter, 1, pData);
+    pl_commit(ptWriter);
 }
 
 void*
-pl__get_data(const char* pcName)
+pl_get_data(const char* pcName)
 {
-    plDataID tData = pl__get_object_by_name(pcName);
+    plDataID tData = pl_get_object_by_name(pcName);
     if(tData.ulData == UINT64_MAX)
         return NULL;
-    const plDataObject* ptReader = pl__read(tData);
-    void* pData = pl__get_buffer(ptReader, 1);
-    pl__end_read(ptReader);
+    const plDataObject* ptReader = pl_read(tData);
+    void* pData = pl_get_buffer(ptReader, 1);
+    pl_end_read(ptReader);
     return pData;
 }
 
 void
-pl__garbage_collect(void)
+pl_garbage_collect(void)
 {
-    pl__lock_mutex(gptDataMutex);
-    for(uint32_t i = 0; i < pl_sb_size(gtDataRegistryData.sbtDataObjectsDeletionQueue); i++)
+    pl_lock_mutex(gptDataMutex);
+    uint32_t uQueueSize = pl_sb_size(gtDataRegistryData.sbtDataObjectsDeletionQueue);
+    for(uint32_t i = 0; i < uQueueSize; i++)
     {
         if(gtDataRegistryData.sbtDataObjectsDeletionQueue[i]->uReferenceCount == 0)
         {
             pl_sb_push(gtDataRegistryData.sbtDataObjects, gtDataRegistryData.sbtDataObjectsDeletionQueue[i]);
             pl_sb_del_swap(gtDataRegistryData.sbtDataObjectsDeletionQueue, i);
             i--;
+            uQueueSize--;
         }
     }
-    pl__unlock_mutex(gptDataMutex);
+    pl_unlock_mutex(gptDataMutex);
 }
 
 plDataID
-pl__create_object(void)
+pl_create_object(void)
 {
     plDataID tId = {.ulData = UINT64_MAX};
 
-    pl__lock_mutex(gptDataMutex);
+    pl_lock_mutex(gptDataMutex);
     if(pl_sb_size(gtDataRegistryData.sbtFreeDataIDs) > 0)
     {
         tId = pl_sb_pop(gtDataRegistryData.sbtFreeDataIDs);
@@ -1150,6 +1160,124 @@ pl_new_frame(void)
     pl__update_events();
     pl__update_keyboard_inputs();
     pl__update_mouse_inputs();
+}
+
+size_t
+pl_get_memory_usage(void)
+{
+    return gszMemoryUsage;
+}
+
+size_t
+pl_get_allocation_count(void)
+{
+    return gszActiveAllocations;
+}
+
+size_t
+pl_get_free_count(void)
+{
+    return gszAllocationFrees;
+}
+
+plAllocationEntry*
+pl_get_allocations(size_t* pszCount)
+{
+    *pszCount = pl_sb_size(gsbtAllocations);
+    return gsbtAllocations;
+}
+
+void
+pl_check_for_leaks(void)
+{
+    // check for unfreed memory
+    uint32_t uMemoryLeakCount = 0;
+    for(uint32_t i = 0; i < pl_sb_size(gsbtAllocations); i++)
+    {
+        if(gsbtAllocations[i].pAddress != NULL)
+        {
+            printf("Unfreed memory from line %i in file '%s'.\n", gsbtAllocations[i].iLine, gsbtAllocations[i].pcFile);
+            uMemoryLeakCount++;
+        }
+    }
+        
+    PL_ASSERT(uMemoryLeakCount == gszActiveAllocations);
+    if(uMemoryLeakCount > 0)
+        printf("%u unfreed allocations.\n", uMemoryLeakCount);
+}
+
+void*
+pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
+{
+
+    static plMutex* gptMutex = NULL;
+
+    if(gptMutex == NULL)
+    {
+        pl_create_mutex(&gptMutex);
+    }
+
+    pl_lock_mutex(gptMutex);
+
+    void* pNewBuffer = NULL;
+
+    if(szSize > 0)
+    {
+        
+        gszActiveAllocations++;
+        gszMemoryUsage += szSize;
+        pNewBuffer = malloc(szSize);
+        memset(pNewBuffer, 0, szSize);
+
+        const uint64_t ulHash = pl_hm_hash(&pNewBuffer, sizeof(void*), 1);
+
+        
+        uint64_t ulFreeIndex = pl_hm_get_free_index(gptMemoryHashMap);
+        if(ulFreeIndex == UINT64_MAX)
+        {
+            pl_sb_push(gsbtAllocations, (plAllocationEntry){0});
+            ulFreeIndex = pl_sb_size(gsbtAllocations) - 1;
+        }
+        pl_hm_insert(gptMemoryHashMap, ulHash, ulFreeIndex);
+        
+        gsbtAllocations[ulFreeIndex].iLine = iLine;
+        gsbtAllocations[ulFreeIndex].pcFile = pcFile;
+        gsbtAllocations[ulFreeIndex].pAddress = pNewBuffer;
+        gsbtAllocations[ulFreeIndex].szSize = szSize;
+        gszAllocationCount++;
+        
+    }
+
+    if(pBuffer) // free
+    {
+        const uint64_t ulHash = pl_hm_hash(&pBuffer, sizeof(void*), 1);
+        const bool bDataExists = pl_hm_has_key(gptMemoryHashMap, ulHash);
+
+        if(bDataExists)
+        {
+            
+            const uint64_t ulIndex = pl_hm_lookup(gptMemoryHashMap, ulHash);
+
+            if(pNewBuffer)
+            {
+                memcpy(pNewBuffer, pBuffer, gsbtAllocations[ulIndex].szSize);
+            }
+            gsbtAllocations[ulIndex].pAddress = NULL;
+            gszMemoryUsage -= gsbtAllocations[ulIndex].szSize;
+            gsbtAllocations[ulIndex].szSize = 0;
+            pl_hm_remove(gptMemoryHashMap, ulHash);
+            gszAllocationFrees++;
+            gszActiveAllocations--;
+        }
+        else
+        {
+            PL_ASSERT(false);
+        }
+        free(pBuffer);
+    }
+
+    pl_unlock_mutex(gptMutex);
+    return pNewBuffer;
 }
 
 //-----------------------------------------------------------------------------
