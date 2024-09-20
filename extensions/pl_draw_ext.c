@@ -1496,23 +1496,29 @@ pl_add_font_from_memory_ttf(plFontConfig config, void* data)
     ptFont->fLineSpacing = pl_max(ptFont->fLineSpacing, (ptPrep->fAscent - ptPrep->fDescent + ptPrep->scale * (float)lineGap));
 
     // convert individual chars to ranges
-    for(uint32_t i = 0; i < pl_sb_size(config.sbiIndividualChars); i++)
+    for(uint32_t i = 0; i < config.uRangeCount; i++)
+    {
+        pl_sb_push(config._sbtRanges, config.ptRanges[i]);
+    }
+
+    // convert individual chars to ranges
+    for(uint32_t i = 0; i < config.uIndividualCharCount; i++)
     {
         plFontRange range = {
             .uCharCount = 1,
-            .iFirstCodePoint = config.sbiIndividualChars[i],
+            .iFirstCodePoint = config.piIndividualChars[i],
             ._uConfigIndex = uConfigIndex
         };
-        pl_sb_push(config.sbtRanges, range);
+        pl_sb_push(config._sbtRanges, range);
     }
 
     // find total number of glyphs/chars required
     // const uint32_t uGlyphOffset = pl_sb_size(ptFont->sbtGlyphs);
     uint32_t totalCharCount = 0u;
-    for(uint32_t i = 0; i < pl_sb_size(config.sbtRanges); i++)
+    for(uint32_t i = 0; i < pl_sb_size(config._sbtRanges); i++)
     {
-        totalCharCount += config.sbtRanges[i].uCharCount;
-        totalCharCount += config.sbtRanges[i]._uConfigIndex = uConfigIndex;
+        totalCharCount += config._sbtRanges[i].uCharCount;
+        totalCharCount += config._sbtRanges[i]._uConfigIndex = uConfigIndex;
     }
     
     pl_sb_reserve(ptFont->sbtGlyphs, pl_sb_size(ptFont->sbtGlyphs) + totalCharCount);
@@ -1523,8 +1529,8 @@ pl_add_font_from_memory_ttf(plFontConfig config, void* data)
         pl_sb_reserve(gptDrawCtx->tFontAtlas.sbtCustomRects, pl_sb_size(gptDrawCtx->tFontAtlas.sbtCustomRects) + totalCharCount); // is this correct
     }
 
-    ptPrep->ranges = PL_ALLOC(sizeof(stbtt_pack_range) * pl_sb_size(config.sbtRanges));
-    memset(ptPrep->ranges, 0, sizeof(stbtt_pack_range) * pl_sb_size(config.sbtRanges));
+    ptPrep->ranges = PL_ALLOC(sizeof(stbtt_pack_range) * pl_sb_size(config._sbtRanges));
+    memset(ptPrep->ranges, 0, sizeof(stbtt_pack_range) * pl_sb_size(config._sbtRanges));
 
     // find max codepoint & set range pointers into font char data
     int k = 0;
@@ -1532,9 +1538,9 @@ pl_add_font_from_memory_ttf(plFontConfig config, void* data)
     totalCharCount = 0u;
     bool missingGlyphAdded = false;
 
-    for(uint32_t i = 0; i < pl_sb_size(config.sbtRanges); i++)
+    for(uint32_t i = 0; i < pl_sb_size(config._sbtRanges); i++)
     {
-        plFontRange* range = &config.sbtRanges[i];
+        plFontRange* range = &config._sbtRanges[i];
         range->_uConfigIndex = uConfigIndex;
         ptPrep->uTotalCharCount += range->uCharCount;
         pl_sb_push(ptFont->sbtRanges, *range);
@@ -1545,9 +1551,9 @@ pl_add_font_from_memory_ttf(plFontConfig config, void* data)
         ptPrep->rects = PL_ALLOC(sizeof(stbrp_rect) * ptPrep->uTotalCharCount);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(config.sbtRanges); i++)
+    for(uint32_t i = 0; i < pl_sb_size(config._sbtRanges); i++)
     {
-        plFontRange* range = &config.sbtRanges[i];
+        plFontRange* range = &config._sbtRanges[i];
 
         if(range->iFirstCodePoint + (int)range->uCharCount > maxCodePoint)
             maxCodePoint = range->iFirstCodePoint + (int)range->uCharCount;
@@ -2008,7 +2014,7 @@ pl_build_font_atlas(void)
         {
             plFontPrepData* prep = &font->_sbtPreps[j];
             if(!font->_sbtConfigs[j].bSdf)
-                stbtt_PackFontRangesRenderIntoRects(&spc, &prep->fontInfo, prep->ranges, pl_sb_size(font->_sbtConfigs[j].sbtRanges), prep->rects);
+                stbtt_PackFontRangesRenderIntoRects(&spc, &prep->fontInfo, prep->ranges, pl_sb_size(font->_sbtConfigs[j]._sbtRanges), prep->rects);
         }
     }
 
@@ -2200,14 +2206,13 @@ pl_cleanup_font_atlas(void)
     {
         plFont* font = &gptDrawCtx->tFontAtlas.sbtFonts[i];
 
-        for(uint32_t j = 0; j < pl_sb_size(font->_sbtConfigs); j++)
-        {
-            pl_sb_free(font->_sbtConfigs[j].sbtRanges);
-            pl_sb_free(font->_sbtConfigs[j].sbiIndividualChars);
-        }
         PL_FREE(font->_auCodePoints);
         pl_sb_free(font->sbtGlyphs);
         pl_sb_free(font->sbtRanges);
+        for(uint32_t j = 0; j < pl_sb_size(font->_sbtConfigs); j++)
+        {
+            pl_sb_free(font->_sbtConfigs[j]._sbtRanges);
+        }
         pl_sb_free(font->_sbtConfigs);
     }
 
@@ -4420,20 +4425,22 @@ pl_add_default_font(void)
 
     PL_FREE(ptrCompressedTTF);
 
+    static const plFontRange range = {
+        .iFirstCodePoint = 0x0020,
+        .uCharCount = 0x00FF - 0x0020
+    };
+
     plFontConfig fontConfig = {
         .bSdf = false,
         .fFontSize = 13.0f,
         .uHOverSampling = 1,
         .uVOverSampling = 1,
         .ucOnEdgeValue = 255,
-        .iSdfPadding = 1
+        .iSdfPadding = 1,
+        .ptRanges = &range,
+        .uRangeCount = 1
     };
     
-    plFontRange range = {
-        .iFirstCodePoint = 0x0020,
-        .uCharCount = 0x00FF - 0x0020
-    };
-    pl_sb_push(fontConfig.sbtRanges, range);
     return pl_add_font_from_memory_ttf(fontConfig, data);
 }
 

@@ -135,9 +135,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
         .bSdf = false,
         .fFontSize = 16.0f,
         .uHOverSampling = 1,
-        .uVOverSampling = 1
+        .uVOverSampling = 1,
+        .ptRanges = &tFontRange,
+        .uRangeCount = 1
     };
-    pl_sb_push(tFontConfig0.sbtRanges, tFontRange);
     // ptEditorData->tDefaultFont = gptDraw->add_default_font();
     ptEditorData->tDefaultFont = gptDraw->add_font_from_file_ttf(tFontConfig0, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
 
@@ -152,9 +153,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
         .uHOverSampling = 1,
         .uVOverSampling = 1,
         .bMergeFont     = true,
-        .tMergeFont     = ptEditorData->tDefaultFont
+        .tMergeFont     = ptEditorData->tDefaultFont,
+        .ptRanges       = &tIconRange,
+        .uRangeCount    = 1
     };
-    pl_sb_push(tFontConfig1.sbtRanges, tIconRange);
     gptDraw->add_font_from_file_ttf(tFontConfig1, "../data/pilotlight-assets-master/fonts/fa-solid-900.otf");
 
     gptDraw->build_font_atlas();

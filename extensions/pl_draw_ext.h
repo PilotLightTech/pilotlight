@@ -289,11 +289,13 @@ typedef struct _plFontRange
 
 typedef struct _plFontConfig
 {
-    float        fFontSize;
-    plFontRange* sbtRanges;
-    int*         sbiIndividualChars;
-    bool         bMergeFont;
-    plFontHandle tMergeFont;
+    float              fFontSize;
+    const plFontRange* ptRanges;
+    uint32_t           uRangeCount;
+    const int*         piIndividualChars;
+    uint32_t           uIndividualCharCount;
+    bool               bMergeFont;
+    plFontHandle       tMergeFont;
 
     // BITMAP
     uint32_t uVOverSampling;
@@ -305,6 +307,7 @@ typedef struct _plFontConfig
     unsigned char ucOnEdgeValue;
     
     // internal
+    plFontRange* _sbtRanges;
     plFontChar* _sbtCharData;
     float       _fSdfPixelDistScale;
 } plFontConfig;
@@ -314,13 +317,11 @@ typedef struct _plFont
     float        fSize;
     float        fLineSpacing;
 
-    plFontRange* sbtRanges;
-    
-    uint32_t     _uCodePointCount;
-    uint32_t*    _auCodePoints; // glyph index lookup based on codepoint
-    plFontGlyph* sbtGlyphs;     // glyphs
-    
     // internal
+    plFontRange*  sbtRanges;
+    uint32_t      _uCodePointCount;
+    uint32_t*     _auCodePoints; // glyph index lookup based on codepoint
+    plFontGlyph*  sbtGlyphs;     // glyphs
     plFontConfig* _sbtConfigs;
     struct _plFontPrepData* _sbtPreps;
 } plFont;
