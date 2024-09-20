@@ -754,8 +754,16 @@ int main(int argc, char *argv[])
 
     pl_app_shutdown(gpUserData);
     gptExtensionRegistry->unload_all();
+    pl_unload_core_apis();
 
+    #ifndef PL_HEADLESS_APP
     pl_sb_free(gsbtWindows);
+    #endif
+
+    if(gptAppLibrary)
+    {
+        PL_FREE(gptAppLibrary);
+    }
 
     gptMemory->check_for_leaks();
 }
