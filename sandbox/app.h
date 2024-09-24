@@ -58,6 +58,7 @@ static const plUiI*          gptUi                = NULL;
 static const plIOI*          gptIO                = NULL;
 static const plShaderI*      gptShader            = NULL;
 static const plMemoryI*      gptMemory            = NULL;
+static const plNetworkI*     gptNetwork           = NULL;
 
 #define PL_ALLOC(x)      gptMemory->realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->realloc((x), (y), __FILE__, __LINE__)

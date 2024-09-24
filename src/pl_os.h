@@ -10,6 +10,7 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] api structs
+// [SECTION] enums
 // [SECTION] structs
 */
 
@@ -30,11 +31,11 @@ typedef struct _plWindowI plWindowI;
 #define PL_API_LIBRARY "PL_API_LIBRARY"
 typedef struct _plLibraryI plLibraryI;
 
-#define PL_API_FILE "FILE API"
+#define PL_API_FILE "PL_API_FILE"
 typedef struct _plFileI plFileI;
 
-#define PL_API_UDP "UDP API"
-typedef struct _plUdpI plUdpI;
+#define PL_API_NETWORK "PL_API_NETWORK"
+typedef struct _plNetworkI plNetworkI;
 
 #define PL_API_THREADS "PL_API_THREADS"
 typedef struct _plThreadsI plThreadsI;
@@ -60,8 +61,10 @@ typedef struct _plVirtualMemoryI plVirtualMemoryI;
 // types
 typedef struct _plWindow            plWindow;
 typedef struct _plWindowDesc        plWindowDesc;
+typedef struct _plSocketReceiverInfo  plSocketReceiverInfo;
 typedef struct _plSharedLibrary     plSharedLibrary;     // opaque type (used by platform backends)
 typedef struct _plSocket            plSocket;            // opaque type (used by platform backends)
+typedef struct _plNetworkAddress    plNetworkAddress;    // opaque type (used by platform backends)
 typedef struct _plThread            plThread;            // opaque type (used by platform backends)
 typedef struct _plMutex             plMutex;             // opaque type (used by platform backends)
 typedef struct _plCriticalSection   plCriticalSection;   // opaque type (used by platform backends)
@@ -70,6 +73,11 @@ typedef struct _plBarrier           plBarrier;           // opaque type (used by
 typedef struct _plConditionVariable plConditionVariable; // opaque type (used by platform backends)
 typedef struct _plThreadKey         plThreadKey;         // opaque type (used by platform backends)
 typedef struct _plAtomicCounter     plAtomicCounter;     // opaque type (used by platform backends)
+
+// enums
+typedef int plNetworkAddressFlags; // -> enum _plNetworkAddressFlags // Flags:
+typedef int plSocketFlags;         // -> enum _plSocketFlags         // Flags:
+typedef int plOSResult;            // -> enum _plOSResult            // Enum:
 
 // forward declarations
 typedef void* (*plThreadProcedure)(void*);
@@ -103,16 +111,34 @@ typedef struct _plFileI
     void (*binary_read)(const char* pcFile, size_t* pszSize, uint8_t* puBuffer);
 
     // writing
-    void (*binary_write)(const char* pcFile, size_t szSize, uint8_t* puBuffer);
+    void (*binary_write)(const char* pcFile, size_t, uint8_t* puBuffer);
 } plFileI;
 
-typedef struct _plUdpI
+typedef struct _plNetworkI
 {
-    void (*create_socket)(plSocket** pptSocketOut, bool bNonBlocking);
-    void (*bind_socket)  (plSocket*, int iPort);
-    bool (*send_data)    (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
-    bool (*get_data)     (plSocket*, void* pData, size_t szSize);
-} plUdpI;
+
+    // addresses
+    plOSResult (*create_address) (const char* pcAddress, const char* pcService, plNetworkAddressFlags, plNetworkAddress** pptAddressOut);
+    void       (*destroy_address)(plNetworkAddress**);
+
+    // sockets: general
+    void       (*create_socket) (plSocketFlags, plSocket** pptSocketOut);
+    void       (*destroy_socket)(plSocket**);
+    plOSResult (*bind_socket)   (plSocket*, plNetworkAddress*);
+    
+    // sockets: udp usually
+    plOSResult (*send_socket_data_to) (plSocket*, plNetworkAddress*, const void* pData, size_t, size_t* pszSentSizeOut);
+    plOSResult (*get_socket_data_from)(plSocket*, void* pOutData, size_t, size_t* pszRecievedSize, plSocketReceiverInfo*);
+
+    // sockets: tcp usually
+    plOSResult (*select_sockets)  (plSocket** atSockets, bool* abSelectedSockets, uint32_t uSocketCount, uint32_t uTimeOutMilliSec);
+    plOSResult (*connect_socket)  (plSocket*, plNetworkAddress*);
+    plOSResult (*listen_socket)   (plSocket*);
+    plOSResult (*accept_socket)   (plSocket*, plSocket** pptSocketOut);
+    plOSResult (*get_socket_data) (plSocket*, void* pOutData, size_t, size_t* pszRecievedSize);
+    plOSResult (*send_socket_data)(plSocket*, void* pData, size_t, size_t* pszSentSizeOut);
+
+} plNetworkI;
 
 typedef struct _plThreadsI
 {
@@ -198,8 +224,38 @@ typedef struct _plVirtualMemoryI
 } plVirtualMemoryI;
 
 //-----------------------------------------------------------------------------
+// [SECTION] enums
+//-----------------------------------------------------------------------------
+
+enum _plNetworkAddressFlags
+{
+    PL_NETWORK_ADDRESS_FLAGS_NONE = 0,
+    PL_NETWORK_ADDRESS_FLAGS_IPV4 = 1 << 0,
+    PL_NETWORK_ADDRESS_FLAGS_IPV6 = 1 << 1,
+    PL_NETWORK_ADDRESS_FLAGS_UDP  = 1 << 2,
+    PL_NETWORK_ADDRESS_FLAGS_TCP  = 1 << 3,
+};
+
+enum _plSocketFlags
+{
+    PL_SOCKET_FLAGS_NONE         = 0,
+    PL_SOCKET_FLAGS_NON_BLOCKING = 1 << 0,
+};
+
+enum _plOSResult
+{
+    PL_OS_RESULT_SUCCESS = 0
+};
+
+//-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plSocketReceiverInfo
+{
+    char acAddressBuffer[100];
+    char acServiceBuffer[100];
+} plSocketReceiverInfo;
 
 typedef struct _plWindowDesc
 {

@@ -22,7 +22,7 @@ Index of this file:
 // [SECTION] plNSView
 // [SECTION] plNSViewController
 // [SECTION] file api
-// [SECTION] udp api
+// [SECTION] network api
 // [SECTION] library api
 // [SECTION] thread api
 // [SECTION] atomic api
@@ -56,6 +56,7 @@ Index of this file:
 #include <sys/socket.h> // sockets
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netdb.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -85,11 +86,20 @@ void pl_binary_read_file (const char* pcFile, size_t* pszSize, uint8_t* pcBuffer
 void pl_copy_file        (const char* pcSource, const char* pcDestination);
 void pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer);
 
-// udp api
-void pl_create_udp_socket(plSocket** pptSocketOut, bool bNonBlocking);
-void pl_bind_udp_socket  (plSocket*, int iPort);
-bool pl_send_udp_data    (plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize);
-bool pl_get_udp_data     (plSocket*, void* pData, size_t);
+// network api
+plOSResult pl_create_address      (const char* pcAddress, const char* pcService, plNetworkAddressFlags, plNetworkAddress** pptAddressOut);
+void       pl_destroy_address     (plNetworkAddress**);
+void       pl_create_socket       (plSocketFlags, plSocket** pptSocketOut);
+void       pl_destroy_socket      (plSocket**);
+plOSResult pl_bind_socket         (plSocket*, plNetworkAddress*);
+plOSResult pl_select_sockets      (plSocket** ptSockets, bool* abSelectedSockets, uint32_t uSocketCount, uint32_t uTimeOutMilliSec);
+plOSResult pl_send_socket_data_to (plSocket*, plNetworkAddress*, const void* pData, size_t, size_t* pszSentSizeOut);
+plOSResult pl_get_socket_data_from(plSocket*, void* pOutData, size_t, size_t* pszRecievedSize, plSocketReceiverInfo*);
+plOSResult pl_connect_socket      (plSocket* ptFromSocket, plNetworkAddress* ptAddress);
+plOSResult pl_send_socket_data    (plSocket* ptSocket, void* pData, size_t szSize, size_t* pszSentSizeOut);
+plOSResult pl_get_socket_data     (plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRecievedSize);
+plOSResult pl_accept_socket       (plSocket* ptSocket, plSocket** pptSocketOut);
+plOSResult pl_listen_socket       (plSocket* ptSocket);
 
 // library api
 bool  pl_has_library_changed  (plSharedLibrary*);
@@ -245,10 +255,17 @@ typedef struct _plWindowData
 } plWindowData;
 #endif
 
+typedef struct _plNetworkAddress
+{
+    struct addrinfo* tInfo;
+} plNetworkAddress;
+
+#define SOCKET int
 typedef struct _plSocket
 {
-    int iPort;
-    int iSocket;
+    SOCKET        tSocket;
+    bool          bInitialized;
+    plSocketFlags tFlags;
 } plSocket;
 
 typedef struct _plThread
@@ -421,11 +438,20 @@ int main(int argc, char *argv[])
         .binary_write = pl_binary_write_file
     };
     
-    static const plUdpI tUdpApi = {
-        .create_socket = pl_create_udp_socket,
-        .bind_socket   = pl_bind_udp_socket,  
-        .get_data      = pl_get_udp_data,
-        .send_data     = pl_send_udp_data
+    static const plNetworkI tNetworkApi = {
+        .create_address       = pl_create_address,
+        .destroy_address      = pl_destroy_address,
+        .create_socket        = pl_create_socket,
+        .destroy_socket       = pl_destroy_socket,
+        .bind_socket          = pl_bind_socket,
+        .send_socket_data_to  = pl_send_socket_data_to,
+        .get_socket_data_from = pl_get_socket_data_from,
+        .connect_socket       = pl_connect_socket,
+        .get_socket_data      = pl_get_socket_data,
+        .listen_socket        = pl_listen_socket,
+        .select_sockets       = pl_select_sockets,
+        .accept_socket        = pl_accept_socket,
+        .send_socket_data     = pl_send_socket_data,
     };
 
     static const plThreadsI tThreadApi = {
@@ -488,7 +514,7 @@ int main(int argc, char *argv[])
     #endif
     gptApiRegistry->add(PL_API_LIBRARY, &tLibraryApi);
     gptApiRegistry->add(PL_API_FILE, &tFileApi);
-    gptApiRegistry->add(PL_API_UDP, &tUdpApi);
+    gptApiRegistry->add(PL_API_NETWORK, &tNetworkApi);
     gptApiRegistry->add(PL_API_THREADS, &tThreadApi);
     gptApiRegistry->add(PL_API_ATOMICS, &tAtomicsApi);
     gptApiRegistry->add(PL_API_VIRTUAL_MEMORY, &tVirtualMemoryApi);
@@ -1255,88 +1281,295 @@ pl_file_exists(const char* pcFile)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] udp api
+// [SECTION] network api
 //-----------------------------------------------------------------------------
 
+plOSResult
+pl_create_address(const char* pcAddress, const char* pcService, plNetworkAddressFlags tFlags, plNetworkAddress** pptAddress)
+{
+    
+    struct addrinfo tHints;
+    memset(&tHints, 0, sizeof(tHints));
+    tHints.ai_socktype = SOCK_DGRAM;
+
+    if(tFlags & PL_NETWORK_ADDRESS_FLAGS_TCP)
+        tHints.ai_socktype = SOCK_STREAM;
+
+    if(pcAddress == NULL)
+        tHints.ai_flags = AI_PASSIVE;
+
+    if(tFlags & PL_NETWORK_ADDRESS_FLAGS_IPV4)
+        tHints.ai_family = AF_INET;
+    else if(tFlags & PL_NETWORK_ADDRESS_FLAGS_IPV6)
+        tHints.ai_family = AF_INET6;
+
+    struct addrinfo* tInfo = NULL;
+    if(getaddrinfo(pcAddress, pcService, &tHints, &tInfo))
+    {
+        printf("Could not create address : %d\n", errno);
+        return -1;
+    }
+
+    *pptAddress = PL_ALLOC(sizeof(plNetworkAddress));
+    (*pptAddress)->tInfo = tInfo;
+    return PL_OS_RESULT_SUCCESS;
+}
+
 void
-pl_create_udp_socket(plSocket** pptSocketOut, bool bNonBlocking)
+pl_destroy_address(plNetworkAddress** pptAddress)
+{
+    plNetworkAddress* ptAddress = *pptAddress;
+    if(ptAddress == NULL)
+        return;
+
+    freeaddrinfo(ptAddress->tInfo);
+    PL_FREE(ptAddress);
+    *pptAddress = NULL;
+}
+
+void
+pl_create_socket(plSocketFlags tFlags, plSocket** pptSocketOut)
 {
     *pptSocketOut = PL_ALLOC(sizeof(plSocket));
-
-    // create socket
-    if(((*pptSocketOut)->iSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-    {
-        printf("Could not create socket\n");
-        PL_ASSERT(false && "Could not create socket");
-    }
-
-    // enable non-blocking
-    if(bNonBlocking)
-    {
-        int iFlags = fcntl((*pptSocketOut)->iSocket, F_GETFL);
-        fcntl((*pptSocketOut)->iSocket, F_SETFL, iFlags | O_NONBLOCK);
-    }
+    plSocket* ptSocket = *pptSocketOut;
+    ptSocket->bInitialized = false;
+    ptSocket->tFlags = tFlags;
 }
 
 void
-pl_bind_udp_socket(plSocket* ptSocket, int iPort)
+pl_destroy_socket(plSocket** pptSocket)
 {
-    ptSocket->iPort = iPort;
-    
-    // prepare sockaddr_in struct
-    struct sockaddr_in tServer = {
-        .sin_family      = AF_INET,
-        .sin_port        = htons((uint16_t)iPort),
-        .sin_addr.s_addr = INADDR_ANY
-    };
+    plSocket* ptSocket = *pptSocket;
 
-    // bind socket
-    if(bind(ptSocket->iSocket, (struct sockaddr* )&tServer, sizeof(tServer)) < 0)
-    {
-        printf("Bind socket failed with error code : %d\n", errno);
-        PL_ASSERT(false && "Socket error");
-    }
+    if(ptSocket == NULL)
+        return;
+
+    close(ptSocket->tSocket);
+
+    PL_FREE(ptSocket);
+    *pptSocket = NULL;
 }
 
-bool
-pl_send_udp_data(plSocket* ptFromSocket, const char* pcDestIP, int iDestPort, void* pData, size_t szSize)
+plOSResult
+pl_send_socket_data_to(plSocket* ptFromSocket, plNetworkAddress* ptAddress, const void* pData, size_t szSize, size_t* pszSentSize)
 {
-    struct sockaddr_in tDestSocket = {
-        .sin_family      = AF_INET,
-        .sin_port        = htons((uint16_t)iDestPort),
-        .sin_addr.s_addr = inet_addr(pcDestIP)
-    };
-    static const size_t szLen = sizeof(tDestSocket);
+
+    if(!ptFromSocket->bInitialized)
+    {
+        
+        ptFromSocket->tSocket = socket(ptAddress->tInfo->ai_family, ptAddress->tInfo->ai_socktype, ptAddress->tInfo->ai_protocol);
+
+        if(ptFromSocket->tSocket < 0) // invalid socket
+        {
+            printf("Could not create socket : %d\n", errno);
+            return 0;
+        }
+
+        // enable non-blocking
+        if(ptFromSocket->tFlags & PL_SOCKET_FLAGS_NON_BLOCKING)
+        {
+            int iFlags = fcntl(ptFromSocket->tSocket, F_GETFL);
+            fcntl(ptFromSocket->tSocket, F_SETFL, iFlags | O_NONBLOCK);
+        }
+
+        ptFromSocket->bInitialized = true;
+    }
 
     // send
-    if(sendto(ptFromSocket->iSocket, (const char*)pData, (int)szSize, 0, (struct sockaddr*)&tDestSocket, (int)szLen) < 0)
-    {
-        printf("sendto() failed with error code : %d\n", errno);
-        PL_ASSERT(false && "Socket error");
-        return false;
-    }
+    int iResult = sendto(ptFromSocket->tSocket, (const char*)pData, (int)szSize, 0, ptAddress->tInfo->ai_addr, (int)ptAddress->tInfo->ai_addrlen);
 
-    return true;
+    if(pszSentSize)
+        *pszSentSize = (size_t)iResult;
+    return PL_OS_RESULT_SUCCESS;
 }
 
-bool
-pl_get_udp_data(plSocket* ptSocket, void* pData, size_t szSize)
+plOSResult
+pl_bind_socket(plSocket* ptSocket, plNetworkAddress* ptAddress)
 {
-    struct sockaddr_in tSiOther = {0};
-    static socklen_t iSLen = (int)sizeof(tSiOther);
-    memset(pData, 0, szSize);
-    int iRecvLen = recvfrom(ptSocket->iSocket, (char*)pData, (int)szSize, 0, (struct sockaddr*)&tSiOther, &iSLen);
+    if(!ptSocket->bInitialized)
+    {
+        
+        ptSocket->tSocket = socket(ptAddress->tInfo->ai_family, ptAddress->tInfo->ai_socktype, ptAddress->tInfo->ai_protocol);
 
-    if(iRecvLen < 0)
+        if(ptSocket->tSocket < 0)
+        {
+            printf("Could not create socket : %d\n", errno);
+            return -1;
+        }
+
+        // enable non-blocking
+        if(ptSocket->tFlags & PL_SOCKET_FLAGS_NON_BLOCKING)
+        {
+            int iFlags = fcntl(ptSocket->tSocket, F_GETFL);
+            fcntl(ptSocket->tSocket, F_SETFL, iFlags | O_NONBLOCK);
+        }
+
+        ptSocket->bInitialized = true;
+    }
+
+    // bind socket
+    if(bind(ptSocket->tSocket, ptAddress->tInfo->ai_addr, (int)ptAddress->tInfo->ai_addrlen))
+    {
+        printf("Bind socket failed with error code : %d\n", errno);
+        return -1;
+    }
+    return PL_OS_RESULT_SUCCESS;
+}
+
+plOSResult
+pl_get_socket_data_from(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRecievedSize, plSocketReceiverInfo* ptReceiverInfo)
+{
+    struct sockaddr_storage tClientAddress = {0};
+    socklen_t tClientLen = sizeof(tClientAddress);
+
+    int iRecvLen = recvfrom(ptSocket->tSocket, (char*)pData, (int)szSize, 0, (struct sockaddr*)&tClientAddress, &tClientLen);
+   
+
+    if(iRecvLen == -1)
     {
         if(errno != EWOULDBLOCK)
         {
             printf("recvfrom() failed with error code : %d\n", errno);
-            PL_ASSERT(false && "Socket error");
-            return false;
+            return -1;
         }
     }
-    return iRecvLen > 0;
+
+    if(iRecvLen > 0)
+    {
+        if(ptReceiverInfo)
+        {
+            getnameinfo((struct sockaddr*)&tClientAddress, tClientLen,
+                ptReceiverInfo->acAddressBuffer, 100,
+                ptReceiverInfo->acServiceBuffer, 100,
+                NI_NUMERICHOST | NI_NUMERICSERV);
+        }
+        if(pszRecievedSize)
+            *pszRecievedSize = (size_t)iRecvLen;
+    }
+
+    return PL_OS_RESULT_SUCCESS;
+}
+
+plOSResult
+pl_connect_socket(plSocket* ptFromSocket, plNetworkAddress* ptAddress)
+{
+
+    if(!ptFromSocket->bInitialized)
+    {
+        
+        ptFromSocket->tSocket = socket(ptAddress->tInfo->ai_family, ptAddress->tInfo->ai_socktype, ptAddress->tInfo->ai_protocol);
+
+        if(ptFromSocket->tSocket < 0)
+        {
+            printf("Could not create socket : %d\n", errno);
+            return -1;
+        }
+
+        // enable non-blocking
+        if(ptFromSocket->tFlags & PL_SOCKET_FLAGS_NON_BLOCKING)
+        {
+            int iFlags = fcntl(ptFromSocket->tSocket, F_GETFL);
+            fcntl(ptFromSocket->tSocket, F_SETFL, iFlags | O_NONBLOCK);
+        }
+
+        ptFromSocket->bInitialized = true;
+    }
+
+    // send
+    int iResult = connect(ptFromSocket->tSocket, ptAddress->tInfo->ai_addr, (int)ptAddress->tInfo->ai_addrlen);
+    if(iResult)
+    {
+        printf("connect() failed with error code : %d\n", errno);
+        return -1;
+    }
+
+    return PL_OS_RESULT_SUCCESS;
+}
+
+plOSResult
+pl_get_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRecievedSize)
+{
+    int iBytesReceived = recv(ptSocket->tSocket, (char*)pData, (int)szSize, 0);
+    if(iBytesReceived < 1)
+    {
+        return -1; // connection closed by peer
+    }
+    if(pszRecievedSize)
+        *pszRecievedSize = (size_t)iBytesReceived;
+    return PL_OS_RESULT_SUCCESS;
+}
+
+plOSResult
+pl_select_sockets(plSocket** ptSockets, bool* abSelectedSockets, uint32_t uSocketCount, uint32_t uTimeOutMilliSec)
+{
+    SOCKET tMaxSocket = 0;
+    fd_set tReads;
+    FD_ZERO(&tReads);
+    for(uint32_t i = 0; i < uSocketCount; i++)
+    {
+        FD_SET(ptSockets[i]->tSocket, &tReads);
+        if(ptSockets[i]->tSocket > tMaxSocket)
+            tMaxSocket = ptSockets[i]->tSocket;
+    }
+
+    struct timeval tTimeout = {0};
+    tTimeout.tv_sec = 0;
+    tTimeout.tv_usec = (int)uTimeOutMilliSec * 1000;
+
+    if(select(tMaxSocket + 1, &tReads, NULL, NULL, &tTimeout) < 0)
+    {
+        printf("select socket failed with error code : %d\n", errno);
+        return -1;
+    }
+
+    for(uint32_t i = 0; i < uSocketCount; i++)
+    {
+        if(FD_ISSET(ptSockets[i]->tSocket, &tReads))
+            abSelectedSockets[i] = true;
+        else
+            abSelectedSockets[i] = false;
+    }
+    return PL_OS_RESULT_SUCCESS;
+}
+
+plOSResult
+pl_accept_socket(plSocket* ptSocket, plSocket** pptSocketOut)
+{
+    *pptSocketOut = NULL; 
+    struct sockaddr_storage tClientAddress = {0};
+    socklen_t tClientLen = sizeof(tClientAddress);
+    SOCKET tSocketClient = accept(ptSocket->tSocket, (struct sockaddr*)&tClientAddress, &tClientLen);
+
+    if(tSocketClient < 1)
+        return -1;
+
+    *pptSocketOut = PL_ALLOC(sizeof(plSocket));
+    plSocket* ptNewSocket = *pptSocketOut;
+    ptNewSocket->bInitialized = true;
+    ptNewSocket->tFlags = ptSocket->tFlags;
+    ptNewSocket->tSocket = tSocketClient;
+    return PL_OS_RESULT_SUCCESS;
+}
+
+plOSResult
+pl_listen_socket(plSocket* ptSocket)
+{
+    if(listen(ptSocket->tSocket, 10) < 0)
+    {
+        return -1;
+    }
+    return PL_OS_RESULT_SUCCESS;
+}
+
+plOSResult
+pl_send_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszSentSize)
+{
+    int iResult = send(ptSocket->tSocket, (char*)pData, (int)szSize, 0);
+    if(iResult == -1)
+        return -1;
+    if(pszSentSize)
+        *pszSentSize = (size_t)iResult;
+    return PL_OS_RESULT_SUCCESS;
 }
 
 //-----------------------------------------------------------------------------

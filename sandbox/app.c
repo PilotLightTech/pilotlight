@@ -52,6 +52,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
         gptIO          = ptApiRegistry->first(PL_API_IO);
         gptShader      = ptApiRegistry->first(PL_API_SHADER);
         gptMemory      = ptApiRegistry->first(PL_API_MEMORY);
+        gptNetwork     = ptApiRegistry->first(PL_API_NETWORK);
 
         return ptEditorData;
     }
@@ -83,6 +84,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     gptIO          = ptApiRegistry->first(PL_API_IO);
     gptShader      = ptApiRegistry->first(PL_API_SHADER);
     gptMemory      = ptApiRegistry->first(PL_API_MEMORY);
+    gptNetwork     = ptApiRegistry->first(PL_API_NETWORK);
     
     // add some context to data registry
     ptEditorData = PL_ALLOC(sizeof(plEditorData));
