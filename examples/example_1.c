@@ -111,7 +111,7 @@ pl_app_resize(plAppData* ptAppData)
 {
     // perform any operations required during a window resize
     plIO* ptIO = gptIO->get_io();
-    printf("resize to %d, %d\n", (int)ptIO->afMainViewportSize[0], (int)ptIO->afMainViewportSize[1]);
+    printf("resize to %d, %d\n", (int)ptIO->tMainViewportSize.x, (int)ptIO->tMainViewportSize.y);
 }
 
 //-----------------------------------------------------------------------------

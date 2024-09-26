@@ -1981,7 +1981,7 @@ pl_create_main_render_pass(plSwapchain* ptSwap)
 
     plRenderPass tRenderPass = {
         .tDesc = {
-            .tDimensions = {gptIOI->get_io()->afMainViewportSize[0], gptIOI->get_io()->afMainViewportSize[1]},
+            .tDimensions = gptIOI->get_io()->tMainViewportSize,
             .tLayout = ptDevice->tMainRenderPassLayout,
             .ptSwapchain = ptSwap
         },
@@ -2054,8 +2054,8 @@ pl_create_main_render_pass(plSwapchain* ptSwap)
             .renderPass      = ptVulkanRenderPass->tRenderPass,
             .attachmentCount = 1,
             .pAttachments    = &ptDevice->sbtTexturesHot[ptSwap->sbtSwapchainTextureViews[i].uIndex].tImageView,
-            .width           = (uint32_t)gptIOI->get_io()->afMainViewportSize[0],
-            .height          = (uint32_t)gptIOI->get_io()->afMainViewportSize[1],
+            .width           = (uint32_t)gptIOI->get_io()->tMainViewportSize.x,
+            .height          = (uint32_t)gptIOI->get_io()->tMainViewportSize.y,
             .layers          = 1u,
         };
         PL_VULKAN(vkCreateFramebuffer(ptDevice->tLogicalDevice, &tFrameBufferInfo, NULL, &ptVulkanRenderPass->atFrameBuffers[i]));
@@ -3518,7 +3518,7 @@ pl_create_swapchain(plDevice* ptDevice, const plSwapchainInit* ptInit)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~swapchain~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     plIO* ptIOCtx = gptIOI->get_io();
-    pl__create_swapchain((uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], ptSwap);
+    pl__create_swapchain((uint32_t)ptIOCtx->tMainViewportSize.x, (uint32_t)ptIOCtx->tMainViewportSize.y, ptSwap);
 
     pl_create_main_render_pass_layout(ptSwap);
     pl_create_main_render_pass(ptSwap);
@@ -3547,7 +3547,7 @@ pl_begin_frame(plSwapchain* ptSwap)
     {
         if(err == VK_ERROR_OUT_OF_DATE_KHR)
         {
-            pl__create_swapchain((uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], ptSwap);
+            pl__create_swapchain((uint32_t)ptIOCtx->tMainViewportSize.x, (uint32_t)ptIOCtx->tMainViewportSize.y, ptSwap);
             pl_end_profile_sample();
             return false;
         }
@@ -3661,7 +3661,7 @@ pl_present(plCommandBufferHandle tHandle, const plSubmitInfo* ptSubmitInfo, plSw
     const VkResult tResult = vkQueuePresentKHR(ptDevice->tPresentQueue, &tPresentInfo);
     if(tResult == VK_SUBOPTIMAL_KHR || tResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        pl__create_swapchain((uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], ptSwap);
+        pl__create_swapchain((uint32_t)ptIOCtx->tMainViewportSize.x, (uint32_t)ptIOCtx->tMainViewportSize.y, ptSwap);
         pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
         pl__return_command_buffer_handle(tHandle);
         pl_end_profile_sample();
@@ -3685,13 +3685,12 @@ pl_resize(plSwapchain* ptSwap)
     plIO* ptIOCtx = gptIOI->get_io();
     plDevice* ptDevice = ptSwap->ptDevice;
 
-    pl__create_swapchain((uint32_t)ptIOCtx->afMainViewportSize[0], (uint32_t)ptIOCtx->afMainViewportSize[1], ptSwap);
+    pl__create_swapchain((uint32_t)ptIOCtx->tMainViewportSize.x, (uint32_t)ptIOCtx->tMainViewportSize.y, ptSwap);
 
     plRenderPass* ptRenderPass = &ptDevice->sbtRenderPassesCold[ptDevice->tMainRenderPass.uIndex];
     plVulkanRenderPass* ptVulkanRenderPass = &ptDevice->sbtRenderPassesHot[ptDevice->tMainRenderPass.uIndex];
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
-    ptRenderPass->tDesc.tDimensions.x = ptIOCtx->afMainViewportSize[0];
-    ptRenderPass->tDesc.tDimensions.y = ptIOCtx->afMainViewportSize[1];
+    ptRenderPass->tDesc.tDimensions = ptIOCtx->tMainViewportSize;
 
     for(uint32_t i = 0; i < ptSwap->uImageCount; i++)
     {
@@ -3701,8 +3700,8 @@ pl_resize(plSwapchain* ptSwap)
             .renderPass      = ptVulkanRenderPass->tRenderPass,
             .attachmentCount = 1,
             .pAttachments    = &ptDevice->sbtTexturesHot[ptSwap->sbtSwapchainTextureViews[i].uIndex].tImageView,
-            .width           = (uint32_t)ptIOCtx->afMainViewportSize[0],
-            .height          = (uint32_t)ptIOCtx->afMainViewportSize[1],
+            .width           = (uint32_t)ptIOCtx->tMainViewportSize.x,
+            .height          = (uint32_t)ptIOCtx->tMainViewportSize.y,
             .layers          = 1u,
         };
         pl_sb_push(ptFrame->sbtRawFrameBuffers, ptVulkanRenderPass->atFrameBuffers[i]);

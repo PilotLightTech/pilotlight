@@ -255,19 +255,19 @@ pl_end_frame(void)
     if(gptCtx->ptMovingWindow && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 2.0f) && !(gptCtx->ptMovingWindow->tFlags & PL_UI_WINDOW_FLAGS_NO_MOVE))
     {
 
-        if(tMousePos.x > 0.0f && tMousePos.x < gptIO->afMainViewportSize[0])
+        if(tMousePos.x > 0.0f && tMousePos.x < gptIO->tMainViewportSize.x)
             gptCtx->ptMovingWindow->tPos.x = gptCtx->ptMovingWindow->tPos.x + gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 2.0f).x;
 
-        if(tMousePos.y > 0.0f && tMousePos.y < gptIO->afMainViewportSize[1])
+        if(tMousePos.y > 0.0f && tMousePos.y < gptIO->tMainViewportSize.y)
             gptCtx->ptMovingWindow->tPos.y = gptCtx->ptMovingWindow->tPos.y + gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 2.0f).y;  
 
         // clamp x
         gptCtx->ptMovingWindow->tPos.x = pl_maxf(gptCtx->ptMovingWindow->tPos.x, -gptCtx->ptMovingWindow->tSize.x / 2.0f);   
-        gptCtx->ptMovingWindow->tPos.x = pl_minf(gptCtx->ptMovingWindow->tPos.x, gptIO->afMainViewportSize[0] - gptCtx->ptMovingWindow->tSize.x / 2.0f);
+        gptCtx->ptMovingWindow->tPos.x = pl_minf(gptCtx->ptMovingWindow->tPos.x, gptIO->tMainViewportSize.x - gptCtx->ptMovingWindow->tSize.x / 2.0f);
 
         // clamp y
         gptCtx->ptMovingWindow->tPos.y = pl_maxf(gptCtx->ptMovingWindow->tPos.y, 0.0f);   
-        gptCtx->ptMovingWindow->tPos.y = pl_minf(gptCtx->ptMovingWindow->tPos.y, gptIO->afMainViewportSize[1] - 50.0f);
+        gptCtx->ptMovingWindow->tPos.y = pl_minf(gptCtx->ptMovingWindow->tPos.y, gptIO->tMainViewportSize.y - 50.0f);
 
         gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
     }
@@ -1477,12 +1477,12 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     // adjust window position if outside viewport
     if((ptWindow->tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW) == 0)
     {
-        if(ptWindow->tPos.x > gptIO->afMainViewportSize[0])
-            ptWindow->tPos.x = gptIO->afMainViewportSize[0] - ptWindow->tSize.x / 2.0f;
+        if(ptWindow->tPos.x > gptIO->tMainViewportSize.x)
+            ptWindow->tPos.x = gptIO->tMainViewportSize.x - ptWindow->tSize.x / 2.0f;
 
-        if(ptWindow->tPos.y > gptIO->afMainViewportSize[1])
+        if(ptWindow->tPos.y > gptIO->tMainViewportSize.y)
         {
-            ptWindow->tPos.y = gptIO->afMainViewportSize[1] - ptWindow->tSize.y / 2.0f;
+            ptWindow->tPos.y = gptIO->tMainViewportSize.y - ptWindow->tSize.y / 2.0f;
             ptWindow->tPos.y = pl_maxf(ptWindow->tPos.y, 0.0f);
         }
     }

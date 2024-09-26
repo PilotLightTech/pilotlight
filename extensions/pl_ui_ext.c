@@ -20,6 +20,7 @@ pl_load_ui_api(void)
         .new_frame                     = pl_new_frame,
         .end_frame                     = pl_end_frame,
         .wants_keyboard_capture        = pl_wants_keyboard_capture,
+        .wants_text_input              = pl_wants_text_input,
         .wants_mouse_capture           = pl_wants_mouse_capture,
         .render                        = pl_render,
         .show_debug_window             = pl_show_debug_window,

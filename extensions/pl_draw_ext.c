@@ -2473,7 +2473,7 @@ pl__submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoderHandle tEncoder,
 
     const plPipelineEntry* ptEntry = pl__get_2d_pipeline(gptGfx->get_encoder_render_pass(tEncoder), uMSAASampleCount, gptGfx->get_render_encoder_subpass(tEncoder));
 
-   const plVec2 tClipScale = {gptIOI->get_io()->afMainFramebufferScale[0], gptIOI->get_io()->afMainFramebufferScale[0]};
+//    const plVec2 tClipScale = gptIOI->get_io()->tMainFramebufferScale;
     
     // const plVec2 tClipScale = {1.0f, 1.0f};
     // const plVec2 tClipScale = ptCtx->tFrameBufferScale;

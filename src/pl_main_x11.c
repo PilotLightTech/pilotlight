@@ -872,10 +872,10 @@ pl__linux_procedure(xcb_generic_event_t* event)
 
             // Fire the event. The application layer should pick this up, but not handle it
             // as it shouldn be visible to other parts of the application.
-            if(configure_event->width != gptIOCtx->afMainViewportSize[0] || configure_event->height != gptIOCtx->afMainViewportSize[1])
+            if(configure_event->width != gptIOCtx->tMainViewportSize.x || configure_event->height != gptIOCtx->tMainViewportSize.y)
             {
-                gptIOCtx->afMainViewportSize[0] = configure_event->width;
-                gptIOCtx->afMainViewportSize[1] = configure_event->height;
+                gptIOCtx->tMainViewportSize.x = configure_event->width;
+                gptIOCtx->tMainViewportSize.y = configure_event->height;
                 gptIOCtx->bViewportSizeChanged = true;
                 gsbtWindows[0]->tDesc.uWidth = configure_event->width;
                 gsbtWindows[0]->tDesc.uHeight = configure_event->height;

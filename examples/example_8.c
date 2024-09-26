@@ -447,8 +447,8 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bResize)
     {
         plDevice* ptDevice = ptAppData->ptDevice;
-        ptAppData->tOffscreenSize.x = ptIO->afMainViewportSize[0];
-        ptAppData->tOffscreenSize.y = ptIO->afMainViewportSize[1];
+        ptAppData->tOffscreenSize.x = ptIO->tMainViewportSize.x;
+        ptAppData->tOffscreenSize.y = ptIO->tMainViewportSize.y;
         resize_offscreen_resources(ptAppData);
         ptAppData->bResize = false;
     }
@@ -487,7 +487,7 @@ pl_app_update(plAppData* ptAppData)
     camera_update(ptCamera);
 
     // add full screen quad for offscreen render
-    gptDraw->add_image(ptAppData->ptFGLayer, ptAppData->atColorTexture[uCurrentFrameIndex], (plVec2){0}, (plVec2){ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1]});
+    gptDraw->add_image(ptAppData->ptFGLayer, ptAppData->atColorTexture[uCurrentFrameIndex], (plVec2){0}, ptIO->tMainViewportSize);
 
     // 3d drawing API usage
     const plMat4 tOrigin = pl_identity_mat4();
@@ -562,7 +562,7 @@ pl_app_update(plAppData* ptAppData)
     plRenderEncoderHandle tEncoder1 = gptGfx->begin_render_pass(tCommandBuffer1, gptGfx->get_main_render_pass(ptAppData->ptDevice));
 
     // submit drawlists
-    gptDraw->submit_2d_drawlist(ptAppData->ptAppDrawlist, tEncoder1, ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1], 1);
+    gptDraw->submit_2d_drawlist(ptAppData->ptAppDrawlist, tEncoder1, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
 
     // end render pass
     gptGfx->end_render_pass(tEncoder1);
@@ -666,7 +666,7 @@ resize_offscreen_resources(plAppData* ptAppData)
     plDevice* ptDevice = ptAppData->ptDevice;
 
     plIO* ptIO = gptIO->get_io();
-    ptAppData->tCamera.fAspectRatio = ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1];
+    ptAppData->tCamera.fAspectRatio = ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y;
 
     const plTextureDesc tColorTextureDesc = {
         .tDimensions   = {ptAppData->tOffscreenSize.x, ptAppData->tOffscreenSize.y, 1},

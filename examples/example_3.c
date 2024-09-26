@@ -333,7 +333,7 @@ pl_app_update(plAppData* ptAppData)
 
     // submits UI drawlist/layers
     plIO* ptIO = gptIO->get_io();
-    gptUi->render(tEncoder, ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1], 1);
+    gptUi->render(tEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
 
     // end render pass
     gptGfx->end_render_pass(tEncoder);

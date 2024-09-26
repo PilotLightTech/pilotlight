@@ -174,7 +174,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     pl_end_profile_sample();
 
     pl_begin_profile_sample("create scene views");
-    ptEditorData->uViewHandle0 = gptRenderer->create_view(ptEditorData->uSceneHandle0, (plVec2){ptIO->afMainViewportSize[0] , ptIO->afMainViewportSize[1]});
+    ptEditorData->uViewHandle0 = gptRenderer->create_view(ptEditorData->uSceneHandle0, ptIO->tMainViewportSize);
     pl_end_profile_sample();
 
     // temporary draw layer for submitting fullscreen quad of offscreen render
@@ -184,14 +184,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     // create main camera
     plCameraComponent* ptMainCamera = NULL;
-    ptEditorData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-9.6f, 2.096f, 0.86f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.1f, 48.0f, &ptMainCamera);
+    ptEditorData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-9.6f, 2.096f, 0.86f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, -0.245f, 1.816f);
     gptCamera->update(ptMainCamera);
     gptEcs->attach_script(ptMainComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING, ptEditorData->tMainCamera, NULL);
 
     // create cull camera
     plCameraComponent* ptCullCamera = NULL;
-    ptEditorData->tCullCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "cull camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1], 0.1f, 25.0f, &ptCullCamera);
+    ptEditorData->tCullCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "cull camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 25.0f, &ptCullCamera);
     gptCamera->set_pitch_yaw(ptCullCamera, 0.0f, PL_PI);
     gptCamera->update(ptCullCamera);
 
@@ -275,7 +275,7 @@ pl_app_resize(plEditorData* ptEditorData)
 {
     gptGfx->resize(ptEditorData->ptSwap);
     plIO* ptIO = gptIO->get_io();
-    gptCamera->set_aspect(gptEcs->get_component(gptRenderer->get_component_library(ptEditorData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptEditorData->tMainCamera), ptIO->afMainViewportSize[0] / ptIO->afMainViewportSize[1]);
+    gptCamera->set_aspect(gptEcs->get_component(gptRenderer->get_component_library(ptEditorData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptEditorData->tMainCamera), ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);
     ptEditorData->bResize = true;
 }
 
@@ -298,7 +298,7 @@ pl_app_update(plEditorData* ptEditorData)
     if(ptEditorData->bResize || ptEditorData->bAlwaysResize)
     {
         // gptOS->sleep(32);
-        gptRenderer->resize_view(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0, (plVec2){ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1]});
+        gptRenderer->resize_view(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0, ptIO->tMainViewportSize);
         ptEditorData->bResize = false;
     }
 
@@ -463,7 +463,7 @@ pl_app_update(plEditorData* ptEditorData)
         gptUi->show_debug_window(&ptEditorData->bShowUiDebug);
 
     // add full screen quad for offscreen render
-    gptDraw->add_image(ptEditorData->ptDrawLayer, gptRenderer->get_view_color_texture(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0), (plVec2){0}, (plVec2){ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1]});
+    gptDraw->add_image(ptEditorData->ptDrawLayer, gptRenderer->get_view_color_texture(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0), (plVec2){0}, ptIO->tMainViewportSize);
 
     gptDraw->submit_2d_layer(ptEditorData->ptDrawLayer);
 

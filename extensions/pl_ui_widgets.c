@@ -2435,7 +2435,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
     {
         pl__set_active_id(uHash, ptWindow);
         pl__focus_window(ptWindow);
-        gptIO->bWantTextInput = true;
+        gptCtx->bWantTextInput = true;
     }
 
     // Render frame

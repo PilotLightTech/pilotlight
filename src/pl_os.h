@@ -103,9 +103,9 @@ typedef struct _plLibraryI
 typedef struct _plFileI
 {
     // simple file ops
-    bool     (*exists)(const char* pcPath);
-    void     (*delete)(const char* pcPath);
-    void     (*copy)  (const char* pcSource, const char* pcDestination);
+    bool (*exists)(const char* pcPath);
+    void (*delete)(const char* pcPath);
+    void (*copy)  (const char* pcSource, const char* pcDestination);
 
     // reading
     void (*binary_read)(const char* pcFile, size_t* pszSize, uint8_t* puBuffer);

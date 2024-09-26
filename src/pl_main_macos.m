@@ -660,8 +660,8 @@ int main(int argc, char *argv[])
 {
     CGSize newSize = self.bounds.size;
 
-    gptIOCtx->afMainFramebufferScale[0] = scaleFactor;
-    gptIOCtx->afMainFramebufferScale[1] = scaleFactor;
+    gptIOCtx->tMainFramebufferScale.x = scaleFactor;
+    gptIOCtx->tMainFramebufferScale.y = scaleFactor;
 
     if(newSize.width <= 0 || newSize.width <= 0)
     {
@@ -702,8 +702,8 @@ int main(int argc, char *argv[])
 {
     [super viewDidMoveToWindow];
     [self setupCVDisplayLinkForScreen:self.window.screen];
-    gptIOCtx->afMainFramebufferScale[0] = self.window.screen.backingScaleFactor;
-    gptIOCtx->afMainFramebufferScale[1] = self.window.screen.backingScaleFactor;
+    gptIOCtx->tMainFramebufferScale.x = self.window.screen.backingScaleFactor;
+    gptIOCtx->tMainFramebufferScale.y = self.window.screen.backingScaleFactor;
 }
 
 - (BOOL)setupCVDisplayLinkForScreen:(NSScreen*)screen
@@ -822,8 +822,8 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 - (void)viewDidChangeBackingProperties
 {
     [super viewDidChangeBackingProperties];
-    gptIOCtx->afMainFramebufferScale[0] = self.window.screen.backingScaleFactor;
-    gptIOCtx->afMainFramebufferScale[1] = self.window.screen.backingScaleFactor;
+    gptIOCtx->tMainFramebufferScale.x = self.window.screen.backingScaleFactor;
+    gptIOCtx->tMainFramebufferScale.y = self.window.screen.backingScaleFactor;
 }
 
 - (void)setFrameSize:(NSSize)size
@@ -853,8 +853,8 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 
 - (void)drawableResize:(CGSize)size
 {
-    gptIOCtx->afMainViewportSize[0] = size.width;
-    gptIOCtx->afMainViewportSize[1] = size.height;
+    gptIOCtx->tMainViewportSize.x = size.width;
+    gptIOCtx->tMainViewportSize.y = size.height;
     if(gpUserData)
     {
         pl_app_resize(gpUserData);
@@ -868,8 +868,8 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
         // gAppData.graphics.metalLayer = layer;
         gptIOCtx->pBackendPlatformData = layer;
 
-        gptIOCtx->afMainFramebufferScale[0] = self.view.window.screen.backingScaleFactor ?: NSScreen.mainScreen.backingScaleFactor;
-        gptIOCtx->afMainFramebufferScale[1] = gptIOCtx->afMainFramebufferScale[0];
+        gptIOCtx->tMainFramebufferScale.x = self.view.window.screen.backingScaleFactor ?: NSScreen.mainScreen.backingScaleFactor;
+        gptIOCtx->tMainFramebufferScale.y = gptIOCtx->tMainFramebufferScale.x;
 
         // not osx
         // CGFloat framebufferScale = view.window.screen.scale ?: UIScreen.mainScreen.scale;
@@ -903,10 +903,10 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
         if(self.view)
         {
             const float fDpi = (float)[self.view.window backingScaleFactor];
-            gptIOCtx->afMainViewportSize[0] = (float)self.view.bounds.size.width;
-            gptIOCtx->afMainViewportSize[1] = (float)self.view.bounds.size.height;
-            gptIOCtx->afMainFramebufferScale[0] = fDpi;
-            gptIOCtx->afMainFramebufferScale[1] = fDpi;
+            gptIOCtx->tMainViewportSize.x = (float)self.view.bounds.size.width;
+            gptIOCtx->tMainViewportSize.y = (float)self.view.bounds.size.height;
+            gptIOCtx->tMainFramebufferScale.x = fDpi;
+            gptIOCtx->tMainFramebufferScale.y = fDpi;
         }
 
         if(gtTime == 0.0)
@@ -2083,8 +2083,8 @@ pl_create_window(const plWindowDesc* ptDesc)
     
     ptData->ptWindow.delegate = gtAppDelegate;
 
-    gptIOCtx->afMainViewportSize[0] = ptDesc->uWidth;
-    gptIOCtx->afMainViewportSize[1] = ptDesc->uHeight;
+    gptIOCtx->tMainViewportSize.x = ptDesc->uWidth;
+    gptIOCtx->tMainViewportSize.y = ptDesc->uHeight;
 
     pl_sb_push(gsbtWindows, ptWindow);
 

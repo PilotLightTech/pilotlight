@@ -651,11 +651,11 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
                 else
                     gptIOCtx->bViewportMinimized = true;
 
-                if(gptIOCtx->afMainViewportSize[0] != (float)iCWidth || gptIOCtx->afMainViewportSize[1] != (float)iCHeight)
+                if(gptIOCtx->tMainViewportSize.x != (float)iCWidth || gptIOCtx->tMainViewportSize.y != (float)iCHeight)
                     gptIOCtx->bViewportSizeChanged = true;  
 
-                gptIOCtx->afMainViewportSize[0] = (float)iCWidth;
-                gptIOCtx->afMainViewportSize[1] = (float)iCHeight;
+                gptIOCtx->tMainViewportSize.x = (float)iCWidth;
+                gptIOCtx->tMainViewportSize.y = (float)iCHeight;
 
                 if(ptWindow)
                 {

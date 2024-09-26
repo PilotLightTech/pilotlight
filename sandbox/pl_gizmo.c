@@ -226,7 +226,7 @@ pl__gizmo_translation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, p
     plMat4 tTransform = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
     tTransform = pl_mat4_invert(&tTransform);
 
-    plVec4 tNDC = {-1.0f + 2.0f * tMousePos.x / gptIO->get_io()->afMainViewportSize[0], -1.0f + 2.0f * tMousePos.y / gptIO->get_io()->afMainViewportSize[1], 1.0f, 1.0f};
+    plVec4 tNDC = {-1.0f + 2.0f * tMousePos.x / gptIO->get_io()->tMainViewportSize.x, -1.0f + 2.0f * tMousePos.y / gptIO->get_io()->tMainViewportSize.y, 1.0f, 1.0f};
     tNDC = pl_mul_mat4_vec4(&tTransform, tNDC);
     tNDC = pl_div_vec4_scalarf(tNDC, tNDC.w);
 
@@ -644,7 +644,7 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
     plMat4 tTransform = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
     tTransform = pl_mat4_invert(&tTransform);
 
-    plVec4 tNDC = {-1.0f + 2.0f * tMousePos.x / gptIO->get_io()->afMainViewportSize[0], -1.0f + 2.0f * tMousePos.y / gptIO->get_io()->afMainViewportSize[1], 1.0f, 1.0f};
+    plVec4 tNDC = {-1.0f + 2.0f * tMousePos.x / gptIO->get_io()->tMainViewportSize.x, -1.0f + 2.0f * tMousePos.y / gptIO->get_io()->tMainViewportSize.y, 1.0f, 1.0f};
     tNDC = pl_mul_mat4_vec4(&tTransform, tNDC);
     tNDC = pl_div_vec4_scalarf(tNDC, tNDC.w);
 
@@ -921,7 +921,7 @@ pl__gizmo_scale(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCamer
     plMat4 tTransform = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
     tTransform = pl_mat4_invert(&tTransform);
 
-    plVec4 tNDC = {-1.0f + 2.0f * tMousePos.x / gptIO->get_io()->afMainViewportSize[0], -1.0f + 2.0f * tMousePos.y / gptIO->get_io()->afMainViewportSize[1], 1.0f, 1.0f};
+    plVec4 tNDC = {-1.0f + 2.0f * tMousePos.x / gptIO->get_io()->tMainViewportSize.x, -1.0f + 2.0f * tMousePos.y / gptIO->get_io()->tMainViewportSize.y, 1.0f, 1.0f};
     tNDC = pl_mul_mat4_vec4(&tTransform, tNDC);
     tNDC = pl_div_vec4_scalarf(tNDC, tNDC.w);
 

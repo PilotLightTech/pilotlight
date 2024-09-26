@@ -341,7 +341,7 @@ pl_app_update(plAppData* ptAppData)
 
     // submit drawlists
     plIO* ptIO = gptIO->get_io();
-    gptDraw->submit_2d_drawlist(ptAppData->ptDrawlist, tEncoder, ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1], 1);
+    gptDraw->submit_2d_drawlist(ptAppData->ptDrawlist, tEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
 
     // end render pass
     gptGfx->end_render_pass(tEncoder);

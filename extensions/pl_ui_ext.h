@@ -82,6 +82,7 @@ typedef struct _plUiI
     // mouse/keyboard ownership
     bool (*wants_mouse_capture)   (void);
     bool (*wants_keyboard_capture)(void);
+    bool (*wants_text_input)(void);
 
     // tools
     void (*show_debug_window)       (bool* pbOpen);

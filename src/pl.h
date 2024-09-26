@@ -315,15 +315,14 @@ typedef struct _plIO
     // Configuration
     //------------------------------------------------------------------
 
-    float       fDeltaTime;
-    float       fMouseDragThreshold;      // default 6.0f
-    float       fMouseDoubleClickTime;    // default 0.3f seconds
-    float       fMouseDoubleClickMaxDist; // default 6.0f
-    float       fKeyRepeatDelay;          // default 0.275f
-    float       fKeyRepeatRate;           // default 0.050f
-    float       afMainViewportSize[2];
-    float       afMainFramebufferScale[2];
-    void*       pUserData;
+    float  fDeltaTime;
+    float  fMouseDragThreshold;      // default 6.0f
+    float  fMouseDoubleClickTime;    // default 0.3f seconds
+    float  fMouseDoubleClickMaxDist; // default 6.0f
+    float  fKeyRepeatDelay;          // default 0.275f
+    float  fKeyRepeatRate;           // default 0.050f
+    plVec2 tMainViewportSize;
+    plVec2 tMainFramebufferScale;
 
     // miscellaneous options
     bool bConfigMacOSXBehaviors;
@@ -331,9 +330,6 @@ typedef struct _plIO
     //------------------------------------------------------------------
     // platform functions
     //------------------------------------------------------------------
-
-    void* pBackendPlatformData;
-    void* pBackendRendererData;
 
     // access OS clipboard
     // (default to use native Win32 clipboard on Windows, otherwise uses a private clipboard. Override to access OS clipboard on other architectures)
@@ -364,7 +360,6 @@ typedef struct _plIO
     uint64_t ulFrameCount;
     
     plKeyChord tKeyMods;
-    bool       bWantTextInput;
     bool       bKeyCtrl;  // Keyboard modifier down: Control
     bool       bKeyShift; // Keyboard modifier down: Shift
     bool       bKeyAlt;   // Keyboard modifier down: Alt

@@ -1729,7 +1729,7 @@ pl_create_swapchain(plDevice* ptDevice, const plSwapchainInit* ptInit)
 
         plRenderPass tRenderPass = {
             .tDesc = {
-                .tDimensions = {gptIOI->get_io()->afMainViewportSize[0], gptIOI->get_io()->afMainViewportSize[1]},
+                .tDimensions = gptIOI->get_io()->tMainViewportSize,
                 .tLayout = ptDevice->tMainRenderPassLayout,
                 .ptSwapchain = ptSwap
             },

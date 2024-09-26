@@ -4589,7 +4589,7 @@ pl_refr_end_frame(void)
     // render ui
     pl_begin_profile_sample("render ui");
     plIO* ptIO = gptIOI->get_io();
-    gptUI->render(tEncoder, ptIO->afMainViewportSize[0], ptIO->afMainViewportSize[1], 1);
+    gptUI->render(tEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
     pl_end_profile_sample();
 
     gptGfx->end_render_pass(tEncoder);
