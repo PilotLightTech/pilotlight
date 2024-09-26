@@ -36,8 +36,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl.h"
-#include "pl_os.h"
+#include "pl_internal.h"
 #include "pl_ds.h"
 #import <Cocoa/Cocoa.h>
 
@@ -67,114 +66,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
-
-// window api
-
-#ifndef PL_HEADLESS_APP
-plWindow* pl_create_window(const plWindowDesc*);
-void      pl_destroy_window(plWindow*);
-#endif
-
-// clip board
-const char* pl_get_clipboard_text(void* user_data_ctx);
-void        pl_set_clipboard_text(void* pUnused, const char* text);
-
-// file api
-bool pl_file_exists      (const char* pcFile);
-void pl_file_delete      (const char* pcFile);
-void pl_binary_read_file (const char* pcFile, size_t* pszSize, uint8_t* pcBuffer);
-void pl_copy_file        (const char* pcSource, const char* pcDestination);
-void pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer);
-
-// network api
-plOSResult pl_create_address      (const char* pcAddress, const char* pcService, plNetworkAddressFlags, plNetworkAddress** pptAddressOut);
-void       pl_destroy_address     (plNetworkAddress**);
-void       pl_create_socket       (plSocketFlags, plSocket** pptSocketOut);
-void       pl_destroy_socket      (plSocket**);
-plOSResult pl_bind_socket         (plSocket*, plNetworkAddress*);
-plOSResult pl_select_sockets      (plSocket** ptSockets, bool* abSelectedSockets, uint32_t uSocketCount, uint32_t uTimeOutMilliSec);
-plOSResult pl_send_socket_data_to (plSocket*, plNetworkAddress*, const void* pData, size_t, size_t* pszSentSizeOut);
-plOSResult pl_get_socket_data_from(plSocket*, void* pOutData, size_t, size_t* pszRecievedSize, plSocketReceiverInfo*);
-plOSResult pl_connect_socket      (plSocket* ptFromSocket, plNetworkAddress* ptAddress);
-plOSResult pl_send_socket_data    (plSocket* ptSocket, void* pData, size_t szSize, size_t* pszSentSizeOut);
-plOSResult pl_get_socket_data     (plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRecievedSize);
-plOSResult pl_accept_socket       (plSocket* ptSocket, plSocket** pptSocketOut);
-plOSResult pl_listen_socket       (plSocket* ptSocket);
-
-// library api
-bool  pl_has_library_changed  (plSharedLibrary*);
-bool  pl_load_library         (const char* pcName, const char* pcTransitionalName, const char* pcLockFile, plSharedLibrary** pptLibraryOut);
-void  pl_reload_library       (plSharedLibrary*);
-void* pl_load_library_function(plSharedLibrary*, const char* pcName);
-
-// thread api: misc
-void     pl_sleep(uint32_t millisec);
-uint32_t pl_get_hardware_thread_count(void);
-
-// thread api: thread
-void pl_create_thread (plThreadProcedure, void* pData, plThread** ppThreadOut);
-void pl_destroy_thread(plThread**);
-void pl_join_thread   (plThread*);
-void pl_yield_thread  (void);
-
-// thread api: mutex
-void pl_create_mutex (plMutex** ppMutexOut);
-void pl_lock_mutex   (plMutex*);
-void pl_unlock_mutex (plMutex*);
-void pl_destroy_mutex(plMutex**);
-
-// thread api: critical section
-void pl_create_critical_section (plCriticalSection** pptCriticalSectionOut);
-void pl_destroy_critical_section(plCriticalSection**);
-void pl_enter_critical_section  (plCriticalSection*);
-void pl_leave_critical_section  (plCriticalSection*);
-
-// thread api: semaphore
-void pl_create_semaphore     (uint32_t uIntialCount, plSemaphore** pptSemaphoreOut);
-void pl_wait_on_semaphore    (plSemaphore*);
-bool pl_try_wait_on_semaphore(plSemaphore*);
-void pl_release_semaphore    (plSemaphore*);
-void pl_destroy_semaphore    (plSemaphore**);
-
-// thread api: thread local storage
-void  pl_allocate_thread_local_key (plThreadKey** pptKeyOut);
-void  pl_free_thread_local_key     (plThreadKey**);
-void* pl_allocate_thread_local_data(plThreadKey*, size_t szSize);
-void* pl_get_thread_local_data     (plThreadKey*);
-void  pl_free_thread_local_data    (plThreadKey*, void* pData);
-
-// thread api: conditional variable
-void pl_create_condition_variable  (plConditionVariable** pptConditionVariableOut);
-void pl_destroy_condition_variable (plConditionVariable**);
-void pl_wake_condition_variable    (plConditionVariable*);
-void pl_wake_all_condition_variable(plConditionVariable*);
-void pl_sleep_condition_variable   (plConditionVariable*, plCriticalSection*);
-
-// thread api: barrier
-void pl_create_barrier (uint32_t uThreadCount, plBarrier** pptBarrierOut);
-void pl_destroy_barrier(plBarrier**);
-void pl_wait_on_barrier(plBarrier*);
-
-// atomics
-void    pl_create_atomic_counter  (int64_t ilValue, plAtomicCounter** ptCounter);
-void    pl_destroy_atomic_counter (plAtomicCounter**);
-void    pl_atomic_store           (plAtomicCounter*, int64_t ilValue);
-int64_t pl_atomic_load            (plAtomicCounter*);
-bool    pl_atomic_compare_exchange(plAtomicCounter*, int64_t ilExpectedValue, int64_t ilDesiredValue);
-void    pl_atomic_increment       (plAtomicCounter*);
-void    pl_atomic_decrement       (plAtomicCounter*);
-
-// virtual memory
-size_t pl_get_page_size   (void);
-void*  pl_virtual_alloc   (void* pAddress, size_t);
-void*  pl_virtual_reserve (void* pAddress, size_t);
-void*  pl_virtual_commit  (void* pAddress, size_t); 
-void   pl_virtual_uncommit(void* pAddress, size_t);
-void   pl_virtual_free    (void* pAddress, size_t); 
-
-// memory
-#define PL_ALLOC(x) gptMemory->realloc(NULL, x, __FILE__, __LINE__)
-#define PL_FREE(x)  gptMemory->realloc(x, 0, __FILE__, __LINE__)
 
 struct timespec
 pl__get_last_write_time(const char* filename)
@@ -331,17 +222,10 @@ void        pl_set_clipboard_text(void* pUnused, const char* text);
 // [SECTION] globals
 //-----------------------------------------------------------------------------
 
-// general
-plSharedLibrary* gptAppLibrary = NULL;
-void*            gpUserData    = NULL;
-plIO*            gptIOCtx      = NULL;
-#ifndef PL_HEADLESS_APP
-plWindow** gsbtWindows = NULL;
-#endif
-
 // MacOS stuff
 CFTimeInterval gtTime;
 id gtAppDelegate;
+const plLibraryI* gptLibraryApi = NULL;
 
 #ifndef PL_HEADLESS_APP
 plKeyEventResponder* gKeyEventResponder = NULL;
@@ -349,21 +233,6 @@ NSTextInputContext*  gInputContext = NULL;
 id                   gMonitor;
 NSCursor* aptMouseCursors[PL_MOUSE_CURSOR_COUNT];
 #endif
-
-// apis
-const plDataRegistryI*      gptDataRegistry      = NULL;
-const plApiRegistryI*       gptApiRegistry       = NULL;
-const plExtensionRegistryI* gptExtensionRegistry = NULL;
-const plIOI*                gptIOI               = NULL;
-const plMemoryI*            gptMemory            = NULL;
-const plLibraryI*           gptLibraryApi        = NULL;
-
-// app function pointers
-void* (*pl_app_load)    (const plApiRegistryI*, void*);
-void  (*pl_app_shutdown)(void*);
-void  (*pl_app_resize)  (void*);
-void  (*pl_app_update)  (void*);
-bool  (*pl_app_info)    (const plApiRegistryI*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -413,117 +282,8 @@ int main(int argc, char *argv[])
 #endif
 
     // load core apis
-    gptApiRegistry = pl_load_core_apis();
-
-    // os provided apis
-    #ifndef PL_HEADLESS_APP
-    static const plWindowI tWindowApi = {
-        .create_window  = pl_create_window,
-        .destroy_window = pl_destroy_window
-    };
-    #endif
-
-    static const plLibraryI tLibraryApi = {
-        .has_changed   = pl_has_library_changed,
-        .load          = pl_load_library,
-        .load_function = pl_load_library_function,
-        .reload        = pl_reload_library
-    };
-
-    static const plFileI tFileApi = {
-        .copy         = pl_copy_file,
-        .exists       = pl_file_exists,
-        .delete       = pl_file_delete,
-        .binary_read  = pl_binary_read_file,
-        .binary_write = pl_binary_write_file
-    };
-    
-    static const plNetworkI tNetworkApi = {
-        .create_address       = pl_create_address,
-        .destroy_address      = pl_destroy_address,
-        .create_socket        = pl_create_socket,
-        .destroy_socket       = pl_destroy_socket,
-        .bind_socket          = pl_bind_socket,
-        .send_socket_data_to  = pl_send_socket_data_to,
-        .get_socket_data_from = pl_get_socket_data_from,
-        .connect_socket       = pl_connect_socket,
-        .get_socket_data      = pl_get_socket_data,
-        .listen_socket        = pl_listen_socket,
-        .select_sockets       = pl_select_sockets,
-        .accept_socket        = pl_accept_socket,
-        .send_socket_data     = pl_send_socket_data,
-    };
-
-    static const plThreadsI tThreadApi = {
-        .get_hardware_thread_count   = pl_get_hardware_thread_count,
-        .create_thread               = pl_create_thread,
-        .destroy_thread              = pl_destroy_thread,
-        .join_thread                 = pl_join_thread,
-        .yield_thread                = pl_yield_thread,
-        .sleep_thread                = pl_sleep,
-        .create_mutex                = pl_create_mutex,
-        .destroy_mutex               = pl_destroy_mutex,
-        .lock_mutex                  = pl_lock_mutex,
-        .unlock_mutex                = pl_unlock_mutex,
-        .create_semaphore            = pl_create_semaphore,
-        .destroy_semaphore           = pl_destroy_semaphore,
-        .wait_on_semaphore           = pl_wait_on_semaphore,
-        .try_wait_on_semaphore       = pl_try_wait_on_semaphore,
-        .release_semaphore           = pl_release_semaphore,
-        .allocate_thread_local_key   = pl_allocate_thread_local_key,
-        .allocate_thread_local_data  = pl_allocate_thread_local_data,
-        .free_thread_local_key       = pl_free_thread_local_key, 
-        .get_thread_local_data       = pl_get_thread_local_data, 
-        .free_thread_local_data      = pl_free_thread_local_data, 
-        .create_critical_section     = pl_create_critical_section,
-        .destroy_critical_section    = pl_destroy_critical_section,
-        .enter_critical_section      = pl_enter_critical_section,
-        .leave_critical_section      = pl_leave_critical_section,
-        .create_condition_variable   = pl_create_condition_variable,
-        .destroy_condition_variable  = pl_destroy_condition_variable,
-        .wake_condition_variable     = pl_wake_condition_variable,
-        .wake_all_condition_variable = pl_wake_all_condition_variable,
-        .sleep_condition_variable    = pl_sleep_condition_variable,
-        .create_barrier              = pl_create_barrier,
-        .destroy_barrier             = pl_destroy_barrier,
-        .wait_on_barrier             = pl_wait_on_barrier
-    };
-
-    static const plAtomicsI tAtomicsApi = {
-        .create_atomic_counter   = pl_create_atomic_counter,
-        .destroy_atomic_counter  = pl_destroy_atomic_counter,
-        .atomic_store            = pl_atomic_store,
-        .atomic_load             = pl_atomic_load,
-        .atomic_compare_exchange = pl_atomic_compare_exchange,
-        .atomic_increment        = pl_atomic_increment,
-        .atomic_decrement        = pl_atomic_decrement
-    };
-
-    static const plVirtualMemoryI tVirtualMemoryApi = {
-        .get_page_size = pl_get_page_size,
-        .alloc         = pl_virtual_alloc,
-        .reserve       = pl_virtual_reserve,
-        .commit        = pl_virtual_commit,
-        .uncommit      = pl_virtual_uncommit,
-        .free          = pl_virtual_free,
-    };
-
-    // add os specific apis
-    #ifndef PL_HEADLESS_APP
-    gptApiRegistry->add(PL_API_WINDOW, &tWindowApi);
-    #endif
-    gptApiRegistry->add(PL_API_LIBRARY, &tLibraryApi);
-    gptApiRegistry->add(PL_API_FILE, &tFileApi);
-    gptApiRegistry->add(PL_API_NETWORK, &tNetworkApi);
-    gptApiRegistry->add(PL_API_THREADS, &tThreadApi);
-    gptApiRegistry->add(PL_API_ATOMICS, &tAtomicsApi);
-    gptApiRegistry->add(PL_API_VIRTUAL_MEMORY, &tVirtualMemoryApi);
-
-    gptDataRegistry      = gptApiRegistry->first(PL_API_DATA_REGISTRY);
-    gptExtensionRegistry = gptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    gptLibraryApi        = gptApiRegistry->first(PL_API_LIBRARY);
-    gptIOI               = gptApiRegistry->first(PL_API_IO);
-    gptMemory            = gptApiRegistry->first(PL_API_MEMORY);
+    pl__load_core_apis();
+    pl__load_os_apis();
 
     // setup & retrieve io context 
     gptIOCtx = gptIOI->get_io();
@@ -563,17 +323,19 @@ int main(int argc, char *argv[])
     #endif
 
     // load library
+    const plLibraryI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
+    gptLibraryApi = ptLibraryApi;
     static char acLibraryName[256] = {0};
     static char acTransitionalName[256] = {0};
     pl_sprintf(acLibraryName, "%s.dylib", pcAppName);
     pl_sprintf(acTransitionalName, "%s_", pcAppName);
-    if(gptLibraryApi->load(acLibraryName, acTransitionalName, "lock.tmp", &gptAppLibrary))
+    if(ptLibraryApi->load(acLibraryName, acTransitionalName, "lock.tmp", &gptAppLibrary))
     {
-        pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
-        pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__attribute__(()) *)(void*))                     gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
-        pl_app_info     = (bool  (__attribute__(()) *)(const plApiRegistryI*))     gptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
+        pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
+        pl_app_shutdown = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+        pl_app_info     = (bool  (__attribute__(()) *)(const plApiRegistryI*))        ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
         
         if(pl_app_info)
         {
@@ -592,13 +354,13 @@ int main(int argc, char *argv[])
         pl_sleep((uint32_t)(1000.0f / gptIOCtx->fHeadlessUpdateRate));
 
         // reload library
-        if(gptLibraryApi->has_changed(gptAppLibrary))
+        if(ptLibraryApi->has_changed(gptAppLibrary))
         {
-            gptLibraryApi->reload(gptAppLibrary);
-            pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
-            pl_app_shutdown = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
-            pl_app_update   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+            ptLibraryApi->reload(gptAppLibrary);
+            pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
+            pl_app_shutdown = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
+            pl_app_resize   = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+            pl_app_update   = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
             gptExtensionRegistry->reload();
             gpUserData = pl_app_load(gptApiRegistry, gpUserData);
         }
@@ -610,7 +372,7 @@ int main(int argc, char *argv[])
         gptIOCtx->fDeltaTime = (float)(dCurrentTime - gtTime);
         gtTime = dCurrentTime;
 
-        gptDataRegistry->garbage_collect();
+        pl__garbage_collect_data_reg();
         pl_app_update(gpUserData);
         gptExtensionRegistry->reload();
     }
@@ -779,8 +541,8 @@ int main(int argc, char *argv[])
     }
 
     pl_app_shutdown(gpUserData);
-    gptExtensionRegistry->unload_all();
-    pl_unload_core_apis();
+    pl__unload_all_extensions();
+    pl__unload_core_apis();
 
     #ifndef PL_HEADLESS_APP
     pl_sb_free(gsbtWindows);
@@ -791,7 +553,7 @@ int main(int argc, char *argv[])
         PL_FREE(gptAppLibrary);
     }
 
-    gptMemory->check_for_leaks();
+    pl__check_for_leaks();
 }
 
 // This is the renderer output callback function
@@ -895,7 +657,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
             pl_app_shutdown = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
             pl_app_resize   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
             pl_app_update   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
-            gptExtensionRegistry->reload();
+            pl__handle_extension_reloads();
             gpUserData = pl_app_load(gptApiRegistry, gpUserData);
         }
 
@@ -916,9 +678,9 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
         gptIOCtx->fDeltaTime = (float)(dCurrentTime - gtTime);
         gtTime = dCurrentTime;
 
-        gptDataRegistry->garbage_collect();
+        pl__garbage_collect_data_reg();
         pl_app_update(gpUserData);
-        gptExtensionRegistry->reload();
+        pl__handle_extension_reloads();
 
         if(gptIOCtx->bRunning == false)
         {
@@ -936,7 +698,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
         gMonitor = NULL;
     }
 
-    gptMemory->check_for_leaks();
+    pl__check_for_leaks();
 }
 
 @end

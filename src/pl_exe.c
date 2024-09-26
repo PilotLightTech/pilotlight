@@ -10,10 +10,14 @@ Index of this file:
 // [SECTION] defines
 // [SECTION] internal structs
 // [SECTION] enums
-// [SECTION] internal api
+// [SECTION] public api
 // [SECTION] global data
-// [SECTION] internal api implementation
-// [SECTION] public api implementation
+// [SECTION] api registry implementation
+// [SECTION] data registry implementation
+// [SECTION] extension registry implementation
+// [SECTION] io implementation
+// [SECTION] memory api implementation
+// [SECTION] helper implementations
 // [SECTION] unity build
 */
 
@@ -24,10 +28,9 @@ Index of this file:
 #include <float.h>   // FLT_MAX
 #include <stdbool.h> // bool
 #include <string.h>  // strcmp
-#include "pl.h"
+#include "pl_internal.h"
 #include "pl_ds.h"
 #include "pl_memory.h"
-#include "pl_os.h"
 #include "pl_string.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -49,6 +52,7 @@ typedef struct _plExtension
     char pcTransName[128];
     char pcLoadFunc[128];
     char pcUnloadFunc[128];
+    bool bReloadable;
 
     void (*pl_load)   (const plApiRegistryI* ptApiRegistry, bool bReload);
     void (*pl_unload) (const plApiRegistryI* ptApiRegistry, bool bReload);
@@ -56,10 +60,8 @@ typedef struct _plExtension
 
 typedef struct _plApiEntry
 {
-    const char*          pcName;
-    const void*          pInterface;
-    ptApiUpdateCallback* sbSubscribers;
-    void**               sbUserData;
+    const char* pcName;
+    const void* pInterface;
 } plApiEntry;
 
 typedef struct _plDataRegistryData
@@ -151,7 +153,7 @@ typedef enum
 } _plInputEventSource;
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal api
+// [SECTION] public api
 //-----------------------------------------------------------------------------
 
 // data registry functions
@@ -159,7 +161,6 @@ void  pl_set_data(const char* pcName, void* pData);
 void* pl_get_data(const char* pcName);
 
 // new data registry functions
-void                pl_garbage_collect(void);
 plDataID            pl_create_object(void);
 plDataID            pl_get_object_by_name(const char* pcName);
 const plDataObject* pl_read      (plDataID);
@@ -172,21 +173,14 @@ void                pl_set_buffer(plDataObject*, uint32_t, void*);
 void                pl_commit    (plDataObject*);
 
 // api registry functions
-const void* pl_add_api      (const char* pcName, const void* pInterface);
-void        pl_remove_api   (const void* pInterface);
-const void* pl_first_api    (const char* pcName);
-const void* pl_next_api     (const void* pPrev);
-void        pl_replace_api  (const void* pOldInterface, const void* pNewInterface);
-void        pl_subscribe_api(const void* pOldInterface, ptApiUpdateCallback, void* pUserData);
+const void* pl_add_api   (const char* pcName, const void* pInterface);
+void        pl_remove_api(const void* pInterface);
+const void* pl_first_api (const char* pcName);
+const void* pl_next_api  (const void* pPrev);
 
 // extension registry functions
-bool pl_load_extension          (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
-bool pl_unload_extension        (const char* pcName);
-void pl_unload_all_extensions   (void);
-void pl_handle_extension_reloads(void);
-
-// extension registry helper functions
-static void pl__create_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, plExtension* ptExtensionOut);
+bool pl_load_extension  (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
+bool pl_unload_extension(const char* pcName);
 
 // IO helper functions
 static void          pl__update_events(void);
@@ -195,20 +189,7 @@ static void          pl__update_keyboard_inputs(void);
 static int           pl__calc_typematic_repeat_amount(float fT0, float fT1, float fRepeatDelay, float fRepeatRate);
 static plInputEvent* pl__get_last_event(plInputEventType tType, int iButtonOrKey);
 
-static const plApiRegistryI*
-pl__load_api_registry(void)
-{
-    static const plApiRegistryI tApiRegistry = {
-        .add         = pl_add_api,
-        .remove      = pl_remove_api,
-        .first       = pl_first_api,
-        .next        = pl_next_api,
-        .replace     = pl_replace_api,
-        .subscribe   = pl_subscribe_api
-    };
-
-    return &tApiRegistry;
-}
+const plApiRegistryI* pl__load_api_registry(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] global data
@@ -223,9 +204,9 @@ plMutex*           gptDataMutex = NULL;
 plApiEntry* gsbApiEntries = NULL;
 
 // extension registry
-plExtension*      gsbtExtensions  = NULL;
-plSharedLibrary** gsbptLibs        = NULL;
-uint32_t*         gsbtHotLibs     = NULL;
+plExtension*      gsbtExtensions = NULL;
+plSharedLibrary** gsbptLibs      = NULL;
+uint32_t*         gsbtHotLibs    = NULL; // index into gsbptLibs
 
 // IO
 plIO gtIO = {
@@ -235,10 +216,10 @@ plIO gtIO = {
     .fMouseDragThreshold      = 6.0f,
     .fKeyRepeatDelay          = 0.275f,
     .fKeyRepeatRate           = 0.050f,
-    .afMainFramebufferScale   = {1.0f, 1.0f},
+    .tMainFramebufferScale   = {1.0f, 1.0f},
     .tCurrentCursor           = PL_MOUSE_CURSOR_ARROW,
     .tNextCursor              = PL_MOUSE_CURSOR_ARROW,
-    .afMainViewportSize       = {500.0f, 500.0f},
+    .tMainViewportSize       = {500.0f, 500.0f},
     .bViewportSizeChanged     = true,
     .bRunning                 = true,
 };
@@ -252,7 +233,73 @@ plAllocationEntry* gsbtAllocations      = NULL;
 plHashMap*         gptMemoryHashMap     = NULL;
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal api implementation
+// [SECTION] api registry implementation
+//-----------------------------------------------------------------------------
+
+const void*
+pl_add_api(const char* pcName, const void* pInterface)
+{
+    plApiEntry tNewApiEntry = {
+        .pcName     = pcName,
+        .pInterface = pInterface
+    };
+    pl_sb_push(gsbApiEntries, tNewApiEntry);
+    return pInterface;
+}
+
+void
+pl_remove_api(const void* pInterface)
+{
+    for(uint32_t i = 0; i < pl_sb_size(gsbApiEntries); i++)
+    {
+        if(gsbApiEntries[i].pInterface == pInterface)
+        {
+            pl_sb_del_swap(gsbApiEntries, i);
+            break;
+        }
+    }
+}
+
+const void*
+pl_first_api(const char* pcName)
+{
+    for(uint32_t i = 0; i < pl_sb_size(gsbApiEntries); i++)
+    {
+        if(strcmp(pcName, gsbApiEntries[i].pcName) == 0)
+        {
+            return gsbApiEntries[i].pInterface;
+        }
+    }
+
+    return NULL;
+}
+
+const void*
+pl_next_api(const void* pPrev)
+{
+    
+    const char* pcApiName = "";
+    const uint32_t uApiCount = pl_sb_size(gsbApiEntries);
+    for(uint32_t i = 0; i < uApiCount; i++)
+    {
+        if(strcmp(pcApiName, gsbApiEntries[i].pcName) == 0)
+        {
+            return gsbApiEntries[i].pInterface;
+        }
+
+        // first need to find name of API so we can then find
+        // the next API with the same name
+        if(gsbApiEntries[i].pInterface == pPrev)
+        {
+            pcApiName = gsbApiEntries[i].pcName;
+        }
+    }
+
+    return NULL;
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] data registry implementation
 //-----------------------------------------------------------------------------
 
 void
@@ -285,7 +332,7 @@ pl_get_data(const char* pcName)
 }
 
 void
-pl_garbage_collect(void)
+pl__garbage_collect_data_reg(void)
 {
     pl_lock_mutex(gptDataMutex);
     uint32_t uQueueSize = pl_sb_size(gtDataRegistryData.sbtDataObjectsDeletionQueue);
@@ -432,97 +479,9 @@ pl_commit(plDataObject* ptWriter)
     gtDataRegistryData.aptObjects[ptWriter->tId.uIndex] = ptWriter;
 }
 
-const void*
-pl_add_api(const char* pcName, const void* pInterface)
-{
-    plApiEntry tNewApiEntry = {
-        .pcName = pcName,
-        .pInterface = pInterface
-    };
-    pl_sb_push(gsbApiEntries, tNewApiEntry);
-    return pInterface;
-}
-
-void
-pl_remove_api(const void* pInterface)
-{
-    for(uint32_t i = 0; i < pl_sb_size(gsbApiEntries); i++)
-    {
-        if(gsbApiEntries[i].pInterface == pInterface)
-        {
-            pl_sb_free(gsbApiEntries[i].sbSubscribers);
-            pl_sb_del_swap(gsbApiEntries, i);
-            break;
-        }
-    }
-}
-
-void
-pl_replace_api(const void* pOldInterface, const void* pNewInterface)
-{
-    for(uint32_t i = 0; i < pl_sb_size(gsbApiEntries); i++)
-    {
-        if(gsbApiEntries[i].pInterface == pOldInterface)
-        {
-            gsbApiEntries[i].pInterface = pNewInterface;
-
-            for(uint32_t j = 0; j < pl_sb_size(gsbApiEntries[i].sbSubscribers); j++)
-            {
-                gsbApiEntries[i].sbSubscribers[j](pNewInterface, pOldInterface, gsbApiEntries[i].sbUserData[j]);
-            }
-            pl_sb_reset(gsbApiEntries[i].sbSubscribers);
-            break;
-        }
-    }
-}
-
-void
-pl_subscribe_api(const void* pInterface, ptApiUpdateCallback ptCallback, void* pUserData)
-{
-    for(uint32_t i = 0; i < pl_sb_size(gsbApiEntries); i++)
-    {
-        if(gsbApiEntries[i].pInterface == pInterface)
-        {
-            pl_sb_push(gsbApiEntries[i].sbSubscribers, ptCallback);
-            pl_sb_push(gsbApiEntries[i].sbUserData, pUserData);
-            break;
-        }
-    }
-}
-
-const void*
-pl_first_api(const char* pcName)
-{
-    for(uint32_t i = 0; i < pl_sb_size(gsbApiEntries); i++)
-    {
-        if(strcmp(pcName, gsbApiEntries[i].pcName) == 0)
-        {
-            return gsbApiEntries[i].pInterface;
-        }
-    }
-
-    return NULL;
-}
-
-const void*
-pl_next_api(const void* pPrev)
-{
-    const char* pcName = "";
-    for(uint32_t i = 0; i < pl_sb_size(gsbApiEntries); i++)
-    {
-        if(strcmp(pcName, gsbApiEntries[i].pcName) == 0)
-        {
-            return gsbApiEntries[i].pInterface;
-        }
-
-        if(gsbApiEntries[i].pInterface == pPrev)
-        {
-            pcName = gsbApiEntries[i].pcName;
-        }
-    }
-
-    return NULL;
-}
+//-----------------------------------------------------------------------------
+// [SECTION] extension registry implementation
+//-----------------------------------------------------------------------------
 
 static void
 pl__create_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, plExtension* ptExtensionOut)
@@ -563,7 +522,9 @@ pl_load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnlo
 
     const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
 
-    plExtension tExtension = {0};
+    plExtension tExtension = {
+        .bReloadable = bReloadable
+    };
     pl__create_extension(pcName, pcLoadFunc, pcUnloadFunc, &tExtension);
 
     plSharedLibrary* ptLibrary = NULL;
@@ -572,14 +533,8 @@ pl_load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnlo
 
     if(ptLibraryApi->load(tExtension.pcLibPath, tExtension.pcTransName, "./lock.tmp", &ptLibrary))
     {
-        #ifdef _WIN32
-            tExtension.pl_load   = (void (__cdecl *)(const plApiRegistryI*, bool))  ptLibraryApi->load_function(ptLibrary, tExtension.pcLoadFunc);
-            tExtension.pl_unload = (void (__cdecl *)(const plApiRegistryI*))        ptLibraryApi->load_function(ptLibrary, tExtension.pcUnloadFunc);
-        #else // linux & apple
-            tExtension.pl_load   = (void (__attribute__(()) *)(const plApiRegistryI*, bool)) ptLibraryApi->load_function(ptLibrary, tExtension.pcLoadFunc);
-            tExtension.pl_unload = (void (__attribute__(()) *)(const plApiRegistryI*))       ptLibraryApi->load_function(ptLibrary, tExtension.pcUnloadFunc);
-        #endif
-
+        tExtension.pl_load   = (void PL_CALL_CONVENTION (const plApiRegistryI*, bool))  ptLibraryApi->load_function(ptLibrary, tExtension.pcLoadFunc);
+        tExtension.pl_unload = (void PL_CALL_CONVENTION (const plApiRegistryI*, bool))  ptLibraryApi->load_function(ptLibrary, tExtension.pcUnloadFunc);
         PL_ASSERT(tExtension.pl_load);
         PL_ASSERT(tExtension.pl_unload);
         pl_sb_push(gsbptLibs, ptLibrary);
@@ -601,7 +556,9 @@ pl_unload_extension(const char* pcName)
 {
     const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
 
-    for(uint32_t i = 0; i < pl_sb_size(gsbtExtensions); i++)
+    const uint32_t uExtCount = pl_sb_size(gsbtExtensions);
+    const uint32_t uHotLibCount = pl_sb_size(gsbtHotLibs);
+    for(uint32_t i = 0; i < uExtCount; i++)
     {
         if(strcmp(pcName, gsbtExtensions[i].pcLibName) == 0)
         {
@@ -610,7 +567,20 @@ pl_unload_extension(const char* pcName)
             gsbptLibs[i] = NULL;
             pl_sb_del_swap(gsbtExtensions, i);
             pl_sb_del_swap(gsbptLibs, i);
-            pl_sb_del_swap(gsbtHotLibs, i);
+
+            // remove from hot libs if reloadable
+            if(gsbtExtensions[i].bReloadable)
+            {
+                for(uint32_t j = 0; j < uHotLibCount; j++)
+                {
+                    if(gsbtHotLibs[j] == i)
+                    {
+                        pl_sb_del_swap(gsbtHotLibs, j);
+                        break;
+                    }
+                }
+            }
+            
             return true;
         }
     }
@@ -619,11 +589,12 @@ pl_unload_extension(const char* pcName)
 }
 
 void
-pl_unload_all_extensions(void)
+pl__unload_all_extensions(void)
 {
     const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
 
-    for(uint32_t i = 0; i < pl_sb_size(gsbtExtensions); i++)
+    const uint32_t uExtCount = pl_sb_size(gsbtExtensions);
+    for(uint32_t i = 0; i < uExtCount; i++)
     {
         if(gsbtExtensions[i].pl_unload)
             gsbtExtensions[i].pl_unload(ptApiRegistry, false);
@@ -631,32 +602,32 @@ pl_unload_all_extensions(void)
 }
 
 void
-pl_handle_extension_reloads(void)
+pl__handle_extension_reloads(void)
 {
     const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
 
-    for(uint32_t i = 0; i < pl_sb_size(gsbtHotLibs); i++)
+    const uint32_t uHotExtCount = pl_sb_size(gsbtHotLibs);
+    for(uint32_t i = 0; i < uHotExtCount; i++)
     {
         if(pl_has_library_changed(gsbptLibs[gsbtHotLibs[i]]))
         {
             plSharedLibrary* ptLibrary = gsbptLibs[gsbtHotLibs[i]];
             plExtension* ptExtension = &gsbtExtensions[gsbtHotLibs[i]];
-            // ptExtension->pl_unload(ptApiRegistry);
+            ptExtension->pl_unload(ptApiRegistry, true);
             pl_reload_library(ptLibrary); 
-            #ifdef _WIN32
-                ptExtension->pl_load   = (void (__cdecl *)(const plApiRegistryI*, bool)) pl_load_library_function(ptLibrary, ptExtension->pcLoadFunc);
-                ptExtension->pl_unload = (void (__cdecl *)(const plApiRegistryI*))       pl_load_library_function(ptLibrary, ptExtension->pcUnloadFunc);
-            #else // linux & apple
-                ptExtension->pl_load   = (void (__attribute__(()) *)(const plApiRegistryI*, bool)) pl_load_library_function(ptLibrary, ptExtension->pcLoadFunc);
-                ptExtension->pl_unload = (void (__attribute__(()) *)(const plApiRegistryI*))       pl_load_library_function(ptLibrary, ptExtension->pcUnloadFunc);
-            #endif
+            ptExtension->pl_load   = (void PL_CALL_CONVENTION (const plApiRegistryI*, bool)) pl_load_library_function(ptLibrary, ptExtension->pcLoadFunc);
+            ptExtension->pl_unload = (void PL_CALL_CONVENTION (const plApiRegistryI*, bool)) pl_load_library_function(ptLibrary, ptExtension->pcUnloadFunc);
             PL_ASSERT(ptExtension->pl_load);
-            // PL_ASSERT(ptExtension->pl_unload);
+            PL_ASSERT(ptExtension->pl_unload);
             ptExtension->pl_load(ptApiRegistry, true);
         }
             
     }
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] io implementation
+//-----------------------------------------------------------------------------
 
 plKeyData*
 pl_get_key_data(plKey tKey)
@@ -1160,6 +1131,10 @@ pl_new_frame(void)
     pl__update_mouse_inputs();
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] memory api implementation
+//-----------------------------------------------------------------------------
+
 size_t
 pl_get_memory_usage(void)
 {
@@ -1186,7 +1161,7 @@ pl_get_allocations(size_t* pszCount)
 }
 
 void
-pl_check_for_leaks(void)
+pl__check_for_leaks(void)
 {
     // check for unfreed memory
     uint32_t uMemoryLeakCount = 0;
@@ -1279,11 +1254,24 @@ pl_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api implementation
+// [SECTION] helper implementations
 //-----------------------------------------------------------------------------
 
 const plApiRegistryI*
-pl_load_core_apis(void)
+pl__load_api_registry(void)
+{
+    static const plApiRegistryI tApiRegistry = {
+        .add     = pl_add_api,
+        .remove  = pl_remove_api,
+        .first   = pl_first_api,
+        .next    = pl_next_api
+    };
+
+    return &tApiRegistry;
+}
+
+void
+pl__load_core_apis(void)
 {
 
     const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
@@ -1328,7 +1316,6 @@ pl_load_core_apis(void)
     static const plDataRegistryI tDataRegistryApi = {
         .set_data           = pl_set_data,
         .get_data           = pl_get_data,
-        .garbage_collect    = pl_garbage_collect,
         .create_object      = pl_create_object,
         .get_object_by_name = pl_get_object_by_name,
         .read               = pl_read,
@@ -1342,10 +1329,8 @@ pl_load_core_apis(void)
     };
 
     static const plExtensionRegistryI tExtensionRegistryApi = {
-        .load       = pl_load_extension,
-        .unload     = pl_unload_extension,
-        .unload_all = pl_unload_all_extensions,
-        .reload     = pl_handle_extension_reloads
+        .load   = pl_load_extension,
+        .unload = pl_unload_extension
     };
 
     static const plMemoryI tMemoryApi = {
@@ -1353,8 +1338,7 @@ pl_load_core_apis(void)
         .get_allocation_count = pl_get_allocation_count,
         .get_memory_usage     = pl_get_memory_usage,
         .get_free_count       = pl_get_free_count,
-        .get_allocations      = pl_get_allocations,
-        .check_for_leaks      = pl_check_for_leaks
+        .get_allocations      = pl_get_allocations
     };
 
     // apis more likely to not be stored, should be first (api registry is not sorted)
@@ -1363,11 +1347,16 @@ pl_load_core_apis(void)
     ptApiRegistry->add(PL_API_EXTENSION_REGISTRY, &tExtensionRegistryApi);
     ptApiRegistry->add(PL_API_MEMORY, &tMemoryApi);
 
-    return ptApiRegistry;
+    // load apis
+    gptDataRegistry      = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    gptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    gptIOI               = ptApiRegistry->first(PL_API_IO);
+    gptMemory            = ptApiRegistry->first(PL_API_MEMORY);
+    gptApiRegistry       = ptApiRegistry;
 }
 
 void
-pl_unload_core_apis(void)
+pl__unload_core_apis(void)
 {
     // data registry
     for(uint32_t i = 0; i < pl_sb_size(gtDataRegistryData.sbtDataObjects); i++)
@@ -1393,12 +1382,6 @@ pl_unload_core_apis(void)
     pl_hm_free(gptHashmap);
 
     // api registry
-    const uint32_t uApiCount = pl_sb_size(gsbApiEntries);
-    for(uint32_t i = 0; i < uApiCount; i++)
-    {
-        pl_sb_free(gsbApiEntries[i].sbSubscribers);
-        pl_sb_free(gsbApiEntries[i].sbUserData);
-    }
     pl_sb_free(gsbApiEntries);
 
     // extension registry
@@ -1410,6 +1393,114 @@ pl_unload_core_apis(void)
     }
     pl_sb_free(gsbptLibs);
     pl_sb_free(gsbtHotLibs);
+}
+
+void
+pl__load_os_apis(void)
+{
+    // os provided apis
+    #ifndef PL_HEADLESS_APP
+    static const plWindowI tWindowApi = {
+        .create_window  = pl_create_window,
+        .destroy_window = pl_destroy_window
+    };
+    #endif
+
+    static const plLibraryI tLibraryApi = {
+        .has_changed   = pl_has_library_changed,
+        .load          = pl_load_library,
+        .load_function = pl_load_library_function,
+        .reload        = pl_reload_library
+    };
+
+    static const plFileI tFileApi = {
+        .copy         = pl_copy_file,
+        .exists       = pl_file_exists,
+        .delete       = pl_file_delete,
+        .binary_read  = pl_binary_read_file,
+        .binary_write = pl_binary_write_file
+    };
+    
+    static const plNetworkI tNetworkApi = {
+        .create_address       = pl_create_address,
+        .destroy_address      = pl_destroy_address,
+        .create_socket        = pl_create_socket,
+        .destroy_socket       = pl_destroy_socket,
+        .bind_socket          = pl_bind_socket,
+        .send_socket_data_to  = pl_send_socket_data_to,
+        .get_socket_data_from = pl_get_socket_data_from,
+        .connect_socket       = pl_connect_socket,
+        .get_socket_data      = pl_get_socket_data,
+        .listen_socket        = pl_listen_socket,
+        .select_sockets       = pl_select_sockets,
+        .accept_socket        = pl_accept_socket,
+        .send_socket_data     = pl_send_socket_data,
+
+    };
+
+    static const plThreadsI tThreadApi = {
+        .get_hardware_thread_count   = pl_get_hardware_thread_count,
+        .create_thread               = pl_create_thread,
+        .destroy_thread              = pl_destroy_thread,
+        .join_thread                 = pl_join_thread,
+        .yield_thread                = pl_yield_thread,
+        .sleep_thread                = pl_sleep,
+        .create_mutex                = pl_create_mutex,
+        .destroy_mutex               = pl_destroy_mutex,
+        .lock_mutex                  = pl_lock_mutex,
+        .unlock_mutex                = pl_unlock_mutex,
+        .create_semaphore            = pl_create_semaphore,
+        .destroy_semaphore           = pl_destroy_semaphore,
+        .wait_on_semaphore           = pl_wait_on_semaphore,
+        .try_wait_on_semaphore       = pl_try_wait_on_semaphore,
+        .release_semaphore           = pl_release_semaphore,
+        .allocate_thread_local_key   = pl_allocate_thread_local_key,
+        .allocate_thread_local_data  = pl_allocate_thread_local_data,
+        .free_thread_local_key       = pl_free_thread_local_key, 
+        .get_thread_local_data       = pl_get_thread_local_data, 
+        .free_thread_local_data      = pl_free_thread_local_data, 
+        .create_critical_section     = pl_create_critical_section,
+        .destroy_critical_section    = pl_destroy_critical_section,
+        .enter_critical_section      = pl_enter_critical_section,
+        .leave_critical_section      = pl_leave_critical_section,
+        .create_condition_variable   = pl_create_condition_variable,
+        .destroy_condition_variable  = pl_destroy_condition_variable,
+        .wake_condition_variable     = pl_wake_condition_variable,
+        .wake_all_condition_variable = pl_wake_all_condition_variable,
+        .sleep_condition_variable    = pl_sleep_condition_variable,
+        .create_barrier              = pl_create_barrier,
+        .destroy_barrier             = pl_destroy_barrier,
+        .wait_on_barrier             = pl_wait_on_barrier
+    };
+
+    static const plAtomicsI tAtomicsApi = {
+        .create_atomic_counter   = pl_create_atomic_counter,
+        .destroy_atomic_counter  = pl_destroy_atomic_counter,
+        .atomic_store            = pl_atomic_store,
+        .atomic_load             = pl_atomic_load,
+        .atomic_compare_exchange = pl_atomic_compare_exchange,
+        .atomic_increment        = pl_atomic_increment,
+        .atomic_decrement        = pl_atomic_decrement
+    };
+
+    static const plVirtualMemoryI tVirtualMemoryApi = {
+        .get_page_size = pl_get_page_size,
+        .alloc         = pl_virtual_alloc,
+        .reserve       = pl_virtual_reserve,
+        .commit        = pl_virtual_commit,
+        .uncommit      = pl_virtual_uncommit,
+        .free          = pl_virtual_free,
+    };
+
+    #ifndef PL_HEADLESS_APP
+    gptApiRegistry->add(PL_API_WINDOW, &tWindowApi);
+    #endif
+    gptApiRegistry->add(PL_API_LIBRARY, &tLibraryApi);
+    gptApiRegistry->add(PL_API_FILE, &tFileApi);
+    gptApiRegistry->add(PL_API_NETWORK, &tNetworkApi);
+    gptApiRegistry->add(PL_API_THREADS, &tThreadApi);
+    gptApiRegistry->add(PL_API_ATOMICS, &tAtomicsApi);
+    gptApiRegistry->add(PL_API_VIRTUAL_MEMORY, &tVirtualMemoryApi);
 }
 
 //-----------------------------------------------------------------------------

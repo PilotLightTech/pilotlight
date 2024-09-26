@@ -9,7 +9,6 @@ Index of this file:
 // [SECTION] apis
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
-// [SECTION] public api
 // [SECTION] api structs
 // [SECTION] enums
 // [SECTION] IO struct
@@ -24,8 +23,9 @@ Index of this file:
 #ifndef PL_H
 #define PL_H
 
-#define PILOT_LIGHT_VERSION    "0.1.0"
-#define PILOT_LIGHT_VERSION_NUM 001000
+// framework version XYYZZ
+#define PILOT_LIGHT_VERSION    "1.0.0 WIP"
+#define PILOT_LIGHT_VERSION_NUM 10000
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
@@ -33,14 +33,14 @@ Index of this file:
 
 typedef struct _plApiRegistryI plApiRegistryI;
 
-#define PL_API_DATA_REGISTRY "PL_API_DATA_REGISTRY"
-typedef struct _plDataRegistryI plDataRegistryI;
-
 #define PL_API_EXTENSION_REGISTRY "PL_API_EXTENSION_REGISTRY"
 typedef struct _plExtensionRegistryI plExtensionRegistryI;
 
 #define PL_API_MEMORY "PL_API_MEMORY"
 typedef struct _plMemoryI plMemoryI;
+
+#define PL_API_DATA_REGISTRY "PL_API_DATA_REGISTRY"
+typedef struct _plDataRegistryI plDataRegistryI;
 
 #define PL_API_IO "PL_API_IO"
 typedef struct _plIOI plIOI;
@@ -58,9 +58,6 @@ typedef struct _plIOI plIOI;
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
-// forward declarations
-typedef void (*ptApiUpdateCallback)(const void*, const void*, void*);
-
 // types
 typedef struct _plAllocationEntry plAllocationEntry;
 typedef struct _plDataObject      plDataObject;
@@ -68,9 +65,6 @@ typedef union  _plDataID          plDataID;
 typedef struct _plIO              plIO;         // configuration & IO between app & pilotlight ui
 typedef struct _plKeyData         plKeyData;    // individual key status (down, down duration, etc.)
 typedef struct _plInputEvent      plInputEvent; // holds data for input events (opaque structure)
-
-// external forward declarations
-typedef struct plHashMap plHashMap; // pl_ds.h
 
 // enums
 typedef int plKey;                // -> enum plKey_                // Enum: A key identifier (PL_KEY_XXX or PL_KEY_MOD_XXX value)
@@ -86,26 +80,33 @@ typedef int plKeyChord;
 typedef uint16_t plUiWChar;
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api
-//-----------------------------------------------------------------------------
-
-// API registry
-const plApiRegistryI* pl_load_core_apis  (void); // only called once by backend
-void                  pl_unload_core_apis(void); // only called once by backend
-
-//-----------------------------------------------------------------------------
 // [SECTION] api structs
 //-----------------------------------------------------------------------------
 
 typedef struct _plApiRegistryI
 {
-    const void* (*add)       (const char* pcName, const void* pInterface);
-    void        (*remove)    (const void* pInterface);
-    void        (*replace)   (const void* pOldInterface, const void* pNewInterface);
-    void        (*subscribe) (const void* pInterface, ptApiUpdateCallback, void* pUserData);
-    const void* (*first)     (const char* pcName);
-    const void* (*next)      (const void* pPrev);
+    const void* (*add)   (const char* pcName, const void* pInterface);
+    void        (*remove)(const void* pInterface);
+    const void* (*first) (const char* pcName);
+    const void* (*next)  (const void* pPrevInterface);
 } plApiRegistryI;
+
+typedef struct _plExtensionRegistryI
+{
+    bool (*load)  (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
+    bool (*unload)(const char* pcName); 
+} plExtensionRegistryI;
+
+typedef struct _plMemoryI
+{
+    void* (*realloc)(void*, size_t, const char* pcFile, int iLine);
+
+    // stats
+    size_t             (*get_memory_usage)(void);
+    size_t             (*get_allocation_count)(void);
+    size_t             (*get_free_count)(void);
+    plAllocationEntry* (*get_allocations)(size_t* pszCount);
+} plMemoryI;
 
 typedef struct _plDataRegistryI
 {
@@ -113,9 +114,6 @@ typedef struct _plDataRegistryI
     // for convience, only use for infrequent operations (i.e. global extension data)
     void  (*set_data)(const char* pcName, void* pData);
     void* (*get_data)(const char* pcName);
-
-    // called by backend
-    void (*garbage_collect)(void);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~do not use below here yet~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -138,26 +136,6 @@ typedef struct _plDataRegistryI
     void          (*set_buffer)(plDataObject*, uint32_t uProperty, void*);
     void          (*commit)    (plDataObject*);
 } plDataRegistryI;
-
-typedef struct _plExtensionRegistryI
-{
-    void (*reload)    (void);
-    void (*unload_all)(void);
-    bool (*load)      (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
-    bool (*unload)    (const char* pcName); 
-} plExtensionRegistryI;
-
-typedef struct _plMemoryI
-{
-    void* (*realloc)(void*, size_t, const char* pcFile, int iLine);
-
-    // stats
-    size_t             (*get_memory_usage)(void);
-    size_t             (*get_allocation_count)(void);
-    size_t             (*get_free_count)(void);
-    plAllocationEntry* (*get_allocations)(size_t* pszCount);
-    void               (*check_for_leaks)(void);
-} plMemoryI;
 
 typedef struct _plIOI
 {
@@ -342,6 +320,8 @@ typedef struct _plIO
     int    iArgc;
     char** apArgv;
 
+    void* pBackendPlatformData;
+
     //------------------------------------------------------------------
     // Input/Output
     //------------------------------------------------------------------
@@ -435,20 +415,26 @@ typedef struct _plAllocationEntry
 #ifdef __cplusplus
     #if defined(_MSC_VER) //  Microsoft 
         #define PL_EXPORT extern "C" __declspec(dllexport)
+        #define PL_CALL_CONVENTION (__cdecl *)
     #elif defined(__GNUC__) //  GCC
         #define PL_EXPORT extern "C" __attribute__((visibility("default")))
+        #define PL_CALL_CONVENTION (__attribute__(()) *)
     #else //  do nothing and hope for the best?
         #define PL_EXPORT
+        #define PL_CALL_CONVENTION
         #pragma warning Unknown dynamic link import/export semantics.
     #endif
 #else
 
     #if defined(_MSC_VER) //  Microsoft 
         #define PL_EXPORT __declspec(dllexport)
+        #define PL_CALL_CONVENTION (__cdecl *)
     #elif defined(__GNUC__) //  GCC
         #define PL_EXPORT __attribute__((visibility("default")))
+        #define PL_CALL_CONVENTION (__attribute__(()) *)
     #else //  do nothing and hope for the best?
         #define PL_EXPORT
+        #define PL_CALL_CONVENTION
         #pragma warning Unknown dynamic link import/export semantics.
     #endif
 #endif
