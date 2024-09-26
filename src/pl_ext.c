@@ -119,24 +119,25 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 }
 
 PL_EXPORT void
-pl_unload_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     #ifdef PL_CORE_EXTENSION_INCLUDE_SHADER
-        pl_unload_shader_ext(ptApiRegistry);
+        pl_unload_shader_ext(ptApiRegistry, bReload);
     #endif
-    pl_unload_image_ext(ptApiRegistry);
-    pl_unload_rect_pack_ext(ptApiRegistry);
-    pl_unload_stats_ext(ptApiRegistry);
-    pl_unload_ecs_ext(ptApiRegistry);
+    pl_unload_job_ext(ptApiRegistry, bReload);
+    pl_unload_image_ext(ptApiRegistry, bReload);
+    pl_unload_rect_pack_ext(ptApiRegistry, bReload);
+    pl_unload_stats_ext(ptApiRegistry, bReload);
+    pl_unload_ecs_ext(ptApiRegistry, bReload);
     #ifdef PL_CORE_EXTENSION_INCLUDE_GRAPHICS
-        pl_unload_graphics_ext(ptApiRegistry);
-        pl_unload_gpu_allocators_ext(ptApiRegistry);
-        pl_unload_resource_ext(ptApiRegistry);
-        pl_unload_model_loader_ext(ptApiRegistry);
-        pl_unload_draw_ext(ptApiRegistry);
-        pl_unload_ui_ext(ptApiRegistry);
-        pl_unload_renderer_ext(ptApiRegistry);
-        pl_unload_debug_ext(ptApiRegistry);
+        pl_unload_graphics_ext(ptApiRegistry, bReload);
+        pl_unload_gpu_allocators_ext(ptApiRegistry, bReload);
+        pl_unload_resource_ext(ptApiRegistry, bReload);
+        pl_unload_model_loader_ext(ptApiRegistry, bReload);
+        pl_unload_draw_ext(ptApiRegistry, bReload);
+        pl_unload_ui_ext(ptApiRegistry, bReload);
+        pl_unload_renderer_ext(ptApiRegistry, bReload);
+        pl_unload_debug_ext(ptApiRegistry, bReload);
     #endif
 }
 

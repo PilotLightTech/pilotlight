@@ -237,31 +237,27 @@ pl__get_counter_data(char const* pcName)
 static void
 pl_load_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    ptApiRegistry->add(PL_API_STATS, pl_load_stats_api());
     if(bReload)
     {
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_STATS), pl_load_stats_api());
-
         gptStatsCtx = gptDataRegistry->get_data("plStatsContext");
     }
-    else
+    else // first load
     {
-        ptApiRegistry->add(PL_API_STATS, pl_load_stats_api());
-
-        // allocate & store context
-        gptStatsCtx = PL_ALLOC(sizeof(plStatsContext));
-        memset(gptStatsCtx, 0, sizeof(plStatsContext));
-        gptStatsCtx->uBlockCount = 1;
-
+        static plStatsContext gtStatsCtx = {.uBlockCount = 1};
+        gptStatsCtx = &gtStatsCtx;
         gptDataRegistry->set_data("plStatsContext", gptStatsCtx);
     }
 }
 
 static void
-pl_unload_stats_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    ptApiRegistry->remove(pl_load_stats_api());
+    if(bReload)
+        return;
+        
     pl_sb_free(gptStatsCtx->sbtBlocks);
     pl_sb_free(gptStatsCtx->sbtNames);
     pl_hm_free(gptStatsCtx->ptHashmap);
-
-    PL_FREE(gptStatsCtx);
 }

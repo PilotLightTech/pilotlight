@@ -100,14 +100,11 @@ pl_load_image_api(void)
 static void
 pl_load_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    if(bReload)
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_IMAGE), pl_load_image_api());
-    else
-        ptApiRegistry->add(PL_API_IMAGE, pl_load_image_api());
+    ptApiRegistry->add(PL_API_IMAGE, pl_load_image_api());
 }
 
 static void
-pl_unload_image_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    
+    ptApiRegistry->remove(pl_load_image_api());
 }

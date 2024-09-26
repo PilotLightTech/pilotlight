@@ -110,13 +110,19 @@ pl_wants_keyboard_capture(void)
     return gptCtx->bWantCaptureKeyboard;
 }
 
+bool
+pl_wants_text_input(void)
+{
+    return gptCtx->bWantTextInput;
+}
+
 void
 pl_new_frame(void)
 {
 
     pl_sb_reset(gptCtx->sbtBeginPopupStack);
 
-    gptIO->bWantTextInput = false;
+    gptCtx->bWantTextInput = false;
     gptCtx->bWantCaptureMouse = gptCtx->uActiveId != 0 || gptCtx->ptMovingWindow != NULL || gptCtx->ptActiveWindow != NULL;
     gptCtx->bWantCaptureKeyboard = gptCtx->uActiveId != 0;
 

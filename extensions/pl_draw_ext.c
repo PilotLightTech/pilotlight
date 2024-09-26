@@ -4539,15 +4539,12 @@ pl_load_draw_3d_api(void)
 static void
 pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    ptApiRegistry->add(PL_API_DRAW, pl_load_draw_3d_api());
+    
     if(bReload)
-    {
         gptDrawCtx = gptDataRegistry->get_data("plDrawContext");
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_DRAW), pl_load_draw_3d_api());
-    }
-    else
+    else  // first load
     {
-        ptApiRegistry->add(PL_API_DRAW, pl_load_draw_3d_api());
-
         static plDrawContext tCtx = {0};
         gptDrawCtx = &tCtx;
         gptDataRegistry->set_data("plDrawContext", gptDrawCtx);
@@ -4555,6 +4552,7 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 }
 
 static void
-pl_unload_draw_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    ptApiRegistry->remove(pl_load_draw_3d_api());
 }

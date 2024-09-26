@@ -853,15 +853,17 @@ pl_load_gpu_allocators_api(void)
 static void
 pl_load_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    if(bReload)
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_GPU_ALLOCATORS), pl_load_gpu_allocators_api());
-    else
-        ptApiRegistry->add(PL_API_GPU_ALLOCATORS, pl_load_gpu_allocators_api());
+    ptApiRegistry->add(PL_API_GPU_ALLOCATORS, pl_load_gpu_allocators_api());
 }
 
 static void
-pl_unload_gpu_allocators_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    ptApiRegistry->remove(pl_load_gpu_allocators_api());
+
+    if(bReload)
+        return;
+        
     PL_FREE(gptDataRegistry->get_data("StagingUncachedAllocator"));
     PL_FREE(gptDataRegistry->get_data("StagingUncachedAllocatorData"));
     PL_FREE(gptDataRegistry->get_data("StagingCachedAllocatorData"));

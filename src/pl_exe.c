@@ -51,7 +51,7 @@ typedef struct _plExtension
     char pcUnloadFunc[128];
 
     void (*pl_load)   (const plApiRegistryI* ptApiRegistry, bool bReload);
-    void (*pl_unload) (const plApiRegistryI* ptApiRegistry);
+    void (*pl_unload) (const plApiRegistryI* ptApiRegistry, bool bReload);
 } plExtension;
 
 typedef struct _plApiEntry
@@ -605,7 +605,7 @@ pl_unload_extension(const char* pcName)
     {
         if(strcmp(pcName, gsbtExtensions[i].pcLibName) == 0)
         {
-            gsbtExtensions[i].pl_unload(ptApiRegistry);
+            gsbtExtensions[i].pl_unload(ptApiRegistry, false);
             PL_FREE(gsbptLibs[i]);
             gsbptLibs[i] = NULL;
             pl_sb_del_swap(gsbtExtensions, i);
@@ -626,7 +626,7 @@ pl_unload_all_extensions(void)
     for(uint32_t i = 0; i < pl_sb_size(gsbtExtensions); i++)
     {
         if(gsbtExtensions[i].pl_unload)
-            gsbtExtensions[i].pl_unload(ptApiRegistry);
+            gsbtExtensions[i].pl_unload(ptApiRegistry, false);
     }
 }
 

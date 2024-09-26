@@ -102,6 +102,9 @@ typedef union _plEntity
     uint64_t ulData;
 } plEntity;
 
+// external forward declarations
+typedef struct plHashMap plHashMap; // pl_ds.h
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
 //-----------------------------------------------------------------------------

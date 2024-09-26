@@ -1774,12 +1774,11 @@ pl_load_camera_api(void)
 static void
 pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    ptApiRegistry->add(PL_API_ECS, pl_load_ecs_api());
+    ptApiRegistry->add(PL_API_CAMERA, pl_load_camera_api());
 
     if(bReload)
     {
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_ECS), pl_load_ecs_api());
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_CAMERA), pl_load_camera_api());
-
         // find log channel
         uint32_t uChannelCount = 0;
         plLogChannel* ptChannels = pl_get_log_channels(&uChannelCount);
@@ -1792,16 +1791,15 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
             }
         }
     }
-    else
+    else // first load
     {
-        ptApiRegistry->add(PL_API_ECS, pl_load_ecs_api());
-        ptApiRegistry->add(PL_API_CAMERA, pl_load_camera_api());
         uLogChannelEcs = pl_add_log_channel("ECS", PL_CHANNEL_TYPE_CYCLIC_BUFFER);
     }
 }
 
 static void
-pl_unload_ecs_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    
+    ptApiRegistry->remove(pl_load_ecs_api());
+    ptApiRegistry->remove(pl_load_camera_api());
 }

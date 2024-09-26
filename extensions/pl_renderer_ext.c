@@ -5672,16 +5672,15 @@ pl_load_renderer_api(void)
 static void
 pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-   if(bReload)
-   {
-      gptData = gptDataRegistry->get_data("ref renderer data");
-      ptApiRegistry->replace(ptApiRegistry->first(PL_API_RENDERER), pl_load_renderer_api());
-   }
-   else
-      ptApiRegistry->add(PL_API_RENDERER, pl_load_renderer_api());
+    ptApiRegistry->add(PL_API_RENDERER, pl_load_renderer_api());
+    if(bReload)
+    {
+        gptData = gptDataRegistry->get_data("ref renderer data");
+    }   
 }
 
 static void
-pl_unload_renderer_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    ptApiRegistry->remove(pl_load_renderer_api());
 }

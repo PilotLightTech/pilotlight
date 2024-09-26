@@ -430,25 +430,27 @@ pl_load_shader_api(void)
 static void
 pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    ptApiRegistry->add(PL_API_SHADER, pl_load_shader_api());
     if(bReload)
     {
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_SHADER), pl_load_shader_api());
         gptShaderCtx = gptDataRegistry->get_data("plShaderContext");
     }
-    else
+    else // first load
     {
-        ptApiRegistry->add(PL_API_SHADER, pl_load_shader_api());
-        
-        gptShaderCtx = PL_ALLOC(sizeof(plShaderContext));
-        memset(gptShaderCtx, 0, sizeof(plShaderContext));
-
+        static plShaderContext gtShaderCtx = {0};
+        gptShaderCtx = &gtShaderCtx;
         gptDataRegistry->set_data("plShaderContext", gptShaderCtx);
     }
 }
 
 static void
-pl_unload_shader_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    ptApiRegistry->remove(pl_load_shader_api());
+
+    if(bReload)
+        return;
+        
     #ifndef PL_OFFLINE_SHADERS_ONLY
     #ifdef PL_METAL_BACKEND
     spvc_context_destroy(tSpirvCtx);
@@ -459,7 +461,5 @@ pl_unload_shader_ext(plApiRegistryI* ptApiRegistry)
         PL_FREE(gptShaderCtx->sbptShaderBytecodeCache[i]);
     }
     pl_sb_free(gptShaderCtx->sbptShaderBytecodeCache);
-
-    PL_FREE(gptShaderCtx);
     gptShaderCtx = NULL;
 }

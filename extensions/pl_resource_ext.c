@@ -205,23 +205,27 @@ pl_is_resource_valid(plResourceHandle tResourceHandle)
 static void
 pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    gptApiRegistry->add(PL_API_RESOURCE, pl_load_resource_api());
     if(bReload)
     {
         gptResourceManager = gptDataRegistry->get_data("plResourceManager");
-        ptApiRegistry->replace(gptApiRegistry->first(PL_API_RESOURCE), pl_load_resource_api());
     }
     else
     {
-        gptResourceManager = PL_ALLOC(sizeof(plResourceManager));
-        memset(gptResourceManager, 0, sizeof(plResourceManager));
+        static plResourceManager gtResourceManager = {0};
+        gptResourceManager = &gtResourceManager;
         gptDataRegistry->set_data("plResourceManager", gptResourceManager);
-        gptApiRegistry->add(PL_API_RESOURCE, pl_load_resource_api());
     }
 }
 
 static void
-pl_unload_resource_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    gptApiRegistry->remove(pl_load_resource_api());
+    
+    if(bReload)
+        return;
+        
     for(uint32_t i = 0; i < pl_sb_size(gptResourceManager->sbtResources); i++)
     {
         if(gptResourceManager->sbtResources[i].tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_DATA)
@@ -237,6 +241,4 @@ pl_unload_resource_ext(plApiRegistryI* ptApiRegistry)
     pl_sb_free(gptResourceManager->sbtResourceGenerations);
     pl_sb_free(gptResourceManager->sbtResources);
     pl_hm_free(gptResourceManager->ptNameHashmap);
-
-    PL_FREE(gptResourceManager);
 }

@@ -887,10 +887,11 @@ pl_load_graphics_api(void)
 static void
 pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    ptApiRegistry->add(PL_API_GRAPHICS, pl_load_graphics_api());
+    
     if(bReload)
     {
         gptGraphics = gptDataRegistry->get_data("plGraphics");
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_GRAPHICS), pl_load_graphics_api());
 
         // find log channel
         uint32_t uChannelCount = 0;
@@ -904,14 +905,10 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
             }
         }
     }
-    else
-    {
-        ptApiRegistry->add(PL_API_GRAPHICS, pl_load_graphics_api());
-    }
 }
 
 static void
-pl_unload_graphics_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-
+    ptApiRegistry->remove(pl_load_graphics_api());
 }

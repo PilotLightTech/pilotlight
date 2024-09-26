@@ -993,14 +993,11 @@ pl_load_model_loader_api(void)
 static void
 pl_load_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    if(bReload)
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_MODEL_LOADER), pl_load_model_loader_api());
-    else
-        ptApiRegistry->add(PL_API_MODEL_LOADER, pl_load_model_loader_api());
+    ptApiRegistry->add(PL_API_MODEL_LOADER, pl_load_model_loader_api());
 }
 
 static void
-pl_unload_model_loader_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    
+    ptApiRegistry->remove(pl_load_model_loader_api());
 }

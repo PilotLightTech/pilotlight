@@ -80,29 +80,25 @@ pl_load_rect_pack_api(void)
 static void
 pl_load_rect_pack_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    if(bReload)
-    {
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_RECT_PACK), pl_load_rect_pack_api());
+    ptApiRegistry->add(PL_API_RECT_PACK, pl_load_rect_pack_api());
 
+    if(bReload)
         gptRectPackCtx = gptDataRegistry->get_data("plRectPackContext");
-    }
     else
     {
-        ptApiRegistry->add(PL_API_RECT_PACK, pl_load_rect_pack_api());
-
-        // allocate & store context
-        gptRectPackCtx = PL_ALLOC(sizeof(plRectPackContext));
-        memset(gptRectPackCtx, 0, sizeof(plRectPackContext));
-
+        static plRectPackContext gtRectPackCtx = {0};
+        gptRectPackCtx = &gtRectPackCtx;
         gptDataRegistry->set_data("plRectPackContext", gptRectPackCtx);
     }
 }
 
 static void
-pl_unload_rect_pack_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_rect_pack_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    ptApiRegistry->remove(pl_load_rect_pack_api());
+    if(bReload)
+        return;
+
     if(gptRectPackCtx->ptNodes)
         PL_FREE(gptRectPackCtx->ptNodes);
-
-    PL_FREE(gptRectPackCtx);
 }

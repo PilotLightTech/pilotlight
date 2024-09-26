@@ -99,22 +99,17 @@ pl_load_script_api(void)
 PL_EXPORT void
 pl_load_script(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-
     // load apis
     gptEcs    = ptApiRegistry->first(PL_API_ECS);
     gptCamera = ptApiRegistry->first(PL_API_CAMERA);
     gptIO     = ptApiRegistry->first(PL_API_IO);
     gptUi     = ptApiRegistry->first(PL_API_UI);
 
-    if(bReload)
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_SCRIPT), pl_load_script_api());
-    else
-        ptApiRegistry->add(PL_API_SCRIPT, pl_load_script_api());
+    ptApiRegistry->add(PL_API_SCRIPT, pl_load_script_api());
 }
 
 PL_EXPORT void
 pl_unload_script(plApiRegistryI* ptApiRegistry)
 {
-
+    ptApiRegistry->remove(pl_load_script_api());
 }

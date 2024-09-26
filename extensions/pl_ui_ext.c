@@ -135,24 +135,24 @@ pl_load_ui_api(void)
 static void
 pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    ptApiRegistry->add(PL_API_UI, pl_load_ui_api());
     if(bReload)
     {
         gptCtx = gptDataRegistry->get_data("plUiContext");
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_UI), pl_load_ui_api());
     }
-    else
+    else // first load
     {
-        ptApiRegistry->add(PL_API_UI, pl_load_ui_api());
-
         static plUiContext tContext = {0};
         gptCtx = &tContext;
-        memset(gptCtx, 0, sizeof(plUiContext));
-
         gptDataRegistry->set_data("plUiContext", gptCtx);
     }
 }
 
 static void
-pl_unload_ui_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    ptApiRegistry->remove(pl_load_ui_api());
+    if(bReload)
+        return;
+    gptCtx = NULL;
 }

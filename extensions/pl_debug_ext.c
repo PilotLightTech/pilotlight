@@ -1086,35 +1086,34 @@ pl__show_logging(bool* bValue)
 static void
 pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    ptApiRegistry->add(PL_API_DEBUG, pl_load_debug_api());
     if(bReload)
     {
-        ptApiRegistry->replace(ptApiRegistry->first(PL_API_DEBUG), pl_load_debug_api());
-
         gptDebugCtx = gptDataRegistry->get_data("plDebugContext");
     }
-    else
+    else // first load
     {
-        ptApiRegistry->add(PL_API_DEBUG, pl_load_debug_api());
-
-        // allocate & store context
-        gptDebugCtx = PL_ALLOC(sizeof(plDebugContext));
-        memset(gptDebugCtx, 0, sizeof(plDebugContext));
-
-        gptDebugCtx->bProfileFirstRun = true;
-
+        static plDebugContext gtDebugCtx = {
+            .bProfileFirstRun = true
+        };
+        gptDebugCtx = &gtDebugCtx;
         gptDataRegistry->set_data("plDebugContext", gptDebugCtx);
     }
 }
 
 static void
-pl_unload_debug_ext(plApiRegistryI* ptApiRegistry)
+pl_unload_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
+    ptApiRegistry->remove(pl_load_debug_api());
+
+    if(bReload)
+        return;
+        
     pl_sb_free(gptDebugCtx->sbppdValues);
     pl_sb_free(gptDebugCtx->sbppdFrameValues);
     pl_sb_free(gptDebugCtx->sbdRawValues);
     pl_sb_free(gptDebugCtx->sbbValues);
     pl_sb_free(gptDebugCtx->sbtSamples);
     pl_temp_allocator_free(&gptDebugCtx->tTempAllocator);
-    PL_FREE(gptDebugCtx);
     gptDebugCtx = NULL;
 }
