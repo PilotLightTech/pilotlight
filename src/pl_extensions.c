@@ -1,5 +1,5 @@
 /*
-    pl_ext.c
+    pl_extensions.c
       * unity build for activated extensions
       * absolute mess and needs to be cleaned up
 */
@@ -145,6 +145,22 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 // [SECTION] unity build #2
 //-----------------------------------------------------------------------------
 
+#define PL_LOG_IMPLEMENTATION
+#include "pl_log.h"
+#undef PL_LOG_IMPLEMENTATION
+
+#define PL_PROFILE_IMPLEMENTATION
+#include "pl_profile.h"
+#undef PL_PROFILE_IMPLEMENTATION
+
+#define PL_STRING_IMPLEMENTATION
+#include "pl_string.h"
+#undef PL_STRING_IMPLEMENTATION
+
+#define PL_MEMORY_IMPLEMENTATION
+#include "pl_memory.h"
+#undef PL_MEMORY_IMPLEMENTATION
+
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_MALLOC(x) PL_ALLOC(x)
 #define STBI_FREE(x) PL_FREE(x)
@@ -162,6 +178,12 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 #define STB_RECT_PACK_IMPLEMENTATION
 #include "stb_rect_pack.h"
 #undef STB_RECT_PACK_IMPLEMENTATION
+
+#ifdef PL_USE_STB_SPRINTF
+    #define STB_SPRINTF_IMPLEMENTATION
+    #include "stb_sprintf.h"
+    #undef STB_SPRINTF_IMPLEMENTATION
+#endif
 
 #ifdef PL_CORE_EXTENSION_INCLUDE_GRAPHICS
     #define STB_TRUETYPE_IMPLEMENTATION

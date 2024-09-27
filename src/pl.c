@@ -1,7 +1,8 @@
 /*
-    pl_exe.c
+    pl.c
       - common definitions needed by platform backends
-      - should be included near the end of a platform backend file
+      - should be included near the end of a platform backend file as
+        a unity build
 */
 
 /*
@@ -30,6 +31,8 @@ Index of this file:
 #include <string.h>  // strcmp
 #include "pl_internal.h"
 #include "pl_ds.h"
+#include "pl_profile.h"
+#include "pl_log.h"
 #include "pl_memory.h"
 #include "pl_string.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -49,7 +52,6 @@ typedef struct _plExtension
 {
     char pcLibName[128];
     char pcLibPath[128];
-    char pcTransName[128];
     char pcLoadFunc[128];
     char pcUnloadFunc[128];
     bool bReloadable;
@@ -486,18 +488,10 @@ pl_commit(plDataObject* ptWriter)
 static void
 pl__create_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, plExtension* ptExtensionOut)
 {
-
-    #ifdef _WIN32
-        pl_sprintf(ptExtensionOut->pcLibPath, "./%s.dll", pcName);
-    #elif defined(__APPLE__)
-        pl_sprintf(ptExtensionOut->pcLibPath, "./%s.dylib", pcName);
-    #else
-        pl_sprintf(ptExtensionOut->pcLibPath, "./%s.so", pcName);
-    #endif
-    strcpy(ptExtensionOut->pcLibName, pcName);
-    strcpy(ptExtensionOut->pcLoadFunc, pcLoadFunc);
-    strcpy(ptExtensionOut->pcUnloadFunc, pcUnloadFunc);
-    pl_sprintf(ptExtensionOut->pcTransName, "./%s_", pcName); 
+    strncpy(ptExtensionOut->pcLibPath, pcName, 128);
+    strncpy(ptExtensionOut->pcLibName, pcName, 128);
+    strncpy(ptExtensionOut->pcLoadFunc, pcLoadFunc, 128);
+    strncpy(ptExtensionOut->pcUnloadFunc, pcUnloadFunc, 128);
 }
 
 bool
@@ -531,7 +525,11 @@ pl_load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnlo
 
     const plLibraryI* ptLibraryApi = ptApiRegistry->first(PL_API_LIBRARY);
 
-    if(ptLibraryApi->load(tExtension.pcLibPath, tExtension.pcTransName, "./lock.tmp", &ptLibrary))
+    const plLibraryDesc tDesc = {
+        .pcName = tExtension.pcLibPath
+    };
+
+    if(ptLibraryApi->load(&tDesc, &ptLibrary))
     {
         tExtension.pl_load   = (void PL_CALL_CONVENTION (const plApiRegistryI*, bool))  ptLibraryApi->load_function(ptLibrary, tExtension.pcLoadFunc);
         tExtension.pl_unload = (void PL_CALL_CONVENTION (const plApiRegistryI*, bool))  ptLibraryApi->load_function(ptLibrary, tExtension.pcUnloadFunc);
@@ -629,8 +627,8 @@ pl__handle_extension_reloads(void)
 // [SECTION] io implementation
 //-----------------------------------------------------------------------------
 
-plKeyData*
-pl_get_key_data(plKey tKey)
+static inline plKeyData*
+pl__get_key_data(plKey tKey)
 {
     if(tKey & PL_KEY_MOD_MASK_)
     {
@@ -642,6 +640,18 @@ pl_get_key_data(plKey tKey)
     }
     assert(tKey > PL_KEY_NONE && tKey < PL_KEY_COUNT && "Key not valid");
     return &gtIO._tKeyData[tKey];
+}
+
+int
+pl_get_version_number(void)
+{
+    return PILOT_LIGHT_VERSION_NUM;
+}
+
+const char*
+pl_get_version(void)
+{
+    return PILOT_LIGHT_VERSION;
 }
 
 void
@@ -772,14 +782,14 @@ pl_clear_input_characters(void)
 bool
 pl_is_key_down(plKey tKey)
 {
-    const plKeyData* ptData = pl_get_key_data(tKey);
+    const plKeyData* ptData = pl__get_key_data(tKey);
     return ptData->bDown;
 }
 
 int
 pl_get_key_pressed_amount(plKey tKey, float fRepeatDelay, float fRate)
 {
-    const plKeyData* ptData = pl_get_key_data(tKey);
+    const plKeyData* ptData = pl__get_key_data(tKey);
     if (!ptData->bDown) // In theory this should already be encoded as (DownDuration < 0.0f), but testing this facilitates eating mechanism (until we finish work on input ownership)
         return 0;
     const float fT = ptData->fDownDuration;
@@ -789,7 +799,7 @@ pl_get_key_pressed_amount(plKey tKey, float fRepeatDelay, float fRate)
 bool
 pl_is_key_pressed(plKey tKey, bool bRepeat)
 {
-    const plKeyData* ptData = pl_get_key_data(tKey);
+    const plKeyData* ptData = pl__get_key_data(tKey);
     if (!ptData->bDown) // In theory this should already be encoded as (DownDuration < 0.0f), but testing this facilitates eating mechanism (until we finish work on input ownership)
         return false;
     const float fT = ptData->fDownDuration;
@@ -812,7 +822,7 @@ pl_is_key_pressed(plKey tKey, bool bRepeat)
 bool
 pl_is_key_released(plKey tKey)
 {
-    const plKeyData* ptData = pl_get_key_data(tKey);
+    const plKeyData* ptData = pl__get_key_data(tKey);
     if (ptData->fDownDurationPrev < 0.0f || ptData->bDown)
         return false;
     return true;
@@ -964,7 +974,7 @@ pl__update_events(void)
                 //     PL_UI_DEBUG_LOG_IO(ptEvent->bKeyDown ? "[%Iu] IO Key %i down" : "[%Iu] IO Key %i up", gptCtx->frameCount, ptEvent->tKey);
                 plKey tKey = ptEvent->tKey;
                 assert(tKey != PL_KEY_NONE);
-                plKeyData* ptKeyData = pl_get_key_data(tKey);
+                plKeyData* ptKeyData = pl__get_key_data(tKey);
                 ptKeyData->bDown = ptEvent->bKeyDown;
                 break;
             }
@@ -1302,7 +1312,6 @@ pl__load_core_apis(void)
         .get_mouse_wheel         = pl_get_mouse_wheel,
         .is_mouse_pos_valid      = pl_is_mouse_pos_valid,
         .set_mouse_cursor        = pl_set_mouse_cursor,
-        .get_key_data            = pl_get_key_data,
         .add_key_event           = pl_add_key_event,
         .add_text_event          = pl_add_text_event,
         .add_text_event_utf16    = pl_add_text_event_utf16,
@@ -1311,6 +1320,8 @@ pl__load_core_apis(void)
         .add_mouse_button_event  = pl_add_mouse_button_event,
         .add_mouse_wheel_event   = pl_add_mouse_wheel_event,
         .clear_input_characters  = pl_clear_input_characters,
+        .get_version             = pl_get_version,
+        .get_version_number      = pl_get_version_number
     };
 
     static const plDataRegistryI tDataRegistryApi = {
@@ -1353,6 +1364,15 @@ pl__load_core_apis(void)
     gptIOI               = ptApiRegistry->first(PL_API_IO);
     gptMemory            = ptApiRegistry->first(PL_API_MEMORY);
     gptApiRegistry       = ptApiRegistry;
+
+    plProfileContext* ptProfileCtx = pl_create_profile_context();
+    plLogContext*     ptLogCtx     = pl_create_log_context();
+
+    gptDataRegistry->set_data("profile", ptProfileCtx);
+    gptDataRegistry->set_data("log", ptLogCtx);
+
+    pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
+    pl_log_info("Setup logging");
 }
 
 void
@@ -1520,3 +1540,11 @@ pl__load_os_apis(void)
 #define PL_STRING_IMPLEMENTATION
 #include "pl_string.h"
 #undef PL_STRING_IMPLEMENTATION
+
+#define PL_LOG_IMPLEMENTATION
+#include "pl_log.h"
+#undef PL_LOG_IMPLEMENTATION
+
+#define PL_PROFILE_IMPLEMENTATION
+#include "pl_profile.h"
+#undef PL_PROFILE_IMPLEMENTATION

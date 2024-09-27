@@ -24,7 +24,7 @@ Index of this file:
 #define PL_H
 
 // framework version XYYZZ
-#define PILOT_LIGHT_VERSION    "1.0.0 WIP"
+#define PILOT_LIGHT_VERSION    "1.0.0"
 #define PILOT_LIGHT_VERSION_NUM 10000
 
 //-----------------------------------------------------------------------------
@@ -39,20 +39,20 @@ typedef struct _plExtensionRegistryI plExtensionRegistryI;
 #define PL_API_MEMORY "PL_API_MEMORY"
 typedef struct _plMemoryI plMemoryI;
 
-#define PL_API_DATA_REGISTRY "PL_API_DATA_REGISTRY"
-typedef struct _plDataRegistryI plDataRegistryI;
-
 #define PL_API_IO "PL_API_IO"
 typedef struct _plIOI plIOI;
+
+#define PL_API_DATA_REGISTRY "PL_API_DATA_REGISTRY"
+typedef struct _plDataRegistryI plDataRegistryI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
-#include "pl_math.h"
+#include <stdbool.h> // bool
+#include <stdint.h>  // uint32_t
+#include <stddef.h>  // size_t
+#include "pl_math.h" // plVec2
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -60,20 +60,18 @@ typedef struct _plIOI plIOI;
 
 // types
 typedef struct _plAllocationEntry plAllocationEntry;
-typedef struct _plDataObject      plDataObject;
 typedef union  _plDataID          plDataID;
+typedef struct _plDataObject      plDataObject; // opaque type
 typedef struct _plIO              plIO;         // configuration & IO between app & pilotlight ui
 typedef struct _plKeyData         plKeyData;    // individual key status (down, down duration, etc.)
 typedef struct _plInputEvent      plInputEvent; // holds data for input events (opaque structure)
 
 // enums
-typedef int plKey;                // -> enum plKey_                // Enum: A key identifier (PL_KEY_XXX or PL_KEY_MOD_XXX value)
-typedef int plMouseButton;        // -> enum plMouseButton_        // Enum: A mouse button identifier (PL_MOUSE_BUTTON_XXX)
-typedef int plMouseCursor;        // -> enum plMouseCursor_        // Enum: Mouse cursor shape (PL_MOUSE_CURSOR_XXX)
-typedef int plInputEventType;     // -> enum plInputEventType_     // Enum: An input event type (PL_INPUT_EVENT_TYPE_XXX)
-typedef int plInputEventSource;   // -> enum plInputEventSource_   // Enum: An input event source (PL_INPUT_EVENT_SOURCE_XXX)
-
-// flags
+typedef int plKey;              // -> enum plKey_              // Enum: A key identifier (PL_KEY_XXX or PL_KEY_MOD_XXX value)
+typedef int plMouseButton;      // -> enum plMouseButton_      // Enum: A mouse button identifier (PL_MOUSE_BUTTON_XXX)
+typedef int plMouseCursor;      // -> enum plMouseCursor_      // Enum: Mouse cursor shape (PL_MOUSE_CURSOR_XXX)
+typedef int plInputEventType;   // -> enum plInputEventType_   // Enum: An input event type (PL_INPUT_EVENT_TYPE_XXX)
+typedef int plInputEventSource; // -> enum plInputEventSource_ // Enum: An input event source (PL_INPUT_EVENT_SOURCE_XXX)
 typedef int plKeyChord;
 
 // character types
@@ -108,6 +106,47 @@ typedef struct _plMemoryI
     plAllocationEntry* (*get_allocations)(size_t* pszCount);
 } plMemoryI;
 
+typedef struct _plIOI
+{
+    void  (*new_frame)(void);
+    plIO* (*get_io)(void);
+
+    // keyboard
+    bool (*is_key_down)           (plKey);
+    bool (*is_key_pressed)        (plKey, bool bRepeat);
+    bool (*is_key_released)       (plKey);
+    int  (*get_key_pressed_amount)(plKey, float fRepeatDelay, float fRate);
+
+    // mouse
+    bool   (*is_mouse_down)          (plMouseButton);
+    bool   (*is_mouse_clicked)       (plMouseButton, bool bRepeat);
+    bool   (*is_mouse_released)      (plMouseButton);
+    bool   (*is_mouse_double_clicked)(plMouseButton);
+    bool   (*is_mouse_dragging)      (plMouseButton, float fThreshold);
+    bool   (*is_mouse_hovering_rect) (plVec2 minVec, plVec2 maxVec);
+    void   (*reset_mouse_drag_delta) (plMouseButton);
+    plVec2 (*get_mouse_drag_delta)   (plMouseButton, float fThreshold);
+    plVec2 (*get_mouse_pos)          (void);
+    float  (*get_mouse_wheel)        (void);
+    bool   (*is_mouse_pos_valid)     (plVec2);
+    void   (*set_mouse_cursor)       (plMouseCursor);
+
+    // input functions (used by backends)
+    void (*add_key_event)         (plKey, bool bDown);
+    void (*add_text_event)        (uint32_t uChar);
+    void (*add_text_event_utf16)  (uint16_t uChar);
+    void (*add_text_events_utf8)  (const char* pcText);
+    void (*add_mouse_pos_event)   (float x, float y);
+    void (*add_mouse_button_event)(int iButton, bool bDown);
+    void (*add_mouse_wheel_event) (float fHorizontalDelta, float fVerticalDelta);
+    void (*clear_input_characters)(void);
+
+    // misc.
+    int         (*get_version_number)(void);
+    const char* (*get_version)       (void);
+
+} plIOI;
+
 typedef struct _plDataRegistryI
 {
 
@@ -136,44 +175,6 @@ typedef struct _plDataRegistryI
     void          (*set_buffer)(plDataObject*, uint32_t uProperty, void*);
     void          (*commit)    (plDataObject*);
 } plDataRegistryI;
-
-typedef struct _plIOI
-{
-    void (*new_frame)(void);
-    
-    plIO* (*get_io)(void);
-
-    // keyboard
-    bool (*is_key_down)           (plKey);
-    bool (*is_key_pressed)        (plKey, bool bRepeat);
-    bool (*is_key_released)       (plKey);
-    int  (*get_key_pressed_amount)(plKey, float fRepeatDelay, float fRate);
-
-    // mouse
-    bool   (*is_mouse_down)          (plMouseButton);
-    bool   (*is_mouse_clicked)       (plMouseButton, bool bRepeat);
-    bool   (*is_mouse_released)      (plMouseButton);
-    bool   (*is_mouse_double_clicked)(plMouseButton);
-    bool   (*is_mouse_dragging)      (plMouseButton, float fThreshold);
-    bool   (*is_mouse_hovering_rect) (plVec2 minVec, plVec2 maxVec);
-    void   (*reset_mouse_drag_delta) (plMouseButton);
-    plVec2 (*get_mouse_drag_delta)   (plMouseButton, float fThreshold);
-    plVec2 (*get_mouse_pos)          (void);
-    float  (*get_mouse_wheel)        (void);
-    bool   (*is_mouse_pos_valid)     (plVec2);
-    void   (*set_mouse_cursor)       (plMouseCursor);
-
-    // input functions
-    plKeyData* (*get_key_data)          (plKey);
-    void       (*add_key_event)         (plKey, bool bDown);
-    void       (*add_text_event)        (uint32_t uChar);
-    void       (*add_text_event_utf16)  (uint16_t uChar);
-    void       (*add_text_events_utf8)  (const char* pcText);
-    void       (*add_mouse_pos_event)   (float fX, float fY);
-    void       (*add_mouse_button_event)(int iButton, bool bDown);
-    void       (*add_mouse_wheel_event) (float fX, float fY);
-    void       (*clear_input_characters)(void);
-} plIOI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -327,7 +328,7 @@ typedef struct _plIO
     //------------------------------------------------------------------
 
     bool bRunning;
-    float fHeadlessUpdateRate; // frame rate when in headless (FPS)
+    float fHeadlessUpdateRate; // frame rate when headless (FPS)
 
     //------------------------------------------------------------------
     // Output
@@ -416,7 +417,7 @@ typedef struct _plAllocationEntry
     #if defined(_MSC_VER) //  Microsoft 
         #define PL_EXPORT extern "C" __declspec(dllexport)
         #define PL_CALL_CONVENTION (__cdecl *)
-    #elif defined(__GNUC__) //  GCC
+    #elif defined(__GNUC__) //  GCC or clang
         #define PL_EXPORT extern "C" __attribute__((visibility("default")))
         #define PL_CALL_CONVENTION (__attribute__(()) *)
     #else //  do nothing and hope for the best?
@@ -429,7 +430,7 @@ typedef struct _plAllocationEntry
     #if defined(_MSC_VER) //  Microsoft 
         #define PL_EXPORT __declspec(dllexport)
         #define PL_CALL_CONVENTION (__cdecl *)
-    #elif defined(__GNUC__) //  GCC
+    #elif defined(__GNUC__) //  GCC or clang
         #define PL_EXPORT __attribute__((visibility("default")))
         #define PL_CALL_CONVENTION (__attribute__(()) *)
     #else //  do nothing and hope for the best?
@@ -440,19 +441,19 @@ typedef struct _plAllocationEntry
 #endif
 
 #ifdef PL_USER_CONFIG
-#include PL_USER_CONFIG
+    #include PL_USER_CONFIG
 #endif
-#include "pl_config.h"
+    #include "pl_config.h"
 
 #ifdef PL_USE_STB_SPRINTF
-#include "stb_sprintf.h"
-#define pl_sprintf stbsp_sprintf
-#define pl_vsprintf stbsp_vsprintf
-#define pl_vnsprintf stbsp_vsnprintf
+    #include "stb_sprintf.h"
+    #define pl_sprintf stbsp_sprintf
+    #define pl_vsprintf stbsp_vsprintf
+    #define pl_vnsprintf stbsp_vsnprintf
 #else
-#define pl_sprintf sprintf
-#define pl_vsprintf vsprintf
-#define pl_vnsprintf vsnprintf
+    #define pl_sprintf sprintf
+    #define pl_vsprintf vsprintf
+    #define pl_vnsprintf vsnprintf
 #endif
 
 #ifndef PL_ASSERT

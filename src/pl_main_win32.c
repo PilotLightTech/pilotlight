@@ -130,13 +130,14 @@ typedef struct _plThreadKey
 
 typedef struct _plSharedLibrary
 {
-    bool     bValid;
-    uint32_t uTempIndex;
-    char     acPath[PL_MAX_PATH_LENGTH];
-    char     acTransitionalName[PL_MAX_PATH_LENGTH];
-    char     acLockFile[PL_MAX_PATH_LENGTH];
-    HMODULE  tHandle;
-    FILETIME tLastWriteTime;
+    bool          bValid;
+    uint32_t      uTempIndex;
+    char          acPath[PL_MAX_PATH_LENGTH];
+    char          acTransitionalName[PL_MAX_PATH_LENGTH];
+    char          acLockFile[PL_MAX_PATH_LENGTH];
+    plLibraryDesc tDesc;
+    HMODULE       tHandle;
+    FILETIME      tLastWriteTime;
 } plSharedLibrary;
 
 //-----------------------------------------------------------------------------
@@ -260,11 +261,10 @@ int main(int argc, char *argv[])
 
     // load app library
     const plLibraryI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
-    static char acLibraryName[256] = {0};
-    static char acTransitionalName[256] = {0};
-    pl_sprintf(acLibraryName, "./%s.dll", pcAppName);
-    pl_sprintf(acTransitionalName, "./%s_", pcAppName);
-    if(ptLibraryApi->load(acLibraryName, acTransitionalName, "./lock.tmp", &gptAppLibrary))
+    const plLibraryDesc tLibraryDesc = {
+        .pcName = pcAppName
+    };
+    if(ptLibraryApi->load(&tLibraryDesc, &gptAppLibrary))
     {
         pl_app_load     = (void* (__cdecl  *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
         pl_app_shutdown = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
@@ -886,16 +886,22 @@ pl_file_exists(const char* pcFile)
     return false;
 }
 
-void
+plOSResult
 pl_file_delete(const char* pcFile)
 {
-    DeleteFile(pcFile);
+    BOOL bResult = DeleteFile(pcFile);
+    if(bResult)
+        return PL_OS_RESULT_SUCCESS;
+    return PL_OS_RESULT_FAIL;
 }
 
-void
+plOSResult
 pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
 {
     PL_ASSERT(pszSizeIn);
+
+    if(pszSizeIn == NULL)
+        return PL_OS_RESULT_FAIL;
 
     FILE* ptDataFile = fopen(pcFile, "rb");
     size_t uSize = 0u;
@@ -903,7 +909,7 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
     if (ptDataFile == NULL)
     {
         *pszSizeIn = 0u;
-        return;
+        return PL_OS_RESULT_FAIL;
     }
 
     // obtain file size
@@ -915,7 +921,7 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
     {
         *pszSizeIn = uSize;
         fclose(ptDataFile);
-        return;
+        return PL_OS_RESULT_SUCCESS;
     }
 
     // copy the file into the buffer:
@@ -928,12 +934,14 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
             perror("Error reading test.bin");
         }
         PL_ASSERT(false && "File not read.");
+        return PL_OS_RESULT_FAIL;
     }
 
     fclose(ptDataFile);
+    return PL_OS_RESULT_SUCCESS;
 }
 
-void
+plOSResult
 pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
 {
     FILE* ptDataFile = fopen(pcFile, "wb");
@@ -941,13 +949,18 @@ pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
     {
         fwrite(pcBuffer, 1, szSize, ptDataFile);
         fclose(ptDataFile);
+        return PL_OS_RESULT_SUCCESS;
     }
+    return PL_OS_RESULT_FAIL;
 }
 
-void
+plOSResult
 pl_copy_file(const char* pcSource, const char* pcDestination)
 {
-    CopyFile(pcSource, pcDestination, FALSE);
+    BOOL bResult = CopyFile(pcSource, pcDestination, FALSE);
+    if(bResult)
+        return PL_OS_RESULT_SUCCESS;
+    return PL_OS_RESULT_FAIL;
 }
 
 //-----------------------------------------------------------------------------
@@ -977,7 +990,7 @@ pl_create_address(const char* pcAddress, const char* pcService, plNetworkAddress
     if(getaddrinfo(pcAddress, pcService, &tHints, &tInfo))
     {
         printf("Could not create address : %d\n", WSAGetLastError());
-        return -1;
+        return PL_OS_RESULT_FAIL;
     }
 
     *pptAddress = PL_ALLOC(sizeof(plNetworkAddress));
@@ -1050,7 +1063,7 @@ pl_send_socket_data_to(plSocket* ptFromSocket, plNetworkAddress* ptAddress, cons
     if(iResult == SOCKET_ERROR)
     {
         printf("sendto() failed with error code : %d\n", WSAGetLastError());
-        return -1;
+        return PL_OS_RESULT_FAIL;
     }
 
     if(pszSentSize)
@@ -1069,7 +1082,7 @@ pl_bind_socket(plSocket* ptSocket, plNetworkAddress* ptAddress)
         if(ptSocket->tSocket == INVALID_SOCKET)
         {
             printf("Could not create socket : %d\n", WSAGetLastError());
-            return -1;
+            return PL_OS_RESULT_FAIL;
         }
 
         // enable non-blocking
@@ -1086,7 +1099,7 @@ pl_bind_socket(plSocket* ptSocket, plNetworkAddress* ptAddress)
     if(bind(ptSocket->tSocket, ptAddress->tInfo->ai_addr, (int)ptAddress->tInfo->ai_addrlen) == SOCKET_ERROR)
     {
         printf("Bind socket failed with error code : %d\n", WSAGetLastError());
-        return -1;
+        return PL_OS_RESULT_FAIL;
     }
     return PL_OS_RESULT_SUCCESS;
 }
@@ -1106,7 +1119,7 @@ pl_get_socket_data_from(plSocket* ptSocket, void* pData, size_t szSize, size_t* 
         if(iLastError != WSAEWOULDBLOCK)
         {
             printf("recvfrom() failed with error code : %d\n", WSAGetLastError());
-            return -1;
+            return PL_OS_RESULT_FAIL;
         }
     }
 
@@ -1138,7 +1151,7 @@ pl_connect_socket(plSocket* ptFromSocket, plNetworkAddress* ptAddress)
         if(ptFromSocket->tSocket == INVALID_SOCKET)
         {
             printf("Could not create socket : %d\n", WSAGetLastError());
-            return -1;
+            return PL_OS_RESULT_FAIL;
         }
 
         // enable non-blocking
@@ -1156,7 +1169,7 @@ pl_connect_socket(plSocket* ptFromSocket, plNetworkAddress* ptAddress)
     if(iResult)
     {
         printf("connect() failed with error code : %d\n", WSAGetLastError());
-        return -1;
+        return PL_OS_RESULT_FAIL;
     }
 
     return PL_OS_RESULT_SUCCESS;
@@ -1168,7 +1181,7 @@ pl_get_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRe
     int iBytesReceived = recv(ptSocket->tSocket, (char*)pData, (int)szSize, 0);
     if(iBytesReceived < 1)
     {
-        return -1; // connection closed by peer
+        return PL_OS_RESULT_FAIL; // connection closed by peer
     }
     if(pszRecievedSize)
         *pszRecievedSize = (size_t)iBytesReceived;
@@ -1192,7 +1205,7 @@ pl_select_sockets(plSocket** ptSockets, bool* abSelectedSockets, uint32_t uSocke
     if(select(0, &tReads, NULL, NULL, &tTimeout) < 0)
     {
         printf("select socket failed with error code : %d\n", WSAGetLastError());
-        return -1;
+        return PL_OS_RESULT_FAIL;
     }
 
     for(uint32_t i = 0; i < uSocketCount; i++)
@@ -1214,7 +1227,7 @@ pl_accept_socket(plSocket* ptSocket, plSocket** pptSocketOut)
     SOCKET tSocketClient = accept(ptSocket->tSocket, (struct sockaddr*)&tClientAddress, &tClientLen);
 
     if(tSocketClient == INVALID_SOCKET)
-        return -1;
+        return PL_OS_RESULT_FAIL;
 
     *pptSocketOut = PL_ALLOC(sizeof(plSocket));
     plSocket* ptNewSocket = *pptSocketOut;
@@ -1229,7 +1242,7 @@ pl_listen_socket(plSocket* ptSocket)
 {
     if(listen(ptSocket->tSocket, 10) < 0)
     {
-        return -1;
+        return PL_OS_RESULT_FAIL;
     }
     return PL_OS_RESULT_SUCCESS;
 }
@@ -1239,7 +1252,7 @@ pl_send_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszS
 {
     int iResult = send(ptSocket->tSocket, (char*)pData, (int)szSize, 0);
     if(iResult == SOCKET_ERROR)
-        return -1;
+        return PL_OS_RESULT_FAIL;
     if(pszSentSize)
         *pszSentSize = (size_t)iResult;
     return PL_OS_RESULT_SUCCESS;
@@ -1264,25 +1277,49 @@ pl__get_last_write_time(const char* pcFilename)
 bool
 pl_has_library_changed(plSharedLibrary* ptLibrary)
 {
-    FILETIME newWriteTime = pl__get_last_write_time(ptLibrary->acPath);
-    return CompareFileTime(&newWriteTime, &ptLibrary->tLastWriteTime) != 0;
+    PL_ASSERT(ptLibrary);
+    if(ptLibrary)
+    {
+        FILETIME newWriteTime = pl__get_last_write_time(ptLibrary->acPath);
+        return CompareFileTime(&newWriteTime, &ptLibrary->tLastWriteTime) != 0;
+    }
+    return false;
 }
 
-bool
-pl_load_library(const char* pcName, const char* pcTransitionalName, const char* pcLockFile, plSharedLibrary** pptLibraryOut)
+plOSResult
+pl_load_library(const plLibraryDesc* ptDesc, plSharedLibrary** pptLibraryOut)
 {
+
+    plSharedLibrary* ptLibrary = NULL;
 
     if(*pptLibraryOut == NULL)
     {
         *pptLibraryOut = PL_ALLOC(sizeof(plSharedLibrary));
         memset((*pptLibraryOut), 0, sizeof(plSharedLibrary));
-        (*pptLibraryOut)->bValid = false;
+
+        ptLibrary = *pptLibraryOut;
+
+        ptLibrary->bValid = false;
+        ptLibrary->tDesc = *ptDesc;
+
+        pl_sprintf(ptLibrary->acPath, "%s.dll", ptDesc->pcName);
+
+        if(ptDesc->pcTransitionalName)
+            strncpy(ptLibrary->acTransitionalName, ptDesc->pcTransitionalName, PL_MAX_PATH_LENGTH);
+        else
+        {
+            pl_sprintf(ptLibrary->acTransitionalName, "%s_", ptDesc->pcName);
+        }
+
+        if(ptDesc->pcLockFile)
+            strncpy(ptLibrary->acLockFile, ptDesc->pcLockFile, PL_MAX_PATH_LENGTH);
+        else
+            strncpy(ptLibrary->acLockFile, "lock.tmp", PL_MAX_PATH_LENGTH);
     }
-    plSharedLibrary* ptLibrary = *pptLibraryOut;
-    if(ptLibrary->acPath[0] == 0)             strncpy(ptLibrary->acPath, pcName, PL_MAX_PATH_LENGTH);
-    if(ptLibrary->acTransitionalName[0] == 0) strncpy(ptLibrary->acTransitionalName, pcTransitionalName, PL_MAX_PATH_LENGTH);
-    if(ptLibrary->acLockFile[0] == 0)         strncpy(ptLibrary->acLockFile, pcLockFile, PL_MAX_PATH_LENGTH);
-    
+    else
+        ptLibrary = *pptLibraryOut;
+
+    ptLibrary->bValid = false;
 
     WIN32_FILE_ATTRIBUTE_DATA tIgnored;
     if(!GetFileAttributesExA(ptLibrary->acLockFile, GetFileExInfoStandard, &tIgnored))  // lock file gone
@@ -1308,7 +1345,9 @@ pl_load_library(const char* pcName, const char* pcTransitionalName, const char* 
         }
     }
 
-    return ptLibrary->bValid;
+    if(ptLibrary->bValid)
+        return PL_OS_RESULT_SUCCESS;
+    return PL_OS_RESULT_FAIL;
 }
 
 void
@@ -1317,7 +1356,7 @@ pl_reload_library(plSharedLibrary* ptLibrary)
     ptLibrary->bValid = false;
     for(uint32_t i = 0; i < 100; i++)
     {
-        if(pl_load_library(ptLibrary->acPath, ptLibrary->acTransitionalName, ptLibrary->acLockFile, &ptLibrary))
+        if(pl_load_library(&ptLibrary->tDesc, &ptLibrary))
             break;
         pl_sleep(100);
     }
@@ -1794,4 +1833,4 @@ pl_set_clipboard_text(void* pUnused, const char* text)
 // [SECTION] unity build
 //-----------------------------------------------------------------------------
 
-#include "pl_exe.c"
+#include "pl.c"

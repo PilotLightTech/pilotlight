@@ -50,8 +50,8 @@ typedef struct _plVirtualMemoryI plVirtualMemoryI;
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdbool.h>
-#include <stdint.h>
+#include <stdbool.h> // bool
+#include <stdint.h>  // uint32_t, int64_t
 #include <stddef.h>  // size_t
 
 //-----------------------------------------------------------------------------
@@ -59,27 +59,28 @@ typedef struct _plVirtualMemoryI plVirtualMemoryI;
 //-----------------------------------------------------------------------------
 
 // types
-typedef struct _plWindow            plWindow;
-typedef struct _plWindowDesc        plWindowDesc;
-typedef struct _plSocketReceiverInfo  plSocketReceiverInfo;
-typedef struct _plSharedLibrary     plSharedLibrary;     // opaque type (used by platform backends)
-typedef struct _plSocket            plSocket;            // opaque type (used by platform backends)
-typedef struct _plNetworkAddress    plNetworkAddress;    // opaque type (used by platform backends)
-typedef struct _plThread            plThread;            // opaque type (used by platform backends)
-typedef struct _plMutex             plMutex;             // opaque type (used by platform backends)
-typedef struct _plCriticalSection   plCriticalSection;   // opaque type (used by platform backends)
-typedef struct _plSemaphore         plSemaphore;         // opaque type (used by platform backends)
-typedef struct _plBarrier           plBarrier;           // opaque type (used by platform backends)
-typedef struct _plConditionVariable plConditionVariable; // opaque type (used by platform backends)
-typedef struct _plThreadKey         plThreadKey;         // opaque type (used by platform backends)
-typedef struct _plAtomicCounter     plAtomicCounter;     // opaque type (used by platform backends)
+typedef struct _plWindow             plWindow;
+typedef struct _plWindowDesc         plWindowDesc;
+typedef struct _plLibraryDesc        plLibraryDesc;
+typedef struct _plSocketReceiverInfo plSocketReceiverInfo;
+typedef struct _plSharedLibrary      plSharedLibrary;     // opaque type (used by platform backends)
+typedef struct _plSocket             plSocket;            // opaque type (used by platform backends)
+typedef struct _plNetworkAddress     plNetworkAddress;    // opaque type (used by platform backends)
+typedef struct _plThread             plThread;            // opaque type (used by platform backends)
+typedef struct _plMutex              plMutex;             // opaque type (used by platform backends)
+typedef struct _plCriticalSection    plCriticalSection;   // opaque type (used by platform backends)
+typedef struct _plSemaphore          plSemaphore;         // opaque type (used by platform backends)
+typedef struct _plBarrier            plBarrier;           // opaque type (used by platform backends)
+typedef struct _plConditionVariable  plConditionVariable; // opaque type (used by platform backends)
+typedef struct _plThreadKey          plThreadKey;         // opaque type (used by platform backends)
+typedef struct _plAtomicCounter      plAtomicCounter;     // opaque type (used by platform backends)
 
 // enums
 typedef int plNetworkAddressFlags; // -> enum _plNetworkAddressFlags // Flags:
 typedef int plSocketFlags;         // -> enum _plSocketFlags         // Flags:
 typedef int plOSResult;            // -> enum _plOSResult            // Enum:
 
-// forward declarations
+// thread procedure signature
 typedef void* (*plThreadProcedure)(void*);
 
 //-----------------------------------------------------------------------------
@@ -94,24 +95,23 @@ typedef struct _plWindowI
 
 typedef struct _plLibraryI
 {
-    bool  (*load)         (const char* pcName, const char* pcTransitionalName, const char* pcLockFile, plSharedLibrary** pptLibraryOut);
-    bool  (*has_changed)  (plSharedLibrary*);
-    void  (*reload)       (plSharedLibrary*);
-    void* (*load_function)(plSharedLibrary*, const char*);
+    plOSResult (*load)         (const plLibraryDesc*, plSharedLibrary** pptLibraryOut);
+    bool       (*has_changed)  (plSharedLibrary*);
+    void       (*reload)       (plSharedLibrary*);
+    void*      (*load_function)(plSharedLibrary*, const char*);
 } plLibraryI;
 
 typedef struct _plFileI
 {
     // simple file ops
-    bool (*exists)(const char* pcPath);
-    void (*delete)(const char* pcPath);
-    void (*copy)  (const char* pcSource, const char* pcDestination);
+    bool       (*exists)(const char* pcPath);
+    plOSResult (*delete)(const char* pcPath);
+    plOSResult (*copy)  (const char* pcSource, const char* pcDestination);
 
-    // reading
-    void (*binary_read)(const char* pcFile, size_t* pszSize, uint8_t* puBuffer);
+    // binary files
+    plOSResult (*binary_read) (const char* pcFile, size_t* pszSize, uint8_t* puBuffer); // pass NULL for puBuffer to get size
+    plOSResult (*binary_write)(const char* pcFile, size_t, uint8_t* puBuffer);
 
-    // writing
-    void (*binary_write)(const char* pcFile, size_t, uint8_t* puBuffer);
 } plFileI;
 
 typedef struct _plNetworkI
@@ -221,6 +221,7 @@ typedef struct _plVirtualMemoryI
     void*  (*commit)       (void* pAddress, size_t); // commits a block of reserved memory. szSize must be a multiple of memory page size.
     void   (*uncommit)     (void* pAddress, size_t); // uncommits a block of committed memory.
     void   (*free)         (void* pAddress, size_t); // frees a block of previously reserved/committed memory. Must be the starting address returned from "reserve()" or "alloc()"
+    
 } plVirtualMemoryI;
 
 //-----------------------------------------------------------------------------
@@ -272,5 +273,12 @@ typedef struct _plWindow
     plWindowDesc tDesc;
     void*        _pPlatformData;
 } plWindow;
+
+typedef struct _plLibraryDesc
+{
+    const char* pcName;             // name of library (without extension)
+    const char* pcTransitionalName; // default: pcName + '_'
+    const char* pcLockFile;         // default: "lock.tmp"
+} plLibraryDesc;
 
 #endif // PL_OS_H

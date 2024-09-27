@@ -104,15 +104,12 @@ for script in scripts:
 # copy libs & executable
 if platform.system() == "Windows":
     shutil.copy("../out/pilot_light.exe", target_directory + "/bin/pilot_light.exe")
-    shutil.copy("../out/pilot_light.lib", target_directory + "/lib/pilot_light.lib")
     shutil.copy("../src/vc140.pdb", target_directory + "/bin/vc140.pdb")
 elif platform.system() == "Darwin":
     shutil.copy("../out/pilot_light", target_directory + "/bin/pilot_light")
-    shutil.copy("../out/libpilot_light.a", target_directory + "/lib/libpilot_light.a")
     shutil.copytree("../out/pilot_light.dSYM", target_directory + "/bin/pilot_light.dSYM")
 elif platform.system() == "Linux":
     shutil.copy("../out/pilot_light", target_directory + "/bin/pilot_light")
-    shutil.copy("../out/pilot_light.a", target_directory + "/lib/pilot_light.a")
 
 #-----------------------------------------------------------------------------
 # [SECTION] zip

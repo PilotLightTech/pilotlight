@@ -81,49 +81,15 @@ with pl.project("pilotlight"):
                     definitions=["PL_VULKAN_BACKEND"])
     pl.add_profile(configuration_filter=["debug"], platform_filter=["Darwin"],
                     definitions=["PL_METAL_BACKEND"])
-
-    #-----------------------------------------------------------------------------
-    # [SECTION] pl_lib
-    #-----------------------------------------------------------------------------
-
-    with pl.target("pl_lib", pl.TargetType.STATIC_LIBRARY):
-
-        pl.add_source_files("pl_lib.c")
-        pl.set_output_binary("pilot_light")
-
-        # default config
-        with pl.configuration("debug"):
-
-            # win32
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pass
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
-   
-            # mac os
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pass
-                    
-        # vulkan on macos
-        with pl.configuration("vulkan"):
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pass
                     
     #-----------------------------------------------------------------------------
     # [SECTION] extensions
     #-----------------------------------------------------------------------------
 
     # vulkan backend extensions
-    with pl.target("pl_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("pl_extensions", pl.TargetType.DYNAMIC_LIBRARY, True):
 
-        pl.add_static_link_libraries("pilot_light")
-        pl.add_source_files("pl_ext.c")
+        pl.add_source_files("pl_extensions.c")
         pl.set_output_binary("pilot_light")
 
         # default config
@@ -170,8 +136,6 @@ with pl.project("pilotlight"):
     # vulkan backend
     with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY, True):
 
-
-        pl.add_static_link_libraries("pilot_light")
         pl.add_source_files("../extensions/pl_script_camera.c")
         pl.set_output_binary("pl_script_camera")
 
@@ -207,7 +171,6 @@ with pl.project("pilotlight"):
 
     with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
 
-        pl.add_static_link_libraries("pilot_light")
         pl.add_source_files("../sandbox/app.c")
         pl.set_output_binary("app")
 

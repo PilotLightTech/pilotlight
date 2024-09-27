@@ -23,6 +23,7 @@ Index of this file:
 // [SECTION] pl_app_resize
 // [SECTION] pl_app_update
 // [SECTION] helper function definitions
+// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
@@ -139,15 +140,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // between extensions & the runtime
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
 
+    // set log & profile contexts
+    pl_set_log_context(ptDataRegistry->get_data("log"));
+    pl_set_profile_context(ptDataRegistry->get_data("profile"));
+
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
     if(ptAppData)
     {
-        // set contexts again since we are now in a
-        // differenct dll/so
-        pl_set_log_context(ptDataRegistry->get_data("log"));
-        pl_set_profile_context(ptDataRegistry->get_data("profile"));
-
         // re-retrieve the apis since we are now in
         // a different dll/so
         gptIO      = ptApiRegistry->first(PL_API_IO);
@@ -163,19 +163,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // allocate app memory here
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
-
-    // create profiling & logging contexts (used by extension here)
-    plProfileContext* ptProfileCtx = pl_create_profile_context();
-    plLogContext*     ptLogCtx     = pl_create_log_context();
-
-    // add log channel (ignoring the return here)
-    pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
-    pl_log_info("Setup logging");
-    
-    // add these to data registry so they can be retrieved by extension
-    // and subsequent app reloads
-    ptDataRegistry->set_data("profile", ptProfileCtx);
-    ptDataRegistry->set_data("log", ptLogCtx);
 
     // retrieve extension registry
     const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
@@ -726,3 +713,15 @@ resize_offscreen_resources(plAppData* ptAppData)
     }
     gptGfx->update_render_pass_attachments(ptDevice, ptAppData->tOffscreenRenderPass, ptAppData->tOffscreenSize, atAttachmentSets);
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] unity build
+//-----------------------------------------------------------------------------
+
+#define PL_LOG_IMPLEMENTATION
+#include "pl_log.h"
+#undef PL_LOG_IMPLEMENTATION
+
+#define PL_PROFILE_IMPLEMENTATION
+#include "pl_profile.h"
+#undef PL_PROFILE_IMPLEMENTATION

@@ -32,10 +32,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 {
     const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
 
+    pl_set_log_context(ptDataRegistry->get_data("log"));
+    pl_set_profile_context(ptDataRegistry->get_data("profile"));
+
     if(ptEditorData) // reload
     {
-        pl_set_log_context(ptDataRegistry->get_data("log"));
-        pl_set_profile_context(ptDataRegistry->get_data("profile"));
+
 
         // reload global apis
         gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
@@ -56,12 +58,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
         return ptEditorData;
     }
-
-    plProfileContext* ptProfileCtx = pl_create_profile_context();
-    plLogContext*     ptLogCtx     = pl_create_log_context();
-
-    ptDataRegistry->set_data("profile", ptProfileCtx);
-    ptDataRegistry->set_data("log", ptLogCtx);
 
     pl_begin_profile_frame();
 
@@ -90,10 +86,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     ptEditorData = PL_ALLOC(sizeof(plEditorData));
     memset(ptEditorData, 0, sizeof(plEditorData));
     ptEditorData->tSelectedEntity.ulData = UINT64_MAX;
-
-    // create log context
-    pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
-    pl_log_info("Setup logging");
 
     // initialize shader extension
     static const plShaderOptions tDefaultShaderOptions = {
@@ -479,3 +471,17 @@ pl_app_update(plEditorData* ptEditorData)
 
 #include "pl_gizmo.c"
 #include "pl_ecs_tools.c"
+
+#define PL_LOG_IMPLEMENTATION
+#include "pl_log.h"
+#undef PL_LOG_IMPLEMENTATION
+
+#define PL_PROFILE_IMPLEMENTATION
+#include "pl_profile.h"
+#undef PL_PROFILE_IMPLEMENTATION
+
+#ifdef PL_USE_STB_SPRINTF
+    #define STB_SPRINTF_IMPLEMENTATION
+    #include "stb_sprintf.h"
+    #undef STB_SPRINTF_IMPLEMENTATION
+#endif

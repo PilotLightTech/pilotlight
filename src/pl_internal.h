@@ -1,7 +1,7 @@
 /*
     pl_internal.h
       * mostly forward declarations for functions defined
-        in pl_exe.c for use by platform backends
+        in pl.c for use by platform backends
 */
 
 /*
@@ -70,11 +70,11 @@ const char* pl_get_clipboard_text(void* user_data_ctx);
 void        pl_set_clipboard_text(void* pUnused, const char* text);
 
 // file api
-bool pl_file_exists      (const char* pcFile);
-void pl_file_delete      (const char* pcFile);
-void pl_binary_read_file (const char* pcFile, size_t* pszSize, uint8_t* pcBuffer);
-void pl_copy_file        (const char* pcSource, const char* pcDestination);
-void pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer);
+bool       pl_file_exists      (const char* pcFile);
+plOSResult pl_file_delete      (const char* pcFile);
+plOSResult pl_binary_read_file (const char* pcFile, size_t* pszSize, uint8_t* pcBuffer);
+plOSResult pl_copy_file        (const char* pcSource, const char* pcDestination);
+plOSResult pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer);
 
 // network api: general
 plOSResult pl_create_address      (const char* pcAddress, const char* pcService, plNetworkAddressFlags, plNetworkAddress** pptAddressOut);
@@ -82,77 +82,77 @@ void       pl_destroy_address     (plNetworkAddress**);
 void       pl_create_socket       (plSocketFlags, plSocket** pptSocketOut);
 void       pl_destroy_socket      (plSocket**);
 plOSResult pl_bind_socket         (plSocket*, plNetworkAddress*);
-plOSResult pl_select_sockets      (plSocket** ptSockets, bool* abSelectedSockets, uint32_t uSocketCount, uint32_t uTimeOutMilliSec);
+plOSResult pl_select_sockets      (plSocket**, bool* abSelectedSockets, uint32_t uSocketCount, uint32_t uTimeOutMilliSec);
 plOSResult pl_send_socket_data_to (plSocket*, plNetworkAddress*, const void* pData, size_t, size_t* pszSentSizeOut);
 plOSResult pl_get_socket_data_from(plSocket*, void* pOutData, size_t, size_t* pszRecievedSize, plSocketReceiverInfo*);
-plOSResult pl_connect_socket      (plSocket* ptFromSocket, plNetworkAddress* ptAddress);
-plOSResult pl_send_socket_data    (plSocket* ptSocket, void* pData, size_t szSize, size_t* pszSentSizeOut);
-plOSResult pl_get_socket_data     (plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRecievedSize);
-plOSResult pl_accept_socket       (plSocket* ptSocket, plSocket** pptSocketOut);
-plOSResult pl_listen_socket       (plSocket* ptSocket);
+plOSResult pl_connect_socket      (plSocket*, plNetworkAddress* ptAddress);
+plOSResult pl_send_socket_data    (plSocket*, void* pData, size_t, size_t* pszSentSizeOut);
+plOSResult pl_get_socket_data     (plSocket*, void* pData, size_t, size_t* pszRecievedSize);
+plOSResult pl_accept_socket       (plSocket*, plSocket** pptSocketOut);
+plOSResult pl_listen_socket       (plSocket*);
 
 // library api
-bool  pl_has_library_changed  (plSharedLibrary*);
-bool  pl_load_library         (const char* pcName, const char* pcTransitionalName, const char* pcLockFile, plSharedLibrary** pptLibraryOut);
-void  pl_reload_library       (plSharedLibrary*);
-void* pl_load_library_function(plSharedLibrary*, const char* pcName);
+bool       pl_has_library_changed  (plSharedLibrary*);
+plOSResult pl_load_library         (const plLibraryDesc*, plSharedLibrary** pptLibraryOut);
+void       pl_reload_library       (plSharedLibrary*);
+void*      pl_load_library_function(plSharedLibrary*, const char* pcName);
 
 // thread api: misc
 void     pl_sleep(uint32_t millisec);
 uint32_t pl_get_hardware_thread_count(void);
 
 // thread api: thread
-void pl_create_thread (plThreadProcedure, void* pData, plThread** ppThreadOut);
-void pl_destroy_thread(plThread**);
-void pl_join_thread   (plThread*);
-void pl_yield_thread  (void);
+plOSResult pl_create_thread (plThreadProcedure, void* pData, plThread** ppThreadOut);
+void       pl_destroy_thread(plThread**);
+void       pl_join_thread   (plThread*);
+void       pl_yield_thread  (void);
 
 // thread api: mutex
-void pl_create_mutex (plMutex** ppMutexOut);
-void pl_lock_mutex   (plMutex*);
-void pl_unlock_mutex (plMutex*);
-void pl_destroy_mutex(plMutex**);
+plOSResult pl_create_mutex (plMutex** ppMutexOut);
+void       pl_lock_mutex   (plMutex*);
+void       pl_unlock_mutex (plMutex*);
+void       pl_destroy_mutex(plMutex**);
 
 // thread api: critical section
-void pl_create_critical_section (plCriticalSection** pptCriticalSectionOut);
-void pl_destroy_critical_section(plCriticalSection**);
-void pl_enter_critical_section  (plCriticalSection*);
-void pl_leave_critical_section  (plCriticalSection*);
+plOSResult pl_create_critical_section (plCriticalSection** pptCriticalSectionOut);
+void       pl_destroy_critical_section(plCriticalSection**);
+void       pl_enter_critical_section  (plCriticalSection*);
+void       pl_leave_critical_section  (plCriticalSection*);
 
 // thread api: semaphore
-void pl_create_semaphore     (uint32_t uIntialCount, plSemaphore** pptSemaphoreOut);
-void pl_wait_on_semaphore    (plSemaphore*);
-bool pl_try_wait_on_semaphore(plSemaphore*);
-void pl_release_semaphore    (plSemaphore*);
-void pl_destroy_semaphore    (plSemaphore**);
+plOSResult pl_create_semaphore     (uint32_t uIntialCount, plSemaphore** pptSemaphoreOut);
+void       pl_wait_on_semaphore    (plSemaphore*);
+bool       pl_try_wait_on_semaphore(plSemaphore*);
+void       pl_release_semaphore    (plSemaphore*);
+void       pl_destroy_semaphore    (plSemaphore**);
 
 // thread api: thread local storage
-void  pl_allocate_thread_local_key (plThreadKey** pptKeyOut);
-void  pl_free_thread_local_key     (plThreadKey**);
-void* pl_allocate_thread_local_data(plThreadKey*, size_t szSize);
-void* pl_get_thread_local_data     (plThreadKey*);
-void  pl_free_thread_local_data    (plThreadKey*, void* pData);
+plOSResult pl_allocate_thread_local_key (plThreadKey** pptKeyOut);
+void       pl_free_thread_local_key     (plThreadKey**);
+void*      pl_allocate_thread_local_data(plThreadKey*, size_t szSize);
+void*      pl_get_thread_local_data     (plThreadKey*);
+void       pl_free_thread_local_data    (plThreadKey*, void* pData);
 
 // thread api: conditional variable
-void pl_create_condition_variable  (plConditionVariable** pptConditionVariableOut);
-void pl_destroy_condition_variable (plConditionVariable**);
-void pl_wake_condition_variable    (plConditionVariable*);
-void pl_wake_all_condition_variable(plConditionVariable*);
-void pl_sleep_condition_variable   (plConditionVariable*, plCriticalSection*);
+plOSResult pl_create_condition_variable  (plConditionVariable** pptConditionVariableOut);
+void       pl_destroy_condition_variable (plConditionVariable**);
+void       pl_wake_condition_variable    (plConditionVariable*);
+void       pl_wake_all_condition_variable(plConditionVariable*);
+void       pl_sleep_condition_variable   (plConditionVariable*, plCriticalSection*);
 
 // thread api: barrier
-void pl_create_barrier (uint32_t uThreadCount, plBarrier** pptBarrierOut);
-void pl_destroy_barrier(plBarrier**);
-void pl_wait_on_barrier(plBarrier*);
+plOSResult pl_create_barrier (uint32_t uThreadCount, plBarrier** pptBarrierOut);
+void       pl_destroy_barrier(plBarrier**);
+void       pl_wait_on_barrier(plBarrier*);
 
 // atomics
-void    pl_create_atomic_counter  (int64_t ilValue, plAtomicCounter** ptCounter);
-void    pl_destroy_atomic_counter (plAtomicCounter**);
-void    pl_atomic_store           (plAtomicCounter*, int64_t ilValue);
-int64_t pl_atomic_load            (plAtomicCounter*);
-bool    pl_atomic_compare_exchange(plAtomicCounter*, int64_t ilExpectedValue, int64_t ilDesiredValue);
-void    pl_atomic_increment       (plAtomicCounter*);
-void    pl_atomic_decrement       (plAtomicCounter*);
+plOSResult pl_create_atomic_counter  (int64_t ilValue, plAtomicCounter** ptCounter);
+void       pl_destroy_atomic_counter (plAtomicCounter**);
+void       pl_atomic_store           (plAtomicCounter*, int64_t ilValue);
+int64_t    pl_atomic_load            (plAtomicCounter*);
+bool       pl_atomic_compare_exchange(plAtomicCounter*, int64_t ilExpectedValue, int64_t ilDesiredValue);
+int64_t    pl_atomic_increment       (plAtomicCounter*);
+int64_t    pl_atomic_decrement       (plAtomicCounter*);
 
 // virtual memory
 size_t pl_get_page_size   (void);
