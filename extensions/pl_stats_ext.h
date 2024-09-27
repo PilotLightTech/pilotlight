@@ -1,14 +1,14 @@
 /*
    pl_stats_ext.h
+     - minimal statistics extension
 */
 
 /*
 Index of this file:
 // [SECTION] header mess
 // [SECTION] includes
-// [SECTION] defines
 // [SECTION] apis
-// [SECTION] public api structs
+// [SECTION] public api
 */
 
 //-----------------------------------------------------------------------------
@@ -25,14 +25,6 @@ Index of this file:
 #include <stdint.h>
 
 //-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
-
-#ifndef PL_STATS_MAX_FRAMES
-    #define PL_STATS_MAX_FRAMES 120
-#endif
-
-//-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
@@ -40,7 +32,7 @@ Index of this file:
 typedef struct _plStatsI plStatsI;
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api structs
+// [SECTION] public api
 //-----------------------------------------------------------------------------
 
 typedef struct _plStatsI
@@ -53,8 +45,12 @@ typedef struct _plStatsI
     double* (*get_counter)(char const* pcName); 
 
     // provides stat data back to user for analysis/display/etc.
-    double**     (*get_counter_data)(char const* pcName);
+    double**     (*get_counter_data)(char const* pcName); // set point to valid memory
     const char** (*get_names)       (uint32_t* puCount);
+    
+    // settings
+    void     (*set_max_frames)(uint32_t); // default: 120
+    uint32_t (*get_max_frames)  (void);
 } plStatsI;
 
 #endif // PL_STATS_EXT_H

@@ -70,6 +70,7 @@ typedef struct _plStatsContext
     plHashMap*           ptHashmap;
     uint64_t             uCurrentFrame;
     const char**         sbtNames;
+    uint32_t             uMaxFrames;
 } plStatsContext;
 
 //-----------------------------------------------------------------------------
@@ -86,6 +87,8 @@ static double*      pl__get_counter     (char const* pcName);
 static void         pl__new_frame       (void);
 static double**     pl__get_counter_data(char const* pcName);
 static const char** pl__get_names       (uint32_t* puCount);
+static uint32_t     pl__get_max_frames  (void);
+static void         pl__set_max_frames  (uint32_t);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -98,7 +101,9 @@ pl_load_stats_api(void)
         .get_counter      = pl__get_counter,
         .new_frame        = pl__new_frame,
         .get_counter_data = pl__get_counter_data,
-        .get_names        = pl__get_names
+        .get_names        = pl__get_names,
+        .set_max_frames   = pl__set_max_frames,
+        .get_max_frames   = pl__get_max_frames
     };
     return &tApi;
 }
@@ -152,7 +157,7 @@ pl__get_counter(char const* pcName)
 static void
 pl__new_frame(void)
 {
-    const uint64_t ulFrameIndex = gptStatsCtx->uCurrentFrame % PL_STATS_MAX_FRAMES;
+    const uint64_t ulFrameIndex = gptStatsCtx->uCurrentFrame % gptStatsCtx->uMaxFrames;
     gptStatsCtx->uCurrentFrame++;
     plStatsSourceBlock* ptLastBlock = &gptStatsCtx->tInitialBlock;
     uint32_t uSourcesRemaining = gptStatsCtx->uNextSource;
@@ -186,6 +191,18 @@ pl__get_names(uint32_t* puCount)
     if(puCount)
         *puCount = pl_sb_size(gptStatsCtx->sbtNames);
     return gptStatsCtx->sbtNames;
+}
+
+static uint32_t
+pl__get_max_frames(void)
+{
+    return gptStatsCtx->uMaxFrames;
+}
+
+static void
+pl__set_max_frames(uint32_t uMaxFrames)
+{
+    gptStatsCtx->uMaxFrames = uMaxFrames;
 }
 
 static double**
@@ -244,7 +261,10 @@ pl_load_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
     else // first load
     {
-        static plStatsContext gtStatsCtx = {.uBlockCount = 1};
+        static plStatsContext gtStatsCtx = {
+            .uBlockCount = 1,
+            .uMaxFrames  = 120
+        };
         gptStatsCtx = &gtStatsCtx;
         gptDataRegistry->set_data("plStatsContext", gptStatsCtx);
     }

@@ -551,6 +551,7 @@ pl__show_statistics(bool* bValue)
 {
 
     const char** apcTempNames = NULL;
+    const uint32_t uStatsMaxFrames = gptStats->get_max_frames();
 
     // selectable values
     
@@ -564,7 +565,7 @@ pl__show_statistics(bool* bValue)
         gptDebugCtx->sbbValues[0] = true;
         gptDebugCtx->uSelectedCount++;
         gptDebugCtx->uMaxSelectedCount = gptDebugCtx->uSelectedCount;
-        pl_sb_resize(gptDebugCtx->sbdRawValues, PL_STATS_MAX_FRAMES *  gptDebugCtx->uMaxSelectedCount);
+        pl_sb_resize(gptDebugCtx->sbdRawValues, uStatsMaxFrames *  gptDebugCtx->uMaxSelectedCount);
         *gptStats->get_counter_data(gptDebugCtx->ppcNames[0]) = gptDebugCtx->sbppdValues[0];
         for(uint32_t i = 0; i < uNameCount; i++)
         {
@@ -612,7 +613,7 @@ pl__show_statistics(bool* bValue)
                         if(gptDebugCtx->uSelectedCount > gptDebugCtx->uMaxSelectedCount)
                         {
                             gptDebugCtx->uMaxSelectedCount = gptDebugCtx->uSelectedCount;
-                            pl_sb_resize(gptDebugCtx->sbdRawValues, PL_STATS_MAX_FRAMES *  gptDebugCtx->uMaxSelectedCount);
+                            pl_sb_resize(gptDebugCtx->sbdRawValues, uStatsMaxFrames *  gptDebugCtx->uMaxSelectedCount);
                         }
                         *gptStats->get_counter_data(gptDebugCtx->ppcNames[i]) = gptDebugCtx->sbppdValues[i];
                     }
@@ -634,7 +635,7 @@ pl__show_statistics(bool* bValue)
             if(gptDebugCtx->sbbValues[i])
             {
                 apcTempNames[uSelectionSlot] = gptDebugCtx->ppcNames[i];
-                *gptDebugCtx->sbppdFrameValues[i] = &gptDebugCtx->sbdRawValues[uSelectionSlot * PL_STATS_MAX_FRAMES];
+                *gptDebugCtx->sbppdFrameValues[i] = &gptDebugCtx->sbdRawValues[uSelectionSlot * uStatsMaxFrames];
                 uSelectionSlot++;
             }
             else
@@ -690,11 +691,11 @@ pl__show_statistics(bool* bValue)
                 for(uint32_t i = 0; i < gptDebugCtx->uSelectedCount; i++)
                 {
                     const plVec4* ptColor = &atColors[i % 6];
-                    double* dValues = &gptDebugCtx->sbdRawValues[i * PL_STATS_MAX_FRAMES];
+                    double* dValues = &gptDebugCtx->sbdRawValues[i * uStatsMaxFrames];
                     double dMaxValue = -DBL_MAX;
                     double dMinValue = DBL_MAX;
 
-                    for(uint32_t j = 0; j < PL_STATS_MAX_FRAMES; j++)
+                    for(uint32_t j = 0; j < uStatsMaxFrames; j++)
                     {
                         if(dValues[j] > dMaxValue) dMaxValue = dValues[j];
                         if(dValues[j] < dMinValue) dMinValue = dValues[j];
@@ -705,7 +706,7 @@ pl__show_statistics(bool* bValue)
 
                     const double dConversion = dYRange != 0.0 ? (tPlotSize.y - 15.0f) / dYRange : 0.0;
                     
-                    const double dXIncrement = (tPlotSize.x - 50.0f) / PL_STATS_MAX_FRAMES;
+                    const double dXIncrement = (tPlotSize.x - 50.0f) / uStatsMaxFrames;
 
                     uint32_t uIndexStart = (uint32_t)gptIO->ulFrameCount;
 
@@ -713,15 +714,15 @@ pl__show_statistics(bool* bValue)
                     gptDraw->add_rect_filled(ptFgLayer, tTextPoint, (plVec2){tTextPoint.x + gptDraw->get_font(gptUI->get_default_font())->fSize, tTextPoint.y + gptDraw->get_font(gptUI->get_default_font())->fSize}, *ptColor, 0.0f, 0);
                     gptDraw->add_text(ptFgLayer, gptUI->get_default_font(), gptDraw->get_font(gptUI->get_default_font())->fSize, (plVec2){roundf(tTextPoint.x + 20.0f), roundf(tTextPoint.y)}, *ptColor, apcTempNames[i], 0.0f);
         
-                    for(uint32_t j = 0; j < PL_STATS_MAX_FRAMES - 1; j++)
+                    for(uint32_t j = 0; j < uStatsMaxFrames - 1; j++)
                     {
-                        uint32_t uActualIndex0 = (uIndexStart + j) % PL_STATS_MAX_FRAMES;
-                        uint32_t uActualIndex1 = (uIndexStart + j + 1) % PL_STATS_MAX_FRAMES;
+                        uint32_t uActualIndex0 = (uIndexStart + j) % uStatsMaxFrames;
+                        uint32_t uActualIndex1 = (uIndexStart + j + 1) % uStatsMaxFrames;
                         const plVec2 tLineStart = {tCursor0.x + (float)(j * dXIncrement), (float)(dYCenter - dValues[uActualIndex0] * dConversion)};
                         const plVec2 tLineEnd = {tCursor0.x + (float)((j + 1) * dXIncrement), (float)(dYCenter - dValues[uActualIndex1] * dConversion)};
                         gptDraw->add_line(ptFgLayer, tLineStart, tLineEnd, *ptColor, 1.0f);
 
-                        if(j == PL_STATS_MAX_FRAMES - 2)
+                        if(j == uStatsMaxFrames - 2)
                         {
                             char acTextBuffer[32] = {0};
                             pl_sprintf(acTextBuffer, "%0.0f", dValues[uActualIndex1]);
@@ -761,7 +762,7 @@ pl__show_statistics(bool* bValue)
 
                 uint32_t uIndexStart = (uint32_t)gptIO->ulFrameCount;
 
-                plUiClipper tClipper = {PL_STATS_MAX_FRAMES};
+                plUiClipper tClipper = {uStatsMaxFrames};
                 while(gptUI->step_clipper(&tClipper))
                 {
                     for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
@@ -769,8 +770,8 @@ pl__show_statistics(bool* bValue)
                         gptUI->text("%u", i);
                         for(uint32_t j = 0; j < gptDebugCtx->uSelectedCount; j++)
                         {
-                            double* dValues = &gptDebugCtx->sbdRawValues[j * PL_STATS_MAX_FRAMES];
-                            uint32_t uActualIndex0 = (uIndexStart + j) % PL_STATS_MAX_FRAMES;
+                            double* dValues = &gptDebugCtx->sbdRawValues[j * uStatsMaxFrames];
+                            uint32_t uActualIndex0 = (uIndexStart + j) % uStatsMaxFrames;
                             gptUI->text("%13.6f", dValues[uActualIndex0]);
                         }
                     } 
