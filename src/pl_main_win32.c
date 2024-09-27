@@ -820,11 +820,9 @@ pl__virtual_key_to_pl_key(WPARAM tWParam)
 // [SECTION] window api
 //-----------------------------------------------------------------------------
 
-plWindow*
-pl_create_window(const plWindowDesc* ptDesc)
+plOSResult
+pl_create_window(const plWindowDesc* ptDesc, plWindow** pptWindowOut)
 {
-    plWindow* ptWindow = malloc(sizeof(plWindow));
-    ptWindow->tDesc = *ptDesc;
 
     // calculate window size based on desired client region size
     RECT tWr = 
@@ -853,12 +851,15 @@ pl_create_window(const plWindowDesc* ptDesc)
         NULL // user data
     );
 
+    plWindow* ptWindow = malloc(sizeof(plWindow));
+    ptWindow->tDesc = *ptDesc;
     ptWindow->_pPlatformData = tHandle;
     pl_sb_push(gsbtWindows, ptWindow);
+    *pptWindowOut = ptWindow;
 
     // show window
     ShowWindow(tHandle, SW_SHOWDEFAULT);
-    return ptWindow;
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void

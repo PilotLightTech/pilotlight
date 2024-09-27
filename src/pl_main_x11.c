@@ -1500,13 +1500,10 @@ pl_virtual_uncommit(void* pAddress, size_t szSize)
 
 #ifndef PL_HEADLESS_APP
 
-plWindow*
-pl_create_window(const plWindowDesc* ptDesc)
+plOSResult
+pl_create_window(const plWindowDesc* ptDesc, plWindow** pptWindowOut)
 {
-    plWindow* ptWindow = malloc(sizeof(plWindow));
     plWindowData* ptData = malloc(sizeof(plWindowData));
-    ptWindow->tDesc = *ptDesc; //-V522
-    ptWindow->_pPlatformData = ptData;
 
     ptData->tWindow = xcb_generate_id(gptConnection); //-V522
     ptData->ptConnection = gptConnection; //-V522
@@ -1594,9 +1591,12 @@ pl_create_window(const plWindowDesc* ptDesc)
 
     int stream_result = xcb_flush(gptConnection);
 
+    plWindow* ptWindow = malloc(sizeof(plWindow));
+    ptWindow->tDesc = *ptDesc; //-V522
+    ptWindow->_pPlatformData = ptData;
     pl_sb_push(gsbtWindows, ptWindow);
-
-    return ptWindow;
+    *pptWindowOut = ptWindow;
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void

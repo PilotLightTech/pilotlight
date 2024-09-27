@@ -1806,13 +1806,11 @@ pl_virtual_uncommit(void* pAddress, size_t szSize)
 
 #ifndef PL_HEADLESS_APP
 
-plWindow*
-pl_create_window(const plWindowDesc* ptDesc)
+plOSResult
+pl_create_window(const plWindowDesc* ptDesc, plWindow** pptWindowOut)
 {
-    plWindow* ptWindow = malloc(sizeof(plWindow));
+
     plWindowData* ptData = malloc(sizeof(plWindowData));
-    ptWindow->tDesc = *ptDesc;
-    ptWindow->_pPlatformData = ptData;
 
     // create view
     ptData->ptViewController = [[plNSViewController alloc] init];
@@ -1848,9 +1846,14 @@ pl_create_window(const plWindowDesc* ptDesc)
     gptIOCtx->tMainViewportSize.x = ptDesc->uWidth;
     gptIOCtx->tMainViewportSize.y = ptDesc->uHeight;
 
+    plWindow* ptWindow = malloc(sizeof(plWindow));
+    
+    ptWindow->tDesc = *ptDesc;
+    ptWindow->_pPlatformData = ptData;
     pl_sb_push(gsbtWindows, ptWindow);
+    *pptWindowOut = ptWindow;
 
-    return ptWindow;
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void

@@ -88,8 +88,8 @@ typedef void* (*plThreadProcedure)(void*);
 
 typedef struct _plWindowI
 {
-    plWindow* (*create_window) (const plWindowDesc*);
-    void      (*destroy_window)(plWindow*);
+    plOSResult (*create_window) (const plWindowDesc*, plWindow** pptWindowOut);
+    void       (*destroy_window)(plWindow*);
 } plWindowI;
 
 typedef struct _plLibraryI

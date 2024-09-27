@@ -61,8 +61,8 @@ bool  (*pl_app_info)    (const plApiRegistryI*);
 
 // window api
 #ifndef PL_HEADLESS_APP
-plWindow* pl_create_window (const plWindowDesc*);
-void      pl_destroy_window(plWindow*);
+plOSResult pl_create_window (const plWindowDesc*, plWindow** pptWindowOut);
+void       pl_destroy_window(plWindow*);
 #endif
 
 // clip board

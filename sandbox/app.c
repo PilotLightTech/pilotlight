@@ -117,7 +117,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
         .uWidth  = 600,
         .uHeight = 600,
     };
-    ptEditorData->ptWindow = gptWindows->create_window(&tWindowDesc);
+    gptWindows->create_window(&tWindowDesc, &ptEditorData->ptWindow);
 
     plIO* ptIO = gptIO->get_io();
 

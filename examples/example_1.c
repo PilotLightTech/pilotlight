@@ -82,7 +82,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .uWidth  = 600,
         .uHeight = 600,
     };
-    ptAppData->ptWindow = gptWindows->create_window(&tWindowDesc);
+    gptWindows->create_window(&tWindowDesc, &ptAppData->ptWindow);
 
     // return app memory
     return ptAppData;
