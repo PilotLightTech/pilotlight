@@ -1,15 +1,16 @@
 /*
    pl_stl.h
+     * no dependencies
+     * simple asci & binary stl parser
 */
 
-// library version
-#define PL_STL_VERSION    "0.2.0"
-#define PL_STL_VERSION_NUM 00200
+// library version (format XYYZZ)
+#define PL_STL_VERSION    "1.0.0"
+#define PL_STL_VERSION_NUM 10000
 
 /*
 Index of this file:
 // [SECTION] header mess
-// [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
 // [SECTION] structs
@@ -22,12 +23,6 @@ Index of this file:
 
 #ifndef PL_STL_H
 #define PL_STL_H
-
-//-----------------------------------------------------------------------------
-// [SECTION] includes
-//-----------------------------------------------------------------------------
-
-#include <stdbool.h>
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -50,7 +45,7 @@ typedef struct _plStlInfo
     size_t szPositionStreamSize;
     size_t szNormalStreamSize;
     size_t szIndexBufferSize;
-    bool   bPreloaded;
+    int    iPreloaded;
 } plStlInfo;
 
 #endif // PL_STL_H
@@ -104,11 +99,11 @@ pl_load_stl(const char* pcData, size_t szDataSize, float* afPositionStream, floa
         ptInfoOut = &_tInternalInfo;
 
     bool bAsci = strncmp(pcData, "solid", 5) == 0;
-    size_t szFacetCount = ptInfoOut->bPreloaded ? ptInfoOut->szIndexBufferSize / 3 : 0;
+    size_t szFacetCount = ptInfoOut->iPreloaded ? ptInfoOut->szIndexBufferSize / 3 : 0;
     size_t szCurrentCursor = 0;
-    size_t szVertexCount = ptInfoOut->bPreloaded ? ptInfoOut->szIndexBufferSize : 0;
+    size_t szVertexCount = ptInfoOut->iPreloaded ? ptInfoOut->szIndexBufferSize : 0;
 
-    if(!ptInfoOut->bPreloaded)
+    if(!ptInfoOut->iPreloaded)
     {
 
         // find number of vertices & facets
@@ -131,7 +126,7 @@ pl_load_stl(const char* pcData, size_t szDataSize, float* afPositionStream, floa
             szVertexCount = szFacetCount * 3;
         }
 
-        ptInfoOut->bPreloaded = true;
+        ptInfoOut->iPreloaded = 1;
     }
 
     ptInfoOut->szIndexBufferSize    = szFacetCount * 3;
