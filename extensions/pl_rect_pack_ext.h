@@ -1,5 +1,6 @@
 /*
    pl_rect_pack_ext.h
+     - simple rectangle packer
 */
 
 /*
