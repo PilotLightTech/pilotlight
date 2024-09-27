@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] defines
 // [SECTION] internal structs
 // [SECTION] global data
 // [SECTION] free list functions
@@ -24,6 +25,18 @@ Index of this file:
 #include <math.h>
 #include <string.h>
 #include "pl_ext.inc"
+
+//-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
+
+#ifndef PL_MAX_BATCHES
+    #define PL_MAX_BATCHES 64
+#endif
+
+#ifndef PL_MAX_JOB_THREADS
+    #define PL_MAX_JOB_THREADS 64
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs

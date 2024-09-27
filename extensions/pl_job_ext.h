@@ -1,15 +1,15 @@
 /*
    pl_job_ext.h
+     - simple job system extension
 */
 
 /*
 Index of this file:
 // [SECTION] header mess
-// [SECTION] defines
 // [SECTION] includes
 // [SECTION] APIs
 // [SECTION] forward declarations
-// [SECTION] public api structs
+// [SECTION] public api
 // [SECTION] structs
 */
 
@@ -19,18 +19,6 @@ Index of this file:
 
 #ifndef PL_JOB_EXT_H
 #define PL_JOB_EXT_H
-
-//-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
-
-#ifndef PL_MAX_BATCHES
-    #define PL_MAX_BATCHES 64
-#endif
-
-#ifndef PL_MAX_JOB_THREADS
-    #define PL_MAX_JOB_THREADS 64
-#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -56,7 +44,7 @@ typedef struct _plJobDesc plJobDesc;
 typedef struct _plAtomicCounter plAtomicCounter; // pl_os.h
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api structs
+// [SECTION] public api
 //-----------------------------------------------------------------------------
 
 typedef struct _plJobI
