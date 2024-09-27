@@ -216,7 +216,7 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
     pl_sb_push(gptShaderCtx->sbptShaderBytecodeCache, puShaderCode);
 
     char acExtension[64] = {0};
-    pl_str_get_file_extension(pcShader, acExtension);
+    pl_str_get_file_extension(pcShader, acExtension, 64);
 
     shaderc_shader_kind tShaderKind = 0;
     if(acExtension[0] == 'c')
@@ -381,7 +381,7 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
     if(pcCacheFile == NULL)
     {
         // char acTempBuffer[1024] = {0};
-        const char* pcFileNameOnly = pl_str_get_file_name(pcShader, NULL);
+        const char* pcFileNameOnly = pl_str_get_file_name(pcShader, NULL, 0);
         #ifdef PL_METAL_BACKEND
         pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.metal", pcFileNameOnly);
         #else

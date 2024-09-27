@@ -258,7 +258,7 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
     cgltf_data* ptGltfData = NULL;
 
     char acDirectory[1024] = {0};
-    pl_str_get_directory(pcPath, acDirectory);
+    pl_str_get_directory(pcPath, acDirectory, 1024);
 
     cgltf_result tGltfResult = cgltf_parse_file(&tGltfOptions, pcPath, &ptGltfData);
     PL_ASSERT(tGltfResult == cgltf_result_success);

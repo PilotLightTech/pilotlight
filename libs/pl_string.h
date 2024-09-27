@@ -1,5 +1,8 @@
 /*
-   pl_string
+   pl_string.h
+     * no dependencies
+     * simple string ops
+
    Do this:
         #define PL_STRING_IMPLEMENTATION
    before you include this file in *one* C or C++ file to create the implementation.
@@ -11,9 +14,9 @@
    #include "pl_string.h"
 */
 
-// library version
-#define PL_STRING_VERSION    "0.2.0"
-#define PL_STRING_VERSION_NUM 00200
+// library version (format XYYZZ)
+#define PL_STRING_VERSION    "1.0.0"
+#define PL_STRING_VERSION_NUM 10000
 
 /*
 Index of this file:
@@ -47,10 +50,10 @@ uint32_t    pl_str_hash_data(const void* pData, size_t szDataSize, uint32_t uSee
 uint32_t    pl_str_hash     (const char* pcData, size_t szDataSize, uint32_t uSeed);
 
 // file/path string ops
-const char* pl_str_get_file_extension(const char* pcFilePath, char* pcExtensionOut);
-const char* pl_str_get_file_name     (const char* pcFilePath, char* pcFileOut);
-const char* pl_str_get_file_name_only(const char* pcFilePath, char* pcFileOut);
-void        pl_str_get_directory     (const char* pcFilePath, char* pcDirectoryOut);
+const char* pl_str_get_file_extension(const char* pcFilePath, char* pcExtensionOut, size_t szOutSize);
+const char* pl_str_get_file_name     (const char* pcFilePath, char* pcFileOut, size_t szOutSize);
+bool        pl_str_get_file_name_only(const char* pcFilePath, char* pcFileOut, size_t szOutSize);
+bool        pl_str_get_directory     (const char* pcFilePath, char* pcDirectoryOut, size_t szOutSize);
 
 // misc. opts
 bool        pl_str_concatenate    (const char* pcStr0, const char* pcStr1, char* pcStringOut, size_t szDataSize);
@@ -165,7 +168,7 @@ pl_str_hash(const char* pcData, size_t szDataSize, uint32_t uSeed)
 }
 
 const char*
-pl_str_get_file_extension(const char* pcFilePath, char* pcExtensionOut)
+pl_str_get_file_extension(const char* pcFilePath, char* pcExtensionOut, size_t szOutSize)
 {
     const char* pcResult = NULL;
     const size_t szLen = strlen(pcFilePath);
@@ -194,7 +197,8 @@ pl_str_get_file_extension(const char* pcFilePath, char* pcExtensionOut)
             char c = pcFilePath[szLen - i - 1];
             if(c == '.')
             {
-                if(pcExtensionOut) strcpy(pcExtensionOut, &pcFilePath[szLen - i]);
+                if(pcExtensionOut)
+                    strncpy(pcExtensionOut, &pcFilePath[szLen - i], szOutSize);
                 pcResult = &pcFilePath[szLen - i];
                 break;
             }
@@ -202,14 +206,15 @@ pl_str_get_file_extension(const char* pcFilePath, char* pcExtensionOut)
     }
     else
     {
-        if(pcExtensionOut) memset(pcExtensionOut, 0, 1);
+        if(pcExtensionOut)
+            memset(pcExtensionOut, 0, szOutSize);
     }
 
     return pcResult; 
 }
 
 const char*
-pl_str_get_file_name(const char* pcFilePath, char* pcFileOut)
+pl_str_get_file_name(const char* pcFilePath, char* pcFileOut, size_t szOutSize)
 {
     const char* pcResult = pcFilePath;
     const size_t szLen = strlen(pcFilePath);
@@ -233,7 +238,8 @@ pl_str_get_file_name(const char* pcFilePath, char* pcFileOut)
 
             if(uSlashCount == 0)
             {
-                if(pcFileOut) strcpy(pcFileOut, &pcFilePath[i + 1]);
+                if(pcFileOut)
+                    strncpy(pcFileOut, &pcFilePath[i + 1], szOutSize);
                 pcResult = &pcFilePath[i + 1];
                 break;
             }
@@ -241,16 +247,26 @@ pl_str_get_file_name(const char* pcFilePath, char* pcFileOut)
     }
     else
     {
-        if(pcFileOut) memcpy(pcFileOut, pcFilePath, szLen + 1);
+        if(pcFileOut)
+        {
+            size_t szCopySize = szLen + 1;
+            if(szCopySize > szOutSize)
+                szCopySize = szOutSize;
+            memcpy(pcFileOut, pcFilePath, szCopySize);
+        }
     }
 
     return pcResult;
 }
 
-const char*
-pl_str_get_file_name_only(const char* pcFilePath, char* pcFileOut)
+bool
+pl_str_get_file_name_only(const char* pcFilePath, char* pcFileOut, size_t szOutSize)
 {
-    const char* pcResult = pcFilePath;
+    PL_ASSERT(pcFileOut && "pl_str_get_file_name_only requires pcFileOut to be valid pointer");
+    
+    if(pcFileOut == NULL)
+        return false;
+    
     const size_t szLen = strlen(pcFilePath);
 
     // check if string includes directory
@@ -272,19 +288,24 @@ pl_str_get_file_name_only(const char* pcFilePath, char* pcFileOut)
 
             if(uSlashCount == 0)
             {
-                if(pcFileOut) strcpy(pcFileOut, &pcFilePath[i + 1]);
-                pcResult = &pcFilePath[i + 1];
+                if(pcFileOut)
+                    strncpy(pcFileOut, &pcFilePath[i + 1], szOutSize);
                 break;
             }
         }
     }
     else
     {
-        if(pcFileOut) memcpy(pcFileOut, pcFilePath, szLen + 1);
+        if(pcFileOut)
+        {
+            if(szLen + 1 > szOutSize)
+                return false;
+            memcpy(pcFileOut, pcFilePath, szLen + 1);
+        }
     }
 
-    const size_t szOutLen = strlen(pcFileOut);
-
+    if(szLen > szOutSize)
+        return false;
     bool bPeriodReached = false;
     for(size_t i = 0; i < szLen; i++)
     {
@@ -299,15 +320,17 @@ pl_str_get_file_name_only(const char* pcFilePath, char* pcFileOut)
             pcFileOut[i] = 0;
         }
     }
-
-    return pcResult;
+    return true;
 }
 
-void
-pl_str_get_directory(const char* pcFilePath, char* pcDirectoryOut)
+bool
+pl_str_get_directory(const char* pcFilePath, char* pcDirectoryOut, size_t szOutSize)
 {
     size_t szLen = strlen(pcFilePath);
-    strcpy(pcDirectoryOut, pcFilePath);
+    strncpy(pcDirectoryOut, pcFilePath, szOutSize);
+
+    if(szLen > szOutSize || szOutSize < 2)
+        return false;
 
     while(szLen > 0)
     {
@@ -323,6 +346,7 @@ pl_str_get_directory(const char* pcFilePath, char* pcDirectoryOut)
         pcDirectoryOut[0] = '.';
         pcDirectoryOut[1] = '/';
     }
+    return true;
 }
 
 bool
@@ -333,7 +357,6 @@ pl_str_concatenate(const char* pcStr0, const char* pcStr1, char* pcStringOut, si
 
     if(szLen0 + szLen1 > szDataSize)
     {
-        PL_ASSERT(false && "buffer provided not big enough");
         return false;
     }
 
