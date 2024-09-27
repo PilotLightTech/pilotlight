@@ -12,8 +12,8 @@
 */
 
 // library version
-#define PL_LOG_VERSION    "0.5.2"
-#define PL_LOG_VERSION_NUM 00502
+#define PL_LOG_VERSION    "0.5.3"
+#define PL_LOG_VERSION_NUM 00503
 
 /*
 Index of this file:
@@ -851,13 +851,13 @@ pl__get_log_channels(uint32_t* puChannelCount)
 
 #define PL__LOG_LEVEL_MACRO(level, prefix, prefixSize) \
     plLogChannel* tPChannel = &gptLogContext->atChannels[uID]; \
-    plLogEntry* ptEntry = pl__get_new_log_entry(uID); \
     if(tPChannel->uLevel < level + 1) \
     { \
         if(tPChannel->tType & PL_CHANNEL_TYPE_CONSOLE) \
             printf(prefix " (%s) %s\n", tPChannel->pcName, pcMessage); \
         if((tPChannel->tType & PL_CHANNEL_TYPE_CYCLIC_BUFFER) || (tPChannel->tType & PL_CHANNEL_TYPE_BUFFER)) \
         { \
+            plLogEntry* ptEntry = pl__get_new_log_entry(uID); \
             const size_t szNewSize = strlen(pcMessage) + 10; \
             pl__log_buffer_may_grow(tPChannel, (int)szNewSize); \
             ptEntry->uOffset = tPChannel->uBufferSize; \
