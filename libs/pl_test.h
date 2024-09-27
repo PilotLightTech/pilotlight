@@ -126,11 +126,12 @@ Index of this file:
 
 #ifdef PL_TEST_IMPLEMENTATION
 
-#if defined(PL_TEST_WIN32_COLOR) || defined(_WIN32)
+#if defined(PL_TEST_WIN32_COLOR) && defined(_WIN32)
     #define WIN32_LEAN_AND_MEAN
     #include <windows.h>
     static DWORD  gtOriginalMode = 0;
     static HANDLE gtStdOutHandle = 0;
+    static bool   gbActiveColor = 0;
 #endif
 
 //-----------------------------------------------------------------------------
@@ -188,17 +189,21 @@ plTestContext*
 pl_create_test_context(plTestOptions tOptions)
 {
 
-    #if defined(PL_TEST_WIN32_COLOR) || defined(_WIN32)
+    #if defined(PL_TEST_WIN32_COLOR) && defined(_WIN32)
         DWORD tCurrentMode = 0;
+        gbActiveColor = true;
         gtStdOutHandle = GetStdHandle(STD_OUTPUT_HANDLE);
             if(gtStdOutHandle == INVALID_HANDLE_VALUE)
-                exit(GetLastError());
-            if(!GetConsoleMode(gtStdOutHandle, &tCurrentMode))
-                exit(GetLastError());
+                gbActiveColor = false;
+            else if(!GetConsoleMode(gtStdOutHandle, &tCurrentMode))
+                gbActiveColor = false;
             gtOriginalMode = tCurrentMode;
             tCurrentMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING; // enable ANSI escape codes
             if(!SetConsoleMode(gtStdOutHandle, tCurrentMode))
-                exit(GetLastError());
+                gbActiveColor = false;
+
+        if(!gbActiveColor)
+            tOptions.bPrintColor = false;
     #endif
 
     gptTestContext = (plTestContext*)malloc(sizeof(plTestContext));
@@ -284,9 +289,12 @@ pl_test_finish(void)
     printf("Tests failed: ");
     pl__test_print_red("%u", NULL, gptTestContext->uTotalFailedTests);
 
-    #if defined(PL_TEST_WIN32_COLOR) || defined(_WIN32)
-    if(!SetConsoleMode(gtStdOutHandle, gtOriginalMode))
-        exit(GetLastError());
+    #if defined(PL_TEST_WIN32_COLOR) && defined(_WIN32)
+    if(gbActiveColor)
+    {
+        if(!SetConsoleMode(gtStdOutHandle, gtOriginalMode))
+            exit(GetLastError());
+    }
     #endif
 
     return gptTestContext->uTotalFailedTests == 0;

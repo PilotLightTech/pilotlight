@@ -7,8 +7,10 @@
 #include "pl_json.h"
 
 void
-write_json_test(char** ppcBuffer)
+write_json_test(void* pData)
 {
+
+    char** ppcBuffer = pData;
 
     // root object
     plJsonObject tRootJsonObject = {0};
@@ -66,8 +68,10 @@ write_json_test(char** ppcBuffer)
 }
 
 void
-read_json_test(char** ppcBuffer)
+read_json_test(void* pData)
 {
+
+    char** ppcBuffer = pData;
 
     plJsonObject tRootJsonObject = {0};
     pl_load_json(*ppcBuffer, &tRootJsonObject);

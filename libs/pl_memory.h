@@ -362,11 +362,8 @@ pl_temp_allocator_alloc(plTempAllocator* ptAllocator, size_t szSize)
         else // block available but too small
         {
             size_t szNewBlockSize = ptAllocator->szCurrentBlockSizes;
-            if(szSize > szNewBlockSize)
-            {
-                ptAllocator->szNextBlockSizes = szSize;
-                szNewBlockSize = szSize;
-            }
+            ptAllocator->szNextBlockSizes = szSize;
+            szNewBlockSize = szSize;
 
             char** ppcOldBlocks = ptAllocator->ppcMemoryBlocks;
             ptAllocator->ppcMemoryBlocks = (char**)PL_MEMORY_ALLOC(sizeof(char*) * (ptAllocator->szMemoryBlockCapacity + 1));

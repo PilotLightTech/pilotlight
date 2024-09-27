@@ -288,20 +288,16 @@ pl_str_get_file_name_only(const char* pcFilePath, char* pcFileOut, size_t szOutS
 
             if(uSlashCount == 0)
             {
-                if(pcFileOut)
-                    strncpy(pcFileOut, &pcFilePath[i + 1], szOutSize);
+                strncpy(pcFileOut, &pcFilePath[i + 1], szOutSize);
                 break;
             }
         }
     }
     else
     {
-        if(pcFileOut)
-        {
-            if(szLen + 1 > szOutSize)
-                return false;
-            memcpy(pcFileOut, pcFilePath, szLen + 1);
-        }
+        if(szLen + 1 > szOutSize)
+            return false;
+        memcpy(pcFileOut, pcFilePath, szLen + 1);
     }
 
     if(szLen > szOutSize)

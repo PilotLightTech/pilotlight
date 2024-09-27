@@ -28,7 +28,9 @@ int main()
     pl_string_tests(NULL);
     pl_test_run_suite("pl_string.h");
 
-    if(!pl_test_finish())
+    bool bResult = pl_test_finish();
+
+    if(!bResult)
     {
         exit(1);
     }
