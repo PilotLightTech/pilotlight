@@ -180,7 +180,7 @@ typedef struct _plDrawContext
 
     // 2D resources
     plPoolAllocator   tDrawlistPool2D;
-    char              acPoolBuffer2D[sizeof(plDrawList2D) * (PL_MAX_DRAWLISTS + 1)];
+    plDrawList2D      atDrawlists2DBuffer[PL_MAX_DRAWLISTS];
     plDrawList2D*     aptDrawlists2D[PL_MAX_DRAWLISTS];
     plBufferInfo      atBufferInfo[PL_MAX_FRAMES_IN_FLIGHT];
     uint32_t          uDrawlistCount2D;
@@ -189,7 +189,7 @@ typedef struct _plDrawContext
 
     // 3D resources
     plPoolAllocator tDrawlistPool3D;
-    char            acPoolBuffer3D[sizeof(plDrawList3D) * PL_MAX_DRAWLISTS * 2];
+    plDrawList3D    atDrawlists3DBuffer[PL_MAX_DRAWLISTS];
     plDrawList3D*   aptDrawlists3D[PL_MAX_DRAWLISTS];
     uint32_t        uDrawlistCount3D;
     plBufferInfo    at3DBufferInfo[PL_MAX_FRAMES_IN_FLIGHT];
@@ -463,11 +463,13 @@ pl_initialize(plDevice* ptDevice)
         gptDrawCtx->atLineBufferInfo[i].tVertexBuffer= pl__create_staging_buffer(&tVertexBufferDesc, "3d line draw vtx buffer", i);
     }
 
-    size_t szBufferSize = sizeof(plDrawList3D) * PL_MAX_DRAWLISTS * 2;
-    pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool3D, PL_MAX_DRAWLISTS, sizeof(plDrawList3D), 0, &szBufferSize, gptDrawCtx->acPoolBuffer3D);
+    size_t szBufferSize = sizeof(gptDrawCtx->atDrawlists3DBuffer);
+    size_t szItems = pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool3D, 0, sizeof(plDrawList3D), 0, &szBufferSize, gptDrawCtx->atDrawlists3DBuffer);
+    pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool3D, szItems, sizeof(plDrawList3D), 0, &szBufferSize, gptDrawCtx->atDrawlists3DBuffer);
 
-    szBufferSize = sizeof(plDrawList2D) * (PL_MAX_DRAWLISTS + 1);
-    pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool2D, PL_MAX_DRAWLISTS, sizeof(plDrawList2D), 0, &szBufferSize, gptDrawCtx->acPoolBuffer2D);
+    szBufferSize = sizeof(gptDrawCtx->atDrawlists2DBuffer);
+    szItems = pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool2D, 0, sizeof(plDrawList2D), 0, &szBufferSize, gptDrawCtx->atDrawlists2DBuffer);
+    pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool2D, szItems, sizeof(plDrawList2D), 0, &szBufferSize, gptDrawCtx->atDrawlists2DBuffer);
 
     // 2d
     const plSamplerDesc tSamplerDesc = {

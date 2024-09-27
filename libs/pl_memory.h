@@ -1,7 +1,7 @@
 /*
-   pl_memory
+   pl_memory.h
      * no dependencies
-     * simple
+     * simple memory allocators
      
    Do this:
         #define PL_MEMORY_IMPLEMENTATION
@@ -19,9 +19,9 @@
    * override assert by defining PL_ASSERT(x)
 */
 
-// library version
-#define PL_MEMORY_VERSION    "0.6.0"
-#define PL_MEMORY_VERSION_NUM 00600
+// library version (format XYYZZ)
+#define PL_MEMORY_VERSION    "1.0.0"
+#define PL_MEMORY_VERSION_NUM 10000
 
 /*
 Index of this file:
@@ -59,10 +59,10 @@ Index of this file:
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
-typedef struct _plTempAllocator     plTempAllocator;
-typedef struct _plStackAllocator    plStackAllocator;
-typedef struct _plPoolAllocator     plPoolAllocator;
-typedef struct _plPoolAllocatorNode plPoolAllocatorNode;
+// basic types
+typedef struct _plTempAllocator  plTempAllocator;
+typedef struct _plStackAllocator plStackAllocator;
+typedef struct _plPoolAllocator  plPoolAllocator;
 
 typedef size_t plStackAllocatorMarker;
 
@@ -105,13 +105,23 @@ void                   pl_stack_allocator_free_bottom_to_marker(plStackAllocator
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~pool allocator~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-void  pl_pool_allocator_init (plPoolAllocator*, size_t szItemCount, size_t szItemSize, size_t szItemAlignment, size_t* pszBufferSize, void*);
-void* pl_pool_allocator_alloc(plPoolAllocator*);
-void  pl_pool_allocator_free (plPoolAllocator*, void* pItem);
+// Notes
+//   - setting pBuffer to NULL, will set pszBufferSize to required buffer size
+//     so you can allocate a properly sized buffer for the szItemCount (then call function again)
+//   - to use a stack allocated buffer, first call the function with szItemCount = 0 & pszBufferSize
+//     set to size of the buffer; the function will return the number of items that can be support;
+//     call function again with this number
+
+size_t pl_pool_allocator_init (plPoolAllocator*, size_t szItemCount, size_t szItemSize, size_t szItemAlignment, size_t* pszBufferSize, void* pBuffer);
+void*  pl_pool_allocator_alloc(plPoolAllocator*);
+void   pl_pool_allocator_free (plPoolAllocator*, void* pItem);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+// the details of the following structures don't matter to you, but they must
+// be visible so you can handle the memory allocations for them
 
 typedef struct _plTempAllocator
 {
@@ -122,6 +132,8 @@ typedef struct _plTempAllocator
     char** ppcMemoryBlocks;
     size_t szMemoryBlockCount;
     size_t szMemoryBlockCapacity;
+    size_t szCurrentBlockSizes;
+    size_t szNextBlockSizes;
 } plTempAllocator;
 
 typedef struct _plStackAllocator
@@ -132,6 +144,7 @@ typedef struct _plStackAllocator
     size_t         szTopOffset;
 } plStackAllocator;
 
+typedef struct _plPoolAllocatorNode plPoolAllocatorNode;
 typedef struct _plPoolAllocatorNode
 {
     plPoolAllocatorNode* ptNextNode;
@@ -159,7 +172,6 @@ Index of this file:
 // [SECTION] defines
 // [SECTION] internal api
 // [SECTION] public api implementation
-// [SECTION] internal api implementation
 */
 
 //-----------------------------------------------------------------------------
@@ -178,28 +190,23 @@ Index of this file:
 
 #ifndef PL_MEMORY_ALLOC
     #include <stdlib.h>
-    #define PL_MEMORY_ALLOC(x)      malloc(x)
-    #define PL_MEMORY_FREE(x)       free(x)
+    #define PL_MEMORY_ALLOC(x) malloc(x)
+    #define PL_MEMORY_FREE(x)  free(x)
 #endif
-
 
 #ifndef PL_ASSERT
-#include <assert.h>
-#define PL_ASSERT(x) assert((x))
-#endif
-
-#ifndef PL_MEMORY_TEMP_STACK_BLOCK_SIZE
-    #define PL_MEMORY_TEMP_BLOCK_SIZE 4194304
+    #include <assert.h>
+    #define PL_ASSERT(x) assert((x))
 #endif
 
 #define PL__ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
 
 #ifndef pl_vnsprintf
-#include <stdio.h>
-#define pl_vnsprintf vnsprintf
+    #include <stdio.h>
+    #define pl_vnsprintf vsnprintf
 #endif
 
-#include <stdarg.h>
+#include <stdarg.h> // varargs
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -238,7 +245,6 @@ pl__align_forward_size(size_t szPtr, size_t szAlign)
 	return p;
 }
 
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
@@ -247,6 +253,9 @@ void*
 pl_aligned_alloc(size_t szAlignment, size_t szSize)
 {
     void* pBuffer = NULL;
+
+    if(szAlignment == 0)
+        szAlignment = pl__get_next_power_of_2(szSize);
 
     // ensure power of 2
     PL_ASSERT((szAlignment & (szAlignment -1)) == 0 && "alignment must be a power of 2");
@@ -294,6 +303,8 @@ pl_temp_allocator_alloc(plTempAllocator* ptAllocator, size_t szSize)
         ptAllocator->szSize = PL_MEMORY_TEMP_STACK_SIZE;
         ptAllocator->pcBuffer = ptAllocator->acStackBuffer;
         ptAllocator->szOffset = 0;
+        ptAllocator->szCurrentBlockSizes = PL_MEMORY_TEMP_STACK_SIZE * 2;
+        ptAllocator->szNextBlockSizes = PL_MEMORY_TEMP_STACK_SIZE * 2;
         memset(ptAllocator->acStackBuffer, 0, PL_MEMORY_TEMP_STACK_SIZE); 
     }
 
@@ -302,7 +313,6 @@ pl_temp_allocator_alloc(plTempAllocator* ptAllocator, size_t szSize)
     // not enough room is available
     if(szSize > ptAllocator->szSize - ptAllocator->szOffset)
     {
-        PL_ASSERT(szSize < PL_MEMORY_TEMP_BLOCK_SIZE);
         if(ptAllocator->szMemoryBlockCapacity == 0) // first overflow
         {
             // allocate block array
@@ -310,29 +320,63 @@ pl_temp_allocator_alloc(plTempAllocator* ptAllocator, size_t szSize)
             ptAllocator->ppcMemoryBlocks = (char**)PL_MEMORY_ALLOC(sizeof(char*) * ptAllocator->szMemoryBlockCapacity);
             memset(ptAllocator->ppcMemoryBlocks, 0, (sizeof(char*) * ptAllocator->szMemoryBlockCapacity));
 
+            size_t szNewBlockSize = ptAllocator->szCurrentBlockSizes;
+            if(szSize > szNewBlockSize)
+            {
+                ptAllocator->szNextBlockSizes = szSize;
+                szNewBlockSize = szSize;
+            }
+
             // allocate first block
-            ptAllocator->ppcMemoryBlocks[0] = (char*)PL_MEMORY_ALLOC(PL_MEMORY_TEMP_BLOCK_SIZE);
-            ptAllocator->szSize = PL_MEMORY_TEMP_BLOCK_SIZE;
+            ptAllocator->ppcMemoryBlocks[0] = (char*)PL_MEMORY_ALLOC(szNewBlockSize);
+            ptAllocator->szSize = szNewBlockSize;
             ptAllocator->szOffset = 0;
             ptAllocator->pcBuffer = ptAllocator->ppcMemoryBlocks[0];
         }
         else if(ptAllocator->szMemoryBlockCount == ptAllocator->szMemoryBlockCapacity) // grow memory block storage
         {
+
+            size_t szNewBlockSize = ptAllocator->szCurrentBlockSizes;
+            if(szSize > szNewBlockSize)
+            {
+                ptAllocator->szNextBlockSizes = szSize;
+                szNewBlockSize = szSize;
+            }
+
             char** ppcOldBlocks = ptAllocator->ppcMemoryBlocks;
             ptAllocator->ppcMemoryBlocks = (char**)PL_MEMORY_ALLOC(sizeof(char*) * (ptAllocator->szMemoryBlockCapacity + 1));
             memset(ptAllocator->ppcMemoryBlocks, 0, (sizeof(char*) * (ptAllocator->szMemoryBlockCapacity + 1)));
             memcpy(ptAllocator->ppcMemoryBlocks, ppcOldBlocks, sizeof(char*) * ptAllocator->szMemoryBlockCapacity);
             ptAllocator->szMemoryBlockCapacity++;
-            ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount] = (char*)PL_MEMORY_ALLOC(PL_MEMORY_TEMP_BLOCK_SIZE);
-            ptAllocator->szSize = PL_MEMORY_TEMP_BLOCK_SIZE;
+            ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount] = (char*)PL_MEMORY_ALLOC(szNewBlockSize);
+            ptAllocator->szSize = szNewBlockSize;
             ptAllocator->pcBuffer = ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount];
             ptAllocator->szOffset = 0;
         }
-        else // block is available
+        else if(szSize <= ptAllocator->szCurrentBlockSizes) // block available & small enough
         {
-            ptAllocator->szSize = PL_MEMORY_TEMP_BLOCK_SIZE;
+            ptAllocator->szSize = ptAllocator->szCurrentBlockSizes;
             ptAllocator->szOffset = 0;
             ptAllocator->pcBuffer = ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount];
+        }
+        else // block available but too small
+        {
+            size_t szNewBlockSize = ptAllocator->szCurrentBlockSizes;
+            if(szSize > szNewBlockSize)
+            {
+                ptAllocator->szNextBlockSizes = szSize;
+                szNewBlockSize = szSize;
+            }
+
+            char** ppcOldBlocks = ptAllocator->ppcMemoryBlocks;
+            ptAllocator->ppcMemoryBlocks = (char**)PL_MEMORY_ALLOC(sizeof(char*) * (ptAllocator->szMemoryBlockCapacity + 1));
+            memset(ptAllocator->ppcMemoryBlocks, 0, (sizeof(char*) * (ptAllocator->szMemoryBlockCapacity + 1)));
+            memcpy(ptAllocator->ppcMemoryBlocks, ppcOldBlocks, sizeof(char*) * ptAllocator->szMemoryBlockCapacity);
+            ptAllocator->szMemoryBlockCapacity++;
+            ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount] = (char*)PL_MEMORY_ALLOC(szNewBlockSize);
+            ptAllocator->szSize = szNewBlockSize;
+            ptAllocator->pcBuffer = ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount];
+            ptAllocator->szOffset = 0;
         }
         
         ptAllocator->szMemoryBlockCount++;
@@ -350,6 +394,17 @@ pl_temp_allocator_reset(plTempAllocator* ptAllocator)
     ptAllocator->szOffset = 0;
     ptAllocator->szMemoryBlockCount = 0;
     ptAllocator->pcBuffer = ptAllocator->acStackBuffer;
+
+    if(ptAllocator->szCurrentBlockSizes != ptAllocator->szNextBlockSizes)
+    {
+        for(size_t i = 0; i < ptAllocator->szMemoryBlockCapacity; i++)
+        {
+            PL_MEMORY_FREE(ptAllocator->ppcMemoryBlocks[i]);
+            ptAllocator->ppcMemoryBlocks[i] = (char*)PL_MEMORY_ALLOC(ptAllocator->szNextBlockSizes);
+            memset(ptAllocator->ppcMemoryBlocks[i], 0, ptAllocator->szNextBlockSizes);
+        } 
+        ptAllocator->szCurrentBlockSizes = ptAllocator->szNextBlockSizes;
+    }
 }
 
 void
@@ -418,7 +473,8 @@ pl_stack_allocator_alloc(plStackAllocator* ptAllocator, size_t szSize)
 {
     size_t szOffset = ptAllocator->szBottomOffset + szSize;
 
-    PL_ASSERT(szOffset < ptAllocator->szTopOffset && "stack allocator full");
+    if(szOffset >= ptAllocator->szTopOffset)
+        return NULL;
 
     // update offset
     void* pBuffer = ptAllocator->pucBuffer + ptAllocator->szBottomOffset;
@@ -437,7 +493,8 @@ pl_stack_allocator_aligned_alloc(plStackAllocator* ptAllocator, size_t szSize, s
     uintptr_t pOffset = pl__align_forward_uintptr(pCurrentPointer, szAlignment);
     pOffset -= (uintptr_t)ptAllocator->pucBuffer;
 
-    PL_ASSERT(pOffset + szSize <= ptAllocator->szTopOffset && "linear allocator full");
+    if(pOffset + szSize > ptAllocator->szTopOffset)
+        return NULL;
 
     // check if allocator has enough space left
     if(pOffset + szSize <= ptAllocator->szSize)
@@ -467,7 +524,8 @@ pl_stack_allocator_aligned_alloc_top(plStackAllocator* ptAllocator, size_t szSiz
     uintptr_t pOffset = pl__align_forward_uintptr(pCurrentPointer, szAlignment);
     pOffset -= (uintptr_t)ptAllocator->pucBuffer;
 
-    PL_ASSERT(pOffset + szSize <= ptAllocator->szTopOffset && "linear allocator full");
+    if(pOffset + szSize > ptAllocator->szTopOffset)
+        return NULL;
 
     // check if allocator has enough space left
     if(pOffset + szSize <= ptAllocator->szSize)
@@ -492,7 +550,8 @@ pl_stack_allocator_alloc_top(plStackAllocator* ptAllocator, size_t szSize)
 {
     size_t szOffset = ptAllocator->szTopOffset - szSize;
 
-    PL_ASSERT(szOffset > ptAllocator->szBottomOffset && szOffset < ptAllocator->szTopOffset && "stack allocator full");
+    if(szOffset < ptAllocator->szBottomOffset || szOffset > ptAllocator->szTopOffset)
+        return NULL;
 
     // update offset
     void* pBuffer = ptAllocator->pucBuffer + szOffset;
@@ -562,24 +621,36 @@ pl_stack_allocator_reset(plStackAllocator* ptAllocator)
     #endif
 }
 
-void
+size_t
 pl_pool_allocator_init(plPoolAllocator* ptAllocator, size_t szItemCount, size_t szItemSize, size_t szItemAlignment, size_t* pszBufferSize, void* pBuffer)
 {
     PL_ASSERT(ptAllocator);
-    PL_ASSERT(szItemCount > 0);
     PL_ASSERT(szItemSize > 0);
     PL_ASSERT(pszBufferSize);
 
-    if(szItemAlignment == 0)
+    // gotta have room for node in unused blocks
+    if(szItemSize < sizeof(plPoolAllocatorNode))
     {
+        szItemSize = sizeof(plPoolAllocatorNode);
+    }
+
+    // let us calculate alignment
+    if(szItemAlignment == 0)
         szItemAlignment = pl__get_next_power_of_2(szItemSize);
+
+    // let us calculate number of items
+    if(szItemCount == 0 && *pszBufferSize > 0)
+    {
+        size_t szAlignedItemSize = pl__align_forward_size(szItemSize, szItemAlignment);
+        szItemCount = (*pszBufferSize - szItemAlignment) / (szAlignedItemSize);
+        return szItemCount;
     }
 
     if(pBuffer == NULL)
     {
         size_t szAlignedItemSize = pl__align_forward_size(szItemSize, szItemAlignment);
         *pszBufferSize = szAlignedItemSize * szItemCount + szItemAlignment;
-        return;
+        return szItemCount;
     }
 
     ptAllocator->szFreeItems = szItemCount;
@@ -593,7 +664,6 @@ pl_pool_allocator_init(plPoolAllocator* ptAllocator, size_t szItemCount, size_t 
     uintptr_t pStart = pl__align_forward_uintptr(pInitialStart, (uintptr_t)szItemAlignment);
     ptAllocator->szUsableSize -= (size_t)(pStart - pInitialStart);
 
-    PL_ASSERT(ptAllocator->szItemSize >= sizeof(plPoolAllocatorNode) && "pool allocator item size too small");
     PL_ASSERT(ptAllocator->szUsableSize >= ptAllocator->szItemSize * szItemCount && "pool allocator buffer size too small");
 
     unsigned char* pUsableBuffer = (unsigned char*)pStart;
@@ -604,6 +674,7 @@ pl_pool_allocator_init(plPoolAllocator* ptAllocator, size_t szItemCount, size_t 
         pNode0->ptNextNode = pNode1;
     }
     ptAllocator->pFreeList = (plPoolAllocatorNode*)pUsableBuffer;
+    return szItemCount;
 }
 
 void*
@@ -628,4 +699,4 @@ pl_pool_allocator_free(plPoolAllocator* ptAllocator, void* pItem)
     ptAllocator->pFreeList->ptNextNode = pOldFreeNode;
 }
 
-#endif
+#endif // PL_MEMORY_IMPLEMENTATION
