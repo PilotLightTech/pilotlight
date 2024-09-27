@@ -1359,16 +1359,24 @@ thread_yield(void)
     SwitchToThread();
 }
 
-void
+plOSResult
 pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** ppThreadOut)
 {
-    *ppThreadOut = PL_ALLOC(sizeof(plThread));
     plThreadData* ptData = PL_ALLOC(sizeof(plThreadData));
-    (*ppThreadOut)->ptData = ptData;
-    ptData->ptProcedure = ptProcedure;
-    ptData->pData       = pData;
 
-    (*ppThreadOut)->tHandle = CreateThread(0, 1024, thread_procedure, ptData, 0, NULL);
+    HANDLE tHandle = CreateThread(0, 1024, thread_procedure, ptData, 0, NULL);
+    if(tHandle)
+    {
+        *ppThreadOut = PL_ALLOC(sizeof(plThread));
+        (*ppThreadOut)->ptData = ptData;
+        ptData->ptProcedure = ptProcedure;
+        ptData->pData       = pData;
+        (*ppThreadOut)->tHandle = tHandle;
+        return PL_OS_RESULT_SUCCESS;
+    }
+    PL_FREE(ptData);
+    return PL_OS_RESULT_FAIL;
+    
 }
 
 void
@@ -1393,11 +1401,17 @@ pl_yield_thread(void)
     thread_yield();
 }
 
-void
+plOSResult
 pl_create_mutex(plMutex** ppMutexOut)
 {
-    (*ppMutexOut) = malloc(sizeof(plMutex));
-    (*ppMutexOut)->tHandle = CreateMutex(NULL, FALSE, NULL);
+    HANDLE tHandle = CreateMutex(NULL, FALSE, NULL);
+    if(tHandle)
+    {
+        (*ppMutexOut) = malloc(sizeof(plMutex));
+        (*ppMutexOut)->tHandle = CreateMutex(NULL, FALSE, NULL);
+        return PL_OS_RESULT_SUCCESS;
+    }
+    return PL_OS_RESULT_FAIL;
 }
 
 void
@@ -1425,11 +1439,12 @@ pl_unlock_mutex(plMutex* ptMutex)
     }
 }
 
-void
+plOSResult
 pl_create_critical_section(plCriticalSection** pptCriticalSectionOut)
 {
     (*pptCriticalSectionOut) = PL_ALLOC(sizeof(plCriticalSection));
     InitializeCriticalSection(&(*pptCriticalSectionOut)->tHandle);
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void
@@ -1475,11 +1490,12 @@ pl_get_hardware_thread_count(void)
     return uThreadCount;
 }
 
-void
+plOSResult
 pl_create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut)
 {
     (*pptBarrierOut) = PL_ALLOC(sizeof(plBarrier));
     InitializeSynchronizationBarrier(&(*pptBarrierOut)->tHandle, uThreadCount, -1);
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void
@@ -1496,11 +1512,12 @@ pl_wait_on_barrier(plBarrier* ptBarrier)
     EnterSynchronizationBarrier(&ptBarrier->tHandle, 0);
 }
 
-void
+plOSResult
 pl_create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
 {
     (*pptSemaphoreOut) = PL_ALLOC(sizeof(plSemaphore));
     (*pptSemaphoreOut)->tHandle = CreateSemaphore(NULL, uIntialCount, uIntialCount, NULL);
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void
@@ -1543,11 +1560,13 @@ pl_release_semaphore(plSemaphore* ptSemaphore)
     }
 }
 
-void
+plOSResult
 pl_allocate_thread_local_key(plThreadKey** pptKeyOut)
 {
     *pptKeyOut = PL_ALLOC(sizeof(plThreadKey));
+    memset(*pptKeyOut, 0, sizeof(plThreadKey));
     (*pptKeyOut)->dwIndex = TlsAlloc();
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void
@@ -1562,9 +1581,10 @@ void*
 pl_allocate_thread_local_data(plThreadKey* ptKey, size_t szSize)
 {
     LPVOID lpvData = LocalAlloc(LPTR, szSize);
-    if (! TlsSetValue(ptKey->dwIndex, lpvData)) 
+    if(!TlsSetValue(ptKey->dwIndex, lpvData)) 
     {
         PL_ASSERT(false);
+        return NULL;
     }
     return lpvData;
 }
@@ -1587,11 +1607,12 @@ pl_free_thread_local_data(plThreadKey* ptKey, void* pData)
     LocalFree(lpvData);
 }
 
-void
+plOSResult
 pl_create_condition_variable(plConditionVariable** pptConditionVariableOut)
 {
     *pptConditionVariableOut = PL_ALLOC(sizeof(plConditionVariable));
     InitializeConditionVariable(&(*pptConditionVariableOut)->tHandle);
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void               
@@ -1623,11 +1644,12 @@ pl_sleep_condition_variable(plConditionVariable* ptConditionVariable, plCritical
 // [SECTION] atomic api
 //-----------------------------------------------------------------------------
 
-void
+plOSResult
 pl_create_atomic_counter(int64_t ilValue, plAtomicCounter** ptCounter)
 {
     *ptCounter = _aligned_malloc(sizeof(plAtomicCounter), 8);
     (*ptCounter)->ilValue = ilValue;
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void
@@ -1655,16 +1677,16 @@ pl_atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, 
     return InterlockedCompareExchange64(&ptCounter->ilValue, ilDesiredValue, ilExpectedValue) == ilExpectedValue;
 }
 
-void
+int64_t
 pl_atomic_increment(plAtomicCounter* ptCounter)
 {
-    InterlockedIncrement64(&ptCounter->ilValue);
+    return InterlockedIncrement64(&ptCounter->ilValue);
 }
 
-void
+int64_t
 pl_atomic_decrement(plAtomicCounter* ptCounter)
 {
-    InterlockedDecrement64(&ptCounter->ilValue);
+    return InterlockedDecrement64(&ptCounter->ilValue);
 }
 
 //-----------------------------------------------------------------------------

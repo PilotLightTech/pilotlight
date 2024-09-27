@@ -1172,14 +1172,16 @@ pl_sleep(uint32_t millisec)
     while (res);
 }
 
-void
+plOSResult
 pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** pptThreadOut)
 {
     *pptThreadOut = PL_ALLOC(sizeof(plThread));
     if(pthread_create(&(*pptThreadOut)->tHandle, NULL, ptProcedure, pData))
     {
         PL_ASSERT(false);
+        return PL_OS_RESULT_FAIL;
     }
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void
@@ -1202,14 +1204,16 @@ pl_yield_thread(void)
     sched_yield();
 }
 
-void
+plOSResult
 pl_create_mutex(plMutex** pptMutexOut)
 {
     *pptMutexOut = malloc(sizeof(plMutex));
     if(pthread_mutex_init(&(*pptMutexOut)->tHandle, NULL)) //-V522
     {
         PL_ASSERT(false);
+        return PL_OS_RESULT_FAIL;
     }
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void
@@ -1232,14 +1236,16 @@ pl_destroy_mutex(plMutex** pptMutex)
     *pptMutex = NULL;
 }
 
-void
+plOSResult
 pl_create_critical_section(plCriticalSection** pptCriticalSectionOut)
 {
     *pptCriticalSectionOut = PL_ALLOC(sizeof(plCriticalSection));
     if(pthread_mutex_init(&(*pptCriticalSectionOut)->tHandle, NULL))
     {
         PL_ASSERT(false);
+        return PL_OS_RESULT_FAIL;
     }
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void
@@ -1270,7 +1276,7 @@ pl_get_hardware_thread_count(void)
     return (uint32_t)numCPU;
 }
 
-void
+plOSResult
 pl_create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
 {
     *pptSemaphoreOut = PL_ALLOC(sizeof(plSemaphore));
@@ -1278,7 +1284,9 @@ pl_create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
     if(sem_init(&(*pptSemaphoreOut)->tHandle, 0, uIntialCount))
     {
         PL_ASSERT(false);
+        return PL_OS_RESULT_FAIL;
     }
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void
@@ -1307,7 +1315,7 @@ pl_release_semaphore(plSemaphore* ptSemaphore)
     sem_post(&ptSemaphore->tHandle);
 }
 
-void
+plOSResult
 pl_allocate_thread_local_key(plThreadKey** pptKeyOut)
 {
     *pptKeyOut = PL_ALLOC(sizeof(plThreadKey));
@@ -1316,7 +1324,9 @@ pl_allocate_thread_local_key(plThreadKey** pptKeyOut)
     {
         printf("pthread_key_create failed, errno=%d", errno);
         PL_ASSERT(false);
+        return PL_OS_RESULT_FAIL;
     }
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void
@@ -1349,11 +1359,12 @@ pl_free_thread_local_data(plThreadKey* ptKey, void* pData)
     PL_FREE(pData);
 }
 
-void
+plOSResult
 pl_create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut)
 {
     *pptBarrierOut = PL_ALLOC(sizeof(plBarrier));
     pthread_barrier_init(&(*pptBarrierOut)->tHandle, NULL, uThreadCount);
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void
@@ -1370,11 +1381,12 @@ pl_wait_on_barrier(plBarrier* ptBarrier)
     pthread_barrier_wait(&ptBarrier->tHandle);
 }
 
-void
+plOSResult
 pl_create_condition_variable(plConditionVariable** pptConditionVariableOut)
 {
     *pptConditionVariableOut = PL_ALLOC(sizeof(plConditionVariable));
     pthread_cond_init(&(*pptConditionVariableOut)->tHandle, NULL);
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void               
@@ -1407,11 +1419,12 @@ pl_sleep_condition_variable(plConditionVariable* ptConditionVariable, plCritical
 // [SECTION] atomic api
 //-----------------------------------------------------------------------------
 
-void
+plOSResult
 pl_create_atomic_counter(int64_t ilValue, plAtomicCounter** ptCounter)
 {
     *ptCounter = PL_ALLOC(sizeof(plAtomicCounter));
     atomic_init(&(*ptCounter)->ilValue, ilValue); //-V522
+    return PL_OS_RESULT_SUCCESS;
 }
 
 void
@@ -1439,16 +1452,16 @@ pl_atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, 
     return atomic_compare_exchange_strong(&ptCounter->ilValue, &ilExpectedValue, ilDesiredValue);
 }
 
-void
+int64_t
 pl_atomic_increment(plAtomicCounter* ptCounter)
 {
-    atomic_fetch_add(&ptCounter->ilValue, 1);
+    return atomic_fetch_add(&ptCounter->ilValue, 1);
 }
 
-void
+int64_t
 pl_atomic_decrement(plAtomicCounter* ptCounter)
 {
-    atomic_fetch_sub(&ptCounter->ilValue, 1);
+    return atomic_fetch_sub(&ptCounter->ilValue, 1);
 }
 
 //-----------------------------------------------------------------------------

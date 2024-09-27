@@ -144,63 +144,63 @@ typedef struct _plThreadsI
 {
 
     // threads
-    void (*create_thread)(plThreadProcedure, void* pData, plThread** ppThreadOut);
-    void (*destroy_thread)(plThread** ppThread);
-    void (*join_thread)  (plThread*);
-    void (*yield_thread) (void);
-    void (*sleep_thread) (uint32_t uMilliSec);
+    plOSResult (*create_thread)(plThreadProcedure, void* pData, plThread** ppThreadOut);
+    void       (*destroy_thread)(plThread** ppThread);
+    void       (*join_thread)  (plThread*);
+    void       (*yield_thread) (void);
+    void       (*sleep_thread) (uint32_t uMilliSec);
+    uint32_t   (*get_hardware_thread_count)(void);
 
     // thread local storage
-    void  (*allocate_thread_local_key) (plThreadKey** pptKeyOut);
-    void  (*free_thread_local_key)     (plThreadKey** pptKey);
-    void* (*allocate_thread_local_data)(plThreadKey*, size_t szSize);
-    void  (*free_thread_local_data)    (plThreadKey*, void* pData);
-    void* (*get_thread_local_data)     (plThreadKey*);
+    plOSResult (*allocate_thread_local_key) (plThreadKey** pptKeyOut);
+    void       (*free_thread_local_key)     (plThreadKey** pptKey);
+    void*      (*allocate_thread_local_data)(plThreadKey*, size_t szSize);
+    void       (*free_thread_local_data)    (plThreadKey*, void* pData);
+    void*      (*get_thread_local_data)     (plThreadKey*);
 
     // mutexes
-    void (*create_mutex) (plMutex** ppMutexOut);
-    void (*destroy_mutex)(plMutex** pptMutex);
-    void (*lock_mutex)   (plMutex*);
-    void (*unlock_mutex) (plMutex*);
+    plOSResult (*create_mutex) (plMutex** ppMutexOut);
+    void       (*destroy_mutex)(plMutex** pptMutex);
+    void       (*lock_mutex)   (plMutex*);
+    void       (*unlock_mutex) (plMutex*);
 
     // critical sections
-    void (*create_critical_section) (plCriticalSection** pptCriticalSectionOut);
-    void (*destroy_critical_section)(plCriticalSection**);
-    void (*enter_critical_section)  (plCriticalSection*);
-    void (*leave_critical_section)  (plCriticalSection*);
+    plOSResult (*create_critical_section) (plCriticalSection** pptCriticalSectionOut);
+    void       (*destroy_critical_section)(plCriticalSection**);
+    void       (*enter_critical_section)  (plCriticalSection*);
+    void       (*leave_critical_section)  (plCriticalSection*);
 
     // semaphores
-    void (*create_semaphore)     (uint32_t uIntialCount, plSemaphore** pptSemaphoreOut);
-    void (*destroy_semaphore)    (plSemaphore**);
-    void (*wait_on_semaphore)    (plSemaphore*);
-    bool (*try_wait_on_semaphore)(plSemaphore*);
-    void (*release_semaphore)    (plSemaphore*);
+    plOSResult (*create_semaphore)     (uint32_t uIntialCount, plSemaphore** pptSemaphoreOut);
+    void       (*destroy_semaphore)    (plSemaphore**);
+    void       (*wait_on_semaphore)    (plSemaphore*);
+    bool       (*try_wait_on_semaphore)(plSemaphore*);
+    void       (*release_semaphore)    (plSemaphore*);
 
     // barriers
-    void (*create_barrier) (uint32_t uThreadCount, plBarrier** pptBarrierOut);
-    void (*destroy_barrier)(plBarrier** pptBarrier);
-    void (*wait_on_barrier)(plBarrier*);
+    plOSResult (*create_barrier) (uint32_t uThreadCount, plBarrier** pptBarrierOut);
+    void       (*destroy_barrier)(plBarrier** pptBarrier);
+    void       (*wait_on_barrier)(plBarrier*);
 
     // condition variables
-    void (*create_condition_variable)  (plConditionVariable** pptConditionVariableOut);
-    void (*destroy_condition_variable) (plConditionVariable**);
-    void (*wake_condition_variable)    (plConditionVariable*);
-    void (*wake_all_condition_variable)(plConditionVariable*);
-    void (*sleep_condition_variable)   (plConditionVariable*, plCriticalSection*);
+    plOSResult (*create_condition_variable)  (plConditionVariable** pptConditionVariableOut);
+    void       (*destroy_condition_variable) (plConditionVariable**);
+    void       (*wake_condition_variable)    (plConditionVariable*);
+    void       (*wake_all_condition_variable)(plConditionVariable*);
+    void       (*sleep_condition_variable)   (plConditionVariable*, plCriticalSection*);
 
-    // misc.
-    uint32_t (*get_hardware_thread_count)(void);
 } plThreadsI;
 
 typedef struct _plAtomicsI
 {
-    void    (*create_atomic_counter)  (int64_t ilValue, plAtomicCounter** pptCounterOut);
-    void    (*destroy_atomic_counter) (plAtomicCounter**);
-    void    (*atomic_store)           (plAtomicCounter*, int64_t ilValue);
-    int64_t (*atomic_load)            (plAtomicCounter*);
-    bool    (*atomic_compare_exchange)(plAtomicCounter*, int64_t ilExpectedValue, int64_t ilDesiredValue);
-    void    (*atomic_increment)       (plAtomicCounter*);
-    void    (*atomic_decrement)       (plAtomicCounter*);
+    plOSResult (*create_atomic_counter)  (int64_t ilValue, plAtomicCounter** pptCounterOut);
+    void       (*destroy_atomic_counter) (plAtomicCounter**);
+    void       (*atomic_store)           (plAtomicCounter*, int64_t ilValue);
+    int64_t    (*atomic_load)            (plAtomicCounter*);
+    bool       (*atomic_compare_exchange)(plAtomicCounter*, int64_t ilExpectedValue, int64_t ilDesiredValue);
+    int64_t    (*atomic_increment)       (plAtomicCounter*);
+    int64_t    (*atomic_decrement)       (plAtomicCounter*);
+
 } plAtomicsI;
 
 typedef struct _plVirtualMemoryI
@@ -244,7 +244,8 @@ enum _plSocketFlags
 
 enum _plOSResult
 {
-    PL_OS_RESULT_SUCCESS = 0
+    PL_OS_RESULT_FAIL    = 0,
+    PL_OS_RESULT_SUCCESS = 1
 };
 
 //-----------------------------------------------------------------------------
