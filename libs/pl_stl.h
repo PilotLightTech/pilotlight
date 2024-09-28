@@ -2,6 +2,16 @@
    pl_stl.h
      * no dependencies
      * simple asci & binary stl parser
+     
+   Do this:
+        #define PL_STL_IMPLEMENTATION
+   before you include this file in *one* C or C++ file to create the implementation.
+   // i.e. it should look like this:
+   #include ...
+   #include ...
+   #include ...
+   #define PL_STL_IMPLEMENTATION
+   #include "pl_stl.h"
 */
 
 // library version (format XYYZZ)

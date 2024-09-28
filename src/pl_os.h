@@ -89,20 +89,25 @@ typedef void* (*plThreadProcedure)(void*);
 
 typedef struct _plWindowI
 {
+
     plOSResult (*create_window) (const plWindowDesc*, plWindow** pptWindowOut);
     void       (*destroy_window)(plWindow*);
+    
 } plWindowI;
 
 typedef struct _plLibraryI
 {
+
     plOSResult (*load)         (const plLibraryDesc*, plSharedLibrary** pptLibraryOut);
     bool       (*has_changed)  (plSharedLibrary*);
     void       (*reload)       (plSharedLibrary*);
     void*      (*load_function)(plSharedLibrary*, const char*);
+    
 } plLibraryI;
 
 typedef struct _plFileI
 {
+
     // simple file ops
     bool       (*exists)(const char* pcPath);
     plOSResult (*delete)(const char* pcPath);
@@ -193,6 +198,7 @@ typedef struct _plThreadsI
 
 typedef struct _plAtomicsI
 {
+
     plOSResult (*create_atomic_counter)  (int64_t ilValue, plAtomicCounter** pptCounterOut);
     void       (*destroy_atomic_counter) (plAtomicCounter**);
     void       (*atomic_store)           (plAtomicCounter*, int64_t ilValue);
