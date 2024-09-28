@@ -107,9 +107,9 @@ void                   pl_stack_allocator_free_bottom_to_marker(plStackAllocator
 
 // Notes
 //   - setting pBuffer to NULL, will set pszBufferSize to required buffer size
-//     so you can allocate a properly sized buffer for the szItemCount (then call function again)
+//     so you can allocate a properly sized buffer for the requested szItemCount (then call function again)
 //   - to use a stack allocated buffer, first call the function with szItemCount = 0 & pszBufferSize
-//     set to size of the buffer; the function will return the number of items that can be support;
+//     set to size of the buffer; the function will return the number of items that can be supported;
 //     call function again with this number
 
 size_t pl_pool_allocator_init (plPoolAllocator*, size_t szItemCount, size_t szItemSize, size_t szItemAlignment, size_t* pszBufferSize, void* pBuffer);

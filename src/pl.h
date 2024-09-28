@@ -83,20 +83,25 @@ typedef uint16_t plUiWChar;
 
 typedef struct _plApiRegistryI
 {
+
     const void* (*add)   (const char* pcName, const void* pInterface);
     void        (*remove)(const void* pInterface);
     const void* (*first) (const char* pcName);
     const void* (*next)  (const void* pPrevInterface);
+    
 } plApiRegistryI;
 
 typedef struct _plExtensionRegistryI
 {
+
     bool (*load)  (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
     bool (*unload)(const char* pcName); 
+    
 } plExtensionRegistryI;
 
 typedef struct _plMemoryI
 {
+
     void* (*realloc)(void*, size_t, const char* pcFile, int iLine);
 
     // stats
@@ -104,10 +109,12 @@ typedef struct _plMemoryI
     size_t             (*get_allocation_count)(void);
     size_t             (*get_free_count)(void);
     plAllocationEntry* (*get_allocations)(size_t* pszCount);
+    
 } plMemoryI;
 
 typedef struct _plIOI
 {
+
     void  (*new_frame)(void);
     plIO* (*get_io)(void);
 
@@ -174,6 +181,7 @@ typedef struct _plDataRegistryI
     void          (*set_string)(plDataObject*, uint32_t uProperty, const char*);
     void          (*set_buffer)(plDataObject*, uint32_t uProperty, void*);
     void          (*commit)    (plDataObject*);
+    
 } plDataRegistryI;
 
 //-----------------------------------------------------------------------------
@@ -327,7 +335,7 @@ typedef struct _plIO
     // Input/Output
     //------------------------------------------------------------------
 
-    bool bRunning;
+    bool  bRunning;
     float fHeadlessUpdateRate; // frame rate when headless (FPS)
 
     //------------------------------------------------------------------

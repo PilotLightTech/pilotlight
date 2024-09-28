@@ -125,16 +125,16 @@ HASHMAPS
         uint64_t pl_hm_hash(const void* pData, size_t szDataSize, uint64_t uSeed);
             Returns the CRC64 hash of some arbitrary data.
 
-    pl__hm_resize:
-        void pl__hm_resize(plHashMap*, uint32_t);
+    pl_hm_resize:
+        void pl_hm_resize(plHashMap*, uint32_t);
             Resizes the hashmap or frees it if zero is used.
 
     pl_hm_free:
         void pl_hm_free(plHashMap*);
             Frees the hashmap internal memory.
 
-    pl__hm_insert:
-        void pl__hm_insert(plHashMap*, uint64_t ulKey, uint64_t ulValue);
+    pl_hm_insert:
+        void pl_hm_insert(plHashMap*, uint64_t ulKey, uint64_t ulValue);
             Adds an entry to the hashmap where ulKey is a hashed key (usually a string) and
             ulValue is the index into the value array.
 
@@ -158,8 +158,8 @@ HASHMAPS
         bool pl_hm_has_key(plHashMap*, const char*);
             Same as pl_hm_has_key but performs the hash for you.
 
-    pl__hm_insert_str:
-        void pl__hm_insert_str(plHashMap*, const char* pcKey, uint64_t ulValue);
+    pl_hm_insert_str:
+        void pl_hm_insert_str(plHashMap*, const char* pcKey, uint64_t ulValue);
             Same as pl__hm_insert but performs the hash for you.
 
     pl_hm_lookup_str:

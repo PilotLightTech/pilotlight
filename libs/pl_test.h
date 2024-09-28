@@ -1,5 +1,7 @@
 /*
    pl_test.h
+     * simple test librsry
+     
    Do this:
         #define PL_TEST_IMPLEMENTATION
    before you include this file in *one* C or C++ file to create the implementation.
