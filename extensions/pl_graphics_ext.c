@@ -892,18 +892,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
     {
         gptGraphics = gptDataRegistry->get_data("plGraphics");
-
-        // find log channel
-        uint32_t uChannelCount = 0;
-        plLogChannel* ptChannels = pl_get_log_channels(&uChannelCount);
-        for(uint32_t i = 0; i < uChannelCount; i++)
-        {
-            if(strcmp(ptChannels[i].pcName, "Graphics") == 0)
-            {
-                uLogChannelGraphics = i;
-                break;
-            }
-        }
+        uLogChannelGraphics = pl_get_log_channel_id("Graphics");
     }
 }
 

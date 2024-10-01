@@ -3,7 +3,7 @@
      * data structures
 */
 
-// library version
+// library version (format XYYZZ)
 #define PL_DS_VERSION    "1.0.0"
 #define PL_DS_VERSION_NUM 10000
 

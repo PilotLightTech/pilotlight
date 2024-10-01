@@ -312,7 +312,7 @@ typedef struct _plRefRendererData
     plShaderHandle* _sbtVariantHandles; // needed for cleanup
 
     // renderer specific log channel
-    uint32_t uLogChannel;
+    uint64_t uLogChannel;
 
     // GPU allocators
     plDeviceMemoryAllocatorI* ptLocalDedicatedAllocator;
@@ -429,7 +429,11 @@ pl_refr_initialize(plWindow* ptWindow)
     gptDataRegistry->set_data("ref renderer data", gptData);
 
     // add specific log channel for renderer
-    gptData->uLogChannel = pl_add_log_channel("Renderer", PL_CHANNEL_TYPE_BUFFER);
+    plLogChannelInit tLogInit = {
+        .tType       = PL_CHANNEL_TYPE_BUFFER,
+        .uEntryCount = 1024
+    };
+    gptData->uLogChannel = pl_add_log_channel("Renderer", tLogInit);
 
     // default options
     gptData->uOutlineWidth = 4;

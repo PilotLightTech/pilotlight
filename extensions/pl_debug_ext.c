@@ -989,23 +989,27 @@ pl__show_logging(bool* bValue)
         gptUI->layout_dynamic(0.0f, 1);
         if(gptUI->begin_tab_bar("tab bar"))
         {
-            uint32_t uChannelCount = 0;
-            plLogChannel* ptChannels = pl_get_log_channels(&uChannelCount);
+            uint32_t uChannelCount = (uint32_t)pl_get_log_channel_count();
             for(uint32_t i = 0; i < uChannelCount; i++)
             {
-                plLogChannel* ptChannel = &ptChannels[i];
-                
-                if(ptChannel->tType & PL_CHANNEL_TYPE_CYCLIC_BUFFER)
+
+                plLogChannelInfo tInfo = {0};
+                bool bResult = pl_get_log_channel_info(i, &tInfo);
+
+                uint64_t uEntryCount = tInfo.uEntryCount;
+                plLogEntry* ptEntries = tInfo.ptEntries;
+
+                if(tInfo.tType & PL_CHANNEL_TYPE_CYCLIC_BUFFER)
                 {
-                    if(gptUI->begin_tab(ptChannel->pcName))
+                    if(gptUI->begin_tab(tInfo.pcName))
                     {
                         const plVec2 tCursorPos = gptUI->get_cursor_pos();
                         gptUI->layout_dynamic(tWindowEnd.y - tCursorPos.y - 20.0f, 1);
-                        if(gptUI->begin_child(ptChannel->pcName))
+                        if(gptUI->begin_child(tInfo.pcName))
                         {
                             gptUI->layout_dynamic(0.0f, 1);
-                            const uint64_t uIndexStart = ptChannel->uEntryCount;
-                            const uint64_t uLogCount = pl_min(PL_LOG_CYCLIC_BUFFER_SIZE, ptChannel->uEntryCount);
+                            const uint32_t uIndexStart = (uint32_t)uEntryCount;
+                            const uint32_t uLogCount = (uint32_t)pl_min(tInfo.uEntryCapacity, uEntryCount);
 
                             
                             if(bUseClipper)
@@ -1016,8 +1020,8 @@ pl__show_logging(bool* bValue)
                                     for(uint32_t j = tClipper.uDisplayStart; j < tClipper.uDisplayEnd; j++)
                                     {
                                         uint32_t uActualIndex0 = (uIndexStart + j) % (uint32_t)uLogCount;
-                                        const plLogEntry* ptEntry = &ptChannel->atEntries[uActualIndex0];
-                                        gptUI->color_text(atColors[ptEntry->uLevel / 1000 - 5], &ptChannel->pcBuffer0[ptEntry->uOffset + ptChannel->uBufferCapacity * (ptEntry->uGeneration % 2)]);
+                                        const plLogEntry* ptEntry = &ptEntries[uActualIndex0];
+                                        gptUI->color_text(atColors[ptEntry->uLevel / 1000 - 5], &tInfo.pcBuffer[ptEntry->uOffset]);
                                     } 
                                 }
                             }
@@ -1026,9 +1030,11 @@ pl__show_logging(bool* bValue)
                                     for(uint32_t j = i; j < uLogCount; j++)
                                     {
                                         uint32_t uActualIndex0 = (uIndexStart + j) % (uint32_t)uLogCount;
-                                        const plLogEntry* ptEntry = &ptChannel->atEntries[uActualIndex0];
+                                        const plLogEntry* ptEntry = &ptEntries[uActualIndex0];
                                         if(bActiveLevels[ptEntry->uLevel / 1000 - 5])
-                                            gptUI->color_text(atColors[ptEntry->uLevel / 1000 - 5], &ptChannel->pcBuffer0[ptEntry->uOffset + ptChannel->uBufferCapacity * (ptEntry->uGeneration % 2)]);
+                                        {
+                                            gptUI->color_text(atColors[ptEntry->uLevel / 1000 - 5], &tInfo.pcBuffer[ptEntry->uOffset]);
+                                        }
                                     }  
                             }
                             gptUI->end_child();
@@ -1036,35 +1042,35 @@ pl__show_logging(bool* bValue)
                         gptUI->end_tab();
                     }
                 }
-                else if(ptChannel->tType & PL_CHANNEL_TYPE_BUFFER)
+                else if(tInfo.tType & PL_CHANNEL_TYPE_BUFFER)
                 {
-                    if(gptUI->begin_tab(ptChannel->pcName))
+                    if(gptUI->begin_tab(tInfo.pcName))
                     {
                         const plVec2 tCursorPos = gptUI->get_cursor_pos();
                         gptUI->layout_dynamic(tWindowEnd.y - tCursorPos.y - 20.0f, 1);
-                        if(gptUI->begin_child(ptChannel->pcName))
+                        if(gptUI->begin_child(tInfo.pcName))
                         {
                             gptUI->layout_dynamic(0.0f, 1);
 
                             if(bUseClipper)
                             {
-                                plUiClipper tClipper = {(uint32_t)ptChannel->uEntryCount};
+                                plUiClipper tClipper = {(uint32_t)uEntryCount};
                                 while(gptUI->step_clipper(&tClipper))
                                 {
                                     for(uint32_t j = tClipper.uDisplayStart; j < tClipper.uDisplayEnd; j++)
                                     {
-                                        plLogEntry* ptEntry = &ptChannel->pEntries[j];
-                                        gptUI->color_text(atColors[ptEntry->uLevel / 1000 - 5], &ptChannel->pcBuffer0[ptEntry->uOffset]);
+                                        plLogEntry* ptEntry = &ptEntries[j];
+                                        gptUI->color_text(atColors[ptEntry->uLevel / 1000 - 5], &tInfo.pcBuffer[ptEntry->uOffset]);
                                     } 
                                 }
                             }
                             else
                             {
-                                for(uint32_t j = 0; j < ptChannel->uEntryCount; j++)
+                                for(uint32_t j = 0; j < uEntryCount; j++)
                                 {
-                                    plLogEntry* ptEntry = &ptChannel->pEntries[j];
+                                    plLogEntry* ptEntry = &ptEntries[j];
                                     if(bActiveLevels[ptEntry->uLevel / 1000 - 5])
-                                        gptUI->color_text(atColors[ptEntry->uLevel / 1000 - 5], &ptChannel->pcBuffer0[ptEntry->uOffset]);
+                                        gptUI->color_text(atColors[ptEntry->uLevel / 1000 - 5], &tInfo.pcBuffer[ptEntry->uOffset]);
                                 } 
                             }
                             gptUI->end_child();

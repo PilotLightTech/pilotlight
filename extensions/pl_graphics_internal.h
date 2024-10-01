@@ -29,7 +29,7 @@ typedef struct _plFrameContext plFrameContext;
 //-----------------------------------------------------------------------------
 
 static struct _plGraphics* gptGraphics = NULL;
-static uint32_t uLogChannelGraphics = UINT32_MAX;
+static uint64_t uLogChannelGraphics = UINT64_MAX;
 
 // getters (generational pool)
 static plSampler*          pl_get_sampler           (plDevice*, plSamplerHandle);

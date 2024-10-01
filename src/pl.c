@@ -1371,8 +1371,7 @@ pl__load_core_apis(void)
     gptDataRegistry->set_data("profile", ptProfileCtx);
     gptDataRegistry->set_data("log", ptLogCtx);
 
-    pl_add_log_channel("Default", PL_CHANNEL_TYPE_CONSOLE);
-    pl_log_info("Setup logging");
+    pl_log_info(0, "Setup logging");
 }
 
 void
