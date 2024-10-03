@@ -51,3 +51,7 @@ This project is inspired by:
 * Turánszki János & [Wicked Engine](https://wickedengine.net/)
 * [Sean Barrett](https://nothings.org/) & his [stb](https://github.com/nothings/stb) libraries
 * _The Machinery_ before they were abducted
+
+## SAST Tools
+
+[PVS-Studio](https://pvs-studio.com/en/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source) - static analyzer for C, C++, C#, and Java code.
