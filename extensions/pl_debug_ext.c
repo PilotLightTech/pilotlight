@@ -102,44 +102,44 @@ pl_load_debug_api(void)
 static void
 pl_show_debug_windows(plDebugApiInfo* ptInfo)
 {
-    pl_begin_profile_sample(__FUNCTION__);
+    pl_begin_profile_sample(0, __FUNCTION__);
 
     if(ptInfo->bShowMemoryAllocations)
     {
-        pl_begin_profile_sample("Memory Allocations");
+        pl_begin_profile_sample(0, "Memory Allocations");
         pl__show_memory_allocations(&ptInfo->bShowMemoryAllocations);
-        pl_end_profile_sample();
+        pl_end_profile_sample(0);
     }
 
     if(ptInfo->bShowProfiling)
     {
-        pl_begin_profile_sample("Profiling");
+        pl_begin_profile_sample(0, "Profiling");
         pl__show_profiling(&ptInfo->bShowProfiling);
-        pl_end_profile_sample();
+        pl_end_profile_sample(0);
     }
 
     if(ptInfo->bShowStats)
     {
-        pl_begin_profile_sample("Statistics");
+        pl_begin_profile_sample(0, "Statistics");
         pl__show_statistics(&ptInfo->bShowStats);
-        pl_end_profile_sample();
+        pl_end_profile_sample(0);
     }
 
     if(ptInfo->bShowDeviceMemoryAnalyzer)
     {
-        pl_begin_profile_sample("Device Memory Analyzer");
+        pl_begin_profile_sample(0, "Device Memory Analyzer");
         pl__show_device_memory(&ptInfo->bShowDeviceMemoryAnalyzer);
-        pl_end_profile_sample();
+        pl_end_profile_sample(0);
     }
 
     if(ptInfo->bShowLogging)
     {
-        pl_begin_profile_sample("Logging");
+        pl_begin_profile_sample(0, "Logging");
         pl__show_logging(&ptInfo->bShowLogging);
-        pl_end_profile_sample();
+        pl_end_profile_sample(0);
     }
 
-    pl_end_profile_sample();
+    pl_end_profile_sample(0);
 }
 
 //-----------------------------------------------------------------------------
@@ -250,7 +250,7 @@ pl__show_profiling(bool* bValue)
         uint32_t uSampleSize = 0;
         if(gptDebugCtx->bProfileFirstRun && gptIO->ulFrameCount == 1)
         {
-            ptSamples = pl_get_last_frame_samples(&uSampleSize);
+            ptSamples = pl_get_last_frame_samples(0, &uSampleSize);
             pl_sb_resize(gptDebugCtx->sbtSamples, uSampleSize);
             memcpy(gptDebugCtx->sbtSamples, ptSamples, sizeof(plProfileSample) * uSampleSize);
             gptDebugCtx->fDeltaTime = gptIO->fDeltaTime;
@@ -265,7 +265,7 @@ pl__show_profiling(bool* bValue)
 
         if(uSampleSize == 0)
         {
-            ptSamples = pl_get_last_frame_samples(&uSampleSize);
+            ptSamples = pl_get_last_frame_samples(0, &uSampleSize);
             gptDebugCtx->fDeltaTime = gptIO->fDeltaTime;
         }
 

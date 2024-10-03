@@ -161,13 +161,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     ptEditorData->uSceneHandle0 = gptRenderer->create_scene();
 
-    pl_begin_profile_sample("load environments");
+    pl_begin_profile_sample(0, "load environments");
     gptRenderer->load_skybox_from_panorama(ptEditorData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 256);
-    pl_end_profile_sample();
+    pl_end_profile_sample(0);
 
-    pl_begin_profile_sample("create scene views");
+    pl_begin_profile_sample(0, "create scene views");
     ptEditorData->uViewHandle0 = gptRenderer->create_view(ptEditorData->uSceneHandle0, ptIO->tMainViewportSize);
-    pl_end_profile_sample();
+    pl_end_profile_sample(0);
 
     // temporary draw layer for submitting fullscreen quad of offscreen render
     ptEditorData->ptDrawLayer = gptDraw->request_2d_layer(gptUi->get_draw_list(), "draw layer");
@@ -199,7 +199,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     
     plModelLoaderData tLoaderData0 = {0};
 
-    pl_begin_profile_sample("load models 0");
+    pl_begin_profile_sample(0, "load models 0");
     // const plMat4 tTransform = pl_mat4_translate_xyz(0.0f, 0.0F, 0.0f);
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf", &tTransform, &tLoaderData0);
     gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
@@ -208,11 +208,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/kenny.glb", NULL, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptEditorData->uSceneHandle0, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
     gptModelLoader->free_data(&tLoaderData0);
-    pl_end_profile_sample();
+    pl_end_profile_sample(0);
 
-    pl_begin_profile_sample("finalize scene 0");
+    pl_begin_profile_sample(0, "finalize scene 0");
     gptRenderer->finalize_scene(ptEditorData->uSceneHandle0);
-    pl_end_profile_sample();
+    pl_end_profile_sample(0);
 
     pl_end_profile_frame();
 
@@ -230,7 +230,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     // temporary for profiling loading procedures
     uint32_t uSampleSize = 0;
-    plProfileSample* ptSamples = pl_get_last_frame_samples(&uSampleSize);
+    plProfileSample* ptSamples = pl_get_last_frame_samples(0, &uSampleSize);
     const char* pcSpacing = "                    ";
     for(uint32_t i = 0; i < uSampleSize; i++)
         printf("%s %s : %0.6f\n", &pcSpacing[20 - ptSamples[i].uDepth * 2], ptSamples[i].pcName, ptSamples[i].dDuration);
@@ -280,7 +280,7 @@ pl_app_update(plEditorData* ptEditorData)
 {
     // begin profiling frame
     pl_begin_profile_frame();
-    pl_begin_profile_sample(__FUNCTION__);
+    pl_begin_profile_sample(0, __FUNCTION__);
 
     gptIO->new_frame();
 
@@ -296,7 +296,7 @@ pl_app_update(plEditorData* ptEditorData)
 
     if(!gptRenderer->begin_frame())
     {
-        pl_end_profile_sample();
+        pl_end_profile_sample(0);
         pl_end_profile_frame();
         return;
     }
@@ -443,9 +443,9 @@ pl_app_update(plEditorData* ptEditorData)
 
     if(ptEditorData->bShowUiDemo)
     {
-        pl_begin_profile_sample("ui demo");
+        pl_begin_profile_sample(0, "ui demo");
         gptUi->show_demo_window(&ptEditorData->bShowUiDemo);
-        pl_end_profile_sample();
+        pl_end_profile_sample(0);
     }
         
     if(ptEditorData->bShowUiStyle)
@@ -461,7 +461,7 @@ pl_app_update(plEditorData* ptEditorData)
 
     gptRenderer->end_frame();
 
-    pl_end_profile_sample();
+    pl_end_profile_sample(0);
     pl_end_profile_frame();
 }
 

@@ -149,11 +149,12 @@ typedef struct _plThreadsI
 {
 
     // threads
-    plOSResult (*create_thread)(plThreadProcedure, void* pData, plThread** ppThreadOut);
+    plOSResult (*create_thread) (plThreadProcedure, void* pData, plThread** ppThreadOut);
     void       (*destroy_thread)(plThread** ppThread);
-    void       (*join_thread)  (plThread*);
-    void       (*yield_thread) (void);
-    void       (*sleep_thread) (uint32_t uMilliSec);
+    void       (*join_thread)   (plThread*);
+    uint32_t   (*get_thread_id) (plThread*);
+    void       (*yield_thread)  (void);
+    void       (*sleep_thread)  (uint32_t uMilliSec);
     uint32_t   (*get_hardware_thread_count)(void);
 
     // thread local storage

@@ -163,6 +163,7 @@ typedef struct _plSocket
 typedef struct _plThread
 {
     pthread_t tHandle;
+    uint32_t  uID;
 } plThread;
 
 typedef struct _plMutex
@@ -1475,6 +1476,9 @@ pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** pptThrea
         PL_ASSERT(false);
         return PL_OS_RESULT_FAIL;
     }
+    static uint32_t uNextThreadId = 0;
+    uNextThreadId++;
+    (*pptThreadOut)->uID = uNextThreadId;
     return PL_OS_RESULT_SUCCESS;
 }
 

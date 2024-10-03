@@ -2593,7 +2593,7 @@ static inline void pl__update_bindings(plBindGroupManagerData* ptData, VkCommand
 static void
 pl_draw_stream(plRenderEncoderHandle tEncoder, uint32_t uAreaCount, plDrawArea* atAreas)
 {
-    pl_begin_profile_sample(__FUNCTION__);
+    pl_begin_profile_sample(0, __FUNCTION__);
     plRenderEncoder* ptEncoder = pl__get_render_encoder(tEncoder);
     plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
@@ -2749,7 +2749,7 @@ pl_draw_stream(plRenderEncoderHandle tEncoder, uint32_t uAreaCount, plDrawArea* 
                 vkCmdDrawIndexed(ptCmdBuffer->tCmdBuffer, uTriangleCount * 3, uInstanceCount, uIndexBufferOffset, uVertexBufferOffset, uInstanceStart);
         }
     }
-    pl_end_profile_sample();
+    pl_end_profile_sample(0);
 }
 
 static void
@@ -3533,7 +3533,7 @@ pl_create_swapchain(plDevice* ptDevice, const plSwapchainInit* ptInit)
 static bool
 pl_begin_frame(plSwapchain* ptSwap)
 {
-    pl_begin_profile_sample(__FUNCTION__);
+    pl_begin_profile_sample(0, __FUNCTION__);
 
     plDevice* ptDevice = ptSwap->ptDevice;
     plIO* ptIOCtx = gptIOI->get_io();
@@ -3552,7 +3552,7 @@ pl_begin_frame(plSwapchain* ptSwap)
         if(err == VK_ERROR_OUT_OF_DATE_KHR)
         {
             pl__create_swapchain((uint32_t)ptIOCtx->tMainViewportSize.x, (uint32_t)ptIOCtx->tMainViewportSize.y, ptSwap);
-            pl_end_profile_sample();
+            pl_end_profile_sample(0);
             return false;
         }
     }
@@ -3571,7 +3571,7 @@ pl_begin_frame(plSwapchain* ptSwap)
     PL_VULKAN(vkResetCommandPool(ptDevice->tLogicalDevice, ptCurrentFrame->tCmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT));
     PL_VULKAN(vkResetCommandPool(ptDevice->tLogicalDevice, ptDevice->tCmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT));
     
-    pl_end_profile_sample();
+    pl_end_profile_sample(0);
     return true; 
 }
 
@@ -3584,7 +3584,7 @@ pl_end_command_recording(plCommandBufferHandle tHandle)
 static bool
 pl_present(plCommandBufferHandle tHandle, const plSubmitInfo* ptSubmitInfo, plSwapchain* ptSwap)
 {
-    pl_begin_profile_sample(__FUNCTION__);
+    pl_begin_profile_sample(0, __FUNCTION__);
     plIO* ptIOCtx = gptIOI->get_io();
 
     plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(tHandle);
@@ -3668,7 +3668,7 @@ pl_present(plCommandBufferHandle tHandle, const plSubmitInfo* ptSubmitInfo, plSw
         pl__create_swapchain((uint32_t)ptIOCtx->tMainViewportSize.x, (uint32_t)ptIOCtx->tMainViewportSize.y, ptSwap);
         pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
         pl__return_command_buffer_handle(tHandle);
-        pl_end_profile_sample();
+        pl_end_profile_sample(0);
         return false;
     }
     else
@@ -3678,14 +3678,14 @@ pl_present(plCommandBufferHandle tHandle, const plSubmitInfo* ptSubmitInfo, plSw
     gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
     pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
     pl__return_command_buffer_handle(tHandle);
-    pl_end_profile_sample();
+    pl_end_profile_sample(0);
     return true;
 }
 
 static void
 pl_resize(plSwapchain* ptSwap)
 {
-    pl_begin_profile_sample(__FUNCTION__);
+    pl_begin_profile_sample(0, __FUNCTION__);
     plIO* ptIOCtx = gptIOI->get_io();
     plDevice* ptDevice = ptSwap->ptDevice;
 
@@ -3713,7 +3713,7 @@ pl_resize(plSwapchain* ptSwap)
         PL_VULKAN(vkCreateFramebuffer(ptDevice->tLogicalDevice, &tFrameBufferInfo, NULL, &ptVulkanRenderPass->atFrameBuffers[i]));
     }
 
-    pl_end_profile_sample();
+    pl_end_profile_sample(0);
 }
 
 static void
@@ -5003,7 +5003,7 @@ pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 static void
 pl__garbage_collect(plDevice* ptDevice)
 {
-    pl_begin_profile_sample(__FUNCTION__);
+    pl_begin_profile_sample(0, __FUNCTION__);
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
 
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
@@ -5153,7 +5153,7 @@ pl__garbage_collect(plDevice* ptDevice)
     pl_sb_reset(ptCurrentFrame->sbtRawFrameBuffers);
     pl_sb_reset(ptGarbage->sbtBuffers);
     pl_sb_reset(ptGarbage->sbtBindGroups);
-    pl_end_profile_sample();
+    pl_end_profile_sample(0);
 }
 
 static void

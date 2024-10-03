@@ -65,7 +65,7 @@ jobs:
           cd ../src
           chmod +x build.sh
           pvs-studio-analyzer trace -- ./build.sh
-          pvs-studio-analyzer analyze -e ../dependencies -l ../pvs-studio.lic -o ../pvs-studio.log --disableLicenseExpirationCheck
+          pvs-studio-analyzer analyze -e ../dependencies -l ../pvs-studio.lic -o ../pvs-studio.log
           plog-converter -a 'GA:1,2;OP:1' -d V595,V1004,V575 -t html -o ../pvs-studio.html -w ../pvs-studio.log
       - name: Archive Results
         if: ${{ always() }}

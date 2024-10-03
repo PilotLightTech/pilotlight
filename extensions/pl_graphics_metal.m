@@ -1774,7 +1774,7 @@ pl_resize(plSwapchain* ptSwapchain)
 static bool
 pl_begin_frame(plSwapchain* ptSwapchain)
 {
-    pl_begin_profile_sample(__FUNCTION__);
+    pl_begin_profile_sample(0, __FUNCTION__);
 
     plDevice* ptDevice = ptSwapchain->ptDevice;
 
@@ -1804,11 +1804,11 @@ pl_begin_frame(plSwapchain* ptSwapchain)
 
     if(!gptGraphics->tCurrentDrawable)
     {
-        pl_end_profile_sample();
+        pl_end_profile_sample(0);
         return false;
     }
 
-    pl_end_profile_sample();
+    pl_end_profile_sample(0);
     return true;
 }
 
@@ -2252,7 +2252,7 @@ pl_bind_compute_shader(plComputeEncoderHandle tEncoder, plComputeShaderHandle tH
 static void
 pl_draw_stream(plRenderEncoderHandle tEncoder, uint32_t uAreaCount, plDrawArea* atAreas)
 {
-    pl_begin_profile_sample(__FUNCTION__);
+    pl_begin_profile_sample(0, __FUNCTION__);
     plRenderEncoder* ptEncoder = pl__get_render_encoder(tEncoder);
     plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
@@ -2467,7 +2467,7 @@ pl_draw_stream(plRenderEncoderHandle tEncoder, uint32_t uAreaCount, plDrawArea* 
             }
         }
     }
-    pl_end_profile_sample();
+    pl_end_profile_sample(0);
 }
 
 static void
@@ -2817,7 +2817,7 @@ pl__metal_stage_flags(plStageFlags tFlags)
 static void
 pl__garbage_collect(plDevice* ptDevice)
 {
-    pl_begin_profile_sample(__FUNCTION__);
+    pl_begin_profile_sample(0, __FUNCTION__);
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
 
@@ -2939,7 +2939,7 @@ pl__garbage_collect(plDevice* ptDevice)
     pl_sb_reset(ptGarbage->sbtMemory);
     pl_sb_reset(ptGarbage->sbtBuffers);
     pl_sb_reset(ptGarbage->sbtBindGroups);
-    pl_end_profile_sample();
+    pl_end_profile_sample(0);
 }
 
 //-----------------------------------------------------------------------------

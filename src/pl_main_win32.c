@@ -96,6 +96,7 @@ typedef struct _plThread
 {
     HANDLE        tHandle;
     plThreadData* ptData;
+    uint32_t      uID;
 } plThread;
 
 typedef struct _plMutex
@@ -1406,7 +1407,10 @@ pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** ppThread
     HANDLE tHandle = CreateThread(0, 1024, thread_procedure, ptData, 0, NULL);
     if(tHandle)
     {
+        static uint32_t uNextThreadId = 0;
+        uNextThreadId++;
         *ppThreadOut = PL_ALLOC(sizeof(plThread));
+        (*ppThreadOut)->uID = uNextThreadId;
         (*ppThreadOut)->ptData = ptData;
         ptData->ptProcedure = ptProcedure;
         ptData->pData       = pData;

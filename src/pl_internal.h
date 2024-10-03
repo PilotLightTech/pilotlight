@@ -106,6 +106,7 @@ plOSResult pl_create_thread (plThreadProcedure, void* pData, plThread** ppThread
 void       pl_destroy_thread(plThread**);
 void       pl_join_thread   (plThread*);
 void       pl_yield_thread  (void);
+uint32_t   pl_get_thread_id (plThread*);
 
 // thread api: mutex
 plOSResult pl_create_mutex (plMutex** ppMutexOut);

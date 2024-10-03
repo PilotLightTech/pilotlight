@@ -1365,7 +1365,10 @@ pl__load_core_apis(void)
     gptMemory            = ptApiRegistry->first(PL_API_MEMORY);
     gptApiRegistry       = ptApiRegistry;
 
-    plProfileContext* ptProfileCtx = pl_create_profile_context();
+    plProfileInit tProfileInit = {
+        .uThreadCount = pl_get_hardware_thread_count()
+    };
+    plProfileContext* ptProfileCtx = pl_create_profile_context(tProfileInit);
     plLogContext*     ptLogCtx     = pl_create_log_context();
 
     gptDataRegistry->set_data("profile", ptProfileCtx);
@@ -1412,6 +1415,12 @@ pl__unload_core_apis(void)
     }
     pl_sb_free(gsbptLibs);
     pl_sb_free(gsbtHotLibs);
+}
+
+uint32_t
+pl_get_thread_id(plThread* ptThread)
+{
+    return ptThread->uID;
 }
 
 void
@@ -1464,6 +1473,7 @@ pl__load_os_apis(void)
         .join_thread                 = pl_join_thread,
         .yield_thread                = pl_yield_thread,
         .sleep_thread                = pl_sleep,
+        .get_thread_id               = pl_get_thread_id,
         .create_mutex                = pl_create_mutex,
         .destroy_mutex               = pl_destroy_mutex,
         .lock_mutex                  = pl_lock_mutex,

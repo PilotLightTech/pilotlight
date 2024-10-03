@@ -1,5 +1,6 @@
 /*
-   pl_profile
+   pl_profile.h
+     * simple profiling library
    Do this:
         #define PL_PROFILE_IMPLEMENTATION
    before you include this file in *one* C or C++ file to create the implementation.
@@ -11,9 +12,9 @@
    #include "pl_profile.h"
 */
 
-// library version
-#define PL_PROFILE_VERSION    "0.2.0"
-#define PL_PROFILE_VERSION_NUM 00200
+// library version (format XYYZZ)
+#define PL_PROFILE_VERSION    "1.0.0"
+#define PL_PROFILE_VERSION_NUM 10000
 
 /*
 Index of this file:
@@ -76,7 +77,7 @@ SAMPLING
 RETRIEVING RESULTS
 
     pl_get_last_frame_samples:
-        plProfileSample* pl_get_last_frame_samples(uint32_t* puSize);
+        plProfileSample* pl_get_last_frame_samples(uint32_t* puSizeOut);
             Returns samples from last frame. Call after "pl_end_profile_frame".
 
 
@@ -105,8 +106,9 @@ COMPILE TIME OPTIONS
 //-----------------------------------------------------------------------------
 
 // forward declarations
-typedef struct _plProfileSample  plProfileSample;
-typedef struct _plProfileContext plProfileContext;
+typedef struct _plProfileSample  plProfileSample;  // single sample result
+typedef struct _plProfileInit    plProfileInit;    // profile context init info
+typedef struct _plProfileContext plProfileContext; // opaque type
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -115,19 +117,19 @@ typedef struct _plProfileContext plProfileContext;
 #ifdef PL_PROFILE_ON
 
 // setup/shutdown
-#define pl_create_profile_context(ptContext) pl__create_profile_context()
-#define pl_cleanup_profile_context()         pl__cleanup_profile_context()
-#define pl_set_profile_context(ptContext)    pl__set_profile_context((ptContext))
-#define pl_get_profile_context()             pl__get_profile_context()
+#define pl_create_profile_context(tInit)  pl__create_profile_context((tInit))
+#define pl_cleanup_profile_context()      pl__cleanup_profile_context()
+#define pl_set_profile_context(ptContext) pl__set_profile_context((ptContext))
+#define pl_get_profile_context()          pl__get_profile_context()
 
 // frames
 #define pl_begin_profile_frame() pl__begin_profile_frame()
 #define pl_end_profile_frame()   pl__end_profile_frame()
 
 // samples
-#define pl_begin_profile_sample(pcName)   pl__begin_profile_sample((pcName))
-#define pl_end_profile_sample()           pl__end_profile_sample()
-#define pl_get_last_frame_samples(puSize) pl__get_last_frame_samples((puSize))
+#define pl_begin_profile_sample(uThreadIndex, pcName)   pl__begin_profile_sample((uThreadIndex), (pcName))
+#define pl_end_profile_sample(uThreadIndex)             pl__end_profile_sample((uThreadIndex))
+#define pl_get_last_frame_samples(uThreadIndex, puSize) pl__get_last_frame_samples((uThreadIndex), (puSize))
 
 #endif // PL_PROFILE_ON
 
@@ -143,24 +145,29 @@ typedef struct _plProfileSample
     uint32_t    uDepth;
 } plProfileSample;
 
+typedef struct _plProfileInit
+{
+    uint32_t uThreadCount;
+} plProfileInit;
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
 // setup/shutdown
-plProfileContext* pl__create_profile_context (void);
+plProfileContext* pl__create_profile_context (plProfileInit);
 void              pl__cleanup_profile_context(void);
-void              pl__set_profile_context    (plProfileContext* ptContext);
+void              pl__set_profile_context    (plProfileContext*);
 plProfileContext* pl__get_profile_context    (void);
 
 // frames
-void              pl__begin_profile_frame(void);
-void              pl__end_profile_frame  (void);
+void pl__begin_profile_frame(void);
+void pl__end_profile_frame  (void);
 
 // samples
-void              pl__begin_profile_sample(const char* pcName);
-void              pl__end_profile_sample  (void);
-plProfileSample*  pl__get_last_frame_samples(uint32_t* puSize);
+void              pl__begin_profile_sample(uint32_t uThreadIndex, const char* pcName);
+void              pl__end_profile_sample  (uint32_t uThreadIndex);
+plProfileSample*  pl__get_last_frame_samples(uint32_t uThreadIndex, uint32_t* puSizeOut);
 
 #ifndef PL_PROFILE_ON
     #define pl_create_profile_context(ptContext) NULL
@@ -212,8 +219,10 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include <stdbool.h> // bool
+
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
+    #define WIN32_LEAN_AND_MEAN
     #include <windows.h>
 #elif defined(__APPLE__)
     #include <time.h> // clock_gettime_nsec_np
@@ -225,7 +234,7 @@ Index of this file:
 // [SECTION] global context
 //-----------------------------------------------------------------------------
 
-plProfileContext* gTPProfileContext = NULL;
+static plProfileContext* gptProfileContext = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -257,14 +266,20 @@ typedef struct _plProfileFrame
     uint32_t         uOverflowSampleCapacity;
 } plProfileFrame;
 
-typedef struct _plProfileContext
+typedef struct _plProfileThreadData
 {
-    double          dStartTime;
-    uint64_t        ulFrame;
     plProfileFrame  atFrames[2];
     plProfileFrame* ptCurrentFrame;
     plProfileFrame* ptLastFrame;
-    void*           pInternal;
+} plProfileThreadData;
+
+typedef struct _plProfileContext
+{
+    double               dStartTime;
+    uint64_t             ulFrame;
+    plProfileThreadData* ptThreadData;
+    uint32_t             uThreadCount;
+    void*                pInternal;
 } plProfileContext;
 
 //-----------------------------------------------------------------------------
@@ -286,7 +301,7 @@ pl__get_wall_clock(void)
 {
     double dResult = 0;
     #ifdef _WIN32
-        INT64 slPerfFrequency = *(INT64*)gTPProfileContext->pInternal;
+        INT64 slPerfFrequency = *(INT64*)gptProfileContext->pInternal;
         INT64 slPerfCounter;
         QueryPerformanceCounter((LARGE_INTEGER*)&slPerfCounter);
         dResult = (double)slPerfCounter / (double)slPerfFrequency;
@@ -296,7 +311,7 @@ pl__get_wall_clock(void)
         struct timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
         uint64_t nsec_count = ts.tv_nsec + ts.tv_sec * 1e9;
-        dResult = (double)nsec_count / *(double*)gTPProfileContext->pInternal;
+        dResult = (double)nsec_count / *(double*)gptProfileContext->pInternal;
     #endif
     return dResult;
 }
@@ -306,17 +321,23 @@ pl__get_wall_clock(void)
 //-----------------------------------------------------------------------------
 
 plProfileContext*
-pl__create_profile_context(void)
+pl__create_profile_context(plProfileInit tInit)
 {
     // allocate context
     plProfileContext* ptContext = (plProfileContext*)PL_PROFILE_ALLOC(sizeof(plProfileContext));
     memset(ptContext, 0, sizeof(plProfileContext));
-    gTPProfileContext = ptContext;
+    gptProfileContext = ptContext;
 
     // clock setup
     #ifdef _WIN32
         static INT64 slPerfFrequency = 0;
-        PL_ASSERT(QueryPerformanceFrequency((LARGE_INTEGER*)&slPerfFrequency));
+        BOOL bResult = QueryPerformanceFrequency((LARGE_INTEGER*)&slPerfFrequency);
+        if(!bResult)
+        {
+            PL_PROFILE_FREE(gptProfileContext);
+            gptProfileContext = NULL;
+            return NULL;
+        }
         ptContext->pInternal = &slPerfFrequency;
     #elif defined(__APPLE__)
         // no setup required
@@ -324,7 +345,10 @@ pl__create_profile_context(void)
         static struct timespec ts;
         if (clock_getres(CLOCK_MONOTONIC, &ts) != 0) 
         {
-            PL_ASSERT(false && "clock_getres() failed");
+            // PL_ASSERT(false && "clock_getres() failed");
+            PL_PROFILE_FREE(gptProfileContext);
+            gptProfileContext = NULL;
+            return NULL;
         }
 
         static double dPerFrequency = 0.0;
@@ -333,73 +357,88 @@ pl__create_profile_context(void)
     #endif
 
     ptContext->dStartTime = pl__get_wall_clock();
-    ptContext->ptCurrentFrame = &ptContext->atFrames[0];
-    ptContext->atFrames[0].uSampleCapacity = 256;
-    ptContext->atFrames[0].uSampleStackCapacity = 256;
-    ptContext->atFrames[1].uSampleCapacity = 256;
-    ptContext->atFrames[1].uSampleStackCapacity = 256;
-    ptContext->atFrames[0].ptSamples = ptContext->atFrames[0].atSamples;
-    ptContext->atFrames[1].ptSamples = ptContext->atFrames[1].atSamples;
-    ptContext->atFrames[0].puSampleStack = ptContext->atFrames[0].auSampleStack;
-    ptContext->atFrames[1].puSampleStack = ptContext->atFrames[1].auSampleStack;
-    ptContext->ptLastFrame = &ptContext->atFrames[0];
+    ptContext->uThreadCount = tInit.uThreadCount;
+    ptContext->ptThreadData =  (plProfileThreadData*)PL_PROFILE_ALLOC(sizeof(plProfileThreadData) * tInit.uThreadCount);
+    memset(ptContext->ptThreadData, 0, sizeof(plProfileThreadData) * tInit.uThreadCount);
+    for(uint32_t i = 0; i < tInit.uThreadCount; i++)
+    {
+        ptContext->ptThreadData[i].ptCurrentFrame = &ptContext->ptThreadData[i].atFrames[0];
+        ptContext->ptThreadData[i].atFrames[0].uSampleCapacity = 256;
+        ptContext->ptThreadData[i].atFrames[0].uSampleStackCapacity = 256;
+        ptContext->ptThreadData[i].atFrames[1].uSampleCapacity = 256;
+        ptContext->ptThreadData[i].atFrames[1].uSampleStackCapacity = 256;
+        ptContext->ptThreadData[i].atFrames[0].ptSamples = ptContext->ptThreadData[i].atFrames[0].atSamples;
+        ptContext->ptThreadData[i].atFrames[1].ptSamples = ptContext->ptThreadData[i].atFrames[1].atSamples;
+        ptContext->ptThreadData[i].atFrames[0].puSampleStack = ptContext->ptThreadData[i].atFrames[0].auSampleStack;
+        ptContext->ptThreadData[i].atFrames[1].puSampleStack = ptContext->ptThreadData[i].atFrames[1].auSampleStack;
+        ptContext->ptThreadData[i].ptLastFrame = &ptContext->ptThreadData[i].atFrames[0];
+    }
     return ptContext;
 }
 
 void
 pl__cleanup_profile_context(void)
 {
-
-    for(uint32_t i = 0; i < 2; i++)
+    for(uint32_t i = 0; i < gptProfileContext->uThreadCount; i++)
     {
-        if(gTPProfileContext->atFrames[i].bOverflowInUse)
-            PL_PROFILE_FREE(gTPProfileContext->atFrames[i].ptSamples);
+        for(uint32_t j = 0; j < 2; j++)
+        {
+            
+            if(gptProfileContext->ptThreadData[i].atFrames[j].bOverflowInUse)
+                PL_PROFILE_FREE(gptProfileContext->ptThreadData[i].atFrames[j].ptSamples);
 
-        if(gTPProfileContext->atFrames[i].bSampleStackOverflowInUse)
-            PL_PROFILE_FREE(gTPProfileContext->atFrames[i].puSampleStack);
+            if(gptProfileContext->ptThreadData[i].atFrames[j].bSampleStackOverflowInUse)
+                PL_PROFILE_FREE(gptProfileContext->ptThreadData[i].atFrames[j].puSampleStack);
+        }
     }
 
-    PL_PROFILE_FREE(gTPProfileContext);
-    gTPProfileContext = NULL;
+    PL_PROFILE_FREE(gptProfileContext->ptThreadData);
+    PL_PROFILE_FREE(gptProfileContext);
+    gptProfileContext = NULL;
 }
 
 void
 pl__set_profile_context(plProfileContext* ptContext)
 {
-    PL_ASSERT(ptContext && "profile context is NULL");
-    gTPProfileContext = ptContext;
+    gptProfileContext = ptContext;
 }
 
 plProfileContext*
 pl__get_profile_context(void)
 {
-    PL_ASSERT(gTPProfileContext && "no global log context set");
-    return gTPProfileContext;
+    return gptProfileContext;
 }
 
 void
 pl__begin_profile_frame(void)
 {
-    gTPProfileContext->ulFrame++;
-    gTPProfileContext->ptCurrentFrame = &gTPProfileContext->atFrames[gTPProfileContext->ulFrame % 2];
-    gTPProfileContext->ptCurrentFrame->dDuration = 0.0;
-    gTPProfileContext->ptCurrentFrame->dInternalDuration = 0.0;
-    gTPProfileContext->ptCurrentFrame->dStartTime = pl__get_wall_clock();
-    gTPProfileContext->ptCurrentFrame->uTotalSampleSize = 0;
+    gptProfileContext->ulFrame++;
+
+    for(uint32_t i = 0; i < gptProfileContext->uThreadCount; i++)
+    {
+        gptProfileContext->ptThreadData[i].ptCurrentFrame = &gptProfileContext->ptThreadData[i].atFrames[gptProfileContext->ulFrame % 2];
+        gptProfileContext->ptThreadData[i].ptCurrentFrame->dDuration = 0.0;
+        gptProfileContext->ptThreadData[i].ptCurrentFrame->dInternalDuration = 0.0;
+        gptProfileContext->ptThreadData[i].ptCurrentFrame->dStartTime = pl__get_wall_clock();
+        gptProfileContext->ptThreadData[i].ptCurrentFrame->uTotalSampleSize = 0;
+    }
 }
 
 void
 pl__end_profile_frame(void)
 {
-    gTPProfileContext->ptCurrentFrame->dDuration = pl__get_wall_clock() - gTPProfileContext->ptCurrentFrame->dStartTime;
-    gTPProfileContext->ptLastFrame = gTPProfileContext->ptCurrentFrame;
+    for(uint32_t i = 0; i < gptProfileContext->uThreadCount; i++)
+    {
+        gptProfileContext->ptThreadData[i].ptCurrentFrame->dDuration = pl__get_wall_clock() - gptProfileContext->ptThreadData[i].ptCurrentFrame->dStartTime;
+        gptProfileContext->ptThreadData[i].ptLastFrame = gptProfileContext->ptThreadData[i].ptCurrentFrame;
+    }
 }
 
 void
-pl__begin_profile_sample(const char* pcName)
+pl__begin_profile_sample(uint32_t uThreadIndex, const char* pcName)
 {
     const double dCurrentInternalTime = pl__get_wall_clock();
-    plProfileFrame* ptCurrentFrame = gTPProfileContext->ptCurrentFrame;
+    plProfileFrame* ptCurrentFrame = gptProfileContext->ptThreadData[uThreadIndex].ptCurrentFrame;
 
     uint32_t uSampleIndex = ptCurrentFrame->uTotalSampleSize;
     plProfileSample* ptSample = pl__get_sample(ptCurrentFrame);
@@ -414,10 +453,10 @@ pl__begin_profile_sample(const char* pcName)
 }
 
 void
-pl__end_profile_sample(void)
+pl__end_profile_sample(uint32_t uThreadIndex)
 {
     const double dCurrentInternalTime = pl__get_wall_clock();
-    plProfileFrame* ptCurrentFrame = gTPProfileContext->ptCurrentFrame;
+    plProfileFrame* ptCurrentFrame = gptProfileContext->ptThreadData[uThreadIndex].ptCurrentFrame;
     plProfileSample* ptLastSample = &ptCurrentFrame->ptSamples[pl__pop_sample_stack(ptCurrentFrame)];
     PL_ASSERT(ptLastSample && "Begin/end profile sample mismatch");
     ptLastSample->dDuration = pl__get_wall_clock() - ptLastSample->dStartTime;
@@ -426,9 +465,9 @@ pl__end_profile_sample(void)
 }
 
 plProfileSample*
-pl__get_last_frame_samples(uint32_t* puSize)
+pl__get_last_frame_samples(uint32_t uThreadIndex, uint32_t* puSize)
 {
-    plProfileFrame* ptFrame = gTPProfileContext->ptLastFrame;
+    plProfileFrame* ptFrame = gptProfileContext->ptThreadData[uThreadIndex].ptLastFrame;
 
     if(puSize)
         *puSize = ptFrame->uTotalSampleSize;
