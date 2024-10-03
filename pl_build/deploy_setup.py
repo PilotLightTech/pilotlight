@@ -2,7 +2,7 @@ import setuptools
 from codecs import open
 import os
 
-wip_version = "1.0.7"
+wip_version = "1.0.8"
 
 def version_number():
     """This function reads the version number which is populated by github actions"""
