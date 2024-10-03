@@ -105,28 +105,25 @@ def generate_build(name, user_options = None):
     helper.add_spacing()
 
     # try to setup dev environment
-    if isinstance(user_options, dict):
-        if "dev env setup" in user_options:
-            if user_options["dev env setup"] == True:
-                helper.add_comment("modify PATH to find vcvarsall.bat")
-                helper.add_line('@if exist "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build" @set PATH=C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build;%PATH%')
-                helper.add_line('@if exist "C:/Program Files/Microsoft Visual Studio/2019/Community/VC/Auxiliary/Build" @set PATH=C:\Program Files\Microsoft Visual Studio\\2019\\Community\\VC\\Auxiliary\\Build;%PATH%')
-                helper.add_line('@if exist "C:/Program Files/Microsoft Visual Studio/2022/Professional/VC/Auxiliary/Build" @set PATH=C:\\Program Files\\Microsoft Visual Studio\\2022\Professional\\VC\\Auxiliary\\Build;%PATH%')
-                helper.add_line('@if exist "C:/Program Files/Microsoft Visual Studio/2019/Professional/VC/Auxiliary/Build" @set PATH=C:\\Program Files\\Microsoft Visual Studio\\2019\Professional\\VC\\Auxiliary\\Build;%PATH%')
-                helper.add_line('@if exist "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Auxiliary/Build" @set PATH=C:\\Program Files\\Microsoft Visual Studio\\2022\Enterprise\\VC\\Auxiliary\\Build;%PATH%')
-                helper.add_line('@if exist "C:/Program Files/Microsoft Visual Studio/2019/Enterprise/VC/Auxiliary/Build" @set PATH=C:\\Program Files\\Microsoft Visual Studio\\2019\Enterprise\\VC\\Auxiliary\\Build;%PATH%')
-                helper.add_line('@if exist "C:/Program Files (x86)/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build" @set PATH=C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build;%PATH%')
-                helper.add_line('@if exist "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/VC/Auxiliary/Build" @set PATH=C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Auxiliary\\Build;%PATH%')
-                helper.add_line('@if exist "C:/Program Files (x86)/Microsoft Visual Studio/2022/Professional/VC/Auxiliary/Build" @set PATH=C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\Professional\\VC\\Auxiliary\\Build;%PATH%')
-                helper.add_line('@if exist "C:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/VC/Auxiliary/Build" @set PATH=C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Professional\\VC\\Auxiliary\\Build;%PATH%')
-                helper.add_line('@if exist "C:/Program Files (x86)/Microsoft Visual Studio/2022/Enterprise/VC/Auxiliary/Build" @set PATH=C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Auxiliary\\Build;%PATH%')
-                helper.add_line('@if exist "C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/VC/Auxiliary/Build" @set PATH=C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\VC\\Auxiliary\\Build;%PATH%')
+    helper.add_comment("modify PATH to find vcvarsall.bat")
+    helper.add_line('@if exist "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build" @set PATH=C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build;%PATH%')
+    helper.add_line('@if exist "C:/Program Files/Microsoft Visual Studio/2019/Community/VC/Auxiliary/Build" @set PATH=C:\Program Files\Microsoft Visual Studio\\2019\\Community\\VC\\Auxiliary\\Build;%PATH%')
+    helper.add_line('@if exist "C:/Program Files/Microsoft Visual Studio/2022/Professional/VC/Auxiliary/Build" @set PATH=C:\\Program Files\\Microsoft Visual Studio\\2022\Professional\\VC\\Auxiliary\\Build;%PATH%')
+    helper.add_line('@if exist "C:/Program Files/Microsoft Visual Studio/2019/Professional/VC/Auxiliary/Build" @set PATH=C:\\Program Files\\Microsoft Visual Studio\\2019\Professional\\VC\\Auxiliary\\Build;%PATH%')
+    helper.add_line('@if exist "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Auxiliary/Build" @set PATH=C:\\Program Files\\Microsoft Visual Studio\\2022\Enterprise\\VC\\Auxiliary\\Build;%PATH%')
+    helper.add_line('@if exist "C:/Program Files/Microsoft Visual Studio/2019/Enterprise/VC/Auxiliary/Build" @set PATH=C:\\Program Files\\Microsoft Visual Studio\\2019\Enterprise\\VC\\Auxiliary\\Build;%PATH%')
+    helper.add_line('@if exist "C:/Program Files (x86)/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build" @set PATH=C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build;%PATH%')
+    helper.add_line('@if exist "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/VC/Auxiliary/Build" @set PATH=C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Auxiliary\\Build;%PATH%')
+    helper.add_line('@if exist "C:/Program Files (x86)/Microsoft Visual Studio/2022/Professional/VC/Auxiliary/Build" @set PATH=C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\Professional\\VC\\Auxiliary\\Build;%PATH%')
+    helper.add_line('@if exist "C:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/VC/Auxiliary/Build" @set PATH=C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Professional\\VC\\Auxiliary\\Build;%PATH%')
+    helper.add_line('@if exist "C:/Program Files (x86)/Microsoft Visual Studio/2022/Enterprise/VC/Auxiliary/Build" @set PATH=C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Auxiliary\\Build;%PATH%')
+    helper.add_line('@if exist "C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/VC/Auxiliary/Build" @set PATH=C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\VC\\Auxiliary\\Build;%PATH%')
 
-                helper.add_spacing()
+    helper.add_spacing()
 
-                helper.add_comment("setup environment for MSVC dev tools")
-                helper.add_line('@call vcvarsall.bat amd64 > nul')
-                helper.add_spacing()
+    helper.add_comment("setup environment for MSVC dev tools")
+    helper.add_line('@call vcvarsall.bat amd64 > nul')
+    helper.add_spacing()
 
     helper.add_comment("default compilation result")
     helper.add_line('@set PL_RESULT=[1m[92mSuccessful.[0m')
@@ -445,11 +442,11 @@ def generate_build(name, user_options = None):
         for lock_file in lock_files:
             helper.delete_file(settings.output_directory + '/' + lock_file)
     
-    helper.add_spacing()
-    helper.add_comment('~' * 40)
-    helper.add_comment('end of ' + settings.config_name + ' configuration')
-    helper.add_line("goto ExitLabel")
-    helper.add_spacing()
+        helper.add_spacing()
+        helper.add_comment('~' * 40)
+        helper.add_comment('end of ' + settings.config_name + ' configuration')
+        helper.add_line("goto ExitLabel")
+        helper.add_spacing()
 
     helper.add_label("ExitLabel")
     helper.add_spacing()
