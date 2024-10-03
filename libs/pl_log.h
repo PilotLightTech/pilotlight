@@ -1,5 +1,6 @@
 /*
-   pl_log
+   pl_log.h
+     * simple logging library
    Do this:
         #define PL_LOG_IMPLEMENTATION
    before you include this file in *one* C or C++ file to create the implementation.
