@@ -2336,13 +2336,13 @@ pl_new_draw_3d_frame(void)
 
         pl_sb_reset(ptDrawlist->sbtDrawCommands);
         pl_sb_reset(ptDrawlist->sbtVertexBuffer);
-        for(uint32_t j = 0; j < pl_sb_size(ptDrawlist->sbtSubmittedLayers); j++)
+        for(uint32_t j = 0; j < pl_sb_size(ptDrawlist->sbtLayersCreated); j++)
         {
-            pl_sb_reset(ptDrawlist->sbtSubmittedLayers[j]->sbtCommandBuffer);
-            pl_sb_reset(ptDrawlist->sbtSubmittedLayers[j]->sbuIndexBuffer);   
-            pl_sb_reset(ptDrawlist->sbtSubmittedLayers[j]->sbtPath);  
-            ptDrawlist->sbtSubmittedLayers[j]->uVertexCount = 0u;
-            ptDrawlist->sbtSubmittedLayers[j]->_ptLastCommand = NULL;
+            pl_sb_reset(ptDrawlist->sbtLayersCreated[j]->sbtCommandBuffer);
+            pl_sb_reset(ptDrawlist->sbtLayersCreated[j]->sbuIndexBuffer);   
+            pl_sb_reset(ptDrawlist->sbtLayersCreated[j]->sbtPath);  
+            ptDrawlist->sbtLayersCreated[j]->uVertexCount = 0u;
+            ptDrawlist->sbtLayersCreated[j]->_ptLastCommand = NULL;
         }
         pl_sb_reset(ptDrawlist->sbtSubmittedLayers); 
     }

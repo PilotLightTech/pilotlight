@@ -239,7 +239,8 @@ pl__show_profiling(bool* bValue)
         {1.0f, 0.0f, 1.0f, 0.75}
     };
 
-    if(gptUI->begin_window("Profiling (WIP)", bValue, false))
+    gptUI->set_next_window_size((plVec2){750, 700}, PL_UI_COND_ONCE);
+    if(gptUI->begin_window("Profiling (WIP)", bValue, 0))
     {
         const plVec2 tWindowSize = gptUI->get_window_size();
         const plVec2 tWindowPos = gptUI->get_window_pos();
@@ -295,9 +296,9 @@ pl__show_profiling(bool* bValue)
             if(gptUI->begin_tab("Table"))
             {
                 gptUI->layout_template_begin(0.0f);
-                gptUI->layout_template_push_variable(300.0f);
-                gptUI->layout_template_push_variable(50.0f);
-                gptUI->layout_template_push_variable(50.0f);
+                gptUI->layout_template_push_variable(400.0f);
+                gptUI->layout_template_push_static(75.0f);
+                gptUI->layout_template_push_static(95.0f);
                 gptUI->layout_template_push_variable(100.0f);
                 gptUI->layout_template_end();
 
@@ -310,9 +311,9 @@ pl__show_profiling(bool* bValue)
                 gptUI->separator();
 
                 gptUI->layout_template_begin(0.0f);
-                gptUI->layout_template_push_variable(300.0f);
-                gptUI->layout_template_push_variable(50.0f);
-                gptUI->layout_template_push_variable(50.0f);
+                gptUI->layout_template_push_variable(400.0f);
+                gptUI->layout_template_push_static(75.0f);
+                gptUI->layout_template_push_static(95.0f);
                 gptUI->layout_template_push_variable(100.0f);
                 gptUI->layout_template_end();
 
