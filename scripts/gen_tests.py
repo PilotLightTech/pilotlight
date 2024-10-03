@@ -68,13 +68,42 @@ with pl.project("pilotlight_tests"):
                     pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
                     pl.add_linker_flags("-Wl,-rpath,/usr/local/lib")
 
+        with pl.configuration("release"):
+
+            # win32
+            with pl.platform("Windows"):
+                with pl.compiler("msvc"):
+                    pl.add_compiler_flags("-Zc:preprocessor", "-nologo", "-std:c11", "-W4", "-WX", "-wd4201")
+                    pl.add_compiler_flags("-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115", "-permissive-")
+                    pl.add_compiler_flags("-O2", "-MD")
+                    pl.add_linker_flags("-incremental:no")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_link_directories("/usr/lib/x86_64-linux-gnu")
+                    pl.add_dynamic_link_libraries("pthread")
+                    pl.add_compiler_flags("-std=gnu11", "-fPIC")
+                    pl.add_linker_flags("-ldl", "-lm")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-std=c99", "-fmodules", "-ObjC", "-fPIC")
+                    pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
+                    pl.add_linker_flags("-Wl,-rpath,/usr/local/lib")
+
 #-----------------------------------------------------------------------------
 # [SECTION] generate scripts
 #-----------------------------------------------------------------------------
 
 if plat.system() == "Windows":
-    win32.generate_build(working_directory + '/' + "build.bat", {"dev env setup" : True})
+    win32.generate_build(working_directory + '/' + "build.bat")
 elif plat.system() == "Darwin":
     apple.generate_build(working_directory + '/' + "build.sh")
 elif plat.system() == "Linux":
     linux.generate_build(working_directory + '/' + "build.sh")
+
+win32.generate_build(working_directory + '/' + "build_win32.bat")
+apple.generate_build(working_directory + '/' + "build_macos.sh")
+linux.generate_build(working_directory + '/' + "build_linux.sh")

@@ -448,9 +448,12 @@ pl_refr_initialize(plWindow* ptWindow)
     gptData->tSkyboxShader   = (plShaderHandle){UINT32_MAX, UINT32_MAX};
 
     // initialize graphics
-    const plGraphicsInit tGraphicsDesc = {
-        .tFlags = PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED | PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED | PL_GRAPHICS_INIT_FLAGS_LOGGING_INFO
+    plGraphicsInit tGraphicsDesc = {
+        .tFlags = PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED
     };
+    #ifdef NDEBUG
+    tGraphicsDesc.tFlags |= PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED | PL_GRAPHICS_INIT_FLAGS_LOGGING_INFO;
+    #endif
     gptGfx->initialize(&tGraphicsDesc);
     gptData->ptSurface = gptGfx->create_surface(ptWindow);
 
