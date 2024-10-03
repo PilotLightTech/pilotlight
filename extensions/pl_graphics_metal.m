@@ -305,6 +305,8 @@ static void                   pl__garbage_collect(plDevice* ptDevice);
 static plDeviceMemoryAllocation pl_allocate_memory(plDevice* ptDevice, size_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
 static void pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock);
 
+#define PL__ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
