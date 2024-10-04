@@ -41,7 +41,7 @@ with pl.project("pilotlight"):
     # project wide settings
     pl.set_output_directory("../out")
     pl.add_link_directories("../out")
-    pl.add_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS", "_DEBUG")
+    pl.add_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS")
     pl.add_include_directories("../sandbox", "../src", "../libs", "../extensions", "../out", "../dependencies/stb", "../dependencies/cgltf")
 
     #-----------------------------------------------------------------------------
@@ -96,7 +96,8 @@ with pl.project("pilotlight"):
                     definitions=["PL_VULKAN_BACKEND"])
     
     # configs
-    pl.add_profile(configuration_filter=["debug", "vulkan"], definitions=["NDEBUG"])
+    pl.add_profile(configuration_filter=["debug", "vulkan"], definitions=["_DEBUG"])
+    pl.add_profile(configuration_filter=["release"], definitions=["NDEBUG"])
                     
     #-----------------------------------------------------------------------------
     # [SECTION] extensions

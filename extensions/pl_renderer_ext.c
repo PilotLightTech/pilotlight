@@ -451,7 +451,7 @@ pl_refr_initialize(plWindow* ptWindow)
     plGraphicsInit tGraphicsDesc = {
         .tFlags = PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED
     };
-    #ifdef NDEBUG
+    #ifndef NDEBUG
     tGraphicsDesc.tFlags |= PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED | PL_GRAPHICS_INIT_FLAGS_LOGGING_INFO;
     #endif
     gptGfx->initialize(&tGraphicsDesc);

@@ -50,8 +50,12 @@ Index of this file:
 #endif
 
 #ifndef PL_VULKAN
-    #include <assert.h>
-    #define PL_VULKAN(x) assert(x == VK_SUCCESS)
+    #ifdef NDEBUG
+        #define PL_VULKAN(x) x
+    #else
+        #include <assert.h>
+        #define PL_VULKAN(x) assert(x == VK_SUCCESS)  
+    #endif
 #endif
 
 //-----------------------------------------------------------------------------
