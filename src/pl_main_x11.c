@@ -1274,7 +1274,7 @@ void
 pl_destroy_mutex(plMutex** pptMutex)
 {
     pthread_mutex_destroy(&(*pptMutex)->tHandle);
-    PL_FREE((*pptMutex));
+    free((*pptMutex));
     *pptMutex = NULL;
 }
 

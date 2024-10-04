@@ -3879,7 +3879,7 @@ pl_cleanup_device(plDevice* ptDevice)
         if(ptDevice->sbtRenderPassesHot[i].tRenderPass)
             vkDestroyRenderPass(ptDevice->tLogicalDevice, ptDevice->sbtRenderPassesHot[i].tRenderPass, NULL);
 
-        for(uint32_t j = 0; j < 3; j++)
+        for(uint32_t j = 0; j < 6; j++)
         {
             if(ptDevice->sbtRenderPassesHot[i].atFrameBuffers[j])
                 vkDestroyFramebuffer(ptDevice->tLogicalDevice, ptDevice->sbtRenderPassesHot[i].atFrameBuffers[j], NULL);
