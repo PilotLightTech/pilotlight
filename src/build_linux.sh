@@ -84,7 +84,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_extensions | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_VULKAN_BACKEND -D_DEBUG "
+PL_DEFINES="-DPL_VULKAN_BACKEND -D_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
@@ -113,7 +113,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_script_camera | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_VULKAN_BACKEND -D_DEBUG "
+PL_DEFINES="-DPL_VULKAN_BACKEND -D_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
@@ -142,7 +142,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ app | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_VULKAN_BACKEND -D_DEBUG "
+PL_DEFINES="-DPL_VULKAN_BACKEND -D_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
@@ -174,7 +174,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_VULKAN_BACKEND -D_DEBUG "
+PL_DEFINES="-DPL_VULKAN_BACKEND -D_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
@@ -247,7 +247,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_extensions | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_VULKAN_BACKEND -DNDEBUG "
+PL_DEFINES="-DPL_VULKAN_BACKEND -DNDEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
@@ -276,7 +276,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_script_camera | release ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_VULKAN_BACKEND -DNDEBUG "
+PL_DEFINES="-DPL_VULKAN_BACKEND -DNDEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
@@ -305,7 +305,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ app | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_VULKAN_BACKEND -DNDEBUG "
+PL_DEFINES="-DPL_VULKAN_BACKEND -DNDEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
@@ -337,7 +337,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_VULKAN_BACKEND -DNDEBUG "
+PL_DEFINES="-DPL_VULKAN_BACKEND -DNDEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
