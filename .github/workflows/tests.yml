@@ -29,14 +29,37 @@ jobs:
     - name: Retrieve submodules
       run: git submodule update --init --recursive
 
-    - name: Run Tests
+    - name: Prep 1
       shell: cmd
       run: |
         cd $GITHUB_WORKSPACE
         cd scripts
         python gen_build.py
+
+    - name: Run Tests (DEBUG)
+      shell: cmd
+      run: |
+        cd $GITHUB_WORKSPACE
         cd ../tests
         call build.bat -c debug
+        cd ..
+        cd out
+        pilot_light_test.exe
+        @set PL_TEST_STATUS=%ERRORLEVEL%
+        @if %PL_TEST_STATUS% NEQ 0 (exit 1)
+
+    - name: Prep 2
+      shell: cmd
+      run: |
+        cd $GITHUB_WORKSPACE
+        rmdir /s /q out
+
+    - name: Run Tests (RELEASE)
+      shell: cmd
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd ../tests
+        call build.bat -c release
         cd ..
         cd out
         pilot_light_test.exe
@@ -54,15 +77,35 @@ jobs:
 
     - name: Retrieve submodules
       run: git submodule update --init --recursive
-    
-    - name: Run Tests
+
+    - name: Prep 1
       run: |
         cd $GITHUB_WORKSPACE
         cd scripts
         python3 gen_build.py
+
+    - name: Run Tests (DEBUG)
+      run: |
+        cd $GITHUB_WORKSPACE
         cd ../tests
         chmod +x build.sh
         ./build.sh -c debug
+        cd ..
+        cd out
+        ./pilot_light_test
+        ((exit 1) || if [ $? = 1 ]; then exit 0; else exit 1; fi)
+
+    - name: Prep 2
+      run: |
+        cd $GITHUB_WORKSPACE
+        rm -r out
+
+    - name: Run Tests (RELEASE)
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd ../tests
+        chmod +x build.sh
+        ./build.sh -c release
         cd ..
         cd out
         ./pilot_light_test
@@ -91,14 +134,34 @@ jobs:
         sudo apt install libxcb-cursor0
         sudo apt install libxcb-keysyms1-dev
 
-    - name: Run Tests
+    - name: Prep 1
       run: |
         cd $GITHUB_WORKSPACE
         cd scripts
         python3 gen_build.py
+
+    - name: Run Tests (DEBUG)
+      run: |
+        cd $GITHUB_WORKSPACE
         cd ../tests
         chmod +x build.sh
-        ./build.sh
+        ./build.sh -c debug
+        cd ..
+        cd out
+        ./pilot_light_test
+        ((exit 1) || if [ $? = 1 ]; then exit 0; else exit 1; fi)
+
+    - name: Prep 2
+      run: |
+        cd $GITHUB_WORKSPACE
+        rm -r out
+
+    - name: Run Tests (RELEASE)
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd ../tests
+        chmod +x build.sh
+        ./build.sh -c release
         cd ..
         cd out
         ./pilot_light_test
