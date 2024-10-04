@@ -5,6 +5,9 @@
 .idea/
 data/
 out/
+user/
+game/
+app/
 
 # python
 pl_build/__pycache__/
@@ -23,6 +26,24 @@ examples/build.sh
 tests/build.bat
 tests/build.sh
 
+# custom or user or mod
+src/*_user.*
+extensions/*_user.*
+scripts/*_user.*
+examples/*_user.*
+shaders/*_user.*
+
+src/*_custom.*
+extensions/*_custom.*
+scripts/*_custom.*
+examples/*_custom.*
+shaders/*_custom.*
+
+src/*_mod.*
+extensions/*_mod.*
+scripts/*_mod.*
+examples/*_mod.*
+shaders/*_mod.*
 
 # misc
 .DS_Store
