@@ -14,8 +14,8 @@
 //-----------------------------------------------------------------------------
 
 // general
+#define PL_MEMORY_TRACKING_ON
 #define PL_USE_STB_SPRINTF
-// #define PL_EXPERIMENTAL_RENDER_WHILE_RESIZE
 //#define PL_MAX_NAME_LENGTH 1024
 //#define PL_MAX_PATH_LENGTH 1024
 
@@ -29,11 +29,12 @@
 // shaders
 // #define PL_OFFLINE_SHADERS_ONLY
 
-// runtime options
-// #define PL_HEADLESS_APP
-
 // core extension options
 #define PL_CORE_EXTENSION_INCLUDE_GRAPHICS
 #define PL_CORE_EXTENSION_INCLUDE_SHADER
+
+// experimental (don't use yet)
+// #define PL_HEADLESS_APP
+// #define PL_EXPERIMENTAL_RENDER_WHILE_RESIZE
 
 #endif // PL_CONFIG_H
