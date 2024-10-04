@@ -2,6 +2,13 @@ import os
 import sys
 import platform
 import shutil
+import glob
+
+debug_package = False
+
+if len(sys.argv) > 1:
+    if sys.argv[1] == "debug":
+        debug_package = True
 
 if not os.path.isdir("../out"):
     print("ERROR: Pilot Light not built", file=sys.stderr)
@@ -50,9 +57,6 @@ if not os.path.isdir(target_directory + "/include"):
 if not os.path.isdir(target_directory + "/bin"):
     os.mkdir(target_directory + "/bin")
 
-if not os.path.isdir(target_directory + "/lib"):
-    os.mkdir(target_directory + "/lib")
-
 #-----------------------------------------------------------------------------
 # [SECTION] files
 #-----------------------------------------------------------------------------
@@ -84,32 +88,58 @@ shutil.copy("../dependencies/stb/stb_sprintf.h", target_directory + "/include/st
 
 # copy extension binary
 if platform.system() == "Windows":
-    shutil.copy("../out/pilot_light.dll", target_directory + "/bin/pilot_light.dll")
+    shutil.move("../out/pilot_light.dll", target_directory + "/bin/")
+    if debug_package:
+        for file in glob.glob("../out/pilot_light_*.pdb"):
+            shutil.move(file, target_directory + "/bin/")
 elif platform.system() == "Darwin":
-    shutil.copy("../out/pilot_light.dylib", target_directory + "/bin/pilot_light.dylib")
-    shutil.copytree("../out/pilot_light.dylib.dSYM", target_directory + "/bin/pilot_light.dylib.dSYM")
+    shutil.move("../out/pilot_light.dylib", target_directory + "/bin/")
+    if debug_package:
+        shutil.copytree("../out/pilot_light.dylib.dSYM", target_directory + "/bin/pilot_light.dylib.dSYM")
 elif platform.system() == "Linux":
-    shutil.copy("../out/pilot_light.so", target_directory + "/bin/pilot_light.so")
+    shutil.move("../out/pilot_light.so", target_directory + "/bin/")
 
 # copy scripts
 for script in scripts:
     if platform.system() == "Windows":
-        shutil.copy("../out/" + script + ".dll", target_directory + "/bin/" + script + ".dll")
+        shutil.move("../out/" + script + ".dll", target_directory + "/bin/")
+        for file in glob.glob("../out/" + script + "_*.pdb"):
+            shutil.move(file, target_directory + "/bin/")
     elif platform.system() == "Darwin":
-        shutil.copy("../out/" + script + ".dylib", target_directory + "/bin/" + script + ".dylib")
-        shutil.copytree("../out/" + script + ".dylib.dSYM", target_directory + "/bin/" + script + ".dylib.dSYM")
+        shutil.move("../out/" + script + ".dylib", target_directory + "/bin/")
+        if debug_package:
+            shutil.copytree("../out/" + script + ".dylib.dSYM", target_directory + "/bin/" + script + ".dylib.dSYM")
     elif platform.system() == "Linux":
-        shutil.copy("../out/" + script + ".so", target_directory + "/bin/" + script + ".so")
+        shutil.move("../out/" + script + ".so", target_directory + "/bin/")
 
 # copy libs & executable
 if platform.system() == "Windows":
-    shutil.copy("../out/pilot_light.exe", target_directory + "/bin/pilot_light.exe")
-    shutil.copy("../src/vc140.pdb", target_directory + "/bin/vc140.pdb")
+    shutil.move("../out/pilot_light.exe", target_directory + "/bin/")
+    if debug_package:
+        shutil.move("../src/vc140.pdb", target_directory + "/bin/")
 elif platform.system() == "Darwin":
-    shutil.copy("../out/pilot_light", target_directory + "/bin/pilot_light")
-    shutil.copytree("../out/pilot_light.dSYM", target_directory + "/bin/pilot_light.dSYM")
+    shutil.move("../out/pilot_light", target_directory + "/bin/")
+    if debug_package:
+        shutil.copytree("../out/pilot_light.dSYM", target_directory + "/bin/pilot_light.dSYM")
 elif platform.system() == "Linux":
-    shutil.copy("../out/pilot_light", target_directory + "/bin/pilot_light")
+    shutil.move("../out/pilot_light", target_directory + "/bin/")
+
+# copy app binary
+if platform.system() == "Windows":
+    shutil.move("../out/app.dll", target_directory + "/bin/")
+    if debug_package:
+        for file in glob.glob("../out/app_*.pdb"):
+            shutil.move(file, target_directory + "/bin/")
+elif platform.system() == "Darwin":
+    shutil.move("../out/app.dylib", target_directory + "/bin/")
+    if debug_package:
+        shutil.copytree("../out/app.dylib.dSYM", target_directory + "/bin/app.dylib.dSYM")
+elif platform.system() == "Linux":
+    shutil.move("../out/app.so", target_directory + "/bin/")
+
+# copy shaders
+for file in glob.glob("../out/*.spv"):
+    shutil.move(file, target_directory + "/bin/")
 
 #-----------------------------------------------------------------------------
 # [SECTION] zip
