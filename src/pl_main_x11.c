@@ -1118,13 +1118,13 @@ pl_load_library(const plLibraryDesc* ptDesc, plSharedLibrary** pptLibraryOut)
         ptLibrary->bValid = false;
         ptLibrary->tDesc = *ptDesc;
 
-        pl_sprintf(ptLibrary->acPath, "%s.so", ptDesc->pcName);
+        pl_sprintf(ptLibrary->acPath, "./%s.so", ptDesc->pcName);
 
         if(ptDesc->pcTransitionalName)
             strncpy(ptLibrary->acTransitionalName, ptDesc->pcTransitionalName, PL_MAX_PATH_LENGTH);
         else
         {
-            pl_sprintf(ptLibrary->acTransitionalName, "%s_", ptDesc->pcName);
+            pl_sprintf(ptLibrary->acTransitionalName, "./%s_", ptDesc->pcName);
         }
 
         if(ptDesc->pcLockFile)

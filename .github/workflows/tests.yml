@@ -40,25 +40,24 @@ jobs:
       shell: cmd
       run: |
         cd $GITHUB_WORKSPACE
-        cd ../tests
+        cd tests
         call build.bat -c debug
         cd ..
         cd out
         pilot_light_test.exe
         @set PL_TEST_STATUS=%ERRORLEVEL%
         @if %PL_TEST_STATUS% NEQ 0 (exit 1)
+        cd ..
 
     - name: Prep 2
       shell: cmd
       run: |
-        cd $GITHUB_WORKSPACE
         rmdir /s /q out
 
     - name: Run Tests (RELEASE)
       shell: cmd
       run: |
-        cd $GITHUB_WORKSPACE
-        cd ../tests
+        cd tests
         call build.bat -c release
         cd ..
         cd out
@@ -87,7 +86,7 @@ jobs:
     - name: Run Tests (DEBUG)
       run: |
         cd $GITHUB_WORKSPACE
-        cd ../tests
+        cd tests
         chmod +x build.sh
         ./build.sh -c debug
         cd ..
@@ -103,7 +102,7 @@ jobs:
     - name: Run Tests (RELEASE)
       run: |
         cd $GITHUB_WORKSPACE
-        cd ../tests
+        cd tests
         chmod +x build.sh
         ./build.sh -c release
         cd ..
@@ -143,7 +142,7 @@ jobs:
     - name: Run Tests (DEBUG)
       run: |
         cd $GITHUB_WORKSPACE
-        cd ../tests
+        cd tests
         chmod +x build.sh
         ./build.sh -c debug
         cd ..
@@ -159,7 +158,7 @@ jobs:
     - name: Run Tests (RELEASE)
       run: |
         cd $GITHUB_WORKSPACE
-        cd ../tests
+        cd tests
         chmod +x build.sh
         ./build.sh -c release
         cd ..

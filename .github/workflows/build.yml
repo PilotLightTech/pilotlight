@@ -40,16 +40,15 @@ jobs:
 
     - name: Prep 1
       shell: cmd
-      run: |
-        set VULKAN_SDK=D:/a/VulkanSDK
-        cd $GITHUB_WORKSPACE
+      run: | 
         cd scripts
         python gen_build.py
 
     - name: Build Pilot Light (DEBUG)
       shell: cmd
       run: |
-        cd ../src
+        set VULKAN_SDK=D:/a/VulkanSDK
+        cd src
         call build.bat -c debug
         cd ../examples
         call build.bat -c debug
@@ -65,17 +64,18 @@ jobs:
         if not exist ../out/pilot_light.exe exit 1
         if not exist ../out/pilot_light.dll exit 1
         if not exist ../out/pl_script_camera.dll exit 1
+        cd ..
 
     - name: Prep 2
       shell: cmd
       run: |
-        cd $GITHUB_WORKSPACE
         rmdir /s /q out
 
     - name: Build Pilot Light (RELEASE)
       shell: cmd
       run: |
-        cd ../src
+        set VULKAN_SDK=D:/a/VulkanSDK
+        cd src
         call build.bat -c release
         cd ../examples
         call build.bat -c release
@@ -134,7 +134,7 @@ jobs:
     - name: Build Pilot Light (DEBUG)
       run: |
         cd $GITHUB_WORKSPACE
-        cd ../src
+        cd src
         chmod +x build.sh
         ./build.sh -c debug
         cd ../examples
@@ -165,7 +165,7 @@ jobs:
     - name: Build Pilot Light (RELEASE)
       run: |
         cd $GITHUB_WORKSPACE
-        cd ../src
+        cd src
         chmod +x build.sh
         ./build.sh -c release
         cd ../examples
@@ -237,7 +237,7 @@ jobs:
     - name: Build Pilot Light (DEBUG)
       run: |
         cd $GITHUB_WORKSPACE
-        cd ../src
+        cd src
         chmod +x build.sh
         ./build.sh -c debug
         cd ../examples
@@ -268,7 +268,7 @@ jobs:
     - name: Build Pilot Light (RELEASE)
       run: |
         cd $GITHUB_WORKSPACE
-        cd ../src
+        cd src
         chmod +x build.sh
         ./build.sh -c release
         cd ../examples
