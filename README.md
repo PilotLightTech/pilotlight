@@ -3,7 +3,7 @@
   Pilot Light
 </h1>
 
-<p align="center">A lightweight game engine with minimal dependencies.</p>
+<p align="center">A lightweight real-time application framework with minimal dependencies.</p>
 
 <h1></h1>
 
@@ -27,7 +27,7 @@
 </p>
 
 ## Information
-Under construction.
+Under construction but some information can be found in the [wiki](https://github.com/PilotLightTech/pilotlight/wiki#what-is-pilot-light).
 
 ## Developer Notes
 Information for developers can be found in the [wiki](https://github.com/PilotLightTech/pilotlight/wiki). This includes:

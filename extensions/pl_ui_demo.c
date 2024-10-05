@@ -473,7 +473,7 @@ pl_show_demo_window(bool* pbOpen)
             const float pfRatios2[] = {0.5f, 0.50f};
             const float pfRatios3[] = {600.0f};
 
-            pl_layout_static(0.0f, 100, 1);
+            pl_layout_static(0.0f, 200, 1);
             static bool bUseClipper = true;
             pl_checkbox("Use Clipper", &bUseClipper);
             
