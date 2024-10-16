@@ -1675,7 +1675,7 @@ pl_refr_cleanup(void)
     pl_sb_free(gptData->_sbtVariantHandles);
     pl_hm_free(gptData->ptVariantHashmap);
     gptGfx->flush_device(gptData->ptDevice);
-    gptGpuAllocators->cleanup_allocators(gptData->ptDevice);
+    gptGpuAllocators->cleanup(gptData->ptDevice);
     gptGfx->cleanup_swapchain(gptData->ptSwap);
     gptGfx->cleanup_surface(gptData->ptSurface);
     gptGfx->cleanup_device(gptData->ptDevice);

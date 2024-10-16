@@ -10,6 +10,7 @@ Index of this file:
 // [SECTION] forward declarations
 // [SECTION] APIs
 // [SECTION] public api structs
+// [SECTION] structs
 */
 
 //-----------------------------------------------------------------------------
@@ -18,6 +19,10 @@ Index of this file:
 
 #ifndef PL_GPU_ALLOCATORS_EXT_H
 #define PL_GPU_ALLOCATORS_EXT_H
+
+// extension version (format XYYZZ)
+#define PL_GPU_ALLOCATORS_EXT_VERSION    "1.0.0"
+#define PL_GPU_ALLOCATORS_EXT_VERSION_NUM 10000
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -28,14 +33,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------
-
-#ifndef PL_DEVICE_BUDDY_BLOCK_SIZE
-    #define PL_DEVICE_BUDDY_BLOCK_SIZE 268435456
-#endif
-
-#ifndef PL_DEVICE_LOCAL_LEVELS
-    #define PL_DEVICE_LOCAL_LEVELS 8
-#endif
 
 #ifndef PL_MAX_NAME_LENGTH
     #define PL_MAX_NAME_LENGTH 1024
@@ -72,7 +69,7 @@ typedef struct _plGPUAllocatorsI
     plDeviceMemoryAllocatorI* (*get_staging_uncached_allocator)(plDevice*);
     plDeviceMemoryAllocatorI* (*get_staging_cached_allocator)  (plDevice*);
 
-    void (*cleanup_allocators)(plDevice*);
+    void (*cleanup)(plDevice*);
 
     // for debug viewing
     plDeviceMemoryAllocation* (*get_blocks)(const plDeviceMemoryAllocatorI*, uint32_t* puSizeOut);
