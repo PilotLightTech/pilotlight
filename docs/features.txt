@@ -1,0 +1,87 @@
+------------
+Feature list
+------------
+
+General:
+    * Hot reloading
+    * Networking (UDP/TCP)
+    * Frame profiler
+    * Logger
+    * JSON parsing
+    * Multithreading
+    * Atomics
+    * Dynamic library loading
+    * Job system
+    * Input: keyboard, mouse
+    * Custom testing library
+    * Virtual memory access
+
+Custom math:
+    * vectors
+    * matrices
+    * quaternions
+    * rectangles
+
+Custom data structures:
+    * stretchy buffer
+    * hashmap
+
+Custom cpu memory allocators:
+    * pool allocator
+    * single/double stack allocators
+    * temporary allocator
+
+Custom build system:
+    * support for hot reloading
+    * fast compilation
+    * cross platform (win32, linux, macos)
+    * python based
+
+Custom UI:
+    * immediate mode
+    * basic widgets
+    * tabs
+    * windows
+    * treenodes & collapsing headers
+
+Entity-Component System (Data oriented design):
+    * Inverse Kinematics
+    * Humanoid rig
+    * Scripting (C)
+    * Animations
+    * Skinning
+    * Meshes
+    * Cameras
+    * Lights
+    * Materials
+
+Low level graphics:
+    * Metal 2.0 renderer
+    * Vulkan renderer
+    * Bitmap & SDF font rendering (True Type)
+    * 2D/3D debug drawing system
+    * Instanced rendering
+
+Custom gpu allocators:
+    * device local buddy allocator
+    * device local dedicated allocator
+    * host cached dedicated allocator
+    * host uncached dedicated allocator
+
+Reference Renderer:
+    * Physics based rendering
+    * Normal mapping
+    * Edge outline (Jump flood with compute shaders)
+    * Pixel perfect picking
+    * Directional lights + cascaded shadow maps
+    * Point lights
+    * Soft shadows (PCF)
+    * Gamma correct, HDR rendering
+    * Deferred + forward rendering
+    * Reversed Z-buffer
+    * Vertex skinning (compute shaders)
+    * Panorama to cubemap calculations (compute shaders)
+    * Environment filtering (compute shaders)
+    * Tonemapping
+    * gltf model loading
+    * stl model loading
