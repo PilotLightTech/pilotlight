@@ -114,12 +114,12 @@ pl_spvc_error_callback(void* pUserData, const char* pcError)
 
 #endif
 
-static void
+static bool
 pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
 {
 
     if(gptShaderCtx->bInitialized)
-        return;
+        return true;
     gptShaderCtx->bInitialized = true;
 
     gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[0] = "./";
@@ -140,6 +140,7 @@ pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
     spvc_context_set_error_callback(tSpirvCtx, pl_spvc_error_callback, NULL);
     #endif
     #endif
+    return true;
 }
 
 static void

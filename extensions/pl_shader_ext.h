@@ -20,16 +20,22 @@ Index of this file:
 #ifndef PL_SHADER_EXT_H
 #define PL_SHADER_EXT_H
 
+// extension version (format XYYZZ)
+#define PL_SHADER_EXT_VERSION    "1.0.0"
+#define PL_SHADER_EXT_VERSION_NUM 10000
+
 // compile-time options
 // #define PL_OFFLINE_SHADERS_ONLY
-#define PL_MAX_SHADER_INCLUDE_DIRECTORIES 64
+#ifndef PL_MAX_SHADER_INCLUDE_DIRECTORIES
+    #define PL_MAX_SHADER_INCLUDE_DIRECTORIES 16
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdint.h>
-#include <stdbool.h>
+#include <stdint.h>  // uint*_t
+#include <stdbool.h> // bool
 
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
@@ -60,7 +66,7 @@ typedef struct _plShaderModule plShaderModule; // pl_graphics_ext.h
 typedef struct _plShaderI
 {
     // setup
-    void (*initialize)(const plShaderOptions*);
+    bool (*initialize)(const plShaderOptions*);
 
     // load shader (compile if not already compiled)
     plShaderModule (*load_glsl)(const char* pcShader, const char* pcEntryFunc, const char* pcFile, plShaderOptions*);

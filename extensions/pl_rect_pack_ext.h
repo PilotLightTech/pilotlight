@@ -18,6 +18,10 @@ Index of this file:
 #ifndef PL_RECT_PACK_EXT_H
 #define PL_RECT_PACK_EXT_H
 
+// extension version (format XYYZZ)
+#define PL_RECT_PACK_EXT_VERSION    "1.0.0"
+#define PL_RECT_PACK_EXT_VERSION_NUM 10000
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
