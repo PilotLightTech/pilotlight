@@ -94,7 +94,7 @@ PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-dec
 PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared "
-PL_SOURCES="pl_extensions.c "
+PL_SOURCES="../extensions/pl_extensions.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
 # add flags for specific hardware
@@ -290,7 +290,7 @@ PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
 PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared "
-PL_SOURCES="pl_extensions.c "
+PL_SOURCES="../extensions/pl_extensions.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
 # add flags for specific hardware
@@ -486,7 +486,7 @@ PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES="-lshaderc_shared -lpthread -lvulkan "
-PL_SOURCES="pl_extensions.c "
+PL_SOURCES="../extensions/pl_extensions.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
 # add flags for specific hardware

@@ -91,7 +91,7 @@ PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES="-lshaderc_shared -lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread -lvulkan "
-PL_SOURCES="pl_extensions.c "
+PL_SOURCES="../extensions/pl_extensions.c "
 
 # run compiler (and linker)
 echo
@@ -254,7 +254,7 @@ PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES="-lshaderc_shared -lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread -lvulkan "
-PL_SOURCES="pl_extensions.c "
+PL_SOURCES="../extensions/pl_extensions.c "
 
 # run compiler (and linker)
 echo
