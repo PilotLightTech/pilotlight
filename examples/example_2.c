@@ -36,9 +36,10 @@ Index of this file:
 #include "pl_math.h"
 
 // extensions
-#include "pl_graphics_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_shader_ext.h"
+#include "pl_graphics_ext.h" // not yet stable
+#include "pl_draw_backend_ext.h" // not yet stable
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -53,9 +54,9 @@ typedef struct _plAppData
     plDrawList2D*  ptDrawlist;
     plDrawLayer2D* ptFGLayer;
     plDrawLayer2D* ptBGLayer;
-    plFontHandle tDefaultFont;
-    plFontHandle tCousineBitmapFont;
-    plFontHandle tCousineSDFFont;
+    plFont*        ptDefaultFont;
+    plFont*        ptCousineBitmapFont;
+    plFont*        ptCousineSDFFont;
 
     // graphics & sync objects
     plDevice*         ptDevice;
@@ -70,11 +71,12 @@ typedef struct _plAppData
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-const plIOI*       gptIO      = NULL;
-const plWindowI*   gptWindows = NULL;
-const plGraphicsI* gptGfx     = NULL;
-const plDrawI*     gptDraw    = NULL;
-const plShaderI*   gptShader  = NULL;
+const plIOI*          gptIO          = NULL;
+const plWindowI*      gptWindows     = NULL;
+const plGraphicsI*    gptGfx         = NULL;
+const plDrawI*        gptDraw        = NULL;
+const plShaderI*      gptShader      = NULL;
+const plDrawBackendI* gptDrawBackend = NULL; // not yet stable
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -101,11 +103,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
         // re-retrieve the apis since we are now in
         // a different dll/so
-        gptIO      = ptApiRegistry->first(PL_API_IO);
-        gptWindows = ptApiRegistry->first(PL_API_WINDOW);
-        gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
-        gptDraw    = ptApiRegistry->first(PL_API_DRAW);
-        gptShader  = ptApiRegistry->first(PL_API_SHADER);
+        gptIO          = ptApiRegistry->first(PL_API_IO);
+        gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
+        gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
+        gptDraw        = ptApiRegistry->first(PL_API_DRAW);
+        gptShader      = ptApiRegistry->first(PL_API_SHADER);
+        gptDrawBackend = ptApiRegistry->first(PL_API_DRAW_BACKEND);
 
         return ptAppData;
     }
@@ -122,11 +125,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pilot_light", NULL, NULL, true);
     
     // load required apis (NULL if not available)
-    gptIO      = ptApiRegistry->first(PL_API_IO);
-    gptWindows = ptApiRegistry->first(PL_API_WINDOW);
-    gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
-    gptDraw    = ptApiRegistry->first(PL_API_DRAW);
-    gptShader  = ptApiRegistry->first(PL_API_SHADER);
+    gptIO          = ptApiRegistry->first(PL_API_IO);
+    gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
+    gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
+    gptDraw        = ptApiRegistry->first(PL_API_DRAW);
+    gptShader      = ptApiRegistry->first(PL_API_SHADER);
+    gptDrawBackend = ptApiRegistry->first(PL_API_DRAW_BACKEND);
 
     // initialize shader compiler
     static const plShaderOptions tDefaultShaderOptions = {
@@ -188,10 +192,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->ptSwapchain = gptGfx->create_swapchain(ptAppData->ptDevice, &tSwapInit);
 
     // setup draw
-    gptDraw->initialize(ptAppData->ptDevice);
+    gptDraw->initialize(NULL);
+    gptDrawBackend->initialize(ptAppData->ptDevice);
+
+    // create font atlas
+    plFontAtlas* ptAtlas = gptDraw->create_font_atlas();
 
     // builtin default font (proggy @ 13)
-    gptDraw->add_default_font();
+    ptAppData->ptDefaultFont = gptDraw->add_default_font(ptAtlas);
 
     // typical font range (you can also add individual characters)
     const plFontRange tRange = {
@@ -208,7 +216,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .uRangeCount = 1,
         .ptRanges = &tRange
     };
-    ptAppData->tCousineBitmapFont = gptDraw->add_font_from_file_ttf(tFontConfig0, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
+    ptAppData->ptCousineBitmapFont = gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig0, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
 
     // adding previous font but as a signed distance field
     plFontConfig tFontConfig1 = {
@@ -221,15 +229,16 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .uRangeCount = 1,
         .ptRanges = &tRange
     };
-    ptAppData->tCousineSDFFont = gptDraw->add_font_from_file_ttf(tFontConfig1, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
+    ptAppData->ptCousineSDFFont = gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig1, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
 
-    // build font atlass
-    gptDraw->build_font_atlas();
+    // build & set font atlass
+    gptDrawBackend->build_font_atlas(ptAtlas);
+    gptDraw->set_font_atlas(ptAtlas);
 
     // register our app drawlist
     ptAppData->ptDrawlist = gptDraw->request_2d_drawlist();
-    ptAppData->ptFGLayer = gptDraw->request_2d_layer(ptAppData->ptDrawlist, "foreground layer");
-    ptAppData->ptBGLayer = gptDraw->request_2d_layer(ptAppData->ptDrawlist, "background layer");
+    ptAppData->ptFGLayer = gptDraw->request_2d_layer(ptAppData->ptDrawlist);
+    ptAppData->ptBGLayer = gptDraw->request_2d_layer(ptAppData->ptDrawlist);
 
     // create timeline semaphores to syncronize GPU work submission
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
@@ -248,8 +257,8 @@ pl_app_shutdown(plAppData* ptAppData)
 {
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
-    gptDraw->cleanup_font_atlas();
-    gptDraw->cleanup();
+    gptDrawBackend->cleanup_font_atlas(NULL);
+    gptDrawBackend->cleanup();
     gptGfx->cleanup_swapchain(ptAppData->ptSwapchain);
     gptGfx->cleanup_surface(ptAppData->ptSurface);
     gptGfx->cleanup_device(ptAppData->ptDevice);
@@ -281,7 +290,7 @@ pl_app_update(plAppData* ptAppData)
     pl_begin_profile_frame();
 
     gptIO->new_frame();
-    gptDraw->new_frame();
+    gptDrawBackend->new_frame();
 
     // begin new frame
     if(!gptGfx->begin_frame(ptAppData->ptSwapchain))
@@ -291,17 +300,56 @@ pl_app_update(plAppData* ptAppData)
         return;
     }
 
+
     // drawing API usage
-    gptDraw->add_circle(ptAppData->ptFGLayer, (plVec2){120.0f, 120.0f}, 50.0f, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0, 1.0f);
-    gptDraw->add_circle_filled(ptAppData->ptBGLayer, (plVec2){100.0f, 100.0f}, 25.0f, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 24);
-    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->tDefaultFont, 13.0f, (plVec2){200.0f, 100.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Proggy @ 13 (loaded at 13)", 0.0f);
-    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->tDefaultFont, 45.0f, (plVec2){200.0f, 115.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Proggy @ 45 (loaded at 13)", 0.0f);
 
-    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->tCousineBitmapFont, 18.0f, (plVec2){25.0f, 200.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 18, bitmap (loaded at 18)", 0.0f);
-    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->tCousineBitmapFont, 100.0f, (plVec2){25.0f, 220.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 100, bitmap (loaded at 18)", 0.0f);
+    // lines
+    float fXCursor = 0.0f;
+    gptDraw->add_line(ptAppData->ptFGLayer, (plVec2){fXCursor, 0.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 1.0f);
+    fXCursor += 100.0f;
+    gptDraw->add_triangle(ptAppData->ptFGLayer, (plVec2){fXCursor + 50.0f, 0.0f}, (plVec2){fXCursor, 100.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 1.0f);
+    fXCursor += 100.0f;
+    gptDraw->add_circle(ptAppData->ptFGLayer, (plVec2){fXCursor + 50.0f, 50.0f}, 50.0f, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 0, 1.0f);
+    fXCursor += 100.0f;
+    gptDraw->add_rect(ptAppData->ptFGLayer, (plVec2){fXCursor, 5.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 1.0f, 0, 0);
+    fXCursor += 100.0f;
+    gptDraw->add_rect(ptAppData->ptFGLayer, (plVec2){fXCursor, 5.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 2.0f, 25.0f, 0);
+    fXCursor += 100.0f;
+    gptDraw->add_rect_ex(ptAppData->ptFGLayer, (plVec2){fXCursor, 5.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 2.0f, 25.0f, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT);
+    fXCursor += 100.0f;
+    gptDraw->add_quad(ptAppData->ptFGLayer, (plVec2){fXCursor + 5.0f, 5.0f}, (plVec2){fXCursor + 5.0f, 100.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec2){fXCursor + 100.0f, 5.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 1.0f);
+    fXCursor += 100.0f;
+    gptDraw->add_bezier_quad(ptAppData->ptFGLayer, (plVec2){fXCursor, 0.0f}, (plVec2){fXCursor + 100.0f, 0.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 1.0f, 0);
+    fXCursor += 100.0f;
+    gptDraw->add_bezier_cubic(ptAppData->ptFGLayer, (plVec2){fXCursor, 0.0f}, (plVec2){fXCursor + 100.0f, 0.0f}, (plVec2){fXCursor, 100.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 1.0f, 0);
+    fXCursor += 100.0f;
 
-    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->tCousineSDFFont, 18.0f, (plVec2){25.0f, 320.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 18, sdf (loaded at 18)", 0.0f);
-    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->tCousineSDFFont, 100.0f, (plVec2){25.0f, 340.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 100, sdf (loaded at 18)", 0.0f);
+    // solids
+    fXCursor = 100.0f;
+    gptDraw->add_triangle_filled(ptAppData->ptFGLayer, (plVec2){fXCursor + 50.0f, 100.0f}, (plVec2){fXCursor, 200.0f}, (plVec2){fXCursor + 100.0f, 200.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f});
+    fXCursor += 100.0f;
+    gptDraw->add_circle_filled(ptAppData->ptFGLayer, (plVec2){fXCursor + 50.0f, 150.0f}, 50.0f, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 0);
+    fXCursor += 100.0f;
+    gptDraw->add_rect_filled(ptAppData->ptFGLayer, (plVec2){fXCursor, 105.0f}, (plVec2){fXCursor + 100.0f, 200.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 0, 0);
+    fXCursor += 100.0f;
+    gptDraw->add_rect_filled(ptAppData->ptFGLayer, (plVec2){fXCursor, 105.0f}, (plVec2){fXCursor + 100.0f, 200.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 25.0f, 0);
+    fXCursor += 100.0f;
+    gptDraw->add_rect_filled_ex(ptAppData->ptFGLayer, (plVec2){fXCursor, 105.0f}, (plVec2){fXCursor + 100.0f, 200.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 25.0f, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT);
+    fXCursor += 100.0f;
+    gptDraw->add_quad_filled(ptAppData->ptFGLayer, (plVec2){fXCursor + 5.0f, 105.0f}, (plVec2){fXCursor + 5.0f, 200.0f}, (plVec2){fXCursor + 100.0f, 200.0f}, (plVec2){fXCursor + 100.0f, 105.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f});
+    // gptDraw->add_circle_filled(ptAppData->ptBGLayer, (plVec2){100.0f, 100.0f}, 25.0f, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 24);
+
+    // default text
+    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->ptDefaultFont, 13.0f, (plVec2){25.0f, 300.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Proggy @ 13 (loaded at 13)", 0.0f);
+    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->ptDefaultFont, 45.0f, (plVec2){25.0f, 315.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Proggy @ 45 (loaded at 13)", 0.0f);
+
+    // bitmap text
+    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->ptCousineBitmapFont, 18.0f, (plVec2){25.0f, 400.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 18, bitmap (loaded at 18)", 0.0f);
+    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->ptCousineBitmapFont, 100.0f, (plVec2){25.0f, 420.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 100, bitmap (loaded at 18)", 0.0f);
+
+    // sdf text
+    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->ptCousineSDFFont, 18.0f, (plVec2){25.0f, 520.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 18, sdf (loaded at 18)", 0.0f);
+    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->ptCousineSDFFont, 100.0f, (plVec2){25.0f, 540.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 100, sdf (loaded at 18)", 0.0f);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~drawing prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -329,7 +377,7 @@ pl_app_update(plAppData* ptAppData)
 
     // submit drawlists
     plIO* ptIO = gptIO->get_io();
-    gptDraw->submit_2d_drawlist(ptAppData->ptDrawlist, tEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
+    gptDrawBackend->submit_2d_drawlist(ptAppData->ptDrawlist, tEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
 
     // end render pass
     gptGfx->end_render_pass(tEncoder);

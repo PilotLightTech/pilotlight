@@ -87,7 +87,7 @@
 
 )
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_extensions | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-DPL_VULKAN_BACKEND -D_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
@@ -95,11 +95,11 @@
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no -nodefaultlib:MSVCRT 
 @set PL_STATIC_LINK_LIBRARIES=shaderc_combined.lib vulkan-1.lib 
-@set PL_SOURCES="../extensions/pl_extensions.c" 
+@set PL_SOURCES="../extensions/pl_ext.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: pl_extensions[0m
+@echo [1m[93mStep: pl_ext[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
 cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pilot_light.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pilot_light_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
@@ -274,7 +274,7 @@ goto ExitLabel
 
 )
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_extensions | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-DPL_VULKAN_BACKEND -DNDEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
@@ -282,11 +282,11 @@ goto ExitLabel
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
 @set PL_STATIC_LINK_LIBRARIES=shaderc_combined.lib vulkan-1.lib 
-@set PL_SOURCES="../extensions/pl_extensions.c" 
+@set PL_SOURCES="../extensions/pl_ext.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: pl_extensions[0m
+@echo [1m[93mStep: pl_ext[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
 cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pilot_light.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pilot_light_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%

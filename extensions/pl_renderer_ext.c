@@ -39,6 +39,7 @@ Index of this file:
 #include "pl_gpu_allocators_ext.h"
 #include "pl_job_ext.h"
 #include "pl_draw_ext.h"
+#include "pl_draw_backend_ext.h"
 #include "pl_ui_ext.h"
 #include "pl_shader_ext.h"
 #include "pl_ext.inc"
@@ -3621,7 +3622,7 @@ pl_refr_post_process_scene(plCommandBufferHandle tCommandBuffer, uint32_t uScene
     gptGfx->bind_graphics_bind_groups(tEncoder, ptScene->tTonemapShader, 0, 1, &tJFABindGroup0, &tDynamicBinding);
     gptGfx->draw_indexed(tEncoder, 1, &tDraw);
 
-    gptDraw->submit_3d_drawlist(ptView->pt3DGizmoDrawList, tEncoder, tDimensions.x, tDimensions.y, ptMVP, PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
+    gptDrawBackend->submit_3d_drawlist(ptView->pt3DGizmoDrawList, tEncoder, tDimensions.x, tDimensions.y, ptMVP, PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
 
     gptGfx->end_render_pass(tEncoder);
     pl_end_profile_sample(0);
@@ -4192,8 +4193,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &ptCullCamera->tTransformMat, ptCullCamera->fFieldOfView, ptCullCamera->fAspectRatio, ptCullCamera->fNearZ, ptCullCamera->fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
         }
 
-        gptDraw->submit_3d_drawlist(ptView->pt3DDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
-        gptDraw->submit_3d_drawlist(ptView->pt3DSelectionDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
+        gptDrawBackend->submit_3d_drawlist(ptView->pt3DDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
+        gptDrawBackend->submit_3d_drawlist(ptView->pt3DSelectionDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
         gptGfx->end_render_pass(tEncoder);
 
          //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~entity selection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -4596,7 +4597,9 @@ pl_refr_end_frame(void)
     // render ui
     pl_begin_profile_sample(0, "render ui");
     plIO* ptIO = gptIOI->get_io();
-    gptUI->render(tEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
+    gptUI->end_frame();
+    gptDrawBackend->submit_2d_drawlist(gptUI->get_draw_list(), tEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
+    gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), tEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
     pl_end_profile_sample(0);
 
     gptGfx->end_render_pass(tEncoder);

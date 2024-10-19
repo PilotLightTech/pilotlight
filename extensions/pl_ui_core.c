@@ -29,6 +29,7 @@ Index of this file:
 // extensions
 #include "pl_graphics_ext.h"
 #include "pl_draw_ext.h"
+#include "pl_draw_backend_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -187,6 +188,24 @@ pl__focus_window(plUiWindow* ptWindow)
 void
 pl_end_frame(void)
 {
+    // draw submission
+    gptDraw->submit_2d_layer(gptCtx->ptBgLayer);
+    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptWindows); i++)
+    {
+        if(gptCtx->sbptWindows[i]->uHideFrames == 0)
+        {
+            gptDraw->submit_2d_layer(gptCtx->sbptWindows[i]->ptBgLayer);
+            gptDraw->submit_2d_layer(gptCtx->sbptWindows[i]->ptFgLayer);
+        }
+        else
+        {
+            gptCtx->sbptWindows[i]->uHideFrames--;
+        }
+    }
+    gptDraw->submit_2d_layer(gptCtx->tTooltipWindow.ptBgLayer);
+    gptDraw->submit_2d_layer(gptCtx->tTooltipWindow.ptFgLayer);
+    gptDraw->submit_2d_layer(gptCtx->ptFgLayer);
+    gptDraw->submit_2d_layer(gptCtx->ptDebugLayer);
 
     const plVec2 tMousePos = gptIOI->get_mouse_pos();
 
@@ -300,33 +319,6 @@ pl_end_frame(void)
 }
 
 void
-pl_render(plRenderEncoderHandle tEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount)
-{
-    gptDraw->submit_2d_layer(gptCtx->ptBgLayer);
-    for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbptWindows); i++)
-    {
-        if(gptCtx->sbptWindows[i]->uHideFrames == 0)
-        {
-            gptDraw->submit_2d_layer(gptCtx->sbptWindows[i]->ptBgLayer);
-            gptDraw->submit_2d_layer(gptCtx->sbptWindows[i]->ptFgLayer);
-        }
-        else
-        {
-            gptCtx->sbptWindows[i]->uHideFrames--;
-        }
-    }
-    gptDraw->submit_2d_layer(gptCtx->tTooltipWindow.ptBgLayer);
-    gptDraw->submit_2d_layer(gptCtx->tTooltipWindow.ptFgLayer);
-    gptDraw->submit_2d_layer(gptCtx->ptFgLayer);
-    gptDraw->submit_2d_layer(gptCtx->ptDebugLayer);
-
-    gptDraw->submit_2d_drawlist(gptCtx->ptDrawlist, tEncoder, fWidth, fHeight, uMSAASampleCount);
-    gptDraw->submit_2d_drawlist(gptCtx->ptDebugDrawlist, tEncoder, fWidth, fHeight, uMSAASampleCount);
-
-    pl_end_frame();
-}
-
-void
 pl_push_theme_color(plUiColor tColor, const plVec4* ptColor)
 {
     const plUiColorStackItem tPrevItem = {
@@ -349,13 +341,13 @@ pl_pop_theme_color(uint32_t uCount)
 }
 
 void
-pl_set_default_font(plFontHandle tFont)
+pl_set_default_font(plFont* ptFont)
 {
-    gptCtx->tFont = tFont;
-    gptCtx->tStyle.fFontSize = gptDraw->get_font(tFont)->fSize;
+    gptCtx->tFont = ptFont;
+    gptCtx->tStyle.fFontSize = ptFont->fSize;
 }
 
-plFontHandle
+plFont*
 pl_get_default_font(void)
 {
     return gptCtx->tFont;
@@ -1283,24 +1275,24 @@ pl_is_item_hoverable_circle(plVec2 tP, float fRadius, uint32_t uHash)
 }
 
 static void
-pl__add_text(plDrawLayer2D* ptLayer, plFontHandle tFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap)
+pl__add_text(plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap)
 {
     const char* pcTextEnd = pcText + strlen(pcText);
-    gptDraw->add_text_ex(ptLayer, tFont, fSize, (plVec2){roundf(tP.x), roundf(tP.y)}, tColor, pcText, pl__find_renderered_text_end(pcText, pcTextEnd), fWrap);
+    gptDraw->add_text_ex(ptLayer, ptFont, fSize, (plVec2){roundf(tP.x), roundf(tP.y)}, tColor, pcText, pl__find_renderered_text_end(pcText, pcTextEnd), fWrap);
 }
 
 static void
-pl__add_clipped_text(plDrawLayer2D* ptLayer, plFontHandle tFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap)
+pl__add_clipped_text(plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap)
 {
     const char* pcTextEnd = pcText + strlen(pcText);
-    gptDraw->add_text_clipped_ex(ptLayer, tFont, fSize, (plVec2){roundf(tP.x + 0.5f), roundf(tP.y + 0.5f)}, tMin, tMax, tColor, pcText, pl__find_renderered_text_end(pcText, pcTextEnd), fWrap);   
+    gptDraw->add_text_clipped_ex(ptLayer, ptFont, fSize, (plVec2){roundf(tP.x + 0.5f), roundf(tP.y + 0.5f)}, tMin, tMax, tColor, pcText, pl__find_renderered_text_end(pcText, pcTextEnd), fWrap);   
 }
 
 static plVec2
-pl__calculate_text_size(plFontHandle tFont, float size, const char* text, float wrap)
+pl__calculate_text_size(plFont* ptFont, float size, const char* text, float wrap)
 {
     const char* pcTextEnd = text + strlen(text);
-    return gptDraw->calculate_text_size_ex(tFont, size, text, pl__find_renderered_text_end(text, pcTextEnd), wrap);  
+    return gptDraw->calculate_text_size_ex(ptFont, size, text, pl__find_renderered_text_end(text, pcTextEnd), wrap);  
 }
 
 static plUiStorageEntry*
@@ -1364,8 +1356,8 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         ptWindow->tMinSize                      = (plVec2){ 200.0f, 200.0f};
         ptWindow->tMaxSize                      = (plVec2){ 10000.0f, 10000.0f};
         ptWindow->tSize                         = (plVec2){ 500.0f, 500.0f};
-        ptWindow->ptBgLayer                     = gptDraw->request_2d_layer(gptCtx->ptDrawlist, pcName);
-        ptWindow->ptFgLayer                     = gptDraw->request_2d_layer(gptCtx->ptDrawlist, pcName);
+        ptWindow->ptBgLayer                     = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
+        ptWindow->ptFgLayer                     = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
         ptWindow->tPosAllowableFlags            = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
         ptWindow->tSizeAllowableFlags           = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
         ptWindow->tCollapseAllowableFlags       = PL_UI_COND_ALWAYS | PL_UI_COND_ONCE;
@@ -2140,11 +2132,11 @@ pl_ui_initialize(void)
 {
     gptCtx->ptDrawlist = gptDraw->request_2d_drawlist();
     gptCtx->ptDebugDrawlist = gptDraw->request_2d_drawlist();
-    gptCtx->ptBgLayer = gptDraw->request_2d_layer(gptCtx->ptDrawlist, "ui Background");
-    gptCtx->ptFgLayer = gptDraw->request_2d_layer(gptCtx->ptDrawlist, "ui Foreground");
-    gptCtx->ptDebugLayer = gptDraw->request_2d_layer(gptCtx->ptDebugDrawlist, "ui debug");
-    gptCtx->tTooltipWindow.ptBgLayer = gptDraw->request_2d_layer(gptCtx->ptDrawlist, "Tooltip Background");
-    gptCtx->tTooltipWindow.ptFgLayer = gptDraw->request_2d_layer(gptCtx->ptDrawlist, "Tooltip Foreground");
+    gptCtx->ptBgLayer = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
+    gptCtx->ptFgLayer = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
+    gptCtx->ptDebugLayer = gptDraw->request_2d_layer(gptCtx->ptDebugDrawlist);
+    gptCtx->tTooltipWindow.ptBgLayer = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
+    gptCtx->tTooltipWindow.ptFgLayer = gptDraw->request_2d_layer(gptCtx->ptDrawlist);
 
     gptCtx->tFrameBufferScale.x = 1.0f;
     gptCtx->tFrameBufferScale.y = 1.0f;

@@ -6,12 +6,12 @@
 Index of this file:
 // [SECTION] header mess
 // [SECTION] apis
-// [SECTION] defines
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] public api struct
 // [SECTION] enums
 // [SECTION] structs
+// [SECTION] structs for backends
 */
 
 //-----------------------------------------------------------------------------
@@ -21,20 +21,16 @@ Index of this file:
 #ifndef PL_DRAW_EXT_H
 #define PL_DRAW_EXT_H
 
+// extension version (format XYYZZ)
+// #define PL_DRAW_EXT_VERSION    "1.0.0"
+// #define PL_DRAW_EXT_VERSION_NUM 10000
+
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
 #define PL_API_DRAW "PL_API_DRAW"
 typedef struct _plDrawI plDrawI;
-
-//-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
-
-#ifndef PL_MAX_DRAWLISTS
-    #define PL_MAX_DRAWLISTS 64
-#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -48,6 +44,8 @@ typedef struct _plDrawI plDrawI;
 //-----------------------------------------------------------------------------
 
 // basic types
+typedef struct _plDrawInit    plDrawInit;
+typedef struct _plFontAtlas   plFontAtlas;
 typedef struct _plDrawList2D  plDrawList2D;
 typedef struct _plDrawList3D  plDrawList3D;
 typedef struct _plDrawLayer2D plDrawLayer2D;
@@ -59,22 +57,20 @@ typedef struct _plDrawCylinderDesc plDrawCylinderDesc;
 typedef struct _plDrawConeDesc     plDrawConeDesc;
 
 // font types
-typedef struct _plFontChar       plFontChar;       // internal for now (opaque structure)
-typedef struct _plFontGlyph      plFontGlyph;      // internal for now (opaque structure)
-typedef struct _plFontCustomRect plFontCustomRect; // internal for now (opaque structure)
+typedef struct _plFontChar       plFontChar;
+typedef struct _plFontGlyph      plFontGlyph;
+typedef struct _plFontCustomRect plFontCustomRect;
 typedef struct _plFontRange      plFontRange;      // a range of characters
 typedef struct _plFont           plFont;           // a single font with a specific size and config
 typedef struct _plFontConfig     plFontConfig;     // configuration for loading a single font
-typedef union  _plFontHandle     plFontHandle;
 
 // enums
-typedef int plDrawFlags;
-typedef int plDrawRectFlags;
+typedef int plDrawFlags;     // -> enum _plDrawFlags     // Flags:
+typedef int plDrawRectFlags; // -> enum _plDrawRectFlags // Flags:
 
-// external
-typedef struct _plDevice             plDevice;              // pl_graphics_ext.h
-typedef union  plRenderEncoderHandle plRenderEncoderHandle; // pl_graphics_ext.h
-typedef union  plTextureHandle       plTextureHandle;       // pl_graphics_ext.h
+#ifndef plTextureID
+    typedef uint64_t plTextureID;
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -83,58 +79,61 @@ typedef union  plTextureHandle       plTextureHandle;       // pl_graphics_ext.h
 typedef struct _plDrawI
 {
     // init/cleanup
-    void (*initialize)(plDevice*);
-    void (*cleanup)   (void);
+    void (*initialize)(const plDrawInit*);
+    void (*cleanup)   (void); // usually called by backend
 
     // per frame
-    void (*new_frame)(void);
+    void (*new_frame)(void); // usually called by backend
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~fonts~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    void         (*build_font_atlas)        (void);
-    void         (*cleanup_font_atlas)      (void);
-    plFontHandle (*add_default_font)        (void);
-    plFontHandle (*add_font_from_file_ttf)  (plFontConfig, const char* pcFile);
-    plFontHandle (*add_font_from_memory_ttf)(plFontConfig, void* pData);
-    plVec2       (*calculate_text_size)     (plFontHandle, float fSize, const char* pcText, float fWrap);
-    plVec2       (*calculate_text_size_ex)  (plFontHandle, float fSize, const char* pcText, const char* pcTextEnd, float fWrap);
-    plRect       (*calculate_text_bb)       (plFontHandle, float fSize, plVec2 tP, const char* pcText, float fWrap);
-    plRect       (*calculate_text_bb_ex)    (plFontHandle, float fSize, plVec2 tP, const char* pcText, const char* pcTextEnd, float fWrap);
-    plFont*      (*get_font)                (plFontHandle); // do not store
+    // font atlas
+    plFontAtlas* (*create_font_atlas)     (void);
+    bool         (*prepare_font_atlas)    (plFontAtlas*); // usually called by backend
+    void         (*cleanup_font_atlas)    (plFontAtlas*); // usually called by backend
+    void         (*set_font_atlas)        (plFontAtlas*);
+    plFontAtlas* (*get_current_font_atlas)(void);
+
+    plFont* (*add_default_font)        (plFontAtlas*);
+    plFont* (*add_font_from_file_ttf)  (plFontAtlas*, plFontConfig, const char* pcFile);
+    plFont* (*add_font_from_memory_ttf)(plFontAtlas*, plFontConfig, void* pData);
+    plVec2  (*calculate_text_size)     (plFont*, float fSize, const char* pcText, float fWrap);
+    plVec2  (*calculate_text_size_ex)  (plFont*, float fSize, const char* pcText, const char* pcTextEnd, float fWrap);
+    plRect  (*calculate_text_bb)       (plFont*, float fSize, plVec2 tP, const char* pcText, float fWrap);
+    plRect  (*calculate_text_bb_ex)    (plFont*, float fSize, plVec2 tP, const char* pcText, const char* pcTextEnd, float fWrap);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~2D~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // drawlists
-    plDrawList2D*  (*request_2d_drawlist)(void);
-    void           (*return_2d_drawlist) (plDrawList2D*);
-    void           (*submit_2d_drawlist) (plDrawList2D*, plRenderEncoderHandle, float fWidth, float fHeight, uint32_t uMSAASampleCount);
+    plDrawList2D* (*request_2d_drawlist)(void);
+    void          (*return_2d_drawlist) (plDrawList2D*);
 
     // layers
-    plDrawLayer2D* (*request_2d_layer)(plDrawList2D*, const char* pcName);
+    plDrawLayer2D* (*request_2d_layer)(plDrawList2D*);
     void           (*return_2d_layer) (plDrawLayer2D*);
     void           (*submit_2d_layer) (plDrawLayer2D*);
 
     // drawing
-    void (*add_line)               (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec4 tColor, float fThickness);
-    void (*add_lines)              (plDrawLayer2D*, plVec2* atPoints, uint32_t uCount, plVec4 tColor, float fThickness);
-    void (*add_text)               (plDrawLayer2D*, plFontHandle, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
-    void (*add_text_ex)            (plDrawLayer2D*, plFontHandle, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
-    void (*add_text_clipped)       (plDrawLayer2D*, plFontHandle, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
-    void (*add_text_clipped_ex)    (plDrawLayer2D*, plFontHandle, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
-    void (*add_triangle)           (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness);
-    void (*add_triangle_filled)    (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor);
-    void (*add_rect)               (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments);
-    void (*add_rect_filled)        (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments);
-    void (*add_rect_ex)            (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments, plDrawRectFlags);
-    void (*add_rect_filled_ex)     (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments, plDrawRectFlags);
-    void (*add_quad)               (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness);
-    void (*add_quad_filled)        (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor);
-    void (*add_circle)             (plDrawLayer2D*, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments, float fThickness);
-    void (*add_circle_filled)      (plDrawLayer2D*, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments);
-    void (*add_image)              (plDrawLayer2D*, plTextureHandle, plVec2 tPMin, plVec2 tPMax);
-    void (*add_image_ex)           (plDrawLayer2D*, plTextureHandle, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, plVec4 tColor);
-    void (*add_bezier_quad)        (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
-    void (*add_bezier_cubic)       (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
+    void (*add_line)           (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec4 tColor, float fThickness);
+    void (*add_lines)          (plDrawLayer2D*, plVec2* atPoints, uint32_t uCount, plVec4 tColor, float fThickness);
+    void (*add_text)           (plDrawLayer2D*, plFont*, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
+    void (*add_text_ex)        (plDrawLayer2D*, plFont*, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
+    void (*add_text_clipped)   (plDrawLayer2D*, plFont*, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
+    void (*add_text_clipped_ex)(plDrawLayer2D*, plFont*, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, const char* pcTextEnd, float fWrap);
+    void (*add_triangle)       (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness);
+    void (*add_triangle_filled)(plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor);
+    void (*add_rect)           (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments);
+    void (*add_rect_filled)    (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments);
+    void (*add_rect_ex)        (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fThickness, float fRadius, uint32_t uSegments, plDrawRectFlags);
+    void (*add_rect_filled_ex) (plDrawLayer2D*, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, float fRadius, uint32_t uSegments, plDrawRectFlags);
+    void (*add_quad)           (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness);
+    void (*add_quad_filled)    (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor);
+    void (*add_circle)         (plDrawLayer2D*, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments, float fThickness);
+    void (*add_circle_filled)  (plDrawLayer2D*, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments);
+    void (*add_image)          (plDrawLayer2D*, plTextureID, plVec2 tPMin, plVec2 tPMax);
+    void (*add_image_ex)       (plDrawLayer2D*, plTextureID, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, plVec4 tColor);
+    void (*add_bezier_quad)    (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec4 tColor, float fThickness, uint32_t uSegments);
+    void (*add_bezier_cubic)   (plDrawLayer2D*, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor, float fThickness, uint32_t uSegments);
 
     // clipping
     void          (*push_clip_rect_pt)(plDrawList2D*, const plRect*);
@@ -147,7 +146,6 @@ typedef struct _plDrawI
     // drawlists
     plDrawList3D* (*request_3d_drawlist)(void);
     void          (*return_3d_drawlist)(plDrawList3D*);
-    void          (*submit_3d_drawlist)(plDrawList3D*, plRenderEncoderHandle, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t uMSAASampleCount);
 
     // solid
     void (*add_3d_triangle_filled)    (plDrawList3D*, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec4 tColor);
@@ -182,7 +180,7 @@ typedef struct _plDrawI
     void (*add_3d_cone_ex)     (plDrawList3D*, const plDrawConeDesc*);
 
     // text
-    void (*add_3d_text)(plDrawList3D*, plFontHandle, float fSize, plVec3 tP, plVec4 tColor, const char* pcText, float fWrap);
+    void (*add_3d_text)(plDrawList3D*, plFont*, float fSize, plVec3 tP, plVec4 tColor, const char* pcText, float fWrap);
 
     // primitive option helpers (fills defaults)
     void (*fill_capsule_desc_default) (plDrawCapsuleDesc*);
@@ -224,6 +222,11 @@ enum _plDrawRectFlags
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plDrawInit
+{
+    int _iUnused;
+} plDrawInit;
 
 typedef struct _plDrawCapsuleDesc
 {
@@ -268,16 +271,6 @@ typedef struct _plDrawConeDesc
     uint32_t uSegments;
 } plDrawConeDesc;
 
-typedef union _plFontHandle
-{ 
-    struct
-    {
-        uint32_t uIndex;
-        uint32_t uGeneration;
-    }; 
-    uint64_t ulData;
-} plFontHandle;
-
 typedef struct _plFontRange
 {
     int         iFirstCodePoint;
@@ -295,7 +288,7 @@ typedef struct _plFontConfig
     const int*         piIndividualChars;
     uint32_t           uIndividualCharCount;
     bool               bMergeFont;
-    plFontHandle       tMergeFont;
+    plFont*            tMergeFont;
 
     // BITMAP
     uint32_t uVOverSampling;
@@ -314,8 +307,8 @@ typedef struct _plFontConfig
 
 typedef struct _plFont
 {
-    float        fSize;
-    float        fLineSpacing;
+    float fSize;
+    float fLineSpacing;
 
     // internal
     plFontRange*  sbtRanges;
@@ -324,6 +317,8 @@ typedef struct _plFont
     plFontGlyph*  sbtGlyphs;     // glyphs
     plFontConfig* _sbtConfigs;
     struct _plFontPrepData* _sbtPreps;
+
+    plFont* _ptNextFont;
 } plFont;
 
 typedef struct _plFontCustomRect
@@ -361,5 +356,107 @@ typedef struct _plFontGlyph
     float xAdvance;
     float leftBearing;  
 } plFontGlyph;
+
+//-----------------------------------------------------------------------------
+// [SECTION] structs for backends
+//-----------------------------------------------------------------------------
+
+typedef struct _plDrawVertex3DSolid
+{
+    float    afPos[3];
+    uint32_t uColor;
+} plDrawVertex3DSolid;
+
+typedef struct _plDrawVertex3DLine
+{
+    float    afPos[3];
+    float    fDirection;
+    float    fThickness;
+    float    fMultiply;
+    float    afPosOther[3];
+    uint32_t uColor;
+} plDrawVertex3DLine;
+
+typedef struct _plDraw3DText
+{
+    plFont*      tFontHandle;
+    float        fSize;
+    plVec3       tP;
+    plVec4       tColor;
+    char         acText[PL_MAX_NAME_LENGTH];
+    float        fWrap;
+} plDraw3DText;
+
+typedef struct _plDrawList3D
+{
+    plDrawVertex3DSolid* sbtSolidVertexBuffer;
+    uint32_t*            sbtSolidIndexBuffer;
+    plDrawVertex3DLine*  sbtLineVertexBuffer;
+    uint32_t*            sbtLineIndexBuffer;
+
+    // text
+    plDraw3DText*  sbtTextEntries;
+    plDrawList2D*  pt2dDrawlist;
+    plDrawLayer2D* ptLayer;
+} plDrawList3D;
+
+typedef struct _plDrawVertex
+{
+    float    afPos[2];
+    float    afUv[2];
+    uint32_t uColor;
+} plDrawVertex;
+
+typedef struct _plDrawCommand
+{
+    uint32_t    uVertexOffset;
+    uint32_t    uIndexOffset;
+    uint32_t    uElementCount;
+    plTextureID tTextureId;
+    plRect      tClip;
+    bool        bSdf;
+} plDrawCommand;
+
+typedef struct _plDrawLayer2D
+{
+    plDrawList2D*  ptDrawlist;
+    plDrawCommand* sbtCommandBuffer;
+    uint32_t*      sbuIndexBuffer;
+    plVec2*        sbtPath;
+    uint32_t       uVertexCount;
+    plDrawCommand* _ptLastCommand;
+} plDrawLayer2D;
+
+typedef struct _plDrawList2D
+{
+    plDrawLayer2D** sbtSubmittedLayers;
+    plDrawLayer2D** sbtLayerCache;
+    plDrawLayer2D** sbtLayersCreated;
+    plDrawCommand*  sbtDrawCommands;
+    plDrawVertex*   sbtVertexBuffer;
+    uint32_t        uIndexBufferByteSize;
+    uint32_t        uLayersCreated;
+    plRect*         sbtClipStack;
+    int             _padding;
+} plDrawList2D;
+
+typedef struct _plFontAtlas
+{
+    // fonts
+    plFont*   _ptFontListHead;
+
+    plFontCustomRect* sbtCustomRects;
+    unsigned char*    pucPixelsAsAlpha8;
+    unsigned char*    pucPixelsAsRGBA32;
+    uint32_t          auAtlasSize[2];
+    float             afWhiteUv[2];
+    bool              bDirty;
+    int               iGlyphPadding;
+    size_t            szPixelDataSize;
+    plFontCustomRect* ptWhiteRect;
+    plTextureID       tTexture;
+    float             fTotalArea;
+    
+} plFontAtlas;
 
 #endif // PL_DRAW_EXT_H

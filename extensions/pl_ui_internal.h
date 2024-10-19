@@ -479,7 +479,7 @@ typedef struct _plUiContext
     // drawing
     plDrawList2D*  ptDrawlist;             // main ui drawlist
     plDrawList2D*  ptDebugDrawlist;        // ui debug drawlist (i.e. overlays)
-    plFontHandle   tFont;                  // current font
+    plFont*        tFont;                  // current font
     plDrawLayer2D* ptBgLayer;              // submitted before window layers
     plDrawLayer2D* ptFgLayer;              // submitted after window layers
     plDrawLayer2D* ptDebugLayer;           // submitted last
@@ -497,9 +497,9 @@ typedef struct _plUiContext
 //-----------------------------------------------------------------------------
 
 static const char*   pl__find_renderered_text_end(const char* pcText, const char* pcTextEnd);
-static void          pl__add_text                (plDrawLayer2D*, plFontHandle, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
-static void          pl__add_clipped_text        (plDrawLayer2D*, plFontHandle, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
-static plVec2        pl__calculate_text_size     (plFontHandle, float size, const char* text, float wrap);
+static void          pl__add_text                (plDrawLayer2D*, plFont*, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
+static void          pl__add_clipped_text        (plDrawLayer2D*, plFont*, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
+static plVec2        pl__calculate_text_size     (plFont*, float size, const char* text, float wrap);
 static inline float  pl__get_frame_height        (void) { return gptCtx->tStyle.fFontSize + gptCtx->tStyle.tFramePadding.y * 2.0f; }
 
 // collision

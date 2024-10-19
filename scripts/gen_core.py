@@ -103,9 +103,9 @@ with pl.project("pilotlight"):
     #-----------------------------------------------------------------------------
 
     # vulkan backend extensions
-    with pl.target("pl_extensions", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("pl_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
 
-        pl.add_source_files("../extensions/pl_extensions.c")
+        pl.add_source_files("../extensions/pl_ext.c")
         pl.set_output_binary("pilot_light")
 
         # default config

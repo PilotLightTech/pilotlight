@@ -23,6 +23,7 @@ static const struct _plStatsI*             gptStats             = 0;
 static const struct _plGPUAllocatorsI*     gptGpuAllocators     = 0;
 static const struct _plJobI*               gptJob               = 0;
 static const struct _plDrawI*              gptDraw              = 0;
+static const struct _plDrawBackendI*       gptDrawBackend       = 0;
 static const struct _plUiI*                gptUI                = 0;
 static const struct _plIOI*                gptIOI               = 0;
 static const struct _plShaderI*            gptShader            = 0;

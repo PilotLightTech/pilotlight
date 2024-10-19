@@ -41,9 +41,10 @@ Index of this file:
 #include "pl_math.h"
 
 // extensions
-#include "pl_graphics_ext.h"
-#include "pl_draw_ext.h"
+#include "pl_graphics_ext.h" // not yet stable
+#include "pl_draw_ext.h" // not yet stable
 #include "pl_shader_ext.h"
+#include "pl_draw_backend_ext.h" // not yet stable
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -108,11 +109,12 @@ typedef struct _plAppData
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-const plIOI*       gptIO      = NULL;
-const plWindowI*   gptWindows = NULL;
-const plGraphicsI* gptGfx     = NULL;
-const plDrawI*     gptDraw    = NULL;
-const plShaderI*   gptShader  = NULL;
+const plIOI*          gptIO          = NULL;
+const plWindowI*      gptWindows     = NULL;
+const plGraphicsI*    gptGfx         = NULL;
+const plDrawI*        gptDraw        = NULL;
+const plShaderI*      gptShader      = NULL;
+const plDrawBackendI* gptDrawBackend = NULL; // not yet stable
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper function declarations
@@ -150,11 +152,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     {
         // re-retrieve the apis since we are now in
         // a different dll/so
-        gptIO      = ptApiRegistry->first(PL_API_IO);
-        gptWindows = ptApiRegistry->first(PL_API_WINDOW);
-        gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
-        gptDraw    = ptApiRegistry->first(PL_API_DRAW);
-        gptShader  = ptApiRegistry->first(PL_API_SHADER);
+        gptIO          = ptApiRegistry->first(PL_API_IO);
+        gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
+        gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
+        gptDraw        = ptApiRegistry->first(PL_API_DRAW);
+        gptShader      = ptApiRegistry->first(PL_API_SHADER);
+        gptDrawBackend = ptApiRegistry->first(PL_API_DRAW_BACKEND);
 
         return ptAppData;
     }
@@ -171,11 +174,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pilot_light", NULL, NULL, true);
     
     // load required apis (NULL if not available)
-    gptIO            = ptApiRegistry->first(PL_API_IO);
-    gptWindows       = ptApiRegistry->first(PL_API_WINDOW);
-    gptGfx           = ptApiRegistry->first(PL_API_GRAPHICS);
-    gptDraw          = ptApiRegistry->first(PL_API_DRAW);
-    gptShader  = ptApiRegistry->first(PL_API_SHADER);
+    gptIO          = ptApiRegistry->first(PL_API_IO);
+    gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
+    gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
+    gptDraw        = ptApiRegistry->first(PL_API_DRAW);
+    gptShader      = ptApiRegistry->first(PL_API_SHADER);
+    gptDrawBackend = ptApiRegistry->first(PL_API_DRAW_BACKEND);
 
     // use window API to create a window
     const plWindowDesc tWindowDesc = {
@@ -238,11 +242,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptShader->initialize(&tDefaultShaderOptions);
 
     // setup draw
-    gptDraw->initialize(ptAppData->ptDevice);
+    gptDraw->initialize(NULL);
+    gptDrawBackend->initialize(ptAppData->ptDevice);
 
     // request drawlists
     ptAppData->ptAppDrawlist = gptDraw->request_2d_drawlist();
-    ptAppData->ptFGLayer = gptDraw->request_2d_layer(ptAppData->ptAppDrawlist, "foreground layer");
+    ptAppData->ptFGLayer = gptDraw->request_2d_layer(ptAppData->ptAppDrawlist);
     ptAppData->pt3dDrawlist = gptDraw->request_3d_drawlist();
 
     // for convience
@@ -384,7 +389,7 @@ pl_app_shutdown(plAppData* ptAppData)
 {
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
-    gptDraw->cleanup();
+    gptDrawBackend->cleanup();
 
     // cleanup textures
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
@@ -474,23 +479,42 @@ pl_app_update(plAppData* ptAppData)
     camera_update(ptCamera);
 
     // add full screen quad for offscreen render
-    gptDraw->add_image(ptAppData->ptFGLayer, ptAppData->atColorTexture[uCurrentFrameIndex], (plVec2){0}, ptIO->tMainViewportSize);
+    gptDraw->add_image(ptAppData->ptFGLayer, ptAppData->atColorTexture[uCurrentFrameIndex].ulData, (plVec2){0}, ptIO->tMainViewportSize);
 
     // 3d drawing API usage
     const plMat4 tOrigin = pl_identity_mat4();
     gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 10.0f, 0.2f);
 
-    gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
-        (plVec3){1.0f, 1.0f, 1.0f},
-        (plVec3){4.0f, 1.0f, 1.0f},
-        (plVec3){1.0f, 4.0f, 1.0f},
-        (plVec4){1.0f, 1.0f, 0.0f, 0.75f});
+    plDrawCylinderDesc tCylinderDesc = {
+        .fRadius = 1.5f,
+        .tBasePos = {-2.5f, 1.0f, 0.0f},
+        .tTipPos  = {-2.5f, 4.0f, 0.0f},
+        .tColor = (plVec4){1.0f, 1.0f, 0.0f, 0.75f},
+        .uSegments = 12
+    };
+    gptDraw->add_3d_cylinder_filled_ex(ptAppData->pt3dDrawlist, &tCylinderDesc);
 
     gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
-        (plVec3){1.0f, 1.0f, 3.0f},
-        (plVec3){4.0f, 1.0f, 3.0f},
-        (plVec3){1.0f, 4.0f, 3.0f},
-        (plVec4){1.0f, 0.5f, 0.3f, 0.75f});
+        (plVec3){1.0f, 1.0f, 0.0f},
+        (plVec3){4.0f, 1.0f, 0.0f},
+        (plVec3){1.0f, 4.0f, 0.0f},
+        (plVec4){1.0f, 1.0f, 0.0f, 0.75f});
+
+    gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist,
+        (plVec3){5.5f, 2.5f, 0.0f}, 1.5f, (plVec4){1.0f, 1.0f, 0.0f, 0.75f});
+
+    gptDraw->add_3d_circle_xz_filled(ptAppData->pt3dDrawlist,
+        (plVec3){8.5f, 2.5f, 0.0f}, 1.5f, (plVec4){1.0f, 1.0f, 0.0f, 0.75f}, 0);
+
+    gptDraw->add_3d_band_xz_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, (plVec4){1.0f, 1.0f, 0.0f, 0.75f}, 0);
+    gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, (plVec4){1.0f, 0.0f, 0.0f, 0.75f}, 0);
+    gptDraw->add_3d_band_yz_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, (plVec4){1.0f, 0.0f, 1.0f, 0.75f}, 0);
+
+    // gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
+    //     (plVec3){1.0f, 1.0f, 3.0f},
+    //     (plVec3){4.0f, 1.0f, 3.0f},
+    //     (plVec3){1.0f, 4.0f, 3.0f},
+    //     (plVec4){1.0f, 0.5f, 0.3f, 0.75f});
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~drawing prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -516,7 +540,7 @@ pl_app_update(plAppData* ptAppData)
     plRenderEncoderHandle tEncoder0 = gptGfx->begin_render_pass(tCommandBuffer0, ptAppData->tOffscreenRenderPass);
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-    gptDraw->submit_3d_drawlist(ptAppData->pt3dDrawlist,
+    gptDrawBackend->submit_3d_drawlist(ptAppData->pt3dDrawlist,
         tEncoder0,
         ptAppData->tOffscreenSize.x,
         ptAppData->tOffscreenSize.y,
@@ -549,7 +573,7 @@ pl_app_update(plAppData* ptAppData)
     plRenderEncoderHandle tEncoder1 = gptGfx->begin_render_pass(tCommandBuffer1, gptGfx->get_main_render_pass(ptAppData->ptDevice));
 
     // submit drawlists
-    gptDraw->submit_2d_drawlist(ptAppData->ptAppDrawlist, tEncoder1, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
+    gptDrawBackend->submit_2d_drawlist(ptAppData->ptAppDrawlist, tEncoder1, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
 
     // end render pass
     gptGfx->end_render_pass(tEncoder1);

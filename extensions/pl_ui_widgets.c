@@ -10,7 +10,7 @@
 static plVec2
 pl__input_text_calc_text_size_w(const plUiWChar* text_begin, const plUiWChar* text_end, const plUiWChar** remaining, plVec2* out_offset, bool stop_on_new_line)
 {
-    plFont* font = gptDraw->get_font(gptCtx->tFont);
+    plFont* font = gptCtx->tFont;
     const float line_height = gptCtx->tStyle.fFontSize;
     const float scale = line_height / font->fSize;
 
@@ -71,7 +71,7 @@ STB_TEXTEDIT_GETWIDTH(plUiInputTextState* obj, int line_start_idx, int char_idx)
     plUiWChar c = obj->sbTextW[line_start_idx + char_idx];
     if (c == '\n')
         return STB_TEXTEDIT_GETWIDTH_NEWLINE;
-    plFont* font = gptDraw->get_font(gptCtx->tFont);
+    plFont* font = gptCtx->tFont;
     return font->sbtGlyphs[font->_auCodePoints[c]].xAdvance * (gptCtx->tStyle.fFontSize / font->fSize);
 }
 
@@ -1814,7 +1814,7 @@ pl_input_int4(const char* pcLabel, int* aiValue)
 static bool
 pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_t szBufferSize, plUiInputTextFlags tFlags, const plVec2* ptWidgetSize, const plVec2* ptStartPos)
 {
-    plFont* font = gptDraw->get_font(gptCtx->tFont);
+    plFont* font = gptCtx->tFont;
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const plVec2 tMousePos = gptIOI->get_mouse_pos();
 
@@ -2934,7 +2934,7 @@ pl_drag_float(const char* pcLabel, float* pfValue, float fSpeed, float fMin, flo
 }
 
 void
-pl_image_ex(plTextureHandle tTexture, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor)
+pl_image_ex(plTextureID tTexture, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const plVec2 tStartPos = pl__get_cursor_pos();
@@ -2954,13 +2954,13 @@ pl_image_ex(plTextureHandle tTexture, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, pl
 }
 
 void
-pl_image(plTextureHandle tTexture, plVec2 tSize)
+pl_image(plTextureID tTexture, plVec2 tSize)
 {
     pl_image_ex(tTexture, tSize, (plVec2){0}, (plVec2){1.0f, 1.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, (plVec4){0});
 }
 
 bool
-pl_image_button_ex(const char* pcId, plTextureHandle tTexture, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor)
+pl_image_button_ex(const char* pcId, plTextureID tTexture, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const plVec2 tStartPos = pl__get_cursor_pos();
@@ -2992,7 +2992,7 @@ pl_image_button_ex(const char* pcId, plTextureHandle tTexture, plVec2 tSize, plV
 }
 
 bool
-pl_image_button(const char* pcId, plTextureHandle tTexture, plVec2 tSize)
+pl_image_button(const char* pcId, plTextureID tTexture, plVec2 tSize)
 {
     return pl_image_button_ex(pcId, tTexture, tSize, (plVec2){0}, (plVec2){1.0f, 1.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, (plVec4){0});
 }

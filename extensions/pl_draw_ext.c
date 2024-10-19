@@ -27,14 +27,19 @@ Index of this file:
 #include "pl_os.h"
 
 // extensions
-#include "pl_graphics_ext.h"
-#include "pl_shader_ext.h"
-
 #include "pl_ext.inc"
 
 // stb libs
 #include "stb_rect_pack.h"
 #include "stb_truetype.h"
+
+//-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
+
+#ifndef PL_MAX_DRAWLISTS
+    #define PL_MAX_DRAWLISTS 64
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -52,156 +57,22 @@ typedef struct _plFontPrepData
     float             fDescent;
 } plFontPrepData;
 
-typedef struct _plFontAtlas
-{
-    // fonts
-    plFont*           sbtFonts;
-    uint32_t*         sbtFontGenerations;
-    uint32_t*         sbtFontFreeIndices;
-
-    plFontCustomRect* sbtCustomRects;
-    unsigned char*    pucPixelsAsAlpha8;
-    unsigned char*    pucPixelsAsRGBA32;
-    uint32_t          auAtlasSize[2];
-    float             afWhiteUv[2];
-    bool              bDirty;
-    int               iGlyphPadding;
-    size_t            szPixelDataSize;
-    plFontCustomRect* ptWhiteRect;
-    plTextureHandle   tTexture;
-    float             fTotalArea;
-    
-} plFontAtlas;
-
-typedef struct _plDrawVertex3DSolid
-{
-    float    afPos[3];
-    uint32_t uColor;
-} plDrawVertex3DSolid;
-
-typedef struct _plDrawVertex3DLine
-{
-    float    afPos[3];
-    float    fDirection;
-    float    fThickness;
-    float    fMultiply;
-    float    afPosOther[3];
-    uint32_t uColor;
-} plDrawVertex3DLine;
-
-typedef struct _plDraw3DText
-{
-    plFontHandle tFontHandle;
-    float        fSize;
-    plVec3       tP;
-    plVec4       tColor;
-    char         acText[PL_MAX_NAME_LENGTH];
-    float        fWrap;
-} plDraw3DText;
-
-typedef struct _plDrawList3D
-{
-    plDrawVertex3DSolid* sbtSolidVertexBuffer;
-    uint32_t*            sbtSolidIndexBuffer;
-    plDrawVertex3DLine*  sbtLineVertexBuffer;
-    uint32_t*            sbtLineIndexBuffer;
-
-    // text
-    plDraw3DText*        sbtTextEntries;
-    plDrawList2D*        pt2dDrawlist;
-    plDrawLayer2D*       ptLayer;
-} plDrawList3D;
-
-typedef struct _plDrawVertex
-{
-    float    afPos[2];
-    float    afUv[2];
-    uint32_t uColor;
-} plDrawVertex;
-
-typedef struct _plDrawCommand
-{
-    uint32_t        uVertexOffset;
-    uint32_t        uIndexOffset;
-    uint32_t        uElementCount;
-    plTextureHandle tTextureId;
-    plRect          tClip;
-    bool            bSdf;
-} plDrawCommand;
-
-
-typedef struct _plDrawLayer2D
-{
-    const char*     pcName;
-    plDrawList2D*   ptDrawlist;
-    plDrawCommand*  sbtCommandBuffer;
-    uint32_t*       sbuIndexBuffer;
-    plVec2*         sbtPath;
-    uint32_t        uVertexCount;
-    plDrawCommand*  _ptLastCommand;
-} plDrawLayer2D;
-
-typedef struct _plDrawList2D
-{
-    plDrawLayer2D**  sbtSubmittedLayers;
-    plDrawLayer2D**  sbtLayerCache;
-    plDrawLayer2D**  sbtLayersCreated;
-    plDrawCommand*   sbtDrawCommands;
-    plDrawVertex*   sbtVertexBuffer;
-    uint32_t       uIndexBufferByteSize;
-    uint32_t       uLayersCreated;
-    plRect*        sbtClipStack;
-    int            _padding;
-} plDrawList2D;
-
-typedef struct _plPipelineEntry
-{
-    plRenderPassHandle tRenderPass;
-    uint32_t           uMSAASampleCount;
-    plShaderHandle     tRegularPipeline;
-    plShaderHandle     tSecondaryPipeline;
-    plDrawFlags        tFlags;
-    uint32_t           uSubpassIndex;
-} plPipelineEntry;
-
-typedef struct _plBufferInfo
-{
-    // vertex buffer
-    plBufferHandle tVertexBuffer;
-    uint32_t       uVertexBufferSize;
-    uint32_t       uVertexBufferOffset;
-} plBufferInfo;
-
 typedef struct _plDrawContext
 {
-    plDevice*        ptDevice;
-    plPipelineEntry* sbt3dPipelineEntries;
-    plPipelineEntry* sbt2dPipelineEntries;
-
     // 2D resources
     plPoolAllocator   tDrawlistPool2D;
     plDrawList2D      atDrawlists2DBuffer[PL_MAX_DRAWLISTS];
     plDrawList2D*     aptDrawlists2D[PL_MAX_DRAWLISTS];
-    plBufferInfo      atBufferInfo[PL_MAX_FRAMES_IN_FLIGHT];
     uint32_t          uDrawlistCount2D;
-    plSamplerHandle   tFontSampler;
-    plBindGroupHandle tFontSamplerBindGroup;
 
     // 3D resources
     plPoolAllocator tDrawlistPool3D;
     plDrawList3D    atDrawlists3DBuffer[PL_MAX_DRAWLISTS];
     plDrawList3D*   aptDrawlists3D[PL_MAX_DRAWLISTS];
     uint32_t        uDrawlistCount3D;
-    plBufferInfo    at3DBufferInfo[PL_MAX_FRAMES_IN_FLIGHT];
-    plBufferInfo    atLineBufferInfo[PL_MAX_FRAMES_IN_FLIGHT];
-
-    // shared resources
-    plBufferHandle atIndexBuffer[PL_MAX_FRAMES_IN_FLIGHT];
-    uint32_t       auIndexBufferSize[PL_MAX_FRAMES_IN_FLIGHT];
-    uint32_t       auIndexBufferOffset[PL_MAX_FRAMES_IN_FLIGHT];
 
     // font
-    plFontAtlas tFontAtlas;
+    plFontAtlas* ptAtlas;
 
     plTempAllocator tTempAllocator;
 } plDrawContext;
@@ -216,11 +87,7 @@ static plDrawContext* gptDrawCtx = NULL;
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static plBufferHandle         pl__create_staging_buffer(const plBufferDescription*, const char* pcName, uint32_t uIdentifier);
-static const plPipelineEntry* pl__get_3d_pipeline         (plRenderPassHandle, uint32_t uMSAASampleCount, plDrawFlags, uint32_t uSubpassIndex);
-static const plPipelineEntry* pl__get_2d_pipeline         (plRenderPassHandle, uint32_t uMSAASampleCount, uint32_t uSubpassIndex);
-
-static void         pl__prepare_draw_command(plDrawLayer2D*, plTextureHandle texture, bool sdf);
+static void         pl__prepare_draw_command(plDrawLayer2D*, plTextureID, bool sdf);
 static void         pl__reserve_triangles(plDrawLayer2D*, uint32_t indexCount, uint32_t uVertexCount);
 static void         pl__add_vertex(plDrawLayer2D*, plVec2 pos, plVec4 color, plVec2 uv);
 static void         pl__add_index(plDrawLayer2D*, uint32_t vertexStart, uint32_t i0, uint32_t i1, uint32_t i2);
@@ -433,36 +300,8 @@ pl__add_3d_path(plDrawList3D* ptDrawlist, uint32_t uCount, const plVec3* atPoint
 //-----------------------------------------------------------------------------
 
 static void
-pl_initialize(plDevice* ptDevice)
+pl_initialize(const plDrawInit* ptInit)
 {
-    gptDrawCtx->ptDevice = ptDevice;
-
-    pl_sb_reserve(gptDrawCtx->sbt3dPipelineEntries, 32);
-    pl_sb_reserve(gptDrawCtx->sbt2dPipelineEntries, 32);
-
-    // create initial buffers
-    const plBufferDescription tIndexBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_STAGING,
-        .uByteSize = 4096
-    };
-
-    const plBufferDescription tVertexBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STAGING,
-        .uByteSize = 4096
-    }; 
-
-    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-    {
-        gptDrawCtx->auIndexBufferSize[i] = 4096;
-        gptDrawCtx->atBufferInfo[i].uVertexBufferSize = 4096;
-        gptDrawCtx->at3DBufferInfo[i].uVertexBufferSize = 4096;
-        gptDrawCtx->atLineBufferInfo[i].uVertexBufferSize = 4096;
-        gptDrawCtx->atIndexBuffer[i] = pl__create_staging_buffer(&tIndexBufferDesc, "draw idx buffer", i);
-        gptDrawCtx->atBufferInfo[i].tVertexBuffer= pl__create_staging_buffer(&tVertexBufferDesc, "draw vtx buffer", i);
-        gptDrawCtx->at3DBufferInfo[i].tVertexBuffer= pl__create_staging_buffer(&tVertexBufferDesc, "3d draw vtx buffer", i);
-        gptDrawCtx->atLineBufferInfo[i].tVertexBuffer= pl__create_staging_buffer(&tVertexBufferDesc, "3d line draw vtx buffer", i);
-    }
-
     size_t szBufferSize = sizeof(gptDrawCtx->atDrawlists3DBuffer);
     size_t szItems = pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool3D, 0, sizeof(plDrawList3D), 0, &szBufferSize, gptDrawCtx->atDrawlists3DBuffer);
     pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool3D, szItems, sizeof(plDrawList3D), 0, &szBufferSize, gptDrawCtx->atDrawlists3DBuffer);
@@ -470,49 +309,11 @@ pl_initialize(plDevice* ptDevice)
     szBufferSize = sizeof(gptDrawCtx->atDrawlists2DBuffer);
     szItems = pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool2D, 0, sizeof(plDrawList2D), 0, &szBufferSize, gptDrawCtx->atDrawlists2DBuffer);
     pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool2D, szItems, sizeof(plDrawList2D), 0, &szBufferSize, gptDrawCtx->atDrawlists2DBuffer);
-
-    // 2d
-    const plSamplerDesc tSamplerDesc = {
-        .tFilter         = PL_FILTER_LINEAR,
-        .fMinMip         = -1000.0f,
-        .fMaxMip         = 1000.0f,
-        .fMaxAnisotropy  = 1.0f,
-        .tVerticalWrap   = PL_WRAP_MODE_WRAP,
-        .tHorizontalWrap = PL_WRAP_MODE_WRAP,
-        .tMipmapMode     = PL_MIPMAP_MODE_LINEAR
-    };
-    gptDrawCtx->tFontSampler = gptGfx->create_sampler(gptDrawCtx->ptDevice, &tSamplerDesc, "font sampler");
-
-    const plBindGroupLayout tSamplerBindGroupLayout = {
-        .uSamplerBindingCount = 1,
-        .atSamplerBindings = {
-            {.uSlot =  0, .tStages = PL_STAGE_PIXEL}
-        }
-    };
-    gptDrawCtx->tFontSamplerBindGroup = gptGfx->create_bind_group(gptDrawCtx->ptDevice, &tSamplerBindGroupLayout, "font sampler bindgroup");
-    const plBindGroupUpdateSamplerData atSamplerData[] = {
-        { .uSlot = 0, .tSampler = gptDrawCtx->tFontSampler}
-    };
-
-    plBindGroupUpdateData tBGData0 = {
-        .uSamplerCount = 1,
-        .atSamplerBindings = atSamplerData,
-    };
-    gptGfx->update_bind_group(gptDrawCtx->ptDevice, gptDrawCtx->tFontSamplerBindGroup, &tBGData0);
 }
 
 static void
 pl_cleanup(void)
 {
-
-    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-    {
-        gptGfx->destroy_buffer(gptDrawCtx->ptDevice, gptDrawCtx->atBufferInfo[i].tVertexBuffer);
-        gptGfx->destroy_buffer(gptDrawCtx->ptDevice, gptDrawCtx->at3DBufferInfo[i].tVertexBuffer);
-        gptGfx->destroy_buffer(gptDrawCtx->ptDevice, gptDrawCtx->atLineBufferInfo[i].tVertexBuffer);
-        gptGfx->destroy_buffer(gptDrawCtx->ptDevice, gptDrawCtx->atIndexBuffer[i]);  
-        gptGfx->destroy_buffer(gptDrawCtx->ptDevice, gptDrawCtx->atIndexBuffer[i]);  
-    }
 
     for(uint32_t i = 0; i < gptDrawCtx->uDrawlistCount3D; i++)
     {
@@ -542,8 +343,6 @@ pl_cleanup(void)
         }
         pl_sb_free(ptDrawlist->sbtLayersCreated);
     }
-    pl_sb_free(gptDrawCtx->sbt3dPipelineEntries);
-    pl_sb_free(gptDrawCtx->sbt2dPipelineEntries);
     pl_temp_allocator_free(&gptDrawCtx->tTempAllocator);
 }
 
@@ -561,7 +360,7 @@ pl_request_2d_drawlist(void)
 }
 
 static plDrawLayer2D*
-pl_request_2d_layer(plDrawList2D* ptDrawlist, const char* pcName)
+pl_request_2d_layer(plDrawList2D* ptDrawlist)
 {
    plDrawLayer2D* ptLayer = NULL;
    
@@ -582,7 +381,6 @@ pl_request_2d_layer(plDrawList2D* ptDrawlist, const char* pcName)
         pl_sb_push(ptDrawlist->sbtLayersCreated, ptLayer);
    }
 
-   ptLayer->pcName = pcName;
    pl_sb_reserve(ptLayer->sbuIndexBuffer, 1024);
 
    return ptLayer;
@@ -605,7 +403,7 @@ pl_request_3d_drawlist(void)
     if(ptDrawlist->pt2dDrawlist == NULL)
     {
         ptDrawlist->pt2dDrawlist = pl_request_2d_drawlist();
-        ptDrawlist->ptLayer = pl_request_2d_layer(ptDrawlist->pt2dDrawlist, "3d text");
+        ptDrawlist->ptLayer = pl_request_2d_layer(ptDrawlist->pt2dDrawlist);
     }
     return ptDrawlist;
 }
@@ -655,7 +453,6 @@ pl_return_2d_drawlist(plDrawList2D* ptDrawlist)
 static void
 pl_return_2d_layer(plDrawLayer2D* ptLayer)
 {
-    ptLayer->pcName = "";
     ptLayer->_ptLastCommand = NULL;
     ptLayer->uVertexCount = 0u;
     pl_sb_reset(ptLayer->sbtCommandBuffer);
@@ -674,7 +471,7 @@ pl_submit_2d_layer(plDrawLayer2D* ptLayer)
 static void
 pl_add_lines(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t count, plVec4 color, float thickness)
 {
-    pl__prepare_draw_command(ptLayer, gptDrawCtx->tFontAtlas.tTexture, false);
+    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 6 * count, 4 * count);
 
     for(uint32_t i = 0u; i < count; i++)
@@ -698,10 +495,10 @@ pl_add_lines(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t count, plVec4 co
         };
 
         uint32_t vertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-        pl__add_vertex(ptLayer, cornerPoints[0], color, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-        pl__add_vertex(ptLayer, cornerPoints[1], color, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-        pl__add_vertex(ptLayer, cornerPoints[2], color, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-        pl__add_vertex(ptLayer, cornerPoints[3], color, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
+        pl__add_vertex(ptLayer, cornerPoints[0], color, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+        pl__add_vertex(ptLayer, cornerPoints[1], color, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+        pl__add_vertex(ptLayer, cornerPoints[2], color, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+        pl__add_vertex(ptLayer, cornerPoints[3], color, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
 
         pl__add_index(ptLayer, vertexStart, 0, 1, 2);
         pl__add_index(ptLayer, vertexStart, 0, 2, 3);
@@ -717,9 +514,8 @@ pl_add_line(plDrawLayer2D* ptLayer, plVec2 p0, plVec2 p1, plVec4 tColor, float f
 }
 
 static void
-pl_add_text_ex(plDrawLayer2D* ptLayer, plFontHandle tFontHandle, float size, plVec2 p, plVec4 color, const char* text, const char* pcTextEnd, float wrap)
+pl_add_text_ex(plDrawLayer2D* ptLayer, plFont* font, float size, plVec2 p, plVec4 color, const char* text, const char* pcTextEnd, float wrap)
 {
-    plFont* font = &gptDrawCtx->tFontAtlas.sbtFonts[tFontHandle.uIndex];
 
     float scale = size > 0.0f ? size / font->fSize : 1.0f;
 
@@ -795,7 +591,7 @@ pl_add_text_ex(plDrawLayer2D* ptLayer, plFontHandle tFontHandle, float size, plV
                     p.x += glyph->xAdvance * scale;
                     if(c != ' ')
                     {
-                        pl__prepare_draw_command(ptLayer, gptDrawCtx->tFontAtlas.tTexture, font->_sbtConfigs[ptRange->_uConfigIndex].bSdf);
+                        pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, font->_sbtConfigs[ptRange->_uConfigIndex].bSdf);
                         pl__reserve_triangles(ptLayer, 6, 4);
                         uint32_t uVtxStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
                         pl__add_vertex(ptLayer, (plVec2){x0, y0}, color, (plVec2){s0, t0});
@@ -818,19 +614,17 @@ pl_add_text_ex(plDrawLayer2D* ptLayer, plFontHandle tFontHandle, float size, plV
 }
 
 static void
-pl_add_text(plDrawLayer2D* ptLayer, plFontHandle tFontHandle, float size, plVec2 p, plVec4 color, const char* text, float wrap)
+pl_add_text(plDrawLayer2D* ptLayer, plFont* ptFont, float size, plVec2 p, plVec4 color, const char* text, float wrap)
 {
     const char* pcTextEnd = text + strlen(text);
-    pl_add_text_ex(ptLayer, tFontHandle, size, p, color, text, pcTextEnd, wrap);
+    pl_add_text_ex(ptLayer, ptFont, size, p, color, text, pcTextEnd, wrap);
 }
 
 static void
-pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plFontHandle tFontHandle, float size, plVec2 p, plVec2 tMin, plVec2 tMax, plVec4 color, const char* text, const char* pcTextEnd, float wrap)
+pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plFont* font, float size, plVec2 p, plVec2 tMin, plVec2 tMax, plVec4 color, const char* text, const char* pcTextEnd, float wrap)
 {
     // const plVec2 tTextSize = pl_calculate_text_size_ex(font, size, text, pcTextEnd, wrap);
     const plRect tClipRect = {tMin, tMax};
-
-    plFont* font = &gptDrawCtx->tFontAtlas.sbtFonts[tFontHandle.uIndex];
 
     float scale = size > 0.0f ? size / font->fSize : 1.0f;
 
@@ -906,7 +700,7 @@ pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plFontHandle tFontHandle, float s
                     p.x += glyph->xAdvance * scale;
                     if(c != ' ' && pl_rect_contains_point(&tClipRect, p))
                     {
-                        pl__prepare_draw_command(ptLayer, gptDrawCtx->tFontAtlas.tTexture, font->_sbtConfigs[ptRange->_uConfigIndex].bSdf);
+                        pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, font->_sbtConfigs[ptRange->_uConfigIndex].bSdf);
                         pl__reserve_triangles(ptLayer, 6, 4);
                         uint32_t uVtxStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
                         pl__add_vertex(ptLayer, (plVec2){x0, y0}, color, (plVec2){s0, t0});
@@ -929,10 +723,10 @@ pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plFontHandle tFontHandle, float s
 }
 
 static void
-pl_add_text_clipped(plDrawLayer2D* ptLayer, plFontHandle tFontHandle, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap)
+pl_add_text_clipped(plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap)
 {
     const char* pcTextEnd = pcText + strlen(pcText);
-    pl_add_text_clipped_ex(ptLayer, tFontHandle, fSize, tP, tMin, tMax, tColor, pcText, pcTextEnd, fWrap);
+    pl_add_text_clipped_ex(ptLayer, ptFont, fSize, tP, tMin, tMax, tColor, pcText, pcTextEnd, fWrap);
 }
 
 static void
@@ -948,13 +742,13 @@ pl_add_triangle(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVe
 static void
 pl_add_triangle_filled(plDrawLayer2D* ptLayer, plVec2 p0, plVec2 p1, plVec2 p2, plVec4 color)
 {
-    pl__prepare_draw_command(ptLayer, gptDrawCtx->tFontAtlas.tTexture, false);
+    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 3, 3);
 
     uint32_t vertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-    pl__add_vertex(ptLayer, p0, color, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-    pl__add_vertex(ptLayer, p1, color, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-    pl__add_vertex(ptLayer, p2, color, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
+    pl__add_vertex(ptLayer, p0, color, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+    pl__add_vertex(ptLayer, p1, color, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+    pl__add_vertex(ptLayer, p2, color, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
 
     pl__add_index(ptLayer, vertexStart, 0, 1, 2);
 }
@@ -976,17 +770,17 @@ pl_add_rect(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plVec4 tColor, f
 static void
 pl_add_rect_filled(plDrawLayer2D* ptLayer, plVec2 minP, plVec2 maxP, plVec4 color)
 {
-    pl__prepare_draw_command(ptLayer, gptDrawCtx->tFontAtlas.tTexture, false);
+    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 6, 4);
 
     const plVec2 bottomLeft = { minP.x, maxP.y };
     const plVec2 topRight =   { maxP.x, minP.y };
 
     const uint32_t vertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-    pl__add_vertex(ptLayer, minP,       color, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-    pl__add_vertex(ptLayer, bottomLeft, color, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-    pl__add_vertex(ptLayer, maxP,       color, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-    pl__add_vertex(ptLayer, topRight,   color, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
+    pl__add_vertex(ptLayer, minP,       color, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+    pl__add_vertex(ptLayer, bottomLeft, color, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+    pl__add_vertex(ptLayer, maxP,       color, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+    pl__add_vertex(ptLayer, topRight,   color, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
 
     pl__add_index(ptLayer, vertexStart, 0, 1, 2);
     pl__add_index(ptLayer, vertexStart, 0, 2, 3);
@@ -1092,7 +886,7 @@ pl_add_rect_rounded_filled_ex(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP
 
     if(uSegments == 0){ uSegments = 4; }
 
-    pl__prepare_draw_command(ptLayer, gptDrawCtx->tFontAtlas.tTexture, false);
+    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 30, 12);
 
     const plVec2 tInnerTopLeft = {tMinP.x + fRadius, tMinP.y + fRadius};
@@ -1110,19 +904,19 @@ pl_add_rect_rounded_filled_ex(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP
     const plVec2 tOuterTopRight1 = {tMaxP.x - fRadius, tMinP.y};
     
     const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-    pl__add_vertex(ptLayer, tInnerTopLeft, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-    pl__add_vertex(ptLayer, tInnerBottomLeft, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-    pl__add_vertex(ptLayer, tInnerBottomRight, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-    pl__add_vertex(ptLayer, tInnerTopRight, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tInnerTopLeft, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tInnerBottomLeft, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tInnerBottomRight, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tInnerTopRight, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
 
-    pl__add_vertex(ptLayer, tOuterTopLeft1, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-    pl__add_vertex(ptLayer, tOuterBottomLeft0, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-    pl__add_vertex(ptLayer, tOuterBottomLeft1, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-    pl__add_vertex(ptLayer, tOuterBottomRight0, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-    pl__add_vertex(ptLayer, tOuterBottomRight1, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-    pl__add_vertex(ptLayer, tOuterTopRight0, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-    pl__add_vertex(ptLayer, tOuterTopRight1, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
-    pl__add_vertex(ptLayer, tOuterTopLeft0, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tOuterTopLeft1, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tOuterBottomLeft0, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tOuterBottomLeft1, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tOuterBottomRight0, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tOuterBottomRight1, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tOuterTopRight0, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tOuterTopRight1, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tOuterTopLeft0, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
     
     // center
     pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
@@ -1243,14 +1037,14 @@ pl_add_quad(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 t
 static void
 pl_add_quad_filled(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec4 tColor)
 {
-    pl__prepare_draw_command(ptLayer, gptDrawCtx->tFontAtlas.tTexture, false);
+    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 6, 4);
 
     const uint32_t uVtxStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-    pl__add_vertex(ptLayer, tP0, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]}); // top left
-    pl__add_vertex(ptLayer, tP1, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]}); // bot left
-    pl__add_vertex(ptLayer, tP2, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]}); // bot right
-    pl__add_vertex(ptLayer, tP3, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]}); // top right
+    pl__add_vertex(ptLayer, tP0, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]}); // top left
+    pl__add_vertex(ptLayer, tP1, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]}); // bot left
+    pl__add_vertex(ptLayer, tP2, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]}); // bot right
+    pl__add_vertex(ptLayer, tP3, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]}); // top right
 
     pl__add_index(ptLayer, uVtxStart, 0, 1, 2);
     pl__add_index(ptLayer, uVtxStart, 0, 2, 3);
@@ -1275,17 +1069,17 @@ static void
 pl_add_circle_filled(plDrawLayer2D* ptLayer, plVec2 tP, float fRadius, plVec4 tColor, uint32_t uSegments)
 {
     if(uSegments == 0){ uSegments = 12; }
-    pl__prepare_draw_command(ptLayer, gptDrawCtx->tFontAtlas.tTexture, false);
+    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 3 * uSegments, uSegments + 1);
 
     const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-    pl__add_vertex(ptLayer, tP, tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
+    pl__add_vertex(ptLayer, tP, tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
 
     const float fIncrement = PL_2PI / uSegments;
     float fTheta = 0.0f;
     for(uint32_t i = 0; i < uSegments; i++)
     {
-        pl__add_vertex(ptLayer, ((plVec2){tP.x + (fRadius * sinf(fTheta + PL_PI_2)), tP.y + (fRadius * sinf(fTheta))}), tColor, (plVec2){gptDrawCtx->tFontAtlas.afWhiteUv[0], gptDrawCtx->tFontAtlas.afWhiteUv[1]});
+        pl__add_vertex(ptLayer, ((plVec2){tP.x + (fRadius * sinf(fTheta + PL_PI_2)), tP.y + (fRadius * sinf(fTheta))}), tColor, (plVec2){gptDrawCtx->ptAtlas->afWhiteUv[0], gptDrawCtx->ptAtlas->afWhiteUv[1]});
         fTheta += fIncrement;
     }
 
@@ -1295,7 +1089,7 @@ pl_add_circle_filled(plDrawLayer2D* ptLayer, plVec2 tP, float fRadius, plVec4 tC
 }
 
 static void
-pl_add_image_ex(plDrawLayer2D* ptLayer, plTextureHandle tTexture, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, plVec4 tColor)
+pl_add_image_ex(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, plVec4 tColor)
 {
     pl__prepare_draw_command(ptLayer, tTexture, false);
     pl__reserve_triangles(ptLayer, 6, 4);
@@ -1314,7 +1108,7 @@ pl_add_image_ex(plDrawLayer2D* ptLayer, plTextureHandle tTexture, plVec2 tPMin, 
 }
 
 static void
-pl_add_image(plDrawLayer2D* ptLayer, plTextureHandle tTexture, plVec2 tPMin, plVec2 tPMax)
+pl_add_image(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tPMin, plVec2 tPMax)
 {
     pl_add_image_ex(ptLayer, tTexture, tPMin, tPMax, (plVec2){0}, (plVec2){1.0f, 1.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f});
 }
@@ -1431,43 +1225,24 @@ plu__read_file(const char* file)
 }
 
 static plFont*
-pl_get_font(plFontHandle tHandle)
+pl_add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig config, void* data)
 {
-    if(tHandle.uIndex == UINT32_MAX)
-        return NULL;
-    return &gptDrawCtx->tFontAtlas.sbtFonts[tHandle.uIndex];
-}
-
-static plFontHandle
-pl_add_font_from_memory_ttf(plFontConfig config, void* data)
-{
-    gptDrawCtx->tFontAtlas.bDirty = true;
-    gptDrawCtx->tFontAtlas.iGlyphPadding = 1;
+    ptAtlas->bDirty = true;
+    ptAtlas->iGlyphPadding = 1;
 
     plFont* ptFont = NULL;
-    plFontHandle tHandle = {.ulData = UINT64_MAX};
     if(config.bMergeFont)
     {
-        ptFont = &gptDrawCtx->tFontAtlas.sbtFonts[config.tMergeFont.uIndex];
+        ptFont = config.tMergeFont;
     }
     else
     {
-        uint32_t uFontIndex = UINT32_MAX;
-        if(pl_sb_size(gptDrawCtx->tFontAtlas.sbtFontFreeIndices) > 0)
-            uFontIndex = pl_sb_pop(gptDrawCtx->tFontAtlas.sbtFontFreeIndices);
-        else
-        {
-            uFontIndex = pl_sb_size(gptDrawCtx->tFontAtlas.sbtFonts);
-            pl_sb_add(gptDrawCtx->tFontAtlas.sbtFonts);
-            pl_sb_push(gptDrawCtx->tFontAtlas.sbtFontGenerations, UINT32_MAX);
-        }
-
-        tHandle.uGeneration = ++gptDrawCtx->tFontAtlas.sbtFontGenerations[uFontIndex];
-        tHandle.uIndex = uFontIndex;
-
-        ptFont = &gptDrawCtx->tFontAtlas.sbtFonts[uFontIndex];
+        ptFont = PL_ALLOC(sizeof(plFont));
+        memset(ptFont, 0, sizeof(plFont));
         ptFont->fLineSpacing = 0.0f;
         ptFont->fSize = config.fFontSize;
+        ptFont->_ptNextFont = ptAtlas->_ptFontListHead;
+        ptAtlas->_ptFontListHead = ptFont;
     }
     const uint32_t uConfigIndex = pl_sb_size(ptFont->_sbtConfigs);
     const uint32_t uPrepIndex = uConfigIndex;
@@ -1528,7 +1303,7 @@ pl_add_font_from_memory_ttf(plFontConfig config, void* data)
 
     if(config.bSdf)
     {
-        pl_sb_reserve(gptDrawCtx->tFontAtlas.sbtCustomRects, pl_sb_size(gptDrawCtx->tFontAtlas.sbtCustomRects) + totalCharCount); // is this correct
+        pl_sb_reserve(ptAtlas->sbtCustomRects, pl_sb_size(ptAtlas->sbtCustomRects) + totalCharCount); // is this correct
     }
 
     ptPrep->ranges = PL_ALLOC(sizeof(stbtt_pack_range) * pl_sb_size(config._sbtRanges));
@@ -1606,8 +1381,8 @@ pl_add_font_from_memory_ttf(plFontConfig config, void* data)
                     .uHeight = (uint32_t)height,
                     .pucBytes = bytes
                 };
-                pl_sb_push(gptDrawCtx->tFontAtlas.sbtCustomRects, customRect);
-                gptDrawCtx->tFontAtlas.fTotalArea += width * height;
+                pl_sb_push(ptAtlas->sbtCustomRects, customRect);
+                ptAtlas->fTotalArea += width * height;
                 
             }
             k += ptPrep->ranges[i].num_chars;
@@ -1634,9 +1409,9 @@ pl_add_font_from_memory_ttf(plFontConfig config, void* data)
                                                     ptPrep->scale * config.uHOverSampling,
                                                     ptPrep->scale * config.uVOverSampling,
                                                     0, 0, &x0, &y0, &x1, &y1);
-                    ptPrep->rects[k].w = (stbrp_coord)(x1 - x0 + gptDrawCtx->tFontAtlas.iGlyphPadding + config.uHOverSampling - 1);
-                    ptPrep->rects[k].h = (stbrp_coord)(y1 - y0 + gptDrawCtx->tFontAtlas.iGlyphPadding + config.uVOverSampling - 1);
-                    gptDrawCtx->tFontAtlas.fTotalArea += ptPrep->rects[k].w * ptPrep->rects[k].h;
+                    ptPrep->rects[k].w = (stbrp_coord)(x1 - x0 + ptAtlas->iGlyphPadding + config.uHOverSampling - 1);
+                    ptPrep->rects[k].h = (stbrp_coord)(y1 - y0 + ptAtlas->iGlyphPadding + config.uVOverSampling - 1);
+                    ptAtlas->fTotalArea += ptPrep->rects[k].w * ptPrep->rects[k].h;
                     if (glyphIndex == 0) missingGlyphAdded = true; 
                 }
                 k++;
@@ -1658,23 +1433,21 @@ pl_add_font_from_memory_ttf(plFontConfig config, void* data)
         PL_FREE(puOldCodePoints);
     }
     ptFont->_sbtConfigs[uConfigIndex] = config;
-    return tHandle;
+    return ptFont;
 }
 
-static plFontHandle
-pl_add_font_from_file_ttf(plFontConfig config, const char* file)
+static plFont*
+pl_add_font_from_file_ttf(plFontAtlas* ptAtlas, plFontConfig config, const char* file)
 {
     void* data = plu__read_file(file); // freed after atlas is created
-    return pl_add_font_from_memory_ttf(config, data);
+    return pl_add_font_from_memory_ttf(ptAtlas, config, data);
 }
 
 static plVec2
-pl_calculate_text_size_ex(plFontHandle tFontHandle, float size, const char* text, const char* pcTextEnd, float wrap)
+pl_calculate_text_size_ex(plFont* font, float size, const char* text, const char* pcTextEnd, float wrap)
 {
     plVec2 result = {0};
     plVec2 cursor = {0};
-
-    plFont* font = &gptDrawCtx->tFontAtlas.sbtFonts[tFontHandle.uIndex];
 
     float scale = size > 0.0f ? size / font->fSize : 1.0f;
 
@@ -1769,19 +1542,17 @@ pl_calculate_text_size_ex(plFontHandle tFontHandle, float size, const char* text
 }
 
 static plVec2
-pl_calculate_text_size(plFontHandle tFontHandle, float size, const char* text, float wrap)
+pl_calculate_text_size(plFont* font, float size, const char* text, float wrap)
 {
     const char* pcTextEnd = text + strlen(text);
-    return pl_calculate_text_size_ex(tFontHandle, size, text, pcTextEnd, wrap);
+    return pl_calculate_text_size_ex(font, size, text, pcTextEnd, wrap);
 }
 
 static plRect
-pl_calculate_text_bb_ex(plFontHandle tFontHandle, float size, plVec2 tP, const char* text, const char* pcTextEnd, float wrap)
+pl_calculate_text_bb_ex(plFont* font, float size, plVec2 tP, const char* text, const char* pcTextEnd, float wrap)
 {
     plVec2 tTextSize = {0};
     plVec2 cursor = {0};
-
-    plFont* font = &gptDrawCtx->tFontAtlas.sbtFonts[tFontHandle.uIndex];
 
     float scale = size > 0.0f ? size / font->fSize : 1.0f;
 
@@ -1883,10 +1654,10 @@ pl_calculate_text_bb_ex(plFontHandle tFontHandle, float size, plVec2 tP, const c
 }
 
 static plRect
-pl_calculate_text_bb(plFontHandle tFontHandle, float fSize, plVec2 tP, const char* pcText, float fWrap)
+pl_calculate_text_bb(plFont* ptFont, float fSize, plVec2 tP, const char* pcText, float fWrap)
 {
     const char* pcTextEnd = pcText + strlen(pcText);
-    return pl_calculate_text_bb_ex(tFontHandle, fSize, tP, pcText, pcTextEnd, fWrap);
+    return pl_calculate_text_bb_ex(ptFont, fSize, tP, pcText, pcTextEnd, fWrap);
 }
 
 static void
@@ -1917,8 +1688,29 @@ pl_get_clip_rect(plDrawList2D* ptDrawlist)
     return NULL;
 }
 
+static plFontAtlas*
+pl_create_font_atlas(void)
+{
+    static plFontAtlas tAtlas = {
+        0
+    };
+    return &tAtlas;
+}
+
 static void
-pl_build_font_atlas(void)
+pl_set_font_atlas(plFontAtlas* ptAtlas)
+{
+    gptDrawCtx->ptAtlas = ptAtlas;
+}
+
+static plFontAtlas*
+pl_get_font_atlas(void)
+{
+    return gptDrawCtx->ptAtlas;
+}
+
+static bool
+pl_prepare_font_atlas(plFontAtlas* ptAtlas)
 {
 
     // create our white location
@@ -1930,37 +1722,37 @@ pl_build_font_atlas(void)
         .pucBytes = malloc(64)
     };
     memset(ptWhiteRect.pucBytes, 255, 64);
-    pl_sb_push(gptDrawCtx->tFontAtlas.sbtCustomRects, ptWhiteRect);
-    gptDrawCtx->tFontAtlas.ptWhiteRect = &pl_sb_back(gptDrawCtx->tFontAtlas.sbtCustomRects);
-    gptDrawCtx->tFontAtlas.fTotalArea += 64;
+    pl_sb_push(ptAtlas->sbtCustomRects, ptWhiteRect);
+    ptAtlas->ptWhiteRect = &pl_sb_back(ptAtlas->sbtCustomRects);
+    ptAtlas->fTotalArea += 64;
 
     // calculate final texture area required
-    const float totalAtlasAreaSqrt = (float)sqrt((float)gptDrawCtx->tFontAtlas.fTotalArea) + 1.0f;
-    gptDrawCtx->tFontAtlas.auAtlasSize[0] = 512;
-    gptDrawCtx->tFontAtlas.auAtlasSize[1] = 0;
-    if     (totalAtlasAreaSqrt >= 4096 * 0.7f) gptDrawCtx->tFontAtlas.auAtlasSize[0] = 4096;
-    else if(totalAtlasAreaSqrt >= 2048 * 0.7f) gptDrawCtx->tFontAtlas.auAtlasSize[0] = 2048;
-    else if(totalAtlasAreaSqrt >= 1024 * 0.7f) gptDrawCtx->tFontAtlas.auAtlasSize[0] = 1024;
+    const float totalAtlasAreaSqrt = (float)sqrt((float)ptAtlas->fTotalArea) + 1.0f;
+    ptAtlas->auAtlasSize[0] = 512;
+    ptAtlas->auAtlasSize[1] = 0;
+    if     (totalAtlasAreaSqrt >= 4096 * 0.7f) ptAtlas->auAtlasSize[0] = 4096;
+    else if(totalAtlasAreaSqrt >= 2048 * 0.7f) ptAtlas->auAtlasSize[0] = 2048;
+    else if(totalAtlasAreaSqrt >= 1024 * 0.7f) ptAtlas->auAtlasSize[0] = 1024;
 
     // begin packing
     stbtt_pack_context spc = {0};
-    stbtt_PackBegin(&spc, NULL, gptDrawCtx->tFontAtlas.auAtlasSize[0], 1024 * 32, 0, gptDrawCtx->tFontAtlas.iGlyphPadding, NULL);
+    stbtt_PackBegin(&spc, NULL, ptAtlas->auAtlasSize[0], 1024 * 32, 0, ptAtlas->iGlyphPadding, NULL);
 
     // allocate SDF rects
-    stbrp_rect* rects = PL_ALLOC(pl_sb_size(gptDrawCtx->tFontAtlas.sbtCustomRects) * sizeof(stbrp_rect));
-    memset(rects, 0, sizeof(stbrp_rect) * pl_sb_size(gptDrawCtx->tFontAtlas.sbtCustomRects));
+    stbrp_rect* rects = PL_ALLOC(pl_sb_size(ptAtlas->sbtCustomRects) * sizeof(stbrp_rect));
+    memset(rects, 0, sizeof(stbrp_rect) * pl_sb_size(ptAtlas->sbtCustomRects));
 
     // transfer our data to stb data
-    for(uint32_t i = 0u; i < pl_sb_size(gptDrawCtx->tFontAtlas.sbtCustomRects); i++)
+    for(uint32_t i = 0u; i < pl_sb_size(ptAtlas->sbtCustomRects); i++)
     {
-        rects[i].w = (int)gptDrawCtx->tFontAtlas.sbtCustomRects[i].uWidth;
-        rects[i].h = (int)gptDrawCtx->tFontAtlas.sbtCustomRects[i].uHeight;
+        rects[i].w = (int)ptAtlas->sbtCustomRects[i].uWidth;
+        rects[i].h = (int)ptAtlas->sbtCustomRects[i].uHeight;
     }
     
     // pack bitmap fonts
-    for(uint32_t i = 0u; i < pl_sb_size(gptDrawCtx->tFontAtlas.sbtFonts); i++)
+    plFont* font = ptAtlas->_ptFontListHead;
+    while(font)
     {
-        plFont* font = &gptDrawCtx->tFontAtlas.sbtFonts[i];
         for(uint32_t j = 0; j < pl_sb_size(font->sbtRanges); j++)
         {
             plFontRange* ptRange = &font->sbtRanges[j];
@@ -1974,62 +1766,63 @@ pl_build_font_atlas(void)
                     for(uint32_t k = 0u; k < prep->uTotalCharCount; k++)
                     {
                         if(prep->rects[k].was_packed)
-                            gptDrawCtx->tFontAtlas.auAtlasSize[1] = (uint32_t)pl__get_max((float)gptDrawCtx->tFontAtlas.auAtlasSize[1], (float)(prep->rects[k].y + prep->rects[k].h));
+                            ptAtlas->auAtlasSize[1] = (uint32_t)pl__get_max((float)ptAtlas->auAtlasSize[1], (float)(prep->rects[k].y + prep->rects[k].h));
                     }
                     prep->bPrepped = true;
                 }
             }
         }
-
+        font = font->_ptNextFont;
     }
 
     // pack SDF fonts
     stbtt_PackSetOversampling(&spc, 1, 1);
-    stbrp_pack_rects((stbrp_context*)spc.pack_info, rects, pl_sb_size(gptDrawCtx->tFontAtlas.sbtCustomRects));
+    stbrp_pack_rects((stbrp_context*)spc.pack_info, rects, pl_sb_size(ptAtlas->sbtCustomRects));
 
-    for(uint32_t i = 0u; i < pl_sb_size(gptDrawCtx->tFontAtlas.sbtCustomRects); i++)
+    for(uint32_t i = 0u; i < pl_sb_size(ptAtlas->sbtCustomRects); i++)
     {
         if(rects[i].was_packed)
-            gptDrawCtx->tFontAtlas.auAtlasSize[1] = (uint32_t)pl__get_max((float)gptDrawCtx->tFontAtlas.auAtlasSize[1], (float)(rects[i].y + rects[i].h));
+            ptAtlas->auAtlasSize[1] = (uint32_t)pl__get_max((float)ptAtlas->auAtlasSize[1], (float)(rects[i].y + rects[i].h));
     }
 
     // grow cpu side buffers if needed
-    if(gptDrawCtx->tFontAtlas.szPixelDataSize < gptDrawCtx->tFontAtlas.auAtlasSize[0] * gptDrawCtx->tFontAtlas.auAtlasSize[1])
+    if(ptAtlas->szPixelDataSize < ptAtlas->auAtlasSize[0] * ptAtlas->auAtlasSize[1])
     {
-        if(gptDrawCtx->tFontAtlas.pucPixelsAsAlpha8) PL_FREE(gptDrawCtx->tFontAtlas.pucPixelsAsAlpha8);
-        if(gptDrawCtx->tFontAtlas.pucPixelsAsRGBA32) PL_FREE(gptDrawCtx->tFontAtlas.pucPixelsAsRGBA32);
+        if(ptAtlas->pucPixelsAsAlpha8) PL_FREE(ptAtlas->pucPixelsAsAlpha8);
+        if(ptAtlas->pucPixelsAsRGBA32) PL_FREE(ptAtlas->pucPixelsAsRGBA32);
 
-        gptDrawCtx->tFontAtlas.pucPixelsAsAlpha8 = PL_ALLOC(gptDrawCtx->tFontAtlas.auAtlasSize[0] * gptDrawCtx->tFontAtlas.auAtlasSize[1]);   
-        gptDrawCtx->tFontAtlas.pucPixelsAsRGBA32 = PL_ALLOC(gptDrawCtx->tFontAtlas.auAtlasSize[0] * gptDrawCtx->tFontAtlas.auAtlasSize[1] * 4);
+        ptAtlas->pucPixelsAsAlpha8 = PL_ALLOC(ptAtlas->auAtlasSize[0] * ptAtlas->auAtlasSize[1]);   
+        ptAtlas->pucPixelsAsRGBA32 = PL_ALLOC(ptAtlas->auAtlasSize[0] * ptAtlas->auAtlasSize[1] * 4);
 
-        memset(gptDrawCtx->tFontAtlas.pucPixelsAsAlpha8, 0, gptDrawCtx->tFontAtlas.auAtlasSize[0] * gptDrawCtx->tFontAtlas.auAtlasSize[1]);
-        memset(gptDrawCtx->tFontAtlas.pucPixelsAsRGBA32, 0, gptDrawCtx->tFontAtlas.auAtlasSize[0] * gptDrawCtx->tFontAtlas.auAtlasSize[1] * 4);
+        memset(ptAtlas->pucPixelsAsAlpha8, 0, ptAtlas->auAtlasSize[0] * ptAtlas->auAtlasSize[1]);
+        memset(ptAtlas->pucPixelsAsRGBA32, 0, ptAtlas->auAtlasSize[0] * ptAtlas->auAtlasSize[1] * 4);
     }
-    spc.pixels = gptDrawCtx->tFontAtlas.pucPixelsAsAlpha8;
-    gptDrawCtx->tFontAtlas.szPixelDataSize = gptDrawCtx->tFontAtlas.auAtlasSize[0] * gptDrawCtx->tFontAtlas.auAtlasSize[1];
+    spc.pixels = ptAtlas->pucPixelsAsAlpha8;
+    ptAtlas->szPixelDataSize = ptAtlas->auAtlasSize[0] * ptAtlas->auAtlasSize[1];
 
     // rasterize bitmap fonts
-    for(uint32_t i = 0u; i < pl_sb_size(gptDrawCtx->tFontAtlas.sbtFonts); i++)
+    font = ptAtlas->_ptFontListHead;
+    while(font)
     {
-        plFont* font = &gptDrawCtx->tFontAtlas.sbtFonts[i];
         for(uint32_t j = 0; j < pl_sb_size(font->_sbtConfigs); j++)
         {
             plFontPrepData* prep = &font->_sbtPreps[j];
             if(!font->_sbtConfigs[j].bSdf)
                 stbtt_PackFontRangesRenderIntoRects(&spc, &prep->fontInfo, prep->ranges, pl_sb_size(font->_sbtConfigs[j]._sbtRanges), prep->rects);
         }
+        font = font->_ptNextFont;
     }
 
     // update SDF/custom data
-    for(uint32_t i = 0u; i < pl_sb_size(gptDrawCtx->tFontAtlas.sbtCustomRects); i++)
+    for(uint32_t i = 0u; i < pl_sb_size(ptAtlas->sbtCustomRects); i++)
     {
-        gptDrawCtx->tFontAtlas.sbtCustomRects[i].uX = (uint32_t)rects[i].x;
-        gptDrawCtx->tFontAtlas.sbtCustomRects[i].uY = (uint32_t)rects[i].y;
+        ptAtlas->sbtCustomRects[i].uX = (uint32_t)rects[i].x;
+        ptAtlas->sbtCustomRects[i].uY = (uint32_t)rects[i].y;
     }
 
-    for(uint32_t fontIndex = 0u; fontIndex < pl_sb_size(gptDrawCtx->tFontAtlas.sbtFonts); fontIndex++)
+    font = ptAtlas->_ptFontListHead;
+    while(font)
     {
-        plFont* font = &gptDrawCtx->tFontAtlas.sbtFonts[fontIndex];
         uint32_t charDataOffset = 0u;
         for(uint32_t j = 0; j < pl_sb_size(font->_sbtConfigs); j++)
         {
@@ -2040,39 +1833,39 @@ pl_build_font_atlas(void)
                 {
                     ptConfig->_sbtCharData[i].x0 = (uint16_t)rects[charDataOffset + i].x;
                     ptConfig->_sbtCharData[i].y0 = (uint16_t)rects[charDataOffset + i].y;
-                    ptConfig->_sbtCharData[i].x1 = (uint16_t)(rects[charDataOffset + i].x + gptDrawCtx->tFontAtlas.sbtCustomRects[charDataOffset + i].uWidth);
-                    ptConfig->_sbtCharData[i].y1 = (uint16_t)(rects[charDataOffset + i].y + gptDrawCtx->tFontAtlas.sbtCustomRects[charDataOffset + i].uHeight);
+                    ptConfig->_sbtCharData[i].x1 = (uint16_t)(rects[charDataOffset + i].x + ptAtlas->sbtCustomRects[charDataOffset + i].uWidth);
+                    ptConfig->_sbtCharData[i].y1 = (uint16_t)(rects[charDataOffset + i].y + ptAtlas->sbtCustomRects[charDataOffset + i].uHeight);
                 }
                 charDataOffset += pl_sb_size(ptConfig->_sbtCharData);  
             }
         }
-
+        font = font->_ptNextFont;
     }
 
     // end packing
     stbtt_PackEnd(&spc);
 
     // rasterize SDF/custom rects
-    for(uint32_t r = 0u; r < pl_sb_size(gptDrawCtx->tFontAtlas.sbtCustomRects); r++)
+    for(uint32_t r = 0u; r < pl_sb_size(ptAtlas->sbtCustomRects); r++)
     {
-        plFontCustomRect* customRect = &gptDrawCtx->tFontAtlas.sbtCustomRects[r];
+        plFontCustomRect* customRect = &ptAtlas->sbtCustomRects[r];
         for(uint32_t i = 0u; i < customRect->uHeight; i++)
         {
             for(uint32_t j = 0u; j < customRect->uWidth; j++)
-                gptDrawCtx->tFontAtlas.pucPixelsAsAlpha8[(customRect->uY + i) * gptDrawCtx->tFontAtlas.auAtlasSize[0] + (customRect->uX + j)] =  customRect->pucBytes[i * customRect->uWidth + j];
+                ptAtlas->pucPixelsAsAlpha8[(customRect->uY + i) * ptAtlas->auAtlasSize[0] + (customRect->uX + j)] =  customRect->pucBytes[i * customRect->uWidth + j];
         }
         stbtt_FreeSDF(customRect->pucBytes, NULL);
         customRect->pucBytes = NULL;
     }
 
     // update white point uvs
-    gptDrawCtx->tFontAtlas.afWhiteUv[0] = (float)(gptDrawCtx->tFontAtlas.ptWhiteRect->uX + gptDrawCtx->tFontAtlas.ptWhiteRect->uWidth / 2) / (float)gptDrawCtx->tFontAtlas.auAtlasSize[0];
-    gptDrawCtx->tFontAtlas.afWhiteUv[1] = (float)(gptDrawCtx->tFontAtlas.ptWhiteRect->uY + gptDrawCtx->tFontAtlas.ptWhiteRect->uHeight / 2) / (float)gptDrawCtx->tFontAtlas.auAtlasSize[1];
+    ptAtlas->afWhiteUv[0] = (float)(ptAtlas->ptWhiteRect->uX + ptAtlas->ptWhiteRect->uWidth / 2) / (float)ptAtlas->auAtlasSize[0];
+    ptAtlas->afWhiteUv[1] = (float)(ptAtlas->ptWhiteRect->uY + ptAtlas->ptWhiteRect->uHeight / 2) / (float)ptAtlas->auAtlasSize[1];
 
     // add glyphs
-    for(uint32_t fontIndex = 0u; fontIndex < pl_sb_size(gptDrawCtx->tFontAtlas.sbtFonts); fontIndex++)
+    font = ptAtlas->_ptFontListHead;
+    while(font)
     {
-        plFont* font = &gptDrawCtx->tFontAtlas.sbtFonts[fontIndex];
 
         uint32_t uConfigIndex = 0u;
         uint32_t charIndex = 0u;
@@ -2087,7 +1880,7 @@ pl_build_font_atlas(void)
                 uConfigIndex = range->_uConfigIndex;
             }
             if(font->_sbtConfigs[range->_uConfigIndex].bSdf)
-                pixelHeight = 0.5f * 1.0f / (float)gptDrawCtx->tFontAtlas.auAtlasSize[1]; // is this correct?
+                pixelHeight = 0.5f * 1.0f / (float)ptAtlas->auAtlasSize[1]; // is this correct?
             else
                 pixelHeight = 0.0f;
             for(uint32_t j = 0u; j < range->uCharCount; j++)
@@ -2096,7 +1889,7 @@ pl_build_font_atlas(void)
                 const int codePoint = range->iFirstCodePoint + j;
                 stbtt_aligned_quad q;
                 float unused_x = 0.0f, unused_y = 0.0f;
-                stbtt_GetPackedQuad((stbtt_packedchar*)font->_sbtConfigs[range->_uConfigIndex]._sbtCharData, gptDrawCtx->tFontAtlas.auAtlasSize[0], gptDrawCtx->tFontAtlas.auAtlasSize[1], charIndex, &unused_x, &unused_y, &q, 0);
+                stbtt_GetPackedQuad((stbtt_packedchar*)font->_sbtConfigs[range->_uConfigIndex]._sbtCharData, ptAtlas->auAtlasSize[0], ptAtlas->auAtlasSize[1], charIndex, &unused_x, &unused_y, &q, 0);
 
                 int unusedAdvanced, leftSideBearing;
                 stbtt_GetCodepointHMetrics(&font->_sbtPreps[range->_uConfigIndex].fontInfo, codePoint, &unusedAdvanced, &leftSideBearing);
@@ -2132,81 +1925,31 @@ pl_build_font_atlas(void)
         {
             pl_sb_free(font->_sbtConfigs[i]._sbtCharData);
         }
-    
+        font = font->_ptNextFont;
     }
 
     // convert to 4 color channels
-    for(uint32_t i = 0u; i < gptDrawCtx->tFontAtlas.auAtlasSize[0] * gptDrawCtx->tFontAtlas.auAtlasSize[1]; i++)
+    for(uint32_t i = 0u; i < ptAtlas->auAtlasSize[0] * ptAtlas->auAtlasSize[1]; i++)
     {
-        gptDrawCtx->tFontAtlas.pucPixelsAsRGBA32[i * 4] = 255;
-        gptDrawCtx->tFontAtlas.pucPixelsAsRGBA32[i * 4 + 1] = 255;
-        gptDrawCtx->tFontAtlas.pucPixelsAsRGBA32[i * 4 + 2] = 255;
-        gptDrawCtx->tFontAtlas.pucPixelsAsRGBA32[i * 4 + 3] = gptDrawCtx->tFontAtlas.pucPixelsAsAlpha8[i];
+        ptAtlas->pucPixelsAsRGBA32[i * 4] = 255;
+        ptAtlas->pucPixelsAsRGBA32[i * 4 + 1] = 255;
+        ptAtlas->pucPixelsAsRGBA32[i * 4 + 2] = 255;
+        ptAtlas->pucPixelsAsRGBA32[i * 4 + 3] = ptAtlas->pucPixelsAsAlpha8[i];
     }
 
     PL_FREE(rects);
-
-    // create dummy texture
-    const plTextureDesc tFontTextureDesc = {
-        .tDimensions   = {(float)gptDrawCtx->tFontAtlas.auAtlasSize[0], (float)gptDrawCtx->tFontAtlas.auAtlasSize[1], 1},
-        .tFormat       = PL_FORMAT_R8G8B8A8_UNORM,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_SAMPLED,
-        .tInitialUsage = PL_TEXTURE_USAGE_SAMPLED
-    };
-
-    plDevice* ptDevice = gptDrawCtx->ptDevice;
-    gptDrawCtx->tFontAtlas.tTexture = gptGfx->create_texture(ptDevice, &tFontTextureDesc, "font texture");
-
-    plTexture* ptTexture = gptGfx->get_texture(ptDevice, gptDrawCtx->tFontAtlas.tTexture);
-
-    const plDeviceMemoryAllocation tAllocation = gptGfx->allocate_memory(ptDevice,
-        ptTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_GPU,
-        ptTexture->tMemoryRequirements.uMemoryTypeBits,
-        "font texture memory");
-
-    gptGfx->bind_texture_to_memory(ptDevice, gptDrawCtx->tFontAtlas.tTexture, &tAllocation);
-
-    const plBufferDescription tBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_STAGING,
-        .uByteSize = gptDrawCtx->tFontAtlas.auAtlasSize[0] * gptDrawCtx->tFontAtlas.auAtlasSize[1] * 4
-    };
-    plBufferHandle tStagingBuffer = pl__create_staging_buffer(&tBufferDesc, "font staging buffer", 0);
-    plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, tStagingBuffer);
-    memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, gptDrawCtx->tFontAtlas.pucPixelsAsRGBA32, tBufferDesc.uByteSize);
-
-    // begin recording
-    plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(gptDrawCtx->ptDevice, NULL);
-    
-    // begin blit pass, copy texture, end pass
-    plBlitEncoderHandle tEncoder = gptGfx->begin_blit_pass(tCommandBuffer);
-
-    const plBufferImageCopy tBufferImageCopy = {
-        .tImageExtent = {(uint32_t)gptDrawCtx->tFontAtlas.auAtlasSize[0], (uint32_t)gptDrawCtx->tFontAtlas.auAtlasSize[1], 1},
-        .uLayerCount = 1
-    };
-
-    gptGfx->copy_buffer_to_texture(tEncoder, tStagingBuffer, gptDrawCtx->tFontAtlas.tTexture, 1, &tBufferImageCopy);
-    gptGfx->end_blit_pass(tEncoder);
-
-    // finish recording
-    gptGfx->end_command_recording(tCommandBuffer);
-
-    // submit command buffer
-    gptGfx->submit_command_buffer_blocking(tCommandBuffer, NULL);
-
-    gptGfx->destroy_buffer(ptDevice, tStagingBuffer);
+    return true;
 }
 
 static void
-pl_cleanup_font_atlas(void)
+pl_cleanup_font_atlas(plFontAtlas* ptAtlas)
 {
-    for(uint32_t i = 0; i < pl_sb_size(gptDrawCtx->tFontAtlas.sbtFonts); i++)
+    if(ptAtlas == NULL)
+        ptAtlas = gptDrawCtx->ptAtlas;
+
+    plFont* font = ptAtlas->_ptFontListHead;
+    while(font)
     {
-        plFont* font = &gptDrawCtx->tFontAtlas.sbtFonts[i];
 
         PL_FREE(font->_auCodePoints);
         pl_sb_free(font->sbtGlyphs);
@@ -2216,23 +1959,22 @@ pl_cleanup_font_atlas(void)
             pl_sb_free(font->_sbtConfigs[j]._sbtRanges);
         }
         pl_sb_free(font->_sbtConfigs);
+        plFont* ptOldFont = font;
+        font = font->_ptNextFont;
+        PL_FREE(ptOldFont);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(gptDrawCtx->tFontAtlas.sbtCustomRects); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptAtlas->sbtCustomRects); i++)
     {
-        PL_FREE(gptDrawCtx->tFontAtlas.sbtCustomRects[i].pucBytes);
+        PL_FREE(ptAtlas->sbtCustomRects[i].pucBytes);
     }
-    pl_sb_free(gptDrawCtx->tFontAtlas.sbtCustomRects);
-    pl_sb_free(gptDrawCtx->tFontAtlas.sbtFonts);
-    pl_sb_free(gptDrawCtx->tFontAtlas.sbtFontFreeIndices);
-    pl_sb_free(gptDrawCtx->tFontAtlas.sbtFontGenerations);
-    PL_FREE(gptDrawCtx->tFontAtlas.pucPixelsAsAlpha8);
-    PL_FREE(gptDrawCtx->tFontAtlas.pucPixelsAsRGBA32);
-    gptGfx->destroy_texture(gptDrawCtx->ptDevice, gptDrawCtx->tFontAtlas.tTexture);
+    pl_sb_free(ptAtlas->sbtCustomRects);
+    PL_FREE(ptAtlas->pucPixelsAsAlpha8);
+    PL_FREE(ptAtlas->pucPixelsAsRGBA32);
 }
 
 static void
-pl__prepare_draw_command(plDrawLayer2D* ptLayer, plTextureHandle textureID, bool sdf)
+pl__prepare_draw_command(plDrawLayer2D* ptLayer, plTextureID textureID, bool sdf)
 {
     bool createNewCommand = true;
 
@@ -2242,7 +1984,7 @@ pl__prepare_draw_command(plDrawLayer2D* ptLayer, plTextureHandle textureID, bool
     if(ptLayer->_ptLastCommand)
     {
         // check if last command has same texture
-        if(ptLayer->_ptLastCommand->tTextureId.ulData == textureID.ulData && ptLayer->_ptLastCommand->bSdf == sdf)
+        if(ptLayer->_ptLastCommand->tTextureId == textureID && ptLayer->_ptLastCommand->bSdf == sdf)
         {
             createNewCommand = false;
         }
@@ -2346,449 +2088,6 @@ pl_new_draw_3d_frame(void)
         }
         pl_sb_reset(ptDrawlist->sbtSubmittedLayers); 
     }
-
-    // reset buffer offsets
-    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-    {
-        gptDrawCtx->atBufferInfo[i].uVertexBufferOffset = 0;
-        gptDrawCtx->at3DBufferInfo[i].uVertexBufferOffset = 0;
-        gptDrawCtx->atLineBufferInfo[i].uVertexBufferOffset = 0;
-        gptDrawCtx->auIndexBufferOffset[i] = 0;
-    }
-}
-
-static void
-pl__submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoderHandle tEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount)
-{
-    if(pl_sb_size(ptDrawlist->sbtVertexBuffer) == 0u)
-        return;
-
-    const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // ensure gpu vertex buffer size is adequate
-    const uint32_t uVtxBufSzNeeded = sizeof(plDrawVertex) * pl_sb_size(ptDrawlist->sbtVertexBuffer);
-
-    plBufferInfo* ptBufferInfo = &gptDrawCtx->atBufferInfo[uFrameIdx];
-
-    // space left in vertex buffer
-    const uint32_t uAvailableVertexBufferSpace = ptBufferInfo->uVertexBufferSize - ptBufferInfo->uVertexBufferOffset;
-
-    // grow buffer if not enough room
-    if(uVtxBufSzNeeded >= uAvailableVertexBufferSpace)
-    {
-
-        gptGfx->queue_buffer_for_deletion(gptDrawCtx->ptDevice, ptBufferInfo->tVertexBuffer);
-
-        const plBufferDescription tBufferDesc = {
-            .tUsage    = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STAGING,
-            .uByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace)
-        };
-        ptBufferInfo->uVertexBufferSize = tBufferDesc.uByteSize;
-
-        ptBufferInfo->tVertexBuffer = pl__create_staging_buffer(&tBufferDesc, "draw vtx buffer", uFrameIdx);
-    }
-
-    // vertex GPU data transfer
-    plBuffer* ptVertexBuffer = gptGfx->get_buffer(gptDrawCtx->ptDevice, ptBufferInfo->tVertexBuffer);
-    char* pucMappedVertexBufferLocation = ptVertexBuffer->tMemoryAllocation.pHostMapped;
-    memcpy(&pucMappedVertexBufferLocation[ptBufferInfo->uVertexBufferOffset], ptDrawlist->sbtVertexBuffer, sizeof(plDrawVertex) * pl_sb_size(ptDrawlist->sbtVertexBuffer));
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // ensure gpu index buffer size is adequate
-    const uint32_t uIdxBufSzNeeded = sizeof(uint32_t) * ptDrawlist->uIndexBufferByteSize;
-
-    // space left in index buffer
-    const uint32_t uAvailableIndexBufferSpace = gptDrawCtx->auIndexBufferSize[uFrameIdx] - gptDrawCtx->auIndexBufferOffset[uFrameIdx];
-
-    if(uIdxBufSzNeeded >= uAvailableIndexBufferSpace)
-    {
-        gptGfx->queue_buffer_for_deletion(gptDrawCtx->ptDevice, gptDrawCtx->atIndexBuffer[uFrameIdx]);
-
-        const plBufferDescription tBufferDesc = {
-            .tUsage    = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_STAGING,
-            .uByteSize = pl_max(gptDrawCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace)
-        };
-        gptDrawCtx->auIndexBufferSize[uFrameIdx] = tBufferDesc.uByteSize;
-
-        gptDrawCtx->atIndexBuffer[uFrameIdx] = pl__create_staging_buffer(&tBufferDesc, "draw idx buffer", uFrameIdx);
-        gptDrawCtx->auIndexBufferOffset[uFrameIdx] = 0;
-    }
-
-    plBuffer* ptIndexBuffer = gptGfx->get_buffer(gptDrawCtx->ptDevice, gptDrawCtx->atIndexBuffer[uFrameIdx]);
-    char* pucMappedIndexBufferLocation = ptIndexBuffer->tMemoryAllocation.pHostMapped;
-
-    char* pucDestination = &pucMappedIndexBufferLocation[gptDrawCtx->auIndexBufferOffset[uFrameIdx]];
-
-    // index GPU data transfer
-    uint32_t uTempIndexBufferOffset = 0u;
-    uint32_t globalIdxBufferIndexOffset = 0u;
-
-    for(uint32_t i = 0u; i < pl_sb_size(ptDrawlist->sbtSubmittedLayers); i++)
-    {
-        plDrawCommand* ptLastCommand = NULL;
-        plDrawLayer2D* ptLayer = ptDrawlist->sbtSubmittedLayers[i];
-
-        memcpy(&pucDestination[uTempIndexBufferOffset], ptLayer->sbuIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptLayer->sbuIndexBuffer));
-
-        uTempIndexBufferOffset += pl_sb_size(ptLayer->sbuIndexBuffer)*sizeof(uint32_t);
-
-        // attempt to merge commands
-        for(uint32_t j = 0u; j < pl_sb_size(ptLayer->sbtCommandBuffer); j++)
-        {
-            plDrawCommand* ptLayerCommand = &ptLayer->sbtCommandBuffer[j];
-            bool bCreateNewCommand = true;
-
-            if(ptLastCommand)
-            {
-                // check for same texture (allows merging draw calls)
-                if(ptLastCommand->tTextureId.uIndex == ptLayerCommand->tTextureId.uIndex && ptLastCommand->bSdf == ptLayerCommand->bSdf)
-                {
-                    ptLastCommand->uElementCount += ptLayerCommand->uElementCount;
-                    bCreateNewCommand = false;
-                }
-
-                // check for same clipping (allows merging draw calls)
-                if(ptLayerCommand->tClip.tMax.x != ptLastCommand->tClip.tMax.x || ptLayerCommand->tClip.tMax.y != ptLastCommand->tClip.tMax.y ||
-                    ptLayerCommand->tClip.tMin.x != ptLastCommand->tClip.tMin.x || ptLayerCommand->tClip.tMin.y != ptLastCommand->tClip.tMin.y)
-                {
-                    bCreateNewCommand = true;
-                }
-                
-            }
-
-            if(bCreateNewCommand)
-            {
-                ptLayerCommand->uIndexOffset = globalIdxBufferIndexOffset + ptLayerCommand->uIndexOffset;
-                pl_sb_push(ptDrawlist->sbtDrawCommands, *ptLayerCommand);       
-                ptLastCommand = ptLayerCommand;
-            }
-            
-        }    
-        globalIdxBufferIndexOffset += pl_sb_size(ptLayer->sbuIndexBuffer);    
-    }
-
-    const int32_t iVertexOffset = ptBufferInfo->uVertexBufferOffset / sizeof(plDrawVertex);
-    const int32_t iIndexOffset = gptDrawCtx->auIndexBufferOffset[uFrameIdx] / sizeof(uint32_t);
-
-    const plPipelineEntry* ptEntry = pl__get_2d_pipeline(gptGfx->get_encoder_render_pass(tEncoder), uMSAASampleCount, gptGfx->get_render_encoder_subpass(tEncoder));
-
-//    const plVec2 tClipScale = gptIOI->get_io()->tMainFramebufferScale;
-    
-    // const plVec2 tClipScale = {1.0f, 1.0f};
-    // const plVec2 tClipScale = ptCtx->tFrameBufferScale;
-    const float fScale[] = { 2.0f / fWidth, 2.0f / fHeight};
-    const float fTranslate[] = {-1.0f, -1.0f};
-    plShaderHandle tCurrentShader = ptEntry->tRegularPipeline;
-
-    typedef struct _plDrawDynamicData
-    {
-        plVec2 uScale;
-        plVec2 uTranslate;
-    } plDrawDynamicData;
-
-    plDynamicBinding tDynamicBinding = gptGfx->allocate_dynamic_data(gptDrawCtx->ptDevice, sizeof(plDrawDynamicData));
-
-    plDrawDynamicData* ptDynamicData = (plDrawDynamicData*)tDynamicBinding.pcData;
-    ptDynamicData->uScale.x = 2.0f / fWidth;
-    ptDynamicData->uScale.y = 2.0f / fHeight;
-    ptDynamicData->uTranslate.x = -1.0f;
-    ptDynamicData->uTranslate.y = -1.0f;
-
-    bool bSdf = false;
-
-    plRenderViewport tViewport = {
-        .fWidth  = fWidth,
-        .fHeight = fHeight,
-        .fMaxDepth = 1.0f
-    };
-
-    gptGfx->set_viewport(tEncoder, &tViewport);
-    gptGfx->bind_vertex_buffer(tEncoder, ptBufferInfo->tVertexBuffer);
-    gptGfx->bind_shader(tEncoder, tCurrentShader);
-
-    for(uint32_t i = 0u; i < pl_sb_size(ptDrawlist->sbtDrawCommands); i++)
-    {
-        plDrawCommand cmd = ptDrawlist->sbtDrawCommands[i];
-
-        if(cmd.bSdf && !bSdf)
-        {
-            gptGfx->bind_shader(tEncoder, ptEntry->tSecondaryPipeline);
-            tCurrentShader = ptEntry->tSecondaryPipeline;
-            bSdf = true;
-        }
-        else if(!cmd.bSdf && bSdf)
-        {
-            gptGfx->bind_shader(tEncoder, ptEntry->tRegularPipeline);
-            tCurrentShader = ptEntry->tRegularPipeline;
-            bSdf = false;
-        }
-
-        if(pl_rect_width(&cmd.tClip) == 0)
-        {
-            const plScissor tScissor = {
-                .uWidth = (uint32_t)(fWidth),
-                .uHeight = (uint32_t)(fHeight),
-            };
-            gptGfx->set_scissor_region(tEncoder, &tScissor);
-        }
-        else
-        {
-
-            // cmd.tClip.tMin.x = tClipScale.x * cmd.tClip.tMin.x;
-            // cmd.tClip.tMax.x = tClipScale.x * cmd.tClip.tMax.x;
-            // cmd.tClip.tMin.y = tClipScale.y * cmd.tClip.tMin.y;
-            // cmd.tClip.tMax.y = tClipScale.y * cmd.tClip.tMax.y;
-
-            // clamp to viewport
-            if (cmd.tClip.tMin.x < 0.0f)   { cmd.tClip.tMin.x = 0.0f; }
-            if (cmd.tClip.tMin.y < 0.0f)   { cmd.tClip.tMin.y = 0.0f; }
-            if (cmd.tClip.tMax.x > fWidth)  { cmd.tClip.tMax.x = (float)fWidth; }
-            if (cmd.tClip.tMax.y > fHeight) { cmd.tClip.tMax.y = (float)fHeight; }
-            if (cmd.tClip.tMax.x <= cmd.tClip.tMin.x || cmd.tClip.tMax.y <= cmd.tClip.tMin.y)
-                continue;
-
-            const plScissor tScissor = {
-                .iOffsetX  = (uint32_t) (cmd.tClip.tMin.x < 0 ? 0 : cmd.tClip.tMin.x),
-                .iOffsetY  = (uint32_t) (cmd.tClip.tMin.y < 0 ? 0 : cmd.tClip.tMin.y),
-                .uWidth    = (uint32_t)pl_rect_width(&cmd.tClip),
-                .uHeight   = (uint32_t)pl_rect_height(&cmd.tClip)
-            };
-            gptGfx->set_scissor_region(tEncoder, &tScissor);
-        }
-
-        plBindGroupHandle atBindGroups[] = {
-            gptDrawCtx->tFontSamplerBindGroup,
-            gptGfx->get_texture(gptDrawCtx->ptDevice, cmd.tTextureId)->_tDrawBindGroup
-        };
-
-        gptGfx->bind_graphics_bind_groups(tEncoder, tCurrentShader, 0, 2, atBindGroups, &tDynamicBinding);
-
-        plDrawIndex tDraw = {
-            .tIndexBuffer   = gptDrawCtx->atIndexBuffer[uFrameIdx],
-            .uIndexCount    = cmd.uElementCount,
-            .uIndexStart    = cmd.uIndexOffset + iIndexOffset,
-            .uInstance      = 0,
-            .uInstanceCount = 1,
-            .uVertexStart   = iVertexOffset
-        };
-        gptGfx->draw_indexed(tEncoder, 1, &tDraw);
-    }
-
-    // bump vertex & index buffer offset
-    ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
-    gptDrawCtx->auIndexBufferOffset[uFrameIdx] += uIdxBufSzNeeded;
-}
-
-static void
-pl__submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoderHandle tEncoder, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags tFlags, uint32_t uMSAASampleCount)
-{
-    const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
-
-    const plPipelineEntry* ptEntry = pl__get_3d_pipeline(gptGfx->get_encoder_render_pass(tEncoder), uMSAASampleCount, tFlags, gptGfx->get_render_encoder_subpass(tEncoder));
-
-    const float fAspectRatio = fWidth / fHeight;
-
-    // regular 3D
-    if(pl_sb_size(ptDrawlist->sbtSolidVertexBuffer) > 0)
-    {
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        // ensure gpu vertex buffer size is adequate
-        const uint32_t uVtxBufSzNeeded = sizeof(plDrawVertex3DSolid) * pl_sb_size(ptDrawlist->sbtSolidVertexBuffer);
-
-        plBufferInfo* ptBufferInfo = &gptDrawCtx->at3DBufferInfo[uFrameIdx];
-
-        // space left in vertex buffer
-        const uint32_t uAvailableVertexBufferSpace = ptBufferInfo->uVertexBufferSize - ptBufferInfo->uVertexBufferOffset;
-
-        // grow buffer if not enough room
-        if(uVtxBufSzNeeded >= uAvailableVertexBufferSpace)
-        {
-
-            gptGfx->queue_buffer_for_deletion(gptDrawCtx->ptDevice, ptBufferInfo->tVertexBuffer);
-
-            const plBufferDescription tBufferDesc = {
-                .tUsage    = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STAGING,
-                .uByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace)
-            };
-            ptBufferInfo->uVertexBufferSize = tBufferDesc.uByteSize;
-
-            ptBufferInfo->tVertexBuffer = pl__create_staging_buffer(&tBufferDesc, "3d draw vtx buffer", uFrameIdx);
-        }
-
-        // vertex GPU data transfer
-        plBuffer* ptVertexBuffer = gptGfx->get_buffer(gptDrawCtx->ptDevice, ptBufferInfo->tVertexBuffer);
-        char* pucMappedVertexBufferLocation = ptVertexBuffer->tMemoryAllocation.pHostMapped;
-        memcpy(&pucMappedVertexBufferLocation[ptBufferInfo->uVertexBufferOffset], ptDrawlist->sbtSolidVertexBuffer, sizeof(plDrawVertex3DSolid) * pl_sb_size(ptDrawlist->sbtSolidVertexBuffer));
-
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        // ensure gpu index buffer size is adequate
-        const uint32_t uIdxBufSzNeeded = sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbtSolidIndexBuffer);
-
-        // space left in index buffer
-        const uint32_t uAvailableIndexBufferSpace = gptDrawCtx->auIndexBufferSize[uFrameIdx] - gptDrawCtx->auIndexBufferOffset[uFrameIdx];
-
-        if(uIdxBufSzNeeded >= uAvailableIndexBufferSpace)
-        {
-            gptGfx->queue_buffer_for_deletion(gptDrawCtx->ptDevice, gptDrawCtx->atIndexBuffer[uFrameIdx]);
-
-            const plBufferDescription tBufferDesc = {
-                .tUsage    = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_STAGING,
-                .uByteSize = pl_max(gptDrawCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace)
-            };
-            gptDrawCtx->auIndexBufferSize[uFrameIdx] = tBufferDesc.uByteSize;
-
-            gptDrawCtx->atIndexBuffer[uFrameIdx] = pl__create_staging_buffer(&tBufferDesc, "3d draw idx buffer", uFrameIdx);
-            gptDrawCtx->auIndexBufferOffset[uFrameIdx] = 0;
-        }
-
-        // index GPU data transfer
-        plBuffer* ptIndexBuffer = gptGfx->get_buffer(gptDrawCtx->ptDevice, gptDrawCtx->atIndexBuffer[uFrameIdx]);
-        char* pucMappedIndexBufferLocation = ptIndexBuffer->tMemoryAllocation.pHostMapped;
-        memcpy(&pucMappedIndexBufferLocation[gptDrawCtx->auIndexBufferOffset[uFrameIdx]], ptDrawlist->sbtSolidIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbtSolidIndexBuffer));
-
-        plDynamicBinding tSolidDynamicData = gptGfx->allocate_dynamic_data(gptDrawCtx->ptDevice, sizeof(plMat4));
-        plMat4* ptSolidDynamicData = (plMat4*)tSolidDynamicData.pcData;
-        *ptSolidDynamicData = *ptMVP;
-
-        gptGfx->bind_vertex_buffer(tEncoder, ptBufferInfo->tVertexBuffer);
-        gptGfx->bind_shader(tEncoder, ptEntry->tRegularPipeline);
-        gptGfx->bind_graphics_bind_groups(tEncoder, ptEntry->tRegularPipeline, 0, 0, NULL, &tSolidDynamicData);
-
-        const int32_t iVertexOffset = ptBufferInfo->uVertexBufferOffset / sizeof(plDrawVertex3DSolid);
-        const int32_t iIndexOffset = gptDrawCtx->auIndexBufferOffset[uFrameIdx] / sizeof(uint32_t);
-
-        const plDrawIndex tDrawIndex = {
-            .tIndexBuffer = gptDrawCtx->atIndexBuffer[uFrameIdx],
-            .uIndexCount = pl_sb_size(ptDrawlist->sbtSolidIndexBuffer),
-            .uIndexStart = iIndexOffset,
-            .uInstance = 0,
-            .uInstanceCount = 1,
-            .uVertexStart = iVertexOffset
-        };
-
-        gptGfx->draw_indexed(tEncoder, 1, &tDrawIndex);
-        
-        // bump vertex & index buffer offset
-        ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
-        gptDrawCtx->auIndexBufferOffset[uFrameIdx] += uIdxBufSzNeeded;
-    }
-
-    // 3D lines
-    if(pl_sb_size(ptDrawlist->sbtLineVertexBuffer) > 0u)
-    {
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        // ensure gpu vertex buffer size is adequate
-        const uint32_t uVtxBufSzNeeded = sizeof(plDrawVertex3DLine) * pl_sb_size(ptDrawlist->sbtLineVertexBuffer);
-
-        plBufferInfo* ptBufferInfo = &gptDrawCtx->atLineBufferInfo[uFrameIdx];
-
-        // space left in vertex buffer
-        const uint32_t uAvailableVertexBufferSpace = ptBufferInfo->uVertexBufferSize - ptBufferInfo->uVertexBufferOffset;
-
-        // grow buffer if not enough room
-        if(uVtxBufSzNeeded >= uAvailableVertexBufferSpace)
-        {
-            gptGfx->queue_buffer_for_deletion(gptDrawCtx->ptDevice, ptBufferInfo->tVertexBuffer);
-
-            const plBufferDescription tBufferDesc = {
-                .tUsage    = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STAGING,
-                .uByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace)
-            };
-            ptBufferInfo->uVertexBufferSize = tBufferDesc.uByteSize;
-
-            ptBufferInfo->tVertexBuffer = pl__create_staging_buffer(&tBufferDesc, "draw vtx buffer", uFrameIdx);
-        }
-
-        // vertex GPU data transfer
-        plBuffer* ptVertexBuffer = gptGfx->get_buffer(gptDrawCtx->ptDevice, ptBufferInfo->tVertexBuffer);
-        char* pucMappedVertexBufferLocation = ptVertexBuffer->tMemoryAllocation.pHostMapped;
-        memcpy(&pucMappedVertexBufferLocation[ptBufferInfo->uVertexBufferOffset], ptDrawlist->sbtLineVertexBuffer, sizeof(plDrawVertex3DLine) * pl_sb_size(ptDrawlist->sbtLineVertexBuffer));
-
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        // ensure gpu index buffer size is adequate
-        const uint32_t uIdxBufSzNeeded = sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbtLineIndexBuffer);
-
-        // space left in index buffer
-        const uint32_t uAvailableIndexBufferSpace = gptDrawCtx->auIndexBufferSize[uFrameIdx] - gptDrawCtx->auIndexBufferOffset[uFrameIdx];
-
-        if(uIdxBufSzNeeded >= uAvailableIndexBufferSpace)
-        {
-
-            gptGfx->queue_buffer_for_deletion(gptDrawCtx->ptDevice, gptDrawCtx->atIndexBuffer[uFrameIdx]);
-
-            const plBufferDescription tBufferDesc = {
-                .tUsage    = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_STAGING,
-                .uByteSize = pl_max(gptDrawCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace)
-            };
-            gptDrawCtx->auIndexBufferSize[uFrameIdx] = tBufferDesc.uByteSize;
-
-            gptDrawCtx->atIndexBuffer[uFrameIdx] = pl__create_staging_buffer(&tBufferDesc, "draw idx buffer", uFrameIdx);
-            gptDrawCtx->auIndexBufferOffset[uFrameIdx] = 0;
-        }
-
-        // index GPU data transfer
-        plBuffer* ptIndexBuffer = gptGfx->get_buffer(gptDrawCtx->ptDevice, gptDrawCtx->atIndexBuffer[uFrameIdx]);
-        char* pucMappedIndexBufferLocation = ptIndexBuffer->tMemoryAllocation.pHostMapped;
-        memcpy(&pucMappedIndexBufferLocation[gptDrawCtx->auIndexBufferOffset[uFrameIdx]], ptDrawlist->sbtLineIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbtLineIndexBuffer));
-        
-        typedef struct _plLineDynamiceData
-        {
-            plMat4 tMVP;
-            float fAspect;
-            int   padding[3];
-        } plLineDynamiceData;
-
-        plDynamicBinding tLineDynamicData = gptGfx->allocate_dynamic_data(gptDrawCtx->ptDevice, sizeof(plLineDynamiceData));
-        plLineDynamiceData* ptLineDynamicData = (plLineDynamiceData*)tLineDynamicData.pcData;
-        ptLineDynamicData->tMVP = *ptMVP;
-        ptLineDynamicData->fAspect = fAspectRatio;
-
-        gptGfx->bind_vertex_buffer(tEncoder, ptBufferInfo->tVertexBuffer);
-        gptGfx->bind_shader(tEncoder, ptEntry->tSecondaryPipeline);
-        gptGfx->bind_graphics_bind_groups(tEncoder, ptEntry->tSecondaryPipeline, 0, 0, NULL, &tLineDynamicData);
-
-        const int32_t iVertexOffset = ptBufferInfo->uVertexBufferOffset / sizeof(plDrawVertex3DLine);
-        const int32_t iIndexOffset = gptDrawCtx->auIndexBufferOffset[uFrameIdx] / sizeof(uint32_t);
-
-        const plDrawIndex tDrawIndex = {
-            .tIndexBuffer = gptDrawCtx->atIndexBuffer[uFrameIdx],
-            .uIndexCount = pl_sb_size(ptDrawlist->sbtLineIndexBuffer),
-            .uIndexStart = iIndexOffset,
-            .uInstance = 0,
-            .uInstanceCount = 1,
-            .uVertexStart = iVertexOffset
-        };
-
-        gptGfx->draw_indexed(tEncoder, 1, &tDrawIndex);
-        
-        // bump vertex & index buffer offset
-        ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
-        gptDrawCtx->auIndexBufferOffset[uFrameIdx] += uIdxBufSzNeeded;
-    }
-
-    const uint32_t uTextCount = pl_sb_size(ptDrawlist->sbtTextEntries);
-    for(uint32_t i = 0; i < uTextCount; i++)
-    {
-        const plDraw3DText* ptText = &ptDrawlist->sbtTextEntries[i];
-        plVec4 tPos = pl_mul_mat4_vec4(ptMVP, (plVec4){.xyz = ptText->tP, .w = 1});
-        tPos = pl_div_vec4_scalarf(tPos, tPos.w);
-        if(!(tPos.z < 0.0f || tPos.z > 1.0f))
-        {
-            tPos.x = fWidth * 0.5f * (1.0f + tPos.x);
-            tPos.y = fHeight * 0.5f * (1.0f + tPos.y);
-            pl_add_text(ptDrawlist->ptLayer, ptText->tFontHandle, ptText->fSize, (plVec2){roundf(tPos.x + 0.5f), roundf(tPos.y + 0.5f)}, ptText->tColor, ptText->acText, ptText->fWrap);
-        }
-    }
-
-    pl_submit_2d_layer(ptDrawlist->ptLayer);
-    pl__submit_2d_drawlist(ptDrawlist->pt2dDrawlist, tEncoder, fWidth, fHeight, uMSAASampleCount);
 }
 
 static inline void
@@ -3310,13 +2609,13 @@ pl__add_3d_line(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec4 tColor,
 
 
 static void
-pl__add_3d_text(plDrawList3D* ptDrawlist, plFontHandle tFontHandle, float fSize, plVec3 tP, plVec4 tColor, const char* pcText, float fWrap)
+pl__add_3d_text(plDrawList3D* ptDrawlist, plFont* ptFont, float fSize, plVec3 tP, plVec4 tColor, const char* pcText, float fWrap)
 {
     plDraw3DText tText = {
         .fSize = fSize,
         .fWrap = fWrap,
         .tColor = tColor,
-        .tFontHandle = tFontHandle,
+        .tFontHandle = ptFont,
         .tP = tP
     };
     strncpy(tText.acText, pcText, PL_MAX_NAME_LENGTH);
@@ -3884,293 +3183,6 @@ pl__add_3d_bezier_cubic(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal api implementation
-//-----------------------------------------------------------------------------
-
-static plBufferHandle
-pl__create_staging_buffer(const plBufferDescription* ptDesc, const char* pcName, uint32_t uIdentifier)
-{
-    // for convience
-    plDevice* ptDevice = gptDrawCtx->ptDevice;
-
-    // create buffer
-    const plBufferHandle tHandle = gptGfx->create_buffer(ptDevice, ptDesc, pl_temp_allocator_sprintf(&gptDrawCtx->tTempAllocator, "%s: %u", pcName, uIdentifier));
-    pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
-
-    // retrieve new buffer
-    plBuffer* ptBuffer = gptGfx->get_buffer(ptDevice, tHandle);
-
-    // allocate memory
-    const plDeviceMemoryAllocation tAllocation = gptGfx->allocate_memory(ptDevice,
-        ptBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_GPU_CPU,
-        ptBuffer->tMemoryRequirements.uMemoryTypeBits,
-        pl_temp_allocator_sprintf(&gptDrawCtx->tTempAllocator, "%s: %u", pcName, uIdentifier));
-
-    // bind memory
-    gptGfx->bind_buffer_to_memory(ptDevice, tHandle, &tAllocation);
-    return tHandle;
-}
-
-static const plPipelineEntry*
-pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, plDrawFlags tFlags, uint32_t uSubpassIndex)
-{
-    // check if pipeline exists
-    for(uint32_t i = 0; i < pl_sb_size(gptDrawCtx->sbt3dPipelineEntries); i++)
-    {
-        const plPipelineEntry* ptEntry = &gptDrawCtx->sbt3dPipelineEntries[i];
-        if(ptEntry->tRenderPass.uIndex == tRenderPass.uIndex && ptEntry->uMSAASampleCount == uMSAASampleCount && ptEntry->tFlags == tFlags && ptEntry->uSubpassIndex == uSubpassIndex)
-        {
-            return ptEntry;
-        }
-    }
-
-    pl_sb_add(gptDrawCtx->sbt3dPipelineEntries);
-    plPipelineEntry* ptEntry = &gptDrawCtx->sbt3dPipelineEntries[pl_sb_size(gptDrawCtx->sbt3dPipelineEntries) - 1];
-    ptEntry->tFlags = tFlags;
-    ptEntry->tRenderPass = tRenderPass;
-    ptEntry->uMSAASampleCount = uMSAASampleCount;
-    ptEntry->uSubpassIndex = uSubpassIndex;
-
-    uint64_t ulCullMode = PL_CULL_MODE_NONE;
-    if(tFlags & PL_DRAW_FLAG_CULL_FRONT)
-        ulCullMode |= PL_CULL_MODE_CULL_FRONT;
-    if(tFlags & PL_DRAW_FLAG_CULL_BACK)
-        ulCullMode |= PL_CULL_MODE_CULL_BACK;
-
-    {
-        const plShaderDescription t3DShaderDesc = {
-            .tPixelShader = gptShader->load_glsl("../shaders/draw_3d.frag", "main", NULL, NULL),
-            .tVertexShader = gptShader->load_glsl("../shaders/draw_3d.vert", "main", NULL, NULL),
-            .tGraphicsState = {
-                .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE ? 1 : 0,
-                .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? PL_COMPARE_MODE_LESS : PL_COMPARE_MODE_ALWAYS,
-                .ulCullMode           = ulCullMode,
-                .ulWireframe          = 0,
-                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-                .ulStencilRef         = 0xff,
-                .ulStencilMask        = 0xff,
-                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-            },
-            .tVertexBufferBinding = {
-                .uByteStride = sizeof(float) * 4,
-                .atAttributes = {
-                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 3, .tFormat = PL_FORMAT_R32_UINT},
-                }
-            },
-            .uConstantCount = 0,
-            .atBlendStates = {
-                {
-                    .bBlendEnabled   = true,
-                    .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                    .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .tColorOp        = PL_BLEND_OP_ADD,
-                    .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                    .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .tAlphaOp        = PL_BLEND_OP_ADD
-                }
-            },
-            .uBlendStateCount = 1,
-            .tRenderPassLayout = gptGfx->get_render_pass(gptDrawCtx->ptDevice, tRenderPass)->tDesc.tLayout,
-            .uSubpassIndex = uSubpassIndex,
-            .uBindGroupLayoutCount = 0,
-        };
-        ptEntry->tRegularPipeline = gptGfx->create_shader(gptDrawCtx->ptDevice, &t3DShaderDesc);
-        pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
-    }
-
-    {
-        const plShaderDescription t3DLineShaderDesc = {
-            .tPixelShader = gptShader->load_glsl("../shaders/draw_3d.frag", "main", NULL, NULL),
-            .tVertexShader = gptShader->load_glsl("../shaders/draw_3d_line.vert", "main", NULL, NULL),
-            .tGraphicsState = {
-                .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE,
-                .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? PL_COMPARE_MODE_LESS : PL_COMPARE_MODE_ALWAYS,
-                .ulCullMode           = ulCullMode,
-                .ulWireframe          = 0,
-                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-                .ulStencilRef         = 0xff,
-                .ulStencilMask        = 0xff,
-                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-            },
-            .tVertexBufferBinding = {
-                .uByteStride = sizeof(float) * 10,
-                .atAttributes = {
-                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 3, .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 6, .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 9, .tFormat = PL_FORMAT_R32_UINT},
-                }
-            },
-            .uConstantCount = 0,
-            .atBlendStates = {
-                {
-                    .bBlendEnabled   = true,
-                    .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                    .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .tColorOp        = PL_BLEND_OP_ADD,
-                    .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                    .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .tAlphaOp        = PL_BLEND_OP_ADD
-                }
-            },
-            .uBlendStateCount = 1,
-            .tRenderPassLayout = gptGfx->get_render_pass(gptDrawCtx->ptDevice, tRenderPass)->tDesc.tLayout,
-            .uSubpassIndex = uSubpassIndex,
-            .uBindGroupLayoutCount = 0,
-        };
-        ptEntry->tSecondaryPipeline = gptGfx->create_shader(gptDrawCtx->ptDevice, &t3DLineShaderDesc);
-        pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
-    }
-    return ptEntry;
-}
-
-static const plPipelineEntry*
-pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, uint32_t uSubpassIndex)
-{
-    // check if pipeline exists
-    for(uint32_t i = 0; i < pl_sb_size(gptDrawCtx->sbt2dPipelineEntries); i++)
-    {
-        const plPipelineEntry* ptEntry = &gptDrawCtx->sbt2dPipelineEntries[i];
-        if(ptEntry->tRenderPass.uIndex == tRenderPass.uIndex && ptEntry->uMSAASampleCount == uMSAASampleCount && ptEntry->uSubpassIndex == uSubpassIndex)
-        {
-            return ptEntry;
-        }
-    }
-
-    pl_sb_add(gptDrawCtx->sbt2dPipelineEntries);
-    plPipelineEntry* ptEntry = &gptDrawCtx->sbt2dPipelineEntries[pl_sb_size(gptDrawCtx->sbt2dPipelineEntries) - 1];
-    ptEntry->tFlags = 0;
-    ptEntry->tRenderPass = tRenderPass;
-    ptEntry->uMSAASampleCount = uMSAASampleCount;
-    ptEntry->uSubpassIndex = uSubpassIndex;
-
-    {
-        const plShaderDescription tRegularShaderDesc = {
-            .tPixelShader = gptShader->load_glsl("../shaders/draw_2d.frag", "main", NULL, NULL),
-            .tVertexShader = gptShader->load_glsl("../shaders/draw_2d.vert", "main", NULL, NULL),
-            .tGraphicsState = {
-                .ulDepthWriteEnabled  = 0,
-                .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
-                .ulCullMode           = PL_CULL_MODE_NONE,
-                .ulWireframe          = 0,
-                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-                .ulStencilRef         = 0xff,
-                .ulStencilMask        = 0xff,
-                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-            },
-            .tVertexBufferBinding = {
-                .uByteStride = sizeof(float) * 5,
-                .atAttributes = {
-                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 4, .tFormat = PL_FORMAT_R32_UINT},
-                }
-            },
-            .uConstantCount = 0,
-            .atBlendStates = {
-                {
-                    .bBlendEnabled   = true,
-                    .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                    .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .tColorOp        = PL_BLEND_OP_ADD,
-                    .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                    .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .tAlphaOp        = PL_BLEND_OP_ADD
-                }
-            },
-            .uBlendStateCount = 1,
-            .tRenderPassLayout = gptGfx->get_render_pass(gptDrawCtx->ptDevice, tRenderPass)->tDesc.tLayout,
-            .uSubpassIndex = uSubpassIndex,
-            .uBindGroupLayoutCount = 2,
-            .atBindGroupLayouts = {
-                {
-                    .uSamplerBindingCount = 1,
-                    .atSamplerBindings = {
-                        {.uSlot =  0, .tStages = PL_STAGE_PIXEL}
-                    }
-                },
-                {
-                    .uTextureBindingCount  = 1,
-                    .atTextureBindings = { 
-                        {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-                    }
-                }
-            }
-        };
-        ptEntry->tRegularPipeline = gptGfx->create_shader(gptDrawCtx->ptDevice, &tRegularShaderDesc);
-        pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
-    }
-
-    {
-        const plShaderDescription tSecondaryShaderDesc = {
-            .tPixelShader = gptShader->load_glsl("../shaders/draw_2d_sdf.frag", "main", NULL, NULL),
-            .tVertexShader = gptShader->load_glsl("../shaders/draw_2d.vert", "main", NULL, NULL),
-            .tGraphicsState = {
-                .ulDepthWriteEnabled  = 0,
-                .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
-                .ulCullMode           = PL_CULL_MODE_NONE,
-                .ulWireframe          = 0,
-                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-                .ulStencilRef         = 0xff,
-                .ulStencilMask        = 0xff,
-                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-            },
-            .tVertexBufferBinding = {
-                .uByteStride = sizeof(float) * 5,
-                .atAttributes = {
-                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 4, .tFormat = PL_FORMAT_R32_UINT},
-                }
-            },
-            .uConstantCount = 0,
-            .atBlendStates = {
-                {
-                    .bBlendEnabled   = true,
-                    .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                    .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .tColorOp        = PL_BLEND_OP_ADD,
-                    .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                    .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .tAlphaOp        = PL_BLEND_OP_ADD
-                }
-            },
-            .uBlendStateCount = 1,
-            .tRenderPassLayout = gptGfx->get_render_pass(gptDrawCtx->ptDevice, tRenderPass)->tDesc.tLayout,
-            .uSubpassIndex = uSubpassIndex,
-            .uBindGroupLayoutCount = 2,
-            .atBindGroupLayouts = {
-                {
-                    .uSamplerBindingCount = 1,
-                    .atSamplerBindings = {
-                        {.uSlot =  0, .tStages = PL_STAGE_PIXEL}
-                    }
-                },
-                {
-                    .uTextureBindingCount  = 1,
-                    .atTextureBindings = { 
-                        {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-                    }
-                }
-            }
-        }; 
-        ptEntry->tSecondaryPipeline = gptGfx->create_shader(gptDrawCtx->ptDevice, &tSecondaryShaderDesc);
-        pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
-    }
-    return ptEntry;
-}
-
-//-----------------------------------------------------------------------------
 // [SECTION] default font stuff
 //-----------------------------------------------------------------------------
 
@@ -4410,8 +3422,8 @@ static const char gcPtrDefaultFontCompressed[11980 + 1] =
     "GT4CPGT4CPGT4CPGT4CPGT4CPGT4CP-qekC`.9kEg^+F$kwViFJTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5o,^<-28ZI'O?;xp"
     "O?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xp;7q-#lLYI:xvD=#";
 
-static plFontHandle
-pl_add_default_font(void)
+static plFont*
+pl_add_default_font(plFontAtlas* ptAtlas)
 {
     static const char* cPtrEmbeddedFontName = "Proggy.ttf";
     
@@ -4443,7 +3455,7 @@ pl_add_default_font(void)
         .uRangeCount = 1
     };
     
-    return pl_add_font_from_memory_ttf(fontConfig, data);
+    return pl_add_font_from_memory_ttf(ptAtlas, fontConfig, data);
 }
 
 //-----------------------------------------------------------------------------
@@ -4458,8 +3470,6 @@ pl_load_draw_3d_api(void)
         .cleanup                    = pl_cleanup,
         .request_3d_drawlist        = pl_request_3d_drawlist,
         .return_3d_drawlist         = pl_return_3d_drawlist,
-        .submit_2d_drawlist         = pl__submit_2d_drawlist,
-        .submit_3d_drawlist         = pl__submit_3d_drawlist,
         .new_frame                  = pl_new_draw_3d_frame,
         .add_3d_triangle_filled     = pl__add_3d_triangle_filled,
         .add_3d_circle_xz_filled    = pl__add_3d_circle_xz_filled,
@@ -4499,9 +3509,11 @@ pl_load_draw_3d_api(void)
         .request_2d_layer           = pl_request_2d_layer,
         .return_2d_layer            = pl_return_2d_layer,
         .submit_2d_layer            = pl_submit_2d_layer,
-        .build_font_atlas           = pl_build_font_atlas,
+        .prepare_font_atlas         = pl_prepare_font_atlas,
+        .create_font_atlas          = pl_create_font_atlas,
+        .set_font_atlas             = pl_set_font_atlas,
+        .get_current_font_atlas     = pl_get_font_atlas,
         .cleanup_font_atlas         = pl_cleanup_font_atlas,
-        .get_font                   = pl_get_font,
         .add_default_font           = pl_add_default_font,
         .add_font_from_file_ttf     = pl_add_font_from_file_ttf,
         .add_font_from_memory_ttf   = pl_add_font_from_memory_ttf,

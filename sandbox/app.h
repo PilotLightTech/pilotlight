@@ -32,6 +32,7 @@
 #include "pl_renderer_ext.h"
 #include "pl_job_ext.h"
 #include "pl_draw_ext.h"
+#include "pl_draw_backend_ext.h"
 #include "pl_ui_ext.h"
 #include "pl_shader_ext.h"
 
@@ -54,6 +55,7 @@ static const plRendererI*    gptRenderer          = NULL;
 static const plModelLoaderI* gptModelLoader       = NULL;
 static const plJobI*         gptJobs              = NULL;
 static const plDrawI*        gptDraw              = NULL;
+static const plDrawBackendI* gptDrawBackend       = NULL;
 static const plUiI*          gptUi                = NULL;
 static const plIOI*          gptIO                = NULL;
 static const plShaderI*      gptShader            = NULL;
@@ -112,7 +114,7 @@ typedef struct _plEditorData
     plGizmoData* ptGizmoData;
 
     // fonts
-    plFontHandle tDefaultFont;
+    plFont* tDefaultFont;
 
     // experiment
     plEntity tTrackPoint;

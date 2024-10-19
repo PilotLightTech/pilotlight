@@ -54,11 +54,13 @@ typedef int plUiComboFlags;       // -> enum plUiComboFlags_       // Enum: An i
 typedef int plUiColor;            // -> enum plUiColor_            // Enum: An input event source (PL_UI_COLOR_XXXX)
 
 // external
-typedef struct _plDrawList2D         plDrawList2D;          // pl_draw_ext.h
-typedef struct _plDrawLayer2D        plDrawLayer2D;         // pl_draw_ext.h
-typedef union  _plFontHandle         plFontHandle;          // pl_draw_ext.h
-typedef union  plRenderEncoderHandle plRenderEncoderHandle; // pl_graphics_ext.h
-typedef union  plTextureHandle       plTextureHandle;       // pl_graphics_ext.h
+typedef struct _plDrawList2D  plDrawList2D;  // pl_draw_ext.h
+typedef struct _plDrawLayer2D plDrawLayer2D; // pl_draw_ext.h
+typedef struct _plFont        plFont;        // pl_draw_ext.h
+
+#ifndef plTextureID
+    typedef uint64_t plTextureID;
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -76,8 +78,7 @@ typedef struct _plUiI
 
     // main
     void (*new_frame)(void); // start a new pilotlight ui frame, this should be the first command before calling any commands below
-    void (*end_frame)(void); // ends pilotlight ui frame, automatically called by pl_render()
-    void (*render)(plRenderEncoderHandle, float fWidth, float fHeight, uint32_t uMSAASampleCount); // submits draw layers, you can then submit the ptDrawlist & ptDebugDrawlist from context
+    void (*end_frame)(void); // ends pilotlight ui frame
 
     // mouse/keyboard ownership
     bool (*wants_mouse_capture)   (void);
@@ -95,8 +96,8 @@ typedef struct _plUiI
     void (*pop_theme_color) (uint32_t uCount);
 
     // fonts
-    void         (*set_default_font)(plFontHandle);
-    plFontHandle (*get_default_font)(void);
+    void    (*set_default_font)(plFont*);
+    plFont* (*get_default_font)(void);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~windows~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -156,10 +157,10 @@ typedef struct _plUiI
     bool (*selectable)      (const char* pcText, bool* bpValue);
     bool (*checkbox)        (const char* pcText, bool* pbValue);
     bool (*radio_button)    (const char* pcText, int* piValue, int iButtonValue);
-    void (*image)           (plTextureHandle, plVec2 tSize);
-    void (*image_ex)        (plTextureHandle, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor);
-    bool (*image_button)    (const char* pcId, plTextureHandle, plVec2 tSize);
-    bool (*image_button_ex) (const char* pcId, plTextureHandle, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor);
+    void (*image)           (plTextureID, plVec2 tSize);
+    void (*image_ex)        (plTextureID, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor);
+    bool (*image_button)    (const char* pcId, plTextureID, plVec2 tSize);
+    bool (*image_button_ex) (const char* pcId, plTextureID, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4 tTintColor, plVec4 tBorderColor);
     bool (*invisible_button)(const char* pcText, plVec2 tSize);
     void (*dummy)           (plVec2 tSize);
 

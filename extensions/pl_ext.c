@@ -35,6 +35,7 @@ Index of this file:
 
 #ifdef PL_CORE_EXTENSION_INCLUDE_GRAPHICS
     #include "pl_draw_ext.c"
+    #include "pl_draw_backend_ext.c"
     #include "pl_resource_ext.c"
     #include "pl_gpu_allocators_ext.c"
     #include "pl_model_loader_ext.c"
@@ -105,8 +106,9 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         // third batch
         pl_load_model_loader_ext(ptApiRegistry, bReload);
         pl_load_draw_ext(ptApiRegistry, bReload);
-
         gptDraw = ptApiRegistry->first(PL_API_DRAW);
+        pl_load_draw_backend_ext(ptApiRegistry, bReload);
+        gptDrawBackend = ptApiRegistry->first(PL_API_DRAW_BACKEND);
 
         // fourth batch
         pl_load_ui_ext(ptApiRegistry, bReload);
@@ -135,6 +137,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         pl_unload_resource_ext(ptApiRegistry, bReload);
         pl_unload_model_loader_ext(ptApiRegistry, bReload);
         pl_unload_draw_ext(ptApiRegistry, bReload);
+        pl_unload_draw_backend_ext(ptApiRegistry, bReload);
         pl_unload_ui_ext(ptApiRegistry, bReload);
         pl_unload_renderer_ext(ptApiRegistry, bReload);
         pl_unload_debug_ext(ptApiRegistry, bReload);

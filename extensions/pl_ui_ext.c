@@ -22,7 +22,6 @@ pl_load_ui_api(void)
         .wants_keyboard_capture        = pl_wants_keyboard_capture,
         .wants_text_input              = pl_wants_text_input,
         .wants_mouse_capture           = pl_wants_mouse_capture,
-        .render                        = pl_render,
         .show_debug_window             = pl_show_debug_window,
         .show_style_editor_window      = pl_show_style_editor_window,
         .show_demo_window              = pl_show_demo_window,

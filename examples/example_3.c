@@ -35,10 +35,11 @@ Index of this file:
 #include "pl_math.h"
 
 // extensions
-#include "pl_graphics_ext.h"
-#include "pl_draw_ext.h"
-#include "pl_ui_ext.h"
 #include "pl_shader_ext.h"
+#include "pl_draw_ext.h" // not yet stable
+#include "pl_ui_ext.h" // not yet stable
+#include "pl_graphics_ext.h" // not yet stable
+#include "pl_draw_backend_ext.h" // not yet stable
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -69,12 +70,13 @@ typedef struct _plAppData
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-const plIOI*       gptIO      = NULL;
-const plWindowI*   gptWindows = NULL;
-const plGraphicsI* gptGfx     = NULL;
-const plDrawI*     gptDraw    = NULL;
-const plUiI*       gptUi      = NULL;
-const plShaderI*   gptShader  = NULL;
+const plIOI*          gptIO          = NULL;
+const plWindowI*      gptWindows     = NULL;
+const plGraphicsI*    gptGfx         = NULL;
+const plDrawI*        gptDraw        = NULL;
+const plUiI*          gptUi          = NULL;
+const plShaderI*      gptShader      = NULL;
+const plDrawBackendI* gptDrawBackend = NULL; // not yet stable
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -101,12 +103,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
         // re-retrieve the apis since we are now in
         // a different dll/so
-        gptIO      = ptApiRegistry->first(PL_API_IO);
-        gptWindows = ptApiRegistry->first(PL_API_WINDOW);
-        gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
-        gptDraw    = ptApiRegistry->first(PL_API_DRAW);
-        gptUi      = ptApiRegistry->first(PL_API_UI);
-        gptShader  = ptApiRegistry->first(PL_API_SHADER);
+        gptIO          = ptApiRegistry->first(PL_API_IO);
+        gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
+        gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
+        gptDraw        = ptApiRegistry->first(PL_API_DRAW);
+        gptUi          = ptApiRegistry->first(PL_API_UI);
+        gptShader      = ptApiRegistry->first(PL_API_SHADER);
+        gptDrawBackend = ptApiRegistry->first(PL_API_DRAW_BACKEND);
 
         return ptAppData;
     }
@@ -123,12 +126,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pilot_light", NULL, NULL, true);
     
     // load required apis (NULL if not available)
-    gptIO      = ptApiRegistry->first(PL_API_IO);
-    gptWindows = ptApiRegistry->first(PL_API_WINDOW);
-    gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
-    gptDraw    = ptApiRegistry->first(PL_API_DRAW);
-    gptUi      = ptApiRegistry->first(PL_API_UI);
-    gptShader  = ptApiRegistry->first(PL_API_SHADER);
+    gptIO          = ptApiRegistry->first(PL_API_IO);
+    gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
+    gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
+    gptDraw        = ptApiRegistry->first(PL_API_DRAW);
+    gptUi          = ptApiRegistry->first(PL_API_UI);
+    gptShader      = ptApiRegistry->first(PL_API_SHADER);
+    gptDrawBackend = ptApiRegistry->first(PL_API_DRAW_BACKEND);
 
     // initialize shader compiler
     static const plShaderOptions tDefaultShaderOptions = {
@@ -190,13 +194,16 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->ptSwapchain = gptGfx->create_swapchain(ptAppData->ptDevice, &tSwapInit);
 
     // setup draw
-    gptDraw->initialize(ptAppData->ptDevice);
-    plFontHandle tDefaultFont = gptDraw->add_default_font();
-    gptDraw->build_font_atlas();
+    gptDraw->initialize(NULL);
+    gptDrawBackend->initialize(ptAppData->ptDevice);
+    plFontAtlas* ptAtlas = gptDraw->create_font_atlas();
+    plFont* ptDefaultFont = gptDraw->add_default_font(ptAtlas);
+    gptDrawBackend->build_font_atlas(ptAtlas);
+    gptDraw->set_font_atlas(ptAtlas);
 
     // setup ui
     gptUi->initialize();
-    gptUi->set_default_font(tDefaultFont);
+    gptUi->set_default_font(ptDefaultFont);
 
     // create timeline semaphores to syncronize GPU work submission
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
@@ -215,9 +222,9 @@ pl_app_shutdown(plAppData* ptAppData)
 {
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
-    gptDraw->cleanup_font_atlas();
+    gptDrawBackend->cleanup_font_atlas(NULL);
     gptUi->cleanup();
-    gptDraw->cleanup();
+    gptDrawBackend->cleanup();
     gptGfx->cleanup_swapchain(ptAppData->ptSwapchain);
     gptGfx->cleanup_surface(ptAppData->ptSurface);
     gptGfx->cleanup_device(ptAppData->ptDevice);
@@ -249,7 +256,7 @@ pl_app_update(plAppData* ptAppData)
     pl_begin_profile_frame();
 
     gptIO->new_frame();
-    gptDraw->new_frame();
+    gptDrawBackend->new_frame();
     gptUi->new_frame();
 
     // begin new frame
@@ -321,7 +328,9 @@ pl_app_update(plAppData* ptAppData)
 
     // submits UI drawlist/layers
     plIO* ptIO = gptIO->get_io();
-    gptUi->render(tEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
+    gptUi->end_frame();
+    gptDrawBackend->submit_2d_drawlist(gptUi->get_draw_list(), tEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
+    gptDrawBackend->submit_2d_drawlist(gptUi->get_debug_draw_list(), tEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
 
     // end render pass
     gptGfx->end_render_pass(tEncoder);

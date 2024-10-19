@@ -37,7 +37,7 @@ Index of this file:
 #include "pl_math.h"
 
 // extensions
-#include "pl_graphics_ext.h"
+#include "pl_graphics_ext.h" // not yet stable
 #include "pl_shader_ext.h"
 
 //-----------------------------------------------------------------------------

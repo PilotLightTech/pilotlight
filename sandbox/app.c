@@ -49,6 +49,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
         gptJobs        = ptApiRegistry->first(PL_API_JOB);
         gptModelLoader = ptApiRegistry->first(PL_API_MODEL_LOADER);
         gptDraw        = ptApiRegistry->first(PL_API_DRAW);
+        gptDrawBackend = ptApiRegistry->first(PL_API_DRAW_BACKEND);
         gptUi          = ptApiRegistry->first(PL_API_UI);
         gptIO          = ptApiRegistry->first(PL_API_IO);
         gptShader      = ptApiRegistry->first(PL_API_SHADER);
@@ -75,6 +76,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     gptJobs        = ptApiRegistry->first(PL_API_JOB);
     gptModelLoader = ptApiRegistry->first(PL_API_MODEL_LOADER);
     gptDraw        = ptApiRegistry->first(PL_API_DRAW);
+    gptDrawBackend = ptApiRegistry->first(PL_API_DRAW_BACKEND);
     gptUi          = ptApiRegistry->first(PL_API_UI);
     gptIO          = ptApiRegistry->first(PL_API_IO);
     gptShader      = ptApiRegistry->first(PL_API_SHADER);
@@ -117,7 +119,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     ptEditorData->ptSwap = gptRenderer->get_swapchain();
 
     // setup draw
-    gptDraw->initialize(gptRenderer->get_device());
+    gptDraw->initialize(NULL);
+    gptDrawBackend->initialize(gptRenderer->get_device());
+
+    plFontAtlas* ptAtlas = gptDraw->create_font_atlas();
 
     plFontRange tFontRange = {
         .iFirstCodePoint = 0x0020,
@@ -133,7 +138,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
         .uRangeCount = 1
     };
     // ptEditorData->tDefaultFont = gptDraw->add_default_font();
-    ptEditorData->tDefaultFont = gptDraw->add_font_from_file_ttf(tFontConfig0, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
+    ptEditorData->tDefaultFont = gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig0, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
 
     const plFontRange tIconRange = {
         .iFirstCodePoint = ICON_MIN_FA,
@@ -150,9 +155,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
         .ptRanges       = &tIconRange,
         .uRangeCount    = 1
     };
-    gptDraw->add_font_from_file_ttf(tFontConfig1, "../data/pilotlight-assets-master/fonts/fa-solid-900.otf");
+    gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig1, "../data/pilotlight-assets-master/fonts/fa-solid-900.otf");
 
-    gptDraw->build_font_atlas();
+    gptDrawBackend->build_font_atlas(ptAtlas);
+    gptDraw->set_font_atlas(ptAtlas);
 
     // setup ui
     gptUi->initialize();
@@ -169,7 +175,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     pl_end_profile_sample(0);
 
     // temporary draw layer for submitting fullscreen quad of offscreen render
-    ptEditorData->ptDrawLayer = gptDraw->request_2d_layer(gptUi->get_draw_list(), "draw layer");
+    ptEditorData->ptDrawLayer = gptDraw->request_2d_layer(gptUi->get_draw_list());
 
     plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptEditorData->uSceneHandle0);
 
@@ -247,9 +253,9 @@ pl_app_shutdown(plEditorData* ptEditorData)
     gptJobs->cleanup();
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(gptRenderer->get_device());
-    gptDraw->cleanup_font_atlas();
+    gptDrawBackend->cleanup_font_atlas(gptDraw->get_current_font_atlas());
     gptUi->cleanup();
-    gptDraw->cleanup();
+    gptDrawBackend->cleanup();
     gptRenderer->cleanup();
     gptWindows->destroy_window(ptEditorData->ptWindow);
     pl_cleanup_profile_context();
@@ -300,7 +306,7 @@ pl_app_update(plEditorData* ptEditorData)
         return;
     }
 
-    gptDraw->new_frame();
+    gptDrawBackend->new_frame();
     gptUi->new_frame();
 
     // update statistics
@@ -454,7 +460,7 @@ pl_app_update(plEditorData* ptEditorData)
         gptUi->show_debug_window(&ptEditorData->bShowUiDebug);
 
     // add full screen quad for offscreen render
-    gptDraw->add_image(ptEditorData->ptDrawLayer, gptRenderer->get_view_color_texture(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0), (plVec2){0}, ptIO->tMainViewportSize);
+    gptDraw->add_image(ptEditorData->ptDrawLayer, gptRenderer->get_view_color_texture(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0).ulData, (plVec2){0}, ptIO->tMainViewportSize);
 
     gptDraw->submit_2d_layer(ptEditorData->ptDrawLayer);
 
