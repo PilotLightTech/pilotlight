@@ -273,6 +273,7 @@ typedef struct _plWindowDesc
     uint32_t    uHeight;
     int         iXPos;
     int         iYPos;
+    const void* pNext;
 } plWindowDesc;
 
 typedef struct _plWindow
