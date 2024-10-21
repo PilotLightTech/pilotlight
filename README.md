@@ -41,7 +41,8 @@ Pilot Light is licensed under the [MIT License](https://github.com/PilotLightTec
 ## Gallery
 
 <p align="center">
-  <a href="https://github.com/PilotLightTech/pilotlight"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/gifs/sponza0.gif" alt="Sponza 0" width="2553"></a>
+  <a href="https://github.com/PilotLightTech/pilotlight"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/images/lowpoly3.PNG" alt="Low Poly Scene" width="1500"></a>
+  <a href="https://github.com/PilotLightTech/pilotlight"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/images/spacesuit.png" alt="Space Suit" width="2553"></a>
 </p>
 
 ## Inspiration
