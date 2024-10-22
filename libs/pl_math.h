@@ -30,6 +30,7 @@ Index of this file:
 // [SECTION] matrix ops
 // [SECTION] quaternion ops
 // [SECTION] rect ops
+// [SECTION] colors
 // [SECTION] implementations
 */
 
@@ -386,6 +387,28 @@ static inline plRect pl_rect_move_center_x (const plRect* ptRect, float fX)     
 static inline plRect pl_rect_move_start    (const plRect* ptRect, float fX, float fY)         { const plRect tResult = {{ fX, fY}, { fX + ptRect->tMax.x - ptRect->tMin.x, fY + ptRect->tMax.y - ptRect->tMin.y} }; return tResult;}
 static inline plRect pl_rect_move_start_x  (const plRect* ptRect, float fX)                   { const plRect tResult = { { fX, ptRect->tMin.y}, { fX + ptRect->tMax.x - ptRect->tMin.x, ptRect->tMax.y} }; return tResult;}
 static inline plRect pl_rect_move_start_y  (const plRect* ptRect, float fY)                   { const plRect tResult = {{ ptRect->tMin.x, fY}, { ptRect->tMax.x, fY + ptRect->tMax.y - ptRect->tMin.y}}; return tResult;}
+
+//-----------------------------------------------------------------------------
+// [SECTION] colors
+//-----------------------------------------------------------------------------
+
+// creates packed 32-bit encoded colors
+#define PL_COLOR_32_RGBA(R, G, B, A) ((uint32_t)(255.0f * (R) + 0.5f) | (uint32_t) (255.0f * (G) + 0.5f) << 8 | (uint32_t) (255.0f * (B) + 0.5f) << 16 | (uint32_t) (255.0f * (A) + 0.5f) << 24)
+#define PL_COLOR_32_VEC4(X)          ((uint32_t)(255.0f * (X).r + 0.5f) | (uint32_t) (255.0f * (X).g + 0.5f) << 8 | (uint32_t) (255.0f * (X).b + 0.5f) << 16 | (uint32_t) (255.0f * (X).a + 0.5f) << 24)
+#define PL_COLOR_32_RGB(R, G, B)     ((uint32_t)(255.0f * (R) + 0.5f) | (uint32_t) (255.0f * (G) + 0.5f) << 8 | (uint32_t) (255.0f * (B) + 0.5f) << 16 | (uint32_t) (255.5f) << 24)
+#define PL_COLOR_32_VEC3(X)          ((uint32_t)(255.0f * (X).r + 0.5f) | (uint32_t) (255.0f * (X).g + 0.5f) << 8 | (uint32_t) (255.0f * (X).b + 0.5f) << 16 | (uint32_t) (255.5f) << 24)
+#define PL_COLOR_32_WHITE            UINT32_MAX
+#define PL_COLOR_32_BLACK            0x00
+#define PL_COLOR_32_RED              0xFF0000FF
+#define PL_COLOR_32_BLUE             0xFFFF0000
+#define PL_COLOR_32_DARK_BLUE        0xFF8B0000
+#define PL_COLOR_32_GREEN            0xFF00FF00
+#define PL_COLOR_32_YELLOW           0xFF00FFFF
+#define PL_COLOR_32_ORANGE           0xFF00A5FF
+#define PL_COLOR_32_MAGENTA          0xFFFF00FF
+#define PL_COLOR_32_CYAN             0xFFFFFF00
+#define PL_COLOR_32_GREY             0xFF808080
+#define PL_COLOR_32_LIGHT_GREY       0xFFD3D3D3
 
 //-----------------------------------------------------------------------------
 // [SECTION] implementations
