@@ -497,8 +497,8 @@ typedef struct _plUiContext
 //-----------------------------------------------------------------------------
 
 static const char*   pl__find_renderered_text_end(const char* pcText, const char* pcTextEnd);
-static void          pl__add_text                (plDrawLayer2D*, plFont*, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap);
-static void          pl__add_clipped_text        (plDrawLayer2D*, plFont*, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap);
+static void          pl__add_text                (plDrawLayer2D*, plFont*, float fSize, plVec2 tP, uint32_t uColor, const char* pcText, float fWrap);
+static void          pl__add_clipped_text        (plDrawLayer2D*, plFont*, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, uint32_t uColor, const char* pcText, float fWrap);
 static plVec2        pl__calculate_text_size     (plFont*, float size, const char* text, float wrap);
 static inline float  pl__get_frame_height        (void) { return gptCtx->tStyle.fFontSize + gptCtx->tStyle.tFramePadding.y * 2.0f; }
 

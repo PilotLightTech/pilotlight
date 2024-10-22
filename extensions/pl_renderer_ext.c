@@ -4135,7 +4135,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                 const plDrawable tDrawable = ptScene->sbtOutlineDrawables[i];
                 plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
                 plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
-                gptDraw->add_3d_aabb(ptView->pt3DSelectionDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, tOutlineColor, 0.01f);
+                gptDraw->add_3d_aabb(ptView->pt3DSelectionDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tOutlineColor), .fThickness = 0.01f});
                 
             }
         }
@@ -4146,7 +4146,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             if(ptScene->sbtLightData[i].iType == PL_LIGHT_TYPE_POINT)
             {
                 const plVec4 tColor = {.rgb = ptScene->sbtLightData[i].tColor, .a = 1.0f};
-                gptDraw->add_3d_cross(ptView->pt3DDrawList, ptScene->sbtLightData[i].tPosition, tColor, 0.25f, 0.02f);
+                gptDraw->add_3d_cross(ptView->pt3DDrawList, ptScene->sbtLightData[i].tPosition, 0.02f, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.25f});
             }
         }
 
@@ -4157,13 +4157,13 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             {
                 plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptScene->sbtOpaqueDrawables[i].tEntity);
 
-                gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+                gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 0.0f, 0.0f), .fThickness = 0.02f});
             }
             for(uint32_t i = 0; i < uTransparentDrawableCount; i++)
             {
                 plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptScene->sbtTransparentDrawables[i].tEntity);
 
-                gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+                gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 0.0f, 0.0f), .fThickness = 0.02f});
             }
         }
         else if(gptData->bDrawVisibleBoundingBoxes)
@@ -4172,25 +4172,31 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             {
                 plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptView->sbtVisibleOpaqueDrawables[i].tEntity);
 
-                gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+                gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 0.0f, 0.0f), .fThickness = 0.02f});
             }
             for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
             {
                 plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptView->sbtVisibleTransparentDrawables[i].tEntity);
 
-                gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 0.02f);
+                gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptMesh->tAABBFinal.tMin, ptMesh->tAABBFinal.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 0.0f, 0.0f), .fThickness = 0.02f});
             }
         }
 
         if(gptData->bShowOrigin)
         {
             const plMat4 tTransform = pl_identity_mat4();
-            gptDraw->add_3d_transform(ptView->pt3DDrawList, &tTransform, 10.0f, 0.02f);
+            gptDraw->add_3d_transform(ptView->pt3DDrawList, &tTransform, 10.0f, (plDrawLineOptions){.fThickness = 0.02f});
         }
 
         if(ptCullCamera && ptCullCamera != ptCamera)
         {
-            gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &ptCullCamera->tTransformMat, ptCullCamera->fFieldOfView, ptCullCamera->fAspectRatio, ptCullCamera->fNearZ, ptCullCamera->fFarZ, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.02f);
+            plDrawFrustumDesc tFrustumDesc = {
+                .fAspectRatio = ptCullCamera->fAspectRatio,
+                .fFarZ = ptCullCamera->fFarZ,
+                .fNearZ = ptCullCamera->fNearZ,
+                .fYFov = ptCullCamera->fFieldOfView
+            };
+            gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &ptCullCamera->tTransformMat, tFrustumDesc, (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = 0.02f});
         }
 
         gptDrawBackend->submit_3d_drawlist(ptView->pt3DDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
@@ -4688,7 +4694,7 @@ pl_add_drawable_objects_to_scene(uint32_t uSceneHandle, uint32_t uOpaqueCount, c
 static void
 pl_show_graphics_options(const char* pcTitle)
 {
-    if(gptUI->collapsing_header(pcTitle))
+    if(gptUI->begin_collapsing_header(pcTitle))
     {
         // if(gptUI->checkbox("VSync", &gptData->ptSwap->bVSync))
         //     gptData->bReloadSwapchain = true;

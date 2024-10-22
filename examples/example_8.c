@@ -42,7 +42,7 @@ Index of this file:
 
 // extensions
 #include "pl_graphics_ext.h" // not yet stable
-#include "pl_draw_ext.h" // not yet stable
+#include "pl_draw_ext.h"
 #include "pl_shader_ext.h"
 #include "pl_draw_backend_ext.h" // not yet stable
 
@@ -483,32 +483,31 @@ pl_app_update(plAppData* ptAppData)
 
     // 3d drawing API usage
     const plMat4 tOrigin = pl_identity_mat4();
-    gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 10.0f, 0.2f);
+    gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 10.0f, (plDrawLineOptions){.fThickness = 0.2f});
 
     plDrawCylinderDesc tCylinderDesc = {
         .fRadius = 1.5f,
         .tBasePos = {-2.5f, 1.0f, 0.0f},
         .tTipPos  = {-2.5f, 4.0f, 0.0f},
-        .tColor = (plVec4){1.0f, 1.0f, 0.0f, 0.75f},
         .uSegments = 12
     };
-    gptDraw->add_3d_cylinder_filled_ex(ptAppData->pt3dDrawlist, &tCylinderDesc);
+    gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, tCylinderDesc, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
 
     gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
         (plVec3){1.0f, 1.0f, 0.0f},
         (plVec3){4.0f, 1.0f, 0.0f},
         (plVec3){1.0f, 4.0f, 0.0f},
-        (plVec4){1.0f, 1.0f, 0.0f, 0.75f});
+        (plDrawSolidOptions){.uColor = PL_COLOR_32_YELLOW});
 
     gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist,
-        (plVec3){5.5f, 2.5f, 0.0f}, 1.5f, (plVec4){1.0f, 1.0f, 0.0f, 0.75f});
+        (plDrawSphereDesc){.fRadius = 1.0F, .tCenter = {5.5f, 2.5f, 0.0f}}, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
 
     gptDraw->add_3d_circle_xz_filled(ptAppData->pt3dDrawlist,
-        (plVec3){8.5f, 2.5f, 0.0f}, 1.5f, (plVec4){1.0f, 1.0f, 0.0f, 0.75f}, 0);
+        (plVec3){8.5f, 2.5f, 0.0f}, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
 
-    gptDraw->add_3d_band_xz_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, (plVec4){1.0f, 1.0f, 0.0f, 0.75f}, 0);
-    gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, (plVec4){1.0f, 0.0f, 0.0f, 0.75f}, 0);
-    gptDraw->add_3d_band_yz_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, (plVec4){1.0f, 0.0f, 1.0f, 0.75f}, 0);
+    gptDraw->add_3d_band_xz_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
+    gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 0.0f, 0.75f)});
+    gptDraw->add_3d_band_yz_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 1.0f, 0.75f)});
 
     // gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
     //     (plVec3){1.0f, 1.0f, 3.0f},

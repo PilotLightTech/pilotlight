@@ -36,7 +36,7 @@ Index of this file:
 
 // extensions
 #include "pl_shader_ext.h"
-#include "pl_draw_ext.h" // not yet stable
+#include "pl_draw_ext.h"
 #include "pl_ui_ext.h" // not yet stable
 #include "pl_graphics_ext.h" // not yet stable
 #include "pl_draw_backend_ext.h" // not yet stable
@@ -275,7 +275,7 @@ pl_app_update(plAppData* ptAppData)
 
         const float pfRatios[] = {1.0f};
         gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-        if(gptUi->collapsing_header("Information"))
+        if(gptUi->begin_collapsing_header("Information"))
         {
             
             gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION);
@@ -289,7 +289,7 @@ pl_app_update(plAppData* ptAppData)
 
             gptUi->end_collapsing_header();
         }
-        if(gptUi->collapsing_header("User Interface"))
+        if(gptUi->begin_collapsing_header("User Interface"))
         {
             gptUi->checkbox("UI Debug", &ptAppData->bShowUiDebug);
             gptUi->checkbox("UI Demo", &ptAppData->bShowUiDemo);

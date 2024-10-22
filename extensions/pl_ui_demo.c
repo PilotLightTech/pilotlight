@@ -29,16 +29,16 @@ pl_show_debug_window(bool* pbOpen)
             if(ptWindow->bActive)
             {
                 if(bShowWindowInnerRect)
-                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tInnerRect.tMin, ptWindow->tInnerRect.tMax, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 1.0f, 0.0f, 0);
+                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tInnerRect.tMin, ptWindow->tInnerRect.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 1.0f});
 
                 if(bShowWindowInnerClipRect)
-                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tInnerClipRect.tMin, ptWindow->tInnerClipRect.tMax, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 1.0f, 0.0f, 0);
+                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tInnerClipRect.tMin, ptWindow->tInnerClipRect.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 1.0f});
 
                 if(bShowWindowOuterRect)
-                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 1.0f, 0.0f, 0);
+                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 1.0f});
 
                 if(bShowWindowOuterClippedRect)
-                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tOuterRectClipped.tMin, ptWindow->tOuterRectClipped.tMax, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 1.0f, 0.0f, 0);
+                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tOuterRectClipped.tMin, ptWindow->tOuterRectClipped.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 1.0f});
             }
         }
         

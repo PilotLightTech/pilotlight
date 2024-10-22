@@ -87,7 +87,7 @@ pl_load_ui_api(void)
         .slider_int_f                  = pl_slider_int_f,
         .drag_float                    = pl_drag_float,
         .drag_float_f                  = pl_drag_float_f,
-        .collapsing_header             = pl_collapsing_header,
+        .begin_collapsing_header       = pl_collapsing_header,
         .end_collapsing_header         = pl_end_collapsing_header,
         .tree_node                     = pl_tree_node,
         .tree_node_f                   = pl_tree_node_f,

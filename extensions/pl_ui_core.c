@@ -640,9 +640,9 @@ pl_end_tooltip(void)
     ptWindow->tSize.x = ptWindow->tContentSize.x + gptCtx->tStyle.fWindowHorizontalPadding;
     ptWindow->tSize.y = ptWindow->tContentSize.y;
 
-    gptDraw->add_rect_filled(ptWindow->ptBgLayer,
+    gptDraw->add_rect_rounded_filled(ptWindow->ptBgLayer,
         ptWindow->tPos, 
-        pl_add_vec2(ptWindow->tPos, ptWindow->tSize), gptCtx->tColorScheme.tWindowBgColor, 0.0f, 0);
+        pl_add_vec2(ptWindow->tPos, ptWindow->tSize), 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tWindowBgColor)});
 
     gptDraw->pop_clip_rect(gptCtx->ptDrawlist);
     gptCtx->ptCurrentWindow = ptWindow->ptParentWindow;
@@ -1275,24 +1275,37 @@ pl_is_item_hoverable_circle(plVec2 tP, float fRadius, uint32_t uHash)
 }
 
 static void
-pl__add_text(plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec4 tColor, const char* pcText, float fWrap)
+pl__add_text(plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2 tP, uint32_t uColor, const char* pcText, float fWrap)
 {
     const char* pcTextEnd = pcText + strlen(pcText);
-    gptDraw->add_text_ex(ptLayer, ptFont, fSize, (plVec2){roundf(tP.x), roundf(tP.y)}, tColor, pcText, pl__find_renderered_text_end(pcText, pcTextEnd), fWrap);
+    gptDraw->add_text(ptLayer, (plVec2){roundf(tP.x), roundf(tP.y)}, pcText, (plDrawTextOptions){
+        .fSize = fSize,
+        .fWrap = fWrap,
+        .pcTextEnd = pl__find_renderered_text_end(pcText, pcTextEnd),
+        .ptFont = ptFont,
+        .uColor = uColor
+    });
 }
 
 static void
-pl__add_clipped_text(plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, plVec4 tColor, const char* pcText, float fWrap)
+pl__add_clipped_text(plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, uint32_t uColor, const char* pcText, float fWrap)
 {
     const char* pcTextEnd = pcText + strlen(pcText);
-    gptDraw->add_text_clipped_ex(ptLayer, ptFont, fSize, (plVec2){roundf(tP.x + 0.5f), roundf(tP.y + 0.5f)}, tMin, tMax, tColor, pcText, pl__find_renderered_text_end(pcText, pcTextEnd), fWrap);   
+    gptDraw->add_text_clipped(ptLayer, (plVec2){roundf(tP.x + 0.5f), roundf(tP.y + 0.5f)}, pcText, tMin, tMax,
+        (plDrawTextOptions){
+            .fSize = fSize,
+            .fWrap = fWrap,
+            .pcTextEnd = pl__find_renderered_text_end(pcText, pcTextEnd),
+            .ptFont = ptFont,
+            .uColor = uColor
+    });
 }
 
 static plVec2
 pl__calculate_text_size(plFont* ptFont, float size, const char* text, float wrap)
 {
     const char* pcTextEnd = text + strlen(text);
-    return gptDraw->calculate_text_size_ex(ptFont, size, text, pl__find_renderered_text_end(text, pcTextEnd), wrap);  
+    return gptDraw->calculate_text_size(text, (plDrawTextOptions){.ptFont = ptFont, .fSize = size, .pcTextEnd = pl__find_renderered_text_end(text, pcTextEnd), .fWrap = wrap});  
 }
 
 static plUiStorageEntry*
@@ -1536,11 +1549,11 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             tTitleColor = gptCtx->tColorScheme.tTitleBgCollapsedCol;
         else
             tTitleColor = gptCtx->tColorScheme.tTitleBgCol;
-        gptDraw->add_rect_filled_ex(ptWindow->ptFgLayer, tStartPos, pl_add_vec2(tStartPos, (plVec2){ptWindow->tSize.x, fTitleBarHeight}), tTitleColor, gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP);
+        gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tStartPos, pl_add_vec2(tStartPos, (plVec2){ptWindow->tSize.x, fTitleBarHeight}), gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tTitleColor)});
 
         // draw title text
         const plVec2 titlePos = pl_add_vec2(tStartPos, (plVec2){ptWindow->tSize.x / 2.0f - tTextSize.x / 2.0f, gptCtx->tStyle.fTitlePadding});
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, titlePos, gptCtx->tColorScheme.tTextCol, pcName, 0.0f);
+        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, titlePos, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcName, 0.0f);
 
         // draw close button
         const float fTitleBarButtonRadius = 8.0f;
@@ -1557,9 +1570,9 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             bool bHeld = false;
             bool bPressed = pl__button_behavior(&tBoundingBox, uCloseHash, &bHovered, &bHeld);
 
-            if(gptCtx->uActiveId == uCloseHash)       gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 12);
-            else if(gptCtx->uHoveredId == uCloseHash) gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, (plVec4){1.0f, 0.0f, 0.0f, 1.0f}, 12);
-            else                                      gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, (plVec4){0.5f, 0.0f, 0.0f, 1.0f}, 12);
+            if(gptCtx->uActiveId == uCloseHash)       gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, 12, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 0.0f, 1.0f)});
+            else if(gptCtx->uHoveredId == uCloseHash) gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, 12, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 0.0f, 1.0f)});
+            else                                      gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, 12, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.5f, 0.0f, 0.0f, 1.0f)});
 
             if(bPressed)
                 *pbOpen = false;
@@ -1577,9 +1590,9 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             bool bHeld = false;
             bool bPressed = pl__button_behavior(&tBoundingBox, uCollapseHash, &bHovered, &bHeld);
 
-            if(gptCtx->uActiveId == uCollapseHash)       gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 12);
-            else if(gptCtx->uHoveredId == uCollapseHash) gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 12);
-            else                                         gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, (plVec4){0.5f, 0.5f, 0.0f, 1.0f}, 12);
+            if(gptCtx->uActiveId == uCollapseHash)       gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, 12, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 1.0f)});
+            else if(gptCtx->uHoveredId == uCollapseHash) gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, 12, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 1.0f)});
+            else                                         gptDraw->add_circle_filled(ptWindow->ptFgLayer, tCloseCenterPos, fTitleBarButtonRadius, 12, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.5f, 0.5f, 0.0f, 1.0f)});
 
             if(bPressed)
             {
@@ -1636,7 +1649,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         ptWindow->tOuterRectClipped = ptWindow->tOuterRect;
         
         // draw background
-        gptDraw->add_rect_filled_ex(ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tColorScheme.tWindowBgColor, gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM);
+        gptDraw->add_rect_rounded_filled(ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tWindowBgColor)});
 
         ptWindow->tFullSize = ptWindow->tSize;
     }
@@ -1668,8 +1681,8 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         // draw border
         if(!(tFlags & PL_UI_WINDOW_FLAGS_NO_BACKGROUND))
         {
-            gptDraw->add_rect(ptWindow->ptFgLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax, gptCtx->tColorScheme.tWindowBorderColor, 1.0f, gptCtx->tStyle.fWindowRounding, 0);
-            gptDraw->add_rect_filled_ex(ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tColorScheme.tWindowBgColor, gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM);
+            gptDraw->add_rect_rounded(ptWindow->ptFgLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax, gptCtx->tStyle.fWindowRounding, 0, 0, (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tWindowBorderColor)});
+            gptDraw->add_rect_rounded_filled(ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tWindowBgColor)});
         }
 
         // vertical scroll bar
@@ -1699,17 +1712,17 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
                 if(gptCtx->uActiveId == uResizeHash)
                 {
-                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plVec4){0.99f, 0.02f, 0.10f, 1.0f});
+                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGB(0.99f, 0.02f, 0.10f)});
                     gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NWSE);
                 }
                 else if(gptCtx->uHoveredId == uResizeHash)
                 {
-                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plVec4){0.66f, 0.02f, 0.10f, 1.0f});
+                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGB(0.66f, 0.02f, 0.10f)});
                     gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NWSE);
                 }
                 else
                 {
-                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plVec4){0.33f, 0.02f, 0.10f, 1.0f});   
+                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGB(0.33f, 0.02f, 0.10f)});
                 }
             }
 
@@ -1725,12 +1738,12 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
                 if(gptCtx->uActiveId == uEastResizeHash)
                 {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopRight.x, tTopRight.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomRight.x, tBottomRight.y - gptCtx->tStyle.fWindowRounding}, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopRight.x, tTopRight.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomRight.x, tBottomRight.y - gptCtx->tStyle.fWindowRounding}, (plDrawLineOptions){.fThickness = 2.0f, .uColor = PL_COLOR_32_RGB(0.99f, 0.02f, 0.10f)});
                     gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
                 }
                 else if(gptCtx->uHoveredId == uEastResizeHash)
                 {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopRight.x, tTopRight.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomRight.x, tBottomRight.y - gptCtx->tStyle.fWindowRounding}, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopRight.x, tTopRight.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomRight.x, tBottomRight.y - gptCtx->tStyle.fWindowRounding}, (plDrawLineOptions){.fThickness = 2.0f, .uColor = PL_COLOR_32_RGB(0.66f, 0.02f, 0.10f)});
                     gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
                 }
             }
@@ -1746,12 +1759,12 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
                 if(gptCtx->uActiveId == uWestResizeHash)
                 {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x, tTopLeft.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomLeft.x, tBottomLeft.y - gptCtx->tStyle.fWindowRounding}, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x, tTopLeft.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomLeft.x, tBottomLeft.y - gptCtx->tStyle.fWindowRounding}, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.99f, 0.02f, 0.10f), .fThickness = 2.0f});
                     gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
                 }
                 else if(gptCtx->uHoveredId == uWestResizeHash)
                 {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x, tTopLeft.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomLeft.x, tBottomLeft.y - gptCtx->tStyle.fWindowRounding}, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x, tTopLeft.y + gptCtx->tStyle.fWindowRounding}, (plVec2){tBottomLeft.x, tBottomLeft.y - gptCtx->tStyle.fWindowRounding}, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.66f, 0.02f, 0.10f), .fThickness = 2.0f});
                     gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_EW);
                 }
             }
@@ -1767,12 +1780,12 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
                 if(gptCtx->uActiveId == uNorthResizeHash)
                 {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x + gptCtx->tStyle.fWindowRounding, tTopLeft.y}, (plVec2){tTopRight.x - gptCtx->tStyle.fWindowRounding, tTopRight.y}, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x + gptCtx->tStyle.fWindowRounding, tTopLeft.y}, (plVec2){tTopRight.x - gptCtx->tStyle.fWindowRounding, tTopRight.y}, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.99f, 0.02f, 0.10f), .fThickness = 2.0f});
                     gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
                 }
                 else if(gptCtx->uHoveredId == uNorthResizeHash)
                 {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x + gptCtx->tStyle.fWindowRounding, tTopLeft.y}, (plVec2){tTopRight.x - gptCtx->tStyle.fWindowRounding, tTopRight.y}, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tTopLeft.x + gptCtx->tStyle.fWindowRounding, tTopLeft.y}, (plVec2){tTopRight.x - gptCtx->tStyle.fWindowRounding, tTopRight.y}, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.66f, 0.02f, 0.10f), .fThickness = 2.0f});
                     gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
                 }
             }
@@ -1788,12 +1801,12 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
                 if(gptCtx->uActiveId == uSouthResizeHash)
                 {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tBottomLeft.x + gptCtx->tStyle.fWindowRounding, tBottomLeft.y}, (plVec2){tBottomRight.x - gptCtx->tStyle.fWindowRounding, tBottomRight.y}, (plVec4){0.99f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tBottomLeft.x + gptCtx->tStyle.fWindowRounding, tBottomLeft.y}, (plVec2){tBottomRight.x - gptCtx->tStyle.fWindowRounding, tBottomRight.y}, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.99f, 0.02f, 0.10f), .fThickness = 2.0f});
                     gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
                 }
                 else if(gptCtx->uHoveredId == uSouthResizeHash)
                 {
-                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tBottomLeft.x + gptCtx->tStyle.fWindowRounding, tBottomLeft.y}, (plVec2){tBottomRight.x - gptCtx->tStyle.fWindowRounding, tBottomRight.y}, (plVec4){0.66f, 0.02f, 0.10f, 1.0f}, 2.0f);
+                    gptDraw->add_line(ptWindow->ptFgLayer, (plVec2){tBottomLeft.x + gptCtx->tStyle.fWindowRounding, tBottomLeft.y}, (plVec2){tBottomRight.x - gptCtx->tStyle.fWindowRounding, tBottomRight.y}, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.66f, 0.02f, 0.10f), .fThickness = 2.0f});
                     gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NS);
                 }
             }
@@ -1940,17 +1953,17 @@ pl__render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis)
             tScrollBackground = pl_rect_clip(&tScrollBackground, &ptWindow->tOuterRectClipped);
             tHandleBox = pl_rect_clip(&tHandleBox, &ptWindow->tOuterRectClipped);
 
-            gptDraw->add_rect_filled(ptWindow->ptBgLayer, tScrollBackground.tMin, tScrollBackground.tMax, gptCtx->tColorScheme.tScrollbarBgCol, gptCtx->tStyle.fScrollbarRounding, 0);
+            gptDraw->add_rect_rounded_filled(ptWindow->ptBgLayer, tScrollBackground.tMin, tScrollBackground.tMax, gptCtx->tStyle.fScrollbarRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tScrollbarBgCol)});
 
             bool bHovered = false;
             bool bHeld = false;
             const bool bPressed = pl__button_behavior(&tHandleBox, uHash, &bHovered, &bHeld);   
             if(gptCtx->uActiveId == uHash)
-                gptDraw->add_rect_filled(ptWindow->ptBgLayer, tStartPos, pl_add_vec2(tStartPos, tFinalSize), gptCtx->tColorScheme.tScrollbarActiveCol, gptCtx->tStyle.fScrollbarRounding, 0);
+                gptDraw->add_rect_rounded_filled(ptWindow->ptBgLayer, tStartPos, pl_add_vec2(tStartPos, tFinalSize), gptCtx->tStyle.fScrollbarRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tScrollbarActiveCol)});
             else if(gptCtx->uHoveredId == uHash)
-                gptDraw->add_rect_filled(ptWindow->ptBgLayer, tStartPos, pl_add_vec2(tStartPos, tFinalSize), gptCtx->tColorScheme.tScrollbarHoveredCol, gptCtx->tStyle.fScrollbarRounding, 0);
+                gptDraw->add_rect_rounded_filled(ptWindow->ptBgLayer, tStartPos, pl_add_vec2(tStartPos, tFinalSize), gptCtx->tStyle.fScrollbarRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tScrollbarHoveredCol)});
             else
-                gptDraw->add_rect_filled(ptWindow->ptBgLayer, tStartPos, pl_add_vec2(tStartPos, tFinalSize), gptCtx->tColorScheme.tScrollbarHandleCol, gptCtx->tStyle.fScrollbarRounding, 0);
+                gptDraw->add_rect_rounded_filled(ptWindow->ptBgLayer, tStartPos, pl_add_vec2(tStartPos, tFinalSize), gptCtx->tStyle.fScrollbarRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tScrollbarHandleCol)});
         }
     }
     else if(tAxis == PL_UI_AXIS_Y)
@@ -1980,7 +1993,7 @@ pl__render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis)
             tHandleBox = pl_rect_clip(&tHandleBox, &ptWindow->tOuterRectClipped);
 
             // scrollbar background
-            gptDraw->add_rect_filled(ptWindow->ptBgLayer, tScrollBackground.tMin, tScrollBackground.tMax, gptCtx->tColorScheme.tScrollbarBgCol, gptCtx->tStyle.fScrollbarRounding, 0);
+            gptDraw->add_rect_rounded_filled(ptWindow->ptBgLayer, tScrollBackground.tMin, tScrollBackground.tMax, gptCtx->tStyle.fScrollbarRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tScrollbarBgCol)});
 
             bool bHovered = false;
             bool bHeld = false;
@@ -1988,11 +2001,11 @@ pl__render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis)
 
             // scrollbar handle
             if(gptCtx->uActiveId == uHash) 
-                gptDraw->add_rect_filled(ptWindow->ptBgLayer, tHandleBox.tMin, tHandleBox.tMax, gptCtx->tColorScheme.tScrollbarActiveCol, gptCtx->tStyle.fScrollbarRounding, 0);
+                gptDraw->add_rect_rounded_filled(ptWindow->ptBgLayer, tHandleBox.tMin, tHandleBox.tMax, gptCtx->tStyle.fScrollbarRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tScrollbarActiveCol)});
             else if(gptCtx->uHoveredId == uHash) 
-                gptDraw->add_rect_filled(ptWindow->ptBgLayer, tHandleBox.tMin, tHandleBox.tMax, gptCtx->tColorScheme.tScrollbarHoveredCol, gptCtx->tStyle.fScrollbarRounding, 0);
+                gptDraw->add_rect_rounded_filled(ptWindow->ptBgLayer, tHandleBox.tMin, tHandleBox.tMax, gptCtx->tStyle.fScrollbarRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tScrollbarHoveredCol)});
             else
-                gptDraw->add_rect_filled(ptWindow->ptBgLayer, tHandleBox.tMin, tHandleBox.tMax, gptCtx->tColorScheme.tScrollbarHandleCol, gptCtx->tStyle.fScrollbarRounding, 0);
+                gptDraw->add_rect_rounded_filled(ptWindow->ptBgLayer, tHandleBox.tMin, tHandleBox.tMax, gptCtx->tStyle.fScrollbarRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tScrollbarHandleCol)});
 
         }
     }

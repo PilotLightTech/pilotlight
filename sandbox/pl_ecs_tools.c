@@ -100,13 +100,13 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
 
                 gptUi->text("Entity: %u, %u", ptSelectedEntity->uIndex, ptSelectedEntity->uGeneration);
 
-                if(ptTagComp && gptUi->collapsing_header("Tag"))
+                if(ptTagComp && gptUi->begin_collapsing_header("Tag"))
                 {
                     gptUi->text("Name: %s", ptTagComp->acName);
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptTransformComp && gptUi->collapsing_header("Transform"))
+                if(ptTransformComp && gptUi->begin_collapsing_header("Transform"))
                 {
                     gptUi->text("Scale:       (%+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tScale.x, ptTransformComp->tScale.y, ptTransformComp->tScale.z);
                     gptUi->text("Translation: (%+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tTranslation.x, ptTransformComp->tTranslation.y, ptTransformComp->tTranslation.z);
@@ -119,7 +119,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptMeshComp && gptUi->collapsing_header("Mesh"))
+                if(ptMeshComp && gptUi->begin_collapsing_header("Mesh"))
                 {
 
                     plTagComponent* ptMaterialTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptMeshComp->tMaterial);
@@ -145,7 +145,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptObjectComp && gptUi->collapsing_header("Object"))
+                if(ptObjectComp && gptUi->begin_collapsing_header("Object"))
                 {
                     plTagComponent* ptMeshTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptObjectComp->tMesh);
                     plTagComponent* ptTransformTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptObjectComp->tTransform);
@@ -154,14 +154,14 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptHierarchyComp && gptUi->collapsing_header("Hierarchy"))
+                if(ptHierarchyComp && gptUi->begin_collapsing_header("Hierarchy"))
                 {
                     plTagComponent* ptParentTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptHierarchyComp->tParent);
                     gptUi->text("Parent Entity: %s , %u", ptParentTagComp->acName, ptHierarchyComp->tParent.uIndex);
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptLightComp && gptUi->collapsing_header("Light"))
+                if(ptLightComp && gptUi->begin_collapsing_header("Light"))
                 {
                     static const char* apcLightTypes[] = {
                         "PL_LIGHT_TYPE_DIRECTIONAL",
@@ -175,7 +175,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->text("Cast Shadow: %s", ptLightComp->tFlags & PL_LIGHT_FLAG_CAST_SHADOW ? "true" : "false");
                 }
 
-                if(ptMaterialComp && gptUi->collapsing_header("Material"))
+                if(ptMaterialComp && gptUi->begin_collapsing_header("Material"))
                 {
                     gptUi->text("Base Color:            (%0.3f, %0.3f, %0.3f, %0.3f)", ptMaterialComp->tBaseColor.r, ptMaterialComp->tBaseColor.g, ptMaterialComp->tBaseColor.b, ptMaterialComp->tBaseColor.a);
                     gptUi->text("Alpha Cutoff:                    %0.3f", ptMaterialComp->fAlphaCutoff);
@@ -232,7 +232,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptSkinComp && gptUi->collapsing_header("Skin"))
+                if(ptSkinComp && gptUi->begin_collapsing_header("Skin"))
                 {
                     if(gptUi->tree_node("Joints"))
                     {
@@ -246,7 +246,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptCameraComp && gptUi->collapsing_header("Camera"))
+                if(ptCameraComp && gptUi->begin_collapsing_header("Camera"))
                 { 
                     gptUi->text("Near Z:                  %+0.3f", ptCameraComp->fNearZ);
                     gptUi->text("Far Z:                   %+0.3f", ptCameraComp->fFarZ);
@@ -263,7 +263,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptAnimationComp && gptUi->collapsing_header("Animation"))
+                if(ptAnimationComp && gptUi->begin_collapsing_header("Animation"))
                 { 
                     bool bPlaying = ptAnimationComp->tFlags & PL_ANIMATION_FLAG_PLAYING;
                     bool bLooped = ptAnimationComp->tFlags & PL_ANIMATION_FLAG_LOOPED;
@@ -296,7 +296,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptIKComp && gptUi->collapsing_header("Inverse Kinematics"))
+                if(ptIKComp && gptUi->begin_collapsing_header("Inverse Kinematics"))
                 { 
                     plTagComponent* ptTargetComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptIKComp->tTarget);
                     gptUi->text("Target Entity: %s , %u", ptTargetComp->acName, ptIKComp->tTarget.uIndex);

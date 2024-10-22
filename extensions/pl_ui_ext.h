@@ -204,7 +204,7 @@ typedef struct _plUiI
     // trees
     // - only call "pl_tree_pop()" if "pl_tree_node()" returns true (its call automatically if false)
     // - only call "pl_end_collapsing_header()" if "pl_collapsing_header()" returns true (its call automatically if false)
-    bool (*collapsing_header)    (const char* pcText);
+    bool (*begin_collapsing_header)    (const char* pcText);
     void (*end_collapsing_header)(void);
     bool (*tree_node)            (const char* pcText);
     bool (*tree_node_f)          (const char* pcFmt, ...);

@@ -210,7 +210,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // adding another font
     plFontConfig tFontConfig0 = {
         .bSdf = false,
-        .fFontSize = 18.0f,
+        .fSize = 18.0f,
         .uHOverSampling = 1,
         .uVOverSampling = 1,
         .uRangeCount = 1,
@@ -221,7 +221,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // adding previous font but as a signed distance field
     plFontConfig tFontConfig1 = {
         .bSdf = true, // only works with ttf
-        .fFontSize = 18.0f,
+        .fSize = 18.0f,
         .uHOverSampling = 1,
         .uVOverSampling = 1,
         .ucOnEdgeValue = 180,
@@ -305,51 +305,49 @@ pl_app_update(plAppData* ptAppData)
 
     // lines
     float fXCursor = 0.0f;
-    gptDraw->add_line(ptAppData->ptFGLayer, (plVec2){fXCursor, 0.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 1.0f);
+    gptDraw->add_line(ptAppData->ptFGLayer, (plVec2){fXCursor, 0.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_MAGENTA});
     fXCursor += 100.0f;
-    gptDraw->add_triangle(ptAppData->ptFGLayer, (plVec2){fXCursor + 50.0f, 0.0f}, (plVec2){fXCursor, 100.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 1.0f);
+    gptDraw->add_triangle(ptAppData->ptFGLayer, (plVec2){fXCursor + 50.0f, 0.0f}, (plVec2){fXCursor, 100.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_MAGENTA});
     fXCursor += 100.0f;
-    gptDraw->add_circle(ptAppData->ptFGLayer, (plVec2){fXCursor + 50.0f, 50.0f}, 50.0f, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 0, 1.0f);
+    gptDraw->add_circle(ptAppData->ptFGLayer, (plVec2){fXCursor + 50.0f, 50.0f}, 50.0f, 0, (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_MAGENTA});
     fXCursor += 100.0f;
-    gptDraw->add_rect(ptAppData->ptFGLayer, (plVec2){fXCursor, 5.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 1.0f, 0, 0);
+    gptDraw->add_rect_rounded(ptAppData->ptFGLayer, (plVec2){fXCursor, 5.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, 0, 0, 0, (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_MAGENTA});
     fXCursor += 100.0f;
-    gptDraw->add_rect(ptAppData->ptFGLayer, (plVec2){fXCursor, 5.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 2.0f, 25.0f, 0);
+    gptDraw->add_rect_rounded(ptAppData->ptFGLayer, (plVec2){fXCursor, 5.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, 25.0f, 0, 0, (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_MAGENTA});
     fXCursor += 100.0f;
-    gptDraw->add_rect_ex(ptAppData->ptFGLayer, (plVec2){fXCursor, 5.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 2.0f, 25.0f, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT);
+    gptDraw->add_rect_rounded(ptAppData->ptFGLayer, (plVec2){fXCursor, 5.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, 25.0f, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT, (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_MAGENTA});
     fXCursor += 100.0f;
-    gptDraw->add_quad(ptAppData->ptFGLayer, (plVec2){fXCursor + 5.0f, 5.0f}, (plVec2){fXCursor + 5.0f, 100.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec2){fXCursor + 100.0f, 5.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 1.0f);
+    gptDraw->add_quad(ptAppData->ptFGLayer, (plVec2){fXCursor + 5.0f, 5.0f}, (plVec2){fXCursor + 5.0f, 100.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec2){fXCursor + 100.0f, 5.0f}, (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_MAGENTA});
     fXCursor += 100.0f;
-    gptDraw->add_bezier_quad(ptAppData->ptFGLayer, (plVec2){fXCursor, 0.0f}, (plVec2){fXCursor + 100.0f, 0.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 1.0f, 0);
+    gptDraw->add_bezier_quad(ptAppData->ptFGLayer, (plVec2){fXCursor, 0.0f}, (plVec2){fXCursor + 100.0f, 0.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, 0, (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_MAGENTA});
     fXCursor += 100.0f;
-    gptDraw->add_bezier_cubic(ptAppData->ptFGLayer, (plVec2){fXCursor, 0.0f}, (plVec2){fXCursor + 100.0f, 0.0f}, (plVec2){fXCursor, 100.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 1.0f, 0);
+    gptDraw->add_bezier_cubic(ptAppData->ptFGLayer, (plVec2){fXCursor, 0.0f}, (plVec2){fXCursor + 100.0f, 0.0f}, (plVec2){fXCursor, 100.0f}, (plVec2){fXCursor + 100.0f, 100.0f}, 0, (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_MAGENTA});
     fXCursor += 100.0f;
 
     // solids
     fXCursor = 100.0f;
-    gptDraw->add_triangle_filled(ptAppData->ptFGLayer, (plVec2){fXCursor + 50.0f, 100.0f}, (plVec2){fXCursor, 200.0f}, (plVec2){fXCursor + 100.0f, 200.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f});
+    gptDraw->add_triangle_filled(ptAppData->ptFGLayer, (plVec2){fXCursor + 50.0f, 100.0f}, (plVec2){fXCursor, 200.0f}, (plVec2){fXCursor + 100.0f, 200.0f}, (plDrawSolidOptions){.uColor = PL_COLOR_32_MAGENTA});
     fXCursor += 100.0f;
-    gptDraw->add_circle_filled(ptAppData->ptFGLayer, (plVec2){fXCursor + 50.0f, 150.0f}, 50.0f, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 0);
+    gptDraw->add_circle_filled(ptAppData->ptFGLayer, (plVec2){fXCursor + 50.0f, 150.0f}, 50.0f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_MAGENTA});
     fXCursor += 100.0f;
-    gptDraw->add_rect_filled(ptAppData->ptFGLayer, (plVec2){fXCursor, 105.0f}, (plVec2){fXCursor + 100.0f, 200.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 0, 0);
+    gptDraw->add_rect_rounded_filled(ptAppData->ptFGLayer, (plVec2){fXCursor, 105.0f}, (plVec2){fXCursor + 100.0f, 200.0f}, 0, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_MAGENTA});
     fXCursor += 100.0f;
-    gptDraw->add_rect_filled(ptAppData->ptFGLayer, (plVec2){fXCursor, 105.0f}, (plVec2){fXCursor + 100.0f, 200.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 25.0f, 0);
+    gptDraw->add_rect_rounded_filled(ptAppData->ptFGLayer, (plVec2){fXCursor, 105.0f}, (plVec2){fXCursor + 100.0f, 200.0f}, 25.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_MAGENTA});
     fXCursor += 100.0f;
-    gptDraw->add_rect_filled_ex(ptAppData->ptFGLayer, (plVec2){fXCursor, 105.0f}, (plVec2){fXCursor + 100.0f, 200.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 25.0f, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_LEFT);
-    fXCursor += 100.0f;
-    gptDraw->add_quad_filled(ptAppData->ptFGLayer, (plVec2){fXCursor + 5.0f, 105.0f}, (plVec2){fXCursor + 5.0f, 200.0f}, (plVec2){fXCursor + 100.0f, 200.0f}, (plVec2){fXCursor + 100.0f, 105.0f}, (plVec4){1.0f, 0.0f, 1.0f, 1.0f});
+    gptDraw->add_quad_filled(ptAppData->ptFGLayer, (plVec2){fXCursor + 5.0f, 105.0f}, (plVec2){fXCursor + 5.0f, 200.0f}, (plVec2){fXCursor + 100.0f, 200.0f}, (plVec2){fXCursor + 100.0f, 105.0f}, (plDrawSolidOptions){.uColor = PL_COLOR_32_MAGENTA});
     // gptDraw->add_circle_filled(ptAppData->ptBGLayer, (plVec2){100.0f, 100.0f}, 25.0f, (plVec4){1.0f, 0.0f, 1.0f, 1.0f}, 24);
 
     // default text
-    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->ptDefaultFont, 13.0f, (plVec2){25.0f, 300.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Proggy @ 13 (loaded at 13)", 0.0f);
-    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->ptDefaultFont, 45.0f, (plVec2){25.0f, 315.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Proggy @ 45 (loaded at 13)", 0.0f);
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 300.0f}, "Proggy @ 13 (loaded at 13)", (plDrawTextOptions){.ptFont = ptAppData->ptDefaultFont, .uColor = PL_COLOR_32_WHITE});
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 315.0f}, "Proggy @ 45 (loaded at 13)", (plDrawTextOptions){.ptFont = ptAppData->ptDefaultFont, .uColor = PL_COLOR_32_WHITE, .fSize = 45.0f});
 
     // bitmap text
-    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->ptCousineBitmapFont, 18.0f, (plVec2){25.0f, 400.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 18, bitmap (loaded at 18)", 0.0f);
-    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->ptCousineBitmapFont, 100.0f, (plVec2){25.0f, 420.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 100, bitmap (loaded at 18)", 0.0f);
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 400.0f}, "Cousine @ 18, bitmap (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineBitmapFont, .uColor = PL_COLOR_32_WHITE});
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 420.0f}, "Cousine @ 100, bitmap (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineBitmapFont, .uColor = PL_COLOR_32_WHITE, .fSize = 100.0f});
 
     // sdf text
-    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->ptCousineSDFFont, 18.0f, (plVec2){25.0f, 520.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 18, sdf (loaded at 18)", 0.0f);
-    gptDraw->add_text(ptAppData->ptFGLayer, ptAppData->ptCousineSDFFont, 100.0f, (plVec2){25.0f, 540.0f}, (plVec4){1.0f, 1.0f, 1.0f, 1.0f}, "Cousine @ 100, sdf (loaded at 18)", 0.0f);
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 520.0f}, "Cousine @ 18, sdf (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineSDFFont, .uColor = PL_COLOR_32_WHITE, .fSize = 100.0f});
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 540.0f}, "Cousine @ 100, sdf (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineSDFFont, .uColor = PL_COLOR_32_WHITE, .fSize = 100.0f});
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~drawing prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

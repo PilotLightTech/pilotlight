@@ -237,12 +237,16 @@ pl__gizmo_translation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, p
 
     if(ptGizmoData->tState != PL_GIZMO_STATE_DEFAULT)
     {
-        gptDraw->add_3d_sphere_filled(ptGizmoDrawlist, ptGizmoData->tBeginPos, fAxisRadius * 2, (plVec4){0.5f, 0.5f, 0.5f, 0.5f});
-        gptDraw->add_3d_line(ptGizmoDrawlist, ptGizmoData->tBeginPos, *ptCenter, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, fAxisRadius);
+        gptDraw->add_3d_sphere_filled(ptGizmoDrawlist, (plDrawSphereDesc){.tCenter = ptGizmoData->tBeginPos, .fRadius = fAxisRadius * 2}, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.5f, 0.5f, 0.5f, 0.5f)});
+        gptDraw->add_3d_line(ptGizmoDrawlist, ptGizmoData->tBeginPos, *ptCenter, (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = fAxisRadius});
         char acTextBuffer[256] = {0};
         pl_sprintf(acTextBuffer, "offset: %0.3f, %0.3f, %0.3f", ptCenter->x - ptGizmoData->tBeginPos.x, ptCenter->y - ptGizmoData->tBeginPos.y, ptCenter->z - ptGizmoData->tBeginPos.z);
-        gptDraw->add_3d_text(ptGizmoDrawlist, gptUi->get_default_font(), 0.0f, (plVec3){ptCenter->x, ptCenter->y + fLength * 1.1f, ptCenter->z}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, acTextBuffer, 0.0f);
-    }
+        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fLength * 1.1f, ptCenter->z}, acTextBuffer,
+            (plDrawTextOptions){
+                .ptFont = gptUi->get_default_font(),
+                .uColor = PL_COLOR_32_YELLOW
+            });
+    };
 
     float fXDistanceAlong = 0.0f;
     float fYDistanceAlong = 0.0f;
@@ -561,57 +565,45 @@ pl__gizmo_translation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, p
 
     // x arrow head
     plDrawConeDesc tDrawDesc0 = {0};
-    gptDraw->fill_cone_desc_default(&tDrawDesc0);
-    tDrawDesc0.tColor = tXColor;
     tDrawDesc0.tBasePos = (plVec3){ptCenter->x + fLength - fArrowLength, ptCenter->y, ptCenter->z};
     tDrawDesc0.tTipPos = (plVec3){ptCenter->x + fLength, ptCenter->y, ptCenter->z};
     tDrawDesc0.fRadius = fArrowRadius;
-    gptDraw->add_3d_cone_filled_ex(ptGizmoDrawlist, &tDrawDesc0);
+    gptDraw->add_3d_cone_filled(ptGizmoDrawlist, tDrawDesc0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXColor)});
 
     // y arrow head
     plDrawConeDesc tDrawDesc1 = {0};
-    gptDraw->fill_cone_desc_default(&tDrawDesc1);
-    tDrawDesc1.tColor = tYColor;
     tDrawDesc1.tBasePos = (plVec3){ptCenter->x, ptCenter->y + fLength - fArrowLength, ptCenter->z};
     tDrawDesc1.tTipPos = (plVec3){ptCenter->x, ptCenter->y + fLength, ptCenter->z};
     tDrawDesc1.fRadius = fArrowRadius;
-    gptDraw->add_3d_cone_filled_ex(ptGizmoDrawlist, &tDrawDesc1);
+    gptDraw->add_3d_cone_filled(ptGizmoDrawlist, tDrawDesc1, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tYColor)});
 
     // z arrow head
     plDrawConeDesc tDrawDesc2 = {0};
-    gptDraw->fill_cone_desc_default(&tDrawDesc2);
-    tDrawDesc2.tColor = tZColor;
     tDrawDesc2.tBasePos = (plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fLength - fArrowLength};
     tDrawDesc2.tTipPos = (plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fLength};
     tDrawDesc2.fRadius = fArrowRadius;
-    gptDraw->add_3d_cone_filled_ex(ptGizmoDrawlist, &tDrawDesc2);
+    gptDraw->add_3d_cone_filled(ptGizmoDrawlist, tDrawDesc2, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tZColor)});
 
     // x axis
     plDrawCylinderDesc tDrawDesc3 = {0};
-    gptDraw->fill_cylinder_desc_default(&tDrawDesc3);
-    tDrawDesc3.tColor = tXColor;
     tDrawDesc3.tBasePos = *ptCenter;
     tDrawDesc3.tTipPos = (plVec3){ptCenter->x + fLength - fArrowLength, ptCenter->y, ptCenter->z};
     tDrawDesc3.fRadius = fAxisRadius;
-    gptDraw->add_3d_cylinder_filled_ex(ptGizmoDrawlist, &tDrawDesc3);
+    gptDraw->add_3d_cylinder_filled(ptGizmoDrawlist, tDrawDesc3, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXColor)});
 
     // y axis
     plDrawCylinderDesc tDrawDesc4 = {0};
-    gptDraw->fill_cylinder_desc_default(&tDrawDesc4);
-    tDrawDesc4.tColor = tYColor;
     tDrawDesc4.tBasePos = *ptCenter;
     tDrawDesc4.tTipPos = (plVec3){ptCenter->x, ptCenter->y + fLength - fArrowLength, ptCenter->z};
     tDrawDesc4.fRadius = fAxisRadius;
-    gptDraw->add_3d_cylinder_filled_ex(ptGizmoDrawlist, &tDrawDesc4);
+    gptDraw->add_3d_cylinder_filled(ptGizmoDrawlist, tDrawDesc4, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tYColor)});
 
     // z axis
     plDrawCylinderDesc tDrawDesc5 = {0};
-    gptDraw->fill_cylinder_desc_default(&tDrawDesc5);
-    tDrawDesc5.tColor = tZColor;
     tDrawDesc5.tBasePos = *ptCenter;
     tDrawDesc5.tTipPos = (plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fLength - fArrowLength};
     tDrawDesc5.fRadius = fAxisRadius;
-    gptDraw->add_3d_cylinder_filled_ex(ptGizmoDrawlist, &tDrawDesc5);
+    gptDraw->add_3d_cylinder_filled(ptGizmoDrawlist, tDrawDesc5, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tZColor)});
 
     // origin
     gptDraw->add_3d_centered_box_filled(ptGizmoDrawlist,
@@ -619,12 +611,12 @@ pl__gizmo_translation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, p
         fAxisRadius * 4,
         fAxisRadius * 4,
         fAxisRadius * 4,
-        (plVec4){0.5f, 0.5f, 0.5f, 1.0f});
+        (plDrawSolidOptions){.uColor = PL_COLOR_32_RGB(0.5f, 0.5f, 0.5f)});
 
     // PLANES
-    gptDraw->add_3d_plane_xy_filled(ptGizmoDrawlist, (plVec3){ptCenter->x + fLength * 0.25f, ptCenter->y + fLength * 0.25f, ptCenter->z}, fLength * 0.25f, fLength * 0.25f, tXYColor);
-    gptDraw->add_3d_plane_yz_filled(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fLength * 0.25f, ptCenter->z + fLength * 0.25f}, fLength * 0.25f, fLength * 0.25f, tYZColor);
-    gptDraw->add_3d_plane_xz_filled(ptGizmoDrawlist, (plVec3){ptCenter->x + fLength * 0.25f, ptCenter->y, ptCenter->z + fLength * 0.25f}, fLength * 0.25f, fLength * 0.25f, tXZColor); 
+    gptDraw->add_3d_plane_xy_filled(ptGizmoDrawlist, (plVec3){ptCenter->x + fLength * 0.25f, ptCenter->y + fLength * 0.25f, ptCenter->z}, fLength * 0.25f, fLength * 0.25f, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXYColor)});
+    gptDraw->add_3d_plane_yz_filled(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fLength * 0.25f, ptCenter->z + fLength * 0.25f}, fLength * 0.25f, fLength * 0.25f, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tYZColor)});
+    gptDraw->add_3d_plane_xz_filled(ptGizmoDrawlist, (plVec3){ptCenter->x + fLength * 0.25f, ptCenter->y, ptCenter->z + fLength * 0.25f}, fLength * 0.25f, fLength * 0.25f, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXZColor)}); 
 }
 
 static void
@@ -735,9 +727,13 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
 
         char acTextBuffer[256] = {0};
         pl_sprintf(acTextBuffer, "x-axis rotation: %0.0f degrees", fAngleBetweenVecs * 180.0f / PL_PI);
-        gptDraw->add_3d_text(ptGizmoDrawlist, gptUi->get_default_font(), 0.0f, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, acTextBuffer, 0.0f);
-        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir0, fInnerRadius)), (plVec4){0.7f, 0.7f, 0.7f, 1.0f}, 0.0035f * ptGizmoData->fCaptureScale);
-        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir1, fInnerRadius)), (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.0035f * ptGizmoData->fCaptureScale);
+        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z}, acTextBuffer,
+            (plDrawTextOptions){
+                .ptFont = gptUi->get_default_font(),
+                .uColor = PL_COLOR_32_YELLOW
+            });
+        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir0, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(0.7f, 0.7f, 0.7f, 1.0f), .fThickness = 0.0035f * ptGizmoData->fCaptureScale});
+        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir1, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 1.0f), .fThickness = 0.0035f * ptGizmoData->fCaptureScale});
 
         if(fAngleBetweenVecs != 0.0f)
         {
@@ -779,9 +775,13 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
 
         char acTextBuffer[256] = {0};
         pl_sprintf(acTextBuffer, "y-axis rotation: %0.0f degrees", fAngleBetweenVecs * 180.0f / PL_PI);
-        gptDraw->add_3d_text(ptGizmoDrawlist, gptUi->get_default_font(), 0.0f, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, acTextBuffer, 0.0f);
-        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir0, fInnerRadius)), (plVec4){0.7f, 0.7f, 0.7f, 1.0f}, 0.0035f * ptGizmoData->fCaptureScale);
-        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir1, fInnerRadius)), (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.0035f * ptGizmoData->fCaptureScale);
+        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z}, acTextBuffer,
+            (plDrawTextOptions){
+                .ptFont = gptUi->get_default_font(),
+                .uColor = PL_COLOR_32_YELLOW
+            });
+        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir0, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.7f, 0.7f, 0.7f), .fThickness = 0.0035f * ptGizmoData->fCaptureScale});
+        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir1, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 0.0035f * ptGizmoData->fCaptureScale});
 
         if(fAngleBetweenVecs != 0.0f)
         {
@@ -823,9 +823,13 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
 
         char acTextBuffer[256] = {0};
         pl_sprintf(acTextBuffer, "z-axis rotation: %0.0f degrees", fAngleBetweenVecs * 180.0f / PL_PI);
-        gptDraw->add_3d_text(ptGizmoDrawlist, gptUi->get_default_font(), 0.0f, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, acTextBuffer, 0.0f);
-        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir0, fInnerRadius)), (plVec4){0.7f, 0.7f, 0.7f, 1.0f}, 0.0035f * ptGizmoData->fCaptureScale);
-        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir1, fInnerRadius)), (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, 0.0035f * ptGizmoData->fCaptureScale);
+        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fOuterRadius * 1.1f, ptCenter->z}, acTextBuffer,
+            (plDrawTextOptions){
+                .ptFont = gptUi->get_default_font(),
+                .uColor = PL_COLOR_32_YELLOW
+            });
+        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir0, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.7f, 0.7f, 0.7f), .fThickness = 0.0035f * ptGizmoData->fCaptureScale});
+        gptDraw->add_3d_line(ptGizmoDrawlist, *ptCenter, pl_add_vec3(*ptCenter, pl_mul_vec3_scalarf(tDir1, fInnerRadius)), (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 0.0035f * ptGizmoData->fCaptureScale});
 
         if(fAngleBetweenVecs != 0.0f)
         {
@@ -899,9 +903,9 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
         ptGizmoData->tState = PL_GIZMO_STATE_DEFAULT;
     }
 
-    gptDraw->add_3d_band_yz_filled(ptGizmoDrawlist, *ptCenter, fInnerRadius, fOuterRadius, tXColor, 36);
-    gptDraw->add_3d_band_xz_filled(ptGizmoDrawlist, *ptCenter, fInnerRadius, fOuterRadius, tYColor, 36);
-    gptDraw->add_3d_band_xy_filled(ptGizmoDrawlist, *ptCenter, fInnerRadius, fOuterRadius, tZColor, 36);
+    gptDraw->add_3d_band_yz_filled(ptGizmoDrawlist, *ptCenter, fInnerRadius, fOuterRadius, 36, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXColor)});
+    gptDraw->add_3d_band_xz_filled(ptGizmoDrawlist, *ptCenter, fInnerRadius, fOuterRadius, 36, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tYColor)});
+    gptDraw->add_3d_band_xy_filled(ptGizmoDrawlist, *ptCenter, fInnerRadius, fOuterRadius, 36, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tZColor)});
 }
 
 static void
@@ -938,7 +942,11 @@ pl__gizmo_scale(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCamer
     {
         char acTextBuffer[256] = {0};
         pl_sprintf(acTextBuffer, "scaling: %0.3f, %0.3f, %0.3f", tCurrentScale.x, tCurrentScale.y, tCurrentScale.z);
-        gptDraw->add_3d_text(ptGizmoDrawlist, gptUi->get_default_font(), 0.0f, (plVec3){ptCenter->x, ptCenter->y + fLength * 1.2f, ptCenter->z}, (plVec4){1.0f, 1.0f, 0.0f, 1.0f}, acTextBuffer, 0.0f);
+        gptDraw->add_3d_text(ptGizmoDrawlist, (plVec3){ptCenter->x, ptCenter->y + fLength * 1.2f, ptCenter->z}, acTextBuffer,
+            (plDrawTextOptions){
+                .ptFont = gptUi->get_default_font(),
+                .uColor = PL_COLOR_32_YELLOW
+            });
     }
 
     float fXDistanceAlong = 0.0f;
@@ -1143,30 +1151,24 @@ pl__gizmo_scale(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCamer
 
     // x axis
     plDrawCylinderDesc tDrawDesc3 = {0};
-    gptDraw->fill_cylinder_desc_default(&tDrawDesc3);
-    tDrawDesc3.tColor = tXColor;
     tDrawDesc3.tBasePos = *ptCenter;
     tDrawDesc3.tTipPos = (plVec3){ptCenter->x + fLength, ptCenter->y, ptCenter->z};
     tDrawDesc3.fRadius = fAxisRadius;
-    gptDraw->add_3d_cylinder_filled_ex(ptGizmoDrawlist, &tDrawDesc3);
+    gptDraw->add_3d_cylinder_filled(ptGizmoDrawlist, tDrawDesc3, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXColor)});
 
     // y axis
     plDrawCylinderDesc tDrawDesc4 = {0};
-    gptDraw->fill_cylinder_desc_default(&tDrawDesc4);
-    tDrawDesc4.tColor = tYColor;
     tDrawDesc4.tBasePos = *ptCenter;
     tDrawDesc4.tTipPos = (plVec3){ptCenter->x, ptCenter->y + fLength, ptCenter->z};
     tDrawDesc4.fRadius = fAxisRadius;
-    gptDraw->add_3d_cylinder_filled_ex(ptGizmoDrawlist, &tDrawDesc4);
+    gptDraw->add_3d_cylinder_filled(ptGizmoDrawlist, tDrawDesc4, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tYColor)});
 
     // z axis
     plDrawCylinderDesc tDrawDesc5 = {0};
-    gptDraw->fill_cylinder_desc_default(&tDrawDesc5);
-    tDrawDesc5.tColor = tZColor;
     tDrawDesc5.tBasePos = *ptCenter;
     tDrawDesc5.tTipPos = (plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fLength};
     tDrawDesc5.fRadius = fAxisRadius;
-    gptDraw->add_3d_cylinder_filled_ex(ptGizmoDrawlist, &tDrawDesc5);
+    gptDraw->add_3d_cylinder_filled(ptGizmoDrawlist, tDrawDesc5, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tZColor)});
 
     // x end
     gptDraw->add_3d_centered_box_filled(ptGizmoDrawlist,
@@ -1174,7 +1176,7 @@ pl__gizmo_scale(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCamer
         fAxisRadius * 4,
         fAxisRadius * 4,
         fAxisRadius * 4,
-        tXColor);
+        (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXColor)});
 
     // y end
     gptDraw->add_3d_centered_box_filled(ptGizmoDrawlist,
@@ -1182,7 +1184,7 @@ pl__gizmo_scale(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCamer
         fAxisRadius * 4,
         fAxisRadius * 4,
         fAxisRadius * 4,
-        tYColor);
+        (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tYColor)});
 
     // z end
     gptDraw->add_3d_centered_box_filled(ptGizmoDrawlist,
@@ -1190,7 +1192,7 @@ pl__gizmo_scale(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCamer
         fAxisRadius * 4,
         fAxisRadius * 4,
         fAxisRadius * 4,
-        tZColor);
+        (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tZColor)});
 
     // origin
     gptDraw->add_3d_centered_box_filled(ptGizmoDrawlist,
@@ -1198,5 +1200,5 @@ pl__gizmo_scale(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCamer
         fAxisRadius * 4,
         fAxisRadius * 4,
         fAxisRadius * 4,
-        tXYZColor);
+        (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tXYZColor)});
 }

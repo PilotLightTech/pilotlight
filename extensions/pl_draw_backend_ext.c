@@ -8,6 +8,7 @@
 #include "pl_shader_ext.h"
 #include "pl_draw_backend_ext.h"
 #include "pl_draw_ext.h"
+#include "pl_stats_ext.h"
 
 #include "pl_ext.inc"
 
@@ -155,6 +156,19 @@ pl_cleanup_draw_backend(void)
 static void
 pl_new_draw_frame(void)
 {
+
+    static double* pd2dPipelineCount = NULL;
+    static double* pd3dPipelineCount = NULL;
+
+    if(!pd2dPipelineCount)
+        pd2dPipelineCount = gptStats->get_counter("Draw 2D Pipelines");
+
+    if(!pd3dPipelineCount)
+        pd3dPipelineCount = gptStats->get_counter("Draw 3D Pipelines");
+
+    *pd2dPipelineCount = pl_sb_size(gptDrawBackendCtx->sbt2dPipelineEntries);
+    *pd3dPipelineCount = pl_sb_size(gptDrawBackendCtx->sbt3dPipelineEntries);
+
     gptDraw->new_frame();
 
     // reset buffer offsets
@@ -175,7 +189,7 @@ pl_build_font_atlas_backend(plFontAtlas* ptAtlas)
 
     // create texture
     const plTextureDesc tFontTextureDesc = {
-        .tDimensions   = {(float)ptAtlas->auAtlasSize[0], (float)ptAtlas->auAtlasSize[1], 1},
+        .tDimensions   = {ptAtlas->tAtlasSize.x, ptAtlas->tAtlasSize.y, 1},
         .tFormat       = PL_FORMAT_R8G8B8A8_UNORM,
         .uLayers       = 1,
         .uMips         = 1,
@@ -201,7 +215,7 @@ pl_build_font_atlas_backend(plFontAtlas* ptAtlas)
 
     const plBufferDescription tBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STAGING,
-        .uByteSize = ptAtlas->auAtlasSize[0] * ptAtlas->auAtlasSize[1] * 4
+        .uByteSize = (uint32_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y * 4)
     };
     plBufferHandle tStagingBuffer = pl__create_staging_buffer(&tBufferDesc, "font staging buffer", 0);
     plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, tStagingBuffer);
@@ -214,7 +228,7 @@ pl_build_font_atlas_backend(plFontAtlas* ptAtlas)
     plBlitEncoderHandle tEncoder = gptGfx->begin_blit_pass(tCommandBuffer);
 
     const plBufferImageCopy tBufferImageCopy = {
-        .tImageExtent = {(uint32_t)ptAtlas->auAtlasSize[0], (uint32_t)ptAtlas->auAtlasSize[1], 1},
+        .tImageExtent = {(uint32_t)ptAtlas->tAtlasSize.x, (uint32_t)ptAtlas->tAtlasSize.y, 1},
         .uLayerCount = 1
     };
 
@@ -533,6 +547,9 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
 static void
 pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoderHandle tEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount)
 {
+
+    gptDraw->prepare_2d_drawlist(ptDrawlist);
+
     if(pl_sb_size(ptDrawlist->sbtVertexBuffer) == 0u)
         return;
 
@@ -573,7 +590,7 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoderHandle tEncoder, 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // ensure gpu index buffer size is adequate
-    const uint32_t uIdxBufSzNeeded = sizeof(uint32_t) * ptDrawlist->uIndexBufferByteSize;
+    const uint32_t uIdxBufSzNeeded = ptDrawlist->uIndexBufferByteSize;
 
     // space left in index buffer
     const uint32_t uAvailableIndexBufferSpace = gptDrawBackendCtx->auIndexBufferSize[uFrameIdx] - gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx];
@@ -592,65 +609,17 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoderHandle tEncoder, 
         gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx] = 0;
     }
 
+    // index GPU data transfer
     plBuffer* ptIndexBuffer = gptGfx->get_buffer(ptDevice, gptDrawBackendCtx->atIndexBuffer[uFrameIdx]);
     char* pucMappedIndexBufferLocation = ptIndexBuffer->tMemoryAllocation.pHostMapped;
-
-    char* pucDestination = &pucMappedIndexBufferLocation[gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx]];
-
-    // index GPU data transfer
-    uint32_t uTempIndexBufferOffset = 0u;
-    uint32_t globalIdxBufferIndexOffset = 0u;
-
-    for(uint32_t i = 0u; i < pl_sb_size(ptDrawlist->sbtSubmittedLayers); i++)
-    {
-        plDrawCommand* ptLastCommand = NULL;
-        plDrawLayer2D* ptLayer = ptDrawlist->sbtSubmittedLayers[i];
-
-        memcpy(&pucDestination[uTempIndexBufferOffset], ptLayer->sbuIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptLayer->sbuIndexBuffer));
-
-        uTempIndexBufferOffset += pl_sb_size(ptLayer->sbuIndexBuffer)*sizeof(uint32_t);
-
-        // attempt to merge commands
-        for(uint32_t j = 0u; j < pl_sb_size(ptLayer->sbtCommandBuffer); j++)
-        {
-            plDrawCommand* ptLayerCommand = &ptLayer->sbtCommandBuffer[j];
-            bool bCreateNewCommand = true;
-
-            if(ptLastCommand)
-            {
-                // check for same texture (allows merging draw calls)
-                if(ptLastCommand->tTextureId == ptLayerCommand->tTextureId && ptLastCommand->bSdf == ptLayerCommand->bSdf)
-                {
-                    ptLastCommand->uElementCount += ptLayerCommand->uElementCount;
-                    bCreateNewCommand = false;
-                }
-
-                // check for same clipping (allows merging draw calls)
-                if(ptLayerCommand->tClip.tMax.x != ptLastCommand->tClip.tMax.x || ptLayerCommand->tClip.tMax.y != ptLastCommand->tClip.tMax.y ||
-                    ptLayerCommand->tClip.tMin.x != ptLastCommand->tClip.tMin.x || ptLayerCommand->tClip.tMin.y != ptLastCommand->tClip.tMin.y)
-                {
-                    bCreateNewCommand = true;
-                }
-                
-            }
-
-            if(bCreateNewCommand)
-            {
-                ptLayerCommand->uIndexOffset = globalIdxBufferIndexOffset + ptLayerCommand->uIndexOffset;
-                pl_sb_push(ptDrawlist->sbtDrawCommands, *ptLayerCommand);       
-                ptLastCommand = ptLayerCommand;
-            }
-            
-        }    
-        globalIdxBufferIndexOffset += pl_sb_size(ptLayer->sbuIndexBuffer);    
-    }
+    memcpy(&pucMappedIndexBufferLocation[gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx]], ptDrawlist->sbuIndexBuffer, uIdxBufSzNeeded);
 
     const int32_t iVertexOffset = ptBufferInfo->uVertexBufferOffset / sizeof(plDrawVertex);
     const int32_t iIndexOffset = gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx] / sizeof(uint32_t);
 
     const plPipelineEntry* ptEntry = pl__get_2d_pipeline(gptGfx->get_encoder_render_pass(tEncoder), uMSAASampleCount, gptGfx->get_render_encoder_subpass(tEncoder));
 
-//    const plVec2 tClipScale = gptIOI->get_io()->tMainFramebufferScale;
+    // const plVec2 tClipScale = gptIOI->get_io()->tMainFramebufferScale;
     
     // const plVec2 tClipScale = {1.0f, 1.0f};
     // const plVec2 tClipScale = ptCtx->tFrameBufferScale;
@@ -684,7 +653,8 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoderHandle tEncoder, 
     gptGfx->bind_vertex_buffer(tEncoder, ptBufferInfo->tVertexBuffer);
     gptGfx->bind_shader(tEncoder, tCurrentShader);
 
-    for(uint32_t i = 0u; i < pl_sb_size(ptDrawlist->sbtDrawCommands); i++)
+    const uint32_t uCmdCount = pl_sb_size(ptDrawlist->sbtDrawCommands);
+    for(uint32_t i = 0u; i < uCmdCount; i++)
     {
         plDrawCommand cmd = ptDrawlist->sbtDrawCommands[i];
 
@@ -960,7 +930,14 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoderHandle tEncoder, 
         {
             tPos.x = fWidth * 0.5f * (1.0f + tPos.x);
             tPos.y = fHeight * 0.5f * (1.0f + tPos.y);
-            pl_add_text(ptDrawlist->ptLayer, ptText->tFontHandle, ptText->fSize, (plVec2){roundf(tPos.x + 0.5f), roundf(tPos.y + 0.5f)}, ptText->tColor, ptText->acText, ptText->fWrap);
+            pl_add_text_ex(ptDrawlist->ptLayer,
+                (plVec2){roundf(tPos.x + 0.5f), roundf(tPos.y + 0.5f)},
+                ptText->acText,
+                (plDrawTextOptions){
+                    .fSize = ptText->fSize,
+                    .ptFont = ptText->ptFont,
+                    .fWrap = ptText->fWrap,
+                    .uColor = ptText->uColor});
         }
     }
 
