@@ -54,14 +54,14 @@ typedef struct _plAtomicCounter plAtomicCounter; // pl_os.h
 typedef struct _plJobI
 {
     // setup/shutdown
-    void (*initialize)(uint32_t uThreadCount); // set thread count to 0 to get optimal thread count
+    void (*initialize)(uint32_t threadCount); // set thread count to 0 to get optimal thread count
     void (*cleanup)(void);
 
     // typical usage
     //   - submit an array of job descriptions and receive an atomic counter pointer
     //   - pass NULL for the atomic counter pointer if you don't need to wait (fire & forget)
     //   - use "wait_for_counter" to wait on jobs to complete and return counter for reuse
-    void (*dispatch_jobs)(uint32_t uJobCount, plJobDesc*, plAtomicCounter**);
+    void (*dispatch_jobs)(uint32_t jobCount, plJobDesc*, plAtomicCounter**);
 
     // batch usage
     //   Follows more of a compute shader design. All jobs use the same data which can be indexed
@@ -69,7 +69,7 @@ typedef struct _plJobI
     //   - uJobCount  : how many jobs to generate
     //   - uGroupSize : how many jobs to execute per thread serially (set 0 for optimal group size)
     //   - pass NULL for the atomic counter pointer if you don't need to wait (fire & forget)
-    void (*dispatch_batch)(uint32_t uJobCount, uint32_t uGroupSize, plJobDesc, plAtomicCounter**);
+    void (*dispatch_batch)(uint32_t jobCount, uint32_t groupSize, plJobDesc, plAtomicCounter**);
     
     // waits for counter to reach 0 and returns the counter for reuse but subsequent dispatches
     void (*wait_for_counter)(plAtomicCounter*);

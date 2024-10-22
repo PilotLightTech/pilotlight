@@ -69,14 +69,14 @@ typedef struct _plShaderI
     bool (*initialize)(const plShaderOptions*);
 
     // load shader (compile if not already compiled)
-    plShaderModule (*load_glsl)(const char* pcShader, const char* pcEntryFunc, const char* pcFile, plShaderOptions*);
+    plShaderModule (*load_glsl)(const char* shader, const char* entryFunc, const char* file, plShaderOptions*);
 
     // compilation (pass null shader options to use default)
-    plShaderModule (*compile_glsl) (const char* pcShader, const char* pcEntryFunc, plShaderOptions*);
+    plShaderModule (*compile_glsl) (const char* shader, const char* entryFunc, plShaderOptions*);
     
     // write/read on disk
-    void           (*write_to_disk) (const char* pcShader, const plShaderModule*);
-    plShaderModule (*read_from_disk)(const char* pcShader, const char* pcEntryFunc);
+    void           (*write_to_disk) (const char* shader, const plShaderModule*);
+    plShaderModule (*read_from_disk)(const char* shader, const char* entryFunc);
 } plShaderI;
 
 //-----------------------------------------------------------------------------

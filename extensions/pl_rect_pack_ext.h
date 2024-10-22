@@ -47,7 +47,7 @@ typedef struct _plPackRect plPackRect;
 
 typedef struct _plRectPackI
 {
-    void (*pack_rects)(int iWidth, int iHeight, plPackRect*, uint32_t uRectCount);
+    void (*pack_rects)(int width, int height, plPackRect*, uint32_t rectCount);
 } plRectPackI;
 
 //-----------------------------------------------------------------------------

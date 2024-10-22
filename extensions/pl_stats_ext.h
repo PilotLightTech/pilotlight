@@ -46,11 +46,11 @@ typedef struct _plStatsI
 
     // provides a pointer to a value for the counter
     // (user should store this pointer to prevent lookups every frame)
-    double* (*get_counter)(char const* pcName); 
+    double* (*get_counter)(char const* name); 
 
     // provides stat data back to user for analysis/display/etc.
-    double**     (*get_counter_data)(char const* pcName); // set point to valid memory
-    const char** (*get_names)       (uint32_t* puCount);
+    double**     (*get_counter_data)(char const* name); // set point to valid memory
+    const char** (*get_names)       (uint32_t* countOut);
     
     // settings
     void     (*set_max_frames)(uint32_t); // default: 120

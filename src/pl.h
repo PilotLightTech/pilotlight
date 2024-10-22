@@ -84,31 +84,31 @@ typedef uint16_t plUiWChar;
 typedef struct _plApiRegistryI
 {
 
-    const void* (*add)   (const char* pcName, const void* pInterface);
-    void        (*remove)(const void* pInterface);
-    const void* (*first) (const char* pcName);
-    const void* (*next)  (const void* pPrevInterface);
+    const void* (*add)   (const char* name, const void* interface);
+    void        (*remove)(const void* interface);
+    const void* (*first) (const char* name);
+    const void* (*next)  (const void* prevInterface);
     
 } plApiRegistryI;
 
 typedef struct _plExtensionRegistryI
 {
 
-    bool (*load)  (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
-    bool (*unload)(const char* pcName); 
+    bool (*load)  (const char* name, const char* loadFunc, const char* unloadFunc, bool reloadable);
+    bool (*unload)(const char* name); 
     
 } plExtensionRegistryI;
 
 typedef struct _plMemoryI
 {
 
-    void* (*realloc)(void*, size_t, const char* pcFile, int iLine);
+    void* (*realloc)(void*, size_t, const char* file, int line);
 
     // stats
     size_t             (*get_memory_usage)(void);
     size_t             (*get_allocation_count)(void);
     size_t             (*get_free_count)(void);
-    plAllocationEntry* (*get_allocations)(size_t* pszCount);
+    plAllocationEntry* (*get_allocations)(size_t* countOut);
     
 } plMemoryI;
 
@@ -120,32 +120,32 @@ typedef struct _plIOI
 
     // keyboard
     bool (*is_key_down)           (plKey);
-    bool (*is_key_pressed)        (plKey, bool bRepeat);
+    bool (*is_key_pressed)        (plKey, bool repeat);
     bool (*is_key_released)       (plKey);
-    int  (*get_key_pressed_amount)(plKey, float fRepeatDelay, float fRate);
+    int  (*get_key_pressed_amount)(plKey, float repeatDelay, float rate);
 
     // mouse
     bool   (*is_mouse_down)          (plMouseButton);
-    bool   (*is_mouse_clicked)       (plMouseButton, bool bRepeat);
+    bool   (*is_mouse_clicked)       (plMouseButton, bool repeat);
     bool   (*is_mouse_released)      (plMouseButton);
     bool   (*is_mouse_double_clicked)(plMouseButton);
-    bool   (*is_mouse_dragging)      (plMouseButton, float fThreshold);
+    bool   (*is_mouse_dragging)      (plMouseButton, float threshold);
     bool   (*is_mouse_hovering_rect) (plVec2 minVec, plVec2 maxVec);
     void   (*reset_mouse_drag_delta) (plMouseButton);
-    plVec2 (*get_mouse_drag_delta)   (plMouseButton, float fThreshold);
+    plVec2 (*get_mouse_drag_delta)   (plMouseButton, float threshold);
     plVec2 (*get_mouse_pos)          (void);
     float  (*get_mouse_wheel)        (void);
     bool   (*is_mouse_pos_valid)     (plVec2);
     void   (*set_mouse_cursor)       (plMouseCursor);
 
     // input functions (used by backends)
-    void (*add_key_event)         (plKey, bool bDown);
+    void (*add_key_event)         (plKey, bool down);
     void (*add_text_event)        (uint32_t uChar);
     void (*add_text_event_utf16)  (uint16_t uChar);
-    void (*add_text_events_utf8)  (const char* pcText);
+    void (*add_text_events_utf8)  (const char* text);
     void (*add_mouse_pos_event)   (float x, float y);
-    void (*add_mouse_button_event)(int iButton, bool bDown);
-    void (*add_mouse_wheel_event) (float fHorizontalDelta, float fVerticalDelta);
+    void (*add_mouse_button_event)(int button, bool down);
+    void (*add_mouse_wheel_event) (float horizontalDelta, float verticalDelta);
     void (*clear_input_characters)(void);
 
     // misc.
@@ -158,8 +158,8 @@ typedef struct _plDataRegistryI
 {
 
     // for convience, only use for infrequent operations (i.e. global extension data)
-    void  (*set_data)(const char* pcName, void* pData);
-    void* (*get_data)(const char* pcName);
+    void  (*set_data)(const char* name, void* data);
+    void* (*get_data)(const char* name);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~do not use below here yet~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -168,18 +168,18 @@ typedef struct _plDataRegistryI
 
     // object creation & retrieval
     plDataID (*create_object)     (void);
-    plDataID (*get_object_by_name)(const char* pcName); // assumes property 0 is name
+    plDataID (*get_object_by_name)(const char* name); // assumes property 0 is name
 
     // reading (no locking or waiting)
     const plDataObject* (*read)      (plDataID);
-    const char*         (*get_string)(const plDataObject*, uint32_t uProperty);
-    void*               (*get_buffer)(const plDataObject*, uint32_t uProperty);
+    const char*         (*get_string)(const plDataObject*, uint32_t property);
+    void*               (*get_buffer)(const plDataObject*, uint32_t property);
     void                (*end_read)  (const plDataObject*);
 
     // writing (global lock)
     plDataObject* (*write)     (plDataID);
-    void          (*set_string)(plDataObject*, uint32_t uProperty, const char*);
-    void          (*set_buffer)(plDataObject*, uint32_t uProperty, void*);
+    void          (*set_string)(plDataObject*, uint32_t property, const char*);
+    void          (*set_buffer)(plDataObject*, uint32_t property, void*);
     void          (*commit)    (plDataObject*);
     
 } plDataRegistryI;

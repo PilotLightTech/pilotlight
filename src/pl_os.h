@@ -90,7 +90,7 @@ typedef void* (*plThreadProcedure)(void*);
 typedef struct _plWindowI
 {
 
-    plOSResult (*create_window) (const plWindowDesc*, plWindow** pptWindowOut);
+    plOSResult (*create_window) (const plWindowDesc*, plWindow** windowPtrOut);
     void       (*destroy_window)(plWindow*);
     
 } plWindowI;
@@ -98,7 +98,7 @@ typedef struct _plWindowI
 typedef struct _plLibraryI
 {
 
-    plOSResult (*load)         (const plLibraryDesc*, plSharedLibrary** pptLibraryOut);
+    plOSResult (*load)         (const plLibraryDesc*, plSharedLibrary** libraryPtrOut);
     bool       (*has_changed)  (plSharedLibrary*);
     void       (*reload)       (plSharedLibrary*);
     void*      (*load_function)(plSharedLibrary*, const char*);
@@ -109,13 +109,13 @@ typedef struct _plFileI
 {
 
     // simple file ops
-    bool       (*exists)(const char* pcPath);
-    plOSResult (*delete)(const char* pcPath);
-    plOSResult (*copy)  (const char* pcSource, const char* pcDestination);
+    bool       (*exists)(const char* path);
+    plOSResult (*delete)(const char* path);
+    plOSResult (*copy)  (const char* source, const char* destination);
 
     // binary files
-    plOSResult (*binary_read) (const char* pcFile, size_t* pszSize, uint8_t* puBuffer); // pass NULL for puBuffer to get size
-    plOSResult (*binary_write)(const char* pcFile, size_t, uint8_t* puBuffer);
+    plOSResult (*binary_read) (const char* file, size_t* sizeOut, uint8_t* buffer); // pass NULL for puBuffer to get size
+    plOSResult (*binary_write)(const char* file, size_t, uint8_t* buffer);
 
 } plFileI;
 
@@ -123,25 +123,25 @@ typedef struct _plNetworkI
 {
 
     // addresses
-    plOSResult (*create_address) (const char* pcAddress, const char* pcService, plNetworkAddressFlags, plNetworkAddress** pptAddressOut);
+    plOSResult (*create_address) (const char* address, const char* service, plNetworkAddressFlags, plNetworkAddress** addressPtrOut);
     void       (*destroy_address)(plNetworkAddress**);
 
     // sockets: general
-    void       (*create_socket) (plSocketFlags, plSocket** pptSocketOut);
+    void       (*create_socket) (plSocketFlags, plSocket** socketPtrOut);
     void       (*destroy_socket)(plSocket**);
     plOSResult (*bind_socket)   (plSocket*, plNetworkAddress*);
     
     // sockets: udp usually
-    plOSResult (*send_socket_data_to) (plSocket*, plNetworkAddress*, const void* pData, size_t, size_t* pszSentSizeOut);
-    plOSResult (*get_socket_data_from)(plSocket*, void* pOutData, size_t, size_t* pszRecievedSize, plSocketReceiverInfo*);
+    plOSResult (*send_socket_data_to) (plSocket*, plNetworkAddress*, const void* data, size_t, size_t* sentPtrSizeOut);
+    plOSResult (*get_socket_data_from)(plSocket*, void* dataOut, size_t, size_t* recievedPtrSize, plSocketReceiverInfo*);
 
     // sockets: tcp usually
-    plOSResult (*select_sockets)  (plSocket** atSockets, bool* abSelectedSockets, uint32_t uSocketCount, uint32_t uTimeOutMilliSec);
+    plOSResult (*select_sockets)  (plSocket** sockets, bool* selectedSockets, uint32_t socketCount, uint32_t timeOutMilliSec);
     plOSResult (*connect_socket)  (plSocket*, plNetworkAddress*);
     plOSResult (*listen_socket)   (plSocket*);
-    plOSResult (*accept_socket)   (plSocket*, plSocket** pptSocketOut);
-    plOSResult (*get_socket_data) (plSocket*, void* pOutData, size_t, size_t* pszRecievedSize);
-    plOSResult (*send_socket_data)(plSocket*, void* pData, size_t, size_t* pszSentSizeOut);
+    plOSResult (*accept_socket)   (plSocket*, plSocket** socketPtrOut);
+    plOSResult (*get_socket_data) (plSocket*, void* dataOut, size_t, size_t* recievedPtrSize);
+    plOSResult (*send_socket_data)(plSocket*, void* data, size_t, size_t* sentPtrSizeOut);
 
 } plNetworkI;
 
@@ -149,47 +149,47 @@ typedef struct _plThreadsI
 {
 
     // threads
-    plOSResult (*create_thread) (plThreadProcedure, void* pData, plThread** ppThreadOut);
-    void       (*destroy_thread)(plThread** ppThread);
+    plOSResult (*create_thread) (plThreadProcedure, void* data, plThread** threadPtrOut);
+    void       (*destroy_thread)(plThread** threadPtr);
     void       (*join_thread)   (plThread*);
     uint32_t   (*get_thread_id) (plThread*);
     void       (*yield_thread)  (void);
-    void       (*sleep_thread)  (uint32_t uMilliSec);
+    void       (*sleep_thread)  (uint32_t milliSec);
     uint32_t   (*get_hardware_thread_count)(void);
 
     // thread local storage
-    plOSResult (*allocate_thread_local_key) (plThreadKey** pptKeyOut);
-    void       (*free_thread_local_key)     (plThreadKey** pptKey);
-    void*      (*allocate_thread_local_data)(plThreadKey*, size_t szSize);
-    void       (*free_thread_local_data)    (plThreadKey*, void* pData);
+    plOSResult (*allocate_thread_local_key) (plThreadKey** keyPtrOut);
+    void       (*free_thread_local_key)     (plThreadKey** keyPtr);
+    void*      (*allocate_thread_local_data)(plThreadKey*, size_t);
+    void       (*free_thread_local_data)    (plThreadKey*, void* data);
     void*      (*get_thread_local_data)     (plThreadKey*);
 
     // mutexes
-    plOSResult (*create_mutex) (plMutex** ppMutexOut);
-    void       (*destroy_mutex)(plMutex** pptMutex);
+    plOSResult (*create_mutex) (plMutex** mutexPtrOut);
+    void       (*destroy_mutex)(plMutex** mutexPtr);
     void       (*lock_mutex)   (plMutex*);
     void       (*unlock_mutex) (plMutex*);
 
     // critical sections
-    plOSResult (*create_critical_section) (plCriticalSection** pptCriticalSectionOut);
+    plOSResult (*create_critical_section) (plCriticalSection** criticalSectionPtrOut);
     void       (*destroy_critical_section)(plCriticalSection**);
     void       (*enter_critical_section)  (plCriticalSection*);
     void       (*leave_critical_section)  (plCriticalSection*);
 
     // semaphores
-    plOSResult (*create_semaphore)     (uint32_t uIntialCount, plSemaphore** pptSemaphoreOut);
+    plOSResult (*create_semaphore)     (uint32_t intialCount, plSemaphore** semaphorePtrOut);
     void       (*destroy_semaphore)    (plSemaphore**);
     void       (*wait_on_semaphore)    (plSemaphore*);
     bool       (*try_wait_on_semaphore)(plSemaphore*);
     void       (*release_semaphore)    (plSemaphore*);
 
     // barriers
-    plOSResult (*create_barrier) (uint32_t uThreadCount, plBarrier** pptBarrierOut);
-    void       (*destroy_barrier)(plBarrier** pptBarrier);
+    plOSResult (*create_barrier) (uint32_t threadCount, plBarrier** barrierPtrOut);
+    void       (*destroy_barrier)(plBarrier** barrierPtr);
     void       (*wait_on_barrier)(plBarrier*);
 
     // condition variables
-    plOSResult (*create_condition_variable)  (plConditionVariable** pptConditionVariableOut);
+    plOSResult (*create_condition_variable)  (plConditionVariable** conditionVariablePtrOut);
     void       (*destroy_condition_variable) (plConditionVariable**);
     void       (*wake_condition_variable)    (plConditionVariable*);
     void       (*wake_all_condition_variable)(plConditionVariable*);
@@ -200,11 +200,11 @@ typedef struct _plThreadsI
 typedef struct _plAtomicsI
 {
 
-    plOSResult (*create_atomic_counter)  (int64_t ilValue, plAtomicCounter** pptCounterOut);
+    plOSResult (*create_atomic_counter)  (int64_t value, plAtomicCounter** counterPtrOut);
     void       (*destroy_atomic_counter) (plAtomicCounter**);
-    void       (*atomic_store)           (plAtomicCounter*, int64_t ilValue);
+    void       (*atomic_store)           (plAtomicCounter*, int64_t value);
     int64_t    (*atomic_load)            (plAtomicCounter*);
-    bool       (*atomic_compare_exchange)(plAtomicCounter*, int64_t ilExpectedValue, int64_t ilDesiredValue);
+    bool       (*atomic_compare_exchange)(plAtomicCounter*, int64_t expectedValue, int64_t desiredValue);
     int64_t    (*atomic_increment)       (plAtomicCounter*);
     int64_t    (*atomic_decrement)       (plAtomicCounter*);
 
@@ -223,11 +223,11 @@ typedef struct _plVirtualMemoryI
     //     evicted. It is up to the OS.
 
     size_t (*get_page_size)(void);                   // returns memory page size
-    void*  (*alloc)        (void* pAddress, size_t); // reserves & commits a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
-    void*  (*reserve)      (void* pAddress, size_t); // reserves a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
-    void*  (*commit)       (void* pAddress, size_t); // commits a block of reserved memory. szSize must be a multiple of memory page size.
-    void   (*uncommit)     (void* pAddress, size_t); // uncommits a block of committed memory.
-    void   (*free)         (void* pAddress, size_t); // frees a block of previously reserved/committed memory. Must be the starting address returned from "reserve()" or "alloc()"
+    void*  (*alloc)        (void* address, size_t); // reserves & commits a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
+    void*  (*reserve)      (void* address, size_t); // reserves a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
+    void*  (*commit)       (void* address, size_t); // commits a block of reserved memory. szSize must be a multiple of memory page size.
+    void   (*uncommit)     (void* address, size_t); // uncommits a block of committed memory.
+    void   (*free)         (void* address, size_t); // frees a block of previously reserved/committed memory. Must be the starting address returned from "reserve()" or "alloc()"
     
 } plVirtualMemoryI;
 

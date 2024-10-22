@@ -72,8 +72,8 @@ typedef struct _plGPUAllocatorsI
     void (*cleanup)(plDevice*);
 
     // for debug viewing
-    plDeviceMemoryAllocation* (*get_blocks)(const plDeviceMemoryAllocatorI*, uint32_t* puSizeOut);
-    plDeviceAllocationRange*  (*get_ranges)(const plDeviceMemoryAllocatorI*, uint32_t* puSizeOut);
+    plDeviceMemoryAllocation* (*get_blocks)(const plDeviceMemoryAllocatorI*, uint32_t* sizeOut);
+    plDeviceAllocationRange*  (*get_ranges)(const plDeviceMemoryAllocatorI*, uint32_t* sizeOut);
 
 } plGPUAllocatorsI;
 

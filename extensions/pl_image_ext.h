@@ -51,28 +51,28 @@ typedef struct _plImageWriteInfo plImageWriteInfo;
 typedef struct _plImageI
 {
     // query image info
-    bool (*get_info)           (char const* pcFilename, plImageInfo* ptInfoOut);
-    bool (*get_info_from_memory)(const unsigned char* pcBuffer, int iLength, plImageInfo* ptInfoOut);
+    bool (*get_info)           (char const* filename, plImageInfo* infoOut);
+    bool (*get_info_from_memory)(const unsigned char* buffer, int length, plImageInfo* infoOut);
 
     // reading LDR (HDR will be remapped through this interface)
-    unsigned char*  (*load_from_memory)      (const unsigned char* pcBuffer, int iLength, int* piX, int* piY, int* piChannels, int iDesiredChannels);
-    unsigned char*  (*load)                  (char const* pcFilename, int* piX, int* piY, int* piChannels, int iDesiredChannels);
-    unsigned short* (*load_16bit_from_memory)(const unsigned char* pcBuffer, int iLength, int* piX, int* piY, int* piChannels, int iDesiredChannels);
-    unsigned short* (*load_16bit)            (char const* pcFilename, int* piX, int* piY, int* piChannels, int iDesiredChannels);
+    unsigned char*  (*load_from_memory)      (const unsigned char* buffer, int length, int* x, int* y, int* channels, int desiredChannels);
+    unsigned char*  (*load)                  (char const* filename, int* x, int* y, int* channels, int desiredChannels);
+    unsigned short* (*load_16bit_from_memory)(const unsigned char* buffer, int length, int* x, int* y, int* channels, int desiredChannels);
+    unsigned short* (*load_16bit)            (char const* filename, int* y, int* x, int* channels, int desiredChannels);
     void            (*set_hdr_to_ldr_gamma)  (float); // default 2.2f
     void            (*set_hdr_to_ldr_scale)  (float); // default 1.0f
     
     // reading HDR (LDR will be promoted to floating point values)
-    float* (*load_hdr_from_memory)(const unsigned char* pcBuffer, int iLength, int* piX, int* piY, int* piChannels, int iDesiredChannels);
-    float* (*load_hdr)            (char const* pcFilename, int* piX, int* piY, int* piChannels, int iDesiredChannels);
+    float* (*load_hdr_from_memory)(const unsigned char* buffer, int length, int* x, int* y, int* channels, int desiredChannels);
+    float* (*load_hdr)            (char const* filename, int* x, int* y, int* channels, int desiredChannels);
     void   (*set_ldr_to_hdr_gamma)(float); // default 2.2f
     void   (*set_ldr_to_hdr_scale)(float); // default 1.0f
     
     // call when finished with memory
-    void (*free)(void* pRetValueFromLoad);
+    void (*free)(void* returnValueFromLoad);
 
     // writing to disk (currently supports png, jpg, bmp, hdr, tga)
-    bool (*write)(char const *pcFileName, const void *pData, const plImageWriteInfo*);
+    bool (*write)(char const* filename, const void* data, const plImageWriteInfo*);
 } plImageI;
 
 //-----------------------------------------------------------------------------
