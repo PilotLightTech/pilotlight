@@ -3182,8 +3182,7 @@ pl__lit(const unsigned char* pucData, uint32_t uLength)
         ptrDOut_ += uLength;
     else if (pucData < ptrBarrierInB_)
         ptrDOut_ = ptrBarrierOutE_ + 1; 
-    else
-        memcpy(ptrDOut_, pucData, uLength); ptrDOut_ += uLength;
+    else {memcpy(ptrDOut_, pucData, uLength); ptrDOut_ += uLength; }
 }
 
 #define MV_IN2_(x) ((pucI[x] << 8) + pucI[(x) + 1])

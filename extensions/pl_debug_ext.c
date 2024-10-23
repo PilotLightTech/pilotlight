@@ -291,9 +291,9 @@ pl__show_profiling(bool* bValue)
 
         gptUI->separator();
 
-        if(gptUI->begin_tab_bar("profiling tabs"))
+        if(gptUI->begin_tab_bar("profiling tabs", 0))
         {
-            if(gptUI->begin_tab("Table"))
+            if(gptUI->begin_tab("Table", 0))
             {
                 gptUI->layout_template_begin(0.0f);
                 gptUI->layout_template_push_variable(400.0f);
@@ -328,7 +328,7 @@ pl__show_profiling(bool* bValue)
                         gptUI->unindent(15.0f * (float)(ptSamples[i].uDepth + 1));
                         gptUI->text("%7.3f", ptSamples[i].dDuration * 1000.0);
                         gptUI->text("%7.3f", ptSamples[i].dStartTime * 1000.0);
-                        gptUI->push_theme_color(PL_UI_COLOR_PROGRESS_BAR, &atColors[ptSamples[i].uDepth % 6]);
+                        gptUI->push_theme_color(PL_UI_COLOR_PROGRESS_BAR, atColors[ptSamples[i].uDepth % 6]);
                         gptUI->progress_bar((float)(ptSamples[i].dDuration / (double)gptDebugCtx->fDeltaTime), (plVec2){-1.0f, 0.0f}, NULL);
                         gptUI->pop_theme_color(1);
                     } 
@@ -336,12 +336,12 @@ pl__show_profiling(bool* bValue)
                 gptUI->end_tab();
             }
 
-            if(gptUI->begin_tab("Graph"))
+            if(gptUI->begin_tab("Graph", 0))
             {
 
                 const plVec2 tParentCursorPos = gptUI->get_cursor_pos();
                 gptUI->layout_dynamic(tWindowEnd.y - tParentCursorPos.y - 5.0f, 1);
-                if(gptUI->begin_child("timeline"))
+                if(gptUI->begin_child("timeline", 0, 0))
                 {
 
                     const plVec2 tChildWindowSize = gptUI->get_window_size();
@@ -504,7 +504,7 @@ pl__show_profiling(bool* bValue)
                         const float fPixelStart = (float)(dConvertToPixel * ptSamples[i].dStartTime);
                         gptUI->layout_space_push(fPixelStart, (float)ptSamples[i].uDepth * 25.0f + 55.0f, fPixelWidth, 20.0f);
                         char* pcTempBuffer = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%s##pro%u", ptSamples[i].pcName, i);
-                        gptUI->push_theme_color(PL_UI_COLOR_BUTTON, &atColors[ptSamples[i].uDepth % 6]);
+                        gptUI->push_theme_color(PL_UI_COLOR_BUTTON, atColors[ptSamples[i].uDepth % 6]);
                         if(gptUI->button(pcTempBuffer))
                         {
                             dInitialVisibleTime = pl_clampd(0.0001, ptSamples[i].dDuration, (double)gptDebugCtx->fDeltaTime);
@@ -598,15 +598,15 @@ pl__show_statistics(bool* bValue)
         gptUI->layout_template_push_dynamic();
         gptUI->layout_template_end();
       
-        if(gptUI->begin_child("left"))
+        if(gptUI->begin_child("left", 0, 0))
         {
             gptUI->layout_dynamic(0.0f, 1);
  
             const plVec4 tNewHeaderColor = (plVec4){0.0f, 0.5f, 0.0f, 0.75f};
-            gptUI->push_theme_color(PL_UI_COLOR_HEADER, &tNewHeaderColor);
+            gptUI->push_theme_color(PL_UI_COLOR_HEADER, tNewHeaderColor);
             for(uint32_t i = 0; i < pl_sb_size(gptDebugCtx->sbppdValues); i++)
             {
-                if(gptUI->selectable(gptDebugCtx->ppcNames[i], &gptDebugCtx->sbbValues[i]))
+                if(gptUI->selectable(gptDebugCtx->ppcNames[i], &gptDebugCtx->sbbValues[i], 0))
                 {
                     if(gptDebugCtx->sbbValues[i])
                     {
@@ -646,9 +646,9 @@ pl__show_statistics(bool* bValue)
         }
 
         
-        if(gptUI->begin_tab_bar("stat tabs"))
+        if(gptUI->begin_tab_bar("stat tabs", 0))
         {
-            if(gptUI->begin_tab("Plot"))
+            if(gptUI->begin_tab("Plot", 0))
             {
                 
                 gptUI->layout_template_begin(tWindowSize.y - 30.0f);
@@ -735,7 +735,7 @@ pl__show_statistics(bool* bValue)
                 gptUI->end_tab();
             }
 
-            if(gptUI->begin_tab("Table"))
+            if(gptUI->begin_tab("Table", 0))
             {
                 gptUI->layout_template_begin(0.0f);
                 gptUI->layout_template_push_static(35.0f);
@@ -842,9 +842,9 @@ pl__show_device_memory(bool* bValue)
             "Device Memory: Staging Cached"
         };
 
-        gptUI->push_theme_color(PL_UI_COLOR_BUTTON, &tButtonColor);
-        gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, &tButtonColor);
-        gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, &tButtonColor);
+        gptUI->push_theme_color(PL_UI_COLOR_BUTTON, tButtonColor);
+        gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, tButtonColor);
+        gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, tButtonColor);
         for(uint32_t uAllocatorIndex = 0; uAllocatorIndex < 4; uAllocatorIndex++)
         {
             uint32_t uBlockCount = 0;
@@ -988,7 +988,7 @@ pl__show_logging(bool* bValue)
         }
 
         gptUI->layout_dynamic(0.0f, 1);
-        if(gptUI->begin_tab_bar("tab bar"))
+        if(gptUI->begin_tab_bar("tab bar", 0))
         {
             uint32_t uChannelCount = (uint32_t)pl_get_log_channel_count();
             for(uint32_t i = 0; i < uChannelCount; i++)
@@ -1002,11 +1002,11 @@ pl__show_logging(bool* bValue)
 
                 if(tInfo.tType & PL_CHANNEL_TYPE_CYCLIC_BUFFER)
                 {
-                    if(gptUI->begin_tab(tInfo.pcName))
+                    if(gptUI->begin_tab(tInfo.pcName, 0))
                     {
                         const plVec2 tCursorPos = gptUI->get_cursor_pos();
                         gptUI->layout_dynamic(tWindowEnd.y - tCursorPos.y - 20.0f, 1);
-                        if(gptUI->begin_child(tInfo.pcName))
+                        if(gptUI->begin_child(tInfo.pcName, 0, 0))
                         {
                             gptUI->layout_dynamic(0.0f, 1);
                             const uint32_t uIndexStart = (uint32_t)uEntryCount;
@@ -1045,11 +1045,11 @@ pl__show_logging(bool* bValue)
                 }
                 else if(tInfo.tType & PL_CHANNEL_TYPE_BUFFER)
                 {
-                    if(gptUI->begin_tab(tInfo.pcName))
+                    if(gptUI->begin_tab(tInfo.pcName, 0))
                     {
                         const plVec2 tCursorPos = gptUI->get_cursor_pos();
                         gptUI->layout_dynamic(tWindowEnd.y - tCursorPos.y - 20.0f, 1);
-                        if(gptUI->begin_child(tInfo.pcName))
+                        if(gptUI->begin_child(tInfo.pcName, 0, 0))
                         {
                             gptUI->layout_dynamic(0.0f, 1);
 

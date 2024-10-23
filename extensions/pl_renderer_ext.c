@@ -4694,19 +4694,19 @@ pl_add_drawable_objects_to_scene(uint32_t uSceneHandle, uint32_t uOpaqueCount, c
 static void
 pl_show_graphics_options(const char* pcTitle)
 {
-    if(gptUI->begin_collapsing_header(pcTitle))
+    if(gptUI->begin_collapsing_header(pcTitle, 0))
     {
         // if(gptUI->checkbox("VSync", &gptData->ptSwap->bVSync))
         //     gptData->bReloadSwapchain = true;
         gptUI->checkbox("Show Origin", &gptData->bShowOrigin);
         gptUI->checkbox("Frustum Culling", &gptData->bFrustumCulling);
-        gptUI->slider_float("Lambda Split", &gptData->fLambdaSplit, 0.0f, 1.0f);
+        gptUI->slider_float("Lambda Split", &gptData->fLambdaSplit, 0.0f, 1.0f, 0);
         gptUI->checkbox("Draw All Bounding Boxes", &gptData->bDrawAllBoundingBoxes);
         gptUI->checkbox("Draw Visible Bounding Boxes", &gptData->bDrawVisibleBoundingBoxes);
         gptUI->checkbox("Show Selected Bounding Box", &gptData->bShowSelectedBoundingBox);
 
         int iOutlineWidth  = (int)gptData->uOutlineWidth;
-        if(gptUI->slider_int("Outline Width", &iOutlineWidth, 2, 50))
+        if(gptUI->slider_int("Outline Width", &iOutlineWidth, 2, 50, 0))
         {
             gptData->uOutlineWidth = (uint32_t)iOutlineWidth;
         }

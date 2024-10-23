@@ -39,7 +39,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
         gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, tWindowSize.y - 75.0f, 2, pfRatios);
 
 
-        if(gptUi->begin_child("Entities"))
+        if(gptUi->begin_child("Entities", 0, 0))
         {
             const float pfRatiosInner[] = {1.0f};
             gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
@@ -55,7 +55,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     bool bSelected = ptSelectedEntity->ulData == ptLibrary->tTagComponentManager.sbtEntities[i].ulData;
                     char atBuffer[1024] = {0};
                     pl_sprintf(atBuffer, "%s, %u", sbtTags[i].acName, ptLibrary->tTagComponentManager.sbtEntities[i].uIndex);
-                    if(gptUi->selectable(atBuffer, &bSelected))
+                    if(gptUi->selectable(atBuffer, &bSelected, 0))
                     {
                         if(bSelected)
                         {
@@ -78,7 +78,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
             gptUi->end_child();
         }
 
-        if(gptUi->begin_child("Components"))
+        if(gptUi->begin_child("Components", 0, 0))
         {
             const float pfRatiosInner[] = {1.0f};
             gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
@@ -100,13 +100,13 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
 
                 gptUi->text("Entity: %u, %u", ptSelectedEntity->uIndex, ptSelectedEntity->uGeneration);
 
-                if(ptTagComp && gptUi->begin_collapsing_header("Tag"))
+                if(ptTagComp && gptUi->begin_collapsing_header("Tag", 0))
                 {
                     gptUi->text("Name: %s", ptTagComp->acName);
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptTransformComp && gptUi->begin_collapsing_header("Transform"))
+                if(ptTransformComp && gptUi->begin_collapsing_header("Transform", 0))
                 {
                     gptUi->text("Scale:       (%+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tScale.x, ptTransformComp->tScale.y, ptTransformComp->tScale.z);
                     gptUi->text("Translation: (%+0.3f, %+0.3f, %+0.3f)", ptTransformComp->tTranslation.x, ptTransformComp->tTranslation.y, ptTransformComp->tTranslation.z);
@@ -119,7 +119,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptMeshComp && gptUi->begin_collapsing_header("Mesh"))
+                if(ptMeshComp && gptUi->begin_collapsing_header("Mesh", 0))
                 {
 
                     plTagComponent* ptMaterialTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptMeshComp->tMaterial);
@@ -145,7 +145,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptObjectComp && gptUi->begin_collapsing_header("Object"))
+                if(ptObjectComp && gptUi->begin_collapsing_header("Object", 0))
                 {
                     plTagComponent* ptMeshTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptObjectComp->tMesh);
                     plTagComponent* ptTransformTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptObjectComp->tTransform);
@@ -154,14 +154,14 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptHierarchyComp && gptUi->begin_collapsing_header("Hierarchy"))
+                if(ptHierarchyComp && gptUi->begin_collapsing_header("Hierarchy", 0))
                 {
                     plTagComponent* ptParentTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptHierarchyComp->tParent);
                     gptUi->text("Parent Entity: %s , %u", ptParentTagComp->acName, ptHierarchyComp->tParent.uIndex);
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptLightComp && gptUi->begin_collapsing_header("Light"))
+                if(ptLightComp && gptUi->begin_collapsing_header("Light", 0))
                 {
                     static const char* apcLightTypes[] = {
                         "PL_LIGHT_TYPE_DIRECTIONAL",
@@ -175,7 +175,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->text("Cast Shadow: %s", ptLightComp->tFlags & PL_LIGHT_FLAG_CAST_SHADOW ? "true" : "false");
                 }
 
-                if(ptMaterialComp && gptUi->begin_collapsing_header("Material"))
+                if(ptMaterialComp && gptUi->begin_collapsing_header("Material", 0))
                 {
                     gptUi->text("Base Color:            (%0.3f, %0.3f, %0.3f, %0.3f)", ptMaterialComp->tBaseColor.r, ptMaterialComp->tBaseColor.g, ptMaterialComp->tBaseColor.b, ptMaterialComp->tBaseColor.a);
                     gptUi->text("Alpha Cutoff:                    %0.3f", ptMaterialComp->fAlphaCutoff);
@@ -232,9 +232,9 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptSkinComp && gptUi->begin_collapsing_header("Skin"))
+                if(ptSkinComp && gptUi->begin_collapsing_header("Skin", 0))
                 {
-                    if(gptUi->tree_node("Joints"))
+                    if(gptUi->tree_node("Joints", 0))
                     {
                         for(uint32_t i = 0; i < pl_sb_size(ptSkinComp->sbtJoints); i++)
                         {
@@ -246,7 +246,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptCameraComp && gptUi->begin_collapsing_header("Camera"))
+                if(ptCameraComp && gptUi->begin_collapsing_header("Camera", 0))
                 { 
                     gptUi->text("Near Z:                  %+0.3f", ptCameraComp->fNearZ);
                     gptUi->text("Far Z:                   %+0.3f", ptCameraComp->fFarZ);
@@ -259,11 +259,11 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->text("Up:       (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tUpVec.x, ptCameraComp->_tUpVec.y, ptCameraComp->_tUpVec.z);
                     gptUi->text("Forward:  (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tForwardVec.x, ptCameraComp->_tForwardVec.y, ptCameraComp->_tForwardVec.z);
                     gptUi->text("Right:    (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tRightVec.x, ptCameraComp->_tRightVec.y, ptCameraComp->_tRightVec.z);
-                    gptUi->slider_float("Far Z Plane", &ptCameraComp->fFarZ, 10.0f, 400.0f);
+                    gptUi->slider_float("Far Z Plane", &ptCameraComp->fFarZ, 10.0f, 400.0f, 0);
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptAnimationComp && gptUi->begin_collapsing_header("Animation"))
+                if(ptAnimationComp && gptUi->begin_collapsing_header("Animation", 0))
                 { 
                     bool bPlaying = ptAnimationComp->tFlags & PL_ANIMATION_FLAG_PLAYING;
                     bool bLooped = ptAnimationComp->tFlags & PL_ANIMATION_FLAG_LOOPED;
@@ -296,13 +296,13 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->end_collapsing_header();
                 }
 
-                if(ptIKComp && gptUi->begin_collapsing_header("Inverse Kinematics"))
+                if(ptIKComp && gptUi->begin_collapsing_header("Inverse Kinematics", 0))
                 { 
                     plTagComponent* ptTargetComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptIKComp->tTarget);
                     gptUi->text("Target Entity: %s , %u", ptTargetComp->acName, ptIKComp->tTarget.uIndex);
 
                     int iChainLength = (int)ptIKComp->uChainLength;
-                    gptUi->slider_int("Chain Length", &iChainLength, 1, 5);
+                    gptUi->slider_int("Chain Length", &iChainLength, 1, 5, 0);
 
                     ptIKComp->uChainLength = (uint32_t)iChainLength;
 

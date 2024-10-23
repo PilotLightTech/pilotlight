@@ -44,13 +44,13 @@ pl_show_debug_window(bool* pbOpen)
         
         pl_separator();
 
-        if(pl_tree_node("Windows"))
+        if(pl_tree_node("Windows", 0))
         {
             for(uint32_t uWindowIndex = 0; uWindowIndex < pl_sb_size(gptCtx->sbptFocusedWindows); uWindowIndex++)
             {
                 const plUiWindow* ptWindow = gptCtx->sbptFocusedWindows[uWindowIndex];
 
-                if(pl_tree_node(ptWindow->pcName))
+                if(pl_tree_node(ptWindow->pcName, 0))
                 {
                     pl_text(" - Pos:          (%0.1f, %0.1f)", ptWindow->tPos.x, ptWindow->tPos.y);
                     pl_text(" - Size:         (%0.1f, %0.1f)", ptWindow->tSize.x, ptWindow->tSize.y);
@@ -71,7 +71,7 @@ pl_show_debug_window(bool* pbOpen)
             }
             pl_tree_pop();
         }
-        if(pl_tree_node("Internal State"))
+        if(pl_tree_node("Internal State", 0))
         {
             pl_separator_text("Windowing");
             pl_indent(0.0f);
@@ -113,50 +113,50 @@ pl_show_style_editor_window(bool* pbOpen)
 
         plUiStyle* ptStyle = &gptCtx->tStyle;
 
-        if(pl_begin_tab_bar("Tabs"))
+        if(pl_begin_tab_bar("Tabs", 0))
         {
-            if(pl_begin_tab("Colors"))
+            if(pl_begin_tab("Colors", 0))
             { 
                 pl_end_tab();
             }
             
-            if(pl_begin_tab("Sizes"))
+            if(pl_begin_tab("Sizes", 0))
             {
                 pl_vertical_spacing();
                 pl_separator_text("Title");
-                pl_slider_float("Title Padding", &ptStyle->fTitlePadding, 0.0f, 32.0f);
+                pl_slider_float("Title Padding", &ptStyle->fTitlePadding, 0.0f, 32.0f, 0);
 
                 pl_vertical_spacing();
                 pl_separator_text("Window");
-                pl_slider_float("Horizontal Padding## window", &ptStyle->fWindowHorizontalPadding, 0.0f, 32.0f);
-                pl_slider_float("Vertical Padding## window", &ptStyle->fWindowVerticalPadding, 0.0f, 32.0f);
+                pl_slider_float("Horizontal Padding## window", &ptStyle->fWindowHorizontalPadding, 0.0f, 32.0f, 0);
+                pl_slider_float("Vertical Padding## window", &ptStyle->fWindowVerticalPadding, 0.0f, 32.0f, 0);
 
                 pl_vertical_spacing();
                 pl_separator_text("Scrollbar");
-                pl_slider_float("Size##scrollbar", &ptStyle->fScrollbarSize, 0.0f, 32.0f);
+                pl_slider_float("Size##scrollbar", &ptStyle->fScrollbarSize, 0.0f, 32.0f, 0);
 
                 pl_vertical_spacing();
                 pl_separator_text("Rounding");
-                pl_slider_float("Window Rounding", &ptStyle->fWindowRounding, 0.0f, 12.0f);
-                pl_slider_float("Child Rounding", &ptStyle->fChildRounding, 0.0f, 12.0f);
-                pl_slider_float("Frame Rounding", &ptStyle->fFrameRounding, 0.0f, 12.0f);
-                pl_slider_float("Scrollbar Rounding", &ptStyle->fScrollbarRounding, 0.0f, 12.0f);
-                pl_slider_float("Grab Rounding", &ptStyle->fGrabRounding, 0.0f, 12.0f);
-                pl_slider_float("Tab Rounding", &ptStyle->fTabRounding, 0.0f, 12.0f);
+                pl_slider_float("Window Rounding", &ptStyle->fWindowRounding, 0.0f, 12.0f, 0);
+                pl_slider_float("Child Rounding", &ptStyle->fChildRounding, 0.0f, 12.0f, 0);
+                pl_slider_float("Frame Rounding", &ptStyle->fFrameRounding, 0.0f, 12.0f, 0);
+                pl_slider_float("Scrollbar Rounding", &ptStyle->fScrollbarRounding, 0.0f, 12.0f, 0);
+                pl_slider_float("Grab Rounding", &ptStyle->fGrabRounding, 0.0f, 12.0f, 0);
+                pl_slider_float("Tab Rounding", &ptStyle->fTabRounding, 0.0f, 12.0f, 0);
                 
                 pl_vertical_spacing();
                 pl_separator_text("Misc");
-                pl_slider_float("Indent", &ptStyle->fIndentSize, 0.0f, 32.0f); 
-                pl_slider_float("Slider Size", &ptStyle->fSliderSize, 3.0f, 32.0f); 
-                pl_slider_float("Font Size", &ptStyle->fFontSize, 13.0f, 48.0f); 
+                pl_slider_float("Indent", &ptStyle->fIndentSize, 0.0f, 32.0f, 0); 
+                pl_slider_float("Slider Size", &ptStyle->fSliderSize, 3.0f, 32.0f, 0); 
+                pl_slider_float("Font Size", &ptStyle->fFontSize, 13.0f, 48.0f, 0); 
 
                 pl_vertical_spacing();
                 pl_separator_text("Widgets");
-                pl_slider_float("Separator Text Size", &ptStyle->fSeparatorTextLineSize, 0.0f, 10.0f); 
-                pl_slider_float("Separator Text Alignment x", &ptStyle->tSeparatorTextAlignment.x, 0.0f, 1.0f); 
-                pl_slider_float("Separator Text Alignment y", &ptStyle->tSeparatorTextAlignment.y, 0.0f, 1.0f); 
-                pl_slider_float("Separator Text Pad x", &ptStyle->tSeparatorTextPadding.x, 0.0f, 40.0f); 
-                pl_slider_float("Separator Text Pad y", &ptStyle->tSeparatorTextPadding.y, 0.0f, 40.0f); 
+                pl_slider_float("Separator Text Size", &ptStyle->fSeparatorTextLineSize, 0.0f, 10.0f, 0); 
+                pl_slider_float("Separator Text Alignment x", &ptStyle->tSeparatorTextAlignment.x, 0.0f, 1.0f, 0); 
+                pl_slider_float("Separator Text Alignment y", &ptStyle->tSeparatorTextAlignment.y, 0.0f, 1.0f, 0); 
+                pl_slider_float("Separator Text Pad x", &ptStyle->tSeparatorTextPadding.x, 0.0f, 40.0f, 0); 
+                pl_slider_float("Separator Text Pad y", &ptStyle->tSeparatorTextPadding.y, 0.0f, 40.0f, 0); 
                 pl_end_tab();
             }
             pl_end_tab_bar();
@@ -174,21 +174,21 @@ pl_show_demo_window(bool* pbOpen)
         static const float pfRatios0[] = {1.0f};
         pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios0);
 
-        if(pl_collapsing_header("Help"))
+        if(pl_collapsing_header("Help", 0))
         {
             pl_text("Under construction");
             pl_end_collapsing_header();
         }
     
-        if(pl_collapsing_header("Window Options"))
+        if(pl_collapsing_header("Window Options", 0))
         {
             pl_text("Under construction");
             pl_end_collapsing_header();
         }
 
-        if(pl_collapsing_header("Widgets"))
+        if(pl_collapsing_header("Widgets", 0))
         {
-            if(pl_tree_node("Basic"))
+            if(pl_tree_node("Basic", 0))
             {
 
                 pl_layout_static(0.0f, 100, 2);
@@ -201,15 +201,15 @@ pl_show_demo_window(bool* pbOpen)
 
                 pl_layout_dynamic(0.0f, 1);
                 static char buff[64] = {'c', 'a', 'a'};
-                pl_input_text("label 0", buff, 64);
+                pl_input_text("label 0", buff, 64, 0);
                 static char buff2[64] = {'c', 'c', 'c'};
-                pl_input_text_hint("label 1", "hint", buff2, 64);
+                pl_input_text_hint("label 1", "hint", buff2, 64, 0);
 
                 static float fValue = 3.14f;
                 static int iValue117 = 117;
 
-                pl_input_float("label 2", &fValue, "%0.3f");
-                pl_input_int("label 3", &iValue117);
+                pl_input_float("label 2", &fValue, "%0.3f", 0);
+                pl_input_int("label 3", &iValue117, 0);
 
                 static int iValue = 0;
                 pl_layout_row_begin(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 3);
@@ -233,20 +233,20 @@ pl_show_demo_window(bool* pbOpen)
                 static float fValue1 = 23.0f;
                 static float fValue2 = 100.0f;
                 static int iValue2 = 3;
-                pl_slider_float("float slider 1", &fValue1, 0.0f, 100.0f);
-                pl_slider_float("float slider 2", &fValue2, -50.0f, 100.0f);
-                pl_slider_int("int slider 1", &iValue1, 0, 10);
-                pl_slider_int("int slider 2", &iValue2, -5, 10);
-                pl_drag_float("float drag", &fValue2, 1.0f, -100.0f, 100.0f);
+                pl_slider_float("float slider 1", &fValue1, 0.0f, 100.0f, 0);
+                pl_slider_float("float slider 2", &fValue2, -50.0f, 100.0f, 0);
+                pl_slider_int("int slider 1", &iValue1, 0, 10, 0);
+                pl_slider_int("int slider 2", &iValue2, -5, 10, 0);
+                pl_drag_float("float drag", &fValue2, 1.0f, -100.0f, 100.0f, 0);
                 static int aiIntArray[4] = {0};
-                pl_input_int2("input int 2", aiIntArray);
-                pl_input_int3("input int 3", aiIntArray);
-                pl_input_int4("input int 4", aiIntArray);
+                pl_input_int2("input int 2", aiIntArray, 0);
+                pl_input_int3("input int 3", aiIntArray, 0);
+                pl_input_int4("input int 4", aiIntArray, 0);
 
                 static float afFloatArray[4] = {0};
-                pl_input_float2("input float 2", afFloatArray, "%0.3f");
-                pl_input_float3("input float 3", afFloatArray, "%0.3f");
-                pl_input_float4("input float 4", afFloatArray, "%0.3f");
+                pl_input_float2("input float 2", afFloatArray, "%0.3f", 0);
+                pl_input_float3("input float 3", afFloatArray, "%0.3f", 0);
+                pl_input_float4("input float 4", afFloatArray, "%0.3f", 0);
 
                 if(pl_menu_item("Menu item 0", NULL, false, true))
                 {
@@ -313,7 +313,7 @@ pl_show_demo_window(bool* pbOpen)
                 {
                     for(uint32_t i = 0; i < 5; i++)
                     {
-                        if(pl_selectable(apcCombo[i], &abCombo[i]))
+                        if(pl_selectable(apcCombo[i], &abCombo[i], 0))
                         {
                             uComboSelect = i;
                             pl_close_current_popup();
@@ -337,18 +337,18 @@ pl_show_demo_window(bool* pbOpen)
                 pl_tree_pop();
             }
 
-            if(pl_tree_node("Selectables"))
+            if(pl_tree_node("Selectables", 0))
             {
                 static bool bSelectable0 = false;
                 static bool bSelectable1 = false;
                 static bool bSelectable2 = false;
-                pl_selectable("Selectable 1", &bSelectable0);
-                pl_selectable("Selectable 2", &bSelectable1);
-                pl_selectable("Selectable 3", &bSelectable2);
+                pl_selectable("Selectable 1", &bSelectable0, 0);
+                pl_selectable("Selectable 2", &bSelectable1, 0);
+                pl_selectable("Selectable 3", &bSelectable2, 0);
                 pl_tree_pop();
             }
 
-            if(pl_tree_node("Combo"))
+            if(pl_tree_node("Combo", 0))
             {
                 plUiComboFlags tComboFlags = PL_UI_COMBO_FLAGS_NONE;
 
@@ -386,7 +386,7 @@ pl_show_demo_window(bool* pbOpen)
                 {
                     for(uint32_t i = 0; i < 10; i++)
                     {
-                        if(pl_selectable(apcCombo[i], &abCombo[i]))
+                        if(pl_selectable(apcCombo[i], &abCombo[i], 0))
                         {
                             uComboSelect = i;
                             pl_close_current_popup();
@@ -397,23 +397,23 @@ pl_show_demo_window(bool* pbOpen)
                 pl_tree_pop();
             }
 
-            if(pl_tree_node("Plotting"))
+            if(pl_tree_node("Plotting", 0))
             {
                 pl_progress_bar(0.75f, (plVec2){-1.0f, 0.0f}, NULL);
                 pl_tree_pop();
             }
 
-            if(pl_tree_node("Trees"))
+            if(pl_tree_node("Trees", 0))
             {
                 
-                if(pl_tree_node("Root Node"))
+                if(pl_tree_node("Root Node", 0))
                 {
-                    if(pl_tree_node("Child 1"))
+                    if(pl_tree_node("Child 1", 0))
                     {
                         pl_button("Press me");
                         pl_tree_pop();
                     }
-                    if(pl_tree_node("Child 2"))
+                    if(pl_tree_node("Child 2", 0))
                     {
                         pl_button("Press me");
                         pl_tree_pop();
@@ -423,22 +423,22 @@ pl_show_demo_window(bool* pbOpen)
                 pl_tree_pop();
             }
 
-            if(pl_tree_node("Tabs"))
+            if(pl_tree_node("Tabs", 0))
             {
-                if(pl_begin_tab_bar("Tabs1"))
+                if(pl_begin_tab_bar("Tabs1", 0))
                 {
-                    if(pl_begin_tab("Tab 0"))
+                    if(pl_begin_tab("Tab 0", 0))
                     {
                         static bool bSelectable0 = false;
                         static bool bSelectable1 = false;
                         static bool bSelectable2 = false;
-                        pl_selectable("Selectable 1", &bSelectable0);
-                        pl_selectable("Selectable 2", &bSelectable1);
-                        pl_selectable("Selectable 3", &bSelectable2);
+                        pl_selectable("Selectable 1", &bSelectable0, 0);
+                        pl_selectable("Selectable 2", &bSelectable1, 0);
+                        pl_selectable("Selectable 3", &bSelectable2, 0);
                         pl_end_tab();
                     }
 
-                    if(pl_begin_tab("Tab 1"))
+                    if(pl_begin_tab("Tab 1", 0))
                     {
                         static int iValue = 0;
                         pl_radio_button("Option 1", &iValue, 0);
@@ -447,9 +447,9 @@ pl_show_demo_window(bool* pbOpen)
                         pl_end_tab();
                     }
 
-                    if(pl_begin_tab("Tab 2"))
+                    if(pl_begin_tab("Tab 2", 0))
                     {
-                        if(pl_begin_child("CHILD2"))
+                        if(pl_begin_child("CHILD2", 0, 0))
                         {
                             const float pfRatios3[] = {600.0f};
                             pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios3);
@@ -468,7 +468,7 @@ pl_show_demo_window(bool* pbOpen)
             pl_end_collapsing_header();
         }
 
-        if(pl_collapsing_header("Scrolling"))
+        if(pl_collapsing_header("Scrolling", 0))
         {
             const float pfRatios2[] = {0.5f, 0.50f};
             const float pfRatios3[] = {600.0f};
@@ -478,7 +478,7 @@ pl_show_demo_window(bool* pbOpen)
             pl_checkbox("Use Clipper", &bUseClipper);
             
             pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 300.0f, 2, pfRatios2);
-            if(pl_begin_child("CHILD"))
+            if(pl_begin_child("CHILD", 0, 0))
             {
 
                 pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
@@ -510,7 +510,7 @@ pl_show_demo_window(bool* pbOpen)
             }
             
 
-            if(pl_begin_child("CHILD2"))
+            if(pl_begin_child("CHILD2", 0, 0))
             {
                 pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios3);
 
@@ -524,13 +524,13 @@ pl_show_demo_window(bool* pbOpen)
             pl_end_collapsing_header();
         }
 
-        if(pl_collapsing_header("Layout Systems"))
+        if(pl_collapsing_header("Layout Systems", 0))
         {
             pl_text("General Notes");
             pl_text("  - systems ordered by increasing flexibility");
             pl_separator();
 
-            if(pl_tree_node("System 1 - simple dynamic"))
+            if(pl_tree_node("System 1 - simple dynamic", 0))
             {
                 static int iWidgetCount = 5;
                 static float fWidgetHeight = 0.0f;
@@ -542,8 +542,8 @@ pl_show_demo_window(bool* pbOpen)
                 pl_vertical_spacing();
 
                 pl_separator_text("Options");
-                pl_slider_int("Widget Count", &iWidgetCount, 1, 10);
-                pl_slider_float("Height", &fWidgetHeight, 0.0f, 100.0f);
+                pl_slider_int("Widget Count", &iWidgetCount, 1, 10, 0);
+                pl_slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
                 pl_vertical_spacing();
 
                 pl_separator_text("Example");
@@ -558,7 +558,7 @@ pl_show_demo_window(bool* pbOpen)
                 pl_tree_pop();
             }
 
-            if(pl_tree_node("System 2 - simple static"))
+            if(pl_tree_node("System 2 - simple static", 0))
             {
                 static int iWidgetCount = 5;
                 static float fWidgetWidth = 100.0f;
@@ -571,9 +571,9 @@ pl_show_demo_window(bool* pbOpen)
                 pl_vertical_spacing();
 
                 pl_separator_text("Options");
-                pl_slider_int("Widget Count", &iWidgetCount, 1, 10);
-                pl_slider_float("Width", &fWidgetWidth, 50.0f, 500.0f);
-                pl_slider_float("Height", &fWidgetHeight, 0.0f, 100.0f);
+                pl_slider_int("Widget Count", &iWidgetCount, 1, 10, 0);
+                pl_slider_float("Width", &fWidgetWidth, 50.0f, 500.0f, 0);
+                pl_slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
                 pl_vertical_spacing();
 
                 pl_separator_text("Example");
@@ -588,7 +588,7 @@ pl_show_demo_window(bool* pbOpen)
                 pl_tree_pop();
             }
 
-            if(pl_tree_node("System 3 - single system row"))
+            if(pl_tree_node("System 3 - single system row", 0))
             {
                 static bool bDynamicRow = false;
                 static int iWidgetCount = 2;
@@ -613,15 +613,15 @@ pl_show_demo_window(bool* pbOpen)
 
                 pl_separator_text("Options");
                 pl_checkbox("Dynamic", &bDynamicRow);
-                pl_slider_int("Widget Count", &iWidgetCount, 1, 4);
-                pl_slider_float("Height", &fWidgetHeight, 0.0f, 100.0f);
+                pl_slider_int("Widget Count", &iWidgetCount, 1, 4, 0);
+                pl_slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
 
                 if(bDynamicRow)
                 {
                     for(int i = 0; i < iWidgetCount; i++)
                     {
                         pl_push_id_uint((uint32_t)i);
-                        pl_slider_float("Widget Width", &afWidgetDynamicWidths[i], 0.05f, 1.2f);
+                        pl_slider_float("Widget Width", &afWidgetDynamicWidths[i], 0.05f, 1.2f, 0);
                         pl_pop_id();
                     }
                 }
@@ -630,7 +630,7 @@ pl_show_demo_window(bool* pbOpen)
                     for(int i = 0; i < iWidgetCount; i++)
                     {
                         pl_push_id_uint((uint32_t)i);
-                        pl_slider_float("Widget Width", &afWidgetStaticWidths[i], 50.0f, 500.0f);
+                        pl_slider_float("Widget Width", &afWidgetStaticWidths[i], 50.0f, 500.0f, 0);
                         pl_pop_id();
                     }
                 }
@@ -651,7 +651,7 @@ pl_show_demo_window(bool* pbOpen)
                 pl_tree_pop();
             }
 
-            if(pl_tree_node("System 4 - single system row (array form)"))
+            if(pl_tree_node("System 4 - single system row (array form)", 0))
             {
                 static bool bDynamicRow = false;
                 static int iWidgetCount = 2;
@@ -677,15 +677,15 @@ pl_show_demo_window(bool* pbOpen)
 
                 pl_separator_text("Options");
                 pl_checkbox("Dynamic", &bDynamicRow);
-                pl_slider_int("Widget Count", &iWidgetCount, 1, 4);
-                pl_slider_float("Height", &fWidgetHeight, 0.0f, 100.0f);
+                pl_slider_int("Widget Count", &iWidgetCount, 1, 4, 0);
+                pl_slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
 
                 if(bDynamicRow)
                 {
                     for(int i = 0; i < iWidgetCount; i++)
                     {
                         pl_push_id_uint((uint32_t)i);
-                        pl_slider_float("Widget Width", &afWidgetDynamicWidths[i], 0.05f, 1.2f);
+                        pl_slider_float("Widget Width", &afWidgetDynamicWidths[i], 0.05f, 1.2f, 0);
                         pl_pop_id();
                     }
                 }
@@ -694,7 +694,7 @@ pl_show_demo_window(bool* pbOpen)
                     for(int i = 0; i < iWidgetCount; i++)
                     {
                         pl_push_id_uint((uint32_t)i);
-                        pl_slider_float("Widget Width", &afWidgetStaticWidths[i], 50.0f, 500.0f);
+                        pl_slider_float("Widget Width", &afWidgetStaticWidths[i], 50.0f, 500.0f, 0);
                         pl_pop_id();
                     }
                 }
@@ -713,7 +713,7 @@ pl_show_demo_window(bool* pbOpen)
                 pl_tree_pop();
             }
 
-            if(pl_tree_node("System 5 - template"))
+            if(pl_tree_node("System 5 - template", 0))
             {
                 static int iWidgetCount = 6;
                 static float fWidgetHeight = 0.0f;
@@ -730,7 +730,7 @@ pl_show_demo_window(bool* pbOpen)
                 pl_vertical_spacing();
 
                 pl_separator_text("Options");
-                pl_slider_float("Height", &fWidgetHeight, 0.0f, 100.0f);
+                pl_slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
                 pl_vertical_spacing();
 
                 pl_separator_text("Example 0");
@@ -780,7 +780,7 @@ pl_show_demo_window(bool* pbOpen)
                 pl_tree_pop();
             }
 
-            if(pl_tree_node("System 6 - space"))
+            if(pl_tree_node("System 6 - space", 0))
             {
                 pl_separator_text("Notes");
                 pl_text("  - most flexible system");

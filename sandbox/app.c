@@ -375,7 +375,7 @@ pl_app_update(plEditorData* ptEditorData)
 
         const float pfRatios[] = {1.0f};
         gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-        if(gptUi->begin_collapsing_header(ICON_FA_CIRCLE_INFO " Information"))
+        if(gptUi->begin_collapsing_header(ICON_FA_CIRCLE_INFO " Information", 0))
         {
             
             gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION);
@@ -389,7 +389,7 @@ pl_app_update(plEditorData* ptEditorData)
 
             gptUi->end_collapsing_header();
         }
-        if(gptUi->begin_collapsing_header(ICON_FA_SLIDERS " App Options"))
+        if(gptUi->begin_collapsing_header(ICON_FA_SLIDERS " App Options", 0))
         {
             if(gptUi->checkbox("Freeze Culling Camera", &ptEditorData->bFreezeCullCamera))
             {
@@ -398,7 +398,7 @@ pl_app_update(plEditorData* ptEditorData)
 
             plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary,  PL_COMPONENT_TYPE_LIGHT, ptEditorData->tSunlight);
             int iCascadeCount  = (int)ptLight->uCascadeCount;
-            if(gptUi->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4))
+            if(gptUi->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0))
             {
                 ptLight->uCascadeCount = (uint32_t)iCascadeCount;
             }
@@ -408,7 +408,7 @@ pl_app_update(plEditorData* ptEditorData)
 
         gptRenderer->show_graphics_options(ICON_FA_DICE_D6 " Graphics");
 
-        if(gptUi->begin_collapsing_header(ICON_FA_SCREWDRIVER_WRENCH " Tools"))
+        if(gptUi->begin_collapsing_header(ICON_FA_SCREWDRIVER_WRENCH " Tools", 0))
         {
             gptUi->checkbox("Device Memory Analyzer", &ptEditorData->tDebugInfo.bShowDeviceMemoryAnalyzer);
             gptUi->checkbox("Memory Allocations", &ptEditorData->tDebugInfo.bShowMemoryAllocations);
@@ -419,21 +419,21 @@ pl_app_update(plEditorData* ptEditorData)
             gptUi->end_collapsing_header();
         }
 
-        if(gptUi->begin_collapsing_header(ICON_FA_BUG " Debug"))
+        if(gptUi->begin_collapsing_header(ICON_FA_BUG " Debug", 0))
         {
             if(gptUi->button("resize"))
                 ptEditorData->bResize = true;
             gptUi->checkbox("Always Resize", &ptEditorData->bAlwaysResize);
 
             plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_LIGHT, ptEditorData->tSunlight);
-            gptUi->slider_float("x", &ptLight->tDirection.x, -1.0f, 1.0f);
-            gptUi->slider_float("y", &ptLight->tDirection.y, -1.0f, 1.0f);
-            gptUi->slider_float("z", &ptLight->tDirection.z, -1.0f, 1.0f);
+            gptUi->slider_float("x", &ptLight->tDirection.x, -1.0f, 1.0f, 0);
+            gptUi->slider_float("y", &ptLight->tDirection.y, -1.0f, 1.0f, 0);
+            gptUi->slider_float("z", &ptLight->tDirection.z, -1.0f, 1.0f, 0);
 
             gptUi->end_collapsing_header();
         }
 
-        if(gptUi->begin_collapsing_header(ICON_FA_USER_GEAR " User Interface"))
+        if(gptUi->begin_collapsing_header(ICON_FA_USER_GEAR " User Interface", 0))
         {
             gptUi->checkbox("UI Debug", &ptEditorData->bShowUiDebug);
             gptUi->checkbox("UI Demo", &ptEditorData->bShowUiDemo);

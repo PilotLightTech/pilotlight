@@ -275,7 +275,7 @@ pl_app_update(plAppData* ptAppData)
 
         const float pfRatios[] = {1.0f};
         gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-        if(gptUi->begin_collapsing_header("Information"))
+        if(gptUi->begin_collapsing_header("Information", 0))
         {
             
             gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION);
@@ -289,7 +289,7 @@ pl_app_update(plAppData* ptAppData)
 
             gptUi->end_collapsing_header();
         }
-        if(gptUi->begin_collapsing_header("User Interface"))
+        if(gptUi->begin_collapsing_header("User Interface", 0))
         {
             gptUi->checkbox("UI Debug", &ptAppData->bShowUiDebug);
             gptUi->checkbox("UI Demo", &ptAppData->bShowUiDemo);

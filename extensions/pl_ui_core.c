@@ -60,31 +60,41 @@ pl_set_dark_theme(void)
     gptCtx->tStyle.fSeparatorTextLineSize   = 3.0f;
 
     // colors
-    gptCtx->tColorScheme.tTitleActiveCol      = (plVec4){0.33f, 0.02f, 0.10f, 1.00f};
-    gptCtx->tColorScheme.tTitleBgCol          = (plVec4){0.04f, 0.04f, 0.04f, 1.00f};
-    gptCtx->tColorScheme.tTitleBgCollapsedCol = (plVec4){0.04f, 0.04f, 0.04f, 1.00f};
-    gptCtx->tColorScheme.tWindowBgColor       = (plVec4){0.10f, 0.10f, 0.10f, 0.78f};
-    gptCtx->tColorScheme.tWindowBorderColor   = (plVec4){0.33f, 0.02f, 0.10f, 1.00f};
-    gptCtx->tColorScheme.tChildBgColor        = (plVec4){0.10f, 0.10f, 0.10f, 0.78f};
-    gptCtx->tColorScheme.tButtonCol           = (plVec4){0.51f, 0.02f, 0.10f, 1.00f};
-    gptCtx->tColorScheme.tButtonHoveredCol    = (plVec4){0.61f, 0.02f, 0.10f, 1.00f};
-    gptCtx->tColorScheme.tButtonActiveCol     = (plVec4){0.87f, 0.02f, 0.10f, 1.00f};
-    gptCtx->tColorScheme.tTextCol             = (plVec4){1.00f, 1.00f, 1.00f, 1.00f};
-    gptCtx->tColorScheme.tTextDisabledCol     = (plVec4){0.50f, 0.50f, 0.50f, 1.00f};
-    gptCtx->tColorScheme.tProgressBarCol      = (plVec4){0.90f, 0.70f, 0.00f, 1.00f};
-    gptCtx->tColorScheme.tCheckmarkCol        = (plVec4){0.87f, 0.02f, 0.10f, 1.00f};
-    gptCtx->tColorScheme.tFrameBgCol          = (plVec4){0.23f, 0.02f, 0.10f, 1.00f};
-    gptCtx->tColorScheme.tFrameBgHoveredCol   = (plVec4){0.26f, 0.59f, 0.98f, 0.40f};
-    gptCtx->tColorScheme.tFrameBgActiveCol    = (plVec4){0.26f, 0.59f, 0.98f, 0.67f};
-    gptCtx->tColorScheme.tHeaderCol           = (plVec4){0.51f, 0.02f, 0.10f, 1.00f};
-    gptCtx->tColorScheme.tHeaderHoveredCol    = (plVec4){0.26f, 0.59f, 0.98f, 0.80f};
-    gptCtx->tColorScheme.tHeaderActiveCol     = (plVec4){0.26f, 0.59f, 0.98f, 1.00f};
-    gptCtx->tColorScheme.tScrollbarBgCol      = (plVec4){0.05f, 0.05f, 0.05f, 0.85f};
-    gptCtx->tColorScheme.tScrollbarHandleCol  = (plVec4){0.51f, 0.02f, 0.10f, 1.00f};
-    gptCtx->tColorScheme.tScrollbarFrameCol   = (plVec4){0.00f, 0.00f, 0.00f, 0.00f};
-    gptCtx->tColorScheme.tScrollbarActiveCol  = gptCtx->tColorScheme.tButtonActiveCol;
-    gptCtx->tColorScheme.tScrollbarHoveredCol = gptCtx->tColorScheme.tButtonHoveredCol;
-    gptCtx->tColorScheme.tSeparatorCol        = gptCtx->tColorScheme.tScrollbarHandleCol;
+    gptCtx->tColorScheme.tTitleActiveCol       = (plVec4){0.33f, 0.02f, 0.10f, 1.00f};
+    gptCtx->tColorScheme.tTitleBgCol           = (plVec4){0.04f, 0.04f, 0.04f, 1.00f};
+    gptCtx->tColorScheme.tTitleBgCollapsedCol  = (plVec4){0.04f, 0.04f, 0.04f, 1.00f};
+    gptCtx->tColorScheme.tWindowBgColor        = (plVec4){0.10f, 0.10f, 0.10f, 0.78f};
+    gptCtx->tColorScheme.tWindowBorderColor    = (plVec4){0.33f, 0.02f, 0.10f, 1.00f};
+    gptCtx->tColorScheme.tChildBgColor         = (plVec4){0.25f, 0.10f, 0.10f, 0.78f};
+    gptCtx->tColorScheme.tButtonCol            = (plVec4){0.51f, 0.02f, 0.10f, 1.00f};
+    gptCtx->tColorScheme.tButtonHoveredCol     = (plVec4){0.61f, 0.02f, 0.10f, 1.00f};
+    gptCtx->tColorScheme.tButtonActiveCol      = (plVec4){0.87f, 0.02f, 0.10f, 1.00f};
+    gptCtx->tColorScheme.tTextCol              = (plVec4){1.00f, 1.00f, 1.00f, 1.00f};
+    gptCtx->tColorScheme.tTextDisabledCol      = (plVec4){0.50f, 0.50f, 0.50f, 1.00f};
+    gptCtx->tColorScheme.tProgressBarCol       = (plVec4){0.90f, 0.70f, 0.00f, 1.00f};
+    gptCtx->tColorScheme.tCheckmarkCol         = (plVec4){0.87f, 0.02f, 0.10f, 1.00f};
+    gptCtx->tColorScheme.tFrameBgCol           = (plVec4){0.23f, 0.02f, 0.10f, 1.00f};
+    gptCtx->tColorScheme.tFrameBgHoveredCol    = (plVec4){0.26f, 0.59f, 0.98f, 0.40f};
+    gptCtx->tColorScheme.tFrameBgActiveCol     = (plVec4){0.26f, 0.59f, 0.98f, 0.67f};
+    gptCtx->tColorScheme.tHeaderCol            = (plVec4){0.51f, 0.02f, 0.10f, 1.00f};
+    gptCtx->tColorScheme.tHeaderHoveredCol     = (plVec4){0.26f, 0.59f, 0.98f, 0.80f};
+    gptCtx->tColorScheme.tHeaderActiveCol      = (plVec4){0.26f, 0.59f, 0.98f, 1.00f};
+    gptCtx->tColorScheme.tScrollbarBgCol       = (plVec4){0.05f, 0.05f, 0.05f, 0.85f};
+    gptCtx->tColorScheme.tScrollbarHandleCol   = (plVec4){0.51f, 0.02f, 0.10f, 1.00f};
+    gptCtx->tColorScheme.tScrollbarFrameCol    = (plVec4){0.00f, 0.00f, 0.00f, 0.00f};
+    gptCtx->tColorScheme.tScrollbarActiveCol   = gptCtx->tColorScheme.tButtonActiveCol;
+    gptCtx->tColorScheme.tScrollbarHoveredCol  = gptCtx->tColorScheme.tButtonHoveredCol;
+    gptCtx->tColorScheme.tSeparatorCol         = gptCtx->tColorScheme.tScrollbarHandleCol;
+    gptCtx->tColorScheme.tTabCol               = gptCtx->tColorScheme.tButtonCol;
+    gptCtx->tColorScheme.tTabHoveredCol        = gptCtx->tColorScheme.tButtonHoveredCol;
+    gptCtx->tColorScheme.tTabSelectedCol       = gptCtx->tColorScheme.tButtonActiveCol;
+    gptCtx->tColorScheme.tResizeGripCol        = (plVec4){0.33f, 0.02f, 0.10f, 1.0f};
+    gptCtx->tColorScheme.tResizeGripHoveredCol = (plVec4){0.66f, 0.02f, 0.10f, 1.0f};
+    gptCtx->tColorScheme.tResizeGripActiveCol  = (plVec4){0.99f, 0.02f, 0.10f, 1.0f};
+    gptCtx->tColorScheme.tSliderCol            = gptCtx->tColorScheme.tButtonCol;
+    gptCtx->tColorScheme.tSliderHoveredCol     = gptCtx->tColorScheme.tButtonHoveredCol;
+    gptCtx->tColorScheme.tSliderActiveCol      = gptCtx->tColorScheme.tButtonActiveCol;
+    gptCtx->tColorScheme.tPopupBgColor         = (plVec4){0.15f, 0.10f, 0.10f, 0.78f};
 }
 
 plDrawList2D*
@@ -319,13 +329,13 @@ pl_end_frame(void)
 }
 
 void
-pl_push_theme_color(plUiColor tColor, const plVec4* ptColor)
+pl_push_theme_color(plUiColor tColorCode, plVec4 tColor)
 {
     const plUiColorStackItem tPrevItem = {
-        .tIndex = tColor,
-        .tColor = gptCtx->tColorScheme.atColors[tColor]
+        .tIndex = tColorCode,
+        .tColor = gptCtx->tColorScheme.atColors[tColorCode]
     };
-    gptCtx->tColorScheme.atColors[tColor] = *ptColor;
+    gptCtx->tColorScheme.atColors[tColorCode] = tColor;
     pl_sb_push(gptCtx->sbtColorStack, tPrevItem);
 }
 
@@ -461,7 +471,7 @@ pl_end_child(void)
 }
 
 bool
-pl_begin_child(const char* pcName)
+pl_begin_child(const char* pcName, plUiChildFlags tChildFlags, plUiWindowFlags tWindowFlags)
 {
     plUiWindow* ptParentWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptParentWindow->tTempData.tCurrentLayoutRow;
@@ -495,7 +505,7 @@ pl_begin_child(const char* pcName)
 }
 
 void
-pl_open_popup(const char* pcName)
+pl_open_popup(const char* pcName, plUiPopupFlags tFlags)
 {
     const uint32_t uHash = pl_str_hash(pcName, 0, pl_sb_top(gptCtx->sbuIdStack));
     plUiPopupData tPopupData = {
@@ -1630,6 +1640,13 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
     const bool bScrollBarsPresent = ptWindow->bScrollbarX || ptWindow->bScrollbarY;
 
+    uint32_t uBackgroundColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tWindowBgColor);
+    if(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_CHILD_WINDOW)
+        uBackgroundColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tChildBgColor);
+    if(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW)
+        uBackgroundColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tPopupBgColor);
+
+
     // autosized non collapsed
     if(ptWindow->tFlags & PL_UI_WINDOW_FLAGS_AUTO_SIZE && !ptWindow->bCollapsed)
     {
@@ -1649,7 +1666,10 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         ptWindow->tOuterRectClipped = ptWindow->tOuterRect;
         
         // draw background
-        gptDraw->add_rect_rounded_filled(ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tWindowBgColor)});
+        gptDraw->add_rect_rounded_filled(
+            ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax,
+            gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM,
+            (plDrawSolidOptions){.uColor = uBackgroundColor});
 
         ptWindow->tFullSize = ptWindow->tSize;
     }
@@ -1681,8 +1701,14 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         // draw border
         if(!(tFlags & PL_UI_WINDOW_FLAGS_NO_BACKGROUND))
         {
-            gptDraw->add_rect_rounded(ptWindow->ptFgLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax, gptCtx->tStyle.fWindowRounding, 0, 0, (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tWindowBorderColor)});
-            gptDraw->add_rect_rounded_filled(ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tWindowBgColor)});
+            gptDraw->add_rect_rounded(
+                ptWindow->ptFgLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax,
+                gptCtx->tStyle.fWindowRounding, 0, 0,
+                (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tWindowBorderColor)});
+            gptDraw->add_rect_rounded_filled(
+                ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tStyle.fWindowRounding,
+                0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM,
+                (plDrawSolidOptions){.uColor = uBackgroundColor});
         }
 
         // vertical scroll bar
@@ -1712,17 +1738,17 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
                 if(gptCtx->uActiveId == uResizeHash)
                 {
-                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGB(0.99f, 0.02f, 0.10f)});
+                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tResizeGripActiveCol)});
                     gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NWSE);
                 }
                 else if(gptCtx->uHoveredId == uResizeHash)
                 {
-                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGB(0.66f, 0.02f, 0.10f)});
+                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tResizeGripHoveredCol)});
                     gptIOI->set_mouse_cursor(PL_MOUSE_CURSOR_RESIZE_NWSE);
                 }
                 else
                 {
-                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGB(0.33f, 0.02f, 0.10f)});
+                    gptDraw->add_triangle_filled(ptWindow->ptFgLayer, tBottomRight, tCornerTopPos, tCornerLeftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tResizeGripCol)});
                 }
             }
 
