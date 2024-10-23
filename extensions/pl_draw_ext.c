@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] defines
 // [SECTION] internal structs
 // [SECTION] global data
 // [SECTION] internal api
@@ -23,7 +24,6 @@ Index of this file:
 #include "pl_draw_ext.h"
 #include "pl_ds.h"
 #include "pl_memory.h"
-#include "pl_string.h"
 #include "pl_os.h"
 
 // extensions
@@ -77,8 +77,9 @@ typedef struct _plFontGlyph
     float y1;
     float u1;
     float v1;
-    float xAdvance;
-    float leftBearing;  
+    float fXAdvance;
+    float fLeftBearing;  
+    int   iSDF : 1;
 } plFontGlyph;
 
 typedef struct _plDrawLayer2D
@@ -88,16 +89,16 @@ typedef struct _plDrawLayer2D
     uint32_t*      sbuIndexBuffer;
     plVec2*        sbtPath;
     uint32_t       uVertexCount;
-    plDrawCommand* _ptLastCommand;
+    plDrawCommand* ptLastCommand;
 } plDrawLayer2D;
 
 typedef struct _plFontPrepData
 {
-    stbtt_fontinfo    fontInfo;
-    stbtt_pack_range* ranges;
-    stbrp_rect*       rects;
+    stbtt_fontinfo    tFontInfo;
+    stbtt_pack_range* ptRanges;
+    stbrp_rect*       ptRects;
     uint32_t          uTotalCharCount;
-    float             scale;
+    float             fScale;
     bool              bPrepped;
     float             fAscent;
     float             fDescent;
@@ -106,10 +107,10 @@ typedef struct _plFontPrepData
 typedef struct _plDrawContext
 {
     // 2D resources
-    plPoolAllocator   tDrawlistPool2D;
-    plDrawList2D      atDrawlists2DBuffer[PL_MAX_DRAWLISTS];
-    plDrawList2D*     aptDrawlists2D[PL_MAX_DRAWLISTS];
-    uint32_t          uDrawlistCount2D;
+    plPoolAllocator tDrawlistPool2D;
+    plDrawList2D    atDrawlists2DBuffer[PL_MAX_DRAWLISTS];
+    plDrawList2D*   aptDrawlists2D[PL_MAX_DRAWLISTS];
+    uint32_t        uDrawlistCount2D;
 
     // 3D resources
     plPoolAllocator tDrawlistPool3D;
@@ -117,7 +118,7 @@ typedef struct _plDrawContext
     plDrawList3D*   aptDrawlists3D[PL_MAX_DRAWLISTS];
     uint32_t        uDrawlistCount3D;
 
-    // font
+    // current font
     plFontAtlas* ptAtlas;
 
     plTempAllocator tTempAllocator;
@@ -129,17 +130,21 @@ typedef struct _plDrawContext
 
 static plDrawContext* gptDrawCtx = NULL;
 
+static unsigned char*        ptrBarrierOutE_ = NULL;
+static unsigned char*        ptrBarrierOutB_ = NULL;
+static const unsigned char * ptrBarrierInB_;
+static unsigned char*        ptrDOut_ = NULL;
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static void         pl__prepare_draw_command(plDrawLayer2D*, plTextureID, bool sdf);
-static void         pl__reserve_triangles(plDrawLayer2D*, uint32_t indexCount, uint32_t uVertexCount);
-static void         pl__add_vertex(plDrawLayer2D*, plVec2 pos, uint32_t color, plVec2 uv);
-static void         pl__add_index(plDrawLayer2D*, uint32_t vertexStart, uint32_t i0, uint32_t i1, uint32_t i2);
-static inline float pl__get_max(float v1, float v2) { return v1 > v2 ? v1 : v2;}
-static inline int   pl__get_min(int v1, int v2)     { return v1 < v2 ? v1 : v2;}
-static char*        plu__read_file(const char* file);
+static void pl__prepare_draw_command(plDrawLayer2D*, plTextureID, bool sdf);
+static void pl__reserve_triangles   (plDrawLayer2D*, uint32_t uIndexCount, uint32_t uVertexCount);
+static void pl__add_vertex          (plDrawLayer2D*, plVec2 tPos, uint32_t uColor, plVec2 tUv);
+static void pl__add_index           (plDrawLayer2D*, uint32_t uVertexStart, uint32_t i0, uint32_t i1, uint32_t i2);
+
+static const plFontGlyph* pl__find_glyph(plFont* ptFont, uint32_t c);
 
 // math
 #define pl__add_vec2(left, right)      (plVec2){(left).x + (right).x, (left).y + (right).y}
@@ -156,9 +161,10 @@ static char*        plu__read_file(const char* file);
     { float d2 = (VX) * (VX) + (VY) * (VY); \
     if (d2 > 0.0f) { float inv_len = 1.0f / sqrtf(d2); (VX) *= inv_len; (VY) *= inv_len; } } (void)0
 
-
 static inline void
-pl__add_3d_indexed_lines(plDrawList3D* ptDrawlist, uint32_t uIndexCount, const plVec3* atPoints, const uint32_t* auIndices, plDrawLineOptions tOptions)
+pl__add_3d_indexed_lines(
+    plDrawList3D* ptDrawlist, uint32_t uIndexCount, const plVec3* atPoints,
+    const uint32_t* auIndices, plDrawLineOptions tOptions)
 {
 
     const uint32_t uVertexStart = pl_sb_size(ptDrawlist->sbtLineVertexBuffer);
@@ -332,12 +338,16 @@ static void
 pl_initialize(const plDrawInit* ptInit)
 {
     size_t szBufferSize = sizeof(gptDrawCtx->atDrawlists3DBuffer);
-    size_t szItems = pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool3D, 0, sizeof(plDrawList3D), 0, &szBufferSize, gptDrawCtx->atDrawlists3DBuffer);
-    pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool3D, szItems, sizeof(plDrawList3D), 0, &szBufferSize, gptDrawCtx->atDrawlists3DBuffer);
+    size_t szItems = pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool3D, 0, sizeof(plDrawList3D), 0,
+        &szBufferSize, gptDrawCtx->atDrawlists3DBuffer);
+    pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool3D, szItems, sizeof(plDrawList3D), 0,
+        &szBufferSize, gptDrawCtx->atDrawlists3DBuffer);
 
     szBufferSize = sizeof(gptDrawCtx->atDrawlists2DBuffer);
-    szItems = pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool2D, 0, sizeof(plDrawList2D), 0, &szBufferSize, gptDrawCtx->atDrawlists2DBuffer);
-    pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool2D, szItems, sizeof(plDrawList2D), 0, &szBufferSize, gptDrawCtx->atDrawlists2DBuffer);
+    szItems = pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool2D, 0, sizeof(plDrawList2D), 0,
+        &szBufferSize, gptDrawCtx->atDrawlists2DBuffer);
+    pl_pool_allocator_init(&gptDrawCtx->tDrawlistPool2D, szItems, sizeof(plDrawList2D), 0,
+        &szBufferSize, gptDrawCtx->atDrawlists2DBuffer);
 }
 
 static void
@@ -379,12 +389,13 @@ static plDrawList2D*
 pl_request_2d_drawlist(void)
 {
     plDrawList2D* ptDrawlist = pl_pool_allocator_alloc(&gptDrawCtx->tDrawlistPool2D);
-    PL_ASSERT(ptDrawlist && "no drawlist available");
 
-    pl_sb_reserve(ptDrawlist->sbtVertexBuffer, 1024);
-
-    gptDrawCtx->aptDrawlists2D[gptDrawCtx->uDrawlistCount2D] = ptDrawlist;
-    gptDrawCtx->uDrawlistCount2D++;
+    if(ptDrawlist)
+    {
+        pl_sb_reserve(ptDrawlist->sbtVertexBuffer, 1024);
+        gptDrawCtx->aptDrawlists2D[gptDrawCtx->uDrawlistCount2D] = ptDrawlist;
+        gptDrawCtx->uDrawlistCount2D++;
+    }
     return ptDrawlist;
 }
 
@@ -401,16 +412,14 @@ pl_request_2d_layer(plDrawList2D* ptDrawlist)
         ptLayer = pl_sb_pop(ptDrawlist->_sbtLayerCache);
    }
 
-   else // create new ptLayer
+   else // create new layer
    {
         ptLayer = PL_ALLOC(sizeof(plDrawLayer2D));
         memset(ptLayer, 0, sizeof(plDrawLayer2D));
         ptLayer->ptDrawlist = ptDrawlist;
         pl_sb_push(ptDrawlist->_sbtLayersCreated, ptLayer);
    }
-
    pl_sb_reserve(ptLayer->sbuIndexBuffer, 1024);
-
    return ptLayer;
 }
 
@@ -418,20 +427,22 @@ static plDrawList3D*
 pl_request_3d_drawlist(void)
 {
     plDrawList3D* ptDrawlist = pl_pool_allocator_alloc(&gptDrawCtx->tDrawlistPool3D);
-    PL_ASSERT(ptDrawlist && "no drawlist available");
 
-    pl_sb_reserve(ptDrawlist->sbtLineIndexBuffer, 1024);
-    pl_sb_reserve(ptDrawlist->sbtLineVertexBuffer, 1024);
-    pl_sb_reserve(ptDrawlist->sbtSolidIndexBuffer, 1024);
-    pl_sb_reserve(ptDrawlist->sbtSolidVertexBuffer, 1024);
-
-    gptDrawCtx->aptDrawlists3D[gptDrawCtx->uDrawlistCount3D] = ptDrawlist;
-    gptDrawCtx->uDrawlistCount3D++;
-
-    if(ptDrawlist->pt2dDrawlist == NULL)
+    if(ptDrawlist)
     {
-        ptDrawlist->pt2dDrawlist = pl_request_2d_drawlist();
-        ptDrawlist->ptLayer = pl_request_2d_layer(ptDrawlist->pt2dDrawlist);
+        pl_sb_reserve(ptDrawlist->sbtLineIndexBuffer, 1024);
+        pl_sb_reserve(ptDrawlist->sbtLineVertexBuffer, 1024);
+        pl_sb_reserve(ptDrawlist->sbtSolidIndexBuffer, 1024);
+        pl_sb_reserve(ptDrawlist->sbtSolidVertexBuffer, 1024);
+
+        gptDrawCtx->aptDrawlists3D[gptDrawCtx->uDrawlistCount3D] = ptDrawlist;
+        gptDrawCtx->uDrawlistCount3D++;
+
+        if(ptDrawlist->pt2dDrawlist == NULL)
+        {
+            ptDrawlist->pt2dDrawlist = pl_request_2d_drawlist();
+            ptDrawlist->ptLayer = pl_request_2d_layer(ptDrawlist->pt2dDrawlist);
+        }
     }
     return ptDrawlist;
 }
@@ -481,16 +492,16 @@ pl_return_2d_drawlist(plDrawList2D* ptDrawlist)
 static void
 pl_prepare_2d_drawlist(plDrawList2D* ptDrawlist)
 {
-    uint32_t globalIdxBufferIndexOffset = 0u;
+    uint32_t uGlobalIdxBufferIndexOffset = 0u;
     const uint32_t uLayerCount = pl_sb_size(ptDrawlist->_sbtSubmittedLayers);
-    for(uint32_t i = 0u; i < uLayerCount; i++)
+    for(uint32_t i = 0; i < uLayerCount; i++)
     {
         plDrawLayer2D* ptLayer = ptDrawlist->_sbtSubmittedLayers[i];
         plDrawCommand* ptLastCommand = NULL;
 
         // attempt to merge commands
         const uint32_t uCmdCount = pl_sb_size(ptLayer->sbtCommandBuffer);
-        for(uint32_t j = 0u; j < uCmdCount; j++)
+        for(uint32_t j = 0; j < uCmdCount; j++)
         {
             plDrawCommand* ptLayerCommand = &ptLayer->sbtCommandBuffer[j];
             bool bCreateNewCommand = true;
@@ -505,8 +516,10 @@ pl_prepare_2d_drawlist(plDrawList2D* ptDrawlist)
                 }
 
                 // check for same clipping (allows merging draw calls)
-                if(ptLayerCommand->tClip.tMax.x != ptLastCommand->tClip.tMax.x || ptLayerCommand->tClip.tMax.y != ptLastCommand->tClip.tMax.y ||
-                    ptLayerCommand->tClip.tMin.x != ptLastCommand->tClip.tMin.x || ptLayerCommand->tClip.tMin.y != ptLastCommand->tClip.tMin.y)
+                if(ptLayerCommand->tClip.tMax.x != ptLastCommand->tClip.tMax.x ||
+                    ptLayerCommand->tClip.tMax.y != ptLastCommand->tClip.tMax.y ||
+                    ptLayerCommand->tClip.tMin.x != ptLastCommand->tClip.tMin.x ||
+                    ptLayerCommand->tClip.tMin.y != ptLastCommand->tClip.tMin.y)
                 {
                     bCreateNewCommand = true;
                 }
@@ -515,21 +528,21 @@ pl_prepare_2d_drawlist(plDrawList2D* ptDrawlist)
 
             if(bCreateNewCommand)
             {
-                ptLayerCommand->uIndexOffset = globalIdxBufferIndexOffset + ptLayerCommand->uIndexOffset;
+                ptLayerCommand->uIndexOffset = uGlobalIdxBufferIndexOffset + ptLayerCommand->uIndexOffset;
                 pl_sb_push(ptDrawlist->sbtDrawCommands, *ptLayerCommand);       
                 ptLastCommand = ptLayerCommand;
             }
             
         }    
-        globalIdxBufferIndexOffset += pl_sb_size(ptLayer->sbuIndexBuffer);    
+        uGlobalIdxBufferIndexOffset += pl_sb_size(ptLayer->sbuIndexBuffer);    
     }
 }
 
 static void
 pl_return_2d_layer(plDrawLayer2D* ptLayer)
 {
-    ptLayer->_ptLastCommand = NULL;
-    ptLayer->uVertexCount = 0u;
+    ptLayer->ptLastCommand = NULL;
+    ptLayer->uVertexCount = 0;
     pl_sb_reset(ptLayer->sbtCommandBuffer);
     pl_sb_reset(ptLayer->sbuIndexBuffer);
     pl_sb_reset(ptLayer->sbtPath);
@@ -546,43 +559,43 @@ pl_submit_2d_layer(plDrawLayer2D* ptLayer)
         return;
     ptLayer->ptDrawlist->uIndexBufferByteSize += uAdditionalIndexCount * sizeof(uint32_t);
     pl_sb_add_n(ptLayer->ptDrawlist->sbuIndexBuffer, uAdditionalIndexCount);
-    memcpy(&ptLayer->ptDrawlist->sbuIndexBuffer[uCurrentIndexCount], ptLayer->sbuIndexBuffer, uAdditionalIndexCount * sizeof(uint32_t));
+    memcpy(&ptLayer->ptDrawlist->sbuIndexBuffer[uCurrentIndexCount], ptLayer->sbuIndexBuffer,
+        uAdditionalIndexCount * sizeof(uint32_t));
 }
 
 static void
-pl_add_lines(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t count, plDrawLineOptions tOptions)
+pl_add_lines(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t uCount, plDrawLineOptions tOptions)
 {
     pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
-    pl__reserve_triangles(ptLayer, 6 * count, 4 * count);
+    pl__reserve_triangles(ptLayer, 6 * uCount, 4 * uCount);
 
-    for(uint32_t i = 0u; i < count; i++)
+    for(uint32_t i = 0; i < uCount; i++)
     {
         float dx = atPoints[i + 1].x - atPoints[i].x;
         float dy = atPoints[i + 1].y - atPoints[i].y;
         PL_NORMALIZE2F_OVER_ZERO(dx, dy);
 
-        plVec2 normalVector = 
-        {
+        const plVec2 tNormalVector = {
             .x = dy,
             .y = -dx
         };
 
-        plVec2 cornerPoints[4] = 
+        const plVec2 atCornerPoints[4] = 
         {
-            pl__subtract_vec2(atPoints[i],     pl__mul_vec2_f(normalVector, tOptions.fThickness / 2.0f)),
-            pl__subtract_vec2(atPoints[i + 1], pl__mul_vec2_f(normalVector, tOptions.fThickness / 2.0f)),
-            pl__add_vec2(     atPoints[i + 1], pl__mul_vec2_f(normalVector, tOptions.fThickness / 2.0f)),
-            pl__add_vec2(     atPoints[i],     pl__mul_vec2_f(normalVector, tOptions.fThickness / 2.0f))
+            pl__subtract_vec2(atPoints[i],     pl__mul_vec2_f(tNormalVector, tOptions.fThickness / 2.0f)),
+            pl__subtract_vec2(atPoints[i + 1], pl__mul_vec2_f(tNormalVector, tOptions.fThickness / 2.0f)),
+            pl__add_vec2(     atPoints[i + 1], pl__mul_vec2_f(tNormalVector, tOptions.fThickness / 2.0f)),
+            pl__add_vec2(     atPoints[i],     pl__mul_vec2_f(tNormalVector, tOptions.fThickness / 2.0f))
         };
 
-        uint32_t vertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-        pl__add_vertex(ptLayer, cornerPoints[0], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-        pl__add_vertex(ptLayer, cornerPoints[1], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-        pl__add_vertex(ptLayer, cornerPoints[2], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-        pl__add_vertex(ptLayer, cornerPoints[3], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
+        const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+        pl__add_vertex(ptLayer, atCornerPoints[0], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
+        pl__add_vertex(ptLayer, atCornerPoints[1], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
+        pl__add_vertex(ptLayer, atCornerPoints[2], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
+        pl__add_vertex(ptLayer, atCornerPoints[3], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
 
-        pl__add_index(ptLayer, vertexStart, 0, 1, 2);
-        pl__add_index(ptLayer, vertexStart, 0, 2, 3);
+        pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
+        pl__add_index(ptLayer, uVertexStart, 0, 2, 3);
     }  
 }
 
@@ -594,43 +607,42 @@ pl_add_line(plDrawLayer2D* ptLayer, plVec2 p0, plVec2 p1, plDrawLineOptions tOpt
     pl__submit_path(ptLayer, tOptions);
 }
 
-
 static void
-pl_add_text_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* text, plDrawTextOptions tOptions)
+pl_add_text_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plDrawTextOptions tOptions)
 {
 
     if(tOptions.pcTextEnd == NULL)
     {
-        tOptions.pcTextEnd = text;
+        tOptions.pcTextEnd = pcText;
         while(*tOptions.pcTextEnd != '\0')
             tOptions.pcTextEnd++;
     }
 
-    plFont* font = tOptions.ptFont;
-    float size = tOptions.fSize;
+    plFont* ptFont = tOptions.ptFont;
+    const float fSize = tOptions.fSize == 0.0f ? ptFont->fSize : tOptions.fSize;
     const char* pcTextEnd = tOptions.pcTextEnd;
 
-    float scale = size > 0.0f ? size / font->fSize : 1.0f;
+    const float fScale = fSize > 0.0f ? fSize / ptFont->fSize : 1.0f;
 
-    float fLineSpacing = scale * font->_fLineSpacing;
-    const plVec2 originalPosition = p;
-    bool firstCharacter = true;
+    float fLineSpacing = fScale * ptFont->_fLineSpacing;
+    const plVec2 tOriginalPosition = p;
+    bool bFirstCharacter = true;
 
-    while(text < pcTextEnd)
+    while(pcText < pcTextEnd)
     {
-        uint32_t c = (uint32_t)*text;
+        uint32_t c = (uint32_t)*pcText;
         if(c < 0x80)
-            text += 1;
+            pcText += 1;
         else
         {
-            text += pl_text_char_from_utf8(&c, text, NULL);
+            pcText += pl_text_char_from_utf8(&c, pcText, NULL);
             if(c == 0) // malformed UTF-8?
                 break;
         }
 
         if(c == '\n')
         {
-            p.x = originalPosition.x;
+            p.x = tOriginalPosition.x;
             p.y += fLineSpacing;
         }
         else if(c == '\r')
@@ -640,79 +652,63 @@ pl_add_text_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* text, plDrawTextOpt
         else
         {
 
-            bool glyphFound = false;
-            const uint32_t uRangeCount = pl_sb_size(font->_sbtRanges);
-            for(uint32_t i = 0u; i < uRangeCount; i++)
+            const plFontGlyph* ptGlyph = pl__find_glyph(ptFont, c);
+      
+            float x0,y0,s0,t0; // top-left
+            float x1,y1,s1,t1; // bottom-right
+
+            // adjust for left side bearing if first char
+            if(bFirstCharacter)
             {
-                const plFontRange* ptRange = &font->_sbtRanges[i];
-                if (c >= (uint32_t)ptRange->iFirstCodePoint && c < (uint32_t)ptRange->iFirstCodePoint + (uint32_t)ptRange->uCharCount) 
-                {
-
-                    
-                    float x0,y0,s0,t0; // top-left
-                    float x1,y1,s1,t1; // bottom-right
-
-                    const plFontGlyph* glyph = &font->_sbtGlyphs[font->_auCodePoints[c]];
-
-                    // adjust for left side bearing if first char
-                    if(firstCharacter)
-                    {
-                        if(glyph->leftBearing > 0.0f) p.x += glyph->leftBearing * scale;
-                        firstCharacter = false;
-                    }
-
-                    x0 = p.x + glyph->x0 * scale;
-                    x1 = p.x + glyph->x1 * scale;
-                    y0 = p.y + glyph->y0 * scale;
-                    y1 = p.y + glyph->y1 * scale;
-
-                    if(tOptions.fWrap > 0.0f && x1 > originalPosition.x + tOptions.fWrap)
-                    {
-                        x0 = originalPosition.x + glyph->x0 * scale;
-                        y0 = y0 + fLineSpacing;
-                        x1 = originalPosition.x + glyph->x1 * scale;
-                        y1 = y1 + fLineSpacing;
-
-                        p.x = originalPosition.x;
-                        p.y += fLineSpacing;
-                    }
-                    s0 = glyph->u0;
-                    t0 = glyph->v0;
-                    s1 = glyph->u1;
-                    t1 = glyph->v1;
-
-                    p.x += glyph->xAdvance * scale;
-                    if(c != ' ')
-                    {
-                        pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, font->_sbtConfigs[ptRange->_uConfigIndex].bSdf);
-                        pl__reserve_triangles(ptLayer, 6, 4);
-                        uint32_t uVtxStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-                        pl__add_vertex(ptLayer, (plVec2){x0, y0}, tOptions.uColor, (plVec2){s0, t0});
-                        pl__add_vertex(ptLayer, (plVec2){x1, y0}, tOptions.uColor, (plVec2){s1, t0});
-                        pl__add_vertex(ptLayer, (plVec2){x1, y1}, tOptions.uColor, (plVec2){s1, t1});
-                        pl__add_vertex(ptLayer, (plVec2){x0, y1}, tOptions.uColor, (plVec2){s0, t1});
-
-                        pl__add_index(ptLayer, uVtxStart, 1, 0, 2);
-                        pl__add_index(ptLayer, uVtxStart, 2, 0, 3);
-                    }
-
-                    glyphFound = true;
-                    break;
-                }
+                if(ptGlyph->fLeftBearing > 0.0f) p.x += ptGlyph->fLeftBearing * fScale;
+                bFirstCharacter = false;
             }
 
-            PL_ASSERT(glyphFound && "Glyph not found");
-        }   
+            x0 = p.x + ptGlyph->x0 * fScale;
+            x1 = p.x + ptGlyph->x1 * fScale;
+            y0 = p.y + ptGlyph->y0 * fScale;
+            y1 = p.y + ptGlyph->y1 * fScale;
+
+            if(tOptions.fWrap > 0.0f && x1 > tOriginalPosition.x + tOptions.fWrap)
+            {
+                x0 = tOriginalPosition.x + ptGlyph->x0 * fScale;
+                y0 = y0 + fLineSpacing;
+                x1 = tOriginalPosition.x + ptGlyph->x1 * fScale;
+                y1 = y1 + fLineSpacing;
+
+                p.x = tOriginalPosition.x;
+                p.y += fLineSpacing;
+            }
+            s0 = ptGlyph->u0;
+            t0 = ptGlyph->v0;
+            s1 = ptGlyph->u1;
+            t1 = ptGlyph->v1;
+
+            p.x += ptGlyph->fXAdvance * fScale;
+            if(c != ' ')
+            {
+                pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, (bool)ptGlyph->iSDF);
+                pl__reserve_triangles(ptLayer, 6, 4);
+                const uint32_t uVtxStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+                pl__add_vertex(ptLayer, (plVec2){x0, y0}, tOptions.uColor, (plVec2){s0, t0});
+                pl__add_vertex(ptLayer, (plVec2){x1, y0}, tOptions.uColor, (plVec2){s1, t0});
+                pl__add_vertex(ptLayer, (plVec2){x1, y1}, tOptions.uColor, (plVec2){s1, t1});
+                pl__add_vertex(ptLayer, (plVec2){x0, y1}, tOptions.uColor, (plVec2){s0, t1});
+
+                pl__add_index(ptLayer, uVtxStart, 1, 0, 2);
+                pl__add_index(ptLayer, uVtxStart, 2, 0, 3);
+            }
+        }
     }
 }
 
 static void
-pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* text, plVec2 tMin, plVec2 tMax, plDrawTextOptions tOptions)
+pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plVec2 tMin, plVec2 tMax, plDrawTextOptions tOptions)
 {
 
     if(tOptions.pcTextEnd == NULL)
     {
-        tOptions.pcTextEnd = text;
+        tOptions.pcTextEnd = pcText;
         while (*tOptions.pcTextEnd != '\0')
             tOptions.pcTextEnd++;
     }
@@ -720,31 +716,31 @@ pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* text, plVec
     // const plVec2 tTextSize = pl_calculate_text_size_ex(font, size, text, pcTextEnd, wrap);
     const plRect tClipRect = {tMin, tMax};
 
-    plFont* font = tOptions.ptFont;
-    float size = tOptions.fSize;
+    plFont* ptFont = tOptions.ptFont;
+    const float fSize = tOptions.fSize == 0.0f ? ptFont->fSize : tOptions.fSize;
     const char* pcTextEnd = tOptions.pcTextEnd;
 
-    float scale = size > 0.0f ? size / font->fSize : 1.0f;
+    const float fScale = fSize > 0.0f ? fSize / ptFont->fSize : 1.0f;
 
-    float fLineSpacing = scale * font->_fLineSpacing;
-    const plVec2 originalPosition = p;
-    bool firstCharacter = true;
+    float fLineSpacing = fScale * ptFont->_fLineSpacing;
+    const plVec2 tOriginalPosition = p;
+    bool bFirstCharacter = true;
 
-    while(text < pcTextEnd)
+    while(pcText < pcTextEnd)
     {
-        uint32_t c = (uint32_t)*text;
+        uint32_t c = (uint32_t)*pcText;
         if(c < 0x80)
-            text += 1;
+            pcText += 1;
         else
         {
-            text += pl_text_char_from_utf8(&c, text, NULL);
+            pcText += pl_text_char_from_utf8(&c, pcText, NULL);
             if(c == 0) // malformed UTF-8?
                 break;
         }
 
         if(c == '\n')
         {
-            p.x = originalPosition.x;
+            p.x = tOriginalPosition.x;
             p.y += fLineSpacing;
         }
         else if(c == '\r')
@@ -753,71 +749,55 @@ pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* text, plVec
         }
         else
         {
+            const plFontGlyph* ptGlyph = pl__find_glyph(ptFont, c);
 
-            bool glyphFound = false;
-            const uint32_t uRangeCount = pl_sb_size(font->_sbtRanges);
-            for(uint32_t i = 0u; i < uRangeCount; i++)
+            float x0,y0,s0,t0; // top-left
+            float x1,y1,s1,t1; // bottom-right
+
+            // adjust for left side bearing if first char
+            if(bFirstCharacter)
             {
-                const plFontRange* ptRange = &font->_sbtRanges[i];
-                if (c >= (uint32_t)ptRange->iFirstCodePoint && c < (uint32_t)ptRange->iFirstCodePoint + (uint32_t)ptRange->uCharCount) 
-                {
-
-                    
-                    float x0,y0,s0,t0; // top-left
-                    float x1,y1,s1,t1; // bottom-right
-
-                    const plFontGlyph* glyph = &font->_sbtGlyphs[font->_auCodePoints[c]];
-
-                    // adjust for left side bearing if first char
-                    if(firstCharacter)
-                    {
-                        if(glyph->leftBearing > 0.0f) p.x += glyph->leftBearing * scale;
-                        firstCharacter = false;
-                    }
-
-                    x0 = p.x + glyph->x0 * scale;
-                    x1 = p.x + glyph->x1 * scale;
-                    y0 = p.y + glyph->y0 * scale;
-                    y1 = p.y + glyph->y1 * scale;
-
-                    if(tOptions.fWrap > 0.0f && x1 > originalPosition.x + tOptions.fWrap)
-                    {
-                        x0 = originalPosition.x + glyph->x0 * scale;
-                        y0 = y0 + fLineSpacing;
-                        x1 = originalPosition.x + glyph->x1 * scale;
-                        y1 = y1 + fLineSpacing;
-
-                        p.x = originalPosition.x;
-                        p.y += fLineSpacing;
-                    }
-                    s0 = glyph->u0;
-                    t0 = glyph->v0;
-                    s1 = glyph->u1;
-                    t1 = glyph->v1;
-
-                    p.x += glyph->xAdvance * scale;
-                    if(c != ' ' && pl_rect_contains_point(&tClipRect, p))
-                    {
-                        pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, font->_sbtConfigs[ptRange->_uConfigIndex].bSdf);
-                        pl__reserve_triangles(ptLayer, 6, 4);
-                        uint32_t uVtxStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-                        pl__add_vertex(ptLayer, (plVec2){x0, y0}, tOptions.uColor, (plVec2){s0, t0});
-                        pl__add_vertex(ptLayer, (plVec2){x1, y0}, tOptions.uColor, (plVec2){s1, t0});
-                        pl__add_vertex(ptLayer, (plVec2){x1, y1}, tOptions.uColor, (plVec2){s1, t1});
-                        pl__add_vertex(ptLayer, (plVec2){x0, y1}, tOptions.uColor, (plVec2){s0, t1});
-
-                        pl__add_index(ptLayer, uVtxStart, 1, 0, 2);
-                        pl__add_index(ptLayer, uVtxStart, 2, 0, 3);
-                    }
-
-                    glyphFound = true;
-                    break;
-                }
+                if(ptGlyph->fLeftBearing > 0.0f)
+                    p.x += ptGlyph->fLeftBearing * fScale;
+                bFirstCharacter = false;
             }
 
-            PL_ASSERT(glyphFound && "Glyph not found");
-        }   
-    }   
+            x0 = p.x + ptGlyph->x0 * fScale;
+            x1 = p.x + ptGlyph->x1 * fScale;
+            y0 = p.y + ptGlyph->y0 * fScale;
+            y1 = p.y + ptGlyph->y1 * fScale;
+
+            if(tOptions.fWrap > 0.0f && x1 > tOriginalPosition.x + tOptions.fWrap)
+            {
+                x0 = tOriginalPosition.x + ptGlyph->x0 * fScale;
+                y0 = y0 + fLineSpacing;
+                x1 = tOriginalPosition.x + ptGlyph->x1 * fScale;
+                y1 = y1 + fLineSpacing;
+
+                p.x = tOriginalPosition.x;
+                p.y += fLineSpacing;
+            }
+            s0 = ptGlyph->u0;
+            t0 = ptGlyph->v0;
+            s1 = ptGlyph->u1;
+            t1 = ptGlyph->v1;
+
+            p.x += ptGlyph->fXAdvance * fScale;
+            if(c != ' ' && pl_rect_contains_point(&tClipRect, p))
+            {
+                pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, (bool)ptGlyph->iSDF);
+                pl__reserve_triangles(ptLayer, 6, 4);
+                const uint32_t uVtxStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+                pl__add_vertex(ptLayer, (plVec2){x0, y0}, tOptions.uColor, (plVec2){s0, t0});
+                pl__add_vertex(ptLayer, (plVec2){x1, y0}, tOptions.uColor, (plVec2){s1, t0});
+                pl__add_vertex(ptLayer, (plVec2){x1, y1}, tOptions.uColor, (plVec2){s1, t1});
+                pl__add_vertex(ptLayer, (plVec2){x0, y1}, tOptions.uColor, (plVec2){s0, t1});
+
+                pl__add_index(ptLayer, uVtxStart, 1, 0, 2);
+                pl__add_index(ptLayer, uVtxStart, 2, 0, 3);
+            }
+        }
+    }
 }
 
 static void
@@ -836,12 +816,12 @@ pl_add_triangle_filled(plDrawLayer2D* ptLayer, plVec2 p0, plVec2 p1, plVec2 p2, 
     pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 3, 3);
 
-    uint32_t vertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+    const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
     pl__add_vertex(ptLayer, p0, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
     pl__add_vertex(ptLayer, p1, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
     pl__add_vertex(ptLayer, p2, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
 
-    pl__add_index(ptLayer, vertexStart, 0, 1, 2);
+    pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
 }
 
 static void
@@ -852,11 +832,11 @@ pl_add_triangles_filled(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t uCoun
 
     for(uint32_t i = 0; i < uCount; i++)
     {
-        uint32_t vertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+        const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
         pl__add_vertex(ptLayer, atPoints[i * 3 + 0], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
         pl__add_vertex(ptLayer, atPoints[i * 3 + 1], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
         pl__add_vertex(ptLayer, atPoints[i * 3 + 2], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-        pl__add_index(ptLayer, vertexStart, 0, 1, 2);
+        pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
     }
 }
 
@@ -875,26 +855,28 @@ pl_add_rect(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plDrawLineOption
 }
 
 static void
-pl_add_rect_filled(plDrawLayer2D* ptLayer, plVec2 minP, plVec2 maxP, plDrawSolidOptions tOptions)
+pl_add_rect_filled(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plDrawSolidOptions tOptions)
 {
     pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 6, 4);
 
-    const plVec2 bottomLeft = { minP.x, maxP.y };
-    const plVec2 topRight =   { maxP.x, minP.y };
+    const plVec2 tBottomLeft = { tMinP.x, tMaxP.y };
+    const plVec2 tTopRight =   { tMaxP.x, tMinP.y };
 
-    const uint32_t vertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
-    pl__add_vertex(ptLayer, minP,       tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, bottomLeft, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, maxP,       tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
-    pl__add_vertex(ptLayer, topRight,   tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
+    const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+    pl__add_vertex(ptLayer, tMinP,       tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
+    pl__add_vertex(ptLayer, tBottomLeft, tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
+    pl__add_vertex(ptLayer, tMaxP,       tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
+    pl__add_vertex(ptLayer, tTopRight,   tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
 
-    pl__add_index(ptLayer, vertexStart, 0, 1, 2);
-    pl__add_index(ptLayer, vertexStart, 0, 2, 3);
+    pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
+    pl__add_index(ptLayer, uVertexStart, 0, 2, 3);
 }
 
 static void
-pl_add_rect_rounded_ex(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, float fRadius, uint32_t uSegments, plDrawRectFlags tFlags, plDrawLineOptions tOptions)
+pl_add_rect_rounded_ex(
+    plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, float fRadius,
+    uint32_t uSegments, plDrawRectFlags tFlags, plDrawLineOptions tOptions)
 {
     // segments is the number of segments used to approximate one corner
 
@@ -906,75 +888,74 @@ pl_add_rect_rounded_ex(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, float
     else
     {
         if(tFlags == PL_DRAW_RECT_FLAG_NONE)
-        {
             tFlags = PL_DRAW_RECT_FLAG_ROUND_CORNERS_All;
-        }
     }
 
-    if(uSegments == 0){ uSegments = 4; }
+    if(uSegments == 0)
+        uSegments = 4;
+
     const float fIncrement = PL_PI_2 / uSegments;
     float fTheta = 0.0f;
 
+    const plVec2 tBottomRightStart = { tMaxP.x, tMaxP.y - fRadius };
+    const plVec2 tBottomRightInner = { tMaxP.x - fRadius, tMaxP.y - fRadius };
+    const plVec2 tBottomRightEnd   = { tMaxP.x - fRadius, tMaxP.y };
 
-    const plVec2 bottomRightStart = { tMaxP.x, tMaxP.y - fRadius };
-    const plVec2 bottomRightInner = { tMaxP.x - fRadius, tMaxP.y - fRadius };
-    const plVec2 bottomRightEnd   = { tMaxP.x - fRadius, tMaxP.y };
-
-    const plVec2 bottomLeftStart  = { tMinP.x + fRadius, tMaxP.y };
-    const plVec2 bottomLeftInner  = { tMinP.x + fRadius, tMaxP.y - fRadius };
-    const plVec2 bottomLeftEnd    = { tMinP.x , tMaxP.y - fRadius};
+    const plVec2 tBottomLeftStart  = { tMinP.x + fRadius, tMaxP.y };
+    const plVec2 tBottomLeftInner  = { tMinP.x + fRadius, tMaxP.y - fRadius };
+    const plVec2 tBottomLeftEnd    = { tMinP.x , tMaxP.y - fRadius};
  
-    const plVec2 topLeftStart     = { tMinP.x, tMinP.y + fRadius };
-    const plVec2 topLeftInner     = { tMinP.x + fRadius, tMinP.y + fRadius };
-    const plVec2 topLeftEnd       = { tMinP.x + fRadius, tMinP.y };
+    const plVec2 tTopLeftStart     = { tMinP.x, tMinP.y + fRadius };
+    const plVec2 tTopLeftInner     = { tMinP.x + fRadius, tMinP.y + fRadius };
+    const plVec2 tTopLeftEnd       = { tMinP.x + fRadius, tMinP.y };
 
-    const plVec2 topRightStart    = { tMaxP.x - fRadius, tMinP.y };
-    const plVec2 topRightInner    = { tMaxP.x - fRadius, tMinP.y + fRadius };
-    const plVec2 topRightEnd      = { tMaxP.x, tMinP.y + fRadius };
+    const plVec2 tTopRightStart    = { tMaxP.x - fRadius, tMinP.y };
+    const plVec2 tTopRightInner    = { tMaxP.x - fRadius, tMinP.y + fRadius };
+    const plVec2 tTopRightEnd      = { tMaxP.x, tMinP.y + fRadius };
     
-    pl_sb_push(ptLayer->sbtPath, bottomRightStart);
+    pl_sb_push(ptLayer->sbtPath, tBottomRightStart);
     fTheta += fIncrement;
     for(uint32_t i = 1; i < uSegments; i++)
     {
-        pl_sb_push(ptLayer->sbtPath, ((plVec2){bottomRightInner.x + fRadius * sinf(fTheta + PL_PI_2), bottomRightInner.y + fRadius * sinf(fTheta)}));
+        pl_sb_push(ptLayer->sbtPath, ((plVec2){tBottomRightInner.x + fRadius * sinf(fTheta + PL_PI_2), tBottomRightInner.y + fRadius * sinf(fTheta)}));
         fTheta += fIncrement;
     }
-    pl_sb_push(ptLayer->sbtPath, bottomRightEnd);
+    pl_sb_push(ptLayer->sbtPath, tBottomRightEnd);
 
-    pl_sb_push(ptLayer->sbtPath, bottomLeftStart);
+    pl_sb_push(ptLayer->sbtPath, tBottomLeftStart);
     fTheta += fIncrement;
     for(uint32_t i = 1; i < uSegments; i++)
     {
-        pl_sb_push(ptLayer->sbtPath, ((plVec2){bottomLeftInner.x + fRadius * sinf(fTheta + PL_PI_2), bottomLeftInner.y + fRadius * sinf(fTheta)}));
+        pl_sb_push(ptLayer->sbtPath, ((plVec2){tBottomLeftInner.x + fRadius * sinf(fTheta + PL_PI_2), tBottomLeftInner.y + fRadius * sinf(fTheta)}));
         fTheta += fIncrement;
     }
-    pl_sb_push(ptLayer->sbtPath, bottomLeftEnd);
+    pl_sb_push(ptLayer->sbtPath, tBottomLeftEnd);
 
-    pl_sb_push(ptLayer->sbtPath, topLeftStart);
+    pl_sb_push(ptLayer->sbtPath, tTopLeftStart);
     fTheta += fIncrement;
     for(uint32_t i = 1; i < uSegments; i++)
     {
-        pl_sb_push(ptLayer->sbtPath, ((plVec2){topLeftInner.x + fRadius * sinf(fTheta + PL_PI_2), topLeftInner.y + fRadius * sinf(fTheta)}));
+        pl_sb_push(ptLayer->sbtPath, ((plVec2){tTopLeftInner.x + fRadius * sinf(fTheta + PL_PI_2), tTopLeftInner.y + fRadius * sinf(fTheta)}));
         fTheta += fIncrement;
     }
-    pl_sb_push(ptLayer->sbtPath, topLeftEnd);
+    pl_sb_push(ptLayer->sbtPath, tTopLeftEnd);
 
-    pl_sb_push(ptLayer->sbtPath, topRightStart);
+    pl_sb_push(ptLayer->sbtPath, tTopRightStart);
     fTheta += fIncrement;
     for(uint32_t i = 1; i < uSegments; i++)
     {
-        pl_sb_push(ptLayer->sbtPath, ((plVec2){topRightInner.x + fRadius * sinf(fTheta + PL_PI_2), topRightInner.y + fRadius * sinf(fTheta)}));
+        pl_sb_push(ptLayer->sbtPath, ((plVec2){tTopRightInner.x + fRadius * sinf(fTheta + PL_PI_2), tTopRightInner.y + fRadius * sinf(fTheta)}));
         fTheta += fIncrement;
     }
-    pl_sb_push(ptLayer->sbtPath, topRightEnd);
-
-    pl_sb_push(ptLayer->sbtPath, bottomRightStart);
-
+    pl_sb_push(ptLayer->sbtPath, tTopRightEnd);
+    pl_sb_push(ptLayer->sbtPath, tBottomRightStart);
     pl__submit_path(ptLayer, tOptions);
 }
 
 static void
-pl_add_rect_rounded_filled_ex(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, float fRadius, uint32_t uSegments, plDrawRectFlags tFlags, plDrawSolidOptions tOptions)
+pl_add_rect_rounded_filled_ex(
+        plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, float fRadius,
+        uint32_t uSegments, plDrawRectFlags tFlags, plDrawSolidOptions tOptions)
 {
     if(fRadius <= 0.0f)
     {
@@ -984,22 +965,23 @@ pl_add_rect_rounded_filled_ex(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP
     else
     {
         if(tFlags == PL_DRAW_RECT_FLAG_NONE)
-        {
             tFlags = PL_DRAW_RECT_FLAG_ROUND_CORNERS_All;
-        }
     }
 
     if(tMaxP.x - tMinP.x < fRadius * 2.0f)
     {
+        pl_add_rect_filled(ptLayer, tMinP, tMaxP, tOptions);
         return;
     }
 
     if(tMaxP.y - tMinP.y < fRadius * 2.0f)
     {
+        pl_add_rect_filled(ptLayer, tMinP, tMaxP, tOptions);
         return;
     }
 
-    if(uSegments == 0){ uSegments = 4; }
+    if(uSegments == 0)
+        uSegments = 4;
 
     pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 30, 12);
@@ -1188,7 +1170,9 @@ pl_add_circle_filled(plDrawLayer2D* ptLayer, plVec2 tP, float fRadius, uint32_t 
     float fTheta = 0.0f;
     for(uint32_t i = 0; i < uSegments; i++)
     {
-        pl__add_vertex(ptLayer, ((plVec2){tP.x + (fRadius * sinf(fTheta + PL_PI_2)), tP.y + (fRadius * sinf(fTheta))}), tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
+        pl__add_vertex(ptLayer,
+            ((plVec2){tP.x + (fRadius * sinf(fTheta + PL_PI_2)), tP.y + (fRadius * sinf(fTheta))}),
+            tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
         fTheta += fIncrement;
     }
 
@@ -1203,17 +1187,17 @@ pl_add_image_ex(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tPMin, plVe
     pl__prepare_draw_command(ptLayer, tTexture, false);
     pl__reserve_triangles(ptLayer, 6, 4);
 
-    const plVec2 bottomLeft = { tPMin.x, tPMax.y };
-    const plVec2 topRight =   { tPMax.x, tPMin.y };
+    const plVec2 tBottomLeft = { tPMin.x, tPMax.y };
+    const plVec2 tTopRight =   { tPMax.x, tPMin.y };
 
-    const uint32_t vertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+    const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
     pl__add_vertex(ptLayer, tPMin,      uColor, tUvMin);
-    pl__add_vertex(ptLayer, bottomLeft, uColor, (plVec2){tUvMin.x, tUvMax.y});
+    pl__add_vertex(ptLayer, tBottomLeft, uColor, (plVec2){tUvMin.x, tUvMax.y});
     pl__add_vertex(ptLayer, tPMax,      uColor, tUvMax);
-    pl__add_vertex(ptLayer, topRight,   uColor, (plVec2){tUvMax.x, tUvMin.y});
+    pl__add_vertex(ptLayer, tTopRight,   uColor, (plVec2){tUvMax.x, tUvMin.y});
 
-    pl__add_index(ptLayer, vertexStart, 0, 1, 2);
-    pl__add_index(ptLayer, vertexStart, 0, 2, 3);
+    pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
+    pl__add_index(ptLayer, uVertexStart, 0, 2, 3);
 }
 
 static void
@@ -1252,16 +1236,13 @@ pl_add_bezier_quad(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, u
 
     // push last point
     pl_sb_push(ptLayer->sbtPath, tP2);
-
     pl__submit_path(ptLayer, tOptions); 
 }
 
 static void
 pl_add_bezier_cubic(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, uint32_t uSegments, plDrawLineOptions tOptions)
 {
-
     // order of the bezier curve inputs are 0=start, 1=control 1, 2=control 2, 3=ending
-
     if(uSegments == 0)
         uSegments = 12;
 
@@ -1291,64 +1272,23 @@ pl_add_bezier_cubic(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, 
 
     // push last point
     pl_sb_push(ptLayer->sbtPath, tP3);
-
     pl__submit_path(ptLayer, tOptions); 
 }
 
-static char*
-plu__read_file(const char* file)
-{
-    FILE* fileHandle = fopen(file, "rb");
-
-    if(fileHandle == NULL)
-    {
-        PL_ASSERT(false && "TTF file not found.");
-        return NULL;
-    }
-
-    // obtain file size
-    fseek(fileHandle, 0, SEEK_END);
-    uint32_t fileSize = ftell(fileHandle);
-    fseek(fileHandle, 0, SEEK_SET);
-
-    // allocate buffer
-    char* data = PL_ALLOC(fileSize);
-
-    // copy file into buffer
-    size_t result = fread(data, sizeof(char), fileSize, fileHandle);
-    if(result != fileSize)
-    {
-        if(feof(fileHandle))
-        {
-            PL_ASSERT(false && "Error reading TTF file: unexpected end of file");
-        }
-        else if (ferror(fileHandle))
-        {
-            PL_ASSERT(false && "Error reading TTF file.");
-        }
-        PL_ASSERT(false && "TTF file not read.");
-    }
-
-    fclose(fileHandle);
-    return data;
-}
-
 static plFont*
-pl_add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig config, void* data)
+pl_add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, void* pData)
 {
     ptAtlas->_iGlyphPadding = 1;
 
     plFont* ptFont = NULL;
-    if(config.ptMergeFont)
-    {
-        ptFont = config.ptMergeFont;
-    }
+    if(tConfig.ptMergeFont)
+        ptFont = tConfig.ptMergeFont;
     else
     {
         ptFont = PL_ALLOC(sizeof(plFont));
         memset(ptFont, 0, sizeof(plFont));
         ptFont->_fLineSpacing = 0.0f;
-        ptFont->fSize = config.fSize;
+        ptFont->fSize = tConfig.fSize;
         ptFont->_ptNextFont = ptAtlas->_ptFontListHead;
         ptAtlas->_ptFontListHead = ptFont;
     }
@@ -1358,239 +1298,264 @@ pl_add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig config, void* dat
     pl_sb_push(ptFont->_sbtPreps, (plFontPrepData){0});
 
     plFontPrepData* ptPrep = &ptFont->_sbtPreps[uPrepIndex];
-    stbtt_InitFont(&ptPrep->fontInfo, (unsigned char*)data, 0);
+    stbtt_InitFont(&ptPrep->tFontInfo, (unsigned char*)pData, 0);
 
     // prepare stb
     
     // get vertical font metrics
-    int ascent, descent, lineGap;
-    stbtt_GetFontVMetrics(&ptPrep->fontInfo, &ascent, &descent, &lineGap);
+    int fAscent = 0;
+    int fDescent = 0;
+    int fLineGap = 0;
+    stbtt_GetFontVMetrics(&ptPrep->tFontInfo, &fAscent, &fDescent, &fLineGap);
 
     // calculate scaling factor
-    ptPrep->scale = 1.0f;
-    if(ptFont->fSize > 0)  ptPrep->scale = stbtt_ScaleForPixelHeight(&ptPrep->fontInfo, ptFont->fSize);
-    else                   ptPrep->scale = stbtt_ScaleForMappingEmToPixels(&ptPrep->fontInfo, -ptFont->fSize);
+    ptPrep->fScale = 1.0f;
+    if(ptFont->fSize > 0)
+        ptPrep->fScale = stbtt_ScaleForPixelHeight(&ptPrep->tFontInfo, ptFont->fSize);
+    else
+        ptPrep->fScale = stbtt_ScaleForMappingEmToPixels(&ptPrep->tFontInfo, -ptFont->fSize);
 
     // calculate SDF pixel increment
-    if(config.bSdf)
-        config._fSdfPixelDistScale = (float)config.ucOnEdgeValue / (float) config.iSdfPadding;
+    if(tConfig.bSdf)
+        tConfig._fSdfPixelDistScale = (float)tConfig.ucOnEdgeValue / (float) tConfig.iSdfPadding;
 
     // calculate base line spacing
-    ptPrep->fAscent = ceilf(ascent * ptPrep->scale);
-    ptPrep->fDescent = floorf(descent * ptPrep->scale);
-    ptFont->_fLineSpacing = pl_max(ptFont->_fLineSpacing, (ptPrep->fAscent - ptPrep->fDescent + ptPrep->scale * (float)lineGap));
+    ptPrep->fAscent = ceilf(fAscent * ptPrep->fScale);
+    ptPrep->fDescent = floorf(fDescent * ptPrep->fScale);
+    ptFont->_fLineSpacing = pl_max(ptFont->_fLineSpacing, (ptPrep->fAscent - ptPrep->fDescent + ptPrep->fScale * (float)fLineGap));
 
     // convert individual chars to ranges
-    for(uint32_t i = 0; i < config.uRangeCount; i++)
+    for(uint32_t i = 0; i < tConfig.uRangeCount; i++)
     {
-        pl_sb_push(config._sbtRanges, config.ptRanges[i]);
+        pl_sb_push(tConfig._sbtRanges, tConfig.ptRanges[i]);
     }
 
     // convert individual chars to ranges
-    for(uint32_t i = 0; i < config.uIndividualCharCount; i++)
+    for(uint32_t i = 0; i < tConfig.uIndividualCharCount; i++)
     {
-        plFontRange range = {
-            .uCharCount = 1,
-            .iFirstCodePoint = config.piIndividualChars[i],
-            ._uConfigIndex = uConfigIndex
+        plFontRange tRange = {
+            .uCharCount      = 1,
+            .iFirstCodePoint = tConfig.piIndividualChars[i],
+            ._uConfigIndex   = uConfigIndex
         };
-        pl_sb_push(config._sbtRanges, range);
+        pl_sb_push(tConfig._sbtRanges, tRange);
     }
 
     // find total number of glyphs/chars required
     // const uint32_t uGlyphOffset = pl_sb_size(ptFont->_sbtGlyphs);
-    uint32_t totalCharCount = 0u;
-    for(uint32_t i = 0; i < pl_sb_size(config._sbtRanges); i++)
+    uint32_t uTotalCharCount = 0u;
+    for(uint32_t i = 0; i < pl_sb_size(tConfig._sbtRanges); i++)
     {
-        totalCharCount += config._sbtRanges[i].uCharCount;
-        totalCharCount += config._sbtRanges[i]._uConfigIndex = uConfigIndex;
+        uTotalCharCount += tConfig._sbtRanges[i].uCharCount;
+        uTotalCharCount += tConfig._sbtRanges[i]._uConfigIndex = uConfigIndex;
     }
     
-    pl_sb_reserve(ptFont->_sbtGlyphs, pl_sb_size(ptFont->_sbtGlyphs) + totalCharCount);
-    pl_sb_resize(config._sbtCharData, totalCharCount);
+    pl_sb_reserve(ptFont->_sbtGlyphs, pl_sb_size(ptFont->_sbtGlyphs) + uTotalCharCount);
+    pl_sb_resize(tConfig._sbtCharData, uTotalCharCount);
 
-    if(config.bSdf)
+    if(tConfig.bSdf)
     {
-        pl_sb_reserve(ptAtlas->_sbtCustomRects, pl_sb_size(ptAtlas->_sbtCustomRects) + totalCharCount); // is this correct
+        pl_sb_reserve(ptAtlas->_sbtCustomRects, pl_sb_size(ptAtlas->_sbtCustomRects) + uTotalCharCount); // is this correct
     }
 
-    ptPrep->ranges = PL_ALLOC(sizeof(stbtt_pack_range) * pl_sb_size(config._sbtRanges));
-    memset(ptPrep->ranges, 0, sizeof(stbtt_pack_range) * pl_sb_size(config._sbtRanges));
+    ptPrep->ptRanges = PL_ALLOC(sizeof(stbtt_pack_range) * pl_sb_size(tConfig._sbtRanges));
+    memset(ptPrep->ptRanges, 0, sizeof(stbtt_pack_range) * pl_sb_size(tConfig._sbtRanges));
 
     // find max codepoint & set range pointers into font char data
     int k = 0;
-    int maxCodePoint = 0;
-    totalCharCount = 0u;
-    bool missingGlyphAdded = false;
+    int iMaxCodePoint = 0;
+    uTotalCharCount = 0u;
+    bool bMissingGlyphAdded = false;
 
-    for(uint32_t i = 0; i < pl_sb_size(config._sbtRanges); i++)
+    for(uint32_t i = 0; i < pl_sb_size(tConfig._sbtRanges); i++)
     {
-        plFontRange* range = &config._sbtRanges[i];
-        range->_uConfigIndex = uConfigIndex;
-        ptPrep->uTotalCharCount += range->uCharCount;
-        pl_sb_push(ptFont->_sbtRanges, *range);
+        plFontRange* ptRange = &tConfig._sbtRanges[i];
+        ptRange->_uConfigIndex = uConfigIndex;
+        ptPrep->uTotalCharCount += ptRange->uCharCount;
+        pl_sb_push(ptFont->_sbtRanges, *ptRange);
     }
 
-    if(!config.bSdf)
+    if(!tConfig.bSdf)
     {
-        ptPrep->rects = PL_ALLOC(sizeof(stbrp_rect) * ptPrep->uTotalCharCount);
+        ptPrep->ptRects = PL_ALLOC(sizeof(stbrp_rect) * ptPrep->uTotalCharCount);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(config._sbtRanges); i++)
+    for(uint32_t i = 0; i < pl_sb_size(tConfig._sbtRanges); i++)
     {
-        plFontRange* range = &config._sbtRanges[i];
+        plFontRange* ptRange = &tConfig._sbtRanges[i];
 
-        if(range->iFirstCodePoint + (int)range->uCharCount > maxCodePoint)
-            maxCodePoint = range->iFirstCodePoint + (int)range->uCharCount;
+        if(ptRange->iFirstCodePoint + (int)ptRange->uCharCount > iMaxCodePoint)
+            iMaxCodePoint = ptRange->iFirstCodePoint + (int)ptRange->uCharCount;
 
         // prepare stb stuff
-        ptPrep->ranges[i].font_size = config.fSize;
-        ptPrep->ranges[i].first_unicode_codepoint_in_range = range->iFirstCodePoint;
-        ptPrep->ranges[i].chardata_for_range = (stbtt_packedchar*)&config._sbtCharData[totalCharCount];
-        ptPrep->ranges[i].num_chars = range->uCharCount;
-        ptPrep->ranges[i].h_oversample = (unsigned char) config.uHOverSampling;
-        ptPrep->ranges[i].v_oversample = (unsigned char) config.uVOverSampling;
+        ptPrep->ptRanges[i].font_size = tConfig.fSize;
+        ptPrep->ptRanges[i].first_unicode_codepoint_in_range = ptRange->iFirstCodePoint;
+        ptPrep->ptRanges[i].chardata_for_range = (stbtt_packedchar*)&tConfig._sbtCharData[uTotalCharCount];
+        ptPrep->ptRanges[i].num_chars = ptRange->uCharCount;
+        ptPrep->ptRanges[i].h_oversample = (unsigned char) tConfig.uHOverSampling;
+        ptPrep->ptRanges[i].v_oversample = (unsigned char) tConfig.uVOverSampling;
 
         // flag all characters as NOT packed
-        memset(ptPrep->ranges[i].chardata_for_range, 0, sizeof(stbtt_packedchar) * range->uCharCount);
+        memset(ptPrep->ptRanges[i].chardata_for_range, 0, sizeof(stbtt_packedchar) * ptRange->uCharCount);
 
-        if(config.bSdf)
+        if(tConfig.bSdf)
         {
-            for (uint32_t j = 0; j < (uint32_t)ptPrep->ranges[i].num_chars; j++) 
+            for (uint32_t j = 0; j < (uint32_t)ptPrep->ptRanges[i].num_chars; j++) 
             {
-                int codePoint = 0;
-                if(ptPrep->ranges[i].array_of_unicode_codepoints) codePoint = ptPrep->ranges[i].array_of_unicode_codepoints[j];
-                else                                           codePoint = ptPrep->ranges[i].first_unicode_codepoint_in_range + j;
+                int iCodePoint = 0;
+                if(ptPrep->ptRanges[i].array_of_unicode_codepoints)
+                    iCodePoint = ptPrep->ptRanges[i].array_of_unicode_codepoints[j];
+                else
+                    iCodePoint = ptPrep->ptRanges[i].first_unicode_codepoint_in_range + j;
 
 
-                int width = 0u;
-                int height = 0u;
-                int xOff = 0u;
-                int yOff = 0u;
-                unsigned char* bytes = stbtt_GetCodepointSDF(&ptPrep->fontInfo,
-                    stbtt_ScaleForPixelHeight(&ptPrep->fontInfo, config.fSize),
-                    codePoint,
-                    config.iSdfPadding,
-                    config.ucOnEdgeValue,
-                    config._fSdfPixelDistScale,
-                    &width, &height, &xOff, &yOff);
+                int iWidth = 0;
+                int iHeight = 0;
+                int iXOff = 0;
+                int iYOff = 0;
+                unsigned char* pucBytes = stbtt_GetCodepointSDF(&ptPrep->tFontInfo,
+                        stbtt_ScaleForPixelHeight(&ptPrep->tFontInfo, tConfig.fSize),
+                        iCodePoint,
+                        tConfig.iSdfPadding,
+                        tConfig.ucOnEdgeValue,
+                        tConfig._fSdfPixelDistScale,
+                        &iWidth, &iHeight, &iXOff, &iYOff);
 
                 int xAdvance = 0u;
-                stbtt_GetCodepointHMetrics(&ptPrep->fontInfo, codePoint, &xAdvance, NULL);
+                stbtt_GetCodepointHMetrics(&ptPrep->tFontInfo, iCodePoint, &xAdvance, NULL);
 
-                config._sbtCharData[totalCharCount + j].xOff = (float)(xOff);
-                config._sbtCharData[totalCharCount + j].yOff = (float)(yOff);
-                config._sbtCharData[totalCharCount + j].xOff2 = (float)(xOff + width);
-                config._sbtCharData[totalCharCount + j].yOff2 = (float)(yOff + height);
-                config._sbtCharData[totalCharCount + j].xAdv = ptPrep->scale * (float)xAdvance;
+                tConfig._sbtCharData[uTotalCharCount + j].xOff = (float)(iXOff);
+                tConfig._sbtCharData[uTotalCharCount + j].yOff = (float)(iYOff);
+                tConfig._sbtCharData[uTotalCharCount + j].xOff2 = (float)(iXOff + iWidth);
+                tConfig._sbtCharData[uTotalCharCount + j].yOff2 = (float)(iYOff + iHeight);
+                tConfig._sbtCharData[uTotalCharCount + j].xAdv = ptPrep->fScale * (float)xAdvance;
 
-                plFontCustomRect customRect = {
-                    .uWidth = (uint32_t)width,
-                    .uHeight = (uint32_t)height,
-                    .pucBytes = bytes
+                plFontCustomRect tCustomRect = {
+                    .uWidth   = (uint32_t)iWidth,
+                    .uHeight  = (uint32_t)iHeight,
+                    .pucBytes = pucBytes
                 };
-                pl_sb_push(ptAtlas->_sbtCustomRects, customRect);
-                ptAtlas->_fTotalArea += width * height;
+                pl_sb_push(ptAtlas->_sbtCustomRects, tCustomRect);
+                ptAtlas->_fTotalArea += iWidth * iHeight;
                 
             }
-            k += ptPrep->ranges[i].num_chars;
+            k += ptPrep->ptRanges[i].num_chars;
         }
         else // regular font
         {
-            for(uint32_t j = 0; j < range->uCharCount; j++)
+            for(uint32_t j = 0; j < ptRange->uCharCount; j++)
             {
-                int codepoint = 0;
-                if(ptPrep->ranges[i].array_of_unicode_codepoints) codepoint = ptPrep->ranges[i].array_of_unicode_codepoints[j];
-                else                                              codepoint = ptPrep->ranges[i].first_unicode_codepoint_in_range + j;
+                int iCodepoint = 0;
+                if(ptPrep->ptRanges[i].array_of_unicode_codepoints)
+                    iCodepoint = ptPrep->ptRanges[i].array_of_unicode_codepoints[j];
+                else
+                    iCodepoint = ptPrep->ptRanges[i].first_unicode_codepoint_in_range + j;
 
                 // bitmap
-                int glyphIndex = stbtt_FindGlyphIndex(&ptPrep->fontInfo, codepoint);
-                if(glyphIndex == 0 && missingGlyphAdded)
-                    ptPrep->rects[k].w = ptPrep->rects[k].h = 0;
+                int iGlyphIndex = stbtt_FindGlyphIndex(&ptPrep->tFontInfo, iCodepoint);
+                if(iGlyphIndex == 0 && bMissingGlyphAdded)
+                    ptPrep->ptRects[k].w = ptPrep->ptRects[k].h = 0;
                 else
                 {
                     int x0 = 0;
                     int y0 = 0;
                     int x1 = 0;
                     int y1 = 0;
-                    stbtt_GetGlyphBitmapBoxSubpixel(&ptPrep->fontInfo, glyphIndex,
-                                                    ptPrep->scale * config.uHOverSampling,
-                                                    ptPrep->scale * config.uVOverSampling,
+                    stbtt_GetGlyphBitmapBoxSubpixel(&ptPrep->tFontInfo, iGlyphIndex,
+                                                    ptPrep->fScale * tConfig.uHOverSampling,
+                                                    ptPrep->fScale * tConfig.uVOverSampling,
                                                     0, 0, &x0, &y0, &x1, &y1);
-                    ptPrep->rects[k].w = (stbrp_coord)(x1 - x0 + ptAtlas->_iGlyphPadding + config.uHOverSampling - 1);
-                    ptPrep->rects[k].h = (stbrp_coord)(y1 - y0 + ptAtlas->_iGlyphPadding + config.uVOverSampling - 1);
-                    ptAtlas->_fTotalArea += ptPrep->rects[k].w * ptPrep->rects[k].h;
-                    if (glyphIndex == 0) missingGlyphAdded = true; 
+                    ptPrep->ptRects[k].w = (stbrp_coord)(x1 - x0 + ptAtlas->_iGlyphPadding + tConfig.uHOverSampling - 1);
+                    ptPrep->ptRects[k].h = (stbrp_coord)(y1 - y0 + ptAtlas->_iGlyphPadding + tConfig.uVOverSampling - 1);
+                    ptAtlas->_fTotalArea += ptPrep->ptRects[k].w * ptPrep->ptRects[k].h;
+                    if(iGlyphIndex == 0)
+                        bMissingGlyphAdded = true; 
                 }
                 k++;
             }
         }
-        totalCharCount += range->uCharCount;
+        uTotalCharCount += ptRange->uCharCount;
     }
     if(ptFont->_uCodePointCount == 0)
     {
-        ptFont->_auCodePoints = PL_ALLOC(sizeof(uint32_t) * (uint32_t)maxCodePoint);
-        ptFont->_uCodePointCount = (uint32_t)maxCodePoint;
+        ptFont->_auCodePoints = PL_ALLOC(sizeof(uint32_t) * (uint32_t)iMaxCodePoint);
+        ptFont->_uCodePointCount = (uint32_t)iMaxCodePoint;
     }
     else
     {
         uint32_t* puOldCodePoints = ptFont->_auCodePoints;
-        ptFont->_auCodePoints = PL_ALLOC(sizeof(uint32_t) * ((uint32_t)maxCodePoint + ptFont->_uCodePointCount));
+        ptFont->_auCodePoints = PL_ALLOC(sizeof(uint32_t) * ((uint32_t)iMaxCodePoint + ptFont->_uCodePointCount));
         memcpy(ptFont->_auCodePoints, puOldCodePoints, ptFont->_uCodePointCount * sizeof(uint32_t));
-        ptFont->_uCodePointCount += (uint32_t)maxCodePoint;
+        ptFont->_uCodePointCount += (uint32_t)iMaxCodePoint;
         PL_FREE(puOldCodePoints);
     }
-    ptFont->_sbtConfigs[uConfigIndex] = config;
+    ptFont->_sbtConfigs[uConfigIndex] = tConfig;
     return ptFont;
 }
 
 static plFont*
-pl_add_font_from_file_ttf(plFontAtlas* ptAtlas, plFontConfig config, const char* file)
+pl_add_font_from_file_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, const char* pcFile)
 {
-    void* data = plu__read_file(file); // freed after atlas is created
-    return pl_add_font_from_memory_ttf(ptAtlas, config, data);
+    size_t szFileSize = 0;
+    plOSResult tResult = gptFile->binary_read(pcFile, &szFileSize, NULL);
+    if(tResult !=  PL_OS_RESULT_SUCCESS)
+        return NULL;
+
+    uint8_t* puData = PL_ALLOC(szFileSize);
+    memset(puData, 0, szFileSize);
+
+    tResult = gptFile->binary_read(pcFile, &szFileSize, puData);
+
+    if(tResult !=  PL_OS_RESULT_SUCCESS)
+    {
+        PL_FREE(puData);
+        return NULL;
+    }
+    
+    plFont* ptFont = pl_add_font_from_memory_ttf(ptAtlas, tConfig, puData);
+    return ptFont;
 }
 
 static plVec2
-pl_calculate_text_size(const char* text, plDrawTextOptions tOptions)
+pl_calculate_text_size(const char* pcText, plDrawTextOptions tOptions)
 {
 
     if(tOptions.pcTextEnd == NULL)
     {
-        tOptions.pcTextEnd = text;
+        tOptions.pcTextEnd = pcText;
         while(*tOptions.pcTextEnd != '\0')
             tOptions.pcTextEnd++;
     }
     
-    plVec2 result = {0};
-    plVec2 cursor = {0};
+    plVec2 tResult = {0};
+    plVec2 tCursor = {0};
 
-    plFont* font = tOptions.ptFont;
-    float size = tOptions.fSize == 0.0f ? font->fSize : tOptions.fSize;
+    plFont* ptFont = tOptions.ptFont;
+    const float fSize = tOptions.fSize == 0.0f ? ptFont->fSize : tOptions.fSize;
     const char* pcTextEnd = tOptions.pcTextEnd;
 
-    float scale = size > 0.0f ? size / font->fSize : 1.0f;
+    const float fScale = fSize > 0.0f ? fSize / ptFont->fSize : 1.0f;
 
-    float fLineSpacing = scale * font->_fLineSpacing;
-    plVec2 originalPosition = {FLT_MAX, FLT_MAX};
-    bool firstCharacter = true;
+    const float fLineSpacing = fScale * ptFont->_fLineSpacing;
+    plVec2 tOriginalPosition = {FLT_MAX, FLT_MAX};
+    bool bFirstCharacter = true;
 
-    while(text < pcTextEnd)
+    while(pcText < pcTextEnd)
     {
-        uint32_t c = (uint32_t)*text;
+        uint32_t c = (uint32_t)*pcText;
         if(c < 0x80)
-            text += 1;
+            pcText += 1;
         else
         {
-            text += pl_text_char_from_utf8(&c, text, NULL);
+            pcText += pl_text_char_from_utf8(&c, pcText, NULL);
             if(c == 0) // malformed UTF-8?
                 break;
         }
 
         if(c == '\n')
         {
-            cursor.x = originalPosition.x;
-            cursor.y += fLineSpacing;
+            tCursor.x = tOriginalPosition.x;
+            tCursor.y += fLineSpacing;
         }
         else if(c == '\r')
         {
@@ -1599,108 +1564,97 @@ pl_calculate_text_size(const char* text, plDrawTextOptions tOptions)
         else
         {
 
-            bool glyphFound = false;
-            const uint32_t uRangeCount = pl_sb_size(font->_sbtRanges);
-            for(uint32_t i = 0; i < uRangeCount; i++)
+            const plFontGlyph* ptGlyph = pl__find_glyph(ptFont, c);
+
+            float x0,y0,s0,t0; // top-left
+            float x1,y1,s1,t1; // bottom-right
+
+            // adjust for left side bearing if first char
+            if(bFirstCharacter)
             {
-                plFontRange* ptRange = &font->_sbtRanges[i];
-                if (c >= (uint32_t)ptRange->iFirstCodePoint && c < (uint32_t)ptRange->iFirstCodePoint + (uint32_t)ptRange->uCharCount) 
-                {
-
-                    
-                    float x0,y0,s0,t0; // top-left
-                    float x1,y1,s1,t1; // bottom-right
-
-                    const plFontGlyph* glyph = &font->_sbtGlyphs[font->_auCodePoints[c]];
-
-                    // adjust for left side bearing if first char
-                    if(firstCharacter)
-                    {
-                        if(glyph->leftBearing > 0.0f) cursor.x += glyph->leftBearing * scale;
-                        firstCharacter = false;
-                        originalPosition.x = cursor.x + glyph->x0 * scale;
-                        originalPosition.y = cursor.y + glyph->y0 * scale;
-                    }
-
-                    x0 = cursor.x + glyph->x0 * scale;
-                    x1 = cursor.x + glyph->x1 * scale;
-                    y0 = cursor.y + glyph->y0 * scale;
-                    y1 = cursor.y + glyph->y1 * scale;
-
-                    if(tOptions.fWrap > 0.0f && x1 > originalPosition.x + tOptions.fWrap)
-                    {
-                        x0 = originalPosition.x + glyph->x0 * scale;
-                        y0 = y0 + fLineSpacing;
-                        x1 = originalPosition.x + glyph->x1 * scale;
-                        y1 = y1 + fLineSpacing;
-
-                        cursor.x = originalPosition.x;
-                        cursor.y += fLineSpacing;
-                    }
-
-                    if(x0 < originalPosition.x) originalPosition.x = x0;
-                    if(y0 < originalPosition.y) originalPosition.y = y0;
-
-                    s0 = glyph->u0;
-                    t0 = glyph->v0;
-                    s1 = glyph->u1;
-                    t1 = glyph->v1;
-
-                    if(x1 > result.x) result.x = x1;
-                    if(y1 > result.y) result.y = y1;
-
-                    cursor.x += glyph->xAdvance * scale;
-                    glyphFound = true;
-                    break;
-                }
+                if(ptGlyph->fLeftBearing > 0.0f)
+                    tCursor.x += ptGlyph->fLeftBearing * fScale;
+                bFirstCharacter = false;
+                tOriginalPosition.x = tCursor.x + ptGlyph->x0 * fScale;
+                tOriginalPosition.y = tCursor.y + ptGlyph->y0 * fScale;
             }
 
-            PL_ASSERT(glyphFound && "Glyph not found");
+            x0 = tCursor.x + ptGlyph->x0 * fScale;
+            x1 = tCursor.x + ptGlyph->x1 * fScale;
+            y0 = tCursor.y + ptGlyph->y0 * fScale;
+            y1 = tCursor.y + ptGlyph->y1 * fScale;
+
+            if(tOptions.fWrap > 0.0f && x1 > tOriginalPosition.x + tOptions.fWrap)
+            {
+                x0 = tOriginalPosition.x + ptGlyph->x0 * fScale;
+                y0 = y0 + fLineSpacing;
+                x1 = tOriginalPosition.x + ptGlyph->x1 * fScale;
+                y1 = y1 + fLineSpacing;
+
+                tCursor.x = tOriginalPosition.x;
+                tCursor.y += fLineSpacing;
+            }
+
+            if(x0 < tOriginalPosition.x)
+                tOriginalPosition.x = x0;
+            if(y0 < tOriginalPosition.y)
+                tOriginalPosition.y = y0;
+
+            s0 = ptGlyph->u0;
+            t0 = ptGlyph->v0;
+            s1 = ptGlyph->u1;
+            t1 = ptGlyph->v1;
+
+            if(x1 > tResult.x)
+                tResult.x = x1;
+            if(y1 > tResult.y)
+                tResult.y = y1;
+
+            tCursor.x += ptGlyph->fXAdvance * fScale;
         }   
     }
-
-    return pl_sub_vec2(result, originalPosition);
+    return pl_sub_vec2(tResult, tOriginalPosition);
 }
 
 static plRect
-pl_calculate_text_bb(plVec2 tP, const char* text, plDrawTextOptions tOptions)
+pl_calculate_text_bb(plVec2 tP, const char* pcText, plDrawTextOptions tOptions)
 {
     if(tOptions.pcTextEnd == NULL)
     {
-        tOptions.pcTextEnd = text;
+        tOptions.pcTextEnd = pcText;
         while(*tOptions.pcTextEnd != '\0')
             tOptions.pcTextEnd++;
     }
 
     plVec2 tTextSize = {0};
-    plVec2 cursor = {0};
+    plVec2 tCursor = {0};
 
-    plFont* font = tOptions.ptFont;
-    float size = tOptions.fSize == 0.0f ? font->fSize : tOptions.fSize;
+    plFont* ptFont = tOptions.ptFont;
+    const float fSize = tOptions.fSize == 0.0f ? ptFont->fSize : tOptions.fSize;
     const char* pcTextEnd = tOptions.pcTextEnd;
 
-    float scale = size > 0.0f ? size / font->fSize : 1.0f;
+    const float fScale = fSize > 0.0f ? fSize / ptFont->fSize : 1.0f;
 
-    float fLineSpacing = scale * font->_fLineSpacing;
-    plVec2 originalPosition = {FLT_MAX, FLT_MAX};
-    bool firstCharacter = true;
+    float fLineSpacing = fScale * ptFont->_fLineSpacing;
+    plVec2 tOriginalPosition = {FLT_MAX, FLT_MAX};
+    bool bFirstCharacter = true;
 
-    while(text < pcTextEnd)
+    while(pcText < pcTextEnd)
     {
-        uint32_t c = (uint32_t)*text;
+        uint32_t c = (uint32_t)*pcText;
         if(c < 0x80)
-            text += 1;
+            pcText += 1;
         else
         {
-            text += pl_text_char_from_utf8(&c, text, NULL);
+            pcText += pl_text_char_from_utf8(&c, pcText, NULL);
             if(c == 0) // malformed UTF-8?
                 break;
         }
 
         if(c == '\n')
         {
-            cursor.x = originalPosition.x;
-            cursor.y += fLineSpacing;
+            tCursor.x = tOriginalPosition.x;
+            tCursor.y += fLineSpacing;
         }
         else if(c == '\r')
         {
@@ -1709,73 +1663,59 @@ pl_calculate_text_bb(plVec2 tP, const char* text, plDrawTextOptions tOptions)
         else
         {
 
-            bool glyphFound = false;
-            const uint32_t uRangeCount = pl_sb_size(font->_sbtRanges);
-            for(uint32_t i = 0u; i < uRangeCount; i++)
+            const plFontGlyph* ptGlyph = pl__find_glyph(ptFont, c);
+
+            float x0,y0,s0,t0; // top-left
+            float x1,y1,s1,t1; // bottom-right
+
+            // adjust for left side bearing if first char
+            if(bFirstCharacter)
             {
-                plFontRange* ptRange = &font->_sbtRanges[i];
-                if (c >= (uint32_t)ptRange->iFirstCodePoint && c < (uint32_t)ptRange->iFirstCodePoint + (uint32_t)ptRange->uCharCount) 
-                {
-
-                    float x0,y0,s0,t0; // top-left
-                    float x1,y1,s1,t1; // bottom-right
-
-                    const plFontGlyph* glyph = &font->_sbtGlyphs[font->_auCodePoints[c]];
-
-                    // adjust for left side bearing if first char
-                    if(firstCharacter)
-                    {
-                        if(glyph->leftBearing > 0.0f) cursor.x += glyph->leftBearing * scale;
-                        firstCharacter = false;
-                        originalPosition.x = cursor.x + glyph->x0 * scale;
-                        originalPosition.y = cursor.y + glyph->y0 * scale;
-                    }
-
-                    x0 = cursor.x + glyph->x0 * scale;
-                    x1 = cursor.x + glyph->x1 * scale;
-                    y0 = cursor.y + glyph->y0 * scale;
-                    y1 = cursor.y + glyph->y1 * scale;
-
-                    if(tOptions.fWrap > 0.0f && x1 > originalPosition.x + tOptions.fWrap)
-                    {
-                        x0 = originalPosition.x + glyph->x0 * scale;
-                        y0 = y0 + fLineSpacing;
-                        x1 = originalPosition.x + glyph->x1 * scale;
-                        y1 = y1 + fLineSpacing;
-
-                        cursor.x = originalPosition.x;
-                        cursor.y += fLineSpacing;
-                    }
-
-                    if(x0 < originalPosition.x) originalPosition.x = x0;
-                    if(y0 < originalPosition.y) originalPosition.y = y0;
-
-                    s0 = glyph->u0;
-                    t0 = glyph->v0;
-                    s1 = glyph->u1;
-                    t1 = glyph->v1;
-
-                    if(x1 > tTextSize.x)
-                        tTextSize.x = x1;
-                    if(y1 > tTextSize.y)
-                        tTextSize.y = y1;
-
-                    cursor.x += glyph->xAdvance * scale;
-                    glyphFound = true;
-                    break;
-                }
+                if(ptGlyph->fLeftBearing > 0.0f)
+                    tCursor.x += ptGlyph->fLeftBearing * fScale;
+                bFirstCharacter = false;
+                tOriginalPosition.x = tCursor.x + ptGlyph->x0 * fScale;
+                tOriginalPosition.y = tCursor.y + ptGlyph->y0 * fScale;
             }
 
-            PL_ASSERT(glyphFound && "Glyph not found");
+            x0 = tCursor.x + ptGlyph->x0 * fScale;
+            x1 = tCursor.x + ptGlyph->x1 * fScale;
+            y0 = tCursor.y + ptGlyph->y0 * fScale;
+            y1 = tCursor.y + ptGlyph->y1 * fScale;
+
+            if(tOptions.fWrap > 0.0f && x1 > tOriginalPosition.x + tOptions.fWrap)
+            {
+                x0 = tOriginalPosition.x + ptGlyph->x0 * fScale;
+                y0 = y0 + fLineSpacing;
+                x1 = tOriginalPosition.x + ptGlyph->x1 * fScale;
+                y1 = y1 + fLineSpacing;
+
+                tCursor.x = tOriginalPosition.x;
+                tCursor.y += fLineSpacing;
+            }
+
+            if(x0 < tOriginalPosition.x)
+                tOriginalPosition.x = x0;
+            if(y0 < tOriginalPosition.y)
+                tOriginalPosition.y = y0;
+
+            s0 = ptGlyph->u0;
+            t0 = ptGlyph->v0;
+            s1 = ptGlyph->u1;
+            t1 = ptGlyph->v1;
+
+            if(x1 > tTextSize.x)
+                tTextSize.x = x1;
+            if(y1 > tTextSize.y)
+                tTextSize.y = y1;
+
+            tCursor.x += ptGlyph->fXAdvance * fScale;
         }   
     }
 
-    tTextSize = pl_sub_vec2(tTextSize, originalPosition);
-
-    const plVec2 tStartOffset = pl_add_vec2(tP, originalPosition);
-
+    tTextSize = pl_sub_vec2(tTextSize, tOriginalPosition);
+    const plVec2 tStartOffset = pl_add_vec2(tP, tOriginalPosition);
     const plRect tResult = pl_calculate_rect(tStartOffset, tTextSize);
-
     return tResult;
 }
 
@@ -1813,10 +1753,9 @@ pl_get_clip_rect(plDrawList2D* ptDrawlist)
 static plFontAtlas*
 pl_create_font_atlas(void)
 {
-    static plFontAtlas tAtlas = {
-        0
-    };
-    return &tAtlas;
+    plFontAtlas* ptAtlas = PL_ALLOC(sizeof(plFontAtlas));
+    memset(ptAtlas, 0, sizeof(plFontAtlas));
+    return ptAtlas;
 }
 
 static void
@@ -1836,82 +1775,94 @@ pl_prepare_font_atlas(plFontAtlas* ptAtlas)
 {
 
     // create our white location
-    plFontCustomRect _ptWhiteRect = {
+    plFontCustomRect ptWhiteRect = {
         .uWidth = 8u,
         .uHeight = 8u,
         .uX = 0u,
         .uY = 0u,
-        .pucBytes = malloc(64)
+        .pucBytes = PL_ALLOC(64)
     };
-    memset(_ptWhiteRect.pucBytes, 255, 64);
-    pl_sb_push(ptAtlas->_sbtCustomRects, _ptWhiteRect);
+    memset(ptWhiteRect.pucBytes, 255, 64);
+    pl_sb_push(ptAtlas->_sbtCustomRects, ptWhiteRect);
     ptAtlas->_ptWhiteRect = &pl_sb_back(ptAtlas->_sbtCustomRects);
     ptAtlas->_fTotalArea += 64;
 
     // calculate final texture area required
-    const float totalAtlasAreaSqrt = (float)sqrt((float)ptAtlas->_fTotalArea) + 1.0f;
+    const float fTotalAtlasAreaSqrt = (float)sqrt((float)ptAtlas->_fTotalArea) + 1.0f;
     ptAtlas->tAtlasSize.x = 512;
     ptAtlas->tAtlasSize.y = 0;
-    if     (totalAtlasAreaSqrt >= 4096 * 0.7f) ptAtlas->tAtlasSize.x = 4096;
-    else if(totalAtlasAreaSqrt >= 2048 * 0.7f) ptAtlas->tAtlasSize.x = 2048;
-    else if(totalAtlasAreaSqrt >= 1024 * 0.7f) ptAtlas->tAtlasSize.x = 1024;
+    if(fTotalAtlasAreaSqrt >= 4096 * 0.7f)
+        ptAtlas->tAtlasSize.x = 4096;
+    else if(fTotalAtlasAreaSqrt >= 2048 * 0.7f)
+        ptAtlas->tAtlasSize.x = 2048;
+    else if(fTotalAtlasAreaSqrt >= 1024 * 0.7f)
+        ptAtlas->tAtlasSize.x = 1024;
 
     // begin packing
-    stbtt_pack_context spc = {0};
-    stbtt_PackBegin(&spc, NULL, (uint32_t)ptAtlas->tAtlasSize.x, 1024 * 32, 0, ptAtlas->_iGlyphPadding, NULL);
+    stbtt_pack_context tSpc = {0};
+    stbtt_PackBegin(&tSpc, NULL, (uint32_t)ptAtlas->tAtlasSize.x, 1024 * 32, 0, ptAtlas->_iGlyphPadding, NULL);
 
     // allocate SDF rects
-    stbrp_rect* rects = PL_ALLOC(pl_sb_size(ptAtlas->_sbtCustomRects) * sizeof(stbrp_rect));
-    memset(rects, 0, sizeof(stbrp_rect) * pl_sb_size(ptAtlas->_sbtCustomRects));
+    stbrp_rect* ptRects = PL_ALLOC(pl_sb_size(ptAtlas->_sbtCustomRects) * sizeof(stbrp_rect));
+    memset(ptRects, 0, sizeof(stbrp_rect) * pl_sb_size(ptAtlas->_sbtCustomRects));
 
     // transfer our data to stb data
-    for(uint32_t i = 0u; i < pl_sb_size(ptAtlas->_sbtCustomRects); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptAtlas->_sbtCustomRects); i++)
     {
-        rects[i].w = (int)ptAtlas->_sbtCustomRects[i].uWidth;
-        rects[i].h = (int)ptAtlas->_sbtCustomRects[i].uHeight;
+        ptRects[i].w = (int)ptAtlas->_sbtCustomRects[i].uWidth;
+        ptRects[i].h = (int)ptAtlas->_sbtCustomRects[i].uHeight;
     }
     
     // pack bitmap fonts
-    plFont* font = ptAtlas->_ptFontListHead;
-    while(font)
+    plFont* ptFont = ptAtlas->_ptFontListHead;
+    while(ptFont)
     {
-        for(uint32_t j = 0; j < pl_sb_size(font->_sbtRanges); j++)
+        const uint32_t uRangeCount = pl_sb_size(ptFont->_sbtRanges);
+        for(uint32_t j = 0; j < uRangeCount; j++)
         {
-            plFontRange* ptRange = &font->_sbtRanges[j];
-            if(!font->_sbtConfigs[ptRange->_uConfigIndex].bSdf)
+            plFontRange* ptRange = &ptFont->_sbtRanges[j];
+            if(!ptFont->_sbtConfigs[ptRange->_uConfigIndex].bSdf)
             {
-                plFontPrepData* prep = &font->_sbtPreps[ptRange->_uConfigIndex];
-                if(!prep->bPrepped)
+                plFontPrepData* ptPrep = &ptFont->_sbtPreps[ptRange->_uConfigIndex];
+                if(!ptPrep->bPrepped)
                 {
-                    stbtt_PackSetOversampling(&spc, font->_sbtConfigs[ptRange->_uConfigIndex].uHOverSampling, font->_sbtConfigs[ptRange->_uConfigIndex].uVOverSampling);
-                    stbrp_pack_rects((stbrp_context*)spc.pack_info, prep->rects, prep->uTotalCharCount);
-                    for(uint32_t k = 0u; k < prep->uTotalCharCount; k++)
+                    stbtt_PackSetOversampling(&tSpc, ptFont->_sbtConfigs[ptRange->_uConfigIndex].uHOverSampling,
+                        ptFont->_sbtConfigs[ptRange->_uConfigIndex].uVOverSampling);
+                    stbrp_pack_rects((stbrp_context*)tSpc.pack_info, ptPrep->ptRects, ptPrep->uTotalCharCount);
+                    for(uint32_t k = 0; k < ptPrep->uTotalCharCount; k++)
                     {
-                        if(prep->rects[k].was_packed)
-                            ptAtlas->tAtlasSize.y = pl__get_max((float)ptAtlas->tAtlasSize.y, (float)(prep->rects[k].y + prep->rects[k].h));
+                        if(ptPrep->ptRects[k].was_packed)
+                            ptAtlas->tAtlasSize.y = pl_max((float)ptAtlas->tAtlasSize.y, (float)(ptPrep->ptRects[k].y + ptPrep->ptRects[k].h));
                     }
-                    prep->bPrepped = true;
+                    ptPrep->bPrepped = true;
                 }
             }
         }
-        font = font->_ptNextFont;
+        ptFont = ptFont->_ptNextFont;
     }
 
     // pack SDF fonts
-    stbtt_PackSetOversampling(&spc, 1, 1);
-    stbrp_pack_rects((stbrp_context*)spc.pack_info, rects, pl_sb_size(ptAtlas->_sbtCustomRects));
+    stbtt_PackSetOversampling(&tSpc, 1, 1);
+    stbrp_pack_rects((stbrp_context*)tSpc.pack_info, ptRects, pl_sb_size(ptAtlas->_sbtCustomRects));
 
-    for(uint32_t i = 0u; i < pl_sb_size(ptAtlas->_sbtCustomRects); i++)
+    const uint32_t uCustomRectCount = pl_sb_size(ptAtlas->_sbtCustomRects);
+    for(uint32_t i = 0; i < uCustomRectCount; i++)
     {
-        if(rects[i].was_packed)
-            ptAtlas->tAtlasSize.y = pl__get_max((float)ptAtlas->tAtlasSize.y, (float)(rects[i].y + rects[i].h));
+        if(ptRects[i].was_packed)
+            ptAtlas->tAtlasSize.y = pl_max((float)ptAtlas->tAtlasSize.y, (float)(ptRects[i].y + ptRects[i].h));
     }
 
     // grow cpu side buffers if needed
     if(ptAtlas->_szPixelDataSize < ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y)
     {
-        if(ptAtlas->_pucPixelsAsAlpha8) PL_FREE(ptAtlas->_pucPixelsAsAlpha8);
-        if(ptAtlas->pucPixelsAsRGBA32) PL_FREE(ptAtlas->pucPixelsAsRGBA32);
+        if(ptAtlas->_pucPixelsAsAlpha8)
+        {
+            PL_FREE(ptAtlas->_pucPixelsAsAlpha8);
+        }
+        if(ptAtlas->pucPixelsAsRGBA32)
+        {
+            PL_FREE(ptAtlas->pucPixelsAsRGBA32);
+        }
 
         ptAtlas->_pucPixelsAsAlpha8 = PL_ALLOC((uint32_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y));   
         ptAtlas->pucPixelsAsRGBA32 = PL_ALLOC((uint32_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y * 4));
@@ -1919,65 +1870,68 @@ pl_prepare_font_atlas(plFontAtlas* ptAtlas)
         memset(ptAtlas->_pucPixelsAsAlpha8, 0, (uint32_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y));
         memset(ptAtlas->pucPixelsAsRGBA32, 0, (uint32_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y * 4));
     }
-    spc.pixels = ptAtlas->_pucPixelsAsAlpha8;
+    tSpc.pixels = ptAtlas->_pucPixelsAsAlpha8;
     ptAtlas->_szPixelDataSize = (size_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y);
 
     // rasterize bitmap fonts
-    font = ptAtlas->_ptFontListHead;
-    while(font)
+    ptFont = ptAtlas->_ptFontListHead;
+    while(ptFont)
     {
-        for(uint32_t j = 0; j < pl_sb_size(font->_sbtConfigs); j++)
+        const uint32_t uConfigCount = pl_sb_size(ptFont->_sbtConfigs);
+        for(uint32_t j = 0; j < uConfigCount; j++)
         {
-            plFontPrepData* prep = &font->_sbtPreps[j];
-            if(!font->_sbtConfigs[j].bSdf)
-                stbtt_PackFontRangesRenderIntoRects(&spc, &prep->fontInfo, prep->ranges, pl_sb_size(font->_sbtConfigs[j]._sbtRanges), prep->rects);
+            plFontPrepData* ptPrep = &ptFont->_sbtPreps[j];
+            if(!ptFont->_sbtConfigs[j].bSdf)
+                stbtt_PackFontRangesRenderIntoRects(&tSpc, &ptPrep->tFontInfo, ptPrep->ptRanges,
+                    pl_sb_size(ptFont->_sbtConfigs[j]._sbtRanges), ptPrep->ptRects);
         }
-        font = font->_ptNextFont;
+        ptFont = ptFont->_ptNextFont;
     }
 
     // update SDF/custom data
-    for(uint32_t i = 0u; i < pl_sb_size(ptAtlas->_sbtCustomRects); i++)
+    for(uint32_t i = 0; i < uCustomRectCount; i++)
     {
-        ptAtlas->_sbtCustomRects[i].uX = (uint32_t)rects[i].x;
-        ptAtlas->_sbtCustomRects[i].uY = (uint32_t)rects[i].y;
+        ptAtlas->_sbtCustomRects[i].uX = (uint32_t)ptRects[i].x;
+        ptAtlas->_sbtCustomRects[i].uY = (uint32_t)ptRects[i].y;
     }
 
-    font = ptAtlas->_ptFontListHead;
-    while(font)
+    ptFont = ptAtlas->_ptFontListHead;
+    while(ptFont)
     {
-        uint32_t charDataOffset = 0u;
-        for(uint32_t j = 0; j < pl_sb_size(font->_sbtConfigs); j++)
+        uint32_t uCharDataOffset = 0;
+        const uint32_t uConfigCount = pl_sb_size(ptFont->_sbtConfigs);
+        for(uint32_t j = 0; j < uConfigCount; j++)
         {
-            plFontConfig* ptConfig = &font->_sbtConfigs[j];
+            plFontConfig* ptConfig = &ptFont->_sbtConfigs[j];
             if(ptConfig->bSdf)
             {
                 for(uint32_t i = 0u; i < pl_sb_size(ptConfig->_sbtCharData); i++)
                 {
-                    ptConfig->_sbtCharData[i].x0 = (uint16_t)rects[charDataOffset + i].x;
-                    ptConfig->_sbtCharData[i].y0 = (uint16_t)rects[charDataOffset + i].y;
-                    ptConfig->_sbtCharData[i].x1 = (uint16_t)(rects[charDataOffset + i].x + ptAtlas->_sbtCustomRects[charDataOffset + i].uWidth);
-                    ptConfig->_sbtCharData[i].y1 = (uint16_t)(rects[charDataOffset + i].y + ptAtlas->_sbtCustomRects[charDataOffset + i].uHeight);
+                    ptConfig->_sbtCharData[i].x0 = (uint16_t)ptRects[uCharDataOffset + i].x;
+                    ptConfig->_sbtCharData[i].y0 = (uint16_t)ptRects[uCharDataOffset + i].y;
+                    ptConfig->_sbtCharData[i].x1 = (uint16_t)(ptRects[uCharDataOffset + i].x + ptAtlas->_sbtCustomRects[uCharDataOffset + i].uWidth);
+                    ptConfig->_sbtCharData[i].y1 = (uint16_t)(ptRects[uCharDataOffset + i].y + ptAtlas->_sbtCustomRects[uCharDataOffset + i].uHeight);
                 }
-                charDataOffset += pl_sb_size(ptConfig->_sbtCharData);  
+                uCharDataOffset += pl_sb_size(ptConfig->_sbtCharData);  
             }
         }
-        font = font->_ptNextFont;
+        ptFont = ptFont->_ptNextFont;
     }
 
     // end packing
-    stbtt_PackEnd(&spc);
+    stbtt_PackEnd(&tSpc);
 
     // rasterize SDF/custom rects
-    for(uint32_t r = 0u; r < pl_sb_size(ptAtlas->_sbtCustomRects); r++)
+    for(uint32_t r = 0; r < uCustomRectCount; r++)
     {
-        plFontCustomRect* customRect = &ptAtlas->_sbtCustomRects[r];
-        for(uint32_t i = 0u; i < customRect->uHeight; i++)
+        plFontCustomRect* ptCustomRect = &ptAtlas->_sbtCustomRects[r];
+        for(uint32_t i = 0; i < ptCustomRect->uHeight; i++)
         {
-            for(uint32_t j = 0u; j < customRect->uWidth; j++)
-                ptAtlas->_pucPixelsAsAlpha8[(customRect->uY + i) * (uint32_t)ptAtlas->tAtlasSize.x + (customRect->uX + j)] =  customRect->pucBytes[i * customRect->uWidth + j];
+            for(uint32_t j = 0; j < ptCustomRect->uWidth; j++)
+                ptAtlas->_pucPixelsAsAlpha8[(ptCustomRect->uY + i) * (uint32_t)ptAtlas->tAtlasSize.x + (ptCustomRect->uX + j)] = ptCustomRect->pucBytes[i * ptCustomRect->uWidth + j];
         }
-        stbtt_FreeSDF(customRect->pucBytes, NULL);
-        customRect->pucBytes = NULL;
+        stbtt_FreeSDF(ptCustomRect->pucBytes, NULL);
+        ptCustomRect->pucBytes = NULL;
     }
 
     // update white point uvs
@@ -1985,81 +1939,89 @@ pl_prepare_font_atlas(plFontAtlas* ptAtlas)
     ptAtlas->_tWhiteUv.y = (float)(ptAtlas->_ptWhiteRect->uY + ptAtlas->_ptWhiteRect->uHeight / 2) / (float)ptAtlas->tAtlasSize.y;
 
     // add glyphs
-    font = ptAtlas->_ptFontListHead;
-    while(font)
+    ptFont = ptAtlas->_ptFontListHead;
+    while(ptFont)
     {
 
-        uint32_t uConfigIndex = 0u;
-        uint32_t charIndex = 0u;
-        float pixelHeight = 0.0f;
+        uint32_t uConfigIndex = 0;
+        uint32_t uCharIndex = 0;
+        float fPixelHeight = 0.0f;
         
-        for(uint32_t i = 0u; i < pl_sb_size(font->_sbtRanges); i++)
+        const uint32_t uRangeCount = pl_sb_size(ptFont->_sbtRanges);
+        for(uint32_t i = 0; i < uRangeCount; i++)
         {
-            plFontRange* range = &font->_sbtRanges[i];
-            if(uConfigIndex != range->_uConfigIndex)
+            plFontRange* ptRange = &ptFont->_sbtRanges[i];
+            if(uConfigIndex != ptRange->_uConfigIndex)
             {
-                charIndex = 0;
-                uConfigIndex = range->_uConfigIndex;
+                uCharIndex = 0;
+                uConfigIndex = ptRange->_uConfigIndex;
             }
-            if(font->_sbtConfigs[range->_uConfigIndex].bSdf)
-                pixelHeight = 0.5f * 1.0f / (float)ptAtlas->tAtlasSize.y; // is this correct?
+            if(ptFont->_sbtConfigs[ptRange->_uConfigIndex].bSdf)
+                fPixelHeight = 0.5f * 1.0f / (float)ptAtlas->tAtlasSize.y; // is this correct?
             else
-                pixelHeight = 0.0f;
-            for(uint32_t j = 0u; j < range->uCharCount; j++)
+                fPixelHeight = 0.0f;
+
+            for(uint32_t j = 0; j < ptRange->uCharCount; j++)
             {
 
-                const int codePoint = range->iFirstCodePoint + j;
-                stbtt_aligned_quad q;
-                float unused_x = 0.0f, unused_y = 0.0f;
-                stbtt_GetPackedQuad((stbtt_packedchar*)font->_sbtConfigs[range->_uConfigIndex]._sbtCharData, (int)ptAtlas->tAtlasSize.x, (int)ptAtlas->tAtlasSize.y, charIndex, &unused_x, &unused_y, &q, 0);
+                const int iCodePoint = ptRange->iFirstCodePoint + j;
+                stbtt_aligned_quad tQuad;
+                float unused_x = 0.0f;
+                float unused_y = 0.0f;
+                stbtt_GetPackedQuad((stbtt_packedchar*)ptFont->_sbtConfigs[ptRange->_uConfigIndex]._sbtCharData,
+                    (int)ptAtlas->tAtlasSize.x, (int)ptAtlas->tAtlasSize.y, uCharIndex, &unused_x, &unused_y, &tQuad, 0);
 
-                int unusedAdvanced, leftSideBearing;
-                stbtt_GetCodepointHMetrics(&font->_sbtPreps[range->_uConfigIndex].fontInfo, codePoint, &unusedAdvanced, &leftSideBearing);
+                int unusedAdvanced = 0;
+                int iLeftSideBearing = 0;
+                stbtt_GetCodepointHMetrics(&ptFont->_sbtPreps[ptRange->_uConfigIndex].tFontInfo, iCodePoint,
+                    &unusedAdvanced, &iLeftSideBearing);
 
-                plFontGlyph glyph = {
-                    .x0 = q.x0,
-                    .y0 = q.y0 + font->_sbtPreps[range->_uConfigIndex].fAscent,
-                    .x1 = q.x1,
-                    .y1 = q.y1 + font->_sbtPreps[range->_uConfigIndex].fAscent,
-                    .u0 = q.s0,
-                    .v0 = q.t0 + pixelHeight,
-                    .u1 = q.s1,
-                    .v1 = q.t1 - pixelHeight,
-                    .xAdvance = font->_sbtConfigs[range->_uConfigIndex]._sbtCharData[charIndex].xAdv,
-                    .leftBearing = (float)leftSideBearing * font->_sbtPreps[range->_uConfigIndex].scale
+                plFontGlyph tGlyph = {
+                    .x0           = tQuad.x0,
+                    .y0           = tQuad.y0 + ptFont->_sbtPreps[ptRange->_uConfigIndex].fAscent,
+                    .x1           = tQuad.x1,
+                    .y1           = tQuad.y1 + ptFont->_sbtPreps[ptRange->_uConfigIndex].fAscent,
+                    .u0           = tQuad.s0,
+                    .v0           = tQuad.t0 + fPixelHeight,
+                    .u1           = tQuad.s1,
+                    .v1           = tQuad.t1 - fPixelHeight,
+                    .fXAdvance    = ptFont->_sbtConfigs[ptRange->_uConfigIndex]._sbtCharData[uCharIndex].xAdv,
+                    .fLeftBearing = (float)iLeftSideBearing * ptFont->_sbtPreps[ptRange->_uConfigIndex].fScale,
+                    .iSDF         = (int)ptFont->_sbtConfigs[ptRange->_uConfigIndex].bSdf
                 };
-                pl_sb_push(font->_sbtGlyphs, glyph);
-                font->_auCodePoints[codePoint] = pl_sb_size(font->_sbtGlyphs) - 1;
-                charIndex++;
+                pl_sb_push(ptFont->_sbtGlyphs, tGlyph);
+                ptFont->_auCodePoints[iCodePoint] = pl_sb_size(ptFont->_sbtGlyphs) - 1;
+                uCharIndex++;
             }
         }
 
-        for(uint32_t i = 0; i < pl_sb_size(font->_sbtPreps); i++)
+        for(uint32_t i = 0; i < pl_sb_size(ptFont->_sbtPreps); i++)
         {
-            PL_FREE(font->_sbtPreps[i].ranges);
-            PL_FREE(font->_sbtPreps[i].rects);
-            PL_FREE(font->_sbtPreps[i].fontInfo.data);
-            font->_sbtPreps[i].fontInfo.data = NULL;
+            PL_FREE(ptFont->_sbtPreps[i].ptRanges);
+            PL_FREE(ptFont->_sbtPreps[i].ptRects);
+            PL_FREE(ptFont->_sbtPreps[i].tFontInfo.data);
+            ptFont->_sbtPreps[i].tFontInfo.data = NULL;
         }
-        pl_sb_free(font->_sbtPreps);
+        pl_sb_free(ptFont->_sbtPreps);
 
-        for(uint32_t i = 0; i < pl_sb_size(font->_sbtConfigs); i++)
+        for(uint32_t i = 0; i < pl_sb_size(ptFont->_sbtConfigs); i++)
         {
-            pl_sb_free(font->_sbtConfigs[i]._sbtCharData);
+            pl_sb_free(ptFont->_sbtConfigs[i]._sbtCharData);
         }
-        font = font->_ptNextFont;
+        ptFont = ptFont->_ptNextFont;
     }
 
     // convert to 4 color channels
-    for(uint32_t i = 0u; i < ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y; i++)
+    const uint32_t uPixelCount = (uint32_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y);
+    for(uint32_t i = 0; i < uPixelCount; i++)
     {
-        ptAtlas->pucPixelsAsRGBA32[i * 4] = 255;
+        ptAtlas->pucPixelsAsRGBA32[i * 4]     = 255;
         ptAtlas->pucPixelsAsRGBA32[i * 4 + 1] = 255;
         ptAtlas->pucPixelsAsRGBA32[i * 4 + 2] = 255;
         ptAtlas->pucPixelsAsRGBA32[i * 4 + 3] = ptAtlas->_pucPixelsAsAlpha8[i];
     }
 
-    PL_FREE(rects);
+    PL_FREE(ptRects);
     return true;
 }
 
@@ -2069,111 +2031,40 @@ pl_cleanup_font_atlas(plFontAtlas* ptAtlas)
     if(ptAtlas == NULL)
         ptAtlas = gptDrawCtx->ptAtlas;
 
-    plFont* font = ptAtlas->_ptFontListHead;
-    while(font)
+    plFont* ptFont = ptAtlas->_ptFontListHead;
+    while(ptFont)
     {
 
-        PL_FREE(font->_auCodePoints);
-        pl_sb_free(font->_sbtGlyphs);
-        pl_sb_free(font->_sbtRanges);
-        for(uint32_t j = 0; j < pl_sb_size(font->_sbtConfigs); j++)
+        PL_FREE(ptFont->_auCodePoints);
+        pl_sb_free(ptFont->_sbtGlyphs);
+        pl_sb_free(ptFont->_sbtRanges);
+        const uint32_t uConfigCount = pl_sb_size(ptFont->_sbtConfigs);
+        for(uint32_t j = 0; j < uConfigCount; j++)
         {
-            pl_sb_free(font->_sbtConfigs[j]._sbtRanges);
+            pl_sb_free(ptFont->_sbtConfigs[j]._sbtRanges);
         }
-        pl_sb_free(font->_sbtConfigs);
-        plFont* ptOldFont = font;
-        font = font->_ptNextFont;
+        pl_sb_free(ptFont->_sbtConfigs);
+        plFont* ptOldFont = ptFont;
+        ptFont = ptFont->_ptNextFont;
         PL_FREE(ptOldFont);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(ptAtlas->_sbtCustomRects); i++)
+    const uint32_t uRectCount = pl_sb_size(ptAtlas->_sbtCustomRects);
+    for(uint32_t i = 0; i < uRectCount; i++)
     {
         PL_FREE(ptAtlas->_sbtCustomRects[i].pucBytes);
     }
     pl_sb_free(ptAtlas->_sbtCustomRects);
     PL_FREE(ptAtlas->_pucPixelsAsAlpha8);
     PL_FREE(ptAtlas->pucPixelsAsRGBA32);
-}
-
-static void
-pl__prepare_draw_command(plDrawLayer2D* ptLayer, plTextureID textureID, bool sdf)
-{
-    bool createNewCommand = true;
-
-    const plRect tCurrentClip = pl_sb_size(ptLayer->ptDrawlist->_sbtClipStack) > 0 ? pl_sb_top(ptLayer->ptDrawlist->_sbtClipStack) : (plRect){0};
-
-    if(ptLayer->_ptLastCommand)
-    {
-        // check if last command has same texture
-        if(ptLayer->_ptLastCommand->tTextureId == textureID && ptLayer->_ptLastCommand->bSdf == sdf)
-        {
-            createNewCommand = false;
-        }
-
-        // check if last command has same clipping
-        if(ptLayer->_ptLastCommand->tClip.tMax.x != tCurrentClip.tMax.x || ptLayer->_ptLastCommand->tClip.tMax.y != tCurrentClip.tMax.y ||
-            ptLayer->_ptLastCommand->tClip.tMin.x != tCurrentClip.tMin.x || ptLayer->_ptLastCommand->tClip.tMin.y != tCurrentClip.tMin.y)
-        {
-            createNewCommand = true;
-        }
-    }
-
-    // new command needed
-    if(createNewCommand)
-    {
-        plDrawCommand newdrawCommand = 
-        {
-            .uVertexOffset = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer),
-            .uIndexOffset  = pl_sb_size(ptLayer->sbuIndexBuffer),
-            .uElementCount = 0u,
-            .tTextureId    = textureID,
-            .bSdf          = sdf,
-            .tClip        = tCurrentClip
-        };
-        pl_sb_push(ptLayer->sbtCommandBuffer, newdrawCommand);
-        
-    }
-    ptLayer->_ptLastCommand = &pl_sb_top(ptLayer->sbtCommandBuffer);
-    ptLayer->_ptLastCommand->tTextureId = textureID;
-}
-
-static void
-pl__reserve_triangles(plDrawLayer2D* ptLayer, uint32_t indexCount, uint32_t uVertexCount)
-{
-    pl_sb_reserve(ptLayer->ptDrawlist->sbtVertexBuffer, pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer) + uVertexCount);
-    pl_sb_reserve(ptLayer->sbuIndexBuffer, pl_sb_size(ptLayer->sbuIndexBuffer) + indexCount);
-    ptLayer->_ptLastCommand->uElementCount += indexCount; 
-    ptLayer->uVertexCount += uVertexCount;
-}
-
-static void
-pl__add_vertex(plDrawLayer2D* ptLayer, plVec2 pos, uint32_t uColor, plVec2 uv)
-{
-
-    pl_sb_push(ptLayer->ptDrawlist->sbtVertexBuffer,
-        ((plDrawVertex){
-            .afPos[0] = pos.x,
-            .afPos[1] = pos.y,
-            .afUv[0] = uv.u,
-            .afUv[1] = uv.v,
-            .uColor = uColor
-        })
-    );
-}
-
-static void
-pl__add_index(plDrawLayer2D* ptLayer, uint32_t vertexStart, uint32_t i0, uint32_t i1, uint32_t i2)
-{
-    pl_sb_push(ptLayer->sbuIndexBuffer, vertexStart + i0);
-    pl_sb_push(ptLayer->sbuIndexBuffer, vertexStart + i1);
-    pl_sb_push(ptLayer->sbuIndexBuffer, vertexStart + i2);
+    PL_FREE(ptAtlas);
 }
 
 static void
 pl_new_draw_3d_frame(void)
 {
     // reset 3d drawlists
-    for(uint32_t i = 0u; i < gptDrawCtx->uDrawlistCount3D; i++)
+    for(uint32_t i = 0; i < gptDrawCtx->uDrawlistCount3D; i++)
     {
         plDrawList3D* ptDrawlist = gptDrawCtx->aptDrawlists3D[i];
 
@@ -2185,7 +2076,7 @@ pl_new_draw_3d_frame(void)
     }
 
     // reset 3d drawlists
-    for(uint32_t i = 0u; i < gptDrawCtx->uDrawlistCount2D; i++)
+    for(uint32_t i = 0; i < gptDrawCtx->uDrawlistCount2D; i++)
     {
         plDrawList2D* ptDrawlist = gptDrawCtx->aptDrawlists2D[i];
 
@@ -2200,14 +2091,16 @@ pl_new_draw_3d_frame(void)
             pl_sb_reset(ptDrawlist->_sbtLayersCreated[j]->sbuIndexBuffer);   
             pl_sb_reset(ptDrawlist->_sbtLayersCreated[j]->sbtPath);  
             ptDrawlist->_sbtLayersCreated[j]->uVertexCount = 0u;
-            ptDrawlist->_sbtLayersCreated[j]->_ptLastCommand = NULL;
+            ptDrawlist->_sbtLayersCreated[j]->ptLastCommand = NULL;
         }
         pl_sb_reset(ptDrawlist->_sbtSubmittedLayers); 
     }
 }
 
 static inline void
-pl__add_3d_triangles(plDrawList3D* ptDrawlist, uint32_t uVertexCount, const plVec3* atPoints, uint32_t uTriangleCount, const uint32_t* auIndices, uint32_t uColor)
+pl__add_3d_triangles(
+        plDrawList3D* ptDrawlist, uint32_t uVertexCount, const plVec3* atPoints,
+        uint32_t uTriangleCount, const uint32_t* auIndices, uint32_t uColor)
 {
 
     const uint32_t uVertexStart = pl_sb_size(ptDrawlist->sbtSolidVertexBuffer);
@@ -2333,7 +2226,6 @@ pl__add_3d_circle_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fRad
     auIndices[uSegments * 3 + 2] = uSegments;
 
     pl__add_3d_triangles(ptDrawlist, uSegments + 2, atPoints, uSegments + 1, auIndices, tOptions.uColor);
-
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
@@ -2372,7 +2264,6 @@ pl__add_3d_centered_box_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float f
     };
 
     pl__add_3d_triangles(ptDrawlist, 8, atVerticies, 12, auIndices, tOptions.uColor);
-
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
@@ -2448,15 +2339,23 @@ pl__add_3d_plane_yz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidt
 static void
 pl__add_3d_band_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fInnerRadius, float fOuterRadius, uint32_t uSegments, plDrawSolidOptions tOptions)
 {
-    if(uSegments == 0){ uSegments = 12; }
+    if(uSegments == 0)
+        uSegments = 12;
+
     const float fIncrement = PL_2PI / uSegments;
     float fTheta = 0.0f;
     plVec3* atPoints = pl_temp_allocator_alloc(&gptDrawCtx->tTempAllocator, sizeof(plVec3) * uSegments * 2);
     uint32_t* auIndices = pl_temp_allocator_alloc(&gptDrawCtx->tTempAllocator, sizeof(uint32_t) * uSegments * 2 * 3);
     for(uint32_t i = 0; i < uSegments; i++)
     {
-        atPoints[i] = (plVec3){tCenter.x + fOuterRadius * sinf(fTheta + PL_PI_2), tCenter.y, tCenter.z + fOuterRadius * sinf(fTheta)};
-        atPoints[i + uSegments] = (plVec3){tCenter.x + fInnerRadius * sinf(fTheta + PL_PI_2), tCenter.y, tCenter.z + fInnerRadius * sinf(fTheta)};
+        atPoints[i] = (plVec3){
+            tCenter.x + fOuterRadius * sinf(fTheta + PL_PI_2),
+            tCenter.y, tCenter.z + fOuterRadius * sinf(fTheta)
+        };
+        atPoints[i + uSegments] = (plVec3){
+            tCenter.x + fInnerRadius * sinf(fTheta + PL_PI_2),
+            tCenter.y, tCenter.z + fInnerRadius * sinf(fTheta)
+        };
         fTheta += fIncrement;
     }
 
@@ -2480,9 +2379,13 @@ pl__add_3d_band_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fInner
 }
 
 static void
-pl__add_3d_band_xy_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fInnerRadius, float fOuterRadius, uint32_t uSegments, plDrawSolidOptions tOptions)
+pl__add_3d_band_xy_filled(
+    plDrawList3D* ptDrawlist, plVec3 tCenter, float fInnerRadius,
+    float fOuterRadius, uint32_t uSegments, plDrawSolidOptions tOptions)
 {
-    if(uSegments == 0){ uSegments = 12; }
+    if(uSegments == 0)
+        uSegments = 12;
+
     const float fIncrement = PL_2PI / uSegments;
     float fTheta = 0.0f;
     plVec3* atPoints = pl_temp_allocator_alloc(&gptDrawCtx->tTempAllocator, sizeof(plVec3) * uSegments * 2);
@@ -2509,22 +2412,31 @@ pl__add_3d_band_xy_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fInner
     auIndices[(uSegments - 1) * 6 + 5] = 0;
 
     pl__add_3d_triangles(ptDrawlist, uSegments * 2, atPoints, uSegments * 2, auIndices, tOptions.uColor);
-
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
 static void
-pl__add_3d_band_yz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fInnerRadius, float fOuterRadius, uint32_t uSegments, plDrawSolidOptions tOptions)
+pl__add_3d_band_yz_filled(
+    plDrawList3D* ptDrawlist, plVec3 tCenter, float fInnerRadius,
+    float fOuterRadius, uint32_t uSegments, plDrawSolidOptions tOptions)
 {
-    if(uSegments == 0){ uSegments = 12; }
+    if(uSegments == 0)
+        uSegments = 12;
+
     const float fIncrement = PL_2PI / uSegments;
     float fTheta = 0.0f;
     plVec3* atPoints = pl_temp_allocator_alloc(&gptDrawCtx->tTempAllocator, sizeof(plVec3) * uSegments * 2);
     uint32_t* auIndices = pl_temp_allocator_alloc(&gptDrawCtx->tTempAllocator, sizeof(uint32_t) * uSegments * 2 * 3);
     for(uint32_t i = 0; i < uSegments; i++)
     {
-        atPoints[i] = (plVec3){tCenter.x, tCenter.y + fOuterRadius * sinf(fTheta + PL_PI_2), tCenter.z + fOuterRadius * sinf(fTheta)};
-        atPoints[i + uSegments] = (plVec3){tCenter.x, tCenter.y + fInnerRadius * sinf(fTheta + PL_PI_2), tCenter.z + fInnerRadius * sinf(fTheta)};
+        atPoints[i] = (plVec3){
+            tCenter.x, tCenter.y + fOuterRadius * sinf(fTheta + PL_PI_2),
+            tCenter.z + fOuterRadius * sinf(fTheta)
+        };
+        atPoints[i + uSegments] = (plVec3){
+            tCenter.x, tCenter.y + fInnerRadius * sinf(fTheta + PL_PI_2),
+            tCenter.z + fInnerRadius * sinf(fTheta)
+        };
         fTheta += fIncrement;
     }
 
@@ -2543,7 +2455,6 @@ pl__add_3d_band_yz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fInner
     auIndices[(uSegments - 1) * 6 + 5] = 0;
 
     pl__add_3d_triangles(ptDrawlist, uSegments * 2, atPoints, uSegments * 2, auIndices, tOptions.uColor);
-
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
@@ -2611,7 +2522,6 @@ pl__add_3d_cylinder_filled(plDrawList3D* ptDrawlist, plDrawCylinderDesc tDesc, p
     auIndices[uCurrentIndex + (tDesc.uSegments - 1) * 6 + 4] = tDesc.uSegments;
 
     pl__add_3d_triangles(ptDrawlist, uPointCount, atPoints, uIndexCount / 3, auIndices, tOptions.uColor);
-
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
@@ -2664,14 +2574,12 @@ pl__add_3d_cone_filled(plDrawList3D* ptDrawlist, plDrawConeDesc tDesc, plDrawSol
     auIndices[uCurrentIndex + 5] = 0;
 
     pl__add_3d_triangles(ptDrawlist, uPointCount, atPoints, uIndexCount / 3, auIndices, tOptions.uColor);
-
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
 static void
 pl__add_3d_line(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plDrawLineOptions tOptions)
 {
-
     pl_sb_reserve(ptDrawlist->sbtLineVertexBuffer, pl_sb_size(ptDrawlist->sbtLineVertexBuffer) + 4);
     pl_sb_reserve(ptDrawlist->sbtLineIndexBuffer, pl_sb_size(ptDrawlist->sbtLineIndexBuffer) + 6);
 
@@ -2711,7 +2619,6 @@ pl__add_3d_line(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plDrawLineOpti
     pl_sb_push(ptDrawlist->sbtLineIndexBuffer, uVertexStart + 3);
 }
 
-
 static void
 pl__add_3d_text(plDrawList3D* ptDrawlist, plVec3 tP, const char* pcText, plDrawTextOptions tOptions)
 {
@@ -2725,7 +2632,6 @@ pl__add_3d_text(plDrawList3D* ptDrawlist, plVec3 tP, const char* pcText, plDrawT
     strncpy(tText.acText, pcText, PL_MAX_NAME_LENGTH);
     pl_sb_push(ptDrawlist->sbtTextEntries, tText);
 }
-
 
 static void
 pl__add_3d_cross(plDrawList3D* ptDrawlist, plVec3 tP, float fLength, plDrawLineOptions tOptions)
@@ -2792,7 +2698,6 @@ pl__add_3d_frustum(plDrawList3D* ptDrawlist, const plMat4* ptTransform, plDrawFr
         7, 4
     };
     pl__add_3d_indexed_lines(ptDrawlist, 24, atVerticies, auIndices, tOptions);
-
 }
 
 static void
@@ -2803,8 +2708,10 @@ pl__add_3d_sphere_ex(plDrawList3D* ptDrawlist, plDrawSphereDesc tDesc, plDrawLin
     if(tDesc.uLongBands == 0)
         tDesc.uLongBands = 16;
     
-    plVec3* atPoints = pl_temp_allocator_alloc(&gptDrawCtx->tTempAllocator, sizeof(plVec3) * (tDesc.uLatBands + 1) * (tDesc.uLongBands + 1));
-    uint32_t* auIndices = pl_temp_allocator_alloc(&gptDrawCtx->tTempAllocator, sizeof(uint32_t) * tDesc.uLatBands * tDesc.uLongBands * 8);
+    plVec3* atPoints = pl_temp_allocator_alloc(&gptDrawCtx->tTempAllocator,
+        sizeof(plVec3) * (tDesc.uLatBands + 1) * (tDesc.uLongBands + 1));
+    uint32_t* auIndices = pl_temp_allocator_alloc(&gptDrawCtx->tTempAllocator,
+        sizeof(uint32_t) * tDesc.uLatBands * tDesc.uLongBands * 8);
     uint32_t uCurrentPoint = 0;
 
     for(uint32_t uLatNumber = 0; uLatNumber <= tDesc.uLatBands; uLatNumber++)
@@ -2817,7 +2724,11 @@ pl__add_3d_sphere_ex(plDrawList3D* ptDrawlist, plDrawSphereDesc tDesc, plDrawLin
             const float fPhi = (float)uLongNumber * 2 * PL_PI / (float)tDesc.uLongBands;
             const float fSinPhi = sinf(fPhi);
             const float fCosPhi = cosf(fPhi);
-            atPoints[uCurrentPoint] = (plVec3){fCosPhi * fSinTheta * tDesc.fRadius + tDesc.tCenter.x, fCosTheta * tDesc.fRadius + tDesc.tCenter.y, fSinPhi * fSinTheta * tDesc.fRadius + tDesc.tCenter.z};
+            atPoints[uCurrentPoint] = (plVec3){
+                fCosPhi * fSinTheta * tDesc.fRadius + tDesc.tCenter.x,
+                fCosTheta * tDesc.fRadius + tDesc.tCenter.y,
+                fSinPhi * fSinTheta * tDesc.fRadius + tDesc.tCenter.z
+            };
             uCurrentPoint++;
         }
     }
@@ -2846,14 +2757,12 @@ pl__add_3d_sphere_ex(plDrawList3D* ptDrawlist, plDrawSphereDesc tDesc, plDrawLin
         }
     }
     pl__add_3d_indexed_lines(ptDrawlist, tDesc.uLatBands * tDesc.uLongBands * 8, atPoints, auIndices, tOptions);
-
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
 static void
 pl__add_3d_capsule_ex(plDrawList3D* ptDrawlist, plDrawCapsuleDesc tDesc, plDrawLineOptions tOptions)
 {
-
     if(tDesc.uLatBands == 0)
         tDesc.uLatBands = 16;
     if(tDesc.uLongBands == 0)
@@ -2884,7 +2793,11 @@ pl__add_3d_capsule_ex(plDrawList3D* ptDrawlist, plDrawCapsuleDesc tDesc, plDrawL
             const float fPhi = (float)uLongNumber * 2 * PL_PI / (float)tDesc.uLongBands;
             const float fSinPhi = sinf(fPhi);
             const float fCosPhi = cosf(fPhi);
-            atPoints[uCurrentPoint] = (plVec3){fCosPhi * fSinTheta * tDesc.fTipRadius, fCosTheta * tDesc.fTipRadius + fDistance - tDesc.fTipRadius * (1.0f - tDesc.fEndOffsetRatio), fSinPhi * fSinTheta * tDesc.fTipRadius};
+            atPoints[uCurrentPoint] = (plVec3){
+                fCosPhi * fSinTheta * tDesc.fTipRadius,
+                fCosTheta * tDesc.fTipRadius + fDistance - tDesc.fTipRadius * (1.0f - tDesc.fEndOffsetRatio),
+                fSinPhi * fSinTheta * tDesc.fTipRadius
+            };
             atPoints[uCurrentPoint] = pl_mul_mat4_vec4(&tRot, (plVec4){.xyz = atPoints[uCurrentPoint]}).xyz;
             atPoints[uCurrentPoint].x += tDesc.tBasePos.x;
             atPoints[uCurrentPoint].y += tDesc.tBasePos.y;
@@ -2903,7 +2816,11 @@ pl__add_3d_capsule_ex(plDrawList3D* ptDrawlist, plDrawCapsuleDesc tDesc, plDrawL
             const float fPhi = (float)uLongNumber * 2 * PL_PI / (float)tDesc.uLongBands;
             const float fSinPhi = sinf(fPhi);
             const float fCosPhi = cosf(fPhi);
-            atPoints[uCurrentPoint] = (plVec3){fCosPhi * fSinTheta * tDesc.fBaseRadius, fCosTheta * tDesc.fBaseRadius + tDesc.fBaseRadius * (1.0f - tDesc.fEndOffsetRatio), fSinPhi * fSinTheta * tDesc.fBaseRadius};
+            atPoints[uCurrentPoint] = (plVec3){
+                fCosPhi * fSinTheta * tDesc.fBaseRadius,
+                fCosTheta * tDesc.fBaseRadius + tDesc.fBaseRadius * (1.0f - tDesc.fEndOffsetRatio),
+                fSinPhi * fSinTheta * tDesc.fBaseRadius
+            };
             atPoints[uCurrentPoint] = pl_mul_mat4_vec4(&tRot, (plVec4){.xyz = atPoints[uCurrentPoint]}).xyz;
             atPoints[uCurrentPoint].x += tDesc.tBasePos.x;
             atPoints[uCurrentPoint].y += tDesc.tBasePos.y;
@@ -2936,7 +2853,6 @@ pl__add_3d_capsule_ex(plDrawList3D* ptDrawlist, plDrawCapsuleDesc tDesc, plDrawL
         }
     }
     pl__add_3d_indexed_lines(ptDrawlist, uIndexCount, atPoints, auIndices, tOptions);
-
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
@@ -3101,7 +3017,6 @@ pl__add_3d_centered_box(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, 
 static void
 pl__add_3d_aabb(plDrawList3D* ptDrawlist, plVec3 tMin, plVec3 tMax, plDrawLineOptions tOptions)
 {
-
     const plVec3 atVerticies[] = {
         {  tMin.x, tMin.y, tMin.z },
         {  tMax.x, tMin.y, tMin.z },
@@ -3169,7 +3084,9 @@ pl__add_3d_bezier_quad(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 
 }
 
 static void
-pl__add_3d_bezier_cubic(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plVec3 tP3, uint32_t uSegments, plDrawLineOptions tOptions)
+pl__add_3d_bezier_cubic(
+    plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2,
+    plVec3 tP3, uint32_t uSegments, plDrawLineOptions tOptions)
 {
     // order of the bezier curve inputs are 0=start, 1=control 1, 2=control 2, 3=ending
 
@@ -3214,147 +3131,163 @@ pl__add_3d_bezier_cubic(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3
 //-----------------------------------------------------------------------------
 
 static uint32_t
-pl__decompress_length(const unsigned char* ptrInput)
+pl__decompress_length(const unsigned char* pucInput)
 {
-    if(ptrInput)
-        return (ptrInput[8] << 24) + (ptrInput[9] << 16) + (ptrInput[10] << 8) + ptrInput[11];
-    return 0u;
+    if(pucInput)
+        return (pucInput[8] << 24) + (pucInput[9] << 16) + (pucInput[10] << 8) + pucInput[11];
+    return 0;
 }
 
 static uint32_t
-pl__decode85_byte(char c) { return (c >= '\\') ? c - 36 : c -35;}
+pl__decode85_byte(char c)
+{
+    return (c >= '\\') ? c - 36 : c -35;
+}
 
 static void
-pl__decode85(const unsigned char* ptrSrc, unsigned char* ptrDst)
+pl__decode85(const unsigned char* pucSrc, unsigned char* pucDst)
 {
-    while (*ptrSrc)
+    while (*pucSrc)
     {
-        uint32_t uTmp = pl__decode85_byte(ptrSrc[0]) + 85 * (pl__decode85_byte(ptrSrc[1]) + 85 * (pl__decode85_byte(ptrSrc[2]) + 85 * (pl__decode85_byte(ptrSrc[3]) + 85 * pl__decode85_byte(ptrSrc[4]))));
-        ptrDst[0] = ((uTmp >> 0) & 0xFF); 
-        ptrDst[1] = ((uTmp >> 8) & 0xFF); 
-        ptrDst[2] = ((uTmp >> 16) & 0xFF); 
-        ptrDst[3] = ((uTmp >> 24) & 0xFF);
-        ptrSrc += 5;
-        ptrDst += 4;
+        uint32_t uTmp = pl__decode85_byte(pucSrc[0]) + 85 * (pl__decode85_byte(pucSrc[1]) + 85 * (pl__decode85_byte(pucSrc[2]) + 85 * (pl__decode85_byte(pucSrc[3]) + 85 * pl__decode85_byte(pucSrc[4]))));
+        pucDst[0] = ((uTmp >> 0) & 0xFF); 
+        pucDst[1] = ((uTmp >> 8) & 0xFF); 
+        pucDst[2] = ((uTmp >> 16) & 0xFF); 
+        pucDst[3] = ((uTmp >> 24) & 0xFF);
+        pucSrc += 5;
+        pucDst += 4;
     }
 }
 
-static unsigned char* ptrBarrierOutE_ = NULL;
-static unsigned char* ptrBarrierOutB_ = NULL;
-static const unsigned char * ptrBarrierInB_;
-static unsigned char* ptrDOut_ = NULL;
-
 static void 
-pl__match(const unsigned char* ptrData, uint32_t uLength)
+pl__match(const unsigned char* pucData, uint32_t uLength)
 {
     PL_ASSERT(ptrDOut_ + uLength <= ptrBarrierOutE_);
-    if (ptrDOut_ + uLength > ptrBarrierOutE_) ptrDOut_ += uLength; 
-    else if (ptrData < ptrBarrierOutB_)       ptrDOut_ = ptrBarrierOutE_ + 1;
-    else while (uLength--) *ptrDOut_++ = *ptrData++;
+    if (ptrDOut_ + uLength > ptrBarrierOutE_)
+        ptrDOut_ += uLength; 
+    else if (pucData < ptrBarrierOutB_)
+        ptrDOut_ = ptrBarrierOutE_ + 1;
+    else
+    {
+        while (uLength--)
+            *ptrDOut_++ = *pucData++;
+    }
 }
 
 static void 
-pl__lit(const unsigned char* ptrData, uint32_t uLength)
+pl__lit(const unsigned char* pucData, uint32_t uLength)
 {
     PL_ASSERT(ptrDOut_ + uLength <= ptrBarrierOutE_);
-    if (ptrDOut_ + uLength > ptrBarrierOutE_) ptrDOut_ += uLength;
-    else if (ptrData < ptrBarrierInB_)        ptrDOut_ = ptrBarrierOutE_ + 1; 
-    else { memcpy(ptrDOut_, ptrData, uLength); ptrDOut_ += uLength; }
+    if (ptrDOut_ + uLength > ptrBarrierOutE_)
+        ptrDOut_ += uLength;
+    else if (pucData < ptrBarrierInB_)
+        ptrDOut_ = ptrBarrierOutE_ + 1; 
+    else
+        memcpy(ptrDOut_, pucData, uLength); ptrDOut_ += uLength;
 }
 
-#define MV_IN2_(x) ((ptrI[x] << 8) + ptrI[(x) + 1])
-#define MV_IN3_(x) ((ptrI[x] << 16) + MV_IN2_((x) + 1))
-#define MV_IN4_(x) ((ptrI[x] << 24) + MV_IN3_((x) + 1))
+#define MV_IN2_(x) ((pucI[x] << 8) + pucI[(x) + 1])
+#define MV_IN3_(x) ((pucI[x] << 16) + MV_IN2_((x) + 1))
+#define MV_IN4_(x) ((pucI[x] << 24) + MV_IN3_((x) + 1))
 
 static const unsigned char*
-pl__decompress_token(const unsigned char* ptrI)
+pl__decompress_token(const unsigned char* pucI)
 {
-    if (*ptrI >= 0x20) 
+    if (*pucI >= 0x20) 
     {
-        if      (*ptrI >= 0x80)  pl__match(ptrDOut_ - ptrI[1] - 1, ptrI[0] - 0x80 + 1), ptrI += 2;
-        else if (*ptrI >= 0x40)  pl__match(ptrDOut_ - (MV_IN2_(0) - 0x4000 + 1), ptrI[2] + 1), ptrI += 3;
-        else /* *ptrI >= 0x20 */ pl__lit(ptrI + 1, ptrI[0] - 0x20 + 1), ptrI += 1 + (ptrI[0] - 0x20 + 1);
+        if(*pucI >= 0x80)
+            pl__match(ptrDOut_ - pucI[1] - 1, pucI[0] - 0x80 + 1), pucI += 2;
+        else if (*pucI >= 0x40)
+            pl__match(ptrDOut_ - (MV_IN2_(0) - 0x4000 + 1), pucI[2] + 1), pucI += 3;
+        else /* *pucI >= 0x20 */
+            pl__lit(pucI + 1, pucI[0] - 0x20 + 1), pucI += 1 + (pucI[0] - 0x20 + 1);
     } 
     else 
     {
-        if      (*ptrI >= 0x18) pl__match(ptrDOut_ - (MV_IN3_(0) - 0x180000 + 1), ptrI[3] + 1), ptrI += 4;
-        else if (*ptrI >= 0x10) pl__match(ptrDOut_ - (MV_IN3_(0) - 0x100000 + 1), MV_IN2_(3) + 1), ptrI += 5;
-        else if (*ptrI >= 0x08) pl__lit(ptrI + 2, MV_IN2_(0) - 0x0800 + 1), ptrI += 2 + (MV_IN2_(0) - 0x0800 + 1);
-        else if (*ptrI == 0x07) pl__lit(ptrI + 3, MV_IN2_(1) + 1), ptrI += 3 + (MV_IN2_(1) + 1);
-        else if (*ptrI == 0x06) pl__match(ptrDOut_ - (MV_IN3_(1) + 1), ptrI[4] + 1), ptrI += 5;
-        else if (*ptrI == 0x04) pl__match(ptrDOut_ - (MV_IN3_(1) + 1), MV_IN2_(4) + 1), ptrI += 6;
+        if(*pucI >= 0x18)
+            pl__match(ptrDOut_ - (MV_IN3_(0) - 0x180000 + 1), pucI[3] + 1), pucI += 4;
+        else if (*pucI >= 0x10)
+            pl__match(ptrDOut_ - (MV_IN3_(0) - 0x100000 + 1), MV_IN2_(3) + 1), pucI += 5;
+        else if (*pucI >= 0x08)
+            pl__lit(pucI + 2, MV_IN2_(0) - 0x0800 + 1), pucI += 2 + (MV_IN2_(0) - 0x0800 + 1);
+        else if (*pucI == 0x07)
+            pl__lit(pucI + 3, MV_IN2_(1) + 1), pucI += 3 + (MV_IN2_(1) + 1);
+        else if (*pucI == 0x06)
+            pl__match(ptrDOut_ - (MV_IN3_(1) + 1), pucI[4] + 1), pucI += 5;
+        else if (*pucI == 0x04)
+            pl__match(ptrDOut_ - (MV_IN3_(1) + 1), MV_IN2_(4) + 1), pucI += 6;
     }
-    return ptrI;
+    return pucI;
 }
 
 static uint32_t 
-pl__adler32(uint32_t uAdler32, unsigned char* ptrBuf, uint32_t uBufLen)
+pl__adler32(uint32_t uAdler32, unsigned char* pucBuf, uint32_t uBufLen)
 {
-    const uint32_t ADLER_MOD = 65521;
+    const uint32_t uAdlerMod = 65521;
     uint32_t s1 = uAdler32 & 0xffff;
     uint32_t s2 = uAdler32 >> 16;
-    uint32_t blocklen = uBufLen % 5552;
+    uint32_t uBlocklen = uBufLen % 5552;
 
     uint32_t i = 0;
     while (uBufLen) 
     {
-        for (i = 0; i + 7 < blocklen; i += 8) 
+        for (i = 0; i + 7 < uBlocklen; i += 8) 
         {
-            s1 += ptrBuf[0], s2 += s1;
-            s1 += ptrBuf[1], s2 += s1;
-            s1 += ptrBuf[2], s2 += s1;
-            s1 += ptrBuf[3], s2 += s1;
-            s1 += ptrBuf[4], s2 += s1;
-            s1 += ptrBuf[5], s2 += s1;
-            s1 += ptrBuf[6], s2 += s1;
-            s1 += ptrBuf[7], s2 += s1;
-            ptrBuf += 8;
+            s1 += pucBuf[0], s2 += s1;
+            s1 += pucBuf[1], s2 += s1;
+            s1 += pucBuf[2], s2 += s1;
+            s1 += pucBuf[3], s2 += s1;
+            s1 += pucBuf[4], s2 += s1;
+            s1 += pucBuf[5], s2 += s1;
+            s1 += pucBuf[6], s2 += s1;
+            s1 += pucBuf[7], s2 += s1;
+            pucBuf += 8;
         }
 
-        for (; i < blocklen; ++i)
-            s1 += *ptrBuf++, s2 += s1;
+        for (; i < uBlocklen; ++i)
+            s1 += *pucBuf++, s2 += s1;
 
-        s1 %= ADLER_MOD;
-        s2 %= ADLER_MOD;
-        uBufLen -= blocklen;
-        blocklen = 5552;
+        s1 %= uAdlerMod;
+        s2 %= uAdlerMod;
+        uBufLen -= uBlocklen;
+        uBlocklen = 5552;
     }
     return (uint32_t)(s2 << 16) + (uint32_t)s1;
 }
 
 static uint32_t 
-pl__decompress(unsigned char* ptrOut, const unsigned char* ptrI, uint32_t length)
+pl__decompress(unsigned char* pucOut, const unsigned char* pucI, uint32_t uLength)
 {
-    if(ptrI == NULL)
-        return 0u;
+    if(pucI == NULL)
+        return 0;
     if (MV_IN4_(0) != 0x57bC0000) 
-        return 0u;
+        return 0;
     if (MV_IN4_(4) != 0)
-        return 0u;
+        return 0;
 
-    const uint32_t uOLen = pl__decompress_length(ptrI);
-    ptrBarrierInB_ = ptrI;
-    ptrBarrierOutE_ = ptrOut + uOLen;
-    ptrBarrierOutB_ = ptrOut;
-    ptrI += 16;
+    const uint32_t uOLen = pl__decompress_length(pucI);
+    ptrBarrierInB_ = pucI;
+    ptrBarrierOutE_ = pucOut + uOLen;
+    ptrBarrierOutB_ = pucOut;
+    pucI += 16;
 
-    ptrDOut_ = ptrOut;
+    ptrDOut_ = pucOut;
     for (;;) 
     {
-        const unsigned char* ptrOldI = ptrI;
-        ptrI = pl__decompress_token(ptrI);
-        if (ptrI == ptrOldI) 
+        const unsigned char* ptrOldI = pucI;
+        pucI = pl__decompress_token(pucI);
+        if (pucI == ptrOldI) 
         {
-            if (*ptrI == 0x05 && ptrI[1] == 0xfa) 
+            if (*pucI == 0x05 && pucI[1] == 0xfa) 
             {
-                PL_ASSERT(ptrDOut_ == ptrOut + uOLen);
-                if (ptrDOut_ != ptrOut + uOLen) break;
-                if (pl__adler32(1, ptrOut, uOLen) != (uint32_t) MV_IN4_(2))break;
+                PL_ASSERT(ptrDOut_ == pucOut + uOLen);
+                if (ptrDOut_ != pucOut + uOLen) break;
+                if (pl__adler32(1, pucOut, uOLen) != (uint32_t) MV_IN4_(2))break;
                 return uOLen;
             } 
         }
-        PL_ASSERT(ptrDOut_ <= ptrOut + uOLen);
-        if (ptrDOut_ > ptrOut + uOLen)
+        PL_ASSERT(ptrDOut_ <= pucOut + uOLen);
+        if (ptrDOut_ > pucOut + uOLen)
             break;
     }
     return 0u;
@@ -3452,37 +3385,150 @@ static const char gcPtrDefaultFontCompressed[11980 + 1] =
 static plFont*
 pl_add_default_font(plFontAtlas* ptAtlas)
 {
-    static const char* cPtrEmbeddedFontName = "Proggy.ttf";
-    
-    void* data = NULL;
+
+    void* pData = NULL;
 
     int iCompressedTTFSize = (((int)strlen(gcPtrDefaultFontCompressed) + 4) / 5) * 4;
-    void* ptrCompressedTTF = PL_ALLOC((size_t)iCompressedTTFSize);
-    pl__decode85((const unsigned char*)gcPtrDefaultFontCompressed, (unsigned char*)ptrCompressedTTF);
+    void* pCompressedTTF = PL_ALLOC((size_t)iCompressedTTFSize);
+    pl__decode85((const unsigned char*)gcPtrDefaultFontCompressed, (unsigned char*)pCompressedTTF);
 
-    const uint32_t uDecompressedSize = pl__decompress_length((const unsigned char*)ptrCompressedTTF);
-    data = (unsigned char*)PL_ALLOC(uDecompressedSize);
-    pl__decompress((unsigned char*)data, (const unsigned char*)ptrCompressedTTF, (int)iCompressedTTFSize);
+    const uint32_t uDecompressedSize = pl__decompress_length((const unsigned char*)pCompressedTTF);
+    pData = (unsigned char*)PL_ALLOC(uDecompressedSize);
+    pl__decompress((unsigned char*)pData, (const unsigned char*)pCompressedTTF, (int)iCompressedTTFSize);
 
-    PL_FREE(ptrCompressedTTF);
+    PL_FREE(pCompressedTTF);
 
-    static const plFontRange range = {
+    static const plFontRange tRange = {
         .iFirstCodePoint = 0x0020,
         .uCharCount = 0x00FF - 0x0020
     };
 
-    plFontConfig fontConfig = {
-        .bSdf = false,
-        .fSize = 13.0f,
+    plFontConfig tFontConfig = {
+        .bSdf           = false,
+        .fSize          = 13.0f,
         .uHOverSampling = 1,
         .uVOverSampling = 1,
-        .ucOnEdgeValue = 255,
-        .iSdfPadding = 1,
-        .ptRanges = &range,
-        .uRangeCount = 1
+        .ucOnEdgeValue  = 255,
+        .iSdfPadding    = 1,
+        .ptRanges       = &tRange,
+        .uRangeCount    = 1
     };
     
-    return pl_add_font_from_memory_ttf(ptAtlas, fontConfig, data);
+    return pl_add_font_from_memory_ttf(ptAtlas, tFontConfig, pData);
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api implementation
+//-----------------------------------------------------------------------------
+
+static void
+pl__prepare_draw_command(plDrawLayer2D* ptLayer, plTextureID tTextureID, bool bSdf)
+{
+    bool bCreateNewCommand = true;
+
+    const plRect tCurrentClip = pl_sb_size(ptLayer->ptDrawlist->_sbtClipStack) > 0 ? pl_sb_top(ptLayer->ptDrawlist->_sbtClipStack) : (plRect){0};
+
+    if(ptLayer->ptLastCommand)
+    {
+        // check if last command has same texture
+        if(ptLayer->ptLastCommand->tTextureId == tTextureID && ptLayer->ptLastCommand->bSdf == bSdf)
+        {
+            bCreateNewCommand = false;
+        }
+
+        // check if last command has same clipping
+        if(ptLayer->ptLastCommand->tClip.tMax.x != tCurrentClip.tMax.x ||
+            ptLayer->ptLastCommand->tClip.tMax.y != tCurrentClip.tMax.y ||
+            ptLayer->ptLastCommand->tClip.tMin.x != tCurrentClip.tMin.x ||
+            ptLayer->ptLastCommand->tClip.tMin.y != tCurrentClip.tMin.y)
+        {
+            bCreateNewCommand = true;
+        }
+    }
+
+    // new command needed
+    if(bCreateNewCommand)
+    {
+        plDrawCommand tNewdrawCommand = 
+        {
+            .uVertexOffset = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer),
+            .uIndexOffset  = pl_sb_size(ptLayer->sbuIndexBuffer),
+            .uElementCount = 0,
+            .tTextureId    = tTextureID,
+            .bSdf          = bSdf,
+            .tClip         = tCurrentClip
+        };
+        pl_sb_push(ptLayer->sbtCommandBuffer, tNewdrawCommand);
+        
+    }
+    ptLayer->ptLastCommand = &pl_sb_top(ptLayer->sbtCommandBuffer);
+    ptLayer->ptLastCommand->tTextureId = tTextureID;
+}
+
+static void
+pl__reserve_triangles(plDrawLayer2D* ptLayer, uint32_t uIndexCount, uint32_t uVertexCount)
+{
+    pl_sb_reserve(ptLayer->ptDrawlist->sbtVertexBuffer, pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer) + uVertexCount);
+    pl_sb_reserve(ptLayer->sbuIndexBuffer, pl_sb_size(ptLayer->sbuIndexBuffer) + uIndexCount);
+    ptLayer->ptLastCommand->uElementCount += uIndexCount; 
+    ptLayer->uVertexCount += uVertexCount;
+}
+
+static void
+pl__add_vertex(plDrawLayer2D* ptLayer, plVec2 tPos, uint32_t uColor, plVec2 tUv)
+{
+
+    pl_sb_push(ptLayer->ptDrawlist->sbtVertexBuffer,
+        ((plDrawVertex){
+            .afPos[0] = tPos.x,
+            .afPos[1] = tPos.y,
+            .afUv[0]  = tUv.u,
+            .afUv[1]  = tUv.v,
+            .uColor   = uColor
+        })
+    );
+}
+
+static void
+pl__add_index(plDrawLayer2D* ptLayer, uint32_t uVertexStart, uint32_t i0, uint32_t i1, uint32_t i2)
+{
+    pl_sb_push(ptLayer->sbuIndexBuffer, uVertexStart + i0);
+    pl_sb_push(ptLayer->sbuIndexBuffer, uVertexStart + i1);
+    pl_sb_push(ptLayer->sbuIndexBuffer, uVertexStart + i2);
+}
+
+static const plFontGlyph*
+pl__find_glyph(plFont* ptFont, uint32_t c)
+{
+    const uint32_t uRangeCount = pl_sb_size(ptFont->_sbtRanges);
+    for(uint32_t i = 0; i < uRangeCount; i++)
+    {
+        const plFontRange* ptRange = &ptFont->_sbtRanges[i];
+        if (c >= (uint32_t)ptRange->iFirstCodePoint && c < (uint32_t)ptRange->iFirstCodePoint + (uint32_t)ptRange->uCharCount) 
+        {
+            const plFontGlyph* ptGlyph = &ptFont->_sbtGlyphs[ptFont->_auCodePoints[c]];
+            return ptGlyph;
+        }
+    }
+
+    if(ptFont->_ptFallbackGlyph)
+        return ptFont->_ptFallbackGlyph;
+
+    const plUiWChar atFallbackCharacters[] = { (plUiWChar)PL_UNICODE_CODEPOINT_INVALID, (plUiWChar)'?', (plUiWChar)' ' };
+
+    for(uint32_t j = 0; j < 3; j++)
+    {
+        for(uint32_t i = 0; i < uRangeCount; i++)
+        {
+            const plFontRange* ptRange = &ptFont->_sbtRanges[i];
+            if (atFallbackCharacters[j] >= (uint32_t)ptRange->iFirstCodePoint && atFallbackCharacters[j] < (uint32_t)ptRange->iFirstCodePoint + (uint32_t)ptRange->uCharCount) 
+            {
+                ptFont->_ptFallbackGlyph = &ptFont->_sbtGlyphs[ptFont->_auCodePoints[atFallbackCharacters[j]]];
+                return ptFont->_ptFallbackGlyph;
+            }
+        }
+    }
+    return NULL;
 }
 
 //-----------------------------------------------------------------------------

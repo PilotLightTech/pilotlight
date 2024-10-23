@@ -34,6 +34,9 @@ Index of this file:
     #define PL_MAX_NAME_LENGTH 1024
 #endif
 
+#define PL_UNICODE_CODEPOINT_INVALID 0xFFFD // invalid Unicode code point (standard value).
+#define PL_UNICODE_CODEPOINT_MAX     0xFFFF // maximum Unicode code point supported by this build.
+
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
@@ -82,6 +85,9 @@ typedef struct _plFontConfig     plFontConfig;     // configuration for loading 
 typedef struct _plFontChar       plFontChar;       // internal type
 typedef struct _plFontGlyph      plFontGlyph;      // internal type
 typedef struct _plFontCustomRect plFontCustomRect; // internal type
+
+// character types
+typedef uint16_t plUiWChar;
 
 // enums
 typedef int plDrawFlags;     // -> enum _plDrawFlags     // Flags:
@@ -350,6 +356,7 @@ typedef struct _plFont
     plFontConfig*           _sbtConfigs;
     struct _plFontPrepData* _sbtPreps;
     plFont*                 _ptNextFont;
+    plFontGlyph*            _ptFallbackGlyph;
 } plFont;
 
 //-----------------------------------------------------------------------------

@@ -67,8 +67,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // Helper: Unicode defines
-#define PL_UNICODE_CODEPOINT_INVALID 0xFFFD     // Invalid Unicode code point (standard value).
-#define PL_UNICODE_CODEPOINT_MAX     0xFFFF     // Maximum Unicode code point supported by this build.
 
 #define PLU_PI_2 1.57079632f // pi/2
 #define PLU_2PI  6.28318530f // pi
