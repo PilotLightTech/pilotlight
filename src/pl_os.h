@@ -214,15 +214,13 @@ typedef struct _plVirtualMemoryI
 {
 
     // Notes
-    //   - API subject to change slightly
-    //   - additional error checks needs to be added
     //   - committed memory does not necessarily mean the memory has been mapped to physical
     //     memory. This is happens when the memory is actually touched. Even so, on Windows
     //     you can not commit more memmory then you have in your page file.
     //   - uncommitted memory does not necessarily mean the memory will be immediately
     //     evicted. It is up to the OS.
 
-    size_t (*get_page_size)(void);                   // returns memory page size
+    size_t (*get_page_size)(void);                  // returns memory page size
     void*  (*alloc)        (void* address, size_t); // reserves & commits a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
     void*  (*reserve)      (void* address, size_t); // reserves a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
     void*  (*commit)       (void* address, size_t); // commits a block of reserved memory. szSize must be a multiple of memory page size.

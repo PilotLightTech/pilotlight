@@ -56,7 +56,8 @@ pl_pack_rects(int iWidth, int iHeight, plPackRect* ptRects, uint32_t uRectCount)
         gptRectPackCtx->iNodeCount = iWidth;
         gptRectPackCtx->ptNodes = PL_ALLOC(sizeof(stbrp_node) * iWidth);
     }
-    stbrp_init_target(&gptRectPackCtx->tStbContext, iWidth, iHeight, gptRectPackCtx->ptNodes, gptRectPackCtx->iNodeCount);
+    stbrp_init_target(&gptRectPackCtx->tStbContext, iWidth, iHeight,
+        gptRectPackCtx->ptNodes, gptRectPackCtx->iNodeCount);
     stbrp_pack_rects(&gptRectPackCtx->tStbContext, (stbrp_rect*)ptRects, (int)uRectCount);
 }
 

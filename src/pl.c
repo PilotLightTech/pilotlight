@@ -531,8 +531,8 @@ pl_load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnlo
 
     if(ptLibraryApi->load(&tDesc, &ptLibrary))
     {
-        tExtension.pl_load   = (void PL_CALL_CONVENTION (const plApiRegistryI*, bool))  ptLibraryApi->load_function(ptLibrary, tExtension.pcLoadFunc);
-        tExtension.pl_unload = (void PL_CALL_CONVENTION (const plApiRegistryI*, bool))  ptLibraryApi->load_function(ptLibrary, tExtension.pcUnloadFunc);
+        tExtension.pl_load   = (void PL_CALL_CONVENTION (const plApiRegistryI*, bool)) ptLibraryApi->load_function(ptLibrary, tExtension.pcLoadFunc);
+        tExtension.pl_unload = (void PL_CALL_CONVENTION (const plApiRegistryI*, bool)) ptLibraryApi->load_function(ptLibrary, tExtension.pcUnloadFunc);
         PL_ASSERT(tExtension.pl_load);
         PL_ASSERT(tExtension.pl_unload);
         pl_sb_push(gsbptLibs, ptLibrary);

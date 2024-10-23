@@ -309,7 +309,7 @@ typedef struct _plFontRange
     int         iFirstCodePoint;
     uint32_t    uCharCount;
 
-    // internal
+    // [INTERNAL]
     uint32_t _uConfigIndex;
 } plFontRange;
 

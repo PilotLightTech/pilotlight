@@ -371,7 +371,9 @@ pl__coalesce_nodes(plDeviceAllocatorData* ptData, uint32_t uLevel, uint32_t uNod
 }
 
 static plDeviceMemoryAllocation
-pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
+pl_allocate_dedicated(
+    struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter,
+    uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
@@ -453,7 +455,9 @@ pl__get_buddy_level(uint64_t ulSize)
 }
 
 static plDeviceMemoryAllocation
-pl_allocate_buddy(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
+pl_allocate_buddy(
+    struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter,
+    uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
@@ -505,7 +509,9 @@ pl_free_buddy(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation*
         plDeviceAllocationRange* ptIntermediateNode = &ptData->sbtNodes[i];
         plDeviceMemoryAllocation* ptBlock = &ptData->sbtBlocks[ptIntermediateNode->ulBlockIndex];
 
-        if(ptBlock->uHandle == ptAllocation->uHandle && ptIntermediateNode->ulOffset == ptAllocation->ulOffset && ptIntermediateNode->ulUsedSize == ptAllocation->ulSize)
+        if(ptBlock->uHandle == ptAllocation->uHandle &&
+            ptIntermediateNode->ulOffset == ptAllocation->ulOffset &&
+            ptIntermediateNode->ulUsedSize == ptAllocation->ulSize)
         {
             ptNode = &ptData->sbtNodes[i];
             uNodeIndex = (uint32_t)i;
@@ -529,11 +535,14 @@ pl_free_buddy(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation*
 }
 
 static plDeviceMemoryAllocation
-pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
+pl_allocate_staging_uncached(
+    struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter,
+    uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
-    plDeviceMemoryAllocation tBlock = gptGfx->allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_GPU_CPU, uTypeFilter, pcName);
+    plDeviceMemoryAllocation tBlock = gptGfx->allocate_memory(ptData->ptDevice, ulSize,
+        PL_MEMORY_GPU_CPU, uTypeFilter, pcName);
 
     plDeviceMemoryAllocation tAllocation = {
         .pHostMapped = tBlock.pHostMapped,
@@ -595,7 +604,9 @@ pl_free_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemory
 }
 
 static plDeviceMemoryAllocation
-pl_allocate_staging_cached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
+pl_allocate_staging_cached(
+    struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter,
+    uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 

@@ -762,7 +762,7 @@ typedef struct _plRenderPassLayout
 {
     plRenderPassLayoutDescription tDesc;
 
-    // internal
+    // [INTERNAL]
     uint32_t _uAttachmentCount;
 } plRenderPassLayout;
 
