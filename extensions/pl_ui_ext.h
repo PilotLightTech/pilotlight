@@ -450,8 +450,8 @@ typedef struct _plUiClipper
     uint32_t uDisplayEnd;
 
     // [INTERNAL]
-    float    _fItemHeight;
-    float    _fStartPosY;
+    float _fItemHeight;
+    float _fStartPosY;
 } plUiClipper;
 
 #endif // PL_UI_EXT_H

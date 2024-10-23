@@ -1780,7 +1780,7 @@ pl_prepare_font_atlas(plFontAtlas* ptAtlas)
         .uHeight = 8u,
         .uX = 0u,
         .uY = 0u,
-        .pucBytes = PL_ALLOC(64)
+        .pucBytes = malloc(64)
     };
     memset(ptWhiteRect.pucBytes, 255, 64);
     pl_sb_push(ptAtlas->_sbtCustomRects, ptWhiteRect);

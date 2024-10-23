@@ -43,6 +43,7 @@ pl_set_dark_theme(void)
     gptCtx->tStyle.fFontSize                = 13.0f;
     gptCtx->tStyle.fWindowHorizontalPadding = 5.0f;
     gptCtx->tStyle.fWindowVerticalPadding   = 5.0f;
+    gptCtx->tStyle.iWindowBorderSize        = 0;
     gptCtx->tStyle.fIndentSize              = 15.0f;
     gptCtx->tStyle.fScrollbarSize           = 10.0f;
     gptCtx->tStyle.fSliderSize              = 12.0f;
@@ -369,14 +370,14 @@ pl_layout_row(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount, con
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     
     plUiLayoutRow tNewRow = {
-        .fHeight          = fHeight,
+        .fWidgetHeight    = fHeight,
         .fSpecifiedHeight = fHeight,
         .tType            = tType,
         .tSystemType      = PL_UI_LAYOUT_SYSTEM_TYPE_ARRAY,
         .uColumns         = uWidgetCount,
-        .pfSizesOrRatios  = pfSizesOrRatios
+        .pfSizesOrRatios  = pfSizesOrRatios,
     };
-    ptWindow->tTempData.tCurrentLayoutRow = tNewRow;
+    ptWindow->tTempData.tLayoutRow = tNewRow;
 }
 
 void
@@ -467,14 +468,14 @@ pl_end_child(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     pl_end_window();
-    pl__advance_cursor(ptWindow->tSize.x, ptWindow->tSize.y);
+    pl__smart_advance_cursor(ptWindow->tSize.x, ptWindow->tSize.y);
 }
 
 bool
 pl_begin_child(const char* pcName, plUiChildFlags tChildFlags, plUiWindowFlags tWindowFlags)
 {
     plUiWindow* ptParentWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptParentWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptParentWindow->tTempData.tLayoutRow;
     const plVec2 tStartPos   = pl__get_cursor_pos();
     const plVec2 tWidgetSize = pl__calculate_item_size(200.0f);
 
@@ -628,8 +629,8 @@ pl_begin_tooltip(void)
     const plVec2 tMousePos = gptIOI->get_mouse_pos();
     ptWindow->tTempData.tCursorStartPos = pl_add_vec2(tMousePos, (plVec2){gptCtx->tStyle.fWindowHorizontalPadding, 0.0f});
     ptWindow->tPos = tMousePos;
-    ptWindow->tTempData.tRowPos.x = floorf(gptCtx->tStyle.fWindowHorizontalPadding + tMousePos.x);
-    ptWindow->tTempData.tRowPos.y = floorf(gptCtx->tStyle.fWindowVerticalPadding + tMousePos.y);
+    ptWindow->tTempData.tRowCursorPos.x = floorf(gptCtx->tStyle.fWindowHorizontalPadding + tMousePos.x);
+    ptWindow->tTempData.tRowCursorPos.y = floorf(gptCtx->tStyle.fWindowVerticalPadding + tMousePos.y);
 
     const plVec2 tStartClip = { ptWindow->tPos.x, ptWindow->tPos.y };
     const plVec2 tEndClip = { ptWindow->tSize.x, ptWindow->tSize.y };
@@ -734,8 +735,8 @@ pl_step_clipper(plUiClipper* ptClipper)
         
         if(ptClipper->uDisplayStart > 0)
         {
-            for(uint32_t i = 0; i < gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.uColumns; i++)
-                pl__advance_cursor(0.0f, (float)ptClipper->uDisplayStart * ptClipper->_fItemHeight);
+            for(uint32_t i = 0; i < gptCtx->ptCurrentWindow->tTempData.tLayoutRow.uColumns; i++)
+                pl__smart_advance_cursor(0.0f, (float)ptClipper->uDisplayStart * ptClipper->_fItemHeight);
         }
         ptClipper->uDisplayStart++;
         return true;
@@ -744,8 +745,8 @@ pl_step_clipper(plUiClipper* ptClipper)
     {
         if(ptClipper->uDisplayEnd < ptClipper->uItemCount)
         {
-            for(uint32_t i = 0; i < gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.uColumns; i++)
-                pl__advance_cursor(0.0f, (float)(ptClipper->uItemCount - ptClipper->uDisplayEnd) * ptClipper->_fItemHeight);
+            for(uint32_t i = 0; i < gptCtx->ptCurrentWindow->tTempData.tLayoutRow.uColumns; i++)
+                pl__smart_advance_cursor(0.0f, (float)(ptClipper->uItemCount - ptClipper->uDisplayEnd) * ptClipper->_fItemHeight);
         }
 
         ptClipper->uDisplayStart = 0;
@@ -763,14 +764,14 @@ pl_layout_dynamic(float fHeight, uint32_t uWidgetCount)
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
     plUiLayoutRow tNewRow = {
-        .fHeight          = fHeight,
+        .fWidgetHeight    = fHeight,
         .fSpecifiedHeight = fHeight,
         .tType            = PL_UI_LAYOUT_ROW_TYPE_DYNAMIC,
         .tSystemType      = PL_UI_LAYOUT_SYSTEM_TYPE_DYNAMIC,
         .uColumns         = uWidgetCount,
-        .fWidth           = 1.0f / (float)uWidgetCount
+        .fWidgetWidth     = 1.0f / (float)uWidgetCount
     };
-    ptWindow->tTempData.tCurrentLayoutRow = tNewRow;
+    ptWindow->tTempData.tLayoutRow = tNewRow;
 }
 
 void
@@ -779,14 +780,14 @@ pl_layout_static(float fHeight, float fWidth, uint32_t uWidgetCount)
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
     plUiLayoutRow tNewRow = {
-        .fHeight          = fHeight,
+        .fWidgetHeight    = fHeight,
         .fSpecifiedHeight = fHeight,
         .tType            = PL_UI_LAYOUT_ROW_TYPE_STATIC,
         .tSystemType      = PL_UI_LAYOUT_SYSTEM_TYPE_STATIC,
         .uColumns         = uWidgetCount,
-        .fWidth           = fWidth
+        .fWidgetWidth     = fWidth
     };
-    ptWindow->tTempData.tCurrentLayoutRow = tNewRow;
+    ptWindow->tTempData.tLayoutRow = tNewRow;
 }
 
 void
@@ -795,37 +796,37 @@ pl_layout_row_begin(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCoun
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
     plUiLayoutRow tNewRow = {
-        .fHeight          = fHeight,
+        .fWidgetHeight    = fHeight,
         .fSpecifiedHeight = fHeight,
         .tType            = tType,
         .tSystemType      = PL_UI_LAYOUT_SYSTEM_TYPE_ROW_XXX,
         .uColumns         = uWidgetCount
     };
-    ptWindow->tTempData.tCurrentLayoutRow = tNewRow;
+    ptWindow->tTempData.tLayoutRow = tNewRow;
 }
 
 void
 pl_layout_row_push(float fWidth)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     PL_ASSERT(ptCurrentRow->tSystemType == PL_UI_LAYOUT_SYSTEM_TYPE_ROW_XXX);
-    ptCurrentRow->fWidth = fWidth;
+    ptCurrentRow->fWidgetWidth = fWidth;
 }
 
 void
 pl_layout_row_end(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     PL_ASSERT(ptCurrentRow->tSystemType == PL_UI_LAYOUT_SYSTEM_TYPE_ROW_XXX);
-    ptWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, ptWindow->tTempData.tCursorMaxPos.x);
-    ptWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight, ptWindow->tTempData.tCursorMaxPos.y);
-    ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+    ptWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowCursorPos.x + ptCurrentRow->fMaxWidth, ptWindow->tTempData.tCursorMaxPos.x);
+    ptWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight, ptWindow->tTempData.tCursorMaxPos.y);
+    ptWindow->tTempData.tRowCursorPos.y = ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
 
     // temp
     plUiLayoutRow tNewRow = {0};
-    ptWindow->tTempData.tCurrentLayoutRow = tNewRow;
+    ptWindow->tTempData.tLayoutRow = tNewRow;
 }
 
 void
@@ -834,21 +835,21 @@ pl_layout_template_begin(float fHeight)
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
     plUiLayoutRow tNewRow = {
-        .fHeight          = fHeight,
+        .fWidgetHeight    = fHeight,
         .fSpecifiedHeight = fHeight,
         .tType            = PL_UI_LAYOUT_ROW_TYPE_NONE,
         .tSystemType      = PL_UI_LAYOUT_SYSTEM_TYPE_TEMPLATE,
         .uColumns         = 0,
         .uEntryStartIndex = pl_sb_size(ptWindow->sbtRowTemplateEntries)
     };
-    ptWindow->tTempData.tCurrentLayoutRow = tNewRow;
+    ptWindow->tTempData.tLayoutRow = tNewRow;
 }
 
 void
 pl_layout_template_push_dynamic(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     ptCurrentRow->uDynamicEntryCount++;
     pl_sb_add(ptWindow->sbtRowTemplateEntries);
     pl_sb_back(ptWindow->sbtRowTemplateEntries).tType = PL_UI_LAYOUT_ROW_ENTRY_TYPE_DYNAMIC;
@@ -860,9 +861,9 @@ void
 pl_layout_template_push_variable(float fWidth)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     ptCurrentRow->uVariableEntryCount++;
-    ptCurrentRow->fWidth += fWidth;
+    ptCurrentRow->fWidgetWidth += fWidth;
     pl_sb_push(ptWindow->sbuTempLayoutIndexSort, ptCurrentRow->uColumns);
     pl_sb_add(ptWindow->sbtRowTemplateEntries);
     pl_sb_back(ptWindow->sbtRowTemplateEntries).tType = PL_UI_LAYOUT_ROW_ENTRY_TYPE_VARIABLE;
@@ -875,8 +876,8 @@ void
 pl_layout_template_push_static(float fWidth)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
-    ptCurrentRow->fWidth += fWidth;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
+    ptCurrentRow->fWidgetWidth += fWidth;
     ptCurrentRow->uStaticEntryCount++;
     pl_sb_add(ptWindow->sbtRowTemplateEntries);
     pl_sb_back(ptWindow->sbtRowTemplateEntries).tType = PL_UI_LAYOUT_ROW_ENTRY_TYPE_STATIC;
@@ -890,18 +891,31 @@ void
 pl_layout_template_end(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     PL_ASSERT(ptCurrentRow->tSystemType == PL_UI_LAYOUT_SYSTEM_TYPE_TEMPLATE);
-    ptWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, ptWindow->tTempData.tCursorMaxPos.x);
-    ptWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight, ptWindow->tTempData.tCursorMaxPos.y);
-    ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+    ptWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowCursorPos.x + ptCurrentRow->fMaxWidth, ptWindow->tTempData.tCursorMaxPos.x);
+    ptWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight, ptWindow->tTempData.tCursorMaxPos.y);
+    ptWindow->tTempData.tRowCursorPos.y = ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
 
     // total available width minus padding/spacing
-    float fWidthAvailable = 0.0f;
-    if(ptWindow->bScrollbarY)
-        fWidthAvailable = (ptWindow->tSize.x - gptCtx->tStyle.fWindowHorizontalPadding * 2.0f  - gptCtx->tStyle.tItemSpacing.x * (float)(ptCurrentRow->uColumns - 1) - 2.0f - gptCtx->tStyle.fScrollbarSize - (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize);
+
+    float fAvailableSize = 0.0f;
+    if(pl_sb_size(ptWindow->sbfAvailableSizeStack) > 0)
+    {
+        fAvailableSize = pl_sb_top(ptWindow->sbfAvailableSizeStack);
+    }
     else
-        fWidthAvailable = (ptWindow->tSize.x - gptCtx->tStyle.fWindowHorizontalPadding * 2.0f  - gptCtx->tStyle.tItemSpacing.x * (float)(ptCurrentRow->uColumns - 1) - (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize);
+    {
+        fAvailableSize = ptWindow->tSize.x - gptCtx->tStyle.fWindowHorizontalPadding * 2.0f;
+
+        // remove scrollbar if present
+        if(ptWindow->bScrollbarY)
+            fAvailableSize -= (2.0f + gptCtx->tStyle.fScrollbarSize);
+    }
+
+    float fWidthAvailable = fAvailableSize
+        - gptCtx->tStyle.tItemSpacing.x * (float)(ptCurrentRow->uColumns - 1)                // remove spacing between widgets
+        - (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize; // remove indent
 
     // simplest cast, not enough room, so nothing left to distribute to dynamic widths
     if(ptWindow->tTempData.fTempMinWidth >= fWidthAvailable)
@@ -1059,41 +1073,41 @@ pl_layout_space_begin(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCo
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
     plUiLayoutRow tNewRow = {
-        .fHeight          = fHeight,
+        .fWidgetHeight    = fHeight,
         .fSpecifiedHeight = tType == PL_UI_LAYOUT_ROW_TYPE_DYNAMIC ? fHeight : 1.0f,
         .tType            = tType,
         .tSystemType      = PL_UI_LAYOUT_SYSTEM_TYPE_SPACE,
         .uColumns         = uWidgetCount
     };
-    ptWindow->tTempData.tCurrentLayoutRow = tNewRow;
+    ptWindow->tTempData.tLayoutRow = tNewRow;
 }
 
 void
 pl_layout_space_push(float fX, float fY, float fWidth, float fHeight)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
 
     PL_ASSERT(ptCurrentRow->tSystemType == PL_UI_LAYOUT_SYSTEM_TYPE_SPACE);
-    ptCurrentRow->fHorizontalOffset = ptCurrentRow->tType == PL_UI_LAYOUT_ROW_TYPE_DYNAMIC ? fX * ptWindow->tSize.x : fX;
-    ptCurrentRow->fVerticalOffset = fY * ptCurrentRow->fSpecifiedHeight;
-    ptCurrentRow->fWidth = fWidth;
-    ptCurrentRow->fHeight = fHeight * ptCurrentRow->fSpecifiedHeight;
+    ptCurrentRow->fWidgetXOffset = ptCurrentRow->tType == PL_UI_LAYOUT_ROW_TYPE_DYNAMIC ? fX * ptWindow->tSize.x : fX;
+    ptCurrentRow->fWidgetYOffset = fY * ptCurrentRow->fSpecifiedHeight;
+    ptCurrentRow->fWidgetWidth = fWidth;
+    ptCurrentRow->fWidgetHeight = fHeight * ptCurrentRow->fSpecifiedHeight;
 }
 
 void
 pl_layout_space_end(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     PL_ASSERT(ptCurrentRow->tSystemType == PL_UI_LAYOUT_SYSTEM_TYPE_SPACE);
-    ptWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, ptWindow->tTempData.tCursorMaxPos.x);
-    ptWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight, ptWindow->tTempData.tCursorMaxPos.y);
-    ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+    ptWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowCursorPos.x + ptCurrentRow->fMaxWidth, ptWindow->tTempData.tCursorMaxPos.x);
+    ptWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight, ptWindow->tTempData.tCursorMaxPos.y);
+    ptWindow->tTempData.tRowCursorPos.y = ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
 
     // temp
     plUiLayoutRow tNewRow = {0};
-    ptWindow->tTempData.tCurrentLayoutRow = tNewRow;
+    ptWindow->tTempData.tLayoutRow = tNewRow;
 }
 
 bool
@@ -1301,7 +1315,7 @@ static void
 pl__add_clipped_text(plDrawLayer2D* ptLayer, plFont* ptFont, float fSize, plVec2 tP, plVec2 tMin, plVec2 tMax, uint32_t uColor, const char* pcText, float fWrap)
 {
     const char* pcTextEnd = pcText + strlen(pcText);
-    gptDraw->add_text_clipped(ptLayer, (plVec2){roundf(tP.x + 0.5f), roundf(tP.y + 0.5f)}, pcText, tMin, tMax,
+    gptDraw->add_text_clipped(ptLayer, (plVec2){roundf(tP.x), roundf(tP.y)}, pcText, tMin, tMax,
         (plDrawTextOptions){
             .fSize = fSize,
             .fWrap = fWrap,
@@ -1441,8 +1455,11 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 
     // reset per frame window temporary data
     memset(&ptWindow->tTempData, 0, sizeof(plUiTempWindowData));
+    pl_sb_reset(ptWindow->sbfAvailableSizeStack);
+    pl_sb_reset(ptWindow->sbfMaxCursorYStack);
     pl_sb_reset(ptWindow->sbtChildWindows);
     pl_sb_reset(ptWindow->sbtRowStack);
+    pl_sb_reset(ptWindow->sbtCursorStack);
     pl_sb_reset(ptWindow->sbtRowTemplateEntries);
 
     // clamp window size to min/max
@@ -1629,7 +1646,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     // update layout cursors
     ptWindow->tTempData.tCursorStartPos.x = gptCtx->tStyle.fWindowHorizontalPadding + tStartPos.x - ptWindow->tScroll.x;
     ptWindow->tTempData.tCursorStartPos.y = gptCtx->tStyle.fWindowVerticalPadding + tStartPos.y + fTitleBarHeight - ptWindow->tScroll.y;
-    ptWindow->tTempData.tRowPos = ptWindow->tTempData.tCursorStartPos;
+    ptWindow->tTempData.tRowCursorPos = ptWindow->tTempData.tCursorStartPos;
     ptWindow->tTempData.tCursorStartPos = pl_floor_vec2(ptWindow->tTempData.tCursorStartPos);
     ptWindow->tTempData.fTitleBarHeight = fTitleBarHeight;
 
@@ -1701,10 +1718,13 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         // draw border
         if(!(tFlags & PL_UI_WINDOW_FLAGS_NO_BACKGROUND))
         {
-            gptDraw->add_rect_rounded(
-                ptWindow->ptFgLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax,
-                gptCtx->tStyle.fWindowRounding, 0, 0,
-                (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tWindowBorderColor)});
+            if(gptCtx->tStyle.iWindowBorderSize != 0)
+            {
+                gptDraw->add_rect_rounded(
+                    ptWindow->ptFgLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax,
+                    gptCtx->tStyle.fWindowRounding, 0, 0,
+                    (plDrawLineOptions){.fThickness = (float)gptCtx->tStyle.iWindowBorderSize, .uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tWindowBorderColor)});
+            }
             gptDraw->add_rect_rounded_filled(
                 ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tStyle.fWindowRounding,
                 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM,
@@ -1893,8 +1913,18 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             else if(gptCtx->uActiveId == uVerticalScrollHash)
             {
                 gptCtx->ptScrollingWindow = ptWindow;
-
-                if(tMousePos.y > ptWindow->tPos.y && tMousePos.y < ptWindow->tPos.y + ptWindow->tSize.y)
+                
+                if(tMousePos.y < ptWindow->tPos.y)
+                {
+                    ptWindow->tScroll.y = 0.0f;
+                    gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+                }
+                else if(tMousePos.y > ptWindow->tPos.y + ptWindow->tSize.y)
+                {
+                    ptWindow->tScroll.y = ptWindow->tScrollMax.y;
+                    gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+                }
+                else
                 {
                     const float fScrollConversion = roundf(ptWindow->tContentSize.y / ptWindow->tSize.y);
                     ptWindow->tScroll.y += gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).y * fScrollConversion;
@@ -1908,7 +1938,17 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             {
                 gptCtx->ptScrollingWindow = ptWindow;
 
-                if(tMousePos.x > ptWindow->tPos.x && tMousePos.x < ptWindow->tPos.x + ptWindow->tSize.x)
+                if(tMousePos.x < ptWindow->tPos.x)
+                {
+                    ptWindow->tScroll.x = 0.0f;
+                    gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+                }
+                else if(tMousePos.x > ptWindow->tPos.x + ptWindow->tSize.x)
+                {
+                    ptWindow->tScroll.x = ptWindow->tScrollMax.x;
+                    gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+                }
+                else
                 {
                     const float fScrollConversion = roundf(ptWindow->tContentSize.x / ptWindow->tSize.x);
                     ptWindow->tScroll.x += gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fScrollConversion;
@@ -1962,7 +2002,7 @@ pl__render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis)
         // this is needed if autosizing and parent changes sizes
         ptWindow->tScroll.x = pl_clampf(0.0f, ptWindow->tScroll.x, ptWindow->tScrollMax.x);
 
-        const float fScrollbarHandleSize  = pl_maxf(5.0f, floorf((ptWindow->tSize.x - fRightSidePadding) * ((ptWindow->tSize.x - fRightSidePadding) / (ptWindow->tContentSize.x))));
+        const float fScrollbarHandleSize  = pl_maxf(12.0f, floorf((ptWindow->tSize.x - fRightSidePadding) * ((ptWindow->tSize.x - fRightSidePadding) / (ptWindow->tContentSize.x))));
         const float fScrollbarHandleStart = floorf((ptWindow->tSize.x - fRightSidePadding - fScrollbarHandleSize) * (ptWindow->tScroll.x/(ptWindow->tScrollMax.x)));
         
         const plVec2 tStartPos = pl_add_vec2(ptWindow->tPos, (plVec2){fScrollbarHandleStart, ptWindow->tSize.y - gptCtx->tStyle.fScrollbarSize - 2.0f});
@@ -2001,7 +2041,7 @@ pl__render_scrollbar(plUiWindow* ptWindow, uint32_t uHash, plUiAxis tAxis)
         // this is needed if autosizing and parent changes sizes
         ptWindow->tScroll.y = pl_clampf(0.0f, ptWindow->tScroll.y, ptWindow->tScrollMax.y);
 
-        const float fScrollbarHandleSize  = pl_maxf(5.0f, floorf((ptWindow->tSize.y - fTopPadding - fBottomPadding) * ((ptWindow->tSize.y - fTopPadding - fBottomPadding) / (ptWindow->tContentSize.y))));
+        const float fScrollbarHandleSize  = pl_maxf(12.0f, floorf((ptWindow->tSize.y - fTopPadding - fBottomPadding) * ((ptWindow->tSize.y - fTopPadding - fBottomPadding) / (ptWindow->tContentSize.y))));
         const float fScrollbarHandleStart = floorf((ptWindow->tSize.y - fTopPadding - fBottomPadding - fScrollbarHandleSize) * (ptWindow->tScroll.y / (ptWindow->tScrollMax.y)));
 
         const plVec2 tStartPos = pl_add_vec2(ptWindow->tPos, (plVec2){ptWindow->tSize.x - gptCtx->tStyle.fScrollbarSize - 2.0f, fTopPadding + fScrollbarHandleStart});
@@ -2044,10 +2084,9 @@ static plVec2
 pl__calculate_item_size(float fDefaultHeight)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
 
-    float fHeight = ptCurrentRow->fHeight;
-
+    float fHeight = ptCurrentRow->fWidgetHeight;
     if(fHeight == 0.0f)
         fHeight = fDefaultHeight;
 
@@ -2061,16 +2100,29 @@ pl__calculate_item_size(float fDefaultHeight)
     {
         // when passed array of sizes/ratios, override
         if(ptCurrentRow->pfSizesOrRatios)
-            ptCurrentRow->fWidth = ptCurrentRow->pfSizesOrRatios[ptCurrentRow->uCurrentColumn];
+            ptCurrentRow->fWidgetWidth = ptCurrentRow->pfSizesOrRatios[ptCurrentRow->uCurrentColumn];
 
-        float fWidth = ptCurrentRow->fWidth;
+        float fWidth = ptCurrentRow->fWidgetWidth;
 
         if(ptCurrentRow->tType ==  PL_UI_LAYOUT_ROW_TYPE_DYNAMIC) // width was a ratio
         {
-            if(ptWindow->bScrollbarY)
-                fWidth *= (ptWindow->tSize.x - gptCtx->tStyle.fWindowHorizontalPadding * 2.0f  - gptCtx->tStyle.tItemSpacing.x * (float)(ptCurrentRow->uColumns - 1) - 2.0f - gptCtx->tStyle.fScrollbarSize - (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize);
+            float fAvailableSize = 0.0f;
+            if(pl_sb_size(ptWindow->sbfAvailableSizeStack) > 0)
+            {
+                fAvailableSize = pl_sb_top(ptWindow->sbfAvailableSizeStack);
+            }
             else
-                fWidth *= (ptWindow->tSize.x - gptCtx->tStyle.fWindowHorizontalPadding * 2.0f  - gptCtx->tStyle.tItemSpacing.x * (float)(ptCurrentRow->uColumns - 1) - (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize);
+            {
+                fAvailableSize = ptWindow->tSize.x - gptCtx->tStyle.fWindowHorizontalPadding * 2.0f;
+                if(ptWindow->bScrollbarY)
+                    fAvailableSize -= (2.0f + gptCtx->tStyle.fScrollbarSize);
+            }
+
+            float fTotalWidthAvailable = fAvailableSize
+                - gptCtx->tStyle.tItemSpacing.x * (float)(ptCurrentRow->uColumns - 1)                // remove spacing between widgets
+                - (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize; // remove indent
+
+            fWidth *= fTotalWidthAvailable;
         }
 
         const plVec2 tWidgetSize = { fWidth, fHeight};
@@ -2079,34 +2131,53 @@ pl__calculate_item_size(float fDefaultHeight)
 }
 
 static void
-pl__advance_cursor(float fWidth, float fHeight)
+pl__advance_cursor(plVec2 tOffset)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    ptWindow->tTempData.tRowCursorPos = pl_add_vec2(ptWindow->tTempData.tRowCursorPos, tOffset);
+}
+
+static void
+pl__set_cursor(plVec2 tPos)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    ptWindow->tTempData.tRowCursorPos = tPos;
+}
+
+static void
+pl__smart_advance_cursor(float fWidth, float fHeight)
+{
+    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
 
     ptCurrentRow->uCurrentColumn++;
     
-    ptCurrentRow->fMaxWidth = pl_maxf(ptCurrentRow->fHorizontalOffset + fWidth, ptCurrentRow->fMaxWidth);
-    ptCurrentRow->fMaxHeight = pl_maxf(ptCurrentRow->fMaxHeight, ptCurrentRow->fVerticalOffset + fHeight);
+    ptCurrentRow->fMaxWidth = pl_maxf(ptCurrentRow->fWidgetXOffset + fWidth, ptCurrentRow->fMaxWidth);
+    ptCurrentRow->fMaxHeight = pl_maxf(ptCurrentRow->fMaxHeight, ptCurrentRow->fWidgetYOffset + fHeight);
 
     // not yet at end of row
     if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
-        ptCurrentRow->fHorizontalOffset += fWidth + gptCtx->tStyle.tItemSpacing.x;
+        ptCurrentRow->fWidgetXOffset += fWidth + gptCtx->tStyle.tItemSpacing.x;
 
     // automatic wrap
     if(ptCurrentRow->uCurrentColumn == ptCurrentRow->uColumns && ptCurrentRow->tSystemType != PL_UI_LAYOUT_SYSTEM_TYPE_ROW_XXX)
     {
-        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+        ptWindow->tTempData.tRowCursorPos.y = ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
 
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowCursorPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowCursorPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
 
         // reset
         ptCurrentRow->uCurrentColumn = 0;
         ptCurrentRow->fMaxWidth = 0.0f;
         ptCurrentRow->fMaxHeight = 0.0f;
-        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
-        ptCurrentRow->fVerticalOffset = 0.0f;
+        ptCurrentRow->fWidgetXOffset = ptWindow->tTempData.fExtraIndent;
+        ptCurrentRow->fWidgetYOffset = 0.0f;
+    }
+
+    if(pl_sb_size(ptWindow->sbfMaxCursorYStack) > 0)
+    {
+        pl_sb_top(ptWindow->sbfMaxCursorYStack) = pl_maxf(pl_sb_top(ptWindow->sbfMaxCursorYStack), ptWindow->tTempData.tRowCursorPos.y);
     }
 
     // passed end of row
@@ -2192,6 +2263,9 @@ pl_ui_cleanup(void)
         {
             pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->tStorage.sbtData);
             pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbtRowStack);
+            pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbfAvailableSizeStack);
+            pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbfMaxCursorYStack);
+            pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbtCursorStack);
             pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbtRowTemplateEntries);
             pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbtTempLayoutSort);
             pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows[j]->sbuTempLayoutIndexSort);
@@ -2201,7 +2275,10 @@ pl_ui_cleanup(void)
         }
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->tStorage.sbtData);
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtChildWindows);
+        pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbfAvailableSizeStack);
+        pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbfMaxCursorYStack);
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtRowStack);
+        pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtCursorStack);
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtRowTemplateEntries);
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbtTempLayoutSort);
         pl_sb_free(gptCtx->sbptFocusedWindows[i]->sbuTempLayoutIndexSort);

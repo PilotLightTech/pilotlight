@@ -130,6 +130,7 @@ pl_show_style_editor_window(bool* pbOpen)
                 pl_separator_text("Window");
                 pl_slider_float("Horizontal Padding## window", &ptStyle->fWindowHorizontalPadding, 0.0f, 32.0f, 0);
                 pl_slider_float("Vertical Padding## window", &ptStyle->fWindowVerticalPadding, 0.0f, 32.0f, 0);
+                pl_slider_int("Border Size## window", &ptStyle->iWindowBorderSize, 0, 1, 0);
 
                 pl_vertical_spacing();
                 pl_separator_text("Scrollbar");
@@ -174,19 +175,19 @@ pl_show_demo_window(bool* pbOpen)
         static const float pfRatios0[] = {1.0f};
         pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios0);
 
-        if(pl_collapsing_header("Help", 0))
+        if(pl_begin_collapsing_header("Help", 0))
         {
             pl_text("Under construction");
             pl_end_collapsing_header();
         }
     
-        if(pl_collapsing_header("Window Options", 0))
+        if(pl_begin_collapsing_header("Window Options", 0))
         {
             pl_text("Under construction");
             pl_end_collapsing_header();
         }
 
-        if(pl_collapsing_header("Widgets", 0))
+        if(pl_begin_collapsing_header("Widgets", 0))
         {
             if(pl_tree_node("Basic", 0))
             {
@@ -468,7 +469,7 @@ pl_show_demo_window(bool* pbOpen)
             pl_end_collapsing_header();
         }
 
-        if(pl_collapsing_header("Scrolling", 0))
+        if(pl_begin_collapsing_header("Scrolling", 0))
         {
             const float pfRatios2[] = {0.5f, 0.50f};
             const float pfRatios3[] = {600.0f};
@@ -524,7 +525,7 @@ pl_show_demo_window(bool* pbOpen)
             pl_end_collapsing_header();
         }
 
-        if(pl_collapsing_header("Layout Systems", 0))
+        if(pl_begin_collapsing_header("Layout Systems", 0))
         {
             pl_text("General Notes");
             pl_text("  - systems ordered by increasing flexibility");
@@ -549,7 +550,7 @@ pl_show_demo_window(bool* pbOpen)
                 pl_separator_text("Example");
                 pl_layout_dynamic(fWidgetHeight, (uint32_t)iWidgetCount);
                 pl_vertical_spacing();
-                for(int i = 0; i < iWidgetCount * 2 - 1; i++)
+                for(int i = 0; i < iWidgetCount * 2; i++)
                 {
                     pl_sb_sprintf(gptCtx->sbcTempBuffer, "Button %d", i);
                     pl_button(gptCtx->sbcTempBuffer);
@@ -579,7 +580,7 @@ pl_show_demo_window(bool* pbOpen)
                 pl_separator_text("Example");
                 pl_layout_static(fWidgetHeight, fWidgetWidth, (uint32_t)iWidgetCount);
                 pl_vertical_spacing();
-                for(int i = 0; i < iWidgetCount * 2 - 1; i++)
+                for(int i = 0; i < iWidgetCount * 2; i++)
                 {
                     pl_sb_sprintf(gptCtx->sbcTempBuffer, "Button %d", i);
                     pl_button(gptCtx->sbcTempBuffer);
@@ -810,6 +811,98 @@ pl_show_demo_window(bool* pbOpen)
                 pl_button("x0.5 y0.5 w0.5 h0.5");
 
                 pl_layout_space_end();
+
+                pl_tree_pop();
+            }
+
+            if(pl_tree_node("Misc. Testing", 0))
+            {
+                const float pfRatios[] = {1.0f};
+                const float pfRatios2[] = {0.5f, 0.5f};
+                const float pfRatios3[] = {0.5f * 0.5f, 0.25f * 0.5f, 0.25f * 0.5f};
+                pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
+                if(pl_begin_collapsing_header("Information", 0))
+                {
+                    pl_text("Pilot Light %s", PILOT_LIGHT_VERSION);
+                    #ifdef PL_METAL_BACKEND
+                    pl_text("Graphics Backend: Metal");
+                    #elif PL_VULKAN_BACKEND
+                    pl_text("Graphics Backend: Vulkan");
+                    #else
+                    pl_text("Graphics Backend: Unknown");
+                    #endif
+
+                    pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 3, pfRatios3);
+                    if(pl_begin_collapsing_header("sub0", 0))
+                    {
+                        pl_text("Pilot Light %s", PILOT_LIGHT_VERSION);
+                        pl_end_collapsing_header();
+                    }
+                    if(pl_begin_collapsing_header("sub1", 0))
+                    {
+                        pl_text("Pilot Light %s", PILOT_LIGHT_VERSION);
+                        pl_text("Pilot Light %s", PILOT_LIGHT_VERSION);
+                        pl_end_collapsing_header();
+                    }
+                    if(pl_begin_collapsing_header("sub2", 0))
+                    {
+                        pl_text("Pilot Light %s", PILOT_LIGHT_VERSION);
+                        pl_text("Pilot Light %s", PILOT_LIGHT_VERSION);
+                        pl_text("Pilot Light %s", PILOT_LIGHT_VERSION);
+                        pl_end_collapsing_header();
+                    }
+
+                    pl_end_collapsing_header();
+                }
+                if(pl_begin_collapsing_header("App Options", 0))
+                {
+                    pl_checkbox("Freeze Culling Camera", NULL);
+                    int iCascadeCount  = 2;
+                    pl_slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0);
+
+                    pl_end_collapsing_header();
+                }
+                
+                if(pl_begin_collapsing_header("Graphics", 0))
+                {
+                    pl_checkbox("Freeze Culling Camera", NULL);
+                    int iCascadeCount  = 2;
+                    pl_slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0);
+
+                    pl_end_collapsing_header();
+                }
+                if(pl_begin_tab_bar("tab bar2", 0))
+                {
+                    if(pl_begin_tab("tab0000000000", 0))
+                    {
+                        pl_checkbox("Entities", NULL);
+                        pl_end_tab();
+                    }
+                    if(pl_begin_tab("tab1", 0))
+                    {
+                        pl_checkbox("Profiling", NULL);
+                        pl_checkbox("Profiling", NULL);
+                        pl_checkbox("Profiling", NULL);
+                        pl_checkbox("Profiling", NULL);
+                        pl_end_tab();
+                    }
+                    pl_end_tab_bar();
+                }
+
+                pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+                if(pl_begin_collapsing_header("Tools", 0))
+                {
+                    pl_checkbox("Device Memory Analyzer", NULL);
+                    pl_checkbox("Device Memory Analyzer", NULL);
+                    pl_end_collapsing_header();
+                }
+
+                if(pl_begin_collapsing_header("Debug", 0))
+                {
+                    pl_button("resize");
+                    pl_checkbox("Always Resize", NULL);
+                    pl_end_collapsing_header();
+                }
 
                 pl_tree_pop();
             }

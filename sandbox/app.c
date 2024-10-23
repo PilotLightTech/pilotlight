@@ -374,10 +374,10 @@ pl_app_update(plEditorData* ptEditorData)
     {
 
         const float pfRatios[] = {1.0f};
+        const float pfRatios2[] = {0.5f, 0.5f};
         gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
         if(gptUi->begin_collapsing_header(ICON_FA_CIRCLE_INFO " Information", 0))
         {
-            
             gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION);
             #ifdef PL_METAL_BACKEND
             gptUi->text("Graphics Backend: Metal");
@@ -386,7 +386,6 @@ pl_app_update(plEditorData* ptEditorData)
             #else
             gptUi->text("Graphics Backend: Unknown");
             #endif
-
             gptUi->end_collapsing_header();
         }
         if(gptUi->begin_collapsing_header(ICON_FA_SLIDERS " App Options", 0))
@@ -405,9 +404,10 @@ pl_app_update(plEditorData* ptEditorData)
 
             gptUi->end_collapsing_header();
         }
-
+        
         gptRenderer->show_graphics_options(ICON_FA_DICE_D6 " Graphics");
 
+        gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
         if(gptUi->begin_collapsing_header(ICON_FA_SCREWDRIVER_WRENCH " Tools", 0))
         {
             gptUi->checkbox("Device Memory Analyzer", &ptEditorData->tDebugInfo.bShowDeviceMemoryAnalyzer);
@@ -418,7 +418,40 @@ pl_app_update(plEditorData* ptEditorData)
             gptUi->checkbox("Entities", &ptEditorData->bShowEntityWindow);
             gptUi->end_collapsing_header();
         }
+        if(gptUi->begin_collapsing_header(ICON_FA_USER_GEAR " User Interface", 0))
+        {
+            gptUi->checkbox("UI Debug", &ptEditorData->bShowUiDebug);
+            gptUi->checkbox("UI Demo", &ptEditorData->bShowUiDemo);
+            gptUi->checkbox("UI Style", &ptEditorData->bShowUiStyle);
 
+            gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
+
+            if(gptUi->begin_collapsing_header("Blah 0", 0))
+            {
+                gptUi->checkbox("UI Debug", &ptEditorData->bShowUiDebug);
+                gptUi->end_collapsing_header();
+            }
+            if(gptUi->begin_collapsing_header("Blah 1", 0))
+            {
+                gptUi->checkbox("UI Debug", &ptEditorData->bShowUiDebug);
+                gptUi->end_collapsing_header();
+            }
+
+            if(gptUi->begin_collapsing_header("Blah 2", 0))
+            {
+                gptUi->checkbox("UI Debug", &ptEditorData->bShowUiDebug);
+                gptUi->end_collapsing_header();
+            }
+            if(gptUi->begin_collapsing_header("Blah 3", 0))
+            {
+                gptUi->checkbox("UI Debug", &ptEditorData->bShowUiDebug);
+                gptUi->end_collapsing_header();
+            }
+
+            gptUi->end_collapsing_header();
+        }
+
+        gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
         if(gptUi->begin_collapsing_header(ICON_FA_BUG " Debug", 0))
         {
             if(gptUi->button("resize"))
@@ -433,13 +466,7 @@ pl_app_update(plEditorData* ptEditorData)
             gptUi->end_collapsing_header();
         }
 
-        if(gptUi->begin_collapsing_header(ICON_FA_USER_GEAR " User Interface", 0))
-        {
-            gptUi->checkbox("UI Debug", &ptEditorData->bShowUiDebug);
-            gptUi->checkbox("UI Demo", &ptEditorData->bShowUiDemo);
-            gptUi->checkbox("UI Style", &ptEditorData->bShowUiStyle);
-            gptUi->end_collapsing_header();
-        }
+
         gptUi->end_window();
     }
 

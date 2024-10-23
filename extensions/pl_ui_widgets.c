@@ -541,7 +541,7 @@ pl_button(const char* pcText)
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, tBoundingBox.tMin, tBoundingBox.tMax, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcText, 0.0f);
         pl__add_widget(uHash);
     }
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed;
 }
 
@@ -554,7 +554,7 @@ pl_selectable(const char* pcText, bool* bpValue, plUiSelectableFlags tFlags)
     if(bpValue == NULL) bpValue = &bDummyState;
 
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
 
@@ -595,10 +595,11 @@ pl_selectable(const char* pcText, bool* bpValue, plUiSelectableFlags tFlags)
         if(*bpValue)
             gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tStartPos, tEndPos, 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tHeaderCol)});
 
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcText, -1.0f);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            tTextStartPos, tStartPos, pl_add_vec2(tStartPos, tWidgetSize), PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcText, -1.0f);
         pl__add_widget(uHash);
     }
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed; 
 }
 
@@ -607,7 +608,7 @@ pl_menu_item(const char* pcLabel, const char* pcShortcut, bool bSelected, bool b
 {
 
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
 
@@ -672,7 +673,7 @@ pl_menu_item(const char* pcLabel, const char* pcShortcut, bool bSelected, bool b
         }
         pl__add_widget(uHash);
     }
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed; 
 }
 
@@ -685,7 +686,7 @@ pl_menu_item_toggle(const char* pcLabel, const char* pcShortcut, bool* pbSelecte
     if(pbSelected == NULL) pbSelected = &bDummyState;
 
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
 
@@ -751,7 +752,7 @@ pl_menu_item_toggle(const char* pcLabel, const char* pcShortcut, bool* pbSelecte
         }
         pl__add_widget(uHash);
     }
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed && *pbSelected; 
 }
 
@@ -763,7 +764,7 @@ pl_checkbox(const char* pcText, bool* bpValue)
     if(bpValue == NULL) bpValue = &bDummyState;
 
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
 
@@ -810,7 +811,7 @@ pl_checkbox(const char* pcText, bool* bpValue)
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, tStartPos, pl_add_vec2(tStartPos, tWidgetSize), PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcText, -1.0f); 
         pl__add_widget(uHash);
     }
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed;
 }
 
@@ -818,7 +819,7 @@ bool
 pl_radio_button(const char* pcText, int* piValue, int iButtonValue)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
 
@@ -864,7 +865,7 @@ pl_radio_button(const char* pcText, int* piValue, int iButtonValue)
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, tStartPos, pl_add_vec2(tStartPos, tWidgetSize), PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcText, -1.0f); 
         pl__add_widget(uHash);
     }
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bPressed;
 }
 
@@ -873,7 +874,7 @@ pl_begin_combo(const char* pcLabel, const char* pcPreview, plUiComboFlags tFlags
 {
 
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
 
@@ -959,7 +960,7 @@ pl_begin_combo(const char* pcLabel, const char* pcPreview, plUiComboFlags tFlags
         pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcPreview, -1.0f);
 
         pl__add_widget(uHash);
-        pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+        pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 
         if(bPopupOpen)
         {
@@ -988,7 +989,7 @@ pl_begin_combo(const char* pcLabel, const char* pcPreview, plUiComboFlags tFlags
     }
     else
     {
-        pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+        pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     }
 
     if(bResult)
@@ -1009,7 +1010,7 @@ pl_begin_menu(const char* pcLabel, bool bEnabled)
 {
 
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
 
@@ -1062,7 +1063,7 @@ pl_begin_menu(const char* pcLabel, bool bEnabled)
         gptDraw->add_triangle_filled(ptWindow->ptFgLayer, pointPos, rightPos, leftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_WHITE});
 
         pl__add_widget(uHash);
-        pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+        pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 
         if(bPopupOpen)
         {
@@ -1087,7 +1088,7 @@ pl_begin_menu(const char* pcLabel, bool bEnabled)
     }
     else
     {
-        pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+        pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     }
     pl_sb_reset(gptCtx->sbcTempBuffer);
     return bResult;  
@@ -1100,10 +1101,10 @@ pl_end_menu(void)
 }
 
 bool
-pl_collapsing_header(const char* pcText, plUiTreeNodeFlags tFlags)
+pl_begin_collapsing_header(const char* pcText, plUiTreeNodeFlags tFlags)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
     const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
@@ -1154,13 +1155,42 @@ pl_collapsing_header(const char* pcText, plUiTreeNodeFlags tFlags)
             gptDraw->add_triangle_filled(ptWindow->ptFgLayer, pointPos, rightPos, leftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_WHITE});
         }
 
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcText, -1.0f);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            tTextStartPos, tBoundingBox.tMin, tBoundingBox.tMax,
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcText, -1.0f);
     }
-    if(*pbOpenState)
-        pl_sb_push(ptWindow->sbtRowStack, ptWindow->tTempData.tCurrentLayoutRow);
 
     pl__add_widget(uHash);
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+
+    if(*pbOpenState)
+    {
+        pl_sb_push(gptCtx->sbuIdStack, uHash);
+
+        // push cursor info onto stack
+        plUiCursorStackItem tCursorStackItem = {
+            .tPos      = ptWindow->tTempData.tRowCursorPos
+        };
+        pl_sb_push(ptWindow->sbtCursorStack, tCursorStackItem);
+
+        // adjust next cursor
+        pl__set_cursor((plVec2){tStartPos.x, tStartPos.y + tWidgetSize.y + gptCtx->tStyle.tItemSpacing.y});
+
+        // push current layout onto stack
+        pl_sb_push(ptWindow->sbtRowStack, ptWindow->tTempData.tLayoutRow);
+
+        pl_layout_static(0.0f, tWidgetSize.x, 1);
+
+        pl_sb_push(ptWindow->sbfAvailableSizeStack, tWidgetSize.x);
+        if(pl_sb_size(ptWindow->sbfMaxCursorYStack) > 0)
+        {
+            float fLastMax = pl_sb_top(ptWindow->sbfMaxCursorYStack);
+            pl_sb_push(ptWindow->sbfMaxCursorYStack, fLastMax);
+        }
+        else
+            pl_sb_push(ptWindow->sbfMaxCursorYStack, tStartPos.y + tWidgetSize.y + gptCtx->tStyle.tItemSpacing.y);
+    }
+
     return *pbOpenState; 
 }
 
@@ -1168,15 +1198,38 @@ void
 pl_end_collapsing_header(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    ptWindow->tTempData.tCurrentLayoutRow = pl_sb_pop(ptWindow->sbtRowStack);
+    pl_sb_pop(ptWindow->sbfAvailableSizeStack);
+    pl_sb_pop(gptCtx->sbuIdStack);
+    // plUiLayoutRow tCurrentRow = ptWindow->tTempData.tLayoutRow;
+    ptWindow->tTempData.tLayoutRow = pl_sb_pop(ptWindow->sbtRowStack);
+    plVec2 tNewCursor = ptWindow->tTempData.tRowCursorPos;
+
+    plUiCursorStackItem tOldCursorInfo = pl_sb_pop(ptWindow->sbtCursorStack);
+
+    // did we wrap?
+    if(ptWindow->tTempData.tLayoutRow.uCurrentColumn == 0)
+    {
+        // pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, tNewCursor.y});
+        pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, pl_sb_pop(ptWindow->sbfMaxCursorYStack)});
+
+        if(pl_sb_size(ptWindow->sbfMaxCursorYStack) == 0)
+            pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, ptWindow->tTempData.tCursorMaxPos.y});
+    }
+    else
+    {
+        if(pl_sb_size(ptWindow->sbfMaxCursorYStack) > 0)
+        {
+            pl_sb_pop(ptWindow->sbfMaxCursorYStack);
+        }
+        pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, tOldCursorInfo.tPos.y});
+        ptWindow->tTempData.tLayoutRow.fMaxHeight = pl_maxf(ptWindow->tTempData.tLayoutRow.fMaxHeight - gptCtx->tStyle.tItemSpacing.y, tNewCursor.y - tOldCursorInfo.tPos.y);
+    }
 }
 
 bool
 pl_tree_node(const char* pcText, plUiTreeNodeFlags tFlags)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    pl_sb_push(ptWindow->sbtRowStack, ptWindow->tTempData.tCurrentLayoutRow);
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
 
@@ -1186,7 +1239,7 @@ pl_tree_node(const char* pcText, plUiTreeNodeFlags tFlags)
     if(pl__ui_should_render(&tStartPos, &tWidgetSize))
     {
 
-                plRect tTextBounding = gptDraw->calculate_text_bb(tStartPos, pcText,
+        plRect tTextBounding = gptDraw->calculate_text_bb(tStartPos, pcText,
             (plDrawTextOptions){
                 .ptFont = gptCtx->tFont,
                 .fSize = gptCtx->tStyle.fFontSize,
@@ -1228,16 +1281,38 @@ pl_tree_node(const char* pcText, plUiTreeNodeFlags tFlags)
             .x = tStartPos.x + tWidgetSize.y * 1.5f,
             .y = tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y
         };
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcText, -1.0f);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            tTextStartPos, tStartPos, pl_add_vec2(tStartPos, tWidgetSize), PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcText, -1.0f);
     }
     pl__add_widget(uHash);
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 
     if(*pbOpenState)
     {
+        pl_sb_push(ptWindow->sbfAvailableSizeStack, tWidgetSize.x);
         ptWindow->tTempData.uTreeDepth++;
-        pl_sb_push(ptWindow->sbtRowStack, ptWindow->tTempData.tCurrentLayoutRow);
         pl_sb_push(gptCtx->sbuIdStack, uHash);
+
+        // push cursor info onto stack
+        plUiCursorStackItem tCursorStackItem = {
+            .tPos      = ptWindow->tTempData.tRowCursorPos
+        };
+        pl_sb_push(ptWindow->sbtCursorStack, tCursorStackItem);
+
+        // adjust next cursor
+        pl__set_cursor((plVec2){tStartPos.x + (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize, tStartPos.y + tWidgetSize.y + gptCtx->tStyle.tItemSpacing.y});
+
+        // push current layout onto stack
+        pl_sb_push(ptWindow->sbtRowStack, ptWindow->tTempData.tLayoutRow);
+
+        pl_layout_static(0.0f, tWidgetSize.x, 1);
+        if(pl_sb_size(ptWindow->sbfMaxCursorYStack) > 0)
+        {
+            float fLastMax = pl_sb_top(ptWindow->sbfMaxCursorYStack);
+            pl_sb_push(ptWindow->sbfMaxCursorYStack, fLastMax);
+        }
+        else
+            pl_sb_push(ptWindow->sbfMaxCursorYStack, tStartPos.y + tWidgetSize.y + gptCtx->tStyle.tItemSpacing.y);
     }
 
     return *pbOpenState; 
@@ -1267,25 +1342,28 @@ pl_tree_pop(void)
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     ptWindow->tTempData.uTreeDepth--;
     pl_sb_pop(gptCtx->sbuIdStack);
+    pl_sb_pop(ptWindow->sbfAvailableSizeStack);
 
-    // performs cursor increase if previous system didn't get a chance to wrap
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
-    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
+    ptWindow->tTempData.tLayoutRow = pl_sb_pop(ptWindow->sbtRowStack);
+    plVec2 tNewCursor = ptWindow->tTempData.tRowCursorPos;
+
+    plUiCursorStackItem tOldCursorInfo = pl_sb_pop(ptWindow->sbtCursorStack);
+    if(ptWindow->tTempData.tLayoutRow.uCurrentColumn == 0)
     {
-        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+        pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, pl_sb_pop(ptWindow->sbfMaxCursorYStack)});
 
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
-
-        // reset
-        ptCurrentRow->uCurrentColumn = 0;
-        ptCurrentRow->fMaxWidth = 0.0f;
-        ptCurrentRow->fMaxHeight = 0.0f;
-        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
-        ptCurrentRow->fVerticalOffset = 0.0f;
+        if(pl_sb_size(ptWindow->sbfMaxCursorYStack) == 0)
+            pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, ptWindow->tTempData.tCursorMaxPos.y});
     }
-
-    ptWindow->tTempData.tCurrentLayoutRow = pl_sb_pop(ptWindow->sbtRowStack);
+    else
+    {
+        if(pl_sb_size(ptWindow->sbfMaxCursorYStack) > 0)
+        {
+            pl_sb_pop(ptWindow->sbfMaxCursorYStack);
+        }
+        pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, tOldCursorInfo.tPos.y});
+        ptWindow->tTempData.tLayoutRow.fMaxHeight = pl_maxf(ptWindow->tTempData.tLayoutRow.fMaxHeight - gptCtx->tStyle.tItemSpacing.y, tNewCursor.y - tOldCursorInfo.tPos.y);
+    }
 }
 
 bool
@@ -1296,14 +1374,8 @@ pl_begin_tab_bar(const char* pcText, plUiTabBarFlags tFlags)
 
     const plVec2 tStartPos   = pl__get_cursor_pos();
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
+    pl_sb_push(ptWindow->sbfAvailableSizeStack, tWidgetSize.x);
 
-    pl_sb_push(ptWindow->sbtRowStack, ptWindow->tTempData.tCurrentLayoutRow);
-    ptWindow->tTempData.tCurrentLayoutRow.fRowStartX = tStartPos.x - ptWindow->tTempData.tRowPos.x;
-    ptWindow->tTempData.fAccumRowX += ptWindow->tTempData.tCurrentLayoutRow.fRowStartX;
-    
-    pl_layout_dynamic(0.0f, 1);
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
-    
     const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
     pl_sb_push(gptCtx->sbuIdStack, uHash);
 
@@ -1339,7 +1411,24 @@ pl_begin_tab_bar(const char* pcText, plUiTabBarFlags tFlags)
         (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tButtonActiveCol), .fThickness = 1.0f});
 
     pl__add_widget(uHash);
-    pl__advance_cursor(tWidgetSize.x, fFrameHeight);
+    pl__smart_advance_cursor(tWidgetSize.x, fFrameHeight);
+    pl_sb_push(ptWindow->sbtRowStack, ptWindow->tTempData.tLayoutRow);
+
+    // push cursor info onto stack
+    plUiCursorStackItem tCursorStackItem = {
+        .tPos      = ptWindow->tTempData.tRowCursorPos
+    };
+    pl_sb_push(ptWindow->sbtCursorStack, tCursorStackItem);
+
+    // adjust next cursor
+    pl__set_cursor((plVec2){tStartPos.x, tStartPos.y + tWidgetSize.y + gptCtx->tStyle.tItemSpacing.y});
+    if(pl_sb_size(ptWindow->sbfMaxCursorYStack) > 0)
+    {
+        float fLastMax = pl_sb_top(ptWindow->sbfMaxCursorYStack);
+        pl_sb_push(ptWindow->sbfMaxCursorYStack, fLastMax);
+    }
+    else
+        pl_sb_push(ptWindow->sbfMaxCursorYStack, tStartPos.y + tWidgetSize.y + gptCtx->tStyle.tItemSpacing.y);
     return true;
 }
 
@@ -1350,25 +1439,28 @@ pl_end_tab_bar(void)
     gptCtx->ptCurrentTabBar->uValue = gptCtx->ptCurrentTabBar->uNextValue;
     pl_sb_pop(gptCtx->sbuIdStack);
 
-    // performs cursor increase if previous system didn't get a chance to wrap
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
-    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
+    ptWindow->tTempData.tLayoutRow = pl_sb_pop(ptWindow->sbtRowStack);
+    plVec2 tNewCursor = ptWindow->tTempData.tRowCursorPos;
+
+    plUiCursorStackItem tOldCursorInfo = pl_sb_pop(ptWindow->sbtCursorStack);
+    if(ptWindow->tTempData.tLayoutRow.uCurrentColumn == 0)
     {
-        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
+        // pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, tNewCursor.y});
+        pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, pl_sb_pop(ptWindow->sbfMaxCursorYStack)});
 
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
-
-        // reset
-        ptCurrentRow->uCurrentColumn = 0;
-        ptCurrentRow->fMaxWidth = 0.0f;
-        ptCurrentRow->fMaxHeight = 0.0f;
-        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
-        ptCurrentRow->fVerticalOffset = 0.0f;
+        if(pl_sb_size(ptWindow->sbfMaxCursorYStack) == 0)
+            pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, ptWindow->tTempData.tCursorMaxPos.y});
     }
-
-    ptWindow->tTempData.tCurrentLayoutRow = pl_sb_pop(ptWindow->sbtRowStack);
-    ptWindow->tTempData.fAccumRowX -= ptWindow->tTempData.tCurrentLayoutRow.fRowStartX;
+    else
+    {
+        if(pl_sb_size(ptWindow->sbfMaxCursorYStack) > 0)
+        {
+            pl_sb_pop(ptWindow->sbfMaxCursorYStack);
+        }
+        pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, tOldCursorInfo.tPos.y});
+        ptWindow->tTempData.tLayoutRow.fMaxHeight = pl_maxf(ptWindow->tTempData.tLayoutRow.fMaxHeight - gptCtx->tStyle.tItemSpacing.y, tNewCursor.y - tOldCursorInfo.tPos.y);
+    }
+    pl_sb_pop(ptWindow->sbfAvailableSizeStack);
 }
 
 void
@@ -1376,33 +1468,13 @@ pl_end_tab(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     pl_sb_pop(gptCtx->sbuIdStack);    
-
-    // performs cursor increase if previous system didn't get a chance to wrap
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
-    if(ptCurrentRow->uCurrentColumn < ptCurrentRow->uColumns)
-    {
-        ptWindow->tTempData.tRowPos.y = ptWindow->tTempData.tRowPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
-
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
-
-        // reset
-        ptCurrentRow->uCurrentColumn = 0;
-        ptCurrentRow->fMaxWidth = 0.0f;
-        ptCurrentRow->fMaxHeight = 0.0f;
-        ptCurrentRow->fHorizontalOffset = ptCurrentRow->fRowStartX + ptWindow->tTempData.fExtraIndent;
-        ptCurrentRow->fVerticalOffset = 0.0f;
-    }
-
-    ptWindow->tTempData.tCurrentLayoutRow = pl_sb_pop(ptWindow->sbtRowStack);
+    ptWindow->tTempData.tLayoutRow = pl_sb_pop(ptWindow->sbtRowStack);
 }
 
 bool
 pl_begin_tab(const char* pcText, plUiTabFlags tFlags)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    pl_sb_push(ptWindow->sbtRowStack, ptWindow->tTempData.tCurrentLayoutRow);
-    pl_layout_dynamic(0.0f, 1);
     plUiTabBar* ptTabBar = gptCtx->ptCurrentTabBar;
     const float fFrameHeight = pl__get_frame_height();
     const uint32_t uHash = pl_str_hash(pcText, 0, pl_sb_top(gptCtx->sbuIdStack));
@@ -1448,6 +1520,8 @@ pl_begin_tab(const char* pcText, plUiTabFlags tFlags)
     ptTabBar->tCursorPos.x += gptCtx->tStyle.tInnerSpacing.x + tFinalSize.x;
     ptTabBar->uCurrentIndex++;
 
+    pl_sb_push(ptWindow->sbtRowStack, ptWindow->tTempData.tLayoutRow);
+    pl_layout_dynamic(0.0f, 1);
     if(ptTabBar->uValue != uHash)
         pl_end_tab();
 
@@ -1458,7 +1532,7 @@ void
 pl_separator(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
 
     const plVec2 tStartPos   = pl__get_cursor_pos();
     const plVec2 tWidgetSize = pl__calculate_item_size(gptCtx->tStyle.tItemSpacing.y * 2.0f);
@@ -1470,14 +1544,14 @@ pl_separator(void)
             (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tSeparatorCol), .fThickness = 1.0f});
     }
 
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 }
 
 void
 pl_separator_text(const char* pcText)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
 
     const plVec2 tStartPos   = pl__get_cursor_pos();
     const plVec2 tWidgetSize = pl__calculate_item_size(gptCtx->tStyle.fFontSize + gptCtx->tStyle.tSeparatorTextPadding.y * 2.0f);
@@ -1513,22 +1587,22 @@ pl_separator_text(const char* pcText)
             (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tSeparatorCol), .fThickness = gptCtx->tStyle.fSeparatorTextLineSize});
     }
 
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 }
 
 void
 pl_vertical_spacing(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    ptWindow->tTempData.tRowPos.y += gptCtx->tStyle.tItemSpacing.y * 2.0f;
+    ptWindow->tTempData.tRowCursorPos.y += gptCtx->tStyle.tItemSpacing.y * 2.0f;
 }
 
 void
 pl_indent(float fIndent)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
-    ptCurrentRow->fHorizontalOffset += fIndent == 0.0f ? gptCtx->tStyle.fIndentSize : fIndent;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
+    ptCurrentRow->fWidgetXOffset += fIndent == 0.0f ? gptCtx->tStyle.fIndentSize : fIndent;
     ptWindow->tTempData.fExtraIndent += fIndent == 0.0f ? gptCtx->tStyle.fIndentSize : fIndent;
 }
 
@@ -1536,8 +1610,8 @@ void
 pl_unindent(float fIndent)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
-    ptCurrentRow->fHorizontalOffset -= fIndent == 0.0f ? gptCtx->tStyle.fIndentSize : fIndent;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
+    ptCurrentRow->fWidgetXOffset -= fIndent == 0.0f ? gptCtx->tStyle.fIndentSize : fIndent;
     ptWindow->tTempData.fExtraIndent -= fIndent == 0.0f ? gptCtx->tStyle.fIndentSize : fIndent;
 }
 
@@ -1547,7 +1621,7 @@ pl_text_v(const char* pcFmt, va_list args)
     static char acTempBuffer[1024];
     
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
 
@@ -1561,9 +1635,12 @@ pl_text_v(const char* pcFmt, va_list args)
                 .pcTextEnd = pl__find_renderered_text_end(acTempBuffer, NULL),
                 .fWrap = -1.0f});
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acTempBuffer, -1.0f);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acTempBuffer, -1.0f);
     }
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 }
 
 void
@@ -1593,9 +1670,12 @@ pl_color_text_v(plVec4 tColor, const char* pcFmt, va_list args)
                 .pcTextEnd = pl__find_renderered_text_end(acTempBuffer, NULL),
                 .fWrap = -1.0f});
         const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, PL_COLOR_32_VEC4(tColor), acTempBuffer, -1.0f);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            (plVec2){tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(tColor), acTempBuffer, -1.0f);
     }
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 }
 
 void
@@ -1629,7 +1709,7 @@ pl_labeled_text_v(const char* pcLabel, const char* pcFmt, va_list args)
         pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartLocation, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acTempBuffer, -1.0f);
         pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_add_vec2(tStartLocation, (plVec2){(2.0f * tWidgetSize.x / 3.0f), 0.0f}), PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
     }
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 }
 
 void
@@ -1647,7 +1727,7 @@ pl_input_text(const char* pcLabel, char* pcBuffer, size_t szBufferSize, plUiInpu
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
     bool bResult = pl__input_text_ex(pcLabel, NULL, pcBuffer, szBufferSize, tFlags, &tWidgetSize, &tStartPos);
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bResult;
 }
 
@@ -1657,7 +1737,7 @@ pl_input_text_hint(const char* pcLabel, const char* pcHint, char* pcBuffer, size
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
     bool bResult = pl__input_text_ex(pcLabel, pcHint, pcBuffer, szBufferSize, tFlags, &tWidgetSize, &tStartPos);
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return bResult;
 }
 
@@ -1675,7 +1755,7 @@ pl_input_float(const char* pcLabel, float* pfValue, const char* pcFormat, plUiIn
     if(bChanged)
         *pfValue = (float)atof(acBuffer);
 
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 
     return bChanged;
 }
@@ -1713,8 +1793,11 @@ pl_input_float2(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
             .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
             .fWrap = -1.0f});
     const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
-    pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+        (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+        PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     pl_pop_id();
     return bChanged;
 }
@@ -1752,8 +1835,11 @@ pl_input_float3(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
             .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
             .fWrap = -1.0f});
     const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
-    pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+        (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+        PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     pl_pop_id();
     return bChanged;
 }
@@ -1791,8 +1877,11 @@ pl_input_float4(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
             .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
             .fWrap = -1.0f});
     const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
-    pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+        (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+        PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     pl_pop_id();
     return bChanged;
 }
@@ -1810,7 +1899,7 @@ pl_input_int(const char* pcLabel, int* piValue, plUiInputTextFlags tFlags)
     if(bChanged)
         *piValue = atoi(acBuffer);
 
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 
     return bChanged;
 }
@@ -1848,8 +1937,11 @@ pl_input_int2(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
             .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
             .fWrap = -1.0f});
     const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
-    pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+        (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+        PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     pl_pop_id();
     return bChanged;
 }
@@ -1887,8 +1979,11 @@ pl_input_int3(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
             .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
             .fWrap = -1.0f});
     const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
-    pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+        (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+        PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     pl_pop_id();
     return bChanged;
 }
@@ -1926,8 +2021,11 @@ pl_input_int4(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
             .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
             .fWrap = -1.0f});
     const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
-    pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y}, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+        (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+        PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     pl_pop_id();
     return bChanged;
 }
@@ -2898,17 +2996,24 @@ pl_slider_float_f(const char* pcLabel, float* pfValue, float fMin, float fMax, c
         else                                 gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});
 
         gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tGrabStartPos, tGrabBox.tMax, gptCtx->tStyle.fGrabRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tSliderCol)});
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acTextBuffer, -1.0f);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
+            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            tTextStartPos,
+            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acTextBuffer, -1.0f);
 
         bool bDragged = false;
         if(gptCtx->uActiveId == uHash && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
         {
-            *pfValue += gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fConv;
-            *pfValue = pl_clampf(fMin, *pfValue, fMax);
-            if(gptIOI->get_mouse_pos().x < tBoundingBox.tMin.x) *pfValue = fMin;
-            if(gptIOI->get_mouse_pos().x > tBoundingBox.tMax.x) *pfValue = fMax;
+
+            const plVec2 tMousePos = gptIOI->get_mouse_pos();
+            const float fRatio = (tMousePos.x - tFrameStartPos.x) / (tBoundingBox.tMax.x - tBoundingBox.tMin.x);
             gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+            (*pfValue) = fMin + (fRatio * (fMax - fMin));
+            *pfValue = pl_clampf(fMin, *pfValue, fMax);
             pl__set_active_id(uHash, ptWindow);
             pl__set_nav_id(uHash, ptWindow);
             if(gptCtx->bActiveIdJustActivated)
@@ -2918,7 +3023,7 @@ pl_slider_float_f(const char* pcLabel, float* pfValue, float fMin, float fMax, c
         }
         pl__add_widget(uHash);
     }
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return fOriginalValue != *pfValue;
 }
 
@@ -2991,18 +3096,22 @@ pl_slider_int_f(const char* pcLabel, int* piValue, int iMin, int iMax, const cha
         else                                 gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});
 
         gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tGrabStartPos, tGrabBox.tMax, gptCtx->tStyle.fGrabRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tSliderCol)});
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acTextBuffer, -1.0f);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
+            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            tTextStartPos,
+            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acTextBuffer, -1.0f);
 
         bool bDragged = false;
         if(gptCtx->uActiveId == uHash && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
         {
             const plVec2 tMousePos = gptIOI->get_mouse_pos();
-
-            if(tMousePos.x > tGrabBox.tMax.x)
-                (*piValue)++;
-            if(tMousePos.x < tGrabStartPos.x)
-                (*piValue)--;
+            const float fRatio = (tMousePos.x - tFrameStartPos.x) / (tBoundingBox.tMax.x - tBoundingBox.tMin.x);
+            gptIOI->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+            (*piValue) = iMin + (int)(fRatio * (float)(iMax - iMin));
 
             *piValue = pl_clampi(iMin, *piValue, iMax);
             pl__set_active_id(uHash, ptWindow);
@@ -3014,7 +3123,7 @@ pl_slider_int_f(const char* pcLabel, int* piValue, int iMin, int iMax, const cha
         }
         pl__add_widget(uHash);
     }
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return iOriginalValue != *piValue;
 }
 
@@ -3028,7 +3137,7 @@ bool
 pl_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
     const float fOriginalValue = *pfValue;
@@ -3076,14 +3185,21 @@ pl_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin, f
         else if(gptCtx->uHoveredId == uHash) gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgHoveredCol)});
         else                                 gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});
 
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acTextBuffer, -1.0f);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
+            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
+            tTextStartPos,
+            tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
+            PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acTextBuffer, -1.0f);
 
         bool bDragged = false;
         if(gptCtx->uActiveId == uHash && gptIOI->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
         {
             *pfValue = gptIOI->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f).x * fSpeed;
             *pfValue = pl_clampf(fMin, *pfValue, fMax);
+
             pl__set_active_id(uHash, ptWindow);
             pl__set_nav_id(uHash, ptWindow);
             if(gptCtx->bActiveIdJustActivated)
@@ -3093,7 +3209,7 @@ pl_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin, f
         }
         pl__add_widget(uHash);
     }
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
     return fOriginalValue != *pfValue;    
 }
 
@@ -3122,7 +3238,7 @@ pl_image_ex(plTextureID tTexture, plVec2 tSize, plVec2 tUv0, plVec2 tUv1, plVec4
         }
 
     }
-    pl__advance_cursor(tSize.x, tSize.y);
+    pl__smart_advance_cursor(tSize.x, tSize.y);
 }
 
 void
@@ -3159,7 +3275,7 @@ pl_image_button_ex(const char* pcId, plTextureID tTexture, plVec2 tSize, plVec2 
 
         pl__add_widget(uHash);
     }
-    pl__advance_cursor(tSize.x, tSize.y);
+    pl__smart_advance_cursor(tSize.x, tSize.y);
     return bPressed;
 }
 
@@ -3173,7 +3289,7 @@ bool
 pl_invisible_button(const char* pcText, plVec2 tSize)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     const plVec2 tStartPos   = pl__get_cursor_pos();
 
     bool bPressed = false;
@@ -3189,7 +3305,7 @@ pl_invisible_button(const char* pcText, plVec2 tSize)
         bPressed = pl__button_behavior(&tBoundingBox, uHash, &bHovered, &bHeld);
         pl__add_widget(uHash);
     }
-    pl__advance_cursor(tSize.x, tSize.y);
+    pl__smart_advance_cursor(tSize.x, tSize.y);
     return bPressed;  
 }
 
@@ -3197,15 +3313,15 @@ void
 pl_dummy(plVec2 tSize)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
-    pl__advance_cursor(tSize.x, tSize.y);
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
+    pl__smart_advance_cursor(tSize.x, tSize.y);
 }
 
 void
 pl_progress_bar(float fFraction, plVec2 tSize, const char* pcOverlay)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tCurrentLayoutRow;
+    plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
 
@@ -3251,7 +3367,7 @@ pl_progress_bar(float fFraction, plVec2 tSize, const char* pcOverlay)
         const bool bHovered = gptIOI->is_mouse_hovering_rect(tStartPos, pl_add_vec2(tStartPos, tWidgetSize)) && ptWindow == gptCtx->ptHoveredWindow;
         gptCtx->tPrevItemData.bHovered = bHovered;
     }
-    pl__advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 }
 
 //-----------------------------------------------------------------------------

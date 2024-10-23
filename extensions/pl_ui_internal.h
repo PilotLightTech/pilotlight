@@ -203,6 +203,7 @@ typedef struct _plUiStyle
     float  fIndentSize;
     float  fWindowHorizontalPadding;
     float  fWindowVerticalPadding;
+    int    iWindowBorderSize;
     float  fScrollbarSize;
     float  fSliderSize;
     plVec2 tItemSpacing;
@@ -256,16 +257,15 @@ typedef struct _plUiLayoutRow
 {
     plUiLayoutRowType    tType;                // determines if width/height is relative or absolute (PL_UI_LAYOUT_ROW_TYPE_*)
     plUiLayoutSystemType tSystemType;          // this rows layout strategy
-    float                fWidth;               // widget width (could be relative or absolute)
-    float                fHeight;              // widget height (could be relative or absolute)
     float                fSpecifiedHeight;     // height user passed in
-    float                fVerticalOffset;      // used by space layout system (system 6) to temporary offset widget placement
-    float                fHorizontalOffset;    // offset where the next widget should start from (usually previous widget + item spacing)
+    float                fWidgetWidth;         // widget width (could be relative or absolute)
+    float                fWidgetHeight;        // widget height (could be relative or absolute)
+    float                fWidgetXOffset;       // offset where the next widget should start from (usually previous widget + item spacing)
+    float                fWidgetYOffset;       // used by space layout system (system 6) to temporary offset widget placement
     uint32_t             uColumns;             // number of columns in row
     uint32_t             uCurrentColumn;       // current column
     float                fMaxWidth;            // maximum row width  (to help set max cursor position)
     float                fMaxHeight;           // maximum row height (to help set next row position + max cursor position)
-    float                fRowStartX;           // offset where the row starts from (think of a tab bar being the second widget in the row)
     const float*         pfSizesOrRatios;      // size or rations when using array layout system (system 4)
     uint32_t             uStaticEntryCount;    // number of static entries when using template layout system (system 5)
     uint32_t             uDynamicEntryCount;   // number of dynamic entries when using template layout system (system 5)
@@ -322,20 +322,22 @@ typedef struct _plUiStorage
 // [SECTION] plUiWindow
 //-----------------------------------------------------------------------------
 
+typedef struct _plUiCursorStackItem
+{
+    plVec2 tPos;
+} plUiCursorStackItem;
+
 typedef struct _plUiTempWindowData
 {
+    float         fTitleBarHeight;   // titlebar height
     plVec2        tCursorStartPos;   // position where widgets begin drawing (could be outside window if scrolling)
     plVec2        tCursorMaxPos;     // maximum cursor position (could be outside window if scrolling)
+    plVec2        tRowCursorPos;     // current row starting position
+    plUiLayoutRow tLayoutRow;        // current layout row to use
     uint32_t      uTreeDepth;        // current level inside trees
     float         fExtraIndent;      // extra indent added by pl_indent
-    plUiLayoutRow tCurrentLayoutRow; // current layout row to use
-    plVec2        tRowPos;           // current row starting position
-    float         fAccumRowX;        // additional indent due to a parent (like tab bar) not being the first item in a row
-    float         fTitleBarHeight;   // titlebar height
-
-    // template layout system
-    float fTempMinWidth;
-    float fTempStaticWidth;
+    float         fTempMinWidth;     // template layout system
+    float         fTempStaticWidth;  // template layout system
 } plUiTempWindowData;
 
 typedef struct _plUiWindow
@@ -369,6 +371,9 @@ typedef struct _plUiWindow
     plUiTempWindowData   tTempData;               // temporary data reset at the beginning of frame
     plUiWindow**         sbtChildWindows;         // child windows if any (reset every frame)
     plUiLayoutRow*       sbtRowStack;             // row stack for containers to push parents row onto and pop when they exist (reset every frame)
+    plUiCursorStackItem* sbtCursorStack;
+    float*               sbfAvailableSizeStack;
+    float*               sbfMaxCursorYStack;
     plUiLayoutSortLevel* sbtTempLayoutSort;       // blah
     uint32_t*            sbuTempLayoutIndexSort;  // blah
     plUiLayoutRowEntry*  sbtRowTemplateEntries;   // row template entries (shared and reset every frame)            
@@ -486,16 +491,17 @@ static bool          pl__is_item_hoverable          (const plRect* ptBox, uint32
 
 // layouts
 static plVec2 pl__calculate_item_size(float fDefaultHeight);
-static void   pl__advance_cursor     (float fWidth, float fHeight);
+static void   pl__smart_advance_cursor(float fWidth, float fHeight);
+static void   pl__advance_cursor(plVec2 tOffset);
+static void   pl__set_cursor(plVec2 tPos);
 
 static inline plVec2
 pl__get_cursor_pos(void)
 {
-    plVec2 tResult = {
-        gptCtx->ptCurrentWindow->tTempData.tRowPos.x + gptCtx->ptCurrentWindow->tTempData.fAccumRowX + gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.fHorizontalOffset + (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize,
-        gptCtx->ptCurrentWindow->tTempData.tRowPos.y + gptCtx->ptCurrentWindow->tTempData.tCurrentLayoutRow.fVerticalOffset
+    return (plVec2) {
+        gptCtx->ptCurrentWindow->tTempData.tRowCursorPos.x + gptCtx->ptCurrentWindow->tTempData.tLayoutRow.fWidgetXOffset,
+        gptCtx->ptCurrentWindow->tTempData.tRowCursorPos.y + gptCtx->ptCurrentWindow->tTempData.tLayoutRow.fWidgetYOffset
     };
-    return tResult;
 }
 
 // misc
