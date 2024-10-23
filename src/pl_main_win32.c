@@ -1403,6 +1403,8 @@ plOSResult
 pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** ppThreadOut)
 {
     plThreadData* ptData = PL_ALLOC(sizeof(plThreadData));
+    ptData->ptProcedure = ptProcedure;
+    ptData->pData       = pData;
 
     HANDLE tHandle = CreateThread(0, 1024, thread_procedure, ptData, 0, NULL);
     if(tHandle)
@@ -1412,8 +1414,6 @@ pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** ppThread
         *ppThreadOut = PL_ALLOC(sizeof(plThread));
         (*ppThreadOut)->uID = uNextThreadId;
         (*ppThreadOut)->ptData = ptData;
-        ptData->ptProcedure = ptProcedure;
-        ptData->pData       = pData;
         (*ppThreadOut)->tHandle = tHandle;
         return PL_OS_RESULT_SUCCESS;
     }
