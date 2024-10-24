@@ -2079,7 +2079,9 @@ pl_dispatch(plComputeEncoderHandle tHandle, uint32_t uDispatchCount, const plDis
 }
 
 static void
-pl_bind_compute_bind_groups(plComputeEncoderHandle tEncoder, plComputeShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups, plDynamicBinding* ptDynamicBinding)
+pl_bind_compute_bind_groups(
+    plComputeEncoderHandle tEncoder, plComputeShaderHandle tHandle, uint32_t uFirst, uint32_t uCount,
+    const plBindGroupHandle* atBindGroups, plDynamicBinding* ptDynamicBinding)
 {
     plComputeEncoder* ptEncoder = pl__get_compute_encoder(tEncoder);
     plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);

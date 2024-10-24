@@ -439,8 +439,6 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
         pl_sprintf(tBuffer.tDescription.acDebugName, "%s", pcName);
     }
 
-    plVulkanBuffer tVulkanBuffer = {0};
-
     VkBufferCreateInfo tBufferInfo = {
         .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size        = ptDesc->uByteSize,
@@ -461,6 +459,7 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
 
     VkMemoryRequirements tMemRequirements = {0};
 
+    plVulkanBuffer tVulkanBuffer = {0};
     PL_VULKAN(vkCreateBuffer(ptDevice->tLogicalDevice, &tBufferInfo, NULL, &tVulkanBuffer.tBuffer));
     if(pcName)
         pl_set_vulkan_object_name(ptDevice, (uint64_t)tVulkanBuffer.tBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, pcName);
@@ -3912,16 +3911,19 @@ static plComputeEncoderHandle
 pl_begin_compute_pass(plCommandBufferHandle tCmdBuffer)
 {
     plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(tCmdBuffer);
+
     VkMemoryBarrier tMemoryBarrier = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
         .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
         .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT
     };
-    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer,
+        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
     
     plComputeEncoderHandle tHandle = pl__get_new_compute_encoder_handle();
     gptGraphics->sbtComputeEncoders[tHandle.uIndex].tCommandBuffer = tCmdBuffer;
-
     return tHandle;
 }
 
@@ -3930,12 +3932,16 @@ pl_end_compute_pass(plComputeEncoderHandle tHandle)
 {
     plComputeEncoder* ptEncoder = pl__get_compute_encoder(tHandle);
     plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+
     VkMemoryBarrier tMemoryBarrier = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
         .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
         .dstAccessMask = VK_ACCESS_SHADER_READ_BIT
     };
-    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
     pl__return_compute_encoder_handle(tHandle);
 }
 
@@ -3943,12 +3949,16 @@ static plBlitEncoderHandle
 pl_begin_blit_pass(plCommandBufferHandle tCmdBuffer)
 {
     plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(tCmdBuffer);
+    
     VkMemoryBarrier tMemoryBarrier = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
         .srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT,
         .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT
     };
-    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer,
+        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
     
     plBlitEncoderHandle tHandle = pl__get_new_blit_encoder_handle();
     gptGraphics->sbtBlitEncoders[tHandle.uIndex].tCommandBuffer = tCmdBuffer;
@@ -3960,12 +3970,15 @@ pl_end_blit_pass(plBlitEncoderHandle tHandle)
 {
     plBlitEncoder* ptEncoder = pl__get_blit_encoder(tHandle);
     plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+
     VkMemoryBarrier tMemoryBarrier = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
         .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
         .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT
     };
-    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
     pl__return_blit_encoder_handle(tHandle);
 }
 
@@ -3983,7 +3996,9 @@ pl_dispatch(plComputeEncoderHandle tHandle, uint32_t uDispatchCount, const plDis
 }
 
 static void
-pl_bind_compute_bind_groups(plComputeEncoderHandle tEncoder, plComputeShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups, plDynamicBinding* ptDynamicBinding)
+pl_bind_compute_bind_groups(
+    plComputeEncoderHandle tEncoder, plComputeShaderHandle tHandle, uint32_t uFirst,
+    uint32_t uCount, const plBindGroupHandle* atBindGroups, plDynamicBinding* ptDynamicBinding)
 {   
     plComputeEncoder* ptEncoder = pl__get_compute_encoder(tEncoder);
     plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);

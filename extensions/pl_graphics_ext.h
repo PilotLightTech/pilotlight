@@ -1,6 +1,6 @@
 /*
    pl_graphics_ext.h
-    * currently under very active development trying to finalize for 1.0
+    * currently under very active development for 1.0 finalization
 */
 
 /*
@@ -12,6 +12,7 @@ Index of this file:
 // [SECTION] forward declarations & basic types
 // [SECTION] public api structs
 // [SECTION] structs
+// [SECTION] enums
 */
 
 //-----------------------------------------------------------------------------
@@ -20,6 +21,10 @@ Index of this file:
 
 #ifndef PL_GRAPHICS_EXT_H
 #define PL_GRAPHICS_EXT_H
+
+// extension version (format XYYZZ)
+// #define PL_GRAPHICS_EXT_VERSION    "1.0.0"
+// #define PL_GRAPHICS_EXT_VERSION_NUM 10000
 
 #ifndef PL_MAX_NAME_LENGTH
     #define PL_MAX_NAME_LENGTH 1024
@@ -203,7 +208,7 @@ typedef int plDeviceType;         // -> enum _plDeviceType             // Enum:
 typedef int plDeviceCapability;   // -> enum _plDeviceCapability       // Flags:
 
 // external
-typedef struct _plWindow plWindow;
+typedef struct _plWindow plWindow; // pl_os.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
@@ -217,22 +222,23 @@ typedef struct _plGraphicsI
     void (*cleanup)   (void);
 
     // devices
-    void      (*enumerate_devices)(plDeviceInfo*, uint32_t* puDeviceCount);
-    plDevice* (*create_device)(const plDeviceInfo*);
-    void      (*cleanup_device)(plDevice*);
+    void      (*enumerate_devices)(plDeviceInfo*, uint32_t* deviceCountOut);
+    plDevice* (*create_device)    (const plDeviceInfo*);
+    void      (*cleanup_device)   (plDevice*);
+    void      (*flush_device)     (plDevice*);
 
     // surface
-    plSurface* (*create_surface)(plWindow*);
+    plSurface* (*create_surface) (plWindow*);
     void       (*cleanup_surface)(plSurface*);
 
     // swapchain
-    plSwapchain* (*create_swapchain)(plDevice*, const plSwapchainInit*);
+    plSwapchain* (*create_swapchain) (plDevice*, const plSwapchainInit*);
     void         (*cleanup_swapchain)(plSwapchain*);
 
     // query
-    uint32_t (*get_frames_in_flight)(void);
+    uint32_t (*get_frames_in_flight)   (void);
     uint32_t (*get_current_frame_index)(void);
-    size_t   (*get_host_memory_in_use)(void);
+    size_t   (*get_host_memory_in_use) (void);
     size_t   (*get_local_memory_in_use)(void);
 
     // per frame
@@ -261,96 +267,97 @@ typedef struct _plGraphicsI
     void (*reset_draw_stream)  (plDrawStream*);
     void (*cleanup_draw_stream)(plDrawStream*);
     void (*add_to_stream)      (plDrawStream*, plStreamDraw);
-    void (*draw_stream)        (plRenderEncoderHandle, uint32_t uAreaCount, plDrawArea*);
+    void (*draw_stream)        (plRenderEncoderHandle, uint32_t areaCount, plDrawArea*);
 
     // render encoder: direct (prefer draw stream, this should be used for bindless mostly)
-    void (*bind_graphics_bind_groups)(plRenderEncoderHandle, plShaderHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle*, plDynamicBinding*);
+    void (*bind_graphics_bind_groups)(plRenderEncoderHandle, plShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, plDynamicBinding*);
     void (*set_viewport)             (plRenderEncoderHandle, const plRenderViewport*);
     void (*set_scissor_region)       (plRenderEncoderHandle, const plScissor*);
     void (*bind_vertex_buffer)       (plRenderEncoderHandle, plBufferHandle);
-    void (*draw)                     (plRenderEncoderHandle, uint32_t uCount, const plDraw*);
-    void (*draw_indexed)             (plRenderEncoderHandle, uint32_t uCount, const plDrawIndex*);
+    void (*draw)                     (plRenderEncoderHandle, uint32_t count, const plDraw*);
+    void (*draw_indexed)             (plRenderEncoderHandle, uint32_t count, const plDrawIndex*);
     void (*bind_shader)              (plRenderEncoderHandle, plShaderHandle);
 
     // compute encoder
     plComputeEncoderHandle (*begin_compute_pass)      (plCommandBufferHandle);
     void                   (*end_compute_pass)        (plComputeEncoderHandle);
-    void                   (*dispatch)                (plComputeEncoderHandle, uint32_t uDispatchCount, const plDispatch*);
+    void                   (*dispatch)                (plComputeEncoderHandle, uint32_t dispatchCount, const plDispatch*);
     void                   (*bind_compute_shader)     (plComputeEncoderHandle, plComputeShaderHandle);
-    void                   (*bind_compute_bind_groups)(plComputeEncoderHandle, plComputeShaderHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle*, plDynamicBinding*);
+    void                   (*bind_compute_bind_groups)(plComputeEncoderHandle, plComputeShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, plDynamicBinding*);
 
     // blit encoder
-    plBlitEncoderHandle (*begin_blit_pass)         (plCommandBufferHandle);
-    void                (*end_blit_pass)           (plBlitEncoderHandle);
-    void                (*copy_buffer_to_texture)  (plBlitEncoderHandle, plBufferHandle, plTextureHandle, uint32_t uRegionCount, const plBufferImageCopy*);
-    void                (*copy_texture_to_buffer)  (plBlitEncoderHandle, plTextureHandle, plBufferHandle, uint32_t uRegionCount, const plBufferImageCopy*);
-    void                (*generate_mipmaps)        (plBlitEncoderHandle, plTextureHandle);
-    void                (*copy_buffer)             (plBlitEncoderHandle, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t);
+    plBlitEncoderHandle (*begin_blit_pass)       (plCommandBufferHandle);
+    void                (*end_blit_pass)         (plBlitEncoderHandle);
+    void                (*copy_buffer_to_texture)(plBlitEncoderHandle, plBufferHandle, plTextureHandle, uint32_t regionCount, const plBufferImageCopy*);
+    void                (*copy_texture_to_buffer)(plBlitEncoderHandle, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
+    void                (*generate_mipmaps)      (plBlitEncoderHandle, plTextureHandle);
+    void                (*copy_buffer)           (plBlitEncoderHandle, plBufferHandle source, plBufferHandle destination, uint32_t sourceOffset, uint32_t destinationOffset, size_t);
 
     //-----------------------------------------------------------------------------
 
     // buffers
-    plBufferHandle (*create_buffer)            (plDevice*, const plBufferDescription*, const char* pcDebugName);
+    plBufferHandle (*create_buffer)            (plDevice*, const plBufferDescription*, const char* debugName);
     void           (*bind_buffer_to_memory)    (plDevice*, plBufferHandle, const plDeviceMemoryAllocation*);
     void           (*queue_buffer_for_deletion)(plDevice*, plBufferHandle);
     void           (*destroy_buffer)           (plDevice*, plBufferHandle);
     plBuffer*      (*get_buffer)               (plDevice*, plBufferHandle); // do not store
 
     // samplers
-    plSamplerHandle (*create_sampler)            (plDevice*, const plSamplerDesc*, const char* pcDebugName);
+    plSamplerHandle (*create_sampler)            (plDevice*, const plSamplerDesc*, const char* debugName);
     void            (*destroy_sampler)           (plDevice*, plSamplerHandle);
     void            (*queue_sampler_for_deletion)(plDevice*, plSamplerHandle);
     plSampler*      (*get_sampler)               (plDevice*, plSamplerHandle); // do not store
 
-    // textures (if manually handling mips/levels, don't use initial data, use "copy_buffer_to_texture" instead)
-    plTextureHandle (*create_texture)            (plDevice*, const plTextureDesc*, const char* pcDebugName);
-    plTextureHandle (*create_texture_view)       (plDevice*, const plTextureViewDesc*, const char* pcDebugName);
+    // textures
+    plTextureHandle (*create_texture)            (plDevice*, const plTextureDesc*, const char* debugName);
+    plTextureHandle (*create_texture_view)       (plDevice*, const plTextureViewDesc*, const char* debugName);
     void            (*bind_texture_to_memory)    (plDevice*, plTextureHandle, const plDeviceMemoryAllocation*);
     void            (*queue_texture_for_deletion)(plDevice*, plTextureHandle);
     void            (*destroy_texture)           (plDevice*, plTextureHandle);
     plTexture*      (*get_texture)               (plDevice*, plTextureHandle);     // do not store
 
     // bind groups
-    plBindGroupHandle (*create_bind_group)            (plDevice*, const plBindGroupLayout*, const char* pcDebugName);
-    plBindGroupHandle (*get_temporary_bind_group)     (plDevice*, const plBindGroupLayout*, const char* pcDebugName); // don't submit for deletion
+    plBindGroupHandle (*create_bind_group)            (plDevice*, const plBindGroupLayout*, const char* debugName);
+    plBindGroupHandle (*get_temporary_bind_group)     (plDevice*, const plBindGroupLayout*, const char* debugName); // don't submit for deletion
     void              (*update_bind_group)            (plDevice*, plBindGroupHandle, const plBindGroupUpdateData*);
     void              (*queue_bind_group_for_deletion)(plDevice*, plBindGroupHandle);
     void              (*destroy_bind_group)           (plDevice*, plBindGroupHandle);
     plBindGroup*      (*get_bind_group)               (plDevice*, plBindGroupHandle); // do not store
     
     // render passes
-    plRenderPassLayoutHandle (*create_render_pass_layout)            (plDevice*, const plRenderPassLayoutDescription*);
-    plRenderPassHandle       (*create_render_pass)                   (plDevice*, const plRenderPassDescription*, const plRenderPassAttachments*);
-    void                     (*update_render_pass_attachments)       (plDevice*, plRenderPassHandle, plVec2 tDimensions, const plRenderPassAttachments*);
-    void                     (*queue_render_pass_for_deletion)       (plDevice*, plRenderPassHandle);
-    void                     (*queue_render_pass_layout_for_deletion)(plDevice*, plRenderPassLayoutHandle);
-    void                     (*destroy_render_pass)                  (plDevice*, plRenderPassHandle);
-    void                     (*destroy_render_pass_layout)           (plDevice*, plRenderPassLayoutHandle);
-    plRenderPassLayout*      (*get_render_pass_layout)               (plDevice*, plRenderPassLayoutHandle); // do not store
-    plRenderPass*            (*get_render_pass)                      (plDevice*, plRenderPassHandle); // do not store
-
-    // render passes (temporary)
+    plRenderPassHandle (*create_render_pass)            (plDevice*, const plRenderPassDescription*, const plRenderPassAttachments*);
+    void               (*update_render_pass_attachments)(plDevice*, plRenderPassHandle, plVec2 dimensions, const plRenderPassAttachments*);
+    void               (*queue_render_pass_for_deletion)(plDevice*, plRenderPassHandle);
+    void               (*destroy_render_pass)           (plDevice*, plRenderPassHandle);
+    plRenderPass*      (*get_render_pass)               (plDevice*, plRenderPassHandle); // do not store
+    
+    // temporary
     plRenderPassHandle (*get_main_render_pass)(plDevice*);
 
-    // shaders
-    plShaderHandle        (*create_shader)                    (plDevice*, const plShaderDescription*);
+    // render pass layouts
+    plRenderPassLayoutHandle (*create_render_pass_layout)            (plDevice*, const plRenderPassLayoutDescription*);
+    void                     (*queue_render_pass_layout_for_deletion)(plDevice*, plRenderPassLayoutHandle);
+    void                     (*destroy_render_pass_layout)           (plDevice*, plRenderPassLayoutHandle);
+    plRenderPassLayout*      (*get_render_pass_layout)               (plDevice*, plRenderPassLayoutHandle); // do not store
+
+    // pixel & vertex shaders
+    plShaderHandle (*create_shader)            (plDevice*, const plShaderDescription*);
+    void           (*queue_shader_for_deletion)(plDevice*, plShaderHandle);
+    void           (*destroy_shader)           (plDevice*, plShaderHandle);
+    plShader*      (*get_shader)               (plDevice*, plShaderHandle); // do not store
+
+    // compute shaders
     plComputeShaderHandle (*create_compute_shader)            (plDevice*, const plComputeShaderDescription*);
-    void                  (*queue_shader_for_deletion)        (plDevice*, plShaderHandle);
     void                  (*queue_compute_shader_for_deletion)(plDevice*, plComputeShaderHandle);
-    void                  (*destroy_shader)                   (plDevice*, plShaderHandle);
     void                  (*destroy_compute_shader)           (plDevice*, plComputeShaderHandle);
-    plShader*             (*get_shader)                       (plDevice*, plShaderHandle); // do not store
 
     // syncronization
-    plSemaphoreHandle (*create_semaphore)(plDevice*, bool bHostVisible);
+    plSemaphoreHandle (*create_semaphore)(plDevice*, bool hostVisible);
 
     // memory
     plDynamicBinding        (*allocate_dynamic_data)(plDevice*, size_t);
-    plDeviceMemoryAllocation(*allocate_memory)      (plDevice*, size_t, plMemoryMode, uint32_t uTypeFilter, const char* pcDebugName);
+    plDeviceMemoryAllocation(*allocate_memory)      (plDevice*, size_t, plMemoryMode, uint32_t typeFilter, const char* debugName);
     void                    (*free_memory)          (plDevice*, plDeviceMemoryAllocation*);
-
-    // misc
-    void (*flush_device)(plDevice*);
 
 } plGraphicsI;
 
@@ -462,8 +469,8 @@ typedef struct _plDeviceMemoryAllocation
 typedef struct _plDeviceMemoryAllocatorI
 {
     struct plDeviceMemoryAllocatorO* ptInst; // opaque pointer
-    plDeviceMemoryAllocation (*allocate)(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
-    void                     (*free)    (struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation);
+    plDeviceMemoryAllocation (*allocate)(struct plDeviceMemoryAllocatorO* instPtr, uint32_t typeFilter, uint64_t size, uint64_t alignment, const char* name);
+    void                     (*free)    (struct plDeviceMemoryAllocatorO* instPtr, plDeviceMemoryAllocation* allocation);
 } plDeviceMemoryAllocatorI;
 
 typedef struct _plTextureViewDesc
@@ -922,9 +929,9 @@ enum _plStageFlags
 
 enum _plCullMode
 {
-    PL_CULL_MODE_NONE          = 0,
-    PL_CULL_MODE_CULL_FRONT    = 1 << 0,
-    PL_CULL_MODE_CULL_BACK     = 1 << 1,
+    PL_CULL_MODE_NONE       = 0,
+    PL_CULL_MODE_CULL_FRONT = 1 << 0,
+    PL_CULL_MODE_CULL_BACK  = 1 << 1,
 };
 
 enum _plFormat
