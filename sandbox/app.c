@@ -423,31 +423,6 @@ pl_app_update(plEditorData* ptEditorData)
             gptUi->checkbox("UI Debug", &ptEditorData->bShowUiDebug);
             gptUi->checkbox("UI Demo", &ptEditorData->bShowUiDemo);
             gptUi->checkbox("UI Style", &ptEditorData->bShowUiStyle);
-
-            gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
-
-            if(gptUi->begin_collapsing_header("Blah 0", 0))
-            {
-                gptUi->checkbox("UI Debug", &ptEditorData->bShowUiDebug);
-                gptUi->end_collapsing_header();
-            }
-            if(gptUi->begin_collapsing_header("Blah 1", 0))
-            {
-                gptUi->checkbox("UI Debug", &ptEditorData->bShowUiDebug);
-                gptUi->end_collapsing_header();
-            }
-
-            if(gptUi->begin_collapsing_header("Blah 2", 0))
-            {
-                gptUi->checkbox("UI Debug", &ptEditorData->bShowUiDebug);
-                gptUi->end_collapsing_header();
-            }
-            if(gptUi->begin_collapsing_header("Blah 3", 0))
-            {
-                gptUi->checkbox("UI Debug", &ptEditorData->bShowUiDebug);
-                gptUi->end_collapsing_header();
-            }
-
             gptUi->end_collapsing_header();
         }
 
