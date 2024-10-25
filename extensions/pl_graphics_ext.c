@@ -154,30 +154,6 @@ pl__get_shader(plDevice* ptDevice, plShaderHandle tHandle)
     return &ptDevice->sbtShadersCold[tHandle.uIndex];
 }
 
-static plRenderEncoder*
-pl__get_render_encoder(plRenderEncoderHandle tHandle)
-{
-    return &gptGraphics->sbtRenderEncoders[tHandle.uIndex];
-}
-
-static plComputeEncoder*
-pl__get_compute_encoder(plComputeEncoderHandle tHandle)
-{
-    return &gptGraphics->sbtComputeEncoders[tHandle.uIndex];
-}
-
-static plBlitEncoder*
-pl__get_blit_encoder(plBlitEncoderHandle tHandle)
-{
-    return &gptGraphics->sbtBlitEncoders[tHandle.uIndex];
-}
-
-static plCommandBuffer*
-pl__get_command_buffer(plCommandBufferHandle tHandle)
-{
-    return &gptGraphics->sbtCommandBuffers[tHandle.uIndex];
-}
-
 static plSampler*
 pl_get_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
 {
@@ -271,130 +247,130 @@ pl_queue_sampler_for_deletion(plDevice* ptDevice, plSamplerHandle tHandle)
 static void
 pl_drawstream_cleanup(plDrawStream* ptStream)
 {
-    memset(&ptStream->tCurrentDraw, 255, sizeof(plStreamDraw)); 
-    pl_sb_free(ptStream->sbtStream);
+    memset(&ptStream->_tCurrentDraw, 255, sizeof(plDrawStreamData)); 
+    pl_sb_free(ptStream->_sbtStream);
 }
 
 static void
 pl_drawstream_reset(plDrawStream* ptStream)
 {
-    memset(&ptStream->tCurrentDraw, 255, sizeof(plStreamDraw));
-    ptStream->tCurrentDraw.uIndexBuffer = UINT32_MAX - 1;
-    ptStream->tCurrentDraw.uDynamicBufferOffset = 0;
-    pl_sb_reset(ptStream->sbtStream);
+    memset(&ptStream->_tCurrentDraw, 255, sizeof(plDrawStreamData));
+    ptStream->_tCurrentDraw.uIndexBuffer = UINT32_MAX - 1;
+    ptStream->_tCurrentDraw.uDynamicBufferOffset0 = 0;
+    pl_sb_reset(ptStream->_sbtStream);
 }
 
 static void
-pl_drawstream_draw(plDrawStream* ptStream, plStreamDraw tDraw)
+pl_drawstream_draw(plDrawStream* ptStream, plDrawStreamData tDraw)
 {
 
     uint32_t uDirtyMask = PL_DRAW_STREAM_BIT_NONE;
 
-    if(ptStream->tCurrentDraw.uShaderVariant != tDraw.uShaderVariant)
+    if(ptStream->_tCurrentDraw.uShaderVariant != tDraw.uShaderVariant)
     {
-        ptStream->tCurrentDraw.uShaderVariant = tDraw.uShaderVariant;
+        ptStream->_tCurrentDraw.uShaderVariant = tDraw.uShaderVariant;
         uDirtyMask |= PL_DRAW_STREAM_BIT_SHADER;
     }
 
-    if(ptStream->tCurrentDraw.uDynamicBufferOffset != tDraw.uDynamicBufferOffset)
+    if(ptStream->_tCurrentDraw.uDynamicBufferOffset0 != tDraw.uDynamicBufferOffset0)
     {   
-        ptStream->tCurrentDraw.uDynamicBufferOffset = tDraw.uDynamicBufferOffset;
+        ptStream->_tCurrentDraw.uDynamicBufferOffset0 = tDraw.uDynamicBufferOffset0;
         uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET;
     }
 
-    if(ptStream->tCurrentDraw.uBindGroup0 != tDraw.uBindGroup0)
+    if(ptStream->_tCurrentDraw.uBindGroup0 != tDraw.uBindGroup0)
     {
-        ptStream->tCurrentDraw.uBindGroup0 = tDraw.uBindGroup0;
+        ptStream->_tCurrentDraw.uBindGroup0 = tDraw.uBindGroup0;
         uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_0;
     }
 
-    if(ptStream->tCurrentDraw.uBindGroup1 != tDraw.uBindGroup1)
+    if(ptStream->_tCurrentDraw.uBindGroup1 != tDraw.uBindGroup1)
     {
-        ptStream->tCurrentDraw.uBindGroup1 = tDraw.uBindGroup1;
+        ptStream->_tCurrentDraw.uBindGroup1 = tDraw.uBindGroup1;
         uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_1;
     }
 
-    if(ptStream->tCurrentDraw.uBindGroup2 != tDraw.uBindGroup2)
+    if(ptStream->_tCurrentDraw.uBindGroup2 != tDraw.uBindGroup2)
     {
-        ptStream->tCurrentDraw.uBindGroup2 = tDraw.uBindGroup2;
+        ptStream->_tCurrentDraw.uBindGroup2 = tDraw.uBindGroup2;
         uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_2;
     }
 
-    if(ptStream->tCurrentDraw.uDynamicBuffer != tDraw.uDynamicBuffer)
+    if(ptStream->_tCurrentDraw.uDynamicBuffer0 != tDraw.uDynamicBuffer0)
     {
-        ptStream->tCurrentDraw.uDynamicBuffer = tDraw.uDynamicBuffer;
+        ptStream->_tCurrentDraw.uDynamicBuffer0 = tDraw.uDynamicBuffer0;
         uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER;
     }
 
-    if(ptStream->tCurrentDraw.uIndexOffset != tDraw.uIndexOffset)
+    if(ptStream->_tCurrentDraw.uIndexOffset != tDraw.uIndexOffset)
     {   
-        ptStream->tCurrentDraw.uIndexOffset = tDraw.uIndexOffset;
+        ptStream->_tCurrentDraw.uIndexOffset = tDraw.uIndexOffset;
         uDirtyMask |= PL_DRAW_STREAM_BIT_INDEX_OFFSET;
     }
 
-    if(ptStream->tCurrentDraw.uVertexOffset != tDraw.uVertexOffset)
+    if(ptStream->_tCurrentDraw.uVertexOffset != tDraw.uVertexOffset)
     {   
-        ptStream->tCurrentDraw.uVertexOffset = tDraw.uVertexOffset;
+        ptStream->_tCurrentDraw.uVertexOffset = tDraw.uVertexOffset;
         uDirtyMask |= PL_DRAW_STREAM_BIT_VERTEX_OFFSET;
     }
 
-    if(ptStream->tCurrentDraw.uIndexBuffer != tDraw.uIndexBuffer)
+    if(ptStream->_tCurrentDraw.uIndexBuffer != tDraw.uIndexBuffer)
     {
-        ptStream->tCurrentDraw.uIndexBuffer = tDraw.uIndexBuffer;
+        ptStream->_tCurrentDraw.uIndexBuffer = tDraw.uIndexBuffer;
         uDirtyMask |= PL_DRAW_STREAM_BIT_INDEX_BUFFER;
     }
 
-    if(ptStream->tCurrentDraw.uVertexBuffer != tDraw.uVertexBuffer)
+    if(ptStream->_tCurrentDraw.uVertexBuffer != tDraw.uVertexBuffer)
     {
-        ptStream->tCurrentDraw.uVertexBuffer = tDraw.uVertexBuffer;
+        ptStream->_tCurrentDraw.uVertexBuffer = tDraw.uVertexBuffer;
         uDirtyMask |= PL_DRAW_STREAM_BIT_VERTEX_BUFFER;
     }
 
-    if(ptStream->tCurrentDraw.uTriangleCount != tDraw.uTriangleCount)
+    if(ptStream->_tCurrentDraw.uTriangleCount != tDraw.uTriangleCount)
     {
-        ptStream->tCurrentDraw.uTriangleCount = tDraw.uTriangleCount;
+        ptStream->_tCurrentDraw.uTriangleCount = tDraw.uTriangleCount;
         uDirtyMask |= PL_DRAW_STREAM_BIT_TRIANGLES;
     }
 
-    if(ptStream->tCurrentDraw.uInstanceStart != tDraw.uInstanceStart)
+    if(ptStream->_tCurrentDraw.uInstanceStart != tDraw.uInstanceStart)
     {
-        ptStream->tCurrentDraw.uInstanceStart = tDraw.uInstanceStart;
+        ptStream->_tCurrentDraw.uInstanceStart = tDraw.uInstanceStart;
         uDirtyMask |= PL_DRAW_STREAM_BIT_INSTANCE_START;
     }
 
-    if(ptStream->tCurrentDraw.uInstanceCount != tDraw.uInstanceCount)
+    if(ptStream->_tCurrentDraw.uInstanceCount != tDraw.uInstanceCount)
     {
-        ptStream->tCurrentDraw.uInstanceCount = tDraw.uInstanceCount;
+        ptStream->_tCurrentDraw.uInstanceCount = tDraw.uInstanceCount;
         uDirtyMask |= PL_DRAW_STREAM_BIT_INSTANCE_COUNT;
     }
 
-    pl_sb_push(ptStream->sbtStream, uDirtyMask);
+    pl_sb_push(ptStream->_sbtStream, uDirtyMask);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uShaderVariant);
+        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uShaderVariant);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uDynamicBufferOffset);
+        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uDynamicBufferOffset0);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uBindGroup0);
+        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uBindGroup0);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uBindGroup1);
+        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uBindGroup1);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uBindGroup2);
+        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uBindGroup2);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uDynamicBuffer);
+        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uDynamicBuffer0);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uIndexOffset);
+        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uIndexOffset);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_OFFSET)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uVertexOffset);
+        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uVertexOffset);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_BUFFER)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uIndexBuffer);
+        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uIndexBuffer);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uVertexBuffer);
+        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uVertexBuffer);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_TRIANGLES)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uTriangleCount);
+        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uTriangleCount);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_START)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uInstanceStart);
+        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uInstanceStart);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_COUNT)
-        pl_sb_push(ptStream->sbtStream, ptStream->tCurrentDraw.uInstanceCount);
+        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uInstanceCount);
 }
 
 static uint32_t
@@ -421,14 +397,37 @@ pl__format_stride(plFormat tFormat)
 static void
 pl__cleanup_common_graphics(void)
 {
-    pl_sb_free(gptGraphics->sbtCommandBuffers)
-    pl_sb_free(gptGraphics->sbuCommandBuffersFreeIndices)
-    pl_sb_free(gptGraphics->sbtRenderEncoders)
-    pl_sb_free(gptGraphics->sbuRenderEncodersFreeIndices)
-    pl_sb_free(gptGraphics->sbtBlitEncoders)
-    pl_sb_free(gptGraphics->sbuBlitEncodersFreeIndices)
-    pl_sb_free(gptGraphics->sbtComputeEncoders)
-    pl_sb_free(gptGraphics->sbuComputeEncodersFreeIndices)
+    plCommandBuffer* ptCurrentCommandBuffer = gptGraphics->ptCommandBufferFreeList;
+    while(ptCurrentCommandBuffer)
+    {
+        plCommandBuffer* ptNextCommandBuffer = ptCurrentCommandBuffer->ptNext;
+        PL_FREE(ptCurrentCommandBuffer);
+        ptCurrentCommandBuffer = ptNextCommandBuffer;
+    }
+
+    plRenderEncoder* ptCurrentRenderEncoder = gptGraphics->ptRenderEncoderFreeList;
+    while(ptCurrentRenderEncoder)
+    {
+        plRenderEncoder* ptNextEncoder = ptCurrentRenderEncoder->ptNext;
+        PL_FREE(ptCurrentRenderEncoder);
+        ptCurrentRenderEncoder = ptNextEncoder;
+    }
+
+    plBlitEncoder* ptCurrentBlitEncoder = gptGraphics->ptBlitEncoderFreeList;
+    while(ptCurrentBlitEncoder)
+    {
+        plBlitEncoder* ptNextEncoder = ptCurrentBlitEncoder->ptNext;
+        PL_FREE(ptCurrentBlitEncoder);
+        ptCurrentBlitEncoder = ptNextEncoder;
+    }
+
+    plComputeEncoder* ptCurrentComputeEncoder = gptGraphics->ptComputeEncoderFreeList;
+    while(ptCurrentComputeEncoder)
+    {
+        plComputeEncoder* ptNextEncoder = ptCurrentComputeEncoder->ptNext;
+        PL_FREE(ptCurrentComputeEncoder);
+        ptCurrentComputeEncoder = ptNextEncoder;
+    }
     gptGraphics = NULL;
 }
 
@@ -674,115 +673,84 @@ pl__get_new_semaphore_handle(plDevice* ptDevice)
     return tHandle;
 }
 
-static plCommandBufferHandle
-pl__get_new_command_buffer_handle(void)
+static plRenderEncoder*
+pl__get_new_render_encoder(void)
 {
-    uint32_t uIndex = UINT32_MAX;
-    if(pl_sb_size(gptGraphics->sbuCommandBuffersFreeIndices) > 0)
-        uIndex = pl_sb_pop(gptGraphics->sbuCommandBuffersFreeIndices);
+    plRenderEncoder* ptEncoder = gptGraphics->ptRenderEncoderFreeList;
+    if(ptEncoder)
+    {
+        gptGraphics->ptRenderEncoderFreeList = ptEncoder->ptNext;
+    }
     else
     {
-        uIndex = pl_sb_size(gptGraphics->sbtCommandBuffers);
-        pl_sb_add(gptGraphics->sbtCommandBuffers);
+        ptEncoder = PL_ALLOC(sizeof(plRenderEncoder));
+        memset(ptEncoder, 0, sizeof(plRenderEncoder));
     }
-
-    plCommandBufferHandle tHandle = {
-        .uGeneration = UINT32_MAX,
-        .uIndex      = uIndex
-    };
-    return tHandle;
+    return ptEncoder;
 }
 
-static plRenderEncoderHandle
-pl__get_new_render_encoder_handle(void)
+static plComputeEncoder*
+pl__get_new_compute_encoder(void)
 {
-    uint32_t uIndex = UINT32_MAX;
-    if(pl_sb_size(gptGraphics->sbuRenderEncodersFreeIndices) > 0)
-        uIndex = pl_sb_pop(gptGraphics->sbuRenderEncodersFreeIndices);
+    plComputeEncoder* ptEncoder = gptGraphics->ptComputeEncoderFreeList;
+    if(ptEncoder)
+    {
+        gptGraphics->ptComputeEncoderFreeList = ptEncoder->ptNext;
+    }
     else
     {
-        uIndex = pl_sb_size(gptGraphics->sbtRenderEncoders);
-        pl_sb_add(gptGraphics->sbtRenderEncoders);
+        ptEncoder = PL_ALLOC(sizeof(plComputeEncoder));
+        memset(ptEncoder, 0, sizeof(plComputeEncoder));
     }
-
-    plRenderEncoderHandle tHandle = {
-        .uGeneration = UINT32_MAX,
-        .uIndex      = uIndex
-    };
-    return tHandle;
+    return ptEncoder;
 }
 
-static plComputeEncoderHandle
-pl__get_new_compute_encoder_handle(void)
+static plBlitEncoder*
+pl__get_new_blit_encoder(void)
 {
-    uint32_t uIndex = UINT32_MAX;
-    if(pl_sb_size(gptGraphics->sbuComputeEncodersFreeIndices) > 0)
-        uIndex = pl_sb_pop(gptGraphics->sbuComputeEncodersFreeIndices);
+    plBlitEncoder* ptEncoder = gptGraphics->ptBlitEncoderFreeList;
+    if(ptEncoder)
+    {
+        gptGraphics->ptBlitEncoderFreeList = ptEncoder->ptNext;
+    }
     else
     {
-        uIndex = pl_sb_size(gptGraphics->sbtComputeEncoders);
-        pl_sb_add(gptGraphics->sbtComputeEncoders);
+        ptEncoder = PL_ALLOC(sizeof(plBlitEncoder));
+        memset(ptEncoder, 0, sizeof(plBlitEncoder));
     }
-
-    plComputeEncoderHandle tHandle = {
-        .uGeneration = UINT32_MAX,
-        .uIndex      = uIndex
-    };
-    return tHandle;
-}
-
-static plBlitEncoderHandle
-pl__get_new_blit_encoder_handle(void)
-{
-    uint32_t uIndex = UINT32_MAX;
-    if(pl_sb_size(gptGraphics->sbuBlitEncodersFreeIndices) > 0)
-        uIndex = pl_sb_pop(gptGraphics->sbuBlitEncodersFreeIndices);
-    else
-    {
-        uIndex = pl_sb_size(gptGraphics->sbtBlitEncoders);
-        pl_sb_add(gptGraphics->sbtBlitEncoders);
-    }
-
-    plBlitEncoderHandle tHandle = {
-        .uGeneration = UINT32_MAX,
-        .uIndex      = uIndex
-    };
-    return tHandle;
+    return ptEncoder;
 }
 
 static void
-pl__return_command_buffer_handle(plCommandBufferHandle tHandle)
+pl__return_render_encoder(plRenderEncoder* ptEncoder)
 {
-    pl_sb_push(gptGraphics->sbuCommandBuffersFreeIndices, tHandle.uIndex); 
+    ptEncoder->ptNext = gptGraphics->ptRenderEncoderFreeList;
+    gptGraphics->ptRenderEncoderFreeList = ptEncoder;
 }
 
 static void
-pl__return_render_encoder_handle(plRenderEncoderHandle tHandle)
+pl__return_compute_encoder(plComputeEncoder* ptEncoder)
 {
-    pl_sb_push(gptGraphics->sbuRenderEncodersFreeIndices, tHandle.uIndex);
+    ptEncoder->ptNext = gptGraphics->ptComputeEncoderFreeList;
+    gptGraphics->ptComputeEncoderFreeList = ptEncoder;
 }
 
 static void
-pl__return_compute_encoder_handle(plComputeEncoderHandle tHandle)
+pl__return_blit_encoder(plBlitEncoder* ptEncoder)
 {
-    pl_sb_push(gptGraphics->sbuComputeEncodersFreeIndices, tHandle.uIndex);
-}
-
-static void
-pl__return_blit_encoder_handle(plBlitEncoderHandle tHandle)
-{
-    pl_sb_push(gptGraphics->sbuBlitEncodersFreeIndices, tHandle.uIndex);
+    ptEncoder->ptNext = gptGraphics->ptBlitEncoderFreeList;
+    gptGraphics->ptBlitEncoderFreeList = ptEncoder;
 }
 
 static plRenderPassHandle
-pl_get_encoder_render_pass(plRenderEncoderHandle tHandle)
+pl_get_encoder_render_pass(plRenderEncoder* ptEncoder)
 {
-    return gptGraphics->sbtRenderEncoders[tHandle.uIndex].tRenderPassHandle;
+    return ptEncoder->tRenderPassHandle;
 }
 static uint32_t
-pl_get_render_encoder_subpass(plRenderEncoderHandle tHandle)
+pl_get_render_encoder_subpass(plRenderEncoder* ptEncoder)
 {
-    return gptGraphics->sbtRenderEncoders[tHandle.uIndex]._uCurrentSubpass;
+    return ptEncoder->_uCurrentSubpass;
 }
 
 static const plGraphicsI*

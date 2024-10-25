@@ -198,11 +198,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
 
     // create vertex buffer
-    const plBufferDescription tBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_VERTEX,
-        .uByteSize = sizeof(float) * 18
+    const plBufferDesc tBufferDesc = {
+        .tUsage       = PL_BUFFER_USAGE_VERTEX,
+        .szByteSize   = sizeof(float) * 18,
+        .pcDebugName  = "vertex buffer"
     };
-    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tBufferDesc, "vertex buffer");
+    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tBufferDesc);
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
     plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tVertexBuffer);
@@ -240,7 +241,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP
         },
-        .tVertexBufferBinding = {
+        .tVertexBufferLayout = {
             .uByteStride = sizeof(float) * 6,
             .atAttributes = {
                 {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32_FLOAT},
@@ -326,26 +327,26 @@ pl_app_update(plAppData* ptAppData)
         .atWaitSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue0},
     };
-    plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptAppData->ptDevice, &tBeginInfo);
+    plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptAppData->ptDevice, &tBeginInfo);
 
     // begin main renderpass (directly to swapchain)
-    plRenderEncoderHandle tEncoder = gptGfx->begin_render_pass(tCommandBuffer, gptGfx->get_main_render_pass(ptAppData->ptDevice));
+    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, gptGfx->get_main_render_pass(ptAppData->ptDevice));
 
     // submit nonindexed draw using basic API
-    gptGfx->bind_shader(tEncoder, ptAppData->tShader);
-    gptGfx->bind_vertex_buffer(tEncoder, ptAppData->tVertexBuffer);
+    gptGfx->bind_shader(ptEncoder, ptAppData->tShader);
+    gptGfx->bind_vertex_buffer(ptEncoder, ptAppData->tVertexBuffer);
 
     const plDraw tDraw = {
         .uInstanceCount = 1,
         .uVertexCount   = 3
     };
-    gptGfx->draw(tEncoder, 1, &tDraw);
+    gptGfx->draw(ptEncoder, 1, &tDraw);
 
     // end render pass
-    gptGfx->end_render_pass(tEncoder);
+    gptGfx->end_render_pass(ptEncoder);
 
     // end recording
-    gptGfx->end_command_recording(tCommandBuffer);
+    gptGfx->end_command_recording(ptCommandBuffer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~submit work to GPU & present~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -355,7 +356,7 @@ pl_app_update(plAppData* ptAppData)
         .auSignalSemaphoreValues = {ulValue1},
     };
 
-    if(!gptGfx->present(tCommandBuffer, &tSubmitInfo, ptAppData->ptSwapchain))
+    if(!gptGfx->present(ptCommandBuffer, &tSubmitInfo, ptAppData->ptSwapchain))
         gptGfx->resize(ptAppData->ptSwapchain);
 
     pl_end_profile_frame();

@@ -39,8 +39,8 @@ typedef struct _plDrawList2D  plDrawList2D;  // pl_draw_ext.h
 typedef struct _plDrawList3D  plDrawList3D;  // pl_draw_ext.h
 typedef int    plDrawFlags;                  // pl_draw_ext.h
 
-typedef struct _plDevice             plDevice;              // pl_graphics_ext.h
-typedef union  plRenderEncoderHandle plRenderEncoderHandle; // pl_graphics_ext.h
+typedef struct _plDevice        plDevice;        // pl_graphics_ext.h
+typedef struct _plRenderEncoder plRenderEncoder; // pl_graphics_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -57,8 +57,8 @@ typedef struct _plDrawBackendI
     bool (*build_font_atlas)  (plFontAtlas*);
     void (*cleanup_font_atlas)(plFontAtlas*);
 
-    void (*submit_2d_drawlist)(plDrawList2D*, plRenderEncoderHandle, float fWidth, float fHeight, uint32_t uMSAASampleCount);
-    void (*submit_3d_drawlist)(plDrawList3D*, plRenderEncoderHandle, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t uMSAASampleCount);
+    void (*submit_2d_drawlist)(plDrawList2D*, plRenderEncoder*, float fWidth, float fHeight, uint32_t uMSAASampleCount);
+    void (*submit_3d_drawlist)(plDrawList3D*, plRenderEncoder*, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t uMSAASampleCount);
 
 } plDrawBackendI;
 

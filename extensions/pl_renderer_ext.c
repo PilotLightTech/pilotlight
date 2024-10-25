@@ -410,9 +410,9 @@ static void pl__refr_cull_job      (uint32_t uJobIndex, void* pData);
 // resource creation helpers
 static plTextureHandle pl__refr_create_texture              (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
 static plTextureHandle pl__refr_create_texture_with_data    (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData, size_t szSize);
-static plBufferHandle  pl__refr_create_staging_buffer       (const plBufferDescription* ptDesc, const char* pcName, uint32_t uIdentifier);
-static plBufferHandle  pl__refr_create_cached_staging_buffer(const plBufferDescription* ptDesc, const char* pcName, uint32_t uIdentifier);
-static plBufferHandle  pl__refr_create_local_buffer         (const plBufferDescription* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData);
+static plBufferHandle  pl__refr_create_staging_buffer       (const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
+static plBufferHandle  pl__refr_create_cached_staging_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
+static plBufferHandle  pl__refr_create_local_buffer         (const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData);
 
 //-----------------------------------------------------------------------------
 // [SECTION] implementation
@@ -499,17 +499,17 @@ pl_refr_initialize(plWindow* ptWindow)
     gptData->ptStagingCachedAllocator   = gptGpuAllocators->get_staging_cached_allocator(gptData->ptDevice);
 
     // create staging buffers
-    const plBufferDescription tStagingBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_STAGING,
-        .uByteSize = 268435456
+    const plBufferDesc tStagingBufferDesc = {
+        .tUsage     = PL_BUFFER_USAGE_STAGING,
+        .szByteSize = 268435456
     };
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
         gptData->tStagingBufferHandle[i] = pl__refr_create_staging_buffer(&tStagingBufferDesc, "staging", i);
 
     // create caching staging buffer
-    const plBufferDescription tStagingCachedBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_STAGING,
-        .uByteSize = 268435456
+    const plBufferDesc tStagingCachedBufferDesc = {
+        .tUsage     = PL_BUFFER_USAGE_STAGING,
+        .szByteSize = 268435456
     };
     gptData->tCachedStagingBuffer = pl__refr_create_cached_staging_buffer(&tStagingBufferDesc, "cached staging", 0);
 
@@ -521,6 +521,7 @@ pl_refr_initialize(plWindow* ptWindow)
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName   = "dummy"
     };
     
     const float afDummyTextureData[] = {
@@ -537,39 +538,46 @@ pl_refr_initialize(plWindow* ptWindow)
         .uLayers     = 6,
         .uMips       = 1,
         .tType       = PL_TEXTURE_TYPE_CUBE,
-        .tUsage      = PL_TEXTURE_USAGE_SAMPLED
+        .tUsage      = PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName = "dummy cube"
     };
     gptData->tDummyTextureCube = pl__refr_create_texture(&tSkyboxTextureDesc, "dummy cube", 0);
 
     // create samplers
     const plSamplerDesc tSamplerDesc = {
-        .tFilter         = PL_FILTER_LINEAR,
+        .tMagFilter      = PL_FILTER_LINEAR,
+        .tMinFilter      = PL_FILTER_LINEAR,
         .fMinMip         = 0.0f,
         .fMaxMip         = 64.0f,
-        .tVerticalWrap   = PL_WRAP_MODE_WRAP,
-        .tHorizontalWrap = PL_WRAP_MODE_WRAP
+        .tVAddressMode   = PL_ADDRESS_MODE_WRAP,
+        .tUAddressMode   = PL_ADDRESS_MODE_WRAP,
+        .pcDebugName     = "default sampler"
     };
-    gptData->tDefaultSampler = gptGfx->create_sampler(gptData->ptDevice, &tSamplerDesc, "default sampler");
+    gptData->tDefaultSampler = gptGfx->create_sampler(gptData->ptDevice, &tSamplerDesc);
 
     const plSamplerDesc tShadowSamplerDesc = {
-        .tFilter         = PL_FILTER_LINEAR,
+        .tMagFilter      = PL_FILTER_LINEAR,
+        .tMinFilter      = PL_FILTER_LINEAR,
         .fMinMip         = 0.0f,
         .fMaxMip         = 1.0f,
         .fMaxAnisotropy  = 1.0f,
-        .tVerticalWrap   = PL_WRAP_MODE_CLAMP,
-        .tHorizontalWrap = PL_WRAP_MODE_CLAMP,
-        .tMipmapMode = PL_MIPMAP_MODE_NEAREST
+        .tVAddressMode   = PL_ADDRESS_MODE_CLAMP,
+        .tUAddressMode   = PL_ADDRESS_MODE_CLAMP,
+        .tMipmapMode     = PL_MIPMAP_MODE_NEAREST,
+        .pcDebugName     = "shadow sampler"
     };
-    gptData->tShadowSampler = gptGfx->create_sampler(gptData->ptDevice, &tShadowSamplerDesc, "shadow sampler");
+    gptData->tShadowSampler = gptGfx->create_sampler(gptData->ptDevice, &tShadowSamplerDesc);
 
     const plSamplerDesc tEnvSamplerDesc = {
-        .tFilter         = PL_FILTER_LINEAR,
+        .tMagFilter      = PL_FILTER_LINEAR,
+        .tMinFilter      = PL_FILTER_LINEAR,
         .fMinMip         = 0.0f,
         .fMaxMip         = 64.0f,
-        .tVerticalWrap   = PL_WRAP_MODE_CLAMP,
-        .tHorizontalWrap = PL_WRAP_MODE_CLAMP
+        .tVAddressMode   = PL_ADDRESS_MODE_CLAMP,
+        .tUAddressMode   = PL_ADDRESS_MODE_CLAMP,
+        .pcDebugName     = "ENV sampler"
     };
-    gptData->tEnvSampler = gptGfx->create_sampler(gptData->ptDevice, &tEnvSamplerDesc, "ENV sampler");
+    gptData->tEnvSampler = gptGfx->create_sampler(gptData->ptDevice, &tEnvSamplerDesc);
 
     // create deferred render pass layout
     const plRenderPassLayoutDescription tRenderPassLayoutDesc = {
@@ -684,7 +692,7 @@ pl_refr_initialize(plWindow* ptWindow)
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP
         },
-        .tVertexBufferBinding = {
+        .tVertexBufferLayout = {
             .uByteStride  = sizeof(float) * 3,
             .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
         },
@@ -703,7 +711,7 @@ pl_refr_initialize(plWindow* ptWindow)
         .atBindGroupLayouts = {
             {
                 .uBufferBindingCount  = 3,
-                .aBufferBindings = {
+                .atBufferBindings = {
                     {
                         .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
                         .uSlot = 0,
@@ -767,7 +775,7 @@ pl_refr_initialize(plWindow* ptWindow)
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP
         },
-        .tVertexBufferBinding = {
+        .tVertexBufferLayout = {
             .uByteStride = sizeof(float) * 3,
             .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
         },
@@ -783,7 +791,7 @@ pl_refr_initialize(plWindow* ptWindow)
         .atBindGroupLayouts = {
             {
                 .uBufferBindingCount  = 3,
-                .aBufferBindings = {
+                .atBufferBindings = {
                     {
                         .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
                         .uSlot = 0,
@@ -814,7 +822,7 @@ pl_refr_initialize(plWindow* ptWindow)
             },
             {
                 .uBufferBindingCount  = 2,
-                .aBufferBindings = {
+                .atBufferBindings = {
                     { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                     { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                 },
@@ -862,7 +870,7 @@ pl_refr_initialize(plWindow* ptWindow)
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP
         },
-        .tVertexBufferBinding = {
+        .tVertexBufferLayout = {
             .uByteStride = sizeof(float) * 3,
             .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
         },
@@ -878,7 +886,7 @@ pl_refr_initialize(plWindow* ptWindow)
         .atBindGroupLayouts = {
             {
                 .uBufferBindingCount  = 3,
-                .aBufferBindings = {
+                .atBufferBindings = {
                     { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                     { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                     { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
@@ -923,7 +931,7 @@ pl_refr_initialize(plWindow* ptWindow)
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP
         },
-        .tVertexBufferBinding = {
+        .tVertexBufferLayout = {
             .uByteStride = sizeof(float) * 3,
             .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
         },
@@ -938,7 +946,7 @@ pl_refr_initialize(plWindow* ptWindow)
         .atBindGroupLayouts = {
             {
                 .uBufferBindingCount  = 1,
-                .aBufferBindings = {
+                .atBufferBindings = {
                     { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                 },
             }
@@ -962,7 +970,7 @@ pl_refr_initialize(plWindow* ptWindow)
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP
         },
-        .tVertexBufferBinding = {
+        .tVertexBufferLayout = {
             .uByteStride = sizeof(float) * 4,
             .atAttributes = {
                 {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
@@ -979,7 +987,7 @@ pl_refr_initialize(plWindow* ptWindow)
     };
     gptData->tUVShader = gptGfx->create_shader(gptData->ptDevice, &tUVShaderDesc);
 
-    const plComputeShaderDescription tComputeShaderDesc = {
+    const plComputeShaderDesc tComputeShaderDesc = {
         .tShader = gptShader->load_glsl("../shaders/jumpfloodalgo.comp", "main", NULL, NULL),
         .uBindGroupLayoutCount = 1,
         .atBindGroupLayouts = {
@@ -997,9 +1005,9 @@ pl_refr_initialize(plWindow* ptWindow)
 
     // create full quad
     const uint32_t auFullQuadIndexBuffer[] = {0, 1, 2, 0, 2, 3};
-    const plBufferDescription tFullQuadIndexBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_INDEX,
-        .uByteSize = sizeof(uint32_t) * 6
+    const plBufferDesc tFullQuadIndexBufferDesc = {
+        .tUsage     = PL_BUFFER_USAGE_INDEX,
+        .szByteSize = sizeof(uint32_t) * 6
     };
     gptData->tFullQuadIndexBuffer = pl__refr_create_local_buffer(&tFullQuadIndexBufferDesc, "full quad index buffer", 0, auFullQuadIndexBuffer);
 
@@ -1009,9 +1017,9 @@ pl_refr_initialize(plWindow* ptWindow)
          1.0f,  1.0f, 1.0f, 1.0f,
          1.0f, -1.0f, 1.0f, 0.0f
     };
-    const plBufferDescription tFullQuadVertexBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_VERTEX,
-        .uByteSize = sizeof(float) * 16
+    const plBufferDesc tFullQuadVertexBufferDesc = {
+        .tUsage     = PL_BUFFER_USAGE_VERTEX,
+        .szByteSize = sizeof(float) * 16
     };
     gptData->tFullQuadVertexBuffer = pl__refr_create_local_buffer(&tFullQuadVertexBufferDesc, "full quad vertex buffer", 0, afFullQuadVertexBuffer);
 
@@ -1074,7 +1082,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-        .tInitialUsage = PL_TEXTURE_USAGE_SAMPLED
+        .tInitialUsage = PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName   = "offscreen final"
     };
 
     const plTextureDesc tPickTextureDesc = {
@@ -1084,7 +1093,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-        .tInitialUsage = PL_TEXTURE_USAGE_SAMPLED
+        .tInitialUsage = PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName   = "pick original"
     };
 
     const plTextureDesc tPickDepthTextureDesc = {
@@ -1094,7 +1104,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-        .tInitialUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT
+        .tInitialUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+        .pcDebugName   = "pick depth original"
     };
 
     const plTextureDesc tAttachmentTextureDesc = {
@@ -1104,7 +1115,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-        .tInitialUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT
+        .tInitialUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+        .pcDebugName   = "g-buffer"
     };
 
     const plTextureDesc tAlbedoTextureDesc = {
@@ -1114,7 +1126,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-        .tInitialUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT
+        .tInitialUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+        .pcDebugName   = "albedo texture"
     };
 
     const plTextureDesc tDepthTextureDesc = {
@@ -1124,7 +1137,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-        .tInitialUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT
+        .tInitialUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+        .pcDebugName   = "offscreen depth texture"
     };
 
     const plTextureDesc tShadowDepthTextureDesc = {
@@ -1134,7 +1148,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D_ARRAY,
         .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
-        .tInitialUsage = PL_TEXTURE_USAGE_SAMPLED
+        .tInitialUsage = PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName   = "shadow map"
     };
 
     const plTextureDesc tMaskTextureDesc = {
@@ -1144,7 +1159,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE,
-        .tInitialUsage = PL_TEXTURE_USAGE_STORAGE
+        .tInitialUsage = PL_TEXTURE_USAGE_STORAGE,
+        .pcDebugName   = "mask texture"
     };
 
     const plTextureDesc tEmmissiveTexDesc = {
@@ -1154,22 +1170,26 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-        .tInitialUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT
+        .tInitialUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+        .pcDebugName   = "emissive texture"
     };
 
-    const plBufferDescription atGlobalBuffersDesc = {
-        .tUsage    = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
-        .uByteSize = 134217728
+    const plBufferDesc atGlobalBuffersDesc = {
+        .tUsage     = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
+        .szByteSize = 134217728,
+        .pcDebugName = "global buffer"
     };
 
-    const plBufferDescription atCameraBuffersDesc = {
+    const plBufferDesc atCameraBuffersDesc = {
+        .tUsage     = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .szByteSize = 4096,
+        .pcDebugName = "camera buffers"
+    };
+
+    const plBufferDesc atLightShadowDataBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
-        .uByteSize = 4096
-    };
-
-    const plBufferDescription atLightShadowDataBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
-        .uByteSize = 134217728
+        .szByteSize = 134217728,
+        .pcDebugName = "shadow data buffer"
     };
 
     const plBindGroupLayout tLightingBindGroupLayout = {
@@ -1240,7 +1260,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         };
         const plBindGroupUpdateData tBGData = {
             .uTextureCount = 5,
-            .atTextures = atBGTextureData
+            .atTextureBindings = atBGTextureData
         };
         gptGfx->update_bind_group(gptData->ptDevice, ptView->tLightingBindGroup[i], &tBGData);
         pl_temp_allocator_reset(&gptData->tTempAllocator);
@@ -1272,13 +1292,14 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
             .uMips       = 1,
             .uBaseLayer  = 0,
             .uLayerCount = 1,
-            .tTexture   = ptView->tShadowData.tDepthTexture[i]
+            .tTexture    = ptView->tShadowData.tDepthTexture[i],
+            .pcDebugName = "shadow view"
         };
         for(uint32_t j = 0; j < 4; j++)
         {
             // atDepthTextureViews
             tShadowDepthView.uBaseLayer = j;
-            (ptView->tShadowData.atDepthTextureViews[j])[i] = gptGfx->create_texture_view(gptData->ptDevice, &tShadowDepthView, "shadow view");
+            (ptView->tShadowData.atDepthTextureViews[j])[i] = gptGfx->create_texture_view(gptData->ptDevice, &tShadowDepthView);
             (atShadowAttachmentSets[j])[i].atViewAttachments[0] = (ptView->tShadowData.atDepthTextureViews[j])[i];
         }
     }
@@ -1608,7 +1629,7 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
         };
         const plBindGroupUpdateData tBGData = {
             .uTextureCount = 5,
-            .atTextures = atBGTextureData
+            .atTextureBindings = atBGTextureData
         };
         gptGfx->update_bind_group(gptData->ptDevice, ptView->tLightingBindGroup[i], &tBGData);
         pl_temp_allocator_free(&tTempAllocator);
@@ -1732,7 +1753,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
                 .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
                 .ulStencilOpPass      = PL_STENCIL_OP_KEEP
             },
-            .tVertexBufferBinding = {
+            .tVertexBufferLayout = {
                 .uByteStride = sizeof(float) * 3,
                 .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
             },
@@ -1746,7 +1767,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             .atBindGroupLayouts = {
                 {
                     .uBufferBindingCount  = 3,
-                    .aBufferBindings = {
+                    .atBufferBindings = {
                         { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,  .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                         { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE,  .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                         { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE,  .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
@@ -1789,7 +1810,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     pl_begin_profile_sample(0, "step 0");
     {
         int aiSkyboxSpecializationData[] = {iResolution, iPanoramaWidth, iPanoramaHeight};
-        const plComputeShaderDescription tSkyboxComputeShaderDesc = {
+        const plComputeShaderDesc tSkyboxComputeShaderDesc = {
             .tShader = gptShader->load_glsl("../shaders/panorama_to_cubemap.comp", "main", NULL, NULL),
             .uConstantCount = 3,
             .pTempConstantData = aiSkyboxSpecializationData,
@@ -1802,7 +1823,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             .atBindGroupLayouts = {
                 {
                     .uBufferBindingCount = 7,
-                    .aBufferBindings = {
+                    .atBufferBindings = {
                         { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 0, .tStages = PL_STAGE_COMPUTE},
                         { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 1, .tStages = PL_STAGE_COMPUTE},
                         { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_STAGE_COMPUTE},
@@ -1819,17 +1840,19 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
 
         plBufferHandle atComputeBuffers[7] = {0};
         const uint32_t uPanoramaSize = iPanoramaHeight * iPanoramaWidth * 4 * sizeof(float);
-        const plBufferDescription tInputBufferDesc = {
-            .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
-            .uByteSize = uPanoramaSize
+        const plBufferDesc tInputBufferDesc = {
+            .tUsage     = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+            .szByteSize = uPanoramaSize,
+            .pcDebugName = "panorama input buffer"
         };
         atComputeBuffers[0] = pl__refr_create_staging_buffer(&tInputBufferDesc, "panorama input", 0);
         plBuffer* ptComputeBuffer = gptGfx->get_buffer(ptDevice, atComputeBuffers[0]);
         memcpy(ptComputeBuffer->tMemoryAllocation.pHostMapped, pfPanoramaData, uPanoramaSize);
 
-        const plBufferDescription tOutputBufferDesc = {
+        const plBufferDesc tOutputBufferDesc = {
             .tUsage    = PL_BUFFER_USAGE_STORAGE,
-            .uByteSize = (uint32_t)uFaceSize
+            .szByteSize = uFaceSize,
+            .pcDebugName = "panorama output buffer"
         };
         
         for(uint32_t i = 0; i < 6; i++)
@@ -1837,7 +1860,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
 
         plBindGroupLayout tComputeBindGroupLayout = {
             .uBufferBindingCount = 7,
-            .aBufferBindings = {
+            .atBufferBindings = {
                 { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 0, .tStages = PL_STAGE_COMPUTE},
                 { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 1, .tStages = PL_STAGE_COMPUTE},
                 { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_STAGE_COMPUTE},
@@ -1859,7 +1882,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         };
         const plBindGroupUpdateData tBGData = {
             .uBufferCount = 7,
-            .atBuffers = atBGBufferData
+            .atBufferBindings = atBGBufferData
         };
         gptGfx->update_bind_group(ptDevice, tComputeBindGroup, &tBGData);
 
@@ -1873,14 +1896,14 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             .uThreadPerGroupZ = 3
         };
         
-        plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
-        plComputeEncoderHandle tComputeEncoder = gptGfx->begin_compute_pass(tCommandBuffer);
-        gptGfx->bind_compute_bind_groups(tComputeEncoder, tPanoramaShader, 0, 1, &tComputeBindGroup, NULL);
-        gptGfx->bind_compute_shader(tComputeEncoder, tPanoramaShader);
-        gptGfx->dispatch(tComputeEncoder, 1, &tDispach);
-        gptGfx->end_compute_pass(tComputeEncoder);
-        gptGfx->end_command_recording(tCommandBuffer);
-        gptGfx->submit_command_buffer_blocking(tCommandBuffer, NULL);
+        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+        plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer);
+        gptGfx->bind_compute_bind_groups(ptComputeEncoder, tPanoramaShader, 0, 1, &tComputeBindGroup, 0, NULL);
+        gptGfx->bind_compute_shader(ptComputeEncoder, tPanoramaShader);
+        gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
+        gptGfx->end_compute_pass(ptComputeEncoder);
+        gptGfx->end_command_recording(ptCommandBuffer);
+        gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
         gptGfx->queue_compute_shader_for_deletion(ptDevice, tPanoramaShader);
 
         const plTextureDesc tSkyboxTextureDesc = {
@@ -1893,8 +1916,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         };
         ptScene->tSkyboxTexture = pl__refr_create_texture(&tSkyboxTextureDesc, "skybox texture", uSceneHandle);
 
-        tCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
-        plBlitEncoderHandle tBlitEncoder = gptGfx->begin_blit_pass(tCommandBuffer);
+        ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+        plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
         for(uint32_t i = 0; i < 6; i++)
         {
             const plBufferImageCopy tBufferImageCopy = {
@@ -1903,11 +1926,11 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
                 .szBufferOffset = 0,
                 .uBaseArrayLayer = i,
             };
-            gptGfx->copy_buffer_to_texture(tBlitEncoder, atComputeBuffers[i + 1], ptScene->tSkyboxTexture, 1, &tBufferImageCopy);
+            gptGfx->copy_buffer_to_texture(ptBlitEncoder, atComputeBuffers[i + 1], ptScene->tSkyboxTexture, 1, &tBufferImageCopy);
         }
-        gptGfx->end_blit_pass(tBlitEncoder);
-        gptGfx->end_command_recording(tCommandBuffer);
-        gptGfx->submit_command_buffer_blocking(tCommandBuffer, NULL);
+        gptGfx->end_blit_pass(ptBlitEncoder);
+        gptGfx->end_command_recording(ptCommandBuffer);
+        gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
         
         for(uint32_t i = 0; i < 7; i++)
             gptGfx->destroy_buffer(ptDevice, atComputeBuffers[i]);
@@ -1922,7 +1945,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         const plBindGroupUpdateTextureData tTextureData1 = {.tTexture = ptScene->tSkyboxTexture, .uSlot = 0, .uIndex = 0, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED};
         const plBindGroupUpdateData tBGData1 = {
             .uTextureCount = 1,
-            .atTextures = &tTextureData1
+            .atTextureBindings = &tTextureData1
         };
         gptGfx->update_bind_group(ptDevice, ptScene->tSkyboxBindGroup, &tBGData1);
 
@@ -1997,7 +2020,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
 
     pl_begin_profile_sample(0, "step 1");
 
-    plComputeShaderDescription tFilterComputeShaderDesc = {
+    plComputeShaderDesc tFilterComputeShaderDesc = {
         .tShader = gptShader->load_glsl("../shaders/filter_environment.comp", "main", NULL, NULL),
         .uConstantCount = 8,
         .atConstants = {
@@ -2018,7 +2041,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
                     {.uSlot = 1, .tStages = PL_STAGE_COMPUTE, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 },
                 .uBufferBindingCount = 7,
-                .aBufferBindings = {
+                .atBufferBindings = {
                     { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_STAGE_COMPUTE},
                     { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 3, .tStages = PL_STAGE_COMPUTE},
                     { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 4, .tStages = PL_STAGE_COMPUTE},
@@ -2100,9 +2123,10 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
 
         pl_begin_profile_sample(0, "step 2");
         plBufferHandle atLutBuffers[7] = {0};
-        const plBufferDescription tInputBufferDesc = {
+        const plBufferDesc tInputBufferDesc = {
             .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
-            .uByteSize = (uint32_t)uFaceSize
+            .szByteSize = uFaceSize,
+            .pcDebugName = "lut output buffer"
         };
         atLutBuffers[6] = pl__refr_create_staging_buffer(&tInputBufferDesc, "lut output", 0);
 
@@ -2131,11 +2155,11 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         };
         const plBindGroupUpdateData tBGData = {
             .uBufferCount = 7,
-            .atBuffers = atBGBufferData,
+            .atBufferBindings = atBGBufferData,
             .uSamplerCount = 1,
             .atSamplerBindings = &tSamplerData,
             .uTextureCount = 1,
-            .atTextures = &tTextureData
+            .atTextureBindings = &tTextureData
         };
         gptGfx->update_bind_group(ptDevice, tLutBindGroup, &tBGData);
 
@@ -2150,14 +2174,14 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         pl_end_profile_sample(0);
 
         pl_begin_profile_sample(0, "step 3");
-        plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
-        plComputeEncoderHandle tComputeEncoder = gptGfx->begin_compute_pass(tCommandBuffer);
-        gptGfx->bind_compute_bind_groups(tComputeEncoder, tLUTShader, 0, 1, &tLutBindGroup, NULL);
-        gptGfx->bind_compute_shader(tComputeEncoder, tLUTShader);
-        gptGfx->dispatch(tComputeEncoder, 1, &tDispach);
-        gptGfx->end_compute_pass(tComputeEncoder);
-        gptGfx->end_command_recording(tCommandBuffer);
-        gptGfx->submit_command_buffer_blocking(tCommandBuffer, NULL);
+        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+        plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer);
+        gptGfx->bind_compute_bind_groups(ptComputeEncoder, tLUTShader, 0, 1, &tLutBindGroup, 0, NULL);
+        gptGfx->bind_compute_shader(ptComputeEncoder, tLUTShader);
+        gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
+        gptGfx->end_compute_pass(ptComputeEncoder);
+        gptGfx->end_command_recording(ptCommandBuffer);
+        gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
         gptGfx->queue_compute_shader_for_deletion(ptDevice, tLUTShader);
 
         plBuffer* ptLutBuffer = gptGfx->get_buffer(ptDevice, atLutBuffers[6]);
@@ -2174,14 +2198,14 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         pl_end_profile_sample(0);
 
         pl_begin_profile_sample(0, "step 4");
-        tCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
-        tComputeEncoder = gptGfx->begin_compute_pass(tCommandBuffer);
-        gptGfx->bind_compute_bind_groups(tComputeEncoder, tIrradianceShader, 0, 1, &tLutBindGroup, NULL);
-        gptGfx->bind_compute_shader(tComputeEncoder, tIrradianceShader);
-        gptGfx->dispatch(tComputeEncoder, 1, &tDispach);
-        gptGfx->end_compute_pass(tComputeEncoder);
-        gptGfx->end_command_recording(tCommandBuffer);
-        gptGfx->submit_command_buffer_blocking(tCommandBuffer, NULL);
+        ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+        ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer);
+        gptGfx->bind_compute_bind_groups(ptComputeEncoder, tIrradianceShader, 0, 1, &tLutBindGroup, 0, NULL);
+        gptGfx->bind_compute_shader(ptComputeEncoder, tIrradianceShader);
+        gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
+        gptGfx->end_compute_pass(ptComputeEncoder);
+        gptGfx->end_command_recording(ptCommandBuffer);
+        gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
         gptGfx->queue_compute_shader_for_deletion(ptDevice, tIrradianceShader);
 
         const plTextureDesc tSpecularTextureDesc = {
@@ -2194,8 +2218,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         };
         ptScene->tLambertianEnvTexture = pl__refr_create_texture(&tSpecularTextureDesc, "specular texture", uSceneHandle);
 
-        tCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
-        plBlitEncoderHandle tBlitEncoder = gptGfx->begin_blit_pass(tCommandBuffer);
+        ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+        plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
 
         for(uint32_t i = 0; i < 6; i++)
         {
@@ -2205,12 +2229,12 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
                 .szBufferOffset = 0,
                 .uBaseArrayLayer = i,
             };
-            gptGfx->copy_buffer_to_texture(tBlitEncoder, atLutBuffers[i], ptScene->tLambertianEnvTexture, 1, &tBufferImageCopy);
+            gptGfx->copy_buffer_to_texture(ptBlitEncoder, atLutBuffers[i], ptScene->tLambertianEnvTexture, 1, &tBufferImageCopy);
         }
 
-        gptGfx->end_blit_pass(tBlitEncoder);
-        gptGfx->end_command_recording(tCommandBuffer);
-        gptGfx->submit_command_buffer_blocking(tCommandBuffer, NULL);
+        gptGfx->end_blit_pass(ptBlitEncoder);
+        gptGfx->end_command_recording(ptCommandBuffer);
+        gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
 
         for(uint32_t i = 0; i < 7; i++)
             gptGfx->destroy_buffer(ptDevice, atLutBuffers[i]);
@@ -2241,9 +2265,10 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         };
 
         const size_t uMaxFaceSize = (size_t)iResolution * (size_t)iResolution * 4 * sizeof(float);
-        const plBufferDescription tOutputBufferDesc = {
+        const plBufferDesc tOutputBufferDesc = {
             .tUsage    = PL_BUFFER_USAGE_STORAGE,
-            .uByteSize = (uint32_t)uMaxFaceSize
+            .szByteSize = uMaxFaceSize,
+            .pcDebugName = "inner buffer"
         };
 
         plBufferHandle atInnerComputeBuffers[7] = {0};
@@ -2263,11 +2288,11 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
 
         const plBindGroupUpdateData tBGData = {
             .uBufferCount = 7,
-            .atBuffers = atBGBufferData,
+            .atBufferBindings = atBGBufferData,
             .uSamplerCount = 1,
             .atSamplerBindings = &tSamplerData,
             .uTextureCount = 1,
-            .atTextures = &tTextureData
+            .atTextureBindings = &tTextureData
         };
         gptGfx->update_bind_group(ptDevice, tLutBindGroup, &tBGData);
 
@@ -2286,18 +2311,18 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
                 .uThreadPerGroupZ = 3
             };
 
-            plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
-            plComputeEncoderHandle tComputeEncoder = gptGfx->begin_compute_pass(tCommandBuffer);
-            gptGfx->bind_compute_bind_groups(tComputeEncoder, atSpecularComputeShaders[i], 0, 1, &tLutBindGroup, NULL);
-            gptGfx->bind_compute_shader(tComputeEncoder, atSpecularComputeShaders[i]);
-            gptGfx->dispatch(tComputeEncoder, 1, &tDispach);
-            gptGfx->end_compute_pass(tComputeEncoder);
-            gptGfx->end_command_recording(tCommandBuffer);
-            gptGfx->submit_command_buffer_blocking(tCommandBuffer, NULL);
+            plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+            plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer);
+            gptGfx->bind_compute_bind_groups(ptComputeEncoder, atSpecularComputeShaders[i], 0, 1, &tLutBindGroup, 0, NULL);
+            gptGfx->bind_compute_shader(ptComputeEncoder, atSpecularComputeShaders[i]);
+            gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
+            gptGfx->end_compute_pass(ptComputeEncoder);
+            gptGfx->end_command_recording(ptCommandBuffer);
+            gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
             gptGfx->queue_compute_shader_for_deletion(ptDevice, atSpecularComputeShaders[i]);
 
-            tCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
-            plBlitEncoderHandle tBlitEncoder = gptGfx->begin_blit_pass(tCommandBuffer);
+            ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+            plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
 
             for(uint32_t j = 0; j < 6; j++)
             {
@@ -2308,11 +2333,11 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
                     .uBaseArrayLayer = j,
                     .uMipLevel       = i
                 };
-                gptGfx->copy_buffer_to_texture(tBlitEncoder, atInnerComputeBuffers[j], ptScene->tGGXEnvTexture, 1, &tBufferImageCopy);
+                gptGfx->copy_buffer_to_texture(ptBlitEncoder, atInnerComputeBuffers[j], ptScene->tGGXEnvTexture, 1, &tBufferImageCopy);
             }
-            gptGfx->end_blit_pass(tBlitEncoder);
-            gptGfx->end_command_recording(tCommandBuffer);
-            gptGfx->submit_command_buffer_blocking(tCommandBuffer, NULL);
+            gptGfx->end_blit_pass(ptBlitEncoder);
+            gptGfx->end_command_recording(ptCommandBuffer);
+            gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
 
         }
         for(uint32_t j = 0; j < 7; j++)
@@ -2658,7 +2683,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         };
         const plBindGroupUpdateData tBGData1 = {
             .uTextureCount = 5,
-            .atTextures = tTextureData
+            .atTextureBindings = tTextureData
         };
         gptGfx->update_bind_group(ptDevice, sbtMaterialBindGroups[i], &tBGData1);
         pl_hm_insert(ptMaterialBindGroupDict, (uint64_t)ptMaterial, (uint64_t)i);
@@ -2824,7 +2849,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                     };
                     const plBindGroupUpdateData tBGData1 = {
                         .uTextureCount = 1,
-                        .atTextures = tTextureData
+                        .atTextureBindings = tTextureData
                     };
                     gptGfx->update_bind_group(ptDevice, tShadowMaterialBindGroup, &tBGData1);
 
@@ -2848,34 +2873,40 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
 
     pl_begin_profile_sample(0, "fill GPU buffers");
 
-    const plBufferDescription tShaderBufferDesc = {
+    const plBufferDesc tShaderBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STORAGE,
-        .uByteSize = sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer)
+        .szByteSize = sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer),
+        .pcDebugName = "shader buffer"
     };
     
-    const plBufferDescription tIndexBufferDesc = {
+    const plBufferDesc tIndexBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_INDEX,
-        .uByteSize = sizeof(uint32_t) * pl_sb_size(ptScene->sbuIndexBuffer)
+        .szByteSize = sizeof(uint32_t) * pl_sb_size(ptScene->sbuIndexBuffer),
+        .pcDebugName = "index buffer"
     };
     
-    const plBufferDescription tVertexBufferDesc = {
+    const plBufferDesc tVertexBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STORAGE,
-        .uByteSize = sizeof(plVec3) * pl_sb_size(ptScene->sbtVertexPosBuffer)
+        .szByteSize = sizeof(plVec3) * pl_sb_size(ptScene->sbtVertexPosBuffer),
+        .pcDebugName = "vertex buffer"
     };
      
-    const plBufferDescription tStorageBufferDesc = {
+    const plBufferDesc tStorageBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STORAGE,
-        .uByteSize = sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer)
+        .szByteSize = sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer),
+        .pcDebugName = "storage buffer"
     };
 
-    const plBufferDescription tSkinStorageBufferDesc = {
+    const plBufferDesc tSkinStorageBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STORAGE,
-        .uByteSize = sizeof(plVec4) * pl_sb_size(ptScene->sbtSkinVertexDataBuffer)
+        .szByteSize = sizeof(plVec4) * pl_sb_size(ptScene->sbtSkinVertexDataBuffer),
+        .pcDebugName = "skin buffer"
     };
 
-    const plBufferDescription tLightBufferDesc = {
+    const plBufferDesc tLightBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_UNIFORM,
-        .uByteSize = sizeof(plGPULight) * PL_MAX_LIGHTS
+        .szByteSize = sizeof(plGPULight) * PL_MAX_LIGHTS,
+        .pcDebugName = "light buffer"
     };
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
@@ -2886,7 +2917,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     ptScene->tVertexBuffer       = pl__refr_create_local_buffer(&tVertexBufferDesc,            "vertex", uSceneHandle, ptScene->sbtVertexPosBuffer);
     ptScene->tStorageBuffer      = pl__refr_create_local_buffer(&tStorageBufferDesc,          "storage", uSceneHandle, ptScene->sbtVertexDataBuffer);
 
-    if(tSkinStorageBufferDesc.uByteSize > 0)
+    if(tSkinStorageBufferDesc.szByteSize > 0)
     {
         ptScene->tSkinStorageBuffer  = pl__refr_create_local_buffer(&tSkinStorageBufferDesc, "skin storage", uSceneHandle, ptScene->sbtSkinVertexDataBuffer);
 
@@ -2896,7 +2927,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                 {.uSlot =  3, .tStages = PL_STAGE_COMPUTE}
             },
             .uBufferBindingCount = 3,
-            .aBufferBindings = {
+            .atBufferBindings = {
                 { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_COMPUTE},
                 { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_COMPUTE},
                 { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_COMPUTE},
@@ -2909,14 +2940,14 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         };
         const plBindGroupUpdateBufferData atBufferData[] = 
         {
-            { .uSlot = 0, .tBuffer = ptScene->tSkinStorageBuffer, .szBufferRange = tSkinStorageBufferDesc.uByteSize},
-            { .uSlot = 1, .tBuffer = ptScene->tVertexBuffer,      .szBufferRange = tVertexBufferDesc.uByteSize},
-            { .uSlot = 2, .tBuffer = ptScene->tStorageBuffer,     .szBufferRange = tStorageBufferDesc.uByteSize}
+            { .uSlot = 0, .tBuffer = ptScene->tSkinStorageBuffer, .szBufferRange = tSkinStorageBufferDesc.szByteSize},
+            { .uSlot = 1, .tBuffer = ptScene->tVertexBuffer,      .szBufferRange = tVertexBufferDesc.szByteSize},
+            { .uSlot = 2, .tBuffer = ptScene->tStorageBuffer,     .szBufferRange = tStorageBufferDesc.szByteSize}
 
         };
         plBindGroupUpdateData tBGData0 = {
             .uBufferCount = 3,
-            .atBuffers = atBufferData,
+            .atBufferBindings = atBufferData,
             .uSamplerCount = 1,
             .atSamplerBindings = atSamplerData,
         };
@@ -2940,7 +2971,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                 .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
                 .ulStencilOpPass      = PL_STENCIL_OP_KEEP
             },
-            .tVertexBufferBinding = {
+            .tVertexBufferLayout = {
                 .uByteStride = sizeof(float) * 4,
                 .atAttributes = {
                     {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32_FLOAT},
@@ -2959,7 +2990,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
             .atBindGroupLayouts = {
                 {
                     .uBufferBindingCount  = 3,
-                    .aBufferBindings = {
+                    .atBufferBindings = {
                         {
                             .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
                             .uSlot = 0,
@@ -3000,7 +3031,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                 },
                 {
                     .uBufferBindingCount  = 2,
-                    .aBufferBindings = {
+                    .atBufferBindings = {
                         { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                         { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                     },
@@ -3038,7 +3069,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP
         },
-        .tVertexBufferBinding = {
+        .tVertexBufferLayout = {
             .uByteStride = sizeof(float) * 4,
             .atAttributes = {
                 {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32_FLOAT},
@@ -3090,12 +3121,12 @@ pl_refr_run_ecs(uint32_t uSceneHandle)
 }
 
 static void
-pl_refr_update_skin_textures(plCommandBufferHandle tCommandBuffer, uint32_t uSceneHandle)
+pl_refr_update_skin_textures(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle)
 {
     pl_begin_profile_sample(0, __FUNCTION__);
     plDevice* ptDevice = gptData->ptDevice;
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
-    plBlitEncoderHandle tBlitEncoder = gptGfx->begin_blit_pass(tCommandBuffer);
+    plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
     uint32_t uFrameIdx = gptGfx->get_current_frame_index();
 
     // update skin textures
@@ -3117,7 +3148,7 @@ pl_refr_update_skin_textures(plCommandBufferHandle tCommandBuffer, uint32_t uSce
         const plBindGroupUpdateTextureData tTextureData = {.tTexture = ptScene->sbtSkinData[i].atDynamicTexture[uFrameIdx], .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED};
         plBindGroupUpdateData tBGData0 = {
             .uTextureCount = 1,
-            .atTextures = &tTextureData
+            .atTextureBindings = &tTextureData
         };
         gptGfx->update_bind_group(gptData->ptDevice, ptScene->sbtSkinData[i].tTempBindGroup, &tBGData0);
 
@@ -3134,16 +3165,16 @@ pl_refr_update_skin_textures(plCommandBufferHandle tCommandBuffer, uint32_t uSce
         plSkinComponent* ptSkinComponent = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_SKIN, ptScene->sbtSkinData[i].tEntity);
         memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[tBufferImageCopy.szBufferOffset], ptSkinComponent->sbtTextureData, sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y);
         // memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptSkinComponent->sbtTextureData, sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y);
-        gptGfx->copy_buffer_to_texture(tBlitEncoder, gptData->tStagingBufferHandle[uFrameIdx], ptScene->sbtSkinData[i].atDynamicTexture[uFrameIdx], 1, &tBufferImageCopy);
+        gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptData->tStagingBufferHandle[uFrameIdx], ptScene->sbtSkinData[i].atDynamicTexture[uFrameIdx], 1, &tBufferImageCopy);
     }
 
-    gptGfx->end_blit_pass(tBlitEncoder);
+    gptGfx->end_blit_pass(ptBlitEncoder);
 
     pl_end_profile_sample(0);
 }
 
 static void
-pl_refr_perform_skinning(plCommandBufferHandle tCommandBuffer, uint32_t uSceneHandle)
+pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle)
 {
     pl_begin_profile_sample(0, __FUNCTION__);
     plDevice* ptDevice = gptData->ptDevice;
@@ -3160,7 +3191,7 @@ pl_refr_perform_skinning(plCommandBufferHandle tCommandBuffer, uint32_t uSceneHa
         int iUnused;
     } SkinDynamicData;
 
-    plComputeEncoderHandle tComputeEncoder = gptGfx->begin_compute_pass(tCommandBuffer);
+    plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer);
 
     for(uint32_t i = 0; i < uSkinCount; i++)
     {
@@ -3182,11 +3213,11 @@ pl_refr_perform_skinning(plCommandBufferHandle tCommandBuffer, uint32_t uSceneHa
             ptScene->tSkinBindGroup0,
             ptScene->sbtSkinData[i].tTempBindGroup
         };
-        gptGfx->bind_compute_bind_groups(tComputeEncoder, ptScene->sbtSkinData[i].tShader, 0, 2, atBindGroups, &tDynamicBinding);
-        gptGfx->bind_compute_shader(tComputeEncoder, ptScene->sbtSkinData[i].tShader);
-        gptGfx->dispatch(tComputeEncoder, 1, &tDispach);
+        gptGfx->bind_compute_bind_groups(ptComputeEncoder, ptScene->sbtSkinData[i].tShader, 0, 2, atBindGroups, 1, &tDynamicBinding);
+        gptGfx->bind_compute_shader(ptComputeEncoder, ptScene->sbtSkinData[i].tShader);
+        gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
     }
-    gptGfx->end_compute_pass(tComputeEncoder);
+    gptGfx->end_compute_pass(ptComputeEncoder);
     pl_end_profile_sample(0);
 }
 
@@ -3212,7 +3243,7 @@ pl__refr_cull_job(uint32_t uJobIndex, void* pData)
 }
 
 static void
-pl_refr_generate_cascaded_shadow_map(plCommandBufferHandle tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plEntity tCamera, plEntity tLight, float fCascadeSplitLambda)
+pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plEntity tCamera, plEntity tLight, float fCascadeSplitLambda)
 {
     pl_begin_profile_sample(0, __FUNCTION__);
 
@@ -3339,7 +3370,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBufferHandle tCommandBuffer, uint3
 
     plBindGroupLayout tBindGroupLayout0 = {
         .uBufferBindingCount  = 3,
-        .aBufferBindings = {
+        .atBufferBindings = {
             {
                 .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                 .uSlot = 0,
@@ -3374,7 +3405,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBufferHandle tCommandBuffer, uint3
         {
             .tBuffer       = ptScene->tStorageBuffer,
             .uSlot         = 1,
-            .szBufferRange = ptStorageBuffer->tDescription.uByteSize
+            .szBufferRange = ptStorageBuffer->tDesc.szByteSize
         },
         {
             .tBuffer       = ptScene->tMaterialDataBuffer,
@@ -3392,7 +3423,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBufferHandle tCommandBuffer, uint3
 
     plBindGroupUpdateData tBGData0 = {
         .uBufferCount = 3,
-        .atBuffers = atBufferData,
+        .atBufferBindings = atBufferData,
         .uSamplerCount = 1,
         .atSamplerBindings = tSamplerData
     };
@@ -3417,7 +3448,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBufferHandle tCommandBuffer, uint3
 
     plBindGroupUpdateData tBGData1 = {
         .uTextureCount = 1,
-        .atTextures = tTextureData
+        .atTextureBindings = tTextureData
     };
     gptGfx->update_bind_group(gptData->ptDevice, tOpaqueBG1, &tBGData1);
 
@@ -3456,7 +3487,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBufferHandle tCommandBuffer, uint3
         const uint32_t uVisibleOpaqueDrawCount = pl_sb_size(ptScene->sbtOpaqueDrawables);
         const uint32_t uVisibleTransparentDrawCount = pl_sb_size(ptScene->sbtTransparentDrawables);
 
-        plRenderEncoderHandle tEncoder = gptGfx->begin_render_pass(tCommandBuffer, ptView->tShadowData.atOpaqueRenderPasses[uCascade]);
+        plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tShadowData.atOpaqueRenderPasses[uCascade]);
 
         for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
         {
@@ -3473,10 +3504,10 @@ pl_refr_generate_cascaded_shadow_map(plCommandBufferHandle tCommandBuffer, uint3
             ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
             ptDynamicData->iIndex = (int)uCascade;
 
-            gptGfx->add_to_stream(ptStream, (plStreamDraw)
+            gptGfx->add_to_stream(ptStream, (plDrawStreamData)
             {
                 .uShaderVariant       = gptData->tShadowShader.uIndex,
-                .uDynamicBuffer       = tDynamicBinding.uBufferHandle,
+                .uDynamicBuffer0       = tDynamicBinding.uBufferHandle,
                 .uVertexBuffer        = ptScene->tVertexBuffer.uIndex,
                 .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
                 .uIndexOffset         = tDrawable.uIndexOffset,
@@ -3484,7 +3515,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBufferHandle tCommandBuffer, uint3
                 .uBindGroup0          = tGlobalBG.uIndex,
                 .uBindGroup1          = tOpaqueBG1.uIndex,
                 .uBindGroup2          = UINT32_MAX,
-                .uDynamicBufferOffset = tDynamicBinding.uByteOffset,
+                .uDynamicBufferOffset0 = tDynamicBinding.uByteOffset,
                 .uInstanceStart       = 0,
                 .uInstanceCount       = 1
             });
@@ -3505,10 +3536,10 @@ pl_refr_generate_cascaded_shadow_map(plCommandBufferHandle tCommandBuffer, uint3
             ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
             ptDynamicData->iIndex = (int)uCascade;
 
-            gptGfx->add_to_stream(ptStream, (plStreamDraw)
+            gptGfx->add_to_stream(ptStream, (plDrawStreamData)
             {
                 .uShaderVariant       = tDrawable.tShadowShader.uIndex,
-                .uDynamicBuffer       = tDynamicBinding.uBufferHandle,
+                .uDynamicBuffer0       = tDynamicBinding.uBufferHandle,
                 .uVertexBuffer        = ptScene->tVertexBuffer.uIndex,
                 .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
                 .uIndexOffset         = tDrawable.uIndexOffset,
@@ -3516,15 +3547,15 @@ pl_refr_generate_cascaded_shadow_map(plCommandBufferHandle tCommandBuffer, uint3
                 .uBindGroup0          = tGlobalBG.uIndex,
                 .uBindGroup1          = tDrawable.tShadowMaterialBindGroup.uIndex,
                 .uBindGroup2          = UINT32_MAX,
-                .uDynamicBufferOffset = tDynamicBinding.uByteOffset,
+                .uDynamicBufferOffset0 = tDynamicBinding.uByteOffset,
                 .uInstanceStart       = 0,
                 .uInstanceCount       = 1
             });
         }
 
-        gptGfx->draw_stream(tEncoder, 1, &tArea);
+        gptGfx->draw_stream(ptEncoder, 1, &tArea);
         gptGfx->reset_draw_stream(ptStream);
-        gptGfx->end_render_pass(tEncoder);
+        gptGfx->end_render_pass(ptEncoder);
     }
 
     pl_end_profile_sample(0);
@@ -3537,7 +3568,7 @@ pl_refr_get_picked_entity(void)
 }
 
 static void
-pl_refr_post_process_scene(plCommandBufferHandle tCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, const plMat4* ptMVP)
+pl_refr_post_process_scene(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, const plMat4* ptMVP)
 {
     pl_begin_profile_sample(0, __FUNCTION__);
 
@@ -3550,7 +3581,7 @@ pl_refr_post_process_scene(plCommandBufferHandle tCommandBuffer, uint32_t uScene
 
     const plVec2 tDimensions = gptGfx->get_render_pass(ptDevice, ptView->tPostProcessRenderPass)->tDesc.tDimensions;
 
-    plRenderEncoderHandle tEncoder = gptGfx->begin_render_pass(tCommandBuffer, ptView->tPostProcessRenderPass);
+    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tPostProcessRenderPass);
 
     plDrawIndex tDraw = {
         .tIndexBuffer   = gptData->tFullQuadIndexBuffer,
@@ -3598,7 +3629,7 @@ pl_refr_post_process_scene(plCommandBufferHandle tCommandBuffer, uint32_t uScene
         .uSamplerCount = 1,
         .atSamplerBindings = &tOutlineSamplerData,
         .uTextureCount = 2,
-        .atTextures = tOutlineTextureData
+        .atTextureBindings = tOutlineTextureData
     };
     gptGfx->update_bind_group(gptData->ptDevice, tJFABindGroup0, &tJFABGData);
 
@@ -3617,14 +3648,14 @@ pl_refr_post_process_scene(plCommandBufferHandle tCommandBuffer, uint32_t uScene
     ptDynamicData->fTargetWidth = (float)gptData->uOutlineWidth * tOutlineColor.r + 1.0f;
     ptDynamicData->tOutlineColor = tOutlineColor;
 
-    gptGfx->bind_shader(tEncoder, ptScene->tTonemapShader);
-    gptGfx->bind_vertex_buffer(tEncoder, gptData->tFullQuadVertexBuffer);
-    gptGfx->bind_graphics_bind_groups(tEncoder, ptScene->tTonemapShader, 0, 1, &tJFABindGroup0, &tDynamicBinding);
-    gptGfx->draw_indexed(tEncoder, 1, &tDraw);
+    gptGfx->bind_shader(ptEncoder, ptScene->tTonemapShader);
+    gptGfx->bind_vertex_buffer(ptEncoder, gptData->tFullQuadVertexBuffer);
+    gptGfx->bind_graphics_bind_groups(ptEncoder, ptScene->tTonemapShader, 0, 1, &tJFABindGroup0, 1, &tDynamicBinding);
+    gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
 
-    gptDrawBackend->submit_3d_drawlist(ptView->pt3DGizmoDrawList, tEncoder, tDimensions.x, tDimensions.y, ptMVP, PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
+    gptDrawBackend->submit_3d_drawlist(ptView->pt3DGizmoDrawList, ptEncoder, tDimensions.x, tDimensions.y, ptMVP, PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
 
-    gptGfx->end_render_pass(tEncoder);
+    gptGfx->end_render_pass(ptEncoder);
     pl_end_profile_sample(0);
 }
 
@@ -3710,7 +3741,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
 
     plBindGroupLayout tBindGroupLayout0 = {
         .uBufferBindingCount  = 3,
-        .aBufferBindings = {
+        .atBufferBindings = {
             {
                 .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
                 .uSlot = 0,
@@ -3764,7 +3795,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
         {
             .tBuffer       = ptScene->tStorageBuffer,
             .uSlot         = 1,
-            .szBufferRange = ptStorageBuffer->tDescription.uByteSize
+            .szBufferRange = ptStorageBuffer->tDesc.szByteSize
         },
         {
             .tBuffer       = ptScene->tMaterialDataBuffer,
@@ -3791,11 +3822,11 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
     };
     plBindGroupUpdateData tBGData0 = {
         .uBufferCount = 3,
-        .atBuffers = atBufferData,
+        .atBufferBindings = atBufferData,
         .uSamplerCount = 2,
         .atSamplerBindings = tSamplerData,
         .uTextureCount = 3,
-        .atTextures = tTextureData
+        .atTextureBindings = tTextureData
     };
     gptGfx->update_bind_group(gptData->ptDevice, tGlobalBG, &tBGData0);
     
@@ -3811,17 +3842,17 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auWaitSemaphoreValues = {ulValue},
         };
 
-        plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
 
-        pl_refr_update_skin_textures(tCommandBuffer, uSceneHandle);
-        gptGfx->end_command_recording(tCommandBuffer);
+        pl_refr_update_skin_textures(ptCommandBuffer, uSceneHandle);
+        gptGfx->end_command_recording(ptCommandBuffer);
 
         const plSubmitInfo tSubmitInfo = {
             .uSignalSemaphoreCount   = 1,
             .atSignalSempahores      = {tSemHandle},
             .auSignalSemaphoreValues = {++ulValue}
         };
-        gptGfx->submit_command_buffer(tCommandBuffer, &tSubmitInfo);
+        gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~perform skinning~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3832,17 +3863,17 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auWaitSemaphoreValues = {ulValue},
         };
 
-        plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
 
-        pl_refr_perform_skinning(tCommandBuffer, uSceneHandle);
-        gptGfx->end_command_recording(tCommandBuffer);
+        pl_refr_perform_skinning(ptCommandBuffer, uSceneHandle);
+        gptGfx->end_command_recording(ptCommandBuffer);
 
         const plSubmitInfo tSubmitInfo = {
             .uSignalSemaphoreCount   = 1,
             .atSignalSempahores      = {tSemHandle},
             .auSignalSemaphoreValues = {++ulValue}
         };
-        gptGfx->submit_command_buffer(tCommandBuffer, &tSubmitInfo);
+        gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~generate shadow maps~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3853,17 +3884,17 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auWaitSemaphoreValues = {ulValue},
         };
 
-        plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
 
-        pl_refr_generate_cascaded_shadow_map(tCommandBuffer, uSceneHandle, uViewHandle, *tOptions.ptViewCamera, *tOptions.ptSunLight, gptData->fLambdaSplit);
-        gptGfx->end_command_recording(tCommandBuffer);
+        pl_refr_generate_cascaded_shadow_map(ptCommandBuffer, uSceneHandle, uViewHandle, *tOptions.ptViewCamera, *tOptions.ptSunLight, gptData->fLambdaSplit);
+        gptGfx->end_command_recording(ptCommandBuffer);
 
         const plSubmitInfo tSubmitInfo = {
             .uSignalSemaphoreCount   = 1,
             .atSignalSempahores      = {tSemHandle},
             .auSignalSemaphoreValues = {++ulValue}
         };
-        gptGfx->submit_command_buffer(tCommandBuffer, &tSubmitInfo);
+        gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
     }
 
     gptGfx->reset_draw_stream(ptStream);
@@ -3891,11 +3922,11 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auWaitSemaphoreValues = {ulValue},
         };
 
-        plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 0 - g buffer fill~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        plRenderEncoderHandle tEncoder = gptGfx->begin_render_pass(tCommandBuffer, ptView->tRenderPass);
+        plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tRenderPass);
 
         gptJob->wait_for_counter(ptOpaqueCounter);
         if(ptCullCamera)
@@ -3924,10 +3955,10 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             ptDynamicData->tModel = ptTransform->tWorld;
             ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
 
-            gptGfx->add_to_stream(ptStream, (plStreamDraw)
+            gptGfx->add_to_stream(ptStream, (plDrawStreamData)
             {
                 .uShaderVariant       = tDrawable.tShader.uIndex,
-                .uDynamicBuffer       = tDynamicBinding.uBufferHandle,
+                .uDynamicBuffer0       = tDynamicBinding.uBufferHandle,
                 .uVertexBuffer        = ptScene->tVertexBuffer.uIndex,
                 .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
                 .uIndexOffset         = tDrawable.uIndexOffset,
@@ -3935,18 +3966,18 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                 .uBindGroup0          = tGlobalBG.uIndex,
                 .uBindGroup1          = tDrawable.tMaterialBindGroup.uIndex,
                 .uBindGroup2          = UINT32_MAX,
-                .uDynamicBufferOffset = tDynamicBinding.uByteOffset,
+                .uDynamicBufferOffset0 = tDynamicBinding.uByteOffset,
                 .uInstanceStart       = 0,
                 .uInstanceCount       = 1
             });
         }
 
-        gptGfx->draw_stream(tEncoder, 1, &tArea);
+        gptGfx->draw_stream(ptEncoder, 1, &tArea);
         gptGfx->reset_draw_stream(ptStream);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 1 - lighting~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        gptGfx->next_subpass(tEncoder);
+        gptGfx->next_subpass(ptEncoder);
 
         plBuffer* ptShadowDataBuffer = gptGfx->get_buffer(ptDevice, ptView->atLightShadowDataBuffer[uFrameIdx]);
         memcpy(ptShadowDataBuffer->tMemoryAllocation.pHostMapped, ptView->sbtLightShadowData, sizeof(plGPULightShadowData) * pl_sb_size(ptView->sbtLightShadowData));
@@ -3974,7 +4005,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
 
         const plBindGroupLayout tLightBindGroupLayout2 = {
             .uBufferBindingCount = 2,
-            .aBufferBindings = {
+            .atBufferBindings = {
                 { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
                 { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX}
             },
@@ -4012,9 +4043,9 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
 
         plBindGroupUpdateData tBGData2 = {
             .uBufferCount = 2,
-            .atBuffers = atLightBufferData,
+            .atBufferBindings = atLightBufferData,
             .uTextureCount = 4,
-            .atTextures = atBGTextureData,
+            .atTextureBindings = atBGTextureData,
             .uSamplerCount = 1,
             .atSamplerBindings = tShadowSamplerData
         };
@@ -4029,10 +4060,10 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
         } plLightingDynamicData;
         plDynamicBinding tLightingDynamicData = gptGfx->allocate_dynamic_data(ptDevice, sizeof(plLightingDynamicData));
 
-        gptGfx->add_to_stream(ptStream, (plStreamDraw)
+        gptGfx->add_to_stream(ptStream, (plDrawStreamData)
         {
             .uShaderVariant       = ptScene->tLightingShader.uIndex,
-            .uDynamicBuffer       = tLightingDynamicData.uBufferHandle,
+            .uDynamicBuffer0       = tLightingDynamicData.uBufferHandle,
             .uVertexBuffer        = gptData->tFullQuadVertexBuffer.uIndex,
             .uIndexBuffer         = gptData->tFullQuadIndexBuffer.uIndex,
             .uIndexOffset         = 0,
@@ -4040,16 +4071,16 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .uBindGroup0          = tGlobalBG.uIndex,
             .uBindGroup1          = ptView->tLightingBindGroup[uFrameIdx].uIndex,
             .uBindGroup2          = tLightBindGroup2.uIndex,
-            .uDynamicBufferOffset = tLightingDynamicData.uByteOffset,
+            .uDynamicBufferOffset0 = tLightingDynamicData.uByteOffset,
             .uInstanceStart       = 0,
             .uInstanceCount       = 1
         });
-        gptGfx->draw_stream(tEncoder, 1, &tArea);
+        gptGfx->draw_stream(ptEncoder, 1, &tArea);
         gptGfx->reset_draw_stream(ptStream);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 2 - forward~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        gptGfx->next_subpass(tEncoder);
+        gptGfx->next_subpass(ptEncoder);
 
         if(ptScene->tSkyboxTexture.uIndex != UINT32_MAX)
         {
@@ -4058,10 +4089,10 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             plMat4* ptSkyboxDynamicData = (plMat4*)tSkyboxDynamicData.pcData;
             *ptSkyboxDynamicData = pl_mat4_translate_vec3(ptCamera->tPos);
 
-            gptGfx->add_to_stream(ptStream, (plStreamDraw)
+            gptGfx->add_to_stream(ptStream, (plDrawStreamData)
             {
                 .uShaderVariant       = gptData->tSkyboxShader.uIndex,
-                .uDynamicBuffer       = tSkyboxDynamicData.uBufferHandle,
+                .uDynamicBuffer0       = tSkyboxDynamicData.uBufferHandle,
                 .uVertexBuffer        = ptScene->tVertexBuffer.uIndex,
                 .uIndexBuffer         = ptScene->tIndexBuffer.uIndex,
                 .uIndexOffset         = ptScene->tSkyboxDrawable.uIndexOffset,
@@ -4069,11 +4100,11 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                 .uBindGroup0          = tGlobalBG.uIndex,
                 .uBindGroup1          = ptScene->tSkyboxBindGroup.uIndex,
                 .uBindGroup2          = UINT32_MAX,
-                .uDynamicBufferOffset = tSkyboxDynamicData.uByteOffset,
+                .uDynamicBufferOffset0 = tSkyboxDynamicData.uByteOffset,
                 .uInstanceStart       = 0,
                 .uInstanceCount       = 1
             });
-            gptGfx->draw_stream(tEncoder, 1, &tArea);
+            gptGfx->draw_stream(ptEncoder, 1, &tArea);
         }
         gptGfx->reset_draw_stream(ptStream);
 
@@ -4105,10 +4136,10 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             ptDynamicData->tModel = ptTransform->tWorld;
             ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
 
-            gptGfx->add_to_stream(ptStream, (plStreamDraw)
+            gptGfx->add_to_stream(ptStream, (plDrawStreamData)
             {
                 .uShaderVariant       = tDrawable.tShader.uIndex,
-                .uDynamicBuffer       = tDynamicBinding.uBufferHandle,
+                .uDynamicBuffer0       = tDynamicBinding.uBufferHandle,
                 .uVertexBuffer        = ptScene->tVertexBuffer.uIndex,
                 .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
                 .uIndexOffset         = tDrawable.uIndexOffset,
@@ -4116,12 +4147,12 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                 .uBindGroup0          = tGlobalBG.uIndex,
                 .uBindGroup1          = tLightBindGroup2.uIndex,
                 .uBindGroup2          = tDrawable.tMaterialBindGroup.uIndex,
-                .uDynamicBufferOffset = tDynamicBinding.uByteOffset,
+                .uDynamicBufferOffset0 = tDynamicBinding.uByteOffset,
                 .uInstanceStart       = 0,
                 .uInstanceCount       = 1
             });
         }
-        gptGfx->draw_stream(tEncoder, 1, &tArea);
+        gptGfx->draw_stream(ptEncoder, 1, &tArea);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~debug drawing~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -4199,9 +4230,9 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &ptCullCamera->tTransformMat, tFrustumDesc, (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = 0.02f});
         }
 
-        gptDrawBackend->submit_3d_drawlist(ptView->pt3DDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
-        gptDrawBackend->submit_3d_drawlist(ptView->pt3DSelectionDrawList, tEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
-        gptGfx->end_render_pass(tEncoder);
+        gptDrawBackend->submit_3d_drawlist(ptView->pt3DDrawList, ptEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
+        gptDrawBackend->submit_3d_drawlist(ptView->pt3DSelectionDrawList, ptEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
+        gptGfx->end_render_pass(ptEncoder);
 
          //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~entity selection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -4228,7 +4259,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
 
             plBindGroupLayout tPickBindGroupLayout0 = {
                 .uBufferBindingCount  = 1,
-                .aBufferBindings = {
+                .atBufferBindings = {
                     {
                         .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
                         .uSlot = 0,
@@ -4249,7 +4280,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             };
             plBindGroupUpdateData tPickBGData0 = {
                 .uBufferCount = 1,
-                .atBuffers = atPickBufferData,
+                .atBufferBindings = atPickBufferData,
             };
             gptGfx->update_bind_group(gptData->ptDevice, tPickBindGroup, &tPickBGData0);
 
@@ -4258,10 +4289,10 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                 plVec4 tColor;
                 plMat4 tModel;
             } plPickDynamicData;
-            tEncoder = gptGfx->begin_render_pass(tCommandBuffer, ptView->tPickRenderPass);
+            ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tPickRenderPass);
 
-            gptGfx->bind_shader(tEncoder, gptData->tPickShader);
-            gptGfx->bind_vertex_buffer(tEncoder, ptScene->tVertexBuffer);
+            gptGfx->bind_shader(ptEncoder, gptData->tPickShader);
+            gptGfx->bind_vertex_buffer(ptEncoder, ptScene->tVertexBuffer);
             for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
             {
                 const plDrawable tDrawable = ptView->sbtVisibleOpaqueDrawables[i];
@@ -4281,7 +4312,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                     1.0f};
                 ptDynamicData->tModel = ptTransform->tWorld;
 
-                gptGfx->bind_graphics_bind_groups(tEncoder, gptData->tPickShader, 0, 1, &tPickBindGroup, &tDynamicBinding);
+                gptGfx->bind_graphics_bind_groups(ptEncoder, gptData->tPickShader, 0, 1, &tPickBindGroup, 1, &tDynamicBinding);
 
                 plDrawIndex tDraw = {
                     .tIndexBuffer = ptScene->tIndexBuffer,
@@ -4289,7 +4320,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                     .uIndexStart = tDrawable.uIndexOffset,
                     .uInstanceCount = 1
                 };
-                gptGfx->draw_indexed(tEncoder, 1, &tDraw);
+                gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
             }
 
             for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
@@ -4309,7 +4340,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                     1.0f};
                 ptDynamicData->tModel = ptTransform->tWorld;
 
-                gptGfx->bind_graphics_bind_groups(tEncoder, gptData->tPickShader, 0, 1, &tPickBindGroup, &tDynamicBinding);
+                gptGfx->bind_graphics_bind_groups(ptEncoder, gptData->tPickShader, 0, 1, &tPickBindGroup, 1, &tDynamicBinding);
 
                 plDrawIndex tDraw = {
                     .tIndexBuffer = ptScene->tIndexBuffer,
@@ -4317,32 +4348,32 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                     .uIndexStart = tDrawable.uIndexOffset,
                     .uInstanceCount = 1
                 };
-                gptGfx->draw_indexed(tEncoder, 1, &tDraw);
+                gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
             }
-            gptGfx->end_render_pass(tEncoder);
+            gptGfx->end_render_pass(ptEncoder);
 
             plBuffer* ptCachedStagingBuffer = gptGfx->get_buffer(ptDevice, gptData->tCachedStagingBuffer);
-            memset(ptCachedStagingBuffer->tMemoryAllocation.pHostMapped, 0, ptCachedStagingBuffer->tDescription.uByteSize);
+            memset(ptCachedStagingBuffer->tMemoryAllocation.pHostMapped, 0, ptCachedStagingBuffer->tDesc.szByteSize);
 
-            plBlitEncoderHandle tBlitEncoder = gptGfx->begin_blit_pass(tCommandBuffer);
+            plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
 
             plTexture* ptTexture = gptGfx->get_texture(ptDevice, ptView->tPickTexture);
             const plBufferImageCopy tBufferImageCopy = {
                 .tImageExtent = {(uint32_t)ptTexture->tDesc.tDimensions.x, (uint32_t)ptTexture->tDesc.tDimensions.y, 1},
                 .uLayerCount = 1
             };
-            gptGfx->copy_texture_to_buffer(tBlitEncoder, ptView->tPickTexture, gptData->tCachedStagingBuffer, 1, &tBufferImageCopy);
-            gptGfx->end_blit_pass(tBlitEncoder);
+            gptGfx->copy_texture_to_buffer(ptBlitEncoder, ptView->tPickTexture, gptData->tCachedStagingBuffer, 1, &tBufferImageCopy);
+            gptGfx->end_blit_pass(ptBlitEncoder);
         }
 
-        gptGfx->end_command_recording(tCommandBuffer);
+        gptGfx->end_command_recording(ptCommandBuffer);
 
         const plSubmitInfo tSubmitInfo = {
             .uSignalSemaphoreCount   = 1,
             .atSignalSempahores      = {tSemHandle},
             .auSignalSemaphoreValues = {++ulValue}
         };
-        gptGfx->submit_command_buffer(tCommandBuffer, &tSubmitInfo);
+        gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
     }
 
      //~~~~~~~~~~~~~~~~~~~~~~~~~~~~uv map pass for JFA~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -4353,32 +4384,32 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auWaitSemaphoreValues = {ulValue},
         };
 
-        plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
 
-        plRenderEncoderHandle tEncoder = gptGfx->begin_render_pass(tCommandBuffer, ptView->tUVRenderPass);
+        plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tUVRenderPass);
 
-            // submit nonindexed draw using basic API
-            gptGfx->bind_shader(tEncoder, gptData->tUVShader);
-            gptGfx->bind_vertex_buffer(tEncoder, gptData->tFullQuadVertexBuffer);
+        // submit nonindexed draw using basic API
+        gptGfx->bind_shader(ptEncoder, gptData->tUVShader);
+        gptGfx->bind_vertex_buffer(ptEncoder, gptData->tFullQuadVertexBuffer);
 
-            plDrawIndex tDraw = {
-                .tIndexBuffer   = gptData->tFullQuadIndexBuffer,
-                .uIndexCount    = 6,
-                .uInstanceCount = 1,
-            };
-            gptGfx->draw_indexed(tEncoder, 1, &tDraw);
+        plDrawIndex tDraw = {
+            .tIndexBuffer   = gptData->tFullQuadIndexBuffer,
+            .uIndexCount    = 6,
+            .uInstanceCount = 1,
+        };
+        gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
 
-            // end render pass
-            gptGfx->end_render_pass(tEncoder);
+        // end render pass
+        gptGfx->end_render_pass(ptEncoder);
 
-        gptGfx->end_command_recording(tCommandBuffer);
+        gptGfx->end_command_recording(ptCommandBuffer);
 
         const plSubmitInfo tSubmitInfo = {
             .uSignalSemaphoreCount   = 1,
             .atSignalSempahores      = {tSemHandle},
             .auSignalSemaphoreValues = {++ulValue}
         };
-        gptGfx->submit_command_buffer(tCommandBuffer, &tSubmitInfo);
+        gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
     }
 
      //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~jump flood~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -4462,11 +4493,11 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
 
         const plBindGroupUpdateData tJFABGData0 = {
             .uTextureCount = 2,
-            .atTextures = atJFATextureData0
+            .atTextureBindings = atJFATextureData0
         };
         const plBindGroupUpdateData tJFABGData1 = {
             .uTextureCount = 2,
-            .atTextures = atJFATextureData1
+            .atTextureBindings = atJFATextureData1
         };
         gptGfx->update_bind_group(gptData->ptDevice, atJFABindGroups[0], &tJFABGData0);
         gptGfx->update_bind_group(gptData->ptDevice, atJFABindGroups[1], &tJFABGData1);
@@ -4478,35 +4509,35 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                 .atWaitSempahores      = {tSemHandle},
                 .auWaitSemaphoreValues = {ulValue},
             };
-            plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+            plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
 
             // begin main renderpass (directly to swapchain)
-            plComputeEncoderHandle tComputeEncoder = gptGfx->begin_compute_pass(tCommandBuffer);
+            plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer);
 
             ptView->tLastUVMask = (i % 2 == 0) ? ptView->atUVMaskTexture1[uFrameIdx] : ptView->atUVMaskTexture0[uFrameIdx];
 
             // submit nonindexed draw using basic API
-            gptGfx->bind_compute_shader(tComputeEncoder, gptData->tJFAShader);
+            gptGfx->bind_compute_shader(ptComputeEncoder, gptData->tJFAShader);
 
             plDynamicBinding tDynamicBinding = gptGfx->allocate_dynamic_data(gptData->ptDevice, sizeof(plVec4));
             plVec4* ptJumpDistance = (plVec4*)tDynamicBinding.pcData;
             ptJumpDistance->x = fJumpDistance;
 
-            gptGfx->bind_compute_bind_groups(tComputeEncoder, gptData->tJFAShader, 0, 1, &atJFABindGroups[i % 2], &tDynamicBinding);
-            gptGfx->dispatch(tComputeEncoder, 1, &tDispach);
+            gptGfx->bind_compute_bind_groups(ptComputeEncoder, gptData->tJFAShader, 0, 1, &atJFABindGroups[i % 2], 1, &tDynamicBinding);
+            gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
 
             // end render pass
-            gptGfx->end_compute_pass(tComputeEncoder);
+            gptGfx->end_compute_pass(ptComputeEncoder);
 
             // end recording
-            gptGfx->end_command_recording(tCommandBuffer);
+            gptGfx->end_command_recording(ptCommandBuffer);
 
             const plSubmitInfo tSubmitInfo = {
                 .uSignalSemaphoreCount   = 1,
                 .atSignalSempahores      = {tSemHandle},
                 .auSignalSemaphoreValues = {++ulValue},
             };
-            gptGfx->submit_command_buffer(tCommandBuffer, &tSubmitInfo);
+            gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
 
             fJumpDistance = fJumpDistance / 2.0f;
             if(fJumpDistance < 1.0f)
@@ -4522,17 +4553,17 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auWaitSemaphoreValues = {ulValue},
         };
 
-        plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
 
-        pl_refr_post_process_scene(tCommandBuffer, uSceneHandle, uViewHandle, &tMVP);
-        gptGfx->end_command_recording(tCommandBuffer);
+        pl_refr_post_process_scene(ptCommandBuffer, uSceneHandle, uViewHandle, &tMVP);
+        gptGfx->end_command_recording(ptCommandBuffer);
 
         const plSubmitInfo tSubmitInfo = {
             .uSignalSemaphoreCount   = 1,
             .atSignalSempahores      = {tSemHandle},
             .auSignalSemaphoreValues = {++ulValue}
         };
-        gptGfx->submit_command_buffer(tCommandBuffer, &tSubmitInfo);
+        gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
     }
     gptData->aulNextTimelineValue[uFrameIdx] = ulValue;
 
@@ -4596,21 +4627,21 @@ pl_refr_end_frame(void)
         .atWaitSempahores      = {tSemHandle},
         .auWaitSemaphoreValues = {ulValue},
     };
-    plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+    plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
 
-    plRenderEncoderHandle tEncoder = gptGfx->begin_render_pass(tCommandBuffer, gptGfx->get_main_render_pass(ptDevice));
+    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, gptGfx->get_main_render_pass(ptDevice));
 
     // render ui
     pl_begin_profile_sample(0, "render ui");
     plIO* ptIO = gptIOI->get_io();
     gptUI->end_frame();
-    gptDrawBackend->submit_2d_drawlist(gptUI->get_draw_list(), tEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
-    gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), tEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
+    gptDrawBackend->submit_2d_drawlist(gptUI->get_draw_list(), ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
+    gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
     pl_end_profile_sample(0);
 
-    gptGfx->end_render_pass(tEncoder);
+    gptGfx->end_render_pass(ptEncoder);
 
-    gptGfx->end_command_recording(tCommandBuffer);
+    gptGfx->end_command_recording(ptCommandBuffer);
 
     const plSubmitInfo tSubmitInfo = {
         .uSignalSemaphoreCount   = 1,
@@ -4618,7 +4649,7 @@ pl_refr_end_frame(void)
         .auSignalSemaphoreValues = {++ulValue},
     };
     gptData->aulNextTimelineValue[uFrameIdx] = ulValue;
-    if(!gptGfx->present(tCommandBuffer, &tSubmitInfo, gptData->ptSwap))
+    if(!gptGfx->present(ptCommandBuffer, &tSubmitInfo, gptData->ptSwap))
         gptGfx->resize(gptData->ptSwap);
 
     pl_end_profile_sample(0);
@@ -4862,7 +4893,7 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
         tSkinData.atDynamicTexture[uFrameIndex] = pl__refr_create_texture_with_data(&tSkinTextureDesc, "joint texture", uFrameIndex, ptSkinComponent->sbtTextureData, sizeof(float) * 4 * textureWidth * textureWidth);
 
     int aiSpecializationData[] = {(int)ulVertexStreamMask, (int)uStride, (int)ptMesh->ulVertexStreamMask, (int)uDestStride};
-    const plComputeShaderDescription tComputeShaderDesc = {
+    const plComputeShaderDesc tComputeShaderDesc = {
         .tShader = gptShader->load_glsl("../shaders/skinning.comp", "main", NULL, NULL),
         .uConstantCount = 4,
         .pTempConstantData = aiSpecializationData,
@@ -4876,7 +4907,7 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
         .atBindGroupLayouts = {
             {
                 .uBufferBindingCount = 3,
-                .aBufferBindings = {
+                .atBufferBindings = {
                     { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 0, .tStages = PL_STAGE_COMPUTE},
                     { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 1, .tStages = PL_STAGE_COMPUTE},
                     { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_STAGE_COMPUTE},
@@ -5451,7 +5482,7 @@ pl__refr_create_texture(const plTextureDesc* ptDesc, const char* pcName, uint32_
  
     // create texture
     plTempAllocator tTempAllocator = {0};
-    const plTextureHandle tHandle = gptGfx->create_texture(ptDevice, ptDesc, pl_temp_allocator_sprintf(&tTempAllocator, "texture %s: %u", pcName, uIdentifier));
+    const plTextureHandle tHandle = gptGfx->create_texture(ptDevice, ptDesc);
     pl_temp_allocator_reset(&tTempAllocator);
 
     // retrieve new texture
@@ -5483,7 +5514,7 @@ pl__refr_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcNam
  
     // create texture
     plTempAllocator tTempAllocator = {0};
-    const plTextureHandle tHandle = gptGfx->create_texture(ptDevice, ptDesc, pl_temp_allocator_sprintf(&tTempAllocator, "texture %s: %u", pcName, uIdentifier));
+    const plTextureHandle tHandle = gptGfx->create_texture(ptDevice, ptDesc);
     pl_temp_allocator_reset(&tTempAllocator);
 
     // retrieve new texture
@@ -5516,38 +5547,38 @@ pl__refr_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcNam
         memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pData, szSize);
 
         // begin recording
-        plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
         
         // begin blit pass, copy texture, end pass
-        plBlitEncoderHandle tEncoder = gptGfx->begin_blit_pass(tCommandBuffer);
+        plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
 
         const plBufferImageCopy tBufferImageCopy = {
             .tImageExtent = {(uint32_t)ptDesc->tDimensions.x, (uint32_t)ptDesc->tDimensions.y, 1},
             .uLayerCount = 1
         };
 
-        gptGfx->copy_buffer_to_texture(tEncoder, gptData->tStagingBufferHandle[0], tHandle, 1, &tBufferImageCopy);
-        gptGfx->generate_mipmaps(tEncoder, tHandle);
-        gptGfx->end_blit_pass(tEncoder);
+        gptGfx->copy_buffer_to_texture(ptEncoder, gptData->tStagingBufferHandle[0], tHandle, 1, &tBufferImageCopy);
+        gptGfx->generate_mipmaps(ptEncoder, tHandle);
+        gptGfx->end_blit_pass(ptEncoder);
 
         // finish recording
-        gptGfx->end_command_recording(tCommandBuffer);
+        gptGfx->end_command_recording(ptCommandBuffer);
 
         // submit command buffer
-        gptGfx->submit_command_buffer_blocking(tCommandBuffer, NULL);
+        gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
     }
     return tHandle;
 }
 
 static plBufferHandle
-pl__refr_create_staging_buffer(const plBufferDescription* ptDesc, const char* pcName, uint32_t uIdentifier)
+pl__refr_create_staging_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier)
 {
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
 
     // create buffer
     plTempAllocator tTempAllocator = {0};
-    const plBufferHandle tHandle = gptGfx->create_buffer(ptDevice, ptDesc, pl_temp_allocator_sprintf(&tTempAllocator, "buffer %s: %u", pcName, uIdentifier));
+    const plBufferHandle tHandle = gptGfx->create_buffer(ptDevice, ptDesc);
     pl_temp_allocator_reset(&tTempAllocator);
 
     // retrieve new buffer
@@ -5567,14 +5598,14 @@ pl__refr_create_staging_buffer(const plBufferDescription* ptDesc, const char* pc
 }
 
 static plBufferHandle 
-pl__refr_create_cached_staging_buffer(const plBufferDescription* ptDesc, const char* pcName, uint32_t uIdentifier)
+pl__refr_create_cached_staging_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier)
 {
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
 
     // create buffer
     plTempAllocator tTempAllocator = {0};
-    const plBufferHandle tHandle = gptGfx->create_buffer(ptDevice, ptDesc, pl_temp_allocator_sprintf(&tTempAllocator, "buffer %s: %u", pcName, uIdentifier));
+    const plBufferHandle tHandle = gptGfx->create_buffer(ptDevice, ptDesc);
     pl_temp_allocator_reset(&tTempAllocator);
 
     // retrieve new buffer
@@ -5594,14 +5625,14 @@ pl__refr_create_cached_staging_buffer(const plBufferDescription* ptDesc, const c
 }
 
 static plBufferHandle
-pl__refr_create_local_buffer(const plBufferDescription* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData)
+pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData)
 {
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
     
     // create buffer
     plTempAllocator tTempAllocator = {0};
-    const plBufferHandle tHandle = gptGfx->create_buffer(ptDevice, ptDesc, pl_temp_allocator_sprintf(&tTempAllocator, "buffer %s: %u", pcName, uIdentifier));
+    const plBufferHandle tHandle = gptGfx->create_buffer(ptDevice, ptDesc);
     pl_temp_allocator_reset(&tTempAllocator);
 
     // retrieve new buffer
@@ -5628,21 +5659,21 @@ pl__refr_create_local_buffer(const plBufferDescription* ptDesc, const char* pcNa
     {
         // copy data to staging buffer
         plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptData->tStagingBufferHandle[0]);
-        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pData, ptDesc->uByteSize);
+        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pData, ptDesc->szByteSize);
 
         // begin recording
-        plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
         
         // begin blit pass, copy buffer, end pass
-        plBlitEncoderHandle tEncoder = gptGfx->begin_blit_pass(tCommandBuffer);
-        gptGfx->copy_buffer(tEncoder, gptData->tStagingBufferHandle[0], tHandle, 0, 0, ptDesc->uByteSize);
-        gptGfx->end_blit_pass(tEncoder);
+        plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+        gptGfx->copy_buffer(ptEncoder, gptData->tStagingBufferHandle[0], tHandle, 0, 0, ptDesc->szByteSize);
+        gptGfx->end_blit_pass(ptEncoder);
 
         // finish recording
-        gptGfx->end_command_recording(tCommandBuffer);
+        gptGfx->end_command_recording(ptCommandBuffer);
 
         // submit command buffer
-        gptGfx->submit_command_buffer_blocking(tCommandBuffer, NULL);
+        gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
     }
     return tHandle;
 }

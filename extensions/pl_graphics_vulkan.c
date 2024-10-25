@@ -79,23 +79,27 @@ typedef struct _plCommandBuffer
     plBeginCommandInfo tBeginInfo;
     plDevice*          ptDevice;
     VkCommandBuffer    tCmdBuffer;
+    plCommandBuffer*   ptNext;
 } plCommandBuffer;
 
 typedef struct _plRenderEncoder
 {
-    plCommandBufferHandle tCommandBuffer;
-    plRenderPassHandle    tRenderPassHandle;
-    uint32_t              _uCurrentSubpass;
+    plCommandBuffer*   ptCommandBuffer;
+    plRenderPassHandle tRenderPassHandle;
+    uint32_t           _uCurrentSubpass;
+    plRenderEncoder*   ptNext;
 } plRenderEncoder;
 
 typedef struct _plComputeEncoder
 {
-    plCommandBufferHandle tCommandBuffer;
+    plCommandBuffer*  ptCommandBuffer;
+    plComputeEncoder* ptNext;
 } plComputeEncoder;
 
 typedef struct _plBlitEncoder
 {
-    plCommandBufferHandle tCommandBuffer;
+    plCommandBuffer* ptCommandBuffer;
+    plBlitEncoder*   ptNext;
 } plBlitEncoder;
 
 typedef struct _plVulkanDynamicBuffer
@@ -279,21 +283,11 @@ typedef struct _plGraphics
     bool     bValidationActive;
     bool     bDebugMessengerActive;
 
-    // command buffers
-    plCommandBuffer* sbtCommandBuffers;
-    uint32_t*        sbuCommandBuffersFreeIndices;
-
-    // render encoders
-    plRenderEncoder* sbtRenderEncoders;
-    uint32_t*        sbuRenderEncodersFreeIndices;
-
-    // blit encoders
-    plBlitEncoder* sbtBlitEncoders;
-    uint32_t*      sbuBlitEncodersFreeIndices;
-
-    // compute encoders
-    plComputeEncoder* sbtComputeEncoders;
-    uint32_t*         sbuComputeEncodersFreeIndices;
+    // free lists
+    plCommandBuffer*  ptCommandBufferFreeList;
+    plRenderEncoder*  ptRenderEncoderFreeList;
+    plBlitEncoder*    ptBlitEncoderFreeList;
+    plComputeEncoder* ptComputeEncoderFreeList;
     
     // vulkan specifics
     plTempAllocator          tTempAllocator;
@@ -330,7 +324,7 @@ typedef struct _plSwapchain
 
 // conversion between pilotlight & vulkan types
 static VkFilter                            pl__vulkan_filter    (plFilter tFilter);
-static VkSamplerAddressMode                pl__vulkan_wrap      (plWrapMode tWrap);
+static VkSamplerAddressMode                pl__vulkan_wrap      (plAddressMode tWrap);
 static VkCompareOp                         pl__vulkan_compare   (plCompareMode tCompare);
 static VkFormat                            pl__vulkan_format    (plFormat tFormat);
 static bool                                pl__is_depth_format  (plFormat tFormat);
@@ -426,22 +420,22 @@ pl_get_semaphore_value(plDevice* ptDevice, plSemaphoreHandle tHandle)
 }
 
 static plBufferHandle
-pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const char* pcName)
+pl_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc)
 {
     plBufferHandle tHandle = pl__get_new_buffer_handle(ptDevice);
 
     plBuffer tBuffer = {
-        .tDescription = *ptDesc
+        .tDesc = *ptDesc
     };
 
-    if(pcName)
+    if(ptDesc->pcDebugName == NULL)
     {
-        pl_sprintf(tBuffer.tDescription.acDebugName, "%s", pcName);
+        tBuffer.tDesc.pcDebugName = "unnamed buffer";
     }
 
     VkBufferCreateInfo tBufferInfo = {
         .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size        = ptDesc->uByteSize,
+        .size        = ptDesc->szByteSize,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };
 
@@ -461,8 +455,7 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDescription* ptDesc, const ch
 
     plVulkanBuffer tVulkanBuffer = {0};
     PL_VULKAN(vkCreateBuffer(ptDevice->tLogicalDevice, &tBufferInfo, NULL, &tVulkanBuffer.tBuffer));
-    if(pcName)
-        pl_set_vulkan_object_name(ptDevice, (uint64_t)tVulkanBuffer.tBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, pcName);
+    pl_set_vulkan_object_name(ptDevice, (uint64_t)tVulkanBuffer.tBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, tBuffer.tDesc.pcDebugName);
     vkGetBufferMemoryRequirements(ptDevice->tLogicalDevice, tVulkanBuffer.tBuffer, &tMemRequirements);
 
     tBuffer.tMemoryRequirements.ulAlignment = tMemRequirements.alignment;
@@ -514,13 +507,12 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
             pl_sb_add(ptFrame->sbtDynamicBuffers);
             ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
 
-            plBufferDescription tStagingBufferDescription0 = {
-                .tUsage               = PL_BUFFER_USAGE_UNIFORM,
-                .uByteSize            = (uint32_t)ptDevice->tInfo.szDynamicBufferBlockSize
+            plBufferDesc tStagingBufferDescription0 = {
+                .tUsage      = PL_BUFFER_USAGE_UNIFORM,
+                .szByteSize  = ptDevice->tInfo.szDynamicBufferBlockSize,
+                .pcDebugName = "dynamic buffer"
             };
-            pl_sprintf(tStagingBufferDescription0.acDebugName, "D-BUF-F%d-%d", (int)gptGraphics->uCurrentFrameIndex, (int)ptFrame->uCurrentBufferIndex);
-
-            plBufferHandle tStagingBuffer0 = pl_create_buffer(ptDevice, &tStagingBufferDescription0, "dynamic buffer");
+            plBufferHandle tStagingBuffer0 = pl_create_buffer(ptDevice, &tStagingBufferDescription0);
             plBuffer* ptBuffer = &ptDevice->sbtBuffersCold[tStagingBuffer0.uIndex];
             plDeviceMemoryAllocation tAllocation = ptDevice->ptDynamicAllocator->allocate(ptDevice->ptDynamicAllocator->ptInst, ptBuffer->tMemoryRequirements.uMemoryTypeBits, ptBuffer->tMemoryRequirements.ulSize, ptBuffer->tMemoryRequirements.ulAlignment, "dynamic buffer");
             pl_bind_buffer_to_memory(ptDevice, tStagingBuffer0, &tAllocation);
@@ -574,10 +566,9 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
 }
 
 static void
-pl_copy_texture_to_buffer(plBlitEncoderHandle tEncoder, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
-    plBlitEncoder* ptEncoder = pl__get_blit_encoder(tEncoder);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plTexture* ptColdTexture = pl__get_texture(ptDevice, tTextureHandle);
@@ -620,10 +611,9 @@ pl_copy_texture_to_buffer(plBlitEncoderHandle tEncoder, plTextureHandle tTexture
 }
 
 static void
-pl_generate_mipmaps(plBlitEncoderHandle tEncoder, plTextureHandle tTexture)
+pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
 {
-    plBlitEncoder* ptEncoder = pl__get_blit_encoder(tEncoder);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plTexture* ptTexture = &ptDevice->sbtTexturesCold[tTexture.uIndex];
@@ -750,7 +740,7 @@ pl_create_swapchain_texture_view(plDevice* ptDevice, const plTextureViewDesc* pt
 }
 
 static plSamplerHandle
-pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc, const char* pcName)
+pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc)
 {
     plSamplerHandle tHandle = pl__get_new_sampler_handle(ptDevice);
 
@@ -762,22 +752,22 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc, const char* p
 
     VkSamplerCreateInfo tSamplerInfo = {
         .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .magFilter               = pl__vulkan_filter(ptDesc->tFilter),
-        .addressModeU            = pl__vulkan_wrap(ptDesc->tHorizontalWrap),
-        .addressModeV            = pl__vulkan_wrap(ptDesc->tVerticalWrap),
+        .minFilter               = pl__vulkan_filter(ptDesc->tMinFilter),
+        .magFilter               = pl__vulkan_filter(ptDesc->tMagFilter),
+        .addressModeU            = pl__vulkan_wrap(ptDesc->tUAddressMode),
+        .addressModeV            = pl__vulkan_wrap(ptDesc->tVAddressMode),
+        .addressModeW            = pl__vulkan_wrap(ptDesc->tWAddressMode),
         .anisotropyEnable        = (bool)(ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY),
         .maxAnisotropy           = ptDesc->fMaxAnisotropy == 0 ? (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY) : ptDesc->fMaxAnisotropy,
         .borderColor             = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
-        .unnormalizedCoordinates = VK_FALSE,
-        .compareEnable           = VK_FALSE,
+        .unnormalizedCoordinates = ptDesc->bUnnormalizedCoordinates ? VK_TRUE : VK_FALSE,
+        .compareEnable           = ptDesc->tCompare == 0 ? VK_FALSE : VK_TRUE,
         .compareOp               = pl__vulkan_compare(ptDesc->tCompare),
         .mipmapMode              = ptDesc->tMipmapMode == PL_MIPMAP_MODE_LINEAR ? VK_SAMPLER_MIPMAP_MODE_LINEAR : VK_SAMPLER_MIPMAP_MODE_NEAREST,
-        .mipLodBias              = ptDesc->fMipBias,
+        .mipLodBias              = 0.0f,
         .minLod                  = ptDesc->fMinMip,
         .maxLod                  = ptDesc->fMaxMip,
     };
-    tSamplerInfo.minFilter    = tSamplerInfo.magFilter;
-    tSamplerInfo.addressModeW = tSamplerInfo.addressModeU;
 
     VkSampler tVkSampler = VK_NULL_HANDLE;
     PL_VULKAN(vkCreateSampler(ptDevice->tLogicalDevice, &tSamplerInfo, NULL, &tVkSampler));
@@ -801,7 +791,7 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
         pl_sb_add(ptDevice->sbtBindGroupLayouts);
     }
 
-    ptLayout->uHandle = uBindGroupLayoutIndex;
+    ptLayout->_uHandle = uBindGroupLayoutIndex;
 
     uint32_t uCurrentBinding = 0;
     const uint32_t uDescriptorBindingCount = ptLayout->uTextureBindingCount + ptLayout->uBufferBindingCount + ptLayout->uSamplerBindingCount;
@@ -811,17 +801,15 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
     for(uint32_t i = 0; i < ptLayout->uBufferBindingCount; i++)
     {
         VkDescriptorSetLayoutBinding tBinding =  {
-            .binding         = ptLayout->aBufferBindings[i].uSlot,
-            .descriptorType  = ptLayout->aBufferBindings[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .binding         = ptLayout->atBufferBindings[i].uSlot,
+            .descriptorType  = ptLayout->atBufferBindings[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = 1,
-            .stageFlags      = pl__vulkan_stage_flags(ptLayout->aBufferBindings[i].tStages),
+            .stageFlags      = pl__vulkan_stage_flags(ptLayout->atBufferBindings[i].tStages),
             .pImmutableSamplers = NULL,
         };
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
         atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
-
-
 
     for(uint32_t i = 0 ; i < ptLayout->uTextureBindingCount; i++)
     {
@@ -903,10 +891,10 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
     for(uint32_t i = 0; i < ptLayout->uBufferBindingCount; i++)
     {
         VkDescriptorSetLayoutBinding tBinding =  {
-            .binding         = ptLayout->aBufferBindings[i].uSlot,
-            .descriptorType  = ptLayout->aBufferBindings[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .binding         = ptLayout->atBufferBindings[i].uSlot,
+            .descriptorType  = ptLayout->atBufferBindings[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = 1,
-            .stageFlags      = pl__vulkan_stage_flags(ptLayout->aBufferBindings[i].tStages),
+            .stageFlags      = pl__vulkan_stage_flags(ptLayout->atBufferBindings[i].tStages),
             .pImmutableSamplers = NULL,
         };
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
@@ -1024,10 +1012,10 @@ pl_get_temporary_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayou
     for(uint32_t i = 0; i < ptLayout->uBufferBindingCount; i++)
     {
         VkDescriptorSetLayoutBinding tBinding =  {
-            .binding         = ptLayout->aBufferBindings[i].uSlot,
-            .descriptorType  = ptLayout->aBufferBindings[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .binding         = ptLayout->atBufferBindings[i].uSlot,
+            .descriptorType  = ptLayout->atBufferBindings[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = 1,
-            .stageFlags      = pl__vulkan_stage_flags(ptLayout->aBufferBindings[i].tStages),
+            .stageFlags      = pl__vulkan_stage_flags(ptLayout->atBufferBindings[i].tStages),
             .pImmutableSamplers = NULL
         };
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
@@ -1145,16 +1133,16 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
     for(uint32_t i = 0 ; i < ptData->uBufferCount; i++)
     {
 
-        const plVulkanBuffer* ptVulkanBuffer = &ptDevice->sbtBuffersHot[ptData->atBuffers[i].tBuffer.uIndex];
+        const plVulkanBuffer* ptVulkanBuffer = &ptDevice->sbtBuffersHot[ptData->atBufferBindings[i].tBuffer.uIndex];
 
         sbtBufferDescInfos[i].buffer = ptVulkanBuffer->tBuffer;
-        sbtBufferDescInfos[i].offset = ptData->atBuffers[i].szOffset;
-        sbtBufferDescInfos[i].range  = ptData->atBuffers[i].szBufferRange;
+        sbtBufferDescInfos[i].offset = ptData->atBufferBindings[i].szOffset;
+        sbtBufferDescInfos[i].range  = ptData->atBufferBindings[i].szBufferRange;
 
         sbtWrites[uCurrentWrite].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        sbtWrites[uCurrentWrite].dstBinding      = ptData->atBuffers[i].uSlot;
+        sbtWrites[uCurrentWrite].dstBinding      = ptData->atBufferBindings[i].uSlot;
         sbtWrites[uCurrentWrite].dstArrayElement = 0;
-        sbtWrites[uCurrentWrite].descriptorType  = atDescriptorTypeLUT[ptBindGroup->tLayout.aBufferBindings[i].tType - 1];
+        sbtWrites[uCurrentWrite].descriptorType  = atDescriptorTypeLUT[ptBindGroup->tLayout.atBufferBindings[i].tType - 1];
         sbtWrites[uCurrentWrite].descriptorCount = 1;
         sbtWrites[uCurrentWrite].dstSet          = ptVulkanBindGroup->tDescriptorSet;
         sbtWrites[uCurrentWrite].pBufferInfo     = &sbtBufferDescInfos[i];
@@ -1171,12 +1159,12 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
     for(uint32_t i = 0 ; i < ptData->uTextureCount; i++)
     {
 
-        sbtImageDescInfos[i].imageLayout         = ptData->atTextures[i].tCurrentUsage == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : pl__vulkan_layout(ptData->atTextures[i].tCurrentUsage);
-        sbtImageDescInfos[i].imageView           = ptDevice->sbtTexturesHot[ptData->atTextures[i].tTexture.uIndex].tImageView;
+        sbtImageDescInfos[i].imageLayout         = ptData->atTextureBindings[i].tCurrentUsage == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : pl__vulkan_layout(ptData->atTextureBindings[i].tCurrentUsage);
+        sbtImageDescInfos[i].imageView           = ptDevice->sbtTexturesHot[ptData->atTextureBindings[i].tTexture.uIndex].tImageView;
         sbtWrites[uCurrentWrite].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        sbtWrites[uCurrentWrite].dstBinding      = ptData->atTextures[i].uSlot;
-        sbtWrites[uCurrentWrite].dstArrayElement = ptData->atTextures[i].uIndex;
-        sbtWrites[uCurrentWrite].descriptorType  = atTextureDescriptorTypeLUT[ptData->atTextures[i].tType - 1];
+        sbtWrites[uCurrentWrite].dstBinding      = ptData->atTextureBindings[i].uSlot;
+        sbtWrites[uCurrentWrite].dstArrayElement = ptData->atTextureBindings[i].uIndex;
+        sbtWrites[uCurrentWrite].descriptorType  = atTextureDescriptorTypeLUT[ptData->atTextureBindings[i].tType - 1];
         sbtWrites[uCurrentWrite].descriptorCount = 1;
         sbtWrites[uCurrentWrite].dstSet          = ptVulkanBindGroup->tDescriptorSet;
         sbtWrites[uCurrentWrite].pImageInfo      = &sbtImageDescInfos[i];
@@ -1204,13 +1192,11 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
 }
 
 static plTextureHandle
-pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* pcName)
+pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc)
 {
-    if(pcName == NULL)
-        pcName = "unnamed texture";
-
     plTextureDesc tDesc = *ptDesc;
-    strncpy(tDesc.acDebugName, pcName, PL_MAX_NAME_LENGTH);
+    if(tDesc.pcDebugName == NULL)
+        tDesc.pcDebugName = "unnamed texture";
 
     if(tDesc.tInitialUsage == PL_TEXTURE_USAGE_UNSPECIFIED)
         tDesc.tInitialUsage = PL_TEXTURE_USAGE_SAMPLED;
@@ -1230,7 +1216,7 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
             .uLayerCount = tDesc.uLayers,
             .tTexture = tHandle
         },
-        ._tDrawBindGroup = {.ulData = UINT64_MAX}
+        .tDrawBindGroup = {.ulData = UINT64_MAX}
     };
 
     plVulkanTexture tVulkanTexture = {
@@ -1250,15 +1236,20 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
     }
 
     VkImageUsageFlags tUsageFlags = 0;
-    if(tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)                  tUsageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    if(tDesc.tUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)         tUsageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    if(tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT) tUsageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    if(tDesc.tUsage & PL_TEXTURE_USAGE_TRANSIENT_ATTACHMENT)     tUsageFlags |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
-    if(tDesc.tUsage & PL_TEXTURE_USAGE_INPUT_ATTACHMENT)         tUsageFlags |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-    if(tDesc.tUsage & PL_TEXTURE_USAGE_STORAGE)                  tUsageFlags |= VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
+        tUsageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)
+        tUsageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
+        tUsageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_TRANSIENT_ATTACHMENT)
+        tUsageFlags |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_INPUT_ATTACHMENT)
+        tUsageFlags |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_STORAGE)
+        tUsageFlags |= VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
-    // create vulkan image
-    VkImageCreateInfo tImageInfo = {
+    const VkImageCreateInfo tImageInfo = {
         .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType     = VK_IMAGE_TYPE_2D,
         .extent.width  = (uint32_t)tDesc.tDimensions.x,
@@ -1271,7 +1262,7 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, const char* p
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .usage         = tUsageFlags,
         .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
-        .samples       = 1,
+        .samples       = ptDesc->tSampleCount == 0 ? VK_SAMPLE_COUNT_1_BIT : ptDesc->tSampleCount,
         .flags         = tImageViewType == VK_IMAGE_VIEW_TYPE_CUBE ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0
     };
     
@@ -1378,11 +1369,11 @@ pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plD
                     {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 }
             };
-            ptDevice->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
+            ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
         }
         else
         {
-            ptDevice->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_sb_pop(ptDevice->sbtFreeDrawBindGroups);
+            ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup = pl_sb_pop(ptDevice->sbtFreeDrawBindGroups);
         }
 
         const plBindGroupUpdateTextureData atBGTextureData[] = {
@@ -1394,35 +1385,21 @@ pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plD
         };
         const plBindGroupUpdateData tBGData = {
             .uTextureCount = 1,
-            .atTextures = atBGTextureData
+            .atTextureBindings = atBGTextureData
         };
-        pl_update_bind_group(ptDevice, ptDevice->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup, &tBGData);
+        pl_update_bind_group(ptDevice, ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup, &tBGData);
     }
 }
 
 static plTextureHandle
-pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, const char* pcName)
+pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc)
 {
-    uint32_t uTextureIndex = UINT32_MAX;
-    if(pl_sb_size(ptDevice->sbtTextureFreeIndices) > 0)
-        uTextureIndex = pl_sb_pop(ptDevice->sbtTextureFreeIndices);
-    else
-    {
-        uTextureIndex = pl_sb_size(ptDevice->sbtTexturesCold);
-        pl_sb_add(ptDevice->sbtTexturesCold);
-        pl_sb_push(ptDevice->sbtTextureGenerations, UINT32_MAX);
-        pl_sb_add(ptDevice->sbtTexturesHot);
-    }
-
-    plTextureHandle tHandle = {
-        .uGeneration = ++ptDevice->sbtTextureGenerations[uTextureIndex],
-        .uIndex = uTextureIndex
-    };
+    plTextureHandle tHandle = pl__get_new_texture_handle(ptDevice);
 
     plTexture tTexture = {
         .tDesc = ptDevice->sbtTexturesCold[ptViewDesc->tTexture.uIndex].tDesc,
         .tView = *ptViewDesc,
-        ._tDrawBindGroup = {.ulData = UINT64_MAX}
+        .tDrawBindGroup = {.ulData = UINT64_MAX}
     };
 
     plTexture* ptTexture = pl__get_texture(ptDevice, ptViewDesc->tTexture);
@@ -1437,8 +1414,7 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
     else if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D)
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
     else if(ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
-        tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
-        // tImageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        tImageViewType = VK_IMAGE_VIEW_TYPE_2D; // VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     else
     {
         PL_ASSERT(false && "unsupported texture type");
@@ -1446,7 +1422,7 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
 
     VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
-    VkImageViewCreateInfo tViewInfo = {
+    const VkImageViewCreateInfo tViewInfo = {
         .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image                           = ptOldVulkanTexture->tImage,
         .viewType                        = tImageViewType,
@@ -1469,11 +1445,11 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
                     {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 }
             };
-            ptDevice->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
+            ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
         }
         else
         {
-            ptDevice->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup = pl_sb_pop(ptDevice->sbtFreeDrawBindGroups);
+            ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup = pl_sb_pop(ptDevice->sbtFreeDrawBindGroups);
         }
 
         const plBindGroupUpdateTextureData atBGTextureData[] = {
@@ -1485,18 +1461,18 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc, 
         };
         const plBindGroupUpdateData tBGData = {
             .uTextureCount = 1,
-            .atTextures = atBGTextureData
+            .atTextureBindings = atBGTextureData
         };
-        pl_update_bind_group(ptDevice, ptDevice->sbtTexturesCold[tHandle.uIndex]._tDrawBindGroup, &tBGData);
+        pl_update_bind_group(ptDevice, ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup, &tBGData);
     }
 
     ptNewVulkanTexture->bOriginalView = false;
-    ptDevice->sbtTexturesCold[uTextureIndex] = tTexture;
+    ptDevice->sbtTexturesCold[tHandle.uIndex] = tTexture;
     return tHandle;
 }
 
 static plComputeShaderHandle
-pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* ptDescription)
+pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescription)
 {
 
     plComputeShaderHandle tHandle = pl__get_new_compute_shader_handle(ptDevice);
@@ -1522,7 +1498,7 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
     for(uint32_t i = 0; i < tShader.tDescription.uBindGroupLayoutCount; i++)
     {
         pl_create_bind_group_layout(ptDevice, &tShader.tDescription.atBindGroupLayouts[i], "compute shader template bind group layout");
-        ptVulkanShader->atDescriptorSetLayouts[i] = ptDevice->sbtBindGroupLayouts[tShader.tDescription.atBindGroupLayouts[i].uHandle].tDescriptorSetLayout;
+        ptVulkanShader->atDescriptorSetLayouts[i] = ptDevice->sbtBindGroupLayouts[tShader.tDescription.atBindGroupLayouts[i]._uHandle].tDescriptorSetLayout;
     }
     ptVulkanShader->atDescriptorSetLayouts[tShader.tDescription.uBindGroupLayoutCount]  = ptDevice->tDynamicDescriptorSetLayout;
 
@@ -1577,7 +1553,6 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDescription* p
 
     ptVulkanShader->tPipeline = tVulkanShader.tPipeline;
     ptVulkanShader->tPipelineLayout = tVulkanShader.tPipelineLayout;
-
     ptDevice->sbtComputeShadersCold[tHandle.uIndex] = tShader;
     return tHandle;
 }
@@ -1602,7 +1577,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
     for(uint32_t i = 0; i < tShader.tDescription.uBindGroupLayoutCount; i++)
     {
         pl_create_bind_group_layout(ptDevice, &tShader.tDescription.atBindGroupLayouts[i], "shader template bind group layout");
-        ptVulkanShader->atDescriptorSetLayouts[i] = ptDevice->sbtBindGroupLayouts[tShader.tDescription.atBindGroupLayouts[i].uHandle].tDescriptorSetLayout;
+        ptVulkanShader->atDescriptorSetLayouts[i] = ptDevice->sbtBindGroupLayouts[tShader.tDescription.atBindGroupLayouts[i]._uHandle].tDescriptorSetLayout;
     }
     ptVulkanShader->atDescriptorSetLayouts[tShader.tDescription.uBindGroupLayoutCount]  = ptDevice->tDynamicDescriptorSetLayout;
 
@@ -1643,18 +1618,18 @@ pl_create_shader(plDevice* ptDevice, const plShaderDescription* ptDescription)
     uint32_t uCurrentAttributeCount = 0;
     for(uint32_t i = 0; i < PL_MAX_VERTEX_ATTRIBUTES; i++)
     {
-        if(ptDescription->tVertexBufferBinding.atAttributes[i].tFormat == PL_FORMAT_UNKNOWN)
+        if(ptDescription->tVertexBufferLayout.atAttributes[i].tFormat == PL_FORMAT_UNKNOWN)
             break;
         atAttributeDescription[i].binding = 0;
         atAttributeDescription[i].location = i;
-        atAttributeDescription[i].offset = ptDescription->tVertexBufferBinding.atAttributes[i].uByteOffset;
-        atAttributeDescription[i].format = pl__vulkan_format(ptDescription->tVertexBufferBinding.atAttributes[i].tFormat);
+        atAttributeDescription[i].offset = ptDescription->tVertexBufferLayout.atAttributes[i].uByteOffset;
+        atAttributeDescription[i].format = pl__vulkan_format(ptDescription->tVertexBufferLayout.atAttributes[i].tFormat);
         uCurrentAttributeCount++;
     }
 
     VkVertexInputBindingDescription tBindingDescription = {
         .binding   = 0,
-        .stride    = ptDescription->tVertexBufferBinding.uByteStride,
+        .stride    = ptDescription->tVertexBufferLayout.uByteStride,
         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
     };
 
@@ -2331,10 +2306,20 @@ pl_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle
     }
 }
 
-static plCommandBufferHandle
+static plCommandBuffer*
 pl_begin_command_recording(plDevice* ptDevice, const plBeginCommandInfo* ptBeginInfo)
 {
-    plCommandBufferHandle tHandle = pl__get_new_command_buffer_handle();
+    plCommandBuffer* ptCommandBuffer = gptGraphics->ptCommandBufferFreeList;
+    if(ptCommandBuffer)
+    {
+        gptGraphics->ptCommandBufferFreeList = ptCommandBuffer->ptNext;
+    }
+    else
+    {
+        ptCommandBuffer = PL_ALLOC(sizeof(plCommandBuffer));
+        memset(ptCommandBuffer, 0, sizeof(plCommandBuffer));
+    }
+
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
 
     VkCommandBuffer tCmdBuffer = VK_NULL_HANDLE;
@@ -2359,24 +2344,21 @@ pl_begin_command_recording(plDevice* ptDevice, const plBeginCommandInfo* ptBegin
     };
     PL_VULKAN(vkBeginCommandBuffer(tCmdBuffer, &tBeginInfo));   
     
-    gptGraphics->sbtCommandBuffers[tHandle.uIndex].tCmdBuffer = tCmdBuffer;
-    gptGraphics->sbtCommandBuffers[tHandle.uIndex].ptDevice = ptDevice;
+    ptCommandBuffer->tCmdBuffer = tCmdBuffer;
+    ptCommandBuffer->ptDevice = ptDevice;
 
     if(ptBeginInfo)
-        gptGraphics->sbtCommandBuffers[tHandle.uIndex].tBeginInfo = *ptBeginInfo;
+        ptCommandBuffer->tBeginInfo = *ptBeginInfo;
     else
-        gptGraphics->sbtCommandBuffers[tHandle.uIndex].tBeginInfo.uWaitSemaphoreCount = UINT32_MAX;
+        ptCommandBuffer->tBeginInfo.uWaitSemaphoreCount = UINT32_MAX;
 
-    return tHandle;
+    return ptCommandBuffer;
 }
 
-static plRenderEncoderHandle
-pl_begin_render_pass(plCommandBufferHandle tCmdBuffer, plRenderPassHandle tPass)
+static plRenderEncoder*
+pl_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass)
 {
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(tCmdBuffer);
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
-
-    plRenderEncoderHandle tHandle = pl__get_new_render_encoder_handle();
 
     plRenderPass* ptRenderPass = &ptDevice->sbtRenderPassesCold[tPass.uIndex];
     plVulkanRenderPass* ptVulkanRenderPass = &ptDevice->sbtRenderPassesHot[tPass.uIndex];
@@ -2401,7 +2383,7 @@ pl_begin_render_pass(plCommandBufferHandle tCmdBuffer, plRenderPassHandle tPass)
             .pClearValues      = atClearValues
         };
 
-        vkCmdBeginRenderPass(gptGraphics->sbtCommandBuffers[tCmdBuffer.uIndex].tCmdBuffer, &tRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(ptCmdBuffer->tCmdBuffer, &tRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     }
     else
     {
@@ -2442,7 +2424,7 @@ pl_begin_render_pass(plCommandBufferHandle tCmdBuffer, plRenderPassHandle tPass)
             .pClearValues      = atClearValues
         };
 
-        vkCmdBeginRenderPass(gptGraphics->sbtCommandBuffers[tCmdBuffer.uIndex].tCmdBuffer, &tRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(ptCmdBuffer->tCmdBuffer, &tRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     }
 
     const VkRect2D tScissor = {
@@ -2459,47 +2441,46 @@ pl_begin_render_pass(plCommandBufferHandle tCmdBuffer, plRenderPassHandle tPass)
         .maxDepth = 1.0f
     };
 
-    vkCmdSetViewport(gptGraphics->sbtCommandBuffers[tCmdBuffer.uIndex].tCmdBuffer, 0, 1, &tViewport);
-    vkCmdSetScissor(gptGraphics->sbtCommandBuffers[tCmdBuffer.uIndex].tCmdBuffer, 0, 1, &tScissor);
-    
-    gptGraphics->sbtRenderEncoders[tHandle.uIndex].tCommandBuffer = tCmdBuffer;
-    gptGraphics->sbtRenderEncoders[tHandle.uIndex].tRenderPassHandle = tPass;
-    gptGraphics->sbtRenderEncoders[tHandle.uIndex]._uCurrentSubpass = 0;
-    return tHandle;
+    vkCmdSetViewport(ptCmdBuffer->tCmdBuffer, 0, 1, &tViewport);
+    vkCmdSetScissor(ptCmdBuffer->tCmdBuffer, 0, 1, &tScissor);
+
+    plRenderEncoder* ptEncoder = pl__get_new_render_encoder();
+    ptEncoder->ptCommandBuffer = ptCmdBuffer;
+    ptEncoder->tRenderPassHandle = tPass;
+    ptEncoder->_uCurrentSubpass = 0;
+    return ptEncoder;
 }
 
 static void
-pl_next_subpass(plRenderEncoderHandle tHandle)
+pl_next_subpass(plRenderEncoder* ptEncoder)
 {
-    plRenderEncoder* ptEncoder = pl__get_render_encoder(tHandle);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     ptEncoder->_uCurrentSubpass++;
     vkCmdNextSubpass(ptCmdBuffer->tCmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
 }
 
 static void
-pl_end_render_pass(plRenderEncoderHandle tHandle)
+pl_end_render_pass(plRenderEncoder* ptEncoder)
 {
-    plRenderEncoder* ptEncoder = pl__get_render_encoder(tHandle);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
-    plRenderPass* ptRenderPass = &ptDevice->sbtRenderPassesCold[gptGraphics->sbtRenderEncoders[tHandle.uIndex].tRenderPassHandle.uIndex];
+    plRenderPass* ptRenderPass = &ptDevice->sbtRenderPassesCold[ptEncoder->tRenderPassHandle.uIndex];
     plRenderPassLayout* ptLayout = &ptDevice->sbtRenderPassLayoutsCold[ptRenderPass->tDesc.tLayout.uIndex];
     
-    while(gptGraphics->sbtRenderEncoders[tHandle.uIndex]._uCurrentSubpass < ptLayout->tDesc.uSubpassCount - 1)
+    while(ptEncoder->_uCurrentSubpass < ptLayout->tDesc.uSubpassCount - 1)
     {
         vkCmdNextSubpass(ptCmdBuffer->tCmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
-        gptGraphics->sbtRenderEncoders[tHandle.uIndex]._uCurrentSubpass++;
+        ptEncoder->_uCurrentSubpass++;
     }
     vkCmdEndRenderPass(ptCmdBuffer->tCmdBuffer);
-    pl__return_render_encoder_handle(tHandle);
+
+    pl__return_render_encoder(ptEncoder);
 }
 
 static void
-pl_bind_vertex_buffer(plRenderEncoderHandle tEncoder, plBufferHandle tHandle)
+pl_bind_vertex_buffer(plRenderEncoder* ptEncoder, plBufferHandle tHandle)
 {
-    plRenderEncoder* ptEncoder = pl__get_render_encoder(tEncoder);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plVulkanBuffer* ptVertexBuffer = &ptDevice->sbtBuffersHot[tHandle.uIndex];
     static VkDeviceSize offsets = { 0 };
@@ -2507,19 +2488,17 @@ pl_bind_vertex_buffer(plRenderEncoderHandle tEncoder, plBufferHandle tHandle)
 }
 
 static void
-pl_draw(plRenderEncoderHandle tHandle, uint32_t uCount, const plDraw* atDraws)
+pl_draw(plRenderEncoder* ptEncoder, uint32_t uCount, const plDraw* atDraws)
 {
-    plRenderEncoder* ptEncoder = pl__get_render_encoder(tHandle);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     for(uint32_t i = 0; i < uCount; i++)
         vkCmdDraw(ptCmdBuffer->tCmdBuffer, atDraws[i].uVertexCount, atDraws[i].uInstanceCount, atDraws[i].uVertexStart, atDraws[i].uInstance);
 }
 
 static void
-pl_draw_indexed(plRenderEncoderHandle tHandle, uint32_t uCount, const plDrawIndex* atDraws)
+pl_draw_indexed(plRenderEncoder* ptEncoder, uint32_t uCount, const plDrawIndex* atDraws)
 {
-    plRenderEncoder* ptEncoder = pl__get_render_encoder(tHandle);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     uint32_t uCurrentIndexBuffer = UINT32_MAX;
@@ -2537,10 +2516,9 @@ pl_draw_indexed(plRenderEncoderHandle tHandle, uint32_t uCount, const plDrawInde
 }
 
 static void
-pl_bind_shader(plRenderEncoderHandle tEncoder, plShaderHandle tHandle)
+pl_bind_shader(plRenderEncoder* ptEncoder, plShaderHandle tHandle)
 {
-    plRenderEncoder* ptEncoder = pl__get_render_encoder(tEncoder);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plVulkanShader* ptVulkanShader = &ptDevice->sbtShadersHot[tHandle.uIndex];
     vkCmdSetDepthBias(ptCmdBuffer->tCmdBuffer, 0.0f, 0.0f, 0.0f);
@@ -2548,10 +2526,9 @@ pl_bind_shader(plRenderEncoderHandle tEncoder, plShaderHandle tHandle)
 }
 
 static void
-pl_bind_compute_shader(plComputeEncoderHandle tEncoder, plComputeShaderHandle tHandle)
+pl_bind_compute_shader(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle)
 {
-    plComputeEncoder* ptEncoder = pl__get_compute_encoder(tEncoder);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plVulkanComputeShader* ptVulkanShader = &ptDevice->sbtComputeShadersHot[tHandle.uIndex];
     vkCmdBindPipeline(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptVulkanShader->tPipeline);
@@ -2594,11 +2571,10 @@ static inline void pl__update_bindings(plBindGroupManagerData* ptData, VkCommand
 }
 
 static void
-pl_draw_stream(plRenderEncoderHandle tEncoder, uint32_t uAreaCount, plDrawArea* atAreas)
+pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAreas)
 {
     pl_begin_profile_sample(0, __FUNCTION__);
-    plRenderEncoder* ptEncoder = pl__get_render_encoder(tEncoder);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice); 
@@ -2635,13 +2611,13 @@ pl_draw_stream(plRenderEncoderHandle tEncoder, uint32_t uAreaCount, plDrawArea* 
 
         plDrawStream* ptStream = ptArea->ptDrawStream;
 
-        const uint32_t uTokens = pl_sb_size(ptStream->sbtStream);
+        const uint32_t uTokens = pl_sb_size(ptStream->_sbtStream);
         uint32_t uCurrentStreamIndex = 0;
         uint32_t uTriangleCount = 0;
         uint32_t uIndexBuffer = 0;
         uint32_t uIndexBufferOffset = 0;
         uint32_t uVertexBufferOffset = 0;
-        uint32_t uDynamicBufferOffset = 0;
+        uint32_t uDynamicBufferOffset0 = 0;
         uint32_t uInstanceStart = 0;
         uint32_t uInstanceCount = 1;
         plVulkanShader* ptVulkanShader = NULL;
@@ -2652,13 +2628,13 @@ pl_draw_stream(plRenderEncoderHandle tEncoder, uint32_t uAreaCount, plDrawArea* 
         while(uCurrentStreamIndex < uTokens)
         {
 
-            const uint32_t uDirtyMask = ptStream->sbtStream[uCurrentStreamIndex];
+            const uint32_t uDirtyMask = ptStream->_sbtStream[uCurrentStreamIndex];
             uCurrentStreamIndex++;
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
             {
-                const plShader* ptShader= &ptDevice->sbtShadersCold[ptStream->sbtStream[uCurrentStreamIndex]];
-                ptVulkanShader = &ptDevice->sbtShadersHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                const plShader* ptShader= &ptDevice->sbtShadersCold[ptStream->_sbtStream[uCurrentStreamIndex]];
+                ptVulkanShader = &ptDevice->sbtShadersHot[ptStream->_sbtStream[uCurrentStreamIndex]];
                 vkCmdBindPipeline(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
                 pl__set_bind_group_count(&tBindGroupManagerData, ptShader->tDescription.uBindGroupLayoutCount);
                 uCurrentStreamIndex++;
@@ -2666,52 +2642,52 @@ pl_draw_stream(plRenderEncoderHandle tEncoder, uint32_t uAreaCount, plDrawArea* 
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
             {
-                uDynamicBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
-                tBindGroupManagerData.auOffsets[0] = uDynamicBufferOffset;
+                uDynamicBufferOffset0 = ptStream->_sbtStream[uCurrentStreamIndex];
+                tBindGroupManagerData.auOffsets[0] = uDynamicBufferOffset0;
                 uCurrentStreamIndex++;
             }
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
             {
-                plVulkanBindGroup* ptBindGroup0 = &ptDevice->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                plVulkanBindGroup* ptBindGroup0 = &ptDevice->sbtBindGroupsHot[ptStream->_sbtStream[uCurrentStreamIndex]];
                 pl__set_bind_group(&tBindGroupManagerData, 0, ptBindGroup0->tDescriptorSet);
                 uCurrentStreamIndex++;
             }
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
             {
-                plVulkanBindGroup* ptBindGroup1 = &ptDevice->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                plVulkanBindGroup* ptBindGroup1 = &ptDevice->sbtBindGroupsHot[ptStream->_sbtStream[uCurrentStreamIndex]];
                 pl__set_bind_group(&tBindGroupManagerData, 1, ptBindGroup1->tDescriptorSet);
                 uCurrentStreamIndex++;
             }
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
             {
-                plVulkanBindGroup* ptBindGroup2 = &ptDevice->sbtBindGroupsHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                plVulkanBindGroup* ptBindGroup2 = &ptDevice->sbtBindGroupsHot[ptStream->_sbtStream[uCurrentStreamIndex]];
                 pl__set_bind_group(&tBindGroupManagerData, 2, ptBindGroup2->tDescriptorSet);
                 uCurrentStreamIndex++;
             }
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
             {
-                ptVulkanDynamicBuffer = &ptCurrentFrame->sbtDynamicBuffers[ptStream->sbtStream[uCurrentStreamIndex]];
-                pl__set_dynamic_bind_group(&tBindGroupManagerData, ptVulkanDynamicBuffer->tDescriptorSet, uDynamicBufferOffset);
+                ptVulkanDynamicBuffer = &ptCurrentFrame->sbtDynamicBuffers[ptStream->_sbtStream[uCurrentStreamIndex]];
+                pl__set_dynamic_bind_group(&tBindGroupManagerData, ptVulkanDynamicBuffer->tDescriptorSet, uDynamicBufferOffset0);
                 uCurrentStreamIndex++;
             }
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
             {
-                uIndexBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
+                uIndexBufferOffset = ptStream->_sbtStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_OFFSET)
             {
-                uVertexBufferOffset = ptStream->sbtStream[uCurrentStreamIndex];
+                uVertexBufferOffset = ptStream->_sbtStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_BUFFER)
             {
-                uIndexBuffer = ptStream->sbtStream[uCurrentStreamIndex];
+                uIndexBuffer = ptStream->_sbtStream[uCurrentStreamIndex];
                 if(uIndexBuffer != UINT32_MAX)
                 {
                     plVulkanBuffer* ptIndexBuffer = &ptDevice->sbtBuffersHot[uIndexBuffer];
@@ -2721,29 +2697,29 @@ pl_draw_stream(plRenderEncoderHandle tEncoder, uint32_t uAreaCount, plDrawArea* 
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER)
             {
-                plVulkanBuffer* ptVertexBuffer = &ptDevice->sbtBuffersHot[ptStream->sbtStream[uCurrentStreamIndex]];
+                plVulkanBuffer* ptVertexBuffer = &ptDevice->sbtBuffersHot[ptStream->_sbtStream[uCurrentStreamIndex]];
                 vkCmdBindVertexBuffers(ptCmdBuffer->tCmdBuffer, 0, 1, &ptVertexBuffer->tBuffer, &offsets);
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_TRIANGLES)
             {
-                uTriangleCount = ptStream->sbtStream[uCurrentStreamIndex];
+                uTriangleCount = ptStream->_sbtStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_START)
             {
-                uInstanceStart = ptStream->sbtStream[uCurrentStreamIndex];
+                uInstanceStart = ptStream->_sbtStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_COUNT)
             {
-                uInstanceCount = ptStream->sbtStream[uCurrentStreamIndex];
+                uInstanceCount = ptStream->_sbtStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
 
-            // vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, uDescriptorStart, 4 - uDescriptorStart, &atDescriptorSets[uDescriptorStart], 1, &uDynamicBufferOffset);
+            // vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, uDescriptorStart, 4 - uDescriptorStart, &atDescriptorSets[uDescriptorStart], 1, &uDynamicBufferOffset0);
             pl__update_bindings(&tBindGroupManagerData, ptCmdBuffer->tCmdBuffer, ptVulkanShader->tPipelineLayout);
 
             if(uIndexBuffer == UINT32_MAX)
@@ -2756,10 +2732,9 @@ pl_draw_stream(plRenderEncoderHandle tEncoder, uint32_t uAreaCount, plDrawArea* 
 }
 
 static void
-pl_set_viewport(plRenderEncoderHandle tEncoder, const plRenderViewport* ptViewport)
+pl_set_viewport(plRenderEncoder* ptEncoder, const plRenderViewport* ptViewport)
 {
-    plRenderEncoder* ptEncoder = pl__get_render_encoder(tEncoder);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
 
     const VkViewport tViewport = {
         .x        = ptViewport->fX,
@@ -2774,10 +2749,9 @@ pl_set_viewport(plRenderEncoderHandle tEncoder, const plRenderViewport* ptViewpo
 }
 
 static void
-pl_set_scissor_region(plRenderEncoderHandle tEncoder, const plScissor* ptScissor)
+pl_set_scissor_region(plRenderEncoder* ptEncoder, const plScissor* ptScissor)
 {
-    plRenderEncoder* ptEncoder = pl__get_render_encoder(tEncoder);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
 
     const VkRect2D tScissor = {
         .offset = {
@@ -3386,13 +3360,12 @@ pl__create_device(const plDeviceInfo* ptInfo)
 
         // dynamic buffer stuff
         pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
-        plBufferDescription tStagingBufferDescription0 = {
-            .tUsage               = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
-            .uByteSize            = (uint32_t)ptDevice->tInfo.szDynamicBufferBlockSize
+        plBufferDesc tStagingBufferDescription0 = {
+            .tUsage      = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
+            .szByteSize  = ptDevice->tInfo.szDynamicBufferBlockSize,
+            .pcDebugName = "dynamic buffer 0"
         };
-        pl_sprintf(tStagingBufferDescription0.acDebugName, "D-BUF-F%d-0", (int)i);
-
-        plBufferHandle tStagingBuffer0 = pl_create_buffer(ptDevice, &tStagingBufferDescription0, "dynamic buffer 0");
+        plBufferHandle tStagingBuffer0 = pl_create_buffer(ptDevice, &tStagingBufferDescription0);
         plBuffer* ptBuffer = &ptDevice->sbtBuffersCold[tStagingBuffer0.uIndex];
         plDeviceMemoryAllocation tAllocation = ptDynamicAllocator->allocate(ptDynamicAllocator->ptInst, ptBuffer->tMemoryRequirements.uMemoryTypeBits, ptBuffer->tMemoryRequirements.ulSize, ptBuffer->tMemoryRequirements.ulAlignment, "dynamic buffer");
         pl_bind_buffer_to_memory(ptDevice, tStagingBuffer0, &tAllocation);
@@ -3579,20 +3552,18 @@ pl_begin_frame(plSwapchain* ptSwap)
 }
 
 static void
-pl_end_command_recording(plCommandBufferHandle tHandle)
+pl_end_command_recording(plCommandBuffer* ptCommandBuffer)
 {
-    PL_VULKAN(vkEndCommandBuffer(pl__get_command_buffer(tHandle)->tCmdBuffer));  
+    PL_VULKAN(vkEndCommandBuffer(ptCommandBuffer->tCmdBuffer));  
 }
 
 static bool
-pl_present(plCommandBufferHandle tHandle, const plSubmitInfo* ptSubmitInfo, plSwapchain* ptSwap)
+pl_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwapchain* ptSwap)
 {
     pl_begin_profile_sample(0, __FUNCTION__);
     plIO* ptIOCtx = gptIOI->get_io();
 
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(tHandle);
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
-
 
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
     gptGraphics->bWithinFrameContext = false;
@@ -3670,7 +3641,8 @@ pl_present(plCommandBufferHandle tHandle, const plSubmitInfo* ptSubmitInfo, plSw
     {
         pl__create_swapchain((uint32_t)ptIOCtx->tMainViewportSize.x, (uint32_t)ptIOCtx->tMainViewportSize.y, ptSwap);
         pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
-        pl__return_command_buffer_handle(tHandle);
+        ptCmdBuffer->ptNext = gptGraphics->ptCommandBufferFreeList;
+        gptGraphics->ptCommandBufferFreeList = ptCmdBuffer;
         pl_end_profile_sample(0);
         return false;
     }
@@ -3680,7 +3652,8 @@ pl_present(plCommandBufferHandle tHandle, const plSubmitInfo* ptSubmitInfo, plSw
     }
     gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
     pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
-    pl__return_command_buffer_handle(tHandle);
+    ptCmdBuffer->ptNext = gptGraphics->ptCommandBufferFreeList;
+    gptGraphics->ptCommandBufferFreeList = ptCmdBuffer;
     pl_end_profile_sample(0);
     return true;
 }
@@ -3907,11 +3880,9 @@ pl_cleanup_device(plDevice* ptDevice)
     pl__cleanup_common_device(ptDevice);
 }
 
-static plComputeEncoderHandle
-pl_begin_compute_pass(plCommandBufferHandle tCmdBuffer)
+static plComputeEncoder*
+pl_begin_compute_pass(plCommandBuffer* ptCmdBuffer)
 {
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(tCmdBuffer);
-
     VkMemoryBarrier tMemoryBarrier = {
         .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
         .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
@@ -3922,16 +3893,15 @@ pl_begin_compute_pass(plCommandBufferHandle tCmdBuffer)
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
     
-    plComputeEncoderHandle tHandle = pl__get_new_compute_encoder_handle();
-    gptGraphics->sbtComputeEncoders[tHandle.uIndex].tCommandBuffer = tCmdBuffer;
-    return tHandle;
+    plComputeEncoder* ptEncoder = pl__get_new_compute_encoder();
+    ptEncoder->ptCommandBuffer = ptCmdBuffer;
+    return ptEncoder;
 }
 
 static void
-pl_end_compute_pass(plComputeEncoderHandle tHandle)
+pl_end_compute_pass(plComputeEncoder* ptEncoder)
 {
-    plComputeEncoder* ptEncoder = pl__get_compute_encoder(tHandle);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
 
     VkMemoryBarrier tMemoryBarrier = {
         .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -3942,13 +3912,13 @@ pl_end_compute_pass(plComputeEncoderHandle tHandle)
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
-    pl__return_compute_encoder_handle(tHandle);
+
+    pl__return_compute_encoder(ptEncoder);
 }
 
-static plBlitEncoderHandle
-pl_begin_blit_pass(plCommandBufferHandle tCmdBuffer)
+static plBlitEncoder*
+pl_begin_blit_pass(plCommandBuffer* ptCmdBuffer)
 {
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(tCmdBuffer);
     
     VkMemoryBarrier tMemoryBarrier = {
         .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -3960,16 +3930,15 @@ pl_begin_blit_pass(plCommandBufferHandle tCmdBuffer)
         VK_PIPELINE_STAGE_TRANSFER_BIT,
         0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
     
-    plBlitEncoderHandle tHandle = pl__get_new_blit_encoder_handle();
-    gptGraphics->sbtBlitEncoders[tHandle.uIndex].tCommandBuffer = tCmdBuffer;
-    return tHandle;
+    plBlitEncoder* ptEncoder = pl__get_new_blit_encoder();
+    ptEncoder->ptCommandBuffer = ptCmdBuffer;
+    return ptEncoder;
 }
 
 static void
-pl_end_blit_pass(plBlitEncoderHandle tHandle)
+pl_end_blit_pass(plBlitEncoder* ptEncoder)
 {
-    plBlitEncoder* ptEncoder = pl__get_blit_encoder(tHandle);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
 
     VkMemoryBarrier tMemoryBarrier = {
         .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -3979,14 +3948,14 @@ pl_end_blit_pass(plBlitEncoderHandle tHandle)
     vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
         0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
-    pl__return_blit_encoder_handle(tHandle);
+
+    pl__return_blit_encoder(ptEncoder);
 }
 
 static void
-pl_dispatch(plComputeEncoderHandle tHandle, uint32_t uDispatchCount, const plDispatch* atDispatches)
+pl_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, const plDispatch* atDispatches)
 {
-    plComputeEncoder* ptEncoder = pl__get_compute_encoder(tHandle);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
 
     for(uint32_t i = 0; i < uDispatchCount; i++)
     {
@@ -3997,21 +3966,18 @@ pl_dispatch(plComputeEncoderHandle tHandle, uint32_t uDispatchCount, const plDis
 
 static void
 pl_bind_compute_bind_groups(
-    plComputeEncoderHandle tEncoder, plComputeShaderHandle tHandle, uint32_t uFirst,
-    uint32_t uCount, const plBindGroupHandle* atBindGroups, plDynamicBinding* ptDynamicBinding)
+    plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle, uint32_t uFirst,
+    uint32_t uCount, const plBindGroupHandle* atBindGroups, uint32_t uDynamicBindingCount, const plDynamicBinding* ptDynamicBinding)
 {   
-    plComputeEncoder* ptEncoder = pl__get_compute_encoder(tEncoder);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plVulkanComputeShader* ptShader = &ptDevice->sbtComputeShadersHot[tHandle.uIndex];
 
-    uint32_t uDynamicBindingCount = 0;
-    uint32_t* puOffsets = NULL;
-    if(ptDynamicBinding)
+    const uint32_t* puOffsets = NULL;
+    if(uDynamicBindingCount > 0)
     {
         puOffsets = &ptDynamicBinding->uByteOffset;
-        uDynamicBindingCount++;
     }
 
     VkDescriptorSet* atDescriptorSets = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkDescriptorSet) * (uCount + uDynamicBindingCount));
@@ -4033,20 +3999,17 @@ pl_bind_compute_bind_groups(
 }
 
 static void
-pl_bind_graphics_bind_groups(plRenderEncoderHandle tEncoder, plShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups, plDynamicBinding* ptDynamicBinding)
+pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups, uint32_t uDynamicBindingCount, const plDynamicBinding* ptDynamicBinding)
 {
-    plRenderEncoder* ptEncoder = pl__get_render_encoder(tEncoder);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plVulkanShader* ptShader = &ptDevice->sbtShadersHot[tHandle.uIndex];
 
-    uint32_t uDynamicBindingCount = 0;
-    uint32_t* puOffsets = NULL;
-    if(ptDynamicBinding)
+    const uint32_t* puOffsets = NULL;
+    if(uDynamicBindingCount > 0)
     {
         puOffsets = &ptDynamicBinding->uByteOffset;
-        uDynamicBindingCount++;
     }
 
     VkDescriptorSet* atDescriptorSets = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkDescriptorSet) * (uCount + uDynamicBindingCount));
@@ -4068,9 +4031,8 @@ pl_bind_graphics_bind_groups(plRenderEncoderHandle tEncoder, plShaderHandle tHan
 }
 
 static void
-pl_submit_command_buffer(plCommandBufferHandle tHandle, const plSubmitInfo* ptSubmitInfo)
+pl_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
 {
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(tHandle);
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
@@ -4126,13 +4088,13 @@ pl_submit_command_buffer(plCommandBufferHandle tHandle, const plSubmitInfo* ptSu
 
     PL_VULKAN(vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
     pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
-    pl__return_command_buffer_handle(tHandle);
+    ptCmdBuffer->ptNext = gptGraphics->ptCommandBufferFreeList;
+    gptGraphics->ptCommandBufferFreeList = ptCmdBuffer;
 }
 
 static void
-pl_submit_command_buffer_blocking(plCommandBufferHandle tHandle, const plSubmitInfo* ptSubmitInfo)
+pl_submit_command_buffer_blocking(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
 {
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(tHandle);
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
 
@@ -4188,7 +4150,8 @@ pl_submit_command_buffer_blocking(plCommandBufferHandle tHandle, const plSubmitI
     PL_VULKAN(vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
     PL_VULKAN(vkQueueWaitIdle(ptDevice->tGraphicsQueue));
     pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
-    pl__return_command_buffer_handle(tHandle);
+    ptCmdBuffer->ptNext = gptGraphics->ptCommandBufferFreeList;
+    gptGraphics->ptCommandBufferFreeList = ptCmdBuffer;
 }
 
 //-----------------------------------------------------------------------------
@@ -4607,10 +4570,9 @@ pl__find_memory_type_(VkPhysicalDeviceMemoryProperties tMemProps, uint32_t uType
 }
 
 static void
-pl_copy_buffer(plBlitEncoderHandle tEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t szSize)
+pl_copy_buffer(plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t szSize)
 {
-    plBlitEncoder* ptEncoder = pl__get_blit_encoder(tEncoder);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     const VkBufferCopy tCopyRegion = {
@@ -4623,10 +4585,9 @@ pl_copy_buffer(plBlitEncoderHandle tEncoder, plBufferHandle tSource, plBufferHan
 }
 
 static void
-pl_copy_buffer_to_texture(plBlitEncoderHandle tEncoder, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
-    plBlitEncoder* ptEncoder = pl__get_blit_encoder(tEncoder);
-    plCommandBuffer* ptCmdBuffer = pl__get_command_buffer(ptEncoder->tCommandBuffer);
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plTexture* ptColdTexture = pl__get_texture(ptDevice, tTextureHandle);
@@ -4704,14 +4665,14 @@ pl__vulkan_filter(plFilter tFilter)
 }
 
 static VkSamplerAddressMode
-pl__vulkan_wrap(plWrapMode tWrap)
+pl__vulkan_wrap(plAddressMode tWrap)
 {
     switch(tWrap)
     {
-        case PL_WRAP_MODE_UNSPECIFIED:
-        case PL_WRAP_MODE_WRAP:   return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        case PL_WRAP_MODE_CLAMP:  return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        case PL_WRAP_MODE_MIRROR: return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+        case PL_ADDRESS_MODE_UNSPECIFIED:
+        case PL_ADDRESS_MODE_WRAP:   return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        case PL_ADDRESS_MODE_CLAMP:  return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        case PL_ADDRESS_MODE_MIRROR: return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
     }
 
     PL_ASSERT(false && "Unsupported wrap mode");
@@ -5096,10 +5057,10 @@ pl__garbage_collect(plDevice* ptDevice)
         pl_sb_push(ptDevice->sbtShaderFreeIndices, iResourceIndex);
         for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount; k++)
         {
-            plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
+            plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k]._uHandle];
             vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
             ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
-            pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k].uHandle);
+            pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k]._uHandle);
         }
     }
 
@@ -5122,10 +5083,10 @@ pl__garbage_collect(plDevice* ptDevice)
 
         for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount; k++)
         {
-            plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
+            plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k]._uHandle];
             vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
             ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
-            pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k].uHandle);
+            pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k]._uHandle);
         }
     }
 
@@ -5200,9 +5161,9 @@ pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
     ptDevice->sbtTextureGenerations[tHandle.uIndex]++;
     
     plTexture* ptTexture = &ptDevice->sbtTexturesCold[tHandle.uIndex];
-    if(ptTexture->_tDrawBindGroup.ulData != UINT64_MAX)
+    if(ptTexture->tDrawBindGroup.ulData != UINT64_MAX)
     {
-        pl_sb_push(ptDevice->sbtFreeDrawBindGroups, ptTexture->_tDrawBindGroup);
+        pl_sb_push(ptDevice->sbtFreeDrawBindGroups, ptTexture->tDrawBindGroup);
     }
     if(ptTexture->tMemoryAllocation.ptAllocator)
         ptTexture->tMemoryAllocation.ptAllocator->free(ptTexture->tMemoryAllocation.ptAllocator->ptInst, &ptTexture->tMemoryAllocation);
@@ -5274,10 +5235,10 @@ pl_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
     pl_sb_push(ptDevice->sbtShaderFreeIndices, tHandle.uIndex);
     for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount; k++)
     {
-        plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
+        plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k]._uHandle];
         vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
         ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
-        pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k].uHandle);
+        pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k]._uHandle);
     }
 }
 
@@ -5297,9 +5258,9 @@ pl_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
 
     for(uint32_t k = 0; k < ptResource->tDescription.uBindGroupLayoutCount + 1; k++)
     {
-        plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k].uHandle];
+        plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDescription.atBindGroupLayouts[k]._uHandle];
         vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, NULL);   
         ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
-        pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k].uHandle);
+        pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDescription.atBindGroupLayouts[k]._uHandle);
     }
 }

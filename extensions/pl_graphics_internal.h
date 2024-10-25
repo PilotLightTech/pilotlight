@@ -40,11 +40,6 @@ static plTexture*          pl__get_texture          (plDevice*, plTextureHandle)
 static plBindGroup*        pl__get_bind_group       (plDevice*, plBindGroupHandle);
 static plShader*           pl__get_shader           (plDevice*, plShaderHandle);
 
-static plRenderEncoder*  pl__get_render_encoder (plRenderEncoderHandle);
-static plComputeEncoder* pl__get_compute_encoder(plComputeEncoderHandle);
-static plBlitEncoder*    pl__get_blit_encoder   (plBlitEncoderHandle);
-static plCommandBuffer*  pl__get_command_buffer (plCommandBufferHandle);
-
 // new handles
 static plBufferHandle           pl__get_new_buffer_handle(plDevice*);
 static plTextureHandle          pl__get_new_texture_handle(plDevice*);
@@ -55,16 +50,13 @@ static plComputeShaderHandle    pl__get_new_compute_shader_handle(plDevice*);
 static plRenderPassHandle       pl__get_new_render_pass_handle(plDevice*);
 static plRenderPassLayoutHandle pl__get_new_render_pass_layout_handle(plDevice*);
 static plSemaphoreHandle        pl__get_new_semaphore_handle(plDevice*);
+static plRenderEncoder*         pl__get_new_render_encoder(void);
+static plComputeEncoder*        pl__get_new_compute_encoder(void);
+static plBlitEncoder*           pl__get_new_blit_encoder(void);
 
-static plCommandBufferHandle  pl__get_new_command_buffer_handle (void);
-static plRenderEncoderHandle  pl__get_new_render_encoder_handle (void);
-static plComputeEncoderHandle pl__get_new_compute_encoder_handle(void);
-static plBlitEncoderHandle    pl__get_new_blit_encoder_handle   (void);
-
-static void pl__return_command_buffer_handle(plCommandBufferHandle);
-static void pl__return_render_encoder_handle(plRenderEncoderHandle);
-static void pl__return_compute_encoder_handle(plComputeEncoderHandle);
-static void pl__return_blit_encoder_handle(plBlitEncoderHandle);
+static void pl__return_render_encoder(plRenderEncoder*);
+static void pl__return_compute_encoder(plComputeEncoder*);
+static void pl__return_blit_encoder(plBlitEncoder*);
 
 // deletion
 static plFrameGarbage* pl__get_frame_garbage(plDevice*);
@@ -91,7 +83,7 @@ static size_t   pl_get_host_memory_in_use(void);
 // drawstream
 static void pl_drawstream_cleanup(plDrawStream*);
 static void pl_drawstream_reset  (plDrawStream*);
-static void pl_drawstream_draw   (plDrawStream*, plStreamDraw);
+static void pl_drawstream_draw   (plDrawStream*, plDrawStreamData);
 
 // temp
 static void pl__cleanup_common_device(plDevice*);

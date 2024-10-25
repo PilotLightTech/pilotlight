@@ -368,20 +368,20 @@ pl_app_update(plAppData* ptAppData)
         .atWaitSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue0},
     };
-    plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptAppData->ptDevice, &tBeginInfo);
+    plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptAppData->ptDevice, &tBeginInfo);
 
     // begin main renderpass (directly to swapchain)
-    plRenderEncoderHandle tEncoder = gptGfx->begin_render_pass(tCommandBuffer, gptGfx->get_main_render_pass(ptAppData->ptDevice));
+    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, gptGfx->get_main_render_pass(ptAppData->ptDevice));
 
     // submit drawlists
     plIO* ptIO = gptIO->get_io();
-    gptDrawBackend->submit_2d_drawlist(ptAppData->ptDrawlist, tEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
+    gptDrawBackend->submit_2d_drawlist(ptAppData->ptDrawlist, ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
 
     // end render pass
-    gptGfx->end_render_pass(tEncoder);
+    gptGfx->end_render_pass(ptEncoder);
 
     // end recording
-    gptGfx->end_command_recording(tCommandBuffer);
+    gptGfx->end_command_recording(ptCommandBuffer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~submit work to GPU & present~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -391,7 +391,7 @@ pl_app_update(plAppData* ptAppData)
         .auSignalSemaphoreValues = {ulValue1},
     };
 
-    if(!gptGfx->present(tCommandBuffer, &tSubmitInfo, ptAppData->ptSwapchain))
+    if(!gptGfx->present(ptCommandBuffer, &tSubmitInfo, ptAppData->ptSwapchain))
         gptGfx->resize(ptAppData->ptSwapchain);
 
     pl_end_profile_frame();

@@ -201,11 +201,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
 
     // create vertex buffer
-    const plBufferDescription tVertexBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_VERTEX,
-        .uByteSize = sizeof(float) * 24
+    const plBufferDesc tVertexBufferDesc = {
+        .tUsage      = PL_BUFFER_USAGE_VERTEX,
+        .szByteSize  = sizeof(float) * 24,
+        .pcDebugName = "vertex buffer"
     };
-    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, "vertex buffer");
+    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc);
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
     plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tVertexBuffer);
@@ -229,11 +230,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
 
     // create index buffer
-    const plBufferDescription tIndexBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_INDEX,
-        .uByteSize = sizeof(uint32_t) * 6
+    const plBufferDesc tIndexBufferDesc = {
+        .tUsage      = PL_BUFFER_USAGE_INDEX,
+        .szByteSize  = sizeof(uint32_t) * 6,
+        .pcDebugName = "index buffer"
     };
-    ptAppData->tIndexBuffer = gptGfx->create_buffer(ptDevice, &tIndexBufferDesc, "index buffer");
+    ptAppData->tIndexBuffer = gptGfx->create_buffer(ptDevice, &tIndexBufferDesc);
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
     plBuffer* ptIndexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tIndexBuffer);
@@ -251,11 +253,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~staging buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // create vertex buffer
-    const plBufferDescription tStagingBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_STAGING,
-        .uByteSize = 4096
+    const plBufferDesc tStagingBufferDesc = {
+        .tUsage      = PL_BUFFER_USAGE_STAGING,
+        .szByteSize  = 4096,
+        .pcDebugName = "staging buffer"
     };
-    ptAppData->tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, "staging buffer");
+    ptAppData->tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc);
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
     plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tStagingBuffer);
@@ -277,19 +280,19 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[1024], atIndexData, sizeof(uint32_t) * 6);
 
     // begin recording
-    plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+    plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
 
     // begin blit pass, copy buffer, end pass
-    plBlitEncoderHandle tEncoder = gptGfx->begin_blit_pass(tCommandBuffer);
-    gptGfx->copy_buffer(tEncoder, ptAppData->tStagingBuffer, ptAppData->tVertexBuffer, 0, 0, sizeof(float) * 24);
-    gptGfx->copy_buffer(tEncoder, ptAppData->tStagingBuffer, ptAppData->tIndexBuffer, 1024, 0, sizeof(uint32_t) * 6);
-    gptGfx->end_blit_pass(tEncoder);
+    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->copy_buffer(ptEncoder, ptAppData->tStagingBuffer, ptAppData->tVertexBuffer, 0, 0, sizeof(float) * 24);
+    gptGfx->copy_buffer(ptEncoder, ptAppData->tStagingBuffer, ptAppData->tIndexBuffer, 1024, 0, sizeof(uint32_t) * 6);
+    gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording
-    gptGfx->end_command_recording(tCommandBuffer);
+    gptGfx->end_command_recording(ptCommandBuffer);
 
     // submit command buffer
-    gptGfx->submit_command_buffer_blocking(tCommandBuffer, NULL);
+    gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~shaders~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -308,7 +311,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP
         },
-        .tVertexBufferBinding = {
+        .tVertexBufferLayout = {
             .uByteStride = sizeof(float) * 6,
             .atAttributes = {
                 {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32_FLOAT},
@@ -396,27 +399,27 @@ pl_app_update(plAppData* ptAppData)
         .atWaitSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue0},
     };
-    plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptAppData->ptDevice, &tBeginInfo);
+    plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptAppData->ptDevice, &tBeginInfo);
 
     // begin main renderpass (directly to swapchain)
-    plRenderEncoderHandle tEncoder = gptGfx->begin_render_pass(tCommandBuffer, gptGfx->get_main_render_pass(ptAppData->ptDevice));
+    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, gptGfx->get_main_render_pass(ptAppData->ptDevice));
 
     // submit nonindexed draw using basic API
-    gptGfx->bind_shader(tEncoder, ptAppData->tShader);
-    gptGfx->bind_vertex_buffer(tEncoder, ptAppData->tVertexBuffer);
+    gptGfx->bind_shader(ptEncoder, ptAppData->tShader);
+    gptGfx->bind_vertex_buffer(ptEncoder, ptAppData->tVertexBuffer);
 
     const plDrawIndex tDraw = {
         .uInstanceCount = 1,
         .uIndexCount    = 6,
         .tIndexBuffer   = ptAppData->tIndexBuffer
     };
-    gptGfx->draw_indexed(tEncoder, 1, &tDraw);
+    gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
 
     // end render pass
-    gptGfx->end_render_pass(tEncoder);
+    gptGfx->end_render_pass(ptEncoder);
 
     // end recording
-    gptGfx->end_command_recording(tCommandBuffer);
+    gptGfx->end_command_recording(ptCommandBuffer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~submit work to GPU & present~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -426,7 +429,7 @@ pl_app_update(plAppData* ptAppData)
         .auSignalSemaphoreValues = {ulValue1},
     };
 
-    if(!gptGfx->present(tCommandBuffer, &tSubmitInfo, ptAppData->ptSwapchain))
+    if(!gptGfx->present(ptCommandBuffer, &tSubmitInfo, ptAppData->ptSwapchain))
         gptGfx->resize(ptAppData->ptSwapchain);
 
     pl_end_profile_frame();

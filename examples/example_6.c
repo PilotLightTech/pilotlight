@@ -214,11 +214,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
 
     // create vertex buffer
-    const plBufferDescription tVertexBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_VERTEX,
-        .uByteSize = sizeof(float) * 16
+    const plBufferDesc tVertexBufferDesc = {
+        .tUsage      = PL_BUFFER_USAGE_VERTEX,
+        .szByteSize  = sizeof(float) * 16,
+        .pcDebugName = "vertex buffer"
     };
-    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, "vertex buffer");
+    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc);
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
     plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tVertexBuffer);
@@ -242,11 +243,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
 
     // create index buffer
-    const plBufferDescription tIndexBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_INDEX,
-        .uByteSize = sizeof(uint32_t) * 6
+    const plBufferDesc tIndexBufferDesc = {
+        .tUsage      = PL_BUFFER_USAGE_INDEX,
+        .szByteSize  = sizeof(uint32_t) * 6,
+        .pcDebugName = "index buffer"
     };
-    ptAppData->tIndexBuffer = gptGfx->create_buffer(ptDevice, &tIndexBufferDesc, "index buffer");
+    ptAppData->tIndexBuffer = gptGfx->create_buffer(ptDevice, &tIndexBufferDesc);
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
     plBuffer* ptIndexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tIndexBuffer);
@@ -264,11 +266,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~staging buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // create vertex buffer
-    const plBufferDescription tStagingBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_STAGING,
-        .uByteSize = 640000
+    const plBufferDesc tStagingBufferDesc = {
+        .tUsage      = PL_BUFFER_USAGE_STAGING,
+        .szByteSize  = 640000,
+        .pcDebugName = "staging buffer"
     };
-    ptAppData->tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, "staging buffer");
+    ptAppData->tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc);
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
     plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tStagingBuffer);
@@ -289,19 +292,19 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[1024], atIndexData, sizeof(uint32_t) * 6);
 
     // begin recording
-    plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptAppData->ptDevice, NULL);
+    plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptAppData->ptDevice, NULL);
 
     // begin blit pass, copy buffer, end pass
-    plBlitEncoderHandle tEncoder = gptGfx->begin_blit_pass(tCommandBuffer);
-    gptGfx->copy_buffer(tEncoder, ptAppData->tStagingBuffer, ptAppData->tVertexBuffer, 0, 0, sizeof(float) * 16);
-    gptGfx->copy_buffer(tEncoder, ptAppData->tStagingBuffer, ptAppData->tIndexBuffer, 1024, 0, sizeof(uint32_t) * 6);
-    gptGfx->end_blit_pass(tEncoder);
+    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->copy_buffer(ptEncoder, ptAppData->tStagingBuffer, ptAppData->tVertexBuffer, 0, 0, sizeof(float) * 16);
+    gptGfx->copy_buffer(ptEncoder, ptAppData->tStagingBuffer, ptAppData->tIndexBuffer, 1024, 0, sizeof(uint32_t) * 6);
+    gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording
-    gptGfx->end_command_recording(tCommandBuffer);
+    gptGfx->end_command_recording(ptCommandBuffer);
 
     // submit command buffer
-    gptGfx->submit_command_buffer_blocking(tCommandBuffer, NULL);
+    gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -319,9 +322,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .uLayers     = 1,
         .uMips       = 1,
         .tType       = PL_TEXTURE_TYPE_2D,
-        .tUsage      = PL_TEXTURE_USAGE_SAMPLED
+        .tUsage      = PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName = "texture"
     };
-    ptAppData->tTexture = gptGfx->create_texture(ptDevice, &tTextureDesc, "texture");
+    ptAppData->tTexture = gptGfx->create_texture(ptDevice, &tTextureDesc);
 
     // retrieve new texture
     plTexture* ptTexture = gptGfx->get_texture(ptDevice, ptAppData->tTexture);
@@ -340,24 +344,24 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pucImageData, iImageWidth * iImageHeight * 4);
 
     // begin recording
-    tCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+    ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
 
     // begin blit pass, copy data, end pass
-    tEncoder = gptGfx->begin_blit_pass(tCommandBuffer);
+    ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
 
     const plBufferImageCopy tBufferImageCopy = {
         .tImageExtent = {(uint32_t)iImageWidth, (uint32_t)iImageHeight, 1},
         .uLayerCount = 1
     };
 
-    gptGfx->copy_buffer_to_texture(tEncoder, ptAppData->tStagingBuffer, ptAppData->tTexture, 1, &tBufferImageCopy);
-    gptGfx->end_blit_pass(tEncoder);
+    gptGfx->copy_buffer_to_texture(ptEncoder, ptAppData->tStagingBuffer, ptAppData->tTexture, 1, &tBufferImageCopy);
+    gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording
-    gptGfx->end_command_recording(tCommandBuffer);
+    gptGfx->end_command_recording(ptCommandBuffer);
 
     // submit command buffer
-    gptGfx->submit_command_buffer_blocking(tCommandBuffer, NULL);
+    gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
 
     // free image data
     gptImage->free(pucImageData);
@@ -365,13 +369,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~samplers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const plSamplerDesc tSamplerDesc = {
-        .tFilter         = PL_FILTER_LINEAR,
-        .fMinMip         = 0.0f,
-        .fMaxMip         = 1.0f,
-        .tVerticalWrap   = PL_WRAP_MODE_WRAP,
-        .tHorizontalWrap = PL_WRAP_MODE_WRAP
+        .tMagFilter    = PL_FILTER_LINEAR,
+        .tMinFilter    = PL_FILTER_LINEAR,
+        .fMinMip       = 0.0f,
+        .fMaxMip       = 1.0f,
+        .tVAddressMode = PL_ADDRESS_MODE_WRAP,
+        .tUAddressMode = PL_ADDRESS_MODE_WRAP,
+        .pcDebugName   = "sampler"
     };
-    ptAppData->tSampler = gptGfx->create_sampler(ptDevice, &tSamplerDesc, "sampler");
+    ptAppData->tSampler = gptGfx->create_sampler(ptDevice, &tSamplerDesc);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~bind groups~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -404,7 +410,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .uSamplerCount = 1,
         .atSamplerBindings = &tSamplerData,
         .uTextureCount = 1,
-        .atTextures = &tTextureData
+        .atTextureBindings = &tTextureData
     };
     gptGfx->update_bind_group(ptDevice, ptAppData->tBindGroup0, &tBGData);
 
@@ -425,7 +431,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP
         },
-        .tVertexBufferBinding = {
+        .tVertexBufferLayout = {
             .uByteStride = sizeof(float) * 4,
             .atAttributes = {
                 {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
@@ -527,14 +533,14 @@ pl_app_update(plAppData* ptAppData)
         .atWaitSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue0},
     };
-    plCommandBufferHandle tCommandBuffer = gptGfx->begin_command_recording(ptAppData->ptDevice, &tBeginInfo);
+    plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptAppData->ptDevice, &tBeginInfo);
 
     // begin main renderpass (directly to swapchain)
-    plRenderEncoderHandle tEncoder = gptGfx->begin_render_pass(tCommandBuffer, gptGfx->get_main_render_pass(ptAppData->ptDevice));
+    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, gptGfx->get_main_render_pass(ptAppData->ptDevice));
 
     // submit nonindexed draw using basic API
-    gptGfx->bind_shader(tEncoder, ptAppData->tShader);
-    gptGfx->bind_vertex_buffer(tEncoder, ptAppData->tVertexBuffer);
+    gptGfx->bind_shader(ptEncoder, ptAppData->tShader);
+    gptGfx->bind_vertex_buffer(ptEncoder, ptAppData->tVertexBuffer);
 
     // retrieve dynamic binding data
     plDynamicBinding tDynamicBinding = gptGfx->allocate_dynamic_data(ptAppData->ptDevice, sizeof(plVec4));
@@ -545,20 +551,20 @@ pl_app_update(plAppData* ptAppData)
     tTintColor->a = 1.0f;
 
     // bind groups (up to 3 bindgroups + 1 dynamic binding are allowed)
-    gptGfx->bind_graphics_bind_groups(tEncoder, ptAppData->tShader, 0, 1, &ptAppData->tBindGroup0, &tDynamicBinding);
+    gptGfx->bind_graphics_bind_groups(ptEncoder, ptAppData->tShader, 0, 1, &ptAppData->tBindGroup0, 1, &tDynamicBinding);
 
     const plDrawIndex tDraw = {
         .uInstanceCount = 1,
         .uIndexCount    = 6,
         .tIndexBuffer   = ptAppData->tIndexBuffer
     };
-    gptGfx->draw_indexed(tEncoder, 1, &tDraw);
+    gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
 
     // end render pass
-    gptGfx->end_render_pass(tEncoder);
+    gptGfx->end_render_pass(ptEncoder);
 
     // end recording
-    gptGfx->end_command_recording(tCommandBuffer);
+    gptGfx->end_command_recording(ptCommandBuffer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~submit work to GPU & present~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -568,7 +574,7 @@ pl_app_update(plAppData* ptAppData)
         .auSignalSemaphoreValues = {ulValue1},
     };
 
-    if(!gptGfx->present(tCommandBuffer, &tSubmitInfo, ptAppData->ptSwapchain))
+    if(!gptGfx->present(ptCommandBuffer, &tSubmitInfo, ptAppData->ptSwapchain))
         gptGfx->resize(ptAppData->ptSwapchain);
 
     pl_end_profile_frame();
