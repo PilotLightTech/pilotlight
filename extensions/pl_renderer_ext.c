@@ -4704,6 +4704,7 @@ pl_refr_end_frame(void)
     if(!gptGfx->present(ptCommandBuffer, &tSubmitInfo, gptData->ptSwap))
         gptGfx->resize(gptData->ptSwap);
 
+    gptGfx->return_command_buffer(ptCommandBuffer);
     pl_end_profile_sample(0);
 }
 
