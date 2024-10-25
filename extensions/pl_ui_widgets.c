@@ -1330,7 +1330,7 @@ bool
 pl_tree_node_f(const char* pcFmt, plUiTreeNodeFlags tFlags, ...)
 {
     va_list args;
-    va_start(args, pcFmt);
+    va_start(args, tFlags);
     bool bOpen = pl_tree_node_v(pcFmt, tFlags, args);
     va_end(args);
     return bOpen;
