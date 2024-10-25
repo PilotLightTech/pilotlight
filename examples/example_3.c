@@ -63,6 +63,7 @@ typedef struct _plAppData
     plSwapchain*      ptSwapchain;
     plSemaphoreHandle atSempahore[PL_MAX_FRAMES_IN_FLIGHT];
     uint64_t          aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
+    plCommandPool*    atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
 
 } plAppData;
 
@@ -193,12 +194,19 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
     ptAppData->ptSwapchain = gptGfx->create_swapchain(ptAppData->ptDevice, &tSwapInit);
 
+    // create command pools
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        ptAppData->atCmdPools[i] = gptGfx->create_command_pool(ptAppData->ptDevice);
+
     // setup draw
     gptDraw->initialize(NULL);
     gptDrawBackend->initialize(ptAppData->ptDevice);
     plFontAtlas* ptAtlas = gptDraw->create_font_atlas();
     plFont* ptDefaultFont = gptDraw->add_default_font(ptAtlas);
-    gptDrawBackend->build_font_atlas(ptAtlas);
+    plCommandPool* ptCmdPool = ptAppData->atCmdPools[gptGfx->get_current_frame_index()];
+    plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    gptDrawBackend->build_font_atlas(ptCmdBuffer, ptAtlas);
+    gptGfx->return_command_buffer(ptCmdBuffer);
     gptDraw->set_font_atlas(ptAtlas);
 
     // setup ui
@@ -222,6 +230,8 @@ pl_app_shutdown(plAppData* ptAppData)
 {
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        gptGfx->cleanup_command_pool(ptAppData->atCmdPools[i]);
     gptDrawBackend->cleanup_font_atlas(NULL);
     gptUi->cleanup();
     gptDrawBackend->cleanup();
@@ -266,6 +276,10 @@ pl_app_update(plAppData* ptAppData)
         pl_end_profile_frame();
         return;
     }
+
+    plCommandPool* ptCmdPool = ptAppData->atCmdPools[gptGfx->get_current_frame_index()];
+    gptGfx->reset_command_pool(ptCmdPool);
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
 
     // NOTE: UI code can be placed anywhere between the UI "new_frame" & "render"
 
@@ -321,7 +335,7 @@ pl_app_update(plAppData* ptAppData)
         .atWaitSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue0},
     };
-    plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptAppData->ptDevice, &tBeginInfo);
+    gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
     // begin main renderpass (directly to swapchain)
     plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, gptGfx->get_main_render_pass(ptAppData->ptDevice));
@@ -349,6 +363,7 @@ pl_app_update(plAppData* ptAppData)
     if(!gptGfx->present(ptCommandBuffer, &tSubmitInfo, ptAppData->ptSwapchain))
         gptGfx->resize(ptAppData->ptSwapchain);
 
+    gptGfx->return_command_buffer(ptCommandBuffer);
     pl_end_profile_frame();
 }
 

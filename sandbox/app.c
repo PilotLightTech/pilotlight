@@ -156,7 +156,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     };
     gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig1, "../data/pilotlight-assets-master/fonts/fa-solid-900.otf");
 
-    gptDrawBackend->build_font_atlas(ptAtlas);
+    plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(gptRenderer->get_command_pool());
+    gptDrawBackend->build_font_atlas(ptCmdBuffer, ptAtlas);
+    gptGfx->return_command_buffer(ptCmdBuffer);
     gptDraw->set_font_atlas(ptAtlas);
 
     // setup ui

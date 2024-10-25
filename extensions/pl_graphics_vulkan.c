@@ -80,6 +80,7 @@ typedef struct _plCommandBuffer
     plDevice*          ptDevice;
     VkCommandBuffer    tCmdBuffer;
     plCommandBuffer*   ptNext;
+    plCommandPool*     ptPool;
 } plCommandBuffer;
 
 typedef struct _plRenderEncoder
@@ -168,21 +169,26 @@ typedef struct _plVulkanComputeShader
     VkDescriptorSetLayout    atDescriptorSetLayouts[4];  
 } plVulkanComputeShader;
 
+typedef struct _plCommandPool
+{
+    plDevice*        ptDevice;
+    VkCommandPool    tCmdPool;
+    VkCommandBuffer* sbtReadyCommandBuffers;
+    VkCommandBuffer* sbtPendingCommandBuffers;
+    plCommandBuffer* ptCommandBufferFreeList;
+} plCommandPool;
+
 typedef struct _plFrameContext
 {
     VkSemaphore           tImageAvailable;
     VkSemaphore           tRenderFinish;
     VkFence               tInFlight;
-    VkCommandPool         tCmdPool;
     VkFramebuffer*        sbtRawFrameBuffers;
     VkDescriptorPool      tDynamicDescriptorPool;
 
     // dynamic buffer stuff
     uint32_t               uCurrentBufferIndex;
     plVulkanDynamicBuffer* sbtDynamicBuffers;
-
-    VkCommandBuffer* sbtReadyCommandBuffers;
-    VkCommandBuffer* sbtPendingCommandBuffers;
 } plFrameContext;
 
 typedef struct _plDevice
@@ -2306,53 +2312,19 @@ pl_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle
     }
 }
 
-static plCommandBuffer*
-pl_begin_command_recording(plDevice* ptDevice, const plBeginCommandInfo* ptBeginInfo)
+static void
+pl_begin_command_recording(plCommandBuffer* ptCommandBuffer, const plBeginCommandInfo* ptBeginInfo)
 {
-    plCommandBuffer* ptCommandBuffer = gptGraphics->ptCommandBufferFreeList;
-    if(ptCommandBuffer)
-    {
-        gptGraphics->ptCommandBufferFreeList = ptCommandBuffer->ptNext;
-    }
-    else
-    {
-        ptCommandBuffer = PL_ALLOC(sizeof(plCommandBuffer));
-        memset(ptCommandBuffer, 0, sizeof(plCommandBuffer));
-    }
-
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
-
-    VkCommandBuffer tCmdBuffer = VK_NULL_HANDLE;
-    if(pl_sb_size(ptCurrentFrame->sbtReadyCommandBuffers) > 0)
-    {
-        tCmdBuffer = pl_sb_pop(ptCurrentFrame->sbtReadyCommandBuffers);
-    }
-    else
-    {
-        const VkCommandBufferAllocateInfo tAllocInfo = {
-            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .commandPool        = ptCurrentFrame->tCmdPool,
-            .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-            .commandBufferCount = 1
-        };
-        PL_VULKAN(vkAllocateCommandBuffers(ptDevice->tLogicalDevice, &tAllocInfo, &tCmdBuffer));  
-    }
-
     const VkCommandBufferBeginInfo tBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = gptGraphics->bWithinFrameContext ? 0 : VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
     };
-    PL_VULKAN(vkBeginCommandBuffer(tCmdBuffer, &tBeginInfo));   
+    PL_VULKAN(vkBeginCommandBuffer(ptCommandBuffer->tCmdBuffer, &tBeginInfo));   
     
-    ptCommandBuffer->tCmdBuffer = tCmdBuffer;
-    ptCommandBuffer->ptDevice = ptDevice;
-
     if(ptBeginInfo)
         ptCommandBuffer->tBeginInfo = *ptBeginInfo;
     else
         ptCommandBuffer->tBeginInfo.uWaitSemaphoreCount = UINT32_MAX;
-
-    return ptCommandBuffer;
 }
 
 static plRenderEncoder*
@@ -3333,12 +3305,6 @@ pl__create_device(const plDeviceInfo* ptInfo)
     };
     PL_VULKAN(vkCreateDescriptorSetLayout(ptDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &ptDevice->tDynamicDescriptorSetLayout));
 
-    const VkCommandPoolCreateInfo tFrameCommandPoolInfo = {
-        .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .queueFamilyIndex = ptDevice->iGraphicsQueueFamily,
-        .flags            = 0
-    };
-    
     const VkSemaphoreCreateInfo tSemaphoreInfo = {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
     };
@@ -3356,7 +3322,6 @@ pl__create_device(const plDeviceInfo* ptInfo)
         PL_VULKAN(vkCreateSemaphore(ptDevice->tLogicalDevice, &tSemaphoreInfo, NULL, &tFrame.tImageAvailable));
         PL_VULKAN(vkCreateSemaphore(ptDevice->tLogicalDevice, &tSemaphoreInfo, NULL, &tFrame.tRenderFinish));
         PL_VULKAN(vkCreateFence(ptDevice->tLogicalDevice, &tFenceInfo, NULL, &tFrame.tInFlight));
-        PL_VULKAN(vkCreateCommandPool(ptDevice->tLogicalDevice, &tFrameCommandPoolInfo, NULL, &tFrame.tCmdPool));
 
         // dynamic buffer stuff
         pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
@@ -3537,14 +3502,7 @@ pl_begin_frame(plSwapchain* ptSwap)
         PL_VULKAN(err);
     }
 
-    for(uint32_t i = 0; i < pl_sb_size(ptCurrentFrame->sbtPendingCommandBuffers); i++)
-    {
-        pl_sb_push(ptCurrentFrame->sbtReadyCommandBuffers, ptCurrentFrame->sbtPendingCommandBuffers[i]);
-    }
-    pl_sb_reset(ptCurrentFrame->sbtPendingCommandBuffers);
-
     PL_VULKAN(vkResetDescriptorPool(ptDevice->tLogicalDevice, ptCurrentFrame->tDynamicDescriptorPool, 0));
-    PL_VULKAN(vkResetCommandPool(ptDevice->tLogicalDevice, ptCurrentFrame->tCmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT));
     PL_VULKAN(vkResetCommandPool(ptDevice->tLogicalDevice, ptDevice->tCmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT));
     
     pl_end_profile_sample(0);
@@ -3640,9 +3598,7 @@ pl_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwa
     if(tResult == VK_SUBOPTIMAL_KHR || tResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
         pl__create_swapchain((uint32_t)ptIOCtx->tMainViewportSize.x, (uint32_t)ptIOCtx->tMainViewportSize.y, ptSwap);
-        pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
-        ptCmdBuffer->ptNext = gptGraphics->ptCommandBufferFreeList;
-        gptGraphics->ptCommandBufferFreeList = ptCmdBuffer;
+        pl_sb_push(ptCmdBuffer->ptPool->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
         pl_end_profile_sample(0);
         return false;
     }
@@ -3651,9 +3607,7 @@ pl_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwa
         PL_VULKAN(tResult);
     }
     gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
-    pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
-    ptCmdBuffer->ptNext = gptGraphics->ptCommandBufferFreeList;
-    gptGraphics->ptCommandBufferFreeList = ptCmdBuffer;
+    pl_sb_push(ptCmdBuffer->ptPool->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
     pl_end_profile_sample(0);
     return true;
 }
@@ -3824,7 +3778,6 @@ pl_cleanup_device(plDevice* ptDevice)
         vkDestroySemaphore(ptDevice->tLogicalDevice, ptFrame->tImageAvailable, NULL);
         vkDestroySemaphore(ptDevice->tLogicalDevice, ptFrame->tRenderFinish, NULL);
         vkDestroyFence(ptDevice->tLogicalDevice, ptFrame->tInFlight, NULL);
-        vkDestroyCommandPool(ptDevice->tLogicalDevice, ptFrame->tCmdPool, NULL);
         vkDestroyDescriptorPool(ptDevice->tLogicalDevice, ptFrame->tDynamicDescriptorPool, NULL);
 
         for(uint32_t j = 0; j < pl_sb_size(ptFrame->sbtDynamicBuffers); j++)
@@ -3841,8 +3794,6 @@ pl_cleanup_device(plDevice* ptDevice)
 
         pl_sb_free(ptFrame->sbtRawFrameBuffers);
         pl_sb_free(ptFrame->sbtDynamicBuffers);
-        pl_sb_free(ptFrame->sbtPendingCommandBuffers);
-        pl_sb_free(ptFrame->sbtReadyCommandBuffers);
     }
     pl_sb_free(ptDevice->sbFrames);
 
@@ -4087,71 +4038,21 @@ pl_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSub
     }
 
     PL_VULKAN(vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
-    pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
-    ptCmdBuffer->ptNext = gptGraphics->ptCommandBufferFreeList;
-    gptGraphics->ptCommandBufferFreeList = ptCmdBuffer;
+    pl_sb_push(ptCmdBuffer->ptPool->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
 }
 
 static void
-pl_submit_command_buffer_blocking(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
+pl_wait_on_command_buffer(plCommandBuffer* ptCmdBuffer)
 {
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
-
-    VkSemaphore atWaitSemaphores[PL_MAX_SEMAPHORES] = {0};
-    VkSemaphore atSignalSemaphores[PL_MAX_SEMAPHORES] = {0};
-    VkPipelineStageFlags atWaitStages[PL_MAX_SEMAPHORES] = { 0 };
-    atWaitStages[0] = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
-
-    VkSubmitInfo tSubmitInfo = {
-        .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .commandBufferCount = 1u,
-        .pCommandBuffers    = &ptCmdBuffer->tCmdBuffer,
-    };
-
-    VkTimelineSemaphoreSubmitInfo tTimelineInfo = {
-        .sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
-        .pNext = NULL,
-    };
-
-    if(ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount != UINT32_MAX)
-    {
-        for(uint32_t i = 0; i < ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount; i++)
-        {
-            atWaitSemaphores[i]  = ptDevice->sbtSemaphoresHot[ptCmdBuffer->tBeginInfo.atWaitSempahores[i].uIndex];
-            atWaitStages[i]  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
-        }
-        
-        tTimelineInfo.waitSemaphoreValueCount = ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount;
-        tTimelineInfo.pWaitSemaphoreValues = ptCmdBuffer->tBeginInfo.auWaitSemaphoreValues;
-
-        tSubmitInfo.pNext = &tTimelineInfo;
-        tSubmitInfo.pWaitSemaphores = atWaitSemaphores;
-        tSubmitInfo.pWaitDstStageMask = atWaitStages;
-        tSubmitInfo.waitSemaphoreCount = ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount;
-    }
-
-    if(ptSubmitInfo)
-    {
-
-        for(uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
-        {
-            atSignalSemaphores[i]  = ptDevice->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex];
-        }
-
-        tTimelineInfo.signalSemaphoreValueCount = ptSubmitInfo->uSignalSemaphoreCount;
-        tTimelineInfo.pSignalSemaphoreValues = ptSubmitInfo->auSignalSemaphoreValues;
-
-        tSubmitInfo.pNext = &tTimelineInfo;
-        tSubmitInfo.pSignalSemaphores = atSignalSemaphores;
-        tSubmitInfo.signalSemaphoreCount = ptSubmitInfo->uSignalSemaphoreCount;
-    }
-
-    PL_VULKAN(vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
     PL_VULKAN(vkQueueWaitIdle(ptDevice->tGraphicsQueue));
-    pl_sb_push(ptCurrentFrame->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
-    ptCmdBuffer->ptNext = gptGraphics->ptCommandBufferFreeList;
-    gptGraphics->ptCommandBufferFreeList = ptCmdBuffer;
+}
+
+static void
+pl_return_command_buffer(plCommandBuffer* ptCmdBuffer)
+{
+    ptCmdBuffer->ptNext = ptCmdBuffer->ptPool->ptCommandBufferFreeList;
+    ptCmdBuffer->ptPool->ptCommandBufferFreeList = ptCmdBuffer;
 }
 
 //-----------------------------------------------------------------------------
@@ -4552,6 +4453,105 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
         };
         ptSwap->sbtSwapchainTextureViews[i] = pl_create_swapchain_texture_view(ptDevice, &tTextureViewDesc, ptSwap->sbtImages[i], "swapchain texture view");
     }
+}
+
+static plCommandPool*
+pl_create_command_pool(plDevice* ptDevice)
+{
+    plCommandPool* ptPool = PL_ALLOC(sizeof(plCommandPool));
+    memset(ptPool, 0, sizeof(plCommandPool));
+
+    ptPool->ptDevice = ptDevice;
+    const VkCommandPoolCreateInfo tCommandPoolInfo = {
+        .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .queueFamilyIndex = ptDevice->iGraphicsQueueFamily,
+        .flags            = 0
+    };
+    PL_VULKAN(vkCreateCommandPool(ptDevice->tLogicalDevice, &tCommandPoolInfo, NULL, &ptPool->tCmdPool));
+    return ptPool;
+}
+
+static void
+pl_cleanup_command_pool(plCommandPool* ptPool)
+{
+    plCommandBuffer* ptCurrentCommandBuffer = ptPool->ptCommandBufferFreeList;
+    while(ptCurrentCommandBuffer)
+    {
+        plCommandBuffer* ptNextCommandBuffer = ptCurrentCommandBuffer->ptNext;
+        PL_FREE(ptCurrentCommandBuffer);
+        ptCurrentCommandBuffer = ptNextCommandBuffer;
+    }
+    vkDestroyCommandPool(ptPool->ptDevice->tLogicalDevice, ptPool->tCmdPool, NULL);
+    pl_sb_free(ptPool->sbtPendingCommandBuffers);
+    pl_sb_free(ptPool->sbtReadyCommandBuffers);
+    PL_FREE(ptPool);
+}
+
+static void
+pl_reset_command_pool(plCommandPool* ptPool)
+{
+    for(uint32_t i = 0; i < pl_sb_size(ptPool->sbtPendingCommandBuffers); i++)
+    {
+        pl_sb_push(ptPool->sbtReadyCommandBuffers, ptPool->sbtPendingCommandBuffers[i]);
+    }
+    pl_sb_reset(ptPool->sbtPendingCommandBuffers);
+    PL_VULKAN(vkResetCommandPool(ptPool->ptDevice->tLogicalDevice, ptPool->tCmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT));
+}
+
+static void
+pl_reset_command_buffer(plCommandBuffer* ptCommandBuffer)
+{
+    VkCommandBuffer tCmdBuffer = VK_NULL_HANDLE;
+    if(pl_sb_size(ptCommandBuffer->ptPool->sbtReadyCommandBuffers) > 0)
+    {
+        tCmdBuffer = pl_sb_pop(ptCommandBuffer->ptPool->sbtReadyCommandBuffers);
+    }
+    else
+    {
+        const VkCommandBufferAllocateInfo tAllocInfo = {
+            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool        = ptCommandBuffer->ptPool->tCmdPool,
+            .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = 1
+        };
+        PL_VULKAN(vkAllocateCommandBuffers(ptCommandBuffer->ptPool->ptDevice->tLogicalDevice, &tAllocInfo, &tCmdBuffer));  
+    }
+    ptCommandBuffer->tCmdBuffer = tCmdBuffer;
+}
+
+static plCommandBuffer*
+pl_request_command_buffer(plCommandPool* ptPool)
+{
+    plCommandBuffer* ptCommandBuffer = ptPool->ptCommandBufferFreeList;
+    if(ptCommandBuffer)
+    {
+        ptPool->ptCommandBufferFreeList = ptCommandBuffer->ptNext;
+    }
+    else
+    {
+        ptCommandBuffer = PL_ALLOC(sizeof(plCommandBuffer));
+        memset(ptCommandBuffer, 0, sizeof(plCommandBuffer));
+    }
+
+    VkCommandBuffer tCmdBuffer = VK_NULL_HANDLE;
+    if(pl_sb_size(ptPool->sbtReadyCommandBuffers) > 0)
+    {
+        tCmdBuffer = pl_sb_pop(ptPool->sbtReadyCommandBuffers);
+    }
+    else
+    {
+        const VkCommandBufferAllocateInfo tAllocInfo = {
+            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool        = ptPool->tCmdPool,
+            .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = 1
+        };
+        PL_VULKAN(vkAllocateCommandBuffers(ptPool->ptDevice->tLogicalDevice, &tAllocInfo, &tCmdBuffer));  
+    }
+    ptCommandBuffer->tCmdBuffer = tCmdBuffer;
+    ptCommandBuffer->ptDevice = ptPool->ptDevice;
+    ptCommandBuffer->ptPool = ptPool;
+    return ptCommandBuffer;
 }
 
 static uint32_t

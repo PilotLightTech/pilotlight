@@ -35,6 +35,7 @@ Index of this file:
 
 typedef struct _plCommandBuffer
 {
+    plCommandPool*       ptPool;
     plBeginCommandInfo   tBeginInfo;
     plDevice*            ptDevice;
     id<MTLCommandBuffer> tCmdBuffer;
@@ -93,6 +94,13 @@ typedef struct _plMetalBuffer
     id<MTLBuffer> tBuffer;
     id<MTLHeap>   tHeap;
 } plMetalBuffer;
+
+typedef struct _plCommandPool
+{
+    plDevice*           ptDevice;
+    id<MTLCommandQueue> tCmdQueue;
+    plCommandBuffer*    ptCommandBufferFreeList;
+} plCommandPool;
 
 typedef struct _plFrameContext
 {
@@ -169,14 +177,12 @@ typedef struct _plGraphics
     bool               bValidationActive;
     
     // free lists
-    plCommandBuffer*  ptCommandBufferFreeList;
     plRenderEncoder*  ptRenderEncoderFreeList;
     plBlitEncoder*    ptBlitEncoderFreeList;
     plComputeEncoder* ptComputeEncoderFreeList;
 
     // metal specifics
     plTempAllocator     tTempAllocator;
-    id<MTLCommandQueue> tCmdQueue;
     CAMetalLayer*       pMetalLayer;
     id<MTLFence>        tFence;
     
@@ -273,12 +279,6 @@ typedef struct _plSurface
 {
     int _iUnused;
 } plSurface;
-
-typedef struct _plCommandPool
-{
-    plDevice*           ptDevice;
-    id<MTLCommandQueue> tCmdQueue;
-} plCommandPool;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -1580,9 +1580,6 @@ pl__create_device(const plDeviceInfo* ptInfo)
     ptDevice->szArgumentBufferHeapSize = sizeof(uint64_t) * szMaxSets;
     ptDevice->szDynamicArgumentBufferSize = sizeof(uint64_t) * szMaxDynamicSets;
 
-    // create command queue
-    gptGraphics->tCmdQueue = [ptDevice->tDevice newCommandQueue];
-
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~device memory allocators~~~~~~~~~~~~~~~~~~~~~~~~~
 
     static plInternalDeviceAllocatorData tAllocatorData = {0};
@@ -1747,6 +1744,74 @@ pl_resize(plSwapchain* ptSwapchain)
     gptGraphics->uCurrentFrameIndex = 0;
 }
 
+static plCommandPool*
+pl_create_command_pool(plDevice* ptDevice)
+{
+    plCommandPool* ptPool = PL_ALLOC(sizeof(plCommandPool));
+    memset(ptPool, 0, sizeof(plCommandPool));
+
+    ptPool->ptDevice = ptDevice;
+    ptPool->tCmdQueue = [ptDevice->tDevice newCommandQueue];
+    return ptPool;
+}
+
+static void
+pl_cleanup_command_pool(plCommandPool* ptPool)
+{
+    plCommandBuffer* ptCurrentCommandBuffer = ptPool->ptCommandBufferFreeList;
+    while(ptCurrentCommandBuffer)
+    {
+        plCommandBuffer* ptNextCommandBuffer = ptCurrentCommandBuffer->ptNext;
+        PL_FREE(ptCurrentCommandBuffer);
+        ptCurrentCommandBuffer = ptNextCommandBuffer;
+    }
+    PL_FREE(ptPool);
+}
+
+static void
+pl_reset_command_pool(plCommandPool* ptPool)
+{
+}
+
+static void
+pl_reset_command_buffer(plCommandBuffer* ptCommandBuffer)
+{
+    MTLCommandBufferDescriptor* ptCmdBufferDescriptor = [MTLCommandBufferDescriptor new];
+    ptCmdBufferDescriptor.retainedReferences = NO;
+    ptCmdBufferDescriptor.errorOptions = MTLCommandBufferErrorOptionEncoderExecutionStatus;
+    ptCommandBuffer->tCmdBuffer = [ptCommandBuffer->ptPool->tCmdQueue commandBufferWithDescriptor:ptCmdBufferDescriptor];
+}
+
+static plCommandBuffer*
+pl_request_command_buffer(plCommandPool* ptPool)
+{
+    plCommandBuffer* ptCommandBuffer = ptPool->ptCommandBufferFreeList;
+    if(ptCommandBuffer)
+    {
+        ptPool->ptCommandBufferFreeList = ptCommandBuffer->ptNext;
+    }
+    else
+    {
+        ptCommandBuffer = PL_ALLOC(sizeof(plCommandBuffer));
+        memset(ptCommandBuffer, 0, sizeof(plCommandBuffer));
+    }
+
+    MTLCommandBufferDescriptor* ptCmdBufferDescriptor = [MTLCommandBufferDescriptor new];
+    ptCmdBufferDescriptor.retainedReferences = NO;
+    ptCmdBufferDescriptor.errorOptions = MTLCommandBufferErrorOptionEncoderExecutionStatus;
+    ptCommandBuffer->tCmdBuffer = [ptPool->tCmdQueue commandBufferWithDescriptor:ptCmdBufferDescriptor];
+    
+    // [ptCmdBufferDescriptor release];
+    // char blah[32] = {0};
+    // pl_sprintf(blah, "%u", gptGraphics->uCurrentFrameIndex);
+    // tCmdBuffer.label = [NSString stringWithUTF8String:blah];
+
+    // [ptCmdBufferDescriptor release];
+    ptCommandBuffer->ptDevice = ptPool->ptDevice;
+    ptCommandBuffer->ptPool = ptPool;
+    return ptCommandBuffer;
+}
+
 static bool
 pl_begin_frame(plSwapchain* ptSwapchain)
 {
@@ -1788,32 +1853,12 @@ pl_begin_frame(plSwapchain* ptSwapchain)
     return true;
 }
 
-static plCommandBuffer*
-pl_begin_command_recording(plDevice* ptDevice, const plBeginCommandInfo* ptBeginInfo)
+static void
+pl_begin_command_recording(plCommandBuffer* ptCommandBuffer, const plBeginCommandInfo* ptBeginInfo)
 {
-    plCommandBuffer* ptCommandBuffer = gptGraphics->ptCommandBufferFreeList;
-    if(ptCommandBuffer)
-    {
-        gptGraphics->ptCommandBufferFreeList = ptCommandBuffer->ptNext;
-    }
-    else
-    {
-        ptCommandBuffer = PL_ALLOC(sizeof(plCommandBuffer));
-        memset(ptCommandBuffer, 0, sizeof(plCommandBuffer));
-    }
-
-    MTLCommandBufferDescriptor* ptCmdBufferDescriptor = [MTLCommandBufferDescriptor new];
-    ptCmdBufferDescriptor.retainedReferences = NO;
-    ptCmdBufferDescriptor.errorOptions = MTLCommandBufferErrorOptionEncoderExecutionStatus;
-    ptCommandBuffer->tCmdBuffer = [gptGraphics->tCmdQueue commandBufferWithDescriptor:ptCmdBufferDescriptor];
-    // [ptCmdBufferDescriptor release];
-    // char blah[32] = {0};
-    // pl_sprintf(blah, "%u", gptGraphics->uCurrentFrameIndex);
-    // tCmdBuffer.label = [NSString stringWithUTF8String:blah];
-
-
     if(ptBeginInfo)
     {
+        plDevice* ptDevice = ptCommandBuffer->ptDevice;
         ptCommandBuffer->tBeginInfo = *ptBeginInfo;
         for(uint32_t i = 0; i < ptBeginInfo->uWaitSemaphoreCount; i++)
         {
@@ -1827,9 +1872,6 @@ pl_begin_command_recording(plDevice* ptDevice, const plBeginCommandInfo* ptBegin
             }
         }
     }
-
-    ptCommandBuffer->ptDevice = ptDevice;
-    return ptCommandBuffer;
 }
 
 static void
@@ -1880,8 +1922,6 @@ pl_present(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubmitInfo, p
     [ptCommandBuffer->tCmdBuffer commit];
 
     gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
-    ptCommandBuffer->ptNext = gptGraphics->ptCommandBufferFreeList;
-    gptGraphics->ptCommandBufferFreeList = ptCommandBuffer;
     return true;
 }
 
@@ -1978,34 +2018,19 @@ pl_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSub
     }];
 
     [ptCmdBuffer->tCmdBuffer commit];
-    ptCmdBuffer->ptNext = gptGraphics->ptCommandBufferFreeList;
-    gptGraphics->ptCommandBufferFreeList = ptCmdBuffer;
 }
 
 static void
-pl_submit_command_buffer_blocking(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
+pl_wait_on_command_buffer(plCommandBuffer* ptCmdBuffer)
 {
-    plDevice* ptDevice = ptCmdBuffer->ptDevice;
-
-    if(ptSubmitInfo)
-    {
-        for(uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
-        {
-            if(ptDevice->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex].tEvent)
-            {
-                [ptCmdBuffer->tCmdBuffer  encodeSignalEvent:ptDevice->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex].tEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
-            }
-            else
-            {
-                [ptCmdBuffer->tCmdBuffer  encodeSignalEvent:ptDevice->sbtSemaphoresHot[ptSubmitInfo->atSignalSempahores[i].uIndex].tSharedEvent value:ptSubmitInfo->auSignalSemaphoreValues[i]];
-            }
-        }
-    }
-
-    [ptCmdBuffer->tCmdBuffer commit];
     [ptCmdBuffer->tCmdBuffer waitUntilCompleted];
-    ptCmdBuffer->ptNext = gptGraphics->ptCommandBufferFreeList;
-    gptGraphics->ptCommandBufferFreeList = ptCmdBuffer;
+}
+
+static void
+pl_return_command_buffer(plCommandBuffer* ptCmdBuffer)
+{
+    ptCmdBuffer->ptNext = ptCmdBuffer->ptPool->ptCommandBufferFreeList;
+    ptCmdBuffer->ptPool->ptCommandBufferFreeList = ptCmdBuffer;
 }
 
 static plBlitEncoder*

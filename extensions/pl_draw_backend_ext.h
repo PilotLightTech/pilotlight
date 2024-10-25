@@ -41,6 +41,7 @@ typedef int    plDrawFlags;                  // pl_draw_ext.h
 
 typedef struct _plDevice        plDevice;        // pl_graphics_ext.h
 typedef struct _plRenderEncoder plRenderEncoder; // pl_graphics_ext.h
+typedef struct _plCommandBuffer plCommandBuffer; // pl_graphics_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -54,7 +55,7 @@ typedef struct _plDrawBackendI
 
     void (*new_frame)(void);
 
-    bool (*build_font_atlas)  (plFontAtlas*);
+    bool (*build_font_atlas)  (plCommandBuffer*, plFontAtlas*);
     void (*cleanup_font_atlas)(plFontAtlas*);
 
     void (*submit_2d_drawlist)(plDrawList2D*, plRenderEncoder*, float fWidth, float fHeight, uint32_t uMSAASampleCount);

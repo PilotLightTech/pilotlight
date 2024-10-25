@@ -61,6 +61,7 @@ typedef struct _plAppData
     plSwapchain*      ptSwapchain;
     plSemaphoreHandle atSempahore[PL_MAX_FRAMES_IN_FLIGHT];
     uint64_t          aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
+    plCommandPool*    atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
 
 } plAppData;
 
@@ -188,6 +189,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
         ptAppData->atSempahore[i] = gptGfx->create_semaphore(ptDevice, false);
 
+    // create command pools
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        ptAppData->atCmdPools[i] = gptGfx->create_command_pool(ptAppData->ptDevice);
+
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // vertex buffer data
@@ -271,6 +276,8 @@ pl_app_shutdown(plAppData* ptAppData)
 {
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        gptGfx->cleanup_command_pool(ptAppData->atCmdPools[i]);
     gptGfx->destroy_shader(ptAppData->ptDevice, ptAppData->tShader);
     gptGfx->destroy_buffer(ptAppData->ptDevice, ptAppData->tVertexBuffer);
     gptGfx->cleanup_swapchain(ptAppData->ptSwapchain);
@@ -313,6 +320,10 @@ pl_app_update(plAppData* ptAppData)
         return;
     }
 
+    plCommandPool* ptCmdPool = ptAppData->atCmdPools[gptGfx->get_current_frame_index()];
+    gptGfx->reset_command_pool(ptCmdPool);
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+
     //~~~~~~~~~~~~~~~~~~~~~~~~begin recording command buffer~~~~~~~~~~~~~~~~~~~~~~~
 
     const uint32_t uCurrentFrameIndex = gptGfx->get_current_frame_index();
@@ -327,7 +338,7 @@ pl_app_update(plAppData* ptAppData)
         .atWaitSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue0},
     };
-    plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptAppData->ptDevice, &tBeginInfo);
+    gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
     // begin main renderpass (directly to swapchain)
     plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, gptGfx->get_main_render_pass(ptAppData->ptDevice));
@@ -359,6 +370,7 @@ pl_app_update(plAppData* ptAppData)
     if(!gptGfx->present(ptCommandBuffer, &tSubmitInfo, ptAppData->ptSwapchain))
         gptGfx->resize(ptAppData->ptSwapchain);
 
+    gptGfx->return_command_buffer(ptCommandBuffer);
     pl_end_profile_frame();
 }
 

@@ -94,6 +94,7 @@ typedef struct _plAppData
     plSwapchain*      ptSwapchain;
     plSemaphoreHandle atSempahore[PL_MAX_FRAMES_IN_FLIGHT];
     uint64_t          aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
+    plCommandPool*    atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
 
     // offscreen rendering
     bool               bResize;
@@ -231,6 +232,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .ptSurface = ptAppData->ptSurface
     };
     ptAppData->ptSwapchain = gptGfx->create_swapchain(ptAppData->ptDevice, &tSwapInit);
+
+    // create command pools
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        ptAppData->atCmdPools[i] = gptGfx->create_command_pool(ptAppData->ptDevice);
 
     // initialize shader extension
     static const plShaderOptions tDefaultShaderOptions = {
@@ -393,6 +398,8 @@ pl_app_shutdown(plAppData* ptAppData)
 {
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        gptGfx->cleanup_command_pool(ptAppData->atCmdPools[i]);
     gptDrawBackend->cleanup();
 
     // cleanup textures
@@ -456,6 +463,10 @@ pl_app_update(plAppData* ptAppData)
         pl_end_profile_frame();
         return;
     }
+
+    plCommandPool* ptCmdPool = ptAppData->atCmdPools[gptGfx->get_current_frame_index()];
+    gptGfx->reset_command_pool(ptCmdPool);
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
 
     const uint32_t uCurrentFrameIndex = gptGfx->get_current_frame_index();
 
@@ -537,10 +548,10 @@ pl_app_update(plAppData* ptAppData)
         .atWaitSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue0},
     };
-    plCommandBuffer* ptCommandBuffer0 = gptGfx->begin_command_recording(ptAppData->ptDevice, &tBeginInfo0);
+    gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo0);
 
     // begin offscreen renderpass
-    plRenderEncoder* ptEncoder0 = gptGfx->begin_render_pass(ptCommandBuffer0, ptAppData->tOffscreenRenderPass);
+    plRenderEncoder* ptEncoder0 = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tOffscreenRenderPass);
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
     gptDrawBackend->submit_3d_drawlist(ptAppData->pt3dDrawlist,
@@ -554,15 +565,15 @@ pl_app_update(plAppData* ptAppData)
     gptGfx->end_render_pass(ptEncoder0);
 
     // end recording
-    gptGfx->end_command_recording(ptCommandBuffer0);
+    gptGfx->end_command_recording(ptCommandBuffer);
 
     const plSubmitInfo tSubmitInfo0 = {
         .uSignalSemaphoreCount   = 1,
         .atSignalSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
         .auSignalSemaphoreValues = {ulValue1},
     };
-    gptGfx->submit_command_buffer(ptCommandBuffer0, &tSubmitInfo0);
-
+    gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo0);
+    
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~command buffer 1~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const plBeginCommandInfo tBeginInfo1 = {
@@ -570,10 +581,11 @@ pl_app_update(plAppData* ptAppData)
         .atWaitSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue1},
     };
-    plCommandBuffer* ptCommandBuffer1 = gptGfx->begin_command_recording(ptAppData->ptDevice, &tBeginInfo1);
+    gptGfx->reset_command_buffer(ptCommandBuffer);
+    gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo1);
 
     // begin main renderpass (directly to swapchain)
-    plRenderEncoder* ptEncoder1 = gptGfx->begin_render_pass(ptCommandBuffer1, gptGfx->get_main_render_pass(ptAppData->ptDevice));
+    plRenderEncoder* ptEncoder1 = gptGfx->begin_render_pass(ptCommandBuffer, gptGfx->get_main_render_pass(ptAppData->ptDevice));
 
     // submit drawlists
     gptDrawBackend->submit_2d_drawlist(ptAppData->ptAppDrawlist, ptEncoder1, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
@@ -582,7 +594,7 @@ pl_app_update(plAppData* ptAppData)
     gptGfx->end_render_pass(ptEncoder1);
 
     // end recording
-    gptGfx->end_command_recording(ptCommandBuffer1);
+    gptGfx->end_command_recording(ptCommandBuffer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~submit work to GPU & present~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -592,9 +604,10 @@ pl_app_update(plAppData* ptAppData)
         .auSignalSemaphoreValues = {ulValue2},
     };
 
-    if(!gptGfx->present(ptCommandBuffer1, &tSubmitInfo1, ptAppData->ptSwapchain))
+    if(!gptGfx->present(ptCommandBuffer, &tSubmitInfo1, ptAppData->ptSwapchain))
         gptGfx->resize(ptAppData->ptSwapchain);
 
+    gptGfx->return_command_buffer(ptCommandBuffer);
     pl_end_profile_frame();
 }
 

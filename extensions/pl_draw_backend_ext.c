@@ -186,7 +186,7 @@ pl_new_draw_frame(void)
 }
 
 static bool
-pl_build_font_atlas_backend(plFontAtlas* ptAtlas)
+pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
 {
 
     gptDraw->prepare_font_atlas(ptAtlas);
@@ -228,7 +228,7 @@ pl_build_font_atlas_backend(plFontAtlas* ptAtlas)
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptAtlas->pucPixelsAsRGBA32, tBufferDesc.szByteSize);
 
     // begin recording
-    plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
     
     // begin blit pass, copy texture, end pass
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
@@ -245,7 +245,8 @@ pl_build_font_atlas_backend(plFontAtlas* ptAtlas)
     gptGfx->end_command_recording(ptCommandBuffer);
 
     // submit command buffer
-    gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
+    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+    gptGfx->wait_on_command_buffer(ptCommandBuffer);
 
     gptGfx->destroy_buffer(ptDevice, tStagingBuffer);
     return true;

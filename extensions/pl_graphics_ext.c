@@ -397,13 +397,6 @@ pl__format_stride(plFormat tFormat)
 static void
 pl__cleanup_common_graphics(void)
 {
-    plCommandBuffer* ptCurrentCommandBuffer = gptGraphics->ptCommandBufferFreeList;
-    while(ptCurrentCommandBuffer)
-    {
-        plCommandBuffer* ptNextCommandBuffer = ptCurrentCommandBuffer->ptNext;
-        PL_FREE(ptCurrentCommandBuffer);
-        ptCurrentCommandBuffer = ptNextCommandBuffer;
-    }
 
     plRenderEncoder* ptCurrentRenderEncoder = gptGraphics->ptRenderEncoderFreeList;
     while(ptCurrentRenderEncoder)
@@ -783,7 +776,9 @@ pl_load_graphics_api(void)
         .begin_command_recording                = pl_begin_command_recording,
         .end_command_recording                  = pl_end_command_recording,
         .submit_command_buffer                  = pl_submit_command_buffer,
-        .submit_command_buffer_blocking         = pl_submit_command_buffer_blocking,
+        .wait_on_command_buffer                 = pl_wait_on_command_buffer,
+        .return_command_buffer                  = pl_return_command_buffer,
+        .reset_command_buffer                   = pl_reset_command_buffer,
         .next_subpass                           = pl_next_subpass,
         .begin_render_pass                      = pl_begin_render_pass,
         .get_encoder_render_pass                = pl_get_encoder_render_pass,
@@ -847,7 +842,11 @@ pl_load_graphics_api(void)
         .get_sampler                            = pl_get_sampler,
         .get_render_pass                        = pl_get_render_pass,
         .get_main_render_pass                   = pl_get_main_render_pass,
-        .get_render_pass_layout                 = pl_get_render_pass_layout
+        .get_render_pass_layout                 = pl_get_render_pass_layout,
+        .create_command_pool                    = pl_create_command_pool,
+        .cleanup_command_pool                   = pl_cleanup_command_pool,
+        .reset_command_pool                     = pl_reset_command_pool,
+        .request_command_buffer                = pl_request_command_buffer,
     };
     return &tApi;
 }

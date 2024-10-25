@@ -344,6 +344,9 @@ typedef struct _plRefRendererData
     plSemaphoreHandle atSempahore[PL_MAX_FRAMES_IN_FLIGHT];
     uint64_t aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
 
+    // command pools
+    plCommandPool* atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
+
     // graphics options
     bool     bReloadSwapchain;
     float    fLambdaSplit;
@@ -491,6 +494,10 @@ pl_refr_initialize(plWindow* ptWindow)
     };
     gptData->ptSwap = gptGfx->create_swapchain(gptData->ptDevice, &tSwapInit);
     gptDataRegistry->set_data("device", gptData->ptDevice); // used by debug extension
+
+    // create command pools
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        gptData->atCmdPools[i] = gptGfx->create_command_pool(gptData->ptDevice);
 
     // load gpu allocators
     gptData->ptLocalBuddyAllocator      = gptGpuAllocators->get_local_buddy_allocator(gptData->ptDevice);
@@ -1698,6 +1705,8 @@ pl_refr_cleanup(void)
     pl_hm_free(gptData->ptVariantHashmap);
     gptGfx->flush_device(gptData->ptDevice);
     gptGpuAllocators->cleanup(gptData->ptDevice);
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        gptGfx->cleanup_command_pool(gptData->atCmdPools[i]);
     gptGfx->cleanup_swapchain(gptData->ptSwap);
     gptGfx->cleanup_surface(gptData->ptSurface);
     gptGfx->cleanup_device(gptData->ptDevice);
@@ -1734,6 +1743,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     const int iSamples = 512;
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     plDevice* ptDevice = gptData->ptDevice;
+    plCommandPool* ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
 
     // create skybox shader if we haven't
     if(gptData->tSkyboxShader.uIndex == UINT32_MAX)
@@ -1896,14 +1906,17 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             .uThreadPerGroupZ = 3
         };
         
-        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        gptGfx->begin_command_recording(ptCommandBuffer, NULL);
         plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer);
         gptGfx->bind_compute_bind_groups(ptComputeEncoder, tPanoramaShader, 0, 1, &tComputeBindGroup, 0, NULL);
         gptGfx->bind_compute_shader(ptComputeEncoder, tPanoramaShader);
         gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
         gptGfx->end_compute_pass(ptComputeEncoder);
         gptGfx->end_command_recording(ptCommandBuffer);
-        gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
+        gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+        gptGfx->wait_on_command_buffer(ptCommandBuffer);
+        gptGfx->return_command_buffer(ptCommandBuffer);
         gptGfx->queue_compute_shader_for_deletion(ptDevice, tPanoramaShader);
 
         const plTextureDesc tSkyboxTextureDesc = {
@@ -1916,7 +1929,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         };
         ptScene->tSkyboxTexture = pl__refr_create_texture(&tSkyboxTextureDesc, "skybox texture", uSceneHandle);
 
-        ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+        ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        gptGfx->begin_command_recording(ptCommandBuffer, NULL);
         plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
         for(uint32_t i = 0; i < 6; i++)
         {
@@ -1930,7 +1944,9 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         }
         gptGfx->end_blit_pass(ptBlitEncoder);
         gptGfx->end_command_recording(ptCommandBuffer);
-        gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
+        gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+        gptGfx->wait_on_command_buffer(ptCommandBuffer);
+        gptGfx->return_command_buffer(ptCommandBuffer);
         
         for(uint32_t i = 0; i < 7; i++)
             gptGfx->destroy_buffer(ptDevice, atComputeBuffers[i]);
@@ -2174,14 +2190,17 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         pl_end_profile_sample(0);
 
         pl_begin_profile_sample(0, "step 3");
-        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        gptGfx->begin_command_recording(ptCommandBuffer, NULL);
         plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer);
         gptGfx->bind_compute_bind_groups(ptComputeEncoder, tLUTShader, 0, 1, &tLutBindGroup, 0, NULL);
         gptGfx->bind_compute_shader(ptComputeEncoder, tLUTShader);
         gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
         gptGfx->end_compute_pass(ptComputeEncoder);
         gptGfx->end_command_recording(ptCommandBuffer);
-        gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
+        gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+        gptGfx->wait_on_command_buffer(ptCommandBuffer);
+        gptGfx->return_command_buffer(ptCommandBuffer);
         gptGfx->queue_compute_shader_for_deletion(ptDevice, tLUTShader);
 
         plBuffer* ptLutBuffer = gptGfx->get_buffer(ptDevice, atLutBuffers[6]);
@@ -2198,14 +2217,17 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         pl_end_profile_sample(0);
 
         pl_begin_profile_sample(0, "step 4");
-        ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+        ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        gptGfx->begin_command_recording(ptCommandBuffer, NULL);
         ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer);
         gptGfx->bind_compute_bind_groups(ptComputeEncoder, tIrradianceShader, 0, 1, &tLutBindGroup, 0, NULL);
         gptGfx->bind_compute_shader(ptComputeEncoder, tIrradianceShader);
         gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
         gptGfx->end_compute_pass(ptComputeEncoder);
         gptGfx->end_command_recording(ptCommandBuffer);
-        gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
+        gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+        gptGfx->wait_on_command_buffer(ptCommandBuffer);
+        gptGfx->return_command_buffer(ptCommandBuffer);
         gptGfx->queue_compute_shader_for_deletion(ptDevice, tIrradianceShader);
 
         const plTextureDesc tSpecularTextureDesc = {
@@ -2218,7 +2240,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         };
         ptScene->tLambertianEnvTexture = pl__refr_create_texture(&tSpecularTextureDesc, "specular texture", uSceneHandle);
 
-        ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+        ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        gptGfx->begin_command_recording(ptCommandBuffer, NULL);
         plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
 
         for(uint32_t i = 0; i < 6; i++)
@@ -2234,7 +2257,9 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
 
         gptGfx->end_blit_pass(ptBlitEncoder);
         gptGfx->end_command_recording(ptCommandBuffer);
-        gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
+        gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+        gptGfx->wait_on_command_buffer(ptCommandBuffer);
+        gptGfx->return_command_buffer(ptCommandBuffer);
 
         for(uint32_t i = 0; i < 7; i++)
             gptGfx->destroy_buffer(ptDevice, atLutBuffers[i]);
@@ -2311,17 +2336,21 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
                 .uThreadPerGroupZ = 3
             };
 
-            plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+            plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+            gptGfx->begin_command_recording(ptCommandBuffer, NULL);
             plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer);
             gptGfx->bind_compute_bind_groups(ptComputeEncoder, atSpecularComputeShaders[i], 0, 1, &tLutBindGroup, 0, NULL);
             gptGfx->bind_compute_shader(ptComputeEncoder, atSpecularComputeShaders[i]);
             gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
             gptGfx->end_compute_pass(ptComputeEncoder);
             gptGfx->end_command_recording(ptCommandBuffer);
-            gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
+            gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+            gptGfx->wait_on_command_buffer(ptCommandBuffer);
+            gptGfx->return_command_buffer(ptCommandBuffer);
             gptGfx->queue_compute_shader_for_deletion(ptDevice, atSpecularComputeShaders[i]);
 
-            ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+            ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+            gptGfx->begin_command_recording(ptCommandBuffer, NULL);
             plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
 
             for(uint32_t j = 0; j < 6; j++)
@@ -2337,7 +2366,9 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             }
             gptGfx->end_blit_pass(ptBlitEncoder);
             gptGfx->end_command_recording(ptCommandBuffer);
-            gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
+            gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+            gptGfx->wait_on_command_buffer(ptCommandBuffer);
+            gptGfx->return_command_buffer(ptCommandBuffer);
 
         }
         for(uint32_t j = 0; j < 7; j++)
@@ -3665,6 +3696,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
     pl_begin_profile_sample(0, __FUNCTION__);
 
     // for convience
+    plCommandPool*     ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
     plDevice*          ptDevice     = gptData->ptDevice;
     plDrawStream*      ptStream     = &gptData->tDrawStream;
     plRefScene*        ptScene      = &gptData->sbtScenes[uSceneHandle];
@@ -3842,7 +3874,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auWaitSemaphoreValues = {ulValue},
         };
 
-        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
         pl_refr_update_skin_textures(ptCommandBuffer, uSceneHandle);
         gptGfx->end_command_recording(ptCommandBuffer);
@@ -3853,6 +3886,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auSignalSemaphoreValues = {++ulValue}
         };
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
+        gptGfx->return_command_buffer(ptCommandBuffer);
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~perform skinning~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3863,7 +3897,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auWaitSemaphoreValues = {ulValue},
         };
 
-        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
         pl_refr_perform_skinning(ptCommandBuffer, uSceneHandle);
         gptGfx->end_command_recording(ptCommandBuffer);
@@ -3874,6 +3909,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auSignalSemaphoreValues = {++ulValue}
         };
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
+        gptGfx->return_command_buffer(ptCommandBuffer);
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~generate shadow maps~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3884,7 +3920,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auWaitSemaphoreValues = {ulValue},
         };
 
-        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
         pl_refr_generate_cascaded_shadow_map(ptCommandBuffer, uSceneHandle, uViewHandle, *tOptions.ptViewCamera, *tOptions.ptSunLight, gptData->fLambdaSplit);
         gptGfx->end_command_recording(ptCommandBuffer);
@@ -3895,6 +3932,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auSignalSemaphoreValues = {++ulValue}
         };
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
+        gptGfx->return_command_buffer(ptCommandBuffer);
     }
 
     gptGfx->reset_draw_stream(ptStream);
@@ -3922,7 +3960,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auWaitSemaphoreValues = {ulValue},
         };
 
-        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 0 - g buffer fill~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -4374,6 +4413,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auSignalSemaphoreValues = {++ulValue}
         };
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
+        gptGfx->return_command_buffer(ptCommandBuffer);
     }
 
      //~~~~~~~~~~~~~~~~~~~~~~~~~~~~uv map pass for JFA~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -4384,7 +4424,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auWaitSemaphoreValues = {ulValue},
         };
 
-        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
         plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tUVRenderPass);
 
@@ -4410,6 +4451,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auSignalSemaphoreValues = {++ulValue}
         };
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
+        gptGfx->return_command_buffer(ptCommandBuffer);
     }
 
      //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~jump flood~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -4509,7 +4551,9 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                 .atWaitSempahores      = {tSemHandle},
                 .auWaitSemaphoreValues = {ulValue},
             };
-            plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+
+            plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+            gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
             // begin main renderpass (directly to swapchain)
             plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer);
@@ -4538,6 +4582,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                 .auSignalSemaphoreValues = {++ulValue},
             };
             gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
+            gptGfx->return_command_buffer(ptCommandBuffer);
 
             fJumpDistance = fJumpDistance / 2.0f;
             if(fJumpDistance < 1.0f)
@@ -4553,7 +4598,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auWaitSemaphoreValues = {ulValue},
         };
 
-        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
         pl_refr_post_process_scene(ptCommandBuffer, uSceneHandle, uViewHandle, &tMVP);
         gptGfx->end_command_recording(ptCommandBuffer);
@@ -4564,6 +4610,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .auSignalSemaphoreValues = {++ulValue}
         };
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
+        gptGfx->return_command_buffer(ptCommandBuffer);
     }
     gptData->aulNextTimelineValue[uFrameIdx] = ulValue;
 
@@ -4606,6 +4653,8 @@ pl_refr_begin_frame(void)
         return false;
     }
 
+    gptGfx->reset_command_pool(gptData->atCmdPools[gptGfx->get_current_frame_index()]);
+
     pl_end_profile_sample(0);
     return true;
 }
@@ -4615,6 +4664,7 @@ pl_refr_end_frame(void)
 {
     pl_begin_profile_sample(0, __FUNCTION__);
 
+    plCommandPool* ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
     plDevice*   ptDevice   = gptData->ptDevice;
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
 
@@ -4627,7 +4677,9 @@ pl_refr_end_frame(void)
         .atWaitSempahores      = {tSemHandle},
         .auWaitSemaphoreValues = {ulValue},
     };
-    plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, &tBeginInfo);
+    
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
     plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, gptGfx->get_main_render_pass(ptDevice));
 
@@ -5511,6 +5563,7 @@ pl__refr_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcNam
 {
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
+    plCommandPool* ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
  
     // create texture
     plTempAllocator tTempAllocator = {0};
@@ -5547,7 +5600,8 @@ pl__refr_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcNam
         memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pData, szSize);
 
         // begin recording
-        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        gptGfx->begin_command_recording(ptCommandBuffer, NULL);
         
         // begin blit pass, copy texture, end pass
         plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
@@ -5565,7 +5619,9 @@ pl__refr_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcNam
         gptGfx->end_command_recording(ptCommandBuffer);
 
         // submit command buffer
-        gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
+        gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+        gptGfx->wait_on_command_buffer(ptCommandBuffer);
+        gptGfx->return_command_buffer(ptCommandBuffer);
     }
     return tHandle;
 }
@@ -5624,11 +5680,19 @@ pl__refr_create_cached_staging_buffer(const plBufferDesc* ptDesc, const char* pc
     return tHandle;
 }
 
+static plCommandPool*
+pl__refr_get_command_pool(void)
+{
+    plCommandPool* ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
+    return ptCmdPool;
+}
+
 static plBufferHandle
 pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData)
 {
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
+    plCommandPool* ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
     
     // create buffer
     plTempAllocator tTempAllocator = {0};
@@ -5662,7 +5726,8 @@ pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uin
         memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pData, ptDesc->szByteSize);
 
         // begin recording
-        plCommandBuffer* ptCommandBuffer = gptGfx->begin_command_recording(ptDevice, NULL);
+        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        gptGfx->begin_command_recording(ptCommandBuffer, NULL);
         
         // begin blit pass, copy buffer, end pass
         plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
@@ -5673,7 +5738,9 @@ pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uin
         gptGfx->end_command_recording(ptCommandBuffer);
 
         // submit command buffer
-        gptGfx->submit_command_buffer_blocking(ptCommandBuffer, NULL);
+        gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+        gptGfx->wait_on_command_buffer(ptCommandBuffer);
+        gptGfx->return_command_buffer(ptCommandBuffer);
     }
     return tHandle;
 }
@@ -5708,6 +5775,7 @@ pl_load_renderer_api(void)
         .get_gizmo_drawlist            = pl_refr_get_gizmo_drawlist,
         .get_picked_entity             = pl_refr_get_picked_entity,
         .show_graphics_options         = pl_show_graphics_options,
+        .get_command_pool              = pl__refr_get_command_pool,
     };
     return &tApi;
 }

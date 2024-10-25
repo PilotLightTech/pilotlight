@@ -39,6 +39,7 @@ typedef struct _plGraphics         plGraphics;         // pl_graphics_ext.h
 typedef struct _plDevice           plDevice;           // pl_graphics_ext.h
 typedef struct _plDrawList3D       plDrawList3D;       // pl_draw_ext.h
 typedef struct _plCommandBuffer    plCommandBuffer;    // pl_graphics_ext.h
+typedef struct _plCommandPool      plCommandPool;      // pl_graphics_ext.h
 typedef union  plTextureHandle     plTextureHandle;    // pl_graphics_ext.h
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef struct _plCameraComponent  plCameraComponent;  // pl_ecs_ext.h
@@ -89,6 +90,7 @@ typedef struct _plRendererI
     plSwapchain*        (*get_swapchain)(void);
     plDrawList3D*       (*get_debug_drawlist)(uint32_t uSceneHandle, uint32_t uViewHandle);
     plDrawList3D*       (*get_gizmo_drawlist)(uint32_t uSceneHandle, uint32_t uViewHandle);
+    plCommandPool*      (*get_command_pool)(void);
 
 } plRendererI;
 

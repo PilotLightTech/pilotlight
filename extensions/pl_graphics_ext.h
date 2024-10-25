@@ -115,35 +115,34 @@ typedef struct _plComputeEncoder      plComputeEncoder;      // opaque type for 
 typedef struct _plBlitEncoder         plBlitEncoder;         // opaque type for command buffer encoder for blit ops
 
 // basic types (not finalized)
-typedef struct _plDevice                     plDevice;
-typedef struct _plDeviceInfo                 plDeviceInfo;
-typedef struct _plSwapchain                  plSwapchain;
-typedef struct _plSurface                    plSurface;
-typedef struct _plGraphicsInit               plGraphicsInit;
-typedef struct _plSwapchainInit              plSwapchainInit;
-typedef struct _plDispatch                   plDispatch;
-typedef struct _plDrawArea                   plDrawArea;
-typedef struct _plGraphicsState              plGraphicsState;
-typedef struct _plBlendState                 plBlendState;
-typedef struct _plSpecializationConstant     plSpecializationConstant;
-typedef struct _plShaderModule               plShaderModule;
-typedef struct _plShaderDescription          plShaderDescription;
-typedef struct _plShader                     plShader;
-typedef struct _plBindGroup                  plBindGroup;
-typedef struct _plBufferBinding              plBufferBinding;
-typedef struct _plTextureBinding             plTextureBinding;
-typedef struct _plSamplerBinding             plSamplerBinding;
-typedef struct _plDynamicBinding             plDynamicBinding;
-typedef struct _plRenderViewport             plRenderViewport;
-typedef struct _plScissor                    plScissor;
-typedef struct _plExtent                     plExtent;
-typedef struct _plBufferImageCopy            plBufferImageCopy;
-typedef struct _plCommandBuffer              plCommandBuffer;
-typedef struct _plBeginCommandInfo           plBeginCommandInfo;
-typedef struct _plSubmitInfo                 plSubmitInfo;
-typedef struct _plBindGroupUpdateTextureData plBindGroupUpdateTextureData;
-typedef struct _plBindGroupUpdateBufferData  plBindGroupUpdateBufferData;
-typedef struct _plBindGroupUpdateSamplerData plBindGroupUpdateSamplerData;
+typedef struct _plDevice                      plDevice;
+typedef struct _plDeviceInfo                  plDeviceInfo;
+typedef struct _plSwapchain                   plSwapchain;
+typedef struct _plSurface                     plSurface;
+typedef struct _plGraphicsInit                plGraphicsInit;
+typedef struct _plSwapchainInit               plSwapchainInit;
+typedef struct _plDispatch                    plDispatch;
+typedef struct _plDrawArea                    plDrawArea;
+typedef struct _plGraphicsState               plGraphicsState;
+typedef struct _plBlendState                  plBlendState;
+typedef struct _plSpecializationConstant      plSpecializationConstant;
+typedef struct _plShaderModule                plShaderModule;
+typedef struct _plShaderDescription           plShaderDescription;
+typedef struct _plShader                      plShader;
+typedef struct _plBindGroup                   plBindGroup;
+typedef struct _plBufferBinding               plBufferBinding;
+typedef struct _plTextureBinding              plTextureBinding;
+typedef struct _plSamplerBinding              plSamplerBinding;
+typedef struct _plDynamicBinding              plDynamicBinding;
+typedef struct _plRenderViewport              plRenderViewport;
+typedef struct _plScissor                     plScissor;
+typedef struct _plExtent                      plExtent;
+typedef struct _plBufferImageCopy             plBufferImageCopy;
+typedef struct _plBeginCommandInfo            plBeginCommandInfo;
+typedef struct _plSubmitInfo                  plSubmitInfo;
+typedef struct _plBindGroupUpdateTextureData  plBindGroupUpdateTextureData;
+typedef struct _plBindGroupUpdateBufferData   plBindGroupUpdateBufferData;
+typedef struct _plBindGroupUpdateSamplerData  plBindGroupUpdateSamplerData;
 typedef struct _plRenderTarget                plRenderTarget;
 typedef struct _plColorTarget                 plColorTarget;
 typedef struct _plDepthTarget                 plDepthTarget;
@@ -154,6 +153,7 @@ typedef struct _plRenderPassDescription       plRenderPassDescription;
 typedef struct _plRenderPass                  plRenderPass;
 typedef struct _plRenderPassAttachments       plRenderPassAttachments;
 typedef struct _plCommandBuffer               plCommandBuffer;
+typedef struct _plCommandPool                 plCommandPool;
 
 // handles
 PL_DEFINE_HANDLE(plBufferHandle);
@@ -244,13 +244,19 @@ typedef struct _plGraphicsI
     void     (*wait_semaphore)     (plDevice*, plSemaphoreHandle, uint64_t);
     uint64_t (*get_semaphore_value)(plDevice*, plSemaphoreHandle);
 
-    // command buffers
-    plCommandBuffer* (*begin_command_recording)       (plDevice*, const plBeginCommandInfo*);
-    void             (*end_command_recording)         (plCommandBuffer*);
-    void             (*submit_command_buffer)         (plCommandBuffer*, const plSubmitInfo*);
-    void             (*submit_command_buffer_blocking)(plCommandBuffer*, const plSubmitInfo*);
-    bool             (*present)                       (plCommandBuffer*, const plSubmitInfo*, plSwapchain*);
-
+    // command pools & buffers
+    plCommandPool*   (*create_command_pool)    (plDevice*);
+    void             (*cleanup_command_pool)   (plCommandPool*);
+    void             (*reset_command_pool)     (plCommandPool*);
+    plCommandBuffer* (*request_command_buffer) (plCommandPool*);
+    void             (*reset_command_buffer)   (plCommandBuffer*);
+    void             (*return_command_buffer)  (plCommandBuffer*);
+    void             (*wait_on_command_buffer) (plCommandBuffer*);
+    void             (*begin_command_recording)(plCommandBuffer*, const plBeginCommandInfo*);
+    void             (*end_command_recording)  (plCommandBuffer*);
+    void             (*submit_command_buffer)  (plCommandBuffer*, const plSubmitInfo*);
+    bool             (*present)                (plCommandBuffer*, const plSubmitInfo*, plSwapchain*);
+    
     // render encoder
     plRenderEncoder*   (*begin_render_pass)         (plCommandBuffer*, plRenderPassHandle); // do not store
     void               (*next_subpass)              (plRenderEncoder*);
