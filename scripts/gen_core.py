@@ -83,7 +83,7 @@ with pl.project("pilotlight"):
                     linker_flags=["-Wl,-rpath,/usr/local/lib"],
                     compiler_flags=["-std=c99", "-fmodules", "-ObjC", "-fPIC"])
     pl.add_profile(compiler_filter=["clang"],
-                    configuration_filter=["debug"],
+                    configuration_filter=["debug", "vulkan"],
                     compiler_flags=["--debug", "-g"])
 
     # graphics backends
