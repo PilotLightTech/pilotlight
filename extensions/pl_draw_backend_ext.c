@@ -41,6 +41,7 @@ typedef struct _plDrawBackendContext
     plBindGroupHandle    tFontSamplerBindGroup;
     plPipelineEntry*     sbt3dPipelineEntries;
     plPipelineEntry*     sbt2dPipelineEntries;
+    plBindGroupPool*     ptBindGroupPool;
 
     // shared resources
     plBufferHandle atIndexBuffer[PL_MAX_FRAMES_IN_FLIGHT];
@@ -66,6 +67,7 @@ static plDrawBackendContext* gptDrawBackendCtx = NULL;
 static plBufferHandle         pl__create_staging_buffer(const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
 static const plPipelineEntry* pl__get_3d_pipeline              (plRenderPassHandle, uint32_t uMSAASampleCount, plDrawFlags, uint32_t uSubpassIndex);
 static const plPipelineEntry* pl__get_2d_pipeline              (plRenderPassHandle, uint32_t uMSAASampleCount, uint32_t uSubpassIndex);
+static plBindGroupHandle      pl_create_bind_group_for_texture(plTextureHandle);
 
 
 //-----------------------------------------------------------------------------
@@ -113,11 +115,16 @@ pl_initialize_draw_backend(plDevice* ptDevice)
         .fMaxMip         = 1000.0f,
         .fMaxAnisotropy  = 1.0f,
         .tVAddressMode   = PL_ADDRESS_MODE_WRAP,
-        .tUAddressMode = PL_ADDRESS_MODE_WRAP,
+        .tUAddressMode   = PL_ADDRESS_MODE_WRAP,
         .tMipmapMode     = PL_MIPMAP_MODE_LINEAR,
         .pcDebugName     = "2D Drawing Font Sampler"
     };
     gptDrawBackendCtx->tFontSampler = gptGfx->create_sampler(ptDevice, &tSamplerDesc);
+
+    const plBindGroupPoolDesc tPoolDesc = {
+        .bIndividualResets = true
+    };
+    gptDrawBackendCtx->ptBindGroupPool = gptGfx->create_bind_group_pool(ptDevice, &tPoolDesc);
 
     const plBindGroupLayout tSamplerBindGroupLayout = {
         .uSamplerBindingCount = 1,
@@ -125,7 +132,12 @@ pl_initialize_draw_backend(plDevice* ptDevice)
             {.uSlot =  0, .tStages = PL_STAGE_PIXEL}
         }
     };
-    gptDrawBackendCtx->tFontSamplerBindGroup = gptGfx->create_bind_group(ptDevice, &tSamplerBindGroupLayout, "font sampler bindgroup");
+    const plBindGroupDesc tSamplerBindGroupDesc = {
+        .ptPool = gptDrawBackendCtx->ptBindGroupPool,
+        .ptLayout = &tSamplerBindGroupLayout,
+        .pcDebugName = "font sampler bind group"
+    };
+    gptDrawBackendCtx->tFontSamplerBindGroup = gptGfx->create_bind_group(ptDevice, &tSamplerBindGroupDesc);
     const plBindGroupUpdateSamplerData atSamplerData[] = {
         { .uSlot = 0, .tSampler = gptDrawBackendCtx->tFontSampler}
     };
@@ -149,6 +161,8 @@ pl_cleanup_draw_backend(void)
         gptGfx->destroy_buffer(ptDevice, gptDrawBackendCtx->atIndexBuffer[i]);  
         gptGfx->destroy_buffer(ptDevice, gptDrawBackendCtx->atIndexBuffer[i]);  
     }
+
+    gptGfx->cleanup_bind_group_pool(gptDrawBackendCtx->ptBindGroupPool);
 
     pl_sb_free(gptDrawBackendCtx->sbt3dPipelineEntries);
     pl_sb_free(gptDrawBackendCtx->sbt2dPipelineEntries);
@@ -204,10 +218,10 @@ pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtl
     };
 
     plDevice* ptDevice = gptDrawBackendCtx->ptDevice;
-    ptAtlas->tTexture = gptGfx->create_texture(ptDevice, &tFontTextureDesc).ulData;
 
-    plTextureHandle tTexture = {.ulData = ptAtlas->tTexture};
-
+    plTextureHandle tTexture = gptGfx->create_texture(ptDevice, &tFontTextureDesc);
+    ptAtlas->ptUserData = (void*)tTexture.ulData;
+    
     plTexture* ptTexture = gptGfx->get_texture(ptDevice, tTexture);
 
     const plDeviceMemoryAllocation tAllocation = gptGfx->allocate_memory(ptDevice,
@@ -248,6 +262,8 @@ pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtl
     gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
     gptGfx->wait_on_command_buffer(ptCommandBuffer);
 
+    ptAtlas->tTexture = pl_create_bind_group_for_texture(tTexture).ulData;
+
     gptGfx->destroy_buffer(ptDevice, tStagingBuffer);
     return true;
 }
@@ -258,7 +274,7 @@ pl_cleanup_font_atlas_backend(plFontAtlas* ptAtlas)
     if(ptAtlas == NULL)
         ptAtlas = gptDraw->get_current_font_atlas();
 
-    plTextureHandle tTexture = {.ulData = ptAtlas->tTexture};
+    plTextureHandle tTexture = {.ulData = (uint64_t)ptAtlas->ptUserData};
     gptGfx->destroy_texture(gptDrawBackendCtx->ptDevice, tTexture);
 
     gptDraw->cleanup_font_atlas(ptAtlas);
@@ -551,6 +567,39 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
     return ptEntry;
 }
 
+static plBindGroupHandle
+pl_create_bind_group_for_texture(plTextureHandle tTexture)
+{
+    const plBindGroupLayout tDrawingBindGroup = {
+        .uTextureBindingCount  = 1,
+        .atTextureBindings = { 
+            {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+        }
+    };
+    const plBindGroupDesc tSamplerBindGroupDesc = {
+        .ptPool = gptDrawBackendCtx->ptBindGroupPool,
+        .ptLayout = &tDrawingBindGroup,
+        .pcDebugName = "draw texture bind group"
+    };
+    plBindGroupHandle tBindGroup = gptGfx->create_bind_group(gptDrawBackendCtx->ptDevice, &tSamplerBindGroupDesc);
+
+    const plBindGroupUpdateTextureData atBGTextureData[] = {
+        {
+            .tTexture = tTexture,
+            .uSlot    = 0,
+            .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
+        }
+    };
+    const plBindGroupUpdateData tBGData = {
+        .uTextureCount = 1,
+        .atTextureBindings = atBGTextureData
+    };
+
+    gptGfx->update_bind_group(gptDrawBackendCtx->ptDevice, tBindGroup, &tBGData);
+
+    return tBindGroup;
+}
+
 static void
 pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount)
 {
@@ -711,10 +760,10 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
             gptGfx->set_scissor_region(ptEncoder, &tScissor);
         }
 
-        plTextureHandle tTexture = {.ulData = cmd.tTextureId};
+        plBindGroupHandle tTexture = {.ulData = cmd.tTextureId};
         plBindGroupHandle atBindGroups[] = {
             gptDrawBackendCtx->tFontSamplerBindGroup,
-            gptGfx->get_texture(ptDevice, tTexture)->tDrawBindGroup
+            tTexture
         };
 
         gptGfx->bind_graphics_bind_groups(ptEncoder, tCurrentShader, 0, 2, atBindGroups, 1, &tDynamicBinding);
@@ -967,6 +1016,7 @@ pl_load_draw_backend_api(void)
         .cleanup_font_atlas = pl_cleanup_font_atlas_backend,
         .submit_2d_drawlist = pl_submit_2d_drawlist,
         .submit_3d_drawlist = pl_submit_3d_drawlist,
+        .create_bind_group_for_texture = pl_create_bind_group_for_texture,
     };
     return &tApi;
 }

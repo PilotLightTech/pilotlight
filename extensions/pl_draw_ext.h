@@ -442,6 +442,7 @@ typedef struct _plFontAtlas
     plVec2         tAtlasSize;
     plTextureID    tTexture;
     unsigned char* pucPixelsAsRGBA32;
+    void*          ptUserData;
 
     // [INTERNAL]
     plFont*           _ptFontListHead;

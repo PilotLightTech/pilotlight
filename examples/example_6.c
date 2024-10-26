@@ -74,6 +74,7 @@ typedef struct _plAppData
     plSemaphoreHandle atSempahore[PL_MAX_FRAMES_IN_FLIGHT];
     uint64_t          aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
     plCommandPool*    atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
+    plBindGroupPool*  ptBindGroupPool;
 
 } plAppData;
 
@@ -182,6 +183,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     atDeviceInfos[iBestDvcIdx].ptSurface = ptAppData->ptSurface;
     ptAppData->ptDevice = gptGfx->create_device(&atDeviceInfos[iBestDvcIdx]);
 
+    // create bind group pool
+    const plBindGroupPoolDesc tBindGroupPoolDesc = {0};
+    ptAppData->ptBindGroupPool = gptGfx->create_bind_group_pool(ptAppData->ptDevice, &tBindGroupPoolDesc);
+
     // create swapchain
     const plSwapchainInit tSwapInit = {
         .ptSurface = ptAppData->ptSurface
@@ -206,7 +211,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create command pools
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-        ptAppData->atCmdPools[i] = gptGfx->create_command_pool(ptAppData->ptDevice);
+        ptAppData->atCmdPools[i] = gptGfx->create_command_pool(ptAppData->ptDevice, NULL);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -402,7 +407,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             {.uSlot = 1, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
         }
     };
-    ptAppData->tBindGroup0 = gptGfx->create_bind_group(ptDevice, &tBindGroupLayout, "bind group 0");
+    const plBindGroupDesc tBindGroupDesc = {
+        .ptLayout = &tBindGroupLayout,
+        .pcDebugName = "bind group 0",
+        .ptPool = ptAppData->ptBindGroupPool
+    };
+    ptAppData->tBindGroup0 = gptGfx->create_bind_group(ptDevice, &tBindGroupDesc);
 
     // update bind group (actually point descriptors to GPU resources)
     const plBindGroupUpdateSamplerData tSamplerData = {
@@ -491,6 +501,7 @@ pl_app_shutdown(plAppData* ptAppData)
     gptGfx->destroy_buffer(ptAppData->ptDevice, ptAppData->tIndexBuffer);
     gptGfx->destroy_buffer(ptAppData->ptDevice, ptAppData->tStagingBuffer);
     gptGfx->destroy_texture(ptAppData->ptDevice, ptAppData->tTexture);
+    gptGfx->cleanup_bind_group_pool(ptAppData->ptBindGroupPool);
     gptGfx->cleanup_swapchain(ptAppData->ptSwapchain);
     gptGfx->cleanup_surface(ptAppData->ptSurface);
     gptGfx->cleanup_device(ptAppData->ptDevice);

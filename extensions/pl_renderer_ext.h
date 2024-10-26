@@ -41,6 +41,7 @@ typedef struct _plDrawList3D       plDrawList3D;       // pl_draw_ext.h
 typedef struct _plCommandBuffer    plCommandBuffer;    // pl_graphics_ext.h
 typedef struct _plCommandPool      plCommandPool;      // pl_graphics_ext.h
 typedef union  plTextureHandle     plTextureHandle;    // pl_graphics_ext.h
+typedef union  plBindGroupHandle   plBindGroupHandle;  // pl_graphics_ext.h
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef struct _plCameraComponent  plCameraComponent;  // pl_ecs_ext.h
 typedef union  _plEntity           plEntity;           // pl_ecs_ext.h
@@ -65,9 +66,9 @@ typedef struct _plRendererI
     void     (*add_drawable_objects_to_scene)(uint32_t uSceneHandle, uint32_t uOpaqueCount, const plEntity* atOpaqueObjects, uint32_t uTransparentCount, const plEntity* atTransparentObjects);
 
     // views
-    uint32_t        (*create_view)(uint32_t uSceneHandle, plVec2 tDimensions);
-    plTextureHandle (*get_view_color_texture)(uint32_t uSceneHandle, uint32_t uViewHandle);
-    void            (*resize_view)(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensions);
+    uint32_t          (*create_view)(uint32_t uSceneHandle, plVec2 tDimensions);
+    plBindGroupHandle (*get_view_color_texture)(uint32_t uSceneHandle, uint32_t uViewHandle);
+    void              (*resize_view)(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensions);
     
     // loading
     void (*load_skybox_from_panorama)(uint32_t uSceneHandle, const char* pcPath, int iResolution);

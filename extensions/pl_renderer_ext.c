@@ -195,7 +195,8 @@ typedef struct _plRefView
     plTextureHandle tLastUVMask;
     
     // output texture
-    plTextureHandle tFinalTexture[PL_MAX_FRAMES_IN_FLIGHT];
+    plTextureHandle   tFinalTexture[PL_MAX_FRAMES_IN_FLIGHT];
+    plBindGroupHandle tFinalTextureHandle[PL_MAX_FRAMES_IN_FLIGHT];
 
     // lighting
     plBindGroupHandle tLightingBindGroup[PL_MAX_FRAMES_IN_FLIGHT];
@@ -280,6 +281,10 @@ typedef struct _plRefRendererData
     plSwapchain* ptSwap;
     plSurface* ptSurface;
     plTempAllocator tTempAllocator;
+
+    // bind groups
+    plBindGroupPool* ptBindGroupPool;
+    plBindGroupPool* aptBindGroupPools[PL_MAX_FRAMES_IN_FLIGHT];
 
     // picking
     uint32_t uClickedFrame;
@@ -488,6 +493,12 @@ pl_refr_initialize(plWindow* ptWindow)
     atDeviceInfos[iBestDvcIdx].szDynamicBufferBlockSize = 134217728;
     gptData->ptDevice = gptGfx->create_device(&atDeviceInfos[iBestDvcIdx]);
 
+    // create bind group pool
+    const plBindGroupPoolDesc tBindGroupPoolDesc = {
+        .bIndividualResets = true
+    };
+    gptData->ptBindGroupPool = gptGfx->create_bind_group_pool(gptData->ptDevice, &tBindGroupPoolDesc);
+
     // create swapchain
     const plSwapchainInit tSwapInit = {
         .ptSurface = gptData->ptSurface
@@ -495,9 +506,15 @@ pl_refr_initialize(plWindow* ptWindow)
     gptData->ptSwap = gptGfx->create_swapchain(gptData->ptDevice, &tSwapInit);
     gptDataRegistry->set_data("device", gptData->ptDevice); // used by debug extension
 
-    // create command pools
+    // create pools
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-        gptData->atCmdPools[i] = gptGfx->create_command_pool(gptData->ptDevice);
+    {
+        gptData->atCmdPools[i] = gptGfx->create_command_pool(gptData->ptDevice, NULL);
+        plBindGroupPoolDesc tPoolDesc = {
+            .bIndividualResets = false
+        };
+        gptData->aptBindGroupPools[i] = gptGfx->create_bind_group_pool(gptData->ptDevice, &tPoolDesc);
+    }
 
     // load gpu allocators
     gptData->ptLocalBuddyAllocator      = gptGpuAllocators->get_local_buddy_allocator(gptData->ptDevice);
@@ -1223,6 +1240,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     {
         // textures
         ptView->tFinalTexture[i]            = pl__refr_create_texture(&tRawOutputTextureDesc,  "offscreen final",       i);
+        ptView->tFinalTextureHandle[i]      = gptDrawBackend->create_bind_group_for_texture(ptView->tFinalTexture[i]);
         ptView->tRawOutputTexture[i]        = pl__refr_create_texture(&tRawOutputTextureDesc,  "offscreen raw",       i);
         ptView->tAlbedoTexture[i]           = pl__refr_create_texture(&tAlbedoTextureDesc, "albedo original",          i);
         ptView->tNormalTexture[i]           = pl__refr_create_texture(&tAttachmentTextureDesc, "normal original",          i);
@@ -1236,7 +1254,12 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         ptView->atGlobalBuffers[i] = pl__refr_create_staging_buffer(&atGlobalBuffersDesc, "global", i);
         
         // lighting bind group
-        ptView->tLightingBindGroup[i] = gptGfx->create_bind_group(gptData->ptDevice, &tLightingBindGroupLayout, pl_temp_allocator_sprintf(&gptData->tTempAllocator, "lighting bind group%u", i));
+        const plBindGroupDesc tLightingBindGroupDesc = {
+            .ptPool = gptData->ptBindGroupPool,
+            .ptLayout = &tLightingBindGroupLayout,
+            .pcDebugName = "lighting bind group"
+        };
+        ptView->tLightingBindGroup[i] = gptGfx->create_bind_group(gptData->ptDevice, &tLightingBindGroupDesc);
 
         const plBindGroupUpdateTextureData atBGTextureData[] = {
             {
@@ -1594,6 +1617,8 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
 
         // textures
         ptView->tFinalTexture[i]            = pl__refr_create_texture(&tRawOutputTextureDesc, "offscreen",       i);
+        ptView->tFinalTextureHandle[i]      = gptDrawBackend->create_bind_group_for_texture(ptView->tFinalTexture[i]);
+        
         ptView->tRawOutputTexture[i]        = pl__refr_create_texture(&tRawOutputTextureDesc,  "offscreen raw",       i);
         ptView->tAlbedoTexture[i]           = pl__refr_create_texture(&tAlbedoTextureDesc, "albedo",          i);
         ptView->tNormalTexture[i]           = pl__refr_create_texture(&tAttachmentTextureDesc, "normal",          i);
@@ -1606,7 +1631,12 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
 
         // lighting bind group
         plTempAllocator tTempAllocator = {0};
-        ptView->tLightingBindGroup[i] = gptGfx->create_bind_group(gptData->ptDevice, &tLightingBindGroupLayout, pl_temp_allocator_sprintf(&tTempAllocator, "lighting bind group%u", i));
+        const plBindGroupDesc tLightingBindGroupDesc = {
+            .ptPool = gptData->ptBindGroupPool,
+            .ptLayout = &tLightingBindGroupLayout,
+            .pcDebugName = "lighting bind group"
+        };
+        ptView->tLightingBindGroup[i] = gptGfx->create_bind_group(gptData->ptDevice, &tLightingBindGroupDesc);
         const plBindGroupUpdateTextureData atBGTextureData[] = {
             {
                 .tTexture = ptView->tAlbedoTexture[i],
@@ -1704,9 +1734,13 @@ pl_refr_cleanup(void)
     pl_sb_free(gptData->_sbtVariantHandles);
     pl_hm_free(gptData->ptVariantHashmap);
     gptGfx->flush_device(gptData->ptDevice);
+    gptGfx->cleanup_bind_group_pool(gptData->ptBindGroupPool);
     gptGpuAllocators->cleanup(gptData->ptDevice);
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        gptGfx->cleanup_bind_group_pool(gptData->aptBindGroupPools[i]);
         gptGfx->cleanup_command_pool(gptData->atCmdPools[i]);
+    }
     gptGfx->cleanup_swapchain(gptData->ptSwap);
     gptGfx->cleanup_surface(gptData->ptSurface);
     gptGfx->cleanup_device(gptData->ptDevice);
@@ -1880,7 +1914,13 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
                 { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 6, .tStages = PL_STAGE_COMPUTE},
             },
         };
-        plBindGroupHandle tComputeBindGroup = gptGfx->get_temporary_bind_group(ptDevice, &tComputeBindGroupLayout, "compute bind group");
+        const plBindGroupDesc tComputeBindGroupDesc = {
+            .ptPool      = gptData->aptBindGroupPools[gptGfx->get_current_frame_index()],
+            .ptLayout    = &tComputeBindGroupLayout,
+            .pcDebugName = "compute bind group"
+        };
+        plBindGroupHandle tComputeBindGroup = gptGfx->create_bind_group(ptDevice, &tComputeBindGroupDesc);
+        gptGfx->queue_bind_group_for_deletion(ptDevice, tComputeBindGroup);
         const plBindGroupUpdateBufferData atBGBufferData[] = {
             { .uSlot = 0, .tBuffer = atComputeBuffers[0], .szBufferRange = uPanoramaSize},
             { .uSlot = 1, .tBuffer = atComputeBuffers[1], .szBufferRange = uFaceSize},
@@ -1957,7 +1997,13 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             .uTextureBindingCount  = 1,
             .atTextureBindings = { {.uSlot = 0, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}}
         };
-        ptScene->tSkyboxBindGroup = gptGfx->create_bind_group(ptDevice, &tSkyboxBindGroupLayout, "skybox bind group");
+    
+        const plBindGroupDesc tSkyboxBindGroupDesc = {
+            .ptPool = gptData->ptBindGroupPool,
+            .ptLayout = &tSkyboxBindGroupLayout,
+            .pcDebugName = "skybox bind group"
+        };
+        ptScene->tSkyboxBindGroup = gptGfx->create_bind_group(ptDevice, &tSkyboxBindGroupDesc);
         const plBindGroupUpdateTextureData tTextureData1 = {.tTexture = ptScene->tSkyboxTexture, .uSlot = 0, .uIndex = 0, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED};
         const plBindGroupUpdateData tBGData1 = {
             .uTextureCount = 1,
@@ -2149,7 +2195,13 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         for(uint32_t i = 0; i < 6; i++)
             atLutBuffers[i] = pl__refr_create_local_buffer(&tInputBufferDesc, "lut output", i, NULL);
 
-        plBindGroupHandle tLutBindGroup = gptGfx->get_temporary_bind_group(ptDevice, &tFilterComputeShaderDesc.atBindGroupLayouts[0], "lut bindgroup");
+        const plBindGroupDesc tFilterBindGroupDesc = {
+            .ptPool      = gptData->aptBindGroupPools[gptGfx->get_current_frame_index()],
+            .ptLayout    = &tFilterComputeShaderDesc.atBindGroupLayouts[0],
+            .pcDebugName = "lut bind group"
+        };
+        plBindGroupHandle tLutBindGroup = gptGfx->create_bind_group(ptDevice, &tFilterBindGroupDesc);
+        gptGfx->queue_bind_group_for_deletion(ptDevice, tLutBindGroup);
         const plBindGroupUpdateBufferData atBGBufferData[] = {
             { .uSlot = 2, .tBuffer = atLutBuffers[0], .szBufferRange = uFaceSize},
             { .uSlot = 3, .tBuffer = atLutBuffers[1], .szBufferRange = uFaceSize},
@@ -2300,7 +2352,13 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         for(uint32_t j = 0; j < 7; j++)
             atInnerComputeBuffers[j] = pl__refr_create_local_buffer(&tOutputBufferDesc, "inner buffer", j, NULL);
 
-        plBindGroupHandle tLutBindGroup = gptGfx->get_temporary_bind_group(ptDevice, &tFilterComputeShaderDesc.atBindGroupLayouts[0], "lut bindgroup");
+        const plBindGroupDesc tFilterComputeBindGroupDesc = {
+            .ptPool      = gptData->aptBindGroupPools[gptGfx->get_current_frame_index()],
+            .ptLayout    = &tFilterComputeShaderDesc.atBindGroupLayouts[0],
+            .pcDebugName = "lut bindgroup"
+        };
+        plBindGroupHandle tLutBindGroup = gptGfx->create_bind_group(ptDevice, &tFilterComputeBindGroupDesc);
+        gptGfx->queue_bind_group_for_deletion(ptDevice, tLutBindGroup);
         const plBindGroupUpdateBufferData atBGBufferData[] = {
             { .uSlot = 2, .tBuffer = atInnerComputeBuffers[0], .szBufferRange = uMaxFaceSize},
             { .uSlot = 3, .tBuffer = atInnerComputeBuffers[1], .szBufferRange = uMaxFaceSize},
@@ -2702,7 +2760,12 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                 {.uSlot =  4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
             }
         };
-        sbtMaterialBindGroups[i] = gptGfx->create_bind_group(ptDevice, &tMaterialBindGroupLayout, "material bind group");
+        const plBindGroupDesc tMaterialBindGroupDesc = {
+            .ptPool = gptData->ptBindGroupPool,
+            .ptLayout = &tMaterialBindGroupLayout,
+            .pcDebugName = "material bind group"
+        };
+        sbtMaterialBindGroups[i] = gptGfx->create_bind_group(ptDevice, &tMaterialBindGroupDesc);
 
         const plBindGroupUpdateTextureData tTextureData[] = 
         {
@@ -2872,7 +2935,12 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                             {.uSlot =  0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                         }
                     };
-                    tShadowMaterialBindGroup = gptGfx->create_bind_group(ptDevice, &tMaterialBindGroupLayout, "shadow material bind group");
+                    const plBindGroupDesc tMaterialBindGroupDesc = {
+                        .ptPool = gptData->ptBindGroupPool,
+                        .ptLayout = &tMaterialBindGroupLayout,
+                        .pcDebugName = "shadow material bind group"
+                    };
+                    tShadowMaterialBindGroup = gptGfx->create_bind_group(ptDevice, &tMaterialBindGroupDesc);
 
                     const plBindGroupUpdateTextureData tTextureData[] = 
                     {
@@ -2964,7 +3032,12 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                 { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_COMPUTE},
             }
         };
-        ptScene->tSkinBindGroup0 = gptGfx->create_bind_group(ptDevice, &tSkinBindGroupLayout0, "skin bind group 0");
+        const plBindGroupDesc tSkinBindGroupDesc = {
+            .ptPool = gptData->ptBindGroupPool,
+            .ptLayout = &tSkinBindGroupLayout0,
+            .pcDebugName = "skin bind group"
+        };
+        ptScene->tSkinBindGroup0 = gptGfx->create_bind_group(ptDevice, &tSkinBindGroupDesc);
 
         const plBindGroupUpdateSamplerData atSamplerData[] = {
             { .uSlot = 3, .tSampler = gptData->tDefaultSampler}
@@ -3175,7 +3248,13 @@ pl_refr_update_skin_textures(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHa
                 {.uSlot =  0, .tStages = PL_STAGE_ALL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
             }
         };
-        ptScene->sbtSkinData[i].tTempBindGroup = gptGfx->get_temporary_bind_group(ptDevice, &tBindGroupLayout1, "skin temporary bind group");
+        const plBindGroupDesc tBindGroup1Desc = {
+            .ptPool      = gptData->aptBindGroupPools[gptGfx->get_current_frame_index()],
+            .ptLayout    = &tBindGroupLayout1,
+            .pcDebugName = "skin temporary bind group"
+        };
+        ptScene->sbtSkinData[i].tTempBindGroup = gptGfx->create_bind_group(ptDevice, &tBindGroup1Desc);
+        gptGfx->queue_bind_group_for_deletion(ptDevice, ptScene->sbtSkinData[i].tTempBindGroup);
         const plBindGroupUpdateTextureData tTextureData = {.tTexture = ptScene->sbtSkinData[i].atDynamicTexture[uFrameIdx], .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED};
         plBindGroupUpdateData tBGData0 = {
             .uTextureCount = 1,
@@ -3423,7 +3502,13 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
             {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
         },
     };
-    plBindGroupHandle tGlobalBG = gptGfx->get_temporary_bind_group(ptDevice, &tBindGroupLayout0, "temporary global bind group");
+    const plBindGroupDesc tGlobalBGDesc = {
+        .ptPool      = gptData->aptBindGroupPools[gptGfx->get_current_frame_index()],
+        .ptLayout    = &tBindGroupLayout0,
+        .pcDebugName = "temporary global bind group 0"
+    };
+    plBindGroupHandle tGlobalBG = gptGfx->create_bind_group(ptDevice, &tGlobalBGDesc);
+    gptGfx->queue_bind_group_for_deletion(ptDevice, tGlobalBG);
 
     plBuffer* ptStorageBuffer = gptGfx->get_buffer(ptDevice, ptScene->tStorageBuffer);
     const plBindGroupUpdateBufferData atBufferData[] = 
@@ -3467,7 +3552,13 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
             {.uSlot = 0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
         }
     };
-    plBindGroupHandle tOpaqueBG1 = gptGfx->get_temporary_bind_group(ptDevice, &tOpaqueBG1Layout, "temporary opaque bind group");
+    const plBindGroupDesc tOpaqueBG1Desc = {
+        .ptPool      = gptData->aptBindGroupPools[gptGfx->get_current_frame_index()],
+        .ptLayout    = &tOpaqueBG1Layout,
+        .pcDebugName = "temporary opaque global bind group"
+    };
+    plBindGroupHandle tOpaqueBG1 = gptGfx->create_bind_group(ptDevice, &tOpaqueBG1Desc);
+    gptGfx->queue_bind_group_for_deletion(ptDevice, tOpaqueBG1);
     const plBindGroupUpdateTextureData tTextureData[] = {
         {
             .tTexture = gptData->tDummyTexture,
@@ -3633,7 +3724,13 @@ pl_refr_post_process_scene(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHand
     };
 
     // create bind group
-    plBindGroupHandle tJFABindGroup0 = gptGfx->get_temporary_bind_group(gptData->ptDevice, &tOutlineBindGroupLayout, "temp bind group 0");
+    const plBindGroupDesc tOutlineBGDesc = {
+        .ptPool      = gptData->aptBindGroupPools[gptGfx->get_current_frame_index()],
+        .ptLayout    = &tOutlineBindGroupLayout,
+        .pcDebugName = "temp bind group 0"
+    };
+    plBindGroupHandle tJFABindGroup0 = gptGfx->create_bind_group(gptData->ptDevice, &tOutlineBGDesc);
+    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tJFABindGroup0);
 
     const plBindGroupUpdateSamplerData tOutlineSamplerData = {
         .tSampler = gptData->tDefaultSampler,
@@ -3803,7 +3900,14 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
         }
 
     };
-    plBindGroupHandle tGlobalBG = gptGfx->get_temporary_bind_group(ptDevice, &tBindGroupLayout0, "temporary global bind group");
+    uint32_t uFrameIndex = gptGfx->get_current_frame_index();
+    const plBindGroupDesc tGlobalBGDesc = {
+        .ptPool      = gptData->aptBindGroupPools[uFrameIndex],
+        .ptLayout    = &tBindGroupLayout0,
+        .pcDebugName = "temporary global bind group 1"
+    };
+    plBindGroupHandle tGlobalBG = gptGfx->create_bind_group(ptDevice, &tGlobalBGDesc);
+    gptGfx->queue_bind_group_for_deletion(ptDevice, tGlobalBG);
 
     plBindGroupUpdateSamplerData tSamplerData[] = {
         {
@@ -4057,7 +4161,13 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                 {.uSlot = 6, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
             },
         };
-        plBindGroupHandle tLightBindGroup2 = gptGfx->get_temporary_bind_group(ptDevice, &tLightBindGroupLayout2, "light bind group 2");
+        const plBindGroupDesc tLightBGDesc = {
+            .ptPool      = gptData->aptBindGroupPools[gptGfx->get_current_frame_index()],
+            .ptLayout    = &tLightBindGroupLayout2,
+            .pcDebugName = "light bind group 2"
+        };
+        plBindGroupHandle tLightBindGroup2 = gptGfx->create_bind_group(ptDevice, &tLightBGDesc);
+        gptGfx->queue_bind_group_for_deletion(ptDevice, tLightBindGroup2);
 
         const plBindGroupUpdateBufferData atLightBufferData[] = 
         {
@@ -4307,7 +4417,13 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                 }
 
             };
-            plBindGroupHandle tPickBindGroup = gptGfx->get_temporary_bind_group(ptDevice, &tPickBindGroupLayout0, "temporary pick bind group");
+            const plBindGroupDesc tPickBGDesc = {
+                .ptPool      = gptData->aptBindGroupPools[gptGfx->get_current_frame_index()],
+                .ptLayout    = &tPickBindGroupLayout0,
+                .pcDebugName = "temp pick bind group"
+            };
+            plBindGroupHandle tPickBindGroup = gptGfx->create_bind_group(ptDevice, &tPickBGDesc);
+            gptGfx->queue_bind_group_for_deletion(ptDevice, tPickBindGroup);
 
             const plBindGroupUpdateBufferData atPickBufferData[] = 
             {
@@ -4496,10 +4612,17 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             }
         };
 
-        plBindGroupHandle atJFABindGroups[] = {
-            gptGfx->get_temporary_bind_group(gptData->ptDevice, &tJFABindGroupLayout, "temp bind group 0"),
-            gptGfx->get_temporary_bind_group(gptData->ptDevice, &tJFABindGroupLayout, "temp bind group 1")
+        const plBindGroupDesc tJFABindGroupDesc = {
+            .ptPool      = gptData->aptBindGroupPools[gptGfx->get_current_frame_index()],
+            .ptLayout    = &tJFABindGroupLayout,
+            .pcDebugName = "temp jfa bind group"
         };
+        plBindGroupHandle atJFABindGroups[] = {
+            gptGfx->create_bind_group(gptData->ptDevice, &tJFABindGroupDesc),
+            gptGfx->create_bind_group(gptData->ptDevice, &tJFABindGroupDesc)
+        };
+        gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, atJFABindGroups[0]);
+        gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, atJFABindGroups[1]);
 
         const plBindGroupUpdateTextureData atJFATextureData0[] = 
         {
@@ -4654,6 +4777,7 @@ pl_refr_begin_frame(void)
     }
 
     gptGfx->reset_command_pool(gptData->atCmdPools[gptGfx->get_current_frame_index()]);
+    gptGfx->reset_bind_group_pool(gptData->aptBindGroupPools[gptGfx->get_current_frame_index()]);
 
     pl_end_profile_sample(0);
     return true;
@@ -4724,13 +4848,13 @@ pl_refr_get_gizmo_drawlist(uint32_t uSceneHandle, uint32_t uViewHandle)
     return ptView->pt3DGizmoDrawList;
 }
 
-static plTextureHandle
+static plBindGroupHandle
 pl_refr_get_view_color_texture(uint32_t uSceneHandle, uint32_t uViewHandle)
 {
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     plRefView* ptView = &ptScene->atViews[uViewHandle];
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
-    return ptView->tFinalTexture[uFrameIdx];
+    return ptView->tFinalTextureHandle[uFrameIdx];
 }
 
 static void

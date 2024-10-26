@@ -98,6 +98,7 @@ typedef struct _plTextureDesc         plTextureDesc;         // descriptor for c
 typedef struct _plTextureViewDesc     plTextureViewDesc;     // descriptor for creating texture views
 typedef struct _plBufferDesc          plBufferDesc;          // descriptor for creating buffers
 typedef struct _plComputeShaderDesc   plComputeShaderDesc;   // descriptor for creating compute shaders
+typedef struct _plBindGroupDesc       plBindGroupDesc;       // descriptor for creating bind groups
 typedef struct _plSampler             plSampler;             // sampler resource
 typedef struct _plTexture             plTexture;             // texture resource
 typedef struct _plBuffer              plBuffer;              // buffer resource
@@ -113,6 +114,11 @@ typedef struct _plVertexAttribute     plVertexAttribute;     // vertex buffer la
 typedef struct _plRenderEncoder       plRenderEncoder;       // opaque type for command buffer encoder for render ops
 typedef struct _plComputeEncoder      plComputeEncoder;      // opaque type for command buffer encoder for compute ops
 typedef struct _plBlitEncoder         plBlitEncoder;         // opaque type for command buffer encoder for blit ops
+typedef struct _plCommandBuffer       plCommandBuffer;       // opaque type for command buffer
+typedef struct _plCommandPool         plCommandPool;         // opaque type for command buffer pools
+typedef struct _plCommandPoolDesc     plCommandPoolDesc;     // descriptor for creating command pools (future use)
+typedef struct _plBindGroupPool       plBindGroupPool;       // opaque type for bind group pools
+typedef struct _plBindGroupPoolDesc   plBindGroupPoolDesc;   // descriptor for creating bind group pools
 
 // basic types (not finalized)
 typedef struct _plDevice                      plDevice;
@@ -152,8 +158,6 @@ typedef struct _plRenderPassLayoutDescription plRenderPassLayoutDescription;
 typedef struct _plRenderPassDescription       plRenderPassDescription;
 typedef struct _plRenderPass                  plRenderPass;
 typedef struct _plRenderPassAttachments       plRenderPassAttachments;
-typedef struct _plCommandBuffer               plCommandBuffer;
-typedef struct _plCommandPool                 plCommandPool;
 
 // handles
 PL_DEFINE_HANDLE(plBufferHandle);
@@ -244,19 +248,19 @@ typedef struct _plGraphicsI
     void     (*wait_semaphore)     (plDevice*, plSemaphoreHandle, uint64_t);
     uint64_t (*get_semaphore_value)(plDevice*, plSemaphoreHandle);
 
-    // command pools & buffers
-    plCommandPool*   (*create_command_pool)    (plDevice*);
+    // command pools & buffers (finalized)
+    plCommandPool*   (*create_command_pool)    (plDevice*, const plCommandPoolDesc*);
     void             (*cleanup_command_pool)   (plCommandPool*);
-    void             (*reset_command_pool)     (plCommandPool*);
-    plCommandBuffer* (*request_command_buffer) (plCommandPool*);
-    void             (*reset_command_buffer)   (plCommandBuffer*);
-    void             (*return_command_buffer)  (plCommandBuffer*);
-    void             (*wait_on_command_buffer) (plCommandBuffer*);
+    void             (*reset_command_pool)     (plCommandPool*);   // call at beginning of frame
+    plCommandBuffer* (*request_command_buffer) (plCommandPool*);   // retrieve command buffer from the pool
+    void             (*return_command_buffer)  (plCommandBuffer*); // return command buffer to pool
+    void             (*reset_command_buffer)   (plCommandBuffer*); // call if reusing after submit/present
+    void             (*wait_on_command_buffer) (plCommandBuffer*); // call after submit to block/wait
     void             (*begin_command_recording)(plCommandBuffer*, const plBeginCommandInfo*);
     void             (*end_command_recording)  (plCommandBuffer*);
     void             (*submit_command_buffer)  (plCommandBuffer*, const plSubmitInfo*);
     bool             (*present)                (plCommandBuffer*, const plSubmitInfo*, plSwapchain*);
-    
+
     // render encoder
     plRenderEncoder*   (*begin_render_pass)         (plCommandBuffer*, plRenderPassHandle); // do not store
     void               (*next_subpass)              (plRenderEncoder*);
@@ -318,8 +322,10 @@ typedef struct _plGraphicsI
     plTexture*      (*get_texture)               (plDevice*, plTextureHandle); // do not store
 
     // bind groups
-    plBindGroupHandle (*create_bind_group)            (plDevice*, const plBindGroupLayout*, const char* debugName);
-    plBindGroupHandle (*get_temporary_bind_group)     (plDevice*, const plBindGroupLayout*, const char* debugName); // don't submit for deletion
+    plBindGroupPool*  (*create_bind_group_pool)       (plDevice*, const plBindGroupPoolDesc*);
+    void              (*cleanup_bind_group_pool)      (plBindGroupPool*);
+    void              (*reset_bind_group_pool)        (plBindGroupPool*);
+    plBindGroupHandle (*create_bind_group)            (plDevice*, const plBindGroupDesc*);
     void              (*update_bind_group)            (plDevice*, plBindGroupHandle, const plBindGroupUpdateData*);
     void              (*queue_bind_group_for_deletion)(plDevice*, plBindGroupHandle); // do not use temporary bind groups here
     void              (*destroy_bind_group)           (plDevice*, plBindGroupHandle);
@@ -455,7 +461,6 @@ typedef struct _plTexture
     plTextureViewDesc          tView;
     plDeviceMemoryRequirements tMemoryRequirements;
     plDeviceMemoryAllocation   tMemoryAllocation;
-    plBindGroupHandle          tDrawBindGroup;
 } plTexture;
 
 typedef struct _plTextureBinding
@@ -509,6 +514,26 @@ typedef struct _plBindGroupLayout
     // [INTERNAL]
     uint32_t _uHandle;
 } plBindGroupLayout;
+
+typedef struct _plCommandPoolDesc
+{
+    // [INTERNAL]
+    int _iUnused;
+} plCommandPoolDesc;
+
+typedef struct _plBindGroupPoolDesc
+{
+    bool bIndividualResets;
+    // [INTERNAL]
+    int _iUnused;
+} plBindGroupPoolDesc;
+
+typedef struct _plBindGroupDesc
+{
+    const plBindGroupLayout* ptLayout;
+    plBindGroupPool*         ptPool;
+    const char*              pcDebugName;
+} plBindGroupDesc;
 
 typedef struct _plBindGroup
 {

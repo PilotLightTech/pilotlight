@@ -102,21 +102,23 @@ typedef struct _plCommandPool
     plCommandBuffer*    ptCommandBufferFreeList;
 } plCommandPool;
 
-typedef struct _plFrameContext
+typedef struct _plBindGroupPool
 {
+    plDevice*   ptDevice;
+    id<MTLHeap> tDescriptorHeap;
+    uint64_t    uDescriptorHeapOffset;
+
     // temporary bind group stuff
     uint32_t       uCurrentArgumentBuffer;
     plMetalBuffer* sbtArgumentBuffers;
     size_t         szCurrentArgumentOffset;
+} plBindGroupPool;
 
-    // dynamic buffer stuff
+typedef struct _plFrameContext
+{
     uint32_t              uCurrentBufferIndex;
     plMetalDynamicBuffer* sbtDynamicBuffers;
-
     dispatch_semaphore_t tFrameBoundarySemaphore;
-
-    id<MTLHeap> tDescriptorHeap;
-    uint64_t    ulDescriptorHeapOffset;
 } plFrameContext;
 
 typedef struct _plMetalTexture
@@ -251,7 +253,6 @@ typedef struct _plDevice
     plBindGroup*       sbtBindGroupsCold;
     uint32_t*          sbtBindGroupGenerations;
     uint32_t*          sbtBindGroupFreeIndices;
-    plBindGroupHandle* sbtFreeDrawBindGroups;
 
     // timeline semaphores
     plMetalTimelineSemaphore* sbtSemaphoresHot;
@@ -801,85 +802,12 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc)
 }
 
 static plBindGroupHandle
-pl_get_temporary_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, const char* pcName)
+pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
 {
-    plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
-
-    if(pcName == NULL)
-        pcName = "unnamed temporary bind group";
-
+    
     plBindGroupHandle tHandle = pl__get_new_bind_group_handle(ptDevice);
 
-    plBindGroup tBindGroup = {
-        .tLayout = *ptLayout
-    };
-
-    uint32_t uDescriptorCount = ptLayout->uTextureBindingCount + ptLayout->uBufferBindingCount + ptLayout->uSamplerBindingCount;
-
-    for(uint32_t i = 0; i < ptLayout->uTextureBindingCount; i++)
-    {
-        uint32_t uCurrentDescriptorCount = ptLayout->atTextureBindings[i].uDescriptorCount;
-        if(uCurrentDescriptorCount== 0)
-            uCurrentDescriptorCount = 1;
-        if(uCurrentDescriptorCount > 1)
-            uDescriptorCount += ptLayout->atTextureBindings[i].uDescriptorCount - 1;
-    }
-
-    NSUInteger argumentBufferLength = sizeof(uint64_t) * uDescriptorCount;
-
-    if(argumentBufferLength + ptFrame->szCurrentArgumentOffset > ptDevice->szDynamicArgumentBufferSize)
-    {
-        ptFrame->uCurrentArgumentBuffer++;
-        if(ptFrame->uCurrentArgumentBuffer >= pl_sb_size(ptFrame->sbtArgumentBuffers))
-        {
-            plMetalBuffer tArgumentBuffer = {
-                .tBuffer = [ptFrame->tDescriptorHeap newBufferWithLength:ptDevice->szDynamicArgumentBufferSize options:MTLResourceStorageModeShared offset:ptFrame->ulDescriptorHeapOffset]
-            };
-            ptFrame->ulDescriptorHeapOffset += ptDevice->szDynamicArgumentBufferSize;
-            ptFrame->ulDescriptorHeapOffset = PL__ALIGN_UP(ptFrame->ulDescriptorHeapOffset, 256);
-
-            pl_sb_push(ptFrame->sbtArgumentBuffers, tArgumentBuffer);
-        }
-         ptFrame->szCurrentArgumentOffset = 0;
-    }
-
-    plMetalBindGroup tMetalBindGroup = {
-        .tShaderArgumentBuffer = ptFrame->sbtArgumentBuffers[ptFrame->uCurrentArgumentBuffer].tBuffer,
-        .uOffset = ptFrame->szCurrentArgumentOffset,
-    };
-    ptFrame->szCurrentArgumentOffset += argumentBufferLength;
-    [tMetalBindGroup.tShaderArgumentBuffer retain];
-    tMetalBindGroup.tShaderArgumentBuffer.label = [NSString stringWithUTF8String:pcName];
-
-    ptDevice->sbtBindGroupsHot[tHandle.uIndex] = tMetalBindGroup;
-    ptDevice->sbtBindGroupsCold[tHandle.uIndex] = tBindGroup;
-    pl_queue_bind_group_for_deletion(ptDevice, tHandle);
-    return tHandle;
-}
-
-static plBindGroupHandle
-pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, const char* pcName)
-{
-    plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
-
-    if(pcName == NULL)
-        pcName = "unnamed bind group";
-
-    uint32_t uBindGroupIndex = UINT32_MAX;
-    if(pl_sb_size(ptDevice->sbtBindGroupFreeIndices) > 0)
-        uBindGroupIndex = pl_sb_pop(ptDevice->sbtBindGroupFreeIndices);
-    else
-    {
-        uBindGroupIndex = pl_sb_size(ptDevice->sbtBindGroupsCold);
-        pl_sb_add(ptDevice->sbtBindGroupsCold);
-        pl_sb_push(ptDevice->sbtBindGroupGenerations, UINT32_MAX);
-        pl_sb_add(ptDevice->sbtBindGroupsHot);
-    }
-
-    plBindGroupHandle tHandle = {
-        .uGeneration = ++ptDevice->sbtBindGroupGenerations[uBindGroupIndex],
-        .uIndex = uBindGroupIndex
-    };
+    const plBindGroupLayout* ptLayout = ptDesc->ptLayout;
 
     plBindGroup tBindGroup = {
         .tLayout = *ptLayout
@@ -899,18 +827,37 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
     NSUInteger argumentBufferLength = sizeof(uint64_t) * uDescriptorCount;
     MTLSizeAndAlign tSizeAlign = [ptDevice->tDevice heapBufferSizeAndAlignWithLength:argumentBufferLength options:MTLResourceStorageModeShared];
 
-    PL_ASSERT(ptFrame->ulDescriptorHeapOffset + tSizeAlign.size < ptDevice->szArgumentBufferHeapSize);
+    plMetalBindGroup tMetalBindGroup = {0};
+    PL_ASSERT(ptDesc->ptPool->uDescriptorHeapOffset + tSizeAlign.size < ptDevice->szArgumentBufferHeapSize);
 
-    plMetalBindGroup tMetalBindGroup = {
-        .tShaderArgumentBuffer = [ptFrame->tDescriptorHeap newBufferWithLength:tSizeAlign.size options:MTLResourceStorageModeShared offset:ptFrame->ulDescriptorHeapOffset]
-    };
-    tMetalBindGroup.tShaderArgumentBuffer.label = [NSString stringWithUTF8String:pcName];
+    if(argumentBufferLength + ptDesc->ptPool->szCurrentArgumentOffset > ptDevice->szDynamicArgumentBufferSize)
+    {
+        ptDesc->ptPool->uCurrentArgumentBuffer++;
+        if(ptDesc->ptPool->uCurrentArgumentBuffer >= pl_sb_size(ptDesc->ptPool->sbtArgumentBuffers))
+        {
+            plMetalBuffer tArgumentBuffer = {
+                .tBuffer = [ptDesc->ptPool->tDescriptorHeap newBufferWithLength:ptDevice->szDynamicArgumentBufferSize options:MTLResourceStorageModeShared offset:ptDesc->ptPool->uDescriptorHeapOffset]
+            };
+            ptDesc->ptPool->uDescriptorHeapOffset += ptDevice->szDynamicArgumentBufferSize;
+            ptDesc->ptPool->uDescriptorHeapOffset = PL__ALIGN_UP(ptDesc->ptPool->uDescriptorHeapOffset, 256);
+
+            pl_sb_push(ptDesc->ptPool->sbtArgumentBuffers, tArgumentBuffer);
+        }
+        ptDesc->ptPool->szCurrentArgumentOffset = 0;
+    }
+
+    tMetalBindGroup.tShaderArgumentBuffer = ptDesc->ptPool->sbtArgumentBuffers[ptDesc->ptPool->uCurrentArgumentBuffer].tBuffer;
+    tMetalBindGroup.uOffset = ptDesc->ptPool->szCurrentArgumentOffset;
+    ptDesc->ptPool->szCurrentArgumentOffset += argumentBufferLength;
     [tMetalBindGroup.tShaderArgumentBuffer retain];
-    ptFrame->ulDescriptorHeapOffset += tSizeAlign.size;
-    ptFrame->ulDescriptorHeapOffset = PL__ALIGN_UP(ptFrame->ulDescriptorHeapOffset, tSizeAlign.align);
-
-    ptDevice->sbtBindGroupsHot[uBindGroupIndex] = tMetalBindGroup;
-    ptDevice->sbtBindGroupsCold[uBindGroupIndex] = tBindGroup;
+    ptDesc->ptPool->uDescriptorHeapOffset += tSizeAlign.size;
+    ptDesc->ptPool->uDescriptorHeapOffset = PL__ALIGN_UP(ptDesc->ptPool->uDescriptorHeapOffset, tSizeAlign.align);
+    if(ptDesc->pcDebugName)
+        tMetalBindGroup.tShaderArgumentBuffer.label = [NSString stringWithUTF8String:ptDesc->pcDebugName];
+    else
+        tMetalBindGroup.tShaderArgumentBuffer.label = [NSString stringWithUTF8String:"unnamed bind group"];
+    ptDevice->sbtBindGroupsHot[tHandle.uIndex] = tMetalBindGroup;
+    ptDevice->sbtBindGroupsCold[tHandle.uIndex] = tBindGroup;
     return tHandle;
 }
 
@@ -986,6 +933,46 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
     }
 }
 
+static plBindGroupPool*
+pl_create_bind_group_pool(plDevice* ptDevice, const plBindGroupPoolDesc* ptDesc)
+{
+    plBindGroupPool* ptPool = PL_ALLOC(sizeof(plBindGroupPool));
+    memset(ptPool, 0, sizeof(plBindGroupPool));
+
+    MTLHeapDescriptor* ptHeapDescriptor = [MTLHeapDescriptor new];
+    ptHeapDescriptor.storageMode = MTLStorageModeShared;
+    ptHeapDescriptor.size        = ptDevice->szArgumentBufferHeapSize;
+    ptHeapDescriptor.type        = MTLHeapTypePlacement;
+    ptHeapDescriptor.hazardTrackingMode = MTLHazardTrackingModeUntracked;
+    // ptHeapDescriptor.sparsePageSize = MTLSparsePageSize256;
+    ptPool->tDescriptorHeap = [ptDevice->tDevice newHeapWithDescriptor:ptHeapDescriptor];
+    ptPool->uDescriptorHeapOffset = 0;
+    ptPool->ptDevice = ptDevice;
+
+    plMetalBuffer tArgumentBuffer = {
+        .tBuffer = [ptPool->tDescriptorHeap newBufferWithLength:ptDevice->szDynamicArgumentBufferSize options:MTLResourceStorageModeShared offset:ptPool->uDescriptorHeapOffset]
+    };
+    ptPool->uDescriptorHeapOffset += ptDevice->szDynamicArgumentBufferSize;
+    ptPool->uDescriptorHeapOffset = PL__ALIGN_UP(ptPool->uDescriptorHeapOffset, 256);
+
+    pl_sb_push(ptPool->sbtArgumentBuffers, tArgumentBuffer);
+    return ptPool;
+}
+
+static void
+pl_reset_bind_group_pool(plBindGroupPool* ptPool)
+{
+    ptPool->uCurrentArgumentBuffer = 0;
+    ptPool->szCurrentArgumentOffset = 0;
+}
+
+static void
+pl_cleanup_bind_group_pool(plBindGroupPool* ptPool)
+{
+    pl_sb_free(ptPool->sbtArgumentBuffers);
+    PL_FREE(ptPool);
+}
+
 static void
 pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
 {
@@ -1005,37 +992,6 @@ pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plD
     ptMetalTexture->tTexture.label = [NSString stringWithUTF8String:ptTexture->tDesc.pcDebugName];
     [ptMetalTexture->ptTextureDescriptor release];
     ptMetalTexture->ptTextureDescriptor = nil;
-
-    if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
-    {
-        if(pl_sb_size(ptDevice->sbtFreeDrawBindGroups) == 0)
-        {
-            const plBindGroupLayout tDrawingBindGroup = {
-                .uTextureBindingCount  = 1,
-                .atTextureBindings = { 
-                    {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-                }
-            };
-            ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
-        }
-        else
-        {
-            ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup = pl_sb_pop(ptDevice->sbtFreeDrawBindGroups);
-        }
-
-        const plBindGroupUpdateTextureData atBGTextureData[] = {
-            {
-                .tTexture = tHandle,
-                .uSlot    = 0,
-                .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
-            }
-        };
-        const plBindGroupUpdateData tBGData = {
-            .uTextureCount = 1,
-            .atTextureBindings = atBGTextureData
-        };
-        pl_update_bind_group(ptDevice, ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup, &tBGData);
-    }
 }
 
 static plTextureHandle
@@ -1054,37 +1010,6 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc)
 
     plTexture* ptTexture = pl__get_texture(ptDevice, ptViewDesc->tTexture);
     plMetalTexture* ptOldMetalTexture = &ptDevice->sbtTexturesHot[ptViewDesc->tTexture.uIndex];
-
-    if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
-    {
-        if(pl_sb_size(ptDevice->sbtFreeDrawBindGroups) == 0)
-        {
-            const plBindGroupLayout tDrawingBindGroup = {
-                .uTextureBindingCount  = 1,
-                .atTextureBindings = { 
-                    {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-                }
-            };
-            ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
-        }
-        else
-        {
-            ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup = pl_sb_pop(ptDevice->sbtFreeDrawBindGroups);
-        }
-
-        const plBindGroupUpdateTextureData atBGTextureData[] = {
-            {
-                .tTexture = tHandle,
-                .uSlot    = 0,
-                .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
-            }
-        };
-        const plBindGroupUpdateData tBGData = {
-            .uTextureCount = 1,
-            .atTextureBindings = atBGTextureData
-        };
-        pl_update_bind_group(ptDevice, ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup, &tBGData);
-    }
 
     plMetalTexture* ptNewMetalTexture = &ptDevice->sbtTexturesHot[tHandle.uIndex];
     ptNewMetalTexture->bOriginalView = false;
@@ -1606,23 +1531,13 @@ pl__create_device(const plDeviceInfo* ptInfo)
     {
         plFrameContext tFrame = {
             .tFrameBoundarySemaphore = dispatch_semaphore_create(1),
-            .tDescriptorHeap = [ptDevice->tDevice newHeapWithDescriptor:ptHeapDescriptor]
         };
-        tFrame.tDescriptorHeap.label = [NSString stringWithUTF8String:pl_temp_allocator_sprintf(&tTempAllocator, "Descriptor Heap: %u", i)];
         pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
         static char atNameBuffer[PL_MAX_NAME_LENGTH] = {0};
         pl_sprintf(atNameBuffer, "D-BUF-F%d-0", (int)i);
         tFrame.sbtDynamicBuffers[0].tMemory = ptDevice->ptDynamicAllocator->allocate(ptDevice->ptDynamicAllocator->ptInst, 0, ptDevice->tInfo.szDynamicBufferBlockSize, 0,atNameBuffer);
         tFrame.sbtDynamicBuffers[0].tBuffer = [(id<MTLHeap>)tFrame.sbtDynamicBuffers[0].tMemory.uHandle newBufferWithLength:ptDevice->tInfo.szDynamicBufferBlockSize options:MTLResourceStorageModeShared offset:0];
         tFrame.sbtDynamicBuffers[0].tBuffer.label = [NSString stringWithUTF8String:pl_temp_allocator_sprintf(&tTempAllocator, "Dynamic Buffer: %u, 0", i)];
-        
-        plMetalBuffer tArgumentBuffer = {
-            .tBuffer = [tFrame.tDescriptorHeap newBufferWithLength:ptDevice->szDynamicArgumentBufferSize options:MTLResourceStorageModeShared offset:tFrame.ulDescriptorHeapOffset]
-        };
-        tFrame.ulDescriptorHeapOffset += ptDevice->szDynamicArgumentBufferSize;
-        tFrame.ulDescriptorHeapOffset = PL__ALIGN_UP(tFrame.ulDescriptorHeapOffset, 256);
-
-        pl_sb_push(tFrame.sbtArgumentBuffers, tArgumentBuffer);
         pl_sb_push(ptDevice->sbFrames, tFrame);
     }
     pl_temp_allocator_free(&tTempAllocator);
@@ -1745,7 +1660,7 @@ pl_resize(plSwapchain* ptSwapchain)
 }
 
 static plCommandPool*
-pl_create_command_pool(plDevice* ptDevice)
+pl_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptDesc)
 {
     plCommandPool* ptPool = PL_ALLOC(sizeof(plCommandPool));
     memset(ptPool, 0, sizeof(plCommandPool));
@@ -1822,8 +1737,6 @@ pl_begin_frame(plSwapchain* ptSwapchain)
     // Wait until the inflight command buffer has completed its work
     // gptGraphics->tSwapchain.uCurrentImageIndex = gptGraphics->uCurrentFrameIndex;
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
-    ptFrame->uCurrentArgumentBuffer = 0;
-    ptFrame->szCurrentArgumentOffset = 0;
 
     dispatch_semaphore_wait(ptFrame->tFrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
 
@@ -2093,10 +2006,10 @@ pl_bind_compute_bind_groups(
         [ptEncoder->tEncoder setBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uFirst + uCount];
     }
 
-    for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
-    {
-        [ptEncoder->tEncoder useHeap:ptDevice->sbFrames[i].tDescriptorHeap];
-    }
+    // for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
+    // {
+    //     [ptEncoder->tEncoder useHeap:ptDevice->sbFrames[i].tDescriptorHeap];
+    // }
 
     for(uint32_t i = 0; i < uCount; i++)
     {
@@ -2251,10 +2164,10 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
 
-    for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
-    {
-        [ptEncoder->tEncoder useHeap:ptDevice->sbFrames[i].tDescriptorHeap stages:MTLRenderStageVertex | MTLRenderStageFragment];
-    }
+    // for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
+    // {
+    //     [ptEncoder->tEncoder useHeap:ptDevice->sbFrames[i].tDescriptorHeap stages:MTLRenderStageVertex | MTLRenderStageFragment];
+    // }
 
     for(uint32_t i = 0; i < uAreaCount; i++)
     {
@@ -2511,7 +2424,6 @@ pl_cleanup_device(plDevice* ptDevice)
     {
         plFrameContext* ptFrame = &ptDevice->sbFrames[i];
         pl_sb_free(ptFrame->sbtDynamicBuffers);
-        pl_sb_free(ptFrame->sbtArgumentBuffers);
     }
     pl_sb_free(ptDevice->sbFrames);
 

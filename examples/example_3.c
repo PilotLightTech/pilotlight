@@ -196,7 +196,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create command pools
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-        ptAppData->atCmdPools[i] = gptGfx->create_command_pool(ptAppData->ptDevice);
+        ptAppData->atCmdPools[i] = gptGfx->create_command_pool(ptAppData->ptDevice, NULL);
 
     // setup draw
     gptDraw->initialize(NULL);

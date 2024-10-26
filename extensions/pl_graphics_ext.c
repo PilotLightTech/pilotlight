@@ -434,7 +434,6 @@ pl__cleanup_common_swapchain(plSwapchain* ptSwapchain)
 static void
 pl__cleanup_common_device(plDevice* ptDevice)
 {
-    pl_sb_free(ptDevice->sbtFreeDrawBindGroups);
     pl_sb_free(ptDevice->sbtShadersCold);
     pl_sb_free(ptDevice->sbtBuffersCold);
     pl_sb_free(ptDevice->sbtShaderFreeIndices);
@@ -812,7 +811,6 @@ pl_load_graphics_api(void)
         .create_texture_view                    = pl_create_texture_view,
         .create_sampler                         = pl_create_sampler,
         .create_bind_group                      = pl_create_bind_group,
-        .get_temporary_bind_group               = pl_get_temporary_bind_group,
         .update_bind_group                      = pl_update_bind_group,
         .allocate_dynamic_data                  = pl_allocate_dynamic_data,
         .queue_buffer_for_deletion              = pl_queue_buffer_for_deletion,
@@ -846,7 +844,10 @@ pl_load_graphics_api(void)
         .create_command_pool                    = pl_create_command_pool,
         .cleanup_command_pool                   = pl_cleanup_command_pool,
         .reset_command_pool                     = pl_reset_command_pool,
-        .request_command_buffer                = pl_request_command_buffer,
+        .request_command_buffer                 = pl_request_command_buffer,
+        .create_bind_group_pool                 = pl_create_bind_group_pool,
+        .cleanup_bind_group_pool                = pl_cleanup_bind_group_pool,
+        .reset_bind_group_pool                  = pl_reset_bind_group_pool,
     };
     return &tApi;
 }

@@ -143,6 +143,8 @@ typedef struct _plVulkanBindGroupLayout
 
 typedef struct _plVulkanBindGroup
 {
+    VkDescriptorPool      tPool;
+    bool                  bResetable;
     VkDescriptorSet       tDescriptorSet;
     VkDescriptorSetLayout tDescriptorSetLayout;
 } plVulkanBindGroup;
@@ -178,13 +180,19 @@ typedef struct _plCommandPool
     plCommandBuffer* ptCommandBufferFreeList;
 } plCommandPool;
 
+typedef struct _plBindGroupPool
+{
+    plDevice*        ptDevice;
+    VkDescriptorPool tDescriptorPool;
+    bool             bIndividualResets;
+} plBindGroupPool;
+
 typedef struct _plFrameContext
 {
     VkSemaphore           tImageAvailable;
     VkSemaphore           tRenderFinish;
     VkFence               tInFlight;
     VkFramebuffer*        sbtRawFrameBuffers;
-    VkDescriptorPool      tDynamicDescriptorPool;
 
     // dynamic buffer stuff
     uint32_t               uCurrentBufferIndex;
@@ -249,7 +257,6 @@ typedef struct _plDevice
     plBindGroup*       sbtBindGroupsCold;
     uint32_t*          sbtBindGroupGenerations;
     uint32_t*          sbtBindGroupFreeIndices;
-    plBindGroupHandle* sbtFreeDrawBindGroups;
 
     // bind group layouts
     plVulkanBindGroupLayout*  sbtBindGroupLayouts;
@@ -879,12 +886,14 @@ pl_create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, con
 }
 
 static plBindGroupHandle
-pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, const char* pcName)
+pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
 {
     plBindGroupHandle tHandle = pl__get_new_bind_group_handle(ptDevice);
 
+    const plBindGroupLayout* ptLayout = ptDesc->ptLayout;
+
     plBindGroup tBindGroup = {
-        .tLayout = *ptLayout
+        .tLayout = *ptDesc->ptLayout
     };
 
     uint32_t uCurrentBinding = 0;
@@ -958,7 +967,6 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
     };
 
     // create descriptor set layout
-    
     const VkDescriptorSetLayoutCreateInfo tDescriptorSetLayoutInfo = {
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = uDescriptorBindingCount,
@@ -970,7 +978,9 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
     PL_VULKAN(vkCreateDescriptorSetLayout(ptDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tDescriptorSetLayout));
 
     plVulkanBindGroup tVulkanBindGroup = {
-        .tDescriptorSetLayout = tDescriptorSetLayout
+        .bResetable           = ptDesc->ptPool->bIndividualResets,
+        .tDescriptorSetLayout = tDescriptorSetLayout,
+        .tPool                = ptDesc->ptPool->tDescriptorPool
     };
 
     VkDescriptorSetVariableDescriptorCountAllocateInfoEXT variableDescriptorCountAllocInfo = {
@@ -982,7 +992,7 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
     // allocate descriptor sets
     const VkDescriptorSetAllocateInfo tAllocInfo = {
         .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool     = ptDevice->tDescriptorPool,
+        .descriptorPool     = ptDesc->ptPool->tDescriptorPool,
         .descriptorSetCount = 1,
         .pSetLayouts        = &tDescriptorSetLayout,
         .pNext              = bHasVariableDescriptors ? &variableDescriptorCountAllocInfo : NULL
@@ -994,126 +1004,6 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, cons
 
     ptDevice->sbtBindGroupsHot[tHandle.uIndex] = tVulkanBindGroup;
     ptDevice->sbtBindGroupsCold[tHandle.uIndex] = tBindGroup;
-    return tHandle;
-}
-
-static plBindGroupHandle
-pl_get_temporary_bind_group(plDevice* ptDevice, const plBindGroupLayout* ptLayout, const char* pcName)
-{
-    plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
-
-    plBindGroupHandle tHandle = pl__get_new_bind_group_handle(ptDevice);
-
-    plBindGroup tBindGroup = {
-        .tLayout = *ptLayout
-    };
-
-    uint32_t uCurrentBinding = 0;
-    const uint32_t uDescriptorBindingCount = ptLayout->uTextureBindingCount + ptLayout->uBufferBindingCount + ptLayout->uSamplerBindingCount;
-    VkDescriptorSetLayoutBinding* atDescriptorSetLayoutBindings = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorSetLayoutBinding));
-    VkDescriptorBindingFlagsEXT* atDescriptorSetLayoutFlags = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorBindingFlagsEXT));
-    uint32_t tDescriptorCount = 1;
-    bool bHasVariableDescriptors = false;
-
-    for(uint32_t i = 0; i < ptLayout->uBufferBindingCount; i++)
-    {
-        VkDescriptorSetLayoutBinding tBinding =  {
-            .binding         = ptLayout->atBufferBindings[i].uSlot,
-            .descriptorType  = ptLayout->atBufferBindings[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags      = pl__vulkan_stage_flags(ptLayout->atBufferBindings[i].tStages),
-            .pImmutableSamplers = NULL
-        };
-        atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
-        atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
-    }
-
-    for(uint32_t i = 0 ; i < ptLayout->uTextureBindingCount; i++)
-    {
-        VkDescriptorSetLayoutBinding tBinding = {
-            .binding            = ptLayout->atTextureBindings[i].uSlot,
-            .descriptorCount    = ptLayout->atTextureBindings[i].uDescriptorCount,
-            .stageFlags         = pl__vulkan_stage_flags(ptLayout->atTextureBindings[i].tStages),
-            .pImmutableSamplers = NULL
-        };
-
-        if(ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_SAMPLED)
-            tBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        else if(ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT)
-            tBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-        else if(ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_STORAGE)
-            tBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-
-        if(tBinding.descriptorCount > 1)
-            tDescriptorCount = tBinding.descriptorCount;
-        else if(tBinding.descriptorCount == 0)
-            tBinding.descriptorCount = 1;
-        atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
-        if(ptLayout->atTextureBindings[i].bVariableDescriptorCount)
-        {
-            atDescriptorSetLayoutFlags[uCurrentBinding] |= VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
-            bHasVariableDescriptors = true;
-        }
-        atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
-    }
-
-    for(uint32_t i = 0 ; i < ptLayout->uSamplerBindingCount; i++)
-    {
-        VkDescriptorSetLayoutBinding tBinding = {
-            .binding            = ptLayout->atSamplerBindings[i].uSlot,
-            .descriptorType     = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount    = 1,
-            .stageFlags         = pl__vulkan_stage_flags(ptLayout->atSamplerBindings[i].tStages),
-            .pImmutableSamplers = NULL
-        };
-        atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
-        atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
-    }
-
-    VkDescriptorSetLayoutBindingFlagsCreateInfoEXT setLayoutBindingFlags = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT,
-        .bindingCount = uDescriptorBindingCount,
-        .pBindingFlags = atDescriptorSetLayoutFlags,
-        .pNext = NULL
-    };
-
-    // create descriptor set layout
-    const VkDescriptorSetLayoutCreateInfo tDescriptorSetLayoutInfo = {
-        .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = uDescriptorBindingCount,
-        .pBindings    = atDescriptorSetLayoutBindings,
-        .pNext = (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING) ? &setLayoutBindingFlags : NULL,
-        .flags = (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING) ?  VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
-    };
-    VkDescriptorSetLayout tDescriptorSetLayout = VK_NULL_HANDLE;
-    PL_VULKAN(vkCreateDescriptorSetLayout(ptDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, NULL, &tDescriptorSetLayout));
-
-    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
-
-    plVulkanBindGroup tVulkanBindGroup = {
-        .tDescriptorSetLayout = tDescriptorSetLayout
-    };
-
-    VkDescriptorSetVariableDescriptorCountAllocateInfoEXT variableDescriptorCountAllocInfo = {
-        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO_EXT,
-        .descriptorSetCount = 1,
-        .pDescriptorCounts  = &tDescriptorCount,
-    };
-
-    // allocate descriptor sets
-    const VkDescriptorSetAllocateInfo tAllocInfo = {
-        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool     = ptCurrentFrame->tDynamicDescriptorPool,
-        .descriptorSetCount = 1,
-        .pSetLayouts        = &tDescriptorSetLayout,
-        .pNext              = bHasVariableDescriptors ? &variableDescriptorCountAllocInfo : NULL
-    };
-
-    PL_VULKAN(vkAllocateDescriptorSets(ptDevice->tLogicalDevice, &tAllocInfo, &tVulkanBindGroup.tDescriptorSet));
-
-    ptDevice->sbtBindGroupsHot[tHandle.uIndex] = tVulkanBindGroup;
-    ptDevice->sbtBindGroupsCold[tHandle.uIndex] = tBindGroup;
-    pl_queue_bind_group_for_deletion(ptDevice, tHandle);
     return tHandle;
 }
 
@@ -1221,8 +1111,7 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc)
             .uBaseLayer = 0,
             .uLayerCount = tDesc.uLayers,
             .tTexture = tHandle
-        },
-        .tDrawBindGroup = {.ulData = UINT64_MAX}
+        }
     };
 
     plVulkanTexture tVulkanTexture = {
@@ -1364,37 +1253,6 @@ pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plD
         .subresourceRange.aspectMask     = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT,
     };
     PL_VULKAN(vkCreateImageView(ptDevice->tLogicalDevice, &tViewInfo, NULL, &ptVulkanTexture->tImageView));
-
-    if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
-    {
-        if(pl_sb_size(ptDevice->sbtFreeDrawBindGroups) == 0)
-        {
-            const plBindGroupLayout tDrawingBindGroup = {
-                .uTextureBindingCount  = 1,
-                .atTextureBindings = { 
-                    {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-                }
-            };
-            ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
-        }
-        else
-        {
-            ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup = pl_sb_pop(ptDevice->sbtFreeDrawBindGroups);
-        }
-
-        const plBindGroupUpdateTextureData atBGTextureData[] = {
-            {
-                .tTexture = tHandle,
-                .uSlot    = 0,
-                .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
-            }
-        };
-        const plBindGroupUpdateData tBGData = {
-            .uTextureCount = 1,
-            .atTextureBindings = atBGTextureData
-        };
-        pl_update_bind_group(ptDevice, ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup, &tBGData);
-    }
 }
 
 static plTextureHandle
@@ -1404,8 +1262,7 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc)
 
     plTexture tTexture = {
         .tDesc = ptDevice->sbtTexturesCold[ptViewDesc->tTexture.uIndex].tDesc,
-        .tView = *ptViewDesc,
-        .tDrawBindGroup = {.ulData = UINT64_MAX}
+        .tView = *ptViewDesc
     };
 
     plTexture* ptTexture = pl__get_texture(ptDevice, ptViewDesc->tTexture);
@@ -1440,38 +1297,6 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc)
         .subresourceRange.aspectMask     = tImageAspectFlags,
     };
     PL_VULKAN(vkCreateImageView(ptDevice->tLogicalDevice, &tViewInfo, NULL, &ptNewVulkanTexture->tImageView));
-
-    if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
-    {
-        if(pl_sb_size(ptDevice->sbtFreeDrawBindGroups) == 0)
-        {
-            const plBindGroupLayout tDrawingBindGroup = {
-                .uTextureBindingCount  = 1,
-                .atTextureBindings = { 
-                    {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-                }
-            };
-            ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup = pl_create_bind_group(ptDevice, &tDrawingBindGroup, "draw binding");
-        }
-        else
-        {
-            ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup = pl_sb_pop(ptDevice->sbtFreeDrawBindGroups);
-        }
-
-        const plBindGroupUpdateTextureData atBGTextureData[] = {
-            {
-                .tTexture = tHandle,
-                .uSlot    = 0,
-                .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
-            }
-        };
-        const plBindGroupUpdateData tBGData = {
-            .uTextureCount = 1,
-            .atTextureBindings = atBGTextureData
-        };
-        pl_update_bind_group(ptDevice, ptDevice->sbtTexturesCold[tHandle.uIndex].tDrawBindGroup, &tBGData);
-    }
-
     ptNewVulkanTexture->bOriginalView = false;
     ptDevice->sbtTexturesCold[tHandle.uIndex] = tTexture;
     return tHandle;
@@ -2317,7 +2142,7 @@ pl_begin_command_recording(plCommandBuffer* ptCommandBuffer, const plBeginComman
 {
     const VkCommandBufferBeginInfo tBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = gptGraphics->bWithinFrameContext ? 0 : VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+        .flags = 0
     };
     PL_VULKAN(vkBeginCommandBuffer(ptCommandBuffer->tCmdBuffer, &tBeginInfo));   
     
@@ -3257,18 +3082,18 @@ pl__create_device(const plDeviceInfo* ptInfo)
     VkDescriptorPoolSize atPoolSizes[] =
     {
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, (uint32_t)szMaxDynamicBufferDescriptors },
-        { VK_DESCRIPTOR_TYPE_SAMPLER,          (uint32_t)ptDevice->tInfo.szInitSamplerBindings },
-        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,    (uint32_t)ptDevice->tInfo.szInitSampledTextureBindings },
-        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,    (uint32_t)ptDevice->tInfo.szInitStorageTextureBindings },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,   (uint32_t)ptDevice->tInfo.szInitUniformBufferBindings },
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,   (uint32_t)ptDevice->tInfo.szInitStorageBufferBindings },
-        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, (uint32_t)ptDevice->tInfo.szInitAttachmentTextureBindings }
+        // { VK_DESCRIPTOR_TYPE_SAMPLER,          (uint32_t)ptDevice->tInfo.szInitSamplerBindings },
+        // { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,    (uint32_t)ptDevice->tInfo.szInitSampledTextureBindings },
+        // { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,    (uint32_t)ptDevice->tInfo.szInitStorageTextureBindings },
+        // { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,   (uint32_t)ptDevice->tInfo.szInitUniformBufferBindings },
+        // { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,   (uint32_t)ptDevice->tInfo.szInitStorageBufferBindings },
+        // { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, (uint32_t)ptDevice->tInfo.szInitAttachmentTextureBindings }
     };
     VkDescriptorPoolCreateInfo tDescriptorPoolInfo = {
         .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-        .maxSets       = (uint32_t)szMaxSets,
-        .poolSizeCount = 7,
+        .maxSets       = (uint32_t)szMaxDynamicBufferDescriptors,
+        .poolSizeCount = 1,
         .pPoolSizes    = atPoolSizes,
     };
     if(ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING)
@@ -3367,29 +3192,6 @@ pl__create_device(const plDeviceInfo* ptInfo)
             .pNext           = NULL,
         };
         vkUpdateDescriptorSets(ptDevice->tLogicalDevice, 1, &tWrite0, 0, NULL);
-
-        VkDescriptorPoolSize atDynamicPoolSizes[] =
-        {
-            { VK_DESCRIPTOR_TYPE_SAMPLER,          (uint32_t)ptDevice->tInfo.szInitDynamicSamplerBindings },
-            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,    (uint32_t)ptDevice->tInfo.szInitDynamicSampledTextureBindings },
-            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,    (uint32_t)ptDevice->tInfo.szInitDynamicStorageTextureBindings },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,   (uint32_t)ptDevice->tInfo.szInitDynamicUniformBufferBindings },
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,   (uint32_t)ptDevice->tInfo.szInitDynamicStorageBufferBindings },
-            { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, (uint32_t)ptDevice->tInfo.szInitDynamicAttachmentTextureBindings }
-        };
-        VkDescriptorPoolCreateInfo tDynamicDescriptorPoolInfo = {
-            .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-            .maxSets       = (uint32_t)szMaxDynamicSets,
-            .poolSizeCount = 6,
-            .pPoolSizes    = atDynamicPoolSizes,
-        };
-        if(ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING)
-        {
-            tDynamicDescriptorPoolInfo.flags |= VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT;
-        }
-        PL_VULKAN(vkCreateDescriptorPool(ptDevice->tLogicalDevice, &tDynamicDescriptorPoolInfo, NULL, &tFrame.tDynamicDescriptorPool));
-
         ptDevice->sbFrames[i] = tFrame;
     }
     pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
@@ -3501,10 +3303,7 @@ pl_begin_frame(plSwapchain* ptSwap)
     {
         PL_VULKAN(err);
     }
-
-    PL_VULKAN(vkResetDescriptorPool(ptDevice->tLogicalDevice, ptCurrentFrame->tDynamicDescriptorPool, 0));
     PL_VULKAN(vkResetCommandPool(ptDevice->tLogicalDevice, ptDevice->tCmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT));
-    
     pl_end_profile_sample(0);
     return true; 
 }
@@ -3778,7 +3577,6 @@ pl_cleanup_device(plDevice* ptDevice)
         vkDestroySemaphore(ptDevice->tLogicalDevice, ptFrame->tImageAvailable, NULL);
         vkDestroySemaphore(ptDevice->tLogicalDevice, ptFrame->tRenderFinish, NULL);
         vkDestroyFence(ptDevice->tLogicalDevice, ptFrame->tInFlight, NULL);
-        vkDestroyDescriptorPool(ptDevice->tLogicalDevice, ptFrame->tDynamicDescriptorPool, NULL);
 
         for(uint32_t j = 0; j < pl_sb_size(ptFrame->sbtDynamicBuffers); j++)
         {
@@ -4455,8 +4253,64 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
     }
 }
 
+static plBindGroupPool*
+pl_create_bind_group_pool(plDevice* ptDevice, const plBindGroupPoolDesc* ptDesc)
+{
+    plBindGroupPool* ptPool = PL_ALLOC(sizeof(plBindGroupPool));
+    memset(ptPool, 0, sizeof(plBindGroupPool));
+    ptPool->bIndividualResets = ptDesc->bIndividualResets;
+
+    const size_t szMaxDynamicBufferDescriptors = ptDevice->tInfo.szDynamicBufferBlockSize / ptDevice->tInfo.szDynamicDataMaxSize;
+
+    const size_t szMaxSets = szMaxDynamicBufferDescriptors + 
+        ptDevice->tInfo.szInitSamplerBindings + 
+        ptDevice->tInfo.szInitUniformBufferBindings +
+        ptDevice->tInfo.szInitStorageBufferBindings +
+        ptDevice->tInfo.szInitSampledTextureBindings +
+        ptDevice->tInfo.szInitStorageTextureBindings +
+        ptDevice->tInfo.szInitAttachmentTextureBindings;
+
+    VkDescriptorPoolSize atPoolSizes[] =
+    {
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, (uint32_t)szMaxDynamicBufferDescriptors },
+        { VK_DESCRIPTOR_TYPE_SAMPLER,          (uint32_t)ptDevice->tInfo.szInitSamplerBindings },
+        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,    (uint32_t)ptDevice->tInfo.szInitSampledTextureBindings },
+        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,    (uint32_t)ptDevice->tInfo.szInitStorageTextureBindings },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,   (uint32_t)ptDevice->tInfo.szInitUniformBufferBindings },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,   (uint32_t)ptDevice->tInfo.szInitStorageBufferBindings },
+        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, (uint32_t)ptDevice->tInfo.szInitAttachmentTextureBindings }
+    };
+    VkDescriptorPoolCreateInfo tDescriptorPoolInfo = {
+        .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+        .maxSets       = (uint32_t)szMaxSets,
+        .poolSizeCount = 7,
+        .pPoolSizes    = atPoolSizes,
+    };
+    if(ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_DESCRIPTOR_INDEXING)
+    {
+        tDescriptorPoolInfo.flags |= VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT;
+    }
+    PL_VULKAN(vkCreateDescriptorPool(ptDevice->tLogicalDevice, &tDescriptorPoolInfo, NULL, &ptPool->tDescriptorPool));
+    ptPool->ptDevice = ptDevice;
+    return ptPool;
+}
+
+static void
+pl_reset_bind_group_pool(plBindGroupPool* ptPool)
+{
+    vkResetDescriptorPool(ptPool->ptDevice->tLogicalDevice, ptPool->tDescriptorPool, 0);
+}
+
+static void
+pl_cleanup_bind_group_pool(plBindGroupPool* ptPool)
+{
+    vkDestroyDescriptorPool(ptPool->ptDevice->tLogicalDevice, ptPool->tDescriptorPool, NULL);
+    PL_FREE(ptPool);
+}
+
 static plCommandPool*
-pl_create_command_pool(plDevice* ptDevice)
+pl_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptDesc)
 {
     plCommandPool* ptPool = PL_ALLOC(sizeof(plCommandPool));
     memset(ptPool, 0, sizeof(plCommandPool));
@@ -5094,6 +4948,9 @@ pl__garbage_collect(plDevice* ptDevice)
     {
         const uint32_t iBindGroupIndex = ptGarbage->sbtBindGroups[i].uIndex;
         plVulkanBindGroup* ptVulkanResource = &ptDevice->sbtBindGroupsHot[iBindGroupIndex];
+        if(ptVulkanResource->bResetable)
+            vkFreeDescriptorSets(ptDevice->tLogicalDevice, ptVulkanResource->tPool, 1, &ptVulkanResource->tDescriptorSet);
+        ptVulkanResource->tPool = VK_NULL_HANDLE;
         ptVulkanResource->tDescriptorSet = VK_NULL_HANDLE;
         vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanResource->tDescriptorSetLayout, NULL);
         ptVulkanResource->tDescriptorSetLayout = VK_NULL_HANDLE;
@@ -5161,10 +5018,6 @@ pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
     ptDevice->sbtTextureGenerations[tHandle.uIndex]++;
     
     plTexture* ptTexture = &ptDevice->sbtTexturesCold[tHandle.uIndex];
-    if(ptTexture->tDrawBindGroup.ulData != UINT64_MAX)
-    {
-        pl_sb_push(ptDevice->sbtFreeDrawBindGroups, ptTexture->tDrawBindGroup);
-    }
     if(ptTexture->tMemoryAllocation.ptAllocator)
         ptTexture->tMemoryAllocation.ptAllocator->free(ptTexture->tMemoryAllocation.ptAllocator->ptInst, &ptTexture->tMemoryAllocation);
     else

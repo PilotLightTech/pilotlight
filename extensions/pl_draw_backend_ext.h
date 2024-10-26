@@ -30,6 +30,10 @@ typedef struct _plDrawBackendI plDrawBackendI;
 #include <stdint.h>
 #include "pl_math.h"
 
+#ifndef plTextureID
+    typedef uint64_t plTextureID;
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
@@ -42,6 +46,9 @@ typedef int    plDrawFlags;                  // pl_draw_ext.h
 typedef struct _plDevice        plDevice;        // pl_graphics_ext.h
 typedef struct _plRenderEncoder plRenderEncoder; // pl_graphics_ext.h
 typedef struct _plCommandBuffer plCommandBuffer; // pl_graphics_ext.h
+
+typedef union plBindGroupHandle plBindGroupHandle;
+typedef union plTextureHandle plTextureHandle;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -57,6 +64,8 @@ typedef struct _plDrawBackendI
 
     bool (*build_font_atlas)  (plCommandBuffer*, plFontAtlas*);
     void (*cleanup_font_atlas)(plFontAtlas*);
+
+    plBindGroupHandle (*create_bind_group_for_texture)(plTextureHandle);
 
     void (*submit_2d_drawlist)(plDrawList2D*, plRenderEncoder*, float fWidth, float fHeight, uint32_t uMSAASampleCount);
     void (*submit_3d_drawlist)(plDrawList3D*, plRenderEncoder*, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t uMSAASampleCount);
