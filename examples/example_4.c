@@ -208,7 +208,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .szByteSize   = sizeof(float) * 18,
         .pcDebugName  = "vertex buffer"
     };
-    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tBufferDesc);
+    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tBufferDesc, NULL);
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
     plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tVertexBuffer);

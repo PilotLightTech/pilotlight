@@ -39,6 +39,7 @@ static plBuffer*           pl__get_buffer           (plDevice*, plBufferHandle);
 static plTexture*          pl__get_texture          (plDevice*, plTextureHandle);
 static plBindGroup*        pl__get_bind_group       (plDevice*, plBindGroupHandle);
 static plShader*           pl__get_shader           (plDevice*, plShaderHandle);
+static plComputeShader*    pl__get_compute_shader   (plDevice*, plComputeShaderHandle);
 
 // new handles
 static plBufferHandle           pl__get_new_buffer_handle(plDevice*);

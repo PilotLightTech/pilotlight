@@ -92,33 +92,44 @@ typedef struct _plGraphicsI plGraphicsI;
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
-// basic types (finalized)
-typedef struct _plSamplerDesc         plSamplerDesc;         // descriptor for creating samplers
-typedef struct _plTextureDesc         plTextureDesc;         // descriptor for creating textures
-typedef struct _plTextureViewDesc     plTextureViewDesc;     // descriptor for creating texture views
-typedef struct _plBufferDesc          plBufferDesc;          // descriptor for creating buffers
-typedef struct _plComputeShaderDesc   plComputeShaderDesc;   // descriptor for creating compute shaders
-typedef struct _plBindGroupDesc       plBindGroupDesc;       // descriptor for creating bind groups
-typedef struct _plSampler             plSampler;             // sampler resource
-typedef struct _plTexture             plTexture;             // texture resource
-typedef struct _plBuffer              plBuffer;              // buffer resource
-typedef struct _plComputeShader       plComputeShader;       // compute shader resource
-typedef struct _plBindGroupLayout     plBindGroupLayout;     // bind group layout decription
-typedef struct _plDrawStream          plDrawStream;          // draw command for drawing stream API
-typedef struct _plDrawStreamData      plDrawStreamData;      // data for draw stream API
-typedef struct _plDraw                plDraw;                // data for submitting individual draw command
-typedef struct _plDrawIndex           plDrawIndex;           // data for submitting individual indexed draw command
-typedef struct _plBindGroupUpdateData plBindGroupUpdateData; // data for updating bind groups
-typedef struct _plVertexBufferLayout  plVertexBufferLayout;  // vertex buffer layout description
-typedef struct _plVertexAttribute     plVertexAttribute;     // vertex buffer layout attribute
-typedef struct _plRenderEncoder       plRenderEncoder;       // opaque type for command buffer encoder for render ops
-typedef struct _plComputeEncoder      plComputeEncoder;      // opaque type for command buffer encoder for compute ops
-typedef struct _plBlitEncoder         plBlitEncoder;         // opaque type for command buffer encoder for blit ops
-typedef struct _plCommandBuffer       plCommandBuffer;       // opaque type for command buffer
-typedef struct _plCommandPool         plCommandPool;         // opaque type for command buffer pools
-typedef struct _plCommandPoolDesc     plCommandPoolDesc;     // descriptor for creating command pools (future use)
-typedef struct _plBindGroupPool       plBindGroupPool;       // opaque type for bind group pools
-typedef struct _plBindGroupPoolDesc   plBindGroupPoolDesc;   // descriptor for creating bind group pools
+// basic types
+typedef struct _plSamplerDesc                plSamplerDesc;                // descriptor for creating samplers
+typedef struct _plTextureDesc                plTextureDesc;                // descriptor for creating textures
+typedef struct _plTextureViewDesc            plTextureViewDesc;            // descriptor for creating texture views
+typedef struct _plBufferDesc                 plBufferDesc;                 // descriptor for creating buffers
+typedef struct _plComputeShaderDesc          plComputeShaderDesc;          // descriptor for creating compute shaders
+typedef struct _plBindGroupDesc              plBindGroupDesc;              // descriptor for creating bind groups
+typedef struct _plShader                     plShader;                     // shader resource
+typedef struct _plSampler                    plSampler;                    // sampler resource
+typedef struct _plTexture                    plTexture;                    // texture resource
+typedef struct _plBuffer                     plBuffer;                     // buffer resource
+typedef struct _plComputeShader              plComputeShader;              // compute shader resource
+typedef struct _plBindGroup                  plBindGroup;                  // bind group resource
+typedef struct _plBindGroupLayout            plBindGroupLayout;            // bind group layout decription
+typedef struct _plDrawStream                 plDrawStream;                 // draw command for drawing stream API
+typedef struct _plDrawStreamData             plDrawStreamData;             // data for draw stream API
+typedef struct _plDraw                       plDraw;                       // data for submitting individual draw command
+typedef struct _plDrawIndex                  plDrawIndex;                  // data for submitting individual indexed draw command
+typedef struct _plDispatch                   plDispatch;                   // data for submitting individual compute command
+typedef struct _plBindGroupUpdateData        plBindGroupUpdateData;        // data for updating bind groups
+typedef struct _plVertexBufferLayout         plVertexBufferLayout;         // vertex buffer layout description
+typedef struct _plVertexAttribute            plVertexAttribute;            // vertex buffer layout attribute
+typedef struct _plRenderEncoder              plRenderEncoder;              // opaque type for command buffer encoder for render ops
+typedef struct _plComputeEncoder             plComputeEncoder;             // opaque type for command buffer encoder for compute ops
+typedef struct _plBlitEncoder                plBlitEncoder;                // opaque type for command buffer encoder for blit ops
+typedef struct _plCommandBuffer              plCommandBuffer;              // opaque type for command buffer
+typedef struct _plCommandPool                plCommandPool;                // opaque type for command buffer pools
+typedef struct _plCommandPoolDesc            plCommandPoolDesc;            // descriptor for creating command pools (future use)
+typedef struct _plBindGroupPool              plBindGroupPool;              // opaque type for bind group pools
+typedef struct _plBindGroupPoolDesc          plBindGroupPoolDesc;          // descriptor for creating bind group pools
+typedef struct _plShaderModule               plShaderModule;               // shader code
+typedef struct _plBufferBinding              plBufferBinding;              // buffer binding for bind groups
+typedef struct _plSamplerBinding             plSamplerBinding;             // sampler binding for bind groups
+typedef struct _plDynamicBinding             plDynamicBinding;             // dynamic binding for bind groups
+typedef struct _plSpecializationConstant     plSpecializationConstant;     // shader specialization constant
+typedef struct _plBindGroupUpdateBufferData  plBindGroupUpdateBufferData;  // buffer update data for bind groups
+typedef struct _plBindGroupUpdateSamplerData plBindGroupUpdateSamplerData; // sampler update data for bind groups
+typedef struct _plBlendState                 plBlendState;                 // blend state
 
 // basic types (not finalized)
 typedef struct _plDevice                      plDevice;
@@ -127,19 +138,10 @@ typedef struct _plSwapchain                   plSwapchain;
 typedef struct _plSurface                     plSurface;
 typedef struct _plGraphicsInit                plGraphicsInit;
 typedef struct _plSwapchainInit               plSwapchainInit;
-typedef struct _plDispatch                    plDispatch;
 typedef struct _plDrawArea                    plDrawArea;
 typedef struct _plGraphicsState               plGraphicsState;
-typedef struct _plBlendState                  plBlendState;
-typedef struct _plSpecializationConstant      plSpecializationConstant;
-typedef struct _plShaderModule                plShaderModule;
 typedef struct _plShaderDescription           plShaderDescription;
-typedef struct _plShader                      plShader;
-typedef struct _plBindGroup                   plBindGroup;
-typedef struct _plBufferBinding               plBufferBinding;
 typedef struct _plTextureBinding              plTextureBinding;
-typedef struct _plSamplerBinding              plSamplerBinding;
-typedef struct _plDynamicBinding              plDynamicBinding;
 typedef struct _plRenderViewport              plRenderViewport;
 typedef struct _plScissor                     plScissor;
 typedef struct _plExtent                      plExtent;
@@ -147,8 +149,6 @@ typedef struct _plBufferImageCopy             plBufferImageCopy;
 typedef struct _plBeginCommandInfo            plBeginCommandInfo;
 typedef struct _plSubmitInfo                  plSubmitInfo;
 typedef struct _plBindGroupUpdateTextureData  plBindGroupUpdateTextureData;
-typedef struct _plBindGroupUpdateBufferData   plBindGroupUpdateBufferData;
-typedef struct _plBindGroupUpdateSamplerData  plBindGroupUpdateSamplerData;
 typedef struct _plRenderTarget                plRenderTarget;
 typedef struct _plColorTarget                 plColorTarget;
 typedef struct _plDepthTarget                 plDepthTarget;
@@ -175,7 +175,7 @@ typedef struct _plDeviceMemoryRequirements plDeviceMemoryRequirements;
 typedef struct _plDeviceMemoryAllocation   plDeviceMemoryAllocation;
 typedef struct _plDeviceMemoryAllocatorI   plDeviceMemoryAllocatorI;
 
-// enums (finalized)
+// enums
 typedef int plMipmapMode;         // -> enum _plMipmapMode             // Enum: mipmap filter modes (PL_MIPMAP_MODE_XXXX)
 typedef int plAddressMode;        // -> enum _plAddressMode            // Enum: addressing mode sampling textures outside image (PL_ADDRESS_MODE_XXXX)
 typedef int plFilter;             // -> enum _plFilter                 // Enum: texture lookup filters (PL_FILTER_XXXX)
@@ -186,22 +186,22 @@ typedef int plCompareMode;        // -> enum _plCompareMode            // Enum: 
 typedef int plFormat;             // -> enum _plFormat                 // Enum: formats (PL_FORMAT_XXXX)
 typedef int plBufferUsage;        // -> enum _plBufferUsage            // Flag: buffer usage flags (PL_BUFFER_USAGE_XXXX)
 typedef int plStageFlags;         // -> enum _plStageFlags             // Flag: GPU pipeline stage (PL_STAGE_XXXX)
-typedef int plCullMode;           // -> enum _plCullMode               // Flag: face culling mode(PL_CULL_MODE_XXXX)
-typedef int plBufferBindingType;  // -> enum _plBufferBindingType      // Enum: buffer binding type for bind groups(PL_BUFFER_BINDING_TYPE_XXXX)
+typedef int plCullMode;           // -> enum _plCullMode               // Flag: face culling mode (PL_CULL_MODE_XXXX)
+typedef int plBufferBindingType;  // -> enum _plBufferBindingType      // Enum: buffer binding type for bind groups (PL_BUFFER_BINDING_TYPE_XXXX)
+typedef int plTextureBindingType; // -> enum _plTextureBindingType     // Enum: image binding type for bind groups (PL_TEXTURE_BINDING_TYPE_XXXX)
+typedef int plBindGroupPoolFlags; // -> enum _plBindGroupPoolFlags     // Flags: flags for creating bind group pools (PL_BIND_GROUP_POOL_FLAGS_XXXX)
+typedef int plMemoryMode;         // -> enum _plMemoryMode             // Enum: memory modes for allocating memory (PL_MEMORY_XXXX)
+typedef int plStencilOp;          // -> enum _plStencilOp              // Enum: stencil operations (PL_STENCIL_OP_XXXX)
+typedef int plLoadOp;             // -> enum _plLoadOp                 // Enum: render pass target load operations (PL_LOAD_OP_XXXX)
+typedef int plStoreOp;            // -> enum _plStoreOp                // Enum: render pass target store operations (PL_STORE_OP_XXXX)
+typedef int plBlendOp;            // -> enum _plBlendOp                // Enum: blend operations (PL_BLEND_OP_XXXX)
+typedef int plBlendFactor;        // -> enum _plBlendFactor            // Enum: blend operation factors (PL_BLEND_FACTOR_XXXX)
+typedef int plDataType;           // -> enum _plDataType               // Enum: data types
 
 // enums (not finalized)
 typedef int plGraphicsInitFlags;  // -> enum _plGraphicsInitFlags      // Flags:
 typedef int plDeviceInitFlags;    // -> enum _plDeviceInitFlags        // Flags:
 typedef int plSwapchainInitFlags; // -> enum _plSwapchainInitFlags     // Flags:
-typedef int plDataType;           // -> enum _plDataType               // Enum:
-typedef int plTextureBindingType; // -> enum _plTextureBindingType     // Enum:
-typedef int plStencilOp;          // -> enum _plStencilOp              // Enum:
-typedef int plMemoryMode;         // -> enum _plMemoryMode             // Enum:
-typedef int plLoadOperation;      // -> enum _plLoadOperation          // Enum:
-typedef int plLoadOp;             // -> enum _plLoadOp                 // Enum:
-typedef int plStoreOp;            // -> enum _plStoreOp                // Enum:
-typedef int plBlendOp;            // -> enum _plBlendOp                // Enum:
-typedef int plBlendFactor;        // -> enum _plBlendFactor            // Enum:
 typedef int plVendorId;           // -> enum _plVendorId               // Enum:
 typedef int plDeviceType;         // -> enum _plDeviceType             // Enum:
 typedef int plDeviceCapability;   // -> enum _plDeviceCapability       // Flags:
@@ -220,35 +220,35 @@ typedef struct _plGraphicsI
     void (*resize)    (plSwapchain*);
     void (*cleanup)   (void);
 
-    // devices
+    // devices (not finalized)
     void      (*enumerate_devices)(plDeviceInfo*, uint32_t* deviceCountOut);
     plDevice* (*create_device)    (const plDeviceInfo*);
     void      (*cleanup_device)   (plDevice*);
     void      (*flush_device)     (plDevice*);
 
-    // surface
+    // surface (not finalized)
     plSurface* (*create_surface) (plWindow*);
     void       (*cleanup_surface)(plSurface*);
 
-    // swapchain
+    // swapchain (not finalized)
     plSwapchain* (*create_swapchain) (plDevice*, const plSwapchainInit*);
     void         (*cleanup_swapchain)(plSwapchain*);
 
-    // query (finalized)
+    // query
     uint32_t (*get_frames_in_flight)   (void);
     uint32_t (*get_current_frame_index)(void);
     size_t   (*get_host_memory_in_use) (void);
     size_t   (*get_local_memory_in_use)(void);
 
-    // per frame
+    // per frame (not finalized)
     bool (*begin_frame)(plSwapchain*);
 
-    // timeline semaphore ops (finalized)
+    // timeline semaphore ops
     void     (*signal_semaphore)   (plDevice*, plSemaphoreHandle, uint64_t);
     void     (*wait_semaphore)     (plDevice*, plSemaphoreHandle, uint64_t);
     uint64_t (*get_semaphore_value)(plDevice*, plSemaphoreHandle);
 
-    // command pools & buffers (finalized)
+    // command pools & buffers
     plCommandPool*   (*create_command_pool)    (plDevice*, const plCommandPoolDesc*);
     void             (*cleanup_command_pool)   (plCommandPool*);
     void             (*reset_command_pool)     (plCommandPool*);   // call at beginning of frame
@@ -261,20 +261,20 @@ typedef struct _plGraphicsI
     void             (*submit_command_buffer)  (plCommandBuffer*, const plSubmitInfo*);
     bool             (*present)                (plCommandBuffer*, const plSubmitInfo*, plSwapchain*);
 
-    // render encoder
+    // render encoder (not finalized)
     plRenderEncoder*   (*begin_render_pass)         (plCommandBuffer*, plRenderPassHandle); // do not store
     void               (*next_subpass)              (plRenderEncoder*);
     void               (*end_render_pass)           (plRenderEncoder*);
     plRenderPassHandle (*get_encoder_render_pass)   (plRenderEncoder*);
     uint32_t           (*get_render_encoder_subpass)(plRenderEncoder*);
 
-    // render encoder: draw stream (preferred system) (finalized)
+    // render encoder: draw stream (preferred system)
     void (*reset_draw_stream)  (plDrawStream*);
     void (*cleanup_draw_stream)(plDrawStream*);
     void (*add_to_stream)      (plDrawStream*, plDrawStreamData);
     void (*draw_stream)        (plRenderEncoder*, uint32_t areaCount, plDrawArea*);
 
-    // render encoder: direct (prefer draw stream, this should be used for bindless mostly) (finalized)
+    // render encoder: direct (prefer draw stream, this should be used for bindless mostly)
     void (*bind_graphics_bind_groups)(plRenderEncoder*, plShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
     void (*set_viewport)             (plRenderEncoder*, const plRenderViewport*);
     void (*set_scissor_region)       (plRenderEncoder*, const plScissor*);
@@ -283,38 +283,39 @@ typedef struct _plGraphicsI
     void (*draw_indexed)             (plRenderEncoder*, uint32_t count, const plDrawIndex*);
     void (*bind_shader)              (plRenderEncoder*, plShaderHandle);
 
-    // compute encoder (finalized)
+    // compute encoder
     plComputeEncoder* (*begin_compute_pass)      (plCommandBuffer*); // do not store
     void              (*end_compute_pass)        (plComputeEncoder*);
     void              (*dispatch)                (plComputeEncoder*, uint32_t dispatchCount, const plDispatch*);
     void              (*bind_compute_shader)     (plComputeEncoder*, plComputeShaderHandle);
     void              (*bind_compute_bind_groups)(plComputeEncoder*, plComputeShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
 
-    // blit encoder
-    plBlitEncoder* (*begin_blit_pass)       (plCommandBuffer*);
-    void           (*end_blit_pass)         (plBlitEncoder*);
-    void           (*copy_buffer_to_texture)(plBlitEncoder*, plBufferHandle, plTextureHandle, uint32_t regionCount, const plBufferImageCopy*);
-    void           (*copy_texture_to_buffer)(plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
-    void           (*generate_mipmaps)      (plBlitEncoder*, plTextureHandle);
-    void           (*copy_buffer)           (plBlitEncoder*, plBufferHandle source, plBufferHandle destination, uint32_t sourceOffset, uint32_t destinationOffset, size_t);
+    // blit encoder 
+    plBlitEncoder* (*begin_blit_pass)          (plCommandBuffer*);
+    void           (*end_blit_pass)            (plBlitEncoder*);
+    void           (*set_texture_usage)        (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage);
+    void           (*copy_buffer_to_texture)   (plBlitEncoder*, plBufferHandle, plTextureHandle, uint32_t regionCount, const plBufferImageCopy*);
+    void           (*copy_texture_to_buffer)   (plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
+    void           (*generate_mipmaps)         (plBlitEncoder*, plTextureHandle);
+    void           (*copy_buffer)              (plBlitEncoder*, plBufferHandle source, plBufferHandle destination, uint32_t sourceOffset, uint32_t destinationOffset, size_t);
 
     //-----------------------------------------------------------------------------
 
-    // buffers (finalized)
-    plBufferHandle (*create_buffer)            (plDevice*, const plBufferDesc*);
+    // buffers
+    plBufferHandle (*create_buffer)            (plDevice*, const plBufferDesc*, plBuffer**);
     void           (*bind_buffer_to_memory)    (plDevice*, plBufferHandle, const plDeviceMemoryAllocation*);
     void           (*queue_buffer_for_deletion)(plDevice*, plBufferHandle);
     void           (*destroy_buffer)           (plDevice*, plBufferHandle);
     plBuffer*      (*get_buffer)               (plDevice*, plBufferHandle); // do not store
 
-    // samplers (finalized)
+    // samplers
     plSamplerHandle (*create_sampler)            (plDevice*, const plSamplerDesc*);
     void            (*destroy_sampler)           (plDevice*, plSamplerHandle);
     void            (*queue_sampler_for_deletion)(plDevice*, plSamplerHandle);
     plSampler*      (*get_sampler)               (plDevice*, plSamplerHandle); // do not store
 
-    // textures (finalized)
-    plTextureHandle (*create_texture)            (plDevice*, const plTextureDesc*);
+    // textures
+    plTextureHandle (*create_texture)            (plDevice*, const plTextureDesc*, plTexture**);
     plTextureHandle (*create_texture_view)       (plDevice*, const plTextureViewDesc*);
     void            (*bind_texture_to_memory)    (plDevice*, plTextureHandle, const plDeviceMemoryAllocation*);
     void            (*queue_texture_for_deletion)(plDevice*, plTextureHandle);
@@ -327,11 +328,11 @@ typedef struct _plGraphicsI
     void              (*reset_bind_group_pool)        (plBindGroupPool*);
     plBindGroupHandle (*create_bind_group)            (plDevice*, const plBindGroupDesc*);
     void              (*update_bind_group)            (plDevice*, plBindGroupHandle, const plBindGroupUpdateData*);
-    void              (*queue_bind_group_for_deletion)(plDevice*, plBindGroupHandle); // do not use temporary bind groups here
+    void              (*queue_bind_group_for_deletion)(plDevice*, plBindGroupHandle);
     void              (*destroy_bind_group)           (plDevice*, plBindGroupHandle);
     plBindGroup*      (*get_bind_group)               (plDevice*, plBindGroupHandle); // do not store
     
-    // render passes
+    // render passes (not finalized)
     plRenderPassHandle (*create_render_pass)            (plDevice*, const plRenderPassDescription*, const plRenderPassAttachments*);
     void               (*update_render_pass_attachments)(plDevice*, plRenderPassHandle, plVec2 dimensions, const plRenderPassAttachments*);
     void               (*queue_render_pass_for_deletion)(plDevice*, plRenderPassHandle);
@@ -341,27 +342,27 @@ typedef struct _plGraphicsI
     // temporary (will be removed)
     plRenderPassHandle (*get_main_render_pass)(plDevice*);
 
-    // render pass layouts (finalized)
+    // render pass layouts
     plRenderPassLayoutHandle (*create_render_pass_layout)            (plDevice*, const plRenderPassLayoutDescription*);
     void                     (*queue_render_pass_layout_for_deletion)(plDevice*, plRenderPassLayoutHandle);
     void                     (*destroy_render_pass_layout)           (plDevice*, plRenderPassLayoutHandle);
     plRenderPassLayout*      (*get_render_pass_layout)               (plDevice*, plRenderPassLayoutHandle); // do not store
 
-    // pixel & vertex shaders (finalized)
+    // pixel & vertex shaders
     plShaderHandle (*create_shader)            (plDevice*, const plShaderDescription*);
     void           (*queue_shader_for_deletion)(plDevice*, plShaderHandle);
     void           (*destroy_shader)           (plDevice*, plShaderHandle);
     plShader*      (*get_shader)               (plDevice*, plShaderHandle); // do not store
 
-    // compute shaders (finalized)
+    // compute shaders
     plComputeShaderHandle (*create_compute_shader)            (plDevice*, const plComputeShaderDesc*);
     void                  (*queue_compute_shader_for_deletion)(plDevice*, plComputeShaderHandle);
     void                  (*destroy_compute_shader)           (plDevice*, plComputeShaderHandle);
 
-    // syncronization
+    // syncronization (not finalized)
     plSemaphoreHandle (*create_semaphore)(plDevice*, bool hostVisible);
 
-    // memory (finalized)
+    // memory
     plDynamicBinding        (*allocate_dynamic_data)(plDevice*, size_t); // TODO: add multi-version
     plDeviceMemoryAllocation(*allocate_memory)      (plDevice*, size_t, plMemoryMode, uint32_t typeFilter, const char* debugName);
     void                    (*free_memory)          (plDevice*, plDeviceMemoryAllocation*);
@@ -417,6 +418,9 @@ typedef struct _plSamplerDesc
 typedef struct _plSampler
 {
     plSamplerDesc tDesc;
+
+    // [INTERNAL]
+    uint32_t _uGeneration;
 } plSampler;
 
 typedef struct _plSamplerBinding
@@ -440,7 +444,6 @@ typedef struct _plTextureDesc
     plFormat       tFormat;
     plTextureType  tType;
     plTextureUsage tUsage;
-    plTextureUsage tInitialUsage;
     const char*    pcDebugName;
 } plTextureDesc;
 
@@ -461,6 +464,9 @@ typedef struct _plTexture
     plTextureViewDesc          tView;
     plDeviceMemoryRequirements tMemoryRequirements;
     plDeviceMemoryAllocation   tMemoryAllocation;
+
+    // [INTERNAL]
+    uint32_t _uGeneration;
 } plTexture;
 
 typedef struct _plTextureBinding
@@ -484,6 +490,9 @@ typedef struct _plBuffer
     plBufferDesc               tDesc;
     plDeviceMemoryRequirements tMemoryRequirements;
     plDeviceMemoryAllocation   tMemoryAllocation;
+
+    // [INTERNAL]
+    uint32_t _uGeneration;
 } plBuffer;
 
 typedef struct _plBufferBinding
@@ -523,9 +532,13 @@ typedef struct _plCommandPoolDesc
 
 typedef struct _plBindGroupPoolDesc
 {
-    bool bIndividualResets;
-    // [INTERNAL]
-    int _iUnused;
+    plBindGroupPoolFlags tFlags;
+    size_t               szSamplerBindings;
+    size_t               szUniformBufferBindings;
+    size_t               szStorageBufferBindings;
+    size_t               szSampledTextureBindings;
+    size_t               szStorageTextureBindings;
+    size_t               szAttachmentTextureBindings;
 } plBindGroupPoolDesc;
 
 typedef struct _plBindGroupDesc
@@ -538,6 +551,9 @@ typedef struct _plBindGroupDesc
 typedef struct _plBindGroup
 {
     plBindGroupLayout tLayout;
+
+    // [INTERNAL]
+    uint32_t _uGeneration;
 } plBindGroup;
 
 typedef struct _plShaderModule
@@ -567,6 +583,9 @@ typedef struct _plComputeShaderDesc
 typedef struct _plComputeShader
 {
     plComputeShaderDesc tDescription;
+
+    // [INTERNAL]
+    uint32_t _uGeneration;
 } plComputeShader;
 
 typedef struct _plBeginCommandInfo
@@ -776,6 +795,9 @@ typedef struct _plShaderDescription
 typedef struct _plShader
 {
     plShaderDescription tDescription;
+
+    // [INTERNAL]
+    uint32_t _uGeneration;
 } plShader;
 
 typedef struct _plSubpass
@@ -805,6 +827,7 @@ typedef struct _plRenderPassLayout
 
     // [INTERNAL]
     uint32_t _uAttachmentCount;
+    uint32_t _uGeneration;
 } plRenderPassLayout;
 
 typedef struct _plRenderPassAttachments
@@ -845,13 +868,16 @@ typedef struct _plRenderPassDescription
 typedef struct _plRenderPass
 {
     plRenderPassDescription tDesc;
+
+    // [INTERNAL]
+    uint32_t _uGeneration;
 } plRenderPass;
 
 typedef struct _plGraphicsInit
 {
     uint32_t            uFramesInFlight; // default: 2
     plGraphicsInitFlags tFlags;
-} plGraphicsInit;
+} plGraphireatesInit;
 
 typedef struct _plSwapchainInit
 {
@@ -883,26 +909,17 @@ typedef struct _plDeviceInfo
 
     size_t szDynamicBufferBlockSize;
     size_t szDynamicDataMaxSize;
-
-    size_t szInitSamplerBindings;
-    size_t szInitUniformBufferBindings;
-    size_t szInitStorageBufferBindings;
-    size_t szInitSampledTextureBindings;
-    size_t szInitStorageTextureBindings;
-    size_t szInitAttachmentTextureBindings;
-
-    size_t szInitDynamicSamplerBindings;
-    size_t szInitDynamicUniformBufferBindings;
-    size_t szInitDynamicStorageBufferBindings;
-    size_t szInitDynamicSampledTextureBindings;
-    size_t szInitDynamicStorageTextureBindings;
-    size_t szInitDynamicAttachmentTextureBindings;
-
 } plDeviceInfo;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
+
+enum _plBindGroupPoolFlags
+{
+    PL_BIND_GROUP_POOL_FLAGS_NONE             = 0,
+    PL_BIND_GROUP_POOL_FLAGS_INDIVIDUAL_RESET = 1 << 0,
+};
 
 enum _plMipmapMode
 {
@@ -1143,13 +1160,6 @@ enum _plMemoryMode
     PL_MEMORY_GPU,
     PL_MEMORY_GPU_CPU,
     PL_MEMORY_CPU
-};
-
-enum _plLoadOperation
-{
-    PL_LOAD_OPERATION_DONT_CARE,
-    PL_LOAD_OPERATION_LOAD,
-    PL_LOAD_OPERATION_CLEAR
 };
 
 enum _plDataType

@@ -125,7 +125,7 @@ pl__get_frame_resources(plDevice* ptDevice)
 static plBuffer*
 pl__get_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 {
-    if(tHandle.uGeneration != ptDevice->sbtBufferGenerations[tHandle.uIndex])
+    if(tHandle.uGeneration != ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtBuffersCold[tHandle.uIndex];
 }
@@ -133,7 +133,7 @@ pl__get_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 static plTexture*
 pl__get_texture(plDevice* ptDevice, plTextureHandle tHandle)
 {
-    if(tHandle.uGeneration != ptDevice->sbtTextureGenerations[tHandle.uIndex])
+    if(tHandle.uGeneration != ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtTexturesCold[tHandle.uIndex];
 }
@@ -141,7 +141,7 @@ pl__get_texture(plDevice* ptDevice, plTextureHandle tHandle)
 static plBindGroup*
 pl__get_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
-    if(tHandle.uGeneration != ptDevice->sbtBindGroupGenerations[tHandle.uIndex])
+    if(tHandle.uGeneration != ptDevice->sbtBindGroupsCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtBindGroupsCold[tHandle.uIndex];
 }
@@ -149,15 +149,23 @@ pl__get_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
 static plShader*
 pl__get_shader(plDevice* ptDevice, plShaderHandle tHandle)
 {
-    if(tHandle.uGeneration != ptDevice->sbtShaderGenerations[tHandle.uIndex])
+    if(tHandle.uGeneration != ptDevice->sbtShadersCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtShadersCold[tHandle.uIndex];
+}
+
+static plComputeShader*
+pl__get_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
+{
+    if(tHandle.uGeneration != ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uGeneration)
+        return NULL;
+    return &ptDevice->sbtComputeShadersCold[tHandle.uIndex];
 }
 
 static plSampler*
 pl_get_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
 {
-    if(tHandle.uGeneration != ptDevice->sbtSamplerGenerations[tHandle.uIndex])
+    if(tHandle.uGeneration != ptDevice->sbtSamplersCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtSamplersCold[tHandle.uIndex];
 }
@@ -165,7 +173,7 @@ pl_get_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
 static plRenderPassLayout*
 pl_get_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
 {
-    if(tHandle.uGeneration != ptDevice->sbtRenderPassLayoutGenerations[tHandle.uIndex])
+    if(tHandle.uGeneration != ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex];
 }
@@ -173,7 +181,7 @@ pl_get_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
 static plRenderPass*
 pl_get_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
 {
-    if(tHandle.uGeneration != ptDevice->sbtRenderPassGenerations[tHandle.uIndex])
+    if(tHandle.uGeneration != ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtRenderPassesCold[tHandle.uIndex];
 }
@@ -184,7 +192,7 @@ pl_queue_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
     pl_sb_push(ptGarbage->sbtBuffers, tHandle);
     pl_sb_push(ptGarbage->sbtMemory, ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryAllocation);
-    ptDevice->sbtBufferGenerations[tHandle.uIndex]++;
+    ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
 }
 
 static void
@@ -193,7 +201,7 @@ pl_queue_texture_for_deletion(plDevice* ptDevice, plTextureHandle tHandle)
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
     pl_sb_push(ptGarbage->sbtTextures, tHandle);
     pl_sb_push(ptGarbage->sbtMemory, ptDevice->sbtTexturesCold[tHandle.uIndex].tMemoryAllocation);
-    ptDevice->sbtTextureGenerations[tHandle.uIndex]++;
+    ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration++;
 }
 
 static void
@@ -201,7 +209,7 @@ pl_queue_render_pass_for_deletion(plDevice* ptDevice, plRenderPassHandle tHandle
 {
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
     pl_sb_push(ptGarbage->sbtRenderPasses, tHandle);
-    ptDevice->sbtRenderPassGenerations[tHandle.uIndex]++;
+    ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration++;
 }
 
 static void
@@ -209,7 +217,7 @@ pl_queue_render_pass_layout_for_deletion(plDevice* ptDevice, plRenderPassLayoutH
 {
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
     pl_sb_push(ptGarbage->sbtRenderPassLayouts, tHandle);
-    ptDevice->sbtRenderPassLayoutGenerations[tHandle.uIndex]++;
+    ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration++;
 }
 
 static void
@@ -217,7 +225,7 @@ pl_queue_shader_for_deletion(plDevice* ptDevice, plShaderHandle tHandle)
 {
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
     pl_sb_push(ptGarbage->sbtShaders, tHandle);
-    ptDevice->sbtShaderGenerations[tHandle.uIndex]++;
+    ptDevice->sbtShadersCold[tHandle.uIndex]._uGeneration++;
 }
 
 static void
@@ -225,7 +233,7 @@ pl_queue_compute_shader_for_deletion(plDevice* ptDevice, plComputeShaderHandle t
 {
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
     pl_sb_push(ptGarbage->sbtComputeShaders, tHandle);
-    ptDevice->sbtComputeShaderGenerations[tHandle.uIndex]++;
+    ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uGeneration++;
 }
 
 static void
@@ -233,7 +241,7 @@ pl_queue_bind_group_for_deletion(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
     pl_sb_push(ptGarbage->sbtBindGroups, tHandle);
-    ptDevice->sbtBindGroupGenerations[tHandle.uIndex]++;
+    ptDevice->sbtBindGroupsCold[tHandle.uIndex]._uGeneration++;
 }
 
 static void
@@ -241,7 +249,7 @@ pl_queue_sampler_for_deletion(plDevice* ptDevice, plSamplerHandle tHandle)
 {
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
     pl_sb_push(ptGarbage->sbtSamplers, tHandle);
-    ptDevice->sbtSamplerGenerations[tHandle.uIndex]++;
+    ptDevice->sbtSamplersCold[tHandle.uIndex]._uGeneration++;
 }
 
 static void
@@ -441,18 +449,10 @@ pl__cleanup_common_device(plDevice* ptDevice)
     pl_sb_free(ptDevice->sbtTexturesCold);
     pl_sb_free(ptDevice->sbtSamplersCold);
     pl_sb_free(ptDevice->sbtBindGroupsCold);
-    pl_sb_free(ptDevice->sbtShaderGenerations);
-    pl_sb_free(ptDevice->sbtBufferGenerations);
-    pl_sb_free(ptDevice->sbtTextureGenerations);
-    pl_sb_free(ptDevice->sbtBindGroupGenerations);
     pl_sb_free(ptDevice->sbtRenderPassesCold);
-    pl_sb_free(ptDevice->sbtRenderPassGenerations);
     pl_sb_free(ptDevice->sbtTextureFreeIndices);
     pl_sb_free(ptDevice->sbtRenderPassLayoutsCold);
     pl_sb_free(ptDevice->sbtComputeShadersCold);
-    pl_sb_free(ptDevice->sbtComputeShaderGenerations);
-    pl_sb_free(ptDevice->sbtRenderPassLayoutGenerations);
-    pl_sb_free(ptDevice->sbtSamplerGenerations);
     pl_sb_free(ptDevice->sbtBindGroupFreeIndices);
     pl_sb_free(ptDevice->sbtSemaphoreGenerations);
     pl_sb_free(ptDevice->sbtSemaphoreFreeIndices);
@@ -487,12 +487,12 @@ pl__get_new_buffer_handle(plDevice* ptDevice)
     {
         uBufferIndex = pl_sb_size(ptDevice->sbtBuffersCold);
         pl_sb_add(ptDevice->sbtBuffersCold);
-        pl_sb_push(ptDevice->sbtBufferGenerations, UINT32_MAX);
+        pl_sb_back(ptDevice->sbtBuffersCold)._uGeneration = UINT32_MAX;
         pl_sb_add(ptDevice->sbtBuffersHot);
     }
 
     plBufferHandle tHandle = {
-        .uGeneration = ++ptDevice->sbtBufferGenerations[uBufferIndex],
+        .uGeneration = ++ptDevice->sbtBuffersCold[uBufferIndex]._uGeneration,
         .uIndex = uBufferIndex
     };
     return tHandle;
@@ -508,12 +508,12 @@ pl__get_new_texture_handle(plDevice* ptDevice)
     {
         uTextureIndex = pl_sb_size(ptDevice->sbtTexturesCold);
         pl_sb_add(ptDevice->sbtTexturesCold);
-        pl_sb_push(ptDevice->sbtTextureGenerations, UINT32_MAX);
+        pl_sb_back(ptDevice->sbtTexturesCold)._uGeneration = UINT32_MAX;
         pl_sb_add(ptDevice->sbtTexturesHot);
     }
 
     plTextureHandle tHandle = {
-        .uGeneration = ++ptDevice->sbtTextureGenerations[uTextureIndex],
+        .uGeneration = ++ptDevice->sbtTexturesCold[uTextureIndex]._uGeneration,
         .uIndex = uTextureIndex
     };
     return tHandle;
@@ -529,12 +529,12 @@ pl__get_new_sampler_handle(plDevice* ptDevice)
     {
         uResourceIndex = pl_sb_size(ptDevice->sbtSamplersCold);
         pl_sb_add(ptDevice->sbtSamplersCold);
-        pl_sb_push(ptDevice->sbtSamplerGenerations, UINT32_MAX);
+        pl_sb_back(ptDevice->sbtSamplersCold)._uGeneration = UINT32_MAX;
         pl_sb_add(ptDevice->sbtSamplersHot);
     }
 
     plSamplerHandle tHandle = {
-        .uGeneration = ++ptDevice->sbtSamplerGenerations[uResourceIndex],
+        .uGeneration = ++ptDevice->sbtSamplersCold[uResourceIndex]._uGeneration,
         .uIndex = uResourceIndex
     };
     return tHandle;
@@ -550,12 +550,12 @@ pl__get_new_bind_group_handle(plDevice* ptDevice)
     {
         uBindGroupIndex = pl_sb_size(ptDevice->sbtBindGroupsCold);
         pl_sb_add(ptDevice->sbtBindGroupsCold);
-        pl_sb_push(ptDevice->sbtBindGroupGenerations, UINT32_MAX);
+        pl_sb_back(ptDevice->sbtBindGroupsCold)._uGeneration = UINT32_MAX;
         pl_sb_add(ptDevice->sbtBindGroupsHot);
     }
 
     plBindGroupHandle tHandle = {
-        .uGeneration = ++ptDevice->sbtBindGroupGenerations[uBindGroupIndex],
+        .uGeneration = ++ptDevice->sbtBindGroupsCold[uBindGroupIndex]._uGeneration,
         .uIndex = uBindGroupIndex
     };
     return tHandle;
@@ -571,12 +571,12 @@ pl__get_new_shader_handle(plDevice* ptDevice)
     {
         uResourceIndex = pl_sb_size(ptDevice->sbtShadersCold);
         pl_sb_add(ptDevice->sbtShadersCold);
-        pl_sb_push(ptDevice->sbtShaderGenerations, UINT32_MAX);
+        pl_sb_back(ptDevice->sbtShadersCold)._uGeneration = UINT32_MAX;
         pl_sb_add(ptDevice->sbtShadersHot);
     }
 
     plShaderHandle tHandle = {
-        .uGeneration = ++ptDevice->sbtShaderGenerations[uResourceIndex],
+        .uGeneration = ++ptDevice->sbtShadersCold[uResourceIndex]._uGeneration,
         .uIndex = uResourceIndex
     };
     return tHandle;
@@ -592,12 +592,12 @@ pl__get_new_compute_shader_handle(plDevice* ptDevice)
     {
         uResourceIndex = pl_sb_size(ptDevice->sbtComputeShadersCold);
         pl_sb_add(ptDevice->sbtComputeShadersCold);
-        pl_sb_push(ptDevice->sbtComputeShaderGenerations, UINT32_MAX);
+        pl_sb_back(ptDevice->sbtComputeShadersCold)._uGeneration = UINT32_MAX;
         pl_sb_add(ptDevice->sbtComputeShadersHot);
     }
 
     plComputeShaderHandle tHandle = {
-        .uGeneration = ++ptDevice->sbtComputeShaderGenerations[uResourceIndex],
+        .uGeneration = ++ptDevice->sbtComputeShadersCold[uResourceIndex]._uGeneration,
         .uIndex = uResourceIndex
     };
     return tHandle;
@@ -613,12 +613,12 @@ pl__get_new_render_pass_handle(plDevice* ptDevice)
     {
         uResourceIndex = pl_sb_size(ptDevice->sbtRenderPassesCold);
         pl_sb_add(ptDevice->sbtRenderPassesCold);
-        pl_sb_push(ptDevice->sbtRenderPassGenerations, UINT32_MAX);
+        pl_sb_back(ptDevice->sbtRenderPassesCold)._uGeneration = UINT32_MAX;
         pl_sb_add(ptDevice->sbtRenderPassesHot);
     }
 
     plRenderPassHandle tHandle = {
-        .uGeneration = ++ptDevice->sbtRenderPassGenerations[uResourceIndex],
+        .uGeneration = ++ptDevice->sbtRenderPassesCold[uResourceIndex]._uGeneration,
         .uIndex = uResourceIndex
     };
     return tHandle;
@@ -634,12 +634,12 @@ pl__get_new_render_pass_layout_handle(plDevice* ptDevice)
     {
         uResourceIndex = pl_sb_size(ptDevice->sbtRenderPassLayoutsCold);
         pl_sb_add(ptDevice->sbtRenderPassLayoutsCold);
-        pl_sb_push(ptDevice->sbtRenderPassLayoutGenerations, UINT32_MAX);
+        pl_sb_back(ptDevice->sbtRenderPassLayoutsCold)._uGeneration = UINT32_MAX;
         pl_sb_add(ptDevice->sbtRenderPassLayoutsHot);
     }
 
     const plRenderPassLayoutHandle tHandle = {
-        .uGeneration = ++ptDevice->sbtRenderPassLayoutGenerations[uResourceIndex],
+        .uGeneration = ++ptDevice->sbtRenderPassLayoutsCold[uResourceIndex]._uGeneration,
         .uIndex = uResourceIndex
     };
     return tHandle;
@@ -787,6 +787,7 @@ pl_load_graphics_api(void)
         .end_compute_pass                       = pl_end_compute_pass,
         .begin_blit_pass                        = pl_begin_blit_pass,
         .end_blit_pass                          = pl_end_blit_pass,
+        .set_texture_usage                      = pl_set_texture_usage,
         .draw_stream                            = pl_draw_stream,
         .draw                                   = pl_draw,
         .draw_indexed                           = pl_draw_indexed,

@@ -211,7 +211,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .szByteSize  = sizeof(float) * 24,
         .pcDebugName = "vertex buffer"
     };
-    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc);
+    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, NULL);
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
     plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tVertexBuffer);
@@ -240,7 +240,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .szByteSize  = sizeof(uint32_t) * 6,
         .pcDebugName = "index buffer"
     };
-    ptAppData->tIndexBuffer = gptGfx->create_buffer(ptDevice, &tIndexBufferDesc);
+    ptAppData->tIndexBuffer = gptGfx->create_buffer(ptDevice, &tIndexBufferDesc, NULL);
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
     plBuffer* ptIndexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tIndexBuffer);
@@ -263,7 +263,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .szByteSize  = 4096,
         .pcDebugName = "staging buffer"
     };
-    ptAppData->tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc);
+    ptAppData->tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, NULL);
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
     plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tStagingBuffer);

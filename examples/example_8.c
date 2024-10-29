@@ -102,6 +102,7 @@ typedef struct _plAppData
     plRenderPassHandle tOffscreenRenderPass;
     plVec2             tOffscreenSize;
     plTextureHandle    atColorTexture[PL_MAX_FRAMES_IN_FLIGHT];
+    plBindGroupHandle  atColorTextureBg[PL_MAX_FRAMES_IN_FLIGHT];
     plTextureHandle    atDepthTexture[PL_MAX_FRAMES_IN_FLIGHT];
 
 } plAppData;
@@ -288,6 +289,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create offscreen per-frame resources
 
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptAppData->atCmdPools[0]);
+    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
+
+    // begin blit pass, copy buffer, end pass
+    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+
     const plTextureDesc tColorTextureDesc = {
         .tDimensions   = {ptAppData->tOffscreenSize.x, ptAppData->tOffscreenSize.y, 1},
         .tFormat       = PL_FORMAT_R32G32B32A32_FLOAT,
@@ -295,7 +302,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-        .tInitialUsage = PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName   = "offscreen color texture"
     };
 
@@ -306,7 +312,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-        .tInitialUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
         .pcDebugName   = "offscreen depth texture"
     };
 
@@ -315,8 +320,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
         // create textures
-        ptAppData->atColorTexture[i] = gptGfx->create_texture(ptDevice, &tColorTextureDesc);
-        ptAppData->atDepthTexture[i] = gptGfx->create_texture(ptDevice, &tDepthTextureDesc);
+        ptAppData->atColorTexture[i] = gptGfx->create_texture(ptDevice, &tColorTextureDesc, NULL);
+        ptAppData->atDepthTexture[i] = gptGfx->create_texture(ptDevice, &tDepthTextureDesc, NULL);
 
         // retrieve textures
         plTexture* ptColorTexture = gptGfx->get_texture(ptDevice, ptAppData->atColorTexture[i]);
@@ -339,11 +344,26 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         // bind memory
         gptGfx->bind_texture_to_memory(ptDevice, ptAppData->atColorTexture[i], &tColorAllocation);
         gptGfx->bind_texture_to_memory(ptDevice, ptAppData->atDepthTexture[i], &tDepthAllocation);
+        ptAppData->atColorTextureBg[i] = gptDrawBackend->create_bind_group_for_texture(ptAppData->atColorTexture[i]);
+
+        // set initialial usage
+        gptGfx->set_texture_usage(ptEncoder, ptAppData->atColorTexture[i], PL_TEXTURE_USAGE_SAMPLED, 0);
+        gptGfx->set_texture_usage(ptEncoder, ptAppData->atDepthTexture[i], PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT, 0);
 
         // add textures to attachment set for render pass
         atAttachmentSets[i].atViewAttachments[0] = ptAppData->atDepthTexture[i];
         atAttachmentSets[i].atViewAttachments[1] = ptAppData->atColorTexture[i];
     }
+
+    gptGfx->end_blit_pass(ptEncoder);
+
+    // finish recording
+    gptGfx->end_command_recording(ptCommandBuffer);
+
+    // submit command buffer
+    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+    gptGfx->wait_on_command_buffer(ptCommandBuffer);
+    gptGfx->return_command_buffer(ptCommandBuffer);
 
     // create offscreen renderpass layout
     const plRenderPassLayoutDescription tRenderPassLayoutDesc = {
@@ -427,7 +447,7 @@ PL_EXPORT void
 pl_app_resize(plAppData* ptAppData)
 {
     // perform any operations required during a window resize
-    gptGfx->resize(ptAppData->ptSwapchain); // recreates swapchain
+    // gptGfx->resize(ptAppData->ptSwapchain); // recreates swapchain
     ptAppData->bResize = true;
     
 }
@@ -442,7 +462,7 @@ pl_app_update(plAppData* ptAppData)
     pl_begin_profile_frame();
 
     gptIO->new_frame();
-    gptDraw->new_frame();
+    gptDrawBackend->new_frame();
 
     // for convience
     plIO* ptIO = gptIO->get_io();
@@ -494,7 +514,7 @@ pl_app_update(plAppData* ptAppData)
     camera_update(ptCamera);
 
     // add full screen quad for offscreen render
-    gptDraw->add_image(ptAppData->ptFGLayer, ptAppData->atColorTexture[uCurrentFrameIndex].ulData, (plVec2){0}, ptIO->tMainViewportSize);
+    gptDraw->add_image(ptAppData->ptFGLayer, ptAppData->atColorTextureBg[uCurrentFrameIndex].ulData, (plVec2){0}, ptIO->tMainViewportSize);
 
     // 3d drawing API usage
     const plMat4 tOrigin = pl_identity_mat4();
@@ -692,6 +712,12 @@ resize_offscreen_resources(plAppData* ptAppData)
 {
     plDevice* ptDevice = ptAppData->ptDevice;
 
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptAppData->atCmdPools[0]);
+    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
+
+    // begin blit pass, copy buffer, end pass
+    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+
     plIO* ptIO = gptIO->get_io();
     ptAppData->tCamera.fAspectRatio = ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y;
 
@@ -702,7 +728,6 @@ resize_offscreen_resources(plAppData* ptAppData)
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-        .tInitialUsage = PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName   = "offscreen color texture"
     };
 
@@ -713,7 +738,6 @@ resize_offscreen_resources(plAppData* ptAppData)
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-        .tInitialUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
         .pcDebugName   = "offscreen depth texture"
     };
 
@@ -726,8 +750,8 @@ resize_offscreen_resources(plAppData* ptAppData)
         gptGfx->queue_texture_for_deletion(ptDevice, ptAppData->atDepthTexture[i]);
 
         // create new textures
-        ptAppData->atColorTexture[i] = gptGfx->create_texture(ptDevice, &tColorTextureDesc);
-        ptAppData->atDepthTexture[i] = gptGfx->create_texture(ptDevice, &tDepthTextureDesc);
+        ptAppData->atColorTexture[i] = gptGfx->create_texture(ptDevice, &tColorTextureDesc, NULL);
+        ptAppData->atDepthTexture[i] = gptGfx->create_texture(ptDevice, &tDepthTextureDesc, NULL);
 
         // retrieve textures
         plTexture* ptColorTexture = gptGfx->get_texture(ptDevice, ptAppData->atColorTexture[i]);
@@ -748,11 +772,27 @@ resize_offscreen_resources(plAppData* ptAppData)
         // bind memory
         gptGfx->bind_texture_to_memory(ptDevice, ptAppData->atColorTexture[i], &tColorAllocation);
         gptGfx->bind_texture_to_memory(ptDevice, ptAppData->atDepthTexture[i], &tDepthAllocation);
+        
+        // set initialial usage
+        gptGfx->set_texture_usage(ptEncoder, ptAppData->atColorTexture[i], PL_TEXTURE_USAGE_SAMPLED, 0);
+        gptGfx->set_texture_usage(ptEncoder, ptAppData->atDepthTexture[i], PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT, 0);
+        ptAppData->atColorTextureBg[i] = gptDrawBackend->create_bind_group_for_texture(ptAppData->atColorTexture[i]);
 
         // add textures to attachment set for render pass
         atAttachmentSets[i].atViewAttachments[0] = ptAppData->atDepthTexture[i];
         atAttachmentSets[i].atViewAttachments[1] = ptAppData->atColorTexture[i];
     }
+
+    gptGfx->end_blit_pass(ptEncoder);
+
+    // finish recording
+    gptGfx->end_command_recording(ptCommandBuffer);
+
+    // submit command buffer
+    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+    gptGfx->wait_on_command_buffer(ptCommandBuffer);
+    gptGfx->return_command_buffer(ptCommandBuffer);
+
     gptGfx->update_render_pass_attachments(ptDevice, ptAppData->tOffscreenRenderPass, ptAppData->tOffscreenSize, atAttachmentSets);
 }
 

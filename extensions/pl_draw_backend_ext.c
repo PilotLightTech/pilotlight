@@ -122,7 +122,9 @@ pl_initialize_draw_backend(plDevice* ptDevice)
     gptDrawBackendCtx->tFontSampler = gptGfx->create_sampler(ptDevice, &tSamplerDesc);
 
     const plBindGroupPoolDesc tPoolDesc = {
-        .bIndividualResets = true
+        .tFlags = PL_BIND_GROUP_POOL_FLAGS_INDIVIDUAL_RESET,
+        .szSamplerBindings = 10,
+        .szSampledTextureBindings = 10000
     };
     gptDrawBackendCtx->ptBindGroupPool = gptGfx->create_bind_group_pool(ptDevice, &tPoolDesc);
 
@@ -213,17 +215,15 @@ pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtl
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED,
-        .tInitialUsage = PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName   = "2D Drawing Font Atlas"
     };
 
     plDevice* ptDevice = gptDrawBackendCtx->ptDevice;
 
-    plTextureHandle tTexture = gptGfx->create_texture(ptDevice, &tFontTextureDesc);
+    plTexture* ptTexture = NULL;
+    plTextureHandle tTexture = gptGfx->create_texture(ptDevice, &tFontTextureDesc, &ptTexture);
     ptAtlas->ptUserData = (void*)tTexture.ulData;
     
-    plTexture* ptTexture = gptGfx->get_texture(ptDevice, tTexture);
-
     const plDeviceMemoryAllocation tAllocation = gptGfx->allocate_memory(ptDevice,
         ptTexture->tMemoryRequirements.ulSize,
         PL_MEMORY_GPU,
@@ -246,6 +246,8 @@ pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtl
     
     // begin blit pass, copy texture, end pass
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+
+    gptGfx->set_texture_usage(ptEncoder, tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
 
     const plBufferImageCopy tBufferImageCopy = {
         .tImageExtent = {(uint32_t)ptAtlas->tAtlasSize.x, (uint32_t)ptAtlas->tAtlasSize.y, 1},
@@ -291,11 +293,9 @@ pl__create_staging_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32
     plDevice* ptDevice = gptDrawBackendCtx->ptDevice;
 
     // create buffer
-    const plBufferHandle tHandle = gptGfx->create_buffer(ptDevice, ptDesc);
+    plBuffer* ptBuffer = NULL;
+    const plBufferHandle tHandle = gptGfx->create_buffer(ptDevice, ptDesc, &ptBuffer);
     pl_temp_allocator_reset(&gptDrawBackendCtx->tTempAllocator);
-
-    // retrieve new buffer
-    plBuffer* ptBuffer = gptGfx->get_buffer(ptDevice, tHandle);
 
     // allocate memory
     const plDeviceMemoryAllocation tAllocation = gptGfx->allocate_memory(ptDevice,
