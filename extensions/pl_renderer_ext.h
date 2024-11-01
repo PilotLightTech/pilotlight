@@ -69,6 +69,7 @@ typedef struct _plRendererI
     uint32_t          (*create_view)(uint32_t uSceneHandle, plVec2 tDimensions);
     plBindGroupHandle (*get_view_color_texture)(uint32_t uSceneHandle, uint32_t uViewHandle);
     void              (*resize_view)(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensions);
+    void              (*resize)(void);
     
     // loading
     void (*load_skybox_from_panorama)(uint32_t uSceneHandle, const char* pcPath, int iResolution);

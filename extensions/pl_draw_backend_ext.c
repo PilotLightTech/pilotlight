@@ -129,7 +129,6 @@ pl_initialize_draw_backend(plDevice* ptDevice)
     gptDrawBackendCtx->ptBindGroupPool = gptGfx->create_bind_group_pool(ptDevice, &tPoolDesc);
 
     const plBindGroupLayout tSamplerBindGroupLayout = {
-        .uSamplerBindingCount = 1,
         .atSamplerBindings = {
             {.uSlot =  0, .tStages = PL_STAGE_PIXEL}
         }
@@ -250,7 +249,9 @@ pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtl
     gptGfx->set_texture_usage(ptEncoder, tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
 
     const plBufferImageCopy tBufferImageCopy = {
-        .tImageExtent = {(uint32_t)ptAtlas->tAtlasSize.x, (uint32_t)ptAtlas->tAtlasSize.y, 1},
+        .uImageWidth = (uint32_t)ptAtlas->tAtlasSize.x,
+        .uImageHeight = (uint32_t)ptAtlas->tAtlasSize.y,
+        .uImageDepth = 1,
         .uLayerCount = 1
     };
 
@@ -338,7 +339,7 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
         ulCullMode |= PL_CULL_MODE_CULL_BACK;
 
     {
-        const plShaderDescription t3DShaderDesc = {
+        const plShaderDesc t3DShaderDesc = {
             .tPixelShader = gptShader->load_glsl("../shaders/draw_3d.frag", "main", NULL, NULL),
             .tVertexShader = gptShader->load_glsl("../shaders/draw_3d.vert", "main", NULL, NULL),
             .tGraphicsState = {
@@ -353,14 +354,15 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
                 .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
                 .ulStencilOpPass      = PL_STENCIL_OP_KEEP
             },
-            .tVertexBufferLayout = {
-                .uByteStride = sizeof(float) * 4,
-                .atAttributes = {
-                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 3, .tFormat = PL_FORMAT_R32_UINT},
+            .atVertexBufferLayouts = {
+                {
+                    .uByteStride = sizeof(float) * 4,
+                    .atAttributes = {
+                        {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32B32_FLOAT},
+                        {.uByteOffset = sizeof(float) * 3, .tFormat = PL_FORMAT_R32_UINT},
+                    }
                 }
             },
-            .uConstantCount = 0,
             .atBlendStates = {
                 {
                     .bBlendEnabled   = true,
@@ -372,17 +374,16 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
                     .tAlphaOp        = PL_BLEND_OP_ADD
                 }
             },
-            .uBlendStateCount = 1,
             .tRenderPassLayout = gptGfx->get_render_pass(ptDevice, tRenderPass)->tDesc.tLayout,
             .uSubpassIndex = uSubpassIndex,
-            .uBindGroupLayoutCount = 0,
+            .tMSAASampleCount = uMSAASampleCount
         };
         ptEntry->tRegularPipeline = gptGfx->create_shader(ptDevice, &t3DShaderDesc);
         pl_temp_allocator_reset(&gptDrawBackendCtx->tTempAllocator);
     }
 
     {
-        const plShaderDescription t3DLineShaderDesc = {
+        const plShaderDesc t3DLineShaderDesc = {
             .tPixelShader = gptShader->load_glsl("../shaders/draw_3d.frag", "main", NULL, NULL),
             .tVertexShader = gptShader->load_glsl("../shaders/draw_3d_line.vert", "main", NULL, NULL),
             .tGraphicsState = {
@@ -397,16 +398,17 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
                 .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
                 .ulStencilOpPass      = PL_STENCIL_OP_KEEP
             },
-            .tVertexBufferLayout = {
-                .uByteStride = sizeof(float) * 10,
-                .atAttributes = {
-                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 3, .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 6, .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 9, .tFormat = PL_FORMAT_R32_UINT},
+            .atVertexBufferLayouts = {
+                {
+                    .uByteStride = sizeof(float) * 10,
+                    .atAttributes = {
+                        {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32B32_FLOAT},
+                        {.uByteOffset = sizeof(float) * 3, .tFormat = PL_FORMAT_R32G32B32_FLOAT},
+                        {.uByteOffset = sizeof(float) * 6, .tFormat = PL_FORMAT_R32G32B32_FLOAT},
+                        {.uByteOffset = sizeof(float) * 9, .tFormat = PL_FORMAT_R32_UINT},
+                    }
                 }
             },
-            .uConstantCount = 0,
             .atBlendStates = {
                 {
                     .bBlendEnabled   = true,
@@ -418,10 +420,9 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
                     .tAlphaOp        = PL_BLEND_OP_ADD
                 }
             },
-            .uBlendStateCount = 1,
             .tRenderPassLayout = gptGfx->get_render_pass(ptDevice, tRenderPass)->tDesc.tLayout,
             .uSubpassIndex = uSubpassIndex,
-            .uBindGroupLayoutCount = 0,
+            .tMSAASampleCount = uMSAASampleCount
         };
         ptEntry->tSecondaryPipeline = gptGfx->create_shader(ptDevice, &t3DLineShaderDesc);
         pl_temp_allocator_reset(&gptDrawBackendCtx->tTempAllocator);
@@ -451,7 +452,7 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
     ptEntry->uMSAASampleCount = uMSAASampleCount;
     ptEntry->uSubpassIndex = uSubpassIndex;
 
-    const plShaderDescription tRegularShaderDesc = {
+    const plShaderDesc tRegularShaderDesc = {
         .tPixelShader  = gptShader->load_glsl("../shaders/draw_2d.frag", "main", NULL, NULL),
         .tVertexShader = gptShader->load_glsl("../shaders/draw_2d.vert", "main", NULL, NULL),
         .tGraphicsState = {
@@ -466,15 +467,16 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP
         },
-        .tVertexBufferLayout = {
-            .uByteStride = sizeof(float) * 5,
-            .atAttributes = {
-                {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
-                {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT},
-                {.uByteOffset = sizeof(float) * 4, .tFormat = PL_FORMAT_R32_UINT},
+        .atVertexBufferLayouts = {
+            {
+                .uByteStride = sizeof(float) * 5,
+                .atAttributes = {
+                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
+                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT},
+                    {.uByteOffset = sizeof(float) * 4, .tFormat = PL_FORMAT_R32_UINT},
+                }
             }
         },
-        .uConstantCount = 0,
         .atBlendStates = {
             {
                 .bBlendEnabled   = true,
@@ -486,29 +488,26 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
                 .tAlphaOp        = PL_BLEND_OP_ADD
             }
         },
-        .uBlendStateCount = 1,
         .tRenderPassLayout = gptGfx->get_render_pass(ptDevice, tRenderPass)->tDesc.tLayout,
         .uSubpassIndex = uSubpassIndex,
-        .uBindGroupLayoutCount = 2,
         .atBindGroupLayouts = {
             {
-                .uSamplerBindingCount = 1,
                 .atSamplerBindings = {
                     {.uSlot =  0, .tStages = PL_STAGE_PIXEL}
                 }
             },
             {
-                .uTextureBindingCount  = 1,
                 .atTextureBindings = { 
                     {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 }
             }
-        }
+        },
+        .tMSAASampleCount = uMSAASampleCount
     };
     ptEntry->tRegularPipeline = gptGfx->create_shader(ptDevice, &tRegularShaderDesc);
     pl_temp_allocator_reset(&gptDrawBackendCtx->tTempAllocator);
 
-    const plShaderDescription tSecondaryShaderDesc = {
+    const plShaderDesc tSecondaryShaderDesc = {
         .tPixelShader  = gptShader->load_glsl("../shaders/draw_2d_sdf.frag", "main", NULL, NULL),
         .tVertexShader = gptShader->load_glsl("../shaders/draw_2d.vert", "main", NULL, NULL),
         .tGraphicsState = {
@@ -523,15 +522,16 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP
         },
-        .tVertexBufferLayout = {
-            .uByteStride = sizeof(float) * 5,
-            .atAttributes = {
-                {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
-                {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT},
-                {.uByteOffset = sizeof(float) * 4, .tFormat = PL_FORMAT_R32_UINT},
+        .atVertexBufferLayouts = {
+            {
+                .uByteStride = sizeof(float) * 5,
+                .atAttributes = {
+                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
+                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT},
+                    {.uByteOffset = sizeof(float) * 4, .tFormat = PL_FORMAT_R32_UINT},
+                }
             }
         },
-        .uConstantCount = 0,
         .atBlendStates = {
             {
                 .bBlendEnabled   = true,
@@ -543,24 +543,21 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
                 .tAlphaOp        = PL_BLEND_OP_ADD
             }
         },
-        .uBlendStateCount = 1,
         .tRenderPassLayout = gptGfx->get_render_pass(ptDevice, tRenderPass)->tDesc.tLayout,
         .uSubpassIndex = uSubpassIndex,
-        .uBindGroupLayoutCount = 2,
         .atBindGroupLayouts = {
             {
-                .uSamplerBindingCount = 1,
                 .atSamplerBindings = {
                     {.uSlot =  0, .tStages = PL_STAGE_PIXEL}
                 }
             },
             {
-                .uTextureBindingCount  = 1,
                 .atTextureBindings = { 
                     {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 }
             }
-        }
+        },
+        .tMSAASampleCount = uMSAASampleCount
     }; 
     ptEntry->tSecondaryPipeline = gptGfx->create_shader(ptDevice, &tSecondaryShaderDesc);
     pl_temp_allocator_reset(&gptDrawBackendCtx->tTempAllocator);
@@ -571,7 +568,6 @@ static plBindGroupHandle
 pl_create_bind_group_for_texture(plTextureHandle tTexture)
 {
     const plBindGroupLayout tDrawingBindGroup = {
-        .uTextureBindingCount  = 1,
         .atTextureBindings = { 
             {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
         }
