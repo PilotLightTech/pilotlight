@@ -87,6 +87,8 @@ else
     rm -f ../out/example_6_*.so
     rm -f ../out/example_8.so
     rm -f ../out/example_8_*.so
+    rm -f ../out/example_9.so
+    rm -f ../out/example_9_*.so
 
 
 fi
@@ -322,6 +324,35 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_9 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="example_9.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: example_9${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/example_9.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
 # delete lock file(s)
 rm -f ../out/lock.tmp
 
@@ -369,6 +400,8 @@ else
     rm -f ../out/example_6_*.so
     rm -f ../out/example_8.so
     rm -f ../out/example_8_*.so
+    rm -f ../out/example_9.so
+    rm -f ../out/example_9_*.so
 
 
 fi
@@ -593,6 +626,35 @@ echo ${YELLOW}Step: example_8${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
 gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/example_8.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_9 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="example_9.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: example_9${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/example_9.so"
 
 # check build status
 if [ $? -ne 0 ]

@@ -902,7 +902,7 @@ pl__show_device_memory(bool* bValue)
                         ulHoveredBlock = (uint64_t)i;
                     }
                     pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
-                    ptBlock->uCurrentIndex = iCurrentBlock;
+
                     iCurrentBlock++;
                 }
 
@@ -921,7 +921,7 @@ pl__show_device_memory(bool* bValue)
                     const float fUsedWidth      = fWidthAvailable * ((float)ptRange->ulUsedSize) / (float)ulMaxBlockSize;
                     const float fAvailableWidth = fWidthAvailable * ((float)ptRange->ulTotalSize) / (float)ulMaxBlockSize;
 
-                    const float fYPos = fHeight0 + 34.0f * (float)ptBlock->uCurrentIndex;
+                    const float fYPos = fHeight0 + 34.0f * (float)ptRange->ulBlockIndex;
                     gptDraw->add_rect_rounded_filled(ptFgLayer, (plVec2){fStartPos, fYPos}, (plVec2){fStartPos + fAvailableWidth, 30.0f + fYPos}, 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tWastedColor)});
                     gptDraw->add_rect_rounded_filled(ptFgLayer, (plVec2){fStartPos, fYPos}, (plVec2){fStartPos + fUsedWidth, 30.0f + fYPos}, 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tUsedColor)});
 

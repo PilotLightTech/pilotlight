@@ -38,8 +38,8 @@ Index of this file:
 // extensions
 #include "pl_draw_ext.h"
 #include "pl_shader_ext.h"
-#include "pl_graphics_ext.h" // not yet stable
-#include "pl_draw_backend_ext.h" // not yet stable
+#include "pl_graphics_ext.h"
+#include "pl_draw_backend_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -59,12 +59,14 @@ typedef struct _plAppData
     plFont*        ptCousineSDFFont;
 
     // graphics & sync objects
-    plDevice*         ptDevice;
-    plSurface*        ptSurface;
-    plSwapchain*      ptSwapchain;
-    plSemaphoreHandle atSempahore[PL_MAX_FRAMES_IN_FLIGHT];
-    uint64_t          aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
-    plCommandPool*    atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
+    plDevice*                ptDevice;
+    plSurface*               ptSurface;
+    plSwapchain*             ptSwapchain;
+    plTimelineSemaphore*     aptSemaphores[PL_MAX_FRAMES_IN_FLIGHT];
+    uint64_t                 aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
+    plCommandPool*           atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
+    plRenderPassHandle       tMainRenderPass;
+    plRenderPassLayoutHandle tMainRenderPassLayout;
 
 } plAppData;
 
@@ -154,7 +156,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // initialize graphics system
     const plGraphicsInit tGraphicsInit = {
-        .tFlags = PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED | PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED | PL_GRAPHICS_INIT_FLAGS_LOGGING_WARNING 
+        .tFlags = PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED | PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED 
     };
     gptGfx->initialize(&tGraphicsInit);
     ptAppData->ptSurface = gptGfx->create_surface(ptAppData->ptWindow);
@@ -183,14 +185,53 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         iBestDvcIdx = iIntegratedGPUIdx;
 
     // create device
-    atDeviceInfos[iBestDvcIdx].ptSurface = ptAppData->ptSurface;
-    ptAppData->ptDevice = gptGfx->create_device(&atDeviceInfos[iBestDvcIdx]);
-
-    // create swapchain
-    const plSwapchainInit tSwapInit = {
+    const plDeviceInit tDeviceInit = {
+        .uDeviceIdx = iBestDvcIdx,
         .ptSurface = ptAppData->ptSurface
     };
-    ptAppData->ptSwapchain = gptGfx->create_swapchain(ptAppData->ptDevice, &tSwapInit);
+    ptAppData->ptDevice = gptGfx->create_device(&tDeviceInit);
+
+    // create swapchain
+    const plSwapchainInit tSwapInit = {.bVSync = true};
+    ptAppData->ptSwapchain = gptGfx->create_swapchain(ptAppData->ptDevice, ptAppData->ptSurface, &tSwapInit);
+
+    // create main render pass layout
+    const plRenderPassLayoutDesc tMainRenderPassLayoutDesc = {
+        .atRenderTargets = {
+            { .tFormat = gptGfx->get_swapchain_info(ptAppData->ptSwapchain).tFormat },
+        },
+        .atSubpasses = {
+            {
+                .uRenderTargetCount = 1,
+                .auRenderTargets = {0}
+            }
+        }
+    };
+    ptAppData->tMainRenderPassLayout = gptGfx->create_render_pass_layout(ptAppData->ptDevice, &tMainRenderPassLayoutDesc);
+
+    // create main render pass
+    const plRenderPassDesc tMainRenderPassDesc = {
+        .tLayout = ptAppData->tMainRenderPassLayout,
+        .atColorTargets = {
+            {
+                .tLoadOp       = PL_LOAD_OP_CLEAR,
+                .tStoreOp      = PL_STORE_OP_STORE,
+                .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
+                .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
+                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+            }
+        },
+        .tDimensions = {.x = gptIO->get_io()->tMainViewportSize.x, .y = gptIO->get_io()->tMainViewportSize.y},
+        .ptSwapchain = ptAppData->ptSwapchain
+    };
+    uint32_t uImageCount = 0;
+    plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(ptAppData->ptSwapchain, &uImageCount);
+    plRenderPassAttachments atMainAttachmentSets[16] = {0};
+    for(uint32_t i = 0; i < uImageCount; i++)
+    {
+        atMainAttachmentSets[i].atViewAttachments[0] = atSwapchainImages[i];
+    }
+    ptAppData->tMainRenderPass = gptGfx->create_render_pass(ptAppData->ptDevice, &tMainRenderPassDesc, atMainAttachmentSets);
 
     // create command pools
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
@@ -250,7 +291,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create timeline semaphores to syncronize GPU work submission
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-        ptAppData->atSempahore[i] = gptGfx->create_semaphore(ptAppData->ptDevice, false);
+        ptAppData->aptSemaphores[i] = gptGfx->create_semaphore(ptAppData->ptDevice, false);
 
     // return app memory
     return ptAppData;
@@ -266,7 +307,10 @@ pl_app_shutdown(plAppData* ptAppData)
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
         gptGfx->cleanup_command_pool(ptAppData->atCmdPools[i]);
+        gptGfx->cleanup_semaphore(ptAppData->aptSemaphores[i]);
+    }
     gptDrawBackend->cleanup_font_atlas(NULL);
     gptDrawBackend->cleanup();
     gptGfx->cleanup_swapchain(ptAppData->ptSwapchain);
@@ -287,7 +331,21 @@ PL_EXPORT void
 pl_app_resize(plAppData* ptAppData)
 {
     // perform any operations required during a window resize
-    gptGfx->resize(ptAppData->ptSwapchain); // recreates swapchain
+    plIO* ptIO = gptIO->get_io();
+    plSwapchainInit tDesc = {
+        .bVSync  = true,
+        .uWidth  = (uint32_t)ptIO->tMainViewportSize.x,
+        .uHeight = (uint32_t)ptIO->tMainViewportSize.y
+    };
+    gptGfx->recreate_swapchain(ptAppData->ptSwapchain, &tDesc);
+    uint32_t uImageCount = 0;
+    plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(ptAppData->ptSwapchain, &uImageCount);
+    plRenderPassAttachments atMainAttachmentSets[16] = {0};
+    for(uint32_t i = 0; i < uImageCount; i++)
+    {
+        atMainAttachmentSets[i].atViewAttachments[0] = atSwapchainImages[i];
+    }
+    gptGfx->update_render_pass_attachments(ptAppData->ptDevice, ptAppData->tMainRenderPass, gptIO->get_io()->tMainViewportSize, atMainAttachmentSets);
 }
 
 //-----------------------------------------------------------------------------
@@ -303,17 +361,19 @@ pl_app_update(plAppData* ptAppData)
     gptDrawBackend->new_frame();
 
     // begin new frame
-    if(!gptGfx->begin_frame(ptAppData->ptSwapchain))
+    gptGfx->begin_frame(ptAppData->ptDevice);
+    plCommandPool* ptCmdPool = ptAppData->atCmdPools[gptGfx->get_current_frame_index()];
+    gptGfx->reset_command_pool(ptCmdPool, 0);
+
+    // acquire swapchain image
+    if(!gptGfx->acquire_swapchain_image(ptAppData->ptSwapchain))
     {
-        gptGfx->resize(ptAppData->ptSwapchain);
+        pl_app_resize(ptAppData);
         pl_end_profile_frame();
         return;
     }
 
-    plCommandPool* ptCmdPool = ptAppData->atCmdPools[gptGfx->get_current_frame_index()];
-    gptGfx->reset_command_pool(ptCmdPool);
     plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
-
 
     // drawing API usage
 
@@ -360,7 +420,7 @@ pl_app_update(plAppData* ptAppData)
     gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 420.0f}, "Cousine @ 100, bitmap (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineBitmapFont, .uColor = PL_COLOR_32_WHITE, .fSize = 100.0f});
 
     // sdf text
-    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 520.0f}, "Cousine @ 18, sdf (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineSDFFont, .uColor = PL_COLOR_32_WHITE, .fSize = 100.0f});
+    gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 520.0f}, "Cousine @ 18, sdf (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineSDFFont, .uColor = PL_COLOR_32_WHITE, .fSize = 18.0f});
     gptDraw->add_text(ptAppData->ptFGLayer, (plVec2){25.0f, 540.0f}, "Cousine @ 100, sdf (loaded at 18)", (plDrawTextOptions){.ptFont = ptAppData->ptCousineSDFFont, .uColor = PL_COLOR_32_WHITE, .fSize = 100.0f});
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~drawing prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -379,13 +439,13 @@ pl_app_update(plAppData* ptAppData)
 
     const plBeginCommandInfo tBeginInfo = {
         .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
+        .atWaitSempahores      = {ptAppData->aptSemaphores[uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue0},
     };
     gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
     // begin main renderpass (directly to swapchain)
-    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, gptGfx->get_main_render_pass(ptAppData->ptDevice));
+    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tMainRenderPass);
 
     // submit drawlists
     plIO* ptIO = gptIO->get_io();
@@ -401,12 +461,12 @@ pl_app_update(plAppData* ptAppData)
 
     const plSubmitInfo tSubmitInfo = {
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
+        .atSignalSempahores      = {ptAppData->aptSemaphores[uCurrentFrameIndex]},
         .auSignalSemaphoreValues = {ulValue1},
     };
 
-    if(!gptGfx->present(ptCommandBuffer, &tSubmitInfo, ptAppData->ptSwapchain))
-        gptGfx->resize(ptAppData->ptSwapchain);
+    if(!gptGfx->present(ptCommandBuffer, &tSubmitInfo, &ptAppData->ptSwapchain, 1))
+        pl_app_resize(ptAppData);
 
     gptGfx->return_command_buffer(ptCommandBuffer);
     pl_end_profile_frame();

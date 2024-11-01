@@ -271,10 +271,16 @@ pl_app_shutdown(plEditorData* ptEditorData)
 PL_EXPORT void
 pl_app_resize(plEditorData* ptEditorData)
 {
-    gptGfx->resize(ptEditorData->ptSwap);
     plIO* ptIO = gptIO->get_io();
+    plSwapchainInit tDesc = {
+        .bVSync  = gptGfx->get_swapchain_info(ptEditorData->ptSwap).bVSync,
+        .uWidth  = (uint32_t)ptIO->tMainViewportSize.x,
+        .uHeight = (uint32_t)ptIO->tMainViewportSize.y
+    };
+    gptGfx->recreate_swapchain(ptEditorData->ptSwap, &tDesc);
     gptCamera->set_aspect(gptEcs->get_component(gptRenderer->get_component_library(ptEditorData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptEditorData->tMainCamera), ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);
     ptEditorData->bResize = true;
+    gptRenderer->resize();
 }
 
 //-----------------------------------------------------------------------------

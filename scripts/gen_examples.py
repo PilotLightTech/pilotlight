@@ -52,6 +52,7 @@ with pl.project("pilotlight_examples"):
         'example_5',
         'example_6',
         'example_8',
+        'example_9',
     ]
 
     for name in examples:

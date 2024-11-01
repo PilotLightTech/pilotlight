@@ -37,9 +37,9 @@ Index of this file:
 // extensions
 #include "pl_shader_ext.h"
 #include "pl_draw_ext.h"
-#include "pl_ui_ext.h" // not yet stable
-#include "pl_graphics_ext.h" // not yet stable
-#include "pl_draw_backend_ext.h" // not yet stable
+#include "pl_ui_ext.h"
+#include "pl_graphics_ext.h"
+#include "pl_draw_backend_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -58,12 +58,15 @@ typedef struct _plAppData
     // drawing
 
     // graphics & sync objects
-    plDevice*         ptDevice;
-    plSurface*        ptSurface;
-    plSwapchain*      ptSwapchain;
-    plSemaphoreHandle atSempahore[PL_MAX_FRAMES_IN_FLIGHT];
-    uint64_t          aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
-    plCommandPool*    atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
+    plDevice*                ptDevice;
+    plSurface*               ptSurface;
+    plSwapchain*             ptSwapchain;
+    plTimelineSemaphore*     aptSemaphores[PL_MAX_FRAMES_IN_FLIGHT];
+    uint64_t                 aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
+    plCommandPool*           atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
+    plRenderPassHandle       tMainRenderPass;
+    plRenderPassLayoutHandle tMainRenderPassLayout;
+    plTextureHandle          tMSAATexture;
 
 } plAppData;
 
@@ -149,14 +152,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .pcName  = "Example 3",
         .iXPos   = 200,
         .iYPos   = 200,
-        .uWidth  = 600,
-        .uHeight = 600,
+        .uWidth  = 500,
+        .uHeight = 500,
     };
     gptWindows->create_window(&tWindowDesc, &ptAppData->ptWindow);
 
     // initialize graphics system
     const plGraphicsInit tGraphicsInit = {
-        .tFlags = PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED | PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED | PL_GRAPHICS_INIT_FLAGS_LOGGING_WARNING 
+        .tFlags = PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED | PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED 
     };
     gptGfx->initialize(&tGraphicsInit);
     ptAppData->ptSurface = gptGfx->create_surface(ptAppData->ptWindow);
@@ -185,18 +188,116 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         iBestDvcIdx = iIntegratedGPUIdx;
 
     // create device
-    atDeviceInfos[iBestDvcIdx].ptSurface = ptAppData->ptSurface;
-    ptAppData->ptDevice = gptGfx->create_device(&atDeviceInfos[iBestDvcIdx]);
-
-    // create swapchain
-    const plSwapchainInit tSwapInit = {
+    const plDeviceInit tDeviceInit = {
+        .uDeviceIdx = iBestDvcIdx,
         .ptSurface = ptAppData->ptSurface
     };
-    ptAppData->ptSwapchain = gptGfx->create_swapchain(ptAppData->ptDevice, &tSwapInit);
+    ptAppData->ptDevice = gptGfx->create_device(&tDeviceInit);
 
     // create command pools
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
         ptAppData->atCmdPools[i] = gptGfx->create_command_pool(ptAppData->ptDevice, NULL);
+
+    // create swapchain
+    plSwapchainInit tSwapInit = {
+        .tSampleCount = atDeviceInfos[iBestDvcIdx].tMaxSampleCount
+    };
+    ptAppData->ptSwapchain = gptGfx->create_swapchain(ptAppData->ptDevice, ptAppData->ptSurface, &tSwapInit);
+
+    uint32_t uImageCount = 0;
+    plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(ptAppData->ptSwapchain, &uImageCount);
+
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptAppData->atCmdPools[0]);
+    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
+
+    // begin blit pass, copy buffer, end pass
+    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    plSwapchainInfo tInfo = gptGfx->get_swapchain_info(ptAppData->ptSwapchain);
+    const plTextureDesc tColorTextureDesc = {
+        .tDimensions   = {(float)tInfo.uWidth, (float)tInfo.uHeight, 1},
+        .tFormat       = gptGfx->get_swapchain_info(ptAppData->ptSwapchain).tFormat,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .tType         = PL_TEXTURE_TYPE_2D,
+        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+        .pcDebugName   = "offscreen color texture",
+        .tSampleCount  = gptGfx->get_swapchain_info(ptAppData->ptSwapchain).tSampleCount
+    };
+
+    // create textures
+    ptAppData->tMSAATexture = gptGfx->create_texture(ptAppData->ptDevice, &tColorTextureDesc, NULL);
+
+    // retrieve textures
+    plTexture* ptColorTexture = gptGfx->get_texture(ptAppData->ptDevice, ptAppData->tMSAATexture);
+
+    // allocate memory
+    const plDeviceMemoryAllocation tColorAllocation = gptGfx->allocate_memory(ptAppData->ptDevice, 
+        ptColorTexture->tMemoryRequirements.ulSize,
+        PL_MEMORY_GPU,
+        ptColorTexture->tMemoryRequirements.uMemoryTypeBits,
+        "color texture memory");
+
+    // bind memory
+    gptGfx->bind_texture_to_memory(ptAppData->ptDevice, ptAppData->tMSAATexture, &tColorAllocation);
+
+    // set initial usage
+    gptGfx->set_texture_usage(ptEncoder, ptAppData->tMSAATexture, PL_TEXTURE_USAGE_COLOR_ATTACHMENT, 0);
+
+    gptGfx->end_blit_pass(ptEncoder);
+
+    // finish recording
+    gptGfx->end_command_recording(ptCommandBuffer);
+
+    // submit command buffer
+    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+    gptGfx->wait_on_command_buffer(ptCommandBuffer);
+    gptGfx->return_command_buffer(ptCommandBuffer);
+
+    // create main render pass layout
+    const plRenderPassLayoutDesc tMainRenderPassLayoutDesc = {
+        .atRenderTargets = {
+            { .tFormat = gptGfx->get_swapchain_info(ptAppData->ptSwapchain).tFormat, .bResolve = true }, // swapchain
+            { .tFormat = gptGfx->get_swapchain_info(ptAppData->ptSwapchain).tFormat, .tSamples = gptGfx->get_swapchain_info(ptAppData->ptSwapchain).tSampleCount}, // msaa
+        },
+        .atSubpasses = {
+            {
+                .uRenderTargetCount = 2,
+                .auRenderTargets = {0, 1}
+            }
+        }
+    };
+    ptAppData->tMainRenderPassLayout = gptGfx->create_render_pass_layout(ptAppData->ptDevice, &tMainRenderPassLayoutDesc);
+
+    // create main render pass
+    const plRenderPassDesc tMainRenderPassDesc = {
+        .tLayout = ptAppData->tMainRenderPassLayout,
+        .tResolveTarget = { // swapchain image
+            .tLoadOp       = PL_LOAD_OP_DONT_CARE,
+            .tStoreOp      = PL_STORE_OP_STORE,
+            .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
+            .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
+            .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+        },
+        .atColorTargets = { // msaa
+            {
+                .tLoadOp       = PL_LOAD_OP_CLEAR,
+                .tStoreOp      = PL_STORE_OP_STORE_MULTISAMPLE_RESOLVE,
+                .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
+                .tNextUsage    = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+            }
+        },
+        .tDimensions = {(float)tInfo.uWidth, (float)tInfo.uHeight},
+        .ptSwapchain = ptAppData->ptSwapchain
+    };
+
+    plRenderPassAttachments atMainAttachmentSets[16] = {0};
+    for(uint32_t i = 0; i < uImageCount; i++)
+    {
+        atMainAttachmentSets[i].atViewAttachments[0] = atSwapchainImages[i];
+        atMainAttachmentSets[i].atViewAttachments[1] = ptAppData->tMSAATexture;
+    }
+    ptAppData->tMainRenderPass = gptGfx->create_render_pass(ptAppData->ptDevice, &tMainRenderPassDesc, atMainAttachmentSets);
 
     // setup draw
     gptDraw->initialize(NULL);
@@ -215,7 +316,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create timeline semaphores to syncronize GPU work submission
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-        ptAppData->atSempahore[i] = gptGfx->create_semaphore(ptAppData->ptDevice, false);
+        ptAppData->aptSemaphores[i] = gptGfx->create_semaphore(ptAppData->ptDevice, false);
 
     // return app memory
     return ptAppData;
@@ -231,10 +332,14 @@ pl_app_shutdown(plAppData* ptAppData)
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
         gptGfx->cleanup_command_pool(ptAppData->atCmdPools[i]);
+        gptGfx->cleanup_semaphore(ptAppData->aptSemaphores[i]);
+    }
     gptDrawBackend->cleanup_font_atlas(NULL);
     gptUi->cleanup();
     gptDrawBackend->cleanup();
+    gptGfx->destroy_texture(ptAppData->ptDevice, ptAppData->tMSAATexture);
     gptGfx->cleanup_swapchain(ptAppData->ptSwapchain);
     gptGfx->cleanup_surface(ptAppData->ptSurface);
     gptGfx->cleanup_device(ptAppData->ptDevice);
@@ -253,7 +358,73 @@ PL_EXPORT void
 pl_app_resize(plAppData* ptAppData)
 {
     // perform any operations required during a window resize
-    gptGfx->resize(ptAppData->ptSwapchain); // recreates swapchain
+    plIO* ptIO = gptIO->get_io();
+    plSwapchainInit tDesc = {
+        .bVSync  = true,
+        .uWidth  = (uint32_t)ptIO->tMainViewportSize.x,
+        .uHeight = (uint32_t)ptIO->tMainViewportSize.y,
+        .tSampleCount = gptGfx->get_swapchain_info(ptAppData->ptSwapchain).tSampleCount,
+    };
+    gptGfx->recreate_swapchain(ptAppData->ptSwapchain, &tDesc);
+    uint32_t uImageCount = 0;
+    plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(ptAppData->ptSwapchain, &uImageCount);
+
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptAppData->atCmdPools[0]);
+    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
+
+    // begin blit pass, copy buffer, end pass
+    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    plSwapchainInfo tInfo = gptGfx->get_swapchain_info(ptAppData->ptSwapchain);
+    const plTextureDesc tColorTextureDesc = {
+        .tDimensions   = {(float)tInfo.uWidth, (float)tInfo.uHeight, 1},
+        .tFormat       = tInfo.tFormat,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .tType         = PL_TEXTURE_TYPE_2D,
+        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+        .pcDebugName   = "offscreen color texture",
+        .tSampleCount  = tInfo.tSampleCount
+    };
+
+    gptGfx->queue_texture_for_deletion(ptAppData->ptDevice, ptAppData->tMSAATexture);
+
+    // create textures
+    ptAppData->tMSAATexture = gptGfx->create_texture(ptAppData->ptDevice, &tColorTextureDesc, NULL);
+
+    // retrieve textures
+    plTexture* ptColorTexture = gptGfx->get_texture(ptAppData->ptDevice, ptAppData->tMSAATexture);
+
+    // allocate memory
+
+    const plDeviceMemoryAllocation tColorAllocation = gptGfx->allocate_memory(ptAppData->ptDevice, 
+        ptColorTexture->tMemoryRequirements.ulSize,
+        PL_MEMORY_GPU,
+        ptColorTexture->tMemoryRequirements.uMemoryTypeBits,
+        "color texture memory");
+
+    // bind memory
+    gptGfx->bind_texture_to_memory(ptAppData->ptDevice, ptAppData->tMSAATexture, &tColorAllocation);
+
+    // set initial usage
+    gptGfx->set_texture_usage(ptEncoder, ptAppData->tMSAATexture, PL_TEXTURE_USAGE_COLOR_ATTACHMENT, 0);
+
+    gptGfx->end_blit_pass(ptEncoder);
+
+    // finish recording
+    gptGfx->end_command_recording(ptCommandBuffer);
+
+    // submit command buffer
+    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+    gptGfx->wait_on_command_buffer(ptCommandBuffer);
+    gptGfx->return_command_buffer(ptCommandBuffer);
+
+    plRenderPassAttachments atMainAttachmentSets[16] = {0};
+    for(uint32_t i = 0; i < uImageCount; i++)
+    {
+        atMainAttachmentSets[i].atViewAttachments[0] = atSwapchainImages[i];
+        atMainAttachmentSets[i].atViewAttachments[1] = ptAppData->tMSAATexture;
+    }
+    gptGfx->update_render_pass_attachments(ptAppData->ptDevice, ptAppData->tMainRenderPass, gptIO->get_io()->tMainViewportSize, atMainAttachmentSets);
 }
 
 //-----------------------------------------------------------------------------
@@ -270,15 +441,19 @@ pl_app_update(plAppData* ptAppData)
     gptUi->new_frame();
 
     // begin new frame
-    if(!gptGfx->begin_frame(ptAppData->ptSwapchain))
+    gptGfx->begin_frame(ptAppData->ptDevice);
+    plCommandPool* ptCmdPool = ptAppData->atCmdPools[gptGfx->get_current_frame_index()];
+    gptGfx->reset_command_pool(ptCmdPool, 0);
+
+    // acquire swapchain image
+
+    if(!gptGfx->acquire_swapchain_image(ptAppData->ptSwapchain))
     {
-        gptGfx->resize(ptAppData->ptSwapchain);
+        pl_app_resize(ptAppData);
         pl_end_profile_frame();
         return;
     }
 
-    plCommandPool* ptCmdPool = ptAppData->atCmdPools[gptGfx->get_current_frame_index()];
-    gptGfx->reset_command_pool(ptCmdPool);
     plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
 
     // NOTE: UI code can be placed anywhere between the UI "new_frame" & "render"
@@ -332,19 +507,19 @@ pl_app_update(plAppData* ptAppData)
 
     const plBeginCommandInfo tBeginInfo = {
         .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
+        .atWaitSempahores      = {ptAppData->aptSemaphores[uCurrentFrameIndex]},
         .auWaitSemaphoreValues = {ulValue0},
     };
     gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
     // begin main renderpass (directly to swapchain)
-    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, gptGfx->get_main_render_pass(ptAppData->ptDevice));
+    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tMainRenderPass);
 
     // submits UI drawlist/layers
     plIO* ptIO = gptIO->get_io();
     gptUi->end_frame();
-    gptDrawBackend->submit_2d_drawlist(gptUi->get_draw_list(), ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
-    gptDrawBackend->submit_2d_drawlist(gptUi->get_debug_draw_list(), ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
+    gptDrawBackend->submit_2d_drawlist(gptUi->get_draw_list(), ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(ptAppData->ptSwapchain).tSampleCount);
+    gptDrawBackend->submit_2d_drawlist(gptUi->get_debug_draw_list(), ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(ptAppData->ptSwapchain).tSampleCount);
 
     // end render pass
     gptGfx->end_render_pass(ptEncoder);
@@ -356,12 +531,12 @@ pl_app_update(plAppData* ptAppData)
 
     const plSubmitInfo tSubmitInfo = {
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {ptAppData->atSempahore[uCurrentFrameIndex]},
+        .atSignalSempahores      = {ptAppData->aptSemaphores[uCurrentFrameIndex]},
         .auSignalSemaphoreValues = {ulValue1},
     };
 
-    if(!gptGfx->present(ptCommandBuffer, &tSubmitInfo, ptAppData->ptSwapchain))
-        gptGfx->resize(ptAppData->ptSwapchain);
+    if(!gptGfx->present(ptCommandBuffer, &tSubmitInfo, &ptAppData->ptSwapchain, 1))
+        pl_app_resize(ptAppData);
 
     gptGfx->return_command_buffer(ptCommandBuffer);
     pl_end_profile_frame();

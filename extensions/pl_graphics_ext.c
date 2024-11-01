@@ -80,12 +80,6 @@ pl__get_data_type_size(plDataType tType)
     return 0;
 }
 
-static plRenderPassHandle
-pl_get_main_render_pass(plDevice* ptDevice)
-{
-    return ptDevice->tMainRenderPass;
-}
-
 static uint32_t
 pl_get_frames_in_flight(void)
 {
@@ -283,7 +277,7 @@ pl_drawstream_draw(plDrawStream* ptStream, plDrawStreamData tDraw)
     if(ptStream->_tCurrentDraw.uDynamicBufferOffset0 != tDraw.uDynamicBufferOffset0)
     {   
         ptStream->_tCurrentDraw.uDynamicBufferOffset0 = tDraw.uDynamicBufferOffset0;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET;
+        uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET_0;
     }
 
     if(ptStream->_tCurrentDraw.uBindGroup0 != tDraw.uBindGroup0)
@@ -307,7 +301,7 @@ pl_drawstream_draw(plDrawStream* ptStream, plDrawStreamData tDraw)
     if(ptStream->_tCurrentDraw.uDynamicBuffer0 != tDraw.uDynamicBuffer0)
     {
         ptStream->_tCurrentDraw.uDynamicBuffer0 = tDraw.uDynamicBuffer0;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER;
+        uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER_0;
     }
 
     if(ptStream->_tCurrentDraw.uIndexOffset != tDraw.uIndexOffset)
@@ -328,10 +322,10 @@ pl_drawstream_draw(plDrawStream* ptStream, plDrawStreamData tDraw)
         uDirtyMask |= PL_DRAW_STREAM_BIT_INDEX_BUFFER;
     }
 
-    if(ptStream->_tCurrentDraw.uVertexBuffer != tDraw.uVertexBuffer)
+    if(ptStream->_tCurrentDraw.uVertexBuffer0 != tDraw.uVertexBuffer0)
     {
-        ptStream->_tCurrentDraw.uVertexBuffer = tDraw.uVertexBuffer;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_VERTEX_BUFFER;
+        ptStream->_tCurrentDraw.uVertexBuffer0 = tDraw.uVertexBuffer0;
+        uDirtyMask |= PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0;
     }
 
     if(ptStream->_tCurrentDraw.uTriangleCount != tDraw.uTriangleCount)
@@ -355,7 +349,7 @@ pl_drawstream_draw(plDrawStream* ptStream, plDrawStreamData tDraw)
     pl_sb_push(ptStream->_sbtStream, uDirtyMask);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
         pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uShaderVariant);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET)
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET_0)
         pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uDynamicBufferOffset0);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
         pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uBindGroup0);
@@ -363,7 +357,7 @@ pl_drawstream_draw(plDrawStream* ptStream, plDrawStreamData tDraw)
         pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uBindGroup1);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
         pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uBindGroup2);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER)
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER_0)
         pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uDynamicBuffer0);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
         pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uIndexOffset);
@@ -371,8 +365,8 @@ pl_drawstream_draw(plDrawStream* ptStream, plDrawStreamData tDraw)
         pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uVertexOffset);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_BUFFER)
         pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uIndexBuffer);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER)
-        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uVertexBuffer);
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0)
+        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uVertexBuffer0);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_TRIANGLES)
         pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uTriangleCount);
     if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_START)
@@ -454,10 +448,16 @@ pl__cleanup_common_device(plDevice* ptDevice)
     pl_sb_free(ptDevice->sbtRenderPassLayoutsCold);
     pl_sb_free(ptDevice->sbtComputeShadersCold);
     pl_sb_free(ptDevice->sbtBindGroupFreeIndices);
-    pl_sb_free(ptDevice->sbtSemaphoreGenerations);
-    pl_sb_free(ptDevice->sbtSemaphoreFreeIndices);
     pl_sb_free(ptDevice->sbtSamplerFreeIndices);
     pl_sb_free(ptDevice->sbtComputeShaderFreeIndices);
+
+    plTimelineSemaphore* ptCurrentSemaphore = ptDevice->ptSemaphoreFreeList;
+    while(ptCurrentSemaphore)
+    {
+        plTimelineSemaphore* ptNextSemaphore = ptCurrentSemaphore->ptNext;
+        PL_FREE(ptCurrentSemaphore);
+        ptCurrentSemaphore = ptNextSemaphore;
+    }
 
     // cleanup per frame resources
     for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtGarbage); i++)
@@ -645,26 +645,6 @@ pl__get_new_render_pass_layout_handle(plDevice* ptDevice)
     return tHandle;
 }
 
-static plSemaphoreHandle
-pl__get_new_semaphore_handle(plDevice* ptDevice)
-{
-    uint32_t uIndex = UINT32_MAX;
-    if(pl_sb_size(ptDevice->sbtSemaphoreFreeIndices) > 0)
-        uIndex = pl_sb_pop(ptDevice->sbtSemaphoreFreeIndices);
-    else
-    {
-        uIndex = pl_sb_size(ptDevice->sbtSemaphoresHot);
-        pl_sb_push(ptDevice->sbtSemaphoreGenerations, UINT32_MAX);
-        pl_sb_add(ptDevice->sbtSemaphoresHot);
-    }
-
-    plSemaphoreHandle tHandle = {
-        .uGeneration = ++ptDevice->sbtSemaphoreGenerations[uIndex],
-        .uIndex = uIndex
-    };
-    return tHandle;
-}
-
 static plRenderEncoder*
 pl__get_new_render_encoder(void)
 {
@@ -713,6 +693,24 @@ pl__get_new_blit_encoder(void)
     return ptEncoder;
 }
 
+static plTimelineSemaphore*
+pl__get_new_semaphore(plDevice* ptDevice)
+{
+    plTimelineSemaphore* ptSemaphore = ptDevice->ptSemaphoreFreeList;
+    if(ptSemaphore)
+    {
+        ptDevice->ptSemaphoreFreeList = ptSemaphore->ptNext;
+    }
+    else
+    {
+        ptSemaphore = PL_ALLOC(sizeof(plTimelineSemaphore));
+        memset(ptSemaphore, 0, sizeof(plTimelineSemaphore));
+    }
+    ptSemaphore->ptDevice = ptDevice;
+    ptSemaphore->ptNext = NULL;
+    return ptSemaphore;
+}
+
 static void
 pl__return_render_encoder(plRenderEncoder* ptEncoder)
 {
@@ -734,6 +732,13 @@ pl__return_blit_encoder(plBlitEncoder* ptEncoder)
     gptGraphics->ptBlitEncoderFreeList = ptEncoder;
 }
 
+static void
+pl__return_semaphore(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore)
+{
+    ptSemaphore->ptNext = ptDevice->ptSemaphoreFreeList;
+    ptDevice->ptSemaphoreFreeList = ptSemaphore;
+}
+
 static plRenderPassHandle
 pl_get_encoder_render_pass(plRenderEncoder* ptEncoder)
 {
@@ -745,12 +750,20 @@ pl_get_render_encoder_subpass(plRenderEncoder* ptEncoder)
     return ptEncoder->_uCurrentSubpass;
 }
 
+static plSwapchainInfo
+pl_get_swapchain_info(plSwapchain* ptSwap)
+{
+    return ptSwap->tInfo;
+}
+
 static const plGraphicsI*
 pl_load_graphics_api(void)
 {
     static const plGraphicsI tApi = {
         .initialize                             = pl_initialize_graphics,
-        .resize                                 = pl_resize,
+        .set_depth_bias                         = pl_set_depth_bias,
+        .recreate_swapchain                     = pl_recreate_swapchain,
+        .get_swapchain_info                     = pl_get_swapchain_info,
         .get_current_frame_index                = pl_get_current_frame_index,
         .get_host_memory_in_use                 = pl_get_host_memory_in_use,
         .get_local_memory_in_use                = pl_get_local_memory_in_use,
@@ -759,10 +772,13 @@ pl_load_graphics_api(void)
         .create_device                          = pl__create_device,
         .enumerate_devices                      = pl_enumerate_devices,
         .cleanup_device                         = pl_cleanup_device,
+        .acquire_swapchain_image                = pl_acquire_swapchain_image,
+        .get_swapchain_images                   = pl_get_swapchain_images,
         .create_swapchain                       = pl_create_swapchain,
         .create_surface                         = pl_create_surface,
         .cleanup_surface                        = pl_cleanup_surface,
         .cleanup_swapchain                      = pl_cleanup_swapchain,
+        .cleanup_semaphore                      = pl_cleanup_semaphore,
         .dispatch                               = pl_dispatch,
         .bind_compute_bind_groups               = pl_bind_compute_bind_groups,
         .bind_graphics_bind_groups              = pl_bind_graphics_bind_groups,
@@ -840,7 +856,6 @@ pl_load_graphics_api(void)
         .bind_texture_to_memory                 = pl_bind_texture_to_memory,
         .get_sampler                            = pl_get_sampler,
         .get_render_pass                        = pl_get_render_pass,
-        .get_main_render_pass                   = pl_get_main_render_pass,
         .get_render_pass_layout                 = pl_get_render_pass_layout,
         .create_command_pool                    = pl_create_command_pool,
         .cleanup_command_pool                   = pl_cleanup_command_pool,

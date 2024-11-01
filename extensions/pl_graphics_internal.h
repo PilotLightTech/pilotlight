@@ -50,14 +50,15 @@ static plShaderHandle           pl__get_new_shader_handle(plDevice*);
 static plComputeShaderHandle    pl__get_new_compute_shader_handle(plDevice*);
 static plRenderPassHandle       pl__get_new_render_pass_handle(plDevice*);
 static plRenderPassLayoutHandle pl__get_new_render_pass_layout_handle(plDevice*);
-static plSemaphoreHandle        pl__get_new_semaphore_handle(plDevice*);
 static plRenderEncoder*         pl__get_new_render_encoder(void);
 static plComputeEncoder*        pl__get_new_compute_encoder(void);
 static plBlitEncoder*           pl__get_new_blit_encoder(void);
+static plTimelineSemaphore*     pl__get_new_semaphore(plDevice*);
 
 static void pl__return_render_encoder(plRenderEncoder*);
 static void pl__return_compute_encoder(plComputeEncoder*);
 static void pl__return_blit_encoder(plBlitEncoder*);
+static void pl__return_semaphore(plDevice*, plTimelineSemaphore*);
 
 // deletion
 static plFrameGarbage* pl__get_frame_garbage(plDevice*);
@@ -99,15 +100,15 @@ enum plDrawStreamBits
 {
     PL_DRAW_STREAM_BIT_NONE             = 0,
     PL_DRAW_STREAM_BIT_SHADER           = 1 << 0,
-    PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET   = 1 << 1,
-    PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER   = 1 << 2,
+    PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET_0 = 1 << 1,
+    PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER_0 = 1 << 2,
     PL_DRAW_STREAM_BIT_BINDGROUP_2      = 1 << 3,
     PL_DRAW_STREAM_BIT_BINDGROUP_1      = 1 << 4,
     PL_DRAW_STREAM_BIT_BINDGROUP_0      = 1 << 5,
     PL_DRAW_STREAM_BIT_INDEX_OFFSET     = 1 << 6,
     PL_DRAW_STREAM_BIT_VERTEX_OFFSET    = 1 << 7,
     PL_DRAW_STREAM_BIT_INDEX_BUFFER     = 1 << 8,
-    PL_DRAW_STREAM_BIT_VERTEX_BUFFER    = 1 << 9,
+    PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0  = 1 << 9,
     PL_DRAW_STREAM_BIT_TRIANGLES        = 1 << 10,
     PL_DRAW_STREAM_BIT_INSTANCE_START   = 1 << 11,
     PL_DRAW_STREAM_BIT_INSTANCE_COUNT   = 1 << 12

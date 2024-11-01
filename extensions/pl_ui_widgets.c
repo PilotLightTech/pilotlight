@@ -1421,7 +1421,7 @@ pl_begin_tab_bar(const char* pcText, plUiTabBarFlags tFlags)
     pl_sb_push(ptWindow->sbtCursorStack, tCursorStackItem);
 
     // adjust next cursor
-    pl__set_cursor((plVec2){tStartPos.x, tStartPos.y + tWidgetSize.y + gptCtx->tStyle.tItemSpacing.y});
+    pl__set_cursor((plVec2){tStartPos.x, tStartPos.y + fFrameHeight + gptCtx->tStyle.tItemSpacing.y});
     if(pl_sb_size(ptWindow->sbfMaxCursorYStack) > 0)
     {
         float fLastMax = pl_sb_top(ptWindow->sbfMaxCursorYStack);

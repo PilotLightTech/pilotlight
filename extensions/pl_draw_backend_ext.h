@@ -7,6 +7,7 @@ Index of this file:
 // [SECTION] header mess
 // [SECTION] apis
 // [SECTION] includes
+// [SECTION] public api struct
 */
 
 //-----------------------------------------------------------------------------
@@ -15,6 +16,10 @@ Index of this file:
 
 #ifndef PL_DRAW_BACKEND_EXT_H
 #define PL_DRAW_BACKEND_EXT_H
+
+// extension version (format XYYZZ)
+#define PL_DRAW_BACKEND_EXT_VERSION    "1.0.0"
+#define PL_DRAW_BACKEND_EXT_VERSION_NUM 10000
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
@@ -30,25 +35,20 @@ typedef struct _plDrawBackendI plDrawBackendI;
 #include <stdint.h>
 #include "pl_math.h"
 
-#ifndef plTextureID
-    typedef uint64_t plTextureID;
-#endif
-
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
-typedef struct _plFontAtlas   plFontAtlas;   // pl_draw_ext.h
-typedef struct _plDrawList2D  plDrawList2D;  // pl_draw_ext.h
-typedef struct _plDrawList3D  plDrawList3D;  // pl_draw_ext.h
-typedef int    plDrawFlags;                  // pl_draw_ext.h
-
-typedef struct _plDevice        plDevice;        // pl_graphics_ext.h
-typedef struct _plRenderEncoder plRenderEncoder; // pl_graphics_ext.h
-typedef struct _plCommandBuffer plCommandBuffer; // pl_graphics_ext.h
-
-typedef union plBindGroupHandle plBindGroupHandle;
-typedef union plTextureHandle plTextureHandle;
+// external
+typedef struct _plFontAtlas     plFontAtlas;       // pl_draw_ext.h
+typedef struct _plDrawList2D    plDrawList2D;      // pl_draw_ext.h
+typedef struct _plDrawList3D    plDrawList3D;      // pl_draw_ext.h
+typedef int    plDrawFlags;                        // pl_draw_ext.h
+typedef struct _plDevice        plDevice;          // pl_graphics_ext.h
+typedef struct _plRenderEncoder plRenderEncoder;   // pl_graphics_ext.h
+typedef struct _plCommandBuffer plCommandBuffer;   // pl_graphics_ext.h
+typedef union plBindGroupHandle plBindGroupHandle; // pl_graphics_ext.h
+typedef union plTextureHandle   plTextureHandle;   // pl_graphics_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -67,8 +67,8 @@ typedef struct _plDrawBackendI
 
     plBindGroupHandle (*create_bind_group_for_texture)(plTextureHandle);
 
-    void (*submit_2d_drawlist)(plDrawList2D*, plRenderEncoder*, float fWidth, float fHeight, uint32_t uMSAASampleCount);
-    void (*submit_3d_drawlist)(plDrawList3D*, plRenderEncoder*, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t uMSAASampleCount);
+    void (*submit_2d_drawlist)(plDrawList2D*, plRenderEncoder*, float fWidth, float fHeight, uint32_t sampleCount);
+    void (*submit_3d_drawlist)(plDrawList3D*, plRenderEncoder*, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t sampleCount);
 
 } plDrawBackendI;
 
