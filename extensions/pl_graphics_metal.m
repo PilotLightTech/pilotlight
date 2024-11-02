@@ -1,5 +1,5 @@
 /*
-   pl_metal_ext.m
+   pl_graphics_metal.m
 */
 
 /*

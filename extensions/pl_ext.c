@@ -1,23 +1,15 @@
 /*
-    pl_extensions.c
+    pl_ext.c
       * unity build for activated extensions
       * absolute mess and needs to be cleaned up
 */
 
 /*
 Index of this file:
-// [SECTION] version
 // [SECTION] unity build #1
 // [SECTION] extension loading
 // [SECTION] unity build #2
 */
-
-//-----------------------------------------------------------------------------
-// [SECTION] version
-//-----------------------------------------------------------------------------
-
-#define PL_CORE_EXTENSION_VERSION    "0.1.0"
-#define PL_CORE_EXTENSION_VERSION_NUM 001000
 
 //-----------------------------------------------------------------------------
 // [SECTION] unity build #1
@@ -27,7 +19,6 @@ Index of this file:
 #include "pl_rect_pack_ext.c"
 #include "pl_stats_ext.c"
 #include "pl_job_ext.c"
-#include "pl_ecs_ext.c"
 
 #ifdef PL_CORE_EXTENSION_INCLUDE_SHADER
     #include "pl_shader_ext.c"
@@ -36,14 +27,9 @@ Index of this file:
 #ifdef PL_CORE_EXTENSION_INCLUDE_GRAPHICS
     #include "pl_draw_ext.c"
     #include "pl_draw_backend_ext.c"
-    #include "pl_resource_ext.c"
     #include "pl_gpu_allocators_ext.c"
-    #include "pl_model_loader_ext.c"
     #include "pl_ui_ext.c"
     #include "pl_graphics_ext.c"
-
-    #include "pl_renderer_ext.c"
-    #include "pl_debug_ext.c"
 #endif
 
 //-----------------------------------------------------------------------------
@@ -86,25 +72,15 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptJob   = ptApiRegistry->first(PL_API_JOB);
     gptRect  = ptApiRegistry->first(PL_API_RECT_PACK);
     
-    // second batch (dependent APIs)
-    pl_load_ecs_ext(ptApiRegistry, bReload);
-    gptECS    = ptApiRegistry->first(PL_API_ECS);
-    gptCamera = ptApiRegistry->first(PL_API_CAMERA);
-
     #ifdef PL_CORE_EXTENSION_INCLUDE_GRAPHICS
         
         pl_load_graphics_ext(ptApiRegistry, bReload);
-
         gptGfx = ptApiRegistry->first(PL_API_GRAPHICS);
 
         pl_load_gpu_allocators_ext(ptApiRegistry, bReload);
-        pl_load_resource_ext(ptApiRegistry, bReload);
-
-        gptResource      = ptApiRegistry->first(PL_API_RESOURCE);        
         gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
     
         // third batch
-        pl_load_model_loader_ext(ptApiRegistry, bReload);
         pl_load_draw_ext(ptApiRegistry, bReload);
         gptDraw = ptApiRegistry->first(PL_API_DRAW);
         pl_load_draw_backend_ext(ptApiRegistry, bReload);
@@ -113,10 +89,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         // fourth batch
         pl_load_ui_ext(ptApiRegistry, bReload);
         gptUI = ptApiRegistry->first(PL_API_UI);
-
-        // final batch
-        pl_load_renderer_ext(ptApiRegistry, bReload);
-        pl_load_debug_ext(ptApiRegistry, bReload);
     #endif
 }
 
@@ -130,17 +102,12 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_image_ext(ptApiRegistry, bReload);
     pl_unload_rect_pack_ext(ptApiRegistry, bReload);
     pl_unload_stats_ext(ptApiRegistry, bReload);
-    pl_unload_ecs_ext(ptApiRegistry, bReload);
     #ifdef PL_CORE_EXTENSION_INCLUDE_GRAPHICS
         pl_unload_graphics_ext(ptApiRegistry, bReload);
         pl_unload_gpu_allocators_ext(ptApiRegistry, bReload);
-        pl_unload_resource_ext(ptApiRegistry, bReload);
-        pl_unload_model_loader_ext(ptApiRegistry, bReload);
         pl_unload_draw_ext(ptApiRegistry, bReload);
         pl_unload_draw_backend_ext(ptApiRegistry, bReload);
         pl_unload_ui_ext(ptApiRegistry, bReload);
-        pl_unload_renderer_ext(ptApiRegistry, bReload);
-        pl_unload_debug_ext(ptApiRegistry, bReload);
     #endif
 }
 
@@ -192,12 +159,4 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     #define STB_TRUETYPE_IMPLEMENTATION
     #include "stb_truetype.h"
     #undef STB_TRUETYPE_IMPLEMENTATION
-
-    #define PL_STL_IMPLEMENTATION
-    #include "pl_stl.h"
-    #undef PL_STL_IMPLEMENTATION
-
-    #define CGLTF_IMPLEMENTATION
-    #include "cgltf.h"
-    #undef CGLTF_IMPLEMENTATION
 #endif

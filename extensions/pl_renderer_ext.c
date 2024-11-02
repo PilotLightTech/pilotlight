@@ -47,6 +47,10 @@ Index of this file:
 #define PL_MAX_VIEWS_PER_SCENE 4
 #define PL_MAX_LIGHTS 1000
 
+#ifndef PL_DEVICE_BUDDY_BLOCK_SIZE
+    #define PL_DEVICE_BUDDY_BLOCK_SIZE 268435456
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
@@ -5886,6 +5890,73 @@ pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uin
     return tHandle;
 }
 
+static size_t
+pl__get_data_type_size(plDataType tType)
+{
+    switch(tType)
+    {
+        case PL_DATA_TYPE_BOOL:   return sizeof(int);
+        case PL_DATA_TYPE_BOOL2:  return 2 * sizeof(int);
+        case PL_DATA_TYPE_BOOL3:  return 3 * sizeof(int);
+        case PL_DATA_TYPE_BOOL4:  return 4 * sizeof(int);
+        
+        case PL_DATA_TYPE_FLOAT:  return sizeof(float);
+        case PL_DATA_TYPE_FLOAT2: return 2 * sizeof(float);
+        case PL_DATA_TYPE_FLOAT3: return 3 * sizeof(float);
+        case PL_DATA_TYPE_FLOAT4: return 4 * sizeof(float);
+
+        case PL_DATA_TYPE_UNSIGNED_BYTE:
+        case PL_DATA_TYPE_BYTE:  return sizeof(uint8_t);
+
+        case PL_DATA_TYPE_UNSIGNED_SHORT:
+        case PL_DATA_TYPE_SHORT: return sizeof(uint16_t);
+
+        case PL_DATA_TYPE_UNSIGNED_INT:
+        case PL_DATA_TYPE_INT:   return sizeof(uint32_t);
+
+        case PL_DATA_TYPE_UNSIGNED_LONG:
+        case PL_DATA_TYPE_LONG:  return sizeof(uint64_t);
+
+        case PL_DATA_TYPE_UNSIGNED_BYTE2:
+        case PL_DATA_TYPE_BYTE2:  return 2 * sizeof(uint8_t);
+
+        case PL_DATA_TYPE_UNSIGNED_SHORT2:
+        case PL_DATA_TYPE_SHORT2: return 2 * sizeof(uint16_t);
+
+        case PL_DATA_TYPE_UNSIGNED_INT2:
+        case PL_DATA_TYPE_INT2:   return 2 * sizeof(uint32_t);
+
+        case PL_DATA_TYPE_UNSIGNED_LONG2:
+        case PL_DATA_TYPE_LONG2:  return 2 * sizeof(uint64_t);
+
+        case PL_DATA_TYPE_UNSIGNED_BYTE3:
+        case PL_DATA_TYPE_BYTE3:  return 3 * sizeof(uint8_t);
+
+        case PL_DATA_TYPE_UNSIGNED_SHORT3:
+        case PL_DATA_TYPE_SHORT3: return 3 * sizeof(uint16_t);
+
+        case PL_DATA_TYPE_UNSIGNED_INT3:
+        case PL_DATA_TYPE_INT3:   return 3 * sizeof(uint32_t);
+
+        case PL_DATA_TYPE_UNSIGNED_LONG3:
+        case PL_DATA_TYPE_LONG3:  return 3 * sizeof(uint64_t);
+
+        case PL_DATA_TYPE_UNSIGNED_BYTE4:
+        case PL_DATA_TYPE_BYTE4:  return 4 * sizeof(uint8_t);
+
+        case PL_DATA_TYPE_UNSIGNED_SHORT4:
+        case PL_DATA_TYPE_SHORT4: return 4 * sizeof(uint16_t);
+
+        case PL_DATA_TYPE_UNSIGNED_INT4:
+        case PL_DATA_TYPE_INT4:   return 4 * sizeof(uint32_t);
+
+        case PL_DATA_TYPE_UNSIGNED_LONG4:
+        case PL_DATA_TYPE_LONG4:  return 4 * sizeof(uint64_t);
+    }
+
+    PL_ASSERT(false && "Unsupported data type");
+    return 0;
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public API implementation

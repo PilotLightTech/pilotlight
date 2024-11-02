@@ -89,15 +89,19 @@ shutil.copy("../dependencies/stb/stb_sprintf.h", target_directory + "/include/st
 # copy extension binary
 if platform.system() == "Windows":
     shutil.move("../out/pilot_light.dll", target_directory + "/bin/")
+    shutil.move("../out/pilot_light_experimental.dll", target_directory + "/bin/")
     if debug_package:
         for file in glob.glob("../out/pilot_light_*.pdb"):
             shutil.move(file, target_directory + "/bin/")
 elif platform.system() == "Darwin":
     shutil.move("../out/pilot_light.dylib", target_directory + "/bin/")
+    shutil.move("../out/pilot_light_experimental.dylib", target_directory + "/bin/")
     if debug_package:
         shutil.copytree("../out/pilot_light.dylib.dSYM", target_directory + "/bin/pilot_light.dylib.dSYM")
+        shutil.copytree("../out/pilot_light_experimental.dylib.dSYM", target_directory + "/bin/pilot_light.dylib.dSYM")
 elif platform.system() == "Linux":
     shutil.move("../out/pilot_light.so", target_directory + "/bin/")
+    shutil.move("../out/pilot_light_experimental.so", target_directory + "/bin/")
 
 # copy scripts
 for script in scripts:

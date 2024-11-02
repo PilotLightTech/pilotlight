@@ -6,6 +6,7 @@
 # [SECTION] profiles
 # [SECTION] pl_lib
 # [SECTION] extensions
+# [SECTION] experimental extensions
 # [SECTION] scripts
 # [SECTION] app
 # [SECTION] pilot_light
@@ -171,6 +172,64 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang"):
                     pl.add_dynamic_link_libraries("shaderc_shared", "pthread")
                     pl.add_dynamic_link_libraries("vulkan")
+
+    #-----------------------------------------------------------------------------
+    # [SECTION] experimental extensions
+    #-----------------------------------------------------------------------------
+
+    # vulkan backend extensions
+    with pl.target("pl_ext_experimental", pl.TargetType.DYNAMIC_LIBRARY, True):
+
+        pl.add_source_files("../extensions/pl_ext_experimental.c")
+        pl.set_output_binary("pilot_light_experimental")
+
+        # default config
+        with pl.configuration("debug"):
+
+            # win32
+            with pl.platform("Windows"):
+
+                with pl.compiler("msvc"):
+                    pl.add_linker_flags("-nodefaultlib:MSVCRT")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pass
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+
+        # release
+        with pl.configuration("release"):
+
+            # win32
+            with pl.platform("Windows"):
+
+                with pl.compiler("msvc"):
+                    pass
+                    # pl.add_linker_flags("-nodefaultlib:MSVCRT")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pass
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+
+        # vulkan on macos
+        with pl.configuration("vulkan"):
+
+            # mac os
+            with pl.platform("Darwin"):
+
+                with pl.compiler("clang"):
+                    pass
                     
     #-----------------------------------------------------------------------------
     # [SECTION] scripts
