@@ -46,7 +46,7 @@ typedef struct _plRenderEncoder
 {
     plCommandBuffer*            ptCommandBuffer;
     plRenderPassHandle          tRenderPassHandle;
-    uint32_t                    _uCurrentSubpass;
+    uint32_t                    uCurrentSubpass;
     id<MTLRenderCommandEncoder> tEncoder;
     plRenderEncoder*            ptNext;
 } plRenderEncoder;
@@ -198,7 +198,7 @@ typedef struct _plDevice
     plDeviceInit              tInit;
     plDeviceInfo              tInfo;
     plFrameGarbage*           sbtGarbage;
-    plFrameContext*           sbFrames;
+    plFrameContext*           sbtFrames;
     bool                      bDescriptorIndexing;
     plDeviceMemoryAllocatorI* ptDynamicAllocator;
     void*                     _pInternalData;
@@ -291,7 +291,6 @@ static bool                   pl__is_depth_format  (plFormat tFormat);
 static bool                   pl__is_stencil_format  (plFormat tFormat);
 static MTLBlendFactor         pl__metal_blend_factor(plBlendFactor tFactor);
 static MTLBlendOperation      pl__metal_blend_op(plBlendOp tOp);
-static void                   pl__garbage_collect(plDevice* ptDevice);
 
 static plDeviceMemoryAllocation pl_allocate_memory(plDevice* ptDevice, size_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
 static void pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock);
@@ -1511,7 +1510,7 @@ pl_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCount)
 }
 
 static plDevice*
-pl__create_device(const plDeviceInit* ptInit)
+pl_create_device(const plDeviceInit* ptInit)
 {
     plIO* ptIOCtx = gptIOI->get_io();
 
@@ -1569,7 +1568,7 @@ pl__create_device(const plDeviceInit* ptInit)
         tFrame.sbtDynamicBuffers[0].tMemory = ptDevice->ptDynamicAllocator->allocate(ptDevice->ptDynamicAllocator->ptInst, 0, ptDevice->tInit.szDynamicBufferBlockSize, 0,atNameBuffer);
         tFrame.sbtDynamicBuffers[0].tBuffer = [(id<MTLHeap>)tFrame.sbtDynamicBuffers[0].tMemory.uHandle newBufferWithLength:ptDevice->tInit.szDynamicBufferBlockSize options:MTLResourceStorageModeShared offset:0];
         tFrame.sbtDynamicBuffers[0].tBuffer.label = [NSString stringWithUTF8String:pl_temp_allocator_sprintf(&tTempAllocator, "Dynamic Buffer: %u, 0", i)];
-        pl_sb_push(ptDevice->sbFrames, tFrame);
+        pl_sb_push(ptDevice->sbtFrames, tFrame);
     }
     pl_temp_allocator_free(&tTempAllocator);
 
@@ -1838,14 +1837,14 @@ pl_next_subpass(plRenderEncoder* ptEncoder)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
-    ptEncoder->_uCurrentSubpass++;
+    ptEncoder->uCurrentSubpass++;
 
     plMetalRenderPass* ptMetalRenderPass = &ptDevice->sbtRenderPassesHot[ptEncoder->tRenderPassHandle.uIndex];
 
     [ptEncoder->tEncoder updateFence:ptMetalRenderPass->tFence afterStages:MTLRenderStageFragment | MTLRenderStageVertex];
     [ptEncoder->tEncoder endEncoding];
 
-    id<MTLRenderCommandEncoder> tNewRenderEncoder = [ptCmdBuffer->tCmdBuffer renderCommandEncoderWithDescriptor:ptMetalRenderPass->atRenderPassDescriptors[gptGraphics->uCurrentFrameIndex].sbptRenderPassDescriptor[ptEncoder->_uCurrentSubpass]];
+    id<MTLRenderCommandEncoder> tNewRenderEncoder = [ptCmdBuffer->tCmdBuffer renderCommandEncoderWithDescriptor:ptMetalRenderPass->atRenderPassDescriptors[gptGraphics->uCurrentFrameIndex].sbptRenderPassDescriptor[ptEncoder->uCurrentSubpass]];
     tNewRenderEncoder.label = @"subpass encoder";
     [tNewRenderEncoder waitForFence:ptMetalRenderPass->tFence beforeStages:MTLRenderStageFragment | MTLRenderStageVertex];
     ptEncoder->tEncoder = tNewRenderEncoder;
@@ -1879,7 +1878,7 @@ pl_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass)
 
     ptEncoder->ptCommandBuffer = ptCmdBuffer;
     ptEncoder->tRenderPassHandle = tPass;
-    ptEncoder->_uCurrentSubpass = 0;
+    ptEncoder->uCurrentSubpass = 0;
     return ptEncoder;
 }
 
@@ -2011,7 +2010,7 @@ pl_bind_compute_bind_groups(
 
     // for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
     // {
-    //     [ptEncoder->tEncoder useHeap:ptDevice->sbFrames[i].tDescriptorHeap];
+    //     [ptEncoder->tEncoder useHeap:ptDevice->sbtFrames[i].tDescriptorHeap];
     // }
 
     for(uint32_t i = 0; i < uCount; i++)
@@ -2175,7 +2174,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
 
     // for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
     // {
-    //     [ptEncoder->tEncoder useHeap:ptDevice->sbFrames[i].tDescriptorHeap stages:MTLRenderStageVertex | MTLRenderStageFragment];
+    //     [ptEncoder->tEncoder useHeap:ptDevice->sbtFrames[i].tDescriptorHeap stages:MTLRenderStageVertex | MTLRenderStageFragment];
     // }
 
     for(uint32_t i = 0; i < uAreaCount; i++)
@@ -2428,12 +2427,12 @@ pl_cleanup_device(plDevice* ptDevice)
     pl_sb_free(ptDevice->sbtRenderPassLayoutsHot);
     pl_sb_free(ptDevice->sbtComputeShadersHot);
 
-    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbFrames); i++)
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtFrames); i++)
     {
-        plFrameContext* ptFrame = &ptDevice->sbFrames[i];
+        plFrameContext* ptFrame = &ptDevice->sbtFrames[i];
         pl_sb_free(ptFrame->sbtDynamicBuffers);
     }
-    pl_sb_free(ptDevice->sbFrames);
+    pl_sb_free(ptDevice->sbtFrames);
 
     pl__cleanup_common_device(ptDevice);
 }

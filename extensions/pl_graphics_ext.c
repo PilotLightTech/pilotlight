@@ -113,7 +113,7 @@ pl__get_frame_garbage(plDevice* ptDevice)
 static plFrameContext*
 pl__get_frame_resources(plDevice* ptDevice)
 {
-    return &ptDevice->sbFrames[gptGraphics->uCurrentFrameIndex];
+    return &ptDevice->sbtFrames[gptGraphics->uCurrentFrameIndex];
 }
 
 static plBuffer*
@@ -747,7 +747,7 @@ pl_get_encoder_render_pass(plRenderEncoder* ptEncoder)
 static uint32_t
 pl_get_render_encoder_subpass(plRenderEncoder* ptEncoder)
 {
-    return ptEncoder->_uCurrentSubpass;
+    return ptEncoder->uCurrentSubpass;
 }
 
 static plSwapchainInfo
@@ -769,7 +769,7 @@ pl_load_graphics_api(void)
         .get_local_memory_in_use                = pl_get_local_memory_in_use,
         .get_frames_in_flight                   = pl_get_frames_in_flight,
         .begin_frame                            = pl_begin_frame,
-        .create_device                          = pl__create_device,
+        .create_device                          = pl_create_device,
         .enumerate_devices                      = pl_enumerate_devices,
         .cleanup_device                         = pl_cleanup_device,
         .acquire_swapchain_image                = pl_acquire_swapchain_image,

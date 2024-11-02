@@ -118,7 +118,7 @@ pl__remove_node_from_freelist(plDeviceAllocatorData* ptData, uint32_t uLevel, ui
 }
 
 static uint32_t
-pl__create_device_node(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uMemoryType)
+pl_create_device_node(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uMemoryType)
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
     uint32_t uNode = UINT32_MAX;
@@ -164,7 +164,7 @@ pl__get_device_node(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uLevel, ui
     {
         if(ptData->auFreeList[0] == UINT32_MAX)  // no nodes available
         {
-            uNode = pl__create_device_node(ptInst, uMemoryType);
+            uNode = pl_create_device_node(ptInst, uMemoryType);
             pl__add_node_to_freelist(ptData, 0, uNode);
         }
         else // nodes available
@@ -183,7 +183,7 @@ pl__get_device_node(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uLevel, ui
 
             if(uNode == UINT32_MAX) // could not find block with correct memory type
             {
-                uNode = pl__create_device_node(ptInst, uMemoryType);
+                uNode = pl_create_device_node(ptInst, uMemoryType);
                 pl__add_node_to_freelist(ptData, 0, uNode);
             }
         }

@@ -92,6 +92,9 @@ static void pl__cleanup_common_device(plDevice*);
 static void pl__cleanup_common_graphics(void);
 static void pl__cleanup_common_swapchain(plSwapchain*);
 
+// misc.
+static void pl__garbage_collect(plDevice*);
+
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
