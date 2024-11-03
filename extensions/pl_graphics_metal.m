@@ -67,7 +67,6 @@ typedef struct _plBlitEncoder
 
 typedef struct _plMetalDynamicBuffer
 {
-    uint32_t                 uByteOffset;
     uint32_t                 uHandle;
     plDeviceMemoryAllocation tMemory;
     id<MTLBuffer>            tBuffer;
@@ -1091,55 +1090,44 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc)
     return tHandle;
 }
 
-static plDynamicBinding
-pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
+static plDynamicDataBlock
+pl_allocate_dynamic_data_block(plDevice* ptDevice)
 {
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
 
-    PL_ASSERT(szSize <= ptDevice->tInit.szDynamicDataMaxSize && "Dynamic data size too large");
 
     plMetalDynamicBuffer* ptDynamicBuffer = NULL;
 
     // first call this frame
-    if(ptFrame->uCurrentBufferIndex == UINT32_MAX)
+    if(ptFrame->uCurrentBufferIndex != 0)
     {
-        ptFrame->uCurrentBufferIndex = 0;
-        ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[0];
-        ptDynamicBuffer->uByteOffset = 0;
-    }
-    ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
-
-    // check if current block has room
-    if(ptDynamicBuffer->uByteOffset + szSize > ptDevice->tInit.szDynamicBufferBlockSize)
-    {
-        ptFrame->uCurrentBufferIndex++;
-        
-        // check if we have available block
-        if(ptFrame->uCurrentBufferIndex + 1 > pl_sb_size(ptFrame->sbtDynamicBuffers)) // create new buffer
+        if(pl_sb_size(ptFrame->sbtDynamicBuffers) <= ptFrame->uCurrentBufferIndex)
         {
-            // dynamic buffer stuff
             pl_sb_add(ptFrame->sbtDynamicBuffers);
             ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
-            ptDynamicBuffer->uByteOffset = 0;
             static char atNameBuffer[64] = {0};
             pl_sprintf(atNameBuffer, "D-BUF-F%d-%d", (int)gptGraphics->uCurrentFrameIndex, (int)ptFrame->uCurrentBufferIndex);
 
             ptDynamicBuffer->tMemory = ptDevice->ptDynamicAllocator->allocate(ptDevice->ptDynamicAllocator->ptInst, 0, ptDevice->tInit.szDynamicBufferBlockSize, 0, atNameBuffer);
             ptDynamicBuffer->tBuffer = [(id<MTLHeap>)ptDynamicBuffer->tMemory.uHandle newBufferWithLength:ptDevice->tInit.szDynamicBufferBlockSize options:MTLResourceStorageModeShared offset:0];
             ptDynamicBuffer->tBuffer.label = [NSString stringWithUTF8String:"buddy allocator"];
+            gptGraphics->szHostMemoryInUse += ptDevice->tInit.szDynamicBufferBlockSize;
         }
-
-        ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
-        ptDynamicBuffer->uByteOffset = 0;
     }
+    
+    if(ptDynamicBuffer == NULL)
+        ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
 
-    plDynamicBinding tDynamicBinding = {
-        .uBufferHandle = ptFrame->uCurrentBufferIndex,
-        .uByteOffset   = ptDynamicBuffer->uByteOffset,
-        .pcData        = &ptDynamicBuffer->tBuffer.contents[ptDynamicBuffer->uByteOffset]
+    plDynamicDataBlock tBlock = {
+        ._uBufferHandle  = ptFrame->uCurrentBufferIndex,
+        ._uByteSize      = ptDevice->tInit.szDynamicBufferBlockSize,
+        ._pcData         = ptDynamicBuffer->tBuffer.contents,
+        ._uAlignment     = 256,
+        ._uBumpAmount    = ptDevice->tInit.szDynamicDataMaxSize,
+        ._uCurrentOffset = 0
     };
-    ptDynamicBuffer->uByteOffset = pl_align_up((size_t)ptDynamicBuffer->uByteOffset + ptDevice->tInit.szDynamicDataMaxSize, 256);
-    return tDynamicBinding;
+    ptFrame->uCurrentBufferIndex++;
+    return tBlock;
 }
 
 static plComputeShaderHandle
@@ -1811,7 +1799,7 @@ pl_present(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubmitInfo, p
         }
     }
     
-    ptFrame->uCurrentBufferIndex = UINT32_MAX;
+    ptFrame->uCurrentBufferIndex = 0;
 
     __block dispatch_semaphore_t semaphore = ptFrame->tFrameBoundarySemaphore;
     [ptCommandBuffer->tCmdBuffer addCompletedHandler:^(id<MTLCommandBuffer> commandBuffer) {
@@ -2200,7 +2188,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
         };
         [ptEncoder->tEncoder setViewport:tViewport];
 
-        const uint32_t uTokens = pl_sb_size(ptStream->_sbtStream);
+        const uint32_t uTokens = ptStream->_uStreamCount;
         uint32_t uCurrentStreamIndex = 0;
         uint32_t uTriangleCount = 0;
         uint32_t uIndexBuffer = 0;
@@ -2214,13 +2202,13 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
         uint32_t uDynamicSlot = UINT32_MAX;
         while(uCurrentStreamIndex < uTokens)
         {
-            const uint32_t uDirtyMask = ptStream->_sbtStream[uCurrentStreamIndex];
+            const uint32_t uDirtyMask = ptStream->_auStream[uCurrentStreamIndex];
             uCurrentStreamIndex++;
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
             {
-                const plShader* ptShader= &ptDevice->sbtShadersCold[ptStream->_sbtStream[uCurrentStreamIndex]];
-                plMetalShader* ptMetalShader = &ptDevice->sbtShadersHot[ptStream->_sbtStream[uCurrentStreamIndex]];
+                const plShader* ptShader= &ptDevice->sbtShadersCold[ptStream->_auStream[uCurrentStreamIndex]];
+                plMetalShader* ptMetalShader = &ptDevice->sbtShadersHot[ptStream->_auStream[uCurrentStreamIndex]];
                 [ptEncoder->tEncoder setCullMode:ptMetalShader->tCullMode];
                 [ptEncoder->tEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
                 if(tCurrentDepthStencilState != ptMetalShader->tDepthStencilState)
@@ -2238,13 +2226,13 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET_0)
             {
-                uDynamicBufferOffset0 = ptStream->_sbtStream[uCurrentStreamIndex];
+                uDynamicBufferOffset0 = ptStream->_auStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
             {
-                plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[ptStream->_sbtStream[uCurrentStreamIndex]];
+                plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[ptStream->_auStream[uCurrentStreamIndex]];
 
                 for(uint32 j = 0; j < ptMetalBindGroup->uHeapCount; j++)
                 {
@@ -2265,7 +2253,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
             {
-                plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[ptStream->_sbtStream[uCurrentStreamIndex]];
+                plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[ptStream->_auStream[uCurrentStreamIndex]];
 
                 for(uint32 j = 0; j < ptMetalBindGroup->uHeapCount; j++)
                 {
@@ -2286,7 +2274,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
             {
-                plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[ptStream->_sbtStream[uCurrentStreamIndex]];
+                plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[ptStream->_auStream[uCurrentStreamIndex]];
                 
                 for(uint32 j = 0; j < ptMetalBindGroup->uHeapCount; j++)
                 {
@@ -2307,8 +2295,8 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER_0)
             {
                 
-                [ptEncoder->tEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptStream->_sbtStream[uCurrentStreamIndex]].tBuffer offset:0 atIndex:uDynamicSlot];
-                [ptEncoder->tEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptStream->_sbtStream[uCurrentStreamIndex]].tBuffer offset:0 atIndex:uDynamicSlot];
+                [ptEncoder->tEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptStream->_auStream[uCurrentStreamIndex]].tBuffer offset:0 atIndex:uDynamicSlot];
+                [ptEncoder->tEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptStream->_auStream[uCurrentStreamIndex]].tBuffer offset:0 atIndex:uDynamicSlot];
 
                 uCurrentStreamIndex++;
             }
@@ -2320,41 +2308,41 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
             {
-                uIndexBufferOffset = ptStream->_sbtStream[uCurrentStreamIndex];
+                uIndexBufferOffset = ptStream->_auStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_OFFSET)
             {
-                uVertexBufferOffset = ptStream->_sbtStream[uCurrentStreamIndex];
+                uVertexBufferOffset = ptStream->_auStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_BUFFER)
             {
-                uIndexBuffer = ptStream->_sbtStream[uCurrentStreamIndex];
+                uIndexBuffer = ptStream->_auStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0)
             {
-                [ptEncoder->tEncoder setVertexBuffer:ptDevice->sbtBuffersHot[ptStream->_sbtStream[uCurrentStreamIndex]].tBuffer
+                [ptEncoder->tEncoder setVertexBuffer:ptDevice->sbtBuffersHot[ptStream->_auStream[uCurrentStreamIndex]].tBuffer
                     offset:0
                     atIndex:4];
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_TRIANGLES)
             {
-                uTriangleCount = ptStream->_sbtStream[uCurrentStreamIndex];
+                uTriangleCount = ptStream->_auStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_START)
             {
-                uInstanceStart = ptStream->_sbtStream[uCurrentStreamIndex];
+                uInstanceStart = ptStream->_auStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_COUNT)
             {
-                uInstanceCount = ptStream->_sbtStream[uCurrentStreamIndex];
+                uInstanceCount = ptStream->_auStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
 

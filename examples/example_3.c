@@ -80,7 +80,7 @@ const plGraphicsI*    gptGfx         = NULL;
 const plDrawI*        gptDraw        = NULL;
 const plUiI*          gptUi          = NULL;
 const plShaderI*      gptShader      = NULL;
-const plDrawBackendI* gptDrawBackend = NULL; // not yet stable
+const plDrawBackendI* gptDrawBackend = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load

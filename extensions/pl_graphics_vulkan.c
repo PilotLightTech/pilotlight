@@ -78,7 +78,6 @@ typedef struct _plRenderPassCommonData
 
 typedef struct _plVulkanDynamicBuffer
 {
-    uint32_t                 uByteOffset;
     uint32_t                 uHandle;
     VkBuffer                 tBuffer;
     plDeviceMemoryAllocation tMemory;
@@ -492,32 +491,17 @@ pl_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDev
     ptVulkanBuffer->pcData = ptAllocation->pHostMapped;
 }
 
-plDynamicBinding
-pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
+static plDynamicDataBlock
+pl_allocate_dynamic_data_block(plDevice* ptDevice)
 {
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
 
-    PL_ASSERT(szSize <= ptDevice->tInit.szDynamicDataMaxSize && "Dynamic data size too large");
-
     plVulkanDynamicBuffer* ptDynamicBuffer = NULL;
 
-    // first call this frame
-    if (ptFrame->uCurrentBufferIndex == UINT32_MAX)
+    if(ptFrame->uCurrentBufferIndex != 0)
     {
-        ptFrame->uCurrentBufferIndex = 0;
-        ptFrame->sbtDynamicBuffers[0].uByteOffset = 0;
-    }
-    ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
-
-    // check if current block has room
-    if (ptDynamicBuffer->uByteOffset + szSize > ptDevice->tInit.szDynamicBufferBlockSize)
-    {
-        ptFrame->uCurrentBufferIndex++;
-
-        // check if we have available block
-        if (ptFrame->uCurrentBufferIndex + 1 > pl_sb_size(ptFrame->sbtDynamicBuffers)) // create new buffer
+        if(pl_sb_size(ptFrame->sbtDynamicBuffers) <= ptFrame->uCurrentBufferIndex)
         {
-            // dynamic buffer stuff
             pl_sb_add(ptFrame->sbtDynamicBuffers);
             ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
 
@@ -540,7 +524,6 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
             ptDynamicBuffer->uHandle = tStagingBuffer0.uIndex;
             ptDynamicBuffer->tBuffer = ptDevice->sbtBuffersHot[tStagingBuffer0.uIndex].tBuffer;
             ptDynamicBuffer->tMemory = ptStagingBuffer->tMemoryAllocation;
-            ptDynamicBuffer->uByteOffset = 0;
 
             // allocate descriptor set
             const VkDescriptorSetAllocateInfo tDynamicAllocInfo = {
@@ -570,23 +553,23 @@ pl_allocate_dynamic_data(plDevice* ptDevice, size_t szSize)
             };
             vkUpdateDescriptorSets(ptDevice->tLogicalDevice, 1, &tWrite0, 0, NULL);
         }
-
-        ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
-        ptDynamicBuffer->uByteOffset = 0;
     }
+    
+    if(ptDynamicBuffer == NULL)
+        ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
 
     plVulkanBuffer* ptBuffer = &ptDevice->sbtBuffersHot[ptDynamicBuffer->uHandle];
 
-    plDynamicBinding tDynamicBinding = {
-        .uBufferHandle = ptFrame->uCurrentBufferIndex,
-        .uByteOffset   = ptDynamicBuffer->uByteOffset,
-        .pcData        = &ptBuffer->pcData[ptDynamicBuffer->uByteOffset]
+    plDynamicDataBlock tBlock = {
+        ._uBufferHandle  = ptFrame->uCurrentBufferIndex,
+        ._uByteSize      = (uint32_t)ptDevice->tInit.szDynamicBufferBlockSize,
+        ._pcData         = ptBuffer->pcData,
+        ._uAlignment     = ptDevice->tInfo.tLimits.uMinUniformBufferOffsetAlignment,
+        ._uBumpAmount    = (uint32_t)ptDevice->tInit.szDynamicDataMaxSize,
+        ._uCurrentOffset = 0
     };
-    ptDynamicBuffer->uByteOffset = (uint32_t)pl_align_up(
-        (size_t)ptDynamicBuffer->uByteOffset + ptDevice->tInit.szDynamicDataMaxSize,
-        ptDevice->tInfo.tLimits.uMinUniformBufferOffsetAlignment);
-
-    return tDynamicBinding;
+    ptFrame->uCurrentBufferIndex++;
+    return tBlock;
 }
 
 void
@@ -2024,7 +2007,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAr
 
         plDrawStream* ptStream = ptArea->ptDrawStream;
 
-        const uint32_t uTokens = pl_sb_size(ptStream->_sbtStream);
+        const uint32_t uTokens = ptStream->_uStreamCount;
         uint32_t uCurrentStreamIndex = 0;
         uint32_t uTriangleCount = 0;
         uint32_t uIndexBuffer = 0;
@@ -2041,13 +2024,13 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAr
         while (uCurrentStreamIndex < uTokens)
         {
 
-            const uint32_t uDirtyMask = ptStream->_sbtStream[uCurrentStreamIndex];
+            const uint32_t uDirtyMask = ptStream->_auStream[uCurrentStreamIndex];
             uCurrentStreamIndex++;
 
             if (uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
             {
-                const plShader* ptShader = &ptDevice->sbtShadersCold[ptStream->_sbtStream[uCurrentStreamIndex]];
-                ptVulkanShader = &ptDevice->sbtShadersHot[ptStream->_sbtStream[uCurrentStreamIndex]];
+                const plShader* ptShader = &ptDevice->sbtShadersCold[ptStream->_auStream[uCurrentStreamIndex]];
+                ptVulkanShader = &ptDevice->sbtShadersHot[ptStream->_auStream[uCurrentStreamIndex]];
                 vkCmdBindPipeline(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
                 pl__set_bind_group_count(&tBindGroupManagerData, ptShader->tDesc._uBindGroupLayoutCount);
                 uCurrentStreamIndex++;
@@ -2055,52 +2038,52 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAr
 
             if (uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET_0)
             {
-                uDynamicBufferOffset0 = ptStream->_sbtStream[uCurrentStreamIndex];
+                uDynamicBufferOffset0 = ptStream->_auStream[uCurrentStreamIndex];
                 tBindGroupManagerData.auOffsets[0] = uDynamicBufferOffset0;
                 uCurrentStreamIndex++;
             }
 
             if (uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
             {
-                plVulkanBindGroup* ptBindGroup0 = &ptDevice->sbtBindGroupsHot[ptStream->_sbtStream[uCurrentStreamIndex]];
+                plVulkanBindGroup* ptBindGroup0 = &ptDevice->sbtBindGroupsHot[ptStream->_auStream[uCurrentStreamIndex]];
                 pl__set_bind_group(&tBindGroupManagerData, 0, ptBindGroup0->tDescriptorSet);
                 uCurrentStreamIndex++;
             }
 
             if (uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
             {
-                plVulkanBindGroup* ptBindGroup1 = &ptDevice->sbtBindGroupsHot[ptStream->_sbtStream[uCurrentStreamIndex]];
+                plVulkanBindGroup* ptBindGroup1 = &ptDevice->sbtBindGroupsHot[ptStream->_auStream[uCurrentStreamIndex]];
                 pl__set_bind_group(&tBindGroupManagerData, 1, ptBindGroup1->tDescriptorSet);
                 uCurrentStreamIndex++;
             }
 
             if (uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
             {
-                plVulkanBindGroup* ptBindGroup2 = &ptDevice->sbtBindGroupsHot[ptStream->_sbtStream[uCurrentStreamIndex]];
+                plVulkanBindGroup* ptBindGroup2 = &ptDevice->sbtBindGroupsHot[ptStream->_auStream[uCurrentStreamIndex]];
                 pl__set_bind_group(&tBindGroupManagerData, 2, ptBindGroup2->tDescriptorSet);
                 uCurrentStreamIndex++;
             }
 
             if (uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER_0)
             {
-                ptVulkanDynamicBuffer = &ptCurrentFrame->sbtDynamicBuffers[ptStream->_sbtStream[uCurrentStreamIndex]];
+                ptVulkanDynamicBuffer = &ptCurrentFrame->sbtDynamicBuffers[ptStream->_auStream[uCurrentStreamIndex]];
                 pl__set_dynamic_bind_group(&tBindGroupManagerData, ptVulkanDynamicBuffer->tDescriptorSet, uDynamicBufferOffset0);
                 uCurrentStreamIndex++;
             }
 
             if (uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
             {
-                uIndexBufferOffset = ptStream->_sbtStream[uCurrentStreamIndex];
+                uIndexBufferOffset = ptStream->_auStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
             if (uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_OFFSET)
             {
-                uVertexBufferOffset = ptStream->_sbtStream[uCurrentStreamIndex];
+                uVertexBufferOffset = ptStream->_auStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
             if (uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_BUFFER)
             {
-                uIndexBuffer = ptStream->_sbtStream[uCurrentStreamIndex];
+                uIndexBuffer = ptStream->_auStream[uCurrentStreamIndex];
                 if (uIndexBuffer != UINT32_MAX)
                 {
                     plVulkanBuffer* ptIndexBuffer = &ptDevice->sbtBuffersHot[uIndexBuffer];
@@ -2110,25 +2093,25 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAr
             }
             if (uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0)
             {
-                plVulkanBuffer* ptVertexBuffer = &ptDevice->sbtBuffersHot[ptStream->_sbtStream[uCurrentStreamIndex]];
+                plVulkanBuffer* ptVertexBuffer = &ptDevice->sbtBuffersHot[ptStream->_auStream[uCurrentStreamIndex]];
                 vkCmdBindVertexBuffers(ptCmdBuffer->tCmdBuffer, 0, 1, &ptVertexBuffer->tBuffer, &offsets);
                 uCurrentStreamIndex++;
             }
             if (uDirtyMask & PL_DRAW_STREAM_BIT_TRIANGLES)
             {
-                uTriangleCount = ptStream->_sbtStream[uCurrentStreamIndex];
+                uTriangleCount = ptStream->_auStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
 
             if (uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_START)
             {
-                uInstanceStart = ptStream->_sbtStream[uCurrentStreamIndex];
+                uInstanceStart = ptStream->_auStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
 
             if (uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_COUNT)
             {
-                uInstanceCount = ptStream->_sbtStream[uCurrentStreamIndex];
+                uInstanceCount = ptStream->_auStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
 
@@ -2815,11 +2798,10 @@ pl_create_device(const plDeviceInit* ptInit)
         plDeviceMemoryAllocation tAllocation = ptDynamicAllocator->allocate(ptDynamicAllocator->ptInst, ptBuffer->tMemoryRequirements.uMemoryTypeBits, ptBuffer->tMemoryRequirements.ulSize, ptBuffer->tMemoryRequirements.ulAlignment, "dynamic buffer");
         pl_bind_buffer_to_memory(ptDevice, tStagingBuffer0, &tAllocation);
 
-        tFrame.uCurrentBufferIndex = UINT32_MAX;
+        tFrame.uCurrentBufferIndex = 0;
         tFrame.sbtDynamicBuffers[0].uHandle = tStagingBuffer0.uIndex;
         tFrame.sbtDynamicBuffers[0].tBuffer = ptDevice->sbtBuffersHot[tStagingBuffer0.uIndex].tBuffer;
         tFrame.sbtDynamicBuffers[0].tMemory = tAllocation;
-        tFrame.sbtDynamicBuffers[0].uByteOffset = 0;
 
         // allocate descriptor sets
         const VkDescriptorSetAllocateInfo tDynamicAllocInfo = {
@@ -2939,7 +2921,7 @@ pl_begin_frame(plDevice* ptDevice)
     pl_begin_profile_sample(0, __FUNCTION__);
 
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
-    ptCurrentFrame->uCurrentBufferIndex = UINT32_MAX;
+    ptCurrentFrame->uCurrentBufferIndex = 0;
 
     PL_VULKAN(vkWaitForFences(ptDevice->tLogicalDevice, 1, &ptCurrentFrame->tInFlight, VK_TRUE, UINT64_MAX));
     pl__garbage_collect(ptDevice);

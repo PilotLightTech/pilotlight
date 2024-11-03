@@ -282,6 +282,7 @@ typedef struct _plRefScene
 typedef struct _plRefRendererData
 {
     plDevice* ptDevice;
+    plDeviceInfo tDeviceInfo;
     plSwapchain* ptSwap;
     plSurface* ptSurface;
     plTempAllocator tTempAllocator;
@@ -360,6 +361,9 @@ typedef struct _plRefRendererData
     // command pools
     plCommandPool* atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
 
+    // dynamic buffer system
+    plDynamicDataBlock tCurrentDynamicDataBlock;
+
     // graphics options
     bool     bReloadSwapchain;
     bool     bVSync;
@@ -409,6 +413,14 @@ static plRefRendererData* gptData = NULL;
 //-----------------------------------------------------------------------------
 // [SECTION] internal API
 //-----------------------------------------------------------------------------
+
+// dynamic data system
+
+static inline plDynamicBinding
+pl__allocate_dynamic_data(plDevice* ptDevice)
+{
+    return pl_allocate_dynamic_data(gptGfx, gptData->ptDevice, &gptData->tCurrentDynamicDataBlock);
+}
 
 // general helpers
 static void pl__add_drawable_skin_data_to_global_buffer(plRefScene*, uint32_t uDrawableIndex, plDrawable* atDrawables);
@@ -464,7 +476,7 @@ pl_refr_initialize(plWindow* ptWindow)
     gptData->tPickedEntity.ulData = UINT64_MAX;
 
     // shader default values
-    gptData->tSkyboxShader   = (plShaderHandle){UINT32_MAX, UINT32_MAX};
+    gptData->tSkyboxShader = (plShaderHandle){UINT32_MAX, UINT32_MAX};
 
     // initialize graphics
     plGraphicsInit tGraphicsDesc = {
@@ -540,6 +552,8 @@ pl_refr_initialize(plWindow* ptWindow)
         };
         gptData->aptBindGroupPools[i] = gptGfx->create_bind_group_pool(gptData->ptDevice, &tPoolDesc);
     }
+
+    gptData->tCurrentDynamicDataBlock = gptGfx->allocate_dynamic_data_block(gptData->ptDevice);
 
     // load gpu allocators
     gptData->ptLocalBuddyAllocator      = gptGpuAllocators->get_local_buddy_allocator(gptData->ptDevice);
@@ -3306,7 +3320,7 @@ pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle
 
     for(uint32_t i = 0; i < uSkinCount; i++)
     {
-        plDynamicBinding tDynamicBinding = gptGfx->allocate_dynamic_data(ptDevice, sizeof(SkinDynamicData));
+        plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
         SkinDynamicData* ptDynamicData = (SkinDynamicData*)tDynamicBinding.pcData;
         ptDynamicData->iSourceDataOffset = ptScene->sbtSkinData[i].iSourceDataOffset;
         ptDynamicData->iDestDataOffset = ptScene->sbtSkinData[i].iDestDataOffset;
@@ -3572,8 +3586,6 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
     gptGfx->update_bind_group(gptData->ptDevice, tOpaqueBG1, &tBGData1);
     gptGfx->queue_bind_group_for_deletion(ptDevice, tOpaqueBG1);
 
-    gptGfx->reset_draw_stream(ptStream);
-
     const uint32_t uOpaqueDrawableCount = pl_sb_size(ptScene->sbtOpaqueDrawables);
     const uint32_t uTransparentDrawableCount = pl_sb_size(ptScene->sbtTransparentDrawables);
 
@@ -3607,6 +3619,8 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
         const uint32_t uVisibleOpaqueDrawCount = pl_sb_size(ptScene->sbtOpaqueDrawables);
         const uint32_t uVisibleTransparentDrawCount = pl_sb_size(ptScene->sbtTransparentDrawables);
 
+        gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
+
         plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tShadowData.atOpaqueRenderPasses[uCascade]);
 
         for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
@@ -3615,7 +3629,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
             plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
             plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
             
-            plDynamicBinding tDynamicBinding = gptGfx->allocate_dynamic_data(ptDevice, sizeof(plShadowDynamicData));
+            plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
             plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
             ptDynamicData->iDataOffset = tDrawable.uDataOffset;
@@ -3624,7 +3638,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
             ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
             ptDynamicData->iIndex = (int)uCascade;
 
-            gptGfx->add_to_stream(ptStream, (plDrawStreamData)
+            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
                 .uShaderVariant       = gptData->tShadowShader.uIndex,
                 .uDynamicBuffer0      = tDynamicBinding.uBufferHandle,
@@ -3647,7 +3661,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
             plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
             plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
             
-            plDynamicBinding tDynamicBinding = gptGfx->allocate_dynamic_data(ptDevice, sizeof(plShadowDynamicData));
+            plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
             plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
             ptDynamicData->iDataOffset = tDrawable.uDataOffset;
@@ -3656,7 +3670,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
             ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
             ptDynamicData->iIndex = (int)uCascade;
 
-            gptGfx->add_to_stream(ptStream, (plDrawStreamData)
+            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
                 .uShaderVariant       = tDrawable.tShadowShader.uIndex,
                 .uDynamicBuffer0       = tDynamicBinding.uBufferHandle,
@@ -3674,7 +3688,6 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
         }
 
         gptGfx->draw_stream(ptEncoder, 1, &tArea);
-        gptGfx->reset_draw_stream(ptStream);
         gptGfx->end_render_pass(ptEncoder);
     }
 
@@ -3765,7 +3778,7 @@ pl_refr_post_process_scene(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHand
     } plPostProcessOptions;
 
 
-    plDynamicBinding tDynamicBinding = gptGfx->allocate_dynamic_data(ptDevice, sizeof(plPostProcessOptions));
+    plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
     plPostProcessOptions* ptDynamicData = (plPostProcessOptions*)tDynamicBinding.pcData;
     const plVec4 tOutlineColor = (plVec4){(float)sin(gptIOI->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 0.0f, 1.0f};
@@ -4032,8 +4045,6 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
         gptGfx->return_command_buffer(ptCommandBuffer);
     }
 
-    gptGfx->reset_draw_stream(ptStream);
-
     const plVec2 tDimensions = gptGfx->get_render_pass(ptDevice, ptView->tRenderPass)->tDesc.tDimensions;
 
     plDrawArea tArea = {
@@ -4077,13 +4088,14 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
         }
 
         const uint32_t uVisibleOpaqueDrawCount = pl_sb_size(ptView->sbtVisibleOpaqueDrawables);
+        gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount);
         for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
         {
             const plDrawable tDrawable = ptView->sbtVisibleOpaqueDrawables[i];
             plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
             plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
             
-            plDynamicBinding tDynamicBinding = gptGfx->allocate_dynamic_data(ptDevice, sizeof(DynamicData));
+            plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
             DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
             ptDynamicData->iDataOffset = tDrawable.uDataOffset;
@@ -4091,7 +4103,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             ptDynamicData->tModel = ptTransform->tWorld;
             ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
 
-            gptGfx->add_to_stream(ptStream, (plDrawStreamData)
+            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
                 .uShaderVariant       = tDrawable.tShader.uIndex,
                 .uDynamicBuffer0       = tDynamicBinding.uBufferHandle,
@@ -4109,8 +4121,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
         }
 
         gptGfx->draw_stream(ptEncoder, 1, &tArea);
-        gptGfx->reset_draw_stream(ptStream);
-
+        
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 1 - lighting~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         gptGfx->next_subpass(ptEncoder);
@@ -4197,9 +4208,10 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             int iVertexOffset;
             int unused[2];
         } plLightingDynamicData;
-        plDynamicBinding tLightingDynamicData = gptGfx->allocate_dynamic_data(ptDevice, sizeof(plLightingDynamicData));
-
-        gptGfx->add_to_stream(ptStream, (plDrawStreamData)
+        plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice);
+        
+        gptGfx->reset_draw_stream(ptStream, 1);
+        pl_add_to_draw_stream(ptStream, (plDrawStreamData)
         {
             .uShaderVariant       = ptScene->tLightingShader.uIndex,
             .uDynamicBuffer0       = tLightingDynamicData.uBufferHandle,
@@ -4215,8 +4227,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             .uInstanceCount       = 1
         });
         gptGfx->draw_stream(ptEncoder, 1, &tArea);
-        gptGfx->reset_draw_stream(ptStream);
-
+        
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 2 - forward~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         gptGfx->next_subpass(ptEncoder);
@@ -4224,11 +4235,12 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
         if(ptScene->tSkyboxTexture.uIndex != UINT32_MAX)
         {
             
-            plDynamicBinding tSkyboxDynamicData = gptGfx->allocate_dynamic_data(ptDevice, sizeof(plMat4));
+            plDynamicBinding tSkyboxDynamicData = pl__allocate_dynamic_data(ptDevice);
             plMat4* ptSkyboxDynamicData = (plMat4*)tSkyboxDynamicData.pcData;
             *ptSkyboxDynamicData = pl_mat4_translate_vec3(ptCamera->tPos);
 
-            gptGfx->add_to_stream(ptStream, (plDrawStreamData)
+            gptGfx->reset_draw_stream(ptStream, 1);
+            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
                 .uShaderVariant       = gptData->tSkyboxShader.uIndex,
                 .uDynamicBuffer0       = tSkyboxDynamicData.uBufferHandle,
@@ -4245,7 +4257,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             });
             gptGfx->draw_stream(ptEncoder, 1, &tArea);
         }
-        gptGfx->reset_draw_stream(ptStream);
+        
 
         // transparent & complex material objects
         gptJob->wait_for_counter(ptTransparentCounter);
@@ -4261,13 +4273,14 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
         }
 
         const uint32_t uVisibleTransparentDrawCount = pl_sb_size(ptView->sbtVisibleTransparentDrawables);
+        gptGfx->reset_draw_stream(ptStream, uVisibleTransparentDrawCount);
         for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
         {
             const plDrawable tDrawable = ptView->sbtVisibleTransparentDrawables[i];
             plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
             plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
             
-            plDynamicBinding tDynamicBinding = gptGfx->allocate_dynamic_data(ptDevice, sizeof(DynamicData));
+            plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
             DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
             ptDynamicData->iDataOffset = tDrawable.uDataOffset;
@@ -4275,7 +4288,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             ptDynamicData->tModel = ptTransform->tWorld;
             ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
 
-            gptGfx->add_to_stream(ptStream, (plDrawStreamData)
+            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
                 .uShaderVariant       = tDrawable.tShader.uIndex,
                 .uDynamicBuffer0       = tDynamicBinding.uBufferHandle,
@@ -4446,7 +4459,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                 plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
                 plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
                 
-                plDynamicBinding tDynamicBinding = gptGfx->allocate_dynamic_data(ptDevice, sizeof(plPickDynamicData));
+                plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
                 plPickDynamicData* ptDynamicData = (plPickDynamicData*)tDynamicBinding.pcData;
                 
                 ptDynamicData->tColor = (plVec4){
@@ -4474,7 +4487,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                 plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
                 plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
                 
-                plDynamicBinding tDynamicBinding = gptGfx->allocate_dynamic_data(ptDevice, sizeof(plPickDynamicData));
+                plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
                 plPickDynamicData* ptDynamicData = (plPickDynamicData*)tDynamicBinding.pcData;
                 const uint32_t uId = tDrawable.tEntity.uIndex;
                 ptDynamicData->tColor = (plVec4){
@@ -4676,7 +4689,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             // submit nonindexed draw using basic API
             gptGfx->bind_compute_shader(ptComputeEncoder, gptData->tJFAShader);
 
-            plDynamicBinding tDynamicBinding = gptGfx->allocate_dynamic_data(gptData->ptDevice, sizeof(plVec4));
+            plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
             plVec4* ptJumpDistance = (plVec4*)tDynamicBinding.pcData;
             ptJumpDistance->x = fJumpDistance;
 
@@ -4782,6 +4795,7 @@ pl_refr_begin_frame(void)
     gptGfx->begin_frame(gptData->ptDevice);
     gptGfx->reset_command_pool(gptData->atCmdPools[gptGfx->get_current_frame_index()], 0);
     gptGfx->reset_bind_group_pool(gptData->aptBindGroupPools[gptGfx->get_current_frame_index()]);
+    gptData->tCurrentDynamicDataBlock = gptGfx->allocate_dynamic_data_block(gptData->ptDevice);
 
     if(!gptGfx->acquire_swapchain_image(gptData->ptSwap))
     {

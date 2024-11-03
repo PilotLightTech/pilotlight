@@ -95,26 +95,4 @@ static void pl__cleanup_common_swapchain(plSwapchain*);
 // misc.
 static void pl__garbage_collect(plDevice*);
 
-//-----------------------------------------------------------------------------
-// [SECTION] enums
-//-----------------------------------------------------------------------------
-
-enum plDrawStreamBits
-{
-    PL_DRAW_STREAM_BIT_NONE             = 0,
-    PL_DRAW_STREAM_BIT_SHADER           = 1 << 0,
-    PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET_0 = 1 << 1,
-    PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER_0 = 1 << 2,
-    PL_DRAW_STREAM_BIT_BINDGROUP_2      = 1 << 3,
-    PL_DRAW_STREAM_BIT_BINDGROUP_1      = 1 << 4,
-    PL_DRAW_STREAM_BIT_BINDGROUP_0      = 1 << 5,
-    PL_DRAW_STREAM_BIT_INDEX_OFFSET     = 1 << 6,
-    PL_DRAW_STREAM_BIT_VERTEX_OFFSET    = 1 << 7,
-    PL_DRAW_STREAM_BIT_INDEX_BUFFER     = 1 << 8,
-    PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0  = 1 << 9,
-    PL_DRAW_STREAM_BIT_TRIANGLES        = 1 << 10,
-    PL_DRAW_STREAM_BIT_INSTANCE_START   = 1 << 11,
-    PL_DRAW_STREAM_BIT_INSTANCE_COUNT   = 1 << 12
-};
-
 #endif // PL_GRAPHICS_INTERNAL_EXT_H

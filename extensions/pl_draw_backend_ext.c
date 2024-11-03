@@ -48,10 +48,12 @@ typedef struct _plDrawBackendContext
     uint32_t       auIndexBufferSize[PL_MAX_FRAMES_IN_FLIGHT];
     uint32_t       auIndexBufferOffset[PL_MAX_FRAMES_IN_FLIGHT];
 
-
     plBufferInfo atBufferInfo[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferInfo at3DBufferInfo[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferInfo atLineBufferInfo[PL_MAX_FRAMES_IN_FLIGHT];
+
+    // dynamic buffer system
+    plDynamicDataBlock tCurrentDynamicDataBlock;
 } plDrawBackendContext;
 
 //-----------------------------------------------------------------------------
@@ -68,7 +70,6 @@ static plBufferHandle         pl__create_staging_buffer(const plBufferDesc*, con
 static const plPipelineEntry* pl__get_3d_pipeline              (plRenderPassHandle, uint32_t uMSAASampleCount, plDrawFlags, uint32_t uSubpassIndex);
 static const plPipelineEntry* pl__get_2d_pipeline              (plRenderPassHandle, uint32_t uMSAASampleCount, uint32_t uSubpassIndex);
 static plBindGroupHandle      pl_create_bind_group_for_texture(plTextureHandle);
-
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -189,6 +190,7 @@ pl_new_draw_frame(void)
     *pd3dPipelineCount = pl_sb_size(gptDrawBackendCtx->sbt3dPipelineEntries);
 
     gptDraw->new_frame();
+    gptDrawBackendCtx->tCurrentDynamicDataBlock = gptGfx->allocate_dynamic_data_block(gptDrawBackendCtx->ptDevice);
 
     // reset buffer offsets
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
@@ -685,7 +687,7 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
         plVec2 uTranslate;
     } plDrawDynamicData;
 
-    plDynamicBinding tDynamicBinding = gptGfx->allocate_dynamic_data(ptDevice, sizeof(plDrawDynamicData));
+    plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, &gptDrawBackendCtx->tCurrentDynamicDataBlock);
 
     plDrawDynamicData* ptDynamicData = (plDrawDynamicData*)tDynamicBinding.pcData;
     ptDynamicData->uScale.x = 2.0f / fWidth;
@@ -850,7 +852,7 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
         char* pucMappedIndexBufferLocation = ptIndexBuffer->tMemoryAllocation.pHostMapped;
         memcpy(&pucMappedIndexBufferLocation[gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx]], ptDrawlist->sbtSolidIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbtSolidIndexBuffer));
 
-        plDynamicBinding tSolidDynamicData = gptGfx->allocate_dynamic_data(gptDrawBackendCtx->ptDevice, sizeof(plMat4));
+        plDynamicBinding tSolidDynamicData = pl_allocate_dynamic_data(gptGfx, gptDrawBackendCtx->ptDevice, &gptDrawBackendCtx->tCurrentDynamicDataBlock);
         plMat4* ptSolidDynamicData = (plMat4*)tSolidDynamicData.pcData;
         *ptSolidDynamicData = *ptMVP;
 
@@ -944,7 +946,7 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
             int   padding[3];
         } plLineDynamiceData;
 
-        plDynamicBinding tLineDynamicData = gptGfx->allocate_dynamic_data(ptDevice, sizeof(plLineDynamiceData));
+        plDynamicBinding tLineDynamicData = pl_allocate_dynamic_data(gptGfx, gptDrawBackendCtx->ptDevice, &gptDrawBackendCtx->tCurrentDynamicDataBlock);
         plLineDynamiceData* ptLineDynamicData = (plLineDynamiceData*)tLineDynamicData.pcData;
         ptLineDynamicData->tMVP = *ptMVP;
         ptLineDynamicData->fAspect = fAspectRatio;

@@ -247,132 +247,31 @@ pl_queue_sampler_for_deletion(plDevice* ptDevice, plSamplerHandle tHandle)
 }
 
 static void
-pl_drawstream_cleanup(plDrawStream* ptStream)
+pl_draw_stream_cleanup(plDrawStream* ptStream)
 {
-    memset(&ptStream->_tCurrentDraw, 255, sizeof(plDrawStreamData)); 
-    pl_sb_free(ptStream->_sbtStream);
+    memset(&ptStream->_tCurrentDraw, 255, sizeof(plDrawStreamData));
+    PL_FREE(ptStream->_auStream);
+    ptStream->_uStreamCapacity = 0;
+    ptStream->_uStreamCount = 0;
 }
 
 static void
-pl_drawstream_reset(plDrawStream* ptStream)
+pl_draw_stream_reset(plDrawStream* ptStream, uint32_t uDrawCount)
 {
     memset(&ptStream->_tCurrentDraw, 255, sizeof(plDrawStreamData));
     ptStream->_tCurrentDraw.uIndexBuffer = UINT32_MAX - 1;
     ptStream->_tCurrentDraw.uDynamicBufferOffset0 = 0;
-    pl_sb_reset(ptStream->_sbtStream);
-}
+    ptStream->_uStreamCount = 0;
 
-static void
-pl_drawstream_draw(plDrawStream* ptStream, plDrawStreamData tDraw)
-{
-
-    uint32_t uDirtyMask = PL_DRAW_STREAM_BIT_NONE;
-
-    if(ptStream->_tCurrentDraw.uShaderVariant != tDraw.uShaderVariant)
+    if(uDrawCount * 13 > ptStream->_uStreamCapacity)
     {
-        ptStream->_tCurrentDraw.uShaderVariant = tDraw.uShaderVariant;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_SHADER;
+        uint32_t* auOldStream = ptStream->_auStream;
+        uint32_t uNewCapacity = uDrawCount * 13;
+        ptStream->_auStream = PL_ALLOC(sizeof(uint32_t) * uNewCapacity);
+        memset(ptStream->_auStream, 0, sizeof(uint32_t) * uNewCapacity);
+        ptStream->_uStreamCapacity = uNewCapacity;
+        PL_FREE(auOldStream);
     }
-
-    if(ptStream->_tCurrentDraw.uDynamicBufferOffset0 != tDraw.uDynamicBufferOffset0)
-    {   
-        ptStream->_tCurrentDraw.uDynamicBufferOffset0 = tDraw.uDynamicBufferOffset0;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET_0;
-    }
-
-    if(ptStream->_tCurrentDraw.uBindGroup0 != tDraw.uBindGroup0)
-    {
-        ptStream->_tCurrentDraw.uBindGroup0 = tDraw.uBindGroup0;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_0;
-    }
-
-    if(ptStream->_tCurrentDraw.uBindGroup1 != tDraw.uBindGroup1)
-    {
-        ptStream->_tCurrentDraw.uBindGroup1 = tDraw.uBindGroup1;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_1;
-    }
-
-    if(ptStream->_tCurrentDraw.uBindGroup2 != tDraw.uBindGroup2)
-    {
-        ptStream->_tCurrentDraw.uBindGroup2 = tDraw.uBindGroup2;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_2;
-    }
-
-    if(ptStream->_tCurrentDraw.uDynamicBuffer0 != tDraw.uDynamicBuffer0)
-    {
-        ptStream->_tCurrentDraw.uDynamicBuffer0 = tDraw.uDynamicBuffer0;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER_0;
-    }
-
-    if(ptStream->_tCurrentDraw.uIndexOffset != tDraw.uIndexOffset)
-    {   
-        ptStream->_tCurrentDraw.uIndexOffset = tDraw.uIndexOffset;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_INDEX_OFFSET;
-    }
-
-    if(ptStream->_tCurrentDraw.uVertexOffset != tDraw.uVertexOffset)
-    {   
-        ptStream->_tCurrentDraw.uVertexOffset = tDraw.uVertexOffset;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_VERTEX_OFFSET;
-    }
-
-    if(ptStream->_tCurrentDraw.uIndexBuffer != tDraw.uIndexBuffer)
-    {
-        ptStream->_tCurrentDraw.uIndexBuffer = tDraw.uIndexBuffer;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_INDEX_BUFFER;
-    }
-
-    if(ptStream->_tCurrentDraw.uVertexBuffer0 != tDraw.uVertexBuffer0)
-    {
-        ptStream->_tCurrentDraw.uVertexBuffer0 = tDraw.uVertexBuffer0;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0;
-    }
-
-    if(ptStream->_tCurrentDraw.uTriangleCount != tDraw.uTriangleCount)
-    {
-        ptStream->_tCurrentDraw.uTriangleCount = tDraw.uTriangleCount;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_TRIANGLES;
-    }
-
-    if(ptStream->_tCurrentDraw.uInstanceStart != tDraw.uInstanceStart)
-    {
-        ptStream->_tCurrentDraw.uInstanceStart = tDraw.uInstanceStart;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_INSTANCE_START;
-    }
-
-    if(ptStream->_tCurrentDraw.uInstanceCount != tDraw.uInstanceCount)
-    {
-        ptStream->_tCurrentDraw.uInstanceCount = tDraw.uInstanceCount;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_INSTANCE_COUNT;
-    }
-
-    pl_sb_push(ptStream->_sbtStream, uDirtyMask);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
-        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uShaderVariant);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET_0)
-        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uDynamicBufferOffset0);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
-        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uBindGroup0);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
-        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uBindGroup1);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
-        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uBindGroup2);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER_0)
-        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uDynamicBuffer0);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
-        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uIndexOffset);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_OFFSET)
-        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uVertexOffset);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_BUFFER)
-        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uIndexBuffer);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0)
-        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uVertexBuffer0);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_TRIANGLES)
-        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uTriangleCount);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_START)
-        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uInstanceStart);
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_COUNT)
-        pl_sb_push(ptStream->_sbtStream, ptStream->_tCurrentDraw.uInstanceCount);
 }
 
 static uint32_t
@@ -815,9 +714,8 @@ pl_load_graphics_api(void)
         .signal_semaphore                       = pl_signal_semaphore,
         .wait_semaphore                         = pl_wait_semaphore,
         .get_semaphore_value                    = pl_get_semaphore_value,
-        .reset_draw_stream                      = pl_drawstream_reset,
-        .add_to_stream                          = pl_drawstream_draw,
-        .cleanup_draw_stream                    = pl_drawstream_cleanup,
+        .reset_draw_stream                      = pl_draw_stream_reset,
+        .cleanup_draw_stream                    = pl_draw_stream_cleanup,
         .create_semaphore                       = pl_create_semaphore,
         .create_buffer                          = pl_create_buffer,
         .create_shader                          = pl_create_shader,
@@ -829,7 +727,7 @@ pl_load_graphics_api(void)
         .create_sampler                         = pl_create_sampler,
         .create_bind_group                      = pl_create_bind_group,
         .update_bind_group                      = pl_update_bind_group,
-        .allocate_dynamic_data                  = pl_allocate_dynamic_data,
+        .allocate_dynamic_data_block            = pl_allocate_dynamic_data_block,
         .queue_buffer_for_deletion              = pl_queue_buffer_for_deletion,
         .queue_texture_for_deletion             = pl_queue_texture_for_deletion,
         .queue_bind_group_for_deletion          = pl_queue_bind_group_for_deletion,

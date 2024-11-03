@@ -627,7 +627,8 @@ pl_app_update(plAppData* ptAppData)
     gptGfx->bind_vertex_buffer(ptEncoder, ptAppData->tVertexBuffer);
 
     // retrieve dynamic binding data
-    plDynamicBinding tDynamicBinding = gptGfx->allocate_dynamic_data(ptAppData->ptDevice, sizeof(plVec4));
+    plDynamicDataBlock tCurrentDynamicDataBlock = {0};
+    plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, ptAppData->ptDevice, &tCurrentDynamicDataBlock);
     plVec4* tTintColor = (plVec4*)tDynamicBinding.pcData;
     tTintColor->r = 1.0f;
     tTintColor->g = 1.0f;

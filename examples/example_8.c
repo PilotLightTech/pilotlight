@@ -101,7 +101,7 @@ const plWindowI*      gptWindows     = NULL;
 const plGraphicsI*    gptGfx         = NULL;
 const plDrawI*        gptDraw        = NULL;
 const plShaderI*      gptShader      = NULL;
-const plDrawBackendI* gptDrawBackend = NULL; // not yet stable
+const plDrawBackendI* gptDrawBackend = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper function declarations
