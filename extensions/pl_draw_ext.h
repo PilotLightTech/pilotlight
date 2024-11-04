@@ -95,7 +95,7 @@ typedef int plDrawRectFlags; // -> enum _plDrawRectFlags // Flags:
 
 // backend texture type
 #ifndef plTextureID
-    typedef uint64_t plTextureID;
+    typedef uint32_t plTextureID;
 #endif
 
 //-----------------------------------------------------------------------------

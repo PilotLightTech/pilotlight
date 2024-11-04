@@ -470,7 +470,7 @@ pl_app_update(plEditorData* ptEditorData)
         gptUi->show_debug_window(&ptEditorData->bShowUiDebug);
 
     // add full screen quad for offscreen render
-    gptDraw->add_image(ptEditorData->ptDrawLayer, gptRenderer->get_view_color_texture(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0).ulData, (plVec2){0}, ptIO->tMainViewportSize);
+    gptDraw->add_image(ptEditorData->ptDrawLayer, gptRenderer->get_view_color_texture(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0).uData, (plVec2){0}, ptIO->tMainViewportSize);
 
     gptDraw->submit_2d_layer(ptEditorData->ptDrawLayer);
 

@@ -45,7 +45,7 @@ Index of this file:
 
 // macros
 #define PL_DEFINE_HANDLE(x) \
-    typedef union x { struct {uint32_t uIndex; uint32_t uGeneration;}; uint64_t ulData; } x;
+    typedef union x { struct {uint16_t uIndex; uint16_t uGeneration;}; uint32_t uData; } x;
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
@@ -427,7 +427,7 @@ typedef struct _plSampler
     plSamplerDesc tDesc;
 
     // [INTERNAL]
-    uint32_t _uGeneration;
+    uint16_t _uGeneration;
 } plSampler;
 
 typedef struct _plTextureDesc
@@ -461,7 +461,7 @@ typedef struct _plTexture
     plDeviceMemoryAllocation   tMemoryAllocation;   // filled out when using (bind_texture_to_memory)
 
     // [INTERNAL]
-    uint32_t _uGeneration;
+    uint16_t _uGeneration;
 } plTexture;
 
 typedef struct _plBufferDesc
@@ -478,7 +478,7 @@ typedef struct _plBuffer
     plDeviceMemoryAllocation   tMemoryAllocation;   // filled out when using (bind_buffer_to_memory)
 
     // [INTERNAL]
-    uint32_t _uGeneration;
+    uint16_t _uGeneration;
 } plBuffer;
 
 //-----------------------------bind groups-------------------------------------
@@ -511,7 +511,7 @@ typedef struct _plBufferBinding
 
 typedef struct _plDynamicBinding
 {
-    uint32_t uBufferHandle;
+    uint16_t uBufferHandle;
     uint32_t uByteOffset;
     char*    pcData;
 } plDynamicBinding;
@@ -519,7 +519,7 @@ typedef struct _plDynamicBinding
 typedef struct _plDynamicDataBlock
 {
     // [INTERNAL]
-    uint32_t _uBufferHandle;
+    uint16_t _uBufferHandle;
     uint32_t _uByteSize;
     uint32_t _uAlignment;
     uint32_t _uBumpAmount;
@@ -597,7 +597,7 @@ typedef struct _plBindGroup
     plBindGroupLayout tLayout;
 
     // [INTERNAL]
-    uint32_t _uGeneration;
+    uint16_t _uGeneration;
 } plBindGroup;
 
 //-------------------------------shaders---------------------------------------
@@ -633,7 +633,7 @@ typedef struct _plComputeShader
     plComputeShaderDesc tDesc;
 
     // [INTERNAL]
-    uint32_t _uGeneration;
+    uint16_t _uGeneration;
 } plComputeShader;
 
 typedef struct _plBlendState
@@ -707,7 +707,7 @@ typedef struct _plShader
     plShaderDesc tDesc;
 
     // [INTERNAL]
-    uint32_t _uGeneration;
+    uint16_t _uGeneration;
 } plShader;
 
 //----------------------------render passes------------------------------------
@@ -746,7 +746,7 @@ typedef struct _plRenderPassLayout
 
     // [INTERNAL]
     uint32_t _uAttachmentCount;
-    uint32_t _uGeneration;
+    uint16_t _uGeneration;
 } plRenderPassLayout;
 
 typedef struct _plRenderPassAttachments
@@ -790,7 +790,7 @@ typedef struct _plRenderPass
     plRenderPassDesc tDesc;
 
     // [INTERNAL]
-    uint32_t _uGeneration;
+    uint16_t _uGeneration;
 } plRenderPass;
 
 //---------------------------command buffers-----------------------------------
@@ -871,19 +871,17 @@ typedef struct _plDispatch
 
 typedef struct _plDrawStreamData
 {
-    uint32_t uDynamicBuffer0;
-    uint32_t uVertexBuffer0;
-    uint32_t uIndexBuffer;
-    uint32_t uVertexOffset;
-    uint32_t uIndexOffset;
-    uint32_t uTriangleCount;
-    uint32_t uShaderVariant;
-    uint32_t uBindGroup0;
-    uint32_t uBindGroup1;
-    uint32_t uBindGroup2;
-    uint32_t uDynamicBufferOffset0;
-    uint32_t uInstanceStart;
-    uint32_t uInstanceCount;
+    plShaderHandle    tShader;
+    plBindGroupHandle atBindGroups[3];
+    uint16_t          auDynamicBuffers[1];
+    plBufferHandle    tIndexBuffer;
+    plBufferHandle    atVertexBuffers[1];
+    uint32_t          uIndexOffset;
+    uint32_t          uVertexOffset;
+    uint32_t          uInstanceOffset;
+    uint32_t          uInstanceCount;
+    uint32_t          auDynamicBufferOffsets[1];
+    uint32_t          uTriangleCount;
 } plDrawStreamData;
 
 typedef struct _plDrawStream
@@ -1274,7 +1272,7 @@ enum plDrawStreamBits
     PL_DRAW_STREAM_BIT_INDEX_BUFFER     = 1 << 8,
     PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0  = 1 << 9,
     PL_DRAW_STREAM_BIT_TRIANGLES        = 1 << 10,
-    PL_DRAW_STREAM_BIT_INSTANCE_START   = 1 << 11,
+    PL_DRAW_STREAM_BIT_INSTANCE_OFFSET  = 1 << 11,
     PL_DRAW_STREAM_BIT_INSTANCE_COUNT   = 1 << 12
 };
 
@@ -1306,39 +1304,39 @@ pl_add_to_draw_stream(plDrawStream* ptStream, plDrawStreamData tDraw)
 
     uint32_t uDirtyMask = PL_DRAW_STREAM_BIT_NONE;
 
-    if(ptStream->_tCurrentDraw.uShaderVariant != tDraw.uShaderVariant)
+    if(ptStream->_tCurrentDraw.tShader.uData != tDraw.tShader.uData)
     {
-        ptStream->_tCurrentDraw.uShaderVariant = tDraw.uShaderVariant;
+        ptStream->_tCurrentDraw.tShader = tDraw.tShader;
         uDirtyMask |= PL_DRAW_STREAM_BIT_SHADER;
     }
 
-    if(ptStream->_tCurrentDraw.uDynamicBufferOffset0 != tDraw.uDynamicBufferOffset0)
+    if(ptStream->_tCurrentDraw.auDynamicBufferOffsets[0] != tDraw.auDynamicBufferOffsets[0])
     {   
-        ptStream->_tCurrentDraw.uDynamicBufferOffset0 = tDraw.uDynamicBufferOffset0;
+        ptStream->_tCurrentDraw.auDynamicBufferOffsets[0] = tDraw.auDynamicBufferOffsets[0];
         uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET_0;
     }
 
-    if(ptStream->_tCurrentDraw.uBindGroup0 != tDraw.uBindGroup0)
+    if(ptStream->_tCurrentDraw.atBindGroups[0].uData != tDraw.atBindGroups[0].uData)
     {
-        ptStream->_tCurrentDraw.uBindGroup0 = tDraw.uBindGroup0;
+        ptStream->_tCurrentDraw.atBindGroups[0] = tDraw.atBindGroups[0];
         uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_0;
     }
 
-    if(ptStream->_tCurrentDraw.uBindGroup1 != tDraw.uBindGroup1)
+    if(ptStream->_tCurrentDraw.atBindGroups[1].uData != tDraw.atBindGroups[1].uData)
     {
-        ptStream->_tCurrentDraw.uBindGroup1 = tDraw.uBindGroup1;
+        ptStream->_tCurrentDraw.atBindGroups[1] = tDraw.atBindGroups[1];
         uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_1;
     }
 
-    if(ptStream->_tCurrentDraw.uBindGroup2 != tDraw.uBindGroup2)
+    if(ptStream->_tCurrentDraw.atBindGroups[2].uData != tDraw.atBindGroups[2].uData)
     {
-        ptStream->_tCurrentDraw.uBindGroup2 = tDraw.uBindGroup2;
+        ptStream->_tCurrentDraw.atBindGroups[2] = tDraw.atBindGroups[2];
         uDirtyMask |= PL_DRAW_STREAM_BIT_BINDGROUP_2;
     }
 
-    if(ptStream->_tCurrentDraw.uDynamicBuffer0 != tDraw.uDynamicBuffer0)
+    if(ptStream->_tCurrentDraw.auDynamicBuffers[0] != tDraw.auDynamicBuffers[0])
     {
-        ptStream->_tCurrentDraw.uDynamicBuffer0 = tDraw.uDynamicBuffer0;
+        ptStream->_tCurrentDraw.auDynamicBuffers[0] = tDraw.auDynamicBuffers[0];
         uDirtyMask |= PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER_0;
     }
 
@@ -1354,15 +1352,15 @@ pl_add_to_draw_stream(plDrawStream* ptStream, plDrawStreamData tDraw)
         uDirtyMask |= PL_DRAW_STREAM_BIT_VERTEX_OFFSET;
     }
 
-    if(ptStream->_tCurrentDraw.uIndexBuffer != tDraw.uIndexBuffer)
+    if(ptStream->_tCurrentDraw.tIndexBuffer.uData != tDraw.tIndexBuffer.uData)
     {
-        ptStream->_tCurrentDraw.uIndexBuffer = tDraw.uIndexBuffer;
+        ptStream->_tCurrentDraw.tIndexBuffer = tDraw.tIndexBuffer;
         uDirtyMask |= PL_DRAW_STREAM_BIT_INDEX_BUFFER;
     }
 
-    if(ptStream->_tCurrentDraw.uVertexBuffer0 != tDraw.uVertexBuffer0)
+    if(ptStream->_tCurrentDraw.atVertexBuffers[0].uData != tDraw.atVertexBuffers[0].uData)
     {
-        ptStream->_tCurrentDraw.uVertexBuffer0 = tDraw.uVertexBuffer0;
+        ptStream->_tCurrentDraw.atVertexBuffers[0] = tDraw.atVertexBuffers[0];
         uDirtyMask |= PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0;
     }
 
@@ -1372,10 +1370,10 @@ pl_add_to_draw_stream(plDrawStream* ptStream, plDrawStreamData tDraw)
         uDirtyMask |= PL_DRAW_STREAM_BIT_TRIANGLES;
     }
 
-    if(ptStream->_tCurrentDraw.uInstanceStart != tDraw.uInstanceStart)
+    if(ptStream->_tCurrentDraw.uInstanceOffset != tDraw.uInstanceOffset)
     {
-        ptStream->_tCurrentDraw.uInstanceStart = tDraw.uInstanceStart;
-        uDirtyMask |= PL_DRAW_STREAM_BIT_INSTANCE_START;
+        ptStream->_tCurrentDraw.uInstanceOffset = tDraw.uInstanceOffset;
+        uDirtyMask |= PL_DRAW_STREAM_BIT_INSTANCE_OFFSET;
     }
 
     if(ptStream->_tCurrentDraw.uInstanceCount != tDraw.uInstanceCount)
@@ -1386,29 +1384,29 @@ pl_add_to_draw_stream(plDrawStream* ptStream, plDrawStreamData tDraw)
 
     ptStream->_auStream[ptStream->_uStreamCount++] = uDirtyMask;
     if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
-        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uShaderVariant;
+        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.tShader.uData;
     if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET_0)
-        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uDynamicBufferOffset0;
+        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.auDynamicBufferOffsets[0];
     if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
-        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uBindGroup0;
+        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.atBindGroups[0].uData;
     if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
-        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uBindGroup1;
+        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.atBindGroups[1].uData;
     if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
-        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uBindGroup2;
+        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.atBindGroups[2].uData;
     if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER_0)
-        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uDynamicBuffer0;
+        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.auDynamicBuffers[0];
     if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)
         ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uIndexOffset;
     if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_OFFSET)
         ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uVertexOffset;
     if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_BUFFER)
-        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uIndexBuffer;
+        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.tIndexBuffer.uData;
     if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0)
-        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uVertexBuffer0;
+        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.atVertexBuffers[0].uData;
     if(uDirtyMask & PL_DRAW_STREAM_BIT_TRIANGLES)
         ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uTriangleCount;
-    if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_START)
-        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uInstanceStart;
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_OFFSET)
+        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uInstanceOffset;
     if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_COUNT)
         ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uInstanceCount;
 }

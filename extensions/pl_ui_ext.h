@@ -71,7 +71,7 @@ typedef struct _plDrawLayer2D plDrawLayer2D; // pl_draw_ext.h
 typedef struct _plFont        plFont;        // pl_draw_ext.h
 
 #ifndef plTextureID
-    typedef uint64_t plTextureID;
+    typedef uint32_t plTextureID;
 #endif
 
 //-----------------------------------------------------------------------------

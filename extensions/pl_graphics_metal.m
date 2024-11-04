@@ -211,43 +211,43 @@ typedef struct _plDevice
     plRenderPassLayoutHandle tMainRenderPassLayout;
     plMetalRenderPassLayout* sbtRenderPassLayoutsHot;
     plRenderPassLayout*      sbtRenderPassLayoutsCold;
-    uint32_t*                sbtRenderPassLayoutFreeIndices;
+    uint16_t*                sbtRenderPassLayoutFreeIndices;
 
     // render passes
     plRenderPassHandle tMainRenderPass;
     plMetalRenderPass* sbtRenderPassesHot;
     plRenderPass*      sbtRenderPassesCold;
-    uint32_t*          sbtRenderPassFreeIndices;
+    uint16_t*          sbtRenderPassFreeIndices;
 
     // shaders
     plMetalShader* sbtShadersHot;
     plShader*      sbtShadersCold;
-    uint32_t*      sbtShaderFreeIndices;
+    uint16_t*      sbtShaderFreeIndices;
 
     // compute shaders
     plMetalComputeShader* sbtComputeShadersHot;
     plComputeShader*      sbtComputeShadersCold;
-    uint32_t*             sbtComputeShaderFreeIndices;
+    uint16_t*             sbtComputeShaderFreeIndices;
 
     // buffers
     plMetalBuffer* sbtBuffersHot;
     plBuffer*      sbtBuffersCold;
-    uint32_t*      sbtBufferFreeIndices;
+    uint16_t*      sbtBufferFreeIndices;
 
     // textures
     plMetalTexture* sbtTexturesHot;
     plTexture*      sbtTexturesCold;
-    uint32_t*       sbtTextureFreeIndices;
+    uint16_t*       sbtTextureFreeIndices;
 
     // samplers
     plMetalSampler* sbtSamplersHot;
     plSampler*      sbtSamplersCold;
-    uint32_t*       sbtSamplerFreeIndices;
+    uint16_t*       sbtSamplerFreeIndices;
 
     // bind groups
     plMetalBindGroup*  sbtBindGroupsHot;
     plBindGroup*       sbtBindGroupsCold;
-    uint32_t*          sbtBindGroupFreeIndices;
+    uint16_t*          sbtBindGroupFreeIndices;
 
     // metal specifics
     id<MTLDevice> tDevice;
@@ -1506,6 +1506,55 @@ pl_create_device(const plDeviceInit* ptInit)
     memset(ptDevice, 0, sizeof(plDevice));
     ptDevice->tInit = *ptInit;
 
+    pl_sb_reserve(ptDevice->sbtRenderPassLayoutsHot, 16);
+    pl_sb_reserve(ptDevice->sbtRenderPassLayoutsCold, 16);
+    pl_sb_reserve(ptDevice->sbtRenderPassesHot, 16);
+    pl_sb_reserve(ptDevice->sbtShadersHot, 16);
+    pl_sb_reserve(ptDevice->sbtShadersCold, 16);
+    pl_sb_reserve(ptDevice->sbtComputeShadersHot, 16);
+    pl_sb_reserve(ptDevice->sbtComputeShadersCold, 16);
+    pl_sb_reserve(ptDevice->sbtBuffersHot, 16);
+    pl_sb_reserve(ptDevice->sbtBuffersCold, 16);
+    pl_sb_reserve(ptDevice->sbtTexturesHot, 16);
+    pl_sb_reserve(ptDevice->sbtTexturesCold, 16);
+    pl_sb_reserve(ptDevice->sbtSamplersHot, 16);
+    pl_sb_reserve(ptDevice->sbtSamplersCold, 16);
+    pl_sb_reserve(ptDevice->sbtBindGroupsHot, 16);
+    pl_sb_reserve(ptDevice->sbtBindGroupsCold, 16);
+    pl_sb_reserve(ptDevice->sbtRenderPassLayoutFreeIndices, 16);
+    pl_sb_reserve(ptDevice->sbtRenderPassFreeIndices, 16);
+    pl_sb_reserve(ptDevice->sbtShaderFreeIndices, 16);
+    pl_sb_reserve(ptDevice->sbtComputeShaderFreeIndices, 16);
+    pl_sb_reserve(ptDevice->sbtBufferFreeIndices, 16);
+    pl_sb_reserve(ptDevice->sbtTextureFreeIndices, 16);
+    pl_sb_reserve(ptDevice->sbtSamplerFreeIndices, 16);
+    pl_sb_reserve(ptDevice->sbtBindGroupFreeIndices, 16);
+
+    pl_sb_add(ptDevice->sbtRenderPassLayoutsHot);
+    pl_sb_add(ptDevice->sbtRenderPassesHot);
+    pl_sb_add(ptDevice->sbtShadersHot);
+    pl_sb_add(ptDevice->sbtComputeShadersHot);
+    pl_sb_add(ptDevice->sbtBuffersHot);
+    pl_sb_add(ptDevice->sbtTexturesHot);
+    pl_sb_add(ptDevice->sbtSamplersHot);
+    pl_sb_add(ptDevice->sbtBindGroupsHot);
+    
+    pl_sb_add(ptDevice->sbtRenderPassLayoutsCold);
+    pl_sb_add(ptDevice->sbtShadersCold);
+    pl_sb_add(ptDevice->sbtComputeShadersCold);
+    pl_sb_add(ptDevice->sbtBuffersCold);
+    pl_sb_add(ptDevice->sbtTexturesCold);
+    pl_sb_add(ptDevice->sbtSamplersCold);
+    pl_sb_add(ptDevice->sbtBindGroupsCold);
+
+    pl_sb_back(ptDevice->sbtRenderPassLayoutsCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtShadersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtComputeShadersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtBuffersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtTexturesCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtSamplersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtBindGroupsCold)._uGeneration = 1;
+
     ptDevice->tDevice = (__bridge id)ptIOCtx->pBackendPlatformData;
 
     uint32_t uDeviceCount = 16;
@@ -2191,7 +2240,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
         const uint32_t uTokens = ptStream->_uStreamCount;
         uint32_t uCurrentStreamIndex = 0;
         uint32_t uTriangleCount = 0;
-        uint32_t uIndexBuffer = 0;
+        plBufferHandle tIndexBuffer = {0};
         uint32_t uIndexBufferOffset = 0;
         uint32_t uVertexBufferOffset = 0;
         uint32_t uDynamicBufferOffset0 = 0;
@@ -2207,8 +2256,9 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
             {
-                const plShader* ptShader= &ptDevice->sbtShadersCold[ptStream->_auStream[uCurrentStreamIndex]];
-                plMetalShader* ptMetalShader = &ptDevice->sbtShadersHot[ptStream->_auStream[uCurrentStreamIndex]];
+                const plShaderHandle tShaderHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
+                const plShader* ptShader= &ptDevice->sbtShadersCold[tShaderHandle.uIndex];
+                plMetalShader* ptMetalShader = &ptDevice->sbtShadersHot[tShaderHandle.uIndex];
                 [ptEncoder->tEncoder setCullMode:ptMetalShader->tCullMode];
                 [ptEncoder->tEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
                 if(tCurrentDepthStencilState != ptMetalShader->tDepthStencilState)
@@ -2232,7 +2282,8 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
             {
-                plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[ptStream->_auStream[uCurrentStreamIndex]];
+                const plBindGroupHandle tBindGroupHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
+                plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[tBindGroupHandle.uIndex];
 
                 for(uint32 j = 0; j < ptMetalBindGroup->uHeapCount; j++)
                 {
@@ -2253,7 +2304,8 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
             {
-                plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[ptStream->_auStream[uCurrentStreamIndex]];
+                const plBindGroupHandle tBindGroupHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
+                plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[tBindGroupHandle.uIndex];
 
                 for(uint32 j = 0; j < ptMetalBindGroup->uHeapCount; j++)
                 {
@@ -2274,7 +2326,8 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
             {
-                plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[ptStream->_auStream[uCurrentStreamIndex]];
+                const plBindGroupHandle tBindGroupHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
+                plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[tBindGroupHandle.uIndex];
                 
                 for(uint32 j = 0; j < ptMetalBindGroup->uHeapCount; j++)
                 {
@@ -2318,12 +2371,13 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_BUFFER)
             {
-                uIndexBuffer = ptStream->_auStream[uCurrentStreamIndex];
+                tIndexBuffer = (plBufferHandle){.uData = ptStream->_auStream[uCurrentStreamIndex] };
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0)
             {
-                [ptEncoder->tEncoder setVertexBuffer:ptDevice->sbtBuffersHot[ptStream->_auStream[uCurrentStreamIndex]].tBuffer
+                const plBufferHandle tBufferHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
+                [ptEncoder->tEncoder setVertexBuffer:ptDevice->sbtBuffersHot[tBufferHandle.uIndex].tBuffer
                     offset:0
                     atIndex:4];
                 uCurrentStreamIndex++;
@@ -2334,7 +2388,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                 uCurrentStreamIndex++;
             }
 
-            if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_START)
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_OFFSET)
             {
                 uInstanceStart = ptStream->_auStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
@@ -2346,7 +2400,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                 uCurrentStreamIndex++;
             }
 
-            if(uIndexBuffer == UINT32_MAX)
+            if(tIndexBuffer.uData == 0)
             {
                 [ptEncoder->tEncoder drawPrimitives:MTLPrimitiveTypeTriangle 
                     vertexStart:uVertexBufferOffset
@@ -2360,7 +2414,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                 [ptEncoder->tEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle 
                     indexCount:uTriangleCount * 3
                     indexType:MTLIndexTypeUInt32
-                    indexBuffer:ptDevice->sbtBuffersHot[uIndexBuffer].tBuffer
+                    indexBuffer:ptDevice->sbtBuffersHot[tIndexBuffer.uIndex].tBuffer
                     indexBufferOffset:uIndexBufferOffset * sizeof(uint32_t)
                     instanceCount:uInstanceCount
                     baseVertex:uVertexBufferOffset
@@ -2724,7 +2778,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtRenderPasses); i++)
     {
-        const uint32_t iResourceIndex = ptGarbage->sbtRenderPasses[i].uIndex;
+        const uint16_t iResourceIndex = ptGarbage->sbtRenderPasses[i].uIndex;
         plMetalRenderPass* ptMetalResource = &ptDevice->sbtRenderPassesHot[iResourceIndex];
         for(uint32_t uFrameIndex = 0; uFrameIndex < gptGraphics->uFramesInFlight; uFrameIndex++)
         {
@@ -2740,14 +2794,14 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtRenderPassLayouts); i++)
     {
-        const uint32_t iResourceIndex = ptGarbage->sbtRenderPassLayouts[i].uIndex;
+        const uint16_t iResourceIndex = ptGarbage->sbtRenderPassLayouts[i].uIndex;
         plMetalRenderPassLayout* ptMetalResource = &ptDevice->sbtRenderPassLayoutsHot[iResourceIndex];
         pl_sb_push(ptDevice->sbtRenderPassLayoutFreeIndices, iResourceIndex);
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtShaders); i++)
     {
-        const uint32_t iResourceIndex = ptGarbage->sbtShaders[i].uIndex;
+        const uint16_t iResourceIndex = ptGarbage->sbtShaders[i].uIndex;
         plShader* ptResource = pl__get_shader(ptDevice, ptGarbage->sbtShaders[i]);
 
         plMetalShader* ptVariantMetalResource = &ptDevice->sbtShadersHot[ptGarbage->sbtShaders[i].uIndex];
@@ -2770,7 +2824,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtComputeShaders); i++)
     {
-        const uint32_t iResourceIndex = ptGarbage->sbtComputeShaders[i].uIndex;
+        const uint16_t iResourceIndex = ptGarbage->sbtComputeShaders[i].uIndex;
         plComputeShader* ptResource = &ptDevice->sbtComputeShadersCold[iResourceIndex];
 
         plMetalComputeShader* ptVariantMetalResource = &ptDevice->sbtComputeShadersHot[iResourceIndex];
@@ -2787,7 +2841,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBindGroups); i++)
     {
-        const uint32_t iBindGroupIndex = ptGarbage->sbtBindGroups[i].uIndex;
+        const uint16_t iBindGroupIndex = ptGarbage->sbtBindGroups[i].uIndex;
         plMetalBindGroup* ptMetalResource = &ptDevice->sbtBindGroupsHot[iBindGroupIndex];
         [ptMetalResource->tShaderArgumentBuffer release];
         ptMetalResource->tShaderArgumentBuffer = nil;
@@ -2796,7 +2850,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtSamplers); i++)
     {
-        const uint32_t iResourceIndex = ptGarbage->sbtSamplers[i].uIndex;
+        const uint16_t iResourceIndex = ptGarbage->sbtSamplers[i].uIndex;
         plMetalSampler* ptMetalSampler = &ptDevice->sbtSamplersHot[iResourceIndex];
         [ptMetalSampler->tSampler release];
         ptMetalSampler->tSampler = nil;
@@ -2805,7 +2859,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtTextures); i++)
     {
-        const uint32_t uTextureIndex = ptGarbage->sbtTextures[i].uIndex;
+        const uint16_t uTextureIndex = ptGarbage->sbtTextures[i].uIndex;
         plMetalTexture* ptMetalTexture = &ptDevice->sbtTexturesHot[uTextureIndex];
         [ptMetalTexture->tTexture release];
         ptMetalTexture->tTexture = nil;
@@ -2814,7 +2868,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBuffers); i++)
     {
-        const uint32_t iBufferIndex = ptGarbage->sbtBuffers[i].uIndex;
+        const uint16_t iBufferIndex = ptGarbage->sbtBuffers[i].uIndex;
         [ptDevice->sbtBuffersHot[iBufferIndex].tBuffer release];
         ptDevice->sbtBuffersHot[iBufferIndex].tBuffer = nil;
         pl_sb_push(ptDevice->sbtBufferFreeIndices, iBufferIndex);

@@ -571,7 +571,7 @@ pl_app_update(plAppData* ptAppData)
     camera_update(ptCamera);
 
     // add full screen quad for offscreen render
-    gptDraw->add_image(ptAppData->ptFGLayer, ptAppData->atColorTextureBg[uCurrentFrameIndex].ulData, (plVec2){0}, ptIO->tMainViewportSize);
+    gptDraw->add_image(ptAppData->ptFGLayer, ptAppData->atColorTextureBg[uCurrentFrameIndex].uData, (plVec2){0}, ptIO->tMainViewportSize);
 
     // 3d drawing API usage
     const plMat4 tOrigin = pl_identity_mat4();

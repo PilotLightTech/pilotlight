@@ -476,7 +476,7 @@ pl_refr_initialize(plWindow* ptWindow)
     gptData->tPickedEntity.ulData = UINT64_MAX;
 
     // shader default values
-    gptData->tSkyboxShader = (plShaderHandle){UINT32_MAX, UINT32_MAX};
+    gptData->tSkyboxShader = (plShaderHandle){0};
 
     // initialize graphics
     plGraphicsInit tGraphicsDesc = {
@@ -1112,22 +1112,6 @@ pl_refr_create_scene(void)
 
     // initialize ecs library
     gptECS->init_component_library(&ptScene->tComponentLibrary);
-
-    // buffer default values
-    ptScene->tVertexBuffer       = (plBufferHandle){UINT32_MAX, UINT32_MAX};
-    ptScene->tIndexBuffer        = (plBufferHandle){UINT32_MAX, UINT32_MAX};
-    ptScene->tStorageBuffer      = (plBufferHandle){UINT32_MAX, UINT32_MAX};
-    ptScene->tMaterialDataBuffer = (plBufferHandle){UINT32_MAX, UINT32_MAX};
-    // ptScene->tLightBuffer        = (plBufferHandle){UINT32_MAX, UINT32_MAX};
-
-    // skybox resources default values
-    ptScene->tSkyboxTexture   = (plTextureHandle)  {UINT32_MAX, UINT32_MAX};
-    ptScene->tSkyboxBindGroup = (plBindGroupHandle){UINT32_MAX, UINT32_MAX};
-
-    // IBL defaults
-    ptScene->tGGXLUTTexture        = (plTextureHandle)  {UINT32_MAX, UINT32_MAX};
-    ptScene->tGGXEnvTexture        = (plTextureHandle)  {UINT32_MAX, UINT32_MAX};
-    ptScene->tLambertianEnvTexture = (plTextureHandle)  {UINT32_MAX, UINT32_MAX};
 
     return uSceneHandle;
 }
@@ -1815,7 +1799,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     plCommandPool* ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
 
     // create skybox shader if we haven't
-    if(gptData->tSkyboxShader.uIndex == UINT32_MAX)
+    if(gptData->tSkyboxShader.uIndex == 0)
     {
         // create skybox shader
         plShaderDesc tSkyboxShaderDesc = {
@@ -2519,7 +2503,7 @@ pl_refr_select_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnti
         gptData->tPickedEntity = (plEntity){.ulData = UINT64_MAX};
 
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_USE_PUNCTUAL;
-    if(ptScene->tGGXEnvTexture.uIndex != UINT32_MAX)
+    if(ptScene->tGGXEnvTexture.uIndex != 0)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
 
     // reset old entities
@@ -2814,7 +2798,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~CPU Buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_USE_PUNCTUAL;
-    if(ptScene->tGGXEnvTexture.uIndex != UINT32_MAX)
+    if(ptScene->tGGXEnvTexture.uIndex != 0)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
 
     // fill CPU buffers & drawable list
@@ -2949,10 +2933,10 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                 };
                 (sbtDrawables[uDrawableBatchIndex])[i].tShadowShader = pl__get_shader_variant(uSceneHandle, atTemplateShadowShaders[uDrawableBatchIndex], &tShadowVariant);
 
-                plBindGroupHandle tShadowMaterialBindGroup = {.ulData = UINT64_MAX};
+                plBindGroupHandle tShadowMaterialBindGroup = {0};
                 if(pl_hm_has_key(ptScene->ptShadowBindgroupHashmap, ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource.ulData))
                 {
-                    tShadowMaterialBindGroup.ulData = pl_hm_lookup(ptScene->ptShadowBindgroupHashmap, ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource.ulData);
+                    tShadowMaterialBindGroup.uData = (uint32_t)pl_hm_lookup(ptScene->ptShadowBindgroupHashmap, ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource.ulData);
                 }
                 else
                 {
@@ -2978,7 +2962,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                     };
                     gptGfx->update_bind_group(ptDevice, tShadowMaterialBindGroup, &tBGData1);
 
-                    pl_hm_insert(ptScene->ptShadowBindgroupHashmap, ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource.ulData, tShadowMaterialBindGroup.ulData);
+                    pl_hm_insert(ptScene->ptShadowBindgroupHashmap, ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource.ulData, tShadowMaterialBindGroup.uData);
                 }
                 (sbtDrawables[uDrawableBatchIndex])[i].tShadowMaterialBindGroup = tShadowMaterialBindGroup;
             }
@@ -3640,18 +3624,25 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
 
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
-                .uShaderVariant       = gptData->tShadowShader.uIndex,
-                .uDynamicBuffer0      = tDynamicBinding.uBufferHandle,
-                .uVertexBuffer0       = ptScene->tVertexBuffer.uIndex,
-                .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
+                .tShader         = gptData->tShadowShader,
+                .auDynamicBuffers = {
+                    tDynamicBinding.uBufferHandle
+                },
+                .atVertexBuffers = {
+                    ptScene->tVertexBuffer,
+                },
+                .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                 .uIndexOffset         = tDrawable.uIndexOffset,
                 .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
-                .uBindGroup0          = tGlobalBG.uIndex,
-                .uBindGroup1          = tOpaqueBG1.uIndex,
-                .uBindGroup2          = UINT32_MAX,
-                .uDynamicBufferOffset0 = tDynamicBinding.uByteOffset,
-                .uInstanceStart       = 0,
-                .uInstanceCount       = 1
+                .atBindGroups = {
+                    tGlobalBG,
+                    tOpaqueBG1
+                },
+                .auDynamicBufferOffsets = {
+                    tDynamicBinding.uByteOffset
+                },
+                .uInstanceOffset = 0,
+                .uInstanceCount = 1
             });
         }
 
@@ -3672,18 +3663,25 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
 
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
-                .uShaderVariant       = tDrawable.tShadowShader.uIndex,
-                .uDynamicBuffer0       = tDynamicBinding.uBufferHandle,
-                .uVertexBuffer0        = ptScene->tVertexBuffer.uIndex,
-                .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
+                .tShader        = tDrawable.tShadowShader,
+                .auDynamicBuffers = {
+                    tDynamicBinding.uBufferHandle
+                },
+                .atVertexBuffers = {
+                    ptScene->tVertexBuffer,
+                },
+                .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                 .uIndexOffset         = tDrawable.uIndexOffset,
                 .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
-                .uBindGroup0          = tGlobalBG.uIndex,
-                .uBindGroup1          = tDrawable.tShadowMaterialBindGroup.uIndex,
-                .uBindGroup2          = UINT32_MAX,
-                .uDynamicBufferOffset0 = tDynamicBinding.uByteOffset,
-                .uInstanceStart       = 0,
-                .uInstanceCount       = 1
+                .atBindGroups = {
+                    tGlobalBG,
+                    tDrawable.tShadowMaterialBindGroup
+                },
+                .auDynamicBufferOffsets = {
+                    tDynamicBinding.uByteOffset
+                },
+                .uInstanceOffset = 0,
+                .uInstanceCount = 1
             });
         }
 
@@ -3946,17 +3944,17 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
     };
     const plBindGroupUpdateTextureData tTextureData[] = {
         {
-            .tTexture = ptScene->tLambertianEnvTexture.uIndex != UINT32_MAX ? ptScene->tLambertianEnvTexture : gptData->tDummyTextureCube,
+            .tTexture = ptScene->tLambertianEnvTexture.uIndex != 0 ? ptScene->tLambertianEnvTexture : gptData->tDummyTextureCube,
             .uSlot    = 5,
             .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
         },
         {
-            .tTexture = ptScene->tGGXEnvTexture.uIndex != UINT32_MAX ? ptScene->tGGXEnvTexture : gptData->tDummyTextureCube,
+            .tTexture = ptScene->tGGXEnvTexture.uIndex != 0 ? ptScene->tGGXEnvTexture : gptData->tDummyTextureCube,
             .uSlot    = 6,
             .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
         },
         {
-            .tTexture = ptScene->tGGXLUTTexture.uIndex != UINT32_MAX ? ptScene->tGGXLUTTexture : gptData->tDummyTexture,
+            .tTexture = ptScene->tGGXLUTTexture.uIndex != 0 ? ptScene->tGGXLUTTexture : gptData->tDummyTexture,
             .uSlot    = 7,
             .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
         },
@@ -4105,18 +4103,25 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
 
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
-                .uShaderVariant       = tDrawable.tShader.uIndex,
-                .uDynamicBuffer0       = tDynamicBinding.uBufferHandle,
-                .uVertexBuffer0        = ptScene->tVertexBuffer.uIndex,
-                .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
+                .tShader        = tDrawable.tShader,
+                .auDynamicBuffers = {
+                    tDynamicBinding.uBufferHandle
+                },
+                .atVertexBuffers = {
+                    ptScene->tVertexBuffer,
+                },
+                .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                 .uIndexOffset         = tDrawable.uIndexOffset,
                 .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
-                .uBindGroup0          = tGlobalBG.uIndex,
-                .uBindGroup1          = tDrawable.tMaterialBindGroup.uIndex,
-                .uBindGroup2          = UINT32_MAX,
-                .uDynamicBufferOffset0 = tDynamicBinding.uByteOffset,
-                .uInstanceStart       = 0,
-                .uInstanceCount       = 1
+                .atBindGroups = {
+                    tGlobalBG,
+                    tDrawable.tMaterialBindGroup
+                },
+                .auDynamicBufferOffsets = {
+                    tDynamicBinding.uByteOffset
+                },
+                .uInstanceOffset = 0,
+                .uInstanceCount = 1
             });
         }
 
@@ -4213,18 +4218,26 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
         gptGfx->reset_draw_stream(ptStream, 1);
         pl_add_to_draw_stream(ptStream, (plDrawStreamData)
         {
-            .uShaderVariant       = ptScene->tLightingShader.uIndex,
-            .uDynamicBuffer0       = tLightingDynamicData.uBufferHandle,
-            .uVertexBuffer0        = gptData->tFullQuadVertexBuffer.uIndex,
-            .uIndexBuffer         = gptData->tFullQuadIndexBuffer.uIndex,
+            .tShader        = ptScene->tLightingShader,
+            .auDynamicBuffers = {
+                tLightingDynamicData.uBufferHandle
+            },
+            .atVertexBuffers = {
+                gptData->tFullQuadVertexBuffer
+            },
+            .tIndexBuffer         = gptData->tFullQuadIndexBuffer,
             .uIndexOffset         = 0,
             .uTriangleCount       = 2,
-            .uBindGroup0          = tGlobalBG.uIndex,
-            .uBindGroup1          = ptView->tLightingBindGroup[uFrameIdx].uIndex,
-            .uBindGroup2          = tLightBindGroup2.uIndex,
-            .uDynamicBufferOffset0 = tLightingDynamicData.uByteOffset,
-            .uInstanceStart       = 0,
-            .uInstanceCount       = 1
+            .atBindGroups = {
+                tGlobalBG,
+                ptView->tLightingBindGroup[uFrameIdx],
+                tLightBindGroup2
+            },
+            .auDynamicBufferOffsets = {
+                tLightingDynamicData.uByteOffset
+            },
+            .uInstanceOffset = 0,
+            .uInstanceCount = 1
         });
         gptGfx->draw_stream(ptEncoder, 1, &tArea);
         
@@ -4232,7 +4245,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
 
         gptGfx->next_subpass(ptEncoder);
 
-        if(ptScene->tSkyboxTexture.uIndex != UINT32_MAX)
+        if(ptScene->tSkyboxTexture.uIndex != 0)
         {
             
             plDynamicBinding tSkyboxDynamicData = pl__allocate_dynamic_data(ptDevice);
@@ -4242,18 +4255,25 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             gptGfx->reset_draw_stream(ptStream, 1);
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
-                .uShaderVariant       = gptData->tSkyboxShader.uIndex,
-                .uDynamicBuffer0       = tSkyboxDynamicData.uBufferHandle,
-                .uVertexBuffer0        = ptScene->tVertexBuffer.uIndex,
-                .uIndexBuffer         = ptScene->tIndexBuffer.uIndex,
+                .tShader        = gptData->tSkyboxShader,
+                .auDynamicBuffers = {
+                    tSkyboxDynamicData.uBufferHandle
+                },
+                .atVertexBuffers = {
+                    ptScene->tVertexBuffer,
+                },
+                .tIndexBuffer         = ptScene->tIndexBuffer,
                 .uIndexOffset         = ptScene->tSkyboxDrawable.uIndexOffset,
                 .uTriangleCount       = ptScene->tSkyboxDrawable.uIndexCount / 3,
-                .uBindGroup0          = tGlobalBG.uIndex,
-                .uBindGroup1          = ptScene->tSkyboxBindGroup.uIndex,
-                .uBindGroup2          = UINT32_MAX,
-                .uDynamicBufferOffset0 = tSkyboxDynamicData.uByteOffset,
-                .uInstanceStart       = 0,
-                .uInstanceCount       = 1
+                .atBindGroups = {
+                    tGlobalBG,
+                    ptScene->tSkyboxBindGroup
+                },
+                .auDynamicBufferOffsets = {
+                    tSkyboxDynamicData.uByteOffset
+                },
+                .uInstanceOffset = 0,
+                .uInstanceCount = 1
             });
             gptGfx->draw_stream(ptEncoder, 1, &tArea);
         }
@@ -4290,18 +4310,26 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
 
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
-                .uShaderVariant       = tDrawable.tShader.uIndex,
-                .uDynamicBuffer0       = tDynamicBinding.uBufferHandle,
-                .uVertexBuffer0        = ptScene->tVertexBuffer.uIndex,
-                .uIndexBuffer         = tDrawable.uIndexCount == 0 ? UINT32_MAX : ptScene->tIndexBuffer.uIndex,
+                .tShader        = tDrawable.tShader,
+                .auDynamicBuffers = {
+                    tDynamicBinding.uBufferHandle
+                },
+                .atVertexBuffers = {
+                    ptScene->tVertexBuffer,
+                },
+                .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                 .uIndexOffset         = tDrawable.uIndexOffset,
                 .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
-                .uBindGroup0          = tGlobalBG.uIndex,
-                .uBindGroup1          = tLightBindGroup2.uIndex,
-                .uBindGroup2          = tDrawable.tMaterialBindGroup.uIndex,
-                .uDynamicBufferOffset0 = tDynamicBinding.uByteOffset,
-                .uInstanceStart       = 0,
-                .uInstanceCount       = 1
+                .atBindGroups = {
+                    tGlobalBG,
+                    tLightBindGroup2,
+                    tDrawable.tMaterialBindGroup
+                },
+                .auDynamicBufferOffsets = {
+                    tDynamicBinding.uByteOffset
+                },
+                .uInstanceOffset = 0,
+                .uInstanceCount = 1
             });
         }
         gptGfx->draw_stream(ptEncoder, 1, &tArea);

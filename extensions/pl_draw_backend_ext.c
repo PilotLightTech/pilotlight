@@ -223,7 +223,8 @@ pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtl
 
     plTexture* ptTexture = NULL;
     plTextureHandle tTexture = gptGfx->create_texture(ptDevice, &tFontTextureDesc, &ptTexture);
-    ptAtlas->ptUserData = (void*)tTexture.ulData;
+    uint64_t ulData = (uint64_t)tTexture.uData;
+    ptAtlas->ptUserData = (void*)ulData;
     
     const plDeviceMemoryAllocation tAllocation = gptGfx->allocate_memory(ptDevice,
         ptTexture->tMemoryRequirements.ulSize,
@@ -267,7 +268,7 @@ pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtl
     gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
     gptGfx->wait_on_command_buffer(ptCommandBuffer);
 
-    ptAtlas->tTexture = pl_create_bind_group_for_texture(tTexture).ulData;
+    ptAtlas->tTexture = pl_create_bind_group_for_texture(tTexture).uData;
 
     gptGfx->destroy_buffer(ptDevice, tStagingBuffer);
     return true;
@@ -279,7 +280,8 @@ pl_cleanup_font_atlas_backend(plFontAtlas* ptAtlas)
     if(ptAtlas == NULL)
         ptAtlas = gptDraw->get_current_font_atlas();
 
-    plTextureHandle tTexture = {.ulData = (uint64_t)ptAtlas->ptUserData};
+    uint64_t ulData = (uint64_t)ptAtlas->ptUserData;
+    plTextureHandle tTexture = {.uData = (uint32_t)ulData};
     gptGfx->destroy_texture(gptDrawBackendCtx->ptDevice, tTexture);
 
     gptDraw->cleanup_font_atlas(ptAtlas);
@@ -758,7 +760,7 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
             gptGfx->set_scissor_region(ptEncoder, &tScissor);
         }
 
-        plBindGroupHandle tTexture = {.ulData = cmd.tTextureId};
+        plBindGroupHandle tTexture = {.uData = cmd.tTextureId};
         plBindGroupHandle atBindGroups[] = {
             gptDrawBackendCtx->tFontSamplerBindGroup,
             tTexture

@@ -258,10 +258,14 @@ pl_draw_stream_cleanup(plDrawStream* ptStream)
 static void
 pl_draw_stream_reset(plDrawStream* ptStream, uint32_t uDrawCount)
 {
-    memset(&ptStream->_tCurrentDraw, 255, sizeof(plDrawStreamData));
-    ptStream->_tCurrentDraw.uIndexBuffer = UINT32_MAX - 1;
-    ptStream->_tCurrentDraw.uDynamicBufferOffset0 = 0;
+    memset(&ptStream->_tCurrentDraw, 0, sizeof(plDrawStreamData));
     ptStream->_uStreamCount = 0;
+    ptStream->_tCurrentDraw.auDynamicBuffers[0] = UINT16_MAX;
+    ptStream->_tCurrentDraw.uIndexOffset = UINT32_MAX;
+    ptStream->_tCurrentDraw.uVertexOffset = UINT32_MAX;
+    ptStream->_tCurrentDraw.uInstanceOffset = UINT32_MAX;
+    ptStream->_tCurrentDraw.uInstanceCount = UINT32_MAX;
+    ptStream->_tCurrentDraw.uTriangleCount = UINT32_MAX;
 
     if(uDrawCount * 13 > ptStream->_uStreamCapacity)
     {
@@ -349,6 +353,8 @@ pl__cleanup_common_device(plDevice* ptDevice)
     pl_sb_free(ptDevice->sbtBindGroupFreeIndices);
     pl_sb_free(ptDevice->sbtSamplerFreeIndices);
     pl_sb_free(ptDevice->sbtComputeShaderFreeIndices);
+    pl_sb_free(ptDevice->sbtRenderPassLayoutFreeIndices);
+    pl_sb_free(ptDevice->sbtRenderPassFreeIndices);
 
     plTimelineSemaphore* ptCurrentSemaphore = ptDevice->ptSemaphoreFreeList;
     while(ptCurrentSemaphore)
@@ -379,14 +385,14 @@ pl__cleanup_common_device(plDevice* ptDevice)
 static plBufferHandle
 pl__get_new_buffer_handle(plDevice* ptDevice)
 {
-    uint32_t uBufferIndex = UINT32_MAX;
+    uint16_t uBufferIndex = 0;
     if(pl_sb_size(ptDevice->sbtBufferFreeIndices) > 0)
         uBufferIndex = pl_sb_pop(ptDevice->sbtBufferFreeIndices);
     else
     {
-        uBufferIndex = pl_sb_size(ptDevice->sbtBuffersCold);
+        uBufferIndex = (uint16_t)pl_sb_size(ptDevice->sbtBuffersCold);
         pl_sb_add(ptDevice->sbtBuffersCold);
-        pl_sb_back(ptDevice->sbtBuffersCold)._uGeneration = UINT32_MAX;
+        pl_sb_back(ptDevice->sbtBuffersCold)._uGeneration = UINT16_MAX;
         pl_sb_add(ptDevice->sbtBuffersHot);
     }
 
@@ -400,14 +406,14 @@ pl__get_new_buffer_handle(plDevice* ptDevice)
 static plTextureHandle
 pl__get_new_texture_handle(plDevice* ptDevice)
 {
-    uint32_t uTextureIndex = UINT32_MAX;
+    uint16_t uTextureIndex = 0;
     if(pl_sb_size(ptDevice->sbtTextureFreeIndices) > 0)
         uTextureIndex = pl_sb_pop(ptDevice->sbtTextureFreeIndices);
     else
     {
-        uTextureIndex = pl_sb_size(ptDevice->sbtTexturesCold);
+        uTextureIndex = (uint16_t)pl_sb_size(ptDevice->sbtTexturesCold);
         pl_sb_add(ptDevice->sbtTexturesCold);
-        pl_sb_back(ptDevice->sbtTexturesCold)._uGeneration = UINT32_MAX;
+        pl_sb_back(ptDevice->sbtTexturesCold)._uGeneration = UINT16_MAX;
         pl_sb_add(ptDevice->sbtTexturesHot);
     }
 
@@ -421,14 +427,14 @@ pl__get_new_texture_handle(plDevice* ptDevice)
 static plSamplerHandle
 pl__get_new_sampler_handle(plDevice* ptDevice)
 {
-    uint32_t uResourceIndex = UINT32_MAX;
+    uint16_t uResourceIndex = 0;
     if(pl_sb_size(ptDevice->sbtSamplerFreeIndices) > 0)
         uResourceIndex = pl_sb_pop(ptDevice->sbtSamplerFreeIndices);
     else
     {
-        uResourceIndex = pl_sb_size(ptDevice->sbtSamplersCold);
+        uResourceIndex = (uint16_t)pl_sb_size(ptDevice->sbtSamplersCold);
         pl_sb_add(ptDevice->sbtSamplersCold);
-        pl_sb_back(ptDevice->sbtSamplersCold)._uGeneration = UINT32_MAX;
+        pl_sb_back(ptDevice->sbtSamplersCold)._uGeneration = UINT16_MAX;
         pl_sb_add(ptDevice->sbtSamplersHot);
     }
 
@@ -442,14 +448,14 @@ pl__get_new_sampler_handle(plDevice* ptDevice)
 static plBindGroupHandle
 pl__get_new_bind_group_handle(plDevice* ptDevice)
 {
-    uint32_t uBindGroupIndex = UINT32_MAX;
+    uint16_t uBindGroupIndex = 0;
     if(pl_sb_size(ptDevice->sbtBindGroupFreeIndices) > 0)
         uBindGroupIndex = pl_sb_pop(ptDevice->sbtBindGroupFreeIndices);
     else
     {
-        uBindGroupIndex = pl_sb_size(ptDevice->sbtBindGroupsCold);
+        uBindGroupIndex = (uint16_t)pl_sb_size(ptDevice->sbtBindGroupsCold);
         pl_sb_add(ptDevice->sbtBindGroupsCold);
-        pl_sb_back(ptDevice->sbtBindGroupsCold)._uGeneration = UINT32_MAX;
+        pl_sb_back(ptDevice->sbtBindGroupsCold)._uGeneration = UINT16_MAX;
         pl_sb_add(ptDevice->sbtBindGroupsHot);
     }
 
@@ -463,14 +469,14 @@ pl__get_new_bind_group_handle(plDevice* ptDevice)
 static plShaderHandle
 pl__get_new_shader_handle(plDevice* ptDevice)
 {
-    uint32_t uResourceIndex = UINT32_MAX;
+    uint16_t uResourceIndex = 0;
     if(pl_sb_size(ptDevice->sbtShaderFreeIndices) > 0)
         uResourceIndex = pl_sb_pop(ptDevice->sbtShaderFreeIndices);
     else
     {
-        uResourceIndex = pl_sb_size(ptDevice->sbtShadersCold);
+        uResourceIndex = (uint16_t)pl_sb_size(ptDevice->sbtShadersCold);
         pl_sb_add(ptDevice->sbtShadersCold);
-        pl_sb_back(ptDevice->sbtShadersCold)._uGeneration = UINT32_MAX;
+        pl_sb_back(ptDevice->sbtShadersCold)._uGeneration = UINT16_MAX;
         pl_sb_add(ptDevice->sbtShadersHot);
     }
 
@@ -484,14 +490,14 @@ pl__get_new_shader_handle(plDevice* ptDevice)
 static plComputeShaderHandle
 pl__get_new_compute_shader_handle(plDevice* ptDevice)
 {
-    uint32_t uResourceIndex = UINT32_MAX;
+    uint16_t uResourceIndex = 0;
     if(pl_sb_size(ptDevice->sbtComputeShaderFreeIndices) > 0)
         uResourceIndex = pl_sb_pop(ptDevice->sbtComputeShaderFreeIndices);
     else
     {
-        uResourceIndex = pl_sb_size(ptDevice->sbtComputeShadersCold);
+        uResourceIndex = (uint16_t)pl_sb_size(ptDevice->sbtComputeShadersCold);
         pl_sb_add(ptDevice->sbtComputeShadersCold);
-        pl_sb_back(ptDevice->sbtComputeShadersCold)._uGeneration = UINT32_MAX;
+        pl_sb_back(ptDevice->sbtComputeShadersCold)._uGeneration = UINT16_MAX;
         pl_sb_add(ptDevice->sbtComputeShadersHot);
     }
 
@@ -505,14 +511,14 @@ pl__get_new_compute_shader_handle(plDevice* ptDevice)
 static plRenderPassHandle
 pl__get_new_render_pass_handle(plDevice* ptDevice)
 {
-    uint32_t uResourceIndex = UINT32_MAX;
+    uint16_t uResourceIndex = 0;
     if(pl_sb_size(ptDevice->sbtRenderPassFreeIndices) > 0)
         uResourceIndex = pl_sb_pop(ptDevice->sbtRenderPassFreeIndices);
     else
     {
-        uResourceIndex = pl_sb_size(ptDevice->sbtRenderPassesCold);
+        uResourceIndex = (uint16_t)pl_sb_size(ptDevice->sbtRenderPassesCold);
         pl_sb_add(ptDevice->sbtRenderPassesCold);
-        pl_sb_back(ptDevice->sbtRenderPassesCold)._uGeneration = UINT32_MAX;
+        pl_sb_back(ptDevice->sbtRenderPassesCold)._uGeneration = UINT16_MAX;
         pl_sb_add(ptDevice->sbtRenderPassesHot);
     }
 
@@ -526,14 +532,14 @@ pl__get_new_render_pass_handle(plDevice* ptDevice)
 static plRenderPassLayoutHandle
 pl__get_new_render_pass_layout_handle(plDevice* ptDevice)
 {
-    uint32_t uResourceIndex = UINT32_MAX;
+    uint16_t uResourceIndex = 0;
     if(pl_sb_size(ptDevice->sbtRenderPassLayoutFreeIndices) > 0)
         uResourceIndex = pl_sb_pop(ptDevice->sbtRenderPassLayoutFreeIndices);
     else
     {
-        uResourceIndex = pl_sb_size(ptDevice->sbtRenderPassLayoutsCold);
+        uResourceIndex = (uint16_t)pl_sb_size(ptDevice->sbtRenderPassLayoutsCold);
         pl_sb_add(ptDevice->sbtRenderPassLayoutsCold);
-        pl_sb_back(ptDevice->sbtRenderPassLayoutsCold)._uGeneration = UINT32_MAX;
+        pl_sb_back(ptDevice->sbtRenderPassLayoutsCold)._uGeneration = UINT16_MAX;
         pl_sb_add(ptDevice->sbtRenderPassLayoutsHot);
     }
 

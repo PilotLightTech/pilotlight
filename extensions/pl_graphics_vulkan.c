@@ -206,7 +206,7 @@ typedef struct _plFrameContext
     VkFramebuffer* sbtRawFrameBuffers;
 
     // dynamic buffer stuff
-    uint32_t               uCurrentBufferIndex;
+    uint16_t               uCurrentBufferIndex;
     plVulkanDynamicBuffer* sbtDynamicBuffers;
 } plFrameContext;
 
@@ -225,43 +225,43 @@ typedef struct _plDevice
     // render pass layout generation pool
     plVulkanRenderPassLayout* sbtRenderPassLayoutsHot;
     plRenderPassLayout*       sbtRenderPassLayoutsCold;
-    uint32_t*                 sbtRenderPassLayoutFreeIndices;
+    uint16_t*                 sbtRenderPassLayoutFreeIndices;
 
     // render pass generation pool
     plVulkanRenderPass* sbtRenderPassesHot;
     plRenderPass*       sbtRenderPassesCold;
-    uint32_t*           sbtRenderPassFreeIndices;
+    uint16_t*           sbtRenderPassFreeIndices;
 
     // shader generation pool
     plVulkanShader* sbtShadersHot;
     plShader*       sbtShadersCold;
-    uint32_t*       sbtShaderFreeIndices;
+    uint16_t*       sbtShaderFreeIndices;
 
     // compute shader generation pool
     plVulkanComputeShader* sbtComputeShadersHot;
     plComputeShader*       sbtComputeShadersCold;
-    uint32_t*              sbtComputeShaderFreeIndices;
+    uint16_t*              sbtComputeShaderFreeIndices;
 
     // buffer generation pool
     plVulkanBuffer* sbtBuffersHot;
     plBuffer*       sbtBuffersCold;
-    uint32_t*       sbtBufferFreeIndices;
+    uint16_t*       sbtBufferFreeIndices;
 
     // texture generation pool
     VkImageView*     sbtTextureViewsHot;
     plVulkanTexture* sbtTexturesHot;
     plTexture*       sbtTexturesCold;
-    uint32_t*        sbtTextureFreeIndices;
+    uint16_t*        sbtTextureFreeIndices;
 
     // sampler generation pool
     VkSampler* sbtSamplersHot;
     plSampler* sbtSamplersCold;
-    uint32_t*  sbtSamplerFreeIndices;
+    uint16_t*  sbtSamplerFreeIndices;
 
     // bind group generation pool
     plVulkanBindGroup* sbtBindGroupsHot;
     plBindGroup*       sbtBindGroupsCold;
-    uint32_t*          sbtBindGroupFreeIndices;
+    uint16_t*          sbtBindGroupFreeIndices;
 
     // bind group layout generation pool
     plVulkanBindGroupLayout* sbtBindGroupLayouts;
@@ -2010,7 +2010,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAr
         const uint32_t uTokens = ptStream->_uStreamCount;
         uint32_t uCurrentStreamIndex = 0;
         uint32_t uTriangleCount = 0;
-        uint32_t uIndexBuffer = 0;
+        plBufferHandle tIndexBuffer = {0};
         uint32_t uIndexBufferOffset = 0;
         uint32_t uVertexBufferOffset = 0;
         uint32_t uDynamicBufferOffset0 = 0;
@@ -2029,8 +2029,9 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAr
 
             if (uDirtyMask & PL_DRAW_STREAM_BIT_SHADER)
             {
-                const plShader* ptShader = &ptDevice->sbtShadersCold[ptStream->_auStream[uCurrentStreamIndex]];
-                ptVulkanShader = &ptDevice->sbtShadersHot[ptStream->_auStream[uCurrentStreamIndex]];
+                const plShaderHandle tShaderHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
+                const plShader* ptShader = &ptDevice->sbtShadersCold[tShaderHandle.uIndex];
+                ptVulkanShader = &ptDevice->sbtShadersHot[tShaderHandle.uIndex];
                 vkCmdBindPipeline(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
                 pl__set_bind_group_count(&tBindGroupManagerData, ptShader->tDesc._uBindGroupLayoutCount);
                 uCurrentStreamIndex++;
@@ -2045,21 +2046,24 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAr
 
             if (uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
             {
-                plVulkanBindGroup* ptBindGroup0 = &ptDevice->sbtBindGroupsHot[ptStream->_auStream[uCurrentStreamIndex]];
+                const plBindGroupHandle tBindGroupHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
+                plVulkanBindGroup* ptBindGroup0 = &ptDevice->sbtBindGroupsHot[tBindGroupHandle.uIndex];
                 pl__set_bind_group(&tBindGroupManagerData, 0, ptBindGroup0->tDescriptorSet);
                 uCurrentStreamIndex++;
             }
 
             if (uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_1)
             {
-                plVulkanBindGroup* ptBindGroup1 = &ptDevice->sbtBindGroupsHot[ptStream->_auStream[uCurrentStreamIndex]];
+                const plBindGroupHandle tBindGroupHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
+                plVulkanBindGroup* ptBindGroup1 = &ptDevice->sbtBindGroupsHot[tBindGroupHandle.uIndex];
                 pl__set_bind_group(&tBindGroupManagerData, 1, ptBindGroup1->tDescriptorSet);
                 uCurrentStreamIndex++;
             }
 
             if (uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_2)
             {
-                plVulkanBindGroup* ptBindGroup2 = &ptDevice->sbtBindGroupsHot[ptStream->_auStream[uCurrentStreamIndex]];
+                const plBindGroupHandle tBindGroupHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
+                plVulkanBindGroup* ptBindGroup2 = &ptDevice->sbtBindGroupsHot[tBindGroupHandle.uIndex];
                 pl__set_bind_group(&tBindGroupManagerData, 2, ptBindGroup2->tDescriptorSet);
                 uCurrentStreamIndex++;
             }
@@ -2083,17 +2087,19 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAr
             }
             if (uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_BUFFER)
             {
-                uIndexBuffer = ptStream->_auStream[uCurrentStreamIndex];
-                if (uIndexBuffer != UINT32_MAX)
+
+                tIndexBuffer = (plBufferHandle){.uData = ptStream->_auStream[uCurrentStreamIndex] };
+                if (tIndexBuffer.uData != 0)
                 {
-                    plVulkanBuffer* ptIndexBuffer = &ptDevice->sbtBuffersHot[uIndexBuffer];
+                    plVulkanBuffer* ptIndexBuffer = &ptDevice->sbtBuffersHot[tIndexBuffer.uIndex];
                     vkCmdBindIndexBuffer(ptCmdBuffer->tCmdBuffer, ptIndexBuffer->tBuffer, 0, VK_INDEX_TYPE_UINT32);
                 }
                 uCurrentStreamIndex++;
             }
             if (uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0)
             {
-                plVulkanBuffer* ptVertexBuffer = &ptDevice->sbtBuffersHot[ptStream->_auStream[uCurrentStreamIndex]];
+                const plBufferHandle tBufferHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
+                plVulkanBuffer* ptVertexBuffer = &ptDevice->sbtBuffersHot[tBufferHandle.uIndex];
                 vkCmdBindVertexBuffers(ptCmdBuffer->tCmdBuffer, 0, 1, &ptVertexBuffer->tBuffer, &offsets);
                 uCurrentStreamIndex++;
             }
@@ -2103,7 +2109,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAr
                 uCurrentStreamIndex++;
             }
 
-            if (uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_START)
+            if (uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_OFFSET)
             {
                 uInstanceStart = ptStream->_auStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
@@ -2118,7 +2124,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAr
             // vkCmdBindDescriptorSets(tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipelineLayout, uDescriptorStart, 4 - uDescriptorStart, &atDescriptorSets[uDescriptorStart], 1, &uDynamicBufferOffset0);
             pl__update_bindings(&tBindGroupManagerData, ptCmdBuffer->tCmdBuffer, ptVulkanShader->tPipelineLayout);
 
-            if (uIndexBuffer == UINT32_MAX)
+            if (tIndexBuffer.uData == 0)
                 vkCmdDraw(ptCmdBuffer->tCmdBuffer, uTriangleCount * 3, uInstanceCount, uVertexBufferOffset, uInstanceStart);
             else
                 vkCmdDrawIndexed(ptCmdBuffer->tCmdBuffer, uTriangleCount * 3, uInstanceCount, uIndexBufferOffset, uVertexBufferOffset, uInstanceStart);
@@ -2602,6 +2608,58 @@ pl_create_device(const plDeviceInit* ptInit)
     memset(ptDevice, 0, sizeof(plDevice));
     ptDevice->tInit = *ptInit;
 
+    pl_sb_reserve(ptDevice->sbtRenderPassLayoutsHot, 16);
+    pl_sb_reserve(ptDevice->sbtRenderPassLayoutsCold, 16);
+    pl_sb_reserve(ptDevice->sbtRenderPassesHot, 16);
+    pl_sb_reserve(ptDevice->sbtShadersHot, 16);
+    pl_sb_reserve(ptDevice->sbtShadersCold, 16);
+    pl_sb_reserve(ptDevice->sbtComputeShadersHot, 16);
+    pl_sb_reserve(ptDevice->sbtComputeShadersCold, 16);
+    pl_sb_reserve(ptDevice->sbtBuffersHot, 16);
+    pl_sb_reserve(ptDevice->sbtBuffersCold, 16);
+    pl_sb_reserve(ptDevice->sbtTextureViewsHot, 16);
+    pl_sb_reserve(ptDevice->sbtTexturesHot, 16);
+    pl_sb_reserve(ptDevice->sbtTexturesCold, 16);
+    pl_sb_reserve(ptDevice->sbtSamplersHot, 16);
+    pl_sb_reserve(ptDevice->sbtSamplersCold, 16);
+    pl_sb_reserve(ptDevice->sbtBindGroupsHot, 16);
+    pl_sb_reserve(ptDevice->sbtBindGroupsCold, 16);
+    pl_sb_reserve(ptDevice->sbtRenderPassLayoutFreeIndices, 16);
+    pl_sb_reserve(ptDevice->sbtRenderPassFreeIndices, 16);
+    pl_sb_reserve(ptDevice->sbtShaderFreeIndices, 16);
+    pl_sb_reserve(ptDevice->sbtComputeShaderFreeIndices, 16);
+    pl_sb_reserve(ptDevice->sbtBufferFreeIndices, 16);
+    pl_sb_reserve(ptDevice->sbtTextureFreeIndices, 16);
+    pl_sb_reserve(ptDevice->sbtSamplerFreeIndices, 16);
+    pl_sb_reserve(ptDevice->sbtBindGroupFreeIndices, 16);
+    pl_sb_reserve(ptDevice->sbtBindGroupLayouts, 16);
+
+    pl_sb_add(ptDevice->sbtRenderPassLayoutsHot);
+    pl_sb_add(ptDevice->sbtRenderPassesHot);
+    pl_sb_add(ptDevice->sbtShadersHot);
+    pl_sb_add(ptDevice->sbtComputeShadersHot);
+    pl_sb_add(ptDevice->sbtBuffersHot);
+    pl_sb_add(ptDevice->sbtTextureViewsHot);
+    pl_sb_add(ptDevice->sbtTexturesHot);
+    pl_sb_add(ptDevice->sbtSamplersHot);
+    pl_sb_add(ptDevice->sbtBindGroupsHot);
+    
+    pl_sb_add(ptDevice->sbtRenderPassLayoutsCold);
+    pl_sb_add(ptDevice->sbtShadersCold);
+    pl_sb_add(ptDevice->sbtComputeShadersCold);
+    pl_sb_add(ptDevice->sbtBuffersCold);
+    pl_sb_add(ptDevice->sbtTexturesCold);
+    pl_sb_add(ptDevice->sbtSamplersCold);
+    pl_sb_add(ptDevice->sbtBindGroupsCold);
+
+    pl_sb_back(ptDevice->sbtRenderPassLayoutsCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtShadersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtComputeShadersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtBuffersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtTexturesCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtSamplersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtBindGroupsCold)._uGeneration = 1;
+
     uint32_t uDeviceCount = 16;
     VkPhysicalDevice atDevices[16] = {0};
     PL_VULKAN(vkEnumeratePhysicalDevices(gptGraphics->tInstance, &uDeviceCount, atDevices));
@@ -2832,7 +2890,6 @@ pl_create_device(const plDeviceInit* ptInit)
         ptDevice->sbtFrames[i] = tFrame;
     }
     pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
-
     return ptDevice;
 }
 
@@ -3194,6 +3251,7 @@ pl_cleanup_device(plDevice* ptDevice)
     pl_sb_free(ptDevice->sbtShadersHot);
     pl_sb_free(ptDevice->sbtComputeShadersHot);
     pl_sb_free(ptDevice->sbtBindGroupLayouts);
+    pl_sb_free(ptDevice->sbtTextureViewsHot);
 
     // cleanup per frame resources
     for (uint32_t i = 0; i < pl_sb_size(ptDevice->sbtFrames); i++)
@@ -4877,7 +4935,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtTextures); i++)
     {
-        const uint32_t iResourceIndex = ptGarbage->sbtTextures[i].uIndex;
+        const uint16_t iResourceIndex = ptGarbage->sbtTextures[i].uIndex;
         plVulkanTexture* ptVulkanResource = &ptDevice->sbtTexturesHot[iResourceIndex];
         vkDestroyImageView(ptDevice->tLogicalDevice, ptDevice->sbtTexturesHot[iResourceIndex].tImageView, NULL);
         ptDevice->sbtTexturesHot[iResourceIndex].tImageView = VK_NULL_HANDLE;
@@ -4892,7 +4950,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtSamplers); i++)
     {
-        const uint32_t iResourceIndex = ptGarbage->sbtSamplers[i].uIndex;
+        const uint16_t iResourceIndex = ptGarbage->sbtSamplers[i].uIndex;
         vkDestroySampler(ptDevice->tLogicalDevice, ptDevice->sbtSamplersHot[iResourceIndex], NULL);
         ptDevice->sbtSamplersHot[iResourceIndex] = VK_NULL_HANDLE;
         pl_sb_push(ptDevice->sbtSamplerFreeIndices, iResourceIndex);
@@ -4900,7 +4958,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtRenderPasses); i++)
     {
-        const uint32_t iResourceIndex = ptGarbage->sbtRenderPasses[i].uIndex;
+        const uint16_t iResourceIndex = ptGarbage->sbtRenderPasses[i].uIndex;
         plVulkanRenderPass* ptVulkanResource = &ptDevice->sbtRenderPassesHot[iResourceIndex];
         for (uint32_t j = 0; j < 3; j++)
         {
@@ -4917,7 +4975,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtRenderPassLayouts); i++)
     {
-        const uint32_t iResourceIndex = ptGarbage->sbtRenderPassLayouts[i].uIndex;
+        const uint16_t iResourceIndex = ptGarbage->sbtRenderPassLayouts[i].uIndex;
         plVulkanRenderPassLayout* ptVulkanResource = &ptDevice->sbtRenderPassLayoutsHot[iResourceIndex];
         vkDestroyRenderPass(ptDevice->tLogicalDevice, ptVulkanResource->tRenderPass, NULL);
         pl_sb_push(ptDevice->sbtRenderPassLayoutFreeIndices, iResourceIndex);
@@ -4925,7 +4983,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtShaders); i++)
     {
-        const uint32_t iResourceIndex = ptGarbage->sbtShaders[i].uIndex;
+        const uint16_t iResourceIndex = ptGarbage->sbtShaders[i].uIndex;
         plShader* ptResource = &ptDevice->sbtShadersCold[iResourceIndex];
         plVulkanShader* ptVulkanResource = &ptDevice->sbtShadersHot[iResourceIndex];
         if (ptVulkanResource->tVertexShaderModule)
@@ -4953,7 +5011,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtComputeShaders); i++)
     {
-        const uint32_t iResourceIndex = ptGarbage->sbtComputeShaders[i].uIndex;
+        const uint16_t iResourceIndex = ptGarbage->sbtComputeShaders[i].uIndex;
         plComputeShader* ptResource = &ptDevice->sbtComputeShadersCold[iResourceIndex];
         plVulkanComputeShader* ptVulkanResource = &ptDevice->sbtComputeShadersHot[iResourceIndex];
         if (ptVulkanResource->tShaderModule)
@@ -4979,7 +5037,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBindGroups); i++)
     {
-        const uint32_t iBindGroupIndex = ptGarbage->sbtBindGroups[i].uIndex;
+        const uint16_t iBindGroupIndex = ptGarbage->sbtBindGroups[i].uIndex;
         plVulkanBindGroup* ptVulkanResource = &ptDevice->sbtBindGroupsHot[iBindGroupIndex];
         if (ptVulkanResource->bResetable)
             vkFreeDescriptorSets(ptDevice->tLogicalDevice, ptVulkanResource->tPool, 1, &ptVulkanResource->tDescriptorSet);
@@ -4998,7 +5056,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBuffers); i++)
     {
-        const uint32_t iResourceIndex = ptGarbage->sbtBuffers[i].uIndex;
+        const uint16_t iResourceIndex = ptGarbage->sbtBuffers[i].uIndex;
         vkDestroyBuffer(ptDevice->tLogicalDevice, ptDevice->sbtBuffersHot[iResourceIndex].tBuffer, NULL);
         ptDevice->sbtBuffersHot[iResourceIndex].tBuffer = VK_NULL_HANDLE;
         pl_sb_push(ptDevice->sbtBufferFreeIndices, iResourceIndex);
