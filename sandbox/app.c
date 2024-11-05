@@ -276,7 +276,8 @@ pl_app_resize(plEditorData* ptEditorData)
     plSwapchainInit tDesc = {
         .bVSync  = gptGfx->get_swapchain_info(ptEditorData->ptSwap).bVSync,
         .uWidth  = (uint32_t)ptIO->tMainViewportSize.x,
-        .uHeight = (uint32_t)ptIO->tMainViewportSize.y
+        .uHeight = (uint32_t)ptIO->tMainViewportSize.y,
+        .tSampleCount = gptGfx->get_swapchain_info(ptEditorData->ptSwap).tSampleCount,
     };
     gptGfx->recreate_swapchain(ptEditorData->ptSwap, &tDesc);
     gptCamera->set_aspect(gptEcs->get_component(gptRenderer->get_component_library(ptEditorData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptEditorData->tMainCamera), ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);

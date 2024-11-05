@@ -282,7 +282,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             {
                 .tLoadOp       = PL_LOAD_OP_CLEAR,
                 .tStoreOp      = PL_STORE_OP_STORE_MULTISAMPLE_RESOLVE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
+                .tCurrentUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
                 .tNextUsage    = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
                 .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
             }

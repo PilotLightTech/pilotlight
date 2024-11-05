@@ -290,6 +290,7 @@ typedef struct _plRefRendererData
     // main render pass stuff
     plRenderPassHandle       tMainRenderPass;
     plRenderPassLayoutHandle tMainRenderPassLayout;
+    plTextureHandle          tMSAATexture;
 
     // bind groups
     plBindGroupPool* ptBindGroupPool;
@@ -532,7 +533,8 @@ pl_refr_initialize(plWindow* ptWindow)
 
     // create swapchain
     const plSwapchainInit tSwapInit = {
-        .bVSync = true
+        .bVSync = true,
+        .tSampleCount = atDeviceInfos[iBestDvcIdx].tMaxSampleCount
     };
     gptData->ptSwap = gptGfx->create_swapchain(gptData->ptDevice, gptData->ptSurface, &tSwapInit);
     gptDataRegistry->set_data("device", gptData->ptDevice); // used by debug extension
@@ -552,8 +554,6 @@ pl_refr_initialize(plWindow* ptWindow)
         };
         gptData->aptBindGroupPools[i] = gptGfx->create_bind_group_pool(gptData->ptDevice, &tPoolDesc);
     }
-
-    gptData->tCurrentDynamicDataBlock = gptGfx->allocate_dynamic_data_block(gptData->ptDevice);
 
     // load gpu allocators
     gptData->ptLocalBuddyAllocator      = gptGpuAllocators->get_local_buddy_allocator(gptData->ptDevice);
@@ -1067,29 +1067,85 @@ pl_refr_initialize(plWindow* ptWindow)
 
     const plRenderPassLayoutDesc tMainRenderPassLayoutDesc = {
         .atRenderTargets = {
-            { .tFormat = gptGfx->get_swapchain_info(gptData->ptSwap).tFormat },
+            { .tFormat = gptGfx->get_swapchain_info(gptData->ptSwap).tFormat, .bResolve = true }, // swapchain
+            { .tFormat = gptGfx->get_swapchain_info(gptData->ptSwap).tFormat, .tSamples = gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount}, // msaa
         },
         .atSubpasses = {
             {
-                .uRenderTargetCount = 1,
-                .auRenderTargets = {0}
+                .uRenderTargetCount = 2,
+                .auRenderTargets = {0, 1}
             }
         }
     };
     gptData->tMainRenderPassLayout = gptGfx->create_render_pass_layout(gptData->ptDevice, &tMainRenderPassLayoutDesc);
 
+    plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptData->ptSwap);
+
+    const plTextureDesc tColorTextureDesc = {
+        .tDimensions   = {(float)tInfo.uWidth, (float)tInfo.uHeight, 1},
+        .tFormat       = gptGfx->get_swapchain_info(gptData->ptSwap).tFormat,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .tType         = PL_TEXTURE_TYPE_2D,
+        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+        .pcDebugName   = "offscreen color texture",
+        .tSampleCount  = tInfo.tSampleCount
+    };
+
+    // create textures
+    gptData->tMSAATexture = gptGfx->create_texture(gptData->ptDevice, &tColorTextureDesc, NULL);
+
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptData->atCmdPools[0]);
+    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
+
+    // begin blit pass, copy buffer, end pass
+    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+
+    // retrieve textures
+    plTexture* ptColorTexture = gptGfx->get_texture(gptData->ptDevice, gptData->tMSAATexture);
+
+    // allocate memory
+    const plDeviceMemoryAllocation tColorAllocation = gptGfx->allocate_memory(gptData->ptDevice, 
+        ptColorTexture->tMemoryRequirements.ulSize,
+        PL_MEMORY_GPU,
+        ptColorTexture->tMemoryRequirements.uMemoryTypeBits,
+        "color texture memory");
+
+    // bind memory
+    gptGfx->bind_texture_to_memory(gptData->ptDevice, gptData->tMSAATexture, &tColorAllocation);
+
+    // set initial usage
+    gptGfx->set_texture_usage(ptEncoder, gptData->tMSAATexture, PL_TEXTURE_USAGE_COLOR_ATTACHMENT, 0);
+
+    gptGfx->end_blit_pass(ptEncoder);
+
+    // finish recording
+    gptGfx->end_command_recording(ptCommandBuffer);
+
+    // submit command buffer
+    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+    gptGfx->wait_on_command_buffer(ptCommandBuffer);
+    gptGfx->return_command_buffer(ptCommandBuffer);
+
     const plRenderPassDesc tMainRenderPassDesc = {
         .tLayout = gptData->tMainRenderPassLayout,
-        .atColorTargets = {
+        .tResolveTarget = { // swapchain image
+            .tLoadOp       = PL_LOAD_OP_DONT_CARE,
+            .tStoreOp      = PL_STORE_OP_STORE,
+            .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
+            .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
+            .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+        },
+        .atColorTargets = { // msaa
             {
                 .tLoadOp       = PL_LOAD_OP_CLEAR,
-                .tStoreOp      = PL_STORE_OP_STORE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
-                .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
+                .tStoreOp      = PL_STORE_OP_STORE_MULTISAMPLE_RESOLVE,
+                .tCurrentUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tNextUsage    = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
                 .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
             }
         },
-        .tDimensions = {.x = gptIOI->get_io()->tMainViewportSize.x, .y = gptIOI->get_io()->tMainViewportSize.y},
+        .tDimensions = {(float)tInfo.uWidth, (float)tInfo.uHeight},
         .ptSwapchain = gptData->ptSwap
     };
     uint32_t uImageCount = 0;
@@ -1098,6 +1154,7 @@ pl_refr_initialize(plWindow* ptWindow)
     for(uint32_t i = 0; i < uImageCount; i++)
     {
         atMainAttachmentSets[i].atViewAttachments[0] = atSwapchainImages[i];
+        atMainAttachmentSets[i].atViewAttachments[1] = gptData->tMSAATexture;
     }
     gptData->tMainRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tMainRenderPassDesc, atMainAttachmentSets);
 }
@@ -1749,6 +1806,8 @@ pl_refr_cleanup(void)
     pl_sb_free(gptData->_sbtVariantHandles);
     pl_hm_free(gptData->ptVariantHashmap);
     gptGfx->flush_device(gptData->ptDevice);
+
+    gptGfx->destroy_texture(gptData->ptDevice, gptData->tMSAATexture);
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
         gptGfx->cleanup_semaphore(gptData->aptSemaphores[i]);
@@ -4792,10 +4851,61 @@ pl_refr_resize(void)
 {
     uint32_t uImageCount = 0;
     plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(gptData->ptSwap, &uImageCount);
+
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptData->atCmdPools[0]);
+    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
+
+    // begin blit pass, copy buffer, end pass
+    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptData->ptSwap);
+    const plTextureDesc tColorTextureDesc = {
+        .tDimensions   = {(float)tInfo.uWidth, (float)tInfo.uHeight, 1},
+        .tFormat       = tInfo.tFormat,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .tType         = PL_TEXTURE_TYPE_2D,
+        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+        .pcDebugName   = "offscreen color texture",
+        .tSampleCount  = tInfo.tSampleCount
+    };
+
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, gptData->tMSAATexture);
+
+    // create textures
+    gptData->tMSAATexture = gptGfx->create_texture(gptData->ptDevice, &tColorTextureDesc, NULL);
+
+    // retrieve textures
+    plTexture* ptColorTexture = gptGfx->get_texture(gptData->ptDevice, gptData->tMSAATexture);
+
+    // allocate memory
+
+    const plDeviceMemoryAllocation tColorAllocation = gptGfx->allocate_memory(gptData->ptDevice, 
+        ptColorTexture->tMemoryRequirements.ulSize,
+        PL_MEMORY_GPU,
+        ptColorTexture->tMemoryRequirements.uMemoryTypeBits,
+        "color texture memory");
+
+    // bind memory
+    gptGfx->bind_texture_to_memory(gptData->ptDevice, gptData->tMSAATexture, &tColorAllocation);
+
+    // set initial usage
+    gptGfx->set_texture_usage(ptEncoder, gptData->tMSAATexture, PL_TEXTURE_USAGE_COLOR_ATTACHMENT, 0);
+
+    gptGfx->end_blit_pass(ptEncoder);
+
+    // finish recording
+    gptGfx->end_command_recording(ptCommandBuffer);
+
+    // submit command buffer
+    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+    gptGfx->wait_on_command_buffer(ptCommandBuffer);
+    gptGfx->return_command_buffer(ptCommandBuffer);
+
     plRenderPassAttachments atMainAttachmentSets[16] = {0};
     for(uint32_t i = 0; i < uImageCount; i++)
     {
         atMainAttachmentSets[i].atViewAttachments[0] = atSwapchainImages[i];
+        atMainAttachmentSets[i].atViewAttachments[1] = gptData->tMSAATexture;
     }
     gptGfx->update_render_pass_attachments(gptData->ptDevice, gptData->tMainRenderPass, gptIO->tMainViewportSize, atMainAttachmentSets);
 }
@@ -4811,7 +4921,8 @@ pl_refr_begin_frame(void)
         plSwapchainInit tDesc = {
             .bVSync  = gptData->bVSync,
             .uWidth  = (uint32_t)gptIO->tMainViewportSize.x,
-            .uHeight = (uint32_t)gptIO->tMainViewportSize.y
+            .uHeight = (uint32_t)gptIO->tMainViewportSize.y,
+            .tSampleCount = gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount
         };
         gptGfx->recreate_swapchain(gptData->ptSwap, &tDesc);
         
@@ -4830,7 +4941,8 @@ pl_refr_begin_frame(void)
         plSwapchainInit tDesc = {
             .bVSync  = gptData->bVSync,
             .uWidth  = (uint32_t)gptIO->tMainViewportSize.x,
-            .uHeight = (uint32_t)gptIO->tMainViewportSize.y
+            .uHeight = (uint32_t)gptIO->tMainViewportSize.y,
+            .tSampleCount = gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount
         };
         gptGfx->recreate_swapchain(gptData->ptSwap, &tDesc);
         pl_refr_resize();
@@ -4870,8 +4982,8 @@ pl_refr_end_frame(void)
     pl_begin_profile_sample(0, "render ui");
     plIO* ptIO = gptIOI->get_io();
     gptUI->end_frame();
-    gptDrawBackend->submit_2d_drawlist(gptUI->get_draw_list(), ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
-    gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
+    gptDrawBackend->submit_2d_drawlist(gptUI->get_draw_list(), ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount);
+    gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount);
     pl_end_profile_sample(0);
 
     gptGfx->end_render_pass(ptEncoder);
@@ -4889,7 +5001,8 @@ pl_refr_end_frame(void)
         plSwapchainInit tDesc = {
             .bVSync  = gptData->bVSync,
             .uWidth  = (uint32_t)gptIO->tMainViewportSize.x,
-            .uHeight = (uint32_t)gptIO->tMainViewportSize.y
+            .uHeight = (uint32_t)gptIO->tMainViewportSize.y,
+            .tSampleCount = gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount
         };
         gptGfx->recreate_swapchain(gptData->ptSwap, &tDesc);
         pl_refr_resize();
