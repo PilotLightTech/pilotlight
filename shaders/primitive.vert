@@ -46,7 +46,7 @@ layout (set = 0, binding = 7) uniform texture2D u_GGXLUT;
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(set = 2, binding = 0) uniform PL_DYNAMIC_DATA
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
     int  iDataOffset;
     int  iVertexOffset;

@@ -17,7 +17,7 @@ layout(set = 0, binding = 0) uniform _plGlobalInfo
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(std140, set = 1, binding = 0) uniform PL_DYNAMIC_DATA
+layout(std140, set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
     vec4 tColor;
     mat4 tModel;

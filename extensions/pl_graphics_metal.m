@@ -1506,30 +1506,6 @@ pl_create_device(const plDeviceInit* ptInit)
     memset(ptDevice, 0, sizeof(plDevice));
     ptDevice->tInit = *ptInit;
 
-    pl_sb_reserve(ptDevice->sbtRenderPassLayoutsHot, 16);
-    pl_sb_reserve(ptDevice->sbtRenderPassLayoutsCold, 16);
-    pl_sb_reserve(ptDevice->sbtRenderPassesHot, 16);
-    pl_sb_reserve(ptDevice->sbtShadersHot, 16);
-    pl_sb_reserve(ptDevice->sbtShadersCold, 16);
-    pl_sb_reserve(ptDevice->sbtComputeShadersHot, 16);
-    pl_sb_reserve(ptDevice->sbtComputeShadersCold, 16);
-    pl_sb_reserve(ptDevice->sbtBuffersHot, 16);
-    pl_sb_reserve(ptDevice->sbtBuffersCold, 16);
-    pl_sb_reserve(ptDevice->sbtTexturesHot, 16);
-    pl_sb_reserve(ptDevice->sbtTexturesCold, 16);
-    pl_sb_reserve(ptDevice->sbtSamplersHot, 16);
-    pl_sb_reserve(ptDevice->sbtSamplersCold, 16);
-    pl_sb_reserve(ptDevice->sbtBindGroupsHot, 16);
-    pl_sb_reserve(ptDevice->sbtBindGroupsCold, 16);
-    pl_sb_reserve(ptDevice->sbtRenderPassLayoutFreeIndices, 16);
-    pl_sb_reserve(ptDevice->sbtRenderPassFreeIndices, 16);
-    pl_sb_reserve(ptDevice->sbtShaderFreeIndices, 16);
-    pl_sb_reserve(ptDevice->sbtComputeShaderFreeIndices, 16);
-    pl_sb_reserve(ptDevice->sbtBufferFreeIndices, 16);
-    pl_sb_reserve(ptDevice->sbtTextureFreeIndices, 16);
-    pl_sb_reserve(ptDevice->sbtSamplerFreeIndices, 16);
-    pl_sb_reserve(ptDevice->sbtBindGroupFreeIndices, 16);
-
     pl_sb_add(ptDevice->sbtRenderPassLayoutsHot);
     pl_sb_add(ptDevice->sbtRenderPassesHot);
     pl_sb_add(ptDevice->sbtShadersHot);
@@ -2042,7 +2018,7 @@ pl_bind_compute_bind_groups(
     if(uDynamicCount > 0)
     {
         plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
-        [ptEncoder->tEncoder setBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uFirst + uCount];
+        [ptEncoder->tEncoder setBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:3];
     }
 
     // for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
@@ -2074,8 +2050,8 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
     if(uDynamicCount > 0)
     {
         plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
-        [ptEncoder->tEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uFirst + uCount];
-        [ptEncoder->tEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:uFirst + uCount];
+        [ptEncoder->tEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:3];
+        [ptEncoder->tEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:3];
     }
 
     for(uint32_t i = 0; i < uCount; i++)
@@ -2348,15 +2324,15 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER_0)
             {
                 
-                [ptEncoder->tEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptStream->_auStream[uCurrentStreamIndex]].tBuffer offset:0 atIndex:uDynamicSlot];
-                [ptEncoder->tEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptStream->_auStream[uCurrentStreamIndex]].tBuffer offset:0 atIndex:uDynamicSlot];
+                [ptEncoder->tEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptStream->_auStream[uCurrentStreamIndex]].tBuffer offset:0 atIndex:3];
+                [ptEncoder->tEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptStream->_auStream[uCurrentStreamIndex]].tBuffer offset:0 atIndex:3];
 
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_OFFSET_0)
             {
-                [ptEncoder->tEncoder setVertexBufferOffset:uDynamicBufferOffset0 atIndex:uDynamicSlot];
-                [ptEncoder->tEncoder setFragmentBufferOffset:uDynamicBufferOffset0 atIndex:uDynamicSlot];
+                [ptEncoder->tEncoder setVertexBufferOffset:uDynamicBufferOffset0 atIndex:3];
+                [ptEncoder->tEncoder setFragmentBufferOffset:uDynamicBufferOffset0 atIndex:3];
             }
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_INDEX_OFFSET)

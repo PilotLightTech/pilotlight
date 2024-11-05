@@ -29,7 +29,7 @@ layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(set = 1, binding = 0) uniform PL_DYNAMIC_DATA
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
     vec4   tColor;
     float  fThickness;

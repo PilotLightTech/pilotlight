@@ -284,9 +284,9 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
 
         for (size_t i = 0; i < count; i++)
         {
-            if(pl_str_contains(list[i].name, "PL_DYNAMIC_DATA"))
+            if(spvc_compiler_get_decoration(tMslCompiler, list[i].id, SpvDecorationDescriptorSet) == 3)
             {
-                spvc_compiler_msl_add_inline_uniform_block(tMslCompiler, spvc_compiler_get_decoration(tMslCompiler, list[i].id, SpvDecorationDescriptorSet), 0);
+                spvc_compiler_msl_add_inline_uniform_block(tMslCompiler, 3, 0);
                 break;
             }
         }
@@ -320,9 +320,9 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
 
         for (size_t i = 0; i < count; i++)
         {
-            if(pl_str_contains(list[i].name, "PL_DYNAMIC_DATA"))
+            if(spvc_compiler_get_decoration(tMslCompiler, list[i].id, SpvDecorationDescriptorSet) == 3)
             {
-                spvc_compiler_msl_add_inline_uniform_block(tMslCompiler, spvc_compiler_get_decoration(tMslCompiler, list[i].id, SpvDecorationDescriptorSet), 0);
+                spvc_compiler_msl_add_inline_uniform_block(tMslCompiler, 3, 0);
                 break;
             }
         }
@@ -355,9 +355,9 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
 
         for (size_t i = 0; i < count; i++)
         {
-            if(pl_str_contains(list[i].name, "PL_DYNAMIC_DATA"))
+            if(spvc_compiler_get_decoration(tMslCompiler, list[i].id, SpvDecorationDescriptorSet) == 3)
             {
-                spvc_compiler_msl_add_inline_uniform_block(tMslCompiler, spvc_compiler_get_decoration(tMslCompiler, list[i].id, SpvDecorationDescriptorSet), 0);
+                spvc_compiler_msl_add_inline_uniform_block(tMslCompiler, 3, 0);
                 break;
             }
         }

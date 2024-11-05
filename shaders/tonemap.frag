@@ -13,7 +13,7 @@ layout(set = 0, binding = 2)  uniform texture2D tMaskTexture;
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(set = 1, binding = 0) uniform PL_DYNAMIC_DATA
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
     float fTargetWidth;
     vec4 tOutlineColor;

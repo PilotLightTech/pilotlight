@@ -17,7 +17,7 @@ layout(set = 1, binding = 0)  uniform texture2D tFontAtlas;
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(set = 2, binding = 0) uniform PL_DYNAMIC_DATA {
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA {
     vec2 uScale;
     vec2 uTranslate;
 } tObjectInfo;

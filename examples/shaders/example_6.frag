@@ -12,7 +12,7 @@ layout(set = 0, binding = 1)  uniform texture2D tTexture;
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(set = 1, binding = 0) uniform PL_DYNAMIC_DATA
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
     vec4 tTintColor;
 } tDynamicData;

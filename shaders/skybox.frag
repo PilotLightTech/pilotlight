@@ -28,7 +28,7 @@ layout(set = 1, binding = 0) uniform textureCube samplerCubeMap;
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(set = 2, binding = 0) uniform PL_DYNAMIC_DATA { mat4 tModel;} tObjectInfo;
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA { mat4 tModel;} tObjectInfo;
 
 //-----------------------------------------------------------------------------
 // [SECTION] input

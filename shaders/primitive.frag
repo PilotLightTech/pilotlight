@@ -56,7 +56,7 @@ layout(set = 1, binding = 4)   uniform texture2D tOcclusionTexture;
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(set = 2, binding = 0) uniform PL_DYNAMIC_DATA
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
     int  iDataOffset;
     int  iVertexOffset;

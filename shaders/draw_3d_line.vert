@@ -4,7 +4,7 @@
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
 
-layout(set = 0, binding = 0) uniform PL_DYNAMIC_DATA { mat4 tMVP; float fAspect;} tObjectInfo;
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA { mat4 tMVP; float fAspect;} tObjectInfo;
 
 //-----------------------------------------------------------------------------
 // [SECTION] input
