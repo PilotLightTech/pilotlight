@@ -4,12 +4,13 @@
 */
 
 // library version (format XYYZZ)
-#define PL_DS_VERSION    "1.0.0"
-#define PL_DS_VERSION_NUM 10000
+#define PL_DS_VERSION    "1.1.0"
+#define PL_DS_VERSION_NUM 10100
 
 /*
 Index of this file:
 // [SECTION] documentation
+// [SECTION] revisions
 // [SECTION] header mess
 // [SECTION] includes
 // [SECTION] forward declarations
@@ -176,9 +177,18 @@ COMPILE TIME OPTIONS
         PL_DS_ALLOC(x)
         PL_DS_FREE(x)
     * Change initial hashmap size:
-        PL_DS_HASHMAP_INITIAL_SIZE (default is 256)
+        PL_DS_HASHMAP_INITIAL_SIZE (default is 256) // should be power of 2
     * Change assert by defining:
         PL_DS_ASSERT(x)
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] revisions
+//-----------------------------------------------------------------------------
+
+/*
+    1.1  (2024-11) optimization
+    1.0  (2024-09) stable
 */
 
 //-----------------------------------------------------------------------------
@@ -430,10 +440,21 @@ typedef struct plHashMap
 static inline uint64_t pl__hm_lookup        (plHashMap** ptHashMap, uint64_t ulKey);
 static inline uint64_t pl__hm_get_free_index(plHashMap** ptHashMap);
 static inline bool     pl__hm_has_key       (plHashMap** pptHashMap, uint64_t ulKey);
-static inline void     pl__hm_resize       (plHashMap** pptHashMap, uint32_t uBucketCount, const char* pcFile, int iLine);
-static inline void     pl__hm_free         (plHashMap** pptHashMap) { pl__hm_resize(pptHashMap, 0, "", 0);}
-static inline void     pl__hm_insert       (plHashMap** pptHashMap, uint64_t ulKey, uint64_t ulValue, const char* pcFile, int iLine);
-static inline void     pl__hm_remove       (plHashMap** pptHashMap, uint64_t ulKey);
+static inline void     pl__hm_resize        (plHashMap** pptHashMap, uint32_t uBucketCount, const char* pcFile, int iLine);
+static inline void     pl__hm_free          (plHashMap** pptHashMap) { pl__hm_resize(pptHashMap, 0, "", 0);}
+static inline void     pl__hm_insert        (plHashMap** pptHashMap, uint64_t ulKey, uint64_t ulValue, const char* pcFile, int iLine);
+static inline void     pl__hm_remove        (plHashMap** pptHashMap, uint64_t ulKey);
+
+static inline size_t
+pl__ds_get_next_power_of_2(size_t n)
+{ 
+    size_t ulResult = 1;
+    if (n && !(n & (n - 1))) 
+        ulResult = n;
+    while (ulResult < n)
+        ulResult <<= 1;
+    return ulResult; 
+}
 
 static inline void
 pl__hm_resize(plHashMap** pptHashMap, uint32_t uBucketCount, const char* pcFile, int iLine)
@@ -454,7 +475,9 @@ pl__hm_resize(plHashMap** pptHashMap, uint32_t uBucketCount, const char* pcFile,
     uint64_t* sbulOldValueIndices = ptHashMap->_aulValueIndices;
     uint64_t* aulOldKeys = ptHashMap->_aulKeys;
 
-    ptHashMap->_uBucketCount = uBucketCount < PL_DS_HASHMAP_INITIAL_SIZE ? PL_DS_HASHMAP_INITIAL_SIZE : uBucketCount;
+
+    ptHashMap->_uBucketCount = uBucketCount < PL_DS_HASHMAP_INITIAL_SIZE ? PL_DS_HASHMAP_INITIAL_SIZE : (uint32_t)pl__ds_get_next_power_of_2(uBucketCount);
+	
     if(uBucketCount > 0)
     {
         
@@ -463,14 +486,16 @@ pl__hm_resize(plHashMap** pptHashMap, uint32_t uBucketCount, const char* pcFile,
         memset(ptHashMap->_aulValueIndices, 0xff, sizeof(uint64_t) * ptHashMap->_uBucketCount);
         memset(ptHashMap->_aulKeys, 0xff, sizeof(uint64_t) * ptHashMap->_uBucketCount);
     
+		uint64_t mask = uOldBucketCount - 1;
+	
         for(uint32_t i = 0; i < uOldBucketCount; i++)
         {
             const uint64_t ulKey = aulOldKeys[i];
-            uint64_t ulOldModKey = ulKey % uOldBucketCount;
+            uint64_t ulOldModKey = ulKey & mask;
 
 
             while(aulOldKeys[ulOldModKey] != ulKey && aulOldKeys[ulOldModKey] != UINT64_MAX)
-                ulOldModKey = (ulOldModKey + 1) % uOldBucketCount;
+                ulOldModKey = (ulOldModKey + 1) & mask;
 
             const uint64_t ulValue = sbulOldValueIndices[ulOldModKey];
             ptHashMap->_uItemCount--;
@@ -518,11 +543,12 @@ pl__hm_insert(plHashMap** pptHashMap, uint64_t ulKey, uint64_t ulValue, const ch
     else if(((float)ptHashMap->_uItemCount / (float)ptHashMap->_uBucketCount) > 0.60f)
         pl__hm_resize(pptHashMap, ptHashMap->_uBucketCount * 2, pcFile, iLine);
 
-    uint64_t ulModKey = ulKey % ptHashMap->_uBucketCount;
+	uint64_t mask = ptHashMap->_uBucketCount - 1;
+    uint64_t ulModKey = ulKey & mask;
 
     while(ptHashMap->_aulKeys[ulModKey] != ulKey && ptHashMap->_aulKeys[ulModKey] != UINT64_MAX)
     {
-        ulModKey = (ulModKey + 1) % ptHashMap->_uBucketCount;
+        ulModKey = (ulModKey + 1) & mask;
         if(ptHashMap->_aulKeys[ulModKey] == UINT64_MAX - 1)
             break;
     }
@@ -538,10 +564,11 @@ pl__hm_remove(plHashMap** pptHashMap, uint64_t ulKey)
     plHashMap* ptHashMap = *pptHashMap;
     PL_DS_ASSERT(ptHashMap->_uBucketCount > 0 && "hashmap has no items");
 
-    uint64_t ulModKey = ulKey % ptHashMap->_uBucketCount;
+	uint64_t mask = ptHashMap->_uBucketCount - 1;
+    uint64_t ulModKey = ulKey & mask;
 
     while(ptHashMap->_aulKeys[ulModKey] != ulKey && ptHashMap->_aulKeys[ulModKey] != UINT64_MAX)
-        ulModKey = (ulModKey + 1) % ptHashMap->_uBucketCount;
+        ulModKey = (ulModKey + 1) & mask;
 
     const uint64_t ulValue = ptHashMap->_aulValueIndices[ulModKey];
     pl_sb_push(ptHashMap->_sbulFreeIndices, ulValue);
@@ -624,10 +651,11 @@ pl__hm_lookup(plHashMap** pptHashMap, uint64_t ulKey)
     if(ptHashMap->_uBucketCount == 0)
         return UINT64_MAX;
 
-    uint64_t ulModKey = ulKey % ptHashMap->_uBucketCount;
+	uint64_t mask = ptHashMap->_uBucketCount - 1;
+    uint64_t ulModKey = ulKey & mask;
 
     while(ptHashMap->_aulKeys[ulModKey] != ulKey && ptHashMap->_aulKeys[ulModKey] != UINT64_MAX)
-        ulModKey = (ulModKey + 1) % ptHashMap->_uBucketCount;
+        ulModKey = (ulModKey + 1) & mask;
 
     if(ptHashMap->_aulKeys[ulModKey] == UINT64_MAX)
         return UINT64_MAX;
@@ -661,10 +689,11 @@ pl__hm_has_key(plHashMap** pptHashMap, uint64_t ulKey)
     if(ptHashMap->_uItemCount == 0)
         return false;
 
-    uint64_t ulModKey = ulKey % ptHashMap->_uBucketCount;
+	uint64_t mask = ptHashMap->_uBucketCount - 1;
+    uint64_t ulModKey = ulKey & mask;
 
     while(ptHashMap->_aulKeys[ulModKey] != ulKey && ptHashMap->_aulKeys[ulModKey] != UINT64_MAX)
-        ulModKey = (ulModKey + 1)  % ptHashMap->_uBucketCount;
+        ulModKey = (ulModKey + 1) & mask;
 
     return ptHashMap->_aulKeys[ulModKey] != UINT64_MAX;
 }
