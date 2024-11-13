@@ -3534,10 +3534,10 @@ pl__find_glyph(plFont* ptFont, uint32_t c)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static const plDrawI*
-pl_load_draw_3d_api(void)
+static void
+pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    static const plDrawI tApi = {
+    const plDrawI tApi = {
         .initialize                 = pl_initialize,
         .cleanup                    = pl_cleanup,
         .request_3d_drawlist        = pl_request_3d_drawlist,
@@ -3608,16 +3608,9 @@ pl_load_draw_3d_api(void)
         .add_image_ex               = pl_add_image_ex,
         .add_bezier_quad            = pl_add_bezier_quad,
         .add_bezier_cubic           = pl_add_bezier_cubic,
-
     };
-    return &tApi;
-}
+    pl_set_api(ptApiRegistry, plDrawI, &tApi);
 
-static void
-pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-    ptApiRegistry->add(PL_API_DRAW, pl_load_draw_3d_api());
-    
     if(bReload)
         gptDrawCtx = gptDataRegistry->get_data("plDrawContext");
     else  // first load
@@ -3631,5 +3624,9 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 static void
 pl_unload_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->remove(pl_load_draw_3d_api());
+    if(bReload)
+        return;
+        
+    const plDrawI* ptApi = pl_get_api(ptApiRegistry, plDrawI);
+    ptApiRegistry->remove(ptApi);
 }

@@ -10,7 +10,6 @@ Index of this file:
 // [SECTION] global data
 // [SECTION] free list functions
 // [SECTION] implementation
-// [SECTION] public api implementation
 // [SECTION] extension loading
 // [SECTION] unity build
 */
@@ -430,30 +429,21 @@ pl__cleanup(void)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api implementation
-//-----------------------------------------------------------------------------
-
-static const plJobI*
-pl_load_job_api(void)
-{
-    static const plJobI tApi = {
-        .initialize       = pl__initialize,
-        .cleanup          = pl__cleanup,
-        .wait_for_counter = pl__wait_for_counter,
-        .dispatch_jobs    = pl__dispatch_jobs,
-        .dispatch_batch   = pl__dispatch_batch
-    };
-    return &tApi;
-}
-
-//-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
 static void
 pl_load_job_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->add(PL_API_JOB, pl_load_job_api());
+    const plJobI tApi = {
+        .initialize       = pl__initialize,
+        .cleanup          = pl__cleanup,
+        .wait_for_counter = pl__wait_for_counter,
+        .dispatch_jobs    = pl__dispatch_jobs,
+        .dispatch_batch   = pl__dispatch_batch
+    };
+    pl_set_api(ptApiRegistry, plJobI, &tApi);
+
     if(bReload)
     {
         gptJobCtx = gptDataRegistry->get_data("plJobContext");
@@ -469,5 +459,9 @@ pl_load_job_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 static void
 pl_unload_job_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->remove(pl_load_job_api());
+    if(bReload)
+        return;
+        
+    const plJobI* ptApi = pl_get_api(ptApiRegistry, plJobI);
+    ptApiRegistry->remove(ptApi);
 }

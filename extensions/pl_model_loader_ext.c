@@ -9,7 +9,6 @@ Index of this file:
 // [SECTION] internal API
 // [SECTION] implementation
 // [SECTION] internal API implementation
-// [SECTION] public API implementation
 // [SECTION] extension loading
 */
 
@@ -387,7 +386,7 @@ pl__load_gltf_texture(plTextureSlot tSlot, const cgltf_texture_view* ptTexture, 
     }
     else
     {
-        strncpy(ptMaterial->atTextureMaps[tSlot].acName, ptTexture->texture->image->uri, PL_MAX_NAME_LENGTH);
+        strncpy(ptMaterial->atTextureMaps[tSlot].acName, ptTexture->texture->image->uri, PL_MAX_PATH_LENGTH);
         char acFilepath[2048] = {0};
         strcpy(acFilepath, pcDirectory);
         pl_str_concatenate(acFilepath, ptMaterial->atTextureMaps[tSlot].acName, acFilepath, 2048);
@@ -972,32 +971,26 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] public API implementation
-//-----------------------------------------------------------------------------
-
-static const plModelLoaderI*
-pl_load_model_loader_api(void)
-{
-    static const plModelLoaderI tApi = {
-        .load_stl  = pl__load_stl,
-        .load_gltf = pl__load_gltf,
-        .free_data = pl__free_data
-    };
-    return &tApi;
-}
-
-//-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
 static void
 pl_load_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->add(PL_API_MODEL_LOADER, pl_load_model_loader_api());
+    const plModelLoaderI tApi = {
+        .load_stl  = pl__load_stl,
+        .load_gltf = pl__load_gltf,
+        .free_data = pl__free_data
+    };
+    pl_set_api(ptApiRegistry, plModelLoaderI, &tApi);
 }
 
 static void
 pl_unload_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->remove(pl_load_model_loader_api());
+    if(bReload)
+        return;
+        
+    const plModelLoaderI* ptApi = pl_get_api(ptApiRegistry, plModelLoaderI);
+    ptApiRegistry->remove(ptApi);
 }

@@ -9,6 +9,7 @@ Index of this file:
 // [SECTION] apis
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
+// [SECTION] helper macros
 // [SECTION] api structs
 // [SECTION] enums
 // [SECTION] IO struct
@@ -31,19 +32,10 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-typedef struct _plApiRegistryI plApiRegistryI;
-
-#define PL_API_EXTENSION_REGISTRY "PL_API_EXTENSION_REGISTRY"
-typedef struct _plExtensionRegistryI plExtensionRegistryI;
-
-#define PL_API_MEMORY "PL_API_MEMORY"
-typedef struct _plMemoryI plMemoryI;
-
-#define PL_API_IO "PL_API_IO"
-typedef struct _plIOI plIOI;
-
-#define PL_API_DATA_REGISTRY "PL_API_DATA_REGISTRY"
-typedef struct _plDataRegistryI plDataRegistryI;
+#define plExtensionRegistryI_version (plVersion){1, 0, 0}
+#define plMemoryI_version            (plVersion){1, 0, 0}
+#define plIOI_version                (plVersion){1, 0, 0}
+#define plDataRegistryI_version      (plVersion){1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -59,6 +51,7 @@ typedef struct _plDataRegistryI plDataRegistryI;
 //-----------------------------------------------------------------------------
 
 // types
+typedef struct _plVersion         plVersion;
 typedef struct _plAllocationEntry plAllocationEntry;
 typedef union  _plDataID          plDataID;
 typedef struct _plDataObject      plDataObject; // opaque type
@@ -78,16 +71,22 @@ typedef int plKeyChord;
 typedef uint16_t plUiWChar;
 
 //-----------------------------------------------------------------------------
+// [SECTION] helper macros
+//-----------------------------------------------------------------------------
+
+#define pl_set_api(ptApiReg, TYPE, ptr) { const TYPE* ptTypedPtr = ptr; ptApiReg->set(#TYPE, TYPE##_version, ptTypedPtr, sizeof(TYPE)); }
+#define pl_get_api(ptApiReg, TYPE)      ptApiReg->get(#TYPE, TYPE ## _version)
+
+//-----------------------------------------------------------------------------
 // [SECTION] api structs
 //-----------------------------------------------------------------------------
 
 typedef struct _plApiRegistryI
 {
 
-    const void* (*add)   (const char* name, const void* interface);
+    const void* (*set)   (const char* name, plVersion, const void* interface, size_t interfaceSize);
+    const void* (*get)   (const char* name, plVersion);
     void        (*remove)(const void* interface);
-    const void* (*first) (const char* name);
-    const void* (*next)  (const void* prevInterface);
     
 } plApiRegistryI;
 
@@ -418,6 +417,13 @@ typedef struct _plAllocationEntry
     const char* pcFile; 
 } plAllocationEntry;
 
+typedef struct _plVersion
+{
+    uint32_t uMajor;
+    uint32_t uMinor;
+    uint32_t uPatch;
+} plVersion;
+
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------
@@ -468,15 +474,6 @@ typedef struct _plAllocationEntry
 #ifndef PL_ASSERT
     #include <assert.h>
     #define PL_ASSERT(x) assert((x))
-#endif
-
-// settings
-#ifndef PL_MAX_NAME_LENGTH
-    #define PL_MAX_NAME_LENGTH 1024
-#endif
-
-#ifndef PL_MAX_PATH_LENGTH
-    #define PL_MAX_PATH_LENGTH 1024
 #endif
 
 // log settings

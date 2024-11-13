@@ -174,6 +174,7 @@ void pl__unload_core_apis(void);
 void pl__check_for_leaks(void);
 void pl__garbage_collect_data_reg(void);
 void pl__load_os_apis(void);
+bool pl__check_apis(void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] helpers

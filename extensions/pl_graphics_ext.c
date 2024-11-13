@@ -661,10 +661,10 @@ pl_get_swapchain_info(plSwapchain* ptSwap)
     return ptSwap->tInfo;
 }
 
-static const plGraphicsI*
-pl_load_graphics_api(void)
+static void
+pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    static const plGraphicsI tApi = {
+    const plGraphicsI tApi = {
         .initialize                             = pl_initialize_graphics,
         .set_depth_bias                         = pl_set_depth_bias,
         .recreate_swapchain                     = pl_recreate_swapchain,
@@ -769,14 +769,8 @@ pl_load_graphics_api(void)
         .cleanup_bind_group_pool                = pl_cleanup_bind_group_pool,
         .reset_bind_group_pool                  = pl_reset_bind_group_pool,
     };
-    return &tApi;
-}
+    pl_set_api(ptApiRegistry, plGraphicsI, &tApi);
 
-static void
-pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-    ptApiRegistry->add(PL_API_GRAPHICS, pl_load_graphics_api());
-    
     if(bReload)
     {
         gptGraphics = gptDataRegistry->get_data("plGraphics");
@@ -787,5 +781,9 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 static void
 pl_unload_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->remove(pl_load_graphics_api());
+    if(bReload)
+        return;
+        
+    const plGraphicsI* ptApi = pl_get_api(ptApiRegistry, plGraphicsI);
+    ptApiRegistry->remove(ptApi);
 }

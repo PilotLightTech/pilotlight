@@ -7,7 +7,6 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] defines
 // [SECTION] internal api implementation
-// [SECTION] public api implementation
 // [SECTION] extension loading
 // [SECTION] unity build
 */
@@ -859,13 +858,13 @@ pl_cleanup_allocators(plDevice* ptDevice)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api implementation
+// [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static const plGPUAllocatorsI*
-pl_load_gpu_allocators_api(void)
+static void
+pl_load_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    static const plGPUAllocatorsI tApi = {
+    const plGPUAllocatorsI tApi = {
         .get_local_dedicated_allocator  = pl_get_local_dedicated_allocator,
         .get_local_buddy_allocator      = pl_get_local_buddy_allocator,
         .get_staging_uncached_allocator = pl_get_staging_uncached_allocator,
@@ -874,24 +873,15 @@ pl_load_gpu_allocators_api(void)
         .get_ranges                     = pl_get_allocator_ranges,
         .cleanup                        = pl_cleanup_allocators
     };
-    return &tApi;
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] extension loading
-//-----------------------------------------------------------------------------
-
-static void
-pl_load_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-    ptApiRegistry->add(PL_API_GPU_ALLOCATORS, pl_load_gpu_allocators_api());
+    pl_set_api(ptApiRegistry, plGPUAllocatorsI, &tApi);
 }
 
 static void
 pl_unload_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->remove(pl_load_gpu_allocators_api());
-
     if(bReload)
         return;
+
+    const plGPUAllocatorsI* ptApi = pl_get_api(ptApiRegistry, plGPUAllocatorsI);
+    ptApiRegistry->remove(ptApi);
 }

@@ -10,7 +10,6 @@ Index of this file:
 // [SECTION] internal structs
 // [SECTION] global context
 // [SECTION] internal api
-// [SECTION] public api implementation
 // [SECTION] internal api implementation
 // [SECTION] extension loading
 */
@@ -89,24 +88,6 @@ static double**     pl__get_counter_data(char const* pcName);
 static const char** pl__get_names       (uint32_t* puCount);
 static uint32_t     pl__get_max_frames  (void);
 static void         pl__set_max_frames  (uint32_t);
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api implementation
-//-----------------------------------------------------------------------------
-
-static const plStatsI*
-pl_load_stats_api(void)
-{
-    static const plStatsI tApi = {
-        .get_counter      = pl__get_counter,
-        .new_frame        = pl__new_frame,
-        .get_counter_data = pl__get_counter_data,
-        .get_names        = pl__get_names,
-        .set_max_frames   = pl__set_max_frames,
-        .get_max_frames   = pl__get_max_frames
-    };
-    return &tApi;
-}
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
@@ -254,7 +235,16 @@ pl__get_counter_data(char const* pcName)
 static void
 pl_load_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->add(PL_API_STATS, pl_load_stats_api());
+    const plStatsI tApi = {
+        .get_counter      = pl__get_counter,
+        .new_frame        = pl__new_frame,
+        .get_counter_data = pl__get_counter_data,
+        .get_names        = pl__get_names,
+        .set_max_frames   = pl__set_max_frames,
+        .get_max_frames   = pl__get_max_frames
+    };
+    pl_set_api(ptApiRegistry, plStatsI, &tApi);
+
     if(bReload)
     {
         gptStatsCtx = gptDataRegistry->get_data("plStatsContext");
@@ -273,10 +263,13 @@ pl_load_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 static void
 pl_unload_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->remove(pl_load_stats_api());
+
     if(bReload)
         return;
-        
+
+    const plStatsI* ptApi = pl_get_api(ptApiRegistry, plStatsI);
+    ptApiRegistry->remove(ptApi);
+
     pl_sb_free(gptStatsCtx->sbtBlocks);
     pl_sb_free(gptStatsCtx->sbtNames);
     pl_hm_free(gptStatsCtx->ptHashmap);

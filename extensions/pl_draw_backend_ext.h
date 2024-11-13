@@ -17,16 +17,11 @@ Index of this file:
 #ifndef PL_DRAW_BACKEND_EXT_H
 #define PL_DRAW_BACKEND_EXT_H
 
-// extension version (format XYYZZ)
-#define PL_DRAW_BACKEND_EXT_VERSION    "1.0.0"
-#define PL_DRAW_BACKEND_EXT_VERSION_NUM 10000
-
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define PL_API_DRAW_BACKEND "PL_API_DRAW_BACKEND"
-typedef struct _plDrawBackendI plDrawBackendI;
+#define plDrawBackendI_version (plVersion){1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

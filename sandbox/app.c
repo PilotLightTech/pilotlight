@@ -30,7 +30,7 @@ Index of this file:
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 {
-    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDataRegistryI* ptDataRegistry = pl_get_api(ptApiRegistry, plDataRegistryI);
 
     pl_set_log_context(ptDataRegistry->get_data("log"));
     pl_set_profile_context(ptDataRegistry->get_data("profile"));
@@ -39,22 +39,22 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     {
 
         // reload global apis
-        gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
-        gptStats       = ptApiRegistry->first(PL_API_STATS);
-        gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
-        gptDebug       = ptApiRegistry->first(PL_API_DEBUG);
-        gptEcs         = ptApiRegistry->first(PL_API_ECS);
-        gptCamera      = ptApiRegistry->first(PL_API_CAMERA);
-        gptRenderer    = ptApiRegistry->first(PL_API_RENDERER);
-        gptJobs        = ptApiRegistry->first(PL_API_JOB);
-        gptModelLoader = ptApiRegistry->first(PL_API_MODEL_LOADER);
-        gptDraw        = ptApiRegistry->first(PL_API_DRAW);
-        gptDrawBackend = ptApiRegistry->first(PL_API_DRAW_BACKEND);
-        gptUi          = ptApiRegistry->first(PL_API_UI);
-        gptIO          = ptApiRegistry->first(PL_API_IO);
-        gptShader      = ptApiRegistry->first(PL_API_SHADER);
-        gptMemory      = ptApiRegistry->first(PL_API_MEMORY);
-        gptNetwork     = ptApiRegistry->first(PL_API_NETWORK);
+        gptWindows     = pl_get_api(ptApiRegistry, plWindowI);
+        gptStats       = pl_get_api(ptApiRegistry, plStatsI);
+        gptGfx         = pl_get_api(ptApiRegistry, plGraphicsI);
+        gptDebug       = pl_get_api(ptApiRegistry, plDebugApiI);
+        gptEcs         = pl_get_api(ptApiRegistry, plEcsI);
+        gptCamera      = pl_get_api(ptApiRegistry, plCameraI);
+        gptRenderer    = pl_get_api(ptApiRegistry, plRendererI);
+        gptJobs        = pl_get_api(ptApiRegistry, plJobI);
+        gptModelLoader = pl_get_api(ptApiRegistry, plModelLoaderI);
+        gptDraw        = pl_get_api(ptApiRegistry, plDrawI);
+        gptDrawBackend = pl_get_api(ptApiRegistry, plDrawBackendI);
+        gptUi          = pl_get_api(ptApiRegistry, plUiI);
+        gptIO          = pl_get_api(ptApiRegistry, plIOI);
+        gptShader      = pl_get_api(ptApiRegistry, plShaderI);
+        gptMemory      = pl_get_api(ptApiRegistry, plMemoryI);
+        gptNetwork     = pl_get_api(ptApiRegistry, plNetworkI);
 
         return ptEditorData;
     }
@@ -62,27 +62,27 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     pl_begin_profile_frame();
 
     // load extensions
-    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    const plExtensionRegistryI* ptExtensionRegistry = pl_get_api(ptApiRegistry, plExtensionRegistryI);
     ptExtensionRegistry->load("pilot_light", NULL, NULL, true);
     ptExtensionRegistry->load("pilot_light_experimental", NULL, NULL, true);
     
     // load apis
-    gptWindows     = ptApiRegistry->first(PL_API_WINDOW);
-    gptStats       = ptApiRegistry->first(PL_API_STATS);
-    gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
-    gptDebug       = ptApiRegistry->first(PL_API_DEBUG);
-    gptEcs         = ptApiRegistry->first(PL_API_ECS);
-    gptCamera      = ptApiRegistry->first(PL_API_CAMERA);
-    gptRenderer    = ptApiRegistry->first(PL_API_RENDERER);
-    gptJobs        = ptApiRegistry->first(PL_API_JOB);
-    gptModelLoader = ptApiRegistry->first(PL_API_MODEL_LOADER);
-    gptDraw        = ptApiRegistry->first(PL_API_DRAW);
-    gptDrawBackend = ptApiRegistry->first(PL_API_DRAW_BACKEND);
-    gptUi          = ptApiRegistry->first(PL_API_UI);
-    gptIO          = ptApiRegistry->first(PL_API_IO);
-    gptShader      = ptApiRegistry->first(PL_API_SHADER);
-    gptMemory      = ptApiRegistry->first(PL_API_MEMORY);
-    gptNetwork     = ptApiRegistry->first(PL_API_NETWORK);
+    gptWindows     = pl_get_api(ptApiRegistry, plWindowI);
+    gptStats       = pl_get_api(ptApiRegistry, plStatsI);
+    gptGfx         = pl_get_api(ptApiRegistry, plGraphicsI);
+    gptDebug       = pl_get_api(ptApiRegistry, plDebugApiI);
+    gptEcs         = pl_get_api(ptApiRegistry, plEcsI);
+    gptCamera      = pl_get_api(ptApiRegistry, plCameraI);
+    gptRenderer    = pl_get_api(ptApiRegistry, plRendererI);
+    gptJobs        = pl_get_api(ptApiRegistry, plJobI);
+    gptModelLoader = pl_get_api(ptApiRegistry, plModelLoaderI);
+    gptDraw        = pl_get_api(ptApiRegistry, plDrawI);
+    gptDrawBackend = pl_get_api(ptApiRegistry, plDrawBackendI);
+    gptUi          = pl_get_api(ptApiRegistry, plUiI);
+    gptIO          = pl_get_api(ptApiRegistry, plIOI);
+    gptShader      = pl_get_api(ptApiRegistry, plShaderI);
+    gptMemory      = pl_get_api(ptApiRegistry, plMemoryI);
+    gptNetwork     = pl_get_api(ptApiRegistry, plNetworkI);
     
     // add some context to data registry
     ptEditorData = PL_ALLOC(sizeof(plEditorData));

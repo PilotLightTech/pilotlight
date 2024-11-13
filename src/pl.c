@@ -60,10 +60,14 @@ typedef struct _plExtension
     void (*pl_unload) (const plApiRegistryI* ptApiRegistry, bool bReload);
 } plExtension;
 
+typedef struct _plApiEntry plApiEntry;
 typedef struct _plApiEntry
 {
     const char* pcName;
-    const void* pInterface;
+    void*       apBuffer[PL_MAX_API_FUNCTIONS];
+    plVersion   tVersion;
+    plApiEntry* ptNext;
+    bool        bSet;
 } plApiEntry;
 
 typedef struct _plDataRegistryData
@@ -175,10 +179,9 @@ void                pl_set_buffer(plDataObject*, uint32_t, void*);
 void                pl_commit    (plDataObject*);
 
 // api registry functions
-const void* pl_add_api   (const char* pcName, const void* pInterface);
-void        pl_remove_api(const void* pInterface);
-const void* pl_first_api (const char* pcName);
-const void* pl_next_api  (const void* pPrev);
+const void* pl__set_api(const char* pcName, plVersion, const void* pInterface, size_t szInterfaceSize);
+const void* pl__get_api(const char* pcName, plVersion);
+void        pl__remove_api(const void* pInterface);
 
 // extension registry functions
 bool pl_load_extension  (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
@@ -203,7 +206,7 @@ plDataRegistryData gtDataRegistryData = {0};
 plMutex*           gptDataMutex = NULL;
 
 // api registry
-plApiEntry* gsbApiEntries = NULL;
+plApiEntry* gptApiHead = NULL;
 
 // extension registry
 plExtension*      gsbtExtensions = NULL;
@@ -238,66 +241,105 @@ plHashMap*         gptMemoryHashMap     = NULL;
 // [SECTION] api registry implementation
 //-----------------------------------------------------------------------------
 
-const void*
-pl_add_api(const char* pcName, const void* pInterface)
+bool
+pl__check_apis(void)
 {
-    plApiEntry tNewApiEntry = {
-        .pcName     = pcName,
-        .pInterface = pInterface
-    };
-    pl_sb_push(gsbApiEntries, tNewApiEntry);
-    return pInterface;
+    bool bResult = true;
+    plApiEntry* ptCurrentEntry = gptApiHead;
+    while(ptCurrentEntry)
+    {
+
+        if(!ptCurrentEntry->bSet)
+        {
+            printf("API Not Found: %s\n", ptCurrentEntry->pcName);
+            bResult = false;
+        }
+        ptCurrentEntry = ptCurrentEntry->ptNext;
+    }
+
+    return bResult;
+}
+
+const void*
+pl__set_api(const char* pcName, plVersion tVersion, const void* pInterface, size_t szInterfaceSize)
+{
+    // see if entry already exists
+    plApiEntry* ptCurrentEntry = gptApiHead;
+    while(ptCurrentEntry)
+    {
+        if(strcmp(pcName, ptCurrentEntry->pcName) == 0 &&
+            ptCurrentEntry->tVersion.uMajor == tVersion.uMajor &&
+            ptCurrentEntry->tVersion.uMinor == tVersion.uMinor &&
+            ptCurrentEntry->tVersion.uPatch == tVersion.uPatch)
+        {
+            memcpy(ptCurrentEntry->apBuffer, pInterface, szInterfaceSize);
+            ptCurrentEntry->bSet = true;
+            return ptCurrentEntry->apBuffer;
+        }
+
+        ptCurrentEntry = ptCurrentEntry->ptNext;
+    }
+
+    ptCurrentEntry = PL_ALLOC(sizeof(plApiEntry));
+    memset(ptCurrentEntry, 0, sizeof(plApiEntry)); 
+
+    ptCurrentEntry->pcName = pcName;
+    ptCurrentEntry->bSet = true;
+    ptCurrentEntry->tVersion = tVersion;
+    memcpy(ptCurrentEntry->apBuffer, pInterface, szInterfaceSize);
+    ptCurrentEntry->ptNext = gptApiHead;
+    gptApiHead = ptCurrentEntry;
+    return ptCurrentEntry->apBuffer;
+}
+
+const void*
+pl__get_api(const char* pcName, plVersion tVersion)
+{
+
+    plApiEntry* ptCurrentEntry = gptApiHead;
+    while(ptCurrentEntry)
+    {
+        if(strcmp(pcName, ptCurrentEntry->pcName) == 0 &&
+            ptCurrentEntry->tVersion.uMajor == tVersion.uMajor &&
+            ptCurrentEntry->tVersion.uMinor >= tVersion.uMinor)
+        {
+            return ptCurrentEntry->apBuffer;
+        } 
+
+        ptCurrentEntry = ptCurrentEntry->ptNext;
+    }
+
+    ptCurrentEntry = PL_ALLOC(sizeof(plApiEntry));
+    memset(ptCurrentEntry, 0, sizeof(plApiEntry)); 
+
+    ptCurrentEntry->pcName = pcName;
+    ptCurrentEntry->tVersion = tVersion;
+    ptCurrentEntry->ptNext = gptApiHead;
+    gptApiHead = ptCurrentEntry;
+    return ptCurrentEntry->apBuffer;
 }
 
 void
-pl_remove_api(const void* pInterface)
+pl__remove_api(const void* pInterface)
 {
-    for(uint32_t i = 0; i < pl_sb_size(gsbApiEntries); i++)
+    plApiEntry* ptLastEntry = NULL;
+    plApiEntry* ptCurrentEntry = gptApiHead;
+    while(ptCurrentEntry)
     {
-        if(gsbApiEntries[i].pInterface == pInterface)
+        if(ptCurrentEntry->apBuffer == pInterface)
         {
-            pl_sb_del_swap(gsbApiEntries, i);
-            break;
+            if(ptLastEntry)
+                ptLastEntry->ptNext = ptCurrentEntry->ptNext;
+            else
+                gptApiHead = ptCurrentEntry->ptNext;
+
+            PL_FREE(ptCurrentEntry);
+            return;
         }
+
+        ptLastEntry = ptCurrentEntry;
+        ptCurrentEntry = ptCurrentEntry->ptNext;
     }
-}
-
-const void*
-pl_first_api(const char* pcName)
-{
-    for(uint32_t i = 0; i < pl_sb_size(gsbApiEntries); i++)
-    {
-        if(strcmp(pcName, gsbApiEntries[i].pcName) == 0)
-        {
-            return gsbApiEntries[i].pInterface;
-        }
-    }
-
-    return NULL;
-}
-
-const void*
-pl_next_api(const void* pPrev)
-{
-    
-    const char* pcApiName = "";
-    const uint32_t uApiCount = pl_sb_size(gsbApiEntries);
-    for(uint32_t i = 0; i < uApiCount; i++)
-    {
-        if(strcmp(pcApiName, gsbApiEntries[i].pcName) == 0)
-        {
-            return gsbApiEntries[i].pInterface;
-        }
-
-        // first need to find name of API so we can then find
-        // the next API with the same name
-        if(gsbApiEntries[i].pInterface == pPrev)
-        {
-            pcApiName = gsbApiEntries[i].pcName;
-        }
-    }
-
-    return NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -523,7 +565,7 @@ pl_load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnlo
 
     plSharedLibrary* ptLibrary = NULL;
 
-    const plLibraryI* ptLibraryApi = ptApiRegistry->first(PL_API_LIBRARY);
+    const plLibraryI* ptLibraryApi = pl_get_api(ptApiRegistry, plLibraryI);
 
     const plLibraryDesc tDesc = {
         .pcName = tExtension.pcLibPath
@@ -1300,10 +1342,9 @@ const plApiRegistryI*
 pl__load_api_registry(void)
 {
     static const plApiRegistryI tApiRegistry = {
-        .add     = pl_add_api,
-        .remove  = pl_remove_api,
-        .first   = pl_first_api,
-        .next    = pl_next_api
+        .get    = pl__get_api,
+        .set    = pl__set_api,
+        .remove = pl__remove_api
     };
 
     return &tApiRegistry;
@@ -1382,16 +1423,16 @@ pl__load_core_apis(void)
     };
 
     // apis more likely to not be stored, should be first (api registry is not sorted)
-    ptApiRegistry->add(PL_API_IO, &tIOApi);
-    ptApiRegistry->add(PL_API_DATA_REGISTRY, &tDataRegistryApi);
-    ptApiRegistry->add(PL_API_EXTENSION_REGISTRY, &tExtensionRegistryApi);
-    ptApiRegistry->add(PL_API_MEMORY, &tMemoryApi);
+    gptMemory = &tMemoryApi;
+    pl_set_api(ptApiRegistry, plIOI, &tIOApi);
+    pl_set_api(ptApiRegistry, plDataRegistryI, &tDataRegistryApi);
+    pl_set_api(ptApiRegistry, plExtensionRegistryI, &tExtensionRegistryApi);
+    pl_set_api(ptApiRegistry, plMemoryI, &tMemoryApi);
 
     // load apis
-    gptDataRegistry      = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    gptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    gptIOI               = ptApiRegistry->first(PL_API_IO);
-    gptMemory            = ptApiRegistry->first(PL_API_MEMORY);
+    gptDataRegistry      = pl_get_api(ptApiRegistry, plDataRegistryI);
+    gptExtensionRegistry = pl_get_api(ptApiRegistry, plExtensionRegistryI);
+    gptIOI               = pl_get_api(ptApiRegistry, plIOI);
     gptApiRegistry       = ptApiRegistry;
 
     plProfileInit tProfileInit = {
@@ -1433,7 +1474,13 @@ pl__unload_core_apis(void)
     pl_hm_free(gptHashmap);
 
     // api registry
-    pl_sb_free(gsbApiEntries);
+    plApiEntry* ptCurrentEntry = gptApiHead;
+    while(ptCurrentEntry)
+    {
+        plApiEntry* ptOldEntry = ptCurrentEntry;
+        ptCurrentEntry = ptCurrentEntry->ptNext;
+        PL_FREE(ptOldEntry);
+    }
 
     // extension registry
     pl_sb_free(gsbtExtensions);
@@ -1551,14 +1598,14 @@ pl__load_os_apis(void)
     };
 
     #ifndef PL_HEADLESS_APP
-    gptApiRegistry->add(PL_API_WINDOW, &tWindowApi);
+    pl_set_api(gptApiRegistry, plWindowI, &tWindowApi);
     #endif
-    gptApiRegistry->add(PL_API_LIBRARY, &tLibraryApi);
-    gptApiRegistry->add(PL_API_FILE, &tFileApi);
-    gptApiRegistry->add(PL_API_NETWORK, &tNetworkApi);
-    gptApiRegistry->add(PL_API_THREADS, &tThreadApi);
-    gptApiRegistry->add(PL_API_ATOMICS, &tAtomicsApi);
-    gptApiRegistry->add(PL_API_VIRTUAL_MEMORY, &tVirtualMemoryApi);
+    pl_set_api(gptApiRegistry, plLibraryI, &tLibraryApi);
+    pl_set_api(gptApiRegistry, plFileI, &tFileApi);
+    pl_set_api(gptApiRegistry, plNetworkI, &tNetworkApi);
+    pl_set_api(gptApiRegistry, plThreadsI, &tThreadApi);
+    pl_set_api(gptApiRegistry, plAtomicsI, &tAtomicsApi);
+    pl_set_api(gptApiRegistry, plVirtualMemoryI, &tVirtualMemoryApi);
 }
 
 //-----------------------------------------------------------------------------

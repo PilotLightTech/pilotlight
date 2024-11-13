@@ -15,7 +15,6 @@ static const struct _plApiRegistryI*       gptApiRegistry       = 0;
 static const struct _plExtensionRegistryI* gptExtensionRegistry = 0;
 static const struct _plDataRegistryI*      gptDataRegistry      = 0;
 static const struct _plGraphicsI*          gptGfx               = 0;
-static const struct _plCameraI*            gptCamera            = 0;
 static const struct _plImageI*             gptImage             = 0;
 static const struct _plStatsI*             gptStats             = 0;
 static const struct _plGPUAllocatorsI*     gptGpuAllocators     = 0;
@@ -32,6 +31,7 @@ static const struct _plFileI*              gptFile              = 0;
 static const struct _plMemoryI*            gptMemory            = 0;
 
 // experimental
+static const struct _plCameraI*   gptCamera   = 0;
 static const struct _plResourceI* gptResource = 0;
 static const struct _plEcsI*      gptECS      = 0;
 

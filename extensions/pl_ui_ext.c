@@ -9,10 +9,11 @@
 #include "pl_ui_widgets.c"
 #include "pl_ui_demo.c"
 
-static const plUiI*
-pl_load_ui_api(void)
+
+static void
+pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    static const plUiI tApi = {
+    const plUiI tApi = {
         .initialize                    = pl_ui_initialize,
         .cleanup                       = pl_ui_cleanup,
         .get_draw_list                 = pl_get_draw_list,
@@ -128,13 +129,8 @@ pl_load_ui_api(void)
         .push_id_uint                  = pl_push_id_uint,
         .pop_id                        = pl_pop_id,
     };
-    return &tApi;
-}
+    pl_set_api(ptApiRegistry, plUiI, &tApi);
 
-static void
-pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-    ptApiRegistry->add(PL_API_UI, pl_load_ui_api());
     if(bReload)
     {
         gptCtx = gptDataRegistry->get_data("plUiContext");
@@ -150,8 +146,12 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 static void
 pl_unload_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->remove(pl_load_ui_api());
+
     if(bReload)
         return;
+
+    const plUiI* ptApi = pl_get_api(ptApiRegistry, plUiI);
+    ptApiRegistry->remove(ptApi);
+
     gptCtx = NULL;
 }

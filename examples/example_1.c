@@ -53,11 +53,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // retrieve the data registry API, this is the API used for sharing data
     // between extensions & the runtime
-    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDataRegistryI* ptDataRegistry = pl_get_api(ptApiRegistry, plDataRegistryI);
 
     // load required apis (NULL if not available)
-    gptIO      = ptApiRegistry->first(PL_API_IO);
-    gptWindows = ptApiRegistry->first(PL_API_WINDOW);
+    gptIO      = pl_get_api(ptApiRegistry, plIOI);
+    gptWindows = pl_get_api(ptApiRegistry, plWindowI);
     
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.

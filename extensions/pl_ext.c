@@ -40,20 +40,20 @@ PL_EXPORT void
 pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     // core apis
-    gptApiRegistry        = ptApiRegistry;
-    gptDataRegistry      = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    gptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    gptMemory            = ptApiRegistry->first(PL_API_MEMORY);
+    gptApiRegistry       = ptApiRegistry;
+    gptDataRegistry      = pl_get_api(ptApiRegistry, plDataRegistryI);
+    gptExtensionRegistry = pl_get_api(ptApiRegistry, plExtensionRegistryI);
+    gptMemory            = pl_get_api(ptApiRegistry, plMemoryI);
 
     // set contexts
     pl_set_profile_context(gptDataRegistry->get_data("profile"));
     pl_set_log_context(gptDataRegistry->get_data("log"));
 
     // load os apis
-    gptIOI     = ptApiRegistry->first(PL_API_IO);
-    gptFile    = ptApiRegistry->first(PL_API_FILE);
-    gptThreads = ptApiRegistry->first(PL_API_THREADS);
-    gptAtomics = ptApiRegistry->first(PL_API_ATOMICS);
+    gptIOI     = pl_get_api(ptApiRegistry, plIOI);
+    gptFile    = pl_get_api(ptApiRegistry, plFileI);
+    gptThreads = pl_get_api(ptApiRegistry, plThreadsI);
+    gptAtomics = pl_get_api(ptApiRegistry, plAtomicsI);
     gptIO      = gptIOI->get_io();
 
     // first batch (standalone APIs)
@@ -64,31 +64,31 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     #ifdef PL_CORE_EXTENSION_INCLUDE_SHADER
         pl_load_shader_ext(ptApiRegistry, bReload);
-        gptShader = ptApiRegistry->first(PL_API_SHADER);
+        gptShader = pl_get_api(ptApiRegistry, plShaderI);
     #endif
 
-    gptStats = ptApiRegistry->first(PL_API_STATS);
-    gptImage = ptApiRegistry->first(PL_API_IMAGE);
-    gptJob   = ptApiRegistry->first(PL_API_JOB);
-    gptRect  = ptApiRegistry->first(PL_API_RECT_PACK);
+    gptStats = pl_get_api(ptApiRegistry, plStatsI);
+    gptImage = pl_get_api(ptApiRegistry, plImageI);
+    gptJob   = pl_get_api(ptApiRegistry, plJobI);
+    gptRect  = pl_get_api(ptApiRegistry, plRectPackI);
     
     #ifdef PL_CORE_EXTENSION_INCLUDE_GRAPHICS
         
         pl_load_graphics_ext(ptApiRegistry, bReload);
-        gptGfx = ptApiRegistry->first(PL_API_GRAPHICS);
+        gptGfx = pl_get_api(ptApiRegistry, plGraphicsI);
 
         pl_load_gpu_allocators_ext(ptApiRegistry, bReload);
-        gptGpuAllocators = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
+        gptGpuAllocators = pl_get_api(ptApiRegistry, plGPUAllocatorsI);
     
         // third batch
         pl_load_draw_ext(ptApiRegistry, bReload);
-        gptDraw = ptApiRegistry->first(PL_API_DRAW);
+        gptDraw = pl_get_api(ptApiRegistry, plDrawI);
         pl_load_draw_backend_ext(ptApiRegistry, bReload);
-        gptDrawBackend = ptApiRegistry->first(PL_API_DRAW_BACKEND);
+        gptDrawBackend = pl_get_api(ptApiRegistry, plDrawBackendI);
 
         // fourth batch
         pl_load_ui_ext(ptApiRegistry, bReload);
-        gptUI = ptApiRegistry->first(PL_API_UI);
+        gptUI = pl_get_api(ptApiRegistry, plUiI);
     #endif
 }
 

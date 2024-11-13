@@ -49,25 +49,6 @@ static void             pl_unload_resource         (plResourceHandle tResourceHa
 static plResourceManager* gptResourceManager = NULL;
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api implementation
-//-----------------------------------------------------------------------------
-
-static const plResourceI*
-pl_load_resource_api(void)
-{
-    static const plResourceI tApi = {
-        .get_file_data      = pl_resource_get_file_data,
-        .get_buffer_data      = pl_resource_get_buffer_data,
-        .set_buffer_data    = pl_set_buffer_data,
-        .load_resource      = pl_load_resource,
-        .is_resource_loaded = pl_is_resource_loaded,
-        .is_resource_valid  = pl_is_resource_valid,
-        .unload_resource    = pl_unload_resource
-    };
-    return &tApi;
-}
-
-//-----------------------------------------------------------------------------
 // [SECTION] implementation
 //-----------------------------------------------------------------------------
 
@@ -205,7 +186,17 @@ pl_is_resource_valid(plResourceHandle tResourceHandle)
 static void
 pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    gptApiRegistry->add(PL_API_RESOURCE, pl_load_resource_api());
+    const plResourceI tApi = {
+        .get_file_data      = pl_resource_get_file_data,
+        .get_buffer_data    = pl_resource_get_buffer_data,
+        .set_buffer_data    = pl_set_buffer_data,
+        .load_resource      = pl_load_resource,
+        .is_resource_loaded = pl_is_resource_loaded,
+        .is_resource_valid  = pl_is_resource_valid,
+        .unload_resource    = pl_unload_resource
+    };
+    pl_set_api(ptApiRegistry, plResourceI, &tApi);
+
     if(bReload)
     {
         gptResourceManager = gptDataRegistry->get_data("plResourceManager");
@@ -221,11 +212,12 @@ pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 static void
 pl_unload_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    gptApiRegistry->remove(pl_load_resource_api());
-    
     if(bReload)
         return;
-        
+
+    const plResourceI* ptApi = pl_get_api(ptApiRegistry, plResourceI);
+    ptApiRegistry->remove(ptApi);
+
     for(uint32_t i = 0; i < pl_sb_size(gptResourceManager->sbtResources); i++)
     {
         if(gptResourceManager->sbtResources[i].tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_DATA)

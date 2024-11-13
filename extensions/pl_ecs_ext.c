@@ -747,24 +747,13 @@ pl_ecs_create_script(plComponentLibrary* ptLibrary, const char* pcFile, plScript
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcFile);
     plScriptComponent* ptScript =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_SCRIPT, tNewEntity);
     ptScript->tFlags = tFlags;
-    strncpy(ptScript->acFile, pcFile, PL_MAX_NAME_LENGTH);
+    strncpy(ptScript->acFile, pcFile, PL_MAX_PATH_LENGTH);
 
     gptExtensionRegistry->load(pcFile, "pl_load_script", "pl_unload_script", tFlags & PL_SCRIPT_FLAG_RELOADABLE);
 
-    const plScriptI* ptScriptApi = gptApiRegistry->first(PL_API_SCRIPT);
-    if(strncmp(pcFile, ptScriptApi->name(), PL_MAX_NAME_LENGTH) != 0)
-    {
-        while(ptScriptApi)
-        {
-            ptScriptApi = gptApiRegistry->next(ptScriptApi);
-            if(strncmp(pcFile, ptScriptApi->name(), PL_MAX_NAME_LENGTH) == 0)
-            {
-                break;
-            }
-        }
-    }
+    const plScriptI* ptScriptApi = gptApiRegistry->get(pcFile, plScriptI_version);
     ptScript->_ptApi = ptScriptApi;
-    PL_ASSERT(ptScriptApi);
+    PL_ASSERT(ptScriptApi->run);
 
     if(ptScriptApi->setup)
         ptScriptApi->setup(ptLibrary, tNewEntity);
@@ -784,20 +773,9 @@ pl_ecs_attach_script(plComponentLibrary* ptLibrary, const char* pcFile, plScript
 
     gptExtensionRegistry->load(pcFile, "pl_load_script", "pl_unload_script", tFlags & PL_SCRIPT_FLAG_RELOADABLE);
 
-    const plScriptI* ptScriptApi = gptApiRegistry->first(PL_API_SCRIPT);
-    if(strncmp(pcFile, ptScriptApi->name(), PL_MAX_NAME_LENGTH) != 0)
-    {
-        while(ptScriptApi)
-        {
-            ptScriptApi = gptApiRegistry->next(ptScriptApi);
-            if(strncmp(pcFile, ptScriptApi->name(), PL_MAX_NAME_LENGTH) == 0)
-            {
-                break;
-            }
-        }
-    }
+    const plScriptI* ptScriptApi = gptApiRegistry->get(pcFile, plScriptI_version);
     ptScript->_ptApi = ptScriptApi;
-    PL_ASSERT(ptScriptApi);
+    PL_ASSERT(ptScriptApi->run);
 
     if(ptScriptApi->setup)
         ptScriptApi->setup(ptLibrary, tEntity);
@@ -1712,10 +1690,10 @@ pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static const plEcsI*
-pl_load_ecs_api(void)
+static void
+pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    static const plEcsI tApi = {
+    const plEcsI tApi0 = {
         .init_component_library               = pl_ecs_init_component_library,
         .cleanup_component_library            = pl_ecs_cleanup_component_library,
         .create_entity                        = pl_ecs_create_entity,
@@ -1751,13 +1729,9 @@ pl_load_ecs_api(void)
         .run_inverse_kinematics_update_system = pl_run_inverse_kinematics_update_system,
         .run_script_update_system             = pl_run_script_update_system
     };
-    return &tApi;
-}
+    pl_set_api(ptApiRegistry, plEcsI, &tApi0);
 
-static const plCameraI*
-pl_load_camera_api(void)
-{
-    static const plCameraI tApi = {
+    const plCameraI tApi1 = {
         .set_fov         = pl_camera_set_fov,
         .set_clip_planes = pl_camera_set_clip_planes,
         .set_aspect      = pl_camera_set_aspect,
@@ -1768,14 +1742,7 @@ pl_load_camera_api(void)
         .update          = pl_camera_update,
         .look_at         = pl_camera_look_at,
     };
-    return &tApi;   
-}
-
-static void
-pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-    ptApiRegistry->add(PL_API_ECS, pl_load_ecs_api());
-    ptApiRegistry->add(PL_API_CAMERA, pl_load_camera_api());
+    pl_set_api(ptApiRegistry, plCameraI, &tApi1);
 
     if(bReload)
     {
@@ -1794,6 +1761,12 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 static void
 pl_unload_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->remove(pl_load_ecs_api());
-    ptApiRegistry->remove(pl_load_camera_api());
+    if(bReload)
+        return;
+        
+    const plEcsI* ptApi0 = pl_get_api(ptApiRegistry, plEcsI);
+    ptApiRegistry->remove(ptApi0);
+
+    const plCameraI* ptApi1 = pl_get_api(ptApiRegistry, plCameraI);
+    ptApiRegistry->remove(ptApi1);
 }

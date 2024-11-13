@@ -261,7 +261,7 @@ int main(int argc, char *argv[])
     }
 
     // load app library
-    const plLibraryI* ptLibraryApi = gptApiRegistry->first(PL_API_LIBRARY);
+    const plLibraryI* ptLibraryApi = pl_get_api(gptApiRegistry, plLibraryI);
     const plLibraryDesc tLibraryDesc = {
         .pcName = pcAppName
     };
@@ -278,9 +278,13 @@ int main(int argc, char *argv[])
             if(!pl_app_info(gptApiRegistry))
                 return 0;
         }
-
         gpUserData = pl_app_load(gptApiRegistry, NULL);
+        bool bApisFound = pl__check_apis();
+        if(!bApisFound)
+            return 3;
     }
+    else
+        return 2;
 
     // main loop
     while (gptIOCtx->bRunning)

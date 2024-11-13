@@ -25,19 +25,12 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define PL_API_ECS "PL_API_ECS"
-typedef struct _plEcsI plEcsI;
-
-#define PL_API_CAMERA "PL_API_CAMERA"
-typedef struct _plCameraI plCameraI;
+#define plEcsI_version    (plVersion){0, 1, 0}
+#define plCameraI_version (plVersion){0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------
-
-#ifndef PL_MAX_NAME_LENGTH
-    #define PL_MAX_NAME_LENGTH 1024
-#endif
 
 #define PL_MAX_SHADOW_CASCADES 4
 
@@ -392,7 +385,7 @@ typedef union _plResourceHandle
 
 typedef struct _plTextureMap
 {
-    char             acName[PL_MAX_NAME_LENGTH];
+    char             acName[PL_MAX_PATH_LENGTH];
     plResourceHandle tResource;
     uint32_t         uUVSet;
     uint32_t         uWidth;
@@ -588,7 +581,7 @@ typedef struct _plInverseKinematicsComponent
 typedef struct _plScriptComponent
 {
     plScriptFlags tFlags;
-    char          acFile[PL_MAX_NAME_LENGTH];
+    char          acFile[PL_MAX_PATH_LENGTH];
     const struct _plScriptI* _ptApi;
 } plScriptComponent;
 

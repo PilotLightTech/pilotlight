@@ -22,8 +22,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define PL_API_SCRIPT "PL_API_SCRIPT"
-typedef struct _plScriptI plScriptI;
+#define plScriptI_version (plVersion){0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -44,10 +43,6 @@ typedef struct _plScriptI
 
     // ran every frame
     void (*run)(plComponentLibrary*, plEntity);
-
-    // used by entity component system to differentiate between implmentations
-    // of this interface and must be the dll/so name without an extension
-    const char* (*name)(void);
 } plScriptI;
 
 #endif // PL_SCRIPT_EXT_H

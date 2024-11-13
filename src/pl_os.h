@@ -25,26 +25,13 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define PL_API_WINDOW "PL_API_WINDOW"
-typedef struct _plWindowI plWindowI;
-
-#define PL_API_LIBRARY "PL_API_LIBRARY"
-typedef struct _plLibraryI plLibraryI;
-
-#define PL_API_FILE "PL_API_FILE"
-typedef struct _plFileI plFileI;
-
-#define PL_API_NETWORK "PL_API_NETWORK"
-typedef struct _plNetworkI plNetworkI;
-
-#define PL_API_THREADS "PL_API_THREADS"
-typedef struct _plThreadsI plThreadsI;
-
-#define PL_API_ATOMICS "PL_API_ATOMICS"
-typedef struct _plAtomicsI plAtomicsI;
-
-#define PL_API_VIRTUAL_MEMORY "PL_API_VIRTUAL_MEMORY"
-typedef struct _plVirtualMemoryI plVirtualMemoryI;
+#define plWindowI_version        (plVersion){1, 0, 0}
+#define plLibraryI_version       (plVersion){1, 0, 0}
+#define plFileI_version          (plVersion){1, 0, 0}
+#define plNetworkI_version       (plVersion){1, 0, 0}
+#define plThreadsI_version       (plVersion){1, 0, 0}
+#define plAtomicsI_version       (plVersion){1, 0, 0}
+#define plVirtualMemoryI_version (plVersion){1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -57,6 +44,15 @@ typedef struct _plVirtualMemoryI plVirtualMemoryI;
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
+
+// apis
+typedef struct _plWindowI        plWindowI;
+typedef struct _plLibraryI       plLibraryI;
+typedef struct _plFileI          plFileI;
+typedef struct _plNetworkI       plNetworkI;
+typedef struct _plThreadsI       plThreadsI;
+typedef struct _plAtomicsI       plAtomicsI;
+typedef struct _plVirtualMemoryI plVirtualMemoryI;
 
 // types
 typedef struct _plWindow             plWindow;

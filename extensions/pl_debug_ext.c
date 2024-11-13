@@ -8,7 +8,6 @@ Index of this file:
 // [SECTION] internal structs
 // [SECTION] global data
 // [SECTION] internal api
-// [SECTION] public api implementation
 // [SECTION] internal api implementation
 // [SECTION] extension loading
 */
@@ -81,19 +80,6 @@ static void pl__show_profiling         (bool* bValue);
 static void pl__show_statistics        (bool* bValue);
 static void pl__show_device_memory     (bool* bValue);
 static void pl__show_logging           (bool* bValue);
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api implementation
-//-----------------------------------------------------------------------------
-
-static const plDebugApiI*
-pl_load_debug_api(void)
-{
-    static const plDebugApiI tApi = {
-        .show_debug_windows = pl_show_debug_windows
-    };
-    return &tApi;
-}
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
@@ -1094,7 +1080,12 @@ pl__show_logging(bool* bValue)
 static void
 pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->add(PL_API_DEBUG, pl_load_debug_api());
+
+    const plDebugApiI tApi = {
+        .show_debug_windows = pl_show_debug_windows
+    };
+    pl_set_api(ptApiRegistry, plDebugApiI, &tApi);
+
     if(bReload)
     {
         gptDebugCtx = gptDataRegistry->get_data("plDebugContext");
@@ -1112,11 +1103,13 @@ pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 static void
 pl_unload_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->remove(pl_load_debug_api());
 
     if(bReload)
         return;
-        
+
+    const plDebugApiI* ptApi = pl_get_api(ptApiRegistry, plDebugApiI);
+    ptApiRegistry->remove(ptApi);
+
     pl_sb_free(gptDebugCtx->sbppdValues);
     pl_sb_free(gptDebugCtx->sbppdFrameValues);
     pl_sb_free(gptDebugCtx->sbdRawValues);

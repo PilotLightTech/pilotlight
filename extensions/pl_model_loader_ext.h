@@ -31,8 +31,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define PL_API_MODEL_LOADER "PL_API_MODEL_LOADER"
-typedef struct _plModelLoaderI plModelLoaderI;
+#define plModelLoaderI_version (plVersion){0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

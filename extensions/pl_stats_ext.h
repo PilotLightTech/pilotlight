@@ -18,10 +18,6 @@ Index of this file:
 #ifndef PL_STATS_EXT_H
 #define PL_STATS_EXT_H
 
-// extension version (format XYYZZ)
-#define PL_STATS_EXT_VERSION    "1.0.0"
-#define PL_STATS_EXT_VERSION_NUM 10000
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -32,8 +28,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define PL_API_STATS "PL_API_STATS"
-typedef struct _plStatsI plStatsI;
+#define plStatsI_version (plVersion){1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api

@@ -75,41 +75,34 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
     gptCamera->update(ptCamera);
 }
 
-static const char*
-pl_script_name(void)
-{
-    return "pl_script_camera";
-}
-
 //-----------------------------------------------------------------------------
 // [SECTION] script loading
 //-----------------------------------------------------------------------------
-
-static const plScriptI*
-pl_load_script_api(void)
-{
-    static const plScriptI tApi = {
-        .setup = NULL,
-        .run   = pl_script_run,
-        .name  = pl_script_name
-    };
-    return &tApi;
-}
 
 PL_EXPORT void
 pl_load_script(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     // load apis
-    gptEcs    = ptApiRegistry->first(PL_API_ECS);
-    gptCamera = ptApiRegistry->first(PL_API_CAMERA);
-    gptIO     = ptApiRegistry->first(PL_API_IO);
-    gptUi     = ptApiRegistry->first(PL_API_UI);
+    gptEcs    = pl_get_api(ptApiRegistry, plEcsI);
+    gptCamera = pl_get_api(ptApiRegistry, plCameraI);
+    gptIO     = pl_get_api(ptApiRegistry, plIOI);
+    gptUi     = pl_get_api(ptApiRegistry, plUiI);
 
-    ptApiRegistry->add(PL_API_SCRIPT, pl_load_script_api());
+    const plScriptI tApi = {
+        .setup = NULL,
+        .run   = pl_script_run
+    };
+
+    ptApiRegistry->set("pl_script_camera", plScriptI_version, &tApi, sizeof(plScriptI));
 }
 
 PL_EXPORT void
-pl_unload_script(plApiRegistryI* ptApiRegistry)
+pl_unload_script(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->remove(pl_load_script_api());
+
+    if(bReload)
+        return;
+        
+    const plScriptI* ptApi = ptApiRegistry->get("pl_script_camera", plScriptI_version);
+    ptApiRegistry->remove(ptApi);
 }

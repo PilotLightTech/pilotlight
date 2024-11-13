@@ -24,10 +24,6 @@ Index of this file:
 #ifndef PL_GRAPHICS_EXT_H
 #define PL_GRAPHICS_EXT_H
 
-// extension version (format XYYZZ)
-#define PL_GRAPHICS_EXT_VERSION    "1.0.0"
-#define PL_GRAPHICS_EXT_VERSION_NUM 10000
-
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------
@@ -51,8 +47,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define PL_API_GRAPHICS "PL_API_GRAPHICS"
-typedef struct _plGraphicsI plGraphicsI;
+#define plGraphicsI_version (plVersion){1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

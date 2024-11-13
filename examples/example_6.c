@@ -102,7 +102,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // retrieve the data registry API, this is the API used for sharing data
     // between extensions & the runtime
-    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDataRegistryI* ptDataRegistry = pl_get_api(ptApiRegistry, plDataRegistryI);
 
     // set log & profile contexts
     pl_set_log_context(ptDataRegistry->get_data("log"));
@@ -114,11 +114,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     {
         // re-retrieve the apis since we are now in
         // a different dll/so
-        gptIO      = ptApiRegistry->first(PL_API_IO);
-        gptWindows = ptApiRegistry->first(PL_API_WINDOW);
-        gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
-        gptImage   = ptApiRegistry->first(PL_API_IMAGE);
-        gptShader  = ptApiRegistry->first(PL_API_SHADER);
+        gptIO      = pl_get_api(ptApiRegistry, plIOI);
+        gptWindows = pl_get_api(ptApiRegistry, plWindowI);
+        gptGfx     = pl_get_api(ptApiRegistry, plGraphicsI);
+        gptShader  = pl_get_api(ptApiRegistry, plShaderI);
+        gptImage   = pl_get_api(ptApiRegistry, plImageI);
 
         return ptAppData;
     }
@@ -129,17 +129,17 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     memset(ptAppData, 0, sizeof(plAppData));
 
     // retrieve extension registry
-    const plExtensionRegistryI* ptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
+    const plExtensionRegistryI* ptExtensionRegistry = pl_get_api(ptApiRegistry, plExtensionRegistryI);
 
     // load extensions
     ptExtensionRegistry->load("pilot_light", NULL, NULL, true);
     
     // load required apis (NULL if not available)
-    gptIO      = ptApiRegistry->first(PL_API_IO);
-    gptWindows = ptApiRegistry->first(PL_API_WINDOW);
-    gptGfx     = ptApiRegistry->first(PL_API_GRAPHICS);
-    gptImage   = ptApiRegistry->first(PL_API_IMAGE);
-    gptShader  = ptApiRegistry->first(PL_API_SHADER);
+    gptIO      = pl_get_api(ptApiRegistry, plIOI);
+    gptWindows = pl_get_api(ptApiRegistry, plWindowI);
+    gptGfx     = pl_get_api(ptApiRegistry, plGraphicsI);
+    gptShader  = pl_get_api(ptApiRegistry, plShaderI);
+    gptImage   = pl_get_api(ptApiRegistry, plImageI);
 
     // use window API to create a window
     const plWindowDesc tWindowDesc = {

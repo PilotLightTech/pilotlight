@@ -9,7 +9,6 @@ Index of this file:
 // [SECTION] global data & apis
 // [SECTION] internal API
 // [SECTION] implementation
-// [SECTION] public API implementation
 // [SECTION] internal API implementation
 // [SECTION] extension loading
 */
@@ -6114,13 +6113,13 @@ pl__get_data_type_size(plDataType tType)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] public API implementation
+// [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static const plRendererI*
-pl_load_renderer_api(void)
+static void
+pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    static const plRendererI tApi = {
+    const plRendererI tApi = {
         .initialize                    = pl_refr_initialize,
         .cleanup                       = pl_refr_cleanup,
         .create_scene                  = pl_refr_create_scene,
@@ -6145,17 +6144,7 @@ pl_load_renderer_api(void)
         .get_command_pool              = pl__refr_get_command_pool,
         .resize                        = pl_refr_resize,
     };
-    return &tApi;
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] extension loading
-//-----------------------------------------------------------------------------
-
-static void
-pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-    ptApiRegistry->add(PL_API_RENDERER, pl_load_renderer_api());
+    pl_set_api(ptApiRegistry, plRendererI, &tApi);
     if(bReload)
     {
         gptData = gptDataRegistry->get_data("ref renderer data");
@@ -6165,5 +6154,9 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 static void
 pl_unload_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->remove(pl_load_renderer_api());
+    if(bReload)
+        return;
+        
+    const plRendererI* ptApi = pl_get_api(ptApiRegistry, plRendererI);
+    ptApiRegistry->remove(ptApi);
 }

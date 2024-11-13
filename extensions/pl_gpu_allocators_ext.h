@@ -6,7 +6,6 @@
 Index of this file:
 // [SECTION] header mess
 // [SECTION] includes
-// [SECTION] defines
 // [SECTION] forward declarations
 // [SECTION] APIs
 // [SECTION] public api structs
@@ -20,23 +19,11 @@ Index of this file:
 #ifndef PL_GPU_ALLOCATORS_EXT_H
 #define PL_GPU_ALLOCATORS_EXT_H
 
-// extension version (format XYYZZ)
-#define PL_GPU_ALLOCATORS_EXT_VERSION    "1.0.0"
-#define PL_GPU_ALLOCATORS_EXT_VERSION_NUM 10000
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
 #include <stdint.h>
-
-//-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
-
-#ifndef PL_MAX_NAME_LENGTH
-    #define PL_MAX_NAME_LENGTH 1024
-#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -54,8 +41,7 @@ typedef struct _plDevice plDevice;
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define PL_API_GPU_ALLOCATORS "PL_API_GPU_ALLOCATORS"
-typedef struct _plGPUAllocatorsI plGPUAllocatorsI;
+#define plGPUAllocatorsI_version (plVersion){1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs

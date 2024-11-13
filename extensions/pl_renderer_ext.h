@@ -21,8 +21,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define PL_API_RENDERER "PL_API_RENDERER"
-typedef struct _plRendererI plRendererI;
+#define plRendererI_version (plVersion){0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

@@ -6,7 +6,6 @@
 Index of this file:
 // [SECTION] includes
 // [SECTION] internal api implementation
-// [SECTION] public api implementation
 // [SECTION] extension loading
 // [SECTION] unity build
 */
@@ -62,26 +61,16 @@ pl_pack_rects(int iWidth, int iHeight, plPackRect* ptRects, uint32_t uRectCount)
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api implementation
-//-----------------------------------------------------------------------------
-
-static const plRectPackI*
-pl_load_rect_pack_api(void)
-{
-    static const plRectPackI tApi = {
-        .pack_rects = pl_pack_rects
-    };
-    return &tApi;
-}
-
-//-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
 static void
 pl_load_rect_pack_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->add(PL_API_RECT_PACK, pl_load_rect_pack_api());
+    const plRectPackI tApi = {
+        .pack_rects = pl_pack_rects
+    };
+    pl_set_api(ptApiRegistry, plRectPackI, &tApi);
 
     if(bReload)
         gptRectPackCtx = gptDataRegistry->get_data("plRectPackContext");
@@ -96,9 +85,11 @@ pl_load_rect_pack_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 static void
 pl_unload_rect_pack_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->remove(pl_load_rect_pack_api());
     if(bReload)
         return;
+
+    const plRectPackI* ptApi = pl_get_api(ptApiRegistry, plRectPackI);
+    ptApiRegistry->remove(ptApi);
 
     if(gptRectPackCtx->ptNodes)
         PL_FREE(gptRectPackCtx->ptNodes);

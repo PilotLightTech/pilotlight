@@ -6,7 +6,6 @@
 Index of this file:
 // [SECTION] includes
 // [SECTION] internal api implementation
-// [SECTION] public api implementation
 // [SECTION] extension loading
 */
 
@@ -74,13 +73,13 @@ pl_write_image(char const *pcFileName, const void *pData, const plImageWriteInfo
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api implementation
+// [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static const plImageI*
-pl_load_image_api(void)
+static void
+pl_load_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    static const plImageI tApi = {
+    const plImageI tApi = {
         .get_info               = pl__get_info,
         .get_info_from_memory   = pl__get_info_from_memory,
         .load_from_memory       = stbi_load_from_memory,
@@ -96,21 +95,15 @@ pl_load_image_api(void)
         .set_ldr_to_hdr_gamma   = stbi_ldr_to_hdr_gamma,
         .set_ldr_to_hdr_scale   = stbi_ldr_to_hdr_scale
     };
-    return &tApi;
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] extension loading
-//-----------------------------------------------------------------------------
-
-static void
-pl_load_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-    ptApiRegistry->add(PL_API_IMAGE, pl_load_image_api());
+    pl_set_api(ptApiRegistry, plImageI, &tApi);
 }
 
 static void
 pl_unload_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->remove(pl_load_image_api());
+    if(bReload)
+        return;
+        
+    const plImageI* ptApi = pl_get_api(ptApiRegistry, plImageI);
+    ptApiRegistry->remove(ptApi);
 }

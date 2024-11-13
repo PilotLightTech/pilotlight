@@ -22,17 +22,9 @@ Index of this file:
 #ifndef PL_DRAW_EXT_H
 #define PL_DRAW_EXT_H
 
-// extension version (format XYYZZ)
-#define PL_DRAW_EXT_VERSION    "1.0.0"
-#define PL_DRAW_EXT_VERSION_NUM 10000
-
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------
-
-#ifndef PL_MAX_NAME_LENGTH
-    #define PL_MAX_NAME_LENGTH 1024
-#endif
 
 #define PL_UNICODE_CODEPOINT_INVALID 0xFFFD // invalid Unicode code point (standard value).
 #define PL_UNICODE_CODEPOINT_MAX     0xFFFF // maximum Unicode code point supported by this build.
@@ -41,8 +33,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define PL_API_DRAW "PL_API_DRAW"
-typedef struct _plDrawI plDrawI;
+#define plDrawI_version (plVersion){1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

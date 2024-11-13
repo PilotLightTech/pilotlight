@@ -411,10 +411,10 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
 // [SECTION] script loading
 //-----------------------------------------------------------------------------
 
-static const plShaderI*
-pl_load_shader_api(void)
+static void
+pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    static const plShaderI tApi = {
+    const plShaderI tApi = {
         .initialize     = pl_initialize_shader_ext,
         .load_glsl      = pl_load_glsl,
         #ifdef PL_OFFLINE_SHADERS_ONLY
@@ -425,13 +425,7 @@ pl_load_shader_api(void)
         .write_to_disk  = pl_write_to_disk,
         .read_from_disk = pl_read_from_disk,
     };
-    return &tApi;
-}
-
-static void
-pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-    ptApiRegistry->add(PL_API_SHADER, pl_load_shader_api());
+    pl_set_api(ptApiRegistry, plShaderI, &tApi);
     if(bReload)
     {
         gptShaderCtx = gptDataRegistry->get_data("plShaderContext");
@@ -447,10 +441,12 @@ pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 static void
 pl_unload_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->remove(pl_load_shader_api());
 
     if(bReload)
         return;
+        
+    const plShaderI* ptApi = pl_get_api(ptApiRegistry, plShaderI);
+    ptApiRegistry->remove(ptApi);
         
     #ifndef PL_OFFLINE_SHADERS_ONLY
     #ifdef PL_METAL_BACKEND

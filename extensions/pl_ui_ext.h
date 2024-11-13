@@ -21,10 +21,6 @@ Index of this file:
 #ifndef PL_UI_EXT_H
 #define PL_UI_EXT_H
 
-// extension version (format XYYZZ)
-#define PL_UI_EXT_VERSION    "1.0.0"
-#define PL_UI_EXT_VERSION_NUM 10000
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -39,8 +35,7 @@ Index of this file:
 // [SECTION] api
 //-----------------------------------------------------------------------------
 
-#define PL_API_UI "PL_API_UI"
-typedef struct _plUiI plUiI;
+#define plUiI_version (plVersion){1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

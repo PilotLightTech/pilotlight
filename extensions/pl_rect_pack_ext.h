@@ -18,10 +18,6 @@ Index of this file:
 #ifndef PL_RECT_PACK_EXT_H
 #define PL_RECT_PACK_EXT_H
 
-// extension version (format XYYZZ)
-#define PL_RECT_PACK_EXT_VERSION    "1.0.0"
-#define PL_RECT_PACK_EXT_VERSION_NUM 10000
-
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -32,8 +28,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define PL_API_RECT_PACK "PL_API_RECT_PACK"
-typedef struct _plRectPackI plRectPackI;
+#define plRectPackI_version (plVersion){1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

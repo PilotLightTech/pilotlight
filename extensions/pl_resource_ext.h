@@ -20,8 +20,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define PL_API_RESOURCE "PL_API_RESOURCE"
-typedef struct _plResourceI plResourceI;
+#define plResourceI_version (plVersion){0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

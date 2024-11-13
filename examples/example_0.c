@@ -38,10 +38,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, void* pAppData)
 
     // retrieve the data registry API, this is the API used for sharing data
     // between extensions & the runtime
-    const plDataRegistryI* ptDataRegistry = ptApiRegistry->first(PL_API_DATA_REGISTRY);
+    const plDataRegistryI* ptDataRegistry = pl_get_api(ptApiRegistry, plDataRegistryI);
 
     // retrieve the IO API required to use plIO for "talking" with runtime)
-    gptIO = ptApiRegistry->first(PL_API_IO);
+    gptIO = pl_get_api(ptApiRegistry, plIOI);
 
     // return optional application memory
     return NULL;

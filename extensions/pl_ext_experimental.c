@@ -34,39 +34,39 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     // core apis
     gptApiRegistry       = ptApiRegistry;
-    gptDataRegistry      = ptApiRegistry->first(PL_API_DATA_REGISTRY);
-    gptIOI               = ptApiRegistry->first(PL_API_IO);
-    gptImage             = ptApiRegistry->first(PL_API_IMAGE);
-    gptExtensionRegistry = ptApiRegistry->first(PL_API_EXTENSION_REGISTRY);
-    gptMemory            = ptApiRegistry->first(PL_API_MEMORY);
-    gptGpuAllocators     = ptApiRegistry->first(PL_API_GPU_ALLOCATORS);
-    gptFile              = ptApiRegistry->first(PL_API_FILE);
-    gptThreads           = ptApiRegistry->first(PL_API_THREADS);
-    gptAtomics           = ptApiRegistry->first(PL_API_ATOMICS);
+    gptDataRegistry      = pl_get_api(ptApiRegistry, plDataRegistryI);
+    gptIOI               = pl_get_api(ptApiRegistry, plIOI);
+    gptImage             = pl_get_api(ptApiRegistry, plImageI);
+    gptExtensionRegistry = pl_get_api(ptApiRegistry, plExtensionRegistryI);
+    gptMemory            = pl_get_api(ptApiRegistry, plMemoryI);
+    gptGpuAllocators     = pl_get_api(ptApiRegistry, plGPUAllocatorsI);
+    gptFile              = pl_get_api(ptApiRegistry, plFileI);
+    gptThreads           = pl_get_api(ptApiRegistry, plThreadsI);
+    gptAtomics           = pl_get_api(ptApiRegistry, plAtomicsI);
     gptIO                = gptIOI->get_io();
-    gptStats             = ptApiRegistry->first(PL_API_STATS);
-    gptImage             = ptApiRegistry->first(PL_API_IMAGE);
-    gptJob               = ptApiRegistry->first(PL_API_JOB);
+    gptStats             = pl_get_api(ptApiRegistry, plStatsI);
+    gptImage             = pl_get_api(ptApiRegistry, plImageI);
+    gptJob               = pl_get_api(ptApiRegistry, plJobI);
 
     // set contexts
     pl_set_profile_context(gptDataRegistry->get_data("profile"));
     pl_set_log_context(gptDataRegistry->get_data("log"));
 
     pl_load_ecs_ext(ptApiRegistry, bReload);
-    gptECS    = ptApiRegistry->first(PL_API_ECS);
-    gptCamera = ptApiRegistry->first(PL_API_CAMERA);
+    gptECS    = pl_get_api(ptApiRegistry, plEcsI);
+    gptCamera = pl_get_api(ptApiRegistry, plCameraI);
 
     #ifdef PL_CORE_EXTENSION_INCLUDE_SHADER
-        gptShader = ptApiRegistry->first(PL_API_SHADER);
+        gptShader = pl_get_api(ptApiRegistry, plShaderI);
     #endif
 
     #ifdef PL_CORE_EXTENSION_INCLUDE_GRAPHICS
-        gptDraw        = ptApiRegistry->first(PL_API_DRAW);
-        gptDrawBackend = ptApiRegistry->first(PL_API_DRAW_BACKEND);
-        gptGfx         = ptApiRegistry->first(PL_API_GRAPHICS);
-        gptUI          = ptApiRegistry->first(PL_API_UI);
+        gptDraw        = pl_get_api(ptApiRegistry, plDrawI);
+        gptDrawBackend = pl_get_api(ptApiRegistry, plDrawBackendI);
+        gptGfx         = pl_get_api(ptApiRegistry, plGraphicsI);
+        gptUI          = pl_get_api(ptApiRegistry, plUiI);
         pl_load_resource_ext(ptApiRegistry, bReload);
-        gptResource = ptApiRegistry->first(PL_API_RESOURCE);        
+        gptResource = pl_get_api(ptApiRegistry, plResourceI);        
         pl_load_model_loader_ext(ptApiRegistry, bReload);
         pl_load_renderer_ext(ptApiRegistry, bReload);
         pl_load_debug_ext(ptApiRegistry, bReload);

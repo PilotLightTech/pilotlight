@@ -29,8 +29,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define PL_API_DEBUG "PL_API_DEBUG"
-typedef struct _plDebugApiI plDebugApiI;
+#define plDebugApiI_version (plVersion){0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

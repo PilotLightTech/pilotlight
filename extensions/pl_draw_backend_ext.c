@@ -1005,10 +1005,11 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static const plDrawBackendI*
-pl_load_draw_backend_api(void)
+static void
+pl_load_draw_backend_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    static const plDrawBackendI tApi = {
+
+    const plDrawBackendI tApi = {
         .initialize         = pl_initialize_draw_backend,
         .cleanup            = pl_cleanup_draw_backend,
         .new_frame          = pl_new_draw_frame,
@@ -1018,14 +1019,8 @@ pl_load_draw_backend_api(void)
         .submit_3d_drawlist = pl_submit_3d_drawlist,
         .create_bind_group_for_texture = pl_create_bind_group_for_texture,
     };
-    return &tApi;
-}
+    pl_set_api(ptApiRegistry, plDrawBackendI, &tApi);
 
-static void
-pl_load_draw_backend_ext(plApiRegistryI* ptApiRegistry, bool bReload)
-{
-    ptApiRegistry->add(PL_API_DRAW_BACKEND, pl_load_draw_backend_api());
-    
     if(bReload)
         gptDrawBackendCtx = gptDataRegistry->get_data("plDrawBackendContext");
     else  // first load
@@ -1039,5 +1034,9 @@ pl_load_draw_backend_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 static void
 pl_unload_draw_backend_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    ptApiRegistry->remove(pl_load_draw_backend_api());
+    if(bReload)
+        return;
+        
+    const plDrawBackendI* ptApi = pl_get_api(ptApiRegistry, plDrawBackendI);
+    ptApiRegistry->remove(ptApi);
 }

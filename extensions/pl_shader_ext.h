@@ -20,10 +20,6 @@ Index of this file:
 #ifndef PL_SHADER_EXT_H
 #define PL_SHADER_EXT_H
 
-// extension version (format XYYZZ)
-#define PL_SHADER_EXT_VERSION    "1.0.0"
-#define PL_SHADER_EXT_VERSION_NUM 10000
-
 // compile-time options
 // #define PL_OFFLINE_SHADERS_ONLY
 #ifndef PL_MAX_SHADER_INCLUDE_DIRECTORIES
@@ -41,8 +37,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define PL_API_SHADER "PL_API_SHADER"
-typedef struct _plShaderI plShaderI;
+#define plShaderI_version (plVersion){1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

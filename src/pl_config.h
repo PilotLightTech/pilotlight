@@ -16,8 +16,9 @@
 // general
 #define PL_MEMORY_TRACKING_ON
 #define PL_USE_STB_SPRINTF
-//#define PL_MAX_NAME_LENGTH 1024
-//#define PL_MAX_PATH_LENGTH 1024
+#define PL_MAX_API_FUNCTIONS 256
+#define PL_MAX_NAME_LENGTH 1024
+#define PL_MAX_PATH_LENGTH 1024
 
 // profiling
 #define PL_PROFILE_ON
