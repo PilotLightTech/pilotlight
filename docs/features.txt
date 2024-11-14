@@ -15,6 +15,7 @@ General:
     * Input: keyboard, mouse
     * Custom testing library
     * Virtual memory access
+    * String interning
 
 Custom math:
     * vectors
