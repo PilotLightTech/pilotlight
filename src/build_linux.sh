@@ -71,10 +71,12 @@ if pidof -x "pilot_light" -o $$ >/dev/null;then
 else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=0
-    rm -f ../out/pilot_light.so
-    rm -f ../out/pilot_light_*.so
-    rm -f ../out/pilot_light_experimental.so
-    rm -f ../out/pilot_light_experimental_*.so
+    rm -f ../out/pl_ext.so
+    rm -f ../out/pl_ext_*.so
+    rm -f ../out/pl_ext_os.so
+    rm -f ../out/pl_ext_os_*.so
+    rm -f ../out/pl_ext_proto.so
+    rm -f ../out/pl_ext_proto_*.so
     rm -f ../out/pl_script_camera.so
     rm -f ../out/pl_script_camera_*.so
     rm -f ../out/app.so
@@ -100,7 +102,7 @@ echo
 echo ${YELLOW}Step: pl_ext${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/pilot_light.so"
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/pl_ext.so"
 
 # check build status
 if [ $? -ne 0 ]
@@ -112,7 +114,42 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_experimental | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_os | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_VULKAN_BACKEND -D_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
+PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
+PL_SOURCES="../extensions/pl_os_ext_linux.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_ext_os${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/pl_ext_os.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_proto | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_VULKAN_BACKEND -D_DEBUG "
@@ -122,14 +159,14 @@ PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../extensions/pl_ext_experimental.c "
+PL_SOURCES="../extensions/pl_ext_proto.c "
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: pl_ext_experimental${NC}
+echo ${YELLOW}Step: pl_ext_proto${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/pilot_light_experimental.so"
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/pl_ext_proto.so"
 
 # check build status
 if [ $? -ne 0 ]
@@ -265,10 +302,12 @@ if pidof -x "pilot_light" -o $$ >/dev/null;then
 else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=0
-    rm -f ../out/pilot_light.so
-    rm -f ../out/pilot_light_*.so
-    rm -f ../out/pilot_light_experimental.so
-    rm -f ../out/pilot_light_experimental_*.so
+    rm -f ../out/pl_ext.so
+    rm -f ../out/pl_ext_*.so
+    rm -f ../out/pl_ext_os.so
+    rm -f ../out/pl_ext_os_*.so
+    rm -f ../out/pl_ext_proto.so
+    rm -f ../out/pl_ext_proto_*.so
     rm -f ../out/pl_script_camera.so
     rm -f ../out/pl_script_camera_*.so
     rm -f ../out/app.so
@@ -294,7 +333,7 @@ echo
 echo ${YELLOW}Step: pl_ext${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/pilot_light.so"
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/pl_ext.so"
 
 # check build status
 if [ $? -ne 0 ]
@@ -306,7 +345,42 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_experimental | release ~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_os | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_VULKAN_BACKEND -DNDEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
+PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
+PL_SOURCES="../extensions/pl_os_ext_linux.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_ext_os${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/pl_ext_os.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_proto | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_VULKAN_BACKEND -DNDEBUG "
@@ -316,14 +390,14 @@ PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../extensions/pl_ext_experimental.c "
+PL_SOURCES="../extensions/pl_ext_proto.c "
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: pl_ext_experimental${NC}
+echo ${YELLOW}Step: pl_ext_proto${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/pilot_light_experimental.so"
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/pl_ext_proto.so"
 
 # check build status
 if [ $? -ne 0 ]

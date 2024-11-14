@@ -35,6 +35,11 @@ extension_headers = [
     "pl_shader_ext",
     "pl_stats_ext",
     "pl_ui_ext",
+    "pl_string_intern_ext",
+    "pl_atomics_ext",
+    "pl_network_ext",
+    "pl_threads_ext",
+    "pl_virtual_memory_ext",
 ]
 
 # scripts
@@ -64,7 +69,6 @@ if not os.path.isdir(target_directory + "/bin"):
 # copy core headers
 shutil.copy("../src/pl.h", target_directory + "/include/pl.h")
 shutil.copy("../src/pl_config.h", target_directory + "/include/pl_config.h")
-shutil.copy("../src/pl_os.h", target_directory + "/include/pl_os.h")
 
 # copy simple extension headers
 for extension in extension_headers:
@@ -88,20 +92,24 @@ shutil.copy("../dependencies/stb/stb_sprintf.h", target_directory + "/include/st
 
 # copy extension binary
 if platform.system() == "Windows":
-    shutil.move("../out/pilot_light.dll", target_directory + "/bin/")
-    shutil.move("../out/pilot_light_experimental.dll", target_directory + "/bin/")
+    shutil.move("../out/pl_ext.dll", target_directory + "/bin/")
+    shutil.move("../out/pl_ext_proto.dll", target_directory + "/bin/")
+    shutil.move("../out/pl_ext_os.dll", target_directory + "/bin/")
     if debug_package:
         for file in glob.glob("../out/pilot_light_*.pdb"):
             shutil.move(file, target_directory + "/bin/")
 elif platform.system() == "Darwin":
-    shutil.move("../out/pilot_light.dylib", target_directory + "/bin/")
-    shutil.move("../out/pilot_light_experimental.dylib", target_directory + "/bin/")
+    shutil.move("../out/pl_ext.dylib", target_directory + "/bin/")
+    shutil.move("../out/pl_ext_os.dylib", target_directory + "/bin/")
+    shutil.move("../out/pl_ext_proto.dylib", target_directory + "/bin/")
     if debug_package:
-        shutil.copytree("../out/pilot_light.dylib.dSYM", target_directory + "/bin/pilot_light.dylib.dSYM")
-        shutil.copytree("../out/pilot_light_experimental.dylib.dSYM", target_directory + "/bin/pilot_light.dylib.dSYM")
+        shutil.copytree("../out/pl_ext.dylib.dSYM", target_directory + "/bin/pl_ext.dylib.dSYM")
+        shutil.copytree("../out/pl_ext_os.dylib.dSYM", target_directory + "/bin/pl_ext_os.dylib.dSYM")
+        shutil.copytree("../out/pl_ext_proto.dylib.dSYM", target_directory + "/bin/pl_ext_proto.dylib.dSYM")
 elif platform.system() == "Linux":
-    shutil.move("../out/pilot_light.so", target_directory + "/bin/")
-    shutil.move("../out/pilot_light_experimental.so", target_directory + "/bin/")
+    shutil.move("../out/pl_ext.so", target_directory + "/bin/")
+    shutil.move("../out/pl_ext_os.so", target_directory + "/bin/")
+    shutil.move("../out/pl_ext_proto.so", target_directory + "/bin/")
 
 # copy scripts
 for script in scripts:

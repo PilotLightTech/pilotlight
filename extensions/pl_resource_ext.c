@@ -215,8 +215,8 @@ pl_unload_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
 
-    const plResourceI* ptApi = pl_get_api(ptApiRegistry, plResourceI);
-    ptApiRegistry->remove(ptApi);
+    const plResourceI* ptApi = pl_get_api_latest(ptApiRegistry, plResourceI);
+    ptApiRegistry->remove_api(ptApi);
 
     for(uint32_t i = 0; i < pl_sb_size(gptResourceManager->sbtResources); i++)
     {

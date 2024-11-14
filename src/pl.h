@@ -36,6 +36,9 @@ Index of this file:
 #define plMemoryI_version            (plVersion){1, 0, 0}
 #define plIOI_version                (plVersion){1, 0, 0}
 #define plDataRegistryI_version      (plVersion){1, 0, 0}
+#define plWindowI_version            (plVersion){1, 0, 0}
+#define plLibraryI_version           (plVersion){1, 0, 0}
+#define plFileI_version              (plVersion){1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -52,9 +55,13 @@ Index of this file:
 
 // types
 typedef struct _plVersion         plVersion;
+typedef struct _plWindow          plWindow;
+typedef struct _plWindowDesc      plWindowDesc;
+typedef struct _plLibraryDesc     plLibraryDesc;
 typedef struct _plAllocationEntry plAllocationEntry;
 typedef union  _plDataID          plDataID;
-typedef struct _plDataObject      plDataObject; // opaque type
+typedef struct _plDataObject      plDataObject;    // opaque type
+typedef struct _plSharedLibrary   plSharedLibrary; // opaque type
 typedef struct _plIO              plIO;         // configuration & IO between app & pilotlight ui
 typedef struct _plKeyData         plKeyData;    // individual key status (down, down duration, etc.)
 typedef struct _plInputEvent      plInputEvent; // holds data for input events (opaque structure)
@@ -65,6 +72,8 @@ typedef int plMouseButton;      // -> enum plMouseButton_      // Enum: A mouse 
 typedef int plMouseCursor;      // -> enum plMouseCursor_      // Enum: Mouse cursor shape (PL_MOUSE_CURSOR_XXX)
 typedef int plInputEventType;   // -> enum plInputEventType_   // Enum: An input event type (PL_INPUT_EVENT_TYPE_XXX)
 typedef int plInputEventSource; // -> enum plInputEventSource_ // Enum: An input event source (PL_INPUT_EVENT_SOURCE_XXX)
+typedef int plOSResult;         // -> enum _plOSResult         // Enum:
+typedef int plFileResult;       // -> enum _plFileResult       // Enum:
 typedef int plKeyChord;
 
 // character types
@@ -74,8 +83,10 @@ typedef uint16_t plUiWChar;
 // [SECTION] helper macros
 //-----------------------------------------------------------------------------
 
-#define pl_set_api(ptApiReg, TYPE, ptr) { const TYPE* ptTypedPtr = ptr; ptApiReg->set(#TYPE, TYPE##_version, ptTypedPtr, sizeof(TYPE)); }
-#define pl_get_api(ptApiReg, TYPE)      ptApiReg->get(#TYPE, TYPE ## _version)
+#define pl_set_api(ptApiReg, TYPE, ptr)     { const TYPE* ptTypedPtr = ptr; ptApiReg->set_api(#TYPE, TYPE##_version, ptTypedPtr, sizeof(TYPE)); }
+#define pl_get_api(ptApiReg, TYPE, VERSION) ptApiReg->get_api(#TYPE, VERSION)
+#define pl_get_api_latest(ptApiReg, TYPE)   ptApiReg->get_api(#TYPE, TYPE ## _version)
+#define pl_version(X, Y, Z)                 ((plVersion){(X), (Y), (Z)})
 
 //-----------------------------------------------------------------------------
 // [SECTION] api structs
@@ -84,9 +95,9 @@ typedef uint16_t plUiWChar;
 typedef struct _plApiRegistryI
 {
 
-    const void* (*set)   (const char* name, plVersion, const void* interface, size_t interfaceSize);
-    const void* (*get)   (const char* name, plVersion);
-    void        (*remove)(const void* interface);
+    const void* (*set_api)   (const char* name, plVersion, const void* api, size_t interfaceSize);
+    const void* (*get_api)   (const char* name, plVersion);
+    void        (*remove_api)(const void* api);
     
 } plApiRegistryI;
 
@@ -100,8 +111,8 @@ typedef struct _plExtensionRegistryI
 
 typedef struct _plMemoryI
 {
-
-    void* (*realloc)(void*, size_t, const char* file, int line);
+    void* (*realloc)        (void*, size_t);
+    void* (*tracked_realloc)(void*, size_t, const char* file, int line);
 
     // stats
     size_t             (*get_memory_usage)(void);
@@ -182,6 +193,38 @@ typedef struct _plDataRegistryI
     void          (*commit)    (plDataObject*);
     
 } plDataRegistryI;
+
+typedef struct _plWindowI
+{
+
+    plOSResult (*create_window) (plWindowDesc, plWindow** windowPtrOut);
+    void       (*destroy_window)(plWindow*);
+    
+} plWindowI;
+
+typedef struct _plLibraryI
+{
+
+    plOSResult (*load)         (plLibraryDesc, plSharedLibrary** libraryPtrOut);
+    bool       (*has_changed)  (plSharedLibrary*);
+    void       (*reload)       (plSharedLibrary*);
+    void*      (*load_function)(plSharedLibrary*, const char*);
+    
+} plLibraryI;
+
+typedef struct _plFileI
+{
+
+    // simple file ops
+    bool         (*exists)(const char* path);
+    plFileResult (*delete)(const char* path);
+    plFileResult (*copy)  (const char* source, const char* destination);
+
+    // binary files
+    plFileResult (*binary_read) (const char* file, size_t* sizeOut, uint8_t* buffer); // pass NULL for puBuffer to get size
+    plFileResult (*binary_write)(const char* file, size_t, uint8_t* buffer);
+
+} plFileI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -281,6 +324,18 @@ enum plMouseCursor_
     PL_MOUSE_CURSOR_HAND,
     PL_MOUSE_CURSOR_NOT_ALLOWED,
     PL_MOUSE_CURSOR_COUNT
+};
+
+enum _plOSResult
+{
+    PL_OS_RESULT_FAIL    = 0,
+    PL_OS_RESULT_SUCCESS = 1
+};
+
+enum _plFileResult
+{
+    PL_FILE_RESULT_FAIL    = 0,
+    PL_FILE_RESULT_SUCCESS = 1
 };
 
 //-----------------------------------------------------------------------------
@@ -393,6 +448,33 @@ typedef struct _plIO
     float _fFrameRateSecPerFrameAccum;
 
 } plIO;
+
+//-----------------------------------------------------------------------------
+// [SECTION] structs
+//-----------------------------------------------------------------------------
+
+typedef struct _plWindowDesc
+{
+    const char* pcTitle;
+    uint32_t    uWidth;
+    uint32_t    uHeight;
+    int         iXPos;
+    int         iYPos;
+    const void* pNext;
+} plWindowDesc;
+
+typedef struct _plWindow
+{
+    plWindowDesc tDesc;
+    void*        _pPlatformData;
+} plWindow;
+
+typedef struct _plLibraryDesc
+{
+    const char* pcName;             // name of library (without extension)
+    const char* pcTransitionalName; // default: pcName + '_'
+    const char* pcLockFile;         // default: "lock.tmp"
+} plLibraryDesc;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs (not for public use, subject to change)

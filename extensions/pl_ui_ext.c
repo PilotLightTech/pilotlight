@@ -150,8 +150,8 @@ pl_unload_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
 
-    const plUiI* ptApi = pl_get_api(ptApiRegistry, plUiI);
-    ptApiRegistry->remove(ptApi);
+    const plUiI* ptApi = pl_get_api_latest(ptApiRegistry, plUiI);
+    ptApiRegistry->remove_api(ptApi);
 
     gptCtx = NULL;
 }

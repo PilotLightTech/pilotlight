@@ -29,7 +29,6 @@ Index of this file:
 #include "pl.h"
 #include "pl_profile.h"
 #include "pl_log.h"
-#include "pl_os.h"
 #include "pl_memory.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -94,7 +93,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // retrieve the data registry API, this is the API used for sharing data
     // between extensions & the runtime
-    const plDataRegistryI* ptDataRegistry = pl_get_api(ptApiRegistry, plDataRegistryI);
+    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
     // set log & profile contexts
     pl_set_log_context(ptDataRegistry->get_data("log"));
@@ -107,13 +106,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
         // re-retrieve the apis since we are now in
         // a different dll/so
-        gptIO          = pl_get_api(ptApiRegistry, plIOI);
-        gptWindows     = pl_get_api(ptApiRegistry, plWindowI);
-        gptGfx         = pl_get_api(ptApiRegistry, plGraphicsI);
-        gptDraw        = pl_get_api(ptApiRegistry, plDrawI);
-        gptShader      = pl_get_api(ptApiRegistry, plShaderI);
-        gptDrawBackend = pl_get_api(ptApiRegistry, plDrawBackendI);
-        gptUi          = pl_get_api(ptApiRegistry, plUiI);
+        gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
+        gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
+        gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+        gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
+        gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
+        gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
+        gptUi          = pl_get_api_latest(ptApiRegistry, plUiI);
 
         return ptAppData;
     }
@@ -124,19 +123,20 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     memset(ptAppData, 0, sizeof(plAppData));
 
     // retrieve extension registry
-    const plExtensionRegistryI* ptExtensionRegistry = pl_get_api(ptApiRegistry, plExtensionRegistryI);
+    const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
 
     // load extensions
-    ptExtensionRegistry->load("pilot_light", NULL, NULL, true);
+    ptExtensionRegistry->load("pl_ext", NULL, NULL, true);
+    ptExtensionRegistry->load("pl_ext_os", NULL, NULL, false);
     
     // load required apis (NULL if not available)
-    gptIO          = pl_get_api(ptApiRegistry, plIOI);
-    gptWindows     = pl_get_api(ptApiRegistry, plWindowI);
-    gptGfx         = pl_get_api(ptApiRegistry, plGraphicsI);
-    gptDraw        = pl_get_api(ptApiRegistry, plDrawI);
-    gptShader      = pl_get_api(ptApiRegistry, plShaderI);
-    gptDrawBackend = pl_get_api(ptApiRegistry, plDrawBackendI);
-    gptUi          = pl_get_api(ptApiRegistry, plUiI);
+    gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
+    gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+    gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
+    gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
+    gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
+    gptUi          = pl_get_api_latest(ptApiRegistry, plUiI);
 
     // initialize shader compiler
     static const plShaderOptions tDefaultShaderOptions = {
@@ -148,14 +148,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptShader->initialize(&tDefaultShaderOptions);
 
     // use window API to create a window
-    const plWindowDesc tWindowDesc = {
-        .pcName  = "Example 3",
+    plWindowDesc tWindowDesc = {
+        .pcTitle = "Example 3",
         .iXPos   = 200,
         .iYPos   = 200,
         .uWidth  = 500,
         .uHeight = 500,
     };
-    gptWindows->create_window(&tWindowDesc, &ptAppData->ptWindow);
+    gptWindows->create_window(tWindowDesc, &ptAppData->ptWindow);
 
     // initialize graphics system
     const plGraphicsInit tGraphicsInit = {

@@ -23,7 +23,6 @@ Index of this file:
 #include <stdio.h>
 #include <string.h> // memset
 #include "pl.h"
-#include "pl_os.h" // window api
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -53,11 +52,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // retrieve the data registry API, this is the API used for sharing data
     // between extensions & the runtime
-    const plDataRegistryI* ptDataRegistry = pl_get_api(ptApiRegistry, plDataRegistryI);
+    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
     // load required apis (NULL if not available)
-    gptIO      = pl_get_api(ptApiRegistry, plIOI);
-    gptWindows = pl_get_api(ptApiRegistry, plWindowI);
+    gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
     
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
@@ -75,14 +74,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     memset(ptAppData, 0, sizeof(plAppData));
 
     // use window API to create a window
-    const plWindowDesc tWindowDesc = {
-        .pcName  = "Example 1",
+    plWindowDesc tWindowDesc = {
+        .pcTitle = "Example 1",
         .iXPos   = 200,
         .iYPos   = 200,
         .uWidth  = 600,
         .uHeight = 600,
     };
-    gptWindows->create_window(&tWindowDesc, &ptAppData->ptWindow);
+    gptWindows->create_window(tWindowDesc, &ptAppData->ptWindow);
 
     // return app memory
     return ptAppData;

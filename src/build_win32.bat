@@ -73,12 +73,15 @@
 :: cleanup binaries if not hot reloading
 @if %PL_HOT_RELOAD_STATUS% equ 0 (
 
-    @if exist "../out/pilot_light.dll" del "..\out\pilot_light.dll"
-    @if exist "../out/pilot_light_*.dll" del "..\out\pilot_light_*.dll"
-    @if exist "../out/pilot_light_*.pdb" del "..\out\pilot_light_*.pdb"
-    @if exist "../out/pilot_light_experimental.dll" del "..\out\pilot_light_experimental.dll"
-    @if exist "../out/pilot_light_experimental_*.dll" del "..\out\pilot_light_experimental_*.dll"
-    @if exist "../out/pilot_light_experimental_*.pdb" del "..\out\pilot_light_experimental_*.pdb"
+    @if exist "../out/pl_ext.dll" del "..\out\pl_ext.dll"
+    @if exist "../out/pl_ext_*.dll" del "..\out\pl_ext_*.dll"
+    @if exist "../out/pl_ext_*.pdb" del "..\out\pl_ext_*.pdb"
+    @if exist "../out/pl_ext_os.dll" del "..\out\pl_ext_os.dll"
+    @if exist "../out/pl_ext_os_*.dll" del "..\out\pl_ext_os_*.dll"
+    @if exist "../out/pl_ext_os_*.pdb" del "..\out\pl_ext_os_*.pdb"
+    @if exist "../out/pl_ext_proto.dll" del "..\out\pl_ext_proto.dll"
+    @if exist "../out/pl_ext_proto_*.dll" del "..\out\pl_ext_proto_*.dll"
+    @if exist "../out/pl_ext_proto_*.pdb" del "..\out\pl_ext_proto_*.pdb"
     @if exist "../out/pl_script_camera.dll" del "..\out\pl_script_camera.dll"
     @if exist "../out/pl_script_camera_*.dll" del "..\out\pl_script_camera_*.dll"
     @if exist "../out/pl_script_camera_*.pdb" del "..\out\pl_script_camera_*.pdb"
@@ -105,7 +108,7 @@
 @echo [1m[93mStep: pl_ext[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pilot_light.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pilot_light_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_ext_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -121,21 +124,56 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [36mResult: [0m %PL_RESULT%
 @echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_experimental | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_os | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:: skip during hot reload
+@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_ext_os
 
 @set PL_DEFINES=-DPL_VULKAN_BACKEND -D_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no -nodefaultlib:MSVCRT 
-@set PL_SOURCES="../extensions/pl_ext_experimental.c" 
+@set PL_SOURCES="../extensions/pl_os_ext_win32.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: pl_ext_experimental[0m
+@echo [1m[93mStep: pl_ext_os[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pilot_light_experimental.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pilot_light_experimental_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_ext_os.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_ext_os_%random%.pdb" %PL_LINK_DIRECTORIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanupdebug
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+:Exit_pl_ext_os
+
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_proto | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+@set PL_DEFINES=-DPL_VULKAN_BACKEND -D_DEBUG 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
+@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no -nodefaultlib:MSVCRT 
+@set PL_SOURCES="../extensions/pl_ext_proto.c" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mStep: pl_ext_proto[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_ext_proto.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_ext_proto_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -221,7 +259,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-incremental:no 
-@set PL_STATIC_LINK_LIBRARIES=ucrtd.lib user32.lib Ole32.lib ws2_32.lib 
+@set PL_STATIC_LINK_LIBRARIES=ucrtd.lib user32.lib Ole32.lib 
 @set PL_SOURCES="pl_main_win32.c" 
 
 :: run compiler (and linker)
@@ -293,12 +331,15 @@ goto ExitLabel
 :: cleanup binaries if not hot reloading
 @if %PL_HOT_RELOAD_STATUS% equ 0 (
 
-    @if exist "../out/pilot_light.dll" del "..\out\pilot_light.dll"
-    @if exist "../out/pilot_light_*.dll" del "..\out\pilot_light_*.dll"
-    @if exist "../out/pilot_light_*.pdb" del "..\out\pilot_light_*.pdb"
-    @if exist "../out/pilot_light_experimental.dll" del "..\out\pilot_light_experimental.dll"
-    @if exist "../out/pilot_light_experimental_*.dll" del "..\out\pilot_light_experimental_*.dll"
-    @if exist "../out/pilot_light_experimental_*.pdb" del "..\out\pilot_light_experimental_*.pdb"
+    @if exist "../out/pl_ext.dll" del "..\out\pl_ext.dll"
+    @if exist "../out/pl_ext_*.dll" del "..\out\pl_ext_*.dll"
+    @if exist "../out/pl_ext_*.pdb" del "..\out\pl_ext_*.pdb"
+    @if exist "../out/pl_ext_os.dll" del "..\out\pl_ext_os.dll"
+    @if exist "../out/pl_ext_os_*.dll" del "..\out\pl_ext_os_*.dll"
+    @if exist "../out/pl_ext_os_*.pdb" del "..\out\pl_ext_os_*.pdb"
+    @if exist "../out/pl_ext_proto.dll" del "..\out\pl_ext_proto.dll"
+    @if exist "../out/pl_ext_proto_*.dll" del "..\out\pl_ext_proto_*.dll"
+    @if exist "../out/pl_ext_proto_*.pdb" del "..\out\pl_ext_proto_*.pdb"
     @if exist "../out/pl_script_camera.dll" del "..\out\pl_script_camera.dll"
     @if exist "../out/pl_script_camera_*.dll" del "..\out\pl_script_camera_*.dll"
     @if exist "../out/pl_script_camera_*.pdb" del "..\out\pl_script_camera_*.pdb"
@@ -325,7 +366,7 @@ goto ExitLabel
 @echo [1m[93mStep: pl_ext[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pilot_light.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pilot_light_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_ext_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -341,21 +382,56 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [36mResult: [0m %PL_RESULT%
 @echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
 
-::~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_experimental | release ~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_os | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:: skip during hot reload
+@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_ext_os
 
 @set PL_DEFINES=-DPL_VULKAN_BACKEND -DNDEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="../extensions/pl_ext_experimental.c" 
+@set PL_SOURCES="../extensions/pl_os_ext_win32.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: pl_ext_experimental[0m
+@echo [1m[93mStep: pl_ext_os[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pilot_light_experimental.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pilot_light_experimental_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_ext_os.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_ext_os_%random%.pdb" %PL_LINK_DIRECTORIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanuprelease
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+:Exit_pl_ext_os
+
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_proto | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+@set PL_DEFINES=-DPL_VULKAN_BACKEND -DNDEBUG 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
+@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
+@set PL_SOURCES="../extensions/pl_ext_proto.c" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mStep: pl_ext_proto[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_ext_proto.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_ext_proto_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -441,7 +517,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-incremental:no 
-@set PL_STATIC_LINK_LIBRARIES=ucrt.lib user32.lib Ole32.lib ws2_32.lib 
+@set PL_STATIC_LINK_LIBRARIES=ucrt.lib user32.lib Ole32.lib 
 @set PL_SOURCES="pl_main_win32.c" 
 
 :: run compiler (and linker)

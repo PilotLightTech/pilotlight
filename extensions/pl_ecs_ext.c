@@ -751,7 +751,7 @@ pl_ecs_create_script(plComponentLibrary* ptLibrary, const char* pcFile, plScript
 
     gptExtensionRegistry->load(pcFile, "pl_load_script", "pl_unload_script", tFlags & PL_SCRIPT_FLAG_RELOADABLE);
 
-    const plScriptI* ptScriptApi = gptApiRegistry->get(pcFile, plScriptI_version);
+    const plScriptI* ptScriptApi = gptApiRegistry->get_api(pcFile, plScriptI_version);
     ptScript->_ptApi = ptScriptApi;
     PL_ASSERT(ptScriptApi->run);
 
@@ -773,7 +773,7 @@ pl_ecs_attach_script(plComponentLibrary* ptLibrary, const char* pcFile, plScript
 
     gptExtensionRegistry->load(pcFile, "pl_load_script", "pl_unload_script", tFlags & PL_SCRIPT_FLAG_RELOADABLE);
 
-    const plScriptI* ptScriptApi = gptApiRegistry->get(pcFile, plScriptI_version);
+    const plScriptI* ptScriptApi = gptApiRegistry->get_api(pcFile, plScriptI_version);
     ptScript->_ptApi = ptScriptApi;
     PL_ASSERT(ptScriptApi->run);
 
@@ -1764,9 +1764,9 @@ pl_unload_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
         
-    const plEcsI* ptApi0 = pl_get_api(ptApiRegistry, plEcsI);
-    ptApiRegistry->remove(ptApi0);
+    const plEcsI* ptApi0 = pl_get_api_latest(ptApiRegistry, plEcsI);
+    ptApiRegistry->remove_api(ptApi0);
 
-    const plCameraI* ptApi1 = pl_get_api(ptApiRegistry, plCameraI);
-    ptApiRegistry->remove(ptApi1);
+    const plCameraI* ptApi1 = pl_get_api_latest(ptApiRegistry, plCameraI);
+    ptApiRegistry->remove_api(ptApi1);
 }

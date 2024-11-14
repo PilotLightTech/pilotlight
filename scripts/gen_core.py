@@ -103,11 +103,10 @@ with pl.project("pilotlight"):
     # [SECTION] extensions
     #-----------------------------------------------------------------------------
 
-    # vulkan backend extensions
     with pl.target("pl_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
 
         pl.add_source_files("../extensions/pl_ext.c")
-        pl.set_output_binary("pilot_light")
+        pl.set_output_binary("pl_ext")
 
         # default config
         with pl.configuration("debug"):
@@ -174,14 +173,75 @@ with pl.project("pilotlight"):
                     pl.add_dynamic_link_libraries("vulkan")
 
     #-----------------------------------------------------------------------------
+    # [SECTION] os extensions
+    #-----------------------------------------------------------------------------
+
+    with pl.target("pl_ext_os", pl.TargetType.DYNAMIC_LIBRARY, False):
+
+        pl.set_output_binary("pl_ext_os")
+
+        # default config
+        with pl.configuration("debug"):
+
+            # win32
+            with pl.platform("Windows"):
+
+                with pl.compiler("msvc"):
+                    pl.add_linker_flags("-nodefaultlib:MSVCRT")
+                    pl.add_source_files("../extensions/pl_os_ext_win32.c")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries("pthread")
+                    pl.add_source_files("../extensions/pl_os_ext_linux.c")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_source_files("../extensions/pl_os_ext_macos.m")
+
+        # release
+        with pl.configuration("release"):
+
+            # win32
+            with pl.platform("Windows"):
+
+                with pl.compiler("msvc"):
+                    pl.add_source_files("../extensions/pl_os_ext_win32.c")
+                    # pl.add_linker_flags("-nodefaultlib:MSVCRT")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries("pthread")
+                    pl.add_source_files("../extensions/pl_os_ext_linux.c")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_source_files("../extensions/pl_os_ext_macos.m")
+
+        # vulkan on macos
+        with pl.configuration("vulkan"):
+
+            # mac os
+            with pl.platform("Darwin"):
+
+                with pl.compiler("clang"):
+                    pl.add_source_files("../extensions/pl_os_ext_macos.m")
+
+    #-----------------------------------------------------------------------------
     # [SECTION] experimental extensions
     #-----------------------------------------------------------------------------
 
     # vulkan backend extensions
-    with pl.target("pl_ext_experimental", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("pl_ext_proto", pl.TargetType.DYNAMIC_LIBRARY, True):
 
-        pl.add_source_files("../extensions/pl_ext_experimental.c")
-        pl.set_output_binary("pilot_light_experimental")
+        pl.add_source_files("../extensions/pl_ext_proto.c")
+        pl.set_output_binary("pl_ext_proto")
 
         # default config
         with pl.configuration("debug"):
@@ -209,9 +269,9 @@ with pl.project("pilotlight"):
             with pl.platform("Windows"):
 
                 with pl.compiler("msvc"):
-                    pass
                     # pl.add_linker_flags("-nodefaultlib:MSVCRT")
-
+                    pass
+                    
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
@@ -350,7 +410,7 @@ with pl.project("pilotlight"):
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
-                    pl.add_static_link_libraries("ucrtd", "user32", "Ole32", "ws2_32")
+                    pl.add_static_link_libraries("ucrtd", "user32", "Ole32")
                     pl.add_source_files("pl_main_win32.c")
                     
             # linux
@@ -371,7 +431,7 @@ with pl.project("pilotlight"):
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
-                    pl.add_static_link_libraries("ucrt", "user32", "Ole32", "ws2_32")
+                    pl.add_static_link_libraries("ucrt", "user32", "Ole32")
                     pl.add_source_files("pl_main_win32.c")
 
             # linux

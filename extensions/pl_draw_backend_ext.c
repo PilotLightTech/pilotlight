@@ -1037,6 +1037,6 @@ pl_unload_draw_backend_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
         
-    const plDrawBackendI* ptApi = pl_get_api(ptApiRegistry, plDrawBackendI);
-    ptApiRegistry->remove(ptApi);
+    const plDrawBackendI* ptApi = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
+    ptApiRegistry->remove_api(ptApi);
 }

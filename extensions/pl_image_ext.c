@@ -104,6 +104,6 @@ pl_unload_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
         
-    const plImageI* ptApi = pl_get_api(ptApiRegistry, plImageI);
-    ptApiRegistry->remove(ptApi);
+    const plImageI* ptApi = pl_get_api_latest(ptApiRegistry, plImageI);
+    ptApiRegistry->remove_api(ptApi);
 }

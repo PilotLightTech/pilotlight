@@ -19,7 +19,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pl.h"
-#include "pl_os.h"
 #include "pl_ds.h"
 #include "pl_profile.h"
 #include "pl_log.h"

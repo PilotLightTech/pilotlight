@@ -20,7 +20,8 @@ Index of this file:
 
 #include "pl.h"
 #include "pl_job_ext.h"
-#include "pl_os.h"
+#include "pl_threads_ext.h"
+#include "pl_atomics_ext.h"
 #include <math.h>
 #include <string.h>
 #include "pl_ext.inc"
@@ -462,6 +463,6 @@ pl_unload_job_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
         
-    const plJobI* ptApi = pl_get_api(ptApiRegistry, plJobI);
-    ptApiRegistry->remove(ptApi);
+    const plJobI* ptApi = pl_get_api_latest(ptApiRegistry, plJobI);
+    ptApiRegistry->remove_api(ptApi);
 }

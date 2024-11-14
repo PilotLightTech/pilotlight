@@ -19,7 +19,6 @@ Index of this file:
 #include <float.h> // FLT_MAX
 #include "pl.h"
 #include "pl_model_loader_ext.h"
-#include "pl_os.h"
 #include "pl_stl.h"
 #include "pl_string.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -991,6 +990,6 @@ pl_unload_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
         
-    const plModelLoaderI* ptApi = pl_get_api(ptApiRegistry, plModelLoaderI);
-    ptApiRegistry->remove(ptApi);
+    const plModelLoaderI* ptApi = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
+    ptApiRegistry->remove_api(ptApi);
 }

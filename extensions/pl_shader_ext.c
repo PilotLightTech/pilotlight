@@ -15,7 +15,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pl.h"
-#include "pl_os.h"
 #include "pl_ds.h"
 
 // libs
@@ -445,8 +444,8 @@ pl_unload_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
         
-    const plShaderI* ptApi = pl_get_api(ptApiRegistry, plShaderI);
-    ptApiRegistry->remove(ptApi);
+    const plShaderI* ptApi = pl_get_api_latest(ptApiRegistry, plShaderI);
+    ptApiRegistry->remove_api(ptApi);
         
     #ifndef PL_OFFLINE_SHADERS_ONLY
     #ifdef PL_METAL_BACKEND

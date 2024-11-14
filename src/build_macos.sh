@@ -75,10 +75,12 @@ then
 else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=0
-    rm -f ../out/pilot_light.dylib
-    rm -f ../out/pilot_light_*.dylib
-    rm -f ../out/pilot_light_experimental.dylib
-    rm -f ../out/pilot_light_experimental_*.dylib
+    rm -f ../out/pl_ext.dylib
+    rm -f ../out/pl_ext_*.dylib
+    rm -f ../out/pl_ext_os.dylib
+    rm -f ../out/pl_ext_os_*.dylib
+    rm -f ../out/pl_ext_proto.dylib
+    rm -f ../out/pl_ext_proto_*.dylib
     rm -f ../out/pl_script_camera.dylib
     rm -f ../out/pl_script_camera_*.dylib
     rm -f ../out/app.dylib
@@ -111,7 +113,7 @@ echo
 echo ${YELLOW}Step: pl_ext${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pilot_light.dylib"
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pl_ext.dylib"
 
 # check build status
 if [ $? -ne 0 ]
@@ -123,7 +125,10 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_experimental | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_os | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_METAL_BACKEND -D_DEBUG "
@@ -133,7 +138,7 @@ PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-dec
 PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../extensions/pl_ext_experimental.c "
+PL_SOURCES="../extensions/pl_os_ext_macos.m "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
 # add flags for specific hardware
@@ -145,10 +150,50 @@ fi
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: pl_ext_experimental${NC}
+echo ${YELLOW}Step: pl_ext_os${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pilot_light_experimental.dylib"
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pl_ext_os.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_proto | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_METAL_BACKEND -D_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_ext_proto.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_ext_proto${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pl_ext_proto.dylib"
 
 # check build status
 if [ $? -ne 0 ]
@@ -310,10 +355,12 @@ then
 else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=0
-    rm -f ../out/pilot_light.dylib
-    rm -f ../out/pilot_light_*.dylib
-    rm -f ../out/pilot_light_experimental.dylib
-    rm -f ../out/pilot_light_experimental_*.dylib
+    rm -f ../out/pl_ext.dylib
+    rm -f ../out/pl_ext_*.dylib
+    rm -f ../out/pl_ext_os.dylib
+    rm -f ../out/pl_ext_os_*.dylib
+    rm -f ../out/pl_ext_proto.dylib
+    rm -f ../out/pl_ext_proto_*.dylib
     rm -f ../out/pl_script_camera.dylib
     rm -f ../out/pl_script_camera_*.dylib
     rm -f ../out/app.dylib
@@ -346,7 +393,7 @@ echo
 echo ${YELLOW}Step: pl_ext${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pilot_light.dylib"
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pl_ext.dylib"
 
 # check build status
 if [ $? -ne 0 ]
@@ -358,7 +405,10 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_experimental | release ~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_os | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_METAL_BACKEND -DNDEBUG "
@@ -368,7 +418,7 @@ PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
 PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../extensions/pl_ext_experimental.c "
+PL_SOURCES="../extensions/pl_os_ext_macos.m "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
 # add flags for specific hardware
@@ -380,10 +430,50 @@ fi
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: pl_ext_experimental${NC}
+echo ${YELLOW}Step: pl_ext_os${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pilot_light_experimental.dylib"
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pl_ext_os.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_proto | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_METAL_BACKEND -DNDEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_ext_proto.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_ext_proto${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pl_ext_proto.dylib"
 
 # check build status
 if [ $? -ne 0 ]
@@ -545,10 +635,12 @@ then
 else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=0
-    rm -f ../out/pilot_light.dylib
-    rm -f ../out/pilot_light_*.dylib
-    rm -f ../out/pilot_light_experimental.dylib
-    rm -f ../out/pilot_light_experimental_*.dylib
+    rm -f ../out/pl_ext.dylib
+    rm -f ../out/pl_ext_*.dylib
+    rm -f ../out/pl_ext_os.dylib
+    rm -f ../out/pl_ext_os_*.dylib
+    rm -f ../out/pl_ext_proto.dylib
+    rm -f ../out/pl_ext_proto_*.dylib
     rm -f ../out/pl_script_camera.dylib
     rm -f ../out/pl_script_camera_*.dylib
     rm -f ../out/app.dylib
@@ -581,7 +673,7 @@ echo
 echo ${YELLOW}Step: pl_ext${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pilot_light.dylib"
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pl_ext.dylib"
 
 # check build status
 if [ $? -ne 0 ]
@@ -593,7 +685,10 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_experimental | vulkan ~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_os | vulkan ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_VULKAN_BACKEND -D_DEBUG "
@@ -603,7 +698,7 @@ PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
 PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../extensions/pl_ext_experimental.c "
+PL_SOURCES="../extensions/pl_os_ext_macos.m "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
 # add flags for specific hardware
@@ -615,10 +710,50 @@ fi
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: pl_ext_experimental${NC}
+echo ${YELLOW}Step: pl_ext_os${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pilot_light_experimental.dylib"
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pl_ext_os.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_ext_proto | vulkan ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_VULKAN_BACKEND -D_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_ext_proto.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_ext_proto${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pl_ext_proto.dylib"
 
 # check build status
 if [ $? -ne 0 ]

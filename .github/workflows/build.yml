@@ -63,8 +63,9 @@ jobs:
         if not exist ../out/example_8.dll exit 1
         if not exist ../out/example_9.dll exit 1
         if not exist ../out/pilot_light.exe exit 1
-        if not exist ../out/pilot_light.dll exit 1
-        if not exist ../out/pilot_light_experimental.dll exit 1
+        if not exist ../out/pl_ext.dll exit 1
+        if not exist ../out/pl_ext_os.dll exit 1
+        if not exist ../out/pl_ext_proto.dll exit 1
         if not exist ../out/pl_script_camera.dll exit 1
         cd ..
 
@@ -92,8 +93,9 @@ jobs:
         if not exist ../out/example_8.dll exit 1
         if not exist ../out/example_9.dll exit 1
         if not exist ../out/pilot_light.exe exit 1
-        if not exist ../out/pilot_light.dll exit 1
-        if not exist ../out/pilot_light_experimental.dll exit 1
+        if not exist ../out/pl_ext.dll exit 1
+        if not exist ../out/pl_ext_os.dll exit 1
+        if not exist ../out/pl_ext_proto.dll exit 1
         if not exist ../out/pl_script_camera.dll exit 1
 
     - name: Package Pilot Light
@@ -159,8 +161,9 @@ jobs:
         test -f ./out/example_6.dylib || exit 1
         test -f ./out/example_8.dylib || exit 1
         test -f ./out/example_9.dylib || exit 1
-        test -f ./out/pilot_light.dylib || exit 1
-        test -f ./out/pilot_light_experimental.dylib || exit 1
+        test -f ./out/pl_ext.dylib || exit 1
+        test -f ./out/pl_ext_os.dylib || exit 1
+        test -f ./out/pl_ext_proto.dylib || exit 1
         test -f ./out/pl_script_camera.dylib || exit 1
 
     - name: Prep 2
@@ -192,8 +195,9 @@ jobs:
         test -f ./out/example_6.dylib || exit 1
         test -f ./out/example_8.dylib || exit 1
         test -f ./out/example_9.dylib || exit 1
-        test -f ./out/pilot_light.dylib || exit 1
-        test -f ./out/pilot_light_experimental.dylib || exit 1
+        test -f ./out/pl_ext.dylib || exit 1
+        test -f ./out/pl_ext_os.dylib || exit 1
+        test -f ./out/pl_ext_proto.dylib || exit 1
         test -f ./out/pl_script_camera.dylib || exit 1
 
     - name: Package Pilot Light
@@ -266,8 +270,9 @@ jobs:
         test -f ./out/example_6.so || exit 1
         test -f ./out/example_8.so || exit 1
         test -f ./out/example_9.so || exit 1
-        test -f ./out/pilot_light.so || exit 1
-        test -f ./out/pilot_light_experimental.so || exit 1
+        test -f ./out/pl_ext.so || exit 1
+        test -f ./out/pl_ext_os.so || exit 1
+        test -f ./out/pl_ext_proto.so || exit 1
         test -f ./out/pl_script_camera.so || exit 1
 
     - name: Prep 2
@@ -299,8 +304,9 @@ jobs:
         test -f ./out/example_6.so || exit 1
         test -f ./out/example_8.so || exit 1
         test -f ./out/example_9.so || exit 1
-        test -f ./out/pilot_light.so || exit 1
-        test -f ./out/pilot_light_experimental.so || exit 1
+        test -f ./out/pl_ext.so || exit 1
+        test -f ./out/pl_ext_os.so || exit 1
+        test -f ./out/pl_ext_proto.so || exit 1
         test -f ./out/pl_script_camera.so || exit 1
 
     - name: Package Pilot Light

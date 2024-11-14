@@ -16,7 +16,6 @@
 #include "pl.h"
 #include "pl_profile.h"
 #include "pl_log.h"
-#include "pl_os.h"
 #include "pl_memory.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -35,6 +34,10 @@
 #include "pl_draw_backend_ext.h"
 #include "pl_ui_ext.h"
 #include "pl_shader_ext.h"
+#include "pl_string_intern_ext.h"
+#include "pl_network_ext.h"
+#include "pl_threads_ext.h"
+#include "pl_atomics_ext.h"
 
 // editor
 #include "pl_gizmo.h"
@@ -45,30 +48,31 @@
 // [SECTION] global apis
 //-----------------------------------------------------------------------------
 
-static const plWindowI*      gptWindows           = NULL;
-static const plStatsI*       gptStats             = NULL;
-static const plGraphicsI*    gptGfx               = NULL;
-static const plDebugApiI*    gptDebug             = NULL;
-static const plEcsI*         gptEcs               = NULL;
-static const plCameraI*      gptCamera            = NULL;
-static const plRendererI*    gptRenderer          = NULL;
-static const plModelLoaderI* gptModelLoader       = NULL;
-static const plJobI*         gptJobs              = NULL;
-static const plDrawI*        gptDraw              = NULL;
-static const plDrawBackendI* gptDrawBackend       = NULL;
-static const plUiI*          gptUi                = NULL;
-static const plIOI*          gptIO                = NULL;
-static const plShaderI*      gptShader            = NULL;
-static const plMemoryI*      gptMemory            = NULL;
-static const plNetworkI*     gptNetwork           = NULL;
+static const plWindowI*       gptWindows     = NULL;
+static const plStatsI*        gptStats       = NULL;
+static const plGraphicsI*     gptGfx         = NULL;
+static const plDebugApiI*     gptDebug       = NULL;
+static const plEcsI*          gptEcs         = NULL;
+static const plCameraI*       gptCamera      = NULL;
+static const plRendererI*     gptRenderer    = NULL;
+static const plModelLoaderI*  gptModelLoader = NULL;
+static const plJobI*          gptJobs        = NULL;
+static const plDrawI*         gptDraw        = NULL;
+static const plDrawBackendI*  gptDrawBackend = NULL;
+static const plUiI*           gptUi          = NULL;
+static const plIOI*           gptIO          = NULL;
+static const plShaderI*       gptShader      = NULL;
+static const plMemoryI*       gptMemory      = NULL;
+static const plNetworkI*      gptNetwork     = NULL;
+static const plStringInternI* gptString      = NULL;
 
-#define PL_ALLOC(x)      gptMemory->realloc(NULL, (x), __FILE__, __LINE__)
-#define PL_REALLOC(x, y) gptMemory->realloc((x), (y), __FILE__, __LINE__)
-#define PL_FREE(x)       gptMemory->realloc((x), 0, __FILE__, __LINE__)
+#define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+#define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+#define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 
-#define PL_DS_ALLOC(x)                      gptMemory->realloc(NULL, (x), __FILE__, __LINE__)
-#define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->realloc(NULL, (x), FILE, LINE)
-#define PL_DS_FREE(x)                       gptMemory->realloc((x), 0, __FILE__, __LINE__)
+#define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+#define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+#define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 #include "pl_ds.h"
 
 //-----------------------------------------------------------------------------

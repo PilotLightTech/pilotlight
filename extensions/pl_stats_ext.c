@@ -267,8 +267,8 @@ pl_unload_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
 
-    const plStatsI* ptApi = pl_get_api(ptApiRegistry, plStatsI);
-    ptApiRegistry->remove(ptApi);
+    const plStatsI* ptApi = pl_get_api_latest(ptApiRegistry, plStatsI);
+    ptApiRegistry->remove_api(ptApi);
 
     pl_sb_free(gptStatsCtx->sbtBlocks);
     pl_sb_free(gptStatsCtx->sbtNames);

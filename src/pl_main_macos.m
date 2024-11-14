@@ -1,15 +1,6 @@
 /*
    pl_main_macos.c
      * MacOS platform backend
-
-   Implemented APIs:
-     [X] Windows
-     [X] Libraries
-     [X] UDP
-     [X] Threads
-     [X] Atomics
-     [X] Virtual Memory
-     [X] Clipboard
 */
 
 /*
@@ -22,11 +13,8 @@ Index of this file:
 // [SECTION] plNSView
 // [SECTION] plNSViewController
 // [SECTION] file api
-// [SECTION] network api
 // [SECTION] library api
 // [SECTION] thread api
-// [SECTION] atomic api
-// [SECTION] virtual memory api
 // [SECTION] window api
 // [SECTION] clipboard
 // [SECTION] unity build
@@ -39,12 +27,9 @@ Index of this file:
 #include "pl_internal.h"
 #include "pl_ds.h"
 #import <Cocoa/Cocoa.h>
-
-#ifndef PL_HEADLESS_APP
 #import <Carbon/Carbon.h>
 #import <QuartzCore/CAMetalLayer.h>
 #import <Metal/Metal.h>
-#endif
 #import <time.h>
 #include <stdlib.h>   // malloc
 #include <string.h>   // strncpy
@@ -52,16 +37,7 @@ Index of this file:
 #include <stdio.h>    // file api
 #include <copyfile.h> // copyfile
 #include <dlfcn.h>    // dlopen, dlsym, dlclose
-#include <sys/socket.h> // sockets
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <errno.h>
-#include <fcntl.h>
 #include <pthread.h>
-#include <unistd.h>
-#include <stdatomic.h>
-#include <sys/mman.h> // virtual memory
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -81,7 +57,6 @@ static inline CFTimeInterval pl__get_absolute_time(void) { return (CFTimeInterva
 // [SECTION] structs & interfaces
 //-----------------------------------------------------------------------------
 
-#ifndef PL_HEADLESS_APP
 @protocol plNSViewDelegate <NSObject>
 - (void)drawableResize:(CGSize)size;
 - (void)renderToMetalLayer:(nonnull CAMetalLayer *)metalLayer;
@@ -110,8 +85,6 @@ static inline CFTimeInterval pl__get_absolute_time(void) { return (CFTimeInterva
 @interface plKeyEventResponder: NSView<NSTextInputClient>
 @end
 
-#endif
-
 typedef struct _plSharedLibrary
 {
     bool            bValid;
@@ -124,84 +97,18 @@ typedef struct _plSharedLibrary
     struct timespec lastWriteTime;
 } plSharedLibrary;
 
-typedef struct _plAtomicCounter
-{
-    atomic_int_fast64_t ilValue;
-} plAtomicCounter;
-
-typedef int pthread_barrierattr_t;
-typedef struct
-{
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-    int count;
-    int tripCount;
-} pthread_barrier_t;
-
-#ifndef PL_HEADLESS_APP
 typedef struct _plWindowData
 {
     NSWindow*           ptWindow;
     plNSViewController* ptViewController;
     CAMetalLayer*       ptLayer;
 } plWindowData;
-#endif
 
-typedef struct _plNetworkAddress
-{
-    struct addrinfo* tInfo;
-} plNetworkAddress;
-
-#define SOCKET int
-typedef struct _plSocket
-{
-    SOCKET        tSocket;
-    bool          bInitialized;
-    plSocketFlags tFlags;
-} plSocket;
-
-typedef struct _plThread
-{
-    pthread_t tHandle;
-    uint32_t  uID;
-} plThread;
-
-typedef struct _plMutex
+typedef struct _plRuntimeMutex
 {
     pthread_mutex_t tHandle;
-} plMutex;
+} plRuntimeMutex;
 
-typedef struct _plCriticalSection
-{
-    pthread_mutex_t tHandle;
-} plCriticalSection;
-
-typedef struct _plSemaphore
-{
-    dispatch_semaphore_t tHandle;
-} plSemaphore;
-
-typedef struct _plBarrier
-{
-    pthread_barrier_t tHandle;
-} plBarrier;
-
-typedef struct _plConditionVariable
-{
-    pthread_cond_t tHandle;
-} plConditionVariable;
-
-typedef struct _plThreadKey
-{
-    pthread_key_t tKey;
-} plThreadKey;
-
-// barrier api emulation
-int pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t *attr, unsigned int count);
-int pthread_barrier_destroy(pthread_barrier_t *barrier);
-int pthread_barrier_wait(pthread_barrier_t *barrier);
-
-#ifndef PL_HEADLESS_APP
 // Undocumented methods for creating cursors. (from Dear ImGui)
 @interface NSCursor()
 + (id)_windowResizeNorthWestSouthEastCursor;
@@ -217,8 +124,6 @@ bool  pl__handle_osx_event(NSEvent* event, NSView* view);
 // clip board
 const char* pl_get_clipboard_text(void* user_data_ctx);
 void        pl_set_clipboard_text(void* pUnused, const char* text);
-
-#endif
  
 //-----------------------------------------------------------------------------
 // [SECTION] globals
@@ -229,12 +134,10 @@ CFTimeInterval gtTime;
 id gtAppDelegate;
 const plLibraryI* gptLibraryApi = NULL;
 
-#ifndef PL_HEADLESS_APP
 plKeyEventResponder* gKeyEventResponder = NULL;
 NSTextInputContext*  gInputContext = NULL;
 id                   gMonitor;
 NSCursor* aptMouseCursors[PL_MOUSE_CURSOR_COUNT];
-#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -285,7 +188,6 @@ int main(int argc, char *argv[])
 
     // load core apis
     pl__load_core_apis();
-    pl__load_os_apis();
 
     // setup & retrieve io context 
     gptIOCtx = gptIOI->get_io();
@@ -294,16 +196,12 @@ int main(int argc, char *argv[])
     gptIOCtx->iArgc = argc;
     gptIOCtx->apArgv = argv;
 
-    #ifndef PL_HEADLESS_APP
     // create view controller
     gKeyEventResponder = [[plKeyEventResponder alloc] initWithFrame:NSZeroRect];
 
     // set clipboard functions (may need to move this to OS api)
     gptIOCtx->set_clipboard_text_fn = pl_set_clipboard_text;
     gptIOCtx->get_clipboard_text_fn = pl_get_clipboard_text;
-    #endif
-
-    #ifndef PL_HEADLESS_APP
 
     gInputContext = [[NSTextInputContext alloc] initWithClient:gKeyEventResponder];
 
@@ -322,15 +220,13 @@ int main(int argc, char *argv[])
     aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NESW] = [NSCursor respondsToSelector:@selector(_windowResizeNorthEastSouthWestCursor)] ? [NSCursor _windowResizeNorthEastSouthWestCursor] : [NSCursor closedHandCursor];
     aptMouseCursors[PL_MOUSE_CURSOR_RESIZE_NWSE] = [NSCursor respondsToSelector:@selector(_windowResizeNorthWestSouthEastCursor)] ? [NSCursor _windowResizeNorthWestSouthEastCursor] : [NSCursor closedHandCursor];
 
-    #endif
-
     // load library
-    const plLibraryI* ptLibraryApi = pl_get_api(gptApiRegistry, plLibraryI);
+    const plLibraryI* ptLibraryApi = pl_get_api_latest(gptApiRegistry, plLibraryI);
     gptLibraryApi = ptLibraryApi;
     const plLibraryDesc tLibraryDesc = {
         .pcName = pcAppName
     };
-    if(ptLibraryApi->load(&tLibraryDesc, &gptAppLibrary))
+    if(ptLibraryApi->load(tLibraryDesc, &gptAppLibrary))
     {
         pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
         pl_app_shutdown = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
@@ -352,50 +248,17 @@ int main(int argc, char *argv[])
     else
         return 2;
 
-    #ifdef PL_HEADLESS_APP
-
-    // main loop
-    while (gptIOCtx->bRunning)
-    {
-        pl_sleep((uint32_t)(1000.0f / gptIOCtx->fHeadlessUpdateRate));
-
-        // reload library
-        if(ptLibraryApi->has_changed(gptAppLibrary))
-        {
-            ptLibraryApi->reload(gptAppLibrary);
-            pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
-            pl_app_shutdown = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
-            pl_app_update   = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
-            gptExtensionRegistry->reload();
-            gpUserData = pl_app_load(gptApiRegistry, gpUserData);
-        }
-
-        if(gtTime == 0.0)
-            gtTime = pl__get_absolute_time();
-
-        double dCurrentTime = pl__get_absolute_time();
-        gptIOCtx->fDeltaTime = (float)(dCurrentTime - gtTime);
-        gtTime = dCurrentTime;
-
-        pl__garbage_collect_data_reg();
-        pl_app_update(gpUserData);
-        gptExtensionRegistry->reload();
-    }
-    #else
     // run app
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
     [NSApp activateIgnoringOtherApps:YES];
     [NSApp run];
-    #endif
 }
 
 //-----------------------------------------------------------------------------
 // [SECTION] plNSView
 //-----------------------------------------------------------------------------
 
-#ifndef PL_HEADLESS_APP
 @implementation plNSView
 {
     CVDisplayLinkRef _displayLink;
@@ -550,9 +413,7 @@ int main(int argc, char *argv[])
     pl__unload_all_extensions();
     pl__unload_core_apis();
 
-    #ifndef PL_HEADLESS_APP
     pl_sb_free(gsbtWindows);
-    #endif
 
     if(gptAppLibrary)
     {
@@ -962,19 +823,17 @@ pl__add_osx_tracking_area(NSView* _Nonnull view)
     }]; 
 }
 
-#endif
-
 //-----------------------------------------------------------------------------
 // [SECTION] file api
 //-----------------------------------------------------------------------------
 
-plOSResult
+plFileResult
 pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
 {
     PL_ASSERT(pszSizeIn);
 
     if(pszSizeIn == NULL)
-        return PL_OS_RESULT_FAIL;
+        return PL_FILE_RESULT_FAIL;
 
     FILE* ptDataFile = fopen(pcFile, "rb");
     size_t uSize = 0u;
@@ -982,7 +841,7 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
     if (ptDataFile == NULL)
     {
         *pszSizeIn = 0u;
-        return PL_OS_RESULT_FAIL;
+        return PL_FILE_RESULT_FAIL;
     }
 
     // obtain file size
@@ -994,7 +853,7 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
     {
         *pszSizeIn = uSize;
         fclose(ptDataFile);
-        return PL_OS_RESULT_SUCCESS;
+        return PL_FILE_RESULT_SUCCESS;
     }
 
     // copy the file into the buffer:
@@ -1007,14 +866,14 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
             perror("Error reading test.bin");
         }
         PL_ASSERT(false && "File not read.");
-        return PL_OS_RESULT_FAIL;
+        return PL_FILE_RESULT_FAIL;
     }
 
     fclose(ptDataFile);
-    return PL_OS_RESULT_SUCCESS;
+    return PL_FILE_RESULT_SUCCESS;
 }
 
-plOSResult
+plFileResult
 pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
 {
     FILE* ptDataFile = fopen(pcFile, "wb");
@@ -1022,27 +881,27 @@ pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
     {
         fwrite(pcBuffer, 1, szSize, ptDataFile);
         fclose(ptDataFile);
-        return PL_OS_RESULT_SUCCESS;
+        return PL_FILE_RESULT_SUCCESS;
     }
-    return PL_OS_RESULT_FAIL;
+    return PL_FILE_RESULT_FAIL;
 }
 
-plOSResult
+plFileResult
 pl_copy_file(const char* source, const char* destination)
 {
     copyfile_state_t tS = copyfile_state_alloc();
     copyfile(source, destination, tS, COPYFILE_XATTR | COPYFILE_DATA);
     copyfile_state_free(tS);
-    return PL_OS_RESULT_SUCCESS;
+    return PL_FILE_RESULT_SUCCESS;
 }
 
-plOSResult
+plFileResult
 pl_file_delete(const char* pcFile)
 {
     int iResult = remove(pcFile);
     if(iResult)
-        return PL_OS_RESULT_FAIL;
-    return PL_OS_RESULT_SUCCESS;
+        return PL_FILE_RESULT_FAIL;
+    return PL_FILE_RESULT_SUCCESS;
 }
 
 bool
@@ -1056,298 +915,6 @@ pl_file_exists(const char* pcFile)
         return true;
     }
     return false;
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] network api
-//-----------------------------------------------------------------------------
-
-plOSResult
-pl_create_address(const char* pcAddress, const char* pcService, plNetworkAddressFlags tFlags, plNetworkAddress** pptAddress)
-{
-    
-    struct addrinfo tHints;
-    memset(&tHints, 0, sizeof(tHints));
-    tHints.ai_socktype = SOCK_DGRAM;
-
-    if(tFlags & PL_NETWORK_ADDRESS_FLAGS_TCP)
-        tHints.ai_socktype = SOCK_STREAM;
-
-    if(pcAddress == NULL)
-        tHints.ai_flags = AI_PASSIVE;
-
-    if(tFlags & PL_NETWORK_ADDRESS_FLAGS_IPV4)
-        tHints.ai_family = AF_INET;
-    else if(tFlags & PL_NETWORK_ADDRESS_FLAGS_IPV6)
-        tHints.ai_family = AF_INET6;
-
-    struct addrinfo* tInfo = NULL;
-    if(getaddrinfo(pcAddress, pcService, &tHints, &tInfo))
-    {
-        printf("Could not create address : %d\n", errno);
-        return PL_OS_RESULT_FAIL;
-    }
-
-    *pptAddress = PL_ALLOC(sizeof(plNetworkAddress));
-    (*pptAddress)->tInfo = tInfo;
-    return PL_OS_RESULT_SUCCESS;
-}
-
-void
-pl_destroy_address(plNetworkAddress** pptAddress)
-{
-    plNetworkAddress* ptAddress = *pptAddress;
-    if(ptAddress == NULL)
-        return;
-
-    freeaddrinfo(ptAddress->tInfo);
-    PL_FREE(ptAddress);
-    *pptAddress = NULL;
-}
-
-void
-pl_create_socket(plSocketFlags tFlags, plSocket** pptSocketOut)
-{
-    *pptSocketOut = PL_ALLOC(sizeof(plSocket));
-    plSocket* ptSocket = *pptSocketOut;
-    ptSocket->bInitialized = false;
-    ptSocket->tFlags = tFlags;
-}
-
-void
-pl_destroy_socket(plSocket** pptSocket)
-{
-    plSocket* ptSocket = *pptSocket;
-
-    if(ptSocket == NULL)
-        return;
-
-    close(ptSocket->tSocket);
-
-    PL_FREE(ptSocket);
-    *pptSocket = NULL;
-}
-
-plOSResult
-pl_send_socket_data_to(plSocket* ptFromSocket, plNetworkAddress* ptAddress, const void* pData, size_t szSize, size_t* pszSentSize)
-{
-
-    if(!ptFromSocket->bInitialized)
-    {
-        
-        ptFromSocket->tSocket = socket(ptAddress->tInfo->ai_family, ptAddress->tInfo->ai_socktype, ptAddress->tInfo->ai_protocol);
-
-        if(ptFromSocket->tSocket < 0) // invalid socket
-        {
-            printf("Could not create socket : %d\n", errno);
-            return 0;
-        }
-
-        // enable non-blocking
-        if(ptFromSocket->tFlags & PL_SOCKET_FLAGS_NON_BLOCKING)
-        {
-            int iFlags = fcntl(ptFromSocket->tSocket, F_GETFL);
-            fcntl(ptFromSocket->tSocket, F_SETFL, iFlags | O_NONBLOCK);
-        }
-
-        ptFromSocket->bInitialized = true;
-    }
-
-    // send
-    int iResult = sendto(ptFromSocket->tSocket, (const char*)pData, (int)szSize, 0, ptAddress->tInfo->ai_addr, (int)ptAddress->tInfo->ai_addrlen);
-
-    if(pszSentSize)
-        *pszSentSize = (size_t)iResult;
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_bind_socket(plSocket* ptSocket, plNetworkAddress* ptAddress)
-{
-    if(!ptSocket->bInitialized)
-    {
-        
-        ptSocket->tSocket = socket(ptAddress->tInfo->ai_family, ptAddress->tInfo->ai_socktype, ptAddress->tInfo->ai_protocol);
-
-        if(ptSocket->tSocket < 0)
-        {
-            printf("Could not create socket : %d\n", errno);
-            return PL_OS_RESULT_FAIL;
-        }
-
-        // enable non-blocking
-        if(ptSocket->tFlags & PL_SOCKET_FLAGS_NON_BLOCKING)
-        {
-            int iFlags = fcntl(ptSocket->tSocket, F_GETFL);
-            fcntl(ptSocket->tSocket, F_SETFL, iFlags | O_NONBLOCK);
-        }
-
-        ptSocket->bInitialized = true;
-    }
-
-    // bind socket
-    if(bind(ptSocket->tSocket, ptAddress->tInfo->ai_addr, (int)ptAddress->tInfo->ai_addrlen))
-    {
-        printf("Bind socket failed with error code : %d\n", errno);
-        return PL_OS_RESULT_FAIL;
-    }
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_get_socket_data_from(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRecievedSize, plSocketReceiverInfo* ptReceiverInfo)
-{
-    struct sockaddr_storage tClientAddress = {0};
-    socklen_t tClientLen = sizeof(tClientAddress);
-
-    int iRecvLen = recvfrom(ptSocket->tSocket, (char*)pData, (int)szSize, 0, (struct sockaddr*)&tClientAddress, &tClientLen);
-   
-
-    if(iRecvLen == -1)
-    {
-        if(errno != EWOULDBLOCK)
-        {
-            printf("recvfrom() failed with error code : %d\n", errno);
-            return PL_OS_RESULT_FAIL;
-        }
-    }
-
-    if(iRecvLen > 0)
-    {
-        if(ptReceiverInfo)
-        {
-            getnameinfo((struct sockaddr*)&tClientAddress, tClientLen,
-                ptReceiverInfo->acAddressBuffer, 100,
-                ptReceiverInfo->acServiceBuffer, 100,
-                NI_NUMERICHOST | NI_NUMERICSERV);
-        }
-        if(pszRecievedSize)
-            *pszRecievedSize = (size_t)iRecvLen;
-    }
-
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_connect_socket(plSocket* ptFromSocket, plNetworkAddress* ptAddress)
-{
-
-    if(!ptFromSocket->bInitialized)
-    {
-        
-        ptFromSocket->tSocket = socket(ptAddress->tInfo->ai_family, ptAddress->tInfo->ai_socktype, ptAddress->tInfo->ai_protocol);
-
-        if(ptFromSocket->tSocket < 0)
-        {
-            printf("Could not create socket : %d\n", errno);
-            return PL_OS_RESULT_FAIL;
-        }
-
-        // enable non-blocking
-        if(ptFromSocket->tFlags & PL_SOCKET_FLAGS_NON_BLOCKING)
-        {
-            int iFlags = fcntl(ptFromSocket->tSocket, F_GETFL);
-            fcntl(ptFromSocket->tSocket, F_SETFL, iFlags | O_NONBLOCK);
-        }
-
-        ptFromSocket->bInitialized = true;
-    }
-
-    // send
-    int iResult = connect(ptFromSocket->tSocket, ptAddress->tInfo->ai_addr, (int)ptAddress->tInfo->ai_addrlen);
-    if(iResult)
-    {
-        printf("connect() failed with error code : %d\n", errno);
-        return PL_OS_RESULT_FAIL;
-    }
-
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_get_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRecievedSize)
-{
-    int iBytesReceived = recv(ptSocket->tSocket, (char*)pData, (int)szSize, 0);
-    if(iBytesReceived < 1)
-    {
-        return PL_OS_RESULT_FAIL; // connection closed by peer
-    }
-    if(pszRecievedSize)
-        *pszRecievedSize = (size_t)iBytesReceived;
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_select_sockets(plSocket** ptSockets, bool* abSelectedSockets, uint32_t uSocketCount, uint32_t uTimeOutMilliSec)
-{
-    SOCKET tMaxSocket = 0;
-    fd_set tReads;
-    FD_ZERO(&tReads);
-    for(uint32_t i = 0; i < uSocketCount; i++)
-    {
-        FD_SET(ptSockets[i]->tSocket, &tReads);
-        if(ptSockets[i]->tSocket > tMaxSocket)
-            tMaxSocket = ptSockets[i]->tSocket;
-    }
-
-    struct timeval tTimeout = {0};
-    tTimeout.tv_sec = 0;
-    tTimeout.tv_usec = (int)uTimeOutMilliSec * 1000;
-
-    if(select(tMaxSocket + 1, &tReads, NULL, NULL, &tTimeout) < 0)
-    {
-        printf("select socket failed with error code : %d\n", errno);
-        return PL_OS_RESULT_FAIL;
-    }
-
-    for(uint32_t i = 0; i < uSocketCount; i++)
-    {
-        if(FD_ISSET(ptSockets[i]->tSocket, &tReads))
-            abSelectedSockets[i] = true;
-        else
-            abSelectedSockets[i] = false;
-    }
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_accept_socket(plSocket* ptSocket, plSocket** pptSocketOut)
-{
-    *pptSocketOut = NULL; 
-    struct sockaddr_storage tClientAddress = {0};
-    socklen_t tClientLen = sizeof(tClientAddress);
-    SOCKET tSocketClient = accept(ptSocket->tSocket, (struct sockaddr*)&tClientAddress, &tClientLen);
-
-    if(tSocketClient < 1)
-        return PL_OS_RESULT_FAIL;
-
-    *pptSocketOut = PL_ALLOC(sizeof(plSocket));
-    plSocket* ptNewSocket = *pptSocketOut;
-    ptNewSocket->bInitialized = true;
-    ptNewSocket->tFlags = ptSocket->tFlags;
-    ptNewSocket->tSocket = tSocketClient;
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_listen_socket(plSocket* ptSocket)
-{
-    if(listen(ptSocket->tSocket, 10) < 0)
-    {
-        return PL_OS_RESULT_FAIL;
-    }
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_send_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszSentSize)
-{
-    int iResult = send(ptSocket->tSocket, (char*)pData, (int)szSize, 0);
-    if(iResult == -1)
-        return PL_OS_RESULT_FAIL;
-    if(pszSentSize)
-        *pszSentSize = (size_t)iResult;
-    return PL_OS_RESULT_SUCCESS;
 }
 
 //-----------------------------------------------------------------------------
@@ -1367,7 +934,7 @@ pl_has_library_changed(plSharedLibrary* library)
 }
 
 plOSResult
-pl_load_library(const plLibraryDesc* ptDesc, plSharedLibrary** pptLibraryOut)
+pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
 {
 
     plSharedLibrary* ptLibrary = NULL;
@@ -1380,19 +947,19 @@ pl_load_library(const plLibraryDesc* ptDesc, plSharedLibrary** pptLibraryOut)
         ptLibrary = *pptLibraryOut;
 
         ptLibrary->bValid = false;
-        ptLibrary->tDesc = *ptDesc;
+        ptLibrary->tDesc = tDesc;
 
-        pl_sprintf(ptLibrary->acPath, "%s.dylib", ptDesc->pcName);
+        pl_sprintf(ptLibrary->acPath, "%s.dylib", tDesc.pcName);
 
-        if(ptDesc->pcTransitionalName)
-            strncpy(ptLibrary->acTransitionalName, ptDesc->pcTransitionalName, PL_MAX_PATH_LENGTH);
+        if(tDesc.pcTransitionalName)
+            strncpy(ptLibrary->acTransitionalName, tDesc.pcTransitionalName, PL_MAX_PATH_LENGTH);
         else
         {
-            pl_sprintf(ptLibrary->acTransitionalName, "%s_", ptDesc->pcName);
+            pl_sprintf(ptLibrary->acTransitionalName, "%s_", tDesc.pcName);
         }
 
-        if(ptDesc->pcLockFile)
-            strncpy(ptLibrary->acLockFile, ptDesc->pcLockFile, PL_MAX_PATH_LENGTH);
+        if(tDesc.pcLockFile)
+            strncpy(ptLibrary->acLockFile, tDesc.pcLockFile, PL_MAX_PATH_LENGTH);
         else
             strncpy(ptLibrary->acLockFile, "lock.tmp", PL_MAX_PATH_LENGTH);
     }
@@ -1435,7 +1002,7 @@ pl_reload_library(plSharedLibrary* library)
     library->bValid = false;
     for(uint32_t i = 0; i < 100; i++)
     {
-        if(pl_load_library(&library->tDesc, &library))
+        if(pl_load_library(library->tDesc, &library))
             break;
         pl_sleep(100);
     }
@@ -1472,105 +1039,6 @@ pl_sleep(uint32_t millisec)
     while (res);
 }
 
-plOSResult
-pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** pptThreadOut)
-{
-    *pptThreadOut = PL_ALLOC(sizeof(plThread));
-    if(pthread_create(&(*pptThreadOut)->tHandle, NULL, ptProcedure, pData))
-    {
-        PL_ASSERT(false);
-        return PL_OS_RESULT_FAIL;
-    }
-    static uint32_t uNextThreadId = 0;
-    uNextThreadId++;
-    (*pptThreadOut)->uID = uNextThreadId;
-    return PL_OS_RESULT_SUCCESS;
-}
-
-void
-pl_destroy_thread(plThread** ppThread)
-{
-    pl_join_thread(*ppThread);
-    PL_FREE(*ppThread);
-    *ppThread = NULL;
-}
-
-void
-pl_join_thread(plThread* ptThread)
-{
-    pthread_join(ptThread->tHandle, NULL);
-}
-
-void
-pl_yield_thread(void)
-{
-    sched_yield();
-}
-
-plOSResult
-pl_create_mutex(plMutex** pptMutexOut)
-{
-    *pptMutexOut = malloc(sizeof(plMutex));
-    if(pthread_mutex_init(&(*pptMutexOut)->tHandle, NULL))
-    {
-        PL_ASSERT(false);
-        return PL_OS_RESULT_FAIL;
-    }
-    return PL_OS_RESULT_SUCCESS;
-}
-
-void
-pl_lock_mutex(plMutex* ptMutex)
-{
-    pthread_mutex_lock(&ptMutex->tHandle);
-}
-
-void
-pl_unlock_mutex(plMutex* ptMutex)
-{
-    pthread_mutex_unlock(&ptMutex->tHandle);
-}
-
-void
-pl_destroy_mutex(plMutex** pptMutex)
-{
-    pthread_mutex_destroy(&(*pptMutex)->tHandle);
-    free(*pptMutex);
-    *pptMutex = NULL;
-}
-
-plOSResult
-pl_create_critical_section(plCriticalSection** pptCriticalSectionOut)
-{
-    *pptCriticalSectionOut = PL_ALLOC(sizeof(plCriticalSection));
-    if(pthread_mutex_init(&(*pptCriticalSectionOut)->tHandle, NULL))
-    {
-        PL_ASSERT(false);
-        return PL_OS_RESULT_FAIL;
-    }
-    return PL_OS_RESULT_SUCCESS;
-}
-
-void
-pl_destroy_critical_section(plCriticalSection** pptCriticalSection)
-{
-    pthread_mutex_destroy(&(*pptCriticalSection)->tHandle);
-    PL_FREE((*pptCriticalSection));
-    *pptCriticalSection = NULL;
-}
-
-void
-pl_enter_critical_section(plCriticalSection* ptCriticalSection)
-{
-    pthread_mutex_lock(&ptCriticalSection->tHandle);
-}
-
-void
-pl_leave_critical_section(plCriticalSection* ptCriticalSection)
-{
-    pthread_mutex_unlock(&ptCriticalSection->tHandle);
-}
-
 uint32_t
 pl_get_hardware_thread_count(void)
 {
@@ -1579,293 +1047,41 @@ pl_get_hardware_thread_count(void)
     return (uint32_t)numCPU;
 }
 
-plOSResult
-pl_create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
+plRuntimeMutex
+pl_create_runtime_mutex(void)
 {
-    *pptSemaphoreOut = PL_ALLOC(sizeof(plSemaphore));
-    memset((*pptSemaphoreOut), 0, sizeof(plSemaphore));
-    (*pptSemaphoreOut)->tHandle = dispatch_semaphore_create(uIntialCount);
-    return PL_OS_RESULT_SUCCESS;
-}
-
-void
-pl_destroy_semaphore(plSemaphore** pptSemaphore)
-{
-    PL_FREE((*pptSemaphore));
-    *pptSemaphore = NULL;
-}
-
-void
-pl_wait_on_semaphore(plSemaphore* ptSemaphore)
-{
-    dispatch_semaphore_wait(ptSemaphore->tHandle, DISPATCH_TIME_FOREVER);
-}
-
-bool
-pl_try_wait_on_semaphore(plSemaphore* ptSemaphore)
-{
-    return dispatch_semaphore_wait(ptSemaphore->tHandle, DISPATCH_TIME_NOW) == 0;
-}
-
-void
-pl_release_semaphore(plSemaphore* ptSemaphore)
-{
-    dispatch_semaphore_signal(ptSemaphore->tHandle);
-}
-
-plOSResult
-pl_allocate_thread_local_key(plThreadKey** pptKeyOut)
-{
-    *pptKeyOut = PL_ALLOC(sizeof(plThreadKey));
-    int iStatus = pthread_key_create(&(*pptKeyOut)->tKey, NULL);
-    if(iStatus != 0)
+    plRuntimeMutex tMutex = {0};
+    if(pthread_mutex_init(&tMutex.tHandle, NULL))
     {
-        printf("pthread_key_create failed, errno=%d", errno);
         PL_ASSERT(false);
-        return PL_OS_RESULT_FAIL;
     }
-    return PL_OS_RESULT_SUCCESS;
+    return tMutex;
 }
 
 void
-pl_free_thread_local_key(plThreadKey** pptKey)
+pl_lock_runtime_mutex(plRuntimeMutex* ptMutex)
 {
-    pthread_key_delete((*pptKey)->tKey);
-    PL_FREE((*pptKey));
-    *pptKey = NULL;
-}
-
-void*
-pl_allocate_thread_local_data(plThreadKey* ptKey, size_t szSize)
-{
-    void* pData = PL_ALLOC(szSize);
-    memset(pData, 0, szSize);
-    pthread_setspecific(ptKey->tKey, pData);
-    return pData;
-}
-
-void*
-pl_get_thread_local_data(plThreadKey* ptKey)
-{
-    void* pData = pthread_getspecific(ptKey->tKey);
-    return pData;
+    pthread_mutex_lock(&ptMutex->tHandle);
 }
 
 void
-pl_free_thread_local_data(plThreadKey* ptKey, void* pData)
+pl_unlock_runtime_mutex(plRuntimeMutex* ptMutex)
 {
-    PL_FREE(pData);
-}
-
-plOSResult
-pl_create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut)
-{
-    *pptBarrierOut = PL_ALLOC(sizeof(plBarrier));
-    memset((*pptBarrierOut), 0, sizeof(plBarrier));
-    pthread_barrier_init(&(*pptBarrierOut)->tHandle, NULL, uThreadCount);
-    return PL_OS_RESULT_SUCCESS;
+    pthread_mutex_unlock(&ptMutex->tHandle);
 }
 
 void
-pl_destroy_barrier(plBarrier** pptBarrier)
+pl_destroy_runtime_mutex(plRuntimeMutex* ptMutex)
 {
-    pthread_barrier_destroy(&(*pptBarrier)->tHandle);
-    PL_FREE((*pptBarrier));
-    *pptBarrier = NULL;
-}
-
-void
-pl_wait_on_barrier(plBarrier* ptBarrier)
-{
-    pthread_barrier_wait(&ptBarrier->tHandle);
-}
-
-plOSResult
-pl_create_condition_variable(plConditionVariable** pptConditionVariableOut)
-{
-    *pptConditionVariableOut = PL_ALLOC(sizeof(plConditionVariable));
-    memset((*pptConditionVariableOut), 0, sizeof(plConditionVariable));
-    pthread_cond_init(&(*pptConditionVariableOut)->tHandle, NULL);
-    return PL_OS_RESULT_SUCCESS;
-}
-
-void               
-pl_destroy_condition_variable(plConditionVariable** pptConditionVariable)
-{
-    pthread_cond_destroy(&(*pptConditionVariable)->tHandle);
-    PL_FREE((*pptConditionVariable));
-    *pptConditionVariable = NULL;
-}
-
-void               
-pl_wake_condition_variable(plConditionVariable* ptConditionVariable)
-{
-    pthread_cond_signal(&ptConditionVariable->tHandle);
-}
-
-void               
-pl_wake_all_condition_variable(plConditionVariable* ptConditionVariable)
-{
-    pthread_cond_broadcast(&ptConditionVariable->tHandle);
-}
-
-void               
-pl_sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection)
-{
-    pthread_cond_wait(&ptConditionVariable->tHandle, &ptCriticalSection->tHandle);
-}
-
-int
-pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t *attr, unsigned int count)
-{
-    if(count == 0)
-    {
-        errno = EINVAL;
-        return PL_OS_RESULT_FAIL;
-    }
-    if(pthread_mutex_init(&barrier->mutex, 0) < 0)
-    {
-        return PL_OS_RESULT_FAIL;
-    }
-    if(pthread_cond_init(&barrier->cond, 0) < 0)
-    {
-        pthread_mutex_destroy(&barrier->mutex);
-        return PL_OS_RESULT_FAIL;
-    }
-    barrier->tripCount = count;
-    barrier->count = 0;
-
-    return 0;
-}
-
-int
-pthread_barrier_destroy(pthread_barrier_t *barrier)
-{
-    pthread_cond_destroy(&barrier->cond);
-    pthread_mutex_destroy(&barrier->mutex);
-    return 0;
-}
-
-int
-pthread_barrier_wait(pthread_barrier_t *barrier)
-{
-    pthread_mutex_lock(&barrier->mutex);
-    ++(barrier->count);
-    if(barrier->count >= barrier->tripCount)
-    {
-        barrier->count = 0;
-        pthread_cond_broadcast(&barrier->cond);
-        pthread_mutex_unlock(&barrier->mutex);
-        return 1;
-    }
-    else
-    {
-        pthread_cond_wait(&barrier->cond, &(barrier->mutex));
-        pthread_mutex_unlock(&barrier->mutex);
-        return 0;
-    }
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] atomic api
-//-----------------------------------------------------------------------------
-
-plOSResult
-pl_create_atomic_counter(int64_t ilValue, plAtomicCounter** ptCounter)
-{
-    *ptCounter = malloc(sizeof(plAtomicCounter));
-    atomic_init(&(*ptCounter)->ilValue, ilValue);
-    return PL_OS_RESULT_SUCCESS;
-}
-
-void
-pl_destroy_atomic_counter(plAtomicCounter** ptCounter)
-{
-    free((*ptCounter));
-    (*ptCounter) = NULL;
-}
-
-void
-pl_atomic_store(plAtomicCounter* ptCounter, int64_t ilValue)
-{
-    atomic_store(&ptCounter->ilValue, ilValue);
-}
-
-int64_t
-pl_atomic_load(plAtomicCounter* ptCounter)
-{
-    return atomic_load(&ptCounter->ilValue);
-}
-
-bool
-pl_atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue)
-{
-    return atomic_compare_exchange_strong(&ptCounter->ilValue, &ilExpectedValue, ilDesiredValue);
-}
-
-int64_t
-pl_atomic_increment(plAtomicCounter* ptCounter)
-{
-    return atomic_fetch_add(&ptCounter->ilValue, 1);
-}
-
-int64_t
-pl_atomic_decrement(plAtomicCounter* ptCounter)
-{
-    return atomic_fetch_sub(&ptCounter->ilValue, 1);
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] virtual memory api
-//-----------------------------------------------------------------------------
-
-size_t
-pl_get_page_size(void)
-{
-    return (size_t)getpagesize();
-}
-
-void*
-pl_virtual_alloc(void* pAddress, size_t szSize)
-{
-    void* pResult = mmap(pAddress, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    return pResult;
-}
-
-void*
-pl_virtual_reserve(void* pAddress, size_t szSize)
-{
-    void* pResult = mmap(pAddress, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    return pResult;
-}
-
-void*
-pl_virtual_commit(void* pAddress, size_t szSize)
-{
-    mprotect(pAddress, szSize, PROT_READ | PROT_WRITE);
-    return pAddress;
-}
-
-void
-pl_virtual_free(void* pAddress, size_t szSize)
-{
-    munmap(pAddress, szSize);
-}
-
-void
-pl_virtual_uncommit(void* pAddress, size_t szSize)
-{
-    mprotect(pAddress, szSize, PROT_NONE);
+    pthread_mutex_destroy(&ptMutex->tHandle);
 }
 
 //-----------------------------------------------------------------------------
 // [SECTION] window api
 //-----------------------------------------------------------------------------
 
-#ifndef PL_HEADLESS_APP
-
 plOSResult
-pl_create_window(const plWindowDesc* ptDesc, plWindow** pptWindowOut)
+pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
 {
 
     plWindowData* ptData = malloc(sizeof(plWindowData));
@@ -1875,7 +1091,7 @@ pl_create_window(const plWindowDesc* ptDesc, plWindow** pptWindowOut)
 
    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
 
-    NSRect frame = NSMakeRect(0, 0, ptDesc->uWidth, ptDesc->uHeight);
+    NSRect frame = NSMakeRect(0, 0, tDesc.uWidth, tDesc.uHeight);
     ptData->ptViewController.view = [[plNSView alloc] initWithFrame:frame];
 
     plNSView *view = (plNSView *)ptData->ptViewController.view;
@@ -1891,22 +1107,22 @@ pl_create_window(const plWindowDesc* ptDesc, plWindow** pptWindowOut)
     [ptData->ptWindow center];
     [ptData->ptWindow becomeKeyWindow];
 
-    NSString* tWindowTitle = [NSString stringWithUTF8String:ptDesc->pcName];
+    NSString* tWindowTitle = [NSString stringWithUTF8String:tDesc.pcTitle];
     [ptData->ptWindow setTitle:tWindowTitle];
 
 
-    NSPoint tOrigin = NSMakePoint(ptDesc->iXPos, ptData->ptWindow.screen.frame.size.height - ptDesc->iYPos);
+    NSPoint tOrigin = NSMakePoint(tDesc.iXPos, ptData->ptWindow.screen.frame.size.height - tDesc.iYPos);
     [ptData->ptWindow setFrameTopLeftPoint:tOrigin];
 
     
     ptData->ptWindow.delegate = gtAppDelegate;
 
-    gptIOCtx->tMainViewportSize.x = ptDesc->uWidth;
-    gptIOCtx->tMainViewportSize.y = ptDesc->uHeight;
+    gptIOCtx->tMainViewportSize.x = tDesc.uWidth;
+    gptIOCtx->tMainViewportSize.y = tDesc.uHeight;
 
     plWindow* ptWindow = malloc(sizeof(plWindow));
     
-    ptWindow->tDesc = *ptDesc;
+    ptWindow->tDesc = tDesc;
     ptWindow->_pPlatformData = ptData;
     pl_sb_push(gsbtWindows, ptWindow);
     *pptWindowOut = ptWindow;
@@ -2067,8 +1283,6 @@ pl_set_clipboard_text(void* pUnused, const char* text)
     [pasteboard declareTypes:[NSArray arrayWithObject:NSPasteboardTypeString] owner:nil];
     [pasteboard setString:[NSString stringWithUTF8String:text] forType:NSPasteboardTypeString];
 }
-
-#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] unity build

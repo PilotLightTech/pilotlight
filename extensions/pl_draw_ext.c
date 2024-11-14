@@ -24,7 +24,6 @@ Index of this file:
 #include "pl_draw_ext.h"
 #include "pl_ds.h"
 #include "pl_memory.h"
-#include "pl_os.h"
 
 // extensions
 #include "pl_ext.inc"
@@ -3627,6 +3626,6 @@ pl_unload_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
         
-    const plDrawI* ptApi = pl_get_api(ptApiRegistry, plDrawI);
-    ptApiRegistry->remove(ptApi);
+    const plDrawI* ptApi = pl_get_api_latest(ptApiRegistry, plDrawI);
+    ptApiRegistry->remove_api(ptApi);
 }

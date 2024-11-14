@@ -20,7 +20,6 @@ Index of this file:
 #include <float.h> // FLT_MAX
 #include "pl.h"
 #include "pl_renderer_ext.h"
-#include "pl_os.h"
 #include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_ds.h"
@@ -6157,6 +6156,6 @@ pl_unload_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
         
-    const plRendererI* ptApi = pl_get_api(ptApiRegistry, plRendererI);
-    ptApiRegistry->remove(ptApi);
+    const plRendererI* ptApi = pl_get_api_latest(ptApiRegistry, plRendererI);
+    ptApiRegistry->remove_api(ptApi);
 }

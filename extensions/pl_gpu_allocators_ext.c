@@ -882,6 +882,6 @@ pl_unload_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
 
-    const plGPUAllocatorsI* ptApi = pl_get_api(ptApiRegistry, plGPUAllocatorsI);
-    ptApiRegistry->remove(ptApi);
+    const plGPUAllocatorsI* ptApi = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
+    ptApiRegistry->remove_api(ptApi);
 }

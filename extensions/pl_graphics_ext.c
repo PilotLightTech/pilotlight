@@ -784,6 +784,6 @@ pl_unload_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
         
-    const plGraphicsI* ptApi = pl_get_api(ptApiRegistry, plGraphicsI);
-    ptApiRegistry->remove(ptApi);
+    const plGraphicsI* ptApi = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+    ptApiRegistry->remove_api(ptApi);
 }

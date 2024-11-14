@@ -1107,8 +1107,8 @@ pl_unload_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
 
-    const plDebugApiI* ptApi = pl_get_api(ptApiRegistry, plDebugApiI);
-    ptApiRegistry->remove(ptApi);
+    const plDebugApiI* ptApi = pl_get_api_latest(ptApiRegistry, plDebugApiI);
+    ptApiRegistry->remove_api(ptApi);
 
     pl_sb_free(gptDebugCtx->sbppdValues);
     pl_sb_free(gptDebugCtx->sbppdFrameValues);

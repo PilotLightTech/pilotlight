@@ -83,17 +83,17 @@ PL_EXPORT void
 pl_load_script(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     // load apis
-    gptEcs    = pl_get_api(ptApiRegistry, plEcsI);
-    gptCamera = pl_get_api(ptApiRegistry, plCameraI);
-    gptIO     = pl_get_api(ptApiRegistry, plIOI);
-    gptUi     = pl_get_api(ptApiRegistry, plUiI);
+    gptEcs    = pl_get_api_latest(ptApiRegistry, plEcsI);
+    gptCamera = pl_get_api_latest(ptApiRegistry, plCameraI);
+    gptIO     = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptUi     = pl_get_api_latest(ptApiRegistry, plUiI);
 
     const plScriptI tApi = {
         .setup = NULL,
         .run   = pl_script_run
     };
 
-    ptApiRegistry->set("pl_script_camera", plScriptI_version, &tApi, sizeof(plScriptI));
+    ptApiRegistry->set_api("pl_script_camera", plScriptI_version, &tApi, sizeof(plScriptI));
 }
 
 PL_EXPORT void
@@ -103,6 +103,6 @@ pl_unload_script(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
         
-    const plScriptI* ptApi = ptApiRegistry->get("pl_script_camera", plScriptI_version);
-    ptApiRegistry->remove(ptApi);
+    const plScriptI* ptApi = ptApiRegistry->get_api("pl_script_camera", plScriptI_version);
+    ptApiRegistry->remove_api(ptApi);
 }

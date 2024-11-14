@@ -1,15 +1,6 @@
 /*
    pl_main_win32.c
      * win32 platform backend
-
-   Implemented APIs:
-     [X] Windows
-     [X] Libraries
-     [X] UDP
-     [X] Threads
-     [X] Atomics
-     [X] Virtual Memory
-     [X] Clipboard
 */
 
 /*
@@ -21,14 +12,11 @@ Index of this file:
 // [SECTION] globals
 // [SECTION] entry point
 // [SECTION] windows procedure
-// [SECTION] implementations (helpers)
+// [SECTION] helper implementations
 // [SECTION] window api
 // [SECTION] file api
-// [SECTION] network api
 // [SECTION] library api
 // [SECTION] thread api
-// [SECTION] atomic api
-// [SECTION] virtual memory api
 // [SECTION] clipboard api
 // [SECTION] unity build
 */
@@ -50,11 +38,8 @@ Index of this file:
 #include <stdlib.h>   // exit
 #include <stdio.h>    // printf
 #include <wchar.h>    // mbsrtowcs, wcsrtombs
-#include <winsock2.h> // sockets
-#include <ws2tcpip.h>
 #include <windows.h>
 #include <windowsx.h>   // GET_X_LPARAM(), GET_Y_LPARAM()
-#include <sysinfoapi.h> // page size
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -69,65 +54,10 @@ void             pl__update_mouse_cursor(void);
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plNetworkAddress
-{
-    struct addrinfo* tInfo;
-} plNetworkAddress;
-
-typedef struct _plSocket
-{
-    SOCKET tSocket;
-    bool     bInitialized;
-    plSocketFlags tFlags;
-} plSocket;
-
-typedef struct _plAtomicCounter
-{
-    int64_t ilValue;
-} plAtomicCounter;
-
-typedef struct _plThreadData
-{
-  plThreadProcedure ptProcedure;
-  void*             pData;
-} plThreadData;
-
-typedef struct _plThread
-{
-    HANDLE        tHandle;
-    plThreadData* ptData;
-    uint32_t      uID;
-} plThread;
-
-typedef struct _plMutex
+typedef struct _plRuntimeMutex
 {
     HANDLE tHandle;
-} plMutex;
-
-typedef struct _plCriticalSection
-{
-    CRITICAL_SECTION tHandle;
-} plCriticalSection;
-
-typedef struct _plSemaphore
-{
-    HANDLE tHandle;
-} plSemaphore;
-
-typedef struct _plBarrier
-{
-    SYNCHRONIZATION_BARRIER tHandle;
-} plBarrier;
-
-typedef struct _plConditionVariable
-{
-    CONDITION_VARIABLE tHandle;
-} plConditionVariable;
-
-typedef struct _plThreadKey
-{
-    DWORD dwIndex;
-} plThreadKey;
+} plRuntimeMutex;
 
 typedef struct _plSharedLibrary
 {
@@ -197,17 +127,8 @@ int main(int argc, char *argv[])
         }
     }
 
-    // initialize winsock
-    WSADATA tWsaData = {0};
-    if(WSAStartup(MAKEWORD(2, 2), &tWsaData) != 0)
-    {
-        printf("Failed to start winsock with error code: %d\n", WSAGetLastError());
-        return -1;
-    }
-
     // load core apis
     pl__load_core_apis();
-    pl__load_os_apis();
 
     gptIOCtx = gptIOI->get_io();
 
@@ -216,13 +137,10 @@ int main(int argc, char *argv[])
     gptIOCtx->apArgv = argv;
 
     // set clipboard functions (may need to move this to OS api)
-    #ifndef PL_HEADLESS_APP
     gptIOCtx->set_clipboard_text_fn = pl_set_clipboard_text;
     gptIOCtx->get_clipboard_text_fn = pl_get_clipboard_text;
-    #endif
     
     // register win32 class
-    #ifndef PL_HEADLESS_APP
     gtWc.cbSize        = sizeof(WNDCLASSEX);
     gtWc.style         = CS_HREDRAW | CS_VREDRAW;
     gtWc.lpfnWndProc   = pl__windows_procedure;
@@ -236,7 +154,6 @@ int main(int argc, char *argv[])
     gtWc.lpszClassName = L"Pilot Light (win32)";
     gtWc.hIconSm       = NULL;
     RegisterClassExW(&gtWc);
-    #endif
 
     // setup info for clock
     QueryPerformanceFrequency((LARGE_INTEGER*)&ilTicksPerSecond);
@@ -261,11 +178,11 @@ int main(int argc, char *argv[])
     }
 
     // load app library
-    const plLibraryI* ptLibraryApi = pl_get_api(gptApiRegistry, plLibraryI);
-    const plLibraryDesc tLibraryDesc = {
+    const plLibraryI* ptLibraryApi = pl_get_api_latest(gptApiRegistry, plLibraryI);
+    plLibraryDesc tLibraryDesc = {
         .pcName = pcAppName
     };
-    if(ptLibraryApi->load(&tLibraryDesc, &gptAppLibrary))
+    if(ptLibraryApi->load(tLibraryDesc, &gptAppLibrary))
     {
         pl_app_load     = (void* (__cdecl  *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
         pl_app_shutdown = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
@@ -289,11 +206,6 @@ int main(int argc, char *argv[])
     // main loop
     while (gptIOCtx->bRunning)
     {
-        #ifdef PL_HEADLESS_APP
-        pl_sleep((uint32_t)(1000.0f / gptIOCtx->fHeadlessUpdateRate));
-        #endif
-
-        #ifndef PL_HEADLESS_APP
 
         // while queue has messages, remove and dispatch them (but do not block on empty queue)
         MSG tMsg = {0};
@@ -312,8 +224,6 @@ int main(int argc, char *argv[])
 
         // update mouse cursor icon if changed
         pl__update_mouse_cursor();
-
-        #endif
 
         // reload library
         if(ptLibraryApi->has_changed(gptAppLibrary))
@@ -336,10 +246,8 @@ int main(int argc, char *argv[])
     // app cleanup
     pl_app_shutdown(gpUserData);
 
-    #ifndef PL_HEADLESS_APP
     UnregisterClassW(gtWc.lpszClassName, GetModuleHandle(NULL));
     pl_sb_free(gsbtWindows);
-    #endif
 
     // unload extensions & APIs
     pl__unload_all_extensions();
@@ -351,9 +259,6 @@ int main(int argc, char *argv[])
         if(!SetConsoleMode(tStdOutHandle, tOriginalMode))
             exit(GetLastError());
     }
-
-    // cleanup winsock
-    WSACleanup();
 
     if(gptAppLibrary)
     {
@@ -826,22 +731,22 @@ pl__virtual_key_to_pl_key(WPARAM tWParam)
 //-----------------------------------------------------------------------------
 
 plOSResult
-pl_create_window(const plWindowDesc* ptDesc, plWindow** pptWindowOut)
+pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
 {
 
     // calculate window size based on desired client region size
     RECT tWr = 
     {
-        .left = (LONG)ptDesc->iXPos,
-        .right = (LONG)(ptDesc->uWidth + ptDesc->iXPos),
-        .top = (LONG)ptDesc->iYPos,
-        .bottom = (LONG)(ptDesc->uHeight + ptDesc->iYPos)
+        .left = (LONG)tDesc.iXPos,
+        .right = (LONG)(tDesc.uWidth + tDesc.iXPos),
+        .top = (LONG)tDesc.iYPos,
+        .bottom = (LONG)(tDesc.uHeight + tDesc.iYPos)
     };
     AdjustWindowRect(&tWr, WS_OVERLAPPEDWINDOW, FALSE);
 
     // convert title to wide chars
     wchar_t awWideTitle[1024];
-    pl__convert_to_wide_string(ptDesc->pcName, awWideTitle);
+    pl__convert_to_wide_string(tDesc.pcTitle, awWideTitle);
 
     // create window & get handle
     HWND tHandle = CreateWindowExW(
@@ -857,7 +762,7 @@ pl_create_window(const plWindowDesc* ptDesc, plWindow** pptWindowOut)
     );
 
     plWindow* ptWindow = malloc(sizeof(plWindow));
-    ptWindow->tDesc = *ptDesc;
+    ptWindow->tDesc = tDesc;
     ptWindow->_pPlatformData = tHandle;
     pl_sb_push(gsbtWindows, ptWindow);
     *pptWindowOut = ptWindow;
@@ -891,22 +796,22 @@ pl_file_exists(const char* pcFile)
     return false;
 }
 
-plOSResult
+plFileResult
 pl_file_delete(const char* pcFile)
 {
     BOOL bResult = DeleteFile(pcFile);
     if(bResult)
-        return PL_OS_RESULT_SUCCESS;
-    return PL_OS_RESULT_FAIL;
+        return PL_FILE_RESULT_SUCCESS;
+    return PL_FILE_RESULT_FAIL;
 }
 
-plOSResult
+plFileResult
 pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
 {
     PL_ASSERT(pszSizeIn);
 
     if(pszSizeIn == NULL)
-        return PL_OS_RESULT_FAIL;
+        return PL_FILE_RESULT_FAIL;
 
     FILE* ptDataFile = fopen(pcFile, "rb");
     size_t uSize = 0u;
@@ -914,7 +819,7 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
     if (ptDataFile == NULL)
     {
         *pszSizeIn = 0u;
-        return PL_OS_RESULT_FAIL;
+        return PL_FILE_RESULT_FAIL;
     }
 
     // obtain file size
@@ -926,7 +831,7 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
     {
         *pszSizeIn = uSize;
         fclose(ptDataFile);
-        return PL_OS_RESULT_SUCCESS;
+        return PL_FILE_RESULT_SUCCESS;
     }
 
     // copy the file into the buffer:
@@ -939,14 +844,14 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
             perror("Error reading test.bin");
         }
         PL_ASSERT(false && "File not read.");
-        return PL_OS_RESULT_FAIL;
+        return PL_FILE_RESULT_FAIL;
     }
 
     fclose(ptDataFile);
-    return PL_OS_RESULT_SUCCESS;
+    return PL_FILE_RESULT_SUCCESS;
 }
 
-plOSResult
+plFileResult
 pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
 {
     FILE* ptDataFile = fopen(pcFile, "wb");
@@ -954,313 +859,18 @@ pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
     {
         fwrite(pcBuffer, 1, szSize, ptDataFile);
         fclose(ptDataFile);
-        return PL_OS_RESULT_SUCCESS;
+        return PL_FILE_RESULT_SUCCESS;
     }
-    return PL_OS_RESULT_FAIL;
+    return PL_FILE_RESULT_FAIL;
 }
 
-plOSResult
+plFileResult
 pl_copy_file(const char* pcSource, const char* pcDestination)
 {
     BOOL bResult = CopyFile(pcSource, pcDestination, FALSE);
     if(bResult)
-        return PL_OS_RESULT_SUCCESS;
-    return PL_OS_RESULT_FAIL;
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] network api
-//-----------------------------------------------------------------------------
-
-plOSResult
-pl_create_address(const char* pcAddress, const char* pcService, plNetworkAddressFlags tFlags, plNetworkAddress** pptAddress)
-{
-    
-    struct addrinfo tHints;
-    memset(&tHints, 0, sizeof(tHints));
-    tHints.ai_socktype = SOCK_DGRAM;
-
-    if(tFlags & PL_NETWORK_ADDRESS_FLAGS_TCP)
-        tHints.ai_socktype = SOCK_STREAM;
-
-    if(pcAddress == NULL)
-        tHints.ai_flags = AI_PASSIVE;
-
-    if(tFlags & PL_NETWORK_ADDRESS_FLAGS_IPV4)
-        tHints.ai_family = AF_INET;
-    else if(tFlags & PL_NETWORK_ADDRESS_FLAGS_IPV6)
-        tHints.ai_family = AF_INET6;
-
-    struct addrinfo* tInfo = NULL;
-    if(getaddrinfo(pcAddress, pcService, &tHints, &tInfo))
-    {
-        printf("Could not create address : %d\n", WSAGetLastError());
-        return PL_OS_RESULT_FAIL;
-    }
-
-    *pptAddress = PL_ALLOC(sizeof(plNetworkAddress));
-    (*pptAddress)->tInfo = tInfo;
-    return PL_OS_RESULT_SUCCESS;
-}
-
-void
-pl_destroy_address(plNetworkAddress** pptAddress)
-{
-    plNetworkAddress* ptAddress = *pptAddress;
-    if(ptAddress == NULL)
-        return;
-
-    freeaddrinfo(ptAddress->tInfo);
-    PL_FREE(ptAddress);
-    *pptAddress = NULL;
-}
-
-void
-pl_create_socket(plSocketFlags tFlags, plSocket** pptSocketOut)
-{
-    *pptSocketOut = PL_ALLOC(sizeof(plSocket));
-    plSocket* ptSocket = *pptSocketOut;
-    ptSocket->bInitialized = false;
-    ptSocket->tFlags = tFlags;
-}
-
-void
-pl_destroy_socket(plSocket** pptSocket)
-{
-    plSocket* ptSocket = *pptSocket;
-
-    if(ptSocket == NULL)
-        return;
-
-    closesocket(ptSocket->tSocket);
-
-    PL_FREE(ptSocket);
-    *pptSocket = NULL;
-}
-
-plOSResult
-pl_send_socket_data_to(plSocket* ptFromSocket, plNetworkAddress* ptAddress, const void* pData, size_t szSize, size_t* pszSentSize)
-{
-
-    if(!ptFromSocket->bInitialized)
-    {
-        
-        ptFromSocket->tSocket = socket(ptAddress->tInfo->ai_family, ptAddress->tInfo->ai_socktype, ptAddress->tInfo->ai_protocol);
-
-        if(ptFromSocket->tSocket == INVALID_SOCKET)
-        {
-            printf("Could not create socket : %d\n", WSAGetLastError());
-            return 0;
-        }
-
-        // enable non-blocking
-        if(ptFromSocket->tFlags & PL_SOCKET_FLAGS_NON_BLOCKING)
-        {
-            u_long uMode = 1;
-            ioctlsocket(ptFromSocket->tSocket, FIONBIO, &uMode);
-        }
-
-        ptFromSocket->bInitialized = true;
-    }
-
-    // send
-    int iResult = sendto(ptFromSocket->tSocket, (const char*)pData, (int)szSize, 0, ptAddress->tInfo->ai_addr, (int)ptAddress->tInfo->ai_addrlen);
-    if(iResult == SOCKET_ERROR)
-    {
-        printf("sendto() failed with error code : %d\n", WSAGetLastError());
-        return PL_OS_RESULT_FAIL;
-    }
-
-    if(pszSentSize)
-        *pszSentSize = (size_t)iResult;
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_bind_socket(plSocket* ptSocket, plNetworkAddress* ptAddress)
-{
-    if(!ptSocket->bInitialized)
-    {
-        
-        ptSocket->tSocket = socket(ptAddress->tInfo->ai_family, ptAddress->tInfo->ai_socktype, ptAddress->tInfo->ai_protocol);
-
-        if(ptSocket->tSocket == INVALID_SOCKET)
-        {
-            printf("Could not create socket : %d\n", WSAGetLastError());
-            return PL_OS_RESULT_FAIL;
-        }
-
-        // enable non-blocking
-        if(ptSocket->tFlags & PL_SOCKET_FLAGS_NON_BLOCKING)
-        {
-            u_long uMode = 1;
-            ioctlsocket(ptSocket->tSocket, FIONBIO, &uMode);
-        }
-
-        ptSocket->bInitialized = true;
-    }
-
-    // bind socket
-    if(bind(ptSocket->tSocket, ptAddress->tInfo->ai_addr, (int)ptAddress->tInfo->ai_addrlen) == SOCKET_ERROR)
-    {
-        printf("Bind socket failed with error code : %d\n", WSAGetLastError());
-        return PL_OS_RESULT_FAIL;
-    }
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_get_socket_data_from(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRecievedSize, plSocketReceiverInfo* ptReceiverInfo)
-{
-    struct sockaddr_storage tClientAddress = {0};
-    socklen_t tClientLen = sizeof(tClientAddress);
-
-    int iRecvLen = recvfrom(ptSocket->tSocket, (char*)pData, (int)szSize, 0, (struct sockaddr*)&tClientAddress, &tClientLen);
-   
-
-    if(iRecvLen == SOCKET_ERROR)
-    {
-        const int iLastError = WSAGetLastError();
-        if(iLastError != WSAEWOULDBLOCK)
-        {
-            printf("recvfrom() failed with error code : %d\n", WSAGetLastError());
-            return PL_OS_RESULT_FAIL;
-        }
-    }
-
-    if(iRecvLen > 0)
-    {
-        if(ptReceiverInfo)
-        {
-            getnameinfo((struct sockaddr*)&tClientAddress, tClientLen,
-                ptReceiverInfo->acAddressBuffer, 100,
-                ptReceiverInfo->acServiceBuffer, 100,
-                NI_NUMERICHOST | NI_NUMERICSERV);
-        }
-        if(pszRecievedSize)
-            *pszRecievedSize = (size_t)iRecvLen;
-    }
-
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_connect_socket(plSocket* ptFromSocket, plNetworkAddress* ptAddress)
-{
-
-    if(!ptFromSocket->bInitialized)
-    {
-        
-        ptFromSocket->tSocket = socket(ptAddress->tInfo->ai_family, ptAddress->tInfo->ai_socktype, ptAddress->tInfo->ai_protocol);
-
-        if(ptFromSocket->tSocket == INVALID_SOCKET)
-        {
-            printf("Could not create socket : %d\n", WSAGetLastError());
-            return PL_OS_RESULT_FAIL;
-        }
-
-        // enable non-blocking
-        if(ptFromSocket->tFlags & PL_SOCKET_FLAGS_NON_BLOCKING)
-        {
-            u_long uMode = 1;
-            ioctlsocket(ptFromSocket->tSocket, FIONBIO, &uMode);
-        }
-
-        ptFromSocket->bInitialized = true;
-    }
-
-    // send
-    int iResult = connect(ptFromSocket->tSocket, ptAddress->tInfo->ai_addr, (int)ptAddress->tInfo->ai_addrlen);
-    if(iResult)
-    {
-        printf("connect() failed with error code : %d\n", WSAGetLastError());
-        return PL_OS_RESULT_FAIL;
-    }
-
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_get_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRecievedSize)
-{
-    int iBytesReceived = recv(ptSocket->tSocket, (char*)pData, (int)szSize, 0);
-    if(iBytesReceived < 1)
-    {
-        return PL_OS_RESULT_FAIL; // connection closed by peer
-    }
-    if(pszRecievedSize)
-        *pszRecievedSize = (size_t)iBytesReceived;
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_select_sockets(plSocket** ptSockets, bool* abSelectedSockets, uint32_t uSocketCount, uint32_t uTimeOutMilliSec)
-{
-    fd_set tReads;
-    FD_ZERO(&tReads);
-    for(uint32_t i = 0; i < uSocketCount; i++)
-    {
-        FD_SET(ptSockets[i]->tSocket, &tReads);
-    }
-
-    struct timeval tTimeout = {0};
-    tTimeout.tv_sec = 0;
-    tTimeout.tv_usec = (int)uTimeOutMilliSec * 1000;
-
-    if(select(0, &tReads, NULL, NULL, &tTimeout) < 0)
-    {
-        printf("select socket failed with error code : %d\n", WSAGetLastError());
-        return PL_OS_RESULT_FAIL;
-    }
-
-    for(uint32_t i = 0; i < uSocketCount; i++)
-    {
-        if(FD_ISSET(ptSockets[i]->tSocket, &tReads))
-            abSelectedSockets[i] = true;
-        else
-            abSelectedSockets[i] = false;
-    }
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_accept_socket(plSocket* ptSocket, plSocket** pptSocketOut)
-{
-    *pptSocketOut = NULL; 
-    struct sockaddr_storage tClientAddress = {0};
-    socklen_t tClientLen = sizeof(tClientAddress);
-    SOCKET tSocketClient = accept(ptSocket->tSocket, (struct sockaddr*)&tClientAddress, &tClientLen);
-
-    if(tSocketClient == INVALID_SOCKET)
-        return PL_OS_RESULT_FAIL;
-
-    *pptSocketOut = PL_ALLOC(sizeof(plSocket));
-    plSocket* ptNewSocket = *pptSocketOut;
-    ptNewSocket->bInitialized = true;
-    ptNewSocket->tFlags = ptSocket->tFlags;
-    ptNewSocket->tSocket = tSocketClient;
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_listen_socket(plSocket* ptSocket)
-{
-    if(listen(ptSocket->tSocket, 10) < 0)
-    {
-        return PL_OS_RESULT_FAIL;
-    }
-    return PL_OS_RESULT_SUCCESS;
-}
-
-plOSResult
-pl_send_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszSentSize)
-{
-    int iResult = send(ptSocket->tSocket, (char*)pData, (int)szSize, 0);
-    if(iResult == SOCKET_ERROR)
-        return PL_OS_RESULT_FAIL;
-    if(pszSentSize)
-        *pszSentSize = (size_t)iResult;
-    return PL_OS_RESULT_SUCCESS;
+        return PL_FILE_RESULT_SUCCESS;
+    return PL_FILE_RESULT_FAIL;
 }
 
 //-----------------------------------------------------------------------------
@@ -1292,7 +902,7 @@ pl_has_library_changed(plSharedLibrary* ptLibrary)
 }
 
 plOSResult
-pl_load_library(const plLibraryDesc* ptDesc, plSharedLibrary** pptLibraryOut)
+pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
 {
 
     plSharedLibrary* ptLibrary = NULL;
@@ -1305,19 +915,19 @@ pl_load_library(const plLibraryDesc* ptDesc, plSharedLibrary** pptLibraryOut)
         ptLibrary = *pptLibraryOut;
 
         ptLibrary->bValid = false;
-        ptLibrary->tDesc = *ptDesc;
+        ptLibrary->tDesc = tDesc;
 
-        pl_sprintf(ptLibrary->acPath, "%s.dll", ptDesc->pcName);
+        pl_sprintf(ptLibrary->acPath, "%s.dll", tDesc.pcName);
 
-        if(ptDesc->pcTransitionalName)
-            strncpy(ptLibrary->acTransitionalName, ptDesc->pcTransitionalName, PL_MAX_PATH_LENGTH);
+        if(tDesc.pcTransitionalName)
+            strncpy(ptLibrary->acTransitionalName, tDesc.pcTransitionalName, PL_MAX_PATH_LENGTH);
         else
         {
-            pl_sprintf(ptLibrary->acTransitionalName, "%s_", ptDesc->pcName);
+            pl_sprintf(ptLibrary->acTransitionalName, "%s_", tDesc.pcName);
         }
 
-        if(ptDesc->pcLockFile)
-            strncpy(ptLibrary->acLockFile, ptDesc->pcLockFile, PL_MAX_PATH_LENGTH);
+        if(tDesc.pcLockFile)
+            strncpy(ptLibrary->acLockFile, tDesc.pcLockFile, PL_MAX_PATH_LENGTH);
         else
             strncpy(ptLibrary->acLockFile, "lock.tmp", PL_MAX_PATH_LENGTH);
     }
@@ -1361,7 +971,7 @@ pl_reload_library(plSharedLibrary* ptLibrary)
     ptLibrary->bValid = false;
     for(uint32_t i = 0; i < 100; i++)
     {
-        if(pl_load_library(&ptLibrary->tDesc, &ptLibrary))
+        if(pl_load_library(ptLibrary->tDesc, &ptLibrary))
             break;
         pl_sleep(100);
     }
@@ -1389,129 +999,35 @@ pl_sleep(uint32_t uMillisec)
     Sleep((long)uMillisec);
 }
 
-static DWORD 
-thread_procedure(void* lpParam)
+plRuntimeMutex
+pl_create_runtime_mutex(void)
 {
-    plThreadData* ptData = lpParam;
-    ptData->ptProcedure(ptData->pData);
-    return 1;
-}
-
-static void
-thread_yield(void)
-{
-    SwitchToThread();
-}
-
-plOSResult
-pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** ppThreadOut)
-{
-    plThreadData* ptData = PL_ALLOC(sizeof(plThreadData));
-    ptData->ptProcedure = ptProcedure;
-    ptData->pData       = pData;
-
-    HANDLE tHandle = CreateThread(0, 1024, thread_procedure, ptData, 0, NULL);
-    if(tHandle)
-    {
-        static uint32_t uNextThreadId = 0;
-        uNextThreadId++;
-        *ppThreadOut = PL_ALLOC(sizeof(plThread));
-        (*ppThreadOut)->uID = uNextThreadId;
-        (*ppThreadOut)->ptData = ptData;
-        (*ppThreadOut)->tHandle = tHandle;
-        return PL_OS_RESULT_SUCCESS;
-    }
-    PL_FREE(ptData);
-    return PL_OS_RESULT_FAIL;
-    
+    plRuntimeMutex tMutex = {0};
+    tMutex.tHandle = CreateMutex(NULL, FALSE, NULL);
+    return tMutex;
 }
 
 void
-pl_destroy_thread(plThread** ppThread)
+pl_destroy_runtime_mutex(plRuntimeMutex* ptMutex)
 {
-    pl_join_thread(*ppThread);
-    CloseHandle((*ppThread)->tHandle);
-    PL_FREE((*ppThread)->ptData);
-    PL_FREE(*ppThread);
-    *ppThread = NULL;
+    CloseHandle(ptMutex->tHandle);
 }
 
 void
-pl_join_thread(plThread* ptThread)
-{
-    WaitForSingleObject(ptThread->tHandle, INFINITE);
-}
-
-void
-pl_yield_thread(void)
-{
-    thread_yield();
-}
-
-plOSResult
-pl_create_mutex(plMutex** ppMutexOut)
-{
-    HANDLE tHandle = CreateMutex(NULL, FALSE, NULL);
-    if(tHandle)
-    {
-        (*ppMutexOut) = malloc(sizeof(plMutex));
-        (*ppMutexOut)->tHandle = CreateMutex(NULL, FALSE, NULL);
-        return PL_OS_RESULT_SUCCESS;
-    }
-    return PL_OS_RESULT_FAIL;
-}
-
-void
-pl_destroy_mutex(plMutex** ptMutex)
-{
-    CloseHandle((*ptMutex)->tHandle);
-    free((*ptMutex));
-    (*ptMutex) = NULL;
-}
-
-void
-pl_lock_mutex(plMutex* ptMutex)
+pl_lock_runtime_mutex(plRuntimeMutex* ptMutex)
 {
     DWORD dwWaitResult = WaitForSingleObject(ptMutex->tHandle, INFINITE);
     PL_ASSERT(dwWaitResult == WAIT_OBJECT_0);
 }
 
 void
-pl_unlock_mutex(plMutex* ptMutex)
+pl_unlock_runtime_mutex(plRuntimeMutex* ptMutex)
 {
     if(!ReleaseMutex(ptMutex->tHandle))
     {
         printf("ReleaseMutex error: %d\n", GetLastError());
         PL_ASSERT(false);
     }
-}
-
-plOSResult
-pl_create_critical_section(plCriticalSection** pptCriticalSectionOut)
-{
-    (*pptCriticalSectionOut) = PL_ALLOC(sizeof(plCriticalSection));
-    InitializeCriticalSection(&(*pptCriticalSectionOut)->tHandle);
-    return PL_OS_RESULT_SUCCESS;
-}
-
-void
-pl_destroy_critical_section(plCriticalSection** pptCriticalSection)
-{
-    DeleteCriticalSection(&(*pptCriticalSection)->tHandle);
-    PL_FREE((*pptCriticalSection));
-    (*pptCriticalSection) = NULL;
-}
-
-void
-pl_enter_critical_section(plCriticalSection* ptCriticalSection)
-{
-    EnterCriticalSection(&ptCriticalSection->tHandle);
-}
-
-void
-pl_leave_critical_section(plCriticalSection* ptCriticalSection)
-{
-    LeaveCriticalSection(&ptCriticalSection->tHandle);
 }
 
 uint32_t
@@ -1537,259 +1053,8 @@ pl_get_hardware_thread_count(void)
     return uThreadCount;
 }
 
-plOSResult
-pl_create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut)
-{
-    (*pptBarrierOut) = PL_ALLOC(sizeof(plBarrier));
-    InitializeSynchronizationBarrier(&(*pptBarrierOut)->tHandle, uThreadCount, -1);
-    return PL_OS_RESULT_SUCCESS;
-}
-
-void
-pl_destroy_barrier(plBarrier** pptBarrier)
-{
-    DeleteSynchronizationBarrier(&(*pptBarrier)->tHandle);
-    PL_FREE((*pptBarrier));
-    *pptBarrier = NULL;
-}
-
-void
-pl_wait_on_barrier(plBarrier* ptBarrier)
-{
-    EnterSynchronizationBarrier(&ptBarrier->tHandle, 0);
-}
-
-plOSResult
-pl_create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
-{
-    (*pptSemaphoreOut) = PL_ALLOC(sizeof(plSemaphore));
-    (*pptSemaphoreOut)->tHandle = CreateSemaphore(NULL, uIntialCount, uIntialCount, NULL);
-    return PL_OS_RESULT_SUCCESS;
-}
-
-void
-pl_destroy_semaphore(plSemaphore** pptSemaphore)
-{
-    CloseHandle((*pptSemaphore)->tHandle);
-    PL_FREE((*pptSemaphore));
-    *pptSemaphore = NULL;
-}
-
-void
-pl_wait_on_semaphore(plSemaphore* ptSemaphore)
-{
-    WaitForSingleObject(ptSemaphore->tHandle, INFINITE);
-}
-
-bool
-pl_try_wait_on_semaphore(plSemaphore* ptSemaphore)
-{
-    DWORD dwWaitResult = WaitForSingleObject(ptSemaphore->tHandle, 0);
-    switch (dwWaitResult)
-    {
-        case WAIT_OBJECT_0: return true;
-        case WAIT_TIMEOUT:  return false;
-    }
-    PL_ASSERT(false);
-    return false;
-}
-
-void
-pl_release_semaphore(plSemaphore* ptSemaphore)
-{
-    if (!ReleaseSemaphore( 
-            ptSemaphore->tHandle,  // handle to semaphore
-            1,            // increase count by one
-            NULL) )       // not interested in previous count
-    {
-        printf("ReleaseSemaphore error: %d\n", GetLastError());
-        PL_ASSERT(false);
-    }
-}
-
-plOSResult
-pl_allocate_thread_local_key(plThreadKey** pptKeyOut)
-{
-    *pptKeyOut = PL_ALLOC(sizeof(plThreadKey));
-    memset(*pptKeyOut, 0, sizeof(plThreadKey));
-    (*pptKeyOut)->dwIndex = TlsAlloc();
-    return PL_OS_RESULT_SUCCESS;
-}
-
-void
-pl_free_thread_local_key(plThreadKey** pptKey)
-{
-    TlsFree((*pptKey)->dwIndex);
-    PL_FREE((*pptKey));
-    *pptKey = NULL;
-}
-
-void*
-pl_allocate_thread_local_data(plThreadKey* ptKey, size_t szSize)
-{
-    LPVOID lpvData = LocalAlloc(LPTR, szSize);
-    if(!TlsSetValue(ptKey->dwIndex, lpvData)) 
-    {
-        PL_ASSERT(false);
-        return NULL;
-    }
-    return lpvData;
-}
-
-void*
-pl_get_thread_local_data(plThreadKey* ptKey)
-{
-    LPVOID lpvData =  TlsGetValue(ptKey->dwIndex);
-    if(lpvData == NULL)
-    {
-        PL_ASSERT(false);
-    }
-    return lpvData;
-}
-
-void
-pl_free_thread_local_data(plThreadKey* ptKey, void* pData)
-{
-    LPVOID lpvData = TlsGetValue(ptKey->dwIndex);
-    LocalFree(lpvData);
-}
-
-plOSResult
-pl_create_condition_variable(plConditionVariable** pptConditionVariableOut)
-{
-    *pptConditionVariableOut = PL_ALLOC(sizeof(plConditionVariable));
-    InitializeConditionVariable(&(*pptConditionVariableOut)->tHandle);
-    return PL_OS_RESULT_SUCCESS;
-}
-
-void               
-pl_destroy_condition_variable(plConditionVariable** pptConditionVariable)
-{
-    PL_FREE((*pptConditionVariable));
-    *pptConditionVariable = NULL;
-}
-
-void               
-pl_wake_condition_variable(plConditionVariable* ptConditionVariable)
-{
-    WakeConditionVariable(&ptConditionVariable->tHandle);
-}
-
-void               
-pl_wake_all_condition_variable(plConditionVariable* ptConditionVariable)
-{
-    WakeAllConditionVariable(&ptConditionVariable->tHandle);
-}
-
-void               
-pl_sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection)
-{
-    SleepConditionVariableCS(&ptConditionVariable->tHandle, &ptCriticalSection->tHandle, INFINITE);
-}
-
 //-----------------------------------------------------------------------------
-// [SECTION] atomic api
-//-----------------------------------------------------------------------------
-
-plOSResult
-pl_create_atomic_counter(int64_t ilValue, plAtomicCounter** ptCounter)
-{
-    *ptCounter = _aligned_malloc(sizeof(plAtomicCounter), 8);
-    (*ptCounter)->ilValue = ilValue;
-    return PL_OS_RESULT_SUCCESS;
-}
-
-void
-pl_destroy_atomic_counter(plAtomicCounter** ptCounter)
-{
-    _aligned_free((*ptCounter));
-    (*ptCounter) = NULL;
-}
-
-void
-pl_atomic_store(plAtomicCounter* ptCounter, int64_t ilValue)
-{
-    ptCounter->ilValue = ilValue;
-}
-
-int64_t
-pl_atomic_load(plAtomicCounter* ptCounter)
-{
-    return ptCounter->ilValue;
-}
-
-bool
-pl_atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue)
-{
-    return InterlockedCompareExchange64(&ptCounter->ilValue, ilDesiredValue, ilExpectedValue) == ilExpectedValue;
-}
-
-int64_t
-pl_atomic_increment(plAtomicCounter* ptCounter)
-{
-    return InterlockedIncrement64(&ptCounter->ilValue);
-}
-
-int64_t
-pl_atomic_decrement(plAtomicCounter* ptCounter)
-{
-    return InterlockedDecrement64(&ptCounter->ilValue);
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] virtual memory api
-//-----------------------------------------------------------------------------
-
-size_t
-pl_get_page_size(void)
-{
-    SYSTEM_INFO tInfo = {0};
-    GetSystemInfo(&tInfo);
-    return (size_t)tInfo.dwPageSize;
-}
-
-void*
-pl_virtual_alloc(void* pAddress, size_t szSize)
-{
-    return VirtualAlloc(pAddress, szSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-}
-
-void*
-pl_virtual_reserve(void* pAddress, size_t szSize)
-{
-    return VirtualAlloc(pAddress, szSize, MEM_RESERVE, PAGE_READWRITE);
-}
-
-void*
-pl_virtual_commit(void* pAddress, size_t szSize)
-{
-    return VirtualAlloc(pAddress, szSize, MEM_COMMIT, PAGE_READWRITE);
-}
-
-void
-pl_virtual_free(void* pAddress, size_t szSize)
-{
-    BOOL bResult = VirtualFree(pAddress, szSize, MEM_RELEASE);
-    if(bResult)
-    {
-        printf("VirtualFree failed : %d\n", GetLastError());
-        PL_ASSERT(false);
-    };
-}
-
-void
-pl_virtual_uncommit(void* pAddress, size_t szSize)
-{
-    BOOL bResult = VirtualFree(pAddress, szSize, MEM_DECOMMIT);
-    if(bResult)
-    {
-        printf("VirtualFree failed : %d\n", GetLastError());
-        PL_ASSERT(false);
-    };
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] clipboard
+// [SECTION] clipboard api
 //-----------------------------------------------------------------------------
 
 const char*

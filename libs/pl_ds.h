@@ -310,37 +310,37 @@ COMPILE TIME OPTIONS
 //-----------------------------------------------------------------------------
 
 #define pl_hm_resize(ptHashMap, uBucketCount) \
-    pl__hm_resize(&ptHashMap, uBucketCount, __FILE__, __LINE__)
+    pl__hm_resize(&(ptHashMap), (uBucketCount), __FILE__, __LINE__)
 
 #define pl_hm_insert(ptHashMap, ulKey, ulValue) \
-    pl__hm_insert(&ptHashMap, ulKey, ulValue, __FILE__, __LINE__)
+    pl__hm_insert(&(ptHashMap), (ulKey), (ulValue), __FILE__, __LINE__)
 
 #define pl_hm_free(ptHashMap) \
-    pl__hm_free(&ptHashMap)
+    pl__hm_free(&(ptHashMap))
 
 #define pl_hm_remove(ptHashMap, ulKey) \
-    pl__hm_remove(&ptHashMap, ulKey)
+    pl__hm_remove(&(ptHashMap), (ulKey))
 
 #define pl_hm_remove_str(ptHashMap, pcKey) \
-    pl_hm_remove(ptHashMap, pl_hm_hash_str(pcKey))
+    pl_hm_remove((ptHashMap), pl_hm_hash_str((pcKey)))
 
 #define pl_hm_lookup(ptHashMap, ulKey) \
-    pl__hm_lookup(&ptHashMap, ulKey)
+    pl__hm_lookup(&(ptHashMap), (ulKey))
 
 #define pl_hm_get_free_index(ptHashMap) \
-    pl__hm_get_free_index(&ptHashMap)
+    pl__hm_get_free_index(&(ptHashMap))
 
 #define pl_hm_has_key(ptHashMap, ulKey) \
-    pl__hm_has_key(&ptHashMap, ulKey)
+    pl__hm_has_key(&(ptHashMap), (ulKey))
 
 #define pl_hm_has_key_str(ptHashMap, pcKey) \
-    pl_hm_has_key(ptHashMap, pl_hm_hash_str(pcKey))
+    pl_hm_has_key((ptHashMap), pl_hm_hash_str((pcKey)))
 
 #define pl_hm_lookup_str(ptHashMap, pcKey) \
-    pl_hm_lookup(ptHashMap, pl_hm_hash_str(pcKey))
+    pl_hm_lookup((ptHashMap), pl_hm_hash_str((pcKey)))
 
 #define pl_hm_insert_str(ptHashMap, pcKey, ulValue) \
-    pl_hm_insert(ptHashMap, pl_hm_hash_str(pcKey), ulValue)
+    pl_hm_insert((ptHashMap), pl_hm_hash_str((pcKey)), (ulValue))
 
 static inline uint64_t pl_hm_hash_str(const char* pcKey);
 static inline uint64_t pl_hm_hash    (const void* pData, size_t szDataSize, uint64_t uSeed);

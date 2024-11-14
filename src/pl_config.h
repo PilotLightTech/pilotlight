@@ -31,11 +31,9 @@
 // #define PL_OFFLINE_SHADERS_ONLY
 
 // core extension options
-#define PL_CORE_EXTENSION_INCLUDE_GRAPHICS
 #define PL_CORE_EXTENSION_INCLUDE_SHADER
 
 // experimental (don't use yet)
-// #define PL_HEADLESS_APP
 // #define PL_EXPERIMENTAL_RENDER_WHILE_RESIZE
 
 #endif // PL_CONFIG_H

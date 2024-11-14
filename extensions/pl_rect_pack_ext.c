@@ -88,8 +88,8 @@ pl_unload_rect_pack_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
 
-    const plRectPackI* ptApi = pl_get_api(ptApiRegistry, plRectPackI);
-    ptApiRegistry->remove(ptApi);
+    const plRectPackI* ptApi = pl_get_api_latest(ptApiRegistry, plRectPackI);
+    ptApiRegistry->remove_api(ptApi);
 
     if(gptRectPackCtx->ptNodes)
         PL_FREE(gptRectPackCtx->ptNodes);
