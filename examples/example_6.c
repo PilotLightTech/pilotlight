@@ -88,6 +88,7 @@ const plWindowI*   gptWindows = NULL;
 const plGraphicsI* gptGfx     = NULL;
 const plImageI*    gptImage   = NULL;
 const plShaderI*   gptShader  = NULL;
+const plFileI*     gptFile    = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -118,6 +119,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
         gptShader  = pl_get_api_latest(ptApiRegistry, plShaderI);
         gptImage   = pl_get_api_latest(ptApiRegistry, plImageI);
+        gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
 
         return ptAppData;
     }
@@ -140,6 +142,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
     gptShader  = pl_get_api_latest(ptApiRegistry, plShaderI);
     gptImage   = pl_get_api_latest(ptApiRegistry, plImageI);
+    gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
 
     // use window API to create a window
     plWindowDesc tWindowDesc = {
@@ -362,11 +365,17 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // load image from disk
+
+    size_t szImageFileSize = 0;
+    gptFile->binary_read("../data/pilotlight-assets-master/textures/SpriteMapExample.png", &szImageFileSize, NULL);
+    unsigned char* pucBuffer = malloc(szImageFileSize);
+    gptFile->binary_read("../data/pilotlight-assets-master/textures/SpriteMapExample.png", &szImageFileSize, pucBuffer);
+
     int iImageWidth = 0;
     int iImageHeight = 0;
     int _unused;
-    unsigned char* pucImageData = gptImage->load("../data/pilotlight-assets-master/textures/SpriteMapExample.png",
-        &iImageWidth, &iImageHeight, &_unused, 4);
+    unsigned char* pucImageData = gptImage->load(pucBuffer, (int)szImageFileSize, &iImageWidth, &iImageHeight, &_unused, 4);
+    free(pucBuffer);
 
     // create texture
     const plTextureDesc tTextureDesc = {

@@ -221,7 +221,7 @@ typedef struct _plFileI
     plFileResult (*copy)  (const char* source, const char* destination);
 
     // binary files
-    plFileResult (*binary_read) (const char* file, size_t* sizeOut, uint8_t* buffer); // pass NULL for puBuffer to get size
+    plFileResult (*binary_read) (const char* file, size_t* sizeOut, uint8_t* buffer); // pass NULL for buffer to get size
     plFileResult (*binary_write)(const char* file, size_t, uint8_t* buffer);
 
 } plFileI;

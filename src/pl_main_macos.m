@@ -847,14 +847,14 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
     // obtain file size
     fseek(ptDataFile, 0, SEEK_END);
     uSize = ftell(ptDataFile);
-    fseek(ptDataFile, 0, SEEK_SET);
-
+    
     if(pcBuffer == NULL)
     {
         *pszSizeIn = uSize;
         fclose(ptDataFile);
         return PL_FILE_RESULT_SUCCESS;
     }
+    fseek(ptDataFile, 0, SEEK_SET);
 
     // copy the file into the buffer:
     size_t szResult = fread(pcBuffer, sizeof(char), uSize, ptDataFile);

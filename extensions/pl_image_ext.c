@@ -24,15 +24,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 static bool
-pl__get_info(char const* pcFilename, plImageInfo* ptInfoOut)
-{
-    ptInfoOut->b16Bit = stbi_is_16_bit(pcFilename);
-    ptInfoOut->bHDR = stbi_is_hdr(pcFilename);
-
-    return stbi_info(pcFilename, &ptInfoOut->iWidth, &ptInfoOut->iHeight, &ptInfoOut->iChannels);
-}
-
-static bool
 pl__get_info_from_memory(const unsigned char* pcBuffer, int iLength, plImageInfo* ptInfoOut)
 {
     ptInfoOut->b16Bit = stbi_is_16_bit_from_memory(pcBuffer, iLength);
@@ -80,14 +71,10 @@ static void
 pl_load_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plImageI tApi = {
-        .get_info               = pl__get_info,
-        .get_info_from_memory   = pl__get_info_from_memory,
-        .load_from_memory       = stbi_load_from_memory,
-        .load_16bit_from_memory = stbi_load_16_from_memory,
-        .load_hdr_from_memory   = stbi_loadf_from_memory,
-        .load                   = stbi_load,
-        .load_16bit             = stbi_load_16,
-        .load_hdr               = stbi_loadf,
+        .get_info               = pl__get_info_from_memory,
+        .load                   = stbi_load_from_memory,
+        .load_16bit             = stbi_load_16_from_memory,
+        .load_hdr               = stbi_loadf_from_memory,
         .free                   = stbi_image_free,
         .write                  = pl_write_image,
         .set_hdr_to_ldr_gamma   = stbi_hdr_to_ldr_gamma,

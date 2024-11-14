@@ -1915,7 +1915,12 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     int iPanoramaHeight = 0;
     int iUnused = 0;
     pl_begin_profile_sample(0, "load image");
-    float* pfPanoramaData = gptImage->load_hdr(pcPath, &iPanoramaWidth, &iPanoramaHeight, &iUnused, 4);
+    size_t szImageFileSize = 0;
+    gptFile->binary_read(pcPath, &szImageFileSize, NULL);
+    unsigned char* pucBuffer = PL_ALLOC(szImageFileSize);
+    gptFile->binary_read(pcPath, &szImageFileSize, pucBuffer);
+    float* pfPanoramaData = gptImage->load_hdr(pucBuffer, (int)szImageFileSize, &iPanoramaWidth, &iPanoramaHeight, &iUnused, 4);
+    PL_FREE(pucBuffer);
     pl_end_profile_sample(0);
     PL_ASSERT(pfPanoramaData);
 
@@ -1961,6 +1966,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         atComputeBuffers[0] = pl__refr_create_staging_buffer(&tInputBufferDesc, "panorama input", 0);
         plBuffer* ptComputeBuffer = gptGfx->get_buffer(ptDevice, atComputeBuffers[0]);
         memcpy(ptComputeBuffer->tMemoryAllocation.pHostMapped, pfPanoramaData, uPanoramaSize);
+        
+        gptImage->free(pfPanoramaData);
 
         const plBufferDesc tOutputBufferDesc = {
             .tUsage    = PL_BUFFER_USAGE_STORAGE,
@@ -2060,8 +2067,6 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         
         for(uint32_t i = 0; i < 7; i++)
             gptGfx->destroy_buffer(ptDevice, atComputeBuffers[i]);
-
-        gptImage->free(pfPanoramaData);
 
         plBindGroupLayout tSkyboxBindGroupLayout = {
             .atTextureBindings = { {.uSlot = 0, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}}
@@ -5805,7 +5810,7 @@ pl__refr_job(uint32_t uJobIndex, void* pData)
             {
                 size_t szResourceSize = 0;
                 const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[i].tResource, &szResourceSize);
-                float* rawBytes = gptImage->load_hdr_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+                float* rawBytes = gptImage->load_hdr((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
                 gptResource->set_buffer_data(ptMaterial->atTextureMaps[i].tResource, sizeof(float) * texWidth * texHeight * 4, rawBytes);
                 ptMaterial->atTextureMaps[i].uWidth = texWidth;
                 ptMaterial->atTextureMaps[i].uHeight = texHeight;
@@ -5814,7 +5819,7 @@ pl__refr_job(uint32_t uJobIndex, void* pData)
             {
                 size_t szResourceSize = 0;
                 const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[i].tResource, &szResourceSize);
-                unsigned char* rawBytes = gptImage->load_from_memory((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+                unsigned char* rawBytes = gptImage->load((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
                 PL_ASSERT(rawBytes);
                 ptMaterial->atTextureMaps[i].uWidth = texWidth;
                 ptMaterial->atTextureMaps[i].uHeight = texHeight;
